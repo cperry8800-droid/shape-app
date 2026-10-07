@@ -167,7 +167,7 @@ const say = (text) => ({ output_text: text, output: [{ type: 'message', content:
 const fnCall = (name, args, id = `call_${name}`) => ({ type: 'function_call', call_id: id, name, arguments: JSON.stringify(args) });
 const calls = (...items) => ({ output: [{ type: 'reasoning', id: 'rs_1', summary: [] }, ...items] });
 
-async function loadChat({ role = 'trainer', user = { id: COACH, email: 'c@x' }, isMember = true, answers = [say('ok')], coached = [], hasKey = true, failAI = false, tables = {}, fail = [] } = {}) {
+async function loadChat({ role = 'trainer', user = { id: COACH, email: 'c@x' }, isMember = true, answers = [say('ok')], coached = [], hasKey = true, failAI = false, tables = {}, fail = [], roles = null } = {}) {
   const sb = fakeSupabase({ tables: { user_goals: [], ...tables }, fail, rpcs: { is_coach_on_client: (a) => coached.includes(a.p_client_id) } });
   const seen = [];
   let i = 0;
@@ -195,8 +195,8 @@ async function loadChat({ role = 'trainer', user = { id: COACH, email: 'c@x' }, 
       callAI: async (body, opts) => { seen.push({ body, opts }); if (failAI) return { ok: false, reason: 'http_error', status: 503, latencyMs: 1, promptId: opts.promptId }; const a = answers[Math.min(i, answers.length - 1)]; i += 1; return { ok: true, data: a, usage: null, latencyMs: 1, promptId: opts.promptId, model: 'pinned', fellBack: false }; },
     }],
     ['@/lib/ai/server', {
-      resolveActor: async () => (user ? { user, role, supabase: sb } : null),
-      makeCtx: (actor) => ({ actor: { id: actor.user.id, role: actor.role }, supabase: sb, store: {}, call: async () => ({ ok: true, status: 200, data: {} }) }),
+      resolveActor: async () => (user ? { user, role, roles: roles || [role], supabase: sb } : null),
+      makeCtx: (actor) => ({ actor: { id: actor.user.id, role: actor.role, roles: actor.roles }, supabase: sb, store: {}, call: async () => ({ ok: true, status: 200, data: {} }) }),
       serverRegistry: registry,
       proposalSecret: () => 'chat-secret',
       casWriteUserGoals: async () => ({ ok: true }),
@@ -483,4 +483,37 @@ test('Nora on the website, in the app and in her knowledge base: no promise of a
   }
   const en = JSON.parse(readFileSync(join(ROOT, 'mobile-app/src/i18n/catalogs/en/feed.json'), 'utf8'));
   assert.equal(en['support.composerPlaceholder'], 'Ask Nora…', "Nora's composer asks Nora, not a team nobody routes it to");
+});
+
+// ── a dual-role account that also trains drafts too ────────────────────────────
+// #2227's open thread, ruled by the owner 2026-10-07: drafting follows the account's
+// every role (profiles.role plus roles[]), as /api/ai/draft-workout already did.
+test('roleAllowed: any held role opens an action; the primary role alone still works', () => {
+  const draft = { roles: ['trainer'] };
+  assert.equal(proposals.roleAllowed(draft, 'client', ['client', 'trainer']), true);
+  assert.equal(proposals.roleAllowed(draft, 'client', ['client']), false);
+  assert.equal(proposals.roleAllowed(draft, 'client'), false);
+  assert.equal(proposals.roleAllowed(draft, 'trainer'), true);
+  assert.equal(proposals.roleAllowed({ roles: (r) => r === 'nutritionist' }, 'client', ['nutritionist']), true);
+});
+
+test('Nora: a client who also trains is offered draft_workout', async () => {
+  const dual = await loadChat({ role: 'client', roles: ['client', 'trainer'] });
+  await dual.mod.POST(chatPost('hi'));
+  assert.ok(toolNames(dual.seen[0].body).includes('draft_workout'));
+  assert.match(dual.seen[0].body.input[0].content, /TRAINER DRAFTING/);
+  const only = await loadChat({ role: 'client', roles: ['client'] });
+  await only.mod.POST(chatPost('hi'));
+  assert.ok(!toolNames(only.seen[0].body).includes('draft_workout'), 'a client alone is not');
+  const nut = await loadChat({ role: 'nutritionist', roles: ['nutritionist'] });
+  await nut.mod.POST(chatPost('hi'));
+  assert.ok(!toolNames(nut.seen[0].body).includes('draft_workout'), 'a nutritionist alone is not');
+});
+
+test('Nora: a dual-role account\'s drafted card is built, not refused as role_not_allowed', async () => {
+  const t = await loadChat({ role: 'client', roles: ['client', 'trainer'], answers: [calls(fnCall('draft_workout', { request: 'lower body, 50 min, barbell, intermediate', kind: 'day', minutes: 50 })), modelText(RAW), say("I've drafted it — review it below.")] });
+  const json = await (await t.mod.POST(chatPost('build me a lower body session, 50 min, barbell'))).json();
+  const card = (json.actions || []).find((a) => a.type === 'proposal');
+  assert.ok(card, 'a confirm card');
+  assert.equal(card.action, 'draft_workout');
 });
