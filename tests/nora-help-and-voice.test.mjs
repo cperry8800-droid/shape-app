@@ -32,7 +32,7 @@ test('app Help: bsOpenNora sends the same request as search\'s Nora hit', () => 
 });
 
 test('website: voice controls show only to someone the gate lets through', () => {
-  assert.match(WEB, /const canVoice = member === true;/);
+  assert.match(WEB, /const canVoice = member === true(;| \|\| voiceGate === true;)/);
   const guarded = [
     '{!m.me && isSupport && canVoice && (\n                    <button onClick={() => speakNora(m.t, { explicit: true })}',
     '{canVoice && <button onClick={() => setNoraEnabled(!noraVoice.enabled)}',
@@ -46,4 +46,43 @@ test('website: voice controls show only to someone the gate lets through', () =>
   // every speak / mic entry point in the Support composer is one of the guarded ones
   assert.equal((WEB.match(/onClick=\{toggleVoice\}/g) || []).length, 1);
   assert.equal((WEB.match(/onClick=\{\(\) => speakNora\(/g) || []).length, 1);
+});
+
+// ── Codex, #2241 ────────────────────────────────────────────────────────────────
+test('app: a conversation opened from inside Settings closes Settings first, in every shell', () => {
+  const PROS = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx'), 'utf8');
+  for (const [name, src, n] of [['client', APP, 1], ['coach', PROS, 2]]) {
+    const hits = src.split("window.addEventListener('shape:openConversation', open);").slice(0, -1)
+      .filter((before) => /setShowSettings\(false\);\s*setChatRequest\(\{[^\n]*\}\);\s*setTab\('chat'\);\s*\};\s*$/.test(before));
+    assert.equal(hits.length, n, `${name}: every openConversation listener closes Settings`);
+  }
+});
+
+test('website: voice also asks the server gate, so a dietitian or an admin keeps it', () => {
+  assert.match(WEB, /const canVoice = member === true \|\| voiceGate === true;/);
+  assert.match(WEB, /if \(member !== false \|\| !myUserIdRef\.current\) return undefined;/, 'only a signed-in account the member check refused asks');
+  assert.match(WEB, /fetch\("\/api\/ai\/speak", \{ method: "GET", credentials: "same-origin", cache: "no-store" \}\)\s*\.then\(\(r\) => \{ if \(!cancelled\) setVoiceGate\(r\.ok\); \}\)/);
+});
+
+test('GET /api/ai/speak answers the gate\'s own verdict, with no audio and no key', async () => {
+  const { loadRealModule } = await import('./helpers/load-real-module.mjs');
+  const json = (body, init = {}) => ({ status: init.status ?? 200, headers: init.headers || {}, json: async () => body });
+  const next = { NextResponse: Object.assign(function () {}, { json }) };
+  const load = (denied, actor) => loadRealModule(join(ROOT, 'src/app/api/ai/speak/route.ts'), {
+    typescript: true,
+    registry: new Map([
+      ['next/server', next],
+      ['@/lib/request-utils', { readJson: async () => ({ ok: false }) }],
+      ['@/lib/ai/server', { resolveActor: async () => actor }],
+      ['@/lib/ai', { hasOpenAIKey: () => { throw new Error('GET must not touch the key'); }, synthesizeSpeech: () => { throw new Error('GET must not speak'); } }],
+      ['@/lib/ai/tone.mjs', {}],
+      ['@/lib/require-membership', { requireMembership: async () => denied }],
+    ]),
+  });
+  const ok = await (await load(null, { user: { id: 'u' } })).GET(new Request('https://x/api/ai/speak'));
+  assert.equal(ok.status, 200);
+  assert.deepEqual(await ok.json(), { voice: true });
+  const refusal = json({ error: 'Shape membership required.' }, { status: 402 });
+  assert.equal(await (await load(refusal, null)).GET(new Request('https://x/api/ai/speak')), refusal, 'the gate\'s refusal is returned as is');
+  assert.equal((await (await load(null, null)).GET(new Request('https://x/api/ai/speak'))).status, 401);
 });

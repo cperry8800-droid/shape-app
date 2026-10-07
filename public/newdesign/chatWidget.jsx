@@ -1226,7 +1226,19 @@ function ChatWidget(props) {
   // non-member was shown a mic and a read-aloud that could only fail (the Ask Nora
   // review, 2026-10-07). The controls show once this answers yes; typing to Nora is
   // open to everyone. A ref too, for the reply path that reads it after an await.
-  const canVoice = member === true;
+  // ⚠ AND THE SERVER DECIDES THE REST. `member` knows coaches and subscribers only;
+  // the gate also admits a dietitian or an admin (Codex, #2241). So a signed-in
+  // account the member check says no to asks the gate itself (GET /api/ai/speak).
+  const [voiceGate, setVoiceGate] = React.useState(null);
+  React.useEffect(() => {
+    if (member !== false || !myUserIdRef.current) return undefined;
+    let cancelled = false;
+    fetch("/api/ai/speak", { method: "GET", credentials: "same-origin", cache: "no-store" })
+      .then((r) => { if (!cancelled) setVoiceGate(r.ok); })
+      .catch(() => { if (!cancelled) setVoiceGate(false); });
+    return () => { cancelled = true; };
+  }, [member]);
+  const canVoice = member === true || voiceGate === true;
   const canVoiceRef = React.useRef(false);
   React.useEffect(() => { canVoiceRef.current = canVoice; }, [canVoice]);
   React.useEffect(() => {

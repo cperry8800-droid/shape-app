@@ -809,6 +809,9 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       if (!d.conversationId && !d.channel && !d.support) return;
       navJumpRef.current.navPush();
       setShowSearch(false);
+      // Settings is a full-screen overlay above the tabs; a conversation opened from
+      // inside it (Help's "Ask Nora") would land underneath, invisible (Codex, #2241).
+      setShowSettings(false);
       setChatRequest({ conversationId: d.conversationId || null, channel: d.channel || null, support: !!d.support, coach: d.name || null, nonce: Date.now() });
       setTab('chat');
     };
