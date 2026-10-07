@@ -488,13 +488,20 @@ test('Nora on the website, in the app and in her knowledge base: no promise of a
 // ── a dual-role account that also trains drafts too ────────────────────────────
 // #2227's open thread, ruled by the owner 2026-10-07: drafting follows the account's
 // every role (profiles.role plus roles[]), as /api/ai/draft-workout already did.
-test('roleAllowed: any held role opens an action; the primary role alone still works', () => {
-  const draft = { roles: ['trainer'] };
+test('roleAllowed: a held role opens only an action that opts in; the primary role alone still works', () => {
+  const draft = { roles: ['trainer'], heldRoles: true };
   assert.equal(proposals.roleAllowed(draft, 'client', ['client', 'trainer']), true);
   assert.equal(proposals.roleAllowed(draft, 'client', ['client']), false);
   assert.equal(proposals.roleAllowed(draft, 'client'), false);
   assert.equal(proposals.roleAllowed(draft, 'trainer'), true);
-  assert.equal(proposals.roleAllowed({ roles: (r) => r === 'nutritionist' }, 'client', ['nutritionist']), true);
+  assert.equal(proposals.roleAllowed({ roles: (r) => r === 'nutritionist', heldRoles: true }, 'client', ['nutritionist']), true);
+  // ⚠ Every other action still reads ctx.actor.role downstream (Codex, #2242).
+  assert.equal(proposals.roleAllowed({ roles: ['trainer', 'nutritionist'] }, 'client', ['client', 'trainer']), false);
+});
+
+test('the registry: draft_workout alone opts in to held roles', () => {
+  const opted = actions.NORA_ACTIONS.filter((a) => a.heldRoles === true).map((a) => a.name);
+  assert.deepEqual(opted, ['draft_workout']);
 });
 
 test('Nora: a client who also trains is offered draft_workout', async () => {

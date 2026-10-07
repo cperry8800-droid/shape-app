@@ -86,11 +86,14 @@ export function createRegistry() {
   };
 }
 
-// `held` is the actor's every role (primary plus profiles.roles[]); an action is open
-// when any of them is allowed, so a dual-role account is the trainer it also is.
+// `held` is the actor's every role (primary plus profiles.roles[]). It counts only for
+// an action that opts in with `heldRoles: true` (draft_workout, which saves to the
+// account's own trainers listing and reads no role after this). Every other action
+// still branches on ctx.actor.role (a coach's zone, the discipline a program detail
+// targets), so a secondary role must not open it (Codex, #2242).
 export function roleAllowed(action, role, held) {
   const roles = action.roles || ALL_MEMBER_ROLES;
-  const mine = [role, ...(Array.isArray(held) ? held : [])];
+  const mine = [role, ...(action.heldRoles === true && Array.isArray(held) ? held : [])];
   if (typeof roles === 'function') return mine.some((r) => !!roles(r));
   return Array.isArray(roles) && mine.some((r) => roles.includes(r));
 }
