@@ -134,7 +134,7 @@ test('website: shapeAskNora opens Nora with the draft; an error goes with questi
 test('website: both panels send it, and the chip takes it off', () => {
   assert.match(GCB, /var body = \{ messages: history, surface: "web", confirmCards: false, context: window\.__shapeNoraContext\(\) \};/);
   const W = read('public/newdesign/chatWidget.jsx');
-  assert.match(W, /surface: "web", locale: cwLocale\(\), context: cwNoraContext\(\), \.\.\.extra/);
+  assert.match(W, /surface: "web", locale: cwLocale\(\), context: cwNoraContext\(\), stream: true, \.\.\.extra/);
   assert.match(W, /window\.__shapeNoraContext\(!noraScreenOffRef\.current\)/);
   assert.match(W, /onClick=\{\(\) => setNoraScreenOff\(true\)\} aria-label="Don't tell Nora which page you're on"/);
   // What pages have open: the client file, the Schedule's booking, a recipe.

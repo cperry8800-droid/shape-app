@@ -266,6 +266,50 @@ function CwFillCard({ a }) {
   );
 }
 
+// Nora's streamed answer (POST /api/support/chat with `stream: true`): her reply so far on each
+// `text`, `reset` when a round turned out to be a lookup, and `done` with exactly the object a
+// plain request gets. An identical copy of public/newdesign/noraStream.mjs, which the app's
+// Nora sheet imports; tests/nora-stream.test.mjs holds the two to each other.
+function cwIsNoraStream(res) {
+  const type = res && res.headers && typeof res.headers.get === 'function' ? String(res.headers.get('content-type') || '') : '';
+  return /text\/event-stream/i.test(type);
+}
+
+async function cwReadNoraStream(res, { onText, onReset } = {}) {
+  const reader = res && res.body && typeof res.body.getReader === 'function' ? res.body.getReader() : null;
+  if (!reader) return null;
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let done = null;
+  const take = (block) => {
+    let event = 'message';
+    const data = [];
+    for (const line of block.split('\n')) {
+      if (line.startsWith('event:')) event = line.slice(6).trim();
+      else if (line.startsWith('data:')) data.push(line.slice(5).replace(/^ /, ''));
+    }
+    if (!data.length) return;
+    let value;
+    try { value = JSON.parse(data.join('\n')); } catch (e) { return; }
+    if (event === 'text') { if (value && typeof value.text === 'string' && onText) onText(value.text); }
+    else if (event === 'reset') { if (onReset) onReset(); }
+    else if (event === 'done') { if (value && typeof value === 'object') done = value; }
+  };
+  for (;;) {
+    const { value, done: end } = await reader.read();
+    if (value) buffer += decoder.decode(value, { stream: true }).replace(/\r/g, '');
+    let cut = buffer.indexOf('\n\n');
+    while (cut >= 0) {
+      take(buffer.slice(0, cut));
+      buffer = buffer.slice(cut + 2);
+      cut = buffer.indexOf('\n\n');
+    }
+    if (end) break;
+  }
+  if (buffer.trim()) take(buffer);
+  return done;
+}
+
 // A twentieth of a second of silence (the same clip as public/newdesign/noraVoiceLoop.mjs
 // SILENT_CLIP; tests/nora-voice-mode.test.mjs holds the two equal). Played on Nora's player
 // inside the tap that asked for her voice, so the reply set on that same element after the
@@ -443,6 +487,8 @@ function ChatWidget(props) {
   const [activeByTab, setActiveByTab] = React.useState(() => tabs.map(() => 0));
   const [draftByTab, setDraftByTab] = React.useState(() => tabs.map(() => ""));
   const [typing, setTyping] = React.useState(false);
+  // Nora's reply so far while she writes it (streamed); the finished reply replaces it.
+  const [noraLive, setNoraLive] = React.useState("");
   // Re-render avatars as people come online / go offline (live presence ring).
   const [, setPresenceV] = React.useState(0);
   React.useEffect(() => {
@@ -1265,7 +1311,7 @@ function ChatWidget(props) {
 
   React.useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [tabIdx, activeIdx, active?.messages?.length, typing, open]);
+  }, [tabIdx, activeIdx, active?.messages?.length, typing, open, noraLive]);
 
   const setDraft = (v) => setDraftByTab(prev => prev.map((d, i) => i === tabIdx ? v : d));
 
@@ -1352,21 +1398,29 @@ function ChatWidget(props) {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "same-origin",
-            body: JSON.stringify({ messages: history, tone: noraVoice.tone, voice: !!(opts && opts.voice), surface: "web", locale: cwLocale(), context: cwNoraContext(), ...extra }),
+            body: JSON.stringify({ messages: history, tone: noraVoice.tone, voice: !!(opts && opts.voice), surface: "web", locale: cwLocale(), context: cwNoraContext(), stream: true, ...extra }),
           });
+          // Her words appear as she writes them; a round that turned out to be a lookup takes
+          // back what it showed. The limit and the bot check still answer as plain JSON.
+          const live = {
+            onText: (t) => { if (gen === noraThreadGenRef.current) setNoraLive(t); },
+            onReset: () => setNoraLive(""),
+          };
+          const read = async (r) => (r.ok && cwIsNoraStream(r) ? ((await cwReadNoraStream(r, live)) || {}) : await r.json().catch(() => ({})));
           let res = await ask({});
-          let data = await res.json().catch(() => ({}));
+          let data = await read(res);
           // A visitor's first question passes the bot check: solve it once and ask again.
           if (res.status === 403 && data && data.needsCheck) {
             // globalChatButton.js carries the solver on every page with Nora, including the
             // marketing pages that never load /supabase.js; ShapeTurnstile is the fallback.
             const solve = window.__shapeNoraSolve || (window.ShapeTurnstile && window.ShapeTurnstile.solve);
             const token = solve ? await solve() : "";
-            if (token) { res = await ask({ turnstileToken: token }); data = await res.json().catch(() => ({})); }
+            if (token) { res = await ask({ turnstileToken: token }); data = await read(res); }
           }
           if (data && data.reply && (res.ok || data.needsCheck)) { reply = data.reply; actions = data.actions; }
         } catch (e) { /* fall back below */ }
         setTyping(false);
+        setNoraLive("");
         // Cleared while she was answering: the answer belongs to the conversation that went.
         if (gen !== noraThreadGenRef.current) return null;
         const finalReply = reply || supportReply(text);
@@ -2326,7 +2380,19 @@ function ChatWidget(props) {
                 </div>
                 );
               })}
-              {typing && (
+              {typing && isSupport && noraLive ? (() => {
+                // Her reply so far, drawn as her messages are; the finished reply replaces it.
+                const who = (active && active.who) || "Nora";
+                const tc = cwTierColor(cwHashTier(who, /trainer|coach|nutritionist/i.test((active && active.role) || "")));
+                return (
+                  <div data-nora-live style={{ display: "flex", alignItems: "flex-start", gap: 11, maxWidth: "90%" }}>
+                    <div style={{ alignSelf: "flex-start" }}>
+                      <CwFacetAvatar size={32} c={tc} initial={cwInitials(who)} photo={cwDemoFace(who)} />
+                    </div>
+                    <div style={{ maxWidth: "100%", width: "fit-content", overflowWrap: "anywhere", padding: "9px 13px", borderRadius: 12, borderTopLeftRadius: 3, background: cwHexA(tc, 0.13), color: INK, border: "1px solid " + cwHexA(tc, 0.33), fontSize: 13.5, lineHeight: 1.45 }}>{noraLive}</div>
+                  </div>
+                );
+              })() : typing && (
                 <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--sh-ink2, #a09b94)", fontSize: 12, fontStyle: "italic" }}>
                   <TypingDots />{isSupport ? "Nora is typing…" : "someone is typing…"}
                 </div>

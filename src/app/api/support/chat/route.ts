@@ -1058,6 +1058,7 @@ async function askOpenAI(
   tone: string | undefined,
   member: { contextMsg: string | null; memberTools: typeof MEMBER_TOOLS; memoryCtx: MemoryCtx | null; cookMsg: string | null; reads: ReadCtx | null; coachTools: typeof COACH_TOOLS; adminTools?: typeof ADMIN_TOOLS; trainerTools: typeof TRAINER_TOOLS; nutritionTools?: typeof NUTRITION_TOOLS; trainerZone?: string; noCards?: boolean; isMember: boolean; signedIn?: boolean; teamReplies?: Set<string>; voice: boolean; locale: string | null; coach: CoachCtx; where?: { system: string; data: string | null }; form?: FormCtx | null },
   signal?: AbortSignal,
+  sink?: StreamSink,
 ): Promise<{ reply: string; actions: SupportAction[]; model: string | null } | null> {
   if (!hasOpenAIKey()) return null;
   // A reply from a person at Shape ("Talk to a person", role 'team') is quoted in the user
@@ -1152,7 +1153,11 @@ async function askOpenAI(
     // `low` effort + `low` verbosity: a chat bubble wants the answer in a
     // second and in a sentence; the lookups, not the reasoning budget, are
     // what make it right.
-    const result = await callAI(body, { promptId: 'support.chat', signal, effort: 'low', verbosity: 'low' });
+    // Streamed, her words go out as she writes them; a round that turns out to be a tool call
+    // takes back what it showed (reset), and the final reply replaces it all (the `done` event).
+    let shownThisRound = false;
+    const onText = sink ? (d: string) => { shownThisRound = true; sink.text(d); } : undefined;
+    const result = await callAI(body, { promptId: 'support.chat', signal, effort: 'low', verbosity: 'low', ...(onText ? { onText } : {}) });
     if (!result.ok) return null;
     answeredBy = result.model;
     if (result.fellBack) pinnedModel = result.model;
@@ -1164,6 +1169,7 @@ async function askOpenAI(
       const reply = plainText(extractOutputText(payload));
       return reply ? { reply, actions, model: answeredBy } : null;
     }
+    if (shownThisRound && sink) sink.reset();
     // Echo the model's output items back (function calls AND the reasoning
     // items that precede them — a reasoning model refuses a call without its
     // reasoning), then append our outputs.
@@ -1275,6 +1281,9 @@ async function storedTeamReplies(actor: Awaited<ReturnType<typeof resolveActor>>
   return new Set([...replies].map((r) => r.slice(0, 2000).trim()));
 }
 
+// Where a streamed answer's words go as the model writes them (POST with `stream: true`).
+type StreamSink = { text: (delta: string) => void; reset: () => void };
+
 // A step started early, so it runs beside the others: its failure is kept and thrown where
 // the route has always awaited it, never reported as unhandled while the rest run.
 type Settled<T> = { ok: true; value: T } | { ok: false; error: unknown };
@@ -1289,7 +1298,7 @@ const COACH_ROLE_NAMES = new Set(['trainer', 'nutritionist', 'dietitian']);
 
 export async function POST(request: Request) {
   const startedAt = Date.now();
-  const parsed = await readJson<{ messages?: ChatMessage[]; tone?: string; cookContext?: unknown; voice?: unknown; surface?: unknown; locale?: unknown; confirmCards?: unknown; turnstileToken?: unknown; context?: unknown }>(request);
+  const parsed = await readJson<{ messages?: ChatMessage[]; tone?: string; cookContext?: unknown; voice?: unknown; surface?: unknown; locale?: unknown; confirmCards?: unknown; turnstileToken?: unknown; context?: unknown; stream?: unknown }>(request);
   if (!parsed.ok) return parsed.response;
   const body = parsed.data;
   const messages = Array.isArray(body.messages) ? body.messages.filter((m) => m && m.content) : [];
@@ -1448,8 +1457,11 @@ export async function POST(request: Request) {
   const teamReplies = settledValue(await teamRepliesEarly);
   // How long the setup took before the model was asked: greppable beside the model's own line.
   console.log('[shape-ai]', JSON.stringify({ promptId: 'support.chat.setup', setupMs: Date.now() - startedAt, signedIn: !!actor }));
-  const ai = await askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx, cookMsg, reads, coachTools, adminTools, trainerTools, nutritionTools, trainerZone: zone, isMember, signedIn: !!actor, teamReplies, voice, locale, coach, noCards, where, form }, request.signal).catch(() => null);
-  if (ai) return respond({ reply: ai.reply, source: 'ai', actions: ai.actions, model: ai.model });
+  const ask = (sink?: StreamSink) => askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx, cookMsg, reads, coachTools, adminTools, trainerTools, nutritionTools, trainerZone: zone, isMember, signedIn: !!actor, teamReplies, voice, locale, coach, noCards, where, form }, request.signal, sink).catch(() => null);
+  // What she answers, whatever happened: the model's reply, or the fallbacks below. The same
+  // object either way; a streamed request gets it as the final `done` event.
+  const answer = async (ai: Awaited<ReturnType<typeof ask>>): Promise<Record<string, unknown>> => {
+    if (ai) return { reply: ai.reply, source: 'ai', actions: ai.actions, model: ai.model };
 
   // Cook Mode is a read-only, grounded sous-chef: the support fallback can claim
   // "I've passed this to the Shape team" or return coach/screen actions, which
@@ -1459,7 +1471,7 @@ export async function POST(request: Request) {
   // honest AND localized rather than a hardcoded English string (CodeRabbit
   // Major + adversarial review PR #1805).
   if (cookMsg) {
-    return respond({ reply: '', source: 'cook_unavailable', actions: [] });
+    return { reply: '', source: 'cook_unavailable', actions: [] };
   }
 
   // ⚠ NO MODEL, STILL A STARTING POINT FOR A TRAINER. The rule-based reply below cannot
@@ -1472,12 +1484,62 @@ export async function POST(request: Request) {
     const brief = draftBriefFromText(String(lastUser.content || ''));
     const drafted = brief ? await makePropose(actor, request, isMember, null, zone)('draft_workout', brief).catch(() => null) : null;
     if (drafted && drafted.actions.length) {
-      return respond({ reply: TEMPLATE_FALLBACK_REPLY, source: 'fallback', actions: drafted.actions });
+      return { reply: TEMPLATE_FALLBACK_REPLY, source: 'fallback', actions: drafted.actions };
     }
   }
 
   const fb = await fallbackReply(String(lastUser.content || ''), coach);
-  return respond({ reply: fb.reply, source: 'fallback', actions: fb.actions });
+  return { reply: fb.reply, source: 'fallback', actions: fb.actions };
+  };
+
+  // ⚠ STREAMED ON REQUEST (speed, 2026-10-08): a panel that asks with `stream: true` gets her
+  // words as she writes them (Server-Sent Events: `text` with the reply so far, cleaned as the
+  // final reply is; `reset` when a round turns out to be a tool call; `done` with exactly the
+  // object a plain request gets). Everything before this point (the limit, the bot check) still
+  // answers as plain JSON, and a panel that does not ask gets the JSON reply as before.
+  if (body.stream === true) {
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        let open = true;
+        const send = (event: string, data: unknown) => {
+          if (!open) return;
+          try { controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)); } catch { open = false; }
+        };
+        // The reply so far, sent at most every 60 ms: the whole text each time, cleaned the
+        // way the final reply is, so a panel just draws what it is given.
+        let written = '';
+        let sent = '';
+        let timer: ReturnType<typeof setTimeout> | null = null;
+        const flush = () => {
+          timer = null;
+          const shown = plainText(written);
+          if (shown && shown !== sent) { sent = shown; send('text', { text: shown }); }
+        };
+        const sink: StreamSink = {
+          text: (d) => { written += d; if (!timer) timer = setTimeout(flush, 60); },
+          reset: () => { if (timer) { clearTimeout(timer); timer = null; } written = ''; sent = ''; send('reset', {}); },
+        };
+        try {
+          const ai = await ask(sink);
+          if (timer) { clearTimeout(timer); timer = null; }
+          send('done', await answer(ai));
+        } catch {
+          send('done', { reply: '', source: 'error', actions: [] });
+        } finally {
+          if (timer) clearTimeout(timer);
+          open = false;
+          try { controller.close(); } catch { /* already closed */ }
+        }
+      },
+    });
+    const res = new Response(stream, {
+      headers: { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store, no-transform', 'X-Accel-Buffering': 'no' },
+    });
+    if (setCookie) res.headers.append('Set-Cookie', setCookie);
+    return res;
+  }
+  return respond(await answer(await ask()));
 }
 
 // Nora's greeting and four suggestions for whoever is asking (the Ask Nora plan, step 2).

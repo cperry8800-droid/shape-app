@@ -24766,6 +24766,8 @@ let _bsNoraThread = null;
 // the reopened sheet would show a question with no answer (Codex, #2245). The thread and
 // the in-flight flag live here, and every open sheet subscribes to them.
 let _bsNoraBusy = false;
+// Her reply so far while she writes it (streamed); the finished reply replaces it.
+let _bsNoraLive = '';
 const _bsNoraSubs = new Set();
 // The account whose greeting the thread holds, so a sign-in after a signed-out preview
 // fetches the new account's own (the app remounts on login without reloading; Codex, #2249).
@@ -24802,6 +24804,10 @@ function _bsNoraPublish(thread, busy) {
   if (typeof busy === 'boolean') _bsNoraBusy = busy;
   _bsNoraSubs.forEach((fn) => { try { fn(); } catch (e) {} });
 }
+function _bsNoraLiveSet(text) {
+  _bsNoraLive = String(text || '');
+  _bsNoraSubs.forEach((fn) => { try { fn(); } catch (e) {} });
+}
 function BSNoraSheet({ onClose }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -24820,6 +24826,7 @@ function BSNoraSheet({ onClose }) {
   const [supportMsgs, setSupportMsgs] = useStateBSC(() => _bsNoraThread || [SUPPORT_GREETING]);
   const [supportDraft, setSupportDraft] = useStateBSC(() => { const d = _bsNoraDraft; _bsNoraDraft = ''; return d; });
   const [supportBusy, setSupportBusy] = useStateBSC(() => _bsNoraBusy);
+  const [supportLive, setSupportLive] = useStateBSC(() => _bsNoraLive);
   // "Talk to a person" (the Ask Nora plan, step 5): signed in only. The question goes to the
   // Shape team with the stored conversation, and a person replies here and by email.
   const personOk = _bsNoraWho() !== 'anon' && !!window.ShapeSupport?.talkToPerson;
@@ -24844,7 +24851,7 @@ function BSNoraSheet({ onClose }) {
     setPersonForm(null);
   };
   React.useEffect(() => {
-    const sync = () => { if (_bsNoraThread) setSupportMsgs(_bsNoraThread); setSupportBusy(_bsNoraBusy); };
+    const sync = () => { if (_bsNoraThread) setSupportMsgs(_bsNoraThread); setSupportBusy(_bsNoraBusy); setSupportLive(_bsNoraLive); };
     _bsNoraSubs.add(sync);
     return () => { _bsNoraSubs.delete(sync); };
   }, []);
@@ -24893,6 +24900,7 @@ function BSNoraSheet({ onClose }) {
     if (ask && !(await ask({ title: tr('feed:support.thread.confirmTitle', { defaultValue: 'Clear your conversation with Nora?' }), message: tr('feed:support.thread.confirmBody', { defaultValue: 'This deletes it on every device. What Nora remembers stays.' }), confirmLabel: tr('feed:support.thread.clear', { defaultValue: 'Clear conversation' }) }))) return;
     _bsNoraGen += 1;
     try { window.ShapeVoice?.stop?.(); } catch (e) {}
+    _bsNoraLive = '';
     _bsNoraPublish([(_bsNoraThread || supportMsgs)[0] || SUPPORT_GREETING]);
     if (_bsNoraWho() === 'anon' || !window.ShapeSupport?.thread) return;
     const ok = await window.ShapeSupport.thread.clear();
@@ -24958,11 +24966,16 @@ function BSNoraSheet({ onClose }) {
     _bsNoraPublish(next, true);
     try {
       const hist = next.map(m => ({ role: m.team ? 'team' : m.me ? 'user' : 'assistant', content: m.t }));
-      const res = await window.ShapeSupport?.ask?.(hist, undefined, { voice: opts.voice === true, context: bsNoraContext(!screenOffRef.current) });
+      // Her words appear as she writes them; a round that turned out to be a lookup takes back
+      // what it showed. An answer for a cleared conversation is never drawn.
+      const onText = (txt) => { if (gen === _bsNoraGen) _bsNoraLiveSet(txt); };
+      const onReset = () => _bsNoraLiveSet('');
+      const res = await window.ShapeSupport?.ask?.(hist, undefined, { voice: opts.voice === true, context: bsNoraContext(!screenOffRef.current), onText, onReset });
       // Cleared while she was answering: the answer belongs to the conversation that went.
       if (gen !== _bsNoraGen) return null;
       const reply = (res && res.reply) || "I can't answer that just now. The Shape team answers at info@theshapecommunity.com.";
       const acts = (res && Array.isArray(res.actions) && res.actions.length) ? res.actions : undefined;
+      _bsNoraLive = '';
       _bsNoraPublish([...(_bsNoraThread || next), { who: 'Nora', t: reply, time: 'now', me: false, bot: true, actions: acts }]);
       // Settings → Nora voice on reads every reply aloud (off by default); failures are silent.
       if (!opts.silent && window.ShapeVoice && window.ShapeVoice.enabled()) speakReply(reply);
@@ -24971,9 +24984,10 @@ function BSNoraSheet({ onClose }) {
       return res && res.reply ? reply : null;
     } catch (e) {
       if (gen !== _bsNoraGen) return null;
+      _bsNoraLive = '';
       _bsNoraPublish([...(_bsNoraThread || next), { who: 'Nora', t: "I can't be reached right now. Try again in a moment, or email the Shape team at info@theshapecommunity.com.", time: 'now', me: false, bot: true }]);
       return null;
-    } finally { _bsNoraPublish(null, false); }
+    } finally { _bsNoraLive = ''; _bsNoraPublish(null, false); }
   };
   sendRef.current = sendSupportText;
   const sendSupport = () => sendSupportText(supportDraft);
@@ -25005,7 +25019,7 @@ function BSNoraSheet({ onClose }) {
     return () => names.forEach((n) => window.removeEventListener(n, close));
   }, [onClose]);
   const scrollRef = React.useRef(null);
-  React.useEffect(() => { const el = scrollRef.current; if (el) el.scrollTop = el.scrollHeight; }, [supportMsgs.length, supportBusy]);
+  React.useEffect(() => { const el = scrollRef.current; if (el) el.scrollTop = el.scrollHeight; }, [supportMsgs.length, supportBusy, supportLive]);
   React.useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
@@ -25084,7 +25098,7 @@ function BSNoraSheet({ onClose }) {
 
                 {/* Messages — tucked-corner tinted bubbles, matching BSChatThread */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 96 }}>
-                  {supportMsgs.map((m, i) => {
+                  {(supportBusy && supportLive ? [...supportMsgs, { who: 'Nora', t: supportLive, time: 'now', me: false, bot: true, live: true }] : supportMsgs).map((m, i) => {
                     const me = m.me;
                     const tc = me ? myTC : noraTint;
                     const bubbleBg = t.isLight ? `${tc}1c` : `${tc}2b`;
@@ -25099,7 +25113,7 @@ function BSNoraSheet({ onClose }) {
                               <div onClick={m.bot ? () => setShowNora(true) : undefined} style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: noraTint, fontWeight: 800, marginBottom: 5, cursor: m.bot ? 'pointer' : 'default' }}>{m.team ? tr('feed:support.person.teamLabel', { defaultValue: 'Shape team · a person' }) : m.who}{m.bot ? ` · ${tr('feed:support.concierge', { defaultValue: 'Concierge' })}` : ''}</div>
                             )}
                             <div style={{ borderRadius: 16, [me ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: 5, fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.4, letterSpacing: '-0.005em', color: t.INK, background: bubbleBg, border: `1px solid ${tc}40`, padding: '11px 14px', whiteSpace: 'pre-wrap' }}>{m.t}</div>
-                            {m.bot && (() => {
+                            {m.bot && !m.live && (() => {
                               const mine = listening && listening.i === i;
                               return (
                                 <button onClick={() => listenTo(i, m.t)} aria-pressed={!!mine} title={tr('feed:support.readAloud', { defaultValue: 'Read this aloud' })} aria-label={mine ? tr('feed:support.stop', { defaultValue: 'Stop' }) : tr('feed:support.readAloud', { defaultValue: 'Read this aloud' })} style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 999, border: `1px solid ${mine ? noraTint : hair}`, background: mine ? `${noraTint}1f` : 'transparent', color: mine ? noraTint : muted, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}><span aria-hidden style={{ fontSize: 10, lineHeight: 1 }}>{mine && listening.playing ? '■' : '♪'}</span> {mine ? (listening.playing ? tr('feed:support.stop', { defaultValue: 'Stop' }) : tr('feed:support.loading', { defaultValue: 'Loading…' })) : tr('feed:support.listen', { defaultValue: 'Listen' })}</button>
@@ -25131,7 +25145,7 @@ function BSNoraSheet({ onClose }) {
                       </div>
                     );
                   })}
-                  {supportBusy && <div style={{ alignSelf: 'flex-start', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted, paddingLeft: 43 }}>{tr('feed:support.typing', { defaultValue: 'Nora is typing…' })}</div>}
+                  {supportBusy && !supportLive && <div style={{ alignSelf: 'flex-start', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted, paddingLeft: 43 }}>{tr('feed:support.typing', { defaultValue: 'Nora is typing…' })}</div>}
                 </div>
               </div>
                     </div>

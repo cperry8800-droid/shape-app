@@ -216,7 +216,7 @@ test('app: loads once a session into an untouched thread, appends what it said, 
   assert.match(sheet, /if \(_bsNoraThreadWho !== _bsNoraWho\(\)\) \{ _bsNoraThread = null; _bsNoraThreadWho = _bsNoraWho\(\); _bsNoraLoaded = null; \}/, 'another account\'s thread is never shown, and signing back in loads again (Codex, #2255)');
   // ⚠ CLEAR WHILE SHE ANSWERS (Codex, #2255), in the sheet and in Settings.
   assert.match(between(sheet, 'const clearThread = async () => {', 'const ok = await'), /_bsNoraGen \+= 1;/);
-  assert.match(sheet, /const gen = _bsNoraGen;[\s\S]{0,600}if \(gen !== _bsNoraGen\) return null;\n\s+const reply =/);
+  assert.match(sheet, /const gen = _bsNoraGen;[\s\S]{0,900}if \(gen !== _bsNoraGen\) return null;\n\s+const reply =/);
   assert.match(between(APP, 'function BSNoraThreadCard(', 'return ('), /_bsNoraGen \+= 1;\n\s+const ok = await window\.ShapeSupport\?\.thread\?\.clear\?\.\(\);/);
   assert.match(sheet, /if \(!list\.length \|\| cur\.length !== 1\) return;/);
   assert.match(sheet, /if \(res && res\.reply\) _bsNoraSave\(\[\{ role: 'user', text: clean, at: sentAt \}, \{ role: 'assistant', text: reply/);

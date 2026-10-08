@@ -67,11 +67,11 @@ test('the Help page points at the ✦', () => {
 // ── Codex, #2245 ─────────────────────────────────────────────────────────────────
 test('a reply that lands after the sheet closes is kept: the thread and the in-flight flag outlive the sheet', () => {
   const sheet = between(APP, 'function BSNoraSheet(', '// Chat tab for ALL roles');
-  assert.match(APP, /let _bsNoraBusy = false;\nconst _bsNoraSubs = new Set\(\);/);
+  assert.match(APP, /let _bsNoraBusy = false;\n\/\/ Her reply so far while she writes it \(streamed\); the finished reply replaces it\.\nlet _bsNoraLive = '';\nconst _bsNoraSubs = new Set\(\);/, 'her half-written reply outlives the sheet too');
   assert.match(sheet, /useStateBSC\(\(\) => _bsNoraBusy\)/, 'a reopened sheet shows Nora still typing');
   assert.match(sheet, /_bsNoraSubs\.add\(sync\);/);
   assert.match(sheet, /_bsNoraPublish\(\[\.\.\.\(_bsNoraThread \|\| next\), \{ who: 'Nora', t: reply/, 'the reply is written to the store, not to the instance that asked');
-  assert.match(sheet, /finally \{ _bsNoraPublish\(null, false\); \}/);
+  assert.match(sheet, /finally \{ _bsNoraLive = ''; _bsNoraPublish\(null, false\); \}/);
   assert.ok(!/setSupportMsgs\(m => \[\.\.\.m/.test(sheet), 'no reply is written only to this instance');
 });
 
