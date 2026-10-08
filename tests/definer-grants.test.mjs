@@ -1693,16 +1693,35 @@ test('get_health_sources: the body that shipped before 2026-10-08 is flagged, th
   assert.deepEqual(checkAllowlist(real(), ALLOW), []);
 });
 
-test('fixedAfterCapture: each item is checked against the migrations, and a fix that did not land is refused', () => {
-  // The three items the 2026-10-08 access-layer migration fixed: gone from the anon reach in the model.
-  const reach = anonReachableNames(real());
-  for (const f of ALLOW.fixedAfterCapture) {
-    assert.ok(!reach.includes(f.name), `${f.name} is still anon-executable in the model`);
-    assert.ok(real().files.includes(f.fixedBy), `${f.name}: ${f.fixedBy} is a migration in the tree`);
+// The item the allow-list carried for get_health_sources between #2280 and the 2026-10-08 capture, as it
+// was: the mechanism is driven on it here now that the live capture shows the fix applied and the list
+// holds no such item (see the test below).
+const FIXED_ITEM = {
+  "name": "get_health_sources",
+  "fixedBy": "2026-10-08-security-review-access-layer.sql",
+  "fix": "The explicit `if auth.uid() is null then return null` reject comes first, p_days is capped at 400, and EXECUTE is revoked from public and anon (authenticated and service_role keep it).",
+  "wasFinding": {
+    "name": "get_health_sources",
+    "kind": "gate-skipped-for-anon",
+    "discoveredBy": "independent review of this audit",
+    "anonGrant": "default-only",
+    "exposed": "For ANY user id passed as p_user_id, with no account: that user's health observations (snapshot date, metric, source, value and time for sleep, recovery, HRV, resting and average heart rate, strain, workout minutes, calories and steps) for the last p_days days, which has no upper bound so it is the whole history, plus their metric_source_overrides. Both tables are owner-only under RLS, so the definer opens to the internet what RLS locks. The body reads `if v_uid <> auth.uid() and not is_coach_on_client(v_uid) then return null`: for anon auth.uid() is NULL, `x <> NULL` is NULL, and the IF is never taken. Measured on PostgreSQL 16.13: the real body, run as anon with no JWT, returned another user's rows while the table showed anon none. Anon reaches it only through the default ACL (2026-06-17-source-reconcile.sql:80 grants it `to authenticated` and nothing revokes anon).",
+    "notFixedHere": "This change is the audit and its tripwire, and writes no migration. The only caller found, GET /api/integrations/reconcile, returns 401 before it calls the function, so no known caller needs anon. Its write twin set_metric_source has the same predicate and got the reject on 2026-06-30 (2026-06-30-rpc-authz-hardening.sql); this read twin was missed.",
+    "ownerCall": "Add `if auth.uid() is null then return null; end if;` as the first statement, as 2026-06-30 did for set_metric_source (create or replace with the same body, which keeps the ACL), and revoke it from anon: revoke execute on function public.get_health_sources(uuid, int) from public, anon; (authenticated stays)."
   }
-  assert.deepEqual(ALLOW.fixedAfterCapture.map((f) => f.name).sort(), ['get_health_sources', 'shape_leaderboard', 'shape_leaderboard_me']);
-  const broken = (mutate) => { const a = structuredClone(ALLOW); mutate(a.fixedAfterCapture[0], a); return checkAllowlist(real(), a); };
-  const name = ALLOW.fixedAfterCapture[0].name;
+};
+
+test('fixedAfterCapture: each item is checked against the migrations, and a fix that did not land is refused', () => {
+  // The three fixes the 2026-10-08 access-layer migration made were carried here until the catalog was
+  // captured again; the 2026-10-08 capture shows them applied (the live diff's --strict said to delete
+  // them), so the checked-in list carries none. The rules are driven on the item as it was.
+  assert.deepEqual(ALLOW.fixedAfterCapture, [], 'the 2026-10-08 capture shows every carried fix applied: an item left here is stale');
+  const withItem = () => ({ ...structuredClone(ALLOW), fixedAfterCapture: [structuredClone(FIXED_ITEM)] });
+  assert.ok(!anonReachableNames(real()).includes(FIXED_ITEM.name), `${FIXED_ITEM.name} is still anon-executable in the model`);
+  assert.ok(real().files.includes(FIXED_ITEM.fixedBy), `${FIXED_ITEM.fixedBy} is a migration in the tree`);
+  assert.deepEqual(checkAllowlist(real(), withItem()), [], 'a landed fix, recorded once and listed nowhere else, is accepted');
+  const broken = (mutate) => { const a = withItem(); mutate(a.fixedAfterCapture[0], a); return checkAllowlist(real(), a); };
+  const name = FIXED_ITEM.name;
   assert.match(broken((f) => { f.fixedBy = '2099-01-01-nope.sql'; }).join('\n'), new RegExp(`${name}: fixedAfterCapture needs \`fixedBy\``));
   assert.match(broken((f) => { delete f.fix; }).join('\n'), new RegExp(`${name}: fixedAfterCapture needs \`fix\``));
   assert.match(broken((f) => { f.wasEntry = { class: 'self-gated-auth-uid', note: 'x'.repeat(40) }; f.wasFinding = f.wasFinding ?? {}; }).join('\n'), /exactly one of `wasEntry` or `wasFinding`/);
@@ -1711,8 +1730,8 @@ test('fixedAfterCapture: each item is checked against the migrations, and a fix 
   assert.match(checkAllowlist(real(), { ...structuredClone(ALLOW), fixedAfterCapture: {} }).join('\n'), /`fixedAfterCapture` must be an array/);
   // A fix that did not land: on the pre-fix migrations the function is still anon-executable.
   const before = M.replayDir(DIR, { before: '2026-10-08' });
-  const p = checkAllowlist(before, ALLOW).filter((m) => /did not land/.test(m));
-  assert.deepEqual(p.map((m) => m.split(':')[0]).sort(), ['get_health_sources', 'shape_leaderboard', 'shape_leaderboard_me']);
+  const p = checkAllowlist(before, withItem()).filter((m) => /did not land/.test(m));
+  assert.deepEqual(p.map((m) => m.split(':')[0]), [name]);
   // And with no fixedAfterCapture key at all, the list as it stands is still exactly right for the tree.
   assert.deepEqual(checkAllowlist(real(), ALLOW), []);
 });

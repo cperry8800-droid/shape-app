@@ -11,12 +11,12 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { parseRows, diffLive, verdict, report, main } from '../scripts/definer-live-diff.mjs';
 import * as M from './helpers/definer-model.mjs';
-import { allowListAsOfCapture } from './helpers/definer-live.mjs';
+import { allowListAsOfCapture, modelAsOfCapture } from './helpers/definer-live.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SCRIPT = join(ROOT, 'scripts/definer-live-diff.mjs');
-const LIVE = JSON.parse(fs.readFileSync(join(ROOT, 'tests/fixtures/definer-live-2026-09-30.json'), 'utf8'));
-// The fixture lists non-trigger definers only (its own `scope`), so its rows are all is_trigger: false
+const LIVE = JSON.parse(fs.readFileSync(join(ROOT, 'tests/fixtures/definer-live-2026-10-08.json'), 'utf8'));
+// The fixture lists the non-trigger definers by anon-executability and the trigger definers by name (its own `scope`)
 // and say nothing about trigger definers.
 
 const allow = () => ({
@@ -306,12 +306,13 @@ test('the CLI: the checked-in allow-list accepts the live capture, and rejects a
   const rows = [
     ...LIVE.anonExecutable.map((proname) => row(proname, true, !unpinned.has(proname))),
     ...LIVE.notAnonExecutable.map((proname) => row(proname, false, !unpinned.has(proname))),
+    ...LIVE.triggerDefiners.map((proname) => row(proname, false, !unpinned.has(proname), { is_trigger: true })),
   ];
-  assert.ok(rows.every((r) => r.is_trigger === false), 'the fixture names non-trigger definers');
+  assert.equal(rows.filter((r) => r.is_trigger).length, 12, 'the fixture names the trigger definers too');
   const cli = (input, ...args) => spawnSync(process.execPath, [SCRIPT, ...args], { input, encoding: 'utf8', cwd: ROOT });
   const good = cli(JSON.stringify([{ rows }]));
   assert.equal(good.status, 0, good.stderr);
-  assert.match(good.stdout, /136 SECURITY DEFINER functions in public \(plus 0 trigger functions, checked for the pin only\); 85 executable by anon: 79 allow-listed, 6 registered findings, 0 UNACCOUNTED/);
+  assert.match(good.stdout, /138 SECURITY DEFINER functions in public \(plus 12 trigger functions, checked for the pin only\); 83 executable by anon: 79 allow-listed, 4 registered findings, 0 UNACCOUNTED/);
   const leak = cli(JSON.stringify([...rows, row('league_style_leak', true)]));
   assert.equal(leak.status, 1);
   assert.match(leak.stderr, /1 UNACCOUNTED/);
@@ -330,7 +331,7 @@ test('the CLI: the checked-in allow-list accepts the live capture, and rejects a
   assert.equal(cli('').status, 2);
   // --strict against the capture reads the allow-list AS OF the capture: an entry for a function no
   // pre-capture migration creates cannot be in it yet (allowListAsOfCapture). Nothing else is set aside.
-  const asOf = allowListAsOfCapture(JSON.parse(fs.readFileSync(join(ROOT, 'tests/fixtures/definer-anon-allowlist.json'), 'utf8')), M.replayDir(join(ROOT, 'supabase-migrations'), { before: LIVE.capturedOn }));
+  const asOf = allowListAsOfCapture(JSON.parse(fs.readFileSync(join(ROOT, 'tests/fixtures/definer-anon-allowlist.json'), 'utf8')), modelAsOfCapture(join(ROOT, 'supabase-migrations'), LIVE));
   const tmp = fs.mkdtempSync(join(os.tmpdir(), 'allow-as-of-'));
   try {
     const p = join(tmp, 'allow.json');
