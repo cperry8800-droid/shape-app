@@ -271,5 +271,10 @@
   "wall.unit": "Unidad",
   "wall.unreadable": "No se pudo leer el muro ahora.",
   "wall.value": "Valor",
-  "wall.yourBest": "Tu mejor marca"
+  "wall.yourBest": "Tu mejor marca",
+  "support.fill.kicker": "Para tu formulario · revisa y luego rellena",
+  "support.fill.button": "Rellenar",
+  "support.fill.done": "Rellenado ✓",
+  "support.fill.doneNote": "Revisa cada paso y luego continúa. Tu contraseña y las casillas de aceptación las marcas tú.",
+  "support.fill.wrongForm": "Abre el formulario al que corresponden y vuelve a tocar."
 }

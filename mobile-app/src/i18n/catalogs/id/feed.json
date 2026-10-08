@@ -271,5 +271,10 @@
   "wall.unit": "Satuan",
   "wall.unreadable": "Tidak bisa membaca dinding sekarang.",
   "wall.value": "Nilai",
-  "wall.yourBest": "Rekor terbaikmu"
+  "wall.yourBest": "Rekor terbaikmu",
+  "support.fill.kicker": "Untuk formulirmu · cek, lalu isi",
+  "support.fill.button": "Isi ini",
+  "support.fill.done": "Sudah diisi ✓",
+  "support.fill.doneNote": "Cek tiap langkah, lalu lanjutkan. Kata sandi dan kotak persetujuan kamu isi sendiri.",
+  "support.fill.wrongForm": "Buka formulir yang dimaksud, lalu ketuk lagi."
 }

@@ -271,5 +271,10 @@
   "wall.unit": "Unità",
   "wall.unreadable": "Impossibile leggere la bacheca al momento.",
   "wall.value": "Valore",
-  "wall.yourBest": "Il tuo record"
+  "wall.yourBest": "Il tuo record",
+  "support.fill.kicker": "Per il tuo modulo · controlla, poi compila",
+  "support.fill.button": "Compila",
+  "support.fill.done": "Compilato ✓",
+  "support.fill.doneNote": "Controlla ogni passaggio, poi continua. La password e le caselle di consenso spettano a te.",
+  "support.fill.wrongForm": "Apri il modulo a cui si riferiscono, poi tocca di nuovo."
 }
