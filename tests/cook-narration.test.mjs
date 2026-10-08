@@ -379,7 +379,7 @@ test('Nora asks with the token as of now, not the one cached when the page opene
   class Audio { play() { return Promise.resolve(); } pause() {} }
   let stored = { access_token: 'fresh', user: { id: 'u1' } };
   const code = `let _voiceGen=0, _voiceAudio=null, _voiceUrl=null, _voiceAbort=null, _voiceEnded=null, _voiceEnd=null, _voicePlayer=null; const SILENT_CLIP='data:,';
-    const apiBaseUrl='https://api.test', state={user:{id:'u1'}, session:{access_token:'stale', user:{id:'u1'}}};
+    const apiBaseUrl='https://api.test', state={user:{id:'u1'}, session:{access_token:'stale', user:{id:'u1'}}}, _isNative=true;
     const readVoicePrefs=()=>({enabled:true,tone:'supportive',voice:'auto'});
     ${lift('liveAccessToken')} ${lift('settleVoiceEnd')} ${lift('voicePlayer')} ${lift('primeVoice')} ${lift('stopVoice')} ${lift('speakVoice')}
     return {speak:speakVoice, state};`;
@@ -394,9 +394,35 @@ test('Nora asks with the token as of now, not the one cached when the page opene
   stored = { access_token: 'other', user: { id: 'u2' } };
   await backend.speak('Stir', undefined, { force: true });
   assert.equal(sent.at(-1), 'Bearer fresh');
-  // No session anywhere: signed out, and no request.
+  // No session anywhere, in the native app: signed out, and no request (it has no cookie).
   stored = null; backend.state.session = null;
   assert.deepEqual(await backend.speak('Plate', undefined, { force: true }), { ok: false, reason: 'signed_out' });
+  assert.equal(sent.length, 2);
+});
+
+test('⚠ on the web, no token of its own still asks: the website session rides the same-origin request', async () => {
+  // The app at /m/ opened from the website is signed in by the website's cookie. Speak refused
+  // there without asking, so Nora answered in text and never spoke: production logged the
+  // transcription and the answer, and no /api/ai/speak (2026-10-08).
+  const sent = [];
+  class Audio { play() { return Promise.resolve(); } pause() {} }
+  const harness = (native, status) => {
+    const code = `let _voiceGen=0, _voiceAudio=null, _voiceUrl=null, _voiceAbort=null, _voiceEnded=null, _voiceEnd=null, _voicePlayer=null; const SILENT_CLIP='data:,';
+      const apiBaseUrl='https://site.test', state={user:null, session:null}, supabase=null, _isNative=${native};
+      const readVoicePrefs=()=>({enabled:true,tone:'supportive',voice:'auto'});
+      ${lift('liveAccessToken')} ${lift('settleVoiceEnd')} ${lift('voicePlayer')} ${lift('primeVoice')} ${lift('stopVoice')} ${lift('speakVoice')}
+      return {speak:speakVoice};`;
+    return new Function('fetch', 'Audio', 'URL', code)(
+      async (url, init) => { sent.push({ url, auth: init.headers.Authorization, credentials: init.credentials }); return status === 200 ? { ok: true, status, blob: async () => new Blob(['v']) } : { ok: false, status }; },
+      Audio, { createObjectURL: () => 'blob:t', revokeObjectURL() {} });
+  };
+  assert.equal((await harness(false, 200).speak('Hi', undefined, { force: true })).ok, true);
+  assert.deepEqual(sent, [{ url: 'https://site.test/api/ai/speak', auth: undefined, credentials: 'same-origin' }], 'no Authorization header, and the cookie rides along');
+  // Truly signed out on the web: the server says so, and the app says sign in.
+  assert.deepEqual(await harness(false, 401).speak('Hi', undefined, { force: true }), { ok: false, reason: 'signed_out' });
+  assert.equal(sent.length, 2);
+  // The native app has no cookie: it still refuses without asking.
+  assert.deepEqual(await harness(true, 200).speak('Hi', undefined, { force: true }), { ok: false, reason: 'signed_out' });
   assert.equal(sent.length, 2);
 });
 

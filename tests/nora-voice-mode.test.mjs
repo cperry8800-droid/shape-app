@@ -113,6 +113,9 @@ test('app Talk view: her face, the status in the member\'s language, End', async
   assert.match(says('thinking'), /Thinking…/);
   assert.match(says('error', { reason: 'members' }), /Talking to Nora is a member feature\./);
   assert.match(says('paused', { reason: 'quiet' }), /Paused\. Tap me to talk\./);
+  // A reply that could not be spoken says why: signed out is not a membership question.
+  assert.match(says('paused', { reason: 'signed_out' }), /Sign in to hear Nora's voice\./);
+  assert.match(says('paused', { reason: 'members' }), /Nora's voice is a member feature\./);
   // Listen's failure note names the real reason; a signed-out member was told it was a member feature.
   assert.equal(bsNoraVoiceFail(tr, 'signed_out'), "Sign in to hear Nora's voice.");
   assert.equal(bsNoraVoiceFail(tr, 'playback_blocked'), 'Tap Listen again to hear Nora.');
