@@ -118,3 +118,20 @@ test('the app reads the greeting through its API base and session, and fails to 
   assert.match(fn, /if \(!res\.ok\) return null;/);
   assert.match(be, /window\.ShapeSupport = \{\n  ask: askSupportBot,[^}]*\n  greeting: noraGreeting,\n[^}]*\};/);
 });
+
+test('the sheet scrolls with no scrollbar drawn, like the other scrollers in the app', () => {
+  const sheet = between(APP, 'function BSNoraSheet(', '// Chat tab for ALL roles');
+  assert.match(sheet, /<div ref=\{scrollRef\} className="bs-hide-scroll" style=\{\{ flex: 1, minHeight: 0, overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' \}\}>/);
+  const fill = between(APP, 'function BSNoraFill(', '\n}\n');
+  assert.match(fill, /className="bs-hide-scroll" style=\{\{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 260, overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' \}\}/);
+  // A proposal's change list scrolls too (a drafted program is long; Codex, #2273).
+  const proposal = between(APP, 'function BSNoraProposal(', '\n}\n');
+  assert.match(proposal, /className="bs-hide-scroll" style=\{\{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 280, overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' \}\}/);
+  // Nothing else in the sheet, or the cards it draws, scrolls with a bar of its own.
+  for (const [name, body] of [['sheet', sheet], ['fill', fill], ['proposal', proposal]]) {
+    const bare = body.split('\n').filter((l) => /overflow[XY]?: '(auto|scroll)'/.test(l) && !/scrollbarWidth: 'none'/.test(l));
+    assert.deepEqual(bare, [], `${name}: a scroller that still draws a scrollbar`);
+  }
+  // The class's WebKit rule lives in the shell, which every build loads.
+  assert.match(readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx'), 'utf8'), /\.bs-hide-scroll::-webkit-scrollbar \{ width: 0; height: 0; display: none; \}/);
+});

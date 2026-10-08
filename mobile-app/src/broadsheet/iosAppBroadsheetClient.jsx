@@ -25021,7 +25021,7 @@ function BSNoraSheet({ onClose }) {
       <div role="dialog" aria-label="Nora" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '86%', background: t.PAPER, borderRadius: '18px 18px 0 0', borderTop: `1px solid ${hair}`, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div aria-hidden style={{ width: 36, height: 4, borderRadius: 2, background: hair, margin: '8px auto 0', flex: 'none' }} />
         <button type="button" onClick={onClose} aria-label={tr('cycle:close', { defaultValue: 'Close' })} style={{ position: 'absolute', top: 8, right: 10, zIndex: 1, width: 34, height: 34, borderRadius: 999, border: 0, background: 'transparent', color: muted, fontSize: 20, lineHeight: 1, cursor: 'pointer' }}>×</button>
-        <div ref={scrollRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+        <div ref={scrollRef} className="bs-hide-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
 
               <div style={{ padding: `14px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column' }}>
                 {/* Concierge masthead — the section-head language the other tabs carry */}
@@ -25184,7 +25184,7 @@ function BSNoraFill({ a, t }) {
       <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: ac }}>
         {status === 'done' ? tr('feed:support.fill.done', { defaultValue: 'Filled in ✓' }) : tr('feed:support.fill.kicker', { defaultValue: 'For your form · check, then fill' })}
       </div>
-      <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 260, overflowY: 'auto' }}>
+      <div className="bs-hide-scroll" style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 260, overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
         {fields.map((f, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 10.5 }}>
             <span style={{ color: t.INK50 }}>{f.label}</span>
@@ -25239,7 +25239,7 @@ function BSNoraProposal({ a, t }) {
       </div>
       <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 14, color: ink, lineHeight: 1.35 }}>{a.summary || a.label}</div>
       {diff.length > 0 && status !== 'undone' && (
-        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 280, overflowY: 'auto' }}>
+        <div className="bs-hide-scroll" style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 280, overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           {diff.map((d, i) => (isLine(d)
             ? (
               <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 6, fontFamily: mono, fontSize: 10, flexWrap: 'wrap', paddingLeft: d.label ? 0 : 10 }}>
