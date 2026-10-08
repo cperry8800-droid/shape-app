@@ -921,5 +921,7 @@ test('admin_lookup_account: a confirmed admin is offered it and it runs logged; 
   // No service-role key on the server: said, never a crash.
   const noKey = await loadRoute({ user: confirmed, isAdmin: true, answers: [calls(call('admin_lookup_account', { email: 'priya@example.com' })), say('Not configured.')] });
   await noKey.mod.POST(post(ask('look up priya@example.com')));
-  assert.equal(JSON.parse(noKey.calls.ai[1].body.input.find((x) => x.type === 'function_call_output').output).error, 'unavailable');
+  const nk = JSON.parse(noKey.calls.ai[1].body.input.find((x) => x.type === 'function_call_output').output);
+  assert.equal(nk.error, 'unavailable');
+  assert.match(nk.message, /not configured on this server/, 'Nora can say why, not just that it failed');
 });
