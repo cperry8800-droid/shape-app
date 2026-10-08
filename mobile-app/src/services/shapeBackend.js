@@ -8107,13 +8107,21 @@ async function speakVoice(text, toneOverride, opts = {}) {
   const myGen = _voiceGen;     // this call's generation, captured after the bump
   const token = apiBaseUrl ? await liveAccessToken() : null;
   if (myGen !== _voiceGen) return { ok: false, superseded: true };
-  if (!apiBaseUrl || !token) return { ok: false, reason: 'signed_out' };
+  // ⚠ NO TOKEN OF ITS OWN IS NOT SIGNED OUT ON THE WEB. The app at /m/, opened from the
+  // website, is signed in by the website's cookie, which rides a same-origin request, as it
+  // does for transcription and Nora's chat. Refusing here sent nothing at all: production
+  // logged the transcription and the answer, and no /api/ai/speak (2026-10-08). The server's
+  // 401 says signed out. A native build has no such cookie, so it still needs the token.
+  if (!apiBaseUrl || (!token && _isNative)) return { ok: false, reason: 'signed_out' };
   const ctrl = new AbortController();
   _voiceAbort = ctrl;
   try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers.Authorization = `Bearer ${token}`;
     const res = await fetch(`${apiBaseUrl}/api/ai/speak`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      headers,
+      credentials: 'same-origin',
       body: JSON.stringify({ text: clean.slice(0, 2000), tone, voice: prefs.voice !== 'auto' ? prefs.voice : undefined }),
       signal: ctrl.signal,
     });

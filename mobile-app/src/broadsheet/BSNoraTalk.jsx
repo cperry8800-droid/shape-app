@@ -80,7 +80,8 @@ export function bsNoraTalkStatus(tr, state, info) {
   if (state === 'speaking') return tr('feed:support.voice.speaking', { defaultValue: 'Speaking. Tap me to interrupt.' });
   if (state === 'paused') {
     if (i.reason === 'network') return tr('feed:support.voice.noAnswer', { defaultValue: "I couldn't answer just now. Tap me to try again." });
-    if (i.reason === 'members' || i.reason === 'signed_out') return tr('feed:support.voice.memberOnly', { defaultValue: "Nora's voice is a member feature." });
+    if (i.reason === 'signed_out') return tr('feed:support.voice.signIn', { defaultValue: "Sign in to hear Nora's voice." });
+    if (i.reason === 'members') return tr('feed:support.voice.memberOnly', { defaultValue: "Nora's voice is a member feature." });
     if (i.reason && i.reason !== 'quiet') return tr('feed:support.voice.unheard', { defaultValue: 'My answer is in the chat. Tap me to keep talking.' });
     return tr('feed:support.voice.paused', { defaultValue: 'Paused. Tap me to talk.' });
   }
