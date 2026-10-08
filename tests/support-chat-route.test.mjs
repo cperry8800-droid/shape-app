@@ -19,6 +19,8 @@ import * as noraGreeting from '../src/lib/ai/noraGreeting.mjs';
 import * as noraContext from '../src/lib/ai/noraContext.mjs';
 import * as noraForms from '../src/lib/ai/noraForms.mjs';
 import * as coachToday from '../src/lib/ai/coachToday.mjs';
+import * as adminLookup from '../src/lib/ai/adminLookup.mjs';
+import { fakeDb as fakeAdminDb } from './helpers/fake-admin-db.mjs';
 import { fakeSupabase } from './helpers/fake-supabase.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -53,7 +55,7 @@ function calls(...items) { return { output: [{ type: 'reasoning', id: 'rs_1', su
 // `isCoach`/`isAdmin` default the way membership-core derives them (from the
 // role), so a test can also model a DUAL-ROLE account: primary role 'client',
 // coach by roles[] — which is what the route must read membership for.
-async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', roles = null, isMember = true, isCoach = ['trainer', 'nutritionist', 'dietitian'].includes(role), isAdmin = false, hasKey = true, answers = [say('ok')], tables = {}, rpcs = {}, fail = [], rate = null, turnstile = null } = {}) {
+async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', roles = null, isMember = true, isCoach = ['trainer', 'nutritionist', 'dietitian'].includes(role), isAdmin = false, hasKey = true, answers = [say('ok')], tables = {}, rpcs = {}, fail = [], rate = null, turnstile = null, adminDb = null } = {}) {
   const sb = fakeSupabase({ tables, rpcs, fail });
   const calls_ = { ai: [], proposals: [], rate: [], turnstile: [] };
   // Nora's limits run for real over a stubbed counter and bot check, so a test reads
@@ -86,6 +88,9 @@ async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', role
     ['@/lib/ai/noraContext.mjs', noraContext],
     ['@/lib/ai/noraForms.mjs', noraForms],
     ['@/lib/ai/coachToday.mjs', coachToday],
+    ['@/lib/ai/adminLookup.mjs', adminLookup],
+    // The help desk's service-role client: the test's own (adminDb), else one that refuses.
+    ['@/lib/supabase/admin', { createAdminClient: () => { if (!adminDb) throw new Error('no service role'); return adminDb; } }],
     ['@/lib/membership-core', { computeMembership: async () => ({ isMember, isCoach, isAdmin, isKnownMinor: false }) }],
     ['@/lib/food-search-server', { searchFoodsServer: async () => ({ results: [], unavailable: true }) }],
     ['@/lib/ai', {
@@ -879,4 +884,47 @@ test('get_coach_today: a coach is offered it and it reads their own day; a membe
   const member = await loadRoute({ role: 'client' });
   await member.mod.POST(post(ask('what needs me today?')));
   assert.ok(!toolNames(member.calls.ai[0].body).includes('get_coach_today'), 'a member has no coaching day');
+});
+
+// ── The admin help desk (the Ask Nora plan, step 5) ─────────────────────────────────
+// tests/nora-admin-lookup.test.mjs drives the lookup; here, who is offered it and who is refused.
+test('admin_lookup_account: a confirmed admin is offered it and it runs logged; an unconfirmed admin or a member is refused', async () => {
+  const lookupDb = () => fakeAdminDb({
+    rpcs: { admin_account_by_email: ({ p_email }) => (p_email === 'priya@example.com' ? [{ id: 'u-9', created_at: '2026-05-02T00:00:00Z', email_confirmed_at: '2026-05-02T00:00:00Z', last_sign_in_at: null }] : []) },
+    tables: { profiles: [{ id: 'u-9', email: 'priya@example.com', full_name: 'Priya Shah', role: 'client', roles: [], created_at: '2026-05-02T00:00:00Z' }] },
+  });
+  const confirmed = { id: U, email: 'Boss@Shape.test', email_confirmed_at: '2026-01-01T00:00:00Z' };
+  const db = lookupDb();
+  const admin = await loadRoute({ user: confirmed, isAdmin: true, adminDb: db, answers: [calls(call('admin_lookup_account', { email: 'priya@example.com' })), say('That is Priya Shah, a client since May.')] });
+  await admin.mod.POST(post(ask('look up priya@example.com')));
+  assert.ok(toolNames(admin.calls.ai[0].body).includes('admin_lookup_account'));
+  assert.match(admin.calls.ai[0].body.input[0].content, /ADMIN HELP DESK/);
+  const out = JSON.parse(admin.calls.ai[1].body.input.find((x) => x.type === 'function_call_output').output);
+  assert.equal(out.found, true);
+  assert.equal(out.account.name, 'Priya Shah');
+  assert.deepEqual(db._logs.map((l) => [l.admin_user_id, l.admin_email, l.query_email, l.target_user_id]), [[U, 'boss@shape.test', 'priya@example.com', 'u-9']], 'logged with the admin and the account');
+
+  // The allow-list matched an email nobody confirmed: not an admin here.
+  const unconfirmedDb = lookupDb();
+  const unconfirmed = await loadRoute({ user: { id: U, email: 'boss@shape.test' }, isAdmin: true, adminDb: unconfirmedDb, answers: [calls(call('admin_lookup_account', { email: 'priya@example.com' })), say('I cannot.')] });
+  await unconfirmed.mod.POST(post(ask('look up priya@example.com')));
+  assert.ok(!toolNames(unconfirmed.calls.ai[0].body).includes('admin_lookup_account'));
+  assert.doesNotMatch(unconfirmed.calls.ai[0].body.input[0].content, /ADMIN HELP DESK/);
+  const refused = JSON.parse(unconfirmed.calls.ai[1].body.input.find((x) => x.type === 'function_call_output').output);
+  assert.equal(refused.error, 'not_admin', 'a call the model was never offered is refused, not trusted');
+  assert.equal(unconfirmedDb._calls.length, 0, 'nothing read, nothing logged');
+
+  const memberDb = lookupDb();
+  const member = await loadRoute({ adminDb: memberDb, answers: [calls(call('admin_lookup_account', { email: 'priya@example.com' })), say('I cannot.')] });
+  await member.mod.POST(post(ask('look up priya@example.com')));
+  assert.ok(!toolNames(member.calls.ai[0].body).includes('admin_lookup_account'));
+  assert.equal(JSON.parse(member.calls.ai[1].body.input.find((x) => x.type === 'function_call_output').output).error, 'not_admin');
+  assert.equal(memberDb._calls.length, 0);
+
+  // No service-role key on the server: said, never a crash.
+  const noKey = await loadRoute({ user: confirmed, isAdmin: true, answers: [calls(call('admin_lookup_account', { email: 'priya@example.com' })), say('Not configured.')] });
+  await noKey.mod.POST(post(ask('look up priya@example.com')));
+  const nk = JSON.parse(noKey.calls.ai[1].body.input.find((x) => x.type === 'function_call_output').output);
+  assert.equal(nk.error, 'unavailable');
+  assert.match(nk.message, /not configured on this server/, 'Nora can say why, not just that it failed');
 });
