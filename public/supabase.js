@@ -1438,6 +1438,38 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
     // Destroy a widget (e.g. when its container unmounts) so it can be re-rendered
     // fresh and doesn't leak — its issued token is single-use.
     remove: function (id) { try { if (window.turnstile && id != null) window.turnstile.remove(id); } catch (e) {} },
+    // One token with no form around it: Nora's bot check on a visitor's first question.
+    // The widget shows only if Cloudflare needs the visitor to interact (interaction-only),
+    // in a small card above the page, and is removed once it answers. Resolves '' when
+    // there is no site key, the script cannot load, or nothing comes back in 60 s.
+    solve: function () {
+      if (!window.SHAPE_TURNSTILE_SITEKEY) return Promise.resolve('');
+      return _tsLoad().then(function (ts) {
+        return new Promise(function (resolve) {
+          var host = document.createElement('div');
+          host.setAttribute('data-nora-check', '');
+          host.style.cssText = 'position:fixed;left:50%;bottom:96px;transform:translateX(-50%);z-index:2147483646;';
+          document.body.appendChild(host);
+          var id = null, done = false;
+          var finish = function (tok) {
+            if (done) return; done = true;
+            try { if (id != null) ts.remove(id); } catch (e) {}
+            if (host.parentNode) host.parentNode.removeChild(host);
+            resolve(tok || '');
+          };
+          try {
+            id = ts.render(host, {
+              sitekey: window.SHAPE_TURNSTILE_SITEKEY,
+              appearance: 'interaction-only',
+              callback: function (tok) { finish(tok); },
+              'error-callback': function () { finish(''); },
+              'expired-callback': function () { finish(''); },
+            });
+          } catch (e) { finish(''); }
+          setTimeout(function () { finish(''); }, 60000);
+        });
+      }).catch(function () { return ''; });
+    },
   };
 
   // Fire-and-forget product analytics. Consent-gated: never sends when GPC is on

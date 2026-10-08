@@ -4271,6 +4271,13 @@ async function askSupportBot(messages, tone, extra = {}) {
     signal: extra.signal,
   });
   const payload = await res.json().catch(() => ({}));
+  // ⚠ A SIGNED-OUT APP CANNOT PASS NORA'S BOT CHECK. The check is a Turnstile widget keyed
+  // to the website's domain, and the app runs on its own origin, so a demo or preview
+  // session with no account would only ever see "unavailable" (Codex, #2246). It is told
+  // plainly where Nora can be asked instead.
+  if (res.status === 403 && payload && payload.needsCheck) {
+    return { reply: 'Sign in to ask Nora in the app. You can also ask her without an account on theshapecommunity.com.', actions: [], source: 'check' };
+  }
   if (!res.ok) throw new Error(payload.error || 'Support is unavailable right now.');
   return payload;
 }

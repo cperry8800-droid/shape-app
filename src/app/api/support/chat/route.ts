@@ -62,6 +62,7 @@ import { formatMemberContext, UNAVAILABLE_NOTE } from '@/lib/ai/memberContext.mj
 import { formatCookContext, COOK_CONTEXT_HEADER } from '@/lib/ai/cookContext.mjs';
 import { rememberMemoryTool, forgetMemoryTool, draftBriefFromText } from '@/lib/ai/actions.mjs';
 import { computeMembership } from '@/lib/membership-core';
+import { noraTier, visitorGate, countQuestion, limitReply, requestIp, CHECK_REPLY } from '@/lib/ai/noraLimits';
 import { greetingKind, greetingFor } from '@/lib/ai/noraGreeting.mjs';
 import { searchFoodsServer } from '@/lib/food-search-server';
 import { plainText } from '@/lib/ai/replyText.mjs';
@@ -1112,7 +1113,7 @@ async function fallbackReply(text: string, coach: CoachCtx): Promise<{ reply: st
 }
 
 export async function POST(request: Request) {
-  const parsed = await readJson<{ messages?: ChatMessage[]; tone?: string; cookContext?: unknown; voice?: unknown; surface?: unknown; locale?: unknown; confirmCards?: unknown }>(request);
+  const parsed = await readJson<{ messages?: ChatMessage[]; tone?: string; cookContext?: unknown; voice?: unknown; surface?: unknown; locale?: unknown; confirmCards?: unknown; turnstileToken?: unknown }>(request);
   if (!parsed.ok) return parsed.response;
   const body = parsed.data;
   const messages = Array.isArray(body.messages) ? body.messages.filter((m) => m && m.content) : [];
@@ -1152,8 +1153,9 @@ export async function POST(request: Request) {
   let trainerTools: typeof TRAINER_TOOLS = [];
   let zone = 'UTC';
   let isMember = false;
+  let membership: Awaited<ReturnType<typeof computeMembership>> | null = null;
   if (actor) {
-    const membership = await computeMembership(actor.supabase, actor.user.id, actor.user.email ?? null).catch(() => null);
+    membership = await computeMembership(actor.supabase, actor.user.id, actor.user.email ?? null).catch(() => null);
     if (membership && membership.isMember) {
       isMember = true;
       memberTools = MEMBER_TOOLS;
@@ -1180,6 +1182,31 @@ export async function POST(request: Request) {
       contextMsg = failed ? UNAVAILABLE_NOTE : formatMemberContext(facts);
     }
   }
+  // ⚠ THE OPEN DOOR IS METERED. A visitor's first question passes the bot check (a
+  // solved Turnstile token earns a signed browser cookie, so later questions skip it),
+  // and every question counts against the day's limit for the tier: per account, or
+  // per browser and per address for a visitor. Past it, Nora says so and nothing is
+  // sent to the model. Both fail open on a limiter or Cloudflare fault.
+  const tier = noraTier(!!actor, membership);
+  let setCookie: string | null = null;
+  let visitorId: string | null = null;
+  if (!actor) {
+    const gate = await visitorGate(request, body.turnstileToken);
+    if (!gate.ok) return NextResponse.json({ error: CHECK_REPLY, reply: CHECK_REPLY, needsCheck: true, source: 'check', actions: [] }, { status: 403 });
+    visitorId = gate.id;
+    setCookie = gate.setCookie;
+  }
+  const limitSb = actor ? actor.supabase : await clientForRequest(request).catch(() => null);
+  const counted = await countQuestion(limitSb, { tier, uid: actor ? actor.user.id : null, visitorId, ip: requestIp(request) });
+  const respond = (payload: Record<string, unknown>, init?: ResponseInit) => {
+    const res = NextResponse.json(payload, init);
+    if (setCookie) res.headers.append('Set-Cookie', setCookie);
+    return res;
+  };
+  if (!counted.allowed) {
+    return respond({ reply: limitReply(tier, counted.limit, counted.resetSeconds), source: 'limit', limited: true, actions: [] });
+  }
+
   // The draft's own model call: the pinned model with its fallback, like every member
   // call; null with no key, and the draft says it is a template.
   const draftModel: DraftModel = hasOpenAIKey() ? (b, o) => callAI(b, { ...o, signal: request.signal }) : null;
@@ -1193,7 +1220,7 @@ export async function POST(request: Request) {
   const coach: CoachCtx = { sb: coachSb, surface };
 
   const ai = await askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx, cookMsg, reads, coachTools, trainerTools, trainerZone: zone, isMember, voice, locale, coach, noCards }, request.signal).catch(() => null);
-  if (ai) return NextResponse.json({ reply: ai.reply, source: 'ai', actions: ai.actions, model: ai.model });
+  if (ai) return respond({ reply: ai.reply, source: 'ai', actions: ai.actions, model: ai.model });
 
   // Cook Mode is a read-only, grounded sous-chef: the support fallback can claim
   // "I've passed this to the Shape team" or return coach/screen actions, which
@@ -1203,7 +1230,7 @@ export async function POST(request: Request) {
   // honest AND localized rather than a hardcoded English string (CodeRabbit
   // Major + adversarial review PR #1805).
   if (cookMsg) {
-    return NextResponse.json({ reply: '', source: 'cook_unavailable', actions: [] });
+    return respond({ reply: '', source: 'cook_unavailable', actions: [] });
   }
 
   // ⚠ NO MODEL, STILL A STARTING POINT FOR A TRAINER. The rule-based reply below cannot
@@ -1216,12 +1243,12 @@ export async function POST(request: Request) {
     const brief = draftBriefFromText(String(lastUser.content || ''));
     const drafted = brief ? await makePropose(actor, request, isMember, null)('draft_workout', brief).catch(() => null) : null;
     if (drafted && drafted.actions.length) {
-      return NextResponse.json({ reply: TEMPLATE_FALLBACK_REPLY, source: 'fallback', actions: drafted.actions });
+      return respond({ reply: TEMPLATE_FALLBACK_REPLY, source: 'fallback', actions: drafted.actions });
     }
   }
 
   const fb = await fallbackReply(String(lastUser.content || ''), coach);
-  return NextResponse.json({ reply: fb.reply, source: 'fallback', actions: fb.actions });
+  return respond({ reply: fb.reply, source: 'fallback', actions: fb.actions });
 }
 
 // Nora's greeting and four suggestions for whoever is asking (the Ask Nora plan, step 2).

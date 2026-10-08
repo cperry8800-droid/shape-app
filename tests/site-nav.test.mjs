@@ -999,8 +999,11 @@ test('no layer that stays on screen floats over the open drawer', () => {
   // like the launcher, or add it here with the reason it belongs on top.
   const ABOVE_THE_DRAWER = {
     // The chat launcher and its fallback panel (2147483000): hidden while the
-    // drawer is open, by the rule the next test pins.
-    'globalChatButton.js': 2,
+    // drawer is open, by the rule the next test pins. And Nora's bot check
+    // (2147483646, #2246): it exists only while a visitor's question waits on
+    // Cloudflare, removed the moment it answers, and a challenge the visitor
+    // cannot reach would leave their question unanswered, so it stays on top.
+    'globalChatButton.js': 3,
     // The cookie-consent bar (99999): a legal choice, kept answerable above
     // everything. It covers the drawer's bottom row only until it is answered,
     // which is one tap on the bar itself.

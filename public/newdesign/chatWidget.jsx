@@ -958,18 +958,27 @@ function ChatWidget(props) {
         let reply = null;
         let actions = null;
         try {
-          const res = await fetch("/api/support/chat", {
+          // voice / surface / locale shape the reply and the chips, never
+          // access: the website is 'web' (its coach chips are page links; the
+          // example directory is on its marketplace), and the page's own
+          // language is the locale — the site has no locale store.
+          const ask = (extra) => fetch("/api/support/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "same-origin",
-            // voice / surface / locale shape the reply and the chips, never
-            // access: the website is 'web' (its coach chips are page links; the
-            // example directory is on its marketplace), and the page's own
-            // language is the locale — the site has no locale store.
-            body: JSON.stringify({ messages: history, tone: noraVoice.tone, voice: !!(opts && opts.voice), surface: "web", locale: cwLocale() }),
+            body: JSON.stringify({ messages: history, tone: noraVoice.tone, voice: !!(opts && opts.voice), surface: "web", locale: cwLocale(), ...extra }),
           });
-          const data = await res.json().catch(() => ({}));
-          if (res.ok && data && data.reply) { reply = data.reply; actions = data.actions; }
+          let res = await ask({});
+          let data = await res.json().catch(() => ({}));
+          // A visitor's first question passes the bot check: solve it once and ask again.
+          if (res.status === 403 && data && data.needsCheck) {
+            // globalChatButton.js carries the solver on every page with Nora, including the
+            // marketing pages that never load /supabase.js; ShapeTurnstile is the fallback.
+            const solve = window.__shapeNoraSolve || (window.ShapeTurnstile && window.ShapeTurnstile.solve);
+            const token = solve ? await solve() : "";
+            if (token) { res = await ask({ turnstileToken: token }); data = await res.json().catch(() => ({})); }
+          }
+          if (data && data.reply && (res.ok || data.needsCheck)) { reply = data.reply; actions = data.actions; }
         } catch (e) { /* fall back below */ }
         setTyping(false);
         const finalReply = reply || supportReply(text);

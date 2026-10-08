@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
+import { solveTurnstile } from '@/components/Turnstile';
 
 type Message = {
   from: 'shape' | 'you';
@@ -28,8 +29,12 @@ export function noraLinks(actions: unknown): { label: string; url: string }[] {
   return out;
 }
 
-export async function askNora(history: Message[], fetcher: typeof fetch = fetch): Promise<{ reply: string; links: { label: string; url: string }[] }> {
-  try {
+export async function askNora(
+  history: Message[],
+  fetcher: typeof fetch = fetch,
+  solve: () => Promise<string> = solveTurnstile,
+): Promise<{ reply: string; links: { label: string; url: string }[] }> {
+  const post = async (extra: Record<string, unknown>) => {
     const res = await fetcher('/api/support/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -39,10 +44,21 @@ export async function askNora(history: Message[], fetcher: typeof fetch = fetch)
         // This panel renders text and links only, so Nora is asked for no drafted changes.
         confirmCards: false,
         messages: history.slice(-12).map((m) => ({ role: m.from === 'you' ? 'user' : 'assistant', content: m.text })),
+        ...extra,
       }),
     });
-    const data = (await res.json().catch(() => ({}))) as { reply?: unknown; actions?: unknown };
-    if (!res.ok || typeof data.reply !== 'string' || !data.reply.trim()) return { reply: NORA_DOWN, links: [] };
+    const data = (await res.json().catch(() => ({}))) as { reply?: unknown; actions?: unknown; needsCheck?: unknown };
+    return { res, data };
+  };
+  try {
+    let { res, data } = await post({});
+    // A visitor's first question passes the bot check: solve it once and ask again.
+    if (res.status === 403 && data.needsCheck === true) {
+      const token = await solve().catch(() => '');
+      if (token) ({ res, data } = await post({ turnstileToken: token }));
+    }
+    const ok = res.ok || data.needsCheck === true;
+    if (!ok || typeof data.reply !== 'string' || !data.reply.trim()) return { reply: NORA_DOWN, links: [] };
     return { reply: data.reply, links: noraLinks(data.actions) };
   } catch {
     return { reply: NORA_DOWN, links: [] };

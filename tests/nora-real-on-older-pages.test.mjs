@@ -89,7 +89,7 @@ test('older pages: Nora\'s greeting promises nothing', () => {
 // ── the Next app's button ────────────────────────────────────────────────────────
 const nextBtn = await loadRealModule(join(ROOT, 'src/components/GlobalChatButton.tsx'), {
   typescript: true,
-  registry: new Map([['react', { useState: () => [], useEffect: () => {} }], ['next/navigation', { usePathname: () => '/dashboard' }]]),
+  registry: new Map([['react', { useState: () => [], useEffect: () => {} }], ['next/navigation', { usePathname: () => '/dashboard' }], ['@/components/Turnstile', { solveTurnstile: async () => '' }]]),
 });
 
 test('Next app: askNora posts the conversation and returns her reply with safe links', async () => {
@@ -108,6 +108,71 @@ test('Next app: no scripted replies and no invented unread count', () => {
   const src = readFileSync(join(ROOT, 'src/components/GlobalChatButton.tsx'), 'utf8');
   assert.doesNotMatch(src, /function replyFor|teammate can follow up|route this to billing/);
   assert.doesNotMatch(src, />\s*24\s*</, 'no hard-coded unread badge');
+});
+
+// ── The visitor's bot check (2026-10-07) ─────────────────────────────────────────
+const CHECK = { error: 'check', reply: "One quick check that you're a person, then I'll answer.", needsCheck: true };
+
+test('older pages: a visitor\'s first question solves the bot check once and asks again with the token', async () => {
+  let n = 0;
+  const p = page(() => (++n === 1 ? json(403, CHECK) : json(200, { reply: 'Shape is $5 a month.' })));
+  p.w.ShapeTurnstile = { solve: () => Promise.resolve('tok-1') };
+  const panel = await askHelp(p, 'pricing?');
+  for (let i = 0; i < 5; i++) await tick();
+  assert.equal(p.calls.length, 2);
+  assert.equal(p.calls[0].body.turnstileToken, undefined);
+  assert.equal(p.calls[1].body.turnstileToken, 'tok-1');
+  assert.equal([...panel.querySelectorAll('.sgc-msg.them')].at(-1).textContent, 'Shape is $5 a month.');
+});
+
+test('older pages: an unsolved check says so instead of claiming Nora is down', async () => {
+  const p = page(() => json(403, CHECK));
+  p.w.ShapeTurnstile = { solve: () => Promise.resolve('') };
+  const panel = await askHelp(p, 'pricing?');
+  for (let i = 0; i < 5; i++) await tick();
+  assert.equal(p.calls.length, 1, 'no token, no second ask');
+  assert.match([...panel.querySelectorAll('.sgc-msg.them')].at(-1).textContent, /quick check/);
+});
+
+test('Next app: askNora solves the check once and retries with the token', async () => {
+  const seen = [];
+  const r = await nextBtn.askNora([{ from: 'you', text: 'hi' }], (url, init) => {
+    seen.push(JSON.parse(init.body));
+    return seen.length === 1 ? json(403, CHECK) : json(200, { reply: 'Hello.' });
+  }, async () => 'tok-2');
+  assert.equal(seen.length, 2);
+  assert.equal(seen[1].turnstileToken, 'tok-2');
+  assert.equal(r.reply, 'Hello.');
+  const unsolved = await nextBtn.askNora([{ from: 'you', text: 'hi' }], () => json(403, CHECK), async () => '');
+  assert.match(unsolved.reply, /quick check/);
+});
+
+test('the rich chat widget retries a checked question with a solved token', () => {
+  const src = readFileSync(join(ROOT, 'public/newdesign/chatWidget.jsx'), 'utf8');
+  assert.match(src, /res\.status === 403 && data && data\.needsCheck/);
+  assert.match(src, /const token = solve \? await solve\(\) : "";/);
+  assert.match(src, /ask\(\{ turnstileToken: token \}\)/);
+});
+
+test('⚠ the solver is on every page with Nora, not only the ones that load supabase.js', async () => {
+  // A marketing page: no ShapeTurnstile. The button script's own solver loads Turnstile.
+  const p = page(() => json(403, CHECK));
+  assert.equal(typeof p.w.__shapeNoraSolve, 'function');
+  assert.equal(p.w.ShapeTurnstile, undefined);
+  let rendered = null;
+  p.w.turnstile = { render: (el, opts) => { rendered = opts; setTimeout(() => opts.callback('tok-3'), 0); return 'w1'; }, remove: () => {} };
+  const tok = await p.w.__shapeNoraSolve();
+  assert.equal(tok, 'tok-3');
+  assert.equal(rendered.appearance, 'interaction-only');
+  assert.equal(rendered.sitekey, '0x4AAAAAADmrGKVw7Ghzs1gQ');
+  assert.ok(!p.doc.querySelector('[data-nora-check]'), 'the widget is removed once it answers');
+  const widget = readFileSync(join(ROOT, 'public/newdesign/chatWidget.jsx'), 'utf8');
+  assert.match(widget, /window\.__shapeNoraSolve \|\| \(window\.ShapeTurnstile && window\.ShapeTurnstile\.solve\)/);
+});
+
+test('the app, which cannot earn a website token, says where to ask instead of failing', () => {
+  const src = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
+  assert.match(src, /if \(res\.status === 403 && payload && payload\.needsCheck\) \{\n\s+return \{ reply: 'Sign in to ask Nora in the app\./);
 });
 
 test('older pages: Nora opens with the account\'s greeting and suggestions, and a suggestion asks Nora', async () => {
