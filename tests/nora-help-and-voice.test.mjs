@@ -34,18 +34,20 @@ test('app Help: bsOpenNora sends the same request as search\'s Nora hit', () => 
 test('website: voice controls show only to someone the gate lets through', () => {
   assert.match(WEB, /const canVoice = member === true(;| \|\| voiceGate === true;)/);
   const guarded = [
-    '{!m.me && isSupport && canVoice && (\n                    <button onClick={() => speakNora(m.t, { explicit: true })}',
+    '{!m.me && isSupport && canVoice && (() => {',
     '{canVoice && <button onClick={() => setNoraEnabled(!noraVoice.enabled)}',
-    '{canVoice && holdSupported && (',
+    '{canVoice && talkSupported && (',
     '{canVoice && <select value={noraVoice.voice}',
-    '{isSupport && canVoice && voiceChat && holdSupported ? (',
-    ') : isSupport && canVoice && voiceSupported && (',
+    '{isSupport && canVoice && voiceSupported && (',
   ];
   for (const g of guarded) assert.ok(WEB.includes(g), `guarded: ${g.split('\n')[0]}`);
-  assert.match(WEB, /if \(canVoiceRef\.current && \(noraVoice\.enabled \|\| voiceChatRef\.current\)\) speakNora\(finalReply\);/, 'no auto-read for a non-member');
+  assert.match(WEB, /if \(!opts\.silent && canVoiceRef\.current && noraVoice\.enabled\) speakNora\(finalReply\);/, 'no auto-read for a non-member');
   // every speak / mic entry point in the Support composer is one of the guarded ones
   assert.equal((WEB.match(/onClick=\{toggleVoice\}/g) || []).length, 1);
-  assert.equal((WEB.match(/onClick=\{\(\) => speakNora\(/g) || []).length, 1);
+  assert.equal((WEB.match(/speakNora\(m\.t, /g) || []).length, 1, 'one Listen');
+  assert.equal((WEB.match(/onClick=\{startTalk\}/g) || []).length, 1, 'one Talk button');
+  // The engine loads only for someone the gate lets through, on Nora's tab.
+  assert.match(WEB, /if \(!isSupport \|\| !canVoice \|\| !talkSupported \|\| talkMod\) return undefined;/);
 });
 
 // ── Codex, #2241 ────────────────────────────────────────────────────────────────

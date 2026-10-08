@@ -100,11 +100,12 @@ test('⚠ NO VOICE CALL IN THE APP IS ROOT-RELATIVE ANY MORE: the composer, the 
   assert.match(BACKEND, /window\.ShapeSupport = \{\n  ask: askSupportBot,\n  transcribe: transcribeVoice,\n  transcribeNote,/);
 });
 
-test('a released hold-to-talk transcript is sent as SPOKEN on both surfaces; a typed message is not', () => {
-  assert.match(CLIENT, /onVoiceComplete=\{voiceChat \? \(text\) => sendSupportText\(text, \{ voice: true \}\) : undefined\}/);
+test('what Talk to Nora heard is sent as SPOKEN on both surfaces; a typed message is not', () => {
+  // Talk to Nora sends what it heard as spoken, and reads the reply itself (2026-10-08).
+  assert.match(CLIENT, /const talk = useNoraTalk\(\(text\) => sendRef\.current\(text, \{ voice: true, silent: true \}\)\);/);
   assert.match(CLIENT, /const sendSupport = \(\) => sendSupportText\(supportDraft\);/);
   assert.match(CLIENT, /window\.ShapeSupport\?\.ask\?\.\(hist, undefined, \{ voice: opts\.voice === true \}\)/);
-  assert.match(WIDGET, /send\(transcript, \{ voice: true \}\)/);
+  assert.match(WIDGET, /talkSendRef\.current\(text, \{ voice: true, silent: true \}\)/);
   assert.match(WIDGET, /voice: !!\(opts && opts\.voice\), surface: "web", locale: cwLocale\(\)/);
   // The website's two recorders hand the page language and the context to the server.
   assert.equal((WIDGET.match(/fd\.append\("language", cwLocale\(\)\); fd\.append\("context", "nora"\);/g) || []).length, 2);

@@ -14,6 +14,7 @@ import { mergePostPatch } from './communityPostPatch.mjs';
 import { computeWeekendSplit, buildSelfWeekendBuckets } from './weekendSplit.mjs';
 import { bsVarianceBand } from '../../../public/newdesign/varianceBand.mjs';
 import { bsSetsWindow } from '../../../public/newdesign/noraSets.mjs';
+import { SILENT_CLIP } from '../../../public/newdesign/noraVoiceLoop.mjs';
 import { bsFeedQuerySpec } from './feedMode.mjs';
 import { bsWorkoutSharePrivacy, bsIsDuplicateWorkoutPost, bsFetchDuplicateCandidates, bsActivityStartISO, bsPostActivityStart, BS_PRIVACY_RANK } from './workoutShare.mjs';
 import { bsLiveAudience } from './liveProgress.mjs';
@@ -8002,6 +8003,27 @@ function settleVoiceEnd() {
   _voiceEnd = null; _voiceEnded = null;
   if (resolve) resolve();
 }
+// ⚠ ONE PLAYER FOR EVERY CLIP, UNLOCKED BY THE TAP THAT ASKED FOR IT. Safari plays a
+// media element only once a tap has started it, element by element, and the reply arrives
+// after a network wait, long after the tap. A new Audio() per clip was therefore blocked on
+// the mobile web every time, so Listen did nothing (owner, 2026-10-08). primeVoice() plays a
+// moment of silence on this element inside the tap; every later clip reuses it.
+let _voicePlayer = null;
+function voicePlayer() {
+  if (!_voicePlayer) { try { _voicePlayer = new Audio(); } catch (e) { _voicePlayer = null; } }
+  return _voicePlayer;
+}
+// Synchronous on purpose: call it from the tap itself, before anything awaits.
+function primeVoice() {
+  const a = voicePlayer();
+  if (!a || a.__unlocked) return;
+  try {
+    a.onended = a.onerror = null;
+    a.src = SILENT_CLIP;
+    const p = a.play();
+    if (p && p.then) p.then(() => { a.__unlocked = true; }, () => {});
+  } catch (e) {}
+}
 function stopVoice() {
   _voiceGen++;
   try { if (_voiceAbort) _voiceAbort.abort(); } catch (e) {}
@@ -8025,6 +8047,7 @@ async function speakVoice(text, toneOverride, opts = {}) {
   if (!opts.force && !prefs.enabled) return { ok: false, disabled: true };
   const tone = toneOverride || prefs.tone;
   stopVoice();                 // supersedes any prior speak (bumps _voiceGen)
+  primeVoice();                // still inside the tap that called speak(): unlock the player
   const myGen = _voiceGen;     // this call's generation, captured after the bump
   const token = apiBaseUrl ? await liveAccessToken() : null;
   if (myGen !== _voiceGen) return { ok: false, superseded: true };
@@ -8040,11 +8063,12 @@ async function speakVoice(text, toneOverride, opts = {}) {
     });
     // A newer speak() or a stop() ran while we were fetching — don't play stale audio.
     if (myGen !== _voiceGen) return { ok: false, superseded: true };
-    if (!res.ok) return { ok: false, reason: (res.status === 401 || res.status === 402) ? 'members' : 'unavailable' };
+    if (!res.ok) return { ok: false, reason: res.status === 401 ? 'signed_out' : (res.status === 402 || res.status === 403) ? 'members' : 'unavailable' };
     const blob = await res.blob();
     if (myGen !== _voiceGen) return { ok: false, superseded: true };
     const url = URL.createObjectURL(blob);
-    const audio = new Audio(url);
+    const audio = voicePlayer();
+    if (!audio) { try { URL.revokeObjectURL(url); } catch (e) {} return { ok: false, reason: 'unavailable' }; }
     // Last-moment check: a stop() between the blob and playback still wins.
     if (myGen !== _voiceGen) { try { URL.revokeObjectURL(url); } catch (e) {} return { ok: false, superseded: true }; }
     const ended = new Promise((resolve) => { _voiceEnd = resolve; });
@@ -8056,8 +8080,10 @@ async function speakVoice(text, toneOverride, opts = {}) {
     };
     _voiceAudio = audio;
     _voiceUrl = url;   // so an INTERRUPTING stopVoice() can revoke it (revoking twice is a no-op)
+    audio.src = url;   // a new source drops the old one's pending events, so no stale end lands here
     try {
       await audio.play();
+      audio.__unlocked = true;
     } catch (playErr) {
       // Keep a browser-blocked clip for a direct user-gesture retry. Fetching
       // a new clip on every retry loses that gesture before play() runs.
@@ -8176,6 +8202,7 @@ window.ShapeVoice = {
   speak: speakVoice,
   retry: retryVoice,
   stop: stopVoice,
+  prime: primeVoice,
 };
 
 // ─── Proactive notifications: prefs + the server evaluator ───────────────────
