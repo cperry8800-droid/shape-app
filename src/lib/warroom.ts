@@ -324,6 +324,7 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/nutritionist/meal-plan', 'POST'],
   ['/api/nutritionist/messages', 'GET,POST'],
   ['/api/nutritionist/programs', 'GET'],
+  ['/api/nora/thread', 'GET,POST,DELETE'],
   ['/api/program-tools/templates', 'POST'],
   ['/api/push/dispatch', 'POST'],
   ['/api/push/register', 'POST,DELETE'],

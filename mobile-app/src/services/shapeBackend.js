@@ -7942,12 +7942,34 @@ async function noraGreeting({ signal } = {}) {
   }
 }
 
+// One conversation with Nora per account (the Ask Nora plan, step 4): /api/nora/thread.
+// Signed out, or before the migration runs, every call answers null and the sheet keeps
+// the thread in this session as before. Each device APPENDS what it added; none replaces.
+async function noraThreadCall(method, body) {
+  if (!apiBaseUrl) return null;
+  const token = await liveAccessToken();
+  if (!token) return null;
+  const headers = { Authorization: `Bearer ${token}` };
+  if (body) headers['Content-Type'] = 'application/json';
+  try {
+    const res = await fetch(`${apiBaseUrl}/api/nora/thread`, { method, headers, body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin', cache: 'no-store' });
+    const payload = await res.json().catch(() => ({}));
+    return res.ok ? payload : null;
+  } catch (e) { return null; }
+}
+const noraThread = {
+  async load() { const p = await noraThreadCall('GET'); return p && Array.isArray(p.messages) ? p.messages : null; },
+  async append(messages) { const p = await noraThreadCall('POST', { append: messages }); return !!(p && p.ok); },
+  async clear() { const p = await noraThreadCall('DELETE'); return !!(p && p.ok); },
+};
+
 window.ShapeSupport = {
   ask: askSupportBot,
   transcribe: transcribeVoice,
   transcribeNote,
   confirm: confirmNoraProposal,
   undo: undoNoraProposal,
+  thread: noraThread,
   greeting: noraGreeting,
 };
 

@@ -24640,6 +24640,23 @@ const _bsNoraSubs = new Set();
 // The account whose greeting the thread holds, so a sign-in after a signed-out preview
 // fetches the new account's own (the app remounts on login without reloading; Codex, #2249).
 let _bsNoraGreeted = null;
+// One conversation per account (the Ask Nora plan, step 4). The account the session thread
+// belongs to, so a different account signing in starts from its own (the app remounts on
+// login without reloading), and the account whose stored thread has been loaded.
+let _bsNoraThreadWho = null;
+let _bsNoraLoaded = null;
+// Bumped by Clear (here and in Settings), so an answer still on its way is neither drawn nor
+// saved after it: the save would put the cleared conversation back (Codex, #2255).
+let _bsNoraGen = 0;
+// A stored message ({ role, text, at }, /api/nora/thread) as the sheet draws one.
+function bsNoraFromStored(m) {
+  const me = m && m.role === 'user';
+  return { who: me ? 'You' : 'Nora', t: String((m && m.text) || ''), time: 'earlier', me, bot: !me, saved: true };
+}
+// What this device added, appended to the account's thread; nothing is written signed out.
+function _bsNoraSave(messages) {
+  try { if (_bsNoraWho() !== 'anon') window.ShapeSupport?.thread?.append?.(messages); } catch (e) {}
+}
 const _bsNoraWho = () => { try { return window.ShapeAuth?.getCachedState?.()?.user?.id || 'anon'; } catch (e) { return 'anon'; } };
 function _bsNoraPublish(thread, busy) {
   if (thread) _bsNoraThread = thread;
@@ -24658,6 +24675,9 @@ function BSNoraSheet({ onClose }) {
   // session. It stays put while you move between tabs, but a fresh app load /
   // reload starts a clean thread with the current greeting (no persistence).
   const SUPPORT_GREETING = { who: 'Nora', t: "Hi, I'm Nora — Shape's concierge. Ask me anything: connecting integrations, your plan, billing, or your account. If I can't sort it out, the Shape team answers at info@theshapecommunity.com.", time: 'now', me: false, bot: true, greet: true };
+  // Another account's session thread is never shown: a different account starts from its own.
+  // The load marker goes with it: signing out and back into the same account loads again (Codex, #2255).
+  if (_bsNoraThreadWho !== _bsNoraWho()) { _bsNoraThread = null; _bsNoraThreadWho = _bsNoraWho(); _bsNoraLoaded = null; }
   const [supportMsgs, setSupportMsgs] = useStateBSC(() => _bsNoraThread || [SUPPORT_GREETING]);
   const [supportDraft, setSupportDraft] = useStateBSC(() => { const d = _bsNoraDraft; _bsNoraDraft = ''; return d; });
   const [supportBusy, setSupportBusy] = useStateBSC(() => _bsNoraBusy);
@@ -24680,6 +24700,33 @@ function BSNoraSheet({ onClose }) {
       _bsNoraPublish([{ ...cur[0], t: g.text, quick: g.quick }]);
     }).catch(() => { if (_bsNoraGreeted === who) _bsNoraGreeted = null; });
   }, []);
+  // The account's stored conversation (the Ask Nora plan, step 4), loaded once a session
+  // and only into a thread nobody has written in yet this session; what is said here is
+  // appended to it, so nothing is lost either way. Unavailable is tried again next open.
+  React.useEffect(() => {
+    const who = _bsNoraWho();
+    if (who === 'anon' || _bsNoraLoaded === who || !window.ShapeSupport?.thread) return;
+    _bsNoraLoaded = who;
+    window.ShapeSupport.thread.load().then((list) => {
+      if (_bsNoraLoaded !== who) return;
+      if (!Array.isArray(list)) { _bsNoraLoaded = null; return; }
+      const cur = _bsNoraThread || [SUPPORT_GREETING];
+      if (!list.length || cur.length !== 1) return;
+      _bsNoraPublish([cur[0], ...list.map(bsNoraFromStored)]);
+    }).catch(() => { if (_bsNoraLoaded === who) _bsNoraLoaded = null; });
+  }, []);
+  // Clear (in this sheet and in Settings → What Nora remembers): the conversation goes on
+  // every device; the greeting stays, and what Nora remembers is untouched.
+  const clearThread = async () => {
+    const ask = window.bsAskConfirm;
+    if (ask && !(await ask({ title: tr('feed:support.thread.confirmTitle', { defaultValue: 'Clear your conversation with Nora?' }), message: tr('feed:support.thread.confirmBody', { defaultValue: 'This deletes it on every device. What Nora remembers stays.' }), confirmLabel: tr('feed:support.thread.clear', { defaultValue: 'Clear conversation' }) }))) return;
+    _bsNoraGen += 1;
+    try { window.ShapeVoice?.stop?.(); } catch (e) {}
+    _bsNoraPublish([(_bsNoraThread || supportMsgs)[0] || SUPPORT_GREETING]);
+    if (_bsNoraWho() === 'anon' || !window.ShapeSupport?.thread) return;
+    const ok = await window.ShapeSupport.thread.clear();
+    if (!ok) window.__bsToast?.(tr('feed:support.thread.failed', { defaultValue: "Couldn't clear it on your account. Try again." }), 'err');
+  };
   // Talk to Nora (owner, 2026-10-08): the Talk button opens her face over the sheet and a
   // spoken conversation that runs through this same thread. It replaced the "Voice chat
   // on/off" chip, whose hold-to-talk mic was hard to find and harder to use.
@@ -24735,17 +24782,24 @@ function BSNoraSheet({ onClose }) {
     if (!opts.silent) { try { if (window.ShapeVoice?.enabled?.()) window.ShapeVoice.prime?.(); } catch (e) {} }
     setSupportDraft('');
     const next = [...(_bsNoraThread || supportMsgs), { who: 'You', t: clean, time: 'now', me: true }];
+    const sentAt = new Date().toISOString();
+    const gen = _bsNoraGen;
     _bsNoraPublish(next, true);
     try {
       const hist = next.map(m => ({ role: m.me ? 'user' : 'assistant', content: m.t }));
       const res = await window.ShapeSupport?.ask?.(hist, undefined, { voice: opts.voice === true, context: bsNoraContext(!screenOffRef.current) });
+      // Cleared while she was answering: the answer belongs to the conversation that went.
+      if (gen !== _bsNoraGen) return null;
       const reply = (res && res.reply) || "I can't answer that just now. The Shape team answers at info@theshapecommunity.com.";
       const acts = (res && Array.isArray(res.actions) && res.actions.length) ? res.actions : undefined;
       _bsNoraPublish([...(_bsNoraThread || next), { who: 'Nora', t: reply, time: 'now', me: false, bot: true, actions: acts }]);
       // Settings → Nora voice on reads every reply aloud (off by default); failures are silent.
       if (!opts.silent && window.ShapeVoice && window.ShapeVoice.enabled()) speakReply(reply);
+      // Kept on the account only when she answered: a "can't reach" line is not the conversation.
+      if (res && res.reply) _bsNoraSave([{ role: 'user', text: clean, at: sentAt }, { role: 'assistant', text: reply, at: new Date().toISOString() }]);
       return res && res.reply ? reply : null;
     } catch (e) {
+      if (gen !== _bsNoraGen) return null;
       _bsNoraPublish([...(_bsNoraThread || next), { who: 'Nora', t: "I can't be reached right now. Try again in a moment, or email the Shape team at info@theshapecommunity.com.", time: 'now', me: false, bot: true }]);
       return null;
     } finally { _bsNoraPublish(null, false); }
@@ -24827,12 +24881,19 @@ function BSNoraSheet({ onClose }) {
                   </button>
                 </div>
                 <div aria-hidden style={{ height: 2, marginTop: 10, marginBottom: 16, background: `linear-gradient(90deg, ${t.INK}, ${noraTint} 62%, transparent)` }} />
-                {!screenOff && (_bsNoraOpen.label || _bsNoraOpen.page) && (
-                  <div data-nora-screen style={{ display: 'inline-flex', alignSelf: 'flex-start', alignItems: 'center', gap: 6, margin: '-6px 0 14px', padding: '3px 4px 3px 9px', borderRadius: 999, border: `1px dashed ${hair}`, color: muted, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', maxWidth: '100%' }}>
-                    <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: noraTint, flex: 'none' }} />
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{_bsNoraOpen.label || _bsNoraOpen.page}</span>
-                    <button type="button" onClick={() => setScreenOff(true)} aria-label={tr('feed:support.screenOff', { defaultValue: "Don't tell Nora which screen you're on" })} title={tr('feed:support.screenOff', { defaultValue: "Don't tell Nora which screen you're on" })} style={{ border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer', fontSize: 12, lineHeight: 1, padding: '0 4px' }}>×</button>
-                  </div>
+                {((!screenOff && (_bsNoraOpen.label || _bsNoraOpen.page)) || supportMsgs.length > 1) && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, margin: '-6px 0 14px' }}>
+                  {!screenOff && (_bsNoraOpen.label || _bsNoraOpen.page) && (
+                    <div data-nora-screen style={{ display: 'inline-flex', alignSelf: 'flex-start', alignItems: 'center', gap: 6, padding: '3px 4px 3px 9px', borderRadius: 999, border: `1px dashed ${hair}`, color: muted, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', maxWidth: '100%' }}>
+                      <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: noraTint, flex: 'none' }} />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{_bsNoraOpen.label || _bsNoraOpen.page}</span>
+                      <button type="button" onClick={() => setScreenOff(true)} aria-label={tr('feed:support.screenOff', { defaultValue: "Don't tell Nora which screen you're on" })} title={tr('feed:support.screenOff', { defaultValue: "Don't tell Nora which screen you're on" })} style={{ border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer', fontSize: 12, lineHeight: 1, padding: '0 4px' }}>×</button>
+                    </div>
+                  )}
+                  {supportMsgs.length > 1 && (
+                    <button type="button" onClick={clearThread} style={{ marginLeft: 'auto', border: 0, background: 'transparent', color: muted, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', padding: '4px 0', whiteSpace: 'nowrap' }}>{tr('feed:support.thread.clearShort', { defaultValue: 'Clear' })}</button>
+                  )}
+                </div>
                 )}
 
                 {/* Messages — tucked-corner tinted bubbles, matching BSChatThread */}
@@ -25892,6 +25953,36 @@ function BSReminderManager() {
     </React.Fragment>
   );
 }
+// The account's saved conversation with Nora (the Ask Nora plan, step 4), listed under What
+// Nora remembers: how many messages are kept, and Clear, which deletes it on every device.
+function BSNoraThreadCard() {
+  const t = useBS();
+  const tr = useShapeTr();
+  const [count, setCount] = useStateBSC(undefined); // undefined loading · null unavailable · number
+  const load = () => Promise.resolve(window.ShapeSupport?.thread?.load?.()).then((list) => setCount(Array.isArray(list) ? list.length : null)).catch(() => setCount(null));
+  React.useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  if (count === undefined || count === null) return null;
+  const clear = async () => {
+    const ask = window.bsAskConfirm;
+    if (ask && !(await ask({ title: tr('feed:support.thread.confirmTitle', { defaultValue: 'Clear your conversation with Nora?' }), message: tr('feed:support.thread.confirmBody', { defaultValue: 'This deletes it on every device. What Nora remembers stays.' }), confirmLabel: tr('feed:support.thread.clear', { defaultValue: 'Clear conversation' }) }))) return;
+    _bsNoraGen += 1;
+    const ok = await window.ShapeSupport?.thread?.clear?.();
+    if (!ok) { window.__bsToast?.(tr('feed:support.thread.failed', { defaultValue: "Couldn't clear it on your account. Try again." }), 'err'); return; }
+    // The open sheet's thread goes too, so it cannot be appended back from this session.
+    if (_bsNoraThread && _bsNoraThread.length > 1) _bsNoraPublish([_bsNoraThread[0]]);
+    setCount(0);
+  };
+  return (
+    <div data-nora-thread-card style={{ padding: '12px 0 16px', marginBottom: 8, borderBottom: `1px solid ${t.HAIR}` }}>
+      <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('feed:support.thread.title', { defaultValue: 'Your conversation' })}</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 6 }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 500, color: t.INK }}>{count > 0 ? tr('feed:support.thread.count', { count, defaultValue: `${count} messages kept` }) : tr('feed:support.thread.empty', { defaultValue: 'No saved conversation.' })}</div>
+        {count > 0 && <button type="button" onClick={clear} style={{ background: 'transparent', border: 0, color: t.RUST, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{tr('feed:support.thread.clearShort', { defaultValue: 'Clear' })}</button>}
+      </div>
+      <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 12, fontWeight: 500, color: t.INK70, lineHeight: 1.5 }}>{tr('feed:support.thread.note', { defaultValue: 'Kept on your account, so it continues on the website and in the app.' })}</div>
+    </div>
+  );
+}
 // "What Nora remembers" — the member-managed view of user_goals('nora_memory')
 // (the notes Nora's remember tool saved). Per-note delete + clear-all (behind
 // the standing destructive-action confirm); writes ride window.ShapeNoraMemory's
@@ -25917,6 +26008,7 @@ function BSNoraMemoryPage({ onBack }) {
     <BSPage>
       <BSDetailHeader onBack={onBack} eyebrow="Section · Nora" kicker="Memory" title={<>What Nora<br/>remembers.</>} />
       <div style={{ padding: `4px ${t.padX}px 30px` }}>
+        <BSNoraThreadCard />
         {notes === null ? (
           <div style={{ padding: '16px 0', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>
         ) : notes.length === 0 ? (
