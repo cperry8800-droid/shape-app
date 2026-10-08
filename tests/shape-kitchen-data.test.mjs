@@ -324,7 +324,7 @@ test('catalog: the interleave demo is real — oven, stove AND off windows all e
 // empty would leave every one of them green over nothing.
 test('the window rules read the demo meal plan\'s holds as well as the catalog\'s', () => {
   const holds = DEMO_MEAL_RECIPES.flatMap((r) => r.stepMeta.filter((m) => m && m.passive === true).map((m) => m.station));
-  assert.ok(holds.length >= 7, `${holds.length} demo holds read`);
+  assert.ok(holds.length >= 5, `${holds.length} demo holds read`);
   assert.ok(holds.includes('oven') && holds.includes('stove'), `demo holds on ${[...new Set(holds)].join(', ')}`);
   assert.ok(WINDOW_RECIPES.length === SHAPE_KITCHEN_RECIPES.length + DEMO_MEAL_RECIPES.length);
 });

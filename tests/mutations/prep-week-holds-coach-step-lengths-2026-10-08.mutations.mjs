@@ -12,21 +12,20 @@ const COOKABLE = 'mobile-app/src/services/cookable.mjs';
 const READER = 'tests/helpers/demo-meal-plan.mjs';
 
 const HOLD = 'const bsHoldStep = (t, min, station) => ({ t, min, passive: true, station });';
-const BEEF_ROAST = "bsHoldStep('Roast 15 minutes on a single uncrowded layer, until the undersides colour.', 15, 'oven'),";
-const BEEF_TURN = "bsHoldStep('Turn the cubes and roast 10 minutes more, until the edges caramelise and a fork slides in with no resistance.', 10, 'oven'),";
+const BEEF_ROAST = "bsHoldStep('Roast 25 minutes on a single uncrowded layer, until the edges caramelise and a fork slides in with no resistance.', 25, 'oven'),";
 const BEEF_PAN = "'Get a heavy pan properly hot, add the beef in one layer and leave it alone so it browns rather than stews in its own liquid.',";
 const RICE = "bsHoldStep('Cook the rice 1 part to 1 and a half parts salted water, covered, 12 minutes on the lowest heat.', 12, 'stove'),";
 const LID_RICE = "bsHoldStep('Bring to a boil, cover, drop to the lowest heat and leave it 12 minutes — do not lift the lid, the trapped steam is doing the cooking.', 12, 'stove'),";
 const THIGHS = "bsHoldStep('Roast skin-side up 35 minutes, undisturbed, until the skin is deep gold";
 const STEAK_REST = "bsTimedStep('Rest it 5 minutes on a board. Cut it straight off the heat and the juice runs out onto the board instead of staying in the meat.', 5, 'off')";
 const SALMON_SEAR = "bsTimedStep('Sear undisturbed 4 minutes, until the skin releases from the pan on its own and the flesh has turned opaque about a third of the way up the fillet.', 4, 'stove')";
-const TRAY_END = `            bsHoldStep('Turn them and roast 10 minutes more, until the edges brown and the thickest pieces give under a fork.', 10, 'oven'),
+const TRAY_END = `            bsHoldStep('Roast 22 minutes, until the edges brown and the thickest pieces give under a fork.', 22, 'oven'),
             'Tip them onto the plate while hot and crumble the feta over so it softens against the heat. Scatter the olives.',
             'Toast the bread and serve alongside, for scooping up whatever is left on the plate.',`;
 
 const ATTENDED = "  return { t, min: Math.round(worked / 60), passive: false, ...(st ? { station: st } : {}) };";
 const PER_SIDE = '  const worked = time.perSide ? time.seconds * 2 : time.seconds;';
-const RANGE = '  const seconds = low && high > 0 ? Math.min(span.seconds, (span.seconds / high) * Number(low[1])) : span.seconds;';
+const RANGE = '  let seconds = low && high > 0 ? Math.min(span.seconds, (span.seconds / high) * Number(low[1])) : span.seconds;';
 const NOT_WORK = '  if (BS_AUTHOR_NOT_WORK_RE.test(t)) return { t };';
 const FLOOR = '  if (worked < BS_AUTHOR_MIN_PASSIVE * 60) return { t };';
 const ON_SIDE = 'const BS_AUTHOR_PER_SIDE_RE = /^\\s+(?:on\\s+)?(?:a|each|per)\\s+side\\b/i;';
@@ -35,6 +34,7 @@ const EDITOR = "ds[li] = { ...ds[li], passive: false };";
 const WINDOW = '  if (st && !time.perSide && time.seconds >= BS_AUTHOR_MIN_PASSIVE * 60) return { t, min: Math.round(time.seconds / 60), passive: true, station: st };';
 const HINT = 'const perSide = wantsWin && bsStepPerSide(s.t) && derived && derived.min;';
 const PER_SIDE_EXPORT = '  return !!(time && time.perSide);';
+const COMPOUND = "  if (!low && next && unitRank(next) < unitRank(span) && /^\\s*(?:and\\s+)?$/i.test(t.slice(span.end, next.at))) {";
 const DE = 'mobile-app/src/i18n/catalogs/de/coach.json';
 
 export default {
@@ -44,8 +44,9 @@ export default {
     // ── The demo plan's holds ───────────────────────────────────────────────────────────────
     { name: 'a hold is attended after all', file: CLIENT, find: HOLD, replace: HOLD.replace('passive: true', 'passive: false') },
     { name: 'a hold loses its station', file: CLIENT, find: HOLD, replace: HOLD.replace(', station });', ' });') },
-    { name: 'the beef bowl\'s roast goes back to one attended step', file: CLIENT, find: `${BEEF_ROAST}\n            ${BEEF_TURN}`,
-      replace: "bsTimedStep('Roast 25 minutes on a single uncrowded layer, turning once, until the edges caramelise and a fork slides in with no resistance.', 25, 'oven')," },
+    { name: 'the beef bowl\'s roast goes back to an attended step', file: CLIENT, find: BEEF_ROAST, replace: BEEF_ROAST.replace('bsHoldStep(', 'bsTimedStep(') },
+    { name: 'the beef bowl\'s roast is split around a turn again (Codex, on the first head)', file: CLIENT, find: BEEF_ROAST,
+      replace: "bsHoldStep('Roast 15 minutes on a single uncrowded layer, until the undersides colour.', 15, 'oven'),\n            bsHoldStep('Turn the cubes and roast 10 minutes more, until the edges caramelise and a fork slides in with no resistance.', 10, 'oven')," },
     { name: 'a hold asks the cook to turn the tray during it (the attended-gerund rule)', file: CLIENT, find: BEEF_ROAST,
       replace: BEEF_ROAST.replace('layer, until', 'layer, turning once, until') },
     { name: 'the step after a hold opens "Meanwhile" (the concurrent-step rule)', file: CLIENT, find: BEEF_PAN,
@@ -70,7 +71,7 @@ export default {
     { name: 'a coach\'s attended step drops the station they picked', file: COOKABLE, find: ATTENDED, replace: "  return { t, min: Math.round(worked / 60), passive: false };" },
     { name: 'per side counts one side', file: COOKABLE, find: PER_SIDE, replace: '  const worked = time.seconds;' },
     { name: '"on each side" is not read as per side', file: COOKABLE, find: ON_SIDE, replace: ON_SIDE.replace('(?:on\\s+)?', '') },
-    { name: 'a range is its top', file: COOKABLE, find: RANGE, replace: '  const seconds = span.seconds;' },
+    { name: 'a range is its top', file: COOKABLE, find: RANGE, replace: '  let seconds = span.seconds;' },
     { name: 'a storage time counts as work', file: COOKABLE, find: NOT_WORK, replace: '' },
     { name: 'the attended floor rounds 3.5 minutes up to 4', file: COOKABLE, find: FLOOR, replace: '  if (Math.round(worked / 60) < BS_AUTHOR_MIN_PASSIVE) return { t };' },
     { name: 'a coach\'s last oven window drops its minutes at ingestion', file: COOKABLE, find: TERMINAL, replace: '    c.stepMeta[c.steps.length - 1] = plainStepMeta();' },
@@ -82,6 +83,9 @@ export default {
     { name: 'the editor\'s per-side hint never shows', file: PROS, find: HINT, replace: 'const perSide = false;' },
     { name: 'the editor shows the per-side hint on every hint', file: PROS, find: HINT, replace: 'const perSide = wantsWin;' },
     { name: 'bsStepPerSide never says per side', file: COOKABLE, find: PER_SIDE_EXPORT, replace: '  return false;' },
+    { name: 'an hour-and-minute time reads as its hours alone (Codex, on the first head)', file: COOKABLE, find: COMPOUND, replace: '  if (false) {' },
+    { name: 'two actions\' times add up as one', file: COOKABLE, find: COMPOUND, replace: '  if (!low && next) {' },
+    { name: 'the same unit twice adds up as one', file: COOKABLE, find: COMPOUND, replace: COMPOUND.replace('unitRank(next) < unitRank(span)', 'unitRank(next) <= unitRank(span)') },
     { name: 'the German catalog lacks the per-side hint', file: DE, find: '  "editor.windowPerSide": ', replace: '  "editor.windowPerSideX": ' },
   ],
 };

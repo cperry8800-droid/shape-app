@@ -33,6 +33,21 @@ test('a hands-on step carries the minutes it states, attended', () => {
   assert.equal(minOf('Chop everything small.'), null, 'no stated time, no minutes');
 });
 
+// ⚠ Codex, on the first head: "Bake 1 hour 15 minutes" stored 60, so the plan moved on a quarter
+// of an hour early. A smaller unit straight after a larger one is the same time.
+test('an hour-and-minute time is one time; two actions are two', () => {
+  assert.equal(minOf('Bake 1 hour 15 minutes, until golden.'), 75);
+  assert.equal(minOf('Simmer 1 hour and 10 minutes.'), 70);
+  assert.equal(minOf('Bake 1 hr 5 min.'), 65);
+  assert.equal(minOf('Bake 1 hour, then rest 15 minutes.'), 60, 'the first action\'s time');
+  assert.equal(minOf('Rest 5 minutes 10 minutes.'), 5, 'the same unit twice is not one time');
+  assert.equal(minOf('Cook 2 minutes 30 seconds.'), null, '2.5 minutes: under 4');
+  assert.equal(minOf('Cook 3 minutes 30 seconds a side.'), 7, 'both sides of 3.5 minutes');
+  // A window reads it the same way.
+  assert.deepEqual(bsAuthorStep('Bake 1 hour 15 minutes, covered.', 'oven'),
+    { t: 'Bake 1 hour 15 minutes, covered.', min: 75, passive: true, station: 'oven' });
+});
+
 test('a step timed per side is both sides', () => {
   assert.equal(minOf('Sear 4 minutes a side, until it releases.'), 8);
   assert.equal(minOf('Sear 4 min/side over medium-high.'), 8);

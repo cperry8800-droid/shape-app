@@ -742,15 +742,25 @@ const BS_AUTHOR_PER_SIDE_RE = /^\s+(?:on\s+)?(?:a|each|per)\s+side\b/i;
 const BS_AUTHOR_RANGE_LOW_RE = /(\d+)\s+to\s+$/i;
 const BS_AUTHOR_NOT_WORK_RE = /\b(?:up\s+to|refrigerat\w*|fridge|freez\w*|stor(?:e|ed|ing|age)|overnight|ahead|soak\w*|marinat\w*|days?)\b/i;
 // The first time a step states, in seconds, and whether it is per side; null when it states none.
+// "1 hour 15 minutes" is one time, not 60 and then 15 (Codex): a smaller unit straight after a
+// larger one, with nothing between but a space or "and", adds to it. "Bake 1 hour, then rest 15
+// minutes" is two actions and stays 60.
+const BS_AUTHOR_UNIT_RANK = { hr: 3, min: 2, sec: 1 };
+const unitRank = (span) => BS_AUTHOR_UNIT_RANK[span.label.split(' ')[1]] || 0;
 const authoredTime = (t) => {
-  const span = timerSpans(t)[0];
+  const [span, next] = timerSpans(t);
   if (!span) return null;
   // timerSpans reads "8 to 10 minutes" as its "10 minutes"; the low end scales by the same unit.
   const high = Number((t.slice(span.at).match(/^\d+/) || [])[0]);
   const low = t.slice(0, span.at).match(BS_AUTHOR_RANGE_LOW_RE);
-  const seconds = low && high > 0 ? Math.min(span.seconds, (span.seconds / high) * Number(low[1])) : span.seconds;
+  let seconds = low && high > 0 ? Math.min(span.seconds, (span.seconds / high) * Number(low[1])) : span.seconds;
+  let end = span.end;
+  if (!low && next && unitRank(next) < unitRank(span) && /^\s*(?:and\s+)?$/i.test(t.slice(span.end, next.at))) {
+    seconds += next.seconds;
+    end = next.end;
+  }
   // "/side" and "per side" sit inside the span; "a side" and "each side" follow it.
-  const perSide = /side$/i.test(t.slice(span.at, span.end)) || BS_AUTHOR_PER_SIDE_RE.test(t.slice(span.end));
+  const perSide = /side$/i.test(t.slice(span.at, end)) || BS_AUTHOR_PER_SIDE_RE.test(t.slice(end));
   return { seconds, perSide };
 };
 // For the editor's hint: a step whose time is per side cannot be made hands-off by any time.

@@ -12476,7 +12476,11 @@ const bsTimedStep = (t, min, station) => ({ t, min, passive: false, station });
 // timer. Held to the catalog's window rules by tests/shape-kitchen-data.test.mjs, which reads
 // these steps beside the catalog's: nothing to stir or turn during it, no instruction after its
 // time, never the dish's last step unless it is off the heat, and the next step does not open
-// "Meanwhile". So a roast the cook turns halfway is two holds, with the turn opening the second.
+// "Meanwhile". So a tray on a hold is never turned during it: the two roasts here sit on a single
+// uncrowded layer, which is why they need no turn. ⚠ A roast once split into two holds, with the
+// turn opening the second, and Codex measured why that does not work: the planner fills a hold
+// with whatever fits, so the cook was still on another dish's step when the first hold ended,
+// and the turn came two minutes late.
 const bsHoldStep = (t, min, station) => ({ t, min, passive: true, station });
 
 function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initialView = '', onStartConsumed = () => {}, cookWith = null, onCookWithConsumed = () => {}, prepTonight = null, onPrepTonightConsumed = () => {} }) {
@@ -12766,8 +12770,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
           ],
           steps: [
             'Heat the oven to 220°C / 425°F and toss the sweet potato cubes in oil and salt until every face is coated — a dry cube steams and goes soft rather than crisping.',
-            bsHoldStep('Roast 15 minutes on a single uncrowded layer, until the undersides colour.', 15, 'oven'),
-            bsHoldStep('Turn the cubes and roast 10 minutes more, until the edges caramelise and a fork slides in with no resistance.', 10, 'oven'),
+            bsHoldStep('Roast 25 minutes on a single uncrowded layer, until the edges caramelise and a fork slides in with no resistance.', 25, 'oven'),
             'Get a heavy pan properly hot, add the beef in one layer and leave it alone so it browns rather than stews in its own liquid.',
             bsTimedStep('Break it up, stir in the cumin and paprika, and cook 6 minutes more until no pink remains and the spices smell toasted.', 6, 'stove'),
             'Warm the beans through with a splash of their own liquid so they stay whole.',
@@ -13036,8 +13039,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
           steps: [
             'Heat the oven to 220°C / 425°F and cut the veg to a similar size, so nothing burns while the rest is still raw.',
             'Toss with olive oil and salt until glossy, then spread them out with space between each piece — crowded veg steams instead of roasting.',
-            bsHoldStep('Roast 12 minutes, until the undersides brown.', 12, 'oven'),
-            bsHoldStep('Turn them and roast 10 minutes more, until the edges brown and the thickest pieces give under a fork.', 10, 'oven'),
+            bsHoldStep('Roast 22 minutes, until the edges brown and the thickest pieces give under a fork.', 22, 'oven'),
             'Tip them onto the plate while hot and crumble the feta over so it softens against the heat. Scatter the olives.',
             'Toast the bread and serve alongside, for scooping up whatever is left on the plate.',
           ],
