@@ -3529,6 +3529,8 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
             {runNote && <div role="status" style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.INK, letterSpacing: '0.06em', lineHeight: 1.5 }}>{runNote}</div>}
             {runNote && <button onClick={onBack} style={{ width: '100%', marginTop: 10, borderRadius: 14, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '12px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('coach:schedule.runDone', { defaultValue: 'Done' })}</button>}
             {status === 'error' && <div role="alert" style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.08em' }}>{errMsg || tr('coach:schedule.addError', { defaultValue: "Couldn't add — try again." })}</div>}
+            {/* A refused booking offers Nora, with its words as context (the Ask Nora plan, step 5). */}
+            {status === 'error' && window.BSAskNoraLink ? <window.BSAskNoraLink t={t} label={tr('feed:support.ask.whatHappenedLink', { defaultValue: 'Ask Nora what happened' })} draft={tr('feed:support.ask.bookingFailed', { defaultValue: "My booking didn't go through. What happened?" })} problem={{ kind: 'booking', message: errMsg || tr('coach:schedule.addError', { defaultValue: "Couldn't add — try again." }) }} /> : null}
             {!clientUid && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:schedule.demoBooks', { defaultValue: 'Demo client · books once linked to a live member' })}</div>}
           </div>
         </div>
@@ -6305,6 +6307,8 @@ function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null } =
   // ── Ledger furniture (spec §1) — shared bsPro* helpers (above bsProMastRow),
   // bound to this component's t/heat/flash so trainer + nutri can't drift. ──
   const Redact = typeof window !== 'undefined' ? window.BSTRedact : null;
+  // An empty list offers Nora (the Ask Nora plan, step 5); the client module's link, read off window.
+  const AskNora = typeof window !== 'undefined' ? window.BSAskNoraLink : null;
   const stationHead = (label, trailing) => bsProStationHead(t, heat, label, trailing);
   const monoTrail = (label, onClick) => bsProMonoTrail(t, label, onClick);
   const featureLead = (eyebrow, headA, headB, meta, actions) => bsProFeatureLead(t, heat, eyebrow, headA, headB, meta, actions);
@@ -6381,6 +6385,7 @@ function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null } =
           <div style={{ marginTop: 2 }}>
             {Redact ? <Redact INK={t.INK} label={tr('coach:plans.noPublishedPlans', { defaultValue: 'NO PUBLISHED PLANS' })} /> : null}
             <BSProTextAction mono heat={heat} t={t} label={tr('coach:plans.buildFromScratch', { defaultValue: '＋ Build from scratch' })} onClick={() => openDraft('plan', true)} />
+            {AskNora ? <AskNora t={t} label={tr('feed:support.ask.draftWorkoutLink', { defaultValue: 'Ask Nora to draft one' })} draft={tr('feed:support.ask.draftWorkout', { defaultValue: 'Draft a workout for me: ' })} /> : null}
           </div>
         ) : (
           <div style={{ marginTop: 2 }}>
@@ -6412,7 +6417,10 @@ function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null } =
         {/* Single day workouts — demo signed-out, redaction signed-in-with-none. */}
         {stationHead(tr('coach:plans.sessions', { defaultValue: 'SESSIONS' }), monoTrail(tr('coach:plans.newAction', { defaultValue: 'NEW →' }), () => openDraft('workout')))}
         {workouts.length === 0 ? (
-          serverPlans !== null && Redact ? <Redact INK={t.INK} label={tr('coach:plans.noWorkouts', { defaultValue: 'NO WORKOUTS YET' })} /> : null
+          serverPlans !== null && Redact ? <>
+            <Redact INK={t.INK} label={tr('coach:plans.noWorkouts', { defaultValue: 'NO WORKOUTS YET' })} />
+            {AskNora ? <AskNora t={t} label={tr('feed:support.ask.draftWorkoutLink', { defaultValue: 'Ask Nora to draft one' })} draft={tr('feed:support.ask.draftWorkout', { defaultValue: 'Draft a workout for me: ' })} /> : null}
+          </> : null
         ) : (
         <div style={{ marginTop: 2 }}>
           {workouts.map((w, i) => (
@@ -7283,6 +7291,8 @@ function BSNutriPlans() {
   // ── Ledger furniture (spec §1) — shared bsPro* helpers (above bsProMastRow),
   // bound to this component's t/heat/flash so trainer + nutri can't drift. ──
   const Redact = typeof window !== 'undefined' ? window.BSTRedact : null;
+  // An empty list offers Nora (the Ask Nora plan, step 5); the client module's link, read off window.
+  const AskNora = typeof window !== 'undefined' ? window.BSAskNoraLink : null;
   const stationHead = (label, trailing) => bsProStationHead(t, heat, label, trailing);
   const monoTrail = (label, onClick) => bsProMonoTrail(t, label, onClick);
   const featureLead = (eyebrow, headA, headB, meta, actions) => bsProFeatureLead(t, heat, eyebrow, headA, headB, meta, actions);
@@ -7330,6 +7340,7 @@ function BSNutriPlans() {
           <div style={{ marginTop: 2 }}>
             {Redact ? <Redact INK={t.INK} label={tr('coach:plans.noPublishedPlans', { defaultValue: 'NO PUBLISHED PLANS' })} /> : null}
             <BSProTextAction mono heat={heat} t={t} label={tr('coach:plans.buildFromScratch', { defaultValue: '＋ Build from scratch' })} onClick={() => openDraft('mealplan', true)} />
+            {AskNora ? <AskNora t={t} label={tr('feed:support.ask.draftMealPlanLink', { defaultValue: 'Ask Nora to draft one' })} draft={tr('feed:support.ask.draftMealPlan', { defaultValue: 'Draft a meal plan for me: ' })} /> : null}
           </div>
         ) : (
           <div style={{ marginTop: 2 }}>

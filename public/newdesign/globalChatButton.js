@@ -55,6 +55,8 @@
     if (noraOpen.clientId) c.clientId = String(noraOpen.clientId);
     if (noraOpen.sessionId) c.sessionId = String(noraOpen.sessionId);
     if (noraOpen.item && noraOpen.item.kind && noraOpen.item.title) c.item = { kind: String(noraOpen.item.kind), title: String(noraOpen.item.title).slice(0, 80) };
+    var problem = activeNoraProblem();
+    if (problem) c.problem = { kind: problem.kind, message: problem.message };
     // A sign-up or application form on the page (the Ask Nora plan, step 5): which form,
     // which step, and which fields hold something, never what they hold (signup.jsx).
     try {
@@ -64,6 +66,36 @@
     return c;
   };
   window.__shapeNoraPageName = noraPageName;
+
+  // ── An error or an empty page asks Nora (the Ask Nora plan, step 5) ───────
+  //   window.shapeAskNora({ draft: "Why was my booking refused?", problem: { kind: "booking", message: err } })
+  // opens Nora with the draft in her composer, for the person to send. A problem's kind and
+  // words go with their questions for ten minutes (a retry or a follow-up keeps them), and the
+  // page chip says so: taking the chip off takes them off too. A new ask replaces them. The
+  // server keeps a kind it knows and reads the words as data (src/lib/ai/noraContext.mjs).
+  var noraProblem = null;
+  function activeNoraProblem() {
+    return noraProblem && Date.now() - noraProblem.at < 600000 ? noraProblem : null;
+  }
+  window.shapeAskNora = function (opts) {
+    opts = opts || {};
+    var p = opts.problem;
+    noraProblem = p && p.kind ? { kind: String(p.kind), message: String(p.message || "").slice(0, 300), at: Date.now() } : null;
+    window.__openChatTo({ who: "Nora", tab: "support", draft: String(opts.draft || "").slice(0, 500) });
+  };
+  window.__shapeNoraProblem = function () { var p = activeNoraProblem(); return p ? p.kind : null; };
+  // The "✦ Ask Nora …" line under an empty list or an error, for any React page:
+  //   <window.ShapeAskNoraLink label="Ask Nora what happened" draft="…" problem={{ kind, message }} />
+  window.ShapeAskNoraLink = function (props) {
+    var R = window.React;
+    if (!R) return null;
+    return R.createElement("button", {
+      type: "button",
+      "data-ask-nora-link": "",
+      onClick: function () { window.shapeAskNora({ draft: props.draft, problem: props.problem || null }); },
+      style: Object.assign({ display: "inline-flex", alignItems: "center", gap: 6, border: 0, background: "transparent", padding: "6px 0", color: "var(--sh-accent, #2ee0c4)", fontFamily: "'JetBrains Mono', ui-monospace, monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer", textAlign: "left" }, props.style || {}),
+    }, R.createElement("span", { "aria-hidden": "true" }, "\u2726"), props.label);
+  };
 
   window.__shapeNoraSolve = function () {
     if (window.ShapeTurnstile && window.ShapeTurnstile.solve) return window.ShapeTurnstile.solve();

@@ -883,6 +883,7 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
             <button onClick={openChat} style={{ flex: 1, padding: "13px", borderRadius: 8, border: `1px solid ${hexA(ink, 0.4)}`, background: "transparent", color: ink, cursor: "pointer", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Book intro · Free</button>
           </div>
           {buyErr ? <div role="alert" style={{ marginTop: 11, fontFamily: lvMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", color: "#c0533b" }}>{buyErr}</div> : null}
+          {buyErr && window.ShapeAskNoraLink ? <window.ShapeAskNoraLink label="Ask Nora what happened" draft="My checkout didn't go through. What happened?" problem={{ kind: "payment", message: buyErr }} /> : null}
           </div>
         </div>
       )}
@@ -950,6 +951,7 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
             )}
             {wlErr ? <div role="alert" style={{ marginTop: 11, fontFamily: lvMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", color: "#c0533b" }}>{wlErr}</div> : null}
             {buyErr ? <div role="alert" style={{ marginTop: 11, fontFamily: lvMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", color: "#c0533b" }}>{buyErr}</div> : null}
+            {buyErr && window.ShapeAskNoraLink ? <window.ShapeAskNoraLink label="Ask Nora what happened" draft="My checkout didn't go through. What happened?" problem={{ kind: "payment", message: buyErr }} /> : null}
           </div>
         </div>
       )}

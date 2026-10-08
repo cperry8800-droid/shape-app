@@ -1272,7 +1272,7 @@ export async function POST(request: Request) {
   const opened = reads && (screen.clientId || screen.sessionId)
     ? await verifyOpen(reads, screen.clientId, screen.sessionId, actor as Actor).catch(() => ({ client: null, session: null }))
     : { client: null, session: null };
-  const where = formatContextNote({ surface, page: screen.page, now: new Date(), zone, client: opened.client, session: opened.session, item: screen.item, coachTools: coachTools.length > 0 });
+  const where = formatContextNote({ surface, page: screen.page, now: new Date(), zone, client: opened.client, session: opened.session, item: screen.item, problem: screen.problem, coachTools: coachTools.length > 0 });
   // ⚠ THE OPEN DOOR IS METERED. A visitor's first question passes the bot check (a
   // solved Turnstile token earns a signed browser cookie, so later questions skip it),
   // and every question counts against the day's limit for the tier: per account, or

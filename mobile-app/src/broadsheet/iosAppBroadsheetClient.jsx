@@ -12572,6 +12572,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
   };
 
   // Pull the client's assigned meal plan; fall back to the demo menu when none.
+  const [eatPlanRead, setEatPlanRead] = useStateBSC(false);
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -12582,7 +12583,10 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
         setLiveMealCoach(p.meals.coach || null);
         setLiveMealTitle(p.meals.title || null);
         setDay(bsWeekdayIdx());
-      } catch (e) { /* keep demo menu */ }
+      } catch (e) { /* keep demo menu */ } finally {
+        // The plan read has answered (with a plan or without), so an empty menu is real.
+        if (!cancelled) setEatPlanRead(true);
+      }
     })();
     return () => { cancelled = true; };
   }, []);
@@ -13967,6 +13971,16 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
             </div>
           );
         })}
+        {/* An empty menu offers Nora (the Ask Nora plan, step 5): the question lands in her
+            composer for the member to send. */}
+        {effMeals.length === 0 && (eatPlanRead || !bsEatSignedIn) && (
+          <div data-eat-empty style={{ padding: '4px 0 2px' }}>
+            <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK50, lineHeight: 1.45 }}>{tr('nutrition:eat.noMealsPlanned', { defaultValue: 'No meals planned' })}</div>
+            {day === bsWeekdayIdx()
+              ? <BSAskNoraLink t={t} label={tr('feed:support.ask.eatTodayLink', { defaultValue: 'Ask Nora what to eat today' })} draft={tr('feed:support.ask.eatToday', { defaultValue: 'What should I eat today?' })} />
+              : <BSAskNoraLink t={t} label={tr('feed:support.ask.eatOnDayLink', { defaultValue: 'Ask Nora what to eat on {day}', day: bsWeekdayName(day) })} draft={tr('feed:support.ask.eatOnDay', { defaultValue: 'What should I eat on {day}?', day: bsWeekdayName(day) })} />}
+          </div>
+        )}
       </div>
 
       {/* Tonight's prep for tomorrow (owner, 2026-10-05): the same list the 7 pm reminder names. */}
@@ -19587,9 +19601,22 @@ function bsLooksLikeQuestion(q) {
 }
 // Opens Nora's sheet with the words in her composer. The sheet reads the draft once.
 let _bsNoraDraft = '';
-function bsAskNora(text) {
+// `opts.problem` ({ kind, message }) is an error it was asked from (bsNoraSetProblem).
+function bsAskNora(text, opts) {
   _bsNoraDraft = String(text || '').slice(0, 500);
+  bsNoraSetProblem(opts && opts.problem);
   try { window.dispatchEvent(new CustomEvent('shape:openNora')); } catch (e) {}
+}
+// The "✦ Ask Nora …" line under an empty screen or an error. It opens her sheet with
+// `draft` in the composer, for the member to send.
+function BSAskNoraLink({ t, label, draft, problem, style }) {
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  return (
+    <button type="button" data-ask-nora-link onClick={() => bsAskNora(draft, problem ? { problem } : undefined)}
+      style={{ border: 0, background: 'transparent', padding: '8px 0', cursor: 'pointer', color: teal, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'inline-flex', alignItems: 'center', gap: 6, textAlign: 'left', ...style }}>
+      <span aria-hidden>✦</span>{label}
+    </button>
+  );
 }
 function BSUniversalSearch({ onClose }) {
   const t = useBS();
@@ -24619,6 +24646,18 @@ function bsNoraOpen(patch) {
 }
 const BS_NORA_PAGES = { home: 'Home', train: 'Train', eat: 'Eat', chat: 'Chat', me: 'Me', today: 'Today', clients: 'Clients', plans: 'Plans', programs: 'Plans' };
 function bsNoraPage(tab) { return BS_NORA_PAGES[tab] || String(tab || '').replace(/[-_]+/g, ' ').replace(/^\w/, (c) => c.toUpperCase()); }
+// ⚠ AN ERROR CAN RIDE ALONG (the Ask Nora plan, step 5). "Ask Nora what happened" on an
+// error passes its kind and words; they go with the member's questions for ten minutes, so a
+// retry or a follow-up keeps them, and the sheet's screen chip says so (taking the chip off
+// takes them off too). A new ask replaces them. She sees the words, never what is behind them.
+let _bsNoraProblem = null;
+const BS_NORA_PROBLEM_MS = 10 * 60 * 1000;
+function bsNoraSetProblem(p) {
+  _bsNoraProblem = p && p.kind ? { kind: String(p.kind), message: String(p.message || '').slice(0, 300), at: Date.now() } : null;
+}
+function bsNoraProblem() {
+  return _bsNoraProblem && Date.now() - _bsNoraProblem.at < BS_NORA_PROBLEM_MS ? _bsNoraProblem : null;
+}
 function bsNoraContext(withScreen = true) {
   let timezone = null;
   try { timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (e) {}
@@ -24628,6 +24667,8 @@ function bsNoraContext(withScreen = true) {
   if (_bsNoraOpen.clientId) c.clientId = String(_bsNoraOpen.clientId);
   if (_bsNoraOpen.sessionId) c.sessionId = String(_bsNoraOpen.sessionId);
   if (_bsNoraOpen.item && _bsNoraOpen.item.kind && _bsNoraOpen.item.title) c.item = { kind: String(_bsNoraOpen.item.kind), title: String(_bsNoraOpen.item.title).slice(0, 80) };
+  const problem = bsNoraProblem();
+  if (problem) c.problem = { kind: problem.kind, message: problem.message };
   return c;
 }
 let _bsNoraThread = null;
@@ -24886,7 +24927,7 @@ function BSNoraSheet({ onClose }) {
                   {!screenOff && (_bsNoraOpen.label || _bsNoraOpen.page) && (
                     <div data-nora-screen style={{ display: 'inline-flex', alignSelf: 'flex-start', alignItems: 'center', gap: 6, padding: '3px 4px 3px 9px', borderRadius: 999, border: `1px dashed ${hair}`, color: muted, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', maxWidth: '100%' }}>
                       <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: noraTint, flex: 'none' }} />
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{_bsNoraOpen.label || _bsNoraOpen.page}</span>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{_bsNoraOpen.label || _bsNoraOpen.page}{bsNoraProblem() ? ` · ${tr('feed:support.withError', { defaultValue: 'with the error' })}` : ''}</span>
                       <button type="button" onClick={() => setScreenOff(true)} aria-label={tr('feed:support.screenOff', { defaultValue: "Don't tell Nora which screen you're on" })} title={tr('feed:support.screenOff', { defaultValue: "Don't tell Nora which screen you're on" })} style={{ border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer', fontSize: 12, lineHeight: 1, padding: '0 4px' }}>×</button>
                     </div>
                   )}
@@ -38914,5 +38955,5 @@ function BSHelpPage({ onBack, onContact, onAskNora }) {
   );
 }
 
-Object.assign(window, { bsNoraOpen, bsNoraPage, BSNoraSheet, BSCookMode, BSPrepSession, BSClientApp, BSClientChat, BSSettings, BSDetailHeader, BSContactPage, BSTermsPage, BSUniversalSearch, BSSearchCorner });
+Object.assign(window, { bsNoraOpen, bsNoraPage, bsAskNora, BSAskNoraLink, BSNoraSheet, BSCookMode, BSPrepSession, BSClientApp, BSClientChat, BSSettings, BSDetailHeader, BSContactPage, BSTermsPage, BSUniversalSearch, BSSearchCorner });
 try { window.BS_HEADER_AVATAR = BS_HEADER_AVATAR; } catch (e) {}

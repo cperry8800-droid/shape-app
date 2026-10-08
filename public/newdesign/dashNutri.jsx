@@ -267,6 +267,7 @@ function ClientNutritionPage() {
             <div style={{ fontSize: 13, color: DNU_INK50, lineHeight: 1.55, marginTop: 8, maxWidth: 480 }}>
               Your nutritionist builds the plan and it lands here, with swaps and a grocery list — ask in chat, or find a coach in the marketplace.
             </div>
+            {window.ShapeAskNoraLink && <window.ShapeAskNoraLink style={{ marginTop: 10 }} label="Ask Nora what to eat today" draft="What should I eat today?" />}
           </div>
         ) },
       ]
