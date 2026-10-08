@@ -911,7 +911,7 @@ Append new entries at the top, under this note.
 - ⚠ **REGISTERED, NOT DONE:**
   - **No live model has run any of it**, and the eval script (#2250) has never been run. **No signed-in pass on a phone** either.
   - **Owner settings:**
-    - Add `capacitor://localhost` and `https://localhost` to the Turnstile widget's hostnames in Cloudflare; until then, the installed app's bot check cannot pass (#2259).
+    - Add the hostname **`localhost`** to the Turnstile widget's hostnames in Cloudflare; until then, the installed app's bot check cannot pass (#2259). ⚠ **A HOSTNAME, NOT AN ORIGIN:** both native origins, `capacitor://localhost` and `https://localhost`, have the hostname `localhost`, and the allowlist takes hostnames only (Codex, #2268). This entry, and what I told the owner in chat, first named the two origins.
     - Set `SUPPORT_EMAIL` in Vercel, or the questions go to info@ (#2265).
   - **Not translated:** the limit and check messages (#2246), the greeting text (#2249) and the website panel's "Talk to a person" are English only. The new app strings (#2252, #2259, #2261, #2265) have not been read by speakers.
   - **Nora:**
