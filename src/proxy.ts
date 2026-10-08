@@ -5,9 +5,16 @@
 
 import type { NextRequest } from 'next/server';
 import { updateSession } from '@/lib/supabase/middleware';
+import { nativeCorsOrigin, nativePreflight, withNativeCors } from '@/lib/native-cors';
 
 export async function proxy(request: NextRequest) {
-  return await updateSession(request);
+  // The installed app calls /api cross-origin (src/lib/native-cors.ts): its preflight is
+  // answered here, before the session and the gates, and every response it gets back,
+  // early refusals included, names its origin.
+  const appOrigin = nativeCorsOrigin(request.nextUrl.pathname, request.headers.get('origin'));
+  if (appOrigin && request.method === 'OPTIONS') return nativePreflight(appOrigin);
+  const response = await updateSession(request);
+  return appOrigin ? withNativeCors(response, appOrigin) : response;
 }
 
 export const config = {
