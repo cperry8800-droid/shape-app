@@ -13,8 +13,13 @@ const core = await loadRealModule(join(ROOT, 'src/lib/membership-core.ts'), { ty
 
 // A Supabase stand-in whose reads resolve only when the test says so, and which counts how many
 // times each read was run (a builder runs again every time its `then` is called).
+// Every run of a read is answered when its table is released, a run after the release at once,
+// so a read run twice finishes and is counted rather than hanging the test (a hung test is
+// cancelled, which a mutation round does not count as a failure).
 function heldClient(answers) {
-  const started = []; const runs = {}; const release = {};
+  const started = []; const runs = {}; const waiting = {}; const released = new Set();
+  const settle = (table, resolve, reject) => (answers[table] instanceof Error ? reject(answers[table]) : resolve(answers[table]));
+  const release = new Proxy({}, { get: (_, table) => () => { released.add(table); for (const [res, rej] of waiting[table] || []) settle(table, res, rej); waiting[table] = []; } });
   const client = {
     from(table) {
       const builder = {
@@ -23,7 +28,10 @@ function heldClient(answers) {
         then(res, rej) {
           runs[table] = (runs[table] || 0) + 1;
           started.push(table);
-          return new Promise((resolve, reject) => { release[table] = () => (answers[table] instanceof Error ? reject(answers[table]) : resolve(answers[table])); }).then(res, rej);
+          return new Promise((resolve, reject) => {
+            if (released.has(table)) settle(table, resolve, reject);
+            else (waiting[table] = waiting[table] || []).push([resolve, reject]);
+          }).then(res, rej);
         },
       };
       return builder;
