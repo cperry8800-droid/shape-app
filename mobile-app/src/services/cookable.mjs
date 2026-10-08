@@ -190,9 +190,7 @@ export const bsSplitMethodProse = (text) => {
 // singular and plural, the case a count takes (Russian минута · минуты · минут · минуту), and the
 // short forms (Std., dk, мин, хв, mnt). tests/step-timers-i18n.test.mjs reads every catalog's
 // own hint through it and holds the English catalog to the timers it had.
-// ⚠ "ч" is an hour, but "ч. л." is a teaspoon (чайная/чайна ложка), the way nearly every Russian or
-// Ukrainian seasoning step writes one (Fable, on #2277): "1 ч. л. соли" read as a one-hour timer.
-const BS_TIMER_UNITS_HR = 'hours?|hrs?|stunden?|std|horas?|heures?|or[ae]|h|час(?:а|ов)?|ч(?![\\s.]*л(?:ожк|[.\\s]|$))|год(?:ин[аиу]?)?|saat|giờ|tiếng|jam';
+const BS_TIMER_UNITS_HR = 'hours?|hrs?|stunden?|std|horas?|heures?|or[ae]|h|час(?:а|ов)?|ч|год(?:ин[аиу]?)?|saat|giờ|tiếng|jam';
 const BS_TIMER_UNITS_MIN = 'minutes?|mins?|minuten|minut[oi]s?|mn|мин(?:ут[аыу]?)?|хв(?:илин[аиу]?)?|dakika|dk|phút|menit|mnt';
 const BS_TIMER_UNITS_SEC = 'seconds?|secs?|sekunden?|sek|segundos?|seg|secondes?|second[oi]|сек(?:унд[аиуы]?)?|saniye|sn|giây|detik|dtk';
 export const BS_TIMER_UNITS = `${BS_TIMER_UNITS_HR}|${BS_TIMER_UNITS_MIN}|${BS_TIMER_UNITS_SEC}`;
@@ -204,7 +202,7 @@ export const BS_TIMER_UNITS = `${BS_TIMER_UNITS_HR}|${BS_TIMER_UNITS_MIN}|${BS_T
 // match) and a unit must follow it ("5 more servings" does not match).
 // Exported for the same reason as the units: any rule that looks for a stated
 // duration builds from this, so it cannot narrow silently while the parser widens.
-export const BS_TIMER_GAP = '(?:\\s+(?:more|additional|extra|further|weitere|zusätzliche)\\s+|\\s*)';
+export const BS_TIMER_GAP = '(?:\\s+(?:more|additional|extra|further|weitere[nr]?|zusätzliche[nr]?)\\s+|\\s*)';
 // The unit must END there: "Add 2 more minced shallots" would otherwise read
 // "min" out of "minced" and offer a 2-minute timer. Measured before adding it,
 // no step in any catalog puts a number before a word that merely starts with a
@@ -240,6 +238,11 @@ const timerSpans = (text) => {
   if (!t) return [];
   const found = [];
   const add = (nums, unit, perSide, at, end) => {
+    // ⚠ "ч" is an hour, but "ч. л." is a teaspoon (чайная/чайна ложка), the way nearly every Russian
+    // or Ukrainian seasoning step writes one (Fable, on #2277): "1 ч. л. соли" read as a one-hour
+    // timer. Read case-sensitively, so "Тушите 2 ч. Ложкой снимите жир." keeps its two hours (Fable,
+    // on #2279: the `i` flag made the first version refuse it).
+    if (unit === 'ч' && /^[\s.]*л(?:ожк|[.\s]|$)/u.test(t.slice(end))) return;
     const firstNum = num(nums.split(/[–-]/)[0]);
     if (firstNum === null || firstNum <= 0) return;
     const seconds = firstNum * UNIT_SECONDS(unit);
@@ -775,7 +778,7 @@ const BS_AUTHOR_PER_SIDE_RE = new RegExp(`^\\s+(?:(?:lang|environ|circa|aproxima
   '(?:pro|je|von\\s+jeder|auf\\s+jeder)\\s+Seite',            // de
   '(?:(?:por|de|en)\\s+(?:cada\\s+)?|cada\\s+)lado',          // es · pt
   '(?:par|(?:sur|de)\\s+chaque|chaque)\\s+(?:face|côté)',      // fr
-  '(?:per|da|su)\\s+(?:ogni\\s+|ciascun\\s+)?(?:lato|parte)', // it
+  '(?:per|da|su)\\s+(?:ogni\\s+|ciascun\\s+)?lato', 'per\\s+(?:ogni\\s+|ciascuna\\s+)?parte', // it ("da parte" is "aside": Fable)
   'с\\s+каждой\\s+стороны', 'на\\s+каждую\\s+сторону',         // ru
   'з\\s+кожного\\s+боку', 'з\\s+кожної\\s+сторони', 'на\\s+кожен\\s+бік', // uk
   'her\\s+(?:bir\\s+|iki\\s+)?taraf\\p{L}*',                   // tr
@@ -788,13 +791,13 @@ const BS_AUTHOR_PER_SIDE_RE = new RegExp(`^\\s+(?:(?:lang|environ|circa|aproxima
 const BS_AUTHOR_PER_SIDE_BEFORE_RE = new RegExp(`(?:${[
   'her\\s+(?:bir\\s+|iki\\s+)?taraf\\p{L}*', 'mỗi\\s+(?:mặt|bên)', '(?:setiap|tiap)\\s+sisi(?:nya)?', '(?:a\\s+)?kowane\\s+gefe',
   'с\\s+каждой\\s+стороны', 'з\\s+кожного\\s+боку', 'з\\s+кожної\\s+сторони',
-].join('|')})(?:\\s+(?:yaklaşık|khoảng|sekitar|kamar|примерно|около|приблизно|близько|по))*[\\s,]*$`, 'iu');
+].join('|')})(?:[\\s,]+(?:yaklaşık|khoảng|sekitar|kamar|примерно|около|приблизно|близько|по))*[\\s,]*$`, 'iu');
 // A range's first number and its connector: "8 to 10", „8 bis 10“, "8 a 10", "8 à 10", "от 8 до
 // 10", "8 ile/ila 10", "8 đến/tới 10", "8 hingga 10", and "entre 8 y/e 10". The dash form ("8–10")
 // is the timer parser's own. ⚠ "y" and "e" alone are also "and" in an hour and its minutes, so
 // they count only after "entre".
 const BS_AUTHOR_RANGE_LOW_RE = /(\d+)\s+(?:to|bis|a|à|al|до|ile|ila|đến|tới|sampai|hingga)\s+$/iu;
-const BS_AUTHOR_RANGE_ENTRE_RE = /entre\s+(\d+)\s+(?:y|e)\s+$/iu;
+const BS_AUTHOR_RANGE_ENTRE_RE = /(?:entre|tra|fra)\s+(\d+)\s+(?:y|e|et)\s+$/iu;
 // A storage or make-ahead time, which is not the cook's work. ⚠ "Up to" is "until" in most of
 // these languages when no number follows (hasta que, jusqu'à ce que, fino a doratura, até dourar),
 // and a temperature when a degree follows ("до 180 градусов", "hasta 180 °C", "hingga 180
@@ -803,18 +806,20 @@ const BS_AUTHOR_RANGE_ENTRE_RE = /entre\s+(\d+)\s+(?:y|e)\s+$/iu;
 // ingredient are excluded (Fable): frozen peas (congelados, dondurulmuş), canned tomatoes (en
 // conserve, conserva di), sea salt (sal marina), the marinade poured as a sauce. "Beforehand"
 // (заранее, önceden) went too: it is how three languages say "a preheated oven".
-const BS_AUTHOR_TIME_AHEAD = `\\d+\\s*(?:${BS_TIMER_UNITS_HR}|${BS_TIMER_UNITS_MIN}|days?|tag(?:e|en)?|d[ií]as?|jours?|giorn[oi]|дн\\p{L}*|день|gün\\p{L}*|ngày|hari|kwana)`;
+// A range or an "about" counts too: "chill up to 2–3 hours", "hasta unas 2 horas" (Fable, on #2279).
+// Days need no entry here: the day words below are storage on their own.
+const BS_AUTHOR_TIME_AHEAD = `(?:(?:about|around|etwa|ungefähr|unos|unas|environ|circa|около|примерно|приблизно|yaklaşık|khoảng|sekitar)\\s+)?\\d+(?:\\s*[–-]\\s*\\d+|\\s+(?:to|bis|à|a|до|ila|hingga)\\s+\\d+)?\\s*(?:${BS_TIMER_UNITS_HR}|${BS_TIMER_UNITS_MIN})`;
 const BS_AUTHOR_NOT_WORK_RE = new RegExp(`(?<!\\p{L})(?:${[
   `up\\s+to\\s+${BS_AUTHOR_TIME_AHEAD}`, 'refrigerat\\p{L}*', 'fridge', 'freez\\p{L}*', 'stor(?:e|ed|ing|age)', 'overnight', 'ahead', 'soak\\p{L}*', 'marinat\\p{L}*', 'days?',
   `bis\\s+zu\\s+${BS_AUTHOR_TIME_AHEAD}`, 'kühlschrank\\p{L}*', 'einfrier\\p{L}*', 'gefrier\\p{L}*', 'über\\s+nacht', 'aufbewahr\\p{L}*', 'marinier\\p{L}*', 'einweich\\p{L}*', 'tag(?:e|en)?',
   `hasta\\s+${BS_AUTHOR_TIME_AHEAD}`, 'nevera', 'frigor[ií]fico', 'congel(?!(?:ad[oa]s?|at[oiae]|ée?s?)(?!\\p{L}))\\p{L}*', 'toda\\s+la\\s+noche', 'guard[ae]\\p{L}*', 'remoj\\p{L}*', 'd[ií]as?',
-  `jusqu['’]à\\s+${BS_AUTHOR_TIME_AHEAD}`, 'réfrigérateur', 'frigo\\p{L}*', 'congél\\p{L}*', 'toute\\s+la\\s+nuit', '(?<!(?:en|in|em)\\s{1,3})conserv\\p{L}*(?!\\s+di(?!\\p{L}))', 'tremp\\p{L}*', 'jours?', 'à\\s+l[\'’]avance',
+  `jusqu['’]à\\s+${BS_AUTHOR_TIME_AHEAD}`, 'réfrigérateur', 'frigo\\p{L}*', 'congél\\p{L}*', 'toute\\s+la\\s+nuit', '(?<!(?<!\\p{L})(?:en|in|em|la)\\s{1,3})conserv\\p{L}*(?!\\s+di(?!\\p{L}))', 'tremp\\p{L}*', 'jours?', 'à\\s+l[\'’]avance',
   `fino\\s+a\\s+${BS_AUTHOR_TIME_AHEAD}`, 'tutta\\s+la\\s+notte', 'ammoll\\p{L}*', 'giorn[oi]', 'in\\s+anticipo',
   `até\\s+${BS_AUTHOR_TIME_AHEAD}`, 'geladeira', 'durante\\s+a\\s+noite', 'de\\s+molho', 'com\\s+antecedência',
   // The verb, never "marinara", the marinade itself or "sal marina": whole words, as everywhere here.
-  '(?<!sal\\s{1,3})marin(?:a|ar|er|ez|are)',
+  '(?<!(?:sal|alga)\\s{1,3})marin(?:a|ar|er|ez|are)', 'замарин\\p{L}*',
   `(?<!\\d\\s{0,3})до\\s+${BS_AUTHOR_TIME_AHEAD}`, 'холодильник\\p{L}*', 'замороз\\p{L}*', 'на\\s+ночь', 'на\\s+ніч', 'хран\\p{L}*', 'зберіга\\p{L}*', 'марину\\p{L}*', 'мариновать', 'замоч\\p{L}*', 'замачива\\p{L}*', 'дн(?:я|ей|і|ів)', 'день',
-  'buzdolab\\p{L}*', 'dondur(?!ulmuş)\\p{L}*', 'bir\\s+gece', 'gece\\s+boyunca', 'sakla\\p{L}*', 'ıslat\\p{L}*', 'gün',
+  'buzdolab\\p{L}*', 'dondur(?!ulmuş|ma(?!\\p{L}))\\p{L}*', 'bir\\s+gece', 'gece\\s+boyunca', 'sakla\\p{L}*', 'ıslat\\p{L}*', 'gün',
   'tối\\s+đa', 'tủ\\s+lạnh', 'đông\\s+lạnh', 'qua\\s+đêm', 'bảo\\s+quản', 'ướp', 'ngâm', 'ngày',
   `(?<!\\d\\s{0,3})(?:hingga|sampai)\\s+${BS_AUTHOR_TIME_AHEAD}`, 'kulkas', 'lemari\\s+es', 'bekukan', 'semalaman', 'simpan', 'marinasi', 'rendam', 'hari',
   'firji', 'firiji', 'daskare', 'cikin\\s+dare', 'ajiye', 'kwana', 'jiƙa',
@@ -826,6 +831,8 @@ const BS_AUTHOR_NOT_WORK_RE = new RegExp(`(?<!\\p{L})(?:${[
 // actions and stays 60.
 const BS_AUTHOR_UNIT_RANK = { hr: 3, min: 2, sec: 1 };
 const unitRank = (span) => BS_AUTHOR_UNIT_RANK[span.label.split(' ')[1]] || 0;
+// Words that make a time a schedule ("15 minutes before the end", "15 Minuten vor Ende", "15 minutos antes").
+const BS_AUTHOR_SCHEDULE_RE = /^\.?\s*(?:before|after|later|ahead\s+of|prior\s+to|vor|nach|später|antes|después|más\s+tarde|avant|après|plus\s+tard|prima|dopo|più\s+tardi|depois|mais\s+tarde|до|после|позже|перед|пізніше|після|önce|sonra|trước|sau|sebelum|setelah|kemudian|kafin|bayan)(?!\p{L})/iu;
 const BS_AUTHOR_AND_RE = /^\s*(?:(?:and|und|y|et|e|и|і|й|ve|và|dan|da)\s+)?$/iu;
 const authoredTime = (t) => {
   const [span, next] = timerSpans(t);
@@ -836,10 +843,11 @@ const authoredTime = (t) => {
   const low = head.match(BS_AUTHOR_RANGE_LOW_RE) || head.match(BS_AUTHOR_RANGE_ENTRE_RE);
   let seconds = low && high > 0 ? Math.min(span.seconds, (span.seconds / high) * Number(low[1])) : span.seconds;
   let end = span.end;
-  // Only short units take a full stop ("1 Std. 20 Min.", "1 hr. 15 min."), and both must be short:
-  // "Bake 1 hour. 15 minutes later…" and "Bake 1 hr. 15 minutes before the end, add…" are two (Fable).
+  // A full stop joins an hour and its minutes only after an abbreviated hour ("1 Std. 20 Min.", "1 h.
+  // 15 minutos", "1 ч. 20 минут"), and never when the second time is a schedule: "Bake 1 hr. 15 minutes
+  // before the end, add the potatoes" is two actions. "Bake 1 hour. 15 minutes later…" is two as well.
   const shortUnit = (sp) => (t.slice(sp.at, sp.end).match(/\p{L}+$/u) || [''])[0].length <= 3;
-  const stop = next && shortUnit(span) && shortUnit(next) ? /^\./ : /^$/;
+  const stop = next && shortUnit(span) && !BS_AUTHOR_SCHEDULE_RE.test(t.slice(next.end)) ? /^\./ : /^$/;
   const between = t.slice(span.end, next ? next.at : span.end).replace(stop, '');
   if (!low && next && unitRank(next) < unitRank(span) && BS_AUTHOR_AND_RE.test(between)) {
     seconds += next.seconds;

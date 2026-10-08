@@ -309,6 +309,55 @@ test('English: an abbreviation joins an hour and its minutes only when both are 
   assert.equal(minOf('Bake 1 hr. 15 min.'), 75);
 });
 
+// ── Fable's review of #2279 (the fixes above), each probe reproduced with node first ─────────────
+test('"up to" a range or an "about" time is still a storage limit', () => {
+  for (const text of [
+    'Cover and chill up to 2–3 hours.', 'Let rest up to 1–2 hours before baking.', 'Cover and chill up to 2 to 3 hours.',
+    'Chill up to about 2 hours.', 'Deja reposar hasta 2-3 horas.', 'Reposer jusqu\'à 2 à 3 heures.', 'Bis zu 2–3 Stunden ruhen lassen.',
+    'Оставьте до 2–3 часов.', 'Biarkan hingga 2-3 jam.', 'Lasciare fino a 2-3 ore.', 'Deixe até 2-3 horas.',
+  ]) assert.equal(minOf(text), null, text);
+  assert.equal(minOf('Heat the oil up to 350°F and fry 5 minutes.'), 5, 'a temperature still is not');
+});
+
+test('the teaspoon guard reads case: a sentence that opens "Ложкой" after an hour keeps the hour', () => {
+  assert.equal(minOf('Тушите 2 ч. Ложкой снимите жир.'), 120);
+  assert.equal(minOf('1 ч. 20 мин.'), 80);
+  assert.deepEqual(bsStepTimers('Добавьте 1 ч.л. соли.'), []);
+  // Lower-case "ложк…" right after "ч." is how the teaspoon is written ("2 ч. ложки"), so it stays
+  // refused even where it means "with a spoon": refusing a timer is the safe side.
+  assert.deepEqual(bsStepTimers('Варите 2 ч. ложкой снимайте пену.'), []);
+});
+
+test('Italian "da parte" is "aside", French "conserver" is still storage, and a schedule never joins', () => {
+  assert.equal(minOf('Lascia riposare 10 minuti da parte.'), 10);
+  assert.equal(bsStepPerSideMin('Lascia riposare 10 minuti da parte.'), 0);
+  assert.equal(bsStepPerSideMin('Cuoci 3 minuti per parte.'), 6);
+  assert.equal(minOf('Bien conserver 2 heures au frais.'), null);
+  assert.equal(minOf('Devem conservar 2 horas.'), null);
+  assert.equal(minOf('Adicione o atum em conserva e cozinhe 5 minutos.'), 5);
+  assert.equal(minOf('Aggiungi la conserva e cuoci 15 minuti.'), 15);
+  // An abbreviated hour joins its minutes, whatever spells them, unless they are a schedule.
+  assert.equal(minOf('Запекайте 1 ч. 20 минут.'), 80);
+  assert.equal(minOf('Hornea 1 h. 15 minutos.'), 75);
+  assert.equal(minOf('Bake 1 hr. 15 min. before the end, add the potatoes.'), 60);
+  assert.equal(minOf('Hornea 1 h. 15 minutos antes del final, añade las papas.'), 60);
+});
+
+test('the words the review found on the way, and the forms the first fixes did not pin', () => {
+  for (const [text, min] of [
+    ['Faites cuire entre 8 et 10 minutes.', 8], ['Cuoci tra 8 e 10 minuti.', 8],
+    ['Nach 5 weiteren Minuten Käse zugeben.', 5], ['Noch 5 zusätzliche Minuten backen.', 5],
+    ['Añade alga marina y cocina 10 minutos.', 10], ['10 dakika pişirin, dondurma ile servis edin.', 10],
+    ['Ajoutez les petits pois congelés et faites cuire 10 minutes.', 10],
+    ['Замаринуйте курицу на 2 часа.', null],
+  ]) assert.equal(minOf(text), min, text);
+  for (const [text, min] of [
+    ['С каждой стороны, по 4 минуты.', 8], ['Fry 4 minutes or so a side.', 8], ['Cook 3 minutes approximately per side.', 6],
+    ['Обжарьте с каждой стороны около 4 минут.', 8], ['Смажте з кожного боку приблизно 4 хвилини.', 8],
+    ['Her iki tarafını 5\'şer dakika kızartın.', 10],
+  ]) assert.equal(bsStepPerSideMin(text), min, text);
+});
+
 test('every language\'s seconds and every Russian and Ukrainian case form is a unit of its kind', () => {
   for (const [text, seconds] of [
     ['30 Sekunden', 30], ['30 Sek.', 30], ['30 segundos', 30], ['30 seg', 30], ['30 secondes', 30], ['30 secondi', 30],
