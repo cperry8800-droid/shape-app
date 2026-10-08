@@ -9,11 +9,14 @@
 //                        event_trigger cannot be called as an RPC, so its anon grant decides nothing.
 //   the search_path pin  ALL definers in `public`, trigger and event-trigger functions included: a
 //                        trigger definer is exactly as exposed to a relation planted in pg_temp.
-// What the CHECKED-IN fixture can say about the second line is less than the query can: it lists
-// non-trigger names, and its `definersWithoutPgTemp` is one carried-over sentence whose coverage of
-// trigger definers is not recorded. tests/definer-live-agreement.test.mjs says so in its header.
+// The checked-in fixture (tests/fixtures/definer-live-2026-10-08.json) carries both lines: the
+// non-trigger names by anon-executability, the trigger definers by name (`triggerDefiners`), and
+// `definersWithoutPgTemp` over every definer of either kind, read by scripts/definer-live-check.sql.
+// A capture also records which migrations dated its own day it had seen (`captureDayFilesApplied`),
+// which is how modelAsOfCapture below draws the replay's line; the 2026-09-30 capture carried
+// neither, and tests/definer-live-agreement.test.mjs says in its header what that cost.
 
-import { definerRpcFns, anonExecutable, pgTempPinned } from './definer-model.mjs';
+import { definerRpcFns, anonExecutable, pgTempPinned, replayDir, orderedMigrationFiles, migrationDate } from './definer-model.mjs';
 
 /**
  * Every way the model and the live catalog can disagree:
@@ -58,6 +61,22 @@ export function compareToLive(model, live) {
     }
   }
 
+  // Trigger definers by name, when the capture lists them (`triggerDefiners`; the 2026-09-30 capture
+  // did not). The anon comparison leaves them out on both sides (a trigger cannot be called as an
+  // RPC) and the pin comparison above already covers them, so this is the one check that says the
+  // model's trigger definers ARE production's: a migration never applied, or a trigger function made
+  // or dropped by hand, shows up here and nowhere else.
+  let triggersCompared = null;
+  if (Array.isArray(live.triggerDefiners)) {
+    const liveTrig = new Set(live.triggerDefiners);
+    const modelTrig = new Set(modelDefiners.filter((f) => f.trigger).map((f) => f.name));
+    triggersCompared = 0;
+    for (const name of new Set([...liveTrig, ...modelTrig])) {
+      if (liveTrig.has(name) && modelTrig.has(name)) { triggersCompared++; continue; }
+      drift.push({ kind: liveTrig.has(name) ? 'trigger-live-only' : 'trigger-model-only', name, live: liveTrig.has(name) ? 'trigger definer' : 'absent', model: modelTrig.has(name) ? 'trigger definer' : 'absent' });
+    }
+  }
+
   return {
     liveNames: liveAll.size,
     modelNames: byName.size,
@@ -65,6 +84,7 @@ export function compareToLive(model, live) {
     agree, agreeAnon, agreeNoAnon,
     drift: drift.sort((a, b) => (a.kind + a.name < b.kind + b.name ? -1 : 1)),
     pinAgree: liveUnpinned.size === modelUnpinned.size && [...liveUnpinned].every((n) => modelUnpinned.has(n)),
+    triggersCompared,
   };
 }
 
@@ -148,4 +168,34 @@ export function allowListAsOfCapture(allow, preCaptureModel) {
     pending: [...new Set(pending)].sort(),
     restored: restored.sort(),
   };
+}
+
+/** The migrations dated the capture day itself (a capture has a date and no time). */
+export function captureDayFiles(dir, live) {
+  return orderedMigrationFiles(dir).filter((f) => migrationDate(f) === live.capturedOn);
+}
+
+/**
+ * The capture-day files a capture does NOT record as applied. The replay leaves them out, and a
+ * disagreement one of them could explain is ambiguous rather than drift (checkDrift's message).
+ */
+export function ambiguousCaptureDayFiles(dir, live) {
+  const applied = new Set(live.captureDayFilesApplied ?? []);
+  return captureDayFiles(dir, live).filter((f) => !applied.has(f));
+}
+
+/**
+ * The model as of a capture: every migration dated strictly before the capture day, plus the
+ * capture-day files the capture records as applied before it was taken (`captureDayFilesApplied`).
+ * The record is checked, not trusted: it may name only files dated the capture day (an earlier one
+ * is in the window already, a later one did not exist), each must be a migration in the tree
+ * (replayDir refuses a name it does not have), and a file the capture did not in fact see leaves
+ * functions or grants in the model that live lacks, which the comparison reports as drift.
+ */
+export function modelAsOfCapture(dir, live) {
+  const applied = live.captureDayFilesApplied ?? [];
+  for (const f of applied) {
+    if (migrationDate(f) !== live.capturedOn) throw new Error(`captureDayFilesApplied names ${f}, which is not dated the capture day ${live.capturedOn}: a file dated earlier is in the replay already, and one dated later did not exist when the capture was taken`);
+  }
+  return replayDir(dir, { before: live.capturedOn, including: applied });
 }

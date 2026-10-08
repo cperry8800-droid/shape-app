@@ -373,45 +373,7 @@
       "ownerCall": "Revoke it from public and anon and keep authenticated. get_active_now already serves the signed-out rail, if the owner keeps that."
     }
   ],
-  "fixedAfterCapture": [
-    {
-      "name": "get_health_sources",
-      "fixedBy": "2026-10-08-security-review-access-layer.sql",
-      "fix": "The explicit `if auth.uid() is null then return null` reject comes first, p_days is capped at 400, and EXECUTE is revoked from public and anon (authenticated and service_role keep it).",
-      "wasFinding": {
-        "name": "get_health_sources",
-        "kind": "gate-skipped-for-anon",
-        "discoveredBy": "independent review of this audit",
-        "anonGrant": "default-only",
-        "exposed": "For ANY user id passed as p_user_id, with no account: that user's health observations (snapshot date, metric, source, value and time for sleep, recovery, HRV, resting and average heart rate, strain, workout minutes, calories and steps) for the last p_days days, which has no upper bound so it is the whole history, plus their metric_source_overrides. Both tables are owner-only under RLS, so the definer opens to the internet what RLS locks. The body reads `if v_uid <> auth.uid() and not is_coach_on_client(v_uid) then return null`: for anon auth.uid() is NULL, `x <> NULL` is NULL, and the IF is never taken. Measured on PostgreSQL 16.13: the real body, run as anon with no JWT, returned another user's rows while the table showed anon none. Anon reaches it only through the default ACL (2026-06-17-source-reconcile.sql:80 grants it `to authenticated` and nothing revokes anon).",
-        "notFixedHere": "This change is the audit and its tripwire, and writes no migration. The only caller found, GET /api/integrations/reconcile, returns 401 before it calls the function, so no known caller needs anon. Its write twin set_metric_source has the same predicate and got the reject on 2026-06-30 (2026-06-30-rpc-authz-hardening.sql); this read twin was missed.",
-        "ownerCall": "Add `if auth.uid() is null then return null; end if;` as the first statement, as 2026-06-30 did for set_metric_source (create or replace with the same body, which keeps the ACL), and revoke it from anon: revoke execute on function public.get_health_sources(uuid, int) from public, anon; (authenticated stays)."
-      }
-    },
-    {
-      "name": "shape_leaderboard",
-      "fixedBy": "2026-10-08-security-review-access-layer.sql",
-      "fix": "EXECUTE revoked from public and anon; authenticated and service_role keep it. The only caller, /api/leaderboard, already requires a session.",
-      "wasFinding": {
-        "name": "shape_leaderboard",
-        "kind": "anon-executable-no-gate",
-        "discoveredBy": "this audit",
-        "anonGrant": "default-only",
-        "exposed": "User id, full name, avatar url, points and rank for up to 200 members who have not set the leaderboard opt-out (the default is shown). This is the league mistake again, the fourth time this repo has shipped it: both leaderboard migrations write `revoke all ... from public; grant execute ... to authenticated`, which leaves the default explicit anon grant standing.",
-        "notFixedHere": "No migration in this change. The only caller, src/app/api/leaderboard/route.ts, returns 401 before it calls the function, so no known caller needs anon.",
-        "ownerCall": "revoke execute on function public.shape_leaderboard(text, integer) from anon (authenticated stays)."
-      }
-    },
-    {
-      "name": "shape_leaderboard_me",
-      "fixedBy": "2026-10-08-security-review-access-layer.sql",
-      "fix": "EXECUTE revoked from public and anon with its sibling; it returned nothing for anon, so nothing changes for any caller.",
-      "wasEntry": {
-        "class": "self-gated-auth-uid",
-        "note": "Returns only the caller's own rank row (`where user_id = auth.uid()`)."
-      }
-    }
-  ],
+  "fixedAfterCapture": [],
   "registeredPinFindings": [
     {
       "name": "save_workout_session",

@@ -1268,14 +1268,22 @@ export function replay(sources, options = {}) {
  * Replay a migrations directory in filename order. A live capture can only reflect the migrations
  * that existed when it was taken, so comparing it with a later tree would report every new
  * function as a disagreement. Two ways to draw that line, each a date (YYYY-MM-DD):
- *   through  files dated on or before it
- *   before   files dated STRICTLY before it. This is the one for a capture day: a capture carries a
- *            date and no time, so a file dated the capture day may or may not have been applied when
- *            it was taken, and replaying it would report a function the capture never saw as drift.
+ *   through    files dated on or before it
+ *   before     files dated STRICTLY before it. This is the one for a capture day: a capture carries a
+ *              date and no time, so a file dated the capture day may or may not have been applied when
+ *              it was taken, and replaying it would report a function the capture never saw as drift.
+ *   including  file names replayed whatever their date: the capture-day files a capture records as
+ *              applied before it was taken (`captureDayFilesApplied` in the live fixture). The claim
+ *              is checked by the comparison itself: a file the capture did not see puts functions or
+ *              grants in the model that live lacks, and that is drift. A name not in the directory is
+ *              an error, so a typo cannot include nothing and pass.
  */
-export function replayDir(dir, { through = null, before = null } = {}) {
+export function replayDir(dir, { through = null, before = null, including = [] } = {}) {
   if (through !== null && before !== null) throw new Error('replayDir: give `through` or `before`, not both');
-  const files = orderedMigrationFiles(dir).filter((file) => {
+  const ordered = orderedMigrationFiles(dir);
+  for (const name of including) if (!ordered.includes(name)) throw new Error(`replayDir: \`including\` names ${name}, which is not a migration in ${dir}`);
+  const files = ordered.filter((file) => {
+    if (including.includes(file)) return true;
     const d = migrationDate(file);
     return (through === null || d <= through) && (before === null || d < before);
   });

@@ -1,7 +1,13 @@
 {
-  "capturedOn": "2026-09-30",
-  "source": "Read-only catalog query against the production database on 2026-09-30 by an earlier session (has_function_privilege('anon', oid, 'EXECUTE') over pg_proc); the names were copied from that session's scratch files. scripts/definer-live-check.sql is the same read, ready to paste into the Supabase SQL editor. This session did not query the database. The pg_temp line is that session's finding \"of all definers, only save_workout_session lacked a pg_temp entry in its search_path config\", carried over as reported.",
-  "scope": "schema public, prokind = f, prosecdef, return type not trigger or event_trigger; names only (no overloads exist, so a name is one function)",
+  "capturedOn": "2026-10-08",
+  "source": "Read-only catalog query against the production database on 2026-10-08 at about 22:00 UTC, by the session that shipped #2280: scripts/definer-live-check.sql run as written through the Supabase MCP execute_sql, the returned rows written to this file by a script (nothing copied by hand). Taken after the owner had run every migration dated 2026-10-08 (captureDayFilesApplied, with the access-layer file at its first head, eff905f) and before the review-round re-run of that file (d154678), which changed function bodies, a policy and locks and no grant or search_path, so the rows are the same either side of it. It supersedes the 2026-09-30 capture, whose names were copied from an earlier session's scratch files.",
+  "scope": "schema public, prokind f or w, prosecdef. anonExecutable / notAnonExecutable: the non-trigger definers (return type not trigger or event_trigger), by whether has_function_privilege('anon', oid, 'EXECUTE') holds. triggerDefiners: the trigger and event-trigger definers, listed so the model's can be confirmed. definersWithoutPgTemp: every definer of either kind whose search_path does not end in pg_temp. Names only (no overloads exist, so a name is one function).",
+  "captureDayFilesApplied": [
+    "2026-10-08-admin-lookup-log.sql",
+    "2026-10-08-nora-threads.sql",
+    "2026-10-08-security-review-access-layer.sql",
+    "2026-10-08-support-requests.sql"
+  ],
   "anonExecutable": [
     "accept_commitment",
     "add_hydration",
@@ -42,7 +48,6 @@
     "get_follow_list",
     "get_follow_stats",
     "get_follow_suggestions",
-    "get_health_sources",
     "get_market_plans",
     "get_member_playlists",
     "get_my_lift_prs",
@@ -71,6 +76,7 @@
     "mark_conversation_read",
     "notify_grocery_list",
     "post_coach_cosign",
+    "provider_busy_blocks",
     "redeem_store_item",
     "redeem_store_order",
     "release_ai_proposal",
@@ -82,8 +88,6 @@
     "set_metric_source",
     "set_my_username",
     "set_program_detail",
-    "shape_leaderboard",
-    "shape_leaderboard_me",
     "shape_profile_visibility",
     "toggle_follow",
     "track_event",
@@ -92,6 +96,7 @@
   "notAnonExecutable": [
     "_rate_limit_bump",
     "add_radio_song_comment",
+    "admin_account_by_email",
     "admin_list_store_fulfillment",
     "admin_mark_store_fulfilled",
     "apply_obligation_penalty",
@@ -118,6 +123,7 @@
     "get_display_names",
     "get_email_for_username",
     "get_funnel",
+    "get_health_sources",
     "get_my_lifts",
     "get_my_purchased_plans",
     "get_my_shared_clients",
@@ -140,7 +146,23 @@
     "search_shape_people",
     "set_radio_song_vote",
     "settle_commitment",
+    "shape_leaderboard",
+    "shape_leaderboard_me",
     "shape_pr_wall"
+  ],
+  "triggerDefiners": [
+    "channel_messages_touch",
+    "client_programs_discipline_guard",
+    "coach_review_owner_id",
+    "cycle_events_no_future",
+    "enforce_booking_rules",
+    "enforce_support_request_limit",
+    "notify_on_client_workout",
+    "notify_on_new_message",
+    "notify_on_program_assignment",
+    "notify_on_pushed_item",
+    "rls_auto_enable",
+    "sessions_guard_client_update"
   ],
   "definersWithoutPgTemp": [
     "save_workout_session"
