@@ -778,7 +778,7 @@ several are marked SHIPPED in their own text.
   a *Tonight · for tomorrow* card on Eat, and a finish screen that records the prep; the changelog entry has the detail. Phase 2,
   not started: a nutritionist's *"prep the night before"* tick on any meal, a reminder time the member chooses, members planning
   tomorrow's meals, and a morning swap. Push delivery is unproven (0 push devices in production).
-- **Nora as the account-setup assistant — owner, 2026-09-29, deferred on their word.** *"I also want
+- **Nora as the account-setup assistant — owner, 2026-09-29, deferred on their word. PARTLY SHIPPED 2026-10-08 (#2258, #2259):** she answers questions on sign-up, the coach application and the app's paywall and sign-in, and fills the form in with the person; she does not set the account up. The rest of this item is open. *"I also want
   to make Nora pop up when you are going through creating an account, that can fill evreything out
   for you, regading application etc. and also setup your account for you. Maybe save this for the
   next task, right now we can focus on Nora and shape radio"*. Nora appears during sign-up and the
@@ -846,6 +846,81 @@ Everything older, newest-first: [2026-10](WORKLOG-ARCHIVE-2026-10.md) ·
 [2026-06 → 2026-07](WORKLOG-ARCHIVE-2026-06-07.md) ·
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
+
+### 2026-10-08 — Ask Nora, the plan's run: twenty-five PRs, #2238 to #2265
+
+- **Twenty-five PRs merged on 2026-10-07 and 2026-10-08:** #2238 to #2255, #2258 to #2262, #2264 and #2265. (#2256, #2257 and #2263 in between are another session's Kitchen work.) The plan is https://claude.ai/artifact/NCG3wLdtPVFHZk1U1HtAm3, and the owner's standing word was to merge each PR once it was green and clear.
+  - Each merged tree is identical to its PR's final head, or its diff is identical on the new base.
+  - Every required check was green on every final head before the merge.
+- **Migrations: three, all run by the owner and checked live in production on 2026-10-08:**
+  - `2026-10-08-nora-threads.sql` (#2255): `nora_threads`, RLS on, four own-row policies.
+  - `2026-10-08-admin-lookup-log.sql` (#2264): `admin_lookup_log`, RLS on with no policies, and `admin_account_by_email`, a definer over `auth.users` that only `service_role` can execute. Checked: anon and authenticated cannot execute it, and it returns no row for an unknown address.
+  - `2026-10-08-support-requests.sql` (#2265): `support_requests`, its policies, and the `support_requests_daily_limit` trigger. Its function is executable by neither anon nor authenticated.
+  - ⚠ **A RAW LINK ON A BRANCH NAME CAN SERVE THE OLD FILE.** The owner's first re-run of #2264's migration, after the function was added to it, created nothing new: GitHub caches raw files by branch for a few minutes. **When a migration changes after it has been run, give a raw link pinned to the commit sha.**
+- **Review.** Codex ran on every PR when it opened, and was never refused for its usage limit. It filed **46 findings (18 P1, 28 P2)**:
+  - 43 fixed in their own PR;
+  - #2239's P1 was already fixed on `main` by #2238;
+  - #2249's CORS P2 was fixed by #2251;
+  - #2246's app P2 was fixed in a narrow form, then fully by #2259.
+  - Every thread is resolved. Copilot declined every head on its quota; CodeRabbit posted only its skip notice.
+- **Speed ruling, in force for the run:** commits skipped the pre-commit suite (`SKIP_VERIFY=1`) after the tests that read the change had run, and CI ran everything. Mutation rounds ran only where money, data or a migration was involved: #2238 18/18; #2260 20/20; #2264 14/14; #2265 27/27, then 37/37 after the Codex fixes.
+
+**Nora tells the truth about what she can do (#2238 to #2243)**
+- [#2238](https://github.com/cperry8800-droid/shape-app/pull/2238) `15ee7aa`: no promised hand-off anywhere, only info@theshapecommunity.com. A trainer's "today" is their own zone (`trainerZone()`; a failed read is UTC, Codex).
+- [#2239](https://github.com/cperry8800-droid/shape-app/pull/2239) `f51d867`: the older pages and the Next app's button ask the real Nora, not a script. Panels that cannot show a confirm card send `confirmCards: false`.
+- [#2240](https://github.com/cperry8800-droid/shape-app/pull/2240) `6669390`: search opens Nora on the first click, before the chat has loaded.
+- [#2241](https://github.com/cperry8800-droid/shape-app/pull/2241) `ff48910`: the app's Help names the real path and opens Nora. The website's voice controls match the server's gate (`GET /api/ai/speak`).
+- [#2242](https://github.com/cperry8800-droid/shape-app/pull/2242) `4c96840`: any account that also trains can draft. ⚠ An action must opt in with `heldRoles: true`, and only `draft_workout` does (Codex P1: held roles would have opened every trainer action).
+- [#2243](https://github.com/cperry8800-droid/shape-app/pull/2243) `957d72e`: the app's Assign starts on the client Nora drafted for.
+
+**One front door, on both surfaces (#2244 to #2252)**
+- [#2244](https://github.com/cperry8800-droid/shape-app/pull/2244) `df0b7df`: the website corner is one split "✦ Ask Nora | Chat" button, a round ✦ on phones; Nora leaves the Chat bubble.
+- [#2245](https://github.com/cperry8800-droid/shape-app/pull/2245) `c733c7d`: in the app, a ✦ beside ⌕ in every header opens `BSNoraSheet`; Support leaves Chat.
+- [#2246](https://github.com/cperry8800-droid/shape-app/pull/2246) `77b1d17`: daily limits by account (`noraLimits.ts`): visitors 20 per browser and 100 per address, signed in 40, members 200, coaches 300, admins none. A visitor's first question needs a Turnstile check, which earns a signed 30-day cookie.
+- [#2247](https://github.com/cperry8800-droid/shape-app/pull/2247) `8e4fbde` and [#2249](https://github.com/cperry8800-droid/shape-app/pull/2249) `77879b6`: each kind of account gets its own greeting and four suggestions (`noraGreeting.mjs`, `GET /api/support/chat`), on the website and in the app.
+- [#2248](https://github.com/cperry8800-droid/shape-app/pull/2248) `5f9903b`: a question typed into any search offers "✦ Ask Nora" with the words as a draft. A matching person stays above it ("Will Smith" is a name).
+- [#2250](https://github.com/cperry8800-droid/shape-app/pull/2250) `537d01e`: a live-model eval, run by hand (`scripts/nora-live-eval.mjs`, with tokens in `NORA_EVAL_*`).
+- [#2251](https://github.com/cperry8800-droid/shape-app/pull/2251) `a46676b`: ⚠ **THE INSTALLED APP COULD NOT CALL `/api` AT ALL.** No route answered its preflight. `src/lib/native-cors.ts` allows `capacitor://localhost` and `https://localhost` only, with no credentials header.
+- [#2252](https://github.com/cperry8800-droid/shape-app/pull/2252) `6abda2a`: Talk to Nora on both surfaces (`noraVoiceLoop.mjs`, `BSNoraTalk.jsx`), and Listen plays on a phone (one player, unlocked inside the tap).
+
+**Nora knows where you are, in one conversation (#2253 to #2255)**
+- [#2253](https://github.com/cperry8800-droid/shape-app/pull/2253) `a9f033f`: every panel sends the page or screen and what is open on it (`noraContext.mjs`). Clients and sessions are checked against the caller, and the labels ride in the data tier. One zone runs the whole turn (Codex P1).
+- [#2254](https://github.com/cperry8800-droid/shape-app/pull/2254) `f46f929`: "✦ Ask Nora about this" beside selected text, on every website page, for a mouse.
+- [#2255](https://github.com/cperry8800-droid/shape-app/pull/2255) `47a59a0`: one stored conversation per account (`nora_threads`, `/api/nora/thread`), with Clear and "Settings → What Nora remembers". ⚠ **APPENDS ARE CONDITIONAL WRITES ON `updated_at`**, retried four times, so two devices never overwrite each other (Codex P1).
+
+**Help where people get stuck (#2258 to #2265)**
+- [#2258](https://github.com/cperry8800-droid/shape-app/pull/2258) `32004f2` and [#2259](https://github.com/cperry8800-droid/shape-app/pull/2259) `3dcdb86`: on sign-up, the coach application, the app's paywall and sign-in, Nora answers questions and fills the form in with the person (`noraForms.mjs`, `fill_form`).
+  - She never fills passwords, uploads, consent boxes, license rows or the human check.
+  - The app solves the bot check itself (`ShapeTurnstile.solve()`).
+- [#2260](https://github.com/cperry8800-droid/shape-app/pull/2260) `e62fddf`: nutritionists draft meal plans from Shape's meal library (`mealDraft.mjs`, `draft_meal_plan`). The plan is saved unpublished, and Undo is guarded. Codex P1: "no beef" had served the steak.
+- [#2261](https://github.com/cperry8800-droid/shape-app/pull/2261) `a5b56fe`: empty screens and booking, checkout and save errors offer Nora, with the error as context (four kinds, 200 characters, in the data tier).
+- [#2262](https://github.com/cperry8800-droid/shape-app/pull/2262) `1cd6c53`: "What needs me today?" for coaches (`get_coach_today`): requests to confirm, today's sessions on the coach's clock, and who the Today engine flags with the coach's own thresholds.
+  - Each role runs over its own roster, the sleep and check-in gauges included (`readRosterRecovery`, now shared with `/api/coach/roster-sleep`).
+  - A failed read is said, never an all-clear.
+  - ⚠ **IT ALSO FIXED A TEST THAT BROKE ON THE CLOCK.** `tests/schedule-step3.test.mjs` dated its fixture session 13:00–14:00 UTC on 2026-10-08 against the real clock, so from 14:00 that day it failed on every branch, `main` included. It now pins its clock (`t.mock.timers`).
+- [#2264](https://github.com/cperry8800-droid/shape-app/pull/2264) `a39f129`: the admin help desk (`admin_lookup_account`): an account by email, read-only.
+  - Gated on `isAdmin` and a confirmed email. The service role reads it, and an `admin_lookup_log` row is written **before** the read; no log row, no lookup.
+  - The account is found by its sign-in identity (Codex: `profiles.email` misses an account whose profile was never created or whose email changed).
+  - Never a Stripe id, a birth date, a phone or an address.
+- [#2265](https://github.com/cperry8800-droid/shape-app/pull/2265) `e809332`: "Talk to a person". A signed-in account sends its question and stored conversation to the team (`POST /api/support/request`, emailed to `SUPPORT_EMAIL` or info@). An admin replies at `/dashboard/support`, and the reply lands in the same Nora conversation as **Shape team · a person**, and by email.
+  - ⚠ **A TEAM MESSAGE COUNTS ONLY WHEN AN ANSWERED REQUEST VOUCHES FOR IT** (Codex P1). The account can write its own `nora_threads` row, so the role stored there proves nothing. Only the console writes a reply to `support_requests`.
+  - Three a day, enforced by the trigger under a per-account lock (Codex P2: a direct insert or a race got past the route's count).
+  - A reply sent later appears the next time the panel or sheet opens.
+
+- **Written after the merges**, per the 2026-09-11 rule.
+- ⚠ **REGISTERED, NOT DONE:**
+  - **No live model has run any of it**, and the eval script (#2250) has never been run. **No signed-in pass on a phone** either.
+  - **Owner settings:**
+    - Add `capacitor://localhost` and `https://localhost` to the Turnstile widget's hostnames in Cloudflare; until then, the installed app's bot check cannot pass (#2259).
+    - Set `SUPPORT_EMAIL` in Vercel, or the questions go to info@ (#2265).
+  - **Not translated:** the limit and check messages (#2246), the greeting text (#2249) and the website panel's "Talk to a person" are English only. The new app strings (#2252, #2259, #2261, #2265) have not been read by speakers.
+  - **Nora:**
+    - An open panel does not poll for the team's reply (#2265).
+    - No screen lists the admin lookup log (#2264).
+    - The older pages' plain panel keeps its conversation in the page (#2255), and its other tabs are still example conversations (#2239).
+    - The selection pill is mouse only (#2254).
+  - **Meal library:** too small for some briefs (a vegan or dairy-free one leaves no breakfast), and the app cannot open the builder document (#2260).
+  - **Older gaps found on the way:** the member sign-up drops its goals, health and preferences answers on submit (predates #2258), and the native integration-connect cookie bridge still fails (#2251).
 
 ### 2026-10-08 — The Kitchen's time tabs light the course a tap scrolled to; the cook timeline's redesign is on a board
 
