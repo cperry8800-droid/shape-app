@@ -108,6 +108,7 @@
   "ck.plated": "Impiattato",
   "ck.laneStep": "Passo {n} di {m}",
   "ck.laneHold": "Mani libere {time}",
+  "ck.laneTimer": "Timer {time}",
   "ck.laneDone": "Fatto",
   "ck.laneSteps": "{n, plural, one {# passo} other {# passi}}",
   "ck.laneNext": "Prossimo alle {time}",

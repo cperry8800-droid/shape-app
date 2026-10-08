@@ -108,6 +108,7 @@
   "ck.plated": "E don land",
   "ck.laneStep": "Step {n} of {m}",
   "ck.laneHold": "Leave am {time}",
+  "ck.laneTimer": "Timer {time}",
   "ck.laneDone": "E don finish",
   "ck.laneSteps": "{n, plural, one {# step} other {# steps}}",
   "ck.laneNext": "Next one {time}",

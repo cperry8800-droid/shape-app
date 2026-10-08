@@ -108,6 +108,7 @@
   "ck.plated": "Lên đĩa",
   "ck.laneStep": "Bước {n} / {m}",
   "ck.laneHold": "Rảnh tay {time}",
+  "ck.laneTimer": "Hẹn giờ {time}",
   "ck.laneDone": "Xong",
   "ck.laneSteps": "{n, plural, other {# bước}}",
   "ck.laneNext": "Tiếp lúc {time}",

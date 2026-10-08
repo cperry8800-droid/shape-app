@@ -108,6 +108,7 @@
   "ck.plated": "Tersaji",
   "ck.laneStep": "Langkah {n} dari {m}",
   "ck.laneHold": "Bisa ditinggal {time}",
+  "ck.laneTimer": "Timer {time}",
   "ck.laneDone": "Selesai",
   "ck.laneSteps": "{n, plural, other {# langkah}}",
   "ck.laneNext": "Berikutnya {time}",

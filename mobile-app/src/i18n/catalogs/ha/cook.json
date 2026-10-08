@@ -108,6 +108,7 @@
   "ck.plated": "A faranti",
   "ck.laneStep": "Mataki {n} cikin {m}",
   "ck.laneHold": "Bar shi ya dahu {time}",
+  "ck.laneTimer": "Agogo {time}",
   "ck.laneDone": "An gama",
   "ck.laneSteps": "{n, plural, one {mataki #} other {matakai #}}",
   "ck.laneNext": "Na gaba {time}",

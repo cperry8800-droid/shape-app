@@ -53,6 +53,8 @@ test('a running timer is said, and the step in front of the cook wins over it', 
   const timerOf = (b) => (b.step === 1 && b.hold ? { left: 872, up: false } : null);
   assert.deepEqual(bsTrackLaneStatus(lanes[0], { timerOf }), { kind: 'hold', left: 872 });
   assert.deepEqual(bsTrackLaneStatus(lanes[0], { timerOf: () => ({ left: 0, up: true }) }), { kind: 'up' });
+  // A timer on a step the cook works at (a sear, 3 min a side) is a timer, never hands-off.
+  assert.deepEqual(bsTrackLaneStatus(lanes[0], { timerOf: (b) => (b.step === 0 ? { left: 150, up: false } : null) }), { kind: 'timer', left: 150 });
   // Dish 1 holds the cursor: its step is what it says, whatever timer it also has.
   assert.deepEqual(bsTrackLaneStatus(lanes[1], { timerOf: () => ({ left: 30, up: false }) }), { kind: 'step', n: 1, of: 2 });
 });
@@ -120,6 +122,10 @@ test('done steps fade, but a hold whose timer is still running does not', () => 
   assert.ok(!hold.cls.includes('past'), 'a running timer was drawn as done');
   assert.ok(hold.cls.includes('hold') && hold.cls.includes('live'));
   assert.deepEqual(d.lanes[0].status, ['hold', 'Hands-off 14:32']);
+  // A hands-on step's timer, left running while the cook moves to another dish.
+  const sear = draw({ lanes: bsTrackLanes(tl, 2), nowMin: 3, span: 21, timerOf: (b, ln) => (ln.iid === 0 && !b.hold ? { left: 150, up: false } : null) });
+  assert.deepEqual(sear.lanes[0].status, ['timer', 'Timer 2:30']);
+  assert.ok(!sear.lanes[0].bars[0].cls.includes('past'), 'a running timer on a hands-on step was drawn as done');
   // Once its time is up it is just a past step again, and the line says so.
   const up = draw({ lanes: bsTrackLanes(tl, 2), nowMin: 3, span: 21, timerOf: (b, ln) => (ln.iid === 0 && b.hold ? { left: 0, up: true } : null) });
   assert.ok(up.lanes[0].bars[1].cls.includes('past'));

@@ -108,6 +108,7 @@
   "ck.plated": "Tabakta",
   "ck.laneStep": "Adım {n} / {m}",
   "ck.laneHold": "Gözetimsiz {time}",
+  "ck.laneTimer": "Zamanlayıcı {time}",
   "ck.laneDone": "Bitti",
   "ck.laneSteps": "{n, plural, other {# adım}}",
   "ck.laneNext": "Sonraki {time}",

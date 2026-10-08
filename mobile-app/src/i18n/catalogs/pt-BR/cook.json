@@ -108,6 +108,7 @@
   "ck.plated": "Empratado",
   "ck.laneStep": "Passo {n} de {m}",
   "ck.laneHold": "Sem supervisão {time}",
+  "ck.laneTimer": "Timer {time}",
   "ck.laneDone": "Pronto",
   "ck.laneSteps": "{n, plural, one {# passo} other {# passos}}",
   "ck.laneNext": "Próximo às {time}",

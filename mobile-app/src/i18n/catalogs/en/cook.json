@@ -108,6 +108,7 @@
   "ck.plated": "Plated",
   "ck.laneStep": "Step {n} of {m}",
   "ck.laneHold": "Hands-off {time}",
+  "ck.laneTimer": "Timer {time}",
   "ck.laneDone": "Done",
   "ck.laneSteps": "{n, plural, one {# step} other {# steps}}",
   "ck.laneNext": "Next {time}",

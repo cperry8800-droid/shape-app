@@ -108,6 +108,7 @@
   "ck.plated": "На тарілці",
   "ck.laneStep": "Крок {n} із {m}",
   "ck.laneHold": "Без нагляду {time}",
+  "ck.laneTimer": "Таймер {time}",
   "ck.laneDone": "Готово",
   "ck.laneSteps": "{n, plural, one {# крок} few {# кроки} many {# кроків} other {# кроку}}",
   "ck.laneNext": "Далі о {time}",

@@ -108,6 +108,7 @@
   "ck.plated": "Dressé",
   "ck.laneStep": "Étape {n} sur {m}",
   "ck.laneHold": "Mains libres {time}",
+  "ck.laneTimer": "Minuteur {time}",
   "ck.laneDone": "Terminé",
   "ck.laneSteps": "{n, plural, one {# étape} other {# étapes}}",
   "ck.laneNext": "Suite à {time}",

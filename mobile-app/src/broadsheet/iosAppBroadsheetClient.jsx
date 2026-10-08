@@ -8473,7 +8473,7 @@ const BS_CK_CSS = `
 .bsck .cB .tl .nm{font:600 10.5px/1.1 var(--f-b);color:var(--i70);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;padding-right:4px;background:var(--p2)}
 .bsck .cB .tl .st{margin-left:auto;flex:none;font:700 10px/1.1 var(--f-b);font-variant-numeric:tabular-nums;color:var(--i50);background:var(--p2);padding-left:4px;white-space:nowrap}
 .bsck .cB .tl .st.step{color:var(--a)}
-.bsck .cB .tl .st.hold{color:var(--i85)}
+.bsck .cB .tl .st.hold,.bsck .cB .tl .st.timer{color:var(--i85)}
 .bsck .cB .tl .st.up{color:var(--am)}
 .bsck .cB .tl .rail{position:absolute;top:22px;height:1px;background:color-mix(in srgb,var(--c) 38%,transparent)}
 .bsck .cB .tl .sb{position:absolute;top:19px;height:7px;border-radius:2px;background:var(--c)}
@@ -9001,6 +9001,7 @@ function bsCkTracks({ tr, lanes, nowMin, span, width, anchor, colorOf, timerOf =
   const statusText = (st) => {
     if (st.kind === 'step') return tr('cook:ck.laneStep', { defaultValue: 'Step {n} of {m}', n: st.n, m: st.of });
     if (st.kind === 'hold') return tr('cook:ck.laneHold', { defaultValue: 'Hands-off {time}', time: bsCkMmss(st.left) });
+    if (st.kind === 'timer') return tr('cook:ck.laneTimer', { defaultValue: 'Timer {time}', time: bsCkMmss(st.left) });
     if (st.kind === 'up') return tr('cook:timer.up', { defaultValue: "Time's up" });
     if (st.kind === 'done') return tr('cook:ck.laneDone', { defaultValue: 'Done' });
     if (st.kind === 'count') return tr('cook:ck.laneSteps', { defaultValue: '{n, plural, one {# step} other {# steps}}', n: st.n });

@@ -108,6 +108,7 @@
   "ck.plated": "Angerichtet",
   "ck.laneStep": "Schritt {n} von {m}",
   "ck.laneHold": "Hände frei {time}",
+  "ck.laneTimer": "Timer {time}",
   "ck.laneDone": "Fertig",
   "ck.laneSteps": "{n, plural, one {# Schritt} other {# Schritte}}",
   "ck.laneNext": "Weiter um {time}",

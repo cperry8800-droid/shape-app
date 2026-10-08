@@ -108,6 +108,7 @@
   "ck.plated": "На тарелке",
   "ck.laneStep": "Шаг {n} из {m}",
   "ck.laneHold": "Без присмотра {time}",
+  "ck.laneTimer": "Таймер {time}",
   "ck.laneDone": "Готово",
   "ck.laneSteps": "{n, plural, one {# шаг} few {# шага} many {# шагов} other {# шага}}",
   "ck.laneNext": "Дальше в {time}",
