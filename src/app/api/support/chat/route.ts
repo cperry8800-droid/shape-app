@@ -65,6 +65,7 @@ import { computeMembership } from '@/lib/membership-core';
 import { noraTier, visitorGate, countQuestion, limitReply, requestIp, CHECK_REPLY } from '@/lib/ai/noraLimits';
 import { greetingKind, greetingFor } from '@/lib/ai/noraGreeting.mjs';
 import { normalizeContext, formatContextNote, validZone, dayIn } from '@/lib/ai/noraContext.mjs';
+import { cleanFormContext, formNote, cleanFill, FILL_FORM_TOOL } from '@/lib/ai/noraForms.mjs';
 import { searchFoodsServer } from '@/lib/food-search-server';
 import { plainText } from '@/lib/ai/replyText.mjs';
 import {
@@ -95,7 +96,12 @@ type SupportAction =
   // button that POSTs the token to /api/ai/proposals/confirm. Nothing happens
   // until the human confirms.
   // A diff row with no `before` is a plain line (a drafted move), not a change.
-  | { type: 'proposal'; label: string; summary: string; diff: Array<{ label?: string; before?: unknown; after?: unknown }>; token: string; action: string; open?: ProposalOpen };
+  | { type: 'proposal'; label: string; summary: string; diff: Array<{ label?: string; before?: unknown; after?: unknown }>; token: string; action: string; open?: ProposalOpen }
+  // Values for the sign-up or application form they have open (src/lib/ai/noraForms.mjs).
+  // The page fills them only when they tap the card; nothing is stored or submitted.
+  | { type: 'fill'; label: string; form: string; fields: Array<{ key: string; label: string; value: string }>; values: Record<string, string | string[]> };
+// The form a page says is open, reduced to a known form, step and filled keys.
+type FormCtx = { kind: string; step: number; filled: string[] };
 // `kind: 'coach_plan'` → the website follows `url`; the app opens the plan by id.
 type ProposalOpen = { kind: 'coach_plan'; planId: string; clientId?: string; url: string };
 
@@ -744,7 +750,19 @@ type ProposeFn = (name: string, args: Record<string, unknown>) => Promise<ToolOu
 // MEMORY tools (members only — the schemas are never exposed otherwise) run
 // DIRECTLY with audit; memoryCtx is null for non-members, so even a fabricated
 // call fails closed.
-async function runTool(name: string, args: Record<string, unknown>, propose: ProposeFn, memoryCtx: MemoryCtx | null, reads: ReadCtx | null = null, coach: CoachCtx = { sb: null, surface: 'web' }): Promise<ToolOut> {
+async function runTool(name: string, args: Record<string, unknown>, propose: ProposeFn, memoryCtx: MemoryCtx | null, reads: ReadCtx | null = null, coach: CoachCtx = { sb: null, surface: 'web' }, form: FormCtx | null = null): Promise<ToolOut> {
+  if (name === 'fill_form') {
+    // Any caller with a form open, signed in or not: it writes nothing. The values are
+    // checked against the form's own fields, and the card fills the page only on a tap.
+    if (!form) return { result: { error: 'no_form_open' }, actions: [] };
+    const { values, fields, dropped } = cleanFill(form.kind, args);
+    const skipped = dropped.length ? { dropped, message: 'These keys were not filled: each is either not a field you may fill or its value does not fit the field. Ask for it again or leave it to them.' } : {};
+    if (!fields.length) return { result: { ok: false, error: 'nothing_to_fill', ...skipped }, actions: [] };
+    return {
+      result: { ok: true, shown: fields.map((f) => f.key), ...skipped, note: 'A card shows these; they tap "Fill these in", then check them and continue. Nothing is submitted.' },
+      actions: [{ type: 'fill', label: 'Fill these in', form: form.kind, fields, values }],
+    };
+  }
   if (READ_TOOLS.has(name)) {
     // Member-only READS. The schemas exist only in a member's tool list, and a
     // call with no context fails closed rather than reading anything.
@@ -965,7 +983,7 @@ async function askOpenAI(
   messages: ChatMessage[],
   propose: ProposeFn,
   tone: string | undefined,
-  member: { contextMsg: string | null; memberTools: typeof MEMBER_TOOLS; memoryCtx: MemoryCtx | null; cookMsg: string | null; reads: ReadCtx | null; coachTools: typeof COACH_TOOLS; trainerTools: typeof TRAINER_TOOLS; trainerZone?: string; noCards?: boolean; isMember: boolean; voice: boolean; locale: string | null; coach: CoachCtx; where?: { system: string; data: string | null } },
+  member: { contextMsg: string | null; memberTools: typeof MEMBER_TOOLS; memoryCtx: MemoryCtx | null; cookMsg: string | null; reads: ReadCtx | null; coachTools: typeof COACH_TOOLS; trainerTools: typeof TRAINER_TOOLS; trainerZone?: string; noCards?: boolean; isMember: boolean; voice: boolean; locale: string | null; coach: CoachCtx; where?: { system: string; data: string | null }; form?: FormCtx | null },
   signal?: AbortSignal,
 ): Promise<{ reply: string; actions: SupportAction[]; model: string | null } | null> {
   if (!hasOpenAIKey()) return null;
@@ -997,6 +1015,9 @@ async function askOpenAI(
     // the page's own labels as a user-role data message, never in the system tier.
     ...(member.where ? [{ role: 'system', content: member.where.system }] : []),
     ...(member.where && member.where.data ? [{ role: 'user', content: member.where.data }] : []),
+    // The sign-up or application form they have open: built from the server's own field
+    // list and a claim reduced to known keys, so it rides the system tier.
+    ...(member.form ? [{ role: 'system', content: formNote(member.form) }] : []),
     // The server-built member-context block (or the honest unavailable note on
     // a fetch FAILURE) — never client-supplied, members only.
     ...(member.contextMsg ? [{ role: 'system', content: member.contextMsg }] : []),
@@ -1020,7 +1041,7 @@ async function askOpenAI(
   // trainer draft_workout.
   const tools = member.cookMsg
     ? []
-    : (member.memberTools.length ? [...TOOLS, ...member.memberTools, ...MEMBER_READ_TOOLS, ...member.coachTools, ...member.trainerTools] : TOOLS)
+    : [...(member.memberTools.length ? [...TOOLS, ...member.memberTools, ...MEMBER_READ_TOOLS, ...member.coachTools, ...member.trainerTools] : TOOLS), ...(member.form ? [FILL_FORM_TOOL] : [])]
       .filter((t) => !(member.noCards && WRITE_TOOLS.has(String((t as { name?: unknown }).name))));
   // ⚠ MODEL TIERING: a signed-in-and-verified member rides the pin (Astra);
   // anyone else rides the public model. `model` is set explicitly for the
@@ -1073,7 +1094,7 @@ async function askOpenAI(
       }
       toolCalls += 1;
       const { result, actions: a } = toolCalls <= MAX_TOOL_CALLS
-        ? await runTool(String(call.name), parsed, propose, member.memoryCtx, member.reads, member.coach)
+        ? await runTool(String(call.name), parsed, propose, member.memoryCtx, member.reads, member.coach, member.form || null)
         : { result: { error: 'tool_budget_exhausted', message: 'Answer with what you have.' }, actions: [] as SupportAction[] };
       for (const act of a) actions.push(act);
       input.push({ type: 'function_call_output', call_id: call.call_id, output: JSON.stringify(result) });
@@ -1191,6 +1212,9 @@ export async function POST(request: Request) {
   // change would be promised "below" and never appear (Codex, #2239). They send
   // confirmCards: false. Like voice, it narrows what Nora offers and grants nothing.
   const noCards = body.confirmCards === false;
+  // The sign-up or application form open on the page (the Ask Nora plan, step 5). Her fill
+  // card needs a chat that draws cards, and the kitchen is read-only.
+  const form: FormCtx | null = noCards || cookMsg ? null : cleanFormContext(body.context && typeof body.context === 'object' ? (body.context as { form?: unknown }).form : null);
 
   // Resolve the actor ONCE; membership (fail-closed) decides whether the
   // member-only layer exists AT ALL for this request: the context block, the
@@ -1286,7 +1310,7 @@ export async function POST(request: Request) {
   const coachSb = actor ? actor.supabase : await clientForRequest(request).catch(() => null);
   const coach: CoachCtx = { sb: coachSb, surface };
 
-  const ai = await askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx, cookMsg, reads, coachTools, trainerTools, trainerZone: zone, isMember, voice, locale, coach, noCards, where }, request.signal).catch(() => null);
+  const ai = await askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx, cookMsg, reads, coachTools, trainerTools, trainerZone: zone, isMember, voice, locale, coach, noCards, where, form }, request.signal).catch(() => null);
   if (ai) return respond({ reply: ai.reply, source: 'ai', actions: ai.actions, model: ai.model });
 
   // Cook Mode is a read-only, grounded sous-chef: the support fallback can claim

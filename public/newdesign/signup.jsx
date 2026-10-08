@@ -60,6 +60,10 @@ const labelStyle = { display: "block", fontFamily: "'JetBrains Mono', monospace"
 const inputStyle = { width: "100%", background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 8, padding: "12px 14px", color: INK, fontFamily: sans, fontSize: 14, outline: "none" };
 const selectStyle = { ...inputStyle, appearance: "none", WebkitAppearance: "none", backgroundImage: "linear-gradient(45deg, transparent 48%, rgba(242,237,228,0.5) 48% 52%, transparent 52%), linear-gradient(-45deg, transparent 48%, rgba(242,237,228,0.5) 48% 52%, transparent 52%)", backgroundSize: "6px 6px, 6px 6px", backgroundPosition: "right 16px top 50%, right 10px top 50%", backgroundRepeat: "no-repeat", paddingRight: 36 };
 const proExperienceOptions = ["7-10 years", "10-15 years", "15+ years"];
+// Never filled by Nora, whatever her card carries: the password, documents, every consent
+// or agreement box and the license rows stay the person's own (src/lib/ai/noraForms.mjs
+// has no field for any of them either).
+const SIGNUP_NORA_NEVER = ["password", "tos", "waiver", "verify", "conduct", "bgcheck", "attest", "resumeFile", "credentialFile", "insuranceFile", "licenses"];
 
 function Field({ label, children, span = 1 }) {
   return (
@@ -435,6 +439,36 @@ function SignupForm({ role }) {
   const totalSteps = cfg.steps.length;
   const isLast = step === totalSteps - 1;
 
+  // ── Nora fills it in with you (the Ask Nora plan, step 5) ──
+  // Nora is told which form and step this is and which fields hold something, never what
+  // they hold, and her "Fill these in" card calls fill(). She never submits, and the keys
+  // above are refused here as well as on the server.
+  const noraKind = role === "trainer" ? "apply_trainer" : role === "nutritionist" ? "apply_nutritionist" : "signup";
+  const noraFormRef = React.useRef({ step: 0, values: {} });
+  noraFormRef.current = { step, values };
+  const formOpen = !done && !confirmEmail;
+  React.useEffect(() => {
+    if (!formOpen) return undefined;
+    const bridge = {
+      kind: noraKind,
+      state: () => {
+        const v = noraFormRef.current.values;
+        const filled = Object.keys(v).filter((k) => !SIGNUP_NORA_NEVER.includes(k) && (Array.isArray(v[k]) ? v[k].length > 0 : v[k] !== "" && v[k] != null && v[k] !== false));
+        return { kind: noraKind, step: noraFormRef.current.step, filled };
+      },
+      fill: (patch) => {
+        const safe = {};
+        Object.keys(patch || {}).forEach((k) => { if (!SIGNUP_NORA_NEVER.includes(k)) safe[k] = patch[k]; });
+        if (!Object.keys(safe).length) return false;
+        setValues((v) => ({ ...v, ...safe }));
+        return true;
+      },
+    };
+    window.shapeNoraForm = bridge;
+    return () => { if (window.shapeNoraForm === bridge) window.shapeNoraForm = null; };
+  }, [noraKind, formOpen]);
+  const askNora = () => { if (window.__openChatTo) window.__openChatTo({ who: "Nora", tab: "support", draft: "Can you help me fill this in?" }); };
+
   // Cloudflare Turnstile (CAPTCHA) — Auth CAPTCHA is enabled, so a tokenless
   // signUp is REJECTED. Mirror login.jsx: render a widget on the client signup's
   // FINAL step, block submit until a token exists, pass it to auth.signUp, and
@@ -731,7 +765,10 @@ function SignupForm({ role }) {
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase", color: TEAL }}>Step {step + 1} of {totalSteps}</div>
         <div style={{ fontFamily: sans, fontSize: 12, color: "rgba(242,237,228,0.55)" }}>{cfg.steps[step]}</div>
       </div>
-      <h2 style={{ fontFamily: serif, fontSize: 36, letterSpacing: "-0.025em", fontWeight: 400, margin: "0 0 28px", lineHeight: 1.05 }}>{cfg.formTitle}</h2>
+      <h2 style={{ fontFamily: serif, fontSize: 36, letterSpacing: "-0.025em", fontWeight: 400, margin: "0 0 12px", lineHeight: 1.05 }}>{cfg.formTitle}</h2>
+      <button type="button" data-nora-form-help onClick={askNora} style={{ display: "inline-flex", alignItems: "center", gap: 8, margin: "0 0 24px", padding: "7px 12px", borderRadius: 999, border: "1px solid rgba(242,237,228,0.16)", background: "transparent", color: "rgba(242,237,228,0.8)", fontFamily: sans, fontSize: 12.5, cursor: "pointer" }}>
+        <span aria-hidden="true" style={{ color: TEAL }}>✦</span> Questions? Ask Nora, and she can fill this in with you
+      </button>
 
       {/* Progress */}
       <div style={{ display: "flex", gap: 6, marginBottom: 32 }}>

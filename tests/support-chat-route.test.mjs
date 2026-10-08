@@ -17,6 +17,7 @@ import { createRequire } from 'node:module';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 import * as noraGreeting from '../src/lib/ai/noraGreeting.mjs';
 import * as noraContext from '../src/lib/ai/noraContext.mjs';
+import * as noraForms from '../src/lib/ai/noraForms.mjs';
 import { fakeSupabase } from './helpers/fake-supabase.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -82,6 +83,7 @@ async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', isMe
     ['@/lib/ai/noraLimits', noraLimits],
     ['@/lib/ai/noraGreeting.mjs', noraGreeting],
     ['@/lib/ai/noraContext.mjs', noraContext],
+    ['@/lib/ai/noraForms.mjs', noraForms],
     ['@/lib/membership-core', { computeMembership: async () => ({ isMember, isCoach, isAdmin, isKnownMinor: false }) }],
     ['@/lib/food-search-server', { searchFoodsServer: async () => ({ results: [], unavailable: true }) }],
     ['@/lib/ai', {
@@ -791,4 +793,45 @@ test('a nutritionist\'s day and an open session are on their listing\'s clock, t
   assert.match(sys, /\(Europe\/London\)/, 'the listing\'s zone, not the device\'s');
   assert.match(sys, /the session with Priya Shah on Fri, Oct 9, 2:00 PM/, '13:00Z is 2 PM in London');
   assert.match(sys, /A time they give for it is Europe\/London time\./);
+});
+
+// ── The sign-up and application forms (the Ask Nora plan, step 5) ─────────────────
+test('a form on the page: fill_form and the FORM note ride; the card carries only checked values', async () => {
+  const form = { kind: 'apply_trainer', step: 1, filled: ['firstName', 'password'] };
+  const fields = [{ key: 'firstName', value: 'Sam' }, { key: 'years', value: '10–15 years' }, { key: 'password', value: 'hunter22' }, { key: 'bgcheck', value: 'yes' }, { key: 'subPrice', value: 'lots' }];
+  const anon = await loadRoute({ user: null, answers: [calls(call('fill_form', { fields })), say('Tap Fill these in, then check each step.')] });
+  const res = await anon.mod.POST(post({ ...ask('I am Sam, 10 to 15 years in'), context: { page: 'Sign up', form } }));
+  const j = await res.json();
+  const first = anon.calls.ai[0].body;
+  assert.ok(toolNames(first).includes('fill_form'), 'a visitor on the form gets it: it writes nothing');
+  const note = first.input.find((m) => m.role === 'system' && /^FORM:/.test(String(m.content)));
+  assert.ok(note, 'the FORM note rides the system tier');
+  assert.match(note.content, /step 2 of 4 \(Credentials\)/);
+  assert.match(note.content, /First name \[firstName\] \(filled\)/);
+  assert.doesNotMatch(note.content, /\[password\]|\(filled\).*password/, 'a key the form does not list is never named');
+  const fill = j.actions.find((a) => a.type === 'fill');
+  assert.ok(fill, 'the card reaches the page');
+  assert.equal(fill.form, 'apply_trainer');
+  assert.deepEqual(fill.values, { firstName: 'Sam', years: '10-15 years' }, 'only fields of this form, each as the page spells it');
+  assert.deepEqual(fill.fields.map((f) => f.key), ['firstName', 'years']);
+  const out = JSON.parse(anon.calls.ai[1].body.input.find((x) => x.type === 'function_call_output').output);
+  assert.deepEqual(out.dropped.sort(), ['bgcheck', 'password', 'subPrice'], 'what was refused is named back to her');
+});
+
+test('no fill_form without a form, in a plain panel, or for a form the server does not know; a fabricated call fills nothing', async () => {
+  const form = { kind: 'signup', step: 0, filled: [] };
+  const plain = await loadRoute({ user: null });
+  await plain.mod.POST(post({ ...ask('hi'), context: { page: 'Sign up', form }, confirmCards: false }));
+  assert.ok(!toolNames(plain.calls.ai[0].body).includes('fill_form'), 'a panel that draws no cards cannot show one');
+  const none = await loadRoute({ user: null });
+  await none.mod.POST(post({ ...ask('hi'), context: { page: 'Pricing' } }));
+  assert.ok(!toolNames(none.calls.ai[0].body).includes('fill_form'));
+  assert.ok(!none.calls.ai[0].body.input.some((m) => /^FORM:/.test(String(m.content))));
+  const odd = await loadRoute({ user: null });
+  await odd.mod.POST(post({ ...ask('hi'), context: { form: { kind: 'admin_console', step: 0 } } }));
+  assert.ok(!toolNames(odd.calls.ai[0].body).includes('fill_form'));
+  const made = await loadRoute({ user: null, answers: [calls(call('fill_form', { fields: [{ key: 'firstName', value: 'Sam' }] })), say('ok')] });
+  const r = await (await made.mod.POST(post(ask('fill it in')))).json();
+  assert.ok(!r.actions.some((a) => a.type === 'fill'), 'no form open: nothing to fill');
+  assert.equal(JSON.parse(made.calls.ai[1].body.input.find((x) => x.type === 'function_call_output').output).error, 'no_form_open');
 });

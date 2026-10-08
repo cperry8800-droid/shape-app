@@ -55,6 +55,12 @@
     if (noraOpen.clientId) c.clientId = String(noraOpen.clientId);
     if (noraOpen.sessionId) c.sessionId = String(noraOpen.sessionId);
     if (noraOpen.item && noraOpen.item.kind && noraOpen.item.title) c.item = { kind: String(noraOpen.item.kind), title: String(noraOpen.item.title).slice(0, 80) };
+    // A sign-up or application form on the page (the Ask Nora plan, step 5): which form,
+    // which step, and which fields hold something, never what they hold (signup.jsx).
+    try {
+      var f = window.shapeNoraForm && window.shapeNoraForm.state && window.shapeNoraForm.state();
+      if (f && f.kind) c.form = { kind: String(f.kind), step: f.step | 0, filled: Array.isArray(f.filled) ? f.filled.slice(0, 80).map(String) : [] };
+    } catch (e) {}
     return c;
   };
   window.__shapeNoraPageName = noraPageName;
