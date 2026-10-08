@@ -271,5 +271,10 @@
   "wall.unit": "Đơn vị",
   "wall.unreadable": "Không đọc được bảng vàng lúc này.",
   "wall.value": "Giá trị",
-  "wall.yourBest": "Kỷ lục của bạn"
+  "wall.yourBest": "Kỷ lục của bạn",
+  "support.fill.kicker": "Cho biểu mẫu của bạn · kiểm tra rồi điền",
+  "support.fill.button": "Điền vào",
+  "support.fill.done": "Đã điền ✓",
+  "support.fill.doneNote": "Kiểm tra từng bước rồi tiếp tục. Mật khẩu và các ô đồng ý là phần bạn tự làm.",
+  "support.fill.wrongForm": "Mở đúng biểu mẫu rồi chạm lại."
 }

@@ -271,5 +271,10 @@
   "wall.unit": "Единица",
   "wall.unreadable": "Сейчас не удалось загрузить стену.",
   "wall.value": "Результат",
-  "wall.yourBest": "Ваш рекорд"
+  "wall.yourBest": "Ваш рекорд",
+  "support.fill.kicker": "Для твоей формы · проверь и заполни",
+  "support.fill.button": "Заполнить",
+  "support.fill.done": "Заполнено ✓",
+  "support.fill.doneNote": "Проверь каждый шаг и продолжай. Пароль и галочки согласия — за тобой.",
+  "support.fill.wrongForm": "Открой форму, к которой это относится, и нажми ещё раз."
 }

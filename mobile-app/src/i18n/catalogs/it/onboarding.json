@@ -236,5 +236,9 @@
   "intent.identity.health": "qualcuno che investe nella propria salute",
   "intent.identity.tone": "qualcuno che diventa tonico e forte",
   "intent.identity.race": "un corridore con una gara in calendario",
-  "intent.identity.postpartum": "qualcuno che ricostruisce la forza, passo dopo passo"
+  "intent.identity.postpartum": "qualcuno che ricostruisce la forza, passo dopo passo",
+  "nora.ask": "Domande? Chiedi a Nora",
+  "nora.pageApply": "Candidatura coach",
+  "nora.pageLogin": "Accedi",
+  "nora.pageJoin": "Unisciti a Shape"
 }

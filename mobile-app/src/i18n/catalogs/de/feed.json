@@ -271,5 +271,10 @@
   "wall.unit": "Einheit",
   "wall.unreadable": "Die Wand konnte gerade nicht gelesen werden.",
   "wall.value": "Wert",
-  "wall.yourBest": "Deine Bestleistung"
+  "wall.yourBest": "Deine Bestleistung",
+  "support.fill.kicker": "Für dein Formular · prüfen, dann eintragen",
+  "support.fill.button": "Eintragen",
+  "support.fill.done": "Eingetragen ✓",
+  "support.fill.doneNote": "Prüfe jeden Schritt und mach dann weiter. Dein Passwort und die Zustimmungsfelder machst du selbst.",
+  "support.fill.wrongForm": "Öffne das Formular, zu dem das gehört, und tippe noch einmal."
 }

@@ -271,5 +271,10 @@
   "wall.unit": "Unit",
   "wall.unreadable": "We no fit read the wall now.",
   "wall.value": "Value",
-  "wall.yourBest": "Your best"
+  "wall.yourBest": "Your best",
+  "support.fill.kicker": "For your form · check am, then fill",
+  "support.fill.button": "Fill dem",
+  "support.fill.done": "E don fill ✓",
+  "support.fill.doneNote": "Check every step, then continue. Your password and the agree boxes na you go do dem.",
+  "support.fill.wrongForm": "Open the form wey dem be for, then tap again."
 }
