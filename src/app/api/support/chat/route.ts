@@ -1275,7 +1275,20 @@ async function storedTeamReplies(actor: Awaited<ReturnType<typeof resolveActor>>
   return new Set([...replies].map((r) => r.slice(0, 2000).trim()));
 }
 
+// A step started early, so it runs beside the others: its failure is kept and thrown where
+// the route has always awaited it, never reported as unhandled while the rest run.
+type Settled<T> = { ok: true; value: T } | { ok: false; error: unknown };
+function early<T>(p: Promise<T>): Promise<Settled<T>> {
+  return p.then((value) => ({ ok: true as const, value }), (error) => ({ ok: false as const, error }));
+}
+function settledValue<T>(s: Settled<T>): T {
+  if (s.ok) return s.value;
+  throw s.error;
+}
+const COACH_ROLE_NAMES = new Set(['trainer', 'nutritionist', 'dietitian']);
+
 export async function POST(request: Request) {
+  const startedAt = Date.now();
   const parsed = await readJson<{ messages?: ChatMessage[]; tone?: string; cookContext?: unknown; voice?: unknown; surface?: unknown; locale?: unknown; confirmCards?: unknown; turnstileToken?: unknown; context?: unknown }>(request);
   if (!parsed.ok) return parsed.response;
   const body = parsed.data;
@@ -1315,6 +1328,13 @@ export async function POST(request: Request) {
   // signed-in-NON-member request runs the exact pre-PR-B path — same prompt,
   // same TOOLS array, no context — byte-identical behavior.
   const actor = await resolveActor(request).catch(() => null);
+  // ⚠ WHAT DOES NOT WAIT ON MEMBERSHIP STARTS NOW (speed, 2026-10-08: about a second of setup
+  // ran one read after another before the model was asked). The Shape team's replies need
+  // only the account. A coach's Schedule zone needs only their role, the same profile row
+  // membership reads; an admin with no coach role looks it up after, as before.
+  const teamRepliesEarly = early(storedTeamReplies(actor, messages));
+  const coachZoneEarly = actor && (actor.roles || []).some((r) => COACH_ROLE_NAMES.has(r))
+    ? early(coachZone(actor.supabase, actor.user.id, screen.timezone, actor.role)) : null;
   let contextMsg: string | null = null;
   let memberTools: typeof MEMBER_TOOLS = [];
   let memoryCtx: MemoryCtx | null = null;
@@ -1326,8 +1346,13 @@ export async function POST(request: Request) {
   let zone = screen.timezone || 'UTC';
   let isMember = false;
   let membership: Awaited<ReturnType<typeof computeMembership>> | null = null;
+  let factsEarly: Promise<{ facts: Record<string, unknown> | null; failed: boolean }> | null = null;
+  if (actor) membership = await computeMembership(actor.supabase, actor.user.id, actor.user.email ?? null).catch(() => null);
+  // An account's count for the day needs only its tier, so it runs beside the reads below. A
+  // visitor's waits for the bot check, as it always has.
+  const tier = noraTier(!!actor, membership);
+  const countedEarly = actor ? early(countQuestion(actor.supabase, { tier, uid: actor.user.id, visitorId: null, ip: requestIp(request) })) : null;
   if (actor) {
-    membership = await computeMembership(actor.supabase, actor.user.id, actor.user.email ?? null).catch(() => null);
     if (membership && membership.isMember) {
       isMember = true;
       memberTools = MEMBER_TOOLS;
@@ -1339,7 +1364,7 @@ export async function POST(request: Request) {
       const isTrainer = actor.role === 'trainer' || (actor.roles || []).includes('trainer');
       // A coach's day is their Schedule's zone; anyone else's is the device's, then the profile's.
       zone = isCoach
-        ? await coachZone(actor.supabase, actor.user.id, screen.timezone, actor.role)
+        ? (coachZoneEarly ? settledValue(await coachZoneEarly) : await coachZone(actor.supabase, actor.user.id, screen.timezone, actor.role))
         : (screen.timezone || (await profileZone(actor.supabase, actor.user.id)) || 'UTC');
       // ⚠ AN ADMIN IS THE ALLOW-LIST'S VERDICT ON A CONFIRMED EMAIL. computeMembership matches
       // the email alone; the help desk also requires Supabase to have confirmed it, so an
@@ -1364,8 +1389,8 @@ export async function POST(request: Request) {
         isMember: true,
         casWrite: (kind, mutate) => casWriteUserGoals(actor.supabase, actor.user.id, kind, mutate),
       };
-      const { facts, failed } = await fetchMemberFacts(actor, zone).catch(() => ({ facts: null, failed: true }));
-      contextMsg = failed ? UNAVAILABLE_NOTE : formatMemberContext(facts);
+      // Read beside the open client or session below; neither waits on the other.
+      factsEarly = fetchMemberFacts(actor, zone).catch(() => ({ facts: null, failed: true }));
     } else if (!screen.timezone) {
       zone = (await profileZone(actor.supabase, actor.user.id)) || 'UTC';
     }
@@ -1373,16 +1398,20 @@ export async function POST(request: Request) {
   // ⚠ AN ID FROM THE PAGE IS A CLAIM. The note names a client only when they are on this
   // coach's own roster, and a session only when the caller's own client can read it and it
   // is theirs or a rostered client's. Anything else is dropped, never named.
-  const opened = reads && (screen.clientId || screen.sessionId)
-    ? await verifyOpen(reads, screen.clientId, screen.sessionId, actor as Actor).catch(() => ({ client: null, session: null }))
-    : { client: null, session: null };
+  const openedEarly = reads && (screen.clientId || screen.sessionId)
+    ? verifyOpen(reads, screen.clientId, screen.sessionId, actor as Actor).catch(() => ({ client: null, session: null }))
+    : null;
+  if (factsEarly) {
+    const { facts, failed } = await factsEarly;
+    contextMsg = failed ? UNAVAILABLE_NOTE : formatMemberContext(facts);
+  }
+  const opened = openedEarly ? await openedEarly : { client: null, session: null };
   const where = formatContextNote({ surface, page: screen.page, now: new Date(), zone, client: opened.client, session: opened.session, item: screen.item, problem: screen.problem, coachTools: coachTools.length > 0 });
   // ⚠ THE OPEN DOOR IS METERED. A visitor's first question passes the bot check (a
   // solved Turnstile token earns a signed browser cookie, so later questions skip it),
   // and every question counts against the day's limit for the tier: per account, or
   // per browser and per address for a visitor. Past it, Nora says so and nothing is
   // sent to the model. Both fail open on a limiter or Cloudflare fault.
-  const tier = noraTier(!!actor, membership);
   let setCookie: string | null = null;
   let visitorId: string | null = null;
   if (!actor) {
@@ -1391,8 +1420,9 @@ export async function POST(request: Request) {
     visitorId = gate.id;
     setCookie = gate.setCookie;
   }
-  const limitSb = actor ? actor.supabase : await clientForRequest(request).catch(() => null);
-  const counted = await countQuestion(limitSb, { tier, uid: actor ? actor.user.id : null, visitorId, ip: requestIp(request) });
+  const counted = countedEarly
+    ? settledValue(await countedEarly)
+    : await countQuestion(await clientForRequest(request).catch(() => null), { tier, uid: null, visitorId, ip: requestIp(request) });
   const respond = (payload: Record<string, unknown>, init?: ResponseInit) => {
     const res = NextResponse.json(payload, init);
     if (setCookie) res.headers.append('Set-Cookie', setCookie);
@@ -1415,7 +1445,9 @@ export async function POST(request: Request) {
   const coach: CoachCtx = { sb: coachSb, surface };
 
   // The Shape team's replies in this history, checked against the stored conversation.
-  const teamReplies = await storedTeamReplies(actor, messages);
+  const teamReplies = settledValue(await teamRepliesEarly);
+  // How long the setup took before the model was asked: greppable beside the model's own line.
+  console.log('[shape-ai]', JSON.stringify({ promptId: 'support.chat.setup', setupMs: Date.now() - startedAt, signedIn: !!actor }));
   const ai = await askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx, cookMsg, reads, coachTools, adminTools, trainerTools, nutritionTools, trainerZone: zone, isMember, signedIn: !!actor, teamReplies, voice, locale, coach, noCards, where, form }, request.signal).catch(() => null);
   if (ai) return respond({ reply: ai.reply, source: 'ai', actions: ai.actions, model: ai.model });
 

@@ -188,7 +188,7 @@ test('⚠ callAI: a refused pin retries ONCE on the fallback, re-prepared for TH
       assert.equal(res.ok, true);
       assert.equal(res.model, 'gpt-5.4-mini');
       assert.equal(res.fellBack, true);
-      assert.deepEqual(res.usage, { inputTokens: 10, outputTokens: 2, totalTokens: 12 });
+      assert.deepEqual(res.usage, { inputTokens: 10, outputTokens: 2, totalTokens: 12, cachedTokens: null, reasoningTokens: null });
       const fb = log.lines.find((l) => l.includes('"reason":"model_fallback"'));
       assert.ok(fb, 'a model_fallback log line');
       assert.match(fb, /"model":"gpt-6-astra"/);
@@ -280,6 +280,23 @@ test('callAI: no key is still the honest no_key result, and never touches the ne
       assert.equal(res.ok, false);
       assert.equal(res.reason, 'no_key');
       assert.equal(f.calls.length, 0);
+    } finally { f.restore(); log.restore(); }
+  });
+});
+
+test('callAI logs how much input came from the prompt cache and how much output was reasoning', async () => {
+  // Speed (2026-10-08): a 17-word reply took 2.9 s, and the log could not say whether the fixed
+  // prefix was cached or how much of the wait was the model reasoning before it answered.
+  const DETAILED = { status: 200, body: { output_text: 'hi', usage: { input_tokens: 6771, output_tokens: 140, total_tokens: 6911, input_tokens_details: { cached_tokens: 6400 }, output_tokens_details: { reasoning_tokens: 123 } } } };
+  await withEnv({ OPENAI_API_KEY: 'test-key' }, async () => {
+    const f = scriptFetch([DETAILED]);
+    const log = captureLog();
+    try {
+      const res = await ai.callAI({ input: 'hello' }, { promptId: 'support.chat' });
+      assert.deepEqual(res.usage, { inputTokens: 6771, outputTokens: 140, totalTokens: 6911, cachedTokens: 6400, reasoningTokens: 123 });
+      const okLine = log.lines.find((l) => l.includes('"ok":true'));
+      assert.match(okLine, /"cachedTokens":6400/);
+      assert.match(okLine, /"reasoningTokens":123/);
     } finally { f.restore(); log.restore(); }
   });
 });
