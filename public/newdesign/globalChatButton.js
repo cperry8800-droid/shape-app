@@ -785,6 +785,62 @@
     openRichChat();
   };
 
+  // ── Ask Nora about the words you selected (the Ask Nora plan, step 4) ─────
+  // Selecting text on a page with a mouse or trackpad shows a small "✦ Ask Nora about this"
+  // pill by it. The pill opens Nora with the words quoted in her composer, for the person to
+  // finish and send. Never in a field, a chat panel or the pill itself, never for a stray
+  // character or a whole page. A touch screen keeps its own selection menu. It sits under
+  // the menu drawer (9000; tests/site-nav.test.mjs), over the page.
+  function noraSelectionPill() {
+    var fine = false;
+    try { fine = !!(window.matchMedia && window.matchMedia("(pointer: fine)").matches); } catch (e) {}
+    if (!fine || !document.addEventListener) return;
+    var pill = null, quote = "";
+    function hide() { if (pill) pill.style.display = "none"; }
+    function within(node, sel) {
+      var el = node && (node.nodeType === 1 ? node : node.parentElement);
+      return !!(el && el.closest && el.closest(sel));
+    }
+    function show() {
+      var s = window.getSelection ? window.getSelection() : null;
+      var text = s && !s.isCollapsed ? String(s.toString()).replace(/\s+/g, " ").trim() : "";
+      if (text.length < 3 || text.length > 600 || !s.rangeCount) { hide(); return; }
+      if (within(s.anchorNode, "input, textarea, select, [contenteditable], [data-chat-panel], #" + PANEL_ID + ", [data-nora-ask-pill]")) { hide(); return; }
+      var rect = s.getRangeAt(0).getBoundingClientRect();
+      if (!rect || (!rect.width && !rect.height)) { hide(); return; }
+      quote = text;
+      if (!pill) {
+        pill = document.createElement("button");
+        pill.type = "button";
+        pill.setAttribute("data-nora-ask-pill", "");
+        pill.textContent = "\u2726 Ask Nora about this";
+        pill.style.cssText = "position:fixed;z-index:8500;display:none;padding:6px 12px;border-radius:999px;border:0;background:var(--sh-accent2, #0ac5a8);color:#06231f;font:600 12px/1.2 system-ui,-apple-system,sans-serif;box-shadow:0 6px 18px rgba(0,0,0,.28);cursor:pointer;white-space:nowrap";
+        // Pressing the pill must not clear the selection it is about.
+        pill.addEventListener("mousedown", function (e) { e.preventDefault(); });
+        pill.addEventListener("click", function () {
+          var excerpt = quote.length > 300 ? quote.slice(0, 297) + "\u2026" : quote;
+          hide();
+          window.__openChatTo({ who: "Nora", tab: "support", draft: "About \u201c" + excerpt + "\u201d: " });
+        });
+        document.body.appendChild(pill);
+      }
+      pill.style.display = "block";
+      var top = rect.top - 40;
+      if (top < 8) top = rect.bottom + 8;
+      var left = Math.min(Math.max(8, rect.left + rect.width / 2 - 90), (window.innerWidth || 1024) - 200);
+      pill.style.top = top + "px";
+      pill.style.left = left + "px";
+    }
+    document.addEventListener("mouseup", function (e) { if (pill && e.target === pill) return; setTimeout(show, 0); });
+    document.addEventListener("keyup", function (e) { if (e.shiftKey) setTimeout(show, 0); });
+    document.addEventListener("selectionchange", function () {
+      var s = window.getSelection && window.getSelection();
+      if (!s || s.isCollapsed) hide();
+    });
+    window.addEventListener("scroll", hide, true);
+  }
+  noraSelectionPill();
+
   function syncVisibility(button) {
     if (!button) return;
     // ⚠ OUT OF THE WAY WHILE A PANEL IS OPEN. The launcher sits above every panel
