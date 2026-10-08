@@ -536,6 +536,14 @@
       state.ti = tab.support ? 0 : null;
       (tab.threads || []).forEach(function (th, k) { if (req.who && th.who === req.who) state.ti = k; });
       render();
+      // A question asked from search arrives as a draft: it lands in the composer for
+      // the visitor to send, never sent on their behalf.
+      // A message the visitor already typed is never overwritten (Codex, #2248).
+      if (typeof req.draft === "string" && req.draft.trim() && !input.value.trim()) {
+        input.value = req.draft.slice(0, 500);
+        input.dispatchEvent(new Event("input"));
+        try { input.focus(); } catch (e) {}
+      }
     };
     document.body.appendChild(node);
     return node;

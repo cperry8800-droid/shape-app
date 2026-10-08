@@ -19545,6 +19545,25 @@ function BSSearchMsgBtn({ uid, name }) {
   );
 }
 
+// A query reads as a question when it ends in "?", runs to three words, or opens with a
+// question word. A single word stays a name search. The website's siteSearch.js holds the
+// same rule; tests/nora-search-asks.test.mjs holds the two to each other.
+  // ⚠ A WHOLE WORD, AND NO NAME-LIKE WORDS. Without the \b, "Isabel Jones" matched "is" and "Dora
+  // Lee" matched "do"; "will" is left out because "Will Smith" is a name (Codex, #2248).
+const BS_QUESTION_RE = /^(how|what|why|when|where|who|which|can|could|should|is|are|do|does|did|would|help|find|show|tell|explain|i|i'm|im|my)\b/i;
+function bsLooksLikeQuestion(q) {
+  q = String(q || '').trim();
+  if (q.length < 4) return false;
+  if (/\?$/.test(q)) return true;
+  const words = q.split(/\s+/).length;
+  return words >= 3 || (words >= 2 && BS_QUESTION_RE.test(q));
+}
+// Opens Nora's sheet with the words in her composer. The sheet reads the draft once.
+let _bsNoraDraft = '';
+function bsAskNora(text) {
+  _bsNoraDraft = String(text || '').slice(0, 500);
+  try { window.dispatchEvent(new CustomEvent('shape:openNora')); } catch (e) {}
+}
 function BSUniversalSearch({ onClose }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -19701,6 +19720,20 @@ function BSUniversalSearch({ onClose }) {
   const planHits = (filter === 'all' && needle) ? plansAll.filter(p => (p.name + ' ' + (p.meta || '') + ' ' + (p.coachName || '')).toLowerCase().includes(needle)).slice(0, 4) : [];
   // Nora (Shape's concierge) is staff, not a profiles row — searchable anyway.
   const noraHit = filter === 'all' && !!needle && ('nora'.includes(needle) || ['concierge', 'support', 'help', 'assistant'].some(w => w.startsWith(needle)));
+  // ⚠ SEARCH ASKS NORA (the Ask Nora plan, step 2). This search finds people by name, so a
+  // question typed into it found nobody. Anything that reads as a question offers to ask
+  // Nora, and the words land in her composer for the member to send (bsLooksLikeQuestion).
+  const askNora = filter === 'all' && bsLooksLikeQuestion(q) ? q.trim() : '';
+  const askNoraRow = askNora ? (
+    <button data-ask-nora onClick={() => { onClose(); bsAskNora(askNora); }} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, padding: '11px 2px', display: 'flex', alignItems: 'center', gap: 12 }}>
+      <span aria-hidden="true" style={{ width: 38, height: 38, flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', border: `1px solid ${teal}`, color: teal, fontSize: 17 }}>✦</span>
+      <span style={{ minWidth: 0, flex: 1 }}>
+        <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>{tr('common:search.askNora', { defaultValue: 'Ask Nora' })}</span>
+        <span style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>“{askNora}”</span>
+      </span>
+      <span style={{ fontFamily: t.MONO, fontSize: 13, color: t.INK50 }}>›</span>
+    </button>
+  ) : null;
 
   const isCoachRole = (r) => r === 'trainer' || r === 'nutritionist';
   const matchesFilter = (p) => filter === 'all' ? true : filter === 'coaches' ? isCoachRole(p.role) : filter === 'members' ? !isCoachRole(p.role) : false;
@@ -19831,16 +19864,18 @@ function BSUniversalSearch({ onClose }) {
             <div style={{ padding: '18px 0', ...eyebrow }}>{tr('common:search.searching', { defaultValue: 'Searching…' })}</div>
           ) : state !== 'ok' ? (
             <div style={{ padding: '18px 0' }}>
+              {askNoraRow}
               <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>{state === 'limited' ? tr('common:search.rateLimited', { defaultValue: 'Searching a little fast — give it a moment and try again.' })
                 : tr('coach:addClient.searchFailed', { defaultValue: "Couldn't search just now — check your connection and try again." })}</div>
             </div>
-          ) : (rows !== null && list.length === 0 && moreHits === 0 && !noraHit) ? (
+          ) : (rows !== null && list.length === 0 && moreHits === 0 && !noraHit && !askNora) ? (
             <div style={{ padding: '18px 0' }}>
               <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>{tr('common:search.noMatch', { query: q.trim(), defaultValue: 'Nothing on Shape matches “{query}”.' })}</div>
               <button onClick={() => { onClose(); try { window.dispatchEvent(new Event('shape:openMarket')); } catch (e) {} }} style={{ marginTop: 10, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>{tr('common:search.browseCoaches', { defaultValue: 'Browse coaches on the marketplace →' })}</button>
             </div>
           ) : (
             <>
+              {list.length === 0 && askNoraRow}
               {noraHit && (
                 <>
                   <div style={{ ...eyebrow, padding: '8px 0 2px' }}>{tr('common:search.staffEyebrow', { defaultValue: 'Shape staff' })}</div>
@@ -19860,6 +19895,8 @@ function BSUniversalSearch({ onClose }) {
                   {list.map(Row)}
                 </>
               )}
+              {/* First when nobody matched; after the people when someone did, so a name is never pushed down. */}
+              {list.length > 0 && askNoraRow}
               {filter === 'all' && chHits.length > 0 && (
                 <>
                   <div style={{ ...eyebrow, padding: '16px 0 2px' }}>{tr('feed:tab.channels', { defaultValue: 'Channels' })}</div>
@@ -24566,7 +24603,7 @@ function BSNoraSheet({ onClose }) {
   // reload starts a clean thread with the current greeting (no persistence).
   const SUPPORT_GREETING = { who: 'Nora', t: "Hi, I'm Nora — Shape's concierge. Ask me anything: connecting integrations, your plan, billing, or your account. If I can't sort it out, the Shape team answers at info@theshapecommunity.com.", time: 'now', me: false, bot: true };
   const [supportMsgs, setSupportMsgs] = useStateBSC(() => _bsNoraThread || [SUPPORT_GREETING]);
-  const [supportDraft, setSupportDraft] = useStateBSC('');
+  const [supportDraft, setSupportDraft] = useStateBSC(() => { const d = _bsNoraDraft; _bsNoraDraft = ''; return d; });
   const [supportBusy, setSupportBusy] = useStateBSC(() => _bsNoraBusy);
   React.useEffect(() => {
     const sync = () => { if (_bsNoraThread) setSupportMsgs(_bsNoraThread); setSupportBusy(_bsNoraBusy); };

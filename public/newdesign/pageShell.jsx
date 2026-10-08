@@ -852,7 +852,34 @@ function SiteSearch({ signedIn = false }) {
   // Before the chat has mounted, __openChatTo (globalChatButton.js) boots it and opens
   // Nora; only a page with no launcher at all falls back to Community.
   const openNora = () => { setOpen(false); try { if (window.__openChat) window.__openChat("Nora", "support"); else if (window.__openChatTo) window.__openChatTo({ who: "Nora", tab: "support" }); else window.location.href = "/newdesign/Community.html"; } catch (e) {} };
+  // ⚠ SEARCH ASKS NORA (the Ask Nora plan, step 2): a query that reads as a question is
+  // offered to Nora, its words in her composer for the visitor to send. Same rule as
+  // siteSearch.js and the app (tests/nora-search-asks.test.mjs holds the three together).
+  // ⚠ A WHOLE WORD, AND NO NAME-LIKE WORDS. Without the \b, "Isabel Jones" matched "is" and "Dora
+  // Lee" matched "do"; "will" is left out because "Will Smith" is a name (Codex, #2248).
+  const SS_QUESTION_RE = /^(how|what|why|when|where|who|which|can|could|should|is|are|do|does|did|would|help|find|show|tell|explain|i|i'm|im|my)\b/i;
+  const ssLooksLikeQuestion = (raw) => {
+    const t = String(raw || "").trim();
+    if (t.length < 4) return false;
+    if (/\?$/.test(t)) return true;
+    const words = t.split(/\s+/).length;
+    return words >= 3 || (words >= 2 && SS_QUESTION_RE.test(t));
+  };
+  const asking = ssLooksLikeQuestion(q) ? q.trim() : "";
+  const askNora = () => { setOpen(false); const req = { who: "Nora", tab: "support", draft: asking }; try { if (window.__openChatTo) window.__openChatTo(req); else if (window.__openChat) window.__openChat(req, "support"); else window.location.href = "/newdesign/Community.html"; } catch (e) {} };
   const rowStyle = { display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 10, textDecoration: "none", cursor: "pointer", background: "transparent", border: 0, width: "100%", textAlign: "left" };
+  // First when nobody matched; after the people when someone did, so a name is never pushed down.
+  const askRowEl = (
+    <button data-ask-nora onClick={askNora} style={rowStyle}
+      onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(var(--sh-ink-rgb, 242,237,228),0.05)"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
+      <span aria-hidden="true" style={{ width: 38, height: 38, flex: "none", display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: "50%", border: `1px solid ${TEAL}`, color: TEAL, fontSize: 17 }}>✦</span>
+      <span style={{ minWidth: 0, flex: 1 }}>
+        <span style={{ display: "block", fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL }}>Ask Nora</span>
+        <span style={{ display: "block", marginTop: 2, fontFamily: sans, fontSize: 15, fontWeight: 600, color: "var(--sh-ink, #f2ede4)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>“{asking}”</span>
+      </span>
+      <span style={{ fontFamily: mono, fontSize: 12, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.4)" }}>›</span>
+    </button>
+  );
   return (
     <>
       <button onClick={() => setOpen(true)} aria-label="Search Shape" title="Search Shape" style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 999, border: "1px solid rgba(var(--sh-nav-ink-rgb, 245,239,225),0.25)", background: "transparent", color: "rgba(var(--sh-nav-ink-rgb, 245,239,225),0.75)", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
@@ -871,6 +898,7 @@ function SiteSearch({ signedIn = false }) {
             <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search names, @handles, goals…"
               style={{ width: "100%", boxSizing: "border-box", marginTop: 12, padding: "11px 2px", border: 0, borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.2)", borderRadius: 0, background: "transparent", color: "var(--sh-ink, #f2ede4)", fontFamily: sans, fontSize: 16, outline: "none" }} />
             <div style={{ padding: "10px 0 6px" }}>
+              {asking && !(rows && rows.length) && askRowEl}
               {noraHit && (
                 <button onClick={openNora} style={rowStyle}
                   onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(var(--sh-ink-rgb, 242,237,228),0.05)"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
@@ -887,11 +915,11 @@ function SiteSearch({ signedIn = false }) {
                   <div style={{ padding: "12px 12px 8px", fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.45)" }}>Searching…</div>
                 ) : state !== "ok" ? (
                   <div style={{ padding: "12px 12px 8px", fontFamily: sans, fontSize: 13.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>{state === "limited" ? "Searching a little fast — give it a moment and try again." : "Couldn’t search just now — check your connection and try again."}</div>
-                ) : rows !== null && rows.length === 0 && !noraHit ? (
+                ) : rows !== null && rows.length === 0 && !noraHit && !asking ? (
                   <div style={{ padding: "12px 12px 8px", fontFamily: sans, fontSize: 13.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>
                     {signedIn ? <>Nothing on Shape matches “{q.trim()}”. <a href="/newdesign/Marketplace.html" style={{ color: TEAL, textDecoration: "none" }}>Browse coaches →</a></> : <>Sign in to search every member & coach on Shape. <a href="/newdesign/Login.html" style={{ color: TEAL, textDecoration: "none" }}>Log in →</a></>}
                   </div>
-                ) : rows.map((p) => (
+                ) : <>{rows.map((p) => (
                   <a key={p.id} href={`/newdesign/MemberProfile.html?u=${encodeURIComponent(p.id)}`} style={rowStyle}
                     onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(var(--sh-ink-rgb, 242,237,228),0.05)"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
                     <SsFacet photo={p.avatar || ""} ini={String(p.full_name || "?").split(" ").map(w => w.charAt(0)).join("").slice(0, 2).toUpperCase()} color={ssTierColor(p.points)} />
@@ -901,7 +929,7 @@ function SiteSearch({ signedIn = false }) {
                     </span>
                     <span style={{ fontFamily: mono, fontSize: 12, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.4)" }}>›</span>
                   </a>
-                ))
+                ))}{asking && askRowEl}</>
               ) : (
                 <div style={{ padding: "12px 12px 8px", fontFamily: sans, fontSize: 13.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)" }}>Find anyone on Shape — members, coaches, or Nora for help.</div>
               )}

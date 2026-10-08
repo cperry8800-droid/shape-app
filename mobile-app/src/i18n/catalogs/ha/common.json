@@ -32,6 +32,7 @@
   "search.recipeFallback": "Girke-girke",
   "search.staffEyebrow": "Ma'aikatan Shape",
   "search.noraEyebrow": "Mai jiran baƙi na Shape · koyaushe yana kan layi",
+  "search.askNora": "Tambayi Nora",
   "search.followsYou": "Yana bin ka",
   "search.mutuals": "{count, plural, one {abokin juna #} other {abokan juna #}}",
   "search.countPeople": "{count, plural, one {mutum #} other {mutane #}}",

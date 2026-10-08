@@ -129,6 +129,38 @@
     return ['concierge', 'support', 'help', 'assistant'].some(function (w) { return w.indexOf(needle) === 0; });
   }
 
+  // ⚠ SEARCH ASKS NORA (the Ask Nora plan, step 2). Search finds people by name, so a
+  // question typed into it ("how do I cancel?") found nobody and said so. Anything that
+  // reads as a question now offers to ask Nora, with the words carried into her composer
+  // for the visitor to send. A single word stays a name search.
+  // ⚠ A WHOLE WORD, AND NO NAME-LIKE WORDS. Without the \b, "Isabel Jones" matched "is" and "Dora
+  // Lee" matched "do"; "will" is left out because "Will Smith" is a name (Codex, #2248).
+  var QUESTION_RE = /^(how|what|why|when|where|who|which|can|could|should|is|are|do|does|did|would|help|find|show|tell|explain|i|i'm|im|my)\b/i;
+  function looksLikeQuestion(q) {
+    q = String(q || '').trim();
+    if (q.length < 4) return false;
+    if (/\?$/.test(q)) return true;
+    return q.split(/\s+/).length >= 3 || (q.split(/\s+/).length >= 2 && QUESTION_RE.test(q));
+  }
+  function askNora(query) {
+    var req = { who: 'Nora', tab: 'support', draft: query };
+    try {
+      if (window.__openChatTo) window.__openChatTo(req);
+      else if (window.__openChat) window.__openChat(req, 'support');
+      else window.location.href = '/newdesign/Community.html';
+    } catch (e) {}
+  }
+  function askRow(query) {
+    return '<button class="ss-ask" type="button" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;cursor:pointer;background:transparent;border:0;width:100%;text-align:left">' +
+        '<span aria-hidden="true" style="width:38px;height:38px;flex:none;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;border:1px solid ' + TEAL + ';color:' + TEAL + ';font-size:17px">\u2726</span>' +
+        '<span style="min-width:0;flex:1">' +
+          '<span style="display:block;font-family:' + MONO + ';font-size:8.5px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:' + TEAL + '">Ask Nora</span>' +
+          '<span style="display:block;margin-top:2px;font-family:' + SANS + ';font-size:15px;font-weight:600;color:#f2ede4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">\u201c' + esc(query) + '\u201d</span>' +
+        '</span>' +
+        '<span style="font-family:' + MONO + ';font-size:12px;color:rgba(242,237,228,0.4)">\u203a</span>' +
+      '</button>';
+  }
+
   function onInput() {
     var query = input.value.trim().replace(/^@/, '');
     seq++; // each keystroke supersedes any in-flight search
@@ -144,7 +176,7 @@
     ensureDb().then(function (db) {
       if (mine !== seq) return; // a newer query (or close) superseded this one
       var c = db && db.client;
-      if (!c || !c.rpc) { renderProblem(nh, false); return; }
+      if (!c || !c.rpc) { renderProblem(nh, false, query); return; }
       c.rpc('search_shape_people', { p_q: query, p_limit: 12 })
         .then(function (r) {
           if (mine !== seq) return;
@@ -155,12 +187,12 @@
           // tells a member a real person does not exist; leaving `signedIn` false
           // — which is what an error used to do here — tells a member who IS
           // signed in to sign in. Matched on the CODE, never the message.
-          if (r.error) { renderProblem(nh, r.error.code === 'PT429'); return; }
+          if (r.error) { renderProblem(nh, r.error.code === 'PT429', query); return; }
           render(Array.isArray(r.data) ? r.data : [], nh, query);
         })
         .catch(function (e) {
           if (mine !== seq) return;
-          renderProblem(nh, !!(e && e.code === 'PT429'));
+          renderProblem(nh, !!(e && e.code === 'PT429'), query);
         });
     });
   }
@@ -168,14 +200,19 @@
   // The honest could-not-answer states. A refusal and a failure are different, and
   // BOTH differ from "nobody matched" — rendering either as the empty state tells a
   // member a real person is not on Shape, on evidence we never had.
-  function renderProblem(nh, isLimited) {
-    render([], nh, '', isLimited
+  // The query rides along only for the Ask Nora row: a search that failed can still be
+  // asked of Nora, and the notice still says the search itself did not answer.
+  function renderProblem(nh, isLimited, query) {
+    render([], nh, query || '', isLimited
       ? 'Searching a little fast — give it a moment and try again.'
       : 'Couldn\u2019t search just now — check your connection and try again.');
   }
 
   function render(rows, nh, query, notice) {
     var html = '';
+    var asking = looksLikeQuestion(query) ? query : '';
+    // First when nobody matched; after the people when someone did, so a name is never pushed down.
+    if (asking && !rows.length) html += askRow(asking);
     if (nh) {
       html +=
         '<button class="ss-nora" type="button" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;cursor:pointer;background:transparent;border:0;width:100%;text-align:left">' +
@@ -189,7 +226,7 @@
     }
     if (notice) {
       html += '<div style="padding:12px 12px 8px;font-family:' + SANS + ';font-size:13.5px;color:rgba(242,237,228,0.55)">' + esc(notice) + '</div>';
-    } else if (rows.length === 0 && !nh) {
+    } else if (rows.length === 0 && !nh && !asking) {
       html += '<div style="padding:12px 12px 8px;font-family:' + SANS + ';font-size:13.5px;color:rgba(242,237,228,0.55)">' +
         (signedIn
           ? 'Nothing on Shape matches “' + esc(query) + '”. <a href="/newdesign/Marketplace.html" style="color:' + TEAL + ';text-decoration:none">Browse coaches →</a>'
@@ -207,8 +244,11 @@
           '<span style="font-family:' + MONO + ';font-size:12px;color:rgba(242,237,228,0.4)">›</span>' +
         '</a>';
     });
+    if (asking && rows.length) html += askRow(asking);
     resultsEl.innerHTML = html;
 
+    var ask = resultsEl.querySelector('.ss-ask');
+    if (ask) ask.addEventListener('click', function () { close(); askNora(asking); });
     var nora = resultsEl.querySelector('.ss-nora');
     if (nora) {
       nora.addEventListener('click', function () {
@@ -219,7 +259,7 @@
         try { if (window.__openChat) window.__openChat('Nora', 'support'); else if (window.__openChatTo) window.__openChatTo({ who: 'Nora', tab: 'support' }); else window.location.href = '/newdesign/Community.html'; } catch (e) {}
       });
     }
-    Array.prototype.forEach.call(resultsEl.querySelectorAll('a, button.ss-nora'), function (el) {
+    Array.prototype.forEach.call(resultsEl.querySelectorAll('a, button.ss-nora, button.ss-ask'), function (el) {
       el.addEventListener('mouseenter', function () { el.style.background = 'rgba(242,237,228,0.05)'; });
       el.addEventListener('mouseleave', function () { el.style.background = 'transparent'; });
     });
