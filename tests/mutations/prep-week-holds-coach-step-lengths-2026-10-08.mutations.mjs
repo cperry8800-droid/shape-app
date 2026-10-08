@@ -28,13 +28,14 @@ const PER_SIDE = '  const worked = time.perSide ? time.seconds * 2 : time.second
 const RANGE = '  let seconds = low && high > 0 ? Math.min(span.seconds, (span.seconds / high) * Number(low[1])) : span.seconds;';
 const NOT_WORK = '  if (BS_AUTHOR_NOT_WORK_RE.test(t)) return { t };';
 const FLOOR = '  if (worked < BS_AUTHOR_MIN_PASSIVE * 60) return { t };';
-const ON_SIDE = 'const BS_AUTHOR_PER_SIDE_RE = /^\\s+(?:on\\s+)?(?:a|each|per)\\s+side\\b/i;';
+// ⚠ Re-anchored when the step-time rules learned every app language (step-timers-i18n-2026-10-08).
+const ON_SIDE = "  '(?:(?:on|for)\\\\s+)?(?:a|each|per)\\\\s+side',               // en · pcm (\"for each side\")";
 const TERMINAL = '    c.stepMeta[c.steps.length - 1] = { ...lastMeta, passive: false };';
 const EDITOR = "ds[li] = { ...ds[li], passive: false };";
 const WINDOW = '  if (st && !time.perSide && time.seconds >= BS_AUTHOR_MIN_PASSIVE * 60) return { t, min: Math.round(time.seconds / 60), passive: true, station: st };';
 const HINT = 'const perSideMin = wantsWin ? bsStepPerSideMin(s.t) : 0;';
 const PER_SIDE_EXPORT = '  return time && time.perSide ? Math.max(1, Math.round((time.seconds * 2) / 60)) : 0;';
-const COMPOUND = "  if (!low && next && unitRank(next) < unitRank(span) && /^\\s*(?:and\\s+)?$/i.test(t.slice(span.end, next.at))) {";
+const COMPOUND = "  if (!low && next && unitRank(next) < unitRank(span) && BS_AUTHOR_AND_RE.test(between)) {";
 const DE = 'mobile-app/src/i18n/catalogs/de/coach.json';
 
 export default {
@@ -70,7 +71,7 @@ export default {
     { name: 'a coach\'s hands-on step becomes a window', file: COOKABLE, find: ATTENDED, replace: ATTENDED.replace('passive: false', 'passive: true') },
     { name: 'a coach\'s attended step drops the station they picked', file: COOKABLE, find: ATTENDED, replace: "  return { t, min: Math.round(worked / 60), passive: false };" },
     { name: 'per side counts one side', file: COOKABLE, find: PER_SIDE, replace: '  const worked = time.seconds;' },
-    { name: '"on each side" is not read as per side', file: COOKABLE, find: ON_SIDE, replace: ON_SIDE.replace('(?:on\\s+)?', '') },
+    { name: '"on each side" is not read as per side', file: COOKABLE, find: ON_SIDE, replace: ON_SIDE.replace('(?:(?:on|for)\\\\s+)?', '') },
     { name: 'a range is its top', file: COOKABLE, find: RANGE, replace: '  let seconds = span.seconds;' },
     { name: 'a storage time counts as work', file: COOKABLE, find: NOT_WORK, replace: '' },
     { name: 'the attended floor rounds 3.5 minutes up to 4', file: COOKABLE, find: FLOOR, replace: '  if (Math.round(worked / 60) < BS_AUTHOR_MIN_PASSIVE) return { t };' },
