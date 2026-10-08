@@ -8421,11 +8421,15 @@ const BS_CK_CSS = `
 .bsck.dev .cC .z .in small{font-size:11px}
 .bsck.dev .cC .oven{grid-column:1/3;grid-row:3;display:flex;align-items:center;gap:8px;padding:0 10px;border-radius:12px}
 .bsck.dev .cC .oven .knobs{display:none}
-.bsck.dev .cC .oven .win,.bsck.dev .cC .oven.on .win{flex:1;min-width:0;background:none;border:0;padding:0;place-items:center start;text-align:left;grid-auto-flow:column;gap:10px}
+.bsck.dev .cC .oven .win,.bsck.dev .cC .oven.on .win{flex:1;min-width:0;background:none;border:0;padding:0;place-items:center stretch;text-align:left;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:10px}
 .bsck.dev .cC .oven.on{background:radial-gradient(ellipse at 30% 50%,rgba(224,101,71,.35),transparent 70%)}
-.bsck.dev .cC .oven .in{grid-auto-flow:column;align-items:center;gap:6px}
-.bsck.dev .cC .oven .in b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.bsck.dev .cC .oven .in .n{font-size:16px}
+.bsck.dev .cC .oven .in{display:flex;flex-wrap:wrap;align-items:baseline;align-content:center;column-gap:5px;row-gap:1px;min-width:0;padding:0;text-align:left}
+.bsck.dev .cC .oven .in b{flex:0 0 100%;max-width:100%;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bsck.dev .cC .oven .in .n{flex:none;font-size:14px}
+.bsck.dev .cC .oven .in small{flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bsck.dev .cC .oven .win.two{grid-auto-flow:row;gap:2px}
+.bsck.dev .cC .oven .win.two .in{flex-wrap:nowrap}
+.bsck.dev .cC .oven .win.two .in b{flex:1 1 0}
 .bsck.dev .cC .brd{grid-column:3/5;grid-row:3;padding:0 10px;gap:6px;font-size:12px;border-radius:12px}
 .bsck.dev .cC .brd .ico{width:18px;height:18px}
 .bsck.dev .cC .brd > span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -8919,7 +8923,7 @@ function bsCkHob({ tr, occ, selected = null, onZone = null, nowText = null }) {
       {[0, 1, 2, 3].map(burner)}
       <div className={`oven${ovens.length ? ' on' : ''}`}>
         <span className="knobs" aria-hidden="true"><i /><i /><i /></span>
-        <div className="win">
+        <div className={`win${ovens.length > 1 ? ' two' : ''}`}>
           {ovens.length
             ? ovens.map((o, k) => (live(o)
               ? inner(o, 'button', { key: k, type: 'button', className: `in${selected === o.timerId ? ' sel' : ''}`, onClick: () => onZone(o.timerId), 'aria-pressed': selected === o.timerId, 'aria-label': zoneAria(ovenLabel, o) })
