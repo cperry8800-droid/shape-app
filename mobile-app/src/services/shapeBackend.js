@@ -14,7 +14,7 @@ import { mergePostPatch } from './communityPostPatch.mjs';
 import { computeWeekendSplit, buildSelfWeekendBuckets } from './weekendSplit.mjs';
 import { bsVarianceBand } from '../../../public/newdesign/varianceBand.mjs';
 import { bsSetsWindow } from '../../../public/newdesign/noraSets.mjs';
-import { SILENT_CLIP } from '../../../public/newdesign/noraVoiceLoop.mjs';
+import { SILENT_CLIP, speechParts } from '../../../public/newdesign/noraVoiceLoop.mjs';
 import { bsFeedQuerySpec } from './feedMode.mjs';
 import { bsWorkoutSharePrivacy, bsIsDuplicateWorkoutPost, bsFetchDuplicateCandidates, bsActivityStartISO, bsPostActivityStart, BS_PRIVACY_RANK } from './workoutShare.mjs';
 import { bsLiveAudience } from './liveProgress.mjs';
@@ -8115,32 +8115,70 @@ async function speakVoice(text, toneOverride, opts = {}) {
   if (!apiBaseUrl || (!token && _isNative)) return { ok: false, reason: 'signed_out' };
   const ctrl = new AbortController();
   _voiceAbort = ctrl;
+  // ⚠ THE FIRST SENTENCES PLAY WHILE THE REST IS BEING MADE (speechParts). Both parts are
+  // asked for at once; the rest follows on the same unlocked player when the first ends, and
+  // `ended` settles after the last. The rest's fetch stays abortable until it lands.
+  const parts = speechParts(clean.slice(0, 2000));
+  let restPending = parts.length > 1;
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const ask = (part) => fetch(`${apiBaseUrl}/api/ai/speak`, {
+    method: 'POST',
+    headers,
+    credentials: 'same-origin',
+    body: JSON.stringify({ text: part, tone, voice: prefs.voice !== 'auto' ? prefs.voice : undefined }),
+    signal: ctrl.signal,
+  });
+  // The opening is asked for first, so it gets a head start; the rest right behind it.
+  const opening = ask(parts[0]);
+  const rest = restPending
+    ? ask(parts[1]).then((r) => (r.ok ? r.blob() : null)).catch(() => null)
+        .finally(() => { restPending = false; if (_voiceAbort === ctrl) _voiceAbort = null; })
+    : null;
+  // Nothing left to say after the first part (it failed, or was refused): stop making the rest.
+  const dropRest = () => { if (restPending) { try { ctrl.abort(); } catch (e) {} } };
   try {
-    const headers = { 'Content-Type': 'application/json' };
-    if (token) headers.Authorization = `Bearer ${token}`;
-    const res = await fetch(`${apiBaseUrl}/api/ai/speak`, {
-      method: 'POST',
-      headers,
-      credentials: 'same-origin',
-      body: JSON.stringify({ text: clean.slice(0, 2000), tone, voice: prefs.voice !== 'auto' ? prefs.voice : undefined }),
-      signal: ctrl.signal,
-    });
+    const res = await opening;
     // A newer speak() or a stop() ran while we were fetching — don't play stale audio.
     if (myGen !== _voiceGen) return { ok: false, superseded: true };
-    if (!res.ok) return { ok: false, reason: res.status === 401 ? 'signed_out' : (res.status === 402 || res.status === 403) ? 'members' : 'unavailable' };
+    if (!res.ok) { dropRest(); return { ok: false, reason: res.status === 401 ? 'signed_out' : (res.status === 402 || res.status === 403) ? 'members' : 'unavailable' }; }
     const blob = await res.blob();
     if (myGen !== _voiceGen) return { ok: false, superseded: true };
     const url = URL.createObjectURL(blob);
     const audio = voicePlayer();
-    if (!audio) { try { URL.revokeObjectURL(url); } catch (e) {} return { ok: false, reason: 'unavailable' }; }
+    if (!audio) { try { URL.revokeObjectURL(url); } catch (e) {} dropRest(); return { ok: false, reason: 'unavailable' }; }
     // Last-moment check: a stop() between the blob and playback still wins.
     if (myGen !== _voiceGen) { try { URL.revokeObjectURL(url); } catch (e) {} return { ok: false, superseded: true }; }
     const ended = new Promise((resolve) => { _voiceEnd = resolve; });
     _voiceEnded = ended;
-    audio.onended = audio.onerror = () => {
+    // The rest, once the first part has finished, on the same player: unless a newer speak()
+    // or a stop() took over, or the rest could not be made (then she ends where she is).
+    const playRest = async () => {
+      const restBlob = await rest;
+      if (myGen !== _voiceGen || _voiceEnded !== ended) return;
+      if (!restBlob) { settleVoiceEnd(); return; }
+      const restUrl = URL.createObjectURL(restBlob);
+      audio.onended = audio.onerror = () => {
+        try { URL.revokeObjectURL(restUrl); } catch (e) {}
+        if (_voiceEnded === ended) settleVoiceEnd();
+      };
+      _voiceUrl = restUrl;
+      audio.src = restUrl;
+      try { await audio.play(); } catch (e) {
+        try { URL.revokeObjectURL(restUrl); } catch (e2) {}
+        if (_voiceEnded === ended) settleVoiceEnd();
+      }
+    };
+    audio.onended = () => {
       try { URL.revokeObjectURL(url); } catch (e) {}
       // Only this clip's own end: a newer speak() has already settled this one.
-      if (_voiceEnded === ended) settleVoiceEnd();
+      if (_voiceEnded !== ended) return;
+      if (rest && myGen === _voiceGen) { playRest(); return; }
+      settleVoiceEnd();
+    };
+    audio.onerror = () => {
+      try { URL.revokeObjectURL(url); } catch (e) {}
+      if (_voiceEnded === ended) { dropRest(); settleVoiceEnd(); }
     };
     _voiceAudio = audio;
     _voiceUrl = url;   // so an INTERRUPTING stopVoice() can revoke it (revoking twice is a no-op)
@@ -8157,6 +8195,7 @@ async function speakVoice(text, toneOverride, opts = {}) {
       try { URL.revokeObjectURL(url); } catch (e2) {}
       if (_voiceUrl === url) { _voiceAudio = null; _voiceUrl = null; }
       if (_voiceEnded === ended) settleVoiceEnd();
+      dropRest();
       // A newer speak()/stop() pausing an unstarted play() rejects it — that's a
       // supersession, not a failure, so an explicit-Listen caller doesn't show a
       // spurious "unavailable" toast (adversarial review #1805).
@@ -8170,7 +8209,8 @@ async function speakVoice(text, toneOverride, opts = {}) {
     if (e && e.name === 'AbortError') return { ok: false, superseded: true };
     return { ok: false, reason: 'unavailable' };
   } finally {
-    if (_voiceAbort === ctrl) _voiceAbort = null;  // this call's fetch is done
+    // This call's fetches are done, unless the rest is still being made: a stop() aborts that.
+    if (_voiceAbort === ctrl && !restPending) _voiceAbort = null;
   }
 }
 async function retryVoice() {
