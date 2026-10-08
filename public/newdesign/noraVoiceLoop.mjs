@@ -279,3 +279,27 @@ export function createVoiceLoop(deps) {
 // element, so the reply set on that same element after a network wait may play
 // (Safari blocks play() that is not started by a tap, element by element).
 export const SILENT_CLIP = 'data:audio/wav;base64,UklGRsQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YaAAAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA';
+
+// ⚠ HER VOICE STARTS ON THE FIRST SENTENCE (speed, 2026-10-08). A reply was turned into speech
+// whole before any of it played, so a longer answer waited seconds in silence. It is split
+// in two: the opening sentences, then the rest. Both are asked for at once, the first plays
+// as soon as it is ready, and the rest follows on the same player. The opening part is at
+// least `minFirst` characters (about four seconds of speech), so the rest is ready before it
+// is needed and there is no gap. A short reply, or one with no sentence end in reach, stays
+// whole. The words are never changed: the parts join back to the reply.
+export function speechParts(text, { minFirst = 60, maxFirst = 220, minRest = 40 } = {}) {
+  const s = String(text || '').trim();
+  if (!s) return [];
+  if (s.length < minFirst + minRest) return [s];
+  const end = /[.!?…]+["'”’)\]]*\s+/g;
+  let cut = -1;
+  for (let m = end.exec(s); m; m = end.exec(s)) {
+    const at = m.index + m[0].length;
+    if (at > maxFirst) break;
+    if (at >= minFirst) { cut = at; break; }
+  }
+  if (cut < 0) return [s];
+  const first = s.slice(0, cut).trim();
+  const rest = s.slice(cut).trim();
+  return rest.length < minRest ? [s] : [first, rest];
+}

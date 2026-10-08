@@ -273,6 +273,26 @@ function CwFillCard({ a }) {
 // that is why Listen did nothing on a phone (owner, 2026-10-08).
 const CW_NORA_SILENCE = "data:audio/wav;base64,UklGRsQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YaAAAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA";
 
+// Nora's reply in two parts for her voice: the same rule as speechParts() in
+// public/newdesign/noraVoiceLoop.mjs (a classic script cannot import it synchronously; a test
+// holds the two to the same answers). The first plays while the rest is still being made.
+function cwSpeechParts(text) {
+  const s = String(text || "").trim();
+  const minFirst = 60, maxFirst = 220, minRest = 40;
+  if (!s) return [];
+  if (s.length < minFirst + minRest) return [s];
+  const end = /[.!?…]+["'”’)\]]*\s+/g;
+  let cut = -1;
+  for (let m = end.exec(s); m; m = end.exec(s)) {
+    const at = m.index + m[0].length;
+    if (at > maxFirst) break;
+    if (at >= minFirst) { cut = at; break; }
+  }
+  if (cut < 0) return [s];
+  const first = s.slice(0, cut).trim();
+  const rest = s.slice(cut).trim();
+  return rest.length < minRest ? [s] : [first, rest];
+}
 // What Talk to Nora's one status line says, by the engine's state.
 function cwTalkStatus(state, info) {
   const i = info || {};
@@ -531,11 +551,20 @@ function ChatWidget(props) {
     const gen = noraGenRef.current;
     if (key != null) setNoraPlaying({ key, playing: false });
     let reason = "unavailable";
+    // ⚠ THE FIRST SENTENCES PLAY WHILE THE REST IS BEING MADE (cwSpeechParts). Both parts are
+    // asked for at once; the rest follows on the same unlocked player when the first ends, and
+    // `ended` settles after the last.
+    const parts = cwSpeechParts(clean.slice(0, 2000));
+    const ask = (part) => fetch("/api/ai/speak", {
+      method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: part, tone: noraVoice.tone, voice: noraVoice.voice !== "auto" ? noraVoice.voice : undefined }),
+    });
+    // The opening is asked for first, so it gets a head start; the rest right behind it.
+    let opening = null;
+    try { opening = ask(parts[0]); } catch (e) { opening = Promise.reject(e); }
+    const rest = parts.length > 1 ? ask(parts[1]).then((r) => (r.ok ? r.blob() : null)).catch(() => null) : null;
     try {
-      const res = await fetch("/api/ai/speak", {
-        method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: clean.slice(0, 2000), tone: noraVoice.tone, voice: noraVoice.voice !== "auto" ? noraVoice.voice : undefined }),
-      });
+      const res = await opening;
       if (gen !== noraGenRef.current) return { ok: false, superseded: true };
       if (res.ok) {
         const blob = await res.blob();
@@ -544,12 +573,41 @@ function ChatWidget(props) {
         if (a) {
           const url = URL.createObjectURL(blob);
           const ended = new Promise((resolve) => { noraEndRef.current = resolve; });
-          a.onended = a.onerror = () => {
+          const finish = () => { settleNoraEnd(); setNoraPlaying(null); };
+          // The rest, once the first part has finished, on the same player: unless a newer
+          // speak or a stop took over, or the rest could not be made (she ends where she is).
+          const playRest = async () => {
+            const restBlob = await rest;
+            if (gen !== noraGenRef.current) return;
+            if (!restBlob) { finish(); return; }
+            const restUrl = URL.createObjectURL(restBlob);
+            a.onended = a.onerror = () => {
+              if (noraUrlRef.current !== restUrl) return;
+              try { URL.revokeObjectURL(restUrl); } catch (e) {}
+              noraUrlRef.current = null;
+              finish();
+            };
+            noraUrlRef.current = restUrl;
+            a.src = restUrl;
+            try { await a.play(); } catch (e) {
+              if (noraUrlRef.current !== restUrl) return;
+              try { URL.revokeObjectURL(restUrl); } catch (e2) {}
+              noraUrlRef.current = null;
+              finish();
+            }
+          };
+          a.onended = () => {
             if (noraUrlRef.current !== url) return;
             try { URL.revokeObjectURL(url); } catch (e) {}
             noraUrlRef.current = null;
-            settleNoraEnd();
-            setNoraPlaying(null);
+            if (rest && gen === noraGenRef.current) { playRest(); return; }
+            finish();
+          };
+          a.onerror = () => {
+            if (noraUrlRef.current !== url) return;
+            try { URL.revokeObjectURL(url); } catch (e) {}
+            noraUrlRef.current = null;
+            finish();
           };
           noraUrlRef.current = url;
           a.src = url; // a new source drops the old one's pending events

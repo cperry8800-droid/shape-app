@@ -5,6 +5,9 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { JSDOM } from 'jsdom';
 import { loadBroadsheet } from './helpers/broadsheet-mount.mjs';
+import { speechParts } from '../public/newdesign/noraVoiceLoop.mjs';
+// The lifted speakVoice harnesses read the real split rule from here.
+globalThis.__speechParts = speechParts;
 
 const { useBSCookVoice, BSPrepCook, bsCkReading, bsCkTop, bsCkReadsProp } = await loadBroadsheet(['useBSCookVoice', 'BSPrepCook', 'bsCkReading', 'bsCkTop', 'bsCkReadsProp'], React);
 const dom = new JSDOM('<div id="root"></div>', { url: 'https://shape.test' });
@@ -176,7 +179,7 @@ test('browser-blocked server audio retries from the same clip and stop releases 
     play() { if (this.src === 'data:,') return Promise.reject({ name: 'NotAllowedError' }); plays++; return plays === 1 ? Promise.reject({ name: 'NotAllowedError' }) : Promise.resolve(); }
     pause() {}
   }
-  const code = `let _voiceGen=0, _voiceAudio=null, _voiceUrl=null, _voiceAbort=null, _voiceEnded=null, _voiceEnd=null, _voicePlayer=null; const SILENT_CLIP='data:,';
+  const code = `let _voiceGen=0, _voiceAudio=null, _voiceUrl=null, _voiceAbort=null, _voiceEnded=null, _voiceEnd=null, _voicePlayer=null; const SILENT_CLIP='data:,', speechParts=globalThis.__speechParts;
     const apiBaseUrl='https://api.test', state={session:{access_token:'test'}}, supabase=null;
     const readVoicePrefs=()=>({enabled:false,tone:'supportive',voice:'auto'});
     ${lift('liveAccessToken')} ${lift('settleVoiceEnd')} ${lift('voicePlayer')} ${lift('primeVoice')} ${lift('stopVoice')} ${lift('speakVoice')} ${lift('retryVoice')}
@@ -319,7 +322,7 @@ test('speakVoice hands back when her clip ends, and a stop ends it too', async (
   let audio;
   const audios = [];
   class Audio { constructor() { audio = this; audios.push(this); } play() { return Promise.resolve(); } pause() {} }
-  const code = `let _voiceGen=0, _voiceAudio=null, _voiceUrl=null, _voiceAbort=null, _voiceEnded=null, _voiceEnd=null, _voicePlayer=null; const SILENT_CLIP='data:,';
+  const code = `let _voiceGen=0, _voiceAudio=null, _voiceUrl=null, _voiceAbort=null, _voiceEnded=null, _voiceEnd=null, _voicePlayer=null; const SILENT_CLIP='data:,', speechParts=globalThis.__speechParts;
     const apiBaseUrl='https://api.test', state={session:{access_token:'test'}}, supabase=null;
     const readVoicePrefs=()=>({enabled:true,tone:'supportive',voice:'auto'});
     ${lift('liveAccessToken')} ${lift('settleVoiceEnd')} ${lift('voicePlayer')} ${lift('primeVoice')} ${lift('stopVoice')} ${lift('speakVoice')} ${lift('retryVoice')}
@@ -353,7 +356,7 @@ test('speakVoice hands back when her clip ends, and a stop ends it too', async (
 test('speak unlocks the player inside the tap, before it awaits anything, and only once', async () => {
   const played = [];
   class Audio { play() { played.push(this.src); return Promise.resolve(); } pause() {} }
-  const code = `let _voiceGen=0, _voiceAudio=null, _voiceUrl=null, _voiceAbort=null, _voiceEnded=null, _voiceEnd=null, _voicePlayer=null; const SILENT_CLIP='data:,';
+  const code = `let _voiceGen=0, _voiceAudio=null, _voiceUrl=null, _voiceAbort=null, _voiceEnded=null, _voiceEnd=null, _voicePlayer=null; const SILENT_CLIP='data:,', speechParts=globalThis.__speechParts;
     const apiBaseUrl='https://api.test', state={session:{access_token:'test'}}, supabase=null;
     const readVoicePrefs=()=>({enabled:true,tone:'supportive',voice:'auto'});
     ${lift('liveAccessToken')} ${lift('settleVoiceEnd')} ${lift('voicePlayer')} ${lift('primeVoice')} ${lift('stopVoice')} ${lift('speakVoice')}
@@ -378,7 +381,7 @@ test('Nora asks with the token as of now, not the one cached when the page opene
   const sent = [];
   class Audio { play() { return Promise.resolve(); } pause() {} }
   let stored = { access_token: 'fresh', user: { id: 'u1' } };
-  const code = `let _voiceGen=0, _voiceAudio=null, _voiceUrl=null, _voiceAbort=null, _voiceEnded=null, _voiceEnd=null, _voicePlayer=null; const SILENT_CLIP='data:,';
+  const code = `let _voiceGen=0, _voiceAudio=null, _voiceUrl=null, _voiceAbort=null, _voiceEnded=null, _voiceEnd=null, _voicePlayer=null; const SILENT_CLIP='data:,', speechParts=globalThis.__speechParts;
     const apiBaseUrl='https://api.test', state={user:{id:'u1'}, session:{access_token:'stale', user:{id:'u1'}}}, _isNative=true;
     const readVoicePrefs=()=>({enabled:true,tone:'supportive',voice:'auto'});
     ${lift('liveAccessToken')} ${lift('settleVoiceEnd')} ${lift('voicePlayer')} ${lift('primeVoice')} ${lift('stopVoice')} ${lift('speakVoice')}
@@ -407,7 +410,7 @@ test('⚠ on the web, no token of its own still asks: the website session rides 
   const sent = [];
   class Audio { play() { return Promise.resolve(); } pause() {} }
   const harness = (native, status) => {
-    const code = `let _voiceGen=0, _voiceAudio=null, _voiceUrl=null, _voiceAbort=null, _voiceEnded=null, _voiceEnd=null, _voicePlayer=null; const SILENT_CLIP='data:,';
+    const code = `let _voiceGen=0, _voiceAudio=null, _voiceUrl=null, _voiceAbort=null, _voiceEnded=null, _voiceEnd=null, _voicePlayer=null; const SILENT_CLIP='data:,', speechParts=globalThis.__speechParts;
       const apiBaseUrl='https://site.test', state={user:null, session:null}, supabase=null, _isNative=${native};
       const readVoicePrefs=()=>({enabled:true,tone:'supportive',voice:'auto'});
       ${lift('liveAccessToken')} ${lift('settleVoiceEnd')} ${lift('voicePlayer')} ${lift('primeVoice')} ${lift('stopVoice')} ${lift('speakVoice')}
@@ -433,4 +436,70 @@ test('the cached token follows a refresh, here or in another client on the same 
     const at = backend.indexOf(`function ${fn}(`);
     assert.match(backend.slice(at, at + 1200), /const token = await liveAccessToken\(\);/, `${fn} still reads the boot token`);
   }
+});
+
+// ⚠ HER VOICE STARTS ON THE FIRST SENTENCE (speed, 2026-10-08). The whole reply was made into
+// speech before any of it played; now the opening plays while the rest is made, on the same
+// player, and `ended` waits for the last part.
+test('speakVoice plays the opening part as soon as it is ready, then the rest, and ends after the last', async () => {
+  let audio;
+  const plays = [];
+  class Audio { constructor() { audio = this; } play() { plays.push(this.src); return Promise.resolve(); } pause() {} }
+  const asked = [];
+  const reply = 'Great question. Your plan this week has three strength days and two easy runs, with Sunday off. I would keep the long run easy, and add protein at breakfast so you recover well before Tuesday.';
+  const REST = 'I would keep the long run easy, and add protein at breakfast so you recover well before Tuesday.';
+  let releaseRest;
+  const restReady = new Promise((r) => { releaseRest = r; });
+  let urls = 0;
+  const code = `let _voiceGen=0, _voiceAudio=null, _voiceUrl=null, _voiceAbort=null, _voiceEnded=null, _voiceEnd=null, _voicePlayer=null; const SILENT_CLIP='data:,', speechParts=globalThis.__speechParts;
+    const apiBaseUrl='https://api.test', state={session:{access_token:'test'}}, supabase=null, _isNative=false;
+    const readVoicePrefs=()=>({enabled:true,tone:'supportive',voice:'auto'});
+    ${lift('liveAccessToken')} ${lift('settleVoiceEnd')} ${lift('voicePlayer')} ${lift('primeVoice')} ${lift('stopVoice')} ${lift('speakVoice')}
+    return {speak:speakVoice,stop:stopVoice};`;
+  const make = (restFails) => new Function('fetch', 'Audio', 'URL', code)(
+    async (url, init) => {
+      const text = JSON.parse(init.body).text;
+      asked.push(text);
+      if (text === REST) { await restReady; if (restFails) return { ok: false, status: 502 }; }
+      return { ok: true, blob: async () => new Blob([text]) };
+    },
+    Audio, { createObjectURL: () => `blob:${++urls}`, revokeObjectURL() {} });
+  const settled = (p) => Promise.race([p.then(() => true), new Promise((r) => setTimeout(() => r(false), 20))]);
+
+  const backend = make(false);
+  const r = await backend.speak(reply, undefined, { force: true });
+  assert.equal(r.ok, true);
+  assert.deepEqual(asked, ['Great question. Your plan this week has three strength days and two easy runs, with Sunday off.', 'I would keep the long run easy, and add protein at breakfast so you recover well before Tuesday.'], 'both parts were asked for at once');
+  assert.deepEqual(plays.slice(-1), ['blob:1'], 'the opening played before the rest was ready');
+  audio.onended();
+  assert.equal(await settled(r.ended), false, 'not ended: the rest is still to come');
+  releaseRest();
+  await new Promise((res) => setTimeout(res, 5));
+  assert.deepEqual(plays.slice(-1), ['blob:2'], 'the rest followed on the same player');
+  assert.equal(await settled(r.ended), false, 'not ended while the rest plays');
+  audio.onended();
+  assert.equal(await settled(r.ended), true, 'ended after the last part');
+
+  // A stop after the opening: the rest never plays.
+  asked.length = 0; plays.length = 0;
+  const b2 = make(false);
+  const r2 = await b2.speak(reply, undefined, { force: true });
+  b2.stop();
+  audio.onended && audio.onended();
+  await new Promise((res) => setTimeout(res, 5));
+  assert.equal(plays.filter((p) => p !== 'data:,').length, 1, 'only the opening played');
+  assert.equal(await settled(r2.ended), true);
+
+  // The rest could not be made: she ends after the opening, with no error.
+  asked.length = 0; plays.length = 0;
+  const b3 = make(true);
+  const r3 = await b3.speak(reply, undefined, { force: true });
+  audio.onended();
+  await new Promise((res) => setTimeout(res, 5));
+  assert.equal(await settled(r3.ended), true, 'ended where she was');
+
+  // A short reply is one request, as before.
+  asked.length = 0;
+  await make(false).speak('Hi! Your message came through clearly.', undefined, { force: true });
+  assert.deepEqual(asked, ['Hi! Your message came through clearly.']);
 });

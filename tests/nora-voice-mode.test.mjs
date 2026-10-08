@@ -84,7 +84,7 @@ test('website: Talk replaced the Voice chat chip and hold-to-talk, and starts in
 test('website Listen: one player, unlocked before the fetch; Loading, then Stop; an honest note when blocked', () => {
   const speak = between(WEB, 'const speakNora = async (text, opts) => {', '\n  };\n');
   const prime = speak.indexOf('primeNoraAudio();');
-  assert.ok(prime > 0 && prime < speak.indexOf('await fetch('), 'the unlock runs before anything awaits');
+  assert.ok(prime > 0 && prime < speak.indexOf('await '), 'the unlock runs before anything awaits');
   assert.doesNotMatch(speak, /new Audio\(/, 'a new element per reply is what Safari blocked');
   assert.match(speak, /a\.src = url;/);
   assert.match(speak, /return \{ ok: true, ended \};/, 'Talk waits for her to finish before it listens again');
