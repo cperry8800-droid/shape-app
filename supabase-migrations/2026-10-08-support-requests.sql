@@ -57,3 +57,37 @@ create policy "support request: send own"
     and status = 'open'
     and reply is null and replied_by_email is null and replied_at is null
   );
+
+-- ===== THREE A DAY, IN THE DATABASE =====
+-- The route counts before it inserts, but an account can insert through the API directly,
+-- and two sends at once can both pass a count (Codex, #2265). So the limit is here: one
+-- insert at a time per account (a transaction lock), the last 24 hours counted, and the
+-- fourth refused. created_at is set here, so a direct insert cannot date itself out of the count.
+create or replace function public.enforce_support_request_limit()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_count integer;
+begin
+  perform pg_advisory_xact_lock(hashtextextended('shape.support_request:' || new.user_id::text, 0));
+  new.created_at := now();
+  select count(*) into v_count
+    from public.support_requests r
+   where r.user_id = new.user_id
+     and r.created_at > now() - interval '24 hours';
+  if v_count >= 3 then
+    raise exception 'support_request:daily_limit' using errcode = 'P0001';
+  end if;
+  return new;
+end;
+$$;
+
+revoke all on function public.enforce_support_request_limit() from public, anon, authenticated;
+
+drop trigger if exists support_requests_daily_limit on public.support_requests;
+create trigger support_requests_daily_limit
+  before insert on public.support_requests
+  for each row execute function public.enforce_support_request_limit();

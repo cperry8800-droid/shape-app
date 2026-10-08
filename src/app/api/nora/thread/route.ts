@@ -19,6 +19,7 @@ import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson } from '@/lib/request-utils';
 import { appendThread, cleanThread } from '@/lib/ai/noraThread.mjs';
+import { verifiedThread } from '@/lib/supportRequests.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -64,8 +65,10 @@ export async function GET(request: Request) {
   const { data, error } = await readRow(who.supabase, who.userId);
   if (error) return failed('read', error);
   const row = data as { messages?: unknown; updated_at?: string | null } | null;
-  // A reply from the Shape team ('team') is shown; only the server ever writes one.
-  return json({ messages: cleanThread(row?.messages, new Date(), { team: true }), updatedAt: row?.updated_at ?? null });
+  // A reply from the Shape team ('team') is shown only when it is one of the account's answered
+  // requests: the account can write this row directly, so its role alone proves nothing.
+  const messages = await verifiedThread(who.supabase, who.userId, row?.messages, new Date());
+  return json({ messages, updatedAt: row?.updated_at ?? null });
 }
 
 export async function POST(request: Request) {

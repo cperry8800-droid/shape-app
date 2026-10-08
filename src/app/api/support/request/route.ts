@@ -4,7 +4,7 @@
 // POST { question, surface?: 'web' | 'app', page? } -> { ok, id, emailed }
 //   - 401 signed out: a visitor is given the team's email address instead;
 //   - 400 an empty or too-long question;
-//   - 429 `daily_limit` past DAILY_MAX in 24 hours;
+//   - 429 `daily_limit` past DAILY_MAX in 24 hours (counted here, and enforced by the database);
 //   - 503 `support_not_set_up` until supabase-migrations/2026-10-08-support-requests.sql runs.
 //
 // Written with the CALLER's client, so RLS holds the row to their own, open, unanswered one.
@@ -19,7 +19,7 @@ import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson } from '@/lib/request-utils';
 import { sendEmail } from '@/lib/email';
-import { cleanQuestion, transcriptFrom, supportEmail, DAILY_MAX, SUPPORT_INBOX_DEFAULT } from '@/lib/supportRequests.mjs';
+import { cleanQuestion, transcriptFrom, verifiedThread, supportEmail, DAILY_MAX, SUPPORT_INBOX_DEFAULT } from '@/lib/supportRequests.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -33,6 +33,7 @@ function isMissingTable(error: DbError): boolean {
   if (!error) return false;
   return error.code === '42P01' || error.code === 'PGRST205' || /does not exist|could not find the table/i.test(error.message ?? '');
 }
+const DAILY_LIMIT = { error: `You've sent ${DAILY_MAX} questions to the Shape team today. They reply to those here; for anything urgent, email info@theshapecommunity.com.`, code: 'daily_limit' };
 const NOT_SET_UP = { error: "Talking to a person isn't set up yet. Email the Shape team at info@theshapecommunity.com.", code: 'support_not_set_up' };
 
 export async function POST(request: Request) {
@@ -53,20 +54,22 @@ export async function POST(request: Request) {
     if (isMissingTable(counted.error)) return json(NOT_SET_UP, 503);
     return json({ error: 'Your question could not be sent right now. Try again in a moment.' }, 503);
   }
-  if ((counted.count ?? 0) >= DAILY_MAX) {
-    return json({ error: `You've sent ${DAILY_MAX} questions to the Shape team today. They reply to those here; for anything urgent, email info@theshapecommunity.com.`, code: 'daily_limit' }, 429);
-  }
+  if ((counted.count ?? 0) >= DAILY_MAX) return json(DAILY_LIMIT, 429);
 
   // Their conversation with Nora as stored: what the team reads beside the question. A thread
   // that cannot be read is sent without, never invented.
   const thread = await supabase.from('nora_threads').select('messages').eq('user_id', user.id).maybeSingle();
-  const transcript = !thread.error && thread.data ? transcriptFrom((thread.data as { messages?: unknown }).messages) : [];
+  const transcript = !thread.error && thread.data
+    ? transcriptFrom(await verifiedThread(supabase, user.id, (thread.data as { messages?: unknown }).messages))
+    : [];
 
   const created = await supabase.from('support_requests')
     .insert({ user_id: user.id, question, transcript, surface, page })
     .select('id').single();
   if (created.error || !created.data) {
     if (isMissingTable(created.error)) return json(NOT_SET_UP, 503);
+    // The database's own count (the trigger in the migration): two sends at once, or a fourth.
+    if (/support_request:daily_limit/.test(created.error?.message ?? '')) return json(DAILY_LIMIT, 429);
     return json({ error: 'Your question could not be sent right now. Try again in a moment.' }, 503);
   }
   const id = (created.data as { id: string }).id;

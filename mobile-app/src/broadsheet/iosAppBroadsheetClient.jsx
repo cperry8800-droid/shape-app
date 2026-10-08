@@ -24702,6 +24702,13 @@ function bsNoraFromStored(m) {
   const team = !!(m && m.role === 'team');
   return { who: me ? 'You' : team ? 'Shape team' : 'Nora', t: String((m && m.text) || ''), time: 'earlier', me, bot: !me && !team, team, saved: true };
 }
+// The Shape team's replies in a freshly loaded thread that the sheet does not show yet, added
+// after what it shows; null when there are none ("Talk to a person", Codex #2265).
+function bsNoraNewTeam(cur, list) {
+  const seen = new Set((cur || []).filter((m) => m && m.team).map((m) => m.t));
+  const add = (Array.isArray(list) ? list : []).filter((m) => m && m.role === 'team' && !seen.has(String(m.text || ''))).map(bsNoraFromStored);
+  return add.length ? [...(cur || []), ...add] : null;
+}
 // What this device added, appended to the account's thread; nothing is written signed out.
 function _bsNoraSave(messages) {
   try { if (_bsNoraWho() !== 'anon') window.ShapeSupport?.thread?.append?.(messages); } catch (e) {}
@@ -24777,7 +24784,16 @@ function BSNoraSheet({ onClose }) {
   // appended to it, so nothing is lost either way. Unavailable is tried again next open.
   React.useEffect(() => {
     const who = _bsNoraWho();
-    if (who === 'anon' || _bsNoraLoaded === who || !window.ShapeSupport?.thread) return;
+    if (who === 'anon' || !window.ShapeSupport?.thread) return;
+    if (_bsNoraLoaded === who) {
+      // Loaded earlier this session: a reply the Shape team sent since joins it on this open.
+      window.ShapeSupport.thread.load().then((list) => {
+        if (_bsNoraLoaded !== who) return;
+        const next = bsNoraNewTeam(_bsNoraThread || [SUPPORT_GREETING], list);
+        if (next) _bsNoraPublish(next);
+      }).catch(() => {});
+      return;
+    }
     _bsNoraLoaded = who;
     window.ShapeSupport.thread.load().then((list) => {
       if (_bsNoraLoaded !== who) return;

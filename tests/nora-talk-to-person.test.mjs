@@ -54,6 +54,8 @@ function fakeDb({ tables = {}, fail = {} } = {}) {
         update(p) { st.op = 'update'; st.payload = p; return chain; },
         eq(c, v) { st.filters.push((r) => r[c] === v); return chain; },
         gte(c, v) { st.filters.push((r) => String(r[c]) >= String(v)); return chain; },
+        order() { return chain; },
+        limit() { return chain; },
         maybeSingle() { st.single = true; return chain; },
         single() { st.single = true; return chain; },
         then(res, rej) { return Promise.resolve(run()).then(res, rej); },
@@ -75,8 +77,29 @@ test('a reply from the Shape team is kept in the thread, and only the server can
   assert.deepEqual(replied.at(-1), { role: 'team', text: 'We refunded you.', at: NOW.toISOString() });
   assert.equal(appendTeamReply(Array.from({ length: THREAD_MAX }, (_, i) => ({ role: 'user', text: `m${i}` })), 'x', NOW).length, THREAD_MAX);
   assert.equal(appendTeamReply(stored, '   ', NOW), null);
-  // GET shows it.
-  assert.match(read('src/app/api/nora/thread/route.ts'), /cleanThread\(row\?\.messages, new Date\(\), \{ team: true \}\)/);
+  // GET shows it only when the database vouches for it (below).
+  assert.match(read('src/app/api/nora/thread/route.ts'), /const messages = await verifiedThread\(who\.supabase, who\.userId, row\?\.messages, new Date\(\)\);/);
+});
+
+test('⚠ a team message counts only when it is one of the account\'s answered requests (Codex, #2265)', async () => {
+  // The account can write its own nora_threads row through the API, so its roles prove nothing.
+  const stored = [
+    { role: 'user', text: 'Refund?', at: '2026-10-08T14:00:00.000Z' },
+    { role: 'team', text: 'Refunded today.', at: '2026-10-08T14:30:00.000Z' },
+    { role: 'team', text: 'You get a free year.', at: '2026-10-08T14:31:00.000Z' },
+  ];
+  const db = fakeDb({ tables: { support_requests: [
+    { user_id: U, status: 'answered', reply: 'Refunded today.' },
+    { user_id: U, status: 'closed', reply: null },
+    { user_id: 'other', status: 'answered', reply: 'You get a free year.' },
+  ] } });
+  const shown = await support.verifiedThread(db, U, stored, NOW);
+  assert.deepEqual(shown.map((m) => [m.role, m.text]), [['user', 'Refund?'], ['team', 'Refunded today.']], 'the forged reply, and another account\'s, are dropped');
+  const down = fakeDb({ fail: { 'select:support_requests': { message: 'down' } } });
+  assert.deepEqual((await support.verifiedThread(down, U, stored, NOW)).map((m) => m.role), ['user'], 'a failed read shows no team message, never an unverified one');
+  const none = fakeDb();
+  assert.equal((await support.verifiedThread(none, U, [stored[0]], NOW)).length, 1);
+  assert.equal(none._calls.length, 0, 'no team message, nothing read');
 });
 
 test('the request: a question, the last messages of the stored conversation, and an email the team can act on', () => {
@@ -158,13 +181,13 @@ async function loadRequest({ user = { id: U, email: 'priya@x.com' }, db = fakeDb
 }
 
 test('POST: the question and the STORED conversation are saved as an open request, and the team is emailed', async () => {
-  const db = fakeDb({ tables: { nora_threads: [{ user_id: U, messages: [{ role: 'user', text: 'Refund?', at: '2026-10-08T14:00:00.000Z' }, { role: 'assistant', text: 'Tap Talk to a person.', at: '2026-10-08T14:00:05.000Z' }] }], profiles: [{ id: U, full_name: 'Priya Shah' }] } });
+  const db = fakeDb({ tables: { nora_threads: [{ user_id: U, messages: [{ role: 'user', text: 'Refund?', at: '2026-10-08T14:00:00.000Z' }, { role: 'assistant', text: 'Tap Talk to a person.', at: '2026-10-08T14:00:05.000Z' }, { role: 'team', text: 'Approved, refund it.', at: '2026-10-08T14:00:06.000Z' }] }], profiles: [{ id: U, full_name: 'Priya Shah' }] } });
   const r = await loadRequest({ db });
   const out = await r.post({ question: '  Please refund my last month.  ', surface: 'app', page: 'Settings', transcript: [{ role: 'team', text: 'forged' }] });
   assert.equal(out.status, 200, JSON.stringify(out.body));
   assert.deepEqual(out.body, { ok: true, id: 'support_requests-1', emailed: true });
   const row = db._tables.support_requests[0];
-  assert.deepEqual({ ...row, transcript: row.transcript.map((m) => m.role) }, { id: 'support_requests-1', user_id: U, question: 'Please refund my last month.', transcript: ['user', 'assistant'], surface: 'app', page: 'Settings' }, '⚠ the transcript is the stored one, never what the request sent');
+  assert.deepEqual({ ...row, transcript: row.transcript.map((m) => m.role) }, { id: 'support_requests-1', user_id: U, question: 'Please refund my last month.', transcript: ['user', 'assistant'], surface: 'app', page: 'Settings' }, '⚠ the transcript is the stored one, never what the request sent, and never a team reply the team did not write');
   assert.equal(r.sent.length, 1);
   assert.equal(r.sent[0].to, 'info@theshapecommunity.com');
   assert.match(r.sent[0].subject, /Priya Shah/);
@@ -187,6 +210,11 @@ test('POST: signed out, empty, three a day, not set up, and an email that fails 
   const missing = await (await loadRequest({ db: fakeDb({ fail: { 'select:support_requests': { code: '42P01', message: 'relation does not exist' } } }) })).post({ question: 'Hi' });
   assert.equal(missing.status, 503);
   assert.equal(missing.body.code, 'support_not_set_up');
+
+  // The database refused it (two sent at once, or a fourth): the same answer as the route's count.
+  const raced = await (await loadRequest({ db: fakeDb({ fail: { 'insert:support_requests': { code: 'P0001', message: 'support_request:daily_limit' } } }) })).post({ question: 'Hi' });
+  assert.equal(raced.status, 429);
+  assert.equal(raced.body.code, 'daily_limit');
 
   const quiet = await loadRequest({ email: async () => ({ ok: false }) });
   const q = await quiet.post({ question: 'Hi' });
@@ -271,6 +299,13 @@ test('the migration: an account sends only its own open, unanswered request, and
   assert.match(sql, /for select\s+to authenticated\s+using \(user_id = auth\.uid\(\)\)/);
   assert.match(sql, /for insert\s+to authenticated\s+with check \(\s+user_id = auth\.uid\(\)\s+and status = 'open'\s+and reply is null and replied_by_email is null and replied_at is null\s+\)/);
   assert.doesNotMatch(sql, /for update|for delete|for all/i, 'no account can answer, close or delete');
+  // ⚠ THE LIMIT IS THE DATABASE'S: a direct insert, or two at once, still counts (Codex, #2265).
+  assert.match(sql, /perform pg_advisory_xact_lock\(hashtextextended\('shape\.support_request:' \|\| new\.user_id::text, 0\)\);/);
+  assert.match(sql, /new\.created_at := now\(\);/, 'a direct insert cannot date itself out of the count');
+  assert.match(sql, /and r\.created_at > now\(\) - interval '24 hours';\n  if v_count >= 3 then\n    raise exception 'support_request:daily_limit'/);
+  assert.equal(support.DAILY_MAX, 3, 'the route and the trigger count to the same number');
+  assert.match(sql, /revoke all on function public\.enforce_support_request_limit\(\) from public, anon, authenticated;/);
+  assert.match(sql, /drop trigger if exists support_requests_daily_limit on public\.support_requests;\ncreate trigger support_requests_daily_limit\n  before insert on public\.support_requests\n  for each row execute function public\.enforce_support_request_limit\(\);/);
   assert.match(read('src/lib/warroom.ts'), /\['\/api\/support\/request', 'POST'\]/, 'the route is on the War Room board');
 });
 
@@ -296,4 +331,25 @@ test('the app sheet: the same button and form, the team drawn as a person, and t
   const { bsNoraFromStored } = await loadBroadsheet(['bsNoraFromStored']);
   assert.deepEqual(bsNoraFromStored({ role: 'team', text: 'Done', at: 'x' }), { who: 'Shape team', t: 'Done', time: 'earlier', me: false, bot: false, team: true, saved: true });
   assert.equal(bsNoraFromStored({ role: 'assistant', text: 'Hi' }).bot, true);
+});
+
+test('a reply sent after the conversation loaded joins it the next time it opens (Codex, #2265)', () => {
+  const app = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  const fromStored = app.slice(app.indexOf('function bsNoraFromStored('), app.indexOf('function bsNoraNewTeam('));
+  const newTeam = app.slice(app.indexOf('function bsNoraNewTeam('), app.indexOf("// What this device added, appended to the account's thread"));
+  const bsNoraNewTeam = new Function(`${fromStored}\n${newTeam}\nreturn bsNoraNewTeam;`)();
+  const cur = [{ who: 'Nora', t: 'Hi', bot: true }, { who: 'Shape team', t: 'Refunded.', team: true }];
+  const list = [{ role: 'user', text: 'Refund?' }, { role: 'team', text: 'Refunded.' }, { role: 'team', text: 'Also credited a month.' }];
+  const next = bsNoraNewTeam(cur, list);
+  assert.deepEqual(next.slice(2).map((m) => [m.who, m.t, m.team, m.bot]), [['Shape team', 'Also credited a month.', true, false]], 'only the reply the sheet does not show yet');
+  assert.equal(bsNoraNewTeam(next, list), null, 'nothing new, nothing published');
+  // The sheet asks on every open after the first load; the first open loads the whole thread.
+  assert.match(app, /if \(_bsNoraLoaded === who\) \{\n      \/\/ Loaded earlier this session: a reply the Shape team sent since joins it on this open\.\n      window\.ShapeSupport\.thread\.load\(\)\.then\(\(list\) => \{\n        if \(_bsNoraLoaded !== who\) return;\n        const next = bsNoraNewTeam\(_bsNoraThread \|\| \[SUPPORT_GREETING\], list\);\n        if \(next\) _bsNoraPublish\(next\);/);
+
+  const web = read('public/newdesign/chatWidget.jsx');
+  assert.match(web, /React\.useEffect\(\(\) => \{ if \(open\) cwPullTeam\(\); \}, \[open\]\);/, 'each time the panel opens');
+  const pull = web.slice(web.indexOf('const cwPullTeam = () => {'), web.indexOf('React.useEffect(() => { if (open) cwPullTeam(); }, [open]);'));
+  assert.match(pull, /if \(!noraThreadSyncRef\.current\) return;/, 'only once the conversation has loaded; the first load brings everything');
+  assert.match(pull, /filter\(\(m\) => m && m\.role === "team"\)/);
+  assert.match(pull, /const add = fresh\.filter\(\(m\) => !seen\.has\(String\(m\.text \|\| ""\)\)\)\.map\(cwNoraMsg\);/);
 });

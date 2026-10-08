@@ -30,6 +30,42 @@ export function cleanReply(value) {
   return s && s.length <= REPLY_MAX ? s : null;
 }
 
+/**
+ * The Shape team's real replies to an account: the replies on its answered requests. Only the
+ * console writes one (support_requests has no update policy, and an account inserts only an
+ * open row with no reply), so a reply here is the team's, whatever nora_threads holds: an
+ * account can write its own nora_threads row directly, and could put a 'team' message in it
+ * (Codex, #2265). Read with the caller's own client. Resolves { ok, replies: Set<string> }.
+ */
+export async function answeredReplies(db, userId) {
+  try {
+    const r = await db.from('support_requests').select('reply')
+      .eq('user_id', userId).eq('status', 'answered')
+      .order('replied_at', { ascending: false }).limit(200);
+    if (r.error) return { ok: false, replies: new Set() };
+    return { ok: true, replies: new Set((r.data || []).map((x) => String((x && x.reply) || '').trim()).filter(Boolean)) };
+  } catch {
+    return { ok: false, replies: new Set() };
+  }
+}
+
+/** A conversation with only the team messages `replies` vouches for; every other message kept. */
+export function withVerifiedTeam(messages, replies) {
+  return (Array.isArray(messages) ? messages : []).filter((m) => !m || m.role !== 'team' || replies.has(String(m.text || '').trim()));
+}
+
+/**
+ * A stored conversation, cleaned, keeping a team message only when it is one of the account's
+ * answered replies. A conversation with no team message reads nothing more; a failed read
+ * drops every team message, never shows an unverified one.
+ */
+export async function verifiedThread(db, userId, stored, now = new Date()) {
+  const messages = cleanThread(stored, now, { team: true });
+  if (!messages.some((m) => m.role === 'team')) return messages;
+  const { replies } = await answeredReplies(db, userId);
+  return withVerifiedTeam(messages, replies);
+}
+
 /** The last TRANSCRIPT_MAX messages of a stored conversation, each cut to 1,000 characters. */
 export function transcriptFrom(stored, now = new Date()) {
   return cleanThread(stored, now, { team: true }).slice(-TRANSCRIPT_MAX)

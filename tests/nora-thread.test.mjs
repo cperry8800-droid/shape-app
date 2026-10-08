@@ -9,6 +9,7 @@ import { createRequire } from 'node:module';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 import { cleanMessage, cleanThread, appendThread, THREAD_MAX, TEXT_MAX, APPEND_MAX } from '../src/lib/ai/noraThread.mjs';
 import * as noraThread from '../src/lib/ai/noraThread.mjs';
+import * as supportRequests from '../src/lib/supportRequests.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => readFileSync(join(ROOT, p), 'utf8');
@@ -94,6 +95,7 @@ async function loadThreadRoute(user, db) {
       ['next/server', nextServer],
       ['@/lib/request-utils', requestUtils],
       ['@/lib/ai/noraThread.mjs', noraThread],
+      ['@/lib/supportRequests.mjs', supportRequests],
       ['@/lib/request-auth', { currentUser: async () => user, clientForRequest: async () => db }],
     ]),
   });

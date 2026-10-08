@@ -65,7 +65,7 @@ import { computeMembership } from '@/lib/membership-core';
 import { noraTier, visitorGate, countQuestion, limitReply, requestIp, CHECK_REPLY } from '@/lib/ai/noraLimits';
 import { greetingKind, greetingFor } from '@/lib/ai/noraGreeting.mjs';
 import { normalizeContext, formatContextNote, validZone, dayIn } from '@/lib/ai/noraContext.mjs';
-import { cleanThread } from '@/lib/ai/noraThread.mjs';
+import { answeredReplies } from '@/lib/supportRequests.mjs';
 import { cleanFormContext, formNote, cleanFill, FILL_FORM_TOOL } from '@/lib/ai/noraForms.mjs';
 import { readCoachToday } from '@/lib/ai/coachToday.mjs';
 import { searchFoodsServer } from '@/lib/food-search-server';
@@ -1245,18 +1245,14 @@ async function fallbackReply(text: string, coach: CoachCtx): Promise<{ reply: st
   return { reply: "I can't answer that one from here. The Shape team answers at info@theshapecommunity.com. Is there anything else I can help with?", actions: [] };
 }
 
-// The texts of the Shape team's replies stored in the caller's conversation, read only when
-// the history carries a message labelled 'team'. Signed out, or a failed read: none, so no
-// such message is quoted.
+// The texts of the Shape team's replies to the caller: their answered requests, which only the
+// console writes (never nora_threads, which the account can write itself; Codex, #2265). Read
+// only when the history carries a message labelled 'team'. Signed out, or a failed read: none,
+// so no such message is quoted.
 async function storedTeamReplies(actor: Awaited<ReturnType<typeof resolveActor>> | null, messages: ChatMessage[]): Promise<Set<string>> {
-  const out = new Set<string>();
-  if (!actor || !messages.some((m) => (m.role as string) === 'team')) return out;
-  const { data, error } = await actor.supabase.from('nora_threads').select('messages').eq('user_id', actor.user.id).maybeSingle();
-  if (error || !data) return out;
-  for (const m of cleanThread((data as { messages?: unknown }).messages, new Date(), { team: true })) {
-    if (m.role === 'team') out.add(m.text.slice(0, 2000).trim());
-  }
-  return out;
+  if (!actor || !messages.some((m) => (m.role as string) === 'team')) return new Set();
+  const { replies } = await answeredReplies(actor.supabase, actor.user.id);
+  return new Set([...replies].map((r) => r.slice(0, 2000).trim()));
 }
 
 export async function POST(request: Request) {

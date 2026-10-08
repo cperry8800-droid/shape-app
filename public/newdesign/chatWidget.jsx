@@ -650,6 +650,26 @@ function ChatWidget(props) {
       })
       .catch(() => {});
   };
+  // A reply the Shape team sent after the conversation loaded joins it each time the panel
+  // opens ("Talk to a person", Codex #2265). Only team replies are added: the rest is here.
+  const cwPullTeam = () => {
+    if (!noraThreadSyncRef.current) return;
+    fetch("/api/nora/thread", { credentials: "same-origin", cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        const fresh = j && Array.isArray(j.messages) ? j.messages.filter((m) => m && m.role === "team") : [];
+        if (!fresh.length) return;
+        setThreadsByTab((prev) => prev.map((list, i) => (tabs[i] && tabs[i].support) ? list.map((th) => {
+          if (th.who !== "Nora") return th;
+          const seen = new Set((th.messages || []).filter((m) => m.team).map((m) => m.t));
+          const add = fresh.filter((m) => !seen.has(String(m.text || ""))).map(cwNoraMsg);
+          if (!add.length) return th;
+          return { ...th, last: `Shape team: ${add[add.length - 1].t}`, time: "now", messages: [...(th.messages || []), ...add] };
+        }) : list));
+      })
+      .catch(() => {});
+  };
+  React.useEffect(() => { if (open) cwPullTeam(); }, [open]);
   // ── "Talk to a person" (the Ask Nora plan, step 5) ─────────────────────────
   // Signed in only (the conversation store answered for this account): the question goes to
   // the Shape team with the stored conversation (POST /api/support/request), and a person
