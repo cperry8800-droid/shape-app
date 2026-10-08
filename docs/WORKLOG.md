@@ -847,6 +847,50 @@ Everything older, newest-first: [2026-10](WORKLOG-ARCHIVE-2026-10.md) ·
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-10-08 — The phone cook screen's oven keeps its dish inside the tile, and two ovens take a line each
+
+- **Merged [#2267](https://github.com/cperry8800-droid/shape-app/pull/2267) as `c6ec8a1`** (merged by the owner), final head `242fd14`. `main` had moved by #2268, a records PR, so the trees differ; **the PR's diff is identical on the new base**. 3 files: `iosAppBroadsheetClient.jsx`, `tests/cook-oven-tile-fit.test.mjs` and its mutation spec. **No migration, no route, no i18n key.** The owner: *"fix the oven tile overflow"*, which #2263 had registered (the entry below).
+- **What was wrong**, measured in Chromium at 390px. On a phone (`.bsck.dev`) the oven is a 113px strip, but its contents kept the big oven's centred grid: the dish name (capped at 88px), the countdown and a note in one row. "Sheet-pan salmon" with "In 18 min" needed 139px of the 89 inside, so the name, centred in its shrunk column, ran **25px past the tile's left edge**, and the note wrapped.
+- **The fix** (CSS, phone layout only; the website's big oven is untouched):
+  - One oven stacks like the burners: the name on its own line with an ellipsis, then the countdown and the note on one line that never wraps. The note gives way before the countdown.
+  - Two ovens take a line each: `bsCkHob` marks the window `two`, and it reads "Roa… 19:54" over "She… 12:00". The time is never cut, the note keeps its width while the name has any to give, and the name takes what is left (`flex:1 1 0`). At 320px a long name can lose every letter beside "On the heat" or "Time's up".
+- ⚠ **CODEX'S P2 WAS RIGHT: THE FIRST HEAD PUT TWO OVENS SIDE BY SIDE, 28PX EACH AT 320PX.** Reproduced on a real two-oven cook: the first oven's `19:59`, which is never cut, ran 16px over the second dish; with both timers running, `12:00` ended 5px past the tile; and a Time's up dish wrapped to three lines, out of the 40px strip. My sweep of the first head had covered two ovens only at 390px and with one timer running. Fixed in `242fd14`, and the thread is resolved.
+- ⚠ **TWO LAYOUTS FAILED ON THE WAY TO THAT ONE.** Sharing the cut by width (`flex:0 1 auto`) turned "Now" into "N…" beside "Sheet-pan …" at 430px. A grid with the name in a `minmax(0,1fr)` column let the `auto` tracks grow to the note's full width, so a long note spilled at every width.
+- **Review:** Codex, 1 finding, above. None was requested; CodeRabbit posted only its skip notice.
+- **Verified:**
+  - Driven in the real app (Vite dev, Chromium) at 320, 390 and 430px. After every step it checks that each oven element sits inside its line and the tile, that no dish overlaps the other and that nothing wraps. One oven: empty, In N min, Now, On the heat, a 12:00 countdown. Two ovens: halloumi traybake and salmon, through both timers running. Plus six injected two-oven cases: both timers, Now, In N min / On the heat, Time's up, a long note, a `120:00` hold (`bsCkMmss` has no hours form) and short names. Zero failures on the final head.
+  - `tests/cook-oven-tile-fit.test.mjs` (5 tests) holds the stylesheet to the rules the fix rests on, matched by exact selector, and renders the shipping `bsCkHob` with zero, one and two oven dishes. The first three fail on `main`'s stylesheet; the two two-oven tests fail on the first head.
+  - Mutations (`tests/mutations/cook-oven-tile-fit-2026-10-08.mutations.mjs`, `--fail-on-skipped`): 12/12 on the first head, **17/17** on the final one, restored byte-identical.
+  - 337/337 across the cook suites and the i18n inventory. Both commits skipped the pre-commit hook under the small-commit rule. Every check passed on `242fd14`; the tests job finished just after the owner's merge.
+- **Written after the merge**, per the 2026-09-11 rule.
+- ⚠ **REGISTERED, NOT DONE:**
+  - A finished timer beside a long name at 430px shows a 6px sliver of the name's first letter before `0:00`, with no ellipsis.
+  - No pass on a real phone (WKWebView or Android WebView).
+
+### 2026-10-08 — The cook screen's timeline is drawn as rails: no numbered chips, a status line per dish
+
+- **Merged [#2263](https://github.com/cperry8800-droid/shape-app/pull/2263) as `82c4713`**, final head `b8afe84`; the merged tree is byte-identical to it (tree `4256b52` on both). 17 files. **No migration, no route**; eight new `cook` keys in 13 locales. The owner picked **A · Rails** off the board (https://claude.ai/artifact/NNvxjSjg7ptRUuL3MFmrzp), the entry below: *"option A"*.
+- **What it is now** (`bsCkTracks`):
+  - One rail per dish, a short bar per step and no digits. A hold is hatched; the step in front of the cook is a taller, ringed bar. Done steps fade, except one whose timer still runs.
+  - The dish name has its own line, saying where it stands (`bsTrackLaneStatus`, pure, in `cookBoard.mjs`): "Step 1 of 6", "Starts 8:29", "Next 8:41", "Hands-off 14:32" on a hold, "Timer 2:30" on a hands-on step, "Time's up", "Done"; "In 18 min" without a clock; "6 steps" on the plated screen. The current step wins over a timer, because the stove shows every timer.
+  - The ruler's end reads "Ready 8:56": the top bar's own time, handed in as `readyAt` by the two screens that compute it, so the screen never states two ready times. The hand-off between dishes has none, and shows the dashed end line only.
+  - Ruler times are centred and never drawn under the Now/Plated or Ready label, or cut by an edge. Website layout: 44px lanes.
+  - Removed: `ck.handsOff`, `ck.handsOffShort` and `bsCkFirstWords`, which only the old chips read.
+- ⚠ **THE FIRST DRAFT'S `.row` MATCHED THE INGREDIENT LIST'S `.cC .row`** (min-height 56px, padding, `width:100%`), which pushed every status line off the strip and under the bars. Every new rule is scoped under `.tl` and the class is `.lh`. The old naming would also have hit the setup screen's `.trk .t .bar`.
+- **Review.** Codex, 1 finding (P2), fixed in `b63d825`: a timer started on a hands-on step and left running while the cook moved to another dish read "Hands-off". It now reads "Timer", and the thread is resolved. Copilot declined on its quota; CodeRabbit posted only its skip notice; none was requested.
+- ⚠ **CI WENT RED ON A TEST NO PR TOUCHED.** `tests/schedule-step3.test.mjs`'s `/api/availability` case hard-coded a session at `2026-10-08T13:00–14:00Z`, and the route lists as booked only sessions that have not ended, so every branch failed from 14:00Z that day. Reproduced on `main`. My fixture fix (`bce8b13`) was dropped on rebase: #2262 had already fixed it on `main` by pinning the test's clock.
+- **Verified:**
+  - Driven in the real app (Vite dev, Chromium): the owner's cook on dark paper at step 1 and step 8; a Together cook on bone paper with an 18-minute hold running ("Hands-off 18:00" beside "Step 3 of 6"), at 390px and in the 1280px website layout; the plated screen. The ruler's ready time matched the top bar each time.
+  - `tests/cook-tracks-rails.test.mjs` (14 tests): the status rules, and the shipping `bsCkTracks` rendered to markup.
+  - Mutations (`tests/mutations/cook-tracks-rails-2026-10-08.mutations.mjs`, `--fail-on-skipped`): **20 killed, 1 proven no-op** (its proof is in the spec), 0 skipped. ⚠ The first round's three survivors were gaps in the test; one was an edge test whose clock started at 8:15 while the ruler steps every 10 minutes, so no mark ever reached the edge. And after the Codex fix, `--fail-on-skipped` caught a mutation anchored on the line that fix rewrote.
+  - `npm test` 6139/6139 through the pre-commit gate on the first commit; all required checks green on `b8afe84`.
+- **Written after the merge**, per the 2026-09-11 rule.
+- ⚠ **REGISTERED, NOT DONE:**
+  - The stove's oven tile spills a long dish name to the left of its box ("Sheet-pan s…"); pre-existing, untouched here. Fixed by #2267, the entry above.
+  - The website cook screen's bars carry no step words, though at 1280px they have room. The old chips showed "1 · Heat the oven to" there.
+  - Prep the week's meal-plan recipes still carry no step lengths, so every bar is the planner's 3 minutes.
+  - No pass on a real phone, and the new translations have not been read by speakers.
+
 ### 2026-10-08 — Ask Nora, the plan's run: twenty-five PRs, #2238 to #2265
 
 - **Twenty-five PRs merged on 2026-10-07 and 2026-10-08:** #2238 to #2255, #2258 to #2262, #2264 and #2265. (#2256, #2257 and #2263 in between are another session's Kitchen work.) The plan is https://claude.ai/artifact/NCG3wLdtPVFHZk1U1HtAm3, and the owner's standing word was to merge each PR once it was green and clear.
@@ -938,7 +982,7 @@ Append new entries at the top, under this note.
   - `tests/kitchen-jump-row.test.mjs` (10 tests) mounts the real `BSRecipeBox` under jsdom on a fake scroller laid out with the measured numbers. On the old client code, 4 of its mount tests fail with `tapping tab 1 lit 0`. The scroller-at-0px case passes there, which confirms the cause.
   - Mutations (`tests/mutations/kitchen-jump-row-2026-10-08.mutations.mjs`, `--fail-on-skipped`): **15/15**, restored byte-identical. ⚠ The first run's one survivor was a gap in the test: a page that drops the scroller top from its line keeps spy and jump agreeing with each other, while the course lands under the row. The test now checks where the course lands.
   - The commit skipped the pre-commit hook under the small-commit rule, after 53 tests across the kitchen, recipe-parity, i18n-inventory and capped-reads suites. All required checks were green on `5068a1d`.
-- **The cook screen's step timeline** (owner: *"need improve the look of this. Not love the look of steps section"*). The options board is https://claude.ai/artifact/NNvxjSjg7ptRUuL3MFmrzp: today against **A · Rails** (recommended), **B · Ledger** and **C · Close-up**, each drawn live from the owner's own cook (Beef + sweet potato bowl, Banana oats + peanut butter, Cottage cheese + pineapple) on dark and bone paper. **Waiting on the owner's pick; nothing built yet.**
+- **The cook screen's step timeline** (owner: *"need improve the look of this. Not love the look of steps section"*). The options board is https://claude.ai/artifact/NNvxjSjg7ptRUuL3MFmrzp: today against **A · Rails** (recommended), **B · Ledger** and **C · Close-up**, each drawn live from the owner's own cook (Beef + sweet potato bowl, Banana oats + peanut butter, Cottage cheese + pineapple) on dark and bone paper. **The owner picked A; built as #2263, the entry above.**
   - Why it looks like dice: `bsCkTracks` fits the whole cook into the width, about 340px for 45 minutes, so a 3-minute step is 15px and carries only its digit. And the 9.5px lane name shares the row with the chips.
 - **Written after the merge**, per the 2026-09-11 rule.
 - ⚠ **REGISTERED, NOT DONE:**
