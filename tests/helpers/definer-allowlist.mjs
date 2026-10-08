@@ -95,7 +95,7 @@ export const anonReachableNames = (model) => [...new Set(definerRpcFns(model).fi
 
 /**
  * Problems (strings) in `allow` against `model`; empty means the allow-list is exactly right.
- * `allow` is { entries, registeredFindings, registeredPinFindings }.
+ * `allow` is { entries, registeredFindings, registeredPinFindings, fixedAfterCapture? }.
  */
 export function checkAllowlist(model, allow) {
   const problems = [];
@@ -133,6 +133,26 @@ export function checkAllowlist(model, allow) {
     if (findingNames.includes(name)) problems.push(`${name} is both an entry and a registered finding; a registered finding must not also sit as a normal entry`);
   }
   if (new Set(findingNames).size !== findingNames.length) problems.push('a registered finding is listed twice');
+
+  // `fixedAfterCapture`: fixed by a migration dated after the last live capture. The migrations no
+  // longer make it anon-executable (checked here); the capture still shows it open until the owner
+  // applies the migration and it is captured again, which is the live diff's business (definer-live.mjs).
+  const fixed = allow?.fixedAfterCapture === undefined ? [] : allow.fixedAfterCapture;
+  if (!Array.isArray(fixed)) problems.push('`fixedAfterCapture` must be an array');
+  else {
+    const seenFixed = new Set();
+    for (const f of fixed) {
+      if (!f || typeof f !== 'object' || !isText(f.name)) { problems.push('a fixedAfterCapture item has no name'); continue; }
+      if (seenFixed.has(f.name)) problems.push(`${f.name}: listed twice in fixedAfterCapture`);
+      seenFixed.add(f.name);
+      if (!isText(f.fixedBy, 3) || !model.files.includes(f.fixedBy)) problems.push(`${f.name}: fixedAfterCapture needs \`fixedBy\`, the migration file that fixes it (got ${JSON.stringify(f.fixedBy)})`);
+      if (!isText(f.fix, MIN_NOTE)) problems.push(`${f.name}: fixedAfterCapture needs \`fix\` (what the migration changed)`);
+      if (!!f.wasEntry === !!f.wasFinding) problems.push(`${f.name}: fixedAfterCapture needs exactly one of \`wasEntry\` or \`wasFinding\` (what the allow-list said before the fix)`);
+      if ((f.wasFinding && f.wasFinding.name !== f.name)) problems.push(`${f.name}: \`wasFinding\` names ${JSON.stringify(f.wasFinding.name)}`);
+      if (reachable.includes(f.name)) problems.push(`${f.name}: listed as fixed by ${f.fixedBy}, but the model still has it anon-executable — the fix did not land`);
+      if (Object.hasOwn(entries, f.name) || findingNames.includes(f.name)) problems.push(`${f.name}: in fixedAfterCapture and also in entries or registeredFindings`);
+    }
+  }
 
   for (const name of entryNames) {
     const e = entries[name];

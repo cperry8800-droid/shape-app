@@ -1294,7 +1294,9 @@ test('a registered finding is what its kind says it is, mechanically', () => {
       assert.ok(M.nullLogicFlags(fn).flags.length > 0, `${f.name}: the guard no longer flags it, so the finding is stale`);
     }
   }
-  assert.deepEqual(ALLOW.registeredFindings.filter((f) => f.kind === 'gate-skipped-for-anon').map((f) => f.name), ['get_health_sources']);
+  // get_health_sources was the one gate-skipped finding until 2026-10-08-security-review-access-layer.sql
+  // added the explicit reject and revoked anon; it is neither a finding nor an entry now.
+  assert.deepEqual(ALLOW.registeredFindings.filter((f) => f.kind === 'gate-skipped-for-anon').map((f) => f.name), []);
   assert.equal(ALLOW.entries.get_health_sources, undefined, 'and it is not an ordinary entry any more');
 });
 
@@ -1633,12 +1635,14 @@ test('NULL-logic guard: it needs the declared parameter names, and a body with n
   assert.deepEqual(flagsOf(plpg('return null;', { args: 'p_other uuid', declare: 'p_id uuid; v uuid := coalesce(p_id, auth.uid());' })).flags, []);
 });
 
-test('NULL-logic guard, over the 85 anon-reachable bodies: it touches exactly these seven and flags exactly two', (t) => {
+test('NULL-logic guard, over the 83 anon-reachable bodies: it touches exactly these six and flags exactly one', (t) => {
+  // 85 when this was written; 2026-10-08-security-review-access-layer.sql revoked anon on get_health_sources
+  // and shape_leaderboard, so two bodies left the reach.
   const reach = M.definerRpcFns(real()).filter(M.anonExecutable);
-  assert.ok(reach.length >= 85, `only ${reach.length} anon-reachable bodies were read (85 when this was written)`);
+  assert.ok(reach.length >= 83, `only ${reach.length} anon-reachable bodies were read (83 when this was written)`);
   const touched = reach.map((f) => [f.name, M.nullLogicFlags(f)]).filter(([, r]) => r.sites.length);
-  assert.deepEqual(touched.map(([n]) => n).sort(), ['get_health_sources', 'list_member_dm_threads', 'log_ai_action', 'mark_ai_action_undone', 'set_metric_source', 'set_my_username', 'set_program_detail'], 'a new body the guard touches must be read, not waved through');
-  assert.deepEqual(touched.filter(([, r]) => r.flags.length).map(([n]) => n).sort(), ['get_health_sources', 'list_member_dm_threads']);
+  assert.deepEqual(touched.map(([n]) => n).sort(), ['list_member_dm_threads', 'log_ai_action', 'mark_ai_action_undone', 'set_metric_source', 'set_my_username', 'set_program_detail'], 'a new body the guard touches must be read, not waved through');
+  assert.deepEqual(touched.filter(([, r]) => r.flags.length).map(([n]) => n).sort(), ['list_member_dm_threads']);
   for (const [name, r] of touched.filter(([, r]) => !r.flags.length)) {
     const firstCompare = Math.min(...r.sites.filter((s) => s.kind !== 'subject-coalesce').map((s) => s.at));
     assert.ok(r.rejects.length > 0 && Math.min(...r.rejects) < firstCompare, `${name}: cleared, so an explicit reject must come before its first comparison`);
@@ -1657,23 +1661,59 @@ test('NULL-logic guard: the real bodies that shipped the hole before 2026-06-30 
   }
 });
 
-test('get_health_sources: the guard WOULD flag it as an ordinary entry, so it is excluded only because it is a registered finding', () => {
+test('get_health_sources: the body that shipped before 2026-10-08 is flagged, the checker refuses it as an ordinary entry, and the 2026-10-08 fix clears and revokes it', () => {
+  // The hole as it shipped (2026-06-17): `v_uid := coalesce(p_user_id, auth.uid())` then `if v_uid <> auth.uid() and not
+  // is_coach_on_client(v_uid) then return null`, which is NULL for anon, so the guard never fired. It was a registered
+  // finding until 2026-10-08-security-review-access-layer.sql. Checked against the body as it shipped, not a paraphrase.
+  const before = M.replayDir(DIR, { before: '2026-10-08' });
+  const get = (m, name) => M.definerRpcFns(m).find((f) => f.name === name);
+  const shipped = get(before, 'get_health_sources');
+  assert.ok(shipped && M.anonExecutable(shipped), 'as shipped it was anon-executable');
+  assert.ok(M.nullLogicFlags(shipped).flags.length > 0, 'as shipped the guard flags it');
+  // The pre-fix model with no record of the function at all: drop its fixedAfterCapture item, which
+  // (rightly) refuses a model where the fix has not landed.
   const allow = structuredClone(ALLOW);
-  const i = allow.registeredFindings.findIndex((f) => f.name === 'get_health_sources');
-  assert.notEqual(i, -1);
-  const [finding] = allow.registeredFindings.splice(i, 1);
-  assert.equal(finding.kind, 'gate-skipped-for-anon');
-  const gone = checkAllowlist(real(), allow);
+  allow.fixedAfterCapture = (allow.fixedAfterCapture ?? []).filter((f) => f.name !== 'get_health_sources');
+  const mine = (problems) => problems.filter((m) => /get_health_sources/.test(m));
+  const gone = mine(checkAllowlist(before, allow));
   assert.equal(gone.length, 1);
-  assert.match(gone[0], /^missing from the allow-list: get_health_sources is anon-executable and shows auth\.uid\(\) \+ a coach helper \(but its gate is skipped for anon: /, 'removing it from the findings alone is "missing", not a pass');
+  assert.match(gone[0], /^missing from the allow-list: get_health_sources is anon-executable and shows auth\.uid\(\) \+ a coach helper \(but its gate is skipped for anon: /, 'with no finding registered it is "missing", not a pass');
   for (const cls of ['coach-gated', 'self-gated-auth-uid']) {
     allow.entries.get_health_sources = { class: cls, note: "The caller's own observations, or a client's when is_coach_on_client(subject) holds; otherwise null." };
-    const p = checkAllowlist(real(), allow);
+    const p = mine(checkAllowlist(before, allow));
     assert.equal(p.length, 1, `${cls}: ${p.join('\n')}`);
     assert.match(p[0], /^get_health_sources: `coalesce\(p_user_id, auth\.uid\(\)\)` takes the subject from a caller-supplied parameter and falls back to auth\.uid\(\), which is NULL for anon/);
     assert.match(p[0], /; `v_uid <> auth\.uid\(\)` is NULL for anon, so the guard is skipped: no `if auth\.uid\(\) is null then raise` reject comes before it — /);
   }
-  // As a finding it is accepted: the very same body.
+  // After the fix: the explicit reject comes first, so the guard flags nothing, and anon cannot execute it at all.
+  const fixed = get(real(), 'get_health_sources');
+  assert.ok(fixed, 'still a definer in the model');
+  assert.equal(M.anonExecutable(fixed), false, 'revoked from anon');
+  assert.deepEqual(M.nullLogicFlags(fixed).flags, [], 'the reject clears the guard');
+  assert.deepEqual(checkAllowlist(real(), ALLOW), []);
+});
+
+test('fixedAfterCapture: each item is checked against the migrations, and a fix that did not land is refused', () => {
+  // The three items the 2026-10-08 access-layer migration fixed: gone from the anon reach in the model.
+  const reach = anonReachableNames(real());
+  for (const f of ALLOW.fixedAfterCapture) {
+    assert.ok(!reach.includes(f.name), `${f.name} is still anon-executable in the model`);
+    assert.ok(real().files.includes(f.fixedBy), `${f.name}: ${f.fixedBy} is a migration in the tree`);
+  }
+  assert.deepEqual(ALLOW.fixedAfterCapture.map((f) => f.name).sort(), ['get_health_sources', 'shape_leaderboard', 'shape_leaderboard_me']);
+  const broken = (mutate) => { const a = structuredClone(ALLOW); mutate(a.fixedAfterCapture[0], a); return checkAllowlist(real(), a); };
+  const name = ALLOW.fixedAfterCapture[0].name;
+  assert.match(broken((f) => { f.fixedBy = '2099-01-01-nope.sql'; }).join('\n'), new RegExp(`${name}: fixedAfterCapture needs \`fixedBy\``));
+  assert.match(broken((f) => { delete f.fix; }).join('\n'), new RegExp(`${name}: fixedAfterCapture needs \`fix\``));
+  assert.match(broken((f) => { f.wasEntry = { class: 'self-gated-auth-uid', note: 'x'.repeat(40) }; f.wasFinding = f.wasFinding ?? {}; }).join('\n'), /exactly one of `wasEntry` or `wasFinding`/);
+  assert.match(broken((f, a) => { a.fixedAfterCapture.push(structuredClone(f)); }).join('\n'), new RegExp(`${name}: listed twice in fixedAfterCapture`));
+  assert.match(broken((f, a) => { a.entries[f.name] = { class: 'public-by-design', anonGrant: 'explicit', note: 'x'.repeat(80) }; }).join('\n'), new RegExp(`${name}: in fixedAfterCapture and also in entries`));
+  assert.match(checkAllowlist(real(), { ...structuredClone(ALLOW), fixedAfterCapture: {} }).join('\n'), /`fixedAfterCapture` must be an array/);
+  // A fix that did not land: on the pre-fix migrations the function is still anon-executable.
+  const before = M.replayDir(DIR, { before: '2026-10-08' });
+  const p = checkAllowlist(before, ALLOW).filter((m) => /did not land/.test(m));
+  assert.deepEqual(p.map((m) => m.split(':')[0]).sort(), ['get_health_sources', 'shape_leaderboard', 'shape_leaderboard_me']);
+  // And with no fixedAfterCapture key at all, the list as it stands is still exactly right for the tree.
   assert.deepEqual(checkAllowlist(real(), ALLOW), []);
 });
 

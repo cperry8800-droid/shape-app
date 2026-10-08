@@ -62,8 +62,12 @@ const names = (xs) => [...new Set(xs)].sort();
 
 /** The diff. `allow` is the parsed allow-list; `rows` come from parseRows. */
 export function diffLive(rows, allow) {
-  const entries = new Set(Object.keys(allow.entries ?? {}));
-  const findings = new Set((allow.registeredFindings ?? []).map((f) => f.name));
+  const rawEntries = new Set(Object.keys(allow.entries ?? {}));
+  const rawFindings = new Set((allow.registeredFindings ?? []).map((f) => f.name));
+  // `fixedAfterCapture`: a migration fixes it, and the database may not have it yet. While the live
+  // row is still anon-executable it counts as what the list said before (`wasEntry` / `wasFinding`)
+  // and is named as awaiting apply; once live agrees it is fixed, it is named as applied, to delete.
+  const fixed = (allow.fixedAfterCapture ?? []).filter((f) => f && f.name);
   const pinFindings = new Set((allow.registeredPinFindings ?? []).map((f) => f.name));
   // ONE SCOPE (see tests/helpers/definer-live.mjs): every definer in public is here, trigger and
   // event-trigger functions included, and a row that says it is not a definer or not in public is
@@ -76,6 +80,9 @@ export function diffLive(rows, allow) {
   const definers = all.filter((r) => r.is_trigger !== true);
   const anon = definers.filter((r) => r.anon_executable);
   const anonNames = new Set(anon.map((r) => r.proname));
+  const awaiting = fixed.filter((f) => anonNames.has(f.name));
+  const entries = new Set([...rawEntries, ...awaiting.filter((f) => f.wasEntry).map((f) => f.name)]);
+  const findings = new Set([...rawFindings, ...awaiting.filter((f) => !f.wasEntry).map((f) => f.name)]);
   const unpinned = names(all.filter((r) => r.pg_temp_pinned === false).map((r) => r.proname));
   // The allow-list and everything above are by NAME, which is sound only while a name is ONE
   // signature. The function this check exists to catch is one made outside the migrations, and it
@@ -103,8 +110,10 @@ export function diffLive(rows, allow) {
     registered: names([...anonNames].filter((n) => findings.has(n))).length,
     unaccounted: names([...anonNames].filter((n) => !entries.has(n) && !findings.has(n))),
     // In both lists at once is a mistake in the file, not in the database; say so here too.
-    doubleListed: names([...entries].filter((n) => findings.has(n))),
-    stale: names([...entries, ...findings].filter((n) => !anonNames.has(n))),
+    doubleListed: names([...[...rawEntries].filter((n) => rawFindings.has(n)), ...fixed.map((f) => f.name).filter((n) => rawEntries.has(n) || rawFindings.has(n))]),
+    stale: names([...rawEntries, ...rawFindings].filter((n) => !anonNames.has(n))),
+    awaitingApply: names(awaiting.map((f) => f.name)),
+    appliedLive: names(fixed.filter((f) => !anonNames.has(f.name)).map((f) => f.name)),
     overloaded,
     unpinned,
     unregisteredPins: unpinned.filter((n) => !pinFindings.has(n)),
@@ -115,7 +124,7 @@ export function diffLive(rows, allow) {
 /** Exit status for a diff: 1 for anything unaccounted or overloaded (and, with strict, anything stale). */
 export function verdict(d, { strict = false } = {}) {
   if (d.unaccounted.length || d.unregisteredPins.length || d.doubleListed.length || d.overloaded.length) return 1;
-  if (strict && (d.stale.length || d.stalePins.length)) return 1;
+  if (strict && (d.stale.length || d.stalePins.length || (d.appliedLive ?? []).length)) return 1;
   return 0;
 }
 
@@ -138,6 +147,8 @@ export function report(d, { strict = false } = {}) {
     for (const n of d.unregisteredPins) out.push(`  ${n}`);
     out.push('Fix with `alter function public.<name>(<args>) set search_path = public, pg_temp;`, or register it in registeredPinFindings.');
   }
+  if ((d.awaitingApply ?? []).length) out.push('', `Fixed in a migration, not applied live yet (counted as before until it is): ${d.awaitingApply.join(', ')}`);
+  if ((d.appliedLive ?? []).length) out.push('', `${strict ? 'APPLIED (delete from fixedAfterCapture)' : 'Applied live (delete from fixedAfterCapture, or pass --strict to fail on this)'}: ${d.appliedLive.join(', ')}`);
   if (d.stale.length) out.push('', `${strict ? 'STALE' : 'Stale (not anon-executable live any more; delete the entry, or pass --strict to fail on this)'}: ${d.stale.join(', ')}`);
   if (d.stalePins.length) out.push('', `${strict ? 'STALE PIN FINDINGS' : 'Stale pin findings (pinned live now)'}: ${d.stalePins.join(', ')}`);
   return out.join('\n');

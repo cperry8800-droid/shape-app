@@ -152,6 +152,7 @@ test('the live anon-executable set is fully accounted for by the allow-list', ()
   assert.deepEqual(d.unregisteredPins, []);
   assert.deepEqual(d.doubleListed, []);
   assert.deepEqual(d.stale, [], 'an allow-list entry the live catalog no longer supports');
+  assert.deepEqual(d.appliedLive, [], 'a fixedAfterCapture item the capture already shows fixed: delete it');
   assert.deepEqual(d.stalePins, []);
   assert.equal(d.anonExecutable, 85);
   assert.equal(d.allowListed + d.registered, 85);

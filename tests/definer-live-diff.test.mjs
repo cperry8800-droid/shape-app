@@ -248,6 +248,59 @@ test('main: 0 when accounted for (report on stdout), 1 when not (report on stder
   assert.equal(run(['--allowlist', '/nonexistent/allow.json'], '[]').code, 2);
 });
 
+test('fixedAfterCapture: counted as before while live still has it, named as applied once live agrees', () => {
+  const allow = {
+    entries: { mine: { class: 'self-gated-auth-uid', note: 'x' } },
+    registeredFindings: [{ name: 'known_open' }],
+    registeredPinFindings: [],
+    fixedAfterCapture: [
+      { name: 'was_finding', fixedBy: 'f.sql', wasFinding: { name: 'was_finding' } },
+      { name: 'was_entry', fixedBy: 'f.sql', wasEntry: { class: 'self-gated-auth-uid', note: 'x' } },
+    ],
+  };
+  // Not applied yet: live still has both open. They count as what they were, nothing is unaccounted.
+  const open = diffLive([row('mine', true), row('known_open', true), row('was_finding', true), row('was_entry', true)], allow);
+  assert.deepEqual(open.unaccounted, []);
+  assert.equal(open.allowListed, 2);
+  assert.equal(open.registered, 2);
+  assert.deepEqual(open.awaitingApply, ['was_entry', 'was_finding']);
+  assert.deepEqual(open.appliedLive, []);
+  assert.equal(verdict(open, { strict: true }), 0);
+  assert.match(report(open), /not applied live yet \(counted as before until it is\): was_entry, was_finding/);
+  // Applied: live no longer has them anon-executable. Named for deletion; strict fails on it.
+  const applied = diffLive([row('mine', true), row('known_open', true), row('was_finding', false), row('was_entry', false)], allow);
+  assert.deepEqual(applied.unaccounted, []);
+  assert.deepEqual(applied.awaitingApply, []);
+  assert.deepEqual(applied.appliedLive, ['was_entry', 'was_finding']);
+  assert.deepEqual(applied.stale, [], 'an applied fix is its own signal, not a stale entry');
+  assert.equal(verdict(applied), 0);
+  assert.equal(verdict(applied, { strict: true }), 1);
+  assert.match(report(applied), /Applied live \(delete from fixedAfterCapture/);
+  // Also listed as an entry is a mistake in the file.
+  const dbl = diffLive([row('was_entry', true)], { ...allow, entries: { ...allow.entries, was_entry: { class: 'self-gated-auth-uid', note: 'x' } } });
+  assert.deepEqual(dbl.doubleListed, ['was_entry']);
+  assert.equal(verdict(dbl), 1);
+});
+
+test('allowListAsOfCapture: a fix dated after the capture is read as what the list said that day', () => {
+  const allow = {
+    entries: { kept: { class: 'self-gated-auth-uid', note: 'x' } },
+    registeredFindings: [],
+    registeredPinFindings: [],
+    fixedAfterCapture: [
+      { name: 'later_fix', fixedBy: '2026-12-01-fix.sql', wasFinding: { name: 'later_fix', kind: 'anon-executable-no-gate' } },
+      { name: 'earlier_fix', fixedBy: '2026-01-01-fix.sql', wasEntry: { class: 'self-gated-auth-uid', note: 'x' } },
+    ],
+  };
+  const fn = (n) => `create function public.${n}() returns int language sql security definer set search_path = public, pg_temp as $$ select 1 $$;`;
+  const pre = M.replay([{ file: '2026-01-01-fix.sql', sql: fn('kept') + fn('later_fix') + fn('earlier_fix') }]);
+  const { allow: asOf, restored } = allowListAsOfCapture(allow, pre);
+  assert.deepEqual(restored, ['later_fix'], 'only the fix the capture predates is restored');
+  assert.deepEqual(asOf.registeredFindings.map((f) => f.name), ['later_fix']);
+  assert.ok(!Object.hasOwn(asOf.entries, 'earlier_fix'), 'a fix the capture already contains is not restored');
+  assert.deepEqual(asOf.fixedAfterCapture.map((f) => f.name), ['earlier_fix'], 'and stays, for the live diff to call applied');
+});
+
 test('the CLI: the checked-in allow-list accepts the live capture, and rejects a new anon-executable definer', () => {
   const unpinned = new Set(LIVE.definersWithoutPgTemp);
   const rows = [
