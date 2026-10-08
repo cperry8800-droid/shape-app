@@ -13,7 +13,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
-import { bsStepTimers, bsStepGists, bsAuthorStep, bsStepPerSideMin } from '../mobile-app/src/services/cookable.mjs';
+import { createHash } from 'node:crypto';
+import { bsStepTimers, _bsTimerSpans, bsStepGists, bsAuthorStep, bsStepPerSideMin } from '../mobile-app/src/services/cookable.mjs';
 import { SHAPE_KITCHEN_RECIPES } from '../mobile-app/src/broadsheet/shapeKitchenData.js';
 import { DEMO_MEALS } from './helpers/demo-meal-plan.mjs';
 
@@ -157,28 +158,169 @@ test('a unit ends at any letter, in any script', () => {
   assert.deepEqual(bsStepTimers('A soya minti 5, sannan 10 minutes.').map((x) => x.seconds), [300, 600]);
 });
 
-// The parser as it was before this change, kept here only to prove the English catalog reads the
-// same through the wider one: the vocabulary grew, and an English step must not have gained a timer.
-const ENGLISH_ONLY = /(\d+(?:\s*[–-]\s*\d+)?)(?:\s+(?:more|additional|extra|further)\s+|\s*)(hours?|hrs?|minutes?|mins?|seconds?|secs?)(?![a-z])(\s*\/\s*side|\s+per\s+side)?/gi;
-const englishTimers = (text) => {
-  const out = [];
-  for (const m of String(text).matchAll(ENGLISH_ONLY)) {
-    const n = Number(m[1].split(/[–-]/)[0]);
-    const seconds = n * (/^h/i.test(m[2]) ? 3600 : /^m/i.test(m[2]) ? 60 : 1);
-    if (!(n > 0) || seconds < 5 || seconds > 21600) continue;
-    out.push({ seconds, label: `${m[1].replace(/\s+/g, '')} ${/^h/i.test(m[2]) ? 'hr' : /^m/i.test(m[2]) ? 'min' : 'sec'}${m[3] ? ' per side' : ''}` });
-    if (out.length === 4) break;
-  }
-  return out;
+// THE ENGLISH CATALOG READS EXACTLY AS IT DID BEFORE #2277. The golden record holds, for every catalog
+// and demo-plan step, what cookable.mjs returned at 6adf127: the timers and their places in the step,
+// the timer names, the step's authored time with no station and on the stove, and the per-side
+// minutes. ⚠ Fable, on #2277: the first version of this test compared the timers alone, so two
+// changes to English coach steps passed it unnoticed ("marinade" became a storage word, and "1 hr.
+// 15 minutes before the end" joined into 75). The record makes any such change fail here.
+const GOLDEN = JSON.parse(readFileSync('tests/fixtures/catalog-step-times-before-2277.json', 'utf8')).steps;
+const keyOf = (text) => createHash('sha256').update(text).digest('hex').slice(0, 16);
+const dropT = (s) => { if (!s) return s; const { t, ...rest } = s; return rest; };
+// The only changes from the record, each named with its reason and asserted to its new value. (The
+// catalog's own plans read its step metadata, not bsAuthorStep, so none of these moves a catalog
+// plan; they are how the same words read when a coach writes them.)
+const CHANGED_ON_PURPOSE = {
+  // "bring it UP TO a bare simmer and hold it there for 60 minutes, skimming": "up to" counted as
+  // storage anywhere, so a 60-minute attended simmer read as the assumed 3. It now counts only before
+  // a time (Fable's temperature finding, applied to English as to every other language).
+  'Put the lamb bones in a 6-quart saucepan with 8 cups of water and the salt, bring it up to a bare simmer and hold it there for 60 minutes, skimming the grey foam off the top.':
+    { field: 3, value: { min: 60, passive: false } },
 };
 
-test('the English catalog and the demo plan read exactly the timers they had', () => {
-  const steps = [
+test('the English catalog and the demo plan read exactly as they did before #2277', () => {
+  const steps = [...new Set([
     ...SHAPE_KITCHEN_RECIPES.flatMap((r) => r.steps.map(String)),
     ...DEMO_MEALS.flatMap((m) => m.steps),
-  ];
-  assert.ok(steps.length > 300, `${steps.length} steps`);
-  const changed = steps.filter((s) => JSON.stringify(bsStepTimers(s)) !== JSON.stringify(englishTimers(s)));
-  assert.deepEqual(changed.map((s) => s.slice(0, 70)), []);
-  assert.ok(steps.some((s) => englishTimers(s).length), 'the reference reads timers at all');
+  ])];
+  assert.ok(steps.length > 600, `${steps.length} steps`);
+  const missing = steps.filter((s) => !GOLDEN[keyOf(s)]);
+  assert.deepEqual(missing.map((s) => s.slice(0, 70)), [], 'a step with no record: regenerate the record from 6adf127, never from the code under test');
+  const changed = [];
+  for (const s of steps) {
+    const now = [
+      bsStepTimers(s).map((x) => [x.seconds, x.label]),
+      _bsTimerSpans(s).map((x) => [x.at, x.end]),
+      bsStepGists(s),
+      dropT(bsAuthorStep(s, null)),
+      dropT(bsAuthorStep(s, 'stove')),
+      bsStepPerSideMin(s),
+    ];
+    const expected = [...GOLDEN[keyOf(s)]];
+    if (CHANGED_ON_PURPOSE[s]) expected[CHANGED_ON_PURPOSE[s].field] = CHANGED_ON_PURPOSE[s].value;
+    if (JSON.stringify(now) !== JSON.stringify(expected)) changed.push(`${s.slice(0, 60)}… ${JSON.stringify(now)} ≠ ${JSON.stringify(expected)}`);
+  }
+  assert.deepEqual(changed, []);
+  assert.ok(steps.some((s) => GOLDEN[keyOf(s)][0].length), 'the record holds timers at all');
+  for (const s of Object.keys(CHANGED_ON_PURPOSE)) {
+    assert.ok(steps.includes(s), `a named change for a step the catalog no longer has: ${s.slice(0, 60)}`);
+    assert.notDeepEqual(GOLDEN[keyOf(s)][CHANGED_ON_PURPOSE[s].field], CHANGED_ON_PURPOSE[s].value, 'a named change that changes nothing');
+  }
+});
+
+// ── Fable's review of #2277, each probe reproduced with node first ─────────────────────────────
+const minOf = (text, station = null) => bsAuthorStep(text, station).min ?? null;
+
+test('a Russian or Ukrainian teaspoon ("ч. л.") is not an hour', () => {
+  assert.deepEqual(bsStepTimers('Добавьте 1 ч. л. соли и 2 ст. л. масла, обжарьте 5 минут.').map((x) => x.seconds), [300]);
+  assert.deepEqual(bsStepTimers('Додайте 1 ч. л. солі та смажте 5 хвилин.').map((x) => x.seconds), [300]);
+  assert.deepEqual(bsAuthorStep('Добавьте 2 ч.л. сахара.', 'stove'), { t: 'Добавьте 2 ч.л. сахара.' });
+  assert.deepEqual(bsStepTimers('Посолите (1 ч. ложку) и запекайте 25 минут.').map((x) => x.seconds), [1500]);
+  // An hour still reads as one.
+  assert.equal(minOf('Тушите 1 ч.'), 60);
+  assert.equal(minOf('Тушите 2 ч. Лук добавьте позже.'), 120);
+});
+
+test('"a preheated oven" and a temperature are not storage; a time limit and days still are', () => {
+  for (const [text, min] of [
+    ['Запекайте в заранее разогретой духовке 20 минут.', 20],
+    ['Запікайте в заздалегідь розігрітій духовці 20 хвилин.', 20],
+    ['Önceden ısıtılmış fırında 20 dakika pişirin.', 20],
+    ['Разогрейте духовку до 180 градусов. Запекайте 20 минут.', 20],
+    ['Розігрійте духовку до 180 градусів і запікайте 20 хвилин.', 20],
+    ['Panaskan oven hingga 180 derajat, panggang 20 menit.', 20],
+    ['Panggang sampai 180 derajat selama 20 menit.', 20],
+    ['Calienta el aceite hasta 180 °C y fríe 5 minutos.', 5],
+    ['Scalda l\'olio fino a 180 gradi e friggi 5 minuti.', 5],
+    ['Chauffez l\'huile jusqu\'à 180 °C et faites frire 5 minutes.', 5],
+    ['Aqueça o óleo até 180 °C e frite 5 minutos.', 5],
+    ['Bis zu 180 Grad erhitzen und 20 Minuten backen.', 20],
+    ['Heat the oil up to 350°F and fry 5 minutes.', 5],
+    ['10 dakika kadar pişirin.', 10],
+  ]) assert.equal(minOf(text), min, text);
+  for (const text of [
+    'Храните в холодильнике до 3 дней.',
+    'Im Kühlschrank bis zu 4 Stunden ziehen lassen.',
+    'Deja reposar hasta 2 horas.',
+    'Simpan di kulkas hingga 3 hari.',
+    'Cover and chill up to 4 hours.',
+  ]) assert.equal(minOf(text), null, text);
+});
+
+test('a word like "about" between per side and its time keeps the step per side, never a window', () => {
+  for (const [text, min] of [
+    ['Her tarafını yaklaşık 4 dakika pişirin.', 8],
+    ['Chiên mỗi mặt khoảng 4 phút.', 8],
+    ['Goreng setiap sisi sekitar 4 menit.', 8],
+    ['A soya a kowane gefe kamar minti 4.', 8],
+    ['Обжарьте с каждой стороны примерно 4 минуты.', 8],
+    ['4 Minuten lang pro Seite anbraten.', 8],
+    ['Dora 4 minutos aproximadamente por lado.', 8],
+    ['Faites cuire 3 minutes environ de chaque côté.', 6],
+    ['Cuoci 3 minuti circa per lato.', 6],
+  ]) {
+    assert.deepEqual(bsAuthorStep(text, 'stove'), { t: text, min, passive: false, station: 'stove' }, text);
+    assert.equal(bsStepPerSideMin(text), min, text);
+  }
+});
+
+test('the per-side, range and distributive forms the first version missed', () => {
+  for (const [text, min] of [
+    ['4 Minuten von jeder Seite anbraten.', 8],
+    ['Faites cuire 3 minutes sur chaque face.', 6],
+    ['Faites cuire 3 minutes chaque côté.', 6],
+    ['Cuoci 3 minuti per parte.', 6],
+    ['Cuoci 3 minuti da ciascun lato.', 6],
+    ['Dora 4 minutos cada lado.', 8],
+    ['Her iki tarafını 3 dakika kızartın.', 6],
+    ['Her iki tarafını 3\'er dakika kızartın.', 6],
+  ]) assert.equal(bsStepPerSideMin(text), min, text);
+  assert.deepEqual(bsStepTimers('Her iki tarafını 3\'er dakika kızartın.'), [{ seconds: 180, label: '3 min' }], 'the suffix is not part of the label');
+  for (const text of ['Kısık ateşte 8 ila 10 dakika pişirin.', 'Cocina entre 8 y 10 minutos.', 'Cozinhe entre 8 e 10 minutos.', 'Nấu 8 tới 10 phút.']) {
+    assert.deepEqual(bsAuthorStep(text, 'stove'), { t: text, min: 8, passive: true, station: 'stove' }, text);
+  }
+  assert.equal(minOf('Hornea 1 hora y 15 minutos.'), 75, '"y" alone is still an hour and its minutes');
+  assert.equal(minOf('Noch 5 weitere Minuten köcheln.'), 5);
+});
+
+test('a word that also names an ingredient is not a storage word', () => {
+  for (const [text, min] of [
+    ['Añade los guisantes congelados y cocina 10 minutos.', 10],
+    ['Adicione as ervilhas congeladas e cozinhe 10 minutos.', 10],
+    ['Aggiungi i piselli congelati e cuoci 10 minuti.', 10],
+    ['Dondurulmuş bezelyeyi ekleyin ve 10 dakika pişirin.', 10],
+    ['Ajoutez une boîte de tomates en conserve et laissez mijoter 20 minutes.', 20],
+    ['Aggiungi un cucchiaio di conserva di pomodoro e cuoci 15 minuti.', 15],
+    ['Añade atún en conserva y cocina 5 minutos.', 5],
+    ['Añade una pizca de sal marina y cocina 10 minutos.', 10],
+    ['Vierte la marinada y cocina 10 minutos.', 10],
+    ['Versez la marinade et faites cuire 10 minutes.', 10],
+    ['Add the reserved marinade and simmer 5 minutes.', 5],
+  ]) assert.equal(minOf(text), min, text);
+  // The storage verbs themselves still are.
+  for (const text of ['Marina 30 minutos.', 'Laissez mariner 30 minutes.', 'Lascia marinare 30 minuti.', 'Congela 2 horas.']) {
+    assert.equal(minOf(text), null, text);
+  }
+});
+
+test('English: an abbreviation joins an hour and its minutes only when both are abbreviated', () => {
+  assert.equal(minOf('Bake 1 hr. 15 minutes before the end, add the potatoes.'), 60);
+  assert.equal(minOf('Cook 10 min. 30 seconds before serving, add the herbs.'), 10);
+  assert.equal(minOf('Bake 1 hr. 15 min.'), 75);
+});
+
+test('every language\'s seconds and every Russian and Ukrainian case form is a unit of its kind', () => {
+  for (const [text, seconds] of [
+    ['30 Sekunden', 30], ['30 Sek.', 30], ['30 segundos', 30], ['30 seg', 30], ['30 secondes', 30], ['30 secondi', 30],
+    ['30 секунд', 30], ['1 секунду', 1 * 1], ['30 сек', 30], ['30 секунди', 30], ['30 saniye', 30], ['30 sn', 30],
+    ['30 giây', 30], ['30 detik', 30], ['30 dtk', 30], ['daƙiƙa 30', 30],
+    ['1 час', 3600], ['2 часа', 7200], ['5 часов', 18000], ['1 ч', 3600],
+    ['1 годину', 3600], ['2 години', 7200], ['5 годин', 18000], ['1 год', 3600],
+    ['10 мин', 600], ['10 хв', 600], ['1 минуту', 60], ['2 минуты', 120], ['5 минут', 300],
+  ]) {
+    const got = bsStepTimers(`Готовьте ${text}.`);
+    if (seconds < 5) { assert.deepEqual(got, [], `${text}: under 5 s is not a timer`); continue; }
+    assert.deepEqual(got.map((x) => x.seconds), [seconds], text);
+  }
+  assert.deepEqual(bsStepTimers('Köcheln 1 Std. 20 Min.').map((x) => x.label), ['1 hr', '20 min'], 'labels keep the shipped form');
 });
