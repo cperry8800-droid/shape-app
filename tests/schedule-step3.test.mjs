@@ -98,7 +98,11 @@ async function availability({ tables = {}, rpc, fail = [] } = {}) {
   return { status: res.status, body: await res.json(), calls: client._calls };
 }
 
-test('/api/availability answers with the coach\'s busy time and rules, and `booked` from the busy read', async () => {
+test('/api/availability answers with the coach\'s busy time and rules, and `booked` from the busy read', async (t) => {
+  // ⚠ THE ROUTE KEEPS A SESSION IN `booked` ONLY UNTIL IT ENDS (Date.now()), so the fixture's
+  // own morning is pinned: on the real clock this test failed for every run after 14:00 UTC
+  // on 2026-10-08, the day its session was dated.
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-10-08T10:00:00Z') });
   const busy = [
     { starts_at: '2026-10-08T13:00:00+00:00', ends_at: '2026-10-08T14:00:00+00:00', kind: 'session' },
     { starts_at: '2026-10-09T13:00:00+00:00', ends_at: '2026-10-10T04:00:00+00:00', kind: 'time_off' },
