@@ -108,7 +108,7 @@ test('the React search and the app carry the same row and the same hand-off', ()
   assert.match(SHELL, /rows\.length === 0 && !noraHit && !asking \?/);
   // App: the row, its hand-off, and the sheet reading the draft once.
   assert.match(APP, /<button data-ask-nora onClick=\{\(\) => \{ onClose\(\); bsAskNora\(askNora\); \}\}/);
-  assert.match(APP, /function bsAskNora\(text\) \{\n\s+_bsNoraDraft = String\(text \|\| ''\)\.slice\(0, 500\);\n\s+try \{ window\.dispatchEvent\(new CustomEvent\('shape:openNora'\)\); \}/);
+  assert.match(APP, /function bsAskNora\(text, opts\) \{\n\s+_bsNoraDraft = String\(text \|\| ''\)\.slice\(0, 500\);\n\s+bsNoraSetProblem\(opts && opts\.problem\);\n\s+try \{ window\.dispatchEvent\(new CustomEvent\('shape:openNora'\)\); \}/);
   assert.match(APP, /useStateBSC\(\(\) => \{ const d = _bsNoraDraft; _bsNoraDraft = ''; return d; \}\)/);
   assert.match(APP, /!noraHit && !askNora\) \? \(/);
   const errState = between(APP, ") : state !== 'ok' ? (", "common:search.rateLimited");

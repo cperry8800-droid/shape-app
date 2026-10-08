@@ -1404,6 +1404,15 @@ function BSPublicActionPanel({ action, coach, onClose, onConfirm, onMessageSent 
           color: t.INK70,
           lineHeight: 1.45,
         }}>{action.body}</div>
+        {/* A failed booking or checkout offers Nora, with its words as context (the Ask Nora
+            plan, step 5). Her sheet opens over this panel. */}
+        {action.problem && !action.done && window.BSAskNoraLink ? (
+          <window.BSAskNoraLink t={t} style={{ marginTop: 8 }} label={tr('feed:support.ask.whatHappenedLink', { defaultValue: 'Ask Nora what happened' })}
+            draft={action.problem.kind === 'payment'
+              ? tr('feed:support.ask.checkoutFailed', { defaultValue: "My checkout didn't go through. What happened?" })
+              : tr('feed:support.ask.bookingFailed', { defaultValue: "My booking didn't go through. What happened?" })}
+            problem={action.problem} />
+        ) : null}
 
         {isMessage && !action.done && (
           <div style={{ marginTop: 16, display: 'grid', gap: 10 }}>
@@ -2089,6 +2098,8 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   };
 
   const confirmAction = async (current) => {
+    // A retry starts clean: only the failure it reaches sets `problem` again.
+    current = { ...current, problem: null };
     // Browse / no-account users can view coaches but must create an account to commit.
     const gateLabel = current.type === 'Booking' ? 'book a session' : current.type === 'Checkout' ? 'check out' : 'continue';
     if (window.bsRequireAccount && !window.bsRequireAccount(gateLabel)) return;
@@ -2115,6 +2126,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
           title: tr('marketplace:listing.checkoutError', { defaultValue: 'Checkout error' }),
           body: error?.message || tr('marketplace:listing.checkoutErrorBody', { defaultValue: 'Unable to open Stripe checkout.' }),
           cta: tr('marketplace:listing.tryAgain', { defaultValue: 'Try again' }),
+          problem: { kind: 'payment', message: error?.message || tr('marketplace:listing.checkoutErrorBody', { defaultValue: 'Unable to open Stripe checkout.' }) },
         });
       } finally {
         setCheckoutBusy(false);
@@ -2145,6 +2157,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
           title: tr('marketplace:listing.bookingError', { defaultValue: 'Booking error' }),
           body: error?.message || tr('marketplace:listing.bookingErrorBody', { defaultValue: 'Unable to save this consultation booking.' }),
           cta: tr('marketplace:listing.tryAgain', { defaultValue: 'Try again' }),
+          problem: { kind: 'booking', message: error?.message || tr('marketplace:listing.bookingErrorBody', { defaultValue: 'Unable to save this consultation booking.' }) },
         });
       } finally {
         setCheckoutBusy(false);

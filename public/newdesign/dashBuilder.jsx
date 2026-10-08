@@ -3141,7 +3141,7 @@ function TrainerProgramsPage() {
         {error&&<p role="alert">{error} <button style={dbuLibBtn(false)} onClick={()=>setRefresh(n=>n+1)}>Retry</button></p>}
         {planMissing&&<p role="status">That program isn’t in your library yet. If you just saved it from Nora, refresh in a moment.</p>}
         {templates===null&&!error&&<p role="status">Loading workouts…</p>}
-        {templates?.length===0&&<p>No workouts yet. Create a single day or program to start your library.</p>}
+        {templates?.length===0&&<div><p>No workouts yet. Create a single day or program to start your library.</p>{window.ShapeAskNoraLink&&<window.ShapeAskNoraLink label="Ask Nora to draft one" draft="Draft a workout for me: "/>}</div>}
         {!!templates?.length&&<div className="dbu-library-filters">
           {/* ⚠ EVERY FILTER SAYS WHAT IT WOULD LEAVE. Options inside one filter widen it,
               two filters narrow each other, and the count beside Clear is the result. */}

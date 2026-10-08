@@ -2250,7 +2250,7 @@ function ChatWidget(props) {
                   // What Nora is told about where they are. × takes it off for this visit.
                   <span data-nora-screen title="Nora knows the page you asked from" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 4px 4px 9px", borderRadius: 999, border: "1px dashed rgba(var(--sh-ink-rgb, 242,237,228),0.22)", color: "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.04em", maxWidth: 200 }}>
                     <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: TEAL_BRIGHT, flex: "none" }} />
-                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>On {window.__shapeNoraPageName()}</span>
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>On {window.__shapeNoraPageName()}{window.__shapeNoraProblem && window.__shapeNoraProblem() ? " · with the error" : ""}</span>
                     <button type="button" onClick={() => setNoraScreenOff(true)} aria-label="Don't tell Nora which page you're on" title="Don't tell Nora which page you're on"
                       style={{ border: 0, background: "transparent", color: "inherit", cursor: "pointer", fontSize: 12, lineHeight: 1, padding: "0 4px" }}>×</button>
                   </span>

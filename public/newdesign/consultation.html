@@ -256,6 +256,12 @@
 
       <div id="turnstile-slot" style="margin:16px 0 0;"></div>
       <button class="cta" id="bookBtn" onclick="confirmBooking()">Book consultation</button>
+      <!-- A refused booking stays on the page and offers Nora, with its words as context (the
+           Ask Nora plan, step 5); the toast alone was gone in three seconds. -->
+      <div id="bookErr" role="alert" hidden style="margin:14px 0 0;font-size:13.5px;line-height:1.5;color:var(--ink);">
+        <span id="bookErrText"></span>
+        <br><button type="button" id="bookErrAsk" hidden onclick="askNoraAboutBooking()" style="margin-top:6px;padding:4px 0;border:0;background:transparent;color:var(--accent);font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;">&#x2726; Ask Nora what happened</button>
+      </div>
     </div>
 
     <!-- Success state -->
@@ -283,6 +289,20 @@
       const el = document.getElementById('toast');
       el.textContent = msg; el.classList.add('show');
       clearTimeout(_toastT); _toastT = setTimeout(() => el.classList.remove('show'), 3200);
+    }
+
+    // A refused booking: the words stay under the button, with Nora one tap away.
+    function showBookErr(msg) {
+      const box = document.getElementById('bookErr');
+      if (!box) { showToast(msg); return; }
+      document.getElementById('bookErrText').textContent = msg;
+      document.getElementById('bookErrAsk').hidden = typeof window.shapeAskNora !== 'function';
+      box.hidden = false;
+    }
+    function hideBookErr() { const box = document.getElementById('bookErr'); if (box) box.hidden = true; }
+    function askNoraAboutBooking() {
+      const msg = document.getElementById('bookErrText').textContent;
+      if (typeof window.shapeAskNora === 'function') window.shapeAskNora({ draft: "My booking didn't go through. What happened?", problem: { kind: 'booking', message: msg } });
     }
 
     // Params + role accent.
@@ -491,6 +511,7 @@
       const email = document.getElementById('consultEmail').value.trim();
       const topic = document.getElementById('consultTopic').value.trim();
 
+      hideBookErr();
       if (!selectedDate || !selectedIso) { showToast('Please select a date and time.'); return; }
 
       // Checked here as well as on load, because a session can expire while the page sits open.
@@ -529,10 +550,10 @@
           // The server is the authority on this, so honour its 401 even if the local check
           // above passed — a token can expire between the two.
           if (res.status === 401 || data.code === 'auth_required') consultAuthPrompt();
-          else showToast(data.error || 'Could not book. Please try again.');
+          else showBookErr(data.error || 'Could not book. Please try again.');
           btn.disabled = false; btn.textContent = originalLabel; return;
         }
-      } catch (_) { showToast('Network error. Please try again.'); btn.disabled = false; btn.textContent = originalLabel; return; }
+      } catch (_) { showBookErr('Network error. Please try again.'); btn.disabled = false; btn.textContent = originalLabel; return; }
 
       // Local copy for the visitor's own records.
       try {

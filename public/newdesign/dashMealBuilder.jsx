@@ -937,7 +937,12 @@ function NutritionistPlansPage() {
             </div>
             {error && <p role="alert" style={{ fontSize: 13.5, color: "var(--sh-ink, #f2ede4)" }}>{error} <button onClick={() => setRefresh((n) => n + 1)} style={dmbBtn(false)}>Retry</button></p>}
             {templates == null && !error && <p role="status" style={{ color: DMB_INK50, fontSize: 13 }}>Loading plans…</p>}
-            {templates && templates.length === 0 && <p style={{ fontSize: 13.5, color: DMB_INK50 }}>No meal plans on the website yet. Build one to start your library.</p>}
+            {templates && templates.length === 0 && (
+              <div>
+                <p style={{ fontSize: 13.5, color: DMB_INK50 }}>No meal plans on the website yet. Build one to start your library.</p>
+                {window.ShapeAskNoraLink && <window.ShapeAskNoraLink label="Ask Nora to draft one" draft="Draft a meal plan for me: " />}
+              </div>
+            )}
             {appOnly > 0 && <p style={{ fontFamily: DMB_MONO, fontSize: 9, lineHeight: 1.6, letterSpacing: "0.06em", color: DMB_INK50, margin: "0 0 14px" }}>
               {appOnly === 1 ? "1 meal plan you wrote in the app isn’t listed here" : appOnly + " meal plans you wrote in the app aren’t listed here"} — the website builder can’t open {appOnly === 1 ? "it" : "them"} yet. You’ll find {appOnly === 1 ? "it" : "them"} in the app.
             </p>}
