@@ -103,3 +103,84 @@ export function buildRosterVitals(rows, opts = {}) {
   }
   return out;
 }
+
+// ── The whole roster read: recent sleep and the check-in vitals, in ONE query ──
+// Shared by /api/coach/roster-sleep (the app's Today feed) and Nora's "What needs me
+// today?" (src/lib/ai/coachToday.mjs), so the two triage the same inputs. `sb` is the
+// COACH'S own client: RLS (providers_read_subscriber_snapshots) gates each snapshot row
+// to coaches with an active subscription on that client, so an `.in('user_id', ids)`
+// only ever returns the caller's own clients' rows.
+//
+// Each leg is present only when that client has REAL data for it: a client with check-in
+// gauges but no synced sleep gets a vitals-only entry, never a fabricated sleepHours.
+
+// The QUERY window is 14 days because the SLEEP leg wants that much history; the vitals
+// legs narrow it to 7 calendar days (buildRosterVitals above).
+export const RECOVERY_QUERY_DAYS = 14;
+
+/**
+ * { [userId]: { sleepHours?: { avg7, lastNight, target }, vitals? } } from snapshot rows
+ * in snapshot_date order.
+ * @param {unknown[]} rows
+ * @param {{ now?: Date }} [opts]
+ */
+export function buildRosterRecovery(rows, opts = {}) {
+  // Per-user sleep values in snapshot_date order, over the full 14-day read. A missing or
+  // junk value is ABSENCE: the row is skipped, never coerced (Number(null) is a finite 0,
+  // the documented fabrication class), and `v > 0` matches the engine's absence doctrine.
+  const sleepByUser = new Map();
+  for (const r of Array.isArray(rows) ? rows : []) {
+    const v = Number(r && r.sleep_hours);
+    if (!Number.isFinite(v) || v <= 0) continue;
+    const k = String(r.user_id);
+    const vals = sleepByUser.get(k) || [];
+    vals.push(v);
+    sleepByUser.set(k, vals);
+  }
+  const vitalsByUser = buildRosterVitals(rows, { now: opts.now });
+  // Sleep keeps its own window: the last 7 LOGGED nights out of the 14-day read.
+  const avg7 = (vals) => {
+    const last7 = vals.slice(-7);
+    return Math.round((last7.reduce((a, b) => a + b, 0) / last7.length) * 100) / 100;
+  };
+  /** @type {Record<string, { sleepHours?: { avg7: number, lastNight: number, target: number }, vitals?: object }>} */
+  const recovery = {};
+  // A client may have sleep with no in-window vitals, or vitals with no sleep: walk the
+  // union so neither leg can drop the other's entry.
+  for (const k of new Set([...sleepByUser.keys(), ...vitalsByUser.keys()])) {
+    /** @type {{ sleepHours?: { avg7: number, lastNight: number, target: number }, vitals?: object }} */
+    const entry = {};
+    const sleep = sleepByUser.get(k);
+    if (sleep && sleep.length) entry.sleepHours = { avg7: avg7(sleep), lastNight: sleep[sleep.length - 1], target: 7.5 };
+    const vitals = vitalsByUser.get(k);
+    if (vitals) entry.vitals = vitals;
+    if (entry.sleepHours || entry.vitals) recovery[k] = entry;
+  }
+  return recovery;
+}
+
+/**
+ * Read and build the roster's recovery. `ok` is false when the read failed, so a caller
+ * can say so rather than read the absence as "nobody slept badly".
+ * @param {any} sb
+ * @param {string[]} ids
+ * @param {{ now?: Date }} [opts]
+ */
+export async function readRosterRecovery(sb, ids, opts = {}) {
+  const now = opts.now instanceof Date ? opts.now : new Date();
+  if (!Array.isArray(ids) || !ids.length) return { ok: true, recovery: {} };
+  const since = new Date(now.getTime() - RECOVERY_QUERY_DAYS * 86_400_000).toISOString().slice(0, 10);
+  let rows = null;
+  try {
+    // Explicit column list is safe: user_id / snapshot_date / sleep_hours / hydration_l
+    // predate the sleep-detail migration, and energy / hunger landed with
+    // 2026-06-25-daily-energy-hunger.sql (applied live), so PostgREST won't 400.
+    const r = await sb.from('daily_health_snapshot')
+      .select('user_id, snapshot_date, sleep_hours, energy, hunger, hydration_l')
+      .in('user_id', ids)
+      .gte('snapshot_date', since)
+      .order('snapshot_date', { ascending: true });
+    if (r && !r.error) rows = Array.isArray(r.data) ? r.data : [];
+  } catch { rows = null; }
+  return { ok: rows !== null, recovery: buildRosterRecovery(rows || [], { now }) };
+}

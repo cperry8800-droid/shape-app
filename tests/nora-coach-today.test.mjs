@@ -106,3 +106,64 @@ test('the coach\'s own signal tuning is applied, re-validated by the engine', as
   const other = fakeSupabase(fixture({ tables: { user_goals: [{ user_id: 'coach-2', kind: 'coach_settings', data: { thresholds: { FOOD_GAP_DAYS: 10 } } }] } }));
   assert.equal((await readCoachToday(other, 'coach-1', { now: NOW, zone: 'UTC' })).needsYou.items.length, 1);
 });
+
+// ── Codex, #2262 ─────────────────────────────────────────────────────────────────
+// The app's Today also reads the roster's sleep and check-in vitals
+// (/api/coach/roster-sleep); Nora reads them through the same readRosterRecovery.
+const SLEEP_DAYS = Array.from({ length: 7 }, (_, i) => new Date(NOW.getTime() - i * 864e5).toISOString().slice(0, 10));
+const lowSleep = (uid, hours) => SLEEP_DAYS.map((d) => ({ user_id: uid, snapshot_date: d, sleep_hours: hours, energy: null, hunger: null, hydration_l: null }));
+
+test('sleep and check-in gauges count, as on the app\'s Today: a client whose only signal is sleep is flagged', async () => {
+  const sb = fakeSupabase(fixture({ tables: { daily_health_snapshot: [...lowSleep('c1', 5), ...lowSleep('someone-else', 4)] } }));
+  const t = await readCoachToday(sb, 'coach-1', { now: NOW, zone: 'UTC', role: 'trainer' });
+  const priya = t.needsYou.items.find((i) => i.name === 'Priya Shah');
+  assert.ok(priya, 'Priya logs and trains on plan; only her sleep flags her');
+  assert.match(priya.why, /5h sleep vs a 7\.5h target/);
+  const read = sb._calls.find((c) => c.table === 'daily_health_snapshot');
+  assert.ok(read, 'one roster read');
+  assert.equal(t.needsYou.sleepAndCheckinGaugesUnread, undefined);
+  // Without the rows she is not flagged: the flag is the sleep leg's.
+  const none = await readCoachToday(fakeSupabase(fixture()), 'coach-1', { now: NOW, zone: 'UTC', role: 'trainer' });
+  assert.ok(!none.needsYou.items.some((i) => i.name === 'Priya Shah'));
+});
+
+test('a read that fails is said, never an all-clear: stats, goals or check-ins, and the gauges', async () => {
+  const stats = await readCoachToday(fakeSupabase(fixture({ fail: ['rpc:get_client_stats'] })), 'coach-1', { now: NOW, zone: 'UTC' });
+  assert.equal(stats.needsYou.checked, 0);
+  assert.equal(stats.needsYou.notRead, 2, 'a failed read is not the RPC\'s NULL for a non-client');
+  const goals = await readCoachToday(fakeSupabase(fixture({ fail: ['rpc:get_client_goals'] })), 'coach-1', { now: NOW, zone: 'UTC' });
+  assert.equal(goals.needsYou.checked, 2);
+  assert.deepEqual(goals.needsYou.goalsOrCheckinsUnread, ['Priya Shah', 'Sam Lee']);
+  const checkins = await readCoachToday(fakeSupabase(fixture({ fail: ['rpc:get_client_checkins'] })), 'coach-1', { now: NOW, zone: 'UTC' });
+  assert.deepEqual(checkins.needsYou.goalsOrCheckinsUnread, ['Priya Shah', 'Sam Lee']);
+  const gauges = await readCoachToday(fakeSupabase(fixture({ fail: ['daily_health_snapshot'] })), 'coach-1', { now: NOW, zone: 'UTC' });
+  assert.equal(gauges.needsYou.sleepAndCheckinGaugesUnread, true);
+  assert.equal(gauges.needsYou.items.length, 1, 'the rest of the triage still answers');
+  const clean = await readCoachToday(fakeSupabase(fixture()), 'coach-1', { now: NOW, zone: 'UTC' });
+  for (const k of ['notRead', 'goalsOrCheckinsUnread', 'sleepAndCheckinGaugesUnread']) assert.ok(!(k in clean.needsYou), k);
+});
+
+test('a coach with both listings: each client is read under the role they subscribe to', async () => {
+  const lowProtein = { daysLogged7d: 6, sessionsCompleted: 4, sessionsPlanned: 4, avgCalories: 2000, avgProtein: 60, targetCalories: 2000, targetProtein: 150 };
+  const sb = fakeSupabase(fixture({
+    tables: {
+      nutritionists: [{ id: 12, owner_id: 'coach-1', name: 'Coach' }],
+      subscriptions: [
+        { client_id: 'c1', status: 'active', provider_role: 'trainer', provider_id: 7 },
+        { client_id: 'n1', status: 'active', provider_role: 'nutritionist', provider_id: 12 },
+        { client_id: 't1', status: 'active', provider_role: 'trainer', provider_id: 7 },
+      ],
+    },
+    rpcs: {
+      get_display_names: ({ p_ids }) => p_ids.map((id) => ({ user_id: id, full_name: { c1: 'Priya Shah', n1: 'Nina Diet', t1: 'Tom Train' }[id] || null })),
+      get_client_stats: ({ p_user_id }) => ({ c1: { daysLogged7d: 6, sessionsCompleted: 4, sessionsPlanned: 4 }, n1: lowProtein, t1: lowProtein }[p_user_id] || null),
+    },
+  }));
+  // A trainer-primary account: the nutrition client's low protein is a nutritionist's flag.
+  const t = await readCoachToday(sb, 'coach-1', { now: NOW, zone: 'UTC', role: 'trainer' });
+  assert.deepEqual(t.needsYou.items, [{ name: 'Nina Diet', severity: 'amber', why: 'Tighten nutrition: Averaging 60g protein vs a 150g target', as: 'nutritionist' }]);
+  // And the reverse: a trainer-only client is not read as a nutritionist's.
+  const n = await readCoachToday(sb, 'coach-1', { now: NOW, zone: 'UTC', role: 'nutritionist' });
+  assert.ok(!n.needsYou.items.some((i) => i.name === 'Tom Train'), 'protein is read-only for a trainer\'s client');
+  assert.equal(n.needsYou.items.length, 1);
+});

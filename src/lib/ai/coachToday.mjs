@@ -3,13 +3,16 @@
 //   - today's sessions, on the coach's own clock;
 //   - the clients the Today screen would flag, by the same engine the app's Today runs
 //     (DashSignals.getTriageFeed over records built by signalsMap.recordFromCoachData from
-//     the get_client_* rollups), with the coach's own signal tuning.
+//     the get_client_* rollups and the roster's sleep and check-in vitals, the same
+//     readRosterRecovery the app's Today reads through /api/coach/roster-sleep), with the
+//     coach's own signal tuning, each client under the role they subscribe to.
 // Everything is read with the COACH'S own client, so RLS and the gated definer RPCs decide
 // what comes back; a leg that fails says so rather than reading as "nothing".
 import DashSignals from '../../../public/newdesign/dashSignals.js';
 import { recordFromCoachData } from '../../../mobile-app/src/services/signalsMap.mjs';
 import { readCoachRoster } from './memberReads.mjs';
 import { validZone, localClock } from './noraContext.mjs';
+import { readRosterRecovery } from '../roster-vitals.mjs';
 
 export const TODAY_CAPS = Object.freeze({ clients: 30, sessions: 100, requests: 10, flagged: 8, horizonDays: 14, pool: 6 });
 
@@ -109,40 +112,83 @@ export async function readCoachToday(sb, uid, opts = {}) {
 
   // ── Clients who need them: the Today screen's triage ──
   const clients = roster.clients.slice(0, TODAY_CAPS.clients);
-  const role = opts.role === 'trainer' || opts.role === 'nutritionist' ? opts.role
+  const primary = opts.role === 'trainer' || opts.role === 'nutritionist' ? opts.role
     : (roster.providers || []).some((p) => p.role === 'trainer') ? 'trainer' : 'nutritionist';
   if (clients.length) {
-    const thresholds = await coachThresholds(sb, uid);
+    const [thresholds, rec] = await Promise.all([
+      coachThresholds(sb, uid),
+      readRosterRecovery(sb, clients.map((c) => c.id), { now }),
+    ]);
     let read = 0;
+    let failed = 0;
+    const incomplete = [];
     const records = await pooled(clients, TODAY_CAPS.pool, async (c) => {
       const [stats, goals, checkins] = await Promise.all([
         leg(sb.rpc('get_client_stats', { p_user_id: c.id })),
         leg(sb.rpc('get_client_goals', { p_user_id: c.id })),
         leg(sb.rpc('get_client_checkins', { p_user_id: c.id, p_limit: 2 })),
       ]);
-      // get_client_stats is NULL for anyone who is not this coach's active client: no record,
-      // never a fabricated zero.
-      if (!stats.ok || !stats.data || typeof stats.data !== 'object') return null;
+      // A failed stats read is a client NOT checked, said as such. NULL stats is the RPC's
+      // answer for anyone who is not this coach's active client: no record, never a
+      // fabricated zero.
+      if (!stats.ok) { failed += 1; return null; }
+      if (!stats.data || typeof stats.data !== 'object') return null;
       read += 1;
-      return recordFromCoachData({
-        id: c.id, name: c.name || 'Client', stats: stats.data,
-        goalsDoc: goals.ok ? goals.data : null,
-        checkins: checkins.ok && Array.isArray(checkins.data) ? checkins.data : null,
-      }, { goalsFromDoc: engine.goalsFromDoc });
+      // ⚠ A FAILED GOALS OR CHECK-IN READ IS NOT "NO GOAL" (Codex, #2262): it would drop a
+      // goal-slip or overdue check-in flag while the answer claimed the client was checked.
+      if (!goals.ok || !checkins.ok) incomplete.push(c.name || 'a client');
+      // The roster's sleep and vitals, split as the app's Today splits them: recovery
+      // carries ONLY the sleepHours shape, and an entry with vitals but no sleep never
+      // gets a recovery leg.
+      const rs = rec.recovery[c.id] || null;
+      return {
+        client: c,
+        record: recordFromCoachData({
+          id: c.id, name: c.name || 'Client', stats: stats.data,
+          goalsDoc: goals.ok ? goals.data : null,
+          checkins: checkins.ok && Array.isArray(checkins.data) ? checkins.data : null,
+          recovery: rs && rs.sleepHours ? { sleepHours: rs.sleepHours } : null,
+          vitals: rs && rs.vitals ? rs.vitals : null,
+        }, { goalsFromDoc: engine.goalsFromDoc }),
+      };
     });
-    let feed = [];
-    try { feed = engine.getTriageFeed(role, records.filter(Boolean), now, thresholds || undefined) || []; } catch { feed = []; }
-    const flagged = feed.filter((r) => r && (r.severity === 'red' || r.severity === 'amber'));
+    // ⚠ EACH CLIENT UNDER THE ROLE THEY SUBSCRIBE TO (Codex, #2262). A coach holding both
+    // listings has one roster of both; a nutrition-only client read as a trainer's would
+    // lose a protein flag (read-only there), and the reverse can raise one that is not
+    // theirs. The app's Today runs one role's roster at a time; this runs each role over
+    // its own clients and keeps a client flagged by both once, at the worse severity.
+    const rank = { red: 2, amber: 1 };
+    const flaggedById = new Map();
+    const both = new Set((roster.providers || []).map((p) => p.role)).size > 1;
+    for (const role of ['trainer', 'nutritionist']) {
+      const group = records.filter(Boolean).filter((x) => (Array.isArray(x.client.roles) && x.client.roles.length ? x.client.roles : [primary]).includes(role));
+      if (!group.length) continue;
+      let feed = [];
+      try { feed = engine.getTriageFeed(role, group.map((x) => x.record), now, thresholds || undefined) || []; } catch { feed = []; }
+      for (const r of feed) {
+        if (!r || !rank[r.severity]) continue;
+        const id = r.client && r.client.profile && r.client.profile.id;
+        // The verdict and its reason, never the directive's action: that line is the
+        // client's ("log a meal today"), and this answer is for the coach.
+        const why = clip([r.directive && r.directive.verdict, r.directive && r.directive.reason].filter(Boolean).join(': '), 280) || clip((r.reasons || []).join('; '), 280) || 'flagged';
+        const prev = flaggedById.get(id);
+        if (!prev) {
+          flaggedById.set(id, { name: (r.client.profile && r.client.profile.name) || 'Client', severity: r.severity, why, ...(both ? { as: role } : {}) });
+        } else {
+          if (rank[r.severity] > rank[prev.severity]) prev.severity = r.severity;
+          prev.why = clip(`${prev.why}; ${why}`, 280);
+          if (both) prev.as = 'trainer and nutritionist';
+        }
+      }
+    }
+    const flagged = [...flaggedById.values()].sort((a, b) => rank[b.severity] - rank[a.severity]);
     out.needsYou = {
       checked: read, of: roster.clients.length,
       ...(roster.clients.length > clients.length ? { onlyFirst: clients.length } : {}),
-      items: flagged.slice(0, TODAY_CAPS.flagged).map((r) => ({
-        name: (r.client && r.client.profile && r.client.profile.name) || 'Client',
-        severity: r.severity,
-        // The verdict and its reason, never the directive's action: that line is the
-        // client's ("log a meal today"), and this answer is for the coach.
-        why: clip([r.directive && r.directive.verdict, r.directive && r.directive.reason].filter(Boolean).join(': '), 280) || clip((r.reasons || []).join('; '), 280) || 'flagged',
-      })),
+      ...(failed ? { notRead: failed } : {}),
+      ...(incomplete.length ? { goalsOrCheckinsUnread: incomplete.slice(0, 5) } : {}),
+      ...(rec.ok ? {} : { sleepAndCheckinGaugesUnread: true }),
+      items: flagged.slice(0, TODAY_CAPS.flagged),
       ...(flagged.length > TODAY_CAPS.flagged ? { more: flagged.length - TODAY_CAPS.flagged } : {}),
     };
   } else {
