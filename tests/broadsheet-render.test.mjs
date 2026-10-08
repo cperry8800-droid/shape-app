@@ -992,13 +992,14 @@ test('the method editor explains a per-side step, and a range is a window from i
       { t: 'Simmer the sauce 8 to 10 minutes.', station: 'stove' },
       { t: 'Simmer 3 to 5 minutes.', station: 'stove' },
       { t: 'Plate it.', station: null },
+      { t: 'Sear the scallions 1 minute per side.', station: 'stove' },
     ] }],
   }));
   assert.equal(warnings.length, 0, warnings.join('\n'));
   // This harness's translator returns the default text without filling `{min}`, so these read
   // which hint each step gets; tests/coach-step-lengths.test.mjs pins the minutes.
   const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-  const hints = ['a', 'b', 'c', 'd'].map((k, i, all) => {
+  const hints = ['a', 'b', 'c', 'd', 'e'].map((k, i, all) => {
     const from = text.indexOf(` ${k}. `);
     const to = i + 1 < all.length ? text.indexOf(` ${all[i + 1]}. `) : text.indexOf('+ STEP');
     return text.slice(from, to).replace(/^.*? × ?/, '').trim();
@@ -1007,4 +1008,6 @@ test('the method editor explains a per-side step, and a range is a window from i
   assert.match(hints[1], /^◷ \{min\} min hands-off/, 'b: the range is a window');
   assert.match(hints[2], /^State a time of 4\+ minutes/, 'c: a range starting under 4 asks for a time');
   assert.equal(hints[3], '', 'd: hands-on, no hint');
+  // ⚠ Codex, on e4ea9ba: a per-side step too short to carry minutes got "state a time".
+  assert.match(hints[4], /^Timed per side, so the cook comes back to turn it/, 'e: per side, however short');
 });

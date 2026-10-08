@@ -32,8 +32,8 @@ const ON_SIDE = 'const BS_AUTHOR_PER_SIDE_RE = /^\\s+(?:on\\s+)?(?:a|each|per)\\
 const TERMINAL = '    c.stepMeta[c.steps.length - 1] = { ...lastMeta, passive: false };';
 const EDITOR = "ds[li] = { ...ds[li], passive: false };";
 const WINDOW = '  if (st && !time.perSide && time.seconds >= BS_AUTHOR_MIN_PASSIVE * 60) return { t, min: Math.round(time.seconds / 60), passive: true, station: st };';
-const HINT = 'const perSide = wantsWin && bsStepPerSide(s.t) && derived && derived.min;';
-const PER_SIDE_EXPORT = '  return !!(time && time.perSide);';
+const HINT = 'const perSideMin = wantsWin ? bsStepPerSideMin(s.t) : 0;';
+const PER_SIDE_EXPORT = '  return time && time.perSide ? Math.max(1, Math.round((time.seconds * 2) / 60)) : 0;';
 const COMPOUND = "  if (!low && next && unitRank(next) < unitRank(span) && /^\\s*(?:and\\s+)?$/i.test(t.slice(span.end, next.at))) {";
 const DE = 'mobile-app/src/i18n/catalogs/de/coach.json';
 
@@ -80,9 +80,11 @@ export default {
     { name: 'a hands-off pick on a per-side step is a window again', file: COOKABLE, find: WINDOW, replace: WINDOW.replace('!time.perSide && ', '') },
     { name: 'a hands-off window takes the top of its range', file: COOKABLE, find: WINDOW,
       replace: WINDOW.replace('time.seconds >= BS_AUTHOR_MIN_PASSIVE * 60) return { t, min: Math.round(time.seconds / 60)', 'bsStepTimers(t)[0].seconds >= BS_AUTHOR_MIN_PASSIVE * 60) return { t, min: Math.round(bsStepTimers(t)[0].seconds / 60)') },
-    { name: 'the editor\'s per-side hint never shows', file: PROS, find: HINT, replace: 'const perSide = false;' },
-    { name: 'the editor shows the per-side hint on every hint', file: PROS, find: HINT, replace: 'const perSide = wantsWin;' },
-    { name: 'bsStepPerSide never says per side', file: COOKABLE, find: PER_SIDE_EXPORT, replace: '  return false;' },
+    { name: 'the editor\'s per-side hint never shows', file: PROS, find: HINT, replace: 'const perSideMin = 0;' },
+    { name: 'the editor shows the per-side hint on every hint', file: PROS, find: HINT, replace: 'const perSideMin = wantsWin ? 8 : 0;' },
+    { name: 'a short per-side step gets "state a time" again (Codex, on e4ea9ba)', file: PROS, find: HINT, replace: 'const perSideMin = wantsWin && derived && derived.min ? bsStepPerSideMin(s.t) : 0;' },
+    { name: 'the per-side hint counts one side', file: COOKABLE, find: PER_SIDE_EXPORT, replace: PER_SIDE_EXPORT.replace('time.seconds * 2', 'time.seconds') },
+    { name: 'bsStepPerSideMin never says per side', file: COOKABLE, find: PER_SIDE_EXPORT, replace: '  return 0;' },
     { name: 'an hour-and-minute time reads as its hours alone (Codex, on the first head)', file: COOKABLE, find: COMPOUND, replace: '  if (false) {' },
     { name: 'two actions\' times add up as one', file: COOKABLE, find: COMPOUND, replace: '  if (!low && next) {' },
     { name: 'the same unit twice adds up as one', file: COOKABLE, find: COMPOUND, replace: COMPOUND.replace('unitRank(next) < unitRank(span)', 'unitRank(next) <= unitRank(span)') },

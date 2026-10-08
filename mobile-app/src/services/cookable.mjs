@@ -763,11 +763,14 @@ const authoredTime = (t) => {
   const perSide = /side$/i.test(t.slice(span.at, end)) || BS_AUTHOR_PER_SIDE_RE.test(t.slice(end));
   return { seconds, perSide };
 };
-// For the editor's hint: a step whose time is per side cannot be made hands-off by any time.
-export const bsStepPerSide = (text) => {
+// For the editor's hint: a step whose time is per side cannot be made hands-off by any time. The
+// minutes both sides take, at least 1; 0 when the step is not timed per side. ⚠ Codex: the hint
+// first read the derived step's minutes, which a per-side step under 4 minutes in all does not
+// carry, so "sear 1 minute per side" got "state a time of 4+ minutes", which no time can fix.
+export const bsStepPerSideMin = (text) => {
   const t = str(text);
   const time = t && !BS_AUTHOR_FRACTIONAL_RE.test(t) ? authoredTime(t) : null;
-  return !!(time && time.perSide);
+  return time && time.perSide ? Math.max(1, Math.round((time.seconds * 2) / 60)) : 0;
 };
 export const bsAuthorStep = (text, station) => {
   const t = str(text);

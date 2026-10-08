@@ -14,7 +14,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { bsAuthorStep, bsStepPerSide, bsCookableFromMeal } from '../mobile-app/src/services/cookable.mjs';
+import { bsAuthorStep, bsStepPerSideMin, bsCookableFromMeal } from '../mobile-app/src/services/cookable.mjs';
 import { bsOrchestrate, BS_COOK_MODE } from '../mobile-app/src/services/cookOrchestrator.mjs';
 import { bsTrackLanes } from '../mobile-app/src/services/cookBoard.mjs';
 
@@ -104,11 +104,17 @@ test('a hands-off pick on a per-side step is never a window: attended, both side
     ['Cook it 6 minutes on each side.', 12],
   ]) {
     assert.deepEqual(bsAuthorStep(text, 'stove'), { t: text, min, passive: false, station: 'stove' }, text);
-    assert.equal(bsStepPerSide(text), true, text);
+    assert.equal(bsStepPerSideMin(text), min, text);
   }
+  // ⚠ Codex, on e4ea9ba: a per-side step under 4 minutes in all carries no minutes, and the
+  // editor's hint read them from there, so it asked for a time no per-side step can use. The
+  // hint now reads the minutes both sides take, whatever they come to.
+  assert.deepEqual(bsAuthorStep('Sear 1 minute per side.', 'stove'), { t: 'Sear 1 minute per side.' }, 'under 4 in all: the planner\'s 3');
+  assert.equal(bsStepPerSideMin('Sear 1 minute per side.'), 2);
+  assert.equal(bsStepPerSideMin('Toast 20 seconds a side.'), 1, 'at least a minute');
   // The editor's hint names exactly this case, and nothing else.
   for (const text of ['Simmer 15 minutes, lid on.', 'Flip and cook 4 minutes on the other side.', 'Scatter it over the granola side, then rest 5 minutes.', 'Sear 1.5 minutes a side.', 'Plate it.', '', null]) {
-    assert.equal(bsStepPerSide(text), false, String(text));
+    assert.equal(bsStepPerSideMin(text), 0, String(text));
   }
 });
 
