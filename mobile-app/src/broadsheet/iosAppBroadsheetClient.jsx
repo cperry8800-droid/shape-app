@@ -25239,7 +25239,7 @@ function BSNoraProposal({ a, t }) {
       </div>
       <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 14, color: ink, lineHeight: 1.35 }}>{a.summary || a.label}</div>
       {diff.length > 0 && status !== 'undone' && (
-        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 280, overflowY: 'auto' }}>
+        <div className="bs-hide-scroll" style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 280, overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           {diff.map((d, i) => (isLine(d)
             ? (
               <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 6, fontFamily: mono, fontSize: 10, flexWrap: 'wrap', paddingLeft: d.label ? 0 : 10 }}>
