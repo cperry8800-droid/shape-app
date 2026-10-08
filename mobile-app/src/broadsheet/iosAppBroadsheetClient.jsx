@@ -8429,7 +8429,8 @@ const BS_CK_CSS = `
 .bsck.dev .cC .oven .in small{flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bsck.dev .cC .oven .win.two{grid-auto-flow:row;gap:2px}
 .bsck.dev .cC .oven .win.two .in{flex-wrap:nowrap}
-.bsck.dev .cC .oven .win.two .in b{flex:1 1 0}
+.bsck.dev .cC .oven .win.two .in b{flex:1 1 0;container-type:inline-size}
+@container (max-width:13.5px){.bsck.dev .cC .oven .win.two .in b>span{visibility:hidden}}
 .bsck.dev .cC .brd{grid-column:3/5;grid-row:3;padding:0 10px;gap:6px;font-size:12px;border-radius:12px}
 .bsck.dev .cC .brd .ico{width:18px;height:18px}
 .bsck.dev .cC .brd > span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -8565,6 +8566,10 @@ const BS_CK_CSS = `
 .bsck.web .cD .dtl .tl .rail{top:31px}
 .bsck.web .cD .dtl .tl .sb{top:27px;height:9px;border-radius:2.5px}
 .bsck.web .cD .dtl .tl .sb.cur{top:24px;height:15px;box-shadow:0 0 0 2px var(--p2),0 0 0 4px var(--i)}
+.bsck .cB .tl .cap{position:absolute;top:44px;font:600 11px/1.2 var(--f-b);color:var(--i50);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:4px;box-sizing:border-box}
+.bsck .cB .tl .cap.cur{color:var(--i85)}
+.bsck .cB .tl .cap.past{opacity:.5}
+.bsck.web .cD .dtl .tl.words .lane{height:62px}
 .bsck.web .cD .dtl .tl .ph b{top:7px;font-size:10px}
 .bsck.web .cD .dtl .tl .flag{top:20px}
 .bsck.web .cD .dtl .tl .endl{top:7px;font-size:10px}
@@ -8888,11 +8893,12 @@ function bsCkHob({ tr, occ, selected = null, onZone = null, nowText = null }) {
   const inner = (o, as = 'span', extra = {}) => {
     if (!o) return null;
     const name = bsCkShort(o.title);
+    const nameEl = <b key="b"><span>{name}</span></b>;
     const kids = o.kind === 'hold'
-      ? [<b key="b">{name}</b>, <span key="n" className="n">{o.up ? '0:00' : bsCkMmss(o.left)}</span>, o.up ? <small key="s">{tr('cook:timer.up', { defaultValue: "Time's up" })}</small> : null]
+      ? [nameEl, <span key="n" className="n">{o.up ? '0:00' : bsCkMmss(o.left)}</span>, o.up ? <small key="s">{tr('cook:timer.up', { defaultValue: "Time's up" })}</small> : null]
       : o.kind === 'now'
-        ? [<b key="b">{name}</b>, <small key="s">{nowText || tr('cook:ck.now', { defaultValue: 'Now' })}</small>]
-        : [<b key="b">{name}</b>, <small key="s">{tr('cook:ck.onHeat', { defaultValue: 'On the heat' })}</small>];
+        ? [nameEl, <small key="s">{nowText || tr('cook:ck.now', { defaultValue: 'Now' })}</small>]
+        : [nameEl, <small key="s">{tr('cook:ck.onHeat', { defaultValue: 'On the heat' })}</small>];
     return React.createElement(as, { className: 'in', ...extra }, ...kids);
   };
   // A zone is a button exactly when bsHobTappable says so, the same answer the card uses to
@@ -8948,6 +8954,30 @@ function bsCkHob({ tr, occ, selected = null, onZone = null, nowText = null }) {
 // An empty stove, for the plated screen (every burner off).
 const bsCkHobOff = (kitchen) => ({ burners: Math.min(BS_HOB_MAX.stove, Math.max(1, kitchen?.stove || 1)), ovens: Math.min(BS_HOB_MAX.oven, Math.max(1, kitchen?.oven || 1)), stove: [], oven: [], board: [], off: [], overflow: { stove: 0, oven: 0 } });
 
+// A step's opening words, for its caption under the bar on the website's timeline: the first
+// clause, at most six words, and the room before the dish's next step cuts the rest with an
+// ellipsis. A lead-in clause ("Meanwhile, pat the salmon dry", "Once it boils, add the pasta")
+// gives way to the one after it, because "Meanwhile" alone says nothing; a leading "Now" or
+// "Then" is dropped from its own clause ("Now spoon half the glaze over" is the instruction).
+// An en dash does not end a clause: it is the one in "12–15 minutes". Less room than
+// BS_CK_CAP_MIN gets no caption: two or three letters say nothing.
+const BS_CK_CAP_MIN = 40;
+const BS_CK_DANGLING = /^(a|an|the|to|in|into|on|onto|for|with|of|and|or|at|by|from|over|until|per|\d[\d½¼¾/–-]*)$/i;
+const BS_CK_LEAD_IN = /^(meanwhile|while|once|when|as soon as|as|after)\b|^(then|now|next|finally)$/i;
+const BS_CK_ADVERB = /^(then|now|next|finally)\s+/i;
+const bsCkFirstWords = (text, n = 6) => {
+  const clauses = String(text || '').split(/[—,;:(]|\.(?:\s|$)/).map((c) => c.trim()).filter(Boolean);
+  const pick = clauses.length > 1 && BS_CK_LEAD_IN.test(clauses[0]) ? clauses[1] : (clauses[0] || '').replace(BS_CK_ADVERB, '');
+  const all = pick.split(/\s+/).filter(Boolean);
+  const w = all.slice(0, n);
+  // Cut at six words a clause can stop mid-phrase ("Stir the frozen peas into the", "Warm the
+  // peanut butter for 10"): a trailing article, preposition or bare number goes, down to two
+  // words. A clause that ends on one by itself ("Nestle the chicken back in") keeps it.
+  if (all.length > n) while (w.length > 2 && BS_CK_DANGLING.test(w[w.length - 1])) w.pop();
+  const out = w.join(' ');
+  return out ? out[0].toUpperCase() + out.slice(1) : '';
+};
+
 // The tracks: one rail per dish across the minutes it cooks, a short bar per step at its
 // planned minute, the whole cook fitted to the width with a playhead at now (owner's pick A,
 // "Rails", 2026-10-08). Bars carry no digits: a step 3 minutes long is ~15px on a phone, too
@@ -8956,8 +8986,9 @@ const bsCkHobOff = (kitchen) => ({ burners: Math.min(BS_HOB_MAX.stove, Math.max(
 // { left, up } for a block with a timer running. `readyAt` names the end of the ruler, and is
 // the same time the top bar shows, so the screen never states two ready times; without it the
 // end is a dashed line only. `fit` is the plated screen: the finished cook, the playhead at its
-// end. Tapping it opens every step.
-function bsCkTracks({ tr, lanes, nowMin, span, width, anchor, colorOf, timerOf = () => null, onOpen, fit = false, readyAt = null }) {
+// end. `words` is the website's layout, wide enough to caption each bar with its step's
+// opening words. Tapping it opens every step.
+function bsCkTracks({ tr, lanes, nowMin, span, width, anchor, colorOf, timerOf = () => null, onOpen, fit = false, readyAt = null, words = false }) {
   const W = Math.max(200, width || 366);
   const S = Math.max(1, span || 1);
   const ppm = fit ? (W - 24) / S : (W - 40) / S;
@@ -9018,7 +9049,7 @@ function bsCkTracks({ tr, lanes, nowMin, span, width, anchor, colorOf, timerOf =
   const open = () => { if (onOpen) onOpen(); };
   return (
     <div className="cB dtl">
-      <div className="tl" role="button" tabIndex={0} onClick={open}
+      <div className={`tl${words ? ' words' : ''}`} role="button" tabIndex={0} onClick={open}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } }}
         aria-label={tr('cook:ck.timelineAria', { defaultValue: 'Timeline. Show all steps' })}>
         <div className="ruler" aria-hidden="true">{marks}</div>
@@ -9038,13 +9069,22 @@ function bsCkTracks({ tr, lanes, nowMin, span, width, anchor, colorOf, timerOf =
                 <span className={`st ${st.kind}`}>{statusText(st)}</span>
               </div>
               {rb > ra ? <span className="rail" style={{ left: ra, width: rb - ra }} /> : null}
-              {lane.blocks.map((b) => {
+              {lane.blocks.map((b, k) => {
                 const X = x(b.at);
                 const w = Math.max(4, (b.end - b.at) * ppm - 2);
                 if (X + w < -4 || X > W + 4) return null;
                 const tm = timerOf(b, lane);
-                const cls = ['sb', b.hold && 'hold', tm && 'live', b.past && !fit && !(tm && !tm.up) && 'past', b.current && !fit && 'cur'].filter(Boolean).join(' ');
-                return <span key={b.idx} className={cls} style={{ left: X + 1, width: w }} />;
+                const past = b.past && !fit && !(tm && !tm.up);
+                const cls = ['sb', b.hold && 'hold', tm && 'live', past && 'past', b.current && !fit && 'cur'].filter(Boolean).join(' ');
+                const bar = <span key={b.idx} className={cls} style={{ left: X + 1, width: w }} />;
+                if (!words) return bar;
+                // The caption may run on past its bar to where the dish's next step starts, or to the
+                // end of the cook, never into the next caption or past the right edge.
+                const next = lane.blocks[k + 1];
+                const room = Math.min(next ? x(next.at) : Math.max(X + w + 1, fx), W) - X - 6;
+                const cap = room >= BS_CK_CAP_MIN ? bsCkFirstWords(b.text) : '';
+                if (!cap) return bar;
+                return [bar, <span key={`c${b.idx}`} className={`cap${past ? ' past' : ''}${b.current && !fit ? ' cur' : ''}`} style={{ left: X + 1, width: room }}>{cap}</span>];
               })}
             </div>
           );
@@ -10059,7 +10099,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   };
   const trackW = layout.w > 0 ? (layout.web ? layout.w - (layout.full ? 64 : 40) : layout.w - 24) : 366;
   const tracksFor = (fit) => (tracksOn && lanes.length > 0 && hasMethod
-    ? bsCkTracks({ tr, lanes, nowMin: fit ? bsPlanEnd(seq.tl) : nowMin, span: bsPlanEnd(seq.tl), width: trackW, anchor: fit ? startRef.current : clockAnchor, colorOf: (ln) => dishColor(ln.iid), timerOf: holdOf, onOpen: () => setSheet('steps'), fit, readyAt: fit ? null : finishAt })
+    ? bsCkTracks({ tr, lanes, nowMin: fit ? bsPlanEnd(seq.tl) : nowMin, span: bsPlanEnd(seq.tl), width: trackW, anchor: fit ? startRef.current : clockAnchor, colorOf: (ln) => dishColor(ln.iid), timerOf: holdOf, onOpen: () => setSheet('steps'), fit, readyAt: fit ? null : finishAt, words: layout.web })
     : null);
 
   const selHold = running.find((x) => x.id === selectedHold && stationOf(x.stepIdx)) || null;
@@ -10725,7 +10765,7 @@ function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, se
   };
   const trackW = layout.w > 0 ? (layout.web ? layout.w - (layout.full ? 64 : 40) : layout.w - 24) : 366;
   const tracks = tracksOn && lanes.length > 0
-    ? bsCkTracks({ tr, lanes, nowMin, span: bsPlanEnd(timeline), width: trackW, anchor, colorOf: (ln) => colorOfIid(ln.iid), timerOf: holdOf, onOpen: () => setSheet('steps'), readyAt: finishAt })
+    ? bsCkTracks({ tr, lanes, nowMin, span: bsPlanEnd(timeline), width: trackW, anchor, colorOf: (ln) => colorOfIid(ln.iid), timerOf: holdOf, onOpen: () => setSheet('steps'), readyAt: finishAt, words: layout.web })
     : null;
   const hob = bsCkHob({
     tr, occ, selected: selHold ? selHold.id : null,
@@ -11835,7 +11875,7 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
       const h = carried.find((x) => x.dishIndex === ln.iid && x.stepIdx === b.step);
       return h ? { left: leftOf(h), up: !(h.endsAt > sessionNow) } : null;
     };
-    return bsCkTracks({ tr, lanes, nowMin, span: end, width: trackW, anchor: Number.isFinite(anchor) ? anchor : sessionNow - nowMin * 60000, colorOf: (ln) => colorOf(ln.iid), timerOf, onOpen: () => setSheet('steps'), fit });
+    return bsCkTracks({ tr, lanes, nowMin, span: end, width: trackW, anchor: Number.isFinite(anchor) ? anchor : sessionNow - nowMin * 60000, colorOf: (ln) => colorOf(ln.iid), timerOf, onOpen: () => setSheet('steps'), fit, words: layout.web });
   };
   const cur = ordered[cookIdx];
   const prev = cookIdx > 0 ? ordered[cookIdx - 1] : null;
@@ -12422,6 +12462,16 @@ function BSPrepTonightCook({ slug, group = null, onClose }) {
   return <BSCookMode cookable={cookable} prepGroup={owed} onClose={onClose} />;
 }
 
+// A demo-plan step that states its own time, carried as authored data: the minutes it states,
+// the station it uses, and attended (`passive: false`). Prep the week then draws "Roast 25
+// minutes" as 25 minutes instead of the planner's assumed 3 for a step with no length. It is
+// the catalog's rule (a step's minutes are the ones its own text states, never parsed at plan
+// time, cookOrchestrator.mjs's stepCost) and the shape a coach's plan carries; nothing is
+// made a hands-off window, so no dish is scheduled to cook during another's step. A step timed
+// per side ("4 minutes a side") takes both sides, 8. Steps under 4 minutes in all keep the
+// planner's 3. tests/prep-week-step-lengths.test.mjs holds the plan to it.
+const bsTimedStep = (t, min, station) => ({ t, min, passive: false, station });
+
 function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initialView = '', onStartConsumed = () => {}, cookWith = null, onCookWithConsumed = () => {}, prepTonight = null, onPrepTonightConsumed = () => {} }) {
   const t = useBS();
   const tr = useShapeTr();   // cook:prep.* chrome (PR C) — never shadows the theme t
@@ -12690,7 +12740,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
           ],
           steps: [
             'Bring the milk and 100 ml water to a bare simmer, then stir the oats in. Starting them in liquid that is already hot keeps the grains separate instead of gluey.',
-            'Simmer 5 minutes, stirring now and then, until the oats hold a spoon-trail and the liquid has thickened around them rather than pooling.',
+            bsTimedStep('Simmer 5 minutes, stirring now and then, until the oats hold a spoon-trail and the liquid has thickened around them rather than pooling.', 5, 'stove'),
             'Off the heat, stir the peanut butter through while everything is still hot — it ribbons in; added cold it sits in lumps.',
             'Slice the banana over the top so it warms through without breaking down.',
             'Dust with cinnamon and eat straight away, before the oats set.',
@@ -12709,9 +12759,9 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
           ],
           steps: [
             'Heat the oven to 220°C / 425°F and toss the sweet potato cubes in oil and salt until every face is coated — a dry cube steams and goes soft rather than crisping.',
-            'Roast 25 minutes on a single uncrowded layer, turning once, until the edges caramelise and a fork slides in with no resistance.',
+            bsTimedStep('Roast 25 minutes on a single uncrowded layer, turning once, until the edges caramelise and a fork slides in with no resistance.', 25, 'oven'),
             'Meanwhile get a heavy pan properly hot, add the beef in one layer and leave it alone so it browns rather than stews in its own liquid.',
-            'Break it up, stir in the cumin and paprika, and cook 6 minutes more until no pink remains and the spices smell toasted.',
+            bsTimedStep('Break it up, stir in the cumin and paprika, and cook 6 minutes more until no pink remains and the spices smell toasted.', 6, 'stove'),
             'Warm the beans through with a splash of their own liquid so they stay whole.',
             'Build the bowl — potato, beef, beans — then add the salsa and avocado last so they stay cool against the hot base.',
           ],
@@ -12744,7 +12794,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
           ],
           steps: [
             'Warm the chili over medium-low with a splash of water, stirring so the base does not catch and scorch.',
-            'Give it 8 minutes, until it steams from the middle rather than just at the edges.',
+            bsTimedStep('Give it 8 minutes, until it steams from the middle rather than just at the edges.', 8, 'stove'),
             'Spoon the rice into a wide bowl and press a shallow well into the centre for the chili to sit in.',
             'Ladle the chili over, add the sour cream off to one side so it stays cool, and scatter the scallion last.',
           ],
@@ -12802,7 +12852,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
           steps: [
             'Whisk the eggs with a pinch of salt until they are one even colour — streaks of unmixed white set rubbery.',
             'Pour into a cold non-stick pan and set it over LOW heat. Low and slow is the whole technique; high heat makes eggs squeak and weep.',
-            'Cook 4 minutes, dragging the spoon slowly through, until they form soft folds that still look glossy — they keep setting off the heat.',
+            bsTimedStep('Cook 4 minutes, dragging the spoon slowly through, until they form soft folds that still look glossy — they keep setting off the heat.', 4, 'stove'),
             'Toast the bread while the eggs cook and smear the avocado on while it is warm, so it spreads instead of tearing.',
             'Pile the eggs onto the toast and dust with chili.',
           ],
@@ -12834,10 +12884,10 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
           ],
           steps: [
             'Rinse the rice until the water runs clear, then cook it 1 part rice to 1 and a half parts salted water.',
-            'Bring to a boil, cover, drop to the lowest heat and leave it 12 minutes — do not lift the lid, the trapped steam is doing the cooking.',
-            'Heat the oven to 220°C / 425°F and roast the veg 15 minutes, flipping halfway, until the edges char and catch.',
+            bsTimedStep('Bring to a boil, cover, drop to the lowest heat and leave it 12 minutes — do not lift the lid, the trapped steam is doing the cooking.', 12, 'stove'),
+            bsTimedStep('Heat the oven to 220°C / 425°F and roast the veg 15 minutes, flipping halfway, until the edges char and catch.', 15, 'oven'),
             'Season the chicken with salt and paprika and pat it dry, then lay it into a hot pan.',
-            'Give it 4 minutes a side without moving it, until it releases cleanly and the thickest point reads 74°C / 165°F — clear juices are not a doneness test.',
+            bsTimedStep('Give it 4 minutes a side without moving it, until it releases cleanly and the thickest point reads 74°C / 165°F — clear juices are not a doneness test.', 8, 'stove'),
             'Whisk the tahini with the lemon, adding the warm water a splash at a time — it seizes and stiffens before it loosens, so keep going past that point until it pours.',
             'Fluff the rice with a fork, build the bowl, and drizzle the sauce over at the end.',
           ],
@@ -12872,7 +12922,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
             'Pat the cod dry and season both sides. Cod carries a lot of water, and a wet fillet steams and falls apart instead of browning.',
             'Sear 3 minutes on the first side in a hot pan without moving it, until the edge turns opaque and it lifts without sticking.',
             'Flip and give it 3 minutes more — it is done when the flesh flakes along its natural lines under gentle pressure.',
-            'Steam the broccoli 4 minutes, until it is bright green and a knife tip meets slight resistance. Past that it greys and softens.',
+            bsTimedStep('Steam the broccoli 4 minutes, until it is bright green and a knife tip meets slight resistance. Past that it greys and softens.', 4, 'stove'),
             'Plate the rice, lay the fish alongside, add the broccoli, and squeeze the lemon over at the very end.',
           ],
           coachNote: 'Cod is forgiving. Fillet thickness matters more than timing — go by feel.',
@@ -12961,7 +13011,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
           ],
           steps: [
             'Stir the chia through the skyr until no dry seeds are visible on the surface or clumped at the bottom.',
-            'Leave it 10 minutes, then stir again — the second stir breaks up the gel pockets that form as the seeds swell.',
+            bsTimedStep('Leave it 10 minutes, then stir again — the second stir breaks up the gel pockets that form as the seeds swell.', 10, 'off'),
             'It is ready when the seeds have plumped and the whole thing holds a spoon upright.',
           ],
           coachNote: 'Skyr is denser than Greek yogurt. Same protein, fewer calories.',
@@ -12978,7 +13028,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
           steps: [
             'Heat the oven to 220°C / 425°F and cut the veg to a similar size, so nothing burns while the rest is still raw.',
             'Toss with olive oil and salt until glossy, then spread them out with space between each piece — crowded veg steams instead of roasting.',
-            'Roast 22 minutes, turning once, until the edges brown and the thickest pieces give under a fork.',
+            bsTimedStep('Roast 22 minutes, turning once, until the edges brown and the thickest pieces give under a fork.', 22, 'oven'),
             'Tip them onto the plate while hot and crumble the feta over so it softens against the heat. Scatter the olives.',
             'Toast the bread and serve alongside, for scooping up whatever is left on the plate.',
           ],
@@ -13034,7 +13084,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
             { n: '50 g',  m: 'Spinach',         k: '12 kcal' },
           ],
           steps: [
-            'Bring the water to a simmer, stir the oats in, and cook 5 minutes until thick enough to mound on a spoon.',
+            bsTimedStep('Bring the water to a simmer, stir the oats in, and cook 5 minutes until thick enough to mound on a spoon.', 5, 'stove'),
             'Whisk the eggs until completely uniform, with no ropes of white left in them.',
             'Melt the butter in a pan over low heat and pour the eggs in. Push them slowly from the edge to the middle rather than stirring — big soft curds, not fine grains.',
             'While they are still slightly loose, add the spinach and fold it through; the residual heat wilts it without cooking the eggs any further.',
@@ -13068,9 +13118,9 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
           ],
           steps: [
             'Salt the steak and leave it out while you start the rice — straight from the fridge it cooks unevenly, grey at the edge before the middle is warm.',
-            'Cook the rice 1 part to 1 and a half parts salted water, covered, 12 minutes on the lowest heat.',
-            'Get the pan almost smoking, then sear the steak 3 minutes a side without moving it, until a dark crust forms and it releases on its own.',
-            'Rest it 5 minutes on a board. Cut it straight off the heat and the juice runs out onto the board instead of staying in the meat.',
+            bsTimedStep('Cook the rice 1 part to 1 and a half parts salted water, covered, 12 minutes on the lowest heat.', 12, 'stove'),
+            bsTimedStep('Get the pan almost smoking, then sear the steak 3 minutes a side without moving it, until a dark crust forms and it releases on its own.', 6, 'stove'),
+            bsTimedStep('Rest it 5 minutes on a board. Cut it straight off the heat and the juice runs out onto the board instead of staying in the meat.', 5, 'off'),
             'Slice against the grain — find the direction the fibres run and cut across them — then plate over the rice with the slaw.',
           ],
           coachNote: 'Rest the steak. Cutting hot meat costs you 20% of the moisture.',
@@ -13162,7 +13212,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
         { n: '8 g',   m: 'Walnuts',            k: '52 kcal' },
       ],
       steps: [
-        'Cook oats in 250 ml water — simmer 4 min, stir occasionally.',
+        bsTimedStep('Cook oats in 250 ml water — simmer 4 min, stir occasionally.', 4, 'stove'),
         'Off heat: stir in chia, let bloom 1 min.',
         'Whisk whey with 60 ml cold water, fold into oats once cooled slightly.',
         'Top with berries + chopped walnuts.',
@@ -13197,9 +13247,9 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
         { n: '½',     m: 'Lemon',              k: '5 kcal' },
       ],
       steps: [
-        'Season chicken with salt + paprika, sear 4 min/side over medium-high, to 74°C / 165°F at the thickest point.',
-        'Cook the rice 1 part to 1 and a half parts salted water. Cover, lowest heat, 12 minutes, then fluff with a fork.',
-        'Roast veg at 220°C / 425°F for 15 min, flipping halfway.',
+        bsTimedStep('Season chicken with salt + paprika, sear 4 min/side over medium-high, to 74°C / 165°F at the thickest point.', 8, 'stove'),
+        bsTimedStep('Cook the rice 1 part to 1 and a half parts salted water. Cover, lowest heat, 12 minutes, then fluff with a fork.', 12, 'stove'),
+        bsTimedStep('Roast veg at 220°C / 425°F for 15 min, flipping halfway.', 15, 'oven'),
         'Whisk tahini + lemon + 30 ml warm water until pourable.',
         'Plate rice, top with chicken + veg, drizzle sauce.',
       ],
@@ -13234,9 +13284,9 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
       ],
       steps: [
         'Pat the salmon dry and season both sides — a wet fillet steams instead of searing.',
-        'Lay it skin-side down in a hot pan and leave it 4 minutes, until the skin releases on its own.',
+        bsTimedStep('Lay it skin-side down in a hot pan and leave it 4 minutes, until the skin releases on its own.', 4, 'stove'),
         'Flip and give it 2 minutes more, until the thickest part flakes when nudged.',
-        'Quinoa: 1:2 water, simmer covered 12 min. Squeeze lemon to finish.',
+        bsTimedStep('Quinoa: 1:2 water, simmer covered 12 min. Squeeze lemon to finish.', 12, 'stove'),
         'Sauté garlic in oil 30 sec. Toss in kale, cook until just wilted.',
         'Plate quinoa + greens, top with salmon.',
       ],
@@ -13302,7 +13352,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
           ],
           steps: [
             'Lower the eggs into already-boiling water on a spoon, so they do not crack against the base of the pan.',
-            'Boil 6 minutes for a set white and a jammy yolk, then lift them straight into cold water.',
+            bsTimedStep('Boil 6 minutes for a set white and a jammy yolk, then lift them straight into cold water.', 6, 'stove'),
             'The cold shock stops the cooking and pulls the egg away from the shell, which is what makes them peel cleanly.',
             'Toast the bread, slice the banana over it while it is warm, and drizzle the honey so it runs into the gaps.',
             'Halve the eggs, lay them alongside, and salt the yolks directly.',
@@ -13343,7 +13393,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
             'Whisk the soy and honey together with the grated ginger until the honey has fully dissolved and the glaze pours glossy instead of streaky. Undissolved honey sits on the fish and scorches the moment it hits the pan.',
             'Pat the salmon completely dry on both sides. A damp fillet steams rather than sears, and the glaze slides straight off a wet surface.',
             'Set a non-stick pan over medium-high until a flick of water skitters across it. Lay the salmon in skin-side down and press it flat for a moment so the whole skin makes contact.',
-            'Sear undisturbed 4 minutes, until the skin releases from the pan on its own and the flesh has turned opaque about a third of the way up the fillet.',
+            bsTimedStep('Sear undisturbed 4 minutes, until the skin releases from the pan on its own and the flesh has turned opaque about a third of the way up the fillet.', 4, 'stove'),
             'Flip and cook 90 seconds — the thickest part should be close to flaking.',
             'Now spoon half the glaze over and give it a final 30 seconds. Honey scorches in about a minute at this heat, which is exactly what the coach note is warning about — so it goes on at the END of the cook, not the start of it.',
             'Off the heat, brush on the rest of the glaze and let it tighten against the residual warmth. Bowl the rice, ribbon the cucumber over it, add the edamame, lay the salmon on top and scatter the sesame.',
@@ -13421,9 +13471,9 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
             { n: '60 g',  m: 'Sourdough',     k: '160 kcal' },
           ],
           steps: [
-            'Sauté the veg 4 minutes, until they have given up their water and started to colour — wet veg makes a weeping omelette.',
+            bsTimedStep('Sauté the veg 4 minutes, until they have given up their water and started to colour — wet veg makes a weeping omelette.', 4, 'stove'),
             'Whisk the eggs until uniform and pour them over, tilting the pan so they run to the edges.',
-            'Cook on low 5 minutes. Low heat is what keeps an omelette tender; high heat browns it and turns it rubbery.',
+            bsTimedStep('Cook on low 5 minutes. Low heat is what keeps an omelette tender; high heat browns it and turns it rubbery.', 5, 'stove'),
             'When the top is just set but still glossy, crumble the feta over one half and fold the other across it.',
             'Slide it onto the plate and serve with the toasted sourdough.',
           ],
@@ -13441,7 +13491,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
           ],
           steps: [
             'Heat the oven to 200°C / 400°F. Salt the thighs and pat the skin dry — salt pulls moisture out, and dry skin is the only way it crisps.',
-            'Roast skin-side up 35 minutes, undisturbed, until the skin is deep gold and the thickest part reads 74°C / 165°F — keep the probe off the bone, which reads hotter than the meat.',
+            bsTimedStep('Roast skin-side up 35 minutes, undisturbed, until the skin is deep gold and the thickest part reads 74°C / 165°F — keep the probe off the bone, which reads hotter than the meat.', 35, 'oven'),
             'Let them sit out of the oven for a few minutes while you dress the greens.',
             'Toss the greens with olive oil and lemon only just before serving; dressed early they wilt and collapse.',
             'Plate the chicken, tear the bread, and spoon the pan drippings over the greens — that fat is the best thing in the tray.',
@@ -13461,7 +13511,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
             'Blend the roasted tomato with the garlic and basil, adding the warm stock gradually until it pours the way you want it.',
             'Warm it through gently — blended soup brought to a boil catches on the base and turns bitter.',
             'Butter the OUTSIDE faces of the bread, not the inside, and lay the cheese in an even layer right to the edges.',
-            'Grill 3 minutes a side over medium-low, pressing lightly, until the crust is deep brown and the cheese has gone molten right through.',
+            bsTimedStep('Grill 3 minutes a side over medium-low, pressing lightly, until the crust is deep brown and the cheese has gone molten right through.', 6, 'stove'),
             'Cut it corner to corner and serve with the soup deep in the bowl, for dunking.',
           ],
           coachNote: 'Sunday dinner is the antidote. Eat it without phones.',

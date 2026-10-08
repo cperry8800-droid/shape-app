@@ -208,3 +208,94 @@ test('a ruler time at the very left edge is left out, not cut', () => {
     assert.ok(d.marks.length >= 2, 'the ruler still draws its other times');
   }
 });
+
+// ── the website's captions ──────────────────────────────────────────────────
+// The website's timeline is wide enough to say what each step is, which the old chips did
+// ("1 · Heat the oven to") and the first rails did not. So on the website each bar is captioned
+// with its step's opening words, in the room before the dish's next step; the phone, 32px a
+// lane, keeps the bars bare.
+
+const { bsCkFirstWords, BS_CK_CAP_MIN } = await loadBroadsheet(['bsCkFirstWords', 'BS_CK_CAP_MIN'], React);
+
+test('a caption is the step\'s opening words: a lead-in gives way, a range stays whole, a cut never dangles', () => {
+  assert.equal(bsCkFirstWords('Heat the oven to 425°F and line a sheet pan with parchment.'), 'Heat the oven to 425°F');
+  assert.equal(bsCkFirstWords('Meanwhile, pat the salmon dry and rub it with a little oil.'), 'Pat the salmon dry and rub');
+  assert.equal(bsCkFirstWords('While it roasts, make the couscous.'), 'Make the couscous');
+  assert.equal(bsCkFirstWords('Assemble the bowls, then serve.'), 'Assemble the bowls', '"As" is a lead-in only as a word of its own');
+  assert.equal(bsCkFirstWords('Once it boils, add the pasta.'), 'Add the pasta');
+  // A leading "Now" or "Then" opens the instruction itself, which must not be skipped for the
+  // clause after it ("Honey scorches in about a minute", in the demo plan's salmon bowl).
+  assert.equal(bsCkFirstWords('Now spoon half the glaze over and give it a final 30 seconds. Honey scorches in about a minute.'), 'Spoon half the glaze');
+  assert.equal(bsCkFirstWords('Then add the garlic and stir.'), 'Add the garlic and stir');
+  assert.equal(bsCkFirstWords('Finally, scatter the herbs.'), 'Scatter the herbs');
+  assert.equal(bsCkFirstWords('Now.'), 'Now', 'a step that is only the word keeps it');
+  assert.equal(bsCkFirstWords('Roast another 12–15 minutes, until the broccoli edges char.'), 'Roast another 12–15 minutes');
+  assert.equal(bsCkFirstWords('Stir the frozen peas into the rice and cover.'), 'Stir the frozen peas');
+  assert.equal(bsCkFirstWords('Warm the peanut butter for 10 seconds.'), 'Warm the peanut butter');
+  assert.equal(bsCkFirstWords('Nestle the chicken back in, skin side up.'), 'Nestle the chicken back in', 'a clause that ends on "in" by itself keeps it');
+  assert.equal(bsCkFirstWords('Add 1.5 cups of stock. Simmer.'), 'Add 1.5 cups of stock', 'a decimal point is not the end of a sentence');
+  assert.equal(bsCkFirstWords('Whisk'), 'Whisk');
+  assert.equal(bsCkFirstWords(''), '');
+  assert.equal(bsCkFirstWords(null), '');
+});
+
+const caps = (html) => [...html.matchAll(/<span class="(cap[^"]*)" style="left:([-\d.e]+)px;width:([\d.e]+)px">([^<]*)<\/span>/g)]
+  .map((m) => ({ cls: m[1].split(' '), left: +m[2], width: +m[3], text: unescape(m[4]) }));
+
+test('on the website each bar is captioned, in the room before the dish\'s next step', () => {
+  const W = 1216; // the 1280px website layout's track, measured
+  const at3 = bsTrackLanes(SERIAL, 3);
+  const phone = draw({ lanes: at3, nowMin: 9, width: W });
+  assert.equal(caps(phone.html).length, 0, 'a caption without `words`: the phone has no room for one');
+  assert.match(phone.html, /<div class="tl"/);
+  const d = draw({ lanes: at3, nowMin: 9, width: W, words: true });
+  assert.match(d.html, /<div class="tl words"/, 'the class that gives the website\'s lanes their caption row');
+  const c = caps(d.html);
+  const bars = d.lanes.flatMap((l) => l.bars);
+  assert.equal(c.length, bars.length, 'one caption per bar');
+  assert.deepEqual(c.slice(0, 3).map((x) => x.text), ['Step 1', 'Step 2', 'Step 3']);
+  for (let i = 0; i < c.length; i++) assert.equal(c[i].left, bars[i].left, 'a caption starts under its bar');
+  // Within a dish, a caption ends before the next bar begins; the last one inside the strip.
+  for (const l of d.lanes) {
+    const lc = caps(d.html).filter((x) => l.bars.some((b) => b.left === x.left));
+    for (let i = 0; i < lc.length; i++) {
+      const end = lc[i].left + lc[i].width;
+      if (i + 1 < lc.length) assert.ok(end <= lc[i + 1].left - 4, `caption ${i} runs into the next: ${end} vs ${lc[i + 1].left}`);
+      else assert.ok(end <= W, `the last caption runs past the strip: ${end}`);
+    }
+  }
+  assert.deepEqual(c.slice(0, 4).map((x) => x.cls.filter((k) => k !== 'cap')), [['past'], ['past'], ['past'], ['cur']]);
+});
+
+test('a caption runs on past its bar into the gap before the next step, and is left out where there is no room', () => {
+  const tl = [ev(0, 0, 0, 3, { text: 'Heat the oven to 425°F and line a pan.' }), ev(0, 1, 10, 3, { text: 'Roast 25 minutes.' })];
+  const d = draw({ lanes: bsTrackLanes(tl, 0), nowMin: 0, span: 13, width: 600, words: true });
+  const [heat] = caps(d.html);
+  assert.equal(heat.text, 'Heat the oven to 425°F');
+  assert.ok(heat.width > d.lanes[0].bars[0].width * 2, `held to its bar (${heat.width}) with seven empty minutes after it`);
+  // A 45-minute cook in 366px leaves a 3-minute step ~22px before the next one: no caption. A
+  // dish's last step has the rest of the cook after it, so the first two dishes keep theirs.
+  const narrow = draw({ lanes: bsTrackLanes(SERIAL, 0), nowMin: 0, words: true });
+  assert.deepEqual(caps(narrow.html).map((x) => x.text), ['Step 6', 'Step 5'], `a caption in under ${BS_CK_CAP_MIN}px`);
+  assert.ok(caps(narrow.html).every((x) => x.width >= BS_CK_CAP_MIN));
+  // A step that runs past the strip's end (a span shorter than the plan) has its caption cut
+  // at the edge with an ellipsis, not at the strip's overflow mid-letter.
+  const long = [ev(0, 0, 0, 3, { text: 'Heat the oven.' }), ev(0, 1, 10, 40, { text: 'Roast until deep brown.' })];
+  const past = draw({ lanes: bsTrackLanes(long, 0), nowMin: 0, span: 13, width: 600, words: true });
+  const roast = caps(past.html).find((x) => x.text === 'Roast until deep brown');
+  assert.ok(roast && roast.left + roast.width <= 600, `the caption runs past the strip: ${roast && roast.left + roast.width}`);
+});
+
+test('every cook screen hands the timeline its layout, and the website\'s lanes make room for a caption', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx', 'utf8');
+  const calls = src.match(/(?<!function )bsCkTracks\(\{[^\n]*\}\)/g) || [];
+  assert.equal(calls.length, 3, 'a cook screen was added or removed: check it passes `words`');
+  for (const call of calls) assert.match(call, /words: layout\.web \}\)/, `a cook screen draws the timeline without its layout: ${call.slice(0, 60)}`);
+  const lane = src.match(/^\.bsck\.web \.cD \.dtl \.tl\.words \.lane\{height:(\d+)px\}$/m);
+  const cap = src.match(/^\.bsck \.cB \.tl \.cap\{position:absolute;top:(\d+)px;/m);
+  const cur = src.match(/^\.bsck\.web \.cD \.dtl \.tl \.sb\.cur\{top:(\d+)px;height:(\d+)px;/m);
+  assert.ok(lane && cap && cur, 'a rule the caption row rests on is gone');
+  assert.ok(+cap[1] >= +cur[1] + +cur[2] + 4, 'a caption sits under the ring of the step in front of the cook');
+  assert.ok(+lane[1] >= +cap[1] + 15, 'the lane is too short for its caption row');
+});
