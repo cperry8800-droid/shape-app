@@ -25048,6 +25048,19 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
   // to call in any state.
   const holdEnd = () => { holdingRef.current = false; stopVoice(); };
   React.useEffect(() => () => stopVoice(), []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Talk to Nora takes the mic (BSNoraTalk.jsx sends shape:stopDictation): a dictation in
+  // progress is dropped, not transcribed, so no recorder stays live behind her view (Codex, #2252).
+  React.useEffect(() => {
+    if (!voice) return undefined;
+    const drop = () => {
+      holdingRef.current = false;
+      try { if (recogRef.current) recogRef.current.stop(); } catch (e) {}
+      const mr = recRef.current;
+      if (mr && mr.state === 'recording') { mr._bsCancel = true; try { mr.stop(); } catch (e) {} }
+    };
+    window.addEventListener('shape:stopDictation', drop);
+    return () => window.removeEventListener('shape:stopDictation', drop);
+  }, [voice]);
 
   // When pinned, render through a portal into #bs-composer-slot — a node that
   // lives inside the phone-frame container (next to the tab bar). The slot is

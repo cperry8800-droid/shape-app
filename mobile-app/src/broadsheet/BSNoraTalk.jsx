@@ -58,7 +58,13 @@ export function useNoraTalk(ask) {
   }
   React.useEffect(() => () => { loopRef.current?.end(); }, []);
   const loop = loopRef.current;
-  return { ...view, ringRef, start: () => loop.start(), tap: () => loop.tap(), end: () => loop.end() };
+  // Talk takes the mic: the composer drops a dictation in progress first, or its recorder
+  // stays live behind this view (Codex, #2252). Still synchronous, still inside the tap.
+  const start = () => {
+    try { window.dispatchEvent(new CustomEvent('shape:stopDictation')); } catch (e) {}
+    return loop.start();
+  };
+  return { ...view, ringRef, start, tap: () => loop.tap(), end: () => loop.end() };
 }
 
 export function bsNoraTalkStatus(tr, state, info) {

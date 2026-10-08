@@ -116,8 +116,9 @@ test('tapping her face while she speaks interrupts and listens; her clip ending 
   r.loop.tap(); await flush(); // send now
   assert.equal(r.loop.state, 'speaking');
   const before = r.log.recorders.length;
+  const stopsBefore = r.log.stops;
   r.loop.tap(); await flush();
-  assert.equal(r.log.stops, 1);
+  assert.equal(r.log.stops, stopsBefore + 1, 'the tap stops her');
   assert.equal(r.loop.state, 'listening');
   await flush();
   assert.equal(r.log.recorders.length, before + 1, 'one new turn, not two');
@@ -195,4 +196,13 @@ test('a refused transcription says why: signed out, or not a member', async () =
     loop.tap(); await flush();
     assert.deepEqual(last, ['error', { reason }], `status ${status}`);
   }
+});
+
+test('starting stops whatever she is reading before the mic opens (Codex, #2252)', async () => {
+  const r = rig();
+  r.loop.start();
+  assert.equal(r.log.stops, 1, 'a Listen clip still playing would be recorded as your turn');
+  assert.equal(r.log.mics, 0, 'and it stops before the mic is asked for');
+  await flush();
+  assert.equal(r.log.mics, 1);
 });

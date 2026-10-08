@@ -149,6 +149,8 @@ export function createVoiceLoop(deps) {
   function start() {
     if (state !== 'idle' && state !== 'error') return undefined;
     const my = ++session;
+    // Whatever she is reading stops first, or the mic would record her as your turn (Codex, #2252).
+    try { d.stopSpeaking && d.stopSpeaking(); } catch (e) {}
     // Both unlocks happen here, before the first await, inside the tap.
     try { ctx = d.AudioContext ? new d.AudioContext() : null; if (ctx && ctx.resume) ctx.resume().catch(() => {}); } catch (e) { ctx = null; }
     try { d.prime && d.prime(); } catch (e) {}

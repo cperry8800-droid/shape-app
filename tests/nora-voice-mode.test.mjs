@@ -133,3 +133,14 @@ test('app sheet: Talk starts in the tap; Listen shows Loading and Stop and speak
   assert.match(sheet, /if \(!opts\.silent\) \{ try \{ if \(window\.ShapeVoice\?\.enabled\?\.\(\)\) window\.ShapeVoice\.prime\?\.\(\); \} catch \(e\) \{\} \}/);
   assert.match(sheet, /if \(!opts\.silent && window\.ShapeVoice && window\.ShapeVoice\.enabled\(\)\) speakReply\(reply\);/);
 });
+
+test('app: Talk takes the mic from a dictation in progress, which is dropped, not transcribed (Codex, #2252)', () => {
+  const talk = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSNoraTalk.jsx'), 'utf8');
+  const start = between(talk, 'const start = () => {', '};');
+  assert.ok(start.indexOf("dispatchEvent(new CustomEvent('shape:stopDictation'))") >= 0 && start.indexOf("dispatchEvent(new CustomEvent('shape:stopDictation'))") < start.indexOf('loop.start()'), 'the composer lets go before Talk opens the mic');
+  const composer = between(APP, 'function BSMessageComposer(', '// When pinned, render through a portal');
+  assert.match(composer, /window\.addEventListener\('shape:stopDictation', drop\);/);
+  assert.match(composer, /if \(mr && mr\.state === 'recording'\) \{ mr\._bsCancel = true; try \{ mr\.stop\(\); \} catch \(e\) \{\} \}/, 'cancelled, so nothing is transcribed into the hidden draft');
+  // The website's Talk stops its own dictation the same way, in the tap.
+  assert.match(between(WEB, 'const startTalk = () => {', '};'), /stopVoice\(\);[^\n]*\n\s*loop\.start\(\);/);
+});
