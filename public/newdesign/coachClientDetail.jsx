@@ -351,6 +351,9 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
   const params = new URLSearchParams(window.location.hash.includes("?") ? window.location.hash.split("?")[1] : window.location.search);
   const clientId = clientIdProp || params.get("id");
   const targetSection = params.get("section");
+  // Nora's "this client" (the Ask Nora plan, step 4): the server names them only when
+  // they are on this coach's own roster.
+  React.useEffect(() => (clientId && window.shapeNoraOpen ? window.shapeNoraOpen({ clientId }) : undefined), [clientId]);
   React.useEffect(() => {
     if (!["plans", "checkins", "progress"].includes(targetSection)) return;
     const root = document.getElementById("root");

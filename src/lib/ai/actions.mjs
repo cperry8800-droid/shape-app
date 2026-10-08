@@ -79,7 +79,9 @@ export const logMealAction = {
       var n = num(input[k[0]]); if (n != null) macros[k[1]] = n;
     });
     if (!Object.keys(macros).length) throw new Error('Tell me what to log — e.g. calories and protein.');
-    var today = new Date().toISOString().slice(0, 10);
+    // ⚠ THEIR DAY, NOT UTC'S. An evening log in the Americas landed on tomorrow, while
+    // the app logs to the member's own day; the route takes the date it is given.
+    var today = await memberToday(ctx);
     var sel = await ctx.supabase
       .from('daily_health_snapshot')
       .select('calories, protein_g, carbs_g, fat_g, hydration_l')
@@ -100,7 +102,7 @@ export const logMealAction = {
       summary: 'Log ' + label + ' to today — ' + macroLine(macros),
       diff: snapDiff(before, after),
       target: { userId: ctx.actor.id, kind: 'meal_log', id: today },
-      beforeState: before, afterState: after, confirmedPayload: macros,
+      beforeState: before, afterState: after, confirmedPayload: Object.assign({}, macros, { date: today }),
     };
   },
   async execute(ctx, plan) {
@@ -635,6 +637,22 @@ async function noraCoachZone(ctx) {
   } catch (e) { /* an unknown zone or an unreadable row reads as UTC, the old behaviour */ }
   return 'UTC';
 }
+// ⚠ ONE ZONE FOR A SESSION: the one its own Schedule shows it in, the listing that holds the
+// booking (sessions.provider_role + provider_id), else the caller's listing, else UTC. The
+// chat route names an open session in the same zone, so "move this session to Friday at 3"
+// is previewed and saved on one clock (Codex, #2253: a nutritionist, or an account that
+// coaches both, saw the prompt on one clock and the move on another).
+export async function noraSessionZone(ctx, sess) {
+  var role = sess && (sess.provider_role === 'trainer' || sess.provider_role === 'nutritionist') ? sess.provider_role : null;
+  if (role && sess.provider_id != null) {
+    try {
+      var r = await ctx.supabase.from(role === 'trainer' ? 'trainers' : 'nutritionists').select('timezone').eq('id', sess.provider_id).maybeSingle();
+      var z = r && r.data && typeof r.data.timezone === 'string' ? r.data.timezone.trim() : '';
+      if (z) { new Intl.DateTimeFormat('en-US', { timeZone: z }); return z; }
+    } catch (e) { /* an unknown zone or an unreadable row falls through */ }
+  }
+  return noraCoachZone(ctx);
+}
 // The date ('YYYY-MM-DD') and wall clock ('HH:MM') `zone` shows at an ISO instant.
 function noraWallClock(iso, zone) {
   var t = Date.parse(iso);
@@ -666,9 +684,9 @@ export const rescheduleSessionAction = {
     var date = String(input.date || '');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('What day should I move it to? Give me a date (YYYY-MM-DD).');
     var time = /^\d{1,2}:\d{2}$/.test(String(input.time || '')) ? String(input.time) : null;
-    var sess = await ctx.supabase.from('sessions').select('id, client_id, scheduled_at, status').eq('id', input.sessionId).maybeSingle();
+    var sess = await ctx.supabase.from('sessions').select('id, client_id, scheduled_at, status, provider_id, provider_role').eq('id', input.sessionId).maybeSingle();
     if (!(sess && sess.data)) throw new Error("I can't find that session — it may not be one of yours.");
-    var zone = await noraCoachZone(ctx);
+    var zone = await noraSessionZone(ctx, sess.data);
     var was = noraWallClock(String(sess.data.scheduled_at || ''), zone);
     var prevDate = was.date;
     var prevTime = was.time;
@@ -723,7 +741,9 @@ async function memberTz(ctx) {
 // UTC's: a US member logging at 9 pm is still on today, not tomorrow. The
 // server has no device clock, so the stored zone decides; missing/invalid → UTC.
 async function memberToday(ctx) {
-  var tz = await memberTz(ctx);
+  // The zone the chat route resolved for this turn (the device's, else the profile's)
+  // wins; a caller without one reads the profile's zone itself.
+  var tz = (ctx && typeof ctx.zone === 'string' && ctx.zone) || await memberTz(ctx);
   if (tz) {
     try {
       var day = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());

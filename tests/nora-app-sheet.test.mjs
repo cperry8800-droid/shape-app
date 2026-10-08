@@ -46,7 +46,7 @@ test('the sheet carries the whole thread: messages, cards, actions, voice, and t
     assert.ok(sheet.includes(needle), needle);
   }
   assert.ok(sheet.includes('useStateBSC(() => _bsNoraThread || [SUPPORT_GREETING])'), 'reopening keeps the thread');
-  assert.match(APP, /Object\.assign\(window, \{ BSNoraSheet, /, 'the coach shells read it off window');
+  assert.match(APP, /Object\.assign\(window, \{ bsNoraOpen, bsNoraPage, BSNoraSheet, /, 'the coach shells read it off window');
 });
 
 test('every shell opens the sheet for the ✦ and for a support request, over Settings and search', () => {

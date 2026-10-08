@@ -1570,6 +1570,11 @@ function CoachSchedulePage({ role }) {
   const [drawerRow, setDrawerRow] = React.useState(null);
   const [sheetEv, setSheetEv] = React.useState(null);
   const [booking, setBooking] = React.useState(null);   // { ev, move } — the booking sheet
+  // Nora's "this session" (the Ask Nora plan, step 4): the open booking, checked on the
+  // server against the coach's own sessions and roster before she is told.
+  const noraSession = booking && booking.ev && booking.ev.source === "session" ? booking.ev.sessionId : null;
+  const noraClient = booking && booking.ev ? booking.ev.clientId : null;
+  React.useEffect(() => (noraSession && window.shapeNoraOpen ? window.shapeNoraOpen({ sessionId: noraSession, ...(noraClient ? { clientId: noraClient } : {}) }) : undefined), [noraSession, noraClient]);
   const [slot, setSlot] = React.useState(null);         // { date, minute, dur } — "+ Book"
   const [bookOpen, setBookOpen] = React.useState(false);
   const [confirmMove, setConfirmMove] = React.useState(null);

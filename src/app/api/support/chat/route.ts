@@ -60,10 +60,11 @@ import { resolveActor, makeCtx, serverRegistry, proposalSecret, casWriteUserGoal
 import { toneInstruction } from '@/lib/ai/tone.mjs';
 import { formatMemberContext, UNAVAILABLE_NOTE } from '@/lib/ai/memberContext.mjs';
 import { formatCookContext, COOK_CONTEXT_HEADER } from '@/lib/ai/cookContext.mjs';
-import { rememberMemoryTool, forgetMemoryTool, draftBriefFromText } from '@/lib/ai/actions.mjs';
+import { rememberMemoryTool, forgetMemoryTool, draftBriefFromText, noraSessionZone } from '@/lib/ai/actions.mjs';
 import { computeMembership } from '@/lib/membership-core';
 import { noraTier, visitorGate, countQuestion, limitReply, requestIp, CHECK_REPLY } from '@/lib/ai/noraLimits';
 import { greetingKind, greetingFor } from '@/lib/ai/noraGreeting.mjs';
+import { normalizeContext, formatContextNote, validZone, dayIn } from '@/lib/ai/noraContext.mjs';
 import { searchFoodsServer } from '@/lib/food-search-server';
 import { plainText } from '@/lib/ai/replyText.mjs';
 import {
@@ -530,23 +531,30 @@ function trainerPromptNote(now: Date, zone = 'UTC'): string {
   ].join(' ');
 }
 
-// The zone a trainer's "today" means: the one their open hours and Schedule are kept in
-// (trainers.timezone, the zone /api/calendar shows their bookings in), else the zone the
-// app stored on their own profile (client_profiles.timezone), else UTC. Rows, not
+// The zone a coach's "today" means: the one their open hours and Schedule are kept in (the
+// listing's timezone, the zone /api/calendar shows their bookings in; a nutritionist's own
+// listing first, otherwise the trainer listing first, as the calendar picks), else the zone
+// the device they are asking from is in, else the zone the app stored on their own profile
+// (client_profiles.timezone), else UTC. ⚠ NOT ONLY A TRAINER'S (Codex, #2253): a
+// nutritionist's prompt used the device's clock while their Schedule used the listing's. Rows, not
 // maybeSingle(): an account can own two trainer listings, and maybeSingle errors on two.
 // Any read that fails, or a zone Intl does not know, reads as UTC, the old behaviour.
-async function trainerZone(sb: Actor['supabase'], uid: string): Promise<string> {
+async function coachZone(sb: Actor['supabase'], uid: string, device: string | null = null, role: string | null = null): Promise<string> {
   const valid = (z: unknown): string | null => {
     const v = typeof z === 'string' ? z.trim() : '';
     if (!v) return null;
     try { new Intl.DateTimeFormat('en-US', { timeZone: v }); return v; } catch { return null; }
   };
   try {
-    const t = await sb.from('trainers').select('timezone').eq('owner_id', uid).limit(5);
-    // An unreadable listing is UTC, never the profile's zone: the listing is the
-    // authoritative one, and the profile can name somewhere else entirely (Codex, #2238).
-    if (t.error) return 'UTC';
-    for (const row of (t.data ?? []) as Array<{ timezone?: unknown }>) { const z = valid(row.timezone); if (z) return z; }
+    const tables = role === 'nutritionist' || role === 'dietitian' ? ['nutritionists', 'trainers'] : ['trainers', 'nutritionists'];
+    for (const table of tables) {
+      const t = await sb.from(table).select('timezone').eq('owner_id', uid).limit(5);
+      // An unreadable listing is UTC, never the profile's zone: the listing is the
+      // authoritative one, and the profile can name somewhere else entirely (Codex, #2238).
+      if (t.error) return 'UTC';
+      for (const row of (t.data ?? []) as Array<{ timezone?: unknown }>) { const z = valid(row.timezone); if (z) return z; }
+    }
+    if (device) return device;
     const c = await sb.from('client_profiles').select('timezone').eq('user_id', uid).limit(1);
     const z = valid(((c.data ?? [])[0] as { timezone?: unknown } | undefined)?.timezone);
     if (z) return z;
@@ -554,10 +562,21 @@ async function trainerZone(sb: Actor['supabase'], uid: string): Promise<string> 
   return 'UTC';
 }
 
+// Anyone else's "today" (the Ask Nora plan, "your time zone everywhere"): the device they
+// are asking from, else the zone the app stored on their profile, else UTC. Their reads,
+// their member facts and the day a drafted log lands on all use it, so Nora's "today" is
+// the one on their screen (her reads used UTC's while her writes used the profile's).
+async function profileZone(sb: Actor['supabase'], uid: string): Promise<string | null> {
+  try {
+    const c = await sb.from('client_profiles').select('timezone').eq('user_id', uid).limit(1);
+    return validZone(((c.data ?? [])[0] as { timezone?: unknown } | undefined)?.timezone);
+  } catch { return null; }
+}
+
 // The per-request context the READ tools run with: the caller's own RLS client
 // and id (member-verified), the clock, and whether the caller is a coach — null
 // for anyone else, so a fabricated call fails closed exactly like memory.
-type ReadCtx = { sb: Actor['supabase']; uid: string; now: Date; isCoach: boolean };
+type ReadCtx = { sb: Actor['supabase']; uid: string; now: Date; isCoach: boolean; zone: string };
 
 // The per-request context a direct memory tool runs with (member-verified).
 type MemoryCtx = {
@@ -572,10 +591,10 @@ type MemoryCtx = {
 // leg independent. `failed` is true only when EVERY leg rejected (a resolved-
 // but-empty leg is honest absence, not failure) — that's the UNAVAILABLE_NOTE
 // trigger per the spec's honest-unavailable contract.
-async function fetchMemberFacts(actor: Actor): Promise<{ facts: Record<string, unknown> | null; failed: boolean }> {
+async function fetchMemberFacts(actor: Actor, zone = 'UTC'): Promise<{ facts: Record<string, unknown> | null; failed: boolean }> {
   const sb = actor.supabase;
   const uid = actor.user.id;
-  const today = new Date().toISOString().slice(0, 10); // UTC day — mirrors log_meal's snapshot key
+  const today = dayIn(new Date(), zone); // their calendar day — the day log_meal now writes to
   const legs = await Promise.allSettled([
     sb.from('daily_health_snapshot').select('calories, protein_g, workout_minutes').eq('user_id', uid).eq('snapshot_date', today).maybeSingle(),
     sb.rpc('compute_momentum'),
@@ -828,14 +847,40 @@ async function runTool(name: string, args: Record<string, unknown>, propose: Pro
 // A read that could not be performed says so in a shape the prompt teaches the
 // model to relay ("I can't see that right now") — distinct from an empty
 // result, which is "nothing there yet". Never a thrown error into the loop.
+// What the page says is open, checked as the caller: a client only from this coach's own
+// roster (with the name the roster gives), a session only when the caller's own client can
+// read it and it is the caller's own or a rostered client's.
+async function verifyOpen(reads: ReadCtx, clientId: string | null, sessionId: string | null, actor: Actor): Promise<{ client: { id: string; name: string } | null; session: { id: string; at: string; status: string | null; who: string | null; zone: string } | null }> {
+  let roster: Array<{ id: string; name: string }> = [];
+  if (reads.isCoach) {
+    const r = (await readCoachRoster(reads.sb, reads.uid)) as { ok: boolean; isCoach?: boolean; clients?: Array<{ id: string; name: string | null }> };
+    if (r.ok && r.isCoach) roster = (r.clients || []).filter((c): c is { id: string; name: string } => !!(c && c.id && c.name));
+  }
+  const nameOf = (id: unknown): string | null => roster.find((c) => String(c.id).toLowerCase() === String(id || '').toLowerCase())?.name || null;
+  const clientName = clientId ? nameOf(clientId) : null;
+  let session: { id: string; at: string; status: string | null; who: string | null; zone: string } | null = null;
+  if (sessionId) {
+    const { data, error } = await reads.sb.from('sessions').select('id, client_id, scheduled_at, status, provider_id, provider_role').eq('id', sessionId).maybeSingle();
+    const row = data as { id?: string; client_id?: string; scheduled_at?: string; status?: string; provider_id?: number; provider_role?: string } | null;
+    if (!error && row && row.id && row.scheduled_at) {
+      const own = String(row.client_id || '').toLowerCase() === reads.uid.toLowerCase();
+      const who = own ? null : nameOf(row.client_id);
+      // The zone its Schedule shows it in, the same one reschedule_session saves in.
+      const zone = await noraSessionZone({ supabase: reads.sb, actor: { id: actor.user.id, role: actor.role } }, row);
+      if (own || who) session = { id: row.id, at: row.scheduled_at, status: row.status || null, who, zone };
+    }
+  }
+  return { client: clientId && clientName ? { id: clientId, name: clientName } : null, session };
+}
+
 async function runRead(name: string, args: Record<string, unknown>, reads: ReadCtx): Promise<unknown> {
-  const { sb, uid, now } = reads;
+  const { sb, uid, now, zone } = reads;
   try {
     switch (name) {
-      case 'get_training_plan': return await readTrainingPlan(sb, uid, { now });
+      case 'get_training_plan': return await readTrainingPlan(sb, uid, { now, zone });
       case 'get_recent_workouts': return await readRecentTraining(sb, uid, { now });
-      case 'get_week_summary': return await readWeekSummary(sb, uid, { now });
-      case 'get_habits': return await readHabits(sb, uid, { now });
+      case 'get_week_summary': return await readWeekSummary(sb, uid, { now, zone });
+      case 'get_habits': return await readHabits(sb, uid, { now, zone });
       case 'get_coaching': return await readCoaching(sb, uid, { now });
       case 'get_reminders': return await readReminders(sb, uid);
       case 'get_points': return await readPoints(sb, uid, { now });
@@ -882,7 +927,7 @@ function extractOutputText(payload: OpenAIResponsePayload): string {
 // the draft is then a labelled template) — injected here rather than imported by the
 // action, so the action's core stays node-testable.
 type DraftModel = ((body: Record<string, unknown>, opts: { promptId: string; effort?: 'medium'; timeoutMs?: number }) => ReturnType<typeof callAI>) | null;
-function makePropose(actor: Actor | null, request: Request, isMember: boolean, draftModel: DraftModel = null): ProposeFn {
+function makePropose(actor: Actor | null, request: Request, isMember: boolean, draftModel: DraftModel = null, zone: string | null = null): ProposeFn {
   return async (name, args) => {
     if (!actor) {
       return { result: { error: 'sign_in_required', message: 'They need to be signed in for me to do that.' }, actions: [] };
@@ -894,7 +939,7 @@ function makePropose(actor: Actor | null, request: Request, isMember: boolean, d
       action: name,
       input: args,
       actor: { id: actor.user.id, role: actor.role, roles: actor.roles },
-      ctx: { ...makeCtx(actor, request), isMember, draftModel },
+      ctx: { ...makeCtx(actor, request), isMember, draftModel, zone },
       secret,
     });
     if (!res.ok) {
@@ -920,7 +965,7 @@ async function askOpenAI(
   messages: ChatMessage[],
   propose: ProposeFn,
   tone: string | undefined,
-  member: { contextMsg: string | null; memberTools: typeof MEMBER_TOOLS; memoryCtx: MemoryCtx | null; cookMsg: string | null; reads: ReadCtx | null; coachTools: typeof COACH_TOOLS; trainerTools: typeof TRAINER_TOOLS; trainerZone?: string; noCards?: boolean; isMember: boolean; voice: boolean; locale: string | null; coach: CoachCtx },
+  member: { contextMsg: string | null; memberTools: typeof MEMBER_TOOLS; memoryCtx: MemoryCtx | null; cookMsg: string | null; reads: ReadCtx | null; coachTools: typeof COACH_TOOLS; trainerTools: typeof TRAINER_TOOLS; trainerZone?: string; noCards?: boolean; isMember: boolean; voice: boolean; locale: string | null; coach: CoachCtx; where?: { system: string; data: string | null } },
   signal?: AbortSignal,
 ): Promise<{ reply: string; actions: SupportAction[]; model: string | null } | null> {
   if (!hasOpenAIKey()) return null;
@@ -948,6 +993,10 @@ async function askOpenAI(
   const systemPrompt = `${SYSTEM_PROMPT}${member.memberTools.length && !member.cookMsg ? `\n\n${MEMBER_PROMPT_NOTE}` : ''}${trainerNote}${noCardsNote}${cookOverride}${member.voice ? `\n\n${VOICE_PROMPT_NOTE}` : ''}${langNote}\n\n${toneInstruction(tone)}`;
   let input: unknown[] = [
     { role: 'system', content: systemPrompt },
+    // Where they are: the clock in their zone and what the server verified (system), then
+    // the page's own labels as a user-role data message, never in the system tier.
+    ...(member.where ? [{ role: 'system', content: member.where.system }] : []),
+    ...(member.where && member.where.data ? [{ role: 'user', content: member.where.data }] : []),
     // The server-built member-context block (or the honest unavailable note on
     // a fetch FAILURE) — never client-supplied, members only.
     ...(member.contextMsg ? [{ role: 'system', content: member.contextMsg }] : []),
@@ -1113,7 +1162,7 @@ async function fallbackReply(text: string, coach: CoachCtx): Promise<{ reply: st
 }
 
 export async function POST(request: Request) {
-  const parsed = await readJson<{ messages?: ChatMessage[]; tone?: string; cookContext?: unknown; voice?: unknown; surface?: unknown; locale?: unknown; confirmCards?: unknown; turnstileToken?: unknown }>(request);
+  const parsed = await readJson<{ messages?: ChatMessage[]; tone?: string; cookContext?: unknown; voice?: unknown; surface?: unknown; locale?: unknown; confirmCards?: unknown; turnstileToken?: unknown; context?: unknown }>(request);
   if (!parsed.ok) return parsed.response;
   const body = parsed.data;
   const messages = Array.isArray(body.messages) ? body.messages.filter((m) => m && m.content) : [];
@@ -1132,6 +1181,10 @@ export async function POST(request: Request) {
   const voice = body.voice === true;
   const surface: CoachCtx['surface'] = body.surface === 'app' ? 'app' : 'web';
   const locale = normalizeLocale(body.locale);
+  // Where they are (the Ask Nora plan, step 4): the page or screen, an open client or
+  // session, an item, and the device's zone. Cleaned here; every id in it is checked
+  // against the account below before the note may name it.
+  const screen = normalizeContext(body.context);
   // ⚠ A CHAT THAT CANNOT SHOW A CONFIRM CARD GETS NO WRITE TOOLS. Every change Nora
   // makes is drafted as a card the member confirms; the plain panels (the older pages'
   // fallback chat, the Next app's button) render text and links only, so a drafted
@@ -1151,7 +1204,7 @@ export async function POST(request: Request) {
   let reads: ReadCtx | null = null;
   let coachTools: typeof COACH_TOOLS = [];
   let trainerTools: typeof TRAINER_TOOLS = [];
-  let zone = 'UTC';
+  let zone = screen.timezone || 'UTC';
   let isMember = false;
   let membership: Awaited<ReturnType<typeof computeMembership>> | null = null;
   if (actor) {
@@ -1164,13 +1217,18 @@ export async function POST(request: Request) {
       // account whose primary role is 'client' still gets the coach lookups,
       // and an admin is included explicitly (CodeRabbit, #2128).
       const isCoach = !!(membership.isCoach || membership.isAdmin);
-      reads = { sb: actor.supabase, uid: actor.user.id, now: new Date(), isCoach };
+      const isTrainer = actor.role === 'trainer' || (actor.roles || []).includes('trainer');
+      // A coach's day is their Schedule's zone; anyone else's is the device's, then the profile's.
+      zone = isCoach
+        ? await coachZone(actor.supabase, actor.user.id, screen.timezone, actor.role)
+        : (screen.timezone || (await profileZone(actor.supabase, actor.user.id)) || 'UTC');
+      reads = { sb: actor.supabase, uid: actor.user.id, now: new Date(), isCoach, zone };
       if (isCoach) coachTools = COACH_TOOLS;
       // ⚠ THE ROLES THE REGISTRY GATES ON, not membership's coach verdict: draft_workout
       // is `roles: ['trainer']`, checked against the actor's every role (primary plus
       // profiles.roles[]), so a dual-role account that also trains drafts too, and
       // offering it to anyone else would hand the model a tool that answers role_not_allowed.
-      if ((actor.role === 'trainer' || (actor.roles || []).includes('trainer')) && !noCards) { trainerTools = TRAINER_TOOLS; zone = await trainerZone(actor.supabase, actor.user.id); }
+      if (isTrainer && !noCards) trainerTools = TRAINER_TOOLS;
       memoryCtx = {
         actor: { id: actor.user.id, role: actor.role, roles: actor.roles },
         supabase: actor.supabase,
@@ -1178,10 +1236,19 @@ export async function POST(request: Request) {
         isMember: true,
         casWrite: (kind, mutate) => casWriteUserGoals(actor.supabase, actor.user.id, kind, mutate),
       };
-      const { facts, failed } = await fetchMemberFacts(actor).catch(() => ({ facts: null, failed: true }));
+      const { facts, failed } = await fetchMemberFacts(actor, zone).catch(() => ({ facts: null, failed: true }));
       contextMsg = failed ? UNAVAILABLE_NOTE : formatMemberContext(facts);
+    } else if (!screen.timezone) {
+      zone = (await profileZone(actor.supabase, actor.user.id)) || 'UTC';
     }
   }
+  // ⚠ AN ID FROM THE PAGE IS A CLAIM. The note names a client only when they are on this
+  // coach's own roster, and a session only when the caller's own client can read it and it
+  // is theirs or a rostered client's. Anything else is dropped, never named.
+  const opened = reads && (screen.clientId || screen.sessionId)
+    ? await verifyOpen(reads, screen.clientId, screen.sessionId, actor as Actor).catch(() => ({ client: null, session: null }))
+    : { client: null, session: null };
+  const where = formatContextNote({ surface, page: screen.page, now: new Date(), zone, client: opened.client, session: opened.session, item: screen.item, coachTools: coachTools.length > 0 });
   // ⚠ THE OPEN DOOR IS METERED. A visitor's first question passes the bot check (a
   // solved Turnstile token earns a signed browser cookie, so later questions skip it),
   // and every question counts against the day's limit for the tier: per account, or
@@ -1210,7 +1277,7 @@ export async function POST(request: Request) {
   // The draft's own model call: the pinned model with its fallback, like every member
   // call; null with no key, and the draft says it is a template.
   const draftModel: DraftModel = hasOpenAIKey() ? (b, o) => callAI(b, { ...o, signal: request.signal }) : null;
-  const propose = makePropose(actor, request, isMember, trainerTools.length ? draftModel : null);
+  const propose = makePropose(actor, request, isMember, trainerTools.length ? draftModel : null, actor ? zone : null);
   // The coach lookup reads the PUBLIC marketplace tables: the member's own
   // client when there is one, else the request's anonymous client (a signed-out
   // visitor asking for a coach is the website widget's oldest use). A client
@@ -1219,7 +1286,7 @@ export async function POST(request: Request) {
   const coachSb = actor ? actor.supabase : await clientForRequest(request).catch(() => null);
   const coach: CoachCtx = { sb: coachSb, surface };
 
-  const ai = await askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx, cookMsg, reads, coachTools, trainerTools, trainerZone: zone, isMember, voice, locale, coach, noCards }, request.signal).catch(() => null);
+  const ai = await askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx, cookMsg, reads, coachTools, trainerTools, trainerZone: zone, isMember, voice, locale, coach, noCards, where }, request.signal).catch(() => null);
   if (ai) return respond({ reply: ai.reply, source: 'ai', actions: ai.actions, model: ai.model });
 
   // Cook Mode is a read-only, grounded sous-chef: the support fallback can claim
@@ -1241,7 +1308,7 @@ export async function POST(request: Request) {
   // anyone else, gets the reply it always did.
   if (trainerTools.length) {
     const brief = draftBriefFromText(String(lastUser.content || ''));
-    const drafted = brief ? await makePropose(actor, request, isMember, null)('draft_workout', brief).catch(() => null) : null;
+    const drafted = brief ? await makePropose(actor, request, isMember, null, zone)('draft_workout', brief).catch(() => null) : null;
     if (drafted && drafted.actions.length) {
       return respond({ reply: TEMPLATE_FALLBACK_REPLY, source: 'fallback', actions: drafted.actions });
     }

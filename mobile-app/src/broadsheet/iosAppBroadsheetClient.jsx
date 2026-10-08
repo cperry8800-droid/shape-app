@@ -582,6 +582,9 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const sheet = useBSSheet();
   const tr = useShapeTr(); // i18n — re-renders the shell (tab bar labels) on locale change
   const [tab, setTab] = useStateBSC(initialTab);
+  // Nora is told the tab they asked from (the Ask Nora plan, step 4).
+  const noraTabLabel = { home: tr('common:nav.home', { defaultValue: 'Home' }), train: tr('common:nav.train', { defaultValue: 'Train' }), eat: tr('common:nav.eat', { defaultValue: 'Eat' }), chat: tr('common:nav.chat', { defaultValue: 'Chat' }), me: tr('common:nav.me', { defaultValue: 'Me' }) }[tab];
+  React.useEffect(() => bsNoraOpen({ page: bsNoraPage(tab), label: noraTabLabel }), [tab, noraTabLabel]);
   const [showSettings, setShowSettings] = useStateBSC(false);
   const [settingsStart, setSettingsStart] = useStateBSC('');
   const [showCalendar, setShowCalendar] = useStateBSC(false);
@@ -6885,6 +6888,8 @@ function BSMealPreview({ meal, onBack, onLog, onFiled, onUnfiled }) {
   // Normalized ONCE — null (malformed/title-less meal) hides the Cook door
   // entirely, so BSCookMode can never mount on a null cookable (CodeRabbit).
   const cookable = React.useMemo(() => bsCookableFromMeal(meal, SHAPE_KITCHEN_RECIPES), [meal]);
+  // Nora's "this meal" (the Ask Nora plan, step 4).
+  React.useEffect(() => (meal && meal.title ? bsNoraOpen({ item: { kind: 'meal', title: meal.title } }) : undefined), [meal && meal.title]);
   const mealLibItem = { id: 'meal:' + String(meal.id || String(meal.title || 'meal').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')), kind: 'meal', title: meal.title, meta: `${meal.kcal} kcal · ${meal.p}P · ${meal.c}C · ${meal.f}F` };
   const mealSaved = useBSLibrary().some(x => x.id === mealLibItem.id);
   const fmt12 = (hhmm) => { const [h, m] = String(hhmm || '').split(':').map(Number); if (Number.isNaN(h)) return ''; const ap = h >= 12 ? 'PM' : 'AM'; return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${ap}`; };
@@ -7217,6 +7222,8 @@ function BSRecipePreview({ recipe, dayLabel, onBack, onAddGrocery, groceryAdded 
   const t = useBS();
   _bsScrollTopOnMount();
   const r = recipe;
+  // Nora's "this recipe" (the Ask Nora plan, step 4).
+  React.useEffect(() => (r && r.title ? bsNoraOpen({ item: { kind: 'recipe', title: r.title } }) : undefined), [r && r.title]);
   // Real library save (was a local-only visual toggle — marked improvement).
   const lib = useBSLibrary();
   const _libItem = bsRecipeLibItem(r);
@@ -24579,6 +24586,31 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
 // its voice moved here unchanged. Every shell opens it for 'shape:openNora' and for
 // a support request on 'shape:openConversation' (search's Nora hit, Help's button).
 // The thread lives for the session, across closes, as it did in Chat.
+// Where they are, for Nora (the Ask Nora plan, step 4): the screen, what it has open and
+// the device's zone. A screen names what it opens with bsNoraOpen({ page, label } |
+// { clientId } | { item: { kind, title } }) and calls the function it returns when that
+// closes. The server keeps an id only after checking it against the account, so a screen
+// can narrow what Nora is told, never widen it. `label` is the screen's name in the
+// member's language, for the sheet's chip; `page` is the English one Nora is told.
+const _bsNoraOpen = {};
+function bsNoraOpen(patch) {
+  const set = {};
+  Object.keys(patch || {}).forEach((k) => { if (patch[k] != null) { _bsNoraOpen[k] = patch[k]; set[k] = patch[k]; } });
+  return () => { Object.keys(set).forEach((k) => { if (_bsNoraOpen[k] === set[k]) delete _bsNoraOpen[k]; }); };
+}
+const BS_NORA_PAGES = { home: 'Home', train: 'Train', eat: 'Eat', chat: 'Chat', me: 'Me', today: 'Today', clients: 'Clients', plans: 'Plans', programs: 'Plans' };
+function bsNoraPage(tab) { return BS_NORA_PAGES[tab] || String(tab || '').replace(/[-_]+/g, ' ').replace(/^\w/, (c) => c.toUpperCase()); }
+function bsNoraContext(withScreen = true) {
+  let timezone = null;
+  try { timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (e) {}
+  const c = { timezone };
+  if (!withScreen) return c;
+  if (_bsNoraOpen.page) c.page = String(_bsNoraOpen.page).slice(0, 60);
+  if (_bsNoraOpen.clientId) c.clientId = String(_bsNoraOpen.clientId);
+  if (_bsNoraOpen.sessionId) c.sessionId = String(_bsNoraOpen.sessionId);
+  if (_bsNoraOpen.item && _bsNoraOpen.item.kind && _bsNoraOpen.item.title) c.item = { kind: String(_bsNoraOpen.item.kind), title: String(_bsNoraOpen.item.title).slice(0, 80) };
+  return c;
+}
 let _bsNoraThread = null;
 // ⚠ A REPLY CAN LAND AFTER THE SHEET CLOSES. The question is in flight while the member
 // closes Nora; the instance that asked is gone, so its setState would drop the reply and
@@ -24632,6 +24664,11 @@ function BSNoraSheet({ onClose }) {
   // Talk to Nora (owner, 2026-10-08): the Talk button opens her face over the sheet and a
   // spoken conversation that runs through this same thread. It replaced the "Voice chat
   // on/off" chip, whose hold-to-talk mic was hard to find and harder to use.
+  // Where they are (the Ask Nora plan, step 4). The chip under the header shows the screen;
+  // × takes it off while the sheet is open, and then only the zone is sent.
+  const [screenOff, setScreenOff] = useStateBSC(false);
+  const screenOffRef = React.useRef(false);
+  screenOffRef.current = screenOff;
   const sendRef = React.useRef(null);
   const talk = useNoraTalk((text) => sendRef.current(text, { voice: true, silent: true }));
   // No in-thread tone toggle — Nora's tone defaults to supportive (the ShapeVoice
@@ -24682,7 +24719,7 @@ function BSNoraSheet({ onClose }) {
     _bsNoraPublish(next, true);
     try {
       const hist = next.map(m => ({ role: m.me ? 'user' : 'assistant', content: m.t }));
-      const res = await window.ShapeSupport?.ask?.(hist, undefined, { voice: opts.voice === true });
+      const res = await window.ShapeSupport?.ask?.(hist, undefined, { voice: opts.voice === true, context: bsNoraContext(!screenOffRef.current) });
       const reply = (res && res.reply) || "I can't answer that just now. The Shape team answers at info@theshapecommunity.com.";
       const acts = (res && Array.isArray(res.actions) && res.actions.length) ? res.actions : undefined;
       _bsNoraPublish([...(_bsNoraThread || next), { who: 'Nora', t: reply, time: 'now', me: false, bot: true, actions: acts }]);
@@ -24771,6 +24808,13 @@ function BSNoraSheet({ onClose }) {
                   </button>
                 </div>
                 <div aria-hidden style={{ height: 2, marginTop: 10, marginBottom: 16, background: `linear-gradient(90deg, ${t.INK}, ${noraTint} 62%, transparent)` }} />
+                {!screenOff && (_bsNoraOpen.label || _bsNoraOpen.page) && (
+                  <div data-nora-screen style={{ display: 'inline-flex', alignSelf: 'flex-start', alignItems: 'center', gap: 6, margin: '-6px 0 14px', padding: '3px 4px 3px 9px', borderRadius: 999, border: `1px dashed ${hair}`, color: muted, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', maxWidth: '100%' }}>
+                    <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: noraTint, flex: 'none' }} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{_bsNoraOpen.label || _bsNoraOpen.page}</span>
+                    <button type="button" onClick={() => setScreenOff(true)} aria-label={tr('feed:support.screenOff', { defaultValue: "Don't tell Nora which screen you're on" })} title={tr('feed:support.screenOff', { defaultValue: "Don't tell Nora which screen you're on" })} style={{ border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer', fontSize: 12, lineHeight: 1, padding: '0 4px' }}>×</button>
+                  </div>
+                )}
 
                 {/* Messages — tucked-corner tinted bubbles, matching BSChatThread */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 96 }}>
@@ -38759,5 +38803,5 @@ function BSHelpPage({ onBack, onContact, onAskNora }) {
   );
 }
 
-Object.assign(window, { BSNoraSheet, BSCookMode, BSPrepSession, BSClientApp, BSClientChat, BSSettings, BSDetailHeader, BSContactPage, BSTermsPage, BSUniversalSearch, BSSearchCorner });
+Object.assign(window, { bsNoraOpen, bsNoraPage, BSNoraSheet, BSCookMode, BSPrepSession, BSClientApp, BSClientChat, BSSettings, BSDetailHeader, BSContactPage, BSTermsPage, BSUniversalSearch, BSSearchCorner });
 try { window.BS_HEADER_AVATAR = BS_HEADER_AVATAR; } catch (e) {}

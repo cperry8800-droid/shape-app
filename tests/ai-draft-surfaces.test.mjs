@@ -14,6 +14,7 @@ import { createRequire } from 'node:module';
 import vm from 'node:vm';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 import * as noraGreeting from '../src/lib/ai/noraGreeting.mjs';
+import * as noraContext from '../src/lib/ai/noraContext.mjs';
 import { fakeSupabase } from './helpers/fake-supabase.mjs';
 import { loadBroadsheet, drive, SHIM, THEME, flatten, textOf } from './helpers/broadsheet-mount.mjs';
 
@@ -191,6 +192,7 @@ async function loadChat({ role = 'trainer', user = { id: COACH, email: 'c@x' }, 
     // Nora's daily limits and bot check are tested in support-chat-route; here every question passes.
     ['@/lib/ai/noraLimits', { noraTier: () => 'member', visitorGate: async () => ({ ok: true, id: 'v', setCookie: null }), countQuestion: async () => ({ allowed: true, limit: null, resetSeconds: 0 }), limitReply: () => '', requestIp: () => 'ip', CHECK_REPLY: '' }],
     ['@/lib/ai/noraGreeting.mjs', noraGreeting],
+    ['@/lib/ai/noraContext.mjs', noraContext],
     ['@/lib/membership-core', { computeMembership: async () => ({ isMember, isCoach: ['trainer', 'nutritionist'].includes(role), isAdmin: false, isKnownMinor: false }) }],
     ['@/lib/food-search-server', { searchFoodsServer: async () => ({ results: [], unavailable: true }) }],
     ['@/lib/ai', {

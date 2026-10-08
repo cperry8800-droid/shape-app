@@ -1107,6 +1107,9 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     return () => window.removeEventListener('shape:identity', bump);
   }, []);
   const [tab, setTab] = useStateBSP('today');
+  // Nora is told the tab they asked from (the Ask Nora plan, step 4); window, read at call time.
+  const noraTabLabel = { today: tr('coach:nav.today', { defaultValue: 'Today' }), clients: tr('coach:nav.clients', { defaultValue: 'Clients' }), plans: tr('coach:nav.plans', { defaultValue: 'Plans' }), programs: tr('coach:nav.plans', { defaultValue: 'Plans' }), chat: tr('coach:nav.chat', { defaultValue: 'Chat' }), me: tr('coach:nav.me', { defaultValue: 'Me' }) }[tab];
+  React.useEffect(() => (window.bsNoraOpen ? window.bsNoraOpen({ page: window.bsNoraPage(tab), label: noraTabLabel }) : undefined), [tab, noraTabLabel]);
   const [showTour, setShowTour] = useStateBSP(false);
   // Universal search — the ⌕ in the header opens it (shared client component).
   const [showSearch, setShowSearch] = useStateBSP(false);
@@ -4262,6 +4265,9 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   // Real per-client store when the row carries a user id (uuid); otherwise the
   // selector is local (demo roster has mock clients).
   const clientUid = client && (client.userId || client.user_id || (typeof client.id === 'string' && client.id.includes('-') ? client.id : null));
+  // Nora's "this client" (the Ask Nora plan, step 4): the server names them only when
+  // they are on this coach's own roster.
+  React.useEffect(() => (clientUid && window.bsNoraOpen ? window.bsNoraOpen({ clientId: clientUid }) : undefined), [clientUid]);
   const [phase, setPhase] = useStateBSP(() => clientUid ? {} : { trainingPhase: 'Build', nutritionPhase: 'Cut' });
   // Case File heat = the CLIENT's member tier (spec §C) — resolved from their
   // all-time points; role heat until known / for demo rows (no clientUid).
@@ -6726,6 +6732,9 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     return () => window.removeEventListener('shape:identity', bump);
   }, []);
   const [tab, setTab] = useStateBSP('today');
+  // Nora is told the tab they asked from (the Ask Nora plan, step 4); window, read at call time.
+  const noraTabLabel = { today: tr('coach:nav.today', { defaultValue: 'Today' }), clients: tr('coach:nav.clients', { defaultValue: 'Clients' }), plans: tr('coach:nav.plans', { defaultValue: 'Plans' }), programs: tr('coach:nav.plans', { defaultValue: 'Plans' }), chat: tr('coach:nav.chat', { defaultValue: 'Chat' }), me: tr('coach:nav.me', { defaultValue: 'Me' }) }[tab];
+  React.useEffect(() => (window.bsNoraOpen ? window.bsNoraOpen({ page: window.bsNoraPage(tab), label: noraTabLabel }) : undefined), [tab, noraTabLabel]);
   const [showTour, setShowTour] = useStateBSP(false);
   // Universal search — the ⌕ in the header opens it (shared client component).
   const [showSearch, setShowSearch] = useStateBSP(false);

@@ -19,6 +19,7 @@
 // Astra bills input by the token, and a member with a 26-week program does
 // not need every session of it quoted to answer "what's on today".
 
+import { dayIn } from './noraContext.mjs';
 import { matchNamed } from './memberTools.mjs';
 
 export const READ_CAPS = Object.freeze({
@@ -148,8 +149,13 @@ export function mealDayFor(days, dow) {
  * The member's plan: this week's assigned + self-authored workouts (what's on
  * today, what's on this week) and today's meals off the active menu.
  */
-export async function readTrainingPlan(sb, uid, { now = new Date() } = {}) {
-  const today = isoDay(now);
+/**
+ * @param {any} sb
+ * @param {string} uid
+ * @param {{ now?: Date, zone?: string | null }} [opts] `zone`: the member's, so "today" is their day.
+ */
+export async function readTrainingPlan(sb, uid, { now = new Date(), zone } = {}) {
+  const today = zone ? dayIn(now, zone) : isoDay(now);
   const weekStart = weekStartISO(today);
   const [cw, mp] = await Promise.all([
     leg(sb.from('client_workouts').select('id, title, description, kind, payload, scheduled_date, trainer_id')
@@ -289,8 +295,13 @@ export async function readRecentTraining(sb, uid, { now = new Date(), limit = RE
  * recovery from the daily snapshot, the weigh-in trend, and habit completion.
  * Every average is over the days that carry the value — never zero-filled.
  */
-export async function readWeekSummary(sb, uid, { now = new Date() } = {}) {
-  const today = isoDay(now);
+/**
+ * @param {any} sb
+ * @param {string} uid
+ * @param {{ now?: Date, zone?: string | null }} [opts]
+ */
+export async function readWeekSummary(sb, uid, { now = new Date(), zone } = {}) {
+  const today = zone ? dayIn(now, zone) : isoDay(now);
   const since = addDaysISO(today, -6);
   const [snap, weigh, habits, done] = await Promise.all([
     leg(sb.from('daily_health_snapshot').select('snapshot_date, calories, protein_g, carbs_g, fat_g, hydration_l, workout_minutes, sleep_hours, recovery_score, resting_hr, hrv_ms, strain')
@@ -357,8 +368,13 @@ export function habitStreak(dates, today) {
 }
 
 /** The member's active habits with today's state, the last-7 count and the streak. */
-export async function readHabits(sb, uid, { now = new Date() } = {}) {
-  const today = isoDay(now);
+/**
+ * @param {any} sb
+ * @param {string} uid
+ * @param {{ now?: Date, zone?: string | null }} [opts]
+ */
+export async function readHabits(sb, uid, { now = new Date(), zone } = {}) {
+  const today = zone ? dayIn(now, zone) : isoDay(now);
   const since = addDaysISO(today, -60);
   const [habits, done] = await Promise.all([
     leg(sb.from('user_habits').select('id, name, type, cadence').eq('user_id', uid).is('archived_at', null).order('sort_order', { ascending: true })),
