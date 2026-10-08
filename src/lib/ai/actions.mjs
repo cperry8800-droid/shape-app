@@ -79,7 +79,9 @@ export const logMealAction = {
       var n = num(input[k[0]]); if (n != null) macros[k[1]] = n;
     });
     if (!Object.keys(macros).length) throw new Error('Tell me what to log — e.g. calories and protein.');
-    var today = new Date().toISOString().slice(0, 10);
+    // ⚠ THEIR DAY, NOT UTC'S. An evening log in the Americas landed on tomorrow, while
+    // the app logs to the member's own day; the route takes the date it is given.
+    var today = await memberToday(ctx);
     var sel = await ctx.supabase
       .from('daily_health_snapshot')
       .select('calories, protein_g, carbs_g, fat_g, hydration_l')
@@ -100,7 +102,7 @@ export const logMealAction = {
       summary: 'Log ' + label + ' to today — ' + macroLine(macros),
       diff: snapDiff(before, after),
       target: { userId: ctx.actor.id, kind: 'meal_log', id: today },
-      beforeState: before, afterState: after, confirmedPayload: macros,
+      beforeState: before, afterState: after, confirmedPayload: Object.assign({}, macros, { date: today }),
     };
   },
   async execute(ctx, plan) {
@@ -723,7 +725,9 @@ async function memberTz(ctx) {
 // UTC's: a US member logging at 9 pm is still on today, not tomorrow. The
 // server has no device clock, so the stored zone decides; missing/invalid → UTC.
 async function memberToday(ctx) {
-  var tz = await memberTz(ctx);
+  // The zone the chat route resolved for this turn (the device's, else the profile's)
+  // wins; a caller without one reads the profile's zone itself.
+  var tz = (ctx && typeof ctx.zone === 'string' && ctx.zone) || await memberTz(ctx);
   if (tz) {
     try {
       var day = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());

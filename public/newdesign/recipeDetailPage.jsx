@@ -165,6 +165,8 @@ function RecipeDetailPage() {
   const [added, setAdded] = React.useState(0); // count of items added (0 = not yet)
   const addToGrocery = () => { setAdded(rdAddRecipeToGrocery(recipe)); };
   const [planAdded, setPlanAdded] = React.useState(false);
+  // Nora's "this recipe" (the Ask Nora plan, step 4).
+  React.useEffect(() => (window.shapeNoraOpen ? window.shapeNoraOpen({ item: { kind: "recipe", title: recipe.title } }) : undefined), [recipe.title]);
   const addToPlan = () => {
     setPlanAdded(true);
     const m = recipe.macros || {};

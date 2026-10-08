@@ -23,6 +23,42 @@
     });
     return noraTsLoading;
   }
+  // ── Where the person is (the Ask Nora plan, step 4) ───────────────────────
+  // Every Nora panel on the page sends this with each question: the page's name, the
+  // device's time zone, and what the page has open. A page names what it opens with
+  // window.shapeNoraOpen({ clientId } | { sessionId, clientId } | { item: { kind, title } })
+  // and calls the function it returns when that closes. The server keeps an id only after
+  // checking it against the account, so a page can narrow what Nora is told, never widen it.
+  var noraOpen = {};
+  window.shapeNoraOpen = function (patch) {
+    var set = {};
+    for (var k in patch) if (Object.prototype.hasOwnProperty.call(patch, k) && patch[k] != null) { noraOpen[k] = patch[k]; set[k] = patch[k]; }
+    return function () { for (var k in set) if (noraOpen[k] === set[k]) delete noraOpen[k]; };
+  };
+  function noraPageName() {
+    if (noraOpen.page) return String(noraOpen.page).slice(0, 60);
+    var file = String(location.pathname || "").split("/").pop().replace(/\.html?$/i, "");
+    if (!file || /^index$/i.test(file)) return "Home";
+    var t = String(document.title || "").replace(/^\s*Shape\s*[—·|:\-–]\s*/i, "").replace(/\s*[—·|:\-–]\s*Shape\s*$/i, "").trim();
+    var name = t && !/^shape$/i.test(t) ? t : file.replace(/([a-z])([A-Z])/g, "$1 $2");
+    var hash = String(location.hash || "").match(/^#([a-z][a-z-]*)/i);
+    if (hash) name += " · " + hash[1].charAt(0).toUpperCase() + hash[1].slice(1).replace(/-/g, " ");
+    return name.slice(0, 60);
+  }
+  // `withScreen` false: the person took the page chip off, so only their time zone goes.
+  window.__shapeNoraContext = function (withScreen) {
+    var tz = null;
+    try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (e) {}
+    var c = { timezone: tz };
+    if (withScreen === false) return c;
+    c.page = noraPageName();
+    if (noraOpen.clientId) c.clientId = String(noraOpen.clientId);
+    if (noraOpen.sessionId) c.sessionId = String(noraOpen.sessionId);
+    if (noraOpen.item && noraOpen.item.kind && noraOpen.item.title) c.item = { kind: String(noraOpen.item.kind), title: String(noraOpen.item.title).slice(0, 80) };
+    return c;
+  };
+  window.__shapeNoraPageName = noraPageName;
+
   window.__shapeNoraSolve = function () {
     if (window.ShapeTurnstile && window.ShapeTurnstile.solve) return window.ShapeTurnstile.solve();
     var key = window.SHAPE_TURNSTILE_SITEKEY === undefined ? NORA_SITEKEY_DEFAULT : window.SHAPE_TURNSTILE_SITEKEY;
@@ -357,7 +393,7 @@
         return { role: m.me ? "user" : "assistant", content: String(m.t || "") };
       });
       function post(extra) {
-        var body = { messages: history, surface: "web", confirmCards: false };
+        var body = { messages: history, surface: "web", confirmCards: false, context: window.__shapeNoraContext() };
         if (extra) for (var k in extra) body[k] = extra[k];
         return fetch("/api/support/chat", {
           method: "POST",

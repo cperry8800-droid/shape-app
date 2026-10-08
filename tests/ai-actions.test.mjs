@@ -62,7 +62,10 @@ test('(a) TIER 1 — client logs a meal: preview → confirm → endpoint → au
   assert.equal(c.ok, true);
   assert.equal(ctx._calls[0].method, 'POST');
   assert.equal(ctx._calls[0].path, '/api/nutrition/meal-log');
-  assert.deepEqual(ctx._calls[0].body, { kcal: 600, protein: 45 });
+  // The day rides with the macros, so the log lands on the member's own day (the Ask Nora plan, step 4).
+  const { date, ...macros } = ctx._calls[0].body;
+  assert.deepEqual(macros, { kcal: 600, protein: 45 });
+  assert.match(date, /^\d{4}-\d{2}-\d{2}$/);
   assert.equal(audit._rows.length, 1);
   assert.equal(audit._rows[0].action, 'log_meal');
   assert.equal(audit._rows[0].source, 'nora');
@@ -505,4 +508,20 @@ test('reschedule_session: needs the session id (asks, never guesses)', async () 
   const r = await proposeChange({ registry, action: 'reschedule_session', input: { date: '2026-06-25' }, actor: { id: 't', role: 'trainer' }, ctx, secret: SECRET });
   assert.equal(r.ok, false);
   assert.match(r.message, /need the session id/);
+});
+
+test('log_meal lands on the member\'s own day: the zone the chat route resolved, not UTC\'s', async (t) => {
+  // 8 pm UTC is already tomorrow in Kiritimati (UTC+14) and still today in Honolulu (UTC-10).
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-10-08T20:00:00Z') });
+  for (const [zone, day] of [['Pacific/Kiritimati', '2026-10-09'], ['Pacific/Honolulu', '2026-10-08']]) {
+    const registry = registryWith(logMealAction);
+    const actor = { id: 'client-1', role: 'client' };
+    const supabase = supabaseMock({ snapshot: { calories: 0 } });
+    const ctx = { ...ctxFor(actor, supabase, () => ({ ok: true, status: 200, data: { ok: true } })), zone };
+    const p = await proposeChange({ registry, action: 'log_meal', input: { kcal: 300 }, actor, ctx, secret: SECRET });
+    assert.equal(p.ok, true);
+    const c = await confirmChange({ registry, token: p.token, actor, ctx, audit: inMemoryAudit(), secret: SECRET });
+    assert.equal(c.ok, true, JSON.stringify(c));
+    assert.equal(ctx._calls[0].body.date, day, zone);
+  }
 });

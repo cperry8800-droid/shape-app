@@ -4263,6 +4263,8 @@ async function askSupportBot(messages, tone, extra = {}) {
   const body = { messages: Array.isArray(messages) ? messages : [], tone: tone || (window.ShapeVoice && window.ShapeVoice.tone()) || 'supportive', surface: 'app' };
   if (extra.cookContext) body.cookContext = extra.cookContext;
   if (extra.voice === true) body.voice = true;
+  // Where they are (the Ask Nora plan, step 4): the screen, what it has open, the zone.
+  if (extra.context && typeof extra.context === 'object') body.context = extra.context;
   const locale = appLocaleCode();
   if (locale) body.locale = locale;
   const res = await fetch(`${apiBaseUrl}/api/support/chat`, {

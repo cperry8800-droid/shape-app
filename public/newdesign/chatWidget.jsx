@@ -1025,6 +1025,15 @@ function ChatWidget(props) {
 
   const isSupport = !!tabs[tabIdx]?.support;
 
+  // Where they are (the Ask Nora plan, step 4): the page, what it has open, the device's
+  // zone (globalChatButton.js builds it). The chip under Nora's toolbar shows the page;
+  // taking it off sends only the zone for the rest of this visit.
+  const [noraScreenOff, setNoraScreenOff] = React.useState(false);
+  const noraScreenOffRef = React.useRef(false);
+  noraScreenOffRef.current = noraScreenOff;
+  const cwNoraContext = () => {
+    try { return window.__shapeNoraContext ? window.__shapeNoraContext(!noraScreenOffRef.current) : undefined; } catch (e) { return undefined; }
+  };
   // `opts.voice` marks a SPOKEN message (what Talk to Nora heard): the server then
   // writes Nora's reply for the ear, since it is read aloud. `opts.silent`: Talk reads
   // the reply itself, so the auto-read below stays out. On Nora's tab it resolves to
@@ -1095,7 +1104,7 @@ function ChatWidget(props) {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "same-origin",
-            body: JSON.stringify({ messages: history, tone: noraVoice.tone, voice: !!(opts && opts.voice), surface: "web", locale: cwLocale(), ...extra }),
+            body: JSON.stringify({ messages: history, tone: noraVoice.tone, voice: !!(opts && opts.voice), surface: "web", locale: cwLocale(), context: cwNoraContext(), ...extra }),
           });
           let res = await ask({});
           let data = await res.json().catch(() => ({}));
@@ -2097,6 +2106,15 @@ function ChatWidget(props) {
                     <img src="/nora-avatar.png" alt="" aria-hidden style={{ width: 22, height: 22, borderRadius: 999, objectFit: "cover", objectPosition: "50% 32%", border: `1.5px solid ${PAPER}` }} />
                     Talk to Nora
                   </button>
+                )}
+                {!noraScreenOff && typeof window !== "undefined" && window.__shapeNoraPageName && (
+                  // What Nora is told about where they are. × takes it off for this visit.
+                  <span data-nora-screen title="Nora knows the page you asked from" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 4px 4px 9px", borderRadius: 999, border: "1px dashed rgba(var(--sh-ink-rgb, 242,237,228),0.22)", color: "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.04em", maxWidth: 200 }}>
+                    <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: TEAL_BRIGHT, flex: "none" }} />
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>On {window.__shapeNoraPageName()}</span>
+                    <button type="button" onClick={() => setNoraScreenOff(true)} aria-label="Don't tell Nora which page you're on" title="Don't tell Nora which page you're on"
+                      style={{ border: 0, background: "transparent", color: "inherit", cursor: "pointer", fontSize: 12, lineHeight: 1, padding: "0 4px" }}>×</button>
+                  </span>
                 )}
                 {canVoice && <button onClick={() => setNoraEnabled(!noraVoice.enabled)} title="Read Nora's replies aloud"
                   style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 9px", borderRadius: 999, border: `1px solid ${noraVoice.enabled ? TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.14)"}`, background: noraVoice.enabled ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)" : "transparent", color: noraVoice.enabled ? "var(--sh-accent-ink, #2ee0c4)" : "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
