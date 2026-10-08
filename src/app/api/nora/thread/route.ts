@@ -4,6 +4,7 @@
 // GET                         -> { messages, updatedAt }  (no row yet: an empty list)
 // POST { append: [message] }  -> { ok, count }  the messages this device added since it
 //                                 loaded; appended to what is stored (src/lib/ai/noraThread.mjs)
+//                                 409 `thread_busy` when other devices kept winning the write
 // DELETE                      -> { ok }  Clear, in the panel and in Settings
 //
 // Any signed-in account, by cookie or Bearer token; a visitor's thread stays in their
@@ -49,6 +50,14 @@ async function readRow(supabase: Supa, userId: string) {
   return supabase.from('nora_threads').select('messages, updated_at').eq('user_id', userId).maybeSingle();
 }
 
+// The new row's stamp, always later than the one it replaces, so the next writer's check
+// against the stamp it read can never match a row that changed since.
+function nextStamp(previous: string | null | undefined, now: Date): string {
+  const before = previous ? Date.parse(previous) : NaN;
+  return new Date(Number.isFinite(before) ? Math.max(now.getTime(), before + 1) : now.getTime()).toISOString();
+}
+const APPEND_TRIES = 4;
+
 export async function GET(request: Request) {
   const who = await caller(request);
   if ('response' in who) return who.response;
@@ -67,13 +76,33 @@ export async function POST(request: Request) {
   const added = Array.isArray(parsed.data.append) ? parsed.data.append : [];
   // Nothing valid in the request is nothing to save: the stored row is left untouched.
   if (!cleanThread(added, now).length) return json({ error: 'Nothing to save.' }, 400);
-  const { data, error } = await readRow(who.supabase, who.userId);
-  if (error) return failed('read', error);
-  const messages = appendThread((data as { messages?: unknown } | null)?.messages, added, now);
-  const write = await who.supabase.from('nora_threads')
-    .upsert({ user_id: who.userId, messages, updated_at: now.toISOString() }, { onConflict: 'user_id' });
-  if (write.error) return failed('write', write.error);
-  return json({ ok: true, count: messages.length });
+  // ⚠ TWO DEVICES CAN APPEND AT ONCE (Codex, #2255). A read, append and upsert would let the
+  // later write drop the other's exchange, so the write is conditional: an update only
+  // applies while `updated_at` is still the value read, and a first insert loses to a
+  // concurrent one on the primary key. A lost race reads again and re-appends.
+  for (let attempt = 0; attempt < APPEND_TRIES; attempt += 1) {
+    const { data, error } = await readRow(who.supabase, who.userId);
+    if (error) return failed('read', error);
+    const row = data as { messages?: unknown; updated_at?: string | null } | null;
+    const messages = appendThread(row?.messages, added, now);
+    const stamp = nextStamp(row?.updated_at, now);
+    if (!row) {
+      const created = await who.supabase.from('nora_threads').insert({ user_id: who.userId, messages, updated_at: stamp });
+      if (!created.error) return json({ ok: true, count: messages.length });
+      if (created.error.code === '23505') continue; // another device created it first
+      return failed('write', created.error);
+    }
+    if (!row.updated_at) return failed('write', { message: 'thread row has no updated_at' });
+    const write = await who.supabase.from('nora_threads')
+      .update({ messages, updated_at: stamp })
+      .eq('user_id', who.userId)
+      .eq('updated_at', row.updated_at)
+      .select('user_id');
+    if (write.error) return failed('write', write.error);
+    if (Array.isArray(write.data) && write.data.length) return json({ ok: true, count: messages.length });
+    // Another device wrote between the read and this write: read again.
+  }
+  return json({ error: 'Your conversation is busy on another device. Try again.', code: 'thread_busy' }, 409);
 }
 
 export async function DELETE(request: Request) {

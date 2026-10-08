@@ -24626,6 +24626,9 @@ let _bsNoraGreeted = null;
 // login without reloading), and the account whose stored thread has been loaded.
 let _bsNoraThreadWho = null;
 let _bsNoraLoaded = null;
+// Bumped by Clear (here and in Settings), so an answer still on its way is neither drawn nor
+// saved after it: the save would put the cleared conversation back (Codex, #2255).
+let _bsNoraGen = 0;
 // A stored message ({ role, text, at }, /api/nora/thread) as the sheet draws one.
 function bsNoraFromStored(m) {
   const me = m && m.role === 'user';
@@ -24654,7 +24657,8 @@ function BSNoraSheet({ onClose }) {
   // reload starts a clean thread with the current greeting (no persistence).
   const SUPPORT_GREETING = { who: 'Nora', t: "Hi, I'm Nora — Shape's concierge. Ask me anything: connecting integrations, your plan, billing, or your account. If I can't sort it out, the Shape team answers at info@theshapecommunity.com.", time: 'now', me: false, bot: true, greet: true };
   // Another account's session thread is never shown: a different account starts from its own.
-  if (_bsNoraThreadWho !== _bsNoraWho()) { _bsNoraThread = null; _bsNoraThreadWho = _bsNoraWho(); }
+  // The load marker goes with it: signing out and back into the same account loads again (Codex, #2255).
+  if (_bsNoraThreadWho !== _bsNoraWho()) { _bsNoraThread = null; _bsNoraThreadWho = _bsNoraWho(); _bsNoraLoaded = null; }
   const [supportMsgs, setSupportMsgs] = useStateBSC(() => _bsNoraThread || [SUPPORT_GREETING]);
   const [supportDraft, setSupportDraft] = useStateBSC(() => { const d = _bsNoraDraft; _bsNoraDraft = ''; return d; });
   const [supportBusy, setSupportBusy] = useStateBSC(() => _bsNoraBusy);
@@ -24697,6 +24701,7 @@ function BSNoraSheet({ onClose }) {
   const clearThread = async () => {
     const ask = window.bsAskConfirm;
     if (ask && !(await ask({ title: tr('feed:support.thread.confirmTitle', { defaultValue: 'Clear your conversation with Nora?' }), message: tr('feed:support.thread.confirmBody', { defaultValue: 'This deletes it on every device. What Nora remembers stays.' }), confirmLabel: tr('feed:support.thread.clear', { defaultValue: 'Clear conversation' }) }))) return;
+    _bsNoraGen += 1;
     try { window.ShapeVoice?.stop?.(); } catch (e) {}
     _bsNoraPublish([(_bsNoraThread || supportMsgs)[0] || SUPPORT_GREETING]);
     if (_bsNoraWho() === 'anon' || !window.ShapeSupport?.thread) return;
@@ -24759,10 +24764,13 @@ function BSNoraSheet({ onClose }) {
     setSupportDraft('');
     const next = [...(_bsNoraThread || supportMsgs), { who: 'You', t: clean, time: 'now', me: true }];
     const sentAt = new Date().toISOString();
+    const gen = _bsNoraGen;
     _bsNoraPublish(next, true);
     try {
       const hist = next.map(m => ({ role: m.me ? 'user' : 'assistant', content: m.t }));
       const res = await window.ShapeSupport?.ask?.(hist, undefined, { voice: opts.voice === true, context: bsNoraContext(!screenOffRef.current) });
+      // Cleared while she was answering: the answer belongs to the conversation that went.
+      if (gen !== _bsNoraGen) return null;
       const reply = (res && res.reply) || "I can't answer that just now. The Shape team answers at info@theshapecommunity.com.";
       const acts = (res && Array.isArray(res.actions) && res.actions.length) ? res.actions : undefined;
       _bsNoraPublish([...(_bsNoraThread || next), { who: 'Nora', t: reply, time: 'now', me: false, bot: true, actions: acts }]);
@@ -24772,6 +24780,7 @@ function BSNoraSheet({ onClose }) {
       if (res && res.reply) _bsNoraSave([{ role: 'user', text: clean, at: sentAt }, { role: 'assistant', text: reply, at: new Date().toISOString() }]);
       return res && res.reply ? reply : null;
     } catch (e) {
+      if (gen !== _bsNoraGen) return null;
       _bsNoraPublish([...(_bsNoraThread || next), { who: 'Nora', t: "I can't be reached right now. Try again in a moment, or email the Shape team at info@theshapecommunity.com.", time: 'now', me: false, bot: true }]);
       return null;
     } finally { _bsNoraPublish(null, false); }
@@ -25937,6 +25946,7 @@ function BSNoraThreadCard() {
   const clear = async () => {
     const ask = window.bsAskConfirm;
     if (ask && !(await ask({ title: tr('feed:support.thread.confirmTitle', { defaultValue: 'Clear your conversation with Nora?' }), message: tr('feed:support.thread.confirmBody', { defaultValue: 'This deletes it on every device. What Nora remembers stays.' }), confirmLabel: tr('feed:support.thread.clear', { defaultValue: 'Clear conversation' }) }))) return;
+    _bsNoraGen += 1;
     const ok = await window.ShapeSupport?.thread?.clear?.();
     if (!ok) { window.__bsToast?.(tr('feed:support.thread.failed', { defaultValue: "Couldn't clear it on your account. Try again." }), 'err'); return; }
     // The open sheet's thread goes too, so it cannot be appended back from this session.

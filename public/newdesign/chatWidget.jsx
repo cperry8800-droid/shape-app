@@ -544,45 +544,75 @@ function ChatWidget(props) {
   // /api/nora/thread keeps the account's last messages, so the website and the app continue
   // the same conversation. Each device APPENDS what it added; none replaces the thread.
   const noraThreadSyncRef = React.useRef(false); // signed in, and the store answered
+  // Exchanges answered before the store did, sent once the load has placed the stored
+  // thread (Codex, #2255: a question asked while it loaded was dropped from both).
+  const noraHeldRef = React.useRef([]);
+  // Bumped by Clear, so an answer still on its way is not drawn or saved after it (Codex, #2255).
+  const noraThreadGenRef = React.useRef(0);
   const threadsRef = React.useRef(threadsByTab);
   threadsRef.current = threadsByTab;
   const cwNoraMsg = (m) => ({ who: m.role === "user" ? "You" : "Nora", t: String(m.text || ""), time: (() => { try { return new Date(m.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); } catch (e) { return ""; } })(), me: m.role === "user", saved: true });
   const cwNoraStored = (m) => ({ role: m.me ? "user" : "assistant", text: String(m.t || ""), at: new Date().toISOString() });
-  const cwNoraSave = (messages) => {
-    if (!noraThreadSyncRef.current || !messages.length) return;
+  const cwNoraPost = (messages) => {
+    if (!messages.length) return;
     fetch("/api/nora/thread", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ append: messages }) }).catch(() => {});
   };
-  const cwLoadNoraThread = (isCancelled) => {
+  const cwNoraSave = (messages) => {
+    if (!messages.length) return;
+    if (!noraThreadSyncRef.current) { noraHeldRef.current = [...noraHeldRef.current, ...messages].slice(-20); return; }
+    cwNoraPost(messages);
+  };
+  const cwNoraHeld = () => { const held = noraHeldRef.current; noraHeldRef.current = []; return held; };
+  // The Nora thread's messages (the Help tab's thread with Nora), as drawn now or in `from`.
+  const cwNoraLocal = (from) => {
+    let out = null;
+    ((from || threadsRef.current) || []).forEach((list, i) => { if (tabs[i] && tabs[i].support) (list || []).forEach((th) => { if (!out && th.who === "Nora") out = th.messages || []; }); });
+    return out || [];
+  };
+  // `hydrated`: the threads the hydrate just set, which this render has not drawn yet.
+  const cwLoadNoraThread = (isCancelled, hydrated) => {
+    // This browser's own copy, as hydrated; anything past it is said while loading.
+    const base = cwNoraLocal(hydrated).length;
+    const gen = noraThreadGenRef.current;
     fetch("/api/nora/thread", { credentials: "same-origin", cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
         if (isCancelled() || !j || !Array.isArray(j.messages)) return;
         noraThreadSyncRef.current = true;
+        if (gen !== noraThreadGenRef.current) {
+          // Cleared while it loaded: the Clear applies to the account too, then what was said after it.
+          fetch("/api/nora/thread", { method: "DELETE", credentials: "same-origin" })
+            .then(() => cwNoraPost(cwNoraHeld()), () => cwNoraPost(cwNoraHeld()));
+          return;
+        }
         const stored = j.messages;
         if (!stored.length) {
-          // Migrate this browser's own copy only when the account has none yet.
-          const local = [];
-          (threadsRef.current || []).forEach((list, i) => { if (tabs[i] && tabs[i].support) (list || []).forEach((th) => {
-            if (th.who !== "Nora") return;
-            const msgs = th.messages || [];
-            msgs.slice(msgs.length && !msgs[0].me ? 1 : 0).forEach((m) => { if (!m.pending && !m.saved && m.t) local.push(m); });
-          }); });
-          if (local.length) cwNoraSave(local.map(cwNoraStored));
+          // Migrate this browser's own copy only when the account has none yet, then what
+          // was answered while it loaded.
+          const msgs = cwNoraLocal().slice(0, base);
+          const local = msgs.slice(msgs.length && !msgs[0].me ? 1 : 0).filter((m) => !m.pending && !m.saved && m.t);
+          cwNoraPost([...local.map(cwNoraStored), ...cwNoraHeld()]);
           return;
         }
         setThreadsByTab((prev) => prev.map((list, i) => (tabs[i] && tabs[i].support) ? list.map((th) => {
           if (th.who !== "Nora") return th;
           const msgs = th.messages || [];
           const head = msgs.length && !msgs[0].me ? msgs[0] : null;
-          const kept = stored.map(cwNoraMsg);
+          // Said here while the stored thread loaded: kept after it (and saved just below,
+          // or by its own answer when that lands later).
+          const since = msgs.slice(Math.max(base, head ? 1 : 0));
+          const kept = [...stored.map(cwNoraMsg), ...since];
           const last = kept[kept.length - 1];
           return { ...th, last: last ? `${last.me ? "You" : "Nora"}: ${last.t}` : th.last, messages: head ? [head, ...kept] : kept };
         }) : list));
+        cwNoraPost(cwNoraHeld());
       })
       .catch(() => {});
   };
   const clearNoraThread = () => {
     try { if (!window.confirm("Clear your conversation with Nora? This deletes it on every device. What Nora remembers stays.")) return; } catch (e) {}
+    noraThreadGenRef.current += 1;
+    noraHeldRef.current = [];
     stopNora();
     setThreadsByTab((prev) => prev.map((list, i) => (tabs[i] && tabs[i].support) ? list.map((th) => {
       if (th.who !== "Nora") return th;
@@ -612,6 +642,7 @@ function ChatWidget(props) {
       setAuthProbe(probe);
       const key = `shape.chat.${STORE_VER}.${uid}`;
       storeKeyRef.current = key;
+      let hydratedThreads = null;
       // Don't clobber a message the user typed before hydration finished.
       if (!dirtyRef.current) {
         try {
@@ -635,6 +666,7 @@ function ChatWidget(props) {
             };
             const threads = saved && fit(saved.threadsByTab, []);
             if (threads) {
+              hydratedThreads = threads;
               setThreadsByTab(threads);
               const active = fit(saved.activeByTab, 0);
               if (active) setActiveByTab(active);
@@ -647,7 +679,7 @@ function ChatWidget(props) {
       // One conversation per account (the Ask Nora plan, step 4): the stored thread replaces
       // this browser's copy of Nora's, and a browser that kept one before the account had
       // any sends it up once. Signed out, or before the migration runs, nothing changes.
-      if (probe === "in" && !cancelled) cwLoadNoraThread(() => cancelled);
+      if (probe === "in" && !cancelled) cwLoadNoraThread(() => cancelled, hydratedThreads);
     })();
     return () => { cancelled = true; };
   }, [tabs.length, feedReady]);
@@ -1147,6 +1179,7 @@ function ChatWidget(props) {
     // script on a network error. Other tabs keep their simulated peer replies.
     if (isSupport) {
       const sentAt = new Date().toISOString();
+      const gen = noraThreadGenRef.current;
       // A Send tap is the gesture her player needs to read the reply aloud later.
       if (!opts.silent && canVoiceRef.current && noraVoice.enabled) primeNoraAudio();
       setTyping(true);
@@ -1180,6 +1213,8 @@ function ChatWidget(props) {
           if (data && data.reply && (res.ok || data.needsCheck)) { reply = data.reply; actions = data.actions; }
         } catch (e) { /* fall back below */ }
         setTyping(false);
+        // Cleared while she was answering: the answer belongs to the conversation that went.
+        if (gen !== noraThreadGenRef.current) return null;
         const finalReply = reply || supportReply(text);
         appendReply("Nora", finalReply, actions);
         // Kept on the account only when she answered: the scripted fallback is not the conversation.
