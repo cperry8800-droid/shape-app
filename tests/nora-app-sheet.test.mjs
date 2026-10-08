@@ -42,7 +42,7 @@ test('Chat has no Support segment and no Nora thread of its own', () => {
 
 test('the sheet carries the whole thread: messages, cards, actions, voice, and the session store', () => {
   const sheet = between(APP, 'function BSNoraSheet(', '// Chat tab for ALL roles');
-  for (const needle of ['sendSupportText', 'runSupportAction', '<BSNoraProposal', 'speakReply(', 'voiceChat', '<BSMessageComposer', 'createPortal(']) {
+  for (const needle of ['sendSupportText', 'runSupportAction', '<BSNoraProposal', 'speakReply(', 'useNoraTalk(', '<BSNoraTalk ', '<BSMessageComposer', 'createPortal(']) {
     assert.ok(sheet.includes(needle), needle);
   }
   assert.ok(sheet.includes('useStateBSC(() => _bsNoraThread || [SUPPORT_GREETING])'), 'reopening keeps the thread');

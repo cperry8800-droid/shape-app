@@ -171,13 +171,15 @@ test('browser-blocked server audio retries from the same clip and stop releases 
   let fetches = 0, plays = 0;
   const revoked = [];
   class Audio {
-    play() { plays++; return plays === 1 ? Promise.reject({ name: 'NotAllowedError' }) : Promise.resolve(); }
+    // The unlock is refused too (no tap): this is the case a phone hits when the tap's
+    // gesture did not reach the player, and the clip is kept for a retry from a tap.
+    play() { if (this.src === 'data:,') return Promise.reject({ name: 'NotAllowedError' }); plays++; return plays === 1 ? Promise.reject({ name: 'NotAllowedError' }) : Promise.resolve(); }
     pause() {}
   }
-  const code = `let _voiceGen=0, _voiceAudio=null, _voiceUrl=null, _voiceAbort=null, _voiceEnded=null, _voiceEnd=null;
+  const code = `let _voiceGen=0, _voiceAudio=null, _voiceUrl=null, _voiceAbort=null, _voiceEnded=null, _voiceEnd=null, _voicePlayer=null; const SILENT_CLIP='data:,';
     const apiBaseUrl='https://api.test', state={session:{access_token:'test'}}, supabase=null;
     const readVoicePrefs=()=>({enabled:false,tone:'supportive',voice:'auto'});
-    ${lift('liveAccessToken')} ${lift('settleVoiceEnd')} ${lift('stopVoice')} ${lift('speakVoice')} ${lift('retryVoice')}
+    ${lift('liveAccessToken')} ${lift('settleVoiceEnd')} ${lift('voicePlayer')} ${lift('primeVoice')} ${lift('stopVoice')} ${lift('speakVoice')} ${lift('retryVoice')}
     return {speak:speakVoice,retry:retryVoice,stop:stopVoice};`;
   const backend = new Function('fetch', 'Audio', 'URL', code)(
     async () => { fetches++; return { ok: true, blob: async () => new Blob(['voice']) }; },
@@ -317,10 +319,10 @@ test('speakVoice hands back when her clip ends, and a stop ends it too', async (
   let audio;
   const audios = [];
   class Audio { constructor() { audio = this; audios.push(this); } play() { return Promise.resolve(); } pause() {} }
-  const code = `let _voiceGen=0, _voiceAudio=null, _voiceUrl=null, _voiceAbort=null, _voiceEnded=null, _voiceEnd=null;
+  const code = `let _voiceGen=0, _voiceAudio=null, _voiceUrl=null, _voiceAbort=null, _voiceEnded=null, _voiceEnd=null, _voicePlayer=null; const SILENT_CLIP='data:,';
     const apiBaseUrl='https://api.test', state={session:{access_token:'test'}}, supabase=null;
     const readVoicePrefs=()=>({enabled:true,tone:'supportive',voice:'auto'});
-    ${lift('liveAccessToken')} ${lift('settleVoiceEnd')} ${lift('stopVoice')} ${lift('speakVoice')} ${lift('retryVoice')}
+    ${lift('liveAccessToken')} ${lift('settleVoiceEnd')} ${lift('voicePlayer')} ${lift('primeVoice')} ${lift('stopVoice')} ${lift('speakVoice')} ${lift('retryVoice')}
     return {speak:speakVoice,retry:retryVoice,stop:stopVoice};`;
   const backend = new Function('fetch', 'Audio', 'URL', code)(
     async () => ({ ok: true, blob: async () => new Blob(['voice']) }),
@@ -338,13 +340,36 @@ test('speakVoice hands back when her clip ends, and a stop ends it too', async (
   const fourth = await backend.speak('Serve', undefined, { force: true });
   assert.equal(await settled(third.ended), true, 'a newer speak must end the older clip');
   assert.equal(await settled(fourth.ended), false, 'the newer clip ended with the older one');
-  // The older clip's own `ended` (or `error`) can still arrive after a newer speak took over,
-  // and it must not settle the newer clip, which is still sounding.
-  assert.equal(audios.length, 4, 'expected one Audio per spoken clip');
-  audios[2].onended();
-  assert.equal(await settled(fourth.ended), false, "the older clip's late end settled the newer clip");
-  audios[3].onerror();
+  // ⚠ ONE PLAYER FOR EVERY CLIP (2026-10-08). A phone's browser plays only an element a tap
+  // started, and a reply arrives after a network wait, so a new Audio per clip was blocked and
+  // Listen did nothing. Every clip reuses the element primeVoice() unlocked; setting a new
+  // source drops the old clip's pending events, so an older clip's end cannot reach this one.
+  assert.equal(audios.length, 1, 'a new Audio per clip is blocked on a phone after the network wait');
+  assert.equal(audio.src, 'blob:test');
+  audio.onerror();
   assert.equal(await settled(fourth.ended), true, 'the newer clip failing never settled it');
+});
+
+test('speak unlocks the player inside the tap, before it awaits anything, and only once', async () => {
+  const played = [];
+  class Audio { play() { played.push(this.src); return Promise.resolve(); } pause() {} }
+  const code = `let _voiceGen=0, _voiceAudio=null, _voiceUrl=null, _voiceAbort=null, _voiceEnded=null, _voiceEnd=null, _voicePlayer=null; const SILENT_CLIP='data:,';
+    const apiBaseUrl='https://api.test', state={session:{access_token:'test'}}, supabase=null;
+    const readVoicePrefs=()=>({enabled:true,tone:'supportive',voice:'auto'});
+    ${lift('liveAccessToken')} ${lift('settleVoiceEnd')} ${lift('voicePlayer')} ${lift('primeVoice')} ${lift('stopVoice')} ${lift('speakVoice')}
+    return {speak:speakVoice, prime:primeVoice};`;
+  const backend = new Function('fetch', 'Audio', 'URL', code)(
+    async () => ({ ok: true, blob: async () => new Blob(['voice']) }),
+    Audio, { createObjectURL: () => 'blob:test', revokeObjectURL() {} });
+  const pending = backend.speak('Chop', undefined, { force: true });
+  assert.deepEqual(played, ['data:,'], 'the silence must play synchronously, while the tap is still the gesture');
+  assert.equal((await pending).ok, true);
+  assert.deepEqual(played, ['data:,', 'blob:test'], 'the reply plays on the same, unlocked element');
+  await backend.speak('Stir', undefined, { force: true });
+  backend.prime();
+  assert.deepEqual(played, ['data:,', 'blob:test', 'blob:test'], 'an unlocked player is not primed again');
+  const be = readFileSync(new URL('../mobile-app/src/services/shapeBackend.js', import.meta.url), 'utf8');
+  assert.match(be, /  prime: primeVoice,\n\};/, 'Talk and a Send tap reach it through window.ShapeVoice');
 });
 
 test('Nora asks with the token as of now, not the one cached when the page opened', async () => {
@@ -353,10 +378,10 @@ test('Nora asks with the token as of now, not the one cached when the page opene
   const sent = [];
   class Audio { play() { return Promise.resolve(); } pause() {} }
   let stored = { access_token: 'fresh', user: { id: 'u1' } };
-  const code = `let _voiceGen=0, _voiceAudio=null, _voiceUrl=null, _voiceAbort=null, _voiceEnded=null, _voiceEnd=null;
+  const code = `let _voiceGen=0, _voiceAudio=null, _voiceUrl=null, _voiceAbort=null, _voiceEnded=null, _voiceEnd=null, _voicePlayer=null; const SILENT_CLIP='data:,';
     const apiBaseUrl='https://api.test', state={user:{id:'u1'}, session:{access_token:'stale', user:{id:'u1'}}};
     const readVoicePrefs=()=>({enabled:true,tone:'supportive',voice:'auto'});
-    ${lift('liveAccessToken')} ${lift('settleVoiceEnd')} ${lift('stopVoice')} ${lift('speakVoice')}
+    ${lift('liveAccessToken')} ${lift('settleVoiceEnd')} ${lift('voicePlayer')} ${lift('primeVoice')} ${lift('stopVoice')} ${lift('speakVoice')}
     return {speak:speakVoice, state};`;
   const supabase = { auth: { getSession: async () => ({ data: { session: stored } }) } };
   const backend = new Function('fetch', 'Audio', 'URL', 'supabase', code)(

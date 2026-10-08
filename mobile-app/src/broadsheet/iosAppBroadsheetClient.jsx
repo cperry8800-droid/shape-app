@@ -54,6 +54,7 @@ import { BS_LEVER_HEADS } from '../services/dailyWire.mjs';
 import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } from './bsNavShell.js';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { BSIntegrationsPage, BSReconcile } from './BSIntegrationsPage.jsx';
+import { BSNoraTalk, useNoraTalk, bsNoraVoiceFail } from './BSNoraTalk.jsx';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
 
@@ -24628,24 +24629,40 @@ function BSNoraSheet({ onClose }) {
       _bsNoraPublish([{ ...cur[0], t: g.text, quick: g.quick }]);
     }).catch(() => { if (_bsNoraGreeted === who) _bsNoraGreeted = null; });
   }, []);
-  const [voiceChat, setVoiceChat] = useStateBSC(false); // conversation mode — off by default, per-session
-  // Read at REPLY time via the ref — a reply resolving after the user flips the
-  // chip off must not force-play (the async closure would hold the stale value).
-  const voiceChatRef = React.useRef(false);
+  // Talk to Nora (owner, 2026-10-08): the Talk button opens her face over the sheet and a
+  // spoken conversation that runs through this same thread. It replaced the "Voice chat
+  // on/off" chip, whose hold-to-talk mic was hard to find and harder to use.
+  const sendRef = React.useRef(null);
+  const talk = useNoraTalk((text) => sendRef.current(text, { voice: true, silent: true }));
   // No in-thread tone toggle — Nora's tone defaults to supportive (the ShapeVoice
   // default); the global voice on/off + tone still live in Settings → Nora voice.
   // (We do NOT force the tone here — that would overwrite the user's own setting
-  // on every mount.) The per-message "Listen" button plays a reply aloud on demand.
-  // Explicit Listen taps toast honestly on failure; auto-speak stays silent.
-  const speakReply = (text, opts) => {
-    try {
-      const p = window.ShapeVoice && window.ShapeVoice.speak(text, undefined, opts);
-      if (p && p.then) p.then((r) => {
-        if (r && r.ok === false && !r.disabled && opts && opts.force) {
-          window.__bsToast?.(r.reason === 'unavailable' ? 'Voice is unavailable right now' : "Nora's voice is a member feature", 'info');
-        }
-      });
-    } catch (e) {}
+  // on every mount.) Auto-speak (Settings → Nora voice on) stays silent on failure.
+  const speakReply = (text) => {
+    try { const p = window.ShapeVoice && window.ShapeVoice.speak(text); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+  };
+  // Listen under a reply: Loading while her audio is fetched, Stop while it plays, and an
+  // honest note when it cannot. ShapeVoice.speak is called inside the tap, which is what
+  // unlocks her player on a phone's browser (the reason Listen did nothing, 2026-10-08).
+  const [listening, setListening] = useStateBSC(null); // { i, playing }
+  const listenGen = React.useRef(0);
+  const listenTo = (i, text) => {
+    const gen = ++listenGen.current;
+    if (listening && listening.i === i) { try { window.ShapeVoice?.stop?.(); } catch (e) {} setListening(null); return; }
+    setListening({ i, playing: false });
+    let p = null;
+    try { p = window.ShapeVoice && window.ShapeVoice.speak(text, undefined, { force: true }); } catch (e) { p = null; }
+    Promise.resolve(p).then(async (r) => {
+      if (gen !== listenGen.current) return;
+      if (!r || r.ok === false) {
+        setListening(null);
+        if (!r || (!r.disabled && !r.superseded)) window.__bsToast?.(bsNoraVoiceFail(tr, r && r.reason), 'info');
+        return;
+      }
+      setListening({ i, playing: true });
+      try { await r.ended; } catch (e) {}
+      if (gen === listenGen.current) setListening(null);
+    }, () => { if (gen === listenGen.current) { setListening(null); window.__bsToast?.(bsNoraVoiceFail(tr, 'unavailable'), 'info'); } });
   };
   // Clear any thread persisted by older builds so stale history doesn't reappear.
   React.useEffect(() => { try { Object.keys(window.localStorage || {}).forEach(k => { if (k.indexOf('shape.support.') === 0) window.localStorage.removeItem(k); }); } catch (e) {} }, []);
@@ -24653,9 +24670,13 @@ function BSNoraSheet({ onClose }) {
   // transcript) and the typed path share ONE sender — no setState race.
   // `opts.voice` marks a SPOKEN message (a released hold-to-talk transcript):
   // the server then writes the reply for the ear, since it is read aloud.
+  // `opts.silent`: Talk to Nora reads the reply itself, so the auto-speak here stays out.
+  // Resolves to her reply (null when she could not answer), which is what Talk reads aloud.
   const sendSupportText = async (body, opts = {}) => {
     const clean = String(body || '').trim();
-    if (!clean || supportBusy) return;
+    if (!clean || _bsNoraBusy) return null;
+    // A tap that sends is the gesture her player needs to read the reply aloud later.
+    if (!opts.silent) { try { if (window.ShapeVoice?.enabled?.()) window.ShapeVoice.prime?.(); } catch (e) {} }
     setSupportDraft('');
     const next = [...(_bsNoraThread || supportMsgs), { who: 'You', t: clean, time: 'now', me: true }];
     _bsNoraPublish(next, true);
@@ -24665,16 +24686,15 @@ function BSNoraSheet({ onClose }) {
       const reply = (res && res.reply) || "I can't answer that just now. The Shape team answers at info@theshapecommunity.com.";
       const acts = (res && Array.isArray(res.actions) && res.actions.length) ? res.actions : undefined;
       _bsNoraPublish([...(_bsNoraThread || next), { who: 'Nora', t: reply, time: 'now', me: false, bot: true, actions: acts }]);
-      // Conversation mode reads every reply aloud; otherwise the global
-      // auto-speak toggle decides (off by default). Auto-speak failures are silent.
-      // voiceChatRef, not the closed-over state: the chip may have flipped off
-      // while this reply was in flight.
-      if (voiceChatRef.current) speakReply(reply, { force: true });
-      else if (window.ShapeVoice && window.ShapeVoice.enabled()) speakReply(reply);
+      // Settings → Nora voice on reads every reply aloud (off by default); failures are silent.
+      if (!opts.silent && window.ShapeVoice && window.ShapeVoice.enabled()) speakReply(reply);
+      return res && res.reply ? reply : null;
     } catch (e) {
       _bsNoraPublish([...(_bsNoraThread || next), { who: 'Nora', t: "I can't be reached right now. Try again in a moment, or email the Shape team at info@theshapecommunity.com.", time: 'now', me: false, bot: true }]);
+      return null;
     } finally { _bsNoraPublish(null, false); }
   };
+  sendRef.current = sendSupportText;
   const sendSupport = () => sendSupportText(supportDraft);
   // Nora's structured follow-ups → in-app destinations (the app is a webview, so
   // route coach/marketplace links to the in-app Marketplace rather than a URL).
@@ -24738,13 +24758,16 @@ function BSNoraSheet({ onClose }) {
                   <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: noraTint }}>
                     <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: noraTint, boxShadow: `0 0 8px ${noraTint}` }} />24/7
                   </span>
+                  {/* Talk to Nora: starts inside this tap (the mic and her player unlock only for
+                      work a tap starts), then her face takes the sheet. */}
                   <button
                     type="button"
-                    onClick={(e) => { e.stopPropagation(); const on = !voiceChatRef.current; voiceChatRef.current = on; setVoiceChat(on); if (!on) { try { window.ShapeVoice?.stop?.(); } catch (err) {} } }}
-                    aria-pressed={voiceChat}
-                    style={{ marginLeft: 10, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 9px', borderRadius: 999, border: `1px solid ${voiceChat ? noraTint : hair}`, background: voiceChat ? `${noraTint}1f` : 'transparent', color: voiceChat ? noraTint : muted, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                    data-nora-talk-button
+                    onClick={(e) => { e.stopPropagation(); talk.start(); }}
+                    style={{ marginLeft: 10, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '4px 12px 4px 4px', borderRadius: 999, border: 0, background: noraTint, color: '#fff', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: `0 2px 10px ${noraTint}55` }}
                   >
-                    <span aria-hidden style={{ fontSize: 10, lineHeight: 1 }}>♪</span> {tr('feed:support.voiceChat', { defaultValue: 'Voice chat' })} {voiceChat ? tr('feed:support.on', { defaultValue: 'on' }) : tr('feed:support.off', { defaultValue: 'off' })}
+                    <img src={BS_NORA_AVATAR} alt="" aria-hidden style={{ width: 22, height: 22, borderRadius: 999, objectFit: 'cover', objectPosition: '50% 32%', border: '1.5px solid #fff' }} />
+                    {tr('feed:support.talk', { defaultValue: 'Talk to Nora' })}
                   </button>
                 </div>
                 <div aria-hidden style={{ height: 2, marginTop: 10, marginBottom: 16, background: `linear-gradient(90deg, ${t.INK}, ${noraTint} 62%, transparent)` }} />
@@ -24766,9 +24789,12 @@ function BSNoraSheet({ onClose }) {
                               <div onClick={m.bot ? () => setShowNora(true) : undefined} style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: noraTint, fontWeight: 800, marginBottom: 5, cursor: m.bot ? 'pointer' : 'default' }}>{m.who}{m.bot ? ` · ${tr('feed:support.concierge', { defaultValue: 'Concierge' })}` : ''}</div>
                             )}
                             <div style={{ borderRadius: 16, [me ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: 5, fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.4, letterSpacing: '-0.005em', color: t.INK, background: bubbleBg, border: `1px solid ${tc}40`, padding: '11px 14px', whiteSpace: 'pre-wrap' }}>{m.t}</div>
-                            {m.bot && (
-                              <button onClick={() => speakReply(m.t, { force: true })} title={tr('feed:support.readAloud', { defaultValue: 'Read this aloud' })} aria-label={tr('feed:support.readAloud', { defaultValue: 'Read this aloud' })} style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: muted, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}><span aria-hidden style={{ fontSize: 10, lineHeight: 1 }}>♪</span> {tr('feed:support.listen', { defaultValue: 'Listen' })}</button>
-                            )}
+                            {m.bot && (() => {
+                              const mine = listening && listening.i === i;
+                              return (
+                                <button onClick={() => listenTo(i, m.t)} aria-pressed={!!mine} title={tr('feed:support.readAloud', { defaultValue: 'Read this aloud' })} aria-label={mine ? tr('feed:support.stop', { defaultValue: 'Stop' }) : tr('feed:support.readAloud', { defaultValue: 'Read this aloud' })} style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 999, border: `1px solid ${mine ? noraTint : hair}`, background: mine ? `${noraTint}1f` : 'transparent', color: mine ? noraTint : muted, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}><span aria-hidden style={{ fontSize: 10, lineHeight: 1 }}>{mine && listening.playing ? '■' : '♪'}</span> {mine ? (listening.playing ? tr('feed:support.stop', { defaultValue: 'Stop' }) : tr('feed:support.loading', { defaultValue: 'Loading…' })) : tr('feed:support.listen', { defaultValue: 'Listen' })}</button>
+                              );
+                            })()}
                             {m.greet && supportMsgs.length === 1 && Array.isArray(m.quick) && m.quick.length > 0 && (
                               <div data-nora-quick style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 8 }}>
                                 {m.quick.map((q) => (
@@ -24797,7 +24823,8 @@ function BSNoraSheet({ onClose }) {
                 </div>
               </div>
                     </div>
-        <BSMessageComposer value={supportDraft} onChange={setSupportDraft} onSend={sendSupport} unlocked voice holdToTalk={voiceChat} onVoiceComplete={voiceChat ? (text) => sendSupportText(text, { voice: true }) : undefined} placeholder={tr('feed:support.composerPlaceholder', { defaultValue: 'Ask Nora…' })} />
+        <BSMessageComposer value={supportDraft} onChange={setSupportDraft} onSend={sendSupport} unlocked voice placeholder={tr('feed:support.composerPlaceholder', { defaultValue: 'Ask Nora…' })} />
+        <BSNoraTalk talk={talk} t={t} tint={noraTint} avatar={BS_NORA_AVATAR} />
       </div>
       {showNora && <BSNoraProfile onClose={() => setShowNora(false)} />}
     </div>,
@@ -35695,7 +35722,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         { l: tr('settings:nora.speakReplies', { defaultValue: 'Speak replies' }), key: 'noraVoice', segmented: PREF_OPTIONS.noraVoice, segLabels: [tr('settings:common.on', { defaultValue: 'On' }), tr('settings:common.off', { defaultValue: 'Off' })] },
         { l: tr('settings:nora.tone', { defaultValue: 'Tone' }), key: 'noraTone', segmented: PREF_OPTIONS.noraTone, segLabels: [tr('settings:nora.toneSupportive', { defaultValue: 'Supportive' }), tr('settings:nora.toneDirect', { defaultValue: 'Direct' })] },
         { l: tr('settings:nora.voice', { defaultValue: 'Voice' }), key: 'noraVoiceName', dropdown: PREF_OPTIONS.noraVoiceName },
-        { l: tr('settings:nora.preview', { defaultValue: 'Preview voice' }), r: tr('settings:nora.previewMeta', { defaultValue: 'Listen' }), action: () => { try { window.ShapeVoice?.speak?.("Hi, I'm Nora. This is how I'll sound.", undefined, { force: true }).then((r) => { if (r && r.ok === false && !r.disabled) window.__bsToast?.(r.reason === 'unavailable' ? 'Voice is unavailable right now' : "Nora's voice is a member feature", 'info'); }); } catch (e) {} } },
+        { l: tr('settings:nora.preview', { defaultValue: 'Preview voice' }), r: tr('settings:nora.previewMeta', { defaultValue: 'Listen' }), action: () => { try { window.ShapeVoice?.speak?.("Hi, I'm Nora. This is how I'll sound.", undefined, { force: true }).then((r) => { if (r && r.ok === false && !r.disabled && !r.superseded) window.__bsToast?.(bsNoraVoiceFail(tr, r.reason), 'info'); }); } catch (e) {} } },
         { l: tr('settings:nora.memory', { defaultValue: 'What Nora remembers' }), r: tr('settings:nora.memoryMeta', { defaultValue: 'View' }), action: () => setShowNoraMemory(true) },
       ],
     },
