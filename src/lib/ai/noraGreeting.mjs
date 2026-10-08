@@ -43,8 +43,8 @@ const GREETINGS = {
     quick: ['What needs me today?', 'Draft a 3-day cut meal plan', 'Look up a client', "Set a client's protein goal"],
   },
   admin: {
-    text: `Hi, I'm Nora. I can answer how Shape works, billing and coach questions, and look up your own account. The Shape team reads ${EMAIL}.`,
-    quick: ['What does Shape take from coaches?', 'What does a membership include?', 'How does the Verified badge work?', 'Find me a coach'],
+    text: `Hi, I'm Nora. I can look up an account by its email for a help-desk question (read-only, and every lookup is logged), answer how Shape works, and look up your own account. The Shape team reads ${EMAIL}.`,
+    quick: ['Look up an account by email', 'What does Shape take from coaches?', 'What does a membership include?', 'How does the Verified badge work?'],
   },
 };
 
