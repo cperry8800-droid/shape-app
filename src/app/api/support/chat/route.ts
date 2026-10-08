@@ -103,7 +103,9 @@ type SupportAction =
 // The form a page says is open, reduced to a known form, step and filled keys.
 type FormCtx = { kind: string; step: number; filled: string[] };
 // `kind: 'coach_plan'` → the website follows `url`; the app opens the plan by id.
-type ProposalOpen = { kind: 'coach_plan'; planId: string; clientId?: string; url: string };
+// `planKind: 'meal_plan'`: a nutritionist's draft (draft_meal_plan), which the app lists under
+// Plans but cannot open; its card says it is edited in the website builder.
+type ProposalOpen = { kind: 'coach_plan'; planKind?: 'meal_plan'; planId: string; clientId?: string; url: string };
 
 type OpenAIContentPart = { type?: string; text?: string };
 type OpenAIOutputItem = {

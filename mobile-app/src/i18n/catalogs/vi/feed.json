@@ -190,6 +190,7 @@
   "support.proposal.undo": "Hoàn tác",
   "support.proposal.undoing": "Đang hoàn tác…",
   "support.proposal.openBuilder": "Mở trong trình tạo",
+  "support.proposal.mealPlanSaved": "Đã lưu vào kế hoạch bữa ăn của bạn. Chỉnh sửa và giao nó trong trình tạo bữa ăn trên trang web Shape.",
   "support.proposal.applyFailed": "Không thể áp dụng thay đổi đó.",
   "support.proposal.unavailable": "Hiện không thể thực hiện thao tác.",
   "support.proposal.undoUnavailable": "Hiện không thể hoàn tác.",

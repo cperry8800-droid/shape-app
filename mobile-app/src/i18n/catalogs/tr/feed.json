@@ -190,6 +190,7 @@
   "support.proposal.undo": "Geri al",
   "support.proposal.undoing": "Geri alınıyor…",
   "support.proposal.openBuilder": "Oluşturucuda aç",
+  "support.proposal.mealPlanSaved": "Beslenme planlarına kaydedildi. Shape web sitesindeki öğün oluşturucuda düzenleyip ata.",
   "support.proposal.applyFailed": "Bu değişiklik uygulanamadı.",
   "support.proposal.unavailable": "İşlemler şu anda kullanılamıyor.",
   "support.proposal.undoUnavailable": "Geri alma şu anda kullanılamıyor.",

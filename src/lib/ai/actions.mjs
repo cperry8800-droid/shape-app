@@ -507,7 +507,7 @@ export const draftMealPlanAction = {
       beforeState: { planId: planId },
       afterState: { planId: planId, name: name },
       confirmedPayload: confirmed,
-      open: { kind: 'coach_plan', planId: planId, ...(clientId ? { clientId: clientId } : {}), url: mealPlansUrl(planId, clientId) },
+      open: { kind: 'coach_plan', planKind: 'meal_plan', planId: planId, ...(clientId ? { clientId: clientId } : {}), url: mealPlansUrl(planId, clientId) },
       note: "Every meal and number on the card is from Shape's meal library; say so, and never add a meal or a figure of your own. Nothing is saved until they confirm; it is saved unpublished to their meal plans and opens in the website builder, where they edit it and assign it (the compliance check runs there)."
         + (picked.missing.length ? ' No library food fit the ' + picked.missing.join(' and ') + ' after what they left out: say so, and that they can add their own in the builder.' : ''),
     };
@@ -525,7 +525,7 @@ export const draftMealPlanAction = {
       expectedOwnerId: ctx.actor.id, detail: built.detail,
     });
     if (!res.ok) throw new Error((res.data && res.data.error) || 'Could not save the draft to your meal plans.');
-    return { plan: { id: p.planId, name: name }, open: { kind: 'coach_plan', planId: p.planId, url: mealPlansUrl(p.planId, p.clientId) } };
+    return { plan: { id: p.planId, name: name }, open: { kind: 'coach_plan', planKind: 'meal_plan', planId: p.planId, url: mealPlansUrl(p.planId, p.clientId) } };
   },
   async undo(ctx, plan) {
     // ⚠ IN-STATEMENT GUARD: only while the row still holds exactly the document this saved,

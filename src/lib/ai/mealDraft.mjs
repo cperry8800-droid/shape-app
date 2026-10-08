@@ -97,17 +97,49 @@ export function cleanMealBrief(input) {
   };
 }
 
+// ⚠ WHAT A DISH IS MADE OF, BEYOND THE LIBRARY'S ALLERGEN TAGS (Codex, #2260): the steak is
+// beef though neither its tags, its name nor its ingredients say "beef", so "no beef" served it.
+// These name each animal protein a dish holds; a test fails when a library dish with a meat or
+// seafood ingredient is missing here.
+export const PROTEIN_TAGS = {
+  f5: ['meat', 'poultry', 'chicken'], f7: ['meat', 'poultry', 'chicken'], f18: ['meat', 'poultry', 'chicken'], f23: ['meat', 'poultry', 'chicken'],
+  f8: ['meat', 'poultry', 'turkey'],
+  f11: ['meat', 'red meat', 'beef'], f20: ['meat', 'red meat', 'beef'],
+  f6: ['seafood', 'salmon'], f12: ['seafood', 'tuna'], f22: ['seafood'], f10: ['seafood', 'shrimp'],
+};
+// What a word they used means in tags: a diet leaves several out, and plain words map to the
+// library's own tags.
+export const EXCLUDE_ALIASES = {
+  vegetarian: ['meat', 'fish', 'shellfish', 'seafood'],
+  vegan: ['meat', 'fish', 'shellfish', 'seafood', 'dairy', 'egg'],
+  pescatarian: ['meat'],
+  seafood: ['fish', 'shellfish', 'seafood'],
+  'red meat': ['red meat'],
+  pork: ['pork'], lamb: ['lamb'],
+  milk: ['dairy'], lactose: ['dairy'], cheese: ['dairy'], yogurt: ['dairy'],
+  wheat: ['gluten'], bread: ['gluten'],
+  peanut: ['nuts'], peanuts: ['nuts'], 'tree nuts': ['nuts'], nut: ['nuts'],
+  eggs: ['egg'], shrimp: ['shellfish'], prawn: ['shellfish'], prawns: ['shellfish'], crustacean: ['shellfish'],
+};
+function exclusionTerms(ex) {
+  const terms = new Set([ex, ...(EXCLUDE_ALIASES[ex] || [])]);
+  if (ex.length > 3 && ex.endsWith('s')) terms.add(ex.slice(0, -1));
+  return [...terms];
+}
+
 // The rule the builder's own search uses (DashMeals.searchFoods): a food is left out when an
-// exclusion is one of its tags or appears in its name. ⚠ AND A PACKAGED FOOD (a bar, a sushi
-// set, a trail mix) IS LEFT OUT WHENEVER ANYTHING IS EXCLUDED: its tags say what it certainly
-// holds, never what it lacks, because the contents depend on the brand.
+// exclusion is one of its tags or appears in its name; here also its ingredients and what it
+// is made of. ⚠ AND A PACKAGED FOOD (a bar, a sushi set, a trail mix) IS LEFT OUT WHENEVER
+// ANYTHING IS EXCLUDED: its tags say what it certainly holds, never what it lacks, because the
+// contents depend on the brand.
 function allowed(food, brief) {
   if (brief.maxPrep != null && food.prepMin != null && food.prepMin > brief.maxPrep) return false;
   if (!brief.exclusions.length) return true;
   if (food.packaged) return false;
   const name = food.name.toLowerCase();
   const ingredients = (food.ingredients || []).map((x) => String(x.name).toLowerCase());
-  return !brief.exclusions.some((ex) => food.tags.includes(ex) || name.includes(ex) || ingredients.some((n) => n.includes(ex)));
+  const tags = [...food.tags, ...(PROTEIN_TAGS[food.id] || [])];
+  return !brief.exclusions.some((ex) => exclusionTerms(ex).some((term) => tags.includes(term) || name.includes(term) || ingredients.some((n) => n.includes(term))));
 }
 
 export function slotPools(brief) {

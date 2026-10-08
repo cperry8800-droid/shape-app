@@ -9,7 +9,7 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  MEAL_LIBRARY, PHASES, SLOTS, SLOT_FOODS, DRAFT_NOTICE, SCALE_MIN, SCALE_MAX, cleanMealBrief, pickMeals, buildMealDoc, mealDraftDiff, dayTotals, draftName, scaleMeal,
+  MEAL_LIBRARY, PHASES, SLOTS, SLOT_FOODS, DRAFT_NOTICE, SCALE_MIN, SCALE_MAX, PROTEIN_TAGS, cleanMealBrief, pickMeals, slotPools, buildMealDoc, mealDraftDiff, dayTotals, draftName, scaleMeal,
 } from '../src/lib/ai/mealDraft.mjs';
 import { createRegistry, proposeChange, confirmChange, undoChange, inMemoryAudit, verifyToken } from '../src/lib/ai/proposals.mjs';
 import { NORA_ACTIONS } from '../src/lib/ai/actions.mjs';
@@ -90,6 +90,44 @@ test('the picks: every meal from its slot\'s list, inside what was left out, var
   assert.ok(byName.days.flatMap((d) => d.meals).every((m) => !byId.get(m.id).ingredients.some((x) => /rice/i.test(x.name))), 'an exclusion matches an ingredient too');
 });
 
+// ⚠ Codex, #2260: "no beef" served the steak, because neither its tags, its name nor its
+// ingredients say beef. What a dish is made of is named beside the library, and this fails
+// when a dish with a meat or seafood ingredient is added without it.
+const ANIMAL = /\b(chicken|turkey|beef|steak|sirloin|pork|lamb|bacon|ham|sausage|salmon|tuna|cod|fish|shrimp|prawn|crab|sushi)\b/i;
+test('what a dish is made of: every dish with a meat or seafood ingredient is named in PROTEIN_TAGS', () => {
+  for (const id of Object.keys(PROTEIN_TAGS)) assert.ok(byId.has(id), `${id} is not in the library`);
+  for (const f of MEAL_LIBRARY) {
+    const animal = ANIMAL.test(f.name) || (f.ingredients || []).some((x) => ANIMAL.test(x.name));
+    if (!animal) continue;
+    const tags = PROTEIN_TAGS[f.id] || [];
+    assert.ok(tags.includes('meat') || tags.includes('seafood'), `${f.id} ${f.name}: name what it is made of in PROTEIN_TAGS`);
+  }
+});
+
+test('what they leave out, in their words: beef, a diet, a plain word for a tag', () => {
+  const ids = (input) => Object.values(slotPools(cleanMealBrief({ days: 3, ...input }))).flat().map((f) => f.id);
+  const served = (input) => new Set(ids(input));
+  const beef = served({ exclude: ['beef'] });
+  assert.ok(!beef.has('f20'), 'the steak is beef');
+  assert.ok(!beef.has('f11'), 'the chili is beef');
+  assert.ok(beef.has('f5'), 'chicken still served');
+  const meatOrFish = (id) => (PROTEIN_TAGS[id] || []).some((t) => t === 'meat' || t === 'seafood') || byId.get(id).tags.some((t) => t === 'fish' || t === 'shellfish');
+  for (const diet of ['vegetarian', 'Vegetarian']) {
+    const v = ids({ exclude: [diet] });
+    assert.ok(v.length && !v.some(meatOrFish), diet + ': no meat, fish or shellfish');
+  }
+  const vegan = ids({ exclude: ['vegan'] });
+  assert.ok(vegan.length && !vegan.some((id) => meatOrFish(id) || byId.get(id).tags.some((t) => t === 'dairy' || t === 'egg')), 'vegan: no dairy or egg either');
+  assert.deepEqual(pickMeals(cleanMealBrief({ exclude: ['vegan'] })).missing, ['Breakfast'], 'a slot nothing fits is named, never filled');
+  const pesc = served({ exclude: ['pescatarian'] });
+  assert.ok(pesc.has('f6') && !pesc.has('f5') && !pesc.has('f8'), 'pescatarian keeps fish, drops meat');
+  assert.ok(!served({ exclude: ['red meat'] }).has('f20') && served({ exclude: ['red meat'] }).has('f8'), 'red meat is beef, not turkey');
+  for (const [word, tag] of [['milk', 'dairy'], ['peanuts', 'nuts'], ['eggs', 'egg'], ['seafood', 'fish'], ['prawns', 'shellfish'], ['wheat', 'gluten']]) {
+    const left = ids({ exclude: [word] });
+    assert.ok(!left.some((id) => byId.get(id).tags.includes(tag)), `${word} leaves out every ${tag} dish`);
+  }
+});
+
 test('the document is the builder\'s own: its helpers total it, check it and assign it', () => {
   const brief = cleanMealBrief({ goalPhase: 'build', days: 2, kcal: 2700 });
   const picked = pickMeals(brief);
@@ -164,7 +202,7 @@ test('draft_meal_plan · preview writes nothing; confirm saves exactly the card,
   assert.match(p.preview.summary, /^Draft "Cut · 3-day rotation" for Priya and save it to your meal plans, unpublished, to edit and assign in the builder$/);
   const plan = verifyToken(p.token, SECRET);
   const { planId } = plan.confirmedPayload;
-  assert.deepEqual(p.preview.open, { kind: 'coach_plan', planId, clientId: 'client-4', url: `/newdesign/NutritionistApp.html#plans?plan=${planId}&client=client-4` });
+  assert.deepEqual(p.preview.open, { kind: 'coach_plan', planKind: 'meal_plan', planId, clientId: 'client-4', url: `/newdesign/NutritionistApp.html#plans?plan=${planId}&client=client-4` }, 'planKind: the app card never opens a trainer\'s program editor on it');
   assert.deepEqual(supabase._calls.rpc, [{ name: 'is_coach_on_client', args: { p_client_id: 'client-4' } }], 'the client is checked, never guessed');
 
   const c = await confirmChange({ registry: reg, token: p.token, actor, ctx, secret: SECRET, audit });
@@ -180,6 +218,7 @@ test('draft_meal_plan · preview writes nothing; confirm saves exactly the card,
   assert.deepEqual(post.body.detail, { mealBuilder: expected }, 'what lands is what the card showed');
   assert.ok(expected.days.every((d) => d.slots.every((m) => !/shrimp/i.test(m.name))), 'what was left out stays out');
   assert.ok(!ctx._calls.some((x) => x.path === '/api/nutritionist/meal-plan'), 'never assigned from here');
+  assert.deepEqual(c.result.open, { kind: 'coach_plan', planKind: 'meal_plan', planId, url: `/newdesign/NutritionistApp.html#plans?plan=${planId}&client=client-4` });
 
   const u = await undoChange({ registry: reg, auditId: c.auditId, actor, ctx, audit });
   assert.equal(u.ok, true, u.message);
@@ -214,14 +253,22 @@ test('draft_meal_plan · nutrition roles only, held roles counted: a trainer or 
 });
 
 // ── The surfaces ─────────────────────────────────────────────────────────────────
-test('the website builder opens ?plan= once the library holds it; the app takes a nutritionist to Plans', () => {
+test('the website builder opens ?plan= once the library holds it; the app lists the draft under Plans', () => {
   const W = read('public/newdesign/dashMealBuilder.jsx');
   const open = W.slice(W.indexOf('// A draft Nora just saved opens straight in the builder'), W.indexOf('// A plan saved on the phone shows up here'));
   assert.match(open, /const openPlan = typeof dashRouteParam === "function" \? dashRouteParam\("plan"\) : null;/);
   assert.match(open, /if \(found\) \{ openedPlan\.current = openPlan; setView\(\{ template: found \}\); return; \}/);
   assert.match(open, /if \(openRetried\.current !== openPlan\) \{ openRetried\.current = openPlan; setRefresh\(\(n\) => n \+ 1\); return; \}/, 'read once more before saying it is missing');
   const P = read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx');
+  // ⚠ Codex, #2260: the card no longer dispatches an open for a meal plan, so neither shell
+  // listens for one; a dual-role trainer's shell would have opened its program editor on it.
   const nutri = P.slice(P.indexOf('function BSNutritionistAppInner('), P.indexOf('function BSNutriToday('));
-  assert.match(nutri, /window\.addEventListener\('shape:openCoachPlan', onOpenPlan\);/);
-  assert.match(nutri, /setShowNoraSheet\(false\);\n\s+setTab\('plans'\);/);
+  assert.doesNotMatch(nutri, /shape:openCoachPlan/);
+  // ⚠ Codex, #2260: Plans filtered the builder's documents out, so a confirmed draft vanished.
+  const plans = P.slice(P.indexOf('function BSNutriPlans('), P.indexOf('function ', P.indexOf('function BSNutriPlans(') + 10));
+  assert.match(plans, /\.filter\(p => !p\.id \|\| !p\.detail \|\| p\.detail\.buildType === 'mealplan' \|\| !!p\.detail\.mealBuilder\)/);
+  assert.match(plans, /web: !!\(p\.detail && p\.detail\.mealBuilder\)/);
+  assert.match(plans, /onOpen=\{\(\) => \(p\.web \? flash\(tr\('coach:plans\.webBuilderOnly'/, 'Open says where it is edited, never the app editor on another document');
+  assert.match(plans, /onAssign=\{\(\) => \(p\.web \? flash\(tr\('coach:plans\.webBuilderOnly'/, 'Assign too: the app assigns another document');
+  assert.match(plans, /meta=\{p\.web \? `\$\{p\.meta\} · \$\{tr\('coach:plans\.webBuilder'/);
 });

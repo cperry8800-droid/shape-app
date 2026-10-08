@@ -190,6 +190,7 @@
   "support.proposal.undo": "Annuler",
   "support.proposal.undoing": "Annulation…",
   "support.proposal.openBuilder": "Ouvrir dans l’éditeur",
+  "support.proposal.mealPlanSaved": "Enregistré dans vos plans de repas. Modifiez-le et attribuez-le dans l’éditeur de repas du site Shape.",
   "support.proposal.applyFailed": "Impossible d’appliquer ce changement.",
   "support.proposal.unavailable": "Les actions sont indisponibles pour le moment.",
   "support.proposal.undoUnavailable": "L’annulation est indisponible pour le moment.",

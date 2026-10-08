@@ -190,6 +190,7 @@
   "support.proposal.undo": "Отменить",
   "support.proposal.undoing": "Отменяем…",
   "support.proposal.openBuilder": "Открыть в редакторе",
+  "support.proposal.mealPlanSaved": "Сохранено в ваших планах питания. Редактируйте и назначайте его в конструкторе питания на сайте Shape.",
   "support.proposal.applyFailed": "Не удалось применить изменение.",
   "support.proposal.unavailable": "Действия сейчас недоступны.",
   "support.proposal.undoUnavailable": "Отмена сейчас недоступна.",

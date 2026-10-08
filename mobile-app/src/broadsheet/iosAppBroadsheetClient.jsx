@@ -25038,7 +25038,13 @@ function BSNoraProposal({ a, t }) {
           <button onClick={confirm} style={{ border: 0, background: ac, color: '#06231f', borderRadius: 999, padding: '7px 14px', fontFamily: mono, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{status === 'error' ? tr('feed:support.proposal.tryAgain', { defaultValue: 'Try again' }) : tr('feed:support.proposal.confirm', { defaultValue: 'Confirm' })}</button>
         )}
         {status === 'busy' && <span style={{ fontFamily: mono, fontSize: 9, color: muted, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{tr('feed:support.proposal.applying', { defaultValue: 'Applying…' })}</span>}
-        {status === 'done' && open && (
+        {/* A meal plan Nora drafted is the website builder's document: the app's editor keeps
+            another shape, so the card says where it is instead of opening a screen that cannot
+            show it (Codex, #2260). It is listed under Plans. */}
+        {status === 'done' && open && open.planKind === 'meal_plan' && (
+          <span data-nora-meal-saved style={{ fontFamily: t.BODY, fontSize: 12, color: muted, lineHeight: 1.4 }}>{tr('feed:support.proposal.mealPlanSaved', { defaultValue: 'Saved to your meal plans. Edit and assign it in the meal builder on the Shape website.' })}</span>
+        )}
+        {status === 'done' && open && open.planKind !== 'meal_plan' && (
           <button onClick={openPlan} style={{ border: 0, background: ac, color: '#06231f', borderRadius: 999, padding: '7px 14px', fontFamily: mono, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('feed:support.proposal.openBuilder', { defaultValue: 'Open in builder' })} →</button>
         )}
         {status === 'done' && auditId && (

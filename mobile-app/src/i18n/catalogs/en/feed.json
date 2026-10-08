@@ -190,6 +190,7 @@
   "support.proposal.undo": "Undo",
   "support.proposal.undoing": "Undoing…",
   "support.proposal.openBuilder": "Open in builder",
+  "support.proposal.mealPlanSaved": "Saved to your meal plans. Edit and assign it in the meal builder on the Shape website.",
   "support.proposal.applyFailed": "Could not apply that change.",
   "support.proposal.unavailable": "Actions are unavailable right now.",
   "support.proposal.undoUnavailable": "Undo is unavailable right now.",
