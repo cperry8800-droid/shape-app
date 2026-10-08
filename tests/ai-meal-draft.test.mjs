@@ -68,6 +68,17 @@ test('the picks: every meal from its slot\'s list, inside what was left out, var
     assert.ok(new Set(a.days.flatMap((d) => d.meals.map((m) => m.id))).size >= 10, 'the rotation varies');
   }
 
+  // ⚠ THE DAY AFTER COSTS MORE: with only lunch and dinner, a Build week repeats yesterday's
+  // meals once a reuse costs no more than any other day's (measured on the planner).
+  const two = pickMeals(cleanMealBrief({ goalPhase: 'build', days: 5, slots: ['Lunch', 'Dinner'] }));
+  for (let d = 1; d < 5; d += 1) two.days[d].meals.forEach((m, j) => assert.notEqual(m.id, two.days[d - 1].meals[j].id, `day ${d} ${m.slot} repeats the day before`));
+  // ⚠ THE PORTION FACTOR IS BOUNDED: a snack alone cannot be scaled to a whole day.
+  const snack = cleanMealBrief({ kcal: 5000, slots: ['Snack'], days: 1 });
+  const snackPick = pickMeals(snack);
+  assert.equal(snackPick.days[0].scale, SCALE_MAX);
+  const snackMeal = buildMealDoc(snack, snackPick, 'p').days[0].slots[0];
+  assert.equal(snackMeal.kcal, Math.round(byId.get(snackPick.days[0].meals[0].id).kcal * SCALE_MAX), 'short of the target, and the card says so');
+
   const noDairy = pickMeals(cleanMealBrief({ exclude: ['dairy'], days: 3 }));
   const picked = noDairy.days.flatMap((d) => d.meals).map((m) => byId.get(m.id));
   assert.ok(picked.every((f) => !f.tags.includes('dairy')), 'nothing tagged dairy');

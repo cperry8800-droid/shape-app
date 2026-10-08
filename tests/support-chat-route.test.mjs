@@ -850,4 +850,5 @@ test('draft_meal_plan and its note ride for a nutrition role only, and never in 
   const plain = await loadRoute({ role: 'nutritionist' });
   await plain.mod.POST(post({ ...ask('draft a plan'), confirmCards: false }));
   assert.ok(!toolNames(plain.calls.ai[0].body).includes('draft_meal_plan'));
+  assert.doesNotMatch(plain.calls.ai[0].body.input[0].content, /MEAL PLAN DRAFTING/, 'and no note promising a draft it cannot show');
 });
