@@ -590,7 +590,8 @@ function ChatWidget(props) {
   const noraThreadGenRef = React.useRef(0);
   const threadsRef = React.useRef(threadsByTab);
   threadsRef.current = threadsByTab;
-  const cwNoraMsg = (m) => ({ who: m.role === "user" ? "You" : "Nora", t: String(m.text || ""), time: (() => { try { return new Date(m.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); } catch (e) { return ""; } })(), me: m.role === "user", saved: true });
+  // A reply from a person at Shape ("Talk to a person") is stored as role 'team' and drawn as theirs.
+  const cwNoraMsg = (m) => ({ who: m.role === "user" ? "You" : m.role === "team" ? "Shape team" : "Nora", t: String(m.text || ""), time: (() => { try { return new Date(m.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); } catch (e) { return ""; } })(), me: m.role === "user", team: m.role === "team", saved: true });
   const cwNoraStored = (m) => ({ role: m.me ? "user" : "assistant", text: String(m.t || ""), at: new Date().toISOString() });
   const cwNoraPost = (messages) => {
     if (!messages.length) return;
@@ -618,6 +619,7 @@ function ChatWidget(props) {
       .then((j) => {
         if (isCancelled() || !j || !Array.isArray(j.messages)) return;
         noraThreadSyncRef.current = true;
+        setNoraPersonOk(true);
         if (gen !== noraThreadGenRef.current) {
           // Cleared while it loaded: the Clear applies to the account too, then what was said after it.
           fetch("/api/nora/thread", { method: "DELETE", credentials: "same-origin" })
@@ -642,12 +644,47 @@ function ChatWidget(props) {
           const since = msgs.slice(Math.max(base, head ? 1 : 0));
           const kept = [...stored.map(cwNoraMsg), ...since];
           const last = kept[kept.length - 1];
-          return { ...th, last: last ? `${last.me ? "You" : "Nora"}: ${last.t}` : th.last, messages: head ? [head, ...kept] : kept };
+          return { ...th, last: last ? `${last.me ? "You" : last.team ? "Shape team" : "Nora"}: ${last.t}` : th.last, messages: head ? [head, ...kept] : kept };
         }) : list));
         cwNoraPost(cwNoraHeld());
       })
       .catch(() => {});
   };
+  // ── "Talk to a person" (the Ask Nora plan, step 5) ─────────────────────────
+  // Signed in only (the conversation store answered for this account): the question goes to
+  // the Shape team with the stored conversation (POST /api/support/request), and a person
+  // replies in this conversation and by email. Nothing is sent until they tap Send.
+  const [noraPersonOk, setNoraPersonOk] = React.useState(false);
+  const [personForm, setPersonForm] = React.useState(null); // null | { text, busy, err }
+  const cwNoraAppend = (who, text) => {
+    const stamp = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    setThreadsByTab((prev) => prev.map((list, i) => (tabs[i] && tabs[i].support) ? list.map((th) => (th.who === "Nora"
+      ? { ...th, last: `${who}: ${text}`, time: "now", messages: [...(th.messages || []), { who, t: text, time: stamp, me: false }] }
+      : th)) : list));
+  };
+  const openPersonForm = () => {
+    const mine = cwNoraLocal().filter((m) => m.me && m.t);
+    setPersonForm({ text: mine.length ? String(mine[mine.length - 1].t) : "", busy: false, err: "" });
+  };
+  const sendPerson = async () => {
+    if (!personForm || personForm.busy) return;
+    const question = String(personForm.text || "").trim();
+    if (!question) { setPersonForm({ ...personForm, err: "Write your question first." }); return; }
+    setPersonForm({ ...personForm, busy: true, err: "" });
+    try {
+      const page = typeof window.__shapeNoraPageName === "function" ? window.__shapeNoraPageName() : null;
+      const res = await fetch("/api/support/request", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question, surface: "web", page }) });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.ok) { setPersonForm({ text: question, busy: false, err: (j && j.error) || "Your question could not be sent. Try again in a moment." }); return; }
+      const note = "Sent to the Shape team. A person will reply here in this chat, and by email.";
+      cwNoraAppend("Nora", note);
+      cwNoraSave([{ role: "assistant", text: note, at: new Date().toISOString() }]);
+      setPersonForm(null);
+    } catch (e) {
+      setPersonForm({ text: question, busy: false, err: "Your question could not be sent. Try again in a moment." });
+    }
+  };
+
   const clearNoraThread = () => {
     try { if (!window.confirm("Clear your conversation with Nora? This deletes it on every device. What Nora remembers stays.")) return; } catch (e) {}
     noraThreadGenRef.current += 1;
@@ -1223,7 +1260,7 @@ function ChatWidget(props) {
       if (!opts.silent && canVoiceRef.current && noraVoice.enabled) primeNoraAudio();
       setTyping(true);
       const history = [...((activeThread && activeThread.messages) || []), { t: text, me: true }]
-        .map(m => ({ role: m.me ? "user" : "assistant", content: String(m.t || "") }))
+        .map(m => ({ role: m.team ? "team" : m.me ? "user" : "assistant", content: String(m.t || "") }))
         .filter(m => m.content);
       return (async () => {
         let reply = null;
@@ -2106,6 +2143,9 @@ function ChatWidget(props) {
                       </div>
                     )}
                     <div style={{ display: "flex", flexDirection: "column", alignItems: m.me ? "flex-end" : "flex-start", minWidth: 0 }}>
+                      {m.team && (
+                        <div data-nora-team style={{ padding: "0 4px", fontSize: 10.5, color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.05em", marginBottom: 3 }}>SHAPE TEAM · A PERSON</div>
+                      )}
                       {!m.me && active?.group && (
                         <button onClick={() => openProfile(m)} style={{ background: "transparent", border: 0, padding: "0 4px", cursor: "pointer", textAlign: "left", fontSize: 10.5, color: m.coach ? TEAL_BRIGHT : "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.05em", marginBottom: 3 }}>
                           {m.who}{m.coach ? " · COACH" : ""}
@@ -2259,6 +2299,10 @@ function ChatWidget(props) {
                   <button type="button" data-nora-clear onClick={clearNoraThread} title="Clear your conversation with Nora on every device"
                     style={{ padding: "5px 9px", borderRadius: 999, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", background: "transparent", color: "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>Clear</button>
                 )}
+                {noraPersonOk && !personForm && (
+                  <button type="button" data-nora-person onClick={openPersonForm} title="Send your question and this conversation to the Shape team. A person replies here and by email."
+                    style={{ padding: "5px 9px", borderRadius: 999, border: `1px solid ${TEAL}`, background: "transparent", color: "var(--sh-accent-ink, #2ee0c4)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>Talk to a person</button>
+                )}
                 {canVoice && <button onClick={() => setNoraEnabled(!noraVoice.enabled)} title="Read Nora's replies aloud"
                   style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 9px", borderRadius: 999, border: `1px solid ${noraVoice.enabled ? TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.14)"}`, background: noraVoice.enabled ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)" : "transparent", color: noraVoice.enabled ? "var(--sh-accent-ink, #2ee0c4)" : "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
                   {noraVoice.enabled ? "🔊" : "🔇"} Voice {noraVoice.enabled ? "on" : "off"}
@@ -2274,6 +2318,20 @@ function ChatWidget(props) {
                   <option value="auto">Auto voice</option>
                   {NORA_VOICES.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}
                 </select>}
+              </div>
+            )}
+            {isSupport && personForm && (
+              <div data-nora-person-form style={{ margin: "0 14px 8px", padding: "10px 12px", borderRadius: 10, border: `1px solid ${TEAL}`, background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.06)", display: "grid", gap: 8 }}>
+                <div style={{ fontFamily: sans, fontSize: 12.5, lineHeight: 1.45, color: INK }}>Your question goes to the Shape team with this conversation. A person replies here and by email.</div>
+                <textarea value={personForm.text} onChange={(e) => setPersonForm({ ...personForm, text: e.target.value, err: "" })} rows={3} maxLength={2000} aria-label="Your question for the Shape team"
+                  style={{ resize: "vertical", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", borderRadius: 8, padding: "8px 10px", fontFamily: sans, fontSize: 13, lineHeight: 1.4, outline: "none" }} />
+                {personForm.err && <div role="alert" style={{ fontFamily: sans, fontSize: 12, color: "var(--sh-gold, #d8a23a)" }}>{personForm.err}</div>}
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                  <button type="button" onClick={() => setPersonForm(null)} disabled={personForm.busy}
+                    style={{ padding: "6px 12px", borderRadius: 999, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", background: "transparent", color: "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>Cancel</button>
+                  <button type="button" data-nora-person-send onClick={sendPerson} disabled={personForm.busy}
+                    style={{ padding: "6px 14px", borderRadius: 999, border: 0, background: TEAL, color: PAPER, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: personForm.busy ? "progress" : "pointer" }}>{personForm.busy ? "Sending…" : "Send to the team"}</button>
+                </div>
               </div>
             )}
             {isSupport && (voiceState !== "idle" || voiceErr || speakNotice) && (

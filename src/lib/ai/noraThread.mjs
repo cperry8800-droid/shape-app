@@ -1,9 +1,13 @@
 // One conversation with Nora per account (the Ask Nora plan, step 4). The shape stored in
 // public.nora_threads and the rules for it, shared by /api/nora/thread and its tests.
 //
-// A message is { role: 'user' | 'assistant', text, at }. Confirm cards, chips and links are
-// never stored: a card's signed token expires, and a stored one could not be confirmed.
-// The last THREAD_MAX messages are kept.
+// A message is { role: 'user' | 'assistant' | 'team', text, at }. Confirm cards, chips and
+// links are never stored: a card's signed token expires, and a stored one could not be
+// confirmed. The last THREAD_MAX messages are kept.
+//
+// ⚠ 'team' IS A REPLY FROM A PERSON AT SHAPE ("Talk to a person"), and only the server writes
+// one: the console's reply (appendTeamReply). A device's append can never carry it, so an
+// account cannot put words in the team's mouth; a stored one is kept on every later append.
 //
 // ⚠ EACH DEVICE APPENDS, NONE REPLACES. A phone holding the thread it loaded an hour ago
 // would wipe out what the laptop said since if it wrote the whole thread back, so a client
@@ -14,9 +18,9 @@ export const TEXT_MAX = 4000;
 export const APPEND_MAX = 20;
 
 /** One message reduced to the stored shape, or null when it is not one. */
-export function cleanMessage(m, now = new Date()) {
+export function cleanMessage(m, now = new Date(), opts = {}) {
   if (!m || typeof m !== 'object') return null;
-  const role = m.role === 'user' || m.role === 'assistant' ? m.role : null;
+  const role = m.role === 'user' || m.role === 'assistant' || (opts.team === true && m.role === 'team') ? m.role : null;
   const text = typeof m.text === 'string' ? m.text.trim().slice(0, TEXT_MAX) : '';
   if (!role || !text) return null;
   const t = typeof m.at === 'string' ? Date.parse(m.at) : NaN;
@@ -26,10 +30,10 @@ export function cleanMessage(m, now = new Date()) {
 }
 
 /** A stored or sent list, cleaned and trimmed to the newest THREAD_MAX. */
-export function cleanThread(list, now = new Date()) {
+export function cleanThread(list, now = new Date(), opts = {}) {
   const out = [];
   for (const m of Array.isArray(list) ? list : []) {
-    const c = cleanMessage(m, now);
+    const c = cleanMessage(m, now, opts);
     if (c) out.push(c);
   }
   return out.slice(-THREAD_MAX);
@@ -38,5 +42,12 @@ export function cleanThread(list, now = new Date()) {
 /** What is stored plus what a device added, oldest first, trimmed to the newest THREAD_MAX. */
 export function appendThread(stored, added, now = new Date()) {
   const extra = cleanThread(Array.isArray(added) ? added.slice(-APPEND_MAX) : [], now);
-  return cleanThread(stored, now).concat(extra).slice(-THREAD_MAX);
+  return cleanThread(stored, now, { team: true }).concat(extra).slice(-THREAD_MAX);
+}
+
+/** What is stored plus the Shape team's reply, written only by the server. */
+export function appendTeamReply(stored, text, now = new Date()) {
+  const reply = cleanMessage({ role: 'team', text, at: now.toISOString() }, now, { team: true });
+  if (!reply) return null;
+  return cleanThread(stored, now, { team: true }).concat(reply).slice(-THREAD_MAX);
 }

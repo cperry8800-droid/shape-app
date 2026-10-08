@@ -24696,9 +24696,11 @@ let _bsNoraLoaded = null;
 // saved after it: the save would put the cleared conversation back (Codex, #2255).
 let _bsNoraGen = 0;
 // A stored message ({ role, text, at }, /api/nora/thread) as the sheet draws one.
+// A reply from a person at Shape ("Talk to a person") is stored as role 'team' and drawn as theirs.
 function bsNoraFromStored(m) {
   const me = m && m.role === 'user';
-  return { who: me ? 'You' : 'Nora', t: String((m && m.text) || ''), time: 'earlier', me, bot: !me, saved: true };
+  const team = !!(m && m.role === 'team');
+  return { who: me ? 'You' : team ? 'Shape team' : 'Nora', t: String((m && m.text) || ''), time: 'earlier', me, bot: !me && !team, team, saved: true };
 }
 // What this device added, appended to the account's thread; nothing is written signed out.
 function _bsNoraSave(messages) {
@@ -24728,6 +24730,29 @@ function BSNoraSheet({ onClose }) {
   const [supportMsgs, setSupportMsgs] = useStateBSC(() => _bsNoraThread || [SUPPORT_GREETING]);
   const [supportDraft, setSupportDraft] = useStateBSC(() => { const d = _bsNoraDraft; _bsNoraDraft = ''; return d; });
   const [supportBusy, setSupportBusy] = useStateBSC(() => _bsNoraBusy);
+  // "Talk to a person" (the Ask Nora plan, step 5): signed in only. The question goes to the
+  // Shape team with the stored conversation, and a person replies here and by email.
+  const personOk = _bsNoraWho() !== 'anon' && !!window.ShapeSupport?.talkToPerson;
+  const [personForm, setPersonForm] = useStateBSC(null); // null | { text, busy, err }
+  const openPersonForm = () => {
+    const mine = (_bsNoraThread || supportMsgs).filter((m) => m.me && m.t);
+    setPersonForm({ text: mine.length ? String(mine[mine.length - 1].t) : '', busy: false, err: '' });
+  };
+  const sendPerson = async () => {
+    if (!personForm || personForm.busy) return;
+    const question = String(personForm.text || '').trim();
+    if (!question) { setPersonForm({ ...personForm, err: tr('feed:support.person.empty', { defaultValue: 'Write your question first.' }) }); return; }
+    setPersonForm({ ...personForm, busy: true, err: '' });
+    const r = await window.ShapeSupport.talkToPerson({ question, surface: 'app', page: _bsNoraOpen.page || null }).catch(() => ({ ok: false }));
+    if (!r || !r.ok) {
+      setPersonForm({ text: question, busy: false, err: (r && r.error) || tr('feed:support.person.failed', { defaultValue: 'Your question could not be sent. Try again in a moment.' }) });
+      return;
+    }
+    const note = tr('feed:support.person.sent', { defaultValue: 'Sent to the Shape team. A person will reply here in this chat, and by email.' });
+    _bsNoraPublish([...(_bsNoraThread || supportMsgs), { who: 'Nora', t: note, time: 'now', me: false, bot: true }]);
+    _bsNoraSave([{ role: 'assistant', text: note, at: new Date().toISOString() }]);
+    setPersonForm(null);
+  };
   React.useEffect(() => {
     const sync = () => { if (_bsNoraThread) setSupportMsgs(_bsNoraThread); setSupportBusy(_bsNoraBusy); };
     _bsNoraSubs.add(sync);
@@ -24833,7 +24858,7 @@ function BSNoraSheet({ onClose }) {
     const gen = _bsNoraGen;
     _bsNoraPublish(next, true);
     try {
-      const hist = next.map(m => ({ role: m.me ? 'user' : 'assistant', content: m.t }));
+      const hist = next.map(m => ({ role: m.team ? 'team' : m.me ? 'user' : 'assistant', content: m.t }));
       const res = await window.ShapeSupport?.ask?.(hist, undefined, { voice: opts.voice === true, context: bsNoraContext(!screenOffRef.current) });
       // Cleared while she was answering: the answer belongs to the conversation that went.
       if (gen !== _bsNoraGen) return null;
@@ -24928,7 +24953,7 @@ function BSNoraSheet({ onClose }) {
                   </button>
                 </div>
                 <div aria-hidden style={{ height: 2, marginTop: 10, marginBottom: 16, background: `linear-gradient(90deg, ${t.INK}, ${noraTint} 62%, transparent)` }} />
-                {((!screenOff && (_bsNoraOpen.label || _bsNoraOpen.page)) || supportMsgs.length > 1) && (
+                {((!screenOff && (_bsNoraOpen.label || _bsNoraOpen.page)) || supportMsgs.length > 1 || personOk) && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, margin: '-6px 0 14px' }}>
                   {!screenOff && (_bsNoraOpen.label || _bsNoraOpen.page) && (
                     <div data-nora-screen style={{ display: 'inline-flex', alignSelf: 'flex-start', alignItems: 'center', gap: 6, padding: '3px 4px 3px 9px', borderRadius: 999, border: `1px dashed ${hair}`, color: muted, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', maxWidth: '100%' }}>
@@ -24940,7 +24965,22 @@ function BSNoraSheet({ onClose }) {
                   {supportMsgs.length > 1 && (
                     <button type="button" onClick={clearThread} style={{ marginLeft: 'auto', border: 0, background: 'transparent', color: muted, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', padding: '4px 0', whiteSpace: 'nowrap' }}>{tr('feed:support.thread.clearShort', { defaultValue: 'Clear' })}</button>
                   )}
+                  {personOk && !personForm && (
+                    <button type="button" data-nora-person onClick={openPersonForm} style={{ marginLeft: supportMsgs.length > 1 ? 0 : 'auto', border: `1px solid ${noraTint}`, background: 'transparent', color: noraTint, borderRadius: 999, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', padding: '4px 9px', whiteSpace: 'nowrap' }}>{tr('feed:support.person.button', { defaultValue: 'Talk to a person' })}</button>
+                  )}
                 </div>
+                )}
+                {personForm && (
+                  <div data-nora-person-form style={{ margin: '-4px 0 16px', padding: '11px 12px', borderRadius: 12, border: `1px solid ${noraTint}`, background: `${noraTint}12`, display: 'grid', gap: 8 }}>
+                    <div style={{ fontFamily: t.BODY, fontSize: 12.5, lineHeight: 1.45, color: t.INK }}>{tr('feed:support.person.intro', { defaultValue: 'Your question goes to the Shape team with this conversation. A person replies here and by email.' })}</div>
+                    <textarea value={personForm.text} onChange={(e) => setPersonForm({ ...personForm, text: e.target.value, err: '' })} rows={3} maxLength={2000} aria-label={tr('feed:support.person.label', { defaultValue: 'Your question for the Shape team' })}
+                      style={{ resize: 'vertical', background: 'transparent', color: t.INK, border: `1px solid ${hair}`, borderRadius: 10, padding: '9px 10px', fontFamily: t.BODY, fontSize: 14, lineHeight: 1.4, outline: 'none' }} />
+                    {personForm.err && <div role="alert" style={{ fontFamily: t.BODY, fontSize: 12, color: t.RUST || muted }}>{personForm.err}</div>}
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                      <button type="button" onClick={() => setPersonForm(null)} disabled={personForm.busy} style={{ border: `1px solid ${hair}`, background: 'transparent', color: muted, borderRadius: 999, padding: '7px 12px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('feed:support.person.cancel', { defaultValue: 'Cancel' })}</button>
+                      <button type="button" data-nora-person-send onClick={sendPerson} disabled={personForm.busy} style={{ border: 0, background: noraTint, color: '#06231f', borderRadius: 999, padding: '7px 14px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: personForm.busy ? 'progress' : 'pointer' }}>{personForm.busy ? tr('feed:support.person.sending', { defaultValue: 'Sending…' }) : tr('feed:support.person.send', { defaultValue: 'Send to the team' })}</button>
+                    </div>
+                  </div>
                 )}
 
                 {/* Messages — tucked-corner tinted bubbles, matching BSChatThread */}
@@ -24954,10 +24994,10 @@ function BSNoraSheet({ onClose }) {
                         <div style={{ display: 'flex', flexDirection: me ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: 11 }}>
                           {me
                             ? <BSFacetAvatar size={32} c={myTC} initial={bsMyInitials()} photo={bsMyPhoto() || undefined} showRank={false} />
-                            : <BSFacetAvatar size={32} c={noraTint} initial="N" name={m.who} photo={m.bot ? BS_NORA_AVATAR : undefined} showRank={false} BG={t.PAPER} INK={'#fff'} onClick={m.bot ? () => setShowNora(true) : undefined} />}
+                            : <BSFacetAvatar size={32} c={noraTint} initial={m.team ? 'S' : 'N'} name={m.who} photo={m.bot ? BS_NORA_AVATAR : undefined} showRank={false} BG={t.PAPER} INK={'#fff'} onClick={m.bot ? () => setShowNora(true) : undefined} />}
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', minWidth: 0 }}>
                             {!me && (
-                              <div onClick={m.bot ? () => setShowNora(true) : undefined} style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: noraTint, fontWeight: 800, marginBottom: 5, cursor: m.bot ? 'pointer' : 'default' }}>{m.who}{m.bot ? ` · ${tr('feed:support.concierge', { defaultValue: 'Concierge' })}` : ''}</div>
+                              <div onClick={m.bot ? () => setShowNora(true) : undefined} style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: noraTint, fontWeight: 800, marginBottom: 5, cursor: m.bot ? 'pointer' : 'default' }}>{m.team ? tr('feed:support.person.teamLabel', { defaultValue: 'Shape team · a person' }) : m.who}{m.bot ? ` · ${tr('feed:support.concierge', { defaultValue: 'Concierge' })}` : ''}</div>
                             )}
                             <div style={{ borderRadius: 16, [me ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: 5, fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.4, letterSpacing: '-0.005em', color: t.INK, background: bubbleBg, border: `1px solid ${tc}40`, padding: '11px 14px', whiteSpace: 'pre-wrap' }}>{m.t}</div>
                             {m.bot && (() => {

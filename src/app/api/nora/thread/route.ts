@@ -64,7 +64,8 @@ export async function GET(request: Request) {
   const { data, error } = await readRow(who.supabase, who.userId);
   if (error) return failed('read', error);
   const row = data as { messages?: unknown; updated_at?: string | null } | null;
-  return json({ messages: cleanThread(row?.messages), updatedAt: row?.updated_at ?? null });
+  // A reply from the Shape team ('team') is shown; only the server ever writes one.
+  return json({ messages: cleanThread(row?.messages, new Date(), { team: true }), updatedAt: row?.updated_at ?? null });
 }
 
 export async function POST(request: Request) {

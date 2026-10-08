@@ -7973,6 +7973,27 @@ const noraThread = {
   async clear() { const p = await noraThreadCall('DELETE'); return !!(p && p.ok); },
 };
 
+// "Talk to a person" (the Ask Nora plan, step 5): the question goes to the Shape team with the
+// stored conversation; a person replies in it and by email. Resolves { ok, error? } and never
+// throws: the sheet shows the server's own words when it refuses.
+async function talkToPerson({ question, surface = 'app', page = null } = {}) {
+  if (!apiBaseUrl) return { ok: false, error: 'Talking to a person needs a connection to Shape.' };
+  const token = await liveAccessToken();
+  if (!token) return { ok: false, error: 'Sign in to send your question to the Shape team, or email info@theshapecommunity.com.' };
+  try {
+    const res = await fetch(`${apiBaseUrl}/api/support/request`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question, surface, page }),
+      credentials: 'same-origin',
+      cache: 'no-store',
+    });
+    const payload = await res.json().catch(() => ({}));
+    if (res.ok && payload && payload.ok) return { ok: true, id: payload.id, emailed: !!payload.emailed };
+    return { ok: false, error: (payload && payload.error) || null, code: (payload && payload.code) || null };
+  } catch (e) { return { ok: false, error: null }; }
+}
+
 window.ShapeSupport = {
   ask: askSupportBot,
   transcribe: transcribeVoice,
@@ -7981,6 +8002,7 @@ window.ShapeSupport = {
   undo: undoNoraProposal,
   thread: noraThread,
   greeting: noraGreeting,
+  talkToPerson,
 };
 
 // ─── Nora's voice (server-side TTS) + tone toggle ────────────────────────────
