@@ -104,7 +104,7 @@ test('what Talk to Nora heard is sent as SPOKEN on both surfaces; a typed messag
   // Talk to Nora sends what it heard as spoken, and reads the reply itself (2026-10-08).
   assert.match(CLIENT, /const talk = useNoraTalk\(\(text\) => sendRef\.current\(text, \{ voice: true, silent: true \}\)\);/);
   assert.match(CLIENT, /const sendSupport = \(\) => sendSupportText\(supportDraft\);/);
-  assert.match(CLIENT, /window\.ShapeSupport\?\.ask\?\.\(hist, undefined, \{ voice: opts\.voice === true, context: bsNoraContext\(!screenOffRef\.current\) \}\)/);
+  assert.match(CLIENT, /window\.ShapeSupport\?\.ask\?\.\(hist, undefined, \{ voice: opts\.voice === true, context: bsNoraContext\(!screenOffRef\.current\), onText, onReset \}\)/);
   assert.match(WIDGET, /talkSendRef\.current\(text, \{ voice: true, silent: true \}\)/);
   assert.match(WIDGET, /voice: !!\(opts && opts\.voice\), surface: "web", locale: cwLocale\(\)/);
   // The website's two recorders hand the page language and the context to the server.

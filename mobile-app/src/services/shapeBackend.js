@@ -15,6 +15,7 @@ import { computeWeekendSplit, buildSelfWeekendBuckets } from './weekendSplit.mjs
 import { bsVarianceBand } from '../../../public/newdesign/varianceBand.mjs';
 import { bsSetsWindow } from '../../../public/newdesign/noraSets.mjs';
 import { SILENT_CLIP, speechParts } from '../../../public/newdesign/noraVoiceLoop.mjs';
+import { isNoraStream, readNoraStream } from '../../../public/newdesign/noraStream.mjs';
 import { bsFeedQuerySpec } from './feedMode.mjs';
 import { bsWorkoutSharePrivacy, bsIsDuplicateWorkoutPost, bsFetchDuplicateCandidates, bsActivityStartISO, bsPostActivityStart, BS_PRIVACY_RANK } from './workoutShare.mjs';
 import { bsLiveAudience } from './liveProgress.mjs';
@@ -4254,7 +4255,9 @@ async function sendGroceryToInstacart({ items, title } = {}) {
 // ('app': a coach chip opens the Listing by provider id, and the website's
 // example directory is left out) and the app's locale, so a short spoken
 // question in German is answered in German. None of the three is read for
-// access on the server.
+// access on the server. { onText, onReset } (the Nora sheet) ask for her words as she writes
+// them: onText gets her reply so far, onReset takes back what a lookup round showed, and the
+// result is the same object a plain request returns (public/newdesign/noraStream.mjs).
 async function askSupportBot(messages, tone, extra = {}) {
   if (!apiBaseUrl) throw new Error('API backend URL is not configured. Set VITE_API_BASE_URL.');
   const headers = { 'Content-Type': 'application/json' };
@@ -4268,12 +4271,22 @@ async function askSupportBot(messages, tone, extra = {}) {
   if (typeof extra.turnstileToken === 'string' && extra.turnstileToken) body.turnstileToken = extra.turnstileToken;
   const locale = appLocaleCode();
   if (locale) body.locale = locale;
+  const streaming = typeof extra.onText === 'function';
+  if (streaming) body.stream = true;
   const res = await fetch(`${apiBaseUrl}/api/support/chat`, {
     method: 'POST',
     headers,
     body: JSON.stringify(body),
     signal: extra.signal,
   });
+  // The limit and the bot check answer as plain JSON even to a streamed request, so the
+  // response's own type decides how it is read.
+  if (streaming && res.ok && isNoraStream(res)) {
+    const done = await readNoraStream(res, { onText: extra.onText, onReset: extra.onReset });
+    // A stream that ended without her answer, or one that failed on the way, is a failed request.
+    if (!done || done.source === 'error') throw new Error('Support is unavailable right now.');
+    return done;
+  }
   const payload = await res.json().catch(() => ({}));
   // A signed-out question passes Nora's bot check first (the Ask Nora plan): the paywall,
   // sign-in and application doors exist for people with no account yet (Codex, #2259).

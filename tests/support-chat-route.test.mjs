@@ -102,7 +102,10 @@ async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', role
         calls_.ai.push({ body, opts });
         // An answer may carry `fellBack: '<model>'` — callAI reporting that the
         // pin was refused and this payload came from the fallback model.
-        const { fellBack = null, ...data } = answers[Math.min(i, answers.length - 1)]; i += 1;
+        // `deltas` are the words a streamed round writes, `gap` ms apart (the route sends what it
+        // has at most every 60 ms), handed to opts.onText only when the route asked for a stream.
+        const { fellBack = null, deltas = null, gap = 90, ...data } = answers[Math.min(i, answers.length - 1)]; i += 1;
+        if (deltas && opts.onText) for (const d of deltas) { opts.onText(d); await new Promise((r) => setTimeout(r, gap)); }
         return { ok: true, data, usage: null, latencyMs: 1, promptId: opts.promptId, model: fellBack || body.model || 'pinned', fellBack: !!fellBack };
       },
     }],
@@ -996,4 +999,79 @@ test('⚠ SPEED: the day\'s count starts before the member facts are read, and t
   const body = await res.json();
   assert.equal(body.source, 'limit');
   assert.equal(over.calls.ai.length, 0);
+});
+
+// ── Streamed answers (speed, 2026-10-08): her words as she writes them ───────────────
+// The events a streamed POST sent, in order: [event, data].
+async function events(res) {
+  const text = await res.text();
+  return text.split('\n\n').filter(Boolean).map((block) => {
+    const ev = (block.match(/^event: (.+)$/m) || [])[1];
+    const data = (block.match(/^data: (.+)$/m) || [])[1];
+    return [ev, JSON.parse(data)];
+  });
+}
+
+test('⚠ STREAM: a panel that asks gets her words as she writes them, then exactly the plain reply', async () => {
+  const answer = { ...say('Leg day: squats, then lunges.'), deltas: ['Leg day', ': squats', ', then lunges.'] };
+  const streamed = await loadRoute({ answers: [answer] });
+  const res = await streamed.mod.POST(post({ ...ask('what is on today?'), stream: true }));
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /^text\/event-stream/);
+  assert.equal(res.headers.get('cache-control'), 'no-store, no-transform', 'no proxy holds the words back');
+  assert.equal(typeof streamed.calls.ai[0].opts.onText, 'function', 'the model call streams');
+  const evs = await events(res);
+  const texts = evs.filter(([e]) => e === 'text').map(([, d]) => d.text);
+  assert.ok(texts.length >= 2, `words arrived before the end (${JSON.stringify(texts)})`);
+  assert.deepEqual(texts, [...texts].sort((a, b) => a.length - b.length), 'each is the reply so far, longer each time');
+  assert.ok(texts.every((t) => 'Leg day: squats, then lunges.'.startsWith(t)));
+  assert.equal(evs[evs.length - 1][0], 'done', 'done is last');
+
+  const plain = await loadRoute({ answers: [answer] });
+  const json = await (await plain.mod.POST(post(ask('what is on today?')))).json();
+  assert.equal(plain.calls.ai[0].opts.onText, undefined, 'a panel that does not ask gets the plain call');
+  assert.deepEqual(evs[evs.length - 1][1], json, 'done is exactly the plain request\'s body');
+});
+
+test('STREAM: a round that turns out to be a lookup takes back what it showed', async () => {
+  const r = await loadRoute({ answers: [
+    { ...calls(call('get_habits', {})), deltas: ['Let me check your habits'] },
+    { ...say('You have 3 habits.'), deltas: ['You have 3 habits.'] },
+  ] });
+  const evs = await events(await r.mod.POST(post({ ...ask('my habits?'), stream: true })));
+  const kinds = evs.map(([e, d]) => (e === 'text' ? `text:${d.text}` : e));
+  assert.deepEqual(kinds, ['text:Let me check your habits', 'reset', 'text:You have 3 habits.', 'done']);
+  assert.equal(evs[3][1].reply, 'You have 3 habits.');
+  assert.equal(r.calls.ai.length, 2, 'the lookup ran and she answered from it');
+});
+
+test('STREAM: the limit and the bot check still answer as JSON, and no model writes a word', async (t) => {
+  const over = await loadRoute({ rate: (key, max) => ({ allowed: false, remaining: 0, resetSeconds: 3600, limit: max }) });
+  const res = await over.mod.POST(post({ ...ask('hi'), stream: true }));
+  assert.match(res.headers.get('content-type'), /application\/json/);
+  assert.equal((await res.json()).source, 'limit');
+  assert.equal(over.calls.ai.length, 0);
+
+  const prior = process.env.RATE_LIMIT_SECRET;
+  process.env.RATE_LIMIT_SECRET = 'nora-test-secret';
+  t.after(() => { if (prior === undefined) delete process.env.RATE_LIMIT_SECRET; else process.env.RATE_LIMIT_SECRET = prior; });
+  const visitor = await loadRoute({ user: null, turnstile: (tok) => tok === 'good', answers: [{ ...say('Hi!'), deltas: ['Hi!'] }] });
+  const check = await visitor.mod.POST(post({ ...ask('hi'), stream: true }, VISITOR_HDR));
+  assert.equal(check.status, 403);
+  assert.equal((await check.json()).needsCheck, true);
+  // Passed, the visitor's answer streams and still carries the cookie the check earned.
+  const passed = await visitor.mod.POST(post({ ...ask('hi'), stream: true, turnstileToken: 'good' }, VISITOR_HDR));
+  assert.match(passed.headers.get('content-type'), /^text\/event-stream/);
+  assert.match(passed.headers.get('set-cookie') || '', /^shape_nora_v=/);
+  const evs = await events(passed);
+  assert.deepEqual(evs[evs.length - 1], ['done', { reply: 'Hi!', source: 'ai', actions: [], model: evs[evs.length - 1][1].model }]);
+});
+
+test('STREAM: with no model she still answers, as the done event', async () => {
+  const off = await loadRoute({ hasKey: false });
+  const evs = await events(await off.mod.POST(post({ ...ask('how do I connect Strava?'), stream: true })));
+  assert.deepEqual(evs.map(([e]) => e), ['done']);
+  const plain = await loadRoute({ hasKey: false });
+  assert.deepEqual(evs[0][1], await (await plain.mod.POST(post(ask('how do I connect Strava?')))).json());
+  assert.equal(evs[0][1].source, 'fallback');
 });

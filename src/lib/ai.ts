@@ -246,7 +246,58 @@ export type CallAIOptions = {
   effort?: ReasoningEffort;
   /** Prose length steering (reasoning models only) — `low` for a chat bubble. */
   verbosity?: Verbosity;
+  /**
+   * Stream the answer: called with each piece of text as the model writes it. The result is
+   * the same as without it (the final response object), so a caller's handling is unchanged;
+   * only the text arrives early. A refused pin still falls back, before any text is sent.
+   */
+  onText?: (delta: string) => void;
 };
+
+/**
+ * Read an OpenAI Responses event stream: each `response.output_text.delta` goes to `onText`,
+ * and the response object of the terminal event (`response.completed` or
+ * `response.incomplete`) is returned, the same object a non-streamed call returns. A failed
+ * response or an error event is an error, so the caller's failure path runs, and the stream
+ * is cancelled either way rather than left open for the provider to close.
+ */
+export async function readResponseStream(body: ReadableStream<Uint8Array> | null, onText: (delta: string) => void): Promise<unknown> {
+  if (!body) throw new Error('no response body');
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let final: unknown = null;
+  const take = (block: string) => {
+    const data = block.split('\n').filter((l) => l.startsWith('data:')).map((l) => l.slice(5).trimStart()).join('\n');
+    if (!data || data === '[DONE]') return;
+    let event: { type?: string; delta?: unknown; response?: unknown; error?: unknown; message?: unknown };
+    try { event = JSON.parse(data); } catch { return; }
+    if (event.type === 'response.output_text.delta' && typeof event.delta === 'string') onText(event.delta);
+    else if (event.type === 'response.completed' || event.type === 'response.incomplete') final = event.response ?? null;
+    else if (event.type === 'response.failed' || event.type === 'error') {
+      throw new Error(`stream ${event.type}: ${JSON.stringify(event.error ?? event.message ?? event.response ?? '').slice(0, 300)}`);
+    }
+  };
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (value) buffer += decoder.decode(value, { stream: true }).replace(/\r/g, '');
+      let cut = buffer.indexOf('\n\n');
+      while (cut >= 0) {
+        take(buffer.slice(0, cut));
+        buffer = buffer.slice(cut + 2);
+        cut = buffer.indexOf('\n\n');
+      }
+      if (done) break;
+    }
+    if (buffer.trim()) take(buffer);
+    if (!final) throw new Error('stream ended without a response');
+    return final;
+  } finally {
+    // A failed or error event throws mid-stream: let go of the body (CodeRabbit, #2278).
+    try { await reader.cancel(); } catch { /* already closed */ }
+  }
+}
 
 function readUsage(data: unknown): AIUsage | null {
   const u = data && typeof data === 'object' ? (data as { usage?: unknown }).usage : null;
@@ -329,7 +380,7 @@ export async function callAI(
       const res = await fetch(OPENAI_RESPONSES_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(opts.onText ? { ...payload, stream: true } : payload),
         signal: controller.signal,
       });
       const latencyMs = Date.now() - started;
@@ -341,12 +392,18 @@ export async function callAI(
         if (canFallBack) continue;
         return { ok: false, reason: 'http_error', status: res.status, detail, latencyMs, promptId, model };
       }
-      const data = await res.json();
+      // Streamed: the text goes out as it is written; the time to its first piece is logged.
+      let firstTextMs: number | null = null;
+      const onText = opts.onText;
+      const data = onText
+        ? await readResponseStream(res.body, (d) => { if (firstTextMs == null) firstTextMs = Date.now() - started; onText(d); })
+        : await res.json();
       const usage = readUsage(data);
       logAI({
         promptId,
         ok: true,
-        latencyMs,
+        latencyMs: onText ? Date.now() - started : latencyMs,
+        ...(onText ? { streamed: true, firstTextMs } : {}),
         model,
         fellBack,
         inputTokens: usage?.inputTokens ?? null,
@@ -354,7 +411,7 @@ export async function callAI(
         cachedTokens: usage?.cachedTokens ?? null,
         reasoningTokens: usage?.reasoningTokens ?? null,
       });
-      return { ok: true, data, usage, latencyMs, promptId, model, fellBack };
+      return { ok: true, data, usage, latencyMs: onText ? Date.now() - started : latencyMs, promptId, model, fellBack };
     }
     // Unreachable: the loop returns on success and on its last failure.
     return { ok: false, reason: 'http_error', latencyMs: Date.now() - started, promptId };
