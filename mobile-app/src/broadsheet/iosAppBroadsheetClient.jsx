@@ -24585,6 +24585,10 @@ let _bsNoraThread = null;
 // the in-flight flag live here, and every open sheet subscribes to them.
 let _bsNoraBusy = false;
 const _bsNoraSubs = new Set();
+// The account whose greeting the thread holds, so a sign-in after a signed-out preview
+// fetches the new account's own (the app remounts on login without reloading; Codex, #2249).
+let _bsNoraGreeted = null;
+const _bsNoraWho = () => { try { return window.ShapeAuth?.getCachedState?.()?.user?.id || 'anon'; } catch (e) { return 'anon'; } };
 function _bsNoraPublish(thread, busy) {
   if (thread) _bsNoraThread = thread;
   if (typeof busy === 'boolean') _bsNoraBusy = busy;
@@ -24601,7 +24605,7 @@ function BSNoraSheet({ onClose }) {
   // Support assistant — one continuous AI-backed thread that lives for the
   // session. It stays put while you move between tabs, but a fresh app load /
   // reload starts a clean thread with the current greeting (no persistence).
-  const SUPPORT_GREETING = { who: 'Nora', t: "Hi, I'm Nora — Shape's concierge. Ask me anything: connecting integrations, your plan, billing, or your account. If I can't sort it out, the Shape team answers at info@theshapecommunity.com.", time: 'now', me: false, bot: true };
+  const SUPPORT_GREETING = { who: 'Nora', t: "Hi, I'm Nora — Shape's concierge. Ask me anything: connecting integrations, your plan, billing, or your account. If I can't sort it out, the Shape team answers at info@theshapecommunity.com.", time: 'now', me: false, bot: true, greet: true };
   const [supportMsgs, setSupportMsgs] = useStateBSC(() => _bsNoraThread || [SUPPORT_GREETING]);
   const [supportDraft, setSupportDraft] = useStateBSC(() => { const d = _bsNoraDraft; _bsNoraDraft = ''; return d; });
   const [supportBusy, setSupportBusy] = useStateBSC(() => _bsNoraBusy);
@@ -24609,6 +24613,20 @@ function BSNoraSheet({ onClose }) {
     const sync = () => { if (_bsNoraThread) setSupportMsgs(_bsNoraThread); setSupportBusy(_bsNoraBusy); };
     _bsNoraSubs.add(sync);
     return () => { _bsNoraSubs.delete(sync); };
+  }, []);
+  // The account's own greeting and four suggestions (GET /api/support/chat), the same the
+  // website shows this account. It replaces the seed only while the thread is still just
+  // the greeting, and is fetched once a session.
+  React.useEffect(() => {
+    const who = _bsNoraWho();
+    if (_bsNoraGreeted === who || !window.ShapeSupport?.greeting) return;
+    _bsNoraGreeted = who;
+    window.ShapeSupport.greeting().then((g) => {
+      if (!g || _bsNoraGreeted !== who) { if (!g && _bsNoraGreeted === who) _bsNoraGreeted = null; return; }
+      const cur = _bsNoraThread || [SUPPORT_GREETING];
+      if (cur.length !== 1 || !cur[0].greet) return;
+      _bsNoraPublish([{ ...cur[0], t: g.text, quick: g.quick }]);
+    }).catch(() => { if (_bsNoraGreeted === who) _bsNoraGreeted = null; });
   }, []);
   const [voiceChat, setVoiceChat] = useStateBSC(false); // conversation mode — off by default, per-session
   // Read at REPLY time via the ref — a reply resolving after the user flips the
@@ -24750,6 +24768,13 @@ function BSNoraSheet({ onClose }) {
                             <div style={{ borderRadius: 16, [me ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: 5, fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.4, letterSpacing: '-0.005em', color: t.INK, background: bubbleBg, border: `1px solid ${tc}40`, padding: '11px 14px', whiteSpace: 'pre-wrap' }}>{m.t}</div>
                             {m.bot && (
                               <button onClick={() => speakReply(m.t, { force: true })} title={tr('feed:support.readAloud', { defaultValue: 'Read this aloud' })} aria-label={tr('feed:support.readAloud', { defaultValue: 'Read this aloud' })} style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: muted, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}><span aria-hidden style={{ fontSize: 10, lineHeight: 1 }}>♪</span> {tr('feed:support.listen', { defaultValue: 'Listen' })}</button>
+                            )}
+                            {m.greet && supportMsgs.length === 1 && Array.isArray(m.quick) && m.quick.length > 0 && (
+                              <div data-nora-quick style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 8 }}>
+                                {m.quick.map((q) => (
+                                  <button key={q} onClick={() => sendSupportText(q)} style={{ border: `1px solid ${TEALB}`, background: 'transparent', color: cardInk, borderRadius: 999, padding: '7px 11px', fontFamily: t.BODY, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{q}</button>
+                                ))}
+                              </div>
                             )}
                             {Array.isArray(m.actions) && m.actions.length > 0 && (
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 8 }}>
