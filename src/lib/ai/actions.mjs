@@ -22,6 +22,7 @@ import {
 // The chat route's no-model path reads a trainer's request with this (it imports Nora's
 // actions, never the draft core directly).
 export { briefFromText as draftBriefFromText } from './workoutDraft.mjs';
+import { cleanMealBrief, pickMeals, buildMealDoc, mealDraftDiff, draftName as mealDraftName } from './mealDraft.mjs';
 
 // NC1 — compute the scope disclaimer for an individualized nutrition action so
 // Nora's confirm card states it up front (the endpoint is the authoritative gate).
@@ -461,6 +462,83 @@ export const draftWorkoutAction = {
   },
 };
 
+// draft_meal_plan → POST /api/coach/plans (the Ask Nora plan, step 5): a nutritionist's
+// meal plan drafted from their brief and saved UNPUBLISHED to their meal plans, as the
+// website builder's own document, for them to edit and assign there. Every meal and macro
+// is Shape's meal library's (mealDraft.mjs). It never assigns to a client: assigning runs
+// from the builder, where the nutrition compliance check runs.
+function mealPlansUrl(planId, clientId) {
+  return '/newdesign/NutritionistApp.html#plans?plan=' + encodeURIComponent(planId) + (clientId ? '&client=' + encodeURIComponent(clientId) : '');
+}
+function mealDraftDetail(confirmed) {
+  var doc = buildMealDoc(confirmed.brief, confirmed.picked, confirmed.planId);
+  return { doc: doc, detail: { mealBuilder: doc } };
+}
+export const draftMealPlanAction = {
+  name: 'draft_meal_plan',
+  roles: ['nutritionist', 'dietitian'],
+  // Any account that also holds a nutrition role may draft: it saves to the account's own
+  // meal plans and branches on no role afterwards.
+  heldRoles: true,
+  source: 'nora',
+  async buildPreview(ctx, input) {
+    input = input || {};
+    var brief = cleanMealBrief(input);
+    // A client is only ever one they coach; the draft is still saved to their library.
+    var clientId = null;
+    var who = '';
+    if (input.clientId || input.clientName) {
+      await requireOnClient(ctx, input.clientId);
+      clientId = input.clientId;
+      who = input.clientName ? clipText(input.clientName, 60) : 'this client';
+    }
+    var picked = pickMeals(brief);
+    if (!picked.days.length || !picked.days[0].meals.length) {
+      throw new Error("No meal in Shape's library fits what you've left out. Start it in the builder with your own foods, or leave out less.");
+    }
+    var planId = randomUUID();
+    var confirmed = { planId: planId, clientId: clientId, brief: brief, picked: picked };
+    var doc = mealDraftDetail(confirmed).doc;
+    var name = mealDraftName(brief);
+    return {
+      summary: 'Draft "' + name + '"' + (clientId ? ' for ' + who : '') + ' and save it to your meal plans, unpublished, to edit and assign in the builder',
+      diff: mealDraftDiff(brief, doc, picked),
+      target: { userId: ctx.actor.id, kind: 'coach_plan', id: planId },
+      beforeState: { planId: planId },
+      afterState: { planId: planId, name: name },
+      confirmedPayload: confirmed,
+      open: { kind: 'coach_plan', planId: planId, ...(clientId ? { clientId: clientId } : {}), url: mealPlansUrl(planId, clientId) },
+      note: "Every meal and number on the card is from Shape's meal library; say so, and never add a meal or a figure of your own. Nothing is saved until they confirm; it is saved unpublished to their meal plans and opens in the website builder, where they edit it and assign it (the compliance check runs there)."
+        + (picked.missing.length ? ' No library food fit the ' + picked.missing.join(' and ') + ' after what they left out: say so, and that they can add their own in the builder.' : ''),
+    };
+  },
+  async execute(ctx, plan) {
+    var p = plan.confirmedPayload || {};
+    // ⚠ THE PICKS ARE THE TOKEN'S: the document is rebuilt from them exactly as the card was,
+    // so what lands is what the nutritionist reviewed.
+    var built = mealDraftDetail(p);
+    var name = mealDraftName(p.brief);
+    var days = built.doc.days.length;
+    var res = await ctx.call('POST', '/api/coach/plans', {
+      id: p.planId, kind: 'meal_plan', name: name,
+      meta: days + '-day rotation · ' + p.brief.targets.kcal + ' kcal', published: false,
+      expectedOwnerId: ctx.actor.id, detail: built.detail,
+    });
+    if (!res.ok) throw new Error((res.data && res.data.error) || 'Could not save the draft to your meal plans.');
+    return { plan: { id: p.planId, name: name }, open: { kind: 'coach_plan', planId: p.planId, url: mealPlansUrl(p.planId, p.clientId) } };
+  },
+  async undo(ctx, plan) {
+    // ⚠ IN-STATEMENT GUARD: only while the row still holds exactly the document this saved,
+    // unpublished. Meal plans carry no revision, so the document itself is the check: once
+    // the builder has saved an edit, or it was published, nothing matches and their work stays.
+    var detail = mealDraftDetail(plan.confirmedPayload || {}).detail;
+    var res = await ctx.supabase.from('coach_plans').delete()
+      .eq('id', plan.beforeState.planId).eq('owner_id', ctx.actor.id).eq('kind', 'meal_plan').eq('published', false)
+      .contains('detail', detail).containedBy('detail', detail)
+      .select('id');
+    if (res.error || !Array.isArray(res.data) || !res.data.length) throw new Error('Changed since — nothing undone. It has been edited, published or removed in the builder.');
+  },
+};
 // assign_meal_plan → POST /api/nutritionist/meal-plan (nutritionist only). The
 // endpoint archives the prior published plan + publishes the new one; undo
 // archives the new one and republishes the prior (captured at preview).
@@ -1079,4 +1157,4 @@ export const forgetMemoryTool = {
 // Registered in rollout order. (The OpenAI tool schemas Nora exposes live with the
 // chat route; these are the executors the scaffold runs.) The memory tools above
 // are deliberately NOT in this list — they're direct, not proposal-drafted.
-export const NORA_ACTIONS = [logMealAction, setClientGoalAction, assignWorkoutAction, draftWorkoutAction, assignMealPlanAction, setProgramDetailAction, addReviewNoteAction, rescheduleSessionAction, logWeighInAction, logWaterAction, checkHabitAction, setReminderAction];
+export const NORA_ACTIONS = [logMealAction, setClientGoalAction, assignWorkoutAction, draftWorkoutAction, draftMealPlanAction, assignMealPlanAction, setProgramDetailAction, addReviewNoteAction, rescheduleSessionAction, logWeighInAction, logWaterAction, checkHabitAction, setReminderAction];

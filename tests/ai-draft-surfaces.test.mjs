@@ -507,9 +507,12 @@ test('roleAllowed: a held role opens only an action that opts in; the primary ro
   assert.equal(proposals.roleAllowed({ roles: ['trainer', 'nutritionist'] }, 'client', ['client', 'trainer']), false);
 });
 
-test('the registry: draft_workout alone opts in to held roles', () => {
+// The two drafters, and only they: each saves to the account's own library and branches on
+// no role afterwards, so a role held in roles[] is enough (draft_meal_plan, the Ask Nora
+// plan's step 5). Every other action keeps the primary-role gate.
+test('the registry: the drafters alone opt in to held roles', () => {
   const opted = actions.NORA_ACTIONS.filter((a) => a.heldRoles === true).map((a) => a.name);
-  assert.deepEqual(opted, ['draft_workout']);
+  assert.deepEqual(opted, ['draft_workout', 'draft_meal_plan']);
 });
 
 test('Nora: a client who also trains is offered draft_workout', async () => {

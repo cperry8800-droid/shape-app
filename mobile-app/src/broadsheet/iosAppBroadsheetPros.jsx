@@ -6770,6 +6770,19 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     window.addEventListener('shape:openConversation', open);
     return () => window.removeEventListener('shape:openConversation', open);
   }, []);
+  // "Open" on Nora's meal-plan draft card (the Ask Nora plan, step 5). The website opens it
+  // in its builder; the app's meal-plan editor keeps a different document, so this takes
+  // the nutritionist to Plans, where the saved draft is listed.
+  useEffectBSP(() => {
+    const onOpenPlan = (e) => {
+      if (!(e && e.detail && typeof e.detail.planId === 'string' && e.detail.planId)) return;
+      navJumpRef.current.navPush();
+      setShowSearch(false); setShowSettings(false); setShowNoraSheet(false);
+      setTab('plans');
+    };
+    window.addEventListener('shape:openCoachPlan', onOpenPlan);
+    return () => window.removeEventListener('shape:openCoachPlan', onOpenPlan);
+  }, []);
   useEffectBSP(() => bsCoachTourAutoShow(setShowTour), []);
   useEffectBSP(() => {
     const start = () => { setShowSettings(false); setShowCalendar(false); setShowTour(true); };

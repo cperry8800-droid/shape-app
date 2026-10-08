@@ -52,7 +52,7 @@ function calls(...items) { return { output: [{ type: 'reasoning', id: 'rs_1', su
 // `isCoach`/`isAdmin` default the way membership-core derives them (from the
 // role), so a test can also model a DUAL-ROLE account: primary role 'client',
 // coach by roles[] — which is what the route must read membership for.
-async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', isMember = true, isCoach = ['trainer', 'nutritionist', 'dietitian'].includes(role), isAdmin = false, hasKey = true, answers = [say('ok')], tables = {}, rpcs = {}, fail = [], rate = null, turnstile = null } = {}) {
+async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', roles = null, isMember = true, isCoach = ['trainer', 'nutritionist', 'dietitian'].includes(role), isAdmin = false, hasKey = true, answers = [say('ok')], tables = {}, rpcs = {}, fail = [], rate = null, turnstile = null } = {}) {
   const sb = fakeSupabase({ tables, rpcs, fail });
   const calls_ = { ai: [], proposals: [], rate: [], turnstile: [] };
   // Nora's limits run for real over a stubbed counter and bot check, so a test reads
@@ -98,7 +98,7 @@ async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', isMe
       },
     }],
     ['@/lib/ai/server', {
-      resolveActor: async () => (user ? { user, role, supabase: sb } : null),
+      resolveActor: async () => (user ? { user, role, ...(roles ? { roles } : {}), supabase: sb } : null),
       makeCtx: (actor) => ({ actor: { id: actor.user.id, role: actor.role }, supabase: sb, store: {}, call: async () => ({ ok: true, status: 200, data: {} }) }),
       serverRegistry: proposals.createRegistry(),
       proposalSecret: () => 'test-secret',
@@ -834,4 +834,20 @@ test('no fill_form without a form, in a plain panel, or for a form the server do
   const r = await (await made.mod.POST(post(ask('fill it in')))).json();
   assert.ok(!r.actions.some((a) => a.type === 'fill'), 'no form open: nothing to fill');
   assert.equal(JSON.parse(made.calls.ai[1].body.input.find((x) => x.type === 'function_call_output').output).error, 'no_form_open');
+});
+
+// ── Meal-plan drafts (the Ask Nora plan, step 5) ──────────────────────────────────
+test('draft_meal_plan and its note ride for a nutrition role only, and never in a plain panel', async () => {
+  // A dual-role account (a trainer who is also a nutritionist) holds the role in roles[].
+  for (const [role, roles, want] of [['nutritionist', null, true], ['dietitian', null, true], ['trainer', ['trainer', 'nutritionist'], true], ['trainer', null, false], ['client', null, false]]) {
+    const r = await loadRoute({ role, roles });
+    await r.mod.POST(post(ask('draft me a 3 day cut plan')));
+    const body = r.calls.ai[0].body;
+    const label = `${role}${roles ? ` + ${roles.join('/')}` : ''}`;
+    assert.equal(toolNames(body).includes('draft_meal_plan'), want, `${label}: tool`);
+    assert.equal(/MEAL PLAN DRAFTING/.test(body.input[0].content), want, `${label}: note`);
+  }
+  const plain = await loadRoute({ role: 'nutritionist' });
+  await plain.mod.POST(post({ ...ask('draft a plan'), confirmCards: false }));
+  assert.ok(!toolNames(plain.calls.ai[0].body).includes('draft_meal_plan'));
 });
