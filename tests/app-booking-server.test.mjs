@@ -46,6 +46,8 @@ function loadScreen(win, now = NOW) {
     // The chips and the segment are the module's own components; the tests pick through their onPick.
     BSProChips: (p) => SHIM.createElement('div', p), BSProSegment: (p) => SHIM.createElement('div', p),
     BSProStepper: (p) => SHIM.createElement('div', p),
+    // Nora's "what happened" link under a refusal (tests/nora-ask-from-screens.test.mjs).
+    BSProAskNora: () => null,
   };
   vm.runInNewContext(code, ctx);
   return ctx.Screen;
