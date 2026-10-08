@@ -467,6 +467,7 @@
   "editor.videoBadge": "VIDEO",
   "editor.windowHint": "Ghi thời gian từ 4 phút trở lên trong bước (“nướng 15 phút”) để bước này không cần trông.",
   "editor.windowOk": "{min} phút không cần trông {station} — có thể làm món khác trong lúc chờ",
+  "editor.windowPerSide": "Thời gian tính cho mỗi mặt nên phải quay lại lật: {min} phút cần trông, không phải không cần trông.",
   "editor.yourType": "{type} của bạn.",
   "grocery.aislesCount": "{count, plural, one {# gian hàng} other {# gian hàng}}",
   "grocery.andMore": " +{count} nữa",

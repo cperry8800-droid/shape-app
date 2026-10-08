@@ -11,7 +11,7 @@ import { coachWorkoutLibrary, duplicateWorkoutPlan, persistCoachWorkout, knownWo
 import BSWorkoutDocumentEditor from './BSWorkoutDocumentEditor.jsx';
 import BSCoachNote from './BSCoachNote.jsx';
 import BSLiveWorkoutWatch from './BSLiveWorkoutWatch.jsx';
-import { bsAuthorStep, BS_STATIONS } from '../services/cookable.mjs';
+import { bsAuthorStep, bsStepPerSide, BS_STATIONS } from '../services/cookable.mjs';
 import { bsSelfPlansSummary } from '../services/selfPlansSummary.mjs';
 import { bsCaseVitals } from '../services/caseVitals.mjs';
 import { bsVarianceCopy } from '../../../public/newdesign/varianceBand.mjs';
@@ -5850,6 +5850,9 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
                       const liveFireTerminal = !!(derived && derived.passive && si === _lastAuthorable && derived.station !== 'off');
                       const isWin = !!(derived && derived.passive && !liveFireTerminal);
                       const wantsWin = !!(s.station && !isWin && String(s.t || '').trim());
+                      // A per-side time already states 4+ minutes, so "state a time" would be
+                      // wrong: the cook comes back to turn it, which no time can make hands-off.
+                      const perSide = wantsWin && bsStepPerSide(s.t) && derived && derived.min;
                       return (
                         <div key={si}>
                           <div style={{ display: 'grid', gridTemplateColumns: '16px 1fr auto auto', gap: 6, alignItems: 'center' }}>
@@ -5862,7 +5865,9 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
                             <button type="button" onClick={() => rmStep(i, si)} aria-label={tr('coach:common.remove', { defaultValue: 'Remove' })} style={{ minHeight: 40, display: 'inline-flex', alignItems: 'center', border: 0, background: 'transparent', color: t.INK50, fontSize: 16, lineHeight: 1, cursor: 'pointer', padding: '0 4px' }}>×</button>
                           </div>
                           {isWin && <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', color: accent }}>◷ {tr('coach:editor.windowOk', { defaultValue: '{min} min hands-off {station} — the cook can work on another dish', min: derived.min, station: stationOpt(derived.station) })}</div>}
-                          {wantsWin && <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', color: t.INK50 }}>{tr('coach:editor.windowHint', { defaultValue: 'State a time of 4+ minutes in the step (“roast 15 minutes”) to make it hands-off.' })}</div>}
+                          {wantsWin && <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', color: t.INK50 }}>{perSide
+                            ? tr('coach:editor.windowPerSide', { defaultValue: 'Timed per side, so the cook comes back to turn it: {min} min hands-on, not hands-off.', min: derived.min })
+                            : tr('coach:editor.windowHint', { defaultValue: 'State a time of 4+ minutes in the step (“roast 15 minutes”) to make it hands-off.' })}</div>}
                         </div>
                       );
                     }); })()}

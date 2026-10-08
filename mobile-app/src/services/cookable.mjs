@@ -727,38 +727,50 @@ export const bsFractionalDuration = (text) => BS_AUTHOR_FRACTIONAL_RE.test(str(t
 // stepCost): a coach's "Simmer 20 minutes, stirring" was drawn as 3 on the client's timeline. It
 // now carries the minutes its own text states, attended (`passive: false`), so nothing is ever
 // scheduled inside it; with a station, the planner also keeps that burner or oven busy for it.
-// The same no-fabrication rule as a window, read more carefully, because here the figure is the
-// cook's whole working time rather than a wait:
-//   - a step timed per side ("4 minutes a side", "sear 4 min/side") is both sides, 8;
-//   - a range is its low end: "simmer 8 to 10 minutes" is 8 (the "8–10" form already parses so);
+// The time is read the way the catalog's window rules read it (tests/shape-kitchen-data.test.mjs):
+//   - a range is its low end: "simmer 8 to 10 minutes" is 8 (the "8–10" form already parses so).
+//     A window too: the cook may be needed at 8, and a window pinned to 10 returns them two
+//     minutes late. A range starting under 4 minutes has no window in it at all.
+//   - a step timed per side ("4 minutes a side", "sear 4 min/side") is never a window, because
+//     the cook comes back halfway to turn it, and the cook screen shows no step text during a
+//     hold. It is attended, both sides: 8. The editor says so (coach:editor.windowPerSide).
 //   - a storage or make-ahead time is not work. "Refrigerate up to 4 hours" in a ten-minute
-//     smoothie is why the planner reads no prose at plan time, so a step that names one keeps
-//     the assumed 3, as does a decimal (the fractional rule above) and anything under 4 minutes.
+//     smoothie is why the planner reads no prose at plan time, so a hands-on step that names one
+//     keeps the assumed 3, as does a decimal (the fractional rule above) and anything under 4
+//     minutes.
 const BS_AUTHOR_PER_SIDE_RE = /^\s+(?:on\s+)?(?:a|each|per)\s+side\b/i;
 const BS_AUTHOR_RANGE_LOW_RE = /(\d+)\s+to\s+$/i;
 const BS_AUTHOR_NOT_WORK_RE = /\b(?:up\s+to|refrigerat\w*|fridge|freez\w*|stor(?:e|ed|ing|age)|overnight|ahead|soak\w*|marinat\w*|days?)\b/i;
-const attendedSeconds = (t) => {
-  if (BS_AUTHOR_NOT_WORK_RE.test(t)) return 0;
+// The first time a step states, in seconds, and whether it is per side; null when it states none.
+const authoredTime = (t) => {
   const span = timerSpans(t)[0];
-  if (!span) return 0;
+  if (!span) return null;
   // timerSpans reads "8 to 10 minutes" as its "10 minutes"; the low end scales by the same unit.
   const high = Number((t.slice(span.at).match(/^\d+/) || [])[0]);
   const low = t.slice(0, span.at).match(BS_AUTHOR_RANGE_LOW_RE);
   const seconds = low && high > 0 ? Math.min(span.seconds, (span.seconds / high) * Number(low[1])) : span.seconds;
   // "/side" and "per side" sit inside the span; "a side" and "each side" follow it.
   const perSide = /side$/i.test(t.slice(span.at, span.end)) || BS_AUTHOR_PER_SIDE_RE.test(t.slice(span.end));
-  return perSide ? seconds * 2 : seconds;
+  return { seconds, perSide };
+};
+// For the editor's hint: a step whose time is per side cannot be made hands-off by any time.
+export const bsStepPerSide = (text) => {
+  const t = str(text);
+  const time = t && !BS_AUTHOR_FRACTIONAL_RE.test(t) ? authoredTime(t) : null;
+  return !!(time && time.perSide);
 };
 export const bsAuthorStep = (text, station) => {
   const t = str(text);
   if (!t) return null;
   if (BS_AUTHOR_FRACTIONAL_RE.test(t)) return { t };
   const st = BS_STATIONS.includes(station) ? station : null;
-  const first = bsStepTimers(t)[0];
+  const time = authoredTime(t);
+  if (!time) return { t };
   // Floor on RAW SECONDS — Math.round(210/60) is 4, which would sneak a
   // 3.5-minute step over the 4-minute window floor (CodeRabbit).
-  if (st && first && first.seconds >= BS_AUTHOR_MIN_PASSIVE * 60) return { t, min: Math.round(first.seconds / 60), passive: true, station: st };
-  const worked = attendedSeconds(t);
+  if (st && !time.perSide && time.seconds >= BS_AUTHOR_MIN_PASSIVE * 60) return { t, min: Math.round(time.seconds / 60), passive: true, station: st };
+  if (BS_AUTHOR_NOT_WORK_RE.test(t)) return { t };
+  const worked = time.perSide ? time.seconds * 2 : time.seconds;
   if (worked < BS_AUTHOR_MIN_PASSIVE * 60) return { t };
   return { t, min: Math.round(worked / 60), passive: false, ...(st ? { station: st } : {}) };
 };

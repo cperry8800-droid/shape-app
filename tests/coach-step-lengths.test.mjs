@@ -14,7 +14,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { bsAuthorStep, bsCookableFromMeal } from '../mobile-app/src/services/cookable.mjs';
+import { bsAuthorStep, bsStepPerSide, bsCookableFromMeal } from '../mobile-app/src/services/cookable.mjs';
 import { bsOrchestrate, BS_COOK_MODE } from '../mobile-app/src/services/cookOrchestrator.mjs';
 import { bsTrackLanes } from '../mobile-app/src/services/cookBoard.mjs';
 
@@ -73,6 +73,39 @@ test('a station the coach picked stays on a step that cannot be hands-off', () =
     { t: 'Simmer 15 minutes, lid on.', min: 15, passive: true, station: 'stove' });
   // A station the board does not know is not carried.
   assert.equal('station' in bsAuthorStep('Simmer 15 minutes.', 'microwave'), false);
+});
+
+// A HANDS-OFF PICK READS THE TIME THE SAME WAY (owner, 2026-10-08: "can you fix this?"). The
+// window used to take the parser's first figure, so "sear 4 minutes a side" on the stove became a
+// four-minute hold that hid the turn behind its timer (the cook screen shows no step text during
+// a hold), and "simmer 8 to 10 minutes" a ten-minute one that returned the cook two minutes late.
+// These are the catalog's own window rules (tests/shape-kitchen-data.test.mjs: nothing to turn
+// during a hold, a range is its low end), applied where a coach writes the step.
+test('a hands-off pick on a per-side step is never a window: attended, both sides, on that station', () => {
+  for (const [text, min] of [
+    ['Sear 4 minutes a side, until it releases.', 8],
+    ['Sear 4 min/side over medium-high.', 8],
+    ['Grill 5 minutes per side.', 10],
+    ['Cook it 6 minutes on each side.', 12],
+  ]) {
+    assert.deepEqual(bsAuthorStep(text, 'stove'), { t: text, min, passive: false, station: 'stove' }, text);
+    assert.equal(bsStepPerSide(text), true, text);
+  }
+  // The editor's hint names exactly this case, and nothing else.
+  for (const text of ['Simmer 15 minutes, lid on.', 'Flip and cook 4 minutes on the other side.', 'Scatter it over the granola side, then rest 5 minutes.', 'Sear 1.5 minutes a side.', 'Plate it.', '', null]) {
+    assert.equal(bsStepPerSide(text), false, String(text));
+  }
+});
+
+test('a hands-off range is a window from its low end; one starting under 4 minutes has none', () => {
+  assert.deepEqual(bsAuthorStep('Simmer 8 to 10 minutes, lid on.', 'stove'),
+    { t: 'Simmer 8 to 10 minutes, lid on.', min: 8, passive: true, station: 'stove' });
+  assert.deepEqual(bsAuthorStep('Roast 18–20 minutes.', 'oven'),
+    { t: 'Roast 18–20 minutes.', min: 18, passive: true, station: 'oven' }, 'the en-dash form, as before');
+  assert.equal(bsAuthorStep('Braise 1 to 2 hours, covered.', 'oven').min, 60, 'in the range\'s own unit');
+  assert.deepEqual(bsAuthorStep('Simmer 3 to 5 minutes.', 'stove'), { t: 'Simmer 3 to 5 minutes.' }, 'the cook may be needed at 3');
+  // A plain window is untouched.
+  assert.deepEqual(bsAuthorStep('Chill 30 minutes.', 'off'), { t: 'Chill 30 minutes.', min: 30, passive: true, station: 'off' });
 });
 
 test('a coach\'s meal draws each step as long as it says, its last bake included', () => {

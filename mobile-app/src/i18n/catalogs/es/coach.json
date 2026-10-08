@@ -467,6 +467,7 @@
   "editor.videoBadge": "VIDEO",
   "editor.windowHint": "Indica un tiempo de 4+ minutos en el paso (“hornea 15 minutos”) para hacerlo desatendido.",
   "editor.windowOk": "{min} min desatendido {station} — puedes avanzar con otro plato",
+  "editor.windowPerSide": "Tiempo por lado: hay que volver a darle la vuelta. {min} min con supervisión, no desatendido.",
   "editor.yourType": "tu {type}.",
   "grocery.aislesCount": "{count, plural, one {# pasillo} other {# pasillos}}",
   "grocery.andMore": " +{count} más",

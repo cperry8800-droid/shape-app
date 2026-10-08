@@ -467,6 +467,7 @@
   "editor.videoBadge": "VİDEO",
   "editor.windowHint": "Adımı gözetimsiz yapmak için adımda 4+ dakikalık bir süre belirtin (“15 dakika fırınla”).",
   "editor.windowOk": "{min} dk gözetimsiz {station} — bu sırada başka bir yemeğe geçilebilir",
+  "editor.windowPerSide": "Süre her taraf için verilmiş, çevirmek için başına dönülür: {min} dk başında, gözetimsiz değil.",
   "editor.yourType": "senin {type}.",
   "grocery.aislesCount": "{count, plural, one {# reyon} other {# reyon}}",
   "grocery.andMore": " +{count} daha",

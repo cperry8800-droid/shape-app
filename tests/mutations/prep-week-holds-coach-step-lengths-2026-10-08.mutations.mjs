@@ -25,16 +25,20 @@ const TRAY_END = `            bsHoldStep('Turn them and roast 10 minutes more, u
             'Toast the bread and serve alongside, for scooping up whatever is left on the plate.',`;
 
 const ATTENDED = "  return { t, min: Math.round(worked / 60), passive: false, ...(st ? { station: st } : {}) };";
-const PER_SIDE = '  return perSide ? seconds * 2 : seconds;';
+const PER_SIDE = '  const worked = time.perSide ? time.seconds * 2 : time.seconds;';
 const RANGE = '  const seconds = low && high > 0 ? Math.min(span.seconds, (span.seconds / high) * Number(low[1])) : span.seconds;';
-const NOT_WORK = '  if (BS_AUTHOR_NOT_WORK_RE.test(t)) return 0;';
+const NOT_WORK = '  if (BS_AUTHOR_NOT_WORK_RE.test(t)) return { t };';
 const FLOOR = '  if (worked < BS_AUTHOR_MIN_PASSIVE * 60) return { t };';
 const ON_SIDE = 'const BS_AUTHOR_PER_SIDE_RE = /^\\s+(?:on\\s+)?(?:a|each|per)\\s+side\\b/i;';
 const TERMINAL = '    c.stepMeta[c.steps.length - 1] = { ...lastMeta, passive: false };';
 const EDITOR = "ds[li] = { ...ds[li], passive: false };";
+const WINDOW = '  if (st && !time.perSide && time.seconds >= BS_AUTHOR_MIN_PASSIVE * 60) return { t, min: Math.round(time.seconds / 60), passive: true, station: st };';
+const HINT = 'const perSide = wantsWin && bsStepPerSide(s.t) && derived && derived.min;';
+const PER_SIDE_EXPORT = '  return !!(time && time.perSide);';
+const DE = 'mobile-app/src/i18n/catalogs/de/coach.json';
 
 export default {
-  test: 'node --test tests/prep-week-step-lengths.test.mjs tests/shape-kitchen-data.test.mjs tests/coach-step-lengths.test.mjs tests/cookable.test.mjs',
+  test: 'node --test tests/prep-week-step-lengths.test.mjs tests/shape-kitchen-data.test.mjs tests/coach-step-lengths.test.mjs tests/cookable.test.mjs tests/broadsheet-render.test.mjs tests/i18n-catalog-complete.test.mjs',
   timeoutMs: 180_000,
   mutations: [
     // ── The demo plan's holds ───────────────────────────────────────────────────────────────
@@ -64,12 +68,20 @@ export default {
     { name: 'a coach\'s hands-on step goes back to bare text', file: COOKABLE, find: FLOOR, replace: '  if (worked >= 0) return { t };' },
     { name: 'a coach\'s hands-on step becomes a window', file: COOKABLE, find: ATTENDED, replace: ATTENDED.replace('passive: false', 'passive: true') },
     { name: 'a coach\'s attended step drops the station they picked', file: COOKABLE, find: ATTENDED, replace: "  return { t, min: Math.round(worked / 60), passive: false };" },
-    { name: 'per side counts one side', file: COOKABLE, find: PER_SIDE, replace: '  return seconds;' },
+    { name: 'per side counts one side', file: COOKABLE, find: PER_SIDE, replace: '  const worked = time.seconds;' },
     { name: '"on each side" is not read as per side', file: COOKABLE, find: ON_SIDE, replace: ON_SIDE.replace('(?:on\\s+)?', '') },
     { name: 'a range is its top', file: COOKABLE, find: RANGE, replace: '  const seconds = span.seconds;' },
     { name: 'a storage time counts as work', file: COOKABLE, find: NOT_WORK, replace: '' },
     { name: 'the attended floor rounds 3.5 minutes up to 4', file: COOKABLE, find: FLOOR, replace: '  if (Math.round(worked / 60) < BS_AUTHOR_MIN_PASSIVE) return { t };' },
     { name: 'a coach\'s last oven window drops its minutes at ingestion', file: COOKABLE, find: TERMINAL, replace: '    c.stepMeta[c.steps.length - 1] = plainStepMeta();' },
     { name: 'a coach\'s last oven window drops its minutes at publish', file: PROS, find: EDITOR, replace: 'ds[li] = { t: ds[li].t };' },
+    // ── A coach's hands-off pick on a per-side or ranged step ─────────────────────────────────
+    { name: 'a hands-off pick on a per-side step is a window again', file: COOKABLE, find: WINDOW, replace: WINDOW.replace('!time.perSide && ', '') },
+    { name: 'a hands-off window takes the top of its range', file: COOKABLE, find: WINDOW,
+      replace: WINDOW.replace('time.seconds >= BS_AUTHOR_MIN_PASSIVE * 60) return { t, min: Math.round(time.seconds / 60)', 'bsStepTimers(t)[0].seconds >= BS_AUTHOR_MIN_PASSIVE * 60) return { t, min: Math.round(bsStepTimers(t)[0].seconds / 60)') },
+    { name: 'the editor\'s per-side hint never shows', file: PROS, find: HINT, replace: 'const perSide = false;' },
+    { name: 'the editor shows the per-side hint on every hint', file: PROS, find: HINT, replace: 'const perSide = wantsWin;' },
+    { name: 'bsStepPerSide never says per side', file: COOKABLE, find: PER_SIDE_EXPORT, replace: '  return false;' },
+    { name: 'the German catalog lacks the per-side hint', file: DE, find: '  "editor.windowPerSide": ', replace: '  "editor.windowPerSideX": ' },
   ],
 };

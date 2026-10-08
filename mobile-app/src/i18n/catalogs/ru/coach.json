@@ -467,6 +467,7 @@
   "editor.videoBadge": "ВИДЕО",
   "editor.windowHint": "Укажите в шаге время от 4 минут («запекайте 15 минут»), чтобы он шёл без присмотра.",
   "editor.windowOk": "{min} мин без присмотра {station} — можно заняться другим блюдом",
+  "editor.windowPerSide": "Время указано на каждую сторону — нужно вернуться и перевернуть: {min} мин под присмотром, не без присмотра.",
   "editor.yourType": "ваш {type}.",
   "grocery.aislesCount": "{count, plural, one {# отдел} few {# отдела} many {# отделов} other {# отдела}}",
   "grocery.andMore": " +{count} ещё",
