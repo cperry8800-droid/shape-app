@@ -63,11 +63,28 @@ export async function computeMembership(
   userId: string,
   email: string | null
 ): Promise<Membership> {
-  const { data: profile } = await client
+  const isAdmin = !!email && adminEmails().includes(email.toLowerCase());
+  // ⚠ THE PROFILE AND THE SUBSCRIPTION ARE READ TOGETHER. Neither depends on the other, and
+  // this runs on every gated API call (the edge gate) and every question to Nora, so one
+  // round trip is saved each time. An approved coach or an admin never needs the
+  // subscription; its read is then left unused. Each builder becomes a promise ONCE
+  // (Promise.resolve): a Supabase query runs again every time its `then` is called.
+  const profileRead = Promise.resolve(client
     .from('profiles')
     .select('role, roles, over_18, date_of_birth, created_at')
     .eq('id', userId)
-    .maybeSingle();
+    .maybeSingle());
+  const subRead = isAdmin ? null : Promise.resolve(client
+    .from('platform_subscriptions')
+    .select('status')
+    .eq('client_id', userId)
+    .order('current_period_end', { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle());
+  // Handled here so a failure is not reported as unhandled while the profile is read; it is
+  // still thrown below, where it was always awaited, when the subscription decides.
+  if (subRead) subRead.then(undefined, () => {});
+  const { data: profile } = await profileRead;
   const role = (profile?.role as string) || 'client';
   const roles = Array.isArray((profile as { roles?: unknown } | null)?.roles)
     ? ((profile as { roles?: string[] }).roles as string[])
@@ -78,17 +95,10 @@ export async function computeMembership(
   // dependency-free.)
   const COACH_ROLES = ['trainer', 'nutritionist', 'dietitian'];
   const isCoach = COACH_ROLES.includes(role) || roles.some((r) => COACH_ROLES.includes(r));
-  const isAdmin = !!email && adminEmails().includes(email.toLowerCase());
 
   let isMember = isCoach || isAdmin;
-  if (!isMember) {
-    const { data: sub } = await client
-      .from('platform_subscriptions')
-      .select('status')
-      .eq('client_id', userId)
-      .order('current_period_end', { ascending: false, nullsFirst: false })
-      .limit(1)
-      .maybeSingle();
+  if (!isMember && subRead) {
+    const { data: sub } = await subRead;
     isMember = !!(sub && ACTIVE_SUB.has(String((sub as { status?: unknown }).status)));
   }
   // Age is derived from the DATE first (see isMinorFromDob — `over_18` is a

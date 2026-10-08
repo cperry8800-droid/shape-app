@@ -220,6 +220,10 @@ export type AIUsage = {
   inputTokens: number | null;
   outputTokens: number | null;
   totalTokens: number | null;
+  /** Input the provider served from its prompt cache: the fixed prefix (instructions + tools). */
+  cachedTokens: number | null;
+  /** Output spent reasoning before the answer (reasoning models): most of a short reply's wait. */
+  reasoningTokens: number | null;
 };
 
 export type CallAIResult =
@@ -252,10 +256,13 @@ function readUsage(data: unknown): AIUsage | null {
     for (const v of vals) if (typeof v === 'number' && Number.isFinite(v)) return v;
     return null;
   };
+  const detail = (v: unknown, key: string): unknown => (v && typeof v === 'object' ? (v as Record<string, unknown>)[key] : undefined);
   return {
     inputTokens: num(o.input_tokens, o.prompt_tokens),
     outputTokens: num(o.output_tokens, o.completion_tokens),
     totalTokens: num(o.total_tokens),
+    cachedTokens: num(detail(o.input_tokens_details, 'cached_tokens'), detail(o.prompt_tokens_details, 'cached_tokens')),
+    reasoningTokens: num(detail(o.output_tokens_details, 'reasoning_tokens'), detail(o.completion_tokens_details, 'reasoning_tokens')),
   };
 }
 
@@ -344,6 +351,8 @@ export async function callAI(
         fellBack,
         inputTokens: usage?.inputTokens ?? null,
         outputTokens: usage?.outputTokens ?? null,
+        cachedTokens: usage?.cachedTokens ?? null,
+        reasoningTokens: usage?.reasoningTokens ?? null,
       });
       return { ok: true, data, usage, latencyMs, promptId, model, fellBack };
     }

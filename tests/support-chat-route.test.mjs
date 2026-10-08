@@ -969,3 +969,31 @@ test('admin_lookup_account: a confirmed admin is offered it and it runs logged; 
   assert.equal(nk.error, 'unavailable');
   assert.match(nk.message, /not configured on this server/, 'Nora can say why, not just that it failed');
 });
+
+// Nora's speed, the setup half (2026-10-08): an account's count for the day needs only its tier,
+// so it no longer waits behind the member facts, and the setup's own time is logged.
+test('⚠ SPEED: the day\'s count starts before the member facts are read, and the setup time is logged', async () => {
+  let r = null;
+  let readsWhenCounted = null;
+  r = await loadRoute({
+    rate: (key, max) => { readsWhenCounted = r.sb._calls.map((c) => c.table || c.rpc); return { allowed: true, remaining: max, resetSeconds: 0, limit: max }; },
+  });
+  const lines = [];
+  const log = console.log;
+  console.log = (...a) => { lines.push(a.map(String).join(' ')); };
+  try { await r.mod.POST(post(ask('hi'))); } finally { console.log = log; }
+  assert.ok(readsWhenCounted, 'the day was counted');
+  assert.ok(!readsWhenCounted.includes('daily_health_snapshot'), `the count ran beside the facts, not after them (reads before it: ${readsWhenCounted.join(', ')})`);
+  assert.ok(r.sb._calls.some((c) => c.table === 'daily_health_snapshot'), 'the facts were still read');
+  const setup = lines.find((l) => l.includes('"promptId":"support.chat.setup"'));
+  assert.ok(setup, 'a setup timing line');
+  assert.match(setup, /"setupMs":\d+/);
+  assert.match(setup, /"signedIn":true/);
+
+  // Over the limit it still answers with the limit and asks the model nothing.
+  const over = await loadRoute({ rate: (key, max) => ({ allowed: false, remaining: 0, resetSeconds: 3600, limit: max }) });
+  const res = await over.mod.POST(post(ask('hi')));
+  const body = await res.json();
+  assert.equal(body.source, 'limit');
+  assert.equal(over.calls.ai.length, 0);
+});
