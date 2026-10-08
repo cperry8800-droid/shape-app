@@ -56,16 +56,21 @@ export async function adminLookupAccount(db, opts) {
   }
   const finish = (fields) => leg(db.from('admin_lookup_log').update(fields).eq('id', logId));
 
-  const prof = await leg(db.from('profiles').select('id, full_name, role, roles, created_at').eq('email', q).limit(1));
-  if (!prof.ok) {
+  // ⚠ THE ACCOUNT IS FOUND BY ITS SIGN-IN IDENTITY (auth.users), never by profiles.email: a
+  // profile is created best effort and can be missing, and it keeps the first address after an
+  // email change, so it would answer "no account" for one that exists (Codex, #2264).
+  const who = await leg(db.rpc('admin_account_by_email', { p_email: q }));
+  if (!who.ok) {
     await finish({ found: null });
     return { ok: false, error: 'unavailable', message: 'The account could not be read right now.' };
   }
-  const u = Array.isArray(prof.data) ? prof.data[0] : null;
+  const u = Array.isArray(who.data) ? who.data[0] : who.data;
   if (!u || !u.id) {
     await finish({ found: false });
     return { ok: true, found: false, email: q, message: 'No Shape account has this email address.' };
   }
+  const prof = await leg(db.from('profiles').select('full_name, role, roles').eq('id', u.id).maybeSingle());
+  const p = prof.ok ? prof.data : null;
 
   const [plat, subs, tr, nu, membership] = await Promise.all([
     leg(db.from('platform_subscriptions').select('status, current_period_end, price_cents')
@@ -95,7 +100,16 @@ export async function adminLookupAccount(db, opts) {
   const out = {
     ok: true,
     found: true,
-    account: { name: u.full_name || null, role: u.role || 'client', roles: Array.isArray(u.roles) ? u.roles : [], joined: day(u.created_at) },
+    account: {
+      name: p ? p.full_name || null : null,
+      role: p ? p.role || 'client' : null,
+      roles: p && Array.isArray(p.roles) ? p.roles : [],
+      joined: day(u.created_at),
+      emailConfirmed: !!u.email_confirmed_at,
+      lastSignIn: day(u.last_sign_in_at),
+      // 'missing': they can sign in, but their profile was never created.
+      profile: prof.ok ? (p ? 'present' : 'missing') : 'unavailable',
+    },
     membership: membership
       ? { member: !!membership.isMember, coach: !!membership.isCoach, admin: !!membership.isAdmin, refusedForAge: !!membership.isKnownMinor }
       : 'unavailable',

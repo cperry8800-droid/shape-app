@@ -889,7 +889,10 @@ test('get_coach_today: a coach is offered it and it reads their own day; a membe
 // ── The admin help desk (the Ask Nora plan, step 5) ─────────────────────────────────
 // tests/nora-admin-lookup.test.mjs drives the lookup; here, who is offered it and who is refused.
 test('admin_lookup_account: a confirmed admin is offered it and it runs logged; an unconfirmed admin or a member is refused', async () => {
-  const lookupDb = () => fakeAdminDb({ tables: { profiles: [{ id: 'u-9', email: 'priya@example.com', full_name: 'Priya Shah', role: 'client', roles: [], created_at: '2026-05-02T00:00:00Z' }] } });
+  const lookupDb = () => fakeAdminDb({
+    rpcs: { admin_account_by_email: ({ p_email }) => (p_email === 'priya@example.com' ? [{ id: 'u-9', created_at: '2026-05-02T00:00:00Z', email_confirmed_at: '2026-05-02T00:00:00Z', last_sign_in_at: null }] : []) },
+    tables: { profiles: [{ id: 'u-9', email: 'priya@example.com', full_name: 'Priya Shah', role: 'client', roles: [], created_at: '2026-05-02T00:00:00Z' }] },
+  });
   const confirmed = { id: U, email: 'Boss@Shape.test', email_confirmed_at: '2026-01-01T00:00:00Z' };
   const db = lookupDb();
   const admin = await loadRoute({ user: confirmed, isAdmin: true, adminDb: db, answers: [calls(call('admin_lookup_account', { email: 'priya@example.com' })), say('That is Priya Shah, a client since May.')] });

@@ -36,3 +36,29 @@ create index if not exists admin_lookup_log_target_idx on public.admin_lookup_lo
 
 alter table public.admin_lookup_log enable row level security;
 revoke all on public.admin_lookup_log from anon, authenticated;
+
+-- ===== FINDING THE ACCOUNT =====
+-- By its sign-in identity, auth.users, never by profiles.email: a profile is created best
+-- effort and can be missing, and it keeps the first address after an email change, so it
+-- would answer "no account" for one that exists (Codex, #2264). Auth stores addresses
+-- lowercased; the route lowercases the one asked for (cleanLookupEmail).
+--
+-- ⚠ THE SERVICE ROLE ONLY. Supabase grants EXECUTE on a new function to anon and authenticated
+-- by name, so `revoke ... from public` alone would leave every account's email, sign-in times
+-- and id readable by the whole internet through /rest/v1/rpc/. Revoked from all three by name.
+create or replace function public.admin_account_by_email(p_email text)
+returns table (id uuid, created_at timestamptz, email_confirmed_at timestamptz, last_sign_in_at timestamptz)
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select u.id, u.created_at, u.email_confirmed_at, u.last_sign_in_at
+  from auth.users u
+  where u.email = lower(btrim(p_email))
+  order by u.created_at
+  limit 1
+$$;
+
+revoke all on function public.admin_account_by_email(text) from public, anon, authenticated;
+grant execute on function public.admin_account_by_email(text) to service_role;

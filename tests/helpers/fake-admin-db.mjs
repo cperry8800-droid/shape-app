@@ -1,12 +1,19 @@
 // A recording fake of the SERVICE-ROLE client for Nora's admin help desk
 // (src/lib/ai/adminLookup.mjs): reads filter and project like PostgREST, inserts and updates
 // land in `_logs` (the admin_lookup_log rows), and `_calls` lists every call in order.
-// `fail` names tables ('profiles') or one operation on one ('insert:admin_lookup_log').
-export function fakeDb({ tables = {}, fail = [] } = {}) {
+// `fail` names tables ('profiles') or one operation on one ('insert:admin_lookup_log'), or an
+// RPC ('rpc:admin_account_by_email'). `rpcs` answers an RPC by name from its arguments.
+export function fakeDb({ tables = {}, rpcs = {}, fail = [] } = {}) {
   const calls = [];
   const db = {
     _calls: calls,
     _logs: [],
+    rpc(name, args) {
+      calls.push({ rpc: name, args });
+      if (fail.includes(`rpc:${name}`)) return Promise.resolve({ data: null, error: { message: `fake failure on rpc ${name}` } });
+      if (typeof rpcs[name] !== 'function') return Promise.resolve({ data: null, error: { code: 'PGRST202', message: `no function ${name}` } });
+      return Promise.resolve({ data: rpcs[name](args), error: null });
+    },
     from(table) {
       const st = { table, filters: [], op: 'select', payload: null, limit: null, cols: null };
       const run = () => {
@@ -37,6 +44,7 @@ export function fakeDb({ tables = {}, fail = [] } = {}) {
         order() { return chain; },
         limit(n) { st.limit = n; return chain; },
         single() { st.single = true; return chain; },
+        maybeSingle() { st.single = true; return chain; },
         then(res, rej) { return Promise.resolve(run()).then(res, rej); },
       };
       return chain;
