@@ -65,6 +65,7 @@ import { computeMembership } from '@/lib/membership-core';
 import { noraTier, visitorGate, countQuestion, limitReply, requestIp, CHECK_REPLY } from '@/lib/ai/noraLimits';
 import { greetingKind, greetingFor } from '@/lib/ai/noraGreeting.mjs';
 import { normalizeContext, formatContextNote, validZone, dayIn } from '@/lib/ai/noraContext.mjs';
+import { answeredReplies } from '@/lib/supportRequests.mjs';
 import { cleanFormContext, formNote, cleanFill, FILL_FORM_TOOL } from '@/lib/ai/noraForms.mjs';
 import { readCoachToday } from '@/lib/ai/coachToday.mjs';
 import { adminLookupAccount } from '@/lib/ai/adminLookup.mjs';
@@ -532,6 +533,11 @@ const NUTRITION_PROMPT_NOTE = [
   "The server picks each meal and adds up the macros: never name a meal or state a number it did not return. Targets they did not give are the builder's defaults for the phase, and the card says which. Shape's library is small (about two dozen dishes), so say they can swap in their own foods in the builder.",
   'Nothing is saved until they confirm; it is saved unpublished to their meal plans and opens in the website builder, where they edit it and assign it to a client. You never assign it from here. Say that, never that it is done.',
 ].join(' ');
+// "Talk to a person" (the Ask Nora plan, step 5): the button under the chat panels that draw
+// cards, for a signed-in account. Nora points to it; she cannot press it.
+const TEAM_QUOTE = '[A reply from the Shape team, quoted]';
+const PERSON_NOTE =
+  `TALK TO A PERSON: Under this chat there is a "Talk to a person" button. It sends their question and this conversation to the Shape team, and a person replies here in this chat and by email. When they need a person (a refund, an account change, a bug, anything you cannot do), tell them to tap it. You cannot send it yourself, so never say you have. A message that starts ${TEAM_QUOTE} is that reply: answer questions about it, and never contradict it with a guess.`;
 const READ_TOOLS = new Set([...MEMBER_READ_TOOLS.map((t) => t.name), ...COACH_TOOLS.map((t) => t.name), ...ADMIN_TOOLS.map((t) => t.name)]);
 // Up to this many model turns per request: a lookup, an action drafted from
 // it, and a reply is three; Astra "continues through more steps", so the cap
@@ -1050,14 +1056,21 @@ async function askOpenAI(
   messages: ChatMessage[],
   propose: ProposeFn,
   tone: string | undefined,
-  member: { contextMsg: string | null; memberTools: typeof MEMBER_TOOLS; memoryCtx: MemoryCtx | null; cookMsg: string | null; reads: ReadCtx | null; coachTools: typeof COACH_TOOLS; adminTools?: typeof ADMIN_TOOLS; trainerTools: typeof TRAINER_TOOLS; nutritionTools?: typeof NUTRITION_TOOLS; trainerZone?: string; noCards?: boolean; isMember: boolean; voice: boolean; locale: string | null; coach: CoachCtx; where?: { system: string; data: string | null }; form?: FormCtx | null },
+  member: { contextMsg: string | null; memberTools: typeof MEMBER_TOOLS; memoryCtx: MemoryCtx | null; cookMsg: string | null; reads: ReadCtx | null; coachTools: typeof COACH_TOOLS; adminTools?: typeof ADMIN_TOOLS; trainerTools: typeof TRAINER_TOOLS; nutritionTools?: typeof NUTRITION_TOOLS; trainerZone?: string; noCards?: boolean; isMember: boolean; signedIn?: boolean; teamReplies?: Set<string>; voice: boolean; locale: string | null; coach: CoachCtx; where?: { system: string; data: string | null }; form?: FormCtx | null },
   signal?: AbortSignal,
 ): Promise<{ reply: string; actions: SupportAction[]; model: string | null } | null> {
   if (!hasOpenAIKey()) return null;
-  const recent = messages.slice(-12).map((m) => ({
-    role: m.role === 'assistant' ? 'assistant' : 'user',
-    content: String(m.content || '').slice(0, 2000),
-  }));
+  // A reply from a person at Shape ("Talk to a person", role 'team') is quoted in the user
+  // tier: context to read, never Nora's own words, and never trusted as instructions.
+  // ⚠ ONLY A REPLY THE SERVER STORED IS QUOTED (member.teamReplies, read from nora_threads):
+  // a device can label any message 'team', so one that is not stored is dropped, and the
+  // marker is cut out of anything else, so typing it forges nothing.
+  const team = member.teamReplies;
+  const recent = messages.slice(-12).flatMap((m) => {
+    const content = String(m.content || '').slice(0, 2000);
+    if ((m.role as string) === 'team') return team && team.has(content.trim()) ? [{ role: 'user', content: `${TEAM_QUOTE} ${content}` }] : [];
+    return [{ role: m.role === 'assistant' ? 'assistant' : 'user', content: content.split(TEAM_QUOTE).join('') }];
+  });
 
   // The tone shapes the framing (supportive vs direct) but never the facts.
   // The memory note rides ONLY for verified members (their tool list carries
@@ -1077,7 +1090,8 @@ async function askOpenAI(
   const nutritionNote = member.nutritionTools && member.nutritionTools.length && member.memberTools.length && !member.cookMsg ? `\n\n${NUTRITION_PROMPT_NOTE}` : '';
   const adminNote = member.adminTools && member.adminTools.length && member.memberTools.length && !member.cookMsg ? `\n\n${ADMIN_PROMPT_NOTE}` : '';
   const noCardsNote = member.noCards && !member.cookMsg ? `\n\n${NO_CARDS_NOTE}` : '';
-  const systemPrompt = `${SYSTEM_PROMPT}${member.memberTools.length && !member.cookMsg ? `\n\n${MEMBER_PROMPT_NOTE}` : ''}${trainerNote}${nutritionNote}${adminNote}${noCardsNote}${cookOverride}${member.voice ? `\n\n${VOICE_PROMPT_NOTE}` : ''}${langNote}\n\n${toneInstruction(tone)}`;
+  const personNote = member.signedIn && !member.noCards && !member.cookMsg ? `\n\n${PERSON_NOTE}` : '';
+  const systemPrompt = `${SYSTEM_PROMPT}${member.memberTools.length && !member.cookMsg ? `\n\n${MEMBER_PROMPT_NOTE}` : ''}${trainerNote}${nutritionNote}${adminNote}${noCardsNote}${personNote}${cookOverride}${member.voice ? `\n\n${VOICE_PROMPT_NOTE}` : ''}${langNote}\n\n${toneInstruction(tone)}`;
   let input: unknown[] = [
     { role: 'system', content: systemPrompt },
     // Where they are: the clock in their zone and what the server verified (system), then
@@ -1251,6 +1265,16 @@ async function fallbackReply(text: string, coach: CoachCtx): Promise<{ reply: st
   return { reply: "I can't answer that one from here. The Shape team answers at info@theshapecommunity.com. Is there anything else I can help with?", actions: [] };
 }
 
+// The texts of the Shape team's replies to the caller: their answered requests, which only the
+// console writes (never nora_threads, which the account can write itself; Codex, #2265). Read
+// only when the history carries a message labelled 'team'. Signed out, or a failed read: none,
+// so no such message is quoted.
+async function storedTeamReplies(actor: Awaited<ReturnType<typeof resolveActor>> | null, messages: ChatMessage[]): Promise<Set<string>> {
+  if (!actor || !messages.some((m) => (m.role as string) === 'team')) return new Set();
+  const { replies } = await answeredReplies(actor.supabase, actor.user.id);
+  return new Set([...replies].map((r) => r.slice(0, 2000).trim()));
+}
+
 export async function POST(request: Request) {
   const parsed = await readJson<{ messages?: ChatMessage[]; tone?: string; cookContext?: unknown; voice?: unknown; surface?: unknown; locale?: unknown; confirmCards?: unknown; turnstileToken?: unknown; context?: unknown }>(request);
   if (!parsed.ok) return parsed.response;
@@ -1390,7 +1414,9 @@ export async function POST(request: Request) {
   const coachSb = actor ? actor.supabase : await clientForRequest(request).catch(() => null);
   const coach: CoachCtx = { sb: coachSb, surface };
 
-  const ai = await askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx, cookMsg, reads, coachTools, adminTools, trainerTools, nutritionTools, trainerZone: zone, isMember, voice, locale, coach, noCards, where, form }, request.signal).catch(() => null);
+  // The Shape team's replies in this history, checked against the stored conversation.
+  const teamReplies = await storedTeamReplies(actor, messages);
+  const ai = await askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx, cookMsg, reads, coachTools, adminTools, trainerTools, nutritionTools, trainerZone: zone, isMember, signedIn: !!actor, teamReplies, voice, locale, coach, noCards, where, form }, request.signal).catch(() => null);
   if (ai) return respond({ reply: ai.reply, source: 'ai', actions: ai.actions, model: ai.model });
 
   // Cook Mode is a read-only, grounded sous-chef: the support fallback can claim
