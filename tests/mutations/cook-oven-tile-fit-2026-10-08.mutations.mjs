@@ -7,7 +7,8 @@ const NAME = '.bsck.dev .cC .oven .in b{flex:0 0 100%;max-width:100%;min-width:0
 const NOTE = '.bsck.dev .cC .oven .in small{flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}';
 const TWO = '.bsck.dev .cC .oven .win.two{grid-auto-flow:row;gap:2px}';
 const TWO_IN = '.bsck.dev .cC .oven .win.two .in{flex-wrap:nowrap}';
-const TWO_NAME = '.bsck.dev .cC .oven .win.two .in b{flex:1 1 0}';
+const TWO_NAME = '.bsck.dev .cC .oven .win.two .in b{flex:1 1 0;container-type:inline-size}';
+const SLIVER = '@container (max-width:13.5px){.bsck.dev .cC .oven .win.two .in b>span{visibility:hidden}}';
 const WIN = '.bsck.dev .cC .oven .win,.bsck.dev .cC .oven.on .win{flex:1;min-width:0;background:none;border:0;padding:0;place-items:center stretch;text-align:left;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:10px}';
 
 export default {
@@ -33,6 +34,12 @@ export default {
     { name: 'a two-oven name shares the cut by width, taking the note with it', file: CLIENT, find: TWO_NAME, replace: TWO_NAME.replace('flex:1 1 0', 'flex:0 1 auto') },
     { name: 'the window is marked two only past two dishes', file: CLIENT,
       find: "className={`win${ovens.length > 1 ? ' two' : ''}`}", replace: "className={`win${ovens.length > 2 ? ' two' : ''}`}" },
+    // The sliver: a name too narrow for a letter and its ellipsis.
+    { name: 'the name is no longer a size container', file: CLIENT, find: TWO_NAME, replace: TWO_NAME.replace(';container-type:inline-size', '') },
+    { name: 'the name hides only below 6px, where the 6px sliver still shows', file: CLIENT, find: SLIVER, replace: SLIVER.replace('13.5px', '6px') },
+    { name: 'the too-narrow name stays visible', file: CLIENT, find: SLIVER, replace: SLIVER.replace('visibility:hidden', 'visibility:visible') },
+    { name: 'the name text has no element of its own to hide', file: CLIENT,
+      find: 'const nameEl = <b key="b"><span>{name}</span></b>;', replace: 'const nameEl = <b key="b">{name}</b>;' },
     { name: 'the window is marked two for one dish', file: CLIENT,
       find: "className={`win${ovens.length > 1 ? ' two' : ''}`}", replace: "className={`win${ovens.length > 0 ? ' two' : ''}`}" },
   ],

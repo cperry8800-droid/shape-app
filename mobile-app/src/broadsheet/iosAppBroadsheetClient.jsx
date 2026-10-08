@@ -8429,7 +8429,8 @@ const BS_CK_CSS = `
 .bsck.dev .cC .oven .in small{flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bsck.dev .cC .oven .win.two{grid-auto-flow:row;gap:2px}
 .bsck.dev .cC .oven .win.two .in{flex-wrap:nowrap}
-.bsck.dev .cC .oven .win.two .in b{flex:1 1 0}
+.bsck.dev .cC .oven .win.two .in b{flex:1 1 0;container-type:inline-size}
+@container (max-width:13.5px){.bsck.dev .cC .oven .win.two .in b>span{visibility:hidden}}
 .bsck.dev .cC .brd{grid-column:3/5;grid-row:3;padding:0 10px;gap:6px;font-size:12px;border-radius:12px}
 .bsck.dev .cC .brd .ico{width:18px;height:18px}
 .bsck.dev .cC .brd > span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -8888,11 +8889,12 @@ function bsCkHob({ tr, occ, selected = null, onZone = null, nowText = null }) {
   const inner = (o, as = 'span', extra = {}) => {
     if (!o) return null;
     const name = bsCkShort(o.title);
+    const nameEl = <b key="b"><span>{name}</span></b>;
     const kids = o.kind === 'hold'
-      ? [<b key="b">{name}</b>, <span key="n" className="n">{o.up ? '0:00' : bsCkMmss(o.left)}</span>, o.up ? <small key="s">{tr('cook:timer.up', { defaultValue: "Time's up" })}</small> : null]
+      ? [nameEl, <span key="n" className="n">{o.up ? '0:00' : bsCkMmss(o.left)}</span>, o.up ? <small key="s">{tr('cook:timer.up', { defaultValue: "Time's up" })}</small> : null]
       : o.kind === 'now'
-        ? [<b key="b">{name}</b>, <small key="s">{nowText || tr('cook:ck.now', { defaultValue: 'Now' })}</small>]
-        : [<b key="b">{name}</b>, <small key="s">{tr('cook:ck.onHeat', { defaultValue: 'On the heat' })}</small>];
+        ? [nameEl, <small key="s">{nowText || tr('cook:ck.now', { defaultValue: 'Now' })}</small>]
+        : [nameEl, <small key="s">{tr('cook:ck.onHeat', { defaultValue: 'On the heat' })}</small>];
     return React.createElement(as, { className: 'in', ...extra }, ...kids);
   };
   // A zone is a button exactly when bsHobTappable says so, the same answer the card uses to

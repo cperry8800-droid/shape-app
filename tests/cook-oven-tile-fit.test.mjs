@@ -85,6 +85,18 @@ test('two ovens take a line each: the name gives way first, the time never', () 
   assert.equal(decls('.bsck.dev .cC .oven .win.two .in b').flex, '1 1 0');
 });
 
+// ⚠ A NAME LEFT A FEW PIXELS SHOWED A SLIVER OF ITS FIRST LETTER. Below the width of one letter
+// and "…" the browser cannot draw the ellipsis and clips the text instead: measured at 430px, a
+// finished timer beside a long name left the name 6px, drawn as a stray "R" before "0:00". The
+// name is a size container and its text hides below 14px, where "R…" still fits (measured at
+// 14 and 16px). iOS 14-15 have no container queries and keep the sliver; nothing else changes.
+test('a two-oven name too narrow for a letter and its ellipsis is hidden, not clipped', () => {
+  assert.equal(decls('.bsck.dev .cC .oven .win.two .in b')['container-type'], 'inline-size');
+  const q = SRC.match(/^@container \(max-width:([\d.]+)px\)\{\.bsck\.dev \.cC \.oven \.win\.two \.in b>span\{visibility:hidden\}\}$/m);
+  assert.ok(q, 'the rule that hides a too-narrow name is gone or no longer hides it');
+  assert.ok(Number(q[1]) >= 12 && Number(q[1]) < 14, `hides below ${q[1]}px: "R…" needs about 14px, and a sliver shows up to about 12px`);
+});
+
 const { bsCkHob, bsCkHobOff } = await loadBroadsheet(['bsCkHob', 'bsCkHobOff'], React);
 const tr = (key, o) => (o && o.defaultValue ? o.defaultValue.replace(/\{(\w+)\}/g, (_, k) => o[k] ?? '') : key);
 const dish = (title, left) => ({ title, kind: 'hold', left, timerId: title });
@@ -98,6 +110,7 @@ test('the oven window is marked two exactly when two dishes are in the ovens', (
   assert.equal(two, 'win two');
   assert.equal(inside.match(/class="in"/g).length, 2);
   assert.match(inside, /19:54.*12:00/);
+  assert.match(inside, /<b><span>Roasted veg and halloumi traybake<\/span><\/b>/, 'the name needs its own element for the container query to hide');
   assert.equal(ovenWin([dish('Sheet-pan salmon', 720)])[0], 'win', 'one dish keeps the stacked layout');
   assert.equal(ovenWin([])[0], 'win');
 });
