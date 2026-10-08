@@ -847,6 +847,40 @@ Everything older, newest-first: [2026-10](WORKLOG-ARCHIVE-2026-10.md) ·
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-10-08 — Step words under the website's timeline bars, real step lengths in Prep the week, no oven name sliver
+
+- **Merged [#2270](https://github.com/cperry8800-droid/shape-app/pull/2270) as `29dd6c6`**, final head `d29bebb`; the merged tree is byte-identical to it (tree `b176b47` on both). 8 files: `iosAppBroadsheetClient.jsx`, three test files (`prep-week-step-lengths.test.mjs` is new) and four mutation specs (two new). **No migration, no route, no i18n key.** The owner, on the three items #2263 and #2267 registered: *"fix these"*.
+- **1. The website's timeline names each step.** On the website layout, each bar gets a caption with its step's opening words ("Heat the oven to 425°F", "Roast another 12–15 minutes"). All three cook screens hand `bsCkTracks` a `words` flag (`layout.web`), and a source test checks each call does.
+  - A caption may run past its own bar, up to where the dish's next step starts or the cook ends. It never runs into the next caption or past the strip, and under 40px there is none. The website's lanes grow from 44 to 62px; the phone is unchanged.
+  - The wording (`bsCkFirstWords`): the first clause, at most six words.
+    - A lead-in clause gives way to the one after it ("Meanwhile, pat the salmon dry" → "Pat the salmon dry…"); a leading "Now" or "Then" is dropped from its own clause.
+    - Neither an en dash nor a decimal point ends a clause.
+    - A caption cut at six words drops a dangling word ("Stir the frozen peas into the" → "Stir the frozen peas"); a clause that ends on one by itself keeps it ("…back in").
+  - ⚠ **MY OWN READ OF THE DIFF CAUGHT A WRONG CAPTION BEFORE IT SHIPPED.** The first lead-in rule treated "Now" like "Meanwhile", so the demo salmon bowl's "Now spoon half the glaze over… Honey scorches in about a minute" would have been captioned with the second sentence.
+- **2. Prep the week's demo meals carry their own step lengths.** The demo plan's steps were plain strings, and a plain step has no length, so the planner charged each its assumed 3 minutes: "Roast 25 minutes" was drawn as 3, and the owner's beef bowl, oats and cottage cheese read as fifteen identical bars.
+  - The planner does not read durations out of step text at plan time; its `stepCost` note gives the reason. So the fix is data, as in the catalog: 27 demo meal steps carry their stated minutes through `bsTimedStep(text, min, station)` as `{ t, min, passive: false, station }`, the shape a coach's published plan already carries.
+  - **Attended, on purpose: no step is a hands-off window**, so no dish is scheduled inside another's step. With the owner's three dishes the kitchen screen offers "One after another · 72 min", and "Together" is unavailable.
+  - ⚠ **CODEX'S P2 WAS RIGHT: A PER-SIDE STEP CARRIED ONE SIDE.** "Give it 4 minutes a side" and "sear 4 min/side" carried 4, so the plan moved on after four minutes of an eight-minute sear. They carry 8 now, and the two "3 minutes a side" steps carry 6. Fixed in `d29bebb`; the thread is resolved.
+  - Not changed: the day's recipe cards. They are read-only, and `BSRecipePreview` renders a step as `{s}`, so an object there would break the page. The chili card's "Uncover last 5 min" is the last 5 minutes of its 25-minute simmer, so it was never authored.
+- **3. The oven name sliver.** A two-oven name narrower than a letter and its ellipsis showed a clipped glyph (a stray "R" before `0:00` at 430px). The name is a size container now, and its text hides below 13.5px; "R…" still shows at 14px. iOS 14–15 have no container queries and keep the sliver (the deployment target is iOS 14).
+- **Review:** Codex, 1 finding, above. None was requested; Copilot declined on its quota; CodeRabbit posted only its skip notice.
+- **Verified:**
+  - Driven in Chromium (Vite dev):
+    - Captions: a Together cook at 1280px through several steps, a solo cook to the plated screen, and the phone at 390px (no captions, 32px lanes).
+    - Prep the week: the owner's three dishes at 390px. The roast bar is 97px against 10px for a 3-minute step, and a timed meal's preview shows its method as text with no page errors.
+    - The oven: six two-oven cases at 320, 390 and 430px.
+  - `tests/prep-week-step-lengths.test.mjs` (3 tests) holds every timed step to the minutes its own text states (the low end of a range, both sides of a per-side step), requires every demo meal step taking 4+ minutes to carry them, and drives the beef bowl through the planner and the tracks to `[3, 25, 3, 6]`. On `main` it fails with "25 demo meal step(s) state a time and still cost the planner's 3 minutes".
+  - Mutations, all `--fail-on-skipped`, restored byte-identical: captions **20/20**, step lengths **8/8**, oven **21/21**, Rails **20 + 1 proven no-op**.
+    - ⚠ The first captions and step-lengths rounds each had one survivor, both gaps in the test: the strip's right-edge clamp, and a helper that dropped the station.
+    - Three Rails mutations skipped because this PR rewrote their anchors; they are re-anchored.
+  - `npm test` 6212/6212 on the step-lengths commit. All required checks were green on `d29bebb`. Commits skipped the pre-commit hook under the small-commit rule.
+- **Written after the merge**, per the 2026-09-11 rule.
+- ⚠ **REGISTERED, NOT DONE:**
+  - The oven name sliver on iOS 14–15, which have no container queries; iOS 14 is still the deployment target. A fallback would need the name hidden some other way.
+  - Hands-off windows for the demo plan's walk-away steps (an undisturbed roast, covered rice), so another dish can cook meanwhile. They need the catalog's window rules.
+  - A real coach plan still costs 3 minutes for any step the coach did not give a station, which is how `bsAuthorStep` has always worked.
+  - No pass on a real phone, and the captions' lead-in words are English only.
+
 ### 2026-10-08 — The phone cook screen's oven keeps its dish inside the tile, and two ovens take a line each
 
 - **Merged [#2267](https://github.com/cperry8800-droid/shape-app/pull/2267) as `c6ec8a1`** (merged by the owner), final head `242fd14`. `main` had moved by #2268, a records PR, so the trees differ; **the PR's diff is identical on the new base**. 3 files: `iosAppBroadsheetClient.jsx`, `tests/cook-oven-tile-fit.test.mjs` and its mutation spec. **No migration, no route, no i18n key.** The owner: *"fix the oven tile overflow"*, which #2263 had registered (the entry below).
@@ -864,7 +898,7 @@ Append new entries at the top, under this note.
   - 337/337 across the cook suites and the i18n inventory. Both commits skipped the pre-commit hook under the small-commit rule. Every check passed on `242fd14`; the tests job finished just after the owner's merge.
 - **Written after the merge**, per the 2026-09-11 rule.
 - ⚠ **REGISTERED, NOT DONE:**
-  - A finished timer beside a long name at 430px shows a 6px sliver of the name's first letter before `0:00`, with no ellipsis.
+  - A finished timer beside a long name at 430px shows a 6px sliver of the name's first letter before `0:00`, with no ellipsis. Fixed by #2270, the entry above, where container queries exist; iOS 14–15 (still a deployment target) keep it, and that stays open in #2270's entry.
   - No pass on a real phone (WKWebView or Android WebView).
 
 ### 2026-10-08 — The cook screen's timeline is drawn as rails: no numbered chips, a status line per dish
@@ -887,8 +921,8 @@ Append new entries at the top, under this note.
 - **Written after the merge**, per the 2026-09-11 rule.
 - ⚠ **REGISTERED, NOT DONE:**
   - The stove's oven tile spills a long dish name to the left of its box ("Sheet-pan s…"); pre-existing, untouched here. Fixed by #2267, the entry above.
-  - The website cook screen's bars carry no step words, though at 1280px they have room. The old chips showed "1 · Heat the oven to" there.
-  - Prep the week's meal-plan recipes still carry no step lengths, so every bar is the planner's 3 minutes.
+  - The website cook screen's bars carry no step words, though at 1280px they have room. The old chips showed "1 · Heat the oven to" there. Fixed by #2270.
+  - Prep the week's meal-plan recipes still carry no step lengths, so every bar is the planner's 3 minutes. Fixed for the demo plan by #2270; a real coach plan still costs 3 minutes for a step with no station.
   - No pass on a real phone, and the new translations have not been read by speakers.
 
 ### 2026-10-08 — Ask Nora, the plan's run: twenty-five PRs, #2238 to #2265
@@ -986,7 +1020,7 @@ Append new entries at the top, under this note.
   - Why it looks like dice: `bsCkTracks` fits the whole cook into the width, about 340px for 45 minutes, so a 3-minute step is 15px and carries only its digit. And the 9.5px lane name shares the row with the chips.
 - **Written after the merge**, per the 2026-09-11 rule.
 - ⚠ **REGISTERED, NOT DONE:**
-  - The meal-plan recipes in Prep the week carry no step lengths, so the planner gives every step 3 minutes and "Roast 25 minutes" is drawn as 3.
+  - The meal-plan recipes in Prep the week carry no step lengths, so the planner gives every step 3 minutes and "Roast 25 minutes" is drawn as 3. Fixed for the demo plan by #2270; a real coach plan still costs 3 minutes for a step with no station.
   - No pass on a real phone; the measured 20px scroller offset is the desktop preview's, and a notch moves it.
 
 ### 2026-10-07 — Coach tools in one run: the Schedule and the program builder, fixes first, then steps 2–4
