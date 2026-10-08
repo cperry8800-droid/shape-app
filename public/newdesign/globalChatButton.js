@@ -789,12 +789,10 @@
   // Selecting text on a page with a mouse or trackpad shows a small "✦ Ask Nora about this"
   // pill by it. The pill opens Nora with the words quoted in her composer, for the person to
   // finish and send. Never in a field, a chat panel or the pill itself, never for a stray
-  // character or a whole page. A touch screen keeps its own selection menu. It sits under
-  // the menu drawer (9000; tests/site-nav.test.mjs), over the page.
+  // character or a whole page. A touch keeps its own selection menu. It sits under the
+  // menu drawer (9000; tests/site-nav.test.mjs), over the page.
   function noraSelectionPill() {
-    var fine = false;
-    try { fine = !!(window.matchMedia && window.matchMedia("(pointer: fine)").matches); } catch (e) {}
-    if (!fine || !document.addEventListener) return;
+    if (!document.addEventListener) return;
     var pill = null, quote = "";
     function hide() { if (pill) pill.style.display = "none"; }
     function within(node, sel) {
@@ -831,7 +829,21 @@
       pill.style.top = top + "px";
       pill.style.left = left + "px";
     }
-    document.addEventListener("mouseup", function (e) { if (pill && e.target === pill) return; setTimeout(show, 0); });
+    // ⚠ THE POINTER THAT MADE THIS SELECTION DECIDES, not the device's primary one (Codex,
+    // #2254): a touchscreen laptop selects with both, and a touch also fires a compatibility
+    // mouseup. So a pointerup from a mouse shows the pill and a touch or pen hides it.
+    // Browsers without pointer events fall back to the primary pointer.
+    if (window.PointerEvent) {
+      document.addEventListener("pointerup", function (e) {
+        if (pill && e.target === pill) return;
+        if (e.pointerType !== "mouse") { hide(); return; }
+        setTimeout(show, 0);
+      });
+    } else {
+      var fine = false;
+      try { fine = !!(window.matchMedia && window.matchMedia("(pointer: fine)").matches); } catch (e) {}
+      if (fine) document.addEventListener("mouseup", function (e) { if (pill && e.target === pill) return; setTimeout(show, 0); });
+    }
     document.addEventListener("keyup", function (e) { if (e.shiftKey) setTimeout(show, 0); });
     document.addEventListener("selectionchange", function () {
       var s = window.getSelection && window.getSelection();
