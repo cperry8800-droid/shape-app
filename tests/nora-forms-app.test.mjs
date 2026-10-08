@@ -81,3 +81,26 @@ test('the sheet tells her the open form, never its values; the card fills only i
     assert.equal(bsNoraContext(true).form, undefined, 'a broken bridge never breaks the question');
   } finally { w.shapeNoraForm = was; }
 });
+
+// ⚠ THE DOORS ARE FOR PEOPLE WITH NO ACCOUNT (Codex, #2259): a signed-out question meets
+// Nora's bot check, so the app solves it and asks again instead of only saying "sign in".
+test('a signed-out question solves the check once and asks again; where it cannot run, she says where to ask', async () => {
+  const { JSDOM } = (await import('node:module')).createRequire(import.meta.url)('jsdom');
+  const dom = new JSDOM('<!doctype html><body></body>');
+  const w = dom.window;
+  const rendered = [];
+  w.turnstile = { render(host, opts) { rendered.push({ host, opts }); setTimeout(() => opts.callback('tok-1'), 0); return 7; }, remove() {} };
+  const src = read('mobile-app/src/services/turnstile.js').replace(/typeof import\.meta !== 'undefined' && import\.meta\.env && import\.meta\.env\.VITE_TURNSTILE_SITEKEY/, 'false');
+  new Function('window', 'document', src)(w, w.document);
+  assert.equal(await w.ShapeTurnstile.solve(), 'tok-1');
+  assert.equal(rendered[0].opts.appearance, 'interaction-only');
+  assert.ok(!w.document.querySelector('[data-nora-check]'), 'the widget is removed once it answers');
+  w.turnstile.render = (host, opts) => { setTimeout(() => opts['error-callback'](), 0); return 8; };
+  assert.equal(await w.ShapeTurnstile.solve(), '', 'an origin the widget refuses answers empty, never hangs');
+
+  const be = read('mobile-app/src/services/shapeBackend.js');
+  const ask = be.slice(be.indexOf('async function askSupportBot('), be.indexOf('function appLocaleCode('));
+  assert.match(ask, /if \(typeof extra\.turnstileToken === 'string' && extra\.turnstileToken\) body\.turnstileToken = extra\.turnstileToken;/);
+  assert.match(ask, /if \(res\.status === 403 && payload && payload\.needsCheck && !extra\.turnstileToken && !extra\.checked\) \{[\s\S]{0,300}if \(tok\) return askSupportBot\(messages, tone, \{ \.\.\.extra, turnstileToken: tok, checked: true \}\);/, 'asked again once, with the token');
+  assert.ok(ask.indexOf('window.ShapeTurnstile.solve()') < ask.indexOf("reply: 'Sign in to ask Nora in the app."), 'the fallback line only after the check could not run');
+});
