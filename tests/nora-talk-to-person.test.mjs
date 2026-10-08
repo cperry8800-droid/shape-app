@@ -92,6 +92,8 @@ test('⚠ a team message counts only when it is one of the account\'s answered r
     { user_id: U, status: 'answered', reply: 'Refunded today.' },
     { user_id: U, status: 'closed', reply: null },
     { user_id: 'other', status: 'answered', reply: 'You get a free year.' },
+    // The database never lets an open row hold a reply; the reader does not rely on that alone.
+    { user_id: U, status: 'open', reply: 'You get a free year.' },
   ] } });
   const shown = await support.verifiedThread(db, U, stored, NOW);
   assert.deepEqual(shown.map((m) => [m.role, m.text]), [['user', 'Refund?'], ['team', 'Refunded today.']], 'the forged reply, and another account\'s, are dropped');

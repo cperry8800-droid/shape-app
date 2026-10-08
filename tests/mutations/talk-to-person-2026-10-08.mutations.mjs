@@ -22,8 +22,8 @@ export default {
       find: "(opts.team === true && m.role === 'team')", replace: "m.role === 'team'" },
     { name: "a device's append drops the stored team reply", file: THREAD,
       find: '  return cleanThread(stored, now, { team: true }).concat(extra).slice(-THREAD_MAX);', replace: '  return cleanThread(stored, now).concat(extra).slice(-THREAD_MAX);' },
-    { name: 'the conversation is read without the team reply', file: GET,
-      find: 'cleanThread(row?.messages, new Date(), { team: true })', replace: 'cleanThread(row?.messages, new Date())' },
+    { name: 'the conversation is read without the team reply', file: LIB,
+      find: '  const messages = cleanThread(stored, now, { team: true });', replace: '  const messages = cleanThread(stored, now);' },
     // ── the request ──
     { name: 'a question of any length is sent', file: LIB,
       find: '  return s && s.length <= QUESTION_MAX ? s : null;\n}\n\n/** A reply', replace: '  return s || null;\n}\n\n/** A reply' },
@@ -36,7 +36,7 @@ export default {
     { name: 'a fourth question a day is sent', file: REQ,
       find: '(counted.count ?? 0) >= DAILY_MAX', replace: '(counted.count ?? 0) > DAILY_MAX' },
     { name: 'the transcript is taken from the request', file: REQ,
-      find: 'transcriptFrom((thread.data as { messages?: unknown }).messages)', replace: 'transcriptFrom((parsed.data as { transcript?: unknown }).transcript)' },
+      find: 'transcriptFrom(await verifiedThread(supabase, user.id, (thread.data as { messages?: unknown }).messages))', replace: 'transcriptFrom((parsed.data as { transcript?: unknown }).transcript)' },
     { name: 'a failed email is reported as sent', file: REQ,
       find: 'emailed: !!sent.ok', replace: 'emailed: true' },
     // ── the console's reply ──
