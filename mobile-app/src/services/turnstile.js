@@ -11,10 +11,11 @@
 //
 // NOTE (native builds): a Turnstile widget validates the page's hostname against
 // the keys' allowed-hostnames in the Cloudflare dashboard. The website domains
-// are configured; the Capacitor native origin (capacitor://localhost /
-// https://localhost) must be ADDED to the widget's hostnames (or a separate key
-// used) before enabling Supabase's Auth CAPTCHA, or native logins will be
-// rejected server-side. The `/m/` web build (served from the website) is fine.
+// are configured; the Capacitor native origins (capacitor://localhost and
+// https://localhost) share the hostname `localhost`, which must be ADDED to the
+// widget's hostnames (a hostname, not an origin: the list takes no scheme), or a
+// separate key used, before enabling Supabase's Auth CAPTCHA, or native logins
+// will be rejected server-side. The `/m/` web build (served from the website) is fine.
 
 const SITE_KEY =
   (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_TURNSTILE_SITEKEY) ||

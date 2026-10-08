@@ -585,6 +585,23 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Ask Nora — SHIPPED 2026-10-07 and 2026-10-08 (#2238 to #2265, 25 PRs). Three migrations, all applied and checked in production',
+      items: [
+        { label: 'Nora tells the truth about what she can do (#2238 to #2243): no promised hand-off, only info@theshapecommunity.com; the older pages and the Next app ask the real Nora; search opens her on the first click; the app\'s Help opens her; any account that also trains can draft, and Assign starts on the drafted client', status: 'done' },
+        { label: 'One front door (#2244 to #2252): the website\'s split "✦ Ask Nora | Chat" button; a ✦ in every app header opening her as a sheet; daily limits by account and a bot check on a visitor\'s first question; a greeting and four suggestions per kind of account; search offers her a typed question; Talk to Nora and Listen on a phone', status: 'done' },
+        { label: 'The installed app can call /api (#2251): CORS for capacitor://localhost and https://localhost only, with no credentials', status: 'done' },
+        { label: 'Nora knows where you are (#2253 to #2255): the page or screen and what is open on it, checked against the caller; ask about selected text on the website; one stored conversation per account (nora_threads), with Clear', status: 'done' },
+        { label: 'Help where people get stuck (#2258 to #2262): Nora fills sign-up and the coach application in with the person (never a password, upload, consent box or the human check); meal-plan drafts for nutritionists; empty screens and errors offer her with the error as context; "What needs me today?" for coaches', status: 'done' },
+        { label: 'Admin help desk (#2264): an account by email, read-only, found by its sign-in identity (admin_account_by_email, service role only), and logged before it reads (admin_lookup_log)', status: 'done' },
+        { label: 'Talk to a person (#2265): the question and conversation go to the team (support_requests, three a day enforced by a trigger); an admin replies at /dashboard/support and the reply lands in the same Nora conversation, trusted only when an answered request vouches for it', status: 'done' },
+        { label: 'Migrations, all three checked in production on 2026-10-08: nora-threads, admin-lookup-log (anon and authenticated cannot execute admin_account_by_email), support-requests (support_requests_daily_limit trigger on)', status: 'done' },
+        { label: 'Owner setting: add the hostname localhost to the Turnstile widget\'s hostnames in Cloudflare, or the installed app\'s bot check cannot pass (#2259). A hostname, not an origin: capacitor://localhost and https://localhost both have the hostname localhost', status: 'pending' },
+        { label: 'Owner setting: set SUPPORT_EMAIL in Vercel, or "Talk to a person" questions go to info@theshapecommunity.com (#2265)', status: 'pending' },
+        { label: 'Still to build: an open panel polling for the team\'s reply; a screen listing the admin lookup log; the older pages\' plain panel keeping its conversation on the account; a larger meal library; translating the limit, check and greeting messages', status: 'pending' },
+        { label: 'No live model has run any of it (scripts/nora-live-eval.mjs, #2250, needs NORA_EVAL_* tokens), and none of it has been tried signed in on a phone; the new app strings in 12 languages have not been read by speakers', status: 'manual' },
+      ],
+    },
+    {
       section: 'Coach tools: the Schedule and the program builder — SHIPPED 2026-10-07 (#2222 to #2236). Six migrations, all applied and checked in production',
       items: [
         { label: 'Fixes first (#2222, #2223): the Schedule shows times on the coach\'s own clock and loads the range on screen; the false claims (two-way sync, reminders, intake forms) are gone and a test bans them; members get the coach\'s blocks, playlist and demo videos', status: 'done' },
