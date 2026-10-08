@@ -7933,12 +7933,12 @@ async function noraGreeting({ signal } = {}) {
 }
 
 window.ShapeSupport = {
-  greeting: noraGreeting,
   ask: askSupportBot,
   transcribe: transcribeVoice,
   transcribeNote,
   confirm: confirmNoraProposal,
   undo: undoNoraProposal,
+  greeting: noraGreeting,
 };
 
 // ─── Nora's voice (server-side TTS) + tone toggle ────────────────────────────

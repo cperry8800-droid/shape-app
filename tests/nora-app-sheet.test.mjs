@@ -116,5 +116,5 @@ test('the app reads the greeting through its API base and session, and fails to 
   assert.match(fn, /headers\.Authorization = `Bearer \$\{token\}`/);
   assert.doesNotMatch(fn, /plain=1/, 'the sheet shows confirm cards, so it gets the full set');
   assert.match(fn, /if \(!res\.ok\) return null;/);
-  assert.match(be, /window\.ShapeSupport = \{\n  greeting: noraGreeting,/);
+  assert.match(be, /window\.ShapeSupport = \{\n  ask: askSupportBot,[^}]*\n  greeting: noraGreeting,\n\};/);
 });
