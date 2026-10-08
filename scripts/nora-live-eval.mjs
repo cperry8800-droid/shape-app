@@ -12,6 +12,9 @@
 // Accounts come from Supabase access tokens in the environment; a kind with no token is
 // skipped, never faked:
 //   NORA_EVAL_MEMBER_TOKEN · NORA_EVAL_TRAINER_TOKEN · NORA_EVAL_NUTRITIONIST_TOKEN
+// and a case that needs the account's own data names it, so a generic answer cannot pass:
+//   NORA_EVAL_MEMBER_PLAN_HINT  a word today's plan for the member account contains (a move,
+//                               a session title); without it, "What's on today?" is a SKIP.
 //
 // ⚠ IT COSTS MONEY AND IT COUNTS. Every question is a real model call and counts against
 // that account's daily limit (and a visitor's). And ⚠ a deployment with the bot check on
@@ -23,7 +26,7 @@
 
 import { writeFileSync } from 'node:fs';
 import {
-  judge, noCards, draftsCard, coachChips, givesAddress, mentions,
+  judge, noCards, noCardPromise, draftsCard, coachChips, givesAddress, mentions,
 } from './nora-eval-checks.mjs';
 
 const args = process.argv.slice(2);
@@ -46,15 +49,19 @@ export const CASES = [
   { who: 'visitor', ask: 'Find me a strength coach', checks: [noCards, coachChips] },
   { who: 'visitor', ask: "What's on my training plan today?", checks: [noCards, mentions(/sign(?:ed)? in|log in|membership|member/i, 'that it needs a signed-in membership')] },
   { who: 'visitor', ask: 'I was charged twice. Can you refund me?', checks: [noCards, givesAddress] },
-  { who: 'member', ask: "What's on today?", checks: [] },
+  // ⚠ A generic "I can help you plan today" passes every shared rule, so this case only
+  // counts when it is held to the account's real plan (Codex, #2250).
+  { who: 'member', ask: "What's on today?", needs: 'NORA_EVAL_MEMBER_PLAN_HINT', checks: [(r) => mentions(new RegExp(escapeRe(process.env.NORA_EVAL_MEMBER_PLAN_HINT || ''), 'i'), `today's plan ("${process.env.NORA_EVAL_MEMBER_PLAN_HINT}")`)(r)] },
   { who: 'member', ask: 'Log 500 ml of water', checks: [draftsCard('log_water')] },
   { who: 'member', ask: 'Remind me to weigh in every Monday at 7am', checks: [draftsCard('set_reminder')] },
-  { who: 'member', ask: 'Log 500 ml of water', plain: true, checks: [noCards] },
+  { who: 'member', ask: 'Log 500 ml of water', plain: true, checks: [noCards, noCardPromise] },
   { who: 'member', ask: 'Can someone from the team call me about my account?', checks: [noCards, givesAddress] },
   { who: 'trainer', ask: 'Draft a 45-minute lower-body session', checks: [draftsCard('draft_workout')] },
-  { who: 'trainer', ask: 'Draft a 45-minute lower-body session', plain: true, checks: [noCards] },
+  { who: 'trainer', ask: 'Draft a 45-minute lower-body session', plain: true, checks: [noCards, noCardPromise] },
   { who: 'nutritionist', ask: 'What does Shape take from coaches?', checks: [noCards, mentions(/15\s?%|fifteen percent/i, 'the 15% platform fee')] },
 ];
+
+function escapeRe(v) { return String(v).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
 const GREETING_KIND = { visitor: 'visitor', member: 'member', trainer: 'trainer', nutritionist: 'nutritionist' };
 
@@ -86,6 +93,10 @@ async function main() {
     rows.push({ who, ask: '(greeting)', result: gWhy ? 'FAIL' : 'PASS', why: gWhy, reply: g.data?.text });
 
     for (const c of CASES.filter((x) => x.who === who)) {
+      if (c.needs && !process.env[c.needs]) {
+        rows.push({ who, ask: c.ask, plain: !!c.plain, result: 'SKIP', why: `set ${c.needs} to hold it to this account's own data` });
+        continue;
+      }
       const body = { messages: [{ role: 'user', content: c.ask }], surface: 'web', ...(c.plain ? { confirmCards: false } : {}) };
       let r;
       try { r = await call('/api/support/chat', { who, body }); } catch (e) { r = { status: 0, data: { error: String(e) } }; }

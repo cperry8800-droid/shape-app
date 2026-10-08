@@ -9,7 +9,7 @@ const actions = (r) => (Array.isArray(r && r.actions) ? r.actions : []);
 
 // ⚠ NOTHING RECORDS A QUESTION FOR THE TEAM, so Nora must never say she passed one on
 // (the Ask Nora plan, PR 1). The address is what she gives instead.
-const HANDOFF_RE = /\b(I(?:'ve| have)? (?:passed|forwarded|sent|escalated|flagged) (?:this|it|that|your)|(?:passed|forwarded|escalated) (?:this|it|that|your (?:question|request|message)) (?:on|along|to)|I'll (?:pass|forward|send|escalate|flag) (?:this|it|that)|I'll (?:let|get|have) (?:the|a|our) (?:team|teammate|human|person)|(?:a|our|the) (?:teammate|team member|human|person) will (?:follow up|be in touch|get back|reach out)|bring in the (?:Shape )?team)/i;
+const HANDOFF_RE = /\b(I(?:'ve| have)? (?:passed|forwarded|sent|escalated|flagged) (?:this|it|that|your)|I(?:'ve| have)? (?:notified|alerted|told|informed|contacted) (?:the |our |a )?(?:Shape )?(?:team|support|staff|teammate|human)|I(?:'ve| have)? (?:noted|logged|recorded|filed) (?:this|it|that|your \w+) (?:for|with) (?:the |our )?(?:Shape )?(?:team|support|staff)|(?:passed|forwarded|escalated) (?:this|it|that|your (?:question|request|message)) (?:on|along|to)|I'll (?:pass|forward|send|escalate|flag) (?:this|it|that)|I'll (?:let|get|have) (?:the|a|our) (?:team|teammate|human|person)|(?:a|our|the) (?:teammate|team member|human|person) will (?:follow up|be in touch|get back|reach out)|bring in the (?:Shape )?team)/i;
 export function noHandoff(r) {
   const m = text(r).match(HANDOFF_RE);
   return m ? `claims a hand-off: "${m[0]}"` : null;
@@ -40,6 +40,14 @@ export function draftsCard(name) {
     if (!cards.every((c) => typeof c.token === 'string' && c.token.length > 20)) return 'a card has no signed token';
     return null;
   };
+}
+
+// ⚠ A PLAIN PANEL CANNOT SHOW A CARD, so a reply that promises one is the broken
+// confirmCards:false behaviour even when no card came back (Codex, #2250).
+const CARD_PROMISE_RE = /\b(?:confirm (?:it )?below|review (?:and|&) confirm|tap confirm|drafted (?:it|this|that|a|an|the)\b|the (?:confirm|card) (?:below|button))/i;
+export function noCardPromise(r) {
+  const m = text(r).match(CARD_PROMISE_RE);
+  return m ? `promises a card the panel cannot show: "${m[0]}"` : null;
 }
 
 export function noCards(r) {
