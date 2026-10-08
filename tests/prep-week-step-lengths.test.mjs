@@ -54,12 +54,25 @@ const mealLists = (() => {
   return out;
 })();
 
-test('a timed demo step carries the minutes its own text states, the low end of a range', () => {
+// A step's whole length as its text states it: the first duration (the low end of a range),
+// twice over when it is timed per side ("4 minutes a side", "4 min/side"), since the step is
+// both sides. ⚠ Codex, on the first head: the per-side steps carried one side, 4, so the plan
+// and the ready time moved on after four minutes of an eight-minute sear.
+const PER_SIDE = /\d+\s*(?:minutes?|mins?|hours?|hrs?)\s*(?:\/\s*|(?:a|each|per)\s+)side\b/i;
+const statedTotal = (text) => {
+  const first = bsStepTimers(text)[0];
+  return first ? (first.seconds / 60) * (PER_SIDE.test(text) ? 2 : 1) : 0;
+};
+
+test('a timed demo step carries the minutes its own text states, the low end of a range, both sides of a per-side step', () => {
   assert.ok(timed.length >= 20, `only ${timed.length} timed steps: the demo plan lost them`);
+  assert.equal(statedTotal('Give it 4 minutes a side without moving it.'), 8);
+  assert.equal(statedTotal('Sear 4 min/side over medium-high.'), 8);
+  assert.equal(statedTotal('Scatter the walnuts over the granola side, then rest 5 minutes.'), 5, 'a "side" that is not the duration\'s');
   for (const s of timed) {
     const first = bsStepTimers(s.text)[0];
     assert.ok(first, `no stated duration in "${s.text.slice(0, 50)}…"`);
-    assert.equal(s.min, first.seconds / 60, `"${s.text.slice(0, 50)}…" states ${first.label}, not ${s.min} min`);
+    assert.equal(s.min, statedTotal(s.text), `"${s.text.slice(0, 50)}…" states ${first.label}${PER_SIDE.test(s.text) ? ' a side' : ''}, ${statedTotal(s.text)} min in all, not ${s.min}`);
     assert.ok(s.min >= 4, `"${s.text.slice(0, 50)}…": under 4 minutes the planner's 3 is close enough, and a shorter bar than the work`);
     assert.ok(BS_STATIONS.includes(s.station), `"${s.text.slice(0, 50)}…": station "${s.station}"`);
   }
@@ -75,7 +88,7 @@ test('every demo meal step that states 4 minutes or more carries them', () => {
         const plain = line.match(new RegExp(String.raw`^\s*${LIT},?\s*$`));
         if (plain) {
           const t = unquote(`'${plain[2]}'`);
-          if (bsStepTimers(t).some((x) => x.seconds >= 240)) missed.push(t.slice(0, 70));
+          if (statedTotal(t) >= 4 || bsStepTimers(t).some((x) => x.seconds >= 240)) missed.push(t.slice(0, 70));
         } else if (/^\s*bsTimedStep\(/.test(line)) seen++;
       }
     }

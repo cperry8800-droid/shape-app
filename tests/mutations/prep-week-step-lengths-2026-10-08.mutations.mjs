@@ -17,5 +17,11 @@ export default {
     { name: 'the roast names a station that does not exist', file: CLIENT, find: ROAST, replace: ROAST.replace("'oven')", "'grill')") },
     { name: 'the oats simmer goes back to the planner\'s 3 minutes', file: CLIENT, find: OATS,
       replace: "'Simmer 5 minutes, stirring now and then, until the oats hold a spoon-trail and the liquid has thickened around them rather than pooling.'" },
+    // Per side (Codex, on the first head): a step timed per side takes both sides.
+    { name: 'today\'s lunch sear counts one side', file: CLIENT,
+      find: "sear 4 min/side over medium-high, to 74°C / 165°F at the thickest point.', 8, 'stove')", replace: "sear 4 min/side over medium-high, to 74°C / 165°F at the thickest point.', 4, 'stove')" },
+    { name: 'the steak\'s 3-minutes-a-side sear goes back to the planner\'s 3', file: CLIENT,
+      find: "bsTimedStep('Get the pan almost smoking, then sear the steak 3 minutes a side without moving it, until a dark crust forms and it releases on its own.', 6, 'stove')",
+      replace: "'Get the pan almost smoking, then sear the steak 3 minutes a side without moving it, until a dark crust forms and it releases on its own.'" },
   ],
 };

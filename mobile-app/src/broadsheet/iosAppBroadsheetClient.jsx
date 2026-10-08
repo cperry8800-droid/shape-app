@@ -12467,8 +12467,9 @@ function BSPrepTonightCook({ slug, group = null, onClose }) {
 // minutes" as 25 minutes instead of the planner's assumed 3 for a step with no length. It is
 // the catalog's rule (a step's minutes are the ones its own text states, never parsed at plan
 // time, cookOrchestrator.mjs's stepCost) and the shape a coach's plan carries; nothing is
-// made a hands-off window, so no dish is scheduled to cook during another's step. Steps under
-// 4 minutes keep the planner's 3. tests/prep-week-step-lengths.test.mjs holds the plan to it.
+// made a hands-off window, so no dish is scheduled to cook during another's step. A step timed
+// per side ("4 minutes a side") takes both sides, 8. Steps under 4 minutes in all keep the
+// planner's 3. tests/prep-week-step-lengths.test.mjs holds the plan to it.
 const bsTimedStep = (t, min, station) => ({ t, min, passive: false, station });
 
 function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initialView = '', onStartConsumed = () => {}, cookWith = null, onCookWithConsumed = () => {}, prepTonight = null, onPrepTonightConsumed = () => {} }) {
@@ -12886,7 +12887,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
             bsTimedStep('Bring to a boil, cover, drop to the lowest heat and leave it 12 minutes — do not lift the lid, the trapped steam is doing the cooking.', 12, 'stove'),
             bsTimedStep('Heat the oven to 220°C / 425°F and roast the veg 15 minutes, flipping halfway, until the edges char and catch.', 15, 'oven'),
             'Season the chicken with salt and paprika and pat it dry, then lay it into a hot pan.',
-            bsTimedStep('Give it 4 minutes a side without moving it, until it releases cleanly and the thickest point reads 74°C / 165°F — clear juices are not a doneness test.', 4, 'stove'),
+            bsTimedStep('Give it 4 minutes a side without moving it, until it releases cleanly and the thickest point reads 74°C / 165°F — clear juices are not a doneness test.', 8, 'stove'),
             'Whisk the tahini with the lemon, adding the warm water a splash at a time — it seizes and stiffens before it loosens, so keep going past that point until it pours.',
             'Fluff the rice with a fork, build the bowl, and drizzle the sauce over at the end.',
           ],
@@ -13118,7 +13119,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
           steps: [
             'Salt the steak and leave it out while you start the rice — straight from the fridge it cooks unevenly, grey at the edge before the middle is warm.',
             bsTimedStep('Cook the rice 1 part to 1 and a half parts salted water, covered, 12 minutes on the lowest heat.', 12, 'stove'),
-            'Get the pan almost smoking, then sear the steak 3 minutes a side without moving it, until a dark crust forms and it releases on its own.',
+            bsTimedStep('Get the pan almost smoking, then sear the steak 3 minutes a side without moving it, until a dark crust forms and it releases on its own.', 6, 'stove'),
             bsTimedStep('Rest it 5 minutes on a board. Cut it straight off the heat and the juice runs out onto the board instead of staying in the meat.', 5, 'off'),
             'Slice against the grain — find the direction the fibres run and cut across them — then plate over the rice with the slaw.',
           ],
@@ -13246,7 +13247,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
         { n: '½',     m: 'Lemon',              k: '5 kcal' },
       ],
       steps: [
-        bsTimedStep('Season chicken with salt + paprika, sear 4 min/side over medium-high, to 74°C / 165°F at the thickest point.', 4, 'stove'),
+        bsTimedStep('Season chicken with salt + paprika, sear 4 min/side over medium-high, to 74°C / 165°F at the thickest point.', 8, 'stove'),
         bsTimedStep('Cook the rice 1 part to 1 and a half parts salted water. Cover, lowest heat, 12 minutes, then fluff with a fork.', 12, 'stove'),
         bsTimedStep('Roast veg at 220°C / 425°F for 15 min, flipping halfway.', 15, 'oven'),
         'Whisk tahini + lemon + 30 ml warm water until pourable.',
@@ -13510,7 +13511,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
             'Blend the roasted tomato with the garlic and basil, adding the warm stock gradually until it pours the way you want it.',
             'Warm it through gently — blended soup brought to a boil catches on the base and turns bitter.',
             'Butter the OUTSIDE faces of the bread, not the inside, and lay the cheese in an even layer right to the edges.',
-            'Grill 3 minutes a side over medium-low, pressing lightly, until the crust is deep brown and the cheese has gone molten right through.',
+            bsTimedStep('Grill 3 minutes a side over medium-low, pressing lightly, until the crust is deep brown and the cheese has gone molten right through.', 6, 'stove'),
             'Cut it corner to corner and serve with the soup deep in the bowl, for dunking.',
           ],
           coachNote: 'Sunday dinner is the antidote. Eat it without phones.',
