@@ -876,6 +876,7 @@ Append new entries at the top, under this note.
   - `npm test` 6212/6212 on the step-lengths commit. All required checks were green on `d29bebb`. Commits skipped the pre-commit hook under the small-commit rule.
 - **Written after the merge**, per the 2026-09-11 rule.
 - ⚠ **REGISTERED, NOT DONE:**
+  - The oven name sliver on iOS 14–15, which have no container queries; iOS 14 is still the deployment target. A fallback would need the name hidden some other way.
   - Hands-off windows for the demo plan's walk-away steps (an undisturbed roast, covered rice), so another dish can cook meanwhile. They need the catalog's window rules.
   - A real coach plan still costs 3 minutes for any step the coach did not give a station, which is how `bsAuthorStep` has always worked.
   - No pass on a real phone, and the captions' lead-in words are English only.
@@ -897,7 +898,7 @@ Append new entries at the top, under this note.
   - 337/337 across the cook suites and the i18n inventory. Both commits skipped the pre-commit hook under the small-commit rule. Every check passed on `242fd14`; the tests job finished just after the owner's merge.
 - **Written after the merge**, per the 2026-09-11 rule.
 - ⚠ **REGISTERED, NOT DONE:**
-  - A finished timer beside a long name at 430px shows a 6px sliver of the name's first letter before `0:00`, with no ellipsis. Fixed by #2270, the entry above.
+  - A finished timer beside a long name at 430px shows a 6px sliver of the name's first letter before `0:00`, with no ellipsis. Fixed by #2270, the entry above, where container queries exist; iOS 14–15 (still a deployment target) keep it, and that stays open in #2270's entry.
   - No pass on a real phone (WKWebView or Android WebView).
 
 ### 2026-10-08 — The cook screen's timeline is drawn as rails: no numbered chips, a status line per dish
@@ -921,7 +922,7 @@ Append new entries at the top, under this note.
 - ⚠ **REGISTERED, NOT DONE:**
   - The stove's oven tile spills a long dish name to the left of its box ("Sheet-pan s…"); pre-existing, untouched here. Fixed by #2267, the entry above.
   - The website cook screen's bars carry no step words, though at 1280px they have room. The old chips showed "1 · Heat the oven to" there. Fixed by #2270.
-  - Prep the week's meal-plan recipes still carry no step lengths, so every bar is the planner's 3 minutes. Fixed by #2270.
+  - Prep the week's meal-plan recipes still carry no step lengths, so every bar is the planner's 3 minutes. Fixed for the demo plan by #2270; a real coach plan still costs 3 minutes for a step with no station.
   - No pass on a real phone, and the new translations have not been read by speakers.
 
 ### 2026-10-08 — Ask Nora, the plan's run: twenty-five PRs, #2238 to #2265
@@ -1019,7 +1020,7 @@ Append new entries at the top, under this note.
   - Why it looks like dice: `bsCkTracks` fits the whole cook into the width, about 340px for 45 minutes, so a 3-minute step is 15px and carries only its digit. And the 9.5px lane name shares the row with the chips.
 - **Written after the merge**, per the 2026-09-11 rule.
 - ⚠ **REGISTERED, NOT DONE:**
-  - The meal-plan recipes in Prep the week carry no step lengths, so the planner gives every step 3 minutes and "Roast 25 minutes" is drawn as 3.
+  - The meal-plan recipes in Prep the week carry no step lengths, so the planner gives every step 3 minutes and "Roast 25 minutes" is drawn as 3. Fixed for the demo plan by #2270; a real coach plan still costs 3 minutes for a step with no station.
   - No pass on a real phone; the measured 20px scroller offset is the desktop preview's, and a notch moves it.
 
 ### 2026-10-07 — Coach tools in one run: the Schedule and the program builder, fixes first, then steps 2–4
