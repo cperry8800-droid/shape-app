@@ -24669,6 +24669,12 @@ function bsNoraContext(withScreen = true) {
   if (_bsNoraOpen.item && _bsNoraOpen.item.kind && _bsNoraOpen.item.title) c.item = { kind: String(_bsNoraOpen.item.kind), title: String(_bsNoraOpen.item.title).slice(0, 80) };
   const problem = bsNoraProblem();
   if (problem) c.problem = { kind: problem.kind, message: problem.message };
+  // The sign-up or application form on screen (the Ask Nora plan, step 5): which form, which
+  // step, which fields hold something, never what they hold (BSLogin, the application).
+  try {
+    const f = window.shapeNoraForm && window.shapeNoraForm.state && window.shapeNoraForm.state();
+    if (f && f.kind) c.form = { kind: String(f.kind), step: f.step | 0, filled: Array.isArray(f.filled) ? f.filled.slice(0, 80).map(String) : [] };
+  } catch (e) {}
   return c;
 }
 let _bsNoraThread = null;
@@ -24972,6 +24978,8 @@ function BSNoraSheet({ onClose }) {
                                 {m.actions.map((a, ai) => (
                                   a.type === 'proposal'
                                     ? <BSNoraProposal key={ai} a={a} t={t} />
+                                    : a.type === 'fill'
+                                    ? <BSNoraFill key={ai} a={a} t={t} />
                                     : <button key={ai} onClick={() => runSupportAction(a)} style={{ border: `1px solid ${TEALB}`, background: `${TEALB}1a`, color: cardInk, borderRadius: 12, padding: '7px 11px', fontFamily: t.BODY, fontSize: 12, fontWeight: 600, cursor: 'pointer', textAlign: 'left', lineHeight: 1.3, display: 'inline-flex', flexDirection: 'column' }}>
                                         <span>{a.label}</span>
                                         {a.meta && <span style={{ fontSize: 9.5, opacity: 0.7, fontFamily: t.MONO }}>{a.meta}</span>}
@@ -25017,6 +25025,43 @@ function BSClientChat({ onProfile, role = 'client', openRequest }) {
 // ⚠ AND `a.open` IS SHOWN ONLY AFTER THE CONFIRM LANDS: before that the program it
 // names does not exist. On the app it opens by id in the trainer's Programs tab
 // (`shape:openCoachPlan`, answered by the trainer shell), never by a website URL.
+// Nora's values for the sign-up or application form on screen (the Ask Nora plan, step 5).
+// Nothing is filled until this tap, nothing is ever submitted, and the screen's bridge
+// (window.shapeNoraForm) takes only the form it is and refuses the password, documents
+// and every agreement box.
+function BSNoraFill({ a, t }) {
+  const tr = useShapeTr();
+  const [status, setStatus] = React.useState('idle'); // idle | done | error
+  const ac = t.isLight ? '#0a8f87' : '#34d6c5';
+  const fields = Array.isArray(a.fields) ? a.fields : [];
+  const fill = () => {
+    const form = window.shapeNoraForm;
+    let ok = false;
+    try { ok = !!(form && form.kind === a.form && a.values && form.fill(a.values)); } catch (e) { ok = false; }
+    setStatus(ok ? 'done' : 'error');
+  };
+  return (
+    <div data-nora-fill-card style={{ width: '100%', border: `1px solid ${ac}55`, background: `${ac}0f`, borderRadius: 14, padding: 12, marginTop: 8 }}>
+      <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: ac }}>
+        {status === 'done' ? tr('feed:support.fill.done', { defaultValue: 'Filled in ✓' }) : tr('feed:support.fill.kicker', { defaultValue: 'For your form · check, then fill' })}
+      </div>
+      <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 260, overflowY: 'auto' }}>
+        {fields.map((f, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 10.5 }}>
+            <span style={{ color: t.INK50 }}>{f.label}</span>
+            <span style={{ color: t.INK, fontWeight: 700 }}>{String(f.value)}</span>
+          </div>
+        ))}
+      </div>
+      {status === 'error' && <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9.5, color: '#e0463c', lineHeight: 1.4 }}>{tr('feed:support.fill.wrongForm', { defaultValue: 'Open the form these are for, then tap again.' })}</div>}
+      {status === 'done' && <div style={{ marginTop: 7, fontFamily: t.BODY, fontSize: 12, color: t.INK50, lineHeight: 1.4 }}>{tr('feed:support.fill.doneNote', { defaultValue: 'Check each step, then continue. Your password and the agreement boxes are yours to do.' })}</div>}
+      {status !== 'done' && (
+        <button type="button" onClick={fill} style={{ marginTop: 10, border: 0, background: ac, color: t.isLight ? '#fff' : '#05080c', borderRadius: 999, padding: '7px 15px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('feed:support.fill.button', { defaultValue: 'Fill these in' })}</button>
+      )}
+    </div>
+  );
+}
+
 function BSNoraProposal({ a, t }) {
   const tr = useShapeTr();
   const [status, setStatus] = React.useState('idle'); // idle | busy | done | undoing | undone | error
@@ -25079,7 +25124,13 @@ function BSNoraProposal({ a, t }) {
           <button onClick={confirm} style={{ border: 0, background: ac, color: '#06231f', borderRadius: 999, padding: '7px 14px', fontFamily: mono, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{status === 'error' ? tr('feed:support.proposal.tryAgain', { defaultValue: 'Try again' }) : tr('feed:support.proposal.confirm', { defaultValue: 'Confirm' })}</button>
         )}
         {status === 'busy' && <span style={{ fontFamily: mono, fontSize: 9, color: muted, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{tr('feed:support.proposal.applying', { defaultValue: 'Applying…' })}</span>}
-        {status === 'done' && open && (
+        {/* A meal plan Nora drafted is the website builder's document: the app's editor keeps
+            another shape, so the card says where it is instead of opening a screen that cannot
+            show it (Codex, #2260). It is listed under Plans. */}
+        {status === 'done' && open && open.planKind === 'meal_plan' && (
+          <span data-nora-meal-saved style={{ fontFamily: t.BODY, fontSize: 12, color: muted, lineHeight: 1.4 }}>{tr('feed:support.proposal.mealPlanSaved', { defaultValue: 'Saved to your meal plans. Edit and assign it in the meal builder on the Shape website.' })}</span>
+        )}
+        {status === 'done' && open && open.planKind !== 'meal_plan' && (
           <button onClick={openPlan} style={{ border: 0, background: ac, color: '#06231f', borderRadius: 999, padding: '7px 14px', fontFamily: mono, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('feed:support.proposal.openBuilder', { defaultValue: 'Open in builder' })} →</button>
         )}
         {status === 'done' && auditId && (

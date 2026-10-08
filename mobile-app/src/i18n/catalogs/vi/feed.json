@@ -202,6 +202,7 @@
   "support.proposal.undo": "Hoàn tác",
   "support.proposal.undoing": "Đang hoàn tác…",
   "support.proposal.openBuilder": "Mở trong trình tạo",
+  "support.proposal.mealPlanSaved": "Đã lưu vào kế hoạch bữa ăn của bạn. Chỉnh sửa và giao nó trong trình tạo bữa ăn trên trang web Shape.",
   "support.proposal.applyFailed": "Không thể áp dụng thay đổi đó.",
   "support.proposal.unavailable": "Hiện không thể thực hiện thao tác.",
   "support.proposal.undoUnavailable": "Hiện không thể hoàn tác.",
@@ -283,5 +284,10 @@
   "wall.unit": "Đơn vị",
   "wall.unreadable": "Không đọc được bảng vàng lúc này.",
   "wall.value": "Giá trị",
-  "wall.yourBest": "Kỷ lục của bạn"
+  "wall.yourBest": "Kỷ lục của bạn",
+  "support.fill.kicker": "Cho biểu mẫu của bạn · kiểm tra rồi điền",
+  "support.fill.button": "Điền vào",
+  "support.fill.done": "Đã điền ✓",
+  "support.fill.doneNote": "Kiểm tra từng bước rồi tiếp tục. Mật khẩu và các ô đồng ý là phần bạn tự làm.",
+  "support.fill.wrongForm": "Mở đúng biểu mẫu rồi chạm lại."
 }

@@ -410,6 +410,33 @@ test('app card: once confirmed, "Open in builder" opens the saved program by id'
   }
 });
 
+// ⚠ Codex, #2260: a meal plan Nora drafted is the website builder's document. The card says
+// where it is instead of dispatching an open, which a dual-role trainer's shell would have
+// answered with its program editor.
+test('app card: a confirmed meal-plan draft says where it is edited and opens nothing', async () => {
+  const fired = [];
+  const prev = { ShapeSupport: globalThis.ShapeSupport, dispatchEvent: globalThis.dispatchEvent };
+  globalThis.ShapeSupport = { confirm: async () => ({ ok: true, auditId: 'aud-2' }), undo: async () => ({ ok: true }) };
+  globalThis.dispatchEvent = (e) => { fired.push(e); return true; };
+  try {
+    const meal = { ...DRAFT_CARD, action: 'draft_meal_plan', open: { kind: 'coach_plan', planKind: 'meal_plan', planId: 'plan-9', url: '/newdesign/NutritionistApp.html#plans?plan=plan-9' } };
+    const d = drive(BSNoraProposal, { a: meal, t: THEME });
+    assert.ok(!d.text.includes('Saved to your meal plans'), 'nothing said before the confirm lands');
+    d.click('Confirm');
+    await tick();
+    d.render();
+    assert.ok(d.text.includes('Applied ✓'));
+    assert.ok(d.text.includes('Saved to your meal plans. Edit and assign it in the meal builder on the Shape website.'));
+    assert.ok(!d.text.includes('Open in builder'));
+    assert.ok(!d.buttons().some((b) => /Open/.test(b.label)), 'no open button at all');
+    assert.equal(fired.length, 0, 'no shape:openCoachPlan for a meal plan');
+    assert.ok(d.buttons().some((b) => b.label === 'Undo'));
+  } finally {
+    globalThis.ShapeSupport = prev.ShapeSupport;
+    globalThis.dispatchEvent = prev.dispatchEvent;
+  }
+});
+
 test('app: the trainer shell answers shape:openCoachPlan and the Programs screen opens the editor on that plan', () => {
   const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx'), 'utf8');
   const trainer = src.slice(src.indexOf('function BSTrainerAppInner('), src.indexOf('function BSNutritionistApp('));
@@ -507,9 +534,12 @@ test('roleAllowed: a held role opens only an action that opts in; the primary ro
   assert.equal(proposals.roleAllowed({ roles: ['trainer', 'nutritionist'] }, 'client', ['client', 'trainer']), false);
 });
 
-test('the registry: draft_workout alone opts in to held roles', () => {
+// The two drafters, and only they: each saves to the account's own library and branches on
+// no role afterwards, so a role held in roles[] is enough (draft_meal_plan, the Ask Nora
+// plan's step 5). Every other action keeps the primary-role gate.
+test('the registry: the drafters alone opt in to held roles', () => {
   const opted = actions.NORA_ACTIONS.filter((a) => a.heldRoles === true).map((a) => a.name);
-  assert.deepEqual(opted, ['draft_workout']);
+  assert.deepEqual(opted, ['draft_workout', 'draft_meal_plan']);
 });
 
 test('Nora: a client who also trains is offered draft_workout', async () => {

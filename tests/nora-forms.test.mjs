@@ -32,12 +32,14 @@ test('⚠ never a password, a document, a consent box or the human check: no fie
 });
 
 test('the field list follows the page: every key is one the form sets, every choice one it offers', () => {
-  for (const kind of Object.keys(FORMS)) {
+  // The app's forms (app_*) are checked against the app's screens in nora-forms-app.test.mjs.
+  for (const kind of ['signup', 'apply_trainer', 'apply_nutritionist']) {
     for (const key of keysOf(kind)) {
       assert.ok(new RegExp(`set\\(\\{ ${key}:|toggle\\("${key}"`).test(SIGNUP), `${kind}.${key} is a field signup.jsx sets`);
     }
   }
   for (const [name, options] of Object.entries(CHOICES)) {
+    if (name.startsWith('app')) continue;
     for (const o of options) assert.ok(SIGNUP.includes(JSON.stringify(o)), `${name}: "${o}" is offered on the page`);
   }
   assert.equal(FORMS.signup.steps.length, 4);

@@ -236,5 +236,9 @@
   "intent.identity.health": "person wey dey invest for im health",
   "intent.identity.tone": "person wey dey tone up and strong",
   "intent.identity.race": "runner wey get race for calendar",
-  "intent.identity.postpartum": "person wey dey build back strength, small small"
+  "intent.identity.postpartum": "person wey dey build back strength, small small",
+  "nora.ask": "Question? Ask Nora",
+  "nora.pageApply": "Coach application",
+  "nora.pageLogin": "Sign in",
+  "nora.pageJoin": "Join Shape"
 }

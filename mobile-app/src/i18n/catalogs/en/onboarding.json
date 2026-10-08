@@ -236,5 +236,9 @@
   "intent.titleAccent": "today",
   "intent.titlePost": "?",
   "intent.pickBody": "Pick the one that fits best — it shapes your plan, your coach match, and what each day leads with. You can change it anytime.",
-  "intent.skip": "Skip for now →"
+  "intent.skip": "Skip for now →",
+  "nora.ask": "Questions? Ask Nora",
+  "nora.pageApply": "Coach application",
+  "nora.pageLogin": "Sign in",
+  "nora.pageJoin": "Join Shape"
 }

@@ -748,6 +748,30 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
     }, 300);
     return () => { dead = true; clearTimeout(id); };
   }, [username, isCreate]);
+  // Nora fills the create form in with them (the Ask Nora plan, step 5). She is told the step
+  // and which fields hold something, never what they hold; the password and the phone
+  // sign-in are never hers (src/lib/ai/noraForms.mjs, app_signup).
+  const noraLoginRef = React.useRef({});
+  noraLoginRef.current = { createStep, fullName, dob, username, email };
+  const noraFormOn = isCreate && !isPhone && !verifyEmail;
+  React.useEffect(() => {
+    if (!noraFormOn) return undefined;
+    const fills = { fullName: setFullName, dob: setDob, username: (v) => setUsername(String(v).toLowerCase().replace(/[^a-z0-9._]/g, '').slice(0, 20)), email: setEmail };
+    const bridge = {
+      kind: 'app_signup',
+      state: () => {
+        const v = noraLoginRef.current;
+        return { kind: 'app_signup', step: Math.max(0, (v.createStep || 1) - 1), filled: Object.keys(fills).filter((k) => !!v[k]) };
+      },
+      fill: (patch) => {
+        const keys = Object.keys(patch || {}).filter((k) => fills[k] && typeof patch[k] === 'string');
+        keys.forEach((k) => fills[k](patch[k]));
+        return keys.length > 0;
+      },
+    };
+    window.shapeNoraForm = bridge;
+    return () => { if (window.shapeNoraForm === bridge) window.shapeNoraForm = null; };
+  }, [noraFormOn]);
   const submitAuth = async () => {
     setAuthError('');
     const auth = window.ShapeAuth;
@@ -1168,6 +1192,17 @@ async function bsmStartCheckout() {
 // The membership-resolving hold — the wire ground, no "Checking membership…"
 // copy (the check rides the launch, never gets its own labelled screen). Used
 // as the stage-'app'/'gate' safety-net loading state.
+// "Questions? Ask Nora", top right on the paywall, sign-in and the coach application,
+// where each screen's back button is top left.
+function BSAskNoraDoor({ onAsk }) {
+  const { tr } = useTr('onboarding');
+  return (
+    <button type="button" data-nora-door onClick={onAsk} style={{ position: 'absolute', zIndex: 5, top: 'max(14px, calc(env(safe-area-inset-top, 0px) + 8px))', right: 16, display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 32, padding: '6px 12px', borderRadius: 999, border: '1px solid rgba(242,237,228,0.24)', background: 'rgba(5,8,12,0.6)', color: '#f2ede4', fontFamily: `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }}>
+      <span aria-hidden="true" style={{ color: '#34d6c5', fontSize: 11 }}>{'\u2726'}</span>{tr('nora.ask')}
+    </button>
+  );
+}
+
 function BSWireHold() {
   const { tr } = useTr('onboarding');
   const holdMono = `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`;
@@ -1528,6 +1563,25 @@ function BSAppShell({ tweaks, setTweak }) {
     if (stage === 'gate' && !memberGateLoading && memberAllowed) setStage('daily');
   }, [stage, memberGateLoading, memberAllowed]);
 
+  // ── Nora before there is an account (the Ask Nora plan, steps 2 and 5) ──
+  // The paywall, sign-in and the coach application get a labelled "Questions? Ask Nora":
+  // an unlabelled ✦ means nothing to someone who has not met her. The tap loads the client
+  // bundle her sheet lives in and opens it over the screen. On the sign-up and the
+  // application she can fill the form in with them (window.shapeNoraForm, set by each).
+  const paywallUp = (stage === 'gate' || (stage === 'app' && !previewMode)) && !memberGateLoading && !memberAllowed;
+  const noraDoor = paywallUp || stage === 'login' || stage === 'apply';
+  const [noraSheet, setNoraSheet] = useStateBSM(false);
+  useEffectBSM(() => { if (!noraDoor) setNoraSheet(false); }, [noraDoor]);
+  // The screen's name for her, in English, and for the sheet's chip, in their language.
+  const noraWhere = stage === 'apply' ? ['Coach application', tr('nora.pageApply')]
+    : stage === 'login' ? ['Sign in or create an account', tr('nora.pageLogin')]
+    : ['Join Shape', tr('nora.pageJoin')];
+  useEffectBSM(() => {
+    if (!noraSheet || !window.bsNoraOpen) return undefined;
+    return window.bsNoraOpen({ page: noraWhere[0], label: noraWhere[1] });
+  }, [noraSheet, noraWhere[0], noraWhere[1]]);
+  const askNora = () => { loadClientBundle().then(() => setNoraSheet(true)).catch(() => {}); };
+
   // The wire beat holds for a minimum dwell (~3.5s — owner call 2026-07-10:
   // let the overture breathe) while the membership check resolves BEHIND it
   // (memberGateLoading false), then routes on — language picker on first run,
@@ -1823,6 +1877,8 @@ function BSAppShell({ tweaks, setTweak }) {
             <App onLogout={handleLogout} authState={authState} tweaks={tweaks} setTweak={setTweak} {...appProps} />
           )
         )}
+        {noraDoor && !noraSheet && <BSAskNoraDoor onAsk={askNora} />}
+        {noraDoor && noraSheet && window.BSNoraSheet ? <window.BSNoraSheet onClose={() => setNoraSheet(false)} /> : null}
 
       </BSPhone>
     </BSRadioProvider>

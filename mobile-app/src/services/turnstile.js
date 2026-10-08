@@ -68,5 +68,34 @@ if (typeof window !== 'undefined') {
     // Destroy a widget when its container unmounts so a fresh one renders next
     // time (the issued token is single-use) and the old one doesn't leak.
     remove(id) { try { if (window.turnstile && id != null) window.turnstile.remove(id); } catch (e) {} },
+    // One check for a signed-out question to Nora (the paywall, sign-in and application
+    // doors): an interaction-only widget that resolves to a token, or '' when it cannot
+    // run here, and is removed either way. ⚠ IN THE NATIVE APP IT RUNS ONLY ONCE THE
+    // APP'S ORIGIN (capacitor://localhost, https://localhost) IS IN THE WIDGET'S HOSTNAMES
+    // in Cloudflare, the step the note above names for the sign-up check too; until then
+    // the error callback answers '' and Nora says where she can be asked instead.
+    solve() {
+      const key = window.SHAPE_TURNSTILE_SITEKEY;
+      if (!key) return Promise.resolve('');
+      return load().then((ts) => new Promise((resolve) => {
+        const host = document.createElement('div');
+        host.setAttribute('data-nora-check', '');
+        host.style.cssText = 'position:fixed;left:50%;bottom:96px;transform:translateX(-50%);z-index:2147483646;';
+        document.body.appendChild(host);
+        let id = null;
+        let done = false;
+        const finish = (tok) => {
+          if (done) return;
+          done = true;
+          try { if (id != null) ts.remove(id); } catch (e) {}
+          if (host.parentNode) host.parentNode.removeChild(host);
+          resolve(tok || '');
+        };
+        try {
+          id = ts.render(host, { sitekey: key, theme: 'dark', appearance: 'interaction-only', callback: finish, 'error-callback': () => finish(''), 'expired-callback': () => finish('') });
+        } catch (e) { finish(''); }
+        setTimeout(() => finish(''), 60000);
+      })).catch(() => '');
+    },
   };
 }

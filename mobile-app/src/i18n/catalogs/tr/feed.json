@@ -202,6 +202,7 @@
   "support.proposal.undo": "Geri al",
   "support.proposal.undoing": "Geri alınıyor…",
   "support.proposal.openBuilder": "Oluşturucuda aç",
+  "support.proposal.mealPlanSaved": "Beslenme planlarına kaydedildi. Shape web sitesindeki öğün oluşturucuda düzenleyip ata.",
   "support.proposal.applyFailed": "Bu değişiklik uygulanamadı.",
   "support.proposal.unavailable": "İşlemler şu anda kullanılamıyor.",
   "support.proposal.undoUnavailable": "Geri alma şu anda kullanılamıyor.",
@@ -283,5 +284,10 @@
   "wall.unit": "Birim",
   "wall.unreadable": "Duvar şu anda okunamadı.",
   "wall.value": "Değer",
-  "wall.yourBest": "Rekorların"
+  "wall.yourBest": "Rekorların",
+  "support.fill.kicker": "Formun için · kontrol et, sonra doldur",
+  "support.fill.button": "Doldur",
+  "support.fill.done": "Dolduruldu ✓",
+  "support.fill.doneNote": "Her adımı kontrol et, sonra devam et. Şifren ve onay kutuları sana ait.",
+  "support.fill.wrongForm": "Bunların ait olduğu formu aç, sonra tekrar dokun."
 }

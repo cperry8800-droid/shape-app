@@ -202,6 +202,7 @@
   "support.proposal.undo": "Отменить",
   "support.proposal.undoing": "Отменяем…",
   "support.proposal.openBuilder": "Открыть в редакторе",
+  "support.proposal.mealPlanSaved": "Сохранено в ваших планах питания. Редактируйте и назначайте его в конструкторе питания на сайте Shape.",
   "support.proposal.applyFailed": "Не удалось применить изменение.",
   "support.proposal.unavailable": "Действия сейчас недоступны.",
   "support.proposal.undoUnavailable": "Отмена сейчас недоступна.",
@@ -283,5 +284,10 @@
   "wall.unit": "Единица",
   "wall.unreadable": "Сейчас не удалось загрузить стену.",
   "wall.value": "Результат",
-  "wall.yourBest": "Ваш рекорд"
+  "wall.yourBest": "Ваш рекорд",
+  "support.fill.kicker": "Для твоей формы · проверь и заполни",
+  "support.fill.button": "Заполнить",
+  "support.fill.done": "Заполнено ✓",
+  "support.fill.doneNote": "Проверь каждый шаг и продолжай. Пароль и галочки согласия — за тобой.",
+  "support.fill.wrongForm": "Открой форму, к которой это относится, и нажми ещё раз."
 }

@@ -202,6 +202,7 @@
   "support.proposal.undo": "Deshacer",
   "support.proposal.undoing": "Deshaciendo…",
   "support.proposal.openBuilder": "Abrir en el editor",
+  "support.proposal.mealPlanSaved": "Guardado en tus planes de comidas. Edítalo y asígnalo en el editor de comidas del sitio web de Shape.",
   "support.proposal.applyFailed": "No se pudo aplicar ese cambio.",
   "support.proposal.unavailable": "Las acciones no están disponibles ahora.",
   "support.proposal.undoUnavailable": "Deshacer no está disponible ahora.",
@@ -283,5 +284,10 @@
   "wall.unit": "Unidad",
   "wall.unreadable": "No se pudo leer el muro ahora.",
   "wall.value": "Valor",
-  "wall.yourBest": "Tu mejor marca"
+  "wall.yourBest": "Tu mejor marca",
+  "support.fill.kicker": "Para tu formulario · revisa y luego rellena",
+  "support.fill.button": "Rellenar",
+  "support.fill.done": "Rellenado ✓",
+  "support.fill.doneNote": "Revisa cada paso y luego continúa. Tu contraseña y las casillas de aceptación las marcas tú.",
+  "support.fill.wrongForm": "Abre el formulario al que corresponden y vuelve a tocar."
 }

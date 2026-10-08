@@ -863,6 +863,20 @@ function NutritionistPlansPage() {
     })();
     return () => { on = false; };
   }, [source, refresh]);
+  // A draft Nora just saved opens straight in the builder (?plan=, the Ask Nora plan,
+  // step 5). Once per plan, and only when the library holds it: a plan not in it yet is read
+  // once more (the save landed a moment ago) before the page says it cannot find it.
+  const openPlan = typeof dashRouteParam === "function" ? dashRouteParam("plan") : null;
+  const openedPlan = React.useRef(null);
+  const openRetried = React.useRef(null);
+  React.useEffect(() => {
+    if (!openPlan || !templates || openedPlan.current === openPlan) return;
+    const found = templates.find((t) => t.id === openPlan);
+    if (found) { openedPlan.current = openPlan; setView({ template: found }); return; }
+    if (openRetried.current !== openPlan) { openRetried.current = openPlan; setRefresh((n) => n + 1); return; }
+    openedPlan.current = openPlan;
+    setError("That meal plan isn't in your library yet. Refresh in a moment.");
+  }, [openPlan, templates]);
   // A plan saved on the phone shows up here without a reload.
   React.useEffect(() => {
     const update = () => { if (!document.hidden) setRefresh((n) => n + 1); };

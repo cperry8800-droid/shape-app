@@ -202,6 +202,7 @@
   "support.proposal.undo": "Undo",
   "support.proposal.undoing": "Undoing…",
   "support.proposal.openBuilder": "Open in builder",
+  "support.proposal.mealPlanSaved": "Saved to your meal plans. Edit and assign it in the meal builder on the Shape website.",
   "support.proposal.applyFailed": "Could not apply that change.",
   "support.proposal.unavailable": "Actions are unavailable right now.",
   "support.proposal.undoUnavailable": "Undo is unavailable right now.",
@@ -283,5 +284,10 @@
   "wall.unit": "Unit",
   "wall.unreadable": "Couldn't read the wall just now.",
   "wall.value": "Value",
-  "wall.yourBest": "Your best"
+  "wall.yourBest": "Your best",
+  "support.fill.kicker": "For your form · check, then fill",
+  "support.fill.button": "Fill these in",
+  "support.fill.done": "Filled in ✓",
+  "support.fill.doneNote": "Check each step, then continue. Your password and the agreement boxes are yours to do.",
+  "support.fill.wrongForm": "Open the form these are for, then tap again."
 }

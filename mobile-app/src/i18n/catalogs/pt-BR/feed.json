@@ -202,6 +202,7 @@
   "support.proposal.undo": "Desfazer",
   "support.proposal.undoing": "Desfazendo…",
   "support.proposal.openBuilder": "Abrir no editor",
+  "support.proposal.mealPlanSaved": "Salvo nos seus planos alimentares. Edite e atribua no editor de refeições do site da Shape.",
   "support.proposal.applyFailed": "Não foi possível aplicar essa mudança.",
   "support.proposal.unavailable": "As ações não estão disponíveis agora.",
   "support.proposal.undoUnavailable": "Desfazer não está disponível agora.",
@@ -283,5 +284,10 @@
   "wall.unit": "Unidade",
   "wall.unreadable": "Não foi possível ler o mural agora.",
   "wall.value": "Valor",
-  "wall.yourBest": "Seu recorde"
+  "wall.yourBest": "Seu recorde",
+  "support.fill.kicker": "Para o seu formulário · confira e depois preencha",
+  "support.fill.button": "Preencher",
+  "support.fill.done": "Preenchido ✓",
+  "support.fill.doneNote": "Confira cada etapa e depois continue. A senha e as caixas de aceite ficam com você.",
+  "support.fill.wrongForm": "Abra o formulário a que eles pertencem e toque de novo."
 }

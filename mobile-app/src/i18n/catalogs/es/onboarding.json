@@ -236,5 +236,9 @@
   "intent.identity.health": "alguien que invierte en su salud",
   "intent.identity.tone": "alguien que se pone en forma y fuerte",
   "intent.identity.race": "un corredor con una carrera en el calendario",
-  "intent.identity.postpartum": "alguien que recupera su fuerza, paso a paso"
+  "intent.identity.postpartum": "alguien que recupera su fuerza, paso a paso",
+  "nora.ask": "¿Dudas? Pregúntale a Nora",
+  "nora.pageApply": "Solicitud de coach",
+  "nora.pageLogin": "Iniciar sesión",
+  "nora.pageJoin": "Únete a Shape"
 }
