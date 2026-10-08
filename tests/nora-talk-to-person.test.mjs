@@ -115,6 +115,25 @@ test('the team\'s reply joins the conversation with the devices\' own conditiona
   racing.from = (t) => { const c = realFrom(t); const eq = c.eq; let n = 0; c.eq = (col, v) => { n += 1; return col === 'updated_at' && n > 1 ? eq('updated_at', 'someone-else') : eq(col, v); }; return c; };
   assert.deepEqual(await support.appendTeamToThread(racing, U, 'Reply', NOW), { ok: false, error: 'busy' });
   assert.deepEqual(await support.appendTeamToThread(fakeDb({ fail: { 'select:nora_threads': { message: 'down' } } }), U, 'Reply', NOW), { ok: false, error: 'read' });
+
+  // A device whose clock runs ahead stamped the row later than now: the stamp still moves past it.
+  const ahead = '2026-10-08T15:30:00.000Z';
+  const skew = fakeDb({ tables: { nora_threads: [{ user_id: U, messages: [], updated_at: ahead }] } });
+  assert.deepEqual(await support.appendTeamToThread(skew, U, 'Reply', NOW), { ok: true });
+  assert.ok(skew._tables.nora_threads[0].updated_at > ahead);
+
+  // Two first writes at once: the insert that loses re-reads and appends to the winner's row.
+  const both = fakeDb({ tables: { nora_threads: [] } });
+  const realFrom2 = both.from.bind(both);
+  let first = true;
+  both.from = (t) => {
+    const c = realFrom2(t);
+    const insert = c.insert;
+    c.insert = (p) => { if (first) { first = false; both._tables.nora_threads.push({ user_id: U, messages: [{ role: 'user', text: 'Hi', at: NOW.toISOString() }], updated_at: NOW.toISOString() }); } return insert(p); };
+    return c;
+  };
+  assert.deepEqual(await support.appendTeamToThread(both, U, 'Reply', NOW), { ok: true });
+  assert.deepEqual(both._tables.nora_threads.map((r) => r.messages.map((m) => m.role)), [['user', 'team']]);
 });
 
 // ── POST /api/support/request ──────────────────────────────────────────────────────────
@@ -175,7 +194,7 @@ test('POST: signed out, empty, three a day, not set up, and an email that fails 
 });
 
 // ── The console's reply ────────────────────────────────────────────────────────────────
-async function loadActions({ db, email = async () => ({ ok: true }), userEmail = 'priya@x.com' }) {
+async function loadActions({ db, email = async () => ({ ok: true }), userEmail = 'priya@x.com', admin = async () => ({ id: 'admin-1', email: 'boss@shape.test' }) }) {
   const sent = [];
   db.auth = { admin: { getUserById: async () => ({ data: { user: { email: userEmail } } }) } };
   const actions = await loadRealModule(join(ROOT, 'src/app/dashboard/support/actions.ts'), {
@@ -184,7 +203,7 @@ async function loadActions({ db, email = async () => ({ ok: true }), userEmail =
       ['next/cache', { revalidatePath: () => {} }],
       ['next/navigation', { redirect: (to) => { const e = new Error('REDIRECT'); e.to = to; throw e; } }],
       ['@/lib/supabase/admin', { createAdminClient: () => db }],
-      ['@/lib/admin-access', { requireAdminUser: async () => ({ id: 'admin-1', email: 'boss@shape.test' }) }],
+      ['@/lib/admin-access', { requireAdminUser: admin }],
       ['@/lib/email', { sendEmail: async (m) => { sent.push(m); return email(m); } }],
       ['@/lib/supportRequests.mjs', support],
     ]),
@@ -229,6 +248,20 @@ test('the console says what did not reach them, and closing answers nothing', as
   assert.equal(closing._tables.support_requests[0].status, 'closed');
   assert.equal(closing._tables.support_requests[0].reply, undefined);
   assert.equal(c.sent.length, 0);
+});
+
+test('the console is for admins: a refused account answers, closes and sends nothing', async () => {
+  const db = fakeDb({ tables: { support_requests: [{ id: 'r-9', user_id: U, question: 'Q', status: 'open' }] } });
+  const a = await loadActions({ db, admin: async () => { throw new Error('not an admin'); } });
+  await assert.rejects(() => a.run('replySupportRequest', { request_id: 'r-9', reply: 'A' }), /not an admin/);
+  await assert.rejects(() => a.run('closeSupportRequest', { request_id: 'r-9' }), /not an admin/);
+  assert.equal(db._tables.support_requests[0].status, 'open');
+  assert.equal(db._tables.nora_threads, undefined);
+  assert.equal(a.sent.length, 0);
+  // Closing a request that was answered changes nothing.
+  const answered = fakeDb({ tables: { support_requests: [{ id: 'r-8', user_id: U, question: 'Q', status: 'answered', reply: 'Done' }] } });
+  assert.equal(await (await loadActions({ db: answered })).run('closeSupportRequest', { request_id: 'r-8' }), '/dashboard/support?updated=already_answered');
+  assert.equal(answered._tables.support_requests[0].status, 'answered');
 });
 
 test('the migration: an account sends only its own open, unanswered request, and cannot answer one', () => {
