@@ -23,5 +23,7 @@ export default {
     { name: "per side written first is not read", file: COOKABLE, find: "    || BS_AUTHOR_PER_SIDE_BEFORE_RE.test(low ? head.slice(0, low.index) : head);", replace: "    || false;" },
     { name: "German per side is not read", file: COOKABLE, find: "  '(?:pro|je)\\\\s+Seite', 'auf\\\\s+jeder\\\\s+Seite',              // de", replace: "" },
     { name: "a storage word matches inside a longer word", file: COOKABLE, find: "  'firji', 'firiji', 'daskare', 'cikin\\\\s+dare', 'ajiye', 'kwana', 'jiƙa',\n].join('|')})(?!\\\\p{L})`, 'iu');", replace: "  'firji', 'firiji', 'daskare', 'cikin\\\\s+dare', 'ajiye', 'kwana', 'jiƙa',\n].join('|')})`, 'iu');" },
+    { name: "a timer in another language is named with English rules", file: COOKABLE, find: "  if (mine && !mine.en) return '';", replace: "" },
+    { name: "every unit counts as English for a timer's name", file: COOKABLE, find: "const UNIT_EN_RE = /^(?:hours?|hrs?|minutes?|mins?|seconds?|secs?)$/i;", replace: "const UNIT_EN_RE = /./;" },
   ],
 };

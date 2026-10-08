@@ -13,7 +13,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
-import { bsStepTimers, bsAuthorStep, bsStepPerSideMin } from '../mobile-app/src/services/cookable.mjs';
+import { bsStepTimers, bsStepGists, bsAuthorStep, bsStepPerSideMin } from '../mobile-app/src/services/cookable.mjs';
 import { SHAPE_KITCHEN_RECIPES } from '../mobile-app/src/broadsheet/shapeKitchenData.js';
 import { DEMO_MEALS } from './helpers/demo-meal-plan.mjs';
 
@@ -134,6 +134,18 @@ test('an abbreviation\'s full stop joins an hour and its minutes; a sentence\'s 
   assert.equal(bsAuthorStep('Köcheln 1 Std. 20 Min.', null).min, 80);
   assert.equal(bsAuthorStep('Bake 1 hr. 15 min.', null).min, 75);
   assert.equal(bsAuthorStep('Bake 1 hour. 15 minutes later, check it.', null).min, 60);
+});
+
+// A timer's name is read with English rules, so a timer stated in another language has none and
+// the cook screen falls back to the step number. Before, it named „Die Zwiebeln 8 Minuten
+// anbraten“ "die" and a Turkish step "ate".
+test('a timer in another language is not named with English rules', () => {
+  for (const text of ['Die Zwiebeln 8 Minuten in der Pfanne anbraten.', '15 dakika kısık ateşte, kapağı kapalı pişirin.', 'Томите 15 минут под крышкой.', 'A dafa a ƙaramin wuta minti 15, a rufe.']) {
+    assert.equal(bsStepTimers(text).length, 1, text);
+    assert.deepEqual(bsStepGists(text), [''], text);
+  }
+  assert.deepEqual(bsStepGists('Simmer 15 minutes, lid on.'), ['simmer'], 'English keeps its names');
+  assert.deepEqual(bsStepGists('Make e simmer 15 minutes, cover am.').map(Boolean), [true], 'and so does Pidgin, in English units');
 });
 
 test('a unit ends at any letter, in any script', () => {

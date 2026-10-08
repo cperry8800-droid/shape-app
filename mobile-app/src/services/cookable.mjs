@@ -217,6 +217,8 @@ const TIMER_UNIT_FIRST_RE = /(?<!\p{L})(minti|awa|sa['’]?a|daƙiƙ[ao])\s+(\d+
 const UNIT_HR_RE = new RegExp(`^(?:${BS_TIMER_UNITS_HR}|awa|sa['’]?a)$`, 'iu');
 const UNIT_MIN_RE = new RegExp(`^(?:${BS_TIMER_UNITS_MIN}|minti)$`, 'iu');
 const unitKind = (unit) => (UNIT_HR_RE.test(unit) ? 'hr' : UNIT_MIN_RE.test(unit) ? 'min' : 'sec');
+// An English unit, for the one reader that knows only English: a timer's name (bsStepGist).
+const UNIT_EN_RE = /^(?:hours?|hrs?|minutes?|mins?|seconds?|secs?)$/i;
 const UNIT_SECONDS = (unit) => ({ hr: 3600, min: 60, sec: 1 })[unitKind(unit)];
 
 // THE one parse. Each entry also carries WHERE its duration sits in the step
@@ -241,7 +243,7 @@ const timerSpans = (text) => {
     const seconds = firstNum * UNIT_SECONDS(unit);
     // A cook timer under 5s or over 6h is a parse artifact, not a timer.
     if (seconds < 5 || seconds > 21600) return;
-    found.push({ seconds, label: `${nums.replace(/\s+/g, '')} ${unitKind(unit)}${perSide ? ' per side' : ''}`, at, end });
+    found.push({ seconds, label: `${nums.replace(/\s+/g, '')} ${unitKind(unit)}${perSide ? ' per side' : ''}`, at, end, en: UNIT_EN_RE.test(unit) });
   };
   let m;
   TIMER_RE.lastIndex = 0;
@@ -401,6 +403,11 @@ export const bsStepGist = (text, ingredients, seconds, nth, avoid) => {
   // first action boundary inside the anchored region.
   const spans = Number.isFinite(seconds) ? timerSpans(t) : [];
   const mine = spans.filter((s) => s.seconds === seconds)[Number.isFinite(nth) ? nth : 0];
+  // ⚠ A name is read with English rules (GIST_SKIP, an ASCII word split), so a timer stated in
+  // another language has none, and the cook screen shows its step number, which is always a
+  // fact. Measured when the parser learned every app language: „Die Zwiebeln 8 Minuten
+  // anbraten“ was named "die", a Turkish step "ate" (half of "ateşte"), a Russian one nothing.
+  if (mine && !mine.en) return '';
   let own = null;
   if (mine) {
     let from = 0;
