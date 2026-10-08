@@ -389,6 +389,11 @@ $$;
 -- post path; synced activities award nothing): 6 activities (at most 120 points), 24 habit
 -- check-offs (72), 5 community posts (25). An item past the cap is still saved; it just earns
 -- nothing. Tune the numbers here if the product needs more.
+-- The count and the insert are serialized per member and source by a transaction-scoped
+-- advisory lock (the store's own idiom), because the cap exists against a script, and a script
+-- fires its calls at once: without the lock, concurrent calls for different ids each count the
+-- same rows below the cap and each insert (CodeRabbit on #2280). The lock is released at the
+-- end of the call's transaction.
 -- =====================================================================================
 create or replace function public.award_activity(p_activity_id uuid)
 returns void
@@ -407,6 +412,7 @@ begin
   select duration_min, activity_type into v_min, v_type
     from public.activities where id = p_activity_id and user_id = v_uid;
   if not found then return; end if;
+  perform pg_advisory_xact_lock(hashtext('shape_award:activity:' || v_uid::text));
   select count(*) into v_today from public.score_ledger
     where user_id = v_uid and source_kind = 'activity' and earned_at > now() - interval '24 hours';
   if v_today >= 6 then return; end if;
@@ -430,6 +436,7 @@ begin
   if not exists (
     select 1 from public.user_habit_completions where id = p_completion_id and user_id = v_uid
   ) then return; end if;
+  perform pg_advisory_xact_lock(hashtext('shape_award:habit_completion:' || v_uid::text));
   select count(*) into v_today from public.score_ledger
     where user_id = v_uid and source_kind = 'habit_completion' and earned_at > now() - interval '24 hours';
   if v_today >= 24 then return; end if;
@@ -458,6 +465,7 @@ begin
       and coalesce(activity_type, '') not in ('meal', 'milestone')
       and coalesce(metrics->>'kind', '') not in ('meal', 'milestone')
   ) then return; end if;
+  perform pg_advisory_xact_lock(hashtext('shape_award:community_post:' || v_uid::text));
   select count(*) into v_today from public.score_ledger
     where user_id = v_uid and source_kind = 'community_post' and earned_at > now() - interval '24 hours';
   if v_today >= 5 then return; end if;
@@ -647,20 +655,24 @@ end;
 $$;
 
 -- =====================================================================================
--- M6 / H9 · ai_audit_log: a coach sees and may undo the actions a coach took, never a
--- member's own. The read policy admitted every row whose target the coach is linked to,
--- which included the member's self-service rows and the memory notes logged with their
--- text; claim_ai_action_undo admitted the same rows, so a coach could mark a member's own
--- action undone. Both now require actor <> target for the coach branch. The code PR also
--- stops logging the note text and adds the actor check in undoChange.
+-- M6 / H9 · ai_audit_log: only the person who asked Nora reads and undoes what she did.
+-- The read policy admitted every row whose target the coach is linked to, which included the
+-- member's self-service rows and the memory notes logged with their text; claim_ai_action_undo
+-- admitted the same rows, so a coach could mark a member's own action undone. The first draft
+-- kept a coach branch for actions a coach took (actor <> target); CodeRabbit on #2280 read what
+-- that still admitted: between two coaches on one client, each could read the other's rows
+-- (a nutritionist's meal-plan draft, payload and all, which the trainer's own policies do not
+-- grant) and claim the undo of the other's action. The only readers are the audit route, which
+-- lists the caller's own changes, and the undo button on a change the caller just confirmed,
+-- so both are actor-only now. The code PR also stops logging the note text and adds the actor
+-- check in undoChange. A member still cannot see what a coach did to them; that was never
+-- admitted and is registered, not changed here.
 -- =====================================================================================
 drop policy if exists ai_audit_read_own_or_coach on public.ai_audit_log;
-create policy ai_audit_read_own_or_coach on public.ai_audit_log
+drop policy if exists ai_audit_read_own on public.ai_audit_log;
+create policy ai_audit_read_own on public.ai_audit_log
   for select to authenticated
-  using (
-    actor_user_id = auth.uid()
-    or (target_user_id is not null and actor_user_id <> target_user_id and public.is_coach_on_client(target_user_id))
-  );
+  using (actor_user_id = auth.uid());
 
 create or replace function public.claim_ai_action_undo(p_id uuid)
 returns boolean
@@ -681,12 +693,9 @@ begin
     return false;
   end if;
 
-  -- The actor, or a coach on the target for an action a coach took. A member's own action
-  -- (actor = target) is theirs alone to undo.
-  if v_row.actor_user_id <> v_me
-     and not (v_row.target_user_id is not null
-              and v_row.actor_user_id <> v_row.target_user_id
-              and public.is_coach_on_client(v_row.target_user_id)) then
+  -- The actor only. The 2026-07-10 version also admitted a coach on the target, which let a
+  -- coach undo a member's own action and, between two coaches on one client, each other's.
+  if v_row.actor_user_id <> v_me then
     raise exception 'Not permitted to undo this action.';
   end if;
 
