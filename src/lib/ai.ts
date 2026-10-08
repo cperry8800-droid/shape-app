@@ -258,7 +258,8 @@ export type CallAIOptions = {
  * Read an OpenAI Responses event stream: each `response.output_text.delta` goes to `onText`,
  * and the response object of the terminal event (`response.completed` or
  * `response.incomplete`) is returned, the same object a non-streamed call returns. A failed
- * response or an error event is an error, so the caller's failure path runs.
+ * response or an error event is an error, so the caller's failure path runs, and the stream
+ * is cancelled either way rather than left open for the provider to close.
  */
 export async function readResponseStream(body: ReadableStream<Uint8Array> | null, onText: (delta: string) => void): Promise<unknown> {
   if (!body) throw new Error('no response body');
@@ -277,20 +278,25 @@ export async function readResponseStream(body: ReadableStream<Uint8Array> | null
       throw new Error(`stream ${event.type}: ${JSON.stringify(event.error ?? event.message ?? event.response ?? '').slice(0, 300)}`);
     }
   };
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (value) buffer += decoder.decode(value, { stream: true }).replace(/\r/g, '');
-    let cut = buffer.indexOf('\n\n');
-    while (cut >= 0) {
-      take(buffer.slice(0, cut));
-      buffer = buffer.slice(cut + 2);
-      cut = buffer.indexOf('\n\n');
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (value) buffer += decoder.decode(value, { stream: true }).replace(/\r/g, '');
+      let cut = buffer.indexOf('\n\n');
+      while (cut >= 0) {
+        take(buffer.slice(0, cut));
+        buffer = buffer.slice(cut + 2);
+        cut = buffer.indexOf('\n\n');
+      }
+      if (done) break;
     }
-    if (done) break;
+    if (buffer.trim()) take(buffer);
+    if (!final) throw new Error('stream ended without a response');
+    return final;
+  } finally {
+    // A failed or error event throws mid-stream: let go of the body (CodeRabbit, #2278).
+    try { await reader.cancel(); } catch { /* already closed */ }
   }
-  if (buffer.trim()) take(buffer);
-  if (!final) throw new Error('stream ended without a response');
-  return final;
 }
 
 function readUsage(data: unknown): AIUsage | null {

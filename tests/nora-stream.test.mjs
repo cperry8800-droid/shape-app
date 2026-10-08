@@ -134,6 +134,15 @@ test('readResponseStream: each delta as it comes, and the completed response at 
   await assert.rejects(ai.readResponseStream(respond(openai([{ type: 'error', message: 'overloaded' }])).body, () => {}), /stream error/);
   await assert.rejects(ai.readResponseStream(respond(openai(HELLO.slice(0, 3))).body, () => {}), /ended without a response/);
   await assert.rejects(ai.readResponseStream(null, () => {}), /no response body/);
+
+  // ⚠ A failure mid-stream lets go of the body instead of leaving it open (CodeRabbit, #2278).
+  let cancelled = false;
+  const open = new ReadableStream({
+    start(c) { c.enqueue(new TextEncoder().encode(openai([HELLO[1], { type: 'response.failed', response: { error: { message: 'boom' } } }]))); },
+    cancel() { cancelled = true; },
+  });
+  await assert.rejects(ai.readResponseStream(open, () => {}), /response\.failed/);
+  assert.equal(cancelled, true, 'the stream is cancelled, not left for the provider to close');
 });
 
 const ENV_KEYS = ['OPENAI_API_KEY', 'OPENAI_MODEL', 'OPENAI_FALLBACK_MODEL', 'OPENAI_REASONING_EFFORT', 'OPENAI_STORE_RESPONSES'];
