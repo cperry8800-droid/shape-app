@@ -307,9 +307,12 @@ test('bsAuthorStep: a station with no stated duration ≥4 min downgrades to a p
   assert.deepEqual(bsAuthorStep('Rest 2 minutes.', 'off'), { t: 'Rest 2 minutes.' });          // under the 4-min floor
 });
 
-test('bsAuthorStep: no/invalid station → plain step; empty text → null', () => {
-  assert.deepEqual(bsAuthorStep('Simmer 15 minutes.', null), { t: 'Simmer 15 minutes.' });
-  assert.deepEqual(bsAuthorStep('Simmer 15 minutes.', 'microwave'), { t: 'Simmer 15 minutes.' });
+test('bsAuthorStep: no/invalid station → never a window, but the step keeps its stated minutes; empty text → null', () => {
+  // Attended: the planner charges the 15 minutes and schedules nothing inside them
+  // (tests/coach-step-lengths.test.mjs has the rest of that rule).
+  assert.deepEqual(bsAuthorStep('Simmer 15 minutes.', null), { t: 'Simmer 15 minutes.', min: 15, passive: false });
+  assert.deepEqual(bsAuthorStep('Simmer 15 minutes.', 'microwave'), { t: 'Simmer 15 minutes.', min: 15, passive: false });
+  assert.deepEqual(bsAuthorStep('Chop everything small.', null), { t: 'Chop everything small.' });
   assert.equal(bsAuthorStep('   ', 'oven'), null);
   assert.equal(bsAuthorStep(null, 'oven'), null);
 });
@@ -346,13 +349,15 @@ test('bsAuthorStep: the window floor gates on RAW seconds — 210s never rounds 
   assert.equal(bsAuthorStep('Rest 240 seconds.', 'off').passive, true);                    // exactly 4 min passes
 });
 
-test('a TERMINAL authored window must be walk-away — live-fire finals drop to plain steps', () => {
+test('a TERMINAL authored window must be walk-away — live-fire finals drop to attended steps', () => {
   // Coach authors a final oven window on a meal: the round-7 invariant holds
   // structurally — the window dies, the text stays.
   const fire = bsCookableFromMeal({ title: 'Coach roast', kcal: 600, steps: [
     { t: 'Prep it.' }, { t: 'Roast 20 minutes.', min: 20, passive: true, station: 'oven' },
   ] });
   assert.equal(fire.stepMeta[1].passive, false);
+  // ...and the step still takes its 20 minutes in the oven, not the planner's assumed 3.
+  assert.deepEqual({ min: fire.stepMeta[1].min, station: fire.stepMeta[1].station }, { min: 20, station: 'oven' });
   assert.equal(fire.steps[1], 'Roast 20 minutes.'); // honest text intact
   // A terminal 'off' chill (the make-ahead case) survives untouched.
   const chill = bsCookableFromMeal({ title: 'Coach bites', kcal: 300, steps: [

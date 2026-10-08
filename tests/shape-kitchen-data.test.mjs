@@ -13,6 +13,16 @@ import {
   _RECIPE_ALLERGEN_NOTES, bsAllergenNoteText,
 } from '../mobile-app/src/broadsheet/shapeKitchenData.js';
 import { bsStepTimers, BS_STATIONS } from '../mobile-app/src/services/cookable.mjs';
+import { DEMO_MEAL_RECIPES } from './helpers/demo-meal-plan.mjs';
+
+// THE WINDOW RULES READ EVERY HANDS-OFF STEP THE APP SHIPS, not only the catalog's. Prep the
+// week's demo meal plan marks its own walk-away steps (bsHoldStep in iosAppBroadsheetClient.jsx),
+// and a window there sends the cook to another dish exactly as one here does. So the rules below
+// that judge a WINDOW (what it asks of the cook, what follows it, where it ends) run over both,
+// read through one shared reader; the ones about the catalog's own data (its time field, its
+// tables, its ingredients) stay catalog-only. The demo plan's minutes answer to
+// tests/prep-week-step-lengths.test.mjs, which knows a per-side step.
+const WINDOW_RECIPES = [...SHAPE_KITCHEN_RECIPES, ...DEMO_MEAL_RECIPES];
 
 const QTY_RE = /\d|pinch|drizzle|handful|to taste|dash|splash|zest|juice of/i;
 // A "cue-rich" step joins at least two of these families — a time cue plus at
@@ -310,9 +320,18 @@ test('catalog: the interleave demo is real — oven, stove AND off windows all e
 // next step is authored CONCURRENT with it ("While it roasts…"/"Meanwhile…") would
 // lock the cook out of work the author scheduled inside the window (Codex, PR D
 // round 5 — 8 recipes shipped this before the guard).
+// The rules below read the demo plan only if the reader found its holds. A reader that came back
+// empty would leave every one of them green over nothing.
+test('the window rules read the demo meal plan\'s holds as well as the catalog\'s', () => {
+  const holds = DEMO_MEAL_RECIPES.flatMap((r) => r.stepMeta.filter((m) => m && m.passive === true).map((m) => m.station));
+  assert.ok(holds.length >= 7, `${holds.length} demo holds read`);
+  assert.ok(holds.includes('oven') && holds.includes('stove'), `demo holds on ${[...new Set(holds)].join(', ')}`);
+  assert.ok(WINDOW_RECIPES.length === SHAPE_KITCHEN_RECIPES.length + DEMO_MEAL_RECIPES.length);
+});
+
 test('catalog: no annotated window is followed by a concurrent-authored same-recipe step', () => {
   const CONCURRENT = /^(while (it|they|the|that)|meanwhile|as (it|they|the))\b/i;
-  for (const r of SHAPE_KITCHEN_RECIPES) {
+  for (const r of WINDOW_RECIPES) {
     (r.stepMeta || []).forEach((m, i) => {
       if (!m || m.passive !== true) return;
       const nxt = r.steps[i + 1];
@@ -358,7 +377,7 @@ test('catalog: an ATTENDED step is never annotated as a hands-off window', () =>
   // ⚠ Collect, then assert ONCE. An assert inside the loop reports the FIRST violation
   // and hides the count — which is exactly how a review round named 2 of these 9.
   const bad = [];
-  for (const r of SHAPE_KITCHEN_RECIPES) {
+  for (const r of WINDOW_RECIPES) {
     (r.stepMeta || []).forEach((m, i) => {
       if (!m || m.passive !== true) return;
       const text = r.steps[i] || '';
@@ -394,7 +413,7 @@ test('catalog: recipeNeeds / recipeMatchesDiet behave for known recipes', () => 
 // A terminal OVEN/STOVE window would lose a live-fire countdown at Finish
 // (round-7 ruling made structural).
 test("catalog: a terminal annotated window must be station 'off'", () => {
-  for (const r of SHAPE_KITCHEN_RECIPES) {
+  for (const r of WINDOW_RECIPES) {
     (r.stepMeta || []).forEach((m, i) => {
       if (!m || m.passive !== true || i !== r.steps.length - 1) return;
       assert.equal(m.station, 'off',
@@ -431,7 +450,7 @@ test('catalog: an attended cooking METHOD never governs an annotated window', ()
   assert.ok(!METHOD.test('research the topic'), 'METHOD must not match inside a word');
 
   const bad = [];
-  for (const r of SHAPE_KITCHEN_RECIPES) {
+  for (const r of WINDOW_RECIPES) {
     (r.stepMeta || []).forEach((m, i) => {
       if (!m || m.passive !== true) return;
       const text = r.steps[i] || '';
@@ -462,7 +481,7 @@ test('catalog: a window never sits on time the recipe already gave the cook', ()
   assert.ok(!COOK_BUSY.test('liquid that seasons the meat while it sits'), 'must not catch a description of the food');
 
   const bad = [];
-  for (const r of SHAPE_KITCHEN_RECIPES) {
+  for (const r of WINDOW_RECIPES) {
     (r.stepMeta || []).forEach((m, i) => {
       if (!m || m.passive !== true) return;
       const text = r.steps[i] || '';
@@ -533,7 +552,7 @@ test('catalog: an annotated window never hides an instruction behind its timer',
     assert.ok(!SEP.test(quiet), `SEP fired on a doneness clause: "${quiet}"`);
   }
   const bad = [];
-  for (const r of SHAPE_KITCHEN_RECIPES) {
+  for (const r of WINDOW_RECIPES) {
     (r.stepMeta || []).forEach((m, i) => {
       if (!m || m.passive !== true) return;
       // ⚠ THE TERMINAL EXEMPTION WAS WRONG. It reasoned that a last step has no later step
@@ -609,7 +628,7 @@ test('catalog: a ranged window is its LOW end, never its top', () => {
     'the range parser must read both ends, or this gate measures nothing');
 
   const bad = [];
-  for (const r of SHAPE_KITCHEN_RECIPES) {
+  for (const r of WINDOW_RECIPES) {
     (r.stepMeta || []).forEach((m, i) => {
       if (!m || m.passive !== true) return;
       const hit = RANGE.exec(r.steps[i] || '');
@@ -662,7 +681,7 @@ test('catalog: a stove window never sits on uncovered aromatics', () => {
     'Shorba lamb and peanut soup|1',
   ]);
   const bad = [];
-  for (const r of SHAPE_KITCHEN_RECIPES) {
+  for (const r of WINDOW_RECIPES) {
     (r.stepMeta || []).forEach((m, i) => {
       if (!m || m.passive !== true || m.station !== 'stove') return;
       const text = r.steps[i] || '';

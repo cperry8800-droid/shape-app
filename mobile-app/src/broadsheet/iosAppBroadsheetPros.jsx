@@ -5925,11 +5925,12 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
           const finish = (list) => (stepAuthoring
             ? list.map((b) => {
                 const ds = (b.steps || []).map((s) => bsAuthorStep(s.t, s.station)).filter(Boolean).slice(0, 30);
-                // Terminal live-fire windows drop to plain steps at publish too
+                // Terminal live-fire windows drop to attended steps at publish too
                 // (matching the ingestion guard), so stored data never carries a
-                // window the cook surfaces would refuse.
+                // window the cook surfaces would refuse. The minutes and station
+                // stay: the step still takes that long.
                 const li = ds.length - 1;
-                if (li >= 0 && ds[li].passive === true && ds[li].station !== 'off') ds[li] = { t: ds[li].t };
+                if (li >= 0 && ds[li].passive === true && ds[li].station !== 'off') ds[li] = { ...ds[li], passive: false };
                 const { steps: _raw, ...rest } = b;
                 return ds.length ? { ...rest, steps: ds } : rest;
               })

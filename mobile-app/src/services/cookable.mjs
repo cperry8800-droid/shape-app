@@ -722,16 +722,45 @@ const BS_AUTHOR_FRACTIONAL_RE = /\d[.,]\d/;
 // minutes" → a 5-min chip). One rule, both sides: any decimal → no derived
 // timers; the cook reads the time from the step text itself.
 export const bsFractionalDuration = (text) => BS_AUTHOR_FRACTIONAL_RE.test(str(text) || '');
+// A STEP THE COACH LEFT HANDS-ON STILL TAKES AS LONG AS IT SAYS (owner, 2026-10-08). It used to
+// come back as bare text, so the planner charged it the assumed 3 minutes (cookOrchestrator.mjs,
+// stepCost): a coach's "Simmer 20 minutes, stirring" was drawn as 3 on the client's timeline. It
+// now carries the minutes its own text states, attended (`passive: false`), so nothing is ever
+// scheduled inside it; with a station, the planner also keeps that burner or oven busy for it.
+// The same no-fabrication rule as a window, read more carefully, because here the figure is the
+// cook's whole working time rather than a wait:
+//   - a step timed per side ("4 minutes a side", "sear 4 min/side") is both sides, 8;
+//   - a range is its low end: "simmer 8 to 10 minutes" is 8 (the "8–10" form already parses so);
+//   - a storage or make-ahead time is not work. "Refrigerate up to 4 hours" in a ten-minute
+//     smoothie is why the planner reads no prose at plan time, so a step that names one keeps
+//     the assumed 3, as does a decimal (the fractional rule above) and anything under 4 minutes.
+const BS_AUTHOR_PER_SIDE_RE = /^\s+(?:on\s+)?(?:a|each|per)\s+side\b/i;
+const BS_AUTHOR_RANGE_LOW_RE = /(\d+)\s+to\s+$/i;
+const BS_AUTHOR_NOT_WORK_RE = /\b(?:up\s+to|refrigerat\w*|fridge|freez\w*|stor(?:e|ed|ing|age)|overnight|ahead|soak\w*|marinat\w*|days?)\b/i;
+const attendedSeconds = (t) => {
+  if (BS_AUTHOR_NOT_WORK_RE.test(t)) return 0;
+  const span = timerSpans(t)[0];
+  if (!span) return 0;
+  // timerSpans reads "8 to 10 minutes" as its "10 minutes"; the low end scales by the same unit.
+  const high = Number((t.slice(span.at).match(/^\d+/) || [])[0]);
+  const low = t.slice(0, span.at).match(BS_AUTHOR_RANGE_LOW_RE);
+  const seconds = low && high > 0 ? Math.min(span.seconds, (span.seconds / high) * Number(low[1])) : span.seconds;
+  // "/side" and "per side" sit inside the span; "a side" and "each side" follow it.
+  const perSide = /side$/i.test(t.slice(span.at, span.end)) || BS_AUTHOR_PER_SIDE_RE.test(t.slice(span.end));
+  return perSide ? seconds * 2 : seconds;
+};
 export const bsAuthorStep = (text, station) => {
   const t = str(text);
   if (!t) return null;
-  if (!BS_STATIONS.includes(station)) return { t };
   if (BS_AUTHOR_FRACTIONAL_RE.test(t)) return { t };
+  const st = BS_STATIONS.includes(station) ? station : null;
   const first = bsStepTimers(t)[0];
   // Floor on RAW SECONDS — Math.round(210/60) is 4, which would sneak a
   // 3.5-minute step over the 4-minute window floor (CodeRabbit).
-  if (!first || first.seconds < BS_AUTHOR_MIN_PASSIVE * 60) return { t };
-  return { t, min: Math.round(first.seconds / 60), passive: true, station };
+  if (st && first && first.seconds >= BS_AUTHOR_MIN_PASSIVE * 60) return { t, min: Math.round(first.seconds / 60), passive: true, station: st };
+  const worked = attendedSeconds(t);
+  if (worked < BS_AUTHOR_MIN_PASSIVE * 60) return { t };
+  return { t, min: Math.round(worked / 60), passive: false, ...(st ? { station: st } : {}) };
 };
 
 // ---------------------------------------------------------------------------
@@ -748,13 +777,15 @@ const finishCookable = (c) => {
   // leftover holds as unattended make-aheads (the round-7 ruling), so a
   // live-fire final hold would lose its countdown at Finish. Catalog-tested
   // for the Kitchen; enforced STRUCTURALLY here for authored sources (coach
-  // meal methods, PR E — CodeRabbit): the window drops to a plain step, the
-  // honest text stays, nothing fabricates a walk-away.
+  // meal methods, PR E — CodeRabbit): the window drops to an attended step, the
+  // honest text stays, nothing fabricates a walk-away. Its minutes and station stay,
+  // because the step still takes that long on that oven or burner: dropping them too
+  // charged a coach's final 20-minute bake the assumed 3 (owner, 2026-10-08).
   // A make-ahead mark (and its derived finishesLater) is never rewritten here: it is how the
   // cook screens know tonight's cook ends, whatever else the entry carries.
   const lastMeta = c.stepMeta[c.steps.length - 1];
   if (lastMeta && lastMeta.makeAhead !== true && lastMeta.passive === true && lastMeta.station != null && lastMeta.station !== 'off') {
-    c.stepMeta[c.steps.length - 1] = plainStepMeta();
+    c.stepMeta[c.steps.length - 1] = { ...lastMeta, passive: false };
   }
   if (c.steps.length > 0) c.tier = c.fromPlan ? BS_COOK_TIERS.PROSE : BS_COOK_TIERS.STEPS;
   else if (c.ingredients.length > 0) c.tier = BS_COOK_TIERS.MISE;
