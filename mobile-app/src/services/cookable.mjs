@@ -813,7 +813,7 @@ const BS_AUTHOR_NOT_WORK_RE = new RegExp(`(?<!\\p{L})(?:${[
   `up\\s+to\\s+${BS_AUTHOR_TIME_AHEAD}`, 'refrigerat\\p{L}*', 'fridge', 'freez\\p{L}*', 'stor(?:e|ed|ing|age)', 'overnight', 'ahead', 'soak\\p{L}*', 'marinat\\p{L}*', 'days?',
   `bis\\s+zu\\s+${BS_AUTHOR_TIME_AHEAD}`, 'kühlschrank\\p{L}*', 'einfrier\\p{L}*', 'gefrier\\p{L}*', 'über\\s+nacht', 'aufbewahr\\p{L}*', 'marinier\\p{L}*', 'einweich\\p{L}*', 'tag(?:e|en)?',
   `hasta\\s+${BS_AUTHOR_TIME_AHEAD}`, 'nevera', 'frigor[ií]fico', 'congel(?!(?:ad[oa]s?|at[oiae]|ée?s?)(?!\\p{L}))\\p{L}*', 'toda\\s+la\\s+noche', 'guard[ae]\\p{L}*', 'remoj\\p{L}*', 'd[ií]as?',
-  `jusqu['’]à\\s+${BS_AUTHOR_TIME_AHEAD}`, 'réfrigérateur', 'frigo\\p{L}*', 'congél\\p{L}*', 'toute\\s+la\\s+nuit', '(?<!(?<!\\p{L})(?:en|in|em|la)\\s{1,3})conserv\\p{L}*(?!\\s+di(?!\\p{L}))', 'tremp\\p{L}*', 'jours?', 'à\\s+l[\'’]avance',
+  `jusqu['’]à\\s+${BS_AUTHOR_TIME_AHEAD}`, 'réfrigérateur', 'frigo\\p{L}*', 'congél\\p{L}*', 'toute\\s+la\\s+nuit', '(?<!(?<!\\p{L})(?:en|in|em)\\s{1,3})(?<!(?<!\\p{L})la\\s{1,3}(?=conserva(?!\\p{L})))conserv\\p{L}*(?!\\s+di(?!\\p{L}))', 'tremp\\p{L}*', 'jours?', 'à\\s+l[\'’]avance',
   `fino\\s+a\\s+${BS_AUTHOR_TIME_AHEAD}`, 'tutta\\s+la\\s+notte', 'ammoll\\p{L}*', 'giorn[oi]', 'in\\s+anticipo',
   `até\\s+${BS_AUTHOR_TIME_AHEAD}`, 'geladeira', 'durante\\s+a\\s+noite', 'de\\s+molho', 'com\\s+antecedência',
   // The verb, never "marinara", the marinade itself or "sal marina": whole words, as everywhere here.
@@ -832,7 +832,10 @@ const BS_AUTHOR_NOT_WORK_RE = new RegExp(`(?<!\\p{L})(?:${[
 const BS_AUTHOR_UNIT_RANK = { hr: 3, min: 2, sec: 1 };
 const unitRank = (span) => BS_AUTHOR_UNIT_RANK[span.label.split(' ')[1]] || 0;
 // Words that make a time a schedule ("15 minutes before the end", "15 Minuten vor Ende", "15 minutos antes").
-const BS_AUTHOR_SCHEDULE_RE = /^\.?\s*(?:before|after|later|ahead\s+of|prior\s+to|vor|nach|später|antes|después|más\s+tarde|avant|après|plus\s+tard|prima|dopo|più\s+tardi|depois|mais\s+tarde|до|после|позже|перед|пізніше|після|önce|sonra|trước|sau|sebelum|setelah|kemudian|kafin|bayan)(?!\p{L})/iu;
+// ⚠ Case-sensitive on purpose (Fable, on #2279): after the abbreviation's own full stop, a lowercase
+// word continues the sentence, while a capital one opens a new sentence ("1 h. 15 min. Après, laissez
+// reposer."), and that is not a schedule.
+const BS_AUTHOR_SCHEDULE_RE = /^\.?\s*(?:before|after|later|ahead\s+of|prior\s+to|vor|nach|später|antes|después|más\s+tarde|avant|après|plus\s+tard|prima|dopo|più\s+tardi|depois|mais\s+tarde|до|после|позже|перед|пізніше|після|önce|sonra|trước|sau|sebelum|setelah|kemudian|kafin|bayan)(?!\p{L})/u;
 const BS_AUTHOR_AND_RE = /^\s*(?:(?:and|und|y|et|e|и|і|й|ve|và|dan|da)\s+)?$/iu;
 const authoredTime = (t) => {
   const [span, next] = timerSpans(t);

@@ -341,6 +341,14 @@ test('Italian "da parte" is "aside", French "conserver" is still storage, and a 
   assert.equal(minOf('Hornea 1 h. 15 minutos.'), 75);
   assert.equal(minOf('Bake 1 hr. 15 min. before the end, add the potatoes.'), 60);
   assert.equal(minOf('Hornea 1 h. 15 minutos antes del final, añade las papas.'), 60);
+  // A capital opens a new sentence, which is not a schedule (Fable, on 0e7fcd0).
+  for (const [text, min] of [
+    ['Тушите 1 ч. 20 мин. После этого добавьте лук.', 80], ['Rôtir 1 h. 15 min. Après, laissez reposer.', 75],
+    ['Cuoci 1 h. 15 min. Dopo aggiungi il basilico.', 75], ['Hornea 1 h. 15 min. Después deja reposar.', 75],
+    ['Bake 1 hr. 15 min. After this, add the onion.', 75], ['Тушите 1 ч. 20 мин. до конца добавьте лук.', 60],
+  ]) assert.equal(minOf(text), min, text);
+  // "la conserva" is the Italian noun; "la conserver" is French "keep it", still storage.
+  assert.equal(minOf('Vous pouvez la conserver 2 heures au frais.'), null);
 });
 
 test('the words the review found on the way, and the forms the first fixes did not pin', () => {
