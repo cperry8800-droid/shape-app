@@ -43,6 +43,7 @@ import { bsRecipesStore, bsRecipesList, bsRecipePointer, bsRecipesUidSync, bsSpl
 import { bsCookCommand } from '../services/cookCommands.mjs';
 import { bsMergeMise, bsPrepOrder, bsPrepMatch, bsPrepWeekKey, bsScaleQty } from '../services/mealPrep.mjs';
 import { bsMakeAheadIndex, bsPlanByDow, bsPlanMealsOn, bsPrepCovers, bsPrepDueTonight, bsPrepRecordsFor, bsYmdAdd, bsYmdIn } from '../services/prepAhead.mjs';
+import { bsJumpLine, bsJumpActive, bsJumpAtEnd, bsJumpScrollTop } from '../services/jumpRow.mjs';
 import { bsNormalizeProfileCustom, bsProfileWall, bsProfileShelf, bsProfileStartLine, bsProfileLine, bsStartLineState, bsValidStartDate, bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX, BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX, BS_PIN_KINDS, BS_PROFILE_PROMPTS, BS_COACH_PROMPTS, bsPinKindLabel, bsPinKindToken, bsPromptLabel, bsPromptToken } from '../services/profileCustom.mjs';
 import { bsOrchestrate, bsReplanCook, bsCookBlockingHold, BS_COOK_MODE, BS_ORCH, BS_SERIAL_REASON, BS_SERVE_ISSUE, bsProgressPct } from '../services/cookOrchestrator.mjs';
 import { bsTrackLanes, bsTrackWindow, bsCookNowMin, bsCookFinishAt, bsPlanEnd, bsHobOccupancy, bsHobTappable, bsDishColors, bsHeroHue, bsInkOn, BS_HOB_MAX } from '../services/cookBoard.mjs';
@@ -7711,41 +7712,59 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
   const board = (!anyFilter && !searching) ? bsKmBoardPicks(courses, bsKmDaySeed()) : [];
   const toggleExpanded = (key) => setExpanded((prev) => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n; });
 
-  // Scroll spy for the jump row: the last course whose head has passed the
-  // sticky row is the one you are reading. The scroller is found from our OWN
+  // Scroll spy for the jump row: the last course whose head has reached the
+  // stuck row is the one you are reading. The scroller is found from our OWN
   // node rather than by `document.querySelector('.bs-scroll')` — that class
   // marks many scrollers in this app (rails included) and the first in the
   // document is not reliably the page's.
+  // ⚠ THE SPY AND THE JUMP SHARE ONE LINE (bsJumpLine, services/jumpRow.mjs).
+  // They used to measure from different tops, and every tab lit the course
+  // before the one it had scrolled to.
+  const jumpHost = () => (jumpRef.current && jumpRef.current.closest ? jumpRef.current.closest('.bs-scroll') : null);
+  const jumpLineOf = (host) => bsJumpLine({ hostTop: host.getBoundingClientRect().top, stickyTop, rowHeight: jumpRef.current.offsetHeight });
+  // A tapped tab stays lit until the member scrolls by hand: the smooth scroll
+  // would otherwise light every course it passes on the way, and a course near
+  // the end of a filtered menu may never reach the line at all.
+  const jumpPin = React.useRef(-1);
   const shownLen = shown.length;
   React.useEffect(() => {
-    const host = jumpRef.current && jumpRef.current.closest ? jumpRef.current.closest('.bs-scroll') : null;
+    const host = jumpHost();
     if (!host) return undefined;
     const onScroll = () => {
+      if (jumpPin.current >= 0) return;
       try {
-        let idx = 0;
-        BS_KM_COURSES.forEach((c, i) => {
+        const line = jumpLineOf(host);
+        const tops = BS_KM_COURSES.map((c) => {
           const el = document.getElementById(`bskm-${c.key}`);
-          if (el && el.getBoundingClientRect().top - stickyTop - 56 <= 0) idx = i;
+          return el ? el.getBoundingClientRect().top : null;
         });
-        setActiveCourse(idx);
+        setActiveCourse(bsJumpActive({ tops, line, atEnd: bsJumpAtEnd(host), viewBottom: host.getBoundingClientRect().bottom }));
       } catch (e) { /* the spy is an affordance, never a render dependency */ }
     };
+    const byHand = () => { jumpPin.current = -1; };
+    const HAND = ['wheel', 'touchstart', 'pointerdown', 'keydown'];
+    HAND.forEach((ev) => host.addEventListener(ev, byHand, { passive: true }));
     host.addEventListener('scroll', onScroll, { passive: true });
     onScroll();
-    return () => host.removeEventListener('scroll', onScroll);
+    return () => {
+      HAND.forEach((ev) => host.removeEventListener(ev, byHand));
+      host.removeEventListener('scroll', onScroll);
+    };
   }, [stickyTop, shownLen]);
 
-  const jumpTo = (key) => {
+  const jumpTo = (key, i) => {
+    jumpPin.current = i;
+    setActiveCourse(i);
     try {
-      const host = jumpRef.current && jumpRef.current.closest ? jumpRef.current.closest('.bs-scroll') : null;
+      const host = jumpHost();
       const el = document.getElementById(`bskm-${key}`);
       if (!host || !el) return;
-      const y = host.scrollTop + el.getBoundingClientRect().top - host.getBoundingClientRect().top - stickyTop - 46;
+      const y = bsJumpScrollTop({ scrollTop: host.scrollTop, top: el.getBoundingClientRect().top, line: jumpLineOf(host) });
       // ⚠ `behavior: 'smooth'` is the OPTION, and an option beats the element's
       // own `scroll-behavior`, so a CSS reduced-motion rule cannot switch it off
       // the way it can for an anchor jump. The preference is read here instead.
       const still = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      host.scrollTo({ top: Math.max(0, y), behavior: still ? 'auto' : 'smooth' });
+      host.scrollTo({ top: y, behavior: still ? 'auto' : 'smooth' });
     } catch (e) { /* no smooth scroll is not a broken page */ }
   };
 
@@ -7922,7 +7941,7 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
             const n = courses[i].rows.length;
             const on = activeCourse === i && n > 0;
             return (
-              <button key={c.key} type="button" disabled={!n} onClick={() => jumpTo(c.key)} style={{
+              <button key={c.key} type="button" disabled={!n} onClick={() => jumpTo(c.key, i)} style={{
                 flex: '0 0 auto', display: 'inline-flex', alignItems: 'baseline', gap: 6, minHeight: 30,
                 padding: '6px 9px', borderRadius: 4, border: 0, cursor: n ? 'pointer' : 'default',
                 background: on ? t.INK : 'transparent', color: on ? t.PAPER : (n ? t.INK70 : t.INK30),
