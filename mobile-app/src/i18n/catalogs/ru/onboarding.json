@@ -236,5 +236,9 @@
   "intent.identity.health": "человеком, который вкладывается в своё здоровье",
   "intent.identity.tone": "человеком, который становится подтянутым и сильным",
   "intent.identity.race": "бегуном, у которого забег в календаре",
-  "intent.identity.postpartum": "человеком, который шаг за шагом возвращает силу"
+  "intent.identity.postpartum": "человеком, который шаг за шагом возвращает силу",
+  "nora.ask": "Вопросы? Спроси Нору",
+  "nora.pageApply": "Заявка тренера",
+  "nora.pageLogin": "Вход",
+  "nora.pageJoin": "Вступить в Shape"
 }

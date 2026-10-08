@@ -272,5 +272,10 @@
   "wall.unit": "Birim",
   "wall.unreadable": "Duvar şu anda okunamadı.",
   "wall.value": "Değer",
-  "wall.yourBest": "Rekorların"
+  "wall.yourBest": "Rekorların",
+  "support.fill.kicker": "Formun için · kontrol et, sonra doldur",
+  "support.fill.button": "Doldur",
+  "support.fill.done": "Dolduruldu ✓",
+  "support.fill.doneNote": "Her adımı kontrol et, sonra devam et. Şifren ve onay kutuları sana ait.",
+  "support.fill.wrongForm": "Bunların ait olduğu formu aç, sonra tekrar dokun."
 }

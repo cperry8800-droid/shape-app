@@ -272,5 +272,10 @@
   "wall.unit": "Ma'auni",
   "wall.unreadable": "An kāsa karanta bango yanzu.",
   "wall.value": "Ƙima",
-  "wall.yourBest": "Rikodinka"
+  "wall.yourBest": "Rikodinka",
+  "support.fill.kicker": "Don fom ɗinka · duba, sannan ka cike",
+  "support.fill.button": "Cike waɗannan",
+  "support.fill.done": "An cike ✓",
+  "support.fill.doneNote": "Duba kowane mataki, sannan ka ci gaba. Kalmar sirrinka da akwatunan yarda naka ne ka yi.",
+  "support.fill.wrongForm": "Buɗe fom ɗin da suke nasa, sannan ka sake taɓawa."
 }

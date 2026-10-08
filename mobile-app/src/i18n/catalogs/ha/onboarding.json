@@ -236,5 +236,9 @@
   "intent.identity.health": "wanda yake zuba jari a lafiyarsa",
   "intent.identity.tone": "wanda yake ƙanƙancewa da ƙarfi",
   "intent.identity.race": "mai gudu da tsere a kalanda",
-  "intent.identity.postpartum": "wanda yake dawo da ƙarfinsa, mataki-mataki"
+  "intent.identity.postpartum": "wanda yake dawo da ƙarfinsa, mataki-mataki",
+  "nora.ask": "Kana da tambaya? Tambayi Nora",
+  "nora.pageApply": "Neman zama koci",
+  "nora.pageLogin": "Shiga",
+  "nora.pageJoin": "Shiga Shape"
 }

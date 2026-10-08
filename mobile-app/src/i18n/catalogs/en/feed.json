@@ -272,5 +272,10 @@
   "wall.unit": "Unit",
   "wall.unreadable": "Couldn't read the wall just now.",
   "wall.value": "Value",
-  "wall.yourBest": "Your best"
+  "wall.yourBest": "Your best",
+  "support.fill.kicker": "For your form · check, then fill",
+  "support.fill.button": "Fill these in",
+  "support.fill.done": "Filled in ✓",
+  "support.fill.doneNote": "Check each step, then continue. Your password and the agreement boxes are yours to do.",
+  "support.fill.wrongForm": "Open the form these are for, then tap again."
 }

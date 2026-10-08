@@ -272,5 +272,10 @@
   "wall.unit": "Unité",
   "wall.unreadable": "Impossible de lire le mur pour l’instant.",
   "wall.value": "Valeur",
-  "wall.yourBest": "Ton record"
+  "wall.yourBest": "Ton record",
+  "support.fill.kicker": "Pour ton formulaire · vérifie, puis remplis",
+  "support.fill.button": "Remplir",
+  "support.fill.done": "Rempli ✓",
+  "support.fill.doneNote": "Vérifie chaque étape, puis continue. Ton mot de passe et les cases d'accord, c'est à toi de les faire.",
+  "support.fill.wrongForm": "Ouvre le formulaire concerné, puis touche à nouveau."
 }

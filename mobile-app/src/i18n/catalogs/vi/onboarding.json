@@ -236,5 +236,9 @@
   "intent.identity.health": "một người đầu tư cho sức khỏe",
   "intent.identity.tone": "một người trở nên săn chắc và khỏe",
   "intent.identity.race": "một người chạy có giải trên lịch",
-  "intent.identity.postpartum": "một người lấy lại sức mạnh, từng bước một"
+  "intent.identity.postpartum": "một người lấy lại sức mạnh, từng bước một",
+  "nora.ask": "Có câu hỏi? Hỏi Nora",
+  "nora.pageApply": "Đơn đăng ký huấn luyện viên",
+  "nora.pageLogin": "Đăng nhập",
+  "nora.pageJoin": "Tham gia Shape"
 }

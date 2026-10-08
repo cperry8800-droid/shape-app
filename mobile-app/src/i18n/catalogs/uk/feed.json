@@ -272,5 +272,10 @@
   "wall.unit": "Одиниця",
   "wall.unreadable": "Зараз не вдалося прочитати стіну.",
   "wall.value": "Результат",
-  "wall.yourBest": "Ваш рекорд"
+  "wall.yourBest": "Ваш рекорд",
+  "support.fill.kicker": "Для твоєї форми · перевір і заповни",
+  "support.fill.button": "Заповнити",
+  "support.fill.done": "Заповнено ✓",
+  "support.fill.doneNote": "Перевір кожен крок і продовжуй. Пароль і позначки згоди — за тобою.",
+  "support.fill.wrongForm": "Відкрий форму, до якої це належить, і натисни ще раз."
 }

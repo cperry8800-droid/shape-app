@@ -9,6 +9,9 @@
 // so a value the model sends for one is dropped. The page refuses them too (signup.jsx).
 // The state-license rows are left to the person: a licence number is checked by review.
 //
+// The app has its own two (the create step of BSLogin and BSProviderApplicationScreen):
+// the same rules, with the fields and lists those screens show (`app_*`).
+//
 // Pure: no I/O, no clock beyond the `now` a caller passes.
 import { validZone } from './noraContext.mjs';
 
@@ -38,6 +41,10 @@ export const CHOICES = {
   rdCredential: ['rd', 'rdn'],
   trainerSpecs: ['Strength & Powerlifting', 'HIIT & Fat Loss', 'At-home Workouts', 'Cardio & Endurance', 'Functional Fitness', 'Bodybuilding', 'Sports Performance', 'Mobility', 'Run coaching'],
   nutriSpecs: ['Weight management', 'Sports nutrition', 'Plant-based', 'Gut health', 'Hormonal health', 'Pre/postnatal', 'Endurance fueling', 'Clinical / medical'],
+  // The app's application lists two more trainer specialties and one more nutrition one
+  // (iosAppBroadsheetProviderApply.jsx); a test keeps these in step with it.
+  appTrainerSpecs: ['Strength & Powerlifting', 'HIIT & Fat Loss', 'At-home Workouts', 'Cardio & Endurance', 'Marathon', 'Ultra', 'Functional Fitness', 'Bodybuilding', 'Sports Performance', 'Mobility', 'Run coaching'],
+  appNutriSpecs: ['Weight management', 'Sports nutrition', 'Plant-based', 'Gut health', 'Hormonal health', 'Pre/postnatal', 'Endurance fueling', 'Clinical / medical', 'Meal prep'],
   trainerPopulations: ['Beginners', 'Women 30-50', 'Men 40+', 'Postnatal', 'Athletes', 'Seniors', 'Rehab', 'Youth'],
   nutriPopulations: ['Endurance athletes', 'Strength athletes', 'Weight loss', 'Clinical conditions', 'Plant-based', 'Postnatal', 'Youth'],
   accepting: ['Yes', 'Waitlist', 'Not yet'],
@@ -46,8 +53,11 @@ export const CHOICES = {
   intro: ['15-minute free intro', '30-minute free intro', 'No free intro'],
 };
 
-function application(kind) {
+// `app`: the app's screen, which has no username or nutrition compliance text fields
+// (its attestations are boxes, which are never hers) and its own specialty lists.
+function application(kind, { app = false } = {}) {
   const trainer = kind === 'trainer';
+  const specs = trainer ? (app ? CHOICES.appTrainerSpecs : CHOICES.trainerSpecs) : (app ? CHOICES.appNutriSpecs : CHOICES.nutriSpecs);
   return {
     title: trainer ? 'trainer application' : 'nutritionist application',
     facts: [
@@ -58,16 +68,16 @@ function application(kind) {
       ...(trainer ? [] : ['Without a state dietitian license a nutritionist offers general wellness guidance only, not individualized or clinical nutrition plans; a dietitian must be licensed in each client\'s state.']),
     ],
     steps: [
-      { name: 'Personal', fields: [text('firstName', 'First name', 60), text('lastName', 'Last name', 60), USERNAME, EMAIL, PHONE, date('dob', 'Date of birth', { past: true }), text('city', 'City, State / Country'), ZONE, text('social', 'Social handles (optional)'), longText('bio', `Short bio: why they got into ${trainer ? 'coaching' : 'nutrition'}`)] },
+      { name: 'Personal', fields: [text('firstName', 'First name', 60), text('lastName', 'Last name', 60), ...(app ? [] : [USERNAME]), EMAIL, PHONE, date('dob', 'Date of birth', { past: true }), text('city', 'City, State / Country'), ZONE, text('social', 'Social handles (optional)'), longText('bio', `Short bio: why they got into ${trainer ? 'coaching' : 'nutrition'}`)] },
       { name: 'Credentials', fields: [
-        ...(trainer ? [] : [choice('nutritionType', 'Professional type', CHOICES.nutritionType)]),
+        ...(trainer || app ? [] : [choice('nutritionType', 'Professional type', CHOICES.nutritionType)]),
         text('cert', trainer ? 'Primary certification' : 'License type, or the RD/RDN registration number for a dietitian'),
         text('certExp', trainer ? 'Certification expiration / renewal' : 'License state + number'),
         text('edu', 'Degree / school'),
         choice('years', 'Years of professional experience', CHOICES.years),
         choice('insurance', 'Liability insurance', CHOICES.insurance),
         text('prev', 'Previous platforms (optional)'),
-        ...(trainer ? [] : [
+        ...(trainer || app ? [] : [
           text('cdrId', 'CDR registration number (dietitians only)', 20),
           choice('rdCredential', 'Credential type (dietitians only)', CHOICES.rdCredential),
           text('insCarrier', 'Insurance carrier', 80),
@@ -76,12 +86,12 @@ function application(kind) {
         ]),
       ] },
       { name: 'Specialty', fields: [
-        choice('primary', 'Primary specialty', trainer ? CHOICES.trainerSpecs : CHOICES.nutriSpecs),
-        many('secondary', 'Secondary specialties', trainer ? CHOICES.trainerSpecs : CHOICES.nutriSpecs),
+        choice('primary', 'Primary specialty', specs),
+        many('secondary', 'Secondary specialties', specs),
         many('populations', 'Populations they work best with', trainer ? CHOICES.trainerPopulations : CHOICES.nutriPopulations),
         text('style', 'Coaching style, one sentence', 160),
       ] },
-      { name: 'Availability & pricing', fields: [
+      { name: app ? 'Pricing' : 'Availability & pricing', fields: [
         amount('maxClients', 'Most clients they can take', 500),
         choice('accepting', 'Accepting new clients', CHOICES.accepting),
         choice('oneOnOne', trainer ? 'Offer 1-on-1 sessions' : 'Offer 1-on-1 consults', CHOICES.oneOnOne),
@@ -119,6 +129,22 @@ export const FORMS = {
   },
   apply_trainer: application('trainer'),
   apply_nutritionist: application('nutritionist'),
+  // The app's create-account steps: who they are, then how they sign in. The role is
+  // picked on the first step and a coach goes on to the application; the password and
+  // the phone sign-in stay theirs.
+  app_signup: {
+    title: 'account sign-up',
+    facts: [
+      'Shape is 18+.',
+      'On the first step they choose member, trainer or nutritionist; a trainer or nutritionist continues to the coach application.',
+    ],
+    steps: [
+      { name: 'Identity', fields: [text('fullName', 'Full name', 80), date('dob', 'Date of birth', { past: true }), USERNAME] },
+      { name: 'Credentials', fields: [EMAIL] },
+    ],
+  },
+  app_apply_trainer: application('trainer', { app: true }),
+  app_apply_nutritionist: application('nutritionist', { app: true }),
 };
 
 // The keys the page itself refuses as well; none is ever a field above (a test checks).

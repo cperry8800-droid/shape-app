@@ -236,5 +236,9 @@
   "intent.identity.health": "seseorang yang berinvestasi pada kesehatannya",
   "intent.identity.tone": "seseorang yang menjadi kencang dan kuat",
   "intent.identity.race": "pelari dengan lomba di kalender",
-  "intent.identity.postpartum": "seseorang yang membangun kembali kekuatan, selangkah demi selangkah"
+  "intent.identity.postpartum": "seseorang yang membangun kembali kekuatan, selangkah demi selangkah",
+  "nora.ask": "Ada pertanyaan? Tanya Nora",
+  "nora.pageApply": "Pendaftaran pelatih",
+  "nora.pageLogin": "Masuk",
+  "nora.pageJoin": "Gabung Shape"
 }

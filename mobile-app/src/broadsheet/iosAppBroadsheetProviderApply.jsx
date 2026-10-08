@@ -277,6 +277,36 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
     });
   };
 
+  // Nora fills the application in with them (the Ask Nora plan, step 5). She is told the
+  // step and which fields hold something, never what they hold, and her card fills only
+  // the fields src/lib/ai/noraForms.mjs lists for this screen. The documents, every
+  // agreement box and the attestations stay theirs, and she never submits.
+  const noraApplyRef = React.useRef({});
+  noraApplyRef.current = { step, values };
+  const submitted = !!result;
+  React.useEffect(() => {
+    if (submitted) return undefined;
+    const kind = isTrainer ? 'app_apply_trainer' : 'app_apply_nutritionist';
+    const never = ['verify', 'tos', 'conduct', 'bgcheck', 'attest', 'resumeFile', 'credentialFile', 'insuranceFile'];
+    const bridge = {
+      kind,
+      state: () => {
+        const v = noraApplyRef.current.values || {};
+        const filled = Object.keys(v).filter((k) => !never.includes(k) && (Array.isArray(v[k]) ? v[k].length > 0 : v[k] !== '' && v[k] != null && v[k] !== false));
+        return { kind, step: noraApplyRef.current.step || 0, filled };
+      },
+      fill: (patch) => {
+        const safe = {};
+        Object.keys(patch || {}).forEach((k) => { if (!never.includes(k)) safe[k] = patch[k]; });
+        if (!Object.keys(safe).length) return false;
+        setValues((prev) => ({ ...prev, ...safe }));
+        return true;
+      },
+    };
+    window.shapeNoraForm = bridge;
+    return () => { if (window.shapeNoraForm === bridge) window.shapeNoraForm = null; };
+  }, [isTrainer, submitted]);
+
   async function submit() {
     setError('');
     const required = [values.firstName, values.lastName, values.email, values.cert, values.primary || specialties[0]];

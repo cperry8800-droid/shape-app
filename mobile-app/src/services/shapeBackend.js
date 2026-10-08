@@ -4265,6 +4265,7 @@ async function askSupportBot(messages, tone, extra = {}) {
   if (extra.voice === true) body.voice = true;
   // Where they are (the Ask Nora plan, step 4): the screen, what it has open, the zone.
   if (extra.context && typeof extra.context === 'object') body.context = extra.context;
+  if (typeof extra.turnstileToken === 'string' && extra.turnstileToken) body.turnstileToken = extra.turnstileToken;
   const locale = appLocaleCode();
   if (locale) body.locale = locale;
   const res = await fetch(`${apiBaseUrl}/api/support/chat`, {
@@ -4274,10 +4275,19 @@ async function askSupportBot(messages, tone, extra = {}) {
     signal: extra.signal,
   });
   const payload = await res.json().catch(() => ({}));
-  // ⚠ A SIGNED-OUT APP CANNOT PASS NORA'S BOT CHECK. The check is a Turnstile widget keyed
-  // to the website's domain, and the app runs on its own origin, so a demo or preview
-  // session with no account would only ever see "unavailable" (Codex, #2246). It is told
-  // plainly where Nora can be asked instead.
+  // A signed-out question passes Nora's bot check first (the Ask Nora plan): the paywall,
+  // sign-in and application doors exist for people with no account yet (Codex, #2259).
+  // The check is solved once and the question asked again with its token. A cross-origin
+  // app never keeps the cookie the token earns, so a later question solves it again.
+  if (res.status === 403 && payload && payload.needsCheck && !extra.turnstileToken && !extra.checked) {
+    let tok = '';
+    try { tok = window.ShapeTurnstile && window.ShapeTurnstile.solve ? await window.ShapeTurnstile.solve() : ''; } catch (e) { tok = ''; }
+    if (tok) return askSupportBot(messages, tone, { ...extra, turnstileToken: tok, checked: true });
+  }
+  // ⚠ WHERE THE CHECK CANNOT RUN, it says where to ask instead. The widget is keyed to the
+  // website's domain, so the native app passes it only once its own origin is added to the
+  // widget's hostnames; until then a session with no account would only ever see
+  // "unavailable" (Codex, #2246).
   if (res.status === 403 && payload && payload.needsCheck) {
     return { reply: 'Sign in to ask Nora in the app. You can also ask her without an account on theshapecommunity.com.', actions: [], source: 'check' };
   }

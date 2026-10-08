@@ -272,5 +272,10 @@
   "wall.unit": "Unidade",
   "wall.unreadable": "Não foi possível ler o mural agora.",
   "wall.value": "Valor",
-  "wall.yourBest": "Seu recorde"
+  "wall.yourBest": "Seu recorde",
+  "support.fill.kicker": "Para o seu formulário · confira e depois preencha",
+  "support.fill.button": "Preencher",
+  "support.fill.done": "Preenchido ✓",
+  "support.fill.doneNote": "Confira cada etapa e depois continue. A senha e as caixas de aceite ficam com você.",
+  "support.fill.wrongForm": "Abra o formulário a que eles pertencem e toque de novo."
 }

@@ -236,5 +236,9 @@
   "intent.identity.health": "sağlığına yatırım yapan birine",
   "intent.identity.tone": "sıkılaşan ve güçlenen birine",
   "intent.identity.race": "takviminde yarış olan bir koşucuya",
-  "intent.identity.postpartum": "adım adım gücünü geri kazanan birine"
+  "intent.identity.postpartum": "adım adım gücünü geri kazanan birine",
+  "nora.ask": "Soruların mı var? Nora'ya sor",
+  "nora.pageApply": "Koç başvurusu",
+  "nora.pageLogin": "Giriş yap",
+  "nora.pageJoin": "Shape'e katıl"
 }
