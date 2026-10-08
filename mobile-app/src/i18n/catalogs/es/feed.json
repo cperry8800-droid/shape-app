@@ -190,6 +190,7 @@
   "support.proposal.undo": "Deshacer",
   "support.proposal.undoing": "Deshaciendo…",
   "support.proposal.openBuilder": "Abrir en el editor",
+  "support.proposal.mealPlanSaved": "Guardado en tus planes de comidas. Edítalo y asígnalo en el editor de comidas del sitio web de Shape.",
   "support.proposal.applyFailed": "No se pudo aplicar ese cambio.",
   "support.proposal.unavailable": "Las acciones no están disponibles ahora.",
   "support.proposal.undoUnavailable": "Deshacer no está disponible ahora.",

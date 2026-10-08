@@ -103,7 +103,9 @@ type SupportAction =
 // The form a page says is open, reduced to a known form, step and filled keys.
 type FormCtx = { kind: string; step: number; filled: string[] };
 // `kind: 'coach_plan'` → the website follows `url`; the app opens the plan by id.
-type ProposalOpen = { kind: 'coach_plan'; planId: string; clientId?: string; url: string };
+// `planKind: 'meal_plan'`: a nutritionist's draft (draft_meal_plan), which the app lists under
+// Plans but cannot open; its card says it is edited in the website builder.
+type ProposalOpen = { kind: 'coach_plan'; planKind?: 'meal_plan'; planId: string; clientId?: string; url: string };
 
 type OpenAIContentPart = { type?: string; text?: string };
 type OpenAIOutputItem = {
@@ -313,7 +315,7 @@ const TOOLS = [
 
 // The write tools that DRAFT a confirm-required change (vs. read tools that
 // answer inline). Kept in sync with the registry's Tier-1/Tier-2 actions.
-const WRITE_TOOLS = new Set(['log_meal', 'set_client_goal', 'assign_workout', 'draft_workout', 'assign_meal_plan', 'set_program_detail', 'add_review_note', 'reschedule_session', 'log_weigh_in', 'log_water', 'check_habit', 'set_reminder']);
+const WRITE_TOOLS = new Set(['log_meal', 'set_client_goal', 'assign_workout', 'draft_workout', 'draft_meal_plan', 'assign_meal_plan', 'set_program_detail', 'add_review_note', 'reschedule_session', 'log_weigh_in', 'log_water', 'check_habit', 'set_reminder']);
 
 // ── Member-only tools (memory) ────────────────────────────────────────────────
 // Appended to the tool list ONLY for a verified member (computeMembership,
@@ -481,6 +483,42 @@ const TRAINER_TOOLS = [
     strict: false,
   },
 ];
+// A nutritionist's or dietitian's turn: Nora drafts meal plans from Shape's meal library
+// (the Ask Nora plan, step 5; src/lib/ai/mealDraft.mjs). Offered to an account holding a
+// nutrition role, as the registry gates draft_meal_plan.
+const NUTRITION_TOOLS = [
+  {
+    type: 'function',
+    name: 'draft_meal_plan',
+    description:
+      "DRAFT a meal plan for the NUTRITIONIST from their brief. The server picks every meal from Shape's meal library (with the library's own macros) to come close to the daily targets, varies it across the days, and shows a card to review. It is saved UNPUBLISHED to their meal plans for them to edit and assign in the builder; nothing is saved until they confirm, and it is never assigned to a client from here. Pass only what they said: the goal phase, daily targets they gave as numbers, how many days in the rotation, which meals of the day, what to leave out (allergens, foods), and the most prep minutes per meal.",
+    parameters: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'A name for the plan, only if they gave one.' },
+        goalPhase: { type: 'string', enum: ['cut', 'maintain', 'build'], description: "cut, maintain or build, as they said or plainly meant; 'maintain' if they did not say." },
+        kcal: { type: 'integer', description: 'Daily calories, only if they gave a number.' },
+        protein: { type: 'integer', description: 'Daily protein in grams, only if they gave a number.' },
+        carbs: { type: 'integer', description: 'Daily carbs in grams, only if they gave a number.' },
+        fat: { type: 'integer', description: 'Daily fat in grams, only if they gave a number.' },
+        days: { type: 'integer', description: 'Days in the rotation (1-7), only if they said; 3 if not.' },
+        slots: { type: 'array', items: { type: 'string', enum: ['Breakfast', 'Lunch', 'Dinner', 'Snack'] }, description: 'The meals of the day, only if they said; all four if not.' },
+        exclude: { type: 'array', items: { type: 'string' }, description: "What to leave out, one word each, e.g. 'dairy', 'nuts', 'gluten', 'shellfish', 'fish', 'egg', 'soy', 'beef'." },
+        maxPrepMinutes: { type: 'integer', description: 'The most prep minutes per meal, only if they said.' },
+        clientName: { type: 'string', description: "The client's name as they said it, if it is for a client." },
+        clientId: { type: 'string', description: "The client's id from find_client." },
+      },
+      additionalProperties: false,
+    },
+    strict: false,
+  },
+];
+const NUTRITION_PROMPT_NOTE = [
+  'MEAL PLAN DRAFTING: You CAN draft meal plans for this nutritionist — the one exception to "never invent a meal", because every meal comes from Shape\'s meal library, not from you.',
+  'When they ask you to draft, build, write or make a meal plan, call draft_meal_plan with what they said: the goal phase, daily targets only if they gave numbers, days in the rotation, the meals of the day, what to leave out, the most prep minutes. For a client, find_client first; never guess one.',
+  "The server picks each meal and adds up the macros: never name a meal or state a number it did not return. Targets they did not give are the builder's defaults for the phase, and the card says which. Shape's library is small (about two dozen dishes), so say they can swap in their own foods in the builder.",
+  'Nothing is saved until they confirm; it is saved unpublished to their meal plans and opens in the website builder, where they edit it and assign it to a client. You never assign it from here. Say that, never that it is done.',
+].join(' ');
 const READ_TOOLS = new Set([...MEMBER_READ_TOOLS.map((t) => t.name), ...COACH_TOOLS.map((t) => t.name)]);
 // Up to this many model turns per request: a lookup, an action drafted from
 // it, and a reply is three; Astra "continues through more steps", so the cap
@@ -983,7 +1021,7 @@ async function askOpenAI(
   messages: ChatMessage[],
   propose: ProposeFn,
   tone: string | undefined,
-  member: { contextMsg: string | null; memberTools: typeof MEMBER_TOOLS; memoryCtx: MemoryCtx | null; cookMsg: string | null; reads: ReadCtx | null; coachTools: typeof COACH_TOOLS; trainerTools: typeof TRAINER_TOOLS; trainerZone?: string; noCards?: boolean; isMember: boolean; voice: boolean; locale: string | null; coach: CoachCtx; where?: { system: string; data: string | null }; form?: FormCtx | null },
+  member: { contextMsg: string | null; memberTools: typeof MEMBER_TOOLS; memoryCtx: MemoryCtx | null; cookMsg: string | null; reads: ReadCtx | null; coachTools: typeof COACH_TOOLS; trainerTools: typeof TRAINER_TOOLS; nutritionTools?: typeof NUTRITION_TOOLS; trainerZone?: string; noCards?: boolean; isMember: boolean; voice: boolean; locale: string | null; coach: CoachCtx; where?: { system: string; data: string | null }; form?: FormCtx | null },
   signal?: AbortSignal,
 ): Promise<{ reply: string; actions: SupportAction[]; model: string | null } | null> {
   if (!hasOpenAIKey()) return null;
@@ -1007,8 +1045,9 @@ async function askOpenAI(
   const langName = member.locale && member.locale !== 'en' ? languageNameFor(member.locale) : null;
   const langNote = langName ? `\n\nLANGUAGE: The member's app is set to ${langName} (${member.locale}). Answer in ${langName} unless they write to you in another language; keep coach names, product names and figures as they are.` : '';
   const trainerNote = member.trainerTools.length && member.memberTools.length && !member.cookMsg ? `\n\n${trainerPromptNote(member.reads ? member.reads.now : new Date(), member.trainerZone)}` : '';
+  const nutritionNote = member.nutritionTools && member.nutritionTools.length && member.memberTools.length && !member.cookMsg ? `\n\n${NUTRITION_PROMPT_NOTE}` : '';
   const noCardsNote = member.noCards && !member.cookMsg ? `\n\n${NO_CARDS_NOTE}` : '';
-  const systemPrompt = `${SYSTEM_PROMPT}${member.memberTools.length && !member.cookMsg ? `\n\n${MEMBER_PROMPT_NOTE}` : ''}${trainerNote}${noCardsNote}${cookOverride}${member.voice ? `\n\n${VOICE_PROMPT_NOTE}` : ''}${langNote}\n\n${toneInstruction(tone)}`;
+  const systemPrompt = `${SYSTEM_PROMPT}${member.memberTools.length && !member.cookMsg ? `\n\n${MEMBER_PROMPT_NOTE}` : ''}${trainerNote}${nutritionNote}${noCardsNote}${cookOverride}${member.voice ? `\n\n${VOICE_PROMPT_NOTE}` : ''}${langNote}\n\n${toneInstruction(tone)}`;
   let input: unknown[] = [
     { role: 'system', content: systemPrompt },
     // Where they are: the clock in their zone and what the server verified (system), then
@@ -1041,7 +1080,7 @@ async function askOpenAI(
   // trainer draft_workout.
   const tools = member.cookMsg
     ? []
-    : [...(member.memberTools.length ? [...TOOLS, ...member.memberTools, ...MEMBER_READ_TOOLS, ...member.coachTools, ...member.trainerTools] : TOOLS), ...(member.form ? [FILL_FORM_TOOL] : [])]
+    : [...(member.memberTools.length ? [...TOOLS, ...member.memberTools, ...MEMBER_READ_TOOLS, ...member.coachTools, ...member.trainerTools, ...(member.nutritionTools || [])] : TOOLS), ...(member.form ? [FILL_FORM_TOOL] : [])]
       .filter((t) => !(member.noCards && WRITE_TOOLS.has(String((t as { name?: unknown }).name))));
   // ⚠ MODEL TIERING: a signed-in-and-verified member rides the pin (Astra);
   // anyone else rides the public model. `model` is set explicitly for the
@@ -1228,6 +1267,7 @@ export async function POST(request: Request) {
   let reads: ReadCtx | null = null;
   let coachTools: typeof COACH_TOOLS = [];
   let trainerTools: typeof TRAINER_TOOLS = [];
+  let nutritionTools: typeof NUTRITION_TOOLS = [];
   let zone = screen.timezone || 'UTC';
   let isMember = false;
   let membership: Awaited<ReturnType<typeof computeMembership>> | null = null;
@@ -1253,6 +1293,9 @@ export async function POST(request: Request) {
       // profiles.roles[]), so a dual-role account that also trains drafts too, and
       // offering it to anyone else would hand the model a tool that answers role_not_allowed.
       if (isTrainer && !noCards) trainerTools = TRAINER_TOOLS;
+      // draft_meal_plan is `roles: ['nutritionist', 'dietitian']` with held roles, the same rule.
+      const nutritionRoles = [actor.role, ...(actor.roles || [])];
+      if (nutritionRoles.some((r) => r === 'nutritionist' || r === 'dietitian') && !noCards) nutritionTools = NUTRITION_TOOLS;
       memoryCtx = {
         actor: { id: actor.user.id, role: actor.role, roles: actor.roles },
         supabase: actor.supabase,
@@ -1310,7 +1353,7 @@ export async function POST(request: Request) {
   const coachSb = actor ? actor.supabase : await clientForRequest(request).catch(() => null);
   const coach: CoachCtx = { sb: coachSb, surface };
 
-  const ai = await askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx, cookMsg, reads, coachTools, trainerTools, trainerZone: zone, isMember, voice, locale, coach, noCards, where, form }, request.signal).catch(() => null);
+  const ai = await askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx, cookMsg, reads, coachTools, trainerTools, nutritionTools, trainerZone: zone, isMember, voice, locale, coach, noCards, where, form }, request.signal).catch(() => null);
   if (ai) return respond({ reply: ai.reply, source: 'ai', actions: ai.actions, model: ai.model });
 
   // Cook Mode is a read-only, grounded sous-chef: the support fallback can claim

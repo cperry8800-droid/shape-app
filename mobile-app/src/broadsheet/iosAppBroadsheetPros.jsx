@@ -7094,9 +7094,12 @@ function BSNutriPlans() {
   // §4 (CodeRabbit) — the PAID PLANS list only wants paid meal plans. Filter the
   // server-derived rows to buildType 'mealplan' (legacy rows w/o detail stay); local
   // dupes (no .id) always pass. Program/diet templates no longer leak in here.
+  // ⚠ A PLAN FROM THE WEBSITE BUILDER (detail.mealBuilder, Nora's drafts among them) IS LISTED
+  // TOO (Codex, #2260): it was filtered out, so a draft confirmed here vanished. This screen's
+  // editor and Assign read another document, so its row says where it is edited instead.
   const customCards = (serverPlans || dupes)
-    .filter(p => !p.id || !p.detail || p.detail.buildType === 'mealplan')
-    .map(p => p.id ? { n: p.name, meta: p.meta || 'New meal plan', price: p.price || '$—', id: p.id, server: true, detail: p.detail || null } : p);
+    .filter(p => !p.id || !p.detail || p.detail.buildType === 'mealplan' || !!p.detail.mealBuilder)
+    .map(p => p.id ? { n: p.name, meta: p.meta || 'New meal plan', price: p.price || '$—', id: p.id, server: true, detail: p.detail || null, web: !!(p.detail && p.detail.mealBuilder) } : p);
   // §5 (CodeRabbit) — the demo social-proof rows (12 on it · 4.9 ★) are a
   // signed-OUT preview only; a signed-in coach sees only their real
   // serverPlans-derived rows (customCards), with the empty-state redaction.
@@ -7334,9 +7337,9 @@ function BSNutriPlans() {
         ) : (
           <div style={{ marginTop: 2 }}>
             {plans.map((p, i) => (
-              <BSProCatRow key={p.id || p.n} index={i} name={p.n} meta={p.meta} price={p.price} heat={heat} t={t}
-                onOpen={() => openDraft('mealplan')}
-                onAssign={() => setAssignPlan({ id: p.id || null, name: p.n, meta: p.meta, detail: p.detail || null })} />
+              <BSProCatRow key={p.id || p.n} index={i} name={p.n} meta={p.web ? `${p.meta} · ${tr('coach:plans.webBuilder', { defaultValue: 'website builder' })}` : p.meta} price={p.price} heat={heat} t={t}
+                onOpen={() => (p.web ? flash(tr('coach:plans.webBuilderOnly', { defaultValue: 'Edit and assign this one in the meal builder on the Shape website.' })) : openDraft('mealplan'))}
+                onAssign={() => (p.web ? flash(tr('coach:plans.webBuilderOnly', { defaultValue: 'Edit and assign this one in the meal builder on the Shape website.' })) : setAssignPlan({ id: p.id || null, name: p.n, meta: p.meta, detail: p.detail || null }))} />
             ))}
           </div>
         )}

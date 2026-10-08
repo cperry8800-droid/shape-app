@@ -190,6 +190,7 @@
   "support.proposal.undo": "Скасувати",
   "support.proposal.undoing": "Скасовуємо…",
   "support.proposal.openBuilder": "Відкрити в редакторі",
+  "support.proposal.mealPlanSaved": "Збережено у ваших планах харчування. Редагуйте й призначайте його в конструкторі харчування на сайті Shape.",
   "support.proposal.applyFailed": "Не вдалося застосувати зміну.",
   "support.proposal.unavailable": "Дії зараз недоступні.",
   "support.proposal.undoUnavailable": "Скасування зараз недоступне.",
