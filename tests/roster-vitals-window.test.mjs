@@ -113,3 +113,25 @@ test('malformed input is inert (never throws, never fabricates)', () => {
   assert.equal(build(null).size, 0);
   assert.equal(build([null, undefined, 42]).size, 0);
 });
+
+// The route's whole answer, now built by buildRosterRecovery so Nora's "What needs me
+// today?" reads the same thing (src/lib/ai/coachToday.mjs).
+test('buildRosterRecovery: sleep from the last 7 logged nights, vitals in 7 calendar days, each leg only when real', async () => {
+  const { buildRosterRecovery, readRosterRecovery } = await import('../src/lib/roster-vitals.mjs');
+  const now = new Date('2026-10-08T10:00:00Z');
+  const day = (n) => new Date(now.getTime() - n * 864e5).toISOString().slice(0, 10);
+  const rows = [
+    ...[13, 12, 11, 10, 9, 8, 7, 6].map((n, i) => ({ user_id: 'sleepy', snapshot_date: day(n), sleep_hours: i < 1 ? 9 : 5, energy: null, hunger: null, hydration_l: null })),
+    { user_id: 'sleepy', snapshot_date: day(5), sleep_hours: null, energy: null, hunger: null, hydration_l: null },
+    ...[2, 1, 0].map((n) => ({ user_id: 'gauges', snapshot_date: day(n), sleep_hours: 0, energy: 3, hunger: 8, hydration_l: null })),
+  ];
+  const r = buildRosterRecovery(rows, { now });
+  assert.deepEqual(Object.keys(r).sort(), ['gauges', 'sleepy']);
+  assert.deepEqual(r.sleepy, { sleepHours: { avg7: 5, lastNight: 5, target: 7.5 } }, 'the last 7 logged nights (the 9-hour one is the 8th back); a null night is absence');
+  assert.equal(r.gauges.sleepHours, undefined, 'a 0-hour night is absence: no fabricated sleep leg');
+  assert.deepEqual(r.gauges.vitals.energy, { avg7: 3, n: 3 });
+  // The read: ok:false on a failed query, so a caller can say so.
+  const failing = { from: () => ({ select: () => ({ in: () => ({ gte: () => ({ order: async () => ({ data: null, error: { message: 'down' } }) }) }) }) }) };
+  assert.deepEqual(await readRosterRecovery(failing, ['a'], { now }), { ok: false, recovery: {} });
+  assert.deepEqual(await readRosterRecovery(failing, [], { now }), { ok: true, recovery: {} }, 'no ids, no read');
+});

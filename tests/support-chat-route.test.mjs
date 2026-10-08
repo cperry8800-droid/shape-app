@@ -18,6 +18,7 @@ import { loadRealModule } from './helpers/load-real-module.mjs';
 import * as noraGreeting from '../src/lib/ai/noraGreeting.mjs';
 import * as noraContext from '../src/lib/ai/noraContext.mjs';
 import * as noraForms from '../src/lib/ai/noraForms.mjs';
+import * as coachToday from '../src/lib/ai/coachToday.mjs';
 import { fakeSupabase } from './helpers/fake-supabase.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -84,6 +85,7 @@ async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', role
     ['@/lib/ai/noraGreeting.mjs', noraGreeting],
     ['@/lib/ai/noraContext.mjs', noraContext],
     ['@/lib/ai/noraForms.mjs', noraForms],
+    ['@/lib/ai/coachToday.mjs', coachToday],
     ['@/lib/membership-core', { computeMembership: async () => ({ isMember, isCoach, isAdmin, isKnownMinor: false }) }],
     ['@/lib/food-search-server', { searchFoodsServer: async () => ({ results: [], unavailable: true }) }],
     ['@/lib/ai', {
@@ -851,4 +853,30 @@ test('draft_meal_plan and its note ride for a nutrition role only, and never in 
   await plain.mod.POST(post({ ...ask('draft a plan'), confirmCards: false }));
   assert.ok(!toolNames(plain.calls.ai[0].body).includes('draft_meal_plan'));
   assert.doesNotMatch(plain.calls.ai[0].body.input[0].content, /MEAL PLAN DRAFTING/, 'and no note promising a draft it cannot show');
+});
+
+// ── "What needs me today?" (the Ask Nora plan, step 5) ─────────────────────────────
+test('get_coach_today: a coach is offered it and it reads their own day; a member is not', async () => {
+  const soon = new Date(Date.now() + 2 * 864e5).toISOString();
+  const coach = await loadRoute({
+    role: 'trainer',
+    tables: {
+      trainers: [{ id: 7, owner_id: U, name: 'Coach' }], nutritionists: [],
+      subscriptions: [{ client_id: 'c1', status: 'active', provider_role: 'trainer', provider_id: 7 }],
+      sessions: [{ id: 's1', provider_role: 'trainer', provider_id: 7, client_id: 'c1', status: 'requested', scheduled_at: soon, duration_min: 60, type: 'session', topic: null }],
+      user_goals: [],
+    },
+    rpcs: { get_display_names: ({ p_ids }) => p_ids.map((id) => ({ user_id: id, full_name: 'Priya Shah' })), get_client_stats: () => ({ daysLogged7d: 0, sessionsCompleted: 0, sessionsPlanned: 3 }), get_client_goals: () => null, get_client_checkins: () => [] },
+    answers: [calls(call('get_coach_today', {})), say('One request to confirm, and Priya has not logged food this week.')],
+  });
+  await coach.mod.POST(post(ask('what needs me today?')));
+  assert.ok(toolNames(coach.calls.ai[0].body).includes('get_coach_today'));
+  assert.match(coach.calls.ai[0].body.input[0].content, /call get_coach_today and lead with what needs them/);
+  const out = JSON.parse(coach.calls.ai[1].body.input.find((x) => x.type === 'function_call_output').output);
+  assert.equal(out.requestsToConfirm.count, 1);
+  assert.equal(out.requestsToConfirm.items[0].name, 'Priya Shah');
+  assert.equal(out.needsYou.items[0].name, 'Priya Shah');
+  const member = await loadRoute({ role: 'client' });
+  await member.mod.POST(post(ask('what needs me today?')));
+  assert.ok(!toolNames(member.calls.ai[0].body).includes('get_coach_today'), 'a member has no coaching day');
 });

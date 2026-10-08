@@ -35,12 +35,12 @@ const GREETINGS = {
     quick: ["What's on today?", 'How was my week?', 'Log a glass of water', 'Find me a coach'],
   },
   trainer: {
-    text: `Hi, I'm Nora. I can draft a workout or a program for you to review, look up a client, assign a session or move one. Nothing changes until you confirm it. The Shape team reads ${EMAIL}.`,
-    quick: ['Draft a 45-minute lower-body session', 'Draft a 4-week strength program', 'Look up a client', 'Move a session'],
+    text: `Hi, I'm Nora. I can tell you what needs you today, draft a workout or a program for you to review, look up a client, assign a session or move one. Nothing changes until you confirm it. The Shape team reads ${EMAIL}.`,
+    quick: ['What needs me today?', 'Draft a 45-minute lower-body session', 'Draft a 4-week strength program', 'Look up a client'],
   },
   nutritionist: {
-    text: `Hi, I'm Nora. I can look up a client, set a client's goal, assign a meal plan or note a program phase, each drafted for you to confirm. The Shape team reads ${EMAIL}.`,
-    quick: ['Look up a client', "Set a client's protein goal", 'Assign a meal plan', 'What does Shape take from coaches?'],
+    text: `Hi, I'm Nora. I can tell you what needs you today, draft a meal plan from Shape's meal library, look up a client or set a client's goal, each drafted for you to confirm. The Shape team reads ${EMAIL}.`,
+    quick: ['What needs me today?', 'Draft a 3-day cut meal plan', 'Look up a client', "Set a client's protein goal"],
   },
   admin: {
     text: `Hi, I'm Nora. I can answer how Shape works, billing and coach questions, and look up your own account. The Shape team reads ${EMAIL}.`,
@@ -57,12 +57,12 @@ const PLAIN = {
     quick: ["What's on today?", 'How was my week?', 'Find me a coach', 'How do I cancel or change my plan?'],
   },
   trainer: {
-    text: `Hi, I'm Nora. I can look up a client and answer how Shape works. To draft a workout or move a session, ask me in the chat on your dashboard. The Shape team reads ${EMAIL}.`,
-    quick: ['Look up a client', 'What does Shape take from coaches?', 'How does the Verified badge work?', 'Find me a coach'],
+    text: `Hi, I'm Nora. I can tell you what needs you today, look up a client and answer how Shape works. To draft a workout or move a session, ask me in the chat on your dashboard. The Shape team reads ${EMAIL}.`,
+    quick: ['What needs me today?', 'Look up a client', 'What does Shape take from coaches?', 'How does the Verified badge work?'],
   },
   nutritionist: {
-    text: `Hi, I'm Nora. I can look up a client and answer how Shape works. To set a goal or assign a plan, ask me in the chat on your dashboard. The Shape team reads ${EMAIL}.`,
-    quick: ['Look up a client', 'What does Shape take from coaches?', 'How does the Verified badge work?', 'Find me a coach'],
+    text: `Hi, I'm Nora. I can tell you what needs you today, look up a client and answer how Shape works. To set a goal or draft a plan, ask me in the chat on your dashboard. The Shape team reads ${EMAIL}.`,
+    quick: ['What needs me today?', 'Look up a client', 'What does Shape take from coaches?', 'How does the Verified badge work?'],
   },
 };
 

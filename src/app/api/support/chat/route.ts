@@ -66,6 +66,7 @@ import { noraTier, visitorGate, countQuestion, limitReply, requestIp, CHECK_REPL
 import { greetingKind, greetingFor } from '@/lib/ai/noraGreeting.mjs';
 import { normalizeContext, formatContextNote, validZone, dayIn } from '@/lib/ai/noraContext.mjs';
 import { cleanFormContext, formNote, cleanFill, FILL_FORM_TOOL } from '@/lib/ai/noraForms.mjs';
+import { readCoachToday } from '@/lib/ai/coachToday.mjs';
 import { searchFoodsServer } from '@/lib/food-search-server';
 import { plainText } from '@/lib/ai/replyText.mjs';
 import {
@@ -125,7 +126,7 @@ const SYSTEM_PROMPT = [
   'FORMAT: plain conversational prose only. No markdown — no headings, no bullet or numbered lists, no bold or asterisks, no tables, no code, no emoji. Your reply is shown in a plain chat bubble exactly as written.',
   '',
   "LOOKUPS: For a signed-in member you can LOOK THINGS UP with the read tools before you answer: get_training_plan (what is on today and this week, plus today's meals off their menu), get_recent_workouts (the last sessions and the top sets in each), get_week_summary (the last 7 days in numbers: nutrition, training, sleep and recovery, weigh-in trend, habit completion), get_habits (their habits with today's state and streaks), get_coaching (their coaches and booked sessions), get_reminders, get_points (recent Shape Score entries), get_account (their own profile, membership and billing status, coach subscriptions, units, language, timezone, notification and privacy preferences, Nora's voice). Use the matching tool BEFORE answering any question about the member's own plan, schedule, progress, numbers, or account — never answer those from memory or by guessing. Quote only what a tool returned, in their own units. If a tool answers unavailable, say you can't see that right now; if it answers empty, say there is nothing there yet. If the tools are not offered, you are talking to someone who is not signed in as a member — say that lookups need a signed-in membership.",
-  "COACH LOOKUPS: For a COACH, find_client turns the name they said into the client id every coach action needs — call it first whenever you do not already have the id, and NEVER invent an id. If it returns several candidates, ask which one; if none, say who is on their roster. get_client_snapshot gives that client's recent training, nutrition, weight and lifts (only for a client they actively coach).",
+  "COACH LOOKUPS: For a COACH, find_client turns the name they said into the client id every coach action needs — call it first whenever you do not already have the id, and NEVER invent an id. If it returns several candidates, ask which one; if none, say who is on their roster. get_client_snapshot gives that client's recent training, nutrition, weight and lifts (only for a client they actively coach). For 'what needs me today' or 'what's on today', call get_coach_today and lead with what needs them: requests to confirm, then today's sessions, then the clients it flags with why; never add a client or a session it did not return.",
   '',
   'COACHES: When a member wants to find, switch, compare, or get matched with a coach (trainer or nutritionist), CALL the recommend_coaches tool and then recommend specific people by name with one short reason each (specialty, city, or rating). Ask at most ONE clarifying question (e.g. goal, in-person vs remote) only if you truly cannot pick a sensible focus; otherwise just recommend. Never invent coaches — only mention ones the tool returns. The tool lists the live marketplace first; a result marked example is a demonstration listing rather than a real coach — prefer the real ones, and if you mention an example say it is an example listing. Quote a price, rating or credential only when the listing states one; a coach marked atCapacity is not taking new clients right now. If the tool answers noMatch, say plainly that no listing matches that yet, then offer the marketplace or a broader focus.',
   '',
@@ -447,6 +448,7 @@ const MEMBER_READ_TOOLS = [
 // ── Coach-only READ tools (a verified coach: trainer / nutritionist) ─────────
 const COACH_TOOLS = [
   { type: 'function', name: 'find_client', description: "Resolve a client the coach named to the client's id from the COACH'S OWN active roster. Exactly one match returns the client; several return candidates to ask about; none returns the roster names. Call this before any client action when you do not already have the id.", parameters: { type: 'object', properties: { name: { type: 'string', description: 'The name as the coach said it.' } }, required: ['name'], additionalProperties: false }, strict: true },
+  { type: 'function', name: 'get_coach_today', description: "The COACH'S day: booking requests waiting for them to confirm, today's sessions on their own clock, and the clients the Today screen flags (red or amber) with why — the same signals the app's Today runs. Call for 'what needs me today', 'what's on today', 'anything I need to do', 'who needs me'. Say how many clients were checked when it was not all of them, and when it marks something as not read (notRead, goalsOrCheckinsUnread, sleepAndCheckinGaugesUnread) say so: never present that as an all-clear. 'as' names the listing a client was flagged under when they hold both.", parameters: NO_ARGS, strict: true },
   { type: 'function', name: 'get_client_snapshot', description: "A coached client's recent numbers: sessions kept, workout minutes, days logged and average macros, latest and starting weight, key lifts. Only for a client this coach actively coaches; otherwise it answers allowed:false.", parameters: { type: 'object', properties: { clientId: { type: 'string', description: 'The client id from find_client or context.' } }, required: ['clientId'], additionalProperties: false }, strict: true },
 ];
 // ── Trainer-only WRITE tool: build a session or a program from the coach's words ──
@@ -620,7 +622,7 @@ async function profileZone(sb: Actor['supabase'], uid: string): Promise<string |
 // The per-request context the READ tools run with: the caller's own RLS client
 // and id (member-verified), the clock, and whether the caller is a coach — null
 // for anyone else, so a fabricated call fails closed exactly like memory.
-type ReadCtx = { sb: Actor['supabase']; uid: string; now: Date; isCoach: boolean; zone: string };
+type ReadCtx = { sb: Actor['supabase']; uid: string; now: Date; isCoach: boolean; zone: string; role?: string };
 
 // The per-request context a direct memory tool runs with (member-verified).
 type MemoryCtx = {
@@ -948,6 +950,14 @@ async function runRead(name: string, args: Record<string, unknown>, reads: ReadC
         if (!roster.isCoach) return { error: 'not_a_coach', message: 'No coach profile is linked to this account.' };
         const q = String(args.name || '').trim().slice(0, 80);
         return { ok: true, ...findClient(roster.clients, q) };
+      }
+      case 'get_coach_today': {
+        if (!reads.isCoach) return { error: 'not_a_coach', message: 'Only a coach has a coaching day to read.' };
+        const role = reads.role === 'dietitian' ? 'nutritionist' : reads.role;
+        const today = await readCoachToday(sb, uid, { now: reads.now, zone: reads.zone, role });
+        if (!today.ok) return { ok: false, error: 'unavailable', message: 'Their day could not be read right now.' };
+        if (!today.isCoach) return { error: 'not_a_coach', message: 'No coach profile is linked to this account.' };
+        return today;
       }
       case 'get_client_snapshot': {
         if (!reads.isCoach) return { error: 'not_a_coach', message: 'Only a coach can read a client snapshot.' };
@@ -1286,7 +1296,7 @@ export async function POST(request: Request) {
       zone = isCoach
         ? await coachZone(actor.supabase, actor.user.id, screen.timezone, actor.role)
         : (screen.timezone || (await profileZone(actor.supabase, actor.user.id)) || 'UTC');
-      reads = { sb: actor.supabase, uid: actor.user.id, now: new Date(), isCoach, zone };
+      reads = { sb: actor.supabase, uid: actor.user.id, now: new Date(), isCoach, zone, role: actor.role };
       if (isCoach) coachTools = COACH_TOOLS;
       // ⚠ THE ROLES THE REGISTRY GATES ON, not membership's coach verdict: draft_workout
       // is `roles: ['trainer']`, checked against the actor's every role (primary plus

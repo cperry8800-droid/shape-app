@@ -530,7 +530,8 @@ export async function readCoachRoster(sb, uid) {
   const nameById = new Map();
   for (const r of Array.isArray(names.data) ? names.data : []) if (r && r.user_id) nameById.set(r.user_id, str(r.full_name, 80));
   const clients = ids.map((id) => ({ id, name: nameById.get(id) || null, roles: [...byClient.get(id).roles] }));
-  return { ok: true, isCoach: true, clients, ...(names.ok ? {} : { namesUnavailable: true }) };
+  // `providers`: the listings this coach owns ({ role, id }), which their bookings name.
+  return { ok: true, isCoach: true, clients, providers, ...(names.ok ? {} : { namesUnavailable: true }) };
 }
 
 /** Resolve the client a coach named against their own roster — exactly one
