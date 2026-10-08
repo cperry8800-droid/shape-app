@@ -46,7 +46,7 @@ import { bsMakeAheadIndex, bsPlanByDow, bsPlanMealsOn, bsPrepCovers, bsPrepDueTo
 import { bsJumpLine, bsJumpActive, bsJumpAtEnd, bsJumpScrollTop } from '../services/jumpRow.mjs';
 import { bsNormalizeProfileCustom, bsProfileWall, bsProfileShelf, bsProfileStartLine, bsProfileLine, bsStartLineState, bsValidStartDate, bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX, BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX, BS_PIN_KINDS, BS_PROFILE_PROMPTS, BS_COACH_PROMPTS, bsPinKindLabel, bsPinKindToken, bsPromptLabel, bsPromptToken } from '../services/profileCustom.mjs';
 import { bsOrchestrate, bsReplanCook, bsCookBlockingHold, BS_COOK_MODE, BS_ORCH, BS_SERIAL_REASON, BS_SERVE_ISSUE, bsProgressPct } from '../services/cookOrchestrator.mjs';
-import { bsTrackLanes, bsTrackWindow, bsCookNowMin, bsCookFinishAt, bsPlanEnd, bsHobOccupancy, bsHobTappable, bsDishColors, bsHeroHue, bsInkOn, BS_HOB_MAX } from '../services/cookBoard.mjs';
+import { bsTrackLanes, bsTrackLaneStatus, bsTrackWindow, bsCookNowMin, bsCookFinishAt, bsPlanEnd, bsHobOccupancy, bsHobTappable, bsDishColors, bsHeroHue, bsInkOn, BS_HOB_MAX } from '../services/cookBoard.mjs';
 import { bsCkModalSync, bsCkFocusOwner, bsCkGiveBack } from '../services/cookFocus.mjs';
 import { bsDeriveCycle, bsCycleRead } from '../services/cyclePhase.mjs';
 import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
@@ -8461,25 +8461,31 @@ const BS_CK_CSS = `
 .bsck.web.emb .cC .step.l2{font-size:25.5px}.bsck.web.emb .cC .step.l3{font-size:24px}
 .bsck .cC .tm{padding:13px 16px}
 
-.bsck .cB .tl{position:relative;margin:0 12px;border-radius:18px;background:var(--p2);overflow:hidden;flex:none;cursor:pointer;display:block;width:auto;text-align:left}
+.bsck .cB .tl{position:relative;margin:0 12px;border-radius:16px;background:var(--p2);overflow:hidden;flex:none;cursor:pointer;display:block;width:auto;text-align:left;padding-bottom:2px}
 .bsck .cB .tl:hover{outline:1.5px solid var(--rule)}
-.bsck .cB .ruler{position:relative;height:24px;border-bottom:1px solid var(--hair)}
-.bsck .cB .ruler i{position:absolute;top:0;bottom:0;width:1px;background:var(--hair)}
-.bsck .cB .ruler b{position:absolute;top:6px;font:600 11px/1 var(--f-b);font-variant-numeric:tabular-nums;color:var(--i50);transform:translateX(4px);white-space:nowrap}
-.bsck .cB .lane{position:relative;height:46px;border-bottom:1px solid var(--hair)}
-.bsck .cB .lane:last-child{border-bottom:0}
-.bsck .cB .lane .nm{position:absolute;top:4px;font:700 11px/1 var(--f-b);color:var(--i50);white-space:nowrap;pointer-events:none;z-index:4;left:4px;padding:1px 4px;border-radius:4px;background:var(--p2)}
-.bsck .cB .blk{position:absolute;top:17px;height:24px;border-radius:6px;background:var(--c);color:var(--on-c,#0f0e0c);font:700 11.5px/24px var(--f-b);padding:0 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.bsck .cB .blk.hold{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--c) 55%,transparent) 0 5px,color-mix(in srgb,var(--c) 22%,transparent) 5px 10px);color:var(--i);border:1.5px solid var(--c)}
-.bsck .cB .blk.est{-webkit-mask-image:linear-gradient(90deg,#000 62%,rgba(0,0,0,.4));mask-image:linear-gradient(90deg,#000 62%,rgba(0,0,0,.4))}
-.bsck .cB .blk.past{opacity:.28}
-.bsck .cB .blk.cur{box-shadow:0 0 0 2px var(--p2),0 0 0 4px var(--i);z-index:2}
-.bsck .cB .blk .n,.bsck .cB .blk .nt{font-family:var(--f-b);font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
-.bsck .cB .blk.nar{padding:0;text-align:center;text-overflow:clip}
-.bsck .cB .ph{position:absolute;top:0;bottom:0;width:2px;background:var(--a);z-index:3}
-.bsck .cB .ph b{position:absolute;top:4px;left:5px;font:800 11px/1 var(--f-b);color:var(--a);white-space:nowrap;background:var(--p2);padding:1px 3px 2px;border-radius:3px}
-.bsck .cB .ph.end b{left:auto;right:5px}
-.bsck .cB .flag{position:absolute;top:24px;bottom:0;width:0;border-left:2px dashed var(--i30);z-index:1}
+.bsck .cB .tl .ruler{position:relative;height:20px}
+.bsck .cB .tl .ruler b{position:absolute;top:5px;font:600 10px/1 var(--f-b);font-variant-numeric:tabular-nums;color:var(--i50);transform:translateX(-50%);white-space:nowrap}
+.bsck .cB .tl .gl{position:absolute;top:16px;bottom:0;width:1px;background:var(--hair)}
+.bsck .cB .tl .lane{position:relative;height:32px}
+.bsck .cB .tl .lane+.lane{border-top:1px solid var(--hair)}
+.bsck .cB .tl .lh{position:absolute;top:3px;left:10px;right:10px;display:flex;align-items:center;gap:8px;z-index:4;pointer-events:none}
+.bsck .cB .tl .sw{width:7px;height:7px;border-radius:2px;background:var(--c);flex:none}
+.bsck .cB .tl .nm{font:600 10.5px/1.1 var(--f-b);color:var(--i70);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;padding-right:4px;background:var(--p2)}
+.bsck .cB .tl .st{margin-left:auto;flex:none;font:700 10px/1.1 var(--f-b);font-variant-numeric:tabular-nums;color:var(--i50);background:var(--p2);padding-left:4px;white-space:nowrap}
+.bsck .cB .tl .st.step{color:var(--a)}
+.bsck .cB .tl .st.hold,.bsck .cB .tl .st.timer{color:var(--i85)}
+.bsck .cB .tl .st.up{color:var(--am)}
+.bsck .cB .tl .rail{position:absolute;top:22px;height:1px;background:color-mix(in srgb,var(--c) 38%,transparent)}
+.bsck .cB .tl .sb{position:absolute;top:19px;height:7px;border-radius:2px;background:var(--c)}
+.bsck .cB .tl .sb.past{opacity:.3}
+.bsck .cB .tl .sb.hold{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--c) 70%,transparent) 0 2px,transparent 2px 5px);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--c) 70%,transparent)}
+.bsck .cB .tl .sb.hold.live{box-shadow:inset 0 0 0 1px var(--c)}
+.bsck .cB .tl .sb.cur{top:17px;height:11px;box-shadow:0 0 0 1.5px var(--p2),0 0 0 3px var(--i);z-index:2}
+.bsck .cB .tl .ph{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--a);z-index:3}
+.bsck .cB .tl .ph b{position:absolute;top:4px;left:6px;font:800 9px/1.1 var(--f-b);letter-spacing:.14em;text-transform:uppercase;color:var(--a);white-space:nowrap}
+.bsck .cB .tl .ph.end b{left:auto;right:6px}
+.bsck .cB .tl .flag{position:absolute;top:16px;bottom:0;width:0;border-left:1.5px dashed var(--i30);z-index:1}
+.bsck .cB .tl .endl{position:absolute;top:4px;font:800 9px/1.1 var(--f-b);letter-spacing:.12em;text-transform:uppercase;color:var(--i70);white-space:nowrap;font-variant-numeric:tabular-nums;transform:translateX(calc(-100% - 6px))}
 .bsck .cB .mode{display:grid;gap:8px;padding:12px 14px;border-radius:18px;border:1.5px solid var(--rule);background:var(--p2);text-align:left;width:100%}
 .bsck .cB .mode.sel{border-color:var(--a);box-shadow:inset 0 0 0 1px var(--a)}
 .bsck .cB .mode.off{opacity:.62}
@@ -8521,15 +8527,6 @@ const BS_CK_CSS = `
 .bsck .cD .trkt.on{color:var(--a)}
 .bsck .cD .dtl{flex:none;margin-top:10px}
 .bsck .cD .dtl .tl{margin:0 12px;border-radius:16px}
-.bsck .cD .dtl .ruler{height:20px}
-.bsck .cD .dtl .ruler b{top:4px;font-size:10.5px}
-.bsck .cD .dtl .lane{height:30px}
-.bsck .cD .dtl .lane .nm{top:1px;font-size:9.5px;padding:0 4px}
-.bsck .cD .dtl .blk{top:11px;height:16px;line-height:16px;font-size:10px;padding:0 5px;border-radius:5px}
-.bsck .cD .dtl .blk .nt{font-size:10.5px}
-.bsck .cD .dtl .blk.cur{box-shadow:0 0 0 1.5px var(--p2),0 0 0 3px var(--i)}
-.bsck .cD .dtl .ph b{top:3px;font-size:10px;padding:0 3px 1px}
-.bsck .cD .dtl .flag{top:20px}
 .bsck .cD .card{margin-top:10px}
 .bsck .cD .pg .dpre .trk{background:var(--p2)}
 .bsck .cD .dmodes{display:grid;gap:10px}
@@ -8553,17 +8550,20 @@ const BS_CK_CSS = `
 .bsck.web .cD .dtl{margin-top:0}
 .bsck.web .cD .dtl .tl{margin:0 32px}
 .bsck.web.emb .cD .dtl .tl{margin:0 20px}
-.bsck.web .cD .dtl .ruler{height:24px}
-.bsck.web .cD .dtl .ruler b{top:6px;font-size:11px}
-.bsck.web .cD .dtl .lane{height:64px}
-.bsck.web .cD .dtl .lane .nm{top:4px;font-size:11px;padding:1px 4px}
-.bsck.web .cD .dtl .blk{top:24px;height:32px;line-height:32px;font-size:13.5px;padding:0 10px;border-radius:6px}
-.bsck.web .cD .dtl .blk .nt{font-size:12px}
-.bsck.web .cD .dtl .blk.cur{box-shadow:0 0 0 2px var(--p2),0 0 0 4px var(--i)}
-.bsck.web .cD .dtl .ph b{top:4px;font-size:11px;padding:1px 3px 2px}
-.bsck.web .cD .dtl .flag{top:24px}
-.bsck.web.emb .cD .dtl .lane{height:54px}
-.bsck.web.emb .cD .dtl .blk{top:21px;height:28px;line-height:28px;font-size:12.5px}
+.bsck.web .cD .dtl .tl .ruler{height:24px}
+.bsck.web .cD .dtl .tl .ruler b{top:7px;font-size:11px}
+.bsck.web .cD .dtl .tl .gl{top:20px}
+.bsck.web .cD .dtl .tl .lane{height:44px}
+.bsck.web .cD .dtl .tl .lh{top:5px;left:14px;right:14px;gap:10px}
+.bsck.web .cD .dtl .tl .sw{width:8px;height:8px}
+.bsck.web .cD .dtl .tl .nm{font-size:12.5px}
+.bsck.web .cD .dtl .tl .st{font-size:12px}
+.bsck.web .cD .dtl .tl .rail{top:31px}
+.bsck.web .cD .dtl .tl .sb{top:27px;height:9px;border-radius:2.5px}
+.bsck.web .cD .dtl .tl .sb.cur{top:24px;height:15px;box-shadow:0 0 0 2px var(--p2),0 0 0 4px var(--i)}
+.bsck.web .cD .dtl .tl .ph b{top:7px;font-size:10px}
+.bsck.web .cD .dtl .tl .flag{top:20px}
+.bsck.web .cD .dtl .tl .endl{top:7px;font-size:10px}
 .bsck.web .cD .main{padding-top:14px}
 .bsck .bsck-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 .bsck .cC .oven .in{position:relative;display:grid;gap:3px;justify-items:center;padding:0 6px}
@@ -8808,8 +8808,6 @@ function bsCkShort(title) {
   if (s.length > 24) { const i = s.toLowerCase().indexOf(' with '); if (i > 0) s = s.slice(0, i).trim(); }
   return s || String(title || '').trim();
 }
-// A step's opening words, for a block on the tracks: up to the first break, then four words.
-const bsCkFirstWords = (text, n = 4) => String(text || '').replace(/[—,;:.].*$/, '').split(/\s+/).filter(Boolean).slice(0, n).join(' ');
 // A long step steps its type down, so the card fits without scrolling (the preview's rule).
 const bsCkFit = (text) => { const n = String(text || '').length; return n > 150 ? 'l3' : n > 110 ? 'l2' : ''; };
 
@@ -8946,35 +8944,45 @@ function bsCkHob({ tr, occ, selected = null, onZone = null, nowText = null }) {
 // An empty stove, for the plated screen (every burner off).
 const bsCkHobOff = (kitchen) => ({ burners: Math.min(BS_HOB_MAX.stove, Math.max(1, kitchen?.stove || 1)), ovens: Math.min(BS_HOB_MAX.oven, Math.max(1, kitchen?.oven || 1)), stove: [], oven: [], board: [], off: [], overflow: { stove: 0, oven: 0 } });
 
-// The tracks: one lane per dish, a block per step at its planned minute, the whole cook
-// fitted to the width with a playhead at now (the preview's timeline, slimmed to sit under
-// the stove). `timerOf(block, lane)` → { left, up } for a block with a timer running.
-// `fit` is the plated screen: the finished cook, the playhead at its end. Tapping it opens
-// every step.
-function bsCkTracks({ tr, lanes, nowMin, span, width, anchor, colorOf, timerOf = () => null, onOpen, fit = false }) {
+// The tracks: one rail per dish across the minutes it cooks, a short bar per step at its
+// planned minute, the whole cook fitted to the width with a playhead at now (owner's pick A,
+// "Rails", 2026-10-08). Bars carry no digits: a step 3 minutes long is ~15px on a phone, too
+// narrow for anything but a numeral, and a row of numerals read as dice. What a dish is doing
+// is said in words on its own line instead (bsTrackLaneStatus). `timerOf(block, lane)` →
+// { left, up } for a block with a timer running. `readyAt` names the end of the ruler, and is
+// the same time the top bar shows, so the screen never states two ready times; without it the
+// end is a dashed line only. `fit` is the plated screen: the finished cook, the playhead at its
+// end. Tapping it opens every step.
+function bsCkTracks({ tr, lanes, nowMin, span, width, anchor, colorOf, timerOf = () => null, onOpen, fit = false, readyAt = null }) {
   const W = Math.max(200, width || 366);
   const S = Math.max(1, span || 1);
-  const ppm = fit ? (W - 24) / S : (W - 48) / S;
+  const ppm = fit ? (W - 24) / S : (W - 40) / S;
   const nm = fit ? S : Math.max(0, Math.min(S, Number.isFinite(nowMin) ? nowMin : 0));
-  const playX = fit ? W - 12 : 24 + nm * ppm;
+  const playX = fit ? W - 12 : 14 + nm * ppm;
   const x = (m) => playX + (m - nm) * ppm;
+  const fx = x(S);
+  const hasClock = Number.isFinite(anchor);
+  // The playhead's label sits beside its line (right while cooking, left once plated) and the
+  // ready label left of the end line; a ruler time that would run under either is left out,
+  // never drawn half hidden. Widths are estimated from the text, so a longer word in another
+  // language keeps its room. The ready label goes too when it would meet the playhead's: the
+  // top bar says the same time.
+  const phText = fit ? tr('cook:ck.plated', { defaultValue: 'Plated' }) : tr('cook:ck.now', { defaultValue: 'Now' });
+  const phW = String(phText).length * 7.4 + 4;
+  const endText = !fit && Number.isFinite(readyAt) ? tr('cook:ck.readyAt', { defaultValue: 'Ready {time}', time: bsCkClockShort(readyAt) }) : null;
+  const endW = endText ? String(endText).length * 7 + 4 : 0;
+  const showEnd = !!endText && fx > 0 && fx <= W && fx - 6 - endW > playX + 6 + phW + 8;
+  const keepOut = [fit ? [playX - 6 - phW, playX + 2] : [playX - 2, playX + 6 + phW]];
+  if (showEnd) keepOut.push([fx - 6 - endW, fx + 2]);
   // Ruler: wall-clock marks every 5 minutes, thinned when the cook is long enough that five
   // minutes is too narrow for its label (whole hours past an hour, so a long braise still
   // reads). The loop walks MARK TO MARK and stops at the right edge: at least 44px apart, so it
   // can never draw more than the width holds, whatever the recipe claims its length is (a
   // step authored at 1e308 minutes once turned a minute-by-minute walk into a frozen page).
   const step = [5, 10, 15, 20, 30, 60].find((s) => s * ppm >= 44) || Math.ceil(44 / ppm / 60) * 60;
-  const hasClock = Number.isFinite(anchor);
   const base = hasClock ? new Date(anchor).getMinutes() : 0;
-  // The playhead's own label sits beside its line — to the right while cooking, to the left
-  // once plated — so a ruler time that would run under either is left out, never drawn half
-  // hidden. Widths are estimated from the text, so a longer word in another language keeps
-  // its room.
-  const phText = fit ? tr('cook:ck.plated', { defaultValue: 'Plated' }) : tr('cook:ck.now', { defaultValue: 'Now' });
-  const phW = String(phText).length * 7 + 8;
-  const blockL = fit ? playX - 5 - phW : playX - 3;
-  const blockR = fit ? playX + 3 : playX + 5 + phW;
   const marks = [];
+  const grid = [];
   if (Number.isFinite(step) && step > 0 && Number.isFinite(S) && ppm > 0) {
     const m0 = hasClock ? (((step - (base % step)) % step) + step) % step : 0;
     for (let m = m0, n = 0; m <= S + 1 && n < 200; m += step, n++) {
@@ -8983,13 +8991,26 @@ function bsCkTracks({ tr, lanes, nowMin, span, width, anchor, colorOf, timerOf =
       const at = anchor + m * 60000;
       if (hasClock && !Number.isFinite(new Date(at).getTime())) break;
       const text = hasClock ? bsCkClockShort(at) : `${m}`;
-      const lw = String(text).length * 6.6 + 2;
-      if (X + 4 + lw > W) break;
-      if (X < -2 || (X + 4 < blockR + 4 && X + 4 + lw > blockL - 4)) continue;
-      marks.push(<React.Fragment key={m}><i style={{ left: X }} /><b style={{ left: X }}>{text}</b></React.Fragment>);
+      const half = (String(text).length * 6.2) / 2;
+      if (X + half > W - 2) break;
+      if (X - half < 2 || keepOut.some(([l, r]) => X + half + 4 > l && X - half - 4 < r)) continue;
+      marks.push(<b key={m} style={{ left: X }}>{text}</b>);
+      grid.push(<i key={m} className="gl" aria-hidden="true" style={{ left: X }} />);
     }
   }
-  const fx = x(S);
+  const statusText = (st) => {
+    if (st.kind === 'step') return tr('cook:ck.laneStep', { defaultValue: 'Step {n} of {m}', n: st.n, m: st.of });
+    if (st.kind === 'hold') return tr('cook:ck.laneHold', { defaultValue: 'Hands-off {time}', time: bsCkMmss(st.left) });
+    if (st.kind === 'timer') return tr('cook:ck.laneTimer', { defaultValue: 'Timer {time}', time: bsCkMmss(st.left) });
+    if (st.kind === 'up') return tr('cook:timer.up', { defaultValue: "Time's up" });
+    if (st.kind === 'done') return tr('cook:ck.laneDone', { defaultValue: 'Done' });
+    if (st.kind === 'count') return tr('cook:ck.laneSteps', { defaultValue: '{n, plural, one {# step} other {# steps}}', n: st.n });
+    if (!hasClock) return tr('cook:ck.inMin', { defaultValue: 'In {n} min', n: Math.max(1, Math.round(st.at - nm)) });
+    const time = bsCkClockShort(anchor + st.at * 60000);
+    return st.kind === 'next'
+      ? tr('cook:ck.laneNext', { defaultValue: 'Next {time}', time })
+      : tr('cook:ck.laneStarts', { defaultValue: 'Starts {time}', time });
+  };
   const open = () => { if (onOpen) onOpen(); };
   return (
     <div className="cB dtl">
@@ -8997,27 +9018,35 @@ function bsCkTracks({ tr, lanes, nowMin, span, width, anchor, colorOf, timerOf =
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } }}
         aria-label={tr('cook:ck.timelineAria', { defaultValue: 'Timeline. Show all steps' })}>
         <div className="ruler" aria-hidden="true">{marks}</div>
-        {lanes.map((lane) => (
-          <div key={lane.iid} className="lane" aria-hidden="true">
-            <span className="nm">{bsCkShort(lane.title)}</span>
-            {lane.blocks.map((b) => {
-              const X = x(b.at);
-              const w = Math.max(6, (b.end - b.at) * ppm - 3);
-              if (X + w < -4 || X > W + 4) return null;
-              const tm = timerOf(b, lane);
-              const nar = w < 64;
-              const mins = Math.max(1, Math.round(b.end - b.at));
-              let label = b.hold
-                ? tr('cook:ck.handsOff', { defaultValue: 'Hands-off · {n} min', n: mins })
-                : nar ? `${b.stepNo}` : `${b.stepNo} · ${bsCkFirstWords(b.text)}`;
-              if (tm && !tm.up) label = nar ? `${b.stepNo}` : <>{b.hold ? tr('cook:ck.handsOffShort', { defaultValue: 'Hands-off' }) : b.stepNo} · <span className="nt">{bsCkMmss(tm.left)}</span></>;
-              if (tm && tm.up) label = nar ? '!' : tr('cook:timer.up', { defaultValue: "Time's up" });
-              const cls = ['blk', b.hold && 'hold', b.est && 'est', b.past && !fit && 'past', b.current && !fit && 'cur', nar && 'nar'].filter(Boolean).join(' ');
-              return <span key={b.idx} className={cls} style={{ left: X, width: w, '--c': colorOf(lane), '--on-c': bsInkOn(colorOf(lane)) }}>{label}</span>;
-            })}
-          </div>
-        ))}
+        {grid}
+        {lanes.map((lane) => {
+          const c = colorOf(lane);
+          const st = bsTrackLaneStatus(lane, { timerOf: (b) => timerOf(b, lane), fit });
+          const first = lane.blocks[0];
+          const last = lane.blocks[lane.blocks.length - 1];
+          const ra = first ? Math.max(0, x(first.at)) : 0;
+          const rb = last ? Math.min(W, x(last.end)) : 0;
+          return (
+            <div key={lane.iid} className="lane" aria-hidden="true" style={{ '--c': c }}>
+              <div className="lh">
+                <span className="sw" />
+                <span className="nm">{bsCkShort(lane.title)}</span>
+                <span className={`st ${st.kind}`}>{statusText(st)}</span>
+              </div>
+              {rb > ra ? <span className="rail" style={{ left: ra, width: rb - ra }} /> : null}
+              {lane.blocks.map((b) => {
+                const X = x(b.at);
+                const w = Math.max(4, (b.end - b.at) * ppm - 2);
+                if (X + w < -4 || X > W + 4) return null;
+                const tm = timerOf(b, lane);
+                const cls = ['sb', b.hold && 'hold', tm && 'live', b.past && !fit && !(tm && !tm.up) && 'past', b.current && !fit && 'cur'].filter(Boolean).join(' ');
+                return <span key={b.idx} className={cls} style={{ left: X + 1, width: w }} />;
+              })}
+            </div>
+          );
+        })}
         {fx > 0 && fx < W ? <span className="flag" style={{ left: fx }} /> : null}
+        {showEnd ? <span className="endl" style={{ left: fx }}>{endText}</span> : null}
         <span className={`ph${fit ? ' end' : ''}`} style={{ left: playX }}><b>{phText}</b></span>
       </div>
     </div>
@@ -10026,7 +10055,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   };
   const trackW = layout.w > 0 ? (layout.web ? layout.w - (layout.full ? 64 : 40) : layout.w - 24) : 366;
   const tracksFor = (fit) => (tracksOn && lanes.length > 0 && hasMethod
-    ? bsCkTracks({ tr, lanes, nowMin: fit ? bsPlanEnd(seq.tl) : nowMin, span: bsPlanEnd(seq.tl), width: trackW, anchor: fit ? startRef.current : clockAnchor, colorOf: (ln) => dishColor(ln.iid), timerOf: holdOf, onOpen: () => setSheet('steps'), fit })
+    ? bsCkTracks({ tr, lanes, nowMin: fit ? bsPlanEnd(seq.tl) : nowMin, span: bsPlanEnd(seq.tl), width: trackW, anchor: fit ? startRef.current : clockAnchor, colorOf: (ln) => dishColor(ln.iid), timerOf: holdOf, onOpen: () => setSheet('steps'), fit, readyAt: fit ? null : finishAt })
     : null);
 
   const selHold = running.find((x) => x.id === selectedHold && stationOf(x.stepIdx)) || null;
@@ -10692,7 +10721,7 @@ function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, se
   };
   const trackW = layout.w > 0 ? (layout.web ? layout.w - (layout.full ? 64 : 40) : layout.w - 24) : 366;
   const tracks = tracksOn && lanes.length > 0
-    ? bsCkTracks({ tr, lanes, nowMin, span: bsPlanEnd(timeline), width: trackW, anchor, colorOf: (ln) => colorOfIid(ln.iid), timerOf: holdOf, onOpen: () => setSheet('steps') })
+    ? bsCkTracks({ tr, lanes, nowMin, span: bsPlanEnd(timeline), width: trackW, anchor, colorOf: (ln) => colorOfIid(ln.iid), timerOf: holdOf, onOpen: () => setSheet('steps'), readyAt: finishAt })
     : null;
   const hob = bsCkHob({
     tr, occ, selected: selHold ? selHold.id : null,

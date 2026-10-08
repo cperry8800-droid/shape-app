@@ -171,6 +171,27 @@ export function bsTrackLanes(timeline, cursor = 0) {
   return lanes;
 }
 
+// What a lane's status line says, beside the dish's name on the tracks: the step in front of
+// the cook, else a timer running on one of its steps (`hold` on a hands-off step, `timer` on
+// one the cook works at, which is never called hands-off), else when its next step comes
+// (`starts` before the dish has begun, `next` after), else done. The plated screen (`fit`)
+// counts the dish's steps instead. `timerOf(block)` → { left, up } for a block whose timer
+// runs. The step in front of the cook wins over a timer: the stove above the tracks already
+// shows every timer.
+export function bsTrackLaneStatus(lane, { timerOf = () => null, fit = false } = {}) {
+  const blocks = lane && Array.isArray(lane.blocks) ? lane.blocks : [];
+  if (fit) return { kind: 'count', n: blocks.length };
+  const cur = blocks.find((b) => b && b.current);
+  if (cur) return { kind: 'step', n: cur.stepNo, of: cur.of };
+  for (const b of blocks) {
+    const tm = b ? timerOf(b) : null;
+    if (tm) return tm.up ? { kind: 'up' } : { kind: b.hold ? 'hold' : 'timer', left: tm.left };
+  }
+  const next = blocks.find((b) => b && !b.past);
+  if (!next) return { kind: 'done' };
+  return { kind: blocks.some((b) => b && b.past) ? 'next' : 'starts', at: next.at };
+}
+
 // Where "now" sits on the plan's clock, in minutes. With a session clock it is the real time
 // since the cook began; without one (an older saved session, a test) it is the planned start
 // of the step in front of the cook, which is where that cook is.

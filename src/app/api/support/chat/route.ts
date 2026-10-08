@@ -68,6 +68,8 @@ import { normalizeContext, formatContextNote, validZone, dayIn } from '@/lib/ai/
 import { answeredReplies } from '@/lib/supportRequests.mjs';
 import { cleanFormContext, formNote, cleanFill, FILL_FORM_TOOL } from '@/lib/ai/noraForms.mjs';
 import { readCoachToday } from '@/lib/ai/coachToday.mjs';
+import { adminLookupAccount } from '@/lib/ai/adminLookup.mjs';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { searchFoodsServer } from '@/lib/food-search-server';
 import { plainText } from '@/lib/ai/replyText.mjs';
 import {
@@ -452,6 +454,15 @@ const COACH_TOOLS = [
   { type: 'function', name: 'get_coach_today', description: "The COACH'S day: booking requests waiting for them to confirm, today's sessions on their own clock, and the clients the Today screen flags (red or amber) with why — the same signals the app's Today runs. Call for 'what needs me today', 'what's on today', 'anything I need to do', 'who needs me'. Say how many clients were checked when it was not all of them, and when it marks something as not read (notRead, goalsOrCheckinsUnread, sleepAndCheckinGaugesUnread) say so: never present that as an all-clear. 'as' names the listing a client was flagged under when they hold both.", parameters: NO_ARGS, strict: true },
   { type: 'function', name: 'get_client_snapshot', description: "A coached client's recent numbers: sessions kept, workout minutes, days logged and average macros, latest and starting weight, key lifts. Only for a client this coach actively coaches; otherwise it answers allowed:false.", parameters: { type: 'object', properties: { clientId: { type: 'string', description: 'The client id from find_client or context.' } }, required: ['clientId'], additionalProperties: false }, strict: true },
 ];
+// ── Admin-only READ: the help desk (the Ask Nora plan, step 5) ──
+// Offered ONLY to an account computeMembership calls an admin (the ADMIN_EMAILS allow-list)
+// whose email is confirmed, and refused again at the call. Read-only; every lookup is logged
+// before it runs (src/lib/ai/adminLookup.mjs, supabase-migrations/2026-10-08-admin-lookup-log.sql).
+const ADMIN_TOOLS = [
+  { type: 'function', name: 'admin_lookup_account', description: "ADMIN ONLY. Look up a Shape account by its exact email address for a help-desk question: who it is, its membership and plan, the coaches it subscribes to, and, for a coach, their listings and whether payouts (Stripe) are set up. Read-only, and every lookup is logged with the admin's account. Call it only when the admin gives an email address; never guess one.", parameters: { type: 'object', properties: { email: { type: 'string', description: 'The account email address the admin gave.' } }, required: ['email'], additionalProperties: false }, strict: true },
+];
+const ADMIN_PROMPT_NOTE =
+  "ADMIN HELP DESK: You are talking to a Shape admin. admin_lookup_account reads another person's account by the email they give, for a help-desk question. It is read-only and every lookup is logged with the admin's account. Look up only the account they name, answer the question they asked, and give no more of the record than it needs. 'unavailable' means that part could not be read: say so, never treat it as none. You cannot change an account from here: refunds, cancellations, payouts and edits are done in the console.";
 // ── Trainer-only WRITE tool: build a session or a program from the coach's words ──
 // Offered ONLY to a verified member whose role is trainer — the same role the action
 // registry gates `draft_workout` on — so a client, a nutritionist or a visitor never
@@ -527,7 +538,7 @@ const NUTRITION_PROMPT_NOTE = [
 const TEAM_QUOTE = '[A reply from the Shape team, quoted]';
 const PERSON_NOTE =
   `TALK TO A PERSON: Under this chat there is a "Talk to a person" button. It sends their question and this conversation to the Shape team, and a person replies here in this chat and by email. When they need a person (a refund, an account change, a bug, anything you cannot do), tell them to tap it. You cannot send it yourself, so never say you have. A message that starts ${TEAM_QUOTE} is that reply: answer questions about it, and never contradict it with a guess.`;
-const READ_TOOLS = new Set([...MEMBER_READ_TOOLS.map((t) => t.name), ...COACH_TOOLS.map((t) => t.name)]);
+const READ_TOOLS = new Set([...MEMBER_READ_TOOLS.map((t) => t.name), ...COACH_TOOLS.map((t) => t.name), ...ADMIN_TOOLS.map((t) => t.name)]);
 // Up to this many model turns per request: a lookup, an action drafted from
 // it, and a reply is three; Astra "continues through more steps", so the cap
 // is a budget, and the reply is taken on the last round whatever is pending.
@@ -628,7 +639,7 @@ async function profileZone(sb: Actor['supabase'], uid: string): Promise<string |
 // The per-request context the READ tools run with: the caller's own RLS client
 // and id (member-verified), the clock, and whether the caller is a coach — null
 // for anyone else, so a fabricated call fails closed exactly like memory.
-type ReadCtx = { sb: Actor['supabase']; uid: string; now: Date; isCoach: boolean; zone: string; role?: string };
+type ReadCtx = { sb: Actor['supabase']; uid: string; now: Date; isCoach: boolean; zone: string; role?: string; admin?: { id: string; email: string } | null; surface?: 'web' | 'app' };
 
 // The per-request context a direct memory tool runs with (member-verified).
 type MemoryCtx = {
@@ -949,6 +960,14 @@ async function runRead(name: string, args: Record<string, unknown>, reads: ReadC
       case 'get_reminders': return await readReminders(sb, uid);
       case 'get_points': return await readPoints(sb, uid, { now });
       case 'get_account': return await readAccount(sb, uid);
+      case 'admin_lookup_account': {
+        // Re-checked here: the schema is offered only to a confirmed admin, and a call from
+        // anyone else is refused rather than trusted.
+        if (!reads.admin) return { error: 'not_admin', message: 'Only a Shape admin can look up another account.' };
+        let db;
+        try { db = createAdminClient(); } catch { return { ok: false, error: 'unavailable', message: 'Account lookups are not configured on this server.' }; }
+        return await adminLookupAccount(db, { admin: reads.admin, email: args.email, surface: reads.surface, computeMembership });
+      }
       case 'find_client': {
         if (!reads.isCoach) return { error: 'not_a_coach', message: 'Only a coach can look up a client.' };
         const roster = (await readCoachRoster(sb, uid)) as { ok: boolean; isCoach?: boolean; clients?: Array<{ id: string; name: string | null; roles: string[] }> };
@@ -1037,7 +1056,7 @@ async function askOpenAI(
   messages: ChatMessage[],
   propose: ProposeFn,
   tone: string | undefined,
-  member: { contextMsg: string | null; memberTools: typeof MEMBER_TOOLS; memoryCtx: MemoryCtx | null; cookMsg: string | null; reads: ReadCtx | null; coachTools: typeof COACH_TOOLS; trainerTools: typeof TRAINER_TOOLS; nutritionTools?: typeof NUTRITION_TOOLS; trainerZone?: string; noCards?: boolean; isMember: boolean; signedIn?: boolean; teamReplies?: Set<string>; voice: boolean; locale: string | null; coach: CoachCtx; where?: { system: string; data: string | null }; form?: FormCtx | null },
+  member: { contextMsg: string | null; memberTools: typeof MEMBER_TOOLS; memoryCtx: MemoryCtx | null; cookMsg: string | null; reads: ReadCtx | null; coachTools: typeof COACH_TOOLS; adminTools?: typeof ADMIN_TOOLS; trainerTools: typeof TRAINER_TOOLS; nutritionTools?: typeof NUTRITION_TOOLS; trainerZone?: string; noCards?: boolean; isMember: boolean; signedIn?: boolean; teamReplies?: Set<string>; voice: boolean; locale: string | null; coach: CoachCtx; where?: { system: string; data: string | null }; form?: FormCtx | null },
   signal?: AbortSignal,
 ): Promise<{ reply: string; actions: SupportAction[]; model: string | null } | null> {
   if (!hasOpenAIKey()) return null;
@@ -1069,9 +1088,10 @@ async function askOpenAI(
   const langNote = langName ? `\n\nLANGUAGE: The member's app is set to ${langName} (${member.locale}). Answer in ${langName} unless they write to you in another language; keep coach names, product names and figures as they are.` : '';
   const trainerNote = member.trainerTools.length && member.memberTools.length && !member.cookMsg ? `\n\n${trainerPromptNote(member.reads ? member.reads.now : new Date(), member.trainerZone)}` : '';
   const nutritionNote = member.nutritionTools && member.nutritionTools.length && member.memberTools.length && !member.cookMsg ? `\n\n${NUTRITION_PROMPT_NOTE}` : '';
+  const adminNote = member.adminTools && member.adminTools.length && member.memberTools.length && !member.cookMsg ? `\n\n${ADMIN_PROMPT_NOTE}` : '';
   const noCardsNote = member.noCards && !member.cookMsg ? `\n\n${NO_CARDS_NOTE}` : '';
   const personNote = member.signedIn && !member.noCards && !member.cookMsg ? `\n\n${PERSON_NOTE}` : '';
-  const systemPrompt = `${SYSTEM_PROMPT}${member.memberTools.length && !member.cookMsg ? `\n\n${MEMBER_PROMPT_NOTE}` : ''}${trainerNote}${nutritionNote}${noCardsNote}${personNote}${cookOverride}${member.voice ? `\n\n${VOICE_PROMPT_NOTE}` : ''}${langNote}\n\n${toneInstruction(tone)}`;
+  const systemPrompt = `${SYSTEM_PROMPT}${member.memberTools.length && !member.cookMsg ? `\n\n${MEMBER_PROMPT_NOTE}` : ''}${trainerNote}${nutritionNote}${adminNote}${noCardsNote}${personNote}${cookOverride}${member.voice ? `\n\n${VOICE_PROMPT_NOTE}` : ''}${langNote}\n\n${toneInstruction(tone)}`;
   let input: unknown[] = [
     { role: 'system', content: systemPrompt },
     // Where they are: the clock in their zone and what the server verified (system), then
@@ -1104,7 +1124,7 @@ async function askOpenAI(
   // trainer draft_workout.
   const tools = member.cookMsg
     ? []
-    : [...(member.memberTools.length ? [...TOOLS, ...member.memberTools, ...MEMBER_READ_TOOLS, ...member.coachTools, ...member.trainerTools, ...(member.nutritionTools || [])] : TOOLS), ...(member.form ? [FILL_FORM_TOOL] : [])]
+    : [...(member.memberTools.length ? [...TOOLS, ...member.memberTools, ...MEMBER_READ_TOOLS, ...member.coachTools, ...(member.adminTools || []), ...member.trainerTools, ...(member.nutritionTools || [])] : TOOLS), ...(member.form ? [FILL_FORM_TOOL] : [])]
       .filter((t) => !(member.noCards && WRITE_TOOLS.has(String((t as { name?: unknown }).name))));
   // ⚠ MODEL TIERING: a signed-in-and-verified member rides the pin (Astra);
   // anyone else rides the public model. `model` is set explicitly for the
@@ -1302,6 +1322,7 @@ export async function POST(request: Request) {
   let coachTools: typeof COACH_TOOLS = [];
   let trainerTools: typeof TRAINER_TOOLS = [];
   let nutritionTools: typeof NUTRITION_TOOLS = [];
+  let adminTools: typeof ADMIN_TOOLS = [];
   let zone = screen.timezone || 'UTC';
   let isMember = false;
   let membership: Awaited<ReturnType<typeof computeMembership>> | null = null;
@@ -1320,8 +1341,14 @@ export async function POST(request: Request) {
       zone = isCoach
         ? await coachZone(actor.supabase, actor.user.id, screen.timezone, actor.role)
         : (screen.timezone || (await profileZone(actor.supabase, actor.user.id)) || 'UTC');
-      reads = { sb: actor.supabase, uid: actor.user.id, now: new Date(), isCoach, zone, role: actor.role };
+      // ⚠ AN ADMIN IS THE ALLOW-LIST'S VERDICT ON A CONFIRMED EMAIL. computeMembership matches
+      // the email alone; the help desk also requires Supabase to have confirmed it, so an
+      // allow-listed address someone registered without owning it is not an admin here.
+      const admin = membership.isAdmin && actor.user.email && actor.user.email_confirmed_at
+        ? { id: actor.user.id, email: actor.user.email.toLowerCase() } : null;
+      reads = { sb: actor.supabase, uid: actor.user.id, now: new Date(), isCoach, zone, role: actor.role, admin, surface };
       if (isCoach) coachTools = COACH_TOOLS;
+      if (admin) adminTools = ADMIN_TOOLS;
       // ⚠ THE ROLES THE REGISTRY GATES ON, not membership's coach verdict: draft_workout
       // is `roles: ['trainer']`, checked against the actor's every role (primary plus
       // profiles.roles[]), so a dual-role account that also trains drafts too, and
@@ -1389,7 +1416,7 @@ export async function POST(request: Request) {
 
   // The Shape team's replies in this history, checked against the stored conversation.
   const teamReplies = await storedTeamReplies(actor, messages);
-  const ai = await askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx, cookMsg, reads, coachTools, trainerTools, nutritionTools, trainerZone: zone, isMember, signedIn: !!actor, teamReplies, voice, locale, coach, noCards, where, form }, request.signal).catch(() => null);
+  const ai = await askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx, cookMsg, reads, coachTools, adminTools, trainerTools, nutritionTools, trainerZone: zone, isMember, signedIn: !!actor, teamReplies, voice, locale, coach, noCards, where, form }, request.signal).catch(() => null);
   if (ai) return respond({ reply: ai.reply, source: 'ai', actions: ai.actions, model: ai.model });
 
   // Cook Mode is a read-only, grounded sous-chef: the support fallback can claim
