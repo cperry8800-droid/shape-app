@@ -227,6 +227,45 @@ function CwProposalCard({ a }) {
   );
 }
 
+// Nora's values for the sign-up or application form open on this page (the Ask Nora plan,
+// step 5). Nothing is filled until this tap, nothing is ever submitted, and the page's own
+// bridge (signup.jsx, window.shapeNoraForm) takes only the form it is and refuses the
+// password, documents and every consent box.
+function CwFillCard({ a }) {
+  const [status, setStatus] = React.useState("idle"); // idle|done|error
+  const mono = "'JetBrains Mono', monospace";
+  const ink = "var(--sh-ink, #f2ede4)", muted = "var(--sh-ink2, #a09b94)";
+  const fields = Array.isArray(a.fields) ? a.fields : [];
+  const fill = () => {
+    const form = window.shapeNoraForm;
+    let ok = false;
+    try { ok = !!(form && form.kind === a.form && a.values && form.fill(a.values)); } catch (e) { ok = false; }
+    setStatus(ok ? "done" : "error");
+  };
+  return (
+    <div data-nora-fill-card style={{ width: "100%", maxWidth: "92%", border: `1px solid ${cwHexA(TEAL, 0.45)}`, background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.07)", borderRadius: 14, padding: 12, marginTop: 8 }}>
+      <div style={{ fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL_BRIGHT }}>
+        {status === "done" ? "Filled in ✓" : "For your form · check, then fill"}
+      </div>
+      <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 5, maxHeight: 280, overflowY: "auto" }}>
+        {fields.map((f, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 6, fontFamily: mono, fontSize: 10.5, flexWrap: "wrap" }}>
+            <span style={{ color: muted }}>{f.label}</span>
+            <span style={{ color: ink, fontWeight: 600 }}>{String(f.value)}</span>
+          </div>
+        ))}
+      </div>
+      {status === "error" && <div style={{ marginTop: 7, fontFamily: mono, fontSize: 10, color: "#e0463c", lineHeight: 1.4 }}>Open the form these are for, then tap again.</div>}
+      {status === "done" && <div style={{ marginTop: 7, fontFamily: sans, fontSize: 12, color: muted, lineHeight: 1.4 }}>Check each step, then continue. Your password and the agreement boxes are yours to do.</div>}
+      {status !== "done" && (
+        <div style={{ marginTop: 10 }}>
+          <button onClick={fill} style={{ border: 0, background: TEAL, color: PAPER, borderRadius: 999, padding: "7px 15px", fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer" }}>{a.label || "Fill these in"}</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // A twentieth of a second of silence (the same clip as public/newdesign/noraVoiceLoop.mjs
 // SILENT_CLIP; tests/nora-voice-mode.test.mjs holds the two equal). Played on Nora's player
 // inside the tap that asked for her voice, so the reply set on that same element after the
@@ -2057,6 +2096,8 @@ function ChatWidget(props) {
                       {m.actions.map((a, ai) => (
                         a.type === "proposal"
                           ? <CwProposalCard key={ai} a={a} />
+                          : a.type === "fill"
+                          ? <CwFillCard key={ai} a={a} />
                           : <a key={ai} href={a.url || "#"}
                               onClick={(e) => { if (!a.url) e.preventDefault(); }}
                               style={{ textDecoration: "none", border: `1px solid ${TEAL}`, background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.10)", color: "var(--sh-accent-ink, #2ee0c4)", borderRadius: 14, padding: "7px 12px", fontFamily: sans, fontSize: 12, fontWeight: 500, cursor: "pointer", display: "inline-flex", flexDirection: "column", lineHeight: 1.3 }}>
