@@ -8956,15 +8956,18 @@ const bsCkHobOff = (kitchen) => ({ burners: Math.min(BS_HOB_MAX.stove, Math.max(
 
 // A step's opening words, for its caption under the bar on the website's timeline: the first
 // clause, at most six words, and the room before the dish's next step cuts the rest with an
-// ellipsis. A lead-in clause ("Meanwhile, pat the salmon dry") gives way to the one after it,
-// because "Meanwhile" alone says nothing. An en dash does not end a clause: it is the one in
-// "12–15 minutes". Less room than BS_CK_CAP_MIN gets no caption: two or three letters say nothing.
+// ellipsis. A lead-in clause ("Meanwhile, pat the salmon dry", "Once it boils, add the pasta")
+// gives way to the one after it, because "Meanwhile" alone says nothing; a leading "Now" or
+// "Then" is dropped from its own clause ("Now spoon half the glaze over" is the instruction).
+// An en dash does not end a clause: it is the one in "12–15 minutes". Less room than
+// BS_CK_CAP_MIN gets no caption: two or three letters say nothing.
 const BS_CK_CAP_MIN = 40;
 const BS_CK_DANGLING = /^(a|an|the|to|in|into|on|onto|for|with|of|and|or|at|by|from|over|until|per|\d[\d½¼¾/–-]*)$/i;
-const BS_CK_LEAD_IN = /^(meanwhile|while|once|when|as soon as|as|after|then|now|next|finally)\b/i;
+const BS_CK_LEAD_IN = /^(meanwhile|while|once|when|as soon as|as|after)\b|^(then|now|next|finally)$/i;
+const BS_CK_ADVERB = /^(then|now|next|finally)\s+/i;
 const bsCkFirstWords = (text, n = 6) => {
   const clauses = String(text || '').split(/[—,;:(]|\.(?:\s|$)/).map((c) => c.trim()).filter(Boolean);
-  const pick = clauses.length > 1 && BS_CK_LEAD_IN.test(clauses[0]) ? clauses[1] : (clauses[0] || '');
+  const pick = clauses.length > 1 && BS_CK_LEAD_IN.test(clauses[0]) ? clauses[1] : (clauses[0] || '').replace(BS_CK_ADVERB, '');
   const all = pick.split(/\s+/).filter(Boolean);
   const w = all.slice(0, n);
   // Cut at six words a clause can stop mid-phrase ("Stir the frozen peas into the", "Warm the

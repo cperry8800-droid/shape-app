@@ -222,6 +222,13 @@ test('a caption is the step\'s opening words: a lead-in gives way, a range stays
   assert.equal(bsCkFirstWords('Meanwhile, pat the salmon dry and rub it with a little oil.'), 'Pat the salmon dry and rub');
   assert.equal(bsCkFirstWords('While it roasts, make the couscous.'), 'Make the couscous');
   assert.equal(bsCkFirstWords('Assemble the bowls, then serve.'), 'Assemble the bowls', '"As" is a lead-in only as a word of its own');
+  assert.equal(bsCkFirstWords('Once it boils, add the pasta.'), 'Add the pasta');
+  // A leading "Now" or "Then" opens the instruction itself, which must not be skipped for the
+  // clause after it ("Honey scorches in about a minute", in the demo plan's salmon bowl).
+  assert.equal(bsCkFirstWords('Now spoon half the glaze over and give it a final 30 seconds. Honey scorches in about a minute.'), 'Spoon half the glaze');
+  assert.equal(bsCkFirstWords('Then add the garlic and stir.'), 'Add the garlic and stir');
+  assert.equal(bsCkFirstWords('Finally, scatter the herbs.'), 'Scatter the herbs');
+  assert.equal(bsCkFirstWords('Now.'), 'Now', 'a step that is only the word keeps it');
   assert.equal(bsCkFirstWords('Roast another 12–15 minutes, until the broccoli edges char.'), 'Roast another 12–15 minutes');
   assert.equal(bsCkFirstWords('Stir the frozen peas into the rice and cover.'), 'Stir the frozen peas');
   assert.equal(bsCkFirstWords('Warm the peanut butter for 10 seconds.'), 'Warm the peanut butter');
