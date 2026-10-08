@@ -979,3 +979,35 @@ test('app roster keeps new clients in Needs You and errors distinct from an empt
   assert.match(failed, /Retry/);
   assert.doesNotMatch(failed, /NO CLIENTS YET/);
 });
+
+// A coach's hands-off pick on a step timed per side, or as a range (2026-10-08). Per side is never
+// a window (the cook comes back to turn it), so the editor says why instead of asking for a time
+// the step already states; a range is its low end; a range starting under 4 minutes gets the
+// usual hint.
+test('the method editor explains a per-side step, and a range is a window from its low end', () => {
+  const { html, warnings } = render(editor({
+    stepAuthoring: true,
+    initialBlocks: [{ id: 'b1', text: 'Dinner — Chicken · 600 kcal', steps: [
+      { t: 'Sear 4 minutes a side, until it releases.', station: 'stove' },
+      { t: 'Simmer the sauce 8 to 10 minutes.', station: 'stove' },
+      { t: 'Simmer 3 to 5 minutes.', station: 'stove' },
+      { t: 'Plate it.', station: null },
+      { t: 'Sear the scallions 1 minute per side.', station: 'stove' },
+    ] }],
+  }));
+  assert.equal(warnings.length, 0, warnings.join('\n'));
+  // This harness's translator returns the default text without filling `{min}`, so these read
+  // which hint each step gets; tests/coach-step-lengths.test.mjs pins the minutes.
+  const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  const hints = ['a', 'b', 'c', 'd', 'e'].map((k, i, all) => {
+    const from = text.indexOf(` ${k}. `);
+    const to = i + 1 < all.length ? text.indexOf(` ${all[i + 1]}. `) : text.indexOf('+ STEP');
+    return text.slice(from, to).replace(/^.*? × ?/, '').trim();
+  });
+  assert.match(hints[0], /^Timed per side, so the cook comes back to turn it: \{min\} min hands-on, not hands-off\.$/, 'a: per side');
+  assert.match(hints[1], /^◷ \{min\} min hands-off/, 'b: the range is a window');
+  assert.match(hints[2], /^State a time of 4\+ minutes/, 'c: a range starting under 4 asks for a time');
+  assert.equal(hints[3], '', 'd: hands-on, no hint');
+  // ⚠ Codex, on e4ea9ba: a per-side step too short to carry minutes got "state a time".
+  assert.match(hints[4], /^Timed per side, so the cook comes back to turn it/, 'e: per side, however short');
+});

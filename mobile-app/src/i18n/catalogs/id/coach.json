@@ -467,6 +467,7 @@
   "editor.videoBadge": "VIDEO",
   "editor.windowHint": "Cantumkan waktu 4+ menit di langkah (“panggang 15 menit”) agar jadi tanpa pengawasan.",
   "editor.windowOk": "{min} mnt tanpa pengawasan {station} — sambil menunggu bisa lanjut masakan lain",
+  "editor.windowPerSide": "Waktunya per sisi, jadi harus kembali untuk membalik: {min} mnt diawasi, bukan tanpa pengawasan.",
   "editor.yourType": "{type} milikmu.",
   "grocery.aislesCount": "{count, plural, one {# lorong} other {# lorong}}",
   "grocery.andMore": " +{count} lagi",

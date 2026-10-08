@@ -467,6 +467,7 @@
   "editor.videoBadge": "VIDEO",
   "editor.windowHint": "State a time of 4+ minutes in the step (“roast 15 minutes”) to make it hands-off.",
   "editor.windowOk": "{min} min hands-off {station} — the cook can work on another dish",
+  "editor.windowPerSide": "Timed per side, so the cook comes back to turn it: {min} min hands-on, not hands-off.",
   "editor.yourType": "your {type}.",
   "grocery.aislesCount": "{count, plural, one {# aisle} other {# aisles}}",
   "grocery.andMore": " +{count} more",

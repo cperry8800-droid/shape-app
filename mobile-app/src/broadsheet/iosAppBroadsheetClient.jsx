@@ -12467,10 +12467,21 @@ function BSPrepTonightCook({ slug, group = null, onClose }) {
 // minutes" as 25 minutes instead of the planner's assumed 3 for a step with no length. It is
 // the catalog's rule (a step's minutes are the ones its own text states, never parsed at plan
 // time, cookOrchestrator.mjs's stepCost) and the shape a coach's plan carries; nothing is
-// made a hands-off window, so no dish is scheduled to cook during another's step. A step timed
+// made a hands-off window by it, so no dish is scheduled to cook during that step. A step timed
 // per side ("4 minutes a side") takes both sides, 8. Steps under 4 minutes in all keep the
 // planner's 3. tests/prep-week-step-lengths.test.mjs holds the plan to it.
 const bsTimedStep = (t, min, station) => ({ t, min, passive: false, station });
+// A demo-plan step the cook can walk away from (`passive: true`): rice under its lid, a tray in
+// the oven. The planner may cook another dish during it, and the step's own dish waits for its
+// timer. Held to the catalog's window rules by tests/shape-kitchen-data.test.mjs, which reads
+// these steps beside the catalog's: nothing to stir or turn during it, no instruction after its
+// time, never the dish's last step unless it is off the heat, and the next step does not open
+// "Meanwhile". So a tray on a hold is never turned during it: the two roasts here sit on a single
+// uncrowded layer, which is why they need no turn. ⚠ A roast once split into two holds, with the
+// turn opening the second, and Codex measured why that does not work: the planner fills a hold
+// with whatever fits, so the cook was still on another dish's step when the first hold ended,
+// and the turn came two minutes late.
+const bsHoldStep = (t, min, station) => ({ t, min, passive: true, station });
 
 function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initialView = '', onStartConsumed = () => {}, cookWith = null, onCookWithConsumed = () => {}, prepTonight = null, onPrepTonightConsumed = () => {} }) {
   const t = useBS();
@@ -12759,8 +12770,8 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
           ],
           steps: [
             'Heat the oven to 220°C / 425°F and toss the sweet potato cubes in oil and salt until every face is coated — a dry cube steams and goes soft rather than crisping.',
-            bsTimedStep('Roast 25 minutes on a single uncrowded layer, turning once, until the edges caramelise and a fork slides in with no resistance.', 25, 'oven'),
-            'Meanwhile get a heavy pan properly hot, add the beef in one layer and leave it alone so it browns rather than stews in its own liquid.',
+            bsHoldStep('Roast 25 minutes on a single uncrowded layer, until the edges caramelise and a fork slides in with no resistance.', 25, 'oven'),
+            'Get a heavy pan properly hot, add the beef in one layer and leave it alone so it browns rather than stews in its own liquid.',
             bsTimedStep('Break it up, stir in the cumin and paprika, and cook 6 minutes more until no pink remains and the spices smell toasted.', 6, 'stove'),
             'Warm the beans through with a splash of their own liquid so they stay whole.',
             'Build the bowl — potato, beef, beans — then add the salsa and avocado last so they stay cool against the hot base.',
@@ -12884,7 +12895,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
           ],
           steps: [
             'Rinse the rice until the water runs clear, then cook it 1 part rice to 1 and a half parts salted water.',
-            bsTimedStep('Bring to a boil, cover, drop to the lowest heat and leave it 12 minutes — do not lift the lid, the trapped steam is doing the cooking.', 12, 'stove'),
+            bsHoldStep('Bring to a boil, cover, drop to the lowest heat and leave it 12 minutes — do not lift the lid, the trapped steam is doing the cooking.', 12, 'stove'),
             bsTimedStep('Heat the oven to 220°C / 425°F and roast the veg 15 minutes, flipping halfway, until the edges char and catch.', 15, 'oven'),
             'Season the chicken with salt and paprika and pat it dry, then lay it into a hot pan.',
             bsTimedStep('Give it 4 minutes a side without moving it, until it releases cleanly and the thickest point reads 74°C / 165°F — clear juices are not a doneness test.', 8, 'stove'),
@@ -13028,7 +13039,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
           steps: [
             'Heat the oven to 220°C / 425°F and cut the veg to a similar size, so nothing burns while the rest is still raw.',
             'Toss with olive oil and salt until glossy, then spread them out with space between each piece — crowded veg steams instead of roasting.',
-            bsTimedStep('Roast 22 minutes, turning once, until the edges brown and the thickest pieces give under a fork.', 22, 'oven'),
+            bsHoldStep('Roast 22 minutes, until the edges brown and the thickest pieces give under a fork.', 22, 'oven'),
             'Tip them onto the plate while hot and crumble the feta over so it softens against the heat. Scatter the olives.',
             'Toast the bread and serve alongside, for scooping up whatever is left on the plate.',
           ],
@@ -13118,7 +13129,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
           ],
           steps: [
             'Salt the steak and leave it out while you start the rice — straight from the fridge it cooks unevenly, grey at the edge before the middle is warm.',
-            bsTimedStep('Cook the rice 1 part to 1 and a half parts salted water, covered, 12 minutes on the lowest heat.', 12, 'stove'),
+            bsHoldStep('Cook the rice 1 part to 1 and a half parts salted water, covered, 12 minutes on the lowest heat.', 12, 'stove'),
             bsTimedStep('Get the pan almost smoking, then sear the steak 3 minutes a side without moving it, until a dark crust forms and it releases on its own.', 6, 'stove'),
             bsTimedStep('Rest it 5 minutes on a board. Cut it straight off the heat and the juice runs out onto the board instead of staying in the meat.', 5, 'off'),
             'Slice against the grain — find the direction the fibres run and cut across them — then plate over the rice with the slaw.',
@@ -13491,7 +13502,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
           ],
           steps: [
             'Heat the oven to 200°C / 400°F. Salt the thighs and pat the skin dry — salt pulls moisture out, and dry skin is the only way it crisps.',
-            bsTimedStep('Roast skin-side up 35 minutes, undisturbed, until the skin is deep gold and the thickest part reads 74°C / 165°F — keep the probe off the bone, which reads hotter than the meat.', 35, 'oven'),
+            bsHoldStep('Roast skin-side up 35 minutes, undisturbed, until the skin is deep gold and the thickest part reads 74°C / 165°F — keep the probe off the bone, which reads hotter than the meat.', 35, 'oven'),
             'Let them sit out of the oven for a few minutes while you dress the greens.',
             'Toss the greens with olive oil and lemon only just before serving; dressed early they wilt and collapse.',
             'Plate the chicken, tear the bread, and spoon the pan drippings over the greens — that fat is the best thing in the tray.',

@@ -467,6 +467,7 @@
   "editor.videoBadge": "ВІДЕО",
   "editor.windowHint": "Вкажіть у кроці час від 4 хвилин («запікайте 15 хвилин»), щоб він ішов без нагляду.",
   "editor.windowOk": "{min} хв без нагляду {station} — можна зайнятися іншою стравою",
+  "editor.windowPerSide": "Час указано на кожен бік — треба повернутися й перевернути: {min} хв під наглядом, не без нагляду.",
   "editor.yourType": "ваш {type}.",
   "grocery.aislesCount": "{count, plural, one {# відділ} few {# відділи} many {# відділів} other {# відділу}}",
   "grocery.andMore": " +{count} ще",

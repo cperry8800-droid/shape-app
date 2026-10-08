@@ -467,6 +467,7 @@
   "editor.videoBadge": "BIDIYO",
   "editor.windowHint": "Rubuta lokaci na minti 4 ko fiye a cikin matakin (“a gasa minti 15”) don ya zama ba sai an tsaya ba.",
   "editor.windowOk": "Minti {min} ba sai an tsaya ba {station} — mai girki na iya ci gaba da wani abinci",
+  "editor.windowPerSide": "An auna lokaci ga kowane gefe, don haka sai an dawo a juya shi: minti {min} na hannu.",
   "editor.yourType": "{type} naka.",
   "grocery.aislesCount": "{count, plural, one {# layi} other {# layuka}}",
   "grocery.andMore": " +{count} ƙari",

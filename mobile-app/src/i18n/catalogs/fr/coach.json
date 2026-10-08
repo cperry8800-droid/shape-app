@@ -467,6 +467,7 @@
   "editor.videoBadge": "VIDÉO",
   "editor.windowHint": "Indiquez une durée de 4 minutes ou plus dans l’étape (« rôtir 15 minutes ») pour la rendre sans surveillance.",
   "editor.windowOk": "{min} min sans surveillance {station} — vous pouvez avancer un autre plat",
+  "editor.windowPerSide": "Durée par face : il faut revenir retourner. {min} min surveillé, pas sans surveillance.",
   "editor.yourType": "votre {type}.",
   "grocery.aislesCount": "{count, plural, one {# rayon} other {# rayons}}",
   "grocery.andMore": " +{count} de plus",

@@ -467,6 +467,7 @@
   "editor.videoBadge": "VIDEO",
   "editor.windowHint": "Gib im Schritt eine Zeit von 4+ Minuten an („15 Minuten rösten“), damit er unbeaufsichtigt läuft.",
   "editor.windowOk": "{min} Min. unbeaufsichtigt {station} — währenddessen geht ein anderes Gericht weiter",
+  "editor.windowPerSide": "Pro Seite getimt, also wird zwischendurch gewendet: {min} Min. beaufsichtigt, nicht unbeaufsichtigt.",
   "editor.yourType": "dein {type}.",
   "grocery.aislesCount": "{count, plural, one {# Gang} other {# Gänge}}",
   "grocery.andMore": " +{count} weitere",

@@ -467,6 +467,7 @@
   "editor.videoBadge": "VÍDEO",
   "editor.windowHint": "Informe um tempo de 4+ minutos no passo (“asse 15 minutos”) para deixá-lo sem supervisão.",
   "editor.windowOk": "{min} min sem supervisão {station} — dá para adiantar outro prato",
+  "editor.windowPerSide": "Tempo por lado: é preciso voltar para virar. {min} min com supervisão, não sem supervisão.",
   "editor.yourType": "seu {type}.",
   "grocery.aislesCount": "{count, plural, one {# corredor} other {# corredores}}",
   "grocery.andMore": " +{count} mais",

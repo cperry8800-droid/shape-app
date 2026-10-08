@@ -467,6 +467,7 @@
   "editor.videoBadge": "VIDEO",
   "editor.windowHint": "Put time wey reach 4 minutes for the step (“roast 15 minutes”) make e no need eye.",
   "editor.windowOk": "{min} min wey no need eye {station} — you fit dey do another dish",
+  "editor.windowPerSide": "Na time for each side, so you go come back turn am: {min} min wey you go dey there.",
   "editor.yourType": "your {type}.",
   "grocery.aislesCount": "{count, plural, one {# aisle} other {# aisles}}",
   "grocery.andMore": " +{count} more",

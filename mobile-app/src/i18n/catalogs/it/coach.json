@@ -467,6 +467,7 @@
   "editor.videoBadge": "VIDEO",
   "editor.windowHint": "Indica un tempo di 4+ minuti nel passaggio (“inforna 15 minuti”) per renderlo senza presidio.",
   "editor.windowOk": "{min} min senza presidio {station} — puoi portare avanti un altro piatto",
+  "editor.windowPerSide": "Tempo per lato: bisogna tornare a girarlo. {min} min con supervisione, non senza presidio.",
   "editor.yourType": "il tuo {type}.",
   "grocery.aislesCount": "{count, plural, one {# corsia} other {# corsie}}",
   "grocery.andMore": " +{count} altri",
