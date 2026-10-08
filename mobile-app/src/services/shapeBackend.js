@@ -206,7 +206,7 @@ async function bridgeSessionToApi(session = state.session) {
   const response = await fetch(`${apiBaseUrl}/api/auth/session`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
+    credentials: 'same-origin',
     body: JSON.stringify({
       access_token: session.access_token,
       refresh_token: session.refresh_token,
@@ -625,7 +625,7 @@ async function signOut() {
   let cookieCleared = !apiBaseUrl;
   try {
     if (apiBaseUrl) {
-      const res = await fetch(`${apiBaseUrl}/api/auth/session`, { method: 'DELETE', credentials: 'include' });
+      const res = await fetch(`${apiBaseUrl}/api/auth/session`, { method: 'DELETE', credentials: 'same-origin' });
       cookieCleared = Boolean(res && res.ok);
     }
   } catch (e) {}
@@ -6635,7 +6635,7 @@ async function habitsRequest(body) {
   const headers = { 'Content-Type': 'application/json' };
   if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
   const res = await fetch(`${apiBaseUrl}/api/client/habits`, {
-    method: body ? 'POST' : 'GET', credentials: 'include', cache: 'no-store', headers,
+    method: body ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store', headers,
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
   const data = await res.json();
@@ -8315,7 +8315,7 @@ async function remindersList() {
   const headers = {};
   if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
   try {
-    const res = await fetch(`${apiBaseUrl}/api/client/reminders`, { headers, credentials: 'include', cache: 'no-store' });
+    const res = await fetch(`${apiBaseUrl}/api/client/reminders`, { headers, credentials: 'same-origin', cache: 'no-store' });
     return await res.json().catch(() => ({ reminders: [] }));
   } catch (e) { return { reminders: [] }; }
 }
@@ -8325,7 +8325,7 @@ async function remindersSave(r) {
   if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
   const tz = _deviceTz();
   try {
-    const res = await fetch(`${apiBaseUrl}/api/client/reminders`, { method: 'POST', headers, credentials: 'include', body: JSON.stringify({ tz, ...r }) });
+    const res = await fetch(`${apiBaseUrl}/api/client/reminders`, { method: 'POST', headers, credentials: 'same-origin', body: JSON.stringify({ tz, ...r }) });
     return await res.json().catch(() => ({ ok: false }));
   } catch (e) { return { ok: false }; }
 }
@@ -8334,7 +8334,7 @@ async function remindersRemove(id) {
   const headers = {};
   if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
   try {
-    const res = await fetch(`${apiBaseUrl}/api/client/reminders?id=${encodeURIComponent(id)}`, { method: 'DELETE', headers, credentials: 'include' });
+    const res = await fetch(`${apiBaseUrl}/api/client/reminders?id=${encodeURIComponent(id)}`, { method: 'DELETE', headers, credentials: 'same-origin' });
     return await res.json().catch(() => ({ ok: false }));
   } catch (e) { return { ok: false }; }
 }

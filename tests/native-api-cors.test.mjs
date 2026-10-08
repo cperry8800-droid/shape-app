@@ -51,6 +51,8 @@ test('⚠ the app\'s preflight is answered before the session and the gates ever
   assert.match(res.headers.get('access-control-allow-methods'), /\bPOST\b.*\bPATCH\b.*\bDELETE\b/);
   assert.match(res.headers.get('access-control-allow-headers'), /Authorization/);
   assert.match(res.headers.get('access-control-allow-headers'), /Content-Type/);
+  // A no-store fetch can name these in its preflight (Codex, #2251).
+  assert.match(res.headers.get('access-control-allow-headers'), /Cache-Control, Pragma/);
   assert.equal(res.headers.get('vary'), 'Origin');
 });
 
@@ -97,4 +99,12 @@ test('the app\'s native build points at these origins: iOS default scheme, Andro
   assert.match(cap, /androidScheme: 'https'/, 'Android serves the app from https://localhost');
   assert.doesNotMatch(cap, /iosScheme/, 'iOS keeps the default capacitor:// scheme');
   assert.doesNotMatch(cap, /hostname:/, 'both keep the default localhost host');
+});
+
+// ── Codex, #2251 ─────────────────────────────────────────────────────────────────
+test('no app call asks for credentialed CORS: the policy sends no Allow-Credentials', () => {
+  const be = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
+  // A cross-origin request in `include` mode fails without Access-Control-Allow-Credentials,
+  // cookie or no cookie. The app authenticates with a Bearer token, so it never needs one.
+  assert.doesNotMatch(be, /credentials: ['"]include['"]/);
 });

@@ -22,7 +22,9 @@ export const NATIVE_APP_ORIGINS: readonly string[] = ['capacitor://localhost', '
 const SELF_CORS_PREFIXES = ['/api/apply'];
 
 const ALLOW_METHODS = 'GET, POST, PUT, PATCH, DELETE, OPTIONS';
-const ALLOW_HEADERS = 'Authorization, Content-Type, Accept';
+// Cache-Control and Pragma: a WebView can add both to a `cache: 'no-store'` fetch and name them
+// in the preflight, and the app reads with no-store throughout (Codex, #2251).
+const ALLOW_HEADERS = 'Authorization, Content-Type, Accept, Cache-Control, Pragma';
 const EXPOSE_HEADERS = 'Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining';
 
 /** The origin to allow for this request, or null: an /api path, from the app, not self-served. */
