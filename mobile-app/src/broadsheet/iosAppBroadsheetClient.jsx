@@ -8566,6 +8566,10 @@ const BS_CK_CSS = `
 .bsck.web .cD .dtl .tl .rail{top:31px}
 .bsck.web .cD .dtl .tl .sb{top:27px;height:9px;border-radius:2.5px}
 .bsck.web .cD .dtl .tl .sb.cur{top:24px;height:15px;box-shadow:0 0 0 2px var(--p2),0 0 0 4px var(--i)}
+.bsck .cB .tl .cap{position:absolute;top:44px;font:600 11px/1.2 var(--f-b);color:var(--i50);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:4px;box-sizing:border-box}
+.bsck .cB .tl .cap.cur{color:var(--i85)}
+.bsck .cB .tl .cap.past{opacity:.5}
+.bsck.web .cD .dtl .tl.words .lane{height:62px}
 .bsck.web .cD .dtl .tl .ph b{top:7px;font-size:10px}
 .bsck.web .cD .dtl .tl .flag{top:20px}
 .bsck.web .cD .dtl .tl .endl{top:7px;font-size:10px}
@@ -8950,6 +8954,27 @@ function bsCkHob({ tr, occ, selected = null, onZone = null, nowText = null }) {
 // An empty stove, for the plated screen (every burner off).
 const bsCkHobOff = (kitchen) => ({ burners: Math.min(BS_HOB_MAX.stove, Math.max(1, kitchen?.stove || 1)), ovens: Math.min(BS_HOB_MAX.oven, Math.max(1, kitchen?.oven || 1)), stove: [], oven: [], board: [], off: [], overflow: { stove: 0, oven: 0 } });
 
+// A step's opening words, for its caption under the bar on the website's timeline: the first
+// clause, at most six words, and the room before the dish's next step cuts the rest with an
+// ellipsis. A lead-in clause ("Meanwhile, pat the salmon dry") gives way to the one after it,
+// because "Meanwhile" alone says nothing. An en dash does not end a clause: it is the one in
+// "12–15 minutes". Less room than BS_CK_CAP_MIN gets no caption: two or three letters say nothing.
+const BS_CK_CAP_MIN = 40;
+const BS_CK_DANGLING = /^(a|an|the|to|in|into|on|onto|for|with|of|and|or|at|by|from|over|until|per|\d[\d½¼¾/–-]*)$/i;
+const BS_CK_LEAD_IN = /^(meanwhile|while|once|when|as soon as|as|after|then|now|next|finally)\b/i;
+const bsCkFirstWords = (text, n = 6) => {
+  const clauses = String(text || '').split(/[—,;:(]|\.(?:\s|$)/).map((c) => c.trim()).filter(Boolean);
+  const pick = clauses.length > 1 && BS_CK_LEAD_IN.test(clauses[0]) ? clauses[1] : (clauses[0] || '');
+  const all = pick.split(/\s+/).filter(Boolean);
+  const w = all.slice(0, n);
+  // Cut at six words a clause can stop mid-phrase ("Stir the frozen peas into the", "Warm the
+  // peanut butter for 10"): a trailing article, preposition or bare number goes, down to two
+  // words. A clause that ends on one by itself ("Nestle the chicken back in") keeps it.
+  if (all.length > n) while (w.length > 2 && BS_CK_DANGLING.test(w[w.length - 1])) w.pop();
+  const out = w.join(' ');
+  return out ? out[0].toUpperCase() + out.slice(1) : '';
+};
+
 // The tracks: one rail per dish across the minutes it cooks, a short bar per step at its
 // planned minute, the whole cook fitted to the width with a playhead at now (owner's pick A,
 // "Rails", 2026-10-08). Bars carry no digits: a step 3 minutes long is ~15px on a phone, too
@@ -8958,8 +8983,9 @@ const bsCkHobOff = (kitchen) => ({ burners: Math.min(BS_HOB_MAX.stove, Math.max(
 // { left, up } for a block with a timer running. `readyAt` names the end of the ruler, and is
 // the same time the top bar shows, so the screen never states two ready times; without it the
 // end is a dashed line only. `fit` is the plated screen: the finished cook, the playhead at its
-// end. Tapping it opens every step.
-function bsCkTracks({ tr, lanes, nowMin, span, width, anchor, colorOf, timerOf = () => null, onOpen, fit = false, readyAt = null }) {
+// end. `words` is the website's layout, wide enough to caption each bar with its step's
+// opening words. Tapping it opens every step.
+function bsCkTracks({ tr, lanes, nowMin, span, width, anchor, colorOf, timerOf = () => null, onOpen, fit = false, readyAt = null, words = false }) {
   const W = Math.max(200, width || 366);
   const S = Math.max(1, span || 1);
   const ppm = fit ? (W - 24) / S : (W - 40) / S;
@@ -9020,7 +9046,7 @@ function bsCkTracks({ tr, lanes, nowMin, span, width, anchor, colorOf, timerOf =
   const open = () => { if (onOpen) onOpen(); };
   return (
     <div className="cB dtl">
-      <div className="tl" role="button" tabIndex={0} onClick={open}
+      <div className={`tl${words ? ' words' : ''}`} role="button" tabIndex={0} onClick={open}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } }}
         aria-label={tr('cook:ck.timelineAria', { defaultValue: 'Timeline. Show all steps' })}>
         <div className="ruler" aria-hidden="true">{marks}</div>
@@ -9040,13 +9066,22 @@ function bsCkTracks({ tr, lanes, nowMin, span, width, anchor, colorOf, timerOf =
                 <span className={`st ${st.kind}`}>{statusText(st)}</span>
               </div>
               {rb > ra ? <span className="rail" style={{ left: ra, width: rb - ra }} /> : null}
-              {lane.blocks.map((b) => {
+              {lane.blocks.map((b, k) => {
                 const X = x(b.at);
                 const w = Math.max(4, (b.end - b.at) * ppm - 2);
                 if (X + w < -4 || X > W + 4) return null;
                 const tm = timerOf(b, lane);
-                const cls = ['sb', b.hold && 'hold', tm && 'live', b.past && !fit && !(tm && !tm.up) && 'past', b.current && !fit && 'cur'].filter(Boolean).join(' ');
-                return <span key={b.idx} className={cls} style={{ left: X + 1, width: w }} />;
+                const past = b.past && !fit && !(tm && !tm.up);
+                const cls = ['sb', b.hold && 'hold', tm && 'live', past && 'past', b.current && !fit && 'cur'].filter(Boolean).join(' ');
+                const bar = <span key={b.idx} className={cls} style={{ left: X + 1, width: w }} />;
+                if (!words) return bar;
+                // The caption may run on past its bar to where the dish's next step starts, or to the
+                // end of the cook, never into the next caption or past the right edge.
+                const next = lane.blocks[k + 1];
+                const room = Math.min(next ? x(next.at) : Math.max(X + w + 1, fx), W) - X - 6;
+                const cap = room >= BS_CK_CAP_MIN ? bsCkFirstWords(b.text) : '';
+                if (!cap) return bar;
+                return [bar, <span key={`c${b.idx}`} className={`cap${past ? ' past' : ''}${b.current && !fit ? ' cur' : ''}`} style={{ left: X + 1, width: room }}>{cap}</span>];
               })}
             </div>
           );
@@ -10061,7 +10096,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   };
   const trackW = layout.w > 0 ? (layout.web ? layout.w - (layout.full ? 64 : 40) : layout.w - 24) : 366;
   const tracksFor = (fit) => (tracksOn && lanes.length > 0 && hasMethod
-    ? bsCkTracks({ tr, lanes, nowMin: fit ? bsPlanEnd(seq.tl) : nowMin, span: bsPlanEnd(seq.tl), width: trackW, anchor: fit ? startRef.current : clockAnchor, colorOf: (ln) => dishColor(ln.iid), timerOf: holdOf, onOpen: () => setSheet('steps'), fit, readyAt: fit ? null : finishAt })
+    ? bsCkTracks({ tr, lanes, nowMin: fit ? bsPlanEnd(seq.tl) : nowMin, span: bsPlanEnd(seq.tl), width: trackW, anchor: fit ? startRef.current : clockAnchor, colorOf: (ln) => dishColor(ln.iid), timerOf: holdOf, onOpen: () => setSheet('steps'), fit, readyAt: fit ? null : finishAt, words: layout.web })
     : null);
 
   const selHold = running.find((x) => x.id === selectedHold && stationOf(x.stepIdx)) || null;
@@ -10727,7 +10762,7 @@ function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, se
   };
   const trackW = layout.w > 0 ? (layout.web ? layout.w - (layout.full ? 64 : 40) : layout.w - 24) : 366;
   const tracks = tracksOn && lanes.length > 0
-    ? bsCkTracks({ tr, lanes, nowMin, span: bsPlanEnd(timeline), width: trackW, anchor, colorOf: (ln) => colorOfIid(ln.iid), timerOf: holdOf, onOpen: () => setSheet('steps'), readyAt: finishAt })
+    ? bsCkTracks({ tr, lanes, nowMin, span: bsPlanEnd(timeline), width: trackW, anchor, colorOf: (ln) => colorOfIid(ln.iid), timerOf: holdOf, onOpen: () => setSheet('steps'), readyAt: finishAt, words: layout.web })
     : null;
   const hob = bsCkHob({
     tr, occ, selected: selHold ? selHold.id : null,
@@ -11837,7 +11872,7 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
       const h = carried.find((x) => x.dishIndex === ln.iid && x.stepIdx === b.step);
       return h ? { left: leftOf(h), up: !(h.endsAt > sessionNow) } : null;
     };
-    return bsCkTracks({ tr, lanes, nowMin, span: end, width: trackW, anchor: Number.isFinite(anchor) ? anchor : sessionNow - nowMin * 60000, colorOf: (ln) => colorOf(ln.iid), timerOf, onOpen: () => setSheet('steps'), fit });
+    return bsCkTracks({ tr, lanes, nowMin, span: end, width: trackW, anchor: Number.isFinite(anchor) ? anchor : sessionNow - nowMin * 60000, colorOf: (ln) => colorOf(ln.iid), timerOf, onOpen: () => setSheet('steps'), fit, words: layout.web });
   };
   const cur = ordered[cookIdx];
   const prev = cookIdx > 0 ? ordered[cookIdx - 1] : null;
