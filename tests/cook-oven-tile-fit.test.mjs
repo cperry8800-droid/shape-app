@@ -8,8 +8,15 @@
 // note wrapped to two lines.
 //
 // The phone oven now stacks like the burners: the name on its own line, as wide as the tile
-// and cut with an ellipsis, then the time and the note on one line that never wraps. Several
-// ovens share the strip in equal columns that can shrink to nothing.
+// and cut with an ellipsis, then the time and the note on one line that never wraps.
+//
+// ⚠ TWO OVENS, FOUND BY CODEX ON THE FIRST HEAD OF THIS FIX. The first head put two ovens side by
+// side in equal columns, and at 320px each column is 28px: the first oven's "19:59" (44px, never
+// cut) ran 16px over the second dish, and with both timers running "12:00" ended 5px past the
+// tile. So two ovens take a line each ("Roa… 19:54" over "She… 12:00"). On that line the time
+// is never cut, the note keeps its width while the name has any to give, and the name takes only
+// what is left: measured at 430px, sharing the cut by width had turned "Now" into "N…" beside
+// "Sheet-pan …".
 //
 // Layout cannot be measured without a browser, and this suite has none, so the fix was driven
 // in Chromium (every oven state of a Together cook at 320, 390 and 430px; the PR records it)
@@ -19,6 +26,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { loadBroadsheet } from './helpers/broadsheet-mount.mjs';
+
+const React = createRequire(import.meta.url)('react');
+const { renderToStaticMarkup } = createRequire(import.meta.url)('react-dom/server');
 
 const SRC = readFileSync('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx', 'utf8');
 
@@ -58,9 +70,34 @@ test('the time and the note never wrap, and the note gives way first', () => {
   assert.equal(decls('.bsck.dev .cC .oven .in .n').flex, 'none', 'a countdown is never cut');
 });
 
-test('several ovens share the strip in columns that can shrink', () => {
+test('the oven window fills the strip and lets its dish be cut to it', () => {
   const win = decls('.bsck.dev .cC .oven .win');
   assert.equal(win['grid-auto-columns'], 'minmax(0,1fr)');
   assert.equal(win['min-width'], '0');
   assert.match(win['place-items'], /stretch$/, 'a dish fills its column, so its name can be cut to it');
+});
+
+test('two ovens take a line each: the name gives way first, the time never', () => {
+  assert.equal(decls('.bsck.dev .cC .oven .win.two')['grid-auto-flow'], 'row', 'side by side, each oven gets 28px at 320px');
+  assert.equal(decls('.bsck.dev .cC .oven .win.two .in')['flex-wrap'], 'nowrap', 'a dish is one line, so two fit the 40px strip');
+  // A zero basis that grows: the name gets only the room the time and the note leave. With the
+  // base rule's auto basis the cut is shared by width, and a long name takes "Now" down with it.
+  assert.equal(decls('.bsck.dev .cC .oven .win.two .in b').flex, '1 1 0');
+});
+
+const { bsCkHob, bsCkHobOff } = await loadBroadsheet(['bsCkHob', 'bsCkHobOff'], React);
+const tr = (key, o) => (o && o.defaultValue ? o.defaultValue.replace(/\{(\w+)\}/g, (_, k) => o[k] ?? '') : key);
+const dish = (title, left) => ({ title, kind: 'hold', left, timerId: title });
+const ovenWin = (oven) => {
+  const html = renderToStaticMarkup(React.createElement(React.Fragment, null, bsCkHob({ tr, occ: { ...bsCkHobOff({ stove: 2, oven: 2 }), oven } })));
+  return html.match(/<div class="(win[^"]*)">(.*?)<\/div><\/div><div class="brd/)?.slice(1);
+};
+
+test('the oven window is marked two exactly when two dishes are in the ovens', () => {
+  const [two, inside] = ovenWin([dish('Roasted veg and halloumi traybake', 1194), dish('Sheet-pan salmon', 720)]);
+  assert.equal(two, 'win two');
+  assert.equal(inside.match(/class="in"/g).length, 2);
+  assert.match(inside, /19:54.*12:00/);
+  assert.equal(ovenWin([dish('Sheet-pan salmon', 720)])[0], 'win', 'one dish keeps the stacked layout');
+  assert.equal(ovenWin([])[0], 'win');
 });
