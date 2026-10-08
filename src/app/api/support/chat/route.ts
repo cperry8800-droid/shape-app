@@ -60,7 +60,7 @@ import { resolveActor, makeCtx, serverRegistry, proposalSecret, casWriteUserGoal
 import { toneInstruction } from '@/lib/ai/tone.mjs';
 import { formatMemberContext, UNAVAILABLE_NOTE } from '@/lib/ai/memberContext.mjs';
 import { formatCookContext, COOK_CONTEXT_HEADER } from '@/lib/ai/cookContext.mjs';
-import { rememberMemoryTool, forgetMemoryTool, draftBriefFromText } from '@/lib/ai/actions.mjs';
+import { rememberMemoryTool, forgetMemoryTool, draftBriefFromText, noraSessionZone } from '@/lib/ai/actions.mjs';
 import { computeMembership } from '@/lib/membership-core';
 import { noraTier, visitorGate, countQuestion, limitReply, requestIp, CHECK_REPLY } from '@/lib/ai/noraLimits';
 import { greetingKind, greetingFor } from '@/lib/ai/noraGreeting.mjs';
@@ -531,24 +531,29 @@ function trainerPromptNote(now: Date, zone = 'UTC'): string {
   ].join(' ');
 }
 
-// The zone a trainer's "today" means: the one their open hours and Schedule are kept in
-// (trainers.timezone, the zone /api/calendar shows their bookings in), else the zone the
-// device they are asking from is in, else the zone the app stored on their own profile
-// (client_profiles.timezone), else UTC. Rows, not
+// The zone a coach's "today" means: the one their open hours and Schedule are kept in (the
+// listing's timezone, the zone /api/calendar shows their bookings in; a nutritionist's own
+// listing first, otherwise the trainer listing first, as the calendar picks), else the zone
+// the device they are asking from is in, else the zone the app stored on their own profile
+// (client_profiles.timezone), else UTC. ⚠ NOT ONLY A TRAINER'S (Codex, #2253): a
+// nutritionist's prompt used the device's clock while their Schedule used the listing's. Rows, not
 // maybeSingle(): an account can own two trainer listings, and maybeSingle errors on two.
 // Any read that fails, or a zone Intl does not know, reads as UTC, the old behaviour.
-async function trainerZone(sb: Actor['supabase'], uid: string, device: string | null = null): Promise<string> {
+async function coachZone(sb: Actor['supabase'], uid: string, device: string | null = null, role: string | null = null): Promise<string> {
   const valid = (z: unknown): string | null => {
     const v = typeof z === 'string' ? z.trim() : '';
     if (!v) return null;
     try { new Intl.DateTimeFormat('en-US', { timeZone: v }); return v; } catch { return null; }
   };
   try {
-    const t = await sb.from('trainers').select('timezone').eq('owner_id', uid).limit(5);
-    // An unreadable listing is UTC, never the profile's zone: the listing is the
-    // authoritative one, and the profile can name somewhere else entirely (Codex, #2238).
-    if (t.error) return 'UTC';
-    for (const row of (t.data ?? []) as Array<{ timezone?: unknown }>) { const z = valid(row.timezone); if (z) return z; }
+    const tables = role === 'nutritionist' || role === 'dietitian' ? ['nutritionists', 'trainers'] : ['trainers', 'nutritionists'];
+    for (const table of tables) {
+      const t = await sb.from(table).select('timezone').eq('owner_id', uid).limit(5);
+      // An unreadable listing is UTC, never the profile's zone: the listing is the
+      // authoritative one, and the profile can name somewhere else entirely (Codex, #2238).
+      if (t.error) return 'UTC';
+      for (const row of (t.data ?? []) as Array<{ timezone?: unknown }>) { const z = valid(row.timezone); if (z) return z; }
+    }
     if (device) return device;
     const c = await sb.from('client_profiles').select('timezone').eq('user_id', uid).limit(1);
     const z = valid(((c.data ?? [])[0] as { timezone?: unknown } | undefined)?.timezone);
@@ -845,7 +850,7 @@ async function runTool(name: string, args: Record<string, unknown>, propose: Pro
 // What the page says is open, checked as the caller: a client only from this coach's own
 // roster (with the name the roster gives), a session only when the caller's own client can
 // read it and it is the caller's own or a rostered client's.
-async function verifyOpen(reads: ReadCtx, clientId: string | null, sessionId: string | null): Promise<{ client: { id: string; name: string } | null; session: { id: string; at: string; status: string | null; who: string | null } | null }> {
+async function verifyOpen(reads: ReadCtx, clientId: string | null, sessionId: string | null, actor: Actor): Promise<{ client: { id: string; name: string } | null; session: { id: string; at: string; status: string | null; who: string | null; zone: string } | null }> {
   let roster: Array<{ id: string; name: string }> = [];
   if (reads.isCoach) {
     const r = (await readCoachRoster(reads.sb, reads.uid)) as { ok: boolean; isCoach?: boolean; clients?: Array<{ id: string; name: string | null }> };
@@ -853,14 +858,16 @@ async function verifyOpen(reads: ReadCtx, clientId: string | null, sessionId: st
   }
   const nameOf = (id: unknown): string | null => roster.find((c) => String(c.id).toLowerCase() === String(id || '').toLowerCase())?.name || null;
   const clientName = clientId ? nameOf(clientId) : null;
-  let session: { id: string; at: string; status: string | null; who: string | null } | null = null;
+  let session: { id: string; at: string; status: string | null; who: string | null; zone: string } | null = null;
   if (sessionId) {
-    const { data, error } = await reads.sb.from('sessions').select('id, client_id, scheduled_at, status').eq('id', sessionId).maybeSingle();
-    const row = data as { id?: string; client_id?: string; scheduled_at?: string; status?: string } | null;
+    const { data, error } = await reads.sb.from('sessions').select('id, client_id, scheduled_at, status, provider_id, provider_role').eq('id', sessionId).maybeSingle();
+    const row = data as { id?: string; client_id?: string; scheduled_at?: string; status?: string; provider_id?: number; provider_role?: string } | null;
     if (!error && row && row.id && row.scheduled_at) {
       const own = String(row.client_id || '').toLowerCase() === reads.uid.toLowerCase();
       const who = own ? null : nameOf(row.client_id);
-      if (own || who) session = { id: row.id, at: row.scheduled_at, status: row.status || null, who };
+      // The zone its Schedule shows it in, the same one reschedule_session saves in.
+      const zone = await noraSessionZone({ supabase: reads.sb, actor: { id: actor.user.id, role: actor.role } }, row);
+      if (own || who) session = { id: row.id, at: row.scheduled_at, status: row.status || null, who, zone };
     }
   }
   return { client: clientId && clientName ? { id: clientId, name: clientName } : null, session };
@@ -1211,9 +1218,9 @@ export async function POST(request: Request) {
       // and an admin is included explicitly (CodeRabbit, #2128).
       const isCoach = !!(membership.isCoach || membership.isAdmin);
       const isTrainer = actor.role === 'trainer' || (actor.roles || []).includes('trainer');
-      // A trainer's day is their Schedule's zone; anyone else's is the device's, then the profile's.
-      zone = isTrainer
-        ? await trainerZone(actor.supabase, actor.user.id, screen.timezone)
+      // A coach's day is their Schedule's zone; anyone else's is the device's, then the profile's.
+      zone = isCoach
+        ? await coachZone(actor.supabase, actor.user.id, screen.timezone, actor.role)
         : (screen.timezone || (await profileZone(actor.supabase, actor.user.id)) || 'UTC');
       reads = { sb: actor.supabase, uid: actor.user.id, now: new Date(), isCoach, zone };
       if (isCoach) coachTools = COACH_TOOLS;
@@ -1239,7 +1246,7 @@ export async function POST(request: Request) {
   // coach's own roster, and a session only when the caller's own client can read it and it
   // is theirs or a rostered client's. Anything else is dropped, never named.
   const opened = reads && (screen.clientId || screen.sessionId)
-    ? await verifyOpen(reads, screen.clientId, screen.sessionId).catch(() => ({ client: null, session: null }))
+    ? await verifyOpen(reads, screen.clientId, screen.sessionId, actor as Actor).catch(() => ({ client: null, session: null }))
     : { client: null, session: null };
   const where = formatContextNote({ surface, page: screen.page, now: new Date(), zone, client: opened.client, session: opened.session, item: screen.item, coachTools: coachTools.length > 0 });
   // ⚠ THE OPEN DOOR IS METERED. A visitor's first question passes the bot check (a

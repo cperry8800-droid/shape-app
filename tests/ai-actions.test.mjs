@@ -525,3 +525,33 @@ test('log_meal lands on the member\'s own day: the zone the chat route resolved,
     assert.equal(ctx._calls[0].body.date, day, zone);
   }
 });
+
+test('reschedule_session saves on the session\'s own listing clock, whatever the caller\'s primary role (Codex, #2253)', async () => {
+  // An account that coaches both disciplines, primary role trainer (New York listing), moving
+  // a session booked on its nutritionist listing (London). The move is London time, as the
+  // Schedule shows it and as the chat route names it.
+  const listings = { trainers: { id: 7, timezone: 'America/New_York' }, nutritionists: { id: 9, timezone: 'Europe/London' } };
+  const supabase = {
+    from(table) {
+      const f = {};
+      const chain = {
+        select: () => chain,
+        eq: (col, v) => { f[col] = v; return chain; },
+        maybeSingle: async () => {
+          if (table === 'sessions') return { data: { id: 's-1', client_id: 'client-9', scheduled_at: '2026-06-20T14:00:00Z', status: 'confirmed', provider_id: 9, provider_role: 'nutritionist' } };
+          const row = listings[table];
+          return { data: row && (f.id == null || f.id === row.id) ? row : null };
+        },
+      };
+      return chain;
+    },
+  };
+  const posts = [];
+  const actor = { id: 'coach-1', role: 'trainer' };
+  const ctx = ctxFor(actor, supabase, (m, p, b) => { posts.push(b); return { ok: true, status: 200, data: { ok: true } }; });
+  const registry = registryWith(rescheduleSessionAction);
+  const p = await proposeChange({ registry, action: 'reschedule_session', input: { sessionId: 's-1', date: '2026-06-26', time: '15:00' }, actor, ctx, secret: SECRET });
+  assert.equal(p.preview.diff[0].before, '2026-06-20 15:00 (Europe/London)', '14:00Z is 3 PM in London in June');
+  await confirmChange({ registry, token: p.token, actor, ctx, secret: SECRET, audit: inMemoryAudit() });
+  assert.equal(posts[0].tz, 'Europe/London');
+});

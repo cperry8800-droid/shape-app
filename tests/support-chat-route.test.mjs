@@ -777,3 +777,18 @@ test('a member\'s reads and facts use their zone: the device\'s, else the profil
     assert.match(systemTexts(r.calls.ai[0].body), /Habits today: 1 of 1 done\./, 'the member facts count their day too');
   }
 });
+
+test('a nutritionist\'s day and an open session are on their listing\'s clock, the one reschedule_session saves in (Codex, #2253)', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-10-08T15:00:00Z') });
+  const tables = {
+    trainers: [], nutritionists: [{ id: 9, name: 'Ana', owner_id: U, timezone: 'Europe/London' }],
+    subscriptions: [{ client_id: C1, provider_id: 9, provider_role: 'nutritionist', status: 'active' }],
+    sessions: [{ id: S1, client_id: C1, scheduled_at: '2026-10-09T13:00:00Z', status: 'confirmed', provider_id: 9, provider_role: 'nutritionist' }],
+  };
+  const r = await loadRoute({ role: 'nutritionist', tables, rpcs: NAMES });
+  await r.mod.POST(post({ ...ask('move this session to Friday at 3'), context: { sessionId: S1, timezone: 'America/New_York' } }));
+  const sys = systemTexts(r.calls.ai[0].body);
+  assert.match(sys, /\(Europe\/London\)/, 'the listing\'s zone, not the device\'s');
+  assert.match(sys, /the session with Priya Shah on Fri, Oct 9, 2:00 PM/, '13:00Z is 2 PM in London');
+  assert.match(sys, /A time they give for it is Europe\/London time\./);
+});
