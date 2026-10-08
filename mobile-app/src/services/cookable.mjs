@@ -180,7 +180,20 @@ export const bsSplitMethodProse = (text) => {
 // from this alternation rather than restating it — a second copy would keep
 // passing while silently ceasing to cover a unit added here, which is exactly
 // the kind of quietly-narrowed gate that guards nothing.
-export const BS_TIMER_UNITS = 'hours?|hrs?|minutes?|mins?|seconds?|secs?';
+//
+// ⚠ THE UNITS OF EVERY LANGUAGE THE APP SHIPS, not English alone (owner, 2026-10-08: "should we
+// create timers on the other languages?" … "ok do it"). A coach writes a meal's method in their
+// own language, and the editor's own hint tells them to: the German one reads „15 Minuten
+// rösten“. Until this line, only English units counted, so a German, Spanish or Russian step had
+// no timer on the cook screen, no hands-off window and no length on the plan; the catalog is
+// English, which is why nothing showed it. The forms are the ones a recipe writes after a number:
+// singular and plural, the case a count takes (Russian минута · минуты · минут · минуту), and the
+// short forms (Std., dk, мин, хв, mnt). tests/step-timers-i18n.test.mjs reads every catalog's
+// own hint through it and holds the English catalog to the timers it had.
+const BS_TIMER_UNITS_HR = 'hours?|hrs?|stunden?|std|horas?|heures?|or[ae]|h|час(?:а|ов)?|ч|год(?:ин[аиу]?)?|saat|giờ|tiếng|jam';
+const BS_TIMER_UNITS_MIN = 'minutes?|mins?|minuten|minut[oi]s?|mn|мин(?:ут[аыу]?)?|хв(?:илин[аиу]?)?|dakika|dk|phút|menit|mnt';
+const BS_TIMER_UNITS_SEC = 'seconds?|secs?|sekunden?|sek|segundos?|seg|secondes?|second[oi]|сек(?:унд[аиуы]?)?|saniye|sn|giây|detik|dtk';
+export const BS_TIMER_UNITS = `${BS_TIMER_UNITS_HR}|${BS_TIMER_UNITS_MIN}|${BS_TIMER_UNITS_SEC}`;
 // What may sit BETWEEN the number and its unit: nothing, whitespace, or ONE
 // continuation word with whitespace on both sides — "cook 5 more minutes",
 // "2 additional minutes", "10 extra mins", "a further 3 minutes". Without it
@@ -193,12 +206,20 @@ export const BS_TIMER_GAP = '(?:\\s+(?:more|additional|extra|further)\\s+|\\s*)'
 // The unit must END there: "Add 2 more minced shallots" would otherwise read
 // "min" out of "minced" and offer a 2-minute timer. Measured before adding it,
 // no step in any catalog puts a number before a word that merely starts with a
-// unit, so this refuses no real timer.
+// unit, so this refuses no real timer. ⚠ Any LETTER ends it, not [a-z]: "минутами" must not
+// read as "минут", and [a-z] does not stop inside Cyrillic or Vietnamese.
 const TIMER_RE = new RegExp(
-  `(\\d+(?:\\s*[–-]\\s*\\d+)?)${BS_TIMER_GAP}(${BS_TIMER_UNITS})(?![a-z])(\\s*\\/\\s*side|\\s+per\\s+side)?`,
-  'gi',
+  `(\\d+(?:\\s*[–-]\\s*\\d+)?)${BS_TIMER_GAP}(${BS_TIMER_UNITS})(?!\\p{L})(\\s*\\/\\s*side|\\s+per\\s+side)?`,
+  'giu',
 );
-const UNIT_SECONDS = (unit) => (/^h/i.test(unit) ? 3600 : /^m/i.test(unit) ? 60 : 1);
+// Hausa writes the unit first: "minti 15", "awa 1". The same span, read the other way round.
+const TIMER_UNIT_FIRST_RE = /(?<!\p{L})(minti|awa|sa['’]?a|daƙiƙ[ao])\s+(\d+(?:\s*[–-]\s*\d+)?)(?![\d\p{L}])/giu;
+const UNIT_HR_RE = new RegExp(`^(?:${BS_TIMER_UNITS_HR}|awa|sa['’]?a)$`, 'iu');
+const UNIT_MIN_RE = new RegExp(`^(?:${BS_TIMER_UNITS_MIN}|minti)$`, 'iu');
+const unitKind = (unit) => (UNIT_HR_RE.test(unit) ? 'hr' : UNIT_MIN_RE.test(unit) ? 'min' : 'sec');
+// An English unit, for the one reader that knows only English: a timer's name (bsStepGist).
+const UNIT_EN_RE = /^(?:hours?|hrs?|minutes?|mins?|seconds?|secs?)$/i;
+const UNIT_SECONDS = (unit) => ({ hr: 3600, min: 60, sec: 1 })[unitKind(unit)];
 
 // THE one parse. Each entry also carries WHERE its duration sits in the step
 // (`at`/`end`), because anything that has to know which words a given timer
@@ -215,24 +236,22 @@ const UNIT_SECONDS = (unit) => (/^h/i.test(unit) ? 3600 : /^m/i.test(unit) ? 60 
 const timerSpans = (text) => {
   const t = str(text);
   if (!t) return [];
-  const out = [];
+  const found = [];
+  const add = (nums, unit, perSide, at, end) => {
+    const firstNum = num(nums.split(/[–-]/)[0]);
+    if (firstNum === null || firstNum <= 0) return;
+    const seconds = firstNum * UNIT_SECONDS(unit);
+    // A cook timer under 5s or over 6h is a parse artifact, not a timer.
+    if (seconds < 5 || seconds > 21600) return;
+    found.push({ seconds, label: `${nums.replace(/\s+/g, '')} ${unitKind(unit)}${perSide ? ' per side' : ''}`, at, end, en: UNIT_EN_RE.test(unit) });
+  };
   let m;
   TIMER_RE.lastIndex = 0;
-  while ((m = TIMER_RE.exec(t)) && out.length < 4) {
-    const firstNum = num(m[1].split(/[–-]/)[0]);
-    if (firstNum === null || firstNum <= 0) continue;
-    const seconds = firstNum * UNIT_SECONDS(m[2]);
-    // A cook timer under 5s or over 6h is a parse artifact, not a timer.
-    if (seconds < 5 || seconds > 21600) continue;
-    const unitLabel = /^h/i.test(m[2]) ? 'hr' : /^m/i.test(m[2]) ? 'min' : 'sec';
-    out.push({
-      seconds,
-      label: `${m[1].replace(/\s+/g, '')} ${unitLabel}${m[3] ? ' per side' : ''}`,
-      at: m.index,
-      end: m.index + m[0].length,
-    });
-  }
-  return out;
+  while ((m = TIMER_RE.exec(t))) add(m[1], m[2], m[3], m.index, m.index + m[0].length);
+  TIMER_UNIT_FIRST_RE.lastIndex = 0;
+  while ((m = TIMER_UNIT_FIRST_RE.exec(t))) add(m[2], m[1], null, m.index, m.index + m[0].length);
+  // In the order the step states them, whichever way round each was written.
+  return found.sort((x, y) => x.at - y.at).slice(0, 4);
 };
 
 // The public contract is {seconds, label} and is pinned by deepEqual in
@@ -384,6 +403,11 @@ export const bsStepGist = (text, ingredients, seconds, nth, avoid) => {
   // first action boundary inside the anchored region.
   const spans = Number.isFinite(seconds) ? timerSpans(t) : [];
   const mine = spans.filter((s) => s.seconds === seconds)[Number.isFinite(nth) ? nth : 0];
+  // ⚠ A name is read with English rules (GIST_SKIP, an ASCII word split), so a timer stated in
+  // another language has none, and the cook screen shows its step number, which is always a
+  // fact. Measured when the parser learned every app language: „Die Zwiebeln 8 Minuten
+  // anbraten“ was named "die", a Turkish step "ate" (half of "ateşte"), a Russian one nothing.
+  if (mine && !mine.en) return '';
   let own = null;
   if (mine) {
     let from = 0;
@@ -738,29 +762,80 @@ export const bsFractionalDuration = (text) => BS_AUTHOR_FRACTIONAL_RE.test(str(t
 //     smoothie is why the planner reads no prose at plan time, so a hands-on step that names one
 //     keeps the assumed 3, as does a decimal (the fractional rule above) and anything under 4
 //     minutes.
-const BS_AUTHOR_PER_SIDE_RE = /^\s+(?:on\s+)?(?:a|each|per)\s+side\b/i;
-const BS_AUTHOR_RANGE_LOW_RE = /(\d+)\s+to\s+$/i;
-const BS_AUTHOR_NOT_WORK_RE = /\b(?:up\s+to|refrigerat\w*|fridge|freez\w*|stor(?:e|ed|ing|age)|overnight|ahead|soak\w*|marinat\w*|days?)\b/i;
+// Each rule below reads the step in any language the app ships, as the timer parser does: the
+// words are the ones a recipe writes, and tests/step-timers-i18n.test.mjs holds each language.
+// Per side, written after the time ("4 minutes a side", „4 Minuten pro Seite“, "4 минуты с
+// каждой стороны")…
+const BS_AUTHOR_PER_SIDE_RE = new RegExp(`^\\s+(?:${[
+  '(?:(?:on|for)\\s+)?(?:a|each|per)\\s+side',               // en · pcm ("for each side")
+  '(?:pro|je)\\s+Seite', 'auf\\s+jeder\\s+Seite',              // de
+  '(?:por|de|en)\\s+(?:cada\\s+)?lado',                       // es · pt
+  '(?:par|de\\s+chaque)\\s+(?:face|côté)',                     // fr
+  '(?:per|da|su)\\s+(?:ogni\\s+)?lato',                       // it
+  'с\\s+каждой\\s+стороны', 'на\\s+каждую\\s+сторону',         // ru
+  'з\\s+кожного\\s+боку', 'з\\s+кожної\\s+сторони', 'на\\s+кожен\\s+бік', // uk
+  'her\\s+(?:bir\\s+)?taraf\\p{L}*',                           // tr
+  'mỗi\\s+(?:mặt|bên)',                                      // vi
+  '(?:per|setiap|tiap)\\s+sisi(?:nya)?',                     // id
+  '(?:a\\s+)?kowane\\s+gefe',                                // ha
+].join('|')})(?!\\p{L})`, 'iu');
+// …or before it, as Turkish, Vietnamese, Indonesian and Hausa usually write it ("her tarafını 4
+// dakika", "mỗi mặt 4 phút"), and Russian or Ukrainian may ("с каждой стороны по 4 минуты").
+const BS_AUTHOR_PER_SIDE_BEFORE_RE = new RegExp(`(?:${[
+  'her\\s+(?:bir\\s+)?taraf\\p{L}*', 'mỗi\\s+(?:mặt|bên)', '(?:setiap|tiap)\\s+sisi(?:nya)?', '(?:a\\s+)?kowane\\s+gefe',
+  'с\\s+каждой\\s+стороны(?:\\s+по)?', 'з\\s+кожного\\s+боку(?:\\s+по)?', 'з\\s+кожної\\s+сторони(?:\\s+по)?',
+].join('|')})[\\s,]*$`, 'iu');
+// A range's first number and its connector: "8 to 10", „8 bis 10“, "8 a 10", "8 à 10", "от 8 до
+// 10", "8 ile 10", "8 đến 10", "8 hingga 10". The dash form ("8–10") is the timer parser's own.
+const BS_AUTHOR_RANGE_LOW_RE = /(\d+)\s+(?:to|bis|a|à|al|до|ile|đến|sampai|hingga)\s+$/iu;
+// A storage or make-ahead time, which is not the cook's work. ⚠ "Up to" is "until" in most of
+// these languages when no number follows (hasta que, jusqu'à ce que, fino a doratura, até dourar),
+// so there it counts only before a number; and Russian or Indonesian "до"/"hingga" between two
+// numbers is a range, not a limit.
+const BS_AUTHOR_NOT_WORK_RE = new RegExp(`(?<!\\p{L})(?:${[
+  'up\\s+to', 'refrigerat\\p{L}*', 'fridge', 'freez\\p{L}*', 'stor(?:e|ed|ing|age)', 'overnight', 'ahead', 'soak\\p{L}*', 'marinat\\p{L}*', 'days?',
+  'bis\\s+zu\\s+\\d', 'kühlschrank\\p{L}*', 'einfrier\\p{L}*', 'gefrier\\p{L}*', 'über\\s+nacht', 'aufbewahr\\p{L}*', 'marinier\\p{L}*', 'einweich\\p{L}*', 'tag(?:e|en)?',
+  'hasta\\s+\\d', 'nevera', 'frigor[ií]fico', 'congel\\p{L}*', 'toda\\s+la\\s+noche', 'guard[ae]\\p{L}*', 'remoj\\p{L}*', 'd[ií]as?',
+  'jusqu[\'’]à\\s+\\d', 'réfrigérateur', 'frigo\\p{L}*', 'congél\\p{L}*', 'toute\\s+la\\s+nuit', 'conserv\\p{L}*', 'tremp\\p{L}*', 'jours?', 'à\\s+l[\'’]avance',
+  'fino\\s+a\\s+\\d', 'tutta\\s+la\\s+notte', 'ammoll\\p{L}*', 'giorn[oi]', 'in\\s+anticipo',
+  'até\\s+\\d', 'geladeira', 'durante\\s+a\\s+noite', 'de\\s+molho', 'com\\s+antecedência',
+  // "Marina" and "marinate", never "marinara": the whole word, as everywhere in this list.
+  'marin(?:a|ar|ad[oa]s?|ez|er|ade|ato|ata|are)',
+  '(?<!\\d\\s{0,3})до\\s+\\d', 'холодильник\\p{L}*', 'замороз\\p{L}*', 'на\\s+ночь', 'на\\s+ніч', 'хран\\p{L}*', 'зберіга\\p{L}*', 'маринад\\p{L}*', 'марину\\p{L}*', 'мариновать', 'замоч\\p{L}*', 'замачива\\p{L}*', 'дн(?:я|ей|і|ів)', 'день', 'заранее', 'заздалегідь',
+  '\\d+\\s*\\p{L}+\\s+kadar', 'buzdolab\\p{L}*', 'dondur\\p{L}*', 'bir\\s+gece', 'gece\\s+boyunca', 'sakla\\p{L}*', 'ıslat\\p{L}*', 'gün', 'önceden',
+  'tối\\s+đa', 'tủ\\s+lạnh', 'đông\\s+lạnh', 'qua\\s+đêm', 'bảo\\s+quản', 'ướp', 'ngâm', 'ngày',
+  '(?<!\\d\\s{0,3})(?:hingga|sampai)\\s+\\d', 'kulkas', 'lemari\\s+es', 'bekukan', 'semalaman', 'simpan', 'marinasi', 'rendam', 'hari',
+  'firji', 'firiji', 'daskare', 'cikin\\s+dare', 'ajiye', 'kwana', 'jiƙa',
+].join('|')})(?!\\p{L})`, 'iu');
 // The first time a step states, in seconds, and whether it is per side; null when it states none.
 // "1 hour 15 minutes" is one time, not 60 and then 15 (Codex): a smaller unit straight after a
-// larger one, with nothing between but a space or "and", adds to it. "Bake 1 hour, then rest 15
-// minutes" is two actions and stays 60.
+// larger one, with nothing between but a space, "and" in the step's language, or an abbreviation's
+// own full stop ("1 Std. 20 Min."), adds to it. "Bake 1 hour, then rest 15 minutes" is two
+// actions and stays 60.
 const BS_AUTHOR_UNIT_RANK = { hr: 3, min: 2, sec: 1 };
 const unitRank = (span) => BS_AUTHOR_UNIT_RANK[span.label.split(' ')[1]] || 0;
+const BS_AUTHOR_AND_RE = /^\s*(?:(?:and|und|y|et|e|и|і|й|ve|và|dan|da)\s+)?$/iu;
 const authoredTime = (t) => {
   const [span, next] = timerSpans(t);
   if (!span) return null;
   // timerSpans reads "8 to 10 minutes" as its "10 minutes"; the low end scales by the same unit.
-  const high = Number((t.slice(span.at).match(/^\d+/) || [])[0]);
-  const low = t.slice(0, span.at).match(BS_AUTHOR_RANGE_LOW_RE);
+  const high = Number((t.slice(span.at).match(/\d+/) || [])[0]);
+  const head = t.slice(0, span.at);
+  const low = head.match(BS_AUTHOR_RANGE_LOW_RE);
   let seconds = low && high > 0 ? Math.min(span.seconds, (span.seconds / high) * Number(low[1])) : span.seconds;
   let end = span.end;
-  if (!low && next && unitRank(next) < unitRank(span) && /^\s*(?:and\s+)?$/i.test(t.slice(span.end, next.at))) {
+  // Only a short unit takes a full stop ("Std.", "min."); "Bake 1 hour. 15 minutes later…" is two.
+  const unit = (t.slice(span.at, span.end).match(/\p{L}+$/u) || [''])[0];
+  const between = t.slice(span.end, next ? next.at : span.end).replace(unit.length <= 3 ? /^\./ : /^$/, '');
+  if (!low && next && unitRank(next) < unitRank(span) && BS_AUTHOR_AND_RE.test(between)) {
     seconds += next.seconds;
     end = next.end;
   }
-  // "/side" and "per side" sit inside the span; "a side" and "each side" follow it.
-  const perSide = /side$/i.test(t.slice(span.at, end)) || BS_AUTHOR_PER_SIDE_RE.test(t.slice(end));
+  // "/side" and "per side" sit inside the span; "a side", „pro Seite“ and the rest follow it, and
+  // some languages put it first.
+  const perSide = /side$/i.test(t.slice(span.at, end))
+    || BS_AUTHOR_PER_SIDE_RE.test(t.slice(end))
+    || BS_AUTHOR_PER_SIDE_BEFORE_RE.test(low ? head.slice(0, low.index) : head);
   return { seconds, perSide };
 };
 // For the editor's hint: a step whose time is per side cannot be made hands-off by any time. The
