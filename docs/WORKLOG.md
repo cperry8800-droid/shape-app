@@ -847,6 +847,30 @@ Everything older, newest-first: [2026-10](WORKLOG-ARCHIVE-2026-10.md) ·
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-10-09 — Security review, cut 2, the app-code half: seven PRs, five migrations, and the lead-boost and menu follow-ups
+
+- **Seven PRs merged on 2026-10-09**, each on CI green on its final head; Codex read on every one; CodeRabbit asked on none. The owner's word for the run: *"continue with 1, 2, and 3"* (restore the conversation trigger; the review's app-code half; the open C2 question), then *"merge it"* on #2289, *"we dont need this test now"* (the full pre-commit suite, for the small later commits) and *"move worklog and war room until the end"*. Cut 1 of the review stays on hold.
+  - [#2284](https://github.com/cperry8800-droid/shape-app/pull/2284) `6bc561a`, the trigger restore; [#2285](https://github.com/cperry8800-droid/shape-app/pull/2285) `5ee1703`, H5 and H6; [#2286](https://github.com/cperry8800-droid/shape-app/pull/2286) `872d5df`, H9, M6 and M8; [#2288](https://github.com/cperry8800-droid/shape-app/pull/2288) `41a1acb`, M1, M2, M3, M4, M10 and M11; [#2289](https://github.com/cperry8800-droid/shape-app/pull/2289) `ef134c1`, L1 to L15; [#2290](https://github.com/cperry8800-droid/shape-app/pull/2290) `6f61678`, the #2285 follow-up; [#2291](https://github.com/cperry8800-droid/shape-app/pull/2291) `275cdca`, item 3. Every merged tree is byte-identical to its PR's final head except #2289's, where another session's #2287 (the Nora booth) landed first and the diff is identical on the new base.
+- **Migrations, five files.** Three are **run and verified live, read-only, at 17:50 UTC**: `2026-10-09-restore-messages-touch-conversation.sql` (the function pinned, the trigger on `public.messages`), `2026-10-09-store-credit-reservations-and-lead-boost-redemption.sql` (`reserve_store_credit`, the five-argument `consume_store_credit` alone, `redeem_lead_boost` for signed-in callers only, `boost_days` on the three catalogue rows) and `2026-10-09-coach-reviews-require-relationship.sql` (the function with Codex's `incomplete_expired` fix, the trigger). ⚠ **Two are not run yet**, handed over as commit-pinned links: `2026-10-09-lead-boost-active-key-and-expiry.sql` (#2290) and `2026-10-09-sale-plan-preview-menus.sql` (#2291). Production held 0 active boosts, 0 reservations and 0 published priced plans when written.
+- **What closed, by finding.**
+  - The production defect the definer capture found (#2282): `messages_touch_conversation` restored with a tie-aware backfill (Codex's P2 on #2284: the trigger and the backfill now share one rule, a preview is right when its time is the latest and its body belongs to a message at that time). The War Room item is done; the drift entry retires with the next capture.
+  - H5: store credit is **reserved at checkout** (a ledger row, released by `checkout.session.expired`, by a 48-hour sweep, and now daily by the score-accountability cron) and consumed by its reservation ref; the webhook says a shortfall out loud. H6: Lead Boosts are bought through `redeem_lead_boost` (the catalogue's 7/14/30 days, the points debited in the same transaction under the store lock); the route only maps its refusals.
+  - H9: only the actor undoes a Nora change, and every undo changes a row or says so. M6: a memory note is audited by id. M8: daily budgets on speak, transcribe and draft-program (a member surface by design, so a budget rather than a coach gate).
+  - M1: the rate-limit subject is a verified account (`getClaims`) or the address. M2: Turnstile on the contact form and route; the auto-reply names the subject at most, and the widget resets after every finished attempt (Codex). M3: 20 open requests per member and coach, before the insert. M4: a review needs a paid subscription or a session that happened (`coach_review_allowed` and a trigger); `incomplete_expired` excluded (Codex's P1). M10: the webhook answers 503 on transient failures so Stripe retries. M11: Turnstile fails closed; the visitor cookie signs its issue time.
+  - L1 to L15 (#2289): deletion in two requests with a ten-minute HMAC token; no cross-site sign-in; the coach does not read the admin's notes; application files by declared or extension type, six at most, before the row; a radio room's host role from the profile; 25 push tokens per account, pruned page by page, re-points logged; `timingSafeEqual` on the push secret; the Apple developer token for members only; meal-note attachments by the bucket's own types behind a 90-day link; Stripe return paths on this origin; the Connect account by its own id; refund targets as the filer's rows; a purchase recorded only when `paid`, with the `async_payment_*` events; admins confirmed, in `admin-access` and the membership mirror (Codex: the verdict the AI routes and the edge gate read); team replies vouched by request id and text, once.
+  - Item 3 (#2291): the public sale-plan functions hand out a meal plan's **counts and the first day's two meals**, nothing more (`sale_plan_preview_detail`); the preview reads that shape, and `bsPreviewReduce` is the SQL rule in JavaScript as the tests' oracle. The SQL output equals the mirror on twelve fixtures on the replica, and the model of a reduced plan equals the model of the full one.
+- ⚠ **CODEX'S FINDINGS ON #2285 WERE READ AFTER THE MERGE.** They posted eight minutes before it, the notifications reached this session hours later, and the merged code carried all four (an elapsed boost blocked every later one; the active slot ignored the role; the fallback could hand back another coach's boost; the sweep had no clock). The file had been run by then, so the fix is a new migration, #2290. **The rule: before merging, read the review threads on the head, not the summary's "Completed" row.** The other rounds: #2284 1 P2, #2286 none, #2288 1 P1 and 1 P2, #2289 2 P2, all fixed in their PR; #2290 and #2291 declined on the usage limit.
+- **Mutation rounds**, every one `--fail-on-skipped`, restored byte-identical: #2284 20/20; #2285 28/28; #2286 16/16; #2288 28/28, then 31/31 with the Codex fixes; #2289 35/35, then 37/37 (⚠ the push-prune loop rewrote two anchors and the flag caught both skips); #2290 11/11; #2291 17/17 (the first round's two survivors were fixture gaps: nothing made the two text rules disagree on `perDay`, and no eighth `days` entry carried a menu). ⚠ **The runner exits 0 with survivors**; a guard that read the exit code pushed once with two survivors outstanding. Read the summary line.
+- **Full gate:** `npm test` 6306/6306 on #2286 and 6329/6330 on #2289's first tree (the one failure the spec's own unescaped quote); the later commits ran their own suites under the small-commit rule and the owner's word, and CI ran everything on every head. Replicas: the restore, the money functions and the reviews trigger were probed on the local PostgreSQL 16 as before; the menu reduction applied twice (the second a no-op).
+- ⚠ **Two files are CRLF** (`public/newdesign/clientMeSettings.jsx`, `src/app/api/apply/route.ts`); an edit that rewrites their endings is a 2,200-line diff. A browser serialises a file with no type as `application/octet-stream`, so "an empty type" never reaches the server as empty.
+- **Written after the merges**, per the 2026-09-11 rule.
+- ⚠ **REGISTERED, NOT DONE:**
+  - **Owner:** run the two migrations above; subscribe the Stripe endpoint to `checkout.session.expired` (and the two `checkout.session.async_payment_*` events if a delayed payment method is ever enabled); set the Turnstile secret for the contact form if it is not.
+  - **The database-side Lows, the owner's decisions:** L12's policy half (the app inserts `refund_requests` directly and can preset `status`), L16 (`stripe_account_id`, `stripe_account_status`, `owner_id` on the public coach rows), L17 (`user_follows` and `get_public_profile` to anon), L18 (self-writable `profiles.email`, `phone`, `username`, `stripe_customer_id`; `league_members`), L19 (the anonymous `CHECK true` inserts). L3's column (admin notes readable by the coach through the own-row policy).
+  - A single workout's exercise outline is still returned whole by the sale-plan functions (the preview shows two moves and a count); reducing it needs the split/week/exercise classification the preview does in JavaScript.
+  - The definer capture: a read-only run at 18:40 UTC read 143 definers plus 14 trigger definers, 83 anon-executable, 0 unaccounted, the conversation trigger among the pinned triggers; the dated fixture and the drift entry's retirement wait for the two migrations to run, so the capture-day record is whole.
+  - A member cannot see what a coach's Nora action did to them. No live model has run any of it; no signed-in pass on a phone.
+
 ### 2026-10-08 — Security and data review, cut 2: 41 findings, and the database half closed in one migration
 
 - **Merged [#2280](https://github.com/cperry8800-droid/shape-app/pull/2280) as `65e5a7c`**, final head `d154678`; the merged tree is byte-identical to it (tree `8b597da` on both). 9 files: one migration, the definer audit's allow-list, two helpers, the live-diff script, three test files and a mutation spec. **No route, no i18n key.** The owner asked *"should we do a code review on shape"*, picked the second of three cuts (*"do 2"*: RLS, SECURITY DEFINER functions, API routes, Stripe and money, Nora) and put the first on hold (*"wait to do 1"*); then *"do the migration"*, *"try coderabbit"*, *"ran migration"*.
@@ -1158,154 +1182,4 @@ Append new entries at the top, under this note.
 - **The footer** reads *"Real coaches. One app. The whole loop."*; the labelling rule it described still holds.
 - **Verified:** mutations (`tests/mutations/homepage-rings-coaches-tabs-2026-10-07.mutations.mjs`) **11/11**; the 15 test files that read these pages, 198 tests; rendered in Chromium (rings at 1440; the tab row with real scrollbars at 1440–390).
 - **Written after the merge**, per the 2026-09-11 rule.
-
-### 2026-10-07 — Coach tools rethink: the Schedule page and the program builder, reviewed; the owner approved all of it
-
-- **Not a code change.** The brainstorm page: https://claude.ai/artifact/5rCNP94RRoduVbaPmbHeVJ (Schedule and Program builder tabs; fix-first cards, a drawn proposal each, the idea bank, a four-step order). Owner: *"I like everything that is proposed for schedule and program builder. Apply all the fixes first then proceed with upgrades/improvements"*.
-- **Fix-first, found while mapping the code:**
-  - Schedule: every booking renders in UTC (`/api/calendar` builds `date`/`time` with `toISOString`/`getUTCHours`), so a 9:00 AM New York consult reads 1:00p; the page loads once with the route's ±60-day default, so far months look empty; `coaches.jsx` advertises two-way Google/Apple/Outlook sync, reminders, no-show handling and intake forms that do not exist.
-  - Builder: the app's workout preview invents Warm-up / Main set / Cool-down and files every move under Main, ignoring the coach's blocks; the app drops the day's playlist and the website's client card drops the demo videos; the day editor shows defaults as data (Load 0, RPE None) and every exercise forced open in Editor/Planner.
-- **Next:** those fixes as their own PRs, then the upgrades in the page's order.
-
-### 2026-10-06 — The profile's strength ridge, its feed's PR and workout lines, and the goal page's 7d volume follow Settings → Units
-
-- **Merged [#2217](https://github.com/cperry8800-droid/shape-app/pull/2217) as `27a5772`**, final head `b7f9f96`; the merged tree is byte-identical to it (tree `284636f` on both). 3 files: `iosAppBroadsheetClient.jsx`, `tests/units-loaded-figures.test.mjs` and its mutation spec. **No migration, no route, no i18n key.** #2215 registered the first two; the owner said *"yes fix both. dont need code review"*, then *"yes fix the workout posts too"*. The PR line turned up while doing them.
-- **What was wrong.** Four figures still read in the unit they arrived in:
-  - the profile's **strength ridge** (Climb → Strength) printed the top PR as `${best} ${unit}` as stored. Since #2215 a PR keeps its set's own unit, so a 102.5 kg record read "103 kg" to an imperial member;
-  - a **PR item on the member's own profile feed** carried "Best: 100 kg × 3" beside a stat the card does convert;
-  - a **logged workout** there read "5.2 km · 30 min" under a "5.2K" stat label. The card converts a stat's value, never its label, and never the body;
-  - the **goal page's "7d volume"** printed `/api/client/train`'s pounds as a bare "9k" whatever the setting.
-- **The fixes**, all in `BSTerrainProfile` and `BSClientGoals`:
-  - the ridge converts through `tTheme.uMeasure`: the same record reads "226 lb × 5" with a 249 lb target. The ridge reads whole numbers, as it always did;
-  - every code-built feed line goes through `tTheme.uText` ("Best: 220 lb × 3", "3.2 mi · 30 min · 300 kcal"), the same rule as the card's stats. Minutes and kcal are untouched. These lines are built by code; the member's own words are never rewritten;
-  - the workout effect hands the raw kilometres out with the item (`distKm`), and `bsProfileDistLabel` writes the label: "5.2K" for kilometres, as it always read, and "3.2 mi" for miles;
-  - the volume row carries its raw pounds out of the effect, and `bsGoalVolume` renders "9.1k lb" / "4.1k kg", the Progress page's form. No volume still reads "—". ⚠ **An imperial member's figure changes too**, from "9k" to "9.1k lb".
-- ⚠ **EVERYTHING CONVERTS AT RENDER, NOT IN THE EFFECT.** These pages load once per mount, so a conversion inside the effect would hold the old unit after a Settings flip until a remount. A mutation that moves the volume's conversion into the effect is killed by the flip test.
-- **Review: none, on the owner's word.** Codex declined on its usage limit when the PR opened; CodeRabbit posted only its skip notice.
-- **Verified:**
-  - New `tests/units-loaded-figures.test.mjs` (5 tests) mounts the shipped components with effects running (the `weekly-readout-surface` pattern), so the fetch → state → render path is production's. The flip tests freeze the fetch, then switch the setting and re-render; each figure changes unit with no refetch.
-  - ⚠ **An "answer only the first call" stub starved the page.** The profile calls the same endpoint from more than one effect, so the first draft's ridge read *No lifts yet*. The stub answers every call until the test freezes it.
-  - The first 4 tests fail on `main`; the workout test fails on the previous head `e6b8cdf`. All 5 pass on `b7f9f96`.
-  - Mutations (`tests/mutations/units-loaded-figures-2026-10-06.mutations.mjs`, `--fail-on-skipped --fail-on-survivor`): **9/9** on `e6b8cdf`, then **14/14** on `b7f9f96`, nothing skipped, restored byte-identical.
-  - 203/203 across the neighbouring suites (the i18n inventory and the feed-card tests included), and the mobile build is clean. Each commit skipped the pre-commit gate under the small-commit rule.
-  - All required checks green on `b7f9f96`, and the debug APK build too.
-- **Written after the merge**, per the 2026-09-11 rule.
-- ⚠ **REGISTERED, NOT DONE:**
-  - ⚠ **NO SIGNED-IN PASS.** No metric member's profile or goal page has been looked at in the app, on a phone or in a browser.
-  - Production holds no `workout_set_logs` rows yet, so the ridge and the PR lines have no real record to show.
-
-### 2026-10-06 — The server adds loads in pounds whatever unit each set was logged in, and a PR keeps its own unit
-
-- **Merged [#2215](https://github.com/cperry8800-droid/shape-app/pull/2215) as `3944948`**, final head `b1f082d`; the merged tree is byte-identical to it (tree `272efa2` on both). 5 files. **No migration, no i18n key.** The owner picked it from my list of next items (*"do 1, then 4, then 2"*). It was the last place the units work could still mix measuring systems, registered out of scope by #2213.
-- **What was wrong.**
-  - `/api/client/train` summed `actual_load × reps` into `volume7dLb` / `totalVolumeLb` without reading `load_unit`.
-  - `/api/client/progress` took raw loads for the weekly strength series, and compared raw loads in its windowed PR fallback.
-  - So a member logging in kilograms got kilogram figures labelled pounds, which the pages (since #2213) then converted as if they were pounds. A member logging both units had 100 kg lose to 200 lb.
-- **`src/lib/set-load.ts`:** one reading of a set's load. `setLoadUnit` is the app logger's rule (`load_unit`, written by `_setLogUnit` and backfilled 2026-06-26), and `setLoadLb` uses the exact factor `get_my_lifts` and `get_client_lifts` use (0.45359237).
-- **Sums are pounds:** train volume and the progress strength series.
-- **A record keeps its own unit and is ranked in pounds.**
-  - A session's best set is the heaviest in pounds and names its own unit (`100 kg × 3`); the website's Train history converts that text.
-  - The windowed PR fallback reports the winning set's own load and unit, with the e1RM in that unit. That is what `get_my_lift_prs` returns, and both pages convert a PR from its own `unit`. A heavier set in the other unit now brings its unit with it; on `main`, the first set's unit stayed.
-- ⚠ **CODERABBIT'S ONE FINDING WAS RIGHT ABOUT THE DISAGREEMENT AND WRONG ABOUT THE DIRECTION.** My first head reported the fallback's PRs in pounds, while the RPC returns each record's own load and unit (it uses pounds only to rank, with 2.20462). CodeRabbit asked for the RPC's rows to be converted to pounds as well.
-  - That would round-trip a kilogram record for its own owner: the converter rounds to a whole number at 100+, so 102.5 kg → 226.0 lb → **103 kg** for a metric reader. That is the class of #2213's 100.5 lb → 101 lb finding.
-  - So the fallback was moved to match the RPC instead (`0780e3c`), and a test pins both branches to the same shape. The reasoning is on the thread, which is resolved.
-  - ⚠ **And my own comment had named the wrong RPC for the factor.** `set-load.ts` and the first PR description credited 0.45359237 to `get_my_lift_prs`, which uses 2.20462 and only to rank. Corrected in the same commit.
-- **Review.** Codex declined on its usage limit when the PR opened, and Copilot declined twice on its quota. CodeRabbit ran one round on `edf2077`, on the owner's word (*"do coderabbit"*): 1 finding, above.
-- **Verified:**
-  - `tests/set-load-units.test.mjs` (6 tests) drives both real `GET` handlers through `loadRealModule`, against a stubbed Supabase client that returns only the columns a query selected. The PR test fails on `edf2077` and on `main`.
-  - Mutations (`tests/mutations/set-load-units-2026-10-06.mutations.mjs`, `--fail-on-skipped --fail-on-survivor`): **13/13 killed**, nothing skipped, files restored byte-identical.
-    - ⚠ **Each head's first run had one survivor, and both were gaps in the test.** On `1d80342`, the stub handed back columns the route had not selected, so a route that stopped asking for `load_unit` still got it. On `0780e3c`, both fixtures' winning sets came after the first set, so the unit a PR takes on first sight was never the one reported. Both are closed.
-  - `tsc --noEmit` clean; the 118 tests that read these routes or e1RM pass. Every commit skipped the pre-commit gate under the small-commit rule, and CI ran the full suite: all required checks green on `b1f082d`.
-- **Written after the merge**, per the 2026-09-11 rule.
-- ⚠ **REGISTERED, NOT DONE:**
-  - Production holds no `workout_set_logs` rows yet, so no member has seen either figure change.
-  - The profile's strength ridge prints the top PR as `${best} ${unit}` without converting it, so a record in the other unit reads in that unit there. #2217, above, fixed it.
-  - The app's goal page shows `7d volume` as an unlabelled `Nk` of pounds, whatever the setting. #2217, above, fixed it.
-
-### 2026-10-06 — Units everywhere: the app's Progress page and Home widgets, and every website dashboard, follow Settings → Units
-
-- **Merged [#2213](https://github.com/cperry8800-droid/shape-app/pull/2213) as `865a515`**, final head `04c6a61`. The branch was cut before #2211 and #2212 merged, so the trees differ; **the PR's diff is byte-identical on the new base** (`8c37c47..04c6a61` against `01cc22f..865a515`: 27 files, +1,514 / −104). **No migration, no route, no i18n key.** The owner asked *"so are the metrics all properly wired on app and website?"*, then *"yes do both"*. The rule: nobody sees two measuring systems, and every weight, distance and length reads in the reader's own **Settings → Units** (`client_settings.units`; imperial is the default).
-- **The app:**
-  - The Progress page (`BSClientProgress`) printed a fixed `lb` for bodyweight, its change, volume, PR rows and recent sessions. Bodyweight goes through `bsProgressWeight` (pounds whole), and a recorded lift through `bsProgressLoad`, at the precision it was recorded.
-  - The profile trajectory's change, and the Home widgets `WWeight`, `WBody`, `WMeasurements` and `WPR` (through `wUnit`). An imperial cell reads as it did.
-- **The website:**
-  - `dashData.jsx` adds `useDashUnits()`: one read of the setting per page, signed in only, converted through the app's own `unitText.mjs`; a failed read falls back to imperial. Its helpers: `dashGoalText`, `dashMilestonesIn`, `dashWeighIn`, `dashWeighInDelta` (a change is converted once) and `units.exact`, for series that are subtracted.
-  - Member pages: Progress (trend, 8-week comparison, PRs, lifts, girths, check-in history; the check-in form asks in the member's units and sends the unit with each figure), Train, the dashboard's workout card and milestones, and the Score ledger. The living profile reads the setting itself (`lvLoadUnits`), because its hosts do not load `dashData.jsx`.
-  - Coach pages: Today, the roster drawer, week review, business outcomes and the client file (`ckBodyweight`, `ckLiftRows`, `ckMeasure`).
-  - `TrainerClient.html` and `NutritionistClient.html` now load `dashData.jsx`. `clientScore.jsx` (whose `ClientScore.html` is a redirect stub) and the shared workout card guard the hook with `typeof`. `dashboard-remembered-choices` derives the pages that must load `dashData.jsx` from its export list.
-  - One metric rule on both surfaces: `metric`, `kg` or `km` (the app's `bsNormalizeUnits`).
-- ⚠ **NORA STORED POUNDS IN A KILOGRAM COLUMN.** `log_weigh_in` wrote the member's own unit into `client_weigh_ins.weight`, which every reader takes as kilograms and the coach RPC `get_client_goals` emits as `kg`. *"Log 180 lb"* would have read **396.8 lb** on an imperial coach's roster. The row is kilograms now, the preview keeps the member's words, and undo matches the stored row. Production holds **0** weigh-in rows, so nothing needed backfilling.
-- **Review.**
-  - Fable, before the PR opened: 5 findings. Four were fixed: Nora's writer; the check-in form discarding typing when the setting arrived, and mislabelling a pre-fill before it did; the website and the app disagreeing on what counts as metric; and the 8-week comparison subtracting two rounded conversions (180 → 176.3 lb read −1.6 kg; it is −1.7). One was kept as intended: an imperial sub-pound change reads `0 lb`, not `+0 lb`.
-  - CodeRabbit, one round on `e09e869`, on the owner's word: 3 findings, all fixed in `04c6a61` and each confirmed on its thread. ⚠ **A recorded 100.5 lb PR displayed as 101 lb**, a regression for imperial members, since `main` printed a PR as recorded. The units cache never refreshed after a sign-in, sign-out or account switch; it now watches `onAuthStateChange`, skips a same-account token refresh, and drops a read that a newer one overtook (a generation counter). And `exact`'s rounded probe gets its comment.
-  - Codex: no findings. Copilot declined on its quota.
-- ⚠ **THE MUTATION ROUND ON THE MERGED CODE SKIPPED ONE MUTATION, AND `--fail-on-skipped` CAUGHT IT.** The CodeRabbit fix rewrote the `dashLoadUnits` line one website mutation anchored on, so it never ran. [#2214](https://github.com/cperry8800-droid/shape-app/pull/2214) repointed it: test-only, 2 lines, merged as `a68fcf8` on CI green, final head `0fbfe44`, merged tree byte-identical (tree `21de99c`). Codex completed on it with no findings.
-- ⚠ **A FAILED MOUNTED TEST HUNG THE MUTATION ROUND.** A test that failed left its React root mounted, so the process never exited and each such mutation ran to its timeout (400 s). Every mounted root is now torn down after the file (`LIVE_ROOTS` and an `after()` hook).
-- **Verified:**
-  - `npm test` **5511/5511** through the pre-commit gate on `1f8422b` and `fbc8584`. `e09e869` and `04c6a61` skipped the gate under the small-commit rule; the tests that read a changed file passed (609, then 1,560), and CI ran the full suite.
-  - Mutations through the shared runner with `--fail-on-skipped`: app 19/19, website 65/65 and feed 21/21 before the review fixes; on the merged code, app **22/22** and website **69/69** (68 in the round plus the repointed one).
-  - All required checks green on `04c6a61`, and on `0fbfe44`.
-  - The i18n inventory went 737 → 734: three hardcoded units (`k lb`, `LB · 7D`, `in`) are figures now.
-- **Written after the merge**, per the 2026-09-11 rule.
-- ⚠ **REGISTERED, NOT DONE:**
-  - The server sums (train volume, the progress strength series) were fixed later by #2215, in the entry above.
-  - A legacy pound goal document can still mix with the RPC's kilogram weigh-ins in the coach client file; production holds 0 such documents.
-  - The website reads the setting at page load or on an auth change, not when another tab changes it.
-  - Not converted, by design: groceries and food quantities; `publicProfile.jsx` and `clientOverview.jsx` (demo copy, no `dashData`); the coach builder's own typed inputs; AI prompt text in `dashSignals.js`.
-  - ⚠ **NO SIGNED-IN PASS.** No metric member's account has been looked at on the live site.
-
-### 2026-10-06 — The website splash is back, and the line under the mark is now "You don't climb alone."
-
-- **Merged [#2211](https://github.com/cperry8800-droid/shape-app/pull/2211) as `e33c24d`**, final head `287d704`; the merged tree is byte-identical to it (tree `ba9f255` on both). 3 files: `public/newdesign/index.html`, `tests/homepage-splash.test.mjs` and its mutation spec. **No migration, no route, no i18n key.**
-  - The owner asked: *"make sure the splash page is present on shape website"*, then *"i want to see a preview of splash page"* (https://claude.ai/artifact/WdbobeSTWLgqrb9SRRVemj, built from the real page), then *"i want to change that slogan or saying below logos"*.
-  - From five lines on the preview (*Take shape.* · *Your climb starts tonight/today.* · *Real coaching. Real community.* · *You don't climb alone.* · *Find your shape.*) they picked **"You don't climb alone."**, then *"Ship it"*.
-- **What was missing.** The homepage rebuild of 2026-09-11 (the climb, `c334ebc`) removed the splash ("The Census", `#shape-intro`) on the index review's H4: *"make the same mark-draw the hero's own load-in"*. The intro itself was gone from the site.
-- **What it is now.** The same intro: a seeded night sky, six stars at the mark's vertices, the strokes drawing them together, the triangles filling.
-  - It uses the page's teal `#34d6c5` and Doto (700 / ROND 30). The old splash used `#2ee0c4`, which the homepage's one-teal guard now forbids, and JetBrains Mono, which the page no longer loads.
-  - The code that swapped "Tonight," for "Today," by the visitor's clock went with the old line.
-- **When it plays** is the old rule: once per session on a fresh arrival, for 2.9 s or until a scroll, swipe, key or tap, and cut short when `/api/me` says signed in. It never plays under reduced motion, with `?home`, after a same-origin referrer, or on a second arrival. Two changes:
-  - A `#fragment` skips it. `end()` scrolls to the top, so the old overlay threw a deep link's section away.
-  - **`?splash` forces it**, which is how to see it on the live site: https://www.theshapecommunity.com/newdesign/index.html?splash
-- ⚠ **THE OLD OVERLAY COVERED THE WHOLE PAGE WITH JAVASCRIPT OFF.** It rendered by default and relied on its script to remove it. `#shape-intro` is `display:none` now, and the script's `.run` is what shows it.
-- ⚠ **WITHOUT A HOLD, THE CLIMB'S LOAD-IN WOULD HAVE PLAYED UNDER THE SPLASH.** The words widen and the route climbs from boot; by the climb's own easing the route is ~92% drawn at 2.9 s, so the visitor would have met its last frame.
-  - The splash sets `window.__shapeIntro` and fires `shape:intro-start` / `shape:intro-end`. While it runs the climb holds (words at 62, `prog=0`, the flag faint at the summit), and `start()` runs on the end.
-  - The mark glides onto the summit flag, but only once the climb has placed the flag and only if it is on screen; otherwise a plain fade.
-  - `reveal()` supersedes itself (`rv`), so a splash that starts again holds the words even mid-widening. The preview's Replay is the only caller of a second run today.
-- **Review: none, on the owner's word** (*"dont need a code review on PR"*). Codex fired on its own when the PR opened and completed with no findings; Copilot declined on its quota; CodeRabbit posted only its skip notice.
-- **Verified:**
-  - `npm test` **5508/5508** through the pre-commit gate on the first commit. The amend (one line) skipped the gate on the owner's word (*"skip pre commit test for small commits"*, now in the hook's bullet above), after the homepage tests passed 39/39.
-  - Mutations (`tests/mutations/homepage-splash-2026-10-06.mutations.mjs`, `--fail-on-skipped`): the first run killed 27 of 28. The survivor was an outer check in `reveal()`'s stagger timer that the per-frame check already covers; it was removed rather than marked. The second run killed **27/27**, restored byte-identical.
-  - All required checks green on `287d704`.
-  - Chromium at 1440×900 and 390×844: the splash, the hand-off at 3.5 s, the climb after it, zero page errors. All five candidate lines fit at 320 px.
-  - **Live:** the production deploy of `e33c24d` is READY on www.theshapecommunity.com. Its served homepage (fetched through the Vercel connector, since this environment's proxy denies the domain) opens `<body>` with the splash, carries the new line, and has the climb's hold.
-- **Written after the merge**, per the 2026-09-11 rule.
-- ⚠ **REGISTERED, NOT DONE:**
-  - No phone has run it. The splash is drawn with CSS animations on a fixed overlay, and none of it was checked in WKWebView or Android WebView.
-  - The line is English only; the homepage has no i18n layer.
-  - The 2.9 s lock the index review's H4 objected to is back, by the owner's ruling.
-
-### 2026-10-06 — Splits are cut in the reader's unit: per kilometre for metric, per mile for imperial
-
-- **Merged [#2210](https://github.com/cperry8800-droid/shape-app/pull/2210) as `8c37c47`**, final head `3a90a0f`; the merged tree is byte-identical to it (tree `af9bad0` on both). 24 files. **No migration, no route**; one i18n key (`session:chart.kmLabel`) in all 13 locales. The owner: *"yes start the splits fix - i thought this was already fixed"*.
-- **What was wrong.** A metric member's split table was cut per mile and labelled `Mile N`, over paces per kilometre.
-  - ⚠ **#2205 had made it worse.** The session page read its distance in miles only, so once the distance figure followed the reader's units, a metric member's `29.3 km` read as no distance at all. The page lost its chart markers and fell back to eight equal pieces of an 18.2-mile run, each still labelled `Mile N`.
-  - The website's session view had the same miles-only reading.
-- **One rule, `bsPaceSplits`.**
-  - It takes the reader's unit and cuts trace splits per mile (`Mile N`) or per kilometre (`Km N`). With no distance the buckets say `Split N`; they said `Mile N` for a swim or an interval session too.
-  - Rows cut in the other unit are re-cut from the session's own trace. A row's label decides which unit it is in, so a mile table whose paces were already converted still counts as miles.
-  - Laps are never re-cut, and with no trace the rows stay as they are.
-- **The app's session page** reads the distance in either unit, cuts the splits in the reader's unit, marks the HR, power and elevation charts and the scrub point in the unit shown, and labels the cadence bars `Km N` or `Mi N`.
-- **The website.** `paceSplits.mjs` moves to `public/newdesign/` and the app re-exports it, the `unitText.mjs` pattern. `cfUnitizePost` re-cuts a mile table per kilometre for a metric reader, and the session view reads the distance through `cfDistanceOf`.
-- **i18n ratchet:** `BSSdTrace`'s only hardcoded string was the `mi` on its markers, so `noneStrings` 738 → 737 and `none.length` 90 → 89.
-- **Review: none.** Codex declined on its usage limit when the PR opened, and no other reviewer was triggered. The merge gate was CI green on the final head.
-- **Verified:**
-  - The three new app session-page tests fail on `main` and pass here.
-  - `npm test` **5494/5494** through the pre-commit gate on both commits.
-  - Mutations through the shared runner (`--fail-on-skipped`, every file restored byte-identical): `splits-in-reader-unit-2026-10-06` **17/17**; #2205's spec **24/24**, repointed at the moved module; #2206's **21/21**.
-  - ⚠ **Two of the older specs' mutations ran as skips on the first round**, because this PR renamed the prop and the loader line they anchored on. Both were re-anchored in `3a90a0f` and killed. Without the flag the round would have exited 0 having never run them.
-  - All required checks green on `3a90a0f`.
-- **Written after the merge**, per the 2026-09-11 rule.
-- ⚠ **REGISTERED, NOT DONE:**
-  - Trace splits are `round(distance)` equal pieces: a 13.5 km run gives 14 splits of about 0.97 km, not 13 whole kilometres and a half.
-  - The Strava import stores only Strava's per-mile splits, so a post with splits and no trace keeps its mile rows for a metric reader.
 
