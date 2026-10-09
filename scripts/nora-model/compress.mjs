@@ -13,7 +13,7 @@
 //      inverse binds adjusted to the quantised positions); the node list is untouched.
 //   4. Textures become WebP at no more than --tex pixels.
 // No step adds, removes or reorders nodes or morph targets, so the VRM extensions' indices hold
-// (gltf.mjs); check-vrm.mjs verifies it.
+// (gltf.mjs).
 import { writeFileSync } from 'node:fs';
 import sharp from 'sharp';
 import { reorder, quantize, sparse, textureCompress } from '@gltf-transform/functions';

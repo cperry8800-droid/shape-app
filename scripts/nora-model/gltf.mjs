@@ -5,8 +5,9 @@
 // look-at live in the root `VRMC_vrm` extension, so a plain read-and-write would hand back a model
 // three-vrm can no longer drive. The pass-through keeps each VRM extension's JSON as it was read.
 // That JSON names nodes and morph targets by INDEX, so a step that adds, removes or reorders nodes or
-// targets would leave it pointing at the wrong ones; compress.mjs applies none, and check-vrm.mjs
-// verifies afterwards that every humanoid bone still names the same node.
+// targets would leave it pointing at the wrong ones; compress.mjs applies none. (check-vrm.mjs then
+// checks that each index the extension holds exists and is in range, not that it names the same node
+// as before; tests/nora-model-tools.test.mjs holds compress.mjs to the transforms that keep order.)
 import { NodeIO, Extension } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import draco3d from 'draco3dgltf';

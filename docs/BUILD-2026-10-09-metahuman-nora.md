@@ -68,7 +68,7 @@ The owner picked **MetaHuman** for a realistic Nora (2026-10-09: *"go with metah
 
 ## 6. What happens next (no Unreal needed)
 
-Claude runs the conversion in `scripts/nora-model/`. A sample export from the pipeline, used only to develop the converter, measured **168k triangles, 875 bones, 13 materials and 41.5 MB**. The booth's budget is about 50k triangles. The conversion:
+Claude runs the conversion in `scripts/nora-model/`. A sample export from the pipeline, used only to develop the converter, measured **168k triangles, 875 bones, 13 materials and 41.5 MB**. The converter cuts her to about 80k triangles, and the check after it rejects anything over 90k (`maps.json`). That is above the 50k the 2026-09-29 review asked of a commissioned model: a MetaHuman's face alone is 64k at full detail. The conversion:
 
 1. Decodes the GLB and merges the face, body and outfit skeletons into one.
 2. Drops the face-rig bones: the face moves through its 51 ARKit shapes instead.

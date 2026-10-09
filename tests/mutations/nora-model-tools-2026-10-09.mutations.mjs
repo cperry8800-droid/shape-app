@@ -8,6 +8,9 @@ const MAPS = 'scripts/nora-model/maps.json';
 const PERF = 'public/newdesign/booth/noraPerformer.mjs';
 const HOST = 'public/newdesign/booth/noraBooth.mjs';
 const STATE = 'public/newdesign/booth/noraBoothState.mjs';
+const COMPRESS = 'scripts/nora-model/compress.mjs';
+const CONVERT = 'scripts/nora-model/convert.sh';
+const MH = 'scripts/nora-model/mh_to_vrm.py';
 
 export default {
   test: 'node --test tests/nora-model-tools.test.mjs',
@@ -94,12 +97,26 @@ export default {
       find: "ROLE_WEIGHT = {'face': 1.0, 'hair': 0.75, 'outfit': 0.55, 'body': 0.4}", replace: "ROLE_WEIGHT = {'face': 1.0, 'hair': 0.75, 'outfit': 0.55, 'body': 0.55}" },
     // ── the booth ──
     { name: 'a realistic model is restyled as a cartoon', file: PERF,
-      find: '    if (!list.some((x) => x && x.isMToonMaterial)) return;\n', replace: '' },
+      find: '    if (!list.length || !list.every((x) => x && x.isMToonMaterial)) return;\n', replace: '' },
+    { name: 'a mesh with any MToon material is restyled whole', file: PERF,
+      find: 'if (!list.length || !list.every((x) => x && x.isMToonMaterial)) return;', replace: 'if (!list.some((x) => x && x.isMToonMaterial)) return;' },
     { name: 'the booth cannot decode meshopt', file: HOST,
       find: '    loader.setMeshoptDecoder(MeshoptDecoder);\n', replace: '' },
     { name: 'a hosted model URL is taken as a site path', file: STATE,
       find: "  if (/^https:\\/\\//i.test(path)) return path;\n", replace: '' },
     { name: 'a site path ignores the app base', file: STATE,
       find: "  return (b.endsWith('/') ? b : b + '/') + path.replace(/^\\/+/, '');", replace: "  return '/' + path.replace(/^\\/+/, '');" },
+    // ── the converter's guards (CodeRabbit's round, 2026-10-09) ──
+    { name: 'compression prunes, which can drop the nodes the VRM indexes', file: COMPRESS,
+      find: "import { reorder, quantize, sparse, textureCompress } from '@gltf-transform/functions';", replace: "import { reorder, quantize, sparse, textureCompress, prune } from '@gltf-transform/functions';" },
+    { name: 'compression runs a transform that can reorder nodes', file: COMPRESS,
+      find: '  quantize(),\n', replace: '  quantize(),\n  dedup({}),\n' },
+    { name: 'an empty folder stops on ls instead of saying there is no .glb', file: CONVERT,
+      find: 'shopt -s nullglob; GLBS=("$SRC"/*.glb); shopt -u nullglob\n[ ${#GLBS[@]} -gt 0 ] || { echo "no .glb in $SRC" >&2; exit 2; }\nGLB="${GLBS[0]}"\n',
+      replace: 'GLB="$(ls "$SRC"/*.glb | head -1)"\n[ -f "$GLB" ] || { echo "no .glb in $SRC" >&2; exit 2; }\n' },
+    { name: 'a failed export exits 0 and convert.sh carries on', file: MH,
+      find: "    if 'FINISHED' not in res or not os.path.exists(a['out']):\n        sys.stdout.flush()\n        os._exit(1)\n", replace: '' },
+    { name: 'an earlier run\'s add-on copy is reused', file: MH,
+      find: '    if os.path.isdir(dest):\n        shutil.rmtree(dest)\n    shutil.copytree(', replace: '    if not os.path.isdir(dest):\n        shutil.copytree(' },
   ],
 };

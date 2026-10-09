@@ -23,8 +23,10 @@ while [ $# -gt 0 ]; do
   esac
 done
 : "${VRM_ADDON_SRC:?set VRM_ADDON_SRC to the src folder of the VRM add-on}"
-GLB="$(ls "$SRC"/*.glb | head -1)"
-[ -f "$GLB" ] || { echo "no .glb in $SRC" >&2; exit 2; }
+# (a glob, not ls: under pipefail an ls with no match would stop the script before this message)
+shopt -s nullglob; GLBS=("$SRC"/*.glb); shopt -u nullglob
+[ ${#GLBS[@]} -gt 0 ] || { echo "no .glb in $SRC" >&2; exit 2; }
+GLB="${GLBS[0]}"
 [ -f "$SRC/mh_materials.json" ] || { echo "no mh_materials.json in $SRC (run the pipeline's stage 04)" >&2; exit 2; }
 WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
 

@@ -7,7 +7,9 @@
 // applies that can be wrong without Blender.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { checkVrm, readGlb, imageSize, PERFORMER_BONES, PERFORMER_EXPRESSIONS, VISEMES } from '../scripts/nora-model/check-vrm.mjs';
 import { applyStageLook } from '../public/newdesign/booth/noraPerformer.mjs';
@@ -256,11 +258,15 @@ test('only cartoon (MToon) meshes are restyled: a realistic model keeps its own 
   const geo = () => { const g = { groups: groups.map((x) => ({ ...x })), clearGroups() { this.groups = []; }, addGroup(s, c, m) { this.groups.push({ start: s, count: c, materialIndex: m }); } }; return g; };
   const real = { isMesh: true, material: [{ name: 'MI_Face_Skin' }, { name: 'MI_Teeth' }], geometry: geo() };
   const toon = { isMesh: true, material: [{ name: 'Body_00_SKIN', isMToonMaterial: true }, { name: 'Body_00_SKIN (Outline)', isMToonMaterial: true }], geometry: geo() };
-  const root = { traverse(fn) { fn(real); fn(toon); } };
-  const realBefore = real.material;
+  // MToon beside anything else: restyling would clear the groups and repaint the other primitive too
+  const mixed = { isMesh: true, material: [{ name: 'Body_01_SKIN', isMToonMaterial: true }, { name: 'MI_Teeth' }], geometry: geo() };
+  const root = { traverse(fn) { fn(real); fn(toon); fn(mixed); } };
+  const realBefore = real.material, mixedBefore = mixed.material;
   applyStageLook(THREE, root, { quality: 'low' });
   assert.equal(real.material, realBefore, 'a realistic mesh lost its materials');
   assert.equal(real.geometry.groups.length, 2, 'a realistic mesh lost its material groups');
+  assert.equal(mixed.material, mixedBefore, 'a mesh mixing MToon with another material was restyled');
+  assert.equal(mixed.geometry.groups.length, 2, 'a mixed mesh lost its material groups');
   assert.ok(!Array.isArray(toon.material) && toon.material.name === 'Body_00_SKIN_stage', 'the cartoon mesh was not restyled');
 });
 
@@ -295,4 +301,41 @@ test('card coverage is looked for under every name a pipeline gives it, legacy f
   assert.ok(!b.some(([p]) => p.endsWith('.png.png')), 'a .png path is not tried twice-suffixed');
   assert.deepEqual(c[0], ['textures/Eyebrows_M_Wide_CardsAtlas_Attribute.png', 'r']);
   assert.deepEqual(d, []);
+});
+
+// ── the converter's guards ──────────────────────────────────────────────────
+test('compress.mjs uses only transforms that keep every node and morph target where the VRM extensions index them', () => {
+  // prune, dedup, join, flatten, weld, instance, palette, simplify and the like can remove, merge or
+  // reorder nodes, meshes or targets, and the VRM extension's indices would then name the wrong ones
+  const src = stripComments(readFileSync('scripts/nora-model/compress.mjs', 'utf8'));
+  const keep = new Set(['reorder', 'quantize', 'sparse', 'textureCompress']);
+  const imported = src.match(/import \{([^}]*)\} from '@gltf-transform\/functions';/);
+  assert.ok(imported, 'compress.mjs no longer imports its transforms from @gltf-transform/functions');
+  for (const name of imported[1].split(',').map((x) => x.trim()).filter(Boolean)) assert.ok(keep.has(name), `compress.mjs imports ${name}, which can move nodes or targets`);
+  const call = src.match(/await doc\.transform\(([\s\S]*?)\n\);/);
+  assert.ok(call, 'compress.mjs has no doc.transform call');
+  for (const [, fn] of call[1].matchAll(/(\w+)\(\{/g)) assert.ok(keep.has(fn), `doc.transform runs ${fn}`);
+  assert.doesNotMatch(src, /\.(removeNode|removeChild|removeTarget|setTargets|addTarget)\(|\bnode\.dispose\(|\btarget\.dispose\(/, 'compress.mjs edits the node or target lists by hand');
+});
+
+test('convert.sh says there is no .glb, instead of stopping on ls under pipefail', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'nora-convert-'));
+  try {
+    let out = null;
+    try {
+      execFileSync('bash', ['scripts/nora-model/convert.sh', dir, join(dir, 'out.vrm')], { env: { ...process.env, VRM_ADDON_SRC: dir }, stdio: 'pipe' });
+    } catch (e) { out = e; }
+    assert.ok(out, 'convert.sh succeeded on an empty folder');
+    assert.equal(out.status, 2);
+    assert.match(String(out.stderr), /^no \.glb in /m);
+    assert.doesNotMatch(String(out.stderr), /cannot access/);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('the converter fails when the export fails, and loads the VRM add-on it was pointed at', () => {
+  const src = readFileSync('scripts/nora-model/mh_to_vrm.py', 'utf8');
+  // the module build exits 0 after main() whatever happened, so the export has to say so itself
+  assert.match(src, /res = bpy\.ops\.export_scene\.vrm\(filepath=a\['out'\]\)[\s\S]{0,240}if 'FINISHED' not in res or not os\.path\.exists\(a\['out'\]\):\s*sys\.stdout\.flush\(\)\s*os\._exit\(1\)/);
+  // an earlier run's copy of the add-on is replaced, not reused
+  assert.match(src, /if os\.path\.isdir\(dest\):\s*shutil\.rmtree\(dest\)\s*shutil\.copytree\(os\.path\.join\(vrm_src, 'io_scene_vrm'\), dest\)/);
 });

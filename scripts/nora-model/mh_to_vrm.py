@@ -91,8 +91,11 @@ def enable_addons(vrm_src):
     addon_utils.enable('io_scene_gltf2', default_set=True)
     dest_root = bpy.utils.user_resource('SCRIPTS', path='addons', create=True)
     dest = os.path.join(dest_root, 'io_scene_vrm')
-    if not os.path.isdir(dest):
-        shutil.copytree(os.path.join(vrm_src, 'io_scene_vrm'), dest)
+    # Copied fresh every run: a copy left by an earlier run with another VRM_ADDON_SRC would
+    # otherwise be the one that loads, and the add-on's version changes the export.
+    if os.path.isdir(dest):
+        shutil.rmtree(dest)
+    shutil.copytree(os.path.join(vrm_src, 'io_scene_vrm'), dest)
     addon_utils.modules(refresh=True)   # a freshly copied add-on is not seen without this
     if not addon_utils.enable('io_scene_vrm', default_set=True) or not hasattr(bpy.types.Armature, 'vrm_addon_extension'):
         raise SystemExit('the VRM add-on did not register')
@@ -646,6 +649,10 @@ def main():
     select_only(body)
     res = bpy.ops.export_scene.vrm(filepath=a['out'])
     log('export', res, os.path.getsize(a['out']) if os.path.exists(a['out']) else 'missing')
+    # A failed export must stop convert.sh here: the exit below would otherwise report success.
+    if 'FINISHED' not in res or not os.path.exists(a['out']):
+        sys.stdout.flush()
+        os._exit(1)
 
 
 if __name__ == '__main__':
