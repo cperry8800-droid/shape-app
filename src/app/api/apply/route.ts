@@ -39,6 +39,39 @@ const ALLOWED_FILE_TYPES = new Set([
   'image/jpeg',
   'image/webp',
 ]);
+// L4 (2026-10-08 review): a browser sends an EMPTY type for an extension it does not know
+// (serialised in the multipart body as application/octet-stream), and the old check
+// (`file.type && !allowed`) let every such file straight into the bucket under whatever bytes it
+// held. An undeclared type is now read off the extension, and only these count.
+const EXTENSION_TYPES: Record<string, string> = {
+  pdf: 'application/pdf',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp',
+};
+const MAX_FILES = 6;
+const FILE_TYPE_MESSAGE = 'must be a PDF, DOC, DOCX, PNG, JPEG or WebP file.';
+
+/** The content type an application file is stored under, or null when it is not one we accept. */
+function applicationFileType(file: File): string | null {
+  const declared = String(file.type || '').toLowerCase().split(';')[0].trim();
+  if (declared && declared !== 'application/octet-stream') return ALLOWED_FILE_TYPES.has(declared) ? declared : null;
+  const ext = (/\.([a-z0-9]+)$/.exec(String(file.name || '').toLowerCase()) || [])[1] || '';
+  return EXTENSION_TYPES[ext] ?? null;
+}
+
+/** Why the files cannot be taken, or null. Run BEFORE the application row is written, so a refused file is a 400 the applicant can fix, not an application saved without its documents. */
+function checkApplicationFiles(files: Array<{ kind: string; file: File }>): string | null {
+  if (files.length > MAX_FILES) return `At most ${MAX_FILES} files per application.`;
+  for (const { file } of files) {
+    if (file.size > MAX_FILE_BYTES) return `${file.name} is larger than 10MB.`;
+    if (!applicationFileType(file)) return `${file.name} ${FILE_TYPE_MESSAGE}`;
+  }
+  return null;
+}
 
 function sanitizeDetails(input: unknown): Record<string, unknown> {
   if (!input || typeof input !== 'object') return {};
@@ -112,14 +145,15 @@ async function uploadApplicationFiles(
     if (file.size > MAX_FILE_BYTES) {
       throw new Error(`${file.name} is larger than 10MB.`);
     }
-    if (file.type && !ALLOWED_FILE_TYPES.has(file.type)) {
-      throw new Error(`${file.name} must be a PDF, DOC, image, or DOCX file.`);
+    const type = applicationFileType(file);
+    if (!type) {
+      throw new Error(`${file.name} ${FILE_TYPE_MESSAGE}`);
     }
 
     const path = `website/${applicationId}/${kind}/${Date.now()}-${safeFileName(file.name)}`;
     const bytes = new Uint8Array(await file.arrayBuffer());
     const { error } = await supabase.storage.from(FILE_BUCKET).upload(path, bytes, {
-      contentType: file.type || undefined,
+      contentType: type,
       upsert: false,
     });
     if (error) throw error;
@@ -128,7 +162,7 @@ async function uploadApplicationFiles(
       bucket: FILE_BUCKET,
       path,
       name: file.name,
-      type: file.type || 'application/octet-stream',
+      type,
       size: file.size,
       stored: 'supabase',
     });
@@ -243,6 +277,10 @@ export async function POST(req: NextRequest) {
     details,
     user_agent: req.headers.get('user-agent') || null,
   };
+  const fileProblem = checkApplicationFiles(files);
+  if (fileProblem) {
+    return NextResponse.json({ error: fileProblem }, { status: 400, headers: CORS_HEADERS });
+  }
   let { data, error } = await supabase
     .from('provider_applications')
     .insert({ ...applicationRow, dob })

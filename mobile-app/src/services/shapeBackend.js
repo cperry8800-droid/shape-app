@@ -4083,7 +4083,8 @@ async function connectAppleMusic() {
   if (!apiBaseUrl) throw new Error('API backend URL is not configured. Set VITE_API_BASE_URL.');
   if (!state.session?.access_token) throw new Error('Sign in before connecting Apple Music.');
 
-  const tokenRes = await fetch(`${apiBaseUrl}/api/integrations/apple-music/developer-token`);
+  // The developer token is minted for signed-in members only (L8), so the session rides along.
+  const tokenRes = await fetch(`${apiBaseUrl}/api/integrations/apple-music/developer-token`, { headers: sessionsAuthHeaders() });
   const tokenJson = await tokenRes.json().catch(() => ({}));
   if (!tokenRes.ok || !tokenJson.developerToken) {
     throw new Error(tokenJson.error || 'Apple Music is not configured yet.');
@@ -4130,9 +4131,10 @@ async function saveAppleMusicPlaylist(playlist) {
   const m = String(url).match(/(pl\.[A-Za-z0-9-]+)/);
   const playlistId = m ? m[1] : '';
   if (!playlistId) throw new Error('Not a catalog Apple Music playlist link.');
-  const tokenRes = await fetch(`${apiBaseUrl}/api/integrations/apple-music/developer-token`);
+  if (!state.session?.access_token) throw new Error('Sign in before saving an Apple Music playlist.');
+  const tokenRes = await fetch(`${apiBaseUrl}/api/integrations/apple-music/developer-token`, { headers: sessionsAuthHeaders() });
   const tokenJson = await tokenRes.json().catch(() => ({}));
-  if (!tokenRes.ok || !tokenJson.developerToken) throw new Error('Apple Music is not configured yet.');
+  if (!tokenRes.ok || !tokenJson.developerToken) throw new Error(tokenRes.status === 401 ? 'Sign in before saving an Apple Music playlist.' : 'Apple Music is not configured yet.');
   const MusicKit = await loadMusicKit();
   try { await MusicKit.configure({ developerToken: tokenJson.developerToken, app: { name: 'Shape', build: '1.0.0' } }); } catch (_) { /* may already be configured */ }
   const music = MusicKit.getInstance();
@@ -4153,9 +4155,9 @@ async function saveAppleMusicPlaylist(playlist) {
 // Spotify picker uses: [{ id, name, tracks, url, image }].
 async function listAppleMusicPlaylists() {
   if (typeof window === 'undefined') { const e = new Error('Apple Music unavailable.'); e.connected = false; throw e; }
-  const tokenRes = await fetch(`${apiBaseUrl}/api/integrations/apple-music/developer-token`);
+  const tokenRes = await fetch(`${apiBaseUrl}/api/integrations/apple-music/developer-token`, { headers: sessionsAuthHeaders() });
   const tokenJson = await tokenRes.json().catch(() => ({}));
-  if (!tokenRes.ok || !tokenJson.developerToken) { const e = new Error('Apple Music is not configured yet.'); e.connected = false; throw e; }
+  if (!tokenRes.ok || !tokenJson.developerToken) { const e = new Error(tokenRes.status === 401 ? 'Sign in to see your Apple Music playlists.' : 'Apple Music is not configured yet.'); e.connected = false; throw e; }
   const MusicKit = await loadMusicKit();
   try { await MusicKit.configure({ developerToken: tokenJson.developerToken, app: { name: 'Shape', build: '1.0.0' } }); } catch (_) {}
   const music = MusicKit.getInstance();

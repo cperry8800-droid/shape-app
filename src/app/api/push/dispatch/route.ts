@@ -11,6 +11,7 @@
 // Auth is the shared secret (the webhook isn't a logged-in user). Sends via FCM
 // using the service-role admin client to read the recipient's tokens.
 
+import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendPushToUser, pushConfigured } from '@/lib/push';
@@ -27,9 +28,18 @@ type NotificationRecord = {
   data?: { channels?: { push?: boolean } } | null;
 };
 
+// L7 (2026-10-08 review): the same constant-time comparison the cron routes use, so the
+// secret cannot be recovered a byte at a time from response timing.
+function secretMatches(given: string | null, expected: string): boolean {
+  if (!given) return false;
+  const x = Buffer.from(given);
+  const y = Buffer.from(expected);
+  return x.length === y.length && timingSafeEqual(x, y);
+}
+
 export async function POST(request: Request) {
   const secret = process.env.PUSH_WEBHOOK_SECRET;
-  if (!secret || request.headers.get('x-push-secret') !== secret) {
+  if (!secret || !secretMatches(request.headers.get('x-push-secret'), secret)) {
     return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
   }
   if (!pushConfigured()) {

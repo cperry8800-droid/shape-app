@@ -1278,7 +1278,9 @@ async function fallbackReply(text: string, coach: CoachCtx): Promise<{ reply: st
 async function storedTeamReplies(actor: Awaited<ReturnType<typeof resolveActor>> | null, messages: ChatMessage[]): Promise<Set<string>> {
   if (!actor || !messages.some((m) => (m.role as string) === 'team')) return new Set();
   const { replies } = await answeredReplies(actor.supabase, actor.user.id);
-  return new Set([...replies].map((r) => r.slice(0, 2000).trim()));
+  // The texts only: here a team message is quoted to the model, not shown as the team's, so the
+  // text test is enough (the shown conversation is vouched for by request id in withVerifiedTeam).
+  return new Set([...replies.values()].map((r) => r.slice(0, 2000).trim()));
 }
 
 // Where a streamed answer's words go as the model writes them (POST with `stream: true`).
@@ -1356,7 +1358,7 @@ export async function POST(request: Request) {
   let isMember = false;
   let membership: Awaited<ReturnType<typeof computeMembership>> | null = null;
   let factsEarly: Promise<{ facts: Record<string, unknown> | null; failed: boolean }> | null = null;
-  if (actor) membership = await computeMembership(actor.supabase, actor.user.id, actor.user.email ?? null).catch(() => null);
+  if (actor) membership = await computeMembership(actor.supabase, actor.user.id, actor.user.email ?? null, { emailConfirmed: !!actor.user.email_confirmed_at }).catch(() => null);
   // An account's count for the day needs only its tier, so it runs beside the reads below. A
   // visitor's waits for the bot check, as it always has.
   const tier = noraTier(!!actor, membership);
@@ -1553,7 +1555,7 @@ export async function GET(request: Request) {
   try {
     const actor = await resolveActor(request).catch(() => null);
     if (actor) {
-      const m = await computeMembership(actor.supabase, actor.user.id, actor.user.email ?? null).catch(() => null);
+      const m = await computeMembership(actor.supabase, actor.user.id, actor.user.email ?? null, { emailConfirmed: !!actor.user.email_confirmed_at }).catch(() => null);
       kind = greetingKind(true, m, [actor.role, ...(actor.roles || [])]);
     }
   } catch {

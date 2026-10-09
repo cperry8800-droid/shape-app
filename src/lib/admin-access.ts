@@ -6,11 +6,10 @@ const DEFAULT_ADMIN_EMAILS = [
   'chris.perry@shapecommunity.onmicrosoft.com',
 ];
 
+// L14 (2026-10-08 review): ADMIN_EMAILS only. APPLICATIONS_EMAIL is where applications are
+// MAILED (a shared inbox, possibly), and an inbox address is not a grant of the console.
 export function getAdminEmails(): string[] {
-  const configured = [
-    process.env.ADMIN_EMAILS,
-    process.env.APPLICATIONS_EMAIL,
-  ]
+  const configured = [process.env.ADMIN_EMAILS]
     .filter(Boolean)
     .flatMap((value) => String(value).split(','))
     .map((value) => value.trim().toLowerCase())
@@ -26,7 +25,9 @@ export async function requireAdminUser(): Promise<{ id: string; email: string }>
   } = await supabase.auth.getUser();
 
   const email = user?.email?.toLowerCase() ?? '';
-  if (!user || !email || !getAdminEmails().includes(email)) {
+  // L14: an allow-listed address someone registered without owning it is not an admin here:
+  // Supabase must also have confirmed it, the rule the help desk (support/chat) already applies.
+  if (!user || !email || !user.email_confirmed_at || !getAdminEmails().includes(email)) {
     throw new Error('Admin access required.');
   }
 

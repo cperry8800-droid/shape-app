@@ -42,7 +42,9 @@ export async function replySupportRequest(formData: FormData): Promise<void> {
   if (error) redirect(`/dashboard/support?error=${encodeURIComponent('db_' + (error.code ?? 'error'))}`);
   if (!row) redirect('/dashboard/support?updated=already_answered');
 
-  const thread = await appendTeamToThread(db, row.user_id, reply, now).catch(() => ({ ok: false }));
+  // The request's id rides with the message: a reader shows a team message only when the
+  // request it names holds this reply (L15).
+  const thread = await appendTeamToThread(db, row.user_id, reply, now, { ref: row.id }).catch(() => ({ ok: false }));
 
   let emailed = false;
   try {

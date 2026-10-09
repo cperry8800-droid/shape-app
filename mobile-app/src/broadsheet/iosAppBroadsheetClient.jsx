@@ -35352,8 +35352,16 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         confirmLabel: tr('settings:confirm.deleteConfirm', { defaultValue: 'Delete account' }),
       }))) return;
       try {
-        const res = await fetch('/api/account/delete', { method: 'POST', credentials: 'same-origin' });
+        // Two requests (L1, 2026-10-08 review): the first earns a ten-minute confirmation token
+        // bound to this account; the second, carrying it, deletes.
+        let res = await fetch('/api/account/delete', { method: 'POST', credentials: 'same-origin' });
         if (res.status === 401) { window.__bsToast?.(tr('settings:toast.signInDelete', { defaultValue: 'Sign in to delete your account.' }), 'err'); return; }
+        if (res.status === 428) {
+          const step = await res.json().catch(() => ({}));
+          if (!step.confirmToken) throw new Error('delete failed');
+          res = await fetch('/api/account/delete', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmToken: step.confirmToken }) });
+          if (res.status === 401) { window.__bsToast?.(tr('settings:toast.signInDelete', { defaultValue: 'Sign in to delete your account.' }), 'err'); return; }
+        }
         if (!res.ok) throw new Error('delete failed');
         window.__bsToast?.(tr('settings:toast.deleteDone', { defaultValue: 'Your account and data have been deleted.' }), 'ok');
         setTimeout(onLogout, 1500);

@@ -11,6 +11,7 @@ import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson, dbError } from '@/lib/request-utils';
+import { sameOriginPath } from '@/lib/return-path';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -56,7 +57,8 @@ export async function POST(req: Request) {
     const bodyResult = await readJson<{ returnPath?: unknown }>(req, { allowEmpty: true });
     if (!bodyResult.ok) return bodyResult.response;
     const body = bodyResult.data;
-    const path = typeof body?.returnPath === 'string' ? body.returnPath : '/m/';
+    // L10: a path on this origin, or the app's root; a protocol-relative value is not a path.
+    const path = sameOriginPath(body?.returnPath, '/m/');
     returnUrl = `${url.protocol}//${url.host}${path}`;
   } catch {
     // Ignore body-parse failures and use the default returnUrl.

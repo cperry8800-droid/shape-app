@@ -8,6 +8,9 @@
 // ⚠ 'team' IS A REPLY FROM A PERSON AT SHAPE ("Talk to a person"), and only the server writes
 // one: the console's reply (appendTeamReply). A device's append can never carry it, so an
 // account cannot put words in the team's mouth; a stored one is kept on every later append.
+// A team message also carries `ref`, the id of the support request it answered: a reader shows
+// it only when that request's stored reply is this text (supportRequests.mjs, L15 of the
+// 2026-10-08 review), so a stored message cannot be moved, repeated or re-timed into place.
 //
 // ⚠ EACH DEVICE APPENDS, NONE REPLACES. A phone holding the thread it loaded an hour ago
 // would wipe out what the laptop said since if it wrote the whole thread back, so a client
@@ -26,7 +29,8 @@ export function cleanMessage(m, now = new Date(), opts = {}) {
   const t = typeof m.at === 'string' ? Date.parse(m.at) : NaN;
   // A time from the future (a skewed device clock) is stored as now.
   const at = Number.isFinite(t) && t <= now.getTime() + 60_000 ? new Date(t).toISOString() : now.toISOString();
-  return { role, text, at };
+  const ref = role === 'team' && typeof m.ref === 'string' && /^[A-Za-z0-9-]{1,40}$/.test(m.ref) ? m.ref : null;
+  return ref ? { role, text, at, ref } : { role, text, at };
 }
 
 /** A stored or sent list, cleaned and trimmed to the newest THREAD_MAX. */
@@ -45,9 +49,9 @@ export function appendThread(stored, added, now = new Date()) {
   return cleanThread(stored, now, { team: true }).concat(extra).slice(-THREAD_MAX);
 }
 
-/** What is stored plus the Shape team's reply, written only by the server. */
-export function appendTeamReply(stored, text, now = new Date()) {
-  const reply = cleanMessage({ role: 'team', text, at: now.toISOString() }, now, { team: true });
+/** What is stored plus the Shape team's reply, written only by the server; `ref` names the request it answers. */
+export function appendTeamReply(stored, text, now = new Date(), ref = null) {
+  const reply = cleanMessage({ role: 'team', text, at: now.toISOString(), ref }, now, { team: true });
   if (!reply) return null;
   return cleanThread(stored, now, { team: true }).concat(reply).slice(-THREAD_MAX);
 }

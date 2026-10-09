@@ -61,7 +61,7 @@ test('membership decides as before: a coach without a plan, an admin with no rea
   process.env.ADMIN_EMAILS = 'boss@shape.test';
   try {
     const admin = heldClient({ profiles: { data: { role: 'client', roles: [], over_18: true, created_at: '2026-01-01T00:00:00Z' } } });
-    const ap = core.computeMembership(admin.client, 'u3', 'Boss@Shape.test');
+    const ap = core.computeMembership(admin.client, 'u3', 'Boss@Shape.test', { emailConfirmed: true }); // an admin is a CONFIRMED allow-listed address (L14, #2289)
     await tick(); admin.release.profiles();
     const am = await ap;
     assert.equal(am.isAdmin, true);

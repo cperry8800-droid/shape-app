@@ -282,7 +282,7 @@ async function webhook(event, { upsertError = null, retrieve = async () => ({ ap
     console.error = origError;
   }
 }
-const purchase = { id: 'evt_1', type: 'checkout.session.completed', data: { object: { id: 'cs_1', mode: 'payment', payment_intent: 'pi_1', metadata: { client_id: UID, provider_id: '4', provider_role: 'trainer', price_cents: '18000', gross_price_cents: '18000', kind: 'booking', item_name: 'Session', origin: 'marketplace', fee_bps: '1500' } } } };
+const purchase = { id: 'evt_1', type: 'checkout.session.completed', data: { object: { id: 'cs_1', mode: 'payment', payment_status: 'paid', payment_intent: 'pi_1', metadata: { client_id: UID, provider_id: '4', provider_role: 'trainer', price_cents: '18000', gross_price_cents: '18000', kind: 'booking', item_name: 'Session', origin: 'marketplace', fee_bps: '1500' } } } };
 
 test('M10: a transient failure on the purchase row is 503 (Stripe retries); a permanent one and a clean run are 200', async () => {
   const transient = await webhook(purchase, { upsertError: { code: '57014', message: 'canceling statement due to statement timeout' } });

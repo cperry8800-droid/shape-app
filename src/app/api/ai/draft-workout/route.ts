@@ -43,7 +43,7 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
   const sb = await clientForRequest(request);
-  const gate = await computeMembership(sb, user.id, user.email ?? null);
+  const gate = await computeMembership(sb, user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at });
   if (!gate.isCoach && !gate.isAdmin) {
     return NextResponse.json({ error: 'Coach access required.' }, { status: 403 });
   }

@@ -79,7 +79,7 @@ export async function adminLookupAccount(db, opts) {
       .eq('client_id', u.id).order('current_period_end', { ascending: false, nullsFirst: false }).limit(20)),
     leg(db.from('trainers').select('id, name, stripe_account_id, stripe_account_status, verified, at_capacity, price, session_price').eq('owner_id', u.id).limit(5)),
     leg(db.from('nutritionists').select('id, name, stripe_account_id, stripe_account_status, verified, at_capacity, price, meal_plan_price').eq('owner_id', u.id).limit(5)),
-    typeof opts.computeMembership === 'function' ? opts.computeMembership(db, u.id, q).catch(() => null) : Promise.resolve(null),
+    typeof opts.computeMembership === 'function' ? opts.computeMembership(db, u.id, q, { emailConfirmed: !!u.email_confirmed_at }).catch(() => null) : Promise.resolve(null),
   ]);
 
   // The coaches they subscribe to, by name: one read per role, ids only from their own rows.

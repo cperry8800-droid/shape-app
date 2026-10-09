@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
   // 402, so an under-18 account is told it is under 18 rather than asked to pay.
   let isMember = false;
   try {
-    const membership = await computeMembership(supabase, user.id, user.email ?? null);
+    const membership = await computeMembership(supabase, user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at });
     isMember = membership.isMember;
   } catch (e) {
     console.error('[radio/station] membership check faulted — failing CLOSED:', e);

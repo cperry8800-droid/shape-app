@@ -265,7 +265,11 @@ export async function POST(request: Request) {
 
   try {
     switch (event.type) {
-      case 'checkout.session.completed': {
+      case 'checkout.session.completed':
+      // L13: a delayed payment method (a bank debit) completes the session before the money
+      // moves; Stripe then sends async_payment_succeeded with the same session, and that is
+      // when the purchase is recorded. Both carry a Checkout.Session and run the same code.
+      case 'checkout.session.async_payment_succeeded': {
         const session = event.data.object as Stripe.Checkout.Session;
         const clientId = session.metadata?.client_id;
         const providerId = session.metadata?.provider_id;
@@ -282,6 +286,15 @@ export async function POST(request: Request) {
           const kind = session.metadata?.kind;
           if (!providerId || !providerRole || !kind) {
             console.warn('[shape-app] one-time checkout missing metadata', session.id);
+            break;
+          }
+          // L13: `paid` is the only status under which the money has moved. A session that
+          // completed `unpaid` is recorded when its payment succeeds (the case label above);
+          // one that never does is released by async_payment_failed or expired.
+          if (session.payment_status !== 'paid') {
+            console.warn('[shape-app] one-time checkout completed without payment; waiting for the payment event', {
+              session: session.id, payment_status: session.payment_status,
+            });
             break;
           }
           const pi =
@@ -610,7 +623,8 @@ export async function POST(request: Request) {
         break;
       }
 
-      case 'checkout.session.expired': {
+      case 'checkout.session.expired':
+      case 'checkout.session.async_payment_failed': {
         // H5: the member closed the tab (or never paid) and the 24-hour session died. The credit
         // the checkout reserved goes back to the wallet; a session with no reservation (no
         // credit applied, or created before the reservation migration) has nothing to release.
@@ -648,17 +662,33 @@ export async function POST(request: Request) {
 
       case 'account.updated': {
         // Connect account status change (onboarding progress, restrictions).
+        // L11: the row is the one holding THIS account's id (unique per table), which Stripe
+        // signed with the event. The metadata used to pick the row on its own, so an account
+        // whose metadata named another coach's id would have written that coach's status.
+        // The metadata's role still narrows the table when it is present.
         const account = event.data.object as Stripe.Account;
         const providerRole = account.metadata?.provider_role;
-        const providerId = Number(account.metadata?.provider_id ?? 0);
-        if (!providerRole || !providerId) break;
-        const table = providerRole === 'trainer' ? 'trainers' : 'nutritionists';
+        const tables: Array<'trainers' | 'nutritionists'> =
+          providerRole === 'trainer' ? ['trainers']
+          : providerRole === 'nutritionist' ? ['nutritionists']
+          : ['trainers', 'nutritionists'];
         const status = account.charges_enabled && account.payouts_enabled
           ? 'active'
           : account.requirements?.disabled_reason
             ? 'restricted'
             : 'pending';
-        await admin.from(table).update({ stripe_account_status: status }).eq('id', providerId);
+        let matched = 0;
+        for (const table of tables) {
+          const { data: hit, error: accErr } = await admin
+            .from(table)
+            .update({ stripe_account_status: status })
+            .eq('stripe_account_id', account.id)
+            .select('id');
+          if (accErr) console.error('[stripe webhook] account.updated write failed', { account: account.id, table, error: accErr.message });
+          matched += hit?.length ?? 0;
+          if (matched) break;
+        }
+        if (!matched) console.warn('[stripe webhook] account.updated matched no coach', { account: account.id, role: providerRole ?? null });
         break;
       }
 
