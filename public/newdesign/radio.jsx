@@ -101,11 +101,21 @@ function RdSetsComingUp() {
   );
 }
 
+// ⚠ THE CARD STANDS IN CLUB SHAPE, THE SAME PICTURE AS THE APP'S SHAPE SETS SCREEN —
+// owner, 2026-10-09: "need the background here on this box on website to be club
+// shape, same picture that is background of shape sets on app". `/club-shape-bg.webp`
+// is the app's `mobile-app/public/club-shape-bg.jpg` re-encoded (232 KB against
+// 403 KB), portrait like the original: on a laptop the box shows the band with the
+// venue in it, and on a phone, where the box runs tall, more of the skyline and the
+// water. The scrim is darker than the app's (0.22–0.55), with a soft text shadow,
+// because the copy sits on the picture here; in the app it sits on glass cards.
+const RD_CLUB_BG = "/club-shape-bg.webp";
+
 function RadioShapeSets() {
   return (
     <section style={{ padding: "80px 72px" }}>
       <RdReveal>
-        <div style={{ position: "relative", overflow: "hidden", maxWidth: 860, margin: "0 auto", padding: 48, background: "rgba(11,14,12,0.68)", backdropFilter: "blur(14px) saturate(1.1)", WebkitBackdropFilter: "blur(14px) saturate(1.1)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4, textAlign: "center" }}>
+        <div style={{ position: "relative", overflow: "hidden", maxWidth: 860, margin: "0 auto", padding: 48, background: `linear-gradient(180deg, rgba(8,10,9,0.72) 0%, rgba(8,10,9,0.5) 46%, rgba(8,10,9,0.88) 100%), #0a0d0c url('${RD_CLUB_BG}') center 47% / cover no-repeat`, textShadow: "0 1px 2px rgba(0,0,0,0.6), 0 0 16px rgba(0,0,0,0.5)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4, textAlign: "center" }}>
           <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${RD_TEAL}, ${RD_HOT})`, opacity: 0.75 }} />
           <div style={{ display: "inline-flex", alignItems: "center", gap: 8, fontFamily: RD_NUM, fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: RD_TEAL, marginBottom: 16 }}>
             From Club Shape
