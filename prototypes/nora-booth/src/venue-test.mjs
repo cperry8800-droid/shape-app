@@ -7,7 +7,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { createVenue } from './clubVenue.mjs';
+import { createVenue } from '../../../public/newdesign/booth/clubVenue.mjs';
 
 const q = new URLSearchParams(location.search);
 const QUALITY = q.get('q') === 'low' ? 'low' : 'high';

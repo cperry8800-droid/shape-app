@@ -130,164 +130,227 @@ function RadioShapeSets() {
 // Below the instrument
 // ---------------------------------------------------------------------------
 
-// ⚠ NORA'S BOOTH CAME OFF THE PLAYER THIS PAGE RETIRES. It is the one thing
-// /radio.html had that this page did not, so retiring that page without it would
-// have lost a shipped feature. The stage is `noraStage.mjs` — the same module the
-// app's own Radio screen mounts — and three.js loads only when somebody asks for
-// it, because it is megabytes and most visitors never open the booth.
-function RadioNora() {
-  const canvasRef = React.useRef(null);
-  const stageRef = React.useRef(null);
-  // ⚠ THE UNMOUNT CLEANUP COULD NOT REACH A STAGE THAT WAS STILL LOADING, and the app's
-  // own copy of this flow has the guard this one was missing
-  // (iosAppBroadsheetRadio.jsx: `if (disposed) { st.dispose(); return; }` after load()).
-  // `stageRef` is assigned only AFTER load() and start() have both resolved, so between
-  // the click and the end of a ~10.7MB VRM download it is still null — and close(), and
-  // the unmount cleanup, both look at nothing but `stageRef`. Unmount inside that window
-  // and the load finishes anyway, start() installs a requestAnimationFrame loop, and an
-  // unreachable stage renders on holding a live WebGL context. Browsers cap those and
-  // silently EVICT THE OLDEST rather than reporting one, so the symptom would not be a
-  // leak message: it is the booth quietly failing to draw on some later attempt.
-  //
-  // ⚠ THIS IS HARDENING, NOT A REPRODUCED SYMPTOM, AND THE DIFFERENCE IS WORTH THE LINE.
-  // The obvious way in — tap Hide while it loads — IS NOT REACHABLE: the button carries
-  // `disabled={state === "opening"}` for exactly that window, and a disabled button fires
-  // no React onClick. Measured rather than reasoned about: a driver told to click during a
-  // deliberately slowed VRM download waited for the control to become enabled and landed a
-  // NORMAL close after the load had finished (264 booth draw calls, then none) — the path
-  // that already worked. So the only way to abandon a load here is an unmount, and on this
-  // page that is a navigation, which discards the context anyway. The guard stays because
-  // it is free, and because it is the one the app's own copy of this flow already has —
-  // but it is not credited with a fix.
-  //
-  // A counter rather than a boolean, because close() → open() → close() must not let an
-  // older attempt's guard fire against a newer attempt's stage.
-  const genRef = React.useRef(0);
-  const [state, setState] = React.useState("closed");   // closed | opening | open | unsupported | failed
-  const busy = React.useRef(false);
+// ⚠ NORA'S BOOTH CAME OFF THE PLAYER THIS PAGE RETIRES, and since Phase 1 it is the whole booth:
+// Club Shape, the gear and Nora at the decks (public/newdesign/booth/noraBooth.mjs), the same module
+// the app's Radio screen mounts. three.js loads only when somebody opens it, because it is megabytes
+// and most visitors never do. The label, the example-set rule and the keeper are
+// window.ShapeBoothState and window.ShapeBoothKeeper (noraBoothState.mjs and noraBoothKeeper.mjs,
+// loaded by a module tag in Radio.html), so both surfaces say the same thing.
+//
+// ⚠ ONE BOOTH, KEPT. Hide stops it drawing and keeps it, so showing it again is instant; the keeper
+// (noraBoothKeeper.mjs) disposes it after a few minutes hidden. A load abandoned by Hide is disposed
+// on arrival, and a failed one has already released its WebGL context (createNoraBooth's contract),
+// because browsers cap live contexts and silently evict the oldest.
+let rdBoothKeeper = null;
+async function rdKeeper() {
+  if (rdBoothKeeper) return rdBoothKeeper;
+  const B = await import("/newdesign/booth/noraBooth.mjs");
+  if (rdBoothKeeper) return rdBoothKeeper;
+  rdBoothKeeper = window.ShapeBoothKeeper.createBoothKeeper({
+    create: (progress) => {
+      const S = window.ShapeBoothState;
+      const tier = S.boothTier({ screenW: window.screen && window.screen.width, screenH: window.screen && window.screen.height });
+      const canvas = document.createElement("canvas");
+      canvas.style.cssText = "display:block;width:100%;height:100%";
+      canvas.setAttribute("aria-hidden", "true");
+      return B.createNoraBooth({
+        canvas, modelUrl: "/nora/placeholder.vrm", crowdUrl: "/nora/crowd.bin.txt",
+        quality: tier.quality, cinematic: tier.cinematic, fps: tier.fps,
+        reducedMotion: RD_REDUCED, onProgress: progress,
+      });
+    },
+  });
+  return rdBoothKeeper;
+}
 
-  // ⚠ THE GRAPH CAN ARRIVE AFTER THE BOOTH DOES, AND THE RETIRED PLAYER DID NOT HAVE
-  // THIS PROBLEM (Codex, #2101 round 8). It built its stage only once the graph existed;
-  // here the booth is its own control and a visitor very reasonably opens Nora BEFORE
-  // pressing Tune in. The stage stored the null it was handed and had no way to learn
-  // otherwise, so she stood still for the rest of the session with the station playing.
-  // The instrument announces the graph on `shape:radiograph` the moment it builds one.
+function RadioNora() {
+  const hostRef = React.useRef(null);
+  const boothRef = React.useRef(null);
+  const [open, setOpen] = React.useState(false);
+  const [state, setState] = React.useState("closed");   // closed | opening | open | unsupported | failed
+  const [progress, setProgress] = React.useState(null);
+  const [snap, setSnap] = React.useState(null);
+  const [attempt, setAttempt] = React.useState(0);
+  // The station's readings, from the instrument above (radioInstrument.jsx parks and announces them).
+  const [radio, setRadio] = React.useState(() => window.__shapeRadioState || { signedIn: null, configured: null, playing: false });
   React.useEffect(() => {
-    const bind = (e) => {
-      const g = (e && e.detail) || window.__shapeRadioGraph;
-      if (g && g.analyser && stageRef.current && stageRef.current.setAnalyser) {
-        try { stageRef.current.setAnalyser(g.analyser); } catch (e2) {}
-      }
+    const on = (e) => setRadio((e && e.detail) || window.__shapeRadioState || { signedIn: null, configured: null, playing: false });
+    window.addEventListener("shape:radiostate", on);
+    return () => window.removeEventListener("shape:radiostate", on);
+  }, []);
+  // A live Shape Set on the air, re-derived every minute from one read of the schedule, the way the
+  // app does: during one Nora steps off the decks and the label names the DJ.
+  const [liveSet, setLiveSet] = React.useState(null);
+  React.useEffect(() => {
+    // ⚠ A REOPENED BOOTH STARTS WITH NO LIVE SET (Codex, #2287). The last open's set may have
+    // ended since, and a read that fails now would otherwise leave it standing: the old DJ named
+    // on the label and Nora kept off the decks for a set that is over. Not knowing is "no guest".
+    setLiveSet(null);
+    if (!open) return undefined;
+    const db = window.shapeDb && window.shapeDb.client;
+    const lib = window.ShapeSetsLib;
+    if (!db || !lib || !lib.bsSetsNow || !lib.bsSetsWindow) return undefined;
+    let on = true, rows = [];
+    const derive = () => { if (on) setLiveSet(lib.bsSetsNow(rows, Date.now()).live || null); };
+    const { from, to } = lib.bsSetsWindow(Date.now());
+    db.from("nora_sets").select("*").eq("published", true).gte("starts_at", from).lte("starts_at", to)
+      .then((res) => { if (on && res && !res.error && Array.isArray(res.data)) { rows = res.data; derive(); } })
+      .catch(() => {});
+    const id = setInterval(derive, 60000);
+    return () => { on = false; clearInterval(id); };
+  }, [open]);
+
+  // Open: build (or take back) the booth and put its canvas in the box.
+  React.useEffect(() => {
+    if (!open) { setState("closed"); return undefined; }
+    const S = window.ShapeBoothState;
+    // A browser holding an older cached page without the booth's module tag has neither global.
+    if (!S || !S.webgl2Available || !window.ShapeBoothKeeper) { setState("failed"); return undefined; }
+    if (!S.webgl2Available()) { setState("unsupported"); return undefined; }
+    let alive = true, booth = null, unsub = null, offProgress = null, keeper = null;
+    setState("opening");
+    setProgress(null);
+    rdKeeper().then((k) => {
+      if (!alive) return null;
+      keeper = k;
+      offProgress = k.onProgress((f) => { if (alive) setProgress(f); });
+      return k.acquire();
+    }).then((b) => {
+      if (!b || !alive) return;
+      booth = b;
+      boothRef.current = b;
+      if (hostRef.current) hostRef.current.appendChild(b.canvas);
+      b.resize();
+      b.start();
+      unsub = b.subscribe((s) => { if (alive) setSnap(s); });
+      window.__shapeBooth = b;   // diagnostics: frames, draw calls and the measured refresh (stats())
+      setState("open");
+    }).catch((e) => {
+      if (!alive) return;
+      // Say what happened in the console; the visitor gets the honest short line below.
+      try { console.warn("[nora] booth failed to start", e); } catch (e2) {}
+      setState(e && e.name === "BoothUnsupportedError" ? "unsupported" : "failed");
+    });
+    return () => {
+      alive = false;
+      if (offProgress) offProgress();
+      if (unsub) unsub();
+      if (booth && booth.canvas.parentNode) booth.canvas.parentNode.removeChild(booth.canvas);
+      if (booth && window.__shapeBooth === booth) window.__shapeBooth = null;
+      boothRef.current = null;
+      setSnap(null);
+      // Released even if it is still loading: the keeper disposes a load nobody waits for. With no
+      // keeper yet, this attempt never acquired, so there is nothing of ours to release.
+      if (keeper) keeper.release();
     };
+  }, [open, attempt]);
+
+  const S = window.ShapeBoothState;
+  const prospect = radio.signedIn === false;
+  const stationPlaying = !!radio.playing;
+  const stationConfigured = radio.configured === true;
+  const guestDj = stationConfigured && liveSet && liveSet.dj ? String(liveSet.dj) : null;
+  const allowed = S ? S.exampleAllowed({ prospect, stationConfigured, stationPlaying }) : false;
+
+  // The example set stops the moment it is no longer this visitor's to hear.
+  React.useEffect(() => {
+    if (!allowed && boothRef.current) boothRef.current.stopExample();
+  }, [allowed, state]);
+
+  // ⚠ THE GRAPH CAN ARRIVE AFTER THE BOOTH DOES (Codex, #2101 round 8): a visitor very reasonably
+  // opens Nora BEFORE pressing Tune in. The instrument announces the graph on `shape:radiograph`
+  // the moment it builds one; the booth also re-reads it whenever it (re)opens or the station's
+  // state moves, so a graph that arrived mid-download is not lost either.
+  const bindStation = React.useCallback((g) => {
+    const b = boothRef.current;
+    if (!b) return;
+    const graph = g || window.__shapeRadioGraph || null;
+    b.setStation({ analyser: graph && stationPlaying ? graph.analyser : null, playing: stationPlaying, guest: !!guestDj });
+  }, [stationPlaying, guestDj]);
+  React.useEffect(() => {
+    const bind = (e) => bindStation(e && e.detail);
     window.addEventListener("shape:radiograph", bind);
     return () => window.removeEventListener("shape:radiograph", bind);
-  }, []);
+  }, [bindStation]);
+  React.useEffect(() => { if (state === "open") bindStation(null); }, [state, bindStation]);
 
-  const open = async () => {
-    if (busy.current) return;
-    busy.current = true;
-    const myGen = ++genRef.current;
-    // Abandoned means: closed, or unmounted, while this attempt was awaiting something.
-    // Nothing is painted on that path — the component may be gone, and close() has already
-    // said what the state is.
-    const abandoned = () => genRef.current !== myGen;
-    setState("opening");
-    // ⚠ THE STAGE IS HELD LOCALLY SO THE FAILURE PATH CAN REACH IT (Codex, round 9).
-    // `stageRef` was assigned only after load() AND start() had both succeeded, so a VRM
-    // download or parse that threw left the catch with `stageRef.current` still null and
-    // nothing to dispose — while `NoraStage` allocates its `WebGLRenderer` in the
-    // CONSTRUCTOR, two statements earlier. Every retry leaked another live context, and a
-    // browser caps those and silently evicts the oldest rather than reporting one: the
-    // symptom is the booth quietly failing to draw on some later attempt, with nothing in
-    // the log and no line to point at.
-    let made = null;
-    try {
-      if (!window.WebGLRenderingContext) { setState("unsupported"); return; }
-      const g = window.__shapeRadioGraph || null;
-      if (g && g.context && g.context.state === "suspended") { try { await g.context.resume(); } catch (e) { /* a booth without audio still draws */ } }
-      const { NoraStage } = await import("/newdesign/noraStage.mjs");
-      if (abandoned()) return;                 // nothing built yet — nothing to dispose
-      const stage = new NoraStage({
-        canvas: canvasRef.current,
-        // ⚠ THE INSTRUMENT'S OWN ANALYSER, OR NONE. Nora reacts to what the station
-        // is actually playing; given no graph she stands rather than miming.
-        analyser: g ? g.analyser : null,
-        modelUrl: "/nora/placeholder.vrm",
-        color: RD_TEAL,
-      });
-      made = stage;
-      await stage.load();
-      // ⚠ THE WINDOW THIS WHOLE GUARD IS ABOUT — the VRM is ~10.7MB, so this await is
-      // where a member navigating away or tapping Hide actually lands. start() is never
-      // called, so no render loop is installed and the context is released here.
-      if (abandoned()) { try { stage.dispose(); } catch (e) {} return; }
-      // ⚠ AND THE LOAD IS ASYNC, so a graph that appeared WHILE the VRM was downloading
-      // would have been announced to a stage that did not exist yet — the same both-ways
-      // problem `setColor` carries for the accent. Re-read before starting.
-      const late = window.__shapeRadioGraph;
-      if (late && late.analyser && late.analyser !== stage.analyser) stage.setAnalyser(late.analyser);
-      stage.start();
-      stageRef.current = stage;
-      setState("open");
-    } catch (e) {
-      // ⚠ SAY WHAT HAPPENED. This catch used to swallow the error entirely, and that is
-      // why the booth could sit broken: on 2026-09-16 it was throwing
-      // `VRMUtils.combineSkeletons is not a function` on EVERY open — the web import map
-      // had drifted off the versions the app installs — and the only thing a member or
-      // anyone reading a console could see was "The booth could not start on this
-      // device", which names no cause. Finding it took reproducing this function's own
-      // sequence by hand with the error made visible. The app's copy of this flow has
-      // always warned (`console.warn('[nora] stage failed', e)`); this one did not.
-      // The member-facing message is deliberately unchanged — it is honest and there is
-      // nothing useful to say to them — but the reason now reaches the console.
-      try { console.warn("[nora] booth failed to start", e); } catch (e2) {}
-      // Both, and deduped: `made` is the stage this attempt built and `stageRef.current`
-      // is one an earlier open left behind. They are the same object on a retry that got
-      // as far as assigning the ref, and different when it did not.
-      const prior = stageRef.current;
-      stageRef.current = null;
-      for (const dead of new Set([prior, made].filter(Boolean))) {
-        try { dead.dispose(); } catch (e2) {}
-      }
-      setState("failed");
-    } finally { busy.current = false; }
-  };
-
-  const close = () => {
-    genRef.current += 1;                        // retires an attempt that is still loading
-    if (stageRef.current) { try { stageRef.current.dispose(); } catch (e) {} stageRef.current = null; }
-    setState("closed");
-  };
-
-  React.useEffect(() => () => {
-    genRef.current += 1;                        // same, for a load still in flight at unmount
-    if (stageRef.current) { try { stageRef.current.dispose(); } catch (e) {} stageRef.current = null; }
-  }, []);
-
+  const label = S ? S.boothLabel({ example: !!(snap && snap.example), station: { playing: stationPlaying, bpm: snap ? snap.bpm : null, guest: guestDj } }) : { key: "offAir" };
+  const labelText = S ? S.boothLabelText(label) : "Off air";
+  const lit = label.key !== "offAir";
+  const playing = !!(snap && snap.example);
+  const free = !!(snap && snap.camera === "free");
   const showing = state === "open" || state === "opening";
+  const chip = (active) => ({
+    height: 38, padding: "0 14px", background: active ? "rgba(52,214,197,0.1)" : "transparent",
+    border: `1px solid ${active ? RD_TEAL : "rgba(238,243,240,0.24)"}`, color: active ? RD_TEAL : RD_CREAM,
+    fontFamily: RD_SANS, fontWeight: 600, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap",
+  });
+  const tag = { fontFamily: RD_NUM, fontWeight: 700, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", fontVariationSettings: "'ROND' 100" };
+
   return (
     <section id="nora" style={{ padding: "0 24px 96px" }}>
-      <div style={{ maxWidth: 760, margin: "0 auto", textAlign: "center" }}>
+      <div style={{ maxWidth: 960, margin: "0 auto", textAlign: "center" }}>
         <RdReveal>
-          <div style={{ fontFamily: RD_NUM, fontWeight: 700, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: RD_TEAL, fontVariationSettings: "'ROND' 100" }}>The booth</div>
+          <div style={{ ...tag, color: RD_TEAL }}>The booth</div>
           <h2 style={{ fontFamily: RD_DISP, fontWeight: 500, fontVariationSettings: "'wdth' 105", fontSize: "clamp(26px,3vw,38px)", letterSpacing: "-0.02em", margin: "14px 0 0", color: RD_CREAM }}>Nora</h2>
-          <p style={{ fontFamily: RD_SANS, fontSize: 15, color: "rgba(238,243,240,0.7)", margin: "14px auto 0", maxWidth: 460, lineHeight: 1.6 }}>
-            Shape&rsquo;s resident, projected in light made of the field&rsquo;s own dots. She moves on
-            what the station is playing, so she only has something to react to while
-            something is on the air.
+          <p style={{ fontFamily: RD_SANS, fontSize: 15, color: "rgba(238,243,240,0.7)", margin: "14px auto 0", maxWidth: 520, lineHeight: 1.6 }}>
+            Shape&rsquo;s resident at the decks in Club Shape. While the station is not on the air
+            she plays a labelled example set; while it is, she moves on what it is playing.
           </p>
-          <div style={{ position: "relative", width: "100%", maxWidth: 420, aspectRatio: "3 / 4", margin: "26px auto 0", display: showing ? "block" : "none", border: "1px solid rgba(238,243,240,0.12)", background: "#04070c", overflow: "hidden" }}>
-            <canvas ref={canvasRef} style={{ width: "100%", height: "100%", display: "block" }} />
+          <div className="rd-booth" style={{ position: "relative", width: "100%", margin: "26px auto 0", display: showing || state === "failed" || state === "unsupported" ? "block" : "none", border: "1px solid rgba(238,243,240,0.12)", background: "#07080a", overflow: "hidden", textAlign: "left" }}>
+            <div ref={hostRef} role="img" aria-label="Nora at the decks in Club Shape: two media players and a mixer on a stage, with lights and a crowd" style={{ position: "absolute", inset: 0 }} />
+            <div aria-live="polite" style={{ ...tag, position: "absolute", top: 12, left: 14, right: 110, display: "flex", alignItems: "center", gap: 8, color: lit ? RD_TEAL : RD_CREAM50 }}>
+              <span aria-hidden style={{ width: 7, height: 7, borderRadius: 4, flex: "0 0 auto", background: lit ? RD_TEAL : "transparent", border: `1px solid ${lit ? RD_TEAL : RD_CREAM50}` }} />
+              <span>{labelText}</span>
+            </div>
+            {state === "open" && (
+              <div style={{ position: "absolute", top: 10, right: 14, textAlign: "right" }}>
+                <div style={{ ...tag, fontSize: 22, letterSpacing: "0.02em", color: snap && snap.bpm ? RD_TEAL : RD_CREAM50, fontVariantNumeric: "tabular-nums" }}>{snap && snap.bpm ? snap.bpm.toFixed(1) : "—"}</div>
+                <div style={{ ...tag, fontSize: 9, color: RD_CREAM50 }}>BPM · measured</div>
+              </div>
+            )}
+            {state === "open" && snap && snap.track && (
+              <div style={{ position: "absolute", left: 14, right: 14, bottom: 12, fontFamily: RD_SANS, fontSize: 13, color: RD_CREAM }}>
+                <strong style={{ fontWeight: 600 }}>{snap.track.name}</strong>
+                {snap.track.synthesized && <span style={{ color: RD_CREAM50 }}> · Synthesized example</span>}
+              </div>
+            )}
+            {state === "opening" && (
+              <div style={{ ...tag, position: "absolute", inset: 0, display: "grid", placeItems: "center", color: RD_CREAM50 }}>
+                {progress != null ? `Loading Nora… ${Math.round(progress * 100)}%` : "Loading Nora…"}
+              </div>
+            )}
+            {(state === "unsupported" || state === "failed") && (
+              <div style={{ ...tag, position: "absolute", inset: 0, display: "grid", placeItems: "center", padding: 20, textAlign: "center", color: RD_CREAM50 }}>
+                {state === "unsupported" ? "This browser can’t run the booth: it needs WebGL 2" : "The booth could not start on this device"}
+              </div>
+            )}
           </div>
-          {(state === "unsupported" || state === "failed") && (
-            <div style={{ fontFamily: RD_NUM, fontWeight: 700, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: RD_CREAM50, marginTop: 20, fontVariationSettings: "'ROND' 100" }}>
-              {state === "unsupported" ? "This browser has no WebGL — the booth needs it" : "The booth could not start on this device"}
+          {state === "open" && (
+            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8, marginTop: 14 }}>
+              {allowed && (playing
+                ? <button type="button" onClick={() => boothRef.current && boothRef.current.stopExample()} style={chip(true)}>■ Stop the example set</button>
+                : <button type="button" onClick={() => boothRef.current && boothRef.current.playExample()} style={chip(false)}>▶ Play the example set</button>)}
+              {playing && <button type="button" onClick={() => boothRef.current && boothRef.current.nextTrack()} style={chip(false)}>Next track ⇄</button>}
+              <button type="button" aria-pressed={!free} onClick={() => boothRef.current && boothRef.current.setCamera("auto")} style={chip(!free)}>Auto camera</button>
+              <button type="button" aria-pressed={free} onClick={() => boothRef.current && boothRef.current.setCamera("free")} style={chip(free)}>Look around</button>
             </div>
           )}
-          <button type="button" onClick={showing ? close : open} disabled={state === "opening"}
-            style={{ marginTop: 22, height: 44, padding: "0 20px", background: "transparent", border: `1px solid ${RD_TEAL}`, color: RD_TEAL, fontFamily: RD_SANS, fontWeight: 600, fontSize: 13.5, cursor: state === "opening" ? "default" : "pointer", clipPath: "polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%)" }}>
-            {state === "opening" ? "Starting the booth…" : showing ? "Hide Nora" : "Watch Nora (preview)"}
-          </button>
+          {state === "open" && allowed && (
+            <p style={{ fontFamily: RD_SANS, fontSize: 13, color: RD_CREAM50, margin: "12px auto 0", maxWidth: 560, lineHeight: 1.55 }}>
+              The example set&rsquo;s tracks are synthesized in your browser and Nora&rsquo;s mix is
+              choreographed on their beat. It is not the Shape Radio stream.
+            </p>
+          )}
+          <div style={{ display: "flex", justifyContent: "center", gap: 10, marginTop: 18 }}>
+            <button type="button" onClick={() => setOpen((v) => !v)}
+              style={{ height: 44, padding: "0 20px", background: "transparent", border: `1px solid ${RD_TEAL}`, color: RD_TEAL, fontFamily: RD_SANS, fontWeight: 600, fontSize: 13.5, cursor: "pointer", clipPath: "polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%)" }}>
+              {showing ? "Hide Nora" : "Watch Nora"}
+            </button>
+            {state === "failed" && (
+              <button type="button" onClick={() => setAttempt((n) => n + 1)} style={chip(false)}>Try again</button>
+            )}
+          </div>
         </RdReveal>
       </div>
     </section>
@@ -327,6 +390,8 @@ function RadioPage() {
       <style>{`
         html, body { background: #06090f !important; }
         .radio-page ::selection { background: #34d6c5; color: #04110f; }
+        .rd-booth { aspect-ratio: 16 / 9; }
+        @media (max-width: 640px) { .rd-booth { aspect-ratio: 4 / 5; } }
       `}</style>
     </div>
   );

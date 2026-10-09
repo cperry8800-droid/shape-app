@@ -4,11 +4,13 @@ Nora DJing in Club Shape: a three.js scene with two media players and a mixer (m
 CDJ-3000 / DJM-A9 layout, no trademarks on screen), the Club Shape venue, a crowd built from
 Nora's own VRM, a camera director and a beat-matched two-deck mix.
 
-**This is a prototype, not app code.** Nothing here is imported by the app or the website. The
-plan for moving it into `public/newdesign/` and the app is in
-[`docs/REVIEW-2026-09-29-nora-dj.md`](../../docs/REVIEW-2026-09-29-nora-dj.md) (§ Phase 1). The
-module rules (world frame, gear frame, brand rule, no `Math.random` / `Date.now` in pure modules)
-are in [`CONTRACT.md`](CONTRACT.md).
+**The booth's runtime modules now live in [`public/newdesign/booth/`](../../public/newdesign/booth/)**,
+where the app's Radio screen and the website's Radio page both load them (Phase 1 of
+[`docs/REVIEW-2026-09-29-nora-dj.md`](../../docs/REVIEW-2026-09-29-nora-dj.md)). This folder keeps
+the preview page (`src/main.mjs`), the bake-time tools (the crowd bake, the decimator, the screen
+artwork generator), the stand-alone test pages and the Chromium harnesses, all built against those
+modules. The module rules (world frame, gear frame, brand rule, no `Math.random` / `Date.now` in
+pure modules) are in [`CONTRACT.md`](CONTRACT.md).
 
 Live preview (private artifact): https://claude.ai/artifact/RUCmUSmsu4W68dqzneoUqy
 
@@ -16,25 +18,13 @@ Live preview (private artifact): https://claude.ai/artifact/RUCmUSmsu4W68dqzneoU
 
 | Path | What it is |
 |---|---|
-| `src/main.mjs` | The booth page: renderer, post (the cinematic chain on high, bloom alone on low), camera director, HUD, mix loop. Built to `pub/booth.js`. |
-| `src/cinematic.mjs` | The desktop cinematic tier (high quality only): the scene with depth, light shafts off the LED wall, depth of field set per shot, anamorphic streaks, and a film finish (grade, fringing, vignette, grain, 2.39:1 bars). `?cine=0` turns it off, `?bars=0` keeps it without the bars. |
-| `src/noraPerformer.mjs` | Nora's body: springs for hands, groove, dip, sway, head; the skin-shader ceiling. |
-| `src/noraDirector.mjs` | Camera shots (panoramic, decks, mixer, face, shoulder, behind Nora, the drone glide…) and cut timing. |
-| `src/noraMix.mjs` | Pure mix planner: when to cue, blend and swap decks on bar boundaries. |
-| `src/deckAudio.mjs` | Two decks on Web Audio: synthesized example tracks, or real buffers. |
-| `src/trackAnalysis.mjs` | Tempo / beat grid / waveform from a decoded buffer. |
-| `src/cdj3000.mjs`, `src/djmMixer.mjs` | The gear (real dimensions, instanced LEDs, screen UI). |
-| `src/club.mjs`, `src/clubVenue.mjs` | Club Shape: venue, private balcony boxes, glass balcony fronts, stage lights, lasers and blinders, the crowd. |
-| `src/arenaStage.mjs` | The arena main stage: a floor-to-ceiling LED wall (shader content) on a flat deck that runs to the balconies, a row of par cans on the lip, a truss rig with spots, moving-head beams and line arrays. |
-| `src/wordmarkGlyphs.mjs`, `src/screenArt.mjs`, `src/clubShapeMask.mjs` | The stage screen's artwork: the Shape mark's two triangles over CLUB SHAPE. The glyphs are strokes fitted to the brand wordmark (C L U B are built from S H A P E's strokes); `screenArt` lays them onto the LED dots; `clubShapeMask.mjs` is the generated result. |
-| `src/lightBake.mjs` | The load-time light bake: direct light with shadows, AO and one bounce into vertex colours and the floor texture. |
-| `src/palmGeometry.mjs` | The 3D palms (trunk and fronds), uplit gold. |
-| `src/crowdAvatars.mjs` | Instanced crowd renderer (shader arm raise, per-person top/bottoms/shoe/skin/hair colours, eyes drawn in the shader, near/far/tiny/seated LODs). |
+| `src/main.mjs` | The preview page: renderer, post (the cinematic chain on high, bloom alone on low), camera director, HUD, mix loop. Built to `pub/booth.js`. |
+| `../../public/newdesign/booth/` | The runtime modules, shared with the app and the website: the gear (`cdj3000`, `djmMixer`), Club Shape (`club`, `clubVenue`, `arenaStage`, `crowdAvatars`, `palmGeometry`, `lightBake`, `clubShapeMask`, `flashGate`), Nora (`noraPerformer`, `noraDirector`, `noraMix`), the audio (`deckAudio`, `trackAnalysis`, `tempoBridge`), the desktop `cinematic` tier and the host both pages mount (`noraBooth`). |
+| `src/wordmarkGlyphs.mjs`, `src/screenArt.mjs`, `screen-mask.mjs` | The stage screen's artwork generator: the Shape mark's two triangles over CLUB SHAPE, from strokes fitted to the brand wordmark. `screen-mask.mjs` writes the result to `public/newdesign/booth/clubShapeMask.mjs`. |
 | `src/crowd-bake.mjs` | Bakes the crowd figures from the VRM (CPU skinning + QEM decimation) into `crowd.bin.txt`. |
 | `src/meshDecimate.mjs` | Quadric-error mesh decimation used by the bake (tested in `test/meshDecimate.test.mjs`). |
-| `src/radioTempo.mjs`, `src/tempoBridge.mjs` | The app's tempo detector and its bridge. |
 | `src/*-test.mjs`, `dist/*.html` | Stand-alone test pages for each module (gear, mixer, club, venue, crowd, audio). |
-| `test/*.test.mjs` | Node tests (mix planner, deck audio, track analysis, decimation, the light bake, the arena stage, the screen artwork, the cinematic lens and shaft rules). |
+| `test/*.test.mjs` | The two node tests that cover this folder's own tools (the decimator, the screen artwork). The runtime modules' tests are in the root suite as `tests/booth-*.test.mjs`, so CI runs them. |
 | `*.cjs` | Headless Chromium harnesses (screenshots, motion sampling, draw calls, the crowd bake). |
 | `pub/index.html` | The published page's HTML. |
 
@@ -47,13 +37,16 @@ deck renders bit-identically to it on the synthesized path.
 cd prototypes/nora-booth
 npm ci                                   # three 0.185.1, @pixiv/three-vrm 3.5.5, esbuild, playwright-core
 cp ../../public/nora/placeholder.vrm dist/nora.vrm
-node --test test/*.test.mjs              # 76 tests  (⚠ `node --test test/` fails: it treats the dir as a module)
+node --test test/*.test.mjs              # 7 tests here; the other 69 run in the root suite (tests/booth-*.test.mjs)
 ```
 
 ## Build
 
 ```bash
+# ⚠ NODE_PATH: the runtime modules live in public/newdesign/booth/, outside this folder, so their
+# bare `three` imports only resolve against this folder's node_modules when esbuild is told to look there.
 # dev bundle (loads dist/nora.vrm via ?vrm=nora.vrm) and the published, minified bundle
+export NODE_PATH=node_modules
 npx esbuild src/main.mjs --bundle --format=esm --target=es2020 --outfile=dist/booth.js
 npx esbuild src/main.mjs --bundle --minify --format=esm --target=es2020 --outfile=pub/booth.js
 
@@ -69,6 +62,9 @@ npx esbuild src/crowd-bake.mjs --bundle --format=esm --target=es2020 --outfile=d
 python3 -m http.server 8811 -d dist &
 node crowd-bake.cjs http://127.0.0.1:8811/crowd-bake.html pub/crowd.bin.txt
 cp pub/crowd.bin.txt dist/           # the dev page loads it from beside booth.js
+# the app and the website serve the same pack; re-copy both after a re-bake
+cp pub/crowd.bin.txt ../../public/nora/crowd.bin.txt
+cp pub/crowd.bin.txt ../../mobile-app/public/nora/crowd.bin.txt
 ```
 
 The crowd bake (v2) outputs about 110 KB (≈146 KB as base64): body LODs near 2,349 tris, far 700,

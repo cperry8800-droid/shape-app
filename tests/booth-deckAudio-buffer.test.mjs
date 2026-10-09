@@ -4,9 +4,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { normalizeBufferMeta, planBufferStart, BUFFER_TRIM, BUFFER_TARGET_LUFS } from '../src/deckAudio.mjs';
+import { normalizeBufferMeta, planBufferStart, BUFFER_TRIM, BUFFER_TARGET_LUFS } from '../public/newdesign/booth/deckAudio.mjs';
 
-const SRC = readFileSync(new URL('../src/deckAudio.mjs', import.meta.url), 'utf8');
+const SRC = readFileSync(new URL('../public/newdesign/booth/deckAudio.mjs', import.meta.url), 'utf8');
 const ENGINE = 124;
 const T0 = 0.05;
 const BAR = 240 / ENGINE;

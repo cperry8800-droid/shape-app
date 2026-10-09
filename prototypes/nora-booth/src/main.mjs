@@ -13,17 +13,17 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 
-import { createCDJ, CDJ_DIMS } from './cdj3000.mjs';
-import { createMixer, DJM_DIMS } from './djmMixer.mjs';
-import { createClub } from './club.mjs';
-import { createVenue } from './clubVenue.mjs';
-import * as MIX from './noraMix.mjs';
-import { createDeckAudio, trackWaveform, DEMO_TRACKS } from './deckAudio.mjs';
-import { analyzeTrack, bufferWaveform } from './trackAnalysis.mjs';
-import { NoraPerformer } from './noraPerformer.mjs';
-import { NoraDirector, SHOTS, SHOT_IDS } from './noraDirector.mjs';
-import { createTempoTracker } from './tempoBridge.mjs';
-import { createCinematic } from './cinematic.mjs';
+import { createCDJ, CDJ_DIMS } from '../../../public/newdesign/booth/cdj3000.mjs';
+import { createMixer, DJM_DIMS } from '../../../public/newdesign/booth/djmMixer.mjs';
+import { createClub } from '../../../public/newdesign/booth/club.mjs';
+import { createVenue } from '../../../public/newdesign/booth/clubVenue.mjs';
+import * as MIX from '../../../public/newdesign/booth/noraMix.mjs';
+import { createDeckAudio, trackWaveform, DEMO_TRACKS } from '../../../public/newdesign/booth/deckAudio.mjs';
+import { analyzeTrack, bufferWaveform } from '../../../public/newdesign/booth/trackAnalysis.mjs';
+import { NoraPerformer } from '../../../public/newdesign/booth/noraPerformer.mjs';
+import { NoraDirector, SHOTS, SHOT_IDS } from '../../../public/newdesign/booth/noraDirector.mjs';
+import { createTempoTracker } from '../../../public/newdesign/booth/tempoBridge.mjs';
+import { createCinematic } from '../../../public/newdesign/booth/cinematic.mjs';
 
 const Q = new URLSearchParams(location.search);
 const ACCENT = '#34d6c5';

@@ -399,7 +399,7 @@ export function createArenaStage({ THREE, quality = 'high', reducedMotion = fals
 
     // the beams: three looks, changing every eight bars; wider and quicker on the drop
     const slow = RM ? 0.2 : 1, ts = t * slow;
-    const look = Math.floor(st.bar / 8) % 3;
+    const look = ((Math.floor(st.bar / 8) % 3) + 3) % 3;   // never negative: the bar clock starts just below 0
     const drop = envD > 0.5;
     const gain = (0.1 + 0.3 * envL) * (1 + 0.8 * envD) * (1 + 0.12 * envK);
     for (let k = 0; k < NB; k++) {

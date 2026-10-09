@@ -2,7 +2,7 @@
 // driven by a fake 126 BPM mix. ?view=player|hero|close|fx|top|back  ?t=seconds (freeze time)
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { createMixer, DJM_DIMS } from './djmMixer.mjs';
+import { createMixer, DJM_DIMS } from '../../../public/newdesign/booth/djmMixer.mjs';
 
 const q = new URLSearchParams(location.search);
 const view = q.get('view') || 'hero';

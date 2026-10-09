@@ -479,6 +479,17 @@ function useRadioStation() {
 
   React.useEffect(() => () => { if (audioRef.current) audioRef.current.pause(); }, []);
 
+  // ⚠ NORA'S BOOTH NEEDS THE STATION'S STATE AS WELL AS ITS GRAPH, and for the same reason: it is
+  // a separate component (and its rules are an ES module) that cannot see this hook. Who hears the
+  // booth's example set turns on exactly these three readings (noraBoothState.exampleAllowed: never
+  // while the stream plays, a signed-out visitor always, a member only while the station is not
+  // configured), so they are parked and announced the way `shape:radiograph` is, unchanged — a
+  // `null` still means "not measured yet", never "no".
+  React.useEffect(() => {
+    window.__shapeRadioState = { signedIn, configured, playing };
+    try { window.dispatchEvent(new CustomEvent("shape:radiostate", { detail: window.__shapeRadioState })); } catch (e) {}
+  }, [signedIn, configured, playing]);
+
   return { signedIn, playing, configured, nowPlaying, refusal, play, pause, analyserRef, binsRef, startedAtRef };
 }
 

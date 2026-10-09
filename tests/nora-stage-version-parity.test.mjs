@@ -25,7 +25,7 @@
 // The two assertions below chain into the claim that matters. On its own, checking
 // the installed copy only proves the APP is safe — it is mobile's node_modules. It
 // is version PARITY that carries the result across to the web:
-//   (a) every VRMUtils member noraStage.mjs calls exists in the INSTALLED three-vrm
+//   (a) every VRMUtils member the booth (noraBooth.mjs) calls exists in the INSTALLED three-vrm
 //   (b) the web import map pins the SAME versions the app installs
 //   ⟹ every member exists on the web too.
 // Drop either half and the web side is unproven again.
@@ -36,7 +36,9 @@ import { readFileSync, existsSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 const HTML = readFileSync('public/newdesign/Radio.html', 'utf8');
-const STAGE = readFileSync('public/newdesign/noraStage.mjs', 'utf8');
+// Since Phase 1 the module is the booth host, which replaced noraStage.mjs (the module the
+// outage above was in); the same two dependency pairs compile it.
+const STAGE = readFileSync('public/newdesign/booth/noraBooth.mjs', 'utf8');
 const PKG = JSON.parse(readFileSync('mobile-app/package.json', 'utf8'));
 const DEPS = { ...(PKG.dependencies || {}), ...(PKG.devDependencies || {}) };
 
@@ -69,7 +71,7 @@ test('the Radio import map pins the same three / three-vrm the app installs', ()
   assert.ok(three && addons && vrm && vrmDeps, 'an import-map URL no longer carries a readable version');
 
   assert.equal(three[1], appThree,
-    `the import map pins three@${three[1]} while the app installs ${appThree} — noraStage.mjs is compiled against both`);
+    `the import map pins three@${three[1]} while the app installs ${appThree} — noraBooth.mjs is compiled against both`);
   assert.equal(addons[1], appThree,
     `three/addons/ points at three@${addons[1]} while "three" points at ${appThree} — the addons would load against a different copy`);
   assert.equal(vrm[1], appVrm,
@@ -78,14 +80,14 @@ test('the Radio import map pins the same three / three-vrm the app installs', ()
     `three-vrm's ?deps= resolves three@${vrmDeps[1]}, not ${appThree} — three-vrm would bind a SECOND copy of three`);
 });
 
-test('every VRMUtils member noraStage.mjs calls exists in the installed three-vrm', async () => {
+test('every VRMUtils member the booth host calls exists in the installed three-vrm', async () => {
   const used = [...STAGE.matchAll(/VRMUtils\.([A-Za-z0-9_]+)\s*\(/g)].map((m) => m[1]);
   const uniq = [...new Set(used)];
   // ⚠ VACUITY: the whole point is the call sites. A pattern that stops matching must
   // fail here rather than report a clean sweep over an empty list.
-  assert.ok(uniq.length >= 3, `found only ${uniq.length} VRMUtils call sites in noraStage.mjs — the sweep has stopped matching`);
+  assert.ok(uniq.length >= 3, `found only ${uniq.length} VRMUtils call sites in noraBooth.mjs — the sweep has stopped matching`);
   assert.ok(uniq.includes('combineSkeletons'),
-    'combineSkeletons is gone from noraStage.mjs — if that is deliberate, re-point this guard; it is the call the outage was about');
+    'combineSkeletons is gone from noraBooth.mjs — if that is deliberate, re-point this guard; it is the call the outage was about');
 
   // ⚠ NOT A SILENT SKIP. If the app tree is not installed this guard cannot run, and
   // saying so out loud is the difference between "checked" and "passed".
@@ -96,7 +98,7 @@ test('every VRMUtils member noraStage.mjs calls exists in the installed three-vr
   assert.equal(typeof mod.VRMUtils, 'function', 'three-vrm no longer exports VRMUtils');
   for (const fn of uniq) {
     assert.equal(typeof mod.VRMUtils[fn], 'function',
-      `noraStage.mjs calls VRMUtils.${fn}(), which does not exist in @pixiv/three-vrm@${DEPS['@pixiv/three-vrm']} — ` +
-      'the booth will throw a TypeError inside load() and RadioNora will swallow it into "The booth could not start on this device"');
+      `noraBooth.mjs calls VRMUtils.${fn}(), which does not exist in @pixiv/three-vrm@${DEPS['@pixiv/three-vrm']} — ` +
+      'the booth will throw a TypeError while it loads, and both pages will say it could not start');
   }
 });

@@ -49,7 +49,7 @@ test('first-hop imports are found', () => {
   // Both are imported directly by a mobile source with an explicit ../../../
   // specifier, so losing either means the walker stopped following plain
   // static imports.
-  for (const anchor of ['public/newdesign/noraStage.mjs', 'src/lib/sentry-context.mjs']) {
+  for (const anchor of ['public/newdesign/booth/noraBoothState.mjs', 'src/lib/sentry-context.mjs']) {
     assert.ok(
       inputs.includes(anchor),
       `${anchor} is imported directly by a mobile source but is missing from the derived set`,
@@ -70,14 +70,17 @@ test('TRANSITIVE imports are found, not just the first hop', () => {
       'Its absence means the deriver stopped following the graph past the first hop, so any ' +
       'change to a transitively-bundled module would skip the mobile build.',
   );
-  // And a second one of the same shape, added 2026-09-15: Nora's projection
-  // material is reached only through noraStage.mjs (mobile -> noraStage.mjs ->
-  // noraHologram.mjs). A shader edit that skipped the mobile build would ship a
-  // bundle whose Nora is whatever the last build rendered.
-  assert.ok(
-    inputs.includes('public/newdesign/noraHologram.mjs'),
-    'noraHologram.mjs is a SECOND-HOP dependency (mobile -> noraStage.mjs -> noraHologram.mjs) and is missing from the derived set',
-  );
+  // And the deepest one: Nora's booth. Mobile reaches it through a DYNAMIC import (the radio
+  // screen loads noraBooth.mjs only when the booth opens), and the scene is several hops below
+  // that: mobile -> noraBooth.mjs -> club.mjs -> crowdAvatars.mjs. (Until Phase 1 this anchor was
+  // noraHologram.mjs, reached through the retired noraStage.mjs.) A change to the crowd that
+  // skipped the mobile build would ship a bundle whose club is whatever the last build drew.
+  for (const deep of ['public/newdesign/booth/noraBooth.mjs', 'public/newdesign/booth/club.mjs', 'public/newdesign/booth/crowdAvatars.mjs']) {
+    assert.ok(
+      inputs.includes(deep),
+      `${deep} is reached from mobile through the booth's dynamic import (mobile -> noraBooth.mjs -> club.mjs -> crowdAvatars.mjs) and is missing from the derived set`,
+    );
+  }
 });
 
 test('every derived path actually exists', () => {

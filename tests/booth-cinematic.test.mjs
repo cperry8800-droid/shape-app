@@ -3,8 +3,8 @@
 // checked by rendering; these are the numbers that decide what those passes do.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LENS, lensFor, shaftVisibility } from '../src/cinematic.mjs';
-import { SHOT_IDS } from '../src/noraDirector.mjs';
+import { LENS, lensFor, shaftVisibility } from '../public/newdesign/booth/cinematic.mjs';
+import { SHOT_IDS } from '../public/newdesign/booth/noraDirector.mjs';
 
 test('every shot the director can cut to has its own lens, and an unknown one falls back to free', () => {
   assert.ok(SHOT_IDS.length >= 10, 'the director exposes its shot list');

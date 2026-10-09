@@ -4,8 +4,8 @@
 // sine with a 3.x→1.35→1× pitch sweep, a 2.5 ms linear attack, a noise click, through a soft
 // clipper) — not the test suite's fixture kick — so it checks the analyser against a signal it
 // was not tuned on.
-import { createDeckAudio, DEMO_TRACKS, describeTrack } from './deckAudio.mjs';
-import { analyzeTrack, bufferWaveform } from './trackAnalysis.mjs';
+import { createDeckAudio, DEMO_TRACKS, describeTrack } from '../../../public/newdesign/booth/deckAudio.mjs';
+import { analyzeTrack, bufferWaveform } from '../../../public/newdesign/booth/trackAnalysis.mjs';
 
 const SR = 44100, BPM = 124, BAR = 240 / BPM, T0 = 0.0437;   // t0 deliberately not round
 

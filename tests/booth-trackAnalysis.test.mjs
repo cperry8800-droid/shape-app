@@ -11,8 +11,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { analyzeTrack, bufferWaveform, _internal as I } from '../src/trackAnalysis.mjs';
-import { planTransition, mixState } from '../src/noraMix.mjs';
+import { analyzeTrack, bufferWaveform, _internal as I } from '../public/newdesign/booth/trackAnalysis.mjs';
+import { planTransition, mixState } from '../public/newdesign/booth/noraMix.mjs';
 
 // ── The fixture generator ─────────────────────────────────────────────────────────────────
 function mulberry32(seed) {
@@ -443,7 +443,7 @@ test('deterministic, pure, and validated', () => {
   const { fx, meta } = measured(spec);
   const again = analyzeTrack(fresh(fx), fx.sampleRate);          // cold, no cache
   assert.deepEqual(again, meta);
-  const src = readFileSync(new URL('../src/trackAnalysis.mjs', import.meta.url), 'utf8').replace(/\/\/.*$/gm, '');
+  const src = readFileSync(new URL('../public/newdesign/booth/trackAnalysis.mjs', import.meta.url), 'utf8').replace(/\/\/.*$/gm, '');
   for (const bad of ['Math.random', 'Date.now', 'performance.now', 'window.', 'document.', 'AudioContext', 'import ']) {
     assert.ok(!src.includes(bad), `trackAnalysis.mjs must not use ${bad}`);
   }

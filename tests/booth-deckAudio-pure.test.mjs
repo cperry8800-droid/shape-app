@@ -4,7 +4,7 @@
 // the MASTER grid t0 + n·60/engineBpm, with n counted from atBar·4 for track beat fromBar·4.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeBufferMeta, planBufferStart } from '../src/deckAudio.mjs';
+import { normalizeBufferMeta, planBufferStart } from '../public/newdesign/booth/deckAudio.mjs';
 
 const ENGINE = 124;
 function lcg(seed) { let s = seed >>> 0; return () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296); }
