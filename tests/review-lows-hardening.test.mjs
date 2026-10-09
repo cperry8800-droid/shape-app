@@ -1,7 +1,8 @@
 // The Lows of the 2026-10-08 security review's app code, L1 to L15. Each section names the
 // finding and drives the SHIPPING code (loadRealModule compiles the real files; stubs stand only
 // where a network, a database or Stripe would), or pins the one line a finding came down to.
-// The database-side Lows (policies) are the owner's decisions and are not here.
+// The database-side Lows (policies) were the owner's decisions; they shipped in #2297 and are
+// read by tests/security-review-lows.test.mjs, not here.
 //
 //   L1   account deletion took effect on one unconfirmed POST. Two requests now: the first earns a
 //        ten-minute token bound to the account (428), only a request carrying it deletes.
