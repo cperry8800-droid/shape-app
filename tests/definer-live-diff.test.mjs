@@ -15,7 +15,7 @@ import { allowListAsOfCapture, modelAsOfCapture } from './helpers/definer-live.m
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SCRIPT = join(ROOT, 'scripts/definer-live-diff.mjs');
-const LIVE = JSON.parse(fs.readFileSync(join(ROOT, 'tests/fixtures/definer-live-2026-10-08.json'), 'utf8'));
+const LIVE = JSON.parse(fs.readFileSync(join(ROOT, 'tests/fixtures/definer-live-2026-10-09.json'), 'utf8'));
 // The fixture lists the non-trigger definers by anon-executability and the trigger definers by name (its own `scope`)
 // and say nothing about trigger definers.
 
@@ -308,11 +308,11 @@ test('the CLI: the checked-in allow-list accepts the live capture, and rejects a
     ...LIVE.notAnonExecutable.map((proname) => row(proname, false, !unpinned.has(proname))),
     ...LIVE.triggerDefiners.map((proname) => row(proname, false, !unpinned.has(proname), { is_trigger: true })),
   ];
-  assert.equal(rows.filter((r) => r.is_trigger).length, 12, 'the fixture names the trigger definers too');
+  assert.equal(rows.filter((r) => r.is_trigger).length, 14, 'the fixture names the trigger definers too');
   const cli = (input, ...args) => spawnSync(process.execPath, [SCRIPT, ...args], { input, encoding: 'utf8', cwd: ROOT });
   const good = cli(JSON.stringify([{ rows }]));
   assert.equal(good.status, 0, good.stderr);
-  assert.match(good.stdout, /138 SECURITY DEFINER functions in public \(plus 12 trigger functions, checked for the pin only\); 83 executable by anon: 79 allow-listed, 4 registered findings, 0 UNACCOUNTED/);
+  assert.match(good.stdout, /143 SECURITY DEFINER functions in public \(plus 14 trigger functions, checked for the pin only\); 83 executable by anon: 79 allow-listed, 4 registered findings, 0 UNACCOUNTED/);
   const leak = cli(JSON.stringify([...rows, row('league_style_leak', true)]));
   assert.equal(leak.status, 1);
   assert.match(leak.stderr, /1 UNACCOUNTED/);

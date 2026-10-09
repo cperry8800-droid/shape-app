@@ -1,12 +1,13 @@
 {
-  "capturedOn": "2026-10-08",
-  "source": "Read-only catalog query against the production database on 2026-10-08 at about 22:00 UTC, by the session that shipped #2280: scripts/definer-live-check.sql run as written through the Supabase MCP execute_sql, the returned rows written to this file by a script (nothing copied by hand). Taken after the owner had run every migration dated 2026-10-08 (captureDayFilesApplied, with the access-layer file at its first head, eff905f) and before the review-round re-run of that file (d154678), which changed function bodies, a policy and locks and no grant or search_path, so the rows are the same either side of it. It supersedes the 2026-09-30 capture, whose names were copied from an earlier session's scratch files.",
+  "capturedOn": "2026-10-09",
+  "source": "Read-only catalog query against the production database on 2026-10-09 at about 19:05 UTC, by the session that shipped #2284 to #2292: scripts/definer-live-check.sql run as written through the Supabase MCP execute_sql, the returned rows written to this file by a script (nothing copied by hand). Taken after the owner had run every migration dated 2026-10-09 (captureDayFilesApplied: all five), and verified so before the capture (the restored trigger on public.messages, the store-credit and lead-boost functions, the reviews trigger, the lead-boost active key, the sale-plan preview functions). It supersedes the 2026-10-08 capture, which predated the five files and recorded messages_touch_conversation as missing in production; a read-only capture at 18:40 UTC the same day, before the last two files ran, returned rows identical to these.",
   "scope": "schema public, prokind f or w, prosecdef. anonExecutable / notAnonExecutable: the non-trigger definers (return type not trigger or event_trigger), by whether has_function_privilege('anon', oid, 'EXECUTE') holds. triggerDefiners: the trigger and event-trigger definers, listed so the model's can be confirmed. definersWithoutPgTemp: every definer of either kind whose search_path does not end in pg_temp. Names only (no overloads exist, so a name is one function).",
   "captureDayFilesApplied": [
-    "2026-10-08-admin-lookup-log.sql",
-    "2026-10-08-nora-threads.sql",
-    "2026-10-08-security-review-access-layer.sql",
-    "2026-10-08-support-requests.sql"
+    "2026-10-09-coach-reviews-require-relationship.sql",
+    "2026-10-09-store-credit-reservations-and-lead-boost-redemption.sql",
+    "2026-10-09-lead-boost-active-key-and-expiry.sql",
+    "2026-10-09-restore-messages-touch-conversation.sql",
+    "2026-10-09-sale-plan-preview-menus.sql"
   ],
   "anonExecutable": [
     "accept_commitment",
@@ -109,6 +110,7 @@
     "claim_provider_row",
     "claim_tier_reward",
     "claim_weekly_readout",
+    "coach_review_allowed",
     "consume_store_credit",
     "create_coach_referral",
     "create_coach_referral_link",
@@ -137,9 +139,12 @@
     "member_dobs_for_viewer",
     "post_my_pr_to_wall",
     "publish_client_week",
+    "redeem_lead_boost",
     "regenerate_client_workouts",
     "release_ai_action_undo",
+    "release_store_credit_reservation",
     "release_weekly_readout",
+    "reserve_store_credit",
     "resolve_coach_checkout_origin",
     "save_workout_session",
     "search_members",
@@ -148,15 +153,18 @@
     "settle_commitment",
     "shape_leaderboard",
     "shape_leaderboard_me",
-    "shape_pr_wall"
+    "shape_pr_wall",
+    "sweep_store_credit_reservations"
   ],
   "triggerDefiners": [
     "channel_messages_touch",
     "client_programs_discipline_guard",
     "coach_review_owner_id",
+    "coach_reviews_require_relationship",
     "cycle_events_no_future",
     "enforce_booking_rules",
     "enforce_support_request_limit",
+    "messages_touch_conversation",
     "notify_on_client_workout",
     "notify_on_new_message",
     "notify_on_program_assignment",
