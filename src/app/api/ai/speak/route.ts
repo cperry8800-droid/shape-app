@@ -14,6 +14,7 @@ import { resolveActor } from '@/lib/ai/server';
 import { hasOpenAIKey, synthesizeSpeech } from '@/lib/ai';
 import { resolveVoiceWithDefault, voiceStyleForTone, encodeSpokenText, SPOKEN_TEXT_HEADER } from '@/lib/ai/tone.mjs';
 import { requireMembership } from '@/lib/require-membership';
+import { countBudget, budgetReply } from '@/lib/ai/noraLimits';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -52,6 +53,11 @@ export async function POST(request: Request) {
   // The member's explicit voice choice → the owner's env default
   // (NORA_TTS_VOICE, the openai.fm audition winner — may be any API voice,
   // e.g. 'fable') → the tone's default voice.
+  // M8 (2026-10-08 review): a day's budget per account, counted before the model is asked.
+  const budget = await countBudget(actor.supabase, actor.user.id, 'speak');
+  if (!budget.allowed) {
+    return NextResponse.json({ error: budgetReply('speak', budget.resetSeconds), code: 'daily_budget' }, { status: 429, headers: { 'Retry-After': String(Math.max(60, budget.resetSeconds)) } });
+  }
   const voice = resolveVoiceWithDefault(parsed.data.voice, process.env.NORA_TTS_VOICE, parsed.data.tone);
   // Delivery steering only — the words are synthesized verbatim (the parity
   // header is untouched). The env override wins so the owner can pin a house

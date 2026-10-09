@@ -74,6 +74,7 @@ test('GET /api/ai/speak answers the gate\'s own verdict, with no audio and no ke
     typescript: true,
     registry: new Map([
       ['next/server', next],
+      ['@/lib/ai/noraLimits', { countBudget: async () => ({ allowed: true, limit: 200, resetSeconds: 0 }), budgetReply: () => '' }],
       ['@/lib/request-utils', { readJson: async () => ({ ok: false }) }],
       ['@/lib/ai/server', { resolveActor: async () => actor }],
       ['@/lib/ai', { hasOpenAIKey: () => { throw new Error('GET must not touch the key'); }, synthesizeSpeech: () => { throw new Error('GET must not speak'); } }],

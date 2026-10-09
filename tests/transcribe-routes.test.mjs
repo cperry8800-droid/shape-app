@@ -21,7 +21,8 @@ async function loadRoute(path, { user = { id: 'u1' }, hasKey = true, answer = { 
   const calls = [];
   const registry = new Map([
     ['next/server', nextServer],
-    ['@/lib/request-auth', { currentUser: async () => user }],
+    ['@/lib/ai/noraLimits', { countBudget: async () => ({ allowed: true, limit: 300, resetSeconds: 0 }), budgetReply: () => '' }],
+    ['@/lib/request-auth', { currentUser: async () => user, clientForRequest: async () => null }],
     ['@/lib/require-membership', { requireMembership: async () => null }],
     ['@/lib/ai/voiceLang.mjs', voiceLang],
     ['@/lib/ai', { hasOpenAIKey: () => hasKey, transcribeAudio: async (file, opts) => { calls.push({ file: { name: file.name, size: file.size }, opts }); return answer; } }],

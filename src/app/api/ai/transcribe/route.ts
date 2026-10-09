@@ -16,7 +16,8 @@
 // the OpenAI key is never burned by anonymous traffic).
 
 import { NextResponse } from 'next/server';
-import { currentUser } from '@/lib/request-auth';
+import { currentUser, clientForRequest } from '@/lib/request-auth';
+import { countBudget, budgetReply } from '@/lib/ai/noraLimits';
 import { transcribeAudio, hasOpenAIKey } from '@/lib/ai';
 import { requireMembership } from '@/lib/require-membership';
 import { transcriptionHints } from '@/lib/ai/voiceLang.mjs';
@@ -37,6 +38,11 @@ export async function POST(request: Request) {
   if (!(file instanceof File)) return NextResponse.json({ error: 'No audio provided.' }, { status: 400 });
   const MAX_AUDIO_BYTES = 25 * 1024 * 1024; // OpenAI transcription hard limit
   if (file.size > MAX_AUDIO_BYTES) return NextResponse.json({ error: 'Audio file too large.' }, { status: 413 });
+  // M8 (2026-10-08 review): a day's budget per account, counted before the model is asked.
+  const budget = await countBudget(await clientForRequest(request), user.id, 'transcribe');
+  if (!budget.allowed) {
+    return NextResponse.json({ error: budgetReply('transcribe', budget.resetSeconds), code: 'daily_budget' }, { status: 429, headers: { 'Retry-After': String(Math.max(60, budget.resetSeconds)) } });
+  }
 
   // The recording's language and Shape's own vocabulary ride with the audio —
   // a general model hears "Shape Score" as "shape's core" and dictates every

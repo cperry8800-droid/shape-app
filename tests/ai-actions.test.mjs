@@ -161,7 +161,10 @@ test('nothing to log is refused with a clear ask', async () => {
 // ── coach assign tools (write-scope hardening) ──────────────────────────────
 // A richer Supabase stub: rpc('is_coach_on_client'), provider-row lookup, the
 // current published meal plan, and awaitable update chains (records patch+filters).
-function richSupabase2({ coachMap = {}, discCoachMap = {}, providerId = 7, providerZone = null, prevPlan = null, program = null, workoutSession = null, apptSession = null } = {}) {
+// `writeRows` is what a write chain's `.select()` resolves: the rows the statement changed. The
+// coach undos await it (H9 of the 2026-10-08 review: an undo that changed no row is not an
+// undo), so `writeRows: []` is the zero-affected-rows conflict, as in supabaseMock above.
+function richSupabase2({ coachMap = {}, discCoachMap = {}, providerId = 7, providerZone = null, prevPlan = null, program = null, workoutSession = null, apptSession = null, writeRows = [{ id: 'row-1', user_id: 'x' }] } = {}) {
   const calls = { updates: [], rpc: [], deletes: [] };
   return {
     from(table) {
@@ -179,12 +182,20 @@ function richSupabase2({ coachMap = {}, discCoachMap = {}, providerId = 7, provi
         },
         update(patch) {
           const u = { table, patch, filters: {} };
-          const up = { eq(c, v) { u.filters[c] = v; return up; }, then(res, rej) { calls.updates.push(u); return Promise.resolve({}).then(res, rej); } };
+          const up = {
+            eq(c, v) { u.filters[c] = v; return up; },
+            then(res, rej) { calls.updates.push(u); return Promise.resolve({}).then(res, rej); },
+            select: async () => { calls.updates.push(u); return { data: writeRows, error: null }; },
+          };
           return up;
         },
         delete() {
           const d = { table, filters: {} };
-          const dp = { eq(c, v) { d.filters[c] = v; return dp; }, then(res, rej) { calls.deletes.push(d); return Promise.resolve({}).then(res, rej); } };
+          const dp = {
+            eq(c, v) { d.filters[c] = v; return dp; },
+            then(res, rej) { calls.deletes.push(d); return Promise.resolve({}).then(res, rej); },
+            select: async () => { calls.deletes.push(d); return { data: writeRows, error: null }; },
+          };
           return dp;
         },
       };
@@ -554,4 +565,90 @@ test('reschedule_session saves on the session\'s own listing clock, whatever the
   assert.equal(p.preview.diff[0].before, '2026-06-20 15:00 (Europe/London)', '14:00Z is 3 PM in London in June');
   await confirmChange({ registry, token: p.token, actor, ctx, secret: SECRET, audit: inMemoryAudit() });
   assert.equal(posts[0].tz, 'Europe/London');
+});
+
+// ── H9 of the 2026-10-08 review ────────────────────────────────────────────────
+// Only the actor who made a change may undo it, and an undo that changes no row is not an undo.
+
+test('H9: another account cannot undo a member\'s change — the action\'s undo never runs and the row stays executed', async () => {
+  const registry = registryWith(logMealAction);
+  const audit = inMemoryAudit();
+  const member = { id: 'client-1', role: 'client' };
+  const coach = { id: 'trainer-1', role: 'trainer', roles: ['trainer'] };
+  const supabase = supabaseMock({ snapshot: { calories: 1200, protein_g: 90 } });
+  const ctx = ctxFor(member, supabase, () => ({ ok: true, status: 200, data: { ok: true, day: '2026-06-16' } }));
+  const p = await proposeChange({ registry, action: 'log_meal', input: { kcal: 600, protein: 45, mealName: 'lunch' }, actor: member, ctx, secret: SECRET });
+  const c = await confirmChange({ registry, token: p.token, actor: member, ctx, secret: SECRET, audit });
+  assert.equal(c.ok, true);
+  // The coach reaches the undo with THEIR session (the review's path: the audit read admitted a coach on the target).
+  const coachCtx = ctxFor(coach, supabaseMock({ snapshot: { calories: 1200, protein_g: 90 } }), () => ({ ok: true, status: 200, data: {} }));
+  const u = await undoChange({ registry, auditId: c.auditId, actor: coach, ctx: coachCtx, audit });
+  assert.deepEqual(u, { ok: false, error: 'actor_mismatch' });
+  assert.equal(coachCtx.supabase._calls.updates.length, 0, 'the undo never ran against the coach\'s own data');
+  assert.equal(audit._rows[0].status, 'executed', 'the member\'s entry does not read undone');
+  // No actor at all is refused too, before the status is even read.
+  assert.deepEqual(await undoChange({ registry, auditId: c.auditId, actor: null, ctx: coachCtx, audit }), { ok: false, error: 'actor_mismatch' });
+  // The member can.
+  const ok = await undoChange({ registry, auditId: c.auditId, actor: member, ctx, audit });
+  assert.equal(ok.ok, true);
+  assert.equal(audit._rows[0].status, 'undone');
+});
+
+test('H9: the coach undos that used to report success whatever they hit now refuse when no row changed', async () => {
+  // assign_workout: the archive hits nothing (already archived, or out of the caller's RLS).
+  {
+    const registry = registryWith(assignWorkoutAction);
+    const audit = inMemoryAudit();
+    const actor = { id: 'trainer-1', role: 'trainer' };
+    const supabase = richSupabase2({ coachMap: { 'client-9': true }, providerId: 42, writeRows: [] });
+    const ctx = ctxFor(actor, supabase, () => ({ ok: true, status: 200, data: { ok: true, count: 1 } }));
+    const p = await proposeChange({ registry, action: 'assign_workout', input: { clientId: 'client-9', clientName: 'Priya', title: 'Upper — push', scheduledDate: FUTURE }, actor, ctx, secret: SECRET });
+    const c = await confirmChange({ registry, token: p.token, actor, ctx, secret: SECRET, audit });
+    await assert.rejects(() => undoChange({ registry, auditId: c.auditId, actor, ctx, audit }), /Changed since/);
+    assert.equal(audit._rows[0].status, 'executed', 'a failed reversal hands the claim back');
+  }
+  // assign_meal_plan: the archive hits nothing.
+  {
+    const registry = registryWith(assignMealPlanAction);
+    const audit = inMemoryAudit();
+    const actor = { id: 'nutri-1', role: 'nutritionist' };
+    const supabase = richSupabase2({ coachMap: { 'client-9': true }, providerId: 5, writeRows: [] });
+    const ctx = ctxFor(actor, supabase, () => ({ ok: true, status: 200, data: { ok: true } }));
+    const p = await proposeChange({ registry, action: 'assign_meal_plan', input: { clientId: 'client-9', clientName: 'Priya', title: 'Cut · week 1', days: [{ d: 'Mon' }, { d: 'Tue' }] }, actor, ctx, secret: SECRET });
+    assert.equal(p.ok, true, p.error);
+    const c = await confirmChange({ registry, token: p.token, actor, ctx, secret: SECRET, audit });
+    assert.equal(c.ok, true, c.error);
+    await assert.rejects(() => undoChange({ registry, auditId: c.auditId, actor, ctx, audit }), /Changed since/);
+  }
+  // set_program_detail: the program row is gone or unreachable.
+  {
+    const registry = registryWith(setProgramDetailAction);
+    const audit = inMemoryAudit();
+    const actor = { id: 'trainer-1', role: 'trainer' };
+    const supabase = richSupabase2({
+      coachMap: { 'client-9': true }, discCoachMap: { 'client-9': { trainer: true } },
+      program: { training_phase: 'Build', nutrition_phase: 'Maintain', detail: { training: { note: 'old' }, nutrition: { calories: 2200 } } },
+      writeRows: [],
+    });
+    const ctx = ctxFor(actor, supabase, () => ({ ok: true, status: 200, data: {} }));
+    const p = await proposeChange({ registry, action: 'set_program_detail', input: { clientId: 'client-9', clientName: 'Priya', phase: 'Peak' }, actor, ctx, secret: SECRET });
+    assert.equal(p.ok, true, p.error);
+    const c = await confirmChange({ registry, token: p.token, actor, ctx, secret: SECRET, audit });
+    assert.equal(c.ok, true, c.error);
+    await assert.rejects(() => undoChange({ registry, auditId: c.auditId, actor, ctx, audit }), /Changed since/);
+  }
+  // add_review_note: the note is already gone.
+  {
+    const registry = registryWith(addReviewNoteAction);
+    const audit = inMemoryAudit();
+    const actor = { id: 'trainer-1', role: 'trainer' };
+    const supabase = richSupabase2({ workoutSession: { id: 'ws-1', client_id: 'client-9', provider_role: 'trainer' }, writeRows: [] });
+    const ctx = ctxFor(actor, supabase, (m, path) => (m === 'POST' && path === '/api/coach/review-note')
+      ? { ok: true, status: 200, data: { ok: true, id: 'note-7' } } : { ok: false, status: 404, data: {} });
+    const p = await proposeChange({ registry, action: 'add_review_note', input: { sessionId: 'ws-1', body: 'Nice depth' }, actor, ctx, secret: SECRET });
+    assert.equal(p.ok, true, p.error);
+    const c = await confirmChange({ registry, token: p.token, actor, ctx, secret: SECRET, audit });
+    assert.equal(c.ok, true, c.error);
+    await assert.rejects(() => undoChange({ registry, auditId: c.auditId, actor, ctx, audit }), /Changed since/);
+  }
 });
