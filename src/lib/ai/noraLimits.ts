@@ -31,6 +31,40 @@ export const NORA_DAILY: Record<NoraTier, number | null> = {
 export const VISITOR_ADDRESS_DAILY = 100;
 const DAY = 86400;
 
+// ── The model calls a signed-in account can make a day, beyond Nora's questions ─────────
+// M8 of the 2026-10-08 review: ai/speak (2,000 characters a call), ai/transcribe (25 MB a
+// call) and ai/draft-program (a structured-output program) were member-gated with no daily
+// budget, so the proxy's 100-a-minute limit was the only bound on what one account could
+// spend of the server's key. These are per-account, a day long, generous enough that a person
+// never meets them (a heavy day of voice is tens of calls) and small enough that a script does.
+// Like the question limits they fail OPEN: a limiter fault never takes a feature down.
+export type AiBudgetKind = 'speak' | 'transcribe' | 'draft_program';
+export const AI_DAILY_BUDGETS: Record<AiBudgetKind, number> = {
+  speak: 200,
+  transcribe: 300,
+  draft_program: 40,
+};
+
+/** Count one call against the account's daily budget for `kind`. allowed:false once spent. */
+export async function countBudget(
+  sb: SupabaseClient | null,
+  uid: string,
+  kind: AiBudgetKind
+): Promise<{ allowed: boolean; limit: number; resetSeconds: number }> {
+  const limit = AI_DAILY_BUDGETS[kind];
+  if (!sb || !uid) return { allowed: true, limit, resetSeconds: 0 };
+  const r = await checkRateLimit(sb, `nora:${kind}:${uid}`, limit, DAY);
+  return { allowed: r.allowed, limit, resetSeconds: r.resetSeconds };
+}
+
+/** What a route says when the day's budget is spent. */
+export function budgetReply(kind: AiBudgetKind, resetSeconds: number): string {
+  const hours = Math.max(1, Math.ceil(resetSeconds / 3600));
+  const when = `in about ${hours} hour${hours === 1 ? '' : 's'}`;
+  const what = kind === 'speak' ? "Nora's voice" : kind === 'transcribe' ? 'voice input' : 'AI drafting';
+  return `That's today's limit for ${what}. It resets ${when}.`;
+}
+
 /** Who is asking, from the server's own verdicts (never the page's claim). */
 export function noraTier(signedIn: boolean, m: { isMember?: boolean; isCoach?: boolean; isAdmin?: boolean } | null): NoraTier {
   if (!signedIn) return 'visitor';

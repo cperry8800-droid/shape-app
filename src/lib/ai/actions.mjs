@@ -267,7 +267,11 @@ export const assignWorkoutAction = {
     var q = ctx.supabase.from('client_workouts').update({ status: 'archived' })
       .eq('trainer_id', b.trainerId).eq('client_id', b.clientId).eq('title', b.title).eq('status', 'published');
     if (b.scheduledDate) q = q.eq('scheduled_date', b.scheduledDate);
-    await q;
+    // H9 (2026-10-08 review): an undo that changes no row is not an undo. Before, this awaited the
+    // update and reported success whatever it hit, so a workout already archived, or one the
+    // caller's RLS could not see, read as undone with nothing changed.
+    var res = await q.select('id');
+    if (res.error || !Array.isArray(res.data) || !res.data.length) throw new Error('Changed since — nothing undone.');
   },
 };
 
@@ -582,12 +586,20 @@ export const assignMealPlanAction = {
   },
   async undo(ctx, plan) {
     var b = plan.beforeState || {};
-    // Archive the plan we just published…
-    await ctx.supabase.from('client_meal_plans').update({ status: 'archived' })
-      .eq('nutritionist_id', b.nutritionistId).eq('client_id', b.clientId).eq('title', b.title).eq('status', 'published');
-    // …and restore the one that was published before, if any.
+    // Archive the plan we just published… and it must still be there to archive (H9): a plan
+    // already archived, replaced or out of the caller's RLS reads as "Changed since", not as undone.
+    var res = await ctx.supabase.from('client_meal_plans').update({ status: 'archived' })
+      .eq('nutritionist_id', b.nutritionistId).eq('client_id', b.clientId).eq('title', b.title).eq('status', 'published')
+      .select('id');
+    if (res.error || !Array.isArray(res.data) || !res.data.length) throw new Error('Changed since — nothing undone.');
+    // …and restore the one that was published before, if any. The archive above is the reversal;
+    // a previous plan that has since been deleted is said, not failed on (failing here would leave
+    // the archive done and the ledger reading executed, and a retry could never pass the archive).
     if (b.prevPlanId) {
-      await ctx.supabase.from('client_meal_plans').update({ status: 'published' }).eq('id', b.prevPlanId);
+      var prev = await ctx.supabase.from('client_meal_plans').update({ status: 'published' }).eq('id', b.prevPlanId).select('id');
+      if (prev.error || !Array.isArray(prev.data) || !prev.data.length) {
+        console.warn('[shape-ai] assign_meal_plan undo: the previously published plan is gone, so only the archive was undone', { prevPlanId: b.prevPlanId });
+      }
     }
   },
 };
@@ -656,7 +668,10 @@ export const setProgramDetailAction = {
     if (b.prevSection == null) delete detail[b.discipline]; else detail[b.discipline] = b.prevSection;
     var patch = { detail: detail };
     patch[col] = b.prevPhase;
-    await ctx.supabase.from('client_programs').update(patch).eq('user_id', b.clientId);
+    // H9: the row must still be there to restore (an undo on a program row the caller's RLS
+    // cannot reach, or that no longer exists, changed nothing and must say so).
+    var res = await ctx.supabase.from('client_programs').update(patch).eq('user_id', b.clientId).select('user_id');
+    if (res.error || !Array.isArray(res.data) || !res.data.length) throw new Error('Changed since — nothing undone.');
   },
 };
 
@@ -697,8 +712,11 @@ export const addReviewNoteAction = {
   },
   async undo(ctx, plan) {
     var id = plan.afterState && plan.afterState.noteId;
-    if (!id) return;
-    await ctx.supabase.from('coach_workout_review_notes').delete().eq('id', id);
+    // H9: no id, or a note already gone (or out of the caller's RLS), is "Changed since", not a
+    // quiet success that marks the entry undone.
+    if (!id) throw new Error('Changed since — nothing undone.');
+    var res = await ctx.supabase.from('coach_workout_review_notes').delete().eq('id', id).select('id');
+    if (res.error || !Array.isArray(res.data) || !res.data.length) throw new Error('Changed since — nothing undone.');
   },
 };
 
@@ -1131,10 +1149,12 @@ export const rememberMemoryTool = {
     var out = null;
     var w = await ctx.casWrite(MEMORY_KIND, function (doc) { out = applyRemember(doc, text, now); return out; });
     if (!w.ok) return { error: w.error || 'conflict' };
-    // remember's audit may carry the stored text (it persists in the doc anyway).
-    // A dedupe hit is the retry path → repair-only; a fresh write always logs
-    // its own event.
-    var audited = await ensureMemoryAudit(ctx, 'remember', out.note.id, { noteId: out.note.id, text: out.note.text }, out.deduped === true);
+    // The audit row records the note's id and stamps ONLY, as forget's does (M6 of the
+    // 2026-10-08 review). It used to carry the text as well: the audit log is read by its
+    // policy and by GET /api/ai/audit, and a member's private memory does not belong in a
+    // second place with its own readers. The text lives in the member's own document.
+    // A dedupe hit is the retry path → repair-only; a fresh write always logs its own event.
+    var audited = await ensureMemoryAudit(ctx, 'remember', out.note.id, { noteId: out.note.id }, out.deduped === true);
     return { done: true, noteId: out.note.id, deduped: out.deduped === true, audited };
   },
 };

@@ -258,6 +258,14 @@ export async function confirmChange({ registry, token, actor, ctx, secret, audit
 export async function undoChange({ registry, auditId, actor, ctx, audit }) {
   const entry = await audit.get(auditId);
   if (!entry) return { ok: false, error: 'audit_not_found' };
+  // ⚠ ONLY THE ACTOR WHO MADE A CHANGE MAY UNDO IT (H9 of the 2026-10-08 review). confirmChange
+  // has refused a mismatched actor since the scaffold (actor_mismatch, above); undo did not, so a
+  // linked coach who could read a member's audit row could win the claim and run the action's undo
+  // with THEIR session: the coach's own water subtracted, the coach's own rows deleted, and the
+  // member's entry marked undone with the member's data unchanged. The database side (the audit
+  // read policy and claim_ai_action_undo) is actor-only since #2280; this is the same rule where
+  // the reversal actually runs, so a sink that still admits a coach cannot reach the undo.
+  if (!actor || !actor.id || entry.actorUserId !== actor.id) return { ok: false, error: 'actor_mismatch' };
   if (entry.status === 'undone') return { ok: true, alreadyUndone: true };
 
   const action = registry.get(entry.action);

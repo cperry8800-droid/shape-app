@@ -11,7 +11,8 @@
 // an authenticated user so an open endpoint can't burn the OpenAI key.
 
 import { NextResponse } from 'next/server';
-import { currentUser } from '@/lib/request-auth';
+import { currentUser, clientForRequest } from '@/lib/request-auth';
+import { countBudget, budgetReply } from '@/lib/ai/noraLimits';
 import { readJson } from '@/lib/request-utils';
 import { callAI, hasOpenAIKey } from '@/lib/ai';
 import { requireMembership } from '@/lib/require-membership';
@@ -177,6 +178,16 @@ export async function POST(request: Request) {
   const parsed = await readJson<unknown>(request, { allowEmpty: true });
   if (!parsed.ok) return parsed.response;
   const body = cleanBody(parsed.data);
+
+  // M8 (2026-10-08 review) asked for the coach gate generate-plan has. This route is a MEMBER
+  // surface by design: the website's Train page ("✦ Draft it for me", dashTrain.jsx) and the
+  // app's self-serve workout builder (Cut 8) call it for a self-coached member, so a coach gate
+  // would remove the feature. What bounds the spend instead is a day's budget per account,
+  // counted before the model is asked.
+  const budget = await countBudget(await clientForRequest(request), user.id, 'draft_program');
+  if (!budget.allowed) {
+    return NextResponse.json({ error: budgetReply('draft_program', budget.resetSeconds), code: 'daily_budget' }, { status: 429, headers: { 'Retry-After': String(Math.max(60, budget.resetSeconds)) } });
+  }
 
   const raw = await draftWithOpenAI(body).catch((e) => { console.warn('[shape-app] draft-program failed:', e); return null; });
   const program = sanitize(raw, body);
