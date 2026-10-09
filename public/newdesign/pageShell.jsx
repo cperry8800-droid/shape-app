@@ -204,6 +204,25 @@ const COACHES_ITEMS = [
   ["Marketplace", "Marketplace.html"],
 ];
 
+// ⚠ THE STORE IS A REWARDS MENU ITEM SIGNED OUT AND A TAB OF ITS OWN SIGNED IN.
+// Owner, 2026-10-09: "theres no shape store tab on website on nav bar, it should
+// be a sub tab under rewards and then make it its own tab on nav bar when logged
+// into an account". The Store was reachable from the footer alone. Points are
+// spent there, so a visitor meets it under Rewards; a member gets it one click
+// away.
+//
+// ⚠ SIGNED IN, REWARDS IS A PLAIN LINK AGAIN. A menu holding only the tab beside
+// it would offer one page twice on one row, the defect the Coaches menu was cut
+// to one item for. The Rewards entry carries its signed-in replacement
+// (`signedIn`), so `PORTAL_NAV` below derives the split rather than restating it.
+// "Store" on the bar and "Shape Store" in the menu: one word per tab, the way
+// `Kitchen` is on the bar while the footer reads "Shape Kitchen".
+const REWARDS_HREF = "Score.html";
+const STORE_TAB = { kind: "link", label: "Store", href: "Store.html" };
+const REWARDS_ITEMS = [
+  ["Shape Store", STORE_TAB.href],
+];
+
 // ⚠ THE SAME LINKS THE HOMEPAGE SHOWS, in the same order, with the same targets
 // — `tests/site-nav.test.mjs` parses `index.html`'s static nav and requires this
 // table to match it. That test is the whole point: the two bars drifted into two
@@ -251,13 +270,14 @@ const SHAPE_NAV_GROUPS = [
   // by people who never look at the bar.
   { kind: "link", label: "Kitchen", href: "Recipes.html" },
   { kind: "link", label: "Community", href: "Community.html" },
-  { kind: "link", label: "Rewards", href: "Score.html" },
+  { kind: "drop", label: "Rewards", href: REWARDS_HREF, match: ["Rewards", STORE_TAB.label], items: REWARDS_ITEMS,
+    signedIn: [{ kind: "link", label: "Rewards", href: REWARDS_HREF }, STORE_TAB] },
   { kind: "link", label: "Pricing", href: "Pricing.html" },
   { kind: "link", label: "About", href: "About.html" },
 ];
 
 // ⚠ SIGNED IN, THE ROW IS THE SITE'S OWN TABS MINUS THE TWO SIGN-UP PAGES —
-// Coaches ▾ · App · Kitchen · Community · Rewards · About, the same row for a
+// Coaches ▾ · App · Kitchen · Community · Rewards · Store · About, the same row for a
 // member, a trainer and a nutritionist. Owner, 2026-09-23, on a screenshot of the
 // signed-in bar reading only "Coaches ▾  About": "need to add more nav tabs on main
 // nav bar when signed into account" — and of the rows put to them, "Site tabs
@@ -283,8 +303,15 @@ const SHAPE_NAV_GROUPS = [
 // ⚠ AND THE HOMEPAGE'S STATIC BAR CANNOT READ THIS, so it marks the same two
 // links `data-signed-out-only` in its own markup and removes them on sign-in; the
 // same test requires the two lists to agree.
+//
+// ⚠ AN ENTRY WITH `signedIn` IS REPLACED BY THAT LIST ON THIS ROW, in place.
+// Rewards is the one (owner, 2026-10-09): its menu's Store becomes a tab beside
+// it. The homepage marks the same swap: the Rewards caret and menu are
+// `data-signed-out-only`, and the Store tab is `data-signed-in-only`.
 const SIGNED_OUT_ONLY = ["Members", "Pricing"];
-const PORTAL_NAV = SHAPE_NAV_GROUPS.filter((g) => !SIGNED_OUT_ONLY.includes(g.label));
+const PORTAL_NAV = SHAPE_NAV_GROUPS
+  .filter((g) => !SIGNED_OUT_ONLY.includes(g.label))
+  .flatMap((g) => g.signedIn || [g]);
 
 // ── In-shell routing (review 2026-09-09, R19) ───────────────────────────────
 // Every page in this table is a PURE REDIRECT STUB — its entire body is
@@ -1038,7 +1065,11 @@ function MobileDrawer({ open, onClose, active, authUser, onLogout }) {
       <nav style={{ flex: 1 }}>
         {groups.map(g => g.kind === "drop" ? (
           <div key={g.label}>
-            <div style={{ ...linkBase, color: g.match.includes(active) ? TEAL : INK, fontWeight: 500, borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", paddingBottom: 10 }}>{g.label}</div>
+            {/* ⚠ A LINK, NOT A LABEL: a menu's tab is a page as well (the bar's
+                trigger is an <a> for the same reason, see NavDropdown). This was a
+                <div>, so a phone could open Coaches only from the homepage drawer,
+                and Rewards would have lost its page entirely when it became a menu. */}
+            <a href={g.href} onClick={onClose} style={{ ...linkBase, color: g.match.includes(active) ? TEAL : INK, fontWeight: 500, borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", paddingBottom: 10 }}>{g.label}</a>
             <div style={{ paddingLeft: 14, paddingBottom: 14, borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
               {g.items.map(([n, h]) => (
                 <a key={n} href={h} onClick={onClose} style={{ display: "block", padding: "10px 0", fontFamily: sans, fontSize: 15, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.72)", textDecoration: "none" }}>{n}</a>
@@ -1609,9 +1640,14 @@ function ShapeMobileStyles() {
            with room to spare, which is why the breakpoint below is NOT moved:
            taking 40px of desktop away would also have split this bar from the
            homepage's, whose own flex row measured clean to 1021 with the same
-           eight links. */
+           eight links.
+           ⚠ 14px TABS, NOT 16, SINCE REWARDS BECAME A MENU (2026-10-09): its ▾
+           widened the signed-out row by ~10px, and re-measured with the real
+           faces the About tab overhung by 3.1px at 1021 (the homepage ran 6.2px
+           past the screen edge). 14px clears both with ~11px to spare; nothing
+           above 1100 moves. */
         .shape-header-inner { padding: 0 24px !important; gap: 18px !important; }
-        .shape-nav-tabs { gap: 16px !important; }
+        .shape-nav-tabs { gap: 14px !important; }
       }
       /* ⚠ SIGNED IN, THE RIGHT-HAND CLUSTER IS THE WIDE ONE, AND IT IS NOT ONE WIDTH.
          Six tabs came back to the signed-in row on 2026-09-23, and the cluster

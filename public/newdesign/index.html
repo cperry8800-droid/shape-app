@@ -180,6 +180,10 @@
      (owner, 2026-09-14: one link, "Marketplace" — the trainers and nutritionists
      tabs it used to list are one page). A trigger that only toggles makes the
      page it names unreachable from the bar. */
+  /* Signed-in-only links (the Store tab) stay hidden until /api/me answers with an
+     account; the scripts below then drop the mark. `!important` because the
+     drawer sets display:block on every link, which beats a bare [hidden]. */
+  [data-signed-in-only]{display:none!important}
   .ndrop{position:relative;display:inline-flex;align-items:center}
   .ndrop>a{display:inline-flex;align-items:center;gap:5px}
   .ndrop>a .car{font-size:8px;opacity:.6}
@@ -480,7 +484,9 @@
 
   /* ── responsive: the fold stacks, the grids collapse ─────── */
   @media (max-width:1100px){
-    .nlinks{gap:16px}
+    /* 14px since Rewards became a menu (2026-10-09): its caret ran the row 6px
+       past the screen edge at 1021. The shared header trims the same. */
+    .nlinks{gap:14px}
     .mo-grid,.co-grid{grid-template-columns:repeat(2,1fr)}
     .rd,.prc2{grid-template-columns:1fr;gap:34px}
     .rd{padding:36px 28px}
@@ -823,7 +829,8 @@
       <a href="/newdesign/GetApp.html">App</a>
       <a href="/newdesign/Recipes.html">Kitchen</a>
       <a href="/newdesign/Community.html">Community</a>
-      <a href="/newdesign/Score.html">Rewards</a>
+      <span class="ndrop"><a href="/newdesign/Score.html">Rewards<span class="car" aria-hidden="true" data-signed-out-only>&#9662;</span></a><div class="nmenu" data-signed-out-only><a href="/newdesign/Store.html">Shape Store</a></div></span>
+      <a href="/newdesign/Store.html" data-signed-in-only>Store</a>
       <a href="/newdesign/Pricing.html" data-signed-out-only>Pricing</a>
       <a href="/newdesign/About.html">About</a>
     </div>
@@ -844,6 +851,8 @@
   <a href="/newdesign/Recipes.html">Kitchen</a>
   <a href="/newdesign/Community.html">Community</a>
   <a href="/newdesign/Score.html">Rewards</a>
+  <a href="/newdesign/Store.html" data-signed-out-only>&nbsp;&nbsp;Shape Store</a>
+  <a href="/newdesign/Store.html" data-signed-in-only>Store</a>
   <a href="/newdesign/Pricing.html" data-signed-out-only>Pricing</a>
   <a href="/newdesign/About.html">About</a>
   <!-- ⚠ RADIO STAYS IN THE DRAWER THOUGH IT LEFT THE BAR (owner, 2026-09-15:
@@ -1842,6 +1851,10 @@
       var links=document.querySelector('nav .nlinks');
       if(links){
         Array.prototype.slice.call(links.querySelectorAll('[data-signed-out-only]')).forEach(function(el){el.remove();});
+        /* And the reverse mark: the Store tab is on the signed-in row only (owner,
+           2026-10-09), so the same removal above takes the Rewards caret and menu
+           away and this shows the tab that replaces them, as PORTAL_NAV does. */
+        Array.prototype.slice.call(links.querySelectorAll('[data-signed-in-only]')).forEach(function(el){el.removeAttribute('data-signed-in-only');});
       }
       var hi=document.createElement('span');
       hi.className='login nhi';
@@ -1918,6 +1931,7 @@
          tab when signed in while the shared header's drawer showed two, so the
          only nav a phone has disagreed with itself across pages. */
       Array.prototype.slice.call(drawer.querySelectorAll('[data-signed-out-only]')).forEach(function(el){el.remove();});
+      Array.prototype.slice.call(drawer.querySelectorAll('[data-signed-in-only]')).forEach(function(el){el.removeAttribute('data-signed-in-only');});
       var role=d.user.role||'client';
       var dash=role==='trainer'?'/newdesign/TrainerDashboard.html'
         :role==='nutritionist'?'/newdesign/NutritionistDashboard.html'

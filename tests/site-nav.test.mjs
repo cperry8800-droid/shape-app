@@ -42,11 +42,16 @@ function homepageLinks() {
   const m = /<div class="nlinks">([\s\S]*?)<\/div>\s*<div class="nauth">/.exec(INDEX);
   assert.ok(m, 'the homepage nav\'s .nlinks block is gone — this guard is reading nothing');
   // Drop the dropdown PANELS first: their anchors are menu items, not top-level
-  // tabs, and a naive anchor sweep would count them as extra links.
-  const row = m[1].replace(/<div class="nmenu">[\s\S]*?<\/div>/g, '');
+  // tabs, and a naive anchor sweep would count them as extra links. (A panel can
+  // carry attributes: the Rewards one is `data-signed-out-only`.)
+  const row = m[1].replace(/<div class="nmenu"[^>]*>[\s\S]*?<\/div>/g, '');
   const out = [];
-  for (const a of row.matchAll(/<a href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)) {
-    const label = a[2].replace(/<[^>]*>/g, '').replace(/&#9662;|▾/g, '').trim();
+  for (const a of row.matchAll(/<a href="([^"]+)"([^>]*)>([\s\S]*?)<\/a>/g)) {
+    // A `data-signed-in-only` link (the Store tab) is hidden until /api/me answers
+    // with an account, so it is not on the signed-out bar; the signed-in tests
+    // below drive it.
+    if (/\bdata-signed-in-only\b/.test(a[2])) continue;
+    const label = a[3].replace(/<[^>]*>/g, '').replace(/&#9662;|▾/g, '').trim();
     out.push([label, a[1]]);
   }
   assert.ok(out.length >= 5, 'parsed only ' + out.length + ' homepage links — the parse stopped matching');
@@ -306,9 +311,11 @@ test('no newdesign stylesheet is an expression around a literal, in any module',
 // and "all of those tabs on nav are on the dashboard nav bar".
 const DASHBOARD_TABS = ['Workouts', 'Nutrition', 'Progress', 'Schedule', 'Clients', 'Programs', 'Plans', 'Messages', 'Business'];
 
+// Owner, 2026-10-09: the Store is a Rewards menu item signed out and "its own tab
+// on nav bar when logged into an account", so it sits right after Rewards here.
 test('the signed-in row is the site\'s tabs minus the two sign-up pages, and none of the dashboard\'s', () => {
   const labels = NAV_TABLES.PORTAL_NAV.map((g) => g.label);
-  assert.deepEqual(labels, ['Coaches', 'App', 'Kitchen', 'Community', 'Rewards', 'About'],
+  assert.deepEqual(labels, ['Coaches', 'App', 'Kitchen', 'Community', 'Rewards', 'Store', 'About'],
     'the signed-in row is not the owner\'s pick: ' + labels.join(' · '));
   assert.deepEqual(NAV_TABLES.SIGNED_OUT_ONLY, ['Members', 'Pricing'],
     'the sign-up pages kept off the signed-in row changed: ' + NAV_TABLES.SIGNED_OUT_ONLY.join(' · '));
@@ -323,22 +330,40 @@ test('the signed-in row is the site\'s tabs minus the two sign-up pages, and non
 // the signed-out one's. Every signed-in entry must be the very object the
 // signed-out table holds, in the same order — a restated table fails even when
 // every value in it happens to match today.
+//
+// ⚠ ONE KIND OF ENTRY IS NOT THE TABLE'S OWN: an entry's `signedIn` list, which
+// replaces it on this row in place (Rewards ▾ → Rewards · Store, owner 2026-10-09).
+// Those objects live ON the signed-out entry, so they are still read from the
+// signed-out table rather than written out a second time.
 test('the signed-in row is the signed-out row\'s own entries, in its order', () => {
   const out = NAV_TABLES.SHAPE_NAV_GROUPS;
   const signedIn = NAV_TABLES.PORTAL_NAV;
   assert.ok(out.length >= 6 && signedIn.length >= 4, 'read ' + out.length + ' / ' + signedIn.length + ' tabs — this guard is reading nothing');
-  let lastAt = -1;
+  // Where an entry comes from: [index in the signed-out row, index in that
+  // entry's own `signedIn` list (0 for the entry itself)].
+  const place = (g) => {
+    for (let i = 0; i < out.length; i++) {
+      if (out[i] === g) return [i, 0];
+      const k = (out[i].signedIn || []).indexOf(g);
+      if (k !== -1) return [i, k];
+    }
+    return null;
+  };
+  let last = [-1, 0];
   for (const g of signedIn) {
-    const at = out.indexOf(g);
-    assert.notEqual(at, -1, g.label + ' is on the signed-in row as a copy, not the signed-out table\'s own entry — the two tables can drift again');
-    assert.ok(at > lastAt, g.label + ' is out of the signed-out row\'s order');
-    lastAt = at;
+    const p = place(g);
+    assert.ok(p, g.label + ' is on the signed-in row as a copy, not the signed-out table\'s own entry — the two tables can drift again');
+    assert.ok(p[0] > last[0] || (p[0] === last[0] && p[1] > last[1]), g.label + ' is out of the signed-out row\'s order');
+    last = p;
   }
-  // Every signed-out tab is either on the signed-in row or named as a sign-up
-  // page — so a tab the site adds later reaches members unless somebody decides.
+  // Every signed-out tab is either on the signed-in row (itself, or the whole of
+  // its replacement) or named as a sign-up page — so a tab the site adds later
+  // reaches members unless somebody decides.
   for (const g of out) {
-    assert.ok(signedIn.includes(g) !== NAV_TABLES.SIGNED_OUT_ONLY.includes(g.label),
+    const kept = g.signedIn ? g.signedIn.every((r) => signedIn.includes(r)) : signedIn.includes(g);
+    assert.ok(kept !== NAV_TABLES.SIGNED_OUT_ONLY.includes(g.label),
       g.label + ' must be on exactly one side: the signed-in row or SIGNED_OUT_ONLY');
+    if (g.signedIn) assert.ok(!signedIn.includes(g), g.label + ' is on the signed-in row as itself AND as its replacement');
   }
   // A sign-up page named here must BE a tab. Renamed away (say "Pricing" →
   // "Plans"), the old name would exclude nothing and the page would slip back
@@ -354,11 +379,17 @@ test('the signed-in row is the signed-out row\'s own entries, in its order', () 
 // the bar AND in the drawer, and its /api/me scripts remove what is marked. This
 // file's own header claimed to compare the two long before anything did — the old
 // homepage kept a hand-written set of labels that nothing read back.
-function markedLinks(block) {
+function markedLinks(block, mark = 'data-signed-out-only') {
   return [...block.matchAll(/<a href="([^"]+)"([^>]*)>([\s\S]*?)<\/a>/g)]
-    .filter((a) => /\bdata-signed-out-only\b/.test(a[2]))
+    .filter((a) => new RegExp('\\b' + mark + '\\b').test(a[2]))
     .map((a) => [a[3].replace(/&nbsp;/g, ' ').replace(/<[^>]*>/g, '').trim(), target(a[1])]);
 }
+// ⚠ AND THE REVERSE MARK, for the one swap the signed-in row makes in place
+// (owner, 2026-10-09): Rewards ▾ with its Shape Store item becomes Rewards · Store.
+// On the bar the caret and the menu panel carry `data-signed-out-only` and the
+// Store tab `data-signed-in-only`; in the drawer, where a menu's items are inlined,
+// the indented Shape Store item is the signed-out half. All derived from the
+// entries that carry a `signedIn` replacement.
 test('the homepage marks exactly the sign-up pages, on its bar and in its drawer', () => {
   const bar = /<div class="nlinks">([\s\S]*?)<\/div>\s*<div class="nauth">/.exec(INDEX);
   const drawer = /<div class="ndrawer" id="ndrawer">([\s\S]*?)<\/div>/.exec(INDEX);
@@ -366,7 +397,25 @@ test('the homepage marks exactly the sign-up pages, on its bar and in its drawer
   const expected = NAV_TABLES.SIGNED_OUT_ONLY.map((n) => [n, target(NAV_TABLES.SHAPE_NAV_GROUPS.find((g) => g.label === n).href)]);
   assert.ok(expected.length >= 1, 'SIGNED_OUT_ONLY is empty — this guard compares nothing');
   assert.deepEqual(markedLinks(bar[1]), expected, 'the homepage bar marks a different set of sign-up links than the shared header keeps off');
-  assert.deepEqual(markedLinks(drawer[1]), expected, 'the homepage drawer marks a different set of sign-up links than its bar');
+
+  const swapped = NAV_TABLES.SHAPE_NAV_GROUPS.filter((g) => g.signedIn);
+  assert.ok(swapped.length >= 1, 'no signed-out entry carries a signed-in replacement — this guard compares nothing');
+  const outLabels = new Set(NAV_TABLES.SHAPE_NAV_GROUPS.map((g) => g.label));
+  const menuItems = swapped.flatMap((g) => (g.items || []).map(([n, h]) => [n, target(h)]));
+  const signedInOnly = swapped.flatMap((g) => g.signedIn).filter((r) => !outLabels.has(r.label)).map((r) => [r.label, target(r.href)]);
+  const byName = (a, b) => a[0].localeCompare(b[0]);
+  assert.deepEqual(markedLinks(drawer[1]).sort(byName), [...expected, ...menuItems].sort(byName),
+    'the homepage drawer marks a different set of signed-out links than the sign-up pages and the replaced menus\' items');
+  assert.deepEqual(markedLinks(bar[1], 'data-signed-in-only'), signedInOnly, 'the homepage bar marks a different set of signed-in-only tabs than PORTAL_NAV adds');
+  assert.deepEqual(markedLinks(drawer[1], 'data-signed-in-only'), signedInOnly, 'the homepage drawer marks a different set of signed-in-only tabs than PORTAL_NAV adds');
+  // The bar's replaced menu loses its caret and its panel on sign-in.
+  for (const g of swapped.filter((x) => x.kind === 'drop')) {
+    const drop = new RegExp('<span class="ndrop"><a href="[^"]*' + target(g.href).replace('.', '\\.') + '">' + g.label + '<span class="car"[^>]*\\bdata-signed-out-only\\b[^>]*>[^<]*</span></a><div class="nmenu" data-signed-out-only>').exec(bar[1]);
+    assert.ok(drop, 'the homepage ' + g.label + ' menu does not mark its caret and panel data-signed-out-only, so signed in it stays a menu beside its own replacement');
+  }
+  // ⚠ The mark only hides because of this rule: the drawer sets display:block on
+  // every link, which beats a bare [hidden].
+  assert.match(INDEX, /\[data-signed-in-only\]\{display:none!important\}/, 'nothing hides a data-signed-in-only link from a visitor');
 });
 
 // Driven, not grepped: the homepage's two /api/me scripts run in a real DOM
@@ -386,16 +435,25 @@ async function homepageAfterMe(user) {
   w.eval(drawer[0]);
   for (let i = 0; i < 5; i++) await new Promise((r) => w.setTimeout(r, 0));
   const doc = w.document;
-  const bar = [...doc.querySelectorAll('nav .nlinks > *')]
+  // A link still marked `data-signed-in-only` is hidden by the page's own rule
+  // (asserted above), so it is not read as on screen.
+  const bar = [...doc.querySelectorAll('nav .nlinks > :not([data-signed-in-only])')]
     .map((el) => (el.matches('a') ? el : el.querySelector('a')).childNodes[0].textContent.trim());
-  const inDrawer = [...doc.querySelectorAll('#ndrawer a')].map((a) => a.textContent.replace(/\u00a0/g, ' ').trim());
+  const inDrawer = [...doc.querySelectorAll('#ndrawer a:not([data-signed-in-only])')].map((a) => a.textContent.replace(/\u00a0/g, ' ').trim());
+  const menus = [...doc.querySelectorAll('nav .nlinks .nmenu a')].map((a) => a.textContent.trim());
   dom.window.close();
-  return { bar, inDrawer };
+  return { bar, inDrawer, menus };
 }
 test('signed in, the homepage bar and drawer carry the shared header\'s signed-in row', async () => {
   const want = NAV_TABLES.PORTAL_NAV.map((g) => g.label);
-  const tabs = new Set(NAV_TABLES.SHAPE_NAV_GROUPS.map((g) => g.label));
+  const tabs = new Set([...NAV_TABLES.SHAPE_NAV_GROUPS, ...NAV_TABLES.PORTAL_NAV].map((g) => g.label));
   const me = await homepageAfterMe({ id: 'u', email: 'x@shape.test', firstName: 'Chris', role: 'client', roles: ['client'] });
+  // The replaced menus are gone with their caret (owner, 2026-10-09: the Store is a
+  // tab signed in, not a Rewards item beside it).
+  const replacedItems = NAV_TABLES.SHAPE_NAV_GROUPS.filter((g) => g.signedIn).flatMap((g) => (g.items || []).map(([n]) => n));
+  for (const n of replacedItems) {
+    assert.ok(!me.menus.includes(n) && !me.inDrawer.includes(n), 'signed in, the homepage still offers the menu item ' + n + ' beside its own tab');
+  }
   assert.deepEqual(me.bar, want, 'the homepage\'s signed-in bar is not the shared header\'s signed-in row');
   assert.deepEqual(me.inDrawer.filter((l) => tabs.has(l)), want, 'the homepage\'s signed-in drawer is not the shared header\'s signed-in row');
   for (const extra of ['Marketplace', 'Radio', 'Dashboard', 'Sign out']) {
@@ -405,6 +463,9 @@ test('signed in, the homepage bar and drawer carry the shared header\'s signed-i
   const all = NAV_TABLES.SHAPE_NAV_GROUPS.map((g) => g.label);
   assert.deepEqual(out.bar, all, 'signed OUT, the homepage bar lost a tab — the swap is firing without an account');
   assert.deepEqual(out.inDrawer.filter((l) => tabs.has(l)), all, 'signed OUT, the homepage drawer lost a tab');
+  for (const n of replacedItems) {
+    assert.ok(out.menus.includes(n) && out.inDrawer.includes(n), 'signed OUT, the homepage lost the menu item ' + n);
+  }
 });
 
 // ── 2b · every tab lights on the page it opens ─────────────────────────────
@@ -413,19 +474,26 @@ test('signed in, the homepage bar and drawer carry the shared header\'s signed-i
 // page passed "Shape Score", so the one page that tab opens was the one page it
 // never marked — found while bringing Rewards onto the signed-in row. Derived
 // from the table and each page's own scripts, so a tab added later is covered.
+// Both rows, and a menu's items too: a menu tab lights on the pages its items open
+// (on the Store page, signed out, the lit tab is Rewards ▾).
 test('every tab on the bar lights on its own page', () => {
-  const groups = NAV_TABLES.SHAPE_NAV_GROUPS;
-  assert.ok(groups.length >= 6, 'read only ' + groups.length + ' tabs — this guard is reading nothing');
-  for (const g of groups) {
-    const page = target(g.href);
+  const groups = [...new Set([...NAV_TABLES.SHAPE_NAV_GROUPS, ...NAV_TABLES.PORTAL_NAV])];
+  assert.ok(groups.length >= 7, 'read only ' + groups.length + ' tabs — this guard is reading nothing');
+  const activesOn = (page) => {
     const html = readFileSync(path.join(ND, page), 'utf8');
     const modules = [...html.matchAll(/<script type="text\/babel"[^>]*\bsrc="([^"?]+)(?:\?[^"]*)?"/g)].map((m) => m[1]);
     const text = [html, ...modules.filter((m) => existsSync(path.join(ND, m))).map((m) => readFileSync(path.join(ND, m), 'utf8'))].join('\n');
-    const actives = [...text.matchAll(/<Header active="([^"]*)"/g)].map((m) => m[1]);
-    assert.ok(actives.length >= 1, page + ' (the ' + g.label + ' tab) renders no <Header active="…"> that this guard can find');
-    for (const a of actives) {
-      const lit = g.kind === 'drop' ? g.match.includes(a) : a === g.label;
-      assert.ok(lit, page + ' passes active="' + a + '", which does not light the ' + g.label + ' tab that opens it');
+    return [...text.matchAll(/<Header active="([^"]*)"/g)].map((m) => m[1]);
+  };
+  for (const g of groups) {
+    const pages = [g.href, ...(g.kind === 'drop' ? g.items.map(([, h]) => h) : [])].map(target);
+    for (const page of pages) {
+      const actives = activesOn(page);
+      assert.ok(actives.length >= 1, page + ' (under the ' + g.label + ' tab) renders no <Header active="…"> that this guard can find');
+      for (const a of actives) {
+        const lit = g.kind === 'drop' ? g.match.includes(a) : a === g.label;
+        assert.ok(lit, page + ' passes active="' + a + '", which does not light the ' + g.label + ' tab that opens it');
+      }
     }
   }
 });
