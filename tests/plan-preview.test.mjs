@@ -263,6 +263,12 @@ const MEAL_FIXTURES = [
   { name: 'seven empty authored days and an eighth entry past the scan', detail: { blocks: ['a'], days: [{ dow: 0, blocks: [] }, { dow: 1, blocks: [] }, { dow: 2, blocks: [] }, { dow: 3, blocks: [] }, { dow: 4, blocks: [] }, { dow: 5, blocks: [] }, { dow: 6, blocks: [] }, { dow: 0, blocks: ['late'] }] } },
   { name: 'a different meal every day', detail: { blocks: ['Breakfast · 1'], days: [0, 1, 2, 3, 4, 5, 6].map((dow) => ({ dow, blocks: [`Breakfast · ${dow + 2}`] })) } },
   { name: 'a day past the 40-block cap', detail: { blocks: Array.from({ length: 45 }, (_, i) => `Snack · ${i + 1}`) } },
+  // The two text rules disagree here: `true` delivers "true" (so the week varies by day) but is
+  // not a meal the preview counts. perDay must follow delivery; the count must follow the preview.
+  { name: 'a block that delivers but is not a meal', detail: { blocks: ['Breakfast · Oats'], days: [{ dow: 0, blocks: ['Breakfast · Oats', true] }] } },
+  // Seven junk entries and an eighth real day: the eighth is past the seven-entry scan on both
+  // sides, so it inherits the default rather than serving its own menu.
+  { name: 'an eighth entry past the scan with a menu of its own', detail: { blocks: ['Breakfast · Oats'], days: [{ dow: 'x' }, { dow: 'x' }, { dow: 'x' }, { dow: 'x' }, { dow: 'x' }, { dow: 'x' }, { dow: 'x' }, { dow: 3, blocks: ['Breakfast · Late', 'Lunch · Late', 'Dinner · Late'] }] } },
 ];
 
 test('reduced: the model of a reduced meal plan equals the model of the full one, on every fixture', () => {
