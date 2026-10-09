@@ -134,9 +134,17 @@ export function checkAllowlist(model, allow) {
   }
   if (new Set(findingNames).size !== findingNames.length) problems.push('a registered finding is listed twice');
 
+  // The search_path pin, read over every definer in `public` (trigger functions included: a trigger
+  // definer is just as exposed to a planted pg_temp relation). Checked at the end; computed here
+  // because a `fixedAfterCapture` item can be a pin fix.
+  const unpinned = [...model.fns.values()].filter((f) => f.schema === 'public' && f.definer && !pgTempPinned(f)).map((f) => f.name).sort();
+  const pinNames = pins.map((p) => p?.name);
+
   // `fixedAfterCapture`: fixed by a migration dated after the last live capture. The migrations no
-  // longer make it anon-executable (checked here); the capture still shows it open until the owner
-  // applies the migration and it is captured again, which is the live diff's business (definer-live.mjs).
+  // longer make it anon-executable, or now pin it (checked here); the capture still shows it open
+  // or unpinned until the owner applies the migration and it is captured again, which is the live
+  // diff's business (definer-live.mjs). Each item says what the list said before the fix: `wasEntry`
+  // or `wasFinding` for an anon exposure, `wasPinFinding` for a search_path pin.
   const fixed = allow?.fixedAfterCapture === undefined ? [] : allow.fixedAfterCapture;
   if (!Array.isArray(fixed)) problems.push('`fixedAfterCapture` must be an array');
   else {
@@ -147,10 +155,21 @@ export function checkAllowlist(model, allow) {
       seenFixed.add(f.name);
       if (!isText(f.fixedBy, 3) || !model.files.includes(f.fixedBy)) problems.push(`${f.name}: fixedAfterCapture needs \`fixedBy\`, the migration file that fixes it (got ${JSON.stringify(f.fixedBy)})`);
       if (!isText(f.fix, MIN_NOTE)) problems.push(`${f.name}: fixedAfterCapture needs \`fix\` (what the migration changed)`);
-      if (!!f.wasEntry === !!f.wasFinding) problems.push(`${f.name}: fixedAfterCapture needs exactly one of \`wasEntry\` or \`wasFinding\` (what the allow-list said before the fix)`);
+      const before = ['wasEntry', 'wasFinding', 'wasPinFinding'].filter((k) => !!f[k]);
+      if (before.length !== 1) problems.push(`${f.name}: fixedAfterCapture needs exactly one of \`wasEntry\`, \`wasFinding\` or \`wasPinFinding\` (what the allow-list said before the fix)`);
       if ((f.wasFinding && f.wasFinding.name !== f.name)) problems.push(`${f.name}: \`wasFinding\` names ${JSON.stringify(f.wasFinding.name)}`);
-      if (reachable.includes(f.name)) problems.push(`${f.name}: listed as fixed by ${f.fixedBy}, but the model still has it anon-executable — the fix did not land`);
-      if (Object.hasOwn(entries, f.name) || findingNames.includes(f.name)) problems.push(`${f.name}: in fixedAfterCapture and also in entries or registeredFindings`);
+      if ((f.wasPinFinding && f.wasPinFinding.name !== f.name)) problems.push(`${f.name}: \`wasPinFinding\` names ${JSON.stringify(f.wasPinFinding.name)}`);
+      if (f.wasPinFinding) {
+        // A pin fix: the model must hold the function as a definer in public and pin it now. Its
+        // anon-reachability is not this item's claim (a pinned function can still be an entry).
+        const isDefiner = [...model.fns.values()].some((x) => x.schema === 'public' && x.definer && x.name === f.name);
+        if (!isDefiner) problems.push(`${f.name}: listed as pinned by ${f.fixedBy}, but the model has no SECURITY DEFINER function of that name in public`);
+        else if (unpinned.includes(f.name)) problems.push(`${f.name}: listed as pinned by ${f.fixedBy}, but the model still leaves its search_path without pg_temp — the fix did not land`);
+        if (pinNames.includes(f.name)) problems.push(`${f.name}: in fixedAfterCapture and also in registeredPinFindings`);
+      } else {
+        if (reachable.includes(f.name)) problems.push(`${f.name}: listed as fixed by ${f.fixedBy}, but the model still has it anon-executable — the fix did not land`);
+        if (Object.hasOwn(entries, f.name) || findingNames.includes(f.name)) problems.push(`${f.name}: in fixedAfterCapture and also in entries or registeredFindings`);
+      }
     }
   }
 
@@ -195,11 +214,8 @@ export function checkAllowlist(model, allow) {
     if (f.anonGrant !== grantOf(fn)) problems.push(`${f.name}: registered anonGrant "${f.anonGrant}" but the migrations say "${grantOf(fn)}"`);
   }
 
-  // The search_path pin. Every definer in `public` (trigger functions included: a trigger
-  // definer is just as exposed to a planted pg_temp relation) must end its search_path in
-  // pg_temp, or be registered.
-  const unpinned = [...model.fns.values()].filter((f) => f.schema === 'public' && f.definer && !pgTempPinned(f)).map((f) => f.name).sort();
-  const pinNames = pins.map((p) => p?.name);
+  // The search_path pin (`unpinned`, computed above). Every definer in `public` must end its
+  // search_path in pg_temp, or be registered.
   for (const name of unpinned) if (!pinNames.includes(name)) problems.push(`unregistered unpinned definer: ${name} does not end its search_path in pg_temp — pin it (alter function ... set search_path = public, pg_temp) or register it in registeredPinFindings`);
   for (const p of pins) {
     if (!p || !isText(p.name)) { problems.push('a registered pin finding has no name'); continue; }

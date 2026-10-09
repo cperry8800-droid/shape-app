@@ -1,5 +1,5 @@
 {
-  "readMe": "Every anon-executable, non-trigger SECURITY DEFINER function in `public` must appear in `entries` or `registeredFindings`. The class vocabulary, the finding kinds, and what each means and how it is checked live in tests/helpers/definer-allowlist.mjs (CLASSES, FINDING_KINDS); tests/definer-grants.test.mjs checks each claim against the function's latest body and fails on a missing, stale or doubly-listed name. A body with a comparison against auth.uid() that a NULL uid skips (the NULL-logic guard, nullLogicFlags in tests/helpers/definer-model.mjs) must be fixed, registered as a `gate-skipped-for-anon` finding, or carry `nullLogic: { fingerprint, why }` in its entry, the fingerprint being the body's so an edit re-opens it. scripts/definer-live-diff.mjs applies the same accounting to the live catalog. `fixedAfterCapture` holds what a migration dated after the last live capture fixed (no longer anon-executable in the migrations), with what the list said before (`wasEntry` or `wasFinding`): the capture still shows it open until the owner applies the migration and the catalog is captured again, so the live diff keeps counting it as before and names it as awaiting apply. Once a capture shows it fixed, delete it.",
+  "readMe": "Every anon-executable, non-trigger SECURITY DEFINER function in `public` must appear in `entries` or `registeredFindings`. The class vocabulary, the finding kinds, and what each means and how it is checked live in tests/helpers/definer-allowlist.mjs (CLASSES, FINDING_KINDS); tests/definer-grants.test.mjs checks each claim against the function's latest body and fails on a missing, stale or doubly-listed name. A body with a comparison against auth.uid() that a NULL uid skips (the NULL-logic guard, nullLogicFlags in tests/helpers/definer-model.mjs) must be fixed, registered as a `gate-skipped-for-anon` finding, or carry `nullLogic: { fingerprint, why }` in its entry, the fingerprint being the body's so an edit re-opens it. scripts/definer-live-diff.mjs applies the same accounting to the live catalog. `fixedAfterCapture` holds what a migration dated after the last live capture fixed (no longer anon-executable in the migrations, or now pinned), with what the list said before (`wasEntry` or `wasFinding` for an anon exposure, `wasPinFinding` for a search_path pin): the capture still shows it open until the owner applies the migration and the catalog is captured again, so the live diff keeps counting it as before and names it as awaiting apply (an unpinned pin fix counts as a registered pin finding meanwhile). Once a capture shows it fixed, delete it.",
   "entries": {
     "accept_commitment": {
       "class": "self-gated-auth-uid",
@@ -195,7 +195,7 @@
     "get_public_profile": {
       "class": "public-by-design",
       "anonGrant": "default-only",
-      "note": "The public profile card: returns what the target's profileVisibility allows this caller to see (a locked card for friends/private). Its migrations grant it to authenticated only, so anon reaches it through the default ACL; the 2026-08-04 migration lists it among the public name/avatar surfaces."
+      "note": "The public profile card: returns what the target's profileVisibility allows this caller to see (a locked card for friends/private). Its migrations grant it to authenticated only, so anon reaches it through the default ACL; the 2026-08-04 migration lists it among the public name/avatar surfaces. Since 2026-10-10 a private profile returns nothing at all to a signed-out caller (the locked card still goes to a signed-in one)."
     },
     "get_radio_song_social": {
       "class": "public-by-design",
@@ -328,59 +328,83 @@
     "track_event": {
       "class": "public-by-design",
       "anonGrant": "explicit",
-      "note": "Analytics events from a fixed name whitelist, DELIBERATELY callable by anon (2026-07-27-session-rpe.sql: it binds auth.uid() itself and rejects unknown names); user_id is NULL when signed out. p_props is caller-supplied jsonb with no size or rate cap, so anon can write arbitrary rows to analytics_events."
+      "note": "Analytics events from a fixed name whitelist, DELIBERATELY callable by anon (2026-07-27-session-rpe.sql: it binds auth.uid() itself and rejects unknown names); user_id is NULL when signed out. p_props over 4 KB is stored as {} (2026-10-08), and since 2026-10-10 each caller is capped by _rate_limit_bump in the fn:track_event namespace (120 a minute per cf-connecting-ip when signed out, 60 a minute per auth.uid() when signed in); an event over the cap is dropped, not raised."
     },
     "waive_penalty": {
       "class": "coach-gated",
       "note": "Only a coach on the client (is_coach_on_client) may waive; anyone else gets `not_coach`."
     }
   },
-  "registeredFindings": [
+  "registeredFindings": [],
+  "fixedAfterCapture": [
     {
       "name": "get_follow_list",
-      "kind": "anon-executable-no-gate",
-      "discoveredBy": "earlier work",
-      "anonGrant": "explicit",
-      "exposed": "For ANY user id: id, full name, role and follow date of up to 200 accepted followers or followees, whatever that profile's visibility setting says (public, friends or private). No auth.uid() and no shape_profile_visibility check in the body; granted `to authenticated, anon` by name (2026-06-08-follow-requests.sql:101).",
-      "notFixedHere": "This change is the audit and its tripwire, and writes no migration. The website profile pages call it too (livingProfilePage.jsx, memberProfile.jsx), and whether signed-out visitors are meant to see follower lists is not something the migrations settle.",
-      "ownerCall": "Gate it on shape_profile_visibility(p_user_id) (public: anyone; friends or private: the owner or an accepted follower) and decide whether a signed-out visitor may see follower lists at all. Dropping the anon grant is the smaller change."
+      "fixedBy": "2026-10-10-security-review-lows-and-anon-definers.sql",
+      "fix": "Signed-in only: EXECUTE revoked from public and anon (authenticated and service_role keep it), and the body now returns rows only for a signed-in caller who is the profile owner, or when the profile is public, or when the caller is an accepted follower (shape_profile_visibility is consulted in the body).",
+      "wasFinding": {
+        "name": "get_follow_list",
+        "kind": "anon-executable-no-gate",
+        "discoveredBy": "earlier work",
+        "anonGrant": "explicit",
+        "exposed": "For ANY user id: id, full name, role and follow date of up to 200 accepted followers or followees, whatever that profile's visibility setting says (public, friends or private). No auth.uid() and no shape_profile_visibility check in the body; granted `to authenticated, anon` by name (2026-06-08-follow-requests.sql:101).",
+        "notFixedHere": "This change is the audit and its tripwire, and writes no migration. The website profile pages call it too (livingProfilePage.jsx, memberProfile.jsx), and whether signed-out visitors are meant to see follower lists is not something the migrations settle.",
+        "ownerCall": "Gate it on shape_profile_visibility(p_user_id) (public: anyone; friends or private: the owner or an accepted follower) and decide whether a signed-out visitor may see follower lists at all. Dropping the anon grant is the smaller change."
+      }
     },
     {
       "name": "get_active_now",
-      "kind": "anon-executable-no-gate",
-      "discoveredBy": "earlier work",
-      "anonGrant": "explicit",
-      "exposed": "User id, kind (workout or cooking), full name, role, lifetime points, avatar and start time of every member currently mid-workout or cooking (at most 50). No per-member opt-out is consulted, unlike the leaderboard's `leaderboard = off`. Granted `to anon, authenticated` by name (2026-06-09-get-active-now.sql:38).",
-      "notFixedHere": "It is a documented product surface: the 2026-08-04 migration calls it \"granted to anon\" and the War Room records the \"Training now\" presence rail as live with the function \"granted anon+authenticated\". Removing anon changes the product, which is an owner call and needs a migration this change does not write.",
-      "ownerCall": "Keep anon access on purpose (then move it to public-by-design with that note), or require sign-in, or add an opt-out the body honours."
+      "fixedBy": "2026-10-10-security-review-lows-and-anon-definers.sql",
+      "fix": "Signed-in only: EXECUTE revoked from public and anon (authenticated and service_role keep it). The body is unchanged; the app's Training-now rail reads it signed in, and a signed-out reader gets a permission error the app already treats as an empty rail.",
+      "wasFinding": {
+        "name": "get_active_now",
+        "kind": "anon-executable-no-gate",
+        "discoveredBy": "earlier work",
+        "anonGrant": "explicit",
+        "exposed": "User id, kind (workout or cooking), full name, role, lifetime points, avatar and start time of every member currently mid-workout or cooking (at most 50). No per-member opt-out is consulted, unlike the leaderboard's `leaderboard = off`. Granted `to anon, authenticated` by name (2026-06-09-get-active-now.sql:38).",
+        "notFixedHere": "It is a documented product surface: the 2026-08-04 migration calls it \"granted to anon\" and the War Room records the \"Training now\" presence rail as live with the function \"granted anon+authenticated\". Removing anon changes the product, which is an owner call and needs a migration this change does not write.",
+        "ownerCall": "Keep anon access on purpose (then move it to public-by-design with that note), or require sign-in, or add an opt-out the body honours."
+      }
     },
     {
       "name": "shape_profile_visibility",
-      "kind": "anon-executable-no-gate",
-      "discoveredBy": "earlier work",
-      "anonGrant": "explicit",
-      "exposed": "'public', 'friends' or 'private' for any user id, and 'public' for an id that does not exist (the body defaults it). A privacy-setting oracle: low sensitivity, but nothing calls it directly from the app or website; it exists for other definers (toggle_follow, get_member_playlists and the PR wall). Granted `to authenticated, anon` by name (2026-06-08-follow-requests.sql:31).",
-      "notFixedHere": "No migration in this change. Definers call it as their owner, so a client revoke would not break them, but that is an assumption to check against the RLS policies before the grant changes.",
-      "ownerCall": "Revoke it from public and anon (authenticated kept), after confirming no RLS policy evaluates it for a signed-out role."
+      "fixedBy": "2026-10-10-security-review-lows-and-anon-definers.sql",
+      "fix": "EXECUTE revoked from public and anon (authenticated and service_role keep it). The body is unchanged; the definers that call it run as their owner, and no RLS policy evaluates it for a signed-out role.",
+      "wasFinding": {
+        "name": "shape_profile_visibility",
+        "kind": "anon-executable-no-gate",
+        "discoveredBy": "earlier work",
+        "anonGrant": "explicit",
+        "exposed": "'public', 'friends' or 'private' for any user id, and 'public' for an id that does not exist (the body defaults it). A privacy-setting oracle: low sensitivity, but nothing calls it directly from the app or website; it exists for other definers (toggle_follow, get_member_playlists and the PR wall). Granted `to authenticated, anon` by name (2026-06-08-follow-requests.sql:31).",
+        "notFixedHere": "No migration in this change. Definers call it as their owner, so a client revoke would not break them, but that is an assumption to check against the RLS policies before the grant changes.",
+        "ownerCall": "Revoke it from public and anon (authenticated kept), after confirming no RLS policy evaluates it for a signed-out role."
+      }
     },
     {
       "name": "get_active_activities",
-      "kind": "anon-executable-no-gate",
-      "discoveredBy": "this audit",
-      "anonGrant": "explicit",
-      "exposed": "User id, kind and start time of every unexpired activity row, with no cap and no gate. The table's own read policy is `to authenticated` (\"any signed-in user, so others can see the dot\"), so the definer opens to anon what the table keeps signed-in. Granted `to authenticated, anon` by name (2026-06-09-user-activity.sql:42).",
-      "notFixedHere": "No migration in this change. The only caller found is the mobile app (shapeBackend.js startActivity), which returns unless a user is signed in.",
-      "ownerCall": "Revoke it from public and anon and keep authenticated. get_active_now already serves the signed-out rail, if the owner keeps that."
-    }
-  ],
-  "fixedAfterCapture": [],
-  "registeredPinFindings": [
+      "fixedBy": "2026-10-10-security-review-lows-and-anon-definers.sql",
+      "fix": "Signed-in only: EXECUTE revoked from public and anon (authenticated and service_role keep it). The body is unchanged; its one caller returns before the call unless a user is signed in.",
+      "wasFinding": {
+        "name": "get_active_activities",
+        "kind": "anon-executable-no-gate",
+        "discoveredBy": "this audit",
+        "anonGrant": "explicit",
+        "exposed": "User id, kind and start time of every unexpired activity row, with no cap and no gate. The table's own read policy is `to authenticated` (\"any signed-in user, so others can see the dot\"), so the definer opens to anon what the table keeps signed-in. Granted `to authenticated, anon` by name (2026-06-09-user-activity.sql:42).",
+        "notFixedHere": "No migration in this change. The only caller found is the mobile app (shapeBackend.js startActivity), which returns unless a user is signed in.",
+        "ownerCall": "Revoke it from public and anon and keep authenticated. get_active_now already serves the signed-out rail, if the owner keeps that."
+      }
+    },
     {
       "name": "save_workout_session",
-      "declaredAt": "2026-09-18-workout-session-atomic-save.sql:13",
-      "why": "Declared after the 2026-08-09 sweep with `set search_path = public` and no pg_temp, so the sweep (a snapshot of what existed that day) never touched it and nothing has re-pinned it. The newest migration pins a different function, and that one is a trigger with security invoker.",
-      "notFixedHere": "No migration in this change. It is not anon-reachable (revoked from public and anon, granted to authenticated), so exploiting the gap needs a signed-in caller planting a relation or type in pg_temp.",
-      "ownerCall": "alter function public.save_workout_session(jsonb, jsonb, jsonb) set search_path = public, pg_temp;  (changes nothing else)."
+      "fixedBy": "2026-10-10-security-review-lows-and-anon-definers.sql",
+      "fix": "alter function public.save_workout_session(jsonb, jsonb, jsonb) set search_path = public, pg_temp; nothing else about it changes.",
+      "wasPinFinding": {
+        "name": "save_workout_session",
+        "declaredAt": "2026-09-18-workout-session-atomic-save.sql:13",
+        "why": "Declared after the 2026-08-09 sweep with `set search_path = public` and no pg_temp, so the sweep (a snapshot of what existed that day) never touched it and nothing has re-pinned it. The newest migration pins a different function, and that one is a trigger with security invoker.",
+        "notFixedHere": "No migration in this change. It is not anon-reachable (revoked from public and anon, granted to authenticated), so exploiting the gap needs a signed-in caller planting a relation or type in pg_temp.",
+        "ownerCall": "alter function public.save_workout_session(jsonb, jsonb, jsonb) set search_path = public, pg_temp;  (changes nothing else)."
+      }
     }
-  ]
+  ],
+  "registeredPinFindings": []
 }

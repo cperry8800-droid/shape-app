@@ -245,8 +245,9 @@ async function applyRoute({ db }) {
     typescript: true,
     registry: new Map([
       ['next/server', nextServer],
-      ['@/lib/supabase/server', { createClient: async () => db.client }],
-      ['@/lib/supabase/admin', { createAdminClient: () => admin.client }],
+      // L19 (2026-10-10): the application row is written through the service role, so the admin
+      // client is the recorder the tests read (`db`), with the storage stub beside it.
+      ['@/lib/supabase/admin', { createAdminClient: () => new Proxy(db.client, { get: (t, k) => (k === 'storage' ? admin.client.storage : Reflect.get(t, k)) }) }],
       ['@/lib/email', { sendEmail: async () => ({ ok: true }) }],
       ['@/lib/request-utils', requestUtils],
       ['@/lib/provider-applications', providerApplications],

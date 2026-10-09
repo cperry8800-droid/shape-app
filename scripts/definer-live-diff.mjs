@@ -65,10 +65,13 @@ export function diffLive(rows, allow) {
   const rawEntries = new Set(Object.keys(allow.entries ?? {}));
   const rawFindings = new Set((allow.registeredFindings ?? []).map((f) => f.name));
   // `fixedAfterCapture`: a migration fixes it, and the database may not have it yet. While the live
-  // row is still anon-executable it counts as what the list said before (`wasEntry` / `wasFinding`)
-  // and is named as awaiting apply; once live agrees it is fixed, it is named as applied, to delete.
+  // row is still anon-executable (or, for a pin fix, still unpinned) it counts as what the list said
+  // before (`wasEntry` / `wasFinding` / `wasPinFinding`) and is named as awaiting apply; once live
+  // agrees it is fixed, it is named as applied, to delete.
   const fixed = (allow.fixedAfterCapture ?? []).filter((f) => f && f.name);
-  const pinFindings = new Set((allow.registeredPinFindings ?? []).map((f) => f.name));
+  const fixedAccess = fixed.filter((f) => !f.wasPinFinding);
+  const fixedPins = fixed.filter((f) => f.wasPinFinding);
+  const rawPinFindings = new Set((allow.registeredPinFindings ?? []).map((f) => f.name));
   // ONE SCOPE (see tests/helpers/definer-live.mjs): every definer in public is here, trigger and
   // event-trigger functions included, and a row that says it is not a definer or not in public is
   // dropped so pasting a wider capture cannot fail the check for the wrong reason. The pin is
@@ -80,10 +83,12 @@ export function diffLive(rows, allow) {
   const definers = all.filter((r) => r.is_trigger !== true);
   const anon = definers.filter((r) => r.anon_executable);
   const anonNames = new Set(anon.map((r) => r.proname));
-  const awaiting = fixed.filter((f) => anonNames.has(f.name));
+  const awaiting = fixedAccess.filter((f) => anonNames.has(f.name));
   const entries = new Set([...rawEntries, ...awaiting.filter((f) => f.wasEntry).map((f) => f.name)]);
   const findings = new Set([...rawFindings, ...awaiting.filter((f) => !f.wasEntry).map((f) => f.name)]);
   const unpinned = names(all.filter((r) => r.pg_temp_pinned === false).map((r) => r.proname));
+  const awaitingPins = fixedPins.filter((f) => unpinned.includes(f.name));
+  const pinFindings = new Set([...rawPinFindings, ...awaitingPins.map((f) => f.name)]);
   // The allow-list and everything above are by NAME, which is sound only while a name is ONE
   // signature. The function this check exists to catch is one made outside the migrations, and it
   // can be an overload of an allow-listed name: counted by name it would inherit that entry's
@@ -110,14 +115,18 @@ export function diffLive(rows, allow) {
     registered: names([...anonNames].filter((n) => findings.has(n))).length,
     unaccounted: names([...anonNames].filter((n) => !entries.has(n) && !findings.has(n))),
     // In both lists at once is a mistake in the file, not in the database; say so here too.
-    doubleListed: names([...[...rawEntries].filter((n) => rawFindings.has(n)), ...fixed.map((f) => f.name).filter((n) => rawEntries.has(n) || rawFindings.has(n))]),
+    doubleListed: names([
+      ...[...rawEntries].filter((n) => rawFindings.has(n)),
+      ...fixedAccess.map((f) => f.name).filter((n) => rawEntries.has(n) || rawFindings.has(n)),
+      ...fixedPins.map((f) => f.name).filter((n) => rawPinFindings.has(n)),
+    ]),
     stale: names([...rawEntries, ...rawFindings].filter((n) => !anonNames.has(n))),
-    awaitingApply: names(awaiting.map((f) => f.name)),
-    appliedLive: names(fixed.filter((f) => !anonNames.has(f.name)).map((f) => f.name)),
+    awaitingApply: names([...awaiting, ...awaitingPins].map((f) => f.name)),
+    appliedLive: names([...fixedAccess.filter((f) => !anonNames.has(f.name)), ...fixedPins.filter((f) => !unpinned.includes(f.name))].map((f) => f.name)),
     overloaded,
     unpinned,
     unregisteredPins: unpinned.filter((n) => !pinFindings.has(n)),
-    stalePins: names([...pinFindings].filter((n) => !unpinned.includes(n))),
+    stalePins: names([...rawPinFindings].filter((n) => !unpinned.includes(n))),
   };
 }
 
@@ -136,7 +145,7 @@ export function report(d, { strict = false } = {}) {
     for (const n of d.unaccounted) out.push(`  ${n}`);
     out.push('', 'Fix each with `revoke execute on function public.<name>(<args>) from public, anon;`, or classify it in tests/fixtures/definer-anon-allowlist.json (revoking from PUBLIC alone leaves the explicit anon grant standing).');
   }
-  if (d.doubleListed.length) out.push('', `In both entries and registeredFindings (a finding must not also be an entry): ${d.doubleListed.join(', ')}`);
+  if (d.doubleListed.length) out.push('', `In both entries and registeredFindings, or in fixedAfterCapture and the list it says it left (a finding must not also be an entry): ${d.doubleListed.join(', ')}`);
   if (d.overloaded.length) {
     out.push('', 'OVERLOADED (one name, several signatures). The allow-list is by NAME, so one entry would vouch for every signature, including one made outside the migrations that nobody has read:');
     for (const o of d.overloaded) out.push(`  ${o.name}: ${o.sigs.map((x) => `(${x.args})${x.trigger ? ' [trigger]' : x.anon ? ' [anon-executable]' : ''}`).join(' and ')}`);

@@ -6,7 +6,7 @@
 // Called by public/newdesign/GetApp.html.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { cleanText as clean, isEmail, readJson } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
@@ -24,7 +24,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Please enter a valid email.' }, { status: 400 });
   }
 
-  const supabase = await createClient();
+  // L19 (2026-10-10): the anonymous insert policy on app_launch_notifications is gone, so this
+  // public form writes through the service role after the checks above. Nothing is read back.
+  const supabase = createAdminClient();
   const { error } = await supabase
     .from('app_launch_notifications')
     .upsert(

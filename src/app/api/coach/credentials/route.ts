@@ -18,12 +18,25 @@ export const dynamic = 'force-dynamic';
 
 const STATE = /^[A-Za-z]{2}$/;
 
+// Every provider_credentials column the owner is granted (the 2026-10-10 Lows migration):
+// all but the admin's `review_notes` and `reviewed_by`.
+const CREDENTIAL_COLUMNS =
+  'owner_id, credential_type, cdr_id, verified_rd, verified_at, insurance_carrier, insurance_policy, ' +
+  'insurance_expires, attestations, updated_at, insurance_coi_path, cert_files, review_status, ' +
+  'submitted_at, reviewed_at';
+
 export async function GET(request: Request) {
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   const supabase = await clientForRequest(request);
   const [cred, lic, tr, nu] = await Promise.all([
-    supabase.from('provider_credentials').select('*').eq('owner_id', user.id).maybeSingle(),
+    // L3 (2026-10-10): the coach may read every column but the admin's review_notes and
+    // reviewed_by, so the columns are listed; `select('*')` would fail on the whole row.
+    supabase
+      .from('provider_credentials')
+      .select(CREDENTIAL_COLUMNS)
+      .eq('owner_id', user.id)
+      .maybeSingle(),
     supabase.from('provider_licenses').select('state, license_number, expires_on').eq('owner_id', user.id),
     supabase.from('trainers').select('verified, verified_at').eq('owner_id', user.id).maybeSingle(),
     supabase.from('nutritionists').select('verified, verified_at').eq('owner_id', user.id).maybeSingle(),

@@ -193,7 +193,8 @@ function mapSupabaseProvider(row, role) {
     tag: row.featured || row.trainer_of_month || row.nutritionist_of_month ? 'FEATURED' : undefined,
     stripe_product_id: row.stripe_product_id,
     stripe_price_id: row.stripe_price_id,
-    stripe_account_id: row.stripe_account_id,
+    // stripe_account_id is not read: a visitor cannot select it since the 2026-10-10 migration
+    // (L16), and nothing on the card used it.
     stripe_account_status: row.stripe_account_status,
     at_capacity: Boolean(row.at_capacity),
     capacity_resume_at: row.capacity_resume_at || null,
@@ -209,9 +210,13 @@ async function fetchSupabaseMarketplaceProviders() {
   const client = window.ShapeAuth?.client;
   if (!client) return null;
 
+  // L16 (2026-10-08 review): a visitor's read of the coach tables is column-level since the
+  // 2026-10-10 migration (every column but stripe_account_id), and a `*` read fails the whole row
+  // once one column is out of reach. The lists are the migration's grant lists, in its order;
+  // tests/security-review-lows.test.mjs holds them equal.
   const [trainerResult, nutritionistResult] = await Promise.all([
-    client.from('trainers').select('*').order('id', { ascending: true }),
-    client.from('nutritionists').select('*').order('id', { ascending: true }),
+    client.from('trainers').select('id, name, specialty, category, price, rating, subscribers, experience, credential, credential_full, specialty_type, bio, color, tags, trainer_of_month, totm_quote, featured, sort_order, created_at, updated_at, stripe_product_id, stripe_price_id, owner_id, stripe_account_status, session_price, at_capacity, capacity_resume_at, verified, verified_at, monthly_offer, listing_media, timezone').order('id', { ascending: true }),
+    client.from('nutritionists').select('id, name, specialty, category, price, rating, subscribers, experience, credential, credential_full, specialty_type, bio, color, tags, services, nutritionist_of_month, notm_quote, featured, sort_order, created_at, updated_at, stripe_product_id, stripe_price_id, owner_id, stripe_account_status, meal_plan_price, at_capacity, capacity_resume_at, verified, verified_at, monthly_offer, listing_media, timezone').order('id', { ascending: true }),
   ]);
 
   if (trainerResult.error) throw trainerResult.error;

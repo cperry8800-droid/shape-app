@@ -5,7 +5,6 @@
 // Called by public/signup-trainer.html and public/signup-nutritionist.html.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/email';
 import { cleanText as clean, isEmail, readJson } from '@/lib/request-utils';
@@ -263,7 +262,9 @@ export async function POST(req: NextRequest) {
     background_check_consent: true,
   }, 'consent_received');
 
-  const supabase = await createClient();
+  // L19 (2026-10-10): the anonymous insert policy on provider_applications is gone, so the
+  // application row is written through the service role after the checks above.
+  const supabase = createAdminClient();
   const applicationRow = {
     provider_type: providerTypeRaw,
     first_name: firstName,

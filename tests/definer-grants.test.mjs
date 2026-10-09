@@ -1277,7 +1277,9 @@ test('the registered findings are named, not hidden', (t) => {
     t.diagnostic(`REGISTERED FINDING ${f.name} (${f.anonGrant} anon grant, found by ${f.discoveredBy}): ${f.exposed.slice(0, 150)}`);
   }
   for (const p of ALLOW.registeredPinFindings) t.diagnostic(`REGISTERED PIN FINDING ${p.name}: ${p.why.slice(0, 150)}`);
-  assert.ok(ALLOW.registeredFindings.length + ALLOW.registeredPinFindings.length > 0);
+  // A fix carried until the next capture is named the same way: it is still open in production.
+  for (const f of ALLOW.fixedAfterCapture ?? []) t.diagnostic(`FIXED AFTER CAPTURE, NOT APPLIED LIVE YET ${f.name} (by ${f.fixedBy}): ${f.fix.slice(0, 150)}`);
+  assert.ok(ALLOW.registeredFindings.length + ALLOW.registeredPinFindings.length + (ALLOW.fixedAfterCapture ?? []).length > 0);
 });
 
 test('a registered finding is what its kind says it is, mechanically', () => {
@@ -1635,11 +1637,12 @@ test('NULL-logic guard: it needs the declared parameter names, and a body with n
   assert.deepEqual(flagsOf(plpg('return null;', { args: 'p_other uuid', declare: 'p_id uuid; v uuid := coalesce(p_id, auth.uid());' })).flags, []);
 });
 
-test('NULL-logic guard, over the 83 anon-reachable bodies: it touches exactly these six and flags exactly one', (t) => {
+test('NULL-logic guard, over the 79 anon-reachable bodies: it touches exactly these six and flags exactly one', (t) => {
   // 85 when this was written; 2026-10-08-security-review-access-layer.sql revoked anon on get_health_sources
-  // and shape_leaderboard, so two bodies left the reach.
+  // and shape_leaderboard, and 2026-10-10-security-review-lows-and-anon-definers.sql on get_follow_list,
+  // get_active_now, get_active_activities and shape_profile_visibility, so six bodies left the reach.
   const reach = M.definerRpcFns(real()).filter(M.anonExecutable);
-  assert.ok(reach.length >= 83, `only ${reach.length} anon-reachable bodies were read (83 when this was written)`);
+  assert.ok(reach.length >= 79, `only ${reach.length} anon-reachable bodies were read (79 when this was written)`);
   const touched = reach.map((f) => [f.name, M.nullLogicFlags(f)]).filter(([, r]) => r.sites.length);
   assert.deepEqual(touched.map(([n]) => n).sort(), ['list_member_dm_threads', 'log_ai_action', 'mark_ai_action_undone', 'set_metric_source', 'set_my_username', 'set_program_detail'], 'a new body the guard touches must be read, not waved through');
   assert.deepEqual(touched.filter(([, r]) => r.flags.length).map(([n]) => n).sort(), ['list_member_dm_threads']);
@@ -1713,18 +1716,32 @@ const FIXED_ITEM = {
 
 test('fixedAfterCapture: each item is checked against the migrations, and a fix that did not land is refused', () => {
   // The three fixes the 2026-10-08 access-layer migration made were carried here until the catalog was
-  // captured again; the 2026-10-08 capture shows them applied (the live diff's --strict said to delete
-  // them), so the checked-in list carries none. The rules are driven on the item as it was.
-  assert.deepEqual(ALLOW.fixedAfterCapture, [], 'the 2026-10-08 capture shows every carried fix applied: an item left here is stale');
+  // captured again; the 2026-10-08 capture showed them applied (the live diff's --strict said to delete
+  // them). The checked-in list now carries the five the 2026-10-10 Lows migration made, which the
+  // 2026-10-09 capture predates: the four 2026-10-03 findings revoked from anon, and the one pin.
+  // Delete them once a capture shows them applied. The rules are driven on the 2026-10-08 item as it was.
+  assert.deepEqual(
+    (ALLOW.fixedAfterCapture ?? []).map((f) => `${f.name}:${f.wasPinFinding ? 'pin' : f.wasFinding ? 'finding' : 'entry'}:${f.fixedBy}`).sort(),
+    [
+      'get_active_activities:finding:2026-10-10-security-review-lows-and-anon-definers.sql',
+      'get_active_now:finding:2026-10-10-security-review-lows-and-anon-definers.sql',
+      'get_follow_list:finding:2026-10-10-security-review-lows-and-anon-definers.sql',
+      'save_workout_session:pin:2026-10-10-security-review-lows-and-anon-definers.sql',
+      'shape_profile_visibility:finding:2026-10-10-security-review-lows-and-anon-definers.sql',
+    ],
+    'the 2026-10-09 capture predates exactly these five fixes; an item here after a capture shows it applied is stale',
+  );
   const withItem = () => ({ ...structuredClone(ALLOW), fixedAfterCapture: [structuredClone(FIXED_ITEM)] });
   assert.ok(!anonReachableNames(real()).includes(FIXED_ITEM.name), `${FIXED_ITEM.name} is still anon-executable in the model`);
   assert.ok(real().files.includes(FIXED_ITEM.fixedBy), `${FIXED_ITEM.fixedBy} is a migration in the tree`);
+  // `withItem` drops the five carried items: the four functions are no longer anon-reachable and the
+  // pinned one needs no registration, so the list stays exactly right without them.
   assert.deepEqual(checkAllowlist(real(), withItem()), [], 'a landed fix, recorded once and listed nowhere else, is accepted');
   const broken = (mutate) => { const a = withItem(); mutate(a.fixedAfterCapture[0], a); return checkAllowlist(real(), a); };
   const name = FIXED_ITEM.name;
   assert.match(broken((f) => { f.fixedBy = '2099-01-01-nope.sql'; }).join('\n'), new RegExp(`${name}: fixedAfterCapture needs \`fixedBy\``));
   assert.match(broken((f) => { delete f.fix; }).join('\n'), new RegExp(`${name}: fixedAfterCapture needs \`fix\``));
-  assert.match(broken((f) => { f.wasEntry = { class: 'self-gated-auth-uid', note: 'x'.repeat(40) }; f.wasFinding = f.wasFinding ?? {}; }).join('\n'), /exactly one of `wasEntry` or `wasFinding`/);
+  assert.match(broken((f) => { f.wasEntry = { class: 'self-gated-auth-uid', note: 'x'.repeat(40) }; f.wasFinding = f.wasFinding ?? {}; }).join('\n'), /exactly one of `wasEntry`, `wasFinding` or `wasPinFinding`/);
   assert.match(broken((f, a) => { a.fixedAfterCapture.push(structuredClone(f)); }).join('\n'), new RegExp(`${name}: listed twice in fixedAfterCapture`));
   assert.match(broken((f, a) => { a.entries[f.name] = { class: 'public-by-design', anonGrant: 'explicit', note: 'x'.repeat(80) }; }).join('\n'), new RegExp(`${name}: in fixedAfterCapture and also in entries`));
   assert.match(checkAllowlist(real(), { ...structuredClone(ALLOW), fixedAfterCapture: {} }).join('\n'), /`fixedAfterCapture` must be an array/);
@@ -1732,8 +1749,40 @@ test('fixedAfterCapture: each item is checked against the migrations, and a fix 
   const before = M.replayDir(DIR, { before: '2026-10-08' });
   const p = checkAllowlist(before, withItem()).filter((m) => /did not land/.test(m));
   assert.deepEqual(p.map((m) => m.split(':')[0]), [name]);
-  // And with no fixedAfterCapture key at all, the list as it stands is still exactly right for the tree.
+  // The list as it stands, five carried items included, is exactly right for the tree.
   assert.deepEqual(checkAllowlist(real(), ALLOW), []);
+});
+
+test('fixedAfterCapture, a pin fix: accepted once the migrations pin it, refused while they do not or when it is still registered', () => {
+  const PIN = ALLOW.fixedAfterCapture.find((f) => f.name === 'save_workout_session');
+  assert.ok(PIN && PIN.wasPinFinding && PIN.wasPinFinding.name === 'save_workout_session');
+  assert.ok(PIN.wasPinFinding.why && PIN.wasPinFinding.declaredAt, 'the pin finding is carried as it was');
+  const withPin = () => ({ ...structuredClone(ALLOW), fixedAfterCapture: [structuredClone(PIN)] });
+  assert.deepEqual(checkAllowlist(real(), withPin()), []);
+  const broken = (mutate) => { const a = withPin(); mutate(a.fixedAfterCapture[0], a); return checkAllowlist(real(), a).join('\n'); };
+  assert.match(broken((f) => { f.wasPinFinding = { ...f.wasPinFinding, name: 'other' }; }), /save_workout_session: `wasPinFinding` names "other"/);
+  assert.match(broken((f) => { f.name = 'no_such_definer'; f.wasPinFinding = { ...f.wasPinFinding, name: 'no_such_definer' }; }), /no_such_definer: listed as pinned by 2026-10-10-security-review-lows-and-anon-definers.sql, but the model has no SECURITY DEFINER function of that name in public/);
+  assert.match(broken((f, a) => { a.registeredPinFindings = [structuredClone(f.wasPinFinding)]; }), /save_workout_session: in fixedAfterCapture and also in registeredPinFindings/);
+  // A pin fix and an anon exposure are different claims: a pin item beside an entry of the same name
+  // is not double-listed (a pinned function can still be anon-executable and gated). Here the entry
+  // is refused on its own terms, as stale, because save_workout_session is not anon-executable.
+  const asEntry = withPin();
+  asEntry.entries.save_workout_session = { class: 'self-gated-auth-uid', note: 'Not anon-executable at all; this entry is stale on purpose.' };
+  const withEntry = checkAllowlist(real(), asEntry);
+  assert.ok(withEntry.some((m) => /^stale: save_workout_session /.test(m)), withEntry.join('\n'));
+  assert.ok(!withEntry.some((m) => /also in entries/.test(m)), withEntry.join('\n'));
+  // Before the 2026-10-10 migration the function is unpinned, so the fix "did not land" there (and the
+  // file naming it is not in that tree), and the pin finding itself is what the list must carry.
+  const before = M.replayDir(DIR, { before: '2026-10-10' });
+  const p = checkAllowlist(before, withPin()).filter((m) => /save_workout_session/.test(m));
+  assert.deepEqual(p.sort(), [
+    'save_workout_session: fixedAfterCapture needs `fixedBy`, the migration file that fixes it (got "2026-10-10-security-review-lows-and-anon-definers.sql")',
+    'save_workout_session: listed as pinned by 2026-10-10-security-review-lows-and-anon-definers.sql, but the model still leaves its search_path without pg_temp — the fix did not land',
+    'unregistered unpinned definer: save_workout_session does not end its search_path in pg_temp — pin it (alter function ... set search_path = public, pg_temp) or register it in registeredPinFindings',
+  ]);
+  const restored = { ...structuredClone(ALLOW), fixedAfterCapture: [], registeredPinFindings: [structuredClone(PIN.wasPinFinding)] };
+  for (const f of ALLOW.fixedAfterCapture) if (f.wasFinding) restored.registeredFindings.push(structuredClone(f.wasFinding));
+  assert.deepEqual(checkAllowlist(before, restored), [], 'what the list said before the migration is exactly right for the tree before it');
 });
 
 // The checker's handling of a flagged body, driven on a small model.
