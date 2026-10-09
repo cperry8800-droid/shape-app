@@ -58,12 +58,18 @@ async function proxyBucket({ cookieUser = null, bearer = null, claims = async ()
   return { status: res.status, keys };
 }
 
+// A forged token the way an attacker makes one: a well-formed JWT whose payload names the sub
+// they want, signed by nobody. A decoder that does not check the signature reads `attacker-9`.
+const b64url = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+const FORGED = `${b64url({ alg: 'HS256', typ: 'JWT' })}.${b64url({ sub: 'attacker-9', role: 'authenticated', exp: 4102444800 })}.c2lnbmVkLWJ5LW5vYm9keQ`;
+const REAL = `${b64url({ alg: 'ES256', kid: 'k1' })}.${b64url({ sub: 'u-verified', exp: 4102444800 })}.cmVhbC1zaWduYXR1cmU`;
+
 test('M1: an anonymous caller with a forged Bearer token counts on its ADDRESS, a verified token on its account, a cookie session on its account', async () => {
-  const forged = await proxyBucket({ bearer: 'eyJ.forged.token' });
-  assert.deepEqual(forged.keys, [{ key: 'api:ip:203.0.113.9', max: 100, win: 60 }], 'no bucket of the caller\'s own choosing');
-  const verified = await proxyBucket({ bearer: 'eyJ.real.token', claims: async (t) => (t === 'eyJ.real.token' ? { data: { claims: { sub: 'u-verified' } }, error: null } : { data: null, error: { message: 'bad' } }) });
+  const forged = await proxyBucket({ bearer: FORGED });
+  assert.deepEqual(forged.keys, [{ key: 'api:ip:203.0.113.9', max: 100, win: 60 }], 'no bucket of the caller\'s own choosing: the sub inside the token is never read unverified');
+  const verified = await proxyBucket({ bearer: REAL, claims: async (t) => (t === REAL ? { data: { claims: { sub: 'u-verified' } }, error: null } : { data: null, error: { message: 'bad' } }) });
   assert.deepEqual(verified.keys, [{ key: 'api:u:u-verified', max: 100, win: 60 }]);
-  const thrown = await proxyBucket({ bearer: 'x', claims: async () => { throw new Error('jwks unreachable'); } });
+  const thrown = await proxyBucket({ bearer: FORGED, claims: async () => { throw new Error('jwks unreachable'); } });
   assert.deepEqual(thrown.keys, [{ key: 'api:ip:203.0.113.9', max: 100, win: 60 }], 'a verification that cannot run is an anonymous caller, not a trusted one');
   const cookie = await proxyBucket({ cookieUser: { id: 'u-cookie' } });
   assert.deepEqual(cookie.keys, [{ key: 'api:u:u-cookie', max: 100, win: 60 }]);
@@ -301,8 +307,10 @@ test('M11: Turnstile fails closed once the secret is set', async () => {
     assert.equal(await mod.verifyTurnstile(''), false, 'no token');
     globalThis.fetch = async () => { throw new TypeError('fetch failed'); };
     assert.equal(await mod.verifyTurnstile('tok', '203.0.113.9'), false, 'Cloudflare unreachable: closed, not open');
-    globalThis.fetch = async () => ({ ok: false, status: 502, json: async () => ({}) });
-    assert.equal(await mod.verifyTurnstile('tok'), false, 'a 5xx from Cloudflare: closed');
+    // A 5xx whose body happens to read `success: true` (a proxy or captive-portal page in the way)
+    // is still a failed check: the status is read before the body is believed.
+    globalThis.fetch = async () => ({ ok: false, status: 502, json: async () => ({ success: true }) });
+    assert.equal(await mod.verifyTurnstile('tok'), false, 'a 5xx from Cloudflare: closed, whatever its body says');
     globalThis.fetch = async () => ({ ok: true, json: async () => ({ success: false }) });
     assert.equal(await mod.verifyTurnstile('tok'), false);
     globalThis.fetch = async () => ({ ok: true, json: async () => ({ success: true }) });
