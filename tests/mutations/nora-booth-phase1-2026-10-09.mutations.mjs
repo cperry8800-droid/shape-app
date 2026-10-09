@@ -85,7 +85,10 @@ export default {
     { name: 'setStation forgets the analyser', file: HOST,
       find: '      stationAn = analyser || null;', replace: '      stationAn = stationAn || null;' },
     // ── the example set's start (Codex, #2287) ──
-    { name: 'a refused resume counts as a start', file: START,
+    // Proven no-op: a refused resume leaves the context suspended, so `ctx.state !== 'running'`
+    // refuses it on its own; `ok` restates that for a reader. The survivor is the state check
+    // doing its job, and the mutation below that removes the state check is killed.
+    { name: 'a refused resume counts as a start', file: START, expectSurvive: true,
       find: 'return resumed.then(() => finish(true), () => finish(false));', replace: 'return resumed.then(() => finish(true), () => finish(true));' },
     { name: 'a start that resolves still suspended counts as running', file: START,
       find: "if (!ok || my !== gen || ctx.state !== 'running') {", replace: 'if (!ok || my !== gen) {' },

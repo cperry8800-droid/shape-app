@@ -10,10 +10,15 @@
 // So a start is a promise of a RUNNING context or of nothing, and `cancel()` reaches a start that
 // has not finished.
 
-/** Close a context that will never be handed over, quietly: it may already be closed. */
+// Contexts already asked to close. close() settles later (the state reads 'closed' only once it
+// has), so the state alone cannot say a close is under way.
+const closing = new WeakSet();
+/** Close a context that will never be handed over, once and quietly. */
 function closeQuietly(ctx) {
+  if (!ctx || closing.has(ctx)) return;
+  closing.add(ctx);
   try {
-    const p = ctx && ctx.close && ctx.close();
+    const p = ctx.close && ctx.close();
     if (p && typeof p.catch === 'function') p.catch(() => {});
   } catch (e) { /* already closed */ }
 }
@@ -42,7 +47,9 @@ export function createExampleStarter(getAC) {
       pending = ctx;
       const finish = (ok) => {
         if (pending === ctx) pending = null;
-        if (!ok || my !== gen || ctx.state !== 'running') { if (ctx.state !== 'closed') closeQuietly(ctx); return null; }
+        // ⚠ The generation check is not redundant with the state: a cancel's close() settles later,
+        // so a resume can finish first and leave a refused context reading 'running'.
+        if (!ok || my !== gen || ctx.state !== 'running') { closeQuietly(ctx); return null; }
         handed = { ctx, gen: my };
         return ctx;
       };

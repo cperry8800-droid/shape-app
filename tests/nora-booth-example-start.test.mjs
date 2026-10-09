@@ -20,7 +20,10 @@ function fakeAC({ initial = 'suspended', resumeTo = 'running' } = {}) {
       this.resumes += 1;
       return new Promise((res, rej) => { this._settle = { res: () => { if (this.state !== 'closed') this.state = resumeTo; res(); }, rej }; });
     }
-    close() { this.closed += 1; this.state = 'closed'; return Promise.resolve(); }
+    // Like the real one, close() settles LATER: the state reads 'closed' only once it has. A fake
+    // that closed at once hid a race the generation check exists for (a mutation removing it
+    // survived): a resume finishing before the close would hand over a refused context.
+    close() { this.closed += 1; return new Promise((res) => setTimeout(() => { this.state = 'closed'; res(); }, 0)); }
   }
   return { AC, made };
 }
@@ -52,7 +55,7 @@ test('a stop that lands while it resumes cancels it: nothing starts, and the con
   assert.equal(s.pending, false);
   made[0]._settle.res();          // ...and the resume then succeeds
   assert.equal(await p, null, 'the cancelled start still handed over a context — the set would play over the station');
-  assert.ok(made[0].closed >= 1, 'the cancelled context was left open');
+  assert.equal(made[0].closed, 1, 'the cancelled context was left open, or closed twice');
 });
 
 test('a stop in the same tick as the start wins, even when the context is running at once', async () => {
