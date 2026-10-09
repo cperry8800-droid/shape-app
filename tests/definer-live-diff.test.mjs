@@ -282,6 +282,41 @@ test('fixedAfterCapture: counted as before while live still has it, named as app
   assert.equal(verdict(dbl), 1);
 });
 
+test('fixedAfterCapture, a pin fix: a registered pin finding while live is unpinned, applied once live pins it', () => {
+  const allow = {
+    entries: {},
+    registeredFindings: [],
+    registeredPinFindings: [{ name: 'still_loose' }],
+    fixedAfterCapture: [{ name: 'was_pin', fixedBy: 'f.sql', wasPinFinding: { name: 'was_pin', why: 'x', declaredAt: 'f.sql:1' } }],
+  };
+  // Not applied: live still has it unpinned (and not anon-executable, which a pin fix says nothing about).
+  const open = diffLive([row('was_pin', false, false), row('still_loose', false, false)], allow);
+  assert.deepEqual(open.unpinned, ['still_loose', 'was_pin']);
+  assert.deepEqual(open.unregisteredPins, [], 'the carried pin finding still registers it');
+  assert.deepEqual(open.awaitingApply, ['was_pin']);
+  assert.deepEqual(open.appliedLive, [], 'not anon-executable live is not "applied" for a pin fix');
+  assert.deepEqual(open.stalePins, []);
+  assert.equal(verdict(open, { strict: true }), 0);
+  assert.match(report(open), /not applied live yet \(counted as before until it is\): was_pin/);
+  // Applied: live pins it. Named for deletion; strict fails on it; the other pin finding is untouched.
+  const applied = diffLive([row('was_pin', false, true), row('still_loose', false, false)], allow);
+  assert.deepEqual(applied.unpinned, ['still_loose']);
+  assert.deepEqual(applied.unregisteredPins, []);
+  assert.deepEqual(applied.awaitingApply, []);
+  assert.deepEqual(applied.appliedLive, ['was_pin']);
+  assert.deepEqual(applied.stalePins, [], 'an applied pin fix is its own signal, not a stale pin finding');
+  assert.equal(verdict(applied), 0);
+  assert.equal(verdict(applied, { strict: true }), 1);
+  // A pin fix that is ALSO anon-executable live is accounted for by the entries, not by the pin item.
+  const exposed = diffLive([row('was_pin', true, false)], allow);
+  assert.deepEqual(exposed.unaccounted, ['was_pin']);
+  // Still in registeredPinFindings too is a mistake in the file.
+  const dbl = diffLive([row('was_pin', false, false)], { ...allow, registeredPinFindings: [...allow.registeredPinFindings, { name: 'was_pin' }] });
+  assert.deepEqual(dbl.doubleListed, ['was_pin']);
+  assert.equal(verdict(dbl), 1);
+  assert.match(report(dbl), /in fixedAfterCapture and the list it says it left/);
+});
+
 test('allowListAsOfCapture: a fix dated after the capture is read as what the list said that day', () => {
   const allow = {
     entries: { kept: { class: 'self-gated-auth-uid', note: 'x' } },
@@ -290,15 +325,18 @@ test('allowListAsOfCapture: a fix dated after the capture is read as what the li
     fixedAfterCapture: [
       { name: 'later_fix', fixedBy: '2026-12-01-fix.sql', wasFinding: { name: 'later_fix', kind: 'anon-executable-no-gate' } },
       { name: 'earlier_fix', fixedBy: '2026-01-01-fix.sql', wasEntry: { class: 'self-gated-auth-uid', note: 'x' } },
+      { name: 'later_pin', fixedBy: '2026-12-01-fix.sql', wasPinFinding: { name: 'later_pin', why: 'x', declaredAt: 'f.sql:1' } },
+      { name: 'earlier_pin', fixedBy: '2026-01-01-fix.sql', wasPinFinding: { name: 'earlier_pin', why: 'x', declaredAt: 'f.sql:1' } },
     ],
   };
   const fn = (n) => `create function public.${n}() returns int language sql security definer set search_path = public, pg_temp as $$ select 1 $$;`;
-  const pre = M.replay([{ file: '2026-01-01-fix.sql', sql: fn('kept') + fn('later_fix') + fn('earlier_fix') }]);
+  const pre = M.replay([{ file: '2026-01-01-fix.sql', sql: fn('kept') + fn('later_fix') + fn('earlier_fix') + fn('later_pin') + fn('earlier_pin') }]);
   const { allow: asOf, restored } = allowListAsOfCapture(allow, pre);
-  assert.deepEqual(restored, ['later_fix'], 'only the fix the capture predates is restored');
+  assert.deepEqual(restored, ['later_fix', 'later_pin'], 'only the fixes the capture predates are restored');
   assert.deepEqual(asOf.registeredFindings.map((f) => f.name), ['later_fix']);
+  assert.deepEqual(asOf.registeredPinFindings.map((f) => f.name), ['later_pin'], 'a pin fix goes back to registeredPinFindings');
   assert.ok(!Object.hasOwn(asOf.entries, 'earlier_fix'), 'a fix the capture already contains is not restored');
-  assert.deepEqual(asOf.fixedAfterCapture.map((f) => f.name), ['earlier_fix'], 'and stays, for the live diff to call applied');
+  assert.deepEqual(asOf.fixedAfterCapture.map((f) => f.name), ['earlier_fix', 'earlier_pin'], 'and stay, for the live diff to call applied');
 });
 
 test('the CLI: the checked-in allow-list accepts the live capture, and rejects a new anon-executable definer', () => {

@@ -85,7 +85,8 @@ async function contact(body, { verify = async (token) => token === 'good-token' 
     typescript: true,
     registry: new Map([
       ['next/server', nextServer],
-      ['@/lib/supabase/server', { createClient: async () => ({ from: () => ({ insert: async (row) => { inserted.push(row); return { error: null }; } }) }) }],
+      // L19 (2026-10-10): the route writes through the service role; the request client is not imported.
+      ['@/lib/supabase/admin', { createAdminClient: () => ({ from: () => ({ insert: async (row) => { inserted.push(row); return { error: null }; } }) }) }],
       ['@/lib/email', { sendEmail: async (m) => { mails.push(m); return true; } }],
       ['@/lib/request-utils', requestUtils],
       ['@/lib/turnstile', { verifyTurnstile: async (token) => verify(token) }],

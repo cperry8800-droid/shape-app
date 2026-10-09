@@ -150,21 +150,23 @@ export function allowListAsOfCapture(allow, preCaptureModel) {
     return false;
   });
   // The mirror case: a fix dated after the capture. The capture predates the migration, so what
-  // the list said before the fix (`wasEntry` / `wasFinding`) is what it said on that day. A fix the
-  // pre-capture migrations already hold stays in `fixedAfterCapture`, and the live diff reports it
-  // as applied, which is the signal to delete it.
+  // the list said before the fix (`wasEntry` / `wasFinding` / `wasPinFinding`) is what it said on
+  // that day. A fix the pre-capture migrations already hold stays in `fixedAfterCapture`, and the
+  // live diff reports it as applied, which is the signal to delete it.
   const files = new Set(preCaptureModel.files ?? []);
   const restored = [];
   const restoredFindings = [];
+  const restoredPins = [];
   const stillFixed = [];
   for (const f of allow.fixedAfterCapture ?? []) {
     if (!f || files.has(f.fixedBy)) { if (f) stillFixed.push(f); continue; }
     restored.push(f.name);
     if (f.wasEntry) entries[f.name] = f.wasEntry;
     else if (f.wasFinding) restoredFindings.push(f.wasFinding);
+    else if (f.wasPinFinding) restoredPins.push(f.wasPinFinding);
   }
   return {
-    allow: { ...allow, entries, registeredFindings: [...keep(allow.registeredFindings), ...restoredFindings], fixedAfterCapture: stillFixed, registeredPinFindings: allow.registeredPinFindings ?? [] },
+    allow: { ...allow, entries, registeredFindings: [...keep(allow.registeredFindings), ...restoredFindings], fixedAfterCapture: stillFixed, registeredPinFindings: [...(allow.registeredPinFindings ?? []), ...restoredPins] },
     pending: [...new Set(pending)].sort(),
     restored: restored.sort(),
   };

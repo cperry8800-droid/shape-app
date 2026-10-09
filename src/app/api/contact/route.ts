@@ -10,10 +10,11 @@
 //   message text not null
 //   user_agent text
 //   status text default 'new'
-// RLS: allow anon insert, select restricted to authenticated admins.
+// RLS: no anonymous insert since the 2026-10-10 migration (L19); the route writes as the service
+// role after its own checks. Select is restricted to authenticated admins.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/email';
 import { cleanText as clean, isEmail, readJson } from '@/lib/request-utils';
 import { verifyTurnstile } from '@/lib/turnstile';
@@ -55,7 +56,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Captcha check failed — please retry.' }, { status: 400 });
   }
 
-  const supabase = await createClient();
+  // L19 (2026-10-10): the anonymous insert policy on contact_submissions is gone, so this
+  // public form writes through the service role after the checks above. Nothing is read back.
+  const supabase = createAdminClient();
   const { error } = await supabase.from('contact_submissions').insert({
     first_name: firstName,
     last_name: lastName,
