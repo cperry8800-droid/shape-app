@@ -11,9 +11,14 @@
 //     ON the jog / fader / knob the choreography names, instead of floating near it.
 //   • GROOVE — head nod, knee bounce and a weight shift locked to the measured beat, plus an
 //     automatic forward lean when a target is beyond the arm's reach (real DJs lean in).
+//   • FACE + IDLE — blinks, saccades, breath and weight shifts from noraFace.mjs, irregular and
+//     seeded, because every one of them used to run on a clock. With no beat (`groove: false`)
+//     she does not bob: she stands, shifts her weight and looks around the room.
 //
 // Pure-ish: no DOM, no Math.random / Date.now. The caller passes world-space targets and a
 // beat phase every frame. Works with @pixiv/three-vrm 3.x.
+
+import { createFace } from './noraFace.mjs';
 
 const DEG = Math.PI / 180;
 
@@ -34,6 +39,31 @@ function springTo(state, target, dt, omega) {
     state.pos[k] = detX * det;
     state.vel[k] = detV * det;
   }
+}
+
+// Hair (VRM spring bones) is stepped in slices no longer than this, so a dropped frame cannot hand
+// the springs one long step.
+export const SPRING_STEP = 1 / 60;
+export const SPRING_MAX_STEPS = 8;
+// ⚠ THE HAIR STARTS IN ITS AUTHORED POSE, FLUNG OUT, AND FALLS FOR ABOUT A SECOND. Measured on the
+// placeholder: on the first frame the hair tips point 117–128° from hanging straight down (her twin
+// tails stand out sideways), and they settle to a hang over the next second. Renders taken a few
+// frames after load caught it mid-fall, and on a phone it is what you see every time the booth opens.
+// So the springs run this much simulated time, at the first posed frame, before anyone sees her.
+export const HAIR_SETTLE_S = 1.5;
+// A model that authors its hair with no gravity at all (the placeholder: gravityPower 0 on every
+// joint) holds its styled shape under any motion. Real hair hangs. Hair joints with none get this
+// much; a model that authored its own keeps it. Measured: the tips' mean angle from hanging goes
+// from 13° to about 6°.
+export const HAIR_GRAVITY = 0.6;
+/** Gravity for one spring joint: hair with none authored gets HAIR_GRAVITY; anything else is kept. */
+export function hairGravity(boneName, authored) {
+  return /hair/i.test(boneName || '') && !(authored > 0) ? HAIR_GRAVITY : authored;
+}
+/** How many equal slices a `dt` of spring time is cut into. */
+export function springSteps(dt) {
+  if (!(dt > 0)) return 0;
+  return Math.min(SPRING_MAX_STEPS, Math.max(1, Math.ceil(dt / SPRING_STEP - 1e-9)));
 }
 
 // The same spring on one number ({ x, v }).
@@ -205,7 +235,7 @@ export class NoraPerformer {
    * @param {number} [o.height]   target standing height in metres
    * @param {{x:number,y:number,z:number}} [o.stand]  floor position of the hips' projection
    */
-  constructor({ THREE, vrm, height = 1.7, stand = { x: 0, y: 0, z: 0.36 }, look = 'stage', headphones = true, quality = 'high', ceiling = false }) {
+  constructor({ THREE, vrm, height = 1.7, stand = { x: 0, y: 0, z: 0.36 }, look = 'stage', headphones = true, quality = 'high', ceiling = false, seed = 5 }) {
     this.THREE = THREE;
     this.vrm = vrm;
     const h = vrm.humanoid;
@@ -244,6 +274,13 @@ export class NoraPerformer {
     vrm.scene.parent ? vrm.scene.parent.add(this.lookTarget) : null;
     if (vrm.lookAt) vrm.lookAt.target = this.lookTarget;
     this.expr = { happy: 0, relaxed: 0.25, blink: 0 };
+    this.face = createFace(seed);
+    this._hairSettled = false;
+    if (vrm.springBoneManager) {
+      for (const j of vrm.springBoneManager.joints) {
+        if (j && j.settings) j.settings.gravityPower = hairGravity(j.bone && j.bone.name, j.settings.gravityPower);
+      }
+    }
     // Smoothed motion state: nothing on the body is assigned straight from a signal, so a
     // change in energy, a tempo re-settle or a new look target eases in instead of snapping.
     this.sm = {
@@ -267,6 +304,9 @@ export class NoraPerformer {
    *   f.hands      { left:{ pos:Vector3 (contact point, world), palm:'down'|'pinch'|'ear'|'air'|'rest', grip:0..1 }, right:{…} }
    *   f.look       Vector3 world point to look at
    *   f.drop       0..1 (hands-up energy)
+   *   f.groove     false when there is no beat to move to (off air, no measured tempo): no dip, no
+   *                beat sway, a resting weight shift instead
+   *   f.idle       nothing in her hands: her eyes wander the room around `look`
    */
   update(dt, f) {
     const THREE = this.THREE;
@@ -280,18 +320,27 @@ export class NoraPerformer {
     spring1(sm.energy, clamp(f.energy == null ? 0.6 : f.energy, 0, 1), sdt, 3);
     spring1(sm.drop, f.drop || 0, sdt, 4);
     const energy = sm.energy.x, drop = sm.drop.x;
+    const groove = f.groove !== false;
 
     // ── The groove. ──────────────────────────────────────────────────────────
     // A body on a house beat does not twitch on the kick: it settles INTO the beat and rises
     // out of it, so the dip is a raised cosine with its low point just after the beat, and
     // the whole thing is smoothed once more so a tempo re-settle cannot make it jump.
-    const dipRaw = 0.5 + 0.5 * Math.cos((ph - 0.07) * Math.PI * 2);
-    spring1(sm.dip, dipRaw, sdt, 30);
-    spring1(sm.sway, Math.sin(beat * Math.PI), sdt, 12);   // weight shift, one side per beat
+    // With no beat there is nothing to settle into: the dip eases out, and the sway is a resting
+    // weight shift that holds a leg for seconds, not a metronome.
+    const dipRaw = groove ? 0.5 + 0.5 * Math.cos((ph - 0.07) * Math.PI * 2) : 0;
+    spring1(sm.dip, dipRaw, sdt, groove ? 30 : 4);
+    const rest = this.face.weight.step(dt);
+    spring1(sm.sway, groove ? Math.sin(beat * Math.PI) : rest, sdt, groove ? 12 : 4);   // weight shift
     const dip = sm.dip.x, sway = sm.sway.x;
-    const amp = 0.45 + 0.55 * energy + 0.35 * drop;         // how much of the groove the room earns
-    // Breath (14 a minute) and a slow drift nobody notices but everyone misses when it is gone.
-    const breath = Math.sin(t * 1.5);
+    // How much of the groove the room earns; off the beat, a resting shift is a few centimetres.
+    const amp = groove ? 0.45 + 0.55 * energy + 0.35 * drop : 1.5;
+    // The hips-against-shoulders twist is a dance move; standing at rest the pelvis drops toward the
+    // free leg and barely turns.
+    const twist = groove ? amp : 0.3;
+    // Breath (irregular, faster with effort) and a slow drift nobody notices but everyone misses
+    // when it is gone.
+    const breath = this.face.breath.step(dt, energy);
     const drift = 0.5 * Math.sin(t * 0.37) + 0.3 * Math.sin(t * 0.91 + 1.7);
 
     // ── Reach: lean in when a target is beyond the arm. ──────────────────────
@@ -304,16 +353,20 @@ export class NoraPerformer {
     hips.userData.restX ?? (hips.userData.restX = hips.position.x);
     hips.position.y = hips.userData.restY - 0.012 - dip * 0.022 * amp;
     hips.position.x = hips.userData.restX + sway * 0.012 * amp;   // the weight actually moves
-    hips.rotation.set(dip * 0.012 * amp, sway * 0.07 * amp, sway * 0.035 * amp);
-    spine.rotation.set(this.lean * 0.45 + dip * 0.015 * amp, -sway * 0.04 * amp, -sway * 0.02 * amp + drift * 0.01);
-    chest.rotation.set(this.lean * 0.35 + breath * 0.012, -sway * 0.02 * amp, 0);
+    hips.rotation.set(dip * 0.012 * amp, sway * 0.07 * twist, sway * 0.035 * amp);
+    spine.rotation.set(this.lean * 0.45 + dip * 0.015 * amp, -sway * 0.04 * twist, -sway * 0.02 * amp + drift * 0.01);
+    chest.rotation.set(this.lean * 0.35 + breath * 0.012, -sway * 0.02 * twist, 0);
     // shoulders counter the hips (the twist that reads as dancing rather than rocking)
-    if (upper) upper.rotation.set(this.lean * 0.2 + dip * 0.01 * amp, -sway * 0.05 * amp, sway * 0.01 * amp);
-    // Knees give on the beat; the loaded leg gives a little more.
+    if (upper) upper.rotation.set(this.lean * 0.2 + dip * 0.01 * amp + breath * 0.006, -sway * 0.05 * twist, sway * 0.01 * amp);
+    // Knees give on the beat, the loaded leg a little more. At rest it is the other way round: the
+    // loaded leg stands straight and the free one softens.
     for (const s of ['left', 'right']) {
       const ul = b(s + 'UpperLeg'), ll = b(s + 'LowerLeg'), ft = b(s + 'Foot');
       const load = s === 'left' ? Math.max(0, sway) : Math.max(0, -sway);
-      const k = 0.08 + dip * 0.085 * amp + load * 0.04 * amp + this.lean * 0.3;
+      const free = s === 'left' ? Math.max(0, -sway) : Math.max(0, sway);
+      const k = groove
+        ? 0.08 + dip * 0.085 * amp + load * 0.04 * amp + this.lean * 0.3
+        : 0.06 + free * 0.11 + this.lean * 0.3;
       ul.rotation.set(-k, 0, 0);
       ll.rotation.set(k * 2, 0, 0);
       ft.rotation.set(-k, 0, 0);
@@ -330,9 +383,13 @@ export class NoraPerformer {
     // ── Head: eased toward what she is doing, nodding into the beat. ─────────
     vrm.scene.updateMatrixWorld(true);
     const lookW = f.look || this._v[7].set(0, 1.2, -4);
-    this.lookTarget.position.copy(lookW);
     const hw = this._v[0]; neck.getWorldPosition(hw);
-    const toL = this._v[1].copy(lookW).sub(hw);
+    // The eyes jump to what she means to look at; the head is sprung toward the same point, so it
+    // arrives a few hundred milliseconds after them, as a head does.
+    const ew = this._v[8]; head.getWorldPosition(ew);
+    const g = this.face.gaze.step(dt, { eye: ew, want: lookW, idle: !!f.idle });
+    this.lookTarget.position.set(g.gaze.x, g.gaze.y, g.gaze.z);
+    const toL = this._v[1].set(g.head.x, g.head.y, g.head.z).sub(hw);
     const pq = this._q[0]; neck.parent.getWorldQuaternion(pq);
     toL.applyQuaternion(pq.invert());
     // A DJ over the gear glances DOWN at it far more than sideways, so the turn is scaled and
@@ -341,7 +398,7 @@ export class NoraPerformer {
     const pitchT = clamp(Math.atan2(-toL.y, Math.hypot(toL.x, toL.z)), -20 * DEG, 36 * DEG);
     spring1(sm.yaw, yawT + drift * 0.03, sdt, 6);           // a glance takes about a third of a second
     spring1(sm.pitch, pitchT, sdt, 6);
-    spring1(sm.nod, dip * (0.05 + 0.07 * energy + 0.05 * drop), sdt, 20);
+    spring1(sm.nod, groove ? dip * (0.05 + 0.07 * energy + 0.05 * drop) : 0, sdt, 20);
     const net = sm.pitch.x - this.lean * 0.8;               // the lean already tips the head; keep the face up
     neck.rotation.set(net * 0.4, sm.yaw.x * 0.45, 0);
     head.rotation.set(net * 0.6 + sm.nod.x, sm.yaw.x * 0.55 + drift * 0.015, -sway * 0.035 * amp);
@@ -355,14 +412,26 @@ export class NoraPerformer {
     // ── Face ─────────────────────────────────────────────────────────────────
     const em = vrm.expressionManager;
     if (em) {
-      const blinkCycle = (t * 1000) % 3700;
-      const blink = blinkCycle < 110 ? 1 : 0;
+      const blink = this.face.blink.step(dt, { gazeShift: g.big });
       this.expr.happy += (drop * 0.8 + energy * 0.15 - this.expr.happy) * clamp(dt * 3, 0, 1);
       em.setValue('happy', this.expr.happy);
       em.setValue('relaxed', clamp(0.35 - this.expr.happy * 0.3, 0, 1));
       em.setValue('blink', blink);
     }
-    vrm.update(dt);
+    // Everything but the hair in one step, then the hair in slices (SPRING_STEP).
+    const sbm = vrm.springBoneManager;
+    const n = springSteps(dt);
+    if (sbm && n > 1) {
+      vrm.springBoneManager = null;
+      try { vrm.update(dt); } finally { vrm.springBoneManager = sbm; }
+      for (let i = 0; i < n; i++) sbm.update(dt / n);
+    } else {
+      vrm.update(dt);
+    }
+    if (sbm && !this._hairSettled) {
+      this._hairSettled = true;
+      for (let i = 0; i < Math.round(HAIR_SETTLE_S / SPRING_STEP); i++) sbm.update(SPRING_STEP);
+    }
   }
 
   // Forward lean needed so the farthest hand target is within reach.

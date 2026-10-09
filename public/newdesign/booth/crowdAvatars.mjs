@@ -45,6 +45,44 @@ export function decodeCrowdPack(b64) {
   return { header, geos };
 }
 
+// ── Human eyes ──────────────────────────────────────────────────────────────
+// ⚠ THE BAKE MEASURES THE MODEL'S OWN EYES, AND THE PLACEHOLDER'S ARE ANIME: an opening 5.2 cm wide
+// and 4.3 cm tall, an iris 2.5 cm across, a brow 4 cm above the eye. Drawn on 700 faces that is a room
+// of the same cartoon (owner, 2026-10-09: "still looks very animated"). So the drawn eye is sized
+// from the one thing every model gets right, the distance between the eyes (IPD), at adult
+// proportions: an opening about half the IPD wide and a third as tall as it is wide, an iris a
+// little taller than the opening (the lids cover its top and bottom), a brow about a third of the
+// IPD above the eye. A realistic model's own eyes come out at nearly the size they were measured.
+export const HUMAN_EYE = Object.freeze({ halfWidth: 0.24, halfHeight: 0.085, iris: 0.095, irisUp: 0.02, browUp: 0.3, browHalf: 0.022, browWidth: 1.15 });
+
+/**
+ * The bake's face frame with each eye redrawn at human proportions (see HUMAN_EYE). Frames are
+ * [u0, u1, v0, v1] about the eye centre, u outward-signed as measured. Returns null for no frame.
+ */
+export function humanEyeFrame(face) {
+  if (!face || !face.L || !face.R || !face.L.white || !face.R.white || !face.L.c || !face.R.c) return null;
+  const ipd = Math.hypot(face.L.c[0] - face.R.c[0], face.L.c[1] - face.R.c[1], face.L.c[2] - face.R.c[2]);
+  if (!(ipd > 0)) return null;
+  const H = HUMAN_EYE;
+  const one = (e) => {
+    const [w0, w1] = e.white;
+    const hw = H.halfWidth * ipd, hh = H.halfHeight * ipd;
+    // keep the measured eye's outward lean, scaled with its width
+    const k = hw / Math.max(1e-6, (w1 - w0) / 2);
+    const uc = ((w0 + w1) / 2) * Math.min(1, k);
+    const r = H.iris * ipd, up = H.irisUp * ipd;
+    const b = e.brow || e.white;
+    const bc = ((b[0] + b[1]) / 2) * Math.min(1, k), bw = hw * H.browWidth, bv = H.browUp * ipd, bh = H.browHalf * ipd;
+    return {
+      c: e.c.slice(),
+      white: [uc - hw, uc + hw, -hh, hh],
+      iris: [-r, r, up - r, up + r],
+      brow: [bc - bw, bc + bw, bv - bh, bv + bh],
+    };
+  };
+  return { ...face, L: one(face.L), R: one(face.R) };
+}
+
 const HAIR = ['long', 'medium', 'short'];
 // Club clothes (linear RGB). Mostly dark, but not all black: a room of 700 black shirts reads as
 // one mass. White tees and pale tops catch the stage light and break it up.
@@ -92,7 +130,7 @@ export function createAvatarCrowd({ THREE, pack, people, lodCount, rnd, lods = [
   // ── material: parts tint + arm raise + the stage rim + drawn eyes ─────────────────────
   // The face frame (header.face, v2 packs): per eye the iris centre and the extents of the iris,
   // the eye white and the brow as [u0, u1, v0, v1] around it, in the head's right/up axes.
-  const F = header.face && header.face.L && header.face.R && header.face.L.white ? header.face : null;
+  const F = humanEyeFrame(header.face);
   const V3 = (a) => new THREE.Vector3().fromArray(a || [0, 0, 0]);
   const V4 = (a) => new THREE.Vector4().fromArray(a || [0, 0, 0, 0]);
   const fwdV = V3(F && F.fwd), upV = V3(F && F.up);
@@ -173,7 +211,7 @@ export function createAvatarCrowd({ THREE, pack, people, lodCount, rnd, lods = [
         '  float di = length(vec2(u, v) - ic) / ir - 1.0; float iw = fwidth(di) + 1e-5;',
         '  float inI = (1.0 - smoothstep(-iw, iw, di)) * inW;',
         '  float pup = (1.0 - smoothstep(-iw, iw, di + 0.55)) * inW;',
-        '  float dc = length(vec2(u, v) - ic - vec2(0.32, 0.36) * ir) / (0.26 * ir) - 1.0; float cw = fwidth(dc) + 1e-5;',
+        '  float dc = length(vec2(u, v) - ic - vec2(0.3, 0.32) * ir) / (0.16 * ir) - 1.0; float cw = fwidth(dc) + 1e-5;',
         '  float cat = (1.0 - smoothstep(-cw, cw, dc)) * inI;',
         '  float lid = (1.0 - smoothstep(0.0, 2.2 * ew + 0.06, abs(e + 0.02))) * smoothstep(-0.2, 0.25, q.y);',   // the upper lid line
         '  float bw = max((B.y - B.x) * 0.5, 1e-4); vec2 bc = vec2(B.x + B.y, B.z + B.w) * 0.5; float bh = max((B.w - B.z) * 0.5, 0.0035);',
@@ -181,7 +219,7 @@ export function createAvatarCrowd({ THREE, pack, people, lodCount, rnd, lods = [
         '  float inB = (1.0 - smoothstep(-bew, bew, be)) * (1.0 - 0.5 * smoothstep(0.4, 1.0, abs(bq.x)));',
         // fade the whole eye out once it is only a few pixels across (ew = change of e per pixel)
         '  float fade = 1.0 - smoothstep(0.22, 0.55, ew);',
-        '  vec3 col = mix(vec3(0.56, 0.53, 0.5), vec3(0.3, 0.27, 0.26), smoothstep(0.1, 0.95, q.y));',   // the upper lid's shadow on the white
+        '  vec3 col = mix(vec3(0.2, 0.18, 0.17), vec3(0.08, 0.07, 0.065), smoothstep(-0.3, 0.8, q.y));',   // the upper lid's shadow on the white: across a dark club an eye reads as a dark recess, not a white slit
         '  col = mix(col, irisC, inI / max(inW, 1e-4)); col = mix(col, vec3(0.012, 0.009, 0.008), pup / max(inW, 1e-4));',
         '  float a = inW * 0.92;',
         '  col = mix(col, vec3(0.018, 0.012, 0.01), lid); a = max(a, lid * 0.9);',
@@ -196,7 +234,11 @@ export function createAvatarCrowd({ THREE, pack, people, lodCount, rnd, lods = [
         '  vec3 skin = sk < 0.5 ? mix(vec3(0.68, 0.5, 0.4), vec3(0.42, 0.27, 0.18), sk * 2.0) : mix(vec3(0.42, 0.27, 0.18), vec3(0.13, 0.075, 0.05), sk * 2.0 - 1.0);',
         '  int P = int(vPart + 0.5);',
         '  vec3 shoe = mix(vec3(0.018, 0.016, 0.015), vec3(0.5, 0.49, 0.47), vLower.a);',
-        '  vec3 col = P == 0 ? vOutfit : P == 1 ? skin : P == 2 ? vHair : P == 3 ? vec3(0.05, 0.035, 0.03) : P == 4 ? vec3(0.6, 0.57, 0.54) : P == 5 ? vLower.rgb : shoe;',
+        // WHITE (4) is the model's own eye-white geometry: it fills the anime opening, which is far
+        // bigger than the human eye drawn on it (humanEyeFrame), so painted white it showed round the
+        // drawn eye as a glowing slit. It is skin in the socket's shadow now; the drawn eye brings its
+        // own white.
+        '  vec3 col = P == 0 ? vOutfit : P == 1 ? skin : P == 2 ? vHair : P == 3 ? vec3(0.05, 0.035, 0.03) : P == 4 ? skin * 0.72 : P == 5 ? vLower.rgb : shoe;',
         '  vec3 irisC = mix(vec3(0.09, 0.06, 0.035), vec3(0.03, 0.018, 0.012), vSkin);',
         '  vec3 browC = mix(vHair, vec3(0.012, 0.009, 0.007), 0.45);',
         '  vec4 eL = crowdEye(uEyeCL, uWhiteL, uIrisL, uBrowL, irisC, browC);',
@@ -227,7 +269,10 @@ export function createAvatarCrowd({ THREE, pack, people, lodCount, rnd, lods = [
         // black mass. Not attenuated by the stage falloff: it belongs to the room, not the stage.
         '  float back = max(-face, 0.0); float up = max(dot(normal, (viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz), 0.0);',
         '  totalEmissiveRadiance += uBack * tint * (0.35 * back + 0.65 * back * pow(rimF, 2.0) + 0.25 * up * back);',
-        '  totalEmissiveRadiance += vec3(0.5, 0.52, 0.55) * gCatch * (0.15 + 0.85 * stageK); }',
+        // ⚠ The catch-light was self-lit at 0.5, on faces whose own light is a few hundredths in linear
+        // terms: across the room every eye glowed white, and the bloom spread it (measured in the
+        // crowd-facing shot, still glowing at 0.22). Across a dark club a catch-light is barely there.
+        '  totalEmissiveRadiance += vec3(0.02, 0.021, 0.023) * gCatch * (0.15 + 0.85 * stageK); }',
       ].join('\n'));
   };
   mat.customProgramCacheKey = () => 'club-shape-avatar-crowd-v6';

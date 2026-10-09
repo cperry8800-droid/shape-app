@@ -29,7 +29,7 @@ import { createVenue } from './clubVenue.mjs';
 import * as MIX from './noraMix.mjs';
 import { createDeckAudio, trackWaveform, DEMO_TRACKS } from './deckAudio.mjs';
 import { NoraPerformer } from './noraPerformer.mjs';
-import { NoraDirector } from './noraDirector.mjs';
+import { NoraDirector, SHOTS } from './noraDirector.mjs';
 import { createTempoTracker } from './tempoBridge.mjs';
 import { createCinematic } from './cinematic.mjs';
 import { createFramePacer, fitFov } from './noraFrame.mjs';
@@ -47,7 +47,7 @@ const BARS_PER_TRACK = 64;       // the example set's mix cadence
 const MIX_BARS = 16;
 const PREP_BARS = 8;
 const DEFAULT_BPM = 124;         // the example set's declared tempo; it is never DISPLAYED
-const IDLE_SWAY_BEATS_PER_S = 0.5; // off air: a slow sway, deliberately no dance tempo
+const IDLE_SWAY_BEATS_PER_S = 0.5; // off air: a slow clock nobody dances to (groove is false, so she stands)
 const SIXTEENTHS_PER_BAR = 16;
 
 /** Thrown when the device cannot run the booth at all (no WebGL 2). */
@@ -74,6 +74,10 @@ function abortError() {
  * @param {boolean} [o.cinematic]          the desktop post chain (high quality only)
  * @param {number} [o.fps]                 the frame-rate target (noraBoothState.boothTier)
  * @param {boolean} [o.reducedMotion]
+ * @param {boolean} [o.portrait]           the model's face holds a close-up. false keeps the full-face
+ *                                         shot out of the automatic rotation (the placeholder is an
+ *                                         anime sample, and a frame-filling anime face is the single
+ *                                         most "animated" frame the booth can show)
  * @param {AbortSignal|null} [o.signal]    abort while loading → rejects with an AbortError
  * @param {(f: number) => void} [o.onProgress]  the model download, 0..1, when the size is known
  * @param {(s: object) => void} [o.onState]      the snapshot, whenever a field a page shows changes
@@ -81,7 +85,7 @@ function abortError() {
 export async function createNoraBooth(o) {
   const {
     canvas, modelUrl, crowdUrl = null, quality = 'low', cinematic = false, fps = 30,
-    reducedMotion = false, signal = null, onProgress = null, onState = null,
+    reducedMotion = false, portrait = true, signal = null, onProgress = null, onState = null,
   } = o || {};
   if (!canvas) throw new Error('createNoraBooth: canvas is required');
   if (signal && signal.aborted) throw abortError();
@@ -216,7 +220,7 @@ export async function createNoraBooth(o) {
     owned.parts.unshift(nora); // before the VRM's own deep dispose
 
     // ── Director + the free camera ───────────────────────────────────────────
-    const director = new NoraDirector({ seed: 11, style: reducedMotion ? 'glide' : 'cut', reducedMotion });
+    const director = new NoraDirector({ seed: 11, style: reducedMotion ? 'glide' : 'cut', reducedMotion, exclude: portrait ? [] : ['face'] });
     const orbit = new OrbitControls(camera, canvas);
     owned.orbit = orbit;
     orbit.enabled = false;
@@ -341,8 +345,10 @@ export async function createNoraBooth(o) {
       emit(true);
     }
 
+    // 'auto' (the director cuts on the bar), 'free' (the viewer orbits), or a shot id from the
+    // director's list, which holds that shot and loops its move.
     function setCamera(mode) {
-      const m = mode === 'free' ? 'free' : 'auto';
+      const m = mode === 'free' ? 'free' : (typeof mode === 'string' && Object.prototype.hasOwnProperty.call(SHOTS, mode)) ? mode : 'auto';
       if (m === 'free') { orbit.target.set(0, 1.15, 0.2); }
       director.setMode(m, barNow(), nowSec());
       orbit.enabled = m === 'free';
@@ -503,7 +509,7 @@ export async function createNoraBooth(o) {
         bpm: Number.isFinite(mixerState.bpm) && mixerState.bpm > 0 ? Math.round(mixerState.bpm * 10) / 10 : null,
         // The title only once the listener can hear it.
         track: audible ? { name: tr.spec.name, synthesized: !!tr.synthesized } : null,
-        camera: director.mode === 'free' ? 'free' : 'auto',
+        camera: director.mode,
         running,
       };
     }
@@ -539,6 +545,9 @@ export async function createNoraBooth(o) {
       let energy = 0.12;
       let roomKick = 0;
       let measuredBpm = null;
+      // Whether there is a beat for her body to move to: the example set's own grid, or a measured
+      // station tempo. Otherwise she stands (no dip, no metronome sway; noraFace.mjs).
+      let groove = false;
       if (audio) {
         audio.analyser.getByteFrequencyData(freq);
         bands = bandsOf(freq);
@@ -549,6 +558,7 @@ export async function createNoraBooth(o) {
         // The example set's grid is the engine's own (it scheduled every note), so her groove may
         // follow it; the NUMBER on screen is still only what the detector measured.
         noraBeat = beat; noraKick = kickShape; roomKick = kickShape * Math.min(1, bands.low * 3);
+        groove = true;
         energy = Math.min(1, bands.level * 2.2);
       } else if (stationAn && stationPlaying) {
         if (stationBins.length !== stationAn.frequencyBinCount) stationBins = new Uint8Array(stationAn.frequencyBinCount);
@@ -564,6 +574,7 @@ export async function createNoraBooth(o) {
           noraBeat = (st - ph) * (measuredBpm / 60);
           noraKick = tempoKick(measuredBpm, ph, st, 0.075) || 0;
           roomKick = noraKick * Math.min(1, bands.low * 3);
+          groove = true;
         }
       }
       dropEnv = Math.max(0, dropEnv - dt / (secPerBar() * 4));
@@ -641,7 +652,7 @@ export async function createNoraBooth(o) {
         : idleLook;
       lookSide = look.x >= A.head.x ? 1 : -1;
       if (!guestOnDecks) {
-        nora.update(dt, { t, beat: noraBeat, kick: noraKick, energy, hands, look, drop });
+        nora.update(dt, { t, beat: noraBeat, kick: noraKick, energy, hands, look, drop, groove, idle: !(hands.left || hands.right) });
         refreshAnchors();
       }
 
