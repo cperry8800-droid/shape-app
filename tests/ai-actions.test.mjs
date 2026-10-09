@@ -588,6 +588,12 @@ test('H9: another account cannot undo a member\'s change — the action\'s undo 
   assert.equal(audit._rows[0].status, 'executed', 'the member\'s entry does not read undone');
   // No actor at all is refused too, before the status is even read.
   assert.deepEqual(await undoChange({ registry, auditId: c.auditId, actor: null, ctx: coachCtx, audit }), { ok: false, error: 'actor_mismatch' });
+  // And another MEMBER (the same role) is refused: the rule is the account, not the role.
+  const otherMember = { id: 'client-2', role: 'client' };
+  const otherCtx = ctxFor(otherMember, supabaseMock({ snapshot: { calories: 900 } }), () => ({ ok: true, status: 200, data: {} }));
+  assert.deepEqual(await undoChange({ registry, auditId: c.auditId, actor: otherMember, ctx: otherCtx, audit }), { ok: false, error: 'actor_mismatch' });
+  assert.equal(otherCtx.supabase._calls.updates.length, 0);
+  assert.equal(audit._rows[0].status, 'executed');
   // The member can.
   const ok = await undoChange({ registry, auditId: c.auditId, actor: member, ctx, audit });
   assert.equal(ok.ok, true);
@@ -650,5 +656,22 @@ test('H9: the coach undos that used to report success whatever they hit now refu
     const c = await confirmChange({ registry, token: p.token, actor, ctx, secret: SECRET, audit });
     assert.equal(c.ok, true, c.error);
     await assert.rejects(() => undoChange({ registry, auditId: c.auditId, actor, ctx, audit }), /Changed since/);
+  }
+  // add_review_note: the endpoint returned no note id, so there is nothing the undo can name.
+  // Before, this returned quietly and the entry read undone with the note still there.
+  {
+    const registry = registryWith(addReviewNoteAction);
+    const audit = inMemoryAudit();
+    const actor = { id: 'trainer-1', role: 'trainer' };
+    const supabase = richSupabase2({ workoutSession: { id: 'ws-1', client_id: 'client-9', provider_role: 'trainer' } });
+    const ctx = ctxFor(actor, supabase, (m, path) => (m === 'POST' && path === '/api/coach/review-note')
+      ? { ok: true, status: 200, data: { ok: true } } : { ok: false, status: 404, data: {} });
+    const p = await proposeChange({ registry, action: 'add_review_note', input: { sessionId: 'ws-1', body: 'Nice depth' }, actor, ctx, secret: SECRET });
+    assert.equal(p.ok, true, p.error);
+    const c = await confirmChange({ registry, token: p.token, actor, ctx, secret: SECRET, audit });
+    assert.equal(c.ok, true, c.error);
+    await assert.rejects(() => undoChange({ registry, auditId: c.auditId, actor, ctx, audit }), /Changed since/);
+    assert.equal(supabase._calls.deletes.length, 0, 'nothing was deleted blind');
+    assert.equal(audit._rows[0].status, 'executed');
   }
 });
