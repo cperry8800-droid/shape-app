@@ -10,6 +10,7 @@ import { cookies } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import { clearSupabaseAuthCookies } from '@/lib/supabase/auth-cookies.mjs';
 import { readJson, dbError } from '@/lib/request-utils';
+import { NATIVE_APP_ORIGINS } from '@/lib/native-cors';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,7 +36,24 @@ export async function GET() {
 // Reverse bridge — legacy pages sign in with supabase-js and store the session
 // in localStorage. This route lets them push that session into the Next.js
 // auth cookies so server-rendered /dashboard/* routes recognize the user.
+// L2 (2026-10-08 review): this sets the browser's session cookies from tokens in the body, so a
+// page on another site could log a visitor into an account of ITS choosing (login CSRF). A
+// browser names the page's origin on a cross-site POST; one from outside Shape and the two
+// native app origins is refused. A request with no Origin at all is not a browser's cross-site
+// form and passes, as before.
+function originAllowed(req: Request): boolean {
+  const origin = req.headers.get('origin');
+  if (!origin) return true;
+  const allowed = new Set<string>([new URL(req.url).origin, ...NATIVE_APP_ORIGINS]);
+  const site = process.env.NEXT_PUBLIC_SITE_URL;
+  if (site) { try { allowed.add(new URL(site).origin); } catch { /* a malformed site url allows nothing more */ } }
+  return allowed.has(origin);
+}
+
 export async function POST(req: Request) {
+  if (!originAllowed(req)) {
+    return NextResponse.json({ error: 'Cross-site sign-in is not allowed.' }, { status: 403 });
+  }
   const bodyResult = await readJson<unknown>(req, { allowEmpty: true });
   if (!bodyResult.ok) return bodyResult.response;
   const body = bodyResult.data;

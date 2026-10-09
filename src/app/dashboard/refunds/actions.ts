@@ -55,10 +55,13 @@ async function resolveTarget(
 ): Promise<RefundTarget | { error: string }> {
   try {
     if (req.one_time_purchase_id) {
+      // L12: the row has to be the filer's own. An id alone would let a request point at
+      // another member's purchase, and the admin's approval would refund that charge.
       const { data } = await admin
         .from('one_time_purchases')
         .select('stripe_payment_intent_id')
         .eq('id', req.one_time_purchase_id)
+        .eq('client_id', req.client_id)
         .maybeSingle<{ stripe_payment_intent_id: string | null }>();
       if (!data?.stripe_payment_intent_id) return { error: 'purchase_missing_payment_intent' };
       const pi = await stripe.paymentIntents.retrieve(data.stripe_payment_intent_id, {
@@ -73,6 +76,7 @@ async function resolveTarget(
         .from('subscriptions')
         .select('stripe_subscription_id')
         .eq('id', req.subscription_id)
+        .eq('client_id', req.client_id)
         .maybeSingle<{ stripe_subscription_id: string | null }>();
       if (!data?.stripe_subscription_id) return { error: 'subscription_missing_stripe_id' };
       const requestedAt = Math.floor(new Date(req.created_at).getTime() / 1000);

@@ -102,7 +102,8 @@ async function sharedModules() {
   const platformFee = await import(pathToFileURL(join(ROOT, 'src/lib/platform-fee.mjs')).href);
   const coachOrigin = await import(pathToFileURL(join(ROOT, 'src/lib/coach-origin.mjs')).href);
   const retryable = await loadRealModule(join(ROOT, 'src/lib/db-retryable.ts'), { typescript: true });
-  shared = { requestUtils, platformFee, coachOrigin, retryable };
+  const returnPath = await loadRealModule(join(ROOT, 'src/lib/return-path.ts'), { typescript: true });
+  shared = { requestUtils, platformFee, coachOrigin, retryable, returnPath };
   return shared;
 }
 
@@ -132,7 +133,7 @@ function scriptedClient({ tables = {}, rpc = async () => ({ data: null, error: n
 const TRAINER = { id: 4, name: 'Coach T', owner_id: '22222222-2222-4222-8222-222222222222', price: 180, session_price: 180, stripe_account_id: 'acct_T', stripe_account_status: 'active', at_capacity: false, capacity_resume_at: null };
 
 async function runCheckout({ reserve, stripeCreate = 'ok' }) {
-  const { requestUtils, platformFee } = await sharedModules();
+  const { requestUtils, platformFee, returnPath } = await sharedModules();
   const created = [];
   const { client: admin, calls } = scriptedClient({
     tables: { trainers: [TRAINER] },
@@ -155,6 +156,7 @@ async function runCheckout({ reserve, stripeCreate = 'ok' }) {
       ['@/lib/request-utils', requestUtils],
       ['@/lib/platform-fee', platformFee],
       ['@/lib/coach-origin', { resolveCoachCheckoutOrigin: async () => ({ origin: 'marketplace', feeBps: 1500, referralId: null }) }],
+      ['@/lib/return-path', returnPath],
     ]),
   });
   const req = new Request('https://shape.test/api/stripe/checkout-session', {
@@ -251,7 +253,8 @@ async function runWebhook(event, { rpc }) {
 
 const completed = (metadata) => ({
   id: 'evt_1', type: 'checkout.session.completed',
-  data: { object: { id: 'cs_test_1', mode: 'payment', payment_intent: 'pi_1', metadata: {
+  // payment_status is what every real session carries; L13 records a one-time purchase only when it reads 'paid'.
+  data: { object: { id: 'cs_test_1', mode: 'payment', payment_status: 'paid', payment_intent: 'pi_1', metadata: {
     client_id: UID, provider_id: '4', provider_role: 'trainer', price_cents: '15500', gross_price_cents: '18000', kind: 'booking',
     item_name: 'Session', origin: 'marketplace', fee_bps: '1500', ...metadata,
   } } },

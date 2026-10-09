@@ -1278,7 +1278,9 @@ async function fallbackReply(text: string, coach: CoachCtx): Promise<{ reply: st
 async function storedTeamReplies(actor: Awaited<ReturnType<typeof resolveActor>> | null, messages: ChatMessage[]): Promise<Set<string>> {
   if (!actor || !messages.some((m) => (m.role as string) === 'team')) return new Set();
   const { replies } = await answeredReplies(actor.supabase, actor.user.id);
-  return new Set([...replies].map((r) => r.slice(0, 2000).trim()));
+  // The texts only: here a team message is quoted to the model, not shown as the team's, so the
+  // text test is enough (the shown conversation is vouched for by request id in withVerifiedTeam).
+  return new Set([...replies.values()].map((r) => r.slice(0, 2000).trim()));
 }
 
 // Where a streamed answer's words go as the model writes them (POST with `stream: true`).

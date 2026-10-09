@@ -169,6 +169,15 @@ const REQUIREMENTS = [
     },
   },
   {
+    key: 'files',
+    // L4 of the 2026-10-08 review: a seventh file, or one of a type we do not accept (an empty
+    // declared type is read off the extension), is refused BEFORE the row is written.
+    route: /const fileProblem = checkApplicationFiles\(files\);/,
+    appliesTo: ['trainer', 'nutritionist'],
+    producer: null,
+    why: 'a form that sends no file, or accepted ones, is not held to it; a file of the wrong type is not a field any form can supply',
+  },
+  {
     key: 'nutritionAttestations',
     route: /All nutrition compliance attestations are required/,
     appliesTo: ['nutritionist'],

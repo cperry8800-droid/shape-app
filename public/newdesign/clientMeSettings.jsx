@@ -433,8 +433,16 @@ function ClientMeSettings() {
     if ((typed || "").trim().toUpperCase() !== "DELETE") return;
     if (btn) btn.disabled = true; // destructive + non-idempotent — block re-clicks while in flight
     try {
-      const res = await fetch("/api/account/delete", { method: "POST", credentials: "same-origin" });
+      // Two requests (L1, 2026-10-08 review): the first earns a ten-minute confirmation token
+      // bound to this account; the second, carrying it, deletes.
+      let res = await fetch("/api/account/delete", { method: "POST", credentials: "same-origin" });
       if (res.status === 401) { window.location.href = "/login.html"; return; }
+      if (res.status === 428) {
+        const step = await res.json().catch(() => ({}));
+        if (!step.confirmToken) throw new Error("delete failed");
+        res = await fetch("/api/account/delete", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirmToken: step.confirmToken }) });
+        if (res.status === 401) { window.location.href = "/login.html"; return; }
+      }
       if (!res.ok) throw new Error("delete failed");
       alert("Your account and data have been deleted.");
       try {

@@ -31,27 +31,45 @@ export function cleanReply(value) {
 }
 
 /**
- * The Shape team's real replies to an account: the replies on its answered requests. Only the
- * console writes one (support_requests has no update policy, and an account inserts only an
- * open row with no reply), so a reply here is the team's, whatever nora_threads holds: an
+ * The Shape team's real replies to an account: the replies on its answered requests, by request
+ * id. Only the console writes one (support_requests has no update policy, and an account inserts
+ * only an open row with no reply), so a reply here is the team's, whatever nora_threads holds: an
  * account can write its own nora_threads row directly, and could put a 'team' message in it
- * (Codex, #2265). Read with the caller's own client. Resolves { ok, replies: Set<string> }.
+ * (Codex, #2265). Read with the caller's own client. Resolves { ok, replies: Map<id, text> }.
  */
 export async function answeredReplies(db, userId) {
   try {
-    const r = await db.from('support_requests').select('reply')
+    const r = await db.from('support_requests').select('id, reply')
       .eq('user_id', userId).eq('status', 'answered')
       .order('replied_at', { ascending: false }).limit(200);
-    if (r.error) return { ok: false, replies: new Set() };
-    return { ok: true, replies: new Set((r.data || []).map((x) => String((x && x.reply) || '').trim()).filter(Boolean)) };
+    if (r.error) return { ok: false, replies: new Map() };
+    const replies = new Map();
+    for (const x of r.data || []) {
+      const id = x && x.id != null ? String(x.id) : '';
+      const text = String((x && x.reply) || '').trim();
+      if (id && text) replies.set(id, text);
+    }
+    return { ok: true, replies };
   } catch {
-    return { ok: false, replies: new Set() };
+    return { ok: false, replies: new Map() };
   }
 }
 
-/** A conversation with only the team messages `replies` vouches for; every other message kept. */
+/**
+ * A conversation with only the team messages `replies` vouches for; every other message kept.
+ * L15 (2026-10-08 review): a team message is vouched for by the request it names (`ref`) AND
+ * its text, once. Text alone let a stored copy of a real reply be repeated, moved to another
+ * place in the conversation or re-timed; a message with no `ref` is never shown.
+ */
 export function withVerifiedTeam(messages, replies) {
-  return (Array.isArray(messages) ? messages : []).filter((m) => !m || m.role !== 'team' || replies.has(String(m.text || '').trim()));
+  const seen = new Set();
+  return (Array.isArray(messages) ? messages : []).filter((m) => {
+    if (!m || m.role !== 'team') return true;
+    const ref = typeof m.ref === 'string' ? m.ref : '';
+    if (!ref || seen.has(ref) || replies.get(ref) !== String(m.text || '').trim()) return false;
+    seen.add(ref);
+    return true;
+  });
 }
 
 /**
@@ -119,14 +137,16 @@ export function replyEmail({ name, question, reply }) {
 /**
  * Append the team's reply to an account's Nora conversation, with the same conditional
  * write /api/nora/thread uses, so a device appending at the same moment is never lost.
- * `db` is the console's service-role client. Resolves { ok, error? }.
+ * `db` is the console's service-role client; `opts.ref` is the answered request's id, which is
+ * what lets a reader show the message (withVerifiedTeam). Resolves { ok, error? }.
  */
-export async function appendTeamToThread(db, userId, text, now = new Date(), tries = 4) {
+export async function appendTeamToThread(db, userId, text, now = new Date(), opts = {}) {
+  const { tries = 4, ref = null } = typeof opts === 'number' ? { tries: opts } : (opts || {});
   for (let attempt = 0; attempt < tries; attempt += 1) {
     const read = await db.from('nora_threads').select('messages, updated_at').eq('user_id', userId).maybeSingle();
     if (read.error) return { ok: false, error: 'read' };
     const row = read.data;
-    const messages = appendTeamReply(row ? row.messages : [], text, now);
+    const messages = appendTeamReply(row ? row.messages : [], text, now, ref);
     if (!messages) return { ok: false, error: 'empty' };
     // Strictly after the stored stamp, so a later device's conditional write still sees a change.
     const prev = row && row.updated_at ? Date.parse(row.updated_at) : NaN;

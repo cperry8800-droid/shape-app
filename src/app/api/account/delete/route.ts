@@ -24,6 +24,8 @@
 
 import { NextResponse } from 'next/server';
 import { currentUser } from '@/lib/request-auth';
+import { readJson } from '@/lib/request-utils';
+import { issueDeleteConfirm, verifyDeleteConfirm, DELETE_CONFIRM_TTL_S } from '@/lib/delete-confirm';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 export const runtime = 'nodejs';
@@ -140,6 +142,25 @@ async function purgeBucket(admin: ReturnType<typeof createAdminClient>, bucket: 
 export async function POST(request: Request) {
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+  // L1 (2026-10-08 review): a deletion takes two requests. The first earns a ten-minute token
+  // bound to this account (428, `confirmToken`); only a request carrying it deletes. The clients
+  // already ask the person to type DELETE; this is what makes the server know it was asked.
+  const parsed = await readJson<{ confirmToken?: unknown }>(request, { allowEmpty: true });
+  if (!parsed.ok) return parsed.response;
+  const confirmToken = typeof parsed.data?.confirmToken === 'string' ? parsed.data.confirmToken : '';
+  if (!confirmToken) {
+    const issued = issueDeleteConfirm(user.id);
+    if (!issued) {
+      return NextResponse.json({ error: 'Deletion is temporarily unavailable. Email privacy@theshapecommunity.com.' }, { status: 503 });
+    }
+    return NextResponse.json(
+      { confirmRequired: true, confirmToken: issued.token, expiresInSeconds: DELETE_CONFIRM_TTL_S },
+      { status: 428, headers: { 'cache-control': 'no-store' } }
+    );
+  }
+  if (!verifyDeleteConfirm(confirmToken, user.id)) {
+    return NextResponse.json({ error: 'That confirmation has expired. Please start again.', code: 'confirm_invalid' }, { status: 403 });
+  }
 
   let admin: ReturnType<typeof createAdminClient>;
   try {

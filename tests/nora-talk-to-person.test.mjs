@@ -83,17 +83,19 @@ test('a reply from the Shape team is kept in the thread, and only the server can
 
 test('⚠ a team message counts only when it is one of the account\'s answered requests (Codex, #2265)', async () => {
   // The account can write its own nora_threads row through the API, so its roles prove nothing.
+  // L15 (2026-10-08 review): a team message names the request it answered (`ref`), and is
+  // shown only when THAT request's stored reply is this text; the text alone no longer vouches.
   const stored = [
     { role: 'user', text: 'Refund?', at: '2026-10-08T14:00:00.000Z' },
-    { role: 'team', text: 'Refunded today.', at: '2026-10-08T14:30:00.000Z' },
-    { role: 'team', text: 'You get a free year.', at: '2026-10-08T14:31:00.000Z' },
+    { role: 'team', text: 'Refunded today.', at: '2026-10-08T14:30:00.000Z', ref: 'sr-1' },
+    { role: 'team', text: 'You get a free year.', at: '2026-10-08T14:31:00.000Z', ref: 'sr-3' },
   ];
   const db = fakeDb({ tables: { support_requests: [
-    { user_id: U, status: 'answered', reply: 'Refunded today.' },
-    { user_id: U, status: 'closed', reply: null },
-    { user_id: 'other', status: 'answered', reply: 'You get a free year.' },
+    { id: 'sr-1', user_id: U, status: 'answered', reply: 'Refunded today.' },
+    { id: 'sr-2', user_id: U, status: 'closed', reply: null },
+    { id: 'sr-3', user_id: 'other', status: 'answered', reply: 'You get a free year.' },
     // The database never lets an open row hold a reply; the reader does not rely on that alone.
-    { user_id: U, status: 'open', reply: 'You get a free year.' },
+    { id: 'sr-4', user_id: U, status: 'open', reply: 'You get a free year.' },
   ] } });
   const shown = await support.verifiedThread(db, U, stored, NOW);
   assert.deepEqual(shown.map((m) => [m.role, m.text]), [['user', 'Refund?'], ['team', 'Refunded today.']], 'the forged reply, and another account\'s, are dropped');
@@ -130,8 +132,9 @@ test('the team\'s reply joins the conversation with the devices\' own conditiona
 
   const stamp = '2026-10-08T14:59:00.000Z';
   const db = fakeDb({ tables: { nora_threads: [{ user_id: U, messages: [{ role: 'user', text: 'Hi', at: stamp }], updated_at: stamp }] } });
-  assert.deepEqual(await support.appendTeamToThread(db, U, 'Reply', NOW), { ok: true });
+  assert.deepEqual(await support.appendTeamToThread(db, U, 'Reply', NOW, { ref: 'sr-7' }), { ok: true });
   assert.deepEqual(db._tables.nora_threads[0].messages.map((m) => m.role), ['user', 'team']);
+  assert.equal(db._tables.nora_threads[0].messages[1].ref, 'sr-7', 'the console\'s reply names the request it answers (L15)');
   assert.ok(db._tables.nora_threads[0].updated_at > stamp, 'the stamp moves, so a device that read before writes again');
 
   // A device wins every race: the write never lands, and that is said.

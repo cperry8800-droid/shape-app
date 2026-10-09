@@ -62,7 +62,10 @@ export async function GET(request: Request) {
       status: (c?.review_status as string) || 'none',
       submittedAt: (c?.submitted_at as string) || null,
       reviewedAt: (c?.reviewed_at as string) || null,
-      notes: (c?.review_notes as string) || null,
+      // L3 (2026-10-08 review): review_notes is the admin's working column, as the comment above
+      // says; it is not handed to the coach under review. (The own-row policy still exposes the
+      // column to a direct read; moving admin notes out of the row is registered.)
+      notes: null,
       hasCoi: !!c?.insurance_coi_path,
       certCount: Array.isArray(c?.cert_files) ? (c!.cert_files as unknown[]).length : 0,
     },

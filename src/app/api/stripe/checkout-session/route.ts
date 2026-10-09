@@ -6,6 +6,7 @@ import { hasActiveWaitlistInvite, resolveRequestClient } from '@/lib/waitlist';
 import { readJson, dbError } from '@/lib/request-utils';
 import { feeSplit, maxCreditCents, bpsToRate, bpsToPercent } from '@/lib/platform-fee';
 import { resolveCoachCheckoutOrigin } from '@/lib/coach-origin';
+import { sameOriginPath } from '@/lib/return-path';
 
 export const runtime = 'nodejs';
 
@@ -295,8 +296,9 @@ export async function POST(request: Request) {
   };
 
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? new URL(request.url).origin;
-  const successPath = body.successPath || '/purchase/success';
-  const cancelPath = body.cancelPath || '/newdesign/GetApp.html?checkout=cancelled';
+  // L10: a path, on this origin, or the default. `//evil.example` used to be concatenated as is.
+  const successPath = sameOriginPath(body.successPath, '/purchase/success');
+  const cancelPath = sameOriginPath(body.cancelPath, '/newdesign/GetApp.html?checkout=cancelled');
   // Shape absorbs redeemed store credit: the coach is paid 85% of the GROSS
   // price, so the fee is what's left of the (credit-capped) charge after the
   // coach's cut. Because credit is capped at Shape's 15% above, the charge

@@ -19,7 +19,15 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const MEMO_BUCKET = 'meal-notes';
-const SIGNED_URL_TTL = 60 * 60 * 24 * 365; // 1 year
+// L9 (2026-10-08 review): a signed link was good for a year, so a memo or photo that leaked
+// once stayed open for a year. 90 days covers a coach reading back through a season; the
+// stored path stays, so a longer window is one re-sign away.
+const SIGNED_URL_TTL = 60 * 60 * 24 * 90; // 90 days
+// The types the bucket itself accepts (2026-06-03-meal-notes-bucket.sql). The declared type
+// used to go to storage as sent, so anything the bucket let through was stored under a
+// client-chosen content type; now a type outside the list is refused here, before the upload.
+const AUDIO_TYPES = new Set(['audio/webm', 'audio/ogg', 'audio/mp4', 'audio/mpeg', 'audio/wav', 'audio/x-m4a', 'audio/aac']);
+const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']);
 
 // Upload one attachment (voice memo or photo) to the meal-notes bucket via the
 // service-role admin client (matches the apply route — no storage RLS needed).
@@ -30,14 +38,24 @@ async function uploadAttachment(
   prefix: string,
   fallbackExt: string,
   fallbackType: string,
+  allowed: Set<string>,
 ): Promise<{ path: string | null; url: string | null }> {
-  const ext = (file.type.split('/')[1] || fallbackExt).replace(/[^a-z0-9]/gi, '') || fallbackExt;
+  // `audio/webm;codecs=opus` is what a browser recorder declares: the parameters go. A file
+  // with no type arrives as application/octet-stream (the multipart default) and takes the
+  // caller's fallback, as an empty type always did.
+  const declared = String(file.type || '').toLowerCase().split(';')[0].trim();
+  const type = declared && declared !== 'application/octet-stream' ? declared : fallbackType;
+  if (!allowed.has(type)) {
+    console.warn('[shape-app] meal attachment refused: type not accepted', type);
+    return { path: null, url: null };
+  }
+  const ext = (type.split('/')[1] || fallbackExt).replace(/[^a-z0-9]/gi, '') || fallbackExt;
   const path = `${prefix}${Date.now()}.${ext}`;
   const bytes = new Uint8Array(await file.arrayBuffer());
   try {
     const admin = createAdminClient();
     const { error: upErr } = await admin.storage.from(MEMO_BUCKET).upload(path, bytes, {
-      contentType: file.type || fallbackType,
+      contentType: type,
       upsert: false,
     });
     if (upErr) {
@@ -104,11 +122,11 @@ export async function POST(request: Request) {
   // memo keeps a bare timestamp path; the photo is prefixed so they don't collide.
   let audioPath: string | null = null;
   let audioUrl: string | null = null;
-  if (hasAudio) ({ path: audioPath, url: audioUrl } = await uploadAttachment(audio as File, `${user.id}/`, 'webm', 'audio/webm'));
+  if (hasAudio) ({ path: audioPath, url: audioUrl } = await uploadAttachment(audio as File, `${user.id}/`, 'webm', 'audio/webm', AUDIO_TYPES));
 
   let photoPath: string | null = null;
   let photoUrl: string | null = null;
-  if (hasPhoto) ({ path: photoPath, url: photoUrl } = await uploadAttachment(photo as File, `${user.id}/photo-`, 'jpg', 'image/jpeg'));
+  if (hasPhoto) ({ path: photoPath, url: photoUrl } = await uploadAttachment(photo as File, `${user.id}/photo-`, 'jpg', 'image/jpeg', IMAGE_TYPES));
 
   const bodyLines = [
     `🍽 Logged ${mealTitle}${mealSummary ? ` · ${mealSummary}` : ''}`,

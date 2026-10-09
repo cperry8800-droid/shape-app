@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
+import { currentUser } from '@/lib/request-auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -36,7 +37,12 @@ function privateKeyFromEnv() {
   return `-----BEGIN PRIVATE KEY-----\n${wrapped.join('\n')}\n-----END PRIVATE KEY-----\n`;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  // L8 (2026-10-08 review): the token is signed with Shape's Apple key and is good for twelve
+  // hours of MusicKit calls, so it is minted for signed-in members only, not for any visitor.
+  const user = await currentUser(request);
+  if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+
   const teamId = process.env.APPLE_MUSIC_TEAM_ID;
   const keyId = process.env.APPLE_MUSIC_KEY_ID;
   const privateKey = privateKeyFromEnv();

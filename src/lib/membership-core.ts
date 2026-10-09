@@ -29,7 +29,8 @@ const DEFAULT_ADMIN_EMAILS = [
 ];
 
 export function adminEmails(): string[] {
-  const configured = [process.env.ADMIN_EMAILS, process.env.APPLICATIONS_EMAIL]
+  // L14: ADMIN_EMAILS only; the applications inbox is not an admin (see admin-access.ts).
+  const configured = [process.env.ADMIN_EMAILS]
     .filter(Boolean)
     .flatMap((v) => String(v).split(','))
     .map((v) => v.trim().toLowerCase())

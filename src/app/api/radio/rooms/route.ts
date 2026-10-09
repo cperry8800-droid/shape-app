@@ -106,7 +106,6 @@ export async function POST(request: Request) {
   if (!bodyResult.ok) return bodyResult.response;
   const body = bodyResult.data;
   const payload = body as {
-    role?: unknown;
     topic?: unknown;
     description?: unknown;
     scheduledAt?: unknown;
@@ -129,7 +128,9 @@ export async function POST(request: Request) {
 
   const profile = await profileForUser(client, user.id);
   const hostName = profile?.full_name || user.email?.split('@')[0] || 'Shape coach';
-  const hostRole = normalizeRole(payload?.role ?? profile?.role);
+  // L5 (2026-10-08 review): the role shown on the room is the profile's. The body used to be
+  // read first, so any member could host as a nutritionist or an admin.
+  const hostRole = normalizeRole(profile?.role);
 
   const { data, error } = await client
     .from('radio_rooms')
