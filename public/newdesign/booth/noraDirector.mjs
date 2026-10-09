@@ -233,9 +233,12 @@ export class NoraDirector {
    *        'glide' = the camera travels between shots over one beat (smoother, calmer)
    * @param {boolean} [o.reducedMotion]  prefers-reduced-motion: no handheld sway, and the
    *        caller passes no kick, so no zoom punch either
+   * @param {string[]} [o.exclude]  shots the automatic rotation never picks (a locked shot still
+   *        can be): the booth leaves out the full-face close-up while its model is a placeholder
    */
-  constructor({ seed = 11, style = 'cut', reducedMotion = false } = {}) {
+  constructor({ seed = 11, style = 'cut', reducedMotion = false, exclude = [] } = {}) {
     this.seed = seed;
+    this.exclude = new Set(exclude);
     this.style = style;
     this.reducedMotion = !!reducedMotion;
     this.mode = 'auto';          // 'auto' | a shot id (locked) | 'free' (the user is orbiting)
@@ -260,7 +263,7 @@ export class NoraDirector {
   _pick(bar) {
     const rnd = mulberry32((this.seed * 7919) ^ (bar * 2654435761));
     const recent = this.history.slice(-2);
-    const pool = SHOT_IDS.filter((id) => !recent.includes(id) && id !== this.shot && id !== 'screen');
+    const pool = SHOT_IDS.filter((id) => !recent.includes(id) && id !== this.shot && id !== 'screen' && !this.exclude.has(id));
     let total = 0; for (const id of pool) total += SHOTS[id].weight;
     let r = rnd() * total;
     for (const id of pool) { r -= SHOTS[id].weight; if (r <= 0) return id; }

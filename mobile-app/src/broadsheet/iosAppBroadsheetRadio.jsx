@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { boothLabel, exampleAllowed, boothTier, webgl2Available } from '../../../public/newdesign/booth/noraBoothState.mjs';
+import { boothLabel, exampleAllowed, boothTier, webgl2Available, NORA_MODEL } from '../../../public/newdesign/booth/noraBoothState.mjs';
 import { createBoothKeeper } from '../../../public/newdesign/booth/noraBoothKeeper.mjs';
 import { bsSetsNow } from '../../../public/newdesign/noraSets.mjs';
 import {
@@ -2197,8 +2197,9 @@ function bsBoothKeeper() {
       const reduced = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       return createNoraBooth({
         canvas,
-        modelUrl: `${import.meta.env.BASE_URL}nora/placeholder.vrm`,
-        crowdUrl: `${import.meta.env.BASE_URL}nora/crowd.bin.txt`,
+        modelUrl: `${import.meta.env.BASE_URL}${NORA_MODEL.path}`,
+        crowdUrl: `${import.meta.env.BASE_URL}${NORA_MODEL.crowd}`,
+        portrait: NORA_MODEL.portrait,
         quality: tier.quality, cinematic: tier.cinematic, fps: tier.fps,
         reducedMotion: reduced, onProgress: progress,
       });

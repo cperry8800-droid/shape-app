@@ -94,6 +94,15 @@ export function boothTier({ screenW = 0, screenH = 0, override = null } = {}) {
     : { quality: 'high', fps: DESKTOP_FPS, cinematic: true };
 }
 
+// ── The model ───────────────────────────────────────────────────────────────
+// What the booth draws, in one place for both surfaces, so swapping Nora is one line. Paths are
+// relative to the site root (the website prefixes "/", the app its BASE_URL).
+// ⚠ `portrait: false` WHILE SHE IS THE PLACEHOLDER: pixiv's VRoid sample (VRM Public License 1.0) is
+// an anime face, and a frame-filling anime face is the most "animated" frame the booth can show
+// (owner, 2026-10-09). The full-face close-up stays out of the camera's rotation until a realistic
+// model replaces her; set it true with that model.
+export const NORA_MODEL = Object.freeze({ path: 'nora/placeholder.vrm', crowd: 'nora/crowd.bin.txt', portrait: false });
+
 // ── Before downloading three ─────────────────────────────────────────────────
 // three r163+ draws only on WebGL 2. Asking first spares a device that has none the megabytes of
 // the booth's code. Not pure (it makes a canvas), so the document is passed in; the probe's own
