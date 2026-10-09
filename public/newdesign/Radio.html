@@ -23,9 +23,9 @@
 <!-- ⚠ FOR NORA'S BOOTH, AND IT MUST PRECEDE EVERY MODULE SCRIPT — a document gets
      one import map and it has to be parsed before the first import it serves.
      ⚠ THESE TWO VERSIONS MUST EQUAL mobile-app/package.json's, AND THE BOOTH WAS DEAD
-     FOR WANT OF THAT. noraStage.mjs is ONE module compiled against TWO dependency
-     pairs: Vite bundles it for the app against mobile-app/node_modules, and this map
-     resolves it for the web. A bump moved the app to three 0.185.1 / three-vrm 3.5.5
+     FOR WANT OF THAT. The booth (public/newdesign/booth/, noraStage.mjs before Phase 1)
+     is ONE set of modules compiled against TWO dependency pairs: Vite bundles it for the
+     app against mobile-app/node_modules, and this map resolves it for the web. A bump moved the app to three 0.185.1 / three-vrm 3.5.5
      and left this map on 0.169.0 / 3.1.6 — so `VRMUtils.combineSkeletons`, added to
      three-vrm AFTER 3.1.6 and called at noraStage.mjs:53, existed on the phone and
      not here. load() threw a TypeError on every open, RadioNora's catch swallowed it,
@@ -50,6 +50,14 @@
      stale in silence. RdSetsComingUp in radio.jsx guards BOTH of this module's
      exports precisely because of that (#1772), which is the hazard, not the fix. -->
 <script type="module">import * as NS from "/newdesign/noraSets.mjs?v=85e91f8da4"; window.ShapeSetsLib = NS;</script>
+<!-- Nora's booth: the label and example-set rules, and the keeper that holds one booth while it is
+     hidden. Small and pure, so they load with the page; the booth itself (three.js and the scene,
+     megabytes) is imported by radio.jsx only when somebody opens it. Content-hashed like the rest. -->
+<script type="module">
+  import * as BS from "/newdesign/booth/noraBoothState.mjs?v=c519ea1d36";
+  import * as BK from "/newdesign/booth/noraBoothKeeper.mjs?v=673e8159eb";
+  window.ShapeBoothState = BS; window.ShapeBoothKeeper = BK;
+</script>
 <!-- ⚠ THE APP'S OWN MODULES, IMPORTED RATHER THAN PORTED. radioSignalField.mjs and
      radioTempo.mjs are the files iosAppBroadsheetRadio.jsx draws the Signal Field
      from; they are canonical here and the app imports them across the tree, so the

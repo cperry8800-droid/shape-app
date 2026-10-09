@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { createMixer } from './djmMixer.mjs';
+import { createMixer } from '../../../public/newdesign/booth/djmMixer.mjs';
 const c = document.createElement('canvas'); document.body.style.margin='0'; document.body.appendChild(c);
 const r = new THREE.WebGLRenderer({ canvas: c, antialias: true }); r.setSize(innerWidth, innerHeight);
 const s = new THREE.Scene(); s.background = new THREE.Color('#223');

@@ -6,7 +6,7 @@
 // build by matching staged paths against `mobile-app/...` prefixes. But Vite's
 // input set is the IMPORT GRAPH, not a directory. mobile-app/src reaches out of
 // its own tree 15 times today — iosAppBroadsheetRadio.jsx imports
-// ../../../public/newdesign/noraStage.mjs, sentry.mjs imports
+// ../../../public/newdesign/booth/noraBoothState.mjs, sentry.mjs imports
 // ../../../src/lib/sentry-context.mjs, and so on. Staging only one of those
 // files set code_changed (so the parser and the suite ran) but never set
 // mobile_changed, so the one check that would catch a renamed export or a

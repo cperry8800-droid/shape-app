@@ -1,6 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { NoraStage } from '../../../public/newdesign/noraStage.mjs';
+import { boothLabel, exampleAllowed, boothTier, webgl2Available } from '../../../public/newdesign/booth/noraBoothState.mjs';
+import { createBoothKeeper } from '../../../public/newdesign/booth/noraBoothKeeper.mjs';
 import { bsSetsNow } from '../../../public/newdesign/noraSets.mjs';
 import {
   BANDS, BAND_BINS, hasSignal, bandsFromBins, smoothBand, peakBand, barHeight, capVisible,
@@ -2169,6 +2170,205 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, hot, heart, pape
     </div>
   );
 }
+// ═══════════════════════════════════════════════════════════
+// Nora's booth
+// ═══════════════════════════════════════════════════════════
+// The booth is public/newdesign/booth/noraBooth.mjs, the same module the website's Radio page
+// mounts. It is IMPORTED ON DEMAND: three, three-vrm and the booth are megabytes, and a member who
+// never opens it never downloads them (they rode the app's boot chunk while the old stage was a
+// static import).
+//
+// ⚠ ONE BOOTH FOR THE SESSION, NOT ONE PER VISIT. Leaving the Radio tab unmounts this screen, and
+// the old stage was disposed with it, so every return re-downloaded the 10.8 MB model. The keeper
+// (noraBoothKeeper.mjs) holds the booth and its canvas between visits and disposes it only after a
+// few minutes with nobody looking, and `bsNoraWanted` remembers that it was open.
+let bsBoothKeeperRef = null;
+let bsNoraWanted = false;
+function bsBoothKeeper() {
+  if (bsBoothKeeperRef) return bsBoothKeeperRef;
+  bsBoothKeeperRef = createBoothKeeper({
+    create: async (progress) => {
+      const { createNoraBooth } = await import('../../../public/newdesign/booth/noraBooth.mjs');
+      const sc = (typeof window !== 'undefined' && window.screen) || {};
+      const tier = boothTier({ screenW: sc.width, screenH: sc.height });
+      const canvas = document.createElement('canvas');
+      canvas.style.cssText = 'display:block;width:100%;height:100%';
+      canvas.setAttribute('aria-hidden', 'true');
+      const reduced = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      return createNoraBooth({
+        canvas,
+        modelUrl: `${import.meta.env.BASE_URL}nora/placeholder.vrm`,
+        crowdUrl: `${import.meta.env.BASE_URL}nora/crowd.bin.txt`,
+        quality: tier.quality, cinematic: tier.cinematic, fps: tier.fps,
+        reducedMotion: reduced, onProgress: progress,
+      });
+    },
+  });
+  return bsBoothKeeperRef;
+}
+
+// The label, in the member's language. One literal call per key so the catalog tooling can see
+// every one; boothLabel (noraBoothState.mjs) decides WHICH.
+function bsBoothLabelText(tr, label) {
+  switch (label.key) {
+    case 'example': return tr('radio:booth.label.example', { defaultValue: 'Preview · example set' });
+    case 'visualised': return tr('radio:booth.label.visualised', { defaultValue: 'Visualised mix' });
+    case 'norasMix': return tr('radio:booth.label.norasMix', { defaultValue: 'Nora’s mix' });
+    case 'guest': return tr('radio:booth.label.guest', { dj: label.dj, defaultValue: `Guest set · ${label.dj}` });
+    case 'noBeat': return tr('radio:booth.label.noBeat', { defaultValue: 'No beat to follow' });
+    default: return tr('radio:booth.label.offAir', { defaultValue: 'Off air' });
+  }
+}
+
+function BSNoraBooth({ on, prospect, stationConfigured, stationPlaying, guestDj, TEAL, CREAM, CREAM50, CREAM25 }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  const hostRef = useRefBR(null);
+  const boothRef = useRefBR(null);
+  const [status, setStatus] = useStateBR('idle');   // idle | loading | ready | unsupported | failed
+  const [progress, setProgress] = useStateBR(null);
+  const [snap, setSnap] = useStateBR(null);
+  const [attempt, setAttempt] = useStateBR(0);
+
+  useEffectBR(() => {
+    if (!on) { setStatus('idle'); return undefined; }
+    if (!webgl2Available()) { setStatus('unsupported'); return undefined; }
+    let alive = true;
+    let booth = null;
+    let unsub = null;
+    const keeper = bsBoothKeeper();
+    setStatus('loading');
+    setProgress(null);
+    const offProgress = keeper.onProgress((f) => { if (alive) setProgress(f); });
+    keeper.acquire().then((b) => {
+      if (!alive) return;
+      booth = b;
+      boothRef.current = b;
+      if (hostRef.current) hostRef.current.appendChild(b.canvas);
+      b.resize();
+      b.start();
+      unsub = b.subscribe((s) => { if (alive) setSnap(s); });
+      window.__shapeBooth = b;   // diagnostics: frames, draw calls and the measured refresh (stats())
+      setStatus('ready');
+    }).catch((e) => {
+      if (!alive) return;
+      console.warn('[nora] booth failed', e);
+      setStatus(e && e.name === 'BoothUnsupportedError' ? 'unsupported' : 'failed');
+    });
+    return () => {
+      alive = false;
+      offProgress();
+      if (unsub) unsub();
+      if (booth && booth.canvas.parentNode) booth.canvas.parentNode.removeChild(booth.canvas);
+      if (booth && window.__shapeBooth === booth) window.__shapeBooth = null;
+      boothRef.current = null;
+      setSnap(null);
+      keeper.release();
+    };
+  }, [on, attempt]);
+
+  // Who hears the example set (ruling 4): nobody while the station plays; a prospect always; a
+  // member only while the station is not configured. The moment that turns false, it stops.
+  const allowed = exampleAllowed({ prospect, stationConfigured, stationPlaying });
+  useEffectBR(() => {
+    if (!allowed && boothRef.current) boothRef.current.stopExample();
+  }, [allowed, status]);
+
+  // The station's own analyser — read only while the stream is actually playing, the same graph the
+  // Signal Field above draws from. During a live Shape Set Nora steps off the decks.
+  useEffectBR(() => {
+    const b = boothRef.current;
+    if (!b || status !== 'ready') return;
+    const an = stationPlaying && window.ShapeRadioLive?.analyser ? window.ShapeRadioLive.analyser() : null;
+    b.setStation({ analyser: an, playing: stationPlaying, guest: !!guestDj });
+  }, [status, stationPlaying, guestDj]);
+
+  const label = boothLabel({ example: !!(snap && snap.example), station: { playing: stationPlaying, bpm: snap ? snap.bpm : null, guest: guestDj } });
+  const labelText = bsBoothLabelText(tr, label);
+  const live = label.key !== 'offAir';
+  const playing = !!(snap && snap.example);
+  const free = !!(snap && snap.camera === 'free');
+  const MONO = t.MONO;
+  // The booth's box is a fixed dark surface on either paper, so its overlays use fixed inks.
+  const INK = '#f4ede0', INK60 = 'rgba(244,237,224,0.62)';
+  const chip = (active) => ({
+    background: active ? `${TEAL}1a` : 'transparent', color: active ? TEAL : CREAM,
+    border: `1px solid ${active ? TEAL : CREAM25}`, borderRadius: 8, padding: '9px 12px', cursor: 'pointer',
+    fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700, whiteSpace: 'nowrap',
+  });
+
+  if (!on) return null;
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ position: 'relative', width: '100%', aspectRatio: '4 / 5', maxHeight: '62vh', borderRadius: 14, overflow: 'hidden', background: '#07080a' }}>
+        <div ref={hostRef} style={{ position: 'absolute', inset: 0 }}
+          role="img" aria-label={tr('radio:booth.alt', { defaultValue: 'Nora at the decks in Club Shape: two media players and a mixer on a stage, with lights and a crowd' })} />
+        {(status === 'failed' || status === 'unsupported') && (
+          <img src={`${import.meta.env.BASE_URL}nora-avatar.png`} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.55 }} />
+        )}
+        {/* The label: what the booth is showing, from what this device can check right now. */}
+        <div aria-live="polite" style={{ position: 'absolute', top: 10, left: 10, right: 92, display: 'flex', alignItems: 'center', gap: 7,
+          fontFamily: MONO, fontWeight: 700, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: live ? TEAL : INK60 }}>
+          <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, flex: '0 0 auto', background: live ? TEAL : 'transparent', border: `1px solid ${live ? TEAL : INK60}` }} />
+          <span>{labelText}</span>
+        </div>
+        {/* The tempo: measured, or a dash. */}
+        {status === 'ready' && (
+          <div style={{ position: 'absolute', top: 8, right: 10, textAlign: 'right', fontFamily: MONO, color: INK }}>
+            <div style={{ fontSize: 18, fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: snap && snap.bpm ? TEAL : INK60 }}>{snap && snap.bpm ? snap.bpm.toFixed(1) : '—'}</div>
+            <div style={{ fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: INK60 }}>{tr('radio:booth.bpmMeasured', { defaultValue: 'BPM · measured' })}</div>
+          </div>
+        )}
+        {/* What is on the decks — only once it can be heard. */}
+        {status === 'ready' && snap && snap.track && (
+          <div style={{ position: 'absolute', left: 10, right: 10, bottom: 10, fontFamily: MONO, fontSize: 10, color: INK, letterSpacing: '0.04em' }}>
+            <span style={{ fontWeight: 700 }}>{snap.track.name}</span>
+            {snap.track.synthesized && <span style={{ color: INK60 }}> · {tr('radio:booth.synthesized', { defaultValue: 'Synthesized example' })}</span>}
+          </div>
+        )}
+        {status === 'loading' && (
+          <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: INK60 }}>
+            {progress != null
+              ? tr('radio:booth.loadingPct', { pct: Math.round(progress * 100), defaultValue: `Loading Nora… ${Math.round(progress * 100)}%` })
+              : tr('radio:booth.loading', { defaultValue: 'Loading Nora…' })}
+          </div>
+        )}
+        {(status === 'failed' || status === 'unsupported') && (
+          <div style={{ position: 'absolute', left: 12, right: 12, bottom: 12, fontFamily: MONO, fontSize: 10, letterSpacing: '0.1em', color: INK }}>
+            {status === 'unsupported'
+              ? tr('radio:booth.unsupported', { defaultValue: 'This device can’t run the booth: it needs WebGL 2.' })
+              : tr('radio:booth.failed', { defaultValue: 'The booth couldn’t start on this device.' })}
+          </div>
+        )}
+      </div>
+      {status === 'ready' && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+          {allowed && (playing
+            ? <button type="button" onClick={() => boothRef.current && boothRef.current.stopExample()} style={chip(true)}>■ {tr('radio:booth.stopExample', { defaultValue: 'Stop the example set' })}</button>
+            : <button type="button" onClick={() => boothRef.current && boothRef.current.playExample()} style={chip(false)}>▶ {tr('radio:booth.playExample', { defaultValue: 'Play the example set' })}</button>)}
+          {playing && (
+            <button type="button" onClick={() => boothRef.current && boothRef.current.nextTrack()} style={chip(false)}>{tr('radio:booth.nextTrack', { defaultValue: 'Next track' })} ⇄</button>
+          )}
+          <button type="button" aria-pressed={!free} onClick={() => boothRef.current && boothRef.current.setCamera('auto')} style={chip(!free)}>
+            {tr('radio:booth.autoCamera', { defaultValue: 'Auto camera' })}
+          </button>
+          <button type="button" aria-pressed={free} onClick={() => boothRef.current && boothRef.current.setCamera('free')} style={chip(free)}>
+            {tr('radio:booth.lookAround', { defaultValue: 'Look around' })}
+          </button>
+        </div>
+      )}
+      {status === 'failed' && (
+        <button type="button" onClick={() => setAttempt((n) => n + 1)} style={{ ...chip(false), marginTop: 10 }}>{tr('radio:booth.retry', { defaultValue: 'Try again' })}</button>
+      )}
+      {status === 'ready' && allowed && (
+        <div style={{ marginTop: 9, fontFamily: t.BODY, fontSize: 11.5, lineHeight: 1.45, color: CREAM50 }}>
+          {tr('radio:booth.exampleNote', { defaultValue: 'The example set’s tracks are synthesized on your device and Nora’s mix is choreographed on their beat. It is not the Shape Radio stream.' })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BSRadioScreen({ onBack }) {
   const t = useBS();
   const r = useBSRadio();
@@ -2295,44 +2495,14 @@ function BSRadioScreen({ onBack }) {
       return hh > 0 ? `${hh}:${two(mm)}:${two(ss)}` : `${two(mm)}:${two(ss)}`;
     })();
 
-  // ── Nora watch (preview) ─────────────────────────────────────────────────────
-  const [noraOn, setNoraOn] = useStateBR(false);
-  const [noraFailed, setNoraFailed] = useStateBR(false);
-  const noraCanvasRef = useRefBR(null);
-  const noraStageRef = useRefBR(null);
-  const noraColorRef = useRefBR(t.ACCENT);
-  const toggleNora = () => setNoraOn(v => !v);
-  useEffectBR(() => {
-    if (!noraOn) return;
-    setNoraFailed(false);
-    let disposed = false;
-    (async () => {
-      try {
-        if (!window.WebGLRenderingContext) { setNoraFailed(true); return; }
-        const an = window.ShapeRadioLive?.analyser?.();
-        // The projection takes the page's accent. This is the accent at CONSTRUCTION;
-        // a later change is carried by the effect below, because this effect depends
-        // on noraOn alone and re-running it would re-download the VRM.
-        const st = new NoraStage({ canvas: noraCanvasRef.current, analyser: an, modelUrl: `${import.meta.env.BASE_URL}nora/placeholder.vrm`, color: t.ACCENT });
-        await st.load();
-        if (disposed) { st.dispose(); return; }
-        st.start();
-        noraStageRef.current = st;
-        if (noraColorRef.current) st.setColor(noraColorRef.current);
-      } catch (e) { console.warn('[nora] stage failed', e); setNoraFailed(true); }
-    })();
-    return () => { disposed = true; if (noraStageRef.current) { noraStageRef.current.dispose(); noraStageRef.current = null; } };
-  }, [noraOn]);
-  // ⚠ THE ACCENT IS LIVE AND THE STAGE IS ASYNC, SO BOTH DIRECTIONS ARE COVERED.
-  // The booth around the canvas reads t.ACCENT at render, so it recolours on that
-  // frame; without this the shader keeps the colour it was constructed with and the
-  // preview is two colours until Nora is toggled. An accent changed WHILE the VRM is
-  // still loading reaches no stage at all, so the latest one is kept in a ref and the
-  // load applies it on arrival.
-  useEffectBR(() => {
-    noraColorRef.current = t.ACCENT;
-    if (noraStageRef.current) noraStageRef.current.setColor(t.ACCENT);
-  }, [t.ACCENT]);
+  // ── Nora's booth ─────────────────────────────────────────────────────────────
+  // Open or closed survives leaving the tab (the booth itself is kept by bsBoothKeeper).
+  const [noraOn, setNoraOnState] = useStateBR(() => bsNoraWanted);
+  const toggleNora = () => setNoraOnState((v) => { bsNoraWanted = !v; return !v; });
+  const stationPlaying = r.playingSince != null;
+  const stationConfigured = !!(r.sets && r.sets.real);
+  // A live Shape Set on a real stream: Nora steps off the decks and the label names the DJ.
+  const guestDj = stationConfigured && r.sets && r.sets.live && r.sets.live.dj ? String(r.sets.live.dj) : null;
 
   // Section accent — follows the global Appearance accent so Radio's
   // colored highlights (kicker, italic "Radio.", EQ, beat ring, play button,
@@ -2765,28 +2935,8 @@ function BSRadioScreen({ onBack }) {
           <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: CREAM50, fontWeight: 700, marginBottom: 12 }}>
             Nora · {tr('radio:nora.djPreview', { defaultValue: 'DJ preview' })}
           </div>
-          {/* Canvas — shown when Nora is on */}
-          {noraOn && (
-            <div style={{ position: 'relative', width: '100%', aspectRatio: '3/4', maxHeight: '56vh', borderRadius: 14, overflow: 'hidden',
-              // The booth: the Signal Field's own 14px dot pitch as the room's ground, on the dark panel.
-              background: `radial-gradient(circle, ${TEAL}1f 0.9px, transparent 1.1px) 0 0 / 14px 14px, #0b0d10`, marginBottom: 12 }}>
-              <canvas ref={noraCanvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />
-              {/* THE PROJECTION'S ROOM — scanlines over the figure and a floor glow
-                  under it, so she reads as light thrown into the booth rather than
-                  a model in a box. The same grammar as RadioHologramDJ (the Booth).
-                  Pointer-events none; the label above stays the label. */}
-              <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none',
-                background: `radial-gradient(ellipse 60% 26% at 50% 100%, ${TEAL}33, transparent 70%), repeating-linear-gradient(0deg, ${TEAL}0a 0px, ${TEAL}0a 1px, transparent 1px, transparent 3px)` }} />
-              <div aria-hidden style={{ position: 'absolute', left: '22%', right: '22%', bottom: 16, height: 1, pointerEvents: 'none',
-                background: TEAL, opacity: 0.6, boxShadow: `0 0 14px ${TEAL}` }} />
-              {noraFailed && (
-                <img src={`${import.meta.env.BASE_URL}nora-avatar.png`} alt="Nora" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
-              )}
-              <div aria-hidden style={{ position: 'absolute', top: 10, left: 10, fontFamily: t.MONO, fontWeight: 600, fontSize: 11, letterSpacing: '0.12em', color: '#2ee0c4' }}>
-                ● {tr('radio:nora.liveLabel', { defaultValue: 'LIVE' })} · NORA <span style={{ opacity: 0.6 }}>({tr('radio:nora.preview', { defaultValue: 'preview' })})</span>
-              </div>
-            </div>
-          )}
+          <BSNoraBooth on={noraOn} prospect={previewSim} stationConfigured={stationConfigured} stationPlaying={stationPlaying}
+            guestDj={guestDj} TEAL={TEAL} CREAM={CREAM} CREAM50={CREAM50} CREAM25={CREAM25} />
           {/* Toggle button — instrument-plate style with accent spine */}
           <button onClick={toggleNora} style={{
             display: 'flex', alignItems: 'center', gap: 9,

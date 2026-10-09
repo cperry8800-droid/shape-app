@@ -768,7 +768,11 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // and every string on BSCookMode and BSPrepSession is keyed (`cook:ck.*`), so the one
   // unkeyed string each still carried is gone and both leave PARTIAL for fully covered.
   // partStrings 219 -> 217, part.length 38 -> 36; noneStrings and none.length unchanged.
-  assert.equal(partStrings, 217, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  // Nora's booth (2026-10-09): BSRadioScreen's booth label was `● LIVE · NORA (preview)` with
+  // NORA typed in English; the label is now one of six keyed states (`radio:booth.label.*`) drawn by
+  // BSNoraBooth, which is fully keyed. partStrings 217 -> 216; part.length, noneStrings and
+  // none.length unchanged.
+  assert.equal(partStrings, 216, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
   // ⚠ AND noneStrings 793 -> 796 IS THREE STRINGS ADDED ON PURPOSE, in
   // BSMealLogged (already uncovered): the plated stage was printing a 46px teal
   // `0` under `Logged ✓` for a cook whose macros are unknown — while logIt had

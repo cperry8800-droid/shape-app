@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { decodePng } from '../src/pngRgba.mjs';
 import { GLYPHS, inGlyph, SLANT } from '../src/wordmarkGlyphs.mjs';
 import { buildScreenArt, hex, ART } from '../src/screenArt.mjs';
-import { CLUB_SHAPE_MASK } from '../src/clubShapeMask.mjs';
+import { CLUB_SHAPE_MASK } from '../../../public/newdesign/booth/clubShapeMask.mjs';
 
 const LOGO = fileURLToPath(new URL('../../../public/SHAPE-logo-teal-white.png', import.meta.url));
 

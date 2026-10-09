@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createFlashGate } from '../src/flashGate.mjs';
+import { createFlashGate } from '../public/newdesign/booth/flashGate.mjs';
 
 // Drive the gate at 60 fps with a kick train and count the flashes it lets through.
 function run({ bpm, kicksPerBeat, seconds = 10, fps = 60, gate = createFlashGate() }) {
@@ -79,7 +79,7 @@ test('reset forgets the last flash', () => {
 });
 
 // ── the director under reduced motion ────────────────────────────────────────────────────
-import { NoraDirector } from '../src/noraDirector.mjs';
+import { NoraDirector } from '../public/newdesign/booth/noraDirector.mjs';
 
 function anchors() {
   const v = (x, y, z) => ({ x, y, z });

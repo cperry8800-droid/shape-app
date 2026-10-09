@@ -1,7 +1,7 @@
 // lightBake: the shadow rays, the falloff, the AO and the grids the venue's light bake stands on.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { rayBox, boxGrid, occluded, lightGrid, directAt, aoAt, bakeMesh, bounceField, gridQuad } from '../src/lightBake.mjs';
+import { rayBox, boxGrid, occluded, lightGrid, directAt, aoAt, bakeMesh, bounceField, gridQuad } from '../public/newdesign/booth/lightBake.mjs';
 
 const SLAB = [-5, 2, -5, 5, 2.4, 5];   // a slab 2–2.4 m up, 10 × 10 m
 

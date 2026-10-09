@@ -1,7 +1,7 @@
 // The booth's tempo readout is MEASURED by Shape Radio's own detector — the same module the
 // Signal Field ships (public/newdesign/radioTempo.mjs) — never typed in. It returns null
 // ("—") until the audio has earned a number, exactly as on the Radio page.
-import { createTempoDetector, tempoEnergyFromBins } from './radioTempo.mjs'; // a verbatim copy of public/newdesign/radioTempo.mjs;
+import { createTempoDetector, tempoEnergyFromBins } from '../radioTempo.mjs';
 
 export function createTempoTracker() {
   const det = createTempoDetector();

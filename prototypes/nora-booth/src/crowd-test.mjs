@@ -1,7 +1,7 @@
 // Line-up of the baked crowd figures: near row (three hair lengths × arms down / half / up),
 // far row behind. ?url=crowd.bin.txt  &cam=front|back|side
 import * as THREE from 'three';
-import { loadCrowdPack, createAvatarCrowd } from './crowdAvatars.mjs';
+import { loadCrowdPack, createAvatarCrowd } from '../../../public/newdesign/booth/crowdAvatars.mjs';
 
 const q = new URLSearchParams(location.search);
 const canvas = document.createElement('canvas');

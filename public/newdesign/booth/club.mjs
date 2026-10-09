@@ -42,6 +42,14 @@ import { CLUB_SHAPE_MASK } from './clubShapeMask.mjs';
 import { createFlashGate } from './flashGate.mjs';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 
+// ⚠ A POSITIVE MODULO FOR EVERY LOOK CHOSEN BY THE BAR. The bar clock is negative for the first
+// tenth of a second of a set (the deck engine starts 0.1 s ahead of its own bar 0), and JavaScript's
+// `%` keeps the sign, so `Math.floor(-0.5 / 8) % 3` is -1: the laser palette and the beam colours
+// were indexed at -1, read `undefined`, and threw "Cannot read properties of undefined (reading
+// 'r')" on whichever frame landed in that window. Seen once in Chromium on the website; the host
+// no longer hands the room a negative bar either (noraBooth.mjs), but a look index cannot be negative.
+const posMod = (n, m) => ((n % m) + m) % m;
+
 export const CLUB_DIMS = {
   FLOOR_Y: -0.66,
   STAGE_Y: -0.18,
@@ -900,7 +908,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
   function updateLasers(dt, t) {
     const bp = beatPosAt(t);
     const slow = reduced ? 0.2 : 1;
-    const mode = (Math.floor(state.bar / 8) + 1) % 3;
+    const mode = posMod(Math.floor(state.bar / 8) + 1, 3);
     const lvl = levelNorm();
     const drop = dropS;
     // present from the first note, strong on the drop; a slow idle fan before the set starts
@@ -913,7 +921,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     let k = 0;
     for (const unit of LZ_UNITS) {
       const s = unit.side;
-      const colA = palette[(Math.floor(state.bar / 8) + (s > 0 ? 0 : (drop > 0.5 ? 2 : 0))) % palette.length];
+      const colA = palette[posMod(Math.floor(state.bar / 8) + (s > 0 ? 0 : (drop > 0.5 ? 2 : 0)), palette.length)];
       for (let i = 0; i < LZ_N; i++, k++) {
         const f = LZ_N > 1 ? i / (LZ_N - 1) : 0.5;      // 0..1 across the fan
         const ph = t * slow;
@@ -1370,7 +1378,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
 
   function updateHeads(dt, t) {
     const bp = beatPosAt(t);
-    const mode = Math.floor(state.bar / 8) % 3;
+    const mode = posMod(Math.floor(state.bar / 8), 3);
     const lvl = levelNorm();
     const drop = dropS;
     for (let k = 0; k < NF; k++) {

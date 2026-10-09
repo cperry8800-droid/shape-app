@@ -13,9 +13,9 @@
 //  S4  gain staging: a produced-house fixture normalised to −8 LUFS vs the six synth tracks.
 //  S5  the synthesized path renders bit-identically to deckAudio.before-buffers.mjs.
 //  S6  a live AudioContext smoke test (timer-driven engine, late join counted, auto state).
-import * as NEW from './deckAudio.mjs';
+import * as NEW from '../../../public/newdesign/booth/deckAudio.mjs';
 import * as OLD from './deckAudio.before-buffers.mjs';
-import { planTransition, mixState } from './noraMix.mjs';
+import { planTransition, mixState } from '../../../public/newdesign/booth/noraMix.mjs';
 
 const { createDeckAudio, DEMO_TRACKS, BUFFER_TRIM, BUFFER_TARGET_LUFS } = NEW;
 const SR = 44100;

@@ -3,7 +3,7 @@
 // Query: ?view=player|hero|jog|top|screen|back  &env=0|1
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { createCDJ, CDJ_DIMS } from './cdj3000.mjs';
+import { createCDJ, CDJ_DIMS } from '../../../public/newdesign/booth/cdj3000.mjs';
 
 const q = new URLSearchParams(location.search);
 const canvas = document.createElement('canvas');

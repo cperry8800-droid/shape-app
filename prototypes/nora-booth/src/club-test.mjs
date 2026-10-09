@@ -9,8 +9,8 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { createClub } from './club.mjs';
-import { createVenue } from './clubVenue.mjs';
+import { createClub } from '../../../public/newdesign/booth/club.mjs';
+import { createVenue } from '../../../public/newdesign/booth/clubVenue.mjs';
 
 const q = new URLSearchParams(location.search);
 const QUALITY = q.get('q') === 'low' ? 'low' : 'high';

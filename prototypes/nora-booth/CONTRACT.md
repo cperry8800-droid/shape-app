@@ -1,8 +1,10 @@
 # Nora's Booth — module contract (prototype, 2026-09-29)
 
-Everything is plain ES modules that import `three` (0.185.1) and nothing app-specific.
-Every module is FRAMEWORK-AGNOSTIC and will later live in `public/newdesign/` beside
-`noraStage.mjs`, so: no DOM globals at import time, no `Math.random()` (use a seeded PRNG
+Everything is plain ES modules that import `three` and nothing app-specific. Every module is
+FRAMEWORK-AGNOSTIC, and since Phase 1 (2026-10-09) the runtime modules live in
+`public/newdesign/booth/`, where the app bundles them against `mobile-app/node_modules` (three
+0.186.1) and the website resolves them through `Radio.html`'s import map (the same pins,
+`tests/nora-stage-version-parity.test.mjs`). So: no DOM globals at import time, no `Math.random()` (use a seeded PRNG
 passed in or derived from an integer seed), no `Date.now()` in pure modules (the caller
 passes `t` in seconds). Dispose everything you allocate (geometries, materials, textures,
 canvas textures) in `dispose()`.

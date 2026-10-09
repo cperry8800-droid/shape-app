@@ -1076,121 +1076,88 @@ test('a simulated now-playing payload is never published as a measured track', (
 });
 
 test('Nora can be handed the analyser that did not exist when her booth opened', () => {
-  // ⚠ A REGRESSION AGAINST THE PAGE THIS ONE RETIRES (Codex, round 8). The old player
-  // built its stage only once the graph existed. Here the booth is its own control and
-  // a visitor very reasonably opens Nora BEFORE pressing Tune in — at which point
-  // `window.__shapeRadioGraph` is null, `NoraStage` stored that null, and there was no
-  // way to tell it otherwise. She stood still for the rest of the session with the
-  // station playing, which is the one feature the PR claimed was ported losslessly.
+  // ⚠ A REGRESSION AGAINST THE PAGE THIS ONE RETIRES (Codex, #2101 round 8). The old player
+  // built its stage only once the graph existed. Here the booth is its own control and a visitor
+  // very reasonably opens Nora BEFORE pressing Tune in — at which point `window.__shapeRadioGraph`
+  // is null. The stage stored that null with no way to learn otherwise, and she stood still for
+  // the rest of the session with the station playing.
   //
-  // Three files have to agree, so all three are read and the EVENT NAME IS DERIVED from
-  // the dispatcher rather than typed twice — two spellings of one channel is how the
-  // announcement and the listener come apart while each looks right.
-  const stageSrc = readFileSync(new URL('../public/newdesign/noraStage.mjs', import.meta.url), 'utf8');
+  // Since Phase 1 the booth is public/newdesign/booth/noraBooth.mjs and the page hands it the
+  // station through `setStation`. Three files still have to agree, so all three are read and the
+  // EVENT NAME IS DERIVED from the dispatcher rather than typed twice.
+  const hostSrc = readFileSync(new URL('../public/newdesign/booth/noraBooth.mjs', import.meta.url), 'utf8');
   const boothSrc = readFileSync(new URL('../public/newdesign/radio.jsx', import.meta.url), 'utf8');
-  const stageAst = parse(stageSrc, { sourceType: 'module' });
+  const hostAst = parse(hostSrc, { sourceType: 'module' });
   const boothAst = parse(boothSrc, { sourceType: 'script', plugins: ['jsx'] });
 
-  // 1. the stage can learn one later at all
-  const setter = collect(stageAst, (n) => n.type === 'ClassMethod' && n.key.name === 'setAnalyser');
-  assert.equal(setter.length, 1, 'NoraStage has no setAnalyser — a stage handed null stays deaf for the life of the page');
-  const setterSrc = stageSrc.slice(setter[0].start, setter[0].end);
-  assert.match(setterSrc, /this\.analyser\s*=/, 'setAnalyser does not store the analyser');
-  assert.match(setterSrc, /_freq\s*=\s*new Uint8Array/,
-    'setAnalyser does not resize the frequency buffer — it is sized from the analyser at construction');
+  // 1. the booth can learn an analyser later at all, and reads whatever size it has
+  const setter = collect(hostAst, (n) => n.type === 'FunctionDeclaration' && n.id && n.id.name === 'setStation');
+  assert.equal(setter.length, 1, 'the booth has no setStation — a booth opened before the graph stays deaf for the life of the page');
+  assert.match(hostSrc.slice(setter[0].start, setter[0].end), /stationAn\s*=\s*analyser/, 'setStation does not store the analyser');
+  assert.match(hostSrc, /stationBins\.length !== stationAn\.frequencyBinCount\) stationBins = new Uint8Array/,
+    'the booth does not size its buffer from the analyser it was handed — a stream analyser may have any FFT size');
 
   // 2. the instrument announces the graph, and on which channel
   const dispatches = collect(AST, (n) => n.type === 'NewExpression'
     && n.callee.name === 'CustomEvent' && n.arguments[0] && n.arguments[0].type === 'StringLiteral');
   assert.ok(dispatches.length > 0, 'the instrument announces no graph — an already-open booth can never learn of it');
-  const channels = dispatches.map((d) => d.arguments[0].value);
+  const graphDispatch = dispatches.filter((d) => /__shapeRadioGraph/.test(SRC.slice(d.start, d.end)));
+  assert.equal(graphDispatch.length, 1, 'could not find the one dispatch that carries the graph');
+  const channel = graphDispatch[0].arguments[0].value;
 
-  // 3. the booth listens on that same derived channel, and binds the analyser when it fires
+  // 3. the booth listens on that same derived channel, and its handler hands the analyser on
   const listeners = collect(boothAst, (n) => n.type === 'CallExpression'
     && n.callee.type === 'MemberExpression' && n.callee.property.name === 'addEventListener'
-    && n.arguments[0] && n.arguments[0].type === 'StringLiteral'
-    && channels.includes(n.arguments[0].value));
-  assert.ok(listeners.length > 0,
-    `the booth listens on none of the channels the instrument announces (${channels.join(', ')})`);
-  // ⚠ THE HANDLER ITSELF, WITH NO WHOLE-FILE FALLBACK (Codex, round 9). That `||` was
-  // written as belt-and-braces and removed the belt: the post-load re-read in step 4 is
-  // another `setAnalyser` in the same file, so deleting the call from THIS handler left
-  // the assertion green — while a graph built after Nora has fully opened would never be
-  // bound, because the one-time re-read has already happened. A fallback that can be
-  // satisfied by the thing you are about to assert separately is not a fallback.
-  // ⚠ AND THE HANDLER IS PASSED BY NAME, SO IT HAS TO BE RESOLVED TO ITS BINDING —
-  // which is what the `||` was quietly covering for. `addEventListener("…", bind)` hands
-  // an Identifier, and collecting over an Identifier finds nothing: the check was
-  // failing on correct code and passing on the fallback, which is the worst of both.
-  // An unresolvable handler now FAILS rather than being waved through.
-  const resolveFn = (arg) => {
-    if (!arg) return null;
-    if (arg.type === 'ArrowFunctionExpression' || arg.type === 'FunctionExpression') return arg;
-    if (arg.type !== 'Identifier') return null;
-    const decls = collect(boothAst, (n) => n.type === 'VariableDeclarator'
-      && n.id.type === 'Identifier' && n.id.name === arg.name && n.init
-      && (n.init.type === 'ArrowFunctionExpression' || n.init.type === 'FunctionExpression'));
-    if (decls.length) return innermost(decls, `the handler ${arg.name}`).init;
-    const fds = collect(boothAst, (n) => n.type === 'FunctionDeclaration' && n.id && n.id.name === arg.name);
-    return fds.length ? innermost(fds, `the handler ${arg.name}`) : null;
+    && n.arguments[0] && n.arguments[0].type === 'StringLiteral' && n.arguments[0].value === channel);
+  assert.ok(listeners.length > 0, `the booth does not listen on ${channel}, the channel the instrument announces the graph on`);
+  // A named function resolves to its binding; a call to a named helper is followed ONE level,
+  // because the handler is `(e) => bindStation(e.detail)` and the hand-over lives in the helper.
+  const fnNamed = (name) => {
+    const decls = collect(boothAst, (n) => n.type === 'VariableDeclarator' && n.id.type === 'Identifier' && n.id.name === name && n.init);
+    if (!decls.length) return null;
+    let init = innermost(decls, `the binding ${name}`).init;
+    // React.useCallback(fn, deps) → fn
+    if (init.type === 'CallExpression' && init.arguments[0] && /Function/.test(init.arguments[0].type)) init = init.arguments[0];
+    return /Function/.test(init.type) ? init : null;
   };
-  const handlers = listeners.map((l) => resolveFn(l.arguments[1])).filter(Boolean);
-  assert.equal(handlers.length, listeners.length,
-    'a shape:radiograph listener was registered with a handler this guard cannot resolve — it would pass without ever being read');
-  // ⚠ A CALL, NOT A MENTION. The handler guards on `stageRef.current.setAnalyser`
-  // before calling it, so a MemberExpression match is satisfied by the CAPABILITY CHECK
-  // alone — replacing the call body with `void g.analyser` left this green. Same shape
-  // as the round-9 isCurrent finding one test up: a token appearing where the thing it
-  // names is supposed to happen.
-  assert.ok(handlers.some((h) => collect(h, (n) => n.type === 'CallExpression'
-    && n.callee.type === 'MemberExpression' && n.callee.property.name === 'setAnalyser').length > 0),
-    'the booth hears the graph and never hands it to the stage — a graph built after she opened is lost');
+  const resolveFn = (arg) => (!arg ? null : /Function/.test(arg.type) ? arg : arg.type === 'Identifier' ? fnNamed(arg.name) : null);
+  const handsOver = (fn) => {
+    if (!fn) return false;
+    const direct = collect(fn, (n) => n.type === 'CallExpression' && n.callee.type === 'MemberExpression' && n.callee.property.name === 'setStation');
+    if (direct.length) return true;
+    return collect(fn, (n) => calleeName(n)).some((c) => {
+      const f = fnNamed(calleeName(c));
+      return !!f && collect(f, (n) => n.type === 'CallExpression' && n.callee.type === 'MemberExpression' && n.callee.property.name === 'setStation').length > 0;
+    });
+  };
+  const handlers = listeners.map((l) => resolveFn(l.arguments[1]));
+  assert.ok(handlers.every(Boolean), 'a graph listener was registered with a handler this guard cannot resolve — it would pass without ever being read');
+  // ⚠ A CALL, NOT A MENTION: the hand-over has to HAPPEN in the handler's path.
+  assert.ok(handlers.some(handsOver), 'the booth hears the graph and never hands it to the booth — a graph built after she opened is lost');
 
-  // 4. ...and it re-reads after the async load, or a graph that arrived mid-download is
-  //    announced to a stage that does not exist yet — the both-ways problem setColor has
-  const open = innermost(functionsOf(boothAst).filter((f) => /await stage\.load\(\)/
-    .test(boothSrc.slice(f.start, f.end))), 'the booth open() handler');
-  const loadAwait = collect(open, (n) => n.type === 'AwaitExpression'
-    && /stage\.load\(\)/.test(boothSrc.slice(n.start, n.end)));
-  assert.equal(loadAwait.length, 1, 'could not locate the stage load await');
-  const afterLoad = collect(open, (n) => n.type === 'MemberExpression'
-    && n.property.name === 'setAnalyser' && n.start > loadAwait[0].end);
-  assert.ok(afterLoad.length > 0,
-    'the booth never re-reads the graph after the VRM finishes loading — one that arrived mid-download is lost');
+  // 4. ...and the graph is bound again once the booth is open, or one that arrived mid-download
+  //    was announced to a booth that did not exist yet.
+  const reopen = collect(boothAst, (n) => n.type === 'CallExpression' && n.callee.type === 'MemberExpression'
+    && n.callee.property.name === 'useEffect' && n.arguments[1] && n.arguments[1].type === 'ArrayExpression'
+    && n.arguments[1].elements.some((e) => e && e.type === 'Identifier' && e.name === 'state')
+    && handsOver(n.arguments[0]));
+  assert.ok(reopen.length > 0, 'nothing binds the graph when the booth reaches "open" — one that arrived while it loaded is lost');
 
-  // 5. ...and a load that THROWS leaves nothing running (Codex, round 9). `stageRef` is
-  //    assigned only once load() and start() have both succeeded, so the catch had
-  //    `stageRef.current === null` and disposed nothing — while NoraStage allocates its
-  //    WebGLRenderer in the CONSTRUCTOR. Each retry leaked another live context, which a
-  //    browser caps and silently evicts rather than reporting: the symptom is the booth
-  //    quietly failing to draw on some later attempt with nothing in the log.
-  //
-  //    The load-bearing part is WHERE the handle is taken. A binding assigned after the
-  //    await is not reachable from a failure of that await, which is the bug exactly, so
-  //    the assignment is required to sit BEFORE it.
-  // ⚠ THE TRY THAT COVERS THE LOAD, not the smallest one: open() also wraps
-  // `context.resume()` in its own try, and `innermost` would pick that — the
-  // enclosing-node reducer being right for containment lookups and wrong here, where
-  // the node wanted is the one that CONTAINS the await rather than the one nearest it.
-  const tries = collect(open, (n) => n.type === 'TryStatement'
-    && loadAwait[0].start > n.block.start && loadAwait[0].end < n.block.end);
-  assert.equal(tries.length, 1, `expected exactly one try around the stage load, found ${tries.length}`);
-  const tryStmt = tries[0];
-  const inTry = (n) => n.start > tryStmt.block.start && n.end < tryStmt.block.end;
-  const outerNames = new Set(collect(open, (n) => n.type === 'VariableDeclarator'
-    && n.id.type === 'Identifier' && !inTry(n)).map((n) => n.id.name));
-  const handles = collect(tryStmt.block, (n) => n.type === 'AssignmentExpression'
-    && n.left.type === 'Identifier' && outerNames.has(n.left.name)
-    && n.start < loadAwait[0].start);
-  assert.ok(handles.length > 0,
-    'the stage open() builds is never handed to a binding outside the try before the load — a failed load leaves its WebGLRenderer undisposed');
-  const handler = tryStmt.handler;
-  assert.ok(handler, 'open() has no catch clause at all');
-  const handleNames = new Set(handles.map((h) => h.left.name));
-  assert.ok(collect(handler, (n) => n.type === 'Identifier' && handleNames.has(n.name)).length > 0,
-    'the failure path never reads the stage this attempt built — its WebGL context leaks, and a browser evicts rather than reports');
-  assert.ok(collect(handler, (n) => n.type === 'MemberExpression' && n.property.name === 'dispose').length > 0,
-    'the failure path disposes nothing');
+  // 5. ...and a build that THROWS leaves nothing running (Codex, round 9). The renderer exists
+  //    before the model loads, so a failed load must release it, context and all: browsers cap
+  //    live contexts and silently evict the oldest. That is now the host's own contract.
+  const create = collect(hostAst, (n) => n.type === 'FunctionDeclaration' && n.id && n.id.name === 'createNoraBooth');
+  assert.equal(create.length, 1, 'createNoraBooth is gone');
+  const tries = collect(create[0].body, (n) => n.type === 'TryStatement'
+    && /await build\(\)/.test(hostSrc.slice(n.block.start, n.block.end)));
+  assert.equal(tries.length, 1, 'expected exactly one try around the build');
+  assert.ok(tries[0].handler && collect(tries[0].handler, (n) => calleeName(n) === 'release').length > 0,
+    'a failed build does not release what it allocated');
+  const rel = hostSrc.slice(hostSrc.indexOf('const release = () => {'), hostSrc.indexOf('try {\n    return await build();'));
+  assert.match(rel, /owned\.renderer\.dispose\(\)/, 'release does not dispose the renderer');
+  assert.match(rel, /forceContextLoss\(\)/, 'release does not lose the WebGL context — dispose alone leaves it alive until garbage collection');
+  assert.ok(hostSrc.indexOf('owned.renderer = renderer') < hostSrc.indexOf('const gltf = await vrmLoad'),
+    'the renderer is handed to `owned` only after the model loads — a failed load could not reach it');
 });
 
 test('a set schedule we could not read is never published as an empty one', () => {

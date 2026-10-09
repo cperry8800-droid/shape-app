@@ -5,9 +5,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { isDeepStrictEqual } from 'node:util';
-import * as M from '../src/noraMix.mjs';
+import * as M from '../public/newdesign/booth/noraMix.mjs';
 
-const SRC = readFileSync(new URL('../src/noraMix.mjs', import.meta.url), 'utf8');
+const SRC = readFileSync(new URL('../public/newdesign/booth/noraMix.mjs', import.meta.url), 'utf8');
 const STEP = 1 / 512;                       // sampling step in bars (exact binary fraction)
 const near = (a, b, eps = 1e-9) => Math.abs(a - b) <= eps;
 

@@ -2,9 +2,9 @@
 // ceiling and the end wall), keeps Nora's booth and portal clear, and costs less on phones.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { createArenaStage, ARENA_DIMS } from '../src/arenaStage.mjs';
+import * as THREE from './helpers/booth-three.mjs';
+import { mergeGeometries } from './helpers/booth-three.mjs';
+import { createArenaStage, ARENA_DIMS } from '../public/newdesign/booth/arenaStage.mjs';
 
 const build = (quality) => createArenaStage({ THREE, quality, mergeGeometries });
 const boundsOf = (group) => {
@@ -116,7 +116,7 @@ test('the beams animate without flashing: a beat of kicks moves their colour les
 });
 
 test('the drone flies clear of the rig: at least a metre from the truss, the lights and the speakers', async () => {
-  const { _droneForTest } = await import('../src/noraDirector.mjs');
+  const { _droneForTest } = await import('../public/newdesign/booth/noraDirector.mjs');
   const a = build('high');
   a.group.updateMatrixWorld(true);
   const rig = [];

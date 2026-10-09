@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
-import { NoraPerformer } from './noraPerformer.mjs';
+import { NoraPerformer } from '../../../public/newdesign/booth/noraPerformer.mjs';
 const q = new URLSearchParams(location.search);
 const W = innerWidth, H = innerHeight;
 const r = new THREE.WebGLRenderer({ antialias: true }); r.setSize(W, H); document.body.appendChild(r.domElement);
