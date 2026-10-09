@@ -103,6 +103,18 @@ export function boothTier({ screenW = 0, screenH = 0, override = null } = {}) {
 // model replaces her; set it true with that model.
 export const NORA_MODEL = Object.freeze({ path: 'nora/placeholder.vrm', crowd: 'nora/crowd.bin.txt', portrait: false });
 
+/**
+ * Where to fetch an asset NORA_MODEL names. A realistic Nora is hosted OUTSIDE this public repository
+ * (scripts/nora-model/README.md), so a path may be a full https URL, which is used as it is; a
+ * site path is joined to the surface's base ("/" on the website, the app's BASE_URL).
+ */
+export function noraAssetUrl(path, base = '/') {
+  if (typeof path !== 'string' || !path) return null;
+  if (/^https:\/\//i.test(path)) return path;
+  const b = typeof base === 'string' && base ? base : '/';
+  return (b.endsWith('/') ? b : b + '/') + path.replace(/^\/+/, '');
+}
+
 // ── Before downloading three ─────────────────────────────────────────────────
 // three r163+ draws only on WebGL 2. Asking first spares a device that has none the megabytes of
 // the booth's code. Not pure (it makes a canvas), so the document is passed in; the probe's own

@@ -109,6 +109,10 @@ export function applyStageLook(THREE, root, { outfit = 0x16181b, hairTint = null
     if (!obj.isMesh) return;
     const orig = obj.material;
     const list = Array.isArray(orig) ? orig : [orig];
+    // ⚠ ONLY A CARTOON (MToon) MESH IS RESTYLED. A realistic model arrives with its own PBR
+    // materials, several to a mesh (a MetaHuman's face carries skin, teeth, eyes and lashes as
+    // groups); swapping them for one material and clearing the groups would paint all of it skin.
+    if (!list.some((x) => x && x.isMToonMaterial)) return;
     const name = (list[0] && list[0].name) || '';
     // MToon's outline is a second material entry drawn with an inverted hull.
     const surface = list.find((m) => m && !/outline/i.test(m.name || '')) || list[0];

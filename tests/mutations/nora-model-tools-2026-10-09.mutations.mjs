@@ -1,0 +1,91 @@
+// Mutation spec for the MetaHuman → VRM tools (scripts/nora-model/) and the two booth changes a
+// realistic model needs. Each mutation breaks one promise tests/nora-model-tools.test.mjs makes.
+// Run from the repo root:
+//   node scripts/mutate.mjs --spec tests/mutations/nora-model-tools-2026-10-09.mutations.mjs --fail-on-skipped
+const CHECK = 'scripts/nora-model/check-vrm.mjs';
+const RULES = 'scripts/nora-model/mh_rules.py';
+const MAPS = 'scripts/nora-model/maps.json';
+const PERF = 'public/newdesign/booth/noraPerformer.mjs';
+const HOST = 'public/newdesign/booth/noraBooth.mjs';
+const STATE = 'public/newdesign/booth/noraBoothState.mjs';
+
+export default {
+  test: 'node --test tests/nora-model-tools.test.mjs',
+  timeoutMs: 120_000,
+  mutations: [
+    // ── the validator ──
+    { name: 'the performer no longer needs a chest', file: CHECK,
+      find: "  'hips', 'spine', 'chest', 'neck', 'head',", replace: "  'hips', 'spine', 'neck', 'head'," },
+    { name: 'two bones may share a node', file: CHECK,
+      find: "    if (used.has(hb.node)) errors.push(`humanoid bones ${used.get(hb.node)} and ${name} share node ${hb.node}`);\n", replace: '' },
+    { name: 'a bind may point one past the shapes', file: CHECK,
+      find: 'bd.index < targets.length', replace: 'bd.index <= targets.length' },
+    { name: 'a zero weight counts as bound', file: CHECK,
+      find: 'bd.weight > 0 && bd.weight <= 1', replace: 'bd.weight >= 0 && bd.weight <= 1' },
+    { name: 'a bind to a node with no mesh counts', file: CHECK,
+      find: "      return !!targets && Number.isInteger(bd.index)", replace: "      return (!!targets || !mesh) && Number.isInteger(bd.index)" },
+    { name: 'a missing performer expression is only a warning', file: CHECK,
+      find: "  for (const e of PERFORMER_EXPRESSIONS) if (!bindOk(preset[e])) errors.push(", replace: "  for (const e of PERFORMER_EXPRESSIONS) if (!bindOk(preset[e])) warnings.push(" },
+    { name: 'a bone look-at without eyes passes', file: CHECK,
+      find: "  else if (la.type === 'bone' && (!bones.leftEye || !bones.rightEye)) errors.push(", replace: "  else if (la.type === 'bone' && !bones.leftEye && !bones.rightEye) errors.push(" },
+    { name: 'the triangle budget is not enforced', file: CHECK,
+      find: '    if (stats.triangles > budget.triangles) errors.push(', replace: '    if (false) errors.push(' },
+    { name: 'the joint budget is not enforced', file: CHECK,
+      find: 'if (s.joints.length > budget.joints) errors.push(', replace: 'if (false) errors.push(' },
+    { name: 'more than 4 influences pass', file: CHECK,
+      find: '      if (p.attributes.JOINTS_1 || p.attributes.WEIGHTS_1) errors.push(', replace: '      if (false) errors.push(' },
+    { name: 'the file size is not enforced', file: CHECK,
+      find: '    if (length > budget.fileBytes) errors.push(', replace: '    if (false) errors.push(' },
+    { name: 'the VP8L width loses a bit', file: CHECK,
+      find: 'return { w: 1 + (n & 0x3fff), h: 1 + ((n >> 14) & 0x3fff) };', replace: 'return { w: 1 + (n & 0x1fff), h: 1 + ((n >> 14) & 0x3fff) };' },
+    { name: 'a glTF 1.0 binary is read', file: CHECK,
+      find: "  if (buf.readUInt32LE(4) !== 2) throw new Error('not a glTF 2.0 GLB');\n", replace: '' },
+    { name: 'the texture budget is not enforced', file: CHECK,
+      find: '    if (maxPx > budget.maxTexturePx) errors.push(', replace: '    if (false) errors.push(' },
+    // ── the maps ──
+    { name: 'two VRM bones map to one UE bone', file: MAPS,
+      find: '"upperChest": "spine_05",', replace: '"upperChest": "spine_03",' },
+    { name: 'the left eye is not mapped', file: MAPS,
+      find: '    "leftEye": "FACIAL_L_Eye",\n', replace: '' },
+    { name: 'a viseme binds a shape ARKit does not have', file: MAPS,
+      find: '"ou": { "jawOpen": 0.15, "mouthFunnel": 0.6, "mouthPucker": 0.5 },', replace: '"ou": { "jawOpen": 0.15, "mouthFunnel": 0.6, "mouthPuckered": 0.5 },' },
+    { name: 'a weight above one', file: MAPS,
+      find: '"oh": { "jawOpen": 0.4, "mouthFunnel": 0.6 },', replace: '"oh": { "jawOpen": 1.4, "mouthFunnel": 0.6 },' },
+    { name: 'more influences allowed', file: MAPS,
+      find: '"influences": 4,', replace: '"influences": 8,' },
+    // ── the pure rules ──
+    { name: 'a kept-whole part is cut', file: RULES,
+      find: "    return [c if w is None else int(min(c, k * w * c)) for c, w in zip(counts, weights)]", replace: "    return [int(min(c, k * (w or 0.4) * c)) for c, w in zip(counts, weights)]" },
+    { name: 'a part may grow', file: RULES,
+      find: "    return [c if w is None else int(min(c, k * w * c)) for c, w in zip(counts, weights)]", replace: "    return [c if w is None else int(k * w * c) for c, w in zip(counts, weights)]" },
+    { name: 'the budget ignores importance', file: RULES,
+      find: '        got = sum(min(c, k * w * c) for c, w in cut)', replace: '        got = sum(min(c, k * c) for c, w in cut)' },
+    { name: 'a folded bone skips to the root', file: RULES,
+      find: '        if n in keep:\n            return n\n        seen.add(n)', replace: '        if n in keep and parents.get(n) is None:\n            return n\n        seen.add(n)' },
+    { name: 'barycentric weights are not clamped', file: RULES,
+      find: '    u, v, w = max(0.0, u), max(0.0, v), max(0.0, w)', replace: '    pass' },
+    { name: 'hair is cut at 0.5', file: RULES,
+      find: "CARD_CUTOFF = {'hair': 0.18, 'brow': 0.1, 'lash': 0.1}", replace: "CARD_CUTOFF = {'hair': 0.5, 'brow': 0.1, 'lash': 0.1}" },
+    { name: 'the cut-off is not put on the exporter\'s 0.5', file: RULES,
+      find: '    a = coverage * (0.5 / max(1e-3, cutoff))', replace: '    a = coverage' },
+    { name: 'eyebrows count as hair', file: RULES,
+      find: "    if 'brow' in n:\n        return CARD_CUTOFF['brow']\n", replace: '' },
+    { name: 'lashes are decimated', file: RULES,
+      find: "KEEP_WHOLE = ('Eyebrows', 'Eyelashes', 'Lash', 'Beard', 'Mustache')", replace: "KEEP_WHOLE = ('Eyebrows', 'Eyelashes', 'Beard', 'Mustache')" },
+    { name: 'outfits weigh like faces', file: RULES,
+      find: 'OUTFIT_WEIGHT = 0.55', replace: 'OUTFIT_WEIGHT = 1.0' },
+    { name: 'the add-on property name keeps capitals', file: RULES,
+      find: "    return ''.join('_' + ch.lower() if ch.isupper() else ch for ch in vrm_bone)", replace: "    return vrm_bone" },
+    { name: 'sRGB is taken as linear', file: RULES,
+      find: '    return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4', replace: '    return c' },
+    // ── the booth ──
+    { name: 'a realistic model is restyled as a cartoon', file: PERF,
+      find: '    if (!list.some((x) => x && x.isMToonMaterial)) return;\n', replace: '' },
+    { name: 'the booth cannot decode meshopt', file: HOST,
+      find: '    loader.setMeshoptDecoder(MeshoptDecoder);\n', replace: '' },
+    { name: 'a hosted model URL is taken as a site path', file: STATE,
+      find: "  if (/^https:\\/\\//i.test(path)) return path;\n", replace: '' },
+    { name: 'a site path ignores the app base', file: STATE,
+      find: "  return (b.endsWith('/') ? b : b + '/') + path.replace(/^\\/+/, '');", replace: "  return '/' + path.replace(/^\\/+/, '');" },
+  ],
+};

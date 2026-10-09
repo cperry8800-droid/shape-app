@@ -71,3 +71,7 @@ next-env.d.ts
 
 # Deploy-time newdesign JSX precompile output (scripts/build-newdesign.mjs)
 /public/newdesign/nd
+
+# the MetaHuman → VRM tools install their own dependencies (scripts/nora-model/README.md)
+/scripts/nora-model/node_modules
+/scripts/nora-model/__pycache__

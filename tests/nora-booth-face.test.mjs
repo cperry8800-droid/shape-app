@@ -420,9 +420,9 @@ test('the placeholder model never takes the full-face close-up, on either page',
   const app = stripComments(readFileSync('mobile-app/src/broadsheet/iosAppBroadsheetRadio.jsx', 'utf8'));
   const web = stripComments(readFileSync('public/newdesign/radio.jsx', 'utf8'));
   assert.match(app, /portrait: NORA_MODEL\.portrait/);
-  assert.match(app, /modelUrl: `\$\{import\.meta\.env\.BASE_URL\}\$\{NORA_MODEL\.path\}`/);
+  assert.match(app, /modelUrl: noraAssetUrl\(NORA_MODEL\.path, import\.meta\.env\.BASE_URL\)/);
   assert.match(web, /portrait: S\.NORA_MODEL\.portrait/);
-  assert.match(web, /modelUrl: "\/" \+ S\.NORA_MODEL\.path/);
+  assert.match(web, /modelUrl: S\.noraAssetUrl\(S\.NORA_MODEL\.path, "\/"\)/);
   for (const src of [app, web]) assert.ok(!/placeholder\.vrm/.test(src), 'a page names the model file itself');
 });
 

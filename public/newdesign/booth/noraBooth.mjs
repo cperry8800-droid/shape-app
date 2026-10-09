@@ -13,6 +13,7 @@
 // see her do is what you hear.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
@@ -141,6 +142,9 @@ export async function createNoraBooth(o) {
 
     // Start the 10.8 MB model download NOW, so it runs while the venue bakes its light below.
     const loader = new GLTFLoader();
+    // A realistic Nora arrives meshopt-compressed (scripts/nora-model/compress.mjs: 52 MB → 4 MB on a
+    // MetaHuman sample); the decoder is a self-contained module, so the placeholder pays nothing.
+    loader.setMeshoptDecoder(MeshoptDecoder);
     loader.register((p) => new VRMLoaderPlugin(p));
     const vrmLoad = new Promise((resolve, reject) => {
       loader.load(modelUrl, resolve, (ev) => {
