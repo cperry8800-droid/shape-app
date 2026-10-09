@@ -117,6 +117,17 @@ test('the website instrument publishes the station’s state on the channel the 
   assert.match(WEB_BARE, /const stationConfigured = radio\.configured === true;/);
 });
 
+test('a reopened website booth starts with no live set, so a failed read cannot keep an old one', () => {
+  // Codex, #2287: the last open's set stayed until a new read succeeded, naming a DJ who had left.
+  const i = WEB_BARE.indexOf('const [liveSet, setLiveSet] = React.useState(null);');
+  assert.ok(i > 0);
+  const eff = WEB_BARE.slice(WEB_BARE.indexOf('React.useEffect(() => {', i), WEB_BARE.indexOf('}, [open]);', i));
+  const reset = eff.indexOf('setLiveSet(null);');
+  assert.ok(reset > 0, 'the live set is not cleared when the booth opens');
+  assert.ok(reset < eff.indexOf('if (!open) return undefined;'), 'the live set is cleared only after the open check');
+  assert.ok(reset < eff.indexOf('db.from("nora_sets")'), 'the live set is cleared only after the read');
+});
+
 test('the station analyser is read only while the stream plays', () => {
   assert.match(APP_BARE, /const an = stationPlaying && window\.ShapeRadioLive\?\.analyser \? window\.ShapeRadioLive\.analyser\(\) : null;/,
     'the app reads (and so wires) the radio graph while nothing plays');

@@ -182,6 +182,10 @@ function RadioNora() {
   // app does: during one Nora steps off the decks and the label names the DJ.
   const [liveSet, setLiveSet] = React.useState(null);
   React.useEffect(() => {
+    // ⚠ A REOPENED BOOTH STARTS WITH NO LIVE SET (Codex, #2287). The last open's set may have
+    // ended since, and a read that fails now would otherwise leave it standing: the old DJ named
+    // on the label and Nora kept off the decks for a set that is over. Not knowing is "no guest".
+    setLiveSet(null);
     if (!open) return undefined;
     const db = window.shapeDb && window.shapeDb.client;
     const lib = window.ShapeSetsLib;

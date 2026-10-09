@@ -12,9 +12,10 @@ const CLUB = 'public/newdesign/booth/club.mjs';
 const APP = 'mobile-app/src/broadsheet/iosAppBroadsheetRadio.jsx';
 const WEB = 'public/newdesign/radio.jsx';
 const INSTR = 'public/newdesign/radioInstrument.jsx';
+const START = 'public/newdesign/booth/exampleStart.mjs';
 
 export default {
-  test: 'node --test tests/nora-booth-state.test.mjs tests/nora-booth-frame.test.mjs tests/nora-booth-keeper.test.mjs tests/nora-booth-mounts.test.mjs tests/radio-instrument-rules.test.mjs',
+  test: 'node --test tests/nora-booth-state.test.mjs tests/nora-booth-frame.test.mjs tests/nora-booth-keeper.test.mjs tests/nora-booth-mounts.test.mjs tests/nora-booth-example-start.test.mjs tests/radio-instrument-rules.test.mjs',
   timeoutMs: 180_000,
   mutations: [
     // ── the label ──
@@ -83,6 +84,25 @@ export default {
       find: '      try { owned.renderer.forceContextLoss(); } catch (e) { /* already gone */ }\n', replace: '' },
     { name: 'setStation forgets the analyser', file: HOST,
       find: '      stationAn = analyser || null;', replace: '      stationAn = stationAn || null;' },
+    // ── the example set's start (Codex, #2287) ──
+    { name: 'a refused resume counts as a start', file: START,
+      find: 'return resumed.then(() => finish(true), () => finish(false));', replace: 'return resumed.then(() => finish(true), () => finish(true));' },
+    { name: 'a start that resolves still suspended counts as running', file: START,
+      find: "if (!ok || my !== gen || ctx.state !== 'running') {", replace: 'if (!ok || my !== gen) {' },
+    { name: 'a cancel does not reach a start still resuming', file: START,
+      find: "if (!ok || my !== gen || ctx.state !== 'running') {", replace: "if (!ok || ctx.state !== 'running') {" },
+    { name: 'an already-running context settles in the same tick, so a same-tick stop is lost', file: START,
+      find: "if (ctx.state === 'running') return Promise.resolve().then(() => finish(true));", replace: "if (ctx.state === 'running') return Promise.resolve(finish(true));" },
+    { name: 'a cancel after the start resolved still leaves the context current', file: START,
+      find: 'isCurrent(ctx) { return !!ctx && !!handed && handed.ctx === ctx && handed.gen === gen; },', replace: 'isCurrent(ctx) { return !!ctx && !!handed && handed.ctx === ctx; },' },
+    { name: 'the booth takes a context without asking whether a stop refused it', file: HOST,
+      find: 'if (disposed || audio || !starter.isCurrent(ctx)) {', replace: 'if (disposed || audio) {' },
+    { name: 'stopExample does not cancel a pending start', file: HOST,
+      find: '      // Reaches a start still resuming as well as a set already playing.\n      starter.cancel();\n', replace: '' },
+    { name: 'a refused resume on return keeps claiming the set', file: HOST,
+      find: 'c.resume().catch(() => { if (actx === c) { clearExample(); emit(true); } });', replace: 'c.resume().catch(() => {});' },
+    { name: 'the website keeps the last open’s live set', file: WEB,
+      find: '    setLiveSet(null);\n    if (!open) return undefined;', replace: '    if (!open) return undefined;' },
     // ── the club ──
     { name: 'the laser palette is indexed with a signed modulo', file: CLUB,
       find: 'palette[posMod(Math.floor(state.bar / 8) + (s > 0 ? 0 : (drop > 0.5 ? 2 : 0)), palette.length)]', replace: 'palette[(Math.floor(state.bar / 8) + (s > 0 ? 0 : (drop > 0.5 ? 2 : 0))) % palette.length]' },

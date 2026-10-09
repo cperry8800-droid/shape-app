@@ -33,6 +33,7 @@ import { NoraDirector } from './noraDirector.mjs';
 import { createTempoTracker } from './tempoBridge.mjs';
 import { createCinematic } from './cinematic.mjs';
 import { createFramePacer, fitFov } from './noraFrame.mjs';
+import { createExampleStarter } from './exampleStart.mjs';
 import { tempoKick } from '../radioTempo.mjs';
 
 // The club's own colour. The venue, the gear and the LED wall are lit and baked in it at creation,
@@ -243,7 +244,7 @@ export async function createNoraBooth(o) {
     const deckFrom = [0, 0];
     let liveDeck = 0;
     let plan = null;
-    let starting = false;
+    const starter = createExampleStarter(() => (typeof window !== 'undefined') && (window.AudioContext || window.webkitAudioContext));
 
     // ── Station (the page's own analyser on the Shape Radio stream) ──────────
     let stationAn = null;
@@ -296,15 +297,15 @@ export async function createNoraBooth(o) {
      * created synchronously here so the browser lets it play.
      */
     function playExample() {
-      if (disposed || audio || starting) return Promise.resolve(false);
-      const AC = (typeof window !== 'undefined') && (window.AudioContext || window.webkitAudioContext);
-      if (!AC) return Promise.resolve(false);
-      starting = true;
-      const ctx = new AC();
-      const resumed = ctx.state === 'running' ? Promise.resolve() : ctx.resume().catch(() => {});
-      return resumed.then(() => {
-        starting = false;
-        if (disposed) { try { ctx.close(); } catch (e) { /* fine */ } return false; }
+      if (disposed || audio || starter.pending) return Promise.resolve(false);
+      // The context is made here, synchronously, inside the tap. It is handed back only once it is
+      // RUNNING: a refused resume, or a stopExample() while it resumes, resolves null and closes it,
+      // so the booth never claims a set nobody can hear (exampleStart.mjs).
+      const started = starter.start();
+      emit(true);
+      return started.then((ctx) => {
+        if (!ctx) { emit(true); return false; }
+        if (disposed || audio || !starter.isCurrent(ctx)) { try { ctx.close(); } catch (e) { /* fine */ } emit(true); return false; }
         actx = ctx;
         audio = createDeckAudio({ ctx: actx, bpm: DEFAULT_BPM });
         loadNext(0);
@@ -324,7 +325,12 @@ export async function createNoraBooth(o) {
         return true;
       });
     }
-    function stopExample() { if (audio || actx) { clearExample(); emit(true); } }
+    function stopExample() {
+      // Reaches a start still resuming as well as a set already playing.
+      starter.cancel();
+      if (audio || actx) clearExample();
+      emit(true);
+    }
     function nextTrack() { if (audio) scheduleMix(barNow()); }
 
     function setStation({ analyser = null, playing = false, guest = false } = {}) {
@@ -490,7 +496,7 @@ export async function createNoraBooth(o) {
       const audible = !!(tr && audio && audio.deckPlaying[liveDeck] && (mixerState.ch[liveDeck + 1].fader || 0) > 0.25);
       return {
         example: !!audio,
-        starting,
+        starting: starter.pending,
         station: stationPlaying && !!stationAn,
         guest: guestOnDecks,
         // A measured number or null, never the example set's declared 124.
@@ -679,7 +685,12 @@ export async function createNoraBooth(o) {
       if (disposed || running) return;
       running = true;
       pacer.reset();
-      if (actx && actx.state === 'suspended') actx.resume().catch(() => {});
+      if (actx && actx.state === 'suspended') {
+        // Resuming after a hidden page or a detached booth can be refused (an iOS audio interruption
+        // wants a new tap). Then the set is not playing, so the booth stops saying it is.
+        const c = actx;
+        c.resume().catch(() => { if (actx === c) { clearExample(); emit(true); } });
+      }
       raf = requestAnimationFrame(frame);
       emit(true);
     }
@@ -697,6 +708,7 @@ export async function createNoraBooth(o) {
       if (disposed) return;
       disposed = true;
       stop();
+      starter.cancel();
       listeners.clear();
       clearExample();
       if (ro) ro.disconnect();
