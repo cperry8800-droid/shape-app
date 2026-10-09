@@ -59,7 +59,7 @@ as $$
          from public.subscriptions s
          join providers p on p.provider_id = s.provider_id and p.provider_role = s.provider_role
          where s.client_id = auth.uid()
-           and s.status not in ('pending', 'incomplete')
+           and s.status not in ('pending', 'incomplete', 'incomplete_expired')
        )
        or exists (
          select 1

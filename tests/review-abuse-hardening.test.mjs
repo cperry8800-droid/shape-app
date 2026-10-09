@@ -117,6 +117,11 @@ test('M2: the contact form carries the bot check, and the auto-reply never repea
   assert.match(page, /<script src="\/supabase\.js\?v=\d+"><\/script>/, 'the page loads the site key and the shared controller');
   assert.match(page, /captchaToken: captchaToken,/, 'the token rides with the submission');
   assert.match(page, /if \(captchaOn && !captchaToken\) \{/, 'a form with the check on does not submit without a token');
+  // Codex, #2288: Siteverify spends the token even when the insert then fails, so a reset only
+  // on success left every retry sending the same spent token.
+  assert.match(page, /function resetCaptcha\(\) \{\n\s+if \(!captchaOn\) return;\n\s+captchaToken = '';\n\s+try \{ window\.ShapeTurnstile\.reset\(captchaWidget\); \}/, 'a reset clears the token and the widget it was issued by');
+  assert.match(page, /\} finally \{\n\s+resetCaptcha\(\);/, 'the widget is reset after every finished attempt, failed ones included');
+  assert.doesNotMatch(page, /window\.turnstile\s*&&\s*window\.turnstile\.reset\(\)/, 'no reset of every widget on the page behind the controller\'s back');
 });
 
 // ── M3 ────────────────────────────────────────────────────────────────────────────────────
@@ -168,7 +173,7 @@ test('M4: coach_review_allowed answers for the caller alone, the trigger refuses
   const sql = read(`supabase-migrations/${M4_FILE}`);
   const slugExpr = "regexp_replace(regexp_replace(lower(t.name), '[^a-z0-9]+', '-', 'g'), '(^-|-$)', '', 'g') = p_slug";
   assert.ok(sql.includes(slugExpr) && sql.includes(slugExpr.replace('t.name', 'n.name')), 'the slug rule is the owner trigger\'s, for both kinds');
-  assert.match(sql, /and s\.status not in \('pending', 'incomplete'\)/, 'a subscription that never paid is not a relationship');
+  assert.match(sql, /and s\.status not in \('pending', 'incomplete', 'incomplete_expired'\)/, 'a subscription that never paid is not a relationship, expired or not (Codex, #2288)');
   assert.match(sql, /and x\.status in \('confirmed', 'completed'\)\n\s+and x\.scheduled_at < now\(\)/, 'a session counts once it happened');
   assert.match(sql, /create trigger coach_reviews_require_relationship\n\s+before insert or update on public\.coach_reviews/);
   assert.match(sql, /if not public\.coach_review_allowed\(new\.coach_slug, new\.coach_kind\) then\n\s+raise exception 'review_requires_relationship' using errcode = '42501';/);

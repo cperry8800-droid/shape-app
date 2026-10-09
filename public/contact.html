@@ -319,11 +319,21 @@
     // Cloudflare Turnstile: the server refuses a submission without a valid token once its
     // secret is set, so the form asks for one first. No site key → nothing renders, nothing sent.
     var captchaToken = '';
+    var captchaWidget = null;
     var captchaOn = !!(window.ShapeTurnstile && window.ShapeTurnstile.enabled());
     if (captchaOn) {
       window.ShapeTurnstile.render(document.getElementById('turnstile-slot'), function (t) { captchaToken = t || ''; }).then(function (id) {
         if (id == null) captchaOn = false; // the Turnstile script never loaded: the server decides
+        else captchaWidget = id;
       });
+    }
+    // A token is single-use: Siteverify spends it whether or not the rest of the submission
+    // succeeds, so after ANY finished attempt the widget is reset and the retry carries a fresh
+    // token. Resetting only on success left a 500 from the insert stuck on "Captcha check failed".
+    function resetCaptcha() {
+      if (!captchaOn) return;
+      captchaToken = '';
+      try { window.ShapeTurnstile.reset(captchaWidget); } catch (e) {}
     }
     var toast = document.getElementById('toast');
     function showToast(msg, isError){
@@ -359,10 +369,10 @@
         if (!res.ok){ showToast(data.error || 'Could not send message. Please try again.', true); return; }
         showToast("Message sent! We'll get back to you within 24 hours.");
         form.reset();
-        if (captchaOn) { captchaToken = ''; try { window.turnstile && window.turnstile.reset(); } catch (e2) {} }
       } catch(err){
         showToast('Network error. Please check your connection and try again.', true);
       } finally {
+        resetCaptcha();
         btn.disabled = false;
         btn.textContent = original;
       }
