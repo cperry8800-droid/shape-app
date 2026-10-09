@@ -16,6 +16,16 @@
 // nothing deeper to withhold and the whole split shows. An exercise list or a
 // menu IS the product, so it shows BS_PREVIEW_FREE_UNITS units and reports the
 // remainder as locked. The sheet never renders a locked unit's text.
+//
+// THE SERVER'S HALF (2026-10-09, the open half of C2): the paywall used to be
+// this module alone, while the public sale-plan functions handed every caller a
+// meal plan's whole `blocks` and `days`. They now hand out what the sheet shows
+// and nothing more (sale_plan_preview_detail, 2026-10-09-sale-plan-preview-menus.sql):
+// `preview: true`, `perDay`, `blocksCount`, each authored day as { dow, count,
+// blocks }, and the first two meals of the first day that has any. The reduced
+// path below reads that shape; bsPreviewReduce is the same rule in JavaScript,
+// kept here as the tests' oracle (the model of a reduced plan must equal the
+// model of the full one), never used by the app itself.
 
 import { bsAssignDayLine, bsAssignExercise, bsAssignMeal, bsAssignWeekLine, bsWeekUnits, bsWeekSpan, bsPlanWeek, BS_DAY_BLOCK_MAX } from './planOutline.mjs';
 
@@ -88,6 +98,94 @@ function mealUnit(t) {
   };
 }
 
+// ── The server-reduced shape ────────────────────────────────────────────────
+const DOW_LABELS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+const DAYS_SCAN = 7;
+const validDow = (v) => typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 6;
+
+// The text a block DELIVERS (planOutline.mjs deliveredTexts, the same coercion):
+// `String(((b && b.text != null) ? b.text : b) || '').trim()`.
+function deliveredText(b) {
+  const raw = (b && b.text != null) ? b.text : b;
+  return String(raw || '').trim();
+}
+
+// bsPlanWeek's selection of authored days: the first DAYS_SCAN entries, an object
+// with a valid dow and an array of blocks, the first entry per dow.
+function authoredDays(detail) {
+  const byDow = new Map();
+  for (const e of (Array.isArray(detail.days) ? detail.days : []).slice(0, DAYS_SCAN)) {
+    if (!e || typeof e !== 'object' || Array.isArray(e)) continue;
+    if (!validDow(e.dow)) continue;
+    if (!Array.isArray(e.blocks)) continue;
+    if (byDow.has(e.dow)) continue;
+    byDow.set(e.dow, e);
+  }
+  return byDow;
+}
+
+/**
+ * What the public sale-plan functions return for a plan's detail: the server's
+ * rule, in JavaScript, for the tests. A meal plan's menus become counts plus the
+ * first two meals of the first day that has any; `builder` goes for every kind;
+ * a program's detail is otherwise untouched. Deep-equal to the SQL function's
+ * output on the same input (checked on a replica; see the migration's guard).
+ */
+export function bsPreviewReduce(kind, detail) {
+  if (!detail || typeof detail !== 'object' || Array.isArray(detail)) return detail;
+  const out = { ...detail };
+  delete out.builder;
+  if (kind !== 'meal_plan') return out;
+  const fallback = Array.isArray(detail.blocks) ? detail.blocks : [];
+  const authored = authoredDays(detail);
+  const resolved = [];
+  for (let dow = 0; dow < 7; dow += 1) {
+    const list = (authored.has(dow) ? authored.get(dow).blocks : fallback).slice(0, BLOCK_SCAN);
+    // Meals by the preview's own rule (blockText); the perDay key by delivery's (bsPlanWeek).
+    const meals = list.filter((b) => blockText(b));
+    resolved.push({ dow, authored: authored.has(dow), count: meals.length, key: list.map(deliveredText).filter(Boolean).join('\u001f'), first2: meals.slice(0, BS_PREVIEW_FREE_UNITS) });
+  }
+  const sample = resolved.find((d) => d.count > 0) || null;
+  const perDay = resolved.slice(1).some((d) => d.key !== resolved[0].key);
+  out.preview = true;
+  out.perDay = perDay;
+  out.blocksCount = fallback.slice(0, BLOCK_SCAN).filter((b) => blockText(b)).length;
+  out.blocks = sample && !sample.authored ? sample.first2 : [];
+  if (Array.isArray(detail.days)) {
+    out.days = resolved.filter((d) => d.authored).map((d) => ({ dow: d.dow, count: d.count, blocks: sample && sample.dow === d.dow ? d.first2 : [] }));
+  }
+  return out;
+}
+
+// The model of a reduced meal plan. Counts come from the server (an authored
+// day's `count`, an inherited day's `blocksCount`), the free rows from the two
+// meals the server kept, and the locked total from what was actually shown, as
+// on the full path. `units` keeps the plan's whole length (the sheet reads
+// `units.length` as the Meals register) with a placeholder per locked meal.
+function reducedMenuPreview(detail, base) {
+  const authored = authoredDays(detail);
+  const countOf = (v) => Math.min(BLOCK_SCAN, Math.max(0, Math.floor(Number(v) || 0)));
+  const defaultCount = countOf(detail.blocksCount);
+  const defaultKept = Array.isArray(detail.blocks) ? detail.blocks.slice(0, BS_PREVIEW_FREE_UNITS) : [];
+  const days = DOW_LABELS.map((label, dow) => (authored.has(dow)
+    ? { label, count: countOf(authored.get(dow).count), kept: authored.get(dow).blocks.slice(0, BS_PREVIEW_FREE_UNITS) }
+    : { label, count: defaultCount, kept: defaultKept }));
+  // A per-day plan's Meals register is the whole week; a uniform week's is one day's menu
+  // (the full path previews a uniform week from the resolved Monday).
+  const perDay = detail.perDay === true;
+  const total = perDay ? days.reduce((n, d) => n + d.count, 0) : days[0].count;
+  if (!total) return { kind: null, weeks: base.weeks, sessionsPerWeek: null, units: [], free: [], locked: 0, note: base.note, media: base.media };
+  const sample = perDay ? days.find((d) => d.count > 0) : days[0];
+  const free = sample.kept.map(blockText).filter(Boolean).map(mealUnit).filter(Boolean).slice(0, BS_PREVIEW_FREE_UNITS);
+  const units = free.concat(Array.from({ length: Math.max(0, total - free.length) }, () => ({ label: '', title: '', kcal: null, locked: true })));
+  const model = { kind: 'menu' };
+  if (perDay) {
+    model.perDay = true;
+    model.days = days.map((d) => ({ label: d.label, count: d.count }));
+  }
+  return { ...model, weeks: base.weeks, sessionsPerWeek: null, units, free, locked: Math.max(0, total - free.length), note: base.note, media: base.media };
+}
+
 export function bsPlanPreview(plan, opts) {
   const isNutri = !!(opts && opts.isNutri);
   const detail = (plan && plan.detail && typeof plan.detail === 'object') ? plan.detail : {};
@@ -101,6 +199,10 @@ export function bsPlanPreview(plan, opts) {
     .map((m) => ({ ...m, url: m.url.slice(0, 2048) }));   // bound the url length too
   const note = clean(detail.note);
   const weeks = statedWeeks(plan && plan.meta, plan && plan.name);
+
+  // A meal plan from the public sale-plan functions carries counts and a sample,
+  // not the menus (see the header). Its model is built from those.
+  if (isNutri && detail.preview === true) return reducedMenuPreview(detail, { weeks, note, media });
 
   // C1a — the per-day week has to be resolved BEFORE the empty check, or a
   // per-day plan whose DEFAULT menu is empty (every day authored individually,
