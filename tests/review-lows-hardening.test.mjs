@@ -341,6 +341,15 @@ test('L6: an account keeps its newest 25 tokens, and a token that changes hands 
   const quiet = await registerRoute({ tables: { push_tokens: [{ token: 'tok-new', user_id: UID, platform: 'ios', updated_at: '2026-09-30T00:00:00.000Z' }] } });
   assert.equal(quiet.infos.length, 0, 'the same account re-registering is not a re-point');
   assert.equal(stmts(quiet.admin.calls, 'push_tokens', 'delete').length, 0, 'nothing to prune under the cap');
+  // Codex, #2289: an account past 225 tokens (possible before the cap existed) is brought down to
+  // 25 in one registration, page by page, not 200 at a time.
+  const many = Array.from({ length: 300 }, (_, i) => ({ token: `old-${i}`, user_id: UID, platform: 'ios', updated_at: `2026-0${1 + Math.floor(i / 100)}-${String(1 + (i % 28)).padStart(2, '0')}T${String(Math.floor((i % 100) / 10))}${i % 10}:00:00.000Z` }));
+  const big = await registerRoute({ tables: { push_tokens: many } });
+  assert.equal(big.status, 200);
+  const prunes = stmts(big.admin.calls, 'push_tokens', 'delete');
+  assert.deepEqual(prunes.map((p) => p.inFilter[1].length), [200, 76], 'two pages: a full one, then the rest');
+  assert.equal(big.admin.tables.push_tokens.filter((x) => x.user_id === UID).length, 25);
+  assert.ok(big.admin.tables.push_tokens.some((x) => x.token === 'tok-new'), 'the newest is kept');
 });
 
 // ── L7 ────────────────────────────────────────────────────────────────────────────────────
@@ -527,6 +536,18 @@ test('L14: the applications inbox is not an admin, and an admin\'s email has to 
     const core = await loadRealModule(join(ROOT, 'src/lib/membership-core.ts'), { typescript: true });
     assert.ok(!core.adminEmails().includes('inbox@example.test'), 'the mirror agrees');
     assert.ok(core.adminEmails().includes('boss@example.test'));
+    // Codex, #2289: the membership verdict (what the AI routes and the edge gate authorize on)
+    // also needs the confirmation, and a caller that passes nothing grants nothing.
+    const db = recorder({ tables: { profiles: [{ id: UID, role: 'client', roles: [], date_of_birth: '1990-01-01', over_18: true, created_at: '2026-01-01T00:00:00Z' }] } }).client;
+    assert.equal((await core.computeMembership(db, UID, 'boss@example.test', { emailConfirmed: true })).isAdmin, true);
+    assert.equal((await core.computeMembership(db, UID, 'boss@example.test', { emailConfirmed: false })).isAdmin, false, 'allow-listed, unconfirmed');
+    assert.equal((await core.computeMembership(db, UID, 'boss@example.test')).isAdmin, false, 'a caller that says nothing grants nothing');
+    assert.equal((await core.computeMembership(db, UID, 'inbox@example.test', { emailConfirmed: true })).isAdmin, false);
+    for (const f of ['src/app/api/ai/generate-plan/route.ts', 'src/app/api/ai/draft-workout/route.ts', 'src/app/api/store/redeem/route.ts', 'src/app/api/store/tier-rewards/route.ts', 'src/app/api/store/checkout/route.ts', 'src/app/api/radio/station/route.ts', 'src/lib/supabase/middleware.ts']) {
+      assert.match(read(f), /computeMembership\([^\n]*, \{ emailConfirmed: !!\w+\.email_confirmed_at \}\)/, `${f} passes the confirmation`);
+    }
+    assert.equal((read('src/app/api/support/chat/route.ts').match(/computeMembership\(actor\.supabase, actor\.user\.id, actor\.user\.email \?\? null, \{ emailConfirmed: !!actor\.user\.email_confirmed_at \}\)/g) ?? []).length, 2, 'both chat call sites');
+    assert.match(read('src/lib/ai/adminLookup.mjs'), /opts\.computeMembership\(db, u\.id, q, \{ emailConfirmed: !!u\.email_confirmed_at \}\)/);
   } finally {
     for (const [k, v] of [['ADMIN_EMAILS', saved.a], ['APPLICATIONS_EMAIL', saved.b]]) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
   }

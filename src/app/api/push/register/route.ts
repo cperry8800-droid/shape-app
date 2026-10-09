@@ -17,6 +17,9 @@ const PLATFORMS = ['ios', 'android', 'web', 'unknown'];
 // L6 (2026-10-08 review): one account registering tokens without end could fill the table and
 // fan every notification out to each of them. An account keeps its newest 25; the rest go.
 const MAX_TOKENS_PER_USER = 25;
+// One prune reads and deletes the overflow in pages of 200, up to 25 pages (5,000 tokens).
+const PRUNE_PAGE = 200;
+const PRUNE_PASSES = 25;
 
 export async function POST(request: Request) {
   const bodyResult = await readJson<Record<string, unknown>>(request, { allowEmpty: true });
@@ -62,23 +65,32 @@ export async function POST(request: Request) {
     .upsert({ user_id: user.id, token, platform, updated_at: new Date().toISOString() }, { onConflict: 'token' });
   if (error) return dbError(error, 'push token register', 500);
   // The cap: everything past the newest MAX_TOKENS_PER_USER is removed. Read newest-first from
-  // position MAX onwards, so the page IS the overflow; a failed prune is logged, never a 500,
-  // because the registration itself succeeded.
-  const { data: overflow, error: overflowErr } = await admin
-    .from('push_tokens')
-    .select('token')
-    .eq('user_id', user.id)
-    .order('updated_at', { ascending: false })
-    .range(MAX_TOKENS_PER_USER, MAX_TOKENS_PER_USER + 199);
-  if (overflowErr) {
-    console.error('[shape-app] push token cap read failed', { user: user.id, error: overflowErr.message });
-  } else if (overflow && overflow.length) {
+  // position MAX onwards, so the page IS the overflow, and go on page by page until one comes
+  // back short: an account that held hundreds of tokens before the cap existed is brought
+  // down to 25 in one registration, not 200 at a time (Codex, #2289). A failed read or prune
+  // is logged, never a 500, because the registration itself succeeded.
+  for (let pass = 0; pass < PRUNE_PASSES; pass += 1) {
+    const { data: overflow, error: overflowErr } = await admin
+      .from('push_tokens')
+      .select('token')
+      .eq('user_id', user.id)
+      .order('updated_at', { ascending: false })
+      .range(MAX_TOKENS_PER_USER, MAX_TOKENS_PER_USER + PRUNE_PAGE - 1);
+    if (overflowErr) {
+      console.error('[shape-app] push token cap read failed', { user: user.id, error: overflowErr.message });
+      break;
+    }
+    if (!overflow || !overflow.length) break;
     const { error: pruneErr } = await admin
       .from('push_tokens')
       .delete()
       .eq('user_id', user.id)
       .in('token', overflow.map((r) => (r as { token: string }).token));
-    if (pruneErr) console.error('[shape-app] push token cap prune failed', { user: user.id, error: pruneErr.message });
+    if (pruneErr) {
+      console.error('[shape-app] push token cap prune failed', { user: user.id, error: pruneErr.message });
+      break;
+    }
+    if (overflow.length < PRUNE_PAGE) break;
   }
   return NextResponse.json({ ok: true });
 }

@@ -253,7 +253,7 @@ export async function updateSession(request: NextRequest) {
         gateClient = bClient;
       }
       if (!gateUser) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
-      const { isMember, isKnownMinor } = await computeMembership(gateClient, gateUser.id, gateUser.email ?? null);
+      const { isMember, isKnownMinor } = await computeMembership(gateClient, gateUser.id, gateUser.email ?? null, { emailConfirmed: !!gateUser.email_confirmed_at });
       // Shape is 18+, no exceptions. Age is derived from `date_of_birth` at READ
       // time (`isMinorFromDob`), with the trigger-written `over_18` only as the
       // fallback for rows carrying no usable date — so a member's birthday cannot

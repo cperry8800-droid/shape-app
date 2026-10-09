@@ -1358,7 +1358,7 @@ export async function POST(request: Request) {
   let isMember = false;
   let membership: Awaited<ReturnType<typeof computeMembership>> | null = null;
   let factsEarly: Promise<{ facts: Record<string, unknown> | null; failed: boolean }> | null = null;
-  if (actor) membership = await computeMembership(actor.supabase, actor.user.id, actor.user.email ?? null).catch(() => null);
+  if (actor) membership = await computeMembership(actor.supabase, actor.user.id, actor.user.email ?? null, { emailConfirmed: !!actor.user.email_confirmed_at }).catch(() => null);
   // An account's count for the day needs only its tier, so it runs beside the reads below. A
   // visitor's waits for the bot check, as it always has.
   const tier = noraTier(!!actor, membership);
@@ -1555,7 +1555,7 @@ export async function GET(request: Request) {
   try {
     const actor = await resolveActor(request).catch(() => null);
     if (actor) {
-      const m = await computeMembership(actor.supabase, actor.user.id, actor.user.email ?? null).catch(() => null);
+      const m = await computeMembership(actor.supabase, actor.user.id, actor.user.email ?? null, { emailConfirmed: !!actor.user.email_confirmed_at }).catch(() => null);
       kind = greetingKind(true, m, [actor.role, ...(actor.roles || [])]);
     }
   } catch {

@@ -62,9 +62,13 @@ export type Membership = {
 export async function computeMembership(
   client: SupabaseClient,
   userId: string,
-  email: string | null
+  email: string | null,
+  // L14 (2026-10-08 review; Codex on #2289): an admin is an allow-listed address Supabase has
+  // CONFIRMED. The caller passes the state off its auth user (`!!user.email_confirmed_at`);
+  // left out, it is false, so a caller that forgets grants nothing rather than everything.
+  opts: { emailConfirmed?: boolean } = {}
 ): Promise<Membership> {
-  const isAdmin = !!email && adminEmails().includes(email.toLowerCase());
+  const isAdmin = !!email && opts.emailConfirmed === true && adminEmails().includes(email.toLowerCase());
   // ⚠ THE PROFILE AND THE SUBSCRIPTION ARE READ TOGETHER. Neither depends on the other, and
   // this runs on every gated API call (the edge gate) and every question to Nora, so one
   // round trip is saved each time. An approved coach or an admin never needs the

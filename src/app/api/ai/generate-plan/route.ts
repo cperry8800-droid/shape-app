@@ -580,7 +580,7 @@ export async function POST(request: Request) {
   // resolver `requireMembership` uses, and it reads BOTH `profiles.role` and the
   // `roles` array against the canonical COACH_ROLES — so a dual-role account and
   // a dietitian both resolve correctly.
-  const gate = await computeMembership(await clientForRequest(request), user.id, user.email ?? null);
+  const gate = await computeMembership(await clientForRequest(request), user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at });
   if (!gate.isCoach && !gate.isAdmin) {
     return NextResponse.json({ error: 'Coach access required.' }, { status: 403 });
   }
