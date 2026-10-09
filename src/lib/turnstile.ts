@@ -23,8 +23,13 @@ export function turnstileEnabled(): boolean {
  *  - Not configured (no secret) → true (no-op; pre-activation).
  *  - Configured + missing token → false (block — the bot case).
  *  - Configured + token present → Cloudflare's verdict.
- *  - Network error reaching Cloudflare → true (fail OPEN, so a Cloudflare blip
- *    can't take down a legit booking; a tokenless bot is already rejected above).
+ *  - Network error reaching Cloudflare → false (fail CLOSED).
+ *
+ * ⚠ FAIL CLOSED, NOT OPEN (M11 of the 2026-10-08 review). This returned true on any error
+ * reaching Cloudflare, so with the check switched on, a token of any shape passed whenever the
+ * verify call failed or timed out; a caller who can make that call slow (or simply retry while
+ * it is) has no check at all. A Cloudflare blip now reads as a failed check, which the forms
+ * already say in one line ("please retry"); the booking is a retry away, the bot is not.
  */
 export async function verifyTurnstile(token: unknown, remoteIp?: string | null): Promise<boolean> {
   const secret = process.env.TURNSTILE_SECRET_KEY;
@@ -36,10 +41,11 @@ export async function verifyTurnstile(token: unknown, remoteIp?: string | null):
     form.set('secret', secret);
     form.set('response', t);
     if (remoteIp) form.set('remoteip', remoteIp);
-    const res = await fetch(VERIFY_URL, { method: 'POST', body: form });
+    const res = await fetch(VERIFY_URL, { method: 'POST', body: form, signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return false;
     const data = (await res.json()) as { success?: boolean };
     return data.success === true;
   } catch {
-    return true;
+    return false;
   }
 }

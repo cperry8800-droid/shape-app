@@ -6,7 +6,7 @@ import { createServerClient } from '@supabase/ssr';
 import { createClient as createBearerClient, type SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse, type NextRequest } from 'next/server';
 import { computeMembership, GATE_STAMP_HEADER, GATE_STAMP_VALUE } from '@/lib/membership-core';
-import { checkRateLimit, jwtSub } from '@/lib/rate-limit';
+import { checkRateLimit } from '@/lib/rate-limit';
 import { applyShapeCookieOptions } from '@/lib/supabase/cookie-options';
 
 type PortalRole = 'client' | 'trainer' | 'nutritionist';
@@ -82,6 +82,18 @@ function portalRoleForPath(pathname: string): PortalRole | null {
   if (/\/newdesign\/Trainer[A-Za-z]+\.html$/.test(pathname)) return 'trainer';
   if (/\/newdesign\/Nutritionist[A-Za-z]+\.html$/.test(pathname)) return 'nutritionist';
   return null;
+}
+
+/** The `sub` of a Bearer token the Auth server's keys vouch for, or null for anything else. */
+async function verifiedSub(client: SupabaseClient, token: string): Promise<string | null> {
+  try {
+    const { data, error } = await client.auth.getClaims(token);
+    if (error || !data) return null;
+    const sub = (data.claims as { sub?: unknown } | undefined)?.sub;
+    return typeof sub === 'string' && sub ? sub : null;
+  } catch {
+    return null;
+  }
 }
 
 function dashboardFor(role: PortalRole): string {
@@ -176,9 +188,18 @@ export async function updateSession(request: NextRequest) {
         if (user?.id) {
           subject = `u:${user.id}`;
         } else {
+          // ⚠ M1 (2026-10-08 review): THE SUBJECT IS A VERIFIED ACCOUNT OR THE ADDRESS, NEVER A
+          // CLAIM THE CALLER TYPED. This used to decode the Bearer token's `sub` without checking
+          // the signature, so a fresh fake sub per request was a fresh 100-a-minute bucket and the
+          // address limit meant nothing on every anonymous route that does work (contact, apply,
+          // the Apple Music token, analytics). getClaims verifies the signature: locally against the
+          // project's signing keys, or through the Auth server for a legacy symmetric key. A token
+          // that does not verify is an anonymous caller, and counts on its address.
           const m = (request.headers.get('authorization') || '').match(/^Bearer\s+(.+)$/i);
-          const sub = m ? jwtSub(m[1]) : null;
-          if (sub) subject = `u:${sub}`;
+          if (m) {
+            const sub = await verifiedSub(supabase as unknown as SupabaseClient, m[1]);
+            if (sub) subject = `u:${sub}`;
+          }
         }
       }
 

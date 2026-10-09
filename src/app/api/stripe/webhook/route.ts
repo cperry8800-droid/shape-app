@@ -11,6 +11,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { createNotification } from '@/lib/notify';
 import { coachCutCents, bpsToRate, parseFeeBpsMeta } from '@/lib/platform-fee';
 import { attributionPair, MARKETPLACE_FEE_BPS } from '@/lib/coach-origin.mjs';
+import { isRetryableDbError } from '@/lib/db-retryable';
 
 export const runtime = 'nodejs';
 
@@ -449,7 +450,14 @@ export async function POST(request: Request) {
               .upsert(purchaseRow, { onConflict: 'stripe_checkout_session_id' }));
           }
           if (purchaseErr) {
-            console.error('[stripe webhook] one_time_purchases upsert failed', { session: session.id, error: purchaseErr.message });
+            console.error('[stripe webhook] one_time_purchases upsert failed', { session: session.id, error: purchaseErr.message, code: purchaseErr.code });
+            // M10 (2026-10-08 review): entitlements are read from this row. A failure that is
+            // about the connection, the server or a lock is answered 503 so Stripe retries the
+            // event (for up to three days); one that will read the same way tomorrow is
+            // acknowledged and logged, as before, so one bad event cannot fail the endpoint.
+            if (isRetryableDbError(purchaseErr)) {
+              return NextResponse.json({ received: false, retry: true, error: 'purchase record not written' }, { status: 503 });
+            }
           } else {
             await consumeReferral(admin, session.metadata?.referral_id, 'purchase');
           }
@@ -571,7 +579,12 @@ export async function POST(request: Request) {
             .upsert(subRow, { onConflict: 'stripe_subscription_id' }));
         }
         if (subErr) {
-          console.error('[stripe webhook] subscriptions upsert failed', { session: session.id, error: subErr.message });
+          console.error('[stripe webhook] subscriptions upsert failed', { session: session.id, error: subErr.message, code: subErr.code });
+          // M10: the same split as the purchase row above; the subscription row is what the
+          // membership gate reads.
+          if (isRetryableDbError(subErr)) {
+            return NextResponse.json({ received: false, retry: true, error: 'subscription record not written' }, { status: 503 });
+          }
         } else {
           await consumeReferral(admin, session.metadata?.referral_id, 'subscription');
         }
@@ -718,15 +731,21 @@ export async function POST(request: Request) {
     }
   } catch (err) {
     // The signature is already verified, so this is a genuine Stripe event —
-    // the failure is in our own processing. Returning 500 here makes Stripe
-    // retry the event for up to ~3 days and flags the endpoint as failing
-    // (the "your webhook is failing" email). A permanently broken event would
-    // retry forever. Acknowledge with 200 and log loudly instead, so one bad
-    // event can't drag the whole endpoint into a failing state.
+    // the failure is in our own processing. Returning 5xx makes Stripe retry
+    // the event for up to ~3 days and flags the endpoint as failing (the "your
+    // webhook is failing" email); a permanently broken event would retry
+    // forever. So the answer depends on the failure (M10, 2026-10-08 review):
+    // a connection, server, lock or timeout failure is 503 and IS retried,
+    // because the next delivery can succeed; anything else is acknowledged
+    // with 200 and logged loudly, as before, so one bad event can't drag the
+    // whole endpoint into a failing state.
     console.error(
       `[shape-app] stripe webhook handler error (event ${event.id}, type ${event.type}):`,
       err
     );
+    if (isRetryableDbError(err)) {
+      return NextResponse.json({ received: false, retry: true, handlerError: true }, { status: 503 });
+    }
     return NextResponse.json({ received: true, handlerError: true }, { status: 200 });
   }
 

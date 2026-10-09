@@ -81,28 +81,45 @@ const ID_RE = /^[0-9a-f-]{36}$/i;
 function secret(): string {
   return process.env.RATE_LIMIT_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 }
-async function mac(id: string): Promise<string> {
+async function mac(signed: string): Promise<string> {
   const enc = new TextEncoder();
   const k = await crypto.subtle.importKey('raw', enc.encode(secret()), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  const sig = new Uint8Array(await crypto.subtle.sign('HMAC', k, enc.encode(`nora-visitor:${id}`)));
+  const sig = new Uint8Array(await crypto.subtle.sign('HMAC', k, enc.encode(`nora-visitor:${signed}`)));
   let hex = '';
   for (const b of sig) hex += b.toString(16).padStart(2, '0');
   return hex;
 }
 
-/** `<id>.<mac>`. With no server secret (a local build) the id rides unsigned. */
-export async function signVisitor(id: string): Promise<string> {
-  return secret() ? `${id}.${await mac(id)}` : id;
+/** How long a visitor's cookie proves its id: the cookie's own Max-Age, checked on the server. */
+export const VISITOR_COOKIE_LIFE_MS = 30 * DAY * 1000;
+
+/**
+ * `<id>.<issuedAt>.<mac>`. With no server secret (a local build) the id rides unsigned.
+ *
+ * ⚠ THE ISSUE TIME IS SIGNED (M11 of the 2026-10-08 review). The value used to be `<id>.<mac>`
+ * with no time in it, so the 30-day life lived only in the browser's Max-Age: a cookie copied
+ * out of a browser proved its id for ever, and a script could keep one visitor id (and its
+ * twenty questions a day) past the bot check indefinitely. readVisitor refuses a value older
+ * than the cookie's own life, and a value from before this change (no time) is simply a new
+ * visitor's first question: one bot check, then a fresh cookie.
+ */
+export async function signVisitor(id: string, issuedAt: number = Date.now()): Promise<string> {
+  const at = Math.floor(issuedAt);
+  return secret() ? `${id}.${at}.${await mac(`${id}.${at}`)}` : `${id}.${at}`;
 }
 
-/** The visitor id a cookie value proves, or null for a missing, malformed or forged one. */
-export async function readVisitor(value: string | null | undefined): Promise<string | null> {
+/** The visitor id a cookie value proves, or null for a missing, malformed, forged or expired one. */
+export async function readVisitor(value: string | null | undefined, now: number = Date.now()): Promise<string | null> {
   if (!value) return null;
-  const [id, sig] = String(value).split('.');
+  const parts = String(value).split('.');
+  const [id, atRaw, sig] = parts;
   if (!id || !ID_RE.test(id)) return null;
-  if (!secret()) return id;
-  if (!sig) return null;
-  const want = await mac(id);
+  if (!/^\d{1,16}$/.test(atRaw ?? '')) return null;
+  const at = Number(atRaw);
+  if (!Number.isFinite(at) || at > now + 5 * 60 * 1000 || now - at > VISITOR_COOKIE_LIFE_MS) return null;
+  if (!secret()) return parts.length === 2 ? id : null;
+  if (parts.length !== 3 || !sig) return null;
+  const want = await mac(`${id}.${at}`);
   if (want.length !== sig.length) return null;
   let diff = 0;
   for (let i = 0; i < want.length; i += 1) diff |= want.charCodeAt(i) ^ sig.charCodeAt(i);
