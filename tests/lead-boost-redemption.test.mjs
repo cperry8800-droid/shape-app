@@ -53,7 +53,10 @@ test('the migration\'s shape: the catalogue carries the length, the debit and th
   }
   const body = SQL.slice(SQL.indexOf('create or replace function public.redeem_lead_boost'), SQL.indexOf('revoke all on function public.redeem_lead_boost'));
   assert.match(body, /if not found or v_kind is distinct from 'lead_boost' or v_days is null then\n\s+raise exception 'unknown_item'/, 'only a lead_boost row with a length is a boost');
-  assert.match(body, /where owner_id = v_uid and \(p_provider_id is null or id = p_provider_id\)\n\s+order by id limit 1;/, 'the caller\'s own provider row, lowest id, or the named one if it is theirs');
+  // Both role branches, counted: a mutation round found that matching ONCE let the trainer branch
+  // hand a coach any trainer row they named while the nutritionist branch still read correctly.
+  assert.equal((body.match(/where owner_id = v_uid and \(p_provider_id is null or id = p_provider_id\)\n\s+order by id limit 1;/g) ?? []).length, 2,
+    'the caller\'s own provider row, lowest id, or the named one if it is theirs, in the trainer AND the nutritionist branch');
   assert.match(body, /pg_advisory_xact_lock\(hashtext\('shape_store_redeem:' \|\| v_uid::text\)\)/, 'redeem_store_item\'s lock, so two redemptions by one member serialize');
   assert.match(body, /if exists \(select 1 from public\.coach_lead_boosts where provider_id = v_provider_id and status = 'active'\) then\n\s+raise exception 'boost_active'/);
   assert.match(body, /if v_balance < v_cost then\n\s+raise exception 'insufficient_points'/);
