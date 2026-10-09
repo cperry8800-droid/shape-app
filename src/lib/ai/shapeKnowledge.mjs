@@ -19,7 +19,7 @@ export const SHAPE_KNOWLEDGE = Object.freeze([
     id: 'membership',
     title: 'What a Shape membership costs and includes',
     tags: ['price', 'cost', 'membership', 'platform fee', '$5', 'five dollars', 'month', 'include', 'subscription', 'join', 'sign up'],
-    body: 'A Shape membership is $5 a month — the Shape platform fee. It covers browsing trainers and nutritionists, messaging your pros, tracking progress, logging meals, listening to Shape Radio ad-free, and the community. Anything bought from an individual coach — a subscription, a plan, a one-off session — is separate and goes to that coach.',
+    body: 'A Shape membership is $5 a month — the Shape platform fee — and it covers the whole app, with or without a coach: building and logging your own workouts, logging meals and tracking macros, Shape Kitchen recipes and guided cooking, Shape Score points to spend in the Store, Shape Radio ad-free, Nora, progress tracking and the community. It also covers browsing trainers and nutritionists and messaging your pros. Anything bought from an individual coach — a subscription, a plan, a one-off session — is separate and goes to that coach.',
     source: 'Pricing page FAQ',
   },
   {
