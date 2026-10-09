@@ -28,6 +28,10 @@ test('the display rate is the shortest typical frame, not the average', () => {
   // Half the frames took two periods to draw: the display is still 60 Hz.
   const mixed = Array.from({ length: 40 }, (_, i) => (i % 2 ? 1000 / 30 : 1000 / 60));
   assert.ok(Math.abs(estimateHz(mixed) - 60) < 0.01, `read ${estimateHz(mixed)}`);
+  // ...and when MOST frames are slow (a booth drawing every second vsync), the median is the slow
+  // one: only the shortest typical frame still says 60 Hz.
+  const mostlySlow = Array.from({ length: 40 }, (_, i) => (i % 3 ? 1000 / 30 : 1000 / 60));
+  assert.ok(Math.abs(estimateHz(mostlySlow) - 60) < 0.01, `read ${estimateHz(mostlySlow)} with two frames in three slow`);
   // Out-of-range gaps (a stall, a hidden tab) are not frames.
   assert.ok(Math.abs(estimateHz([...Array(MIN_SAMPLES).fill(1000 / 120), 500, 0, -4, NaN]) - 120) < 0.01);
 });
@@ -39,6 +43,10 @@ test('the divider lands on an even fraction of the display and never above the t
   assert.equal(dividerFor(120, 30), 4);
   assert.equal(dividerFor(90, 30), 3);
   assert.equal(dividerFor(75, 30), 3, '75 / 2 = 37.5 fps would exceed the target');
+  // Where rounding and the capped divider part: 100 / 3 = 33.3 fps and 75 / 1 = 75 fps both run
+  // above their target, so the divider rounds UP.
+  assert.equal(dividerFor(100, 30), 4, '100 Hz rounded to every 3rd tick runs at 33.3 fps');
+  assert.equal(dividerFor(75, 60), 2, '75 Hz rounded to every tick runs at 75 fps');
   assert.equal(dividerFor(144, 30), 5);
   assert.equal(dividerFor(60, 60), 1);
   assert.equal(dividerFor(120, 60), 2);
