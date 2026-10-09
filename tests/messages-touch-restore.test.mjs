@@ -65,9 +65,12 @@ test('the trigger is recreated as an AFTER INSERT row trigger on public.messages
 test('the backfill writes each conversation its latest message and nothing to a row that already shows it', () => {
   const backfill = SQL.slice(SQL.indexOf('-- ===== Backfill ====='), SQL.indexOf('-- ===== Guard ====='));
   assert.match(backfill, /select distinct on \(conversation_id\) conversation_id, body, created_at\n\s+from public\.messages\n\s+order by conversation_id, created_at desc, id desc/,
-    '"latest" is the greatest created_at, ties broken by id, the same reading the trigger\'s guard uses');
-  assert.match(backfill, /where m\.conversation_id = c\.id\n\s+and \(c\.last_message_at is distinct from m\.created_at\n\s+or c\.last_message is distinct from m\.body\);/,
-    'a row already previewing its latest message is not rewritten, so a re-run moves no updated_at');
+    '"latest" is the greatest created_at; the id only makes the written row deterministic');
+  // Ties (Codex P2 on #2284): two messages can share the latest created_at and the row records
+  // no message id, so a preview showing ANY tied row is correct and is never rewritten.
+  const TIE_AWARE = /and \(c\.last_message_at is distinct from m\.created_at\n\s+or not exists \(\n\s+select 1 from public\.messages x\n\s+where x\.conversation_id = c\.id\n\s+and x\.created_at = m\.created_at\n\s+and x\.body = c\.last_message\)\);/;
+  assert.match(backfill, TIE_AWARE, 'a row already previewing a message at its latest time is not rewritten, so a re-run moves no updated_at');
+  assert.doesNotMatch(backfill, /c\.last_message is distinct from m\.body/, 'the single-row tie rule is back: a re-run would flip a tied preview');
   assert.match(backfill, /updated_at = greatest\(c\.updated_at, m\.created_at\)/, 'updated_at never moves backwards');
   assert.doesNotMatch(backfill, /delete|insert into/, 'the backfill only updates');
 });
@@ -81,7 +84,8 @@ test('the guard asserts the function, its pin, its body, the trigger and the bac
   assert.match(guard, /if v_anon or v_auth then/);
   assert.match(guard, /t\.tgname = 'messages_touch_conversation'/);
   assert.match(guard, /if v_enabled = 'D' then/, 'a disabled trigger is not a restored one');
-  assert.match(guard, /where c\.last_message_at is distinct from m\.created_at\n\s+or c\.last_message is distinct from m\.body;\n\s+if v_stale > 0 then/, 'the backfill\'s claim is measured');
+  assert.match(guard, /select conversation_id, max\(created_at\) as created_at\n\s+from public\.messages\n\s+group by conversation_id/, 'the guard reads the latest time per conversation');
+  assert.match(guard, /where c\.last_message_at is distinct from m\.created_at\n\s+or not exists \(\n\s+select 1 from public\.messages x\n\s+where x\.conversation_id = c\.id\n\s+and x\.created_at = m\.created_at\n\s+and x\.body = c\.last_message\);\n\s+if v_stale > 0 then/, 'the backfill\'s claim is measured, with the same reading of a tie');
   assert.doesNotMatch(guard, /\bexecute\b/, 'no dynamic SQL: the definer model reads the block as inert');
   // Every RAISE takes exactly the arguments its format names (a bare % aborts the file at compile time).
   for (const m of guard.matchAll(/raise exception '((?:[^']|'')*)'((?:,\s*[\w.]+)*)\s*;/g)) {

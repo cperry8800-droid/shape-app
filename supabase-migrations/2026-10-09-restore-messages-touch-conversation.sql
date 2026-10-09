@@ -40,8 +40,11 @@
 --
 -- The function is the 2026-05-02 original with two deliberate changes, both noted at their
 -- sites: pg_temp is pinned, and the touch is skipped for a message older than the one already
--- previewed, so the trigger and the backfill define the preview the same way (the message with
--- the latest created_at).
+-- previewed, so the trigger and the backfill define the preview the same way: a message with the
+-- latest created_at. Two messages CAN share a created_at (an import, a client clock), and the
+-- row has no column for the previewed message's id, so on a tie any of the tied rows is the
+-- preview, in the trigger, in the backfill and in the guard alike; a re-run never rewrites one
+-- tied row to another.
 --
 -- Tested before it was written down here: applied to a local PostgreSQL 16 replica built from
 -- this catalog (the conversation tables, every function body, the triggers, policies and
@@ -72,8 +75,9 @@ begin
   -- ⚠ The `last_message_at <= new.created_at` arm is the second deliberate change. messages.created_at
   -- is a plain column with a default, so an insert can carry an older time (an import, a
   -- client clock); the 2026-05-02 original let any such row overwrite a newer preview. The
-  -- preview is the message with the latest created_at, which is also what the backfill below
-  -- computes, so the two can never disagree.
+  -- preview is a message with the latest created_at, which is also what the backfill below
+  -- computes. `<=`, not `<`: on a tie the later insert takes the preview, and the backfill
+  -- accepts any tied row (see there), so the two never disagree.
   update public.conversations
   set last_message = new.body,
       last_message_at = new.created_at,
@@ -100,9 +104,16 @@ create trigger messages_touch_conversation
 
 -- ===== Backfill =====
 -- Every conversation that has messages gets the preview the trigger would have written: the
--- body and time of its latest message. A row already showing that message is left alone, so a
--- re-run changes nothing and moves no updated_at. A conversation with no messages is untouched.
--- updated_at never moves backwards: it takes the later of its own value and the message time.
+-- body and time of a message with its latest created_at. A row already showing such a message
+-- is left alone, so a re-run changes nothing and moves no updated_at. A conversation with no
+-- messages is untouched. updated_at never moves backwards: it takes the later of its own value
+-- and the message time.
+--
+-- Ties: when several messages share the latest created_at, a row previewing ANY of them is
+-- correct (the trigger wrote whichever arrived last, and nothing records which), so the test
+-- below is "the previewed time is the latest time, and the previewed body belongs to a message
+-- at that time", not "the previewed body is this one row's". The `id desc` in the pick only
+-- makes the row WRITTEN deterministic when a rewrite is needed; it is not a tie rule.
 update public.conversations c
 set last_message = m.body,
     last_message_at = m.created_at,
@@ -114,7 +125,11 @@ from (
 ) m
 where m.conversation_id = c.id
   and (c.last_message_at is distinct from m.created_at
-       or c.last_message is distinct from m.body);
+       or not exists (
+         select 1 from public.messages x
+         where x.conversation_id = c.id
+           and x.created_at = m.created_at
+           and x.body = c.last_message));
 
 -- ===== Guard =====
 -- Asserts the end state rather than trusting the statements above. Compile-tested as a whole:
@@ -169,17 +184,22 @@ begin
     raise exception 'the messages_touch_conversation trigger exists but is disabled';
   end if;
 
-  -- The backfill's claim, measured: no conversation with messages previews anything but its
-  -- latest one. On a database with no messages this counts zero rows and says nothing more.
+  -- The backfill's claim, measured, with the same reading of a tie: no conversation with
+  -- messages previews anything but a message at its latest created_at. On a database with no
+  -- messages this counts zero rows and says nothing more.
   select count(*) into v_stale
   from public.conversations c
   join (
-    select distinct on (conversation_id) conversation_id, body, created_at
+    select conversation_id, max(created_at) as created_at
     from public.messages
-    order by conversation_id, created_at desc, id desc
+    group by conversation_id
   ) m on m.conversation_id = c.id
   where c.last_message_at is distinct from m.created_at
-     or c.last_message is distinct from m.body;
+     or not exists (
+       select 1 from public.messages x
+       where x.conversation_id = c.id
+         and x.created_at = m.created_at
+         and x.body = c.last_message);
   if v_stale > 0 then
     raise exception '% conversation(s) still preview something other than their latest message after the backfill', v_stale;
   end if;
