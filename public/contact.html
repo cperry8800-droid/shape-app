@@ -255,6 +255,7 @@
           <label for="message">Message</label>
           <textarea id="message" placeholder="How can we help?" required></textarea>
         </div>
+        <div id="turnstile-slot" style="margin:16px 0 0;"></div>
         <button type="submit" class="submit">Send message →</button>
       </form>
     </section>
@@ -308,9 +309,22 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- supabase.js carries the Turnstile site key and the shared ShapeTurnstile controller; the
+     widget renders only when a site key is set (M2 of the 2026-10-08 review), as on the
+     consultation and sign-in forms. -->
+<script src="/supabase.js?v=20260923"></script>
 <script>
   (function(){
     var form = document.getElementById('contactForm');
+    // Cloudflare Turnstile: the server refuses a submission without a valid token once its
+    // secret is set, so the form asks for one first. No site key → nothing renders, nothing sent.
+    var captchaToken = '';
+    var captchaOn = !!(window.ShapeTurnstile && window.ShapeTurnstile.enabled());
+    if (captchaOn) {
+      window.ShapeTurnstile.render(document.getElementById('turnstile-slot'), function (t) { captchaToken = t || ''; }).then(function (id) {
+        if (id == null) captchaOn = false; // the Turnstile script never loaded: the server decides
+      });
+    }
     var toast = document.getElementById('toast');
     function showToast(msg, isError){
       toast.textContent = msg;
@@ -324,6 +338,12 @@
       var original = btn.textContent;
       btn.disabled = true;
       btn.textContent = 'Sending…';
+      if (captchaOn && !captchaToken) {
+        showToast('Please complete the captcha to continue.', true);
+        btn.disabled = false;
+        btn.textContent = original;
+        return;
+      }
       var payload = {
         firstName: form.querySelector('#firstName').value,
         lastName:  form.querySelector('#lastName').value,
@@ -331,6 +351,7 @@
         phone:     form.querySelector('#phone').value,
         subject:   form.querySelector('#subject').value,
         message:   form.querySelector('#message').value,
+        captchaToken: captchaToken,
       };
       try {
         var res = await fetch('/api/contact', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
@@ -338,6 +359,7 @@
         if (!res.ok){ showToast(data.error || 'Could not send message. Please try again.', true); return; }
         showToast("Message sent! We'll get back to you within 24 hours.");
         form.reset();
+        if (captchaOn) { captchaToken = ''; try { window.turnstile && window.turnstile.reset(); } catch (e2) {} }
       } catch(err){
         showToast('Network error. Please check your connection and try again.', true);
       } finally {

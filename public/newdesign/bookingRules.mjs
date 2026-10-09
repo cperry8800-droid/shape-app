@@ -285,6 +285,15 @@ const MEMBER_SAYS = Object.freeze({
 const memberNotice = (hours) => `This coach needs at least ${noticeText(hours)} notice. Pick a later time.`;
 
 /**
+ * How many open (requested, still ahead) requests a member may hold with ONE coach. The
+ * database enforces it too (enforce_booking_rules, 2026-10-08-security-review-access-layer.sql,
+ * M3): the routes read it first so the refusal is a clean 409 rather than a trigger error, and
+ * this is the one number both sides quote.
+ */
+export const OPEN_REQUESTS_CAP = 20;
+export const openRequestsMessage = (cap) => `You already have ${cap} open requests with this coach. Wait for a reply before sending more.`;
+
+/**
  * A refusal raised by the database's booking-rules trigger (`booking_rule:<reason>`, SQLSTATE
  * P0001; for `notice` the error's details carry the hours), as { reason, message } in the
  * member's words. Null for any other error, so a caller falls through to its own handling.
@@ -293,9 +302,13 @@ const memberNotice = (hours) => `This coach needs at least ${noticeText(hours)} 
  */
 export function bookingRuleRefusal(error) {
   if (!error || typeof error !== 'object') return null;
-  const m = /^booking_rule:(notice|time_off|buffer|daily_limit)$/.exec(String(error.message ?? '').trim());
+  const m = /^booking_rule:(notice|time_off|buffer|daily_limit|open_requests)$/.exec(String(error.message ?? '').trim());
   if (!m) return null;
   const reason = m[1];
+  if (reason === 'open_requests') {
+    const cap = Number(error.details);
+    return { reason, message: openRequestsMessage(Number.isInteger(cap) && cap > 0 ? cap : OPEN_REQUESTS_CAP) };
+  }
   if (reason !== 'notice') return { reason, message: MEMBER_SAYS[reason] };
   const hours = Number(error.details);
   return { reason, message: Number.isInteger(hours) && hours > 0 ? memberNotice(hours) : 'This coach needs more notice. Pick a later time.' };

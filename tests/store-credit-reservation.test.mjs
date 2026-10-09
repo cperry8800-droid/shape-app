@@ -101,7 +101,8 @@ async function sharedModules() {
   // platform-fee.ts only re-exports ./platform-fee.mjs with types; the routes get the module itself.
   const platformFee = await import(pathToFileURL(join(ROOT, 'src/lib/platform-fee.mjs')).href);
   const coachOrigin = await import(pathToFileURL(join(ROOT, 'src/lib/coach-origin.mjs')).href);
-  shared = { requestUtils, platformFee, coachOrigin };
+  const retryable = await loadRealModule(join(ROOT, 'src/lib/db-retryable.ts'), { typescript: true });
+  shared = { requestUtils, platformFee, coachOrigin, retryable };
   return shared;
 }
 
@@ -218,7 +219,7 @@ test('checkout: when Stripe fails to create the session, the reservation is hand
 });
 
 async function runWebhook(event, { rpc }) {
-  const { platformFee, coachOrigin } = await sharedModules();
+  const { platformFee, coachOrigin, retryable } = await sharedModules();
   const { client: admin, calls } = scriptedClient({ tables: { trainers: [TRAINER], coach_plans: [], one_time_purchases: [] }, rpc });
   const errors = [];
   const origError = console.error;
@@ -235,6 +236,7 @@ async function runWebhook(event, { rpc }) {
         ['@/lib/notify', { createNotification: async () => true }],
         ['@/lib/platform-fee', platformFee],
         ['@/lib/coach-origin.mjs', coachOrigin],
+        ['@/lib/db-retryable', retryable],
       ]),
     });
     process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test';

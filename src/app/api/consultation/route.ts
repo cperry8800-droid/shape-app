@@ -38,7 +38,7 @@ import { verifyTurnstile } from '@/lib/turnstile';
 import { currentUser } from '@/lib/request-auth';
 
 import { instantInZone, normalizeZone } from '@/lib/time';
-import { bookingRuleRefusal, checkBookingRules, isDoubleBookError, offeredInOpenHours, readOpenHours } from '@/lib/session-booking';
+import { bookingRuleRefusal, checkBookingRules, countOpenRequests, isDoubleBookError, offeredInOpenHours, OPEN_REQUESTS_CAP, openRequestsMessage, readOpenHours } from '@/lib/session-booking';
 export const dynamic = 'force-dynamic';
 
 const ADMIN_EMAIL = process.env.APPLICATIONS_EMAIL ?? 'chris.perry@shapecommunity.onmicrosoft.com';
@@ -272,6 +272,16 @@ export async function POST(req: NextRequest) {
   }
 
   // Look up the coach's email via auth.users (owner_id FK).
+  // M3 (2026-10-08 review): a member holds at most OPEN_REQUESTS_CAP open requests with one
+  // coach. enforce_booking_rules refuses the next one at the database too (#2280); reading first
+  // makes the refusal a clean 409 instead of a 500, and writes nothing on a failed read.
+  const open = await countOpenRequests(admin, { clientId: user.id, role: providerRole, providerId: providerIdRaw });
+  if (!open.ok) {
+    return NextResponse.json({ error: "We couldn't check your open requests just now. Please try again." }, { status: 503 });
+  }
+  if (open.count >= OPEN_REQUESTS_CAP) {
+    return NextResponse.json({ error: openRequestsMessage(OPEN_REQUESTS_CAP), code: 'open_requests' }, { status: 409 });
+  }
   let coachEmail: string | null = null;
   if (provider.owner_id) {
     const { data: authUser } = await admin.auth.admin.getUserById(provider.owner_id);

@@ -120,6 +120,22 @@ export async function POST(request: Request) {
   // review instead of inserting a duplicate row that skews the coach's public average.
   // Falls back to a plain insert until the unique-index migration is applied (42P10 =
   // no constraint matching ON CONFLICT).
+  // M4 (2026-10-08 review): a review needs a relationship with the coach, a subscription or a
+  // session that happened. coach_review_allowed (2026-10-09-coach-reviews-require-relationship.sql)
+  // answers for the caller; the trigger on coach_reviews refuses at the database too, so this read
+  // is what makes the refusal a clean 403 rather than a 500. A database without the function yet
+  // refuses every review (loudly) rather than publishing one unchecked.
+  const { data: allowed, error: allowedErr } = await supabase.rpc('coach_review_allowed', { p_slug: slug, p_kind: kind });
+  if (allowedErr) {
+    console.error('coach review relationship check failed:', allowedErr);
+    return NextResponse.json({ error: 'Reviews are unavailable just now. Please try again later.' }, { status: 503 });
+  }
+  if (allowed !== true) {
+    return NextResponse.json(
+      { error: 'You can review a coach once you have subscribed to them or had a session with them.', code: 'relationship_required' },
+      { status: 403 }
+    );
+  }
   const payload: Record<string, unknown> = { coach_slug: slug, coach_kind: kind, user_id: user.id, author_name: authorName, rating, body: text };
   // select('*') (not an explicit column list) so shape() returns the trigger-stamped
   // owner_id in the write response — AND stays migration-safe: naming owner_id explicitly
@@ -132,6 +148,13 @@ export async function POST(request: Request) {
   };
   const { data, error } = await writeReview(payload);
   if (error) {
+    // The trigger's own refusal (a relationship that ended between the check and the write).
+    if (/review_requires_relationship/.test(String(error.message || ''))) {
+      return NextResponse.json(
+        { error: 'You can review a coach once you have subscribed to them or had a session with them.', code: 'relationship_required' },
+        { status: 403 }
+      );
+    }
     console.error('coach review write failed:', error);
     return NextResponse.json({ error: 'Could not save your review.' }, { status: 500 });
   }

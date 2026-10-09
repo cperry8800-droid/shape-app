@@ -16,6 +16,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { sendEmail } from '@/lib/email';
 import { cleanText as clean, isEmail, readJson } from '@/lib/request-utils';
+import { verifyTurnstile } from '@/lib/turnstile';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,6 +44,15 @@ export async function POST(req: NextRequest) {
   }
   if (!isEmail(email)) {
     return NextResponse.json({ error: 'Please enter a valid email.' }, { status: 400 });
+  }
+
+  // M2 (2026-10-08 review): an anonymous, Shape-branded email relay with no bot check. The same
+  // Turnstile gate the consultation form carries: a no-op until TURNSTILE_SECRET_KEY is set, then
+  // a public submission must carry a valid token (public/contact.html renders the widget). The
+  // website is this route's only caller, so there is no app exemption here.
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null;
+  if (!(await verifyTurnstile(body.captchaToken ?? body.turnstileToken, ip))) {
+    return NextResponse.json({ error: 'Captcha check failed — please retry.' }, { status: 400 });
   }
 
   const supabase = await createClient();
@@ -118,23 +128,22 @@ async function sendContactEmails(c: {
     text: adminText,
   }).catch((e) => console.error('[contact] admin notify failed', e));
 
+  // M2 (2026-10-08 review): the auto-reply no longer echoes the message. It went to whatever
+  // address the body named, with up to 5,000 characters of the sender's own text inside a
+  // Shape-branded mail: a free relay for anyone's words to anyone's inbox. The reply says we got
+  // it and names the subject at most; the message itself is only in the team's copy.
+  const subjectLine = c.subject ? ` about "${escapeHtml(c.subject)}"` : '';
   const replyHtml = `
     <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#0a0d0c;">
       <h2 style="margin:0 0 16px;font-size:22px;font-weight:500;">Thanks, ${escapeHtml(c.firstName)}.</h2>
-      <p style="margin:0 0 16px;line-height:1.55;">We got your message and someone from the Shape team will get back to you within 1–2 business days.</p>
-      <p style="margin:0 0 16px;line-height:1.55;">For reference, here's what you sent:</p>
-      <div style="border-left:3px solid #0ac5a8;padding:12px 16px;background:#f7fafa;white-space:pre-wrap;font-size:14px;line-height:1.55;color:#333;">${escapeHtml(c.message)}</div>
+      <p style="margin:0 0 16px;line-height:1.55;">We got your message${subjectLine} and someone from the Shape team will get back to you within 1–2 business days.</p>
       <p style="margin:24px 0 0;color:#666;font-size:13px;">— The Shape team<br/><a href="https://theshapecommunity.com" style="color:#0ac5a8;">theshapecommunity.com</a></p>
     </div>
   `;
   const replyText = [
     `Thanks, ${c.firstName}.`,
     '',
-    'We got your message and someone from the Shape team will get back to you within 1–2 business days.',
-    '',
-    "For reference, here's what you sent:",
-    '',
-    c.message,
+    `We got your message${c.subject ? ` about "${c.subject}"` : ''} and someone from the Shape team will get back to you within 1–2 business days.`,
     '',
     '— The Shape team',
     'https://theshapecommunity.com',

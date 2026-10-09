@@ -10,11 +10,34 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ACTIVE_STATUSES, clashIn, fitsOpenHours, isOfferedStart } from '../../public/newdesign/scheduleRules.mjs';
-import { bookingRuleRefusal, checkSlot } from '../../public/newdesign/bookingRules.mjs';
+import { bookingRuleRefusal, checkSlot, OPEN_REQUESTS_CAP, openRequestsMessage } from '../../public/newdesign/bookingRules.mjs';
 
 // The database's own refusal of a member's request (2026-10-07-booking-rules-enforced.sql), in the
 // member's words: the second of two requests sent together, which both passed checkBookingRules.
-export { bookingRuleRefusal };
+export { bookingRuleRefusal, OPEN_REQUESTS_CAP, openRequestsMessage };
+
+/**
+ * How many open requests (requested, still ahead) the member holds with this coach, read through
+ * the given client (a member's RLS-scoped one reads their own rows; the admin client reads all).
+ * M3 of the 2026-10-08 review: the routes refuse the (cap + 1)th before the insert, so the
+ * refusal is a clean 409 and not the trigger's error. ⚠ A FAILED READ IS `ok: false`, never
+ * "none open": callers answer 503 and write nothing.
+ */
+export async function countOpenRequests(
+  db: Db,
+  args: { clientId: string; role: ProviderRole; providerId: number; nowMs?: number }
+): Promise<{ ok: true; count: number } | { ok: false }> {
+  const { count, error } = await db
+    .from('sessions')
+    .select('id', { count: 'exact', head: true })
+    .eq('client_id', args.clientId)
+    .eq('provider_role', args.role)
+    .eq('provider_id', args.providerId)
+    .eq('status', 'requested')
+    .gt('scheduled_at', new Date(args.nowMs ?? Date.now()).toISOString());
+  if (error) return { ok: false };
+  return { ok: true, count: Number(count ?? 0) };
+}
 import { isMissingRelation } from '@/lib/owned-provider';
 
 // How far before a new booking an existing one can START and still reach into it. No session
@@ -26,6 +49,7 @@ const MINUTE_MS = 60_000;
 export type SessionClash = { id: string; startMs: number; endMs: number; clientName: string | null };
 
 type Db = Pick<SupabaseClient, 'from'>;
+type ProviderRole = 'trainer' | 'nutritionist';
 
 /**
  * The coach's first ACTIVE booking (requested or confirmed) that overlaps

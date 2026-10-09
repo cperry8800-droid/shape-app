@@ -36,7 +36,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { createNotification } from '@/lib/notify';
 import { readJson, dbError } from '@/lib/request-utils';
 import { normalizeZone, wallClockInZone } from '@/lib/time';
-import { bookingRuleRefusal, checkBookingRules, findSessionClash, isDoubleBookError, offeredInOpenHours, readOpenHours } from '@/lib/session-booking';
+import { bookingRuleRefusal, checkBookingRules, countOpenRequests, findSessionClash, isDoubleBookError, offeredInOpenHours, OPEN_REQUESTS_CAP, openRequestsMessage, readOpenHours } from '@/lib/session-booking';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -117,6 +117,15 @@ export async function POST(request: Request) {
 
   // Identity comes from the ACCOUNT, never from the body — the same rule /api/consultation
   // records, and the RLS policy pins client_id = auth.uid() anyway.
+  // M3 (2026-10-08 review): at most OPEN_REQUESTS_CAP open requests with one coach, read through
+  // the member's own client (their rows), before the insert; the trigger refuses at the database too.
+  const open = await countOpenRequests(supabase, { clientId: user.id, role, providerId });
+  if (!open.ok) {
+    return NextResponse.json({ error: "We couldn't check your open requests just now. Please try again.", code: 'unavailable' }, { status: 503 });
+  }
+  if (open.count >= OPEN_REQUESTS_CAP) {
+    return NextResponse.json({ error: openRequestsMessage(OPEN_REQUESTS_CAP), code: 'open_requests' }, { status: 409 });
+  }
   const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
   const clientName = String(meta.full_name ?? '').trim() || String(user.email ?? '').split('@')[0] || 'Shape client';
   const { data: inserted, error } = await supabase

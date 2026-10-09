@@ -78,23 +78,3 @@ export async function checkRateLimit(
     return { allowed: true, remaining: max, resetSeconds: 0, limit: max };
   }
 }
-
-// Best-effort, UNVERIFIED read of a JWT's `sub` claim — used only to bucket
-// rate limits per-user for Bearer (native app) callers, where the proxy has no
-// cookie session. Never used for auth decisions, so skipping signature
-// verification is safe; a forged token still fails at the route itself.
-export function jwtSub(token: string): string | null {
-  try {
-    const part = token.split('.')[1];
-    if (!part) return null;
-    const b64 = part.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(part.length / 4) * 4, '=');
-    const json =
-      typeof atob === 'function'
-        ? atob(b64)
-        : Buffer.from(b64, 'base64').toString('binary');
-    const payload = JSON.parse(json) as { sub?: unknown };
-    return typeof payload.sub === 'string' ? payload.sub : null;
-  } catch {
-    return null;
-  }
-}
