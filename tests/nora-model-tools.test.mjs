@@ -218,8 +218,9 @@ test('texture sizes are read from PNG, JPEG and WebP headers', () => {
   assert.deepEqual(imageSize(jpg), { w: 768, h: 512 });
   const vp8x = Buffer.alloc(40); vp8x.write('RIFF', 0, 'ascii'); vp8x.write('WEBP', 8, 'ascii'); vp8x.write('VP8X', 12, 'ascii'); vp8x.writeUIntLE(1023, 24, 3); vp8x.writeUIntLE(511, 27, 3);
   assert.deepEqual(imageSize(vp8x), { w: 1024, h: 512 });
-  const vp8l = Buffer.alloc(40); vp8l.write('RIFF', 0, 'ascii'); vp8l.write('WEBP', 8, 'ascii'); vp8l.write('VP8L', 12, 'ascii'); vp8l.writeUInt32LE((1023) | (255 << 14), 21);
-  assert.deepEqual(imageSize(vp8l), { w: 1024, h: 256 });
+  // VP8L packs 14 bits per side: a width past 8192 exercises the top bit
+  const vp8l = Buffer.alloc(40); vp8l.write('RIFF', 0, 'ascii'); vp8l.write('WEBP', 8, 'ascii'); vp8l.write('VP8L', 12, 'ascii'); vp8l.writeUInt32LE((11999) | (255 << 14), 21);
+  assert.deepEqual(imageSize(vp8l), { w: 12000, h: 256 });
   assert.equal(imageSize(Buffer.alloc(40)), null);
   // an oversized embedded texture fails the budget
   const j = goodVrm();
