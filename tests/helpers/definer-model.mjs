@@ -178,6 +178,8 @@ export const ORDER_CONSTRAINTS = [
     why: 'pr-wall-units "restates the whole function from 2026-09-10-pr-wall-surface.sql" (its own header) and drops and recreates post_my_pr_to_wall and shape_pr_wall, both of which surface creates' },
   { before: '2026-09-10-pr-wall-units.sql', after: '2026-09-10-pr-wall-prev-race.sql',
     why: 'pr-wall-prev-race calls itself "A FOLLOW-UP FILE, NOT AN EDIT TO `2026-09-10-pr-wall-units.sql`, WHICH IS ALREADY APPLIED", generated from it, and recreates post_my_pr_to_wall with the prev_value fix' },
+  { before: '2026-10-09-store-credit-reservations-and-lead-boost-redemption.sql', after: '2026-10-09-lead-boost-active-key-and-expiry.sql',
+    why: 'lead-boost-active-key-and-expiry calls itself "A FOLLOW-UP FILE, NOT AN EDIT TO THAT ONE, which is already applied", generated from the redemption file\'s function text, and recreates redeem_lead_boost with the expiry and the role in its active check' },
 ];
 
 /**

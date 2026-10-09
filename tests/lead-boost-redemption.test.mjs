@@ -84,21 +84,28 @@ test('findLeadBoostItem maps an id or a client\'s days to one of the three boost
   assert.equal(findLeadBoostItem(undefined, undefined), undefined);
 });
 
-function scriptedClient({ rpc, boosts = [] }) {
+/** eq / in / gt filters are applied, so the fallback's "only the caller's own rows" is a real test. */
+function scriptedClient({ rpc, boosts = [], providers = {} }) {
   const calls = [];
   const from = (table) => {
-    const rows = table === 'coach_lead_boosts' ? boosts : [];
+    const rows = table === 'coach_lead_boosts' ? boosts : (providers[table] ?? []);
+    const filters = [];
     const q = {};
-    for (const m of ['select', 'eq', 'order', 'limit']) q[m] = () => q;
-    q.maybeSingle = async () => ({ data: rows[0] ?? null, error: null });
+    for (const m of ['select', 'order', 'limit']) q[m] = () => q;
+    q.eq = (c, v) => { filters.push((r) => r[c] === v); return q; };
+    q.in = (c, vs) => { filters.push((r) => vs.includes(r[c])); return q; };
+    q.gt = (c, v) => { filters.push((r) => r[c] > v); return q; };
+    const hit = () => rows.filter((r) => filters.every((f) => f(r)));
+    q.maybeSingle = async () => ({ data: hit()[0] ?? null, error: null });
+    q.then = (res, rej) => Promise.resolve({ data: hit(), error: null }).then(res, rej);
     return q;
   };
   return { calls, client: { from, rpc: async (name, args) => { calls.push({ name, args }); return rpc(name, args); } } };
 }
 
-async function post(body, { user = { id: UID }, rpc = async () => ({ data: null, error: null }), boosts } = {}) {
+async function post(body, { user = { id: UID }, rpc = async () => ({ data: null, error: null }), boosts, providers = { trainers: [{ id: 4, owner_id: UID }] } } = {}) {
   const requestUtils = await loadRealModule(join(ROOT, 'src/lib/request-utils.ts'), { typescript: true, registry: new Map([['next/server', nextServer]]) });
-  const { client, calls } = scriptedClient({ rpc, boosts });
+  const { client, calls } = scriptedClient({ rpc, boosts, providers });
   const route = await loadRealModule(join(ROOT, 'src/app/api/lead-boosts/route.ts'), {
     typescript: true,
     registry: new Map([
@@ -157,7 +164,7 @@ test('route: the function\'s refusals read as the store\'s statuses, and nothing
 });
 
 test('route: a boost already active comes back as the active one, marked, as the old route did', async () => {
-  const existing = { id: 'b-0', provider_role: 'trainer', provider_id: 4, starts_at: '2026-10-08T12:00:00Z', ends_at: '2026-10-22T12:00:00Z', status: 'active', source: 'shape_store', duration_days: 14 };
+  const existing = { id: 'b-0', provider_role: 'trainer', provider_id: 4, starts_at: '2026-10-08T12:00:00Z', ends_at: '2999-10-22T12:00:00Z', status: 'active', source: 'shape_store', duration_days: 14 };
   const { status, body } = await post({ role: 'trainer', days: 7 }, { rpc: async () => ({ data: null, error: { message: 'boost_active', code: 'P0001' } }), boosts: [existing] });
   assert.equal(status, 200);
   assert.equal(body.alreadyActive, true);
@@ -165,6 +172,64 @@ test('route: a boost already active comes back as the active one, marked, as the
   assert.equal(body.boost.days, 14, 'the active boost\'s own length, not the one asked for');
   const none = await post({ role: 'trainer', days: 7 }, { rpc: async () => ({ data: null, error: { message: 'boost_active', code: 'P0001' } }), boosts: [] });
   assert.equal(none.status, 409);
+});
+
+// ── The follow-up (Codex on #2285, read after the merge): the active slot is per provider, role
+// included; an elapsed boost expires instead of blocking the next one; the fallback reads only
+// the caller's own rows; the reservation sweep runs on a clock. ──────────────────────────────
+const FOLLOW_UP = '2026-10-09-lead-boost-active-key-and-expiry.sql';
+const SQL2 = fs.readFileSync(join(DIR, FOLLOW_UP), 'utf8');
+
+test('follow-up: the caller\'s elapsed boosts expire under the lock before the check, and the check and the index carry the role', () => {
+  const body = SQL2.slice(SQL2.indexOf('create or replace function public.redeem_lead_boost'), SQL2.indexOf('revoke all on function public.redeem_lead_boost'));
+  assert.match(body, /pg_advisory_xact_lock\(hashtext\('shape_store_redeem:' \|\| v_uid::text\)\);\n(?:\s*--[^\n]*\n)*\s+update public\.coach_lead_boosts\n\s+set status = 'expired'\n\s+where provider_role = p_role and provider_id = v_provider_id and status = 'active' and ends_at <= v_now;/, 'expired first, under the lock');
+  assert.match(body, /if exists \(select 1 from public\.coach_lead_boosts\n\s+where provider_role = p_role and provider_id = v_provider_id and status = 'active'\) then\n\s+raise exception 'boost_active'/);
+  assert.ok(body.indexOf("ends_at <= v_now") < body.indexOf("raise exception 'boost_active'"), 'the expiry comes before the refusal');
+  assert.match(SQL2, /update public\.coach_lead_boosts set status = 'expired' where status = 'active' and ends_at <= now\(\);\n/, 'every elapsed row, once, before the index is rebuilt');
+  assert.match(SQL2, /drop index if exists public\.coach_lead_boosts_active_uniq;\ncreate unique index coach_lead_boosts_active_uniq\n\s+on public\.coach_lead_boosts \(provider_role, provider_id\) where status = 'active';/);
+  // the rest of the function is the merged one, unchanged
+  const prior = SQL.slice(SQL.indexOf('create or replace function public.redeem_lead_boost'), SQL.indexOf('revoke all on function public.redeem_lead_boost'));
+  assert.ok(body.includes(prior.slice(prior.indexOf('  select coalesce(sum(delta), 0)::integer into v_balance'))), 'from the balance read on, byte for byte');
+  assert.match(SQL2, /\nbegin;\nset local lock_timeout = '10s';\n/);
+  assert.match(SQL2, /\$guard\$;\n\ncommit;\n$/);
+  const guard = SQL2.slice(SQL2.indexOf('do $guard$'), SQL2.lastIndexOf('$guard$;'));
+  assert.doesNotMatch(guard, /\bexecute\b/);
+  for (const m of guard.matchAll(/raise exception '((?:[^']|'')*)'((?:,\s*[\w.()':]+)*)\s*;/g)) {
+    const pct = (m[1].match(/%/g) ?? []).length;
+    const args = m[2].trim() ? m[2].split(',').filter((s) => s.trim()).length : 0;
+    assert.equal(pct, args, `RAISE "${m[1].slice(0, 60)}": ${pct} placeholder(s), ${args} argument(s)`);
+  }
+  // the replay reads the follow-up AFTER the file it follows, so the model holds the new body
+  const fn = [...real().fns.values()].find((f) => f.schema === 'public' && f.name === 'redeem_lead_boost');
+  assert.ok(fn && fn.definer && M.pgTempPinned(fn));
+  assert.ok(/ends_at <= v_now/.test(fn.body ?? fn.src ?? JSON.stringify(fn)), 'the model\'s redeem_lead_boost is the follow-up\'s');
+  assert.ok(M.constraintOrders(M.ORDER_CONSTRAINTS, FILE, FOLLOW_UP), 'the replay constraint names the pair');
+});
+
+test('follow-up: on boost_active the route reads back only the caller\'s own, still-running boost', async () => {
+  const refused = async () => ({ data: null, error: { message: 'boost_active', code: 'P0001' } });
+  const mine = { id: 'b-mine', provider_role: 'trainer', provider_id: 4, starts_at: '2026-10-01T12:00:00Z', ends_at: '2999-01-01T00:00:00Z', status: 'active', source: 'shape_store', duration_days: 30 };
+  const theirs = { id: 'b-theirs', provider_role: 'trainer', provider_id: 9, starts_at: '2026-10-09T12:00:00Z', ends_at: '2999-01-01T00:00:00Z', status: 'active', source: 'shape_store', duration_days: 7 };
+  const both = await post({ role: 'trainer', days: 7 }, { rpc: refused, boosts: [theirs, mine] });
+  assert.equal(both.status, 200);
+  assert.equal(both.body.boost.id, 'b-mine', 'the caller\'s row, not the newest active boost of the role');
+  const onlyTheirs = await post({ role: 'trainer', days: 7 }, { rpc: refused, boosts: [theirs] });
+  assert.equal(onlyTheirs.status, 409, 'another coach\'s boost is never handed back');
+  const named = await post({ role: 'trainer', days: 7, providerId: 9 }, { rpc: refused, boosts: [theirs, mine] });
+  assert.equal(named.status, 409, 'a named row the caller does not own reads nothing');
+  const elapsed = await post({ role: 'trainer', days: 7 }, { rpc: refused, boosts: [{ ...mine, ends_at: '2026-01-01T00:00:00Z' }] });
+  assert.equal(elapsed.status, 409, 'an elapsed row is not "the active one"');
+  const nutri = await post({ role: 'nutritionist', days: 7 }, { rpc: refused, boosts: [{ ...mine, provider_role: 'nutritionist', provider_id: 7 }], providers: { nutritionists: [{ id: 7, owner_id: UID }] } });
+  assert.equal(nutri.status, 200, 'the nutritionist table for a nutritionist');
+});
+
+test('follow-up: the stale-reservation sweep runs from the daily cron, best-effort', () => {
+  const cron = fs.readFileSync(join(ROOT, 'src/app/api/cron/score-accountability/route.ts'), 'utf8');
+  assert.match(cron, /await admin\.rpc\('sweep_store_credit_reservations', \{ p_user_id: null, p_older_than: '48 hours' \}\);/);
+  assert.match(cron, /if \(sweepErr\) console\.error\('\[cron\] store credit reservation sweep failed', sweepErr\.message\);/, 'a failed sweep is said, and the run goes on');
+  assert.match(cron, /\{ ok: true, evaluated, penalties, rewards, commitments, swept \}/);
+  const vercel = JSON.parse(fs.readFileSync(join(ROOT, 'vercel.json'), 'utf8'));
+  assert.ok(vercel.crons.some((c) => c.path === '/api/cron/score-accountability'), 'the cron is scheduled');
 });
 
 test('route: the old path is gone', () => {

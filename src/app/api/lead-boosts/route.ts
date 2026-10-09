@@ -107,15 +107,29 @@ export async function POST(request: Request) {
     if (msg.includes('boost_active')) {
       // The provider already has an active boost (a double-submit, a second device, or a race
       // the function lost): nothing was charged. Return the active boost so the redeem reads
-      // as idempotent, as it did before.
-      const { data: existing } = await client
-        .from('coach_lead_boosts')
-        .select('id, provider_role, provider_id, starts_at, ends_at, status, source, duration_days')
-        .eq('provider_role', role)
-        .eq('status', 'active')
-        .order('starts_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      // as idempotent, as it did before. Only the caller's OWN provider rows are read back:
+      // active boosts are publicly readable, and a read by role alone handed the caller the
+      // newest active boost of some other coach, that coach's id and dates with it (Codex, #2285).
+      const { data: owned } = await client
+        .from(role === 'trainer' ? 'trainers' : 'nutritionists')
+        .select('id')
+        .eq('owner_id', user.id);
+      const wanted = Number.isFinite(providerIdRaw) && providerIdRaw > 0 ? Math.floor(providerIdRaw) : null;
+      const ownedIds = (owned ?? [])
+        .map((r) => Number((r as { id?: unknown }).id))
+        .filter((id) => Number.isFinite(id) && id > 0 && (wanted === null || id === wanted));
+      const { data: existing } = ownedIds.length
+        ? await client
+            .from('coach_lead_boosts')
+            .select('id, provider_role, provider_id, starts_at, ends_at, status, source, duration_days')
+            .eq('provider_role', role)
+            .in('provider_id', ownedIds)
+            .eq('status', 'active')
+            .gt('ends_at', new Date().toISOString())
+            .order('starts_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+        : { data: null };
       if (existing) {
         return NextResponse.json({
           boost: {
