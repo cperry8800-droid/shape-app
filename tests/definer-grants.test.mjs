@@ -1123,7 +1123,7 @@ test('the enumeration finds what it should on the real tree', () => {
   const differing = rows.filter((p) => p.differs);
   assert.ok(differing.length >= 14, `${differing.length} differing rows (14 when this was written)`);
   const ordered = differing.filter((p) => M.constraintOrders(M.ORDER_CONSTRAINTS, p.a, p.b));
-  assert.deepEqual([...new Set(ordered.map((p) => p.fn))].sort(), ['award_meal_log(date)', 'get_follow_list(uuid,text)', 'get_follow_stats(uuid)', 'post_my_pr_to_wall(text,numeric,text,integer,uuid)', 'toggle_follow(uuid)']);
+  assert.deepEqual([...new Set(ordered.map((p) => p.fn))].sort(), ['award_meal_log(date)', 'get_follow_list(uuid,text)', 'get_follow_stats(uuid)', 'post_my_pr_to_wall(text,numeric,text,integer,uuid)', 'redeem_lead_boost(text,text,bigint)', 'toggle_follow(uuid)']);
   assert.equal(differing.length - ordered.length, M.REVIEWED_SAME_DAY_PAIRS.length);
   // With no constraint and no ruling the whole differing set is open: the two lists are what closes it.
   assert.equal(M.unresolvedSameDayPairs(rows, [], []).length, differing.length);

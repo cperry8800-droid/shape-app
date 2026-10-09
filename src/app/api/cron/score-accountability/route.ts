@@ -51,6 +51,16 @@ async function run(request: Request) {
   }
   const admin = createAdminClient();
 
+  // Store-credit reservations (H5, #2285) are released by checkout.session.expired, or by this
+  // sweep after 48 hours when that event never arrived. Before this ran on a clock, the only
+  // other caller was the same member's next checkout, so an abandoned reservation stayed
+  // deducted from the wallet for good (Codex, #2285). Best-effort: a failed sweep is logged
+  // and the run goes on.
+  let swept = 0;
+  const { data: sweptCount, error: sweepErr } = await admin.rpc('sweep_store_credit_reservations', { p_user_id: null, p_older_than: '48 hours' });
+  if (sweepErr) console.error('[cron] store credit reservation sweep failed', sweepErr.message);
+  else swept = Number(sweptCount ?? 0) || 0;
+
   // Active members to evaluate (clients carry the obligations; coaches/admins don't).
   const { data: subs, error } = await admin
     .from('platform_subscriptions')
@@ -255,7 +265,7 @@ async function run(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, evaluated, penalties, rewards, commitments });
+  return NextResponse.json({ ok: true, evaluated, penalties, rewards, commitments, swept });
 }
 
 export async function GET(request: Request) {
