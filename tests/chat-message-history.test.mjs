@@ -227,4 +227,9 @@ test('history comes from the route that gets the cap right — not a bulk read',
   assert.match(BLOCK, /last: r\.last_message \|\| "New conversation"/, 'DM previews no longer read the RPC');
   const mig = readFileSync('supabase-migrations/2026-05-02-conversations-messages.sql', 'utf8');
   assert.match(mig, /set last_message = new\.body/, 'nothing maintains `last_message` — the previews are stale');
+  // ⚠ That file was right about the repository and wrong about production, which never had the
+  // trigger (read 2026-10-08); the restore is what production runs, so it must carry the same touch.
+  const restore = readFileSync('supabase-migrations/2026-10-09-restore-messages-touch-conversation.sql', 'utf8');
+  assert.match(restore, /set last_message = new\.body/, 'the restore no longer maintains `last_message`');
+  assert.match(restore, /create trigger messages_touch_conversation\n\s+after insert on public\.messages/, 'the restore no longer recreates the trigger');
 });
