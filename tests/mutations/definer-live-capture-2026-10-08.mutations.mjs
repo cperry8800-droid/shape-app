@@ -46,8 +46,9 @@ export default {
     { name: 'the fixture forgets the one trigger definer no migration creates', file: FIXTURE,
       find: '    "rls_auto_enable",\n',
       replace: '' },
-    { name: 'the fixture forgets that the sale-plan preview file was applied before the capture', file: FIXTURE,
-      find: '    "2026-10-09-sale-plan-preview-menus.sql",\n',
+    // Not the array's last entry: that one has no trailing comma, so an anchor with one never matches.
+    { name: 'the fixture forgets that the restore file was applied before the capture', file: FIXTURE,
+      find: '    "2026-10-09-restore-messages-touch-conversation.sql",\n',
       replace: '' },
     { name: 'the fixture forgets a non-trigger definer the migrations create', file: FIXTURE,
       find: '    "get_health_sources",\n',
