@@ -69,6 +69,29 @@ function isUndefinedColumn(err: { code?: string } | null): boolean {
   return err?.code === '42703' || err?.code === 'PGRST204';
 }
 
+// PostgREST could not match the function by name and arguments: the 5-argument
+// consume_store_credit (2026-10-09) is not there yet, so the 4-argument live one is.
+function isUndefinedFunction(err: { code?: string } | null): boolean {
+  return err?.code === 'PGRST202' || err?.code === '42883';
+}
+
+/**
+ * Debit the credit a completed checkout was discounted by. Converts the reservation the
+ * checkout made (metadata.store_credit_ref) when the database has the 2026-10-09 function;
+ * on a database that still has the 4-argument one, falls back to it, so a deploy that lands
+ * before the migration debits the way the live function always did.
+ */
+async function consumeStoreCredit(
+  admin: ReturnType<typeof createAdminClient>,
+  args: { userId: string; kind: 'session' | 'nutrition'; sessionId: string; cents: number; reservationRef: string | null }
+): Promise<{ taken: number; error: string | null }> {
+  const base = { p_user_id: args.userId, p_kind: args.kind, p_session_id: args.sessionId, p_amount_cents: args.cents };
+  let { data, error } = await admin.rpc('consume_store_credit', { ...base, p_reservation_ref: args.reservationRef });
+  if (error && isUndefinedFunction(error)) ({ data, error } = await admin.rpc('consume_store_credit', base));
+  if (error) return { taken: 0, error: error.message };
+  return { taken: Math.max(0, Math.floor(Number(data ?? 0)) || 0), error: null };
+}
+
 // Gate on that retry: dropping the columns is safe ONLY when the intended values
 // are exactly the columns' DB defaults (marketplace / 1500) — the inserted
 // defaults then equal the intent. Any other combination can only have been
@@ -437,14 +460,22 @@ export async function POST(request: Request) {
           // burn the member's credit with no durable purchase record.
           const creditCents = Number(session.metadata?.store_credit_cents ?? 0);
           const creditKind = session.metadata?.store_credit_kind;
+          // H5 (2026-10-08 review): the checkout RESERVED this credit when it created the
+          // session (metadata.store_credit_ref); consuming converts the reservation into the
+          // checkout debit, so the wallet does not move here. A session created before the
+          // reservation migration carries no ref and takes what the wallet has, as before;
+          // either way the debit is compared with the discount and a shortfall is said.
           if (!purchaseErr && creditCents > 0 && (creditKind === 'session' || creditKind === 'nutrition')) {
-            const { error: creditErr } = await admin.rpc('consume_store_credit', {
-              p_user_id: clientId,
-              p_kind: creditKind,
-              p_session_id: session.id,
-              p_amount_cents: creditCents,
+            const consumed = await consumeStoreCredit(admin, {
+              userId: clientId, kind: creditKind, sessionId: session.id, cents: creditCents,
+              reservationRef: session.metadata?.store_credit_ref || null,
             });
-            if (creditErr) console.warn('[shape-app] store credit consume failed:', creditErr.message);
+            if (consumed.error) console.warn('[shape-app] store credit consume failed:', consumed.error);
+            else if (consumed.taken < creditCents) {
+              console.error('[stripe webhook] store credit shortfall: the member was discounted more than the wallet gave up', {
+                session: session.id, discounted: creditCents, debited: consumed.taken, reservationRef: session.metadata?.store_credit_ref || null,
+              });
+            }
           }
           // The coach is paid (1 − resolved rate) of the GROSS price — 85% on a
           // marketplace sale, 100% on a BYO sale (0% commission). Read the resolved
@@ -562,6 +593,22 @@ export async function POST(request: Request) {
           if (wlErr) {
             console.error('[stripe webhook] waitlist booked-flip (subscription) failed', { clientId, providerId, providerRole, error: wlErr.message });
           }
+        }
+        break;
+      }
+
+      case 'checkout.session.expired': {
+        // H5: the member closed the tab (or never paid) and the 24-hour session died. The credit
+        // the checkout reserved goes back to the wallet; a session with no reservation (no
+        // credit applied, or created before the reservation migration) has nothing to release.
+        // ⚠ Stripe sends this event only when the endpoint subscribes to it (Developers →
+        // Webhooks → the endpoint → events); until it does, reserve_store_credit's own 48-hour
+        // sweep is what returns the credit.
+        const session = event.data.object as Stripe.Checkout.Session;
+        const ref = session.metadata?.store_credit_ref;
+        if (ref) {
+          const { error: releaseErr } = await admin.rpc('release_store_credit_reservation', { p_ref: ref });
+          if (releaseErr) console.error('[stripe webhook] store credit reservation release failed', { session: session.id, ref, error: releaseErr.message });
         }
         break;
       }

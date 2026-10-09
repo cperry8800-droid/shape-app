@@ -23,6 +23,9 @@ export type StoreItem = {
   /** Tier-locked items can't be redeemed (gated above the membership check). */
   locked?: boolean;
   kind?: 'merch' | 'credit' | 'service' | 'lead_boost';
+  /** A Lead Boost's length. The database's `store_catalogue.boost_days` is the authority the
+   *  redemption reads; this copy only maps a client's `days` to the item it means. */
+  boostDays?: 7 | 14 | 30;
 };
 
 const RAW: Array<Omit<StoreItem, 'kind'> & { kind?: StoreItem['kind'] }> = [
@@ -52,10 +55,11 @@ const RAW: Array<Omit<StoreItem, 'kind'> & { kind?: StoreItem['kind'] }> = [
   // A Shape year is $5/mo × 12 = $60 — the credit covers exactly one year.
   { id: 'perk_annual_credit', name: 'Annual membership credit', cat: 'Shape Perks', retail: 60, kind: 'credit', locked: true },
 
-  // Coach Tools (lead boosts have their own activation path, not point-redeemed)
-  { id: 'lead_boost_7', name: 'Lead Boost · 7 days', cat: 'Coach Tools', retail: 79, kind: 'lead_boost' },
-  { id: 'lead_boost_14', name: 'Lead Boost · 14 days', cat: 'Coach Tools', retail: 139, kind: 'lead_boost' },
-  { id: 'lead_boost_30', name: 'Lead Boost · 30 days', cat: 'Coach Tools', retail: 249, kind: 'lead_boost' },
+  // Coach Tools. A Lead Boost is point-redeemed through redeem_lead_boost (POST /api/lead-boosts),
+  // not through redeem_store_item: the redemption also writes the boost row, in one transaction.
+  { id: 'lead_boost_7', name: 'Lead Boost · 7 days', cat: 'Coach Tools', retail: 79, kind: 'lead_boost', boostDays: 7 },
+  { id: 'lead_boost_14', name: 'Lead Boost · 14 days', cat: 'Coach Tools', retail: 139, kind: 'lead_boost', boostDays: 14 },
+  { id: 'lead_boost_30', name: 'Lead Boost · 30 days', cat: 'Coach Tools', retail: 249, kind: 'lead_boost', boostDays: 30 },
 ];
 
 export const STORE_CATALOGUE: StoreItem[] = RAW.map((p) => ({ ...p }));
@@ -84,4 +88,18 @@ export function storeCreditKind(item: StoreItem): 'session' | 'nutrition' | null
 /** Dollar value (in cents) a credit item adds to the wallet. */
 export function storeCreditCents(item: StoreItem): number {
   return storeCreditKind(item) ? Math.round(item.retail * 100) : 0;
+}
+
+/**
+ * The Lead Boost item a request means: by item id, or by the `days` the website and the app
+ * send (7, 14 or 30). Anything else is no item, so a caller can never name a length the
+ * catalogue does not sell. The length the boost actually gets comes from the database row.
+ */
+export function findLeadBoostItem(itemId: unknown, days: unknown): StoreItem | undefined {
+  const boosts = STORE_CATALOGUE.filter((p) => p.kind === 'lead_boost' && p.boostDays);
+  const id = typeof itemId === 'string' ? itemId.trim() : '';
+  if (id) return boosts.find((p) => p.id === id);
+  const n = Number(days);
+  if (!Number.isInteger(n)) return undefined;
+  return boosts.find((p) => p.boostDays === n);
 }

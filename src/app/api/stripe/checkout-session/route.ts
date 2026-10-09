@@ -234,9 +234,15 @@ export async function POST(request: Request) {
   // credit). At least $0.50 always remains payable so the charge is valid.
   let chargeCents = priceCents;
   let storeCreditApplied = 0;
+  let storeCreditRef: string | null = null;
   const storeCreditKind = isSubscription ? null : providerRole === 'trainer' ? 'session' : 'nutrition';
   if (storeCreditKind && priceCents > 50) {
     try {
+      // H5 (2026-10-08 review): a reservation whose `checkout.session.expired` never arrived
+      // would hold this member's credit for good; reserve_store_credit releases this member's
+      // stale ones itself, and this read-side sweep makes the balance read below see them gone
+      // too. Best-effort: on a database without the function the read is simply unswept.
+      await admin.rpc('sweep_store_credit_reservations', { p_user_id: user.id, p_older_than: '48 hours' }).then(() => undefined, () => undefined);
       const { data: wallet } = await admin.rpc('get_store_credit_for', { p_user_id: user.id });
       const available = Number((wallet as Record<string, unknown> | null)?.[storeCreditKind] ?? 0);
       if (Number.isFinite(available) && available > 0) {
@@ -246,12 +252,47 @@ export async function POST(request: Request) {
         // absorb credit from, so store credit does not apply, by the math.
         const maxRedeemable = Math.min(priceCents - 50, maxCreditCents(priceCents, feeRate));
         storeCreditApplied = Math.max(0, Math.min(Math.floor(available), maxRedeemable));
-        chargeCents = priceCents - storeCreditApplied;
       }
+      // ⚠ H5 (2026-10-08 review): THE CREDIT IS RESERVED NOW, NOT MERELY READ. Reading the
+      // balance and lowering the charge let five checkouts opened against one $25 credit each
+      // charge $25 less, with the webhook able to debit only the first; the rest came out of
+      // Shape's fee. reserve_store_credit writes a negative `reservation` row under the member's
+      // wallet lock, so the next checkout sees that credit gone. The webhook converts the
+      // reservation into the checkout debit on completion and releases it on expiry; the
+      // reservation ref rides in the session metadata so the webhook can name it.
+      //
+      // What the wallet did NOT give up is NOT discounted: a short or failed reservation (a
+      // concurrent checkout got there first, or a database without the function yet) charges
+      // the full price less exactly what was reserved, never less what was read.
+      if (storeCreditApplied > 0) {
+        const ref = crypto.randomUUID();
+        const { data: reserved, error: reserveErr } = await admin.rpc('reserve_store_credit', {
+          p_user_id: user.id, p_kind: storeCreditKind, p_ref: ref, p_amount_cents: storeCreditApplied,
+        });
+        const got = reserveErr ? 0 : Math.max(0, Math.min(storeCreditApplied, Math.floor(Number(reserved ?? 0)) || 0));
+        if (reserveErr) console.warn('[shape-app] store credit reservation failed; charging full price:', reserveErr.message);
+        storeCreditApplied = got;
+        storeCreditRef = got > 0 ? ref : null;
+      }
+      chargeCents = priceCents - storeCreditApplied;
     } catch {
       // Wallet read failed — proceed at full price (credit stays in the wallet).
+      storeCreditApplied = 0;
+      storeCreditRef = null;
+      chargeCents = priceCents;
     }
   }
+  // A reservation behind a session Stripe never created must not hold the member's credit
+  // for 48 hours: hand it back the moment the session fails to exist.
+  const releaseReservation = async () => {
+    if (!storeCreditRef) return;
+    const ref = storeCreditRef;
+    storeCreditRef = null;
+    await admin.rpc('release_store_credit_reservation', { p_ref: ref }).then(
+      ({ error }) => { if (error) console.error('[shape-app] store credit reservation release failed', { ref, error: error.message }); },
+      (e: unknown) => console.error('[shape-app] store credit reservation release failed', { ref, error: String(e) })
+    );
+  };
 
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? new URL(request.url).origin;
   const successPath = body.successPath || '/purchase/success';
@@ -296,6 +337,7 @@ export async function POST(request: Request) {
         fee_bps: String(feeBps),
         ...(referralId ? { referral_id: referralId } : {}),
         ...(storeCreditApplied > 0 ? { store_credit_kind: String(storeCreditKind), store_credit_cents: String(storeCreditApplied) } : {}),
+        ...(storeCreditRef ? { store_credit_ref: storeCreditRef } : {}),
         ...(body.item && (body.item as { planId?: unknown }).planId ? { plan_id: String((body.item as { planId?: unknown }).planId) } : {}),
       },
       ...(isSubscription
@@ -333,10 +375,12 @@ export async function POST(request: Request) {
     });
 
     if (!session.url) {
+      await releaseReservation();
       return NextResponse.json({ error: 'Stripe did not return a checkout URL.' }, { status: 500 });
     }
     return NextResponse.json({ url: session.url, creditAppliedCents: storeCreditApplied });
   } catch (err) {
+    await releaseReservation();
     return dbError(err, 'mobile checkout-session', 500, 'Could not start checkout.');
   }
 }

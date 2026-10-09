@@ -88,15 +88,16 @@ test('every capped read keeps the NEWEST rows, or says at the site why it must n
   );
 });
 
-test('the exemptions are the six that were checked, and each is deliberate', () => {
+test('the exemptions are the five that were checked, and each is deliberate', () => {
   // ⚠ NOT AN ALLOWLIST THE GUARD ENFORCES — it enforces the marker. This asserts the
   // marker has not been sprinkled around to quiet the sweep: a sixth one is a decision
-  // somebody has to make, and making it means coming here.
+  // somebody has to make, and making it means coming here. (lead-boosts/route.ts left the
+  // list on 2026-10-09: its ascending provider read moved into redeem_lead_boost, where the
+  // database picks the account's lowest-id provider row.)
   const marked = capped().filter((r) => r.exempt).map((r) => r.where.replace(/:\d+$/, ''));
   assert.deepEqual([...new Set(marked)].sort(), [
     'conversations/[id]/messages/route.ts',
     'cron/prep-reminders/route.ts',
-    'lead-boosts/route.ts',
     'radio/rooms/route.ts',
     'stripe/connect-account/route.ts',
     'trainer/adjust/route.ts',
