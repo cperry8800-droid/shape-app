@@ -95,10 +95,21 @@ test('the guard asserts the function, its pin, its body, the trigger and the bac
   }
 });
 
-test('the records that name the defect name this file, so a re-capture removes them together', () => {
+test('the records: the defect is closed, so the drift entry is gone, the live capture lists the trigger, and the history names this file', () => {
+  // Until the owner ran this file and the catalog was captured again (2026-10-09), KNOWN_MODEL_DRIFT
+  // carried a trigger-model-only entry for the function that named this file as its restore. The
+  // capture that lists the trigger retires the entry, as the entry itself said; what stays is the
+  // capture, and the agreement test's own account of why the 2026-10-08 one disagreed.
   const agreement = fs.readFileSync(join(ROOT, 'tests/definer-live-agreement.test.mjs'), 'utf8');
-  const entry = agreement.slice(agreement.indexOf("name: 'messages_touch_conversation'"), agreement.indexOf('},', agreement.indexOf("name: 'messages_touch_conversation'")));
-  assert.match(entry, new RegExp(FILE.replace(/[.]/g, '\\.')), 'KNOWN_MODEL_DRIFT\'s entry names the restore migration');
+  const drift = agreement.slice(agreement.indexOf('const KNOWN_MODEL_DRIFT = ['), agreement.indexOf('\n];', agreement.indexOf('const KNOWN_MODEL_DRIFT = [')));
+  assert.doesNotMatch(drift, /messages_touch_conversation/, 'the drift entry retired with the re-capture');
+  const fixturePath = agreement.match(/tests\/fixtures\/definer-live-\d{4}-\d{2}-\d{2}\.json/)?.[0];
+  assert.ok(fixturePath, 'the agreement test reads a dated live fixture');
+  const live = JSON.parse(fs.readFileSync(join(ROOT, fixturePath), 'utf8'));
+  assert.ok(live.capturedOn >= '2026-10-09', 'the capture is from the day the restore ran, or later');
+  assert.ok(live.triggerDefiners.includes('messages_touch_conversation'), 'the live catalog lists the restored trigger definer');
+  assert.ok(!live.definersWithoutPgTemp.includes('messages_touch_conversation'), 'and it is pinned');
+  assert.match(agreement, new RegExp(FILE.replace(/[.]/g, '\\.')), 'the agreement test\'s account of the 2026-10-08 disagreement names the restore migration');
   const route = fs.readFileSync(join(ROOT, 'src/app/api/conversations/[id]/messages/route.ts'), 'utf8');
   assert.match(route, /messages_touch_conversation trigger/, 'the premise moved: the route no longer says the trigger maintains the preview');
 });

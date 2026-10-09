@@ -7,6 +7,7 @@
 //   node scripts/mutate.mjs --spec tests/mutations/messages-touch-restore-2026-10-09.mutations.mjs --fail-on-skipped
 const MIG = 'supabase-migrations/2026-10-09-restore-messages-touch-conversation.sql';
 const AGREEMENT = 'tests/definer-live-agreement.test.mjs';
+const FIXTURE = 'tests/fixtures/definer-live-2026-10-09.json';
 const ROUTE = 'src/app/api/conversations/[id]/messages/route.ts';
 
 export default {
@@ -73,9 +74,12 @@ export default {
       find: "\nbegin;\nset local lock_timeout = '10s';\n",
       replace: '\n' },
     // ── the records ──
-    { name: 'the drift entry forgets which migration restores the function', file: AGREEMENT,
-      find: 'The restore is 2026-10-09-restore-messages-touch-conversation.sql (the function with pg_temp pinned, the trigger, a backfill), dated after this capture, so the replay this test runs does not see it; until',
-      replace: 'Until' },
+    { name: 'the live capture forgets the restored trigger definer', file: FIXTURE,
+      find: '    "messages_touch_conversation",\n',
+      replace: '' },
+    { name: 'the agreement test\'s history no longer names which migration restored the function', file: AGREEMENT,
+      find: 'restored by\n// 2026-10-09-restore-messages-touch-conversation.sql and present on this capture',
+      replace: 'restored and present on this capture' },
     { name: 'the route no longer says the trigger maintains the preview', file: ROUTE,
       find: '//        messages_touch_conversation trigger.\n',
       replace: '//        trigger.\n' },

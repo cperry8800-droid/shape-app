@@ -1,6 +1,6 @@
 // The static model against the LIVE catalog, and an honest account of where they differ.
 //
-// tests/fixtures/definer-live-2026-10-08.json is what the production database said on that date
+// tests/fixtures/definer-live-2026-10-09.json is what the production database said on that date
 // (which non-trigger definers anon can execute, which trigger definers exist, and which definers of
 // either kind lack a pg_temp pin); scripts/definer-live-check.sql re-reads it. This test replays the
 // migrations as of the capture and compares, function by function.
@@ -12,16 +12,20 @@
 // stale one (the explanation stopped being true). Drift cannot grow silently, and a fixed one
 // cannot linger as a false comfort.
 //
-// AGREEMENT ON 2026-10-08: all 138 live non-trigger definers are in the model and the model gets
-// anon-executability right for every one (83 anon, 55 not), with the same single unpinned definer
-// (save_workout_session). Of the 12 trigger definers on each side, 11 are the same functions; the two
-// that are not are KNOWN_MODEL_DRIFT's whole content, and one of them is a defect in production, not
-// in the model (read its reason). That is a measurement about 2026-10-08, not a promise: the two
-// move apart the moment someone edits the live database, and this file is where that shows up.
-// The 2026-09-30 capture this one replaced agreed on all 136 non-trigger definers of its day (85
-// anon, 51 not) and could say nothing about trigger definers; a third witness agreed with the model
-// that day too, a throwaway local cluster (not checked in) replaying the 637 function-relevant
-// statements on PostgreSQL 16.13, which gave the same 193 functions, field for field.
+// AGREEMENT ON 2026-10-09: all 143 live non-trigger definers are in the model and the model gets
+// anon-executability right for every one (83 anon, 60 not), with the same single unpinned definer
+// (save_workout_session). The 13 trigger definers in the model are all live and pinned; live has one
+// more, rls_auto_enable, which is KNOWN_MODEL_DRIFT's whole content (read its reason). That is a
+// measurement about 2026-10-09, not a promise: the two move apart the moment someone edits the live
+// database, and this file is where that shows up.
+// The 2026-10-08 capture this one replaced agreed on all 138 non-trigger definers of its day (83
+// anon, 55 not) and found a trigger definer the model had and production lacked,
+// messages_touch_conversation: a defect in production, restored by
+// 2026-10-09-restore-messages-touch-conversation.sql and present on this capture. The 2026-09-30
+// capture before it agreed on all 136 non-trigger definers of its day (85 anon, 51 not) and could
+// say nothing about trigger definers; a third witness agreed with the model that day too, a
+// throwaway local cluster (not checked in) replaying the 637 function-relevant statements on
+// PostgreSQL 16.13, which gave the same 193 functions, field for field.
 //
 // ⚠ BUT THE MODEL HAS NEVER REPRODUCED A LIVE COUNT ON ANY EARLIER DAY. The pg_temp sweep's own
 // header records what production held when it was written (2026-08-09-definer-pg-temp-sweep.sql:21-28),
@@ -37,7 +41,7 @@
 // is consistent with migrations applied out of filename-date order, which is the model's stated
 // blind spot, with functions changed or dropped by hand, or with a recorded count that counted
 // something else; nothing here settles which. The 2026-10-08 comparison found one such case by name
-// (messages_touch_conversation, below). A test below pins both sides of that table (the recorded
+// (messages_touch_conversation, above). A test below pins both sides of that table (the recorded
 // numbers are read out of the sweep's own header), so a number here cannot drift from the code or
 // from the file.
 //
@@ -66,23 +70,19 @@ import { compareToLive, checkDrift, allowListAsOfCapture, modelAsOfCapture, capt
 import { diffLive } from '../scripts/definer-live-diff.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const LIVE = JSON.parse(fs.readFileSync(join(ROOT, 'tests/fixtures/definer-live-2026-10-08.json'), 'utf8'));
+const LIVE = JSON.parse(fs.readFileSync(join(ROOT, 'tests/fixtures/definer-live-2026-10-09.json'), 'utf8'));
 const ALLOW = JSON.parse(fs.readFileSync(join(ROOT, 'tests/fixtures/definer-anon-allowlist.json'), 'utf8'));
 
 // { kind, name, live, model, reason }. Every entry was read before it was allowed (see the header).
 const KNOWN_MODEL_DRIFT = [
   {
     kind: 'trigger-live-only', name: 'rls_auto_enable', live: 'trigger definer', model: 'absent',
-    reason: 'An event-trigger definer (search_path pg_catalog, pg_temp; read live 2026-10-08) that exists in production and in no migration: it was created by hand or by the platform, and nothing in this repo describes it, so the model cannot know it. Named in the pg_temp sweep (2026-08-09-definer-pg-temp-sweep.sql:25) and in 2026-08-12-revoke-anon-write-providers.sql:31. It is pinned, so the pin audit has nothing against it.',
-  },
-  {
-    kind: 'trigger-model-only', name: 'messages_touch_conversation', live: 'absent', model: 'trigger definer',
-    reason: 'A defect in production, found by this comparison on 2026-10-08. 2026-05-02-conversations-messages.sql creates the function and an AFTER INSERT trigger of the same name on public.messages, which writes conversations.last_message, last_message_at and updated_at; no migration drops either. Live, neither exists: pg_proc has no function of that name and public.messages carries one trigger, messages_notify (read 2026-10-08). The app relies on it (src/app/api/conversations/[id]/messages/route.ts says the trigger updates the preview), so in production a sent message never refreshes its conversation\'s preview or its last_message_at ordering. Production held 0 conversations and 0 messages when this was read (2026-10-08), so nothing is stale yet; the first message will be. The restore is 2026-10-09-restore-messages-touch-conversation.sql (the function with pg_temp pinned, the trigger, a backfill), dated after this capture, so the replay this test runs does not see it; until the owner runs it and the catalog is captured again, this entry says the model is right and production is wrong. When a capture lists the trigger, delete this entry.',
+    reason: 'An event-trigger definer (search_path pg_catalog, pg_temp; read live 2026-10-08 and 2026-10-09) that exists in production and in no migration: it was created by hand or by the platform, and nothing in this repo describes it, so the model cannot know it. Named in the pg_temp sweep (2026-08-09-definer-pg-temp-sweep.sql:25) and in 2026-08-12-revoke-anon-write-providers.sql:31. It is pinned, so the pin audit has nothing against it.',
   },
 ];
 
 // The migrations dated STRICTLY BEFORE the capture day, plus the capture-day files the capture
-// records as applied (see the header). A PR that adds a function dated after 2026-10-08 is the
+// records as applied (see the header). A PR that adds a function dated after 2026-10-09 is the
 // grants test's business until the live catalog is captured again (paste scripts/definer-live-check.sql's
 // rows into a new dated fixture, record the capture-day files it saw, and point LIVE at it).
 const MIGRATIONS = join(ROOT, 'supabase-migrations');
@@ -100,14 +100,14 @@ test('the live fixture is a dated, well-formed capture', () => {
   }
   assert.deepEqual(LIVE.anonExecutable.filter((n) => LIVE.notAnonExecutable.includes(n)), [], 'a name cannot be both');
   assert.equal(LIVE.anonExecutable.length, 83);
-  assert.equal(LIVE.notAnonExecutable.length, 55);
-  assert.ok(Array.isArray(LIVE.triggerDefiners) && LIVE.triggerDefiners.length === 12, 'the trigger definers are listed');
+  assert.equal(LIVE.notAnonExecutable.length, 60);
+  assert.ok(Array.isArray(LIVE.triggerDefiners) && LIVE.triggerDefiners.length === 14, 'the trigger definers are listed');
   assert.deepEqual(LIVE.triggerDefiners, [...LIVE.triggerDefiners].sort());
   assert.deepEqual(LIVE.triggerDefiners.filter((n) => LIVE.anonExecutable.includes(n) || LIVE.notAnonExecutable.includes(n)), [], 'a trigger function is not an RPC');
   assert.deepEqual(LIVE.definersWithoutPgTemp, ['save_workout_session']);
   assert.match(LIVE.scope, /triggerDefiners/);
   // The capture-day files it saw: each dated the capture day and present in the tree (modelAsOfCapture
-  // and replayDir refuse anything else), and here all four of them, so nothing is ambiguous.
+  // and replayDir refuse anything else), and here all five of them, so nothing is ambiguous.
   assert.deepEqual(LIVE.captureDayFilesApplied, captureDayFiles(MIGRATIONS, LIVE));
   assert.deepEqual(ambiguousFiles, []);
 });
@@ -119,10 +119,10 @@ test('the model and the live catalog agree, and every disagreement is named', (t
   const drift = cmp.drift.length;
   t.diagnostic(`live ${cmp.liveNames} definers (${LIVE.anonExecutable.length} anon, ${LIVE.notAnonExecutable.length} not) vs model ${cmp.modelNames}: ${cmp.compared} compared, ${cmp.agree} agree (${cmp.agreeAnon} anon, ${cmp.agreeNoAnon} not), ${cmp.triggersCompared} trigger definers on both sides, ${drift} drift (${KNOWN_MODEL_DRIFT.length} known); pin state agrees: ${cmp.pinAgree}`);
   assert.equal(cmp.liveNames, LIVE.anonExecutable.length + LIVE.notAnonExecutable.length);
-  assert.equal(cmp.agree, 138, 'every non-trigger definer agrees');
-  assert.equal(cmp.triggersCompared, 11);
+  assert.equal(cmp.agree, 143, 'every non-trigger definer agrees');
+  assert.equal(cmp.triggersCompared, 13);
   assert.equal(cmp.pinAgree, true);
-  assert.deepEqual(cmp.drift.map((d) => d.kind).sort(), ['trigger-live-only', 'trigger-model-only'], 'the only drift is the two trigger definers the header names');
+  assert.deepEqual(cmp.drift.map((d) => d.kind).sort(), ['trigger-live-only'], 'the only drift is the event-trigger definer the header names');
 });
 
 test('the comparison window: files dated after the capture day, and capture-day files the capture does not record, are outside the replay', (t) => {
@@ -190,7 +190,7 @@ test('the live anon-executable set is fully accounted for by the allow-list', ()
   assert.deepEqual(d.stalePins, []);
   assert.equal(d.anonExecutable, 83);
   assert.equal(d.allowListed + d.registered, 83);
-  assert.equal(d.triggerDefiners, 12);
+  assert.equal(d.triggerDefiners, 14);
 });
 
 // Helpers for the tests that drive the comparison on a small model with a hand-made "live".
@@ -256,16 +256,16 @@ test('scope: a name live lists as unpinned that the model has never heard of rea
   assert.deepEqual(c.drift.map((d) => `${d.kind} ${d.name} live=${d.live} model=${d.model}`), ['pin-mismatch rls_like_event_trigger live=unpinned model=absent']);
 });
 
-test('the trigger definers: 12 in the model and 12 live, 11 the same, all pinned on both sides, and the two that differ are named', () => {
+test('the trigger definers: 13 in the model and 14 live, the 13 the same, all pinned on both sides, and the one live alone is named', () => {
   const triggers = [...model.fns.values()].filter((f) => f.schema === 'public' && f.definer && f.trigger).map((f) => f.name).sort();
-  assert.equal(triggers.length, 12);
+  assert.equal(triggers.length, 13);
   assert.deepEqual([...model.fns.values()].filter((f) => f.schema === 'public' && f.definer && f.trigger && !M.pgTempPinned(f)), []);
   const live = new Set(LIVE.triggerDefiners);
   assert.deepEqual(LIVE.triggerDefiners.filter((n) => !triggers.includes(n)), ['rls_auto_enable']);
-  assert.deepEqual(triggers.filter((n) => !live.has(n)), ['messages_touch_conversation']);
+  assert.deepEqual(triggers.filter((n) => !live.has(n)), [], 'every trigger definer the model has is live (messages_touch_conversation was missing on 2026-10-08 and is restored)');
   assert.deepEqual(LIVE.triggerDefiners.filter((n) => LIVE.definersWithoutPgTemp.includes(n)), [], 'every live trigger definer is pinned');
   const known = KNOWN_MODEL_DRIFT.map((k) => `${k.kind} ${k.name}`).sort();
-  assert.deepEqual(known, ['trigger-live-only rls_auto_enable', 'trigger-model-only messages_touch_conversation']);
+  assert.deepEqual(known, ['trigger-live-only rls_auto_enable']);
 });
 
 test('scope: trigger definers are compared by name when the capture lists them, and not at all when it does not', () => {
