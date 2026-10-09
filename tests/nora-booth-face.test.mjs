@@ -236,8 +236,10 @@ test('breaths vary in depth and stay bounded', () => {
     if (v < prev && rising) peaks.push(prev);
     rising = v > prev; prev = v;
   }
-  assert.ok(peaks.length > 10);
-  assert.ok(Math.max(...peaks) - Math.min(...peaks) > 0.1, 'every breath was the same depth');
+  // the first "peak" is only where the run started, part way through a breath
+  const full = peaks.slice(1);
+  assert.ok(full.length > 10);
+  assert.ok(Math.max(...full) - Math.min(...full) > 0.1, 'every breath was the same depth');
 });
 
 // ── Weight ──────────────────────────────────────────────────────────────────
