@@ -80,6 +80,30 @@ def card_cutoff(kind, name):
     return CARD_CUTOFF['hair']
 
 
+def coverage_candidates(alpha, stem, declared_channel):
+    """Where a card's coverage may be, in order, as (relative path, channel). A pipeline export names
+    it two ways: `textures.alpha` (a path, sometimes a bare legacy name with no folder or extension)
+    and `alpha_stem` (the CardsAtlas_Attribute file in textures/). ⚠ Measured on a 5.6 export: the
+    hair's `textures.alpha` was "Hair_S_Coil_RootUVSeedCoverage", a file the folder did not have,
+    while its stem named the atlas it did. A legacy RootUVSeedCoverage file keeps coverage in ALPHA
+    (R is root-to-tip); the CardsAtlas_Attribute keeps it in R."""
+    out = []
+    def add(path, ch):
+        if path and (path, ch) not in out:
+            out.append((path, ch))
+    def channel_for(path):
+        return 'a' if 'rootuvseedcoverage' in path.lower() else declared_channel
+    for p in ([alpha] if alpha else []):
+        for v in (p, p + '.png', 'textures/' + p, 'textures/' + p + '.png'):
+            if v.lower().endswith('.png.png'):
+                continue
+            add(v, channel_for(v))
+    if stem:
+        for v in ('textures/' + stem + '.png', stem + '.png'):
+            add(v, channel_for(v))
+    return out
+
+
 def card_alpha(coverage, cutoff):
     """The alpha written for a coverage value: the exporter's MASK test is at 0.5 (a ROUND node), so
     coverage is scaled to put `cutoff` exactly there."""
@@ -90,21 +114,29 @@ def card_alpha(coverage, cutoff):
 # How much each part of her is worth in triangles: the face is what a close-up holds; the body is
 # mostly under the clothes; hair cards lose their silhouette fast. Brow, lash and facial-hair cards
 # are never cut.
-IMPORTANCE = (('FaceMesh', 1.0), ('Hair', 0.75), ('Outfit', 0.55), ('BodyMesh', 0.4))
-KEEP_WHOLE = ('Eyebrows', 'Eyelashes', 'Lash', 'Beard', 'Mustache')
-OUTFIT_WEIGHT = 0.55
+# ⚠ BY ROLE, NOT BY NAME. A part's role comes from the skeleton that drives it (mh_to_vrm.py): the
+# 5.7 pipeline names the body "SKM_<id>_BodyMesh" and the outfit "<id>_Outfits", the older 5.6 one
+# "f_med_nrw_body_LOD0" and one mesh per garment, and names-only would have weighed a 5.6 body like
+# a face.
+ROLE_WEIGHT = {'face': 1.0, 'hair': 0.75, 'outfit': 0.55, 'body': 0.4}
+KEEP_WHOLE = ('eyebrows', 'eyelashes', 'lash', 'beard', 'mustache')
 DEFAULT_WEIGHT = 0.6
 
 
-def importance(name, is_outfit):
-    if any(k in name for k in KEEP_WHOLE):
+def importance(role, name):
+    n = (name or '').lower()
+    if any(k in n for k in KEEP_WHOLE):
         return None
-    if is_outfit:
-        return OUTFIT_WEIGHT
-    for k, w in IMPORTANCE:
-        if k in name:
-            return w
-    return DEFAULT_WEIGHT
+    if role in (None, 'cards') and 'hair' in n:
+        return ROLE_WEIGHT['hair']
+    return ROLE_WEIGHT.get(role, DEFAULT_WEIGHT)
+
+
+def is_dropped_material(name, fragments):
+    """Whether a material's faces are deleted: any fragment in its name, case-insensitively (the 5.7
+    pipeline writes MI_Face_EyeShell, the 5.6 one ada_facemesh_eyeshell_shader_shader)."""
+    n = (name or '').lower()
+    return any(f.lower() in n for f in fragments)
 
 
 def vrm_attr(vrm_bone):

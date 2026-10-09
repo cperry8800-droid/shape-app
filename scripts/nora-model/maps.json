@@ -64,8 +64,8 @@
   "_keepComment": "Bones kept besides the humanoid ones: the chain links between them, so the spine and neck still bend through every joint. Every other bone (the 800-odd face-rig bones, twist and corrective helpers, finger-pad and metacarpal bones, toes past the ball) is removed and its skin weights move to its nearest kept ancestor. The face moves through its ARKit shapes instead.",
   "keepExtra": ["root", "spine_02", "spine_04", "neck_02"],
 
-  "_dropMaterialsComment": "Face geometry that does not ship: M_Hide marks faces the clothes cover; the eye shell and lacrimal film are transparent overlays three.js draws as a grey film over the eye (metahuman-to-glb issue #19).",
-  "dropMaterials": ["M_Hide", "MI_Face_EyeShell", "MI_Face_LacrimalFluid"],
+  "_dropMaterialsComment": "Face geometry that does not ship, matched as a case-insensitive fragment of the material name: M_Hide marks faces the clothes cover; the eye shell, lacrimal film, saliva and eye-edge are transparent overlays three.js draws as a grey film (metahuman-to-glb issue #19). The 5.7 pipeline names them MI_Face_EyeShell etc., the 5.6 one ada_facemesh_eyeshell_shader_shader etc.",
+  "dropMaterials": ["M_Hide", "EyeShell", "LacrimalFluid", "saliva", "eyeEdge"],
 
   "_expressionsComment": "VRM 1.0 preset expressions as weighted sums of ARKit shapes. Every bind is applied to every mesh that has a shape of that name (the face and the eyebrow cards both carry them). Visemes follow the usual ARKit-to-viseme blends; the weights are a starting point to tune by eye against the reference render.",
   "expressions": {

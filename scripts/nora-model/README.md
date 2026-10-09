@@ -25,7 +25,7 @@ The development sample was a pipeline export: **168k triangles, 875 bones across
    - **Hair and eyebrow cards bound to the head.** The pipeline pins them to the skeleton object, so they would not follow her head.
    - **Hidden and overlay geometry dropped** (`maps.json` `dropMaterials`).
    - **Card transparency baked.** The GLB's card textures carry no alpha; the coverage is in `textures/`. Without it, a sample's eyebrows rendered as black blocks. The cut-offs are low because coverage is soft (`mh_rules.py` `CARD_CUTOFF`).
-   - **Outfit tinted** (`--outfit`). The pipeline loses the clothing colour, and a sample's shirt came out white and glowing.
+   - **Outfit coloured** (`--outfit`): one flat colour replaces the clothing colour, keeping the fabric normal maps. The pipeline gets the clothing colour wrong in both its versions: white in 5.7, and in 5.6 a red/green mask its own viewer recolours.
    - **Triangles cut by part** (`--tris`). The shapes carry across, and the lips, lids, eyes, teeth, lashes and hands are protected from the cut.
    - **VRM data written:** the humanoid map and ARKit-to-expression binds from `maps.json`, the eye-bone look-at (computed in world space, with real eye ranges), and a meta naming the MetaHuman licence. It exports VRM 1.0, and the add-on bakes the T-pose.
 3. **`compress.mjs`** drops the shapes' normals, stores the shapes sparse, quantises the geometry, compresses it with meshopt and turns the textures into WebP. On the sample this took 52 MB down to 4 MB. The VRM extensions are passed through unchanged (`gltf.mjs`), and no step touches the node or morph-target order they index.

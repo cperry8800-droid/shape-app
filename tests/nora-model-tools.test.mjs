@@ -82,9 +82,15 @@ test('the triangle budget is shared by importance, nothing grows, and a kept-who
   assert.deepEqual(py(`R.part_budgets([100], [None], 10)`), [100]);
 });
 
-test('importance: brows and lashes are never cut, outfits and bodies give up the most', () => {
-  const r = py(`[R.importance('Eyebrows_M_Wide_CardsMesh', False), R.importance('SKM_bo_FaceMesh.001', False), R.importance('bo_Outfits.001', True), R.importance('SKM_bo_BodyMesh.001', False), R.importance('Hair_S_Fringe_CardsMesh', False), R.importance('SKM_x_FaceMesh_LashMat', False)]`);
-  assert.deepEqual(r, [null, 1.0, 0.55, 0.4, 0.75, null]);
+test('importance comes from the part\'s role: brows and lashes are never cut, outfits and bodies give up the most', () => {
+  const r = py(`[R.importance('cards', 'Eyebrows_M_Wide_CardsMesh'), R.importance('face', 'SKM_bo_FaceMesh.001'), R.importance('outfit', 'bo_Outfits.001'), R.importance('body', 'SKM_bo_BodyMesh.001'), R.importance('cards', 'Hair_S_Fringe_CardsMesh'), R.importance('face', 'SKM_x_FaceMesh_LashMat'), R.importance('body', 'f_med_nrw_body_LOD0'), R.importance('outfit', 'f_med_nrw_top_shirt_nrm_Cinematic_LOD0'), R.importance('cards', 'eyebrows_m_thin_cardsmesh')]`);
+  // the older pipeline's names: a body is still a body, a garment still an outfit
+  assert.deepEqual(r, [null, 1.0, 0.55, 0.4, 0.75, null, 0.4, 0.55, null]);
+});
+
+test('dropped materials match a fragment of the name in either pipeline\'s spelling', () => {
+  const r = py(`[R.is_dropped_material(n, ${JSON.stringify(MAPS.dropMaterials)}) for n in ['M_Hide', 'MI_Face_EyeShell', 'ada_facemesh_eyeshell_shader_shader', 'MI_Face_LacrimalFluid', 'ada_facemesh_saliva_shader_shader', 'ada_facemesh_eyeEdge_shader_shader', 'MI_Face_Skin_Baked_LOD0', 'ada_facemesh_cartilage_shader_shader', 'MI_EyeL_Baked', 'ada_facemesh_eyeLeft_shader_shader', None]]`);
+  assert.deepEqual(r, [true, true, true, true, true, true, false, false, false, false, false]);
 });
 
 test('a shape is carried by barycentric weights that sum to one and stay in the triangle', () => {
@@ -113,7 +119,7 @@ test('colours and names', () => {
 test('the converter imports the shared rules instead of carrying its own copies', () => {
   const src = readFileSync('scripts/nora-model/mh_to_vrm.py', 'utf8');
   assert.match(src, /from mh_rules import \(/);
-  for (const fn of ['part_budgets', 'nearest_kept', 'barycentric', 'card_cutoff', 'importance', 'hex_rgb']) {
+  for (const fn of ['part_budgets', 'nearest_kept', 'barycentric', 'card_cutoff', 'importance', 'hex_rgb', 'is_dropped_material']) {
     assert.ok(!new RegExp(`^def ${fn}\\(`, 'm').test(src), `mh_to_vrm.py defines its own ${fn}`);
   }
 });
@@ -277,4 +283,16 @@ test('a model may be a full https URL (hosted outside the repo) or a site path o
   assert.equal(noraAssetUrl('', '/'), null);
   assert.equal(noraAssetUrl(null, '/'), null);
   assert.ok(noraAssetUrl(NORA_MODEL.path, '/'));
+});
+
+test('card coverage is looked for under every name a pipeline gives it, legacy files read from alpha', () => {
+  const [a, b, c, d] = py(`[R.coverage_candidates('Hair_S_Coil_RootUVSeedCoverage', 'Hair_S_Coil_CardsAtlas_Attribute', 'r'), R.coverage_candidates('textures/Eyelashes_L_SlightCurl_Coverage.png', None, None), R.coverage_candidates(None, 'Eyebrows_M_Wide_CardsAtlas_Attribute', 'r'), R.coverage_candidates(None, None, 'r')]`);
+  // the stale legacy name is tried first (with alpha), then the stem the folder actually has (with r)
+  assert.deepEqual(a[0], ['Hair_S_Coil_RootUVSeedCoverage', 'a']);
+  assert.ok(a.some(([p, ch]) => p === 'textures/Hair_S_Coil_RootUVSeedCoverage.png' && ch === 'a'));
+  assert.deepEqual(a[a.length - 2], ['textures/Hair_S_Coil_CardsAtlas_Attribute.png', 'r']);
+  assert.equal(b[0][0], 'textures/Eyelashes_L_SlightCurl_Coverage.png');
+  assert.ok(!b.some(([p]) => p.endsWith('.png.png')), 'a .png path is not tried twice-suffixed');
+  assert.deepEqual(c[0], ['textures/Eyebrows_M_Wide_CardsAtlas_Attribute.png', 'r']);
+  assert.deepEqual(d, []);
 });

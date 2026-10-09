@@ -23,8 +23,8 @@
 #      textures that its stage 04 writes beside mh_materials.json. Without them the eyebrows render
 #      as solid black blocks. Each card material gets one RGBA texture: its hair colour, and the
 #      coverage as alpha, cut at 0.5 (glTF MASK, so three.js alpha-tests instead of sorting).
-#   5c. Tints the outfit (--outfit). The pipeline loses the clothing colour (its issue #12): a
-#      sample's shirt came out white and glowed under the stage lights.
+#   5c. Colours the outfit (--outfit), replacing its base colour: the pipeline loses the clothing
+#      colour in both of its versions (see colour_materials).
 #   6. Optionally cuts triangles (--tris) keeping the shape keys (see decimate_keep_shapes).
 #   7. Shrinks textures larger than --tex.
 #   8. Maps the skeleton to the VRM humanoid, the ARKit shapes to VRM expressions, sets the eyes as
@@ -43,6 +43,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from mh_rules import (  # noqa: E402  (the pure rules, tested without Blender)
     hex_rgb, srgb_to_linear, nearest_kept, part_budgets, card_cutoff, card_alpha, importance, vrm_attr,
+    is_dropped_material, coverage_candidates,
     barycentric as _barycentric,
 )
 
@@ -112,10 +113,10 @@ def armatures():
     # ⚠ BY THE MESH IT DRIVES, NOT BY ITS BONES: the outfit's skeleton is a full copy of the body's
     # (the same 342 bones), so "has a hand" picked the outfit on the sample and the outfit tint then
     # landed on her skin.
-    def drives(a, pat):
-        return any(pat in m.name for m in meshes_of(a)) or pat in a.name
+    def drives_body(a):
+        return any('body' in m.name.lower() and 'outfit' not in m.name.lower() for m in meshes_of(a))
     limbs = [a for a in arms if 'lowerarm_l' in a.data.bones and 'hand_l' in a.data.bones]
-    body = next((a for a in limbs if drives(a, 'BodyMesh')), None) or next((a for a in limbs if not drives(a, 'Outfit')), None) or (limbs[0] if limbs else None)
+    body = next((a for a in limbs if drives_body(a)), None) or (limbs[0] if limbs else None)
     face = next((a for a in arms if 'FACIAL_L_Eye' in a.data.bones), None)
     if not body:
         raise SystemExit('no body skeleton (an armature with lowerarm_l and hand_l)')
@@ -242,7 +243,7 @@ def bind_to_bone(mesh, arm, bone):
 # ── 5. drop materials ───────────────────────────────────────────────────────
 def drop_material_faces(mesh, names):
     me = mesh.data
-    idx = [i for i, m in enumerate(me.materials) if m and any(m.name == n or m.name.startswith(n + '.') or m.name.startswith(n) for n in names)]
+    idx = [i for i, m in enumerate(me.materials) if m and is_dropped_material(m.name, names)]
     if not idx:
         return 0
     bm = bmesh.new()
@@ -323,24 +324,30 @@ def apply_card_materials(spec_path, hair_override, size):
         mat = bpy.data.materials.get(m.get('material_name'))
         if not mat or not mat.use_nodes:
             continue
-        alpha = (m.get('textures') or {}).get('alpha')
-        if not alpha and p.get('alpha_stem'):
-            alpha = os.path.join('textures', p['alpha_stem'] + '.png')
-        if not alpha:
+        cands = coverage_candidates((m.get('textures') or {}).get('alpha'), p.get('alpha_stem'), p.get('alpha_channel'))
+        if not cands:
             continue
-        path = os.path.join(base, alpha)
-        if not os.path.exists(path):
-            raise SystemExit('coverage texture missing: ' + path)
+        found = next(((os.path.join(base, rel), ch) for rel, ch in cands if os.path.exists(os.path.join(base, rel))), None)
+        if not found:
+            # ⚠ A card without its coverage renders as solid blocks: stop rather than ship that.
+            raise SystemExit('coverage texture missing for ' + mat.name + ': tried ' + ', '.join(r for r, _ in cands))
+        path, declared = found
         rgb = (hair_override if (hair_override and m.get('kind') == 'hair') else (p.get('base_color') or [0.05, 0.035, 0.03])[:3])
-        ch = bake_card(mat, rgb, path, p.get('alpha_channel'), size, float(p.get('roughness', 0.55)),
+        ch = bake_card(mat, rgb, path, declared, size, float(p.get('roughness', 0.55)),
                        card_cutoff(m.get('kind'), mat.name))
         done.append((mat.name, ch))
     return done
 
 
-# ── 5c. outfit tint ─────────────────────────────────────────────────────────
-def tint_materials(objs, rgb_srgb):
-    """Multiply the base colour of every material on `objs` by a colour (glTF baseColorFactor)."""
+# ── 5c. outfit colour ───────────────────────────────────────────────────────
+def colour_materials(objs, rgb_srgb):
+    """Give every material on `objs` one flat base colour, keeping its normal and roughness maps.
+
+    ⚠ REPLACED, NOT MULTIPLIED. The pipeline gets the clothing colour wrong in both of its versions:
+    the 5.7 export's shirt texture came out white (its issue #12), and the 5.6 export's clothing
+    "colour" texture is a red/green MASK its own viewer recolours. Multiplying a tint into that mask
+    rendered a sample's shirt glossy red with a neon-green collar. A flat colour is right for both;
+    the fabric still reads through its normal map."""
     lin = [srgb_to_linear(c) for c in rgb_srgb]
     seen = set()
     for o in objs:
@@ -352,19 +359,9 @@ def tint_materials(objs, rgb_srgb):
             bsdf = next((n for n in nt.nodes if n.type == 'BSDF_PRINCIPLED'), None)
             if not bsdf:
                 continue
-            links = list(bsdf.inputs['Base Color'].links)
-            if not links:
-                bsdf.inputs['Base Color'].default_value = (*lin, 1.0)
-                continue
-            src = links[0].from_socket
-            nt.links.remove(links[0])
-            mix = nt.nodes.new('ShaderNodeMix')
-            mix.data_type = 'RGBA'
-            mix.blend_type = 'MULTIPLY'
-            mix.inputs['Factor'].default_value = 1.0
-            nt.links.new(src, mix.inputs[6])            # A (colour)
-            mix.inputs[7].default_value = (*lin, 1.0)   # B (colour)
-            nt.links.new(mix.outputs[2], bsdf.inputs['Base Color'])
+            for l in list(bsdf.inputs['Base Color'].links):
+                nt.links.remove(l)
+            bsdf.inputs['Base Color'].default_value = (*lin, 1.0)
     return sorted(seen)
 
 
@@ -480,13 +477,13 @@ def protect_weights(obj):
     return prot
 
 
-def decimate_to(target, outfit_names):
+def decimate_to(target, roles):
     """Cut the scene's triangles to about `target`, spending them where they show."""
     meshes = [o for o in bpy.data.objects if o.type == 'MESH']
     counts = [tri_count(o) for o in meshes]
     if not target or sum(counts) <= target:
         return
-    weights = [importance(o.name, o.name in outfit_names) for o in meshes]
+    weights = [importance(roles.get(o.name), o.name) for o in meshes]
     budgets = part_budgets(counts, weights, target)
     for o, c, b in zip(meshes, counts, budgets):
         if b < c:
@@ -590,7 +587,17 @@ def main():
             for b in arm.data.bones:
                 parents.setdefault(b.name, b.parent.name if b.parent else None)
 
-    outfit_names = {m.name for arm in others for m in meshes_of(arm) if 'Outfit' in arm.name or 'Outfit' in m.name}
+    # A part's role comes from the skeleton that drives it (see mh_rules.importance).
+    roles = {}
+    for m in meshes_of(body):
+        roles[m.name] = 'body'
+    if face:
+        for m in meshes_of(face):
+            roles[m.name] = 'face'
+    for arm in others:
+        for m in meshes_of(arm):
+            roles[m.name] = 'outfit'
+    outfit_names = {n for n, r in roles.items() if r == 'outfit'}
     skinned = []
     for arm in [body, face] + others:
         if not arm:
@@ -606,6 +613,7 @@ def main():
     # cards: anything left unbound is pinned to the head
     for o in [o for o in bpy.data.objects if o.type == 'MESH' and o not in skinned]:
         bind_to_bone(o, body, 'head')
+        roles[o.name] = 'cards'
         log('bound to head', o.name)
 
     for arm in [face] + others:
@@ -621,10 +629,10 @@ def main():
     log('cards baked', apply_card_materials(a['materials'], a['hair'], a['tex']))
     if a['outfit']:
         outfit_objs = [o for o in bpy.data.objects if o.type == 'MESH' and o.name in outfit_names]
-        log('outfit tinted', tint_materials(outfit_objs, a['outfit']))
+        log('outfit coloured', colour_materials(outfit_objs, a['outfit']))
 
     if a['tris']:
-        decimate_to(a['tris'], outfit_names)
+        decimate_to(a['tris'], roles)
         log('decimated: tris', scene_tris())
 
     meshes = [o for o in bpy.data.objects if o.type == 'MESH']
