@@ -676,7 +676,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
-      section: 'Security: SECURITY DEFINER functions a signed-out caller can run — AUDIT SHIPPED 2026-10-03 (#2197 -> ada962b). Two of the six findings closed by #2280 on 2026-10-08; four open, measured again on the 2026-10-09 capture',
+      section: 'Security: SECURITY DEFINER functions a signed-out caller can run — AUDIT SHIPPED 2026-10-03 (#2197 -> ada962b). ALL SIX FINDINGS CLOSED: two by #2280 on 2026-10-08, the other four by #2297 (its migration run by the owner on 2026-10-09), every one measured closed on the 2026-10-10 capture (#2301)',
       items: [
         { label: 'A static tripwire (tests/definer-grants.test.mjs) replays the migrations through a model of Postgres privileges and fails on a new anon-executable SECURITY DEFINER function that is not classified or registered. A read-only live check agrees with it on 136 of 136 definers', status: 'done' },
         { label: 'get_health_sources: any user\'s health observations (sleep, recovery, HRV, heart rate, steps and more) could be read by a signed-out caller who passed that user\'s id (C1 of the 2026-10-08 review). CLOSED by #2280 (2026-10-08-security-review-access-layer.sql, applied): a null caller is rejected, p_days is capped, and anon can no longer execute it. Not anon-executable on the 2026-10-09 capture', status: 'done' },
