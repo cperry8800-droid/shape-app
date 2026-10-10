@@ -27,6 +27,8 @@ import { createCDJ, CDJ_DIMS } from './cdj3000.mjs';
 import { createMixer, DJM_DIMS } from './djmMixer.mjs';
 import { createClub } from './club.mjs';
 import { createVenue } from './clubVenue.mjs';
+import { createSetSwitch, EXTERIOR_DIMS } from './clubExterior.mjs';
+import { createVenueModel } from './clubShapeModel.mjs';
 import * as MIX from './noraMix.mjs';
 import { createDeckAudio, trackWaveform, DEMO_TRACKS } from './deckAudio.mjs';
 import { NoraPerformer } from './noraPerformer.mjs';
@@ -50,6 +52,7 @@ const PREP_BARS = 8;
 const DEFAULT_BPM = 124;         // the example set's declared tempo; it is never DISPLAYED
 const IDLE_SWAY_BEATS_PER_S = 0.5; // off air: a slow clock nobody dances to (groove is false, so she stands)
 const SIXTEENTHS_PER_BAR = 16;
+const CAM_NEAR = 0.03, CAM_FAR = 150;   // in the hall; in the exterior (the arrival) EXTERIOR_DIMS.NEAR / FAR
 
 /** Thrown when the device cannot run the booth at all (no WebGL 2). */
 export class BoothUnsupportedError extends Error {
@@ -71,6 +74,9 @@ function abortError() {
  * @param {HTMLCanvasElement} o.canvas
  * @param {string} o.modelUrl              Nora's VRM
  * @param {string|null} [o.crowdUrl]       the baked crowd pack (crowd.bin.txt); null keeps silhouettes
+ * @param {string|null} [o.venueUrl]       Club Shape from outside (CLUB_SHAPE_MODEL, a .glb): the booth
+ *                                         opens on the fly-in to it. null, or a file that will not
+ *                                         load, opens inside as before
  * @param {'low'|'high'} [o.quality]
  * @param {boolean} [o.cinematic]          the desktop post chain (high quality only)
  * @param {number} [o.fps]                 the frame-rate target (noraBoothState.boothTier)
@@ -85,7 +91,7 @@ function abortError() {
  */
 export async function createNoraBooth(o) {
   const {
-    canvas, modelUrl, crowdUrl = null, quality = 'low', cinematic = false, fps = 30,
+    canvas, modelUrl, crowdUrl = null, venueUrl = null, quality = 'low', cinematic = false, fps = 30,
     reducedMotion = false, portrait = true, signal = null, onProgress = null, onState = null,
   } = o || {};
   if (!canvas) throw new Error('createNoraBooth: canvas is required');
@@ -137,7 +143,7 @@ export async function createNoraBooth(o) {
     // Count a frame's draw calls across every post pass, not just the last one (stats()).
     renderer.info.autoReset = false;
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(38, 1, 0.03, 150);   // far 150: the skyline stands 50–76 m out
+    const camera = new THREE.PerspectiveCamera(38, 1, CAM_NEAR, CAM_FAR);   // far 150: the skyline stands 50–76 m out
     camera.position.set(0, 1.8, -5.5);
 
     // Start the 10.8 MB model download NOW, so it runs while the venue bakes its light below.
@@ -152,6 +158,14 @@ export async function createNoraBooth(o) {
       }, reject);
     });
     vrmLoad.catch(() => {}); // awaited below; keep an early rejection off the console twice
+    // The venue model, when there is one, downloads beside her (meshopt as hers may be; no VRM plugin).
+    let venueLoad = null;
+    if (venueUrl) {
+      const vl = new GLTFLoader();
+      vl.setMeshoptDecoder(MeshoptDecoder);
+      venueLoad = vl.loadAsync(venueUrl);
+      venueLoad.catch(() => {});
+    }
 
     // ── Post ─────────────────────────────────────────────────────────────────
     let composer = null, bloom = null, cine = null;
@@ -223,8 +237,24 @@ export async function createNoraBooth(o) {
     nora.attach(scene);
     owned.parts.unshift(nora); // before the VRM's own deep dispose
 
+    // ── Club Shape from outside ──────────────────────────────────────────────
+    // A set of its own, drawn only while the arrival plays. Only from the venue model: without one,
+    // or if it fails to load, there is no outside, and the booth opens inside as it always has.
+    let exterior = null;
+    if (venueLoad) {
+      try {
+        const g = await venueLoad;
+        exterior = createVenueModel({ THREE, scene: g.scene, quality, reducedMotion });
+        owned.parts.push(exterior);
+        scene.add(exterior.group);
+      } catch (e) {
+        if (typeof console !== 'undefined') console.warn('Club Shape model did not load; the booth opens inside', e);
+      }
+      if (signal && signal.aborted) throw abortError();
+    }
+
     // ── Director + the free camera ───────────────────────────────────────────
-    const director = new NoraDirector({ seed: 11, style: reducedMotion ? 'glide' : 'cut', reducedMotion, exclude: portrait ? [] : ['face'] });
+    const director = new NoraDirector({ seed: 11, style: reducedMotion ? 'glide' : 'cut', reducedMotion, exclude: portrait ? [] : ['face'], arrival: !!exterior });
     const orbit = new OrbitControls(camera, canvas);
     owned.orbit = orbit;
     orbit.enabled = false;
@@ -234,11 +264,11 @@ export async function createNoraBooth(o) {
     // Auto: the page keeps vertical scrolling over the canvas. Look around: the canvas takes the drag.
     canvas.style.touchAction = 'pan-y';
 
-    return makeBooth({ renderer, scene, camera, composer, bloom, cine, club, venue, venueMs, decks, mixer, mixGlow, nora, director, orbit });
+    return makeBooth({ renderer, scene, camera, composer, bloom, cine, club, venue, venueMs, exterior, decks, mixer, mixGlow, nora, director, orbit });
   }
 
   function makeBooth(w) {
-    const { renderer, scene, camera, composer, cine, club, venue, venueMs, decks, mixer, mixGlow, nora, director, orbit } = w;
+    const { renderer, scene, camera, composer, cine, club, venue, venueMs, exterior, decks, mixer, mixGlow, nora, director, orbit } = w;
     const pacer = createFramePacer({ targetFps: fps });
     const silentT0 = performance.now() / 1000;
 
@@ -295,9 +325,8 @@ export async function createNoraBooth(o) {
       deckStartBar[0] = deckStartBar[1] = 0;
       liveDeck = 0;
       tempo = createTempoTracker();
-      // The bar clock falls back to the silent clock: restart the shot with it.
-      director.shotStartBar = Math.floor(Math.max(0, barNow()));
-      director.shotStartT = nowSec();
+      // The bar clock falls back to the silent clock: the shot carries on along it.
+      director.restartClock(Math.max(0, barNow()), nowSec());
     }
 
     /**
@@ -323,10 +352,10 @@ export async function createNoraBooth(o) {
         audio.play(0, { atBar: 0, fromBar: 0 });
         deckStartBar[0] = 0;
         liveDeck = 0;
-        // The bar clock just restarted from 0, so the director's shot restarts with it (#2189's
-        // frozen-camera fix: a shot begun at silent bar 40 would not be due until bar 48 of the set).
-        director.shotStartBar = Math.floor(Math.max(0, barNow()));
-        director.shotStartT = nowSec();
+        // The bar clock just restarted from 0, so the director's shot moves onto it (#2189's
+        // frozen-camera fix: a shot begun at silent bar 40 would not be due until bar 48 of the set),
+        // carrying on from where it was: an arrival half-flown does not jump back out over the bay.
+        director.restartClock(Math.max(0, barNow()), nowSec());
         // A booth that is not drawing does not play either; start() resumes it.
         if (!running) actx.suspend().catch(() => {});
         emit(true);
@@ -352,7 +381,7 @@ export async function createNoraBooth(o) {
     // 'auto' (the director cuts on the bar), 'free' (the viewer orbits), or a shot id from the
     // director's list, which holds that shot and loops its move.
     function setCamera(mode) {
-      const m = mode === 'free' ? 'free' : (typeof mode === 'string' && Object.prototype.hasOwnProperty.call(SHOTS, mode)) ? mode : 'auto';
+      const m = mode === 'free' ? 'free' : (typeof mode === 'string' && Object.prototype.hasOwnProperty.call(SHOTS, mode) && (mode !== 'arrival' || exterior)) ? mode : 'auto';
       if (m === 'free') { orbit.target.set(0, 1.15, 0.2); }
       director.setMode(m, barNow(), nowSec());
       orbit.enabled = m === 'free';
@@ -465,6 +494,8 @@ export async function createNoraBooth(o) {
     const jogAngle = [0, 0];
     let lookSide = 1;
     let camOut = null;
+    let outside = false;
+    const sets = exterior ? createSetSwitch(scene, exterior.group) : null;
     const idleLook = new THREE.Vector3(0, 1.4, -5);
 
     // ── Size ─────────────────────────────────────────────────────────────────
@@ -672,10 +703,23 @@ export async function createNoraBooth(o) {
         const fov = fitFov(camOut.fov, camera.aspect);
         if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
       }
+      // The arrival plays in the exterior, a set of its own: while it does, everything else in the
+      // scene hides, and the lens reaches across the bay.
+      const out = !!exterior && director.mode !== 'free' && director.shot === 'arrival';
+      if (exterior) {
+        exterior.update(dt, t, out, bands.level);
+        sets.apply(out);
+      }
+      if (out !== outside) {
+        outside = out;
+        camera.near = out ? EXTERIOR_DIMS.NEAR : CAM_NEAR;
+        camera.far = out ? EXTERIOR_DIMS.FAR : CAM_FAR;
+        camera.updateProjectionMatrix();
+      }
       if (cine) {
         const T = director.mode === 'free' ? orbit.target : camOut && camOut.target;
         const focus = T ? camera.position.distanceTo(T) : 6;
-        cine.update({ dt, shot: director.mode === 'free' ? 'free' : director.shot, focus, level: bands.level, drop });
+        cine.update({ dt, shot: director.mode === 'free' ? 'free' : director.shot, focus, level: bands.level, drop, shafts: !outside });
       }
     }
 
