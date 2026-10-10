@@ -670,7 +670,8 @@ export async function createNoraBooth(o) {
       // The engine starts 0.1 s ahead of its own bar 0, so the clock reads just below zero for a
       // frame or two: the room counts from 0, never from -1.
       const roomBar = Math.max(0, bar);
-      const roomState = { bands, kick: roomKick, beat: Math.floor(roomBar * 4) % 4, bar: Math.floor(roomBar), drop, accent: CLUB_ACCENT, reducedMotion };
+      // The wall headlines Nora only while she is the one on the decks (club.mjs wallArtAt).
+      const roomState = { bands, kick: roomKick, beat: Math.floor(roomBar * 4) % 4, bar: Math.floor(roomBar), drop, accent: CLUB_ACCENT, reducedMotion, headliner: guestOnDecks ? null : 'nora' };
       club.set(roomState); club.update(dt, t);
       venue.set(roomState); venue.update(dt, t);
 

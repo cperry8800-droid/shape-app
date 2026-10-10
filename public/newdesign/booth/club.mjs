@@ -38,7 +38,8 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { loadCrowdPack, createAvatarCrowd } from './crowdAvatars.mjs';
 import { ARENA_DIMS } from './arenaStage.mjs';
-import { CLUB_SHAPE_MASK } from './clubShapeMask.mjs';
+import { CLUB_SHAPE_MASK, SHAPE_RADIO_MASK, NORA_MASK } from './clubShapeMask.mjs';
+import { wallArtAt } from './wallArt.mjs';
 import { createFlashGate } from './flashGate.mjs';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 
@@ -150,8 +151,8 @@ function makeCanvas(w, h) {
 // sat: clear of Nora from the floor, with the sun rising over the mark. One texel per dot:
 // r = the white parts (the ◂ and the letters), g = the teal ▸. Row 0 is the BOTTOM row.
 const ART_BASE_ROW = 83;
-function screenMaskTexture(THREE, cols, rows) {
-  const L = CLUB_SHAPE_MASK, top = ART_BASE_ROW + 1 - L.rows;
+function screenMaskTexture(THREE, cols, rows, L = CLUB_SHAPE_MASK) {
+  const top = (L.baseRow ?? ART_BASE_ROW) + 1 - L.rows;
   const q0 = Math.floor((cols - L.cols) / 2);
   const out = new Uint8Array(cols * rows * 4);
   for (let r = 0; r < L.rows; r++) for (let q = 0; q < L.cols; q++) {
@@ -406,6 +407,9 @@ void main() {
 const WALL_FRAG = /* glsl */`
 uniform sampler2D uSpec;   // x = bar index from the centre; r = level, g = peak
 uniform sampler2D uMask;   // the artwork, one texel per dot: r = white parts, g = the teal ▸
+uniform sampler2D uMaskB;  // the artwork coming in (the headliner screen's changeover)
+uniform float uMix;        // 0..1 through the changeover (1: uMaskB alone)
+uniform float uWipe;       // 1: an LED wipe across the dots; 0: a crossfade (reduced motion)
 uniform vec2 uGrid;        // cols, rows
 uniform vec3 uIce;         // cool white / ice blue
 uniform vec3 uIceDeep;
@@ -463,13 +467,22 @@ void main() {
   }
 
   // ── the artwork on top: the teal ▸, the white ◂ and CLUB SHAPE ──────
-  vec4 mk = texture2D(uMask, (id + 0.5) / uGrid);
+  vec4 mkA = texture2D(uMask, (id + 0.5) / uGrid);
+  vec4 mkB = texture2D(uMaskB, (id + 0.5) / uGrid);
+  // the changeover: each dot switches as the front passes it, scattered over a fifth of the width
+  // so the edge reads as LED panels, not a straight cut; a crossfade under reduced motion
+  float front = vUv.x * 0.8 + hash(id) * 0.2;
+  float sw = uWipe > 0.5 ? step(front, uMix) : uMix;
+  vec4 mk = mix(mkA, mkB, sw);
+  float edge = uWipe > 0.5 && uMix > 0.0 && uMix < 1.0 ? exp(-pow((front - uMix) / 0.035, 2.0)) : 0.0;
   float mw = smoothstep(0.1, 0.62, mk.r), mt = smoothstep(0.1, 0.62, mk.g);
   float breath = 0.94 + 0.06 * sin(uTime * 0.7);
   float lift = 1.2 * breath + 0.45 * uKick * uMotion + 0.15 * uLevel;
   col = mix(col, uIce * lift, mw);
   col = mix(col, uTint * lift * 1.6, mt);
   float m = max(mw, mt);
+  // the wipe's leading edge, a soft cool line moving across (never a flash: it travels)
+  col += uIce * 0.3 * edge;
 
   // ── the drop: a beat-locked sweep across the dots (≤ 3 per second) ────
   if (uSweep > 0.0) {
@@ -736,10 +749,19 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
   const specTex = own(new THREE.DataTexture(specData, SPEC_TEX, 1, THREE.RGBAFormat, THREE.UnsignedByteType));
   specTex.magFilter = specTex.minFilter = THREE.NearestFilter;
   specTex.needsUpdate = true;
-  const maskTex = own(screenMaskTexture(THREE, WALL_COLS, WALL_ROWS));
+  const artTex = {
+    clubShape: own(screenMaskTexture(THREE, WALL_COLS, WALL_ROWS, CLUB_SHAPE_MASK)),
+    shapeRadio: own(screenMaskTexture(THREE, WALL_COLS, WALL_ROWS, SHAPE_RADIO_MASK)),
+    nora: own(screenMaskTexture(THREE, WALL_COLS, WALL_ROWS, NORA_MASK)),
+  };
+  const maskTex = artTex.clubShape;
+  let headliner = 'nora';
   const wallU = {
     uSpec: { value: specTex },
     uMask: { value: maskTex },
+    uMaskB: { value: maskTex },
+    uMix: { value: 1 },
+    uWipe: { value: 1 },
     uGrid: { value: new THREE.Vector2(WALL_COLS, WALL_ROWS) },
     uIce: { value: iceC.clone() },
     uIceDeep: { value: iceDeepC.clone() },
@@ -1281,6 +1303,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     if (s.bar != null) state.bar = s.bar;
     if (s.drop != null) state.drop = s.drop;
     if (s.reducedMotion != null) reduced = !!s.reducedMotion;
+    if (s.headliner !== undefined) headliner = s.headliner === 'nora' ? 'nora' : null;
     if (s.accent && s.accent !== state.accent) {
       state.accent = s.accent;
       accentC.set(s.accent);
@@ -1342,6 +1365,11 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     wallU.uMotion.value = reduced ? 0.15 : 1;
     const bp = beatPosAt(t);
     wallU.uBeat.value = bp;
+    const art = wallArtAt(bp, { headliner });
+    wallU.uMask.value = artTex[art.from];
+    wallU.uMaskB.value = artTex[art.to];
+    wallU.uMix.value = art.mix;
+    wallU.uWipe.value = reduced ? 0 : 1;
     // the drop sweep: once a beat, or every other beat when the tempo would push it past
     // 3 per second; none at all under reduced motion
     wallU.uSweepDiv.value = beatPeriod < 1 / 3 ? 2 : 1;
