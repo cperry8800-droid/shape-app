@@ -11,7 +11,9 @@ const API = 'src/lib/radio/noraEngineApi.mjs';
 const ROUTE = 'src/app/api/radio/nora/engine/route.ts';
 
 export default {
-  test: 'node --test tests/nora-engine.test.mjs',
+  // --test-force-exit: a mutation that hangs a test past its 60 s limit fails it, and the process
+  // must then exit (an ffmpeg child would otherwise hold it open and the round time out).
+  test: 'node --test --test-force-exit tests/nora-engine.test.mjs',
   timeoutMs: 600_000,
   mutations: [
     // ── the mixer ──
@@ -39,7 +41,7 @@ export default {
     { name: 'a late engine starts the set from the top', file: ENG,
       find: '  let t = Math.max(0, Math.floor(setTime() / BLOCK_SEC) * BLOCK_SEC);', replace: '  let t = 0;' },
     { name: '⚠ a song not loaded in time plays as silence', file: ENG,
-      find: "      if (failed.has(due) || items[due].startSec <= t + BLOCK_SEC) { reason = `song ${due + 1} was not loaded in time`; break; }", replace: '      if (false) { break; }' },
+      find: "      if (failed.has(due) || items[due].startSec <= t + BLOCK_SEC || setTime() >= items[due].startSec) { reason = `song ${due + 1} was not loaded in time`; break; }", replace: '      if (false) { break; }' },
     { name: '⚠ a dropped connection is not noticed', file: ENG,
       find: "    if (!ok) { reason = 'output_failed'; break; }", replace: '' },
     { name: 'the line is left open after the set', file: ENG,

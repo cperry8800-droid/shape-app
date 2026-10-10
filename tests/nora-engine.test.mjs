@@ -250,7 +250,13 @@ test('⚠ it fails to the AutoDJ, never to silence', LIMIT, async () => {
   assert.equal((await runSet(flaky.job, flaky.deps)).ok, true);
   const silent = harness();
   silent.deps.announce = () => new Promise(() => {});
-  assert.equal((await runSet(silent.job, silent.deps)).ok, true, 'a title update that never answers is given up on');
+  // ⚠ Raced against a REAL timer: a set that hangs on a title update would otherwise leave nothing
+  // pending, the event loop would drain, and the remaining tests would be "cancelled", not failed.
+  let guard;
+  const hung = new Promise((_, reject) => { guard = setTimeout(() => reject(new Error('the set hung on a title update that never answered')), 20000); });
+  try {
+    assert.equal((await Promise.race([runSet(silent.job, silent.deps), hung])).ok, true, 'a title update that never answers is given up on');
+  } finally { clearTimeout(guard); }
   // A set with no source for one of its songs is refused before anything starts.
   const bad = harness();
   bad.job.sources = { [T1]: 'u1' };
@@ -357,7 +363,7 @@ test('ffmpeg decodes a song and streams the mix into an Icecast input', { ...LIM
   assert.equal(metadataRequest('icecast://u:p@h:1/m', { title: 'x' }, { tls: true }).url.slice(0, 8), 'https://');
   const asked = [];
   await announce({ artist: 'A', title: 'B' }, { target: 'icecast://u:p@h:1/m', fetchFn: async (url, init) => { asked.push([url, init.headers.authorization]); return { ok: true }; } });
-  assert.equal(asked.length, 1);
+  assert.deepEqual(asked, [['http://h:1/admin/metadata?mount=%2Fm&mode=updinfo&song=A%20-%20B', `Basic ${Buffer.from('u:p').toString('base64')}`]], 'sent as the source, with its credentials');
   await assert.rejects(announce({ title: 'B' }, { target: 'icecast://u:p@h:1/m', fetchFn: async () => ({ ok: false, status: 401 }) }), /401/);
   // The password never reaches a log line.
   assert.match(read('services/nora-engine/main.mjs'), /const redact = \(s\) => String\(s\)\.replace\(\/\\\/\\\/\[\^@\/\]\*@\/, '\/\/\*\*\*@'\);/);
