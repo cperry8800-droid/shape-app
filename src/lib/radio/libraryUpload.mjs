@@ -69,8 +69,9 @@ export async function uploadSong(file, deps) {
   await breathe();
   let decoded;
   try {
-    // decodeAudioData detaches the buffer it is given, so it gets a copy.
-    decoded = await deps.decode(buf.slice(0));
+    // ⚠ decodeAudioData DETACHES the buffer it is given, so the fingerprint and the tags are read
+    // above, before this line, and nothing reads `buf` after it (a copy would cost up to 60 MB).
+    decoded = await deps.decode(buf);
   } catch {
     return { ok: false, error: 'decode_failed' };
   }

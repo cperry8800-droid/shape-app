@@ -66,8 +66,10 @@ export default {
       find: "    if (!got) return { ok: false, error: 'cancelled' };\n    title = got.title; artist = got.artist;", replace: "    if (got) { title = got.title; artist = got.artist; }" },
     { name: 'a dead upload is confirmed', file: UP,
       find: "  if (!sent) return { ok: false, error: 'upload_failed', id };\n", replace: '' },
-    { name: 'the decoder is handed the buffer itself', file: UP,
-      find: 'decoded = await deps.decode(buf.slice(0));', replace: 'decoded = await deps.decode(buf);' },
+    { name: 'the fingerprint is taken after the decoder detached the buffer', file: UP,
+      find: "  const sha256 = await deps.sha256(buf);\n  const tags = deps.readTags(new Uint8Array(buf), file.name) || {};\n", replace: "  let sha256 = null;\n  const tags = deps.readTags(new Uint8Array(buf), file.name) || {};\n" },
+    { name: 'the fingerprint (moved) is read after the decode', file: UP,
+      find: "  if (!decoded || !Array.isArray(decoded.channels) || !decoded.channels.length) return { ok: false, error: 'decode_failed' };\n", replace: "  if (!decoded || !Array.isArray(decoded.channels) || !decoded.channels.length) return { ok: false, error: 'decode_failed' };\n  void (await deps.sha256(buf));\n" },
     // ── tags ──
     { name: 'ID3v2.4 sizes read as plain integers', file: TAGS,
       find: 'major === 4 ? synchsafe(b, o + 4) : be32(b, o + 4)', replace: 'be32(b, o + 4)' },
@@ -77,7 +79,11 @@ export default {
       find: "const TXXX_FIELDS = { ISRC: 'isrc', LABEL: 'label', PUBLISHER: 'label' };", replace: "const TXXX_FIELDS = { LABEL: 'label', PUBLISHER: 'label' };" },
     { name: "MP4 meta's version bytes are not skipped", file: TAGS,
       find: "  const ilst = child(b, { s: meta.s + 4, e: meta.e }, 'ilst');", replace: "  const ilst = child(b, meta, 'ilst');" },
-    { name: 'a malformed tag throws', file: TAGS,
+    // ⚠ PROVEN NO-OP: the fuzz test drives every reader over 3,000 random and corrupted tag files
+    // and none throws (each indexes a Uint8Array, where an out-of-range read is undefined and every
+    // size check rejects it, and text goes through a non-fatal TextDecoder). The catch is defence
+    // in depth for a reader added later.
+    { name: 'a malformed tag throws', file: TAGS, expectSurvive: true,
       find: '    try { got = read(b); } catch { got = null; }', replace: '    got = read(b);' },
     { name: 'the track number stays in a file-name title', file: TAGS,
       find: "  const noTrack = base.replace(/^\\s*\\d{1,3}\\s*[-.)]\\s*/, '');", replace: '  const noTrack = base;' },

@@ -12,7 +12,7 @@ import {
   keyName, libraryTotals, trackExt, trackPath,
 } from '../src/lib/radio/library.mjs';
 import { detectKey } from '../src/lib/radio/keyDetect.mjs';
-import { readTags, tagsFromName } from '../src/lib/radio/audioTags.mjs';
+import { readFlac, readId3v1, readId3v2, readMp4, readTags, tagsFromName } from '../src/lib/radio/audioTags.mjs';
 import { profileTrack } from '../src/lib/radio/trackProfile.mjs';
 import { confirmTrack, createTrack, deleteTrack, editTrack, listTracks } from '../src/lib/radio/libraryStore.mjs';
 import { uploadSong } from '../src/lib/radio/libraryUpload.mjs';
@@ -229,6 +229,12 @@ test('tags: ID3v2.3 (UTF-16), ID3v2.4 (UTF-8), iTunes atoms, FLAC comments, ID3v
   assert.equal(readTags(id3(3, [['TIT2', latin('T')], ['TXXX', latin('MOOD\u0000calm')]]), 'x.mp3').isrc, null, 'other user frames are ignored');
   const v24 = readTags(id3(4, [['TIT2', utf8f('Ünïcode ✓')], ['TPE1', utf8f('Björk')]]), 'x.mp3');
   assert.deepEqual([v24.title, v24.artist], ['Ünïcode ✓', 'Björk']);
+  // A frame of 128 bytes or more: v2.4 sizes are synchsafe (7 bits a byte), v2.3's are not.
+  const long = 'L'.repeat(300);
+  const v24long = readTags(id3(4, [['TIT2', utf8f(long)], ['TPE1', utf8f('After The Long One')]]), 'x.mp3');
+  assert.deepEqual([v24long.title, v24long.artist], [long, 'After The Long One']);
+  const v23long = readTags(id3(3, [['TIT2', latin(long)], ['TPE1', latin('After')]]), 'x.mp3');
+  assert.deepEqual([v23long.title, v23long.artist], [long, 'After']);
   const m = readTags(mp4([['©nam', 'Strobe'], ['©ART', 'deadmau5'], ['©alb', 'For Lack of a Better Name'], ['----', 'USUM70912345', 'ISRC']]), 'x.m4a');
   assert.deepEqual([m.title, m.artist, m.album, m.isrc, m.source], ['Strobe', 'deadmau5', 'For Lack of a Better Name', 'USUM70912345', 'mp4']);
   const comments = ['TITLE=Midnight City', 'ARTIST=M83', 'ISRC=FR1234567890'].map((c) => Buffer.from(c, 'utf8'));
@@ -251,6 +257,26 @@ test('tags: a malformed file falls back to its name, never throws', () => {
   // The first source to name a field wins; later ones fill the gaps.
   const mixed = readTags(id3(3, [['TIT2', latin('Tagged')]]), 'Name Artist - File Title.mp3');
   assert.deepEqual([mixed.title, mixed.artist], ['Tagged', 'Name Artist']);
+});
+
+test('tags: no reader throws on any bytes (seeded fuzz over random and corrupted tag files)', () => {
+  let seed = 12345;
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  const valid = [
+    id3(3, [['TIT2', utf16bom('Title')], ['TPE1', latin('Artist')], ['TXXX', [0, ...enc('ISRC'), 0, ...enc('USRC17607839')]]]),
+    id3(4, [['TIT2', utf8f('x'.repeat(200))]]),
+    mp4([['\u00a9nam', 'A'], ['----', 'USUM70912345', 'ISRC']]),
+  ];
+  for (let i = 0; i < 3000; i++) {
+    let bytes;
+    if (i % 3 === 0) bytes = new Uint8Array(Math.floor(rnd() * 300)).map(() => Math.floor(rnd() * 256));
+    else {
+      bytes = Uint8Array.from(valid[i % valid.length]);
+      for (let k = 0; k < 1 + Math.floor(rnd() * 8); k++) bytes[Math.floor(rnd() * bytes.length)] = Math.floor(rnd() * 256);
+      if (rnd() < 0.3) bytes = bytes.slice(0, Math.floor(rnd() * bytes.length));
+    }
+    for (const read of [readId3v2, readMp4, readFlac, readId3v1]) assert.doesNotThrow(() => read(bytes), `${read.name} on case ${i}`);
+  }
 });
 
 // ── libraryStore.mjs (the admin routes' work) ──────────────────────────────────────────────
@@ -383,9 +409,11 @@ function deps(over = {}) {
   const log = [];
   const d = {
     log,
-    sha256: async () => SHA,
-    readTags: (_b, name) => ({ ...tagsFromName(name) }),
-    decode: async () => { log.push('decode'); return { channels: [new Float32Array(10)], sampleRate: SR, duration: 200 }; },
+    // Both read the buffer, so either one run after the decoder detached it fails.
+    sha256: async (buf) => { if (buf.byteLength !== 16) throw new Error('fingerprinted a detached buffer'); return SHA; },
+    readTags: (b, name) => { if (b.byteLength !== 16) throw new Error('read tags from a detached buffer'); return { ...tagsFromName(name) }; },
+    // Like decodeAudioData, the fake DETACHES the buffer it is handed.
+    decode: async (buf) => { structuredClone(buf, { transfer: [buf] }); log.push('decode'); return { channels: [new Float32Array(10)], sampleRate: SR, duration: 200 }; },
     profile: () => { log.push('profile'); return { version: 1 }; },
     askInfo: async () => { log.push('ask'); return { title: 'T', artist: 'A' }; },
     create: async (body) => { log.push(['create', body]); return { status: 201, body: { id: ID, signedUrl: 'https://x', contentType: 'audio/mpeg' } }; },
