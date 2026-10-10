@@ -10,7 +10,7 @@
 // (`SHAPE_NAV_GROUPS.filter(…)`, owner 2026-09-23), and a guard that restated the
 // derivation would be testing its own copy of it rather than the one that ships.
 // Evaluating each statement in order runs the real filter against the real table.
-const NAMES = ['COACHES_HREF', 'COACHES_ITEMS', 'SHAPE_NAV_GROUPS', 'SIGNED_OUT_ONLY', 'PORTAL_NAV'];
+const NAMES = ['COACHES_HREF', 'COACHES_ITEMS', 'REWARDS_HREF', 'STORE_TAB', 'REWARDS_ITEMS', 'SHAPE_NAV_GROUPS', 'SIGNED_OUT_ONLY', 'PORTAL_NAV'];
 
 // The index just past the `;` that ends the statement starting at `from`: the
 // first semicolon outside any bracket, string or comment.

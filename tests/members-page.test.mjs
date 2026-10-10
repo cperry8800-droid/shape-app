@@ -151,5 +151,6 @@ test('every invented mock on the members page is marked as an example', () => {
 test('the members page prices the membership the way the rest of the site does', () => {
   assert.ok(!/Free\W+to join|"Free", v: "To join/i.test(CLEAN), 'the members page still says free to join');
   assert.match(CLEAN, /\$5\/mo/, 'the value strip no longer states the $5/mo membership');
-  assert.match(CLEAN, /\$5\/month for clients/, 'the FAQ no longer states the $5/month membership');
+  // "for members" since 2026-10-09: the membership is the whole app, not a coach fee.
+  assert.match(CLEAN, /\$5\/month for members/, 'the FAQ no longer states the $5/month membership');
 });

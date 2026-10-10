@@ -1,16 +1,23 @@
-// Landing — role selector, Spatial Cinema language. Four paths: Client, Trainer, Nutritionist, Radio.
+// Landing — role selector, Spatial Cinema language. Four paths: Member, Trainer, Nutritionist, Radio.
 // Uses shared tokens from pageShell.jsx (PAPER, INK, INK_DEEP, TEAL, TEAL_BRIGHT, RUST, serif, sans, mono).
 
 const ROLES = [
   {
     key: "client",
     kicker: "For members",
-    title: "Client",
-    blurb: "Browse trainers and nutritionists, get workouts, subscribe to the pros who get you.",
+    // ⚠ THE MEMBERSHIP IS THE WHOLE APP, NOT A COACH FEE — owner, 2026-10-09: "we
+    // also need to market this membership as taking advantages of all features on
+    // app, not just paying for coaches". This card used to read as a ticket to the
+    // marketplace. Every perk names a feature a $5 member has with no coach at all
+    // (the app's own paywall lists the same ones), and coaches come last, as the
+    // option they are. "Member", not "Client": someone without a coach is not
+    // anyone's client, the reason the nav tab is Members (2026-09-14).
+    title: "Member",
+    blurb: "The whole Shape app for $5 a month. Train, log meals, cook, earn rewards and listen to Shape Radio. Add a coach whenever you want one.",
     cta: "Get started",
     href: "SignupClient.html",
-    meta: "$5 / month platform",
-    perks: ["Every coach, one app", "Workouts + meals in one place", "Cancel any time"],
+    meta: "$5 / month · the whole app",
+    perks: ["Workouts + meal logging, coach optional", "Shape Kitchen recipes + guided cooking", "Score points to spend in the Store", "Shape Radio, ad-free", "Nora, your in-app assistant", "Every coach, when you want one"],
   },
   {
     key: "trainer",

@@ -20,16 +20,24 @@ async function startPlatformCheckout(e) {
   }
 }
 
+// ⚠ THE APP FIRST, THE COACHES AFTER — owner, 2026-10-09: "we also need to market
+// this membership as taking advantages of all features on app, not just paying for
+// coaches". The list used to open with three marketplace lines, so $5 read as the
+// fee for reaching a coach. Everything above the marketplace lines is a member's
+// with no coach at all.
 const PLATFORM_FEATURES = [
+  "Build your own workouts — coach optional",
+  "Meal logging & macro tracking",
+  "Shape Kitchen — recipes & guided cooking",
+  "Shape Score — earn points, spend them in the Store",
+  "Shape Radio — ad-free, included with membership",
+  "Nora, your in-app assistant",
+  "Full progress tracking & analytics",
+  "Community forum access",
   "Browse all trainers & nutritionists",
   "Subscribe to any trainer or nutritionist",
   "Buy individual workout & meal plans",
-  "Build your own workouts — coach optional",
   "Direct messaging with your pros",
-  "Full progress tracking & analytics",
-  "Nutrition schedule & macro tracking",
-  "Community forum access",
-  "Shape Radio — ad-free, included with membership",
 ];
 
 const EXAMPLE_COACHES = [
@@ -39,7 +47,7 @@ const EXAMPLE_COACHES = [
 ];
 
 const PRICING_FAQ = [
-  { q: "What do I get for $5/month?", a: "Full platform access — browse trainers and nutritionists, message your pros, track your progress, log meals, listen to Shape Radio ad-free, and join the community. The $5 is the Shape Platform fee. Anything you buy from an individual coach (a subscription, a plan, a one-off session) is separate and goes directly to them." },
+  { q: "What do I get for $5/month?", a: "The whole app — build and log your own workouts, log meals and track macros, cook from Shape Kitchen, earn Shape Score points to spend in the Store, listen to Shape Radio ad-free, ask Nora, track your progress, and join the community. You can also browse trainers and nutritionists and message your pros. The $5 is the Shape Platform fee. Anything you buy from an individual coach (a subscription, a plan, a one-off session) is separate and goes directly to them." },
   { q: "Do I have to subscribe to a coach?", a: "No. For $5/mo you can browse, message intro calls, buy one-off plans, build your own workouts right in the app, and use the community. A lot of members stay at the platform level — training on self-built weeks or à-la-carte plans. Others subscribe to one or more coaches for ongoing programming." },
   { q: "How much do trainers and nutritionists cost?", a: "Each pro sets their own price. Trainers typically run $60–$150 per session or $80–$250/month for full programming. Nutritionists typically run $120–$250 per consult or $120–$300/month for plans + reviews. You see each coach's rate on their profile before you subscribe." },
   { q: "Can I cancel any time?", a: "Yes — the $5/mo cancels instantly from your settings. Coach subscriptions cancel on the same screen. No penalties, no lock-in. Your data and training history stay with you." },
@@ -70,9 +78,9 @@ function PricingHero() {
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative", textAlign: "center" }}>
         <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.3em", textTransform: "uppercase", color: TEAL, marginBottom: 24 }}>Pricing</div>
         <h1 style={{ fontFamily: serif, fontSize: "clamp(54px, 9vw, 132px)", letterSpacing: "-0.045em", fontWeight: 300, margin: 0, lineHeight: 0.88 }}>
-          Five dollars <em style={{ fontStyle: "italic", fontWeight: 600, color: "transparent", WebkitTextStroke: `1.4px ${INK}` }}>a&nbsp;month</em>.<br />Pay your coach directly.
+          Five dollars <em style={{ fontStyle: "italic", fontWeight: 600, color: "transparent", WebkitTextStroke: `1.4px ${INK}` }}>a&nbsp;month</em>.<br />The whole app.
         </h1>
-        <p style={{ fontFamily: sans, fontSize: 18, color: "rgba(242,237,228,0.66)", margin: "32px auto 0", maxWidth: 720, lineHeight: 1.6 }}>One flat platform fee. Browse every trainer and nutritionist before paying anything, message your pros, track progress, log meals, listen to Shape Radio. Coaches set their own rates — you pay them directly, cancel any time.</p>
+        <p style={{ fontFamily: sans, fontSize: 18, color: "rgba(242,237,228,0.66)", margin: "32px auto 0", maxWidth: 720, lineHeight: 1.6 }}>One flat membership. Train, log meals, cook from Shape Kitchen, earn Score points for the Store, listen to Shape Radio and ask Nora. Coaches are optional: they set their own rates, you pay them directly, and you can cancel any time.</p>
       </div>
     </section>
   );
@@ -91,7 +99,7 @@ function PricingCard() {
               <div style={{ fontFamily: serif, fontSize: 128, fontWeight: 300, letterSpacing: "-0.05em", lineHeight: 0.85 }}>$5</div>
               <div style={{ fontSize: 16, color: "rgba(26,22,18,0.55)" }}>/month</div>
             </div>
-            <div style={{ fontFamily: sans, fontSize: 13.5, color: "rgba(26,22,18,0.62)", marginTop: 16, lineHeight: 1.55, maxWidth: 360 }}>What every Shape client pays to use the platform. Your coach's rate is separate and paid directly to them.</div>
+            <div style={{ fontFamily: sans, fontSize: 13.5, color: "rgba(26,22,18,0.62)", marginTop: 16, lineHeight: 1.55, maxWidth: 360 }}>What every Shape member pays for the whole app, coach or no coach. A coach's rate is separate and paid directly to them.</div>
             <div style={{ fontFamily: serif, fontSize: 24, letterSpacing: "-0.015em", fontWeight: 400, marginTop: 26, lineHeight: 1.3, maxWidth: 360 }}>Everything you need. No bundles. No upsell. No seat math.</div>
             <a href="#" onClick={startPlatformCheckout} style={{ marginTop: 38, padding: "16px 30px", borderRadius: 2, background: TEAL, color: PAPER, fontFamily: sans, fontSize: 14, fontWeight: 600, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>Get started →</a>
             <div style={{ fontFamily: sans, fontSize: 12, color: "rgba(26,22,18,0.5)", marginTop: 18 }}>Cancel any time. No commitments.</div>

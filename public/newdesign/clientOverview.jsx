@@ -27,7 +27,7 @@ function ClientOvHero() {
     <section style={{ padding: "40px 72px 100px", position: "relative", overflow: "hidden", minHeight: "88vh", display: "flex", alignItems: "center", color: LIGHT }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", width: "100%", position: "relative", display: "grid", gridTemplateColumns: "1.25fr 1fr", gap: 80, alignItems: "center" }}>
         <div>
-          <div style={{ fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 12, letterSpacing: "0.3em", textTransform: "uppercase", color: TEAL, marginBottom: 40 }}>For clients</div>
+          <div style={{ fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 12, letterSpacing: "0.3em", textTransform: "uppercase", color: TEAL, marginBottom: 40 }}>For members</div>
           <h1 style={{ fontFamily: clDisp, fontVariationSettings: "'wdth' 90", fontSize: "clamp(60px, 7.6vw, 128px)", letterSpacing: "-0.03em", fontWeight: 500, lineHeight: 0.92, margin: 0, color: LIGHT }}>
             Shape your<br />
             <em style={{ fontStyle: "normal", color: "transparent", WebkitTextStroke: `1.4px ${LIGHT}` }}>lifestyle.</em>
@@ -80,7 +80,7 @@ function ClientOvHero() {
 // ---------- Value strip ----------
 function ClientOvStats() {
   const items = [
-    { k: "$5/mo", v: "Flat membership. Pay your coach directly — no middleman markup." },
+    { k: "$5/mo", v: "The whole app: workouts, meals, Kitchen, Score, Radio. A coach is optional." },
     { k: "Verified", v: "Every trainer and nutritionist is credential-checked." },
     { k: "Together", v: "Training, nutrition, and community in one place." },
     { k: "Yours", v: "Your data, your plan, your coach. Leave anytime." },
@@ -372,7 +372,7 @@ function ClientOvSnapshots() {
 
 function ClientOvFAQ() {
   const faqs = [
-    { q: "What does it cost?", a: "Shape is $5/month for clients and includes Shape Radio and full platform access. Coach rates are set by each coach, and you pay them through the platform on top of the $5 membership." },
+    { q: "What does it cost?", a: "Shape is $5/month for members and covers the whole app, with or without a coach: your own workouts, meal logging and macros, Shape Kitchen, Shape Score points for the Store, Shape Radio ad-free, and Nora. Coach rates are set by each coach, and you pay them through the platform on top of the $5 membership." },
     { q: "Can I try a coach before committing?", a: "Yes. Every listed trainer and nutritionist offers a free 20-minute intro call. Book up to three at once, decide after." },
     { q: "Can I have a trainer and a nutritionist?", a: "That's the most common setup. They see the same calendar and your goals. You message each separately, but they coordinate." },
     { q: "What if it's not working?", a: "Switch coaches whenever. You keep your history, logs, and calendar; your next coach picks up with full context. No fees, no drama." },
