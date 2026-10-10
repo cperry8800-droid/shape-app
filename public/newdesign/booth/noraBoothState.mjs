@@ -103,6 +103,19 @@ export function boothTier({ screenW = 0, screenH = 0, override = null } = {}) {
 // model replaces her; set it true with that model.
 export const NORA_MODEL = Object.freeze({ path: 'nora/placeholder.vrm', crowd: 'nora/crowd.bin.txt', portrait: false });
 
+// Club Shape from outside, for the opening fly-in: a 3D model of the Shape Sets picture, built to
+// docs/BUILD-2026-10-10-club-shape-model.md. While `path` is null the booth does not fly in at all and
+// opens inside, as it always has (the venue drawn in code was rejected by the owner, 2026-10-10).
+// `desktop` is an optional heavier file for high-quality devices. Either may be an https URL.
+export const CLUB_SHAPE_MODEL = Object.freeze({ path: null, desktop: null });
+
+/** The venue model a device should load: the desktop file on high quality when there is one, else the phone file; null when there is none. */
+export function clubShapeModelUrl(model = CLUB_SHAPE_MODEL, base = '/', quality = 'low') {
+  if (!model) return null;
+  const path = quality === 'high' && model.desktop ? model.desktop : model.path;
+  return noraAssetUrl(path, base);
+}
+
 /**
  * Where to fetch an asset NORA_MODEL names. A realistic Nora is hosted OUTSIDE this public repository
  * (scripts/nora-model/README.md), so a path may be a full https URL, which is used as it is; a
