@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { requireAdminUser } from '@/lib/admin-access';
 import { listTracks } from '@/lib/radio/libraryStore.mjs';
 import RadioLibrary, { type Track } from './RadioLibrary';
+import NoraSets from './NoraSets';
 
 // Nora's library: the songs her DJ sets on Shape Radio are built from. The owner uploads them
 // here; each is measured in the browser as it uploads (src/lib/radio/trackProfile.mjs) and stored
@@ -11,13 +12,18 @@ import RadioLibrary, { type Track } from './RadioLibrary';
 export const metadata = { title: 'Nora’s library - Shape' };
 export const dynamic = 'force-dynamic';
 
-export default async function RadioLibraryPage() {
+export default async function RadioLibraryPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ updated?: string; error?: string }>;
+}) {
   try {
     await requireAdminUser();
   } catch {
     redirect('/dashboard');
   }
 
+  const params = await searchParams;
   const r = await listTracks(createAdminClient());
   const notSetUp = r.status === 503;
   if (r.status !== 200 && !notSetUp) throw new Error('Could not read Nora’s library.');
@@ -47,6 +53,8 @@ export default async function RadioLibraryPage() {
       ) : (
         <RadioLibrary initialTracks={tracks} />
       )}
+
+      <NoraSets updated={params?.updated} error={params?.error} />
     </div>
   );
 }

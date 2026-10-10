@@ -110,6 +110,6 @@ export default {
     { name: 'the edit route skips the admin check', file: R2,
       find: "export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {\n  try {\n    await requireAdminUser();", replace: "export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {\n  try {\n    void requireAdminUser;" },
     { name: 'the page reads the library before the admin check', file: PAGE,
-      find: "  try {\n    await requireAdminUser();\n  } catch {\n    redirect('/dashboard');\n  }\n\n  const r = await listTracks(createAdminClient());", replace: "  const r = await listTracks(createAdminClient());\n  try {\n    await requireAdminUser();\n  } catch {\n    redirect('/dashboard');\n  }\n" },
+      find: "  try {\n    await requireAdminUser();\n  } catch {\n    redirect('/dashboard');\n  }\n\n  const params = await searchParams;\n  const r = await listTracks(createAdminClient());", replace: "  const params = await searchParams;\n  const r = await listTracks(createAdminClient());\n  try {\n    await requireAdminUser();\n  } catch {\n    redirect('/dashboard');\n  }\n" },
   ],
 };
