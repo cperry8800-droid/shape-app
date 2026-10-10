@@ -331,6 +331,8 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/radio/now-playing', 'GET'],
   ['/api/radio/rooms', 'GET,POST'],
   ['/api/radio/station', 'GET'],
+  ['/api/admin/radio/tracks', 'GET,POST'],
+  ['/api/admin/radio/tracks/[id]', 'PATCH,DELETE'],
   ['/api/recipes/reviews', 'GET,POST'],
   ['/api/sessions/manage', 'GET,POST'],
   ['/api/sessions/request', 'POST'],
@@ -382,7 +384,7 @@ function groupOf(p: string): string {
   if (p.startsWith('/api/auth') || p.startsWith('/api/me') || p.startsWith('/api/account')) return 'Auth & account';
   if (p.startsWith('/api/recipes')) return 'Content';
   if (p === '/api/contact' || p === '/api/app-waitlist') return 'Marketing & forms';
-  if (p === '/api/health' || p === '/api/warroom' || p.startsWith('/api/console')) return 'System';
+  if (p === '/api/health' || p === '/api/warroom' || p.startsWith('/api/console') || p.startsWith('/api/admin')) return 'System';
   // Remaining provider/marketplace plumbing.
   return 'Marketplace & providers';
 }

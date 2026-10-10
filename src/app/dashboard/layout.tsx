@@ -48,6 +48,7 @@ export default async function DashboardLayout({
     { href: '/dashboard/refunds', label: 'Refunds', show: isAdmin },
     { href: '/dashboard/support', label: 'Help requests', show: isAdmin },
     { href: '/dashboard/claim', label: 'Claim profile', show: isAdmin },
+    { href: '/dashboard/radio', label: 'Nora’s library', show: isAdmin },
   ];
 
   return (
