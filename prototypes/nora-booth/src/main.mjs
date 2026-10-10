@@ -4,6 +4,7 @@
 // and Nora's hands, so what you see her do is literally what you hear.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
@@ -17,6 +18,8 @@ import { createCDJ, CDJ_DIMS } from '../../../public/newdesign/booth/cdj3000.mjs
 import { createMixer, DJM_DIMS } from '../../../public/newdesign/booth/djmMixer.mjs';
 import { createClub } from '../../../public/newdesign/booth/club.mjs';
 import { createVenue } from '../../../public/newdesign/booth/clubVenue.mjs';
+import { createExterior, createSetSwitch, EXTERIOR_DIMS } from '../../../public/newdesign/booth/clubExterior.mjs';
+import { createVenueModel } from '../../../public/newdesign/booth/clubShapeModel.mjs';
 import * as MIX from '../../../public/newdesign/booth/noraMix.mjs';
 import { createDeckAudio, trackWaveform, DEMO_TRACKS } from '../../../public/newdesign/booth/deckAudio.mjs';
 import { analyzeTrack, bufferWaveform } from '../../../public/newdesign/booth/trackAnalysis.mjs';
@@ -131,6 +134,26 @@ const venueT0 = performance.now();
 const venue = createVenue({ THREE, renderer, seed: 11, quality: QUALITY, reducedMotion: REDUCED_MOTION, crowdPack: club.crowdPack, now: () => performance.now(), accent: ACCENT });
 const venueMs = performance.now() - venueT0;
 scene.add(venue.group);
+// Club Shape from outside, for the arrival shot: a set of its own, drawn only while the arrival plays.
+// ?venue=<a .glb> previews a venue model built to docs/BUILD-2026-10-10-club-shape-model.md, as the
+// booth will play it; without one, the venue drawn in code stands in (the booth itself has no stand-in).
+let exterior = createExterior({ THREE, seed: 23, quality: QUALITY, reducedMotion: REDUCED_MOTION });
+scene.add(exterior.group);
+let outside = false;
+let sets = createSetSwitch(scene, exterior.group);
+if (Q.get('venue')) {
+  const vl = new GLTFLoader();
+  vl.setMeshoptDecoder(MeshoptDecoder);
+  vl.loadAsync(Q.get('venue')).then((g) => {
+    sets.apply(false);
+    exterior.dispose();
+    exterior = createVenueModel({ THREE, scene: g.scene, quality: QUALITY, reducedMotion: REDUCED_MOTION });
+    scene.add(exterior.group);
+    sets = createSetSwitch(scene, exterior.group);
+    window.__booth.exterior = exterior;
+    if (exterior.stats.missing.length) console.warn('[booth] the venue model has no', exterior.stats.missing.join(', '));
+  }, (e) => console.warn('[booth] the venue model did not load; the venue drawn in code stands in', e));
+}
 const FINISH = QUALITY === 'high' ? 'physical' : 'standard';
 const decks = [1, 2].map((n) => createCDJ({ THREE, deckNumber: n, accent: ACCENT, textureScale: QUALITY === 'high' ? 1 : 0.75, finish: FINISH }));
 const DECK_X = [-0.391, 0.391];
@@ -238,8 +261,7 @@ async function startSet() {
   // The bar clock just restarted from 0 (it ran on the silent wall clock before the tap), so the
   // director's shot and the hype window, both counted in bars, restart with it. Without this a
   // shot begun at silent bar 40 would not be due until bar 48 of the set.
-  director.shotStartBar = Math.floor(Math.max(0, barNow()));
-  director.shotStartT = nowSec();
+  director.restartClock(Math.max(0, barNow()), nowSec());
   hypeUntil = -1;
   document.body.classList.add('live');
   startSet._busy = false;
@@ -310,6 +332,10 @@ function onNora(gltf) {
   nora = new NoraPerformer({ THREE, vrm, height: 1.7, stand: { x: 0, y: club.standY || 0, z: 0.36 }, quality: QUALITY, ceiling: Q.get('ceil') === '1' });
   nora.attach(scene);
   document.body.classList.add('nora-ready');
+  // Fly in from the start now that she is here: this page's director runs from the first frame, and
+  // the model can take longer to load than the flight lasts. (noraBooth.mjs makes its director only
+  // once the model is in, so it needs none of this.)
+  if (director.mode === 'auto' && !REDUCED_MOTION) { director.setMode('arrival', barNow(), nowSec()); director.setMode('auto'); }
 }
 const noraFail = (e) => {
   console.warn('[booth] Nora failed to load', e);
@@ -593,6 +619,17 @@ function frame() {
     camera.lookAt(camOut.target.x, camOut.target.y, camOut.target.z);
     if (Math.abs(camera.fov - camOut.fov) > 0.01) { camera.fov = camOut.fov; camera.updateProjectionMatrix(); }
   }
+  // The arrival plays in the exterior, a set of its own: while it does, everything else in the scene
+  // hides, and the lens reaches across the bay.
+  const out = director.mode !== 'free' && director.shot === 'arrival';
+  exterior.update(dt, t, out, bands.level);
+  sets.apply(out);
+  if (out !== outside) {
+    outside = out;
+    camera.near = out ? EXTERIOR_DIMS.NEAR : 0.03;
+    camera.far = out ? EXTERIOR_DIMS.FAR : 150;
+    camera.updateProjectionMatrix();
+  }
 
   // HUD.
   const tr = deckTrack[liveDeck];
@@ -609,7 +646,7 @@ function frame() {
     // focus on what the shot is looking at (the orbit's target when the user is steering)
     const T = director.mode === 'free' ? orbit.target : camOut && camOut.target;
     const focus = T ? camera.position.distanceTo(T) : 6;
-    cine.update({ dt, shot: director.mode === 'free' ? 'free' : director.shot, focus, level: bands.level, drop });
+    cine.update({ dt, shot: director.mode === 'free' ? 'free' : director.shot, focus, level: bands.level, drop, shafts: !outside });
   }
   if (composer) composer.render(); else renderer.render(scene, camera);
   window.__frames = (window.__frames || 0) + 1;
@@ -626,7 +663,7 @@ resize();
 if (Q.get('mode')) setMode(Q.get('mode'));
 if (Q.get('autostart')) startSet();
 requestAnimationFrame(frame);
-window.__booth = { director, renderer, club, venue, venueMs, scene, camera, cine, get composer() { return composer; }, get nora() { return nora; }, get ms() { return window.__ms; }, get bar() { return barNow(); }, scheduleMix: () => scheduleMix(barNow()), setMode };
+window.__booth = { director, renderer, club, venue, exterior, venueMs, scene, camera, cine, get composer() { return composer; }, get nora() { return nora; }, get ms() { return window.__ms; }, get bar() { return barNow(); }, scheduleMix: () => scheduleMix(barNow()), setMode };
 
 // Debug: the first thing a camera ray hits among Nora and the gear (handprobe.cjs uses it to sample
 // only pixels that are actually her skin). Cheap: it tests only the foreground, never the crowd.

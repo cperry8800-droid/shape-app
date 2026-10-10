@@ -172,6 +172,8 @@ export const LENS = {
   overhead: { aperture: 3, maxCoc: 4 },
   club: { aperture: 1.2, maxCoc: 2.5 }, atrium: { aperture: 1.0, maxCoc: 2.5 }, panorama: { aperture: 1.2, maxCoc: 2.5 },
   crane: { aperture: 1.5, maxCoc: 3 }, drone: { aperture: 1.0, maxCoc: 2.5 },
+  // from a few hundred metres over the bay: everything at infinity, so almost no blur at all
+  arrival: { aperture: 0.6, maxCoc: 1.5 },
   free: { aperture: 3, maxCoc: 4 },
 };
 export function lensFor(shot) { return LENS[shot] || LENS.free; }
@@ -318,8 +320,9 @@ export function createCinematic({ THREE, Pass, FullScreenQuad, scene, camera, sa
    * @param {number} s.focus      metres to what the shot is looking at
    * @param {number} [s.level]    0…1 music level (the shafts swell with it)
    * @param {number} [s.drop]     0…1
+   * @param {boolean} [s.shafts]  false while the LED wall is not in the set (the exterior)
    */
-  function update({ dt = 1 / 60, shot = 'free', focus = 6, level = 0, drop = 0 } = {}) {
+  function update({ dt = 1 / 60, shot = 'free', focus = 6, level = 0, drop = 0, shafts = true } = {}) {
     near.value = camera.near; far.value = camera.far;
     camera.updateMatrixWorld();
     uMask.uProjInv.value.copy(camera.projectionMatrixInverse);
@@ -339,7 +342,7 @@ export function createCinematic({ THREE, Pass, FullScreenQuad, scene, camera, sa
     light.set(wall.light[0], wall.light[1], wall.light[2], 1).applyMatrix4(camera.matrixWorldInverse).applyMatrix4(camera.projectionMatrix);
     const vis = shaftVisibility(light.x / light.w, light.y / light.w, light.w);
     uBlur.uLight.value.set((light.x / light.w) * 0.5 + 0.5, (light.y / light.w) * 0.5 + 0.5);
-    uDof.uShaft.value = vis * (0.55 + 0.35 * level + 0.25 * drop);
+    uDof.uShaft.value = shafts ? vis * (0.55 + 0.35 * level + 0.25 * drop) : 0;
     // grain: moves every frame, held still under reduced motion
     if (!reducedMotion) grainT = (grainT + 0.618034) % 97.0;
     uFilm.uTime.value = grainT;

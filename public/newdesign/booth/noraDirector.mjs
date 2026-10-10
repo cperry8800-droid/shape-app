@@ -39,6 +39,7 @@ export const SHOTS = {
   face:      { label: 'Nora',      bars: 4,  weight: 1, handheld: 0.005, fov: 28 },
   behind:    { label: 'Behind Nora', bars: 8, weight: 2, handheld: 0.004, fov: 54 },
   drone:     { label: 'Drone',     bars: 40, weight: 1, handheld: 0.0015, fov: 58 },
+  arrival:   { label: 'Arrival',   bars: 12, weight: 1, handheld: 0.0, fov: 46 },
 };
 export const SHOT_IDS = Object.keys(SHOTS);
 
@@ -98,6 +99,56 @@ function droneAt(u, P, T) {
   P.x = p[0]; P.y = p[1]; P.z = p[2]; T.x = t[0]; T.y = t[1]; T.z = t[2];
 }
 export const _droneForTest = { DRONE, droneAt, total: DRONE_LUT.total };
+
+// ── the arrival: in from the bay, over the crowd and under the roof toward the stage ──────────
+// Club Shape from outside (clubExterior.mjs, the Shape Sets background): high over the water with
+// the venue below and the city across the bay, then down over the peninsula and the bowl's rim, and
+// low over the crowd toward the stage under the roof. The exterior is a set of its own, so the flight
+// ends there and the director cuts to the drone, which opens on Nora at the decks.
+// Open-ended (not a loop): the ends are held by doubling them.
+const ARRIVAL = [
+  { p: [-20, 215, -430], t: [0, 8, 10], fov: 44 },      // high and far over the bay: the venue, the water, the city beyond, as the Shape Sets picture has them
+  { p: [-32, 108, -200], t: [6, 16, 28], fov: 46 },      // aimed at the venue, so a portrait phone keeps it in frame
+  { p: [-18, 68, -135], t: [2, 6, 10], fov: 48 },        // over the waterfront promenade
+  { p: [-5, 42, -92], t: [0, 6, 5], fov: 50 },           // over the plaza, the bowl ahead
+  { p: [0, 27, -62], t: [0, 7, 10], fov: 52 },           // over the rim (6 m) and the terraces
+  { p: [0, 17, -38], t: [0, 7, 15], fov: 52 },           // down over the crowd
+  { p: [0, 13, -22], t: [0, 7, 15], fov: 48 },           // the roof's mouth and the stage ahead
+  { p: [0, 12, -14], t: [0, 7, 15], fov: 46 },           // over the crowd, the stage 20 m on
+];
+function arrivalRaw(g, key, out) {   // global parameter g in [0, n−1]
+  const n = ARRIVAL.length, k = Math.min(n - 2, Math.floor(g)), u = g - k;
+  const at = (i) => ARRIVAL[clamp(i, 0, n - 1)][key];
+  if (key === 'fov') return catmull(at(k - 1), at(k), at(k + 1), at(k + 2), u);
+  const A = at(k - 1), B = at(k), C = at(k + 1), D = at(k + 2);
+  for (let i = 0; i < 3; i++) out[i] = catmull(A[i], B[i], C[i], D[i], u);
+  return out;
+}
+// The flight slows as it comes down: each step costs its length over its height (plus 6 m), so the
+// high glide over the bay and the last metres to the booth take their time alike.
+const ARRIVAL_LUT = (() => {
+  const n = ARRIVAL.length, steps = 96, gs = [], cum = [0], p = [0, 0, 0], q = [0, 0, 0];
+  for (let i = 0; i <= (n - 1) * steps; i++) gs.push(i / steps);
+  arrivalRaw(0, 'p', p);
+  for (let i = 1; i < gs.length; i++) {
+    arrivalRaw(gs[i], 'p', q);
+    const d = Math.hypot(q[0] - p[0], q[1] - p[1], q[2] - p[2]);
+    cum.push(cum[i - 1] + d / (6 + Math.max(0, (p[1] + q[1]) / 2)));
+    p[0] = q[0]; p[1] = q[1]; p[2] = q[2];
+  }
+  return { gs, cum, total: cum[cum.length - 1] };
+})();
+function arrivalAt(u, P, T) {
+  const L = ARRIVAL_LUT, want = ease(clamp(u, 0, 1)) * L.total;
+  let lo = 0, hi = L.cum.length - 1;
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (L.cum[m] <= want) lo = m; else hi = m; }
+  const f = (want - L.cum[lo]) / Math.max(1e-9, L.cum[hi] - L.cum[lo]);
+  const g = L.gs[lo] + (L.gs[hi] - L.gs[lo]) * f;
+  const p = arrivalRaw(g, 'p', [0, 0, 0]), t = arrivalRaw(g, 't', [0, 0, 0]);
+  P.x = p[0]; P.y = p[1]; P.z = p[2]; T.x = t[0]; T.y = t[1]; T.z = t[2];
+  return arrivalRaw(g, 'fov');
+}
+export const _arrivalForTest = { ARRIVAL, arrivalAt };
 
 /**
  * Evaluate one shot at progress u (0..1) and absolute time t.
@@ -204,6 +255,10 @@ export function evalShot(id, u, t, ctx, out) {
       droneAt(u, P, T);
       break;
     }
+    case 'arrival': {
+      out.fov = arrivalAt(u, P, T);
+      break;
+    }
     case 'face': {
       // Low and in front, on the side she is looking toward, so the face (not the back of her
       // head) is what the shot is of.
@@ -235,23 +290,43 @@ export class NoraDirector {
    *        caller passes no kick, so no zoom punch either
    * @param {string[]} [o.exclude]  shots the automatic rotation never picks (a locked shot still
    *        can be): the booth leaves out the full-face close-up while its model is a placeholder
+   * @param {boolean} [o.arrival]  there is an outside to fly in to. The booth has one only with the
+   *        venue model (CLUB_SHAPE_MODEL); without it the arrival is never picked, as under reduced motion
+   *
+   * It opens on the arrival, the flight in from the bay. Under reduced motion it opens on the room
+   * instead and never picks the arrival itself: a 300 m descent is the camera move that preference
+   * is about (a locked Arrival still plays it, because the viewer asked for it).
    */
-  constructor({ seed = 11, style = 'cut', reducedMotion = false, exclude = [] } = {}) {
+  constructor({ seed = 11, style = 'cut', reducedMotion = false, exclude = [], arrival = true } = {}) {
     this.seed = seed;
     this.exclude = new Set(exclude);
+    if (reducedMotion || !arrival) this.exclude.add('arrival');
     this.style = style;
     this.reducedMotion = !!reducedMotion;
     this.mode = 'auto';          // 'auto' | a shot id (locked) | 'free' (the user is orbiting)
-    this.shot = 'club';          // open on the room, like walking in
+    this.shot = reducedMotion || !arrival ? 'club' : 'arrival';   // fly in from the bay; or open on the room, like walking in
     this.shotStartBar = 0;
     this.shotStartT = 0;
-    this.shotBars = SHOTS.club.bars;
+    this.shotBars = SHOTS[this.shot].bars;
+    this._bar = 0;               // the last bar update() saw (restartClock keeps a shot's progress by it)
     this._pendingHint = null;
     this.history = [];
     this._out = { pos: { x: 0, y: 0, z: 0 }, target: { x: 0, y: 0, z: 0 }, fov: 38 };
     this._prev = { pos: { x: 0, y: 0, z: 0 }, target: { x: 0, y: 0, z: 0 }, fov: 38 };
     this._blend = 1;             // 0→1 glide progress
     this._lastHint = null;
+  }
+
+  /**
+   * The host's bar clock restarted (the example set began or ended): carry the current shot on from
+   * where it was on the new clock, instead of restarting it (an arrival half-flown would jump back out
+   * over the bay) or leaving it to wait for a bar the new clock will not reach for minutes.
+   */
+  restartClock(bar, t) {
+    const done = clamp(this._bar - this.shotStartBar, 0, this.shotBars);
+    this.shotStartBar = bar - done;
+    this.shotStartT = t;
+    this._bar = bar;
   }
 
   /** Lock a shot, go back to auto, or hand control to the user ('free'). */
@@ -290,6 +365,7 @@ export class NoraDirector {
    */
   update(t, bar, ctx, secPerBar, dt = 1 / 60) {
     const whole = Math.floor(bar);
+    this._bar = bar;
     if (this.mode === 'auto') {
       const hint = ctx.hint ? HINT_TO_SHOT[ctx.hint] : null;
       if (hint && hint !== this._lastHint) this._pendingHint = { id: hint, bar: whole };
@@ -305,8 +381,11 @@ export class NoraDirector {
       } else if (ph && ph.id === this.shot) {
         this._pendingHint = null;
       } else if (due) {
-        const next = ctx.drop ? (this.shot === 'crane' ? 'club' : 'crane') : this._pick(whole);
-        const glide = this.style === 'glide' || (this.shot === 'wide' && next === 'panorama');
+        // The arrival ends in front of the venue's stage outside; it cuts to the drone, on Nora.
+        const next = this.shot === 'arrival' && !this.exclude.has('drone') ? 'drone'
+          : ctx.drop ? (this.shot === 'crane' ? 'club' : 'crane') : this._pick(whole);
+        // Never a glide into or out of the arrival: it is another set, so the change is a cut.
+        const glide = (this.style === 'glide' || (this.shot === 'wide' && next === 'panorama')) && next !== 'arrival' && this.shot !== 'arrival';
         this._cut(next, whole, t, glide);
       }
       this._lastHint = hint || null;
