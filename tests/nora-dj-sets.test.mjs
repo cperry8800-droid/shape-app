@@ -158,6 +158,27 @@ test('a library too small to fill the set ends it early and says so', () => {
   assert.throws(() => planSet({ tracks: tiny, set: { id: 'x', startsAt: 'never', durationMin: 60 } }));
 });
 
+test('a long set never plays a song twice, even once 3 hours have passed', () => {
+  // 50 songs of 4 minutes fill about 3 h 20 min of a 5-hour set; past 3 hours the no-repeat rule
+  // alone would let the first songs back in, so the set itself must refuse them.
+  const tracks = Array.from({ length: 50 }, (_, i) => song(i, { bpm: null, artist: `A${i}`, album: null, camelot: '8A' }));
+  const p = planSet({ tracks, set: { ...SET, durationMin: 300 } });
+  assert.equal(new Set(p.items.map((it) => it.trackId)).size, p.items.length);
+  assert.equal(p.items.length, 50);
+  assert.equal(p.short, 'rules-or-library');
+  assert.ok(p.endsSec > 3 * 3600, 'the set did run past 3 hours');
+});
+
+test('every song is levelled to the set’s median loudness, within −9…+6 dB', () => {
+  const tracks = [song(1, { bpm: null, artist: 'A', loud: -10 }), song(2, { bpm: null, artist: 'B', loud: -14 }), song(3, { bpm: null, artist: 'C', loud: -20 }), song(4, { bpm: null, artist: 'D', loud: -30 })];
+  const p = planSet({ tracks, set: { ...SET, durationMin: 30 } });
+  const gain = Object.fromEntries(p.items.map((it) => [it.trackId, it.gainDb]));
+  // The median of the four (sorted −30, −20, −14, −10) is the third, −14.
+  assert.deepEqual(gain, { t1: -4, t2: 0, t3: 6, t4: 6 }, 'a quiet song is raised at most 6 dB');
+  const loud = planSet({ tracks: [song(1, { bpm: null, artist: 'A', loud: -2 }), song(2, { bpm: null, artist: 'B', loud: -14 }), song(3, { bpm: null, artist: 'C', loud: -14 })], set: { ...SET, durationMin: 30 } });
+  assert.equal(loud.items.find((it) => it.trackId === 't1').gainDb, -9, 'a loud one is lowered at most 9 dB');
+});
+
 test('a last song running more than a minute past the end fades out at the end', () => {
   const long = [song(1, { dur: 1700, bpm: null, artist: 'A' }), song(2, { dur: 1700, bpm: null, artist: 'B' }), song(3, { dur: 1700, bpm: null, artist: 'C' })];
   const p = planSet({ tracks: long, set: { ...SET, durationMin: 45 } });
@@ -309,6 +330,11 @@ test('a set is planned once, from the library and the plays before it; the first
   assert.ok(!r.programme.items.some((it) => prior.items.some((p) => p.trackId === it.trackId)), 'nothing from 90 minutes ago repeats');
   const again = await ensureProgramme(db, 'n1');
   assert.deepEqual([again.stored, again.planned, again.programme], [true, undefined, r.programme]);
+  // ⚠ The stored plan is what plays, even once the library has changed under it (every song
+  // turned off here): the engine asking at the start must get it, not a fresh plan or an error.
+  tables.radio_tracks = [];
+  const kept = await ensureProgramme(db, 'n1');
+  assert.deepEqual([kept.error, kept.programme], [undefined, r.programme]);
   assert.equal(tables.nora_set_programmes.length, 2);
   assert.equal((await ensureProgramme(fakeDb({ nora_sets: [{ ...set, host_kind: 'guest' }], nora_set_programmes: [] }), 'n1')).error, 'not_a_nora_set');
   assert.equal((await ensureProgramme(fakeDb({ nora_sets: [set], nora_set_programmes: [], radio_tracks: [] }), 'n1')).error, 'empty_library');
@@ -337,7 +363,8 @@ test('what Nora planned names songs ahead of air, so no listener can read it', (
 
 test('the cron is authenticated and scheduled; the dashboard is admin-only', () => {
   const cron = read('src/app/api/cron/nora-sets/route.ts');
-  assert.ok(cron.indexOf('authorized(request)') < cron.indexOf('createAdminClient()'));
+  const gate = cron.indexOf("if (!authorized(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });");
+  assert.ok(gate > 0 && gate < cron.indexOf('createAdminClient()'), 'the secret is checked before anything runs');
   assert.match(cron, /safeEqual\(auth, `Bearer \$\{secret\}`\)/);
   const vercel = JSON.parse(read('vercel.json'));
   assert.ok(vercel.crons.some((c) => c.path === '/api/cron/nora-sets' && c.schedule === '5 * * * *'));
