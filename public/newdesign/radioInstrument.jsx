@@ -834,6 +834,9 @@ function RadioInstrument() {
   const track = st.nowPlaying;
   const title = track && track.title ? track.title : null;
   const artist = track && track.artist ? track.artist : null;
+  // The album rides beside the artist: the webcasting licence requires song, artist and album
+  // shown while a recording plays (Nora's sets carry it; a station payload may not).
+  const album = track && track.album ? track.album : null;
   // ⚠ THE SAME LIVE-REF RULE AS `liveRef` ABOVE, AND IT WAS MISSED HERE (Codex,
   // #2101). `applyTrack` is declared inside the field effect, whose deps are `[]`,
   // so it closed over the title and artist of the MOUNT render — both null, because
@@ -1080,7 +1083,7 @@ function RadioInstrument() {
                 {title || "Shape Radio"}
               </div>
               <div style={{ fontFamily: RD_SANS, fontSize: 14, color: RD_CREAM50, marginTop: 8 }}>
-                {artist || (st.playing ? "One live channel" : "Tune in to hear what is on")}
+                {artist ? (album ? `${artist} · ${album}` : artist) : (st.playing ? "One live channel" : "Tune in to hear what is on")}
               </div>
             </div>
             {/* the four-beat counter — it steps on a measured tempo or it does not step */}

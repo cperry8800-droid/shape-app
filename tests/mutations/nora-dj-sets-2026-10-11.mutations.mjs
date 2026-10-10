@@ -57,6 +57,8 @@ export default {
       find: "      if (cursor < durationSec - END_SLACK_SEC) short = items.length ? 'rules-or-library' : 'empty-library';", replace: '' },
     { name: 'a last song runs on past the end', file: PLAN,
       find: '  if (last && last.endSec > durationSec + OVERRUN_SEC) {', replace: '  if (false) {' },
+    { name: 'the plan carries no tempo', file: PLAN,
+      find: '      bpm: a.bpm > 0 ? a.bpm : null,', replace: '      bpm: null,' },
     { name: 'songs are not levelled', file: PLAN,
       find: "    it.gainDb = Number.isFinite(l) ? round(clamp(ref - l, -9, 6), 2) : 0;", replace: '    it.gainDb = 0;' },
     { name: 'checkProgramme passes any rate', file: PLAN,

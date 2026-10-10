@@ -6,8 +6,8 @@ import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { decodePng } from '../src/pngRgba.mjs';
 import { GLYPHS, inGlyph, SLANT } from '../src/wordmarkGlyphs.mjs';
-import { buildScreenArt, hex, ART } from '../src/screenArt.mjs';
-import { CLUB_SHAPE_MASK } from '../../../public/newdesign/booth/clubShapeMask.mjs';
+import { buildScreenArt, hex, ART, ARTWORKS } from '../src/screenArt.mjs';
+import { CLUB_SHAPE_MASK, SHAPE_RADIO_MASK, NORA_MASK } from '../../../public/newdesign/booth/clubShapeMask.mjs';
 
 const LOGO = fileURLToPath(new URL('../../../public/SHAPE-logo-teal-white.png', import.meta.url));
 
@@ -31,11 +31,41 @@ test('the rebuilt S H A P E match the brand wordmark (IoU ≥ 0.9 each), so C L 
 });
 
 test('clubShapeMask.mjs is current (re-run node screen-mask.mjs if this fails)', () => {
-  const m = buildScreenArt();
-  assert.equal(CLUB_SHAPE_MASK.cols, m.cols);
-  assert.equal(CLUB_SHAPE_MASK.rows, m.rows);
-  assert.equal(CLUB_SHAPE_MASK.white, hex(m.white));
-  assert.equal(CLUB_SHAPE_MASK.teal, hex(m.teal));
+  const masks = { clubShape: CLUB_SHAPE_MASK, shapeRadio: SHAPE_RADIO_MASK, nora: NORA_MASK };
+  assert.deepEqual(Object.keys(masks), Object.keys(ARTWORKS));
+  for (const [k, M] of Object.entries(masks)) {
+    const m = buildScreenArt(ARTWORKS[k]);
+    assert.equal(M.cols, m.cols, k);
+    assert.equal(M.rows, m.rows, k);
+    assert.equal(M.baseRow, m.baseRow, k);
+    assert.equal(M.white, hex(m.white), k);
+    assert.equal(M.teal, hex(m.teal), k);
+  }
+  // CLUB SHAPE is the artwork it always was: the headliner screen added two, it changed none.
+  assert.deepEqual(buildScreenArt(), buildScreenArt(ARTWORKS.clubShape));
+});
+
+test('the headliner screen: every artwork fits the 192 × 112 wall, NORA is the biggest, the mark only on the lockups', () => {
+  const WALL = { cols: 192, rows: 112 };
+  const masks = { clubShape: CLUB_SHAPE_MASK, shapeRadio: SHAPE_RADIO_MASK, nora: NORA_MASK };
+  const litRows = (M, key) => {
+    const v = M[key], out = new Set();
+    for (let i = 0; i < v.length; i++) if (parseInt(v[i], 16) > 7) out.add((i / M.cols) | 0);
+    return out.size;
+  };
+  for (const [k, M] of Object.entries(masks)) {
+    assert.ok(M.cols <= WALL.cols, `${k}: ${M.cols} columns on a ${WALL.cols}-column wall`);
+    assert.ok(M.baseRow + 1 - M.rows >= 0 && M.baseRow < WALL.rows, `${k}: rows ${M.baseRow + 1 - M.rows}..${M.baseRow} off the wall`);
+    assert.equal(M.white.length, M.cols * M.rows, k);
+  }
+  assert.ok(ARTWORKS.nora.capDots > 2 * ARTWORKS.clubShape.capDots, 'the headliner is the biggest thing on the wall');
+  assert.equal(litRows(NORA_MASK, 'teal'), 0, 'NORA alone: no mark');
+  assert.ok(litRows(SHAPE_RADIO_MASK, 'teal') > 0 && litRows(CLUB_SHAPE_MASK, 'teal') > 0, 'the venue and the station carry the mark');
+  // SHAPE RADIO under the mark: ten letters on the baseline
+  const radioTextTop = SHAPE_RADIO_MASK.rows - ART.pad - ARTWORKS.shapeRadio.capDots - 1;
+  assert.equal(components(SHAPE_RADIO_MASK, 'white', radioTextTop, SHAPE_RADIO_MASK.rows), 10);
+  // the name's letters land on the wall as four separate shapes, N O R A
+  assert.equal(components(NORA_MASK, 'white', 0, NORA_MASK.rows), 4);
 });
 
 // lit dots (coverage over half), grouped 8-connected

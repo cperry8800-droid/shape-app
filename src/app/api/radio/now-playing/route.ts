@@ -3,12 +3,25 @@
 // so the stream UI never breaks. No auth (radio is not gated).
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { getProvider, isSimulated } from '@/lib/radio';
+import { noraOnAir } from '@/lib/radio/noraOnAir.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  // While Nora is the DJ, the song comes from her own planned set (src/lib/radio/noraOnAir.mjs):
+  // the one listeners are hearing, with its album, and the tempo the booth follows. Her records
+  // are service-role only, so this read is the server's; it never says what plays next. Any
+  // fault here falls through to the station as usual.
+  try {
+    const nora = await noraOnAir(createAdminClient(), { now: Date.now() });
+    if (nora) return NextResponse.json({ ...nora, simulated: false }, { headers: { 'cache-control': 'no-store, max-age=0' } });
+  } catch {
+    /* the station's own now-playing below */
+  }
+
   const supabase = await createClient();
   // ⚠ THE PAYLOAD SAYS WHETHER IT IS A MEASUREMENT, BECAUSE THE MOCK IS INDISTINGUISHABLE
   // FROM A REAL TRACK ON THE WIRE (Codex, #2101 round 5). With no station configured —

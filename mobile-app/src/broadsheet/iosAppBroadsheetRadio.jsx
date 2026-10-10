@@ -1025,6 +1025,9 @@ function radioNowPlayingDisplay(np) {
   return {
     title: has(np && np.title) ? np.title : '—',
     artist: has(np && np.artist) ? np.artist : '—',
+    // The album rides beside the artist: the webcasting licence requires song, artist and album
+    // shown while a recording plays (Nora's sets carry it; a station payload may not).
+    byline: has(np && np.artist) ? (has(np && np.album) ? `${np.artist} · ${np.album}` : np.artist) : '—',
     len: (np && np.len) || null,
     hasTrack: !!(np && (has(np.title) || has(np.artist))),
   };
@@ -1114,7 +1117,7 @@ function BSNowPlaying({ onOpen }) {
               fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase',
               color: t.INK70, marginTop: 2, fontWeight: 900,
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            }}>{np.artist}</div>
+            }}>{np.byline}</div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
@@ -1287,7 +1290,7 @@ function BSNowPlayingMuted({ onTurnOn, onOpen }) {
               fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase',
               color: t.INK50, marginTop: 2, fontWeight: 600,
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            }}>{np.artist}</div>
+            }}>{np.byline}</div>
           </div>
 
           {/* Tune in — replaces the pause/play button */}
@@ -2222,7 +2225,7 @@ function bsBoothLabelText(tr, label) {
   }
 }
 
-function BSNoraBooth({ on, prospect, stationConfigured, stationPlaying, guestDj, TEAL, CREAM, CREAM50, CREAM25 }) {
+function BSNoraBooth({ on, prospect, stationConfigured, stationPlaying, guestDj, noraNow = null, TEAL, CREAM, CREAM50, CREAM25 }) {
   const t = useBS();
   const tr = useShapeTr();
   const hostRef = useRefBR(null);
@@ -2285,7 +2288,7 @@ function BSNoraBooth({ on, prospect, stationConfigured, stationPlaying, guestDj,
     b.setStation({ analyser: an, playing: stationPlaying, guest: !!guestDj });
   }, [status, stationPlaying, guestDj]);
 
-  const label = boothLabel({ example: !!(snap && snap.example), station: { playing: stationPlaying, bpm: snap ? snap.bpm : null, guest: guestDj } });
+  const label = boothLabel({ example: !!(snap && snap.example), station: { playing: stationPlaying, bpm: snap && snap.bpm != null ? snap.bpm : (noraNow ? noraNow.bpm : null), guest: guestDj, cueSheet: !!noraNow } });
   const labelText = bsBoothLabelText(tr, label);
   const live = label.key !== 'offAir';
   const playing = !!(snap && snap.example);
@@ -2504,7 +2507,11 @@ function BSRadioScreen({ onBack }) {
   const stationPlaying = r.playingSince != null;
   const stationConfigured = !!(r.sets && r.sets.real);
   // A live Shape Set on a real stream: Nora steps off the decks and the label names the DJ.
-  const guestDj = stationConfigured && r.sets && r.sets.live && r.sets.live.dj ? String(r.sets.live.dj) : null;
+  // ⚠ NOT HER OWN SET: its row names her as the DJ, and read as a guest it took her off the decks
+  // during it. Her set is hers on the label only while the server says her engine is on the air.
+  const noraSet = !!(r.sets && r.sets.live && r.sets.live.host_kind === 'nora');
+  const guestDj = stationConfigured && r.sets && r.sets.live && r.sets.live.dj && !noraSet ? String(r.sets.live.dj) : null;
+  const noraNow = r.nowPlaying && r.nowPlaying.isNora === true && r.nowPlaying.nora ? r.nowPlaying.nora : null;
 
   // Section accent — follows the global Appearance accent so Radio's
   // colored highlights (kicker, italic "Radio.", EQ, beat ring, play button,
@@ -2789,7 +2796,7 @@ function BSRadioScreen({ onBack }) {
               {np.title}
             </div>
             <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: CREAM70, fontWeight: 600 }}>
-              {np.artist}
+              {np.byline}
             </div>
           </div>
 
@@ -2938,7 +2945,7 @@ function BSRadioScreen({ onBack }) {
             Nora · {tr('radio:nora.djPreview', { defaultValue: 'DJ preview' })}
           </div>
           <BSNoraBooth on={noraOn} prospect={previewSim} stationConfigured={stationConfigured} stationPlaying={stationPlaying}
-            guestDj={guestDj} TEAL={TEAL} CREAM={CREAM} CREAM50={CREAM50} CREAM25={CREAM25} />
+            guestDj={guestDj} noraNow={noraNow} TEAL={TEAL} CREAM={CREAM} CREAM50={CREAM50} CREAM25={CREAM25} />
           {/* Toggle button — instrument-plate style with accent spine */}
           <button onClick={toggleNora} style={{
             display: 'flex', alignItems: 'center', gap: 9,

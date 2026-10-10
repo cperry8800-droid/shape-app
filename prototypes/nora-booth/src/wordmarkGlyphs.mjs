@@ -88,6 +88,14 @@ export const PARAMS = {
   L: { w: 0.92, r: 0 },
   U: { w: 1.1357, r: 0.182 },
   B: { w: 1.075, r: 0.182, rt: 0, inset: 0.04 },
+  // For the headliner screen (SHAPE RADIO, NORA; owner 2026-10-10), from the same strokes: O is C
+  // closed, D is B's single bowl at full height (square on the stem side), R is P with A's diagonal
+  // as its leg, N is H's stems joined by A's diagonal, I is one stem.
+  O: { w: 1.1, r: 0.1558 },
+  D: { w: 1.075, r: 0.182 },
+  R: { w: 1.075, b: 0.4275, r: 0.182, rt: 0, leg: 0.52 },
+  N: { w: 1.1357 },
+  I: { w: 0.106 },
 };
 
 export function makeGlyph(ch, q) {
@@ -101,6 +109,15 @@ export function makeGlyph(ch, q) {
     case 'C': return { w, parts: rounded([[w, top], [hv, top], [hv, bot], [w, bot]], q.r) };
     case 'L': return { w, parts: rounded([[hv, 1], [hv, bot], [w, bot]], q.r) };
     case 'U': return { w, parts: rounded([[hv, 1], [hv, bot], [w - hv, bot], [w - hv, 1]], q.r) };
+    case 'O': return { w, parts: rounded([[w / 2, top], [hv, top], [hv, bot], [w - hv, bot], [w - hv, top], [w / 2, top]], q.r) };
+    case 'D': return { w, parts: [seg([hv, 0], [hv, 1], TV), ...rounded([[hv, top], [w - hv, top], [w - hv, bot], [hv, bot]], [q.r, q.r])] };
+    case 'R': return { w, parts: [
+      seg([hv, 0], [hv, top - q.rt], TV),
+      ...rounded([[hv, top - q.rt], [hv, top], [w - hv, top], [w - hv, q.b], [hv, q.b]], [q.rt, q.r, q.r]),
+      { k: 'diag', x0: w - TD / 2, x1: q.leg * w, y0: 0, y1: q.b, t: TD },
+    ] };
+    case 'N': return { w, parts: [seg([hv, 0], [hv, 1], TV), seg([w - hv, 0], [w - hv, 1], TV), { k: 'diag', x0: w - hv - TD / 2, x1: hv + TD / 2, y0: 0, y1: 1, t: TD }] };
+    case 'I': return { w, parts: [seg([hv, 0], [hv, 1], TV)] };
     case 'B': {
       const xu = w - hv - q.inset;   // the upper bowl is a little narrower, as in the face's P
       return { w, parts: [

@@ -5,7 +5,9 @@
 
 import { isZone, wallInstant, localDate } from '../../../public/newdesign/bookingRules.mjs';
 
-export const SET_TITLE = 'Nora · DJ set';
+// The schedule shows the title and the DJ side by side ("Mon 6:00 pm  DJ set  NORA"), so the title
+// does not repeat her name. The show is named, never the music.
+export const SET_TITLE = 'DJ set';
 export const SET_DJ = 'Nora';
 export const HORIZON_DAYS = 7;          // how far ahead sets are put on the schedule
 export const MIN_SET_MIN = 30;

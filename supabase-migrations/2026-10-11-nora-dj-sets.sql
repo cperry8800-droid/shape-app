@@ -3,7 +3,7 @@
 --
 --   nora_slots           the owner's recurring times ("Mon–Fri 6 pm, 60 min, America/New_York")
 --   nora_sets (+2 cols)  each set they put on the schedule: host_kind 'nora', and the slot it
---                        came from. A Nora set is shown in "Coming up" as "Nora · DJ set" (the
+--                        came from. A Nora set is shown in "Coming up" as "DJ set · Nora" (the
 --                        show is named, never the music) and only once the licences are confirmed.
 --   nora_set_programmes  the set Nora planned: every song, its order and every transition. It
 --                        names the songs ahead of air, so it is NEVER readable by listeners (the

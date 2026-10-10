@@ -264,6 +264,9 @@ export function planSet({ tracks, set, history = [], seed }) {
     items.push({
       trackId: t.id, title: t.title, artist: t.artist, album: t.album || null, label: t.label || null, isrc: t.isrc || null,
       startSec: round(startSec), cueInSec: round(cueIn), cueOutSec: round(a.soundEndSec), endSec: round(naturalEnd), rate: round(rate, 5),
+      // The song's own measured tempo (null without a grid): × rate is the tempo heard, which the
+      // booth and the now-playing route follow (src/lib/radio/noraOnAir.mjs).
+      bpm: a.bpm > 0 ? a.bpm : null,
       gainDb: 0,
       mixIn: tr ? { type: tr.type, lengthSec: round(tr.lengthSec), bars: tr.bars, eq: tr.eq } : { type: 'open', lengthSec: 0, bars: null, eq: null },
     });
