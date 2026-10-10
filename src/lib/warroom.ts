@@ -203,6 +203,7 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/cron/credential-expiry', 'GET,POST'],
   ['/api/cron/reminders', 'GET,POST'],
   ['/api/cron/prep-reminders', 'GET,POST'],
+  ['/api/cron/nora-sets', 'GET,POST'],
   ['/api/analytics/track', 'POST'],
   ['/api/auth/resolve-username', 'POST'],
   ['/api/cron/analytics-purge', 'GET'],
