@@ -1,12 +1,12 @@
 // Mutation spec for the live capture's plumbing (first run on the 2026-10-08 capture, now reading the
-// 2026-10-09 one, which supersedes it): replayDir's `including`, the capture-day
+// 2026-10-10 one, which supersedes the 2026-10-09 one): replayDir's `including`, the capture-day
 // helpers (modelAsOfCapture, ambiguousCaptureDayFiles), the trigger-definer comparison, and the
 // fixture's own record. Each mutation breaks one clause; every one must be killed.
 // Run from the repo root:
 //   node scripts/mutate.mjs --spec tests/mutations/definer-live-capture-2026-10-08.mutations.mjs --fail-on-skipped
 const MODEL = 'tests/helpers/definer-model.mjs';
 const LIVE = 'tests/helpers/definer-live.mjs';
-const FIXTURE = 'tests/fixtures/definer-live-2026-10-09.json';
+const FIXTURE = 'tests/fixtures/definer-live-2026-10-10.json';
 
 export default {
   test: 'node --test tests/definer-live-agreement.test.mjs tests/definer-live-diff.test.mjs',
@@ -46,9 +46,9 @@ export default {
     { name: 'the fixture forgets the one trigger definer no migration creates', file: FIXTURE,
       find: '    "rls_auto_enable",\n',
       replace: '' },
-    // Not the array's last entry: that one has no trailing comma, so an anchor with one never matches.
-    { name: 'the fixture forgets that the restore file was applied before the capture', file: FIXTURE,
-      find: '    "2026-10-09-restore-messages-touch-conversation.sql",\n',
+    // The array's only entry, so it carries no trailing comma (an anchor with one would never match).
+    { name: 'the fixture forgets that the Lows file was applied before the capture', file: FIXTURE,
+      find: '    "2026-10-10-security-review-lows-and-anon-definers.sql"\n',
       replace: '' },
     { name: 'the fixture forgets a non-trigger definer the migrations create', file: FIXTURE,
       find: '    "get_health_sources",\n',

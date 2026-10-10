@@ -276,10 +276,18 @@ test('the app\'s application fallback and the allow-list say what changed', () =
   // local path. The route is the one way in.
   const sb = read('mobile-app/src/services/shapeBackend.js');
   assert.match(sb, /\.from\('provider_applications'\)\s*\.insert\(payload\)[^]*?if \(error\) \{\s*return \{ stored: 'local'/);
-  // The allow-list carries the five fixes until the catalog is captured again (tests/definer-grants.test.mjs holds the shape).
+  // The allow-list carried the five fixes as fixedAfterCapture until the catalog was captured again;
+  // the 2026-10-10 capture records this file as applied and shows them, so the list carries none
+  // (tests/definer-grants.test.mjs holds the shape) and the capture says what the file did.
   const allow = JSON.parse(read('tests/fixtures/definer-anon-allowlist.json'));
-  assert.deepEqual(allow.fixedAfterCapture.map((f) => f.name).sort(), ['get_active_activities', 'get_active_now', 'get_follow_list', 'save_workout_session', 'shape_profile_visibility']);
-  for (const f of allow.fixedAfterCapture) assert.equal(f.fixedBy, '2026-10-10-security-review-lows-and-anon-definers.sql');
+  assert.deepEqual(allow.fixedAfterCapture, []);
   assert.deepEqual(allow.registeredFindings, []);
   assert.deepEqual(allow.registeredPinFindings, []);
+  const live = JSON.parse(read('tests/fixtures/definer-live-2026-10-10.json'));
+  assert.deepEqual(live.captureDayFilesApplied, ['2026-10-10-security-review-lows-and-anon-definers.sql']);
+  for (const fn of ['get_follow_list', 'get_active_now', 'get_active_activities', 'shape_profile_visibility']) {
+    assert.ok(live.notAnonExecutable.includes(fn) && !live.anonExecutable.includes(fn), `${fn} is signed-in only in production`);
+  }
+  assert.ok(live.anonExecutable.includes('get_public_profile'), 'the card RPC keeps anon on purpose');
+  assert.deepEqual(live.definersWithoutPgTemp, [], 'save_workout_session is pinned in production');
 });

@@ -1279,7 +1279,12 @@ test('the registered findings are named, not hidden', (t) => {
   for (const p of ALLOW.registeredPinFindings) t.diagnostic(`REGISTERED PIN FINDING ${p.name}: ${p.why.slice(0, 150)}`);
   // A fix carried until the next capture is named the same way: it is still open in production.
   for (const f of ALLOW.fixedAfterCapture ?? []) t.diagnostic(`FIXED AFTER CAPTURE, NOT APPLIED LIVE YET ${f.name} (by ${f.fixedBy}): ${f.fix.slice(0, 150)}`);
-  assert.ok(ALLOW.registeredFindings.length + ALLOW.registeredPinFindings.length + (ALLOW.fixedAfterCapture ?? []).length > 0);
+  // Since the 2026-10-10 capture every one of the three lists is empty: every anon-executable definer
+  // is an entry with its class, and every definer is pinned. Say so rather than fail on it; the
+  // tripwire for a finding registered without being named is the field checks in checkAllowlist.
+  const open = ALLOW.registeredFindings.length + ALLOW.registeredPinFindings.length + (ALLOW.fixedAfterCapture ?? []).length;
+  if (open === 0) t.diagnostic('no registered finding, no pin finding, no fix awaiting a capture: every anon-executable definer is a classified entry');
+  assert.ok(open >= 0);
 });
 
 test('a registered finding is what its kind says it is, mechanically', () => {
@@ -1716,26 +1721,15 @@ const FIXED_ITEM = {
 
 test('fixedAfterCapture: each item is checked against the migrations, and a fix that did not land is refused', () => {
   // The three fixes the 2026-10-08 access-layer migration made were carried here until the catalog was
-  // captured again; the 2026-10-08 capture showed them applied (the live diff's --strict said to delete
-  // them). The checked-in list now carries the five the 2026-10-10 Lows migration made, which the
-  // 2026-10-09 capture predates: the four 2026-10-03 findings revoked from anon, and the one pin.
-  // Delete them once a capture shows them applied. The rules are driven on the 2026-10-08 item as it was.
-  assert.deepEqual(
-    (ALLOW.fixedAfterCapture ?? []).map((f) => `${f.name}:${f.wasPinFinding ? 'pin' : f.wasFinding ? 'finding' : 'entry'}:${f.fixedBy}`).sort(),
-    [
-      'get_active_activities:finding:2026-10-10-security-review-lows-and-anon-definers.sql',
-      'get_active_now:finding:2026-10-10-security-review-lows-and-anon-definers.sql',
-      'get_follow_list:finding:2026-10-10-security-review-lows-and-anon-definers.sql',
-      'save_workout_session:pin:2026-10-10-security-review-lows-and-anon-definers.sql',
-      'shape_profile_visibility:finding:2026-10-10-security-review-lows-and-anon-definers.sql',
-    ],
-    'the 2026-10-09 capture predates exactly these five fixes; an item here after a capture shows it applied is stale',
-  );
+  // captured again, and so were the five the 2026-10-10 Lows migration made (the four 2026-10-03
+  // findings revoked from anon, and the one pin), which the 2026-10-09 capture predated. Each capture
+  // showed its fixes applied (the live diff's --strict said to delete them), so the checked-in list
+  // carries none: an item left here after a capture shows it applied is stale. The rules are driven
+  // on the 2026-10-08 item as it was.
+  assert.deepEqual(ALLOW.fixedAfterCapture ?? [], [], 'the 2026-10-10 capture shows every carried fix applied: an item left here is stale');
   const withItem = () => ({ ...structuredClone(ALLOW), fixedAfterCapture: [structuredClone(FIXED_ITEM)] });
   assert.ok(!anonReachableNames(real()).includes(FIXED_ITEM.name), `${FIXED_ITEM.name} is still anon-executable in the model`);
   assert.ok(real().files.includes(FIXED_ITEM.fixedBy), `${FIXED_ITEM.fixedBy} is a migration in the tree`);
-  // `withItem` drops the five carried items: the four functions are no longer anon-reachable and the
-  // pinned one needs no registration, so the list stays exactly right without them.
   assert.deepEqual(checkAllowlist(real(), withItem()), [], 'a landed fix, recorded once and listed nowhere else, is accepted');
   const broken = (mutate) => { const a = withItem(); mutate(a.fixedAfterCapture[0], a); return checkAllowlist(real(), a); };
   const name = FIXED_ITEM.name;
@@ -1749,13 +1743,29 @@ test('fixedAfterCapture: each item is checked against the migrations, and a fix 
   const before = M.replayDir(DIR, { before: '2026-10-08' });
   const p = checkAllowlist(before, withItem()).filter((m) => /did not land/.test(m));
   assert.deepEqual(p.map((m) => m.split(':')[0]), [name]);
-  // The list as it stands, five carried items included, is exactly right for the tree.
+  // And with no fixedAfterCapture item at all, the list as it stands is exactly right for the tree.
   assert.deepEqual(checkAllowlist(real(), ALLOW), []);
 });
 
+// The pin item the allow-list carried for save_workout_session between #2297 and the 2026-10-10
+// capture, as it was (the pin finding inside it is the one registered since the 2026-10-03 audit).
+// The mechanism is driven on it here now that the capture shows the pin applied and the list holds
+// no such item.
+const PIN_ITEM = {
+  "name": "save_workout_session",
+  "fixedBy": "2026-10-10-security-review-lows-and-anon-definers.sql",
+  "fix": "alter function public.save_workout_session(jsonb, jsonb, jsonb) set search_path = public, pg_temp; nothing else about it changes.",
+  "wasPinFinding": {
+    "name": "save_workout_session",
+    "declaredAt": "2026-09-18-workout-session-atomic-save.sql:13",
+    "why": "Declared after the 2026-08-09 sweep with `set search_path = public` and no pg_temp, so the sweep (a snapshot of what existed that day) never touched it and nothing has re-pinned it. The newest migration pins a different function, and that one is a trigger with security invoker.",
+    "notFixedHere": "No migration in this change. It is not anon-reachable (revoked from public and anon, granted to authenticated), so exploiting the gap needs a signed-in caller planting a relation or type in pg_temp.",
+    "ownerCall": "alter function public.save_workout_session(jsonb, jsonb, jsonb) set search_path = public, pg_temp;  (changes nothing else)."
+  }
+};
+
 test('fixedAfterCapture, a pin fix: accepted once the migrations pin it, refused while they do not or when it is still registered', () => {
-  const PIN = ALLOW.fixedAfterCapture.find((f) => f.name === 'save_workout_session');
-  assert.ok(PIN && PIN.wasPinFinding && PIN.wasPinFinding.name === 'save_workout_session');
+  const PIN = PIN_ITEM;
   assert.ok(PIN.wasPinFinding.why && PIN.wasPinFinding.declaredAt, 'the pin finding is carried as it was');
   const withPin = () => ({ ...structuredClone(ALLOW), fixedAfterCapture: [structuredClone(PIN)] });
   assert.deepEqual(checkAllowlist(real(), withPin()), []);
@@ -1780,9 +1790,13 @@ test('fixedAfterCapture, a pin fix: accepted once the migrations pin it, refused
     'save_workout_session: listed as pinned by 2026-10-10-security-review-lows-and-anon-definers.sql, but the model still leaves its search_path without pg_temp — the fix did not land',
     'unregistered unpinned definer: save_workout_session does not end its search_path in pg_temp — pin it (alter function ... set search_path = public, pg_temp) or register it in registeredPinFindings',
   ]);
+  // What the list said before the migration, for the pin: the finding registered, the item gone. On
+  // the tree before it the four functions the same migration revoked are still anon-executable and,
+  // their findings deleted since the 2026-10-10 capture, are the only thing the checker has left to say.
   const restored = { ...structuredClone(ALLOW), fixedAfterCapture: [], registeredPinFindings: [structuredClone(PIN.wasPinFinding)] };
-  for (const f of ALLOW.fixedAfterCapture) if (f.wasFinding) restored.registeredFindings.push(structuredClone(f.wasFinding));
-  assert.deepEqual(checkAllowlist(before, restored), [], 'what the list said before the migration is exactly right for the tree before it');
+  const left = checkAllowlist(before, restored);
+  assert.deepEqual(left.filter((m) => /save_workout_session/.test(m)), [], 'the registered pin finding is exactly right for the tree before the pin');
+  assert.deepEqual(left.map((m) => /^missing from the allow-list: (\w+) /.exec(m)?.[1] ?? m).sort(), ['get_active_activities', 'get_active_now', 'get_follow_list', 'shape_profile_visibility']);
 });
 
 // The checker's handling of a flagged body, driven on a small model.
