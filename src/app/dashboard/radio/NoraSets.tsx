@@ -57,6 +57,12 @@ export default async function NoraSets({ updated, error }: { updated?: string; e
   if (progs.error) throw new Error('Could not read Nora’s plans.');
   const planOf = new Map(((progs.data ?? []) as { set_id: string; programme: Programme }[]).map((p) => [p.set_id, p.programme]));
 
+  // What her engine last reported (services/nora-engine), and the months that have plays.
+  const engineLog = await db.from('nora_engine_log').select('event,played_at,title,artist,detail').order('logged_at', { ascending: false }).limit(6);
+  const logRows = (engineLog.error ? [] : engineLog.data ?? []) as { event: string; played_at: string; title: string | null; artist: string | null; detail: string | null }[];
+  const thisMonth = new Date(now).toISOString().slice(0, 7);
+  const lastMonth = new Date(Date.UTC(new Date(now).getUTCFullYear(), new Date(now).getUTCMonth() - 1, 1)).toISOString().slice(0, 7);
+
   // What the next set will play: its stored plan, or a preview drawn now (not stored).
   const next = noraSets[0] ?? null;
   let nextPlan: Programme | null = next ? planOf.get(next.id) ?? null : null;
@@ -170,6 +176,32 @@ export default async function NoraSets({ updated, error }: { updated?: string; e
             </div>
           ))
         )}
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <h3 className="text-xs uppercase tracking-[0.14em] text-neutral-500">Her engine</h3>
+        {engineLog.error ? (
+          <div className="text-sm text-neutral-400">The engine’s log is not set up yet: run supabase-migrations/2026-10-11-nora-engine-log.sql.</div>
+        ) : logRows.length === 0 ? (
+          <div className="text-sm text-neutral-400">Nothing yet. Her engine reports here once it plays a set (services/nora-engine/README.md sets it up).</div>
+        ) : (
+          <ul className="text-sm flex flex-col gap-1">
+            {logRows.map((r, i) => (
+              <li key={i} className={r.event === 'failed' ? 'text-red-300' : 'text-neutral-300'}>
+                <span className="text-neutral-500 tabular-nums">{new Date(r.played_at).toLocaleString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} UTC</span>
+                {' · '}
+                {r.event === 'song' ? `played ${r.title} · ${r.artist}` : r.event === 'failed' ? `stopped a set: ${r.detail ?? 'no reason given'} (the station’s AutoDJ took over)` : r.event === 'started' ? 'went on the air' : 'finished a set'}
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="text-xs text-neutral-500">
+          Play reports for SoundExchange:{' '}
+          <a className="text-teal-300 hover:text-teal-200" href={`/api/admin/radio/plays?month=${thisMonth}`}>{thisMonth}</a>
+          {' · '}
+          <a className="text-teal-300 hover:text-teal-200" href={`/api/admin/radio/plays?month=${lastMonth}`}>{lastMonth}</a>
+          {' '}(every song Nora played; the listener counts come from radio.co’s statistics)
+        </div>
       </div>
 
       {next && (

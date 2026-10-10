@@ -1,0 +1,9 @@
+{
+  "name": "nora-engine",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Nora's engine: plays her planned DJ sets live into Shape Radio's station.",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": { "start": "node main.mjs" }
+}
