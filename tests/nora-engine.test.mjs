@@ -345,7 +345,14 @@ test('ffmpeg decodes a song and streams the mix into an Icecast input', { ...LIM
   const bad = openOutput({ target: `icecast://source:wrong@127.0.0.1:${refusing.address().port}/live` });
   const t0 = Date.now();
   let wrote = true;
-  for (let i = 0; i < 400 && wrote; i++) wrote = await bad.write(mix.render(0, SR / 4, SOURCES));
+  // ⚠ Each write raced against a REAL timer: a write that never settles must fail this test, not
+  // leave it to a time limit the test runner may report as cancelled rather than failed.
+  const settles = (p) => {
+    let guard;
+    const hung = new Promise((_, reject) => { guard = setTimeout(() => reject(new Error('a write to a refused station never settled')), 15000); });
+    return Promise.race([p, hung]).finally(() => clearTimeout(guard));
+  };
+  for (let i = 0; i < 400 && wrote; i++) wrote = await settles(bad.write(mix.render(0, SR / 4, SOURCES)));
   assert.equal(wrote, false, 'the refusal reaches the engine as a failed write');
   assert.ok(Date.now() - t0 < 15000, `within ${Date.now() - t0} ms`);
   await bad.close();
