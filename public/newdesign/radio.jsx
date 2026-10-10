@@ -260,7 +260,13 @@ function RadioNora() {
   const prospect = radio.signedIn === false;
   const stationPlaying = !!radio.playing;
   const stationConfigured = radio.configured === true;
-  const guestDj = stationConfigured && liveSet && liveSet.dj ? String(liveSet.dj) : null;
+  // ⚠ NORA'S OWN SET IS NOT A GUEST SET. Its row names her as the DJ, and read as a guest it took
+  // her off the decks during her own set. And it is hers on the label only while the server says
+  // her engine is on the air (now-playing's `nora`), not merely because the schedule says so: a
+  // set whose engine stopped is the station's AutoDJ.
+  const noraSet = !!(liveSet && liveSet.host_kind === "nora");
+  const guestDj = stationConfigured && liveSet && liveSet.dj && !noraSet ? String(liveSet.dj) : null;
+  const noraNow = radio.nowPlaying && radio.nowPlaying.isNora === true && radio.nowPlaying.nora ? radio.nowPlaying.nora : null;
   const allowed = S ? S.exampleAllowed({ prospect, stationConfigured, stationPlaying }) : false;
 
   // The example set stops the moment it is no longer this visitor's to hear.
@@ -285,7 +291,7 @@ function RadioNora() {
   }, [bindStation]);
   React.useEffect(() => { if (state === "open") bindStation(null); }, [state, bindStation]);
 
-  const label = S ? S.boothLabel({ example: !!(snap && snap.example), station: { playing: stationPlaying, bpm: snap ? snap.bpm : null, guest: guestDj } }) : { key: "offAir" };
+  const label = S ? S.boothLabel({ example: !!(snap && snap.example), station: { playing: stationPlaying, bpm: snap && snap.bpm != null ? snap.bpm : (noraNow ? noraNow.bpm : null), guest: guestDj, cueSheet: !!noraNow } }) : { key: "offAir" };
   const labelText = S ? S.boothLabelText(label) : "Off air";
   const lit = label.key !== "offAir";
   const playing = !!(snap && snap.example);

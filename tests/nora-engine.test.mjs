@@ -12,7 +12,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createMixer, envelopeAt, softClip } from '../services/nora-engine/mixer.mjs';
 import { pollOnce, runSet, SAMPLE_RATE } from '../services/nora-engine/engine.mjs';
-import { decode, openOutput } from '../services/nora-engine/main.mjs';
+import { announce, decode, metadataRequest, openOutput } from '../services/nora-engine/main.mjs';
 import { analyzeTrack } from '../public/newdesign/booth/trackAnalysis.mjs';
 import { profileTrack } from '../src/lib/radio/trackProfile.mjs';
 import { planSet } from '../src/lib/radio/noraPlanner.mjs';
@@ -21,6 +21,8 @@ import { engineJob, monthRange, playsCsv, recordEngineEvent } from '../src/lib/r
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => readFileSync(join(ROOT, p), 'utf8');
 const SR = 44100;
+// ⚠ A HANG IS A FAILURE HERE: an engine that waits forever is the bug these tests exist for.
+const LIMIT = { timeout: 60000 };
 const HAS_FFMPEG = spawnSync('ffmpeg', ['-version']).status === 0;
 const SET_ID = '11111111-2222-4333-8444-555555555555';
 const T1 = 'aaaaaaaa-1111-4111-8111-111111111111';
@@ -65,14 +67,14 @@ function renderAll(programme, sources, block = 4096) {
 const leftOf = (inter) => { const l = new Float32Array(inter.length / 2); for (let i = 0; i < l.length; i++) l[i] = inter[2 * i]; return l; };
 
 // ── The mixer ──────────────────────────────────────────────────────────────────────────────
-test('the planned transition is a beat-matched blend', () => {
+test('the planned transition is a beat-matched blend', LIMIT, () => {
   const [a, b] = PROGRAMME.items;
   assert.equal(b.mixIn.type, 'beatmatch');
   assert.ok(Math.abs(b.rate - 124 / 126) < 1e-4, `B is played at the locking rate (${b.rate})`);
   assert.ok(b.startSec < a.endSec, 'they overlap');
 });
 
-test('⚠ the beat holds steady through the mix: one grid across the outgoing song, the blend and the incoming one', () => {
+test('⚠ the beat holds steady through the mix: one grid across the outgoing song, the blend and the incoming one', LIMIT, () => {
   const L = leftOf(renderAll(PROGRAMME, SOURCES));
   const b = PROGRAMME.items[1];
   const seg = L.slice(Math.floor((b.startSec - 40) * SR), Math.floor((b.startSec + b.mixIn.lengthSec + 40) * SR));
@@ -88,7 +90,7 @@ test('⚠ the beat holds steady through the mix: one grid across the outgoing so
   assert.ok(w.bpm == null || w.residualMs > m.residualMs * 3 || w.confidence < m.confidence - 0.2, 'unmatched, the grid breaks (so the check above is not vacuous)');
 });
 
-test('the bass swaps: the low end of the blend is one song’s, not two', () => {
+test('the bass swaps: the low end of the blend is one song’s, not two', LIMIT, () => {
   const b = PROGRAMME.items[1];
   const L = leftOf(renderAll(PROGRAMME, SOURCES));
   const lowRms = (t0, t1) => {
@@ -108,7 +110,7 @@ test('the bass swaps: the low end of the blend is one song’s, not two', () => 
   assert.deepEqual([oB.low, iB.low], [0, 1], 'second half: the incoming bass only');
 });
 
-test('blocks join seamlessly, the sum never clips, and a missing song is silence (never used on air)', () => {
+test('blocks join seamlessly, the sum never clips, and a missing song is silence (never used on air)', LIMIT, () => {
   const span = { ...PROGRAMME, endsSec: PROGRAMME.items[1].startSec + 20 };
   const one = renderAll(span, SOURCES, Math.ceil(span.endsSec * SR));
   const many = renderAll(span, SOURCES, 1000);
@@ -127,7 +129,24 @@ test('blocks join seamlessly, the sum never clips, and a missing song is silence
   assert.ok(silent.every((v) => v === 0));
 });
 
-test('a last song with fadeOutSec fades to nothing at the end', () => {
+test('each song is read from its cue point, at its rate, at its level', LIMIT, () => {
+  // A ramp source: sample n holds n / 1e7 (small enough that +6 dB stays under the knee), so an output sample says exactly which source sample
+  // (between which two, at what fraction) the mixer read. Bass split off and on again sums back.
+  const ramp = new Float32Array(SR * 60);
+  for (let n = 0; n < ramp.length; n++) ramp[n] = n / 1e7;
+  const one = { endsSec: 40, items: [{ trackId: 'r', startSec: 10, endSec: 40, cueInSec: 5, rate: 1.02, gainDb: 0, mixIn: { type: 'open', lengthSec: 0 } }] };
+  const src = [{ sampleRate: SR, left: ramp, right: ramp }];
+  const mix = createMixer(one, { sampleRate: SR });
+  const t = 20;
+  const got = mix.render(t, 1, src)[0];
+  const want = ((5 + (t - 10) * 1.02) * SR) / 1e7;
+  assert.ok(Math.abs(got - want) < 2e-5, `read ${got}, want ${want}: cue 5 s, 10 s in at 1.02`);
+  const loud = createMixer({ ...one, items: [{ ...one.items[0], gainDb: 6 }] }, { sampleRate: SR }).render(t, 1, src)[0];
+  assert.ok(Math.abs(loud / got - 10 ** (6 / 20)) < 1e-3, `+6 dB is ×${(loud / got).toFixed(4)}`);
+  assert.equal(createMixer(one, { sampleRate: SR }).render(9.9, 1, src)[0], 0, 'silent before its start');
+});
+
+test('a last song with fadeOutSec fades to nothing at the end', LIMIT, () => {
   const p = structuredClone(PROGRAMME);
   const last = p.items[1];
   last.endSec = last.startSec + 60; last.fadeOutSec = 8; p.endsSec = last.endSec;
@@ -157,23 +176,44 @@ function harness({ startInSec = 5, decodeFails = [], writeFailsAt = null, decode
       close: async () => { closed++; },
     }),
     report: async (e) => { events.push(e); },
+    announce: async (item) => { events.push({ event: 'title', title: item.title, at: (clock - Date.parse(startsAt)) / 1000 }); },
   };
   return { job, deps, events, loads, get written() { return written; }, get closed() { return closed; }, get clock() { return clock; } };
 }
 
-test('a set plays start to finish on Shape’s clock, and every song is reported as it starts', async () => {
+test('a set plays start to finish on Shape’s clock, and every song is reported as it starts', LIMIT, async () => {
   const h = harness();
   const r = await runSet(h.job, h.deps);
   assert.deepEqual([r.ok, r.played], [true, [T1, T2]]);
   assert.ok(Math.abs(h.written / SR - PROGRAMME.endsSec) < 0.3, `the whole set went out (${h.written / SR} s)`);
-  assert.deepEqual(h.events.map((e) => e.event), ['started', 'song', 'song', 'ended']);
-  assert.equal(h.events[2].trackId, T2);
-  assert.ok(Math.abs(h.events[2].atSec - PROGRAMME.items[1].startSec) < 0.3);
+  const plays = h.events.filter((e) => e.event !== 'title');
+  assert.deepEqual(plays.map((e) => e.event), ['started', 'song', 'song', 'ended']);
+  assert.equal(plays[2].trackId, T2);
+  assert.ok(Math.abs(plays[2].atSec - PROGRAMME.items[1].startSec) < 0.3);
+  // The station's title: the first song at once, the second at the bass swap, half way through
+  // its blend (when Shape's now-playing changes too), give or take the output's lead.
+  const titles = h.events.filter((e) => e.event === 'title');
+  assert.deepEqual(titles.map((e) => e.title), ['A', 'B']);
+  const swap = PROGRAMME.items[1].startSec + PROGRAMME.items[1].mixIn.lengthSec / 2;
+  assert.ok(Math.abs(titles[1].at - swap) < 2, `named at ${titles[1].at} s, the swap is at ${swap} s`);
   assert.equal(h.closed, 1, 'it hangs up at the end so the AutoDJ resumes');
   assert.ok(h.loads[1].at - (Date.parse(h.job.set.startsAt)) < (PROGRAMME.items[1].startSec - 60) * 1000, 'the next song is loaded well ahead');
 });
 
-test('an engine that comes up late joins the set where it is', async () => {
+test('the engine keeps Shape’s clock and plays in real time', LIMIT, async () => {
+  // Shape's clock runs 10 s ahead of this machine's: a set starting in 5 s by Shape's clock
+  // started 5 s ago here, so the engine joins 5 s in instead of waiting.
+  const h = harness({ startInSec: 5 });
+  h.job.serverNowMs = h.job.localAtFetchMs + 10000;
+  const t0 = h.clock;
+  await runSet(h.job, h.deps);
+  assert.ok(Math.abs(h.events[0].atSec - 5) < 0.3, `joined at ${h.events[0].atSec} s`);
+  // And it took the set's own length to play it: the output is paced to the wall clock.
+  const took = (h.clock - t0) / 1000;
+  assert.ok(Math.abs(took - (PROGRAMME.endsSec - 5)) < 3, `played ${PROGRAMME.endsSec - 5} s of set in ${took} s`);
+});
+
+test('an engine that comes up late joins the set where it is', LIMIT, async () => {
   // Joined after the first song has finished: only the second is sounding. (Joined inside the
   // blend, the first is still on the air, and is reported, correctly.)
   const h = harness({ startInSec: -(PROGRAMME.items[0].endSec + 5) });
@@ -186,7 +226,7 @@ test('an engine that comes up late joins the set where it is', async () => {
   assert.deepEqual((await runSet(inBlend.job, inBlend.deps)).played, [T1, T2], 'inside the blend, both are on the air');
 });
 
-test('⚠ it fails to the AutoDJ, never to silence', async () => {
+test('⚠ it fails to the AutoDJ, never to silence', LIMIT, async () => {
   // The first song cannot be loaded: nothing goes out at all.
   const first = harness({ decodeFails: ['u1'] });
   const r1 = await runSet(first.job, first.deps);
@@ -204,13 +244,20 @@ test('⚠ it fails to the AutoDJ, never to silence', async () => {
   const r3 = await runSet(drop.job, drop.deps);
   assert.deepEqual([r3.ok, r3.reason], [false, 'output_failed']);
   assert.equal(drop.events.at(-1).event, 'failed');
+  // A title update that fails, or never answers, never stops the music.
+  const flaky = harness();
+  flaky.deps.announce = async () => { throw new Error('station said no'); };
+  assert.equal((await runSet(flaky.job, flaky.deps)).ok, true);
+  const silent = harness();
+  silent.deps.announce = () => new Promise(() => {});
+  assert.equal((await runSet(silent.job, silent.deps)).ok, true, 'a title update that never answers is given up on');
   // A set with no source for one of its songs is refused before anything starts.
   const bad = harness();
   bad.job.sources = { [T1]: 'u1' };
   assert.deepEqual(await runSet(bad.job, bad.deps), { ok: false, reason: 'missing_source', played: [] });
 });
 
-test('the service loop: waits, starts once, and retries only a dropped connection', async () => {
+test('the service loop: waits, starts once, and retries only a dropped connection', LIMIT, async () => {
   const h = harness({ startInSec: 600 });
   const state = { running: null, done: new Set() };
   const reply = (startsInSec) => ({ nowMs: h.clock, set: { id: SET_ID, startsAt: new Date(h.clock + startsInSec * 1000).toISOString() }, programme: PROGRAMME, sources: { [T1]: 'u1', [T2]: 'u2' } });
@@ -246,7 +293,7 @@ function wav(samples) {
   return Buffer.concat([h, pcm]);
 }
 
-test('ffmpeg decodes a song and streams the mix into an Icecast input', { skip: HAS_FFMPEG ? false : 'no ffmpeg on this runner' }, async () => {
+test('ffmpeg decodes a song and streams the mix into an Icecast input', { ...LIMIT, skip: HAS_FFMPEG ? false : 'no ffmpeg on this runner' }, async () => {
   const dir = mkdtempSync(join(tmpdir(), 'nora-engine-'));
   const file = join(dir, 'a.wav');
   writeFileSync(file, wav(A.subarray(0, SR * 6)));
@@ -302,6 +349,16 @@ test('ffmpeg decodes a song and streams the mix into an Icecast input', { skip: 
   await rec.write(mix.render(0, SR, SOURCES));
   await rec.close();
   assert.ok(statSync(join(dir, 'set.mp3')).size > 10000);
+  // The station's title updates go to the same server, as the source, never naming a next song.
+  const meta = metadataRequest('icecast://source:p%40ss@live.radio.co:8000/s0a1b2c3d4', { artist: 'Daft Punk', title: 'One More Time' });
+  assert.equal(meta.url, 'http://live.radio.co:8000/admin/metadata?mount=%2Fs0a1b2c3d4&mode=updinfo&song=Daft%20Punk%20-%20One%20More%20Time');
+  assert.equal(meta.auth, `Basic ${Buffer.from('source:p@ss').toString('base64')}`);
+  assert.equal(metadataRequest('/tmp/set.mp3', { title: 'x' }), null, 'a recording to a file has no title to update');
+  assert.equal(metadataRequest('icecast://u:p@h:1/m', { title: 'x' }, { tls: true }).url.slice(0, 8), 'https://');
+  const asked = [];
+  await announce({ artist: 'A', title: 'B' }, { target: 'icecast://u:p@h:1/m', fetchFn: async (url, init) => { asked.push([url, init.headers.authorization]); return { ok: true }; } });
+  assert.equal(asked.length, 1);
+  await assert.rejects(announce({ title: 'B' }, { target: 'icecast://u:p@h:1/m', fetchFn: async () => ({ ok: false, status: 401 }) }), /401/);
   // The password never reaches a log line.
   assert.match(read('services/nora-engine/main.mjs'), /const redact = \(s\) => String\(s\)\.replace\(\/\\\/\\\/\[\^@\/\]\*@\/, '\/\/\*\*\*@'\);/);
 });
@@ -349,7 +406,7 @@ const shapeTables = (over = {}) => ({
   ...over,
 });
 
-test('the engine is handed the set due next, with a link to each song that outlives the set', async () => {
+test('the engine is handed the set due next, with a link to each song that outlives the set', LIMIT, async () => {
   const r = await engineJob(fakeDb(shapeTables()), { now: NOW });
   assert.equal(r.status, 200);
   assert.deepEqual([r.body.set.id, r.body.nowMs, r.body.programme], [SET_ID, NOW, PROGRAMME]);
@@ -368,7 +425,7 @@ test('the engine is handed the set due next, with a link to each song that outli
   assert.equal((await engineJob(fakeDb(shapeTables(), { fail: ['select:nora_dj_settings'] }), { now: NOW })).status, 503);
 });
 
-test('the play log keeps what was played, as it was, and only songs the set planned', async () => {
+test('the play log keeps what was played, as it was, and only songs the set planned', LIMIT, async () => {
   const db = fakeDb(shapeTables());
   assert.equal((await recordEngineEvent(db, { event: 'song', setId: SET_ID, trackId: T1, atSec: 0 }, { now: NOW })).status, 200);
   const row = db._t.nora_engine_log[0];
@@ -385,7 +442,7 @@ test('the play log keeps what was played, as it was, and only songs the set plan
   assert.deepEqual([db2._t.nora_engine_log[0].title, db2._t.nora_engine_log[0].artist, db2._t.nora_engine_log[0].track_id], ['B', 'Y', null]);
 });
 
-test('the play report: one month, CSV, formulas defused', async () => {
+test('the play report: one month, CSV, formulas defused', LIMIT, async () => {
   assert.deepEqual(monthRange('2026-10'), ['2026-10-01T00:00:00.000Z', '2026-11-01T00:00:00.000Z']);
   assert.equal(monthRange('2026-13'), null);
   const db = fakeDb({ nora_engine_log: [
@@ -401,7 +458,7 @@ test('the play report: one month, CSV, formulas defused', async () => {
   assert.equal((await playsCsv(db, 'oct')).status, 400);
 });
 
-test('the routes: the engine’s token is checked before anything, and the report is admin-only', () => {
+test('the routes: the engine’s token is checked before anything, and the report is admin-only', LIMIT, () => {
   const engine = read('src/app/api/radio/nora/engine/route.ts');
   assert.match(engine, /if \(secret\.length < 32\) return NextResponse\.json\(\{ error: 'engine_not_configured' \}, \{ status: 503/);
   assert.match(engine, /timingSafeEqual\(given, want\)/);

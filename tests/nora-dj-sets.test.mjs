@@ -122,6 +122,7 @@ test('a set: fills the hour, keeps every rule, levels the songs, and is the same
   assert.ok(p.endsSec > 3600 - 90 && p.endsSec <= 3600 + 60, `ends at ${p.endsSec}`);
   assert.deepEqual(checkProgramme(p), []);
   assert.equal(p.items[0].mixIn.type, 'open');
+  for (const it of p.items) assert.equal(it.bpm, tracks.find((t) => t.id === it.trackId).analysis.bpm, 'each song carries its own measured tempo');
   assert.equal(p.items[0].startSec, 0);
   assert.ok(p.items.filter((it) => it.mixIn.type === 'beatmatch').length >= p.items.length / 2, 'most of this library beat-matches');
   for (const it of p.items) assert.ok(it.gainDb >= -9 && it.gainDb <= 6);

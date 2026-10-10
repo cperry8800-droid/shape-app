@@ -52,6 +52,17 @@ export default {
       find: "  if (state.done && state.done.has(res.set.id)) return { action: 'done', setId: res.set.id };", replace: '' },
     { name: 'a dropped set is never picked up again', file: ENG,
       find: "    if (r.ok || r.reason !== 'output_failed') (state.done ||= new Set()).add(res.set.id);", replace: '    (state.done ||= new Set()).add(res.set.id);' },
+    // ── the station's title ──
+    { name: 'the title is never updated', file: ENG,
+      find: '        await name(i);\n', replace: '' },
+    { name: 'the next song is named at its start, not the swap', file: ENG,
+      find: '  const nameAt = (it) => it.startSec + (Number(it.mixIn && it.mixIn.lengthSec) || 0) / 2;', replace: '  const nameAt = (it) => it.startSec;' },
+    { name: 'a failed title update stops the set', file: ENG,
+      find: "    try { await Promise.race([deps.announce(items[i]), limit]); } catch (e) { log(`title update failed: ${e && e.message}`); } finally { clearTimeout(timer); }", replace: '    try { await Promise.race([deps.announce(items[i]), limit]); } finally { clearTimeout(timer); }' },
+    { name: 'a title update that never answers holds the set', file: ENG,
+      find: '    try { await Promise.race([deps.announce(items[i]), limit]); }', replace: '    try { await deps.announce(items[i]); }' },
+    { name: 'the title update is sent without the source credentials', file: MAIN,
+      find: "  const res = await fetchFn(req.url, { headers: { authorization: req.auth } });", replace: '  const res = await fetchFn(req.url, { headers: {} });' },
     // ── the real output ──
     { name: '⚠ a write waits on drain alone (the hang)', file: MAIN,
       find: '        p.once(\'close\', onClose);\n        p.stdin.once(\'drain\', onDrain);', replace: "        p.stdin.once('drain', onDrain);" },

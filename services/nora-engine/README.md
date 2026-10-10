@@ -10,7 +10,8 @@ Nora plans each of her DJ sets on Shape (`src/lib/radio/noraPlanner.mjs`). This 
 4. broadcasts the mix live into Shape Radio's station on radio.co;
 5. hangs up at the end, so the station's AutoDJ carries on.
 
-It reports every song it plays back to Shape. That log feeds the monthly SoundExchange report
+It also updates the station's song title at each change, so radio.co's own player shows the
+right song. It reports every song it plays back to Shape. That log feeds the monthly SoundExchange report
 (Admin → Nora's library → *Play reports*).
 
 **It fails to the AutoDJ, never to silence.** If a song can't be loaded in time or the connection
@@ -64,6 +65,7 @@ The engine then records the next set to that file instead of broadcasting it.
 | `NORA_STREAM_URL` | the live input (`icecast://…`) or a file path |
 | `NORA_BITRATE` | MP3 bitrate, default `192k` |
 | `NORA_LEGACY_ICECAST` | `1` for a server that takes only the SOURCE method |
+| `NORA_ICECAST_TLS` | `1` if the station's title updates (`/admin/metadata`) need https |
 | `NORA_POLL_SEC` | how often it asks Shape, default 20 |
 | `FFMPEG` | the ffmpeg binary, default `ffmpeg` |
 

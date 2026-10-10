@@ -9,6 +9,7 @@
 //                       (or a file path to record a set instead, for a test)
 //   NORA_BITRATE        optional, default 192k
 //   NORA_LEGACY_ICECAST optional, 1 for a server that takes only the old SOURCE method
+//   NORA_ICECAST_TLS    optional, 1 when the server's title updates (admin/metadata) need https
 //   FFMPEG              optional, default ffmpeg
 //   NORA_POLL_SEC       optional, default 20
 
@@ -23,6 +24,7 @@ const BITRATE = env('NORA_BITRATE', '192k');
 const FFMPEG = env('FFMPEG', 'ffmpeg');
 const POLL_MS = Number(env('NORA_POLL_SEC', '20')) * 1000;
 const LEGACY = env('NORA_LEGACY_ICECAST', '') === '1';
+const TLS = env('NORA_ICECAST_TLS', '') === '1';
 
 const log = (msg) => console.log(`${new Date().toISOString()} ${msg}`);
 // Never print the stream URL: it carries the station's password.
@@ -66,7 +68,7 @@ export function openOutput({ ffmpeg = FFMPEG, target = STREAM_URL, bitrate = BIT
   const live = /^icecast:\/\//.test(target);
   const args = ['-hide_banner', '-v', 'error', '-f', 'f32le', '-ar', String(SAMPLE_RATE), '-ac', '2', '-i', '-',
     '-c:a', 'libmp3lame', '-b:a', bitrate, '-f', 'mp3'];
-  if (live) args.push('-content_type', 'audio/mpeg', '-ice_name', 'Shape Radio', '-ice_description', 'Nora · DJ set', ...(legacy ? ['-legacy_icecast', '1'] : []));
+  if (live) args.push('-content_type', 'audio/mpeg', '-ice_name', 'Shape Radio', '-ice_description', 'DJ set · Nora', ...(legacy ? ['-legacy_icecast', '1'] : []));
   else args.push('-y');
   args.push(target);
   const p = spawn(ffmpeg, args, { stdio: ['pipe', 'ignore', 'pipe'] });
@@ -102,6 +104,26 @@ export function openOutput({ ffmpeg = FFMPEG, target = STREAM_URL, bitrate = BIT
   };
 }
 
+/**
+ * Icecast's title update for a live source: GET /admin/metadata on the same server, with the
+ * source's own credentials. null for a file target. "Artist - Title", the form radio.co shows.
+ */
+export function metadataRequest(target, item, { tls = TLS } = {}) {
+  if (!/^icecast:\/\//.test(target)) return null;
+  const u = new URL(target.replace(/^icecast:/, 'http:'));
+  const song = [item.artist, item.title].filter(Boolean).join(' - ');
+  const url = `${tls ? 'https' : 'http'}://${u.host}/admin/metadata?mount=${encodeURIComponent(u.pathname)}&mode=updinfo&song=${encodeURIComponent(song)}`;
+  const auth = `Basic ${Buffer.from(`${decodeURIComponent(u.username)}:${decodeURIComponent(u.password)}`).toString('base64')}`;
+  return { url, auth };
+}
+
+export async function announce(item, { target = STREAM_URL, fetchFn = fetch } = {}) {
+  const req = metadataRequest(target, item);
+  if (!req) return;
+  const res = await fetchFn(req.url, { headers: { authorization: req.auth } });
+  if (!res.ok) throw new Error(`title update answered ${res.status}`);
+}
+
 export const realDeps = {
   now: () => Date.now(),
   sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
@@ -109,6 +131,7 @@ export const realDeps = {
   report: (event) => api('POST', event).catch((e) => log(`report failed: ${e.message}`)),
   decode: (url) => decode(url),
   openOutput: () => openOutput(),
+  announce: (item) => announce(item),
   log,
 };
 

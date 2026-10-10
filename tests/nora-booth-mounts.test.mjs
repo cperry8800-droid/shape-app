@@ -74,9 +74,12 @@ test('the app never says LIVE for the booth: the label is one of the six, each k
     if (key === 'guest') { assert.equal(dv.type, 'TemplateLiteral'); continue; }
     assert.equal(dv.value, BOOTH_LABEL_EN[key], `${key}'s default drifted from noraBoothState's English`);
   }
-  assert.match(APP_BARE, /const label = boothLabel\(\{ example: !!\(snap && snap\.example\), station: \{ playing: stationPlaying, bpm: snap \? snap\.bpm : null, guest: guestDj \} \}\);/,
+  // The tempo is the booth's own measurement, else (only during Nora's own set, on the server's
+  // word that her engine is on the air) the tempo of the song her set is playing; and the set is
+  // "Nora's mix" (cueSheet) only on that same word (tests/nora-on-air.test.mjs).
+  assert.match(APP_BARE, /const label = boothLabel\(\{ example: !!\(snap && snap\.example\), station: \{ playing: stationPlaying, bpm: snap && snap\.bpm != null \? snap\.bpm : \(noraNow \? noraNow\.bpm : null\), guest: guestDj, cueSheet: !!noraNow \} \}\);/,
     'the app no longer derives its label from the booth snapshot and the station');
-  assert.match(WEB_BARE, /S\.boothLabel\(\{ example: !!\(snap && snap\.example\), station: \{ playing: stationPlaying, bpm: snap \? snap\.bpm : null, guest: guestDj \} \}\)/,
+  assert.match(WEB_BARE, /S\.boothLabel\(\{ example: !!\(snap && snap\.example\), station: \{ playing: stationPlaying, bpm: snap && snap\.bpm != null \? snap\.bpm : \(noraNow \? noraNow\.bpm : null\), guest: guestDj, cueSheet: !!noraNow \} \}\)/,
     'the website no longer derives its label the same way');
 });
 

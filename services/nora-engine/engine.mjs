@@ -35,6 +35,7 @@ const sleep = (deps, ms) => (ms > 0 ? deps.sleep(ms) : Promise.resolve());
  * @param {(url: string) => Promise<{sampleRate, left, right}>} deps.decode
  * @param {() => {write: (pcm: Float32Array) => Promise<boolean>, close: () => Promise<void>}} deps.openOutput
  * @param {(event: object) => Promise<void>} deps.report
+ * @param {(item: object) => Promise<void>} [deps.announce]  the station's song title (best effort)
  * @param {(msg: string) => void} [deps.log]
  * @returns {Promise<{ok: boolean, reason?: string, played: string[]}>}
  */
@@ -91,6 +92,20 @@ export async function runSet(job, deps) {
   }
   await deps.report({ event: 'started', setId: set.id, atSec: t });
   const announced = new Set();
+  // The station's own title (radio.co's player and directory listings) changes when the incoming
+  // song takes the floor: at the bass swap, half way through its blend, the moment Shape's
+  // now-playing changes too (src/lib/radio/noraOnAir.mjs). Best effort: a failed title update
+  // never stops the music.
+  const named = new Set();
+  const nameAt = (it) => it.startSec + (Number(it.mixIn && it.mixIn.lengthSec) || 0) / 2;
+  const name = async (i) => {
+    named.add(i);
+    if (!deps.announce) return;
+    // A plain timer, not deps.sleep: the wait bounds a network call and is no part of the set's clock.
+    let timer;
+    const limit = new Promise((r) => { timer = setTimeout(r, 3000); });
+    try { await Promise.race([deps.announce(items[i]), limit]); } catch (e) { log(`title update failed: ${e && e.message}`); } finally { clearTimeout(timer); }
+  };
   const frames = Math.round(BLOCK_SEC * SAMPLE_RATE);
   let reason = null;
 
@@ -103,7 +118,8 @@ export async function runSet(job, deps) {
     // ⚠ The deadline: a song due within DEADLINE_SEC that is not loaded stops the set.
     const due = items.findIndex((it, i) => it.startSec <= t + BLOCK_SEC + DEADLINE_SEC && it.endSec > t && !loaded[i]);
     if (due >= 0) {
-      if (failed.has(due) || items[due].startSec <= t + BLOCK_SEC) { reason = `song ${due + 1} was not loaded in time`; break; }
+      // Failed, or due in the very next block, or the wall clock has reached it: stop.
+      if (failed.has(due) || items[due].startSec <= t + BLOCK_SEC || setTime() >= items[due].startSec) { reason = `song ${due + 1} was not loaded in time`; break; }
       await Promise.race([loading[due], sleep(deps, 200)]);
       continue;
     }
@@ -122,6 +138,13 @@ export async function runSet(job, deps) {
         announced.add(i);
         played.push(items[i].trackId);
         await deps.report({ event: 'song', setId: set.id, trackId: items[i].trackId, atSec: Math.max(items[i].startSec, t) });
+      }
+    }
+    for (let i = items.length - 1; i >= 0; i--) {
+      if (!named.has(i) && nameAt(items[i]) < t + n / SAMPLE_RATE && items[i].endSec > t) {
+        for (let j = 0; j <= i; j++) named.add(j);   // a later song supersedes any not yet named
+        await name(i);
+        break;
       }
     }
     t += n / SAMPLE_RATE;

@@ -12,6 +12,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { requireAdminUser } from '@/lib/admin-access';
 import { checkSlot } from '@/lib/radio/noraSlots.mjs';
 import { syncNoraSets } from '@/lib/radio/noraSetStore.mjs';
+import { checkStation } from '@/lib/radio/station.mjs';
 
 const PAGE = '/dashboard/radio';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -90,4 +91,23 @@ export async function withdrawLicences(): Promise<void> {
 export async function syncNow(): Promise<void> {
   await requireAdminUser();
   done((await sync(createAdminClient())) ? 'synced' : 'sync_failed');
+}
+
+// ── The station (radio.co) ─────────────────────────────────────────────────────────────────
+export async function connectStation(formData: FormData): Promise<void> {
+  await requireAdminUser();
+  const checked = checkStation({ streamUrl: String(formData.get('stream_url') ?? ''), stationId: String(formData.get('station_id') ?? '') });
+  if (!checked.ok) failed(`station_${checked.error}`);
+  const { error } = await createAdminClient().from('radio_station')
+    .update({ ...checked.value, updated_at: new Date().toISOString() }).eq('id', 1);
+  if (error) failed('station_write_failed');
+  done('station_connected');
+}
+
+export async function disconnectStation(): Promise<void> {
+  await requireAdminUser();
+  const { error } = await createAdminClient().from('radio_station')
+    .update({ provider: 'mock', stream_url: null, now_playing_url: null, updated_at: new Date().toISOString() }).eq('id', 1);
+  if (error) failed('station_write_failed');
+  done('station_disconnected');
 }
