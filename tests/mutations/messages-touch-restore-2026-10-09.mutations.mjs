@@ -7,7 +7,7 @@
 //   node scripts/mutate.mjs --spec tests/mutations/messages-touch-restore-2026-10-09.mutations.mjs --fail-on-skipped
 const MIG = 'supabase-migrations/2026-10-09-restore-messages-touch-conversation.sql';
 const AGREEMENT = 'tests/definer-live-agreement.test.mjs';
-const FIXTURE = 'tests/fixtures/definer-live-2026-10-09.json';
+const FIXTURE = 'tests/fixtures/definer-live-2026-10-10.json';
 const ROUTE = 'src/app/api/conversations/[id]/messages/route.ts';
 
 export default {

@@ -1,13 +1,9 @@
 {
-  "capturedOn": "2026-10-09",
-  "source": "Read-only catalog query against the production database on 2026-10-09 at about 19:05 UTC, by the session that shipped #2284 to #2292: scripts/definer-live-check.sql run as written through the Supabase MCP execute_sql, the returned rows written to this file by a script (nothing copied by hand). Taken after the owner had run every migration dated 2026-10-09 (captureDayFilesApplied: all five), and verified so before the capture (the restored trigger on public.messages, the store-credit and lead-boost functions, the reviews trigger, the lead-boost active key, the sale-plan preview functions). It supersedes the 2026-10-08 capture, which predated the five files and recorded messages_touch_conversation as missing in production; a read-only capture at 18:40 UTC the same day, before the last two files ran, returned rows identical to these.",
+  "capturedOn": "2026-10-10",
+  "source": "Read-only catalog query against the production database on 2026-10-10 at about 14:58 UTC, by the session that shipped #2297: scripts/definer-live-check.sql run as written through the Supabase MCP execute_sql, the returned rows written to this file by a script (nothing copied by hand), and the saved rows checked against the live catalog by an md5 digest over every column of every row (ec7137afdc3e6112d34769cfd5a1fdaa on both). Taken after the owner had run 2026-10-10-security-review-lows-and-anon-definers.sql (the only migration dated the capture day; captureDayFilesApplied names it), and verified so at 21:42 UTC the evening before: the four functions not anon-executable, save_workout_session pinned, the policies and column grants in place. It supersedes the 2026-10-09 capture, which predated that file and recorded the four as anon-executable and save_workout_session as the one unpinned definer; the capture waited for 00:00 UTC so a file dated the 10th could be recorded as applied on the day it is dated.",
   "scope": "schema public, prokind f or w, prosecdef. anonExecutable / notAnonExecutable: the non-trigger definers (return type not trigger or event_trigger), by whether has_function_privilege('anon', oid, 'EXECUTE') holds. triggerDefiners: the trigger and event-trigger definers, listed so the model's can be confirmed. definersWithoutPgTemp: every definer of either kind whose search_path does not end in pg_temp. Names only (no overloads exist, so a name is one function).",
   "captureDayFilesApplied": [
-    "2026-10-09-coach-reviews-require-relationship.sql",
-    "2026-10-09-store-credit-reservations-and-lead-boost-redemption.sql",
-    "2026-10-09-lead-boost-active-key-and-expiry.sql",
-    "2026-10-09-restore-messages-touch-conversation.sql",
-    "2026-10-09-sale-plan-preview-menus.sql"
+    "2026-10-10-security-review-lows-and-anon-definers.sql"
   ],
   "anonExecutable": [
     "accept_commitment",
@@ -32,8 +28,6 @@
     "consume_ai_proposal",
     "create_channel",
     "dm_unread",
-    "get_active_activities",
-    "get_active_now",
     "get_client_checkins",
     "get_client_goals",
     "get_client_health_profile",
@@ -46,7 +40,6 @@
     "get_coach_sale_plans_by_user",
     "get_coach_scores",
     "get_coach_waitroom",
-    "get_follow_list",
     "get_follow_stats",
     "get_follow_suggestions",
     "get_market_plans",
@@ -89,7 +82,6 @@
     "set_metric_source",
     "set_my_username",
     "set_program_detail",
-    "shape_profile_visibility",
     "toggle_follow",
     "track_event",
     "waive_penalty"
@@ -116,6 +108,8 @@
     "create_coach_referral_link",
     "finalize_ai_action_undo",
     "finalize_weekly_readout",
+    "get_active_activities",
+    "get_active_now",
     "get_client_cycle",
     "get_client_lifts",
     "get_client_load_history",
@@ -124,6 +118,7 @@
     "get_client_self_plans",
     "get_display_names",
     "get_email_for_username",
+    "get_follow_list",
     "get_funnel",
     "get_health_sources",
     "get_my_lifts",
@@ -154,6 +149,7 @@
     "shape_leaderboard",
     "shape_leaderboard_me",
     "shape_pr_wall",
+    "shape_profile_visibility",
     "sweep_store_credit_reservations"
   ],
   "triggerDefiners": [
@@ -172,7 +168,5 @@
     "rls_auto_enable",
     "sessions_guard_client_update"
   ],
-  "definersWithoutPgTemp": [
-    "save_workout_session"
-  ]
+  "definersWithoutPgTemp": []
 }

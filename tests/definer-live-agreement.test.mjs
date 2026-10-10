@@ -1,6 +1,6 @@
 // The static model against the LIVE catalog, and an honest account of where they differ.
 //
-// tests/fixtures/definer-live-2026-10-09.json is what the production database said on that date
+// tests/fixtures/definer-live-2026-10-10.json is what the production database said on that date
 // (which non-trigger definers anon can execute, which trigger definers exist, and which definers of
 // either kind lack a pg_temp pin); scripts/definer-live-check.sql re-reads it. This test replays the
 // migrations as of the capture and compares, function by function.
@@ -12,15 +12,17 @@
 // stale one (the explanation stopped being true). Drift cannot grow silently, and a fixed one
 // cannot linger as a false comfort.
 //
-// AGREEMENT ON 2026-10-09: all 143 live non-trigger definers are in the model and the model gets
-// anon-executability right for every one (83 anon, 60 not), with the same single unpinned definer
-// (save_workout_session). The 13 trigger definers in the model are all live and pinned; live has one
-// more, rls_auto_enable, which is KNOWN_MODEL_DRIFT's whole content (read its reason). That is a
-// measurement about 2026-10-09, not a promise: the two move apart the moment someone edits the live
+// AGREEMENT ON 2026-10-10: all 143 live non-trigger definers are in the model and the model gets
+// anon-executability right for every one (79 anon, 64 not), and no definer of either kind is
+// unpinned. The 13 trigger definers in the model are all live and pinned; live has one more,
+// rls_auto_enable, which is KNOWN_MODEL_DRIFT's whole content (read its reason). That is a
+// measurement about 2026-10-10, not a promise: the two move apart the moment someone edits the live
 // database, and this file is where that shows up.
-// The 2026-10-08 capture this one replaced agreed on all 138 non-trigger definers of its day (83
-// anon, 55 not) and found a trigger definer the model had and production lacked,
-// messages_touch_conversation: a defect in production, restored by
+// The 2026-10-09 capture this one replaced agreed on all 143 non-trigger definers of its day (83
+// anon, 60 not), with save_workout_session the one unpinned definer; the 2026-10-10 Lows migration
+// revoked anon on four of them and pinned it. The 2026-10-08 capture before that agreed on all 138
+// non-trigger definers of its day (83 anon, 55 not) and found a trigger definer the model had and
+// production lacked, messages_touch_conversation: a defect in production, restored by
 // 2026-10-09-restore-messages-touch-conversation.sql and present on this capture. The 2026-09-30
 // capture before it agreed on all 136 non-trigger definers of its day (85 anon, 51 not) and could
 // say nothing about trigger definers; a third witness agreed with the model that day too, a
@@ -70,7 +72,7 @@ import { compareToLive, checkDrift, allowListAsOfCapture, modelAsOfCapture, capt
 import { diffLive } from '../scripts/definer-live-diff.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const LIVE = JSON.parse(fs.readFileSync(join(ROOT, 'tests/fixtures/definer-live-2026-10-09.json'), 'utf8'));
+const LIVE = JSON.parse(fs.readFileSync(join(ROOT, 'tests/fixtures/definer-live-2026-10-10.json'), 'utf8'));
 const ALLOW = JSON.parse(fs.readFileSync(join(ROOT, 'tests/fixtures/definer-anon-allowlist.json'), 'utf8'));
 
 // { kind, name, live, model, reason }. Every entry was read before it was allowed (see the header).
@@ -99,15 +101,15 @@ test('the live fixture is a dated, well-formed capture', () => {
     assert.deepEqual(list, [...list].sort(), `${key} must stay sorted so a diff of the fixture reads`);
   }
   assert.deepEqual(LIVE.anonExecutable.filter((n) => LIVE.notAnonExecutable.includes(n)), [], 'a name cannot be both');
-  assert.equal(LIVE.anonExecutable.length, 83);
-  assert.equal(LIVE.notAnonExecutable.length, 60);
+  assert.equal(LIVE.anonExecutable.length, 79);
+  assert.equal(LIVE.notAnonExecutable.length, 64);
   assert.ok(Array.isArray(LIVE.triggerDefiners) && LIVE.triggerDefiners.length === 14, 'the trigger definers are listed');
   assert.deepEqual(LIVE.triggerDefiners, [...LIVE.triggerDefiners].sort());
   assert.deepEqual(LIVE.triggerDefiners.filter((n) => LIVE.anonExecutable.includes(n) || LIVE.notAnonExecutable.includes(n)), [], 'a trigger function is not an RPC');
-  assert.deepEqual(LIVE.definersWithoutPgTemp, ['save_workout_session']);
+  assert.deepEqual(LIVE.definersWithoutPgTemp, [], 'no unpinned definer since the 2026-10-10 Lows migration pinned save_workout_session');
   assert.match(LIVE.scope, /triggerDefiners/);
   // The capture-day files it saw: each dated the capture day and present in the tree (modelAsOfCapture
-  // and replayDir refuse anything else), and here all five of them, so nothing is ambiguous.
+  // and replayDir refuse anything else), and here the one file dated that day, so nothing is ambiguous.
   assert.deepEqual(LIVE.captureDayFilesApplied, captureDayFiles(MIGRATIONS, LIVE));
   assert.deepEqual(ambiguousFiles, []);
 });
@@ -188,8 +190,8 @@ test('the live anon-executable set is fully accounted for by the allow-list', ()
   assert.deepEqual(d.stale, [], 'an allow-list entry the live catalog no longer supports');
   assert.deepEqual(d.appliedLive, [], 'a fixedAfterCapture item the capture already shows fixed: delete it');
   assert.deepEqual(d.stalePins, []);
-  assert.equal(d.anonExecutable, 83);
-  assert.equal(d.allowListed + d.registered, 83);
+  assert.equal(d.anonExecutable, 79);
+  assert.equal(d.allowListed + d.registered, 79);
   assert.equal(d.triggerDefiners, 14);
 });
 

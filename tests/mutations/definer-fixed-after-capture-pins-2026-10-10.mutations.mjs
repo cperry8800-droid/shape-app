@@ -1,14 +1,13 @@
 // Mutation spec for the `wasPinFinding` half of `fixedAfterCapture`: a pin fix carried in the
 // allow-list until the catalog is captured again (the 2026-10-10 Lows migration pins
 // save_workout_session; the 2026-10-09 capture predates it). Each mutation breaks one clause of
-// the checker, the as-of-capture reading, the live diff or the list itself; every one must be
+// the checker, the as-of-capture reading or the live diff; every one must be
 // killed by the three definer suites.
 // Run from the repo root:
 //   node scripts/mutate.mjs --spec tests/mutations/definer-fixed-after-capture-pins-2026-10-10.mutations.mjs --fail-on-skipped
 const CHECK = 'tests/helpers/definer-allowlist.mjs';
 const LIVE = 'tests/helpers/definer-live.mjs';
 const DIFF = 'scripts/definer-live-diff.mjs';
-const ALLOW = 'tests/fixtures/definer-anon-allowlist.json';
 
 export default {
   test: 'node --test tests/definer-grants.test.mjs tests/definer-live-diff.test.mjs tests/definer-live-agreement.test.mjs',
@@ -47,9 +46,7 @@ export default {
     { name: 'a pin fix is read as an access fix', file: DIFF,
       find: '  const fixedAccess = fixed.filter((f) => !f.wasPinFinding);',
       replace: '  const fixedAccess = fixed;' },
-    // ── the list ──
-    { name: 'the carried pin fix says it was an anon finding', file: ALLOW,
-      find: '      "fix": "alter function public.save_workout_session(jsonb, jsonb, jsonb) set search_path = public, pg_temp; nothing else about it changes.",\n      "wasPinFinding": {',
-      replace: '      "fix": "alter function public.save_workout_session(jsonb, jsonb, jsonb) set search_path = public, pg_temp; nothing else about it changes.",\n      "wasFinding": {' },
+    // The list itself carried the pin item only until the 2026-10-10 capture (11/11 killed with a
+    // mutation of it on 2026-10-09); the item is gone now, so the list is not a target here.
   ],
 };
