@@ -345,5 +345,10 @@
   "train.buildWorkoutLink": "Montar um treino",
   "train.startsIn": "Começa em",
   "train.untilHourMin": "{h} h {m} min",
-  "train.untilMin": "{m} min"
+  "train.untilMin": "{m} min",
+  "train.musicFrom": "Música de {name}",
+  "train.music": "Música",
+  "train.forToday": "Para hoje",
+  "train.fullPlan": "Plano completo",
+  "train.playlistBy": "{who} · Seu treinador"
 }

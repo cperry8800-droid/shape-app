@@ -115,6 +115,21 @@ export async function GET(request: Request) {
   const hrvSeries = seriesFor('hrv_ms');
   const volumeSeries = seriesFor('workout_minutes');
   const proteinSeries = seriesFor('protein_g');
+  // Calories EATEN per logged day, for Home's At a glance week and month averages
+  // (owner, 2026-10-11). ⚠ NOT the snapshot's own `calories` column: meal logs add
+  // to it, but the Garmin and Oura syncs write ACTIVE (burned) calories into the
+  // same column (health-snapshot.ts, the Garmin webhook), so it can read
+  // expenditure as intake. Protein, carbs and fat are written only by meal logs,
+  // so the day's food energy is taken from them (4 / 4 / 9 kcal per gram). A day
+  // with no macros logged has no entry.
+  const caloriesSeries = snaps
+    .map((s) => {
+      const r = s as Record<string, unknown>;
+      const g = (k: string) => { const v = Number(r[k]); return Number.isFinite(v) && v > 0 ? v : 0; };
+      const kcal = Math.round(4 * g('protein_g') + 4 * g('carbs_g') + 9 * g('fat_g'));
+      return kcal > 0 ? { date: String(r.snapshot_date), value: kcal } : null;
+    })
+    .filter((x): x is { date: string; value: number } => x !== null);
   const hydrationSeries = seriesFor('hydration_l');
   const stepsSeries = seriesFor('steps');
   const energySeries = seriesFor('energy');
@@ -318,6 +333,7 @@ export async function GET(request: Request) {
       hrv: hrvSeries,
       volume: volumeSeries,
       protein: proteinSeries,
+      calories: caloriesSeries,
       hydration: hydrationSeries,
       steps: stepsSeries,
       energy: energySeries,

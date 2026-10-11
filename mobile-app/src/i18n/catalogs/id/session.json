@@ -345,5 +345,10 @@
   "train.buildWorkoutLink": "Buat latihan",
   "train.startsIn": "Mulai dalam",
   "train.untilHourMin": "{h} j {m} mnt",
-  "train.untilMin": "{m} mnt"
+  "train.untilMin": "{m} mnt",
+  "train.musicFrom": "Musik dari {name}",
+  "train.music": "Musik",
+  "train.forToday": "Untuk hari ini",
+  "train.fullPlan": "Rencana lengkap",
+  "train.playlistBy": "{who} · Pelatihmu"
 }

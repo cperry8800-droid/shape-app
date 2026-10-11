@@ -405,5 +405,12 @@
   "grocery.shop.skip": "Auslassen",
   "grocery.shop.skippedOff": "Ausgelassen · {count} weg",
   "grocery.shop.toGetCount": "{count} offen",
-  "grocery.shop.unskip": "Rückgängig"
+  "grocery.shop.unskip": "Rückgängig",
+  "eat.shop.also": "auch {meals}",
+  "eat.shop.skipped": "Ausgelassen",
+  "eat.shop.head": "Zutaten · {count} zu besorgen",
+  "eat.shop.skippedNote": "Die Zutaten sind von der Liste, außer eine andere Mahlzeit braucht sie.",
+  "eat.shop.openList": "Nach Mahlzeit einkaufen →",
+  "eat.shop.tagAria": "Einkauf für {meal}: {status}",
+  "eat.shop.alsoMany": "{count, plural, one {auch # andere Mahlzeit} other {auch # andere Mahlzeiten}}"
 }

@@ -345,5 +345,10 @@
   "train.buildWorkoutLink": "Собрать тренировку",
   "train.startsIn": "Начало через",
   "train.untilHourMin": "{h} ч {m} мин",
-  "train.untilMin": "{m} мин"
+  "train.untilMin": "{m} мин",
+  "train.musicFrom": "Музыка от {name}",
+  "train.music": "Музыка",
+  "train.forToday": "На сегодня",
+  "train.fullPlan": "Весь план",
+  "train.playlistBy": "{who} · Ваш тренер"
 }

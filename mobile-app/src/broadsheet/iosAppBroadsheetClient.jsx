@@ -56,8 +56,8 @@ import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } 
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { BSIntegrationsPage, BSReconcile } from './BSIntegrationsPage.jsx';
 import { BSNoraTalk, useNoraTalk, bsNoraVoiceFail } from './BSNoraTalk.jsx';
-import { BSFocusHead, BSFocusTitle, BSFocusLead, BSFocusArrival, BSFocusCountdown, BSFocusActions, BSFocusLine, BSFocusLink, BSFocusRoute, BSShopBySwitch } from './BSFocus.jsx';
-import { bsFocusMin, bsFocusArrival, bsFocusUntil, bsFocusPrevStop, bsFocusSlot, bsGrocerySkipped, bsGroceryByMeal, bsGroceryAisleStops, bsReadShopBy, bsSaveShopBy, bsReadSkippedMeals, bsSaveSkippedMeals } from '../services/focusLayout.mjs';
+import { BSFocusHead, BSFocusTitle, BSFocusLead, BSFocusArrival, BSFocusCountdown, BSFocusActions, BSFocusLine, BSFocusLink, BSFocusRoute, BSShopBySwitch, BSFocusLeader, BSFocusPeriod, BSFocusMealShop } from './BSFocus.jsx';
+import { bsFocusMin, bsFocusArrival, bsFocusUntil, bsFocusPrevStop, bsFocusSlot, bsGrocerySkipped, bsGroceryByMeal, bsGroceryAisleStops, bsReadShopBy, bsSaveShopBy, bsReadSkippedMeals, bsSaveSkippedMeals, bsPeriodAverage, bsReadGlancePeriod, bsSaveGlancePeriod, BS_GLANCE_DAYS, bsGroceryItemKey, bsMealShopItems, bsGroceryIsGot, bsReadGotItems, bsSaveGotItems, bsToggleGot } from '../services/focusLayout.mjs';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
 
@@ -1087,7 +1087,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const screens = {
     home:    <BSClientHome     onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} goTrain={goTrain} goEat={() => { navPush(); setTab('eat'); }} goMarket={goMarket} goScore={goScore} goChat={goChat} goIntegrations={goIntegrations} tweaks={tweaks} setTweak={setTweak} />,
     train:   <BSClientTrain    onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} goMarket={goMarket} autoStart={pendingTrainStart} onAutoStartConsumed={() => setPendingTrainStart(false)} />,
-    eat:     <BSClientEat      onProfile={goSettings} sheet={sheet} goRadio={goRadio} goMarket={goMarket} initialView={eatStart} onStartConsumed={() => setEatStart('')} cookWith={cookWith} onCookWithConsumed={() => setCookWith(null)} prepTonight={prepTonight} onPrepTonightConsumed={() => setPrepTonight(null)} />,
+    eat:     <BSClientEat      onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} goMarket={goMarket} initialView={eatStart} onStartConsumed={() => setEatStart('')} cookWith={cookWith} onCookWithConsumed={() => setCookWith(null)} prepTonight={prepTonight} onPrepTonightConsumed={() => setPrepTonight(null)} />,
     chat:    <BSClientFeed     onProfile={goSettings} role={tweaks.role || 'client'} openRequest={chatRequest} />,
     radio:   <BSRadioScreen    onBack={() => { if (!navBack()) setTab('home'); }} />,
     market:  <BSMarketplaceScreen initialRole={marketRole} initialCoach={marketCoach} onCoachConsumed={() => setMarketCoach(null)} onBack={() => { if (!navBack()) setTab('home'); }} onProfile={goSettings} goChat={goChat} />,
@@ -4196,8 +4196,12 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   // unconditionally at the top level, never inside JSX below the early-return
   // overlays. Step 3's shelf JSX reads this const directly.
   const stepsToday = useBSStepsToday();
+  // AT A GLANCE · DAY / WEEK / MONTH — the daily series behind the week and month
+  // averages, and the remembered choice (owner, 2026-10-11).
+  const glanceHistory = useBSGlanceHistory();
+  const [glancePeriod, setGlancePeriodState] = useStateBSC(() => bsReadGlancePeriod((() => { try { return window.localStorage; } catch (e) { return null; } })()));
+  const setGlancePeriod = (v) => { setGlancePeriodState(v); try { bsSaveGlancePeriod(window.localStorage, v); } catch (e) {} };
   const [previewMeal, setPreviewMeal] = useStateBSC(null);
-  const [weekStat, setWeekStat] = useStateBSC(null); // tapped Week-totals card → detail sheet
   const [showWorkoutPreview, setShowWorkoutPreview] = useStateBSC(false);
   const [showLogMeal, setShowLogMeal] = useStateBSC(false);
   const [habitsPage, setHabitsPage] = useStateBSC(false);
@@ -4604,19 +4608,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         : slot === 'snack' ? tr('home:slot.snack', { defaultValue: 'Snack' })
           : tr('home:slot.dinner', { defaultValue: 'Dinner' });
   };
-  // Ghost log-tick — the 24px inline control cell for a MEAL row's `right` slot
-  // (setMealToLog/setLoggingMealId/setShowLogMeal), plus the LOGGED state. A
-  // plain element factory, called rather than mounted, so its per-render
-  // identity cannot remount the tick.
-  const mealTick = (m, logged) => logged ? (
-    <span aria-hidden style={{ width: 24, height: 24, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: _focusTeal }}>✓</span>
-  ) : (
-    <button
-      onClick={(e) => { e.stopPropagation(); setMealToLog(m); setLoggingMealId(m.id); setShowLogMeal(true); }}
-      aria-label={tr('home:lead.logMeal', { defaultValue: 'Log {title}', title: m.title })}
-      style={{ width: 24, height: 24, borderRadius: 5, flexShrink: 0, border: `1.5px solid ${_focusTeal}`, background: `${_focusTeal}12`, cursor: 'pointer', padding: 0 }}
-    />
-  );
   const _nextWord = tr('home:focus.next', { defaultValue: 'Next' });
   // THE LINE — the day's timed run-sheet: meals, training, coach pushes. Ordering
   // is bsHomeSlateSort's alone (timed rows ascending by their displayed time,
@@ -4645,7 +4636,12 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
             ahead: m.planMealId && BS_MAKE_AHEAD.has(m.prepSlug) ? { date: selYmd, mealId: m.planMealId, title: m.title, slug: m.prepSlug } : null,
           }).prepped ? tr('cook:prep.stampShort', { defaultValue: 'Prepped ✓' }) : null,
         ].filter(Boolean).join(' · '),
-        right: isLead ? undefined : mealTick(m, logged),
+        // The design board's line: a logged stop is done (kcal ✓), the lead is
+        // Next, the rest carry their kcal; tapping a stop opens the meal.
+        state: logged ? 'done' : isLead ? 'next' : '',
+        // A lead whose time has passed is not "Next" — the lead above already
+        // says it is not logged yet.
+        note: [isLead && !logged && mealMinutes(m) > bsNowMin ? _nextWord : null, m.kcal ? `${m.kcal}${logged ? ' ✓' : ''}` : (logged ? '✓' : null)].filter(Boolean).join(' · '),
         onOpen: () => setPreviewMeal(m),
         ariaLabel: `${m.title}, ${slotLabel(m)}, ${logged ? tr('home:aria.logged', { defaultValue: 'logged' }) : tr('home:aria.notLogged', { defaultValue: 'not logged' })}`,
       });
@@ -4662,6 +4658,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         tag: workoutIsLead ? _nextWord : tr('home:tag.training', { defaultValue: 'Training' }), tagColor: t.RUST,
         title: selWorkout.title,
         status: [fmtAt(WORKOUT_AT), _wkShortMeta].filter(Boolean).join(' · '),
+        state: workoutIsLead ? 'next' : '',
+        color: t.RUST,
+        note: workoutIsLead ? _nextWord : tr('home:tag.training', { defaultValue: 'Training' }),
         right: workoutIsLead ? undefined : (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button onClick={(e) => { e.stopPropagation(); goTrain?.(); }} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.RUST }}>{tr('home:action.start', { defaultValue: 'Start →' })}</button>
@@ -4678,6 +4677,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         tag: tr('home:tag.training', { defaultValue: 'Training' }), tagColor: t.GREEN,
         title: tr('home:slate.activeRecovery', { defaultValue: 'Active recovery' }),
         status: tr('home:slate.restDayMeta', { defaultValue: 'Rest day · walk + mobility' }),
+        sub: tr('home:slate.restDayMeta', { defaultValue: 'Rest day · walk + mobility' }),
+        color: t.GREEN,
         right: undefined,
         onOpen: undefined,
         ariaLabel: tr('home:slate.activeRecoveryAria', { defaultValue: 'Active recovery, rest day' }),
@@ -4696,6 +4697,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         tag: tr('home:tag.coach', { defaultValue: 'Coach' }), tagColor: isMeal ? _focusTeal : t.RUST,
         title: p.name || (isMeal ? tr('home:coach.mealFrom', { defaultValue: 'Meal from your coach' }) : tr('home:coach.workoutFrom', { defaultValue: 'Workout from your coach' })),
         status: [meta, p.cue || p.note].filter(Boolean).join(' · '),
+        note: tr('home:tag.coach', { defaultValue: 'Coach' }),
+        color: isMeal ? undefined : t.RUST,
         right: undefined,
         onOpen: undefined,
         ariaLabel: isMeal ? tr('home:coach.ariaMeal', { defaultValue: 'Coach-pushed meal: {name}', name: p.name || '' }) : tr('home:coach.ariaWorkout', { defaultValue: 'Coach-pushed workout: {name}', name: p.name || '' }),
@@ -4890,6 +4893,21 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         </div>
       </div>
 
+      {/* ── CHECK-INS — up top, right under the week, as before the Focus layout
+          (owner, 2026-10-11: "check-in should be towards the top"). Max two
+          slim lines, each suppressed only when its own lever is the lead; the
+          daily one self-gates on today's check-in being logged; the wall
+          bulletin yields to the weekly check-in so the block stays at two. */}
+      {!(engineFlag && engineFlag.lever === 'checkin') && (
+        <BSTodayNudge onOpen={() => setTodayPage(true)} variant="bulletin" />
+      )}
+      {checkinDue && checkinPrefOn && !(engineFlag && engineFlag.lever === 'checkin') && (
+        <BSHomeBulletin label={tr('home:bulletin.weeklyCheckin', { defaultValue: 'Weekly check-in due' })} detail={tr('home:bulletin.weeklyCheckinDetail', { defaultValue: '2 min' })} onOpen={() => setCheckinPage(true)} />
+      )}
+      {!(checkinDue && checkinPrefOn && !(engineFlag && engineFlag.lever === 'checkin')) && <BSHomeWallBulletin />}
+      {/* Once today's check-in is logged it decays to a quiet index row here. */}
+      <BSTodayNudge variant="row" onOpen={() => setTodayPage(true)} />
+
       {/* ── FOCUS · THE NEXT STOP — the one next thing, on its own (today only;
           another day is a plan view, read on the line below). Timed leads carry
           the countdown in the head and an arrival bar from the stop before. The
@@ -4913,119 +4931,17 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         </>
       )}
 
-      {/* ── FOCUS · AT A GLANCE — today's numbers as the house's dot-leader rows:
-          what is left to eat, protein still to go, steps, then the goal and
-          progress doors. The weekly totals (signed-out demo only) and the
-          check-in residue keep their rows here. Per the Front-Page Rule: rows,
-          never a plate. */}
-      <BSFocusTitle title={tr('home:focus.glance', { defaultValue: 'At a glance' })} color={_focusTeal} />
-      {(() => {
-        const openStepsDoor = () => {
-          if (stepsToday.hasData) { setStepsHistory(true); return; }
-          try { window.dispatchEvent(new CustomEvent('shape:openIntegrations')); } catch (e) {}
-        };
-        const stepsFigure = stepsToday.todayKnown ? stepsToday.val.toLocaleString(_dateLoc) : '—';
-        const stepsStatus = !stepsToday.hasData
-          ? tr('home:steps.connectWatch', { defaultValue: 'Connect a watch' })
-          : !stepsToday.todayKnown
-            ? tr('home:steps.noneToday', { defaultValue: 'No steps yet today' })
-            : stepsToday.hit
-              ? tr('home:steps.goalHit', { defaultValue: 'Goal hit ✓' })
-              : tr('home:steps.toGo', { defaultValue: '{count, number} to go', count: Math.max(0, stepsToday.goal - stepsToday.val) });
-        // Kcal and protein are today's, from the analytics snapshot the ticker
-        // reads. The signed-out preview shows the ticker's own demo figures; a
-        // signed-in account with nothing logged sees the honest empty state.
-        const tk = ticker || {};
-        const kcalNow = typeof tk.cal === 'number' ? tk.cal : (bsHomeSignedIn ? null : 1568);
-        const kcalTgt = typeof tk.cal_target === 'number' ? tk.cal_target : (bsHomeSignedIn ? null : 2100);
-        const proNow = typeof tk.protein_g === 'number' ? tk.protein_g : (bsHomeSignedIn ? null : 118);
-        const proTgt = typeof tk.protein_target === 'number' ? tk.protein_target : (bsHomeSignedIn ? null : 140);
-        const kcalKnown = kcalNow != null && kcalTgt != null && kcalTgt > 0;
-        const proKnown = proNow != null && proTgt != null && proTgt > 0;
-        const pctOf = (a, b) => Math.max(0, Math.min(100, Math.round((a / b) * 100)));
-        return (
-          <div style={{ padding: `0 ${t.padX}px 4px`, ...(bsSdReduced() ? null : { animation: 'bsHomeIndexIn 220ms ease-out both' }) }}>
-            <BSShelfDoor c={_focusTeal} eyebrow={tr('home:focus.kcalLeft', { defaultValue: 'Kcal left' })}
-              figure={kcalKnown ? Math.max(0, kcalTgt - kcalNow).toLocaleString(_dateLoc) : '—'}
-              status={kcalKnown ? tr('home:focus.eatenOf', { defaultValue: '{eaten, number} of {target, number}', eaten: kcalNow, target: kcalTgt }) : tr('home:focus.logToSee', { defaultValue: 'Log a meal to see' })}
-              pct={kcalKnown ? pctOf(kcalNow, kcalTgt) : undefined} onOpen={() => goEat()} />
-            {(proKnown || !bsHomeSignedIn) && (
-              <BSShelfDoor c={t.RUST} eyebrow={tr('home:focus.proteinToGo', { defaultValue: 'Protein to go' })}
-                figure={proKnown ? `${Math.max(0, proTgt - proNow)} g` : '—'}
-                status={proKnown ? `${proNow} / ${proTgt} g` : ''}
-                pct={proKnown ? pctOf(proNow, proTgt) : undefined} onOpen={() => goEat()} />
-            )}
-            <BSShelfDoor c={_focusTeal} eyebrow={tr('home:door.steps', { defaultValue: 'Steps' })} figure={stepsFigure} status={stepsStatus} pct={stepsToday.hasData && stepsToday.todayKnown ? stepsToday.pct : undefined} onOpen={openStepsDoor} />
-            <BSMeGoalCard onOpen={() => setGoalsPage(true)} />
-            <BSProgressDoor onOpen={() => setHomeProgressPage(true)} />
-            {stepsHistory && <BSStepsHistory onClose={() => setStepsHistory(false)} />}
-          </div>
-        );
-      })()}
-      <div style={{ ...(bsSdReduced() ? null : { animation: 'bsHomeIndexIn 220ms ease-out both' }) }}>
-        {/* WEEKLY TOTALS → two index rows. These are hardcoded demo figures (not
-            wired to real rollups yet) — the signed-out preview only, never shown as
-            fake stats to a real user. The weekStat sheet below reads them as-is. */}
-        {(() => {
-          if (bsHomeSignedIn) return null;
-          const _tagDone = tr('home:weekStat.tagDone', { defaultValue: 'Done' });
-          const _tagSched = tr('home:weekStat.tagScheduled', { defaultValue: 'Scheduled' });
-          const weekTotals = [
-            { l: tr('home:weekStat.sessions', { defaultValue: 'Sessions' }), v: 4, max: 5, c: t.RUST, unit: 'sessions',
-              history: [['Mon', 'Upper Push — Peak', _tagDone], ['Tue', 'Lower Pull — Vol.', _tagDone], ['Thu', 'Upper Pull — Peak', _tagDone], ['Sat', 'Z2 run · 45m', _tagDone], ['Sun', 'Lower Push — Peak', _tagSched]] },
-            { l: tr('home:weekStat.avgKcal', { defaultValue: 'Avg kcal' }), v: 1890, max: 2100, c: t.BLUE, unit: 'avg kcal', chart: true, goalFrame: tr('home:weekStat.goalFrameDeficit', { defaultValue: 'In your deficit · on track' }),
-              series: [['M', 1820], ['T', 2010], ['W', 1760], ['T', 1980], ['F', 1890], ['S', 2140], ['S', 1830]] },
-          ];
-          return (
-            <>
-              <BSIndexRow label={weekTotals[0].l} figure={`${weekTotals[0].v}/${weekTotals[0].max}`} status={tr('home:action.viewHistory', { defaultValue: 'View history ›' })} onOpen={() => setWeekStat(weekTotals[0])} />
-              <BSIndexRow label={weekTotals[1].l} figure={`${weekTotals[1].v.toLocaleString(_dateLoc)}/${weekTotals[1].max.toLocaleString(_dateLoc)}`} status={weekTotals[1].goalFrame} onOpen={() => setWeekStat(weekTotals[1])} />
-            </>
-          );
-        })()}
-        {/* CHECK-IN residue — BSTodayNudge's row variant; renders only once today's
-            check-in is logged (the bulletin among the links owns the due state). */}
-        <BSTodayNudge variant="row" onOpen={() => setTodayPage(true)} />
-      </div>
-
-      {/* ── FOCUS · YOUR LINE — the day as a line: one time-ordered run-sheet of
-          what is scheduled (meals, training, coach pushes), on the rail, with the
-          NOW tick. Admission test: "is this scheduled to happen on this day?"
-          Rows, not cards. */}
-      <BSFocusHead glyph="▤" label={tr('home:focus.line', { defaultValue: 'Your line' })} meta={upNextLabel}
-        actionLabel={`${tr('common:nav.eat', { defaultValue: 'Eat' })} →`} onAction={() => goEat()} color={_focusTeal} />
-      <div style={{ position: 'relative' }}>
-        {lineRows.length > 0 && (
-          <span aria-hidden style={{ position: 'absolute', left: 8, top: 2, bottom: 6, width: 2, background: `linear-gradient(180deg, ${_focusTeal}, ${_focusTeal}22)` }} />
-        )}
-        {lineRows.length === 0 ? (
-          <div style={{ padding: `10px ${t.padX}px 16px`, fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>{tr('home:slate.empty', { defaultValue: 'Nothing scheduled for today.' })}</div>
-        ) : (
-          <>
-            {lineRows.map((r, i) => (
-              <React.Fragment key={`slot-${r.key}`}>
-                {i === lineNowIdx && (
-                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 9, padding: `6px ${t.padX}px`, minHeight: 24 }} aria-label={`${tr('home:slate.now', { defaultValue: 'Now' })}, ${fmtAt(bsNowMin)}`}>
-                    <span aria-hidden style={{ position: 'absolute', left: 4, top: '50%', width: 9, height: 9, marginTop: -4.5, borderRadius: '50%', background: _focusTeal }}>
-                      <span style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: _focusTeal, ...(bsSdReduced() ? { opacity: 0.2 } : { animation: 'bsHomeNowPulse 2.4s ease-in-out infinite' }) }} />
-                    </span>
-                    <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: _focusTeal }}>{tr('home:slate.now', { defaultValue: 'Now' })} · {fmtAt(bsNowMin)}</span>
-                    <span aria-hidden style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${_focusTeal}55, transparent)` }} />
-                  </div>
-                )}
-                <BSSlateRow index={i} tag={r.tag} tagColor={r.tagColor} title={r.title} status={r.status} right={r.right} onOpen={r.onOpen} ariaLabel={r.ariaLabel} />
-              </React.Fragment>
-            ))}
-            {lineNowIdx === lineRows.length && (
-              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 9, padding: `6px ${t.padX}px`, minHeight: 24 }} aria-label={`${tr('home:slate.now', { defaultValue: 'Now' })}, ${fmtAt(bsNowMin)}`}>
-                <span aria-hidden style={{ position: 'absolute', left: 4, top: '50%', width: 9, height: 9, marginTop: -4.5, borderRadius: '50%', background: _focusTeal }} />
-                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: _focusTeal }}>{tr('home:slate.now', { defaultValue: 'Now' })} · {fmtAt(bsNowMin)}</span>
-                <span aria-hidden style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${_focusTeal}55, transparent)` }} />
-              </div>
-            )}
-          </>
-        )}
-      </div>
+      {/* ── FOCUS · YOUR LINE — the day as a line, in the design board's grammar:
+          time · a stop on the rail · what · its kcal or kind, with NOW where you
+          are. Admission test: "is this scheduled to happen on this day?" */}
+      <BSFocusTitle kicker={upNextLabel} title={tr('home:focus.line', { defaultValue: 'Your line' })} color={_focusTeal}
+        meta={lineRows.length ? tr('home:focus.stopsDone', { defaultValue: '{stops, plural, one {# stop} other {# stops}} · {done} done', stops: lineRows.length, done: lineRows.filter((r) => r.state === 'done').length }) : null} />
+      {lineRows.length === 0 ? (
+        <div style={{ padding: `10px ${t.padX}px 16px`, fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>{tr('home:slate.empty', { defaultValue: 'Nothing scheduled for today.' })}</div>
+      ) : (
+        <BSFocusLine rows={lineRows} nowIndex={lineNowIdx} color={_focusTeal}
+          nowTime={fmtAt(bsNowMin)} nowLabel={tr('home:focus.youAreHere', { defaultValue: 'Now · you are here' })} />
+      )}
       {/* COACH WEEKLY NOTES — both notes as italic op-ed lines WITH bylines, under
           the line. Real coach notes only — no sample-note fallback (owner call:
           the demo quotes are gone even in signed-out preview). */}
@@ -5051,18 +4967,96 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         );
       })()}
 
-      {/* ── FOCUS · LINKS — the rest of the page, one row each. The check-in
-          bulletins keep every gate they had (each suppressed only when its own
-          lever is the lead; the wall bulletin yields to the weekly check-in, so
-          the block stays at two); daily habits and the shop list are doors. */}
-      <div style={{ marginTop: t.sectGap }}>
-        {!(engineFlag && engineFlag.lever === 'checkin') && (
-          <BSTodayNudge onOpen={() => setTodayPage(true)} variant="bulletin" />
-        )}
-        {checkinDue && checkinPrefOn && !(engineFlag && engineFlag.lever === 'checkin') && (
-          <BSHomeBulletin label={tr('home:bulletin.weeklyCheckin', { defaultValue: 'Weekly check-in due' })} detail={tr('home:bulletin.weeklyCheckinDetail', { defaultValue: '2 min' })} onOpen={() => setCheckinPage(true)} />
-        )}
-        {!(checkinDue && checkinPrefOn && !(engineFlag && engineFlag.lever === 'checkin')) && <BSHomeWallBulletin />}
+      {/* ── FOCUS · AT A GLANCE — three numbers, as the design board's dotted
+          leader rows: kcal, protein and steps, for today, the last 7 days or the
+          last 30 (owner, 2026-10-11: "track daily, weekly, monthly"). Today reads
+          what is left; a week or a month reads the daily average over the days
+          that have something logged. */}
+      {(() => {
+        const openStepsDoor = () => {
+          if (stepsToday.hasData) { setStepsHistory(true); return; }
+          try { window.dispatchEvent(new CustomEvent('shape:openIntegrations')); } catch (e) {}
+        };
+        const tk = ticker || {};
+        const kcalTgt = typeof tk.cal_target === 'number' && tk.cal_target > 0 ? tk.cal_target : (bsHomeSignedIn ? null : 2100);
+        const proTgt = typeof tk.protein_target === 'number' && tk.protein_target > 0 ? tk.protein_target : (bsHomeSignedIn ? null : 140);
+        const pctOf = (a, b) => (a != null && b ? Math.max(0, Math.min(100, Math.round((a / b) * 100))) : undefined);
+        const num = (n) => Number(n).toLocaleString(_dateLoc);
+        const period = glancePeriod;
+        const periods = [
+          { key: 'day', label: tr('home:focus.period.day', { defaultValue: 'Day' }) },
+          { key: 'week', label: tr('home:focus.period.week', { defaultValue: 'Week' }) },
+          { key: 'month', label: tr('home:focus.period.month', { defaultValue: 'Month' }) },
+        ];
+        let rows;
+        let kicker;
+        if (period === 'day') {
+          // Kcal and protein are today's, from the analytics snapshot the ticker
+          // reads. The signed-out preview shows the ticker's own demo figures; a
+          // signed-in account with nothing logged sees the honest empty state.
+          const kcalNow = typeof tk.cal === 'number' ? tk.cal : (bsHomeSignedIn ? null : 1568);
+          const proNow = typeof tk.protein_g === 'number' ? tk.protein_g : (bsHomeSignedIn ? null : 118);
+          const kcalKnown = kcalNow != null && kcalTgt != null;
+          const proKnown = proNow != null && proTgt != null;
+          const stepsStatus = !stepsToday.hasData
+            ? tr('home:steps.connectWatch', { defaultValue: 'Connect a watch' })
+            : !stepsToday.todayKnown
+              ? tr('home:steps.noneToday', { defaultValue: 'No steps yet today' })
+              : stepsToday.hit
+                ? tr('home:steps.goalHit', { defaultValue: 'Goal hit ✓' })
+                : tr('home:steps.toGo', { defaultValue: '{count, number} to go', count: Math.max(0, stepsToday.goal - stepsToday.val) });
+          kicker = upNextLabel;
+          rows = [
+            { key: 'kcal', label: tr('home:focus.kcalLeft', { defaultValue: 'Kcal left' }), value: kcalKnown ? num(Math.max(0, kcalTgt - kcalNow)) : '—',
+              note: kcalKnown ? tr('home:focus.eatenOf', { defaultValue: '{eaten, number} of {target, number}', eaten: kcalNow, target: kcalTgt }) : tr('home:focus.logToSee', { defaultValue: 'Log a meal to see' }),
+              pct: kcalKnown ? pctOf(kcalNow, kcalTgt) : undefined, color: _focusTeal, onOpen: () => goEat() },
+            { key: 'protein', label: tr('home:focus.proteinToGo', { defaultValue: 'Protein to go' }), value: proKnown ? num(Math.max(0, proTgt - proNow)) : '—', unit: proKnown ? 'g' : null,
+              note: proKnown ? `${num(proNow)} / ${num(proTgt)} g` : '', pct: proKnown ? pctOf(proNow, proTgt) : undefined, color: t.RUST, onOpen: () => goEat() },
+            { key: 'steps', label: tr('home:door.steps', { defaultValue: 'Steps' }), value: stepsToday.todayKnown ? num(stepsToday.val) : '—',
+              note: stepsStatus, pct: stepsToday.hasData && stepsToday.todayKnown ? stepsToday.pct : undefined, color: _focusTeal, onOpen: openStepsDoor },
+          ];
+        } else {
+          // A week or a month: the daily average over the days with something
+          // logged, from the progress read's daily series. Signed out, the
+          // preview's demo figures.
+          const days = BS_GLANCE_DAYS[period];
+          const todayIso = bsLocalDay(Date.now());
+          const demo = period === 'week' ? { kcal: 1890, protein: 121, steps: 6980, logged: 6 } : { kcal: 1935, protein: 117, steps: 7310, logged: 26 };
+          const avgOf = (k) => (bsHomeSignedIn ? bsPeriodAverage(glanceHistory ? glanceHistory[k] : [], todayIso, days) : { avg: demo[k === 'calories' ? 'kcal' : k], logged: demo.logged, days });
+          const kc = avgOf('calories');
+          const pr = avgOf('protein');
+          const st = avgOf('steps');
+          // Each row averages its own logged days, so the head names the window
+          // only — one count over three series would misreport two of them.
+          kicker = tr('home:focus.lastDaysOnly', { defaultValue: 'Last {days} days', days });
+          const none = tr('home:focus.noneLogged', { defaultValue: 'Nothing logged' });
+          rows = [
+            { key: 'kcal', label: tr('home:focus.avgKcal', { defaultValue: 'Avg kcal' }), value: kc.avg != null ? num(kc.avg) : '—',
+              note: kc.avg == null ? none : kcalTgt ? tr('home:focus.ofTarget', { defaultValue: 'of {target, number}', target: kcalTgt }) : '',
+              pct: pctOf(kc.avg, kcalTgt), color: _focusTeal, onOpen: () => setHomeProgressPage(true) },
+            { key: 'protein', label: tr('home:focus.avgProtein', { defaultValue: 'Avg protein' }), value: pr.avg != null ? num(pr.avg) : '—', unit: pr.avg != null ? 'g' : null,
+              note: pr.avg == null ? none : proTgt ? tr('home:focus.ofTargetG', { defaultValue: 'of {target, number} g', target: proTgt }) : '',
+              pct: pctOf(pr.avg, proTgt), color: t.RUST, onOpen: () => setHomeProgressPage(true) },
+            { key: 'steps', label: tr('home:focus.avgSteps', { defaultValue: 'Avg steps' }), value: st.avg != null ? num(st.avg) : '—',
+              note: st.avg == null ? none : tr('home:focus.ofTarget', { defaultValue: 'of {target, number}', target: stepsToday.goal }),
+              pct: pctOf(st.avg, stepsToday.goal), color: _focusTeal, onOpen: openStepsDoor },
+          ];
+        }
+        return (
+          <>
+            <BSFocusTitle kicker={kicker} title={tr('home:focus.glance', { defaultValue: 'At a glance' })} color={_focusTeal}
+              right={<BSFocusPeriod value={period} onChange={setGlancePeriod} options={periods} color={_focusTeal} ariaLabel={tr('home:focus.periodAria', { defaultValue: 'Show' })} />} />
+            <div style={{ marginTop: 4, ...(bsSdReduced() ? null : { animation: 'bsHomeIndexIn 220ms ease-out both' }) }}>
+              {rows.map((r, i) => <BSFocusLeader key={`${period}-${r.key}`} first={i === 0} label={r.label} value={r.value} unit={r.unit} note={r.note} pct={r.pct} color={r.color} onOpen={r.onOpen} />)}
+            </div>
+            {stepsHistory && <BSStepsHistory onClose={() => setStepsHistory(false)} />}
+          </>
+        );
+      })()}
+
+      {/* ── FOCUS · LINKS — the rest of the page, one row each: daily habits, the
+          goal and progress (the check-ins sit up under the week). */}
+      <div style={{ marginTop: t.sectGap + 8 }}>
         {(() => {
           const done = selDayHabits.filter((h) => h.done).length;
           return (
@@ -5071,54 +5065,10 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
               onOpen={() => setHabitsPage(true)} />
           );
         })()}
-        <BSFocusLink color={_focusTeal} glyph="→" label={tr('home:door.shopList', { defaultValue: 'Shop list' })} onOpen={() => { try { window.__bsPendingGrocery = true; } catch (e) {} goEat(); }} />
+        <BSFocusLink color={t.isLight ? '#a07a2e' : '#c9a14a'} glyph="◎" tour="hero-goal" label={tr('home:door.goal', { defaultValue: 'Goal' })} onOpen={() => setGoalsPage(true)} />
+        <BSFocusLink color="#a78bfa" glyph="◆" tour="hero-progress" label={tr('home:door.progress', { defaultValue: 'Progress' })} onOpen={() => setHomeProgressPage(true)} />
       </div>
 
-      {/* Week-stat detail sheet */}
-      {weekStat && createPortal(
-        <div onClick={() => setWeekStat(null)} style={{ position: 'absolute', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-          <div onClick={e => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, maxHeight: '82%', overflowY: 'auto', borderTop: `1px solid ${t.RULE}` }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-              <div>
-                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: weekStat.c, fontWeight: 700 }}>{tr('home:weekStat.thisWeek', { defaultValue: '{label} · this week', label: weekStat.l })}</div>
-                <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, color: t.INK, letterSpacing: '-0.04em', lineHeight: 1 }}>{weekStat.v.toLocaleString(_dateLoc)}<span style={{ fontFamily: t.DISPLAY, fontSize: 16, color: t.INK50, marginLeft: 6 }}>/ {weekStat.max.toLocaleString(_dateLoc)}</span></div>
-              </div>
-            </div>
-
-            {weekStat.chart ? (
-              <div style={{ marginTop: 18 }}>
-                <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 6, height: 130 }}>
-                  {weekStat.series.map(([d, val], i) => {
-                    const peak = Math.max(...weekStat.series.map(x => x[1]), weekStat.max);
-                    const h = Math.max(4, Math.round((val / peak) * 110));
-                    return (
-                      <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-                        <span style={{ fontFamily: t.MONO, fontSize: 8, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{val.toLocaleString(_dateLoc)}</span>
-                        <div style={{ width: '100%', maxWidth: 26, height: h, borderRadius: 6, background: weekStat.c }} />
-                        <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.04em' }}>{d}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{tr('home:weekStat.chartFoot', { defaultValue: '7-day average · target {target, number} kcal', target: weekStat.max })}</div>
-              </div>
-            ) : (
-              <div style={{ marginTop: 14 }}>
-                {(weekStat.history || []).map(([day, label, tag], i, arr) => (
-                  <div key={i} style={{ display: 'grid', gridTemplateColumns: '40px 1fr auto', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
-                    <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>{day}</span>
-                    <span style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{label}</span>
-                    <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: tag === 'Scheduled' ? t.INK50 : weekStat.c, fontWeight: 700 }}>{tag}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <button onClick={() => setWeekStat(null)} style={{ width: '100%', marginTop: 18, padding: '13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('home:action.close', { defaultValue: 'Close' })}</button>
-          </div>
-        </div>,
-        (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
-      )}
 
       {/* THIS WEEK — (moved to top) */}
 
@@ -5352,7 +5302,7 @@ function BSFindCoachBar({ role, onOpen }) {
   );
 }
 
-function BSWeekStrip({ activeIdx, onSelect, restFlags = [] }) {
+function BSWeekStrip({ activeIdx, onSelect, restFlags = [], onMonth }) {
   const t = useBS();
   const tr = useShapeTr();
   // ⚠ WAS a hardcoded English initial row (M T W T F S S) and English day names
@@ -5367,6 +5317,13 @@ function BSWeekStrip({ activeIdx, onSelect, restFlags = [] }) {
   const names = Array.from({ length: 7 }, (_, i) => bsWeekdayName(i));
   return (
     <div style={{ padding: `12px ${t.padX}px 4px` }}>
+      {/* MONTH VIEW — the same door Home's week carries (owner, 2026-10-11: "also
+          have month view option available here on train and eat pages"). */}
+      {onMonth ? (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -8 }}>
+          <button type="button" onClick={onMonth} style={{ display: 'inline-flex', alignItems: 'center', minHeight: 36, background: 'transparent', border: 0, padding: '0 2px', color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{tr('home:action.monthView', { defaultValue: 'Month view →' })}</button>
+        </div>
+      ) : null}
       {/* Calendar rule with a heat needle over the active day (Session Meter grammar). */}
       <div aria-hidden style={{ position: 'relative', height: 2, background: t.RULE, margin: '5px 2px 0' }}>
         {DOWL.map((_, i) => (
@@ -5414,6 +5371,59 @@ const bsSpotifyGlyph = (size = 22, fill = '#fff') => (
 const bsAppleGlyph = (size = 22, fill = '#fff') => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} aria-hidden="true"><path d="M17.05 12.04c-.03-2.86 2.34-4.23 2.44-4.3-1.33-1.95-3.4-2.22-4.14-2.25-1.77-.18-3.45 1.04-4.35 1.04-.9 0-2.28-1.02-3.75-.99-1.93.03-3.71 1.12-4.7 2.85-2 3.48-.51 8.63 1.44 11.45.95 1.38 2.09 2.93 3.58 2.87 1.44-.06 1.98-.93 3.72-.93 1.73 0 2.22.93 3.74.9 1.54-.03 2.52-1.41 3.46-2.79 1.09-1.6 1.54-3.15 1.57-3.23-.03-.02-3.01-1.16-3.04-4.57zM14.2 4.38c.79-.96 1.33-2.29 1.18-3.62-1.14.05-2.53.76-3.35 1.72-.73.85-1.37 2.21-1.2 3.51 1.27.1 2.57-.65 3.37-1.61z"/></svg>
 );
+
+// COACH PLAYLISTS — "From {coach} · Playlists" on Train (the trainer's) and on
+// Eat (the nutritionist's cooking playlists): two separate lists (owner,
+// 2026-10-11: "they should be seperate playlists" · "for nutritionists that
+// send playlists for cooking"). Signed in, the playlists the member's OWN coach
+// of that role sent them (ShapePlaylists.fromMyCoaches → get_my_coach_playlists);
+// none sent, or the read failed, renders nothing — never the sample. Signed
+// out, the preview's sample playlists (`demo`).
+function useBSCoachPlaylists(role) {
+  const [list, setList] = useStateBSC(null);
+  React.useEffect(() => {
+    if (!role || !window.ShapePlaylists?.fromMyCoaches) return undefined;
+    let on = true;
+    window.ShapePlaylists.fromMyCoaches(role).then((r) => { if (on) setList(Array.isArray(r) ? r : []); }).catch(() => {});
+    return () => { on = false; };
+  }, [role]);
+  return list;
+}
+function BSCoachPlaylists({ role, signedIn, demo }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  const live = useBSCoachPlaylists(signedIn ? role : null);
+  let who;
+  let items;
+  if (!signedIn) {
+    if (!demo || !demo.items || !demo.items.length) return null;
+    who = demo.who;
+    items = demo.items;
+  } else {
+    if (!Array.isArray(live) || !live.length) return null;
+    const first = String(live[0].coach_name || '').replace(/^Dr\.?\s+/i, '').split(' ')[0];
+    who = first || (role === 'nutritionist' ? tr('nutrition:eat.yourNutritionist', { defaultValue: 'Your nutritionist' }) : tr('session:train.yourTrainer', { defaultValue: 'Your trainer' }));
+    items = live.map((p) => ({
+      k: role === 'nutritionist'
+        ? tr('nutrition:eat.playlistBy', { defaultValue: '{who} · Your nutritionist', who: p.coach_name || '' })
+        : tr('session:train.playlistBy', { defaultValue: '{who} · Your trainer', who: p.coach_name || '' }),
+      title: p.name,
+      meta: [p.tracks ? tr('coach:sound.tracksCount', { defaultValue: '{count} tracks', count: p.tracks }) : null, p.duration && p.duration !== '—' ? p.duration : null, p.bpm && p.bpm !== '—' ? `${p.bpm} BPM` : null, p.tag || null].filter(Boolean).join(' · '),
+      url: p.url,
+      provider: p.provider,
+    }));
+  }
+  return (
+    <>
+      <BSFocusTitle kicker={tr('nutrition:eat.playlistsFrom', { defaultValue: 'From {who}', who })} title={tr('profile:playlists.playlists', { defaultValue: 'Playlists' })} />
+      <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {items.map((p, i) => (
+          <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color={p.provider === 'apple' ? '#fa243c' : '#1db954'} provider={p.provider} url={p.url} tracks={p.tracks} />
+        ))}
+      </div>
+    </>
+  );
+}
 
 function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, url, provider, tracks }) {
   const t = useBS();
@@ -6144,6 +6154,11 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   const _trainNorm = (s) => String(s || '').trim().replace(/\.$/, '').toLowerCase();
   const _trainHead = _trainNorm(cur.headline) && _trainNorm(cur.headline) !== _trainNorm(cur.title) ? cur.headline : cur.title;
 
+  // A section title's one action, in the design's grammar (accent mono caps).
+  const _trainAct = (label, onClick) => (
+    <button type="button" onClick={onClick} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', minHeight: 44, marginBottom: -6, background: 'transparent', border: 0, padding: '0 2px', color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{label} →</button>
+  );
+
   return (
     <BSPage>
       <BSPageHeader
@@ -6153,7 +6168,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       />
       {resumeBanner}
 
-      <BSWeekStrip activeIdx={day} onSelect={setDay} restFlags={PROGRAM.map(p => p.tag === 'REST')} />
+      <BSWeekStrip activeIdx={day} onSelect={setDay} restFlags={PROGRAM.map(p => p.tag === 'REST')} onMonth={goCalendar} />
 
       <BSCoachAdjustBanner detail={bsTrainProgram.detail} kind="training" />
 
@@ -6206,7 +6221,8 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       {/* Workout — the moves. Tap a move (or Swap) to pick a coach-approved sub. */}
       {effMoves.length > 0 && (
         <>
-          <BSTrackHeader kicker={tr('session:train.programKicker', { defaultValue: 'The program' })} title={tr('session:train.moveCount', { defaultValue: `${effMoves.length} move${effMoves.length === 1 ? '' : 's'}`, count: effMoves.length })} actionLabel={tr('session:train.swap', { defaultValue: 'Swap' })} onAction={() => setSwapIdx('pick')} />
+          <BSFocusTitle kicker={tr('session:train.programKicker', { defaultValue: 'The program' })} title={tr('session:train.moveCount', { defaultValue: `${effMoves.length} move${effMoves.length === 1 ? '' : 's'}`, count: effMoves.length })}
+            right={_trainAct(tr('session:train.swap', { defaultValue: 'Swap' }), () => setSwapIdx('pick'))} />
           <div style={{ padding: `10px ${t.padX}px 0` }}>
             <div aria-hidden style={{ display: 'grid', gridTemplateColumns: '22px 1fr 92px 52px', gap: 10, padding: '0 0 7px', borderBottom: `1.5px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>
               <span>{tr('session:train.col.n', { defaultValue: 'N' })}</span><span>{tr('session:train.col.move', { defaultValue: 'Move' })}</span><span>{tr('session:train.col.scheme', { defaultValue: 'Scheme' })}</span><span style={{ textAlign: 'right' }}>{tr('session:train.col.load', { defaultValue: 'Load' })}</span>
@@ -6262,7 +6278,8 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
 
       {/* This week — on deck. Derived from the shared week (PROGRAM): the next few
           days after today, so it matches the calendar + home. Tap to jump there. */}
-      <BSTrackHeader kicker={tr('home:section.thisWeek', { defaultValue: 'This week' })} title={tr('session:train.onDeck', { defaultValue: 'On deck' })} actionLabel={tr('session:train.plan', { defaultValue: 'Plan' })} onAction={goCalendar} />
+      <BSFocusTitle kicker={tr('home:section.thisWeek', { defaultValue: 'This week' })} title={tr('session:train.onDeck', { defaultValue: 'On deck' })}
+        right={_trainAct(tr('session:train.plan', { defaultValue: 'Plan' }), goCalendar)} />
       <div style={{ padding: `10px ${t.padX}px 0` }}>
         {[1, 2, 3].map((off) => {
           const idx = (bsWeekdayIdx() + off) % 7;
@@ -6274,7 +6291,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
           <button key={i} onClick={() => setDay(x.idx)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, display: 'grid', gridTemplateColumns: '22px 1fr auto', gap: 10, alignItems: 'start', padding: '13px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
             <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 600, marginTop: 3 }}>{String(i + 1).padStart(2, '0')}</span>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{x.m}</div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 400, lineHeight: 1.2, color: t.INK, letterSpacing: '-0.01em' }}>{x.m}</div>
               <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 3, letterSpacing: '0.04em' }}>{x.s}</div>
             </div>
             <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 3 }}>{x.r || ''}</span>
@@ -6282,9 +6299,17 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
         ))}
       </div>
 
-      {/* ── FOCUS · LINKS — the rest of Train, one row each: building or opening a
-          session, and finding a trainer. */}
-      <div style={{ marginTop: t.sectGap }}>
+      {/* ── FOCUS · LINKS — the rest of Train, one row each, as the design board
+          has them: the coach's music for today (Shape Radio), the full plan, then
+          building or opening a session, and finding a trainer. The playlist cards
+          that sat here became the music link (owner, 2026-10-11: Train "match the
+          design"). */}
+      <div style={{ marginTop: t.sectGap + 8 }}>
+        <BSFocusLink color={t.ACCENT} glyph="♪"
+          label={coachDayName ? tr('session:train.musicFrom', { defaultValue: 'Music from {name}', name: String(coachDayName).split(' ')[0] }) : tr('session:train.music', { defaultValue: 'Music' })}
+          tag={tr('session:train.forToday', { defaultValue: 'For today' })} onOpen={goRadio} />
+        <BSFocusLink color={t.INK70} glyph="▤" label={tr('session:train.fullPlan', { defaultValue: 'Full plan' })}
+          tag={`${bsTrainProgram.trainingPhase || 'Build'} · ${tr('common:unit.weekN', { defaultValue: 'Week {n}', n: bsProgramWeek() })}`} onOpen={goCalendar} />
         {bsTrainSignedIn && (
           <>
             <BSFocusLink color={t.ACCENT} glyph="＋" label={tr('session:train.buildWorkoutLink', { defaultValue: 'Build a workout' })} onOpen={() => setBuilder({ mode: 'session' })} />
@@ -6294,27 +6319,16 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
         <BSFindCoachBar role="trainer" onOpen={() => goMarket('trainer')} />
       </div>
 
-      {/* From Jordan — coach playlists (sourced from the Radio coach-playlist feed) */}
+      {/* From Jordan — the trainer's playlists (owner, 2026-10-11: "keep playlists
+          though"). Signed in, the ones the member's own trainer sent them;
+          signed out, the preview's sample. Separate from Eat's cooking ones. */}
       {(() => {
         const all = Array.isArray(window.BS_COACH_PLAYLISTS) ? window.BS_COACH_PLAYLISTS : [];
-        // ⚠ SAME UNGATED DEMO AS THE EAT TAB (fixed in the same PR): the
-        // header was the literal "From Jordan" over a static demo constant,
-        // so a signed-in member read a section attributed to a coach they may
-        // not have. Signed-out keeps the demo; signed-in renders nothing.
-        if (bsTrainSignedIn) return null;
         const lists = all.filter(p => p.role === 'Coach');
-        const items = lists.length ? lists.map(p => ({ k: `${p.by} · Your coach`, title: p.name, meta: `${p.len} · ${p.bpm} BPM · ${p.tracks} tracks${p.attached ? ` · ${p.attached}` : ''}`, url: p.url, provider: p.provider, tracks: p.songs }))
-          : [{ k: 'Jordan Chen · Your coach', title: 'Pull heavy.', meta: '52m · 95-138 BPM · 14 tracks' }];
-        return (
-          <>
-            <BSTrackHeader kicker="From Jordan" title="Playlists" />
-            <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {items.map((p, i) => (
-                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color={p.provider === 'apple' ? '#fa243c' : '#1db954'} provider={p.provider} url={p.url} tracks={p.tracks} />
-              ))}
-            </div>
-          </>
-        );
+        const items = lists.length ? lists.map(p => ({ k: tr('session:train.playlistBy', { defaultValue: '{who} · Your trainer', who: p.by }), title: p.name, meta: tr('nutrition:eat.playlistMeta', { defaultValue: '{len} · {bpm} BPM · {tracks, plural, one {# track} other {# tracks}}', len: p.len, bpm: p.bpm, tracks: p.tracks }) + (p.attached ? ` · ${p.attached}` : ''), url: p.url, provider: p.provider, tracks: p.songs }))
+          : [{ k: 'Jordan Chen · Your trainer', title: 'Pull heavy.', meta: '52m · 95-138 BPM · 14 tracks' }];
+        const who = lists.length ? String(lists[0].by || '').split(' ')[0] : 'Jordan';
+        return <BSCoachPlaylists role="trainer" signedIn={bsTrainSignedIn} demo={{ who, items }} />;
       })()}
 
       <BSFooter right="Pg 2 of 5" />
@@ -12271,7 +12285,7 @@ const bsTimedStep = (t, min, station) => ({ t, min, passive: false, station });
 // and the turn came two minutes late.
 const bsHoldStep = (t, min, station) => ({ t, min, passive: true, station });
 
-function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initialView = '', onStartConsumed = () => {}, cookWith = null, onCookWithConsumed = () => {}, prepTonight = null, onPrepTonightConsumed = () => {} }) {
+function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCalendar = () => {}, initialView = '', onStartConsumed = () => {}, cookWith = null, onCookWithConsumed = () => {}, prepTonight = null, onPrepTonightConsumed = () => {} }) {
   const t = useBS();
   const tr = useShapeTr();   // cook:prep.* chrome (PR C) — never shadows the theme t
   const prepEntries = useBSPrepEntries();   // PREPPED stamps on the day's courses
@@ -13466,6 +13480,12 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
     }
     return map;
   }, [PROGRAM, tr]);
+  // THE SHOP LIST ON EACH MEAL (owner, 2026-10-11, A · On the line): which
+  // meal's ingredients are open on the menu, and a tick counter that re-reads
+  // the remembered ticks and skips after a change (they live per list on the
+  // device and are shared with the Grocery page).
+  const [mealShopOpen, setMealShopOpen] = useStateBSC(null);
+  const [, setMealShopRev] = useStateBSC(0);
   const activeGroceryCount = activeGroceryList.aisles
     ? activeGroceryList.aisles.reduce((sum, aisle) => sum + aisle.items.length, 0)
     : activeGroceryList.count || 0;
@@ -13739,6 +13759,54 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
   // Overrides are keyed by the meal's ORIGINAL name so a swap saved here lines
   // up with the same meal on the website (shared user_goals store).
   const effMeals = cur.meals.map(m => { const ov = mealOverrides[m.title]; return ov ? { ...m, ...ov, _baseTitle: m.title } : { ...m, _baseTitle: m.title }; });
+  // The meal's shop list, under its row on the menu (A · On the line). It reads
+  // the list this page shops from (the plan's, or the one picked), matches the
+  // meal by its plan title (a swap keeps the planned ingredients), and ticks and
+  // skips through the same per-list memory the Grocery page uses.
+  const _mealShopList = bsNormalizeGroceryList(activeGroceryList);
+  const _mealShopKey = String(_mealShopList.id || _mealShopList.name || 'list');
+  const _mealShopStore = (() => { try { return window.localStorage; } catch (e) { return null; } })();
+  const _mealShopGot = bsReadGotItems(_mealShopStore, _mealShopKey);
+  const _mealShopSkipped = bsReadSkippedMeals(_mealShopStore, _mealShopKey);
+  const mealShopBelow = (m) => {
+    const name = m._baseTitle || m.title;
+    const found = bsMealShopItems(_mealShopList.aisles, name);
+    if (!found.length) return null;
+    const skipped = _mealShopSkipped.has(name);
+    const items = found.map(({ item, also }) => ({
+      key: bsGroceryItemKey(item),
+      name: item.n,
+      qty: item.q || '',
+      also: also.length === 1 ? tr('nutrition:eat.shop.also', { defaultValue: 'also {meals}', meals: also[0] })
+        : also.length > 1 ? tr('nutrition:eat.shop.alsoMany', { defaultValue: '{count, plural, one {also # other meal} other {also # other meals}}', count: also.length }) : '',
+      got: bsGroceryIsGot(item, _mealShopGot),
+      onTick: () => { bsSaveGotItems(_mealShopStore, _mealShopKey, bsToggleGot(_mealShopList.aisles, _mealShopGot, item)); setMealShopRev((v) => v + 1); },
+    }));
+    const toGet = items.filter((x) => !x.got).length;
+    const gotN = items.length - toGet;
+    const status = skipped ? tr('nutrition:eat.shop.skipped', { defaultValue: 'Skipped' })
+      : toGet === 0 ? tr('nutrition:grocery.shop.aisleDone', { defaultValue: 'All got ✓' })
+        : tr('nutrition:eat.itemsToGetTag', { defaultValue: '{n} to get', n: toGet });
+    return (
+      <BSFocusMealShop open={mealShopOpen === m.id} onToggle={() => setMealShopOpen((v) => (v === m.id ? null : m.id))}
+        items={items} skipped={skipped} color={t.GREEN}
+        onSkip={() => { const n = new Set(_mealShopSkipped); if (n.has(name)) n.delete(name); else n.add(name); bsSaveSkippedMeals(_mealShopStore, _mealShopKey, n); setMealShopRev((v) => v + 1); }}
+        onOpenList={() => { bsSaveShopBy(_mealShopStore, 'meal'); setView('grocery'); }}
+        labels={{
+          toGet: tr('nutrition:eat.itemsToGetTag', { defaultValue: '{n} to get', n: toGet }),
+          allGot: tr('nutrition:grocery.shop.aisleDone', { defaultValue: 'All got ✓' }),
+          skipped: tr('nutrition:eat.shop.skipped', { defaultValue: 'Skipped' }),
+          head: tr('nutrition:eat.shop.head', { defaultValue: 'Ingredients · {count} to get', count: toGet }),
+          skippedHead: tr('nutrition:grocery.shop.skippedOff', { defaultValue: 'Skipped · {count} off', count: items.length }),
+          skippedNote: tr('nutrition:eat.shop.skippedNote', { defaultValue: 'Its items are off the list, unless another meal needs them.' }),
+          skip: tr('nutrition:grocery.shop.skip', { defaultValue: 'Skip' }),
+          undo: tr('nutrition:grocery.shop.unskip', { defaultValue: 'Undo' }),
+          gotLine: tr('nutrition:grocery.shop.inCart', { defaultValue: '{count} in the cart', count: gotN }),
+          openList: tr('nutrition:eat.shop.openList', { defaultValue: 'Open in Shop by meal →' }),
+          tagAria: tr('nutrition:eat.shop.tagAria', { defaultValue: 'Shopping for {meal}: {status}', meal: m.title, status }),
+        }} />
+    );
+  };
   // ── Night-before prep on the menu (owner, 2026-10-05). A live plan only: the preview menu has
   // no member behind it. `aheadOn` holds this day's made-ahead meals by Eat's meal id, so a row
   // can say whether a prep covers it ON THIS DAY (bsPrepCovers). The PREPPED stamp's title match
@@ -13823,7 +13891,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
 
       <BSNutritionTopTabs active="eat" onChange={setView} />
 
-      <BSWeekStrip activeIdx={day} onSelect={setDay} restFlags={PROGRAM.map(p => p.tag === 'REST')} />
+      <BSWeekStrip activeIdx={day} onSelect={setDay} restFlags={PROGRAM.map(p => p.tag === 'REST')} onMonth={goCalendar} />
 
       <BSCoachAdjustBanner detail={bsEatProgram.detail} kind="nutrition" />
 
@@ -13917,6 +13985,8 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
               ) : null,
               note: logged ? '✓' : isNext ? tr('nutrition:eat.next', { defaultValue: 'NEXT' }) : '',
               state: logged ? 'done' : isNext ? 'next' : '',
+              // An eaten meal needs no shopping; its tag would only add noise.
+              below: logged ? null : mealShopBelow(m),
               onOpen: () => setPreviewMealId(m.id),
               ariaLabel: `${timeLabel} · ${m.title}${logged ? ` · ${tr('nutrition:eat.ariaLogged', { defaultValue: 'logged' })}` : isNext ? ` · ${tr('nutrition:eat.ariaNext', { defaultValue: 'next' })}` : ''}`,
             };
@@ -14029,30 +14099,16 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
         );
       })()}
 
-      {/* From Maya — nutritionist playlists (sourced from the Radio coach-playlist feed) */}
+      {/* From Maya — the nutritionist's cooking playlists. Signed in, the ones the
+          member's own nutritionist sent them; signed out, the preview's sample
+          (BS_COACH_PLAYLISTS is a static constant, so it never reaches a member). */}
       {(() => {
         const all = Array.isArray(window.BS_COACH_PLAYLISTS) ? window.BS_COACH_PLAYLISTS : [];
         const lists = all.filter(p => p.role === 'Nutritionist');
-        // ⚠ THIS SECTION WAS UNGATED DEMO. BS_COACH_PLAYLISTS is a static
-        // constant nothing writes to, and the header was the literal
-        // "From Maya" — so a signed-in member with a real nutritionist (or
-        // none at all) read a section attributed to a coach they do not have,
-        // listing a playlist that does not exist. Signed-out keeps the demo;
-        // signed-in renders NOTHING until a real feed exists.
-        if (bsEatSignedIn) return null;
         const items = lists.length ? lists.map(p => ({ k: tr('nutrition:eat.playlistBy', { defaultValue: '{who} · Your nutritionist', who: p.by }), title: p.name, meta: tr('nutrition:eat.playlistMeta', { defaultValue: '{len} · {bpm} BPM · {tracks, plural, one {# track} other {# tracks}}', len: p.len, bpm: p.bpm, tracks: p.tracks }) + (p.attached ? ` · ${p.attached}` : ''), url: p.url, provider: p.provider, tracks: p.songs }))
           : [{ k: 'Dr. Maya Patel · Your nutritionist', title: 'Meal prep, low-key', meta: '45m · 85-100 BPM · 12 tracks · Sun prep' }];
         const who = lists.length ? String(lists[0].by || '').replace(/^Dr\.?\s+/i, '').split(' ')[0] : 'Maya';
-        return (
-          <>
-            <BSTrackHeader kicker={tr('nutrition:eat.playlistsFrom', { defaultValue: 'From {who}', who })} title={tr('profile:playlists.playlists', { defaultValue: 'Playlists' })} />
-            <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {items.map((p, i) => (
-                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color={p.provider === 'apple' ? '#fa243c' : '#1db954'} provider={p.provider} url={p.url} tracks={p.tracks} />
-              ))}
-            </div>
-          </>
-        );
+        return <BSCoachPlaylists role="nutritionist" signedIn={bsEatSignedIn} demo={{ who, items }} />;
       })()}
 
       <BSFooter right={tr('nutrition:eat.footerPage', { defaultValue: 'Pg 3 of 5' })} />
@@ -28744,6 +28800,9 @@ function BSIndexRow({ label, figure, status, due, done, onOpen }) {
 // item (max 2 on the page). Hairline top+bottom, pulsing 6px tick, mono label +
 // detail, trailing ›. Renders only while its caller decides it's due — this
 // component itself is unconditional (the caller gates visibility).
+// The Focus design board's link row (owner, 2026-10-11: "it should look just
+// like the design"): an accent spine, the pulsing tick, the name, the detail as
+// an accent tag, a dotted leader and an arrow.
 function BSHomeBulletin({ label, detail, onOpen }) {
   const t = useBS();
   const accent = t.ACCENT || (t.isLight ? '#0a8f87' : '#34d6c5');
@@ -28751,15 +28810,18 @@ function BSHomeBulletin({ label, detail, onOpen }) {
     <button
       type="button" onClick={onOpen} aria-label={`${label} · ${detail || ''}`.trim()}
       style={{
-        display: 'flex', alignItems: 'center', gap: 9, width: '100%', height: 40, boxSizing: 'border-box',
-        border: 0, borderTop: `1px solid ${t.HAIR}`, borderBottom: `1px solid ${t.HAIR}`, background: 'transparent',
-        padding: `0 ${t.padX}px`, textAlign: 'left', cursor: 'pointer', font: 'inherit', color: 'inherit',
+        display: 'flex', alignItems: 'center', gap: 9, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, minHeight: 48, boxSizing: 'border-box',
+        border: 0, borderLeft: `3px solid ${accent}`, borderTop: `1px solid ${t.HAIR}`, borderBottom: `1px solid ${t.HAIR}`, background: 'transparent',
+        padding: '4px 4px 4px 12px', textAlign: 'left', cursor: 'pointer', font: 'inherit', color: 'inherit',
       }}
     >
-      <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: accent, flexShrink: 0, ...(!bsSdReduced() ? { animation: 'bsPlatePulse 1.8s ease-in-out infinite' } : null) }} />
-      <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: accent, whiteSpace: 'nowrap' }}>{label}</span>
-      <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{detail}</span>
-      <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: accent, flexShrink: 0 }}>›</span>
+      <span aria-hidden style={{ flexShrink: 0, width: 16, display: 'flex', justifyContent: 'center' }}>
+        <span style={{ width: 7, height: 7, borderRadius: 999, background: accent, ...(!bsSdReduced() ? { animation: 'bsPlatePulse 1.8s ease-in-out infinite' } : null) }} />
+      </span>
+      <span style={{ fontFamily: t.DISPLAY, fontWeight: 400, fontSize: 15, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{label}</span>
+      {detail ? <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: accent, whiteSpace: 'nowrap' }}>{detail}</span> : null}
+      <span aria-hidden style={{ flex: 1, minWidth: 12, borderBottom: `1.5px dotted ${t.RULE}`, transform: 'translateY(-2px)' }} />
+      <span aria-hidden style={{ flexShrink: 0, color: accent, fontSize: 14, fontWeight: 700 }}>→</span>
     </button>
   );
 }
@@ -29188,6 +29250,27 @@ function useBSCheckinLogged() {
 // useBSStepsToday — the steps-today data effect + derived render flags, extracted
 // VERBATIM from BSStepsCard (goal via the existing useBSStepGoal() hook, signed-out
 // preview sample, todayKnown honesty gate, Shape Steps→points conversion).
+// The daily kcal / protein / steps series for At a glance's week and month
+// averages — the progress read the steps door already makes (cached), now with
+// its calorie series. null until it answers; signed out it stays null (the
+// preview shows demo figures).
+function useBSGlanceHistory() {
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+  const [hist, setHist] = useStateBSC(null);
+  React.useEffect(() => {
+    if (!signedIn || !window.ShapeProgress?.progress) return undefined;
+    let on = true;
+    window.ShapeProgress.progress().then((p) => {
+      if (!on) return;
+      const sr = (p && p.series) || {};
+      const arr = (k) => (Array.isArray(sr[k]) ? sr[k] : []);
+      setHist({ calories: arr('calories'), protein: arr('protein'), steps: arr('steps') });
+    }).catch(() => {});
+    return () => { on = false; };
+  }, [signedIn]);
+  return hist;
+}
+
 function useBSStepsToday() {
   const TARGET = useBSStepGoal();
   const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
@@ -33965,16 +34048,30 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
   };
   const allKeys = [];
   list.aisles.forEach((a, ai) => a.items.forEach((it, ii) => allKeys.push({ k: `${ai}-${ii}`, have: !!it.have })));
-  const initialChecked = new Set(allKeys.filter(x => x.have).map(x => x.k));
-  const [checked, setChecked] = useStateBSC(initialChecked);
+  // THE TICKS ARE REMEMBERED PER LIST (owner, 2026-10-11, the shop list on each
+  // meal): the Eat page ticks the same items, by name, so one tick is one tick
+  // on both pages and survives leaving this one. Nothing remembered yet → the
+  // list's own defaults (a pantry staple starts got).
+  const _gStore = (typeof window !== 'undefined' && window.localStorage) || null;
+  const _gListKey = String(list.id || list.name || 'list');
+  const readChecked = () => {
+    const got = bsReadGotItems(_gStore, _gListKey);
+    const set = new Set();
+    list.aisles.forEach((a, ai) => a.items.forEach((it, ii) => { if (bsGroceryIsGot(it, got)) set.add(`${ai}-${ii}`); }));
+    return set;
+  };
+  const [checked, setChecked] = useStateBSC(readChecked);
   React.useEffect(() => {
-    setChecked(new Set(allKeys.filter(x => x.have).map(x => x.k)));
+    setChecked(readChecked());
   }, [list.id || list.name]);
 
   const toggle = (k) => {
     const next = new Set(checked);
     if (next.has(k)) next.delete(k); else next.add(k);
     setChecked(next);
+    const names = new Set();
+    list.aisles.forEach((a, ai) => a.items.forEach((it, ii) => { if (next.has(`${ai}-${ii}`)) names.add(bsGroceryItemKey(it)); }));
+    bsSaveGotItems(_gStore, _gListKey, names);
   };
   // ── SHOP BY (owner, 2026-10-11): the same list two ways — by aisle for the
   // store (one aisle at a time), or by meal for the week (each ingredient under

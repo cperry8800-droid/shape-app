@@ -5834,6 +5834,17 @@ async function listPlaylistsFor(userId) {
   if (error) return [];
   return data || [];
 }
+// The playlists the member's own coaches sent them (get_my_coach_playlists):
+// role 'trainer' for the Train page, 'nutritionist' (cooking playlists) for the
+// Eat page — two separate lists. null when signed out or the read failed, so a
+// caller can tell "none sent" ([]) from "could not ask".
+async function listMyCoachPlaylists(role) {
+  if (!supabase || !state.user?.id) return null;
+  if (role !== 'trainer' && role !== 'nutritionist') return [];
+  const { data, error } = await supabase.rpc('get_my_coach_playlists', { p_role: role });
+  if (error) return null;
+  return Array.isArray(data) ? data : [];
+}
 async function addPlaylist({ name, url, cover = null, trackCount = null, meta = null, isPublic = true, savedFrom = null } = {}) {
   if (!supabase || !state.user?.id) throw new Error('Sign in to save playlists.');
   const parsed = parsePlaylistUrl(url);
@@ -5870,7 +5881,7 @@ async function listMySpotifyPlaylists() {
 // Merged: member-playlist library + the trainer-playlist methods the Pros app
 // uses (listTrainerPlaylists/createTrainerPlaylist). A second assignment used to
 // clobber the trainer methods, silently breaking coach playlist load/create.
-window.ShapePlaylists = { mine: listMyPlaylists, listFor: listPlaylistsFor, add: addPlaylist, update: updatePlaylist, remove: removePlaylist, parseUrl: parsePlaylistUrl, mySpotify: listMySpotifyPlaylists, listTrainerPlaylists, createTrainerPlaylist };
+window.ShapePlaylists = { mine: listMyPlaylists, listFor: listPlaylistsFor, fromMyCoaches: listMyCoachPlaylists, add: addPlaylist, update: updatePlaylist, remove: removePlaylist, parseUrl: parsePlaylistUrl, mySpotify: listMySpotifyPlaylists, listTrainerPlaylists, createTrainerPlaylist };
 
 // Coach grocery lists — a coach's own + per-client lists (coach_grocery_lists,
 // owner-scoped). Same shape as soundtracks; returns null when signed out so the

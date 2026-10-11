@@ -65,6 +65,45 @@ export function bsFocusSlot(tag, min) {
   return h < 11 ? 'breakfast' : h < 15 ? 'lunch' : h < 17 ? 'snack' : 'dinner';
 }
 
+// ── At a glance: Day · Week · Month ───────────────────────────────────────
+// (owner, 2026-10-11: kcal and protein "should also have their own section on
+// home page, that you can track daily, weekly, monthly").
+
+export const BS_GLANCE_PERIODS = ['day', 'week', 'month'];
+export const BS_GLANCE_DAYS = { week: 7, month: 30 };
+
+// The average of a daily series over the `days` days ending on `todayYmd`
+// ("YYYY-MM-DD", today included). Only days that carry a value above zero
+// count: a day with nothing logged is not a day of zero calories, so it
+// neither drags the average down nor counts as logged. `avg` is null when no
+// day in the window has a value.
+export function bsPeriodAverage(series, todayYmd, days) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(todayYmd || ''));
+  if (!m || !(days > 0)) return { avg: null, logged: 0, days: days > 0 ? days : 0 };
+  const end = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const start = new Date(end - (days - 1) * 86400000).toISOString().slice(0, 10);
+  const byDay = new Map();
+  for (const s of series || []) {
+    const d = s && typeof s.date === 'string' ? s.date.slice(0, 10) : '';
+    const v = Number(s && s.value);
+    if (!d || d < start || d > todayYmd || !Number.isFinite(v) || v <= 0) continue;
+    byDay.set(d, v);
+  }
+  const vals = [...byDay.values()];
+  if (!vals.length) return { avg: null, logged: 0, days };
+  return { avg: Math.round(vals.reduce((a, b) => a + b, 0) / vals.length), logged: vals.length, days };
+}
+
+const GLANCE_KEY = 'shape.home.glancePeriod';
+
+export function bsReadGlancePeriod(storage) {
+  try { const v = storage ? storage.getItem(GLANCE_KEY) : null; return BS_GLANCE_PERIODS.includes(v) ? v : 'day'; } catch (e) { return 'day'; }
+}
+
+export function bsSaveGlancePeriod(storage, value) {
+  try { if (storage && BS_GLANCE_PERIODS.includes(value)) storage.setItem(GLANCE_KEY, value); } catch (e) { /* not remembered */ }
+}
+
 // ── Grocery ────────────────────────────────────────────────────────────────
 
 // The meals an item is for, from its `meals` line: "A · B +2" → ['A', 'B'].
@@ -134,6 +173,35 @@ export function bsGroceryAisleStops(aisles, isGot, skipped) {
   return out;
 }
 
+// ── The shop list on each meal (Eat, option A · On the line) ─────────────────
+
+// An item's identity across the Eat page and the Grocery page: its name, so a
+// tick survives the list being rebuilt in a different order.
+export function bsGroceryItemKey(item) {
+  return String((item && item.n) || '').trim().toLowerCase();
+}
+
+// The items one meal needs: [{ ai, ii, item, also }] where `also` names the
+// other meals the same item is for (a shared ingredient shows under each).
+export function bsMealShopItems(aisles, mealTitle) {
+  const want = String(mealTitle || '').trim();
+  const out = [];
+  if (!want) return out;
+  (aisles || []).forEach((a, ai) => (a.items || []).forEach((item, ii) => {
+    const names = bsGroceryItemMeals(item);
+    if (!names.includes(want)) return;
+    out.push({ ai, ii, item, also: names.filter((n) => n !== want) });
+  }));
+  return out;
+}
+
+// Whether an item is got: the remembered ticks when there are any, else the
+// list's own default (a pantry staple starts got).
+export function bsGroceryIsGot(item, got) {
+  if (got) return got.has(bsGroceryItemKey(item));
+  return !!(item && item.have);
+}
+
 // ── Remembered choices (per device) ────────────────────────────────────────
 
 export const BS_SHOP_BY_KEY = 'shape.grocery.shopBy';
@@ -153,6 +221,36 @@ export function bsReadSkippedMeals(storage, listKey) {
     const arr = raw ? JSON.parse(raw) : [];
     return new Set(Array.isArray(arr) ? arr.filter((x) => typeof x === 'string' && x) : []);
   } catch (e) { return new Set(); }
+}
+
+// The ticks, per list: one tick on Eat is the same tick on the Grocery page.
+// null when nothing was ever ticked on this device, so the list's defaults hold.
+const GOT_PREFIX = 'shape.grocery.got:';
+
+export function bsReadGotItems(storage, listKey) {
+  try {
+    const raw = storage ? storage.getItem(GOT_PREFIX + String(listKey || 'list')) : null;
+    if (raw == null) return null;
+    const arr = JSON.parse(raw);
+    return new Set(Array.isArray(arr) ? arr.filter((x) => typeof x === 'string' && x) : []);
+  } catch (e) { return null; }
+}
+
+export function bsSaveGotItems(storage, listKey, got) {
+  try {
+    if (!storage) return;
+    storage.setItem(GOT_PREFIX + String(listKey || 'list'), JSON.stringify([...(got || [])]));
+  } catch (e) { /* not remembered */ }
+}
+
+// The got set after ticking one item, starting from the list's defaults when
+// nothing is remembered yet.
+export function bsToggleGot(aisles, got, item) {
+  const next = got ? new Set(got) : new Set();
+  if (!got) (aisles || []).forEach((a) => (a.items || []).forEach((it) => { if (it && it.have) next.add(bsGroceryItemKey(it)); }));
+  const k = bsGroceryItemKey(item);
+  if (next.has(k)) next.delete(k); else next.add(k);
+  return next;
 }
 
 export function bsSaveSkippedMeals(storage, listKey, skipped) {

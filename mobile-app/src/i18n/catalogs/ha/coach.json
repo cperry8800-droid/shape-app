@@ -1145,5 +1145,8 @@
   "video.fileSize": "Bidiyon ya kasance ƙasa da {limit} MB.",
   "schedule.pickTime": "Zaɓi lokaci",
   "schedule.runPartial": "An yi rajistar {booked} cikin {total}.",
-  "schedule.runDone": "An gama"
+  "schedule.runDone": "An gama",
+  "sound.allClients": "Duk abokan cinikina",
+  "sound.allClientsKind": "Kowane abokin ciniki",
+  "sound.clientKind": "Abokin ciniki"
 }

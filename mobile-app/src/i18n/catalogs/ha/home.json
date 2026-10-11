@@ -203,5 +203,19 @@
   "focus.nextStop": "Tasha ta gaba",
   "focus.notLogged": "Ba a rubuta ba tukuna",
   "focus.proteinToGo": "Sauran furotin",
-  "focus.viewMeal": "Duba abinci →"
+  "focus.viewMeal": "Duba abinci →",
+  "focus.stopsDone": "{stops, plural, one {Tasha #} other {Tashoshi #}} · {done} an gama",
+  "focus.youAreHere": "Yanzu · kana nan",
+  "focus.period.day": "Rana",
+  "focus.period.week": "Mako",
+  "focus.period.month": "Wata",
+  "focus.periodAria": "Nuna",
+  "focus.lastDays": "Kwanaki {days} da suka wuce · {logged} an rubuta",
+  "focus.noneLogged": "Ba a rubuta komai ba",
+  "focus.avgKcal": "Matsakaicin kcal",
+  "focus.avgProtein": "Matsakaicin furotin",
+  "focus.avgSteps": "Matsakaicin takai",
+  "focus.ofTarget": "cikin {target, number}",
+  "focus.ofTargetG": "cikin {target, number} g",
+  "focus.lastDaysOnly": "Kwanaki {days} da suka wuce"
 }

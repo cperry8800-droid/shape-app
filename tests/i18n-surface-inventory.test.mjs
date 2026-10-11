@@ -780,7 +780,11 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // literal and the MOCK_PROGRAM-era ` · Apr plan` period (the card is now a link whose name comes
   // from the same honest chain). BSClientHome leaves PARTIAL for fully covered.
   // partStrings 216 -> 213, part.length 36 -> 35; noneStrings and none.length unchanged.
-  assert.equal(partStrings, 213, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  // Train matches the design board (2026-10-11): the signed-out playlist cards became one keyed
+  // `session:train.musicFrom` link, and their header's two English literals (`From Jordan`,
+  // `Playlists`) went with them. partStrings 213 -> 211; part.length, noneStrings and none.length
+  // unchanged.
+  assert.equal(partStrings, 211, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
   // ⚠ AND noneStrings 793 -> 796 IS THREE STRINGS ADDED ON PURPOSE, in
   // BSMealLogged (already uncovered): the plated stage was printing a 46px teal
   // `0` under `Logged ✓` for a cook whose macros are unknown — while logIt had

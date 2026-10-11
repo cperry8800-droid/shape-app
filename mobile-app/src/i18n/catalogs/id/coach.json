@@ -1145,5 +1145,8 @@
   "video.fileSize": "Ukuran video harus di bawah {limit} MB.",
   "schedule.pickTime": "Pilih waktu",
   "schedule.runPartial": "{booked} dari {total} dipesan.",
-  "schedule.runDone": "Selesai"
+  "schedule.runDone": "Selesai",
+  "sound.allClients": "Semua klien saya",
+  "sound.allClientsKind": "Setiap klien",
+  "sound.clientKind": "Klien"
 }

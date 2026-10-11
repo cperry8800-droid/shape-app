@@ -1145,5 +1145,8 @@
   "video.fileSize": "Видео должно быть меньше {limit} МБ.",
   "schedule.pickTime": "Выберите время",
   "schedule.runPartial": "Забронировано {booked} из {total}.",
-  "schedule.runDone": "Готово"
+  "schedule.runDone": "Готово",
+  "sound.allClients": "Все мои клиенты",
+  "sound.allClientsKind": "Каждый клиент",
+  "sound.clientKind": "Клиент"
 }

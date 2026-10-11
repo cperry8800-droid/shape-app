@@ -8,7 +8,33 @@ import { readJson, dbError } from '@/lib/request-utils';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const SELECT = 'id, name, provider, tag, url, tracks, duration, bpm, attached, created_at';
+const SELECT = 'id, name, provider, tag, url, tracks, duration, bpm, attached, role, created_at';
+// The role a playlist is sent to clients as (the Train page reads a trainer's,
+// the Eat page a nutritionist's — get_my_coach_playlists).
+const roleOf = (v: unknown): 'trainer' | 'nutritionist' | null => (v === 'trainer' || v === 'nutritionist' ? v : null);
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// `attached` entries: a plan or workout ({ id, kind, name }), one client
+// ({ kind: 'client', clientId }) or every client ({ kind: 'all_clients' }).
+// Only those keys are kept, strings are clamped, and a client entry needs a
+// real uuid — the member's read matches on it.
+function cleanAttached(v: unknown): Array<Record<string, string>> {
+  if (!Array.isArray(v)) return [];
+  const out: Array<Record<string, string>> = [];
+  for (const raw of v.slice(0, 200)) {
+    if (!raw || typeof raw !== 'object') continue;
+    const r = raw as Record<string, unknown>;
+    const kind = clean(r.kind, 40);
+    if (!kind) continue;
+    const entry: Record<string, string> = { id: clean(r.id, 80) || kind, kind, name: clean(r.name, 160) };
+    if (kind === 'client') {
+      const cid = clean(r.clientId, 64);
+      if (!UUID_RE.test(cid)) continue;
+      entry.clientId = cid.toLowerCase();
+    }
+    out.push(entry);
+  }
+  return out;
+}
 const clean = (v: unknown, max = 200) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 
 // ── Spotify metadata resolve (client-credentials; public playlists) ──────────
@@ -95,7 +121,8 @@ export async function POST(request: Request) {
     tracks: meta?.tracks != null ? meta.tracks : (Number.isFinite(Number(body.tracks)) ? Math.max(0, Math.round(Number(body.tracks))) : 0),
     duration: meta?.duration || clean(body.duration, 24) || null,
     bpm: clean(body.bpm, 24) || null,
-    attached: Array.isArray(body.attached) ? body.attached : [],
+    attached: cleanAttached(body.attached),
+    role: roleOf(body.role),
   };
   const { data, error } = await supabase.from('coach_soundtracks').insert(insert).select(SELECT).single();
   if (error) return dbError(error, 'coach soundtracks write', 500);
@@ -119,7 +146,8 @@ export async function PATCH(request: Request) {
   if (typeof body.duration === 'string') patch.duration = clean(body.duration, 24);
   if (typeof body.bpm === 'string') patch.bpm = clean(body.bpm, 24);
   if (body.tracks != null && Number.isFinite(Number(body.tracks))) patch.tracks = Math.max(0, Math.round(Number(body.tracks)));
-  if (Array.isArray(body.attached)) patch.attached = body.attached;
+  if (Array.isArray(body.attached)) patch.attached = cleanAttached(body.attached);
+  if (body.role !== undefined) patch.role = roleOf(body.role);
   const { data, error } = await supabase
     .from('coach_soundtracks')
     .update(patch)

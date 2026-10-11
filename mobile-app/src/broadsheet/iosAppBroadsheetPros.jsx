@@ -7554,6 +7554,11 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
   const [appleBusy, setAppleBusy] = useStateBSP(false);
   const [appleErr, setAppleErr] = useStateBSP('');
   const [pickingApple, setPickingApple] = useStateBSP(false);
+  // The coach's real clients (signed in), for sending a playlist to one client or
+  // to all of them — the member reads it on Train (a trainer's) or Eat (a
+  // nutritionist's cooking playlists) through get_my_coach_playlists.
+  const { clients: rosterClients } = useBSProRoster(role);
+  const _stSignedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
 
   const hydrate = (r) => ({ ...r, c: r.provider === 'apple' ? '#b9a13e' : '#4a6fb0', dur: r.duration || '—', bpm: r.bpm || '—', used: 0 });
   useEffectBSP(() => {
@@ -7626,7 +7631,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
   const saveImport = async () => {
     const name = iName.trim();
     if (!name) return;
-    const payload = { name, provider: iProvider, tag: iTag.trim() || 'Custom', url: iUrl.trim(), tracks: 0, duration: '—', bpm: '—' };
+    const payload = { name, provider: iProvider, tag: iTag.trim() || 'Custom', url: iUrl.trim(), tracks: 0, duration: '—', bpm: '—', role };
     if (window.ShapeSoundtracks?.create) {
       try {
         const row = await window.ShapeSoundtracks.create(payload);
@@ -7644,7 +7649,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
     const nextArr = exists ? cur.filter(a => a && a.id !== target.id) : [...cur, target];
     if (isServerRow(p)) {
       setServerList(list => (list || []).map(x => x.id === p.id ? { ...x, attached: nextArr } : x));
-      if (window.ShapeSoundtracks?.update) window.ShapeSoundtracks.update({ id: p.id, attached: nextArr }).catch(() => {});
+      if (window.ShapeSoundtracks?.update) window.ShapeSoundtracks.update({ id: p.id, attached: nextArr, role }).catch(() => {});
     } else {
       const next = { ...assign, [p.id]: nextArr };
       setAssign(next); bsWriteJSON('bs_coach_soundtrack_assign', next);
@@ -7789,12 +7794,12 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
     const pl = all.find(p => p.id === assignFor) || {};
     const cur = attachedFor(pl);
     const isOn = (id) => cur.some(a => a && a.id === id);
-    const row = (target, tone) => {
+    const row = (target, tone, kindLabel) => {
       const on = isOn(target.id);
       return (
         <button key={target.id} onClick={() => toggleAttach(pl, target)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', borderRadius: 14, border: `1px solid ${on ? gold : t.RULE}`, background: on ? `${gold}14` : t.PAPER2, padding: '14px 15px' }}>
           <div>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.12em', color: tone }}>{target.kind.toUpperCase()}</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.12em', color: tone }}>{(kindLabel || target.kind).toUpperCase()}</div>
             <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK }}>{target.name}</div>
           </div>
           <span style={{ width: 24, height: 24, borderRadius: 999, border: `1px solid ${on ? gold : t.RULE}`, background: on ? gold : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#241c08', fontSize: 13, fontWeight: 800 }}>{on ? '✓' : ''}</span>
@@ -7827,8 +7832,23 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={t.INK50} strokeWidth="2" style={{ flexShrink: 0 }}><circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="21" y2="21" strokeLinecap="round" /></svg>
                 <input value={clientQuery} onChange={(e) => setClientQuery(e.target.value)} placeholder={tr('coach:sound.searchClients', { defaultValue: 'Search clients…' })} style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 15 }} />
               </div>
-              {clients.length === 0 && <div style={{ padding: '18px 4px', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>{tr('coach:sound.noClientsMatch', { defaultValue: 'No clients match.' })}</div>}
-              {clients.map(c => (
+              {_stSignedIn ? (() => {
+                // Signed in: the coach's real clients. A client sees the playlist on
+                // their Train page (trainer) or Eat page (nutritionist).
+                const q = clientQuery.trim().toLowerCase();
+                const real = (rosterClients || []).filter((c) => c && c.userId && (!q || String(c.name || '').toLowerCase().includes(q)));
+                const tone = role === 'nutritionist' ? teal : t.RUST;
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {!q && row({ id: 'all_clients', kind: 'all_clients', name: tr('coach:sound.allClients', { defaultValue: 'All my clients' }) }, gold, tr('coach:sound.allClientsKind', { defaultValue: 'Every client' }))}
+                    {real.length === 0
+                      ? <div style={{ padding: '18px 4px', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>{tr('coach:sound.noClientsMatch', { defaultValue: 'No clients match.' })}</div>
+                      : real.map((c) => row({ id: `client:${c.userId}`, kind: 'client', clientId: c.userId, name: c.name }, tone, tr('coach:sound.clientKind', { defaultValue: 'Client' })))}
+                  </div>
+                );
+              })() : null}
+              {!_stSignedIn && clients.length === 0 && <div style={{ padding: '18px 4px', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>{tr('coach:sound.noClientsMatch', { defaultValue: 'No clients match.' })}</div>}
+              {!_stSignedIn && clients.map(c => (
                 <div key={c.id} style={{ marginBottom: 18 }}>
                   <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: t.INK50, marginBottom: 8 }}>{tr('coach:sound.clientWorkouts', { defaultValue: '{name} · {count} WORKOUTS', name: c.name.toUpperCase(), count: c.workouts.length })}</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

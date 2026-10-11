@@ -405,5 +405,12 @@
   "grocery.shop.skip": "Salta",
   "grocery.shop.skippedOff": "Saltato · {count} tolti",
   "grocery.shop.toGetCount": "{count} da prendere",
-  "grocery.shop.unskip": "Annulla"
+  "grocery.shop.unskip": "Annulla",
+  "eat.shop.also": "anche {meals}",
+  "eat.shop.skipped": "Saltato",
+  "eat.shop.head": "Ingredienti · {count} da prendere",
+  "eat.shop.skippedNote": "I suoi ingredienti escono dalla lista, a meno che un altro pasto non li usi.",
+  "eat.shop.openList": "Apri in Spesa per pasto →",
+  "eat.shop.tagAria": "Spesa per {meal}: {status}",
+  "eat.shop.alsoMany": "{count, plural, one {anche # altro pasto} other {anche # altri pasti}}"
 }

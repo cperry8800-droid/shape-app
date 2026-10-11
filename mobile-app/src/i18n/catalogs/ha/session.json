@@ -345,5 +345,10 @@
   "train.buildWorkoutLink": "Gina motsa jiki",
   "train.startsIn": "Zai fara cikin",
   "train.untilHourMin": "awa {h} minti {m}",
-  "train.untilMin": "minti {m}"
+  "train.untilMin": "minti {m}",
+  "train.musicFrom": "Kiɗa daga {name}",
+  "train.music": "Kiɗa",
+  "train.forToday": "Don yau",
+  "train.fullPlan": "Cikakken tsari",
+  "train.playlistBy": "{who} · Mai horar da kai"
 }

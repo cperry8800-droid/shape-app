@@ -405,5 +405,12 @@
   "grocery.shop.skip": "Atla",
   "grocery.shop.skippedOff": "Atlandı · {count} çıkarıldı",
   "grocery.shop.toGetCount": "{count} alınacak",
-  "grocery.shop.unskip": "Geri al"
+  "grocery.shop.unskip": "Geri al",
+  "eat.shop.also": "ayrıca {meals}",
+  "eat.shop.skipped": "Atlandı",
+  "eat.shop.head": "Malzemeler · {count} alınacak",
+  "eat.shop.skippedNote": "Malzemeleri listeden çıktı; başka bir öğün gerektiriyorsa kalır.",
+  "eat.shop.openList": "Öğüne göre alışverişte aç →",
+  "eat.shop.tagAria": "{meal} için alışveriş: {status}",
+  "eat.shop.alsoMany": "{count, plural, other {ayrıca # başka öğün}}"
 }

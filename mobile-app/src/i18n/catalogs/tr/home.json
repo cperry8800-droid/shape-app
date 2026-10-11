@@ -203,5 +203,19 @@
   "focus.nextStop": "Sonraki durak",
   "focus.notLogged": "Henüz kaydedilmedi",
   "focus.proteinToGo": "Kalan protein",
-  "focus.viewMeal": "Öğünü gör →"
+  "focus.viewMeal": "Öğünü gör →",
+  "focus.stopsDone": "{stops, plural, one {# durak} other {# durak}} · {done} tamam",
+  "focus.youAreHere": "Şimdi · buradasın",
+  "focus.period.day": "Gün",
+  "focus.period.week": "Hafta",
+  "focus.period.month": "Ay",
+  "focus.periodAria": "Göster",
+  "focus.lastDays": "Son {days} gün · {logged} kayıtlı",
+  "focus.noneLogged": "Kayıt yok",
+  "focus.avgKcal": "Ort. kcal",
+  "focus.avgProtein": "Ort. protein",
+  "focus.avgSteps": "Ort. adım",
+  "focus.ofTarget": "{target, number} hedef",
+  "focus.ofTargetG": "{target, number} g hedef",
+  "focus.lastDaysOnly": "Son {days} gün"
 }

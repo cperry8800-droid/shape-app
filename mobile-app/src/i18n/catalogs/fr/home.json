@@ -203,5 +203,19 @@
   "focus.nextStop": "Prochain arrêt",
   "focus.notLogged": "Pas encore enregistré",
   "focus.proteinToGo": "Protéines restantes",
-  "focus.viewMeal": "Voir le repas →"
+  "focus.viewMeal": "Voir le repas →",
+  "focus.stopsDone": "{stops, plural, one {# étape} other {# étapes}} · {done} faites",
+  "focus.youAreHere": "Maintenant · vous êtes ici",
+  "focus.period.day": "Jour",
+  "focus.period.week": "Semaine",
+  "focus.period.month": "Mois",
+  "focus.periodAria": "Afficher",
+  "focus.lastDays": "{days} derniers jours · {logged} saisis",
+  "focus.noneLogged": "Rien de saisi",
+  "focus.avgKcal": "Kcal moy.",
+  "focus.avgProtein": "Protéines moy.",
+  "focus.avgSteps": "Pas moy.",
+  "focus.ofTarget": "sur {target, number}",
+  "focus.ofTargetG": "sur {target, number} g",
+  "focus.lastDaysOnly": "{days} derniers jours"
 }
