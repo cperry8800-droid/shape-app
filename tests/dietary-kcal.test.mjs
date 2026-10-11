@@ -122,7 +122,13 @@ test('the coach\'s numbers read calories eaten', () => {
   for (const src of [t, n]) {
     assert.match(src, /\.select\('user_id, snapshot_date, protein_g, dietary_kcal, weight_lb'\)/);
     assert.match(src, /const cals = rows\.map\(\(r\) => r\.dietary_kcal\)/);
+    // Codex on #2310: days logged are days with a meal, not every snapshot row.
+    assert.match(src, /const loggedDays = rows\.filter\(\(r\) => r\.dietary_kcal != null \|\| r\.protein_g != null\)\.length;/);
+    assert.match(src, /totalDaysLogged \+= loggedDays;/);
+    assert.match(src, /daysLogged30d: loggedDays,/);
+    assert.doesNotMatch(src, /rows\.length/, 'a watch-only row counted as a logged day');
   }
+  assert.equal(t, n, 'the trainer and nutritionist analytics stay identical');
   for (const p of ['src/app/api/trainer/console/route.ts', 'src/app/api/nutritionist/console/route.ts']) {
     assert.match(read(p), /stress, calories:dietary_kcal, protein_g,/, `${p}: the console's \`calories\` must be calories eaten`);
   }

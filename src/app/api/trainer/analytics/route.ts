@@ -200,11 +200,14 @@ export async function GET() {
       const wStart = weights.length ? Number(weights[0]) : null;
       const wLatest = weights.length ? Number(weights[weights.length - 1]) : null;
       const wDelta = wStart != null && wLatest != null ? wLatest - wStart : null;
-      totalDaysLogged += rows.length;
+      // A logged day is a day with a meal on it (calories eaten or protein). A
+      // watch, sleep or weigh-in row alone is not a nutrition log.
+      const loggedDays = rows.filter((r) => r.dietary_kcal != null || r.protein_g != null).length;
+      totalDaysLogged += loggedDays;
       for (const p of proteins) { totalProteinDays += 1; if (Number(p) >= 120) proteinHits += 1; }
       roster.push({
         client_id: cid,
-        daysLogged30d: rows.length,
+        daysLogged30d: loggedDays,
         avgProteinG: proteins.length ? Math.round(proteins.reduce((a, b) => a + Number(b), 0) / proteins.length) : null,
         avgCalories: cals.length ? Math.round(cals.reduce((a, b) => a + Number(b), 0) / cals.length) : null,
         weightStart: wStart,
