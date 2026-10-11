@@ -32,6 +32,14 @@ test('the migration adds dietary_kcal and moves only meal-log rows into it', () 
   assert.match(SQL, /add column if not exists dietary_kcal integer\s+check \(dietary_kcal is null or dietary_kcal >= 0\)/);
   // A row no device wrote (no sources.calories tag) holds meal calories: moved, and cleared.
   assert.match(SQL, /set dietary_kcal = calories,\s+calories = null\s+where dietary_kcal is null\s+and calories is not null\s+and not \(coalesce\(sources, '\{\}'::jsonb\) \? 'calories'\)/);
+  // A device row a meal was logged onto after the sync: the excess over the
+  // device's own reading (health_metric_observations) is the meal, and the burn
+  // goes back to the reading. It runs before the macros fallback.
+  const recover = SQL.indexOf('from public.health_metric_observations o');
+  const fallback = SQL.indexOf('-- Other device rows with logged macros');
+  assert.ok(recover > 0 && fallback > recover, 'the recovery from the device reading must run before the macros fallback');
+  assert.match(SQL, /set dietary_kcal = d\.calories - round\(o\.value\)::integer,\s+calories\s+= round\(o\.value\)::integer/);
+  assert.match(SQL, /and o\.metric = 'calories'\s+and o\.source = d\.sources->>'calories'\s+and d\.calories > round\(o\.value\);/, 'only the reading of the source that tagged the row, and only a real excess');
   // A device row keeps its burn; its eaten calories come from the logged macros.
   assert.match(SQL, /set dietary_kcal = round\(4 \* coalesce\(protein_g, 0\) \+ 4 \* coalesce\(carbs_g, 0\) \+ 9 \* coalesce\(fat_g, 0\)\)::integer\s+where dietary_kcal is null\s+and \(coalesce\(sources, '\{\}'::jsonb\) \? 'calories'\)/);
   assert.doesNotMatch(SQL, /update public\.daily_health_snapshot\s+set calories = (?!null)/, 'the migration never writes a value into a device\'s burn');

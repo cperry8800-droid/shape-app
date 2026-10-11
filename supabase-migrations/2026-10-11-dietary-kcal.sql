@@ -14,12 +14,16 @@
 --   · dietary_kcal  = calories EATEN. Only meal logs write it.
 --   · calories      = calories BURNED. Only device syncs write it.
 --
--- The backfill moves a row's calories into dietary_kcal when no device wrote
--- them (no sources.calories tag), and clears calories there: those were meal
--- logs. A row a device wrote keeps its calories; when it also carries logged
--- macros, its dietary_kcal is the energy in them (4 kcal per gram of protein
--- and carbs, 9 per gram of fat), because the meal kcal on such a day were
--- overwritten or mixed with the device's and cannot be recovered.
+-- The backfill, in order:
+--   1. A row no device wrote (no sources.calories tag) holds meal calories:
+--      they move to dietary_kcal, and calories is cleared.
+--   2. A device row a meal was logged onto after the sync holds the burn PLUS
+--      the meal. upsertSnapshot keeps each device's own reading in
+--      health_metric_observations, so the meal is the excess over the reading
+--      of the source that tagged the row, and the burn goes back to it.
+--   3. Any other device row with logged macros gets the energy in them (4 kcal
+--      per gram of protein and carbs, 9 per gram of fat): a later sync
+--      overwrote that day's meal calories, which cannot be recovered.
 --
 -- add_meal_macros keeps its signature, its grants and its guards; it writes
 -- dietary_kcal instead of calories, and its NaN guard now works (see the body).
@@ -54,7 +58,21 @@ update public.daily_health_snapshot
    and calories is not null
    and not (coalesce(sources, '{}'::jsonb) ? 'calories');
 
--- Device rows with logged macros: the energy in the macros.
+-- Device rows with a meal logged after the sync: the excess over the device's
+-- own reading is the meal, and the burn goes back to the reading.
+update public.daily_health_snapshot d
+   set dietary_kcal = d.calories - round(o.value)::integer,
+       calories     = round(o.value)::integer
+  from public.health_metric_observations o
+ where d.dietary_kcal is null
+   and (coalesce(d.sources, '{}'::jsonb) ? 'calories')
+   and o.user_id = d.user_id
+   and o.snapshot_date = d.snapshot_date
+   and o.metric = 'calories'
+   and o.source = d.sources->>'calories'
+   and d.calories > round(o.value);
+
+-- Other device rows with logged macros: the energy in the macros.
 update public.daily_health_snapshot
    set dietary_kcal = round(4 * coalesce(protein_g, 0) + 4 * coalesce(carbs_g, 0) + 9 * coalesce(fat_g, 0))::integer
  where dietary_kcal is null
