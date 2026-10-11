@@ -345,5 +345,9 @@
   "train.buildWorkoutLink": "Tạo buổi tập",
   "train.startsIn": "Bắt đầu sau",
   "train.untilHourMin": "{h} giờ {m} phút",
-  "train.untilMin": "{m} phút"
+  "train.untilMin": "{m} phút",
+  "train.musicFrom": "Nhạc từ {name}",
+  "train.music": "Nhạc",
+  "train.forToday": "Cho hôm nay",
+  "train.fullPlan": "Toàn bộ kế hoạch"
 }

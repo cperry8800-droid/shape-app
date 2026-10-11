@@ -6099,6 +6099,11 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   const _trainNorm = (s) => String(s || '').trim().replace(/\.$/, '').toLowerCase();
   const _trainHead = _trainNorm(cur.headline) && _trainNorm(cur.headline) !== _trainNorm(cur.title) ? cur.headline : cur.title;
 
+  // A section title's one action, in the design's grammar (accent mono caps).
+  const _trainAct = (label, onClick) => (
+    <button type="button" onClick={onClick} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', minHeight: 44, marginBottom: -6, background: 'transparent', border: 0, padding: '0 2px', color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{label} →</button>
+  );
+
   return (
     <BSPage>
       <BSPageHeader
@@ -6161,7 +6166,8 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       {/* Workout — the moves. Tap a move (or Swap) to pick a coach-approved sub. */}
       {effMoves.length > 0 && (
         <>
-          <BSTrackHeader kicker={tr('session:train.programKicker', { defaultValue: 'The program' })} title={tr('session:train.moveCount', { defaultValue: `${effMoves.length} move${effMoves.length === 1 ? '' : 's'}`, count: effMoves.length })} actionLabel={tr('session:train.swap', { defaultValue: 'Swap' })} onAction={() => setSwapIdx('pick')} />
+          <BSFocusTitle kicker={tr('session:train.programKicker', { defaultValue: 'The program' })} title={tr('session:train.moveCount', { defaultValue: `${effMoves.length} move${effMoves.length === 1 ? '' : 's'}`, count: effMoves.length })}
+            right={_trainAct(tr('session:train.swap', { defaultValue: 'Swap' }), () => setSwapIdx('pick'))} />
           <div style={{ padding: `10px ${t.padX}px 0` }}>
             <div aria-hidden style={{ display: 'grid', gridTemplateColumns: '22px 1fr 92px 52px', gap: 10, padding: '0 0 7px', borderBottom: `1.5px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>
               <span>{tr('session:train.col.n', { defaultValue: 'N' })}</span><span>{tr('session:train.col.move', { defaultValue: 'Move' })}</span><span>{tr('session:train.col.scheme', { defaultValue: 'Scheme' })}</span><span style={{ textAlign: 'right' }}>{tr('session:train.col.load', { defaultValue: 'Load' })}</span>
@@ -6217,7 +6223,8 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
 
       {/* This week — on deck. Derived from the shared week (PROGRAM): the next few
           days after today, so it matches the calendar + home. Tap to jump there. */}
-      <BSTrackHeader kicker={tr('home:section.thisWeek', { defaultValue: 'This week' })} title={tr('session:train.onDeck', { defaultValue: 'On deck' })} actionLabel={tr('session:train.plan', { defaultValue: 'Plan' })} onAction={goCalendar} />
+      <BSFocusTitle kicker={tr('home:section.thisWeek', { defaultValue: 'This week' })} title={tr('session:train.onDeck', { defaultValue: 'On deck' })}
+        right={_trainAct(tr('session:train.plan', { defaultValue: 'Plan' }), goCalendar)} />
       <div style={{ padding: `10px ${t.padX}px 0` }}>
         {[1, 2, 3].map((off) => {
           const idx = (bsWeekdayIdx() + off) % 7;
@@ -6229,7 +6236,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
           <button key={i} onClick={() => setDay(x.idx)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, display: 'grid', gridTemplateColumns: '22px 1fr auto', gap: 10, alignItems: 'start', padding: '13px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
             <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 600, marginTop: 3 }}>{String(i + 1).padStart(2, '0')}</span>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{x.m}</div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 400, lineHeight: 1.2, color: t.INK, letterSpacing: '-0.01em' }}>{x.m}</div>
               <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 3, letterSpacing: '0.04em' }}>{x.s}</div>
             </div>
             <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 3 }}>{x.r || ''}</span>
@@ -6237,9 +6244,17 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
         ))}
       </div>
 
-      {/* ── FOCUS · LINKS — the rest of Train, one row each: building or opening a
-          session, and finding a trainer. */}
-      <div style={{ marginTop: t.sectGap }}>
+      {/* ── FOCUS · LINKS — the rest of Train, one row each, as the design board
+          has them: the coach's music for today (Shape Radio), the full plan, then
+          building or opening a session, and finding a trainer. The playlist cards
+          that sat here became the music link (owner, 2026-10-11: Train "match the
+          design"). */}
+      <div style={{ marginTop: t.sectGap + 8 }}>
+        <BSFocusLink color={t.ACCENT} glyph="♪"
+          label={coachDayName ? tr('session:train.musicFrom', { defaultValue: 'Music from {name}', name: String(coachDayName).split(' ')[0] }) : tr('session:train.music', { defaultValue: 'Music' })}
+          tag={tr('session:train.forToday', { defaultValue: 'For today' })} onOpen={goRadio} />
+        <BSFocusLink color={t.INK70} glyph="▤" label={tr('session:train.fullPlan', { defaultValue: 'Full plan' })}
+          tag={`${bsTrainProgram.trainingPhase || 'Build'} · ${tr('common:unit.weekN', { defaultValue: 'Week {n}', n: bsProgramWeek() })}`} onOpen={goCalendar} />
         {bsTrainSignedIn && (
           <>
             <BSFocusLink color={t.ACCENT} glyph="＋" label={tr('session:train.buildWorkoutLink', { defaultValue: 'Build a workout' })} onOpen={() => setBuilder({ mode: 'session' })} />
@@ -6248,29 +6263,6 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
         )}
         <BSFindCoachBar role="trainer" onOpen={() => goMarket('trainer')} />
       </div>
-
-      {/* From Jordan — coach playlists (sourced from the Radio coach-playlist feed) */}
-      {(() => {
-        const all = Array.isArray(window.BS_COACH_PLAYLISTS) ? window.BS_COACH_PLAYLISTS : [];
-        // ⚠ SAME UNGATED DEMO AS THE EAT TAB (fixed in the same PR): the
-        // header was the literal "From Jordan" over a static demo constant,
-        // so a signed-in member read a section attributed to a coach they may
-        // not have. Signed-out keeps the demo; signed-in renders nothing.
-        if (bsTrainSignedIn) return null;
-        const lists = all.filter(p => p.role === 'Coach');
-        const items = lists.length ? lists.map(p => ({ k: `${p.by} · Your coach`, title: p.name, meta: `${p.len} · ${p.bpm} BPM · ${p.tracks} tracks${p.attached ? ` · ${p.attached}` : ''}`, url: p.url, provider: p.provider, tracks: p.songs }))
-          : [{ k: 'Jordan Chen · Your coach', title: 'Pull heavy.', meta: '52m · 95-138 BPM · 14 tracks' }];
-        return (
-          <>
-            <BSTrackHeader kicker="From Jordan" title="Playlists" />
-            <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {items.map((p, i) => (
-                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color={p.provider === 'apple' ? '#fa243c' : '#1db954'} provider={p.provider} url={p.url} tracks={p.tracks} />
-              ))}
-            </div>
-          </>
-        );
-      })()}
 
       <BSFooter right="Pg 2 of 5" />
     </BSPage>

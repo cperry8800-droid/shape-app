@@ -345,5 +345,9 @@
   "train.buildWorkoutLink": "Antrenman oluştur",
   "train.startsIn": "Başlamasına",
   "train.untilHourMin": "{h} sa {m} dk",
-  "train.untilMin": "{m} dk"
+  "train.untilMin": "{m} dk",
+  "train.musicFrom": "{name} müzikleri",
+  "train.music": "Müzik",
+  "train.forToday": "Bugün için",
+  "train.fullPlan": "Tüm plan"
 }

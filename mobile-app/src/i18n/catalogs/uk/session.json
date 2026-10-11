@@ -345,5 +345,9 @@
   "train.buildWorkoutLink": "Скласти тренування",
   "train.startsIn": "Початок через",
   "train.untilHourMin": "{h} год {m} хв",
-  "train.untilMin": "{m} хв"
+  "train.untilMin": "{m} хв",
+  "train.musicFrom": "Музика від {name}",
+  "train.music": "Музика",
+  "train.forToday": "На сьогодні",
+  "train.fullPlan": "Увесь план"
 }
