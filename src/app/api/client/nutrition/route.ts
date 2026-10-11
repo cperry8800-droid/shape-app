@@ -29,7 +29,7 @@ export async function GET(request: Request) {
 
   const { data: snapRows } = await supabase
     .from('daily_health_snapshot')
-    .select('snapshot_date, calories, protein_g, carbs_g, fat_g, hydration_l')
+    .select('snapshot_date, dietary_kcal, protein_g, carbs_g, fat_g, hydration_l')
     .eq('user_id', user.id)
     .order('snapshot_date', { ascending: false })
     .limit(30);
@@ -40,7 +40,7 @@ export async function GET(request: Request) {
   const today = latest
     ? {
         date: latest.snapshot_date,
-        calories: num(latest.calories),
+        calories: num(latest.dietary_kcal),
         protein: num(latest.protein_g),
         carbs: num(latest.carbs_g),
         fat: num(latest.fat_g),
@@ -53,17 +53,18 @@ export async function GET(request: Request) {
     .reverse()
     .map((s) => ({
       date: s.snapshot_date,
-      calories: num(s.calories),
-      logged: s.calories != null,
+      calories: num(s.dietary_kcal),
+      logged: s.dietary_kcal != null,
     }));
 
   const loggedDays7 = week.filter((d) => d.logged).length;
 
   // Logging streak (Nutrition tab is streak-framed, never a bare %). Counts
   // consecutive logged days from the most recent backward; longest over the
-  // 30-day window. snaps is newest-first; `calories != null` = logged.
+  // 30-day window. snaps is newest-first; `dietary_kcal != null` = logged (calories
+  // EATEN: the snapshot's `calories` is a device's burn, which logs no meal).
   const loggedDates = new Set(
-    snaps.filter((s) => s.calories != null).map((s) => String(s.snapshot_date))
+    snaps.filter((s) => s.dietary_kcal != null).map((s) => String(s.snapshot_date))
   );
   const DAY = 86400000;
   const dayKey = (t: number) => {

@@ -2859,14 +2859,16 @@ async function listClientNutritionDays({ limit = 40 } = {}) {
 
   const { data: rows, error } = await supabase
     .from('daily_health_snapshot')
-    .select('id, user_id, snapshot_date, calories, protein_g, carbs_g, fat_g, hydration_l, energy, hunger')
+    .select('id, user_id, snapshot_date, dietary_kcal, protein_g, carbs_g, fat_g, hydration_l, energy, hunger')
     .neq('user_id', me)                       // rule 1 — never the coach's own days
     // rule 2, server side — the limit is applied BEFORE any client filter, so a
     // roster of wearable-only rows would otherwise fill the window and hide
     // every real nutrition day behind it. This narrows what the limit reads;
     // the strict predicate below is still the authority (it also rejects '' and
     // non-finite strings, which `not.is.null` admits).
-    .or('calories.not.is.null,protein_g.not.is.null')
+    // Calories EATEN: the snapshot's `calories` is a watch's burn, so a
+    // wearable-only row would have passed a `calories` test as a meal.
+    .or('dietary_kcal.not.is.null,protein_g.not.is.null')
     .order('snapshot_date', { ascending: false })
     .limit(Math.max(1, Math.min(200, Number(limit) || 40)));
   if (error) throw error;
@@ -2877,7 +2879,7 @@ async function listClientNutritionDays({ limit = 40 } = {}) {
     const n = Number(v);
     return Number.isFinite(n) ? n : null;
   };
-  const days = (rows || []).filter((r) => num(r.calories) != null || num(r.protein_g) != null);
+  const days = (rows || []).filter((r) => num(r.dietary_kcal) != null || num(r.protein_g) != null);
   if (!days.length) return { stored: 'supabase', data: [] };
 
   const clientIds = [...new Set(days.map((r) => r.user_id).filter(Boolean))];
@@ -2950,7 +2952,7 @@ async function listClientNutritionDays({ limit = 40 } = {}) {
       clientId: r.user_id,
       clientName: names.get(r.user_id) || null,
       loggedOn: r.snapshot_date,
-      kcal: num(r.calories),
+      kcal: num(r.dietary_kcal),
       kcalTarget: target.kcal,
       proteinG: num(r.protein_g),
       proteinTargetG: target.protein,

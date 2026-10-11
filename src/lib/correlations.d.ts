@@ -55,6 +55,7 @@ export const MIN_DAYS: number;
 export const SNAPSHOT_METRICS: readonly MetricKey[];
 
 /** The PostgREST select for a correlation read — derived, never hand-typed. */
+export const SNAPSHOT_COLUMN: Partial<Record<MetricKey, string>>;
 export const SNAPSHOT_SELECT: string;
 
 export const CORRELATION_PAIRS: ReadonlyArray<{

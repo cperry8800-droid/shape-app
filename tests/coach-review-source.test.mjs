@@ -201,12 +201,15 @@ test('the nutrition-day read narrows BEFORE the limit', () => {
   // .limit() is applied SERVER-side, before any JS filter — so a roster of
   // wearable-only rows fills the window and hides every real nutrition day
   // behind it. The predicate has to travel with the query.
-  const orAt = fn.indexOf(".or('calories.not.is.null,protein_g.not.is.null')");
+  const orAt = fn.indexOf(".or('dietary_kcal.not.is.null,protein_g.not.is.null')");
   const limitAt = fn.indexOf('.limit(');
   assert.ok(orAt > 0, 'the query must narrow to rows carrying a real nutrition log');
   assert.ok(limitAt > orAt, 'the predicate must be applied before the limit');
 
   // The strict client predicate stays the authority: `not.is.null` admits ''
   // and non-finite strings, which would render as a 0-kcal day.
-  assert.match(fn, /num\(r\.calories\) != null \|\| num\(r\.protein_g\) != null/, 'the strict predicate must still gate the rows');
+  assert.match(fn, /num\(r\.dietary_kcal\) != null \|\| num\(r\.protein_g\) != null/, 'the strict predicate must still gate the rows');
+  // Calories EATEN, never the snapshot's `calories`: that is a watch's burn, and a
+  // wearable-only row read through it would be shown as a meal to review.
+  assert.doesNotMatch(fn, /r\.calories\b|'calories\.not/, 'the review queue reads a device\'s burn as food');
 });

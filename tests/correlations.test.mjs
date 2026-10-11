@@ -21,8 +21,12 @@ import {
 // the query never fetched — which fails LOUDLY nowhere: the value reads
 // undefined, the pair contributes nothing, and the route returns 200 with one
 // fewer finding than it claims to compute.
+// A select part is `column` or `metric:column` (a PostgREST alias); the name a row
+// carries is the part before the colon.
+const selectedNames = () => SNAPSHOT_SELECT.split(',').map((p) => p.split(':')[0]);
+
 test('every pair names a metric that is actually selected', () => {
-  const selected = new Set(SNAPSHOT_SELECT.split(','));
+  const selected = new Set(selectedNames());
   assert.ok(selected.has('snapshot_date'), 'the select must carry the date it pairs on');
   for (const pair of CORRELATION_PAIRS) {
     assert.ok(selected.has(pair.x), `pair x "${pair.x}" (${pair.label}) is not in the select`);
@@ -31,9 +35,15 @@ test('every pair names a metric that is actually selected', () => {
 });
 
 test('the select is derived from the metric list, with no duplicates', () => {
-  const parts = SNAPSHOT_SELECT.split(',');
+  const parts = selectedNames();
   assert.equal(new Set(parts).size, parts.length, 'duplicate column in the select');
   assert.deepEqual(parts, ['snapshot_date', ...SNAPSHOT_METRICS]);
+});
+
+test('the calories metric is calories EATEN: it reads dietary_kcal, never a device\'s burn', () => {
+  const parts = SNAPSHOT_SELECT.split(',');
+  assert.ok(parts.includes('calories:dietary_kcal'), 'calories must be read from dietary_kcal under its own name');
+  assert.ok(!parts.includes('calories'), 'the snapshot calories column is a device\'s active energy');
 });
 
 // ⚠ THE REGRESSION THAT WOULD HAVE CAUGHT THE OMISSION. energy / hunger /

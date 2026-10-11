@@ -23,7 +23,7 @@ type Snap = {
   snapshot_date: string;
   sleep_hours: number | null;
   protein_g: number | null;
-  calories: number | null;
+  dietary_kcal: number | null; // calories EATEN; the snapshot's `calories` is a device's burn
   recovery_score: number | null;
   hrv_ms: number | null;
   resting_hr: number | null;
@@ -51,7 +51,7 @@ export async function GET(request: Request) {
   const [snapsRes, sessionsRes, ledgerRes, nutriGoalRes, trainGoalRes] = await Promise.all([
     supabase
       .from('daily_health_snapshot')
-      .select('snapshot_date, sleep_hours, protein_g, calories, recovery_score, hrv_ms, resting_hr, weight_lb, mood, workout_minutes')
+      .select('snapshot_date, sleep_hours, protein_g, dietary_kcal, recovery_score, hrv_ms, resting_hr, weight_lb, mood, workout_minutes')
       .eq('user_id', user.id)
       .gte('snapshot_date', since14)
       .order('snapshot_date', { ascending: true }),
@@ -181,7 +181,7 @@ export async function GET(request: Request) {
   const topActivity = todaysActivities[0] || null;
 
   const tickerSnapshot = {
-    cal: todaySnap?.calories != null ? Math.round(Number(todaySnap.calories)) : null,
+    cal: todaySnap?.dietary_kcal != null ? Math.round(Number(todaySnap.dietary_kcal)) : null,
     cal_target: calorieTarget,
     protein_g: todaySnap?.protein_g != null ? Math.round(Number(todaySnap.protein_g)) : null,
     protein_target: proteinTarget,

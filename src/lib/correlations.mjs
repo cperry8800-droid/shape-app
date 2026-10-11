@@ -55,8 +55,17 @@ export const SNAPSHOT_METRICS = [
   'steps',
 ];
 
+/**
+ * The snapshot column a metric is read from, where the two names differ. The
+ * `calories` metric is calories EATEN (its pairs read under-eating and energy
+ * availability); the column of that name is a device's burn
+ * (2026-10-11-dietary-kcal.sql), so the metric reads `dietary_kcal` under its
+ * own name, as a PostgREST alias (`calories:dietary_kcal`).
+ */
+export const SNAPSHOT_COLUMN = { calories: 'dietary_kcal' };
+
 /** The PostgREST select for a correlation read. Derived — never hand-typed. */
-export const SNAPSHOT_SELECT = ['snapshot_date', ...SNAPSHOT_METRICS].join(',');
+export const SNAPSHOT_SELECT = ['snapshot_date', ...SNAPSHOT_METRICS.map((m) => (SNAPSHOT_COLUMN[m] ? `${m}:${SNAPSHOT_COLUMN[m]}` : m))].join(',');
 
 // Pairs we score. Each pair is (x, y, lagDays). lagDays = 1 means y is read on
 // the day AFTER x. The label is what the UI surfaces; the explanation makes the
