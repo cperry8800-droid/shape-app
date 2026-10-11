@@ -227,11 +227,14 @@ test('nothing that STORES or KEYS an aisle stores a label', () => {
 });
 
 test('every place a member READS an aisle routes through bsAisleLabel', () => {
-  // The four render sites: the checklist header + its aria-label, the builder's
-  // pills and its per-item line, and the Eat door's meta line.
+  // The render sites: Shop by aisle's strip (each stop, and so its aria-label), the
+  // aisle being walked and the next one (2026-10-11 — these replaced the old
+  // collapsible checklist headers), the builder's pills and its per-item line, and
+  // the Eat door's meta line.
   const sites = [
-    [/aisleAria'[^\n]*bsAisleLabel\(aisle\.aisle, TG\)/, 'the checklist header aria-label'],
-    [/>\{bsAisleLabel\(aisle\.aisle, TG\)\}</, 'the checklist aisle header'],
+    [/const name = bsAisleLabel\(list\.aisles\[s\.ai\]\.aisle, TG\)/, "Shop by aisle's strip of aisles"],
+    [/const label = bsAisleLabel\(list\.aisles\[cur\.ai\]\.aisle, TG\)/, 'the aisle being walked'],
+    [/>\{bsAisleLabel\(list\.aisles\[next\.ai\]\.aisle, TG\)\}</, 'the next aisle'],
     [/>\{bsAisleLabel\(al, TB\)\}</, "the builder's aisle pills"],
     [/>\{bsAisleLabel\(it\.aisle, TB\)\}</, "the builder's per-item aisle line"],
     [/map\(a => bsAisleLabel\(a\.aisle, TA\)\)/, "the Eat tab's shop-list door"],

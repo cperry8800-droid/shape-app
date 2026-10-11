@@ -341,5 +341,9 @@
   "player.view.hrNone": "No se registraron lecturas de frecuencia cardíaca.",
   "player.view.rest": "Descanso",
   "player.view.targetRpe": "RPE objetivo {rpe}",
-  "player.view.hrReading": "{bpm} bpm"
+  "player.view.hrReading": "{bpm} bpm",
+  "train.buildWorkoutLink": "Crear un entrenamiento",
+  "train.startsIn": "Empieza en",
+  "train.untilHourMin": "{h} h {m} min",
+  "train.untilMin": "{m} min"
 }

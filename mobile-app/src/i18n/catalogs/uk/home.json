@@ -188,5 +188,20 @@
   "lead.hunger.head": "Поїжте сьогодні повноцінно.",
   "lead.hydration.cta": "Запишу воду →",
   "lead.hydration.head": "Пийте сьогодні більше води.",
-  "lead.railHeader": "Ваш хід"
+  "lead.railHeader": "Ваш хід",
+  "focus.arrivalAria": "Зараз {now}, між {from} і {to}",
+  "focus.eatenOf": "{eaten, number} з {target, number}",
+  "focus.glance": "Коротко",
+  "focus.habitsDone": "виконано {done} з {total}",
+  "focus.habitsFirst": "Додайте першу",
+  "focus.inHourMin": "Через {h} год {m} хв",
+  "focus.inMin": "Через {m} хв",
+  "focus.kcalLeft": "Залишилось ккал",
+  "focus.line": "Ваш день",
+  "focus.logToSee": "Запишіть прийом їжі",
+  "focus.next": "Далі",
+  "focus.nextStop": "Наступна зупинка",
+  "focus.notLogged": "Ще не записано",
+  "focus.proteinToGo": "Залишилось білка",
+  "focus.viewMeal": "Відкрити страву →"
 }

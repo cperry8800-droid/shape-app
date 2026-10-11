@@ -56,6 +56,8 @@ import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } 
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { BSIntegrationsPage, BSReconcile } from './BSIntegrationsPage.jsx';
 import { BSNoraTalk, useNoraTalk, bsNoraVoiceFail } from './BSNoraTalk.jsx';
+import { BSFocusHead, BSFocusTitle, BSFocusLead, BSFocusArrival, BSFocusCountdown, BSFocusActions, BSFocusLine, BSFocusLink, BSFocusRoute, BSShopBySwitch } from './BSFocus.jsx';
+import { bsFocusMin, bsFocusArrival, bsFocusUntil, bsFocusPrevStop, bsFocusSlot, bsGrocerySkipped, bsGroceryByMeal, bsGroceryAisleStops, bsReadShopBy, bsSaveShopBy, bsReadSkippedMeals, bsSaveSkippedMeals } from '../services/focusLayout.mjs';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
 
@@ -4228,8 +4230,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     return () => { on = false; };
   }, []);
   const [homeProgressPage, setHomeProgressPage] = useStateBSC(false);
-  const [habitFlash, setHabitFlash] = useStateBSC(null); // { name, pts } — transient credit after checking a habit
-  const habitFlashTimer = React.useRef(null);
   const [checkinPage, setCheckinPage] = useStateBSC(false);
   const [checkinDue, setCheckinDue] = useStateBSC(false);
   // ⚠ THE PREF GOVERNS EVERY CHECK-IN SURFACE, NOT JUST THE DAILY PROMPT (owner ruling
@@ -4409,32 +4409,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     const demo = (typeof window !== 'undefined' && window._BS_HABIT_DEMO_ROWS) || [];
     return demo.map(h => ({ id: h.id, name: h.name, type: h.type, pts: h.pts, done: (h.pattern || [])[selIdx] > 0, live: false }));
   })();
-  // Check a habit off right on the home card: flips the selected day in the
-  // habit's history, mirrors into tweaks (instant re-render — the row leaves
-  // the card) and persists via the same /api/client/habits toggle the habits
-  // page uses. Demo habits (no live set yet) route to the habits page.
-  const homeHabitBusy = React.useRef(false);
-  const homeHabitIsFuture = new Date(`${_homeHabitsDateKey}T00:00:00`).getTime() > new Date().setHours(0, 0, 0, 0);
-  const toggleHomeHabit = async (h) => {
-    if (!h.live) { setHabitsPage(true); return; }
-    if (homeHabitIsFuture) return;
-    if (window.bsRequireAccount && !window.bsRequireAccount('track habits')) return;
-    if (homeHabitBusy.current) return;
-    homeHabitBusy.current = true;
-    try {
-      const data = await window.ShapeHabitsData.action({ action: 'set', id: h.id, date: _homeHabitsDateKey, done: !h.done });
-      // Read back all habits so an edit on another surface is not overwritten.
-      const fresh = await window.ShapeHabitsData.listStrict();
-      if (window._bsEncodeHabits) setTweak('habits', window._bsEncodeHabits(fresh.habits));
-      if (data.done) {
-        setHabitFlash({ name: h.name, pts: 3 });
-        clearTimeout(habitFlashTimer.current);
-        habitFlashTimer.current = setTimeout(() => setHabitFlash(null), 2200);
-      }
-    } catch (e) {
-      window.__bsToast?.(tr('habits:toast.updateError', { defaultValue: 'Could not update habit' }), 'err');
-    } finally { homeHabitBusy.current = false; }
-  };
   // Per-day calorie balance for the LEAD block (target = 2100 burned).
   // Sums kcal from MEAL items in DAY_LOGS, computes deficit/surplus.
   const DAY_MACROS = {
@@ -4597,72 +4571,198 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     };
   })();
 
-  // Compact 3-move list for the LEAD plate when lead=workout (mirrors the
-  // slate TRAINING row's own list — same source, same 3-move truncation — so
-  // the lead and the slate never disagree on what "today's workout" is).
-  const _wkCompactLead = (() => {
-    if (!(todayDirective && todayDirective.leadIsWorkout && selWorkout)) return [];
-    const moves = (selWorkout.detail && selWorkout.detail.moves) || [];
-    const compact = moves.slice(0, 3).map((m, i) => [String(i + 1).padStart(2, '0'), m.name, String(m.scheme || '').replace(' rest', ''), m.load || '']);
-    if (moves.length > 3) compact.push(['+', `+ ${moves.length - 3} more`, moves.slice(3).map((m) => m.name).slice(0, 3).join(' · '), '']);
-    return compact;
-  })();
-
-  // ★ THE LEAD, rail edition (concept B — owner pick off the 2026-07-13 home
-  // board): the page's single elevated moment now threads INLINE on the
-  // slate's rail — at its time slot when the lead is the workout or a meal
-  // (timeLabel), at the rail's head when it's untimed (engine / habits / done
-  // leads). The BSPlate chrome died with the pick; head, sub, compact move
-  // list, meal macros, CTAs, and the hero-home tour anchor carry over
-  // verbatim from the old standalone plate.
-  const _leadBlock = (timeLabel) => !todayDirective ? null : (
-    <div data-tour="hero-home" style={{ padding: `11px ${t.padX}px 13px`, borderBottom: `1px solid ${t.HAIR}` }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: todayDirective.c }}>
-          {timeLabel
-            ? `${timeLabel} · ${tr('home:lead.railHeader', { defaultValue: 'Your move' })}`
-            : (todayDirective.done ? tr('home:lead.headerDone', { defaultValue: 'Today · done' }) : tr('home:lead.header', { defaultValue: 'Today · your move' }))}
-        </span>
-        <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{_dowShort(_now)} {_now.getDate()}</span>
-      </div>
-      <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 22, lineHeight: 1.06, letterSpacing: '-0.03em', color: t.INK }}>{todayDirective.head}</div>
-      {todayDirective.sub && <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{todayDirective.sub}</div>}
-      {todayDirective.leadIsWorkout && _wkCompactLead.length > 0 && (
-        <div style={{ marginTop: 9 }}>
-          {_wkCompactLead.map(([n, name, sub, wt], i, arr) => (
-            <div
-              key={`lead-${n}-${i}`}
-              onClick={() => setShowWorkoutPreview(true)}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowWorkoutPreview(true); } }}
-              role="button"
-              tabIndex={0}
-              aria-label={tr('home:lead.openWorkoutPreview', { defaultValue: '{name} — open workout preview', name })}
-              style={{ display: 'grid', gridTemplateColumns: '22px 1fr auto', alignItems: 'center', minHeight: 44, gap: 10, padding: '6px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK50 }}>{n}</span>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{name}</div>
-                <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>{sub}</div>
-              </div>
-              {wt ? <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{wt}</span> : <span />}
-            </div>
-          ))}
-        </div>
-      )}
-      {todayDirective.leadMeal && todayDirective.leadMeal.kcal > 0 && (
-        <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50, fontWeight: 600 }}>
-          {todayDirective.leadMeal.kcal} kcal · {todayDirective.leadMeal.p}P · {todayDirective.leadMeal.c}C · {todayDirective.leadMeal.f}F
-        </div>
-      )}
-      {/* ONE text-action in the lead's accent (owner call 2026-07-13: the boxed
-          CTA + the Preview link opened the SAME workout preview — the box look
-          dies and the redundant Preview → link dies with it). */}
-      {todayDirective.cta && (
-        <div style={{ marginTop: 4 }}>
-          <button onClick={todayDirective.cta[1]} style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: '0 2px', background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: todayDirective.c }}>{todayDirective.cta[0]}</button>
-        </div>
-      )}
-    </div>
+  // ── FOCUS (owner, 2026-10-11, off the C · Focus board) ─────────────────
+  // Home in the Focus order: the next stop on its own, a few numbers at a
+  // glance, the day as a line, and the rest of the page behind links. The data
+  // is the slate's own: the same rows, the same lead (todayDirective), the same
+  // NOW. What moved is only where each thing sits.
+  // ⚠ NO HOOK MAY BE CALLED HERE OR BELOW — the early-return overlays above make
+  // any hook from this point conditional (Rules of Hooks).
+  const _focusTeal = t.isLight ? '#0a8f87' : '#34d6c5';
+  // Coach-scheduled times (24h minutes) drive the displayed time, the order and
+  // the NOW tick — the same defaults the slate always used.
+  const _wkAt = (selWorkout && selWorkout.time && selWorkout.time !== '—') ? selWorkout.time : '09:00';
+  const WORKOUT_AT = bsFocusMin(_wkAt) ?? 540;
+  const _wkShortMeta = (selWorkout && selWorkout.detail && selWorkout.detail.meta)
+    ? selWorkout.detail.meta.split(' · ').slice(0, 3).join(' · ')
+    : (selWorkout && selWorkout.sub) || '';
+  const _lunchPref = (typeof window !== 'undefined' && window.ShapeMealTimes && window.ShapeMealTimes.get().LUNCH) || '12:40';
+  const MEAL_AT = bsFocusMin(_lunchPref) ?? 760;
+  const fmtAt = (mins) => {
+    const h = Math.floor(mins / 60), m = mins % 60;
+    const ap = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return `${h12}:${String(m).padStart(2, '0')} ${ap}`;
+  };
+  // A meal with no clock time of its own sits at its slot's configured time (the
+  // Eat page's rule, bsMealSchedTime), else at lunch.
+  const mealMinutes = (m) => bsFocusMin(m.time) ?? bsFocusMin(bsMealSchedTime(m)) ?? MEAL_AT;
+  const slotLabel = (m) => {
+    const slot = bsFocusSlot(m.tag, mealMinutes(m));
+    return slot === 'breakfast' ? tr('home:slot.breakfast', { defaultValue: 'Breakfast' })
+      : slot === 'lunch' ? tr('home:slot.lunch', { defaultValue: 'Lunch' })
+        : slot === 'snack' ? tr('home:slot.snack', { defaultValue: 'Snack' })
+          : tr('home:slot.dinner', { defaultValue: 'Dinner' });
+  };
+  // Ghost log-tick — the 24px inline control cell for a MEAL row's `right` slot
+  // (setMealToLog/setLoggingMealId/setShowLogMeal), plus the LOGGED state. A
+  // plain element factory, called rather than mounted, so its per-render
+  // identity cannot remount the tick.
+  const mealTick = (m, logged) => logged ? (
+    <span aria-hidden style={{ width: 24, height: 24, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: _focusTeal }}>✓</span>
+  ) : (
+    <button
+      onClick={(e) => { e.stopPropagation(); setMealToLog(m); setLoggingMealId(m.id); setShowLogMeal(true); }}
+      aria-label={tr('home:lead.logMeal', { defaultValue: 'Log {title}', title: m.title })}
+      style={{ width: 24, height: 24, borderRadius: 5, flexShrink: 0, border: `1.5px solid ${_focusTeal}`, background: `${_focusTeal}12`, cursor: 'pointer', padding: 0 }}
+    />
   );
+  const _nextWord = tr('home:focus.next', { defaultValue: 'Next' });
+  // THE LINE — the day's timed run-sheet: meals, training, coach pushes. Ordering
+  // is bsHomeSlateSort's alone (timed rows ascending by their displayed time,
+  // untimed after, source order kept). Habits are not stops on the line; they
+  // have their own link below.
+  // ⚠ THE LEAD'S OWN ROW STAYS ON THE LINE, marked Next, with no second control:
+  // the lead carries the action, the line carries the place in the day.
+  const lineRows = (() => {
+    const rows = [];
+    selMeals.forEach((m) => {
+      const logged = !!mealLogged[m.id];
+      const isLead = !!(todayDirective && todayDirective.heroMealId === m.id);
+      rows.push({
+        key: `meal-${m.id}`,
+        time: fmtAt(mealMinutes(m)),
+        _min: mealMinutes(m),
+        stop: slotLabel(m),
+        done: logged,
+        tag: isLead ? _nextWord : tr('home:tag.meal', { defaultValue: 'Meal' }), tagColor: _focusTeal,
+        title: m.title,
+        // PREPPED (PR C): the short form on the dense line — the full "just plate
+        // it" phrase lives on the Eat course row.
+        status: [fmtAt(mealMinutes(m)), m.kcal ? `${m.kcal} ${tr('home:unit.kcal', { defaultValue: 'kcal' })}` : null,
+          bsMenuPrepState({
+            meal: m, logged, entries: prepEntries, viewYmd: selYmd, todayYmd: bsLocalDay(Date.now()), now: Date.now(),
+            ahead: m.planMealId && BS_MAKE_AHEAD.has(m.prepSlug) ? { date: selYmd, mealId: m.planMealId, title: m.title, slug: m.prepSlug } : null,
+          }).prepped ? tr('cook:prep.stampShort', { defaultValue: 'Prepped ✓' }) : null,
+        ].filter(Boolean).join(' · '),
+        right: isLead ? undefined : mealTick(m, logged),
+        onOpen: () => setPreviewMeal(m),
+        ariaLabel: `${m.title}, ${slotLabel(m)}, ${logged ? tr('home:aria.logged', { defaultValue: 'logged' }) : tr('home:aria.notLogged', { defaultValue: 'not logged' })}`,
+      });
+    });
+    // TRAINING row — a quiet Start → link when it is not the lead (training stays
+    // one tap); rest day → the Active-recovery row.
+    const workoutIsLead = !!(todayDirective && todayDirective.leadIsWorkout);
+    if (selWorkout) {
+      rows.push({
+        key: 'slate-training',
+        time: fmtAt(WORKOUT_AT),
+        _min: WORKOUT_AT,
+        stop: selWorkout.title,
+        tag: workoutIsLead ? _nextWord : tr('home:tag.training', { defaultValue: 'Training' }), tagColor: t.RUST,
+        title: selWorkout.title,
+        status: [fmtAt(WORKOUT_AT), _wkShortMeta].filter(Boolean).join(' · '),
+        right: workoutIsLead ? undefined : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button onClick={(e) => { e.stopPropagation(); goTrain?.(); }} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.RUST }}>{tr('home:action.start', { defaultValue: 'Start →' })}</button>
+            <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 12, color: t.INK50 }}>›</span>
+          </div>
+        ),
+        onOpen: () => setShowWorkoutPreview(true),
+        ariaLabel: `${selWorkout.title}, ${tr('home:aria.training', { defaultValue: 'training' })}, ${_wkShortMeta}`,
+      });
+    } else {
+      rows.push({
+        key: 'slate-training',
+        time: '',
+        tag: tr('home:tag.training', { defaultValue: 'Training' }), tagColor: t.GREEN,
+        title: tr('home:slate.activeRecovery', { defaultValue: 'Active recovery' }),
+        status: tr('home:slate.restDayMeta', { defaultValue: 'Rest day · walk + mobility' }),
+        right: undefined,
+        onOpen: undefined,
+        ariaLabel: tr('home:slate.activeRecoveryAria', { defaultValue: 'Active recovery, rest day' }),
+      });
+    }
+    // COACH rows — pushed items from coach_pushed_items.
+    (coachFeed.items || []).forEach((it) => {
+      const p = it.payload || {};
+      const isMeal = it.kind === 'meal';
+      const meta = isMeal
+        ? [p.time, p.kcal != null ? p.kcal + ' ' + tr('home:unit.kcal', { defaultValue: 'kcal' }) : null, p.protein != null ? p.protein + tr('home:unit.gProtein', { defaultValue: 'g P' }) : null].filter(Boolean).join(' · ')
+        : [p.time, p.sets, p.reps, p.tempo && (tr('home:coach.tempo', { defaultValue: 'Tempo' }) + ' ' + p.tempo)].filter(Boolean).join(' · ');
+      rows.push({
+        key: `coach-${it.id}`,
+        time: p.time || '',
+        tag: tr('home:tag.coach', { defaultValue: 'Coach' }), tagColor: isMeal ? _focusTeal : t.RUST,
+        title: p.name || (isMeal ? tr('home:coach.mealFrom', { defaultValue: 'Meal from your coach' }) : tr('home:coach.workoutFrom', { defaultValue: 'Workout from your coach' })),
+        status: [meta, p.cue || p.note].filter(Boolean).join(' · '),
+        right: undefined,
+        onOpen: undefined,
+        ariaLabel: isMeal ? tr('home:coach.ariaMeal', { defaultValue: 'Coach-pushed meal: {name}', name: p.name || '' }) : tr('home:coach.ariaWorkout', { defaultValue: 'Coach-pushed workout: {name}', name: p.name || '' }),
+      });
+    });
+    return bsHomeSlateSort(rows);
+  })();
+  // ── NOW tick (today only): between the last passed timed row and the first
+  // upcoming one. Untimed rows (coach pushes, rest day) never anchor it.
+  const _isTodayView = selIdx === todayIdx;
+  let lineNowIdx = -1;
+  if (_isTodayView) {
+    lineNowIdx = lineRows.findIndex((r) => typeof r._min === 'number' && r._min > bsNowMin);
+    if (lineNowIdx === -1) {
+      let lastTimed = -1;
+      lineRows.forEach((r, i) => { if (typeof r._min === 'number') lastTimed = i; });
+      lineNowIdx = lastTimed === -1 ? -1 : lastTimed + 1;
+    }
+  }
+  // THE NEXT STOP — todayDirective, presented: a meal reads as its slot ("Lunch")
+  // with the dish beneath; the workout as itself; an engine, habits or done lead
+  // keeps its own head. Timed leads carry a countdown and an arrival bar.
+  const focusLead = (() => {
+    if (!todayDirective) return null;
+    const meal = todayDirective.leadMeal;
+    if (meal) {
+      const at = mealMinutes(meal);
+      // A meal whose time has passed and is not logged says so, rather than
+      // calling a stop behind the clock "next".
+      return {
+        at, color: _focusTeal,
+        kicker: `${fmtAt(at)} · ${at <= bsNowMin ? tr('home:focus.notLogged', { defaultValue: 'Not logged yet' }) : tr('home:focus.nextStop', { defaultValue: 'Next stop' })}`,
+        title: slotLabel(meal),
+        sub: [meal.title, meal.kcal > 0 ? `${meal.kcal} ${tr('home:unit.kcal', { defaultValue: 'kcal' })} · ${meal.p}P · ${meal.c}C · ${meal.f}F` : null].filter(Boolean).join(' · '),
+        to: `${fmtAt(at)} · ${slotLabel(meal)}`,
+        secondary: { label: tr('home:focus.viewMeal', { defaultValue: 'View meal →' }), onClick: () => setPreviewMeal(meal) },
+        action: [`${tr('common:nav.eat', { defaultValue: 'Eat' })} →`, () => goEat()],
+      };
+    }
+    if (todayDirective.leadIsWorkout && selWorkout) {
+      return {
+        at: WORKOUT_AT, color: t.RUST,
+        kicker: `${fmtAt(WORKOUT_AT)} · ${tr('home:lead.railHeader', { defaultValue: 'Your move' })}`,
+        title: selWorkout.title,
+        sub: _wkShortMeta,
+        to: `${fmtAt(WORKOUT_AT)} · ${selWorkout.title}`,
+        action: [`${tr('common:nav.train', { defaultValue: 'Train' })} →`, () => goTrain?.()],
+      };
+    }
+    return {
+      at: null, color: todayDirective.c,
+      kicker: todayDirective.done ? tr('home:lead.headerDone', { defaultValue: 'Today · done' }) : tr('home:lead.header', { defaultValue: 'Today · your move' }),
+      title: todayDirective.head,
+      sub: todayDirective.sub,
+    };
+  })();
+  const focusUntil = focusLead ? bsFocusUntil(focusLead.at, bsNowMin) : null;
+  const focusMeta = focusUntil
+    ? (focusUntil.h > 0
+      ? tr('home:focus.inHourMin', { defaultValue: 'In {h} h {m} min', h: focusUntil.h, m: focusUntil.m })
+      : tr('home:focus.inMin', { defaultValue: 'In {m} min', m: focusUntil.m }))
+    : upNextLabel;
+  // The arrival bar runs only toward a stop still ahead of the clock.
+  const focusPrev = focusLead && focusLead.at != null && focusLead.at > bsNowMin
+    ? bsFocusPrevStop(lineRows.filter((r) => typeof r._min === 'number').map((r) => ({ min: r._min, label: r.stop || r.title, done: !!r.done })), focusLead.at)
+    : null;
+  const focusPct = focusPrev ? bsFocusArrival(focusPrev.min, focusLead.at, bsNowMin) : null;
 
   // ── ANTI-ACCRETION CONTRACT ────────────────────────────────────────────
   // Do not add a plate. If it can't be a row, it lives on a tab and gets at
@@ -4790,469 +4890,36 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         </div>
       </div>
 
-      {/* BULLETINS — max 2 slim one-liners, ABOVE the lead. Each suppressed
-          per-lever, not by whether a lead exists at all (the spec: bulletins
-          suppress "when the lever they represent is already the lead"). The
-          daily check-in bulletin is NOT gated externally here — BSTodayNudge's
-          variant="bulletin" already self-gates on `useBSCheckinLogged()`
-          internally (returns null once logged), so the only external
-          suppression needed is the engine's `checkin` lever leading. Calling
-          useBSCheckinLogged() again here would be a second hook instance
-          racing the same async fetch against BSTodayNudge's own — deleted, not
-          duplicated. Same per-lever suppression on the weekly bulletin: it
-          hides only when the engine's `checkin` lever is the lead, not
-          whenever ANY lead exists (a workout/meal/habit lead must not eat the
-          weekly check-in's only Home surface). Urgency earns height;
-          completion demotes to an index row (Task 5, INSIDE.). */}
-      {!(engineFlag && engineFlag.lever === 'checkin') && (
-        <BSTodayNudge onOpen={() => setTodayPage(true)} variant="bulletin" />
+      {/* ── FOCUS · THE NEXT STOP — the one next thing, on its own (today only;
+          another day is a plan view, read on the line below). Timed leads carry
+          the countdown in the head and an arrival bar from the stop before. The
+          hero-home tour anchor rides the lead. */}
+      {focusLead && (
+        <>
+          <BSFocusHead glyph="▤" label={tr('home:focus.nextStop', { defaultValue: 'Next stop' })} meta={focusMeta}
+            actionLabel={focusLead.action ? focusLead.action[0] : null} onAction={focusLead.action ? focusLead.action[1] : null} color={focusLead.color} />
+          <BSFocusLead tour="hero-home" color={focusLead.color} kicker={focusLead.kicker} kickerRight={`${_dowShort(_now)} ${_now.getDate()}`} title={focusLead.title} sub={focusLead.sub}>
+            {focusPrev && (
+              <BSFocusArrival color={focusLead.color} pct={focusPct}
+                nowLabel={`${tr('home:slate.now', { defaultValue: 'Now' })} ${fmtAt(bsNowMin)}`}
+                fromLabel={`${fmtAt(focusPrev.min)} · ${focusPrev.label}${focusPrev.done ? ' ✓' : ''}`}
+                toLabel={focusLead.to}
+                ariaLabel={tr('home:focus.arrivalAria', { defaultValue: 'Now {now}, between {from} and {to}', now: fmtAt(bsNowMin), from: fmtAt(focusPrev.min), to: fmtAt(focusLead.at) })} />
+            )}
+            <BSFocusActions color={focusLead.color}
+              primary={todayDirective.cta ? { label: todayDirective.cta[0], onClick: todayDirective.cta[1] } : null}
+              secondary={focusLead.secondary || null} />
+          </BSFocusLead>
+        </>
       )}
-      {checkinDue && checkinPrefOn && !(engineFlag && engineFlag.lever === 'checkin') && (
-        <BSHomeBulletin label={tr('home:bulletin.weeklyCheckin', { defaultValue: 'Weekly check-in due' })} detail={tr('home:bulletin.weeklyCheckinDetail', { defaultValue: '2 min' })} onOpen={() => setCheckinPage(true)} />
-      )}
-      {/* ⚠ THE WALL BULLETIN YIELDS TO THE WEEKLY CHECK-IN, so the block keeps
-          its documented max of two. BSTodayNudge above self-gates on whether
-          today's check-in is logged, and the weekly one on `checkinDue` — this
-          third line renders only when the weekly one is not, which bounds the
-          block at two however those two resolve. It is the lowest-priority of
-          the three: somebody else's record is worth leaving the page for, but
-          never ahead of the member's own overdue check-in. */}
-      {!(checkinDue && checkinPrefOn && !(engineFlag && engineFlag.lever === 'checkin')) && <BSHomeWallBulletin />}
 
-      {/* ★ THE LEAD renders INSIDE the slate's rail now (concept B) — see
-          _leadBlock above. Timed leads (workout / meal) thread at their slot;
-          untimed leads (engine / habits / done) sit at the rail's head. The
-          fold is never empty: the done-state block still renders. */}
-
-      {/* The day's plan beneath the move. The slate header below (its kicker
-          shows upNextLabel on non-today views) is the single label surface now —
-          the old BSSection duplicate here was removed (Roll-up c). */}
-
-      {/* TODAY'S SLATE — one time-ordered run-sheet. Admission test: "is this
-          scheduled to happen TODAY?" Rows, not cards. Anti-accretion: a future
-          feature may claim a slate row only by passing that test; otherwise it
-          lives on a tab and gets at most an index row / shelf door (see §5). */}
+      {/* ── FOCUS · AT A GLANCE — today's numbers as the house's dot-leader rows:
+          what is left to eat, protein still to go, steps, then the goal and
+          progress doors. The weekly totals (signed-out demo only) and the
+          check-in residue keep their rows here. Per the Front-Page Rule: rows,
+          never a plate. */}
+      <BSFocusTitle title={tr('home:focus.glance', { defaultValue: 'At a glance' })} color={_focusTeal} />
       {(() => {
-        const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-        const rust = t.RUST;
-        // Coach-scheduled times (24h minutes) drive both the displayed time and
-        // the sort order — carried verbatim from the pre-slate AgendaCard block.
-        const _wkAt = (selWorkout && selWorkout.time && selWorkout.time !== '—') ? selWorkout.time : '09:00';
-        const [_wkH, _wkM] = String(_wkAt).split(':').map(Number);
-        const WORKOUT_AT = (Number.isNaN(_wkH) ? 9 : _wkH) * 60 + (Number.isNaN(_wkM) ? 0 : _wkM);
-        const _wkShortMeta = (selWorkout && selWorkout.detail && selWorkout.detail.meta)
-          ? selWorkout.detail.meta.split(' · ').slice(0, 3).join(' · ')
-          : (selWorkout && selWorkout.sub) || '';
-        const _lunchPref = (typeof window !== 'undefined' && window.ShapeMealTimes && window.ShapeMealTimes.get().LUNCH) || '12:40';
-        const [_lh, _lm] = String(_lunchPref).split(':').map(Number);
-        const MEAL_AT = (Number.isNaN(_lh) ? 12 : _lh) * 60 + (Number.isNaN(_lm) ? 40 : _lm);
-        const fmtAt = (mins) => {
-          const h = Math.floor(mins / 60), m = mins % 60;
-          const ap = h >= 12 ? 'PM' : 'AM';
-          const h12 = h % 12 === 0 ? 12 : h % 12;
-          return `${h12}:${String(m).padStart(2, '0')} ${ap}`;
-        };
-        const mealMinutes = (m) => {
-          const [h, mm] = String(m.time || '').split(':').map(Number);
-          if (!Number.isNaN(h)) return h * 60 + (Number.isNaN(mm) ? 0 : mm);
-          return MEAL_AT;
-        };
-        const slotLabel = (m) => {
-          const tag = String(m.tag || '').toUpperCase();
-          const bfast = tr('home:slot.breakfast', { defaultValue: 'Breakfast' });
-          const lunch = tr('home:slot.lunch', { defaultValue: 'Lunch' });
-          const snack = tr('home:slot.snack', { defaultValue: 'Snack' });
-          const dinner = tr('home:slot.dinner', { defaultValue: 'Dinner' });
-          if (tag.startsWith('BFAST') || tag.startsWith('BREAK')) return bfast;
-          if (tag.startsWith('LUNCH')) return lunch;
-          if (tag.startsWith('SNACK')) return snack;
-          if (tag.startsWith('DIN')) return dinner;
-          const h = Math.floor(mealMinutes(m) / 60);
-          return h < 11 ? bfast : h < 15 ? lunch : h < 17 ? snack : dinner;
-        };
-        // Ghost log-tick — the 36px inline control cell for a MEAL row's `right`
-        // slot. Carries the exact tap targets the old mealsCard glance used
-        // (setMealToLog/setLoggingMealId/setShowLogMeal), plus the LOGGED state.
-        // Plain element factory (called, not mounted as a component type) so its
-        // per-render identity can't remount the tick subtree.
-        const mealTick = (m, logged) => logged ? (
-          <span aria-hidden style={{ width: 24, height: 24, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: teal }}>✓</span>
-        ) : (
-          <button
-            onClick={(e) => { e.stopPropagation(); setMealToLog(m); setLoggingMealId(m.id); setShowLogMeal(true); }}
-            aria-label={tr('home:lead.logMeal', { defaultValue: 'Log {title}', title: m.title })}
-            style={{ width: 24, height: 24, borderRadius: 5, flexShrink: 0, border: `1.5px solid ${teal}`, background: `${teal}12`, cursor: 'pointer', padding: 0 }}
-          />
-        );
-        // Ordering is bsHomeSlateSort's alone (the tested pure module): timed
-        // rows ascending by their displayed time, untimed rows after every
-        // timed row in source order. No second sort key — the old parallel
-        // `_sortAt` pre-sort duplicated the same ordering from raw minutes.
-        const rows = [];
-        // MEAL rows — one per selMeals meal. heroMealId suppresses the tick with
-        // the lead echo (no second interactive surface on the lead's subject).
-        selMeals.forEach((m) => {
-          const logged = !!mealLogged[m.id];
-          const isLead = !!(todayDirective && todayDirective.heroMealId === m.id);
-          // The lead meal IS the inline lead block at its slot (concept B) —
-          // never a second row for the same subject.
-          if (isLead) { rows.push({ key: 'slate-lead', time: fmtAt(mealMinutes(m)), _min: mealMinutes(m), lead: true }); return; }
-          rows.push({
-            key: `meal-${m.id}`,
-            // `time` still feeds bsHomeSlateSort (rows order by the displayed
-            // string) — it just doesn't render as a column anymore; the row's
-            // schedule reads from the right-side meta below (owner call 2026-07-14).
-            time: fmtAt(mealMinutes(m)),
-            _min: mealMinutes(m),
-            tag: tr('home:tag.meal', { defaultValue: 'Meal' }), tagColor: teal,
-            title: m.title,
-            // PREPPED (PR C): the short form on the dense slate — the full
-            // "just plate it" phrase lives on the Eat course row.
-            status: [fmtAt(mealMinutes(m)), m.kcal ? `${m.kcal} ${tr('home:unit.kcal', { defaultValue: 'kcal' })}` : null,
-              bsMenuPrepState({
-                meal: m, logged, entries: prepEntries, viewYmd: selYmd, todayYmd: bsLocalDay(Date.now()), now: Date.now(),
-                ahead: m.planMealId && BS_MAKE_AHEAD.has(m.prepSlug) ? { date: selYmd, mealId: m.planMealId, title: m.title, slug: m.prepSlug } : null,
-              }).prepped ? tr('cook:prep.stampShort', { defaultValue: 'Prepped ✓' }) : null,
-            ].filter(Boolean).join(' · '),
-            right: mealTick(m, logged),
-            onOpen: () => setPreviewMeal(m),
-            ariaLabel: `${m.title}, ${slotLabel(m)}, ${logged ? tr('home:aria.logged', { defaultValue: 'logged' }) : tr('home:aria.notLogged', { defaultValue: 'not logged' })}`,
-          });
-        });
-        // TRAINING row — real duration status; lead echo when the lead IS the
-        // workout, else a quiet Start → link (training stays one tap). Rest day
-        // → the Active-recovery row (carried verbatim from the old rest-day
-        // branch's copy/tone, condensed to slate-row shape).
-        // Reads Task 3's authoritative leadIsWorkout flag — never re-derive lead
-        // status via a title-string comparison (todayDirective.head === selWorkout.title
-        // is fragile: it only happens to work because Task 3's todo.push sets
-        // label: selWorkout.title verbatim, and breaks silently the moment that
-        // coupling drifts).
-        const workoutIsLead = !!(todayDirective && todayDirective.leadIsWorkout);
-        if (selWorkout && workoutIsLead) {
-          // The lead workout IS the inline lead block at its slot (concept B).
-          rows.push({ key: 'slate-lead', time: fmtAt(WORKOUT_AT), _min: WORKOUT_AT, lead: true });
-        } else if (selWorkout) {
-          rows.push({
-            key: 'slate-training',
-            time: fmtAt(WORKOUT_AT),
-            _min: WORKOUT_AT,
-            tag: tr('home:tag.training', { defaultValue: 'Training' }), tagColor: rust,
-            title: selWorkout.title,
-            status: [fmtAt(WORKOUT_AT), _wkShortMeta].filter(Boolean).join(' · '),
-            right: (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <button onClick={(e) => { e.stopPropagation(); goTrain?.(); }} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: rust }}>{tr('home:action.start', { defaultValue: 'Start →' })}</button>
-                <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 12, color: t.INK50 }}>›</span>
-              </div>
-            ),
-            onOpen: () => setShowWorkoutPreview(true),
-            ariaLabel: `${selWorkout.title}, ${tr('home:aria.training', { defaultValue: 'training' })}, ${_wkShortMeta}`,
-          });
-        } else {
-          rows.push({
-            key: 'slate-training',
-            time: '',
-            tag: tr('home:tag.training', { defaultValue: 'Training' }), tagColor: t.GREEN,
-            title: tr('home:slate.activeRecovery', { defaultValue: 'Active recovery' }),
-            status: tr('home:slate.restDayMeta', { defaultValue: 'Rest day · walk + mobility' }),
-            right: undefined,
-            onOpen: undefined,
-            ariaLabel: tr('home:slate.activeRecoveryAria', { defaultValue: 'Active recovery, rest day' }),
-          });
-        }
-        // COACH rows — pushed items from coach_pushed_items (payload taps carried
-        // verbatim from the deleted "From your coach" block).
-        (coachFeed.items || []).forEach((it) => {
-          const p = it.payload || {};
-          const isMeal = it.kind === 'meal';
-          const meta = isMeal
-            ? [p.time, p.kcal != null ? p.kcal + ' ' + tr('home:unit.kcal', { defaultValue: 'kcal' }) : null, p.protein != null ? p.protein + tr('home:unit.gProtein', { defaultValue: 'g P' }) : null].filter(Boolean).join(' · ')
-            : [p.time, p.sets, p.reps, p.tempo && (tr('home:coach.tempo', { defaultValue: 'Tempo' }) + ' ' + p.tempo)].filter(Boolean).join(' · ');
-          rows.push({
-            key: `coach-${it.id}`,
-            time: p.time || '',
-            tag: tr('home:tag.coach', { defaultValue: 'Coach' }), tagColor: isMeal ? teal : rust,
-            title: p.name || (isMeal ? tr('home:coach.mealFrom', { defaultValue: 'Meal from your coach' }) : tr('home:coach.workoutFrom', { defaultValue: 'Workout from your coach' })),
-            status: [meta, p.cue || p.note].filter(Boolean).join(' · '),
-            right: undefined,
-            onOpen: undefined,
-            ariaLabel: isMeal ? tr('home:coach.ariaMeal', { defaultValue: 'Coach-pushed meal: {name}', name: p.name || '' }) : tr('home:coach.ariaWorkout', { defaultValue: 'Coach-pushed workout: {name}', name: p.name || '' }),
-          });
-        });
-        // OPEN habit rows — up to 3, carried verbatim from the deleted HABITS
-        // plate: habit checkbox stopPropagation + the #1502 keyboard guard on
-        // the ROW (BSSlateRow's onKeyDown, first line: `if (e.target !==
-        // e.currentTarget) return;` — added in Task 2). The checkbox itself is
-        // a leaf control, not a container an event could bubble THROUGH before
-        // reaching it — it only needs stopPropagation on click (so the row's
-        // onOpen doesn't also fire) plus its own native <button> Enter/Space
-        // activation. Do NOT re-add the e.target!==e.currentTarget guard on
-        // the checkbox's own onKeyDown — a bare <button> has no children for a
-        // keypress to bubble up FROM, so that guard there is meaningless (it
-        // would always be true) and duplicates logic that already lives one
-        // level up, on the row.
-        const habitsDone = selDayHabits.filter(h => h.done).length;
-        const habitsPts = selDayHabits.filter(h => h.done).reduce((a, h) => a + Math.round(h.pts), 0);
-        const habitsPossible = selDayHabits.reduce((a, h) => a + Math.round(h.pts), 0);
-        const openHabits = selDayHabits.filter(h => !h.done);
-        openHabits.slice(0, 3).forEach((h) => {
-          const avoid = h.type === 'avoid';
-          const isWork = h.domain === 'work';
-          const pillC = avoid ? t.RUST : t.GREEN;
-          const avoidWord = tr('home:tag.avoid', { defaultValue: 'Avoid' });
-          const doWord = tr('home:tag.do', { defaultValue: 'Do' });
-          const workWord = tr('home:tag.work', { defaultValue: 'Work' });
-          rows.push({
-            key: `habit-${h.id || h.name}`,
-            time: '',
-            // Work-domain habits tag WORK in slate blue (spec 2026-07-13); the
-            // checkbox keeps the do/avoid color, so nothing is lost.
-            tag: isWork ? workWord : (avoid ? avoidWord : doWord), tagColor: isWork ? t.BLUE : pillC,
-            title: h.name,
-            status: tr('home:habit.pts', { defaultValue: '+{pts} pts', pts: Math.round(h.pts) }),
-            right: (
-              <button
-                onClick={(e) => { e.stopPropagation(); toggleHomeHabit(h); }}
-                disabled={h.live && homeHabitIsFuture}
-                aria-label={h.live ? tr('home:habit.markDone', { defaultValue: 'Mark {name} done', name: h.name }) : tr('home:habit.demoAria', { defaultValue: 'Demo habits — open the habits page' })}
-                style={{ width: 44, height: 44, borderRadius: 5, flexShrink: 0, border: `1.5px solid ${h.live ? pillC : t.RULE}`, background: `${pillC}12`, opacity: h.live && homeHabitIsFuture ? .45 : 1, cursor: h.live && homeHabitIsFuture ? 'default' : 'pointer', padding: 0, display: 'grid', placeItems: 'center', fontSize: 10, lineHeight: 1 }}
-              >{h.live ? '' : '🔒'}</button>
-            ),
-            onOpen: () => setHabitsPage(true),
-            ariaLabel: tr('home:habit.rowAria', { defaultValue: '{kind}: {name}, worth {pts, plural, one {# point} other {# points}}, {state}', kind: avoid ? avoidWord : doWord, name: h.name, pts: Math.round(h.pts), state: h.done ? tr('home:aria.done', { defaultValue: 'done' }) : tr('home:aria.open', { defaultValue: 'open' }) }),
-          });
-        });
-        const sortedRows = bsHomeSlateSort(rows);
-        // A quiet sub-head before the first habit row, so habits read as their
-        // own block inside the run-sheet (owner request) — meals/training stay
-        // unlabeled (their tag column already identifies them).
-        const firstHabitIdx = sortedRows.findIndex((r) => String(r.key).startsWith('habit-'));
-        // ── NOW tick (concept B, today only): sits between the last passed
-        // timed row and the first upcoming one. Rows without a real `_min`
-        // (coach pushes, habits, rest day) never anchor it, and untimed rows
-        // sort after timed ones, so the marker can never land inside the
-        // habits block.
-        const nowMin = bsNowMin;
-        const isTodayView = selIdx === todayIdx;
-        let nowIdx = -1;
-        if (isTodayView) {
-          nowIdx = sortedRows.findIndex((r) => typeof r._min === 'number' && r._min > nowMin);
-          if (nowIdx === -1) {
-            let lastTimed = -1;
-            sortedRows.forEach((r, i) => { if (typeof r._min === 'number') lastTimed = i; });
-            nowIdx = lastTimed === -1 ? -1 : lastTimed + 1;
-          }
-        }
-        const nowMarker = isTodayView && nowIdx !== -1 ? (
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 9, padding: `6px ${t.padX}px`, minHeight: 24 }} aria-label={`${tr('home:slate.now', { defaultValue: 'Now' })}, ${fmtAt(nowMin)}`}>
-            <span aria-hidden style={{ position: 'absolute', left: 4, top: '50%', width: 9, height: 9, marginTop: -4.5, borderRadius: '50%', background: teal }}>
-              <span style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: teal, ...(bsSdReduced() ? { opacity: 0.2 } : { animation: 'bsHomeNowPulse 2.4s ease-in-out infinite' }) }} />
-            </span>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>{tr('home:slate.now', { defaultValue: 'Now' })} · {fmtAt(nowMin)}</span>
-            <span aria-hidden style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${teal}55, transparent)` }} />
-          </div>
-        ) : null;
-        // The AGENDA is everything before the first habit row; habits now
-        // render as their own section below, so the rail + the "nothing
-        // scheduled" state are scoped to the agenda alone (a day with habits
-        // and no meals/training used to show an empty run-sheet under a head).
-        const preRows = firstHabitIdx === -1 ? sortedRows : sortedRows.slice(0, firstHabitIdx);
-        const hasStandaloneLead = !!(todayDirective && !todayDirective.leadIsWorkout && !todayDirective.heroMealId);
-        const agendaEmpty = preRows.length === 0 && !hasStandaloneLead;
-        const renderRow = (r, i) => (r.lead
-          ? <React.Fragment key="slate-lead">{_leadBlock(r.time)}</React.Fragment>
-          : <BSSlateRow key={r.key} index={i} tag={r.tag} tagColor={r.tagColor} title={r.title} status={r.status} right={r.right} onOpen={r.onOpen} ariaLabel={r.ariaLabel} />);
-        return (
-          <>
-            <div style={{ padding: `${t.sectGap}px ${t.padX}px 8px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 9, minWidth: 0, flexWrap: 'wrap' }}>
-                <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK, whiteSpace: 'nowrap' }}>▤ {tr('home:section.slate', { defaultValue: "Today's slate" })}</span>
-                <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, whiteSpace: 'nowrap' }}>{upNextLabel}</span>
-              </span>
-              <button onClick={() => goEat()} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', minHeight: 44, background: 'transparent', border: 0, padding: '0 2px', color: teal, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{tr('common:nav.eat', { defaultValue: 'Eat' })} →</button>
-            </div>
-            <div style={{ padding: `0 ${t.padX}px 4px` }}>
-              <div aria-hidden style={{ height: 2, background: `linear-gradient(90deg, ${t.INK}, ${t.ACCENT} 58%, transparent)`, marginBottom: 4 }} />
-            </div>
-            <div style={{ position: 'relative' }}>
-              {/* THE RAIL (concept B): one heat line threading the day — the
-                  inline lead + the NOW tick anchor to it. Sits inside the rows'
-                  left gutter (t.padX ≥ 18 at every density), so nothing shifts.
-                  Scoped to the AGENDA: habits are untimed and now render as
-                  their own section below, so the rail stops where the day's
-                  timeline does. */}
-              {!agendaEmpty && (
-                <span aria-hidden style={{ position: 'absolute', left: 8, top: 2, bottom: 6, width: 2, background: `linear-gradient(180deg, ${teal}, ${teal}22)` }} />
-              )}
-              {hasStandaloneLead && _leadBlock(null)}
-              {agendaEmpty ? (
-                <div style={{ padding: `10px ${t.padX}px 16px`, fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>{tr('home:slate.empty', { defaultValue: 'Nothing scheduled for today.' })}</div>
-              ) : (
-                <>
-                  {preRows.map((r, i) => (
-                    <React.Fragment key={`slot-${r.key}`}>
-                      {i === nowIdx && nowMarker}
-                      {renderRow(r, i)}
-                    </React.Fragment>
-                  ))}
-                  {nowIdx === preRows.length && nowMarker}
-                </>
-              )}
-            </div>
-            {/* DAILY HABITS — ITS OWN SECTION (owner call 2026-08-31). It was a
-                9.5px mono eyebrow inside the run-sheet, which read as a row
-                label rather than a section: the habits sat in the slate's rail,
-                under the slate's head, sharing its ledger rule. It now carries
-                the same section grammar the "Today's slate" head above uses —
-                t.sectGap of air, a DISPLAY head with the section's own glyph,
-                a count, a door, and the 2px ink→ledger rule (green here, the
-                habits color) — so it is unmistakably a peer section.
-                The tour's hero-habits anchor is THIS block — narrowed from the
-                whole slate (the spotlight used to swallow the meal + training
-                rows too) to just the habits head, rows, and states. */}
-            <div data-tour="hero-habits">
-              <div style={{ padding: `${t.sectGap}px ${t.padX}px 8px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 9, minWidth: 0, flexWrap: 'wrap' }}>
-                  <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK, whiteSpace: 'nowrap' }}>✓ {tr('home:slate.habitsHead', { defaultValue: 'Daily habits' })}</span>
-                  {selDayHabits.length > 0 && (
-                    <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{habitsDone}/{selDayHabits.length}</span>
-                  )}
-                </span>
-                {/* The section's own door. Before this the ONLY way to the
-                    habits page from the slate was the "+N more" row, which
-                    exists only past three open habits — a member with three or
-                    fewer had no door at all. */}
-                <button onClick={() => setHabitsPage(true)} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', minHeight: 44, background: 'transparent', border: 0, padding: '0 2px', color: t.GREEN, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{tr('home:action.viewAll', { defaultValue: 'View all →' })}</button>
-              </div>
-              <div style={{ padding: `0 ${t.padX}px 4px` }}>
-                <div aria-hidden style={{ height: 2, background: `linear-gradient(90deg, ${t.INK}, ${t.GREEN} 58%, transparent)`, marginBottom: 4 }} />
-              </div>
-              {firstHabitIdx !== -1 && sortedRows.slice(firstHabitIdx).map((r, j) => (
-                <BSSlateRow key={r.key} index={firstHabitIdx + j} tag={r.tag} tagColor={r.tagColor} title={r.title} status={r.status} right={r.right} onOpen={r.onOpen} ariaLabel={r.ariaLabel} />
-              ))}
-              {openHabits.length > 3 && (
-                <button onClick={() => setHabitsPage(true)} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, padding: `10px ${t.padX}px`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderBottom: `1px solid ${t.HAIR}` }}>
-                  <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{tr('home:slate.moreHabits', { defaultValue: '{count, plural, one {+# more habit} other {+# more habits}}', count: openHabits.length - 3 })}</span>
-                  {/* A chevron, not a second "View all →" — the head above now
-                      carries that door, and two identical actions in one
-                      section is noise. */}
-                  <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK50, fontWeight: 700 }}>›</span>
-                </button>
-              )}
-              {selDayHabits.length === 0 && (
-                <div style={{ padding: `10px ${t.padX}px 4px`, fontFamily: t.BODY, fontSize: 13, color: t.INK70, lineHeight: 1.4 }}>
-                  <button onClick={() => setHabitsPage(true)} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', color: t.GREEN, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{tr('home:slate.addFirstHabit', { defaultValue: '+ Add your first habit →' })}</button>
-                </div>
-              )}
-              {selDayHabits.length > 0 && openHabits.length === 0 && (
-                <div style={{ padding: `10px ${t.padX}px 4px`, fontFamily: t.BODY, fontSize: 13, color: t.INK70, lineHeight: 1.4 }}>
-                  {tr('home:slate.allDonePre', { defaultValue: 'All habits done —' })} <span style={{ color: t.GREEN, fontWeight: 700 }}>{tr('home:habit.pts', { defaultValue: '+{pts} pts', pts: habitsPts })}</span> {tr('home:slate.allDonePost', { defaultValue: 'banked today.' })}
-                </div>
-              )}
-              {habitFlash && (
-                <div style={{ margin: `8px ${t.padX}px 0`, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 4, background: `${t.ACCENT}1f`, border: `1px solid ${t.ACCENT}55`, color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.04em' }}>{tr('home:slate.habitFlash', { defaultValue: '✓ +{pts} pts → Shape Score', pts: habitFlash.pts })}</div>
-              )}
-            </div>
-            {/* COACH WEEKLY NOTES — both notes as italic op-ed lines WITH bylines,
-                rendered INSIDE the slate section, after the rows. Fixes the
-                pre-existing demo-notes leak: the Jordan Chen / Dr. Maya Patel
-                fallback (formerly map lines 3086-3089) now renders signed-out
-                only — a signed-in account with no real coach banners yet sees
-                no notes at all, instead of fabricated samples. */}
-            {(() => {
-              const banners = coachFeed.banners || [];
-              const dayOf = (b) => {
-                if (!b || !b.sent_at) return 'Mon';
-                const d = new Date(b.sent_at);
-                return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()] || 'Mon';
-              };
-              const trainerBanner = banners.find(b => b.provider_role !== 'nutritionist');
-              const nutriBanner = banners.find(b => b.provider_role === 'nutritionist');
-              const notes = [];
-              if (trainerBanner) notes.push({ role: 'trainer', text: trainerBanner.text, who: trainerBanner.provider_name || 'Jordan Chen', when: dayOf(trainerBanner) });
-              if (nutriBanner) notes.push({ role: 'nutritionist', text: nutriBanner.text, who: nutriBanner.provider_name || 'Dr. Maya Patel', when: dayOf(nutriBanner) });
-              // Real coach notes only — no sample-note fallback (owner call:
-              // the demo quotes are gone even in signed-out preview).
-              if (!notes.length) return null;
-              return (
-                <div style={{ padding: `12px ${t.padX}px 4px`, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {notes.map((n, i) => (
-                    <div key={i} style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13, fontWeight: 500, color: t.INK70, lineHeight: 1.45, letterSpacing: '-0.01em' }}>
-                      &ldquo;{n.text}&rdquo;
-                      <span style={{ display: 'block', marginTop: 4, fontStyle: 'normal', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
-                        — {n.who} · {n.role === 'nutritionist' ? tr('home:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('home:role.trainer', { defaultValue: 'Trainer' })}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              );
-            })()}
-          </>
-        );
-      })()}
-
-      {/* § INSIDE. — everything else lives here: index rows (live figure + door)
-          and the shelf doors. Per the Front-Page Rule: do not add a plate here. If
-          it can't be a row, it lives on a tab and gets at most a row-door. */}
-      {(() => {
-        const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-        return (
-          <div style={{ padding: `${t.sectGap}px ${t.padX}px 4px` }}>
-            <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 20, letterSpacing: '-0.02em', color: t.INK }}>
-              {tr('home:section.inside', { defaultValue: 'Inside' })}<span style={{ color: teal, fontStyle: 'italic' }}>.</span>
-            </span>
-            <div aria-hidden style={{ height: 2, marginTop: 8, background: `linear-gradient(90deg, ${t.INK}, ${teal} 58%, transparent)` }} />
-          </div>
-        );
-      })()}
-
-      {/* The INSIDE. index-rows block fades in as ONE quiet unit (not per-row) —
-          #1518-pattern keyframe, reduced-motion-gated. */}
-      <div style={{ ...(bsSdReduced() ? null : { animation: 'bsHomeIndexIn 220ms ease-out both' }) }}>
-        {/* WEEKLY TOTALS → two index rows. Same payloads as the old tile grid — the
-            weekStat portal sheet below is unchanged and reads these objects as-is.
-            Signed-out-only gate carried verbatim from the deleted tile grid. */}
-        {(() => {
-          // These are hardcoded demo figures (not wired to real rollups yet) — show
-          // them only in the signed-out preview, never as fake stats to a real user.
-          if (bsHomeSignedIn) return null;
-          const _tagDone = tr('home:weekStat.tagDone', { defaultValue: 'Done' });
-          const _tagSched = tr('home:weekStat.tagScheduled', { defaultValue: 'Scheduled' });
-          const weekTotals = [
-            { l: tr('home:weekStat.sessions', { defaultValue: 'Sessions' }), v: 4, max: 5, c: t.RUST, unit: 'sessions',
-              history: [['Mon', 'Upper Push — Peak', _tagDone], ['Tue', 'Lower Pull — Vol.', _tagDone], ['Thu', 'Upper Pull — Peak', _tagDone], ['Sat', 'Z2 run · 45m', _tagDone], ['Sun', 'Lower Push — Peak', _tagSched]] },
-            { l: tr('home:weekStat.avgKcal', { defaultValue: 'Avg kcal' }), v: 1890, max: 2100, c: t.BLUE, unit: 'avg kcal', chart: true, goalFrame: tr('home:weekStat.goalFrameDeficit', { defaultValue: 'In your deficit · on track' }),
-              series: [['M', 1820], ['T', 2010], ['W', 1760], ['T', 1980], ['F', 1890], ['S', 2140], ['S', 1830]] },
-          ];
-          return (
-            <>
-              {/* weekTotals[0] (Sessions) carries no goalFrame field (only Avg kcal
-                  does) — give it a real status string matching the old tile's own
-                  affordance copy ("View history →" in its footer) rather than
-                  leaving status undefined (a blank status reads as a rendering
-                  bug, not a deliberate omission). */}
-              <BSIndexRow label={weekTotals[0].l} figure={`${weekTotals[0].v}/${weekTotals[0].max}`} status={tr('home:action.viewHistory', { defaultValue: 'View history ›' })} onOpen={() => setWeekStat(weekTotals[0])} />
-              <BSIndexRow label={weekTotals[1].l} figure={`${weekTotals[1].v.toLocaleString(_dateLoc)}/${weekTotals[1].max.toLocaleString(_dateLoc)}`} status={weekTotals[1].goalFrame} onOpen={() => setWeekStat(weekTotals[1])} />
-            </>
-          );
-        })()}
-
-        {/* CHECK-IN residue — BSTodayNudge's row variant; only renders once today's
-            check-in is logged (the bulletin owns the due state, above the lead). */}
-        <BSTodayNudge variant="row" onOpen={() => setTodayPage(true)} />
-      </div>
-
-      {/* THE DOOR SHELF — STEPS · GOAL · PROGRESS · SHOP, horizontal snap-scroll,
-          3 visible + a 12px end-peek so the 4th door shows a sliver. Native buttons
-          in DOM order (VoiceOver traversal order == visual order).
-          `stepsToday` is read from the HOISTED const (Step 2, top of BSClientHome's
-          hooks block) — NOT called here. No hook may be called inside this render
-          IIFE (or anywhere in the main-return JSX): BSClientHome has 8 early-return
-          overlays above this point, so a hook called here would be skipped on those
-          renders and violate the Rules of Hooks. */}
-      {(() => {
-        const teal = t.isLight ? '#0a8f87' : '#34d6c5';
         const openStepsDoor = () => {
           if (stepsToday.hasData) { setStepsHistory(true); return; }
           try { window.dispatchEvent(new CustomEvent('shape:openIntegrations')); } catch (e) {}
@@ -5265,20 +4932,147 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
             : stepsToday.hit
               ? tr('home:steps.goalHit', { defaultValue: 'Goal hit ✓' })
               : tr('home:steps.toGo', { defaultValue: '{count, number} to go', count: Math.max(0, stepsToday.goal - stepsToday.val) });
+        // Kcal and protein are today's, from the analytics snapshot the ticker
+        // reads. The signed-out preview shows the ticker's own demo figures; a
+        // signed-in account with nothing logged sees the honest empty state.
+        const tk = ticker || {};
+        const kcalNow = typeof tk.cal === 'number' ? tk.cal : (bsHomeSignedIn ? null : 1568);
+        const kcalTgt = typeof tk.cal_target === 'number' ? tk.cal_target : (bsHomeSignedIn ? null : 2100);
+        const proNow = typeof tk.protein_g === 'number' ? tk.protein_g : (bsHomeSignedIn ? null : 118);
+        const proTgt = typeof tk.protein_target === 'number' ? tk.protein_target : (bsHomeSignedIn ? null : 140);
+        const kcalKnown = kcalNow != null && kcalTgt != null && kcalTgt > 0;
+        const proKnown = proNow != null && proTgt != null && proTgt > 0;
+        const pctOf = (a, b) => Math.max(0, Math.min(100, Math.round((a / b) * 100)));
         return (
-          <>
-            {/* The doors join the index above as stacked dot-leader rows (owner
-                call 2026-07-13) — the 2×2 boxed shelf is gone. */}
-            <div style={{ padding: `0 ${t.padX}px 12px` }}>
-              <BSShelfDoor c={teal} eyebrow={tr('home:door.steps', { defaultValue: 'Steps' })} figure={stepsFigure} status={stepsStatus} pct={stepsToday.hasData && stepsToday.todayKnown ? stepsToday.pct : undefined} onOpen={openStepsDoor} />
-              <BSMeGoalCard onOpen={() => setGoalsPage(true)} />
-              <BSProgressDoor onOpen={() => setHomeProgressPage(true)} />
-              <BSShelfDoor c={teal} eyebrow={tr('home:door.shopList', { defaultValue: 'Shop list' })} figure="→" status={tr('home:door.byAisle', { defaultValue: 'By aisle' })} onOpen={() => { try { window.__bsPendingGrocery = true; } catch (e) {} goEat(); }} />
-            </div>
+          <div style={{ padding: `0 ${t.padX}px 4px`, ...(bsSdReduced() ? null : { animation: 'bsHomeIndexIn 220ms ease-out both' }) }}>
+            <BSShelfDoor c={_focusTeal} eyebrow={tr('home:focus.kcalLeft', { defaultValue: 'Kcal left' })}
+              figure={kcalKnown ? Math.max(0, kcalTgt - kcalNow).toLocaleString(_dateLoc) : '—'}
+              status={kcalKnown ? tr('home:focus.eatenOf', { defaultValue: '{eaten, number} of {target, number}', eaten: kcalNow, target: kcalTgt }) : tr('home:focus.logToSee', { defaultValue: 'Log a meal to see' })}
+              pct={kcalKnown ? pctOf(kcalNow, kcalTgt) : undefined} onOpen={() => goEat()} />
+            {(proKnown || !bsHomeSignedIn) && (
+              <BSShelfDoor c={t.RUST} eyebrow={tr('home:focus.proteinToGo', { defaultValue: 'Protein to go' })}
+                figure={proKnown ? `${Math.max(0, proTgt - proNow)} g` : '—'}
+                status={proKnown ? `${proNow} / ${proTgt} g` : ''}
+                pct={proKnown ? pctOf(proNow, proTgt) : undefined} onOpen={() => goEat()} />
+            )}
+            <BSShelfDoor c={_focusTeal} eyebrow={tr('home:door.steps', { defaultValue: 'Steps' })} figure={stepsFigure} status={stepsStatus} pct={stepsToday.hasData && stepsToday.todayKnown ? stepsToday.pct : undefined} onOpen={openStepsDoor} />
+            <BSMeGoalCard onOpen={() => setGoalsPage(true)} />
+            <BSProgressDoor onOpen={() => setHomeProgressPage(true)} />
             {stepsHistory && <BSStepsHistory onClose={() => setStepsHistory(false)} />}
-          </>
+          </div>
         );
       })()}
+      <div style={{ ...(bsSdReduced() ? null : { animation: 'bsHomeIndexIn 220ms ease-out both' }) }}>
+        {/* WEEKLY TOTALS → two index rows. These are hardcoded demo figures (not
+            wired to real rollups yet) — the signed-out preview only, never shown as
+            fake stats to a real user. The weekStat sheet below reads them as-is. */}
+        {(() => {
+          if (bsHomeSignedIn) return null;
+          const _tagDone = tr('home:weekStat.tagDone', { defaultValue: 'Done' });
+          const _tagSched = tr('home:weekStat.tagScheduled', { defaultValue: 'Scheduled' });
+          const weekTotals = [
+            { l: tr('home:weekStat.sessions', { defaultValue: 'Sessions' }), v: 4, max: 5, c: t.RUST, unit: 'sessions',
+              history: [['Mon', 'Upper Push — Peak', _tagDone], ['Tue', 'Lower Pull — Vol.', _tagDone], ['Thu', 'Upper Pull — Peak', _tagDone], ['Sat', 'Z2 run · 45m', _tagDone], ['Sun', 'Lower Push — Peak', _tagSched]] },
+            { l: tr('home:weekStat.avgKcal', { defaultValue: 'Avg kcal' }), v: 1890, max: 2100, c: t.BLUE, unit: 'avg kcal', chart: true, goalFrame: tr('home:weekStat.goalFrameDeficit', { defaultValue: 'In your deficit · on track' }),
+              series: [['M', 1820], ['T', 2010], ['W', 1760], ['T', 1980], ['F', 1890], ['S', 2140], ['S', 1830]] },
+          ];
+          return (
+            <>
+              <BSIndexRow label={weekTotals[0].l} figure={`${weekTotals[0].v}/${weekTotals[0].max}`} status={tr('home:action.viewHistory', { defaultValue: 'View history ›' })} onOpen={() => setWeekStat(weekTotals[0])} />
+              <BSIndexRow label={weekTotals[1].l} figure={`${weekTotals[1].v.toLocaleString(_dateLoc)}/${weekTotals[1].max.toLocaleString(_dateLoc)}`} status={weekTotals[1].goalFrame} onOpen={() => setWeekStat(weekTotals[1])} />
+            </>
+          );
+        })()}
+        {/* CHECK-IN residue — BSTodayNudge's row variant; renders only once today's
+            check-in is logged (the bulletin among the links owns the due state). */}
+        <BSTodayNudge variant="row" onOpen={() => setTodayPage(true)} />
+      </div>
+
+      {/* ── FOCUS · YOUR LINE — the day as a line: one time-ordered run-sheet of
+          what is scheduled (meals, training, coach pushes), on the rail, with the
+          NOW tick. Admission test: "is this scheduled to happen on this day?"
+          Rows, not cards. */}
+      <BSFocusHead glyph="▤" label={tr('home:focus.line', { defaultValue: 'Your line' })} meta={upNextLabel}
+        actionLabel={`${tr('common:nav.eat', { defaultValue: 'Eat' })} →`} onAction={() => goEat()} color={_focusTeal} />
+      <div style={{ position: 'relative' }}>
+        {lineRows.length > 0 && (
+          <span aria-hidden style={{ position: 'absolute', left: 8, top: 2, bottom: 6, width: 2, background: `linear-gradient(180deg, ${_focusTeal}, ${_focusTeal}22)` }} />
+        )}
+        {lineRows.length === 0 ? (
+          <div style={{ padding: `10px ${t.padX}px 16px`, fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>{tr('home:slate.empty', { defaultValue: 'Nothing scheduled for today.' })}</div>
+        ) : (
+          <>
+            {lineRows.map((r, i) => (
+              <React.Fragment key={`slot-${r.key}`}>
+                {i === lineNowIdx && (
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 9, padding: `6px ${t.padX}px`, minHeight: 24 }} aria-label={`${tr('home:slate.now', { defaultValue: 'Now' })}, ${fmtAt(bsNowMin)}`}>
+                    <span aria-hidden style={{ position: 'absolute', left: 4, top: '50%', width: 9, height: 9, marginTop: -4.5, borderRadius: '50%', background: _focusTeal }}>
+                      <span style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: _focusTeal, ...(bsSdReduced() ? { opacity: 0.2 } : { animation: 'bsHomeNowPulse 2.4s ease-in-out infinite' }) }} />
+                    </span>
+                    <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: _focusTeal }}>{tr('home:slate.now', { defaultValue: 'Now' })} · {fmtAt(bsNowMin)}</span>
+                    <span aria-hidden style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${_focusTeal}55, transparent)` }} />
+                  </div>
+                )}
+                <BSSlateRow index={i} tag={r.tag} tagColor={r.tagColor} title={r.title} status={r.status} right={r.right} onOpen={r.onOpen} ariaLabel={r.ariaLabel} />
+              </React.Fragment>
+            ))}
+            {lineNowIdx === lineRows.length && (
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 9, padding: `6px ${t.padX}px`, minHeight: 24 }} aria-label={`${tr('home:slate.now', { defaultValue: 'Now' })}, ${fmtAt(bsNowMin)}`}>
+                <span aria-hidden style={{ position: 'absolute', left: 4, top: '50%', width: 9, height: 9, marginTop: -4.5, borderRadius: '50%', background: _focusTeal }} />
+                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: _focusTeal }}>{tr('home:slate.now', { defaultValue: 'Now' })} · {fmtAt(bsNowMin)}</span>
+                <span aria-hidden style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${_focusTeal}55, transparent)` }} />
+              </div>
+            )}
+          </>
+        )}
+      </div>
+      {/* COACH WEEKLY NOTES — both notes as italic op-ed lines WITH bylines, under
+          the line. Real coach notes only — no sample-note fallback (owner call:
+          the demo quotes are gone even in signed-out preview). */}
+      {(() => {
+        const banners = coachFeed.banners || [];
+        const trainerBanner = banners.find(b => b.provider_role !== 'nutritionist');
+        const nutriBanner = banners.find(b => b.provider_role === 'nutritionist');
+        const notes = [];
+        if (trainerBanner) notes.push({ role: 'trainer', text: trainerBanner.text, who: trainerBanner.provider_name || 'Jordan Chen' });
+        if (nutriBanner) notes.push({ role: 'nutritionist', text: nutriBanner.text, who: nutriBanner.provider_name || 'Dr. Maya Patel' });
+        if (!notes.length) return null;
+        return (
+          <div style={{ padding: `12px ${t.padX}px 4px`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {notes.map((n, i) => (
+              <div key={i} style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13, fontWeight: 500, color: t.INK70, lineHeight: 1.45, letterSpacing: '-0.01em' }}>
+                &ldquo;{n.text}&rdquo;
+                <span style={{ display: 'block', marginTop: 4, fontStyle: 'normal', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
+                  — {n.who} · {n.role === 'nutritionist' ? tr('home:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('home:role.trainer', { defaultValue: 'Trainer' })}
+                </span>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
+      {/* ── FOCUS · LINKS — the rest of the page, one row each. The check-in
+          bulletins keep every gate they had (each suppressed only when its own
+          lever is the lead; the wall bulletin yields to the weekly check-in, so
+          the block stays at two); daily habits and the shop list are doors. */}
+      <div style={{ marginTop: t.sectGap }}>
+        {!(engineFlag && engineFlag.lever === 'checkin') && (
+          <BSTodayNudge onOpen={() => setTodayPage(true)} variant="bulletin" />
+        )}
+        {checkinDue && checkinPrefOn && !(engineFlag && engineFlag.lever === 'checkin') && (
+          <BSHomeBulletin label={tr('home:bulletin.weeklyCheckin', { defaultValue: 'Weekly check-in due' })} detail={tr('home:bulletin.weeklyCheckinDetail', { defaultValue: '2 min' })} onOpen={() => setCheckinPage(true)} />
+        )}
+        {!(checkinDue && checkinPrefOn && !(engineFlag && engineFlag.lever === 'checkin')) && <BSHomeWallBulletin />}
+        {(() => {
+          const done = selDayHabits.filter((h) => h.done).length;
+          return (
+            <BSFocusLink tour="hero-habits" color={t.GREEN} glyph="✓" label={tr('home:slate.habitsHead', { defaultValue: 'Daily habits' })}
+              tag={selDayHabits.length ? tr('home:focus.habitsDone', { defaultValue: '{done} of {total} done', done, total: selDayHabits.length }) : tr('home:focus.habitsFirst', { defaultValue: 'Add your first' })}
+              onOpen={() => setHabitsPage(true)} />
+          );
+        })()}
+        <BSFocusLink color={_focusTeal} glyph="→" label={tr('home:door.shopList', { defaultValue: 'Shop list' })} onOpen={() => { try { window.__bsPendingGrocery = true; } catch (e) {} goEat(); }} />
+      </div>
 
       {/* Week-stat detail sheet */}
       {weekStat && createPortal(
@@ -6337,49 +6131,38 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
     );
   }
 
+  // ── FOCUS (owner, 2026-10-11, off the C · Focus board) — Train in the Focus
+  // order: the week, the session on its own with how long until it starts, its
+  // moves, what is on deck, then links (music, build, open session, find a
+  // trainer). The data is unchanged; only where each thing sits moved.
+  const _trainIsToday = day === bsWeekdayIdx();
+  const _trainNow = new Date();
+  const _trainUntil = _trainIsToday && !isRestDay ? bsFocusUntil(bsFocusMin(cur.time), _trainNow.getHours() * 60 + _trainNow.getMinutes()) : null;
+  const _trainWhen = [_trainIsToday ? tr('home:when.today', { defaultValue: 'Today' }) : bsWeekdayName(day, 'short'), cur.timeLabel || null].filter(Boolean).join(' · ');
+  // The deck headline when it differs from the title, else the title — the same
+  // phrase never reads twice.
+  const _trainNorm = (s) => String(s || '').trim().replace(/\.$/, '').toLowerCase();
+  const _trainHead = _trainNorm(cur.headline) && _trainNorm(cur.headline) !== _trainNorm(cur.title) ? cur.headline : cur.title;
+
   return (
     <BSPage>
       <BSPageHeader
         kicker={`${bsTrainProgram.trainingPhase || 'Build'} · ${tr('common:unit.weekN', { defaultValue: 'Week {n}', n: bsProgramWeek() })}`}
-        title={cur.title}
+        title={tr('session:train.yourTraining', { defaultValue: 'Your training' })}
         trailing={<BSHeaderTools onProfile={onProfile} />}
       />
       {resumeBanner}
-
-      {/* Find a trainer — marketplace deep link, pinned to the TOP so it's always
-          visible. Zero-box role leader row (shared with the Build-door branch). */}
-      <BSFindCoachBar role="trainer" onOpen={() => goMarket('trainer')} />
-
-      {/* Build a workout — always reachable once a plan exists (the door owns the
-          empty state). Opens the self-serve builder. */}
-      {bsTrainSignedIn && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 14, margin: `8px ${t.padX}px 0` }}>
-          <button onClick={() => { setOpenSession(true); setSession(true); }} style={{ background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, padding: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('session:train.openSession', { defaultValue: 'Open session' })}</button>
-          <button onClick={() => setBuilder({ mode: 'session' })} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT }}>{tr('session:train.buildWorkout', { defaultValue: '＋ Build a workout' })}</button>
-        </div>
-      )}
 
       <BSWeekStrip activeIdx={day} onSelect={setDay} restFlags={PROGRAM.map(p => p.tag === 'REST')} />
 
       <BSCoachAdjustBanner detail={bsTrainProgram.detail} kind="training" />
 
-      {/* Today hero — the session at a glance, on the instrument plate. */}
-      <div data-tour="hero-train" style={{ margin: `14px ${t.padX}px 0` }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700 }}>
-          <span style={{ color: t.ACCENT }}>{day === bsWeekdayIdx() ? tr('home:when.today', { defaultValue: 'Today' }) : bsWeekdayName(day, 'short')}{cur.timeLabel ? ` · ${cur.timeLabel}` : ''}</span>
-          <span style={{ color: t.INK50 }}>{tr('common:unit.weekN', { defaultValue: 'Week {n}', n: bsProgramWeek() })} · {tr('session:train.dayN', { defaultValue: 'D{n}', n: day + 1 })}</span>
-        </div>
-        {(() => {
-          // Render the deck headline only when it differs from the page title —
-          // otherwise the same phrase reads twice ("Upper Pull — Peak").
-          const _norm = (s) => String(s || '').trim().replace(/\.$/, '').toLowerCase();
-          const _h = _norm(cur.headline);
-          if (!_h || _h === _norm(cur.title)) return null;
-          return <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 23, lineHeight: 1.0, letterSpacing: '-0.035em', color: t.INK }}>{String(cur.headline || '').replace(/\.$/, '')}<span style={{ color: t.ACCENT }}>.</span></div>;
-        })()}
-        <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, color: t.INK70, letterSpacing: '0.06em' }}>
-          {effMoves.length > 0 ? cur.meta : cur.copy}
-        </div>
+      {/* The session — on its own, on the move line's rust spine. */}
+      <BSFocusLead tour="hero-train" color={t.RUST}
+        kicker={`${_trainWhen} · ${isRestDay ? tr('session:train.restChip', { defaultValue: 'Rest' }) : tr('home:lead.railHeader', { defaultValue: 'Your move' })}`}
+        kickerRight={`${tr('common:unit.weekN', { defaultValue: 'Week {n}', n: bsProgramWeek() })} · ${tr('session:train.dayN', { defaultValue: 'D{n}', n: day + 1 })}`}
+        title={_trainHead}
+        sub={effMoves.length > 0 ? cur.meta : cur.copy}>
         {cur.coachAdjust && (cur.intensityLabel || cur.coachFocus) && (
           <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {cur.coachFocus && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, border: `1px solid ${t.ACCENT}66`, borderRadius: 3, padding: '3px 8px' }}>{cur.coachFocus}</span>}
@@ -6390,44 +6173,35 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
             meta"). It is a Shape Radio soundtrack, so it opens Radio. A coach-set rest
             keeps the day's fields but is no session, so it shows no soundtrack. */}
         {!isRestDay && cur.playlist && cur.playlist.name && (
-          <button type="button" onClick={goRadio} style={{ marginTop: 4, minHeight: 44, maxWidth: '100%', display: 'flex', alignItems: 'center', background: 'transparent', border: 0, padding: 0, cursor: 'pointer' }}>
+          <button type="button" onClick={goRadio} style={{ marginTop: 6, minHeight: 44, maxWidth: '100%', display: 'flex', alignItems: 'center', background: 'transparent', border: 0, padding: 0, cursor: 'pointer' }}>
             <span style={{ minWidth: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, border: `1px solid ${t.ACCENT}66`, borderLeft: `3px solid ${t.ACCENT}`, borderRadius: 3, padding: '5px 9px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>♪ {cur.playlist.name}{cur.playlist.meta ? ` · ${cur.playlist.meta}` : ''}</span>
           </button>
         )}
-        <div aria-hidden style={{ margin: '11px 0 0', height: 2, background: `linear-gradient(90deg, ${t.INK}, ${t.ACCENT} 62%, transparent)` }} />
-        <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
-          {cur.selfAuthored ? (
-            // Self-programmed day — honest "Programmed by you" (or the program
-            // name · Wn), teal spine. No fabricated coach name. A weekly-repeat
-            // session is editable in place; a program day is edited by re-drafting.
-            <div style={{ flex: 1, minWidth: 0, borderLeft: `3px solid ${t.ACCENT}`, padding: '2px 0 2px 10px' }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 700, color: t.INK }}>{cur.program && cur.program.name ? cur.program.name : tr('session:train.programmedByYou', { defaultValue: 'Programmed by you' })}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>{cur.program && cur.program.week ? tr('session:train.yourProgramWeek', { defaultValue: 'Your program · Week {n}', n: cur.program.week }) : tr('session:train.yourWorkout', { defaultValue: 'Your workout' })}</span>
-                {cur.repeatDow && cur.workoutId && (
-                  <button onClick={() => setBuilder({ mode: 'session', editId: cur.workoutId, name: cur.title, repeatDow: cur.repeatDow, moves: (cur.moves || []).map((m) => ({ name: m.m, seg: /[·]|mi\b|min\b|Z\d/.test(m.s || '') && !m.l ? m.s : '', sets: (String(m.s).match(/(\d+)\s*×/) || [])[1] || '', reps: (String(m.s).match(/×\s*([\d–-]+)/) || [])[1] || '', load: m.l || '' })) })} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT }}>{tr('session:train.editYours', { defaultValue: 'Edit · Yours' })}</button>
-                )}
-              </div>
-            </div>
-          ) : coachDayName ? (
-            // ⚠ WAS THE HARDCODED "Jordan Chen · Coach · Trainer" — rendered on EVERY
-            // non-self day, so a signed-in member read a fabricated trainer's name
-            // under their own workout, on a rest day, and on the empty week. Same
-            // class as the Eat byline (cut 4). Now: the real assigning trainer,
-            // else the honest role noun when a coach demonstrably authored the day
-            // but the name did not resolve, else the block does not exist.
-            <div style={{ flex: 1, minWidth: 0, borderLeft: `3px solid #c0533b`, padding: '2px 0 2px 10px' }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 700, color: t.INK }}>{coachDayName}</div>
-              <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>{tr('session:train.coachRole', { defaultValue: 'Coach · Trainer' })}</div>
-            </div>
-          ) : <div style={{ flex: 1 }} />}
-          {!isRestDay ? (
-            <button onClick={() => { try { window.ShapeAnalytics?.track?.('workout_started'); } catch (e) {} setSession(true); }} style={{ minHeight: 48, flexShrink: 0, padding: '10px 14px', borderRadius: 5, border: 0, background: t.ACCENT, color: '#031f1c', cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800 }}>{tr('session:train.startAria', { defaultValue: 'Start session' })} →</button>
-          ) : (
-            <span style={{ flexShrink: 0, padding: '8px 12px', borderRadius: 3, border: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{tr('session:train.restChip', { defaultValue: 'Rest' })}</span>
-          )}
-        </div>
-      </div>
+        <BSFocusCountdown label={tr('session:train.startsIn', { defaultValue: 'Starts in' })}
+          value={_trainUntil ? (_trainUntil.h > 0 ? tr('session:train.untilHourMin', { defaultValue: '{h}h {m}m', h: _trainUntil.h, m: _trainUntil.m }) : tr('session:train.untilMin', { defaultValue: '{m} min', m: _trainUntil.m })) : null} />
+        {/* Who wrote the day — honest byline: "Programmed by you" (or the program
+            name · Wn) on self days, the real assigning trainer on coach days, and
+            nothing at all when no coach authored it. */}
+        {cur.selfAuthored ? (
+          <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70 }}>{cur.program && cur.program.name ? cur.program.name : tr('session:train.programmedByYou', { defaultValue: 'Programmed by you' })}{cur.program && cur.program.week ? ` · ${tr('session:train.yourProgramWeek', { defaultValue: 'Your program · Week {n}', n: cur.program.week })}` : ''}</span>
+            {cur.repeatDow && cur.workoutId && (
+              <button onClick={() => setBuilder({ mode: 'session', editId: cur.workoutId, name: cur.title, repeatDow: cur.repeatDow, moves: (cur.moves || []).map((m) => ({ name: m.m, seg: /[·]|mi\b|min\b|Z\d/.test(m.s || '') && !m.l ? m.s : '', sets: (String(m.s).match(/(\d+)\s*×/) || [])[1] || '', reps: (String(m.s).match(/×\s*([\d–-]+)/) || [])[1] || '', load: m.l || '' })) })} style={{ background: 'transparent', border: 0, cursor: 'pointer', minHeight: 32, padding: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT }}>{tr('session:train.editYours', { defaultValue: 'Edit · Yours' })}</button>
+            )}
+          </div>
+        ) : coachDayName ? (
+          <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70 }}>{coachDayName} · <span style={{ color: t.INK50 }}>{tr('session:train.coachRole', { defaultValue: 'Coach · Trainer' })}</span></div>
+        ) : null}
+        {!isRestDay ? (
+          <BSFocusActions
+            primary={{ label: `${tr('session:train.startAria', { defaultValue: 'Start session' })} →`, onClick: () => { try { window.ShapeAnalytics?.track?.('workout_started'); } catch (e) {} setSession(true); } }}
+            secondary={effMoves.length > 0 ? { label: `${tr('session:train.swap', { defaultValue: 'Swap' })} →`, onClick: () => setSwapIdx('pick') } : null} />
+        ) : (
+          <div style={{ marginTop: 14 }}>
+            <span style={{ display: 'inline-block', padding: '8px 12px', borderRadius: 3, border: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{tr('session:train.restChip', { defaultValue: 'Rest' })}</span>
+          </div>
+        )}
+      </BSFocusLead>
 
       {/* Workout — the moves. Tap a move (or Swap) to pick a coach-approved sub. */}
       {effMoves.length > 0 && (
@@ -6506,6 +6280,18 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
             <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 3 }}>{x.r || ''}</span>
           </button>
         ))}
+      </div>
+
+      {/* ── FOCUS · LINKS — the rest of Train, one row each: building or opening a
+          session, and finding a trainer. */}
+      <div style={{ marginTop: t.sectGap }}>
+        {bsTrainSignedIn && (
+          <>
+            <BSFocusLink color={t.ACCENT} glyph="＋" label={tr('session:train.buildWorkoutLink', { defaultValue: 'Build a workout' })} onOpen={() => setBuilder({ mode: 'session' })} />
+            <BSFocusLink color={t.INK50} glyph="▷" label={tr('session:train.openSession', { defaultValue: 'Open session' })} onOpen={() => { setOpenSession(true); setSession(true); }} />
+          </>
+        )}
+        <BSFindCoachBar role="trainer" onOpen={() => goMarket('trainer')} />
       </div>
 
       {/* From Jordan — coach playlists (sourced from the Radio coach-playlist feed) */}
@@ -12326,7 +12112,9 @@ function bsBuildPlanGrocery(program, author, name, tr) {
     const meals = ms.length <= 2 ? ms.join(' · ') : `${ms.slice(0, 2).join(' · ')} +${ms.length - 2}`;
     const aisle = bsGroceryAisleFor(e.n);
     const list = buckets.get(aisle) || [];
-    list.push({ n: e.n, q, meals: meals || '—', have: BS_GROCERY_STAPLE.test(e.n) });
+    // `mealList` keeps every meal (the `meals` line names two and counts the
+    // rest) so Shop by meal can file the item under each one.
+    list.push({ n: e.n, q, meals: meals || '—', mealList: ms, have: BS_GROCERY_STAPLE.test(e.n) });
     buckets.set(aisle, list);
   });
   const aisles = order
@@ -13654,6 +13442,30 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
     [PROGRAM, liveProgram, liveMealCoach, liveMealTitle, bsEatSignedIn, tr],
   );
   const activeGroceryList = selectedGroceryList || planGrocery;
+  // Shop by meal files each ingredient under the meal it is for, in the order the
+  // meals come: the week from today, earliest first, each labelled with its day
+  // and slot. A meal the week does not hold keeps the list's own order.
+  const groceryMealWhen = React.useMemo(() => {
+    const slots = {
+      breakfast: tr('home:slot.breakfast', { defaultValue: 'Breakfast' }),
+      lunch: tr('home:slot.lunch', { defaultValue: 'Lunch' }),
+      snack: tr('home:slot.snack', { defaultValue: 'Snack' }),
+      dinner: tr('home:slot.dinner', { defaultValue: 'Dinner' }),
+    };
+    const map = new Map();
+    const today = bsWeekdayIdx();
+    for (let off = 0; off < 7; off++) {
+      const idx = (today + off) % 7;
+      ((PROGRAM[idx] && PROGRAM[idx].meals) || []).forEach((m) => {
+        if (!m || !m.title || map.has(m.title)) return;
+        const min = bsFocusMin(bsMealSchedTime(m));
+        const slot = bsFocusSlot(m.tag, min);
+        const day = off === 0 ? tr('home:when.today', { defaultValue: 'Today' }) : bsWeekdayName(idx, 'short');
+        map.set(m.title, { rank: off * 1440 + (min == null ? 720 : min), label: [day, slot ? slots[slot] : null].filter(Boolean).join(' · ') });
+      });
+    }
+    return map;
+  }, [PROGRAM, tr]);
   const activeGroceryCount = activeGroceryList.aisles
     ? activeGroceryList.aisles.reduce((sum, aisle) => sum + aisle.items.length, 0)
     : activeGroceryList.count || 0;
@@ -13872,7 +13684,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
   // the grocery page) — entirely optional, a door never a gate.
   if (prepCook) return <BSPrepTonightCook slug={prepCook.slug} group={prepCook.group} onClose={() => setPrepCook(null)} />;
   if (prepOpen) return <BSPrepSession program={PROGRAM} seed={prepSeed} onClose={() => { setPrepOpen(false); setPrepSeed(null); }} />;
-  if (view === 'grocery') return <>{newListSheet}{saveSheet}<BSGrocery list={activeGroceryList} planList={planGrocery} onBack={() => setView('eat')} onLibrary={() => setView('library')} recipeLists={recipeLists} onChangeView={setView} editable={!!activeGroceryList.editable} onUpdate={persistGroceryList} onCreate={createGroceryList} onSaveToLibrary={openSaveToLibrary} onPickList={(l) => { if (!l) setSelectedGroceryList(null); else loadGroceryList(l); }} onProfile={onProfile} onPrep={() => openPrep()} /></>;
+  if (view === 'grocery') return <>{newListSheet}{saveSheet}<BSGrocery list={activeGroceryList} planList={planGrocery} mealWhen={groceryMealWhen} onBack={() => setView('eat')} onLibrary={() => setView('library')} recipeLists={recipeLists} onChangeView={setView} editable={!!activeGroceryList.editable} onUpdate={persistGroceryList} onCreate={createGroceryList} onSaveToLibrary={openSaveToLibrary} onPickList={(l) => { if (!l) setSelectedGroceryList(null); else loadGroceryList(l); }} onProfile={onProfile} onPrep={() => openPrep()} /></>;
   if (view === 'library') return <>{newListSheet}<BSGroceryLibrary onBack={() => setView('grocery')} onLoad={loadGroceryList} recipeLists={recipeLists} onCreate={createGroceryList} onEdit={editGroceryList} onDuplicate={duplicateGroceryList} onDelete={deleteGroceryList} deletedIds={deletedGroceryIds} onChangeView={setView} /></>;
   if (view === 'build') return <BSGroceryBuilder onCancel={() => setView('grocery')} onCreate={createListFromBuilder} />;
   if (view === 'recipes') {
@@ -13968,6 +13780,39 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
   // "Next" = explicit state, else the first un-done meal — today only.
   const bsEatNextMeal = day === bsWeekdayIdx() ? (effMeals.find(m => m.state === 'next') || effMeals.find(m => m.state !== 'done') || null) : null;
 
+  // ── FOCUS (owner, 2026-10-11, off the C · Focus board) — Eat in the Focus
+  // order: the tabs and the week, the next meal on its own (today), the fuel
+  // left today, the menu as a line, then links. Same data, new places.
+  const _eatNowD = new Date();
+  const _eatNowMin = _eatNowD.getHours() * 60 + _eatNowD.getMinutes();
+  const _eatIsToday = day === bsWeekdayIdx();
+  const _eatMin = (m) => bsFocusMin(bsMealSchedTime(m));
+  const _eatSlot = (m) => {
+    const slot = bsFocusSlot(m.tag, _eatMin(m));
+    return slot === 'breakfast' ? tr('home:slot.breakfast', { defaultValue: 'Breakfast' })
+      : slot === 'lunch' ? tr('home:slot.lunch', { defaultValue: 'Lunch' })
+        : slot === 'snack' ? tr('home:slot.snack', { defaultValue: 'Snack' })
+          : slot === 'dinner' ? tr('home:slot.dinner', { defaultValue: 'Dinner' })
+            : m.title;
+  };
+  const _eatMacro = (m) => tr('nutrition:eat.macroRow', { defaultValue: '{kcal} kcal · {p}P · {c}C · {f}F', kcal: m.kcal, p: m.p, c: m.c, f: m.f });
+  const _eatNext = bsEatNextMeal;
+  const _eatNextAt = _eatNext ? _eatMin(_eatNext) : null;
+  const _eatAhead = _eatNextAt != null && _eatNextAt > _eatNowMin;
+  // The arrival bar runs only toward a meal still ahead of the clock.
+  const _eatPrev = _eatNext && _eatAhead
+    ? bsFocusPrevStop(effMeals.filter((m) => m.id !== _eatNext.id).map((m) => ({ min: _eatMin(m), label: _eatSlot(m), done: m.state === 'done' })), _eatNextAt)
+    : null;
+  const _eatPct = _eatPrev ? bsFocusArrival(_eatPrev.min, _eatNextAt, _eatNowMin) : null;
+  const _eatUntil = _eatNext ? bsFocusUntil(_eatNextAt, _eatNowMin) : null;
+  // NOW on the menu line (today): above the first meal still ahead of the clock.
+  const _eatNowIdx = (() => {
+    if (!_eatIsToday || !effMeals.length) return -1;
+    const i = effMeals.findIndex((m) => { const x = _eatMin(m); return x != null && x > _eatNowMin; });
+    return i === -1 ? effMeals.length : i;
+  })();
+  const _eatFmtNow = bsFmt12(`${_eatNowD.getHours()}:${String(_eatNowD.getMinutes()).padStart(2, '0')}`);
+
   return (
     <BSPage>
       <BSPageHeader
@@ -13976,40 +13821,63 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
         trailing={<BSHeaderTools onProfile={onProfile} />}
       />
 
-      {/* Find a nutritionist — marketplace deep link, pinned to the TOP so it's
-          always visible. Zero-box role leader row (shared with Train). */}
-      <BSFindCoachBar role="nutritionist" onOpen={() => goMarket('nutritionist')} />
-
       <BSNutritionTopTabs active="eat" onChange={setView} />
 
       <BSWeekStrip activeIdx={day} onSelect={setDay} restFlags={PROGRAM.map(p => p.tag === 'REST')} />
 
       <BSCoachAdjustBanner detail={bsEatProgram.detail} kind="nutrition" />
 
-      {/* Calorie register + one-line macro register (owner-composed crop) —
-          sits below the calendar rule; the hardcoded "on pace" claim is gone. */}
-      <div style={{ padding: `12px ${t.padX}px 0` }}>
+      {/* The next meal — on its own, today only. Log it opens the meal, where it
+          is logged; Swap opens the swap sheet on this meal. */}
+      {_eatNext && (
+        <BSFocusLead color={t.ACCENT}
+          kicker={`${bsMealSchedLabel(_eatNext) || _eatSlot(_eatNext)} · ${_eatNextAt != null && !_eatAhead ? tr('home:focus.notLogged', { defaultValue: 'Not logged yet' }) : tr('home:focus.nextStop', { defaultValue: 'Next stop' })}`}
+          kickerRight={_eatUntil ? (_eatUntil.h > 0
+            ? tr('home:focus.inHourMin', { defaultValue: 'In {h} h {m} min', h: _eatUntil.h, m: _eatUntil.m })
+            : tr('home:focus.inMin', { defaultValue: 'In {m} min', m: _eatUntil.m })) : ''}
+          title={_eatSlot(_eatNext)}
+          sub={`${_eatNext.title} · ${_eatMacro(_eatNext)}`}>
+          {_eatPrev && (
+            <BSFocusArrival pct={_eatPct}
+              nowLabel={`${tr('home:slate.now', { defaultValue: 'Now' })} ${_eatFmtNow}`}
+              fromLabel={`${bsFmt12(`${Math.floor(_eatPrev.min / 60)}:${String(_eatPrev.min % 60).padStart(2, '0')}`)} · ${_eatPrev.label}${_eatPrev.done ? ' ✓' : ''}`}
+              toLabel={`${bsMealSchedLabel(_eatNext)} · ${_eatSlot(_eatNext)}`}
+              ariaLabel={tr('home:focus.arrivalAria', { defaultValue: 'Now {now}, between {from} and {to}', now: _eatFmtNow, from: bsFmt12(`${Math.floor(_eatPrev.min / 60)}:${String(_eatPrev.min % 60).padStart(2, '0')}`), to: bsMealSchedLabel(_eatNext) })} />
+          )}
+          <BSFocusActions
+            primary={{ label: tr('nutrition:eat.logIt', { defaultValue: 'Log it →' }), onClick: () => setPreviewMealId(_eatNext.id) }}
+            secondary={{ label: `${tr('nutrition:eat.swapTitle', { defaultValue: 'Swap' })} →`, onClick: () => setSwapMealId(_eatNext.id) }} />
+        </BSFocusLead>
+      )}
+
+      {/* Fuel left today — what is left of the day's target, then each macro as a
+          dot-leader row (the Home "At a glance" grammar); a row opens the day's
+          breakdown. Coach-set targets (Adjust plan → Apply) win. */}
+      <BSFocusHead glyph="◐" label={tr('nutrition:eat.fuelLeft', { defaultValue: 'Fuel left today' })}
+        meta={tr('nutrition:eat.kcalPlan', { defaultValue: '{kcal} kcal plan', kcal: bsEatCalTgt.toLocaleString() })} />
+      <div style={{ padding: `6px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 33, lineHeight: 0.9, letterSpacing: '-0.045em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{bsEatCalNow.toLocaleString()}</span>
-          <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.06em', color: t.INK50 }}>/ {bsEatCalTgt.toLocaleString()} {tr('nutrition:log.kcalUnit', { defaultValue: 'KCAL' })}</span>
-          <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: t.INK50 }}>{bsEatCalPct}%</span>
+          <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 40, lineHeight: 0.9, letterSpacing: '-0.045em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{bsEatCalLeft.toLocaleString()}</span>
+          <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr('nutrition:eat.kcalLeftWord', { defaultValue: 'kcal left' })}</span>
+          <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50, whiteSpace: 'nowrap' }}>{tr('nutrition:eat.eatenPct', { defaultValue: '{eaten} eaten · {pct}%', eaten: bsEatCalNow.toLocaleString(), pct: bsEatCalPct })}</span>
         </div>
-        <div aria-hidden style={{ marginTop: 7, height: 3, background: t.HAIR }}>
+        <div aria-hidden style={{ marginTop: 8, height: 3, background: t.HAIR }}>
           <div style={{ width: `${bsEatCalPct}%`, height: '100%', background: t.ACCENT }} />
         </div>
-        <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: t.ACCENT }}>{tr('nutrition:eat.kcalLeft', { defaultValue: '{kcal} kcal left', kcal: bsEatCalLeft.toLocaleString() })}</div>
-        <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>
-          {bsEatMacros.map((m, i) => (
-            <React.Fragment key={m.k}>
-              {i > 0 && <span style={{ color: t.INK50 }}> · </span>}
-              <span style={{ color: m.c, fontWeight: 700 }}>{m.l}</span> {m.v}/{m.g}
-            </React.Fragment>
+        <div style={{ marginTop: 6 }}>
+          {bsEatMacros.map((m) => (
+            <BSShelfDoor key={m.k} c={m.c} eyebrow={m.l}
+              figure={tr('nutrition:eat.gramsLeft', { defaultValue: '{g}g left', g: Math.max(0, m.g - m.v) })}
+              status={`${m.v} / ${m.g}`}
+              pct={m.g > 0 ? Math.max(0, Math.min(100, Math.round((m.v / m.g) * 100))) : undefined}
+              onOpen={() => setPreviewDayBrief(true)} />
           ))}
         </div>
       </div>
 
-      {/* The menu — courses by time. The next course carries the page's one
-          breathing dot + LOG IT; tapping any course opens the meal preview. */}
+      {/* The menu — the day as a line: each meal at its time, on the rail, with the
+          NOW tick today; the next one is marked and carries the kcal still left.
+          Tapping a meal opens it. */}
       {/* ⚠ THE TITLE WAS AN ENGLISH POSSESSIVE OVER A HARDCODED WEEKDAY ARRAY
           (`${['Monday', ...][day]}'s meals`) — not even the device locale, a
           literal list. Home already formats its weekday through bsDateLocale();
@@ -14020,55 +13888,43 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
           ? tr('nutrition:eat.mealsToday', { defaultValue: "Today's meals" })
           : tr('nutrition:eat.mealsOnDay', { defaultValue: "{day}'s meals", day: bsWeekdayName(day) })}
         actionLabel={tr('nutrition:eat.swapAction', { defaultValue: 'Swap meal' })} onAction={() => setSwapMealId('pick')} />
-      <div data-tour="hero-eat" style={{ padding: `10px ${t.padX}px 0` }}>
-        {effMeals.map((m, i) => {
-          const logged = m.state === 'done';
-          const isNext = !!(bsEatNextMeal && m.id === bsEatNextMeal.id);
-          const swapped = !!mealOverrides[m._baseTitle];
-          const timeLabel = bsMealSchedLabel(m) || m.tag || '';
-          // PREPPED stamp (PR C): a fresh prep record for THIS meal — exact
-          // match only, and only until it's logged (the log supersedes it).
-          // A made-ahead meal counts as prepped only when a prep covers it on this day, and on
-          // today's menu one that is not says so (bsMenuPrepState).
-          const { prepped, notPrepped } = bsMenuPrepState({ meal: m, logged, entries: prepEntries, ahead: aheadOn.get(m.id), viewYmd, todayYmd, now: prepNow });
-          return (
-            <div key={m.id} style={{ marginTop: i === 0 ? 0 : 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: isNext ? t.ACCENT : t.INK70 }}>{timeLabel}</span>
-                <span aria-hidden style={{ flex: 1, height: 1.5, background: isNext ? bsTHexA(t.ACCENT, 0.45) : t.HAIR }} />
-                {logged ? (
-                  <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.ACCENT }}>✓</span>
-                ) : isNext ? (
-                  <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: t.ACCENT }}>
-                    <span aria-hidden style={{ display: 'inline-block', width: 5, height: 5, borderRadius: 999, background: t.ACCENT, verticalAlign: 'middle', marginRight: 5, ...(bsSdReduced() ? null : { animation: 'bsPlatePulse 1.8s ease-in-out infinite' }) }} />
-                    {tr('nutrition:eat.next', { defaultValue: 'NEXT' })}
-                  </span>
-                ) : null}
-              </div>
-              <button type="button" onClick={() => setPreviewMealId(m.id)} aria-label={`${timeLabel} · ${m.title}${logged ? ` · ${tr('nutrition:eat.ariaLogged', { defaultValue: 'logged' })}` : isNext ? ` · ${tr('nutrition:eat.ariaNext', { defaultValue: 'next' })}` : ''}`} style={{ display: 'block', width: '100%', minHeight: 44, textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0 2px' }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: logged ? t.INK50 : t.INK, letterSpacing: '-0.01em' }}>{m.title}{swapped && <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', color: t.ACCENT, marginLeft: 7 }}>{tr('nutrition:eat.swapped', { defaultValue: 'SWAPPED' })}</span>}</div>
-                <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: isNext ? t.ACCENT : t.INK50, marginTop: 3, letterSpacing: '0.04em' }}>{tr('nutrition:eat.macroRow', { defaultValue: '{kcal} kcal · {p}P · {c}C · {f}F', kcal: m.kcal, p: m.p, c: m.c, f: m.f })}{isNext ? ` · ${tr('nutrition:eat.kcalLeftUpper', { defaultValue: '{kcal} KCAL LEFT', kcal: bsEatCalLeft.toLocaleString() })}` : ''}</div>
-                {prepped && (
-                  <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.isLight ? '#0a8f87' : t.ACCENT, marginTop: 3 }}>
-                    {tr('cook:prep.stamp', { defaultValue: 'Prepped ✓ · just plate it' })}
-                  </div>
-                )}
-                {notPrepped && (
-                  <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70, marginTop: 3 }}>
-                    {tr('cook:prepAhead.notPrepped', { defaultValue: 'Not prepped last night' })}
-                  </div>
-                )}
-              </button>
-              {isNext && (
-                <button type="button" onClick={() => setPreviewMealId(m.id)} style={{ marginTop: 2, minHeight: 44, padding: '10px 2px', background: 'transparent', border: 0, borderBottom: `2px solid ${t.ACCENT}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>{tr('nutrition:eat.logIt', { defaultValue: 'Log it →' })}</button>
-              )}
-            </div>
-          );
-        })}
+      <div data-tour="hero-eat" style={{ paddingTop: 4 }}>
+        <BSFocusLine
+          nowIndex={_eatNowIdx}
+          nowLabel={_eatNowIdx >= 0 ? `${tr('home:slate.now', { defaultValue: 'Now' })} · ${_eatFmtNow}` : null}
+          rows={effMeals.map((m) => {
+            const logged = m.state === 'done';
+            const isNext = !!(bsEatNextMeal && m.id === bsEatNextMeal.id);
+            const swapped = !!mealOverrides[m._baseTitle];
+            const timeLabel = bsMealSchedLabel(m) || m.tag || '';
+            // PREPPED stamp (PR C): a fresh prep record for THIS meal — exact
+            // match only, and only until it's logged (the log supersedes it).
+            // A made-ahead meal counts as prepped only when a prep covers it on this day, and on
+            // today's menu one that is not says so (bsMenuPrepState).
+            const { prepped, notPrepped } = bsMenuPrepState({ meal: m, logged, entries: prepEntries, ahead: aheadOn.get(m.id), viewYmd, todayYmd, now: prepNow });
+            const stamp = (text, color) => <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color }}>{text}</span>;
+            return {
+              key: m.id,
+              time: timeLabel,
+              title: m.title,
+              sub: `${_eatMacro(m)}${isNext ? ` · ${tr('nutrition:eat.kcalLeftUpper', { defaultValue: '{kcal} KCAL LEFT', kcal: bsEatCalLeft.toLocaleString() })}` : ''}`,
+              extra: (swapped || prepped || notPrepped) ? (
+                <>
+                  {swapped && stamp(tr('nutrition:eat.swapped', { defaultValue: 'SWAPPED' }), t.ACCENT)}
+                  {prepped && stamp(tr('cook:prep.stamp', { defaultValue: 'Prepped ✓ · just plate it' }), t.isLight ? '#0a8f87' : t.ACCENT)}
+                  {notPrepped && stamp(tr('cook:prepAhead.notPrepped', { defaultValue: 'Not prepped last night' }), t.INK70)}
+                </>
+              ) : null,
+              note: logged ? '✓' : isNext ? tr('nutrition:eat.next', { defaultValue: 'NEXT' }) : '',
+              state: logged ? 'done' : isNext ? 'next' : '',
+              onOpen: () => setPreviewMealId(m.id),
+              ariaLabel: `${timeLabel} · ${m.title}${logged ? ` · ${tr('nutrition:eat.ariaLogged', { defaultValue: 'logged' })}` : isNext ? ` · ${tr('nutrition:eat.ariaNext', { defaultValue: 'next' })}` : ''}`,
+            };
+          })} />
         {/* An empty menu offers Nora (the Ask Nora plan, step 5): the question lands in her
             composer for the member to send. */}
         {effMeals.length === 0 && (eatPlanRead || !bsEatSignedIn) && (
-          <div data-eat-empty style={{ padding: '4px 0 2px' }}>
+          <div data-eat-empty style={{ padding: `4px ${t.padX}px 2px` }}>
             <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK50, lineHeight: 1.45 }}>{tr('nutrition:eat.noMealsPlanned', { defaultValue: 'No meals planned' })}</div>
             {day === bsWeekdayIdx()
               ? <BSAskNoraLink t={t} label={tr('feed:support.ask.eatTodayLink', { defaultValue: 'Ask Nora what to eat today' })} draft={tr('feed:support.ask.eatToday', { defaultValue: 'What should I eat today?' })} />
@@ -14127,36 +13983,9 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
           }} />;
       })()}
 
-      {/* Your plan — nutritionist card */}
-      <BSTrackHeader kicker={tr('nutrition:eat.planKicker', { defaultValue: 'The plan' })} title={`${planGoalLabel} · ${bsEatCalTgt.toLocaleString()}`} />
-      <div style={{ padding: `12px ${t.padX}px 0` }}>
-        <div style={{ borderLeft: '3px solid #a07a2e', padding: '2px 0 2px 12px' }}>
-          {/* ⚠ WAS `liveMealCoach || 'Dr. Maya Patel'` — a signed-in member whose
-                coach name did not resolve read a nutritionist they do not have.
-                The honest fallback already exists 400 lines up; this is it.
-                ⚠ AND THE PERIOD BESIDE IT WAS THE SAME CLASS: `'Apr plan'` is a
-                MOCK_PROGRAM-era demo label, so a signed-in member with no plan read
-                a fabricated month. Live reads This week, signed-out keeps the demo,
-                and no-plan renders NOTHING rather than inventing a period. */}
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK }}>{liveMealCoach || (bsEatSignedIn ? tr('nutrition:eat.yourNutritionist', { defaultValue: 'Your nutritionist' }) : 'Dr. Maya Patel')}</div>
-          <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>{tr('home:role.nutritionist', { defaultValue: 'Nutritionist' })}{liveProgram ? ` \u00b7 ${tr('home:section.thisWeek', { defaultValue: 'This week' })}` : (bsEatSignedIn ? '' : ' \u00b7 Apr plan')}</div>
-          {cur.coachLine ? <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 16, lineHeight: 1.4, color: t.INK }}>&ldquo;{cur.coachLine}&rdquo;</div> : null}
-        </div>
-        <button type="button" onClick={() => setView('grocery')} style={{ marginTop: 4, width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', gap: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', textAlign: 'left' }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>{tr('nutrition:eat.shopList', { defaultValue: 'The shop list' })}</span>
-          <span aria-hidden style={{ flex: 1, borderBottom: `1.5px dotted ${bsTHexA(t.INK, 0.22)}`, transform: 'translateY(-2px)' }} />
-          <span style={{ color: t.ACCENT, fontWeight: 700, fontSize: 13 }}>→</span>
-        </button>
-        {/* PREP THE WEEK (PR C) — the Sunday-ritual door. Optional always: the
-            menu + shop list are complete without it. */}
-        <button type="button" data-bsck-door="prep" onClick={() => openPrep()} style={{ width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', gap: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', textAlign: 'left' }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.isLight ? '#0a8f87' : t.ACCENT }}>{tr('cook:prep.door', { defaultValue: 'Prep the week' })}</span>
-          <span aria-hidden style={{ flex: 1, borderBottom: `1.5px dotted ${bsTHexA(t.INK, 0.22)}`, transform: 'translateY(-2px)' }} />
-          <span style={{ color: t.ACCENT, fontWeight: 700, fontSize: 13 }}>→</span>
-        </button>
-      </div>
-
-      {/* For the week — shop list (live from the nutritionist's grocery list) */}
+      {/* ── FOCUS · LINKS — the rest of Eat, one row each: the shop list (with
+          what is still to get), prep the week, the nutritionist's plan (and the
+          day's note from them, when there is one), and finding a nutritionist. */}
       {(() => {
         const aisles = activeGroceryList.aisles || [];
         const total = activeGroceryCount;
@@ -14171,36 +14000,32 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
         const cats = aisles.filter(a => a.items.some(it => !it.have)).map(a => bsAisleLabel(a.aisle, TA)).slice(0, 3).join(', ');
         // ⚠ `.split(' ')[0]` IS A FIRST-NAME EXTRACTOR, so it may only ever run
         // over a real person's name. Fed the role noun it produced "From Your ·
-        // this week" — reachable for any signed-in member with no resolved coach,
-        // which is exactly who the builder used to hand a fabricated one.
-        // ⚠ AND 'You' IS NOT A NAME EITHER — the same defect cut 4 closed for the
-        // role noun, still live for the literal custom lists store. `author: 'You'`
-        // reached the extractor above, so a member opening their OWN saved list
-        // read "From You · this week" — and in every other locale an untranslated
-        // English pronoun inside a translated sentence ("De You · esta semana").
-        // A member's own list is credited to nobody; it is theirs.
+        // this week" — reachable for any signed-in member with no resolved coach.
+        // ⚠ AND 'You' IS NOT A NAME EITHER — a member's own list (`author: 'You'`)
+        // read "From You · this week", and in every other locale an untranslated
+        // English pronoun inside a translated sentence. A member's own list is
+        // credited to nobody; it is theirs.
         const selfList = bsGroceryIsSelfAuthored(activeGroceryList);
         const rawWho = selfList ? '' : String(activeGroceryList.author || '').trim();
         const who = rawWho ? rawWho.replace(/^Dr\.?\s+/i, '').split(' ')[0] : '';
-        // ⚠ ANOTHER ENGLISH PLURAL BY CONCATENATION (`item${n===1?'':'s'}`).
-        const title = left > 0
-          ? tr('nutrition:eat.itemsToGet', { defaultValue: '{n, plural, one {# item to get.} other {# items to get.}}', n: left })
-          : tr('nutrition:eat.allSet', { defaultValue: 'All set for the week.' });
+        const byline = selfList ? tr('nutrition:eat.fromYourList', { defaultValue: 'Your list · this week' }) : who ? tr('nutrition:eat.fromWho', { defaultValue: 'From {who} · this week', who }) : tr('nutrition:eat.fromYourPlan', { defaultValue: 'From your plan · this week' });
+        const toGet = left > 0
+          ? tr('nutrition:eat.itemsToGetTag', { defaultValue: '{n} to get', n: left })
+          : tr('nutrition:eat.allSetTag', { defaultValue: 'All set' });
+        // ⚠ WAS `liveMealCoach || 'Dr. Maya Patel'` — a signed-in member whose
+        // coach name did not resolve read a nutritionist they do not have. The
+        // honest role noun stands in; the signed-out preview keeps the demo name.
+        const coach = liveMealCoach || (bsEatSignedIn ? tr('nutrition:eat.yourNutritionist', { defaultValue: 'Your nutritionist' }) : 'Dr. Maya Patel');
         return (
-          <>
-            <BSTrackHeader kicker={tr('nutrition:eat.forTheWeek', { defaultValue: 'For the week' })} title={tr('nutrition:eat.groceryList', { defaultValue: 'Grocery list' })} actionLabel={tr('profile:action.open', { defaultValue: 'Open' })} onAction={() => setView('grocery')} />
-            <div style={{ padding: `12px ${t.padX}px 0` }}>
-              <button type="button" data-tour="hero-grocery" onClick={() => setView('grocery')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, padding: '11px 13px', minHeight: 60, borderRadius: 12, border: `1px solid ${t.HAIR}`, background: 'transparent' }}>
-                <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 11, background: '#a07a2e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>◎</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#a07a2e', fontWeight: 700, marginBottom: 2 }}>{selfList ? tr('nutrition:eat.fromYourList', { defaultValue: 'Your list · this week' }) : who ? tr('nutrition:eat.fromWho', { defaultValue: 'From {who} · this week', who }) : tr('nutrition:eat.fromYourPlan', { defaultValue: 'From your plan · this week' })}</div>
-                  <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15, color: t.INK }}>{title}</div>
-                  <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: 2, letterSpacing: '0.05em', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{tr('nutrition:eat.gotLeft', { defaultValue: '{got} got · {left} left', got: have, left })}{cats ? ` · ${cats}` : ''}</div>
-                </div>
-                <span style={{ color: t.INK50, fontSize: 16 }}>→</span>
-              </button>
-            </div>
-          </>
+          <div style={{ marginTop: t.sectGap }}>
+            <BSFocusLink tour="hero-grocery" color={t.GREEN} glyph="◎" label={tr('nutrition:eat.shopList', { defaultValue: 'The shop list' })} tag={total > 0 ? toGet : ''} sub={[byline, cats].filter(Boolean).join(' · ')} onOpen={() => setView('grocery')} />
+            <BSFocusLink data-bsck-door="prep" color={t.isLight ? '#0a8f87' : t.ACCENT} glyph="→" label={tr('cook:prep.door', { defaultValue: 'Prep the week' })} onOpen={() => openPrep()} />
+            <BSFocusLink color="#a07a2e" glyph="✎" label={coach} tag={`${planGoalLabel} · ${bsEatCalTgt.toLocaleString()}`} onOpen={() => setPreviewDayBrief(true)} />
+            {cur.coachLine ? (
+              <div style={{ margin: `10px ${t.padX}px 0`, padding: '2px 0 2px 12px', borderLeft: '3px solid #a07a2e', fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, lineHeight: 1.45, color: t.INK70 }}>&ldquo;{cur.coachLine}&rdquo;</div>
+            ) : null}
+            <BSFindCoachBar role="nutritionist" onOpen={() => goMarket('nutritionist')} />
+          </div>
         );
       })()}
 
@@ -34113,7 +33938,7 @@ function BSCoachGroceryReview({ t, teal, onAdd }) {
 // One palette for the grocery surfaces (the list + Saved carts) so the client
 // teal lead + the nutritionist gold tag can't drift between the two components.
 const bsGroceryHues = (t) => ({ teal: t.isLight ? '#0a8f87' : '#34d6c5', gold: t.isLight ? '#a07a2e' : '#d8b25a' });
-function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recipeLists = [], onChangeView = () => {}, editable = false, onUpdate = () => {}, onCreate = () => {}, onSaveToLibrary = null, onPickList = null, onProfile = () => {}, onPrep = null }) {
+function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recipeLists = [], onChangeView = () => {}, editable = false, onUpdate = () => {}, onCreate = () => {}, onSaveToLibrary = null, onPickList = null, onProfile = () => {}, onPrep = null, mealWhen = null }) {
   const t = useBS();
   const trG = useShapeTr();
   const TG = bsTrainT(trG);
@@ -34131,7 +33956,7 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
       : [{ aisle: 'Items', items: [] }];
     aisles[0] = { ...aisles[0], items: [...aisles[0].items, item] };
     onUpdate({ ...list, aisles });
-    setOpenAisles((prev) => new Set(prev).add(aisles[0].aisle));   // reveal the aisle the new item landed in
+    setAisleAt(0);   // walk to the aisle the new item landed in
     setNewName(''); setNewQty('');
   };
   const removeItem = (ai, ii) => {
@@ -34151,23 +33976,41 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
     if (next.has(k)) next.delete(k); else next.add(k);
     setChecked(next);
   };
-  // Collapsible aisles — the list can run long, so each aisle is a dropdown. A
-  // single-aisle list opens by default; multi-aisle lists start collapsed (a
-  // compact index of aisles) — tap a header to reveal its items.
-  const filledAisleNames = list.aisles.filter((a) => a.items.length).map((a) => a.aisle);
-  const [openAisles, setOpenAisles] = useStateBSC(() => new Set(filledAisleNames.length <= 1 ? filledAisleNames : []));
+  // ── SHOP BY (owner, 2026-10-11): the same list two ways — by aisle for the
+  // store (one aisle at a time), or by meal for the week (each ingredient under
+  // the meal it is for, and a meal can be skipped). One tick is one tick in
+  // both views. The choice and the skipped meals are remembered on this device.
+  const _store = (typeof window !== 'undefined' && window.localStorage) || null;
+  const [shopBy, setShopByState] = useStateBSC(() => bsReadShopBy(_store));
+  const setShopBy = (v) => { setShopByState(v); bsSaveShopBy(_store, v); };
+  const listKey = String(list.id || list.name || 'list');
+  const [skipped, setSkipped] = useStateBSC(() => bsReadSkippedMeals(_store, listKey));
+  const [aisleAt, setAisleAt] = useStateBSC(null);      // the aisle being walked (index), null = the first with anything left
+  const [aisleAll, setAisleAll] = useStateBSC(false);   // show every item still to get in that aisle
+  const [cartOpen, setCartOpen] = useStateBSC(false);   // show what is already in the cart there
+  const [openMeals, setOpenMeals] = useStateBSC(null);  // meals shown open; null = the first two
+  const [mealsAll, setMealsAll] = useStateBSC(false);   // every meal, not just the next six
   React.useEffect(() => {
-    const names = list.aisles.filter((a) => a.items.length).map((a) => a.aisle);
-    setOpenAisles(new Set(names.length <= 1 ? names : []));
-  }, [list.id || list.name]);
-  const toggleAisle = (name) => setOpenAisles((prev) => { const n = new Set(prev); if (n.has(name)) n.delete(name); else n.add(name); return n; });
-  const allAislesOpen = filledAisleNames.length > 0 && filledAisleNames.every((n) => openAisles.has(n));
-  const toggleAllAisles = () => setOpenAisles(allAislesOpen ? new Set() : new Set(filledAisleNames));
-  const total = allKeys.length;
-  const done = checked.size;
-  const pct = Math.round((done / total) * 100);
+    setSkipped(bsReadSkippedMeals(_store, listKey));
+    setAisleAt(null); setAisleAll(false); setCartOpen(false); setOpenMeals(null); setMealsAll(false);
+  }, [listKey]);
+  const toggleSkip = (name) => setSkipped((prev) => {
+    const n = new Set(prev);
+    if (n.has(name)) n.delete(name); else n.add(name);
+    bsSaveSkippedMeals(_store, listKey, n);
+    return n;
+  });
+  const isGot = (ai, ii) => checked.has(`${ai}-${ii}`);
+  // A skipped item (every meal it is for was skipped) is off the list: out of the
+  // counts, the aisles, the share text and the Instacart order.
+  const liveKeys = [];
+  list.aisles.forEach((a, ai) => a.items.forEach((it, ii) => { if (!bsGrocerySkipped(it, skipped)) liveKeys.push(`${ai}-${ii}`); }));
+  const total = liveKeys.length;
+  const done = liveKeys.filter((k) => checked.has(k)).length;
+  const offCount = allKeys.length - total;
+  const pct = total ? Math.round((done / total) * 100) : 0;
   const estCost = 48;
-  const estLeft = Math.round(estCost * (1 - done / total));
+  const estLeft = total ? Math.round(estCost * (1 - done / total)) : 0;
   const { teal, gold } = bsGroceryHues(t);
   const savedLib = useBSLibrary();
   // ⚠ `meta` STAYS ENGLISH, AND THAT IS THE RECORD-SHAPE RULE, NOT AN OMISSION.
@@ -34178,7 +34021,7 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
   // with four writers (workout · meal · plan · grocery) and three readers, so
   // doing it at this one writer would split one column into two conventions.
   // Registered as its own cut; see docs/WORKLOG.md.
-  const groceryItem = { id: `grocery:${list.id || String(list.name || 'list').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`, kind: 'grocery', title: list.name, meta: `${total} items · ${list.aisles.length} aisles` };
+  const groceryItem = { id: `grocery:${list.id || String(list.name || 'list').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`, kind: 'grocery', title: list.name, meta: `${allKeys.length} items · ${list.aisles.length} aisles` };
   const grocerySaved = savedLib.some(x => x.id === groceryItem.id);
   const accent = teal; // grocery (food list) page leads with the client teal accent
   const aisleDoneCount = (ai) => list.aisles[ai].items.filter((_, ii) => checked.has(`${ai}-${ii}`)).length;
@@ -34186,7 +34029,7 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
   const shareList = async () => {
     // ⚠ toUpperCase() IS LOCALE-INSENSITIVE and this now runs over translated
     // text — the Turkish dotted/dotless i class this repo has already paid for.
-    const lines = list.aisles.map(a => `${bsAisleLabel(a.aisle, TG).toLocaleUpperCase(bsDateLocale())}\n${a.items.map(it => `  • ${it.q ? it.q + ' ' : ''}${it.n}`).join('\n')}`).join('\n\n');
+    const lines = list.aisles.map(a => ({ ...a, items: a.items.filter(it => !bsGrocerySkipped(it, skipped)) })).filter(a => a.items.length).map(a => `${bsAisleLabel(a.aisle, TG).toLocaleUpperCase(bsDateLocale())}\n${a.items.map(it => `  • ${it.q ? it.q + ' ' : ''}${it.n}`).join('\n')}`).join('\n\n');
     const shopTitle = TG('nutrition:grocery.shop.shareTitle', `${list.name} — Shop list`, { name: list.name });
     const body = `${shopTitle}\n\n${lines}`;
     // Native share sheet (Messages / Mail / etc.) when available, else clipboard.
@@ -34201,7 +34044,7 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
   };
   const sendInstacart = async () => {
     try {
-      const items = (list.aisles || []).flatMap(a => a.items || []).map(it => ({ name: it.n, display_text: [it.q, it.n].filter(Boolean).join(' ') })).filter(it => it.name);
+      const items = (list.aisles || []).flatMap(a => (a.items || []).filter(it => !bsGrocerySkipped(it, skipped))).map(it => ({ name: it.n, display_text: [it.q, it.n].filter(Boolean).join(' ') })).filter(it => it.name);
       if (!items.length) { window.__bsToast?.(TG('nutrition:grocery.shop.emptySend', 'Your grocery list is empty.'), 'error'); return; }
       await window.ShapeIntegrations?.sendGroceryToInstacart?.({ items, title: list.name });
     } catch (e) { window.__bsToast?.(e?.message || TG('nutrition:grocery.shop.sendFail', 'Could not send list.'), 'error'); }
@@ -34226,9 +34069,30 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
     const findAisle = (name) => { const al = bsGroceryAisleFor(name); let idx = aisles.findIndex(a => a.aisle === al); if (idx < 0) { aisles.push({ aisle: al, items: [] }); idx = aisles.length - 1; } return idx; };
     items.forEach((it, n2) => { const ai = findAisle(it.n); aisles[ai].items.push({ id: `voice-${Date.now()}-${n2}`, n: it.n, q: it.q, meals: list.name, have: false }); });
     onUpdate({ ...list, aisles });
-    const _touched = new Set(items.map((it) => bsGroceryAisleFor(it.n)));   // reveal aisles the spoken items landed in
-    setOpenAisles((prev) => { const n = new Set(prev); _touched.forEach((x) => n.add(x)); return n; });
+    const _touched = new Set(items.map((it) => bsGroceryAisleFor(it.n)));   // walk to the first aisle the spoken items landed in
+    const _firstAi = aisles.findIndex((a) => _touched.has(a.aisle));
+    if (_firstAi >= 0) setAisleAt(_firstAi);
     window.__bsToast?.(TG('nutrition:grocery.shop.voiceAdded', `Added ${items.length} item${items.length === 1 ? '' : 's'} from voice`, { count: items.length }), 'ok');
+  };
+  // One item on the list — the same row in both views; the meal line shows in the
+  // aisle view only (in the meal view the meal is the group).
+  const itemRow = (ai, ii, it, { compact = false, first = false } = {}) => {
+    const k = `${ai}-${ii}`; const on = checked.has(k);
+    return (
+      <div key={k} role="checkbox" aria-checked={on} tabIndex={0} onClick={() => toggle(k)}
+        onKeyDown={(e) => { if (e.target !== e.currentTarget) return; if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(k); } }}
+        style={{ display: 'grid', gridTemplateColumns: '24px 1fr auto', alignItems: 'center', gap: 12, padding: compact ? '10px 0' : '13px 0', cursor: 'pointer', borderTop: first ? 0 : `1px solid ${t.HAIR}`, opacity: on ? 0.5 : 1 }}>
+        <span style={{ width: 22, height: 22, borderRadius: 6, border: `1.5px solid ${on ? accent : t.RULE}`, background: on ? accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 12, fontWeight: 800 }}>{on ? '✓' : ''}</span>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: compact ? 15 : 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', textDecoration: on ? 'line-through' : 'none' }}>{it.n}</div>
+          {!compact && it.meals && <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, letterSpacing: '0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.meals}</div>}
+        </div>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 11, color: accent, fontWeight: 700 }}>{it.q}</span>
+          {editable && <button onClick={(e) => { e.stopPropagation(); removeItem(ai, ii); }} aria-label={TG('nutrition:log.remove', 'Remove')} style={{ border: 0, background: 'transparent', color: t.INK50, fontSize: 16, lineHeight: 1, cursor: 'pointer', padding: 0, minWidth: 24, minHeight: 32 }}>×</button>}
+        </span>
+      </div>
+    );
   };
   const voiceTap = async () => {
     if (vState === 'busy') return;
@@ -34342,7 +34206,7 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
         {total > 0 && (
           <div style={{ marginTop: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>{TG('nutrition:grocery.shop.gotCount', `${done}/${total} got`, { done, total })} · <span style={{ color: accent }}>{done < total ? TG('nutrition:grocery.shop.toGo', `~$${estLeft} to go`, { amount: estLeft }) : TG('nutrition:grocery.shop.allSet', 'all set')}</span></span>
+              <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>{TG('nutrition:grocery.shop.gotCount', `${done}/${total} got`, { done, total })} · <span style={{ color: accent }}>{done < total ? TG('nutrition:grocery.shop.toGo', `~$${estLeft} to go`, { amount: estLeft }) : TG('nutrition:grocery.shop.allSet', 'all set')}</span>{offCount > 0 ? <span style={{ color: gold }}> · {trG('nutrition:grocery.shop.offCount', { defaultValue: '{count} skipped', count: offCount })}</span> : null}</span>
               <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, color: accent }}>{pct}%</span>
             </div>
             <div style={{ marginTop: 6, height: 4, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${pct}%`, background: accent, borderRadius: 2, transition: 'width 0.2s ease' }} /></div>
@@ -34359,46 +34223,148 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
           </button>
         )}
 
-        {/* Expand / collapse every aisle at once */}
-        {total > 0 && filledAisleNames.length > 1 && (
-          <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
-            <button onClick={toggleAllAisles} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: accent, padding: '4px 0' }}>{allAislesOpen ? TG('nutrition:grocery.shop.collapseAll', 'Collapse all ▴') : TG('nutrition:grocery.shop.expandAll', 'Expand all ▾')}</button>
-          </div>
+        {/* SHOP BY — aisle or meal. */}
+        {allKeys.length > 0 && (
+          <BSShopBySwitch value={shopBy} onChange={setShopBy}
+            label={trG('nutrition:grocery.shop.shopBy', { defaultValue: 'Shop by' })}
+            aisleLabel={trG('nutrition:grocery.shop.byAisle', { defaultValue: 'Aisle' })}
+            mealLabel={trG('nutrition:grocery.shop.byMeal', { defaultValue: 'Meal' })} />
         )}
 
-        {/* The checklist — each aisle is a collapsible dropdown (tap the header) */}
-        {list.aisles.map((aisle, ai) => {
-          if (!aisle.items.length) return null;
-          const adone = aisleDoneCount(ai), afull = adone >= aisle.items.length;
-          const open = openAisles.has(aisle.aisle);
+        {/* BY AISLE — one aisle at a time: the aisles on a strip with what is left
+            in each, then the aisle you are in (the first eight still to get, the
+            rest a tap away), what is already in the cart there, and the next
+            aisle with anything left. */}
+        {shopBy !== 'meal' && (() => {
+          const stops = bsGroceryAisleStops(list.aisles, isGot, skipped);
+          const cur = stops.find((s) => s.ai === aisleAt) || stops.find((s) => s.left > 0) || stops[0] || null;
+          if (!cur) return null;
+          const label = bsAisleLabel(list.aisles[cur.ai].aisle, TG);
+          const items = list.aisles[cur.ai].items.map((it, ii) => ({ it, ii })).filter((x) => !bsGrocerySkipped(x.it, skipped));
+          const toGet = items.filter((x) => !isGot(cur.ai, x.ii));
+          const inCart = items.filter((x) => isGot(cur.ai, x.ii));
+          const CAP = 8;
+          const shown = aisleAll ? toGet : toGet.slice(0, CAP);
+          const pos = stops.indexOf(cur);
+          const next = stops.slice(pos + 1).find((s) => s.left > 0) || stops.slice(0, pos).find((s) => s.left > 0) || null;
+          const go = (ai) => { setAisleAt(ai); setAisleAll(false); setCartOpen(false); };
           return (
-            <div key={`${aisle.aisle}-${ai}`} style={{ marginTop: filledAisleNames.length > 1 ? 12 : 18 }}>
-              <button onClick={() => toggleAisle(aisle.aisle)} aria-expanded={open} aria-label={TG('nutrition:grocery.shop.aisleAria', `${bsAisleLabel(aisle.aisle, TG)}, ${adone} of ${aisle.items.length} got`, { aisle: bsAisleLabel(aisle.aisle, TG), done: adone, total: aisle.items.length })} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '5px 0 10px', border: 0, borderBottom: `1px solid ${t.HAIR}`, background: 'transparent', cursor: 'pointer', textAlign: 'left' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                  <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 600, color: afull ? accent : t.INK50, flexShrink: 0, width: 10 }}>{open ? '▾' : '▸'}</span>
-                  <span style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 500, color: t.INK, letterSpacing: '-0.005em', textDecoration: afull ? 'line-through' : 'none', opacity: afull ? 0.55 : 1 }}>{bsAisleLabel(aisle.aisle, TG)}</span>
-                </span>
-                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 600, letterSpacing: '0.08em', color: afull ? accent : t.INK50, flexShrink: 0 }}>{adone}/{aisle.items.length}</span>
-              </button>
-              {open && aisle.items.map((it, ii) => {
-                const k = `${ai}-${ii}`; const on = checked.has(k);
-                return (
-                  <div key={k} onClick={() => toggle(k)} style={{ display: 'grid', gridTemplateColumns: '24px 1fr auto', alignItems: 'center', gap: 12, padding: '13px 0', cursor: 'pointer', borderTop: ii ? `1px solid ${t.HAIR}` : 0, opacity: on ? 0.5 : 1 }}>
-                    <span style={{ width: 22, height: 22, borderRadius: 6, border: `1.5px solid ${on ? accent : t.RULE}`, background: on ? accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 12, fontWeight: 800 }}>{on ? '✓' : ''}</span>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', textDecoration: on ? 'line-through' : 'none' }}>{it.n}</div>
-                      {it.meals && <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, letterSpacing: '0.02em' }}>{it.meals}</div>}
-                    </div>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontFamily: t.MONO, fontSize: 11, color: accent, fontWeight: 700 }}>{it.q}</span>
-                      {editable && <button onClick={(e) => { e.stopPropagation(); removeItem(ai, ii); }} aria-label={TG('nutrition:log.remove', 'Remove')} style={{ border: 0, background: 'transparent', color: t.INK50, fontSize: 16, lineHeight: 1, cursor: 'pointer', padding: 0 }}>×</button>}
+            <>
+              {stops.length > 1 && (
+                <BSFocusRoute flush stops={stops.map((s) => {
+                  const name = bsAisleLabel(list.aisles[s.ai].aisle, TG);
+                  return { key: `${s.ai}`, top: name, value: s.left, pct: s.total ? (s.got / s.total) * 100 : 0, on: s.ai === cur.ai, onSelect: () => go(s.ai), ariaLabel: trG('nutrition:grocery.shop.aisleStopAria', { defaultValue: '{aisle}: {count} to get', aisle: name, count: s.left }) };
+                })} />
+              )}
+              <div style={{ marginTop: 18, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
+                <div style={{ minWidth: 0 }}>
+                  {stops.length > 1 && <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: accent }}>{trG('nutrition:grocery.shop.aisleOf', { defaultValue: 'Aisle {n} of {count}', n: pos + 1, count: stops.length })}</div>}
+                  <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: t.W.display, color: t.INK, letterSpacing: '-0.025em', lineHeight: 1.1 }}>{label}</div>
+                </div>
+                <span style={{ flexShrink: 0, paddingBottom: 5, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: accent }}>{toGet.length ? trG('nutrition:grocery.shop.toGetCount', { defaultValue: '{count} to get', count: toGet.length }) : trG('nutrition:grocery.shop.aisleDone', { defaultValue: 'All got ✓' })}</span>
+              </div>
+              <div aria-hidden style={{ height: 2, margin: '10px 0 2px', background: `linear-gradient(90deg, ${t.INK}, ${accent} 58%, transparent)` }} />
+              {shown.map((x, i) => itemRow(cur.ai, x.ii, x.it, { first: i === 0 }))}
+              {toGet.length > CAP && (
+                <button type="button" onClick={() => setAisleAll((v) => !v)} aria-expanded={aisleAll} style={{ width: '100%', minHeight: 48, display: 'flex', alignItems: 'center', gap: 8, padding: 0, background: 'transparent', border: 0, borderTop: `1px solid ${t.HAIR}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent }}>
+                  {aisleAll ? trG('nutrition:grocery.shop.showFewer', { defaultValue: 'Show fewer ▴' }) : trG('nutrition:grocery.shop.moreInAisle', { defaultValue: '{count} more in {aisle} ▾', count: toGet.length - CAP, aisle: label })}
+                </button>
+              )}
+              {inCart.length > 0 && (
+                <>
+                  <button type="button" onClick={() => setCartOpen((v) => !v)} aria-expanded={cartOpen} style={{ width: '100%', minHeight: 46, display: 'flex', alignItems: 'center', gap: 12, padding: 0, background: 'transparent', border: 0, borderTop: `1px solid ${t.HAIR}`, cursor: 'pointer', textAlign: 'left' }}>
+                    <span aria-hidden style={{ flexShrink: 0, width: 16, height: 16, borderRadius: 4, background: accent, color: '#fff', display: 'grid', placeItems: 'center', fontSize: 9, fontWeight: 800 }}>✓</span>
+                    <span style={{ minWidth: 0, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 600, letterSpacing: '0.1em', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {trG('nutrition:grocery.shop.inCart', { defaultValue: '{count} in the cart', count: inCart.length })} · <span style={{ color: t.INK70 }}>{inCart.map((x) => x.it.n).join(', ')}</span>
                     </span>
+                    <span aria-hidden style={{ marginLeft: 'auto', flexShrink: 0, fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>{cartOpen ? '▴' : '▾'}</span>
+                  </button>
+                  {cartOpen && inCart.map((x, i) => itemRow(cur.ai, x.ii, x.it, { first: i === 0 }))}
+                </>
+              )}
+              {next ? (
+                <button type="button" onClick={() => go(next.ai)} style={{ marginTop: 18, width: '100%', minHeight: 60, display: 'flex', alignItems: 'center', gap: 12, padding: '0 14px', borderRadius: 4, border: `1px solid ${accent}73`, borderLeft: `3px solid ${accent}`, background: `${accent}0f`, cursor: 'pointer', textAlign: 'left' }}>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: accent }}>{trG('nutrition:grocery.shop.nextAisle', { defaultValue: 'Next aisle' })}</span>
+                    <span style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{bsAisleLabel(list.aisles[next.ai].aisle, TG)}</span>
+                  </span>
+                  <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>{trG('nutrition:grocery.shop.toGetCount', { defaultValue: '{count} to get', count: next.left })}</span>
+                  <span aria-hidden style={{ flexShrink: 0, color: accent, fontSize: 16, fontWeight: 700 }}>→</span>
+                </button>
+              ) : (stops.every((s) => s.left === 0) ? (
+                <div style={{ marginTop: 18, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: accent }}>{trG('nutrition:grocery.shop.allGot', { defaultValue: 'Everything is in the cart ✓' })}</div>
+              ) : null)}
+            </>
+          );
+        })()}
+
+        {/* BY MEAL — each ingredient under the meal it is for, in the order the
+            meals come this week (today first). An ingredient for two meals sits
+            under both, and a tick in one is a tick in the other. Skip a meal and
+            its ingredients come off the list, unless another meal still needs
+            them. Items that are not for a meal gather at the end. */}
+        {shopBy === 'meal' && (() => {
+          // A custom list's own items carry the list's name as their "meal" — they
+          // are for no meal, so they gather with the loose items.
+          const forMeal = list.aisles.map((a) => ({ ...a, items: a.items.map((it) => (it.meals === list.name ? { ...it, meals: '', mealList: undefined } : it)) }));
+          const when = (name) => (mealWhen && typeof mealWhen.get === 'function' ? mealWhen.get(name) : null) || null;
+          const groups = bsGroceryByMeal(forMeal, (name) => { const w = when(name); return w ? w.rank : null; });
+          const named = groups.filter((g) => g.name);
+          const firstOpen = new Set(named.filter((g) => !skipped.has(g.name)).slice(0, 2).map((g) => g.name));
+          const isOpen = (name) => (openMeals || firstOpen).has(name);
+          const flip = (name) => setOpenMeals((prev) => { const n = new Set(prev || firstOpen); if (n.has(name)) n.delete(name); else n.add(name); return n; });
+          // The next six meals show; the rest of the week is one tap away, so a
+          // 29-meal plan does not open as 29 rows. The loose items always show.
+          const MEAL_CAP = 6;
+          const shownGroups = mealsAll ? groups : [...named.slice(0, MEAL_CAP), ...groups.filter((g) => !g.name)];
+          const moreMeals = named.length - MEAL_CAP;
+          return (
+            <>
+              {named.length > 0 && (
+                <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 9.5, lineHeight: 1.6, letterSpacing: '0.04em', color: t.INK50 }}>
+                  <span style={{ color: t.INK, fontWeight: 700 }}>{trG('nutrition:grocery.shop.mealsItems', { defaultValue: '{meals, plural, one {# meal} other {# meals}} · {items, plural, one {# item} other {# items}}.', meals: named.length, items: total })}</span>{' '}
+                  {trG('nutrition:grocery.shop.byMealHint', { defaultValue: 'Each ingredient sits under the meal it’s for. Skip a meal and its items come off the list.' })}
+                </div>
+              )}
+              {shownGroups.map((g) => {
+                const skip = !!(g.name && skipped.has(g.name));
+                const w = g.name ? when(g.name) : null;
+                const open = !skip && (g.name ? isOpen(g.name) : true);
+                const gotN = g.items.filter((x) => isGot(x.ai, x.ii)).length;
+                const offN = g.items.filter((x) => bsGrocerySkipped(x.item, skipped)).length;
+                const spine = skip ? gold : open ? accent : t.RULE;
+                return (
+                  <div key={g.name || '__loose'} style={{ position: 'relative', marginTop: 18, paddingLeft: 13 }}>
+                    <span aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: spine }} />
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, paddingBottom: 8, borderBottom: open ? `1px solid ${t.RULE}` : 0 }}>
+                      <button type="button" onClick={() => { if (g.name && !skip) flip(g.name); }} aria-expanded={g.name && !skip ? open : undefined} disabled={!g.name || skip} style={{ flex: 1, minWidth: 0, minHeight: 44, padding: 0, background: 'transparent', border: 0, textAlign: 'left', cursor: g.name && !skip ? 'pointer' : 'default' }}>
+                        <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: skip ? gold : open ? accent : t.INK50 }}>{w ? w.label : g.name ? trG('nutrition:grocery.shop.mealKicker', { defaultValue: 'Meal' }) : trG('nutrition:grocery.shop.notForMeal', { defaultValue: 'Not for a meal' })}</span>
+                        <span style={{ display: 'block', marginTop: 3, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em', color: skip ? t.INK50 : t.INK, textDecoration: skip ? 'line-through' : 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.name || trG('nutrition:grocery.shop.otherItems', { defaultValue: 'Other items' })}</span>
+                      </button>
+                      <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, paddingTop: 2 }}>
+                        <span style={{ fontFamily: t.MONO, fontSize: 9, color: skip ? gold : t.INK50, whiteSpace: 'nowrap' }}>{skip
+                          ? trG('nutrition:grocery.shop.skippedOff', { defaultValue: 'Skipped · {count} off', count: offN })
+                          : trG('nutrition:grocery.shop.itemsGot', { defaultValue: '{count, plural, one {# item} other {# items}} · {got} got', count: g.items.length, got: gotN })}</span>
+                        {g.name && (
+                          <button type="button" onClick={() => toggleSkip(g.name)} style={{ minHeight: 32, padding: 0, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent }}>
+                            {skip ? trG('nutrition:grocery.shop.unskip', { defaultValue: 'Undo' }) : trG('nutrition:grocery.shop.skip', { defaultValue: 'Skip' })}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {open && g.items.map((x, i) => itemRow(x.ai, x.ii, x.item, { compact: true, first: i === 0 }))}
                   </div>
                 );
               })}
-            </div>
+              {moreMeals > 0 && (
+                <button type="button" onClick={() => setMealsAll((v) => !v)} aria-expanded={mealsAll} style={{ marginTop: 14, width: '100%', minHeight: 48, display: 'flex', alignItems: 'center', gap: 8, padding: 0, background: 'transparent', border: 0, borderTop: `1px solid ${t.HAIR}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent }}>
+                  {mealsAll ? trG('nutrition:grocery.shop.showFewer', { defaultValue: 'Show fewer ▴' }) : trG('nutrition:grocery.shop.moreMeals', { defaultValue: '{count, plural, one {# more meal ▾} other {# more meals ▾}}', count: moreMeals })}
+                </button>
+              )}
+            </>
           );
-        })}
+        })()}
+
         {total === 0 && <div style={{ padding: '30px 0', textAlign: 'center', fontFamily: t.MONO, fontSize: 10, color: t.INK50, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{editable ? TG('nutrition:grocery.shop.emptyEditable', 'Add your first item below.') : TG('nutrition:grocery.shop.emptyRead', 'This list is empty.')}</div>}
 
         {/* Add item (editable lists) — type one, or speak the whole list */}

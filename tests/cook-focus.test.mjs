@@ -496,9 +496,18 @@ test('the shell, the sheet and its scrim carry what the rules read', () => {
 });
 
 // Every `<button ...>` opening tag in the source, brace-aware: a handler's `=>` holds a `>`.
+// A `<BSFocusLink ...>` (BSFocus.jsx) counts too: it renders one button and passes
+// `data-bsck-door` through to it, so a Focus link into cooking is a door like any other.
 function buttonTags(src) {
   const out = [];
-  let i = src.indexOf('<button');
+  const next = (from) => {
+    const a = src.indexOf('<button', from);
+    const b = src.indexOf('<BSFocusLink', from);
+    if (a < 0) return b;
+    if (b < 0) return a;
+    return Math.min(a, b);
+  };
+  let i = next(0);
   while (i >= 0) {
     let depth = 0;
     let quote = null;
@@ -512,7 +521,7 @@ function buttonTags(src) {
       else if (c === '>' && depth === 0) break;
     }
     out.push(src.slice(i, j + 1));
-    i = src.indexOf('<button', j);
+    i = next(j);
   }
   return out;
 }

@@ -341,5 +341,9 @@
   "player.view.hrNone": "Kalp atış hızı ölçümü kaydedilmedi.",
   "player.view.rest": "Dinlenme",
   "player.view.targetRpe": "Hedef RPE {rpe}",
-  "player.view.hrReading": "{bpm} bpm"
+  "player.view.hrReading": "{bpm} bpm",
+  "train.buildWorkoutLink": "Antrenman oluştur",
+  "train.startsIn": "Başlamasına",
+  "train.untilHourMin": "{h} sa {m} dk",
+  "train.untilMin": "{m} dk"
 }

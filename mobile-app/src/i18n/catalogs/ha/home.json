@@ -188,5 +188,20 @@
   "lead.hunger.head": "Ci abinci na gaske yau.",
   "lead.hydration.cta": "Zan rubuta ruwa →",
   "lead.hydration.head": "Ƙara shan ruwa yau.",
-  "lead.railHeader": "Matakinka"
+  "lead.railHeader": "Matakinka",
+  "focus.arrivalAria": "Yanzu {now}, tsakanin {from} da {to}",
+  "focus.eatenOf": "{eaten, number} daga {target, number}",
+  "focus.glance": "A taƙaice",
+  "focus.habitsDone": "an gama {done} daga {total}",
+  "focus.habitsFirst": "Ƙara ta farko",
+  "focus.inHourMin": "Cikin awa {h} da minti {m}",
+  "focus.inMin": "Cikin minti {m}",
+  "focus.kcalLeft": "Sauran kcal",
+  "focus.line": "Jadawalinka",
+  "focus.logToSee": "Rubuta abinci don gani",
+  "focus.next": "Na gaba",
+  "focus.nextStop": "Tasha ta gaba",
+  "focus.notLogged": "Ba a rubuta ba tukuna",
+  "focus.proteinToGo": "Sauran furotin",
+  "focus.viewMeal": "Duba abinci →"
 }

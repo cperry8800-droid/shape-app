@@ -341,5 +341,9 @@
   "player.view.hrNone": "Nessuna lettura cardiaca registrata.",
   "player.view.rest": "Recupero",
   "player.view.targetRpe": "RPE obiettivo {rpe}",
-  "player.view.hrReading": "{bpm} bpm"
+  "player.view.hrReading": "{bpm} bpm",
+  "train.buildWorkoutLink": "Crea un allenamento",
+  "train.startsIn": "Inizia tra",
+  "train.untilHourMin": "{h} h {m} min",
+  "train.untilMin": "{m} min"
 }

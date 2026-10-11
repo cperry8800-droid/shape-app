@@ -341,5 +341,9 @@
   "player.view.hrNone": "Không có số đo nhịp tim được ghi lại.",
   "player.view.rest": "Nghỉ",
   "player.view.targetRpe": "RPE mục tiêu {rpe}",
-  "player.view.hrReading": "{bpm} bpm"
+  "player.view.hrReading": "{bpm} bpm",
+  "train.buildWorkoutLink": "Tạo buổi tập",
+  "train.startsIn": "Bắt đầu sau",
+  "train.untilHourMin": "{h} giờ {m} phút",
+  "train.untilMin": "{m} phút"
 }

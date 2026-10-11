@@ -188,5 +188,20 @@
   "lead.hunger.head": "Prenez un vrai repas aujourd’hui.",
   "lead.hydration.cta": "J’enregistre l’eau →",
   "lead.hydration.head": "Buvez plus d’eau aujourd’hui.",
-  "lead.railHeader": "Votre action"
+  "lead.railHeader": "Votre action",
+  "focus.arrivalAria": "Maintenant {now}, entre {from} et {to}",
+  "focus.eatenOf": "{eaten, number} sur {target, number}",
+  "focus.glance": "En un coup d’œil",
+  "focus.habitsDone": "{done} sur {total} faites",
+  "focus.habitsFirst": "Ajoutez la première",
+  "focus.inHourMin": "Dans {h} h {m} min",
+  "focus.inMin": "Dans {m} min",
+  "focus.kcalLeft": "Kcal restantes",
+  "focus.line": "Votre journée",
+  "focus.logToSee": "Enregistrez un repas pour voir",
+  "focus.next": "Suivant",
+  "focus.nextStop": "Prochain arrêt",
+  "focus.notLogged": "Pas encore enregistré",
+  "focus.proteinToGo": "Protéines restantes",
+  "focus.viewMeal": "Voir le repas →"
 }

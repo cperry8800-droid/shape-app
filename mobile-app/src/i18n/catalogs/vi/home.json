@@ -188,5 +188,20 @@
   "lead.hunger.head": "Ăn một bữa tử tế hôm nay.",
   "lead.hydration.cta": "Tôi sẽ ghi nước uống →",
   "lead.hydration.head": "Uống nhiều nước hơn hôm nay.",
-  "lead.railHeader": "Nước đi của bạn"
+  "lead.railHeader": "Nước đi của bạn",
+  "focus.arrivalAria": "Hiện tại {now}, giữa {from} và {to}",
+  "focus.eatenOf": "{eaten, number} trên {target, number}",
+  "focus.glance": "Nhìn nhanh",
+  "focus.habitsDone": "xong {done}/{total}",
+  "focus.habitsFirst": "Thêm thói quen đầu tiên",
+  "focus.inHourMin": "Còn {h} giờ {m} phút",
+  "focus.inMin": "Còn {m} phút",
+  "focus.kcalLeft": "Kcal còn lại",
+  "focus.line": "Lịch trình của bạn",
+  "focus.logToSee": "Ghi một bữa để xem",
+  "focus.next": "Tiếp theo",
+  "focus.nextStop": "Điểm dừng tiếp theo",
+  "focus.notLogged": "Chưa ghi",
+  "focus.proteinToGo": "Protein còn thiếu",
+  "focus.viewMeal": "Xem bữa ăn →"
 }

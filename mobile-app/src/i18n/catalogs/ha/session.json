@@ -341,5 +341,9 @@
   "player.view.hrNone": "Ba a rubuta karatun bugun zuciya ba.",
   "player.view.rest": "Hutu",
   "player.view.targetRpe": "Burin RPE {rpe}",
-  "player.view.hrReading": "{bpm} bpm"
+  "player.view.hrReading": "{bpm} bpm",
+  "train.buildWorkoutLink": "Gina motsa jiki",
+  "train.startsIn": "Zai fara cikin",
+  "train.untilHourMin": "awa {h} minti {m}",
+  "train.untilMin": "minti {m}"
 }

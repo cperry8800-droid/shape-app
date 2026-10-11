@@ -237,7 +237,10 @@ test('a coach-set rest keeps the day\'s playlist, and still chips nothing', asyn
   globalThis.window.ShapeProgram = { get: () => ({ trainingPhase: 'Build', detail: { training: { updatedAt: '2026-10-07T00:00:00Z', days } } }), set() {} };
   try {
     const { d } = await trainPage({ ...delivered(), scheduledDate: today() });
-    assert.match(d.text, /Coach-set rest/, 'setup: today is the coach\'s rest');
+    // The session block is the Focus lead (BSFocus.jsx, 2026-10-11); its title is a
+    // prop, which this shallow driver does not render into text.
+    const lead = d.nodes().find((n) => n.props && n.props.tour === 'hero-train');
+    assert.match(String(lead && lead.props.title), /Coach-set rest/, 'setup: today is the coach\'s rest');
     assert.ok(!d.buttons().some((b) => b.label.startsWith('♪')), 'a soundtrack on a day the coach set to rest');
   } finally {
     delete globalThis.window.ShapeProgram;

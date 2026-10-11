@@ -188,5 +188,20 @@
   "lead.hunger.head": "Chop correct food today.",
   "lead.hydration.cta": "I go log water →",
   "lead.hydration.head": "Drink more water today.",
-  "lead.railHeader": "Your move"
+  "lead.railHeader": "Your move",
+  "focus.arrivalAria": "Now {now}, between {from} and {to}",
+  "focus.eatenOf": "{eaten, number} out of {target, number}",
+  "focus.glance": "Quick look",
+  "focus.habitsDone": "{done} out of {total} done",
+  "focus.habitsFirst": "Add your first one",
+  "focus.inHourMin": "In {h} h {m} min",
+  "focus.inMin": "In {m} min",
+  "focus.kcalLeft": "Kcal wey remain",
+  "focus.line": "Your day line",
+  "focus.logToSee": "Log one meal to see am",
+  "focus.next": "Next",
+  "focus.nextStop": "Next stop",
+  "focus.notLogged": "You never log am",
+  "focus.proteinToGo": "Protein wey remain",
+  "focus.viewMeal": "See the meal →"
 }

@@ -341,5 +341,9 @@
   "player.view.hrNone": "Keine Herzfrequenzwerte aufgezeichnet.",
   "player.view.rest": "Pause",
   "player.view.targetRpe": "Ziel-RPE {rpe}",
-  "player.view.hrReading": "{bpm} bpm"
+  "player.view.hrReading": "{bpm} bpm",
+  "train.buildWorkoutLink": "Workout erstellen",
+  "train.startsIn": "Beginnt in",
+  "train.untilHourMin": "{h} Std. {m} Min.",
+  "train.untilMin": "{m} Min."
 }
