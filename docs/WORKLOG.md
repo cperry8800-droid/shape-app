@@ -847,6 +847,48 @@ Everything older, newest-first: [2026-10](WORKLOG-ARCHIVE-2026-10.md) ·
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-10-10 — Nora as a full AI DJ: the library, her set planning, her engine into radio.co, and the booth's wall headlining her
+
+- **Three PRs merged on 2026-10-10**, each on CI green on its final head, and each merged tree byte-identical to its final head. Codex declined each on its usage limit, Copilot was not requested, CodeRabbit was not asked (the 2026-10-05 ruling), so each review was my own read of the diff plus, until the owner stopped them, a mutation round.
+  - [#2304](https://github.com/cperry8800-droid/shape-app/pull/2304) `ae3ce48`: the library.
+  - [#2305](https://github.com/cperry8800-droid/shape-app/pull/2305) `597bdd0`: her set planning, the slots and the licence switch.
+  - [#2306](https://github.com/cperry8800-droid/shape-app/pull/2306) `0010950`, final head `8d0dfab`: her engine, Shape Radio on radio.co while she DJs, and the booth's headliner wall.
+- **The owner's words and rulings:** *"i want NORA to be a full AI dj at times on shape"*; *"once i upload a playlist she will be able to dj herself, is this possible?"*. Asked, the owner chose commercial songs (*"all of the songs she plays will be by real artists"*), slots the owner sets, no talking, and radio.co (*"radio.co is what shape radio will stream from"*; *"i will be able to pick my own songs, i just need to pay royalties myself"*).
+- ⚠ **REAL ARTISTS' SONGS DECIDED THE ARCHITECTURE.** The first design mixed the set in each listener's browser from the song files. For commercial recordings that hands every listener copyable files, and the next song's file (tags and all) before it airs, against the statutory licence's anti-copying and no-pre-announcement conditions. So the mix is made once, by an engine, and broadcast as one stream through the station. Nora choosing the order is within the licence (the station programmes; the listener cannot steer).
+- ⚠ **RADIO.CO HAS NO DOCUMENTED API FOR AN APP TO UPLOAD, ORDER OR MIX.** Its public API reads status only (current track with start time, history). So the songs live in Shape, and her engine broadcasts into radio.co's live input during her slots; the AutoDJ plays the rest. radio.co itself was unreachable from this environment (proxy and DNS), so its live-input specifics are unverified; the engine speaks Icecast PUT, or SOURCE with `NORA_LEGACY_ICECAST=1`.
+
+**The library (#2304)**
+- `2026-10-11-radio-library.sql`: a private `radio-library` bucket (six audio types, 60 MB) and `radio_tracks`, service role only. **Run by the owner and verified live** (bucket private and empty; RLS on, 0 policies, no anon or member privilege; 22 columns, 4 indexes).
+- `/dashboard/radio` ("Nora's library"): a playlist is uploaded one song at a time, straight to storage through a signed upload URL (never through Vercel's 4.5 MB body limit), each song measured in the browser first (`trackProfile.mjs`) and the analysis re-checked on the server (`cleanAnalysis`).
+- ⚠ **The booth's beat analyser follows the KICK.** A kick on beats 1 and 3 read a 150 BPM song as 75 with full confidence, so no tempo range below 100 BPM is searched: such songs get no grid and are faded, never beat-matched.
+- ⚠ **ffmpeg writes the ISRC as `TXXX:ISRC`, not `TSRC`** (measured), so both are read.
+- Measured in Chromium on real encoded files (MP3 320 kbps, FLAC, WAV): the whole upload path with the browser's own decoder and crypto. Playwright's open-source Chromium has no AAC decoder, so M4A could not be measured there; Chrome, Edge and Safari decode it.
+
+**Her planning (#2305)**
+- `noraPlanner.mjs`: one song at a time, the best that breaks no rule: an energy arc read against the library's own spread, Camelot keys, tempo, freshness, a seeded jitter. Beat-matched within ±4 % (the locking rate, on the kick, 16 bars on the mix-out phrase), else blended over the fade, short when the keys clash. The licence's performance complement at its strictest, over any 3 hours with the earlier plays.
+- Slots in their own zone (wall clock per date, through the 2026-11-01 fall-back), an hourly cron at :05 scheduling the next week as "DJ set" by Nora and planning each set 70 minutes ahead; the first plan stored wins. ⚠ Nothing is published until the owner confirms the licences on the dashboard.
+- `2026-10-11-nora-dj-sets.sql`: **not run yet.**
+
+**On the air (#2306)**
+- `services/nora-engine`: the mixer (a bass swap so one kick plays at a time), Shape's clock, loading ahead with a deadline, pacing to the wall clock, a play report per song, the station's title at each bass swap. Rendered from two measured songs, the beat analyser reads ONE grid across the outgoing song, the blend and the incoming one (124 BPM, confidence 0.998, 0.4 ms).
+- ⚠ **A stand-in Icecast input found a hang.** A refused source killed ffmpeg while the pipe was full, and the write waited on `'drain'` forever. A write now settles when ffmpeg exits.
+- `/api/radio/nora/engine` (token-gated, licences and publication checked on every poll), `/api/admin/radio/plays` (a month's plays as CSV for SoundExchange), `2026-10-11-nora-engine-log.sql` (**not run yet**).
+- Now-playing during her sets comes from her plan, only while her engine is on the air, naming only what is heard (6 s behind the plan, the incoming song at the bass swap), with its album. ⚠ The old rule "the artist contains 'nora'" would have called Norah Jones Nora; a station payload is never Nora now. ⚠ Her own set's row names her as the DJ, so both Radio pages read it as a guest set and would have taken her off the decks; fixed.
+
+**The booth's wall headlines her (#2306)**
+- The owner: *"add NORA to the background of the screen. So it goes back and forth between club shape, shape radio, and NORA as the headliner basically. like how they do at live concert"*.
+- The LED wall holds each artwork for a phrase (8 bars) and changes on the downbeat: CLUB SHAPE, NORA, SHAPE RADIO, NORA. The change is a scattered wipe across the dots over two beats; a crossfade under reduced motion. ⚠ **With a guest on the decks the wall never names Nora** (CLUB SHAPE and SHAPE RADIO only).
+- `public/newdesign/booth/wallArt.mjs` is the rotation, pure, read off the beat position, so `tests/booth-wallArt.test.mjs` runs it in Node (`club.mjs` imports bare `three`, which the root does not install). O, D, R, N and I are built in the wordmark's face (`wordmarkGlyphs.mjs`); `screen-mask.mjs` writes all three masks, and CLUB SHAPE's is byte-identical. Rendered in Chromium; not seen on a phone's GPU.
+
+**Verified:** `npm test` 6557 → 6575 → 6591 → 6600, each through the pre-commit hook. Mutation rounds, all `--fail-on-skipped`, restored byte-identical: library **40 killed + 1 proven no-op**; sets **41/41**; on-air **21/21**; engine **23 killed, 4 survivors, 2 hangs** on the first round, then **32 killed, 1 survivor, 1 timeout** on the second (the survivor a test gap fixed in `f581738` and not re-run; the timeout not traced). Every first round's survivors were test gaps (a vacuous `if`, a fake clock that never differed from Shape's, synthetic beats sitting on 0 s, gains unchecked); two engine mutations hung instead of failing, so every engine test now has a 60 s limit. ⚠ **The owner then stopped the rounds:** *"enough of these mutations that take forever"*. The wall had none; its commit ran 185/185 across the booth, radio and bundle-input suites under the small-commit rule, and CI ran everything.
+
+- **Written after the merges**, per the 2026-09-11 rule.
+- ⚠ **REGISTERED, NOT DONE:**
+  - **Owner:** run `2026-10-11-nora-dj-sets.sql` and `2026-10-11-nora-engine-log.sql` (commit-pinned links in chat); set `NORA_ENGINE_TOKEN`; connect radio.co on the dashboard; run the engine on an always-on host; the licences, the SoundExchange reports and a lawyer's check, then tick the box.
+  - `HEARD_LAG_SEC` (6 s) is an estimate, to be measured once the station is live.
+  - The booth follows only the label and the tempo, not her transitions from the plan; songs without a kick on every beat are faded, not beat-matched; no dashboard preview plays a set in the browser yet.
+  - No signed-in pass on the dashboard or a phone. When a guest takes the decks mid-phrase the wall cuts to the guest rotation without a wipe.
+
 ### 2026-10-10 — The definer audit reads the 2026-10-10 production capture: the Lows file applied, 79 anon-executable, nothing carried
 
 - **Merged [#2301](https://github.com/cperry8800-droid/shape-app/pull/2301) as `8581555`**, final head `9ddf9c6`; the merged tree is byte-identical to it (tree `b42f446` on both). 9 files, tests and fixtures only. **No migration, no route, no i18n key.** The follow-up the #2297 entry below registered: the owner ran `2026-10-10-security-review-lows-and-anon-definers.sql` on the evening of 2026-10-09 (*"ran it"*, at about 21:40 UTC).
