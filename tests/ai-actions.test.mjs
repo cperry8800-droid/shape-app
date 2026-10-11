@@ -43,7 +43,9 @@ test('(a) TIER 1 — client logs a meal: preview → confirm → endpoint → au
   const registry = registryWith(logMealAction);
   const audit = inMemoryAudit();
   const actor = { id: 'client-1', role: 'client' };
-  const supabase = supabaseMock({ snapshot: { calories: 1200, protein_g: 90 } });
+  // `calories` is a device's burn (2026-10-11-dietary-kcal.sql): the meal reads and
+  // writes calories EATEN, `dietary_kcal`, and never the 450 a watch synced.
+  const supabase = supabaseMock({ snapshot: { dietary_kcal: 1200, calories: 450, protein_g: 90 } });
   const ctx = ctxFor(actor, supabase, () => ({ ok: true, status: 200, data: { ok: true, day: '2026-06-16' } }));
 
   // PREVIEW (no side effects).
@@ -51,9 +53,10 @@ test('(a) TIER 1 — client logs a meal: preview → confirm → endpoint → au
   assert.equal(p.ok, true);
   assert.equal(p.requiresConfirm, true);
   assert.match(p.preview.summary, /Log lunch to today/);
-  const cal = p.preview.diff.find((d) => d.field === 'calories');
+  const cal = p.preview.diff.find((d) => d.field === 'dietary_kcal');
   assert.equal(cal.before, '1200 kcal');
   assert.equal(cal.after, '1800 kcal'); // 1200 + 600
+  assert.equal(p.preview.diff.find((d) => d.field === 'calories'), undefined, 'a device\'s burn is never shown as eaten');
   assert.equal(ctx._calls.length, 0, 'no endpoint call on preview');
   assert.equal(audit._rows.length, 0, 'nothing audited on preview');
 
@@ -74,9 +77,26 @@ test('(a) TIER 1 — client logs a meal: preview → confirm → endpoint → au
   // UNDO → restores the prior snapshot macros.
   await undoChange({ registry, auditId: c.auditId, actor, ctx, audit });
   assert.equal(supabase._calls.updates.length, 1);
-  assert.equal(supabase._calls.updates[0].calories, 1200);
+  assert.equal(supabase._calls.updates[0].dietary_kcal, 1200);
+  assert.equal('calories' in supabase._calls.updates[0], false, 'undo never writes over a device\'s burn');
   assert.equal(supabase._calls.updates[0].protein_g, 90);
   assert.equal(audit._rows[0].status, 'undone');
+});
+
+test('(a1) a log_meal recorded before dietary_kcal existed undoes onto dietary_kcal', async () => {
+  const registry = registryWith(logMealAction);
+  const audit = inMemoryAudit();
+  const actor = { id: 'client-1', role: 'client' };
+  const supabase = supabaseMock({ snapshot: { dietary_kcal: 1200, protein_g: 90 } });
+  const ctx = ctxFor(actor, supabase, () => ({ ok: true, status: 200, data: { ok: true } }));
+  const p = await proposeChange({ registry, action: 'log_meal', input: { kcal: 600, mealName: 'lunch' }, actor, ctx, secret: SECRET });
+  const c = await confirmChange({ registry, token: p.token, actor, ctx, secret: SECRET, audit });
+  // The audit row as the old code stored it: eaten calories under `calories`.
+  const row = audit._rows[0];
+  for (const st of [row.beforeState, row.afterState]) { st.calories = st.dietary_kcal; delete st.dietary_kcal; }
+  await undoChange({ registry, auditId: c.auditId, actor, ctx, audit });
+  assert.equal(supabase._calls.updates[0].dietary_kcal, 1200);
+  assert.equal('calories' in supabase._calls.updates[0], false);
 });
 
 test('(a2) log_meal undo fails closed when the row changed since (in-statement stale-write guard)', async () => {
@@ -84,7 +104,7 @@ test('(a2) log_meal undo fails closed when the row changed since (in-statement s
   const audit = inMemoryAudit();
   const actor = { id: 'client-1', role: 'client' };
   // writeRows: [] = the guarded restore matched ZERO rows (a newer edit landed).
-  const supabase = supabaseMock({ snapshot: { calories: 1200, protein_g: 90 }, writeRows: [] });
+  const supabase = supabaseMock({ snapshot: { dietary_kcal: 1200, protein_g: 90 }, writeRows: [] });
   const ctx = ctxFor(actor, supabase, () => ({ ok: true, status: 200, data: { ok: true } }));
   const p = await proposeChange({ registry, action: 'log_meal', input: { kcal: 600, mealName: 'lunch' }, actor, ctx, secret: SECRET });
   const c = await confirmChange({ registry, token: p.token, actor, ctx, secret: SECRET, audit });

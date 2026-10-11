@@ -58,7 +58,7 @@ function macroLine(m) {
   return parts.join(' · ') || 'nothing';
 }
 function snapDiff(before, after) {
-  var map = [['calories', 'Calories', ' kcal'], ['protein_g', 'Protein', 'g'], ['carbs_g', 'Carbs', 'g'], ['fat_g', 'Fat', 'g'], ['hydration_l', 'Hydration', ' L']];
+  var map = [['dietary_kcal', 'Calories', ' kcal'], ['protein_g', 'Protein', 'g'], ['carbs_g', 'Carbs', 'g'], ['fat_g', 'Fat', 'g'], ['hydration_l', 'Hydration', ' L']];
   var rows = [];
   map.forEach(function (m) {
     var b = before[m[0]], a = after[m[0]];
@@ -85,16 +85,18 @@ export const logMealAction = {
     var today = await memberToday(ctx);
     var sel = await ctx.supabase
       .from('daily_health_snapshot')
-      .select('calories, protein_g, carbs_g, fat_g, hydration_l')
+      .select('dietary_kcal, protein_g, carbs_g, fat_g, hydration_l')
       .eq('user_id', ctx.actor.id)
       .eq('snapshot_date', today)
       .maybeSingle();
     var cur = (sel && sel.data) || {};
     var n2 = function (v) { return v != null ? Number(v) : null; };
-    var before = { snapshot_date: today, calories: n2(cur.calories), protein_g: n2(cur.protein_g), carbs_g: n2(cur.carbs_g), fat_g: n2(cur.fat_g), hydration_l: n2(cur.hydration_l) };
+    // Calories EATEN are `dietary_kcal`; the snapshot's `calories` is a device's
+    // burn, which a meal never changes (2026-10-11-dietary-kcal.sql).
+    var before = { snapshot_date: today, dietary_kcal: n2(cur.dietary_kcal), protein_g: n2(cur.protein_g), carbs_g: n2(cur.carbs_g), fat_g: n2(cur.fat_g), hydration_l: n2(cur.hydration_l) };
     var after = {
       snapshot_date: today,
-      calories: addCol(before.calories, macros.kcal), protein_g: addCol(before.protein_g, macros.protein),
+      dietary_kcal: addCol(before.dietary_kcal, macros.kcal), protein_g: addCol(before.protein_g, macros.protein),
       carbs_g: addCol(before.carbs_g, macros.carbs), fat_g: addCol(before.fat_g, macros.fat),
       hydration_l: addCol(before.hydration_l, macros.hydrationL),
     };
@@ -118,12 +120,15 @@ export const logMealAction = {
     // execute wrote — a newer edit → zero rows → the honest conflict.
     var b = plan.beforeState || {};
     var a = plan.afterState || {};
+    // A plan recorded before dietary_kcal existed carries its eaten calories as
+    // `calories`; the migration moved those rows' meal calories into dietary_kcal.
+    var eaten = function (st) { return 'dietary_kcal' in st ? st.dietary_kcal : st.calories; };
     var q = ctx.supabase
       .from('daily_health_snapshot')
-      .update({ calories: b.calories, protein_g: b.protein_g, carbs_g: b.carbs_g, fat_g: b.fat_g, hydration_l: b.hydration_l })
+      .update({ dietary_kcal: eaten(b), protein_g: b.protein_g, carbs_g: b.carbs_g, fat_g: b.fat_g, hydration_l: b.hydration_l })
       .eq('user_id', ctx.actor.id)
       .eq('snapshot_date', b.snapshot_date);
-    [['calories', a.calories], ['protein_g', a.protein_g], ['carbs_g', a.carbs_g], ['fat_g', a.fat_g], ['hydration_l', a.hydration_l]]
+    [['dietary_kcal', eaten(a)], ['protein_g', a.protein_g], ['carbs_g', a.carbs_g], ['fat_g', a.fat_g], ['hydration_l', a.hydration_l]]
       .forEach(function (kv) { q = kv[1] == null ? q.is(kv[0], null) : q.eq(kv[0], kv[1]); });
     var res = await q.select('user_id');
     if (res.error || !Array.isArray(res.data) || !res.data.length) throw new Error('Changed since — nothing undone.');

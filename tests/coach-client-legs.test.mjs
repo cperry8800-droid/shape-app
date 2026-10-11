@@ -81,24 +81,26 @@ test('program leg: the newest assignment wins whatever order the rows arrive in'
   assert.equal(bsProgramLeg([newer, older], templates, ME, NOW).name, 'New block');
 });
 
-test('logs leg: a day is logged when it carries CALORIES — the rollup\'s own definition', () => {
-  // get_client_stats counts `calories is not null`. A wider definition here
+test('logs leg: a day is logged when it carries CALORIES EATEN — the rollup\'s own definition', () => {
+  // get_client_stats counts `dietary_kcal is not null`. A wider definition here
   // puts "Today" beside a "0%" compliance cell on the same roster row.
   const rows = [
-    { snapshot_date: day(0), calories: 2100, protein_g: 150 },
+    { snapshot_date: day(0), dietary_kcal: 2100, calories: 480, protein_g: 150 },
     { snapshot_date: day(1), sleep_hours: 7.5 },              // slept, logged no food
     { snapshot_date: day(2), protein_g: 120 },                // protein without calories is not a logged day
-    { snapshot_date: day(3), calories: 1980 },
+    { snapshot_date: day(3), dietary_kcal: 1980 },
+    { snapshot_date: day(4), calories: 650 },                 // a watch's burn logs no meal
   ];
   const l = bsLogsLeg(rows, NOW);
   assert.equal(l.lastLoggedOn, day(0));
   assert.equal(l.daysLogged7d, 2);
   assert.deepEqual(l.recent.map((r) => r.on), [day(0), day(3)]);
+  assert.deepEqual(l.recent[0], { on: day(0), kcal: 2100, protein: 150 }, 'the kcal shown is what was eaten, not the burn');
   assert.deepEqual(l.recent[1], { on: day(3), kcal: 1980, protein: null });
 });
 
 test('logs leg: seven CALENDAR days, not the seven most recent rows', () => {
-  const rows = [0, 1, 2, 20, 21, 22, 23, 24].map((d) => ({ snapshot_date: day(d), calories: 1900 }));
+  const rows = [0, 1, 2, 20, 21, 22, 23, 24].map((d) => ({ snapshot_date: day(d), dietary_kcal: 1900 }));
   assert.equal(bsLogsLeg(rows, NOW).daysLogged7d, 3, 'the 20-days-ago cluster is outside the window');
   assert.equal(bsLogsLeg(rows.slice().reverse(), NOW).lastLoggedOn, day(0), 'input order must not matter');
 });
@@ -107,7 +109,7 @@ test('logs leg: nothing logged is null, never a zero', () => {
   assert.equal(bsLogsLeg([], NOW), null);
   assert.equal(bsLogsLeg(null, NOW), null);
   assert.equal(bsLogsLeg([{ snapshot_date: day(0), sleep_hours: 8 }], NOW), null);
-  assert.equal(bsLogsLeg([{ calories: 2000 }], NOW), null, 'a row with no date cannot be placed');
+  assert.equal(bsLogsLeg([{ dietary_kcal: 2000 }], NOW), null, 'a row with no date cannot be placed');
 });
 
 test('nutrition targets: a half-set target survives; an unusable one does not', () => {

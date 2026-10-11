@@ -659,7 +659,7 @@ async function fetchMemberFacts(actor: Actor, zone = 'UTC'): Promise<{ facts: Re
   const uid = actor.user.id;
   const today = dayIn(new Date(), zone); // their calendar day — the day log_meal now writes to
   const legs = await Promise.allSettled([
-    sb.from('daily_health_snapshot').select('calories, protein_g, workout_minutes').eq('user_id', uid).eq('snapshot_date', today).maybeSingle(),
+    sb.from('daily_health_snapshot').select('dietary_kcal, protein_g, workout_minutes').eq('user_id', uid).eq('snapshot_date', today).maybeSingle(),
     sb.rpc('compute_momentum'),
     // 2001 = the completeness probe: exactly 2001 rows back means the ledger
     // was truncated, and a PARTIAL sum would misstate the member's real score
@@ -688,7 +688,7 @@ async function fetchMemberFacts(actor: Actor, zone = 'UTC'): Promise<{ facts: Re
   if (okCount === 0) return { facts: null, failed: true };
 
   const facts: Record<string, unknown> = {};
-  const snap = val<{ calories?: number; protein_g?: number; workout_minutes?: number }>(0);
+  const snap = val<{ dietary_kcal?: number; protein_g?: number; workout_minutes?: number }>(0);
   // Daily targets from the coach nutrition override — validated finite, ≥0, or
   // absent (honest-absent; mirrors the plan route's asTarget).
   const progRow = val<{ detail?: unknown }>(6);
@@ -705,7 +705,8 @@ async function fetchMemberFacts(actor: Actor, zone = 'UTC'): Promise<{ facts: Re
   const proteinTarget = asTarget(nutriDetail?.protein);
   const todayFacts: Record<string, unknown> = {};
   if (snap) {
-    if (snap.calories != null) todayFacts.kcal = Number(snap.calories);
+    // Calories EATEN; the snapshot's `calories` is a device's burn, not food.
+    if (snap.dietary_kcal != null) todayFacts.kcal = Number(snap.dietary_kcal);
     if (snap.protein_g != null) todayFacts.proteinG = Number(snap.protein_g);
     if (snap.workout_minutes != null && Number(snap.workout_minutes) > 0) todayFacts.trainedToday = true;
   }

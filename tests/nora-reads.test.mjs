@@ -163,11 +163,11 @@ test('movesForSession caps at READ_CAPS.movesPerSession by best volume', () => {
 test('readWeekSummary: averages over the days that carry a value, weigh-in change only in one unit, habits as a fraction', async () => {
   const sb = fakeSupabase({ tables: {
     daily_health_snapshot: [
-      { user_id: U, snapshot_date: '2026-09-21', calories: 2000, protein_g: 150, workout_minutes: 45, sleep_hours: 7.5, recovery_score: 70 },
-      { user_id: U, snapshot_date: '2026-09-22', calories: 2200, protein_g: 170, carbs_g: 220, workout_minutes: 0, sleep_hours: 6.5, resting_hr: 55 },
-      { user_id: U, snapshot_date: '2026-09-23', sleep_hours: null, workout_minutes: 30 },
-      { user_id: U, snapshot_date: '2026-09-10', calories: 9999 }, // outside the window
-      { user_id: 'other', snapshot_date: '2026-09-23', calories: 5 },
+      { user_id: U, snapshot_date: '2026-09-21', dietary_kcal: 2000, calories: 610, protein_g: 150, workout_minutes: 45, sleep_hours: 7.5, recovery_score: 70 },
+      { user_id: U, snapshot_date: '2026-09-22', dietary_kcal: 2200, protein_g: 170, carbs_g: 220, workout_minutes: 0, sleep_hours: 6.5, resting_hr: 55 },
+      { user_id: U, snapshot_date: '2026-09-23', sleep_hours: null, workout_minutes: 30, calories: 700 }, // a watch's burn: no meal
+      { user_id: U, snapshot_date: '2026-09-10', dietary_kcal: 9999 }, // outside the window
+      { user_id: 'other', snapshot_date: '2026-09-23', dietary_kcal: 5 },
     ],
     client_weigh_ins: [
       { user_id: U, weight: 80.4, unit: 'kg', logged_on: '2026-09-23' },

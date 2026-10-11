@@ -37,7 +37,8 @@ const TIERS: Array<[name: string, threshold: number, display: string, benefit: s
 
 type SnapRow = {
   snapshot_date: string;
-  calories: number | null;
+  dietary_kcal: number | null; // calories EATEN (meal logs)
+  calories: number | null;     // calories BURNED (a device's active energy)
   sleep_hours: number | null;
   workout_minutes: number | null;
 };
@@ -46,7 +47,7 @@ type SnapRow = {
 // daily_health_snapshot over the trailing window. Each returns null (rendered as
 // an honest '—', never a fake 0) when its underlying data is too sparse to score.
 //   Recovery    = 7-day average sleep, normalized (8h+ = 100).
-//   Nutrition   = meal-logging adherence over 14 days (days with calories).
+//   Nutrition   = meal-logging adherence over 14 days (days with calories eaten).
 //   Train       = training days over 14 days (target ~8 sessions / 2 weeks).
 //   Consistency = any-activity days over 14 days (showing up at all).
 function computeComposite(rows: SnapRow[], now: Date) {
@@ -62,13 +63,13 @@ function computeComposite(rows: SnapRow[], now: Date) {
   const sleeps = last7.map(r => num(r.sleep_hours)).filter(v => v > 0);
   const recovery = sleeps.length < 2 ? null : clamp((sleeps.reduce((a, b) => a + b, 0) / sleeps.length / 8) * 100);
 
-  const logged = last14.filter(r => num(r.calories) > 0).length;
+  const logged = last14.filter(r => num(r.dietary_kcal) > 0).length;
   const nutrition = logged < 3 ? null : clamp((logged / 14) * 100);
 
   const trained = last14.filter(r => num(r.workout_minutes) > 0).length;
   const train = basis14 < 3 ? null : clamp((trained / 8) * 100);
 
-  const active = last14.filter(r => num(r.calories) > 0 || num(r.workout_minutes) > 0 || num(r.sleep_hours) > 0).length;
+  const active = last14.filter(r => num(r.dietary_kcal) > 0 || num(r.calories) > 0 || num(r.workout_minutes) > 0 || num(r.sleep_hours) > 0).length;
   const consistency = basis14 < 3 ? null : clamp((active / 14) * 100);
 
   return { train, nutrition, recovery, consistency };
@@ -126,7 +127,7 @@ export async function GET(request: Request) {
   since30.setUTCDate(since30.getUTCDate() - 30);
   const { data: snaps } = await supabase
     .from('daily_health_snapshot')
-    .select('snapshot_date, calories, sleep_hours, workout_minutes')
+    .select('snapshot_date, dietary_kcal, calories, sleep_hours, workout_minutes')
     .eq('user_id', user.id)
     .gte('snapshot_date', since30.toISOString().slice(0, 10));
   const composite = computeComposite((snaps || []) as SnapRow[], now);

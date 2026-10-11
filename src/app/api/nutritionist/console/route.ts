@@ -164,7 +164,10 @@ export async function GET(request: Request) {
     const [snapRes, profRes] = await Promise.all([
       supabase
         .from('daily_health_snapshot')
-        .select('user_id, snapshot_date, weight_lb, sleep_hours, resting_hr, stress, calories, protein_g, hrv_ms, recovery_score')
+        // `calories` here is calories EATEN, read from dietary_kcal under the name the
+        // score below and the live console's snapshotByClient already use; the
+        // snapshot's own `calories` column is a device's burn.
+        .select('user_id, snapshot_date, weight_lb, sleep_hours, resting_hr, stress, calories:dietary_kcal, protein_g, hrv_ms, recovery_score')
         .in('user_id', clientIds)
         .gte('snapshot_date', since)
         .order('snapshot_date', { ascending: true }),

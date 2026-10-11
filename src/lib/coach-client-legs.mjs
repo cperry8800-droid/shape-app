@@ -98,8 +98,9 @@ export function bsProgramLeg(assignments, templatesById, mine, now = Date.now())
 }
 
 // ── Food logging: the last logged day, and the recent days themselves ───────
-// ⚠ A DAY COUNTS AS LOGGED WHEN IT CARRIES CALORIES — the SAME definition
-// `get_client_stats` uses (`calories is not null`, 2026-06-13-client-stats.sql).
+// ⚠ A DAY COUNTS AS LOGGED WHEN IT CARRIES CALORIES EATEN — the SAME definition
+// `get_client_stats` uses (`dietary_kcal is not null`, 2026-10-11-dietary-kcal.sql;
+// the snapshot's `calories` is a device's burn, which logs no meal).
 // This leg supplies the LAST LOGGED DATE for a column that sits beside the
 // COMPLIANCE column the rollup computes, so the two must not count differently:
 // a protein-only day under a wider definition renders "Today" next to "0%" on
@@ -112,7 +113,7 @@ export function bsLogsLeg(snapRows, now = Date.now(), recentLimit = 3) {
   for (const r of snapRows) {
     const day = dayOf(r);
     if (!day) continue;
-    const kcal = num(r.calories);
+    const kcal = num(r.dietary_kcal);
     if (kcal == null) continue;
     logged.push({ on: day, kcal, protein: num(r.protein_g) });
   }

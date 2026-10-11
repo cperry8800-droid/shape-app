@@ -304,7 +304,7 @@ export async function readWeekSummary(sb, uid, { now = new Date(), zone } = {}) 
   const today = zone ? dayIn(now, zone) : isoDay(now);
   const since = addDaysISO(today, -6);
   const [snap, weigh, habits, done] = await Promise.all([
-    leg(sb.from('daily_health_snapshot').select('snapshot_date, calories, protein_g, carbs_g, fat_g, hydration_l, workout_minutes, sleep_hours, recovery_score, resting_hr, hrv_ms, strain')
+    leg(sb.from('daily_health_snapshot').select('snapshot_date, dietary_kcal, protein_g, carbs_g, fat_g, hydration_l, workout_minutes, sleep_hours, recovery_score, resting_hr, hrv_ms, strain')
       .eq('user_id', uid).gte('snapshot_date', since).lte('snapshot_date', today).order('snapshot_date', { ascending: true })),
     leg(sb.from('client_weigh_ins').select('weight, unit, logged_on').eq('user_id', uid).order('logged_on', { ascending: false }).limit(2)),
     leg(sb.from('user_habits').select('id').eq('user_id', uid).is('archived_at', null)),
@@ -313,12 +313,13 @@ export async function readWeekSummary(sb, uid, { now = new Date(), zone } = {}) 
   if (!snap.ok) return { ok: false };
   const rows = Array.isArray(snap.data) ? snap.data : [];
   const col = (k, pred = (n) => n != null) => rows.map((r) => num(r[k])).filter((n) => n != null && pred(n));
-  const logged = rows.filter((r) => num(r.calories) != null);
+  // Calories EATEN (`dietary_kcal`); the snapshot's `calories` is a device's burn.
+  const logged = rows.filter((r) => num(r.dietary_kcal) != null);
   const out = {
     ok: true, since, until: today,
     nutrition: {
       daysLogged: logged.length,
-      ...(logged.length ? { avgKcal: Math.round(avg(logged.map((r) => num(r.calories)))) } : {}),
+      ...(logged.length ? { avgKcal: Math.round(avg(logged.map((r) => num(r.dietary_kcal)))) } : {}),
       ...(col('protein_g').length ? { avgProteinG: Math.round(avg(col('protein_g'))) } : {}),
       ...(col('carbs_g').length ? { avgCarbsG: Math.round(avg(col('carbs_g'))) } : {}),
       ...(col('fat_g').length ? { avgFatG: Math.round(avg(col('fat_g'))) } : {}),

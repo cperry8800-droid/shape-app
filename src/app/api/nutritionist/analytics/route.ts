@@ -172,7 +172,7 @@ export async function GET() {
     const [snapRes, namesRes] = await Promise.all([
       supabase
         .from('daily_health_snapshot')
-        .select('user_id, snapshot_date, protein_g, calories, weight_lb')
+        .select('user_id, snapshot_date, protein_g, dietary_kcal, weight_lb')
         .in('user_id', clientIds)
         .gte('snapshot_date', since30Date)
         .order('snapshot_date', { ascending: true }),
@@ -182,7 +182,8 @@ export async function GET() {
         .in('id', clientIds),
     ]);
 
-    type Snap = { user_id: string; snapshot_date: string; protein_g: number | null; calories: number | null; weight_lb: number | null };
+    // dietary_kcal = calories EATEN; the snapshot's `calories` is a device's burn.
+    type Snap = { user_id: string; snapshot_date: string; protein_g: number | null; dietary_kcal: number | null; weight_lb: number | null };
     const byClient = new Map<string, Snap[]>();
     for (const r of (snapRes.data || []) as Snap[]) {
       const list = byClient.get(r.user_id) || [];
@@ -194,16 +195,19 @@ export async function GET() {
     for (const cid of clientIds) {
       const rows = byClient.get(cid) || [];
       const proteins = rows.map((r) => r.protein_g).filter((v) => v != null) as number[];
-      const cals = rows.map((r) => r.calories).filter((v) => v != null) as number[];
+      const cals = rows.map((r) => r.dietary_kcal).filter((v) => v != null) as number[];
       const weights = rows.map((r) => r.weight_lb).filter((v) => v != null) as number[];
       const wStart = weights.length ? Number(weights[0]) : null;
       const wLatest = weights.length ? Number(weights[weights.length - 1]) : null;
       const wDelta = wStart != null && wLatest != null ? wLatest - wStart : null;
-      totalDaysLogged += rows.length;
+      // A logged day is a day with a meal on it (calories eaten or protein). A
+      // watch, sleep or weigh-in row alone is not a nutrition log.
+      const loggedDays = rows.filter((r) => r.dietary_kcal != null || r.protein_g != null).length;
+      totalDaysLogged += loggedDays;
       for (const p of proteins) { totalProteinDays += 1; if (Number(p) >= 120) proteinHits += 1; }
       roster.push({
         client_id: cid,
-        daysLogged30d: rows.length,
+        daysLogged30d: loggedDays,
         avgProteinG: proteins.length ? Math.round(proteins.reduce((a, b) => a + Number(b), 0) / proteins.length) : null,
         avgCalories: cals.length ? Math.round(cals.reduce((a, b) => a + Number(b), 0) / cals.length) : null,
         weightStart: wStart,
