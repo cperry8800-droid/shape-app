@@ -216,5 +216,6 @@
   "focus.avgProtein": "Ø Protein",
   "focus.avgSteps": "Ø Schritte",
   "focus.ofTarget": "von {target, number}",
-  "focus.ofTargetG": "von {target, number} g"
+  "focus.ofTargetG": "von {target, number} g",
+  "focus.lastDaysOnly": "Letzte {days} Tage"
 }

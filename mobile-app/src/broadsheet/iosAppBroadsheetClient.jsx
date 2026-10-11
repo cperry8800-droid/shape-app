@@ -5026,7 +5026,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           const kc = avgOf('calories');
           const pr = avgOf('protein');
           const st = avgOf('steps');
-          kicker = tr('home:focus.lastDays', { defaultValue: 'Last {days} days · {logged} logged', days, logged: kc.logged });
+          // Each row averages its own logged days, so the head names the window
+          // only — one count over three series would misreport two of them.
+          kicker = tr('home:focus.lastDaysOnly', { defaultValue: 'Last {days} days', days });
           const none = tr('home:focus.noneLogged', { defaultValue: 'Nothing logged' });
           rows = [
             { key: 'kcal', label: tr('home:focus.avgKcal', { defaultValue: 'Avg kcal' }), value: kc.avg != null ? num(kc.avg) : '—',

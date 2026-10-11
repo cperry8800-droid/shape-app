@@ -216,5 +216,6 @@
   "focus.avgProtein": "Ср. белок",
   "focus.avgSteps": "Ср. шаги",
   "focus.ofTarget": "из {target, number}",
-  "focus.ofTargetG": "из {target, number} г"
+  "focus.ofTargetG": "из {target, number} г",
+  "focus.lastDaysOnly": "Последние {days} дн."
 }

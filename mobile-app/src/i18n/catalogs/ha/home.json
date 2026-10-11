@@ -216,5 +216,6 @@
   "focus.avgProtein": "Matsakaicin furotin",
   "focus.avgSteps": "Matsakaicin takai",
   "focus.ofTarget": "cikin {target, number}",
-  "focus.ofTargetG": "cikin {target, number} g"
+  "focus.ofTargetG": "cikin {target, number} g",
+  "focus.lastDaysOnly": "Kwanaki {days} da suka wuce"
 }

@@ -301,3 +301,59 @@ test('the plan\'s list keeps every meal an ingredient is for, though its line na
   assert.equal(lemon.meals, 'A · B +1', 'the line is unchanged');
   assert.deepEqual(lemon.mealList, ['A', 'B', 'C'], 'Shop by meal needs the third meal too');
 });
+
+// ── At a glance · Day / Week / Month, and the shop list on each meal ─────────
+
+test('a week or month average counts only days with something logged, in its own window', () => {
+  const s = [
+    { date: '2026-10-11', value: 2000 }, { date: '2026-10-10', value: 1800 },
+    { date: '2026-10-05', value: 0 },     // nothing logged: not a day of zero
+    { date: '2026-10-04', value: 2600 },  // 8 days back: outside a week
+    { date: '2026-10-12', value: 9999 },  // tomorrow: never counted
+  ];
+  assert.deepEqual(F.bsPeriodAverage(s, '2026-10-11', 7), { avg: 1900, logged: 2, days: 7 });
+  assert.deepEqual(F.bsPeriodAverage(s, '2026-10-11', 30), { avg: 2133, logged: 3, days: 30 });
+  assert.deepEqual(F.bsPeriodAverage([], '2026-10-11', 7), { avg: null, logged: 0, days: 7 });
+  assert.equal(F.bsPeriodAverage(s, 'not a day', 7).avg, null);
+});
+
+test('the glance period is remembered, and anything unknown reads as Day', () => {
+  const box2 = new Map();
+  const st = { getItem: (k) => (box2.has(k) ? box2.get(k) : null), setItem: (k, v) => box2.set(k, String(v)) };
+  assert.equal(F.bsReadGlancePeriod(st), 'day');
+  F.bsSaveGlancePeriod(st, 'month');
+  assert.equal(F.bsReadGlancePeriod(st), 'month');
+  F.bsSaveGlancePeriod(st, 'year');
+  assert.equal(F.bsReadGlancePeriod(st), 'month', 'an unknown period is not saved');
+  assert.equal(F.bsReadGlancePeriod({ getItem() { throw new Error('private mode'); } }), 'day');
+});
+
+test('a meal\'s shop list names the other meals a shared item is for, and one tick is one tick', () => {
+  const aisles = [
+    { aisle: 'Produce', items: [{ n: 'Lemon', mealList: ['Soup', 'Salad'] }, { n: 'Kale', meals: 'Salad' }] },
+    { aisle: 'Pantry', items: [{ n: 'Salt', mealList: ['Soup'], have: true }] },
+  ];
+  const soup = F.bsMealShopItems(aisles, 'Soup');
+  assert.deepEqual(soup.map((x) => [x.item.n, x.also]), [['Lemon', ['Salad']], ['Salt', []]]);
+  assert.equal(F.bsMealShopItems(aisles, 'Pie').length, 0);
+  // Nothing remembered: the list's defaults hold (a pantry staple starts got).
+  assert.equal(F.bsGroceryIsGot(aisles[1].items[0], null), true);
+  assert.equal(F.bsGroceryIsGot(aisles[0].items[0], null), false);
+  // The first tick keeps the defaults and adds the item, by name.
+  const got = F.bsToggleGot(aisles, null, aisles[0].items[0]);
+  assert.deepEqual([...got].sort(), ['lemon', 'salt']);
+  assert.equal(F.bsGroceryIsGot({ n: ' LEMON ' }, got), true, 'matched by name, whatever the case or spacing');
+  assert.deepEqual([...F.bsToggleGot(aisles, got, { n: 'Lemon' })], ['salt'], 'a second tick takes it off');
+  const box3 = new Map();
+  const st = { getItem: (k) => (box3.has(k) ? box3.get(k) : null), setItem: (k, v) => box3.set(k, String(v)) };
+  assert.equal(F.bsReadGotItems(st, 'L'), null, 'nothing remembered reads as null, not as nothing got');
+  F.bsSaveGotItems(st, 'L', new Set());
+  assert.deepEqual([...F.bsReadGotItems(st, 'L')], [], 'an empty set is remembered: every default was unticked');
+});
+
+test('the week and month kcal averages read calories eaten, never a device\'s calories burned', () => {
+  const route = readFileSync(join(ROOT, 'src', 'app', 'api', 'client', 'progress', 'route.ts'), 'utf8');
+  assert.match(route, /Math\.round\(4 \* g\('protein_g'\) \+ 4 \* g\('carbs_g'\) \+ 9 \* g\('fat_g'\)\)/);
+  assert.match(route, /calories: caloriesSeries,/);
+  assert.doesNotMatch(route, /seriesFor\('calories'\)/, 'the snapshot calories column also holds Garmin/Oura active calories');
+});

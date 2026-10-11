@@ -216,5 +216,6 @@
   "focus.avgProtein": "Rata-rata protein",
   "focus.avgSteps": "Rata-rata langkah",
   "focus.ofTarget": "dari {target, number}",
-  "focus.ofTargetG": "dari {target, number} g"
+  "focus.ofTargetG": "dari {target, number} g",
+  "focus.lastDaysOnly": "{days} hari terakhir"
 }

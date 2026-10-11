@@ -216,5 +216,6 @@
   "focus.avgProtein": "Média proteína",
   "focus.avgSteps": "Média passos",
   "focus.ofTarget": "de {target, number}",
-  "focus.ofTargetG": "de {target, number} g"
+  "focus.ofTargetG": "de {target, number} g",
+  "focus.lastDaysOnly": "Últimos {days} dias"
 }

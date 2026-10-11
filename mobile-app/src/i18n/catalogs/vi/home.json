@@ -216,5 +216,6 @@
   "focus.avgProtein": "Đạm TB",
   "focus.avgSteps": "Bước TB",
   "focus.ofTarget": "/ {target, number}",
-  "focus.ofTargetG": "/ {target, number} g"
+  "focus.ofTargetG": "/ {target, number} g",
+  "focus.lastDaysOnly": "{days} ngày qua"
 }

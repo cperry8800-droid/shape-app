@@ -216,5 +216,6 @@
   "focus.avgProtein": "Protéines moy.",
   "focus.avgSteps": "Pas moy.",
   "focus.ofTarget": "sur {target, number}",
-  "focus.ofTargetG": "sur {target, number} g"
+  "focus.ofTargetG": "sur {target, number} g",
+  "focus.lastDaysOnly": "{days} derniers jours"
 }
