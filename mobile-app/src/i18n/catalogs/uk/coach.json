@@ -1145,5 +1145,8 @@
   "video.fileSize": "Відео має бути меншим за {limit} МБ.",
   "schedule.pickTime": "Оберіть час",
   "schedule.runPartial": "Заброньовано {booked} з {total}.",
-  "schedule.runDone": "Готово"
+  "schedule.runDone": "Готово",
+  "sound.allClients": "Усі мої клієнти",
+  "sound.allClientsKind": "Кожен клієнт",
+  "sound.clientKind": "Клієнт"
 }

@@ -1145,5 +1145,8 @@
   "video.fileSize": "Video {limit} MB altında olmalıdır.",
   "schedule.pickTime": "Bir saat seçin",
   "schedule.runPartial": "{total} seanstan {booked} tanesi ayarlandı.",
-  "schedule.runDone": "Tamam"
+  "schedule.runDone": "Tamam",
+  "sound.allClients": "Tüm danışanlarım",
+  "sound.allClientsKind": "Her danışan",
+  "sound.clientKind": "Danışan"
 }

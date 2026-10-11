@@ -349,5 +349,6 @@
   "train.musicFrom": "Nhạc từ {name}",
   "train.music": "Nhạc",
   "train.forToday": "Cho hôm nay",
-  "train.fullPlan": "Toàn bộ kế hoạch"
+  "train.fullPlan": "Toàn bộ kế hoạch",
+  "train.playlistBy": "{who} · Huấn luyện viên của bạn"
 }

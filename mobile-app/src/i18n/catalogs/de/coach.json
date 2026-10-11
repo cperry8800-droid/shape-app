@@ -1145,5 +1145,8 @@
   "video.fileSize": "Das Video muss kleiner als {limit} MB sein.",
   "schedule.pickTime": "Uhrzeit wählen",
   "schedule.runPartial": "{booked} von {total} gebucht.",
-  "schedule.runDone": "Fertig"
+  "schedule.runDone": "Fertig",
+  "sound.allClients": "Alle meine Kunden",
+  "sound.allClientsKind": "Jeder Kunde",
+  "sound.clientKind": "Kunde"
 }

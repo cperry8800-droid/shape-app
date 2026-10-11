@@ -5370,6 +5370,59 @@ const bsAppleGlyph = (size = 22, fill = '#fff') => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} aria-hidden="true"><path d="M17.05 12.04c-.03-2.86 2.34-4.23 2.44-4.3-1.33-1.95-3.4-2.22-4.14-2.25-1.77-.18-3.45 1.04-4.35 1.04-.9 0-2.28-1.02-3.75-.99-1.93.03-3.71 1.12-4.7 2.85-2 3.48-.51 8.63 1.44 11.45.95 1.38 2.09 2.93 3.58 2.87 1.44-.06 1.98-.93 3.72-.93 1.73 0 2.22.93 3.74.9 1.54-.03 2.52-1.41 3.46-2.79 1.09-1.6 1.54-3.15 1.57-3.23-.03-.02-3.01-1.16-3.04-4.57zM14.2 4.38c.79-.96 1.33-2.29 1.18-3.62-1.14.05-2.53.76-3.35 1.72-.73.85-1.37 2.21-1.2 3.51 1.27.1 2.57-.65 3.37-1.61z"/></svg>
 );
 
+// COACH PLAYLISTS — "From {coach} · Playlists" on Train (the trainer's) and on
+// Eat (the nutritionist's cooking playlists): two separate lists (owner,
+// 2026-10-11: "they should be seperate playlists" · "for nutritionists that
+// send playlists for cooking"). Signed in, the playlists the member's OWN coach
+// of that role sent them (ShapePlaylists.fromMyCoaches → get_my_coach_playlists);
+// none sent, or the read failed, renders nothing — never the sample. Signed
+// out, the preview's sample playlists (`demo`).
+function useBSCoachPlaylists(role) {
+  const [list, setList] = useStateBSC(null);
+  React.useEffect(() => {
+    if (!role || !window.ShapePlaylists?.fromMyCoaches) return undefined;
+    let on = true;
+    window.ShapePlaylists.fromMyCoaches(role).then((r) => { if (on) setList(Array.isArray(r) ? r : []); }).catch(() => {});
+    return () => { on = false; };
+  }, [role]);
+  return list;
+}
+function BSCoachPlaylists({ role, signedIn, demo }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  const live = useBSCoachPlaylists(signedIn ? role : null);
+  let who;
+  let items;
+  if (!signedIn) {
+    if (!demo || !demo.items || !demo.items.length) return null;
+    who = demo.who;
+    items = demo.items;
+  } else {
+    if (!Array.isArray(live) || !live.length) return null;
+    const first = String(live[0].coach_name || '').replace(/^Dr\.?\s+/i, '').split(' ')[0];
+    who = first || (role === 'nutritionist' ? tr('nutrition:eat.yourNutritionist', { defaultValue: 'Your nutritionist' }) : tr('session:train.yourTrainer', { defaultValue: 'Your trainer' }));
+    items = live.map((p) => ({
+      k: role === 'nutritionist'
+        ? tr('nutrition:eat.playlistBy', { defaultValue: '{who} · Your nutritionist', who: p.coach_name || '' })
+        : tr('session:train.playlistBy', { defaultValue: '{who} · Your trainer', who: p.coach_name || '' }),
+      title: p.name,
+      meta: [p.tracks ? tr('coach:sound.tracksCount', { defaultValue: '{count} tracks', count: p.tracks }) : null, p.duration && p.duration !== '—' ? p.duration : null, p.bpm && p.bpm !== '—' ? `${p.bpm} BPM` : null, p.tag || null].filter(Boolean).join(' · '),
+      url: p.url,
+      provider: p.provider,
+    }));
+  }
+  return (
+    <>
+      <BSFocusTitle kicker={tr('nutrition:eat.playlistsFrom', { defaultValue: 'From {who}', who })} title={tr('profile:playlists.playlists', { defaultValue: 'Playlists' })} />
+      <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {items.map((p, i) => (
+          <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color={p.provider === 'apple' ? '#fa243c' : '#1db954'} provider={p.provider} url={p.url} tracks={p.tracks} />
+        ))}
+      </div>
+    </>
+  );
+}
+
 function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, url, provider, tracks }) {
   const t = useBS();
   const [open, setOpen] = useStateBSC(false);
@@ -6263,6 +6316,18 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
         )}
         <BSFindCoachBar role="trainer" onOpen={() => goMarket('trainer')} />
       </div>
+
+      {/* From Jordan — the trainer's playlists (owner, 2026-10-11: "keep playlists
+          though"). Signed in, the ones the member's own trainer sent them;
+          signed out, the preview's sample. Separate from Eat's cooking ones. */}
+      {(() => {
+        const all = Array.isArray(window.BS_COACH_PLAYLISTS) ? window.BS_COACH_PLAYLISTS : [];
+        const lists = all.filter(p => p.role === 'Coach');
+        const items = lists.length ? lists.map(p => ({ k: tr('session:train.playlistBy', { defaultValue: '{who} · Your trainer', who: p.by }), title: p.name, meta: tr('nutrition:eat.playlistMeta', { defaultValue: '{len} · {bpm} BPM · {tracks, plural, one {# track} other {# tracks}}', len: p.len, bpm: p.bpm, tracks: p.tracks }) + (p.attached ? ` · ${p.attached}` : ''), url: p.url, provider: p.provider, tracks: p.songs }))
+          : [{ k: 'Jordan Chen · Your trainer', title: 'Pull heavy.', meta: '52m · 95-138 BPM · 14 tracks' }];
+        const who = lists.length ? String(lists[0].by || '').split(' ')[0] : 'Jordan';
+        return <BSCoachPlaylists role="trainer" signedIn={bsTrainSignedIn} demo={{ who, items }} />;
+      })()}
 
       <BSFooter right="Pg 2 of 5" />
     </BSPage>
@@ -14032,30 +14097,16 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
         );
       })()}
 
-      {/* From Maya — nutritionist playlists (sourced from the Radio coach-playlist feed) */}
+      {/* From Maya — the nutritionist's cooking playlists. Signed in, the ones the
+          member's own nutritionist sent them; signed out, the preview's sample
+          (BS_COACH_PLAYLISTS is a static constant, so it never reaches a member). */}
       {(() => {
         const all = Array.isArray(window.BS_COACH_PLAYLISTS) ? window.BS_COACH_PLAYLISTS : [];
         const lists = all.filter(p => p.role === 'Nutritionist');
-        // ⚠ THIS SECTION WAS UNGATED DEMO. BS_COACH_PLAYLISTS is a static
-        // constant nothing writes to, and the header was the literal
-        // "From Maya" — so a signed-in member with a real nutritionist (or
-        // none at all) read a section attributed to a coach they do not have,
-        // listing a playlist that does not exist. Signed-out keeps the demo;
-        // signed-in renders NOTHING until a real feed exists.
-        if (bsEatSignedIn) return null;
         const items = lists.length ? lists.map(p => ({ k: tr('nutrition:eat.playlistBy', { defaultValue: '{who} · Your nutritionist', who: p.by }), title: p.name, meta: tr('nutrition:eat.playlistMeta', { defaultValue: '{len} · {bpm} BPM · {tracks, plural, one {# track} other {# tracks}}', len: p.len, bpm: p.bpm, tracks: p.tracks }) + (p.attached ? ` · ${p.attached}` : ''), url: p.url, provider: p.provider, tracks: p.songs }))
           : [{ k: 'Dr. Maya Patel · Your nutritionist', title: 'Meal prep, low-key', meta: '45m · 85-100 BPM · 12 tracks · Sun prep' }];
         const who = lists.length ? String(lists[0].by || '').replace(/^Dr\.?\s+/i, '').split(' ')[0] : 'Maya';
-        return (
-          <>
-            <BSTrackHeader kicker={tr('nutrition:eat.playlistsFrom', { defaultValue: 'From {who}', who })} title={tr('profile:playlists.playlists', { defaultValue: 'Playlists' })} />
-            <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {items.map((p, i) => (
-                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color={p.provider === 'apple' ? '#fa243c' : '#1db954'} provider={p.provider} url={p.url} tracks={p.tracks} />
-              ))}
-            </div>
-          </>
-        );
+        return <BSCoachPlaylists role="nutritionist" signedIn={bsEatSignedIn} demo={{ who, items }} />;
       })()}
 
       <BSFooter right={tr('nutrition:eat.footerPage', { defaultValue: 'Pg 3 of 5' })} />

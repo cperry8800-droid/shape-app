@@ -349,5 +349,6 @@
   "train.musicFrom": "Kiɗa daga {name}",
   "train.music": "Kiɗa",
   "train.forToday": "Don yau",
-  "train.fullPlan": "Cikakken tsari"
+  "train.fullPlan": "Cikakken tsari",
+  "train.playlistBy": "{who} · Mai horar da kai"
 }

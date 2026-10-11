@@ -349,5 +349,6 @@
   "train.musicFrom": "Музика від {name}",
   "train.music": "Музика",
   "train.forToday": "На сьогодні",
-  "train.fullPlan": "Увесь план"
+  "train.fullPlan": "Увесь план",
+  "train.playlistBy": "{who} · Ваш тренер"
 }

@@ -349,5 +349,6 @@
   "train.musicFrom": "Música de {name}",
   "train.music": "Música",
   "train.forToday": "Para hoje",
-  "train.fullPlan": "Plano completo"
+  "train.fullPlan": "Plano completo",
+  "train.playlistBy": "{who} · Seu treinador"
 }

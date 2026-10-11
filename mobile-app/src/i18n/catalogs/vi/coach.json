@@ -1145,5 +1145,8 @@
   "video.fileSize": "Video phải nhỏ hơn {limit} MB.",
   "schedule.pickTime": "Chọn giờ",
   "schedule.runPartial": "Đã đặt {booked} trên {total}.",
-  "schedule.runDone": "Xong"
+  "schedule.runDone": "Xong",
+  "sound.allClients": "Tất cả khách hàng của tôi",
+  "sound.allClientsKind": "Mọi khách hàng",
+  "sound.clientKind": "Khách hàng"
 }

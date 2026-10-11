@@ -349,5 +349,6 @@
   "train.musicFrom": "{name} müzikleri",
   "train.music": "Müzik",
   "train.forToday": "Bugün için",
-  "train.fullPlan": "Tüm plan"
+  "train.fullPlan": "Tüm plan",
+  "train.playlistBy": "{who} · Antrenörün"
 }
