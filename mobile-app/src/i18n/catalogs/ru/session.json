@@ -341,5 +341,9 @@
   "player.view.hrNone": "Показания пульса не записаны.",
   "player.view.rest": "Отдых",
   "player.view.targetRpe": "Целевой RPE {rpe}",
-  "player.view.hrReading": "{bpm} уд/мин"
+  "player.view.hrReading": "{bpm} уд/мин",
+  "train.buildWorkoutLink": "Собрать тренировку",
+  "train.startsIn": "Начало через",
+  "train.untilHourMin": "{h} ч {m} мин",
+  "train.untilMin": "{m} мин"
 }

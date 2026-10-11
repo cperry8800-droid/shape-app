@@ -392,7 +392,7 @@ const PARTIAL = new Set([
   // Catalogue's copy is still English and is the next cut on these two.
   'Calendar::BSEventConsultBody', 'Client::BSActivityCard', 'Client::BSClientEat',
   'Client::BSClientLibrary', 'Client::BSLibraryDetail',
-  'Client::BSClientFeed', 'Client::BSClientHome', 'Client::BSClientTrain',
+  'Client::BSClientFeed', 'Client::BSClientTrain',
   'Client::BSHomeWorkoutPreview', 'Client::BSLiveBoostSheet', 'Client::BSLogActivitySheet',
   'Client::BSMealPreview', 'Client::BSPostCommentsSheet',
   'Client::BSProfileExtras', 'Client::BSProfilePlaylists', 'Client::BSScoreStandingChart',
@@ -772,7 +772,15 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // NORA typed in English; the label is now one of six keyed states (`radio:booth.label.*`) drawn by
   // BSNoraBooth, which is fully keyed. partStrings 217 -> 216; part.length, noneStrings and
   // none.length unchanged.
-  assert.equal(partStrings, 216, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  // The Focus layout (2026-10-11): Home, Train, Eat and the Grocery page were re-laid out in the
+  // Focus order, and every new string is keyed in all 13 locales (`home:focus.*`,
+  // `nutrition:eat.*`, `nutrition:grocery.shop.*`, `session:train.*`). Three unkeyed strings went
+  // with the blocks they sat in: Home's old lead printed `{kcal} kcal ·` as bare JSX (the Next stop
+  // lead builds the line through the keyed unit), and Eat's plan card carried a `Dr. Maya Patel`
+  // literal and the MOCK_PROGRAM-era ` · Apr plan` period (the card is now a link whose name comes
+  // from the same honest chain). BSClientHome leaves PARTIAL for fully covered.
+  // partStrings 216 -> 213, part.length 36 -> 35; noneStrings and none.length unchanged.
+  assert.equal(partStrings, 213, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
   // ⚠ AND noneStrings 793 -> 796 IS THREE STRINGS ADDED ON PURPOSE, in
   // BSMealLogged (already uncovered): the plated stage was printing a 46px teal
   // `0` under `Logged ✓` for a cook whose macros are unknown — while logIt had
@@ -821,7 +829,7 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // ✦'s aria-label, "Ask Nora" (option D, 2026-10-07), beside its own hardcoded
   // "Search Shape". The corner has no translator; it is translated with ⌕ or not at all.
   assert.equal(noneStrings, 728, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(part.length, 36, 'partial-surface count moved — regenerate PARTIAL and the record');
+  assert.equal(part.length, 35, 'partial-surface count moved — regenerate PARTIAL and the record');
   assert.equal(none.length, 88, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.

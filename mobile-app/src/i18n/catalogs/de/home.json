@@ -188,5 +188,20 @@
   "lead.hunger.head": "Iss heute eine richtige Mahlzeit.",
   "lead.hydration.cta": "Ich erfasse Wasser →",
   "lead.hydration.head": "Trink heute mehr Wasser.",
-  "lead.railHeader": "Dein Zug"
+  "lead.railHeader": "Dein Zug",
+  "focus.arrivalAria": "Jetzt {now}, zwischen {from} und {to}",
+  "focus.eatenOf": "{eaten, number} von {target, number}",
+  "focus.glance": "Auf einen Blick",
+  "focus.habitsDone": "{done} von {total} erledigt",
+  "focus.habitsFirst": "Füge die erste hinzu",
+  "focus.inHourMin": "In {h} Std. {m} Min.",
+  "focus.inMin": "In {m} Min.",
+  "focus.kcalLeft": "Kcal übrig",
+  "focus.line": "Dein Tag",
+  "focus.logToSee": "Erfasse eine Mahlzeit",
+  "focus.next": "Als Nächstes",
+  "focus.nextStop": "Nächster Halt",
+  "focus.notLogged": "Noch nicht erfasst",
+  "focus.proteinToGo": "Protein offen",
+  "focus.viewMeal": "Mahlzeit ansehen →"
 }

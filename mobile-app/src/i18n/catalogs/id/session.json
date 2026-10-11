@@ -341,5 +341,9 @@
   "player.view.hrNone": "Tidak ada pembacaan detak jantung yang tercatat.",
   "player.view.rest": "Istirahat",
   "player.view.targetRpe": "Target RPE {rpe}",
-  "player.view.hrReading": "{bpm} bpm"
+  "player.view.hrReading": "{bpm} bpm",
+  "train.buildWorkoutLink": "Buat latihan",
+  "train.startsIn": "Mulai dalam",
+  "train.untilHourMin": "{h} j {m} mnt",
+  "train.untilMin": "{m} mnt"
 }

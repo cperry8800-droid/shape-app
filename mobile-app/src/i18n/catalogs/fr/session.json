@@ -341,5 +341,9 @@
   "player.view.hrNone": "Aucune mesure cardiaque enregistrée.",
   "player.view.rest": "Repos",
   "player.view.targetRpe": "RPE cible {rpe}",
-  "player.view.hrReading": "{bpm} bpm"
+  "player.view.hrReading": "{bpm} bpm",
+  "train.buildWorkoutLink": "Créer une séance",
+  "train.startsIn": "Commence dans",
+  "train.untilHourMin": "{h} h {m} min",
+  "train.untilMin": "{m} min"
 }

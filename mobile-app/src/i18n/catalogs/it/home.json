@@ -188,5 +188,20 @@
   "lead.hunger.head": "Mangia un pasto vero oggi.",
   "lead.hydration.cta": "Registrerò l’acqua →",
   "lead.hydration.head": "Bevi più acqua oggi.",
-  "lead.railHeader": "La tua mossa"
+  "lead.railHeader": "La tua mossa",
+  "focus.arrivalAria": "Adesso {now}, tra {from} e {to}",
+  "focus.eatenOf": "{eaten, number} su {target, number}",
+  "focus.glance": "In breve",
+  "focus.habitsDone": "{done} su {total} fatte",
+  "focus.habitsFirst": "Aggiungi la prima",
+  "focus.inHourMin": "Tra {h} h {m} min",
+  "focus.inMin": "Tra {m} min",
+  "focus.kcalLeft": "Kcal rimaste",
+  "focus.line": "La tua giornata",
+  "focus.logToSee": "Registra un pasto per vedere",
+  "focus.next": "Prossimo",
+  "focus.nextStop": "Prossima tappa",
+  "focus.notLogged": "Non ancora registrato",
+  "focus.proteinToGo": "Proteine mancanti",
+  "focus.viewMeal": "Vedi pasto →"
 }

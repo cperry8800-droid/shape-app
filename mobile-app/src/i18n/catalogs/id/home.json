@@ -188,5 +188,20 @@
   "lead.hunger.head": "Makan yang benar hari ini.",
   "lead.hydration.cta": "Aku akan catat air →",
   "lead.hydration.head": "Minum lebih banyak air hari ini.",
-  "lead.railHeader": "Langkahmu"
+  "lead.railHeader": "Langkahmu",
+  "focus.arrivalAria": "Sekarang {now}, antara {from} dan {to}",
+  "focus.eatenOf": "{eaten, number} dari {target, number}",
+  "focus.glance": "Sekilas",
+  "focus.habitsDone": "{done} dari {total} selesai",
+  "focus.habitsFirst": "Tambahkan yang pertama",
+  "focus.inHourMin": "Dalam {h} j {m} mnt",
+  "focus.inMin": "Dalam {m} mnt",
+  "focus.kcalLeft": "Sisa kkal",
+  "focus.line": "Jalur harimu",
+  "focus.logToSee": "Catat makanan untuk melihat",
+  "focus.next": "Berikutnya",
+  "focus.nextStop": "Pemberhentian berikutnya",
+  "focus.notLogged": "Belum dicatat",
+  "focus.proteinToGo": "Sisa protein",
+  "focus.viewMeal": "Lihat makanan →"
 }

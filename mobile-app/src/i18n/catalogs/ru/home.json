@@ -188,5 +188,20 @@
   "lead.hunger.head": "Поешьте сегодня как следует.",
   "lead.hydration.cta": "Запишу воду →",
   "lead.hydration.head": "Пейте сегодня больше воды.",
-  "lead.railHeader": "Ваш ход"
+  "lead.railHeader": "Ваш ход",
+  "focus.arrivalAria": "Сейчас {now}, между {from} и {to}",
+  "focus.eatenOf": "{eaten, number} из {target, number}",
+  "focus.glance": "Коротко",
+  "focus.habitsDone": "выполнено {done} из {total}",
+  "focus.habitsFirst": "Добавьте первую",
+  "focus.inHourMin": "Через {h} ч {m} мин",
+  "focus.inMin": "Через {m} мин",
+  "focus.kcalLeft": "Осталось ккал",
+  "focus.line": "Ваш день",
+  "focus.logToSee": "Запишите приём пищи",
+  "focus.next": "Далее",
+  "focus.nextStop": "Следующая остановка",
+  "focus.notLogged": "Ещё не записано",
+  "focus.proteinToGo": "Осталось белка",
+  "focus.viewMeal": "Открыть блюдо →"
 }
