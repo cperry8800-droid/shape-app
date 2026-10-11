@@ -405,5 +405,12 @@
   "grocery.shop.skip": "Пропустити",
   "grocery.shop.skippedOff": "Пропущено · прибрано {count}",
   "grocery.shop.toGetCount": "купити {count}",
-  "grocery.shop.unskip": "Скасувати"
+  "grocery.shop.unskip": "Скасувати",
+  "eat.shop.also": "також {meals}",
+  "eat.shop.skipped": "Пропущено",
+  "eat.shop.head": "Інгредієнти · купити {count}",
+  "eat.shop.skippedNote": "Його продукти прибрано зі списку, якщо вони не потрібні іншій страві.",
+  "eat.shop.openList": "Відкрити покупки за стравами →",
+  "eat.shop.tagAria": "Покупки для «{meal}»: {status}",
+  "eat.shop.alsoMany": "{count, plural, one {ще # страва} few {ще # страви} many {ще # страв} other {ще # страви}}"
 }

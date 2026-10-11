@@ -203,5 +203,18 @@
   "focus.nextStop": "Наступна зупинка",
   "focus.notLogged": "Ще не записано",
   "focus.proteinToGo": "Залишилось білка",
-  "focus.viewMeal": "Відкрити страву →"
+  "focus.viewMeal": "Відкрити страву →",
+  "focus.stopsDone": "{stops, plural, one {# зупинка} few {# зупинки} many {# зупинок} other {# зупинки}} · виконано {done}",
+  "focus.youAreHere": "Зараз · ви тут",
+  "focus.period.day": "День",
+  "focus.period.week": "Тиждень",
+  "focus.period.month": "Місяць",
+  "focus.periodAria": "Період",
+  "focus.lastDays": "Останні {days} дн. · записано {logged}",
+  "focus.noneLogged": "Немає записів",
+  "focus.avgKcal": "Сер. ккал",
+  "focus.avgProtein": "Сер. білок",
+  "focus.avgSteps": "Сер. кроки",
+  "focus.ofTarget": "з {target, number}",
+  "focus.ofTargetG": "з {target, number} г"
 }

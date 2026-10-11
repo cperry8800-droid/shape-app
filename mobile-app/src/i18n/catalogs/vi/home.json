@@ -203,5 +203,18 @@
   "focus.nextStop": "Điểm dừng tiếp theo",
   "focus.notLogged": "Chưa ghi",
   "focus.proteinToGo": "Protein còn thiếu",
-  "focus.viewMeal": "Xem bữa ăn →"
+  "focus.viewMeal": "Xem bữa ăn →",
+  "focus.stopsDone": "{stops, plural, other {# điểm dừng}} · xong {done}",
+  "focus.youAreHere": "Bây giờ · bạn ở đây",
+  "focus.period.day": "Ngày",
+  "focus.period.week": "Tuần",
+  "focus.period.month": "Tháng",
+  "focus.periodAria": "Hiển thị",
+  "focus.lastDays": "{days} ngày qua · {logged} đã ghi",
+  "focus.noneLogged": "Chưa ghi gì",
+  "focus.avgKcal": "Kcal TB",
+  "focus.avgProtein": "Đạm TB",
+  "focus.avgSteps": "Bước TB",
+  "focus.ofTarget": "/ {target, number}",
+  "focus.ofTargetG": "/ {target, number} g"
 }

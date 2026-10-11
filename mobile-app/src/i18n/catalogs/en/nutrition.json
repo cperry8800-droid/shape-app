@@ -405,5 +405,12 @@
   "grocery.shop.skip": "Skip",
   "grocery.shop.skippedOff": "Skipped · {count} off",
   "grocery.shop.toGetCount": "{count} to get",
-  "grocery.shop.unskip": "Undo"
+  "grocery.shop.unskip": "Undo",
+  "eat.shop.also": "also {meals}",
+  "eat.shop.skipped": "Skipped",
+  "eat.shop.head": "Ingredients · {count} to get",
+  "eat.shop.skippedNote": "Its items are off the list, unless another meal needs them.",
+  "eat.shop.openList": "Open in Shop by meal →",
+  "eat.shop.tagAria": "Shopping for {meal}: {status}",
+  "eat.shop.alsoMany": "{count, plural, one {also # other meal} other {also # other meals}}"
 }

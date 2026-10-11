@@ -271,21 +271,25 @@ test('Train reads in the Focus order: the week, the session, the links', () => {
   assert.ok(String(order[lead].props.title || '').length > 0, 'the session has a title');
 });
 
-test('Home reads in the Focus order: next stop, at a glance, your line, then the links', () => {
+// Owner, 2026-10-11, on the first build: "your line should be above at a glance"
+// and "check-in should be towards the top".
+test('Home reads in the Focus order: check-in, next stop, your line, at a glance, then the links', () => {
   delete globalThis.ShapeAuth;
   const d = drive(BSClientHome, { onProfile() {}, goCalendar() {}, goRadio() {}, goTrain() {}, goEat() {}, goMarket() {}, goScore() {}, goChat() {}, goIntegrations() {}, tweaks: {}, setTweak() {} });
   const order = d.nodes();
   const at = (pred) => order.findIndex(pred);
   const fn = (name) => (n) => typeof n.type === 'function' && n.type.name === name;
+  const checkin = at((n) => fn('BSTodayNudge')(n) && n.props.variant === 'bulletin');
   const lead = at((n) => n.props && n.props.tour === 'hero-home');
-  const glance = at(fn('BSFocusTitle'));
-  const steps = at((n) => fn('BSShelfDoor')(n) && n.props.eyebrow === 'Steps');
-  const line = order.findIndex((n, i) => i > glance && fn('BSFocusHead')(n));
+  const line = at((n) => fn('BSFocusTitle')(n) && n.props.title === 'Your line');
+  const glance = at((n) => fn('BSFocusTitle')(n) && n.props.title === 'At a glance');
+  const steps = at((n) => fn('BSFocusLeader')(n) && n.props.label === 'Steps');
   const habits = at((n) => n.props && n.props.tour === 'hero-habits');
   assert.ok(lead >= 0, 'no next-stop lead (today always has one, the done state included)');
-  assert.ok(glance > lead && steps > glance, 'at a glance sits under the next stop and holds the steps row');
-  assert.ok(line > steps, 'the line comes after the numbers');
-  assert.ok(habits > line, 'daily habits is a link at the foot');
+  assert.ok(checkin >= 0 && checkin < lead, 'the check-in sits at the top, above the next stop');
+  assert.ok(line > lead, 'the line sits under the next stop');
+  assert.ok(glance > line && steps > glance, 'at a glance comes after the line and holds the steps row');
+  assert.ok(habits > steps, 'daily habits is a link at the foot');
   assert.equal(typeof order[habits].props.onOpen, 'function');
   assert.doesNotMatch(d.text, /Today's slate/, 'the old slate head is gone');
 });

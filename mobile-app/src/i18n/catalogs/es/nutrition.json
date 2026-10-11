@@ -405,5 +405,12 @@
   "grocery.shop.skip": "Omitir",
   "grocery.shop.skippedOff": "Omitida · {count} fuera",
   "grocery.shop.toGetCount": "faltan {count}",
-  "grocery.shop.unskip": "Deshacer"
+  "grocery.shop.unskip": "Deshacer",
+  "eat.shop.also": "también {meals}",
+  "eat.shop.skipped": "Omitida",
+  "eat.shop.head": "Ingredientes · {count} por comprar",
+  "eat.shop.skippedNote": "Sus ingredientes salen de la lista, salvo que otra comida los necesite.",
+  "eat.shop.openList": "Abrir en Comprar por comida →",
+  "eat.shop.tagAria": "Compra para {meal}: {status}",
+  "eat.shop.alsoMany": "{count, plural, one {también # comida más} other {también # comidas más}}"
 }

@@ -405,5 +405,12 @@
   "grocery.shop.skip": "Lewati",
   "grocery.shop.skippedOff": "Dilewati · {count} dihapus",
   "grocery.shop.toGetCount": "{count} perlu dibeli",
-  "grocery.shop.unskip": "Urungkan"
+  "grocery.shop.unskip": "Urungkan",
+  "eat.shop.also": "juga {meals}",
+  "eat.shop.skipped": "Dilewati",
+  "eat.shop.head": "Bahan · {count} perlu dibeli",
+  "eat.shop.skippedNote": "Bahannya keluar dari daftar, kecuali dibutuhkan makanan lain.",
+  "eat.shop.openList": "Buka di Belanja per makanan →",
+  "eat.shop.tagAria": "Belanja untuk {meal}: {status}",
+  "eat.shop.alsoMany": "{count, plural, other {juga # makanan lain}}"
 }

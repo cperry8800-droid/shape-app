@@ -405,5 +405,12 @@
   "grocery.shop.skip": "Tsallake",
   "grocery.shop.skippedOff": "An tsallake · an cire {count}",
   "grocery.shop.toGetCount": "{count} da za a sayo",
-  "grocery.shop.unskip": "Mayar"
+  "grocery.shop.unskip": "Mayar",
+  "eat.shop.also": "har da {meals}",
+  "eat.shop.skipped": "An tsallake",
+  "eat.shop.head": "Kayan haɗi · {count} da za a saya",
+  "eat.shop.skippedNote": "An cire kayansa daga jerin, sai dai idan wani abinci yana bukatar su.",
+  "eat.shop.openList": "Buɗe a Siyayya ta abinci →",
+  "eat.shop.tagAria": "Siyayya don {meal}: {status}",
+  "eat.shop.alsoMany": "{count, plural, other {har da wasu abinci #}}"
 }

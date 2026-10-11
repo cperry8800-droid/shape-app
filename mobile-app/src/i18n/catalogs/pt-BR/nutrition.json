@@ -405,5 +405,12 @@
   "grocery.shop.skip": "Pular",
   "grocery.shop.skippedOff": "Pulada · {count} fora",
   "grocery.shop.toGetCount": "faltam {count}",
-  "grocery.shop.unskip": "Desfazer"
+  "grocery.shop.unskip": "Desfazer",
+  "eat.shop.also": "também {meals}",
+  "eat.shop.skipped": "Pulada",
+  "eat.shop.head": "Ingredientes · {count} para comprar",
+  "eat.shop.skippedNote": "Os itens saem da lista, a menos que outra refeição precise deles.",
+  "eat.shop.openList": "Abrir em Comprar por refeição →",
+  "eat.shop.tagAria": "Compras para {meal}: {status}",
+  "eat.shop.alsoMany": "{count, plural, one {também # outra refeição} other {também # outras refeições}}"
 }

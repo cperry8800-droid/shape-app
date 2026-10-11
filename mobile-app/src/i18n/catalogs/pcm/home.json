@@ -203,5 +203,18 @@
   "focus.nextStop": "Next stop",
   "focus.notLogged": "You never log am",
   "focus.proteinToGo": "Protein wey remain",
-  "focus.viewMeal": "See the meal →"
+  "focus.viewMeal": "See the meal →",
+  "focus.stopsDone": "{stops, plural, one {# stop} other {# stops}} · {done} don finish",
+  "focus.youAreHere": "Now · you dey here",
+  "focus.period.day": "Day",
+  "focus.period.week": "Week",
+  "focus.period.month": "Month",
+  "focus.periodAria": "Show",
+  "focus.lastDays": "Last {days} days · {logged} logged",
+  "focus.noneLogged": "Nothing logged",
+  "focus.avgKcal": "Avg kcal",
+  "focus.avgProtein": "Avg protein",
+  "focus.avgSteps": "Avg steps",
+  "focus.ofTarget": "of {target, number}",
+  "focus.ofTargetG": "of {target, number} g"
 }

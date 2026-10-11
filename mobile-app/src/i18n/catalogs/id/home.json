@@ -203,5 +203,18 @@
   "focus.nextStop": "Pemberhentian berikutnya",
   "focus.notLogged": "Belum dicatat",
   "focus.proteinToGo": "Sisa protein",
-  "focus.viewMeal": "Lihat makanan →"
+  "focus.viewMeal": "Lihat makanan →",
+  "focus.stopsDone": "{stops, plural, other {# perhentian}} · {done} selesai",
+  "focus.youAreHere": "Sekarang · kamu di sini",
+  "focus.period.day": "Hari",
+  "focus.period.week": "Minggu",
+  "focus.period.month": "Bulan",
+  "focus.periodAria": "Tampilkan",
+  "focus.lastDays": "{days} hari terakhir · {logged} tercatat",
+  "focus.noneLogged": "Belum ada catatan",
+  "focus.avgKcal": "Rata-rata kkal",
+  "focus.avgProtein": "Rata-rata protein",
+  "focus.avgSteps": "Rata-rata langkah",
+  "focus.ofTarget": "dari {target, number}",
+  "focus.ofTargetG": "dari {target, number} g"
 }

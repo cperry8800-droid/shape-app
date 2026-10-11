@@ -405,5 +405,12 @@
   "grocery.shop.skip": "Sauter",
   "grocery.shop.skippedOff": "Sauté · {count} en moins",
   "grocery.shop.toGetCount": "{count} à acheter",
-  "grocery.shop.unskip": "Annuler"
+  "grocery.shop.unskip": "Annuler",
+  "eat.shop.also": "aussi {meals}",
+  "eat.shop.skipped": "Sautée",
+  "eat.shop.head": "Ingrédients · {count} à acheter",
+  "eat.shop.skippedNote": "Ses ingrédients quittent la liste, sauf si un autre repas en a besoin.",
+  "eat.shop.openList": "Ouvrir en Courses par repas →",
+  "eat.shop.tagAria": "Courses pour {meal} : {status}",
+  "eat.shop.alsoMany": "{count, plural, one {aussi # autre repas} other {aussi # autres repas}}"
 }

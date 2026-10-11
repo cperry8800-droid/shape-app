@@ -69,7 +69,7 @@ export async function GET(request: Request) {
 
   // Per-metric trend series. Each row keeps both the date and the value so
   // the client can render time-aware sparklines without needing alignment.
-  const seriesFor = (key: 'weight_lb' | 'body_fat_pct' | 'resting_hr' | 'sleep_hours' | 'hrv_ms' | 'workout_minutes' | 'protein_g' | 'hydration_l' | 'steps' | 'energy' | 'hunger' | 'sleep_efficiency_pct' | 'sleep_quality' | 'recovery_score' | 'sleep_deep_min' | 'sleep_rem_min' | 'sleep_light_min' | 'sleep_awake_min' | 'sleep_latency_min' | 'respiratory_rate') =>
+  const seriesFor = (key: 'weight_lb' | 'body_fat_pct' | 'resting_hr' | 'sleep_hours' | 'hrv_ms' | 'workout_minutes' | 'protein_g' | 'calories' | 'hydration_l' | 'steps' | 'energy' | 'hunger' | 'sleep_efficiency_pct' | 'sleep_quality' | 'recovery_score' | 'sleep_deep_min' | 'sleep_rem_min' | 'sleep_light_min' | 'sleep_awake_min' | 'sleep_latency_min' | 'respiratory_rate') =>
     snaps
       .filter((s) => (s as Record<string, unknown>)[key] != null)
       .map((s) => ({ date: (s as Record<string, string>).snapshot_date, value: Number((s as Record<string, unknown>)[key]) }));
@@ -115,6 +115,9 @@ export async function GET(request: Request) {
   const hrvSeries = seriesFor('hrv_ms');
   const volumeSeries = seriesFor('workout_minutes');
   const proteinSeries = seriesFor('protein_g');
+  // Calories per logged day — Home's At a glance averages them over a week and a
+  // month (owner, 2026-10-11).
+  const caloriesSeries = seriesFor('calories');
   const hydrationSeries = seriesFor('hydration_l');
   const stepsSeries = seriesFor('steps');
   const energySeries = seriesFor('energy');
@@ -318,6 +321,7 @@ export async function GET(request: Request) {
       hrv: hrvSeries,
       volume: volumeSeries,
       protein: proteinSeries,
+      calories: caloriesSeries,
       hydration: hydrationSeries,
       steps: stepsSeries,
       energy: energySeries,

@@ -405,5 +405,12 @@
   "grocery.shop.skip": "Bỏ qua",
   "grocery.shop.skippedOff": "Đã bỏ · bớt {count}",
   "grocery.shop.toGetCount": "cần mua {count}",
-  "grocery.shop.unskip": "Hoàn tác"
+  "grocery.shop.unskip": "Hoàn tác",
+  "eat.shop.also": "cả {meals}",
+  "eat.shop.skipped": "Đã bỏ qua",
+  "eat.shop.head": "Nguyên liệu · cần mua {count}",
+  "eat.shop.skippedNote": "Nguyên liệu đã rời danh sách, trừ khi bữa khác cần.",
+  "eat.shop.openList": "Mở Mua theo bữa →",
+  "eat.shop.tagAria": "Mua cho {meal}: {status}",
+  "eat.shop.alsoMany": "{count, plural, other {cả # bữa khác}}"
 }
