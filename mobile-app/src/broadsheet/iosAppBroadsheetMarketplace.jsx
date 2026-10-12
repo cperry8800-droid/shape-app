@@ -2062,23 +2062,34 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   // showed no reviews and could not post one. A coach with an account reads its
   // reviews by ACCOUNT, because the slug is a name and names drift.
   const coachSlug = coach.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-  const coachKind = coach.tag === 'Nutritionist' ? 'nutritionist' : 'trainer';
+  // The listing's ROLE, never its tag: a live row's tag is 'FEATURED' or nothing, so
+  // a nutritionist's review was filed as a trainer's and the relationship check
+  // refused an eligible client (Codex P1, #2313).
+  const coachKind = getPublicProfileKind(coach);
   const coachOwner = coach.provider_user_id || null;
   const ownListing = !!(coachOwner && bsmAuthUid && coachOwner === bsmAuthUid);
   const [liveReviews, setLiveReviews] = useStateBSM2([]);
   const [revRating, setRevRating] = useStateBSM2(0);
   const [revText, setRevText] = useStateBSM2('');
   const [revPosting, setRevPosting] = useStateBSM2(false);
-  const avgRev = liveReviews.length ? Math.round((liveReviews.reduce((s, r) => s + (r.rating || 0), 0) / liveReviews.length) * 10) / 10 : null;
+  // The server's average and count are over EVERY review; the list is the newest 200.
+  const [revAgg, setRevAgg] = useStateBSM2(null);
+  const [revLoad, setRevLoad] = useStateBSM2(0);
+  const avgRev = revAgg && revAgg.count > 0 ? revAgg.avg
+    : (liveReviews.length ? Math.round((liveReviews.reduce((s, r) => s + (r.rating || 0), 0) / liveReviews.length) * 10) / 10 : null);
   useEffectBSM2(() => {
     let c = false;
     const api = window.ShapeCoachReviews;
     if (!api) return undefined;
     (coachOwner ? api.forOwner(coachOwner) : api.forCoach(coachSlug))
-      .then(d => { if (!c && d && Array.isArray(d.reviews)) setLiveReviews(d.reviews); })
+      .then(d => {
+        if (c || !d || !Array.isArray(d.reviews)) return;
+        setLiveReviews(d.reviews);
+        setRevAgg(Number.isFinite(Number(d.count)) ? { avg: Number(d.avg) || 0, count: Number(d.count) } : null);
+      })
       .catch(() => {});
     return () => { c = true; };
-  }, [coachSlug, coachOwner]);
+  }, [coachSlug, coachOwner, revLoad]);
   const submitReview = () => {
     if (!revRating || revPosting) return;   // in-flight lock: a double-tap can't post twice
     if (window.bsRequireAccount && !window.bsRequireAccount('leave a review')) return;
@@ -2089,7 +2100,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
       .then((r) => {
         if (r && r.ok && r.review) {
           setLiveReviews(prev => [r.review, ...prev.filter(x => x.id !== r.review.id)]);
-          setRevRating(0); setRevText('');
+          setRevRating(0); setRevText(''); setRevLoad(n => n + 1);   // re-read the average
           window.__bsToast?.(tr('marketplace:listing.reviewPosted', { defaultValue: 'Review posted' }), 'ok');
           return;
         }

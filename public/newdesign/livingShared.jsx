@@ -638,6 +638,10 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
   const [revText, setRevText] = React.useState("");
   const [revBusy, setRevBusy] = React.useState(false);
   const [revMsg, setRevMsg] = React.useState("");
+  // The server's average and count are over EVERY review; the list is the newest 200.
+  const [revAgg, setRevAgg] = React.useState(null);
+  const [revLoad, setRevLoad] = React.useState(0);
+  const revKeyRef = React.useRef("");
   // Coach-authored monthly offer (spec #1632 §5) — the same provider-row
   // monthly_offer the mobile Listing's WHAT'S INCLUDED sheet reads. The
   // provider tables are public-read; pre-migration the select just errors
@@ -708,16 +712,27 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
   React.useEffect(() => {
     const slug = String(d.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
     let on = true;
-    setLiveReviews(null);
+    // A different coach clears the last one's reviews; a re-read after a post keeps them on screen.
+    const key = `${d.uid || ""}|${d.name || ""}`;
+    if (revKeyRef.current !== key) { revKeyRef.current = key; setLiveReviews(null); setRevAgg(null); }
     const q = d.uid ? `owner=${encodeURIComponent(d.uid)}` : `coach=${encodeURIComponent(slug)}`;
-    fetch(`/api/coaches/reviews?${q}`, { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : null)).then((j) => { if (on && j && Array.isArray(j.reviews) && (d.uid || j.reviews.length)) setLiveReviews(j.reviews); }).catch(() => {});
+    fetch(`/api/coaches/reviews?${q}`, { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : null)).then((j) => {
+      if (!on || !j || !Array.isArray(j.reviews)) return;
+      if (d.uid || j.reviews.length) setLiveReviews(j.reviews);
+      setRevAgg(Number.isFinite(Number(j.count)) ? { avg: Number(j.avg) || 0, count: Number(j.count) } : null);
+    }).catch(() => {});
     return () => { on = false; };
-  }, [d.uid, d.name]);
+  }, [d.uid, d.name, revLoad]);
   const postReview = async () => {
     if (!revRating || revBusy) return;
     if (!acct) { setRevMsg("Sign in to leave a review."); return; }
+    // ⚠ THE LISTING'S NAME OR NOTHING (Codex, #2313). The review is filed under the
+    // listing's slug, which the relationship check resolves; the profile's name can
+    // differ, so posting before the listing row has loaded (or when it could not be
+    // read) would file it under the wrong coach and be refused.
+    if (!(prow && prow.name)) { setRevMsg("This coach's listing is still loading — try again in a moment."); return; }
     setRevBusy(true); setRevMsg("");
-    const listingName = (prow && prow.name) || d.name || "";
+    const listingName = prow.name;
     const slug = String(listingName).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
     try {
       const res = await fetch("/api/coaches/reviews", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ coach: slug, kind: providerTable === "nutritionists" ? "nutritionist" : "trainer", rating: revRating, text: revText }) });
@@ -725,6 +740,7 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
       if (res.ok && j && j.review) {
         setLiveReviews((prev) => [j.review, ...((prev || []).filter((x) => x && x.id !== j.review.id))]);
         setRevRating(0); setRevText(""); setRevMsg("Thanks — your review is posted.");
+        setRevLoad((n) => n + 1);   // re-read the average and count
       } else if (j && j.code === "relationship_required") {
         setRevMsg("You can review a coach once you have subscribed to them or had a session with them.");
       } else if (res.status === 401) {
@@ -878,7 +894,9 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
     } catch (e) { setBuyErr("Could not start checkout — check your connection and try again."); }
     finally { busy.current = false; }
   };
-  const reviewsAvg = (liveReviews && liveReviews.length) ? Math.round((liveReviews.reduce((s, r) => s + (r.rating || 0), 0) / liveReviews.length) * 10) / 10 : null;
+  const reviewsAvg = (revAgg && revAgg.count > 0) ? revAgg.avg
+    : (liveReviews && liveReviews.length) ? Math.round((liveReviews.reduce((s, r) => s + (r.rating || 0), 0) / liveReviews.length) * 10) / 10 : null;
+  const reviewsCount = revAgg ? revAgg.count : (liveReviews && liveReviews.length ? liveReviews.length : d.reviewCount);
   const reviewItems = (liveReviews && liveReviews.length)
     ? liveReviews.map((r) => ({ name: r.author || "Member", initials: (r.author || "M").slice(0, 2).toUpperCase(), hue: 160, stars10: Math.round(r.rating || 0), body: r.text || "", time: "", authorId: r.authorId || null }))
     : d.reviews.map((r) => ({ ...r, stars10: 10, authorId: null }));
@@ -1077,7 +1095,7 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
           passed so the rate-card rating matches the Reviews tab (honest data). */}
       <LvServices d={d} light={light} ink={ink} c={c} stHead={stHead} owner={owner} onReviews={onReviews}
         ratingAvg={reviewsAvg != null ? reviewsAvg : d.rating}
-        reviewCount={liveReviews && liveReviews.length ? liveReviews.length : d.reviewCount} />
+        reviewCount={reviewsCount} />
       </React.Fragment>}
 
       {/* Reviews — its own tab; zero-box entries on hairlines (press clippings) */}
@@ -1085,7 +1103,7 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
         {stHead("Reviews", (reviewsAvg != null || d.rating != null) ? (
           <span style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
             <span style={{ fontFamily: lvSerif, fontSize: 20, letterSpacing: "-0.02em", color: ink }}>{reviewsAvg != null ? reviewsAvg : d.rating}</span>
-            <span style={{ fontFamily: lvMono, fontSize: 10, color: hexA(ink, 0.5) }}>/10 · ★ {liveReviews && liveReviews.length ? liveReviews.length : d.reviewCount}</span>
+            <span style={{ fontFamily: lvMono, fontSize: 10, color: hexA(ink, 0.5) }}>/10 · ★ {reviewsCount}</span>
           </span>
         ) : null)}
         {/* Write a review — a real coach's profile, not your own. The server decides
@@ -1104,7 +1122,7 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
               style={{ width: "100%", boxSizing: "border-box", background: hexA(ink, 0.04), color: ink, border: `1px solid ${hexA(ink, 0.14)}`, borderRadius: 6, padding: "8px 10px", fontFamily: lvSans, fontSize: 14, resize: "vertical", outline: "none" }} />
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 8 }}>
               <span role="status" style={{ fontFamily: lvSans, fontSize: 12.5, color: hexA(ink, 0.65) }}>{revMsg}</span>
-              <button type="button" onClick={postReview} disabled={!revRating || revBusy}
+              <button type="button" onClick={postReview} disabled={!revRating || revBusy || !(prow && prow.name)}
                 style={{ flex: "none", borderRadius: 6, padding: "8px 16px", background: revRating ? ink : hexA(ink, 0.08), color: revRating ? (light ? "#f1ece3" : LV_BG) : hexA(ink, 0.45), border: 0, cursor: revRating && !revBusy ? "pointer" : "default", fontFamily: lvMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>
                 {revBusy ? "Posting…" : "Post review"}
               </button>

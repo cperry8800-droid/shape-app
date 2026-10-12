@@ -19001,6 +19001,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   // its illustrative numbers. Through window.ShapeCoachReviews: the root-relative
   // fetch this was reached nothing on the native build.
   const liveCoach = !!person.userId;
+  const [liveAgg, setLiveAgg] = useStateBSC(null);
   React.useEffect(() => {
     const slug = String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     let on = true;
@@ -19010,6 +19011,8 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
       .then((d) => {
         if (!on || !d || !Array.isArray(d.reviews)) return;
         if (liveCoach || d.reviews.length) setLiveReviews(d.reviews);
+        // The server's average and count are over every review; the list is capped at 200.
+        setLiveAgg(Number.isFinite(Number(d.count)) ? { avg: Number(d.avg) || 0, count: Number(d.count) } : null);
       })
       .catch(() => {});
     return () => { on = false; };
@@ -19072,9 +19075,10 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   const offerings = realOfferings.length ? realOfferings : (ownZero ? [] : demoOfferings);
   const offerCats = isNutri ? ['All', 'Meals', 'Diets', 'Coaching'] : ['All', 'Workouts', 'Programs', 'Coaching'];
   const visibleOfferings = offerTab === 'All' ? offerings : offerings.filter((o) => o[0] === offerTab);
-  const liveAvgAll = (liveReviews && liveReviews.length) ? Math.round((liveReviews.reduce((s, r) => s + (r.rating || 0), 0) / liveReviews.length) * 10) / 10 : null;
+  const liveAvgAll = (liveAgg && liveAgg.count > 0) ? liveAgg.avg
+    : (liveReviews && liveReviews.length) ? Math.round((liveReviews.reduce((s, r) => s + (r.rating || 0), 0) / liveReviews.length) * 10) / 10 : null;
   const rating = liveCoach ? (liveAvgAll != null ? liveAvgAll.toFixed(1) : null) : (isNutri ? '9.9' : '9.94');
-  const reviewCount = liveCoach ? (liveReviews ? liveReviews.length : 0) : (isNutri ? 198 : 284);
+  const reviewCount = liveCoach ? (liveAgg ? liveAgg.count : (liveReviews ? liveReviews.length : 0)) : (isNutri ? 198 : 284);
   const ratingLabel = rating != null ? `★ ${rating}/10` : tr('marketplace:rating.new', { defaultValue: 'New' });
   // The track record's Rating row is the real average for a coach with an account,
   // and absent until someone has reviewed them.
@@ -19253,7 +19257,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
         <div data-tour="hero-me" style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '20px -22px 0', ...card, borderRadius: 0, borderLeft: 0, borderRight: 0, padding: '14px 20px' }}>
           <div onClick={isSelf ? onOpenScore : undefined} style={{ flex: 'none', cursor: isSelf ? 'pointer' : 'default' }}><div style={{ fontFamily: SERIF, fontSize: 34, letterSpacing: '-0.03em', lineHeight: 0.9 }}>{score.toLocaleString()}</div><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 4 }}>Shape Score{isSelf ? ' ›' : ''}</div></div>
           <div style={{ width: 1, height: 34, background: bsTHexA(INK, 0.12) }} />
-          <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: MONO, fontSize: 11, color: TEAL }}>{ratingLabel} · <span onClick={() => setTab('reviews')} style={{ cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>{tr('profile:coach.reviewCount', { count: liveReviews && liveReviews.length ? liveReviews.length : reviewCount, defaultValue: '{count, plural, one {# review} other {# reviews}}' })}</span></div><div style={{ fontFamily: SANS, fontSize: 11.5, color: bsTHexA(INK, 0.55), marginTop: 4 }}>{tr('profile:coach.respondsWithinHours', { defaultValue: 'Responds within hours' })}</div></div>
+          <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: MONO, fontSize: 11, color: TEAL }}>{ratingLabel} · <span onClick={() => setTab('reviews')} style={{ cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>{tr('profile:coach.reviewCount', { count: liveCoach ? reviewCount : (liveReviews && liveReviews.length ? liveReviews.length : reviewCount), defaultValue: '{count, plural, one {# review} other {# reviews}}' })}</span></div><div style={{ fontFamily: SANS, fontSize: 11.5, color: bsTHexA(INK, 0.55), marginTop: 4 }}>{tr('profile:coach.respondsWithinHours', { defaultValue: 'Responds within hours' })}</div></div>
         </div>
 
         {isPrivate ? (
@@ -19440,13 +19444,13 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
 
           {/* Reviews — its own tab (live /api/coaches/reviews when present) */}
           {tab === 'reviews' && (() => {
-            const liveAvg = (liveReviews && liveReviews.length) ? Math.round((liveReviews.reduce((s, r) => s + (r.rating || 0), 0) / liveReviews.length) * 10) / 10 : null;
+            const liveAvg = liveAvgAll;
             const liveList = (liveReviews && liveReviews.length)
               ? liveReviews.map((r) => [r.author || 'Member', (r.author || 'M').slice(0, 2).toUpperCase(), 160, r.text || '', Math.round(r.rating || 0), r.authorId || null])
               : reviews.map((r) => [...r, 10, null]);
             return (
             <div style={{ marginTop: 24 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}><Kick>{tr('profile:tab.reviews', { defaultValue: 'Reviews' })}</Kick><div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}><span style={{ fontFamily: SERIF, fontSize: 22, letterSpacing: '-0.02em' }}>{liveAvg != null ? liveAvg : (rating != null ? rating : '—')}</span><span style={{ fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.5) }}>/10 · ★ {liveReviews && liveReviews.length ? liveReviews.length : reviewCount}</span></div></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}><Kick>{tr('profile:tab.reviews', { defaultValue: 'Reviews' })}</Kick><div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}><span style={{ fontFamily: SERIF, fontSize: 22, letterSpacing: '-0.02em' }}>{liveAvg != null ? liveAvg : (rating != null ? rating : '—')}</span><span style={{ fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.5) }}>/10 · ★ {liveCoach ? reviewCount : (liveReviews && liveReviews.length ? liveReviews.length : reviewCount)}</span></div></div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, margin: '12px -22px 0' }}>
                 {!liveList.length && (
                   <div style={{ padding: '13px 20px', fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{tr('marketplace:listing.noReviews', { defaultValue: 'No reviews yet' })}</div>
