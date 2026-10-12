@@ -25,6 +25,259 @@ archive re-pays the token tax the cap exists to remove.
 
 ## Changelog — 2026-10
 
+### 2026-10-08 — The phone cook screen's oven keeps its dish inside the tile, and two ovens take a line each
+
+- **Merged [#2267](https://github.com/cperry8800-droid/shape-app/pull/2267) as `c6ec8a1`** (merged by the owner), final head `242fd14`. `main` had moved by #2268, a records PR, so the trees differ; **the PR's diff is identical on the new base**. 3 files: `iosAppBroadsheetClient.jsx`, `tests/cook-oven-tile-fit.test.mjs` and its mutation spec. **No migration, no route, no i18n key.** The owner: *"fix the oven tile overflow"*, which #2263 had registered (the entry below).
+- **What was wrong**, measured in Chromium at 390px. On a phone (`.bsck.dev`) the oven is a 113px strip, but its contents kept the big oven's centred grid: the dish name (capped at 88px), the countdown and a note in one row. "Sheet-pan salmon" with "In 18 min" needed 139px of the 89 inside, so the name, centred in its shrunk column, ran **25px past the tile's left edge**, and the note wrapped.
+- **The fix** (CSS, phone layout only; the website's big oven is untouched):
+  - One oven stacks like the burners: the name on its own line with an ellipsis, then the countdown and the note on one line that never wraps. The note gives way before the countdown.
+  - Two ovens take a line each: `bsCkHob` marks the window `two`, and it reads "Roa… 19:54" over "She… 12:00". The time is never cut, the note keeps its width while the name has any to give, and the name takes what is left (`flex:1 1 0`). At 320px a long name can lose every letter beside "On the heat" or "Time's up".
+- ⚠ **CODEX'S P2 WAS RIGHT: THE FIRST HEAD PUT TWO OVENS SIDE BY SIDE, 28PX EACH AT 320PX.** Reproduced on a real two-oven cook: the first oven's `19:59`, which is never cut, ran 16px over the second dish; with both timers running, `12:00` ended 5px past the tile; and a Time's up dish wrapped to three lines, out of the 40px strip. My sweep of the first head had covered two ovens only at 390px and with one timer running. Fixed in `242fd14`, and the thread is resolved.
+- ⚠ **TWO LAYOUTS FAILED ON THE WAY TO THAT ONE.** Sharing the cut by width (`flex:0 1 auto`) turned "Now" into "N…" beside "Sheet-pan …" at 430px. A grid with the name in a `minmax(0,1fr)` column let the `auto` tracks grow to the note's full width, so a long note spilled at every width.
+- **Review:** Codex, 1 finding, above. None was requested; CodeRabbit posted only its skip notice.
+- **Verified:**
+  - Driven in the real app (Vite dev, Chromium) at 320, 390 and 430px. After every step it checks that each oven element sits inside its line and the tile, that no dish overlaps the other and that nothing wraps. One oven: empty, In N min, Now, On the heat, a 12:00 countdown. Two ovens: halloumi traybake and salmon, through both timers running. Plus six injected two-oven cases: both timers, Now, In N min / On the heat, Time's up, a long note, a `120:00` hold (`bsCkMmss` has no hours form) and short names. Zero failures on the final head.
+  - `tests/cook-oven-tile-fit.test.mjs` (5 tests) holds the stylesheet to the rules the fix rests on, matched by exact selector, and renders the shipping `bsCkHob` with zero, one and two oven dishes. The first three fail on `main`'s stylesheet; the two two-oven tests fail on the first head.
+  - Mutations (`tests/mutations/cook-oven-tile-fit-2026-10-08.mutations.mjs`, `--fail-on-skipped`): 12/12 on the first head, **17/17** on the final one, restored byte-identical.
+  - 337/337 across the cook suites and the i18n inventory. Both commits skipped the pre-commit hook under the small-commit rule. Every check passed on `242fd14`; the tests job finished just after the owner's merge.
+- **Written after the merge**, per the 2026-09-11 rule.
+- ⚠ **REGISTERED, NOT DONE:**
+  - A finished timer beside a long name at 430px shows a 6px sliver of the name's first letter before `0:00`, with no ellipsis. Fixed by #2270, the entry above, where container queries exist; iOS 14–15 (still a deployment target) keep it, and that stays open in #2270's entry.
+  - No pass on a real phone (WKWebView or Android WebView).
+
+### 2026-10-08 — The cook screen's timeline is drawn as rails: no numbered chips, a status line per dish
+
+- **Merged [#2263](https://github.com/cperry8800-droid/shape-app/pull/2263) as `82c4713`**, final head `b8afe84`; the merged tree is byte-identical to it (tree `4256b52` on both). 17 files. **No migration, no route**; eight new `cook` keys in 13 locales. The owner picked **A · Rails** off the board (https://claude.ai/artifact/NNvxjSjg7ptRUuL3MFmrzp), the entry below: *"option A"*.
+- **What it is now** (`bsCkTracks`):
+  - One rail per dish, a short bar per step and no digits. A hold is hatched; the step in front of the cook is a taller, ringed bar. Done steps fade, except one whose timer still runs.
+  - The dish name has its own line, saying where it stands (`bsTrackLaneStatus`, pure, in `cookBoard.mjs`): "Step 1 of 6", "Starts 8:29", "Next 8:41", "Hands-off 14:32" on a hold, "Timer 2:30" on a hands-on step, "Time's up", "Done"; "In 18 min" without a clock; "6 steps" on the plated screen. The current step wins over a timer, because the stove shows every timer.
+  - The ruler's end reads "Ready 8:56": the top bar's own time, handed in as `readyAt` by the two screens that compute it, so the screen never states two ready times. The hand-off between dishes has none, and shows the dashed end line only.
+  - Ruler times are centred and never drawn under the Now/Plated or Ready label, or cut by an edge. Website layout: 44px lanes.
+  - Removed: `ck.handsOff`, `ck.handsOffShort` and `bsCkFirstWords`, which only the old chips read.
+- ⚠ **THE FIRST DRAFT'S `.row` MATCHED THE INGREDIENT LIST'S `.cC .row`** (min-height 56px, padding, `width:100%`), which pushed every status line off the strip and under the bars. Every new rule is scoped under `.tl` and the class is `.lh`. The old naming would also have hit the setup screen's `.trk .t .bar`.
+- **Review.** Codex, 1 finding (P2), fixed in `b63d825`: a timer started on a hands-on step and left running while the cook moved to another dish read "Hands-off". It now reads "Timer", and the thread is resolved. Copilot declined on its quota; CodeRabbit posted only its skip notice; none was requested.
+- ⚠ **CI WENT RED ON A TEST NO PR TOUCHED.** `tests/schedule-step3.test.mjs`'s `/api/availability` case hard-coded a session at `2026-10-08T13:00–14:00Z`, and the route lists as booked only sessions that have not ended, so every branch failed from 14:00Z that day. Reproduced on `main`. My fixture fix (`bce8b13`) was dropped on rebase: #2262 had already fixed it on `main` by pinning the test's clock.
+- **Verified:**
+  - Driven in the real app (Vite dev, Chromium): the owner's cook on dark paper at step 1 and step 8; a Together cook on bone paper with an 18-minute hold running ("Hands-off 18:00" beside "Step 3 of 6"), at 390px and in the 1280px website layout; the plated screen. The ruler's ready time matched the top bar each time.
+  - `tests/cook-tracks-rails.test.mjs` (14 tests): the status rules, and the shipping `bsCkTracks` rendered to markup.
+  - Mutations (`tests/mutations/cook-tracks-rails-2026-10-08.mutations.mjs`, `--fail-on-skipped`): **20 killed, 1 proven no-op** (its proof is in the spec), 0 skipped. ⚠ The first round's three survivors were gaps in the test; one was an edge test whose clock started at 8:15 while the ruler steps every 10 minutes, so no mark ever reached the edge. And after the Codex fix, `--fail-on-skipped` caught a mutation anchored on the line that fix rewrote.
+  - `npm test` 6139/6139 through the pre-commit gate on the first commit; all required checks green on `b8afe84`.
+- **Written after the merge**, per the 2026-09-11 rule.
+- ⚠ **REGISTERED, NOT DONE:**
+  - The stove's oven tile spills a long dish name to the left of its box ("Sheet-pan s…"); pre-existing, untouched here. Fixed by #2267, the entry above.
+  - The website cook screen's bars carry no step words, though at 1280px they have room. The old chips showed "1 · Heat the oven to" there. Fixed by #2270.
+  - Prep the week's meal-plan recipes still carry no step lengths, so every bar is the planner's 3 minutes. Fixed for the demo plan by #2270; a real coach plan still costs 3 minutes for a step with no station.
+  - No pass on a real phone, and the new translations have not been read by speakers.
+
+### 2026-10-08 — Ask Nora, the plan's run: twenty-five PRs, #2238 to #2265
+
+- **Twenty-five PRs merged on 2026-10-07 and 2026-10-08:** #2238 to #2255, #2258 to #2262, #2264 and #2265. (#2256, #2257 and #2263 in between are another session's Kitchen work.) The plan is https://claude.ai/artifact/NCG3wLdtPVFHZk1U1HtAm3, and the owner's standing word was to merge each PR once it was green and clear.
+  - Each merged tree is identical to its PR's final head, or its diff is identical on the new base.
+  - Every required check was green on every final head before the merge.
+- **Migrations: three, all run by the owner and checked live in production on 2026-10-08:**
+  - `2026-10-08-nora-threads.sql` (#2255): `nora_threads`, RLS on, four own-row policies.
+  - `2026-10-08-admin-lookup-log.sql` (#2264): `admin_lookup_log`, RLS on with no policies, and `admin_account_by_email`, a definer over `auth.users` that only `service_role` can execute. Checked: anon and authenticated cannot execute it, and it returns no row for an unknown address.
+  - `2026-10-08-support-requests.sql` (#2265): `support_requests`, its policies, and the `support_requests_daily_limit` trigger. Its function is executable by neither anon nor authenticated.
+  - ⚠ **A RAW LINK ON A BRANCH NAME CAN SERVE THE OLD FILE.** The owner's first re-run of #2264's migration, after the function was added to it, created nothing new: GitHub caches raw files by branch for a few minutes. **When a migration changes after it has been run, give a raw link pinned to the commit sha.**
+- **Review.** Codex ran on every PR when it opened, and was never refused for its usage limit. It filed **46 findings (18 P1, 28 P2)**:
+  - 43 fixed in their own PR;
+  - #2239's P1 was already fixed on `main` by #2238;
+  - #2249's CORS P2 was fixed by #2251;
+  - #2246's app P2 was fixed in a narrow form, then fully by #2259.
+  - Every thread is resolved. Copilot declined every head on its quota; CodeRabbit posted only its skip notice.
+- **Speed ruling, in force for the run:** commits skipped the pre-commit suite (`SKIP_VERIFY=1`) after the tests that read the change had run, and CI ran everything. Mutation rounds ran only where money, data or a migration was involved: #2238 18/18; #2260 20/20; #2264 14/14; #2265 27/27, then 37/37 after the Codex fixes.
+
+**Nora tells the truth about what she can do (#2238 to #2243)**
+- [#2238](https://github.com/cperry8800-droid/shape-app/pull/2238) `15ee7aa`: no promised hand-off anywhere, only info@theshapecommunity.com. A trainer's "today" is their own zone (`trainerZone()`; a failed read is UTC, Codex).
+- [#2239](https://github.com/cperry8800-droid/shape-app/pull/2239) `f51d867`: the older pages and the Next app's button ask the real Nora, not a script. Panels that cannot show a confirm card send `confirmCards: false`.
+- [#2240](https://github.com/cperry8800-droid/shape-app/pull/2240) `6669390`: search opens Nora on the first click, before the chat has loaded.
+- [#2241](https://github.com/cperry8800-droid/shape-app/pull/2241) `ff48910`: the app's Help names the real path and opens Nora. The website's voice controls match the server's gate (`GET /api/ai/speak`).
+- [#2242](https://github.com/cperry8800-droid/shape-app/pull/2242) `4c96840`: any account that also trains can draft. ⚠ An action must opt in with `heldRoles: true`, and only `draft_workout` does (Codex P1: held roles would have opened every trainer action).
+- [#2243](https://github.com/cperry8800-droid/shape-app/pull/2243) `957d72e`: the app's Assign starts on the client Nora drafted for.
+
+**One front door, on both surfaces (#2244 to #2252)**
+- [#2244](https://github.com/cperry8800-droid/shape-app/pull/2244) `df0b7df`: the website corner is one split "✦ Ask Nora | Chat" button, a round ✦ on phones; Nora leaves the Chat bubble.
+- [#2245](https://github.com/cperry8800-droid/shape-app/pull/2245) `c733c7d`: in the app, a ✦ beside ⌕ in every header opens `BSNoraSheet`; Support leaves Chat.
+- [#2246](https://github.com/cperry8800-droid/shape-app/pull/2246) `77b1d17`: daily limits by account (`noraLimits.ts`): visitors 20 per browser and 100 per address, signed in 40, members 200, coaches 300, admins none. A visitor's first question needs a Turnstile check, which earns a signed 30-day cookie.
+- [#2247](https://github.com/cperry8800-droid/shape-app/pull/2247) `8e4fbde` and [#2249](https://github.com/cperry8800-droid/shape-app/pull/2249) `77879b6`: each kind of account gets its own greeting and four suggestions (`noraGreeting.mjs`, `GET /api/support/chat`), on the website and in the app.
+- [#2248](https://github.com/cperry8800-droid/shape-app/pull/2248) `5f9903b`: a question typed into any search offers "✦ Ask Nora" with the words as a draft. A matching person stays above it ("Will Smith" is a name).
+- [#2250](https://github.com/cperry8800-droid/shape-app/pull/2250) `537d01e`: a live-model eval, run by hand (`scripts/nora-live-eval.mjs`, with tokens in `NORA_EVAL_*`).
+- [#2251](https://github.com/cperry8800-droid/shape-app/pull/2251) `a46676b`: ⚠ **THE INSTALLED APP COULD NOT CALL `/api` AT ALL.** No route answered its preflight. `src/lib/native-cors.ts` allows `capacitor://localhost` and `https://localhost` only, with no credentials header.
+- [#2252](https://github.com/cperry8800-droid/shape-app/pull/2252) `6abda2a`: Talk to Nora on both surfaces (`noraVoiceLoop.mjs`, `BSNoraTalk.jsx`), and Listen plays on a phone (one player, unlocked inside the tap).
+
+**Nora knows where you are, in one conversation (#2253 to #2255)**
+- [#2253](https://github.com/cperry8800-droid/shape-app/pull/2253) `a9f033f`: every panel sends the page or screen and what is open on it (`noraContext.mjs`). Clients and sessions are checked against the caller, and the labels ride in the data tier. One zone runs the whole turn (Codex P1).
+- [#2254](https://github.com/cperry8800-droid/shape-app/pull/2254) `f46f929`: "✦ Ask Nora about this" beside selected text, on every website page, for a mouse.
+- [#2255](https://github.com/cperry8800-droid/shape-app/pull/2255) `47a59a0`: one stored conversation per account (`nora_threads`, `/api/nora/thread`), with Clear and "Settings → What Nora remembers". ⚠ **APPENDS ARE CONDITIONAL WRITES ON `updated_at`**, retried four times, so two devices never overwrite each other (Codex P1).
+
+**Help where people get stuck (#2258 to #2265)**
+- [#2258](https://github.com/cperry8800-droid/shape-app/pull/2258) `32004f2` and [#2259](https://github.com/cperry8800-droid/shape-app/pull/2259) `3dcdb86`: on sign-up, the coach application, the app's paywall and sign-in, Nora answers questions and fills the form in with the person (`noraForms.mjs`, `fill_form`).
+  - She never fills passwords, uploads, consent boxes, license rows or the human check.
+  - The app solves the bot check itself (`ShapeTurnstile.solve()`).
+- [#2260](https://github.com/cperry8800-droid/shape-app/pull/2260) `e62fddf`: nutritionists draft meal plans from Shape's meal library (`mealDraft.mjs`, `draft_meal_plan`). The plan is saved unpublished, and Undo is guarded. Codex P1: "no beef" had served the steak.
+- [#2261](https://github.com/cperry8800-droid/shape-app/pull/2261) `a5b56fe`: empty screens and booking, checkout and save errors offer Nora, with the error as context (four kinds, 200 characters, in the data tier).
+- [#2262](https://github.com/cperry8800-droid/shape-app/pull/2262) `1cd6c53`: "What needs me today?" for coaches (`get_coach_today`): requests to confirm, today's sessions on the coach's clock, and who the Today engine flags with the coach's own thresholds.
+  - Each role runs over its own roster, the sleep and check-in gauges included (`readRosterRecovery`, now shared with `/api/coach/roster-sleep`).
+  - A failed read is said, never an all-clear.
+  - ⚠ **IT ALSO FIXED A TEST THAT BROKE ON THE CLOCK.** `tests/schedule-step3.test.mjs` dated its fixture session 13:00–14:00 UTC on 2026-10-08 against the real clock, so from 14:00 that day it failed on every branch, `main` included. It now pins its clock (`t.mock.timers`).
+- [#2264](https://github.com/cperry8800-droid/shape-app/pull/2264) `a39f129`: the admin help desk (`admin_lookup_account`): an account by email, read-only.
+  - Gated on `isAdmin` and a confirmed email. The service role reads it, and an `admin_lookup_log` row is written **before** the read; no log row, no lookup.
+  - The account is found by its sign-in identity (Codex: `profiles.email` misses an account whose profile was never created or whose email changed).
+  - Never a Stripe id, a birth date, a phone or an address.
+- [#2265](https://github.com/cperry8800-droid/shape-app/pull/2265) `e809332`: "Talk to a person". A signed-in account sends its question and stored conversation to the team (`POST /api/support/request`, emailed to `SUPPORT_EMAIL` or info@). An admin replies at `/dashboard/support`, and the reply lands in the same Nora conversation as **Shape team · a person**, and by email.
+  - ⚠ **A TEAM MESSAGE COUNTS ONLY WHEN AN ANSWERED REQUEST VOUCHES FOR IT** (Codex P1). The account can write its own `nora_threads` row, so the role stored there proves nothing. Only the console writes a reply to `support_requests`.
+  - Three a day, enforced by the trigger under a per-account lock (Codex P2: a direct insert or a race got past the route's count).
+  - A reply sent later appears the next time the panel or sheet opens.
+
+- **Written after the merges**, per the 2026-09-11 rule.
+- ⚠ **REGISTERED, NOT DONE:**
+  - **No live model has run any of it**, and the eval script (#2250) has never been run. **No signed-in pass on a phone** either.
+  - **Owner settings:**
+    - Add the hostname **`localhost`** to the Turnstile widget's hostnames in Cloudflare; until then, the installed app's bot check cannot pass (#2259). ⚠ **A HOSTNAME, NOT AN ORIGIN:** both native origins, `capacitor://localhost` and `https://localhost`, have the hostname `localhost`, and the allowlist takes hostnames only (Codex, #2268). This entry, and what I told the owner in chat, first named the two origins.
+    - Set `SUPPORT_EMAIL` in Vercel, or the questions go to info@ (#2265).
+  - **Not translated:** the limit and check messages (#2246), the greeting text (#2249) and the website panel's "Talk to a person" are English only. The new app strings (#2252, #2259, #2261, #2265) have not been read by speakers.
+  - **Nora:**
+    - An open panel does not poll for the team's reply (#2265).
+    - No screen lists the admin lookup log (#2264).
+    - The older pages' plain panel keeps its conversation in the page (#2255), and its other tabs are still example conversations (#2239).
+    - The selection pill is mouse only (#2254).
+  - **Meal library:** too small for some briefs (a vegan or dairy-free one leaves no breakfast), and the app cannot open the builder document (#2260).
+  - **Older gaps found on the way:** the member sign-up drops its goals, health and preferences answers on submit (predates #2258), and the native integration-connect cookie bridge still fails (#2251).
+
+### 2026-10-08 — The Kitchen's time tabs light the course a tap scrolled to; the cook timeline's redesign is on a board
+
+- **Merged [#2256](https://github.com/cperry8800-droid/shape-app/pull/2256) as `94b44ce`**, final head `5068a1d`. `main` had moved by #2253 and #2254, so the trees differ; **the PR's diff is identical on the new base** except for hunk offsets (main gained 7 lines above the change). 4 files. **No migration, no route, no i18n key.** The owner, with a screenshot of the app's Recipes jump row: *"when i click on each different time length for recipes it doesnt highlight the current section im on. only the one before it"*, then *"this on app btw"*.
+- **What was wrong, measured in Chromium at 390×844 on the signed-out preview:** tapping 15–30 lit ≤ 15, 30–60 lit 15–30, 1 hr + lit 30–60.
+  - ⚠ **THE SPY AND THE JUMP MEASURED FROM DIFFERENT TOPS.** `jumpTo` placed a course's top under the row counting from the top of `.bs-scroll`. The spy read the same top from the top of the screen. The scroller starts 20px down the screen in the preview, so a course the jump put at 158px never reached the spy's line at 148px (92px masthead + 56).
+- **The fix**, `mobile-app/src/services/jumpRow.mjs` (pure):
+  - `bsJumpLine` is the scroller's top plus the masthead plus the row's own height. The spy (`bsJumpActive`) and the jump (`bsJumpScrollTop`) both read it.
+  - A tapped tab lights at once and stays lit through the smooth scroll, until a wheel, touch, pointer or key on the scroller. Before, the smooth scroll lit every course it passed.
+  - At the end of the scroll a last course too short to reach the line is lit (`bsJumpAtEnd`). A page too short to scroll is never at its end.
+  - The website's Kitchen page is untouched: by reading its code, its spy and jump both measure from the window.
+- **Review: none requested.** Codex completed on `5068a1d` with no findings; Copilot declined on its quota.
+- **Verified:**
+  - Driven in the real app (Vite dev): taps 15–30 → 1 hr + → ≤ 15 → 30–60 → 15–30 each lit their own tab within 150 ms. Scrolling by hand afterwards tracked correctly: up, down, to the end, back to the top.
+  - `tests/kitchen-jump-row.test.mjs` (10 tests) mounts the real `BSRecipeBox` under jsdom on a fake scroller laid out with the measured numbers. On the old client code, 4 of its mount tests fail with `tapping tab 1 lit 0`. The scroller-at-0px case passes there, which confirms the cause.
+  - Mutations (`tests/mutations/kitchen-jump-row-2026-10-08.mutations.mjs`, `--fail-on-skipped`): **15/15**, restored byte-identical. ⚠ The first run's one survivor was a gap in the test: a page that drops the scroller top from its line keeps spy and jump agreeing with each other, while the course lands under the row. The test now checks where the course lands.
+  - The commit skipped the pre-commit hook under the small-commit rule, after 53 tests across the kitchen, recipe-parity, i18n-inventory and capped-reads suites. All required checks were green on `5068a1d`.
+- **The cook screen's step timeline** (owner: *"need improve the look of this. Not love the look of steps section"*). The options board is https://claude.ai/artifact/NNvxjSjg7ptRUuL3MFmrzp: today against **A · Rails** (recommended), **B · Ledger** and **C · Close-up**, each drawn live from the owner's own cook (Beef + sweet potato bowl, Banana oats + peanut butter, Cottage cheese + pineapple) on dark and bone paper. **The owner picked A; built as #2263, the entry above.**
+  - Why it looks like dice: `bsCkTracks` fits the whole cook into the width, about 340px for 45 minutes, so a 3-minute step is 15px and carries only its digit. And the 9.5px lane name shares the row with the chips.
+- **Written after the merge**, per the 2026-09-11 rule.
+- ⚠ **REGISTERED, NOT DONE:**
+  - The meal-plan recipes in Prep the week carry no step lengths, so the planner gives every step 3 minutes and "Roast 25 minutes" is drawn as 3. Fixed for the demo plan by #2270; a real coach plan still costs 3 minutes for a step with no station.
+  - No pass on a real phone; the measured 20px scroller offset is the desktop preview's, and a notch moves it.
+
+### 2026-10-07 — Coach tools in one run: the Schedule and the program builder, fixes first, then steps 2–4
+
+- **Fifteen PRs, #2222 to #2236, all merged on 2026-10-07.** Each merged tree is byte-identical to its PR's final head, and all required checks were green on every final head. The run started from the brainstorm page in the "Coach tools rethink" entry below, approved with *"I like everything that is proposed for schedule and program builder. Apply all the fixes first then proceed with upgrades/improvements"*. Later the owner said *"do step 4 in that order"*.
+- **Migrations, six files, all checked live in production on 2026-10-07** (by reading the catalog, not a migration log):
+  - `2026-10-07-calendar-feed-token.sql` (#2224): `calendar_feed_tokens`.
+  - `2026-10-07-exercise-catalog.sql` (#2224): `exercise_catalog`, 248 rows.
+  - `2026-10-07-booking-rules-time-off.sql` (#2225): `provider_time_off`, `provider_booking_rules`, `provider_busy_blocks`.
+  - `2026-10-07-sessions-no-overlap.sql` (#2228, added in its review round; the PR body still says "No migration"): the `sessions_no_overlap` constraint.
+  - `2026-10-07-booking-rules-enforced.sql` (#2231): the `sessions_enforce_booking_rules` trigger.
+  - `2026-10-07-session-series.sql` (#2234): `sessions.series_id` (uuid), `sessions_series_idx`, and `move_session_run`, security invoker, executable by `authenticated` and not by `anon`.
+- **Review.** None was requested (owner: *"no code review needed for simple edits"*). Copilot declined every head on its quota, and CodeRabbit posted only its skip notice. Codex declined #2222 on its usage limit and completed with no findings on #2223, #2226 and #2231. On eleven PRs it filed **25 findings**: 23 were fixed in their own PR, one was fixed by a follow-up PR (#2231), and one was put to the owner (#2227).
+
+**Fixes first**
+- **Merged [#2222](https://github.com/cperry8800-droid/shape-app/pull/2222) as `93b0f01`**, final head `e627dbf`. 44 files. Both fix sets went into one PR: GitHub refused PR creation with 500 errors for about 30 minutes.
+  - **The Schedule runs on the coach's own clock.** `/api/calendar` built times in UTC, so a 9:00 AM New York consult read "1:00p". A caller that sends `tz` now gets the coach's stored zone. No `tz` still means UTC, on purpose: installed app builds send none. Reschedule takes `tz` and keeps the wall-clock time; Nora's `reschedule_session` uses the coach's stored zone.
+  - **The visible range loads**, a month at a time, with a "Times in …" label.
+  - ⚠ **THE MONTH GRID STEPPED IN 24-HOUR INCREMENTS**, so in November New York showed Sunday Nov 1 twice and every later day sat under the wrong weekday. Fixed.
+  - **The false claims are gone** (two-way calendar sync, reminders, intake forms); a test bans them.
+  - **Members get the coach's blocks, playlist and videos.** `/api/client/plan` dropped each exercise's `block`, so the app's preview invented Warm-up / Main set / Cool-down. The day editor is quieter: an empty load reads "—".
+  - **Verified:** full suite 5585/5585; mutations 42/42, 38/38 and 8/8; 13 of the 16 new schedule tests fail on the old code (the no-`tz` test passes there by design).
+- **Merged [#2223](https://github.com/cperry8800-droid/shape-app/pull/2223) as `b554615`**, final head `80a6184`. 21 files. Three of #2222's registered items, on *"keep going"*: the website workout card names the coach's blocks, the app's preview shows each move's demo, and the app calendar names its zone. Mutations 11/11.
+
+**Pieces that stand alone**
+- **Merged [#2224](https://github.com/cperry8800-droid/shape-app/pull/2224) as `d787a13`**, final head `a531ce1`. 16 files.
+  - **A read-only calendar feed** (`/api/calendar/feed/<token>`) and a Settings card. A failed read is a 503, never an empty feed, which a subscribing calendar reads as "delete everything".
+  - **The exercise catalog as data:** `exercise_catalog` (248 moves) and a public `GET /api/exercises`.
+  - **Paste a workout as text** (`parseWorkoutText`): nothing is dropped, and every guess carries a warning.
+  - ⚠ **THE FIRST CATALOG MIGRATION FAILED IN PRODUCTION AND ROLLED BACK.** Production already had an empty per-coach `exercise_library` from May, so `create table if not exists` created nothing. The table was renamed, and the migration now stops on a wrong-shape table.
+  - **Codex, 1 finding, fixed:** the server's row cap could cut the feed short and publish a partial calendar. The reads now page to the end.
+  - **Verified:** 108 new tests; mutations 83/83 on the build branch.
+
+**Schedule**
+- **Merged [#2228](https://github.com/cperry8800-droid/shape-app/pull/2228) as `55be11c`** (step 2, the week grid), final head `0cb78f8`. 24 files. Day · Week · Month on a time axis, open hours shaded, a requests strip, a booking sheet with real actions, book from an empty slot, and drag to a new time.
+  - ⚠ **CODEX'S P1 WAS RIGHT: TWO OVERLAPPING BOOKINGS SENT TOGETHER BOTH PASSED THE READ.** The only guard was unique on the exact start. `sessions_no_overlap`, an exclusion constraint over active sessions, now refuses the second. Its P2, a crafted 09:15 start, is refused by `isOfferedStart`.
+  - **Verified:** 41 new tests; full suite 5599/5599 and mutations 86/87 on the build branch (the survivor, a test-order gap, was killed on re-run).
+- **Merged [#2229](https://github.com/cperry8800-droid/shape-app/pull/2229) as `39debab`** (step 3, your hours), final head `8680c65`. 20 files. Paint hours on the grid, copy a day, time off, and the booking-rules form. The member routes refuse by time off, buffer, daily limit and notice.
+  - ⚠ **`booked` WAS EMPTY FOR ALMOST EVERYONE.** It read `sessions` through the visitor's own client, and RLS hides other members' sessions, so members were offered taken times. It now comes from the definer busy read.
+  - **Codex, 3 P1s.** Fixed: opening "Edit hours" before the hours loaded, then saving, would have erased every stored hour; the app's slot list ignored `busy` and `rules`. The third, the rule check racing the insert, was fixed in #2231.
+  - **Verified:** all 15 new or changed tests fail on `main`; 1,726/1,726 across 92 files. No mutation round, the owner's call.
+
+**Builder**
+- **Merged [#2226](https://github.com/cperry8800-droid/shape-app/pull/2226) as `21cc7c0`** (step 2), final head `45aa96a`. 7 files. A day is one list with the detail beside it; type to add; drag across blocks, or Alt+↑/↓. Verified on the build branch: full suite 5615/5615, mutations 40/41 (the survivor proven).
+- **Merged [#2230](https://github.com/cperry8800-droid/shape-app/pull/2230) as `d201d91`** (step 3), final head `a7ef7c4`. 15 files. Grid ⇄ Sheet only: Guided, Editor, Planner and the pop-out are gone. Delete a day, copy a day to other weeks, and the progression bar: one rule writes later weeks' loads, with deloads and pinned hand-typed loads.
+  - **Codex, 3 P1s, all fixed:** rows added to a deload week kept full volume; a legacy deload lost its flag but kept its cut; a reps-only ladder edit pinned the load.
+  - **Verified:** 1,573 tests across 84 files. No mutation round, at the owner's request.
+- **Merged [#2227](https://github.com/cperry8800-droid/shape-app/pull/2227) as `d0aa2ce`** (AI drafting), final head `9e3e120`. 43 files. The owner: *"make sure Nora is capable of doing that if a trainer just wants to talk to her, and she can generate the plan"*. "✦ Draft with AI" in the builder, and Nora's `draft_workout`. No invented loads, client or date; nothing saved before the coach confirms; a template says it is one.
+  - ⚠ **CODEX'S P1 WAS RIGHT: ONE WRITTEN PERCENTAGE LET EVERY GENERATED PERCENTAGE THROUGH.** "Bench at 60%" admitted an unstated 100% squat. A written percentage now admits only itself. A short week now falls back to the template. Put to the owner: a dual-role account whose primary role is not trainer gets no drafting tool (none exists in production).
+  - **Verified:** 61 new tests; mutations 59 killed and 12 killed, each with one proven no-op, on the build branches.
+
+**Booking rules in the database**
+- **Merged [#2225](https://github.com/cperry8800-droid/shape-app/pull/2225) as `1669d3e`**, final head `fe3f72d`. 15 files. The backend for step 3: time off, booking rules, `provider_busy_blocks` (a definer read of busy times only, allow-listed for anon), the pure `bookingRules.mjs`, and two coach routes.
+  - **Codex, 3 P2s, all fixed:** an account owning two coach rows got 503 everywhere; the padded busy read could exceed the function's 62-day limit; the 2,000-row cap silently dropped busy time (it now raises).
+  - **Verified:** 35 new tests; the migration applied three times on a throwaway Postgres 16; mutations 61/61 on the build branch.
+- **Merged [#2231](https://github.com/cperry8800-droid/shape-app/pull/2231) as `109f8e9`**, final head `0edd95f`. 8 files. On *"yes do it"*: a `before insert` trigger on `sessions` takes a per-coach lock and re-checks every `requested` row's rules. On a local Postgres 16, a second concurrent request waits and is refused. 1182/1182 across 52 files.
+
+**Step 4, in the owner's order**
+- **Merged [#2232](https://github.com/cperry8800-droid/shape-app/pull/2232) as `67c376b`**, final head `c8d8505`. 22 files. An RPE climb in the progression, and the app's coach editor applies the rule on every edit and on save.
+  - **Codex, 1 P1, fixed:** a caught-up program opened as saved, so "Review future assignments" could send the stored, stale loads.
+  - **Verified:** 14 of 15 new tests fail with the sources reverted; 1446/1446 across 91 files. No mutation round, by the owner's ruling.
+- **Merged [#2233](https://github.com/cperry8800-droid/shape-app/pull/2233) as `2997732`**, final head `0592941`. 24 files. The app's intro booking posts to `/api/consultation` instead of inserting its own row, and a coach's "Book a session" books a real session; it had saved a calendar note.
+  - ⚠ **THE PROFILE'S "BOOK INTRO" FAILED EVERY TIME IT WAS PRESSED**, because it sent no time. Codex's P1 found the same gap in the listing's two main intro buttons, and its P2 a past 9:00 left selected. All fixed.
+  - **Verified:** 1742/1742 across 118 files; every new or rewritten test fails on the previous code.
+- **Merged [#2234](https://github.com/cperry8800-droid/shape-app/pull/2234) as `5680465`**, final head `20054d2`. 23 files. Weekly runs: book 2–26 weeks, skip and name a taken date, and cancel or move "this and following".
+  - **Codex, 3 findings, all fixed:** the app's service dropped `repeat`; the run move was not atomic (now one database call, `move_session_run`); the reply lacked each booking's room.
+  - **Verified:** 149/149 across 9 suites on `20054d2`; 1672/1672 across 91 files on `9ec8017`.
+- **Merged [#2235](https://github.com/cperry8800-droid/shape-app/pull/2235) as `ca60d9b`**, final head `f79e9c2`. 3 files. A **Plans** row on the trainer's Schedule: each client's dated training days, one chip per client and day, narrowed by the client chips, with a remembered toggle. `/api/calendar?role=trainer&clientPlans=1` reads them through RLS; a failed read is said, not drawn as a week with no training.
+  - **Codex, 3 findings, all fixed:** the trainer row was read with `maybeSingle()`, so an account with two listings lost the whole row; the read stopped at 1,000 rows and still said it was whole, though the Schedule asks for two or three months at once (it now pages to the end, up to 5,000, and past that says the row is incomplete); past 200 clients the name lookup failed silently and every plan read "Client" (it now batches).
+  - **Verified:** every new test fails on the previous head; 164/164 across the files that read the route or the Schedule.
+- **Merged [#2236](https://github.com/cperry8800-droid/shape-app/pull/2236) as `22c4de6`**, final head `67cae31`. 4 files. The Coaches tour's Schedule tab names the private calendar feed, and the claim bans narrow to a *sync* or *integration* with an outside calendar, which is still false. In the builder, dropping a move on the middle of another row makes the two a superset (A1, A2), and a superset left with one move is undone.
+  - **Codex, 1 finding, fixed:** a move dragged out of a pair while the other three letters were taken was refused, because the partner it was about to leave alone still counted as using its letter. The released letter is now free for the new pair.
+  - **Verified:** `npm test` 5961/5961 on the first head's exact tree; the superset drop driven in Chromium at 1440 and 390 px; 517/517 in the files that read the builder on the final head.
+- **Written after the merge**, per the 2026-09-11 rule.
+- ⚠ **REGISTERED, NOT DONE:**
+  - Re-capture the live definer catalog now that `booking-rules-time-off.sql` has run (#2225).
+  - Booking: direct inserts through RLS still bypass open hours (#2233); closing it means a service-role write in `/api/sessions/request` and dropping the member insert policy. A coach's own bookings are not held to buffer, limit or notice (#2229). No-show needs a migration (#2228). A booking cannot be resized (#2228). The app has no "this and following", and a member cannot move a session (#2234). The app's coach hours editor; a touch on the hours grid paints instead of scrolling (#2229).
+  - Time zones: installed app builds keep UTC times until they update, and the undated-workout week uses UTC (#2222). Nora's "today" is UTC (#2227).
+  - Builder: the catalog and paste-a-workout are not wired into the day list (#2226). The detail panel does not stay pinned on long days, drag does not auto-scroll, and a ladder row's cells edit the base values (#2226). No per-move opt-out, no RPE-only climb, no RPE in Sheet (#2230, #2232). (The War Room's 2026-09-23 Guided / Editor / Planner item now says workouts left them in #2230; nutrition plans keep all three.)
+  - Nora: nutritionist meal-plan drafting; the app's Assign does not pre-select the client; installed builds lack the Open button; no live model in the tests; dual-role drafting (#2227).
+  - The Coaches tour's Schedule screenshot predates steps 2–4 (#2236).
+  - ⚠ **NO SIGNED-IN PASS ON A PHONE** for any of it. The app editor in #2232 was checked only by mount tests, and the new translations have not been reviewed by speakers.
+
+### 2026-10-07 — Dashboard cards move, resize and hide in place: no Arrange menu, no edit mode
+
+- **Merged [#2220](https://github.com/cperry8800-droid/shape-app/pull/2220) as `de2a67d`**, final head `ff7431f`; the merged tree is byte-identical to it. 4 files: `public/newdesign/dashGrid.jsx`, `tests/dash-grid-input.test.mjs`, `tests/dash-card-settings.test.mjs` and a mutation spec. **No migration, no route, no i18n key.** The owner, with a screenshot of the Arrange panel: *"remove this arrange box and have all of these customization and edits done by dragging click etc. a more free feel with the boxes and widgets"*.
+- **What went:** the per-card Arrange popover (Move up / down / to top, Standard / Wide, Hide, Close) and the *Customize dashboard* / *Done* mode around it. Every `<DashGrid>` board is now always editable.
+- **What each card has:** one pill at its top right holding the ⠿ grip, the ⚙ (when the card has settings) and ×. The pill is at 40% until hover or focus, the rule the ⚙ already had.
+  - **Move:** a mouse drags the whole card or the grip. A touch screen or a hybrid drags only the grip, so a swipe anywhere else still scrolls.
+  - **Resize:** the right-edge zone is live on every 12-column board; the ↔ shows on hover or focus. Phones stay one column with no resize.
+  - **Keyboard:** on the grip, arrows move the card through reading order, Home/End send it to either end, Shift + Left/Right steps its width. Each is announced with its place or size.
+  - **×** hides the card and hands focus to the next card's grip (or the widget catalogue).
+- ⚠ **THE GRIP IS BUILT WITH THE ITEM, NOT BY REACT.** GridStack collects its drag handles once, when the item is prepared, and falls back to the WHOLE ITEM when it finds none. A portaled grip mounts a commit later, so on touch every card would have become a handle and swallowed scrolling. `dgItemShell` builds the element with the grip in it and hands it to `addWidget({ el })`. The handle is chosen at boot, so the pointer is read on the first render and a pointer change re-boots the grid on a fresh container.
+- ⚠ **THE OLD TEST HARNESS HAD TWO JAVASCRIPT REALMS.** GridStack ran under `window.eval` and the component under Node's `Function`, so GridStack's `load()` (an `instanceof Array` clone) rejected the component's arrays and `arrange` threw — in the harness only. The component is now evaluated with `window.Function`, one realm, as in a browser. I first called it a production bug in chat; it was not.
+- ⚠ **A FIXED 60 MS WAIT FAILED UNDER THE FULL SUITE'S LOAD.** The pointer-change re-boot assertion passed alone and failed in the full run. Each step now waits (up to 3 s) for the state it asserts; six parallel runs pass.
+- **Review: none,** on the owner's word (*"no code review needed for simple edits"*). Codex declined on its usage limit; CodeRabbit posted only its skip notice.
+- **Verified:**
+  - Driven in Chromium on `TrainerApp.html` (signed-out preview): mouse drag, Shift + Right to Wide, an edge drag, × with focus on the neighbour; a coarse-pointer tablet's only drag element is the 36×32 px grip; a 390 px phone has no resize zone.
+  - Mutations (`tests/mutations/dash-grid-direct-edit-2026-10-07.mutations.mjs`, `--fail-on-skipped`): **15/15**, restored byte-identical. The first run's survivor (a first frame that guessed "touch" boots twice, with an identical end state) is killed by counting GridStack boots.
+  - Full suite 5541/5542 on the first commit; the one failure was the repo's DOM-valued-assertion guard, now satisfied. All required checks green on `ff7431f`.
+- **Written after the merge**, per the 2026-09-11 rule.
+- ⚠ **REGISTERED, NOT DONE:** no signed-in pass on a real phone or tablet; GridStack's touch path was exercised in Chromium's touch emulation only.
+
+### 2026-10-07 — Homepage loop rings fitted to their content; the coaches tab row's scrollbar stub; the footer's "every figure" line
+
+- **Merged [#2219](https://github.com/cperry8800-droid/shape-app/pull/2219) as `3122408`** (merged by the owner). 5 files. **No migration, no route, no i18n key.** Three owner asks: *"these boxes on index page on website need to be better aligned"*, *"remove this scroll toggle bar on coaches page"*, *"remove this sentence on index page … in footnote"*.
+- **The rings.** The four teal rings in *01 · The loop* sat 5% in from each side, which is where the app's own content starts in the 600 px captures (~28 px), so each was drawn through its text (`1,568`, `1/25`, `SET 01`, the NEW PR chip). The inset is 2.5% (the Wall's ring 1.25%, its content starts at 19 px), and each ring's top/height is the target's measured bounds plus ~12 px. The Wall ring frames the headline and the 245 lb record with the chip above it as a tag, because the avatar's tip ends 5 px above the chip.
+  - A new test decodes each shipped JPEG with `sharp` and fails if a ring's outline band lands on anything but background (118 hits on `main`'s Eat ring).
+- **The coaches tab row.** `.co-tabs` was `overflow-x:auto`, which makes `overflow-y` auto, and each tab's `-1px` bottom margin overhangs the row, so classic scrollbars (Windows Chrome) drew a white ▲/▼ stub and a wheel nudged the row 1 px. `overflow-y:hidden` and a hidden scrollbar; the row still swipes sideways when narrow.
+- **The footer** reads *"Real coaches. One app. The whole loop."*; the labelling rule it described still holds.
+- **Verified:** mutations (`tests/mutations/homepage-rings-coaches-tabs-2026-10-07.mutations.mjs`) **11/11**; the 15 test files that read these pages, 198 tests; rendered in Chromium (rings at 1440; the tab row with real scrollbars at 1440–390).
+- **Written after the merge**, per the 2026-09-11 rule.
+
 ### 2026-10-07 — Coach tools rethink: the Schedule page and the program builder, reviewed; the owner approved all of it
 
 - **Not a code change.** The brainstorm page: https://claude.ai/artifact/5rCNP94RRoduVbaPmbHeVJ (Schedule and Program builder tabs; fix-first cards, a drawn proposal each, the idea bank, a four-step order). Owner: *"I like everything that is proposed for schedule and program builder. Apply all the fixes first then proceed with upgrades/improvements"*.
