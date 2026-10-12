@@ -745,7 +745,10 @@ function navGroupsFor(authUser) {
 // goal keywords (role + photo + points → tier color). Nora (Shape's concierge)
 // matches help/support queries and opens the chat widget's Help tab. Rows link
 // to the person's public profile page.
-const SS_TIERS = [[15000, "#e879a6"], [5000, "#a78bfa"], [2000, "var(--sh-accent3, #34d6c5)"], [750, "var(--sh-gold, #d8a23a)"], [0, "#5fa96e"]];
+// The Shape Score ladder's own colors (tierColors.jsx; the app's BS_TIER_COLORS), so a
+// person's facet in search matches their profile. It read pink / violet / teal for
+// Legend / Peak / Form, a palette no other surface used.
+const SS_TIERS = [[15000, "var(--sh-accent3, #34d6c5)"], [5000, "#8fe3e6"], [2000, "#e0463c"], [750, "var(--sh-gold, #d8a23a)"], [0, "#5fa96e"]];
 function ssTierColor(points) { const p = Number(points) || 0; for (const [min, c] of SS_TIERS) { if (p >= min) return c; } return "#5fa96e"; }
 // Pull the literal digits out of a colour that may be a paper token — a
 // tokenised colour always carries its own fallback, which is what these need.

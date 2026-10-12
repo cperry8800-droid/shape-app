@@ -11,7 +11,7 @@ const CW_TIER_COLORS = {
   raw: "#5fa96e", base: "#5fa96e", tempo: "var(--sh-gold, #d8a23a)", form: "#e0463c", peak: "#8fe3e6", legend: "var(--sh-accent3, #34d6c5)",
   certified: "#5fa96e", pro: "var(--sh-gold, #d8a23a)", elite: "#e0463c", master: "#8fe3e6", icon: "var(--sh-accent3, #34d6c5)",
 };
-const CW_CLIENT_LADDER = ["Base", "Tempo", "Form", "Peak", "Legend"];
+const CW_CLIENT_LADDER = ["Raw", "Tempo", "Form", "Peak", "Legend"];
 const CW_COACH_LADDER = ["Certified", "Pro", "Elite", "Master", "Icon"];
 function cwTierColor(tier) { return CW_TIER_COLORS[String(tier || "").toLowerCase().trim()] || "var(--sh-gold, #d8a23a)"; }
 function cwInitials(name) {

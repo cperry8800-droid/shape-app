@@ -18,7 +18,9 @@
   var SANS = "'Space Grotesk', sans-serif";
   var SERIF = "'Fraunces', serif";
   var MONO = "'JetBrains Mono', monospace";
-  var SS_TIERS = [[15000, '#e879a6'], [5000, '#a78bfa'], [2000, '#34d6c5'], [750, '#d8a23a'], [0, '#5fa96e']];
+  // The Shape Score ladder's own colors (tierColors.jsx), so a person's facet here
+  // matches their profile: Raw · Tempo · Form · Peak · Legend.
+  var SS_TIERS = [[15000, '#34d6c5'], [5000, '#8fe3e6'], [2000, '#e0463c'], [750, '#d8a23a'], [0, '#5fa96e']];
   function tierColor(p) { p = Number(p) || 0; for (var i = 0; i < SS_TIERS.length; i++) { if (p >= SS_TIERS[i][0]) return SS_TIERS[i][1]; } return '#5fa96e'; }
   function roleLabel(r) { return r === 'trainer' ? 'Trainer' : r === 'nutritionist' ? 'Nutritionist' : 'Member'; }
   function roleColor(r) { return r === 'trainer' ? '#c0533b' : r === 'nutritionist' ? '#a07a2e' : TEAL; }

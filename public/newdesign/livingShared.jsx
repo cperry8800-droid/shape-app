@@ -28,13 +28,25 @@ const hexA = (hex, a) => {
 };
 function lvRng(seed) { let s = seed % 2147483647; if (s <= 0) s += 2147483646; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
 
-// Shape momentum tiers — the member's tier is the screen's ATMOSPHERE.
-const LV_TIERS = {
-  spark: { name: "Spark", color: "#e8743a", rank: "I" },
-  tempo: { name: "Tempo", color: "#5ec8e0", rank: "II" },
-  surge: { name: "Surge", color: "#f0653f", rank: "III" },
-  apex:  { name: "Apex",  color: "#f2b84e", rank: "IV" },
+// Shape Score tiers — the member's tier is the screen's ATMOSPHERE. The SAME
+// ladder, thresholds and colors as the Score page (tierColors.jsx) and the app
+// (BS_TIER_COLORS), and a profile's tier is always its SCORE's tier. The demo
+// personas used to carry a ladder of their own — Spark / Tempo / Surge / Apex,
+// with Tempo cyan — that no score could produce, so the preview's colors and
+// names matched nothing a member would ever see (owner, 2026-10-12: "make sure
+// the shape score tier colors relate to profile").
+const LV_LADDER = {
+  member: [[0, "Raw", "#5fa96e", "I"], [750, "Tempo", "#d8a23a", "II"], [2000, "Form", "#e0463c", "III"], [5000, "Peak", "#8fe3e6", "IV"], [15000, "Legend", "#34d6c5", "V"]],
+  coach: [[0, "Certified", "#5fa96e", "I"], [750, "Pro", "#d8a23a", "II"], [2000, "Elite", "#e0463c", "III"], [5000, "Master", "#8fe3e6", "IV"], [15000, "Icon", "#34d6c5", "V"]],
 };
+function lvTierFor(points, coach) {
+  const T = coach ? LV_LADDER.coach : LV_LADDER.member;
+  const p = Number(points) || 0;
+  let t = T[0]; for (const x of T) if (p >= x[0]) t = x;
+  return { name: t[1], color: t[2], rank: t[3] };
+}
+// `__live` is set by livingProfilePage for a real profile, from the same ladder.
+const LV_TIERS = {};
 
 // Three Shape personas — same schema so every direction renders for each.
 // role drives label swaps (member vs coach). lifts = "signature numbers".
@@ -42,7 +54,7 @@ const LV_PEOPLE = {
   client: {
     role: "client", roleLabel: "Member",
     name: "Priya Shah", first: "Priya", handle: "@priya.lifts", initials: "PS",
-    city: "Brooklyn, NY", member: "1842", tier: "surge",
+    city: "Brooklyn, NY", member: "1842",
     score: 1284, scoreWk: 82, streak: 14, months: 16,
     statLabel: ["Shape Score", "Day streak", "Months in"],
     goal: "A 1.5× bodyweight squat.", goalShort: "1.5× BODYWEIGHT", goalKicker: "Chasing",
@@ -72,7 +84,7 @@ const LV_PEOPLE = {
   trainer: {
     role: "trainer", roleLabel: "Trainer · NASM-CPT", verified: true,
     name: "Maya Okafor", first: "Maya", handle: "@mayalifts", initials: "MO",
-    city: "Gowanus, Brooklyn", member: "0042", tier: "apex",
+    city: "Gowanus, Brooklyn", member: "0042",
     score: 4970, scoreWk: 41, streak: 96, months: 108,
     statLabel: ["Coach rating ·100", "Clients now", "Months coaching"],
     goal: "Get strong, stay strong.", goalShort: "STRENGTH, MADE SIMPLE", goalKicker: "Coaching philosophy",
@@ -121,7 +133,7 @@ const LV_PEOPLE = {
   nutritionist: {
     role: "nutritionist", roleLabel: "Dietitian · RD, CSSD", verified: true,
     name: "Rae Lindqvist", first: "Rae", handle: "@raeats.rd", initials: "RL",
-    city: "Brooklyn, NY", member: "0118", tier: "tempo",
+    city: "Brooklyn, NY", member: "0118",
     score: 4950, scoreWk: 38, streak: 73, months: 84,
     statLabel: ["Coach rating ·100", "Clients now", "Months practicing"],
     goal: "Fuel the work you’re doing.", goalShort: "FOOD IS FUEL", goalKicker: "Practice philosophy",
@@ -167,7 +179,10 @@ const LV_PEOPLE = {
   },
 };
 const LV = LV_PEOPLE.client; // default
-function tierOf(d) { return LV_TIERS[d.tier]; }
+function tierOf(d) {
+  if (d.tier === "__live" && LV_TIERS.__live) return LV_TIERS.__live;
+  return lvTierFor(d.score, d.role === "trainer" || d.role === "nutritionist");
+}
 
 // ── Atmosphere: tier-tinted glow + film grain ──
 function LvGrain() {

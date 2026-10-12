@@ -182,14 +182,16 @@ function SignalVisual({ d, reduced, owner }) {
 }
 // Where a member stands toward the next level (tier) — drives the ascent hero.
 function memberLevel(d) {
-  const TH = [0, 750, 2000, 5000, 15000], NM = ["Base", "Tempo", "Form", "Peak", "Legend"];
-  const COL = ["#5fa96e", "#d8a23a", "#e0463c", "#8a5cf6", "#34d6c5"];
+  const TH = [0, 750, 2000, 5000, 15000], NM = ["Raw", "Tempo", "Form", "Peak", "Legend"];
+  // The ladder's own colors (tierColors.jsx). Peak read violet here, a color no
+  // other surface gives that tier.
+  const COL = ["#5fa96e", "#d8a23a", "#e0463c", "#8fe3e6", "#34d6c5"];
   const pts = Number(d.score) || 0;
   let i = 0; for (let j = 0; j < TH.length; j++) if (pts >= TH[j]) i = j;
   const top = i >= TH.length - 1;
   const f = TH[i], nx = top ? f : TH[i + 1];
   const pct = top ? 1 : Math.max(0.05, Math.min(0.97, (pts - f) / Math.max(1, nx - f)));
-  return { pct, cur: NM[i], next: top ? null : NM[i + 1], top, nextColor: top ? COL[i] : COL[i + 1] };
+  return { pct, cur: NM[i], next: top ? null : NM[i + 1], top, curColor: COL[i], baseColor: top ? COL[0] : COL[i], nextColor: top ? COL[i] : COL[i + 1] };
 }
 // Ascent-profile card — the "you-are-here" climb toward the next level (tier):
 // a ridgeline, a teal progress trace, the member's avatar climbing it, and a
@@ -224,22 +226,27 @@ function TerrainVisual({ d }) {
         {[0, 1, 2, 3].map((i) => <line key={i} x1="0" y1={(i + 1) * H / 5} x2={W} y2={(i + 1) * H / 5} stroke={dHexA(LV_INK, 0.06)} strokeWidth="1" />)}
         <path d={`${ridge} L ${peak[0]} ${H} L ${base[0]} ${H} Z`} fill="url(#dkAscent)" />
         <path d={ridge} fill="none" stroke={dHexA(LV_INK, 0.4)} strokeWidth="2" />
-        <path d={ridge} fill="none" stroke={LV_TEAL} strokeWidth="3.5" strokeDasharray={`${dash} 2000`} strokeLinecap="round" />
+        {/* Each end of the route is a TIER and wears its color (owner, 2026-10-12:
+            "make sure the shape score tier colors relate to profile"): the climbed
+            trace is the member's own tier (c, the profile's color), the flag is the
+            tier they are climbing to, the base dot the rung they stand on. The flag
+            was a fixed rust and the trace a fixed teal, whatever the tiers were. */}
+        <path d={ridge} fill="none" stroke={c} strokeWidth="3.5" strokeDasharray={`${dash} 2000`} strokeLinecap="round" />
         <line x1={peak[0]} y1={peak[1]} x2={peak[0]} y2={peak[1] - 30} stroke={dHexA(LV_INK, 0.6)} strokeWidth="2" />
-        <path d={`M ${peak[0]} ${peak[1] - 30} l 22 7 l -22 7 z`} fill="#e0644b" />
-        <circle cx={peak[0]} cy={peak[1]} r="5" fill="#e0644b" />
-        <circle cx={base[0]} cy={base[1]} r="5" fill={dHexA(LV_INK, 0.5)} />
+        <path d={`M ${peak[0]} ${peak[1] - 30} l 22 7 l -22 7 z`} fill={lvl.nextColor} />
+        <circle cx={peak[0]} cy={peak[1]} r="5" fill={lvl.nextColor} />
+        <circle cx={base[0]} cy={base[1]} r="5" fill={lvl.baseColor} />
       </svg>
       {/* you-are-here avatar climbing the ridge */}
       <div style={{ position: "absolute", left: `calc(${(here.x / W) * 100}% - 44px)`, top: `calc(${(here.y / H) * 100}% - 100px)`, display: "flex", flexDirection: "column", alignItems: "center" }}>
         <LvPortrait d={d} size={88} />
-        <div style={{ marginTop: 7, fontFamily: dMono, fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", color: LV_TEAL, background: dHexA(LV_BG, 0.85), padding: "3px 9px", borderRadius: 5, whiteSpace: "nowrap" }}>{top ? "Top tier" : `You · ${pctLabel}%`}</div>
+        <div style={{ marginTop: 7, fontFamily: dMono, fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", color: c, background: dHexA(LV_BG, 0.85), padding: "3px 9px", borderRadius: 5, whiteSpace: "nowrap" }}>{top ? "Top tier" : `You · ${pctLabel}%`}</div>
       </div>
       {/* base level + summit level. ⚠ At the top state the figure climbs to 0.86,
           which runs under the flag's label slot — so the summit label drops to the
           baseline beside the base one, where the whole-ladder framing reads as a
           pair. Mid-ladder it stays by the flag, unchanged. */}
-      <div style={{ position: "absolute", left: 16, bottom: 16, fontFamily: dMono, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: dHexA(LV_INK, 0.55), background: dHexA(LV_BG, 0.7), padding: "3px 8px", borderRadius: 5 }}>{top ? baseLabel : `${baseLabel} · now`}</div>
+      <div style={{ position: "absolute", left: 16, bottom: 16, fontFamily: dMono, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: dHexA(LV_INK, 0.55), background: dHexA(LV_BG, 0.7), padding: "3px 8px", borderRadius: 5, borderBottom: `2px solid ${lvl.baseColor}` }}>{top ? baseLabel : `${baseLabel} · now`}</div>
       <div style={top
         ? { position: "absolute", right: 16, bottom: 16, fontFamily: dMono, fontSize: 12, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: lvl.nextColor, textAlign: "center", whiteSpace: "nowrap", background: dHexA(LV_BG, 0.72), padding: "4px 10px", borderRadius: 5 }
         : { position: "absolute", left: `${(peak[0] / W) * 100}%`, transform: "translateX(-50%)", top: 56, fontFamily: dMono, fontSize: 12, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: lvl.nextColor, textAlign: "center", whiteSpace: "nowrap", background: dHexA(LV_BG, 0.72), padding: "4px 10px", borderRadius: 5 }}>{summitLabel}</div>
@@ -426,7 +433,7 @@ const DK_CLIMB_DEFAULT = ["weight", "strength", "score"];
 function dkClimbCfg(d, aspect) {
   if (aspect === "score") {
     const pts = Number(d.score) || 0;
-    const TH = [0, 750, 2000, 5000, 15000], NM = ["Base", "Tempo", "Form", "Peak", "Legend"];
+    const TH = [0, 750, 2000, 5000, 15000], NM = ["Raw", "Tempo", "Form", "Peak", "Legend"];
     let i = 0; for (let j = 0; j < TH.length; j++) if (pts >= TH[j]) i = j;
     const last = i >= TH.length - 1, floor = TH[i], next = last ? TH[i] : TH[i + 1], nextName = last ? NM[i] : NM[i + 1];
     // ⚠ At the LAST rung there is no next tier, so the ordinary this-tier →
