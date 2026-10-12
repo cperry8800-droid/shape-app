@@ -14,6 +14,7 @@
 //
 // Pure: no I/O, no clock beyond the `now` a caller passes.
 import { validZone } from './noraContext.mjs';
+import { EXPERIENCE_STANDARD_YEARS, PROVIDER_EXPERIENCE_OPTIONS } from '../provider-experience.mjs';
 
 const text = (key, label, max = 120) => ({ key, label, type: 'text', max });
 const longText = (key, label, max = 600) => ({ key, label, type: 'text', max });
@@ -36,7 +37,7 @@ export const CHOICES = {
   interests: ['Personal training', 'Nutrition coaching', 'Both'],
   budget: ['Optional', 'Under $25/mo', '$25 – $50/mo', '$50 – $100/mo', '$100+/mo'],
   nutritionType: ['Nutritionist', 'Dietitian (RD / RDN)'],
-  years: ['7-10 years', '10-15 years', '15+ years'],
+  years: [...PROVIDER_EXPERIENCE_OPTIONS],
   insurance: ['Yes', 'No', 'In progress'],
   rdCredential: ['rd', 'rdn'],
   trainerSpecs: ['Strength & Powerlifting', 'HIIT & Fat Loss', 'At-home Workouts', 'Cardio & Endurance', 'Functional Fitness', 'Bodybuilding', 'Sports Performance', 'Mobility', 'Run coaching'],
@@ -62,7 +63,7 @@ function application(kind, { app = false } = {}) {
     title: trainer ? 'trainer application' : 'nutritionist application',
     facts: [
       'Shape is 18+ for coaches.',
-      `A provider profile needs at least 5 years of professional ${trainer ? 'training or coaching' : 'nutrition coaching or clinical'} experience before it can go live.`,
+      `Shape's standard is ${EXPERIENCE_STANDARD_YEARS} years of professional ${trainer ? 'training or coaching' : 'nutrition coaching or clinical'} experience. Less is not a refusal: below it the application asks where they have worked and what type of experience it is, and the team reviews it individually.`,
       "Credentials may be verified by Shape's trust team, and a background check (Checkr) is required; the review team sends the screening invite after the application is reviewed.",
       'The team reviews an application and reaches out within 2–3 business days.',
       ...(trainer ? [] : ['Without a state dietitian license a nutritionist offers general wellness guidance only, not individualized or clinical nutrition plans; a dietitian must be licensed in each client\'s state.']),
@@ -75,6 +76,9 @@ function application(kind, { app = false } = {}) {
         text('certExp', trainer ? 'Certification expiration / renewal' : 'License state + number'),
         text('edu', 'Degree / school'),
         choice('years', 'Years of professional experience', CHOICES.years),
+        longText('experienceHistory', `Where they have worked: each place, their role and how long (asked when under ${EXPERIENCE_STANDARD_YEARS} years)`),
+        longText('experienceType', `Type of experience, such as gym floor, online coaching or a sports team (asked when under ${EXPERIENCE_STANDARD_YEARS} years)`),
+        longText('experienceNotes', `Anything else about their experience (optional, asked when under ${EXPERIENCE_STANDARD_YEARS} years)`),
         choice('insurance', 'Liability insurance', CHOICES.insurance),
         text('prev', 'Previous platforms (optional)'),
         ...(trainer || app ? [] : [

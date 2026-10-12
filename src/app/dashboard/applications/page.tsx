@@ -12,6 +12,7 @@ import {
   listApplicationDocuments,
   textValue,
 } from '@/lib/provider-applications';
+import { EXPERIENCE_STANDARD_YEARS, belowExperienceStandard } from '@/lib/provider-experience.mjs';
 import {
   approveApplication,
   markApplicationInReview,
@@ -75,6 +76,7 @@ const NOTICES: Record<string, string> = {
     'Another Approve on this application started a moment ago and may still be setting up the coach, so nothing was done. Reload in a minute: it will show as approved, or, if that approval failed, you can approve it again.',
   approval_conflict:
     'This application changed while it was being approved (another Approve, or another review action), so nothing was provisioned. Reload it and approve again if it still needs it.',
+  experience_tick_required: `This applicant has under ${EXPERIENCE_STANDARD_YEARS} years of experience, so approving them takes the tick under their experience answers. Nothing was changed.`,
 };
 
 function emailNotice(email: string | undefined, account: string | undefined): { ok: boolean; text: string } | null {
@@ -332,6 +334,13 @@ function ApplicationCard({ row, documents }: { row: ApplicationRow; documents: D
   const age = dob ? ageFromDob(dob) : null;
   const approved = asRecord(review.approved_provider);
   const decisionEmail = asRecord(review.decision_email);
+  const belowStandard = belowExperienceStandard(row.years_experience);
+  const experienceAnswers: Array<[string, string]> = [
+    ['Where they have worked', textValue(details.experience_history)],
+    ['Type of experience', textValue(details.experience_type)],
+    ['Anything else', textValue(details.experience_notes)],
+  ];
+  const experienceException = asRecord(review.experience_exception);
 
   return (
     <article className="rounded-xl border border-neutral-800 bg-neutral-950 p-5">
@@ -396,6 +405,33 @@ function ApplicationCard({ row, documents }: { row: ApplicationRow; documents: D
               )
             )}
           </div>
+        </section>
+      )}
+
+      {(belowStandard || experienceAnswers.some(([, v]) => v)) && (
+        <section
+          className={`mt-5 rounded-lg border p-4 ${belowStandard ? 'border-amber-400/40 bg-amber-400/10' : 'border-neutral-800 bg-neutral-900/50'}`}
+        >
+          <div className="text-xs uppercase tracking-[0.14em] text-neutral-500">Experience</div>
+          {belowStandard && (
+            <p className="text-sm text-amber-200 mt-2">
+              {row.years_experience}: below the {EXPERIENCE_STANDARD_YEARS}-year standard. Review where they have worked and what kind
+              of experience it is; approving them takes the tick by the Approve button.
+            </p>
+          )}
+          <div className="grid grid-cols-1 gap-3 mt-3">
+            {experienceAnswers.map(([label, value]) => (
+              <div key={label}>
+                <div className="text-xs text-neutral-500">{label}</div>
+                <div className="text-sm text-neutral-200 whitespace-pre-wrap break-words">{value || 'Not answered'}</div>
+              </div>
+            ))}
+          </div>
+          {experienceException.at ? (
+            <p className="text-xs text-neutral-400 mt-3">
+              Approved below the standard on {textValue(experienceException.at)}.
+            </p>
+          ) : null}
         </section>
       )}
 
@@ -492,6 +528,14 @@ function ApplicationCard({ row, documents }: { row: ApplicationRow; documents: D
               placeholder="Included in the approval or rejection email. Leave empty for the standard wording."
             />
           </label>
+          {belowStandard && canApprove ? (
+            <label className="flex items-start gap-2 text-sm text-amber-200">
+              <input type="checkbox" name="experience_exception" value="yes" className="mt-1" />
+              <span>
+                I have reviewed this applicant’s experience and approve them below the {EXPERIENCE_STANDARD_YEARS}-year standard.
+              </span>
+            </label>
+          ) : null}
           {decisionEmail.kind ? (
             <p className="text-xs text-neutral-500">
               Last decision email ({textValue(decisionEmail.kind)}): {decisionEmail.ok ? 'sent' : `not sent (${textValue(decisionEmail.error) || 'failed'})`}

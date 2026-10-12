@@ -42,6 +42,7 @@ process.env.APPLICATIONS_EMAIL = 'apps@shape.test';
 const pa = await loadRealModule(join(ROOT, 'src/lib/provider-applications.ts'), { typescript: true });
 const emails = await loadRealModule(join(ROOT, 'src/lib/coach-application-emails.ts'), { typescript: true });
 const ageDerive = await import(pathToFileURL(join(ROOT, 'src/lib/age-derive.mjs')).href);
+const providerExperience = await import(pathToFileURL(join(ROOT, 'src/lib/provider-experience.mjs')).href);
 const verification = await loadRealModule(join(ROOT, 'src/lib/coach-verification.ts'), { typescript: true });
 
 /**
@@ -140,6 +141,7 @@ function fakeAdmin({ tables = {}, users = [], rpc = {}, fail = [], afterRead = n
   };
   return { client, calls, tables, generated, invited, signed, removed, lists };
 }
+const asRecord = (v) => (v && typeof v === 'object' ? v : {});
 const stmts = (calls, table, op) => calls.filter((c) => c.table === table && (!op || c.op === op));
 
 async function loadActions(admin, { emailOk = true } = {}) {
@@ -156,6 +158,7 @@ async function loadActions(admin, { emailOk = true } = {}) {
       ['@/lib/age-derive.mjs', ageDerive],
       ['@/lib/coach-application-emails', emails],
       ['@/lib/provider-applications', pa],
+      ['@/lib/provider-experience.mjs', providerExperience],
     ]),
   });
   const run = async (name, fields) => {
@@ -290,6 +293,41 @@ test('1/4/9: approving a new applicant provisions without Supabase\'s invite, pu
     assert.match(body, /Set up payouts/);
     assert.match(body, /prices/);
   }
+});
+
+test('experience: below the 5-year standard, Approve needs the reviewer\'s tick, which is recorded; the listing says the years it was told', async () => {
+  for (const [years, label] of [['Less than 1 year', 'Under 1 year'], ['1-2 years', '1 year'], ['3-4 years', '3 years']]) {
+    const admin = fakeAdmin({ tables: { provider_applications: [application({ years_experience: years, details: { ...application().details, experience_history: 'Gym A', experience_type: 'Floor' } })], profiles: [], trainers: [] } });
+    const { run, sent } = await loadActions(admin);
+    const refused = await run('approveApplication', { application_id: APP_ID });
+    assert.equal(refused.searchParams.get('notice'), 'experience_tick_required', years);
+    assert.equal(admin.tables.trainers.length, 0, 'nothing provisioned without the tick');
+    assert.equal(admin.generated.length, 0);
+    assert.equal(admin.tables.provider_applications[0].status, 'pending');
+    assert.equal(asRecord(admin.tables.provider_applications[0].admin_review).approval_claim, undefined, 'not even claimed');
+    assert.equal(sent.length, 0);
+
+    const to = await run('approveApplication', { application_id: APP_ID, experience_exception: 'yes' });
+    assert.equal(to.searchParams.get('updated'), 'approved', years);
+    const app = admin.tables.provider_applications[0];
+    assert.equal(app.admin_review.experience_exception.standard_years, 5);
+    assert.equal(app.admin_review.experience_exception.years_experience, years);
+    assert.equal(app.admin_review.experience_exception.by, ADMIN.id);
+    assert.equal(admin.tables.trainers[0].experience, label);
+  }
+  // At the standard no tick is asked, none is recorded, and an application with no answer is
+  // published with no experience line rather than the "7+ years" it used to claim.
+  for (const [years, label] of [['5-7 years', '5 years'], ['15+ years', '15 years'], [null, null]]) {
+    const admin = fakeAdmin({ tables: { provider_applications: [application({ years_experience: years })], profiles: [], trainers: [] } });
+    const { run } = await loadActions(admin);
+    const to = await run('approveApplication', { application_id: APP_ID });
+    assert.equal(to.searchParams.get('updated'), 'approved', String(years));
+    assert.equal(admin.tables.provider_applications[0].admin_review.experience_exception, null);
+    assert.equal(admin.tables.trainers[0].experience ?? null, label, String(years));
+  }
+  const src = read('src/app/dashboard/applications/page.tsx');
+  assert.match(src, /name="experience_exception" value="yes"/);
+  assert.match(src, /belowExperienceStandard\(row\.years_experience\)/);
 });
 
 test('1: an existing account is reused and still gets the approval email, telling it to sign in', async () => {

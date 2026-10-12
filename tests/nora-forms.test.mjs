@@ -96,7 +96,10 @@ test('the page\'s claim is reduced to a known form, step and keys; the note name
   assert.match(note, /Never guess or invent/);
   assert.match(note, /never submit/);
   assert.match(note, /password, an uploaded document, the human check, or any agreement or consent box/);
-  assert.match(note, /at least 5 years of professional training or coaching experience/);
+  assert.match(note, /Shape's standard is 5 years of professional training or coaching experience\. Less is not a refusal/);
+  assert.doesNotMatch(note, /at least 5 years/, 'the old hard minimum is not what Nora tells them');
+  assert.match(note, /\[experienceHistory\]/);
+  assert.match(note, /\[experienceType\]/);
   assert.doesNotMatch(formNote({ kind: 'apply_trainer', step: 0, filled: [] }), /dietitian license/);
   assert.match(formNote({ kind: 'apply_nutritionist', step: 0, filled: [] }), /general wellness guidance only/);
   assert.equal(formNote(null), '');

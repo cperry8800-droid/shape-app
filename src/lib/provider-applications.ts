@@ -1,4 +1,3 @@
-export const REQUIRED_PROVIDER_EXPERIENCE_YEARS = 5;
 export const DEFAULT_BACKGROUND_CHECK_PROVIDER = 'checkr';
 export const BACKGROUND_CHECK_DETAIL_KEYS = [
   'background_check_provider',
@@ -34,11 +33,6 @@ export function textValue(value: unknown): string {
   if (typeof value === 'string') return value;
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
   return '';
-}
-
-export function minimumYears(value: string | null | undefined): number {
-  const match = String(value ?? '').match(/\d+/);
-  return match ? Number(match[0]) : 0;
 }
 
 export function isAffirmative(value: unknown): boolean {
@@ -158,6 +152,13 @@ export const REVIEW_HIDDEN_DETAIL_KEYS: readonly string[] = [
   'documents',
   'approved_provider',
   ...BACKGROUND_CHECK_DETAIL_KEYS,
+  // The experience answers have their own panel on the review card.
+  'experience_history',
+  'experience_type',
+  'experience_notes',
+  'experience_standard_years',
+  'meets_experience_preference',
+  'professional_minimum_years',
 ];
 
 /**

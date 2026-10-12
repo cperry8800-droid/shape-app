@@ -833,7 +833,12 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // policy and expiry) and a line for an application already on file, and lost the "Saved
   // locally" result and its developer note (2026-10-12). The screen has no translator; it is
   // translated whole or not at all.
-  assert.equal(noneStrings, 746, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  // ⚠ AND noneStrings 746 -> 754, none.length UNCHANGED: the same screen asks an applicant
+  // under the 5-year experience standard where they have worked and what kind of experience it
+  // is (three fields, their placeholders, the years select's "Select"), and its notice now says
+  // the standard instead of a hard minimum (owner, 2026-10-12: "dont make it a hard no"). Still
+  // no translator; translated whole or not at all.
+  assert.equal(noneStrings, 754, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
   assert.equal(part.length, 34, 'partial-surface count moved — regenerate PARTIAL and the record');
   assert.equal(none.length, 88, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its

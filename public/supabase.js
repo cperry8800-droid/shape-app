@@ -672,8 +672,8 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
         document.head.appendChild(offsetCss);
       }
       document.body.classList.add('shape-has-demo-banner');
-      var signupHref = role === 'trainer' ? 'signup-trainer.html'
-        : (role === 'nutritionist' || role === 'dietitian') ? 'signup-nutritionist.html'
+      var signupHref = role === 'trainer' ? '/newdesign/SignupTrainer.html'
+        : (role === 'nutritionist' || role === 'dietitian') ? '/newdesign/SignupNutritionist.html'
         : 'signup-client.html';
       var label = role === 'trainer' ? 'trainer' : (role === 'nutritionist' || role === 'dietitian') ? 'nutritionist' : 'client';
       var bar = document.createElement('div');

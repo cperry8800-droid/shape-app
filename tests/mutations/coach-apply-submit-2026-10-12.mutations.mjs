@@ -12,7 +12,7 @@ const BACKEND = 'mobile-app/src/services/shapeBackend.js';
 const SCREEN = 'mobile-app/src/broadsheet/iosAppBroadsheetProviderApply.jsx';
 
 export default {
-  test: 'node --test tests/provider-apply-submit.test.mjs tests/provider-apply-forms.test.mjs tests/provider-apply-requirements.test.mjs tests/review-lows-hardening.test.mjs',
+  test: 'node --test tests/provider-apply-submit.test.mjs tests/provider-apply-forms.test.mjs tests/provider-apply-requirements.test.mjs tests/review-lows-hardening.test.mjs tests/provider-experience.test.mjs',
   timeoutMs: 600_000,
   mutations: [
     // ── the route ──
@@ -71,9 +71,34 @@ export default {
       find: '  if (total > MAX_TOTAL_FILE_BYTES) return totalFilesMessage(total);',
       replace: '  if (false) return totalFilesMessage(total);' },
     // ── the website ──
-    { name: 'the untouched experience select sends "" again', file: WEB,
+    { name: 'the chosen years are not what is sent', file: WEB,
       find: '    form.append("yearsExperience", proPick(values, "years", role));',
-      replace: '    form.append("yearsExperience", values.years || "");' },
+      replace: '    form.append("yearsExperience", "7-10 years");' },
+    // ── the experience rule (2026-10-12: five years is the standard, less is reviewed) ──
+    { name: 'the website does not ask an unanswered years select', file: WEB,
+      find: '    if (years === null) {',
+      replace: '    if (false) {' },
+    { name: 'the website takes under five years without where and what kind', file: WEB,
+      find: '    if (years < EXPERIENCE_STANDARD_YEARS && (!String(values.experienceHistory || "").trim() || !String(values.experienceType || "").trim())) {',
+      replace: '    if (false) {' },
+    { name: 'the website does not send the experience answers', file: WEB,
+      find: '      experience_history: values.experienceHistory || "",',
+      replace: '' },
+    { name: 'the route takes any experience answer', file: ROUTE,
+      find: '  if (experienceIssue) {',
+      replace: '  if (false) {' },
+    { name: 'the route marks every application as meeting the standard', file: ROUTE,
+      find: '    meets_experience_preference: !belowExperienceStandard(yearsExperience),',
+      replace: '    meets_experience_preference: true,' },
+    { name: 'the admin email does not flag a below-standard application', file: ROUTE,
+      find: "  const experienceRow: Array<[string, string]> = belowExperienceStandard(ctx.yearsExperience)",
+      replace: "  const experienceRow: Array<[string, string]> = false" },
+    { name: 'the app takes any experience answer', file: SCREEN,
+      find: '    if (experienceIssue) {',
+      replace: '    if (false) {' },
+    { name: 'the app does not send the experience answers', file: BACKEND,
+      find: "      experience_history: values.experienceHistory || '',",
+      replace: '' },
     { name: 'the shown defaults are not what proPick reads', file: WEB,
       find: '  return PRO_SELECT_DEFAULTS[key] || "";',
       replace: '  return "";' },

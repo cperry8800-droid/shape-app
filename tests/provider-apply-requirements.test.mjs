@@ -38,6 +38,8 @@ const ROUTE = 'src/app/api/apply/route.ts';
 
 // Every surface that POSTs an application, and which provider types it can submit.
 // A surface that cannot submit a type is not held to that type's requirements.
+// (The legacy root pages and the /mobile preview's sign-up pages were retired on 2026-10-12 and
+// redirect to the website's application: tests/legacy-signup-retired.test.mjs.)
 const SURFACES = [
   {
     file: 'public/newdesign/signup.jsx',
@@ -51,21 +53,6 @@ const SURFACES = [
     // The apply FORM lives in a separate module from the request builder, so the
     // collection half is asserted there.
     companions: ['mobile-app/src/broadsheet/iosAppBroadsheetProviderApply.jsx'],
-  },
-  {
-    file: 'public/mobile/signup.jsx',
-    label: 'the legacy /mobile Signup{Client,Trainer,Nutritionist} pages',
-    types: ['trainer', 'nutritionist'],
-  },
-  {
-    file: 'public/signup-trainer.html',
-    label: 'the legacy trainer application page',
-    types: ['trainer'],
-  },
-  {
-    file: 'public/signup-nutritionist.html',
-    label: 'the legacy nutritionist application page',
-    types: ['nutritionist'],
   },
 ];
 
@@ -92,9 +79,6 @@ const REQUIREMENTS = [
     producer: {
       'public/newdesign/signup.jsx': /append\(\s*["']providerType["']/,
       'mobile-app/src/services/shapeBackend.js': /providerType:\s*payload\.provider_type/,
-      'public/mobile/signup.jsx': /append\(\s*["']providerType["']/,
-      'public/signup-trainer.html': /append\(\s*['"]providerType['"]\s*,\s*['"]trainer['"]/,
-      'public/signup-nutritionist.html': /append\(\s*['"]providerType['"]\s*,\s*['"]nutritionist['"]/,
     },
   },
   {
@@ -104,9 +88,6 @@ const REQUIREMENTS = [
     producer: {
       'public/newdesign/signup.jsx': /append\(\s*["']firstName["']/,
       'mobile-app/src/services/shapeBackend.js': /firstName:\s*payload\.first_name/,
-      'public/mobile/signup.jsx': /append\(\s*["']firstName["']/,
-      'public/signup-trainer.html': /append\(\s*['"]firstName['"]/,
-      'public/signup-nutritionist.html': /append\(\s*['"]firstName['"]/,
     },
   },
   {
@@ -116,9 +97,6 @@ const REQUIREMENTS = [
     producer: {
       'public/newdesign/signup.jsx': /append\(\s*["']email["']/,
       'mobile-app/src/services/shapeBackend.js': /email:\s*payload\.email/,
-      'public/mobile/signup.jsx': /append\(\s*["']email["']/,
-      'public/signup-trainer.html': /append\(\s*['"]email['"]/,
-      'public/signup-nutritionist.html': /append\(\s*['"]email['"]/,
     },
   },
   {
@@ -130,9 +108,6 @@ const REQUIREMENTS = [
       // applicationToPayload() carrying `dob` proves nothing on its own.
       'mobile-app/src/services/shapeBackend.js': /dob:\s*payload\.dob/,
       'public/newdesign/signup.jsx': /append\(\s*["']dob["']/,
-      'public/mobile/signup.jsx': /append\(\s*["']dob["']/,
-      'public/signup-trainer.html': /append\(\s*['"]dob['"]/,
-      'public/signup-nutritionist.html': /append\(\s*['"]dob['"]/,
     },
   },
   {
@@ -143,15 +118,15 @@ const REQUIREMENTS = [
     producer: 'dobUnplaceable',
   },
   {
+    // 2026-10-12: a years answer, and below the 5-year standard where they have worked and what
+    // kind of experience it is (experienceProblem in src/lib/provider-experience.mjs). Never a
+    // refusal of the years themselves.
     key: 'experience',
-    route: /years of professional experience/,
+    route: /const experienceIssue = experienceProblem\(yearsExperience, details\);/,
     appliesTo: ['trainer', 'nutritionist'],
     producer: {
-      'public/newdesign/signup.jsx': /append\(\s*["']yearsExperience["']/,
-      'mobile-app/src/services/shapeBackend.js': /yearsExperience:\s*payload\.years_experience/,
-      'public/mobile/signup.jsx': /append\(\s*["']yearsExperience["']/,
-      'public/signup-trainer.html': /append\(\s*['"]yearsExperience['"]/,
-      'public/signup-nutritionist.html': /append\(\s*['"]yearsExperience['"]/,
+      'public/newdesign/signup.jsx': /append\(\s*["']yearsExperience["'][\s\S]*experience_history:[\s\S]*experience_type:/,
+      'mobile-app/src/services/shapeBackend.js': /yearsExperience:\s*payload\.years_experience[\s\S]*experience_history:[\s\S]*experience_type:|experience_history:[\s\S]*experience_type:[\s\S]*yearsExperience:\s*payload\.years_experience/,
     },
   },
   {
@@ -161,11 +136,6 @@ const REQUIREMENTS = [
     producer: {
       'public/newdesign/signup.jsx': /background_check_consent/,
       'mobile-app/src/services/shapeBackend.js': /background_check_consent/,
-      'public/mobile/signup.jsx': /background_check_consent/,
-      // The legacy pages post the whole gathered form as `details`, so the
-      // evidence is the consent FIELD the route's helper reads (agreeBgCheck).
-      'public/signup-trainer.html': /name=["']agreeBgCheck["']/,
-      'public/signup-nutritionist.html': /name=["']agreeBgCheck["']/,
     },
   },
   {
@@ -187,9 +157,6 @@ const REQUIREMENTS = [
     producer: {
       'public/newdesign/signup.jsx': /append\(\s*["']turnstileToken["']/,
       'mobile-app/src/services/shapeBackend.js': /append\(\s*['"]turnstileToken['"]/,
-      'public/mobile/signup.jsx': /append\(\s*["']turnstileToken["']/,
-      'public/signup-trainer.html': /append\(\s*['"]turnstileToken['"]/,
-      'public/signup-nutritionist.html': /append\(\s*['"]turnstileToken['"]/,
     },
   },
   {
@@ -199,8 +166,6 @@ const REQUIREMENTS = [
     producer: {
       'public/newdesign/signup.jsx': /compliance_attestations/,
       'mobile-app/src/services/shapeBackend.js': /compliance_attestations/,
-      'public/mobile/signup.jsx': /compliance_attestations/,
-      'public/signup-nutritionist.html': /compliance_attestations/,
     },
   },
 ];
@@ -265,36 +230,9 @@ test('every apply surface can satisfy every requirement it can reach', () => {
   }
 });
 
-// ⚠ A GATHERED CHECKBOX IS THE STRING 'Yes' OR 'No', AND 'No' IS TRUTHY.
-// public/signup-nutritionist.html builds its attestations from
-// gatherApplicationData(), which records checkboxes as those strings — so coercing
-// one with Boolean() marks every attestation affirmed regardless of what the
-// applicant actually ticked. That is not a 400; it is a FABRICATED compliance
-// attestation reaching the reviewer, and nothing else in the repo would show it.
-// The route's attestationsComplete() requires === true, so the page must compare by
-// value. This asserts the rule (affirmed by value, never coerced), not a spelling.
-test('the legacy page affirms attestations by value, never by truthiness', () => {
-  const body = src('public/signup-nutritionist.html');
-  const assign = body.match(/attest\[[^\]]+\]\s*=\s*([^;]+);/);
-  assert.ok(assign, "the legacy page's attestation map has moved — re-anchor this test");
-  const expr = assign[1];
-  assert.doesNotMatch(
-    expr,
-    /Boolean\s*\(|^\s*!!|\?\s*true/,
-    `the legacy page coerces a gathered checkbox (${expr.trim()}) — an UNCHECKED box gathers as ` +
-      "the truthy string 'No', so this affirms every attestation regardless of input"
-  );
-  assert.match(
-    expr,
-    /===\s*['"]Yes['"]/,
-    `the legacy page must affirm an attestation by comparing the gathered value to 'Yes' ` +
-      `(reads: ${expr.trim()})`
-  );
-});
-
-// The attestation KEYS are the contract between the route and every surface. Two of
-// those surfaces are classic scripts that cannot import the canonical module, so
-// they mirror the list — and a mirror is what drifts. Assert the mirrors match.
+// The attestation KEYS are the contract between the route and every surface. The website's
+// form is a classic script that cannot import the canonical module, so it mirrors the list,
+// and a mirror is what drifts. Assert the mirror matches.
 test('mirrored attestation keys match the canonical list', () => {
   const canonical = src('src/lib/compliance/nutrition.mjs');
   const list = canonical.match(/REQUIRED_ATTESTATIONS\s*=\s*\[([^\]]+)\]/);
@@ -302,7 +240,7 @@ test('mirrored attestation keys match the canonical list', () => {
   const keys = [...list[1].matchAll(/['"]([a-z_]+)['"]/g)].map((m) => m[1]);
   assert.ok(keys.length >= 4, `expected the canonical attestation keys, read ${keys.length}`);
 
-  for (const rel of ['public/mobile/signup.jsx', 'public/signup-nutritionist.html']) {
+  for (const rel of ['public/newdesign/signup.jsx']) {
     const body = src(rel);
     for (const key of keys) {
       assert.ok(

@@ -4,7 +4,10 @@
 //   website (public/newdesign/signup.jsx), mounted in jsdom the way tests/nora-forms.test.mjs
 //   mounts it, submitting into a recorded fetch:
 //     · an untouched form sends what its selects show (the experience select showed 7-10 years
-//       and sent "", which the years check refused)
+//       and sent "", which the years check refused), except the years, which have no default:
+//       an unanswered years select is said, not sent
+//     · under the 5-year standard the form asks where they have worked and what kind of
+//       experience it is, and sends the answers; it never refuses the years themselves
 //     · the Specialty and Availability answers, and the agreements, reach the request
 //     · the human-check token reaches the request
 //     · files over 4 MB in total, or the platform's plain-text 413, read as the size sentence
@@ -13,8 +16,9 @@
 //     · only the route's own yes shows "Submitted"; a failed send keeps the form and says so
 //     · the nutritionist fields the website collects are there (professional type, CDR number,
 //       state licenses, insurance)
+//     · the experience rule is the website's (the shared src/lib/provider-experience.mjs)
 //
-//   the legacy /mobile pages (public/mobile/signup.jsx), by source: the years default.
+//   The legacy /mobile sign-up pages were retired on 2026-10-12 (tests/legacy-signup-retired).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -36,6 +40,7 @@ const babel = require('next/dist/compiled/babel/core');
 const presetReact = require('next/dist/compiled/babel/preset-react');
 const ageDerive = await import(pathToFileURL(join(ROOT, 'src/lib/age-derive.mjs')).href);
 const config = await import(pathToFileURL(join(ROOT, 'mobile-app/src/config/providerApplications.js')).href);
+const experience = await import(pathToFileURL(join(ROOT, 'src/lib/provider-experience.mjs')).href);
 const MB = 1024 * 1024;
 
 function useDom(url) {
@@ -94,7 +99,7 @@ async function mountWebsite(role, { turnstile = null, respond = () => new Respon
 
 /** Walks a trainer application through every step, touching only the text fields and the boxes. */
 async function walkTrainer(p, extra = {}) {
-  await p.fill({ firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.invalid', dob: '1990-04-02', cert: 'NASM-CPT', ...extra });
+  await p.fill({ firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.invalid', dob: '1990-04-02', cert: 'NASM-CPT', years: '7-10 years', ...extra });
   await p.next();
   await p.tickBox(/credentials may be verified/);
   await p.next();
@@ -111,7 +116,7 @@ test('website: an untouched application sends what its selects show, plus the an
     await p.submit();
     assert.equal(p.sent.length, 1, `submitted (error: ${p.doc.body.textContent.slice(-300)})`);
     const form = p.sent[0].form;
-    assert.equal(form.get('yearsExperience'), '7-10 years', 'the shown experience is sent, not ""');
+    assert.equal(form.get('yearsExperience'), '7-10 years', 'the chosen experience is sent');
     assert.equal(form.get('specialty'), 'Strength & Powerlifting', 'the shown primary specialty is sent');
     const d = JSON.parse(form.get('details'));
     assert.deepEqual(
@@ -127,6 +132,56 @@ test('website: an untouched application sends what its selects show, plus the an
     assert.equal(d.certification, 'NASM-CPT');
     assert.match(p.doc.body.textContent, /Application submitted\./);
   } finally { await p.unmount(); }
+});
+
+test('website: the years have no default; an unanswered select is said and nothing is sent', async () => {
+  const p = await mountWebsite('trainer');
+  try {
+    await walkTrainer(p, { years: '' });
+    for (let i = 0; i < 2; i += 1) await p.click(byText(p.doc, 'button', /← Back/));
+    const years = [...p.doc.querySelectorAll('select')].find((el) => [...el.options].some((o) => o.value === '15+ years'));
+    assert.equal(years.value, '', 'the select starts on "Select…", not on an answer');
+    assert.deepEqual([...years.options].map((o) => o.value), ['', ...experience.PROVIDER_EXPERIENCE_OPTIONS], 'the shared list, in order');
+    await p.next(); await p.next();
+    await p.submit();
+    assert.equal(p.sent.length, 0);
+    assert.match(p.doc.body.textContent, /Choose your years of professional experience\./);
+  } finally { await p.unmount(); }
+});
+
+test('website: under the 5-year standard the form asks where they have worked and what kind, and sends it; it is never a refusal', async () => {
+  const p = await mountWebsite('trainer');
+  try {
+    await walkTrainer(p, { years: '1-2 years' });
+    await p.submit();
+    assert.equal(p.sent.length, 0, 'not without the two answers');
+    assert.match(p.doc.body.textContent, /With under 5 years, tell us where you've worked and what type of experience you have/);
+    assert.doesNotMatch(p.doc.body.textContent, /requires at least/);
+    for (let i = 0; i < 2; i += 1) await p.click(byText(p.doc, 'button', /← Back/));
+    assert.match(p.doc.body.textContent, /Where you've worked/);
+    assert.match(p.doc.body.textContent, /Type of experience/);
+    await p.fill({ experienceHistory: 'Equinox, floor trainer, 2 years', experienceType: 'Gym floor and small groups', experienceNotes: 'NSCA intern' });
+    await p.next(); await p.next();
+    await p.submit();
+    assert.equal(p.sent.length, 1, p.doc.body.textContent.slice(-300));
+    const form = p.sent[0].form;
+    assert.equal(form.get('yearsExperience'), '1-2 years');
+    const d = JSON.parse(form.get('details'));
+    assert.deepEqual(
+      [d.experience_history, d.experience_type, d.experience_notes, d.experience_standard_years],
+      ['Equinox, floor trainer, 2 years', 'Gym floor and small groups', 'NSCA intern', 5],
+    );
+    assert.equal('professional_minimum_years' in d, false, 'the old 7-year marker is gone');
+  } finally { await p.unmount(); }
+  // At or over the standard the questions are not asked.
+  const q = await mountWebsite('trainer');
+  try {
+    await q.fill({ years: '5-7 years' });
+    await q.next();
+    assert.doesNotMatch(q.doc.body.textContent, /Where you've worked/);
+    await q.fill({ years: 'Less than 1 year' });
+    assert.match(q.doc.body.textContent, /Where you've worked/, 'under a year is asked the same, not refused');
+  } finally { await q.unmount(); }
 });
 
 test('website: a choice the person makes is what is sent', async () => {
@@ -161,7 +216,7 @@ test('website: the coach application carries the human-check token, and waits fo
 
 test('website: files over 4 MB in total are stopped before sending, and the platform\'s 413 reads the same way', async () => {
   const attachAndSubmit = async (p, sizes) => {
-    await p.fill({ firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.invalid', dob: '1990-04-02' });
+    await p.fill({ firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.invalid', dob: '1990-04-02', years: '7-10 years' });
     await p.next();
     const inputs = [...p.doc.querySelectorAll('input[type=file]')];
     assert.equal(inputs.length, 3);
@@ -188,18 +243,6 @@ test('website: files over 4 MB in total are stopped before sending, and the plat
   } finally { await refused.unmount(); }
 });
 
-// ── The legacy /mobile pages ─────────────────────────────────────────────────────────────
-
-test('/mobile: the coach form starts with each select\'s shown value, and sends a token and the size check', () => {
-  const src = read('public/mobile/signup.jsx');
-  assert.match(src, /React\.useState\(\(\) => proInitialValues\(role\)\)/);
-  const init = src.slice(src.indexOf('function proInitialValues'), src.indexOf('\n}\n', src.indexOf('function proInitialValues')));
-  for (const key of ['years: proExperienceOptions[0]', 'insurance: "Yes"', 'primary:', 'response: "Within 24 hours"']) assert.ok(init.includes(key), key);
-  assert.match(src, /form\.append\("turnstileToken", humanCheck\)/);
-  assert.match(src, /filesBytes > APPLY_FILES_MAX_BYTES/);
-  assert.match(src, /res\.status === 413/);
-});
-
 // ── The app ───────────────────────────────────────────────────────────────────────────────
 
 const THEME = new Proxy({ MONO: 'mono', DISPLAY: 'display' }, { get: (t, k) => (k in t ? t[k] : '#000') });
@@ -224,8 +267,8 @@ async function mountApp(initialRole) {
   };
 }
 
-async function walkApp(p) {
-  await p.fill({ firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.invalid', dob: '1990-04-02', cert: 'RD 123' });
+async function walkApp(p, extra = {}) {
+  await p.fill({ firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.invalid', dob: '1990-04-02', cert: 'RD 123', years: '7-10 years', ...extra });
   await p.next();
   await p.click(p.button(/credentials may be verified/));
   await p.next();
@@ -304,7 +347,7 @@ test('app: a nutritionist says what they are, and adds a CDR number, state licen
 test('app: files over 4 MB in total are stopped on the screen, and the helper copy says the real limit', async () => {
   const p = await mountApp('trainer');
   try {
-    await p.fill({ firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.invalid', dob: '1990-04-02', cert: 'NASM' });
+    await p.fill({ firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.invalid', dob: '1990-04-02', cert: 'NASM', years: '10-15 years' });
     await p.next();
     assert.match(p.text(), /All files together up to 4 MB/);
     assert.doesNotMatch(p.text(), /10MB/);
@@ -319,5 +362,35 @@ test('app: files over 4 MB in total are stopped on the screen, and the helper co
     await p.click(p.button(/Transmit · Submit/)); await act(tick);
     assert.equal(calls.length, 0);
     assert.match(p.text(), /Your files add up to 4\.5 MB; the limit for one application is 4 MB in total/);
+  } finally { await p.unmount(); }
+});
+
+test('app: the years have no default, and under the standard the same two questions are asked, never a refusal', async () => {
+  const p = await mountApp('nutritionist');
+  try {
+    await walkApp(p, { years: '' });
+    const calls = [];
+    p.w.ShapeApplications = { submitProviderApplication: async (arg) => { calls.push(arg); return { stored: 'api', data: { id: 'n-2' } }; } };
+    await p.click(p.button(/Transmit · Submit/)); await act(tick);
+    assert.equal(calls.length, 0);
+    assert.match(p.text(), /Choose your years of professional experience\./);
+
+    await p.fill({ years: '3-4 years' });
+    await p.click(p.button(/Transmit · Submit/)); await act(tick);
+    assert.equal(calls.length, 0, 'not without where they have worked and what kind');
+    assert.match(p.text(), /With under 5 years, tell us where you've worked/);
+    assert.doesNotMatch(p.text(), /requires at least/);
+
+    await p.click(p.button(/^Back$/)); await p.click(p.button(/^Back$/));
+    const years = [...p.doc.querySelectorAll('select')].find((el) => [...el.options].some((o) => o.value === '15+ years'));
+    assert.deepEqual([...years.options].map((o) => o.value), ['', ...experience.PROVIDER_EXPERIENCE_OPTIONS]);
+    assert.match(p.text(), /Shape's standard is 5 years/);
+    const area = (label) => byText(p.doc, 'label', new RegExp(`^${label}`)).querySelector('textarea');
+    await act(() => typeInto(p.w, area("Where you've worked"), 'Clinic A, dietetic intern, 1 year'));
+    await act(() => typeInto(p.w, area('Type of experience'), 'Clinical practice'));
+    await p.next(); await p.next();
+    await p.click(p.button(/Transmit · Submit/)); await act(tick);
+    assert.equal(calls.length, 1, p.text().slice(-300));
+    assert.deepEqual([calls[0].values.years, calls[0].values.experienceHistory, calls[0].values.experienceType], ['3-4 years', 'Clinic A, dietetic intern, 1 year', 'Clinical practice']);
   } finally { await p.unmount(); }
 });

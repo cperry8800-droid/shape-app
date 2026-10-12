@@ -59,7 +59,20 @@ const ROLE_CONFIG = {
 const labelStyle = { display: "block", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)", marginBottom: 8 };
 const inputStyle = { width: "100%", background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 8, padding: "12px 14px", color: INK, fontFamily: sans, fontSize: 14, outline: "none" };
 const selectStyle = { ...inputStyle, appearance: "none", WebkitAppearance: "none", backgroundImage: "linear-gradient(45deg, transparent 48%, rgba(242,237,228,0.5) 48% 52%, transparent 52%), linear-gradient(-45deg, transparent 48%, rgba(242,237,228,0.5) 48% 52%, transparent 52%)", backgroundSize: "6px 6px, 6px 6px", backgroundPosition: "right 16px top 50%, right 10px top 50%", backgroundRepeat: "no-repeat", paddingRight: 36 };
-const proExperienceOptions = ["7-10 years", "10-15 years", "15+ years"];
+// Shape's standard is 5 years of professional experience. Less is never a refusal (owner,
+// 2026-10-12: "dont make it a hard no"): the applicant tells us where they have worked and what
+// kind of experience it is, and the application is reviewed and approved on its own. The same
+// choices and the same reading are in mobile-app/src/config/providerApplications.js and
+// src/lib/provider-applications.ts (a test holds them equal).
+const proExperienceOptions = ["Less than 1 year", "1-2 years", "3-4 years", "5-7 years", "7-10 years", "10-15 years", "15+ years"];
+const EXPERIENCE_STANDARD_YEARS = 5;
+function experienceYearsOf(label) {
+  const text = String(label || "").trim();
+  if (!text) return null;
+  if (/less than/i.test(text)) return 0;
+  const m = text.match(/\d+/);
+  return m ? Number(m[0]) : null;
+}
 const TRAINER_SPECS = ["Strength & Powerlifting", "HIIT & Fat Loss", "At-home Workouts", "Cardio & Endurance", "Functional Fitness", "Bodybuilding", "Sports Performance", "Mobility", "Run coaching"];
 const NUTRI_SPECS = ["Weight management", "Sports nutrition", "Plant-based", "Gut health", "Hormonal health", "Pre/postnatal", "Endurance fueling", "Clinical / medical"];
 // ⚠ WHAT A COACH SELECT SHOWS BEFORE IT IS TOUCHED IS WHAT IT SENDS. A select with nothing
@@ -68,7 +81,10 @@ const NUTRI_SPECS = ["Weight management", "Sports nutrition", "Plant-based", "Gu
 // years check), and insurance, specialty and response time went out blank. Every coach select
 // and the request both read through proPick(). (The values stay out of the form state so
 // Nora is told only what the person filled.)
-const PRO_SELECT_DEFAULTS = { years: proExperienceOptions[0], insurance: "Yes", accepting: "Yes", oneOnOne: "Yes", response: "Within 24 hours", intro: "15-minute free intro" };
+// ⚠ EXCEPT THE YEARS, WHICH HAVE NO DEFAULT. The list now starts at "Less than 1 year", so a
+// shown default would put an untouched form below the standard; the select shows "Select…"
+// and the application asks for an answer.
+const PRO_SELECT_DEFAULTS = { insurance: "Yes", accepting: "Yes", oneOnOne: "Yes", response: "Within 24 hours", intro: "15-minute free intro" };
 function proPick(v, key, kind) {
   if (v[key]) return v[key];
   if (key === "primary") return (kind === "trainer" ? TRAINER_SPECS : NUTRI_SPECS)[0];
@@ -97,9 +113,10 @@ function Field({ label, children, span = 1 }) {
 }
 
 function TextInput(props) { return <input type="text" style={inputStyle} {...props} />; }
-function Select({ options, ...rest }) {
+function Select({ options, placeholder, ...rest }) {
   return (
     <select style={selectStyle} {...rest}>
+      {placeholder ? <option value="" disabled>{placeholder}</option> : null}
       {options.map(o => <option key={o} value={o}>{o}</option>)}
     </select>
   );
@@ -281,11 +298,28 @@ function ProCredentials({ v, set, kind }) {
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
         <Field label="Degree / school"><TextInput value={v.edu || ""} onChange={e => set({ edu: e.target.value })} placeholder={isTrainer ? "BS Kinesiology — UT Austin" : "MS Nutrition — NYU"} /></Field>
-        <Field label="Years professional experience"><Select value={proPick(v, "years", kind)} onChange={e => set({ years: e.target.value })} options={proExperienceOptions} /></Field>
+        <Field label="Years professional experience"><Select value={proPick(v, "years", kind)} onChange={e => set({ years: e.target.value })} options={proExperienceOptions} placeholder="Select…" /></Field>
       </div>
       <p style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.68)", margin: 0, lineHeight: 1.55 }}>
-        Shape requires a minimum of 5 years of professional {isTrainer ? "training or coaching" : "nutrition coaching or clinical"} experience before a provider profile can go live.
+        Shape's standard is {EXPERIENCE_STANDARD_YEARS} years of professional {isTrainer ? "training or coaching" : "nutrition coaching or clinical"} experience. With less, you can still apply: tell us where you've worked and what kind of experience it is, and we review your application individually.
       </p>
+      {(() => {
+        const yrs = experienceYearsOf(v.years);
+        if (yrs === null || yrs >= EXPERIENCE_STANDARD_YEARS) return null;
+        return (
+          <div style={{ display: "grid", gap: 18 }}>
+            <Field label="Where you've worked">
+              <textarea value={v.experienceHistory || ""} onChange={e => set({ experienceHistory: e.target.value })} placeholder="Each place, your role and how long you were there" style={{ ...inputStyle, minHeight: 96, resize: "vertical", fontFamily: sans }} />
+            </Field>
+            <Field label="Type of experience">
+              <textarea value={v.experienceType || ""} onChange={e => set({ experienceType: e.target.value })} placeholder={isTrainer ? "Gym floor, online coaching, a sports team, an internship…" : "Clinical or dietetic practice, online coaching, a sports team, an internship…"} style={{ ...inputStyle, minHeight: 72, resize: "vertical", fontFamily: sans }} />
+            </Field>
+            <Field label="Anything else we should know (optional)">
+              <textarea value={v.experienceNotes || ""} onChange={e => set({ experienceNotes: e.target.value })} style={{ ...inputStyle, minHeight: 72, resize: "vertical", fontFamily: sans }} />
+            </Field>
+          </div>
+        );
+      })()}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
         <Field label="Liability insurance"><Select value={proPick(v, "insurance", kind)} onChange={e => set({ insurance: e.target.value })} options={["Yes", "No", "In progress"]} /></Field>
         <Field label="Previous platforms (optional)"><TextInput value={v.prev || ""} onChange={e => set({ prev: e.target.value })} placeholder="Trainerize, MyFitnessPal Pro..." /></Field>
@@ -687,9 +721,15 @@ function SignupForm({ role }) {
       setError("First name, last name, and email are required.");
       return;
     }
-    const years = Number(String(proPick(values, "years", role)).match(/\d+/)?.[0] || 0);
-    if (years < 7) {
-      setError("Shape requires at least 5 years of professional experience.");
+    // Experience is never a refusal: under the standard, the application asks where the
+    // person has worked and what kind of experience it is, and is reviewed individually.
+    const years = experienceYearsOf(proPick(values, "years", role));
+    if (years === null) {
+      setError("Choose your years of professional experience.");
+      return;
+    }
+    if (years < EXPERIENCE_STANDARD_YEARS && (!String(values.experienceHistory || "").trim() || !String(values.experienceType || "").trim())) {
+      setError(`With under ${EXPERIENCE_STANDARD_YEARS} years, tell us where you've worked and what type of experience you have, so we can review your application.`);
       return;
     }
     if (!values.tos || !values.conduct || !values.bgcheck) {
@@ -786,7 +826,10 @@ function SignupForm({ role }) {
         code_of_conduct: values.conduct === true,
         background_check: values.bgcheck === true,
       },
-      professional_minimum_years: 7,
+      experience_standard_years: EXPERIENCE_STANDARD_YEARS,
+      experience_history: values.experienceHistory || "",
+      experience_type: values.experienceType || "",
+      experience_notes: values.experienceNotes || "",
       background_check_provider: "checkr",
       background_check_required: true,
       background_check_consent: true,

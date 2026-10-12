@@ -241,6 +241,7 @@ async function applyRoute({ db }) {
   const providerApplications = await loadRealModule(join(ROOT, 'src/lib/provider-applications.ts'), { typescript: true });
   const nutrition = await import(pathToFileURL(join(ROOT, 'src/lib/compliance/nutrition.mjs')).href);
   const ageDerive = await import(pathToFileURL(join(ROOT, 'src/lib/age-derive.mjs')).href);
+  const providerExperience = await import(pathToFileURL(join(ROOT, 'src/lib/provider-experience.mjs')).href);
   const admin = recorder({ storage: { from: () => ({ upload: async (path, bytes, opts) => { uploads.push({ path, size: bytes.length, ...opts }); return { error: null }; }, remove: async () => ({ error: null }) }) } });
   const route = await loadRealModule(join(ROOT, 'src/app/api/apply/route.ts'), {
     typescript: true,
@@ -257,6 +258,7 @@ async function applyRoute({ db }) {
       ['@/lib/email', { sendEmail: async () => ({ ok: true }) }],
       ['@/lib/request-utils', requestUtils],
       ['@/lib/provider-applications', providerApplications],
+      ['@/lib/provider-experience.mjs', providerExperience],
       ['@/lib/compliance/nutrition.mjs', nutrition],
       ['@/lib/age-derive.mjs', ageDerive],
     ]),

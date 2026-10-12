@@ -37,6 +37,7 @@ const rateLimit = await loadRealModule(join(ROOT, 'src/lib/rate-limit.ts'), ts);
 const providerApplications = await loadRealModule(join(ROOT, 'src/lib/provider-applications.ts'), ts);
 const nutrition = await import(pathToFileURL(join(ROOT, 'src/lib/compliance/nutrition.mjs')).href);
 const ageDerive = await import(pathToFileURL(join(ROOT, 'src/lib/age-derive.mjs')).href);
+const providerExperience = await import(pathToFileURL(join(ROOT, 'src/lib/provider-experience.mjs')).href);
 const config = await import(pathToFileURL(join(ROOT, 'mobile-app/src/config/providerApplications.js')).href);
 
 const MB = 1024 * 1024;
@@ -112,6 +113,7 @@ async function applyRoute(admin, { user = null } = {}) {
       ['@/lib/request-auth', { currentUser: async () => user }],
       ['@/lib/rate-limit', rateLimit],
       ['@/lib/provider-applications', providerApplications],
+      ['@/lib/provider-experience.mjs', providerExperience],
       ['@/lib/compliance/nutrition.mjs', nutrition],
       ['@/lib/age-derive.mjs', ageDerive],
     ]),
@@ -355,17 +357,15 @@ test('the two emails go to after(), not fire-and-forget, and both are sent when 
   assert.doesNotMatch(src, /void sendApplicationEmails|void sendEmail/, 'no email is left running when the function returns');
 });
 
-test('every copy of the 4 MB limit and its sentence agrees: the route, both website forms, the app and the legacy pages', () => {
-  // Four modules that cannot share code (a Next route, two babel pages, the app bundle) and two
-  // static pages each carry the limit; a change to one alone would refuse what another accepts.
+test('every copy of the 4 MB limit and its sentence agrees: the route, the website form and the app', () => {
+  // Three modules that cannot share code (a Next route, a babel page, the app bundle) each carry
+  // the limit; a change to one alone would refuse what another accepts. (The /mobile and root
+  // legacy pages that also carried it were retired on 2026-10-12.)
   const src = (p) => readFileSync(join(ROOT, p), 'utf8');
   const limits = {
     'src/app/api/apply/route.ts': /const MAX_TOTAL_FILE_BYTES = (.+);/,
     'public/newdesign/signup.jsx': /const APPLY_FILES_MAX_BYTES = (.+);/,
-    'public/mobile/signup.jsx': /const APPLY_FILES_MAX_BYTES = (.+);/,
     'mobile-app/src/config/providerApplications.js': /export const PROVIDER_APPLICATION_MAX_TOTAL_BYTES = (.+);/,
-    'public/signup-trainer.html': /if \(filesBytes > (.+)\) \{/,
-    'public/signup-nutritionist.html': /if \(filesBytes > (.+)\) \{/,
   };
   for (const [file, re] of Object.entries(limits)) {
     const m = re.exec(src(file));
@@ -375,6 +375,48 @@ test('every copy of the 4 MB limit and its sentence agrees: the route, both webs
   const sentence = 'the limit for one application is 4 MB in total. Attach a smaller scan or fewer files.';
   for (const file of Object.keys(limits)) assert.ok(src(file).includes(sentence), `${file} says the same sentence`);
   assert.equal(config.PROVIDER_APPLICATION_MAX_TOTAL_BYTES, 4 * MB);
+});
+
+test('experience: no answer is asked for; under the 5-year standard needs where and what kind, and is then taken and marked, never refused', async () => {
+  const unanswered = fakeAdmin();
+  const none = await (await applyRoute(unanswered)).post({ fields: { yearsExperience: '' } });
+  assert.equal(none.status, 400);
+  assert.equal(none.body.error, 'Choose your years of professional experience.');
+  assert.equal(inserts(unanswered).length, 0);
+
+  for (const years of ['Less than 1 year', '1-2 years', '3-4 years']) {
+    const bare = fakeAdmin();
+    const asked = await (await applyRoute(bare)).post({ fields: { yearsExperience: years }, details: { experience_history: 'Gym A, 1 year' } });
+    assert.equal(asked.status, 400, years);
+    assert.match(asked.body.error, /With under 5 years, tell us where you've worked and what type of experience you have/);
+    assert.doesNotMatch(asked.body.error, /requires at least/);
+    assert.equal(inserts(bare).length, 0);
+
+    const admin = fakeAdmin();
+    const r = await applyRoute(admin);
+    // A client cannot mark itself as meeting the standard: the server's reading wins.
+    const taken = await r.post({
+      fields: { yearsExperience: years },
+      details: { experience_history: 'Gym A, floor coach, 1 year', experience_type: 'Gym floor', meets_experience_preference: true, experience_standard_years: 1 },
+    });
+    assert.equal(taken.status, 200, `${years}: ${JSON.stringify(taken.body)}`);
+    const row = inserts(admin)[0].payload;
+    assert.equal(row.years_experience, years);
+    assert.equal(row.details.meets_experience_preference, false);
+    assert.equal(row.details.experience_standard_years, 5);
+    assert.equal(row.details.experience_history, 'Gym A, floor coach, 1 year');
+    await r.runAfter();
+    const notice = r.sent.find((m) => m.to !== 'ada@example.invalid');
+    assert.match(notice.text, /Experience review: Below the 5-year standard: review individually/);
+  }
+
+  const admin = fakeAdmin();
+  const r = await applyRoute(admin);
+  const standard = await r.post({ fields: { yearsExperience: '5-7 years' } });
+  assert.equal(standard.status, 200);
+  assert.equal(inserts(admin)[0].payload.details.meets_experience_preference, true);
+  await r.runAfter();
+  assert.doesNotMatch(r.sent.find((m) => m.to !== 'ada@example.invalid').text, /Experience review/);
 });
 
 test('files over 4 MB in total are refused before anything is stored, in the words the forms use', async () => {

@@ -2,9 +2,10 @@
 // Accepts a JSON body with core identifying fields + a free-form `details`
 // object for the rest of the intake. Inserts into public.provider_applications.
 //
-// Called by the website's coach application (public/newdesign/signup.jsx), the app's
-// (mobile-app shapeBackend submitProviderApplication) and the legacy pages
-// public/signup-trainer.html and public/signup-nutritionist.html.
+// Called by the website's coach application (public/newdesign/signup.jsx) and the app's
+// (mobile-app shapeBackend submitProviderApplication). The legacy root pages
+// (signup-trainer.html, signup-nutritionist.html) were retired on 2026-10-12 and redirect to
+// the website's application.
 
 import { NextRequest, NextResponse, after } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -14,13 +15,16 @@ import { verifyTurnstile } from '@/lib/turnstile';
 import { currentUser } from '@/lib/request-auth';
 import { checkRateLimit } from '@/lib/rate-limit';
 import {
-  REQUIRED_PROVIDER_EXPERIENCE_YEARS,
   asRecord,
   hasBackgroundCheckConsent,
   isAffirmative,
-  minimumYears,
   withBackgroundCheckDetails,
 } from '@/lib/provider-applications';
+import {
+  EXPERIENCE_STANDARD_YEARS,
+  belowExperienceStandard,
+  experienceProblem,
+} from '@/lib/provider-experience.mjs';
 import { attestationsComplete } from '@/lib/compliance/nutrition.mjs';
 // The shared 18+ derivation — same rule as every signup surface and both gates.
 import { isMinorFromDob } from '@/lib/age-derive.mjs';
@@ -347,13 +351,13 @@ export async function POST(req: NextRequest) {
       { status: 400, headers: CORS_HEADERS }
     );
   }
-  if (minimumYears(yearsExperience) < REQUIRED_PROVIDER_EXPERIENCE_YEARS) {
-    return NextResponse.json(
-      {
-        error: `Shape requires at least ${REQUIRED_PROVIDER_EXPERIENCE_YEARS} years of professional experience before applying as a provider.`,
-      },
-      { status: 400, headers: CORS_HEADERS }
-    );
+  // ⚠ EXPERIENCE BELOW THE STANDARD IS NOT A REFUSAL (owner, 2026-10-12: "dont make it a hard
+  // no"). The application needs a years answer, and below the standard it needs where the person
+  // has worked and what kind of experience it is; it is then reviewed individually, and approving
+  // it takes the reviewer's explicit tick (dashboard/applications/actions.ts).
+  const experienceIssue = experienceProblem(yearsExperience, details);
+  if (experienceIssue) {
+    return NextResponse.json({ error: experienceIssue }, { status: 400, headers: CORS_HEADERS });
   }
 
   if (!hasBackgroundCheckConsent(details, body)) {
@@ -396,7 +400,9 @@ export async function POST(req: NextRequest) {
   details = withBackgroundCheckDetails({
     ...withCertifications(details),
     agreements: recordedAgreements(details, body),
-    meets_experience_preference: true,
+    // The server's reading of the years answer, over whatever the client sent under these keys.
+    experience_standard_years: EXPERIENCE_STANDARD_YEARS,
+    meets_experience_preference: !belowExperienceStandard(yearsExperience),
     background_check_consent: true,
   }, 'consent_received');
 
@@ -588,8 +594,12 @@ async function sendApplicationEmails(ctx: EmailContext): Promise<void> {
     ['Years experience', ctx.yearsExperience],
     ['Monthly price', ctx.monthlyPrice],
   ];
+  const experienceRow: Array<[string, string]> = belowExperienceStandard(ctx.yearsExperience)
+    ? [['Experience review', `Below the ${EXPERIENCE_STANDARD_YEARS}-year standard: review individually`]]
+    : [];
   const adminRows: Array<[string, string]> = [
     ...baseRows,
+    ...experienceRow,
     ...Object.entries(ctx.details).map(([key, value]) => [key, detailsValueToText(value)] as [string, string]),
   ].filter(([, v]) => Boolean(v));
 

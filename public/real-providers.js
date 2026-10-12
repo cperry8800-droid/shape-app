@@ -60,7 +60,7 @@
 
     if (!rows.length) {
       html += '<div class="rp-empty">No providers yet. Be the first — <a href="' +
-        (role === 'trainer' ? 'signup-trainer.html' : 'signup-nutritionist.html') +
+        (role === 'trainer' ? '/newdesign/SignupTrainer.html' : '/newdesign/SignupNutritionist.html') +
         '" style="color:var(--text);">apply now</a>.</div>';
       el.innerHTML = html;
       return;

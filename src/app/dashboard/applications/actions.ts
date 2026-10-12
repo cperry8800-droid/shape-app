@@ -8,6 +8,7 @@ import { sendEmail } from '@/lib/email';
 // The shared 18+ derivation — approval must not provision a coach the gates cannot place.
 import { isMinorFromDob } from '@/lib/age-derive.mjs';
 import { approvalEmail, rejectionEmail, siteUrl } from '@/lib/coach-application-emails';
+import { EXPERIENCE_STANDARD_YEARS, belowExperienceStandard, experienceYears } from '@/lib/provider-experience.mjs';
 import {
   BackgroundCheckStatus,
   asRecord,
@@ -140,9 +141,16 @@ function parseOneTimePrice(value: unknown): number | null {
   return cents / 100;
 }
 
-function yearsLabel(value: string | null): string {
-  const years = value?.match(/\d+/)?.[0];
-  return years ? `${years} years` : '7+ years';
+/**
+ * The listing's experience line: the fewest years the answer states. ⚠ NO ANSWER IS NO LINE: this
+ * used to fall back to "7+ years", so an application without an answer was published claiming
+ * seven.
+ */
+function yearsLabel(value: string | null): string | null {
+  const years = experienceYears(value);
+  if (years === null) return null;
+  if (years === 0) return 'Under 1 year';
+  return years === 1 ? '1 year' : `${years} years`;
 }
 
 function titleCase(value: string): string {
@@ -513,6 +521,13 @@ export async function approveApplication(formData: FormData): Promise<void> {
       'This application has no verified date of birth (Shape is 18+). Ask the applicant to resubmit, or record their date of birth on the application, before approving.'
     );
   }
+  // ⚠ BELOW THE EXPERIENCE STANDARD IS APPROVED ONE BY ONE, ON PURPOSE. The application is never
+  // refused for it (owner, 2026-10-12: "dont make it a hard no"), so the review is where the
+  // decision is made, and the reviewer says so with a tick that is recorded with the approval.
+  const belowStandard = belowExperienceStandard(typed.years_experience);
+  if (belowStandard && formData.get('experience_exception') !== 'yes') {
+    backToReview({ notice: 'experience_tick_required' });
+  }
 
   // ⚠ CLAIMED BEFORE ANYTHING IS PROVISIONED. Two Approve clicks (a double submit, two tabs) both
   // read the application as pending, both found no listing for the coach and both inserted one,
@@ -572,6 +587,9 @@ export async function approveApplication(formData: FormData): Promise<void> {
     approval_claim: null,
     applicant_note: applicantNote || null,
     decision: { decision: 'approved', at: now, by: adminUser.id },
+    experience_exception: belowStandard
+      ? { standard_years: EXPERIENCE_STANDARD_YEARS, years_experience: typed.years_experience, at: now, by: adminUser.id }
+      : null,
     approved_provider: {
       provider_role: typed.provider_type,
       provider_id: providerId,

@@ -34,7 +34,6 @@ import {
   DEFAULT_BACKGROUND_CHECK_PROVIDER,
   PROVIDER_APPLICATION_MAX_TOTAL_BYTES,
   PROVIDER_APPLICATION_SEND_FAILED,
-  REQUIRED_PROVIDER_EXPERIENCE_YEARS,
   applicationFilesTooLargeMessage,
 } from '../config/providerApplications.js';
 
@@ -1137,7 +1136,11 @@ function applicationToPayload(role, values = {}) {
       background_check_requested_at: null,
       background_check_completed_at: null,
       background_check_report_id: null,
-      professional_minimum_years: REQUIRED_PROVIDER_EXPERIENCE_YEARS,
+      // Below the standard the application says where they have worked and what kind of
+      // experience it is; the route reads these and the review card shows them.
+      experience_history: values.experienceHistory || '',
+      experience_type: values.experienceType || '',
+      experience_notes: values.experienceNotes || '',
       // No `documents` here: the files ride the request itself and /api/apply records
       // where it stored them (it drops any document path a client sends).
       user_id: state.user?.id || null,

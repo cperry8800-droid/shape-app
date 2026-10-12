@@ -60,21 +60,6 @@ const APPLY_CALLERS = [
     label: 'the canonical website coach application',
     forwards: /append\(\s*["']dob["']/,
   },
-  {
-    file: 'public/mobile/signup.jsx',
-    label: 'the legacy /mobile Signup{Trainer,Nutritionist,Client} pages',
-    forwards: /append\(\s*["']dob["']/,
-  },
-  {
-    file: 'public/signup-trainer.html',
-    label: 'the legacy trainer application page',
-    forwards: /append\(\s*["']dob["']/,
-  },
-  {
-    file: 'public/signup-nutritionist.html',
-    label: 'the legacy nutritionist application page',
-    forwards: /append\(\s*["']dob["']/,
-  },
 ];
 
 test('every surface that posts to /api/apply forwards a date of birth', () => {
@@ -175,29 +160,3 @@ test('a route rejection surfaces, and nothing is stored around the route', () =>
   assert.match(region, /error\.rejected = true;[\s\S]{0,80}throw error;/, 'the refusal is not marked and thrown');
 });
 
-// The two legacy pages had no date-of-birth input at all, so "forward the value"
-// is only half the fix — there was no value to forward. They must also collect it
-// and refuse before submitting, and refuse when the shared derivation is absent:
-// a page that cannot verify an age must not admit one.
-for (const file of ['public/signup-trainer.html', 'public/signup-nutritionist.html']) {
-  test(`${file} collects a date of birth and fails closed without the shared derivation`, () => {
-    const raw = read(file);
-    const src = stripComments(raw);
-    assert.match(src, /name=["']dob["']/, `${file} has no date-of-birth input to forward`);
-    assert.match(
-      src,
-      /<script[^>]+src=["']\/age-derive\.js["']/,
-      `${file} does not load the shared 18+ derivation, so its check would be a hand-written copy`
-    );
-    assert.match(
-      src,
-      /window\.ShapeAgeDerive/,
-      `${file} does not consult the shared derivation`
-    );
-    assert.match(
-      src,
-      /!ageApi\b/,
-      `${file} does not fail closed when the shared derivation is missing`
-    );
-  });
-}
