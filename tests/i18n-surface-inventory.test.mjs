@@ -421,21 +421,12 @@ const PARTIAL = new Set([
   // own cut, and finishing it moves them from here to fully covered.
   'Client::BSChatThread',
   'Client::BSFollowListSheet',
-  // ⚠ BSAboutPage IS PARTIAL OVER A PROPER NAME, NOT OVER COPY — 45 tr() calls
-  // and exactly one hardcoded string: `— Christopher Perry`, the founder's signature
-  // under his own letter. No locale changes a person's name, for the same reason
-  // none changes the shipped `+1 555 123 4567` phone example or BSSettings' `AB`
-  // initials placeholder one line up. Keying it would ship thirteen identical
-  // values for a string a translator must not touch. Recorded here rather than
-  // special-cased inside usable(), because a false exclusion there hides real copy.
-  'Client::BSAboutPage',
   // ⚠ BSProfileCustomizer IS PARTIAL OVER A LITERAL ADDRESS, NOT OVER COPY — 99
   // tr() calls and exactly one hardcoded string: the profile-song field's
   // `https://open.spotify.com/track/…` placeholder. It is a URL, byte-identical in
   // every locale, so keying it would ship thirteen copies of one string a translator
-  // must not touch — the same exemption as BSAboutPage's founder signature one line
-  // up and BSSettings' `AB` initials placeholder. The HANDLE and DOMAIN examples in
-  // the same editor ARE keyed: those are the `+1 555 123 4567` class, where a locale's
+  // must not touch — the same exemption as BSSettings' `AB` initials placeholder.
+  // The HANDLE and DOMAIN examples in the same editor ARE keyed: those are the `+1 555 123 4567` class, where a locale's
   // own form reads better. Recorded here rather than special-cased inside usable(),
   // because a false exclusion there hides real copy.
   // ⚠ AND 99/1 IS THIS WALK'S FLOOR, NOT THE SURFACE'S TRUTH: 11 toast sentences are
@@ -784,7 +775,11 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // `session:train.musicFrom` link, and their header's two English literals (`From Jordan`,
   // `Playlists`) went with them. partStrings 213 -> 211; part.length, noneStrings and none.length
   // unchanged.
-  assert.equal(partStrings, 211, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  // The About page is retired (owner, 2026-10-12: "remove the about page from app and
+  // website"). BSAboutPage leaves PARTIAL with its one hardcoded string, the founder's
+  // signature: partStrings 211 -> 210, part.length 35 -> 34; noneStrings and none.length
+  // unchanged.
+  assert.equal(partStrings, 210, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
   // ⚠ AND noneStrings 793 -> 796 IS THREE STRINGS ADDED ON PURPOSE, in
   // BSMealLogged (already uncovered): the plated stage was printing a 46px teal
   // `0` under `Logged ✓` for a cook whose macros are unknown — while logIt had
@@ -833,7 +828,7 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // ✦'s aria-label, "Ask Nora" (option D, 2026-10-07), beside its own hardcoded
   // "Search Shape". The corner has no translator; it is translated with ⌕ or not at all.
   assert.equal(noneStrings, 728, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(part.length, 35, 'partial-surface count moved — regenerate PARTIAL and the record');
+  assert.equal(part.length, 34, 'partial-surface count moved — regenerate PARTIAL and the record');
   assert.equal(none.length, 88, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.

@@ -97,7 +97,7 @@ test('it stays out of the way of a visitor who should go straight to the page', 
   const cases = {
     'reduced motion': { reduced: true },
     '?home': { url: `${HOME}?home` },
-    'a link from inside the site': { referrer: 'https://www.theshapecommunity.com/newdesign/About.html' },
+    'a link from inside the site': { referrer: 'https://www.theshapecommunity.com/newdesign/Pricing.html' },
     'a second arrival this session': { seen: true },
     'a deep link to a section': { url: `${HOME}#moments` },
   };
@@ -118,7 +118,7 @@ test('it stays out of the way of a visitor who should go straight to the page', 
 test('?splash plays it whatever the other rules say, and never asks /api/me', async () => {
   const a = arrive({
     url: `${HOME}?splash#moments`, reduced: true, seen: true, user: { id: 'u1' },
-    referrer: 'https://www.theshapecommunity.com/newdesign/About.html',
+    referrer: 'https://www.theshapecommunity.com/newdesign/Pricing.html',
   });
   assert.equal(a.win.__shapeIntro, 'running');
   await settle();
