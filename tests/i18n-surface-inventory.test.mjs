@@ -827,7 +827,13 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // ⚠ AND noneStrings 727 -> 728, none.length UNCHANGED: BSSearchCorner gained the
   // ✦'s aria-label, "Ask Nora" (option D, 2026-10-07), beside its own hardcoded
   // "Search Shape". The corner has no translator; it is translated with ⌕ or not at all.
-  assert.equal(noneStrings, 728, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  // ⚠ AND noneStrings 728 -> 746, none.length UNCHANGED: the app's coach application
+  // (BSProviderApplicationScreen) gained the nutritionist fields the website's application
+  // already collects (professional type, CDR number, state license rows, insurance carrier,
+  // policy and expiry) and a line for an application already on file, and lost the "Saved
+  // locally" result and its developer note (2026-10-12). The screen has no translator; it is
+  // translated whole or not at all.
+  assert.equal(noneStrings, 746, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
   assert.equal(part.length, 34, 'partial-surface count moved — regenerate PARTIAL and the record');
   assert.equal(none.length, 88, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its

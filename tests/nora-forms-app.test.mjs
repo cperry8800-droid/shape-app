@@ -49,7 +49,7 @@ test('the screens\' bridges: never the password, the phone sign-in, documents or
   assert.match(login, /kind: 'app_signup'/);
   assert.doesNotMatch(between(login, 'const fills = {', '};'), /password|phone|otp/i);
   const apply = between(APPLY, '// Nora fills the application in with them', 'async function submit()');
-  assert.match(apply, /const never = \['verify', 'tos', 'conduct', 'bgcheck', 'attest', 'resumeFile', 'credentialFile', 'insuranceFile'\];/);
+  assert.match(apply, /const never = \['verify', 'tos', 'conduct', 'bgcheck', 'attest', 'licenses', 'resumeFile', 'credentialFile', 'insuranceFile'\];/);
   assert.match(apply, /const kind = isTrainer \? 'app_apply_trainer' : 'app_apply_nutritionist';/);
   assert.match(apply, /if \(submitted\) return undefined;/, 'a submitted application has no form to fill');
   for (const src of [login, apply]) assert.match(src, /return \(\) => \{ if \(window\.shapeNoraForm === bridge\) window\.shapeNoraForm = null; \};/);

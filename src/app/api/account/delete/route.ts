@@ -82,7 +82,11 @@ const PURGE: { table: string; col: string }[] = [
 // walks that folder). `coach-credentials` holds a coach's COI/certification uploads;
 // `member-films` holds a member's M5 intro film — both PUBLIC buckets with no other
 // owner UI to remove the object, so they're purged here or the file is orphaned.
-const BUCKETS = ['progress-photos', 'community-photos', 'meal-notes', 'coach-media', 'coach-credentials', 'member-films'];
+// `provider-credentials` (private) holds the files a coach APPLICATION carried: the installed app
+// uploads them under the applicant's `<uid>/`; the website's /api/apply under
+// `website/<applicationId>/`, which POST purges with the application (applicationIdsFor below).
+const BUCKETS = ['progress-photos', 'community-photos', 'meal-notes', 'coach-media', 'coach-credentials', 'member-films', 'provider-credentials'];
+const APPLICATION_BUCKET = 'provider-credentials';
 
 // Remove every object under `<uid>/` (files AND anything nested in sub-folders), and
 // only report success if nothing errored — so a "purged" result can't hide files left
@@ -95,6 +99,7 @@ const BUCKETS = ['progress-photos', 'community-photos', 'meal-notes', 'coach-med
 //     RECURSE into each prefix, or those public objects would survive account deletion
 //     while the audit falsely marks the bucket purged.
 async function purgeBucket(admin: ReturnType<typeof createAdminClient>, bucket: string, uid: string): Promise<boolean> {
+  // `uid` is the folder purged: the account's own id, or an application's `website/<id>`.
   const PAGE = 1000;
   // Empty `prefix` completely; returns true only if nothing was left un-removed. Re-lists
   // from the start each pass (deletion-shift can't skip a >PAGE folder) and loops until the
@@ -136,6 +141,34 @@ async function purgeBucket(admin: ReturnType<typeof createAdminClient>, bucket: 
     return await purgePrefix(uid);
   } catch {
     return false;
+  }
+}
+
+// ⚠ A COACH APPLICATION IS PERSONAL DATA KEYED BY EMAIL, NOT BY ACCOUNT. provider_applications
+// has no user column (the form is filled in before any account exists), so a deletion keyed on
+// the uid left the application row (name, date of birth, phone, credentials, answers) and its
+// files behind. Matched by the account's own email, lower-cased as /api/apply stores it (and as
+// written, for a row stored before that), and ONLY when Supabase has confirmed the account owns
+// that address: an unconfirmed account must not be able to erase somebody else's application.
+// Returns the application ids, or null when they could not be read (the deletion then stops).
+async function applicationIdsFor(
+  admin: ReturnType<typeof createAdminClient>,
+  user: { email?: string | null; email_confirmed_at?: string | null }
+): Promise<string[] | null> {
+  const email = String(user.email ?? '').trim();
+  if (!email || !user.email_confirmed_at) return [];
+  const emails = Array.from(new Set([email.toLowerCase(), email]));
+  try {
+    const { data, error } = await admin.from('provider_applications').select('id').in('email', emails);
+    if (error) {
+      const e = error as { code?: string };
+      // An absent table has nothing to erase (the route's "no-op on missing tables" rule).
+      if (e.code === '42P01' || e.code === 'PGRST205') return [];
+      return null;
+    }
+    return ((data ?? []) as Array<{ id: string }>).map((r) => String(r.id)).filter(Boolean);
+  } catch {
+    return null;
   }
 }
 
@@ -191,6 +224,12 @@ export async function POST(request: Request) {
     if (await purgeBucket(admin, b, uid)) bucketsPurged.push(b);
     else allBucketsPurged = false;
   }
+  // The account's coach applications: their website uploads now, their rows in step 2.
+  const applicationIds = await applicationIdsFor(admin, user);
+  if (applicationIds === null) allBucketsPurged = false;
+  for (const id of applicationIds ?? []) {
+    if (!(await purgeBucket(admin, APPLICATION_BUCKET, `website/${id}`))) allBucketsPurged = false;
+  }
   if (!allBucketsPurged) {
     if (auditId) {
       try {
@@ -204,6 +243,28 @@ export async function POST(request: Request) {
   }
 
   // 2. Explicit row purge (covers tables that don't cascade on auth-user delete).
+  // ⚠ THE COACH APPLICATIONS GO FIRST, AND A FAILURE STOPS THE DELETION. They are found by the
+  // account's confirmed email, which is gone once the auth user is, so a row left behind here
+  // could never be found again by a retry. Nothing else has been deleted yet when this fails.
+  if (applicationIds && applicationIds.length) {
+    let applicationsDeleted = false;
+    try {
+      const { error } = await admin.from('provider_applications').delete().in('id', applicationIds);
+      applicationsDeleted = !error;
+    } catch { /* applicationsDeleted stays false */ }
+    if (!applicationsDeleted) {
+      if (auditId) {
+        try {
+          await admin.from('account_deletions').update({
+            buckets_purged: bucketsPurged,
+            note: 'coach application purge failed — account kept; retry required',
+          }).eq('id', auditId);
+        } catch { /* non-fatal */ }
+      }
+      return NextResponse.json({ error: 'Could not fully remove your application data. Please try again in a moment.' }, { status: 500 });
+    }
+    purged.push('provider_applications');
+  }
   for (const t of PURGE) {
     try {
       const { error } = await admin.from(t.table).delete().eq(t.col, uid);

@@ -1,9 +1,11 @@
 import React from 'react';
 import {
   PROVIDER_APPLICATION_FILE_ACCEPT,
-  PROVIDER_APPLICATION_MAX_FILE_BYTES,
+  PROVIDER_APPLICATION_MAX_TOTAL_BYTES,
+  PROVIDER_APPLICATION_SEND_FAILED,
   PROVIDER_EXPERIENCE_OPTIONS,
   REQUIRED_PROVIDER_EXPERIENCE_YEARS,
+  applicationFilesTooLargeMessage,
   experienceMeetsMinimum,
 } from '../config/providerApplications.js';
 // The shared 18+ derivation (anywhere-on-Earth rule) used by every gate + signup.
@@ -45,6 +47,11 @@ const NUTRITION_SPECIALTIES = [
   'Clinical / medical',
   'Meal prep',
 ];
+
+// The website's professional type, under the same key and wording (signup.jsx), so a
+// dietitian can say so here too and not only by arriving from a dietitian link.
+const AP_NUTRITION_TYPES = ['Nutritionist', 'Dietitian (RD / RDN)'];
+const AP_EMPTY_LICENSE = { state: '', number: '', expires: '' };
 
 const TRAINER_POPULATIONS = ['Beginners', 'Women 30-50', 'Men 40+', 'Postnatal', 'Athletes', 'Seniors', 'Rehab', 'Youth'];
 const NUTRITION_POPULATIONS = ['Endurance athletes', 'Strength athletes', 'Weight loss', 'Clinical conditions', 'Plant-based', 'Postnatal', 'Youth'];
@@ -256,6 +263,8 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
       oneOnOne: 'Yes',
       response: 'Within 24 hours',
       intro: '15-minute free intro',
+      nutritionType: AP_NUTRITION_TYPES[isDietitianApplicant ? 1 : 0],
+      rdCredential: 'rd',
     };
   });
   const [submitting, setSubmitting] = useStateBSA(false);
@@ -266,6 +275,11 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
   const [insuranceFile, setInsuranceFile] = useStateBSA(null);
 
   const isTrainer = role === 'trainer';
+  // A dietitian is a nutritionist who says so: by arriving from a dietitian link (seeded above)
+  // or by choosing it under Credentials.
+  const isDietitian = !isTrainer && /dietitian/i.test(values.nutritionType || '');
+  const licenses = Array.isArray(values.licenses) && values.licenses.length ? values.licenses : [AP_EMPTY_LICENSE];
+  const setLicense = (index, patch) => set('licenses', licenses.map((l, i) => (i === index ? { ...l, ...patch } : l)));
   const roleHeat = AP_ROLE[isTrainer ? 'trainer' : 'nutritionist'];
   const specialties = isTrainer ? TRAINER_SPECIALTIES : NUTRITION_SPECIALTIES;
   const populations = isTrainer ? TRAINER_POPULATIONS : NUTRITION_POPULATIONS;
@@ -287,7 +301,7 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
   React.useEffect(() => {
     if (submitted) return undefined;
     const kind = isTrainer ? 'app_apply_trainer' : 'app_apply_nutritionist';
-    const never = ['verify', 'tos', 'conduct', 'bgcheck', 'attest', 'resumeFile', 'credentialFile', 'insuranceFile'];
+    const never = ['verify', 'tos', 'conduct', 'bgcheck', 'attest', 'licenses', 'resumeFile', 'credentialFile', 'insuranceFile'];
     const bridge = {
       kind,
       state: () => {
@@ -346,31 +360,34 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
       { kind: 'credential', file: credentialFile },
       { kind: 'insurance', file: insuranceFile },
     ].filter(item => item.file);
-    if (files.some(item => item.file.size > PROVIDER_APPLICATION_MAX_FILE_BYTES)) {
-      setError('Resume and credential files must be 10MB or smaller.');
+    // The files ride the application request, which the platform caps, so the total is what
+    // counts: say it here rather than after a send the platform refuses.
+    const filesBytes = files.reduce((sum, item) => sum + (item.file.size || 0), 0);
+    if (filesBytes > PROVIDER_APPLICATION_MAX_TOTAL_BYTES) {
+      setError(applicationFilesTooLargeMessage(filesBytes));
       return;
     }
     setSubmitting(true);
     try {
-      const documents = [];
-      for (const item of files) {
-        const uploaded = await window.ShapeApplications?.uploadProviderApplicationFile?.(item.file, item.kind);
-        if (uploaded) documents.push(uploaded);
-      }
-      const next = await window.ShapeApplications?.submitProviderApplication?.({
+      const send = window.ShapeApplications?.submitProviderApplication;
+      if (!send) throw new Error(PROVIDER_APPLICATION_SEND_FAILED);
+      const next = await send({
         role,
         values: {
           ...values,
           primary: values.primary || specialties[0],
-          documents,
           // The RD/RDN declaration — the apply route reads details.nutrition_role
           // === 'dietitian' to label the application for the reviewer.
-          nutrition_role: (role === 'nutritionist' && isDietitianApplicant) ? 'dietitian' : '',
+          nutrition_role: role === 'nutritionist' ? (isDietitian ? 'dietitian' : 'nutritionist') : '',
         },
+        files,
       });
-      setResult(next || { stored: 'local' });
+      // ⚠ ONLY THE ROUTE'S OWN YES SHOWS "SUBMITTED". Anything else is a send that did not
+      // happen, and the form, which keeps every value, stays up to try again.
+      if (!next || next.stored !== 'api') throw new Error(PROVIDER_APPLICATION_SEND_FAILED);
+      setResult(next);
     } catch (err) {
-      setError(err?.message || 'Application could not be submitted.');
+      setError(err?.message || PROVIDER_APPLICATION_SEND_FAILED);
     } finally {
       setSubmitting(false);
     }
@@ -385,7 +402,7 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
   const body = (() => {
     if (step === 0) return (
       <div style={{ display: 'grid', gap: 11 }}>
-        {isDietitianApplicant && role === 'nutritionist' && (
+        {isDietitian && (
           <BSApplyNotice t={t} mono>
             Applying as a Registered Dietitian (RD/RDN) · credentialed badge on approval
           </BSApplyNotice>
@@ -411,8 +428,11 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
 
     if (step === 1) return (
       <div style={{ display: 'grid', gap: 11 }}>
+        {!isTrainer && (
+          <BSApplySelect label="Professional type" value={values.nutritionType} onChange={v => set('nutritionType', v)} options={AP_NUTRITION_TYPES} />
+        )}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <BSApplyInput label={isTrainer ? 'Primary certification' : 'License type'} value={values.cert} onChange={v => set('cert', v)} placeholder={isTrainer ? 'NASM, ACE, CSCS' : 'RD, RDN, CNS'} />
+          <BSApplyInput label={isTrainer ? 'Primary certification' : isDietitian ? 'RD/RDN registration number' : 'License type'} value={values.cert} onChange={v => set('cert', v)} placeholder={isTrainer ? 'NASM, ACE, CSCS' : isDietitian ? 'RD #, RDN #' : 'RD, RDN, CNS'} />
           <BSApplyInput label={isTrainer ? 'Expiration / renewal' : 'License state + number'} value={values.certExp} onChange={v => set('certExp', v)} />
         </div>
         <BSApplyInput label="Degree / school" value={values.edu} onChange={v => set('edu', v)} placeholder={isTrainer ? 'BS Kinesiology' : 'MS Nutrition'} />
@@ -425,12 +445,47 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
         </BSApplyNotice>
         <BSApplyInput label="Previous platforms" value={values.prev} onChange={v => set('prev', v)} placeholder="Trainerize, MyFitnessPal Pro" />
         <div style={{ display: 'grid', gap: 12 }}>
-          <BSApplyFile label="Resume / CV" file={resumeFile} onChange={setResumeFile} helper="PDF, DOC, image, up to 10MB" />
+          <BSApplyFile label="Resume / CV" file={resumeFile} onChange={setResumeFile} helper="PDF, DOC or image. All files together up to 4 MB" />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <BSApplyFile label={isTrainer ? 'Certification file' : 'License file'} file={credentialFile} onChange={setCredentialFile} helper="Proof of credential" />
             <BSApplyFile label="Insurance file" file={insuranceFile} onChange={setInsuranceFile} helper="Optional but recommended" />
           </div>
         </div>
+        {/* NC1: the nutrition-compliance capture the website's application carries (signup.jsx
+            NutritionCompliance), under the same keys. The reviewer seeds the coach's credential
+            and state licenses from it; the license rows are never Nora's to fill. */}
+        {!isTrainer && (
+          <div style={{ display: 'grid', gap: 11, borderTop: `1px solid ${AP_LINE}`, paddingTop: 12 }}>
+            <BSApplyNotice t={t}>
+              {isDietitian
+                ? "Individualized (medical) nutrition therapy needs a license in each client's state. Add your CDR registration, state licenses and liability insurance."
+                : 'Without a state dietitian license you offer general wellness guidance only. Add a state license to offer individualized care in that state.'}
+            </BSApplyNotice>
+            {isDietitian && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <BSApplyInput label="CDR registration number" value={values.cdrId} onChange={v => set('cdrId', v)} placeholder="1234567" />
+                <BSApplySelect label="Credential type" value={values.rdCredential} onChange={v => set('rdCredential', v)} options={['rd', 'rdn']} />
+              </div>
+            )}
+            <div style={{ display: 'grid', gap: 8 }}>
+              <span style={apLabel(t)}>State licenses · only clients in these states</span>
+              {licenses.map((l, i) => (
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: '44px 1fr 112px 28px', gap: 8, alignItems: 'end' }}>
+                  <div className="bs-apply-row"><input className="bs-apply-in" aria-label="State" value={l.state || ''} onChange={(e) => setLicense(i, { state: e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2) })} placeholder="NY" style={{ fontFamily: t.MONO, fontSize: 12, letterSpacing: '0.1em', padding: '1px 0' }} /></div>
+                  <div className="bs-apply-row"><input className="bs-apply-in" aria-label="License number" value={l.number || ''} onChange={(e) => setLicense(i, { number: e.target.value })} placeholder="License number" style={{ fontFamily: t.DISPLAY, fontSize: 14, padding: '1px 0' }} /></div>
+                  <div className="bs-apply-row"><input className="bs-apply-in" aria-label="License expiration" type="date" value={l.expires || ''} onChange={(e) => setLicense(i, { expires: e.target.value })} style={{ fontFamily: t.MONO, fontSize: 10, padding: '1px 0' }} /></div>
+                  <button type="button" aria-label="Remove license" onClick={() => set('licenses', licenses.length > 1 ? licenses.filter((_, j) => j !== i) : [AP_EMPTY_LICENSE])} style={{ height: 28, border: `1px solid ${AP_LINE2}`, background: 'transparent', color: AP_C70, fontFamily: t.MONO, fontSize: 12, cursor: 'pointer' }}>×</button>
+                </div>
+              ))}
+              <button type="button" onClick={() => set('licenses', [...licenses, AP_EMPTY_LICENSE])} style={{ justifySelf: 'start', border: `1px dashed ${AP_LINE2}`, background: 'transparent', color: AP_TEAL, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: '7px 10px', cursor: 'pointer' }}>＋ Add another state</button>
+            </div>
+            <BSApplyInput label="Insurance carrier" value={values.insCarrier} onChange={v => set('insCarrier', v)} placeholder="HPSO" />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <BSApplyInput label="Policy number" value={values.insPolicy} onChange={v => set('insPolicy', v)} />
+              <BSApplyInput label="Insurance expiration" value={values.insExpires} onChange={v => set('insExpires', v)} type="date" />
+            </div>
+          </div>
+        )}
         <BSApplyCheck checked={values.verify} onChange={v => set('verify', v)}>I understand my credentials may be verified by Shape's trust team.</BSApplyCheck>
       </div>
     );
@@ -491,7 +546,6 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
   })();
 
   if (result) {
-    const local = result.stored === 'local';
     return (
       <div style={{ position: 'absolute', inset: 0, color: AP_CREAM, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: AP_BG }}>
         {Ground ? <Ground dim /> : null}
@@ -499,14 +553,14 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
         <div className="bs-hide-scroll" style={{ ...scroller, justifyContent: 'center', gap: 16 }}>
           <div style={eyebrow}>Application</div>
           <div style={serifHead}>Submitted<br/><span style={{ fontWeight: 400, fontStyle: 'italic', letterSpacing: '-0.065em', color: AP_TEAL2 }}>for review.</span></div>
-          <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: local ? '#e8c268' : AP_TEAL }}>
-            {local ? 'Saved locally' : 'Filed ✓ · Submitted'}
+          <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: AP_TEAL }}>
+            {result.duplicate ? 'Already on file ✓' : 'Filed ✓ · Submitted'}
           </div>
           <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.5, color: AP_C70 }}>
             Your {isTrainer ? 'trainer' : 'nutritionist'} application is ready for review.
           </div>
           <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: AP_C50, lineHeight: 1.7 }}>
-            Review target: 2-3 business days. {local ? 'If this says saved locally, check the provider application API and Supabase configuration before production. ' : ''}Uploaded resume and credential files are attached to the application review record.
+            Review target: 2-3 business days. {result.duplicate ? 'This application was already with us, so nothing new was sent.' : 'Uploaded resume and credential files are attached to the application review record.'}
           </div>
           <button onClick={onBack} className="bs-wire-enter" style={{ width: '100%', clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', padding: '13px 14px', background: AP_TEAL, color: '#05080c', border: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>
             Back to marketplace →
@@ -530,7 +584,7 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
         {/* Role tag — the one role-heat placement */}
         <div>
           <span style={{ display: 'inline-block', background: roleHeat.bg, color: roleHeat.ink, padding: '8px 14px', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800 }}>
-            {role} application{isDietitianApplicant ? ' · RD/RDN' : ''}
+            {role} application{isDietitian ? ' · RD/RDN' : ''}
           </span>
         </div>
 

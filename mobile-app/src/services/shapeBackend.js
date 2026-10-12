@@ -32,8 +32,10 @@ import { normalizeMemoryDoc } from '../../../src/lib/ai/noraMemory.mjs';
 import { isMinorFromDob } from '../../../src/lib/age-derive.mjs';
 import {
   DEFAULT_BACKGROUND_CHECK_PROVIDER,
-  PROVIDER_APPLICATION_MAX_FILE_BYTES,
+  PROVIDER_APPLICATION_MAX_TOTAL_BYTES,
+  PROVIDER_APPLICATION_SEND_FAILED,
   REQUIRED_PROVIDER_EXPERIENCE_YEARS,
+  applicationFilesTooLargeMessage,
 } from '../config/providerApplications.js';
 
 // Supabase config. The native Capacitor build injects these via env at build
@@ -60,7 +62,6 @@ const apiBaseUrl = _apiEnvBase
   || ((!_isNative && typeof window !== 'undefined' && window.location && window.location.origin)
       ? window.location.origin.replace(/\/$/, '')
       : '');
-const providerApplicationFileBucket = 'provider-credentials';
 
 // ⚠ THE WEBSITE'S COOK PAGE RUNS THIS APP IN AN IFRAME (/m/?cooking=1), AND IT IS A
 // WEBSITE PAGE, SO IT SIGNS IN WITH THE WEBSITE'S SESSION. The website's client
@@ -1066,7 +1067,7 @@ async function saveClientProfileData(data = {}) {
 function applicationToPayload(role, values = {}) {
   const firstName = String(values.firstName || '').trim();
   const lastName = String(values.lastName || '').trim();
-  const documents = Array.isArray(values.documents) ? values.documents : [];
+  const isDietitian = role === 'nutritionist' && values.nutrition_role === 'dietitian';
 
   return {
     provider_type: role,
@@ -1087,6 +1088,19 @@ function applicationToPayload(role, values = {}) {
       // reads details.nutrition_role === 'dietitian' to label the application
       // for the reviewer, who assigns profiles.role='dietitian' on approval.
       nutrition_role: values.nutrition_role || '',
+      ...(isDietitian ? { credential: values.rdCredential === 'rdn' ? 'rdn' : 'rd' } : {}),
+      // NC1, the structured nutrition-compliance capture the website's application sends
+      // under the same keys (the reviewer seeds provider_credentials + provider_licenses
+      // from it). A license row counts once it names a two-letter state.
+      ...(role === 'nutritionist' ? {
+        cdr_id: values.cdrId || '',
+        state_licenses: (Array.isArray(values.licenses) ? values.licenses : [])
+          .filter((l) => l && /^[A-Za-z]{2}$/.test(String(l.state || '').trim()))
+          .map((l) => ({ state: String(l.state).trim().toUpperCase(), number: l.number || '', expires: l.expires || '' })),
+        insurance_carrier: values.insCarrier || '',
+        insurance_policy: values.insPolicy || '',
+        insurance_expires: values.insExpires || '',
+      } : {}),
       timezone: values.tz || '',
       social_handles: values.social || '',
       bio: values.bio || '',
@@ -1124,65 +1138,13 @@ function applicationToPayload(role, values = {}) {
       background_check_completed_at: null,
       background_check_report_id: null,
       professional_minimum_years: REQUIRED_PROVIDER_EXPERIENCE_YEARS,
-      documents,
-      resume_document: documents.find((document) => document?.kind === 'resume') || null,
-      credential_documents: documents.filter((document) => ['credential', 'insurance'].includes(document?.kind)),
+      // No `documents` here: the files ride the request itself and /api/apply records
+      // where it stored them (it drops any document path a client sends).
       user_id: state.user?.id || null,
     },
     user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
   };
 }
-
-function safeFileName(name = 'document') {
-  return String(name || 'document')
-    .replace(/[^A-Za-z0-9._-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 120) || 'document';
-}
-
-async function uploadProviderApplicationFile(file, kind = 'resume') {
-  if (!file) return null;
-  if (!state.user?.id) {
-    throw new Error('Sign in before uploading resume or credential files.');
-  }
-  if (file.size > PROVIDER_APPLICATION_MAX_FILE_BYTES) {
-    throw new Error('Application files must be 10MB or smaller.');
-  }
-
-  const metadata = {
-    kind,
-    name: file.name || 'document',
-    type: file.type || 'application/octet-stream',
-    size: file.size || 0,
-  };
-
-  if (!supabase) {
-    return {
-      ...metadata,
-      bucket: 'local',
-      path: `${state.user.id}/${kind}/${Date.now()}-${safeFileName(file.name)}`,
-      stored: 'local',
-    };
-  }
-
-  const path = `${state.user.id}/${kind}/${Date.now()}-${safeFileName(file.name)}`;
-  const { error } = await supabase
-    .storage
-    .from(providerApplicationFileBucket)
-    .upload(path, file, {
-      contentType: file.type || undefined,
-      upsert: false,
-    });
-
-  if (error) throw error;
-  return {
-    ...metadata,
-    bucket: providerApplicationFileBucket,
-    path,
-    stored: 'supabase',
-  };
-}
-
 
 function saveLocalRecord(key, payload, error) {
   const item = {
@@ -1224,37 +1186,72 @@ function providerApplicationApiBody(payload) {
     // ⚠ THIS IS THE REQUEST BODY. applicationToPayload() carrying `dob` proves
     // nothing on its own — omitting it here sent an empty date to a route that
     // now REFUSES an application it cannot age-place, so every mobile and /m/
-    // application 400'd and fell through to the direct insert below, skipping
-    // the server-side 18+ re-check and the reviewer email with nothing on screen
-    // to say so. tests/provider-apply-dob.test.mjs gates every apply surface.
+    // application 400'd and fell through to a direct insert (removed since),
+    // skipping the server-side 18+ re-check and the reviewer email with nothing on
+    // screen to say so. tests/provider-apply-dob.test.mjs gates every apply surface.
     dob: payload.dob,
     details: payload.details || {},
   };
 }
 
-async function submitProviderApplicationToApi(payload) {
-  if (!apiBaseUrl) return null;
-  const response = await fetch(`${apiBaseUrl}/api/apply`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(providerApplicationApiBody(payload)),
-  });
-
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const error = new Error(result?.error || 'Application email route failed.');
-    // ⚠ A REFUSAL IS NOT A TRANSPORT FAILURE. The caller's fallback exists so an
-    // application survives an outage; a 4xx means the route deliberately declined
-    // this one (under 18, too few years, no background-check consent). Storing it
-    // anyway would bypass the check that produced the refusal and still tell the
-    // applicant they succeeded, so mark it and let the caller surface it.
-    error.rejected = response.status >= 400 && response.status < 500;
-    throw error;
-  }
-  return result;
+/** An application send that failed in transit or on Shape's side: the form keeps every value, so trying again loses nothing. */
+function applicationSendFailed(cause) {
+  const error = new Error(PROVIDER_APPLICATION_SEND_FAILED);
+  error.retryable = true;
+  if (cause) error.cause = cause;
+  return error;
 }
 
-async function submitProviderApplication({ role, values }) {
+// ⚠ THE ROUTE IS THE ONE WAY IN. The files ride this request (multipart, the fields the website's
+// form sends), so a signed-out applicant can attach documents; the route checks them before it
+// stores anything, stores them under the application's id, and writes the row with them.
+async function submitProviderApplicationToApi(payload, { files = [], turnstileToken = '' } = {}) {
+  if (!apiBaseUrl) throw applicationSendFailed();
+  const body = providerApplicationApiBody(payload);
+  const form = new FormData();
+  for (const [key, value] of Object.entries(body)) {
+    if (key === 'details') form.append('details', JSON.stringify(value || {}));
+    else form.append(key, value == null ? '' : String(value));
+  }
+  if (turnstileToken) form.append('turnstileToken', turnstileToken);
+  for (const { kind, file } of files) form.append(kind, file, file.name || kind);
+  const headers = {};
+  if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
+
+  let response;
+  try {
+    response = await fetch(`${apiBaseUrl}/api/apply`, { method: 'POST', headers, body: form });
+  } catch (networkError) {
+    throw applicationSendFailed(networkError);
+  }
+  // A 413 is the platform refusing the body before the route runs, in plain text.
+  if (response.status === 413) {
+    const total = files.reduce((sum, { file }) => sum + (file?.size || 0), 0);
+    const error = new Error(applicationFilesTooLargeMessage(Math.max(total, PROVIDER_APPLICATION_MAX_TOTAL_BYTES + 1)));
+    error.rejected = true;
+    throw error;
+  }
+  const result = await response.json().catch(() => null);
+  if (response.ok && result && result.ok) return result;
+  // ⚠ A REFUSAL IS NOT A TRANSPORT FAILURE. A 4xx means the route deliberately declined this
+  // application (under 18, too few years, no background-check consent, a file it cannot take,
+  // no human check); its own words are what the applicant needs to fix it, so they surface
+  // as they are. Everything else (5xx, a body that is not the route's JSON) is a send that
+  // failed, which a retry can fix.
+  if (response.status >= 400 && response.status < 500 && result && typeof result.error === 'string') {
+    let message = result.error;
+    if (result.code === 'captcha_failed' && !turnstileToken) {
+      message = "We couldn't run the human check in the app. Sign in to your Shape account and try again, or apply at theshapecommunity.com.";
+    }
+    const error = new Error(message);
+    error.rejected = true;
+    error.code = result.code || '';
+    throw error;
+  }
+  throw applicationSendFailed();
+}
+
+async function submitProviderApplication({ role, values, files = [] }) {
   const normalizedRole = normalizeRole(role);
   if (!['trainer', 'nutritionist'].includes(normalizedRole)) {
     throw new Error('Choose trainer or nutritionist before submitting.');
@@ -1264,39 +1261,31 @@ async function submitProviderApplication({ role, values }) {
   if (!payload.email || !payload.first_name || !payload.last_name) {
     throw new Error('Name and email are required.');
   }
+  const attached = (Array.isArray(files) ? files : []).filter((item) => item && item.file);
+  const total = attached.reduce((sum, { file }) => sum + (file.size || 0), 0);
+  if (total > PROVIDER_APPLICATION_MAX_TOTAL_BYTES) throw new Error(applicationFilesTooLargeMessage(total));
 
-  try {
-    const apiResult = await submitProviderApplicationToApi(payload);
-    if (apiResult) {
-      return {
-        stored: 'api',
-        data: {
-          id: apiResult.id,
-          ...payload,
-        },
-      };
-    }
-  } catch (apiError) {
-    // Surface a deliberate refusal instead of storing the application around it.
-    if (apiError?.rejected) throw apiError;
-    console.warn('[shape] Application API failed; falling back to Supabase insert.', apiError);
+  // The human check /api/apply asks of a signed-out application. A signed-in one is vouched for
+  // by its account (the Bearer token). '' when the check cannot run here, and the route says why.
+  let turnstileToken = '';
+  if (!state.session?.access_token && typeof window !== 'undefined' && window.ShapeTurnstile?.solve) {
+    try { turnstileToken = await window.ShapeTurnstile.solve(); } catch (e) { turnstileToken = ''; }
   }
 
-  if (!supabase) {
-    return { stored: 'local', data: saveLocalRecord('shape.providerApplications', payload) };
-  }
-
-  const { data, error } = await supabase
-    .from('provider_applications')
-    .insert(payload)
-    .select()
-    .single();
-
-  if (error) {
-    return { stored: 'local', data: saveLocalRecord('shape.providerApplications', payload, error), error };
-  }
-
-  return { stored: 'supabase', data };
+  // ⚠ NO FALLBACK. This used to insert into provider_applications directly when the route
+  // failed, and then keep the application in this device's storage when that failed too, while
+  // the screen said "Submitted for review". The direct insert has been refused since the
+  // 2026-10-10 migration removed anonymous inserts, so every one of those applications stayed on
+  // the phone, unseen. A failure now says so, and the form still holds every value to resend.
+  const result = await submitProviderApplicationToApi(payload, { files: attached, turnstileToken });
+  return {
+    stored: 'api',
+    duplicate: result.duplicate === true,
+    data: {
+      id: result.id,
+      ...payload,
+    },
+  };
 }
 
 async function listSessions() {
@@ -4604,7 +4593,6 @@ window.ShapeClientProfiles = {
 };
 
 window.ShapeApplications = {
-  uploadProviderApplicationFile,
   submitProviderApplication,
 };
 

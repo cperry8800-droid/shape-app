@@ -241,11 +241,16 @@ async function applyRoute({ db }) {
   const providerApplications = await loadRealModule(join(ROOT, 'src/lib/provider-applications.ts'), { typescript: true });
   const nutrition = await import(pathToFileURL(join(ROOT, 'src/lib/compliance/nutrition.mjs')).href);
   const ageDerive = await import(pathToFileURL(join(ROOT, 'src/lib/age-derive.mjs')).href);
-  const admin = recorder({ storage: { from: () => ({ upload: async (path, bytes, opts) => { uploads.push({ path, size: bytes.length, ...opts }); return { error: null }; } }) } });
+  const admin = recorder({ storage: { from: () => ({ upload: async (path, bytes, opts) => { uploads.push({ path, size: bytes.length, ...opts }); return { error: null }; }, remove: async () => ({ error: null }) }) } });
   const route = await loadRealModule(join(ROOT, 'src/app/api/apply/route.ts'), {
     typescript: true,
     registry: new Map([
-      ['next/server', nextServer],
+      // `after()` needs a request scope a direct call does not have; the emails it schedules are
+      // driven in tests/provider-apply-submit.test.mjs.
+      ['next/server', { ...nextServer, after: () => {} }],
+      ['@/lib/turnstile', { verifyTurnstile: async () => true }],
+      ['@/lib/request-auth', { currentUser: async () => null }],
+      ['@/lib/rate-limit', { checkRateLimit: async () => ({ allowed: true }) }],
       // L19 (2026-10-10): the application row is written through the service role, so the admin
       // client is the recorder the tests read (`db`), with the storage stub beside it.
       ['@/lib/supabase/admin', { createAdminClient: () => new Proxy(db.client, { get: (t, k) => (k === 'storage' ? admin.client.storage : Reflect.get(t, k)) }) }],

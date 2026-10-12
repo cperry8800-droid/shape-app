@@ -60,6 +60,28 @@ const labelStyle = { display: "block", fontFamily: "'JetBrains Mono', monospace"
 const inputStyle = { width: "100%", background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 8, padding: "12px 14px", color: INK, fontFamily: sans, fontSize: 14, outline: "none" };
 const selectStyle = { ...inputStyle, appearance: "none", WebkitAppearance: "none", backgroundImage: "linear-gradient(45deg, transparent 48%, rgba(242,237,228,0.5) 48% 52%, transparent 52%), linear-gradient(-45deg, transparent 48%, rgba(242,237,228,0.5) 48% 52%, transparent 52%)", backgroundSize: "6px 6px, 6px 6px", backgroundPosition: "right 16px top 50%, right 10px top 50%", backgroundRepeat: "no-repeat", paddingRight: 36 };
 const proExperienceOptions = ["7-10 years", "10-15 years", "15+ years"];
+const TRAINER_SPECS = ["Strength & Powerlifting", "HIIT & Fat Loss", "At-home Workouts", "Cardio & Endurance", "Functional Fitness", "Bodybuilding", "Sports Performance", "Mobility", "Run coaching"];
+const NUTRI_SPECS = ["Weight management", "Sports nutrition", "Plant-based", "Gut health", "Hormonal health", "Pre/postnatal", "Endurance fueling", "Clinical / medical"];
+// ⚠ WHAT A COACH SELECT SHOWS BEFORE IT IS TOUCHED IS WHAT IT SENDS. A select with nothing
+// stored draws its first option, while the request read the empty stored value, so an
+// untouched "Years professional experience" showed 7-10 years and sent "" (refused by the
+// years check), and insurance, specialty and response time went out blank. Every coach select
+// and the request both read through proPick(). (The values stay out of the form state so
+// Nora is told only what the person filled.)
+const PRO_SELECT_DEFAULTS = { years: proExperienceOptions[0], insurance: "Yes", accepting: "Yes", oneOnOne: "Yes", response: "Within 24 hours", intro: "15-minute free intro" };
+function proPick(v, key, kind) {
+  if (v[key]) return v[key];
+  if (key === "primary") return (kind === "trainer" ? TRAINER_SPECS : NUTRI_SPECS)[0];
+  return PRO_SELECT_DEFAULTS[key] || "";
+}
+// The files ride the request through /api/apply, and the platform refuses a request body over
+// 4.5 MB before the route runs, so the files are held to 4 MB in total (the route checks the
+// same line).
+const APPLY_FILES_MAX_BYTES = 4 * 1024 * 1024;
+function applyFilesTooLarge(bytes) {
+  const mb = (Math.ceil(bytes / (1024 * 1024 / 10)) / 10).toFixed(1);
+  return `Your files add up to ${mb} MB; the limit for one application is 4 MB in total. Attach a smaller scan or fewer files.`;
+}
 // Never filled by Nora, whatever her card carries: the password, documents, every consent
 // or agreement box and the license rows stay the person's own (src/lib/ai/noraForms.mjs
 // has no field for any of them either).
@@ -259,13 +281,13 @@ function ProCredentials({ v, set, kind }) {
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
         <Field label="Degree / school"><TextInput value={v.edu || ""} onChange={e => set({ edu: e.target.value })} placeholder={isTrainer ? "BS Kinesiology — UT Austin" : "MS Nutrition — NYU"} /></Field>
-        <Field label="Years professional experience"><Select value={v.years || "7-10 years"} onChange={e => set({ years: e.target.value })} options={proExperienceOptions} /></Field>
+        <Field label="Years professional experience"><Select value={proPick(v, "years", kind)} onChange={e => set({ years: e.target.value })} options={proExperienceOptions} /></Field>
       </div>
       <p style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.68)", margin: 0, lineHeight: 1.55 }}>
         Shape requires a minimum of 5 years of professional {isTrainer ? "training or coaching" : "nutrition coaching or clinical"} experience before a provider profile can go live.
       </p>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
-        <Field label="Liability insurance"><Select value={v.insurance || "Yes"} onChange={e => set({ insurance: e.target.value })} options={["Yes", "No", "In progress"]} /></Field>
+        <Field label="Liability insurance"><Select value={proPick(v, "insurance", kind)} onChange={e => set({ insurance: e.target.value })} options={["Yes", "No", "In progress"]} /></Field>
         <Field label="Previous platforms (optional)"><TextInput value={v.prev || ""} onChange={e => set({ prev: e.target.value })} placeholder="Trainerize, MyFitnessPal Pro..." /></Field>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
@@ -277,6 +299,7 @@ function ProCredentials({ v, set, kind }) {
         </Field>
         <Field label="Insurance document"><FileInput label="Upload PDF or image" onChange={file => set({ insuranceFile: file || null })} /></Field>
       </div>
+      <p style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.6)", margin: 0, lineHeight: 1.5 }}>PDF, DOC, DOCX, PNG, JPEG or WebP, up to 4 MB in total for all your files.</p>
       {!isTrainer && <NutritionCompliance v={v} set={set} isDietitian={isDietitian} />}
       <Check on={v.verify} onClick={() => set({ verify: !v.verify })}>I understand my credentials may be verified by Shape's trust team.</Check>
     </div>
@@ -349,9 +372,7 @@ function FileInput({ label, onChange }) {
 }
 
 function ProSpecialty({ v, set, kind }) {
-  const trainerSpecs = ["Strength & Powerlifting", "HIIT & Fat Loss", "At-home Workouts", "Cardio & Endurance", "Functional Fitness", "Bodybuilding", "Sports Performance", "Mobility", "Run coaching"];
-  const nutriSpecs = ["Weight management", "Sports nutrition", "Plant-based", "Gut health", "Hormonal health", "Pre/postnatal", "Endurance fueling", "Clinical / medical"];
-  const specs = kind === "trainer" ? trainerSpecs : nutriSpecs;
+  const specs = kind === "trainer" ? TRAINER_SPECS : NUTRI_SPECS;
   const populations = kind === "trainer"
     ? ["Beginners", "Women 30-50", "Men 40+", "Postnatal", "Athletes", "Seniors", "Rehab", "Youth"]
     : ["Endurance athletes", "Strength athletes", "Weight loss", "Clinical conditions", "Plant-based", "Postnatal", "Youth"];
@@ -362,7 +383,7 @@ function ProSpecialty({ v, set, kind }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
       <Field label="Primary specialty">
-        <Select value={v.primary || specs[0]} onChange={e => set({ primary: e.target.value })} options={specs} />
+        <Select value={proPick(v, "primary", kind)} onChange={e => set({ primary: e.target.value })} options={specs} />
       </Field>
       <Field label="Secondary specialties">
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -388,15 +409,15 @@ function ProAvailability({ v, set, kind }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
         <Field label={`Max ${noun} you can take`}><TextInput type="number" value={v.maxClients || ""} onChange={e => set({ maxClients: e.target.value })} placeholder="e.g. 25" /></Field>
         <Field label="Accepting new clients">
-          <Select value={v.accepting || "Yes"} onChange={e => set({ accepting: e.target.value })} options={["Yes", "Waitlist", "Not yet"]} />
+          <Select value={proPick(v, "accepting", kind)} onChange={e => set({ accepting: e.target.value })} options={["Yes", "Waitlist", "Not yet"]} />
         </Field>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
         <Field label={kind === "trainer" ? "Offer 1-on-1 sessions" : "Offer 1-on-1 consults"}>
-          <Select value={v.oneOnOne || "Yes"} onChange={e => set({ oneOnOne: e.target.value })} options={["Yes", "No"]} />
+          <Select value={proPick(v, "oneOnOne", kind)} onChange={e => set({ oneOnOne: e.target.value })} options={["Yes", "No"]} />
         </Field>
         <Field label="Response time commitment">
-          <Select value={v.response || "Within 24 hours"} onChange={e => set({ response: e.target.value })} options={["Within 12 hours", "Within 24 hours", "Within 48 hours"]} />
+          <Select value={proPick(v, "response", kind)} onChange={e => set({ response: e.target.value })} options={["Within 12 hours", "Within 24 hours", "Within 48 hours"]} />
         </Field>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
@@ -408,7 +429,7 @@ function ProAvailability({ v, set, kind }) {
         </Field>
       </div>
       <Field label="Offer free intro">
-        <Select value={v.intro || "15-minute free intro"} onChange={e => set({ intro: e.target.value })} options={["15-minute free intro", "30-minute free intro", "No free intro"]} />
+        <Select value={proPick(v, "intro", kind)} onChange={e => set({ intro: e.target.value })} options={["15-minute free intro", "30-minute free intro", "No free intro"]} />
       </Field>
 
       <div style={{ paddingTop: 14, borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", flexDirection: "column", gap: 8 }}>
@@ -470,9 +491,9 @@ function SignupForm({ role }) {
   const askNora = () => { if (window.__openChatTo) window.__openChatTo({ who: "Nora", tab: "support", draft: "Can you help me fill this in?" }); };
 
   // Cloudflare Turnstile (CAPTCHA) — Auth CAPTCHA is enabled, so a tokenless
-  // signUp is REJECTED. Mirror login.jsx: render a widget on the client signup's
-  // FINAL step, block submit until a token exists, pass it to auth.signUp, and
-  // degrade open if the human-check can't load/connect (so it can't hard-block).
+  // signUp is REJECTED. Mirror login.jsx: render a widget on the FINAL step, block
+  // submit until a token exists, pass it to auth.signUp (or, for a coach, to
+  // /api/apply), and say so plainly if the human-check can't load.
   const captchaOn = typeof window !== "undefined" && window.ShapeTurnstile && window.ShapeTurnstile.enabled();
   const [captchaToken, setCaptchaToken] = React.useState("");
   const [captchaUnavailable, setCaptchaUnavailable] = React.useState(false);
@@ -480,8 +501,10 @@ function SignupForm({ role }) {
   const captchaIdRef = React.useRef(null);
   const captchaTokenRef = React.useRef("");
   React.useEffect(() => { captchaTokenRef.current = captchaToken; }, [captchaToken]);
-  // Render the widget only on the CLIENT signup's final step (where it's shown).
-  const captchaVisible = captchaOn && role === "client" && isLast;
+  // Render the widget on the final step (where it's shown). The coach application needs it
+  // too: /api/apply refuses a signed-out application without a token once the server's
+  // Turnstile secret is set.
+  const captchaVisible = captchaOn && isLast;
   React.useEffect(() => {
     if (!captchaVisible) {
       if (captchaIdRef.current != null) { window.ShapeTurnstile.remove(captchaIdRef.current); captchaIdRef.current = null; }
@@ -664,7 +687,7 @@ function SignupForm({ role }) {
       setError("First name, last name, and email are required.");
       return;
     }
-    const years = Number(String(values.years || "").match(/\d+/)?.[0] || 0);
+    const years = Number(String(proPick(values, "years", role)).match(/\d+/)?.[0] || 0);
     if (years < 7) {
       setError("Shape requires at least 5 years of professional experience.");
       return;
@@ -703,11 +726,22 @@ function SignupForm({ role }) {
     const proMinor = proAge.isMinorFromDob(values.dob);
     if (proMinor === null) { setError("Enter a valid date of birth — Shape is for adults 18 and over."); return; }
     if (proMinor === true) { setError("You must be 18 or older to apply as a coach."); return; }
+    const applyFiles = [["resume", values.resumeFile], ["credential", values.credentialFile], ["insurance", values.insuranceFile]].filter(([, file]) => file);
+    const filesBytes = applyFiles.reduce((sum, [, file]) => sum + (file.size || 0), 0);
+    if (filesBytes > APPLY_FILES_MAX_BYTES) { setError(applyFilesTooLarge(filesBytes)); return; }
+    // The same human check the member sign-up carries: /api/apply refuses a signed-out
+    // application without a token once the server's Turnstile secret is set.
+    if (captchaOn && !captchaToken) {
+      setError(captchaUnavailable
+        ? "Couldn't load the human-check. Refresh the page or disable any blockers, then try again."
+        : "Just a moment — confirming you're human…");
+      return;
+    }
     form.append("email", values.email || "");
     form.append("phone", values.phone || "");
     form.append("location", values.city || "");
-    form.append("specialty", values.primary || "");
-    form.append("yearsExperience", values.years || "");
+    form.append("specialty", proPick(values, "primary", role));
+    form.append("yearsExperience", proPick(values, "years", role));
     form.append("monthlyPrice", values.subPrice || "");
     form.append("dob", values.dob || "");
     form.append("details", JSON.stringify({
@@ -732,27 +766,47 @@ function SignupForm({ role }) {
         insurance_expires: values.insExpires || "",
         compliance_attestations: values.attest || {},
       } : {}),
-      insurance_status: values.insurance || "",
+      insurance_status: proPick(values, "insurance", role),
       previous_platforms: values.prev || "",
-      response_time: values.response || "",
+      // The Specialty and Availability steps, which were collected (and Nora can fill)
+      // but never sent. Same keys as the app's application.
+      secondary_specialties: values.secondary || [],
+      populations: values.populations || [],
+      coaching_style: values.style || "",
+      max_clients: values.maxClients || "",
+      accepting_new_clients: proPick(values, "accepting", role),
+      one_on_one: proPick(values, "oneOnOne", role),
+      response_time: proPick(values, "response", role),
       single_session_price: values.sessionPrice || "",
+      intro_offer: proPick(values, "intro", role),
+      // The boxes as ticked; the route records them with its own timestamp.
+      agreements: {
+        credential_verification: values.verify === true,
+        terms: values.tos === true,
+        code_of_conduct: values.conduct === true,
+        background_check: values.bgcheck === true,
+      },
       professional_minimum_years: 7,
       background_check_provider: "checkr",
       background_check_required: true,
       background_check_consent: true,
       background_check_status: "consent_received",
     }));
-    if (values.resumeFile) form.append("resume", values.resumeFile);
-    if (values.credentialFile) form.append("credential", values.credentialFile);
-    if (values.insuranceFile) form.append("insurance", values.insuranceFile);
+    applyFiles.forEach(([kind, file]) => form.append(kind, file));
+    if (captchaToken) form.append("turnstileToken", captchaToken);
 
     setSubmitting(true);
     try {
       const res = await fetch("/api/apply", { method: "POST", body: form });
+      // ⚠ A 413 IS NOT JSON. The platform refuses a body over its limit before the route
+      // runs, with a plain-text answer, which read as "Could not submit application."
+      if (res.status === 413) throw new Error(applyFilesTooLarge(Math.max(filesBytes, APPLY_FILES_MAX_BYTES + 1)));
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(payload.error || "Could not submit application.");
       setDone(true);
     } catch (err) {
+      // Tokens are single-use, so a retry re-solves.
+      if (captchaOn) resetCaptcha();
       setError(err?.message || "Could not submit application.");
     } finally {
       setSubmitting(false);
@@ -781,9 +835,10 @@ function SignupForm({ role }) {
 
       {error && <div style={{ marginTop: 18, color: "#ff7b6e", fontFamily: sans, fontSize: 13 }}>{error}</div>}
 
-      {/* Turnstile bot challenge — client signup's final step only. If it can't
-          load, submit is blocked with a retry notice (Auth CAPTCHA rejects a
-          tokenless signUp, so falling open would only hit a server rejection). */}
+      {/* Turnstile bot challenge — the final step of the member sign-up and of the
+          coach application. If it can't load, submit is blocked with a retry notice
+          (Auth CAPTCHA rejects a tokenless signUp and /api/apply a tokenless
+          application, so falling open would only hit a server rejection). */}
       {captchaVisible ? (
         <div style={{ marginTop: 18 }}>
           <div ref={captchaRef} style={{ minHeight: captchaUnavailable ? 0 : 65, display: captchaUnavailable ? "none" : "block" }} />

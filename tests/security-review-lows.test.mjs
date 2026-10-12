@@ -271,11 +271,13 @@ test('the guard checks each change, raises on anything that did not land, and ev
 });
 
 test('the app\'s application fallback and the allow-list say what changed', () => {
-  // The installed app inserts into provider_applications only when /api/apply failed, and then keeps
-  // the record locally when the insert fails too; with the anonymous policy gone that insert is the
-  // local path. The route is the one way in.
+  // The installed app inserted into provider_applications when /api/apply failed, and kept the
+  // record locally when that insert failed too; with the anonymous policy gone every such
+  // application stayed on the phone. The fallback is gone (2026-10-12): the route is the one way
+  // in, and a failed send says so (tests/provider-apply-submit.test.mjs drives it).
   const sb = read('mobile-app/src/services/shapeBackend.js');
-  assert.match(sb, /\.from\('provider_applications'\)\s*\.insert\(payload\)[^]*?if \(error\) \{\s*return \{ stored: 'local'/);
+  assert.doesNotMatch(sb, /\.from\('provider_applications'\)/);
+  assert.doesNotMatch(sb, /saveLocalRecord\('shape\.providerApplications'/);
   // The allow-list carried the five fixes as fixedAfterCapture until the catalog was captured again;
   // the 2026-10-10 capture records this file as applied and shows them, so the list carries none
   // (tests/definer-grants.test.mjs holds the shape) and the capture says what the file did.

@@ -60,6 +60,67 @@ const labelStyle = { display: "block", fontFamily: "'JetBrains Mono', monospace"
 const inputStyle = { width: "100%", background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 8, padding: "12px 14px", color: INK, fontFamily: sans, fontSize: 14, outline: "none" };
 const selectStyle = { ...inputStyle, appearance: "none", WebkitAppearance: "none", backgroundImage: "linear-gradient(45deg, transparent 48%, rgba(242,237,228,0.5) 48% 52%, transparent 52%), linear-gradient(-45deg, transparent 48%, rgba(242,237,228,0.5) 48% 52%, transparent 52%)", backgroundSize: "6px 6px, 6px 6px", backgroundPosition: "right 16px top 50%, right 10px top 50%", backgroundRepeat: "no-repeat", paddingRight: 36 };
 const proExperienceOptions = ["7-10 years", "10-15 years", "15+ years"];
+const TRAINER_SPECS = ["Strength & Powerlifting", "HIIT & Fat Loss", "At-home Workouts", "Cardio & Endurance", "Functional Fitness", "Bodybuilding", "Sports Performance", "Mobility", "Run coaching"];
+const NUTRI_SPECS = ["Weight management", "Sports nutrition", "Plant-based", "Gut health", "Hormonal health", "Pre/postnatal", "Endurance fueling", "Clinical / medical"];
+// ⚠ WHAT A SELECT SHOWS BEFORE IT IS TOUCHED IS WHAT IT SENDS. A select with nothing stored
+// draws its first option while the request read the empty stored value, so an untouched
+// experience select showed 7-10 years and sent "" (refused by the years check). The coach
+// form starts with every select's shown value in its state.
+function proInitialValues(role) {
+  if (role !== "trainer" && role !== "nutritionist") return {};
+  return {
+    years: proExperienceOptions[0],
+    insurance: "Yes",
+    primary: (role === "trainer" ? TRAINER_SPECS : NUTRI_SPECS)[0],
+    accepting: "Yes",
+    oneOnOne: "Yes",
+    response: "Within 24 hours",
+    intro: "15-minute free intro",
+  };
+}
+// The files ride the request through /api/apply, and the platform refuses a request body over
+// 4.5 MB before the route runs, so the files are held to 4 MB in total (the route checks the
+// same line).
+const APPLY_FILES_MAX_BYTES = 4 * 1024 * 1024;
+function applyFilesTooLarge(bytes) {
+  const mb = (Math.ceil(bytes / (1024 * 1024 / 10)) / 10).toFixed(1);
+  return `Your files add up to ${mb} MB; the limit for one application is 4 MB in total. Attach a smaller scan or fewer files.`;
+}
+// The human check /api/apply asks of a signed-out application. This page loads neither
+// /supabase.js nor the chat button, so it uses their solver when one is there and loads
+// Turnstile itself otherwise (the public site key both carry). '' when it cannot run.
+function applyHumanCheck() {
+  if (window.ShapeTurnstile && window.ShapeTurnstile.solve) return window.ShapeTurnstile.solve();
+  if (window.__shapeNoraSolve) return window.__shapeNoraSolve();
+  const key = window.SHAPE_TURNSTILE_SITEKEY === undefined ? "0x4AAAAAADmrGKVw7Ghzs1gQ" : window.SHAPE_TURNSTILE_SITEKEY;
+  if (!key) return Promise.resolve("");
+  const load = window.turnstile ? Promise.resolve(window.turnstile) : new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+    s.async = true;
+    s.onload = () => (window.turnstile ? resolve(window.turnstile) : reject(new Error("no turnstile")));
+    s.onerror = () => reject(new Error("turnstile failed to load"));
+    document.head.appendChild(s);
+  });
+  return load.then((ts) => new Promise((resolve) => {
+    const host = document.createElement("div");
+    host.style.cssText = "position:fixed;left:50%;bottom:96px;transform:translateX(-50%);z-index:2147483646;";
+    document.body.appendChild(host);
+    let id = null;
+    let done = false;
+    const finish = (tok) => {
+      if (done) return;
+      done = true;
+      try { if (id != null) ts.remove(id); } catch (e) {}
+      if (host.parentNode) host.parentNode.removeChild(host);
+      resolve(tok || "");
+    };
+    try {
+      id = ts.render(host, { sitekey: key, appearance: "interaction-only", callback: finish, "error-callback": () => finish(""), "expired-callback": () => finish("") });
+    } catch (e) { finish(""); }
+    setTimeout(() => finish(""), 60000);
+  })).catch(() => "");
+}
 // ⚠ KEEP IN SYNC with REQUIRED_ATTESTATIONS in src/lib/compliance/nutrition.mjs —
 // /api/apply refuses a nutritionist application unless every key is true. This is a
 // classic babel script with no import, so the keys are mirrored and a drift test
@@ -250,9 +311,7 @@ function FileInput({ label, onChange }) {
 }
 
 function ProSpecialty({ v, set, kind }) {
-  const trainerSpecs = ["Strength & Powerlifting", "HIIT & Fat Loss", "At-home Workouts", "Cardio & Endurance", "Functional Fitness", "Bodybuilding", "Sports Performance", "Mobility", "Run coaching"];
-  const nutriSpecs = ["Weight management", "Sports nutrition", "Plant-based", "Gut health", "Hormonal health", "Pre/postnatal", "Endurance fueling", "Clinical / medical"];
-  const specs = kind === "trainer" ? trainerSpecs : nutriSpecs;
+  const specs = kind === "trainer" ? TRAINER_SPECS : NUTRI_SPECS;
   const populations = kind === "trainer"
     ? ["Beginners", "Women 30-50", "Men 40+", "Postnatal", "Athletes", "Seniors", "Rehab", "Youth"]
     : ["Endurance athletes", "Strength athletes", "Weight loss", "Clinical conditions", "Plant-based", "Postnatal", "Youth"];
@@ -346,7 +405,7 @@ function ProAvailability({ v, set, kind }) {
 function SignupForm({ role }) {
   const cfg = ROLE_CONFIG[role];
   const [step, setStep] = React.useState(0);
-  const [values, setValues] = React.useState({});
+  const [values, setValues] = React.useState(() => proInitialValues(role));
   const [done, setDone] = React.useState(false);
   const [error, setError] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
@@ -466,13 +525,21 @@ function SignupForm({ role }) {
       // application without them (the same omission class as `dob`).
       compliance_attestations: values.attest || {},
     }));
-    if (values.resumeFile) form.append("resume", values.resumeFile);
-    if (values.credentialFile) form.append("credential", values.credentialFile);
-    if (values.insuranceFile) form.append("insurance", values.insuranceFile);
+    const applyFiles = [["resume", values.resumeFile], ["credential", values.credentialFile], ["insurance", values.insuranceFile]].filter(([, file]) => file);
+    const filesBytes = applyFiles.reduce((sum, [, file]) => sum + (file.size || 0), 0);
+    if (filesBytes > APPLY_FILES_MAX_BYTES) {
+      setError(applyFilesTooLarge(filesBytes));
+      return;
+    }
+    applyFiles.forEach(([kind, file]) => form.append(kind, file));
 
     setSubmitting(true);
     try {
+      const humanCheck = await applyHumanCheck();
+      if (humanCheck) form.append("turnstileToken", humanCheck);
       const res = await fetch("/api/apply", { method: "POST", body: form });
+      // A 413 is the platform's plain-text refusal of the body, not the route's JSON.
+      if (res.status === 413) throw new Error(applyFilesTooLarge(Math.max(filesBytes, APPLY_FILES_MAX_BYTES + 1)));
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(payload.error || "Could not submit application.");
       setDone(true);
