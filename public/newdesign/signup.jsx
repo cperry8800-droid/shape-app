@@ -882,7 +882,13 @@ function SignupForm({ role }) {
         const sb = window.shapeDb && window.shapeDb.client;
         if (!sb || !sb.storage) throw new Error("Could not upload your files. Reload the page and try again.");
         for (const [i, link] of links.uploads.entries()) {
-          const { error: upErr } = await sb.storage.from(links.bucket).uploadToSignedUrl(link.path, link.token, docList[i].file, { contentType: link.type || undefined });
+          // ⚠ THE CLIENT SENDS A FILE UNDER ITS OWN TYPE, whatever contentType says (a File goes in a
+          // multipart body), so a file the browser left untyped would reach the bucket as
+          // application/octet-stream and be refused. It goes up as a copy carrying the type the
+          // rules settled on from its extension (Codex on #2319).
+          const original = docList[i].file;
+          const body = link.type && original.type !== link.type ? new File([original], original.name, { type: link.type }) : original;
+          const { error: upErr } = await sb.storage.from(links.bucket).uploadToSignedUrl(link.path, link.token, body, { contentType: link.type || undefined });
           if (upErr) throw new Error(`${docList[i].file.name} did not upload. Check your connection and try again.`);
         }
         form.append("uploadTicket", links.ticket);

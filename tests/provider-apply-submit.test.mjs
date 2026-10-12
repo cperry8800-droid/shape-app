@@ -574,7 +574,7 @@ function appSender({ respond, signedIn = false, solve = async () => 'app-token',
       from: (bucket) => ({
         uploadToSignedUrl: async (path, token, file, opts) => {
           if (stored.length === failUpload) return { data: null, error: { message: 'upload failed' } };
-          stored.push({ bucket, path, token, name: file.name, size: file.size, contentType: opts?.contentType });
+          stored.push({ bucket, path, token, name: file.name, size: file.size, type: file.type, contentType: opts?.contentType });
           return { data: { path }, error: null };
         },
       }),
@@ -610,17 +610,23 @@ const VALUES = { firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.inv
 test('with documents the app asks for upload links (with the token), uploads each file to its link, then sends the application with the ticket', async () => {
   const cv = new File(['%PDF'], 'cv.pdf', { type: 'application/pdf' });
   const cert = new File(['%PDF'], 'nasm.pdf', { type: 'application/pdf' });
-  const card = new File(['x'], 'cpr.jpg', { type: 'image/jpeg' });
+  // Untyped, as a phone leaves a type it does not know: it goes up typed by its extension.
+  const card = new File(['x'], 'cpr.jpg', { type: '' });
   const files = [{ kind: 'resume', file: cv }, { kind: 'credential', file: cert }, { kind: 'credential', file: card }];
   const meta = files.map(({ kind, file }) => ({ kind, name: file.name, type: file.type, size: file.size }));
+  // The links route answers with the type the rules settled on.
+  const links = linksFor(meta.map((m) => ({ ...m, type: config.applicationFilesProblem ? applicationFiles.applicationFileType(m.name, m.type) : m.type })));
   const { submit, requests, stored } = appSender({
-    respond: (n, url) => (String(url).endsWith('/api/apply/uploads') ? json(200, linksFor(meta)) : json(200, { ok: true, id: '0b7c1d4e-1111-4222-8333-444455556666' })),
+    respond: (n, url) => (String(url).endsWith('/api/apply/uploads') ? json(200, links) : json(200, { ok: true, id: '0b7c1d4e-1111-4222-8333-444455556666' })),
   });
   const out = await submit({ role: 'trainer', values: VALUES, files });
   assert.deepEqual({ stored: out.stored, duplicate: out.duplicate }, { stored: 'api', duplicate: false });
   assert.deepEqual(requests.map((r) => r.url), ['https://shape.test/api/apply/uploads', 'https://shape.test/api/apply']);
   assert.deepEqual(requests[0].json, { providerType: 'trainer', files: meta, turnstileToken: 'app-token' });
   assert.equal(requests.solved, 1, 'one human check for the whole application');
+  // ⚠ The storage client sends a File under its own type, so the untyped photo goes up as a typed
+  // copy, or the bucket refuses it (Codex on #2319).
+  assert.deepEqual(stored.map((u) => u.type), ['application/pdf', 'application/pdf', 'image/jpeg']);
   assert.deepEqual(stored.map((u) => [u.bucket, u.path, u.token, u.name, u.contentType]), [
     ['provider-credentials', 'website/0b7c1d4e-1111-4222-8333-444455556666/resume/1-cv.pdf', 'tok-0', 'cv.pdf', 'application/pdf'],
     ['provider-credentials', 'website/0b7c1d4e-1111-4222-8333-444455556666/credential/2-nasm.pdf', 'tok-1', 'nasm.pdf', 'application/pdf'],
@@ -628,8 +634,8 @@ test('with documents the app asks for upload links (with the token), uploads eac
   ]);
   const form = requests[1].form;
   assert.ok(form instanceof FormData);
-  assert.equal(form.get('uploadTicket'), linksFor(meta).ticket);
-  assert.deepEqual(JSON.parse(form.get('uploads')), linksFor(meta).uploads.map((u) => ({ path: u.path, name: u.name })));
+  assert.equal(form.get('uploadTicket'), links.ticket);
+  assert.deepEqual(JSON.parse(form.get('uploads')), links.uploads.map((u) => ({ path: u.path, name: u.name })));
   assert.equal(form.get('turnstileToken'), null, 'the token was spent on the links; the ticket stands in for it');
   for (const kind of ['resume', 'credential']) assert.equal(form.get(kind), null, 'no file rides the application request');
   assert.equal(form.get('providerType'), 'trainer');

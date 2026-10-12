@@ -1245,9 +1245,14 @@ async function uploadProviderApplicationDocuments(role, files, { turnstileToken 
     throw applicationRefusal(response, result, turnstileToken) || applicationSendFailed();
   }
   for (const [i, link] of result.uploads.entries()) {
+    // ⚠ The client sends a File under its own type, whatever contentType says, so a file the phone
+    // left untyped goes up as a copy carrying the type the rules settled on (the bucket refuses
+    // application/octet-stream).
+    const original = files[i].file;
+    const body = link.type && original.type !== link.type ? new File([original], original.name, { type: link.type }) : original;
     let uploadError = null;
     try {
-      ({ error: uploadError } = await supabase.storage.from(result.bucket).uploadToSignedUrl(link.path, link.token, files[i].file, { contentType: link.type || undefined }));
+      ({ error: uploadError } = await supabase.storage.from(result.bucket).uploadToSignedUrl(link.path, link.token, body, { contentType: link.type || undefined }));
     } catch (e) {
       uploadError = e;
     }

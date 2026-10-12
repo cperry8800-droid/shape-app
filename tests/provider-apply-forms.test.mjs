@@ -82,7 +82,7 @@ async function mountWebsite(role, { turnstile = null, filesLib = true, failUploa
   env.w.shapeDb = { client: { storage: { from: (bucket) => ({
     uploadToSignedUrl: async (path, token, file, opts) => {
       if (stored.length === failUpload) return { data: null, error: { message: 'upload failed' } };
-      stored.push({ bucket, path, token, name: file.name, contentType: opts?.contentType });
+      stored.push({ bucket, path, token, name: file.name, type: file.type, contentType: opts?.contentType });
       return { data: { path }, error: null };
     },
   }) } } };
@@ -230,7 +230,8 @@ function linksAnswer(init) {
   const files = JSON.parse(init.body).files;
   return new Response(JSON.stringify({
     draftId: DRAFT, ticket: `${DRAFT}.trainer.9999999999.${'b'.repeat(64)}`, bucket: 'provider-credentials',
-    uploads: files.map((f, i) => ({ kind: f.kind, name: f.name, type: f.type, size: f.size, path: `website/${DRAFT}/${f.kind}/${i + 1}-${f.name}`, token: `t${i}` })),
+    // The route answers with the type the rules settle on (an untyped file's comes from its extension).
+    uploads: files.map((f, i) => ({ kind: f.kind, name: f.name, type: require(join(ROOT, 'public/application-files.js')).applicationFileType(f.name, f.type), size: f.size, path: `website/${DRAFT}/${f.kind}/${i + 1}-${f.name}`, token: `t${i}` })),
   }), { status: 200 });
 }
 const pdf = (name, bytes = 4) => new File([new Uint8Array(bytes)], name, { type: 'application/pdf' });
@@ -253,7 +254,8 @@ test('website: documents by category, several per section, uploaded through sign
     await act(() => attachFiles(p.w, picker('Resume / CV'), [pdf('cv.pdf')]));
     await act(() => attachFiles(p.w, picker('Other CV materials'), [pdf('cover.pdf'), pdf('refs.pdf')]));
     await act(() => attachFiles(p.w, picker('Certifications and certificates'), [pdf('nasm.pdf'), pdf('cpr.pdf'), pdf('kettlebell.pdf')]));
-    await act(() => attachFiles(p.w, picker('Designations and supporting paperwork'), [pdf('degree.pdf')]));
+    // A browser leaves a type it does not know empty: this one goes up typed by its extension.
+    await act(() => attachFiles(p.w, picker('Designations and supporting paperwork'), [new File(['PK'], 'degree.docx', { type: '' })]));
     assert.match(p.doc.body.textContent, /kettlebell\.pdf/);
     await p.click(p.doc.querySelector('button[aria-label="Remove kettlebell.pdf"]'));
     assert.doesNotMatch(p.doc.body.textContent, /kettlebell\.pdf/, 'a chosen file can be taken off');
@@ -264,11 +266,16 @@ test('website: documents by category, several per section, uploaded through sign
     assert.deepEqual(p.sent.map((r) => String(r.url)), ['/api/apply/uploads', '/api/apply'], p.doc.body.textContent.slice(-300));
     assert.deepEqual(p.sent[0].json.files.map((f) => [f.kind, f.name]), [
       ['resume', 'cv.pdf'], ['cv_materials', 'cover.pdf'], ['cv_materials', 'refs.pdf'],
-      ['credential', 'nasm.pdf'], ['credential', 'cpr.pdf'], ['designation', 'degree.pdf'],
+      ['credential', 'nasm.pdf'], ['credential', 'cpr.pdf'], ['designation', 'degree.docx'],
     ]);
     assert.equal(p.sent[0].json.providerType, 'trainer');
     assert.equal(p.stored.length, 6, 'every file goes up on its own link');
     assert.deepEqual(p.stored.map((u) => u.token), ['t0', 't1', 't2', 't3', 't4', 't5']);
+    // ⚠ The storage client sends a File under its own type (it ignores contentType for one), so the
+    // untyped DOCX has to go up as a typed copy or the bucket refuses it (Codex on #2319).
+    assert.equal(p.stored[5].name, 'degree.docx');
+    assert.equal(p.stored[5].type, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    assert.ok(p.stored.every((u) => u.type && u.type !== 'application/octet-stream'));
     const form = p.sent[1].form;
     assert.equal(form.get('uploadTicket'), `${DRAFT}.trainer.9999999999.${'b'.repeat(64)}`);
     assert.equal(JSON.parse(form.get('uploads')).length, 6);

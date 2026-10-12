@@ -252,7 +252,12 @@ test('the cleanup removes a day-old draft with no application, and nothing else'
     from: () => ({ select: () => ({ in: async (_c, values) => ({ data: values.filter((v) => v === ids.applied).map((id) => ({ id })), error: null }) }) }),
   };
   const result = await cleanup.removeAbandonedApplicationUploads(admin, now);
-  assert.deepEqual(result, { folders: 4, abandoned: 1, removed: 2 });
+  assert.deepEqual(result, { folders: 4, inspected: 3, abandoned: 1, removed: 2, finished: true });
+  // A run stops at its time budget (the cron has 60 seconds) and leaves the rest for tomorrow
+  // (Codex on #2319): with the clock already past it, nothing is inspected.
+  let t = 0;
+  const late = await cleanup.removeAbandonedApplicationUploads(admin, now, () => (t += 41_000));
+  assert.deepEqual(late, { folders: 4, inspected: 0, abandoned: 0, removed: 0, finished: false });
   assert.deepEqual(removed.sort(), [`website/${ids.abandoned}/credential/2-c.pdf`, `website/${ids.abandoned}/resume/1-cv.pdf`]);
   const vercel = JSON.parse(read('vercel.json'));
   assert.ok(vercel.crons.some((c) => c.path === '/api/cron/application-uploads'), 'it runs daily');
