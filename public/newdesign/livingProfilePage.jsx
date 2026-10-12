@@ -456,6 +456,19 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
     // otherwise, so FeedBlock shows loading/unavailable instead of "no activity".
     feedStatus: isDerived ? "ok" : feedStatus,
   });
+  // ⚠ A COACH WITH AN ACCOUNT IS RATED BY ITS REVIEWS OR NOT AT ALL (owner,
+  // 2026-10-12: "the demo ratings are fine, but make sure the review system and star
+  // rating system is in place for live accounts. 1-10 stars"). The persona carried
+  // `rating` 9.94 · `reviewCount` 284 · two 10/10 `reviews` and a "Rating 9.94" track
+  // record, and Object.assign handed all of them to every real coach. A live coach
+  // starts with none; LvCoachBlocks fills them from /api/coaches/reviews by account.
+  // A derived (no-account, example) profile keeps the persona's illustration.
+  if (coach && !isDerived) {
+    person.rating = null;
+    person.reviewCount = 0;
+    person.reviews = [];
+    person.lifts = (person.lifts || []).filter((l) => l && l[0] !== "Rating");
+  }
   // Overlay the real self metrics over the demo persona (own client profile
   // only). Per-field: a live value wins; a missing one keeps the example.
   if (liveSelf && st.isSelf && !coach) {

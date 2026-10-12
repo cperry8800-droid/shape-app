@@ -69,18 +69,30 @@ export async function GET(request: Request) {
     return NextResponse.json({ reviews, avg, count });
   }
 
-  const { data, error } = await supabase.from('coach_reviews').select('coach_slug, rating').limit(5000);
-  if (error) return NextResponse.json({ summaries: {} });
+  // Every coach's average, keyed two ways: by slug (the old shape) and by the coach's
+  // account (`owners`). A listing with an owner reads its rating by account, because a
+  // slug is a NAME and the profile name and the listing name can differ.
+  const { data, error } = await supabase.from('coach_reviews').select('coach_slug, rating, owner_id').limit(5000);
+  if (error) return NextResponse.json({ summaries: {}, owners: {} });
   const acc: Record<string, { sum: number; count: number }> = {};
-  for (const row of (data ?? []) as { coach_slug: string; rating: number }[]) {
+  const byOwner: Record<string, { sum: number; count: number }> = {};
+  for (const row of (data ?? []) as { coach_slug: string; rating: number; owner_id?: string | null }[]) {
     const s = row.coach_slug;
     (acc[s] ||= { sum: 0, count: 0 });
     acc[s].sum += row.rating || 0;
     acc[s].count += 1;
+    if (row.owner_id) {
+      (byOwner[row.owner_id] ||= { sum: 0, count: 0 });
+      byOwner[row.owner_id].sum += row.rating || 0;
+      byOwner[row.owner_id].count += 1;
+    }
   }
+  const avg = (a: { sum: number; count: number }) => ({ avg: Math.round((a.sum / a.count) * 10) / 10, count: a.count });
   const summaries: Record<string, { avg: number; count: number }> = {};
-  for (const s of Object.keys(acc)) summaries[s] = { avg: Math.round((acc[s].sum / acc[s].count) * 10) / 10, count: acc[s].count };
-  return NextResponse.json({ summaries });
+  for (const s of Object.keys(acc)) summaries[s] = avg(acc[s]);
+  const owners: Record<string, { avg: number; count: number }> = {};
+  for (const o of Object.keys(byOwner)) owners[o] = avg(byOwner[o]);
+  return NextResponse.json({ summaries, owners });
 }
 
 // POST { coach, kind, rating(1-10), text } — authenticated.

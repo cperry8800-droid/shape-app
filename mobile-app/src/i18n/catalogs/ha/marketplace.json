@@ -108,6 +108,9 @@
   "listing.reviewError": "Ba a iya aika sharhi ba",
   "listing.reviewPlaceholder": "Faɗi yadda ya kasance…",
   "listing.reviewPosted": "An aika sharhi",
+  "listing.noReviews": "Babu sharhi tukuna",
+  "listing.reviewRelationship": "Za ka iya yi wa koci sharhi bayan ka yi rajista da shi ko ka yi zama da shi.",
+  "listing.reviewSignIn": "Shiga don barin sharhi.",
   "listing.roomForYou": "{name} yana da wuri a gare ka.",
   "listing.samplePlan": "Misalin tsari",
   "listing.sampleWorkout": "Misalin motsa jiki",
@@ -184,5 +187,6 @@
   "preview.locked": "＋{count} ƙari · za a buɗe idan ka saya",
   "preview.noOutline": "Wannan kocin bai riga ya buga tsari don wannan ba.",
   "preview.buy": "Saya · {price} →",
-  "preview.action": "Abin da ke ciki →"
+  "preview.action": "Abin da ke ciki →",
+  "rating.new": "Sabo"
 }

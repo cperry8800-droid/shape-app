@@ -108,6 +108,9 @@
   "listing.reviewError": "No fit post review",
   "listing.reviewPlaceholder": "Talk how e go…",
   "listing.reviewPosted": "Review don post",
+  "listing.noReviews": "No review dey yet",
+  "listing.reviewRelationship": "You fit review coach once you don subscribe to am or do session with am.",
+  "listing.reviewSignIn": "Sign in make you fit drop review.",
   "listing.roomForYou": "{name} get space for you.",
   "listing.samplePlan": "Sample plan",
   "listing.sampleWorkout": "Sample workout",
@@ -184,5 +187,6 @@
   "preview.locked": "＋{count} more · e go open when you buy",
   "preview.noOutline": "Dis coach never publish outline for dis one yet.",
   "preview.buy": "Buy · {price} →",
-  "preview.action": "Wetin dey inside →"
+  "preview.action": "Wetin dey inside →",
+  "rating.new": "New"
 }

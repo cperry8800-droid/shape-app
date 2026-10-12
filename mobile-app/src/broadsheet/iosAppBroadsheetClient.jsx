@@ -16924,8 +16924,9 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
     const savedIds = Array.isArray(init.pinnedReviews) ? init.pinnedReviews.slice(0, BS_PINNED_REVIEWS_MAX) : [];
     const keep = (list) => (Array.isArray(list) ? list.filter((r) => r && r.ownerId === ownerUid && r.authorId !== r.ownerId) : []);
     Promise.all([
-      fetch(`/api/coaches/reviews?owner=${encodeURIComponent(ownerUid)}`, { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-      savedIds.length ? fetch(`/api/coaches/reviews?ids=${encodeURIComponent(savedIds.join(','))}`, { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : null)).catch(() => null) : Promise.resolve(null),
+      // Through the native-safe client (apiBaseUrl + Bearer); `/api/...` reached nothing on native.
+      window.ShapeCoachReviews ? window.ShapeCoachReviews.forOwner(ownerUid).catch(() => null) : Promise.resolve(null),
+      savedIds.length && window.ShapeCoachReviews ? window.ShapeCoachReviews.byIds(savedIds.join(',')).catch(() => null) : Promise.resolve(null),
     ]).then(([ownerJ, idsJ]) => {
       if (!on) return;
       const owned = keep(ownerJ && ownerJ.reviews);
@@ -18974,8 +18975,8 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
     setPinnedResolved([]); // clear the previous profile's / pins' data on any change
     if (!pinnedKey || !person.userId) return;
     let on = true;
-    fetch(`/api/coaches/reviews?ids=${encodeURIComponent(pinnedKey)}`, { credentials: 'same-origin' })
-      .then((r) => (r.ok ? r.json() : null))
+    if (!window.ShapeCoachReviews) return;
+    window.ShapeCoachReviews.byIds(pinnedKey)
       // Only a MEMBER's review counts (authorId !== ownerId) — a coach can't insert a
       // self-authored row (insert RLS forces user_id = their uid) and pin it as a testimonial.
       .then((d) => { if (on && d && Array.isArray(d.reviews)) setPinnedResolved(d.reviews.filter((r) => r && r.ownerId === person.userId && r.authorId !== r.ownerId)); })
@@ -18992,13 +18993,27 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   const profLpFiredRef = React.useRef(false);
   const activityRef = React.useRef(null); // Posts stat → scroll to the activity section
   const openPosts = () => { setTab('activity'); setTimeout(() => { try { activityRef.current && activityRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {} }, 60); };
+  // ⚠ A COACH WITH AN ACCOUNT IS RATED BY ITS REVIEWS OR NOT AT ALL (owner,
+  // 2026-10-12: "make sure the review system and star rating system is in place for
+  // live accounts. 1-10 stars"). Its reviews are read by ACCOUNT and kept even when
+  // there are none, so an unreviewed coach reads "New" — it read the persona's
+  // 9.94 · 284 reviews and two 10/10 testimonials. A demo persona (no account) keeps
+  // its illustrative numbers. Through window.ShapeCoachReviews: the root-relative
+  // fetch this was reached nothing on the native build.
+  const liveCoach = !!person.userId;
   React.useEffect(() => {
     const slug = String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     let on = true;
-    fetch(`/api/coaches/reviews?coach=${encodeURIComponent(slug)}`, { credentials: 'same-origin' })
-      .then((r) => (r.ok ? r.json() : null)).then((d) => { if (on && d && Array.isArray(d.reviews) && d.reviews.length) setLiveReviews(d.reviews); }).catch(() => {});
+    const api = window.ShapeCoachReviews;
+    if (!api) return undefined;
+    (liveCoach ? api.forOwner(person.userId) : api.forCoach(slug))
+      .then((d) => {
+        if (!on || !d || !Array.isArray(d.reviews)) return;
+        if (liveCoach || d.reviews.length) setLiveReviews(d.reviews);
+      })
+      .catch(() => {});
     return () => { on = false; };
-  }, [name]);
+  }, [name, liveCoach, person.userId]);
   const disLabel = isNutri ? tr('profile:coach.practiceFocus', { defaultValue: 'Practice focus' }) : tr('profile:coach.coachingFocus', { defaultValue: 'Coaching focus' });
   // Own signed-in profile zeroes the demo sub-data (no live source yet); viewing
   // others / signed-out keeps the illustrative example.
@@ -19057,8 +19072,14 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   const offerings = realOfferings.length ? realOfferings : (ownZero ? [] : demoOfferings);
   const offerCats = isNutri ? ['All', 'Meals', 'Diets', 'Coaching'] : ['All', 'Workouts', 'Programs', 'Coaching'];
   const visibleOfferings = offerTab === 'All' ? offerings : offerings.filter((o) => o[0] === offerTab);
-  const rating = isNutri ? '9.9' : '9.94', reviewCount = isNutri ? 198 : 284;
-  const reviews = isNutri
+  const liveAvgAll = (liveReviews && liveReviews.length) ? Math.round((liveReviews.reduce((s, r) => s + (r.rating || 0), 0) / liveReviews.length) * 10) / 10 : null;
+  const rating = liveCoach ? (liveAvgAll != null ? liveAvgAll.toFixed(1) : null) : (isNutri ? '9.9' : '9.94');
+  const reviewCount = liveCoach ? (liveReviews ? liveReviews.length : 0) : (isNutri ? 198 : 284);
+  const ratingLabel = rating != null ? `★ ${rating}/10` : tr('marketplace:rating.new', { defaultValue: 'New' });
+  // The track record's Rating row is the real average for a coach with an account,
+  // and absent until someone has reviewed them.
+  const liftsEff = liveCoach ? lifts.filter(([k]) => k !== 'Rating' || rating != null).map(([k, v]) => (k === 'Rating' ? [k, rating] : [k, v])) : lifts;
+  const reviews = liveCoach ? [] : isNutri
     ? [['Sofia M.', 'SM', 300, 'She found my low ferritin before any doctor did. I train 50% more volume now.'], ['Diego R.', 'DR', 200, 'Learned what fueling a lifting block actually looks like. Clearest plans I’ve seen.']]
     : [['Priya S.', 'PS', 168, '+60 lb on my deadlift in 14 weeks without a single bad-back day.'], ['Marcus L.', 'ML', 220, 'World-class programming. She books up fast — plan ahead, it’s worth it.']];
   const relation = isNutri ? ['Recent win', 'Sofia M.', 'SM', 300, 'Found her low ferritin before any doctor did — training volume up 50%.'] : ['Recent win', 'Jonah W.', 'JW', 200, 'Pulled 2× bodyweight after 8 months — never touched a barbell before me.'];
@@ -19232,7 +19253,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
         <div data-tour="hero-me" style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '20px -22px 0', ...card, borderRadius: 0, borderLeft: 0, borderRight: 0, padding: '14px 20px' }}>
           <div onClick={isSelf ? onOpenScore : undefined} style={{ flex: 'none', cursor: isSelf ? 'pointer' : 'default' }}><div style={{ fontFamily: SERIF, fontSize: 34, letterSpacing: '-0.03em', lineHeight: 0.9 }}>{score.toLocaleString()}</div><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 4 }}>Shape Score{isSelf ? ' ›' : ''}</div></div>
           <div style={{ width: 1, height: 34, background: bsTHexA(INK, 0.12) }} />
-          <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: MONO, fontSize: 11, color: TEAL }}>★ {rating}/10 · <span onClick={() => setTab('reviews')} style={{ cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>{tr('profile:coach.reviewCount', { count: liveReviews && liveReviews.length ? liveReviews.length : reviewCount, defaultValue: '{count, plural, one {# review} other {# reviews}}' })}</span></div><div style={{ fontFamily: SANS, fontSize: 11.5, color: bsTHexA(INK, 0.55), marginTop: 4 }}>{tr('profile:coach.respondsWithinHours', { defaultValue: 'Responds within hours' })}</div></div>
+          <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: MONO, fontSize: 11, color: TEAL }}>{ratingLabel} · <span onClick={() => setTab('reviews')} style={{ cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>{tr('profile:coach.reviewCount', { count: liveReviews && liveReviews.length ? liveReviews.length : reviewCount, defaultValue: '{count, plural, one {# review} other {# reviews}}' })}</span></div><div style={{ fontFamily: SANS, fontSize: 11.5, color: bsTHexA(INK, 0.55), marginTop: 4 }}>{tr('profile:coach.respondsWithinHours', { defaultValue: 'Responds within hours' })}</div></div>
         </div>
 
         {isPrivate ? (
@@ -19316,11 +19337,11 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           </div>
 
           {/* track record — hidden on your own signed-in profile until there's data */}
-          {lifts.length ? (
+          {liftsEff.length ? (
           <div style={{ marginTop: 24 }}>
             <Kick>{tr('profile:coach.trackRecord', { defaultValue: 'Track record' })}</Kick>
             <div style={{ display: 'flex', gap: 9, margin: '12px -22px 0' }}>
-              {lifts.map(([label, val]) => <div key={label} style={{ flex: 1, textAlign: 'center', background: bsTHexA(c, 0.08), border: `1px solid ${bsTHexA(c, 0.2)}`, borderRadius: 13, padding: '14px 6px' }}><div style={{ fontFamily: SERIF, fontSize: 25, letterSpacing: '-0.02em' }}>{val}</div><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 5 }}>{label}</div></div>)}
+              {liftsEff.map(([label, val]) => <div key={label} style={{ flex: 1, textAlign: 'center', background: bsTHexA(c, 0.08), border: `1px solid ${bsTHexA(c, 0.2)}`, borderRadius: 13, padding: '14px 6px' }}><div style={{ fontFamily: SERIF, fontSize: 25, letterSpacing: '-0.02em' }}>{val}</div><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 5 }}>{label}</div></div>)}
             </div>
           </div>
           ) : null}
@@ -19425,8 +19446,11 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
               : reviews.map((r) => [...r, 10, null]);
             return (
             <div style={{ marginTop: 24 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}><Kick>{tr('profile:tab.reviews', { defaultValue: 'Reviews' })}</Kick><div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}><span style={{ fontFamily: SERIF, fontSize: 22, letterSpacing: '-0.02em' }}>{liveAvg != null ? liveAvg : rating}</span><span style={{ fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.5) }}>/10 · ★ {liveReviews && liveReviews.length ? liveReviews.length : reviewCount}</span></div></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}><Kick>{tr('profile:tab.reviews', { defaultValue: 'Reviews' })}</Kick><div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}><span style={{ fontFamily: SERIF, fontSize: 22, letterSpacing: '-0.02em' }}>{liveAvg != null ? liveAvg : (rating != null ? rating : '—')}</span><span style={{ fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.5) }}>/10 · ★ {liveReviews && liveReviews.length ? liveReviews.length : reviewCount}</span></div></div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, margin: '12px -22px 0' }}>
+                {!liveList.length && (
+                  <div style={{ padding: '13px 20px', fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{tr('marketplace:listing.noReviews', { defaultValue: 'No reviews yet' })}</div>
+                )}
                 {liveList.map(([nm, ini, hue, body, stars, authorId], i) => {
                   const open = authorId ? () => setReviewerProfile({ who: nm, kind: 'CLIENT', userId: authorId, public: true }) : null;
                   return (
@@ -19444,7 +19468,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           {tab === 'activity' && (
           /* field notes */
           <div style={{ marginTop: 8 }}>
-            <BSProfileExtras custom={customEff} demo={demoFill} c={c} INK={INK} BG={BG} isSelf={isSelf} coach bleed={22} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: Number(score).toLocaleString() }, tier: { label: tr('profile:stat.tier', { defaultValue: 'Tier' }), value: tierName }, rating: { label: tr('profile:stat.rating', { defaultValue: 'Rating' }), value: rating }, reviews: { label: tr('profile:tab.reviews', { defaultValue: 'Reviews' }), value: reviewCount } }} />
+            <BSProfileExtras custom={customEff} demo={demoFill} c={c} INK={INK} BG={BG} isSelf={isSelf} coach bleed={22} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: Number(score).toLocaleString() }, tier: { label: tr('profile:stat.tier', { defaultValue: 'Tier' }), value: tierName }, rating: { label: tr('profile:stat.rating', { defaultValue: 'Rating' }), value: rating != null ? rating : tr('marketplace:rating.new', { defaultValue: 'New' }) }, reviews: { label: tr('profile:tab.reviews', { defaultValue: 'Reviews' }), value: reviewCount } }} />
             <BSActivityLogCta isSelf={isSelf} accent={c} onClick={() => setShowLog(true)} />
             <div style={{ marginTop: isSelf ? 12 : 0 }}>
               {coachFeedEff.length === 0 && (

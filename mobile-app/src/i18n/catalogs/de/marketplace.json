@@ -108,6 +108,9 @@
   "listing.reviewError": "Bewertung konnte nicht veröffentlicht werden",
   "listing.reviewPlaceholder": "Erzähl, wie es war…",
   "listing.reviewPosted": "Bewertung veröffentlicht",
+  "listing.noReviews": "Noch keine Bewertungen",
+  "listing.reviewRelationship": "Du kannst einen Coach bewerten, sobald du ihn abonniert oder eine Session mit ihm hattest.",
+  "listing.reviewSignIn": "Melde dich an, um eine Bewertung zu schreiben.",
   "listing.roomForYou": "{name} hat einen Platz für dich.",
   "listing.samplePlan": "Beispielplan",
   "listing.sampleWorkout": "Beispiel-Workout",
@@ -184,5 +187,6 @@
   "preview.locked": "＋{count} weitere · nach dem Kauf freigeschaltet",
   "preview.noOutline": "Diese:r Coach hat dafür noch keinen Ablauf veröffentlicht.",
   "preview.buy": "Kaufen · {price} →",
-  "preview.action": "Was drin ist →"
+  "preview.action": "Was drin ist →",
+  "rating.new": "Neu"
 }

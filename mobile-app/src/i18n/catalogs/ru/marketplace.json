@@ -108,6 +108,9 @@
   "listing.reviewError": "Не удалось опубликовать отзыв",
   "listing.reviewPlaceholder": "Расскажите, как всё прошло…",
   "listing.reviewPosted": "Отзыв опубликован",
+  "listing.noReviews": "Отзывов пока нет",
+  "listing.reviewRelationship": "Оставить отзыв о тренере можно после подписки или занятия с ним.",
+  "listing.reviewSignIn": "Войдите, чтобы оставить отзыв.",
   "listing.roomForYou": "У {name} есть место для вас.",
   "listing.samplePlan": "Пример плана",
   "listing.sampleWorkout": "Пример тренировки",
@@ -184,5 +187,6 @@
   "preview.locked": "＋{count} · откроются после покупки",
   "preview.noOutline": "Этот тренер пока не опубликовал структуру для него.",
   "preview.buy": "Купить · {price} →",
-  "preview.action": "Что внутри →"
+  "preview.action": "Что внутри →",
+  "rating.new": "Новый"
 }

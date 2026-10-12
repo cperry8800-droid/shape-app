@@ -108,6 +108,9 @@
   "listing.reviewError": "Değerlendirme gönderilemedi",
   "listing.reviewPlaceholder": "Nasıl geçtiğini anlat…",
   "listing.reviewPosted": "Değerlendirme gönderildi",
+  "listing.noReviews": "Henüz değerlendirme yok",
+  "listing.reviewRelationship": "Bir koça abone olduktan ya da onunla bir seans yaptıktan sonra değerlendirme yazabilirsin.",
+  "listing.reviewSignIn": "Değerlendirme bırakmak için giriş yap.",
   "listing.roomForYou": "{name} sana yer açtı.",
   "listing.samplePlan": "Örnek plan",
   "listing.sampleWorkout": "Örnek antrenman",
@@ -184,5 +187,6 @@
   "preview.locked": "＋{count} tane daha · satın alınca açılır",
   "preview.noOutline": "Bu koç bunun için henüz bir akış yayınlamadı.",
   "preview.buy": "Satın al · {price} →",
-  "preview.action": "İçinde ne var →"
+  "preview.action": "İçinde ne var →",
+  "rating.new": "Yeni"
 }

@@ -353,7 +353,7 @@ function CoachCard({ c }) {
         </>)}
         <MkFacet name={c.name} color={tier.color} photo={c.photo || c.avatar} size={92} />
         <span style={{ position: "absolute", top: 10, left: 10, fontFamily: mono, fontSize: 9, padding: "3px 7px", background: "rgba(11,14,12,0.85)", color: TEAL, borderRadius: 3, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 }}>{c.format}</span>
-        <span style={{ position: "absolute", top: 10, right: 10, fontFamily: mono, fontSize: 10, padding: "3px 7px", background: "rgba(11,14,12,0.85)", color: INK, borderRadius: 3 }}>★ {(c.rating * 2).toFixed(1)}/10</span>
+        <span style={{ position: "absolute", top: 10, right: 10, fontFamily: mono, fontSize: 10, padding: "3px 7px", background: "rgba(11,14,12,0.85)", color: INK, borderRadius: 3 }}>{mkRatingLabel(c)}</span>
         {c.isLeadBoosted && (
           <span style={{ position: "absolute", left: 10, bottom: 10, fontFamily: mono, fontSize: 9, padding: "4px 8px", background: "rgba(10,197,168,0.95)", color: PAPER, borderRadius: 3, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 }}>
             Lead Boost · {c.boostDays}d
@@ -388,6 +388,17 @@ function CoachCard({ c }) {
     </a>);
 }
 
+// A card's rating on the ten-point scale: a live coach's real average (null when
+// nobody has reviewed them), a demo or seeded coach's five-point number doubled.
+function mkRating10(c) {
+  if (c && c.ratingLive) return c.rating10 == null ? 0 : Number(c.rating10);
+  return Number(c && c.rating) * 2 || 0;
+}
+function mkRatingLabel(c) {
+  if (c && c.ratingLive && c.rating10 == null) return "New";
+  return `★ ${mkRating10(c).toFixed(1)}/10`;
+}
+
 // ── Real coach accounts ─────────────────────────────────────────
 // Resolve live coaches from the trainers/nutritionists tables (same source the
 // mobile app uses) and their actual saved profile photo via get_public_profile,
@@ -406,7 +417,15 @@ function mapLiveCoach(row, tab) {
     name: row.name || (isNutri ? "Shape Nutritionist" : "Shape Trainer"),
     role: row.specialty || row.category || (isNutri ? "Nutrition Coaching" : "Personal Training"),
     city: row.location || "Remote",
-    rate, rating: Number(row.rating || 4.8),
+    // ⚠ A COACH WITH AN ACCOUNT IS RATED BY ITS REVIEWS OR NOT AT ALL (owner,
+    // 2026-10-12: "the demo ratings are fine, but make sure the review system and
+    // star rating system is in place for live accounts. 1-10 stars"). `rating10` is
+    // its real 1–10 average, merged in by useLiveCoaches; null until someone has
+    // reviewed them, which the card prints as "New" — it printed the column's
+    // `rating || 4.8`, doubled, so every new coach read 9.6/10. A seeded row with no
+    // account keeps the demo five-point number.
+    rate, rating: row.owner_id ? null : Number(row.rating || 4.8),
+    ratingLive: !!row.owner_id, rating10: null, reviewCount: 0,
     sessions: Number(row.subscribers || 0) || Math.max(120, yrs * 55),
     tag: isNutri ? "Nutritionist" : "Trainer",
     specialties: specs.length ? specs : [isNutri ? "Nutrition" : "Strength"],
@@ -439,6 +458,18 @@ function useLiveCoaches(tab) {
     cl.from(table).select(columns).then(async ({ data, error }) => {
       if (!on || error || !Array.isArray(data) || !data.length) { if (on) setLive([]); return; }
       const coaches = data.map((row) => mapLiveCoach(row, tab));
+      // Every live coach's real average, by ACCOUNT (a slug is a name, and the
+      // listing name and the profile name can differ).
+      try {
+        const sum = await fetch("/api/coaches/reviews", { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : null));
+        const owners = (sum && sum.owners) || {};
+        coaches.forEach((c) => {
+          if (!c.ratingLive) return;
+          const o = c.ownerId ? owners[c.ownerId] : null;
+          c.rating10 = o && Number(o.count) > 0 ? Number(o.avg) : null;
+          c.reviewCount = o ? Number(o.count) || 0 : 0;
+        });
+      } catch (e) { /* no summary = shown as unrated, never as the demo number */ }
       await Promise.all(coaches.map(async (c) => {
         if (!c.ownerId) return;
         try {
@@ -486,7 +517,7 @@ function Grid({ tab }) {
       if (query && !`${c.name} ${c.role} ${c.specialties.join(" ")} ${c.city}`.toLowerCase().includes(query.toLowerCase())) return false;
       return true;
     });
-    if (sort === "Highest Rated") arr = [...arr].sort((a, b) => b.rating - a.rating);
+    if (sort === "Highest Rated") arr = [...arr].sort((a, b) => mkRating10(b) - mkRating10(a));
     else if (sort === "Lowest Price") arr = [...arr].sort((a, b) => a.rate - b.rate);
     else if (sort === "Most Experience") arr = [...arr].sort((a, b) => b.years - a.years);
     else arr = [...arr].sort((a, b) => b.sessions - a.sessions);
