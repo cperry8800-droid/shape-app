@@ -1003,6 +1003,7 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
         .from('trainers')
         .select('*, trainer_workouts(*, workout_sample_days(*))')
         .not('owner_id', 'is', null)
+        .eq('listing_ready', true)
         .order('sort_order', { ascending: true });
       if (res.error) { console.warn('[shape] listTrainers error', res.error); return []; }
       return (res.data || []).map(function (t) {
@@ -1035,6 +1036,7 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
         .from('nutritionists')
         .select('*, nutritionist_plans(*, plan_sample_days(*))')
         .not('owner_id', 'is', null)
+        .eq('listing_ready', true)
         .order('sort_order', { ascending: true });
       if (res.error) { console.warn('[shape] listNutritionists error', res.error); return []; }
       return (res.data || []).map(function (n) {

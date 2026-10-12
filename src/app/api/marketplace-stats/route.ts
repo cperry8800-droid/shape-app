@@ -11,8 +11,9 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   const supabase = await createClient();
   const [trainers, nutritionists] = await Promise.all([
-    supabase.from('trainers').select('id', { count: 'exact', head: true }).not('owner_id', 'is', null),
-    supabase.from('nutritionists').select('id', { count: 'exact', head: true }).not('owner_id', 'is', null),
+    // Real coaches a visitor can find: discoverable listings only (2026-10-12-coach-listing-ready.sql).
+    supabase.from('trainers').select('id', { count: 'exact', head: true }).not('owner_id', 'is', null).eq('listing_ready', true),
+    supabase.from('nutritionists').select('id', { count: 'exact', head: true }).not('owner_id', 'is', null).eq('listing_ready', true),
   ]);
   // ⚠ AN UNREADABLE COUNT IS null, NEVER 0 — AND THE TWO QUERIES FAIL
   // INDEPENDENTLY, WHICH IS THE WHOLE POINT. `count ?? 0` collapsed a failed read

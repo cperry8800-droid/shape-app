@@ -47,6 +47,7 @@
     var res = await window.shapeDb.client
       .from(table)
       .select('id, name')
+      .eq('listing_ready', true)
       .order('created_at', { ascending: false });
 
     var rows = (res && res.data) || [];

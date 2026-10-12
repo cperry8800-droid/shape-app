@@ -455,7 +455,9 @@ function useLiveCoaches(tab) {
     const columns = tab === "Nutritionist"
       ? "id, name, specialty, category, price, rating, subscribers, experience, credential, credential_full, specialty_type, bio, color, tags, services, nutritionist_of_month, notm_quote, featured, sort_order, created_at, updated_at, stripe_product_id, stripe_price_id, owner_id, stripe_account_status, meal_plan_price, at_capacity, capacity_resume_at, verified, verified_at, monthly_offer, listing_media, timezone"
       : "id, name, specialty, category, price, rating, subscribers, experience, credential, credential_full, specialty_type, bio, color, tags, trainer_of_month, totm_quote, featured, sort_order, created_at, updated_at, stripe_product_id, stripe_price_id, owner_id, stripe_account_status, session_price, at_capacity, capacity_resume_at, verified, verified_at, monthly_offer, listing_media, timezone";
-    cl.from(table).select(columns).then(async ({ data, error }) => {
+    // Discoverable listings only: a real coach is listed once the listing has a price, active
+    // payouts and a photo (2026-10-12-coach-listing-ready.sql); Shape's own listings always are.
+    cl.from(table).select(columns).eq("listing_ready", true).then(async ({ data, error }) => {
       if (!on || error || !Array.isArray(data) || !data.length) { if (on) setLive([]); return; }
       const coaches = data.map((row) => mapLiveCoach(row, tab));
       // Every live coach's real average, by ACCOUNT (a slug is a name, and the
