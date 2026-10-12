@@ -14,7 +14,7 @@ const legacyPages = [
   'trainer-profile', 'nutritionist-profile', 'client-profile',
   'trainer-dashboard', 'gym-dashboard', 'nutrition-schedule', 'clients', 'my-team',
   'for-trainers', 'for-nutritionists', 'for-gyms', 'for-gym-owners', 'for-clients',
-  'signup-client', 'signup-trainer', 'signup-nutritionist', 'signup-gym', 'signup-radio',
+  'signup-client', 'signup-gym', 'signup-radio',
   'contact', 'help', 'community', 'integrations',
   'privacy', 'terms',
   'radio', 'ai-trainers', 'live-workout', 'messages',
@@ -37,6 +37,17 @@ const nextConfig: NextConfig = {
       { source: '/about', destination: '/newdesign/index.html', permanent: false },
       { source: '/about.html', destination: '/newdesign/index.html', permanent: false },
       { source: '/newdesign/About.html', destination: '/newdesign/index.html', permanent: false },
+      // The legacy coach applications are retired (owner, 2026-10-12: "retire legacy pages"):
+      // the root pages and the /mobile preview's sign-up pages each kept their own copy of the
+      // application, which drifted from the rules the website and the app follow. Every old link
+      // lands on the website's application. Temporary, like About.
+      { source: '/signup-trainer', destination: '/newdesign/SignupTrainer.html', permanent: false },
+      { source: '/signup-trainer.html', destination: '/newdesign/SignupTrainer.html', permanent: false },
+      { source: '/signup-nutritionist', destination: '/newdesign/SignupNutritionist.html', permanent: false },
+      { source: '/signup-nutritionist.html', destination: '/newdesign/SignupNutritionist.html', permanent: false },
+      { source: '/mobile/SignupTrainer.html', destination: '/newdesign/SignupTrainer.html', permanent: false },
+      { source: '/mobile/SignupNutritionist.html', destination: '/newdesign/SignupNutritionist.html', permanent: false },
+      { source: '/mobile/SignupClient.html', destination: '/newdesign/SignupClient.html', permanent: false },
     ];
   },
   async rewrites() {

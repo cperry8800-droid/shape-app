@@ -26,8 +26,8 @@
   <url><loc>https://theshapecommunity.com/login.html</loc><changefreq>yearly</changefreq><priority>0.4</priority></url>
   <url><loc>https://theshapecommunity.com/landing.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
   <url><loc>https://theshapecommunity.com/signup-client.html</loc><changefreq>yearly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://theshapecommunity.com/signup-trainer.html</loc><changefreq>yearly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://theshapecommunity.com/signup-nutritionist.html</loc><changefreq>yearly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://theshapecommunity.com/newdesign/SignupTrainer.html</loc><changefreq>yearly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://theshapecommunity.com/newdesign/SignupNutritionist.html</loc><changefreq>yearly</changefreq><priority>0.7</priority></url>
   <url><loc>https://theshapecommunity.com/signup-gym.html</loc><changefreq>yearly</changefreq><priority>0.7</priority></url>
   <url><loc>https://theshapecommunity.com/privacy.html</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
   <url><loc>https://theshapecommunity.com/terms.html</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>

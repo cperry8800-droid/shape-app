@@ -4,9 +4,10 @@ import {
   PROVIDER_APPLICATION_MAX_TOTAL_BYTES,
   PROVIDER_APPLICATION_SEND_FAILED,
   PROVIDER_EXPERIENCE_OPTIONS,
-  REQUIRED_PROVIDER_EXPERIENCE_YEARS,
+  EXPERIENCE_STANDARD_YEARS,
   applicationFilesTooLargeMessage,
-  experienceMeetsMinimum,
+  belowExperienceStandard,
+  experienceProblem,
 } from '../config/providerApplications.js';
 // The shared 18+ derivation (anywhere-on-Earth rule) used by every gate + signup.
 import { isMinorFromDob } from '../../../src/lib/age-derive.mjs';
@@ -130,13 +131,16 @@ function BSApplyInput({ label, value, onChange, type = 'text', placeholder = '',
   );
 }
 
-function BSApplySelect({ label, value, onChange, options }) {
+// `placeholder`: the select starts on it and sends nothing until a choice is made (the years
+// answer, which has no default). Without one it shows the first option, as before.
+function BSApplySelect({ label, value, onChange, options, placeholder }) {
   const t = useBS();
   return (
     <label style={{ display: 'grid', gap: 4 }}>
       <span style={apLabel(t)}>{label}</span>
       <div className="bs-apply-row">
-        <select className="bs-apply-in" value={value || options[0]} onChange={(e) => onChange(e.target.value)} style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '3px 0' }}>
+        <select className="bs-apply-in" value={value || (placeholder ? '' : options[0])} onChange={(e) => onChange(e.target.value)} style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '3px 0' }}>
+          {placeholder ? <option value="" disabled>{placeholder}</option> : null}
           {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
         </select>
       </div>
@@ -257,7 +261,8 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
       firstName: firstName || '',
       lastName: rest.join(' '),
       email: auth.user?.email || auth.profile?.email || '',
-      years: '7-10 years',
+      // No default: the list starts below the standard, so a shown default would answer for them.
+      years: '',
       insurance: 'Yes',
       accepting: 'Yes',
       oneOnOne: 'Yes',
@@ -345,8 +350,11 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
       setError('You must be 18 or older to apply as a coach.');
       return;
     }
-    if (!experienceMeetsMinimum(values.years)) {
-      setError(`Shape requires at least ${REQUIRED_PROVIDER_EXPERIENCE_YEARS} years of professional coaching or nutrition experience.`);
+    // Under the standard is never a refusal: the application asks where they have worked and
+    // what kind of experience it is, and is reviewed individually (the route checks the same).
+    const experienceIssue = experienceProblem(values.years, { experience_history: values.experienceHistory, experience_type: values.experienceType });
+    if (experienceIssue) {
+      setError(experienceIssue);
       return;
     }
     // Nutrition compliance (NC1) — the route refuses without all four, so refuse
@@ -437,12 +445,19 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
         </div>
         <BSApplyInput label="Degree / school" value={values.edu} onChange={v => set('edu', v)} placeholder={isTrainer ? 'BS Kinesiology' : 'MS Nutrition'} />
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <BSApplySelect label="Years professional experience" value={values.years} onChange={v => set('years', v)} options={PROVIDER_EXPERIENCE_OPTIONS} />
+          <BSApplySelect label="Years professional experience" value={values.years} onChange={v => set('years', v)} options={PROVIDER_EXPERIENCE_OPTIONS} placeholder="Select" />
           <BSApplySelect label="Liability insurance" value={values.insurance} onChange={v => set('insurance', v)} options={['Yes', 'No', 'In progress']} />
         </div>
         <BSApplyNotice t={t}>
-          Shape requires a minimum of 5 years of professional {isTrainer ? 'training or coaching' : 'nutrition coaching or clinical'} experience before a provider profile can go live.
+          Shape's standard is {EXPERIENCE_STANDARD_YEARS} years of professional {isTrainer ? 'training or coaching' : 'nutrition coaching or clinical'} experience. With less, you can still apply: tell us where you've worked and what kind of experience it is, and we review your application individually.
         </BSApplyNotice>
+        {belowExperienceStandard(values.years) && (
+          <div style={{ display: 'grid', gap: 11 }}>
+            <BSApplyInput label="Where you've worked" value={values.experienceHistory} onChange={v => set('experienceHistory', v)} placeholder="Each place, your role and how long you were there" multiline />
+            <BSApplyInput label="Type of experience" value={values.experienceType} onChange={v => set('experienceType', v)} placeholder={isTrainer ? 'Gym floor, online coaching, a sports team, an internship' : 'Clinical or dietetic practice, online coaching, a sports team, an internship'} multiline />
+            <BSApplyInput label="Anything else we should know (optional)" value={values.experienceNotes} onChange={v => set('experienceNotes', v)} multiline />
+          </div>
+        )}
         <BSApplyInput label="Previous platforms" value={values.prev} onChange={v => set('prev', v)} placeholder="Trainerize, MyFitnessPal Pro" />
         <div style={{ display: 'grid', gap: 12 }}>
           <BSApplyFile label="Resume / CV" file={resumeFile} onChange={setResumeFile} helper="PDF, DOC or image. All files together up to 4 MB" />

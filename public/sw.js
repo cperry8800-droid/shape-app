@@ -27,8 +27,6 @@ const ASSETS = [
   '/messages.html',
   '/newdesign/consultation.html',
   '/signup-client.html',
-  '/signup-trainer.html',
-  '/signup-nutritionist.html',
   '/signup-gym.html',
   '/my-workouts.html',
   '/workout.html'

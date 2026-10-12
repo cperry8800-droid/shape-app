@@ -135,5 +135,15 @@ export default {
     { name: 'a failed application lookup does not stop the deletion', file: DELETE,
       find: '  if (applicationIds === null) allBucketsPurged = false;\n',
       replace: '' },
+    // ── the experience rule (2026-10-12) ──
+    { name: 'below the standard approves without the tick', file: 'src/app/dashboard/applications/actions.ts',
+      find: "  if (belowStandard && formData.get('experience_exception') !== 'yes') {",
+      replace: '  if (false) {' },
+    { name: 'the tick is not recorded', file: 'src/app/dashboard/applications/actions.ts',
+      find: '    experience_exception: belowStandard',
+      replace: '    experience_exception: false' },
+    { name: 'no answer publishes a made-up experience line', file: 'src/app/dashboard/applications/actions.ts',
+      find: '  if (years === null) return null;',
+      replace: "  if (years === null) return '7+ years';" },
   ],
 };
