@@ -12,6 +12,10 @@ import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson } from '@/lib/request-utils';
 import { CREDENTIAL_TYPES, credentialStatus, REQUIRED_ATTESTATIONS } from '@/lib/compliance/nutrition.mjs';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { sendEmail } from '@/lib/email';
+import { applicationsInbox, credentialsSubmittedEmail } from '@/lib/coach-application-emails';
+import { clearListingVerified } from '@/lib/coach-verification';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -87,6 +91,17 @@ export async function GET(request: Request) {
   });
 }
 
+// ⚠ A SELF-WRITTEN CREDENTIAL ROW IS UNREVIEWED AGAIN (the guard trigger sends it back to
+// 'pending' and clears its verification), so the listing's Verified badge comes off until an
+// admin re-approves. Best-effort: the write the coach asked for has already landed.
+async function unverifyListings(ownerId: string): Promise<void> {
+  try {
+    await clearListingVerified(createAdminClient(), ownerId);
+  } catch (err) {
+    console.error('[shape] could not clear the Verified badge for re-review:', err);
+  }
+}
+
 export async function POST(request: Request) {
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
@@ -101,6 +116,12 @@ export async function POST(request: Request) {
   // queue (/dashboard/credentials) picks it up and mirrors the verified flag onto
   // the marketplace row on approval.
   if (body.action === 'submit') {
+    // Already waiting for review? Then this click sends the admin no second email.
+    const { data: before } = await supabase
+      .from('provider_credentials')
+      .select('review_status')
+      .eq('owner_id', user.id)
+      .maybeSingle();
     const { error } = await supabase
       .from('provider_credentials')
       .upsert(
@@ -110,6 +131,19 @@ export async function POST(request: Request) {
     if (error) {
       console.error('[shape] credential submit failed:', error.message);
       return NextResponse.json({ error: 'Could not submit for review.' }, { status: 500 });
+    }
+    await unverifyListings(user.id);
+    // ⚠ THE ADMIN IS TOLD. A submission only flipped a row to 'pending' in a queue nobody had a
+    // link to, so credentials could wait unseen. Mailed to the applications inbox, like a new
+    // application; best-effort, the submission itself has already landed.
+    if ((before as { review_status?: string } | null)?.review_status !== 'pending') {
+      const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
+      const mail = credentialsSubmittedEmail({
+        coachName: typeof meta.full_name === 'string' ? meta.full_name : '',
+        coachEmail: user.email ?? '',
+        ownerId: user.id,
+      });
+      await sendEmail({ to: applicationsInbox(), ...mail }).catch((e) => console.error('[shape] credential submit notify failed', e));
     }
     return NextResponse.json({ ok: true, review: 'pending' });
   }
@@ -135,6 +169,8 @@ export async function POST(request: Request) {
     console.error('[shape] provider_credentials upsert failed:', credErr.message);
     return NextResponse.json({ error: 'Could not save your credentials.' }, { status: 500 });
   }
+  // The guard trigger has just sent the row back to re-review; the badge goes with it.
+  await unverifyListings(user.id);
 
   // Replace the license set (states the provider is licensed in).
   if (Array.isArray(body.licenses)) {

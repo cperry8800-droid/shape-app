@@ -7,8 +7,9 @@ import { redirect } from 'next/navigation';
 import { getCurrentUserAndProfile } from '@/lib/queries';
 import SignOutButton from '@/components/SignOutButton';
 import SentryUser from '@/components/SentryUser';
-import { getAdminEmails } from '@/lib/admin-access';
+import { getAdminEmails, requireAdminUser } from '@/lib/admin-access';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 const ACTIVE_SUB = new Set(['active', 'trialing', 'past_due']);
 
@@ -40,11 +41,32 @@ export default async function DashboardLayout({
     isMember = Boolean(sub && ACTIVE_SUB.has(String(sub.status)));
   }
 
+  // What is waiting on an admin, as a count on its tab: a new application or a credential
+  // submission was otherwise only an email in an inbox. Service role (neither table is readable
+  // by a member), so the full admin check runs first (a confirmed allow-listed email, as the
+  // pages themselves require). Best-effort: a failed count shows no badge, never blocks the page.
+  const waiting = { applications: 0, credentials: 0 };
+  if (isAdmin) {
+    try {
+      await requireAdminUser();
+      const admin = createAdminClient();
+      const [apps, creds] = await Promise.all([
+        admin.from('provider_applications').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+        admin.from('provider_credentials').select('owner_id', { count: 'exact', head: true }).eq('review_status', 'pending'),
+      ]);
+      waiting.applications = apps.error ? 0 : apps.count ?? 0;
+      waiting.credentials = creds.error ? 0 : creds.count ?? 0;
+    } catch {
+      /* no badge */
+    }
+  }
+
   // The user-facing dashboards moved to the newdesign portal
   // (public/newdesign/*.html). Only the admin tools still live under
   // /dashboard, so the nav is just those.
-  const tabs: { href: string; label: string; show: boolean }[] = [
-    { href: '/dashboard/applications', label: 'Applications', show: isAdmin },
+  const tabs: { href: string; label: string; show: boolean; count?: number }[] = [
+    { href: '/dashboard/applications', label: 'Applications', show: isAdmin, count: waiting.applications },
+    { href: '/dashboard/credentials', label: 'Credentials', show: isAdmin, count: waiting.credentials },
     { href: '/dashboard/refunds', label: 'Refunds', show: isAdmin },
     { href: '/dashboard/support', label: 'Help requests', show: isAdmin },
     { href: '/dashboard/claim', label: 'Claim profile', show: isAdmin },
@@ -88,6 +110,14 @@ export default async function DashboardLayout({
               className="text-sm text-neutral-400 hover:text-neutral-100 px-4 py-2.5 border-b-2 border-transparent hover:border-neutral-700 transition-colors -mb-px"
             >
               {t.label}
+              {t.count ? (
+                <span
+                  className="ml-2 inline-block min-w-[1.25rem] rounded-full bg-teal-400 px-1.5 text-center text-[11px] font-semibold leading-5 text-neutral-950"
+                  aria-label={`${t.count} waiting`}
+                >
+                  {t.count}
+                </span>
+              ) : null}
             </Link>
           ))}
       </nav>

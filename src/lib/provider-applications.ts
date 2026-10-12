@@ -63,24 +63,174 @@ export function hasBackgroundCheckConsent(
   );
 }
 
-export function backgroundCheckInfo(details: Record<string, unknown> | null | undefined): BackgroundCheckInfo {
-  const source = asRecord(details);
-  const consented = hasBackgroundCheckConsent(source);
-  const rawStatus = textValue(source.background_check_status) as BackgroundCheckStatus | '';
+// ⚠ THE REVIEWER'S RECORD IS NOT THE APPLICANT'S `details`. `details` is whatever the applicant
+// sent (the apply route sanitises its shape, not its meaning), so a background check "requested"
+// or "completed", a report id, an `approved_provider` block or a list of document paths found
+// there is the applicant's claim. The admin actions write their own record to the separate
+// `provider_applications.admin_review` column (2026-10-12-coach-application-review.sql), which
+// no applicant path writes, and the review console reads the check from there alone. Consent is
+// the one background-check fact that IS the applicant's to give, so it is still read from
+// `details` (the apply route refuses an application without it).
+export type AdminBackgroundCheck = {
+  provider: string;
+  status: BackgroundCheckStatus;
+  requested_at: string | null;
+  completed_at: string | null;
+  report_id: string | null;
+  updated_at: string;
+  updated_by: string;
+};
+
+const ADMIN_BACKGROUND_STATUSES: ReadonlySet<string> = new Set(['requested', 'needs_review', 'clear']);
+
+/** The background check as an admin recorded it in `admin_review`, or an empty record. */
+export function adminBackgroundCheck(adminReview: unknown): Record<string, unknown> {
+  return asRecord(asRecord(adminReview).background_check);
+}
+
+/**
+ * The background check as the review console shows it: consent from the applicant's `details`,
+ * everything else from the admin's own record. `adminReview` is required on purpose, so a caller
+ * cannot forget it and fall back to the applicant's word.
+ */
+export function backgroundCheckInfo(
+  details: Record<string, unknown> | null | undefined,
+  adminReview: unknown
+): BackgroundCheckInfo {
+  const consented = hasBackgroundCheckConsent(asRecord(details));
+  const check = adminBackgroundCheck(adminReview);
+  const rawStatus = textValue(check.status);
+  const status = ADMIN_BACKGROUND_STATUSES.has(rawStatus)
+    ? (rawStatus as BackgroundCheckStatus)
+    : consented
+      ? 'consent_received'
+      : 'missing_consent';
 
   return {
-    provider: textValue(source.background_check_provider) || DEFAULT_BACKGROUND_CHECK_PROVIDER,
-    status: rawStatus || (consented ? 'consent_received' : 'missing_consent'),
+    provider: textValue(check.provider) || DEFAULT_BACKGROUND_CHECK_PROVIDER,
+    status,
     consented,
-    requestedAt: textValue(source.background_check_requested_at),
-    completedAt: textValue(source.background_check_completed_at),
-    reportId: textValue(source.background_check_report_id),
+    requestedAt: textValue(check.requested_at),
+    completedAt: textValue(check.completed_at),
+    reportId: textValue(check.report_id),
   };
 }
 
-export function isBackgroundCheckClear(details: Record<string, unknown> | null | undefined): boolean {
-  const info = backgroundCheckInfo(details);
+export function isBackgroundCheckClear(
+  details: Record<string, unknown> | null | undefined,
+  adminReview: unknown
+): boolean {
+  const info = backgroundCheckInfo(details, adminReview);
   return info.consented && info.status === 'clear';
+}
+
+/** The next `admin_review` after an admin marks the background check `status`. */
+export function withAdminBackgroundCheck(
+  adminReview: unknown,
+  status: Exclude<BackgroundCheckStatus, 'consent_received'>,
+  adminId: string,
+  timestamp: string
+): Record<string, unknown> {
+  const current = asRecord(adminReview);
+  const prev = adminBackgroundCheck(current);
+  const next: AdminBackgroundCheck = {
+    provider: textValue(prev.provider) || DEFAULT_BACKGROUND_CHECK_PROVIDER,
+    status,
+    requested_at: textValue(prev.requested_at) || null,
+    completed_at: textValue(prev.completed_at) || null,
+    report_id: textValue(prev.report_id) || null,
+    updated_at: timestamp,
+    updated_by: adminId,
+  };
+  if (status === 'requested') next.requested_at = timestamp;
+  if (status === 'clear') next.completed_at = timestamp;
+  return { ...current, background_check: next };
+}
+
+// Keys of `details` the review card does not list as application answers: the documents (shown
+// as links), the consent and check keys (shown in the background-check panel) and an
+// `approved_provider` block, which only the admin's record can carry now.
+export const REVIEW_HIDDEN_DETAIL_KEYS: readonly string[] = [
+  'documents',
+  'approved_provider',
+  ...BACKGROUND_CHECK_DETAIL_KEYS,
+];
+
+/**
+ * The reviewer-only fields an applicant put in `details` anyway: an `approved_provider` block or a
+ * background check marked requested, completed or reported. Ignored everywhere; listed so the
+ * review card can say so.
+ */
+export function applicantSuppliedReviewKeys(details: Record<string, unknown> | null | undefined): string[] {
+  const source = asRecord(details);
+  const keys: string[] = [];
+  if (source.approved_provider != null) keys.push('approved_provider');
+  for (const key of ['background_check_requested_at', 'background_check_completed_at', 'background_check_report_id']) {
+    if (textValue(source[key])) keys.push(key);
+  }
+  return keys;
+}
+
+export type ApplicationDocument = { kind: string; name: string; path: string };
+
+/** Every document an application's `details` names (the applicant's list, unchecked). */
+export function listApplicationDocuments(details: Record<string, unknown> | null | undefined): ApplicationDocument[] {
+  const source = asRecord(details);
+  const docs: ApplicationDocument[] = [];
+  const rawDocs = source.documents;
+  if (Array.isArray(rawDocs)) {
+    for (const doc of rawDocs) {
+      if (!doc || typeof doc !== 'object') continue;
+      const item = doc as Record<string, unknown>;
+      const path = typeof item.path === 'string' ? item.path : '';
+      if (!path) continue;
+      docs.push({
+        kind: typeof item.kind === 'string' ? item.kind.slice(0, 60) : 'document',
+        name: typeof item.name === 'string' ? item.name.slice(0, 160) : path.split('/').pop() || 'Document',
+        path,
+      });
+    }
+  }
+  // The legacy root signup pages' keys.
+  for (const key of ['resume_path', 'certProof_path', 'insuranceDoc_path', 'samplePlan_path']) {
+    const path = source[key];
+    if (typeof path === 'string' && path) {
+      docs.push({ kind: key.replace('_path', ''), name: path.split('/').pop() || key, path });
+    }
+  }
+  return docs;
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * ⚠ WHETHER THE REVIEW CONSOLE MAY SIGN `path` FOR THIS APPLICATION. The console signs with the
+ * service role, so any path it is handed opens any object in the private provider-credentials
+ * bucket. Only the two prefixes a real submission writes are accepted:
+ *   · `website/<applicationId>/…` — /api/apply uploads under the id of the row it just inserted;
+ *   · `<applicantUid>/…` — the installed app uploads under the signed-in member's id, and the
+ *     caller passes the uid of the auth account whose email IS the application's email (so an
+ *     applicant cannot name somebody else's folder by naming their id).
+ * Anything else, or anything with an empty, `.` or `..` segment, a backslash or a control
+ * character, is refused.
+ */
+export function applicationDocumentPathAllowed(
+  path: unknown,
+  applicationId: string,
+  applicantUid: string | null
+): boolean {
+  if (typeof path !== 'string' || !path || path.length > 600) return false;
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u001f\u007f\\]/.test(path)) return false;
+  const segments = path.split('/');
+  if (segments.some((s) => s === '' || s === '.' || s === '..')) return false;
+  if (UUID_RE.test(applicationId) && segments.length >= 3 && segments[0] === 'website' && segments[1] === applicationId) {
+    return true;
+  }
+  if (applicantUid && UUID_RE.test(applicantUid) && segments.length >= 2 && segments[0] === applicantUid) {
+    return true;
+  }
+  return false;
 }
 
 export function withBackgroundCheckDetails(

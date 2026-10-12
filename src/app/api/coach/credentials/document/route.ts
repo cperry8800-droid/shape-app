@@ -10,6 +10,7 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { clearListingVerified } from '@/lib/coach-verification';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -95,6 +96,14 @@ export async function POST(request: Request) {
       console.error('[shape] cert file save failed:', error.message);
       return NextResponse.json({ error: 'Could not record the document.' }, { status: 500 });
     }
+  }
+
+  // A new document sends the row back to re-review (the guard trigger), so the Verified badge
+  // comes off until an admin re-approves. Best-effort: the upload itself has landed.
+  try {
+    await clearListingVerified(admin, user.id);
+  } catch (err) {
+    console.error('[shape] could not clear the Verified badge for re-review:', err);
   }
 
   return NextResponse.json({ ok: true, path });
