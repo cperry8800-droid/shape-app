@@ -46,7 +46,7 @@ const MB = 1024 * 1024;
 const hoursAgo = (h) => new Date(Date.now() - h * 3600 * 1000).toISOString();
 
 /** The service-role client: PostgREST-shaped reads over `rows`, inserts recorded, a bucket that can fail its Nth upload. */
-function fakeAdmin({ rows = [], insertErrors = [], failUploadAt = -1, rateAllowed = true, rateError = false, beforeInsert = null, objects = {} } = {}) {
+function fakeAdmin({ rows = [], insertErrors = [], failUploadAt = -1, rateAllowed = true, rateError = false, beforeInsert = null, objects = {}, afterSelect = null } = {}) {
   const calls = [];
   const uploads = [];
   const removed = [];
@@ -64,6 +64,7 @@ function fakeAdmin({ rows = [], insertErrors = [], failUploadAt = -1, rateAllowe
           return { data: { id: st.payload.id }, error: null };
         }
         let hit = rows.filter((r) => st.filters.every((f) => f(r)));
+        if (afterSelect) afterSelect(calls.filter((c) => c.op === 'select').length, rows);
         if (st.order) hit = [...hit].sort((a, b) => (a[st.order] < b[st.order] ? 1 : -1));
         if (st.limit != null) hit = hit.slice(0, st.limit);
         return { data: st.single ? hit[0] ?? null : hit, error: null };
@@ -514,6 +515,16 @@ test('ticket: a resend after success gets its own application back and its files
   const raced = await (await applyRoute(race)).post({ fields: { uploadTicket: ticketFor(), uploads: claimed() } });
   assert.deepEqual(raced.body, { ok: true, id: DRAFT, duplicate: true });
   assert.equal(race.removed.length, 0, 'the files are the saved row\'s');
+
+  // ⚠ The other send's row lands between this one's own-row check and its open-application read:
+  // the open application it then finds IS this ticket's, and its files are not orphans.
+  const overlap = fakeAdmin({
+    objects: draftObjects(),
+    afterSelect: (n, rows) => { if (n === 1) rows.push({ id: DRAFT, email: 'ada@example.invalid', provider_type: 'trainer', status: 'pending', created_at: new Date().toISOString() }); },
+  });
+  const overlapped = await (await applyRoute(overlap)).post({ fields: { uploadTicket: ticketFor(), uploads: claimed() } });
+  assert.deepEqual(overlapped.body, { ok: true, id: DRAFT, duplicate: true });
+  assert.equal(overlap.removed.length, 0, 'the saved application keeps its documents');
 
   const open = fakeAdmin({ objects: draftObjects(), rows: [{ id: 'app-first', email: 'ada@example.invalid', provider_type: 'trainer', status: 'pending', created_at: hoursAgo(1) }] });
   const dup = await (await applyRoute(open)).post({ fields: { uploadTicket: ticketFor(), uploads: claimed() } });

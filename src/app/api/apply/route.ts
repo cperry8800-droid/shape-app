@@ -526,8 +526,10 @@ export async function POST(req: NextRequest) {
 
   const existingId = await openApplicationId();
   if (existingId) {
-    // This request's uploads belong to no application now; take them back.
-    if (ticketDraftId) {
+    // This request's uploads belong to no application now; take them back. ⚠ UNLESS THE OPEN
+    // APPLICATION IS THIS TICKET'S OWN: a second send of the ticket that started before the first
+    // one's row landed finds that row here, and its files are the saved application's.
+    if (ticketDraftId && existingId !== ticketDraftId && !(await ticketRowExists())) {
       try {
         const { documents: orphaned } = await storedApplicationDocuments(ticketDraftId, []);
         await removeApplicationFiles(orphaned);
