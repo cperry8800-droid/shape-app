@@ -31,6 +31,12 @@ const nextConfig: NextConfig = {
       // Consultation booking now lives in newdesign (the legacy page is retired).
       { source: '/consultation', destination: '/newdesign/consultation.html', permanent: true },
       { source: '/consultation.html', destination: '/newdesign/consultation.html', permanent: true },
+      // The About page is retired (owner, 2026-10-12: "remove the about page from
+      // app and website"). Old links and bookmarks land on the homepage instead of
+      // a 404. Temporary, so a browser does not cache it if the page comes back.
+      { source: '/about', destination: '/newdesign/index.html', permanent: false },
+      { source: '/about.html', destination: '/newdesign/index.html', permanent: false },
+      { source: '/newdesign/About.html', destination: '/newdesign/index.html', permanent: false },
     ];
   },
   async rewrites() {
@@ -44,11 +50,6 @@ const nextConfig: NextConfig = {
       })),
       { source: '/newdesign', destination: '/newdesign/index.html' },
       { source: '/newdesign/', destination: '/newdesign/index.html' },
-      // About page lives at /public/newdesign/About.html. Rewrites (not
-      // redirects) keep the clean URL in the bar and avoid the case-sensitivity
-      // redirect loops Vercel can hit between lowercase/uppercase paths.
-      { source: '/about', destination: '/newdesign/About.html' },
-      { source: '/about.html', destination: '/newdesign/About.html' },
       // Recipes library lives at public/newdesign/Recipes.html.
       { source: '/recipes', destination: '/newdesign/Recipes.html' },
       { source: '/recipes.html', destination: '/newdesign/Recipes.html' },

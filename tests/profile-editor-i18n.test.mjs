@@ -93,9 +93,9 @@ test('guard-the-guard: both tables extracted, shaped, and non-trivial', () => {
 test('the brand nouns carry NO tKey, and that exemption is the point', () => {
   // "Shape Score", Instagram, X, TikTok, YouTube and Substack are byte-identical
   // in all thirteen locales. Keying one would ship thirteen copies of a string a
-  // translator must not touch — the same exemption as BSAboutPage's founder
-  // signature and BSSettings' `AB` initials placeholder. A later sweep that
-  // "completes" the tables by adding a key to any of them fails here.
+  // translator must not touch — the same exemption as BSSettings' `AB`
+  // initials placeholder. A later sweep that "completes" the tables by adding a
+  // key to any of them fails here.
   assert.equal(BS_STAT_OPTIONS.find((o) => o.key === 'score').tKey, undefined,
     'Shape Score is a brand noun — it must stay literal in every locale');
   for (const k of ['instagram', 'x', 'tiktok', 'youtube', 'substack']) {

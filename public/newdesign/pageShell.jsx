@@ -273,11 +273,10 @@ const SHAPE_NAV_GROUPS = [
   { kind: "drop", label: "Rewards", href: REWARDS_HREF, match: ["Rewards", STORE_TAB.label], items: REWARDS_ITEMS,
     signedIn: [{ kind: "link", label: "Rewards", href: REWARDS_HREF }, STORE_TAB] },
   { kind: "link", label: "Pricing", href: "Pricing.html" },
-  { kind: "link", label: "About", href: "About.html" },
 ];
 
 // ⚠ SIGNED IN, THE ROW IS THE SITE'S OWN TABS MINUS THE TWO SIGN-UP PAGES —
-// Coaches ▾ · App · Kitchen · Community · Rewards · Store · About, the same row for a
+// Coaches ▾ · App · Kitchen · Community · Rewards · Store, the same row for a
 // member, a trainer and a nutritionist. Owner, 2026-09-23, on a screenshot of the
 // signed-in bar reading only "Coaches ▾  About": "need to add more nav tabs on main
 // nav bar when signed into account" — and of the rows put to them, "Site tabs
@@ -1508,7 +1507,7 @@ function Footer({ logoHeight = 44 } = {}) {
                quietly leaving a wrong claim here. */
             ["Product",     [["Marketplace", "Marketplace.html"], ["The app", "GetApp.html"], ["Shape Score", "Score.html"], ["Shape Store", "Store.html"], ["Radio", "Radio.html"], ["Shape Kitchen", "Recipes.html"], ["For members", "Client.html"]]],
             ["For coaches", [["For coaches", "Coaches.html"], ["For trainers", "Coach.html"], ["For nutritionists", "Nutritionist.html"], ["Apply", "SignupTrainer.html"], ["Rates & payouts", "Pricing.html"]]],
-            ["Company",     [["About", "About.html"], ["Pricing", "Pricing.html"], ["Privacy", "/privacy.html"], ["Terms", "/terms.html"]]],
+            ["Company",     [["Pricing", "Pricing.html"], ["Privacy", "/privacy.html"], ["Terms", "/terms.html"]]],
             ["Support",     [["Help", "/help.html"], ["Contact", "/contact.html"], ["Code of conduct", "/code-of-conduct.html"], ["Data & compliance", "/data-compliance.html"], ["Consumer health data", "/health-data-privacy.html"], ["Subprocessors", "/subprocessors.html"]]],
           ].map(([h, items]) => (
             <div key={h}>

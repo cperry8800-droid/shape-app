@@ -39,7 +39,7 @@ const compiled = babel.transformSync(SHELL.slice(decl.start, decl.end), {
 const MobileDrawer = new Function('React', 'ReactDOM', 'navGroupsFor', 'dashShellHref', 'sans', 'navSans', 'INK', 'TEAL', 'TEAL_BRIGHT',
   compiled + '\nreturn MobileDrawer;')(
   React, ReactDOM,
-  () => [{ kind: 'link', label: 'App', href: 'GetApp.html' }, { kind: 'link', label: 'About', href: 'About.html' }],
+  () => [{ kind: 'link', label: 'App', href: 'GetApp.html' }, { kind: 'link', label: 'Pricing', href: 'Pricing.html' }],
   (href) => href, 'sans-serif', 'sans-serif', '#f2ede4', '#0ac5a8', '#2ee0c4',
 );
 

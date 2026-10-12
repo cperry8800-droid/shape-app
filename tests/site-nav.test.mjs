@@ -313,9 +313,11 @@ const DASHBOARD_TABS = ['Workouts', 'Nutrition', 'Progress', 'Schedule', 'Client
 
 // Owner, 2026-10-09: the Store is a Rewards menu item signed out and "its own tab
 // on nav bar when logged into an account", so it sits right after Rewards here.
+// Owner, 2026-10-12: "remove the about page from app and website" — About left the
+// row, so Store ends it.
 test('the signed-in row is the site\'s tabs minus the two sign-up pages, and none of the dashboard\'s', () => {
   const labels = NAV_TABLES.PORTAL_NAV.map((g) => g.label);
-  assert.deepEqual(labels, ['Coaches', 'App', 'Kitchen', 'Community', 'Rewards', 'Store', 'About'],
+  assert.deepEqual(labels, ['Coaches', 'App', 'Kitchen', 'Community', 'Rewards', 'Store'],
     'the signed-in row is not the owner\'s pick: ' + labels.join(' · '));
   assert.deepEqual(NAV_TABLES.SIGNED_OUT_ONLY, ['Members', 'Pricing'],
     'the sign-up pages kept off the signed-in row changed: ' + NAV_TABLES.SIGNED_OUT_ONLY.join(' · '));

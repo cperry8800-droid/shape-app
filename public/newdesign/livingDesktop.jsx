@@ -95,7 +95,7 @@ function DesktopNav({ d, direction }) {
   const c = tierOf(d).color;
   // Match the site's marketing nav — same logo + links, so the profile page
   // doesn't feel like a different site.
-  const links = [["about", "/newdesign/About.html"], ["marketplace", "/newdesign/Marketplace.html"], ["community", "/newdesign/Community.html"], ["pricing", "/newdesign/Pricing.html"]];
+  const links = [["marketplace", "/newdesign/Marketplace.html"], ["community", "/newdesign/Community.html"], ["pricing", "/newdesign/Pricing.html"]];
   const link = { fontFamily: dSans, fontSize: 13, color: dHexA(LV_INK, 0.6), textDecoration: "none", fontWeight: 400, textTransform: "lowercase", letterSpacing: "0.04em", whiteSpace: "nowrap" };
   return (
     <header style={{ position: "sticky", top: 0, zIndex: 40, backdropFilter: "blur(18px)", background: dHexA(LV_BG, 0.72), borderBottom: `1px solid ${dHexA(LV_INK, 0.08)}` }}>
