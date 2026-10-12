@@ -108,6 +108,9 @@
   "listing.reviewError": "Tidak bisa mengirim ulasan",
   "listing.reviewPlaceholder": "Ceritakan pengalamanmu…",
   "listing.reviewPosted": "Ulasan terkirim",
+  "listing.noReviews": "Belum ada ulasan",
+  "listing.reviewRelationship": "Kamu bisa mengulas pelatih setelah berlangganan atau mengikuti sesi dengannya.",
+  "listing.reviewSignIn": "Masuk untuk menulis ulasan.",
   "listing.roomForYou": "{name} punya tempat untukmu.",
   "listing.samplePlan": "Contoh rencana",
   "listing.sampleWorkout": "Contoh latihan",
@@ -184,5 +187,6 @@
   "preview.locked": "＋{count} lagi · terbuka setelah kamu beli",
   "preview.noOutline": "Coach ini belum menerbitkan rangkaian untuk yang ini.",
   "preview.buy": "Beli · {price} →",
-  "preview.action": "Lihat isinya →"
+  "preview.action": "Lihat isinya →",
+  "rating.new": "Baru"
 }

@@ -108,6 +108,9 @@
   "listing.reviewError": "Không đăng được đánh giá",
   "listing.reviewPlaceholder": "Chia sẻ trải nghiệm…",
   "listing.reviewPosted": "Đã đăng đánh giá",
+  "listing.noReviews": "Chưa có đánh giá",
+  "listing.reviewRelationship": "Bạn có thể đánh giá huấn luyện viên sau khi đăng ký hoặc có buổi tập với họ.",
+  "listing.reviewSignIn": "Đăng nhập để để lại đánh giá.",
   "listing.roomForYou": "{name} có chỗ cho bạn.",
   "listing.samplePlan": "Kế hoạch mẫu",
   "listing.sampleWorkout": "Bài tập mẫu",
@@ -184,5 +187,6 @@
   "preview.locked": "＋{count} nữa · mở khóa khi bạn mua",
   "preview.noOutline": "Huấn luyện viên này chưa đăng bố cục cho mục này.",
   "preview.buy": "Mua · {price} →",
-  "preview.action": "Xem bên trong →"
+  "preview.action": "Xem bên trong →",
+  "rating.new": "Mới"
 }

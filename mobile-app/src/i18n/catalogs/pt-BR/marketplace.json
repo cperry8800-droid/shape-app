@@ -108,6 +108,9 @@
   "listing.reviewError": "Não foi possível publicar a avaliação",
   "listing.reviewPlaceholder": "Conte como foi…",
   "listing.reviewPosted": "Avaliação publicada",
+  "listing.noReviews": "Ainda sem avaliações",
+  "listing.reviewRelationship": "Você pode avaliar um coach depois de assinar ou fazer uma sessão com ele.",
+  "listing.reviewSignIn": "Entre para deixar uma avaliação.",
   "listing.roomForYou": "{name} tem uma vaga para você.",
   "listing.samplePlan": "Plano de exemplo",
   "listing.sampleWorkout": "Treino de exemplo",
@@ -184,5 +187,6 @@
   "preview.locked": "＋{count} a mais · liberados na compra",
   "preview.noOutline": "Este coach ainda não publicou um roteiro para este.",
   "preview.buy": "Comprar · {price} →",
-  "preview.action": "O que tem dentro →"
+  "preview.action": "O que tem dentro →",
+  "rating.new": "Novo"
 }

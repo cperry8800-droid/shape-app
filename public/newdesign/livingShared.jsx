@@ -483,7 +483,10 @@ function LvServices({ d, light, ink, c, owner, onReviews, stHead, ratingAvg, rev
   const shownRating = ratingAvg != null ? ratingAvg : d.rating;
   const shownReviewCount = reviewCount != null ? reviewCount : d.reviewCount;
   const reviewsBtn = { cursor: onReviews ? "pointer" : "default", textDecoration: onReviews ? "underline" : "none", textUnderlineOffset: 2, color: ink, background: "transparent", border: 0, padding: 0, font: "inherit" };
-  const ratingMeta = <span style={{ fontFamily: lvMono, fontSize: 10, color: hexA(ink, 0.5) }}>★ {shownRating}/10 · {onReviews ? <button type="button" onClick={onReviews} style={reviewsBtn}>{shownReviewCount} reviews</button> : <span>{shownReviewCount} reviews</span>}</span>;
+  // A real coach nobody has reviewed yet shows "New", never a number (owner, 2026-10-12).
+  const ratingMeta = shownRating == null
+    ? <span style={{ fontFamily: lvMono, fontSize: 10, color: hexA(ink, 0.5) }}>New · {onReviews ? <button type="button" onClick={onReviews} style={reviewsBtn}>no reviews yet</button> : <span>no reviews yet</span>}</span>
+    : <span style={{ fontFamily: lvMono, fontSize: 10, color: hexA(ink, 0.5) }}>★ {shownRating}/10 · {onReviews ? <button type="button" onClick={onReviews} style={reviewsBtn}>{shownReviewCount} reviews</button> : <span>{shownReviewCount} reviews</span>}</span>;
   return (
     <div style={{ marginTop: 30 }}>
       {stHead ? stHead(d.offerLabel, ratingMeta) : <div style={{ fontFamily: lvMono, fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: hexA(ink, 0.5), marginBottom: 13 }}>{d.offerLabel}</div>}
@@ -629,6 +632,16 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
   // business" and NOT "at capacity". Both of those are claims about the coach.
   const [prow, setProw] = React.useState(null);   // { id, atCapacity } | null
   const [liveReviews, setLiveReviews] = React.useState(null);
+  // Write a review (1–10) — the website had no way to leave one; the only form
+  // lived in an orphaned page. Same route and rules as the app's listing form.
+  const [revRating, setRevRating] = React.useState(0);
+  const [revText, setRevText] = React.useState("");
+  const [revBusy, setRevBusy] = React.useState(false);
+  const [revMsg, setRevMsg] = React.useState("");
+  // The server's average and count are over EVERY review; the list is the newest 200.
+  const [revAgg, setRevAgg] = React.useState(null);
+  const [revLoad, setRevLoad] = React.useState(0);
+  const revKeyRef = React.useRef("");
   // Coach-authored monthly offer (spec #1632 §5) — the same provider-row
   // monthly_offer the mobile Listing's WHAT'S INCLUDED sheet reads. The
   // provider tables are public-read; pre-migration the select just errors
@@ -664,7 +677,7 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
     // flag is exactly that kind of state, except worse: left standing it would
     // present the NEXT coach as paused on the strength of a refusal about someone
     // else, and their storefront would never render at all.
-    cl.from(providerTable).select("id, monthly_offer, listing_media, at_capacity, capacity_resume_at").eq("owner_id", d.uid).maybeSingle()
+    cl.from(providerTable).select("id, name, monthly_offer, listing_media, at_capacity, capacity_resume_at").eq("owner_id", d.uid).maybeSingle()
       .then((r) => {
         if (!on || !r || r.error || !r.data) return;
         // Capacity rides the request that was already going out — the page has always
@@ -679,7 +692,7 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
         // reads it as accepting too, which is the point of copying the expression
         // rather than re-deriving one that agrees on the cases somebody thought of.
         const resume = r.data.capacity_resume_at;
-        setProw({ id: r.data.id, atCapacity: !!r.data.at_capacity && (!resume || new Date(resume).getTime() > Date.now()) });
+        setProw({ id: r.data.id, name: r.data.name || "", atCapacity: !!r.data.at_capacity && (!resume || new Date(resume).getTime() > Date.now()) });
         if (r.data.monthly_offer) setOffer(r.data.monthly_offer);
         const lib = window.ShapeListingLib;
         if (lib && lib.bsNormalizeListingMedia) {
@@ -692,12 +705,52 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
   }, [d.uid, providerTable]);
   const offerLines = offer && Array.isArray(offer.includes) ? offer.includes.filter((x) => typeof x === "string" && x.trim()).slice(0, 8) : [];
   const hasOffer = Boolean(offer && ((offer.blurb && String(offer.blurb).trim()) || offerLines.length));
+  // ⚠ A COACH WITH AN ACCOUNT IS RATED BY ITS REVIEWS OR NOT AT ALL (owner,
+  // 2026-10-12). Its reviews are read by ACCOUNT — the slug is a name, and the
+  // profile name and the listing name can differ — and kept even when there are
+  // none, so an unreviewed coach reads "No reviews yet" rather than the persona's.
   React.useEffect(() => {
     const slug = String(d.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
     let on = true;
-    fetch(`/api/coaches/reviews?coach=${encodeURIComponent(slug)}`, { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : null)).then((j) => { if (on && j && Array.isArray(j.reviews) && j.reviews.length) setLiveReviews(j.reviews); }).catch(() => {});
+    // A different coach clears the last one's reviews; a re-read after a post keeps them on screen.
+    const key = `${d.uid || ""}|${d.name || ""}`;
+    if (revKeyRef.current !== key) { revKeyRef.current = key; setLiveReviews(null); setRevAgg(null); }
+    const q = d.uid ? `owner=${encodeURIComponent(d.uid)}` : `coach=${encodeURIComponent(slug)}`;
+    fetch(`/api/coaches/reviews?${q}`, { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : null)).then((j) => {
+      if (!on || !j || !Array.isArray(j.reviews)) return;
+      if (d.uid || j.reviews.length) setLiveReviews(j.reviews);
+      setRevAgg(Number.isFinite(Number(j.count)) ? { avg: Number(j.avg) || 0, count: Number(j.count) } : null);
+    }).catch(() => {});
     return () => { on = false; };
-  }, [d.uid, d.name]);
+  }, [d.uid, d.name, revLoad]);
+  const postReview = async () => {
+    if (!revRating || revBusy) return;
+    if (!acct) { setRevMsg("Sign in to leave a review."); return; }
+    // ⚠ THE LISTING'S NAME OR NOTHING (Codex, #2313). The review is filed under the
+    // listing's slug, which the relationship check resolves; the profile's name can
+    // differ, so posting before the listing row has loaded (or when it could not be
+    // read) would file it under the wrong coach and be refused.
+    if (!(prow && prow.name)) { setRevMsg("This coach's listing is still loading — try again in a moment."); return; }
+    setRevBusy(true); setRevMsg("");
+    const listingName = prow.name;
+    const slug = String(listingName).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+    try {
+      const res = await fetch("/api/coaches/reviews", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ coach: slug, kind: providerTable === "nutritionists" ? "nutritionist" : "trainer", rating: revRating, text: revText }) });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok && j && j.review) {
+        setLiveReviews((prev) => [j.review, ...((prev || []).filter((x) => x && x.id !== j.review.id))]);
+        setRevRating(0); setRevText(""); setRevMsg("Thanks — your review is posted.");
+        setRevLoad((n) => n + 1);   // re-read the average and count
+      } else if (j && j.code === "relationship_required") {
+        setRevMsg("You can review a coach once you have subscribed to them or had a session with them.");
+      } else if (res.status === 401) {
+        setRevMsg("Sign in to leave a review.");
+      } else {
+        setRevMsg((j && j.error) || "Could not post your review.");
+      }
+    } catch (e) { setRevMsg("Could not post your review — check your connection and try again."); }
+    finally { setRevBusy(false); }
+  };
   const openChat = () => { try { if (window.__openChat) { window.__openChat({ who: d.name }); return; } const b = document.getElementById("shape-global-chat-button"); if (b) b.click(); } catch (e) {} };
   // ── The waiting list ──────────────────────────────────────────────────────
   // The app has carried this since #1498 and so do the LEGACY website pages
@@ -841,7 +894,9 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
     } catch (e) { setBuyErr("Could not start checkout — check your connection and try again."); }
     finally { busy.current = false; }
   };
-  const reviewsAvg = (liveReviews && liveReviews.length) ? Math.round((liveReviews.reduce((s, r) => s + (r.rating || 0), 0) / liveReviews.length) * 10) / 10 : null;
+  const reviewsAvg = (revAgg && revAgg.count > 0) ? revAgg.avg
+    : (liveReviews && liveReviews.length) ? Math.round((liveReviews.reduce((s, r) => s + (r.rating || 0), 0) / liveReviews.length) * 10) / 10 : null;
+  const reviewsCount = revAgg ? revAgg.count : (liveReviews && liveReviews.length ? liveReviews.length : d.reviewCount);
   const reviewItems = (liveReviews && liveReviews.length)
     ? liveReviews.map((r) => ({ name: r.author || "Member", initials: (r.author || "M").slice(0, 2).toUpperCase(), hue: 160, stars10: Math.round(r.rating || 0), body: r.text || "", time: "", authorId: r.authorId || null }))
     : d.reviews.map((r) => ({ ...r, stars10: 10, authorId: null }));
@@ -1040,17 +1095,43 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
           passed so the rate-card rating matches the Reviews tab (honest data). */}
       <LvServices d={d} light={light} ink={ink} c={c} stHead={stHead} owner={owner} onReviews={onReviews}
         ratingAvg={reviewsAvg != null ? reviewsAvg : d.rating}
-        reviewCount={liveReviews && liveReviews.length ? liveReviews.length : d.reviewCount} />
+        reviewCount={reviewsCount} />
       </React.Fragment>}
 
       {/* Reviews — its own tab; zero-box entries on hairlines (press clippings) */}
       {showReviews && <div style={{ marginTop: showCoaching ? 30 : 4 }}>
-        {stHead("Reviews", (
+        {stHead("Reviews", (reviewsAvg != null || d.rating != null) ? (
           <span style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
             <span style={{ fontFamily: lvSerif, fontSize: 20, letterSpacing: "-0.02em", color: ink }}>{reviewsAvg != null ? reviewsAvg : d.rating}</span>
-            <span style={{ fontFamily: lvMono, fontSize: 10, color: hexA(ink, 0.5) }}>/10 · ★ {liveReviews && liveReviews.length ? liveReviews.length : d.reviewCount}</span>
+            <span style={{ fontFamily: lvMono, fontSize: 10, color: hexA(ink, 0.5) }}>/10 · ★ {reviewsCount}</span>
           </span>
-        ))}
+        ) : null)}
+        {/* Write a review — a real coach's profile, not your own. The server decides
+            who may (a subscription or a session with this coach) and says so. */}
+        {d.uid && !owner && (
+          <div style={{ padding: "4px 0 14px", borderBottom: `1px solid ${hexA(ink, 0.08)}` }}>
+            <div style={{ fontFamily: lvMono, fontSize: 9.5, letterSpacing: "0.18em", textTransform: "uppercase", color: hexA(ink, 0.5), marginBottom: 8 }}>Your rating</div>
+            <div role="radiogroup" aria-label="Your rating, 1 to 10" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 2, marginBottom: 10 }}>
+              {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                <button key={n} type="button" role="radio" aria-checked={revRating === n} aria-label={`${n} of 10`} onClick={() => { setRevRating(n); setRevMsg(""); }}
+                  style={{ background: "transparent", border: 0, cursor: "pointer", padding: "0 1px", fontSize: 20, lineHeight: 1, color: n <= revRating ? c : hexA(ink, 0.25) }}>★</button>
+              ))}
+              {revRating ? <span style={{ marginLeft: 6, fontFamily: lvMono, fontSize: 11, color: ink }}>{revRating}/10</span> : null}
+            </div>
+            <textarea value={revText} onChange={(e) => setRevText(e.target.value)} maxLength={800} rows={2} placeholder="Share how it went…" aria-label="Your review"
+              style={{ width: "100%", boxSizing: "border-box", background: hexA(ink, 0.04), color: ink, border: `1px solid ${hexA(ink, 0.14)}`, borderRadius: 6, padding: "8px 10px", fontFamily: lvSans, fontSize: 14, resize: "vertical", outline: "none" }} />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 8 }}>
+              <span role="status" style={{ fontFamily: lvSans, fontSize: 12.5, color: hexA(ink, 0.65) }}>{revMsg}</span>
+              <button type="button" onClick={postReview} disabled={!revRating || revBusy || !(prow && prow.name)}
+                style={{ flex: "none", borderRadius: 6, padding: "8px 16px", background: revRating ? ink : hexA(ink, 0.08), color: revRating ? (light ? "#f1ece3" : LV_BG) : hexA(ink, 0.45), border: 0, cursor: revRating && !revBusy ? "pointer" : "default", fontFamily: lvMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>
+                {revBusy ? "Posting…" : "Post review"}
+              </button>
+            </div>
+          </div>
+        )}
+        {!reviewItems.length && (
+          <div style={{ padding: "14px 0", fontFamily: lvMono, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: hexA(ink, 0.5) }}>No reviews yet</div>
+        )}
         <div style={{ display: "flex", flexDirection: "column" }}>
           {reviewItems.map((r, i) => (
             <div key={i} style={{ padding: "14px 0", borderTop: i ? `1px solid ${hexA(ink, 0.08)}` : "none" }}>

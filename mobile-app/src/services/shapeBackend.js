@@ -7116,6 +7116,45 @@ window.ShapeStrength = { get: getClientStrength };
 // for the signed-in coach (self only; RLS-scoped). Null fields fall back to demo.
 async function getCoachRings() { return getJsonOrDefault(`${apiBaseUrl || ''}/api/coach/rings`, null, (d) => (d && d.isCoach ? d : null)); }
 window.ShapeCoachRings = { get: getCoachRings };
+// Coach reviews (1–10), shared with the website through /api/coaches/reviews.
+// ⚠ THROUGH apiBaseUrl + Bearer, NEVER A ROOT-RELATIVE fetch: on the native build
+// the WebView's origin is the Capacitor scheme, so `/api/...` reached nothing and
+// every review read came back empty — the app then showed the column's or the demo
+// persona's numbers on every live coach. Reads work signed out (reviews are public);
+// a post needs a session and the server's relationship check.
+async function coachReviewsGet(query) {
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/coaches/reviews${query}`, { headers: sessionsAuthHeaders(), credentials: 'same-origin', cache: 'no-store' });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) {
+    return null;
+  }
+}
+async function postCoachReview({ coach, kind, rating, text }) {
+  if (!state.session?.access_token && !state.user?.id) return { ok: false, status: 401, error: 'Sign in to leave a review.' };
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/coaches/reviews`, {
+      method: 'POST',
+      headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+      credentials: 'same-origin',
+      body: JSON.stringify({ coach, kind, rating, text }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, status: res.status, code: data && data.code, error: (data && data.error) || '' };
+    return { ok: true, review: data && data.review };
+  } catch (e) {
+    return { ok: false, status: 0, error: '' };
+  }
+}
+window.ShapeCoachReviews = {
+  // { summaries: { slug: {avg,count} }, owners: { ownerId: {avg,count} } } or null
+  summaries: () => coachReviewsGet(''),
+  forCoach: (slug) => coachReviewsGet(`?coach=${encodeURIComponent(slug)}`),
+  forOwner: (ownerId) => coachReviewsGet(`?owner=${encodeURIComponent(ownerId)}`),
+  byIds: (ids) => coachReviewsGet(`?ids=${encodeURIComponent(ids)}`),
+  post: postCoachReview,
+};
 
 // Follower / following graph (public profiles). stats → counts + my state;
 // toggle → follow/unfollow; list → the followers/following names.

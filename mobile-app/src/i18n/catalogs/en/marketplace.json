@@ -108,6 +108,9 @@
   "listing.reviewError": "Could not post review",
   "listing.reviewPlaceholder": "Share how it went…",
   "listing.reviewPosted": "Review posted",
+  "listing.noReviews": "No reviews yet",
+  "listing.reviewRelationship": "You can review a coach once you have subscribed to them or had a session with them.",
+  "listing.reviewSignIn": "Sign in to leave a review.",
   "listing.roomForYou": "{name} has room for you.",
   "listing.samplePlan": "Sample plan",
   "listing.sampleWorkout": "Sample workout",
@@ -184,5 +187,6 @@
   "preview.locked": "＋{count} more · unlocked when you buy",
   "preview.noOutline": "This coach hasn't published an outline for this one yet.",
   "preview.buy": "Buy · {price} →",
-  "preview.action": "What's inside →"
+  "preview.action": "What's inside →",
+  "rating.new": "New"
 }

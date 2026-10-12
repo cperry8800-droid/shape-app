@@ -80,15 +80,35 @@ function getCoachCertifications(coach) {
   });
 }
 
+// ⚠ A LIVE COACH'S RATING IS ITS REVIEWS, OR NOTHING. Owner, 2026-10-12: "the demo
+// ratings are fine, but make sure the review system and star rating system is in
+// place for live accounts. 1-10 stars". A row with a coach account behind it
+// (`ratingLive`) carries the average of its real 1–10 reviews, already on the
+// ten-point scale, so it is NEVER doubled — a 4.5/10 would have read 9.0 — and a
+// coach nobody has reviewed is null, which renders "New", never the old
+// `row.rating || 4.8` column fallback (9.6/10 on every new coach). Demo and seeded
+// rows keep their authored five-point numbers, doubled as before.
 function getCoachRating10(coachOrRating) {
+  if (coachOrRating && typeof coachOrRating === 'object' && coachOrRating.ratingLive) {
+    const live = coachOrRating.rating;
+    return live == null || !Number.isFinite(Number(live)) ? null : Math.max(1, Math.min(10, Number(live)));
+  }
   const raw = typeof coachOrRating === 'number' ? coachOrRating : Number(coachOrRating && coachOrRating.rating);
   if (!Number.isFinite(raw)) return 0;
   const tenPoint = raw <= 5 ? raw * 2 : raw;
   return Math.max(1, Math.min(10, tenPoint));
 }
 
-function formatCoachRating10(coachOrRating) {
-  return `${getCoachRating10(coachOrRating).toFixed(1)}/10`;
+// "★ 9.2/10", or "New" for a live coach with no reviews yet.
+function formatCoachRating10(coachOrRating, tr) {
+  const r = getCoachRating10(coachOrRating);
+  if (r == null) return tr ? tr('marketplace:rating.new', { defaultValue: 'New' }) : 'New';
+  return `★ ${r.toFixed(1)}/10`;
+}
+// The number the sorts rank by: a coach with no reviews ranks below every rated one.
+function bsmRankRating(c) {
+  const r = getCoachRating10(c);
+  return r == null ? 0 : r / 2;
 }
 
 function parseProviderYears(value) {
@@ -166,7 +186,10 @@ function mapSupabaseProvider(row, role) {
   const rate = Math.max(1, Math.round(Number(basePrice || 0)));
   const subscribers = Number(row.subscribers || 0);
   const dbId = Number(row.id);
-  const rating = Number(row.rating || 4.8);
+  // A coach with an account is rated by its reviews only (merged in after the load,
+  // see bsmMergeReviewSummaries); a row without one keeps the demo fallback.
+  const ratingLive = !!row.owner_id;
+  const rating = ratingLive ? null : Number(row.rating || 4.8);
 
   return {
     id: `${isNutritionist ? 'n' : 't'}${dbId}`,
@@ -185,9 +208,13 @@ function mapSupabaseProvider(row, role) {
     sessions: isNutritionist ? '30-min - 1:1' : '45-min - 1:1',
     years,
     sessionCount: subscribers || Math.max(120, years * 55),
-    match: Math.max(72, Math.min(98, Math.round(78 + rating * 3 + (row.featured ? 5 : 0)))),
+    match: Math.max(72, Math.min(98, Math.round(78 + (rating == null ? 0 : rating) * 3 + (row.featured ? 5 : 0)))),
     rating,
-    clients: Math.max(8, Math.round((subscribers || 320) / 45)),
+    ratingLive,
+    reviewCount: 0,
+    // A live coach's client count is its real subscriber count (0 hides it); the
+    // estimate is for demo and seeded rows only.
+    clients: ratingLive ? subscribers : Math.max(8, Math.round((subscribers || 320) / 45)),
     init: providerInitials(row.name),
     bio: row.bio || `${specialty || role} support on Shape.`,
     tag: row.featured || row.trainer_of_month || row.nutritionist_of_month ? 'FEATURED' : undefined,
@@ -222,10 +249,27 @@ async function fetchSupabaseMarketplaceProviders() {
   if (trainerResult.error) throw trainerResult.error;
   if (nutritionistResult.error) throw nutritionistResult.error;
 
-  return {
+  const out = {
     Trainer: (trainerResult.data || []).map(row => mapSupabaseProvider(row, 'Trainer')),
     Nutritionist: (nutritionistResult.data || []).map(row => mapSupabaseProvider(row, 'Nutritionist')),
   };
+  const summaries = await (window.ShapeCoachReviews?.summaries?.() || Promise.resolve(null)).catch(() => null);
+  bsmMergeReviewSummaries([...out.Trainer, ...out.Nutritionist], summaries);
+  return out;
+}
+
+// Each live coach's rating and count from its REAL reviews, by the coach's account
+// (a slug is a name, and the listing and profile names can differ). No summary for
+// the account = no reviews = rating null, which the cards print as "New".
+function bsmMergeReviewSummaries(coaches, summaries) {
+  const owners = (summaries && summaries.owners) || {};
+  for (const c of coaches) {
+    if (!c || !c.ratingLive) continue;
+    const s = c.provider_user_id ? owners[c.provider_user_id] : null;
+    c.rating = s && Number(s.count) > 0 ? Number(s.avg) : null;
+    c.reviewCount = s ? Number(s.count) || 0 : 0;
+  }
+  return coaches;
 }
 
 function readShapeCoachThreads() {
@@ -597,7 +641,7 @@ function MktCoachCard({ c, onOpen, photo }) {
       <MktPortrait photo={photo} name={c.name} w="100%" h={122} fontSize={30} spine={role} />
       <span style={{ display: 'block', marginTop: 8, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>
       <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{[bsmRoleWord(tr, isNutri), tierName].filter(Boolean).join(' · ')}</span>
-      <span style={{ display: 'block', marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>★ {formatCoachRating10(c)} · ${c.rate}/mo</span>
+      <span style={{ display: 'block', marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{formatCoachRating10(c)} · ${c.rate}/mo</span>
     </button>
   );
 }
@@ -677,7 +721,7 @@ function MktComboCard({ c, onOpen, photo }) {
         </div>
       )}
       <div style={{ padding: '8px 13px 0' }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>★ {formatCoachRating10(c)} · ${c.rate}/mo</span>
+        <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{formatCoachRating10(c, tr)} · ${c.rate}/mo</span>
       </div>
       {gallery.length ? <div style={{ padding: '12px 13px 13px' }}><MktStudioStrip gallery={gallery} role={role} /></div> : <div style={{ height: 13 }} />}
     </div>
@@ -714,7 +758,7 @@ function MktRow({ c, onOpen, n, photo }) {
         <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>
         <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{[bsmRoleWord(tr, isNutri), getPrimaryCredential(c), mktShortLoc(c.loc), tierName].filter(Boolean).join(' · ')}</span>
       </span>
-      <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK50 }}>★ {formatCoachRating10(c)}</span>
+      <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK50 }}>{formatCoachRating10(c, tr)}</span>
       <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}47`, transform: 'translateY(-3px)', minWidth: 12 }} />
       <span style={{ flexShrink: 0, fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>${c.rate}<span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, color: t.INK50 }}>/mo</span></span>
     </button>
@@ -880,17 +924,17 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
     }
     const num = (v) => Number(String(v).replace(/[^0-9.]/g, '')) || 0;
     const sorted = [...out];
-    if (sort === 'Highest Rated') sorted.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+    if (sort === 'Highest Rated') sorted.sort((a, b) => bsmRankRating(b) - bsmRankRating(a));
     else if (sort === 'Lowest Price') sorted.sort((a, b) => num(a.rate) - num(b.rate));
     else if (sort === 'Most Experience') sorted.sort((a, b) => (b.years || 0) - (a.years || 0));
-    else sorted.sort((a, b) => ((b.match || 0) + (b.rating || 0) * 5) - ((a.match || 0) + (a.rating || 0) * 5)); // Most Popular
+    else sorted.sort((a, b) => ((b.match || 0) + bsmRankRating(b) * 5) - ((a.match || 0) + bsmRankRating(a) * 5)); // Most Popular
     return sorted;
   }, [pill, cat, format, loc, sort, query, everyone, trainers, nutritionists]);
 
   const browsing = forceList || pill !== 'All' || query.trim().length > 0;
 
   const ranked = useMemoBSM2(
-    () => [...everyone].sort((a, b) => ((b.match || 0) + (b.rating || 0) * 5) - ((a.match || 0) + (a.rating || 0) * 5)),
+    () => [...everyone].sort((a, b) => ((b.match || 0) + bsmRankRating(b) * 5) - ((a.match || 0) + bsmRankRating(a) * 5)),
     [everyone],
   );
   const cotw = ranked.find((c) => c.tag) || ranked[0];
@@ -1022,7 +1066,7 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
                     <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{[bsmRoleWord(tr, isN), ct.name, mktShortLoc(cotw.loc)].filter(Boolean).join(' · ')}</div>
                     <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13, lineHeight: 1.35, letterSpacing: '-0.01em', color: t.INK70, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>“{cotw.bio}”</div>
                     <div style={{ display: 'flex', gap: 22, marginTop: 10 }}>
-                      {[[tr('marketplace:stat.rating', { defaultValue: 'Rating' }), '★ ' + formatCoachRating10(cotw)], [tr('marketplace:stat.clients', { defaultValue: 'Clients' }), (cotw.clients || 0) + '+'], [tr('marketplace:stat.years', { defaultValue: 'Years' }), String(cotw.years || 1)]].map(([l, v]) => (
+                      {[[tr('marketplace:stat.rating', { defaultValue: 'Rating' }), formatCoachRating10(cotw, tr)], [tr('marketplace:stat.clients', { defaultValue: 'Clients' }), (cotw.clients || 0) + '+'], [tr('marketplace:stat.years', { defaultValue: 'Years' }), String(cotw.years || 1)]].map(([l, v]) => (
                         <div key={l}>
                           <div style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{l}</div>
                           <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{v}</div>
@@ -2013,28 +2057,60 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   };
 
   // Live coach reviews (1–10), shared with the website via /api/coaches/reviews.
+  // ⚠ THROUGH window.ShapeCoachReviews (apiBaseUrl + Bearer): the root-relative
+  // fetch these used reached nothing on the native build, so every installed app
+  // showed no reviews and could not post one. A coach with an account reads its
+  // reviews by ACCOUNT, because the slug is a name and names drift.
   const coachSlug = coach.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-  const coachKind = coach.tag === 'Nutritionist' ? 'nutritionist' : 'trainer';
+  // The listing's ROLE, never its tag: a live row's tag is 'FEATURED' or nothing, so
+  // a nutritionist's review was filed as a trainer's and the relationship check
+  // refused an eligible client (Codex P1, #2313).
+  const coachKind = getPublicProfileKind(coach);
+  const coachOwner = coach.provider_user_id || null;
+  const ownListing = !!(coachOwner && bsmAuthUid && coachOwner === bsmAuthUid);
   const [liveReviews, setLiveReviews] = useStateBSM2([]);
   const [revRating, setRevRating] = useStateBSM2(0);
   const [revText, setRevText] = useStateBSM2('');
   const [revPosting, setRevPosting] = useStateBSM2(false);
-  const avgRev = liveReviews.length ? Math.round((liveReviews.reduce((s, r) => s + (r.rating || 0), 0) / liveReviews.length) * 10) / 10 : null;
+  // The server's average and count are over EVERY review; the list is the newest 200.
+  const [revAgg, setRevAgg] = useStateBSM2(null);
+  const [revLoad, setRevLoad] = useStateBSM2(0);
+  const avgRev = revAgg && revAgg.count > 0 ? revAgg.avg
+    : (liveReviews.length ? Math.round((liveReviews.reduce((s, r) => s + (r.rating || 0), 0) / liveReviews.length) * 10) / 10 : null);
   useEffectBSM2(() => {
     let c = false;
-    fetch(`/api/coaches/reviews?coach=${encodeURIComponent(coachSlug)}`, { credentials: 'same-origin' })
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (!c && d && Array.isArray(d.reviews)) setLiveReviews(d.reviews); })
+    const api = window.ShapeCoachReviews;
+    if (!api) return undefined;
+    (coachOwner ? api.forOwner(coachOwner) : api.forCoach(coachSlug))
+      .then(d => {
+        if (c || !d || !Array.isArray(d.reviews)) return;
+        setLiveReviews(d.reviews);
+        setRevAgg(Number.isFinite(Number(d.count)) ? { avg: Number(d.avg) || 0, count: Number(d.count) } : null);
+      })
       .catch(() => {});
     return () => { c = true; };
-  }, [coachSlug]);
+  }, [coachSlug, coachOwner, revLoad]);
   const submitReview = () => {
     if (!revRating || revPosting) return;   // in-flight lock: a double-tap can't post twice
+    if (window.bsRequireAccount && !window.bsRequireAccount('leave a review')) return;
+    const api = window.ShapeCoachReviews;
+    if (!api) { window.__bsToast?.(tr('marketplace:listing.reviewError', { defaultValue: 'Could not post review' }), 'err'); return; }
     setRevPosting(true);
-    fetch('/api/coaches/reviews', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ coach: coachSlug, kind: coachKind, rating: revRating, text: revText }) })
-      .then(r => (r.ok ? r.json() : r.json().then(e => Promise.reject(e))))
-      .then(d => { if (d && d.review) { setLiveReviews(prev => [d.review, ...prev]); setRevRating(0); setRevText(''); window.__bsToast?.(tr('marketplace:listing.reviewPosted', { defaultValue: 'Review posted' }), 'ok'); } })
-      .catch(err => { window.__bsToast?.(err && err.error ? err.error : tr('marketplace:listing.reviewError', { defaultValue: 'Could not post review' }), 'err'); })
+    api.post({ coach: coachSlug, kind: coachKind, rating: revRating, text: revText })
+      .then((r) => {
+        if (r && r.ok && r.review) {
+          setLiveReviews(prev => [r.review, ...prev.filter(x => x.id !== r.review.id)]);
+          setRevRating(0); setRevText(''); setRevLoad(n => n + 1);   // re-read the average
+          window.__bsToast?.(tr('marketplace:listing.reviewPosted', { defaultValue: 'Review posted' }), 'ok');
+          return;
+        }
+        const msg = r && r.code === 'relationship_required'
+          ? tr('marketplace:listing.reviewRelationship', { defaultValue: 'You can review a coach once you have subscribed to them or had a session with them.' })
+          : r && r.status === 401
+            ? tr('marketplace:listing.reviewSignIn', { defaultValue: 'Sign in to leave a review.' })
+            : tr('marketplace:listing.reviewError', { defaultValue: 'Could not post review' });
+        window.__bsToast?.(msg, 'err');
+      })
       .finally(() => setRevPosting(false));
   };
   const last = coach.name.split(' ').slice(1).join(' ') || p.role;
@@ -2332,7 +2408,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
               {[
                 [tr('marketplace:stat.sessions', { defaultValue: 'Sessions' }), coach.sessionCount != null ? Number(coach.sessionCount).toLocaleString(bsmLocale()) : '—'],
                 [tr('marketplace:stat.years', { defaultValue: 'Years' }), coach.years ? String(coach.years) : '—'],
-                [tr('marketplace:stat.rating', { defaultValue: 'Rating' }), avgRev != null ? String(avgRev) : formatCoachRating10(coach)],
+                [tr('marketplace:stat.rating', { defaultValue: 'Rating' }), avgRev != null ? `★ ${avgRev.toFixed(1)}/10` : formatCoachRating10(coach, tr)],
               ].map(([l, v]) => (
                 <div key={l}>
                   <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', fontWeight: 800, textTransform: 'uppercase', color: t.INK50 }}>{l}</div>
@@ -2504,8 +2580,9 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
       {/* ── From their clients ─────────────────────────────── */}
       <Station>{tr('marketplace:listing.fromClients', { defaultValue: 'From their clients' })}{avgRev != null ? ` · ${avgRev}/10` : ''}{coach.clients ? ` · ${tr('marketplace:listing.coached', { defaultValue: '{count} coached', count: coach.clients })}` : ''}</Station>
       <div style={{ padding: `6px ${t.padX}px 0` }}>
-        {/* Write a review — a quiet form by the two-tier rule. */}
-        <div style={{ borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14 }}>
+        {/* Write a review — a quiet form by the two-tier rule. Not on your own
+            listing: a coach cannot rate themselves, and the server would refuse it. */}
+        {!ownListing && <div style={{ borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14 }}>
           <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8 }}>{tr('marketplace:listing.yourRating', { defaultValue: 'Your rating' })}</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, marginBottom: 10 }}>
             {Array.from({ length: 10 }, (_, i) => i + 1).map(n => (
@@ -2518,15 +2595,20 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
             <button onClick={submitReview} disabled={!revRating || revPosting} style={{ borderRadius: t.RADIUS_SM, padding: '8px 16px', background: revRating ? t.INK : t.SURFACE, color: revRating ? t.PAPER : t.INK50, border: 0, cursor: (revRating && !revPosting) ? 'pointer' : 'default', opacity: revPosting ? 0.6 : 1, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }}>{revPosting ? tr('marketplace:listing.posting', { defaultValue: 'Posting…' }) : tr('marketplace:listing.postReview', { defaultValue: 'Post review' })}</button>
           </div>
-        </div>
+        </div>}
+        {coach.ratingLive && !liveReviews.length && (
+          <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('marketplace:listing.noReviews', { defaultValue: 'No reviews yet' })}</div>
+        )}
         {liveReviews.map(rv => (
           <div key={rv.id} style={{ borderLeft: `3px solid ${roleColor}`, padding: '2px 0 2px 12px', marginTop: 14 }}>
             {rv.text ? <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14.5, lineHeight: 1.5, color: t.INK }}>“{rv.text}”</div> : null}
             <div style={{ marginTop: rv.text ? 6 : 0, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{rv.author} · {rv.rating}/10</div>
           </div>
         ))}
-        {/* Curated testimonials render UNRATED — only real submitted reviews carry numbers. */}
-        {p.reviews.map(([who, body]) => (
+        {/* Curated testimonials render UNRATED — only real submitted reviews carry numbers.
+            And only on a demo or seeded listing: a coach with an account shows its own
+            members' words or nothing, never the house's example quotes. */}
+        {!coach.ratingLive && p.reviews.map(([who, body]) => (
           <div key={who} style={{ borderLeft: `3px solid ${roleColor}`, padding: '2px 0 2px 12px', marginTop: 14 }}>
             <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14.5, lineHeight: 1.5, color: t.INK }}>“{body}”</div>
             <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{who}</div>

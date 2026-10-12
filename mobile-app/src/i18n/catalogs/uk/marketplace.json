@@ -108,6 +108,9 @@
   "listing.reviewError": "Не вдалося опублікувати відгук",
   "listing.reviewPlaceholder": "Розкажіть, як усе минуло…",
   "listing.reviewPosted": "Відгук опубліковано",
+  "listing.noReviews": "Відгуків ще немає",
+  "listing.reviewRelationship": "Залишити відгук про тренера можна після підписки або заняття з ним.",
+  "listing.reviewSignIn": "Увійдіть, щоб залишити відгук.",
   "listing.roomForYou": "У {name} є місце для вас.",
   "listing.samplePlan": "Приклад плану",
   "listing.sampleWorkout": "Приклад тренування",
@@ -184,5 +187,6 @@
   "preview.locked": "＋{count} · відкриються після покупки",
   "preview.noOutline": "Цей тренер поки не опублікував структуру для нього.",
   "preview.buy": "Купити · {price} →",
-  "preview.action": "Що всередині →"
+  "preview.action": "Що всередині →",
+  "rating.new": "Новий"
 }

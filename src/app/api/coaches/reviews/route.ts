@@ -12,6 +12,28 @@ function clampRating(value: unknown): number {
   const n = Math.round(Number(value) || 0);
   return Math.max(0, Math.min(10, n));
 }
+// Every row a query matches, a page at a time in a stable order. A single select
+// stops at the API's row cap (and these used `.limit(200)` / `.limit(5000)`), so a
+// busy coach's average was the newest page's and the marketplace's per-account
+// averages dropped coaches once the table outgrew one read (Codex, #2313).
+const PAGE = 1000;
+async function readAll<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>): Promise<{ rows: T[]; error: unknown }> {
+  const rows: T[] = [];
+  for (let i = 0; i < 500; i += 1) {
+    const { data, error } = await page(i * PAGE, i * PAGE + PAGE - 1);
+    if (error) return { rows, error };
+    const got = data || [];
+    rows.push(...got);
+    if (got.length < PAGE) break;
+  }
+  return { rows, error: null };
+}
+function aggregate(rows: { rating: number }[]): { avg: number; count: number } {
+  const count = rows.length;
+  const avg = count ? Math.round((rows.reduce((s, r) => s + (r.rating || 0), 0) / count) * 10) / 10 : 0;
+  return { avg, count };
+}
+
 type ReviewRow = { id: string; rating: number; body: string | null; author_name: string | null; user_id?: string | null; owner_id?: string | null; created_at: string };
 function shape(row: ReviewRow) {
   // ownerId (the coach BEING reviewed) is what the wins wall resolves a pinned id
@@ -50,7 +72,11 @@ export async function GET(request: Request) {
     if (!uuid.test(ownerParam)) return NextResponse.json({ reviews: [] });
     const { data, error } = await supabase.from('coach_reviews').select('*').eq('owner_id', ownerParam).order('created_at', { ascending: false }).limit(200);
     if (error) return NextResponse.json({ reviews: [] });
-    return NextResponse.json({ reviews: (data ?? []).map((r) => shape(r as ReviewRow)) });
+    // The list is the newest 200; the average and count are over every review.
+    const all = await readAll<{ rating: number }>((from, to) =>
+      supabase.from('coach_reviews').select('rating').eq('owner_id', ownerParam).order('id', { ascending: true }).range(from, to));
+    const reviews = (data ?? []).map((r) => shape(r as ReviewRow));
+    return NextResponse.json({ reviews, ...(all.error ? {} : aggregate(all.rows)) });
   }
 
   if (slug) {
@@ -64,23 +90,37 @@ export async function GET(request: Request) {
       .limit(200);
     if (error) return NextResponse.json({ reviews: [], avg: 0, count: 0 });
     const reviews = (data ?? []).map(shape);
-    const count = reviews.length;
-    const avg = count ? Math.round((reviews.reduce((s, r) => s + (r.rating || 0), 0) / count) * 10) / 10 : 0;
+    const all = await readAll<{ rating: number }>((from, to) =>
+      supabase.from('coach_reviews').select('rating').eq('coach_slug', slug).order('id', { ascending: true }).range(from, to));
+    const { avg, count } = all.error ? aggregate(reviews) : aggregate(all.rows);
     return NextResponse.json({ reviews, avg, count });
   }
 
-  const { data, error } = await supabase.from('coach_reviews').select('coach_slug, rating').limit(5000);
-  if (error) return NextResponse.json({ summaries: {} });
+  // Every coach's average, keyed two ways: by slug (the old shape) and by the coach's
+  // account (`owners`). A listing with an owner reads its rating by account, because a
+  // slug is a NAME and the profile name and the listing name can differ.
+  const { rows: data, error } = await readAll<{ coach_slug: string; rating: number; owner_id?: string | null }>((from, to) =>
+    supabase.from('coach_reviews').select('coach_slug, rating, owner_id').order('id', { ascending: true }).range(from, to));
+  if (error) return NextResponse.json({ summaries: {}, owners: {} });
   const acc: Record<string, { sum: number; count: number }> = {};
-  for (const row of (data ?? []) as { coach_slug: string; rating: number }[]) {
+  const byOwner: Record<string, { sum: number; count: number }> = {};
+  for (const row of (data ?? []) as { coach_slug: string; rating: number; owner_id?: string | null }[]) {
     const s = row.coach_slug;
     (acc[s] ||= { sum: 0, count: 0 });
     acc[s].sum += row.rating || 0;
     acc[s].count += 1;
+    if (row.owner_id) {
+      (byOwner[row.owner_id] ||= { sum: 0, count: 0 });
+      byOwner[row.owner_id].sum += row.rating || 0;
+      byOwner[row.owner_id].count += 1;
+    }
   }
+  const avg = (a: { sum: number; count: number }) => ({ avg: Math.round((a.sum / a.count) * 10) / 10, count: a.count });
   const summaries: Record<string, { avg: number; count: number }> = {};
-  for (const s of Object.keys(acc)) summaries[s] = { avg: Math.round((acc[s].sum / acc[s].count) * 10) / 10, count: acc[s].count };
-  return NextResponse.json({ summaries });
+  for (const s of Object.keys(acc)) summaries[s] = avg(acc[s]);
+  const owners: Record<string, { avg: number; count: number }> = {};
+  for (const o of Object.keys(byOwner)) owners[o] = avg(byOwner[o]);
+  return NextResponse.json({ summaries, owners });
 }
 
 // POST { coach, kind, rating(1-10), text } — authenticated.
