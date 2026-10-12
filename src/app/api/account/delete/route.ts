@@ -243,18 +243,33 @@ export async function POST(request: Request) {
   }
 
   // 2. Explicit row purge (covers tables that don't cascade on auth-user delete).
+  // ⚠ THE COACH APPLICATIONS GO FIRST, AND A FAILURE STOPS THE DELETION. They are found by the
+  // account's confirmed email, which is gone once the auth user is, so a row left behind here
+  // could never be found again by a retry. Nothing else has been deleted yet when this fails.
+  if (applicationIds && applicationIds.length) {
+    let applicationsDeleted = false;
+    try {
+      const { error } = await admin.from('provider_applications').delete().in('id', applicationIds);
+      applicationsDeleted = !error;
+    } catch { /* applicationsDeleted stays false */ }
+    if (!applicationsDeleted) {
+      if (auditId) {
+        try {
+          await admin.from('account_deletions').update({
+            buckets_purged: bucketsPurged,
+            note: 'coach application purge failed — account kept; retry required',
+          }).eq('id', auditId);
+        } catch { /* non-fatal */ }
+      }
+      return NextResponse.json({ error: 'Could not fully remove your application data. Please try again in a moment.' }, { status: 500 });
+    }
+    purged.push('provider_applications');
+  }
   for (const t of PURGE) {
     try {
       const { error } = await admin.from(t.table).delete().eq(t.col, uid);
       if (!error) purged.push(t.table);
     } catch { /* table may not exist; continue */ }
-  }
-  // The coach applications found above, by id (never by a looser match than the lookup's).
-  if (applicationIds && applicationIds.length) {
-    try {
-      const { error } = await admin.from('provider_applications').delete().in('id', applicationIds);
-      if (!error) purged.push('provider_applications');
-    } catch { /* continue: the audit row records what was purged */ }
   }
 
   // 3. Delete the auth user — cascades any remaining FK-linked rows.

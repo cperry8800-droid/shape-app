@@ -33,6 +33,8 @@ type ProviderApplication = {
   dob: string | null;
   details: Record<string, unknown> | null;
   status: ApplicationStatus;
+  /** Moved by the table's touch trigger on every write: the approval claim compares it. */
+  updated_at?: string | null;
   /** The reviewer's own record (2026-10-12): written only by these actions. */
   admin_review?: Record<string, unknown> | null;
 };
@@ -507,6 +509,25 @@ export async function approveApplication(formData: FormData): Promise<void> {
       'This application has no verified date of birth (Shape is 18+). Ask the applicant to resubmit, or record their date of birth on the application, before approving.'
     );
   }
+
+  // ⚠ CLAIMED BEFORE ANYTHING IS PROVISIONED. Two Approve clicks (a double submit, two tabs) both
+  // read the application as pending, both found no listing for the coach and both inserted one,
+  // so the coach was listed twice. The claim is a compare-and-set on `updated_at`, which the
+  // provider_applications_touch trigger moves on every write: the first click's claim moves it,
+  // and the second's matches nothing and stops before provisioning. A provisioning failure leaves
+  // the application unapproved; the next Approve reads the new `updated_at` and claims it again.
+  if (!typed.updated_at) throw new Error('This application has no updated_at; it cannot be claimed for approval.');
+  const { data: claimed, error: claimError } = await admin
+    .from('provider_applications')
+    .update({
+      admin_review: { ...asRecord(typed.admin_review), approval_claim: { at: new Date().toISOString(), by: adminUser.id } },
+    })
+    .eq('id', applicationId)
+    .eq('updated_at', typed.updated_at)
+    .neq('status', 'approved')
+    .select('id');
+  if (claimError) throw reviewWriteError(claimError);
+  if (!claimed?.length) backToReview({ notice: 'approval_conflict' });
 
   const provisioned = await resolveOrInviteProviderUser(admin, typed);
   const authUser = provisioned.user;

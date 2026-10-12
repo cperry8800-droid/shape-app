@@ -3,12 +3,13 @@
 //   the route (src/app/api/apply/route.ts), compiled in memory with the real Turnstile check,
 //   rate limiter and provider-application helpers; only the database, the bucket, the Auth
 //   lookup, the mailer and Next's after() are fakes:
-//     · a second submission of an open application inside 24 hours answers with the first one
-//       (no row, no files, no email)
+//     · a second submission while an application is open answers with the open one (no row, no
+//       files, no email); a retry that reaches the unique index while the first is still
+//       uploading gets the same answer and its files back
 //     · the credential lands under `certifications`, the key approval reads
 //     · the agreements are recorded by the server, with its own timestamp
 //     · a signed-out application needs a Turnstile token; a signed-in account stands in for it,
-//       up to a daily cap; a refusal reads, writes and mails nothing
+//       up to a daily cap, and a limiter fault refuses it; a refusal reads, writes and mails nothing
 //     · a failed upload or a failed insert leaves no row and no files behind
 //     · the two emails are handed to after(), and both are sent when it runs
 //     · files over 4 MB in total are refused before anything is stored
@@ -42,7 +43,7 @@ const MB = 1024 * 1024;
 const hoursAgo = (h) => new Date(Date.now() - h * 3600 * 1000).toISOString();
 
 /** The service-role client: PostgREST-shaped reads over `rows`, inserts recorded, a bucket that can fail its Nth upload. */
-function fakeAdmin({ rows = [], insertErrors = [], failUploadAt = -1, rateAllowed = true } = {}) {
+function fakeAdmin({ rows = [], insertErrors = [], failUploadAt = -1, rateAllowed = true, rateError = false, beforeInsert = null } = {}) {
   const calls = [];
   const uploads = [];
   const removed = [];
@@ -53,6 +54,7 @@ function fakeAdmin({ rows = [], insertErrors = [], failUploadAt = -1, rateAllowe
       const run = () => {
         calls.push({ table, op: st.op, payload: st.payload });
         if (st.op === 'insert') {
+          if (beforeInsert) beforeInsert(rows);
           const err = insertErrors[inserts++];
           if (err) return { data: null, error: err };
           rows.push({ status: 'pending', created_at: new Date().toISOString(), ...st.payload });
@@ -79,6 +81,7 @@ function fakeAdmin({ rows = [], insertErrors = [], failUploadAt = -1, rateAllowe
     },
     rpc: async (name, args) => {
       calls.push({ rpc: name, args });
+      if (name === 'check_rate_limit' && rateError) return { data: null, error: { message: 'limiter is down' } };
       return name === 'check_rate_limit' ? { data: [{ allowed: rateAllowed, remaining: 0, reset_seconds: 60 }], error: null } : { data: null, error: null };
     },
     storage: {
@@ -147,7 +150,7 @@ async function withTurnstile(fn) {
 
 // ── The route ─────────────────────────────────────────────────────────────────────────────
 
-test('a second submission of an open application within 24 hours answers with the first: no row, no files, no email', async () => {
+test('a second submission while an application is open answers with the open one: no row, no files, no email', async () => {
   const admin = fakeAdmin({ rows: [{ id: 'app-first', email: 'ada@example.invalid', provider_type: 'trainer', status: 'pending', created_at: hoursAgo(2) }] });
   const r = await applyRoute(admin);
   const again = await r.post({ fields: { email: 'ADA@Example.invalid' }, files: [{ kind: 'resume', file: new File(['%PDF'], 'cv.pdf', { type: 'application/pdf' }) }] });
@@ -158,9 +161,8 @@ test('a second submission of an open application within 24 hours answers with th
   assert.equal(r.scheduled.length, 0, 'no second pair of emails');
 });
 
-test('only an OPEN application for the SAME role from the last 24 hours counts as the same one', async () => {
+test('only an OPEN application for the SAME role and address counts as the same one, however old', async () => {
   const cases = [
-    { name: 'older than a day', row: { status: 'pending', provider_type: 'trainer', created_at: hoursAgo(25) } },
     { name: 'already decided', row: { status: 'rejected', provider_type: 'trainer', created_at: hoursAgo(1) } },
     { name: 'withdrawn', row: { status: 'withdrawn', provider_type: 'trainer', created_at: hoursAgo(1) } },
     { name: 'the other role', row: { status: 'pending', provider_type: 'nutritionist', created_at: hoursAgo(1) } },
@@ -177,6 +179,28 @@ test('only an OPEN application for the SAME role from the last 24 hours counts a
   }
   const inReview = fakeAdmin({ rows: [{ id: 'app-review', email: 'ada@example.invalid', provider_type: 'trainer', status: 'in_review', created_at: hoursAgo(23) }] });
   assert.equal((await (await applyRoute(inReview)).post()).body.id, 'app-review', 'in review counts as open');
+  // The unique index (one open application per address and role) has no window, so neither does the read.
+  const old = fakeAdmin({ rows: [{ id: 'app-old', email: 'ada@example.invalid', provider_type: 'trainer', status: 'pending', created_at: hoursAgo(24 * 30) }] });
+  assert.equal((await (await applyRoute(old)).post()).body.id, 'app-old', 'an open application from last month is still the open one');
+  assert.equal(inserts(old).length, 0);
+});
+
+test('a retry that lands while the first is still uploading hits the index: it gets the open one, and its files are taken back', async () => {
+  // The first request's row lands between this request's read and its insert, as on a slow upload.
+  const admin = fakeAdmin({
+    insertErrors: [{ code: '23505', message: 'duplicate key value violates unique constraint "provider_applications_one_open_idx"' }],
+    beforeInsert: (rows) => rows.push({ id: 'app-first', email: 'ada@example.invalid', provider_type: 'trainer', status: 'pending', created_at: new Date().toISOString() }),
+  });
+  const r = await applyRoute(admin);
+  const res = await r.post({ files: [{ kind: 'resume', file: new File(['%PDF'], 'cv.pdf', { type: 'application/pdf' }) }] });
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  assert.deepEqual(res.body, { ok: true, id: 'app-first', duplicate: true });
+  assert.equal(admin.uploads.length, 1);
+  assert.deepEqual(admin.removed, [admin.uploads[0].path], 'this request\'s files are removed');
+  assert.equal(r.scheduled.length, 0, 'no second pair of emails');
+  const sql = readFileSync(join(ROOT, 'supabase-migrations/2026-10-12-coach-application-review.sql'), 'utf8');
+  assert.match(sql, /create unique index if not exists provider_applications_one_open_idx\n\s+on public\.provider_applications \(lower\(email\), provider_type\)\n\s+where status in \('pending', 'in_review'\);/);
+  assert.match(readFileSync(join(ROOT, 'src/app/api/apply/route.ts'), 'utf8'), /const OPEN_STATUSES = \['pending', 'in_review'\];/, 'the read and the index name the same statuses');
 });
 
 test('the credential is stored under `certifications`, the key approval publishes from', async () => {
@@ -262,6 +286,12 @@ test('the app signed in stands in for the token: a verified account, at most fiv
 
     const noHeader = fakeAdmin();
     assert.equal((await (await applyRoute(noHeader, { user: member })).post()).status, 400, 'an account is only ever read off a Bearer token here');
+
+    // The cap stands in for the bot check, so a limiter fault refuses rather than admits.
+    const limiterDown = fakeAdmin({ rateError: true });
+    const down = await (await applyRoute(limiterDown, { user: member })).post({ bearer: 'session-token' });
+    assert.equal(down.status, 400, 'a limiter fault is not a way past the check');
+    assert.equal(inserts(limiterDown).length, 0);
   });
 });
 
@@ -323,6 +353,28 @@ test('the two emails go to after(), not fire-and-forget, and both are sent when 
   assert.match(r.sent.find((m) => m.to === 'ada@example.invalid').subject, /We got your application, Ada/);
   const src = readFileSync(join(ROOT, 'src/app/api/apply/route.ts'), 'utf8');
   assert.doesNotMatch(src, /void sendApplicationEmails|void sendEmail/, 'no email is left running when the function returns');
+});
+
+test('every copy of the 4 MB limit and its sentence agrees: the route, both website forms, the app and the legacy pages', () => {
+  // Four modules that cannot share code (a Next route, two babel pages, the app bundle) and two
+  // static pages each carry the limit; a change to one alone would refuse what another accepts.
+  const src = (p) => readFileSync(join(ROOT, p), 'utf8');
+  const limits = {
+    'src/app/api/apply/route.ts': /const MAX_TOTAL_FILE_BYTES = (.+);/,
+    'public/newdesign/signup.jsx': /const APPLY_FILES_MAX_BYTES = (.+);/,
+    'public/mobile/signup.jsx': /const APPLY_FILES_MAX_BYTES = (.+);/,
+    'mobile-app/src/config/providerApplications.js': /export const PROVIDER_APPLICATION_MAX_TOTAL_BYTES = (.+);/,
+    'public/signup-trainer.html': /if \(filesBytes > (.+)\) \{/,
+    'public/signup-nutritionist.html': /if \(filesBytes > (.+)\) \{/,
+  };
+  for (const [file, re] of Object.entries(limits)) {
+    const m = re.exec(src(file));
+    assert.ok(m, `${file}: the limit is where this test looks for it`);
+    assert.equal(m[1].trim(), '4 * 1024 * 1024', file);
+  }
+  const sentence = 'the limit for one application is 4 MB in total. Attach a smaller scan or fewer files.';
+  for (const file of Object.keys(limits)) assert.ok(src(file).includes(sentence), `${file} says the same sentence`);
+  assert.equal(config.PROVIDER_APPLICATION_MAX_TOTAL_BYTES, 4 * MB);
 });
 
 test('files over 4 MB in total are refused before anything is stored, in the words the forms use', async () => {

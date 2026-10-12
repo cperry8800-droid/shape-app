@@ -99,11 +99,16 @@ export async function POST(request: Request) {
   }
 
   // A new document sends the row back to re-review (the guard trigger), so the Verified badge
-  // comes off until an admin re-approves. Best-effort: the upload itself has landed.
+  // comes off until an admin re-approves. The upload has landed; a failure here is still said,
+  // so the listing is not left Verified while the coach is told all is well.
   try {
     await clearListingVerified(admin, user.id);
   } catch (err) {
     console.error('[shape] could not clear the Verified badge for re-review:', err);
+    return NextResponse.json(
+      { error: 'Your document was uploaded, but your listing could not be updated. Please try again.', code: 'badge_not_cleared', path },
+      { status: 503 }
+    );
   }
 
   return NextResponse.json({ ok: true, path });

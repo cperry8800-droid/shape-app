@@ -56,18 +56,24 @@ export async function checkRateLimit(
   client: SupabaseClient,
   key: string,
   max: number,
-  windowSeconds: number
+  windowSeconds: number,
+  // A caller whose limit stands in for a stronger check (a bot check) passes `failClosed`: a
+  // limiter fault then refuses instead of admitting, so an outage is not a way past the check.
+  opts: { failClosed?: boolean } = {}
 ): Promise<RateLimitResult> {
+  const unavailable = { allowed: !opts.failClosed, remaining: opts.failClosed ? 0 : max, resetSeconds: 0, limit: max };
   try {
     const { data, error } = await client.rpc('check_rate_limit', {
       p_key: await rateLimitKey(key),
       p_max: max,
       p_window_seconds: windowSeconds,
     });
-    if (error || !data) return { allowed: true, remaining: max, resetSeconds: 0, limit: max };
+    if (error || !data) return unavailable;
     const row = (Array.isArray(data) ? data[0] : data) as
       | { allowed?: boolean; remaining?: number; reset_seconds?: number }
       | undefined;
+    // Strict callers admit only on an explicit `allowed: true` from the limiter.
+    if (opts.failClosed && row?.allowed !== true) return { ...unavailable, allowed: false };
     return {
       allowed: row?.allowed !== false,
       remaining: Number(row?.remaining ?? 0),
@@ -75,6 +81,6 @@ export async function checkRateLimit(
       limit: max,
     };
   } catch {
-    return { allowed: true, remaining: max, resetSeconds: 0, limit: max };
+    return unavailable;
   }
 }

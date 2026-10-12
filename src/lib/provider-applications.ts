@@ -142,7 +142,11 @@ export function withAdminBackgroundCheck(
     updated_at: timestamp,
     updated_by: adminId,
   };
-  if (status === 'requested') next.requested_at = timestamp;
+  // A new request opens the screening again: the last one's completion no longer applies.
+  if (status === 'requested') {
+    next.requested_at = timestamp;
+    next.completed_at = null;
+  }
   if (status === 'clear') next.completed_at = timestamp;
   return { ...current, background_check: next };
 }

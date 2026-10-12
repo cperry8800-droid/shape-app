@@ -71,6 +71,8 @@ const NOTICES: Record<string, string> = {
     'This coach is already live. Rejecting the application would not take their listing down, so nothing was changed. Taking a live coach off the marketplace needs a “Suspend listing” action, which is not built yet.',
   already_rejected: 'This application is already rejected. Mark it in review to reopen it.',
   already_decided: 'This application was decided a moment ago by another review. Nothing was changed.',
+  approval_conflict:
+    'This application changed while it was being approved (another Approve, or another review action), so nothing was provisioned. Reload it and approve again if it still needs it.',
 };
 
 function emailNotice(email: string | undefined, account: string | undefined): { ok: boolean; text: string } | null {

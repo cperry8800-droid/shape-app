@@ -45,6 +45,20 @@ function authorized(request: Request): boolean {
 const isoDate = (d: Date): string => d.toISOString().slice(0, 10);
 // Owners per `.in()` filter: the ids ride in the request URL.
 const ID_CHUNK = 100;
+// A PostgREST read stops at 1,000 rows, so the lapsed-insurance scan reads a page at a time.
+const PAGE = 1000;
+
+type Page<T> = { data: T[] | null; error: unknown };
+/** Every row of a read, a page at a time; `read(from, to)` must order the rows stably. */
+async function readAll<T>(read: (from: number, to: number) => PromiseLike<Page<T>>): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await read(from, from + PAGE - 1);
+    if (error) throw error;
+    rows.push(...(data ?? []));
+    if (!data || data.length < PAGE) return rows;
+  }
+}
 
 async function handle(request: Request) {
   if (!authorized(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -107,17 +121,20 @@ async function handle(request: Request) {
     }
 
     // ⚠ EXPIRED, NOT EXPIRING. The reminders above stop at today, so a certificate that lapsed
-    // left the coach Verified indefinitely. Only coaches who are verified now are looked at: the
-    // badge is what is wrong, and the set is small.
+    // left the coach Verified indefinitely. Two sets are acted on: coaches who show as Verified
+    // now (the badge is what is wrong), and credentials still 'approved' on a lapsed certificate,
+    // so a run that took the badge off but failed to move the credential finishes the job on the
+    // next run instead of leaving it out of the admin's queue for good.
     const today = isoDate(now);
     const verifiedOwners = new Set<string>();
     for (const table of ['trainers', 'nutritionists'] as const) {
-      const { data, error } = await admin.from(table).select('owner_id').eq('verified', true);
-      if (error) throw error;
-      for (const r of (data ?? []) as Array<{ owner_id: string | null }>) if (r.owner_id) verifiedOwners.add(r.owner_id);
+      const rows = await readAll<{ owner_id: string | null }>((from, to) =>
+        admin.from(table).select('owner_id').eq('verified', true).order('id').range(from, to)
+      );
+      for (const r of rows) if (r.owner_id) verifiedOwners.add(r.owner_id);
     }
     const ids = [...verifiedOwners];
-    const lapsed: Array<{ owner_id: string; insurance_expires: string }> = [];
+    const lapsedByOwner = new Map<string, string>();
     for (let i = 0; i < ids.length; i += ID_CHUNK) {
       const { data, error } = await admin
         .from('provider_credentials')
@@ -125,29 +142,46 @@ async function handle(request: Request) {
         .in('owner_id', ids.slice(i, i + ID_CHUNK))
         .lt('insurance_expires', today);
       if (error) throw error;
-      lapsed.push(...((data ?? []) as Array<{ owner_id: string; insurance_expires: string }>));
+      for (const c of (data ?? []) as Array<{ owner_id: string; insurance_expires: string }>) lapsedByOwner.set(c.owner_id, c.insurance_expires);
     }
-    for (const c of lapsed) {
+    const stillApproved = await readAll<{ owner_id: string; insurance_expires: string }>((from, to) =>
+      admin
+        .from('provider_credentials')
+        .select('owner_id, insurance_expires')
+        .eq('review_status', 'approved')
+        .lt('insurance_expires', today)
+        .order('owner_id')
+        .range(from, to)
+    );
+    for (const c of stillApproved) lapsedByOwner.set(c.owner_id, c.insurance_expires);
+    for (const [ownerId, expires] of lapsedByOwner) {
+      let badgeCleared = 0;
+      let moved = 0;
       try {
-        if ((await clearListingVerified(admin, c.owner_id)) === 0) continue;
-        unverified += 1;
-        // Back into the admin's queue, as a request for changes, with the reason.
-        await admin
+        badgeCleared = await clearListingVerified(admin, ownerId);
+        // Back into the admin's queue, as a request for changes, with the reason. Checked: a
+        // failed write is retried on the next run, because the credential is still 'approved'.
+        const { data, error } = await admin
           .from('provider_credentials')
           .update({
             review_status: 'changes_requested',
             verified_at: null,
-            review_notes: `Insurance expired ${c.insurance_expires}. A current certificate of insurance is needed to restore the Verified badge.`,
+            review_notes: `Insurance expired ${expires}. A current certificate of insurance is needed to restore the Verified badge.`,
           })
-          .eq('owner_id', c.owner_id)
-          .eq('review_status', 'approved');
+          .eq('owner_id', ownerId)
+          .eq('review_status', 'approved')
+          .select('owner_id');
+        if (error) throw error;
+        moved = data?.length ?? 0;
       } catch (err) {
         console.error('[shape] credential-expiry unverify failed:', err);
         continue;
       }
-      await remindOnce(c.owner_id, 'insurance_expired', {
+      if (badgeCleared === 0 && moved === 0) continue;
+      if (badgeCleared > 0) unverified += 1;
+      await remindOnce(ownerId, 'insurance_expired', {
         title: 'Your insurance has expired',
-        body: `Your liability insurance expired ${c.insurance_expires}, so your Verified badge is off for now. Upload a current COI on your profile and we’ll re-verify you.`,
+        body: `Your liability insurance expired ${expires}, so your Verified badge is off for now. Upload a current COI on your profile and we’ll re-verify you.`,
       });
     }
   } catch (err) {

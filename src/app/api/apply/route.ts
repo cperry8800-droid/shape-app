@@ -66,8 +66,9 @@ const EXTENSION_TYPES: Record<string, string> = {
 };
 const MAX_FILES = 6;
 const FILE_TYPE_MESSAGE = 'must be a PDF, DOC, DOCX, PNG, JPEG or WebP file.';
-// A second submission of the same application inside this window answers with the first one.
-const DUPLICATE_WINDOW_MS = 24 * 60 * 60 * 1000;
+// Statuses that count as an open application: one per address and role (the
+// provider_applications_one_open_idx index in 2026-10-12-coach-application-review.sql).
+const OPEN_STATUSES = ['pending', 'in_review'];
 // Applications a signed-in account may send a day without a human check (the app's path).
 const ACCOUNT_DAILY_APPLICATIONS = 5;
 // Document paths are written by this route alone, from the files it stored. A client-sent value
@@ -184,7 +185,8 @@ async function passesBotCheck(req: NextRequest, body: Record<string, unknown>, i
     userId = '';
   }
   if (!userId) return false;
-  const limit = await checkRateLimit(createAdminClient(), `apply:u:${userId}`, ACCOUNT_DAILY_APPLICATIONS, 24 * 60 * 60);
+  // Strict: this cap stands in for the bot check, so a limiter fault refuses rather than admits.
+  const limit = await checkRateLimit(createAdminClient(), `apply:u:${userId}`, ACCOUNT_DAILY_APPLICATIONS, 24 * 60 * 60, { failClosed: true });
   return limit.allowed;
 }
 
@@ -402,26 +404,30 @@ export async function POST(req: NextRequest) {
   // application row is written through the service role after the checks above.
   const supabase = createAdminClient();
 
-  // ⚠ ONE APPLICATION PER PERSON PER DAY, NOT ONE PER TAP. A retry after a slow answer, a double
-  // tap or a back-and-resubmit used to write a second row and send both emails again. The same
-  // address applying for the same role with an open application from the last 24 hours gets that
-  // application's id back: no new row, no new files, no new email. A failed read is not a
-  // refusal; the application goes through, at worst as a second row.
-  const since = new Date(Date.now() - DUPLICATE_WINDOW_MS).toISOString();
-  const { data: existing, error: duplicateError } = await supabase
-    .from('provider_applications')
-    .select('id')
-    .eq('email', email)
-    .eq('provider_type', providerTypeRaw)
-    .in('status', ['pending', 'in_review'])
-    .gte('created_at', since)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (duplicateError) console.error('[shape-api] provider application duplicate check failed:', duplicateError);
-  if (existing?.id) {
-    return NextResponse.json({ ok: true, id: existing.id, duplicate: true }, { headers: CORS_HEADERS });
-  }
+  // ⚠ ONE OPEN APPLICATION PER ADDRESS AND ROLE, NOT ONE PER TAP. A retry after a slow answer, a
+  // double tap or a back-and-resubmit used to write a second row and send both emails again. An
+  // address with an open (pending or in-review) application for the same role gets that
+  // application's id back: no new row, no new files, no new email. This read answers the common
+  // case before any file is stored; the database enforces it (provider_applications_one_open_idx),
+  // so a retry that arrives while the first request is still uploading lands on the 23505 below.
+  // A failed read is not a refusal; the insert and the index decide.
+  const openApplicationId = async (): Promise<string | null> => {
+    const { data: existing, error: duplicateError } = await supabase
+      .from('provider_applications')
+      .select('id')
+      .eq('email', email)
+      .eq('provider_type', providerTypeRaw)
+      .in('status', OPEN_STATUSES)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (duplicateError) console.error('[shape-api] provider application duplicate check failed:', duplicateError);
+    return existing?.id ? String(existing.id) : null;
+  };
+  const duplicateResponse = (id: string) =>
+    NextResponse.json({ ok: true, id, duplicate: true }, { headers: CORS_HEADERS });
+  const existingId = await openApplicationId();
+  if (existingId) return duplicateResponse(existingId);
 
   // The files go up first, under the id the row will carry, and the row is written once with
   // every document in it. A failed upload leaves no row and no files (uploadApplicationFiles
@@ -483,6 +489,14 @@ export async function POST(req: NextRequest) {
       .insert({ ...applicationRow, details })
       .select('id')
       .single());
+  }
+
+  // The index refused it: an open application for this address and role landed while this
+  // request was uploading. Answer with that one, and take back this request's files.
+  if (error?.code === '23505') {
+    await removeApplicationFiles(documents);
+    const openId = await openApplicationId();
+    if (openId) return duplicateResponse(openId);
   }
 
   // `data` is checked alongside `error` because the retry above reassigns both,

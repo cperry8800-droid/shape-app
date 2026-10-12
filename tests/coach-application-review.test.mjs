@@ -48,13 +48,14 @@ const verification = await loadRealModule(join(ROOT, 'src/lib/coach-verification
  * A recording service-role client. Tables are arrays of rows; every statement is recorded as
  * { table, op, filters, payload }. Filters apply to reads, updates and deletes, as PostgREST's do.
  */
-function fakeAdmin({ tables = {}, users = [], rpc = {}, fail = [] } = {}) {
+function fakeAdmin({ tables = {}, users = [], rpc = {}, fail = [], afterRead = null } = {}) {
   const calls = [];
   const generated = [];
   const invited = [];
   const signed = [];
   const removed = [];
   const lists = [];
+  let touches = 0;
   const rowsOf = (t) => (tables[t] = tables[t] ?? []);
   const from = (table) => {
     const st = { table, op: 'select', filters: [], payload: null, cols: null, single: false, returning: false, limit: null, order: null };
@@ -76,6 +77,8 @@ function fakeAdmin({ tables = {}, users = [], rpc = {}, fail = [] } = {}) {
       if (st.op === 'update') {
         const hit = rowsOf(table).filter(match);
         for (const r of hit) Object.assign(r, st.payload);
+        // provider_applications_touch: every write moves updated_at.
+        if (table === 'provider_applications') for (const r of hit) r.updated_at = `touched-${++touches}`;
         return { data: st.returning ? hit.map((r) => ({ ...r })) : null, error: null };
       }
       if (st.op === 'delete') {
@@ -86,6 +89,8 @@ function fakeAdmin({ tables = {}, users = [], rpc = {}, fail = [] } = {}) {
       let hit = rowsOf(table).filter(match).map((r) => ({ ...r }));
       if (st.order) hit.sort((a, b) => (a[st.order] < b[st.order] ? -1 : 1));
       if (st.limit != null) hit = hit.slice(0, st.limit);
+      if (st.range) hit = hit.slice(st.range[0], st.range[1] + 1);
+      if (afterRead) afterRead({ table, rows: hit, tables });
       if (st.head) return { data: null, count: hit.length, error: null };
       if (st.single) return { data: hit[0] ?? null, error: hit[0] || st.maybe ? null : { message: 'no rows' } };
       return { data: hit, error: null };
@@ -104,6 +109,7 @@ function fakeAdmin({ tables = {}, users = [], rpc = {}, fail = [] } = {}) {
       lte(c, v) { st.filters.push({ desc: `${c}<=${v}`, test: (r) => r[c] != null && String(r[c]) <= String(v) }); return q; },
       order(c) { st.order = c; return q; },
       limit(n) { st.limit = n; return q; },
+      range(a, b) { st.range = [a, b]; return q; },
       single() { st.single = true; return q; },
       maybeSingle() { st.single = true; st.maybe = true; return q; },
       then(res, rej) { return Promise.resolve(run()).then(res, rej); },
@@ -184,6 +190,7 @@ function application(over = {}) {
     review_notes: 'INTERNAL: checked her references, one was lukewarm',
     details: { background_check_consent: 'true', background_check_status: 'consent_received', single_session_price: '55', bio: 'Coach bio.' },
     admin_review: CLEAR_REVIEW,
+    updated_at: '2026-10-11T09:00:00.123456+00:00',
     ...over,
   };
 }
@@ -343,6 +350,45 @@ test('2: approve is one-shot: an approved application is refused before anything
   assert.equal(stmts(admin.calls, 'provider_applications', 'update').length, 0);
 });
 
+test('2: two Approve clicks at once list the coach once: the claim stops the second before it provisions anything', async () => {
+  let raced = false;
+  const admin = fakeAdmin({
+    tables: { provider_applications: [application()], profiles: [], trainers: [] },
+    // The other click's claim lands between this click's read and its own claim.
+    afterRead: ({ table, tables }) => {
+      if (raced || table !== 'provider_applications') return;
+      raced = true;
+      tables.provider_applications[0].updated_at = '2026-10-12T21:00:00.000001+00:00';
+    },
+  });
+  const { run, sent } = await loadActions(admin);
+  const to = await run('approveApplication', { application_id: APP_ID, review_notes: '', applicant_note: '' });
+  assert.equal(to.searchParams.get('notice'), 'approval_conflict');
+  assert.equal(admin.tables.trainers.length, 0, 'no second listing');
+  assert.equal(admin.generated.length, 0, 'no account provisioned');
+  assert.equal(sent.length, 0);
+  assert.equal(admin.tables.provider_applications[0].status, 'pending');
+
+  // Uncontended, the claim is taken against the row as read, then the approval goes through.
+  const clean = fakeAdmin({ tables: { provider_applications: [application()], profiles: [], trainers: [] } });
+  const ok = await (await loadActions(clean)).run('approveApplication', { application_id: APP_ID, review_notes: '', applicant_note: '' });
+  assert.equal(ok.searchParams.get('updated'), 'approved');
+  const [claim] = stmts(clean.calls, 'provider_applications', 'update');
+  assert.ok(claim.filters.includes('updated_at=2026-10-11T09:00:00.123456+00:00'), JSON.stringify(claim.filters));
+  assert.ok(claim.payload.admin_review.approval_claim, 'the claim is recorded in admin_review');
+  assert.equal(clean.tables.trainers.length, 1);
+});
+
+test('5: requesting a screening again clears the last one\'s completion date', () => {
+  let review = pa.withAdminBackgroundCheck({}, 'requested', ADMIN.id, '2026-10-01T00:00:00Z');
+  review = pa.withAdminBackgroundCheck(review, 'clear', ADMIN.id, '2026-10-02T00:00:00Z');
+  assert.equal(review.background_check.completed_at, '2026-10-02T00:00:00Z');
+  review = pa.withAdminBackgroundCheck(review, 'needs_review', ADMIN.id, '2026-10-03T00:00:00Z');
+  review = pa.withAdminBackgroundCheck(review, 'requested', ADMIN.id, '2026-10-04T00:00:00Z');
+  assert.equal(review.background_check.requested_at, '2026-10-04T00:00:00Z');
+  assert.equal(review.background_check.completed_at, null, 'an open screening shows no completion');
+});
+
 test('2: an existing listing keeps the coach\'s own edits and counters; only empty columns are filled', async () => {
   const existing = { id: 101, owner_id: COACH_UID, name: 'Coach Dana', bio: 'My own bio', price: 300, tags: ['Mine'], specialty: 'Mobility', category: 'Mobility', experience: '9 years', credential: 'NSCA', credential_full: 'NSCA', specialty_type: 'Mobility', color: '#123456', session_price: null, rating: 4.9, subscribers: 37, featured: true, trainer_of_month: true };
   const admin = fakeAdmin({ tables: { provider_applications: [application()], profiles: [], trainers: [existing] }, users: [{ id: COACH_UID, email: 'dana@example.invalid' }] });
@@ -481,9 +527,10 @@ test('6: the badge helper clears verified on both tables for that owner only', a
   assert.equal(await verification.clearListingVerified(admin.client, COACH_UID), 0, 'idempotent');
 });
 
-async function credentialsRoute({ before, user }) {
-  const own = fakeAdmin({ tables: { provider_credentials: before ? [{ owner_id: user.id, review_status: before }] : [] } });
-  const service = fakeAdmin({ tables: { trainers: [{ id: 1, owner_id: user.id, verified: true }], nutritionists: [] } });
+async function credentialsRoute({ before, user, serviceFail = [] }) {
+  const prior = typeof before === 'string' ? { review_status: before } : before;
+  const own = fakeAdmin({ tables: { provider_credentials: prior ? [{ owner_id: user.id, ...prior }] : [] } });
+  const service = fakeAdmin({ tables: { trainers: [{ id: 1, owner_id: user.id, verified: true }], nutritionists: [] }, fail: serviceFail });
   const sent = [];
   const requestUtils = await loadRealModule(join(ROOT, 'src/lib/request-utils.ts'), { typescript: true, registry: new Map([['next/server', nextServer]]) });
   const nutrition = await import(pathToFileURL(join(ROOT, 'src/lib/compliance/nutrition.mjs')).href);
@@ -517,14 +564,43 @@ test('6: a credential submission mails the applications inbox once, and the badg
   assert.match(r.sent[0].subject, /Dana Reyes/);
   assert.equal(r.service.tables.trainers[0].verified, false, 'the listing is unverified for re-review');
 
-  const again = await credentialsRoute({ before: 'pending', user });
+  const at = '2026-10-05T10:00:00.000Z';
+  const again = await credentialsRoute({ before: { review_status: 'pending', submitted_at: at, updated_at: at }, user });
   await again.post({ action: 'submit' });
-  assert.equal(again.sent.length, 0, 'already waiting: no second email');
+  assert.equal(again.sent.length, 0, 'submitted and not edited since: no second email');
 
   const save = await credentialsRoute({ before: 'approved', user });
   assert.equal((await save.post({ credentialType: 'rd', attestations: {} })).status, 200);
   assert.equal(save.service.tables.trainers[0].verified, false, 'a saved change is a change to re-review too');
   assert.equal(save.sent.length, 0);
+});
+
+test('6: a resubmission after an edit is mailed: an edit puts the row back to pending, which is not "already submitted"', async () => {
+  const user = { id: COACH_UID, email: 'dana@example.invalid', user_metadata: { full_name: 'Dana Reyes' } };
+  // Submitted on the 1st, asked for changes, edited on the 5th (the guard trigger made it 'pending').
+  const edited = await credentialsRoute({ before: { review_status: 'pending', submitted_at: '2026-10-01T10:00:00.000Z', updated_at: '2026-10-05T10:00:00.000Z' }, user });
+  assert.equal((await edited.post({ action: 'submit' })).status, 200);
+  assert.equal(edited.sent.length, 1, 'the admin hears about the resubmission');
+  const never = await credentialsRoute({ before: { review_status: 'pending', submitted_at: null, updated_at: '2026-10-05T10:00:00.000Z' }, user });
+  await never.post({ action: 'submit' });
+  assert.equal(never.sent.length, 1, 'pending from an edit, never submitted: the first submission is mailed');
+  const src = read('src/app/api/coach/credentials/route.ts');
+  assert.match(src, /\{ owner_id: user\.id, review_status: 'pending', submitted_at: submittedAt, updated_at: submittedAt \}/, 'one timestamp for both columns');
+});
+
+test('6: a listing that could not be unverified is not reported as done; the submission is still mailed first', async () => {
+  const user = { id: COACH_UID, email: 'dana@example.invalid', user_metadata: { full_name: 'Dana Reyes' } };
+  const submit = await credentialsRoute({ before: 'approved', user, serviceFail: ['update:trainers'] });
+  const out = await submit.post({ action: 'submit' });
+  assert.equal(out.status, 503);
+  assert.equal(out.body.code, 'badge_not_cleared');
+  assert.equal(submit.sent.length, 1, 'mailed before the failure is said, since a retry finds the row already submitted');
+  const save = await credentialsRoute({ before: 'approved', user, serviceFail: ['update:trainers'] });
+  const saved = await save.post({ credentialType: 'rd', attestations: {} });
+  assert.equal(saved.status, 503, 'a saved change that leaves the badge up is not a success');
+  assert.match(saved.body.error, /saved, but your listing could not be updated/);
+  const doc = read('src/app/api/coach/credentials/document/route.ts');
+  assert.match(doc, /console\.error\('\[shape\] could not clear the Verified badge for re-review:', err\);\n\s+return NextResponse\.json\(/, 'the document route says it too');
 });
 
 test('6: the credential review is in the admin nav, with a waiting count', () => {
@@ -575,6 +651,53 @@ test('6: the cron takes the badge off a verified coach whose insurance has lapse
   assert.ok(today > '2026-01-01');
 });
 
+async function cronRun(tables, { fail = [] } = {}) {
+  process.env.CRON_SECRET = 'cron-test';
+  const notes = [];
+  const admin = fakeAdmin({ tables: { nutritionists: [], provider_licenses: [], coach_credential_expiry_reminders: [], ...tables }, fail });
+  const route = await loadRealModule(join(ROOT, 'src/app/api/cron/credential-expiry/route.ts'), {
+    typescript: true,
+    registry: new Map([
+      ['next/server', nextServer],
+      ['@/lib/supabase/admin', { createAdminClient: () => admin.client }],
+      ['@/lib/notify', { createNotification: async (_c, n) => { notes.push(n); return true; } }],
+      ['@/lib/coach-verification', verification],
+    ]),
+  });
+  const res = await route.GET(new Request('https://shape.test/api/cron/credential-expiry', { headers: { 'x-cron-secret': 'cron-test' } }));
+  return { body: await res.json(), admin, notes };
+}
+
+test('6: the cron pages past 1,000 verified listings', async () => {
+  const owners = Array.from({ length: 1001 }, (_, i) => `owner-${String(i).padStart(4, '0')}`);
+  const last = owners[1000];
+  const out = await cronRun({
+    trainers: owners.map((o, i) => ({ id: i + 1, owner_id: o, verified: true })),
+    provider_credentials: [{ owner_id: last, insurance_expires: '2026-01-01', review_status: 'approved' }],
+  });
+  assert.equal(out.body.unverified, 1, JSON.stringify(out.body));
+  assert.equal(out.admin.tables.trainers[1000].verified, false, 'the 1,001st listing is read and unverified');
+  assert.ok(stmts(out.admin.calls, 'trainers', 'select').length >= 2, 'read a page at a time');
+});
+
+test('6: a credential left approved on lapsed insurance is moved on the next run, badge or no badge; a failed move tells nobody', async () => {
+  // A previous run took the badge off but did not move the credential.
+  const retry = await cronRun({
+    trainers: [{ id: 1, owner_id: COACH_UID, verified: false }],
+    provider_credentials: [{ owner_id: COACH_UID, insurance_expires: '2026-01-01', review_status: 'approved' }],
+  });
+  assert.equal(retry.admin.tables.provider_credentials[0].review_status, 'changes_requested');
+  assert.equal(retry.body.unverified, 0, 'no badge was taken off this run');
+  assert.equal(retry.notes.length, 1, 'the coach is told once the credential has moved');
+
+  const failing = await cronRun({
+    trainers: [{ id: 1, owner_id: COACH_UID, verified: true }],
+    provider_credentials: [{ owner_id: COACH_UID, insurance_expires: '2026-01-01', review_status: 'approved' }],
+  }, { fail: ['update:provider_credentials'] });
+  assert.equal(failing.notes.length, 0, 'a move that failed is not reported to the coach');
+  assert.equal(failing.admin.tables.provider_credentials[0].review_status, 'approved', 'left for the next run, which reads approved credentials directly');
+});
+
 // ── 7 · the card ─────────────────────────────────────────────────────────────────────────
 test('7: every answer is on the card, the date of birth shows with an age, and the counts are the table\'s', () => {
   const src = read('src/app/dashboard/applications/page.tsx');
@@ -591,7 +714,8 @@ async function deleteRoute({ user, admin }) {
   process.env.ACCOUNT_DELETE_SECRET = 'test-delete-secret';
   const requestUtils = await loadRealModule(join(ROOT, 'src/lib/request-utils.ts'), { typescript: true, registry: new Map([['next/server', nextServer]]) });
   const confirm = await loadRealModule(join(ROOT, 'src/lib/delete-confirm.ts'), { typescript: true });
-  admin.client.auth.admin.deleteUser = async () => ({ error: null });
+  admin.deletedUsers = [];
+  admin.client.auth.admin.deleteUser = async (uid) => { admin.deletedUsers.push(uid); return { error: null }; };
   const route = await loadRealModule(join(ROOT, 'src/app/api/account/delete/route.ts'), {
     typescript: true,
     registry: new Map([
@@ -637,6 +761,16 @@ test('8: an application lookup that fails stops the deletion before anything is 
   const out = await deleteRoute({ user: { id: COACH_UID, email: 'dana@example.invalid', email_confirmed_at: 'x' }, admin });
   assert.equal(out.status, 500);
   assert.equal(admin.tables.user_goals.length, 1, 'no row was purged');
+});
+
+test('8: an application row that fails to delete stops the deletion before the account goes, so a retry can still find it', async () => {
+  const admin = fakeAdmin({ tables: { provider_applications: [{ id: APP_ID, email: 'dana@example.invalid' }], user_goals: [{ user_id: COACH_UID }] }, fail: ['delete:provider_applications'] });
+  const out = await deleteRoute({ user: { id: COACH_UID, email: 'dana@example.invalid', email_confirmed_at: 'x' }, admin });
+  assert.equal(out.status, 500);
+  assert.match(out.body.error, /application data/);
+  assert.deepEqual(admin.deletedUsers, [], 'the auth user (and with it the confirmed email that finds the row) is kept');
+  assert.equal(admin.tables.provider_applications.length, 1);
+  assert.equal(admin.tables.user_goals.length, 1, 'nothing else was purged either');
 });
 
 // ── 9 · the approval link ────────────────────────────────────────────────────────────────

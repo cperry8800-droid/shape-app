@@ -15,8 +15,9 @@ import { safeReturnPath } from '@/lib/safe-redirect.mjs';
 
 export const dynamic = 'force-dynamic';
 
-// The link types this route accepts. Only `invite` is issued today; recovery and magic links
-// work the same way if an email template is pointed here later.
+// The link types this route accepts. The approval email issues `invite` (a new account) and
+// `recovery` (an existing account that has never signed in), so neither may be dropped; magic
+// links work the same way if an email template is pointed here later.
 const ACCEPTED_TYPES: ReadonlySet<string> = new Set(['invite', 'recovery', 'magiclink']);
 
 export async function GET(request: Request) {

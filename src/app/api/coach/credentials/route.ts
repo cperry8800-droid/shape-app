@@ -93,14 +93,24 @@ export async function GET(request: Request) {
 
 // ⚠ A SELF-WRITTEN CREDENTIAL ROW IS UNREVIEWED AGAIN (the guard trigger sends it back to
 // 'pending' and clears its verification), so the listing's Verified badge comes off until an
-// admin re-approves. Best-effort: the write the coach asked for has already landed.
-async function unverifyListings(ownerId: string): Promise<void> {
+// admin re-approves. A failure is the caller's to report: the write the coach asked for has
+// landed, so a retry repeats it harmlessly and clears the badge then.
+async function unverifyListings(ownerId: string): Promise<boolean> {
   try {
     await clearListingVerified(createAdminClient(), ownerId);
+    return true;
   } catch (err) {
     console.error('[shape] could not clear the Verified badge for re-review:', err);
+    return false;
   }
 }
+
+// Saved, but the listing still shows Verified: not a success, so the coach tries again.
+const badgeNotCleared = () =>
+  NextResponse.json(
+    { error: 'Your changes were saved, but your listing could not be updated. Please try again.', code: 'badge_not_cleared' },
+    { status: 503 }
+  );
 
 export async function POST(request: Request) {
   const user = await currentUser(request);
@@ -116,27 +126,38 @@ export async function POST(request: Request) {
   // queue (/dashboard/credentials) picks it up and mirrors the verified flag onto
   // the marketplace row on approval.
   if (body.action === 'submit') {
-    // Already waiting for review? Then this click sends the admin no second email.
     const { data: before } = await supabase
       .from('provider_credentials')
-      .select('review_status')
+      .select('review_status, submitted_at, updated_at')
       .eq('owner_id', user.id)
       .maybeSingle();
+    // One timestamp for both columns: "submitted, and unchanged since" is submitted_at >= updated_at.
+    const submittedAt = new Date().toISOString();
     const { error } = await supabase
       .from('provider_credentials')
       .upsert(
-        { owner_id: user.id, review_status: 'pending', submitted_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+        { owner_id: user.id, review_status: 'pending', submitted_at: submittedAt, updated_at: submittedAt },
         { onConflict: 'owner_id' }
       );
     if (error) {
       console.error('[shape] credential submit failed:', error.message);
       return NextResponse.json({ error: 'Could not submit for review.' }, { status: 500 });
     }
-    await unverifyListings(user.id);
+    const badgeCleared = await unverifyListings(user.id);
     // ⚠ THE ADMIN IS TOLD. A submission only flipped a row to 'pending' in a queue nobody had a
     // link to, so credentials could wait unseen. Mailed to the applications inbox, like a new
-    // application; best-effort, the submission itself has already landed.
-    if ((before as { review_status?: string } | null)?.review_status !== 'pending') {
+    // application; best-effort, the submission itself has already landed (and the admin nav's
+    // waiting count shows it whether or not the mail goes).
+    // ⚠ "PENDING" IS NOT "ALREADY SUBMITTED". Any edit the coach saves puts a reviewed row back to
+    // 'pending' (the guard trigger), so a resubmission after the admin asked for changes found the
+    // row pending and mailed nobody. The click sends no second email only when the row was
+    // submitted and has not been edited since.
+    const prev = (before ?? null) as { review_status?: string; submitted_at?: string | null; updated_at?: string | null } | null;
+    const alreadyWaiting =
+      prev?.review_status === 'pending' &&
+      !!prev.submitted_at &&
+      (!prev.updated_at || Date.parse(prev.submitted_at) >= Date.parse(prev.updated_at));
+    if (!alreadyWaiting) {
       const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
       const mail = credentialsSubmittedEmail({
         coachName: typeof meta.full_name === 'string' ? meta.full_name : '',
@@ -145,6 +166,8 @@ export async function POST(request: Request) {
       });
       await sendEmail({ to: applicationsInbox(), ...mail }).catch((e) => console.error('[shape] credential submit notify failed', e));
     }
+    // Said after the email, because a retry finds the row already submitted and mails nobody.
+    if (!badgeCleared) return badgeNotCleared();
     return NextResponse.json({ ok: true, review: 'pending' });
   }
 
@@ -170,7 +193,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Could not save your credentials.' }, { status: 500 });
   }
   // The guard trigger has just sent the row back to re-review; the badge goes with it.
-  await unverifyListings(user.id);
+  if (!(await unverifyListings(user.id))) return badgeNotCleared();
 
   // Replace the license set (states the provider is licensed in).
   if (Array.isArray(body.licenses)) {

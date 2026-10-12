@@ -22,7 +22,8 @@
 -- Not a coach-table column, so the column-level grant rule for trainers / nutritionists does not
 -- apply. No function, no policy, no grant change.
 --
--- One transaction, re-runnable: add-if-not-exists, a comment, and the guard at the end.
+-- One transaction, re-runnable: add-if-not-exists, a comment, a unique index for one open
+-- application per address and role, and the guard at the end.
 
 begin;
 set local lock_timeout = '10s';
@@ -33,6 +34,15 @@ alter table public.provider_applications
 comment on column public.provider_applications.admin_review is
   'The reviewer''s own record of the application (background check, decision, approved listing, decision email). Written only by the admin review actions; never by the applicant. See 2026-10-12-coach-application-review.sql.';
 
+-- ONE OPEN APPLICATION PER ADDRESS AND ROLE. /api/apply answers a second submission with the open
+-- one, but a read cannot stop a retry that arrives while the first request is still uploading its
+-- files; this index does, and the route turns its 23505 into the same answer. /api/apply stores the
+-- address lower-cased; lower() also covers a row stored before it did. (Production held no
+-- applications when this was written, so the index builds over nothing.)
+create unique index if not exists provider_applications_one_open_idx
+  on public.provider_applications (lower(email), provider_type)
+  where status in ('pending', 'in_review');
+
 do $guard$
 declare
   v_count integer;
@@ -42,6 +52,14 @@ begin
     and column_name = 'admin_review' and data_type = 'jsonb' and is_nullable = 'NO';
   if v_count <> 1 then
     raise exception 'provider_applications.admin_review (jsonb, not null) is missing';
+  end if;
+
+  if not exists (
+    select 1 from pg_indexes
+    where schemaname = 'public' and tablename = 'provider_applications'
+      and indexname = 'provider_applications_one_open_idx' and indexdef like 'CREATE UNIQUE INDEX%'
+  ) then
+    raise exception 'provider_applications_one_open_idx (unique) is missing';
   end if;
 
   if not (select c.relrowsecurity from pg_class c where c.oid = 'public.provider_applications'::regclass) then
