@@ -748,7 +748,11 @@ function navGroupsFor(authUser) {
 // The Shape Score ladder's own colors (tierColors.jsx; the app's BS_TIER_COLORS), so a
 // person's facet in search matches their profile. It read pink / violet / teal for
 // Legend / Peak / Form, a palette no other surface used.
-const SS_TIERS = [[15000, "var(--sh-accent3, #34d6c5)"], [5000, "#8fe3e6"], [2000, "#e0463c"], [750, "var(--sh-gold, #d8a23a)"], [0, "#5fa96e"]];
+// ⚠ LITERALS, NOT PAPER TOKENS (Codex, on #2312). A tier color is the same on every
+// paper, as it is on the profile; `var(--sh-gold, …)` and `var(--sh-accent3, …)`
+// resolve to #86662a and #0a7a72 on the light paper, which is a different Tempo and
+// a different Legend from the person's own page.
+const SS_TIERS = [[15000, "#34d6c5"], [5000, "#8fe3e6"], [2000, "#e0463c"], [750, "#d8a23a"], [0, "#5fa96e"]];
 function ssTierColor(points) { const p = Number(points) || 0; for (const [min, c] of SS_TIERS) { if (p >= min) return c; } return "#5fa96e"; }
 // Pull the literal digits out of a colour that may be a paper token — a
 // tokenised colour always carries its own fallback, which is what these need.
@@ -769,9 +773,9 @@ function ssHexDigits(hex, dflt) {
 // asserts on the stylesheet, where a sweep CAN see it.
 // Chasing which tokens reach which helper would be the fragile version — this way
 // synthesis is sound whatever it is handed, including a token added later.
-// Reachable today, so this is not theoretical: SS_TIERS' 750-point rung is
-// var(--sh-gold, #d8a23a), which arrives here through ssTierColor → SsFacet, and
-// the emitted rgba(var(--sh-gold-rgb, 216,162,58), 0.3333) computes in Chromium to
+// It was reachable through SS_TIERS' 750-point rung, var(--sh-gold, #d8a23a), until
+// 2026-10-12, when the tier rungs became the ladder's fixed literals; the emitted
+// rgba(var(--sh-gold-rgb, 216,162,58), 0.3333) computed in Chromium to
 // rgba(216,162,58,0.333) — byte-identical to the literal it replaced, because the
 // triplet is derived from the token's OWN literal and so cannot drift from it.
 function ssAlpha(hex, a) {

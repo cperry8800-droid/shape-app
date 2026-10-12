@@ -81,8 +81,21 @@ test('the canonical palette is one palette on both surfaces', () => {
 test('website search colors a person by the same ladder as their profile', () => {
   for (const file of ['public/newdesign/pageShell.jsx', 'public/newdesign/siteSearch.js']) {
     const rows = run(literal(read(file), 'SS_TIERS'))
+    // A literal, never a paper token: `var(--sh-gold, …)` is #86662a on the light paper
+    // and `var(--sh-accent3, …)` #0a7a72, a different tier color from the profile's.
+    for (const [min, c] of rows) assert.match(c, /^#[0-9a-fA-F]{6}$/, `${file}: the ${min}+ rung is ${c}, not a fixed color`)
     const byMin = new Map(rows.map(([min, c]) => [min, hex(c)]))
     THRESHOLDS.forEach((min, i) => assert.equal(byMin.get(min), CANON_MEMBER[i], `${file}: the ${MEMBER_NAMES[i]} rung (${min}+)`))
+  }
+})
+
+test('the chat widget colors a person by the same fixed palette', () => {
+  const src = read('public/newdesign/chatWidget.jsx')
+  const map = run(literal(src, 'CW_TIER_COLORS'))
+  for (const [k, v] of Object.entries(map)) {
+    assert.match(v, /^#[0-9a-fA-F]{6}$/, `chat ${k} is ${v}, not a fixed color`)
+    const want = canon.member[k] || canon.coach[k]
+    assert.equal(v.toLowerCase(), want.toLowerCase(), `chat ${k}`)
   }
 })
 
