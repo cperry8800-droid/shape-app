@@ -233,6 +233,9 @@ export async function getTrainers(): Promise<Trainer[]> {
     .from('trainers')
     .select('*, workouts:trainer_workouts(*, sample_days:workout_sample_days(*))')
     .not('owner_id', 'is', null)
+    // Discoverable listings only (2026-10-12-coach-listing-ready.sql): a real coach is listed once
+    // their listing has a price, active payouts and a photo.
+    .eq('listing_ready', true)
     .order('sort_order', { ascending: true });
   if (error) {
     console.error('[shape-app] getTrainers error', error);
@@ -247,6 +250,7 @@ export async function getNutritionists(): Promise<Nutritionist[]> {
     .from('nutritionists')
     .select('*, plans:nutritionist_plans(*, sample_days:plan_sample_days(*))')
     .not('owner_id', 'is', null)
+    .eq('listing_ready', true)
     .order('sort_order', { ascending: true });
   if (error) {
     console.error('[shape-app] getNutritionists error', error);

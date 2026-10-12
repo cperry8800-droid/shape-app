@@ -240,10 +240,12 @@ async function fetchSupabaseMarketplaceProviders() {
   // L16 (2026-10-08 review): a visitor's read of the coach tables is column-level since the
   // 2026-10-10 migration (every column but stripe_account_id), and a `*` read fails the whole row
   // once one column is out of reach. The lists are the migration's grant lists, in its order;
-  // tests/security-review-lows.test.mjs holds them equal.
+  // tests/security-review-lows.test.mjs holds them equal. Discoverable listings only: a real
+  // coach is listed once the listing has a price, active payouts and a photo
+  // (2026-10-12-coach-listing-ready.sql); Shape's own listings always are.
   const [trainerResult, nutritionistResult] = await Promise.all([
-    client.from('trainers').select('id, name, specialty, category, price, rating, subscribers, experience, credential, credential_full, specialty_type, bio, color, tags, trainer_of_month, totm_quote, featured, sort_order, created_at, updated_at, stripe_product_id, stripe_price_id, owner_id, stripe_account_status, session_price, at_capacity, capacity_resume_at, verified, verified_at, monthly_offer, listing_media, timezone').order('id', { ascending: true }),
-    client.from('nutritionists').select('id, name, specialty, category, price, rating, subscribers, experience, credential, credential_full, specialty_type, bio, color, tags, services, nutritionist_of_month, notm_quote, featured, sort_order, created_at, updated_at, stripe_product_id, stripe_price_id, owner_id, stripe_account_status, meal_plan_price, at_capacity, capacity_resume_at, verified, verified_at, monthly_offer, listing_media, timezone').order('id', { ascending: true }),
+    client.from('trainers').select('id, name, specialty, category, price, rating, subscribers, experience, credential, credential_full, specialty_type, bio, color, tags, trainer_of_month, totm_quote, featured, sort_order, created_at, updated_at, stripe_product_id, stripe_price_id, owner_id, stripe_account_status, session_price, at_capacity, capacity_resume_at, verified, verified_at, monthly_offer, listing_media, timezone').eq('listing_ready', true).order('id', { ascending: true }),
+    client.from('nutritionists').select('id, name, specialty, category, price, rating, subscribers, experience, credential, credential_full, specialty_type, bio, color, tags, services, nutritionist_of_month, notm_quote, featured, sort_order, created_at, updated_at, stripe_product_id, stripe_price_id, owner_id, stripe_account_status, meal_plan_price, at_capacity, capacity_resume_at, verified, verified_at, monthly_offer, listing_media, timezone').eq('listing_ready', true).order('id', { ascending: true }),
   ]);
 
   if (trainerResult.error) throw trainerResult.error;

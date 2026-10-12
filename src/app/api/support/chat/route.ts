@@ -785,7 +785,8 @@ async function liveCoaches(sb: NonNullable<CoachCtx['sb']>, role: CoachRole | 'a
   const legs = await Promise.all(wanted.map(async (r) => {
     try {
       const table = r === 'nutritionist' ? 'nutritionists' : 'trainers';
-      const res = await sb.from(table).select(`${LIVE_COACH_COLUMNS}, ${livePriceColumn(r)}`).order('id', { ascending: false }).limit(LIVE_COACH_CAP);
+      // Nora suggests only listings a member can find and buy from (2026-10-12-coach-listing-ready.sql).
+      const res = await sb.from(table).select(`${LIVE_COACH_COLUMNS}, ${livePriceColumn(r)}`).eq('listing_ready', true).order('id', { ascending: false }).limit(LIVE_COACH_CAP);
       if (res.error || !Array.isArray(res.data)) return null;
       return (res.data as LiveCoachRow[]).map((row) => liveCoachFromRow(row, r)).filter((c): c is Coach => !!c);
     } catch {

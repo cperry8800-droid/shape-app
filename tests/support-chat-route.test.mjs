@@ -430,8 +430,8 @@ test('get_account: strict with no arguments, the member\'s OWN rows come back, a
 
 test('⚠ COACH LOOKUP READS THE LIVE MARKETPLACE: the app gets live listings only with the provider id on the chip; the website lists the example directory after them', async () => {
   const tables = {
-    trainers: [{ id: 2, name: 'Aisha Patel', specialty: 'HIIT & Fat Loss', category: 'HIIT', credential: 'ACE-CPT', experience: '6 years', price: '39.99', session_price: null, rating: null, subscribers: 0, tags: ['HIIT', 'Fat loss'], services: null, verified: false, at_capacity: false, owner_id: null }],
-    nutritionists: [{ id: 101, name: 'Dr. Sarah Mitchell', specialty: 'Sports Nutrition', price: '59.99', meal_plan_price: null, tags: ['Performance'], services: ['Plans'] }],
+    trainers: [{ listing_ready: true, id: 2, name: 'Aisha Patel', specialty: 'HIIT & Fat Loss', category: 'HIIT', credential: 'ACE-CPT', experience: '6 years', price: '39.99', session_price: null, rating: null, subscribers: 0, tags: ['HIIT', 'Fat loss'], services: null, verified: false, at_capacity: false, owner_id: null }],
+    nutritionists: [{ listing_ready: true, id: 101, name: 'Dr. Sarah Mitchell', specialty: 'Sports Nutrition', price: '59.99', meal_plan_price: null, tags: ['Performance'], services: ['Plans'] }],
   };
   const answers = [calls(call('recommend_coaches', { role: 'trainer', focus: 'fat loss', limit: 3 })), say('Aisha Patel could be a strong fit.')];
   const app = await loadRoute({ tables, answers });
@@ -480,8 +480,23 @@ test('⚠ COACH LOOKUP READS THE LIVE MARKETPLACE: the app gets live listings on
   assert.equal(JSON.parse(anon.calls.ai[1].body.input.find((it) => it.type === 'function_call_output').output).coaches[0].name, 'Aisha Patel');
 });
 
+test('⚠ NORA NEVER SUGGESTS A LISTING THAT IS NOT READY: no price, payouts or photo means it is not in the pool (2026-10-12)', async () => {
+  const tables = {
+    trainers: [
+      { listing_ready: false, id: 3, name: 'Unready Coach', specialty: 'HIIT & Fat Loss', category: 'HIIT', price: null, tags: ['HIIT', 'Fat loss'], owner_id: 'u-unready' },
+      { listing_ready: true, id: 2, name: 'Aisha Patel', specialty: 'HIIT & Fat Loss', category: 'HIIT', price: '39.99', tags: ['HIIT', 'Fat loss'], owner_id: null },
+    ],
+    nutritionists: [],
+  };
+  const answers = [calls(call('recommend_coaches', { role: 'trainer', focus: 'fat loss', limit: 3 })), say('ok')];
+  const app = await loadRoute({ tables, answers });
+  await app.mod.POST(post({ ...ask('find me a fat loss trainer'), surface: 'app' }));
+  const r = JSON.parse(app.calls.ai[1].body.input.find((it) => it.type === 'function_call_output').output);
+  assert.deepEqual(r.coaches.map((c) => c.name), ['Aisha Patel']);
+});
+
 test('the coach lines and chips are built from what a listing states — a live row with no rating, rate or city has none of them', async () => {
-  const tables = { trainers: [{ id: 5, name: 'Bare Row', price: null, session_price: null, rating: null, tags: null }], nutritionists: [] };
+  const tables = { trainers: [{ listing_ready: true, id: 5, name: 'Bare Row', price: null, session_price: null, rating: null, tags: null }], nutritionists: [] };
   const r = await loadRoute({ tables, answers: [calls(call('recommend_coaches', { role: 'trainer', focus: '', limit: 1 })), say('x')] });
   const out = await (await r.mod.POST(post({ ...ask('a trainer'), surface: 'app' }))).json();
   const res = JSON.parse(r.calls.ai[1].body.input.find((it) => it.type === 'function_call_output').output);
@@ -491,8 +506,8 @@ test('the coach lines and chips are built from what a listing states — a live 
 });
 
 const LIVE_TABLES = () => ({
-  trainers: [{ id: 2, name: 'Aisha Patel', specialty: 'HIIT & Fat Loss', category: 'HIIT', credential: 'ACE-CPT', experience: '6 years', price: '39.99', session_price: null, rating: null, subscribers: 0, tags: ['HIIT', 'Fat loss'], services: null, verified: false, at_capacity: false, owner_id: null }],
-  nutritionists: [{ id: 101, name: 'Dr. Sarah Mitchell', specialty: 'Sports Nutrition', price: '59.99', meal_plan_price: null, tags: ['Performance'], services: ['Plans'] }],
+  trainers: [{ listing_ready: true, id: 2, name: 'Aisha Patel', specialty: 'HIIT & Fat Loss', category: 'HIIT', credential: 'ACE-CPT', experience: '6 years', price: '39.99', session_price: null, rating: null, subscribers: 0, tags: ['HIIT', 'Fat loss'], services: null, verified: false, at_capacity: false, owner_id: null }],
+  nutritionists: [{ listing_ready: true, id: 101, name: 'Dr. Sarah Mitchell', specialty: 'Sports Nutrition', price: '59.99', meal_plan_price: null, tags: ['Performance'], services: ['Plans'] }],
 });
 
 test('⚠ NO KEY, ON THE APP: the rule-based fallback hands the app live listings — or only the door to the marketplace — never an example chip (CodeRabbit, the review of #2130)', async () => {

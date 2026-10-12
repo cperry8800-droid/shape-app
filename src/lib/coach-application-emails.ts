@@ -97,7 +97,7 @@ export function approvalEmail(args: {
       <p style="margin:0 0 16px;line-height:1.55;">Your application to coach on Shape as a ${escapeHtml(roleLabel)} has been approved.</p>
       ${note.html}
       ${signInHtml}
-      <p style="margin:0 0 8px;line-height:1.55;"><strong>Before clients can book you:</strong></p>
+      <p style="margin:0 0 8px;line-height:1.55;"><strong>Before clients can find and book you</strong> (your listing appears in the marketplace once the first three are done):</p>
       <ol style="margin:0 0 20px;padding-left:20px;line-height:1.6;">
         <li>Add a profile photo and check your listing on <a href="${escapeHtml(pages.profile)}" style="color:#0ac5a8;">your profile</a>.</li>
         <li>Set your prices: your monthly rate and your single-session price.</li>
@@ -117,7 +117,7 @@ export function approvalEmail(args: {
     ...note.text,
     ...signInText,
     '',
-    'Before clients can book you:',
+    'Before clients can find and book you (your listing appears in the marketplace once the first three are done):',
     `  1. Add a profile photo and check your listing: ${pages.profile}`,
     '  2. Set your prices: your monthly rate and your single-session price.',
     `  3. Connect Stripe so you can be paid: Business > Set up payouts (${pages.business})`,
