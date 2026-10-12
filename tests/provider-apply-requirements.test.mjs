@@ -148,6 +148,23 @@ const REQUIREMENTS = [
     why: 'a form that sends no file, or accepted ones, is not held to it; a file of the wrong type is not a field any form can supply',
   },
   {
+    // 2026-10-12: the documents go up first through /api/apply/uploads, and its ticket names the
+    // draft id they are under. An expired or forged ticket, or one sent beside files, is refused.
+    key: 'uploadTicket',
+    route: /Your upload session has expired\. Attach your files again and resubmit\./,
+    appliesTo: ['trainer', 'nutritionist'],
+    producer: null,
+    why: 'a ticket is the server\'s own word, handed back as it came; an expired one is not a field a form can supply',
+  },
+  {
+    // A claimed file storage does not hold, or stored files the shared rules refuse.
+    key: 'uploadIncomplete',
+    route: /code: 'upload_incomplete'/,
+    appliesTo: ['trainer', 'nutritionist'],
+    producer: null,
+    why: 'what storage holds is checked against what the form uploaded; an upload that did not finish is not a field',
+  },
+  {
     // 2026-10-12: Turnstile on the application (a no-op until TURNSTILE_SECRET_KEY is set). A
     // signed-in app caller is vouched for by its account instead; every surface a signed-out
     // applicant can reach must send a token, or once the secret is set it cannot apply at all.

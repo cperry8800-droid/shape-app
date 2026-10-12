@@ -32,9 +32,8 @@ import { normalizeMemoryDoc } from '../../../src/lib/ai/noraMemory.mjs';
 import { isMinorFromDob } from '../../../src/lib/age-derive.mjs';
 import {
   DEFAULT_BACKGROUND_CHECK_PROVIDER,
-  PROVIDER_APPLICATION_MAX_TOTAL_BYTES,
   PROVIDER_APPLICATION_SEND_FAILED,
-  applicationFilesTooLargeMessage,
+  applicationFilesProblem,
 } from '../config/providerApplications.js';
 
 // Supabase config. The native Capacitor build injects these via env at build
@@ -1205,10 +1204,61 @@ function applicationSendFailed(cause) {
   return error;
 }
 
-// ⚠ THE ROUTE IS THE ONE WAY IN. The files ride this request (multipart, the fields the website's
-// form sends), so a signed-out applicant can attach documents; the route checks them before it
-// stores anything, stores them under the application's id, and writes the row with them.
-async function submitProviderApplicationToApi(payload, { files = [], turnstileToken = '' } = {}) {
+/**
+ * A route's deliberate refusal (a 4xx with its own words) as an error the form shows as it is, or
+ * null when the answer is not one (a 5xx, a body that is not the route's JSON): a send that failed,
+ * which a retry can fix.
+ */
+function applicationRefusal(response, result, turnstileToken) {
+  if (!(response.status >= 400 && response.status < 500 && result && typeof result.error === 'string')) return null;
+  let message = result.error;
+  if (result.code === 'captcha_failed' && !turnstileToken) {
+    message = "We couldn't run the human check in the app. Sign in to your Shape account and try again, or apply at theshapecommunity.com.";
+  }
+  const error = new Error(message);
+  error.rejected = true;
+  error.code = result.code || '';
+  return error;
+}
+
+// ⚠ THE DOCUMENTS GO STRAIGHT TO STORAGE (2026-10-12). They used to ride the application request,
+// which the platform caps at 4.5 MB, so an application held 4 MB of files. /api/apply/uploads
+// checks the list, runs the human check (or the account's), and answers with a signed upload link
+// per file and a ticket; each file goes up on its link, and the application carries the ticket.
+async function uploadProviderApplicationDocuments(role, files, { turnstileToken = '' } = {}) {
+  if (!apiBaseUrl || !supabase?.storage) throw applicationSendFailed();
+  const headers = { 'content-type': 'application/json' };
+  if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
+  const meta = files.map(({ kind, file }) => ({ kind, name: file.name || kind, type: file.type || '', size: file.size || 0 }));
+  let response;
+  try {
+    response = await fetch(`${apiBaseUrl}/api/apply/uploads`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ providerType: role, files: meta, ...(turnstileToken ? { turnstileToken } : {}) }),
+    });
+  } catch (networkError) {
+    throw applicationSendFailed(networkError);
+  }
+  const result = await response.json().catch(() => null);
+  if (!response.ok || !result || !Array.isArray(result.uploads) || result.uploads.length !== files.length || !result.ticket) {
+    throw applicationRefusal(response, result, turnstileToken) || applicationSendFailed();
+  }
+  for (const [i, link] of result.uploads.entries()) {
+    let uploadError = null;
+    try {
+      ({ error: uploadError } = await supabase.storage.from(result.bucket).uploadToSignedUrl(link.path, link.token, files[i].file, { contentType: link.type || undefined }));
+    } catch (e) {
+      uploadError = e;
+    }
+    if (uploadError) throw applicationSendFailed(uploadError);
+  }
+  return { ticket: result.ticket, uploads: result.uploads.map((link) => ({ path: link.path, name: link.name })) };
+}
+
+// ⚠ THE ROUTE IS THE ONE WAY IN. The fields go as multipart (what the website's form sends); the
+// documents, already in storage, go as the upload ticket and the list of what was uploaded.
+async function submitProviderApplicationToApi(payload, { turnstileToken = '', upload = null } = {}) {
   if (!apiBaseUrl) throw applicationSendFailed();
   const body = providerApplicationApiBody(payload);
   const form = new FormData();
@@ -1216,8 +1266,12 @@ async function submitProviderApplicationToApi(payload, { files = [], turnstileTo
     if (key === 'details') form.append('details', JSON.stringify(value || {}));
     else form.append(key, value == null ? '' : String(value));
   }
-  if (turnstileToken) form.append('turnstileToken', turnstileToken);
-  for (const { kind, file } of files) form.append(kind, file, file.name || kind);
+  if (upload) {
+    form.append('uploadTicket', upload.ticket);
+    form.append('uploads', JSON.stringify(upload.uploads));
+  } else if (turnstileToken) {
+    form.append('turnstileToken', turnstileToken);
+  }
   const headers = {};
   if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
 
@@ -1227,31 +1281,12 @@ async function submitProviderApplicationToApi(payload, { files = [], turnstileTo
   } catch (networkError) {
     throw applicationSendFailed(networkError);
   }
-  // A 413 is the platform refusing the body before the route runs, in plain text.
-  if (response.status === 413) {
-    const total = files.reduce((sum, { file }) => sum + (file?.size || 0), 0);
-    const error = new Error(applicationFilesTooLargeMessage(Math.max(total, PROVIDER_APPLICATION_MAX_TOTAL_BYTES + 1)));
-    error.rejected = true;
-    throw error;
-  }
   const result = await response.json().catch(() => null);
   if (response.ok && result && result.ok) return result;
   // ⚠ A REFUSAL IS NOT A TRANSPORT FAILURE. A 4xx means the route deliberately declined this
-  // application (under 18, too few years, no background-check consent, a file it cannot take,
-  // no human check); its own words are what the applicant needs to fix it, so they surface
-  // as they are. Everything else (5xx, a body that is not the route's JSON) is a send that
-  // failed, which a retry can fix.
-  if (response.status >= 400 && response.status < 500 && result && typeof result.error === 'string') {
-    let message = result.error;
-    if (result.code === 'captcha_failed' && !turnstileToken) {
-      message = "We couldn't run the human check in the app. Sign in to your Shape account and try again, or apply at theshapecommunity.com.";
-    }
-    const error = new Error(message);
-    error.rejected = true;
-    error.code = result.code || '';
-    throw error;
-  }
-  throw applicationSendFailed();
+  // application (under 18, no background-check consent, a file it cannot take, no human check);
+  // its own words are what the applicant needs to fix it, so they surface as they are.
+  throw applicationRefusal(response, result, upload ? 'ticket' : turnstileToken) || applicationSendFailed();
 }
 
 async function submitProviderApplication({ role, values, files = [] }) {
@@ -1265,11 +1300,13 @@ async function submitProviderApplication({ role, values, files = [] }) {
     throw new Error('Name and email are required.');
   }
   const attached = (Array.isArray(files) ? files : []).filter((item) => item && item.file);
-  const total = attached.reduce((sum, { file }) => sum + (file.size || 0), 0);
-  if (total > PROVIDER_APPLICATION_MAX_TOTAL_BYTES) throw new Error(applicationFilesTooLargeMessage(total));
+  const fileProblem = applicationFilesProblem(attached.map(({ kind, file }) => ({ kind, name: file.name, type: file.type, size: file.size })));
+  if (fileProblem) throw new Error(fileProblem);
 
-  // The human check /api/apply asks of a signed-out application. A signed-in one is vouched for
-  // by its account (the Bearer token). '' when the check cannot run here, and the route says why.
+  // The human check a signed-out application needs. A signed-in one is vouched for by its account
+  // (the Bearer token). '' when the check cannot run here, and the route says why. With documents
+  // the check is run by /api/apply/uploads, whose ticket then stands in for it (a token is
+  // single-use).
   let turnstileToken = '';
   if (!state.session?.access_token && typeof window !== 'undefined' && window.ShapeTurnstile?.solve) {
     try { turnstileToken = await window.ShapeTurnstile.solve(); } catch (e) { turnstileToken = ''; }
@@ -1280,7 +1317,8 @@ async function submitProviderApplication({ role, values, files = [] }) {
   // the screen said "Submitted for review". The direct insert has been refused since the
   // 2026-10-10 migration removed anonymous inserts, so every one of those applications stayed on
   // the phone, unseen. A failure now says so, and the form still holds every value to resend.
-  const result = await submitProviderApplicationToApi(payload, { files: attached, turnstileToken });
+  const upload = attached.length ? await uploadProviderApplicationDocuments(normalizedRole, attached, { turnstileToken }) : null;
+  const result = await submitProviderApplicationToApi(payload, { turnstileToken, upload });
   return {
     stored: 'api',
     duplicate: result.duplicate === true,

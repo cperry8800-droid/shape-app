@@ -71,11 +71,21 @@ function attachFile(w, input, file) {
 
 // ── The website ───────────────────────────────────────────────────────────────────────────
 
-async function mountWebsite(role, { turnstile = null, respond = () => new Response(JSON.stringify({ ok: true, id: 'app-1' }), { status: 200 }) } = {}) {
+async function mountWebsite(role, { turnstile = null, filesLib = true, failUpload = -1, respond = () => new Response(JSON.stringify({ ok: true, id: 'app-1' }), { status: 200 }) } = {}) {
   const env = useDom(`https://shape.test/newdesign/Signup.html?role=${role}`);
   const sent = [];
-  globalThis.fetch = async (url, init) => { sent.push({ url, form: init.body }); return respond(); };
+  const stored = [];
+  globalThis.fetch = async (url, init) => { sent.push({ url, form: init.body, json: typeof init.body === 'string' ? JSON.parse(init.body) : null }); return respond(url, init); };
   env.w.ShapeAgeDerive = { isMinorFromDob: ageDerive.isMinorFromDob };
+  // The page loads /application-files.js (the classic-script mirror) and supabase.js's client.
+  if (filesLib) env.w.ShapeApplicationFiles = require(join(ROOT, 'public/application-files.js'));
+  env.w.shapeDb = { client: { storage: { from: (bucket) => ({
+    uploadToSignedUrl: async (path, token, file, opts) => {
+      if (stored.length === failUpload) return { data: null, error: { message: 'upload failed' } };
+      stored.push({ bucket, path, token, name: file.name, contentType: opts?.contentType });
+      return { data: { path }, error: null };
+    },
+  }) } } };
   if (turnstile) env.w.ShapeTurnstile = turnstile;
   const code = babel.transformSync(read('public/newdesign/signup.jsx'), { presets: [presetReact], babelrc: false, configFile: false, sourceType: 'script' }).code;
   let root = null;
@@ -89,7 +99,7 @@ async function mountWebsite(role, { turnstile = null, respond = () => new Respon
   const next = () => click(byText(env.doc, 'button', /^Continue$/));
   const tickBox = (re) => click(byText(env.doc, 'label', re));
   return {
-    ...env, sent,
+    ...env, sent, stored,
     fill: (patch) => act(() => env.w.shapeNoraForm.fill(patch)),
     next, tickBox, click,
     submit: async () => { await click(byText(env.doc, 'button', /Submit application|Submitting/)); await act(tick); },
@@ -214,33 +224,87 @@ test('website: the coach application carries the human-check token, and waits fo
   } finally { await p.unmount(); }
 });
 
-test('website: files over 4 MB in total are stopped before sending, and the platform\'s 413 reads the same way', async () => {
-  const attachAndSubmit = async (p, sizes) => {
+const DRAFT = '0b7c1d4e-1111-4222-8333-444455556666';
+/** The upload-links answer for the files a request names. */
+function linksAnswer(init) {
+  const files = JSON.parse(init.body).files;
+  return new Response(JSON.stringify({
+    draftId: DRAFT, ticket: `${DRAFT}.trainer.9999999999.${'b'.repeat(64)}`, bucket: 'provider-credentials',
+    uploads: files.map((f, i) => ({ kind: f.kind, name: f.name, type: f.type, size: f.size, path: `website/${DRAFT}/${f.kind}/${i + 1}-${f.name}`, token: `t${i}` })),
+  }), { status: 200 });
+}
+const pdf = (name, bytes = 4) => new File([new Uint8Array(bytes)], name, { type: 'application/pdf' });
+function attachFiles(w, input, files) {
+  Object.defineProperty(input, 'files', { value: files, configurable: true });
+  input.dispatchEvent(new w.Event('change', { bubbles: true }));
+}
+
+test('website: documents by category, several per section, uploaded through signed links before the application', async () => {
+  const p = await mountWebsite('trainer', { respond: (url, init) => (String(url).endsWith('/api/apply/uploads') ? linksAnswer(init) : new Response(JSON.stringify({ ok: true, id: DRAFT }), { status: 200 })) });
+  try {
     await p.fill({ firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.invalid', dob: '1990-04-02', years: '7-10 years' });
     await p.next();
-    const inputs = [...p.doc.querySelectorAll('input[type=file]')];
-    assert.equal(inputs.length, 3);
-    for (const [i, mb] of sizes.entries()) await act(() => attachFile(p.w, inputs[i], new File([new Uint8Array(Math.round(mb * MB))], `doc${i}.pdf`, { type: 'application/pdf' })));
-    assert.match(p.doc.body.textContent, /up to 4 MB in total/, 'the form says the real limit');
+    for (const label of ['Resume / CV', 'Other CV materials', 'Certifications and certificates', 'Designations and supporting paperwork', 'Insurance']) {
+      assert.ok(p.doc.querySelector(`input[type=file][aria-label="Add ${label}"]`), `a picker for ${label}`);
+    }
+    assert.match(p.doc.body.textContent, /Up to 10 MB a file and 75 MB in all\./);
+    assert.doesNotMatch(p.doc.body.textContent, /4 MB in total/);
+    const picker = (label) => p.doc.querySelector(`input[type=file][aria-label="Add ${label}"]`);
+    await act(() => attachFiles(p.w, picker('Resume / CV'), [pdf('cv.pdf')]));
+    await act(() => attachFiles(p.w, picker('Other CV materials'), [pdf('cover.pdf'), pdf('refs.pdf')]));
+    await act(() => attachFiles(p.w, picker('Certifications and certificates'), [pdf('nasm.pdf'), pdf('cpr.pdf'), pdf('kettlebell.pdf')]));
+    await act(() => attachFiles(p.w, picker('Designations and supporting paperwork'), [pdf('degree.pdf')]));
+    assert.match(p.doc.body.textContent, /kettlebell\.pdf/);
+    await p.click(p.doc.querySelector('button[aria-label="Remove kettlebell.pdf"]'));
+    assert.doesNotMatch(p.doc.body.textContent, /kettlebell\.pdf/, 'a chosen file can be taken off');
     await p.tickBox(/credentials may be verified/);
     await p.next(); await p.next();
     await p.tickBox(/I agree to the/); await p.tickBox(/code of conduct/); await p.tickBox(/I consent to a required background check/);
     await p.submit();
-  };
+    assert.deepEqual(p.sent.map((r) => String(r.url)), ['/api/apply/uploads', '/api/apply'], p.doc.body.textContent.slice(-300));
+    assert.deepEqual(p.sent[0].json.files.map((f) => [f.kind, f.name]), [
+      ['resume', 'cv.pdf'], ['cv_materials', 'cover.pdf'], ['cv_materials', 'refs.pdf'],
+      ['credential', 'nasm.pdf'], ['credential', 'cpr.pdf'], ['designation', 'degree.pdf'],
+    ]);
+    assert.equal(p.sent[0].json.providerType, 'trainer');
+    assert.equal(p.stored.length, 6, 'every file goes up on its own link');
+    assert.deepEqual(p.stored.map((u) => u.token), ['t0', 't1', 't2', 't3', 't4', 't5']);
+    const form = p.sent[1].form;
+    assert.equal(form.get('uploadTicket'), `${DRAFT}.trainer.9999999999.${'b'.repeat(64)}`);
+    assert.equal(JSON.parse(form.get('uploads')).length, 6);
+    for (const kind of ['resume', 'credential', 'insurance']) assert.equal(form.get(kind), null, 'no file rides the application');
+    assert.match(p.doc.body.textContent, /Application submitted\./);
+  } finally { await p.unmount(); }
+});
+
+test('website: a file the rules refuse is said before anything is sent, and a failed upload stops the application', async () => {
   const tooBig = await mountWebsite('trainer');
   try {
-    await attachAndSubmit(tooBig, [3, 2]);
-    assert.equal(tooBig.sent.length, 0, 'nothing is sent');
-    assert.match(tooBig.doc.body.textContent, /Your files add up to 5\.0 MB; the limit for one application is 4 MB in total\. Attach a smaller scan or fewer files\./);
+    await walkTrainer(tooBig);
+    for (let i = 0; i < 2; i += 1) await tooBig.click(byText(tooBig.doc, 'button', /← Back/));
+    await act(() => attachFiles(tooBig.w, tooBig.doc.querySelector('input[type=file][aria-label="Add Insurance"]'), [pdf('policy.pdf', 11 * MB)]));
+    await tooBig.next(); await tooBig.next();
+    await tooBig.submit();
+    assert.equal(tooBig.sent.length, 0);
+    assert.match(tooBig.doc.body.textContent, /policy\.pdf is 11\.0 MB; each file can be up to 10 MB\./);
   } finally { await tooBig.unmount(); }
-  // Under the line on this side and refused by the platform anyway: its plain-text 413 is not what shows.
-  const refused = await mountWebsite('trainer', { respond: () => new Response('Request Entity Too Large', { status: 413 }) });
+  const broken = await mountWebsite('trainer', { failUpload: 0, respond: (url, init) => (String(url).endsWith('/api/apply/uploads') ? linksAnswer(init) : new Response(JSON.stringify({ ok: true }), { status: 200 })) });
   try {
-    await attachAndSubmit(refused, [1]);
-    assert.equal(refused.sent.length, 1);
-    assert.match(refused.doc.body.textContent, /the limit for one application is 4 MB in total/);
-    assert.doesNotMatch(refused.doc.body.textContent, /Could not submit application|Request Entity Too Large/);
-  } finally { await refused.unmount(); }
+    await walkTrainer(broken);
+    for (let i = 0; i < 2; i += 1) await broken.click(byText(broken.doc, 'button', /← Back/));
+    await act(() => attachFiles(broken.w, broken.doc.querySelector('input[type=file][aria-label="Add Resume / CV"]'), [pdf('cv.pdf')]));
+    await broken.next(); await broken.next();
+    await broken.submit();
+    assert.deepEqual(broken.sent.map((r) => String(r.url)), ['/api/apply/uploads'], 'the application waits for its files');
+    assert.match(broken.doc.body.textContent, /cv\.pdf did not upload\. Check your connection and try again\./);
+  } finally { await broken.unmount(); }
+  // Without the rules script the form says so rather than offering pickers it cannot check.
+  const bare = await mountWebsite('trainer', { filesLib: false });
+  try {
+    await bare.fill({ firstName: 'Ada' });
+    await bare.next();
+    assert.match(bare.doc.body.textContent, /Couldn't load the document uploader/);
+  } finally { await bare.unmount(); }
 });
 
 // ── The app ───────────────────────────────────────────────────────────────────────────────
@@ -344,16 +408,17 @@ test('app: a nutritionist says what they are, and adds a CDR number, state licen
   } finally { await p.unmount(); }
 });
 
-test('app: files over 4 MB in total are stopped on the screen, and the helper copy says the real limit', async () => {
+test('app: documents by category, several per section; the screen says a refused file and hands the rest to the sender', async () => {
   const p = await mountApp('trainer');
   try {
     await p.fill({ firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.invalid', dob: '1990-04-02', cert: 'NASM', years: '10-15 years' });
     await p.next();
-    assert.match(p.text(), /All files together up to 4 MB/);
-    assert.doesNotMatch(p.text(), /10MB/);
-    const inputs = [...p.doc.querySelectorAll('input[type=file]')];
-    await act(() => attachFile(p.w, inputs[0], new File([new Uint8Array(3 * MB)], 'cv.pdf', { type: 'application/pdf' })));
-    await act(() => attachFile(p.w, inputs[1], new File([new Uint8Array(1.5 * MB)], 'cert.pdf', { type: 'application/pdf' })));
+    assert.match(p.text(), /Up to 10 MB a file and 75 MB in all\./);
+    assert.doesNotMatch(p.text(), /4 MB/);
+    const picker = (label) => p.doc.querySelector(`input[type=file][aria-label="Add ${label}"]`);
+    for (const label of ['Resume / CV', 'Other CV materials', 'Certifications and certificates', 'Designations and supporting paperwork', 'Insurance']) assert.ok(picker(label), label);
+    await act(() => attachFiles(p.w, picker('Certifications and certificates'), [pdf('nasm.pdf'), pdf('cpr.pdf')]));
+    await act(() => attachFiles(p.w, picker('Designations and supporting paperwork'), [pdf('big-scan.pdf', 11 * MB)]));
     await p.click(p.button(/credentials may be verified/));
     await p.next(); await p.next();
     for (const re of [/I agree to the/, /code of conduct/, /I consent to a required background check/]) await p.click(p.button(re));
@@ -361,7 +426,14 @@ test('app: files over 4 MB in total are stopped on the screen, and the helper co
     p.w.ShapeApplications = { submitProviderApplication: async (arg) => { calls.push(arg); return { stored: 'api', data: { id: 'x' } }; } };
     await p.click(p.button(/Transmit · Submit/)); await act(tick);
     assert.equal(calls.length, 0);
-    assert.match(p.text(), /Your files add up to 4\.5 MB; the limit for one application is 4 MB in total/);
+    assert.match(p.text(), /big-scan\.pdf is 11\.0 MB; each file can be up to 10 MB\./);
+    await p.click(p.button(/^Back$/)); await p.click(p.button(/^Back$/));
+    await p.click(p.doc.querySelector('button[aria-label="Remove big-scan.pdf"]'));
+    await act(() => attachFiles(p.w, picker('Resume / CV'), [pdf('cv.pdf')]));
+    await p.next(); await p.next();
+    await p.click(p.button(/Transmit · Submit/)); await act(tick);
+    assert.equal(calls.length, 1, p.text().slice(-300));
+    assert.deepEqual(calls[0].files.map((f) => [f.kind, f.file.name]), [['resume', 'cv.pdf'], ['credential', 'nasm.pdf'], ['credential', 'cpr.pdf']]);
   } finally { await p.unmount(); }
 });
 

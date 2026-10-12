@@ -26,6 +26,10 @@
       "schedule": "30 3 * * *"
     },
     {
+      "path": "/api/cron/application-uploads",
+      "schedule": "45 3 * * *"
+    },
+    {
       "path": "/api/cron/guardrail-health",
       "schedule": "0 9 * * *"
     },

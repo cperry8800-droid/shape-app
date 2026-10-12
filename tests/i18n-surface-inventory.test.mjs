@@ -374,6 +374,10 @@ const UNCOVERED = new Set([
   'Pros::BSCoachGoalPlanPage', 'Pros::BSCoachPlaylistStudio', 'Pros::BSGoalEditSheet',
   'Pros::BSProMonthlyOfferSheet', 'Pros::BSProNotificationsPage', 'Pros::BSProPublicProfilePage',
   'ProviderApply::BSProviderApplicationScreen', 'Widgets::BSWidgetPicker',
+  // The application screen's document pickers (2026-10-12), split out of it as their own
+  // component: three strings of the screen's, which has no translator and is translated whole
+  // or not at all.
+  'ProviderApply::BSApplyDocuments',
   'Widgets::BSWidgetSlot', 'Widgets::WAdherence', 'Widgets::WBody', 'Widgets::WCalories',
   'Widgets::WFocus', 'Widgets::WHRV', 'Widgets::WLoad', 'Widgets::WMacros',
   'Widgets::WMeasurements', 'Widgets::WMicros', 'Widgets::WMood', 'Widgets::WPR',
@@ -838,9 +842,14 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // is (three fields, their placeholders, the years select's "Select"), and its notice now says
   // the standard instead of a hard minimum (owner, 2026-10-12: "dont make it a hard no"). Still
   // no translator; translated whole or not at all.
-  assert.equal(noneStrings, 754, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  // ⚠ AND noneStrings 754 -> 750, none.length 88 -> 89: the screen's three single-file pickers
+  // and their helper lines (seven strings) became BSApplyDocuments, one picker per document
+  // category with its label and help from the shared rules (src/lib/application-files.mjs, data,
+  // not copy at the render site) and three strings of its own (2026-10-12). Registered in
+  // UNCOVERED beside the screen it belongs to.
+  assert.equal(noneStrings, 750, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
   assert.equal(part.length, 34, 'partial-surface count moved — regenerate PARTIAL and the record');
-  assert.equal(none.length, 88, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  assert.equal(none.length, 89, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned

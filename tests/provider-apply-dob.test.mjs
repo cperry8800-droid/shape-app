@@ -148,8 +148,10 @@ test('a route rejection surfaces, and nothing is stored around the route', () =>
   assert.equal(src.indexOf(".from('provider_applications')"), -1, 'the app writes provider_applications directly again');
   assert.doesNotMatch(src, /shape\.providerApplications/, 'an application is kept on the device instead of reaching the route');
   assert.doesNotMatch(src, /uploadProviderApplicationFile/, 'files are pre-uploaded under the signed-in uid again');
-  const start = src.indexOf('async function submitProviderApplicationToApi');
-  assert.notEqual(start, -1, 'submitProviderApplicationToApi has moved — re-anchor this test');
+  // The discriminator lives in applicationRefusal (2026-10-12), which both sends (the upload
+  // links and the application) throw through.
+  const start = src.indexOf('function applicationRefusal');
+  assert.notEqual(start, -1, 'applicationRefusal has moved — re-anchor this test');
   const end = src.indexOf('async function listSessions', start);
   const region = src.slice(start, end);
   assert.match(
@@ -157,6 +159,8 @@ test('a route rejection surfaces, and nothing is stored around the route', () =>
     /status\s*>=\s*400[\s\S]{0,80}status\s*<\s*500/,
     'no 4xx discriminator: a deliberate refusal is indistinguishable from a transport failure'
   );
-  assert.match(region, /error\.rejected = true;[\s\S]{0,80}throw error;/, 'the refusal is not marked and thrown');
+  assert.match(region, /error\.rejected = true;[\s\S]{0,80}return error;/, 'the refusal is not marked');
+  const send = region.slice(region.indexOf('async function submitProviderApplicationToApi'));
+  assert.match(send, /throw applicationRefusal\(response, result, [^)]*\) \|\| applicationSendFailed\(\);/, 'the application send does not throw the refusal');
 });
 

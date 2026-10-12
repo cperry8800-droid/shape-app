@@ -90,18 +90,20 @@ function proPick(v, key, kind) {
   if (key === "primary") return (kind === "trainer" ? TRAINER_SPECS : NUTRI_SPECS)[0];
   return PRO_SELECT_DEFAULTS[key] || "";
 }
-// The files ride the request through /api/apply, and the platform refuses a request body over
-// 4.5 MB before the route runs, so the files are held to 4 MB in total (the route checks the
-// same line).
-const APPLY_FILES_MAX_BYTES = 4 * 1024 * 1024;
-function applyFilesTooLarge(bytes) {
-  const mb = (Math.ceil(bytes / (1024 * 1024 / 10)) / 10).toFixed(1);
-  return `Your files add up to ${mb} MB; the limit for one application is 4 MB in total. Attach a smaller scan or fewer files.`;
+// The application's documents, by category (window.ShapeApplicationFiles, the classic-script
+// mirror of src/lib/application-files.mjs, loaded by the page). They no longer ride the
+// application request, which the platform caps at 4.5 MB: each file goes straight to private
+// storage through a signed link from /api/apply/uploads, and the application carries the ticket.
+function applicationDocs(v) {
+  const docs = v.docs && typeof v.docs === "object" ? v.docs : {};
+  const lib = window.ShapeApplicationFiles;
+  const kinds = lib ? lib.APPLICATION_FILE_KINDS.map(k => k.kind) : Object.keys(docs);
+  return kinds.flatMap(kind => (Array.isArray(docs[kind]) ? docs[kind] : []).map(file => ({ kind, file })));
 }
 // Never filled by Nora, whatever her card carries: the password, documents, every consent
 // or agreement box and the license rows stay the person's own (src/lib/ai/noraForms.mjs
 // has no field for any of them either).
-const SIGNUP_NORA_NEVER = ["password", "tos", "waiver", "verify", "conduct", "bgcheck", "attest", "resumeFile", "credentialFile", "insuranceFile", "licenses"];
+const SIGNUP_NORA_NEVER = ["password", "tos", "waiver", "verify", "conduct", "bgcheck", "attest", "docs", "resumeFile", "credentialFile", "insuranceFile", "licenses"];
 
 function Field({ label, children, span = 1 }) {
   return (
@@ -324,16 +326,7 @@ function ProCredentials({ v, set, kind }) {
         <Field label="Liability insurance"><Select value={proPick(v, "insurance", kind)} onChange={e => set({ insurance: e.target.value })} options={["Yes", "No", "In progress"]} /></Field>
         <Field label="Previous platforms (optional)"><TextInput value={v.prev || ""} onChange={e => set({ prev: e.target.value })} placeholder="Trainerize, MyFitnessPal Pro..." /></Field>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
-        <Field label="Resume / CV">
-          <FileInput label="Upload PDF, DOC, or image" onChange={file => set({ resumeFile: file || null })} />
-        </Field>
-        <Field label={isTrainer ? "Proof of certification" : "Proof of license"}>
-          <FileInput label="Upload PDF or image" onChange={file => set({ credentialFile: file || null })} />
-        </Field>
-        <Field label="Insurance document"><FileInput label="Upload PDF or image" onChange={file => set({ insuranceFile: file || null })} /></Field>
-      </div>
-      <p style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.6)", margin: 0, lineHeight: 1.5 }}>PDF, DOC, DOCX, PNG, JPEG or WebP, up to 4 MB in total for all your files.</p>
+      <ApplicationDocuments v={v} set={set} />
       {!isTrainer && <NutritionCompliance v={v} set={set} isDietitian={isDietitian} />}
       <Check on={v.verify} onClick={() => set({ verify: !v.verify })}>I understand my credentials may be verified by Shape's trust team.</Check>
     </div>
@@ -399,9 +392,40 @@ function NutritionCompliance({ v, set, isDietitian }) {
   );
 }
 
-function FileInput({ label, onChange }) {
+// One picker per category; each takes several files, and each chosen file can be taken off.
+function ApplicationDocuments({ v, set }) {
+  const lib = window.ShapeApplicationFiles;
+  if (!lib) {
+    return <p style={{ fontFamily: sans, fontSize: 12.5, color: "#e8a07a", margin: 0 }}>Couldn't load the document uploader. Reload the page to attach your files.</p>;
+  }
+  const docs = v.docs && typeof v.docs === "object" ? v.docs : {};
+  const setKind = (kind, files) => set({ docs: { ...docs, [kind]: files } });
+  const kb = (n) => (n >= 1024 * 1024 ? `${(n / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
   return (
-    <input type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" onChange={e => onChange(e.target.files?.[0] || null)} style={{ ...inputStyle, cursor: "pointer", fontSize: 12 }} aria-label={label} />
+    <div style={{ display: "grid", gap: 16 }}>
+      <div style={{ ...labelStyle, marginBottom: 0 }}>Documents</div>
+      {lib.APPLICATION_FILE_KINDS.map(k => {
+        const files = Array.isArray(docs[k.kind]) ? docs[k.kind] : [];
+        return (
+          <div key={k.kind} style={{ display: "grid", gap: 8, padding: "12px 14px", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 10 }}>
+            <div style={{ fontFamily: sans, fontSize: 14, color: INK }}>{k.label}</div>
+            <div style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.6)", lineHeight: 1.45 }}>{k.help}</div>
+            {files.map((file, i) => (
+              <div key={`${file.name}-${i}`} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.85)" }}>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name} · {kb(file.size || 0)}</span>
+                <button type="button" aria-label={`Remove ${file.name}`} onClick={() => setKind(k.kind, files.filter((_, j) => j !== i))} style={{ background: "transparent", border: 0, color: "rgba(242,237,228,0.6)", cursor: "pointer", fontSize: 16 }}>×</button>
+              </div>
+            ))}
+            {files.length < k.max && (
+              <input type="file" multiple accept={lib.APPLICATION_FILE_ACCEPT} aria-label={`Add ${k.label}`}
+                onChange={e => { const picked = Array.from(e.target.files || []); e.target.value = ""; if (picked.length) setKind(k.kind, [...files, ...picked].slice(0, k.max)); }}
+                style={{ ...inputStyle, cursor: "pointer", fontSize: 12 }} />
+            )}
+          </div>
+        );
+      })}
+      <p style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.6)", margin: 0, lineHeight: 1.5 }}>PDF, DOC, DOCX, PNG, JPEG or WebP. Up to 10 MB a file and 75 MB in all.</p>
+    </div>
   );
 }
 
@@ -766,9 +790,13 @@ function SignupForm({ role }) {
     const proMinor = proAge.isMinorFromDob(values.dob);
     if (proMinor === null) { setError("Enter a valid date of birth — Shape is for adults 18 and over."); return; }
     if (proMinor === true) { setError("You must be 18 or older to apply as a coach."); return; }
-    const applyFiles = [["resume", values.resumeFile], ["credential", values.credentialFile], ["insurance", values.insuranceFile]].filter(([, file]) => file);
-    const filesBytes = applyFiles.reduce((sum, [, file]) => sum + (file.size || 0), 0);
-    if (filesBytes > APPLY_FILES_MAX_BYTES) { setError(applyFilesTooLarge(filesBytes)); return; }
+    const docList = applicationDocs(values);
+    const filesLib = window.ShapeApplicationFiles;
+    if (docList.length) {
+      if (!filesLib) { setError("Couldn't load the document uploader. Reload the page and try again."); return; }
+      const fileProblem = filesLib.applicationFilesProblem(docList.map(({ kind, file }) => ({ kind, name: file.name, type: file.type, size: file.size })));
+      if (fileProblem) { setError(fileProblem); return; }
+    }
     // The same human check the member sign-up carries: /api/apply refuses a signed-out
     // application without a token once the server's Turnstile secret is set.
     if (captchaOn && !captchaToken) {
@@ -835,15 +863,34 @@ function SignupForm({ role }) {
       background_check_consent: true,
       background_check_status: "consent_received",
     }));
-    applyFiles.forEach(([kind, file]) => form.append(kind, file));
-    if (captchaToken) form.append("turnstileToken", captchaToken);
-
     setSubmitting(true);
     try {
+      // The documents first, straight to storage: /api/apply/uploads checks them, runs the human
+      // check and answers with a signed link per file and a ticket, which the application then
+      // carries in place of the human-check token (a token is single-use).
+      if (docList.length) {
+        const meta = docList.map(({ kind, file }) => ({ kind, name: file.name, type: file.type, size: file.size }));
+        const linkRes = await fetch("/api/apply/uploads", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ providerType: role, files: meta, ...(captchaToken ? { turnstileToken: captchaToken } : {}) }),
+        });
+        const links = await linkRes.json().catch(() => ({}));
+        if (!linkRes.ok || !Array.isArray(links.uploads) || links.uploads.length !== docList.length) {
+          throw new Error(links.error || "Could not upload your files. Check your connection and try again.");
+        }
+        const sb = window.shapeDb && window.shapeDb.client;
+        if (!sb || !sb.storage) throw new Error("Could not upload your files. Reload the page and try again.");
+        for (const [i, link] of links.uploads.entries()) {
+          const { error: upErr } = await sb.storage.from(links.bucket).uploadToSignedUrl(link.path, link.token, docList[i].file, { contentType: link.type || undefined });
+          if (upErr) throw new Error(`${docList[i].file.name} did not upload. Check your connection and try again.`);
+        }
+        form.append("uploadTicket", links.ticket);
+        form.append("uploads", JSON.stringify(links.uploads.map(link => ({ path: link.path, name: link.name }))));
+      } else if (captchaToken) {
+        form.append("turnstileToken", captchaToken);
+      }
       const res = await fetch("/api/apply", { method: "POST", body: form });
-      // ⚠ A 413 IS NOT JSON. The platform refuses a body over its limit before the route
-      // runs, with a plain-text answer, which read as "Could not submit application."
-      if (res.status === 413) throw new Error(applyFilesTooLarge(Math.max(filesBytes, APPLY_FILES_MAX_BYTES + 1)));
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(payload.error || "Could not submit application.");
       setDone(true);

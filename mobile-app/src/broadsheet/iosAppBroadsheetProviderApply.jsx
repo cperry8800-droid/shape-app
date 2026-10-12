@@ -1,11 +1,11 @@
 import React from 'react';
 import {
-  PROVIDER_APPLICATION_FILE_ACCEPT,
-  PROVIDER_APPLICATION_MAX_TOTAL_BYTES,
+  APPLICATION_FILE_ACCEPT,
+  APPLICATION_FILE_KINDS,
   PROVIDER_APPLICATION_SEND_FAILED,
   PROVIDER_EXPERIENCE_OPTIONS,
   EXPERIENCE_STANDARD_YEARS,
-  applicationFilesTooLargeMessage,
+  applicationFilesProblem,
   belowExperienceStandard,
   experienceProblem,
 } from '../config/providerApplications.js';
@@ -203,31 +203,45 @@ function BSApplyCheck({ checked, onChange, children }) {
   );
 }
 
-function BSApplyFile({ label, file, onChange, helper }) {
+// One picker per document category; each takes several files, and each chosen file can be taken
+// off. The categories and their limits are the website's (src/lib/application-files.mjs).
+function BSApplyDocuments({ docs, onChange }) {
   const t = useBS();
+  const kb = (n) => (n >= 1024 * 1024 ? `${(n / (1024 * 1024)).toFixed(1)}MB` : `${Math.max(1, Math.round(n / 1024))}KB`);
   return (
-    <label style={{ display: 'grid', gap: 4 }}>
-      <span style={apLabel(t)}>{label}</span>
-      <input
-        type="file"
-        className="bs-apply-in bs-apply-file"
-        accept={PROVIDER_APPLICATION_FILE_ACCEPT}
-        onChange={(event) => onChange(event.target.files?.[0] || null)}
-        style={{
-          width: '100%',
-          boxSizing: 'border-box',
-          border: `1px dashed ${AP_LINE2}`,
-          padding: 10,
-          fontFamily: t.MONO,
-          fontSize: 9,
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
-        }}
-      />
-      <span style={{ fontFamily: t.DISPLAY, fontSize: 12, lineHeight: 1.35, color: AP_C50 }}>
-        {file ? `${file.name} - ${Math.round(file.size / 1024)}KB` : helper}
-      </span>
-    </label>
+    <div style={{ display: 'grid', gap: 12 }}>
+      {APPLICATION_FILE_KINDS.map((k) => {
+        const files = Array.isArray(docs[k.kind]) ? docs[k.kind] : [];
+        return (
+          <div key={k.kind} style={{ display: 'grid', gap: 6, border: `1px dashed ${AP_LINE2}`, padding: 10 }}>
+            <span style={apLabel(t)}>{k.label}</span>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 12, lineHeight: 1.35, color: AP_C50 }}>{k.help}</span>
+            {files.map((file, i) => (
+              <div key={`${file.name}-${i}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, fontFamily: t.DISPLAY, fontSize: 12.5, color: AP_C70 }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name} - {kb(file.size || 0)}</span>
+                <button type="button" aria-label={`Remove ${file.name}`} onClick={() => onChange(k.kind, files.filter((_, j) => j !== i))} style={{ background: 'transparent', border: 0, color: AP_C70, fontFamily: t.MONO, fontSize: 13, cursor: 'pointer', padding: '0 4px' }}>×</button>
+              </div>
+            ))}
+            {files.length < k.max && (
+              <input
+                type="file"
+                multiple
+                className="bs-apply-in bs-apply-file"
+                accept={APPLICATION_FILE_ACCEPT}
+                aria-label={`Add ${k.label}`}
+                onChange={(event) => {
+                  const picked = Array.from(event.target.files || []);
+                  event.target.value = '';
+                  if (picked.length) onChange(k.kind, [...files, ...picked].slice(0, k.max));
+                }}
+                style={{ width: '100%', boxSizing: 'border-box', padding: 6, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase' }}
+              />
+            )}
+          </div>
+        );
+      })}
+      <span style={{ fontFamily: t.DISPLAY, fontSize: 12, lineHeight: 1.35, color: AP_C50 }}>PDF, DOC or image. Up to 10 MB a file and 75 MB in all.</span>
+    </div>
   );
 }
 
@@ -275,9 +289,8 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
   const [submitting, setSubmitting] = useStateBSA(false);
   const [result, setResult] = useStateBSA(null);
   const [error, setError] = useStateBSA('');
-  const [resumeFile, setResumeFile] = useStateBSA(null);
-  const [credentialFile, setCredentialFile] = useStateBSA(null);
-  const [insuranceFile, setInsuranceFile] = useStateBSA(null);
+  const [docs, setDocs] = useStateBSA({});
+  const setDocKind = (kind, files) => setDocs((prev) => ({ ...prev, [kind]: files }));
 
   const isTrainer = role === 'trainer';
   // A dietitian is a nutritionist who says so: by arriving from a dietitian link (seeded above)
@@ -306,7 +319,7 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
   React.useEffect(() => {
     if (submitted) return undefined;
     const kind = isTrainer ? 'app_apply_trainer' : 'app_apply_nutritionist';
-    const never = ['verify', 'tos', 'conduct', 'bgcheck', 'attest', 'licenses', 'resumeFile', 'credentialFile', 'insuranceFile'];
+    const never = ['verify', 'tos', 'conduct', 'bgcheck', 'attest', 'licenses', 'docs', 'resumeFile', 'credentialFile', 'insuranceFile'];
     const bridge = {
       kind,
       state: () => {
@@ -363,16 +376,12 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
       setError('All nutrition compliance attestations are required.');
       return;
     }
-    const files = [
-      { kind: 'resume', file: resumeFile },
-      { kind: 'credential', file: credentialFile },
-      { kind: 'insurance', file: insuranceFile },
-    ].filter(item => item.file);
-    // The files ride the application request, which the platform caps, so the total is what
-    // counts: say it here rather than after a send the platform refuses.
-    const filesBytes = files.reduce((sum, item) => sum + (item.file.size || 0), 0);
-    if (filesBytes > PROVIDER_APPLICATION_MAX_TOTAL_BYTES) {
-      setError(applicationFilesTooLargeMessage(filesBytes));
+    const files = APPLICATION_FILE_KINDS.flatMap((k) => (Array.isArray(docs[k.kind]) ? docs[k.kind] : []).map((file) => ({ kind: k.kind, file })));
+    // Each file goes straight to storage, so the limits are per file and per application; say a
+    // file the server would refuse before anything is sent.
+    const fileProblem = applicationFilesProblem(files.map(({ kind, file }) => ({ kind, name: file.name, type: file.type, size: file.size })));
+    if (fileProblem) {
+      setError(fileProblem);
       return;
     }
     setSubmitting(true);
@@ -459,13 +468,7 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
           </div>
         )}
         <BSApplyInput label="Previous platforms" value={values.prev} onChange={v => set('prev', v)} placeholder="Trainerize, MyFitnessPal Pro" />
-        <div style={{ display: 'grid', gap: 12 }}>
-          <BSApplyFile label="Resume / CV" file={resumeFile} onChange={setResumeFile} helper="PDF, DOC or image. All files together up to 4 MB" />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <BSApplyFile label={isTrainer ? 'Certification file' : 'License file'} file={credentialFile} onChange={setCredentialFile} helper="Proof of credential" />
-            <BSApplyFile label="Insurance file" file={insuranceFile} onChange={setInsuranceFile} helper="Optional but recommended" />
-          </div>
-        </div>
+        <BSApplyDocuments docs={docs} onChange={setDocKind} />
         {/* NC1: the nutrition-compliance capture the website's application carries (signup.jsx
             NutritionCompliance), under the same keys. The reviewer seeds the coach's credential
             and state licenses from it; the license rows are never Nora's to fill. */}
