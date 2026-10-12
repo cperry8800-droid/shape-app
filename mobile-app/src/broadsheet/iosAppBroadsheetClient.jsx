@@ -200,11 +200,11 @@ function bsMyTier() {
   const s = (typeof window !== 'undefined' && window.ShapeScore) || null;
   if (s && s.tier) return s.tier; // live tier (signed in, score loaded)
   // Signed in but no live score yet (e.g. a brand-new account) → real accounts
-  // start at Base/steel, NOT the demo persona's tier. Only the signed-out
+  // start at Raw, NOT the demo persona's tier. Only the signed-out
   // preview falls back to the demo client tier.
   const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
-  if (signedIn) return 'Base';
-  return (SHAPE_SCORE_PROFILES.client && SHAPE_SCORE_PROFILES.client.tier) || 'Base';
+  if (signedIn) return 'Raw';
+  return (SHAPE_SCORE_PROFILES.client && SHAPE_SCORE_PROFILES.client.tier) || 'Raw';
 }
 function bsMyTierColor() {
   return bsTierColor(bsMyTier());
@@ -17752,7 +17752,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
     ? (Number.isFinite(Number(selfScore.total)) ? Number(selfScore.total) : null)
     : (live && Number.isFinite(live.points) ? live.points : null);
   const tierKey = isSelf
-    ? String(selfScore.tier || 'Base').toLowerCase()
+    ? String(selfScore.tier || 'Raw').toLowerCase()
     : (points != null ? bsTierForPoints(points) : (person.tier || bsPostTier(person)));
   const c = bsTierColor(tierKey);
   const name = person.who || 'Member';
@@ -18109,7 +18109,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   const climbCfgFor = (aspect) => {
     if (aspect === 'score') {
       const pts = Number(score) || 0;
-      const TH = [0, 750, 2000, 5000, 15000], NM = ['Base', 'Tempo', 'Form', 'Peak', 'Legend'];
+      const TH = [0, 750, 2000, 5000, 15000], NM = ['Raw', 'Tempo', 'Form', 'Peak', 'Legend'];
       let i = 0; for (let j = 0; j < TH.length; j++) if (pts >= TH[j]) i = j;
       const last = i >= TH.length - 1, floor = TH[i], next = last ? TH[i] : TH[i + 1], nextName = last ? NM[i] : NM[i + 1];
       // ⚠ At the LAST rung there is no next tier, so a "this tier → the next
@@ -18168,9 +18168,11 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   // are not re-derived here. `pct` itself IS read, by the ridge.)
   // Hero ascent = standing toward the next LEVEL (tier). Independent of the Climb
   // tab's selected aspect, so the avatar never jumps when you switch tabs.
-  const _HLNM = ['Base', 'Tempo', 'Form', 'Peak', 'Legend'];
+  const _HLNM = ['Raw', 'Tempo', 'Form', 'Peak', 'Legend'];
   const _HLTH = [0, 750, 2000, 5000, 15000];
-  const _hlIdx = Math.max(0, _HLNM.findIndex((nm) => nm.toLowerCase() === String(tierName).toLowerCase()));
+  // `base` is the first rung's old name, still in stored scores and demo rows.
+  const _hlKey = String(tierName).toLowerCase() === 'base' ? 'raw' : String(tierName).toLowerCase();
+  const _hlIdx = Math.max(0, _HLNM.findIndex((nm) => nm.toLowerCase() === _hlKey));
   const _hlTop = _hlIdx >= _HLNM.length - 1;
   const _hlPts = score;
   let heroPct, nextLevel;
@@ -18355,6 +18357,16 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             // Over a photo the paper's INK is unusable — fixed cream + shadow.
             const rINK = heroCover ? '#f2ede4' : INK;
             const overSh = heroCover ? '0 1px 5px rgba(0,0,0,0.7)' : undefined;
+            // The two ends of the route are TIERS, so each wears its own tier's color
+            // (owner, 2026-10-12: "make sure the shape score tier colors relate to
+            // profile"): the base is the tier the member holds (c, the profile's own
+            // color) and the flag is the tier they are climbing to. The names keep
+            // their ink and take the color as an underline — gold or green as 8px
+            // text on the light paper would not read. At the top of the
+            // ladder the route re-frames as the whole ladder: the base is the first
+            // rung and the summit is the tier they hold (c).
+            const baseC = _hlTop ? bsTierColor(heroBaseLevel) : c;
+            const summitC = _hlTop ? c : bsTierColor(heroSummitLevel);
             return (
               <div style={{ position: 'relative' }}>
                 <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden style={{ display: 'block' }}>
@@ -18365,9 +18377,9 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                   <path d={ridge} fill="none" stroke={c} strokeWidth="2.5" strokeLinecap="round" vectorEffect="non-scaling-stroke" pathLength={1}
                     strokeDasharray={`${heroPct} 1`} style={{ strokeDashoffset: heroSeen ? 0 : heroPct, transition: reduced ? 'none' : 'stroke-dashoffset 1100ms cubic-bezier(.4,0,.2,1) 400ms' }} />
                   {/* summit flag (heat) + hollow ink start square */}
-                  <line x1={peak[0]} y1={peak[1]} x2={peak[0]} y2={peak[1] - 18} stroke={c} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
-                  <path d={`M ${peak[0]} ${peak[1] - 18} l 13 4 l -13 4 z`} fill={c} />
-                  <rect x={base[0] - 4} y={base[1] - 4} width="8" height="8" fill="none" stroke={bsTHexA(rINK, heroCover ? 0.8 : 0.55)} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+                  <line x1={peak[0]} y1={peak[1]} x2={peak[0]} y2={peak[1] - 18} stroke={summitC} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+                  <path d={`M ${peak[0]} ${peak[1] - 18} l 13 4 l -13 4 z`} fill={summitC} />
+                  <rect x={base[0] - 4} y={base[1] - 4} width="8" height="8" fill="none" stroke={baseC} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
                 </svg>
                 {/* you-are-here facet (the page's one breathing loop) + 43% readout */}
                 {/* width is PINNED to the 60px facet so the figure sits exactly on
@@ -18382,7 +18394,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                   <span style={{ fontFamily: MONO, fontSize: _hlTop ? 8 : 9, fontWeight: 800, letterSpacing: _hlTop ? '0.12em' : '0.04em', textTransform: _hlTop ? 'uppercase' : 'none', color: rINK, textShadow: overSh, borderBottom: `1px solid ${c}`, paddingBottom: 1, whiteSpace: 'nowrap' }}>{_hlTop ? tr('profile:ridge.topTier', { defaultValue: 'Top tier' }) : `${heroPctLabel}%`}</span>
                 </div>
                 {/* base + summit level labels — bare mono (no pills, no tier text) */}
-                <span style={{ position: 'absolute', left: 20, bottom: 2, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(rINK, heroCover ? 0.85 : 0.55), textShadow: overSh }}>{heroBaseLevel}</span>
+                <span style={{ position: 'absolute', left: 20, bottom: 2, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(rINK, heroCover ? 0.85 : 0.55), textShadow: overSh, borderBottom: `1.5px solid ${baseC}`, paddingBottom: 1 }}>{heroBaseLevel}</span>
                 {/* The inset must FOLLOW the SVG's percentage geometry, not be a fixed px:
                     preserveAspectRatio="none" stretches x with the width, so the flag's
                     left edge always sits (330−308)/330 = 6.67% from the right. A fixed
@@ -18396,8 +18408,8 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                     there. The right side under the ridge is empty at that height,
                     so the two rung names read as the ends of one finished route. */}
                 <span style={_hlTop
-                  ? { position: 'absolute', right: 20, bottom: 2, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(rINK, heroCover ? 0.85 : 0.55), textShadow: overSh }
-                  : { position: 'absolute', right: 'calc(6.67% + 6px)', top: 6, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(rINK, heroCover ? 0.85 : 0.55), textShadow: overSh }}>{heroSummitLevel}</span>
+                  ? { position: 'absolute', right: 20, bottom: 2, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(rINK, heroCover ? 0.85 : 0.55), textShadow: overSh, borderBottom: `1.5px solid ${summitC}`, paddingBottom: 1 }
+                  : { position: 'absolute', right: 'calc(6.67% + 6px)', top: 6, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(rINK, heroCover ? 0.85 : 0.55), textShadow: overSh, borderBottom: `1.5px solid ${summitC}`, paddingBottom: 1 }}>{heroSummitLevel}</span>
               </div>
             );
           })()}
@@ -18425,7 +18437,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             </div>
           )}
           {meMode && isSelf && (() => {
-            const TH = [['Base', 0], ['Tempo', 750], ['Form', 2000], ['Peak', 5000], ['Legend', 15000]];
+            const TH = [['Raw', 0], ['Tempo', 750], ['Form', 2000], ['Peak', 5000], ['Legend', 15000]];
             const pts = score != null ? score : (signedInSelf ? 0 : 1284);
             let si = 0; for (let k = 0; k < TH.length; k++) if (pts >= TH[k][1]) si = k;
             const nextT = TH[si + 1] || null;
@@ -25857,7 +25869,7 @@ function bsTierColor(tier) {
 // A stable tier for a feed author — uses an explicit `tier` when present, else
 // derives one deterministically from the name so a person's tier color/badge is
 // consistent everywhere they appear.
-const _BS_FEED_TIERS = ['Tempo', 'Form', 'Peak', 'Legend', 'Base'];
+const _BS_FEED_TIERS = ['Tempo', 'Form', 'Peak', 'Legend', 'Raw'];
 function bsPostTier(p) {
   if (p && p.tier) return p.tier;
   const s = String((p && (p.who || p.id)) || '');
@@ -25872,7 +25884,7 @@ function bsTierForPoints(pts) {
   if (p >= 5000) return 'Peak';
   if (p >= 2000) return 'Form';
   if (p >= 750) return 'Tempo';
-  return 'Base';
+  return 'Raw';
 }
 // Coaches see a separate Shape Score ladder (scheme J): Certified · Pro · Elite ·
 // Master · Icon — same thresholds/rungs as clients, just renamed (teal crowns it).
@@ -30196,7 +30208,7 @@ function BSScoreCardDark({ points, tierKey, tierName, c, onOpen, composite = nul
   // Signed in → real points + REAL composite bars (honest '—' when a pillar is
   // too sparse to score); the demo 1284 / 88·74·62·92 is the signed-out preview only.
   const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
-  const TH = [['Base', 0], ['Tempo', 750], ['Form', 2000], ['Peak', 5000], ['Legend', 15000]];
+  const TH = [['Raw', 0], ['Tempo', 750], ['Form', 2000], ['Peak', 5000], ['Legend', 15000]];
   const pts = points != null ? points : (signedIn ? 0 : 1284);
   let i = 0; for (let k = 0; k < TH.length; k++) if (pts >= TH[k][1]) i = k;
   const cur = TH[i], next = TH[i + 1] || null;
@@ -30857,7 +30869,7 @@ function _bsUseLiveScore(profile) {
     const _goal = profile.goal || 5000;
     return {
       ...profile, live: false,
-      tier: _tierName('Base'), tierShort: _coach ? 'CRT' : 'BSE', nextTier: _tierName('Tempo'),
+      tier: _tierName('Raw'), tierShort: _coach ? 'CRT' : 'RAW', nextTier: _tierName('Tempo'),
       total: 0, available: 0, lifetime: 0, redeemedCount: 0, streak: 0,
       goal: _goal, pointsToNext: _goal, week: '+0', month: 0,
       weekRatio: 0, streakRatio: 0, tierRatio: 0, spendRatio: 0,
@@ -31270,7 +31282,7 @@ function BSRecordTrace({ series, heat, t }) {
 function BSScoreRecordPage({ onBack, tier }) {
   const t = useBS();
   const tr = useShapeTr();
-  const heat = bsTierColor(tier || 'Base');
+  const heat = bsTierColor(tier || 'Raw');
   const rustCol = t.RUST || '#c0533b';
   const loggedIn = !!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user);
   const [record, setRecord] = useStateBSC(loggedIn ? null : bsScoreRecord(BS_RECORD_DEMO_ROWS, {}));

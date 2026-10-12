@@ -17,13 +17,9 @@ function lvProfileIdentity(row, base, isDerived, isPrivate) {
     link: (!isPrivate && row.link) ? ["Link", String(row.link).replace(/^https?:\/\//, "")] : (isDerived ? base.link : null),
   };
 }
-function liveTier(points, coach) {
-  const member = [[0, "Raw", "#5fa96e", "I"], [750, "Tempo", "#d8a23a", "II"], [2000, "Form", "#e0463c", "III"], [5000, "Peak", "#8fe3e6", "IV"], [15000, "Legend", "#34d6c5", "V"]];
-  const coachL = [[0, "Certified", "#5fa96e", "I"], [750, "Pro", "#d8a23a", "II"], [2000, "Elite", "#e0463c", "III"], [5000, "Master", "#8fe3e6", "IV"], [15000, "Icon", "#34d6c5", "V"]];
-  const T = coach ? coachL : member;
-  let t = T[0]; for (const x of T) if (points >= x[0]) t = x;
-  return { name: t[1], color: t[2], rank: t[3] };
-}
+// The ladder lives in livingShared.jsx (LV_LADDER), so the demo and a real
+// profile read one table.
+function liveTier(points, coach) { return lvTierFor(points, coach); }
 
 // Map a real community_posts row → the DesktopProfile feed entry shape
 // ({ k, t, b, time, vis, metric }). So a real profile's "activity" feed shows the

@@ -241,8 +241,8 @@ test('every --sh-* token referenced is declared in dash.css', () => {
   // and the sweep above is structurally blind to it. A token handed to one of them
   // with no declared twin still RENDERS — the var() falls back to the triplet, which
   // is derived from the token's own literal — but it can never follow a paper change,
-  // which is the one thing the layer exists to do. Reachable today: SS_TIERS' 750-point
-  // rung is var(--sh-gold, #d8a23a), which arrives at ssAlpha via ssTierColor → SsFacet.
+  // which is the one thing the layer exists to do. (SS_TIERS' 750-point rung reached
+  // ssAlpha as var(--sh-gold, #d8a23a) until 2026-10-12; tier rungs are fixed literals now.)
   // Rather than chase which tokens reach which helper, every colour token declares a
   // twin — then synthesis is sound whatever it is handed. A COLOUR token is one whose
   // value is a hex literal: the header's rgba() ground, the logo display switches and

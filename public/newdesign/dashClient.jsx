@@ -581,7 +581,7 @@ function ClientDashboardPage() {
         const cur = score.current_tier, next = score.next_tier;
         const pct = next ? Math.min(1, Math.max(0, (score.points_total - cur.threshold) / (next.threshold - cur.threshold))) : 1;
         return { total: score.points_total, tier: cur.name, next: next ? next.name : null, toNext: score.points_to_next, pct, weekGain: score.week_gain, spark: dclScoreSpark(score), why: dclWhyItMoved(score) };
-      })() : { total: 0, tier: "Base", next: null, toNext: 0, pct: 0, weekGain: 0, spark: [0, 0, 0, 0, 0, 0, 0, 0], why: "Start training and logging to build your Shape Score." })
+      })() : { total: 0, tier: "Raw", next: null, toNext: 0, pct: 0, weekGain: 0, spark: [0, 0, 0, 0, 0, 0, 0, 0], why: "Start training and logging to build your Shape Score." })
     : DCL_DEMO.score;
 
   // ── Weekly compliance ──
