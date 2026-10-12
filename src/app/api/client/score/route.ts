@@ -11,6 +11,7 @@ import { dbError } from '@/lib/request-utils';
 import { createClient } from '@/lib/supabase/server';
 import { deriveScore } from '@/lib/score-derive';
 import { requireMembership } from '@/lib/require-membership';
+import { readAllLedgerRows } from '@/lib/score-ledger-read';
 
 export const dynamic = 'force-dynamic';
 
@@ -106,10 +107,8 @@ export async function GET(request: Request) {
   // the 1st of the month (a monthly basis silently demoted everyone). Month
   // and week sums stay as secondary "activity" stats. One fetch covers all
   // three windows plus the lifetime breakdown.
-  const { data: allRows, error: allErr } = await supabase
-    .from('score_ledger')
-    .select('category, delta, earned_at, source_kind')
-    .eq('user_id', user.id);
+  const { rows: allRows, error: allErr } = await readAllLedgerRows<{ category: string; delta: number; earned_at: string; source_kind: string | null }>(
+    supabase, user.id, 'category, delta, earned_at, source_kind');
 
   if (allErr) return dbError(allErr, 'score ledger read', 500);
 
@@ -142,8 +141,11 @@ export async function GET(request: Request) {
   let week_gain = 0;
   const monthIso = monthStart.toISOString();
   for (const r of rows) {
-    // Breakdown is rank-basis ("how I reached this tier") — exclude redemptions.
-    if (r.source_kind !== 'store_redeem') totals.set(r.category, (totals.get(r.category) || 0) + r.delta);
+    // Breakdown, month and week are all on the rank basis ("how I reached this tier"):
+    // no Store purchases (which made "this week" go negative after a purchase) and no
+    // tier bonuses (spendable credit, not rank), the same as deriveScore.
+    if (r.source_kind === 'store_redeem' || r.source_kind === 'tier_bonus') continue;
+    totals.set(r.category, (totals.get(r.category) || 0) + r.delta);
     if (r.earned_at >= monthIso) points_month += r.delta;
     if (new Date(r.earned_at) >= weekStart) week_gain += r.delta;
   }

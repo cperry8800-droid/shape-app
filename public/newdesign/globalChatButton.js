@@ -983,13 +983,19 @@
     mount();
   }
 
-  // Grant any one-time Shape Score tier bonuses for the signed-in member
-  // (idempotent server-side; runs once per page load, cheap).
+  // Grant the signed-in member's Shape Score awards that run on a visit
+  // (idempotent server-side; once per page load, cheap). Steps and momentum
+  // first — the app runs them on every session, and a member who only uses the
+  // website never got them — then the tier bonuses, so a tier those points
+  // cross unlocks on this same load.
   try {
     var cl = window.shapeDb && window.shapeDb.client;
     if (cl && cl.auth && cl.rpc) {
       cl.auth.getUser().then(function (r) {
-        if (r && r.data && r.data.user) { cl.rpc("award_tier_bonuses").catch(function () {}); }
+        if (!(r && r.data && r.data.user)) return;
+        var quiet = function (p) { return Promise.resolve(p).catch(function () {}); };
+        Promise.all([quiet(cl.rpc("award_step_points")), quiet(cl.rpc("award_momentum_bonus"))])
+          .then(function () { return quiet(cl.rpc("award_tier_bonuses")); });
       }).catch(function () {});
     }
   } catch (e) {}

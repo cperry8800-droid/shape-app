@@ -18,7 +18,10 @@ export function deriveScore(rows: LedgerDeltaRow[]): {
   for (const r of sorted) {
     const d = Number(r.delta) || 0;
     spendable += d;
-    if (r.source_kind !== 'store_redeem') {
+    // A tier bonus is spendable credit, not rank: counting it let the shown tier run
+    // up to 3,500 points ahead of the tier that unlocks its rewards. Same basis as the
+    // database's shape_rank_points (2026-10-12-shape-score-fixes.sql).
+    if (r.source_kind !== 'store_redeem' && r.source_kind !== 'tier_bonus') {
       rank += d;
       if (rank > high) high = rank;
     }

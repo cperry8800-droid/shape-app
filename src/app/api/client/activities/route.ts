@@ -131,15 +131,28 @@ export async function POST(request: Request) {
   if (error) return dbError(error, 'client activities write', 500);
 
   // Award Shape Score — 1 pt per 5 min, 2–20 range. Written via the DEFINER RPC
-  // (clients can no longer write score_ledger directly); the RPC derives the same
-  // amount from the stored row, so it can't be forged. Idempotent on source_id.
-  // `pts` is recomputed here only for the response's pointsAwarded field.
-  const pts = Math.max(2, Math.min(20, Math.round((durationMin || 10) / 5)));
-  await supabase.rpc('award_activity', { p_activity_id: inserted.id });
+  // (clients can no longer write score_ledger directly); the RPC derives the amount
+  // from the stored row, so it can't be forged. Idempotent on source_id.
+  // ⚠ pointsAwarded IS WHAT THE LEDGER HOLDS, NOT WHAT THE FORMULA SAYS. The RPC
+  // returns nothing and is capped (6 activities per 24 hours), so the route used to
+  // report the formula's points even when the cap or a failure wrote none, and the
+  // app toasted "+20 pts" for an activity that earned 0.
+  let pointsAwarded = 0;
+  const { error: awardErr } = await supabase.rpc('award_activity', { p_activity_id: inserted.id });
+  if (!awardErr) {
+    const { data: earned } = await supabase
+      .from('score_ledger')
+      .select('delta')
+      .eq('user_id', user.id)
+      .eq('source_kind', 'activity')
+      .eq('source_id', inserted.id)
+      .maybeSingle();
+    pointsAwarded = Math.max(0, Number((earned as { delta?: number } | null)?.delta) || 0);
+  }
 
   const r = inserted as ActivityRow;
   return NextResponse.json({
     activity: { id: r.id, source: r.source, type: r.activity_type, title: r.title, startedAt: r.started_at, durationMin: r.duration_min, distanceKm: r.distance_km, calories: r.calories },
-    pointsAwarded: pts,
+    pointsAwarded,
   });
 }

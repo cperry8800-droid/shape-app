@@ -475,11 +475,20 @@ export async function readReminders(sb, uid) {
 /** The last few Shape Score entries and the week's earned total (store
  * redemptions are spending, not standing — listed but not summed). */
 export async function readPoints(sb, uid, { now = new Date() } = {}) {
-  const r = await leg(sb.from('score_ledger').select('category, delta, note, earned_at, source_kind').eq('user_id', uid).order('earned_at', { ascending: false }).limit(40));
+  const weekAgo = new Date(now).getTime() - 7 * 86_400_000;
+  // ⚠ THE WEEK IS ITS OWN READ. It was summed from the 40 most recent entries, which is
+  // about one day for a heavy member, so Nora under-reported "earned this week" by six
+  // days. The week's rows are read by date; the recent list stays a short read.
+  const [r, w] = await Promise.all([
+    leg(sb.from('score_ledger').select('category, delta, note, earned_at, source_kind').eq('user_id', uid).order('earned_at', { ascending: false }).limit(40)),
+    leg(sb.from('score_ledger').select('delta, earned_at, source_kind').eq('user_id', uid).gte('earned_at', new Date(weekAgo).toISOString()).limit(1000)),
+  ]);
   if (!r.ok) return { ok: false };
   const rows = Array.isArray(r.data) ? r.data : [];
-  const weekAgo = new Date(now).getTime() - 7 * 86_400_000;
-  const earned7d = rows.filter((x) => x.source_kind !== 'store_redeem' && x.earned_at && new Date(x.earned_at).getTime() >= weekAgo).reduce((a, x) => a + (num(x.delta) || 0), 0);
+  const weekRows = w.ok && Array.isArray(w.data) ? w.data : rows;
+  // The rank basis (store purchases are spending, tier bonuses are credit; neither is
+  // standing), the same as the Score page and the database's shape_rank_points.
+  const earned7d = weekRows.filter((x) => x.source_kind !== 'store_redeem' && x.source_kind !== 'tier_bonus' && x.earned_at && new Date(x.earned_at).getTime() >= weekAgo).reduce((a, x) => a + (num(x.delta) || 0), 0);
   const recent = rows.slice(0, READ_CAPS.ledger).map((x) => ({
     ...(x.earned_at ? { on: isoDay(x.earned_at) } : {}),
     ...(str(x.category, 32) ? { category: str(x.category, 32) } : {}),
