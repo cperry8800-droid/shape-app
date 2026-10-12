@@ -242,6 +242,8 @@ async function applyRoute({ db }) {
   const nutrition = await import(pathToFileURL(join(ROOT, 'src/lib/compliance/nutrition.mjs')).href);
   const ageDerive = await import(pathToFileURL(join(ROOT, 'src/lib/age-derive.mjs')).href);
   const providerExperience = await import(pathToFileURL(join(ROOT, 'src/lib/provider-experience.mjs')).href);
+  const applicationFiles = await import(pathToFileURL(join(ROOT, 'src/lib/application-files.mjs')).href);
+  const uploadTicket = await loadRealModule(join(ROOT, 'src/lib/application-upload-ticket.ts'), { typescript: true });
   const admin = recorder({ storage: { from: () => ({ upload: async (path, bytes, opts) => { uploads.push({ path, size: bytes.length, ...opts }); return { error: null }; }, remove: async () => ({ error: null }) }) } });
   const route = await loadRealModule(join(ROOT, 'src/app/api/apply/route.ts'), {
     typescript: true,
@@ -259,6 +261,8 @@ async function applyRoute({ db }) {
       ['@/lib/request-utils', requestUtils],
       ['@/lib/provider-applications', providerApplications],
       ['@/lib/provider-experience.mjs', providerExperience],
+      ['@/lib/application-files.mjs', applicationFiles],
+      ['@/lib/application-upload-ticket', uploadTicket],
       ['@/lib/compliance/nutrition.mjs', nutrition],
       ['@/lib/age-derive.mjs', ageDerive],
     ]),
@@ -279,17 +283,22 @@ test('L4: an empty declared type is read off the extension, an unknown one is re
   const { post, uploads } = await applyRoute({ db });
   // A File with an empty type is serialised in the multipart body as application/octet-stream,
   // which is how the route sees every "no type" upload from a real browser too.
-  const bad = await post([{ kind: 'certificate', file: new File(['MZ...'], 'tool.exe', { type: '' }) }]);
+  const bad = await post([{ kind: 'credential', file: new File(['MZ...'], 'tool.exe', { type: '' }) }]);
   assert.equal(bad.status, 400, JSON.stringify(bad.body));
   assert.match(bad.body.error, /tool\.exe must be a PDF, DOC, DOCX, PNG, JPEG or WebP file\./);
   assert.equal(stmts(db.calls, 'provider_applications', 'insert').length, 0, 'refused BEFORE the application row');
-  const declared = await post([{ kind: 'certificate', file: new File(['x'], 'cert.pdf', { type: 'text/html' }) }]);
+  const declared = await post([{ kind: 'credential', file: new File(['x'], 'cert.pdf', { type: 'text/html' }) }]);
   assert.equal(declared.status, 400, 'a declared type outside the list is refused whatever the extension says');
-  const many = await post(Array.from({ length: 7 }, (_, i) => ({ kind: `certificate_${i}`, file: new File(['%PDF'], `c${i}.pdf`, { type: 'application/pdf' }) })));
+  const many = await post(Array.from({ length: 7 }, (_, i) => ({ kind: 'credential', file: new File(['%PDF'], `c${i}.pdf`, { type: 'application/pdf' }) })));
   assert.equal(many.status, 400);
   assert.match(many.body.error, /At most 6 files per application\./);
+  // The field name is the file's category and becomes part of its storage path: only the
+  // application's own sections are taken (2026-10-12).
+  const section = await post([{ kind: '../../x', file: new File(['%PDF'], 'c.pdf', { type: 'application/pdf' }) }]);
+  assert.equal(section.status, 400);
+  assert.match(section.body.error, /is in a section the application does not have/);
   assert.equal(uploads.length, 0);
-  const ok = await post([{ kind: 'certificate', file: new File(['%PDF'], 'cert.PDF', { type: '' }) }, { kind: 'photo', file: new File(['x'], 'me.jpg', { type: 'image/jpeg;charset=binary' }) }]);
+  const ok = await post([{ kind: 'credential', file: new File(['%PDF'], 'cert.PDF', { type: '' }) }, { kind: 'designation', file: new File(['x'], 'me.jpg', { type: 'image/jpeg;charset=binary' }) }]);
   assert.equal(ok.status, 200, JSON.stringify(ok.body));
   assert.equal(stmts(db.calls, 'provider_applications', 'insert').length, 1);
   assert.deepEqual(uploads.map((u) => u.contentType), ['application/pdf', 'image/jpeg'], 'stored under the type the rule settled on, never the raw declaration');

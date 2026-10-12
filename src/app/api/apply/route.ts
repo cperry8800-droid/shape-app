@@ -3,7 +3,10 @@
 // object for the rest of the intake. Inserts into public.provider_applications.
 //
 // Called by the website's coach application (public/newdesign/signup.jsx) and the app's
-// (mobile-app shapeBackend submitProviderApplication). The legacy root pages
+// (mobile-app shapeBackend submitProviderApplication). Since 2026-10-12 both upload the documents
+// first, straight to storage through /api/apply/uploads, and send its ticket here; a request that
+// carries the files itself (an installed app from before then) is still taken, within the
+// platform's request limit. The legacy root pages
 // (signup-trainer.html, signup-nutritionist.html) were retired on 2026-10-12 and redirect to
 // the website's application.
 
@@ -28,6 +31,13 @@ import {
 import { attestationsComplete } from '@/lib/compliance/nutrition.mjs';
 // The shared 18+ derivation — same rule as every signup surface and both gates.
 import { isMinorFromDob } from '@/lib/age-derive.mjs';
+import {
+  APPLICATION_FILE_BUCKET,
+  APPLICATION_FILE_KINDS,
+  applicationFileKind,
+  applicationFilesProblem,
+} from '@/lib/application-files.mjs';
+import { readUploadTicket } from '@/lib/application-upload-ticket';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,7 +49,7 @@ const CORS_HEADERS = {
 };
 
 const MAX_LONG = 10000;
-const FILE_BUCKET = 'provider-credentials';
+const FILE_BUCKET = APPLICATION_FILE_BUCKET;
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 // ⚠ THE REAL LIMIT IS THE REQUEST, NOT THE FILE. The files ride the request body through this
 // route, and Vercel refuses a function request body over 4.5 MB before the route runs, with a
@@ -105,7 +115,9 @@ function totalFilesMessage(bytes: number): string {
 /** Why the files cannot be taken, or null. Run BEFORE the application row is written, so a refused file is a 400 the applicant can fix, not an application saved without its documents. */
 function checkApplicationFiles(files: Array<{ kind: string; file: File }>): string | null {
   if (files.length > MAX_FILES) return `At most ${MAX_FILES} files per application.`;
-  for (const { file } of files) {
+  for (const { kind, file } of files) {
+    // The form field's name is the file's category and becomes part of its storage path.
+    if (!applicationFileKind(kind)) return `${file.name} is in a section the application does not have.`;
     if (file.size > MAX_FILE_BYTES) return `${file.name} is larger than 10MB.`;
     if (!applicationFileType(file)) return `${file.name} ${FILE_TYPE_MESSAGE}`;
   }
@@ -282,6 +294,64 @@ async function uploadApplicationFiles(
   return uploaded;
 }
 
+/**
+ * The documents uploaded under a ticket's draft id, read from storage itself: every file under
+ * website/<draftId>/<category>/, with the size and type storage recorded. `claimed` is what the
+ * form says it uploaded ({ path, name }); each claimed path must be there (a file that did not
+ * finish uploading is said, not dropped), and its name is the one the reviewer sees.
+ */
+async function storedApplicationDocuments(
+  draftId: string,
+  claimed: Array<{ path: string; name: string }>
+): Promise<{ documents: Array<Record<string, unknown>>; missing: boolean }> {
+  const storage = createAdminClient().storage.from(FILE_BUCKET);
+  const listed = await Promise.all(
+    APPLICATION_FILE_KINDS.map(async ({ kind }) => {
+      const folder = `website/${draftId}/${kind}`;
+      const { data, error } = await storage.list(folder, { limit: 100 });
+      if (error) throw error;
+      return (data ?? [])
+        .filter((o: { id?: string | null; name?: string }) => o && o.id && o.name)
+        .map((o: { name: string; metadata?: Record<string, unknown> | null }) => ({
+          kind,
+          path: `${folder}/${o.name}`,
+          size: Number(o.metadata?.size ?? 0),
+          type: String(o.metadata?.mimetype ?? ''),
+          fileName: o.name,
+        }));
+    })
+  );
+  const found = listed.flat();
+  const names = new Map(claimed.map((c) => [c.path, c.name]));
+  const missing = claimed.some((c) => !found.some((f) => f.path === c.path));
+  const documents = found.map((f) => ({
+    kind: f.kind,
+    bucket: FILE_BUCKET,
+    path: f.path,
+    name: (names.get(f.path) || f.fileName.replace(/^\d+-/, '')).slice(0, 200),
+    type: f.type,
+    size: f.size,
+    stored: 'supabase',
+  }));
+  return { documents, missing };
+}
+
+/** The form's list of what it uploaded: [{ path, name }], from a JSON string or an array. */
+function claimedUploads(value: unknown): Array<{ path: string; name: string }> {
+  let list: unknown = value;
+  if (typeof value === 'string') {
+    try {
+      list = JSON.parse(value);
+    } catch {
+      list = [];
+    }
+  }
+  return (Array.isArray(list) ? list : []).slice(0, 100).map((u) => {
+    const r = (u && typeof u === 'object' ? u : {}) as Record<string, unknown>;
+    return { path: String(r.path ?? ''), name: String(r.name ?? '') };
+  });
+}
+
 /** Removes stored application files; a failure here is logged, never thrown over the real error. */
 async function removeApplicationFiles(documents: Array<Record<string, unknown>>): Promise<void> {
   const paths = documents.map((d) => String(d.path || '')).filter(Boolean);
@@ -309,6 +379,16 @@ export async function POST(req: NextRequest) {
   if (providerTypeRaw !== 'trainer' && providerTypeRaw !== 'nutritionist') {
     return NextResponse.json(
       { error: 'providerType must be "trainer" or "nutritionist".' },
+      { status: 400, headers: CORS_HEADERS }
+    );
+  }
+
+  // The documents went up first through /api/apply/uploads; its ticket names the draft id they
+  // are stored under, which becomes this application's id.
+  const ticketDraftId = body.uploadTicket ? readUploadTicket(body.uploadTicket, providerTypeRaw) : null;
+  if (body.uploadTicket && (!ticketDraftId || files.length)) {
+    return NextResponse.json(
+      { error: 'Your upload session has expired. Attach your files again and resubmit.', code: 'upload_expired' },
       { status: 400, headers: CORS_HEADERS }
     );
   }
@@ -390,7 +470,9 @@ export async function POST(req: NextRequest) {
   // no account, so this is what stands between a script and the review queue, the bucket and an
   // email sent to whatever address the body names.
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null;
-  if (!(await passesBotCheck(req, body, ip))) {
+  // A ticket stands in for the check: /api/apply/uploads issued it only after the same check, and
+  // its draft id is this row's primary key, so one ticket is one application.
+  if (!ticketDraftId && !(await passesBotCheck(req, body, ip))) {
     return NextResponse.json(
       { error: 'Captcha check failed — please retry.', code: 'captcha_failed' },
       { status: 400, headers: CORS_HEADERS }
@@ -432,16 +514,60 @@ export async function POST(req: NextRequest) {
   };
   const duplicateResponse = (id: string) =>
     NextResponse.json({ ok: true, id, duplicate: true }, { headers: CORS_HEADERS });
+  // ⚠ A TICKET THAT ALREADY MADE ITS APPLICATION IS A RETRY, AND ITS FILES ARE THAT APPLICATION'S.
+  // A resend after a lost answer finds its own row: it gets that id back, and nothing below
+  // (which removes a refused request's files) runs against documents the saved row lists.
+  const ticketRowExists = async (): Promise<boolean> => {
+    if (!ticketDraftId) return false;
+    const { data: row } = await supabase.from('provider_applications').select('id').eq('id', ticketDraftId).maybeSingle();
+    return Boolean(row?.id);
+  };
+  if (ticketDraftId && (await ticketRowExists())) return duplicateResponse(ticketDraftId);
+
   const existingId = await openApplicationId();
-  if (existingId) return duplicateResponse(existingId);
+  if (existingId) {
+    // This request's uploads belong to no application now; take them back. ⚠ UNLESS THE OPEN
+    // APPLICATION IS THIS TICKET'S OWN: a second send of the ticket that started before the first
+    // one's row landed finds that row here, and its files are the saved application's.
+    if (ticketDraftId && existingId !== ticketDraftId && !(await ticketRowExists())) {
+      try {
+        const { documents: orphaned } = await storedApplicationDocuments(ticketDraftId, []);
+        await removeApplicationFiles(orphaned);
+      } catch (cleanupError) {
+        console.error('[shape-api] provider application upload cleanup failed:', cleanupError);
+      }
+    }
+    return duplicateResponse(existingId);
+  }
 
   // The files go up first, under the id the row will carry, and the row is written once with
   // every document in it. A failed upload leaves no row and no files (uploadApplicationFiles
   // removes its own); a failed insert removes the files. Either way a retry starts clean.
-  const applicationId = crypto.randomUUID();
+  const applicationId = ticketDraftId ?? crypto.randomUUID();
   let documents: Array<Record<string, unknown>> = [];
+  if (ticketDraftId) {
+    let stored: Awaited<ReturnType<typeof storedApplicationDocuments>>;
+    try {
+      stored = await storedApplicationDocuments(ticketDraftId, claimedUploads(body.uploads));
+    } catch (readError) {
+      console.error('[shape-api] provider application upload read failed:', readError);
+      return NextResponse.json(
+        { error: 'Could not read your uploaded files. Nothing was saved, so please try again.' },
+        { status: 500, headers: CORS_HEADERS }
+      );
+    }
+    // The rules again, on what storage holds rather than on what the form said it would send.
+    const storedProblem = stored.missing || !stored.documents.length
+      ? 'One of your files did not finish uploading. Attach your files again and resubmit.'
+      : applicationFilesProblem(stored.documents.map((d) => ({ kind: String(d.kind), name: String(d.name), type: String(d.type), size: Number(d.size) })));
+    if (storedProblem) {
+      await removeApplicationFiles(stored.documents);
+      return NextResponse.json({ error: storedProblem, code: 'upload_incomplete' }, { status: 400, headers: CORS_HEADERS });
+    }
+    documents = stored.documents;
+  }
   try {
-    documents = await uploadApplicationFiles(applicationId, files);
+    if (!ticketDraftId) documents = await uploadApplicationFiles(applicationId, files);
   } catch (uploadError) {
     console.error('[shape-api] provider application upload failed:', uploadError);
     return NextResponse.json(
@@ -500,6 +626,8 @@ export async function POST(req: NextRequest) {
   // The index refused it: an open application for this address and role landed while this
   // request was uploading. Answer with that one, and take back this request's files.
   if (error?.code === '23505') {
+    // Two sends of one ticket at once: the other one saved the row, and these files are its.
+    if (await ticketRowExists()) return duplicateResponse(applicationId);
     await removeApplicationFiles(documents);
     const openId = await openApplicationId();
     if (openId) return duplicateResponse(openId);
@@ -510,7 +638,7 @@ export async function POST(req: NextRequest) {
   // somehow resolved with neither must not fall through to a null dereference.
   if (error || !data) {
     console.error('provider_applications insert failed:', error);
-    await removeApplicationFiles(documents);
+    if (!(await ticketRowExists())) await removeApplicationFiles(documents);
     return NextResponse.json(
       { error: 'Could not submit your application. Please email info@theshapecommunity.com directly.' },
       { status: 500, headers: CORS_HEADERS }

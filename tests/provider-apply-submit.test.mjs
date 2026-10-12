@@ -38,13 +38,15 @@ const providerApplications = await loadRealModule(join(ROOT, 'src/lib/provider-a
 const nutrition = await import(pathToFileURL(join(ROOT, 'src/lib/compliance/nutrition.mjs')).href);
 const ageDerive = await import(pathToFileURL(join(ROOT, 'src/lib/age-derive.mjs')).href);
 const providerExperience = await import(pathToFileURL(join(ROOT, 'src/lib/provider-experience.mjs')).href);
+const applicationFiles = await import(pathToFileURL(join(ROOT, 'src/lib/application-files.mjs')).href);
+const uploadTicket = await loadRealModule(join(ROOT, 'src/lib/application-upload-ticket.ts'), { typescript: true });
 const config = await import(pathToFileURL(join(ROOT, 'mobile-app/src/config/providerApplications.js')).href);
 
 const MB = 1024 * 1024;
 const hoursAgo = (h) => new Date(Date.now() - h * 3600 * 1000).toISOString();
 
 /** The service-role client: PostgREST-shaped reads over `rows`, inserts recorded, a bucket that can fail its Nth upload. */
-function fakeAdmin({ rows = [], insertErrors = [], failUploadAt = -1, rateAllowed = true, rateError = false, beforeInsert = null } = {}) {
+function fakeAdmin({ rows = [], insertErrors = [], failUploadAt = -1, rateAllowed = true, rateError = false, beforeInsert = null, objects = {}, afterSelect = null } = {}) {
   const calls = [];
   const uploads = [];
   const removed = [];
@@ -62,6 +64,7 @@ function fakeAdmin({ rows = [], insertErrors = [], failUploadAt = -1, rateAllowe
           return { data: { id: st.payload.id }, error: null };
         }
         let hit = rows.filter((r) => st.filters.every((f) => f(r)));
+        if (afterSelect) afterSelect(calls.filter((c) => c.op === 'select').length, rows);
         if (st.order) hit = [...hit].sort((a, b) => (a[st.order] < b[st.order] ? 1 : -1));
         if (st.limit != null) hit = hit.slice(0, st.limit);
         return { data: st.single ? hit[0] ?? null : hit, error: null };
@@ -92,7 +95,14 @@ function fakeAdmin({ rows = [], insertErrors = [], failUploadAt = -1, rateAllowe
           uploads.push({ path, size: bytes.length, ...opts });
           return { error: null };
         },
-        remove: async (paths) => { removed.push(...paths); return { error: null }; },
+        remove: async (paths) => { removed.push(...paths); for (const p of paths) delete objects[p]; return { error: null }; },
+        // Files already in the bucket (uploaded through signed links): { path: { size, mimetype } }.
+        list: async (folder) => ({
+          data: Object.entries(objects)
+            .filter(([p]) => p.startsWith(`${folder}/`) && !p.slice(folder.length + 1).includes('/'))
+            .map(([p, m]) => ({ name: p.slice(folder.length + 1), id: `obj-${p}`, metadata: { size: m.size, mimetype: m.mimetype } })),
+          error: null,
+        }),
       }),
     },
   };
@@ -114,6 +124,8 @@ async function applyRoute(admin, { user = null } = {}) {
       ['@/lib/rate-limit', rateLimit],
       ['@/lib/provider-applications', providerApplications],
       ['@/lib/provider-experience.mjs', providerExperience],
+      ['@/lib/application-files.mjs', applicationFiles],
+      ['@/lib/application-upload-ticket', uploadTicket],
       ['@/lib/compliance/nutrition.mjs', nutrition],
       ['@/lib/age-derive.mjs', ageDerive],
     ]),
@@ -357,24 +369,21 @@ test('the two emails go to after(), not fire-and-forget, and both are sent when 
   assert.doesNotMatch(src, /void sendApplicationEmails|void sendEmail/, 'no email is left running when the function returns');
 });
 
-test('every copy of the 4 MB limit and its sentence agrees: the route, the website form and the app', () => {
-  // Three modules that cannot share code (a Next route, a babel page, the app bundle) each carry
-  // the limit; a change to one alone would refuse what another accepts. (The /mobile and root
-  // legacy pages that also carried it were retired on 2026-10-12.)
+test('the 4 MB request cap is the old multipart path\'s alone; both forms upload through signed links under the shared limits', () => {
+  // Since 2026-10-12 the website and the app send their documents straight to storage
+  // (/api/apply/uploads), so the platform's 4.5 MB request cap no longer bounds them. The route
+  // keeps the 4 MB line for a request that still carries files itself: an installed app from
+  // before then.
   const src = (p) => readFileSync(join(ROOT, p), 'utf8');
-  const limits = {
-    'src/app/api/apply/route.ts': /const MAX_TOTAL_FILE_BYTES = (.+);/,
-    'public/newdesign/signup.jsx': /const APPLY_FILES_MAX_BYTES = (.+);/,
-    'mobile-app/src/config/providerApplications.js': /export const PROVIDER_APPLICATION_MAX_TOTAL_BYTES = (.+);/,
-  };
-  for (const [file, re] of Object.entries(limits)) {
-    const m = re.exec(src(file));
-    assert.ok(m, `${file}: the limit is where this test looks for it`);
-    assert.equal(m[1].trim(), '4 * 1024 * 1024', file);
-  }
-  const sentence = 'the limit for one application is 4 MB in total. Attach a smaller scan or fewer files.';
-  for (const file of Object.keys(limits)) assert.ok(src(file).includes(sentence), `${file} says the same sentence`);
-  assert.equal(config.PROVIDER_APPLICATION_MAX_TOTAL_BYTES, 4 * MB);
+  assert.equal(/const MAX_TOTAL_FILE_BYTES = (.+);/.exec(src('src/app/api/apply/route.ts'))[1].trim(), '4 * 1024 * 1024');
+  const web = src('public/newdesign/signup.jsx');
+  assert.doesNotMatch(web, /APPLY_FILES_MAX_BYTES|4 MB in total/, 'the website form no longer carries the request cap');
+  assert.match(web, /window\.ShapeApplicationFiles/);
+  assert.match(web, /fetch\("\/api\/apply\/uploads"/);
+  assert.match(web, /uploadToSignedUrl\(link\.path, link\.token/);
+  assert.equal(config.PROVIDER_APPLICATION_MAX_TOTAL_BYTES, undefined, 'the app no longer carries it either');
+  assert.equal(config.APPLICATION_MAX_TOTAL_BYTES, applicationFiles.APPLICATION_MAX_TOTAL_BYTES);
+  assert.equal(config.applicationFilesProblem, applicationFiles.applicationFilesProblem, 'the app reads the shared rules');
 });
 
 test('experience: no answer is asked for; under the 5-year standard needs where and what kind, and is then taken and marked, never refused', async () => {
@@ -419,14 +428,122 @@ test('experience: no answer is asked for; under the 5-year standard needs where 
   assert.doesNotMatch(r.sent.find((m) => m.to !== 'ada@example.invalid').text, /Experience review/);
 });
 
-test('files over 4 MB in total are refused before anything is stored, in the words the forms use', async () => {
+// ── The ticket path (2026-10-12): documents uploaded through /api/apply/uploads ──────────────
+
+process.env.APPLICATION_UPLOAD_SECRET = process.env.APPLICATION_UPLOAD_SECRET || 'test-upload-secret';
+const DRAFT = '0b7c1d4e-1111-4222-8333-444455556666';
+const ticketFor = (role = 'trainer', draftId = DRAFT, now = Date.now()) => uploadTicket.issueUploadTicket(draftId, role, now).ticket;
+const draftObjects = () => ({
+  [`website/${DRAFT}/resume/1-cv.pdf`]: { size: 1200, mimetype: 'application/pdf' },
+  [`website/${DRAFT}/credential/2-nasm.pdf`]: { size: 3 * MB, mimetype: 'application/pdf' },
+  [`website/${DRAFT}/credential/3-cpr.jpg`]: { size: 9 * MB, mimetype: 'image/jpeg' },
+  [`website/${DRAFT}/designation/4-degree.pdf`]: { size: 8 * MB, mimetype: 'application/pdf' },
+});
+const claimed = () => JSON.stringify([
+  { path: `website/${DRAFT}/resume/1-cv.pdf`, name: 'CV (2026).pdf' },
+  { path: `website/${DRAFT}/credential/2-nasm.pdf`, name: 'nasm.pdf' },
+  { path: `website/${DRAFT}/credential/3-cpr.jpg`, name: 'cpr.jpg' },
+  { path: `website/${DRAFT}/designation/4-degree.pdf`, name: 'degree.pdf' },
+]);
+
+test('ticket: the row takes the draft id, the documents are read from storage (21 MB of them, past the old 4 MB cap), and the ticket stands in for the human check', async () => {
+  await withTurnstile(async () => {
+    const admin = fakeAdmin({ objects: draftObjects() });
+    const r = await applyRoute(admin);
+    const res = await r.post({ fields: { uploadTicket: ticketFor(), uploads: claimed() } });
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+    assert.equal(res.body.id, DRAFT);
+    const row = inserts(admin)[0].payload;
+    assert.equal(row.id, DRAFT);
+    assert.deepEqual(row.details.documents.map((d) => [d.kind, d.path, d.name, d.type, d.size]), [
+      ['resume', `website/${DRAFT}/resume/1-cv.pdf`, 'CV (2026).pdf', 'application/pdf', 1200],
+      ['credential', `website/${DRAFT}/credential/2-nasm.pdf`, 'nasm.pdf', 'application/pdf', 3 * MB],
+      ['credential', `website/${DRAFT}/credential/3-cpr.jpg`, 'cpr.jpg', 'image/jpeg', 9 * MB],
+      ['designation', `website/${DRAFT}/designation/4-degree.pdf`, 'degree.pdf', 'application/pdf', 8 * MB],
+    ]);
+    assert.equal(admin.uploads.length, 0, 'the route stores nothing itself');
+    assert.equal(admin.removed.length, 0);
+  });
+});
+
+test('ticket: a forged, expired, other-role or file-carrying ticket is refused before anything is read', async () => {
+  const cases = [
+    ['forged', `${DRAFT}.trainer.9999999999.${'0'.repeat(64)}`, {}],
+    ['expired', ticketFor('trainer', DRAFT, Date.now() - 3 * 60 * 60 * 1000), {}],
+    ['another role', ticketFor('nutritionist'), {}],
+    ['beside files', ticketFor(), { files: [{ kind: 'resume', file: new File(['%PDF'], 'cv.pdf', { type: 'application/pdf' }) }] }],
+  ];
+  for (const [name, ticket, extra] of cases) {
+    const admin = fakeAdmin({ objects: draftObjects() });
+    const res = await (await applyRoute(admin)).post({ fields: { uploadTicket: ticket, uploads: claimed() }, ...extra });
+    assert.equal(res.status, 400, name);
+    assert.equal(res.body.code, 'upload_expired', name);
+    assert.equal(inserts(admin).length + admin.removed.length + admin.uploads.length, 0, name);
+  }
+});
+
+test('ticket: a file that did not finish uploading, or one storage holds past the rules, is said and the draft is taken back', async () => {
+  const missing = fakeAdmin({ objects: (({ [`website/${DRAFT}/designation/4-degree.pdf`]: _, ...rest }) => rest)(draftObjects()) });
+  const a = await (await applyRoute(missing)).post({ fields: { uploadTicket: ticketFor(), uploads: claimed() } });
+  assert.equal(a.status, 400);
+  assert.equal(a.body.code, 'upload_incomplete');
+  assert.match(a.body.error, /did not finish uploading/);
+  assert.equal(inserts(missing).length, 0);
+  assert.equal(missing.removed.length, 3, 'the files that did arrive are removed, so a retry starts clean');
+  const huge = fakeAdmin({ objects: { ...draftObjects(), [`website/${DRAFT}/insurance/5-policy.pdf`]: { size: 12 * MB, mimetype: 'application/pdf' } } });
+  const b = await (await applyRoute(huge)).post({ fields: { uploadTicket: ticketFor(), uploads: claimed() } });
+  assert.equal(b.status, 400);
+  assert.match(b.body.error, /^policy\.pdf is 12\.0 MB; each file can be up to 10 MB\./);
+  assert.equal(inserts(huge).length, 0);
+  const none = fakeAdmin();
+  const c = await (await applyRoute(none)).post({ fields: { uploadTicket: ticketFor(), uploads: '[]' } });
+  assert.equal(c.status, 400, 'a ticket with nothing under it is not an application with documents');
+});
+
+test('ticket: a resend after success gets its own application back and its files are never removed; an open application elsewhere takes the draft back', async () => {
+  const admin = fakeAdmin({ objects: draftObjects() });
+  const r = await applyRoute(admin);
+  const first = await r.post({ fields: { uploadTicket: ticketFor(), uploads: claimed() } });
+  assert.equal(first.status, 200);
+  const again = await r.post({ fields: { uploadTicket: ticketFor(), uploads: claimed() } });
+  assert.deepEqual(again.body, { ok: true, id: DRAFT, duplicate: true });
+  assert.equal(inserts(admin).length, 1, 'no second row');
+  assert.equal(admin.removed.length, 0, 'the saved application keeps every document');
+
+  // Two sends of one ticket at once: the other saved the row first, so the index refuses this one.
+  const race = fakeAdmin({ objects: draftObjects(), insertErrors: [{ code: '23505', message: 'duplicate key' }], beforeInsert: (rows) => rows.push({ id: DRAFT, email: 'ada@example.invalid', provider_type: 'trainer', status: 'pending', created_at: new Date().toISOString() }) });
+  const raced = await (await applyRoute(race)).post({ fields: { uploadTicket: ticketFor(), uploads: claimed() } });
+  assert.deepEqual(raced.body, { ok: true, id: DRAFT, duplicate: true });
+  assert.equal(race.removed.length, 0, 'the files are the saved row\'s');
+
+  // ⚠ The other send's row lands between this one's own-row check and its open-application read:
+  // the open application it then finds IS this ticket's, and its files are not orphans.
+  const overlap = fakeAdmin({
+    objects: draftObjects(),
+    afterSelect: (n, rows) => { if (n === 1) rows.push({ id: DRAFT, email: 'ada@example.invalid', provider_type: 'trainer', status: 'pending', created_at: new Date().toISOString() }); },
+  });
+  const overlapped = await (await applyRoute(overlap)).post({ fields: { uploadTicket: ticketFor(), uploads: claimed() } });
+  assert.deepEqual(overlapped.body, { ok: true, id: DRAFT, duplicate: true });
+  assert.equal(overlap.removed.length, 0, 'the saved application keeps its documents');
+
+  const open = fakeAdmin({ objects: draftObjects(), rows: [{ id: 'app-first', email: 'ada@example.invalid', provider_type: 'trainer', status: 'pending', created_at: hoursAgo(1) }] });
+  const dup = await (await applyRoute(open)).post({ fields: { uploadTicket: ticketFor(), uploads: claimed() } });
+  assert.deepEqual(dup.body, { ok: true, id: 'app-first', duplicate: true });
+  assert.equal(open.removed.length, 4, 'this request\'s uploads belong to no application now');
+
+  const failing = fakeAdmin({ objects: draftObjects(), insertErrors: [{ code: '23514', message: 'check violation' }] });
+  const failed = await (await applyRoute(failing)).post({ fields: { uploadTicket: ticketFor(), uploads: claimed() } });
+  assert.equal(failed.status, 500);
+  assert.equal(failing.removed.length, 4, 'a failed insert takes the draft back');
+});
+
+test('the old multipart path: files over 4 MB in total are refused before anything is stored', async () => {
   const admin = fakeAdmin();
   const r = await applyRoute(admin);
   const big = (name) => new File([new Uint8Array(Math.round(2.2 * MB))], name, { type: 'application/pdf' });
   const res = await r.post({ files: [{ kind: 'resume', file: big('cv.pdf') }, { kind: 'credential', file: big('cert.pdf') }] });
   assert.equal(res.status, 400);
   assert.equal(res.body.error, 'Your files add up to 4.4 MB; the limit for one application is 4 MB in total. Attach a smaller scan or fewer files.');
-  assert.equal(res.body.error, config.applicationFilesTooLargeMessage(Math.round(2.2 * MB) * 2), 'the app says the same sentence');
   assert.equal(inserts(admin).length + admin.uploads.length, 0);
   const atLimit = fakeAdmin();
   const fits = await (await applyRoute(atLimit)).post({ files: [{ kind: 'resume', file: new File([new Uint8Array(4 * MB)], 'cv.pdf', { type: 'application/pdf' }) }] });
@@ -443,49 +560,114 @@ function lift(name) {
   return BACKEND.slice(i, j + 3);
 }
 
-function appSender({ respond, signedIn = false, solve = async () => 'app-token', apiBaseUrl = 'https://shape.test' }) {
+/** The app's sender, lifted from shapeBackend.js. `respond(n, url, init)` answers each fetch; the
+ * bucket records each signed upload, and `failUpload` makes one fail. */
+function appSender({ respond, signedIn = false, solve = async () => 'app-token', apiBaseUrl = 'https://shape.test', failUpload = -1 }) {
   const requests = [];
+  const stored = [];
   const fetch = async (url, init) => {
-    requests.push({ url, init, form: init.body });
-    return respond(requests.length);
+    requests.push({ url, init, form: init.body, json: typeof init.body === 'string' ? JSON.parse(init.body) : null });
+    return respond(requests.length, url, init);
+  };
+  const supabase = {
+    storage: {
+      from: (bucket) => ({
+        uploadToSignedUrl: async (path, token, file, opts) => {
+          if (stored.length === failUpload) return { data: null, error: { message: 'upload failed' } };
+          stored.push({ bucket, path, token, name: file.name, size: file.size, type: file.type, contentType: opts?.contentType });
+          return { data: { path }, error: null };
+        },
+      }),
+    },
   };
   const state = { user: signedIn ? { id: 'u-1', email: 'ada@example.invalid' } : null, session: signedIn ? { access_token: 'session-token' } : null };
   const window = { ShapeTurnstile: { solve: async () => { requests.solved = (requests.solved || 0) + 1; return solve(); } } };
-  const src = ['applicationToPayload', 'providerApplicationApiBody', 'applicationSendFailed', 'submitProviderApplicationToApi', 'submitProviderApplication'].map(lift).join('\n');
+  const src = ['applicationToPayload', 'providerApplicationApiBody', 'applicationSendFailed', 'applicationRefusal', 'uploadProviderApplicationDocuments', 'submitProviderApplicationToApi', 'submitProviderApplication'].map(lift).join('\n');
   const submit = new Function(
-    'fetch', 'apiBaseUrl', 'state', 'window', 'navigator', 'normalizeRole', 'FormData',
-    'DEFAULT_BACKGROUND_CHECK_PROVIDER', 'REQUIRED_PROVIDER_EXPERIENCE_YEARS', 'PROVIDER_APPLICATION_MAX_TOTAL_BYTES',
-    'PROVIDER_APPLICATION_SEND_FAILED', 'applicationFilesTooLargeMessage',
+    'fetch', 'apiBaseUrl', 'state', 'window', 'navigator', 'normalizeRole', 'FormData', 'supabase',
+    'DEFAULT_BACKGROUND_CHECK_PROVIDER', 'PROVIDER_APPLICATION_SEND_FAILED', 'applicationFilesProblem',
     `${src}\nreturn submitProviderApplication;`,
   )(
-    fetch, apiBaseUrl, state, window, { userAgent: 'test' }, (r) => r, FormData,
-    config.DEFAULT_BACKGROUND_CHECK_PROVIDER, config.REQUIRED_PROVIDER_EXPERIENCE_YEARS, config.PROVIDER_APPLICATION_MAX_TOTAL_BYTES,
-    config.PROVIDER_APPLICATION_SEND_FAILED, config.applicationFilesTooLargeMessage,
+    fetch, apiBaseUrl, state, window, { userAgent: 'test' }, (r) => r, FormData, supabase,
+    config.DEFAULT_BACKGROUND_CHECK_PROVIDER, config.PROVIDER_APPLICATION_SEND_FAILED, config.applicationFilesProblem,
   );
-  return { submit, requests };
+  return { submit, requests, stored };
+}
+
+/** /api/apply/uploads's answer for these files: a link and token per file, and a ticket. */
+function linksFor(files, { draftId = '0b7c1d4e-1111-4222-8333-444455556666' } = {}) {
+  return {
+    draftId,
+    ticket: `${draftId}.trainer.9999999999.${'a'.repeat(64)}`,
+    bucket: 'provider-credentials',
+    uploads: files.map((f, i) => ({ kind: f.kind, name: f.name, type: f.type, size: f.size, path: `website/${draftId}/${f.kind}/${i + 1}-${f.name}`, token: `tok-${i}` })),
+  };
 }
 
 const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const VALUES = { firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.invalid', dob: '1990-04-02', years: '7-10 years', cert: 'NASM', bgcheck: true, tos: true, conduct: true, verify: true };
 
-test('the app sends ONE multipart request to the route, with the files in it and a token when signed out', async () => {
-  const { submit, requests } = appSender({ respond: () => json(200, { ok: true, id: 'app-1' }) });
+test('with documents the app asks for upload links (with the token), uploads each file to its link, then sends the application with the ticket', async () => {
   const cv = new File(['%PDF'], 'cv.pdf', { type: 'application/pdf' });
-  const out = await submit({ role: 'trainer', values: VALUES, files: [{ kind: 'resume', file: cv }] });
-  assert.deepEqual({ stored: out.stored, duplicate: out.duplicate, id: out.data.id }, { stored: 'api', duplicate: false, id: 'app-1' });
-  assert.equal(requests.length, 1);
-  assert.equal(requests[0].url, 'https://shape.test/api/apply');
-  const form = requests[0].form;
-  assert.ok(form instanceof FormData, 'multipart, so a signed-out applicant can attach documents');
+  const cert = new File(['%PDF'], 'nasm.pdf', { type: 'application/pdf' });
+  // Untyped, as a phone leaves a type it does not know: it goes up typed by its extension.
+  const card = new File(['x'], 'cpr.jpg', { type: '' });
+  const files = [{ kind: 'resume', file: cv }, { kind: 'credential', file: cert }, { kind: 'credential', file: card }];
+  const meta = files.map(({ kind, file }) => ({ kind, name: file.name, type: file.type, size: file.size }));
+  // The links route answers with the type the rules settled on.
+  const links = linksFor(meta.map((m) => ({ ...m, type: config.applicationFilesProblem ? applicationFiles.applicationFileType(m.name, m.type) : m.type })));
+  const { submit, requests, stored } = appSender({
+    respond: (n, url) => (String(url).endsWith('/api/apply/uploads') ? json(200, links) : json(200, { ok: true, id: '0b7c1d4e-1111-4222-8333-444455556666' })),
+  });
+  const out = await submit({ role: 'trainer', values: VALUES, files });
+  assert.deepEqual({ stored: out.stored, duplicate: out.duplicate }, { stored: 'api', duplicate: false });
+  assert.deepEqual(requests.map((r) => r.url), ['https://shape.test/api/apply/uploads', 'https://shape.test/api/apply']);
+  assert.deepEqual(requests[0].json, { providerType: 'trainer', files: meta, turnstileToken: 'app-token' });
+  assert.equal(requests.solved, 1, 'one human check for the whole application');
+  // ⚠ The storage client sends a File under its own type, so the untyped photo goes up as a typed
+  // copy, or the bucket refuses it (Codex on #2319).
+  assert.deepEqual(stored.map((u) => u.type), ['application/pdf', 'application/pdf', 'image/jpeg']);
+  assert.deepEqual(stored.map((u) => [u.bucket, u.path, u.token, u.name, u.contentType]), [
+    ['provider-credentials', 'website/0b7c1d4e-1111-4222-8333-444455556666/resume/1-cv.pdf', 'tok-0', 'cv.pdf', 'application/pdf'],
+    ['provider-credentials', 'website/0b7c1d4e-1111-4222-8333-444455556666/credential/2-nasm.pdf', 'tok-1', 'nasm.pdf', 'application/pdf'],
+    ['provider-credentials', 'website/0b7c1d4e-1111-4222-8333-444455556666/credential/3-cpr.jpg', 'tok-2', 'cpr.jpg', 'image/jpeg'],
+  ]);
+  const form = requests[1].form;
+  assert.ok(form instanceof FormData);
+  assert.equal(form.get('uploadTicket'), links.ticket);
+  assert.deepEqual(JSON.parse(form.get('uploads')), links.uploads.map((u) => ({ path: u.path, name: u.name })));
+  assert.equal(form.get('turnstileToken'), null, 'the token was spent on the links; the ticket stands in for it');
+  for (const kind of ['resume', 'credential']) assert.equal(form.get(kind), null, 'no file rides the application request');
   assert.equal(form.get('providerType'), 'trainer');
   assert.equal(form.get('dob'), '1990-04-02');
-  assert.equal(form.get('turnstileToken'), 'app-token');
-  assert.equal(form.get('resume').name, 'cv.pdf');
   const details = JSON.parse(form.get('details'));
   assert.equal(details.certification, 'NASM');
-  assert.deepEqual(details.agreements, { credential_verification: true, terms: true, code_of_conduct: true, background_check: true });
   assert.equal('documents' in details, false, 'the route records the documents, the app does not claim any');
+});
+
+test('without documents the app sends one request with the token, as before', async () => {
+  const { submit, requests } = appSender({ respond: () => json(200, { ok: true, id: 'app-1' }) });
+  await submit({ role: 'trainer', values: VALUES });
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].url, 'https://shape.test/api/apply');
+  assert.equal(requests[0].form.get('turnstileToken'), 'app-token');
+  assert.equal(requests[0].form.get('uploadTicket'), null);
   assert.equal(requests[0].init.headers.Authorization, undefined);
+});
+
+test('a refused link request, or a file that does not upload, stops the application: nothing is sent to the route', async () => {
+  const cv = new File(['%PDF'], 'cv.pdf', { type: 'application/pdf' });
+  const files = [{ kind: 'resume', file: cv }];
+  const meta = [{ kind: 'resume', name: 'cv.pdf', type: 'application/pdf', size: cv.size }];
+  const refused = appSender({ respond: () => json(400, { error: 'Captcha check failed — please retry.', code: 'captcha_failed' }) });
+  await assert.rejects(refused.submit({ role: 'trainer', values: VALUES, files }), (e) => e.rejected === true && e.message === 'Captcha check failed — please retry.');
+  assert.deepEqual(refused.requests.map((r) => r.url), ['https://shape.test/api/apply/uploads']);
+  const broken = appSender({ failUpload: 0, respond: (n, url) => (String(url).endsWith('/uploads') ? json(200, linksFor(meta)) : json(200, { ok: true, id: 'x' })) });
+  await assert.rejects(broken.submit({ role: 'trainer', values: VALUES, files }), (e) => e.retryable === true && e.message === config.PROVIDER_APPLICATION_SEND_FAILED);
+  assert.deepEqual(broken.requests.map((r) => r.url), ['https://shape.test/api/apply/uploads'], 'the application waits for its files');
+  const short = appSender({ respond: (n, url) => (String(url).endsWith('/uploads') ? json(200, { ...linksFor(meta), uploads: [] }) : json(200, { ok: true, id: 'x' })) });
+  await assert.rejects(short.submit({ role: 'trainer', values: VALUES, files }), (e) => e.retryable === true);
+  assert.equal(short.requests.length, 1, 'links that do not match the files are a failed send');
 });
 
 test('signed in, the app sends its Bearer token and does not run the human check', async () => {
@@ -504,7 +686,6 @@ test('a refusal surfaces in the route\'s words; a failed send says so; nothing i
     { name: 'a 5xx', respond: () => json(500, { error: 'Could not submit your application.' }), message: config.PROVIDER_APPLICATION_SEND_FAILED, retryable: true },
     { name: 'a page that is not the route', respond: () => new Response('<html>Bad gateway</html>', { status: 502 }), message: config.PROVIDER_APPLICATION_SEND_FAILED, retryable: true },
     { name: 'a 200 that is not JSON', respond: () => new Response('<html>ok</html>', { status: 200 }), message: config.PROVIDER_APPLICATION_SEND_FAILED, retryable: true },
-    { name: 'the platform\'s 413', respond: () => new Response('Request Entity Too Large', { status: 413 }), message: /the limit for one application is 4 MB in total/, rejected: true },
     { name: 'no human check in the app', solve: async () => '', respond: () => json(400, { error: 'Captcha check failed — please retry.', code: 'captcha_failed' }), message: /couldn't run the human check in the app. Sign in to your Shape account/, rejected: true },
     { name: 'a failed human check', respond: () => json(400, { error: 'Captcha check failed — please retry.', code: 'captcha_failed' }), message: 'Captcha check failed — please retry.', rejected: true },
   ];
@@ -521,13 +702,14 @@ test('a refusal surfaces in the route\'s words; a failed send says so; nothing i
   assert.doesNotMatch(lift('submitProviderApplication'), /supabase|saveLocalRecord|localStorage/, 'no second path for an application');
 });
 
-test('files over 4 MB in total are refused before the request', async () => {
+test('files the shared rules refuse are said before any request', async () => {
   const { submit, requests } = appSender({ respond: () => json(200, { ok: true, id: 'x' }) });
-  const big = new File([new Uint8Array(3 * MB)], 'a.pdf', { type: 'application/pdf' });
-  await assert.rejects(
-    submit({ role: 'trainer', values: VALUES, files: [{ kind: 'resume', file: big }, { kind: 'credential', file: big }] }),
-    { message: 'Your files add up to 6.0 MB; the limit for one application is 4 MB in total. Attach a smaller scan or fewer files.' },
-  );
+  const big = new File([new Uint8Array(11 * MB)], 'scan.pdf', { type: 'application/pdf' });
+  await assert.rejects(submit({ role: 'trainer', values: VALUES, files: [{ kind: 'credential', file: big }] }), { message: 'scan.pdf is 11.0 MB; each file can be up to 10 MB.' });
+  const exe = new File(['MZ'], 'tool.exe', { type: '' });
+  await assert.rejects(submit({ role: 'trainer', values: VALUES, files: [{ kind: 'resume', file: exe }] }), { message: 'tool.exe must be a PDF, DOC, DOCX, PNG, JPEG or WebP file.' });
+  const three = [1, 2, 3].map((i) => ({ kind: 'resume', file: new File(['%PDF'], `cv${i}.pdf`, { type: 'application/pdf' }) }));
+  await assert.rejects(submit({ role: 'trainer', values: VALUES, files: three }), { message: 'Attach at most 2 files under Resume / CV.' });
   assert.equal(requests.length, 0);
 });
 

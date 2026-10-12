@@ -13,6 +13,7 @@ import {
   textValue,
 } from '@/lib/provider-applications';
 import { EXPERIENCE_STANDARD_YEARS, belowExperienceStandard } from '@/lib/provider-experience.mjs';
+import { APPLICATION_FILE_KINDS } from '@/lib/application-files.mjs';
 import {
   approveApplication,
   markApplicationInReview,
@@ -377,33 +378,40 @@ function ApplicationCard({ row, documents }: { row: ApplicationRow; documents: D
 
       {documents.length > 0 && (
         <section className="mt-5">
-          <div className="text-xs uppercase tracking-[0.14em] text-neutral-500 mb-2">Documents</div>
-          <div className="flex gap-2 flex-wrap">
-            {documents.map((doc) =>
-              doc.url ? (
-                <a
-                  key={`${doc.kind}-${doc.path}`}
-                  href={doc.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="rounded-full border border-teal-400/40 text-teal-300 px-3 py-1.5 text-xs hover:bg-teal-400 hover:text-neutral-950 transition-colors"
-                >
-                  {doc.kind}: {doc.name}
-                </a>
-              ) : doc.blocked ? (
-                <span
-                  key={`${doc.kind}-${doc.path}`}
-                  className="rounded-full border border-red-400/30 text-red-300/80 px-3 py-1.5 text-xs"
-                  title="This path is outside what this application uploaded, so it was not opened."
-                >
-                  {doc.kind}: not opened (not this application’s upload)
-                </span>
-              ) : (
-                <span key={`${doc.kind}-${doc.path}`} className="rounded-full border border-neutral-800 text-neutral-500 px-3 py-1.5 text-xs">
-                  {doc.kind}: unavailable
-                </span>
-              )
-            )}
+          <div className="text-xs uppercase tracking-[0.14em] text-neutral-500 mb-2">Documents · {documents.length}</div>
+          <div className="flex flex-col gap-3">
+            {documentGroups(documents).map((group) => (
+              <div key={group.key}>
+                <div className="text-xs text-neutral-400 mb-1.5">{group.label}</div>
+                <div className="flex gap-2 flex-wrap">
+                  {group.docs.map((doc) =>
+                    doc.url ? (
+                      <a
+                        key={`${doc.kind}-${doc.path}`}
+                        href={doc.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-full border border-teal-400/40 text-teal-300 px-3 py-1.5 text-xs hover:bg-teal-400 hover:text-neutral-950 transition-colors"
+                      >
+                        {doc.name}
+                      </a>
+                    ) : doc.blocked ? (
+                      <span
+                        key={`${doc.kind}-${doc.path}`}
+                        className="rounded-full border border-red-400/30 text-red-300/80 px-3 py-1.5 text-xs"
+                        title="This path is outside what this application uploaded, so it was not opened."
+                      >
+                        {doc.name}: not opened (not this application’s upload)
+                      </span>
+                    ) : (
+                      <span key={`${doc.kind}-${doc.path}`} className="rounded-full border border-neutral-800 text-neutral-500 px-3 py-1.5 text-xs">
+                        {doc.name}: unavailable
+                      </span>
+                    )
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         </section>
       )}
@@ -597,6 +605,19 @@ function ApplicationCard({ row, documents }: { row: ApplicationRow; documents: D
       )}
     </article>
   );
+}
+
+/**
+ * An application's documents under the categories the forms use (src/lib/application-files.mjs),
+ * in the forms' order; a kind the forms no longer offer (an older application's) is shown under
+ * its own name after them.
+ */
+function documentGroups(documents: DocumentLink[]): Array<{ key: string; label: string; docs: DocumentLink[] }> {
+  const groups = APPLICATION_FILE_KINDS.map((k) => ({ key: k.kind, label: k.label, docs: documents.filter((d) => d.kind === k.kind) }));
+  const known = new Set(APPLICATION_FILE_KINDS.map((k) => k.kind));
+  const others = [...new Set(documents.filter((d) => !known.has(d.kind)).map((d) => d.kind))];
+  for (const kind of others) groups.push({ key: kind, label: kind.replace(/_/g, ' '), docs: documents.filter((d) => d.kind === kind) });
+  return groups.filter((g) => g.docs.length);
 }
 
 function DetailField({ name, value }: { name: string; value: unknown }) {
