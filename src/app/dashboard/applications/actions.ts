@@ -40,6 +40,10 @@ type ProviderApplication = {
 };
 
 const PAGE = '/dashboard/applications';
+// How long an Approve's claim on an application holds off another Approve. Longer than any one
+// approval takes (a server action is cut off well before it); a claim older than this belongs to
+// a request that died, and a new Approve may take the application over.
+const APPROVAL_CLAIM_MS = 10 * 60 * 1000;
 const MIGRATION = 'supabase-migrations/2026-10-12-coach-application-review.sql';
 
 function clean(value: FormDataEntryValue | null, max = 2000): string {
@@ -512,15 +516,24 @@ export async function approveApplication(formData: FormData): Promise<void> {
 
   // ⚠ CLAIMED BEFORE ANYTHING IS PROVISIONED. Two Approve clicks (a double submit, two tabs) both
   // read the application as pending, both found no listing for the coach and both inserted one,
-  // so the coach was listed twice. The claim is a compare-and-set on `updated_at`, which the
-  // provider_applications_touch trigger moves on every write: the first click's claim moves it,
-  // and the second's matches nothing and stops before provisioning. A provisioning failure leaves
-  // the application unapproved; the next Approve reads the new `updated_at` and claims it again.
+  // so the coach was listed twice. Two rules together make the claim exclusive:
+  //  · a live claim (admin_review.approval_claim, younger than APPROVAL_CLAIM_MS) on the row as
+  //    read stops this request: a click that arrives while the first is still provisioning;
+  //  · the claim is written as a compare-and-set on `updated_at`, which the
+  //    provider_applications_touch trigger moves on every write: a click that read the row before
+  //    the first one's claim landed matches nothing.
+  // A provisioning failure releases the claim below; a request that dies holding it loses it when
+  // it expires.
   if (!typed.updated_at) throw new Error('This application has no updated_at; it cannot be claimed for approval.');
+  const priorReview = asRecord(typed.admin_review);
+  const liveClaimAt = Date.parse(String(asRecord(priorReview.approval_claim).at ?? ''));
+  if (Number.isFinite(liveClaimAt) && Date.now() - liveClaimAt < APPROVAL_CLAIM_MS) {
+    backToReview({ notice: 'approval_in_progress' });
+  }
   const { data: claimed, error: claimError } = await admin
     .from('provider_applications')
     .update({
-      admin_review: { ...asRecord(typed.admin_review), approval_claim: { at: new Date().toISOString(), by: adminUser.id } },
+      admin_review: { ...priorReview, approval_claim: { at: new Date().toISOString(), by: adminUser.id } },
     })
     .eq('id', applicationId)
     .eq('updated_at', typed.updated_at)
@@ -529,17 +542,34 @@ export async function approveApplication(formData: FormData): Promise<void> {
   if (claimError) throw reviewWriteError(claimError);
   if (!claimed?.length) backToReview({ notice: 'approval_conflict' });
 
-  const provisioned = await resolveOrInviteProviderUser(admin, typed);
+  let provisioned: Awaited<ReturnType<typeof resolveOrInviteProviderUser>>;
+  let providerId: Awaited<ReturnType<typeof publishProviderRow>>;
+  try {
+    provisioned = await resolveOrInviteProviderUser(admin, typed);
+    const fullName = `${typed.first_name} ${typed.last_name}`.trim();
+    await updateProfileRole(admin, provisioned.user.id, typed.provider_type, fullName, applicantDob);
+    providerId = await publishProviderRow(admin, typed, provisioned.user.id);
+  } catch (provisionError) {
+    // Released, so the admin can approve again at once rather than wait out the claim.
+    try {
+      await admin
+        .from('provider_applications')
+        .update({ admin_review: { ...priorReview, approval_claim: null } })
+        .eq('id', applicationId)
+        .neq('status', 'approved');
+    } catch (releaseError) {
+      console.error('[shape] approval claim release failed:', releaseError);
+    }
+    throw provisionError;
+  }
   const authUser = provisioned.user;
-  const fullName = `${typed.first_name} ${typed.last_name}`.trim();
-  await updateProfileRole(admin, authUser.id, typed.provider_type, fullName, applicantDob);
-  const providerId = await publishProviderRow(admin, typed, authUser.id);
 
   const now = new Date().toISOString();
   // The approval record lives in admin_review. An `approved_provider` in the applicant's
   // `details` is theirs, and nothing reads it.
   const nextReview: Record<string, unknown> = {
-    ...asRecord(typed.admin_review),
+    ...priorReview,
+    approval_claim: null,
     applicant_note: applicantNote || null,
     decision: { decision: 'approved', at: now, by: adminUser.id },
     approved_provider: {

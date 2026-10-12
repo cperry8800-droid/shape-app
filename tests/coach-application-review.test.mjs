@@ -379,6 +379,37 @@ test('2: two Approve clicks at once list the coach once: the claim stops the sec
   assert.equal(clean.tables.trainers.length, 1);
 });
 
+test('2: a click that arrives while the first Approve is still provisioning finds its live claim and stops', async () => {
+  // The first click's claim has landed (it is on the row this click reads) and it is still running.
+  const live = { ...CLEAR_REVIEW, approval_claim: { at: new Date(Date.now() - 20_000).toISOString(), by: ADMIN.id } };
+  const admin = fakeAdmin({ tables: { provider_applications: [application({ admin_review: live })], profiles: [], trainers: [] } });
+  const { run, sent } = await loadActions(admin);
+  const to = await run('approveApplication', { application_id: APP_ID, review_notes: '', applicant_note: '' });
+  assert.equal(to.searchParams.get('notice'), 'approval_in_progress');
+  assert.equal(admin.tables.trainers.length, 0, 'no second listing');
+  assert.equal(admin.generated.length, 0, 'no account provisioned');
+  assert.equal(sent.length, 0);
+  assert.equal(stmts(admin.calls, 'provider_applications', 'update').length, 0, 'the live claim is not overwritten');
+
+  // A claim older than the hold belongs to a request that died: a new Approve takes over.
+  const stale = { ...CLEAR_REVIEW, approval_claim: { at: new Date(Date.now() - 11 * 60_000).toISOString(), by: ADMIN.id } };
+  const later = fakeAdmin({ tables: { provider_applications: [application({ admin_review: stale })], profiles: [], trainers: [] } });
+  const ok = await (await loadActions(later)).run('approveApplication', { application_id: APP_ID, review_notes: '', applicant_note: '' });
+  assert.equal(ok.searchParams.get('updated'), 'approved');
+  assert.equal(later.tables.trainers.length, 1);
+  assert.equal(later.tables.provider_applications[0].admin_review.approval_claim, null, 'the approval clears its claim');
+});
+
+test('2: a provisioning failure releases the claim, so the admin can approve again at once', async () => {
+  const admin = fakeAdmin({ tables: { provider_applications: [application()], profiles: [], trainers: [] }, fail: ['insert:trainers'] });
+  const { run, sent } = await loadActions(admin);
+  await assert.rejects(run('approveApplication', { application_id: APP_ID, review_notes: '', applicant_note: '' }), (e) => /fake failure on insert trainers/.test(e?.message));
+  const app = admin.tables.provider_applications[0];
+  assert.equal(app.status, 'pending');
+  assert.equal(app.admin_review.approval_claim, null, 'released');
+  assert.equal(sent.length, 0);
+});
+
 test('5: requesting a screening again clears the last one\'s completion date', () => {
   let review = pa.withAdminBackgroundCheck({}, 'requested', ADMIN.id, '2026-10-01T00:00:00Z');
   review = pa.withAdminBackgroundCheck(review, 'clear', ADMIN.id, '2026-10-02T00:00:00Z');
