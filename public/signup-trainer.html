@@ -322,11 +322,30 @@
       apiBody.append('monthlyPrice',    data.price      || '');
       apiBody.append('dob',             data.dob        || '');
       apiBody.append('details', JSON.stringify(data));
+      // The files ride this request, and the platform refuses a body over 4.5 MB before the
+      // route runs, so they are held to 4 MB in total (the route checks the same line).
+      var filesBytes = 0;
       document.querySelectorAll('#step1 input[type=file], #step2 input[type=file], #step3 input[type=file]').forEach(function (el) {
-        if (el.files && el.files[0]) apiBody.append(el.name, el.files[0]);
+        if (el.files && el.files[0]) { apiBody.append(el.name, el.files[0]); filesBytes += el.files[0].size || 0; }
       });
+      var tooLarge = 'Your files add up to more than 4 MB; the limit for one application is 4 MB in total. Attach a smaller scan or fewer files.';
+      if (filesBytes > 4 * 1024 * 1024) {
+        alert(tooLarge);
+        if (btn) { btn.disabled = false; btn.textContent = 'Submit Application'; }
+        return;
+      }
+      // The human check /api/apply asks of a signed-out application (supabase.js carries the
+      // solver; it answers '' when it cannot run, and the route then says why it refused).
+      var humanCheck = '';
+      try { humanCheck = window.ShapeTurnstile && window.ShapeTurnstile.solve ? await window.ShapeTurnstile.solve() : ''; } catch (e) { humanCheck = ''; }
+      if (humanCheck) apiBody.append('turnstileToken', humanCheck);
       try {
         var apiRes = await fetch('/api/apply', { method: 'POST', body: apiBody });
+        if (apiRes.status === 413) {
+          alert(tooLarge);
+          if (btn) { btn.disabled = false; btn.textContent = 'Submit Application'; }
+          return;
+        }
         if (!apiRes.ok) {
           var errBody = await apiRes.json().catch(function(){ return {}; });
           alert(errBody.error || 'Could not submit your application. Please try again.');

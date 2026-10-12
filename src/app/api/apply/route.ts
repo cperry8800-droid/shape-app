@@ -2,15 +2,22 @@
 // Accepts a JSON body with core identifying fields + a free-form `details`
 // object for the rest of the intake. Inserts into public.provider_applications.
 //
-// Called by public/signup-trainer.html and public/signup-nutritionist.html.
+// Called by the website's coach application (public/newdesign/signup.jsx), the app's
+// (mobile-app shapeBackend submitProviderApplication) and the legacy pages
+// public/signup-trainer.html and public/signup-nutritionist.html.
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/email';
 import { cleanText as clean, isEmail, readJson } from '@/lib/request-utils';
+import { verifyTurnstile } from '@/lib/turnstile';
+import { currentUser } from '@/lib/request-auth';
+import { checkRateLimit } from '@/lib/rate-limit';
 import {
   REQUIRED_PROVIDER_EXPERIENCE_YEARS,
+  asRecord,
   hasBackgroundCheckConsent,
+  isAffirmative,
   minimumYears,
   withBackgroundCheckDetails,
 } from '@/lib/provider-applications';
@@ -30,6 +37,12 @@ const CORS_HEADERS = {
 const MAX_LONG = 10000;
 const FILE_BUCKET = 'provider-credentials';
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
+// ⚠ THE REAL LIMIT IS THE REQUEST, NOT THE FILE. The files ride the request body through this
+// route, and Vercel refuses a function request body over 4.5 MB before the route runs, with a
+// plain-text 413 the forms could only read as "Could not submit application." Both forms check
+// the total against this number before sending and say it plainly; the route holds the same
+// line, so a body that does get here over it is told the same thing.
+const MAX_TOTAL_FILE_BYTES = 4 * 1024 * 1024;
 const ALLOWED_FILE_TYPES = new Set([
   'application/pdf',
   'application/msword',
@@ -53,6 +66,22 @@ const EXTENSION_TYPES: Record<string, string> = {
 };
 const MAX_FILES = 6;
 const FILE_TYPE_MESSAGE = 'must be a PDF, DOC, DOCX, PNG, JPEG or WebP file.';
+// A second submission of the same application inside this window answers with the first one.
+const DUPLICATE_WINDOW_MS = 24 * 60 * 60 * 1000;
+// Applications a signed-in account may send a day without a human check (the app's path).
+const ACCOUNT_DAILY_APPLICATIONS = 5;
+// Document paths are written by this route alone, from the files it stored. A client-sent value
+// under any of these names would put a path of the caller's choosing in front of the reviewer
+// (the review page signs a link for each), so they are dropped from what the client sends.
+const SERVER_DOCUMENT_KEYS = [
+  'documents',
+  'resume_document',
+  'credential_documents',
+  'resume_path',
+  'certProof_path',
+  'insuranceDoc_path',
+  'samplePlan_path',
+];
 
 /** The content type an application file is stored under, or null when it is not one we accept. */
 function applicationFileType(file: File): string | null {
@@ -62,6 +91,12 @@ function applicationFileType(file: File): string | null {
   return EXTENSION_TYPES[ext] ?? null;
 }
 
+/** The sentence an application whose files are too big for one request gets, everywhere. */
+function totalFilesMessage(bytes: number): string {
+  const mb = (Math.ceil(bytes / (1024 * 1024 / 10)) / 10).toFixed(1);
+  return `Your files add up to ${mb} MB; the limit for one application is 4 MB in total. Attach a smaller scan or fewer files.`;
+}
+
 /** Why the files cannot be taken, or null. Run BEFORE the application row is written, so a refused file is a 400 the applicant can fix, not an application saved without its documents. */
 function checkApplicationFiles(files: Array<{ kind: string; file: File }>): string | null {
   if (files.length > MAX_FILES) return `At most ${MAX_FILES} files per application.`;
@@ -69,6 +104,8 @@ function checkApplicationFiles(files: Array<{ kind: string; file: File }>): stri
     if (file.size > MAX_FILE_BYTES) return `${file.name} is larger than 10MB.`;
     if (!applicationFileType(file)) return `${file.name} ${FILE_TYPE_MESSAGE}`;
   }
+  const total = files.reduce((sum, { file }) => sum + file.size, 0);
+  if (total > MAX_TOTAL_FILE_BYTES) return totalFilesMessage(total);
   return null;
 }
 
@@ -79,6 +116,7 @@ function sanitizeDetails(input: unknown): Record<string, unknown> {
     if (typeof rawKey !== 'string' || !rawKey) continue;
     const key = rawKey.slice(0, 100);
     if (rawVal == null) continue;
+    if (SERVER_DOCUMENT_KEYS.includes(key)) continue;
     if (typeof rawVal === 'string') {
       out[key] = rawVal.trim().slice(0, MAX_LONG);
     } else if (typeof rawVal === 'number' || typeof rawVal === 'boolean') {
@@ -91,6 +129,63 @@ function sanitizeDetails(input: unknown): Record<string, unknown> {
     if (Object.keys(out).length >= 100) break;
   }
   return out;
+}
+
+/**
+ * The credential under the key approval reads. Approval publishes the coach's credential from
+ * `details.certifications` (then `details.credentials`), which the legacy trainer page sends; the
+ * website and the app send `certification`, so every approved coach from either read "Verified by
+ * Shape" instead of their credential. Normalised here, once, for every surface.
+ */
+function withCertifications(details: Record<string, unknown>): Record<string, unknown> {
+  const has = (v: unknown) => typeof v === 'string' && v.trim() !== '';
+  if (has(details.certifications)) return details;
+  if (!has(details.certification)) return details;
+  return { ...details, certifications: String(details.certification).trim() };
+}
+
+/**
+ * The agreements as this server recorded them, with the time it did. The app sends an
+ * `agreements` object, the website now does too, and the legacy pages send their boxes as
+ * agreeTos / agreeCoc / agreeVerify ('Yes' or 'No'). Whatever the client sent under
+ * `agreements` is replaced, so `recorded_at` is always the server's clock.
+ */
+function recordedAgreements(details: Record<string, unknown>, body: Record<string, unknown>): Record<string, unknown> {
+  const given = asRecord(details.agreements);
+  return {
+    terms: isAffirmative(given.terms) || isAffirmative(details.agreeTos),
+    code_of_conduct: isAffirmative(given.code_of_conduct) || isAffirmative(details.agreeCoc),
+    credential_verification: isAffirmative(given.credential_verification) || isAffirmative(details.agreeVerify),
+    background_check: hasBackgroundCheckConsent(details, body),
+    recorded_at: new Date().toISOString(),
+  };
+}
+
+/**
+ * The bot check. A Turnstile token from the form passes (verifyTurnstile is a no-op until
+ * TURNSTILE_SECRET_KEY is set, and fails closed after: M11). Without one, only a signed-in
+ * account passes, verified through the Auth server, and at most ACCOUNT_DAILY_APPLICATIONS a day.
+ *
+ * ⚠ WHY THE ACCOUNT PATH EXISTS: the installed app solves Turnstile with ShapeTurnstile.solve(),
+ * which can only pass once `localhost` is in the widget's hostnames in Cloudflare (the native
+ * origins are capacitor://localhost and https://localhost). Until then a signed-in applicant in
+ * the app is let through on their account, as /api/consultation lets the app through. ⚠ A
+ * signed-out applicant in the native app with no token is refused, not waved through: an
+ * Origin header or a "this is the app" flag is the caller's to write, so either would be the
+ * same as no check at all.
+ */
+async function passesBotCheck(req: NextRequest, body: Record<string, unknown>, ip: string | null): Promise<boolean> {
+  if (await verifyTurnstile(body.captchaToken ?? body.turnstileToken, ip)) return true;
+  if (!/^Bearer\s+\S/i.test(req.headers.get('authorization') ?? '')) return false;
+  let userId = '';
+  try {
+    userId = (await currentUser(req))?.id ?? '';
+  } catch {
+    userId = '';
+  }
+  if (!userId) return false;
+  const limit = await checkRateLimit(createAdminClient(), `apply:u:${userId}`, ACCOUNT_DAILY_APPLICATIONS, 24 * 60 * 60);
+  return limit.allowed;
 }
 
 function safeFileName(name = 'document'): string {
@@ -132,6 +227,12 @@ async function parseApplyRequest(req: NextRequest): Promise<{
   return { body, files };
 }
 
+/**
+ * Stores the files under the application's id BEFORE its row exists, so a row is only ever
+ * written with every one of its documents. ⚠ ALL OR NOTHING: when one upload fails, the ones
+ * already stored for this submission are removed before the error goes up, so a retry starts
+ * clean instead of leaving orphaned documents (or, as before, a saved row with half of them).
+ */
 async function uploadApplicationFiles(
   applicationId: string,
   files: Array<{ kind: string; file: File }>
@@ -140,34 +241,51 @@ async function uploadApplicationFiles(
   const supabase = createAdminClient();
   const uploaded: Array<Record<string, unknown>> = [];
 
-  for (const { kind, file } of files) {
-    if (file.size > MAX_FILE_BYTES) {
-      throw new Error(`${file.name} is larger than 10MB.`);
-    }
-    const type = applicationFileType(file);
-    if (!type) {
-      throw new Error(`${file.name} ${FILE_TYPE_MESSAGE}`);
-    }
+  try {
+    for (const { kind, file } of files) {
+      if (file.size > MAX_FILE_BYTES) {
+        throw new Error(`${file.name} is larger than 10MB.`);
+      }
+      const type = applicationFileType(file);
+      if (!type) {
+        throw new Error(`${file.name} ${FILE_TYPE_MESSAGE}`);
+      }
 
-    const path = `website/${applicationId}/${kind}/${Date.now()}-${safeFileName(file.name)}`;
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const { error } = await supabase.storage.from(FILE_BUCKET).upload(path, bytes, {
-      contentType: type,
-      upsert: false,
-    });
-    if (error) throw error;
-    uploaded.push({
-      kind,
-      bucket: FILE_BUCKET,
-      path,
-      name: file.name,
-      type,
-      size: file.size,
-      stored: 'supabase',
-    });
+      const path = `website/${applicationId}/${kind}/${Date.now()}-${safeFileName(file.name)}`;
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const { error } = await supabase.storage.from(FILE_BUCKET).upload(path, bytes, {
+        contentType: type,
+        upsert: false,
+      });
+      if (error) throw error;
+      uploaded.push({
+        kind,
+        bucket: FILE_BUCKET,
+        path,
+        name: file.name,
+        type,
+        size: file.size,
+        stored: 'supabase',
+      });
+    }
+  } catch (uploadError) {
+    await removeApplicationFiles(uploaded);
+    throw uploadError;
   }
 
   return uploaded;
+}
+
+/** Removes stored application files; a failure here is logged, never thrown over the real error. */
+async function removeApplicationFiles(documents: Array<Record<string, unknown>>): Promise<void> {
+  const paths = documents.map((d) => String(d.path || '')).filter(Boolean);
+  if (!paths.length) return;
+  try {
+    const { error } = await createAdminClient().storage.from(FILE_BUCKET).remove(paths);
+    if (error) console.error('[shape-api] provider application file cleanup failed:', error);
+  } catch (cleanupError) {
+    console.error('[shape-api] provider application file cleanup failed:', cleanupError);
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -256,8 +374,26 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const fileProblem = checkApplicationFiles(files);
+  if (fileProblem) {
+    return NextResponse.json({ error: fileProblem }, { status: 400, headers: CORS_HEADERS });
+  }
+
+  // Bot check (Cloudflare Turnstile), after the checks above so a form that can be fixed is told
+  // what to fix first, and before anything is read, stored or mailed. Anyone could post here with
+  // no account, so this is what stands between a script and the review queue, the bucket and an
+  // email sent to whatever address the body names.
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null;
+  if (!(await passesBotCheck(req, body, ip))) {
+    return NextResponse.json(
+      { error: 'Captcha check failed — please retry.', code: 'captcha_failed' },
+      { status: 400, headers: CORS_HEADERS }
+    );
+  }
+
   details = withBackgroundCheckDetails({
-    ...details,
+    ...withCertifications(details),
+    agreements: recordedAgreements(details, body),
     meets_experience_preference: true,
     background_check_consent: true,
   }, 'consent_received');
@@ -265,7 +401,46 @@ export async function POST(req: NextRequest) {
   // L19 (2026-10-10): the anonymous insert policy on provider_applications is gone, so the
   // application row is written through the service role after the checks above.
   const supabase = createAdminClient();
+
+  // ⚠ ONE APPLICATION PER PERSON PER DAY, NOT ONE PER TAP. A retry after a slow answer, a double
+  // tap or a back-and-resubmit used to write a second row and send both emails again. The same
+  // address applying for the same role with an open application from the last 24 hours gets that
+  // application's id back: no new row, no new files, no new email. A failed read is not a
+  // refusal; the application goes through, at worst as a second row.
+  const since = new Date(Date.now() - DUPLICATE_WINDOW_MS).toISOString();
+  const { data: existing, error: duplicateError } = await supabase
+    .from('provider_applications')
+    .select('id')
+    .eq('email', email)
+    .eq('provider_type', providerTypeRaw)
+    .in('status', ['pending', 'in_review'])
+    .gte('created_at', since)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (duplicateError) console.error('[shape-api] provider application duplicate check failed:', duplicateError);
+  if (existing?.id) {
+    return NextResponse.json({ ok: true, id: existing.id, duplicate: true }, { headers: CORS_HEADERS });
+  }
+
+  // The files go up first, under the id the row will carry, and the row is written once with
+  // every document in it. A failed upload leaves no row and no files (uploadApplicationFiles
+  // removes its own); a failed insert removes the files. Either way a retry starts clean.
+  const applicationId = crypto.randomUUID();
+  let documents: Array<Record<string, unknown>> = [];
+  try {
+    documents = await uploadApplicationFiles(applicationId, files);
+  } catch (uploadError) {
+    console.error('[shape-api] provider application upload failed:', uploadError);
+    return NextResponse.json(
+      { error: 'Could not upload application files. Nothing was saved, so please try again.' },
+      { status: 500, headers: CORS_HEADERS }
+    );
+  }
+  if (documents.length) details = { ...details, documents };
+
   const applicationRow = {
+    id: applicationId,
     provider_type: providerTypeRaw,
     first_name: firstName,
     last_name: lastName,
@@ -278,10 +453,6 @@ export async function POST(req: NextRequest) {
     details,
     user_agent: req.headers.get('user-agent') || null,
   };
-  const fileProblem = checkApplicationFiles(files);
-  if (fileProblem) {
-    return NextResponse.json({ error: fileProblem }, { status: 400, headers: CORS_HEADERS });
-  }
   let { data, error } = await supabase
     .from('provider_applications')
     .insert({ ...applicationRow, dob })
@@ -305,9 +476,7 @@ export async function POST(req: NextRequest) {
   // the SERVER-VALIDATED `dob`, never from client input, so this cannot become a
   // passthrough that smuggles an unvalidated date past the check above.
   if (error && (error.code === '42703' || error.code === 'PGRST204')) {
-    // Reassign the OUTER `details` rather than only the insert payload: the
-    // file-upload step below does `details = { ...details, documents }` and
-    // UPDATEs the row, which would otherwise write the date straight back out.
+    // Reassign the OUTER `details` so the emails below carry the same record the row does.
     details = { ...details, dob };
     ({ data, error } = await supabase
       .from('provider_applications')
@@ -321,27 +490,9 @@ export async function POST(req: NextRequest) {
   // somehow resolved with neither must not fall through to a null dereference.
   if (error || !data) {
     console.error('provider_applications insert failed:', error);
+    await removeApplicationFiles(documents);
     return NextResponse.json(
       { error: 'Could not submit your application. Please email info@theshapecommunity.com directly.' },
-      { status: 500, headers: CORS_HEADERS }
-    );
-  }
-
-  try {
-    const documents = await uploadApplicationFiles(data.id, files);
-    if (documents.length) {
-      details = { ...details, documents };
-      const admin = createAdminClient();
-      const { error: updateError } = await admin
-        .from('provider_applications')
-        .update({ details })
-        .eq('id', data.id);
-      if (updateError) throw updateError;
-    }
-  } catch (uploadError) {
-    console.error('[shape-api] provider application upload failed:', uploadError);
-    return NextResponse.json(
-      { error: 'Could not upload application files.' },
       { status: 500, headers: CORS_HEADERS }
     );
   }
@@ -352,7 +503,7 @@ export async function POST(req: NextRequest) {
   const isDietitian = providerTypeRaw === 'nutritionist' && String(details.nutrition_role || '').toLowerCase() === 'dietitian';
   const role = providerTypeRaw === 'trainer' ? 'Trainer' : isDietitian ? 'Dietitian (RD/RDN)' : 'Nutritionist';
   const fullName = `${firstName} ${lastName}`.trim();
-  void sendApplicationEmails({
+  const emailContext: EmailContext = {
     role,
     fullName,
     firstName,
@@ -363,10 +514,15 @@ export async function POST(req: NextRequest) {
     yearsExperience,
     monthlyPrice,
     details,
-    applicationId: data?.id,
-  });
+    applicationId: data.id,
+  };
+  // ⚠ AFTER THE RESPONSE, BUT NOT FIRE-AND-FORGET. A promise left running when a serverless
+  // function returns can be frozen with it, so the review team's notice and the applicant's
+  // confirmation were sent only when the platform happened to let them finish. `after()` keeps
+  // the function alive until they have.
+  after(() => sendApplicationEmails(emailContext));
 
-  return NextResponse.json({ ok: true, id: data?.id }, { headers: CORS_HEADERS });
+  return NextResponse.json({ ok: true, id: data.id }, { headers: CORS_HEADERS });
 }
 
 export async function OPTIONS() {
@@ -443,13 +599,6 @@ async function sendApplicationEmails(ctx: EmailContext): Promise<void> {
     ctx.applicationId ? `\nApplication ID: ${ctx.applicationId}` : '',
   ].join('\n');
 
-  void sendEmail({
-    to: ADMIN_EMAIL,
-    subject: `New ${ctx.role.toLowerCase()} application — ${ctx.fullName}`,
-    html: adminHtml,
-    text: adminText,
-  }).catch((e) => console.error('[apply] admin notify failed', e));
-
   const applicantHtml = `
     <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#0a0d0c;">
       <h2 style="margin:0 0 16px;font-size:22px;font-weight:500;">Thanks, ${escapeHtml(ctx.firstName)}.</h2>
@@ -482,10 +631,19 @@ async function sendApplicationEmails(ctx: EmailContext): Promise<void> {
     'https://theshapecommunity.com',
   ].join('\n');
 
-  void sendEmail({
-    to: ctx.email,
-    subject: `We got your application, ${ctx.firstName}`,
-    html: applicantHtml,
-    text: applicantText,
-  }).catch((e) => console.error('[apply] applicant reply failed', e));
+  // Both are awaited (inside `after()`), each failure logged on its own.
+  await Promise.all([
+    sendEmail({
+      to: ADMIN_EMAIL,
+      subject: `New ${ctx.role.toLowerCase()} application — ${ctx.fullName}`,
+      html: adminHtml,
+      text: adminText,
+    }).catch((e) => console.error('[apply] admin notify failed', e)),
+    sendEmail({
+      to: ctx.email,
+      subject: `We got your application, ${ctx.firstName}`,
+      html: applicantHtml,
+      text: applicantText,
+    }).catch((e) => console.error('[apply] applicant reply failed', e)),
+  ]);
 }

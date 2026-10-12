@@ -178,6 +178,21 @@ const REQUIREMENTS = [
     why: 'a form that sends no file, or accepted ones, is not held to it; a file of the wrong type is not a field any form can supply',
   },
   {
+    // 2026-10-12: Turnstile on the application (a no-op until TURNSTILE_SECRET_KEY is set). A
+    // signed-in app caller is vouched for by its account instead; every surface a signed-out
+    // applicant can reach must send a token, or once the secret is set it cannot apply at all.
+    key: 'captcha',
+    route: /Captcha check failed/,
+    appliesTo: ['trainer', 'nutritionist'],
+    producer: {
+      'public/newdesign/signup.jsx': /append\(\s*["']turnstileToken["']/,
+      'mobile-app/src/services/shapeBackend.js': /append\(\s*['"]turnstileToken['"]/,
+      'public/mobile/signup.jsx': /append\(\s*["']turnstileToken["']/,
+      'public/signup-trainer.html': /append\(\s*['"]turnstileToken['"]/,
+      'public/signup-nutritionist.html': /append\(\s*['"]turnstileToken['"]/,
+    },
+  },
+  {
     key: 'nutritionAttestations',
     route: /All nutrition compliance attestations are required/,
     appliesTo: ['nutritionist'],

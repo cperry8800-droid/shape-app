@@ -151,35 +151,28 @@ test('no unregistered surface posts to /api/apply', () => {
 // reviewer email, and tells the applicant they succeeded. A genuinely under-18 mobile
 // applicant would still take that path even with the date forwarded, which is why the
 // discriminator — not the missing field — is the actual fix.
-test('a route rejection is not silently rewritten into a direct insert', () => {
+//
+// ⚠ AND THEN THE FALLBACK ITSELF WENT (2026-10-12). The 2026-10-10 migration removed the
+// anonymous insert policy on provider_applications, so the direct insert was refused every
+// time and the application fell through again, into this device's localStorage, while the
+// screen said "Submitted for review". The route is now the only way in: a refusal surfaces
+// in the route's own words, and a failed send says so and keeps the form. Driven end to end
+// in tests/provider-apply-submit.test.mjs; this guard holds the source shape.
+test('a route rejection surfaces, and nothing is stored around the route', () => {
   const src = stripComments(read('mobile-app/src/services/shapeBackend.js'));
-  const start = src.indexOf('function providerApplicationApiBody');
-  assert.notEqual(start, -1, 'providerApplicationApiBody has moved — re-anchor this test');
-  const end = src.indexOf('.from(\'provider_applications\')', start);
-  assert.notEqual(end, -1, 'the direct-insert fallback has moved — re-anchor this test');
+  assert.equal(src.indexOf(".from('provider_applications')"), -1, 'the app writes provider_applications directly again');
+  assert.doesNotMatch(src, /shape\.providerApplications/, 'an application is kept on the device instead of reaching the route');
+  assert.doesNotMatch(src, /uploadProviderApplicationFile/, 'files are pre-uploaded under the signed-in uid again');
+  const start = src.indexOf('async function submitProviderApplicationToApi');
+  assert.notEqual(start, -1, 'submitProviderApplicationToApi has moved — re-anchor this test');
+  const end = src.indexOf('async function listSessions', start);
   const region = src.slice(start, end);
-
   assert.match(
     region,
     /status\s*>=\s*400[\s\S]{0,80}status\s*<\s*500/,
     'no 4xx discriminator: a deliberate refusal is indistinguishable from a transport failure'
   );
-  assert.match(
-    region,
-    /rejected/,
-    'the refusal is not marked, so the caller cannot tell it apart from a network error'
-  );
-  // ⚠ ANCHOR ON THE REAL CATCH BLOCK. A looser `catch[\s\S]*rejected[\s\S]*throw`
-  // matched `response.json().catch(() => ({}))` followed by the THROW inside the
-  // submitter — so deleting the rethrow left this assertion green. Caught by
-  // mutation-testing this test, which is the only reason it is written this way.
-  const catchAt = region.indexOf('catch (apiError');
-  assert.notEqual(catchAt, -1, 'the fallback catch has moved — re-anchor this test');
-  assert.match(
-    region.slice(catchAt),
-    /rejected[\s\S]{0,80}throw/,
-    'a rejected application still falls through to the direct insert instead of surfacing the refusal'
-  );
+  assert.match(region, /error\.rejected = true;[\s\S]{0,80}throw error;/, 'the refusal is not marked and thrown');
 });
 
 // The two legacy pages had no date-of-birth input at all, so "forward the value"
