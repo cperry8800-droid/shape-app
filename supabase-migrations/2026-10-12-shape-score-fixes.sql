@@ -209,16 +209,20 @@ security definer
 set search_path = public, pg_temp
 as $$
 declare
-  v_uid   uuid := auth.uid();
-  v_tz    text := public.shape_user_tz(auth.uid());
-  v_today date;
+  v_uid    uuid := auth.uid();
+  v_tz     text := public.shape_user_tz(auth.uid());
+  v_today  date;
+  v_monday date;
 begin
   if v_uid is null or p_week_of is null then return; end if;
-  -- The member's own date when their zone is known; UTC otherwise (a day either side
-  -- is inside the window anyway). A week_of more than 13 days back is an older week,
-  -- and one in the future is not a check-in at all.
+  -- ⚠ EXACTLY TWO KEYS: this week's Monday or last week's, in the member's own date
+  -- (UTC when the zone is unknown). week_of is the member's local Monday on every
+  -- surface (bsWeekOfMonday, weekOfMonday). A date RANGE accepted fifteen distinct
+  -- keys, and client_checkins is owner-writable, so a member could insert one row per
+  -- date and collect 225 points at once (Codex P1, #2314).
   v_today := case when v_tz is not null then (now() at time zone v_tz)::date else (now() at time zone 'utc')::date end;
-  if p_week_of < v_today - 13 or p_week_of > v_today + 1 then return; end if;
+  v_monday := date_trunc('week', v_today)::date;   -- ISO weeks start on Monday
+  if p_week_of <> v_monday and p_week_of <> v_monday - 7 then return; end if;
   -- Require a genuine check-in for this week — a bare RPC call earns nothing.
   if not exists (
     select 1 from public.client_checkins where user_id = v_uid and week_of = p_week_of
@@ -377,6 +381,63 @@ create trigger daily_health_snapshot_award
   after insert or update of workout_minutes, dietary_kcal, protein_g, carbs_g, fat_g
   on public.daily_health_snapshot
   for each row execute function public.award_from_daily_snapshot();
+
+-- The app's meal award reports a meal the trigger paid. Restated from
+-- 2026-10-11-dietary-kcal.sql; only the end changes.
+create or replace function public.award_meal_log(p_day date default null::date)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_day date := coalesce(p_day, current_date);
+  v_tz  text := public.shape_user_tz(auth.uid());
+  v_ins integer;
+begin
+  if v_uid is null then return jsonb_build_object('awarded', false); end if;
+  -- Only the caller's OWN calendar day earns (Codex P1 farm fix) — same rule as
+  -- award_workout_session. Their zone when known; ±1 UTC until it's captured.
+  if v_tz is not null then
+    if v_day <> (now() at time zone v_tz)::date then
+      return jsonb_build_object('awarded', false, 'reason', 'not_today');
+    end if;
+  elsif v_day < current_date - 1 or v_day > current_date + 1 then
+    return jsonb_build_object('awarded', false, 'reason', 'stale_day');
+  end if;
+  -- Gate on a REAL nutrition log that day (calories eaten or food macros;
+  -- hydration alone doesn't count, and neither does a device's burn in `calories`).
+  if not exists (
+    select 1 from public.daily_health_snapshot d
+    where d.user_id = v_uid and d.snapshot_date = v_day
+      and (coalesce(d.dietary_kcal, 0) > 0 or coalesce(d.protein_g, 0) > 0
+        or coalesce(d.carbs_g, 0) > 0 or coalesce(d.fat_g, 0) > 0)
+  ) then return jsonb_build_object('awarded', false, 'reason', 'no_meal'); end if;
+  insert into public.score_ledger (user_id, category, source_kind, source_id, delta, note)
+    values (v_uid, 'nutrition', 'meal_log',
+            md5('meal_log:' || v_uid::text || ':' || v_day::text)::uuid, 10, 'Meal logged')
+    on conflict (user_id, source_kind, source_id)
+      where source_kind is not null and source_id is not null
+      do nothing;
+  get diagnostics v_ins = row_count;
+  -- ⚠ THE SNAPSHOT TRIGGER MAY HAVE PAID IT A MOMENT AGO (2026-10-12): the meal-log
+  -- route's write fires daily_health_snapshot_award before the app calls this, so the
+  -- insert above finds the row and the app's "+10" never showed (Codex, #2314). The
+  -- trigger's ledger row and the snapshot's updated_at are both now() of that one
+  -- write's transaction, so equal stamps mean THIS log earned it; a later log the same
+  -- day moves updated_at and does not match.
+  if v_ins = 0 and exists (
+    select 1 from public.score_ledger l
+    join public.daily_health_snapshot d on d.user_id = l.user_id and d.snapshot_date = v_day
+    where l.user_id = v_uid and l.source_kind = 'meal_log'
+      and l.source_id = md5('meal_log:' || v_uid::text || ':' || v_day::text)::uuid
+      and l.earned_at = d.updated_at
+  ) then
+    v_ins := 1;
+  end if;
+  return jsonb_build_object('awarded', v_ins > 0, 'points', case when v_ins > 0 then 10 else 0 end);
+end $$;
 
 -- ── 4. A new personal record earns +12 again ─────────────────────────────────
 -- post_my_pr_to_wall writes pr_wall_posts only for a genuine improvement (its

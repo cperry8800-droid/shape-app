@@ -22,10 +22,24 @@ function fnBody(sql, name) {
   return sql.slice(at, sql.indexOf('$$;', sql.indexOf('as $$', at) + 5) + 3)
 }
 
-test('1 · a check-in pays for this week or last week only', () => {
+test('1 · a check-in pays for this week\'s or last week\'s Monday, exactly two keys', () => {
+  // A date RANGE accepted fifteen keys, and client_checkins is owner-writable (Codex P1, #2314).
   const body = fnBody(SQL, 'award_checkin_points')
-  assert.match(body, /if p_week_of < v_today - 13 or p_week_of > v_today \+ 1 then return; end if;/)
-  assert.ok(body.indexOf('v_today - 13') < body.indexOf('insert into public.score_ledger'), 'the window is checked before the award')
+  assert.match(body, /v_monday := date_trunc\('week', v_today\)::date;/)
+  assert.match(body, /if p_week_of <> v_monday and p_week_of <> v_monday - 7 then return; end if;/)
+  assert.ok(body.indexOf('v_monday - 7') < body.indexOf('insert into public.score_ledger'), 'the keys are checked before the award')
+  assert.doesNotMatch(body, /v_today - 13/)
+})
+
+test('6 · the app\'s meal award reports a meal the snapshot trigger paid, and only that one', () => {
+  // The meal-log route's write fires the trigger before the app calls award_meal_log, so the
+  // RPC's insert finds the row and the app's "+10" never showed (Codex, #2314).
+  const prev = fnBody(read('supabase-migrations/2026-10-11-dietary-kcal.sql'), 'award_meal_log')
+  const next = fnBody(SQL, 'award_meal_log')
+  const block = /\n  -- ⚠ THE SNAPSHOT TRIGGER MAY HAVE PAID IT A MOMENT AGO[\s\S]*?\n  end if;\n/
+  assert.match(next, block)
+  assert.equal(next.replace(block, '\n'), prev, 'only the trigger-awarded check is added')
+  assert.match(next, /and l\.earned_at = d\.updated_at/, 'the same write\'s transaction stamp, not a time window')
 })
 
 test('2 · one rank basis: the unlock, the card, the avatars and the boards', () => {
