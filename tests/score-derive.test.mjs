@@ -39,3 +39,17 @@ test('empty / null ledger → all zero', () => {
   assert.deepEqual(deriveScore([]), { shapeScore: 0, spendableBalance: 0, highWaterScore: 0 });
   assert.deepEqual(deriveScore(null), { shapeScore: 0, spendableBalance: 0, highWaterScore: 0 });
 });
+
+test('a tier bonus is spendable, not rank — the shown tier is the tier that unlocks', () => {
+  // The database unlocks rewards on shape_rank_points, which excludes tier bonuses;
+  // the page counted them, so Form showed at 1,500 earned points and unlocked at 2,000.
+  const rows = [
+    { delta: 800, source_kind: 'activity', earned_at: '2026-06-01T00:00:00Z' },
+    { delta: 500, source_kind: 'tier_bonus', earned_at: '2026-06-01T00:00:01Z' },
+    { delta: 700, source_kind: 'activity', earned_at: '2026-06-02T00:00:00Z' },
+  ];
+  const r = deriveScore(rows);
+  assert.equal(r.shapeScore, 1500);
+  assert.equal(r.highWaterScore, 1500, 'still Tempo: 2,000 earned points make Form');
+  assert.equal(r.spendableBalance, 2000, 'the bonus is spendable');
+});

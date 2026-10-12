@@ -8,6 +8,7 @@ import { dbError } from '@/lib/request-utils';
 import { createClient } from '@/lib/supabase/server';
 import { bsScoreRecord, type LedgerRow } from '@/lib/scoreHistory';
 import { requireMembership } from '@/lib/require-membership';
+import { readAllLedgerRows } from '@/lib/score-ledger-read';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,13 +23,10 @@ export async function GET(request: Request) {
   // row; the Record must aggregate the same set or lifetime/all-range/history would
   // diverge from the Standing for a member with a long history (Codex). The twin
   // windows + groups client-side; a display cap belongs there, not on the fetch.
-  const { data: rows, error } = await supabase
-    .from('score_ledger')
-    .select('category, delta, note, earned_at, source_kind')
-    .eq('user_id', user.id);
+  const { rows, error } = await readAllLedgerRows<LedgerRow>(supabase, user.id, 'category, delta, note, earned_at, source_kind');
 
   if (error) return dbError(error, 'score record read', 500);
 
-  const record = bsScoreRecord((rows || []) as LedgerRow[], { now: new Date() });
+  const record = bsScoreRecord(rows, { now: new Date() });
   return NextResponse.json(record);
 }
