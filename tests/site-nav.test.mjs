@@ -571,6 +571,50 @@ test('signed in, the wide right-hand cluster gives way before it can meet the ta
   assert.match(INDEX, /hi\.className='login nhi'/, 'the homepage greeting lost the class its width rule keys on');
 });
 
+// ── 2d · staff carry an Admin link, so each of those rules moves up for them ─
+// Measured in Chromium in the real faces (the numbers live beside the rules in
+// pageShell.jsx): the link and its gap cost 39px, 49 beside a switch pill, and
+// with only the rules above a staff account's row overhung its box at 1202 (a
+// 150px name), at 1350 (that name beside the Nutritionist pill) and from 1152 to
+// the 1120 fold. What is asserted here is the shape of the fix: a staff hook
+// stamped by the same level that renders the link, and each staff rule at a
+// width above the rule it extends.
+test('staff: the Admin link moves the greeting, the tight spacing and the fold up', () => {
+  const header = SHELL.slice(SHELL.indexOf('function Header({ active })'), SHELL.indexOf('function HeroBg('));
+  assert.ok(header.length > 2000, 'could not slice Header — this guard is reading nothing');
+  assert.match(header, /<header className="shape-header" data-role-switch=\{hasRoleSwitch \? "" : undefined\} data-staff=\{staffLevel \? "" : undefined\}/, 'the header no longer stamps data-staff from staffLevel');
+  assert.match(header, /\{staffLevel \? <a href="\/admin" style=\{quietLink\}>Admin<\/a> : null\}/, 'the Admin link renders on a condition of its own — the link and its layout can disagree');
+
+  const blocks = mediaBlocks(SHELL);
+  const find = (re) => blocks.filter((b) => re.test(b.block));
+  const one = (re, what) => { const f = find(re); assert.equal(f.length, 1, what + ': expected one block, found ' + f.length); return f[0]; };
+  const hi = one(/\n\s*\.shape-nav-hi \{ display: none !important; \}/, 'everyone\'s greeting');
+  const hiSwitch = one(/\.shape-header\[data-role-switch\] \.shape-nav-hi \{ display: none/, 'a switch account\'s greeting');
+  const tight = one(/:where\(\.shape-header\[data-role-switch\]\) \.shape-header-inner \{/, 'a switch account\'s tight spacing');
+  const fold = one(/\.shape-header\[data-role-switch\] \.shape-nav-tabs \{ display: none/, 'a switch account\'s fold');
+
+  const hiStaff = one(/\.shape-header\[data-staff\] \.shape-nav-hi \{ display: none !important; \}/, 'a staff account\'s greeting');
+  const hiStaffSwitch = one(/\.shape-header\[data-role-switch\]\[data-staff\] \.shape-nav-hi \{ display: none !important; \}/, 'a staff switch account\'s greeting');
+  assert.ok(hiStaff.width > hi.width, 'a staff account keeps its greeting as long as everyone else — the Admin link has no room');
+  assert.ok(hiStaffSwitch.width > hiSwitch.width && hiStaffSwitch.width >= hiStaff.width, 'a staff switch account keeps its greeting too long (' + hiStaffSwitch.width + ')');
+
+  const tightStaff = one(/:where\(\.shape-header\[data-role-switch\]\[data-staff\]\) \.shape-header-inner \{/, 'a staff switch account\'s tight spacing (or it no longer uses :where())');
+  assert.match(tightStaff.block, /:where\(\.shape-header\[data-role-switch\]\[data-staff\]\) \.shape-nav-tabs \{ gap:/, 'the staff tight spacing no longer tightens the tabs');
+  assert.doesNotMatch(tightStaff.block, /\[data-staff\]\) \.shape-header-inner \{[^}]*padding/, 'the staff tight spacing moves the side padding — the page gutter other pages line up with');
+  assert.ok(tightStaff.width > tight.width, 'a staff switch account takes the tight spacing no earlier than any switch account');
+  const everyone = one(/\n\s*\.shape-nav-tabs \{ display: none/, 'the everyone-collapse');
+  for (const p of blocks.filter((b) => b.width <= everyone.width && /\.shape-header-inner \{ padding/.test(b.block))) {
+    assert.ok(p.offset > tightStaff.offset, 'the ' + p.width + 'px block sits before the staff :where() rule, so on a phone a staff account keeps the looser inner');
+  }
+
+  const foldStaff = one(/\.shape-header\[data-role-switch\]\[data-staff\] \.shape-nav-tabs \{ display: none !important; \}/, 'a staff switch account\'s fold');
+  assert.ok(foldStaff.width > fold.width && foldStaff.width < tightStaff.width, 'the staff fold (' + foldStaff.width + ') must sit above the switch fold (' + fold.width + ') and below the staff tight spacing (' + tightStaff.width + ')');
+  for (const [cls, shown] of [['shape-nav-tabs', 'none'], ['shape-nav-auth', 'none'], ['shape-nav-bell', 'inline-flex'], ['shape-nav-burger', 'inline-flex']]) {
+    assert.match(foldStaff.block, new RegExp('\\.shape-header\\[data-role-switch\\]\\[data-staff\\] \\.' + cls + ' \\{ display: ' + shown + ' !important; \\}'),
+      'the staff fold does not set .' + cls + ' to ' + shown + ' — a half-folded cluster');
+  }
+});
+
 test('the @media reader refuses an unbalanced block instead of reading on to the end', () => {
   // The copy this suite used to carry answered an unclosed block with
   // slice(start, -1): every later rule in the file, read as if it sat inside

@@ -201,10 +201,109 @@ test('/staff-verify: set up or enter a code; a visitor signs in first; anyone el
   assert.ok(enroll.includes('data-mode="enroll"') && enroll.includes('data-next="/admin/members"') && enroll.includes(OWNER));
   assert.ok((await verifyPage({ signIn: staff('verify') })).html.includes('data-mode="verify"'));
   const client = stripComments(read('src/app/staff-verify/StaffTwoFactor.tsx'));
-  assert.match(client, /await createClient\(\)\.auth\.mfa\.challengeAndVerify\(\{ factorId, code: typed \}\)/);
+  // ⚠ The session cookies are httpOnly: a browser Supabase client on this page has no session, and
+  // every staff member saw "Your sign-in methods could not be read" (owner, 2026-10-13). Every
+  // step goes through the server route.
+  assert.doesNotMatch(client, /@\/lib\/supabase\/client|createClient|auth\.mfa/, 'no Supabase call from the browser');
+  assert.match(client, /fetch\('\/api\/staff\/two-factor'/);
+  assert.match(client, /step\(\{ action: 'verify', factorId, code: typed \}\)/);
   assert.match(client, /window\.location\.assign\(next\);/, 'a full load, so the server reads the upgraded session');
-  assert.match(client, /factorType: 'totp',/);
   assert.match(read('src/app/staff-verify/page.tsx'), /robots: \{ index: false, follow: false \}/);
+});
+
+// ── The server route that runs the steps ──────────────────────────────────────────────────
+const FACTOR = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+function mfaWorld({ factors = [], fail = [] } = {}) {
+  const calls = [];
+  const mfa = {
+    listFactors: async () => { calls.push('list'); return fail.includes('list') ? { data: null, error: { message: 'Auth session missing!' } } : { data: { all: factors }, error: null }; },
+    unenroll: async ({ factorId }) => { calls.push(`unenroll:${factorId}`); return { data: null, error: null }; },
+    enroll: async (opts) => { calls.push(`enroll:${opts.factorType}:${opts.issuer}`); return fail.includes('enroll') ? { data: null, error: { message: 'no' } } : { data: { id: FACTOR, totp: { qr_code: 'data:image/svg+xml;qr', secret: 'SECRET' } }, error: null }; },
+    challengeAndVerify: async (args) => { calls.push(`verify:${args.factorId}:${args.code}`); return fail.includes('verify') ? { data: null, error: { message: 'Invalid TOTP code entered' } } : { data: {}, error: null }; },
+  };
+  return { calls, client: { auth: { mfa } } };
+}
+async function twoFactorRoute(signIn, world) {
+  return loadRealModule(join(ROOT, 'src/app/api/staff/two-factor/route.ts'), {
+    typescript: true,
+    registry: new Map([
+      ['next/server', nextServer],
+      ['@/lib/admin-access', { getStaffSignIn: async () => signIn }],
+      ['@/lib/supabase/server', { createClient: async () => world.client }],
+      ['@/lib/staff-two-factor.mjs', tf],
+      ['@/lib/request-utils', await loadRealModule(join(ROOT, 'src/lib/request-utils.ts'), { typescript: true, registry: new Map([['next/server', nextServer]]) })],
+    ]),
+  });
+}
+const post = async (route, body) => {
+  const res = await route.POST(new Request('https://shape.test/api/staff/two-factor', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }));
+  return { status: res.status, body: await res.json(), cache: res.headers.get('cache-control') };
+};
+
+test('route: staff only; a session already verified goes straight on', async () => {
+  const w = mfaWorld();
+  assert.equal((await post(await twoFactorRoute(null, w), { action: 'start' })).status, 404);
+  assert.deepEqual(await post(await twoFactorRoute(staff('verified'), w), { action: 'start' }), { status: 200, body: { mode: 'verified' }, cache: 'no-store' });
+  assert.deepEqual(w.calls, [], 'nothing asked of Supabase for either');
+  assert.equal((await post(await twoFactorRoute(staff('enroll'), w), { action: 'nope' })).status, 400);
+});
+
+test('route: set-up clears an abandoned one, enrolls an authenticator and hands back its code to scan', async () => {
+  const w = mfaWorld({ factors: [
+    { id: 'old', factor_type: 'totp', status: 'unverified' },
+    { id: 'phone', factor_type: 'phone', status: 'unverified' },
+    // Not reachable with the sign-in saying 'enroll', but a confirmed authenticator is never cleared.
+    { id: 'kept', factor_type: 'totp', status: 'verified' },
+  ] });
+  const r = await post(await twoFactorRoute(staff('enroll'), w), { action: 'start' });
+  assert.deepEqual(r, { status: 200, body: { mode: 'enroll', factorId: FACTOR, qr: 'data:image/svg+xml;qr', secret: 'SECRET' }, cache: 'no-store' });
+  assert.deepEqual(w.calls, ['list', 'unenroll:old', 'enroll:totp:Shape'], 'only the unconfirmed authenticator is cleared');
+
+  const down = mfaWorld({ fail: ['list'] });
+  const failed = await post(await twoFactorRoute(staff('enroll'), down), { action: 'start' });
+  assert.deepEqual([failed.status, failed.body.error], [503, 'Your sign-in methods could not be read. Reload the page to try again.']);
+  const noEnroll = await post(await twoFactorRoute(staff('enroll'), mfaWorld({ fail: ['enroll'] })), { action: 'start' });
+  assert.equal(noEnroll.status, 503);
+});
+
+test('route: with an authenticator set up it asks for that one\'s code, and checks the code on the server', async () => {
+  const w = mfaWorld({ factors: [{ id: 'old', factor_type: 'totp', status: 'unverified' }, { id: FACTOR, factor_type: 'totp', status: 'verified' }] });
+  const route = await twoFactorRoute(staff('verify'), w);
+  assert.deepEqual((await post(route, { action: 'start' })).body, { mode: 'verify', factorId: FACTOR });
+  assert.equal(w.calls.includes('unenroll:old'), false, 'asking for a code clears nothing');
+  assert.equal((await post(await twoFactorRoute(staff('verify'), mfaWorld()), { action: 'start' })).status, 409);
+
+  assert.deepEqual(await post(route, { action: 'verify', factorId: FACTOR, code: '123 456' }), { status: 200, body: { ok: true }, cache: 'no-store' });
+  assert.equal(w.calls.at(-1), `verify:${FACTOR}:123456`);
+  for (const [why, body] of [
+    ['no factor', { action: 'verify', code: '123456' }],
+    ['not a factor id', { action: 'verify', factorId: '../x', code: '123456' }],
+    ['not a code', { action: 'verify', factorId: FACTOR, code: '12345' }],
+  ]) {
+    const before = w.calls.length;
+    assert.equal((await post(route, body)).status, 400, why);
+    assert.equal(w.calls.length, before, `${why}: Supabase is not asked`);
+  }
+  const wrong = await post(await twoFactorRoute(staff('verify'), mfaWorld({ fail: ['verify'] })), { action: 'verify', factorId: FACTOR, code: '000000' });
+  assert.deepEqual([wrong.status, wrong.body.error], [400, 'That code did not match. Codes change every 30 seconds; enter the one showing now.']);
+});
+
+test('nothing under src/ uses a browser Supabase client: the session cookies are httpOnly', () => {
+  // src/lib/supabase/cookie-options.ts sets httpOnly on the auth cookies on the strength of this
+  // file having no importers; #2329 broke that and the two-factor page could not read a session.
+  const { execSync } = createRequire(import.meta.url)('node:child_process');
+  const hits = execSync(`grep -rlE "from ['\\"]@/lib/supabase/client['\\"]" src || true`, { cwd: ROOT, encoding: 'utf8' }).trim();
+  assert.equal(hits, '', `browser Supabase client imported by:\n${hits}`);
+  assert.match(read('src/lib/supabase/cookie-options.ts'), /httpOnly: true,/);
+});
+
+test('the website: the header offers staff the console, and asks the level of /api/me/staff once per tab', () => {
+  const shell = stripComments(read('public/newdesign/pageShell.jsx'));
+  assert.match(shell, /fetch\('\/api\/me\/staff', \{ credentials: 'same-origin', cache: 'no-store' \}\)/);
+  assert.match(shell, /sessionStorage\.setItem\(key, v \|\| 'none'\)/, 'one read per account per tab');
+  assert.match(shell, /\{staffLevel \? <a href="\/admin" style=\{quietLink\}>Admin<\/a> : null\}/, 'the bar, staff only');
+  assert.match(shell, /\{authUser && staffLevel \? <a href="\/admin" onClick=\{onClose\} style=\{\{ \.\.\.linkBase, color: INK \}\}>Admin<\/a> : null\}/, 'the phone drawer, staff only');
+  assert.match(shell, /<MobileDrawer open=\{drawerOpen\}[^\n]*staffLevel=\{staffLevel\}/);
 });
 
 // ── The owner's reset ─────────────────────────────────────────────────────────────────────

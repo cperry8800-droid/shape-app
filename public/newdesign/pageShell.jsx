@@ -975,7 +975,7 @@ function SiteSearch({ signedIn = false }) {
   );
 }
 
-function MobileDrawer({ open, onClose, active, authUser, onLogout }) {
+function MobileDrawer({ open, onClose, active, authUser, staffLevel, onLogout }) {
   const dialogRef = React.useRef(null);
   const closeRef = React.useRef(null);
   // Header hands a fresh onClose arrow every render; the key handler below reads
@@ -1106,6 +1106,8 @@ function MobileDrawer({ open, onClose, active, authUser, onLogout }) {
             in it never did, because `PORTAL_NAV` has no Radio entry — that was a
             gap at every narrow width, not a design). */}
         <a href="/newdesign/Radio.html" onClick={onClose} style={{ ...linkBase, color: active === "Radio" ? TEAL : INK, fontWeight: active === "Radio" ? 500 : 400 }}>Radio</a>
+        {/* Staff only (useStaffLevel): the admin console. */}
+        {authUser && staffLevel ? <a href="/admin" onClick={onClose} style={{ ...linkBase, color: INK }}>Admin</a> : null}
       </nav>
       {/* ⚠ THE DRAWER CARRIES THE SAME PAIR THE BAR DOES, so a phone is not
           missing the one control the desktop treats as primary. Signed in it
@@ -1203,6 +1205,33 @@ function shapeReadPortalMe() {
     .then(r => r.ok ? r.json() : null);
 }
 
+// Whether the signed-in account is on the Shape team, so the header can offer staff a way into
+// the admin console (/admin). /api/me/staff answers the level and grants nothing: the console
+// checks again and asks for the second factor itself. Read once per account per tab.
+function useStaffLevel(authUser) {
+  const key = authUser ? `shape_staff_level:${authUser.id || authUser.email || ''}` : null;
+  const [level, setLevel] = React.useState(() => {
+    if (!key) return null;
+    try { const v = sessionStorage.getItem(key); return v && v !== 'none' ? v : null; } catch (e) { return null; }
+  });
+  React.useEffect(() => {
+    if (!key) { setLevel(null); return undefined; }
+    try { const v = sessionStorage.getItem(key); if (v) { setLevel(v === 'none' ? null : v); return undefined; } } catch (e) {}
+    let cancelled = false;
+    fetch('/api/me/staff', { credentials: 'same-origin', cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (cancelled || !d) return;
+        const v = typeof d.level === 'string' && d.level ? d.level : null;
+        setLevel(v);
+        try { sessionStorage.setItem(key, v || 'none'); } catch (e) {}
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [key]);
+  return level;
+}
+
 function Header({ active }) {
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [authUser, setAuthUser] = React.useState(() => window.ShapePortalSession?.peek()?.user || null);
@@ -1211,6 +1240,7 @@ function Header({ active }) {
   const roleSwitchBusy = React.useRef(false);
   // One read of the inbox for the whole header, shared by the two bell render sites.
   const inbox = useDashInboxFeed(!!authUser);
+  const staffLevel = useStaffLevel(authUser);
   React.useEffect(() => {
     let cancelled = false;
     shapeReadPortalMe()
@@ -1309,7 +1339,7 @@ function Header({ active }) {
   const ctaBtn = { fontFamily: navSans, fontSize: 13, fontWeight: 600, background: TEAL_APP, color: "var(--sh-deep, #06231f)", padding: "0 15px", height: NAV_PILL_H, clipPath: navChamfer, display: "inline-flex", alignItems: "center", whiteSpace: "nowrap", lineHeight: 1, textDecoration: "none", border: 0, cursor: "pointer", flex: "0 0 auto", transition: "background .16s ease" };
   return (
     <>
-    <header className="shape-header" data-role-switch={hasRoleSwitch ? "" : undefined} style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 60, background: "var(--sh-header-bg, rgba(11,14,12,0.55))", backdropFilter: "blur(20px) saturate(1.05)", WebkitBackdropFilter: "blur(20px) saturate(1.05)", borderBottom: "1px solid rgba(var(--sh-nav-ink-rgb, 245,239,225),0.06)" }}>
+    <header className="shape-header" data-role-switch={hasRoleSwitch ? "" : undefined} data-staff={staffLevel ? "" : undefined} style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 60, background: "var(--sh-header-bg, rgba(11,14,12,0.55))", backdropFilter: "blur(20px) saturate(1.05)", WebkitBackdropFilter: "blur(20px) saturate(1.05)", borderBottom: "1px solid rgba(var(--sh-nav-ink-rgb, 245,239,225),0.06)" }}>
       <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg, transparent 0%, ${TEAL} 30%, ${RUST} 70%, transparent 100%)`, opacity: 0.5 }} />
       <ShapeMobileStyles />
       {/* ⚠ FLEX, NOT A 3-COLUMN GRID, and the two outer columns are equal-BASIS
@@ -1375,6 +1405,7 @@ function Header({ active }) {
                   right. Dashboard now takes the teal button exactly where Get
                   started sits signed out, so the bar keeps one shape across the
                   sign-in boundary. */}
+              {staffLevel ? <a href="/admin" style={quietLink}>Admin</a> : null}
               <a href="#" onClick={handleLogout} style={quietLink}>Sign out</a>
               <a href={dashboardHref(authUser.role)} style={ctaBtn}>Dashboard</a>
               <RadioWordmark />
@@ -1405,7 +1436,7 @@ function Header({ active }) {
           signed-in row grew to six tabs that land in this drawer on a phone.
           The homepage's own drawer never had the problem: `.ndrawer` is a
           SIBLING of its <nav>, not a child, so nothing filters above it. */}
-      <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} active={active} authUser={authUser} onLogout={handleLogout} />
+      <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} active={active} authUser={authUser} staffLevel={staffLevel} onLogout={handleLogout} />
     </header>
     <div aria-hidden className="shape-header-spacer" style={{ height: NAV_H }} />
     </>
@@ -1692,7 +1723,16 @@ function ShapeMobileStyles() {
          below it — the 1020 and 900 blocks tighten the gap further and must still
          win for these accounts on a phone.
          After all three, swept every 4px from 1440 to 1016 for seven account
-         shapes: no overhang, 18px clear at the tightest, no sideways scroll. */
+         shapes: no overhang, 18px clear at the tightest, no sideways scroll.
+         ⚠ STAFF CARRY ONE MORE LINK, AND IT COSTS 39px (49 BESIDE A SWITCH).
+         The Admin link sits in the same cluster, so data-staff (stamped by the
+         same level that renders the link) moves each rule up. Measured in
+         Chromium in the real faces, 1px from 1440 to 1016, the current rules
+         applied: a single-profile staff account with a 150px name overhangs at
+         1202 (needs the greeting gone above 1200); beside the Nutritionist
+         pill it overhangs at 1350 with a 150px name, has 3px left at the loose
+         gaps just above 1200, and needs 1152 at the tight gaps. Hence 1240 ·
+         1380 · 1240 · 1170 below, each above its need. */
       @media (max-width: 1340px) {
         .shape-header[data-role-switch] .shape-nav-hi { display: none !important; }
       }
@@ -1706,6 +1746,20 @@ function ShapeMobileStyles() {
         .shape-header[data-role-switch] .shape-nav-auth { display: none !important; }
         .shape-header[data-role-switch] .shape-nav-bell { display: inline-flex !important; }
         .shape-header[data-role-switch] .shape-nav-burger { display: inline-flex !important; }
+      }
+      @media (max-width: 1380px) {
+        .shape-header[data-role-switch][data-staff] .shape-nav-hi { display: none !important; }
+      }
+      @media (max-width: 1240px) {
+        .shape-header[data-staff] .shape-nav-hi { display: none !important; }
+        :where(.shape-header[data-role-switch][data-staff]) .shape-header-inner { gap: 18px !important; }
+        :where(.shape-header[data-role-switch][data-staff]) .shape-nav-tabs { gap: 16px !important; }
+      }
+      @media (max-width: 1170px) {
+        .shape-header[data-role-switch][data-staff] .shape-nav-tabs { display: none !important; }
+        .shape-header[data-role-switch][data-staff] .shape-nav-auth { display: none !important; }
+        .shape-header[data-role-switch][data-staff] .shape-nav-bell { display: inline-flex !important; }
+        .shape-header[data-role-switch][data-staff] .shape-nav-burger { display: inline-flex !important; }
       }
       @media (max-width: 1020px) {
         .shape-header-inner { padding: 0 24px !important; gap: 14px !important; }
