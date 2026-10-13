@@ -14,6 +14,7 @@ export const SOURCE_KEY: string;
 export const COACH_REF_KEY: string;
 export const SOURCE_TTL_MS: number;
 export const COACH_REF_TTL_MS: number;
+export const CONSENT_REGION_RE: RegExp;
 export const CARRIED_KEYS: ReadonlyArray<string>;
 export function clip(value: unknown, max?: number): string;
 export function referrerHost(referrer: unknown, ownHost?: string): string;
