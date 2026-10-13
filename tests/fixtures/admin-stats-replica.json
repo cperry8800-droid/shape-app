@@ -1,5 +1,103 @@
 {
- "_comment": "admin_overview_stats(UTC), admin_coach_stats() and admin_member_stats() as the PostgreSQL 16 replica returned them for the seeded world in the 2026-10-13 PR (tests/admin-console.test.mjs). Every number was checked by hand against the seed.",
+ "_comment": "admin_overview_stats(UTC), admin_coach_stats(), admin_member_stats() and admin_upcoming_celebrations(UTC, 30 and 7) as the PostgreSQL 16 replica returned them for the seeded world in the 2026-10-13 PR (tests/admin-console.test.mjs). Every number was checked by hand against the seed. Birthdays and join dates were seeded relative to the day it ran: birthdays today, tomorrow, on 29 February and yesterday; joined two years ago today and one year ago in five days.",
+ "celebrations": {
+  "anniversaries": [
+   {
+    "coach": true,
+    "days_until": 0,
+    "email": "e@x.com",
+    "id": "00000000-0000-0000-0000-00000000000e",
+    "joined": "2024-10-13",
+    "name": "Eli",
+    "next": "2026-10-13",
+    "years": 2
+   },
+   {
+    "coach": false,
+    "days_until": 5,
+    "email": "c@x.com",
+    "id": "00000000-0000-0000-0000-00000000000c",
+    "joined": "2025-10-18",
+    "name": "Cal",
+    "next": "2026-10-18",
+    "years": 1
+   }
+  ],
+  "birthdays": [
+   {
+    "coach": true,
+    "day": 13,
+    "days_until": 0,
+    "email": "a@x.com",
+    "id": "00000000-0000-0000-0000-00000000000a",
+    "month": 10,
+    "name": "Ann Coach",
+    "next": "2026-10-13"
+   },
+   {
+    "coach": false,
+    "day": 14,
+    "days_until": 1,
+    "email": "b@x.com",
+    "id": "00000000-0000-0000-0000-00000000000b",
+    "month": 10,
+    "name": "Bea Member",
+    "next": "2026-10-14"
+   }
+  ],
+  "days": 30,
+  "timezone": "UTC",
+  "today": "2026-10-13"
+ },
+ "celebrations_week": {
+  "anniversaries": [
+   {
+    "coach": true,
+    "days_until": 0,
+    "email": "e@x.com",
+    "id": "00000000-0000-0000-0000-00000000000e",
+    "joined": "2024-10-13",
+    "name": "Eli",
+    "next": "2026-10-13",
+    "years": 2
+   },
+   {
+    "coach": false,
+    "days_until": 5,
+    "email": "c@x.com",
+    "id": "00000000-0000-0000-0000-00000000000c",
+    "joined": "2025-10-18",
+    "name": "Cal",
+    "next": "2026-10-18",
+    "years": 1
+   }
+  ],
+  "birthdays": [
+   {
+    "coach": true,
+    "day": 13,
+    "days_until": 0,
+    "email": "a@x.com",
+    "id": "00000000-0000-0000-0000-00000000000a",
+    "month": 10,
+    "name": "Ann Coach",
+    "next": "2026-10-13"
+   },
+   {
+    "coach": false,
+    "day": 14,
+    "days_until": 1,
+    "email": "b@x.com",
+    "id": "00000000-0000-0000-0000-00000000000b",
+    "month": 10,
+    "name": "Bea Member",
+    "next": "2026-10-14"
+   }
+  ],
+  "days": 7,
+  "timezone": "UTC",
+  "today": "2026-10-13"
+ },
  "coaches": [
   {
    "assigned_30d": 1,
@@ -11,8 +109,8 @@
    "consults_open": 0,
    "email": "a@x.com",
    "gross_mrr_cents": 4999,
-   "last_sign_in_at": "2026-10-13T15:04:06.158019+00:00",
-   "listed_at": "2026-10-13T15:04:06.162261+00:00",
+   "last_sign_in_at": "2026-10-13T15:40:50.031875+00:00",
+   "listed_at": "2026-10-13T15:40:50.03685+00:00",
    "listing_id": 1,
    "live": false,
    "messages_30d": 1,
@@ -41,8 +139,8 @@
    "consults_open": 1,
    "email": "a@x.com",
    "gross_mrr_cents": 10000,
-   "last_sign_in_at": "2026-10-13T15:04:06.158019+00:00",
-   "listed_at": "2026-10-13T15:04:06.161273+00:00",
+   "last_sign_in_at": "2026-10-13T15:40:50.031875+00:00",
+   "listed_at": "2026-10-13T15:40:50.03558+00:00",
    "listing_id": 1,
    "live": true,
    "messages_30d": 1,
@@ -71,8 +169,8 @@
    "consults_open": 0,
    "email": "e@x.com",
    "gross_mrr_cents": 0,
-   "last_sign_in_at": "2026-10-12T15:04:06.158019+00:00",
-   "listed_at": "2026-10-13T15:04:06.161273+00:00",
+   "last_sign_in_at": "2026-10-12T15:40:50.031875+00:00",
+   "listed_at": "2026-10-13T15:40:50.03558+00:00",
    "listing_id": 2,
    "live": false,
    "messages_30d": 0,
@@ -101,14 +199,15 @@
     "consults_30d": 0,
     "email": "a@x.com",
     "id": "00000000-0000-0000-0000-00000000000a",
-    "joined": "2026-10-13T15:04:06.158019+00:00",
-    "last_active": "2026-10-13T15:04:06.18141+00:00",
-    "last_sign_in_at": "2026-10-13T15:04:06.158019+00:00",
+    "joined": "2026-10-13T15:40:50.031875+00:00",
+    "last_active": "2026-10-13T15:40:50.056628+00:00",
+    "last_sign_in_at": "2026-10-13T15:40:50.031875+00:00",
     "meal_days_30d": 0,
     "membership": null,
     "name": "Ann Coach",
     "points_30d": 2100,
     "rank_points": 2100,
+    "source": "instagram",
     "workouts_30d": 0,
     "workouts_7d": 0,
     "workouts_all": 0
@@ -120,14 +219,15 @@
     "consults_30d": 2,
     "email": "d@x.com",
     "id": "00000000-0000-0000-0000-00000000000d",
-    "joined": "2026-10-10T15:04:06.158019+00:00",
-    "last_active": "2026-10-13T15:04:06.171179+00:00",
-    "last_sign_in_at": "2026-10-11T15:04:06.158019+00:00",
+    "joined": "2026-10-10T15:40:50.031875+00:00",
+    "last_active": "2026-10-13T15:40:50.045734+00:00",
+    "last_sign_in_at": "2026-10-11T15:40:50.031875+00:00",
     "meal_days_30d": 0,
     "membership": "trialing",
     "name": "Dee",
     "points_30d": 10,
     "rank_points": 10,
+    "source": "google.com",
     "workouts_30d": 0,
     "workouts_7d": 0,
     "workouts_all": 1
@@ -139,14 +239,15 @@
     "consults_30d": 2,
     "email": "b@x.com",
     "id": "00000000-0000-0000-0000-00000000000b",
-    "joined": "2026-10-03T15:04:06.158019+00:00",
-    "last_active": "2026-10-12T15:04:06.171179+00:00",
-    "last_sign_in_at": "2026-09-23T15:04:06.158019+00:00",
+    "joined": "2026-10-03T15:40:50.031875+00:00",
+    "last_active": "2026-10-12T15:40:50.045734+00:00",
+    "last_sign_in_at": "2026-09-23T15:40:50.031875+00:00",
     "meal_days_30d": 2,
     "membership": "active",
     "name": "Bea Member",
     "points_30d": 15,
     "rank_points": 815,
+    "source": "coach link",
     "workouts_30d": 2,
     "workouts_7d": 1,
     "workouts_all": 2
@@ -158,7 +259,7 @@
     "consults_30d": 0,
     "email": "c@x.com",
     "id": "00000000-0000-0000-0000-00000000000c",
-    "joined": "2026-09-03T15:04:06.158019+00:00",
+    "joined": "2025-10-18T15:40:50.065861+00:00",
     "last_active": null,
     "last_sign_in_at": null,
     "meal_days_30d": 0,
@@ -166,6 +267,7 @@
     "name": "Cal",
     "points_30d": 0,
     "rank_points": 0,
+    "source": "not recorded",
     "workouts_30d": 0,
     "workouts_7d": 0,
     "workouts_all": 0
@@ -176,8 +278,8 @@
  "overview": {
   "accounts": {
    "confirmed": 4,
-   "new_30d": 4,
-   "new_7d": 3,
+   "new_30d": 3,
+   "new_7d": 2,
    "signed_in_30d": 4,
    "signed_in_7d": 3,
    "total": 5
@@ -201,7 +303,7 @@
    "in_review": 1,
    "new_30d": 3,
    "new_7d": 2,
-   "oldest_open_at": "2026-09-23T15:04:06.164983+00:00",
+   "oldest_open_at": "2026-09-23T15:40:50.038348+00:00",
    "open": 2,
    "open_nutritionist": 1,
    "open_trainer": 1,
@@ -406,7 +508,7 @@
     "active": 0,
     "applications": 0,
     "day": "2026-10-08",
-    "signups": 1,
+    "signups": 0,
     "workouts": 0
    },
    {
@@ -445,7 +547,7 @@
     "workouts": 0
    }
   ],
-  "generated_at": "2026-10-13T15:11:16.687032+00:00",
+  "generated_at": "2026-10-13T15:42:39.252903+00:00",
   "listings": {
    "nutritionists_hidden": 1,
    "nutritionists_live": 0,
@@ -516,6 +618,58 @@
    ],
    "penalties_30d": 100,
    "spent_store_all": 500
+  },
+  "signup_sources": {
+   "campaigns_30d": [
+    {
+     "campaign": "launch",
+     "count": 1
+    }
+   ],
+   "sources_30d": [
+    {
+     "count": 1,
+     "source": "coach link"
+    },
+    {
+     "count": 1,
+     "source": "google.com"
+    },
+    {
+     "count": 1,
+     "source": "instagram"
+    }
+   ],
+   "sources_all": [
+    {
+     "count": 1,
+     "source": "coach link"
+    },
+    {
+     "count": 1,
+     "source": "google.com"
+    },
+    {
+     "count": 1,
+     "source": "instagram"
+    },
+    {
+     "count": 1,
+     "source": "not recorded"
+    },
+    {
+     "count": 1,
+     "source": "the app"
+    }
+   ],
+   "surface_30d": {
+    "website": 3
+   },
+   "surface_all": {
+    "app": 1,
+    "not recorded": 1,
+    "website": 3
+   }
   },
   "timezone": "UTC",
   "today": "2026-10-13"

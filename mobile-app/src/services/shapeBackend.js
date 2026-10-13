@@ -339,6 +339,18 @@ async function claimUsername(username) {
   return data;
 }
 
+
+// The platform an app sign-up came from: 'ios' or 'android' in the installed app (Capacitor),
+// 'web' for the app in a browser. Anything else reads as 'web'.
+function signupPlatform() {
+  try {
+    const p = typeof window !== 'undefined' && window.Capacitor && window.Capacitor.getPlatform ? window.Capacitor.getPlatform() : 'web';
+    return p === 'ios' || p === 'android' ? p : 'web';
+  } catch (e) {
+    return 'web';
+  }
+}
+
 async function signUp({ email, password, fullName, role, username, captchaToken, dob }) {
   const normalizedRole = normalizeRole(role);
   // 18+ age gate — REQUIRED at account creation (no soft-fail): a missing or
@@ -377,6 +389,9 @@ async function signUp({ email, password, fullName, role, username, captchaToken,
         roles: [normalizedRole],
         ...(cleanUsername ? { username: cleanUsername } : {}),
         ...(dob ? { date_of_birth: dob } : {}),
+        // Where this sign-up came from, for the admin console's sign-ups by source: the app,
+        // and which build (an installed iOS or Android app, or the app in a browser at /m/).
+        signup_source: { surface: 'app', platform: signupPlatform() },
       },
     },
   });

@@ -80,8 +80,9 @@ export function daysSince(iso, now) {
   return Math.max(0, Math.floor((at - t) / 86400000));
 }
 
-export function overviewSections(stats) {
+export function overviewSections(stats, extras = {}) {
   const s = stats || {};
+  const cel = extras.celebrations || null;
   const a = s.accounts || {};
   const r = s.roles || {};
   const l = s.listings || {};
@@ -112,6 +113,12 @@ export function overviewSections(stats) {
         tile('Member role', formatCount(r.client), 'accounts that can use the member app', '/admin/members'),
         tile('Trainer role', formatCount(r.trainer), '', '/admin/coaches'),
         tile('Nutritionist role', formatCount(r.nutritionist), '', '/admin/coaches'),
+        ...(cel
+          ? [
+              tile('Birthdays, next 7 days', formatCount(cel.birthdays.week), `${formatCount(cel.birthdays.today)} today`, '/admin/members#birthdays'),
+              tile('Shape anniversaries, next 7 days', formatCount(cel.anniversaries.week), `${formatCount(cel.anniversaries.today)} today`, '/admin/members#anniversaries'),
+            ]
+          : []),
       ],
     },
     {
@@ -216,6 +223,54 @@ export function overviewSections(stats) {
       ],
     },
   ];
+}
+
+// ── Sign-ups by source ──
+// admin_overview_stats' signup_sources, as rows for the page's bars. 'not recorded' is every
+// account made before sign-ups recorded a source; it is kept, and named, rather than dropped,
+// so the bars never read as more complete than they are.
+export function sourceRows(list) {
+  return (Array.isArray(list) ? list : [])
+    .map((r) => ({ source: String(r?.source ?? 'not recorded'), count: n(r?.count) }))
+    .filter((r) => r.count > 0);
+}
+
+export function surfaceLine(surfaces) {
+  const s = surfaces || {};
+  const parts = [];
+  if (n(s.website)) parts.push(`${formatCount(s.website)} on the website`);
+  if (n(s.app)) parts.push(`${formatCount(s.app)} in the app`);
+  if (n(s['not recorded'])) parts.push(`${formatCount(s['not recorded'])} not recorded`);
+  return parts.join(' · ') || 'No sign-ups';
+}
+
+// ── Birthdays ──
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+/** "14 October", from admin_upcoming_celebrations' month and day (it never sends a birth year). */
+export function birthdayLabel(month, day) {
+  const m = MONTHS[Math.round(n(month)) - 1];
+  return m ? `${Math.round(n(day))} ${m}` : '';
+}
+
+/** "today", "tomorrow", "in 5 days". */
+export function whenLabel(daysUntil) {
+  const d = Math.round(n(daysUntil));
+  return d <= 0 ? 'today' : d === 1 ? 'tomorrow' : `in ${formatCount(d)} days`;
+}
+
+/** The Overview's tile counts, from a 7-day admin_upcoming_celebrations answer. */
+export function celebrationCounts(answer) {
+  const count = (list) => {
+    const rows = Array.isArray(list) ? list : [];
+    return { week: rows.length, today: rows.filter((r) => n(r?.days_until) === 0).length };
+  };
+  return { birthdays: count(answer?.birthdays), anniversaries: count(answer?.anniversaries) };
+}
+
+/** "1 year", "3 years" on Shape. */
+export function yearsLabel(years) {
+  return countOf(years, 'year');
 }
 
 export const DAILY_CHARTS = [

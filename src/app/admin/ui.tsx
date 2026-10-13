@@ -14,6 +14,14 @@ export function formatWhen(iso: string | null | undefined, withTime = false): st
     : d.toLocaleDateString('en-US', { timeZone: ADMIN_TIMEZONE, dateStyle: 'medium' });
 }
 
+/** A calendar date ('2026-10-13') as written, never shifted by a time zone; a dash for none. */
+export function formatDay(ymd: string | null | undefined): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ymd ?? ''));
+  if (!m) return '—';
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  return d.toLocaleDateString('en-US', { timeZone: 'UTC', dateStyle: 'medium' });
+}
+
 export function Notice({ tone, children }: { tone: 'teal' | 'amber' | 'red'; children: React.ReactNode }) {
   const cls = {
     teal: 'border-teal-400/30 bg-teal-400/10 text-teal-200',

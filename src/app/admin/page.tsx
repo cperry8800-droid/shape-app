@@ -15,12 +15,16 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { buildFunnel } from '@/lib/funnel.mjs';
 import type { FunnelRow } from '@/lib/funnel';
 import {
+  celebrationCounts,
   DAILY_CHARTS,
   dailyColumns,
   formatCount,
   overviewSections,
+  sourceRows,
+  surfaceLine,
   tierBreakdown,
   type AdminOverviewStats,
+  type CelebrationCounts,
   type TierRow,
   type DailyRow,
   type OverviewSection,
@@ -46,6 +50,17 @@ async function loadStats(): Promise<{ stats: AdminOverviewStats | null; missing:
   }
 }
 
+// This week's birthdays and anniversaries, as counts only (the names are on the Members page,
+// Support and up).
+async function loadCelebrations(): Promise<CelebrationCounts | null> {
+  try {
+    const { data, error } = await createAdminClient().rpc('admin_upcoming_celebrations', { p_tz: TIMEZONE, p_days: 7 });
+    return error || !data ? null : celebrationCounts(data);
+  } catch {
+    return null;
+  }
+}
+
 async function loadFunnel(): Promise<FunnelRow[] | null> {
   try {
     const to = new Date();
@@ -68,9 +83,9 @@ export default async function AdminOverviewPage() {
     redirect('/login?next=/admin');
   }
 
-  const [{ stats, missing, failed }, funnel] = await Promise.all([loadStats(), loadFunnel()]);
+  const [{ stats, missing, failed }, funnel, celebrations] = await Promise.all([loadStats(), loadFunnel(), loadCelebrations()]);
   // A tile links only to a page this level opens.
-  const sections = (stats ? overviewSections(stats) : []).map((s) => ({
+  const sections = (stats ? overviewSections(stats, { celebrations }) : []).map((s) => ({
     ...s,
     tiles: s.tiles.map((t) => (t.href && !canOpen(level, t.href) ? { ...t, href: '' } : t)),
   }));
@@ -110,6 +125,12 @@ export default async function AdminOverviewPage() {
       {sections.map((section) => (
         <Section key={section.key} section={section} />
       ))}
+
+      {stats && (
+        <SignupSources
+          sources={stats.signup_sources as SignupSourceStats | undefined}
+        />
+      )}
 
       {tiers && (
         <section className="flex flex-col gap-4">
@@ -268,6 +289,64 @@ function DailyChart({ title, daily, field }: { title: string; daily: DailyRow[];
 function columnPath(x: number, y: number, w: number, h: number): string {
   const r = Math.min(4, w / 2, h);
   return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`;
+}
+
+type SignupSourceStats = {
+  sources_30d?: unknown;
+  sources_all?: unknown;
+  surface_30d?: Record<string, number>;
+  surface_all?: Record<string, number>;
+  campaigns_30d?: Array<{ campaign: string; count: number }>;
+};
+
+function SignupSources({ sources }: { sources?: SignupSourceStats }) {
+  const last30 = sourceRows(sources?.sources_30d);
+  const all = sourceRows(sources?.sources_all);
+  const campaigns = Array.isArray(sources?.campaigns_30d) ? sources.campaigns_30d : [];
+  return (
+    <section className="flex flex-col gap-4">
+      <div>
+        <h3 className="text-lg font-medium">Sign-ups by source</h3>
+        <p className="text-sm text-neutral-500 max-w-3xl">
+          Where new accounts came from: a coach&apos;s referral link, the link&apos;s utm_source tag, the site that sent them,
+          or the app. &ldquo;Direct&rdquo; came with neither a tag nor another site. &ldquo;Not recorded&rdquo; is every account
+          made before sources were recorded.
+        </p>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Bars title="Last 30 days" note={surfaceLine(sources?.surface_30d)} rows={last30.map((r) => ({ name: r.source, count: r.count }))} />
+        <Bars title="All time" note={surfaceLine(sources?.surface_all)} rows={all.map((r) => ({ name: r.source, count: r.count }))} />
+      </div>
+      {campaigns.length > 0 && (
+        <p className="text-sm text-neutral-400">
+          Campaigns, last 30 days: {campaigns.map((c) => `${c.campaign} ${formatCount(c.count)}`).join(' · ')}
+        </p>
+      )}
+    </section>
+  );
+}
+
+// A single-hue bar list on one scale (a count is a magnitude).
+function Bars({ title, note, rows }: { title: string; note: string; rows: Array<{ name: string; count: number }> }) {
+  const max = Math.max(1, ...rows.map((r) => r.count));
+  return (
+    <div className="rounded-xl border border-neutral-800 bg-neutral-950 p-4 flex flex-col gap-3">
+      <div className="flex items-baseline justify-between gap-2 flex-wrap">
+        <span className="text-sm text-neutral-300">{title}</span>
+        <span className="text-xs text-neutral-500">{note}</span>
+      </div>
+      {rows.length === 0 && <div className="text-sm text-neutral-500">No sign-ups.</div>}
+      {rows.map((r) => (
+        <div key={r.name} className="grid grid-cols-[minmax(0,10rem)_1fr_auto] items-center gap-3 text-sm">
+          <span className="text-neutral-300 truncate" title={r.name}>{r.name}</span>
+          <div className="h-3 rounded-full bg-neutral-900 overflow-hidden" aria-hidden="true">
+            <div className="h-full rounded-full bg-teal-400" style={{ width: `${Math.round((r.count / max) * 100)}%` }} />
+          </div>
+          <span className="text-neutral-400 tabular-nums text-right">{formatCount(r.count)}</span>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 // One bar per tier, on one scale for the panel: the count is a magnitude, so one hue.

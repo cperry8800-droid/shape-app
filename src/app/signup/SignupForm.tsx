@@ -23,6 +23,17 @@ export default function SignupForm({ defaultRole }: { defaultRole?: string }) {
   const [captchaUnavailable, setCaptchaUnavailable] = useState(false);
   const [captchaKey, setCaptchaKey] = useState(0);
   const captchaPending = turnstileEnabled() && !captchaToken && !captchaUnavailable;
+  // Where this sign-up came from (/signup-source.js, loaded by the root layout); the server
+  // cleans it again (cleanSource) before it rides in the account's metadata.
+  const [signupSource, setSignupSource] = useState('');
+  useEffect(() => {
+    try {
+      const api = (window as unknown as { shapeSignupSource?: { forSignup: (s: string) => unknown } }).shapeSignupSource;
+      setSignupSource(JSON.stringify(api ? api.forSignup('website') : { surface: 'website' }));
+    } catch {
+      setSignupSource(JSON.stringify({ surface: 'website' }));
+    }
+  }, []);
 
   // A Turnstile token is single-use; a signup that reached Supabase (e.g. weak
   // password, email already in use) has already spent it. Clear it and remount a
@@ -46,6 +57,7 @@ export default function SignupForm({ defaultRole }: { defaultRole?: string }) {
   return (
     <form action={formAction} className="flex flex-col gap-4">
       <input type="hidden" name="role" value={role} />
+      <input type="hidden" name="signup_source" value={signupSource} />
 
       <label className="flex flex-col gap-1.5">
         <span className="text-xs uppercase tracking-wider text-neutral-400">Email</span>

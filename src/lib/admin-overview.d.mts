@@ -23,10 +23,18 @@ export function formatCount(v: unknown): string;
 export function countOf(v: unknown, one: string, many?: string): string;
 export function formatMoney(cents: unknown): string;
 export function shapeMrrCents(stats: AdminOverviewStats | null | undefined): number;
-export function overviewSections(stats: AdminOverviewStats | null | undefined): OverviewSection[];
+export type CelebrationCounts = { birthdays: { week: number; today: number }; anniversaries: { week: number; today: number } };
+export function overviewSections(stats: AdminOverviewStats | null | undefined, extras?: { celebrations?: CelebrationCounts | null }): OverviewSection[];
 export function niceMax(max: number): number;
 export function dailyColumns(
   daily: DailyRow[] | null | undefined,
   key: string,
   box?: { width?: number; height?: number }
 ): { top: number; total: number; cols: DailyColumn[] };
+export type SourceRow = { source: string; count: number };
+export function sourceRows(list: unknown): SourceRow[];
+export function surfaceLine(surfaces: Record<string, number> | null | undefined): string;
+export function birthdayLabel(month: unknown, day: unknown): string;
+export function whenLabel(daysUntil: unknown): string;
+export function celebrationCounts(answer: unknown): CelebrationCounts;
+export function yearsLabel(years: unknown): string;

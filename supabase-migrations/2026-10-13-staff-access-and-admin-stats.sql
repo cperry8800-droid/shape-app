@@ -7,7 +7,10 @@
 --   2. admin_activity_log: every change a staff member makes from the console;
 --   3. admin_overview_stats(): the numbers on the console's Overview;
 --   4. admin_coach_stats() and admin_member_stats(): each coach's and each member's progress
---      (owner: "track stats for coaches so i can check their progress", "same for memberes").
+--      (owner: "track stats for coaches so i can check their progress", "same for memberes");
+--   5. signup_source_label(): names where an account came from, for the two above;
+--   6. admin_upcoming_celebrations(): birthdays (month and day only) and Shape anniversaries
+--      coming up.
 --
 -- ===== THE LEVELS =====
 -- owner    the owner's own addresses, named in src/lib/admin-access.ts. NOT a row here: an owner
@@ -66,6 +69,33 @@ create index if not exists admin_activity_log_target_idx on public.admin_activit
 alter table public.admin_activity_log enable row level security;
 revoke all on public.admin_activity_log from anon, authenticated;
 
+-- ===== WHERE A SIGN-UP CAME FROM =====
+-- Every sign-up path saves `signup_source` in the new account's user metadata (owner,
+-- 2026-10-13: "track signups by source too"; src/lib/signup-source.mjs says what is recorded and
+-- when). This names it: a coach's referral link first, then the link's utm_source, then the
+-- referring site, then the app, else 'direct'. An account made before sign-ups recorded a source
+-- (or by a path that sent none) is 'not recorded'. The metadata is written by the visitor's
+-- browser, so the label is lowercased and clipped whatever it says.
+-- An invoker helper for the definers below; nobody else calls it.
+create or replace function public.signup_source_label(p_meta jsonb)
+returns text
+language sql
+immutable
+set search_path = public, pg_temp
+as $$
+  select case
+    when jsonb_typeof(p_meta -> 'signup_source') is distinct from 'object' then 'not recorded'
+    when (p_meta -> 'signup_source' ->> 'coach_ref') = 'true' then 'coach link'
+    else left(lower(coalesce(
+      nullif(btrim(p_meta -> 'signup_source' ->> 'utm_source'), ''),
+      nullif(btrim(p_meta -> 'signup_source' ->> 'referrer'), ''),
+      case when p_meta -> 'signup_source' ->> 'surface' = 'app' then 'the app' end,
+      'direct')), 60)
+  end
+$$;
+
+revoke all on function public.signup_source_label(jsonb) from public, anon, authenticated;
+
 -- ===== THE OVERVIEW'S NUMBERS =====
 -- One call, one JSON document, so the page is one round trip however many numbers it shows.
 -- A definer because it reads auth.users (sign-ups and sign-ins), which the API cannot.
@@ -95,6 +125,8 @@ revoke all on public.admin_activity_log from anon, authenticated;
 --   consultations     sessions rows, which is where both a free consultation (/api/consultation)
 --                     and a member's session request (/api/sessions/request) land; open = still
 --                     'requested' and not yet past, upcoming = confirmed and not yet past
+--   signup_sources    accounts by signup_source_label(): the 15 biggest sources over 30 days and
+--                     all time, website or app, and the 10 biggest utm campaigns over 30 days
 --   score             score_ledger points earned (positive rows), spent in the Store, and taken
 --                     back as penalties; tiers = accounts per Score tier on the rank basis
 --                     (shape_rank_points: the high-water mark of points earned, without Store
@@ -166,6 +198,14 @@ begin
            ('trainer' = any(coalesce(p.roles, '{}')) or 'nutritionist' = any(coalesce(p.roles, '{}'))
             or p.role in ('trainer', 'nutritionist')) as is_coach
     from public.profiles p
+  ),
+  signup_src as (
+    select u.created_at,
+           public.signup_source_label(u.raw_user_meta_data) as source,
+           case when u.raw_user_meta_data -> 'signup_source' ->> 'surface' in ('website', 'app')
+                then u.raw_user_meta_data -> 'signup_source' ->> 'surface' else 'not recorded' end as surface,
+           nullif(left(lower(btrim(coalesce(u.raw_user_meta_data -> 'signup_source' ->> 'utm_campaign', ''))), 60), '') as campaign
+    from auth.users u
   ),
   applications_by_day as (
     select (created_at at time zone v_tz)::date as day, count(*) as n
@@ -250,6 +290,20 @@ begin
                         count(*) filter (where pts >= 2000 and pts < 5000),
                         count(*) filter (where pts >= 5000 and pts < 15000),
                         count(*) filter (where pts >= 15000)) from ranks where is_coach)
+    ),
+    'signup_sources', jsonb_build_object(
+      'sources_30d', (select coalesce(jsonb_agg(jsonb_build_object('source', x.source, 'count', x.n) order by x.n desc, x.source), '[]'::jsonb)
+                      from (select source, count(*) as n from signup_src where created_at >= v_from30
+                            group by source order by count(*) desc, source limit 15) x),
+      'sources_all', (select coalesce(jsonb_agg(jsonb_build_object('source', x.source, 'count', x.n) order by x.n desc, x.source), '[]'::jsonb)
+                      from (select source, count(*) as n from signup_src group by source order by count(*) desc, source limit 15) x),
+      'surface_30d', (select coalesce(jsonb_object_agg(x.surface, x.n), '{}'::jsonb)
+                      from (select surface, count(*) as n from signup_src where created_at >= v_from30 group by surface) x),
+      'surface_all', (select coalesce(jsonb_object_agg(x.surface, x.n), '{}'::jsonb)
+                      from (select surface, count(*) as n from signup_src group by surface) x),
+      'campaigns_30d', (select coalesce(jsonb_agg(jsonb_build_object('campaign', x.campaign, 'count', x.n) order by x.n desc, x.campaign), '[]'::jsonb)
+                        from (select campaign, count(*) as n from signup_src where created_at >= v_from30 and campaign is not null
+                              group by campaign order by count(*) desc, campaign limit 10) x)
     ),
     'credentials', jsonb_build_object(
       'pending', (select count(*) from public.provider_credentials where review_status = 'pending'),
@@ -437,7 +491,8 @@ as $$
            least(greatest(coalesce(p_limit, 200), 1), 500) as lim
   ),
   base as (
-    select p.id, p.full_name, p.roles, p.role, u.email, u.created_at, u.last_sign_in_at
+    select p.id, p.full_name, p.roles, p.role, u.email, u.created_at, u.last_sign_in_at,
+           public.signup_source_label(u.raw_user_meta_data) as source
     from public.profiles p
     join auth.users u on u.id = p.id
     cross join q
@@ -488,7 +543,7 @@ as $$
       'coach_roles', ('trainer' = any(coalesce(p.roles, '{}')) or 'nutritionist' = any(coalesce(p.roles, '{}'))
                       or p.role in ('trainer', 'nutritionist')),
       'joined', p.created_at, 'last_sign_in_at', p.last_sign_in_at, 'last_active', p.last_active,
-      'membership', p.membership, 'coaches', p.coaches,
+      'membership', p.membership, 'coaches', p.coaches, 'source', p.source,
       'workouts_7d', p.workouts_7d, 'workouts_30d', p.workouts_30d, 'workouts_all', p.workouts_all,
       'meal_days_30d', p.meal_days_30d, 'checkins_30d', p.checkins_30d, 'consults_30d', p.consults_30d,
       'points_30d', p.points_30d, 'rank_points', p.rank_points
@@ -498,6 +553,86 @@ $$;
 
 revoke all on function public.admin_member_stats(text, text, integer) from public, anon, authenticated;
 grant execute on function public.admin_member_stats(text, text, integer) to service_role;
+
+-- ===== UPCOMING BIRTHDAYS AND ANNIVERSARIES =====
+-- Owner, 2026-10-13: "lets track all shape members birthdays, keep tabs to send something nice
+-- maybe" and "also shape member anniversieries". Within p_days (1 to 366) of today in p_tz,
+-- soonest first:
+--   birthdays      everyone with a date of birth on their profile (given at sign-up for the 18+
+--                  check). MONTH AND DAY ONLY: the birth year, and so the age, never leaves the
+--                  database through this. 'next' is the coming birthday, not the date of birth.
+--   anniversaries  every account's yearly date of joining Shape (its sign-up, in p_tz), from the
+--                  first full year on, with how many years it marks.
+-- A 29 February date is kept on 28 February in a year without one.
+--
+-- ⚠ A NEW USE OF THE DATE OF BIRTH. It was collected to verify age; using it to mark birthdays
+-- is a purpose the privacy policy should name. The owner's to word, not this file's.
+create or replace function public.admin_upcoming_celebrations(p_tz text default 'America/New_York', p_days integer default 30)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_tz text := coalesce(nullif(btrim(p_tz), ''), 'UTC');
+  v_days integer := least(greatest(coalesce(p_days, 30), 1), 366);
+  v_today date;
+  v_birthdays jsonb;
+  v_anniversaries jsonb;
+begin
+  if not exists (select 1 from pg_timezone_names where name = v_tz) then
+    v_tz := 'UTC';
+  end if;
+  v_today := (now() at time zone v_tz)::date;
+
+  -- The coming occurrence (this year's or next year's) of a month and day.
+  with people as (
+    select p.id, p.full_name, p.roles, p.role, u.email,
+           p.date_of_birth,
+           (u.created_at at time zone v_tz)::date as joined,
+           ('trainer' = any(coalesce(p.roles, '{}')) or 'nutritionist' = any(coalesce(p.roles, '{}'))
+            or p.role in ('trainer', 'nutritionist')) as coach
+    from public.profiles p
+    join auth.users u on u.id = p.id
+  ),
+  dates as (
+    select pe.*, k.kind, k.m, k.d,
+      (select min(x.day) from (
+         select case when k.m = 2 and k.d = 29 and not ((y.y % 4 = 0 and y.y % 100 <> 0) or y.y % 400 = 0)
+                     then make_date(y.y, 2, 28) else make_date(y.y, k.m, k.d) end as day
+         from (values (extract(year from v_today)::int), (extract(year from v_today)::int + 1)) as y(y)
+       ) x where x.day >= v_today and (k.kind = 'birthday' or x.day > pe.joined)) as next_day
+    from people pe
+    cross join lateral (
+      select 'birthday'::text as kind, extract(month from pe.date_of_birth)::int as m, extract(day from pe.date_of_birth)::int as d
+      where pe.date_of_birth is not null
+      union all
+      select 'anniversary', extract(month from pe.joined)::int, extract(day from pe.joined)::int
+    ) k
+  )
+  select
+    coalesce(jsonb_agg(jsonb_build_object(
+        'id', dt.id, 'name', dt.full_name, 'email', dt.email, 'coach', dt.coach,
+        'month', dt.m, 'day', dt.d, 'next', dt.next_day, 'days_until', dt.next_day - v_today
+      ) order by dt.next_day, dt.full_name) filter (where dt.kind = 'birthday'), '[]'::jsonb),
+    coalesce(jsonb_agg(jsonb_build_object(
+        'id', dt.id, 'name', dt.full_name, 'email', dt.email, 'coach', dt.coach,
+        'joined', dt.joined, 'next', dt.next_day, 'days_until', dt.next_day - v_today,
+        'years', extract(year from dt.next_day)::int - extract(year from dt.joined)::int
+      ) order by dt.next_day, dt.full_name) filter (where dt.kind = 'anniversary'), '[]'::jsonb)
+  into v_birthdays, v_anniversaries
+  from dates dt
+  where dt.next_day - v_today < v_days
+    and (dt.kind = 'birthday' or extract(year from dt.next_day)::int - extract(year from dt.joined)::int >= 1);
+
+  return jsonb_build_object('today', v_today, 'timezone', v_tz, 'days', v_days,
+                            'birthdays', v_birthdays, 'anniversaries', v_anniversaries);
+end;
+$$;
+
+revoke all on function public.admin_upcoming_celebrations(text, integer) from public, anon, authenticated;
+grant execute on function public.admin_upcoming_celebrations(text, integer) to service_role;
 
 -- ===== GUARD =====
 -- Fails the run, and so rolls the whole file back, if it finds the tables open to the API or the
@@ -520,8 +655,14 @@ begin
      or has_function_privilege('anon', 'public.admin_coach_stats()', 'execute')
      or has_function_privilege('authenticated', 'public.admin_coach_stats()', 'execute')
      or has_function_privilege('anon', 'public.admin_member_stats(text, text, integer)', 'execute')
-     or has_function_privilege('authenticated', 'public.admin_member_stats(text, text, integer)', 'execute') then
+     or has_function_privilege('authenticated', 'public.admin_member_stats(text, text, integer)', 'execute')
+     or has_function_privilege('anon', 'public.admin_upcoming_celebrations(text, integer)', 'execute')
+     or has_function_privilege('authenticated', 'public.admin_upcoming_celebrations(text, integer)', 'execute') then
     raise exception 'the admin stats functions must be executable by the service role only';
+  end if;
+  if has_function_privilege('anon', 'public.signup_source_label(jsonb)', 'execute')
+     or has_function_privilege('authenticated', 'public.signup_source_label(jsonb)', 'execute') then
+    raise exception 'signup_source_label is a helper for the admin functions only';
   end if;
   if has_table_privilege('anon', 'public.staff_members', 'select')
      or has_table_privilege('authenticated', 'public.staff_members', 'select')

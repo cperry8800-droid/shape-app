@@ -96,7 +96,11 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
           // upsert cannot authenticate, and the metadata copy is what
           // newdesign/login.jsx:140 claims onto profiles at first sign-in. Without
           // it, the confirm-by-email half of this flow still creates ungated rows.
-          data: { full_name: fullName, role: role, date_of_birth: dob }
+          data: {
+            full_name: fullName, role: role, date_of_birth: dob,
+            // Where this sign-up came from (/signup-source.js; counted on the admin console).
+            signup_source: (window.shapeSignupSource && window.shapeSignupSource.forSignup('website')) || { surface: 'website' }
+          }
         }
       });
       if (signUpRes.error) return { error: signUpRes.error };

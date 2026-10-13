@@ -381,10 +381,25 @@ test('overview: every tile reads the number it says it reads', () => {
   assert.equal(get('On a coach’s waitlist').value, '1');
   assert.equal(get('Help requests open').href, '/dashboard/support');
   assert.equal(get('Member role').href, '/admin/members');
+  assert.equal(get('Birthdays, next 7 days'), undefined, 'no celebration tiles without their answer');
   // Missing sections read as zero, never as "undefined".
   const empty = overview.overviewSections({}).flatMap((s) => s.tiles);
   assert.ok(empty.every((t) => !/undefined|NaN|null/.test(`${t.value} ${t.sub}`)), 'no undefined, NaN or null on an empty answer');
   assert.equal(empty.find((t) => t.label === 'Oldest waiting').value, 'None');
+});
+
+test('overview: sign-up sources, birthdays and anniversaries read plainly', () => {
+  assert.deepEqual(overview.sourceRows([{ source: 'instagram', count: 2 }, { source: 'x', count: 0 }, { count: 1 }, null]), [{ source: 'instagram', count: 2 }, { source: 'not recorded', count: 1 }]);
+  assert.deepEqual(overview.sourceRows(undefined), []);
+  assert.equal(overview.surfaceLine({ website: 3, app: 1, 'not recorded': 1 }), '3 on the website · 1 in the app · 1 not recorded');
+  assert.equal(overview.surfaceLine({}), 'No sign-ups');
+  assert.deepEqual([overview.birthdayLabel(10, 14), overview.birthdayLabel(2, 29), overview.birthdayLabel(13, 1), overview.birthdayLabel(null, 1)], ['14 October', '29 February', '', '']);
+  assert.deepEqual([0, 1, 2, 30].map(overview.whenLabel), ['today', 'tomorrow', 'in 2 days', 'in 30 days']);
+  assert.deepEqual([overview.yearsLabel(1), overview.yearsLabel(3)], ['1 year', '3 years']);
+  assert.deepEqual(overview.celebrationCounts(null), { birthdays: { week: 0, today: 0 }, anniversaries: { week: 0, today: 0 } });
+  // The replica: four sources over 30 days plus one account from before sources were recorded.
+  assert.deepEqual(overview.sourceRows(STATS.signup_sources.sources_all).map((r) => r.source), ['coach link', 'google.com', 'instagram', 'not recorded', 'the app']);
+  assert.deepEqual(FIXTURE.members.rows.map((r) => [r.email, r.source]).sort(), [['a@x.com', 'instagram'], ['b@x.com', 'coach link'], ['c@x.com', 'not recorded'], ['d@x.com', 'google.com']]);
 });
 
 test('overview: days waiting', () => {
@@ -450,6 +465,7 @@ const answers = (name, args) => {
   if (name === 'admin_overview_stats') return { data: STATS, error: null };
   if (name === 'admin_coach_stats') return { data: FIXTURE.coaches, error: null };
   if (name === 'admin_member_stats') return { data: { ...FIXTURE.members, _args: args }, error: null };
+  if (name === 'admin_upcoming_celebrations') return { data: args?.p_days === 7 ? FIXTURE.celebrations_week : FIXTURE.celebrations, error: null };
   if (name === 'get_funnel') return { data: [{ step: 'signup', count: 4 }, { step: 'onboarding', count: 2 }], error: null };
   return { data: null, error: { code: 'PGRST202' } };
 };
@@ -476,6 +492,35 @@ test('render: an analyst’s tiles never link to a page the analyst cannot open'
   assert.ok(owner.html.includes('href="/dashboard/applications"') && owner.html.includes('href="/admin/members"'));
 });
 
+test('render: the Overview shows sign-ups by source, and this week’s birthdays and anniversaries as counts', async () => {
+  const { html } = await renderPage('src/app/admin/page.tsx', { rpc: answers, level: 'analyst' });
+  assert.ok(html.includes('>Sign-ups by source</h3>'));
+  for (const src of ['coach link', 'google.com', 'instagram', 'the app', 'not recorded']) assert.ok(html.includes(`>${src}</span>`), src);
+  assert.ok(html.includes('3 on the website · 1 in the app · 1 not recorded'));
+  assert.ok(html.includes('Campaigns, last 30 days: launch 1'));
+  // Ann's birthday is today and Bea's tomorrow; Eli's second Shape anniversary is today, Cal's first in five days.
+  const tiles = overview.overviewSections(STATS, { celebrations: overview.celebrationCounts(FIXTURE.celebrations_week) }).flatMap((x) => x.tiles);
+  const b = tiles.find((t) => t.label === 'Birthdays, next 7 days');
+  const a = tiles.find((t) => t.label === 'Shape anniversaries, next 7 days');
+  assert.deepEqual([b.value, b.sub, a.value, a.sub], ['2', '1 today', '2', '1 today']);
+  assert.ok(html.includes('Birthdays, next 7 days') && html.includes('Shape anniversaries, next 7 days'));
+  assert.ok(!html.includes('Ann Coach'), 'the Overview names no one: counts only, which an analyst may see');
+});
+
+test('render: the Members page lists the coming birthdays (month and day only) and Shape anniversaries', async () => {
+  const { html } = await renderPage('src/app/admin/members/page.tsx', { rpc: answers, level: 'support' });
+  assert.ok(html.includes('id="birthdays"') && html.includes('id="anniversaries"'));
+  assert.ok(html.includes('13 October · today') && html.includes('14 October · tomorrow'));
+  assert.ok(html.includes('2 years · today · joined Oct 13, 2024'), 'Eli: two years today, the join date as written');
+  assert.ok(html.includes('1 year · in 5 days'), 'Cal: the first year');
+  for (const row of [...FIXTURE.celebrations.birthdays, ...FIXTURE.celebrations_week.birthdays]) {
+    assert.deepEqual(Object.keys(row).sort(), ['coach', 'day', 'days_until', 'email', 'id', 'month', 'name', 'next']);
+  }
+  assert.ok(!html.includes('1990') && !html.includes('1985'), 'no birth year anywhere on the page');
+  const failed = await renderPage('src/app/admin/members/page.tsx', { rpc: (n, a) => (n === 'admin_upcoming_celebrations' ? { data: null, error: { code: 'XX000' } } : answers(n, a)), level: 'support' });
+  assert.ok(failed.html.includes('No birthdays coming up.') && failed.html.includes('>Bea Member<'), 'a failed read hides the lists, never the members');
+});
+
 test('render: the Overview says the migration is missing rather than failing', async () => {
   const { html } = await renderPage('src/app/admin/page.tsx', { rpc: () => ({ data: null, error: { code: 'PGRST202' } }) });
   assert.ok(html.includes('Not set up yet: run supabase-migrations/2026-10-13-staff-access-and-admin-stats.sql.'));
@@ -497,17 +542,21 @@ test('render: the Coaches page shows each coach’s progress, coach tiers, and i
 
 test('render: the Members page shows each member’s progress, passes the search and sort, and is support and up', async () => {
   const { html, calls } = await renderPage('src/app/admin/members/page.tsx', { rpc: answers, level: 'support', searchParams: { q: '  bea ', sort: 'points' } });
-  assert.deepEqual(calls, ['support', 'rpc:admin_member_stats']);
+  assert.deepEqual(calls, ['support', 'rpc:admin_member_stats', 'rpc:admin_upcoming_celebrations']);
+  assert.ok(html.includes('Joined') && html.includes(' from instagram'), 'each member’s sign-up source');
+  assert.ok(!html.includes(' from not recorded'), 'an unrecorded source is left out, not printed');
   assert.ok(html.includes('>Bea Member<') && html.includes('>Tempo<') && html.includes('815 points'));
   assert.ok(html.includes('>Paying<') && html.includes('2 coaches'));
   assert.ok(html.includes('also coaches'), 'Ann holds a coach role too');
   assert.ok(!/NaN|undefined/.test(html));
   assert.equal((await renderPage('src/app/admin/members/page.tsx', { rpc: answers, level: 'analyst' })).redirect, '/admin');
-  let seen;
-  await renderPage('src/app/admin/members/page.tsx', { rpc: (n, a) => { seen = a; return answers(n, a); }, level: 'support', searchParams: { q: '  bea ', sort: 'points' } });
-  assert.deepEqual(seen, { p_search: 'bea', p_sort: 'points', p_limit: 200 });
-  await renderPage('src/app/admin/members/page.tsx', { rpc: (n, a) => { seen = a; return answers(n, a); }, level: 'support', searchParams: { sort: 'drop table' } });
-  assert.deepEqual(seen, { p_search: null, p_sort: 'active', p_limit: 200 }, 'an unknown sort is the default');
+  const seen = {};
+  const spy = (n, a) => { seen[n] = a; return answers(n, a); };
+  await renderPage('src/app/admin/members/page.tsx', { rpc: spy, level: 'support', searchParams: { q: '  bea ', sort: 'points' } });
+  assert.deepEqual(seen.admin_member_stats, { p_search: 'bea', p_sort: 'points', p_limit: 200 });
+  assert.deepEqual(seen.admin_upcoming_celebrations, { p_tz: 'America/New_York', p_days: 30 }, 'the owner’s days, the next 30');
+  await renderPage('src/app/admin/members/page.tsx', { rpc: spy, level: 'support', searchParams: { sort: 'drop table' } });
+  assert.deepEqual(seen.admin_member_stats, { p_search: null, p_sort: 'active', p_limit: 200 }, 'an unknown sort is the default');
 });
 
 // ── The pages and the actions check their own level ───────────────────────────────────────
@@ -527,7 +576,7 @@ test('every console page and action checks its own level before it reads anythin
     const body = src.slice(src.indexOf('export default async function'));
     const gate = body.search(new RegExp(`await requireStaff\\('${min}'\\)`));
     assert.ok(gate > 0, `${file} requires ${min}`);
-    const firstRead = Math.min(...['createAdminClient()', 'loadStats()', 'loadFunnel()'].map((x) => body.indexOf(x)).filter((i) => i >= 0));
+    const firstRead = Math.min(...['createAdminClient()', 'loadStats()', 'loadFunnel()', 'loadCelebrations()'].map((x) => body.indexOf(x)).filter((i) => i >= 0));
     assert.ok(Number.isFinite(firstRead) && gate < firstRead, `${file}: the gate comes before the service role`);
   }
   const staff = stripComments(read('src/app/admin/staff/actions.ts'));
@@ -573,7 +622,20 @@ test('migration: service role only, one transaction, guarded', () => {
     assert.match(code, new RegExp(`grant execute on function public\\.${sig} to service_role;`));
     assert.match(code, new RegExp(`has_function_privilege\\('authenticated', 'public\\.${sig}', 'execute'\\)`), `${sig}: guarded`);
   }
-  assert.equal((code.match(/security definer\nset search_path = public, pg_temp/g) ?? []).length, 3, 'all three definers pinned');
+  assert.equal((code.match(/security definer\nset search_path = public, pg_temp/g) ?? []).length, 4, 'all four definers pinned');
+  for (const sig of ['admin_upcoming_celebrations\\(text, integer\\)']) {
+    assert.match(code, new RegExp(`revoke all on function public\\.${sig} from public, anon, authenticated;`));
+    assert.match(code, new RegExp(`grant execute on function public\\.${sig} to service_role;`));
+    assert.match(code, new RegExp(`has_function_privilege\\('anon', 'public\\.${sig}', 'execute'\\)`));
+  }
+  assert.match(code, /revoke all on function public\.signup_source_label\(jsonb\) from public, anon, authenticated;/);
+  assert.doesNotMatch(code, /grant execute on function public\.signup_source_label/, 'the label helper is called only inside the definers');
+  // The birthdays carry month and day only: nothing returns the date of birth or its year.
+  const cel = code.slice(code.indexOf('create or replace function public.admin_upcoming_celebrations'), code.indexOf('revoke all on function public.admin_upcoming_celebrations'));
+  const returned = cel.slice(cel.indexOf('select\n    coalesce(jsonb_agg('));
+  assert.doesNotMatch(returned, /date_of_birth/, 'the date of birth is never returned');
+  assert.match(cel, /'month', dt\.m, 'day', dt\.d, 'next', dt\.next_day/);
+  assert.match(cel, /x\.day >= v_today and \(k\.kind = 'birthday' or x\.day > pe\.joined\)/, 'an anniversary is never the join day itself');
   // The member function returns counts, never a health value.
   const member = code.slice(code.indexOf('create or replace function public.admin_member_stats'), code.indexOf('revoke all on function public.admin_member_stats'));
   for (const col of ['weight_lb', 'body_fat_pct', 'hrv_ms', 'resting_hr', 'sleep_', 'protein_g', 'carbs_g', 'fat_g', 'hydration_l', 'mood', 'stress', 'soreness', 'steps', 'heart_rate', 'recovery_score', 'date_of_birth', 'phone']) {
