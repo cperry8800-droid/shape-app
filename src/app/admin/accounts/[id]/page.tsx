@@ -86,6 +86,7 @@ const UPDATED: Record<string, string> = {
   already_frozen: 'This account was already frozen.',
   unfrozen: 'Unfrozen. They can sign in again, and listings suspended by the freeze are back.',
   not_frozen: 'This account is not frozen.',
+  ban_lifted: 'The ban is lifted. They can sign in again.',
   suspended: 'Suspended. The listing is off the marketplace.',
   already_suspended: 'That listing was already suspended.',
   lifted: 'The listing is back. It shows on the marketplace once it is ready (price, payouts and a photo).',
@@ -107,6 +108,9 @@ const ERRORS: Record<string, string> = {
   missing_migration: `Not set up yet: run ${ACCOUNT_MIGRATION_FILE}.`,
   freeze_failed: 'The account could not be frozen. Nothing was changed.',
   unfreeze_failed: 'The account could not be unfrozen. It is still frozen.',
+  freeze_split:
+    'The account is banned, but the freeze could not be recorded and the ban could not be lifted. Freeze it again to record it, or lift the ban.',
+  unfreeze_split: 'The ban was lifted, but the records still say frozen and the ban could not be put back. Unfreeze again to finish.',
   no_listing: 'That listing could not be found on this account.',
   suspend_failed: 'The listing could not be suspended. Nothing was changed.',
   lift_failed: 'The listing could not be put back. It is still suspended.',
@@ -260,8 +264,8 @@ export default async function AccountPage({
         )}
         {bannedElsewhere && (
           <Notice tone="amber">
-            Supabase shows this account banned until {formatWhen(a.banned_until, true)}, but no freeze is on record. It was banned outside
-            the console.
+            Supabase shows this account banned until {formatWhen(a.banned_until, true)}, but no freeze is on record: it was banned outside
+            the console, or a freeze did not finish. Freeze it to record why, or lift the ban below.
           </Notice>
         )}
       </section>
@@ -403,6 +407,15 @@ export default async function AccountPage({
           )
         ) : (
           can('freeze') && (
+            <>
+            {bannedElsewhere && can('unfreeze') && (
+              <form action={unfreezeAccount}>
+                <input type="hidden" name="user_id" value={a.id} />
+                <button type="submit" className="rounded-full border border-teal-400 text-teal-200 px-5 py-2 text-sm hover:bg-teal-400/10">
+                  Lift the ban
+                </button>
+              </form>
+            )}
             <form action={freezeAccount} className="flex flex-col sm:flex-row gap-2 sm:items-end">
               <input type="hidden" name="user_id" value={a.id} />
               <label className="flex flex-col gap-1 flex-1 min-w-0">
@@ -413,6 +426,7 @@ export default async function AccountPage({
                 Freeze account
               </button>
             </form>
+            </>
           )
         )}
       </section>

@@ -203,7 +203,10 @@ create index if not exists account_action_requests_created_idx on public.account
 alter table public.account_action_requests enable row level security;
 revoke all on public.account_action_requests from anon;
 revoke all on public.account_action_requests from authenticated;
-grant insert on public.account_action_requests to authenticated;
+-- ⚠ Two columns only (Codex, #2326): the rest are the server's. A table-wide grant let a member
+-- write their own created_at and backdate a request ahead of the queue. Revoking the table
+-- privilege above also revokes column privileges, so a re-run lands on exactly these two.
+grant insert (user_id, action) on public.account_action_requests to authenticated;
 
 -- A member files their own request, open and unhandled; nothing else, and they read nothing back.
 drop policy if exists account_action_requests_insert_own on public.account_action_requests;
@@ -516,6 +519,13 @@ begin
   if exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'account_action_requests'
              and policyname <> 'account_action_requests_insert_own') then
     raise exception 'account_action_requests takes only the member''s own insert';
+  end if;
+  if has_table_privilege('authenticated', 'public.account_action_requests', 'insert')
+     or has_column_privilege('authenticated', 'public.account_action_requests', 'created_at', 'insert')
+     or has_column_privilege('authenticated', 'public.account_action_requests', 'status', 'insert')
+     or not has_column_privilege('authenticated', 'public.account_action_requests', 'user_id', 'insert')
+     or not has_column_privilege('authenticated', 'public.account_action_requests', 'action', 'insert') then
+    raise exception 'a member inserts only user_id and action into account_action_requests';
   end if;
   if has_table_privilege('authenticated', 'public.account_action_requests', 'select')
      or has_table_privilege('authenticated', 'public.account_action_requests', 'update')

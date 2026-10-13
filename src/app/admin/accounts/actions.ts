@@ -36,7 +36,7 @@ import { eraseAccount } from '@/lib/account-erasure';
 import { stripe } from '@/lib/stripe';
 
 type Db = ReturnType<typeof createAdminClient>;
-type Target = { id: string; email: string | null; email_confirmed_at: string | null };
+type Target = { id: string; email: string | null; email_confirmed_at: string | null; banned: boolean };
 type Role = 'trainer' | 'nutritionist';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -98,7 +98,13 @@ async function loadTarget(db: Db, staff: StaffMember, id: string, back: string):
     targetStaffLevel,
   });
   if (refusal) redirect(`${back}?error=refused_${refusal}`);
-  return { id: user.id, email: user.email ?? null, email_confirmed_at: user.email_confirmed_at ?? null };
+  const bannedUntil = Date.parse(String((user as { banned_until?: string | null }).banned_until ?? ''));
+  return {
+    id: user.id,
+    email: user.email ?? null,
+    email_confirmed_at: user.email_confirmed_at ?? null,
+    banned: Number.isFinite(bannedUntil) && bannedUntil > Date.now(),
+  };
 }
 
 async function openFreeze(db: Db, id: string, back: string): Promise<boolean> {
@@ -140,8 +146,12 @@ export async function freezeAccount(formData: FormData): Promise<void> {
   });
   const status = (data as { status?: string } | null)?.status;
   if (error || (status !== 'frozen' && status !== 'already')) {
-    await db.auth.admin.updateUserById(id, { ban_duration: 'none' });
+    const undo = await db.auth.admin.updateUserById(id, { ban_duration: 'none' });
     await finishActivity(db, log.id, 'failed');
+    // ⚠ Codex, #2326: a rollback that fails too leaves the account banned with no freeze on
+    // record. Say so; the account page offers both ways out (freeze again to record it, or lift
+    // the ban), since it reads the ban from Auth, not from the record.
+    if (undo.error) redirect(`${back}?error=freeze_split`);
     redirect(`${back}?error=${failure(error, 'freeze_failed')}`);
   }
   // 'already': another staff member froze it a moment earlier; theirs is the freeze on record.
@@ -159,7 +169,9 @@ export async function unfreezeAccount(formData: FormData): Promise<void> {
 
   const db = createAdminClient();
   const target = await loadTarget(db, staff, id, back);
-  if (!(await openFreeze(db, id, back))) redirect(`${back}?updated=not_frozen`);
+  // A ban with no freeze on record (a freeze whose rollback failed, or a ban set outside the
+  // console) is lifted here too; the records then have nothing to close ('not_frozen').
+  if (!(await openFreeze(db, id, back)) && !target.banned) redirect(`${back}?updated=not_frozen`);
 
   const log = await startActivity(db, staff, { action: 'account.unfreeze', targetUserId: id, targetEmail: target.email });
   if (log.error) redirect(`${back}?error=${log.error}`);
@@ -172,14 +184,17 @@ export async function unfreezeAccount(formData: FormData): Promise<void> {
   const { data, error } = await db.rpc('admin_unfreeze_account', { p_user: id, p_by_email: staff.email });
   const status = (data as { status?: string } | null)?.status;
   if (error || (status !== 'unfrozen' && status !== 'not_frozen')) {
-    await db.auth.admin.updateUserById(id, { ban_duration: FREEZE_BAN });
+    const reban = await db.auth.admin.updateUserById(id, { ban_duration: FREEZE_BAN });
     await finishActivity(db, log.id, 'failed');
-    redirect(`${back}?error=unfreeze_failed`);
+    // The records still say frozen; Unfreeze again finishes it.
+    redirect(`${back}?error=${reban.error ? 'unfreeze_split' : 'unfreeze_failed'}`);
   }
-  await finishActivity(db, log.id, status === 'unfrozen' ? 'done' : 'failed');
+  // 'not_frozen' after a ban with no record: the ban is lifted, which is the change asked for.
+  const lifted = status === 'unfrozen' || target.banned;
+  await finishActivity(db, log.id, lifted ? 'done' : 'failed');
 
   revalidatePath(back);
-  redirect(`${back}?updated=${status === 'unfrozen' ? 'unfrozen' : 'not_frozen'}`);
+  redirect(`${back}?updated=${status === 'unfrozen' ? 'unfrozen' : target.banned ? 'ban_lifted' : 'not_frozen'}`);
 }
 
 /** The listing named by the form, checked to belong to the account the form names. */

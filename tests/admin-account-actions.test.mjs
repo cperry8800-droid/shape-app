@@ -268,6 +268,11 @@ test('freeze: a failed record lifts the ban again, so nobody is locked out with 
   assert.deepEqual(changed(db), ['insert:admin_activity_log', 'ban:876000h', 'rpc:admin_freeze_account', 'ban:none', 'update:admin_activity_log']);
   assert.equal(db.users[BO].banned, false);
   assert.equal(logRows(db)[0].outcome, 'failed');
+  // Codex, #2326: a rollback that fails too is said, not reported as "nothing changed".
+  const split = world({ users: people(), fail: ['rpc:admin_freeze_account', 'ban:none'] });
+  assert.equal(await (await loadActions(split, SUPPORT)).run('freezeAccount', { user_id: BO, reason: 'abuse' }), `${page(BO)}?error=freeze_split`);
+  assert.equal(split.users[BO].banned, true);
+  assert.equal(logRows(split)[0].outcome, 'failed');
   const missing = world({ users: people(), rpcs: { admin_freeze_account: () => ({ status: 'missing' }) } });
   await (await loadActions(missing, SUPPORT)).run('freezeAccount', { user_id: BO, reason: 'abuse' });
   assert.ok(changed(missing).includes('ban:none'), 'an answer that is not a freeze is a failure too');
@@ -329,6 +334,9 @@ test('unfreeze: the ban lifted first, then the records; a failed record bans aga
   assert.deepEqual(changed(broken), ['insert:admin_activity_log', 'ban:none', 'rpc:admin_unfreeze_account', 'ban:876000h', 'update:admin_activity_log']);
   assert.equal(broken.users[BO].banned, true, 'the records still say frozen, and so does Auth');
 
+  const split = world({ users: people(), tables: frozen, fail: ['rpc:admin_unfreeze_account', 'ban:876000h'] });
+  assert.equal(await (await loadActions(split, SUPPORT)).run('unfreezeAccount', { user_id: BO }), `${page(BO)}?error=unfreeze_split`, 'a failed re-ban is said');
+
   const noUnban = world({ users: people(), tables: frozen, fail: ['ban:none'] });
   assert.equal(await (await loadActions(noUnban, SUPPORT)).run('unfreezeAccount', { user_id: BO }), `${page(BO)}?error=unfreeze_failed`);
   assert.ok(!changed(noUnban).includes('rpc:admin_unfreeze_account'), 'the records stay frozen while the ban does');
@@ -336,6 +344,17 @@ test('unfreeze: the ban lifted first, then the records; a failed record bans aga
   const notFrozen = world({ users: people() });
   assert.equal(await (await loadActions(notFrozen, SUPPORT)).run('unfreezeAccount', { user_id: BO }), `${page(BO)}?updated=not_frozen`);
   assert.deepEqual(changed(notFrozen), []);
+  const expired = world({ users: { ...people(), [BO]: { ...people()[BO], banned_until: '2001-01-01T00:00:00Z' } } });
+  assert.equal(await (await loadActions(expired, SUPPORT)).run('unfreezeAccount', { user_id: BO }), `${page(BO)}?updated=not_frozen`, 'a ban that has ended is no ban');
+});
+
+test('unfreeze: a ban with no freeze on record (a split freeze, or set outside the console) can be lifted', async () => {
+  const users = { ...people(), [BO]: { ...people()[BO], banned_until: '2126-10-13T00:00:00Z' } };
+  const db = world({ users, rpcs: { admin_unfreeze_account: () => ({ status: 'not_frozen' }) } });
+  assert.equal(await (await loadActions(db, SUPPORT)).run('unfreezeAccount', { user_id: BO }), `${page(BO)}?updated=ban_lifted`);
+  assert.deepEqual(changed(db), ['insert:admin_activity_log', 'ban:none', 'rpc:admin_unfreeze_account', 'update:admin_activity_log']);
+  assert.equal(logRows(db)[0].outcome, 'done', 'lifting the ban is the change asked for');
+  assert.equal(db.users[BO].banned, false);
 });
 
 // ── Listings ──────────────────────────────────────────────────────────────────────────────
@@ -408,7 +427,7 @@ test('remove: Admin and up; every subscription that can charge is cancelled, the
   assert.ok(db.calls.indexOf('insert:admin_activity_log') < db.calls.indexOf('erase'));
   assert.deepEqual(logRows(db)[0].details, { subscriptions: 3 });
   assert.equal(logRows(db)[0].outcome, 'done');
-  assert.deepEqual(a.erasures[0].user, { id: BO, email: 'bo@x.com', email_confirmed_at: '2026-10-01T00:00:00Z' });
+  assert.deepEqual(a.erasures[0].user, { id: BO, email: 'bo@x.com', email_confirmed_at: '2026-10-01T00:00:00Z', banned: false });
   assert.deepEqual(a.erasures[0].opts, { by: 'adm@shape.test' }, 'the audit row names who removed it');
 });
 
@@ -616,7 +635,9 @@ test('account page: no account, no migration, and a ban made outside the console
   assert.ok(missing.html.includes('2026-10-13-admin-account-actions.sql'));
   assert.equal(logRows(missing.db)[0].outcome, 'failed');
   const banned = (await renderAccount({ answer: () => ({ data: detail({ banned_until: '2999-01-01T00:00:00Z' }), error: null }) })).html;
-  assert.ok(banned.includes('banned outside the console'));
+  assert.ok(banned.includes('banned outside') && banned.includes('Lift the ban') && banned.includes('Freeze account'), 'both ways out of a split freeze');
+  assert.ok(!(await renderAccount()).html.includes('Lift the ban'), 'no ban, no button');
+  assert.ok((await renderAccount({ searchParams: { error: 'freeze_split' } })).html.includes('the ban could not be lifted'));
   assert.ok((await renderAccount({ searchParams: { updated: 'frozen' } })).html.includes('signed out everywhere'));
   assert.ok((await renderAccount({ searchParams: { error: 'billing_not_cancelled' } })).html.includes('was NOT removed'));
 });
@@ -713,6 +734,9 @@ test('migration: service role only, guarded, and the suspension column follows t
   assert.match(code, /exception when unique_violation then\n    return jsonb_build_object\('status', 'already'\);/, 'a concurrent freeze is "already", never an error that lifts the ban');
   assert.match(code, /if v_open\.source <> p_source then\n    return 'other_source';/);
   assert.match(code, /for insert to authenticated\n  with check \(\n    user_id = auth\.uid\(\)\n    and status = 'open'/);
+  assert.match(code, /grant insert \(user_id, action\) on public\.account_action_requests to authenticated;/, 'Codex, #2326: two columns, so created_at is the server’s');
+  assert.doesNotMatch(code, /grant insert on public\.account_action_requests/, 'never the whole table');
+  assert.match(code, /has_column_privilege\('authenticated', 'public\.account_action_requests', 'created_at', 'insert'\)/, 'the guard checks it');
   assert.equal((code.match(/create policy/g) ?? []).length, 1, 'the member’s own insert is the only policy');
   assert.match(code, /delete from auth\.refresh_tokens where user_id = p_user::text;\n  delete from auth\.sessions where user_id = p_user;/);
 });
