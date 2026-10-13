@@ -4,7 +4,7 @@
 import Link from 'next/link';
 import { headers } from 'next/headers';
 
-const HIDE_FOOTER_PREFIXES = ['/purchase', '/subscribe'];
+const HIDE_FOOTER_PREFIXES = ['/purchase', '/subscribe', '/connect'];
 
 export default async function Footer() {
   const pathname = (await headers()).get('x-pathname') ?? '';
