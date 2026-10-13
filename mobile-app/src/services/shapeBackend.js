@@ -4061,6 +4061,13 @@ async function connectProvider(provider, { returnTo = '/newdesign/GetApp.html' }
   if (!apiBaseUrl) {
     throw new Error('API backend URL is not configured. Set VITE_API_BASE_URL.');
   }
+  // ⚠ The installed app cannot start this flow yet. The authorize route reads the website's
+  // cookie session, the app's session lives in its own WebView, and the navigation leaves for
+  // the system browser, so a member sent there from the app lands on "sign in" (Codex, #2332).
+  // Until a native handoff exists the app refuses here, as it did while it had no API base.
+  if (_isNative) {
+    throw new Error('Connect WHOOP, Strava and Spotify from theshapecommunity.com for now.');
+  }
   if (!state.session?.access_token) {
     throw new Error('Sign in before connecting integrations.');
   }
