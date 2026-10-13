@@ -81,6 +81,10 @@ jobs:
         env:
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
           VITE_SHAPE_RELEASE: ${{ github.sha }}
+          # The installed app has no same origin to call (its WebView is https://localhost), so
+          # every /api call names the site; unset, apiBaseUrl in shapeBackend.js and apiBase() in
+          # push.js are '' and checkout, listings, push and the rest have nothing to call.
+          VITE_API_BASE_URL: https://theshapecommunity.com
           # ⚠ Without this the debug APK reports environment:'production', because
           # Vite's MODE is 'production' for any production build regardless of what
           # the artifact is for — PR/debug errors would be indistinguishable from
@@ -216,6 +220,8 @@ jobs:
         env:
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
           VITE_SHAPE_RELEASE: ${{ github.sha }}
+          # As in the debug job: the app's /api calls name the site.
+          VITE_API_BASE_URL: https://theshapecommunity.com
           # This is the signed build that actually ships, so it is genuinely
           # production — unlike the debug job above.
           VITE_SHAPE_ENV: production
