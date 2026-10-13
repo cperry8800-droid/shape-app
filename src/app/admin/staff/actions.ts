@@ -12,7 +12,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { getOwnerEmails, requireStaff } from '@/lib/admin-access';
+import { getEnvAdminEmails, getOwnerEmails, requireStaff } from '@/lib/admin-access';
 import { cleanStaffEmail, parseAssignableLevel } from '@/lib/staff-levels.mjs';
 import { finishActivity, startActivity } from '@/lib/admin-activity.mjs';
 
@@ -106,8 +106,9 @@ export async function removeStaffMember(formData: FormData): Promise<void> {
 
 /**
  * Takes a staff member's authenticator off (they lost their phone, or set it up on the wrong one)
- * and signs them out everywhere, so their next sign-in sets a new one up. Staff rows only: an
- * owner's two-factor is reset in the Supabase dashboard (Authentication → Users), never here.
+ * and signs them out everywhere, so their next sign-in sets a new one up. A staff row, or an
+ * ADMIN_EMAILS admin (Codex, #2329: they need the same way back). Never an owner: an owner's
+ * two-factor is reset in the Supabase dashboard (Authentication → Users).
  */
 export async function resetStaffTwoFactor(formData: FormData): Promise<void> {
   const owner = await requireStaff('owner');
@@ -121,7 +122,14 @@ export async function resetStaffTwoFactor(formData: FormData): Promise<void> {
     .eq('user_id', userId)
     .maybeSingle<{ email: string; level: string }>();
   if (readError) redirect(`${PAGE}?error=${MISSING_TABLE.has(String(readError.code)) ? 'missing_migration' : 'save_failed'}`);
-  if (!row) redirect(`${PAGE}?error=missing_member`);
+  let target = row;
+  if (!target) {
+    // No row: an ADMIN_EMAILS admin, read by their sign-in identity, or nobody this resets.
+    const { data: found } = await db.auth.admin.getUserById(userId);
+    const email = found?.user?.email?.toLowerCase() ?? '';
+    if (email && getEnvAdminEmails().includes(email) && !getOwnerEmails().includes(email)) target = { email, level: 'admin' };
+  }
+  if (!target) redirect(`${PAGE}?error=missing_member`);
 
   const { data: listed, error: listError } = await db.auth.admin.mfa.listFactors({ userId });
   if (listError) redirect(`${PAGE}?error=reset_failed`);
@@ -131,8 +139,8 @@ export async function resetStaffTwoFactor(formData: FormData): Promise<void> {
   const log = await startActivity(db, owner, {
     action: 'staff.reset_two_factor',
     targetUserId: userId,
-    targetEmail: row.email,
-    details: { level: row.level, factors: factors.length },
+    targetEmail: target.email,
+    details: { level: target.level, factors: factors.length },
   });
   if (log.error) redirect(`${PAGE}?error=${log.error}`);
 

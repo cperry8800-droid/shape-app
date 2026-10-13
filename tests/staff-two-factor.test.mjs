@@ -104,6 +104,9 @@ test('access: a password alone is not staff; the second factor is', async () => 
 
   const half = await access({ user: owner([{ id: 'f2', status: 'unverified', factor_type: 'totp' }]) });
   assert.equal((await half.getStaffSignIn()).twoFactor, 'enroll', 'a set-up never confirmed is not an authenticator');
+  // Codex, #2329: /staff-verify asks for an authenticator code, so a phone factor is not one.
+  const phone = await access({ user: owner([{ id: 'p1', status: 'verified', factor_type: 'phone' }]) });
+  assert.equal((await phone.getStaffSignIn()).twoFactor, 'enroll', 'a verified phone factor does not strand them on a code screen');
 
   const done = await access({ user: owner([verifiedFactor]), aal: 'aal2' });
   assert.equal((await done.getStaffSignIn()).twoFactor, 'verified');
@@ -205,7 +208,7 @@ test('/staff-verify: set up or enter a code; a visitor signs in first; anyone el
 });
 
 // ── The owner's reset ─────────────────────────────────────────────────────────────────────
-function staffWorld({ rows = [{ user_id: ANN, email: 'ann@x.com', level: 'support' }], factors = [{ id: 'f1', status: 'verified' }, { id: 'f2', status: 'unverified' }], fail = [] } = {}) {
+function staffWorld({ rows = [{ user_id: ANN, email: 'ann@x.com', level: 'support' }], factors = [{ id: 'f1', status: 'verified' }, { id: 'f2', status: 'unverified' }], fail = [], users = {} } = {}) {
   const calls = [];
   const log = [];
   const db = {
@@ -213,6 +216,7 @@ function staffWorld({ rows = [{ user_id: ANN, email: 'ann@x.com', level: 'suppor
     log,
     auth: {
       admin: {
+        getUserById: async (id) => { calls.push(`user:${id}`); return { data: { user: users[id] ? { id, ...users[id] } : null }, error: users[id] ? null : { status: 404 } }; },
         mfa: {
           listFactors: async ({ userId }) => { calls.push(`list:${userId}`); return fail.includes('list') ? { data: null, error: { message: 'down' } } : { data: { factors }, error: null }; },
           deleteFactor: async ({ id }) => { calls.push(`delete:${id}`); return { data: null, error: fail.includes(`delete:${id}`) ? { message: 'no' } : null }; },
@@ -260,6 +264,7 @@ async function reset(db, { level = 'owner', userId = ANN } = {}) {
       ['@/lib/supabase/admin', { createAdminClient: () => db }],
       ['@/lib/admin-access', {
         getOwnerEmails: () => [OWNER],
+        getEnvAdminEmails: () => ['ops@shape.test', OWNER],
         requireStaff: async (min) => { if (!levels.atLeast(level, min)) throw new Error('Admin access required.'); return { id: OWNER_ID, email: OWNER, level }; },
       }],
       ['@/lib/staff-levels.mjs', levels],
@@ -286,9 +291,11 @@ test('reset: only a staff row, only when there is something to reset, and a fail
   const none = staffWorld({ factors: [] });
   assert.equal(await reset(none), '/admin/staff?updated=no_two_factor');
   assert.ok(!none.calls.includes('insert:admin_activity_log'));
-  const owner = staffWorld({ rows: [] });
-  assert.equal(await reset(owner, { userId: OWNER_ID }), '/admin/staff?error=missing_member', 'an owner is never a row, so never reset here');
-  assert.deepEqual(owner.calls, ['select:staff_members']);
+  const owner = staffWorld({ rows: [], users: { [OWNER_ID]: { email: 'CPerry8800@gmail.com' } } });
+  assert.equal(await reset(owner, { userId: OWNER_ID }), '/admin/staff?error=missing_member', 'an owner is never reset here, even one also in ADMIN_EMAILS');
+  assert.deepEqual(owner.calls, ['select:staff_members', `user:${OWNER_ID}`]);
+  const member = staffWorld({ rows: [], users: { [ANN]: { email: 'ann@x.com' } } });
+  assert.equal(await reset(member), '/admin/staff?error=missing_member', 'nobody on the team');
   assert.equal(await reset(staffWorld(), { userId: 'nope' }), '/admin/staff?error=missing_member');
   const unread = staffWorld({ fail: ['list'] });
   assert.equal(await reset(unread), '/admin/staff?error=reset_failed');
@@ -296,6 +303,11 @@ test('reset: only a staff row, only when there is something to reset, and a fail
   const unlogged = staffWorld({ fail: ['log'] });
   assert.equal(await reset(unlogged), '/admin/staff?error=not_logged', 'a reset that cannot be logged does not run');
   assert.ok(!unlogged.calls.some((c) => c.startsWith('delete:') || c.startsWith('rpc:')), 'no factor removed, nobody signed out');
+  // Codex, #2329: an ADMIN_EMAILS admin has no row, and gets the same way back.
+  const ops = staffWorld({ rows: [], users: { [ANN]: { email: 'Ops@Shape.test' } } });
+  assert.equal(await reset(ops), '/admin/staff?updated=two_factor_reset');
+  assert.deepEqual(ops.log[0].details, { level: 'admin', factors: 2 });
+  assert.equal(ops.log[0].target_email, 'ops@shape.test');
   for (const f of ['delete:f2', 'rpc']) {
     const db = staffWorld({ fail: [f] });
     assert.equal(await reset(db), '/admin/staff?error=reset_failed', f);
@@ -307,8 +319,12 @@ test('the dashboard and the Staff page read the level and the authenticator, not
   const layout = stripComments(read('src/app/dashboard/layout.tsx'));
   assert.match(layout, /if \(isAdmin && verified\) \{/, 'service-role counts wait for the second factor');
   const page = stripComments(read('src/app/admin/staff/page.tsx'));
-  assert.match(page, /admin\.auth\.admin\.mfa\.listFactors\(\{ userId: r\.user_id \}\)/);
-  assert.match(page, /\{twoFactor && \(\n\s+<form action=\{resetStaffTwoFactor\}>/, 'reset is offered only when there is an authenticator');
+  assert.match(page, /admin\.auth\.admin\.mfa\.listFactors\(\{ userId \}\)/);
+  assert.match(page, /\.\.\.rows\.map\(\(r\) => readFactors\(r\.user_id\)\),/, 'every staff row is read');
+  assert.match(page, /\{twoFactor && resetId && \(\n\s+<form action=\{resetStaffTwoFactor\}>/, 'reset is offered only when there is an authenticator');
+  assert.match(page, /admin\.rpc\('admin_account_by_email', \{ p_email: email \}\)/, 'ADMIN_EMAILS admins are found by their sign-in identity');
+  assert.match(page, /resetId=\{envAdminIds\.get\(e\)\}/, 'and can be reset');
+  assert.doesNotMatch(page, /removeId=\{envAdminIds/, 'but not removed here: that is Vercel’s setting');
   const mw = stripComments(read('src/lib/supabase/middleware.ts'));
   assert.ok(mw.indexOf('isStaffPage(request.nextUrl.pathname)') < mw.indexOf('portalRoleForPath(request.nextUrl.pathname)'), 'the two-factor redirect runs before the portal gate');
 });

@@ -87,7 +87,9 @@ export async function getStaffSignIn(): Promise<StaffSignIn | null> {
   } catch {
     currentLevel = null;
   }
-  const verifiedFactors = (user.factors ?? []).filter((f) => f.status === 'verified').length;
+  // ⚠ Authenticator-app factors only (Codex, #2329): /staff-verify asks for a TOTP code, so a
+  // verified phone factor counted here would send someone to a code screen with nothing to verify.
+  const verifiedFactors = (user.factors ?? []).filter((f) => f.status === 'verified' && f.factor_type === 'totp').length;
   return { staff: { id: user.id, email, level }, twoFactor: twoFactorState({ currentLevel, verifiedFactors }) };
 }
 

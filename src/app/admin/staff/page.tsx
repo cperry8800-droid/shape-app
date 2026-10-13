@@ -57,22 +57,36 @@ export default async function StaffPage({
   const missing = Boolean(error && (error.code === '42P01' || error.code === 'PGRST205'));
   if (error && !missing) throw error;
   const rows = (data ?? []) as Row[];
-  // Whether each staff member has an authenticator set up. Best effort: an unread one shows
-  // nothing rather than a wrong answer.
+  const owners = getOwnerEmails();
+  const envAdmins = getEnvAdminEmails().filter((e) => !owners.includes(e));
+  // Whether each staff member has an authenticator set up: the rows, and the ADMIN_EMAILS admins
+  // by their sign-in identity (Codex, #2329: they need the same reset). Best effort: an unread
+  // one shows nothing rather than a wrong answer.
   const admin = createAdminClient();
   const twoFactor = new Map<string, boolean>();
-  await Promise.all(
-    rows.map(async (r) => {
+  const envAdminIds = new Map<string, string>();
+  const readFactors = async (userId: string) => {
+    try {
+      const { data: listed, error: listError } = await admin.auth.admin.mfa.listFactors({ userId });
+      if (!listError) twoFactor.set(userId, (listed?.factors ?? []).some((f) => f.status === 'verified'));
+    } catch {
+      /* unknown */
+    }
+  };
+  await Promise.all([
+    ...rows.map((r) => readFactors(r.user_id)),
+    ...envAdmins.map(async (email) => {
       try {
-        const { data: listed, error: listError } = await admin.auth.admin.mfa.listFactors({ userId: r.user_id });
-        if (!listError) twoFactor.set(r.user_id, (listed?.factors ?? []).some((f) => f.status === 'verified'));
+        const { data: found, error: lookupError } = await admin.rpc('admin_account_by_email', { p_email: email });
+        const id = (Array.isArray(found) ? found[0] : found)?.id as string | undefined;
+        if (lookupError || !id) return;
+        envAdminIds.set(email, id);
+        await readFactors(id);
       } catch {
         /* unknown */
       }
-    })
-  );
-  const owners = getOwnerEmails();
-  const envAdmins = getEnvAdminEmails().filter((e) => !owners.includes(e));
+    }),
+  ]);
 
   return (
     <div className="flex flex-col gap-8">
@@ -139,15 +153,22 @@ export default async function StaffPage({
         <h3 className="text-lg font-medium">The team</h3>
         <p className="text-sm text-neutral-500 max-w-2xl">
           Everyone signs in to the console with two-factor: the first time, they set up an authenticator app. If someone loses
-          theirs, Reset two-factor signs them out and they set up a new one. An owner&apos;s is reset in the Supabase dashboard
-          (Authentication → Users).
+          theirs, Reset two-factor signs them out and they set up a new one; that includes admins set in Vercel. An owner&apos;s
+          is reset in the Supabase dashboard (Authentication → Users).
         </p>
         <div className="rounded-xl border border-neutral-800 divide-y divide-neutral-900 bg-neutral-950">
           {owners.map((e) => (
             <Member key={`o-${e}`} email={e} level="owner" note="Set in code. Cannot be changed here." />
           ))}
           {envAdmins.map((e) => (
-            <Member key={`e-${e}`} email={e} level="admin" note="Set in Vercel (ADMIN_EMAILS). Change it there." />
+            <Member
+              key={`e-${e}`}
+              email={e}
+              level="admin"
+              note="Set in Vercel (ADMIN_EMAILS). Change it there."
+              resetId={envAdminIds.get(e)}
+              twoFactor={envAdminIds.has(e) ? twoFactor.get(envAdminIds.get(e) as string) : undefined}
+            />
           ))}
           {rows.map((r) => (
             <Member
@@ -155,7 +176,8 @@ export default async function StaffPage({
               email={r.email}
               level={r.level}
               note={`Added by ${r.added_by_email} on ${new Date(r.created_at).toLocaleDateString('en-US')}`}
-              userId={r.user_id}
+              removeId={r.user_id}
+              resetId={r.user_id}
               twoFactor={twoFactor.get(r.user_id)}
             />
           ))}
@@ -172,13 +194,15 @@ function Member({
   email,
   level,
   note,
-  userId,
+  removeId,
+  resetId,
   twoFactor,
 }: {
   email: string;
   level: StaffLevel;
   note: string;
-  userId?: string;
+  removeId?: string;
+  resetId?: string;
   twoFactor?: boolean;
 }) {
   return (
@@ -194,22 +218,24 @@ function Member({
           </div>
         )}
       </div>
-      {userId && (
+      {(removeId || (resetId && twoFactor)) && (
         <div className="flex gap-2 flex-wrap">
-          {twoFactor && (
+          {twoFactor && resetId && (
             <form action={resetStaffTwoFactor}>
-              <input type="hidden" name="user_id" value={userId} />
+              <input type="hidden" name="user_id" value={resetId} />
               <button type="submit" className="rounded-full border border-neutral-700 text-neutral-300 px-4 py-1.5 text-sm hover:border-amber-400 hover:text-amber-200 transition-colors">
                 Reset two-factor
               </button>
             </form>
           )}
-          <form action={removeStaffMember}>
-            <input type="hidden" name="user_id" value={userId} />
-            <button type="submit" className="rounded-full border border-neutral-700 text-neutral-300 px-4 py-1.5 text-sm hover:border-red-400 hover:text-red-200 transition-colors">
-              Remove
-            </button>
-          </form>
+          {removeId && (
+            <form action={removeStaffMember}>
+              <input type="hidden" name="user_id" value={removeId} />
+              <button type="submit" className="rounded-full border border-neutral-700 text-neutral-300 px-4 py-1.5 text-sm hover:border-red-400 hover:text-red-200 transition-colors">
+                Remove
+              </button>
+            </form>
+          )}
         </div>
       )}
     </div>
