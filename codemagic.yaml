@@ -72,6 +72,10 @@ workflows:
           # pipeline ships. Set it explicitly only if TestFlight betas should be
           # a separate Sentry environment from App Store releases.
           export VITE_SHAPE_RELEASE="${CM_COMMIT:-$(git rev-parse HEAD)}"
+          # The installed app has no same origin to call (its WebView is capacitor://localhost),
+          # so every /api call names the site. Unset, apiBaseUrl in shapeBackend.js and apiBase()
+          # in push.js are '' and checkout, listings, push and the rest have nothing to call.
+          export VITE_API_BASE_URL="https://theshapecommunity.com"
           npm run build
       - name: Capacitor sync iOS
         script: |
