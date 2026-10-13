@@ -394,7 +394,8 @@ function groupOf(p: string): string {
   if (p.startsWith('/api/auth') || p.startsWith('/api/me') || p.startsWith('/api/account')) return 'Auth & account';
   if (p.startsWith('/api/recipes')) return 'Content';
   if (p === '/api/contact' || p === '/api/app-waitlist') return 'Marketing & forms';
-  if (p === '/api/health' || p === '/api/warroom' || p.startsWith('/api/console') || p.startsWith('/api/admin')) return 'System';
+  if (p === '/api/health' || p === '/api/warroom' || p.startsWith('/api/console') || p.startsWith('/api/admin') ||
+      p.startsWith('/api/staff')) return 'System';
   // Remaining provider/marketplace plumbing.
   return 'Marketplace & providers';
 }
@@ -600,9 +601,8 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       section: 'Staff two-factor fixed, an Admin link on the website and the splash line — SHIPPED 2026-10-13 (#2339 -> e9c0e09, #2340 -> 883e6d1). No migrations',
       items: [
         { label: 'Staff two-factor works (#2340): #2329\'s /staff-verify read sign-in methods with a browser Supabase client, which has no session because the cookies are httpOnly, so every staff member saw "Your sign-in methods could not be read". POST /api/staff/two-factor (staff only) runs set-up and verify on the server, and a verified code writes the aal2 session to the cookies; a guard test fails if src/ imports the browser client again', status: 'done' },
-        { label: 'An Admin link for staff on the website (#2340): the header and the phone drawer show Admin to staff only, from /api/me/staff. Codex P2, fixed: the link overran the header, so data-staff moves the greeting (1240, or 1380 beside a switch pill), a switch account\'s tight gaps (1240) and its fold (1170) up, measured in Chromium in the real faces with 19px spare at the tightest', status: 'done' },
+        { label: 'An Admin link for staff on the website (#2340): the header and the phone drawer show Admin to staff only, from /api/me/staff (the owner\'s set-up is the "set up your authenticator" step in the admin console section; not tried live). Codex P2, fixed: the link overran the header, so data-staff moves the greeting (1240, or 1380 beside a switch pill), a switch account\'s tight gaps (1240) and its fold (1170) up, measured in Chromium in the real faces with 19px spare at the tightest', status: 'done' },
         { label: 'The website splash (#2339, owner: "have the splash page so Don\'t climb alone"): the line under the mark reads "Don\'t climb alone."', status: 'done' },
-        { label: 'OWNER — open /admin from the website (the Admin link in the header), set up the authenticator once, then enter its 6-digit code. The fixed two-factor has not been tried live', status: 'manual' },
         { label: 'The Radio page can ask a staff member for the code again: applyNavAuthState (public/supabase.js) copies the browser\'s own login into the cookies on load, and a login from before the code is the unverified one', status: 'pending' },
       ],
     },
