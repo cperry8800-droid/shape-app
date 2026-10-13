@@ -287,3 +287,13 @@ test('every active subscription is read, a page at a time', async () => {
   assert.equal(pages.length, 3)
   assert.ok(pages.every((p) => p.ops.some((o) => o[0] === 'order' && o[1] === 'id') && p.ops.some((o) => o[0] === 'limit' && o[1] === 1000)))
 })
+
+test('a failed subscriptions read leaves every roster outcome unknown, not 0 or "no trends"', async () => {
+  const { body } = await loadRoute('trainer', roster(), { errors: { subscriptions: 'timeout' }, rpcs: lifts({}) })
+  const cp = body.clientProgress
+  assert.deepEqual([cp.activeClients, cp.workouts30d, cp.workouts7d, cp.prs30d, cp.avgAdherencePct, cp.weightsUnknown], [null, null, null, null, null, true])
+  assert.equal(body.ticker.workouts7d, null)
+  // And a roster that really is empty still reads as zero.
+  const none = await loadRoute('trainer', roster({ subscriptions: [] }), { rpcs: lifts({}) })
+  assert.deepEqual([none.body.clientProgress.workouts30d, none.body.clientProgress.prs30d, none.body.clientProgress.weightsUnknown], [0, 0, false])
+})
