@@ -345,6 +345,7 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/recipes/reviews', 'GET,POST'],
   ['/api/sessions/manage', 'GET,POST'],
   ['/api/sessions/request', 'POST'],
+  ['/api/staff/two-factor', 'POST'],
   ['/api/support/chat', 'GET,POST'],
   ['/api/support/request', 'POST'],
   ['/api/store/redeem', 'GET,POST'],
@@ -393,7 +394,8 @@ function groupOf(p: string): string {
   if (p.startsWith('/api/auth') || p.startsWith('/api/me') || p.startsWith('/api/account')) return 'Auth & account';
   if (p.startsWith('/api/recipes')) return 'Content';
   if (p === '/api/contact' || p === '/api/app-waitlist') return 'Marketing & forms';
-  if (p === '/api/health' || p === '/api/warroom' || p.startsWith('/api/console') || p.startsWith('/api/admin')) return 'System';
+  if (p === '/api/health' || p === '/api/warroom' || p.startsWith('/api/console') || p.startsWith('/api/admin') ||
+      p.startsWith('/api/staff')) return 'System';
   // Remaining provider/marketplace plumbing.
   return 'Marketplace & providers';
 }
@@ -596,6 +598,15 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Staff two-factor fixed, an Admin link on the website and the splash line — SHIPPED 2026-10-13 (#2339 -> e9c0e09, #2340 -> 883e6d1). No migrations',
+      items: [
+        { label: 'Staff two-factor works (#2340): #2329\'s /staff-verify read sign-in methods with a browser Supabase client, which has no session because the cookies are httpOnly, so every staff member saw "Your sign-in methods could not be read". POST /api/staff/two-factor (staff only) runs set-up and verify on the server, and a verified code writes the aal2 session to the cookies; a guard test fails if src/ imports the browser client again', status: 'done' },
+        { label: 'An Admin link for staff on the website (#2340): the header and the phone drawer show Admin to staff only, from /api/me/staff (the owner\'s set-up is the "set up your authenticator" step in the admin console section; not tried live). Codex P2, fixed: the link overran the header, so data-staff moves the greeting (1240, or 1380 beside a switch pill), a switch account\'s tight gaps (1240) and its fold (1170) up, measured in Chromium in the real faces with 19px spare at the tightest', status: 'done' },
+        { label: 'The website splash (#2339, owner: "have the splash page so Don\'t climb alone"): the line under the mark reads "Don\'t climb alone."', status: 'done' },
+        { label: 'The Radio page can ask a staff member for the code again: applyNavAuthState (public/supabase.js) copies the browser\'s own login into the cookies on load, and a login from before the code is the unverified one', status: 'pending' },
+      ],
+    },
+    {
       section: 'Suspended coaches and connecting apps from the installed app — SHIPPED 2026-10-13 (#2336 -> 22445a3, #2337 -> 465ad92). No migrations',
       items: [
         { label: 'A suspended coach is told (#2336, owner: "suspended until futher review"): /api/coach/listing reports suspended, and the website\'s Business notice and Profile rates card and the app\'s Me notice say "Your listing is suspended until further review. Members can\'t find or subscribe to you while it is.", with no setup steps; two strings in 13 locales', status: 'done' },
@@ -613,7 +624,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'The console at /admin (#2325): Overview totals (people, money, coach applications, listings, consultations, Shape Score, activity, sign-up lists, sign-ups by source, the week\'s birthdays and anniversaries, Score tiers, four 30-day charts and the funnel); Coaches and Members pages with per-person progress, counts only (no health value is read); Staff (owner only) at Admin, Support or Analyst; an activity log of every staff change and Nora help-desk lookup. Levels in src/lib/staff-levels.mjs: Owner > Admin > Support > Analyst, and an Analyst sees totals only', status: 'done' },
         { label: 'Sign-ups by source (#2325): the link\'s utm tags, the referring domain, the landing page, a coach referral and website or app, saved with each new account by every sign-up path; the first link remembered on the device for 90 days under the consent rule (src/lib/signup-source.mjs and its classic copy public/signup-source.js). The root redirect no longer drops a link\'s tags. Accounts made before 2026-10-13 read "not recorded"', status: 'done' },
         { label: 'Account actions (#2326): an account page logged before it reads; freeze and unfreeze (a Supabase Auth ban plus the record; a failed record lifts the ban again, and when that lift fails too the account stays banned with no freeze record, the page says so (freeze_split) and offers Lift the ban); suspend and put back a coach listing (suspended_at, which the coach cannot write and which keeps the listing off the marketplace); remove an account (every Stripe subscription that can still charge cancelled first, then the member\'s own erasure, src/lib/account-erasure.ts); the Pause, Export and Delete requests queue at /admin/requests (the table /api/me/account-action wrote to never existed until now)', status: 'done' },
-        { label: 'Two-factor for staff (#2329): every staff page and action needs a session that passed an authenticator code (aal2, TOTP factors only); /staff-verify sets it up once and asks for the code at each sign-in; an owner can reset a staff member\'s two-factor, ADMIN_EMAILS admins included', status: 'done' },
+        { label: 'Two-factor for staff (#2329): every staff page and action needs a session that passed an authenticator code (aal2, TOTP factors only); /staff-verify sets it up once and asks for the code at each sign-in (its page could not read the session until #2340 moved the steps to the server); an owner can reset a staff member\'s two-factor, ADMIN_EMAILS admins included', status: 'done' },
         { label: 'The app\'s admin door (#2330): Settings -> Shape admin, shown to staff only, opens /admin in the system browser; GET /api/me/staff answers the level and grants nothing; four strings in 13 locales', status: 'done' },
         { label: 'The installed app\'s API base (#2332): both native pipelines (android-build.yml, codemagic.yaml) set VITE_API_BASE_URL to https://theshapecommunity.com, so every /api call in a native build has a server to reach. The Connect WHOOP, Strava and Spotify buttons refused in the installed app, because their authorize route reads the website\'s cookie session, until #2337 connected them through the in-app browser', status: 'done' },
         { label: 'Privacy policy (#2334): it names how someone found Shape (kept with the account and seen by the team) and birthdays and anniversaries (month and day only). The cookie banner, the app\'s usage-stats gate and the sign-up source capture share one EEA and UK zone list (CONSENT_REGION_RE): every Europe/* zone plus the Canaries, Madeira, the Azores, Ceuta, Cyprus, Iceland and France\'s outermost regions', status: 'done' },

@@ -847,6 +847,24 @@ Everything older, newest-first: [2026-10](WORKLOG-ARCHIVE-2026-10.md) ·
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-10-13 — Staff two-factor works; an Admin link on the website for staff; the splash reads "Don't climb alone."
+
+- **Two PRs merged on 2026-10-13**, each on CI green on its final head, each merged tree byte-identical to it. No migrations.
+  - [#2339](https://github.com/cperry8800-droid/shape-app/pull/2339) `e9c0e09`, final head `6b30223`.
+  - [#2340](https://github.com/cperry8800-droid/shape-app/pull/2340) `883e6d1`, final head `dc76dfa`.
+- **The splash (#2339).** The owner: *"have the splash page so "Don't climb alone", not you dont climb alone"*, *"on website"*. The line under the mark in `public/newdesign/index.html` reads **"Don't climb alone."**, "alone." still in teal; `tests/homepage-splash.test.mjs` pins it and the spec gained a mutation that puts the old line back. Codex: no findings.
+- **Two-factor (#2340).** The owner, on `/staff-verify`: *"this isn't working"*; the page said *"Your sign-in methods could not be read"*.
+  - ⚠ **#2329'S PAGE COULD NEVER HAVE WORKED.** It called `mfa.listFactors()` with a browser Supabase client, and the site's session cookies are `httpOnly` (`src/lib/supabase/cookie-options.ts`), so that client never had a session. Its test only matched the page's source text. `POST /api/staff/two-factor` (staff only, else 404) runs set-up and verify with the server client, and a verified code writes the aal2 session to the cookies (`@supabase/ssr` saves on `MFA_CHALLENGE_VERIFIED`); a set-up clears only an abandoned set-up, never a confirmed authenticator. A guard test fails if anything under `src/` imports the browser client while the cookies are `httpOnly`.
+  - The owner asked to reach the console from the website login, then chose to keep two-factor for themselves: *"you can still add 2 factor authentication for me, but just 1 time"*. The authenticator is set up once, then one code per sign-in.
+- **The Admin link (#2340).** The website header and the phone drawer show **Admin** to staff only, from `/api/me/staff` (read once per account per tab, grants nothing).
+  - ⚠ **CODEX'S P2: THE LINK OVERRAN THE HEADER FOR STAFF.** Measured in Chromium in the real faces, 1px from 1440 to 1016: it costs 39px (49 beside a switch pill); a 150px name overhung at 1202, beside the Nutritionist pill at 1350, and that pill at the tight gaps from 1152 down to the 1120 fold (3px left at the loose gaps just above 1200). `data-staff`, stamped by the level that renders the link, moves each rule up: the greeting at 1240 (1380 beside a pill), a switch account's tight gaps from 1240, its fold at 1170. Re-swept on nine account shapes: no overhang, 19px spare at the tightest, non-staff rows unchanged. `tests/site-nav.test.mjs` pins the hook and the rules' order.
+- **Verified:** `tests/staff-two-factor.test.mjs` (17); `site-nav` 39/39; mutations `staff-two-factor-2026-10-13` **33/33**, `--fail-on-skipped`, restored byte-identical; `tsc` clean; 45 suites (659 tests) on the first head and the 41 that read `pageShell.jsx` (570) on the fix. Commits skipped the pre-commit hook under the small-commit rule; CI ran everything.
+- **Written after the merges, and last**, per the owner.
+- ⚠ **REGISTERED, NOT DONE:**
+  - **Owner:** open `/admin`, set up the authenticator once, then enter a code. Not tried live.
+  - The Radio page can ask for the code again: `applyNavAuthState` (`public/supabase.js`) copies the browser's own login into the cookies on load, and a login from before the code is the unverified one, so it can replace the verified cookie session.
+  - No recovery codes for staff two-factor (as before).
+
 ### 2026-10-13 — Suspended coaches told so; WHOOP, Strava, Spotify and Apple Music connect from the installed app
 
 - **Two PRs merged on 2026-10-13**, each on CI green on its final head. The owner: *"suspended until futher review"* (on the open decision about suspended coaches), *"build the native handoff for whoop strava spotify"*, *"make apple music is inlcuded"*, *"they all have APIs"*, then *"merge it"*, *"or run coderabbit"* and *"merge once green"*.
