@@ -8324,15 +8324,17 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
   const [showNotifications, setShowNotifications] = useStateBSP(false);
   const [showSoundtracks, setShowSoundtracks] = useStateBSP(false);
   const [showRates, setShowRates] = useStateBSP(false);
-  // The signed-in coach's own listing for this role (null: signed out, or not approved yet).
+  // The signed-in coach's own listing for this role (null: signed out, or not approved yet). Read
+  // again when the photo sheet closes, since a photo can be the step that lists them.
   const [myListing, setMyListing] = useStateBSP(null);
+  const [listingReads, setListingReads] = useStateBSP(0);
   useEffectBSP(() => {
     const get = typeof window !== 'undefined' && window.ShapeCoachListing && window.ShapeCoachListing.getMine;
     if (!get) return undefined;
     let on = true;
     get().then((list) => { if (on && Array.isArray(list)) setMyListing(list.find((l) => l.role === role) || null); }).catch(() => {});
     return () => { on = false; };
-  }, [role]);
+  }, [role, listingReads]);
   const scoreProfile = _bsUseLiveScore(SHAPE_SCORE_PROFILES?.[role] || SHAPE_SCORE_PROFILES?.client); // live points/tier when signed in
   const startPayoutSetup = async () => {
     try {
@@ -8538,7 +8540,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
           <div style={{ padding: `4px ${t.padX}px 8px` }}>
             {head('YOUR PRACTICE', 'Shortcuts', 22)}
             {showOfferEditor && <BSProMonthlyOfferSheet role={isCoach ? 'trainer' : 'nutritionist'} accent={accent} onClose={() => setShowOfferEditor(false)} />}
-            {showListingMedia && <BSProListingMediaSheet role={isCoach ? 'trainer' : 'nutritionist'} accent={accent} onClose={() => setShowListingMedia(false)} />}
+            {showListingMedia && <BSProListingMediaSheet role={isCoach ? 'trainer' : 'nutritionist'} accent={accent} onClose={() => { setShowListingMedia(false); setListingReads((n) => n + 1); }} />}
             <div style={{ marginTop: 8 }}>{shortcuts.map((it, i) => numRow(it, i, accent))}</div>
             {head('ACCOUNT', 'Settings', 26)}
             <div style={{ marginTop: 8 }}>{settings.map((it, i) => numRow(it, i, t.INK50))}</div>

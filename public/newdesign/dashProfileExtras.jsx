@@ -188,6 +188,23 @@ function CoachListingRatesCard() {
     return () => { on = false; };
   }, [role, reloadKey]);
 
+  // A photo saved in the card below can make the listing ready: read the readiness again, leaving
+  // the rates as typed (a coach can be mid-edit here).
+  React.useEffect(() => {
+    let on = true;
+    const onChanged = () => {
+      fetch("/api/coach/listing", { credentials: "same-origin", cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          const listing = d && ((d.listings || []).find((l) => l.role === role) || null);
+          if (on && listing) setState((s) => ({ ...s, listing }));
+        })
+        .catch(() => {});
+    };
+    window.addEventListener("shape:listing-changed", onChanged);
+    return () => { on = false; window.removeEventListener("shape:listing-changed", onChanged); };
+  }, [role]);
+
   const save = async () => {
     if (busy) return;
     setBusy(true); setMsg("");
@@ -362,6 +379,8 @@ function CoachListingMediaCard() {
       if (error) throw error;
       if (!rows || !rows.length) throw new Error("Your coach listing was not found.");
       flash("Listing saved ✓");
+      // A photo can be the last step to the marketplace; the Rates card above re-reads the listing.
+      try { window.dispatchEvent(new Event("shape:listing-changed")); } catch (_) {}
     } catch (e) { flash((e && e.message) || "Could not save — try again."); }
     finally { setBusy(false); }
   };

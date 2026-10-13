@@ -111,6 +111,10 @@ const DBZ_DEMO_OUTCOMES = {
   },
 };
 
+// The trainer route sends null for a figure it could not read (or has nothing to measure); it
+// reads "—", never 0, which is a measurement.
+const dbzFig = (v, suffix = "") => (v == null ? "—" : String(v) + suffix);
+
 const DBZ_ROLES = {
   trainer: {
     accent: "var(--sh-rust2, #c0533b)",
@@ -118,13 +122,13 @@ const DBZ_ROLES = {
     api: "/api/trainer/analytics",
     okKey: "isTrainer",
     outcomeCards: (cp) => [
-      { k: String(cp.activeClients ?? 0), l: "Active clients", sub: "with an active plan" },
-      { k: String(cp.workouts30d ?? 0), l: "Workouts logged", sub: (cp.workouts7d ?? 0) + " this week" },
-      { k: (cp.avgAdherencePct ?? 0) + "%", l: "Avg adherence", sub: "vs 4 sessions/wk target" },
-      { k: String(cp.prs30d ?? 0), l: "PRs hit", sub: "across roster, last 30d" },
+      { k: dbzFig(cp.activeClients), l: "Active clients", sub: "with an active plan" },
+      { k: dbzFig(cp.workouts30d), l: "Workouts logged", sub: cp.workouts7d == null ? "couldn't be read" : cp.workouts7d + " this week" },
+      { k: dbzFig(cp.avgAdherencePct, "%"), l: "Avg adherence", sub: "vs 4 sessions/wk target" },
+      { k: dbzFig(cp.prs30d), l: "PRs hit", sub: "lifts beaten, last 30d" },
     ],
     consistentLabel: "Most consistent · 30d",
-    consistentValue: (r) => ({ n: r.workouts30d || 0, unit: "workouts" }),
+    consistentValue: (r) => ({ n: dbzFig(r.workouts30d), unit: "workouts" }),
     consistentSort: (a, b) => (b.workouts30d || 0) - (a.workouts30d || 0),
   },
   nutritionist: {

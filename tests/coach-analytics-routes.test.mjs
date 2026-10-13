@@ -22,27 +22,36 @@ const require_ = createRequire(join(ROOT, 'package.json'))
 const nextServer = require_('next/server')
 const COACH = { id: '33333333-3333-4333-8333-333333333333' }
 
-// Every table read answers from `tables`; any chain of filters is accepted.
-function fakeSupabase(tables) {
+// Every table read answers from `tables` (or `errors`); any chain of filters is accepted, and
+// recorded. `rpc` answers from `rpcs[name](args)`.
+function fakeSupabase(tables, { errors = {}, rpcs = {} } = {}) {
   const reads = []
+  const calls = []
   const from = (table) => {
     reads.push(table)
+    const call = { table, ops: [] }
+    calls.push(call)
     const rows = tables[table] ?? []
-    const result = { data: rows, error: null, count: rows.length }
+    const result = errors[table] ? { data: null, error: { message: errors[table] }, count: null } : { data: rows, error: null, count: rows.length }
     const q = new Proxy({}, {
       get(_t, prop) {
         if (prop === 'then') return (res, rej) => Promise.resolve(result).then(res, rej)
         if (prop === 'maybeSingle' || prop === 'single') return () => Promise.resolve({ data: rows[0] ?? null, error: null })
-        return () => q
+        return (...args) => { call.ops.push([prop, ...args]); return q }
       },
     })
     return q
   }
-  return { reads, client: { from, auth: { getUser: async () => ({ data: { user: COACH } }) } } }
+  const rpc = async (name, args) => {
+    calls.push({ rpc: name, args })
+    const answer = rpcs[name]
+    return answer ? answer(args) : { data: null, error: null }
+  }
+  return { reads, calls, client: { from, rpc, auth: { getUser: async () => ({ data: { user: COACH } }) } } }
 }
 
-async function loadRoute(role, tables) {
-  const db = fakeSupabase(tables)
+async function loadRoute(role, tables, opts) {
+  const db = fakeSupabase(tables, opts)
   // origin-attribution names the server client in a type-only import; the loader still maps it.
   const ts = (p) => loadRealModule(join(ROOT, p), { typescript: true, registry: new Map([['@/lib/supabase/server', {}]]) })
   const route = await loadRealModule(join(ROOT, `src/app/api/${role}/analytics/route.ts`), {
@@ -58,7 +67,7 @@ async function loadRoute(role, tables) {
     ]),
   })
   const res = await route.GET(new Request(`https://shape.test/api/${role}/analytics`))
-  return { body: await res.json(), reads: db.reads }
+  return { body: await res.json(), reads: db.reads, calls: db.calls }
 }
 
 test('a trainer reads the trainer analytics: their listing, their roster\'s workouts and PRs', async () => {
@@ -87,4 +96,67 @@ test('the two routes are not one file', () => {
   assert.notEqual(t, n)
   assert.match(t, /\.from\('trainers'\)\s+\.select\('id, stripe_account_id, stripe_account_status'\)/)
   assert.match(t, /return NextResponse\.json\(\{ isTrainer: false \}\);/)
+})
+
+// ── Codex on #2324: the restored route's own figures ───────────────────────
+const A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+const B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+const sub = (client_id, price_cents = 10000) => ({ client_id, price_cents, fee_bps: 1500, status: 'active', created_at: '2026-09-01T00:00:00Z' })
+const recent = new Date(Date.now() - 2 * 86400000).toISOString()
+const roster = (over = {}) => ({
+  trainers: [{ id: 7, stripe_account_id: null, stripe_account_status: null }],
+  subscriptions: [sub(A), sub(B)],
+  workout_sessions: [{ client_id: A, started_at: recent, status: 'completed' }, { client_id: A, started_at: recent, status: 'reviewed' }],
+  // Ordinary sets: none of them is a PR.
+  workout_set_logs: Array.from({ length: 30 }, () => ({ client_id: A, created_at: recent, completed: true })),
+  ...over,
+})
+const lifts = (prs) => ({ get_client_lifts: async ({ p_user_id }) => ({ data: { prs: prs[p_user_id] ?? 0, keyLifts: [] }, error: null }) })
+
+test('PRs are lifts beaten, from get_client_lifts per client, never sets logged', async () => {
+  const { body, calls } = await loadRoute('trainer', roster(), { rpcs: lifts({ [A]: 2, [B]: 1 }) })
+  assert.equal(body.clientProgress.prs30d, 3)
+  assert.deepEqual(body.clientProgress.roster.map((r) => [r.client_id, r.prs30d]).sort(), [[A, 2], [B, 1]])
+  assert.deepEqual(calls.filter((c) => c.rpc === 'get_client_lifts').map((c) => c.args.p_user_id).sort(), [A, B])
+  assert.ok(!calls.some((c) => c.table === 'workout_set_logs'), 'the set logs are not read as PRs')
+  // One client's call failing leaves the total unknown, not short.
+  const failed = await loadRoute('trainer', roster(), { rpcs: { get_client_lifts: async ({ p_user_id }) => (p_user_id === B ? { data: null, error: { message: 'x' } } : { data: { prs: 2 }, error: null }) } })
+  assert.equal(failed.body.clientProgress.prs30d, null)
+  assert.equal(failed.body.clientProgress.roster.find((r) => r.client_id === B).prs30d, null)
+  assert.equal(failed.body.clientProgress.roster.find((r) => r.client_id === A).prs30d, 2)
+  // A refused call (not this coach's client) answers null: unknown too.
+  const refused = await loadRoute('trainer', roster(), { rpcs: { get_client_lifts: async () => ({ data: null, error: null }) } })
+  assert.equal(refused.body.clientProgress.prs30d, null)
+})
+
+test('a reviewed session is a workout, and a failed workouts read is unknown, not zero', async () => {
+  const { body, calls } = await loadRoute('trainer', roster(), { rpcs: lifts({}) })
+  const ws = calls.find((c) => c.table === 'workout_sessions')
+  assert.deepEqual(ws.ops.find((o) => o[0] === 'in' && o[1] === 'status'), ['in', 'status', ['completed', 'reviewed']])
+  assert.equal(body.clientProgress.workouts30d, 2)
+  const failed = await loadRoute('trainer', roster(), { errors: { workout_sessions: 'timeout' }, rpcs: lifts({}) })
+  const cp = failed.body.clientProgress
+  assert.deepEqual([cp.workouts30d, cp.workouts7d, cp.avgAdherencePct], [null, null, null])
+  assert.ok(cp.roster.every((r) => r.workouts30d === null && r.workouts7d === null))
+  assert.equal(failed.body.ticker.workouts7d, null)
+  assert.equal(cp.activeClients, 2, 'what was read is still reported')
+})
+
+test('two subscription rows for one client are one client; the revenue keeps both', async () => {
+  const { body } = await loadRoute('trainer', roster({ subscriptions: [sub(A), sub(A, 5000)] }), { rpcs: lifts({ [A]: 1 }) })
+  assert.equal(body.clientProgress.activeClients, 1)
+  assert.equal(body.clientProgress.roster.length, 1)
+  assert.equal(body.clientProgress.prs30d, 1, 'not counted twice')
+  assert.equal(body.clientProgress.workouts30d, 2, 'not counted twice')
+  assert.equal(body.metrics.mrrGrossCents, 15000)
+})
+
+test('the Business cards print an unread figure as a dash, never as 0', () => {
+  const src = readFileSync(join(ROOT, 'public/newdesign/dashBusiness.jsx'), 'utf8')
+  const start = src.indexOf('const dbzFig =')
+  const dbzFig = new Function(`${src.slice(start, src.indexOf('\n', start))}\nreturn dbzFig;`)()
+  assert.deepEqual([dbzFig(null), dbzFig(undefined), dbzFig(0), dbzFig(88, '%'), dbzFig(null, '%')], ['—', '—', '0', '88%', '—'])
+  const trainer = src.slice(src.indexOf('  trainer: {', start), src.indexOf('  nutritionist: {', start))
+  assert.doesNotMatch(trainer, /\?\? 0/, 'no trainer figure falls back to 0')
+  assert.match(trainer, /k: dbzFig\(cp\.prs30d\), l: "PRs hit"/)
 })

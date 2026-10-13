@@ -16,6 +16,30 @@ import { buildTrajectory } from '@/lib/coach-trajectory.mjs';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+// ⚠ A PR IS A LIFT BEATEN, NOT A SET LOGGED. This counted every completed row of
+// workout_set_logs, so a roster's ordinary sets (dozens a workout) were reported as
+// "PRs hit". The count is now the one the coach app shows on each client: get_client_lifts'
+// `prs`, the moves whose best in the last 30 days beats their best in the 30–90 days
+// before. It runs as the trainer (is_coach_on_client), eight clients at a time; a failed or
+// refused call leaves that client's count unknown (null), never 0.
+async function clientPrs(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  clientIds: string[],
+): Promise<Map<string, number | null>> {
+  const prs = new Map<string, number | null>();
+  for (let i = 0; i < clientIds.length; i += 8) {
+    const batch = clientIds.slice(i, i + 8);
+    const results = await Promise.all(batch.map((id) => supabase.rpc('get_client_lifts', { p_user_id: id })));
+    batch.forEach((id, j) => {
+      const { data, error } = results[j];
+      const n = data && typeof data === 'object' ? Number((data as { prs?: unknown }).prs) : NaN;
+      if (error) console.warn('[shape-app] trainer analytics: get_client_lifts failed — that client\'s PRs render as unknown:', error.message);
+      prs.set(id, !error && Number.isInteger(n) && n >= 0 ? n : null);
+    });
+  }
+  return prs;
+}
+
 export async function GET() {
   const supabase = await createClient();
   const {
@@ -58,7 +82,10 @@ export async function GET() {
   }
   const subsUnknown = !!subErr;
   const subs = subRows ?? [];
-  const activeClients = subsUnknown ? null : subs.length;
+  // One client is one client, however many active rows they hold with this trainer (nothing in the
+  // schema stops two): the revenue sums below keep every row, the counts and the roster do not.
+  const clientIds = [...new Set(subs.map((r: { client_id: string }) => r.client_id).filter(Boolean))] as string[];
+  const activeClients = subsUnknown ? null : clientIds.length;
 
   // Churn (Business page): canceled subscriptions, newest first. There is no
   // cancellation survey yet, so exit reasons are always null — the UI says so
@@ -108,7 +135,6 @@ export async function GET() {
       sum + coachCutCents(r.price_cents ?? 0, bpsToRate(r.fee_bps ?? 1500)),
     0
   );
-  const clientIds = subs.map((r: { client_id: string }) => r.client_id).filter(Boolean);
 
   // BYO origin labels (rails #1794, Business page): filled by the roster
   // block's ONE profiles lookup; byOrigin is built after it (below).
@@ -154,19 +180,21 @@ export async function GET() {
   const since30Date = since30Iso.slice(0, 10);
   const since7Iso = new Date(Date.now() - 7 * 86400000).toISOString();
 
+  // ⚠ A FIGURE THAT COULD NOT BE READ IS NULL, NOT 0. `data || []` turned a failed read into a
+  // roster that did no work, and the Business page printed it as a measurement.
   type RosterRow = {
     client_id: string;
-    workouts30d: number;
-    workouts7d: number;
+    workouts30d: number | null;
+    workouts7d: number | null;
     weightStart: number | null;
     weightLatest: number | null;
     weightChangeLb: number | null;
-    prs30d: number;
+    prs30d: number | null;
   };
   const roster: RosterRow[] = [];
-  let totalWorkouts30d = 0;
-  let totalWorkouts7d = 0;
-  let totalPrs30d = 0;
+  let totalWorkouts30d: number | null = 0;
+  let totalWorkouts7d: number | null = 0;
+  let totalPrs30d: number | null = 0;
   let adherenceNum = 0;
   let adherenceDen = 0;
 
@@ -179,12 +207,13 @@ export async function GET() {
     // subscriptions policy), so it's safe to read their workout aggregates
     // with the service-role client, constrained to exactly those clients.
     const admin = createAdminClient();
-    const [workoutRes, snapRes, prRes, namesRes] = await Promise.all([
+    const [workoutRes, snapRes, prsByClient, namesRes] = await Promise.all([
       admin
         .from('workout_sessions')
         .select('client_id, started_at, status')
         .in('client_id', clientIds)
-        .eq('status', 'completed')
+        // A reviewed session is a finished one the coach has looked at (get_client_lifts counts both).
+        .in('status', ['completed', 'reviewed'])
         .gte('started_at', since30Iso),
       supabase
         .from('daily_health_snapshot')
@@ -192,17 +221,16 @@ export async function GET() {
         .in('user_id', clientIds)
         .gte('snapshot_date', since30Date)
         .order('snapshot_date', { ascending: true }),
-      admin
-        .from('workout_set_logs')
-        .select('client_id, created_at, completed')
-        .in('client_id', clientIds)
-        .eq('completed', true)
-        .gte('created_at', since30Iso),
+      clientPrs(supabase, clientIds),
       supabase
         .from('profiles')
         .select('id, full_name')
         .in('id', clientIds),
     ]);
+    const workoutsUnknown = !!workoutRes.error;
+    if (workoutsUnknown) {
+      console.warn('[shape-app] trainer analytics: workout sessions read failed — workouts and adherence render as unknown:', workoutRes.error?.message);
+    }
 
     const workoutsByClient = new Map<string, { wk30: number; wk7: number }>();
     for (const r of workoutRes.data || []) {
@@ -222,31 +250,29 @@ export async function GET() {
       weightsByClient.set(k, list);
     }
 
-    const prsByClient = new Map<string, number>();
-    for (const r of prRes.data || []) {
-      const k = String(r.client_id);
-      prsByClient.set(k, (prsByClient.get(k) || 0) + 1);
-    }
-
     for (const r of namesRes.data || []) activeNames.set(String(r.id), String(r.full_name || '').trim());
 
+    if (workoutsUnknown) { totalWorkouts30d = null; totalWorkouts7d = null; }
     for (const cid of clientIds) {
-      const w = workoutsByClient.get(cid) || { wk30: 0, wk7: 0 };
+      const w = workoutsUnknown ? null : workoutsByClient.get(cid) || { wk30: 0, wk7: 0 };
       const weights = weightsByClient.get(cid) || [];
       const wStart = weights.length ? weights[0] : null;
       const wLatest = weights.length ? weights[weights.length - 1] : null;
       const wDelta = wStart != null && wLatest != null ? wLatest - wStart : null;
-      const prs = prsByClient.get(cid) || 0;
-      totalWorkouts30d += w.wk30;
-      totalWorkouts7d += w.wk7;
-      totalPrs30d += prs;
-      // Adherence proxy: completed workouts vs target of 4/wk over the last 4 wk.
-      adherenceDen += 16;
-      adherenceNum += Math.min(16, w.wk30);
+      const prs = prsByClient.get(cid) ?? null;
+      if (w && totalWorkouts30d != null && totalWorkouts7d != null) {
+        totalWorkouts30d += w.wk30;
+        totalWorkouts7d += w.wk7;
+        // Adherence proxy: completed workouts vs target of 4/wk over the last 4 wk.
+        adherenceDen += 16;
+        adherenceNum += Math.min(16, w.wk30);
+      }
+      // One client's PRs unread leaves the roster's total unread, not short.
+      totalPrs30d = prs == null || totalPrs30d == null ? null : totalPrs30d + prs;
       roster.push({
         client_id: cid,
-        workouts30d: w.wk30,
-        workouts7d: w.wk7,
+        workouts30d: w ? w.wk30 : null,
+        workouts7d: w ? w.wk7 : null,
         weightStart: wStart,
         weightLatest: wLatest,
         weightChangeLb: wDelta != null ? Math.round(wDelta * 10) / 10 : null,
@@ -350,7 +376,7 @@ export async function GET() {
       avgAdherencePct,
       roster: roster
         .slice()
-        .sort((a, b) => b.workouts30d - a.workouts30d)
+        .sort((a, b) => (b.workouts30d ?? -1) - (a.workouts30d ?? -1))
         .slice(0, 12),
     },
     ticker: {

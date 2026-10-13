@@ -352,3 +352,32 @@ test('app: the backend door and the marketplace\'s word for a deep link to a coa
   assert.match(market, /\{deepMiss \? \(\s+<div role="status"[\s\S]{0,400}tr\('marketplace:dir\.coachNotOpen'/);
   assert.match(market, /onClick=\{\(\) => setDeepMiss\(false\)\}/);
 });
+
+// ── A photo can be the last step (Codex on #2324) ──────────────────────────
+test('website Profile: a photo saved below re-reads the readiness and keeps the rates as typed', async () => {
+  let ready = false;
+  const f = fakeFetch(() => ({ status: 200, body: { listings: [{ role: 'trainer', id: 7, ready, missing: ready ? [] : ['photo'], monthly: 120, oneTime: null }] } }));
+  const { CoachListingRatesCard } = slice('public/newdesign/dashProfileExtras.jsx', 'const LISTING_STEP_TEXT', '// Marketplace listing photos', { React, window, fetch: f.fn }, ['CoachListingRatesCard']);
+  const { host, unmount } = await mount(React.createElement(CoachListingRatesCard));
+  await settle();
+  assert.equal(text(host.querySelector('[role="status"]')).includes('a photo'), true);
+  const [monthly] = host.querySelectorAll('input');
+  await act(async () => { type(monthly, '150'); });
+  ready = true;
+  await act(async () => { window.dispatchEvent(new window.Event('shape:listing-changed')); });
+  await settle();
+  assert.equal(f.calls.length, 2, 'read again');
+  assert.equal(text(host.querySelector('[role="status"]')).includes('Your listing is in the marketplace.'), true);
+  assert.equal(host.querySelector('input').value, '150', 'the rate being typed is kept');
+  await unmount();
+  const src = read('public/newdesign/dashProfileExtras.jsx');
+  const media = src.slice(src.indexOf('function CoachListingMediaCard()'));
+  assert.match(media, /flash\("Listing saved ✓"\);\s+\/\/[^\n]*\n\s+try \{ window\.dispatchEvent\(new Event\("shape:listing-changed"\)\); \} catch \(_\) \{\}/, 'the photo card announces a save');
+});
+
+test('app Me: the listing is read again when the photo sheet closes', () => {
+  const src = read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx');
+  const me = src.slice(src.indexOf('function BSProMe('));
+  assert.match(me, /get\(\)\.then\(\(list\) => \{ if \(on && Array\.isArray\(list\)\) setMyListing\(list\.find\(\(l\) => l\.role === role\) \|\| null\); \}\)\.catch\(\(\) => \{\}\);\s+return \(\) => \{ on = false; \};\s+\}, \[role, listingReads\]\);/);
+  assert.match(me, /<BSProListingMediaSheet role=\{isCoach \? 'trainer' : 'nutritionist'\} accent=\{accent\} onClose=\{\(\) => \{ setShowListingMedia\(false\); setListingReads\(\(n\) => n \+ 1\); \}\} \/>/);
+});
