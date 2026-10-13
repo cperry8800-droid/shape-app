@@ -280,7 +280,7 @@ test('a suspended coach is told it, with no steps to fix, on the website and in 
   const { DbzListingNotice } = slice('public/newdesign/dashBusiness.jsx', 'const DBZ_LISTING_STEP', '// ── The page', { React, window: shellWindow, DBZ_AMBER: '#d8a23a', DBZ_INK: '#f2ede4', DBZ_TEAL: '#2ee0c4' }, ['DbzListingNotice']);
   const web = await mount(React.createElement(DbzListingNotice, { role: 'trainer', listing }));
   assert.equal(text(web.host), `Suspended${SUSPENDED_LINE}`);
-  assert.equal(web.host.querySelector('a'), null, 'no link to steps that would not lift it');
+  assert.ok(!web.host.querySelector('a'), 'no link to steps that would not lift it');
   await web.unmount();
 
   const f = fakeFetch({ GET: { status: 200, body: { listings: [{ role: 'trainer', id: 7, ...listing, monthly: 120, oneTime: null }] } } });
