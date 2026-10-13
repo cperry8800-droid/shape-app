@@ -1175,5 +1175,7 @@
   "rates.rowSubNone": "Ba a saita ba: tallar ka tana buƙatar kuɗin wata",
   "rates.rowSubMonthly": "{monthly}/wata",
   "rates.rowSubConsult": "{monthly}/wata · {oneTime}/shawara",
-  "rates.rowSubSession": "{monthly}/wata · {oneTime}/zama"
+  "rates.rowSubSession": "{monthly}/wata · {oneTime}/zama",
+  "rates.rowSubNoListing": "Za a saita da zarar an amince da neman zama koci",
+  "rates.rowSubError": "Ba a iya loda kuɗin ka ba. Taɓa don sake gwadawa"
 }

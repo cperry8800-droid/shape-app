@@ -1175,5 +1175,7 @@
   "rates.rowSubNone": "Non impostata: il tuo annuncio ha bisogno di una tariffa mensile",
   "rates.rowSubMonthly": "{monthly}/mese",
   "rates.rowSubConsult": "{monthly}/mese · {oneTime}/consulenza",
-  "rates.rowSubSession": "{monthly}/mese · {oneTime}/sessione"
+  "rates.rowSubSession": "{monthly}/mese · {oneTime}/sessione",
+  "rates.rowSubNoListing": "Da impostare quando la tua candidatura da coach viene approvata",
+  "rates.rowSubError": "Impossibile caricare le tue tariffe. Tocca per riprovare"
 }

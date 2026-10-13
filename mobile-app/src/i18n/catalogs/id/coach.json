@@ -1175,5 +1175,7 @@
   "rates.rowSubNone": "Belum diatur: listing Anda butuh tarif bulanan",
   "rates.rowSubMonthly": "{monthly}/bln",
   "rates.rowSubConsult": "{monthly}/bln · {oneTime}/konsultasi",
-  "rates.rowSubSession": "{monthly}/bln · {oneTime}/sesi"
+  "rates.rowSubSession": "{monthly}/bln · {oneTime}/sesi",
+  "rates.rowSubNoListing": "Diatur setelah pendaftaran coach Anda disetujui",
+  "rates.rowSubError": "Tarif Anda tidak bisa dimuat. Ketuk untuk mencoba lagi"
 }

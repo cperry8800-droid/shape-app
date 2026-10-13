@@ -309,7 +309,7 @@ test('app Me: the notice lists each missing step with the action that fixes it',
   assert.match(me, /\{myListing && !myListing\.ready && \(/);
   assert.match(me, /window\.ShapeCoachListing && window\.ShapeCoachListing\.getMine/);
   assert.match(me, /if \(showRates\) \{\s+return <BSCoachRatesPage role=\{role\} listing=\{myListing\}/);
-  assert.match(me, /\{ l: tr\('coach:rates\.row', \{ defaultValue: 'Rates' \}\), sub: bsRatesLine\(myListing, tr\), r: 'Edit', onClick: \(\) => setShowRates\(true\) \}/);
+  assert.match(me, /\{ l: tr\('coach:rates\.row', \{ defaultValue: 'Rates' \}\), sub: myListing \? bsRatesLine\(myListing, tr\) : tr\('coach:rates\.rowSubNoListing', \{ defaultValue: '[^']+' \}\), r: 'Edit', onClick: \(\) => setShowRates\(true\) \}/);
 });
 
 test('app Rates: saves through ShapeCoachListing, follows the saved listing, and says when a rate is refused', async () => {
@@ -378,6 +378,20 @@ test('website Profile: a photo saved below re-reads the readiness and keeps the 
 test('app Me: the listing is read again when the photo sheet closes', () => {
   const src = read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx');
   const me = src.slice(src.indexOf('function BSProMe('));
-  assert.match(me, /get\(\)\.then\(\(list\) => \{ if \(on && Array\.isArray\(list\)\) setMyListing\(list\.find\(\(l\) => l\.role === role\) \|\| null\); \}\)\.catch\(\(\) => \{\}\);\s+return \(\) => \{ on = false; \};\s+\}, \[role, listingReads\]\);/);
+  assert.match(me, /\}\)\.catch\(\(\) => \{ if \(on\) setListingRead\('error'\); \}\);\s+return \(\) => \{ on = false; \};\s+\}, \[role, listingReads\]\);/);
   assert.match(me, /<BSProListingMediaSheet role=\{isCoach \? 'trainer' : 'nutritionist'\} accent=\{accent\} onClose=\{\(\) => \{ setShowListingMedia\(false\); setListingReads\(\(n\) => n \+ 1\); \}\} \/>/);
+});
+
+test('app Me: a signed-in coach never sees the preview\'s rates, approved or not, read or not', () => {
+  const src = read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx');
+  const me = src.slice(src.indexOf('function BSProMe('));
+  assert.match(me, /setMyListing\(list\.find\(\(l\) => l\.role === role\) \|\| null\);\s+setListingRead\('live'\);\s+\}\)\.catch\(\(\) => \{ if \(on\) setListingRead\('error'\); \}\);/);
+  assert.match(me, /listingRead === 'live'\s+\? \{ l: tr\('coach:rates\.row'[\s\S]{0,80}?sub: myListing \? bsRatesLine\(myListing, tr\) : tr\('coach:rates\.rowSubNoListing'/);
+  assert.match(me, /: listingRead === 'error'\s+\? \{ l: tr\('coach:rates\.row'[\s\S]{0,200}?tr\('coach:rates\.rowSubError'[\s\S]{0,120}?onClick: \(\) => setListingReads\(\(n\) => n \+ 1\) \}/);
+  // The preview's rates are the third branch only: signed out.
+  assert.match(me, /: \{ l: 'Rates', sub: isCoach \? '\$95\/session · \$120\/mo' : '\$140\/plan · \$80\/consult', r: 'Edit', onClick: \(\) => setShowPublicProfile\(true\) \},/);
+  const backend = read('mobile-app/src/services/shapeBackend.js');
+  const getMine = backend.slice(backend.indexOf('async function getMyCoachListings()'), backend.indexOf('async function saveMyCoachRates('));
+  assert.match(getMine, /if \(!response\.ok \|\| !Array\.isArray\(payload\.listings\)\) throw new Error/, 'a failed read is an error, not "no listing"');
+  assert.match(getMine, /return payload\.listings;/);
 });

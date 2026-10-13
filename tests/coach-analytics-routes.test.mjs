@@ -32,11 +32,16 @@ function fakeSupabase(tables, { errors = {}, rpcs = {} } = {}) {
     const call = { table, ops: [] }
     calls.push(call)
     const rows = tables[table] ?? []
-    // gt and limit are honoured (on whatever column they name), so a paged read pages.
+    // gt, order and limit are honoured (on whatever column they name), so a paged read pages.
     const answer = () => {
       if (errors[table]) return { data: null, error: { message: errors[table] }, count: null }
       let out = rows
       for (const [op, col, v] of call.ops) if (op === 'gt') out = out.filter((r) => String(r[col]) > String(v))
+      for (const [op, col, o] of call.ops) {
+        if (op !== 'order') continue
+        const dir = o && o.ascending === false ? -1 : 1
+        out = out.slice().sort((a, b) => (String(a[col]) < String(b[col]) ? -dir : String(a[col]) > String(b[col]) ? dir : 0))
+      }
       const limit = call.ops.find((o) => o[0] === 'limit')
       if (limit) out = out.slice(0, limit[1])
       return { data: out, error: null, count: out.length }
@@ -230,4 +235,44 @@ test('the Business page says an unread churn or weigh-in, rather than "none"', (
   const churn = src.slice(src.indexOf('function DbzChurnZone('), src.indexOf('const rows = live ?', src.indexOf('function DbzChurnZone(')))
   assert.match(churn, /if \(live && churn === null\) \{\s+return <div[^>]*>Couldn't read your cancellations just now\./)
   assert.match(src, /\{cp && cp\.weightsUnknown \? "Couldn't read weigh-ins just now\." : "No weight-loss trends yet\."\}/)
+})
+
+// ── Codex on b694159: every read complete, every count exact ───────────────
+test('weigh-ins are read in full and each client\'s first and latest are by date, not by id', async () => {
+  const day = (i) => new Date(Date.now() - (29 - (i % 30)) * 86400000).toISOString().slice(0, 10)
+  // 2,500 weigh-ins for A whose ids run opposite to their dates, plus B's two.
+  const snaps = Array.from({ length: 2500 }, (_, i) => ({ id: 'w' + String(2499 - i).padStart(6, '0'), user_id: A, snapshot_date: day(Math.floor(i / 84)), weight_lb: 200 - Math.floor(i / 84) }))
+    .concat([{ id: 'x1', user_id: B, snapshot_date: day(29), weight_lb: 150 }, { id: 'x0', user_id: B, snapshot_date: day(0), weight_lb: 160 }])
+  const { body, calls } = await loadRoute('trainer', roster({ daily_health_snapshot: snaps }), { rpcs: lifts({}) })
+  const reads = calls.filter((c) => c.table === 'daily_health_snapshot')
+  assert.equal(reads.length, 3, 'three pages, not the first 1,000')
+  assert.ok(reads.every((r) => r.ops.some((o) => o[0] === 'not' && o[1] === 'weight_lb' && o[2] === 'is' && o[3] === null)), 'weigh-ins only')
+  const a = body.clientProgress.roster.find((r) => r.client_id === A)
+  const b = body.clientProgress.roster.find((r) => r.client_id === B)
+  assert.deepEqual([a.weightStart, a.weightLatest], [200, 171])
+  assert.deepEqual([b.weightStart, b.weightLatest, b.weightChangeLb], [160, 150, -10])
+  assert.equal(body.clientProgress.weightsUnknown, false)
+})
+
+test('a workout with no start time counts by its end, else by when it was logged', async () => {
+  const old = new Date(Date.now() - 60 * 86400000).toISOString()
+  const { body, calls } = await loadRoute('trainer', roster({ workout_sessions: [
+    { id: 's1', client_id: A, started_at: null, ended_at: recent, created_at: old, status: 'completed' },
+    { id: 's2', client_id: A, started_at: null, ended_at: null, created_at: recent, status: 'completed' },
+  ] }), { rpcs: lifts({}) })
+  const or = calls.find((c) => c.table === 'workout_sessions').ops.find((o) => o[0] === 'or')[1]
+  assert.match(or, /^started_at\.gte\."[^"]+",and\(started_at\.is\.null,ended_at\.gte\."[^"]+"\),and\(started_at\.is\.null,ended_at\.is\.null,created_at\.gte\."[^"]+"\)$/)
+  assert.deepEqual([body.clientProgress.workouts30d, body.clientProgress.workouts7d], [2, 2], 'both in the week, by end and by log time')
+})
+
+test('appointment counts are counted by the database, each with its own filter', async () => {
+  const { calls } = await loadRoute('trainer', roster(), { rpcs: lifts({}) })
+  const counts = calls.filter((c) => c.table === 'sessions')
+  assert.equal(counts.length, 4)
+  assert.ok(counts.every((c) => c.ops.some((o) => o[0] === 'select' && o[2]?.count === 'exact' && o[2]?.head === true)), 'head counts, no rows')
+  assert.ok(!counts.some((c) => c.ops.some((o) => o[0] === 'limit')), 'no row limit')
+  const has = (c, op, col, v) => c.ops.some((o) => o[0] === op && o[1] === col && (v === undefined || JSON.stringify(o[2]) === JSON.stringify(v)))
+  assert.ok(has(counts[1], 'eq', 'status', 'completed'))
+  assert.ok(has(counts[2], 'in', 'status', ['requested', 'confirmed']) && has(counts[2], 'gte', 'scheduled_at'))
+  assert.ok(has(counts[3], 'gte', 'scheduled_at') && has(counts[3], 'lt', 'scheduled_at') && has(counts[3], 'neq', 'status', 'cancelled'))
 })

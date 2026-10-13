@@ -1175,5 +1175,7 @@
   "rates.rowSubNone": "Not set: your listing needs a monthly rate",
   "rates.rowSubMonthly": "{monthly}/mo",
   "rates.rowSubConsult": "{monthly}/mo · {oneTime}/consult",
-  "rates.rowSubSession": "{monthly}/mo · {oneTime}/session"
+  "rates.rowSubSession": "{monthly}/mo · {oneTime}/session",
+  "rates.rowSubNoListing": "Set once your coach application is approved",
+  "rates.rowSubError": "Couldn't load your rates. Tap to try again"
 }

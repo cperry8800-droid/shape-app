@@ -1175,5 +1175,7 @@
   "rates.rowSubNone": "Non défini : votre annonce a besoin d'un tarif mensuel",
   "rates.rowSubMonthly": "{monthly}/mois",
   "rates.rowSubConsult": "{monthly}/mois · {oneTime}/consultation",
-  "rates.rowSubSession": "{monthly}/mois · {oneTime}/séance"
+  "rates.rowSubSession": "{monthly}/mois · {oneTime}/séance",
+  "rates.rowSubNoListing": "À définir une fois votre candidature de coach approuvée",
+  "rates.rowSubError": "Impossible de charger vos tarifs. Touchez pour réessayer"
 }

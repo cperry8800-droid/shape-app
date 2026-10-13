@@ -4624,15 +4624,16 @@ window.ShapeConnect = {
 };
 
 // A coach's own marketplace listing: whether members can find it, what it still needs, and its
-// rates (/api/coach/listing). Signed out or with no backend configured there is nothing to read.
+// rates (/api/coach/listing). null: signed out or no backend configured, nothing to read. [] is a
+// signed-in coach with no listing yet. A failed read throws: it is neither of those.
 async function getMyCoachListings() {
   if (!apiBaseUrl || !state.session?.access_token) return null;
   const response = await fetch(`${apiBaseUrl}/api/coach/listing`, {
     headers: { Authorization: `Bearer ${state.session.access_token}` },
   });
-  if (!response.ok) return null;
   const payload = await response.json().catch(() => ({}));
-  return Array.isArray(payload.listings) ? payload.listings : null;
+  if (!response.ok || !Array.isArray(payload.listings)) throw new Error(payload.error || 'Could not read your listing.');
+  return payload.listings;
 }
 
 async function saveMyCoachRates({ role, monthly, oneTime }) {

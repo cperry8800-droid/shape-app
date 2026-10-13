@@ -8324,15 +8324,22 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
   const [showNotifications, setShowNotifications] = useStateBSP(false);
   const [showSoundtracks, setShowSoundtracks] = useStateBSP(false);
   const [showRates, setShowRates] = useStateBSP(false);
-  // The signed-in coach's own listing for this role (null: signed out, or not approved yet). Read
-  // again when the photo sheet closes, since a photo can be the step that lists them.
+  // The signed-in coach's own listing for this role. Read again when the photo sheet closes, since
+  // a photo can be the step that lists them. listingRead: 'demo' (signed out, the preview's rows),
+  // 'live' (read; myListing null means not approved yet) or 'error' (the read failed), so a
+  // signed-in coach is never shown the preview's rates.
   const [myListing, setMyListing] = useStateBSP(null);
+  const [listingRead, setListingRead] = useStateBSP('demo');
   const [listingReads, setListingReads] = useStateBSP(0);
   useEffectBSP(() => {
     const get = typeof window !== 'undefined' && window.ShapeCoachListing && window.ShapeCoachListing.getMine;
     if (!get) return undefined;
     let on = true;
-    get().then((list) => { if (on && Array.isArray(list)) setMyListing(list.find((l) => l.role === role) || null); }).catch(() => {});
+    get().then((list) => {
+      if (!on || !Array.isArray(list)) return;
+      setMyListing(list.find((l) => l.role === role) || null);
+      setListingRead('live');
+    }).catch(() => { if (on) setListingRead('error'); });
     return () => { on = false; };
   }, [role, listingReads]);
   const scoreProfile = _bsUseLiveScore(SHAPE_SCORE_PROFILES?.[role] || SHAPE_SCORE_PROFILES?.client); // live points/tier when signed in
@@ -8513,9 +8520,11 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
           { l: 'Public profile', sub: isCoach ? 'shape.app/@jordan' : 'shape.app/@maya', r: 'Edit', onClick: () => setShowPublicProfile(true) },
           { l: 'Payouts', sub: 'Weekly · Stripe · Fri', r: '$4,820', onClick: startPayoutSetup },
           { l: 'Availability', sub: 'Mon-Fri · 9 am - 6 pm', r: 'Edit', onClick: () => setShowBookingCalendar(true) },
-          myListing
-            ? { l: tr('coach:rates.row', { defaultValue: 'Rates' }), sub: bsRatesLine(myListing, tr), r: 'Edit', onClick: () => setShowRates(true) }
-            : { l: 'Rates', sub: isCoach ? '$95/session · $120/mo' : '$140/plan · $80/consult', r: 'Edit', onClick: () => setShowPublicProfile(true) },
+          listingRead === 'live'
+            ? { l: tr('coach:rates.row', { defaultValue: 'Rates' }), sub: myListing ? bsRatesLine(myListing, tr) : tr('coach:rates.rowSubNoListing', { defaultValue: 'Set once your coach application is approved' }), r: 'Edit', onClick: () => setShowRates(true) }
+            : listingRead === 'error'
+              ? { l: tr('coach:rates.row', { defaultValue: 'Rates' }), sub: tr('coach:rates.rowSubError', { defaultValue: "Couldn't load your rates. Tap to try again" }), r: '↻', onClick: () => setListingReads((n) => n + 1) }
+              : { l: 'Rates', sub: isCoach ? '$95/session · $120/mo' : '$140/plan · $80/consult', r: 'Edit', onClick: () => setShowPublicProfile(true) },
           { l: 'Monthly offer', sub: "What's included — shown on your marketplace listing", r: 'Edit', onClick: () => setShowOfferEditor(true) },
           { l: tr('coach:listing.row', { defaultValue: 'Listing photos' }), sub: tr('coach:listing.rowSub', { defaultValue: 'Your box on the marketplace — portrait, cover, studio' }), r: 'Edit', onClick: () => setShowListingMedia(true) },
           { l: 'Soundtracks', sub: 'Saved playlists · assign to plans', r: '→', onClick: () => setShowSoundtracks(true) },

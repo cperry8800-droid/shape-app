@@ -1175,5 +1175,7 @@
   "rates.rowSubNone": "Não definido: seu anúncio precisa de um valor mensal",
   "rates.rowSubMonthly": "{monthly}/mês",
   "rates.rowSubConsult": "{monthly}/mês · {oneTime}/consulta",
-  "rates.rowSubSession": "{monthly}/mês · {oneTime}/sessão"
+  "rates.rowSubSession": "{monthly}/mês · {oneTime}/sessão",
+  "rates.rowSubNoListing": "Definidos quando sua inscrição de coach for aprovada",
+  "rates.rowSubError": "Não foi possível carregar seus valores. Toque para tentar de novo"
 }

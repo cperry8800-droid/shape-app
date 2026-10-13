@@ -1175,5 +1175,7 @@
   "rates.rowSubNone": "Chưa đặt: tin đăng cần giá theo tháng",
   "rates.rowSubMonthly": "{monthly}/tháng",
   "rates.rowSubConsult": "{monthly}/tháng · {oneTime}/buổi tư vấn",
-  "rates.rowSubSession": "{monthly}/tháng · {oneTime}/buổi"
+  "rates.rowSubSession": "{monthly}/tháng · {oneTime}/buổi",
+  "rates.rowSubNoListing": "Đặt khi đơn đăng ký coach của bạn được duyệt",
+  "rates.rowSubError": "Không tải được giá của bạn. Chạm để thử lại"
 }

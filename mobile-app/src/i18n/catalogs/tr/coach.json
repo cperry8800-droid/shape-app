@@ -1175,5 +1175,7 @@
   "rates.rowSubNone": "Belirlenmedi: ilanının aylık bir ücrete ihtiyacı var",
   "rates.rowSubMonthly": "{monthly}/ay",
   "rates.rowSubConsult": "{monthly}/ay · {oneTime}/danışmanlık",
-  "rates.rowSubSession": "{monthly}/ay · {oneTime}/seans"
+  "rates.rowSubSession": "{monthly}/ay · {oneTime}/seans",
+  "rates.rowSubNoListing": "Koç başvurun onaylandığında belirlenir",
+  "rates.rowSubError": "Ücretlerin yüklenemedi. Tekrar denemek için dokun"
 }

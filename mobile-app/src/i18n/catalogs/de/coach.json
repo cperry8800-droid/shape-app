@@ -1175,5 +1175,7 @@
   "rates.rowSubNone": "Nicht festgelegt: deine Anzeige braucht einen Monatspreis",
   "rates.rowSubMonthly": "{monthly}/Monat",
   "rates.rowSubConsult": "{monthly}/Monat · {oneTime}/Beratung",
-  "rates.rowSubSession": "{monthly}/Monat · {oneTime}/Session"
+  "rates.rowSubSession": "{monthly}/Monat · {oneTime}/Session",
+  "rates.rowSubNoListing": "Festzulegen, sobald deine Coach-Bewerbung genehmigt ist",
+  "rates.rowSubError": "Deine Preise konnten nicht geladen werden. Tippe, um es noch einmal zu versuchen"
 }

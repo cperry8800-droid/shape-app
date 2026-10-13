@@ -1175,5 +1175,7 @@
   "rates.rowSubNone": "You never set am: your listing need monthly rate",
   "rates.rowSubMonthly": "{monthly}/month",
   "rates.rowSubConsult": "{monthly}/month · {oneTime}/consult",
-  "rates.rowSubSession": "{monthly}/month · {oneTime}/session"
+  "rates.rowSubSession": "{monthly}/month · {oneTime}/session",
+  "rates.rowSubNoListing": "You go set am once dem approve your coach application",
+  "rates.rowSubError": "We no fit load your rates. Tap make you try again"
 }

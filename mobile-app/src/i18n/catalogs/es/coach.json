@@ -1175,5 +1175,7 @@
   "rates.rowSubNone": "Sin fijar: tu anuncio necesita una tarifa mensual",
   "rates.rowSubMonthly": "{monthly}/mes",
   "rates.rowSubConsult": "{monthly}/mes · {oneTime}/consulta",
-  "rates.rowSubSession": "{monthly}/mes · {oneTime}/sesión"
+  "rates.rowSubSession": "{monthly}/mes · {oneTime}/sesión",
+  "rates.rowSubNoListing": "Se fijan cuando se apruebe tu solicitud de coach",
+  "rates.rowSubError": "No se pudieron cargar tus tarifas. Toca para intentarlo de nuevo"
 }

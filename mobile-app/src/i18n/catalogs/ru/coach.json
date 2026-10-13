@@ -1175,5 +1175,7 @@
   "rates.rowSubNone": "Не указано: объявлению нужна месячная ставка",
   "rates.rowSubMonthly": "{monthly}/мес",
   "rates.rowSubConsult": "{monthly}/мес · {oneTime}/консультация",
-  "rates.rowSubSession": "{monthly}/мес · {oneTime}/сессия"
+  "rates.rowSubSession": "{monthly}/мес · {oneTime}/сессия",
+  "rates.rowSubNoListing": "Задаются, когда твою заявку тренера одобрят",
+  "rates.rowSubError": "Не удалось загрузить ставки. Нажми, чтобы попробовать ещё раз"
 }

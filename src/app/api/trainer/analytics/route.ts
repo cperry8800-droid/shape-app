@@ -41,36 +41,32 @@ async function clientPrs(
 }
 
 // ⚠ EVERY ROW, A PAGE AT A TIME. One select returns at most 1,000 rows (the API's cap) and says
-// nothing when it stops there, so a roster past 1,000 sessions in 30 days read as fewer workouts
-// and lower adherence. Keyset on id, not an offset (cron/guardrail-health says why: a row written
-// mid-read shifts every later offset); a read that reaches the ceiling is unknown, not short.
-const SESSION_PAGE = 1000;
-const SESSION_PAGES = 50;
-async function rosterSessions(
-  admin: ReturnType<typeof createAdminClient>,
-  clientIds: string[],
-  sinceIso: string,
-): Promise<{ data: { id: string; client_id: string; started_at: string | null }[] | null; error: { message: string } | null }> {
-  const rows: { id: string; client_id: string; started_at: string | null }[] = [];
+// nothing when it stops there, so a big roster's workouts and weigh-ins were read short (Codex on
+// #2324). Keyset on id, not an offset (cron/guardrail-health says why: a row written mid-read
+// shifts every later offset); a read that reaches the ceiling is unknown, not short. `page` builds
+// one filtered page: rows after `after`, ordered by id, ROW_PAGE at most.
+const ROW_PAGE = 1000;
+const ROW_PAGES = 50;
+async function readAllById<T extends { id: unknown }>(
+  page: (after: string | null) => PromiseLike<{ data: unknown; error: { message: string } | null }>,
+): Promise<{ data: T[] | null; error: { message: string } | null }> {
+  const rows: T[] = [];
   let after: string | null = null;
-  for (let page = 0; page < SESSION_PAGES; page += 1) {
-    let q = admin
-      .from('workout_sessions')
-      .select('id, client_id, started_at')
-      .in('client_id', clientIds)
-      // A reviewed session is a finished one the coach has looked at (get_client_lifts counts both).
-      .in('status', ['completed', 'reviewed'])
-      .gte('started_at', sinceIso);
-    if (after) q = q.gt('id', after);
-    const { data, error } = await q.order('id', { ascending: true }).limit(SESSION_PAGE);
+  for (let i = 0; i < ROW_PAGES; i += 1) {
+    const { data, error } = await page(after);
     if (error) return { data: null, error };
-    const got = (data ?? []) as { id: string; client_id: string; started_at: string | null }[];
+    const got = (data ?? []) as T[];
     rows.push(...got);
-    if (got.length < SESSION_PAGE) return { data: rows, error: null };
+    if (got.length < ROW_PAGE) return { data: rows, error: null };
     after = String(got[got.length - 1].id);
   }
-  return { data: null, error: { message: `more than ${SESSION_PAGE * SESSION_PAGES} sessions in 30 days` } };
+  return { data: null, error: { message: `more than ${ROW_PAGE * ROW_PAGES} rows` } };
 }
+
+// When a workout happened: its start, else its end, else when it was logged (`started_at` can be
+// null; `created_at` cannot). The window filter below reads the same order.
+type SessionRow = { id: string; client_id: string; started_at: string | null; ended_at: string | null; created_at: string };
+const sessionAt = (r: SessionRow) => r.started_at ?? r.ended_at ?? r.created_at;
 
 export async function GET() {
   const supabase = await createClient();
@@ -181,35 +177,25 @@ export async function GET() {
   // block's ONE profiles lookup; byOrigin is built after it (below).
   const activeNames = new Map<string, string>();
 
-  const { data: sessRows, error: sessErr } = await supabase
-    .from('sessions')
-    .select('scheduled_at, status')
-    .eq('provider_role', 'trainer')
-    .eq('provider_id', providerId)
-    .limit(1000);
-  if (sessErr) console.warn('[shape-app] trainer analytics: sessions read failed — session counts render as unread:', sessErr.message);
-  const sessions = sessRows ?? [];
-
-  const now = Date.now();
+  // Appointment counts, counted by the database: the rows themselves were read with a 1,000-row
+  // limit and no order, so past 1,000 lifetime sessions every count was a sample (Codex on #2324).
+  const nowIso = new Date().toISOString();
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
   const todayEnd = new Date(todayStart.getTime() + 86400000);
-  let completedSessions = 0;
-  let upcomingSessions = 0;
-  let bookedToday = 0;
-  for (const s of sessions) {
-    if (s.status === 'completed') {
-      completedSessions += 1;
-    } else if (
-      (s.status === 'requested' || s.status === 'confirmed') &&
-      new Date(s.scheduled_at).getTime() >= now
-    ) {
-      upcomingSessions += 1;
-    }
-    const sched = new Date(s.scheduled_at).getTime();
-    if (sched >= todayStart.getTime() && sched < todayEnd.getTime() && s.status !== 'cancelled') {
-      bookedToday += 1;
-    }
-  }
+  const countSessions = () => supabase
+    .from('sessions')
+    .select('id', { count: 'exact', head: true })
+    .eq('provider_role', 'trainer')
+    .eq('provider_id', providerId);
+  const sessCounts = await Promise.all([
+    countSessions(),
+    countSessions().eq('status', 'completed'),
+    countSessions().in('status', ['requested', 'confirmed']).gte('scheduled_at', nowIso),
+    countSessions().gte('scheduled_at', todayStart.toISOString()).lt('scheduled_at', todayEnd.toISOString()).neq('status', 'cancelled'),
+  ]);
+  const sessErr = sessCounts.find((r) => r.error)?.error ?? null;
+  if (sessErr) console.warn('[shape-app] trainer analytics: sessions count failed — session counts render as unread:', sessErr.message);
+  const [totalSessions, completedSessions, upcomingSessions, bookedToday] = sessCounts.map((r) => r.count ?? 0);
 
   // Count of programs this trainer has published, for the home masthead ticker.
   const { count: programsCount, error: programsErr } = await supabase
@@ -251,13 +237,30 @@ export async function GET() {
     // with the service-role client, constrained to exactly those clients.
     const admin = createAdminClient();
     const [workoutRes, snapRes, prsByClient, namesRes] = await Promise.all([
-      rosterSessions(admin, clientIds, since30Iso),
-      supabase
-        .from('daily_health_snapshot')
-        .select('user_id, snapshot_date, weight_lb')
-        .in('user_id', clientIds)
-        .gte('snapshot_date', since30Date)
-        .order('snapshot_date', { ascending: true }),
+      readAllById<SessionRow>((after) => {
+        let q = admin
+          .from('workout_sessions')
+          .select('id, client_id, started_at, ended_at, created_at')
+          .in('client_id', clientIds)
+          // A reviewed session is a finished one the coach has looked at (get_client_lifts counts both).
+          .in('status', ['completed', 'reviewed'])
+          .or(`started_at.gte."${since30Iso}",and(started_at.is.null,ended_at.gte."${since30Iso}"),and(started_at.is.null,ended_at.is.null,created_at.gte."${since30Iso}")`);
+        if (after) q = q.gt('id', after);
+        // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
+        return q.order('id', { ascending: true }).limit(ROW_PAGE);
+      }),
+      // Weigh-ins only; each client's first and latest are picked below, by date.
+      readAllById<{ id: string; user_id: string; snapshot_date: string; weight_lb: number | string }>((after) => {
+        let q = supabase
+          .from('daily_health_snapshot')
+          .select('id, user_id, snapshot_date, weight_lb')
+          .in('user_id', clientIds)
+          .gte('snapshot_date', since30Date)
+          .not('weight_lb', 'is', null);
+        if (after) q = q.gt('id', after);
+        // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
+        return q.order('id', { ascending: true }).limit(ROW_PAGE);
+      }),
       clientPrs(supabase, clientIds),
       supabase
         .from('profiles')
@@ -274,14 +277,16 @@ export async function GET() {
       const k = String(r.client_id);
       const slot = workoutsByClient.get(k) || { wk30: 0, wk7: 0 };
       slot.wk30 += 1;
-      if (r.started_at && new Date(String(r.started_at)).toISOString() >= since7Iso) slot.wk7 += 1;
+      if (new Date(String(sessionAt(r))).toISOString() >= since7Iso) slot.wk7 += 1;
       workoutsByClient.set(k, slot);
     }
 
     const weightsByClient = new Map<string, number[]>();
     weightsUnknown = !!snapRes.error;
     if (weightsUnknown) console.warn('[shape-app] trainer analytics: weigh-ins read failed — weight trends render as unread:', snapRes.error?.message);
-    for (const r of snapRes.data || []) {
+    // The pages come in id order; a client's weigh-ins are put in date order before first and latest.
+    const weighIns = (snapRes.data || []).slice().sort((a, b) => String(a.snapshot_date).localeCompare(String(b.snapshot_date)));
+    for (const r of weighIns) {
       if (r.weight_lb == null) continue;
       const k = String(r.user_id);
       const list = weightsByClient.get(k) || [];
@@ -403,7 +408,7 @@ export async function GET() {
       mrrGrossCents: subsUnknown ? null : grossCents,
       mrrNetCents: subsUnknown ? null : netCents,
       activeClients,
-      totalSessions: sessErr ? null : sessions.length,
+      totalSessions: sessErr ? null : totalSessions,
       completedSessions: sessErr ? null : completedSessions,
       upcomingSessions: sessErr ? null : upcomingSessions,
     },
