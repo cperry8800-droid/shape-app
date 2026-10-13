@@ -106,24 +106,25 @@ const post = async (route, body) => {
   const r = await route.POST(new Request('https://shape.test/api/coach/listing', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }));
   return { status: r.status, body: await r.json() };
 };
-const trainerRow = () => ({ id: 7, price: null, session_price: null, stripe_account_status: 'active', listing_media: { portrait: null }, listing_ready: false });
+const trainerRow = () => ({ id: 7, price: null, session_price: null, stripe_account_status: 'active', listing_media: { portrait: null }, listing_ready: false, suspended_at: null });
 
 test('GET: signed out is 401; a trainer is told their listing and what it needs, as themselves', async () => {
   assert.equal((await get(await loadRoute(fakeDb({}), null))).status, 401);
   const db = fakeDb({ trainers: [trainerRow()], nutritionists: [], profiles: [{ avatar_url: null }] });
   const { status, body } = await get(await loadRoute(db));
   assert.equal(status, 200);
-  assert.deepEqual(body, { listings: [{ role: 'trainer', id: 7, ready: false, missing: ['price', 'photo'], monthly: null, oneTime: null }] });
+  assert.deepEqual(body, { listings: [{ role: 'trainer', id: 7, ready: false, suspended: false, missing: ['price', 'photo'], monthly: null, oneTime: null }] });
   const t = db.calls.find((c) => c.table === 'trainers');
   assert.deepEqual(t.ops.find((o) => o[0] === 'eq'), ['eq', 'owner_id', COACH.id], 'only the coach\'s own row');
   assert.match(t.ops.find((o) => o[0] === 'select')[1], /session_price/);
+  assert.match(t.ops.find((o) => o[0] === 'select')[1], /suspended_at/);
   assert.match(db.calls.find((c) => c.table === 'nutritionists').ops.find((o) => o[0] === 'select')[1], /meal_plan_price/);
 });
 
 test('GET: the database\'s verdict is the one shown, the profile photo counts, and a failed read is 500', async () => {
   const row = { ...trainerRow(), price: '120.00', session_price: '60.00', listing_ready: true };
   const { body } = await get(await loadRoute(fakeDb({ trainers: [row], profiles: [{ avatar_url: 'https://x/a.jpg' }] })));
-  assert.deepEqual(body.listings[0], { role: 'trainer', id: 7, ready: true, missing: [], monthly: 120, oneTime: 60 });
+  assert.deepEqual(body.listings[0], { role: 'trainer', id: 7, ready: true, suspended: false, missing: [], monthly: 120, oneTime: 60 });
   // The marketplace filters on the column, so a row the database has not marked ready is not
   // called ready, whatever the steps say.
   const unmarked = await get(await loadRoute(fakeDb({ trainers: [{ ...row, listing_ready: false }], profiles: [{ avatar_url: 'https://x/a.jpg' }] })));
@@ -148,7 +149,7 @@ test('POST: refuses what is not a role or a rate, and saves the rates on the coa
   assert.equal(write.table, 'trainers');
   assert.deepEqual(write.ops.find((o) => o[0] === 'update')[1], { price: 120, session_price: 60 });
   assert.deepEqual(write.ops.find((o) => o[0] === 'eq'), ['eq', 'owner_id', COACH.id]);
-  assert.deepEqual(saved.body.listing, { role: 'trainer', id: 7, ready: false, missing: ['photo'], monthly: 120, oneTime: 60 });
+  assert.deepEqual(saved.body.listing, { role: 'trainer', id: 7, ready: false, suspended: false, missing: ['photo'], monthly: 120, oneTime: 60 });
   // An empty single price clears it.
   await post(route, { role: 'trainer', monthly: 120, oneTime: '' });
   assert.deepEqual(db.calls.filter((c) => c.ops.some((o) => o[0] === 'update')).at(-1).ops.find((o) => o[0] === 'update')[1], { price: 120, session_price: null });
@@ -263,6 +264,38 @@ test('website Profile: a refused rate shows the route\'s words; signed out and n
     await m.unmount();
   }
   assert.match(read('public/newdesign/dashProfileExtras.jsx'), /<CoachCredentialsCard \/><CoachListingRatesCard \/><CoachListingMediaCard \/>/);
+});
+
+test('GET: a listing staff suspended says so (owner: "suspended until futher review")', async () => {
+  const row = { ...trainerRow(), price: '120.00', listing_ready: false, suspended_at: '2026-10-13T18:00:00Z' };
+  const { body } = await get(await loadRoute(fakeDb({ trainers: [row], profiles: [{ avatar_url: 'https://x/a.jpg' }] })));
+  assert.deepEqual([body.listings[0].suspended, body.listings[0].ready], [true, false]);
+});
+
+const SUSPENDED_LINE = "Your listing is suspended until further review. Members can't find or subscribe to you while it is.";
+
+test('a suspended coach is told it, with no steps to fix, on the website and in the app', async () => {
+  const listing = { ready: false, suspended: true, missing: ['price', 'payouts', 'photo'] };
+  const shellWindow = { dashShellHref: (href) => href };
+  const { DbzListingNotice } = slice('public/newdesign/dashBusiness.jsx', 'const DBZ_LISTING_STEP', '// ── The page', { React, window: shellWindow, DBZ_AMBER: '#d8a23a', DBZ_INK: '#f2ede4', DBZ_TEAL: '#2ee0c4' }, ['DbzListingNotice']);
+  const web = await mount(React.createElement(DbzListingNotice, { role: 'trainer', listing }));
+  assert.equal(text(web.host), `Suspended${SUSPENDED_LINE}`);
+  assert.equal(web.host.querySelector('a'), null, 'no link to steps that would not lift it');
+  await web.unmount();
+
+  const f = fakeFetch({ GET: { status: 200, body: { listings: [{ role: 'trainer', id: 7, ...listing, monthly: 120, oneTime: null }] } } });
+  const { CoachListingRatesCard } = slice('public/newdesign/dashProfileExtras.jsx', 'const LISTING_STEP_TEXT', '// Marketplace listing photos', { React, window, fetch: f.fn }, ['CoachListingRatesCard']);
+  const card = await mount(React.createElement(CoachListingRatesCard));
+  await settle();
+  assert.equal(text(card.host).includes(SUSPENDED_LINE), true, text(card.host));
+  assert.equal(text(card.host).includes("Members can't find you yet"), false);
+  await card.unmount();
+
+  const { BSListingNotice } = appSlice();
+  const app = await mount(React.createElement(BSListingNotice, { listing, onRates() {}, onPayouts() {}, onPhotos() {} }));
+  assert.equal(text(app.host), `Suspended${SUSPENDED_LINE}`);
+  assert.equal(app.host.querySelectorAll('button').length, 0, 'no step actions');
+  await app.unmount();
 });
 
 test('website Business: the notice names the missing steps and links to the Profile page in the shell', async () => {

@@ -1152,6 +1152,8 @@
   "rates.noticeEyebrow": "Pas encore sur la place de marché",
   "rates.noticeBody": "Les membres ne peuvent pas vous trouver ni s'abonner tant que votre annonce n'a pas :",
   "rates.noticeWaiting": "Votre annonce n'est pas encore sur la place de marché.",
+  "rates.suspendedEyebrow": "Suspendue",
+  "rates.suspendedBody": "Votre annonce est suspendue jusqu'à nouvel examen. Pendant ce temps, les membres ne peuvent ni vous trouver ni s'abonner.",
   "rates.stepPrice": "Votre tarif mensuel",
   "rates.stepPayouts": "Les versements configurés",
   "rates.stepPhoto": "Une photo",

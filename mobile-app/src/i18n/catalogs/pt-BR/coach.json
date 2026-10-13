@@ -1152,6 +1152,8 @@
   "rates.noticeEyebrow": "Ainda fora do marketplace",
   "rates.noticeBody": "Os membros não conseguem te encontrar nem assinar até que seu anúncio tenha:",
   "rates.noticeWaiting": "Seu anúncio ainda não está no marketplace.",
+  "rates.suspendedEyebrow": "Suspenso",
+  "rates.suspendedBody": "Seu anúncio está suspenso até nova análise. Enquanto isso, os membros não podem encontrar você nem assinar.",
   "rates.stepPrice": "Seu valor mensal",
   "rates.stepPayouts": "Pagamentos configurados",
   "rates.stepPhoto": "Uma foto",

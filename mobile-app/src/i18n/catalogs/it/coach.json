@@ -1152,6 +1152,8 @@
   "rates.noticeEyebrow": "Non ancora nel marketplace",
   "rates.noticeBody": "I membri non possono trovarti né abbonarsi finché il tuo annuncio non ha:",
   "rates.noticeWaiting": "Il tuo annuncio non è ancora nel marketplace.",
+  "rates.suspendedEyebrow": "Sospeso",
+  "rates.suspendedBody": "Il tuo annuncio è sospeso in attesa di ulteriore revisione. Nel frattempo i membri non possono trovarti né abbonarsi.",
   "rates.stepPrice": "La tua tariffa mensile",
   "rates.stepPayouts": "I pagamenti configurati",
   "rates.stepPhoto": "Una foto",

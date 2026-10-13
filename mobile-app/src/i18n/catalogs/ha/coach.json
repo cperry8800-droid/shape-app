@@ -1152,6 +1152,8 @@
   "rates.noticeEyebrow": "Har yanzu ba a kasuwa ba",
   "rates.noticeBody": "Membobi ba za su iya samun ka ko yin rajista da kai ba sai tallar ka ta sami:",
   "rates.noticeWaiting": "Har yanzu tallar ka ba ta kasuwa ba.",
+  "rates.suspendedEyebrow": "An dakatar",
+  "rates.suspendedBody": "An dakatar da tallar ka har sai an sake dubawa. A wannan lokacin mambobi ba za su iya samun ka ko yin rajista ba.",
   "rates.stepPrice": "Kuɗin ka na wata",
   "rates.stepPayouts": "Saitin karɓar kuɗi",
   "rates.stepPhoto": "Hoto",

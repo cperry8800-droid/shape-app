@@ -246,6 +246,8 @@ function CoachListingRatesCard() {
             <p style={{ ...body, color: "rgba(242,237,228,0.82)" }}>
               {l.ready
                 ? "Your listing is in the marketplace."
+                : l.suspended
+                  ? "Your listing is suspended until further review. Members can't find or subscribe to you while it is."
                 : l.missing && l.missing.length
                   ? <>Members can't find you yet. Your listing appears in the marketplace once it has {listingStepsLine(l.missing)}.</>
                   : "Your listing isn't in the marketplace yet."}

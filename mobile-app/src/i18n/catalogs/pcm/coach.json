@@ -1152,6 +1152,8 @@
   "rates.noticeEyebrow": "E never dey for marketplace",
   "rates.noticeBody": "Members no fit find you or subscribe to you until your listing get:",
   "rates.noticeWaiting": "Your listing never enter marketplace.",
+  "rates.suspendedEyebrow": "Dem don suspend am",
+  "rates.suspendedBody": "Dem don suspend your listing until dem review am again. Members no fit find you or subscribe while e still dey so.",
   "rates.stepPrice": "Your monthly rate",
   "rates.stepPayouts": "Payout wey you don set",
   "rates.stepPhoto": "One foto",

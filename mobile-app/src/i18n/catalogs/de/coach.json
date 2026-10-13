@@ -1152,6 +1152,8 @@
   "rates.noticeEyebrow": "Noch nicht im Marktplatz",
   "rates.noticeBody": "Mitglieder können dich erst finden und abonnieren, wenn deine Anzeige Folgendes hat:",
   "rates.noticeWaiting": "Deine Anzeige ist noch nicht im Marktplatz.",
+  "rates.suspendedEyebrow": "Gesperrt",
+  "rates.suspendedBody": "Deine Anzeige ist bis zur weiteren Prüfung gesperrt. Solange können Mitglieder dich weder finden noch abonnieren.",
   "rates.stepPrice": "Deinen Monatspreis",
   "rates.stepPayouts": "Eingerichtete Auszahlungen",
   "rates.stepPhoto": "Ein Foto",
