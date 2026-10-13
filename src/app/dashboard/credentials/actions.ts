@@ -12,19 +12,20 @@ function clean(value: FormDataEntryValue | null, max = 4000): string {
 
 const UUID = /^[0-9a-f-]{36}$/i;
 
-// Mirror the verified flag onto whichever marketplace coach row(s) the owner holds
-// (a coach can be both a trainer and a nutritionist). Returns how many rows changed.
-async function setMarketplaceVerified(
-  admin: ReturnType<typeof createAdminClient>,
-  ownerId: string,
-  verified: boolean
-): Promise<number> {
-  const at = verified ? new Date().toISOString() : null;
+// Put the Verified badge on whichever marketplace coach row(s) the owner holds (a coach can be
+// both a trainer and a nutritionist). Returns how many rows changed.
+//
+// Taking it off is the database's job: a credential row written as anything but 'approved'
+// clears the owner's badge in the same statement (provider_credentials_zz_unverify_listings,
+// 2026-10-13-listing-badge-follows-credential.sql), so rejecting or asking for changes needs no
+// listing write here.
+async function markListingsVerified(admin: ReturnType<typeof createAdminClient>, ownerId: string): Promise<number> {
+  const at = new Date().toISOString();
   let changed = 0;
   for (const table of ['trainers', 'nutritionists'] as const) {
     const { data, error } = await admin
       .from(table)
-      .update({ verified, verified_at: at })
+      .update({ verified: true, verified_at: at })
       .eq('owner_id', ownerId)
       .select('id');
     if (error) throw error;
@@ -53,7 +54,7 @@ export async function approveCredential(formData: FormData): Promise<void> {
     .eq('owner_id', ownerId);
   if (error) throw error;
 
-  await setMarketplaceVerified(admin, ownerId, true);
+  await markListingsVerified(admin, ownerId);
 
   // Let the coach know (in-app bell + push spine).
   await createNotification(admin, {
@@ -88,10 +89,8 @@ export async function rejectCredential(formData: FormData): Promise<void> {
       verified_at: null,
     })
     .eq('owner_id', ownerId);
+  // Any previously granted badge came off with that write.
   if (error) throw error;
-
-  // Revoke any previously-granted badge.
-  await setMarketplaceVerified(admin, ownerId, false);
 
   revalidatePath('/dashboard/credentials');
   revalidatePath('/trainers');
@@ -118,10 +117,8 @@ export async function requestCredentialChanges(formData: FormData): Promise<void
       verified_at: null,
     })
     .eq('owner_id', ownerId);
+  // The marketplace badge came off with that write, so the coach isn't shown as verified.
   if (error) throw error;
-
-  // Drop the marketplace badge too so the coach isn't shown as verified.
-  await setMarketplaceVerified(admin, ownerId, false);
 
   await createNotification(admin, {
     userId: ownerId,

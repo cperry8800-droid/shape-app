@@ -10,7 +10,6 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { clearListingVerified } from '@/lib/coach-verification';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -98,18 +97,9 @@ export async function POST(request: Request) {
     }
   }
 
-  // A new document sends the row back to re-review (the guard trigger), so the Verified badge
-  // comes off until an admin re-approves. The upload has landed; a failure here is still said,
-  // so the listing is not left Verified while the coach is told all is well.
-  try {
-    await clearListingVerified(admin, user.id);
-  } catch (err) {
-    console.error('[shape] could not clear the Verified badge for re-review:', err);
-    return NextResponse.json(
-      { error: 'Your document was uploaded, but your listing could not be updated. Please try again.', code: 'badge_not_cleared', path },
-      { status: 503 }
-    );
-  }
-
+  // A new document sends the row back to re-review (the guard trigger), and the Verified badge
+  // comes off in that same write (provider_credentials_zz_unverify_listings,
+  // 2026-10-13-listing-badge-follows-credential.sql), so a recorded document never leaves the
+  // listing Verified.
   return NextResponse.json({ ok: true, path });
 }
