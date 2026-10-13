@@ -1,5 +1,6 @@
 // Mutation spec for the restored website splash (owner, 2026-10-06: "make sure the splash
-// page is present on shape website", then the line "You don't climb alone."; branch
+// page is present on shape website", then the line "You don't climb alone.", shortened to
+// "Don't climb alone." on 2026-10-13; branch
 // claude/optimistic-franklin-jsnyn9). Each mutation breaks one rule the splash or the fold's
 // hold/start contract carries, and tests/homepage-splash.test.mjs must fail on every one.
 // Run from the repo root:
@@ -75,8 +76,11 @@ export default {
       replace: 'if(s>0&&b.height>0){' },
     // ── The line ────────────────────────────────────────────────────────────────────────
     { name: 'the teal word is gone', file: PAGE,
-      find: '<div class="iline">You don&rsquo;t climb <b>alone.</b></div>',
-      replace: '<div class="iline">You don&rsquo;t climb alone.</div>' },
+      find: '<div class="iline">Don&rsquo;t climb <b>alone.</b></div>',
+      replace: '<div class="iline">Don&rsquo;t climb alone.</div>' },
+    { name: 'the line is the old "You don\'t climb alone."', file: PAGE,
+      find: '<div class="iline">Don&rsquo;t climb <b>alone.</b></div>',
+      replace: '<div class="iline">You don&rsquo;t climb <b>alone.</b></div>' },
     // ── The fold's half ─────────────────────────────────────────────────────────────────
     { name: 'the fold never holds for the splash', file: PAGE,
       find: "if(window.__shapeIntro==='running') hold(); else start();",
