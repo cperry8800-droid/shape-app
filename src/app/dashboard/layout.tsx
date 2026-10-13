@@ -7,7 +7,8 @@ import { redirect } from 'next/navigation';
 import { getCurrentUserAndProfile } from '@/lib/queries';
 import SignOutButton from '@/components/SignOutButton';
 import SentryUser from '@/components/SentryUser';
-import { getAdminEmails, requireAdminUser } from '@/lib/admin-access';
+import { getStaffMember } from '@/lib/admin-access';
+import { atLeast } from '@/lib/staff-levels.mjs';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -23,12 +24,16 @@ export default async function DashboardLayout({
 
   const { profile, email, userId } = ctx;
   const role = profile?.role ?? 'client';
-  const isAdmin = Boolean(email && getAdminEmails().includes(email.toLowerCase()));
+  // The Shape team's level (src/lib/staff-levels.mjs): owner, admin, support or analyst, or
+  // null. Admins see every admin tab, support the help desk, and every level the console.
+  const staff = await getStaffMember();
+  const isAdmin = atLeast(staff?.level, 'admin');
+  const isSupport = atLeast(staff?.level, 'support');
 
   // App-wide member gate (same rule as the mobile app): approved coaches and
-  // admins get in free; everyone else needs an active platform subscription.
+  // the Shape team get in free; everyone else needs an active platform subscription.
   const isCoach = role === 'trainer' || role === 'nutritionist';
-  let isMember = isCoach || isAdmin;
+  let isMember = isCoach || Boolean(staff);
   if (!isMember) {
     const supabase = await createClient();
     const { data: sub } = await supabase
@@ -43,12 +48,12 @@ export default async function DashboardLayout({
 
   // What is waiting on an admin, as a count on its tab: a new application or a credential
   // submission was otherwise only an email in an inbox. Service role (neither table is readable
-  // by a member), so the full admin check runs first (a confirmed allow-listed email, as the
-  // pages themselves require). Best-effort: a failed count shows no badge, never blocks the page.
+  // by a member), so only for an admin, whose level getStaffMember() resolved from a confirmed
+  // address, as the pages themselves require. Best-effort: a failed count shows no badge, never
+  // blocks the page.
   const waiting = { applications: 0, credentials: 0 };
   if (isAdmin) {
     try {
-      await requireAdminUser();
       const admin = createAdminClient();
       const [apps, creds] = await Promise.all([
         admin.from('provider_applications').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
@@ -65,10 +70,11 @@ export default async function DashboardLayout({
   // (public/newdesign/*.html). Only the admin tools still live under
   // /dashboard, so the nav is just those.
   const tabs: { href: string; label: string; show: boolean; count?: number }[] = [
+    { href: '/admin', label: 'Admin console', show: Boolean(staff) },
     { href: '/dashboard/applications', label: 'Applications', show: isAdmin, count: waiting.applications },
     { href: '/dashboard/credentials', label: 'Credentials', show: isAdmin, count: waiting.credentials },
     { href: '/dashboard/refunds', label: 'Refunds', show: isAdmin },
-    { href: '/dashboard/support', label: 'Help requests', show: isAdmin },
+    { href: '/dashboard/support', label: 'Help requests', show: isSupport },
     { href: '/dashboard/claim', label: 'Claim profile', show: isAdmin },
     { href: '/dashboard/radio', label: 'Nora’s library', show: isAdmin },
   ];

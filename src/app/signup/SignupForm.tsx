@@ -4,10 +4,14 @@ import { useState, useEffect, useActionState } from 'react';
 import Link from 'next/link';
 import { signup } from '../login/actions';
 import Turnstile, { turnstileEnabled } from '@/components/Turnstile';
+import { sourceFromWindow } from '@/lib/signup-source.mjs';
 
 type State = { error: string } | { ok: true; needsConfirm: boolean } | null;
 
 async function signupAction(_prev: State, formData: FormData): Promise<State> {
+  // Where this sign-up came from, read from the page now, as it is sent (Codex, #2325: a value
+  // read on mount was fixed before /signup-source.js had loaded). The server cleans it again.
+  formData.set('signup_source', JSON.stringify(sourceFromWindow(window, 'website')));
   const result = await signup(formData);
   return result ?? null;
 }

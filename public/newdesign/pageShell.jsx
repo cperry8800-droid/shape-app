@@ -2795,6 +2795,20 @@ window.shapeClearLocalUserContent = function (opts) {
   });
 })();
 
+// Where a sign-up came from (owner, 2026-10-13: "track signups by source too"): the shell loads
+// /signup-source.js on every page it renders, so the first link a visitor arrives from is
+// remembered (consent-gated, see that file) wherever they land, and the sign-up form can ask it.
+(function shapeSignupSourceLoader() {
+  if (typeof document === "undefined" || window.shapeSignupSource) return;
+  try {
+    if (document.querySelector('script[src="/signup-source.js"]')) return;
+    var s = document.createElement("script");
+    s.src = "/signup-source.js";
+    s.async = true;
+    document.head.appendChild(s);
+  } catch (e) {}
+})();
+
 (function shapeConsent() {
   if (typeof document === "undefined") return;
   // Resolves true only when a consent_log row was actually written (so callers
@@ -2840,9 +2854,13 @@ window.shapeClearLocalUserContent = function (opts) {
       if (!/^Europe\//.test(tz)) return;                     // region-aware: show only for EEA/UK
       // ONE copy string, rendered AND recorded — the consent_log row must carry
       // the exact text the visitor was shown (house rule from the cycle wave).
-      var BANNER_COPY = "We use essential cookies and on-device storage to run Shape — no ad tracking, nothing cross-site. Your choice here also controls the Shape app's first-party usage stats. See our Privacy Policy.";
+      var BANNER_COPY = "We use essential cookies and on-device storage to run Shape — no ad tracking, nothing cross-site. Your choice here also controls whether we remember which link brought you to Shape, and the Shape app's first-party usage stats. See our Privacy Policy.";
       function record(choice) {
         try { localStorage.setItem(KEY, choice); } catch (e) {}
+        // The choice decides whether the link that brought this visitor is remembered: run the
+        // capture again now, on this same page, so an Accept keeps it (its tags and referrer
+        // are gone after the next click) and a Reject drops it (Codex, #2325).
+        try { if (window.shapeSignupSource) window.shapeSignupSource.capture(); } catch (e) {}
         // consent_text is the VERBATIM copy shown — nothing appended; the
         // `granted` column already records which button was pressed.
         logConsent("cookies", choice === "accept", BANNER_COPY);
@@ -2869,13 +2887,14 @@ window.shapeClearLocalUserContent = function (opts) {
       bar.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:99999;background:var(--consent-bg,#1a1612);color:var(--consent-fg,#f2ede4);border-top:1px solid rgba(242,237,228,0.15);padding:15px 20px;font-family:'Space Grotesk',sans-serif;font-size:13.5px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;box-shadow:0 -10px 40px rgba(0,0,0,0.5)";
       var txt = document.createElement("span");
       txt.style.cssText = "flex:1;min-width:240px;line-height:1.5";
-      // Copy must describe what we actually do: this website runs NO
-      // consent-gated analytics — only essential cookies/storage. The choice
-      // still matters: the Shape app on this same origin gates its first-party,
-      // consent-gated usage stats on it (mobile-app analytics.js reads
-      // shape.consent.v1). Never promise analytics this surface doesn't run.
+      // Copy must describe what we actually do. The website's one consent-gated
+      // use is remembering the first link a visitor came from, for sign-up
+      // attribution (/signup-source.js, 2026-10-13). The Shape app on this same
+      // origin gates its first-party usage stats on the same choice
+      // (mobile-app analytics.js reads shape.consent.v1). Never promise
+      // analytics a surface doesn't run, and never run one the copy leaves out.
       // KEEP IN SYNC with BANNER_COPY above (rendered text == recorded text).
-      txt.appendChild(document.createTextNode("We use essential cookies and on-device storage to run Shape — no ad tracking, nothing cross-site. Your choice here also controls the Shape app's first-party usage stats. See our "));
+      txt.appendChild(document.createTextNode("We use essential cookies and on-device storage to run Shape — no ad tracking, nothing cross-site. Your choice here also controls whether we remember which link brought you to Shape, and the Shape app's first-party usage stats. See our "));
       var pl = document.createElement("a"); pl.href = "/privacy.html"; pl.textContent = "Privacy Policy"; pl.style.color = "var(--consent-link,#2ee0c4)";
       txt.appendChild(pl); txt.appendChild(document.createTextNode("."));
       bar.appendChild(txt);

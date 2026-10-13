@@ -5,6 +5,7 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import GlobalChatButton from "@/components/GlobalChatButton";
 import { Analytics } from '@vercel/analytics/next';
+import Script from 'next/script';
 
 const inter = Inter({
   variable: "--font-inter",
@@ -30,6 +31,9 @@ export default function RootLayout({
         <Footer />
         <GlobalChatButton />
         <Analytics />
+        {/* Where a sign-up came from (public/signup-source.js): the first link a visitor
+            arrives from, remembered only as consent allows, for the admin console. */}
+        <Script src="/signup-source.js" strategy="afterInteractive" />
       </body>
     </html>
   );

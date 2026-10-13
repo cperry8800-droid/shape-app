@@ -541,7 +541,12 @@ test('L14: the applications inbox is not an admin, and an admin\'s email has to 
     let user = null;
     const access = await loadRealModule(join(ROOT, 'src/lib/admin-access.ts'), {
       typescript: true,
-      registry: new Map([['@/lib/supabase/server', { createClient: async () => ({ auth: { getUser: async () => ({ data: { user } }) } }) }]]),
+      registry: new Map([
+        ['@/lib/supabase/server', { createClient: async () => ({ auth: { getUser: async () => ({ data: { user } }) } }) }],
+        // No staff rows here: a staff level beyond the two lists is tests/admin-console.test.mjs's.
+        ['@/lib/supabase/admin', { createAdminClient: () => { throw new Error('no service role in this test'); } }],
+        ['@/lib/staff-levels.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/staff-levels.mjs')).href)],
+      ]),
     });
     assert.ok(access.getAdminEmails().includes('boss@example.test'));
     assert.ok(!access.getAdminEmails().includes('inbox@example.test'), 'APPLICATIONS_EMAIL grants nothing');

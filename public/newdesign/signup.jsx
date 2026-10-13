@@ -693,6 +693,8 @@ function SignupForm({ role }) {
               roles: ["client"],
               username: cleanUsername,
               date_of_birth: values.dob,
+              // Where this sign-up came from (/signup-source.js; counted on the admin console).
+              signup_source: (window.shapeSignupSource && window.shapeSignupSource.forSignup("website")) || { surface: "website" },
             },
           },
         });

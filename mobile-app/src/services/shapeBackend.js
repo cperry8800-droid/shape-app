@@ -1,4 +1,5 @@
 import { validateFile as validateVideoFile } from '../../../public/newdesign/shapeVideo.mjs';
+import { captureFromWindow, sourceFromWindow } from '../../../src/lib/signup-source.mjs';
 import { Capacitor } from '@capacitor/core';
 import { createClient } from '@supabase/supabase-js';
 import { isHealthKitPlatform, requestHealthKitAuth, collectHealthKitSnapshots } from './healthkit.js';
@@ -339,6 +340,23 @@ async function claimUsername(username) {
   return data;
 }
 
+
+// The app in a browser at /m/ can be opened from a tagged link: remember it on load, as the
+// website does (consent-gated, src/lib/signup-source.mjs), so a sign-up a few screens later is
+// still credited (Codex, #2325).
+if (typeof window !== 'undefined') captureFromWindow(window);
+
+// The platform an app sign-up came from: 'ios' or 'android' in the installed app (Capacitor),
+// 'web' for the app in a browser. Anything else reads as 'web'.
+function signupPlatform() {
+  try {
+    const p = typeof window !== 'undefined' && window.Capacitor && window.Capacitor.getPlatform ? window.Capacitor.getPlatform() : 'web';
+    return p === 'ios' || p === 'android' ? p : 'web';
+  } catch (e) {
+    return 'web';
+  }
+}
+
 async function signUp({ email, password, fullName, role, username, captchaToken, dob }) {
   const normalizedRole = normalizeRole(role);
   // 18+ age gate — REQUIRED at account creation (no soft-fail): a missing or
@@ -377,6 +395,10 @@ async function signUp({ email, password, fullName, role, username, captchaToken,
         roles: [normalizedRole],
         ...(cleanUsername ? { username: cleanUsername } : {}),
         ...(dob ? { date_of_birth: dob } : {}),
+        // Where this sign-up came from, for the admin console's sign-ups by source: the link
+        // and referrer (or the first touch remembered on this origin, consent allowing), the
+        // app, and which build (installed iOS or Android, or the app in a browser at /m/).
+        signup_source: typeof window !== 'undefined' ? sourceFromWindow(window, 'app', signupPlatform()) : { surface: 'app', platform: signupPlatform() },
       },
     },
   });

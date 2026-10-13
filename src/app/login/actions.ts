@@ -8,6 +8,19 @@ import { safeReturnPath } from '@/lib/safe-redirect.mjs';
 // import the canonical module directly; only the classic-script surfaces need the
 // public/age-derive.js mirror.
 import { isMinorFromDob } from '@/lib/age-derive.mjs';
+import { cleanSource, type SignupSource } from '@/lib/signup-source.mjs';
+
+// Where a sign-up came from: the form's hidden field (SignupForm, from /signup-source.js),
+// cleaned here because the browser wrote it. A missing or unreadable field is still a website
+// sign-up.
+function signupSourceFrom(formData: FormData): SignupSource {
+  try {
+    const raw = JSON.parse(String(formData.get('signup_source') ?? '').slice(0, 2000) || '{}');
+    return cleanSource({ ...(raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}), surface: 'website' }) ?? { surface: 'website' };
+  } catch {
+    return { surface: 'website' };
+  }
+}
 
 export async function login(formData: FormData): Promise<{ error: string } | void> {
   const email = String(formData.get('email') ?? '');
@@ -79,7 +92,7 @@ export async function signup(
       ...(captchaToken ? { captchaToken } : {}),
       // date_of_birth rides in metadata so the confirm-by-email half can claim it
       // at first sign-in — this route returns no session when confirmation is on.
-      data: { role, date_of_birth: dob },
+      data: { role, date_of_birth: dob, signup_source: signupSourceFrom(formData) },
     },
   });
 
