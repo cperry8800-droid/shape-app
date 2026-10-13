@@ -188,5 +188,7 @@
   "preview.noOutline": "This coach hasn't published an outline for this one yet.",
   "preview.buy": "Buy · {price} →",
   "preview.action": "What's inside →",
-  "rating.new": "New"
+  "rating.new": "New",
+  "dir.coachNotOpen": "That coach's listing isn't open yet. They'll appear here once it is.",
+  "dir.coachNotOpenDismiss": "Dismiss"
 }

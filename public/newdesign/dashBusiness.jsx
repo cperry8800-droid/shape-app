@@ -778,6 +778,31 @@ function DbzTrajectoryZone({ live, trajectory, role, loading }) {
   );
 }
 
+// ── Not in the marketplace yet ───────────────────────────────────────────────
+// A coach's listing is hidden from the marketplace until it has a monthly price, active payouts
+// and a photo (listing_ready, 2026-10-12). Only the approval email said so; this says it where
+// the payouts are, and links to the Profile page, where the rates and photos are set
+// (/api/coach/listing, the same route the Profile page's Rates card reads).
+const DBZ_LISTING_STEP = { price: "your monthly rate", payouts: "payouts set up (below)", photo: "a photo" };
+function DbzListingNotice({ listing, role }) {
+  const steps = (listing.missing || []).map((k) => DBZ_LISTING_STEP[k]).filter(Boolean);
+  const line = steps.length <= 1 ? steps.join("") : steps.slice(0, -1).join(", ") + " and " + steps[steps.length - 1];
+  // Inside the dashboard shell the stub's own #profile route, not a second page load (pageShell.jsx).
+  const stub = role === "nutritionist" ? "NutritionistProfile.html" : "TrainerProfile.html";
+  const profile = typeof window.dashShellHref === "function" ? window.dashShellHref(stub) : stub;
+  return (
+    <div role="status" className="dash-plate" style={{ "--dac": DBZ_AMBER, borderColor: "rgba(216,162,58,0.45)", padding: "14px 18px", marginBottom: 16 }}>
+      <span className="dash-eyebrow" style={{ color: DBZ_AMBER }}>Not in the marketplace yet</span>
+      <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.5, color: DBZ_INK }}>
+        {steps.length
+          ? <React.Fragment>Members can't find or subscribe to you until your listing has {line}. </React.Fragment>
+          : <React.Fragment>Your listing isn't in the marketplace yet. </React.Fragment>}
+        <a href={profile} style={{ color: DBZ_TEAL }}>Set your rates and photo on your Profile →</a>
+      </p>
+    </div>
+  );
+}
+
 // ── The page ─────────────────────────────────────────────────────────────────
 function CoachBusinessPage({ role }) {
   const cfg = DBZ_ROLES[role];
@@ -794,6 +819,17 @@ function CoachBusinessPage({ role }) {
   }, [role]);
 
   const isLive = !!live || !!extra;
+  // The coach's own listing (live only): the notice above the plates when it is not ready.
+  const [listing, setListing] = React.useState(null);
+  React.useEffect(() => {
+    if (!isLive) return undefined;
+    let on = true;
+    fetch("/api/coach/listing", { credentials: "same-origin", cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (on && d) setListing(((d.listings || []).find((l) => l.role === role)) || null); })
+      .catch(() => {});
+    return () => { on = false; };
+  }, [role, isLive]);
   const stripe = extra && extra.stripe ? extra.stripe : null;
   const mrr = extra && extra.metrics ? extra.metrics : null;
   // Outcomes: the live rollup verbatim (the route always returns the full
@@ -939,10 +975,11 @@ function CoachBusinessPage({ role }) {
         title="Business"
         subtitle="The money side, told straight — real subscription revenue, real Stripe payouts, the marketplace funnel, and who left. Nothing here is invented."
       >
+        {isLive && listing && !listing.ready && <DbzListingNotice listing={listing} role={role} />}
         <DashGrid role={role} tab="business" widgets={gridWidgets} />
       </DashPage>
     </React.Fragment>
   );
 }
 
-Object.assign(window, { CoachBusinessPage, DbzPayoutsZone, DbzChurnZone, DbzOutcomesZone, DbzBringClientsZone, DbzOriginZone });
+Object.assign(window, { CoachBusinessPage, DbzListingNotice, DbzPayoutsZone, DbzChurnZone, DbzOutcomesZone, DbzBringClientsZone, DbzOriginZone });

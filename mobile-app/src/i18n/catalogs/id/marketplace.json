@@ -188,5 +188,7 @@
   "preview.noOutline": "Coach ini belum menerbitkan rangkaian untuk yang ini.",
   "preview.buy": "Beli · {price} →",
   "preview.action": "Lihat isinya →",
-  "rating.new": "Baru"
+  "rating.new": "Baru",
+  "dir.coachNotOpen": "Listing coach itu belum dibuka. Coach itu akan muncul di sini setelah dibuka.",
+  "dir.coachNotOpenDismiss": "Tutup"
 }

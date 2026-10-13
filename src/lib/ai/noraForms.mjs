@@ -71,7 +71,9 @@ function application(kind, { app = false } = {}) {
     steps: [
       { name: 'Personal', fields: [text('firstName', 'First name', 60), text('lastName', 'Last name', 60), ...(app ? [] : [USERNAME]), EMAIL, PHONE, date('dob', 'Date of birth', { past: true }), text('city', 'City, State / Country'), ZONE, text('social', 'Social handles (optional)'), longText('bio', `Short bio: why they got into ${trainer ? 'coaching' : 'nutrition'}`)] },
       { name: 'Credentials', fields: [
-        ...(trainer || app ? [] : [choice('nutritionType', 'Professional type', CHOICES.nutritionType)]),
+        // The app's nutritionist application asks these too (the 2026-10-12 review), so her list
+        // for it carries them; before, Nora could not fill a field the screen showed her.
+        ...(trainer ? [] : [choice('nutritionType', 'Professional type', CHOICES.nutritionType)]),
         text('cert', trainer ? 'Primary certification' : 'License type, or the RD/RDN registration number for a dietitian'),
         text('certExp', trainer ? 'Certification expiration / renewal' : 'License state + number'),
         text('edu', 'Degree / school'),
@@ -81,7 +83,7 @@ function application(kind, { app = false } = {}) {
         longText('experienceNotes', `Anything else about their experience (optional, asked when under ${EXPERIENCE_STANDARD_YEARS} years)`),
         choice('insurance', 'Liability insurance', CHOICES.insurance),
         text('prev', 'Previous platforms (optional)'),
-        ...(trainer || app ? [] : [
+        ...(trainer ? [] : [
           text('cdrId', 'CDR registration number (dietitians only)', 20),
           choice('rdCredential', 'Credential type (dietitians only)', CHOICES.rdCredential),
           text('insCarrier', 'Insurance carrier', 80),

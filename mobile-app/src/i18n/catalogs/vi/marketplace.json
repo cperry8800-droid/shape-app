@@ -188,5 +188,7 @@
   "preview.noOutline": "Huấn luyện viên này chưa đăng bố cục cho mục này.",
   "preview.buy": "Mua · {price} →",
   "preview.action": "Xem bên trong →",
-  "rating.new": "Mới"
+  "rating.new": "Mới",
+  "dir.coachNotOpen": "Tin đăng của coach đó chưa mở. Coach sẽ hiện ở đây khi tin đăng được mở.",
+  "dir.coachNotOpenDismiss": "Đóng"
 }
