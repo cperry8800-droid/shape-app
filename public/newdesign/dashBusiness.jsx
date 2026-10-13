@@ -348,6 +348,10 @@ function DbzBringClientsZone({ live, role, providerId }) {
   );
 }
 function DbzOriginZone({ live, byOrigin }) {
+  // null: the route could not read the subscriptions, which is not "no clients yet".
+  if (live && byOrigin === null) {
+    return <div style={{ fontSize: 12.5, color: DBZ_INK50, lineHeight: 1.55 }}>Couldn't read where your clients came from just now. Nothing is lost; reload to try again.</div>;
+  }
   const rows = live ? (Array.isArray(byOrigin) ? byOrigin : []) : DBZ_DEMO_ORIGIN;
   if (live && !rows.length) {
     return <div style={{ fontSize: 12.5, color: DBZ_INK50, lineHeight: 1.55 }}>Origin labels land here as clients subscribe — "You brought" at your full rate, "Found you on Shape" at the marketplace fee.</div>;
@@ -433,7 +437,7 @@ function DbzOutcomesZone({ role, cp }) {
                 <span style={{ fontFamily: serif, fontSize: 15 }}>{v.n} <span style={{ fontFamily: DBZ_MONO, fontSize: 9, color: DBZ_INK50, textTransform: "uppercase" }}>{v.unit}</span></span>
               </div>
             );
-          }) : <div style={{ fontSize: 12, color: DBZ_INK50, padding: "8px 0" }}>No history yet.</div>}
+          }) : <div style={{ fontSize: 12, color: DBZ_INK50, padding: "8px 0" }}>{cp && cp.rosterUnknown ? "Couldn't read your roster just now." : "No history yet."}</div>}
         </div>
       </div>
     </div>

@@ -411,7 +411,8 @@ export async function GET() {
     isTrainer: true,
     providerId,
     churn,
-    byOrigin,
+    // Built from the active subscriptions: when they could not be read, neither can this.
+    byOrigin: subsUnknown ? null : byOrigin,
     trajectory,
     metrics: {
       mrrGrossCents: subsUnknown ? null : grossCents,
@@ -429,6 +430,8 @@ export async function GET() {
       avgAdherencePct,
       // The weigh-ins could not be read: an empty "top weight loss" is not "no trends".
       weightsUnknown,
+      // The roster itself could not be read: an empty list below is not "no history".
+      rosterUnknown: subsUnknown,
       roster: roster
         .slice()
         .sort((a, b) => (b.workouts30d ?? -1) - (a.workouts30d ?? -1))

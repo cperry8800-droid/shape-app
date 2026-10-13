@@ -291,9 +291,16 @@ test('every active subscription is read, a page at a time', async () => {
 test('a failed subscriptions read leaves every roster outcome unknown, not 0 or "no trends"', async () => {
   const { body } = await loadRoute('trainer', roster(), { errors: { subscriptions: 'timeout' }, rpcs: lifts({}) })
   const cp = body.clientProgress
-  assert.deepEqual([cp.activeClients, cp.workouts30d, cp.workouts7d, cp.prs30d, cp.avgAdherencePct, cp.weightsUnknown], [null, null, null, null, null, true])
+  assert.deepEqual([cp.activeClients, cp.workouts30d, cp.workouts7d, cp.prs30d, cp.avgAdherencePct, cp.weightsUnknown, cp.rosterUnknown], [null, null, null, null, null, true, true])
   assert.equal(body.ticker.workouts7d, null)
+  assert.equal(body.byOrigin, null, 'the origin feed is built from the same rows')
   // And a roster that really is empty still reads as zero.
   const none = await loadRoute('trainer', roster({ subscriptions: [] }), { rpcs: lifts({}) })
-  assert.deepEqual([none.body.clientProgress.workouts30d, none.body.clientProgress.prs30d, none.body.clientProgress.weightsUnknown], [0, 0, false])
+  assert.deepEqual([none.body.clientProgress.workouts30d, none.body.clientProgress.prs30d, none.body.clientProgress.weightsUnknown, none.body.clientProgress.rosterUnknown], [0, 0, false, false])
+  // The consistency panel says it could not read the roster, rather than "No history yet".
+  const page = readFileSync(join(ROOT, 'public/newdesign/dashBusiness.jsx'), 'utf8')
+  assert.match(page, /\{cp && cp\.rosterUnknown \? "Couldn't read your roster just now\." : "No history yet\."\}/)
+  assert.ok(Array.isArray(none.body.byOrigin))
+  const origin = page.slice(page.indexOf('function DbzOriginZone('), page.indexOf('const rows = live ?', page.indexOf('function DbzOriginZone(')))
+  assert.match(origin, /if \(live && byOrigin === null\) \{\s+return <div[^>]*>Couldn't read where your clients came from just now\./)
 })
