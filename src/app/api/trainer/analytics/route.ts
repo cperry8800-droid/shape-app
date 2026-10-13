@@ -227,12 +227,14 @@ export async function GET() {
     prs30d: number | null;
   };
   const roster: RosterRow[] = [];
-  let totalWorkouts30d: number | null = 0;
-  let totalWorkouts7d: number | null = 0;
-  let totalPrs30d: number | null = 0;
+  // A failed subscriptions read leaves no roster to read, so every outcome starts unknown, not 0
+  // (with no clients, the block below is skipped and these are what the page shows).
+  let totalWorkouts30d: number | null = subsUnknown ? null : 0;
+  let totalWorkouts7d: number | null = subsUnknown ? null : 0;
+  let totalPrs30d: number | null = subsUnknown ? null : 0;
   let adherenceNum = 0;
   let adherenceDen = 0;
-  let weightsUnknown = false;
+  let weightsUnknown = subsUnknown;
 
   if (clientIds.length) {
     // workout_sessions / workout_set_logs RLS (can_access_workout_session)
@@ -409,7 +411,8 @@ export async function GET() {
     isTrainer: true,
     providerId,
     churn,
-    byOrigin,
+    // Built from the active subscriptions: when they could not be read, neither can this.
+    byOrigin: subsUnknown ? null : byOrigin,
     trajectory,
     metrics: {
       mrrGrossCents: subsUnknown ? null : grossCents,
@@ -427,6 +430,8 @@ export async function GET() {
       avgAdherencePct,
       // The weigh-ins could not be read: an empty "top weight loss" is not "no trends".
       weightsUnknown,
+      // The roster itself could not be read: an empty list below is not "no history".
+      rosterUnknown: subsUnknown,
       roster: roster
         .slice()
         .sort((a, b) => (b.workouts30d ?? -1) - (a.workouts30d ?? -1))
