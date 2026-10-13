@@ -88,12 +88,14 @@ test('every capped read keeps the NEWEST rows, or says at the site why it must n
   );
 });
 
-test('the exemptions are the five that were checked, and each is deliberate', () => {
+test('the exemptions are the six that were checked, and each is deliberate', () => {
   // ⚠ NOT AN ALLOWLIST THE GUARD ENFORCES — it enforces the marker. This asserts the
-  // marker has not been sprinkled around to quiet the sweep: a sixth one is a decision
+  // marker has not been sprinkled around to quiet the sweep: a seventh one is a decision
   // somebody has to make, and making it means coming here. (lead-boosts/route.ts left the
   // list on 2026-10-09: its ascending provider read moved into redeem_lead_boost, where the
-  // database picks the account's lowest-id provider row.)
+  // database picks the account's lowest-id provider row. trainer/analytics/route.ts joined
+  // it on 2026-10-13: its two ascending reads are pages of readAllById's cursor walk over
+  // every row, which the route reports as unknown at its ceiling rather than keeping a cap.)
   const marked = capped().filter((r) => r.exempt).map((r) => r.where.replace(/:\d+$/, ''));
   assert.deepEqual([...new Set(marked)].sort(), [
     'conversations/[id]/messages/route.ts',
@@ -101,6 +103,7 @@ test('the exemptions are the five that were checked, and each is deliberate', ()
     'radio/rooms/route.ts',
     'stripe/connect-account/route.ts',
     'trainer/adjust/route.ts',
+    'trainer/analytics/route.ts',
   ]);
 });
 

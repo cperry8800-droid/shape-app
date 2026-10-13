@@ -188,5 +188,7 @@
   "preview.noOutline": "Este coach ainda não publicou um roteiro para este.",
   "preview.buy": "Comprar · {price} →",
   "preview.action": "O que tem dentro →",
-  "rating.new": "Novo"
+  "rating.new": "Novo",
+  "dir.coachNotOpen": "O anúncio desse coach ainda não está aberto. Ele aparece aqui quando estiver.",
+  "dir.coachNotOpenDismiss": "Fechar"
 }

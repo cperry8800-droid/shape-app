@@ -188,5 +188,7 @@
   "preview.noOutline": "Dis coach never publish outline for dis one yet.",
   "preview.buy": "Buy · {price} →",
   "preview.action": "Wetin dey inside →",
-  "rating.new": "New"
+  "rating.new": "New",
+  "dir.coachNotOpen": "Dat coach listing never open. E go show for here once e open.",
+  "dir.coachNotOpenDismiss": "Close am"
 }

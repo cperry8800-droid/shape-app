@@ -188,5 +188,7 @@
   "preview.noOutline": "Bu koç bunun için henüz bir akış yayınlamadı.",
   "preview.buy": "Satın al · {price} →",
   "preview.action": "İçinde ne var →",
-  "rating.new": "Yeni"
+  "rating.new": "Yeni",
+  "dir.coachNotOpen": "O koçun ilanı henüz açık değil. Açıldığında burada görünecek.",
+  "dir.coachNotOpenDismiss": "Kapat"
 }

@@ -4645,6 +4645,40 @@ window.ShapeConnect = {
   startOnboarding: startStripeConnectOnboarding,
 };
 
+// A coach's own marketplace listing: whether members can find it, what it still needs, and its
+// rates (/api/coach/listing). null: signed out or no backend configured, nothing to read. [] is a
+// signed-in coach with no listing yet. A failed read throws: it is neither of those.
+async function getMyCoachListings() {
+  if (!apiBaseUrl || !state.session?.access_token) return null;
+  const response = await fetch(`${apiBaseUrl}/api/coach/listing`, {
+    headers: { Authorization: `Bearer ${state.session.access_token}` },
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || !Array.isArray(payload.listings)) throw new Error(payload.error || 'Could not read your listing.');
+  return payload.listings;
+}
+
+async function saveMyCoachRates({ role, monthly, oneTime }) {
+  if (!apiBaseUrl || !state.session?.access_token) throw new Error('Sign in to set your rates.');
+  const response = await fetch(`${apiBaseUrl}/api/coach/listing`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.session.access_token}` },
+    body: JSON.stringify({ role, monthly, oneTime }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || !payload.listing) {
+    const error = new Error(payload.error || 'Could not save your rates.');
+    error.status = response.status;
+    throw error;
+  }
+  return payload.listing;
+}
+
+window.ShapeCoachListing = {
+  getMine: getMyCoachListings,
+  saveRates: saveMyCoachRates,
+};
+
 window.ShapeRefunds = {
   requestRefund,
 };

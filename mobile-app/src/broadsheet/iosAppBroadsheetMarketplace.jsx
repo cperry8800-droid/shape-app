@@ -835,14 +835,17 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
   // Deep-open a specific coach's Listing (a chat coach_invite card / any
   // openMarket dispatch carrying coachId): once the live providers land, find
   // the coach by role + provider id and open them directly. An unknown id
-  // (unpublished/removed listing) honestly stays on the directory. ONE-SHOT:
-  // handling it (hit or miss) tells the shell to clear the target, so a later
-  // ordinary marketplace open can never replay a stale deep link.
+  // stays on the directory, and SAYS SO: a listing that is not in the marketplace
+  // (not ready yet, 2026-10-12, or removed) used to leave the member on the
+  // directory with no word, as if the tap had done nothing. ONE-SHOT: handling it
+  // (hit or miss) tells the shell to clear the target, so a later ordinary
+  // marketplace open can never replay a stale deep link.
+  const [deepMiss, setDeepMiss] = useStateBSM2(false);
   useEffectBSM2(() => {
     if (!initialCoach || !remoteCoaches) return;
     const pool = initialCoach.role === 'nutritionist' ? (remoteCoaches.Nutritionist || []) : (remoteCoaches.Trainer || []);
     const hit = pool.find((c) => Number(c.provider_id) === Number(initialCoach.providerId));
-    if (hit) { setOpen(hit); setOpenNo(null); }
+    if (hit) { setOpen(hit); setOpenNo(null); setDeepMiss(false); } else setDeepMiss(true);
     if (onCoachConsumed) onCoachConsumed();
   }, [initialCoach, remoteCoaches]);
 
@@ -1032,6 +1035,13 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
       {(providersLoading || providersError) ? (
         <div style={{ padding: `0 ${t.padX}px 10px`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: providersError ? t.RUST : t.INK50, fontWeight: 700 }}>
           {providersLoading ? tr('marketplace:dir.syncingProviders', { defaultValue: 'Syncing live providers…' }) : tr('marketplace:dir.demoData', { defaultValue: 'Demo data · {error}', error: providersError })}
+        </div>
+      ) : null}
+
+      {deepMiss ? (
+        <div role="status" style={{ margin: `0 ${t.padX}px 12px`, display: 'flex', gap: 10, alignItems: 'flex-start', border: `1px solid ${t.AMBER}66`, borderRadius: 12, background: `${t.AMBER}12`, padding: '10px 12px' }}>
+          <span style={{ flex: 1, fontFamily: t.DISPLAY, fontSize: 13.5, lineHeight: 1.45, color: t.INK }}>{tr('marketplace:dir.coachNotOpen', { defaultValue: "That coach's listing isn't open yet. They'll appear here once it is." })}</span>
+          <button type="button" onClick={() => setDeepMiss(false)} aria-label={tr('marketplace:dir.coachNotOpenDismiss', { defaultValue: 'Dismiss' })} style={{ flex: 'none', background: 'transparent', border: 0, cursor: 'pointer', minWidth: 32, minHeight: 32, fontSize: 18, lineHeight: 1, color: t.INK50 }}>×</button>
         </div>
       ) : null}
 

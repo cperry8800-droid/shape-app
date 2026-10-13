@@ -188,5 +188,7 @@
   "preview.noOutline": "Este coach aún no ha publicado un esquema para este.",
   "preview.buy": "Comprar · {price} →",
   "preview.action": "Qué incluye →",
-  "rating.new": "Nuevo"
+  "rating.new": "Nuevo",
+  "dir.coachNotOpen": "El anuncio de ese coach aún no está abierto. Aparecerá aquí cuando lo esté.",
+  "dir.coachNotOpenDismiss": "Cerrar"
 }

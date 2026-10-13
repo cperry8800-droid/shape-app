@@ -8192,6 +8192,113 @@ function BSProListingMediaSheet({ role, accent, onClose }) {
   return target ? createPortal(sheet, target) : sheet;
 }
 
+// ── The coach's own listing: not in the marketplace yet, and the rates ──────
+// A listing is hidden from the marketplace until it has a monthly price, active payouts and a
+// photo (listing_ready, 2026-10-12). Only the approval email said so, and nothing in the app or
+// on the site let a coach set a rate. Backed by /api/coach/listing through
+// window.ShapeCoachListing (services/shapeBackend.js); signed out there is no listing to show.
+const BS_LISTING_STEP_KEYS = { price: 'stepPrice', payouts: 'stepPayouts', photo: 'stepPhoto' };
+const BS_LISTING_STEP_DEFAULTS = { price: 'Your monthly rate', payouts: 'Payouts set up', photo: 'A photo' };
+
+// The Rates row's line: the coach's own rates, or that the monthly one is missing.
+function bsRatesLine(listing, tr) {
+  const money = (n) => `$${Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+  if (listing.monthly == null) return tr('coach:rates.rowSubNone', { defaultValue: 'Not set: your listing needs a monthly rate' });
+  if (listing.oneTime == null) return tr('coach:rates.rowSubMonthly', { defaultValue: '{monthly}/mo', monthly: money(listing.monthly) });
+  return listing.role === 'nutritionist'
+    ? tr('coach:rates.rowSubConsult', { defaultValue: '{monthly}/mo · {oneTime}/consult', monthly: money(listing.monthly), oneTime: money(listing.oneTime) })
+    : tr('coach:rates.rowSubSession', { defaultValue: '{monthly}/mo · {oneTime}/session', monthly: money(listing.monthly), oneTime: money(listing.oneTime) });
+}
+
+function BSListingNotice({ listing, onRates, onPhotos, onPayouts }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  const missing = (listing && listing.missing) || [];
+  const act = { price: onRates, payouts: onPayouts, photo: onPhotos };
+  const actLabel = {
+    price: tr('coach:rates.setRates', { defaultValue: 'Set rates' }),
+    payouts: tr('coach:rates.setUpPayouts', { defaultValue: 'Set up payouts' }),
+    photo: tr('coach:rates.addPhoto', { defaultValue: 'Add a photo' }),
+  };
+  return (
+    <div role="status" style={{ border: `1px solid ${t.AMBER}66`, borderRadius: 14, background: `${t.AMBER}12`, padding: '12px 14px' }}>
+      <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.AMBER }}>{tr('coach:rates.noticeEyebrow', { defaultValue: 'Not in the marketplace yet' })}</div>
+      <div style={{ marginTop: 6, fontFamily: t.BODY || t.DISPLAY, fontSize: 13.5, lineHeight: 1.45, color: t.INK }}>
+        {missing.length
+          ? tr('coach:rates.noticeBody', { defaultValue: "Members can't find or subscribe to you until your listing has:" })
+          : tr('coach:rates.noticeWaiting', { defaultValue: "Your listing isn't in the marketplace yet." })}
+      </div>
+      {missing.map((k) => (
+        <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginTop: 8, paddingTop: 8, borderTop: `1px solid ${t.HAIR}` }}>
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK }}>{tr(`coach:rates.${BS_LISTING_STEP_KEYS[k]}`, { defaultValue: BS_LISTING_STEP_DEFAULTS[k] })}</span>
+          {act[k] && (
+            <button type="button" onClick={act[k]} style={{ background: 'transparent', border: `1px solid ${t.INK}33`, borderRadius: 999, padding: '6px 12px', minHeight: 32, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK }}>{actLabel[k]} →</button>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function BSCoachRatesPage({ role, listing, onBack, onSaved, onPhotos, onPayouts }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const [monthly, setMonthly] = useStateBSP(listing && listing.monthly != null ? String(listing.monthly) : '');
+  const [oneTime, setOneTime] = useStateBSP(listing && listing.oneTime != null ? String(listing.oneTime) : '');
+  const [busy, setBusy] = useStateBSP(false);
+  const [msg, setMsg] = useStateBSP('');
+  const save = async () => {
+    if (busy) return;
+    setBusy(true); setMsg('');
+    try {
+      const saved = await window.ShapeCoachListing.saveRates({ role, monthly, oneTime });
+      onSaved(saved);
+      setMsg(tr('coach:rates.saved', { defaultValue: 'Rates saved' }));
+    } catch (e) {
+      setMsg(e && e.status === 400
+        ? tr('coach:rates.invalid', { defaultValue: 'Enter your rates in dollars, for example 120. The single price can stay empty.' })
+        : tr('coach:rates.saveFailed', { defaultValue: 'Could not save your rates. Please try again.' }));
+    } finally { setBusy(false); }
+  };
+  const lbl = { fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 };
+  const input = { width: '100%', boxSizing: 'border-box', marginTop: 6, background: t.PAPER2, border: `1px solid ${t.RULE}`, borderRadius: 10, padding: '11px 12px', fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, outline: 'none' };
+  return (
+    <BSPage>
+      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 28px` }}>
+        <BSBackButton onClick={onBack} label={tr('coach:rates.back', { defaultValue: 'Me' })} style={{ marginBottom: 14 }} />
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>{tr('coach:rates.title', { defaultValue: 'Your rates' })}</div>
+        {!listing ? (
+          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, color: t.INK70 || t.INK }}>{tr('coach:rates.noListing', { defaultValue: 'Your listing appears once your coach application is approved.' })}</div>
+        ) : (
+          <>
+            <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, color: t.INK70 || t.INK }}>{tr('coach:rates.blurb', { defaultValue: 'What members pay you. Your listing needs a monthly rate to appear in the marketplace.' })}</div>
+            <div style={{ marginTop: 14 }}>
+              {listing.ready
+                ? <div role="status" style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: teal }}>✓ {tr('coach:rates.inMarketplace', { defaultValue: 'Your listing is in the marketplace.' })}</div>
+                : <BSListingNotice listing={listing} onPhotos={onPhotos} onPayouts={onPayouts} />}
+            </div>
+            <label style={{ display: 'block', marginTop: 18 }}>
+              <span style={lbl}>{tr('coach:rates.monthly', { defaultValue: 'Monthly rate · $' })}</span>
+              <input style={input} inputMode="decimal" value={monthly} onChange={(e) => setMonthly(e.target.value)} placeholder="120" />
+            </label>
+            <label style={{ display: 'block', marginTop: 14 }}>
+              <span style={lbl}>{role === 'nutritionist'
+                ? tr('coach:rates.oneTimeConsult', { defaultValue: 'Single consult · $ · optional' })
+                : tr('coach:rates.oneTimeSession', { defaultValue: 'Single session · $ · optional' })}</span>
+              <input style={input} inputMode="decimal" value={oneTime} onChange={(e) => setOneTime(e.target.value)} placeholder="60" />
+            </label>
+            <button type="button" onClick={save} disabled={busy} style={{ marginTop: 18, width: '100%', minHeight: 46, border: 0, borderRadius: 999, background: busy ? `${teal}55` : teal, color: t.isLight ? '#fff' : '#06231f', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: busy ? 'default' : 'pointer' }}>
+              {busy ? tr('coach:rates.saving', { defaultValue: 'Saving…' }) : tr('coach:rates.save', { defaultValue: 'Save rates' })}
+            </button>
+            <div role="status" style={{ marginTop: 10, minHeight: 16, fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>{msg}</div>
+          </>
+        )}
+      </div>
+    </BSPage>
+  );
+}
+
 function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => {}, onBack = null, onAppearance = () => {} }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -8216,6 +8323,25 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
   const [showBookingCalendar, setShowBookingCalendar] = useStateBSP(false);
   const [showNotifications, setShowNotifications] = useStateBSP(false);
   const [showSoundtracks, setShowSoundtracks] = useStateBSP(false);
+  const [showRates, setShowRates] = useStateBSP(false);
+  // The signed-in coach's own listing for this role. Read again when the photo sheet closes, since
+  // a photo can be the step that lists them. listingRead: 'demo' (signed out, the preview's rows),
+  // 'live' (read; myListing null means not approved yet) or 'error' (the read failed), so a
+  // signed-in coach is never shown the preview's rates.
+  const [myListing, setMyListing] = useStateBSP(null);
+  const [listingRead, setListingRead] = useStateBSP('demo');
+  const [listingReads, setListingReads] = useStateBSP(0);
+  useEffectBSP(() => {
+    const get = typeof window !== 'undefined' && window.ShapeCoachListing && window.ShapeCoachListing.getMine;
+    if (!get) return undefined;
+    let on = true;
+    get().then((list) => {
+      if (!on || !Array.isArray(list)) return;
+      setMyListing(list.find((l) => l.role === role) || null);
+      setListingRead('live');
+    }).catch(() => { if (on) setListingRead('error'); });
+    return () => { on = false; };
+  }, [role, listingReads]);
   const scoreProfile = _bsUseLiveScore(SHAPE_SCORE_PROFILES?.[role] || SHAPE_SCORE_PROFILES?.client); // live points/tier when signed in
   const startPayoutSetup = async () => {
     try {
@@ -8252,6 +8378,10 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
   if (showNotifications) {
     return <BSProNotificationsPage onBack={() => setShowNotifications(false)} />;
   }
+  if (showRates) {
+    return <BSCoachRatesPage role={role} listing={myListing} onBack={() => setShowRates(false)} onSaved={setMyListing}
+      onPhotos={() => { setShowRates(false); setShowListingMedia(true); }} onPayouts={startPayoutSetup} />;
+  }
 
   return (
     <BSPage>
@@ -8271,6 +8401,12 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
           </div>
         </div>
       </div>
+
+      {myListing && !myListing.ready && (
+        <div style={{ padding: `14px ${t.padX}px 0` }}>
+          <BSListingNotice listing={myListing} onRates={() => setShowRates(true)} onPhotos={() => setShowListingMedia(true)} onPayouts={startPayoutSetup} />
+        </div>
+      )}
 
       {(() => {
         const total = scoreProfile.total || 0;
@@ -8384,7 +8520,11 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
           { l: 'Public profile', sub: isCoach ? 'shape.app/@jordan' : 'shape.app/@maya', r: 'Edit', onClick: () => setShowPublicProfile(true) },
           { l: 'Payouts', sub: 'Weekly · Stripe · Fri', r: '$4,820', onClick: startPayoutSetup },
           { l: 'Availability', sub: 'Mon-Fri · 9 am - 6 pm', r: 'Edit', onClick: () => setShowBookingCalendar(true) },
-          { l: 'Rates', sub: isCoach ? '$95/session · $120/mo' : '$140/plan · $80/consult', r: 'Edit', onClick: () => setShowPublicProfile(true) },
+          listingRead === 'live'
+            ? { l: tr('coach:rates.row', { defaultValue: 'Rates' }), sub: myListing ? bsRatesLine(myListing, tr) : tr('coach:rates.rowSubNoListing', { defaultValue: 'Set once your coach application is approved' }), r: 'Edit', onClick: () => setShowRates(true) }
+            : listingRead === 'error'
+              ? { l: tr('coach:rates.row', { defaultValue: 'Rates' }), sub: tr('coach:rates.rowSubError', { defaultValue: "Couldn't load your rates. Tap to try again" }), r: '↻', onClick: () => setListingReads((n) => n + 1) }
+              : { l: 'Rates', sub: isCoach ? '$95/session · $120/mo' : '$140/plan · $80/consult', r: 'Edit', onClick: () => setShowPublicProfile(true) },
           { l: 'Monthly offer', sub: "What's included — shown on your marketplace listing", r: 'Edit', onClick: () => setShowOfferEditor(true) },
           { l: tr('coach:listing.row', { defaultValue: 'Listing photos' }), sub: tr('coach:listing.rowSub', { defaultValue: 'Your box on the marketplace — portrait, cover, studio' }), r: 'Edit', onClick: () => setShowListingMedia(true) },
           { l: 'Soundtracks', sub: 'Saved playlists · assign to plans', r: '→', onClick: () => setShowSoundtracks(true) },
@@ -8409,7 +8549,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
           <div style={{ padding: `4px ${t.padX}px 8px` }}>
             {head('YOUR PRACTICE', 'Shortcuts', 22)}
             {showOfferEditor && <BSProMonthlyOfferSheet role={isCoach ? 'trainer' : 'nutritionist'} accent={accent} onClose={() => setShowOfferEditor(false)} />}
-            {showListingMedia && <BSProListingMediaSheet role={isCoach ? 'trainer' : 'nutritionist'} accent={accent} onClose={() => setShowListingMedia(false)} />}
+            {showListingMedia && <BSProListingMediaSheet role={isCoach ? 'trainer' : 'nutritionist'} accent={accent} onClose={() => { setShowListingMedia(false); setListingReads((n) => n + 1); }} />}
             <div style={{ marginTop: 8 }}>{shortcuts.map((it, i) => numRow(it, i, accent))}</div>
             {head('ACCOUNT', 'Settings', 26)}
             <div style={{ marginTop: 8 }}>{settings.map((it, i) => numRow(it, i, t.INK50))}</div>

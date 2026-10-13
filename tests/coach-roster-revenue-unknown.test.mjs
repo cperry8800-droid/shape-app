@@ -122,12 +122,19 @@ for (const role of ['trainer', 'nutritionist']) {
   test(`/api/${role}/analytics keeps its subscriptions error`, () => {
     const src = readFileSync(new URL(`../src/app/api/${role}/analytics/route.ts`, import.meta.url), 'utf8');
     // The primary read destructures the error…
-    assert.match(src, /const \{ data: subRows, error: subErr \} = await supabase/);
+    // (The trainer route pages it, through readAllById; the error is kept all the same.)
+    assert.match(src, role === 'trainer'
+      ? /const \{ data: subRows, error: subErr \} = await readAllById</
+      : /const \{ data: subRows, error: subErr \} = await supabase/);
     assert.match(src, /const subsUnknown = !!subErr;/);
     // …and every subscription-derived figure it publishes goes null when it fired.
     assert.match(src, /mrrGrossCents: subsUnknown \? null : grossCents,/);
     assert.match(src, /mrrNetCents: subsUnknown \? null : netCents,/);
-    assert.match(src, /const activeClients = subsUnknown \? null : subs\.length;/);
+    // The trainer route counts each client once (one client can hold two active rows, Codex on
+    // #2324); the nutritionist route still counts rows. Either goes null on a failed read.
+    assert.match(src, role === 'trainer'
+      ? /const activeClients = subsUnknown \? null : clientIds\.length;/
+      : /const activeClients = subsUnknown \? null : subs\.length;/);
     // ⚠ AND NOTHING STILL PUBLISHES THE RAW ROW COUNT. `activeClients: subs.length`
     // appeared THREE times — metrics, clientProgress and ticker — so fixing one
     // and leaving two would have left the same zero on two surfaces.

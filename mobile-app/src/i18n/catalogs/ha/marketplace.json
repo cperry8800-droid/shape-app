@@ -188,5 +188,7 @@
   "preview.noOutline": "Wannan kocin bai riga ya buga tsari don wannan ba.",
   "preview.buy": "Saya · {price} →",
   "preview.action": "Abin da ke ciki →",
-  "rating.new": "Sabo"
+  "rating.new": "Sabo",
+  "dir.coachNotOpen": "Tallar wannan kocin ba a buɗe ta ba tukuna. Zai bayyana a nan da zarar an buɗe.",
+  "dir.coachNotOpenDismiss": "Rufe"
 }

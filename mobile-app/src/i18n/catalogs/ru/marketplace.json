@@ -188,5 +188,7 @@
   "preview.noOutline": "Этот тренер пока не опубликовал структуру для него.",
   "preview.buy": "Купить · {price} →",
   "preview.action": "Что внутри →",
-  "rating.new": "Новый"
+  "rating.new": "Новый",
+  "dir.coachNotOpen": "Объявление этого тренера ещё не открыто. Он появится здесь, когда оно откроется.",
+  "dir.coachNotOpenDismiss": "Закрыть"
 }

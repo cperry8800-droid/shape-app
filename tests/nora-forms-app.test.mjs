@@ -24,6 +24,15 @@ test('the app forms follow the app screens: every key one the screen sets, every
   for (const kind of ['app_apply_trainer', 'app_apply_nutritionist']) {
     for (const key of keysOf(kind)) assert.ok(new RegExp(`(set|toggle)\\('${key}'`).test(APPLY), `${kind}.${key} is a field the application sets`);
   }
+  // And the other way: every field the screen sets, bar the ones only they may fill, is one
+  // Nora's list carries. The app's nutritionist fields (professional type, CDR number, credential
+  // type, insurance carrier, policy and expiry) were set by the screen and missing from her list.
+  const never = APPLY.match(/const never = \[([^\]]*)\];/)[1].match(/'([^']+)'/g).map((q) => q.slice(1, -1));
+  const screen = [...new Set([...APPLY.matchAll(/(?:set|toggle)\('([A-Za-z]+)'/g)].map((m) => m[1]))].filter((k) => !never.includes(k));
+  const listed = new Set([...keysOf('app_apply_trainer'), ...keysOf('app_apply_nutritionist')]);
+  assert.deepEqual(screen.filter((k) => !listed.has(k)), [], 'a field the app application sets that Nora cannot fill');
+  for (const key of ['nutritionType', 'cdrId', 'rdCredential', 'insCarrier', 'insPolicy', 'insExpires']) assert.ok(keysOf('app_apply_nutritionist').includes(key), key);
+  assert.ok(!keysOf('app_apply_trainer').includes('cdrId'), 'the trainer application has no dietitian fields');
   assert.ok(!keysOf('app_apply_trainer').includes('username'), 'the app\'s application has no username');
   for (const o of [...CHOICES.appTrainerSpecs, ...CHOICES.appNutriSpecs, ...CHOICES.trainerPopulations, ...CHOICES.nutriPopulations]) assert.ok(APPLY.includes(`'${o}'`), `"${o}" is offered on the app's application`);
   const config = await import(pathToFileURL(join(ROOT, 'mobile-app/src/config/providerApplications.js')).href);

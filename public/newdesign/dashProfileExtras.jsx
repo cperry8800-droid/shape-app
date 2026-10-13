@@ -136,6 +136,141 @@ function CoachCredentialsCard() {
   );
 }
 
+// Marketplace listing · rates and readiness. A coach's listing is hidden from the marketplace
+// until it has a monthly price, active payouts and a photo (listing_ready, 2026-10-12); this card
+// says which are missing and sets the rates, which nothing else on the site could. Backed by
+// /api/coach/listing (the same route the Business page's notice reads).
+const LISTING_STEP_TEXT = {
+  price: "your monthly rate",
+  payouts: "payouts set up (Business → Set up payouts)",
+  photo: "a photo (below, or your profile photo)",
+};
+function listingStepsLine(missing) {
+  const parts = (missing || []).map((k) => LISTING_STEP_TEXT[k]).filter(Boolean);
+  if (parts.length <= 1) return parts.join("");
+  return parts.slice(0, -1).join(", ") + " and " + parts[parts.length - 1];
+}
+
+function CoachListingRatesCard() {
+  const mono = "'JetBrains Mono', monospace";
+  const sans = "'Space Grotesk', sans-serif";
+  const teal = (typeof window !== "undefined" && window.TEAL_BRIGHT) || "#2ee0c4";
+  const amber = "#d8a23a";
+  const role = /nutrition/i.test(typeof window !== "undefined" ? window.location.pathname : "") ? "nutritionist" : "trainer";
+  const oneTimeLabel = role === "nutritionist" ? "Single consult" : "Single session";
+  const [state, setState] = React.useState({ loading: true, error: false, listing: null, signedIn: true });
+  const [monthly, setMonthly] = React.useState("");
+  const [oneTime, setOneTime] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [msg, setMsg] = React.useState("");
+  const [reloadKey, setReloadKey] = React.useState(0);
+
+  React.useEffect(() => {
+    let on = true;
+    setState((s) => ({ ...s, loading: true, error: false }));
+    fetch("/api/coach/listing", { credentials: "same-origin", cache: "no-store" })
+      .then(async (r) => {
+        if (r.status === 401) return { signedIn: false };
+        if (!r.ok) throw new Error("read");
+        return r.json();
+      })
+      .then((d) => {
+        if (!on) return;
+        if (d.signedIn === false) { setState({ loading: false, error: false, listing: null, signedIn: false }); return; }
+        const listing = ((d && d.listings) || []).find((l) => l.role === role) || null;
+        setState({ loading: false, error: false, listing, signedIn: true });
+        if (listing) {
+          setMonthly(listing.monthly != null ? String(listing.monthly) : "");
+          setOneTime(listing.oneTime != null ? String(listing.oneTime) : "");
+        }
+      })
+      .catch(() => { if (on) setState((s) => ({ ...s, loading: false, error: true })); });
+    return () => { on = false; };
+  }, [role, reloadKey]);
+
+  // A photo saved in the card below can make the listing ready: read the readiness again, leaving
+  // the rates as typed (a coach can be mid-edit here).
+  React.useEffect(() => {
+    let on = true;
+    const onChanged = () => {
+      fetch("/api/coach/listing", { credentials: "same-origin", cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          const listing = d && ((d.listings || []).find((l) => l.role === role) || null);
+          if (on && listing) setState((s) => ({ ...s, listing }));
+        })
+        .catch(() => {});
+    };
+    window.addEventListener("shape:listing-changed", onChanged);
+    return () => { on = false; window.removeEventListener("shape:listing-changed", onChanged); };
+  }, [role]);
+
+  const save = async () => {
+    if (busy) return;
+    setBusy(true); setMsg("");
+    try {
+      const r = await fetch("/api/coach/listing", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role, monthly, oneTime }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || "Could not save your rates. Please try again.");
+      setState((s) => ({ ...s, listing: d.listing }));
+      setMsg("Rates saved ✓");
+    } catch (e) { setMsg((e && e.message) || "Could not save your rates. Please try again."); }
+    finally { setBusy(false); }
+  };
+
+  const card = { background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 16, padding: "20px 22px", marginBottom: 16 };
+  const kick = { fontFamily: mono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" };
+  const lbl = { fontFamily: mono, fontSize: 10, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)" };
+  const input = { background: "rgba(0,0,0,0.2)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 9, padding: "9px 11px", color: "#f2ede4", fontFamily: sans, fontSize: 13, outline: "none", width: 140 };
+  const body = { fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.65)", lineHeight: 1.5, margin: 0 };
+  const l = state.listing;
+
+  return (
+    <div style={card}>
+      <div style={{ ...kick, marginBottom: 14 }}>Marketplace listing · rates</div>
+      {state.loading ? (
+        <div style={{ fontFamily: mono, fontSize: 11, color: "rgba(242,237,228,0.4)" }}>Loading…</div>
+      ) : state.error ? (
+        <div>
+          <p style={body}>Couldn't load your listing — nothing has changed. Try again.</p>
+          <button onClick={() => setReloadKey((k) => k + 1)} style={{ marginTop: 12, background: "transparent", color: "rgba(242,237,228,0.8)", border: "1px solid rgba(242,237,228,0.25)", borderRadius: 9, padding: "8px 12px", fontFamily: sans, fontSize: 12, cursor: "pointer" }}>Retry</button>
+        </div>
+      ) : !state.signedIn ? (
+        <p style={body}>Sign in as a coach to set your rates.</p>
+      ) : !l ? (
+        <p style={body}>Your listing appears once your coach application is approved.</p>
+      ) : (
+        <>
+          <div role="status" style={{ display: "flex", gap: 10, alignItems: "baseline", padding: "10px 12px", borderRadius: 10, marginBottom: 12, border: `1px solid ${l.ready ? "rgba(46,224,196,0.35)" : "rgba(216,162,58,0.45)"}`, background: l.ready ? "rgba(46,224,196,0.06)" : "rgba(216,162,58,0.08)" }}>
+            <span aria-hidden="true" style={{ fontFamily: mono, fontSize: 12, color: l.ready ? teal : amber }}>{l.ready ? "✓" : "!"}</span>
+            <p style={{ ...body, color: "rgba(242,237,228,0.82)" }}>
+              {l.ready
+                ? "Your listing is in the marketplace."
+                : l.missing && l.missing.length
+                  ? <>Members can't find you yet. Your listing appears in the marketplace once it has {listingStepsLine(l.missing)}.</>
+                  : "Your listing isn't in the marketplace yet."}
+            </p>
+          </div>
+          <div style={{ display: "flex", gap: 18, flexWrap: "wrap", padding: "12px 0", borderTop: "1px solid rgba(242,237,228,0.08)" }}>
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={lbl}>Monthly rate · $</span>
+              <input style={input} inputMode="decimal" value={monthly} onChange={(e) => setMonthly(e.target.value)} placeholder="120" aria-label="Monthly rate in dollars" />
+            </label>
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={lbl}>{oneTimeLabel} · $ · optional</span>
+              <input style={input} inputMode="decimal" value={oneTime} onChange={(e) => setOneTime(e.target.value)} placeholder="60" aria-label={oneTimeLabel + " price in dollars"} />
+            </label>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, paddingTop: 14, borderTop: "1px solid rgba(242,237,228,0.08)", flexWrap: "wrap" }}>
+            <div role="status" style={{ fontFamily: mono, fontSize: 10.5, color: "rgba(242,237,228,0.5)", minHeight: 14 }}>{msg}</div>
+            <button onClick={save} disabled={busy} style={{ background: busy ? "rgba(46,224,196,0.25)" : teal, color: "#0b0e0c", border: 0, borderRadius: 999, padding: "10px 18px", fontFamily: sans, fontSize: 12.5, fontWeight: 600, cursor: busy ? "default" : "pointer" }}>{busy ? "Saving…" : "Save rates"}</button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // Marketplace listing photos — the coach dresses their marketplace box (portrait,
 // cover, studio gallery) from the dashboard. Reads/writes the coach's OWN provider
 // row directly via window.shapeDb.client (owner-scoped RLS + the admin-column
@@ -244,6 +379,8 @@ function CoachListingMediaCard() {
       if (error) throw error;
       if (!rows || !rows.length) throw new Error("Your coach listing was not found.");
       flash("Listing saved ✓");
+      // A photo can be the last step to the marketplace; the Rates card above re-reads the listing.
+      try { window.dispatchEvent(new Event("shape:listing-changed")); } catch (_) {}
     } catch (e) { flash((e && e.message) || "Could not save — try again."); }
     finally { setBusy(false); }
   };
@@ -394,5 +531,5 @@ function CoachAccountSettings({ accountId }) {
 }
 
 function DashProfileExtras() {
-  return <section style={{maxWidth:900,margin:"0 auto",padding:"26px 40px 34px"}}><CoachCredentialsCard /><CoachListingMediaCard /></section>;
+  return <section style={{maxWidth:900,margin:"0 auto",padding:"26px 40px 34px"}}><CoachCredentialsCard /><CoachListingRatesCard /><CoachListingMediaCard /></section>;
 }
