@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { currentUser } from '@/lib/request-auth';
-import { handoffUserFromRequest } from '@/lib/integration-handoff';
+import { handoffUserFromRequest, presentsHandoff } from '@/lib/integration-handoff';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -41,8 +41,9 @@ function privateKeyFromEnv() {
 export async function GET(request: Request) {
   // L8 (2026-10-08 review): the token is signed with Shape's Apple key and is good for twelve
   // hours of MusicKit calls, so it is minted for signed-in members only, not for any visitor.
-  // From the installed app, /connect/apple_music speaks for its member with the link token.
-  const user = (await currentUser(request)) ?? handoffUserFromRequest(request, 'apple_music');
+  // From the installed app, /connect/apple_music speaks for its member with the link token; a
+  // presented link decides, as on the connect route.
+  const user = presentsHandoff(request) ? handoffUserFromRequest(request, 'apple_music') : await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
   const teamId = process.env.APPLE_MUSIC_TEAM_ID;

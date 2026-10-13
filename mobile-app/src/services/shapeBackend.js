@@ -4074,13 +4074,20 @@ async function openIntegrationHandoff(provider) {
   if (!res.ok || !payload.url) throw new Error(payload.error || 'Unable to start connecting.');
   const Browser = typeof window !== 'undefined' && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser;
   if (!Browser || !Browser.open) throw new Error('The in-app browser is not available.');
+  let handle = null;
   try {
-    const handle = await Browser.addListener('browserFinished', () => {
+    handle = await Browser.addListener('browserFinished', () => {
       try { handle && handle.remove && handle.remove(); } catch (e) {}
       try { window.dispatchEvent(new Event('shape:integrations-changed')); } catch (e) {}
     });
   } catch (e) { /* no listener: the page still reloads its status on its next visit */ }
-  await Browser.open({ url: payload.url });
+  try {
+    await Browser.open({ url: payload.url });
+  } catch (err) {
+    // The browser never opened, so it never closes: take the listener back, or the next connect fires two.
+    try { handle && handle.remove && handle.remove(); } catch (e) {}
+    throw err;
+  }
   return { handoff: true };
 }
 

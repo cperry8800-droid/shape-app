@@ -10,7 +10,7 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { readJson, dbError } from '@/lib/request-utils';
-import { handoffUserFromRequest } from '@/lib/integration-handoff';
+import { handoffUserFromRequest, presentsHandoff } from '@/lib/integration-handoff';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -36,8 +36,9 @@ async function resolveUser(request: Request): Promise<{ id: string } | null> {
 
 export async function POST(request: Request) {
   // From the installed app, /connect/apple_music speaks for its member with the link token
-  // (src/lib/integration-handoff.ts), bound to Apple Music only.
-  const user = (await resolveUser(request)) ?? handoffUserFromRequest(request, 'apple_music');
+  // (src/lib/integration-handoff.ts), bound to Apple Music only. A presented link decides: the
+  // browser's own session is never consulted, so the token is stored for the member the page named.
+  const user = presentsHandoff(request) ? handoffUserFromRequest(request, 'apple_music') : await resolveUser(request);
   if (!user) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
 
   const bodyResult = await readJson<{

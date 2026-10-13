@@ -94,6 +94,16 @@ export function handoffPostAllowed(request: Request): boolean {
   return request.headers.get('sec-fetch-site') === 'same-origin';
 }
 
+/**
+ * True when the request presents a link (its X-Shape-Handoff header). ⚠ A PRESENTED LINK DECIDES THE
+ * MEMBER: the in-app browser can carry the website's own cookies (Chrome Custom Tabs shares Chrome's),
+ * so a session for another account must never stand in for the one the page named, and a link that
+ * has run out is refused rather than passed over to that session (CodeRabbit on #2337).
+ */
+export function presentsHandoff(request: Request): boolean {
+  return request.headers.get('x-shape-handoff') !== null;
+}
+
 /** The member an Apple Music call on /connect/apple_music speaks for (its X-Shape-Handoff header). */
 export function handoffUserFromRequest(request: Request, provider: HandoffProvider): { id: string } | null {
   const uid = readHandoff(request.headers.get('x-shape-handoff'), provider);

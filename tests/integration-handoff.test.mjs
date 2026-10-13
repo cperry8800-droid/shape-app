@@ -280,24 +280,30 @@ test('the done page says what happened and to close it', async () => {
 // ── Apple Music's routes take the page's link token ─────────────────────────
 
 test('Apple Music: the developer token and the connect route take an Apple Music link, and no other', async () => {
+  // The in-app browser can carry the website's own session (Chrome Custom Tabs shares Chrome's
+  // cookies), here for OTHER: a presented link decides, and a refused one never falls back to it.
+  let sessionUser = { id: OTHER };
   const devToken = await loadRealModule(join(ROOT, 'src/app/api/integrations/apple-music/developer-token/route.ts'), {
     typescript: true,
-    registry: new Map([['next/server', nextServer], ['@/lib/request-auth', { currentUser: async () => null }], ['@/lib/integration-handoff', H]]),
+    registry: new Map([['next/server', nextServer], ['@/lib/request-auth', { currentUser: async () => sessionUser }], ['@/lib/integration-handoff', H]]),
   });
   delete process.env.APPLE_MUSIC_TEAM_ID;
   const tokenCall = (h) => devToken.GET(new Request('https://shape.test/api/integrations/apple-music/developer-token', { headers: h }));
-  assert.equal((await tokenCall({})).status, 401);
-  assert.equal((await tokenCall({ 'x-shape-handoff': H.issueHandoff(UID, 'whoop').token })).status, 401, 'a WHOOP link is not an Apple Music one');
+  assert.equal((await tokenCall({ 'x-shape-handoff': H.issueHandoff(UID, 'whoop').token })).status, 401, 'a WHOOP link is not an Apple Music one, whatever session the browser has');
   // Past the sign-in check: what stops it now is the missing Apple key.
   assert.equal((await tokenCall({ 'x-shape-handoff': H.issueHandoff(UID, 'apple_music').token })).status, 500);
+  assert.equal((await tokenCall({})).status, 500, 'no link: the session, as before');
+  sessionUser = null;
+  assert.equal((await tokenCall({})).status, 401);
 
+  sessionUser = { id: OTHER };
   const rows = [];
   const connect = await loadRealModule(join(ROOT, 'src/app/api/integrations/apple-music/connect/route.ts'), {
     typescript: true,
     registry: new Map([
       ['next/server', nextServer],
       ['@supabase/supabase-js', { createClient: () => { throw new Error('no Bearer here'); } }],
-      ['@/lib/supabase/server', { createClient: async () => ({ auth: { getUser: async () => ({ data: { user: null } }) } }) }],
+      ['@/lib/supabase/server', { createClient: async () => ({ auth: { getUser: async () => ({ data: { user: sessionUser } }) } }) }],
       ['@/lib/supabase/admin', { createAdminClient: () => ({ from: () => ({ upsert: async (row) => { rows.push(row); return { error: null }; } }) }) }],
       ['@/lib/request-utils', requestUtils],
       ['@/lib/integration-handoff', H],
@@ -306,11 +312,14 @@ test('Apple Music: the developer token and the connect route take an Apple Music
   const post = (h) => connect.POST(new Request('https://shape.test/api/integrations/apple-music/connect', {
     method: 'POST', headers: { 'content-type': 'application/json', ...h }, body: JSON.stringify({ musicUserToken: 'mut', storefront: 'us' }),
   }));
-  assert.equal((await post({ 'x-shape-handoff': H.issueHandoff(UID, 'strava').token })).status, 401);
+  assert.equal((await post({ 'x-shape-handoff': H.issueHandoff(UID, 'strava').token })).status, 401, 'a refused link is not passed over to the session');
+  assert.equal((await post({ 'x-shape-handoff': H.issueHandoff(UID, 'apple_music', Date.now() - 11 * 60_000).token })).status, 401, 'nor is one that has run out');
   assert.equal(rows.length, 0);
   const ok = await post({ 'x-shape-handoff': H.issueHandoff(UID, 'apple_music').token });
   assert.equal(ok.status, 200);
-  assert.deepEqual([rows[0].user_id, rows[0].provider, rows[0].access_token], [UID, 'apple_music', 'mut']);
+  assert.deepEqual([rows[0].user_id, rows[0].provider, rows[0].access_token], [UID, 'apple_music', 'mut'], 'the member the page named, not the browser\'s session');
+  assert.equal((await post({})).status, 200, 'no link: the session, as before');
+  assert.equal(rows[1].user_id, OTHER);
 });
 
 // ── The app ─────────────────────────────────────────────────────────────────
@@ -366,6 +375,12 @@ test('app: connecting in the installed app opens the handoff link in the in-app 
   const { connectProvider: c2 } = backendSlice('async function openIntegrationHandoff(', 'async function connectWhoop(', refused.scope);
   await assert.rejects(() => c2('whoop'), /WHOOP isn't available yet\./);
   assert.equal(refused.log.some((e) => e[0] === 'open'), false);
+
+  const failing = appWorld();
+  failing.scope.window.Capacitor.Plugins.Browser.open = async () => { throw new Error('no browser'); };
+  const { connectProvider: cFail } = backendSlice('async function openIntegrationHandoff(', 'async function connectWhoop(', failing.scope);
+  await assert.rejects(() => cFail('whoop'), /no browser/);
+  assert.deepEqual(failing.log.filter((e) => e[0] === 'removed'), [['removed', 'browserFinished']], 'a browser that never opened leaves no listener behind');
 
   const web = appWorld({ native: false });
   const { connectProvider: c3 } = backendSlice('async function openIntegrationHandoff(', 'async function connectWhoop(', web.scope);
