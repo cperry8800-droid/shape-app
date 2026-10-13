@@ -352,7 +352,23 @@ async function publishProviderRow(
     })
     .select('id')
     .single();
-  if (error) throw error;
+  if (error) {
+    // One listing per role per account (2026-10-13-one-listing-per-account.sql): a listing that
+    // appeared for this owner since the read above wins, and this approval uses it. Any other
+    // unique violation finds no row here and is thrown as it was.
+    if ((error as { code?: string }).code === '23505') {
+      const { data: again, error: againError } = await admin
+        .from(table)
+        .select('id')
+        .eq('owner_id', ownerId)
+        .order('id', { ascending: true })
+        .limit(1);
+      if (againError) throw againError;
+      const winner = (Array.isArray(again) ? again[0] : null) as { id?: number } | null;
+      if (winner?.id != null) return winner.id;
+    }
+    throw error;
+  }
   return data.id as number;
 }
 

@@ -71,6 +71,12 @@ function fakeAdmin({ tables = {}, users = [], rpc = {}, fail = [], afterRead = n
         if (hit) { Object.assign(hit, st.payload); return { data: st.single ? hit : [hit], error: null }; }
       }
       if (st.op === 'insert' || st.op === 'upsert') {
+        // The one-listing indexes (2026-10-13-one-listing-per-account.sql): a second listing for an
+        // owner is a unique violation. 'unique:<table>' forces one with no row behind it.
+        if ((table === 'trainers' || table === 'nutritionists') && st.op === 'insert'
+            && (fail.includes(`unique:${table}`) || (st.payload.owner_id != null && rowsOf(table).some((r) => r.owner_id === st.payload.owner_id)))) {
+          return { data: null, error: { code: '23505', message: `duplicate key value violates unique constraint "${table}_one_per_owner"` } };
+        }
         const row = { id: st.payload.id ?? `${table}-${rowsOf(table).length + 1}`, ...st.payload };
         if (table === 'trainers' || table === 'nutritionists') row.id = rowsOf(table).length + 101;
         rowsOf(table).push(row);
@@ -448,6 +454,32 @@ test('2: a click that arrives while the first Approve is still provisioning find
   assert.equal(ok.searchParams.get('updated'), 'approved');
   assert.equal(later.tables.trainers.length, 1);
   assert.equal(later.tables.provider_applications[0].admin_review.approval_claim, null, 'the approval clears its claim');
+});
+
+test('one listing per account: a listing that appears between the read and the insert is the one approval uses', async () => {
+  // Another writer lists the coach after approval looked for a listing and found none.
+  let raced = false;
+  const admin = fakeAdmin({
+    tables: { provider_applications: [application()], profiles: [], trainers: [] },
+    afterRead: ({ table, rows, tables }) => {
+      if (table !== 'trainers' || raced || rows.length) return;
+      raced = true;
+      tables.trainers.push({ id: 777, owner_id: NEW_UID, name: 'Listed meanwhile' });
+    },
+  });
+  const { run } = await loadActions(admin);
+  const to = await run('approveApplication', { application_id: APP_ID, review_notes: '', applicant_note: '' });
+  assert.equal(to.searchParams.get('updated'), 'approved');
+  assert.equal(raced, true, 'the race happened');
+  assert.deepEqual(admin.tables.trainers.map((r) => r.id), [777], 'still one listing');
+  assert.equal(admin.tables.provider_applications[0].admin_review.approved_provider.provider_id, 777);
+});
+
+test('one listing per account: a unique violation with no listing behind it is still an error', async () => {
+  const admin = fakeAdmin({ tables: { provider_applications: [application()], profiles: [], trainers: [] }, fail: ['unique:trainers'] });
+  const { run } = await loadActions(admin);
+  await assert.rejects(run('approveApplication', { application_id: APP_ID, review_notes: '', applicant_note: '' }), (e) => /duplicate key value/.test(e?.message));
+  assert.equal(admin.tables.provider_applications[0].status, 'pending');
 });
 
 test('2: a provisioning failure releases the claim, so the admin can approve again at once', async () => {
