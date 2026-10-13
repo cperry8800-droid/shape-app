@@ -688,8 +688,10 @@ test('6: no coach route or admin rejection writes the badge off itself; the cred
   }
   assert.doesNotMatch(creds, /createAdminClient/, 'the credentials route needs no service role at all');
   const actions = stripComments(read('src/app/dashboard/credentials/actions.ts'));
-  assert.match(actions, /\.update\(\{ verified: true, verified_at: at \}\)/, 'approval still puts the badge on');
-  assert.doesNotMatch(actions, /verified: false|verified,/, 'rejection and changes leave the badge to the database');
+  // Approval and the badge are one transaction (Codex, #2321): a coach edit cannot land between them.
+  assert.match(actions, /await admin\.rpc\('approve_provider_credential', \{\s+p_owner: ownerId,\s+p_reviewer: adminUser\.id,/)
+  assert.match(actions, /if \(error\) throw error;\n\s+if \(badged === null\) throw new Error\('This coach has no credentials to approve\.'\);/, 'nothing to approve is not announced as verified')
+  assert.doesNotMatch(actions, /from\('(trainers|nutritionists)'\)|verified: (true|false)|review_status: 'approved'/, 'no listing write and no approval outside the database function');
   assert.match(stripComments(read('src/app/api/cron/credential-expiry/route.ts')), /badgeCleared = await clearListingVerified\(admin, ownerId\);/, 'the cron clears a badge with no credential write behind it through the one database call');
 });
 

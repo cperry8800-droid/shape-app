@@ -18,8 +18,13 @@
 --     row is written and is not 'approved', or is deleted. A coach's edit (which the review guard
 --     sends back to 'pending'), an admin's rejection or request for changes, and the cron's move
 --     all take the badge off in the same transaction as the credential write: both happen or
---     neither does. Approval (review_status 'approved') leaves the badge for the admin action to
---     set.
+--     neither does.
+--   · approve_provider_credential(owner, reviewer, notes) approves the credential and puts the
+--     badge on both listings in one transaction. Codex, on #2321: approved first and badged in a
+--     second call, a coach edit landing between the two was un-approved by the trigger and then
+--     badged anyway. Inside one transaction the approval holds the credential row's lock until the
+--     badge is on, so an edit lands before it (and the approval overwrites it, as an approval
+--     always has) or after it (and the trigger takes the badge off). Service role only.
 --
 -- The trigger function is SECURITY DEFINER because the coach's own write has to clear columns
 -- the listing guard (guard_provider_admin_columns) keeps out of a coach's reach. It takes no
@@ -80,7 +85,41 @@ create trigger provider_credentials_zz_unverify_listings
   after insert or update or delete on public.provider_credentials
   for each row execute function public.provider_credentials_unverify_listings();
 
--- ── 3 · guard ──────────────────────────────────────────────────────────────────────────────
+-- ── 3 · approval and the badge in one transaction ─────────────────────────────────────────
+-- Returns how many listings carry the badge now, or null when the owner has no credential row
+-- (nothing to approve, so nothing is badged).
+create or replace function public.approve_provider_credential(p_owner uuid, p_reviewer uuid, p_notes text)
+returns integer
+language plpgsql
+set search_path to 'public', 'pg_temp'
+as $$
+declare
+  v_now timestamptz := now();
+  v_trainers integer;
+  v_nutritionists integer;
+begin
+  update public.provider_credentials
+     set review_status = 'approved', reviewed_by = p_reviewer, reviewed_at = v_now,
+         review_notes = p_notes, verified_at = v_now
+   where owner_id = p_owner;
+  if not found then
+    return null;
+  end if;
+  update public.trainers set verified = true, verified_at = v_now where owner_id = p_owner;
+  get diagnostics v_trainers = row_count;
+  update public.nutritionists set verified = true, verified_at = v_now where owner_id = p_owner;
+  get diagnostics v_nutritionists = row_count;
+  return v_trainers + v_nutritionists;
+end;
+$$;
+
+comment on function public.approve_provider_credential(uuid, uuid, text) is
+  'Approves p_owner''s credential and puts the Verified badge on their listings in one transaction; null when there is no credential row. Service role only.';
+
+revoke all on function public.approve_provider_credential(uuid, uuid, text) from public, anon, authenticated;
+grant execute on function public.approve_provider_credential(uuid, uuid, text) to service_role;
+
+-- ── 4 · guard ──────────────────────────────────────────────────────────────────────────────
 do $$
 begin
   if not exists (
@@ -101,20 +140,25 @@ begin
   end if;
   if exists (
     select 1 from pg_proc
-    where oid = 'public.clear_listing_verified(uuid)'::regprocedure
+    where oid in ('public.clear_listing_verified(uuid)'::regprocedure, 'public.approve_provider_credential(uuid, uuid, text)'::regprocedure)
       and (prosecdef or not coalesce(proconfig, '{}') @> array['search_path=public, pg_temp'])
   ) then
-    raise exception 'clear_listing_verified must run as its caller, pinned';
+    raise exception 'clear_listing_verified and approve_provider_credential must run as their caller, pinned';
   end if;
 
   if has_function_privilege('anon', 'public.clear_listing_verified(uuid)', 'execute')
      or has_function_privilege('authenticated', 'public.clear_listing_verified(uuid)', 'execute')
      or has_function_privilege('anon', 'public.provider_credentials_unverify_listings()', 'execute')
-     or has_function_privilege('authenticated', 'public.provider_credentials_unverify_listings()', 'execute') then
+     or has_function_privilege('authenticated', 'public.provider_credentials_unverify_listings()', 'execute')
+     or has_function_privilege('anon', 'public.approve_provider_credential(uuid, uuid, text)', 'execute')
+     or has_function_privilege('authenticated', 'public.approve_provider_credential(uuid, uuid, text)', 'execute') then
     raise exception 'a badge function is executable by anon or authenticated';
   end if;
   if not has_function_privilege('service_role', 'public.clear_listing_verified(uuid)', 'execute') then
     raise exception 'the service role cannot call clear_listing_verified, so the expiry cron would fail';
+  end if;
+  if not has_function_privilege('service_role', 'public.approve_provider_credential(uuid, uuid, text)', 'execute') then
+    raise exception 'the service role cannot call approve_provider_credential, so approval would fail';
   end if;
 end;
 $$;

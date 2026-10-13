@@ -11,7 +11,11 @@
 // rejection and a request for changes take it off; clear_listing_verified returns 2, then 0;
 // with the nutritionist write made to fail, the coach's edit and the service call each fail
 // whole, leaving the credential and both badges as they were; deleting the auth user still
-// cascades without error. Before it, the same coach writes left both badges up.
+// cascades without error. Before it, the same coach writes left both badges up. Approval (Codex on
+// #2321): approve_provider_credential approves and badges both listings, returns null and badges
+// nothing with no credential row; with the approval held open in one session, a coach's edit in
+// another waits for it and then takes the badge off, so the credential ends 'pending' with no
+// badge.
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -57,12 +61,25 @@ test('the trigger takes the badge off whenever the credential is not approved, o
   assert.match(code, /create trigger provider_credentials_zz_unverify_listings\s+after insert or update or delete on public\.provider_credentials\s+for each row execute function public\.provider_credentials_unverify_listings\(\);/)
 })
 
+test('approval and the badge are one transaction, and nothing is badged without a credential row', () => {
+  const fn = fnBody('approve_provider_credential')
+  const head = fn.slice(0, fn.indexOf('as $$'))
+  assert.match(head, /\(p_owner uuid, p_reviewer uuid, p_notes text\)\s+returns integer\s+language plpgsql\s+set search_path to 'public', 'pg_temp'/)
+  assert.doesNotMatch(head, /security definer/, 'it runs as the service role that calls it')
+  // The credential row is locked by the approval before either listing is touched.
+  assert.match(fn, /update public\.provider_credentials\s+set review_status = 'approved', reviewed_by = p_reviewer, reviewed_at = v_now,\s+review_notes = p_notes, verified_at = v_now\s+where owner_id = p_owner;\s+if not found then\s+return null;\s+end if;\s+update public\.trainers set verified = true, verified_at = v_now where owner_id = p_owner;[\s\S]*update public\.nutritionists set verified = true, verified_at = v_now where owner_id = p_owner;/)
+  assert.match(code, /revoke all on function public\.approve_provider_credential\(uuid, uuid, text\) from public, anon, authenticated;/)
+  assert.match(code, /grant execute on function public\.approve_provider_credential\(uuid, uuid, text\) to service_role;/)
+})
+
 test('the migration checks what it built', () => {
   const guard = code.slice(code.lastIndexOf('do $$'))
   assert.match(guard, /tgname = 'provider_credentials_zz_unverify_listings'[\s\S]*tgenabled <> 'D'/)
   assert.match(guard, /'public\.provider_credentials_unverify_listings\(\)'::regprocedure and prosecdef\s+and proconfig @> array\['search_path=public, pg_temp'\]/)
   assert.match(guard, /has_function_privilege\('authenticated', 'public\.clear_listing_verified\(uuid\)', 'execute'\)/)
   assert.match(guard, /not has_function_privilege\('service_role', 'public\.clear_listing_verified\(uuid\)', 'execute'\)/)
+  assert.match(guard, /has_function_privilege\('authenticated', 'public\.approve_provider_credential\(uuid, uuid, text\)', 'execute'\)/)
+  assert.match(guard, /not has_function_privilege\('service_role', 'public\.approve_provider_credential\(uuid, uuid, text\)', 'execute'\)/)
 })
 
 test('the code calls the database function and makes no listing write of its own to take a badge off', () => {
