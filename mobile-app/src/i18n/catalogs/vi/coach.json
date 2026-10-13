@@ -1152,6 +1152,8 @@
   "rates.noticeEyebrow": "Chưa có trên marketplace",
   "rates.noticeBody": "Thành viên chưa thể tìm thấy hoặc đăng ký với bạn cho đến khi tin đăng của bạn có:",
   "rates.noticeWaiting": "Tin đăng của bạn chưa có trên marketplace.",
+  "rates.suspendedEyebrow": "Bị tạm ngưng",
+  "rates.suspendedBody": "Tin đăng của bạn bị tạm ngưng cho đến khi được xem xét thêm. Trong thời gian này, thành viên không thể tìm thấy hoặc đăng ký với bạn.",
   "rates.stepPrice": "Giá theo tháng của bạn",
   "rates.stepPayouts": "Đã thiết lập nhận tiền",
   "rates.stepPhoto": "Một tấm ảnh",

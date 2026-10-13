@@ -8213,7 +8213,9 @@ function bsRatesLine(listing, tr) {
 function BSListingNotice({ listing, onRates, onPhotos, onPayouts }) {
   const t = useBS();
   const tr = useShapeTr();
-  const missing = (listing && listing.missing) || [];
+  // A listing staff suspended (/admin): the steps would not bring it back, so they are not shown.
+  const suspended = Boolean(listing && listing.suspended);
+  const missing = suspended ? [] : (listing && listing.missing) || [];
   const act = { price: onRates, payouts: onPayouts, photo: onPhotos };
   const actLabel = {
     price: tr('coach:rates.setRates', { defaultValue: 'Set rates' }),
@@ -8222,9 +8224,13 @@ function BSListingNotice({ listing, onRates, onPhotos, onPayouts }) {
   };
   return (
     <div role="status" style={{ border: `1px solid ${t.AMBER}66`, borderRadius: 14, background: `${t.AMBER}12`, padding: '12px 14px' }}>
-      <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.AMBER }}>{tr('coach:rates.noticeEyebrow', { defaultValue: 'Not in the marketplace yet' })}</div>
+      <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.AMBER }}>{suspended
+        ? tr('coach:rates.suspendedEyebrow', { defaultValue: 'Suspended' })
+        : tr('coach:rates.noticeEyebrow', { defaultValue: 'Not in the marketplace yet' })}</div>
       <div style={{ marginTop: 6, fontFamily: t.BODY || t.DISPLAY, fontSize: 13.5, lineHeight: 1.45, color: t.INK }}>
-        {missing.length
+        {suspended
+          ? tr('coach:rates.suspendedBody', { defaultValue: "Your listing is suspended until further review. Members can't find or subscribe to you while it is." })
+          : missing.length
           ? tr('coach:rates.noticeBody', { defaultValue: "Members can't find or subscribe to you until your listing has:" })
           : tr('coach:rates.noticeWaiting', { defaultValue: "Your listing isn't in the marketplace yet." })}
       </div>

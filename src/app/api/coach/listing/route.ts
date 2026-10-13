@@ -4,8 +4,9 @@
 // "Set your prices", which pointed at nothing: no page let a coach set a rate, so a coach
 // approved without one stayed out of the marketplace for good.
 //
-// GET  -> { listings: [{ role, id, ready, missing, monthly, oneTime }] }  (one per role held;
-//         missing is null when the steps could not be read)
+// GET  -> { listings: [{ role, id, ready, suspended, missing, monthly, oneTime }] }  (one per role
+//         held; missing is null when the steps could not be read; suspended is staff's
+//         suspended_at, which the coach is told as "suspended until further review")
 // POST { role: 'trainer' | 'nutritionist', monthly, oneTime? } -> { listing }
 //
 // Reads and writes run as the coach (RLS: a listing's own row). The rates are not admin
@@ -32,11 +33,12 @@ type Row = {
   stripe_account_status: string | null;
   listing_media: { portrait?: string | null } | null;
   listing_ready: boolean | null;
+  suspended_at: string | null;
   session_price?: number | string | null;
   meal_plan_price?: number | string | null;
 };
 
-const columns = (role: Role) => `id, price, ${ONE_TIME[role]}, stripe_account_status, listing_media, listing_ready`;
+const columns = (role: Role) => `id, price, ${ONE_TIME[role]}, stripe_account_status, listing_media, listing_ready, suspended_at`;
 
 // `avatar` undefined: the profile could not be read, so the steps are not known (missing: null)
 // and the coach is not told to add a photo they may already have.
@@ -53,6 +55,9 @@ function describe(role: Role, row: Row, avatar: string | null | undefined) {
     id: row.id,
     // The database's verdict is the one the marketplace filters on; `missing` says why.
     ready: row.listing_ready === true,
+    // Staff took the listing off the marketplace (/admin, #2326). Finishing the steps would not
+    // bring it back, so the coach is told that instead of the steps.
+    suspended: row.suspended_at != null,
     missing,
     monthly: row.price == null ? null : Number(row.price),
     oneTime: oneTime == null ? null : Number(oneTime),

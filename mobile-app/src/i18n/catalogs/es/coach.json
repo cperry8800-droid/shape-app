@@ -1152,6 +1152,8 @@
   "rates.noticeEyebrow": "Aún no estás en el mercado",
   "rates.noticeBody": "Los miembros no pueden encontrarte ni suscribirse hasta que tu anuncio tenga:",
   "rates.noticeWaiting": "Tu anuncio aún no está en el mercado.",
+  "rates.suspendedEyebrow": "Suspendido",
+  "rates.suspendedBody": "Tu anuncio está suspendido hasta nueva revisión. Mientras tanto, los miembros no pueden encontrarte ni suscribirse.",
   "rates.stepPrice": "Tu tarifa mensual",
   "rates.stepPayouts": "Pagos configurados",
   "rates.stepPhoto": "Una foto",

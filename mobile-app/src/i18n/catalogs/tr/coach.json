@@ -1152,6 +1152,8 @@
   "rates.noticeEyebrow": "Henüz pazar yerinde değil",
   "rates.noticeBody": "İlanında şunlar olana kadar üyeler seni bulamaz ve abone olamaz:",
   "rates.noticeWaiting": "İlanın henüz pazar yerinde değil.",
+  "rates.suspendedEyebrow": "Askıya alındı",
+  "rates.suspendedBody": "İlanın ek bir incelemeye kadar askıya alındı. Bu sürede üyeler seni bulamaz ve abone olamaz.",
   "rates.stepPrice": "Aylık ücretin",
   "rates.stepPayouts": "Ayarlanmış ödemeler",
   "rates.stepPhoto": "Bir fotoğraf",

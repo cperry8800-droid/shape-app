@@ -1152,6 +1152,8 @@
   "rates.noticeEyebrow": "Not in the marketplace yet",
   "rates.noticeBody": "Members can't find or subscribe to you until your listing has:",
   "rates.noticeWaiting": "Your listing isn't in the marketplace yet.",
+  "rates.suspendedEyebrow": "Suspended",
+  "rates.suspendedBody": "Your listing is suspended until further review. Members can't find or subscribe to you while it is.",
   "rates.stepPrice": "Your monthly rate",
   "rates.stepPayouts": "Payouts set up",
   "rates.stepPhoto": "A photo",

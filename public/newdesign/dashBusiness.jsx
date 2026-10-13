@@ -797,6 +797,16 @@ function DbzTrajectoryZone({ live, trajectory, role, loading }) {
 // (/api/coach/listing, the same route the Profile page's Rates card reads).
 const DBZ_LISTING_STEP = { price: "your monthly rate", payouts: "payouts set up (below)", photo: "a photo" };
 function DbzListingNotice({ listing, role }) {
+  // A listing staff suspended (/admin): the steps would not bring it back, so they are not shown.
+  // Owner, 2026-10-13: "suspended until futher review".
+  if (listing.suspended) {
+    return (
+      <div role="status" className="dash-plate" style={{ "--dac": DBZ_AMBER, borderColor: "rgba(216,162,58,0.45)", padding: "14px 18px", marginBottom: 16 }}>
+        <span className="dash-eyebrow" style={{ color: DBZ_AMBER }}>Suspended</span>
+        <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.5, color: DBZ_INK }}>Your listing is suspended until further review. Members can't find or subscribe to you while it is.</p>
+      </div>
+    );
+  }
   const steps = (listing.missing || []).map((k) => DBZ_LISTING_STEP[k]).filter(Boolean);
   const line = steps.length <= 1 ? steps.join("") : steps.slice(0, -1).join(", ") + " and " + steps[steps.length - 1];
   // Inside the dashboard shell the stub's own #profile route, not a second page load (pageShell.jsx).
