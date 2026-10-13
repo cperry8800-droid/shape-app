@@ -119,7 +119,7 @@ test('the member\'s own numbers read calories eaten', () => {
 test('the coach\'s numbers read calories eaten', () => {
   const t = read('src/app/api/trainer/analytics/route.ts');
   const n = read('src/app/api/nutritionist/analytics/route.ts');
-  for (const src of [t, n]) {
+  for (const src of [n]) {
     assert.match(src, /\.select\('user_id, snapshot_date, protein_g, dietary_kcal, weight_lb'\)/);
     assert.match(src, /const cals = rows\.map\(\(r\) => r\.dietary_kcal\)/);
     // Codex on #2310: days logged are days with a meal, not every snapshot row.
@@ -128,7 +128,12 @@ test('the coach\'s numbers read calories eaten', () => {
     assert.match(src, /daysLogged30d: loggedDays,/);
     assert.doesNotMatch(src, /rows\.length/, 'a watch-only row counted as a logged day');
   }
-  assert.equal(t, n, 'the trainer and nutritionist analytics stay identical');
+  // ⚠ THEY ARE NOT ONE FILE. #2030 copied the nutritionist route over the trainer's and #2310
+  // pinned the copy here, so a trainer's Business dashboard read { isNutritionist: false } for a
+  // month (restored 2026-10-13; tests/coach-analytics-routes.test.mjs). The trainer route reads
+  // weight, workouts and PRs, and no calories at all.
+  assert.notEqual(t, n, 'the trainer analytics route is its own');
+  assert.doesNotMatch(t, /calories|dietary_kcal/, 'the trainer roster reads no calories');
   for (const p of ['src/app/api/trainer/console/route.ts', 'src/app/api/nutritionist/console/route.ts']) {
     assert.match(read(p), /stress, calories:dietary_kcal, protein_g,/, `${p}: the console's \`calories\` must be calories eaten`);
   }
