@@ -847,6 +847,31 @@ Everything older, newest-first: [2026-10](WORKLOG-ARCHIVE-2026-10.md) ·
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-10-13 — Credential verdicts on the version reviewed, coaches told why they are hidden, the trainer analytics route restored
+
+- **Three PRs merged on 2026-10-13**, each on CI green on its final head. The owner: *"fix the approval overwrite gap too"*, *"fix all issues"*, then *"merge when green if clean"* and *"merge"*.
+  - [#2323](https://github.com/cperry8800-droid/shape-app/pull/2323) `3f701e2`, final head `f43c7f5`; the merged tree is byte-identical to it. One migration, **run by the owner and verified live**.
+  - [#2324](https://github.com/cperry8800-droid/shape-app/pull/2324) `4a7dcda`, final head `43aca58`. `main` had moved by #2325 (another session's admin console), so the trees differ; **the PR's diff is identical on the new base** apart from hunk offsets, and the only file both touched (`shapeBackend.js`) changed in separate sections. No migration.
+  - [#2327](https://github.com/cperry8800-droid/shape-app/pull/2327) `4fdb62e`, final head `0cc8479`; the merged tree is byte-identical to it. No migration.
+- **#2323, the approval overwrite gap and orphaned listings.** `2026-10-13-review-revision-and-listing-owner-cascade.sql`:
+  - `provider_credentials.revision` is drawn from one sequence on every write (trigger, pinned invoker); the review page carries the revision it showed, and every verdict applies only at that revision. `approve_provider_credential(owner, revision, reviewer, notes)` returns `-1` when the row moved on; the three-argument form is dropped.
+  - ⚠ **CODEX'S P1 ON THE FIRST HEAD: A PER-ROW COUNTER RESTARTED WHEN A COACH DELETED AND RECREATED THEIR ROW** (`prov_cred_own` allows it), so they could edit back up to the revision on the admin's open form. A sequence never reissues a value. Probed on a PostgreSQL 16 copy: delete, recreate and 50 edits still land past the seen revision, and approving it returns `-1`.
+  - `trainers.owner_id` and `nutritionists.owner_id` cascade on account deletion: a coach deleted outside `/api/account/delete` left a listing that read as one of Shape's own, Verified badge and all.
+  - Verified live, read-only, after the owner's run: the sequence (authenticated USAGE, no anon), the revision column with no nulls, the trigger, only the four-argument function (service role only), both FKs `ON DELETE CASCADE`.
+- **#2324, a hidden coach told why; the trainer analytics route.**
+  - `/api/coach/listing` (new, in the War Room): the coach's own listing with the database's `listing_ready` and the missing steps (`src/lib/listing-readiness.mjs`, `btrim`'s spaces-only trim mirrored), and their rates. The website's Profile page gets a Rates card and Business a "Not in the marketplace yet" notice; the app's Me page the same notice with an action per step and a Rates page (31 keys, 13 locales). A deep link to an unlisted coach now says so. Nora's app nutritionist form carries its six credential fields.
+  - ⚠ **#2030 COPIED THE NUTRITIONIST ANALYTICS ROUTE OVER THE TRAINER'S, AND #2310 PINNED THE COPY IN A TEST**, so for a month a trainer's Business page read `{ isNutritionist: false }`: no roster, revenue or payouts. Restored from `c850a22cc` plus the shared `oneTimeUnknown`.
+  - **Codex then reviewed six heads of the restored route and every round found real defects in its pre-#2030 code**, all fixed: "PRs hit" counted every completed set (now `get_client_lifts`' lifts beaten, as the coach app shows); reviewed and start-less workouts were dropped; one client with two rows was two; every roster read (subscriptions, workouts, weigh-ins) was capped at 1,000 rows with no error (now `readAllById`, a keyset on id, null at 50 pages); appointment figures came from 1,000 unordered rows (now exact database counts); and every failed read was published as 0 or an empty history (now null, and the page says it could not read it). The app's Rates row showed the signed-out preview's rates to a coach not yet approved.
+  - ⚠ **THE REVIEW CYCLE IS THE LESSON:** restoring a month-old file restores every defect it had, and a reviewer pointed at it finds them one class at a time. The rounds converged only once a fix covered the whole route (every read keeps its error; no read has a silent cap) rather than the read named.
+  - Registered and answered on its thread: an account owning two listings of one role breaks 17 routes that read one row (`maybeSingle`); production has none; the owner's call is a unique index or reading every row.
+- **#2327**, Codex's last finding on #2324, which merged on the owner's word: a failed subscriptions read left the outcome totals at 0 and the weight, consistency and origin panels at their empty states. They are unknown now (`rosterUnknown`, `byOrigin: null`); Codex was clean on the final head.
+- **Verified:** `npm test` 6843/6843 on `main` plus #2327's first commit; the related suites (123) and `tsc` on its final head; mutations, `--fail-on-skipped`, restored byte-identical: `review-revision-2026-10-13` (re-aimed), `coach-listing-status-2026-10-13` **27/27**, `trainer-analytics-2026-10-13` **33/33**. Copilot declined every #2324 head on its quota; CodeRabbit not asked.
+- **Written after the merges**, per the 2026-09-11 rule.
+- ⚠ **REGISTERED, NOT DONE:**
+  - **Owner:** two listings of one role per account (above).
+  - The nutritionist analytics route repeats the patterns fixed in the trainer route (duplicate client rows; `data || []` on its reads).
+  - The rest of the app's coach application screen is English only (#2319's item); the Turnstile `localhost` hostname; no live upload through a signed link or live run of `/auth/confirm`; no signed-in pass in a browser or on a phone.
+
 ### 2026-10-13 — The Verified badge follows the credential, in the database
 
 - **Merged [#2321](https://github.com/cperry8800-droid/shape-app/pull/2321) as `83295f5`**, final head `ec99dc4`; the merged tree is byte-identical to it (tree `345daac` on both). 9 files. The owner: *"fix the two coderabbit threads"* (the two left open on #2315).
@@ -859,7 +884,7 @@ Append new entries at the top, under this note.
 - **Code:** the credentials and document routes make no badge write (the credentials route no service role at all) and the 503 `badge_not_cleared` is gone; approval is one RPC; reject and request-changes leave the badge to the trigger; `clearListingVerified` is one RPC, for the cron's coach with no credential write behind it.
 - **Verified on a PostgreSQL 16 copy** of the live objects (guards, RLS, column grants, the readiness triggers, the `auth.users` keys), applied three times with identical probes: before it, a coach's own write left both badges up; after it, each takes the badge off both of their listings and no one else's; a failing nutritionist write fails the coach's edit whole; with an approval held open in one session, a coach's edit in another waits and then takes the badge off. `npm test` 6759/6759 through the hook on `076f8ee`; `ec99dc4` committed under the small-commit rule after `tsc` and the seven suites it touches (471/471); CI green on the final head. Mutation specs re-aimed, not run.
 - **Written after the merge**, per the 2026-09-11 rule. Both #2315 threads are answered and resolved.
-- ⚠ **REGISTERED, NOT DONE:** an approval waiting behind a coach's edit overwrites it (measured: `approved` with the unreviewed change; always so; closing it means the form carrying the version reviewed); a user deleted from the Supabase dashboard rather than `/api/account/delete` leaves listings with `owner_id = null` and `verified` kept (predates this).
+- ⚠ **REGISTERED, NOT DONE:** ~~an approval waiting behind a coach's edit overwrites it (measured: `approved` with the unreviewed change; always so; closing it means the form carrying the version reviewed); a user deleted from the Supabase dashboard rather than `/api/account/delete` leaves listings with `owner_id = null` and `verified` kept (predates this).~~ **Both fixed the same day in #2323 (the entry at the top).**
 
 ### 2026-10-12 — Coach application documents: five categories, uploaded straight to storage
 
@@ -882,7 +907,7 @@ Append new entries at the top, under this note.
 - **Every discovery read filters on it:** the `/trainers` and `/nutritionists` directories, the homepage counts, Nora's coach suggestions, the website and app marketplaces, and the legacy list pages; `tests/coach-listing-ready.test.mjs` holds each reader to the filter. A listing opened by its own id still opens. The approval email says the listing appears once photo, prices and payouts are done.
 - **Review:** Codex completed on the head with no findings. `npm test` 6740/6740; CI green.
 - **Written after the merge**, per the 2026-09-11 rule.
-- ⚠ **REGISTERED, NOT DONE:** a hidden coach is not told on their dashboard (only the approval email says it); a deep link into the app marketplace for a hidden coach does not open the sheet.
+- ⚠ **REGISTERED, NOT DONE:** ~~a hidden coach is not told on their dashboard (only the approval email says it); a deep link into the app marketplace for a hidden coach does not open the sheet.~~ **Both fixed 2026-10-13 in #2324 (the entry at the top): the coach is told, and the marketplace says the listing is not open yet.**
 
 ### 2026-10-12 — Coach applications: 5 years is the standard, not a refusal; the legacy sign-up pages retired
 
@@ -911,7 +936,7 @@ Append new entries at the top, under this note.
 - ⚠ **REGISTERED, NOT DONE:**
   - **Owner decisions:** ~~hide approved coaches until their photo, price and payouts are ready; 5 or 7 years' minimum experience; retire the legacy root signup pages~~ **decided and shipped the same day: #2318 (hidden until ready), #2317 (5 years as the standard, below it reviewed one by one; the legacy pages retired), and #2319 for the documents the owner added (the three entries above).** ~~Still open: the two CodeRabbit threads above.~~ **Fixed 2026-10-13 in #2321 (the entry at the top).**
   - **Owner settings:** the hostname `localhost` in the Turnstile widget. ~~`RESEND_API_KEY` in Vercel~~: already set (owner, 2026-10-13: *"resend api key is already implimented"*).
-  - Not run live: `/auth/confirm` and the decision emails. The new app text is English only. Nora's form-filling does not know the app's new nutritionist fields.
+  - Not run live: `/auth/confirm` and the decision emails. The new app text is English only. ~~Nora's form-filling does not know the app's new nutritionist fields.~~ **Fixed 2026-10-13 in #2324.**
 
 ### 2026-10-12 — Shape Score: ten scoring bugs fixed, one rank basis everywhere
 
