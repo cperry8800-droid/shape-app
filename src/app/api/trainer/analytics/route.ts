@@ -40,6 +40,38 @@ async function clientPrs(
   return prs;
 }
 
+// ⚠ EVERY ROW, A PAGE AT A TIME. One select returns at most 1,000 rows (the API's cap) and says
+// nothing when it stops there, so a roster past 1,000 sessions in 30 days read as fewer workouts
+// and lower adherence. Keyset on id, not an offset (cron/guardrail-health says why: a row written
+// mid-read shifts every later offset); a read that reaches the ceiling is unknown, not short.
+const SESSION_PAGE = 1000;
+const SESSION_PAGES = 50;
+async function rosterSessions(
+  admin: ReturnType<typeof createAdminClient>,
+  clientIds: string[],
+  sinceIso: string,
+): Promise<{ data: { id: string; client_id: string; started_at: string | null }[] | null; error: { message: string } | null }> {
+  const rows: { id: string; client_id: string; started_at: string | null }[] = [];
+  let after: string | null = null;
+  for (let page = 0; page < SESSION_PAGES; page += 1) {
+    let q = admin
+      .from('workout_sessions')
+      .select('id, client_id, started_at')
+      .in('client_id', clientIds)
+      // A reviewed session is a finished one the coach has looked at (get_client_lifts counts both).
+      .in('status', ['completed', 'reviewed'])
+      .gte('started_at', sinceIso);
+    if (after) q = q.gt('id', after);
+    const { data, error } = await q.order('id', { ascending: true }).limit(SESSION_PAGE);
+    if (error) return { data: null, error };
+    const got = (data ?? []) as { id: string; client_id: string; started_at: string | null }[];
+    rows.push(...got);
+    if (got.length < SESSION_PAGE) return { data: rows, error: null };
+    after = String(got[got.length - 1].id);
+  }
+  return { data: null, error: { message: `more than ${SESSION_PAGE * SESSION_PAGES} sessions in 30 days` } };
+}
+
 export async function GET() {
   const supabase = await createClient();
   const {
@@ -208,13 +240,7 @@ export async function GET() {
     // with the service-role client, constrained to exactly those clients.
     const admin = createAdminClient();
     const [workoutRes, snapRes, prsByClient, namesRes] = await Promise.all([
-      admin
-        .from('workout_sessions')
-        .select('client_id, started_at, status')
-        .in('client_id', clientIds)
-        // A reviewed session is a finished one the coach has looked at (get_client_lifts counts both).
-        .in('status', ['completed', 'reviewed'])
-        .gte('started_at', since30Iso),
+      rosterSessions(admin, clientIds, since30Iso),
       supabase
         .from('daily_health_snapshot')
         .select('user_id, snapshot_date, weight_lb')

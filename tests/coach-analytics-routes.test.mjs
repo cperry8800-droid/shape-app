@@ -32,10 +32,18 @@ function fakeSupabase(tables, { errors = {}, rpcs = {} } = {}) {
     const call = { table, ops: [] }
     calls.push(call)
     const rows = tables[table] ?? []
-    const result = errors[table] ? { data: null, error: { message: errors[table] }, count: null } : { data: rows, error: null, count: rows.length }
+    // gt and limit are honoured (on whatever column they name), so a paged read pages.
+    const answer = () => {
+      if (errors[table]) return { data: null, error: { message: errors[table] }, count: null }
+      let out = rows
+      for (const [op, col, v] of call.ops) if (op === 'gt') out = out.filter((r) => String(r[col]) > String(v))
+      const limit = call.ops.find((o) => o[0] === 'limit')
+      if (limit) out = out.slice(0, limit[1])
+      return { data: out, error: null, count: out.length }
+    }
     const q = new Proxy({}, {
       get(_t, prop) {
-        if (prop === 'then') return (res, rej) => Promise.resolve(result).then(res, rej)
+        if (prop === 'then') return (res, rej) => Promise.resolve(answer()).then(res, rej)
         if (prop === 'maybeSingle' || prop === 'single') return () => Promise.resolve({ data: rows[0] ?? null, error: null })
         return (...args) => { call.ops.push([prop, ...args]); return q }
       },
@@ -106,7 +114,7 @@ const recent = new Date(Date.now() - 2 * 86400000).toISOString()
 const roster = (over = {}) => ({
   trainers: [{ id: 7, stripe_account_id: null, stripe_account_status: null }],
   subscriptions: [sub(A), sub(B)],
-  workout_sessions: [{ client_id: A, started_at: recent, status: 'completed' }, { client_id: A, started_at: recent, status: 'reviewed' }],
+  workout_sessions: [{ id: 's1', client_id: A, started_at: recent, status: 'completed' }, { id: 's2', client_id: A, started_at: recent, status: 'reviewed' }],
   // Ordinary sets: none of them is a PR.
   workout_set_logs: Array.from({ length: 30 }, () => ({ client_id: A, created_at: recent, completed: true })),
   ...over,
@@ -140,6 +148,19 @@ test('a reviewed session is a workout, and a failed workouts read is unknown, no
   assert.ok(cp.roster.every((r) => r.workouts30d === null && r.workouts7d === null))
   assert.equal(failed.body.ticker.workouts7d, null)
   assert.equal(cp.activeClients, 2, 'what was read is still reported')
+})
+
+test('past 1,000 sessions the read pages on, by id; at the ceiling it is unknown, not short', async () => {
+  const id = (i) => 's' + String(i).padStart(6, '0')
+  const many = (n) => Array.from({ length: n }, (_, i) => ({ id: id(i), client_id: i % 2 ? A : B, started_at: recent, status: 'completed' }))
+  const { body, calls } = await loadRoute('trainer', roster({ workout_sessions: many(2500) }), { rpcs: lifts({}) })
+  assert.equal(body.clientProgress.workouts30d, 2500, 'every session, not the first 1,000')
+  const pages = calls.filter((c) => c.table === 'workout_sessions')
+  assert.equal(pages.length, 3)
+  assert.deepEqual(pages.map((p) => p.ops.find((o) => o[0] === 'gt')?.[2] ?? null), [null, id(999), id(1999)], 'each page after the last id read')
+  assert.ok(pages.every((p) => p.ops.some((o) => o[0] === 'order' && o[1] === 'id') && p.ops.some((o) => o[0] === 'limit' && o[1] === 1000)))
+  const capped = await loadRoute('trainer', roster({ workout_sessions: many(50_000) }), { rpcs: lifts({}) })
+  assert.deepEqual([capped.body.clientProgress.workouts30d, capped.body.clientProgress.avgAdherencePct], [null, null])
 })
 
 test('two subscription rows for one client are one client; the revenue keeps both', async () => {
