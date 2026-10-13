@@ -255,6 +255,7 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/clients/[id]/goals', 'GET,POST'],
   ['/api/coach/grocery-lists', 'GET,POST,PATCH,DELETE'],
   ['/api/coach/plans', 'GET,POST,PATCH,DELETE'],
+  ['/api/coach/plans/assignments', 'GET'],
   ['/api/coach/plans/usage', 'GET'],
   ['/api/coach/credentials', 'GET,POST'],
   ['/api/coach/credentials/document', 'POST'],
@@ -302,6 +303,7 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/me/age-public', 'GET,PUT'],
   ['/api/me/date-of-birth', 'GET,POST'],
   ['/api/me/role', 'POST'],
+  ['/api/me/staff', 'GET'],
   ['/api/me', 'GET'],
   ['/api/me/shared-clients/[clientId]/ack', 'POST,DELETE'],
   ['/api/me/shared-clients/[clientId]/thread', 'POST'],
@@ -592,6 +594,27 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
   const auto = (ok: boolean): 'done' | 'pending' => (ok ? 'done' : 'pending');
 
   return [
+    {
+      section: 'Admin console, staff two-factor, the app\'s admin door, the installed app\'s API base and the privacy policy — SHIPPED 2026-10-13 (#2325 -> 8206523, #2326 -> 2d37ade, #2329 -> a17ba25, #2330 -> 9559cbc, #2332 -> 9d3409c, #2334 -> d008f5d). Two migrations, both applied and checked in production',
+      items: [
+        { label: 'The console at /admin (#2325): Overview totals (people, money, coach applications, listings, consultations, Shape Score, activity, sign-up lists, sign-ups by source, the week\'s birthdays and anniversaries, Score tiers, four 30-day charts and the funnel); Coaches and Members pages with per-person progress, counts only (no health value is read); Staff (owner only) at Admin, Support or Analyst; an activity log of every staff change and Nora help-desk lookup. Levels in src/lib/staff-levels.mjs: Owner > Admin > Support > Analyst, and an Analyst sees totals only', status: 'done' },
+        { label: 'Sign-ups by source (#2325): the link\'s utm tags, the referring domain, the landing page, a coach referral and website or app, saved with each new account by every sign-up path; the first link remembered on the device for 90 days under the consent rule (src/lib/signup-source.mjs and its classic copy public/signup-source.js). The root redirect no longer drops a link\'s tags. Accounts made before 2026-10-13 read "not recorded"', status: 'done' },
+        { label: 'Account actions (#2326): an account page logged before it reads; freeze and unfreeze (a Supabase Auth ban plus the record; a failed record lifts the ban again, and when that lift fails too the account stays banned with no freeze record, the page says so (freeze_split) and offers Lift the ban); suspend and put back a coach listing (suspended_at, which the coach cannot write and which keeps the listing off the marketplace); remove an account (every Stripe subscription that can still charge cancelled first, then the member\'s own erasure, src/lib/account-erasure.ts); the Pause, Export and Delete requests queue at /admin/requests (the table /api/me/account-action wrote to never existed until now)', status: 'done' },
+        { label: 'Two-factor for staff (#2329): every staff page and action needs a session that passed an authenticator code (aal2, TOTP factors only); /staff-verify sets it up once and asks for the code at each sign-in; an owner can reset a staff member\'s two-factor, ADMIN_EMAILS admins included', status: 'done' },
+        { label: 'The app\'s admin door (#2330): Settings -> Shape admin, shown to staff only, opens /admin in the system browser; GET /api/me/staff answers the level and grants nothing; four strings in 13 locales', status: 'done' },
+        { label: 'The installed app\'s API base (#2332): both native pipelines (android-build.yml, codemagic.yaml) set VITE_API_BASE_URL to https://theshapecommunity.com, so every /api call in a native build has a server to reach. The Connect WHOOP, Strava and Spotify buttons refuse in the installed app, as they did before, because their authorize route reads the website\'s cookie session', status: 'done' },
+        { label: 'Privacy policy (#2334): it names how someone found Shape (kept with the account and seen by the team) and birthdays and anniversaries (month and day only). The cookie banner, the app\'s usage-stats gate and the sign-up source capture share one EEA and UK zone list (CONSENT_REGION_RE): every Europe/* zone plus the Canaries, Madeira, the Azores, Ceuta, Cyprus, Iceland and France\'s outermost regions', status: 'done' },
+        { label: 'Migrations, both run by the owner and checked in production: 2026-10-13-staff-access-and-admin-stats.sql (staff_members and admin_activity_log, RLS on, no policies; the stats definers service role only) and 2026-10-13-admin-account-actions.sql (listing_suspensions, account_freezes and account_action_requests, RLS on, a member inserting only their own request\'s user_id and action; the seven definers service role only), re-run after #2326\'s Codex fix', status: 'done' },
+        { label: 'OWNER — set up your authenticator: the next visit to /admin (or any admin tool) asks for it once, then for a 6-digit code at each sign-in. An owner\'s own two-factor is reset in the Supabase dashboard (Authentication -> Users); there are no recovery codes', status: 'manual' },
+        { label: 'OWNER DECISION NEEDED — what a suspended coach is told. Today their dashboard and app say only "Your listing isn\'t in the marketplace yet."; whether to say "suspended" and how to appeal is your call', status: 'pending' },
+        { label: 'OWNER DECISION NEEDED — connecting WHOOP, Strava or Spotify from the installed app. It needs a native handoff (a short-lived signed link minted with the member\'s token, opened in the system browser, and a way back into the app); until then the buttons refuse there and the website connects', status: 'pending' },
+        { label: 'Counsel review of the 2026-10-13 privacy policy additions: how someone found Shape, birthdays and anniversaries, and the EEA and UK zone list', status: 'pending' },
+        { label: 'The website\'s own usage stats (window.ShapeAnalytics in public/supabase.js) honour Global Privacy Control and a declined banner but do not wait for the banner in the EEA and the UK. They send first-party events and store nothing on the device', status: 'pending' },
+        { label: 'Requests queue: no pause button (a Pause is done in Stripe, then marked done here), and the member is not emailed when a request is closed', status: 'pending' },
+        { label: 'Staff added on the Staff page do not get the member-app perks the code\'s email list gives; opening the Members page is not itself logged (each account page is)', status: 'pending' },
+        { label: 'No signed-in pass of /admin on the live site or of the app\'s Shape admin row on a phone. The first native builds after #2332 are the real test of the API base', status: 'manual' },
+      ],
+    },
     {
       section: 'Nora as a full AI DJ on Shape Radio — SHIPPED 2026-10-10 (#2304 -> ae3ce48, #2305 -> 597bdd0, #2306 -> 0010950). Three migrations: one applied, two owed',
       items: [
