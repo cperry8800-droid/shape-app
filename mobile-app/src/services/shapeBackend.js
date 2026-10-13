@@ -4683,10 +4683,22 @@ window.ShapeCoachListing = {
 // the signed-in account's staff level or null (signed out, not staff, or the read failed: the row
 // simply does not show). The console opens in the browser, where it asks for a website sign-in
 // and two-factor; this level grants nothing.
+//
+// ⚠ A NATIVE BUILD CARRIES NO API BASE TODAY (Codex, #2330): neither android-build.yml nor
+// codemagic.yaml sets VITE_API_BASE_URL, so apiBaseUrl is '' in the installed app and this door
+// would never open there. It names the production site instead, which the API already answers
+// for the app's origins (src/lib/native-cors.ts). Every other /api call here has the same gap;
+// that is the build pipelines' to fix, not this door's.
+const SHAPE_SITE = 'https://theshapecommunity.com';
+function staffBase() {
+  return apiBaseUrl || (_isNative ? SHAPE_SITE : '');
+}
+
 async function getMyStaffLevel() {
-  if (!apiBaseUrl || !state.session?.access_token) return null;
+  const base = staffBase();
+  if (!base || !state.session?.access_token) return null;
   try {
-    const response = await fetch(`${apiBaseUrl}/api/me/staff`, {
+    const response = await fetch(`${base}/api/me/staff`, {
       headers: { Authorization: `Bearer ${state.session.access_token}` },
     });
     if (!response.ok) return null;
@@ -4699,7 +4711,7 @@ async function getMyStaffLevel() {
 
 // The installed app opens it in the system browser; the web app in a new tab, so the app stays put.
 function openAdminConsole() {
-  const url = apiBaseUrl ? `${apiBaseUrl}/admin` : '/admin';
+  const url = `${staffBase()}/admin`;
   try {
     const cap = (typeof window !== 'undefined' && window.Capacitor) || null;
     const Browser = cap && cap.Plugins && cap.Plugins.Browser;

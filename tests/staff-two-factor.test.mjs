@@ -379,7 +379,11 @@ test('the app: Settings shows Shape admin only for staff, and opens the console 
   assert.match(client, /onClick=\{\(\) => window\.ShapeStaff && window\.ShapeStaff\.openConsole\(\)\}/);
   assert.match(client, /const ask = window\.ShapeStaff && window\.ShapeStaff\.getLevel;/);
   const backend = stripComments(read('mobile-app/src/services/shapeBackend.js'));
-  assert.match(backend, /fetch\(`\$\{apiBaseUrl\}\/api\/me\/staff`, \{\n\s+headers: \{ Authorization: `Bearer \$\{state\.session\.access_token\}` \},/);
+  assert.match(backend, /fetch\(`\$\{base\}\/api\/me\/staff`, \{\n\s+headers: \{ Authorization: `Bearer \$\{state\.session\.access_token\}` \},/);
+  // Codex, #2330: a native build has no API base today, so the door names the production site there.
+  assert.match(backend, /function staffBase\(\) \{\n\s+return apiBaseUrl \|\| \(_isNative \? SHAPE_SITE : ''\);\n\}/);
+  assert.match(backend, /const SHAPE_SITE = 'https:\/\/theshapecommunity\.com';/);
+  assert.match(backend, /const url = `\$\{staffBase\(\)\}\/admin`;/, 'an absolute URL for the native browser');
   assert.match(backend, /return \['owner', 'admin', 'support', 'analyst'\]\.includes\(payload\.level\) \? payload\.level : null;/, 'anything else is no row');
   assert.match(backend, /Browser\.open\(\{ url, presentationStyle: 'fullscreen' \}\);/);
   assert.match(backend, /try \{ window\.open\(url, '_blank', 'noopener'\); return; \} catch \(e\) \{\}/, 'the web app keeps its own tab');
