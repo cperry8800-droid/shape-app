@@ -42,6 +42,36 @@ export type StaffMember = { id: string; email: string; level: StaffLevel };
 export type StaffSignIn = { staff: StaffMember; twoFactor: TwoFactorState };
 
 /**
+ * The staff level of a verified account (from getUser), or null: not staff, no confirmed email, or
+ * a staff_members read that failed (which counts as no row). The second factor is not part of
+ * this; access is getStaffMember().
+ */
+export async function staffLevelOf(user: {
+  id: string;
+  email?: string | null;
+  email_confirmed_at?: string | null;
+}): Promise<StaffLevel | null> {
+  const email = user.email?.toLowerCase() ?? '';
+  if (!email || !user.email_confirmed_at) return null;
+
+  const base = { email, confirmed: true, ownerEmails: getOwnerEmails(), adminEmails: getEnvAdminEmails() };
+  let tableLevel: string | null = null;
+  if (resolveStaffLevel(base) !== 'owner') {
+    try {
+      const { data, error } = await createAdminClient()
+        .from('staff_members')
+        .select('level')
+        .eq('user_id', user.id)
+        .maybeSingle<{ level: string }>();
+      if (!error) tableLevel = data?.level ?? null;
+    } catch {
+      tableLevel = null;
+    }
+  }
+  return resolveStaffLevel({ ...base, tableLevel });
+}
+
+/**
  * The signed-in account's staff level and where it stands on two-factor sign-in, or null for a
  * visitor, an account that is not staff, or one whose address Supabase has not confirmed (L14: an
  * allow-listed address someone registered without owning it is not staff here).
@@ -58,26 +88,9 @@ export async function getStaffSignIn(): Promise<StaffSignIn | null> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const email = user?.email?.toLowerCase() ?? '';
-  if (!user || !email || !user.email_confirmed_at) return null;
-
-  const base = { email, confirmed: true, ownerEmails: getOwnerEmails(), adminEmails: getEnvAdminEmails() };
-  let tableLevel: string | null = null;
-  if (resolveStaffLevel(base) !== 'owner') {
-    try {
-      const { data, error } = await createAdminClient()
-        .from('staff_members')
-        .select('level')
-        .eq('user_id', user.id)
-        .maybeSingle<{ level: string }>();
-      if (!error) tableLevel = data?.level ?? null;
-    } catch {
-      tableLevel = null;
-    }
-  }
-
-  const level = resolveStaffLevel({ ...base, tableLevel });
-  if (!level) return null;
+  const level = user ? await staffLevelOf(user) : null;
+  if (!user || !level) return null;
+  const email = String(user.email).toLowerCase();
   // The session's assurance level, from its verified token (getClaims checks the signature);
   // a token that cannot be read is a session without a second factor.
   let currentLevel: string | null = null;

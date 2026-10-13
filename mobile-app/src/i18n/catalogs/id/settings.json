@@ -471,5 +471,9 @@
   "nora.memory": "Yang diingat Nora",
   "nora.memoryMeta": "Lihat",
   "nora.toneSupportive": "Mendukung",
-  "nora.toneDirect": "Langsung"
+  "nora.toneDirect": "Langsung",
+  "section.admin": "Admin Shape",
+  "card.adminSummary": "Konsol admin · terbuka di browser Anda",
+  "admin.body": "Konsol admin terbuka di browser Anda. Masuk di sana dengan akun Shape Anda dan kode dari aplikasi autentikator Anda.",
+  "admin.open": "Buka konsol admin"
 }

@@ -471,5 +471,9 @@
   "nora.memory": "Abin da Nora ke tunawa",
   "nora.memoryMeta": "Duba",
   "nora.toneSupportive": "Mai ƙarfafawa",
-  "nora.toneDirect": "Kai tsaye"
+  "nora.toneDirect": "Kai tsaye",
+  "section.admin": "Gudanarwar Shape",
+  "card.adminSummary": "Na'urar gudanarwa · tana buɗewa a burauzarka",
+  "admin.body": "Na'urar gudanarwa tana buɗewa a burauzarka. Shiga can da asusunka na Shape da lambar daga manhajar tantancewarka.",
+  "admin.open": "Buɗe na'urar gudanarwa"
 }

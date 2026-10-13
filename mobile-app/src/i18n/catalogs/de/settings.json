@@ -471,5 +471,9 @@
   "nora.memory": "Was Nora sich merkt",
   "nora.memoryMeta": "Ansehen",
   "nora.toneSupportive": "Unterstützend",
-  "nora.toneDirect": "Direkt"
+  "nora.toneDirect": "Direkt",
+  "section.admin": "Shape-Admin",
+  "card.adminSummary": "Die Admin-Konsole · öffnet sich im Browser",
+  "admin.body": "Die Admin-Konsole öffnet sich in deinem Browser. Melde dich dort mit deinem Shape-Konto und dem Code aus deiner Authenticator-App an.",
+  "admin.open": "Admin-Konsole öffnen"
 }

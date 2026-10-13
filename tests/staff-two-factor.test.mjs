@@ -328,3 +328,63 @@ test('the dashboard and the Staff page read the level and the authenticator, not
   const mw = stripComments(read('src/lib/supabase/middleware.ts'));
   assert.ok(mw.indexOf('isStaffPage(request.nextUrl.pathname)') < mw.indexOf('portalRoleForPath(request.nextUrl.pathname)'), 'the two-factor redirect runs before the portal gate');
 });
+
+// ── The app's door (#14): /api/me/staff and Settings → Shape admin ─────────────────────────
+test('/api/me/staff answers the level, grants nothing, and is never cached', async () => {
+  const levelOf = [];
+  const load = (user, level) => loadRealModule(join(ROOT, 'src/app/api/me/staff/route.ts'), {
+    typescript: true,
+    registry: new Map([
+      ['next/server', nextServer],
+      ['@/lib/request-auth', { currentUser: async () => user }],
+      ['@/lib/admin-access', { staffLevelOf: async (u) => { levelOf.push(u.id); return level; } }],
+    ]),
+  });
+  const ask = async (route) => { const res = await route.GET(new Request('https://shape.test/api/me/staff')); return { status: res.status, body: await res.json(), cache: res.headers.get('cache-control') }; };
+  assert.deepEqual(await ask(await load(null, 'owner')), { status: 200, body: { level: null }, cache: 'no-store' });
+  assert.deepEqual(levelOf, [], 'a visitor is not looked up');
+  assert.deepEqual(await ask(await load({ id: ANN }, 'support')), { status: 200, body: { level: 'support' }, cache: 'no-store' });
+  assert.deepEqual(await ask(await load({ id: ANN }, null)), { status: 200, body: { level: null }, cache: 'no-store' });
+  const src = stripComments(read('src/app/api/me/staff/route.ts'));
+  assert.doesNotMatch(src, /createAdminClient|getStaffMember|requireStaff/, 'the level only, through the one lookup');
+});
+
+test('staffLevelOf: the same owners, ADMIN_EMAILS and rows as the console, and nothing unconfirmed', async () => {
+  const mod = (rows = [], throws = false) => loadRealModule(join(ROOT, 'src/lib/admin-access.ts'), {
+    typescript: true,
+    registry: new Map([
+      ['@/lib/supabase/server', { createClient: async () => ({}) }],
+      ['@/lib/supabase/admin', {
+        createAdminClient: () => {
+          if (throws) throw new Error('no service key');
+          return { from: () => { const c = { select: () => c, eq: () => c, maybeSingle: async () => ({ data: rows[0] ?? null, error: null }) }; return c; } };
+        },
+      }],
+      ['@/lib/staff-levels.mjs', levels],
+      ['@/lib/staff-two-factor.mjs', tf],
+    ]),
+  });
+  const confirmed = '2026-10-01T00:00:00Z';
+  assert.equal(await (await mod()).staffLevelOf({ id: OWNER_ID, email: 'CPerry8800@gmail.com', email_confirmed_at: confirmed }), 'owner');
+  assert.equal(await (await mod()).staffLevelOf({ id: OWNER_ID, email: OWNER, email_confirmed_at: null }), null, 'unconfirmed');
+  assert.equal(await (await mod()).staffLevelOf({ id: ANN, email: null, email_confirmed_at: confirmed }), null, 'no email');
+  assert.equal(await (await mod([{ level: 'analyst' }])).staffLevelOf({ id: ANN, email: 'ann@x.com', email_confirmed_at: confirmed }), 'analyst');
+  assert.equal(await (await mod([], true)).staffLevelOf({ id: ANN, email: 'ann@x.com', email_confirmed_at: confirmed }), null, 'a failed read is no row');
+});
+
+test('the app: Settings shows Shape admin only for staff, and opens the console outside the app', () => {
+  const client = stripComments(read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'));
+  assert.match(client, /\.\.\.\(staffLevel \? \[\{ title: tr\('settings:section\.admin', \{ defaultValue: 'Shape admin' \}\), summary: tr\('settings:card\.adminSummary'[^\n]*detail: 'admin' \}\] : \[\]\),/);
+  assert.match(client, /\{detail === 'admin' && \(<>/, 'the row opens a pane');
+  assert.match(client, /onClick=\{\(\) => window\.ShapeStaff && window\.ShapeStaff\.openConsole\(\)\}/);
+  assert.match(client, /const ask = window\.ShapeStaff && window\.ShapeStaff\.getLevel;/);
+  const backend = stripComments(read('mobile-app/src/services/shapeBackend.js'));
+  assert.match(backend, /fetch\(`\$\{base\}\/api\/me\/staff`, \{\n\s+headers: \{ Authorization: `Bearer \$\{state\.session\.access_token\}` \},/);
+  // Codex, #2330: a native build has no API base today, so the door names the production site there.
+  assert.match(backend, /function staffBase\(\) \{\n\s+return apiBaseUrl \|\| \(_isNative \? SHAPE_SITE : ''\);\n\}/);
+  assert.match(backend, /const SHAPE_SITE = 'https:\/\/theshapecommunity\.com';/);
+  assert.match(backend, /const url = `\$\{staffBase\(\)\}\/admin`;/, 'an absolute URL for the native browser');
+  assert.match(backend, /return \['owner', 'admin', 'support', 'analyst'\]\.includes\(payload\.level\) \? payload\.level : null;/, 'anything else is no row');
+  assert.match(backend, /Browser\.open\(\{ url, presentationStyle: 'fullscreen' \}\);/);
+  assert.match(backend, /try \{ window\.open\(url, '_blank', 'noopener'\); return; \} catch \(e\) \{\}/, 'the web app keeps its own tab');
+});

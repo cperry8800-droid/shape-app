@@ -471,5 +471,9 @@
   "nora.memory": "What Nora remembers",
   "nora.memoryMeta": "View",
   "nora.toneSupportive": "Supportive",
-  "nora.toneDirect": "Direct"
+  "nora.toneDirect": "Direct",
+  "section.admin": "Shape admin",
+  "card.adminSummary": "The admin console · opens in your browser",
+  "admin.body": "The admin console opens in your browser. Sign in there with your Shape account and the code from your authenticator app.",
+  "admin.open": "Open the admin console"
 }

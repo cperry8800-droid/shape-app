@@ -471,5 +471,9 @@
   "nora.memory": "Wetin Nora dey remember",
   "nora.memoryMeta": "See am",
   "nora.toneSupportive": "Supportive",
-  "nora.toneDirect": "Direct"
+  "nora.toneDirect": "Direct",
+  "section.admin": "Shape admin",
+  "card.adminSummary": "Di admin console · e go open for your browser",
+  "admin.body": "Di admin console go open for your browser. Sign in there with your Shape account and di code from your authenticator app.",
+  "admin.open": "Open di admin console"
 }

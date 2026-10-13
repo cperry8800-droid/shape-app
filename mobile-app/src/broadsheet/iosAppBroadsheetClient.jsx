@@ -34928,6 +34928,16 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return () => clearTimeout(tm);
   }, [fxPreview]);
   const [detail, setDetail] = useStateBSC(''); // '' = settings page; else a drill-in card pane
+  // The Shape team's door into the admin console (window.ShapeStaff, /api/me/staff): a staff
+  // level, or null for everyone else, who never see the row. Asked once per mount; a failed read
+  // is null. The level grants nothing: the console asks for a website sign-in and two-factor.
+  const [staffLevel, setStaffLevel] = useStateBSC(null);
+  React.useEffect(() => {
+    let live = true;
+    const ask = window.ShapeStaff && window.ShapeStaff.getLevel;
+    if (typeof ask === 'function') ask().then((level) => { if (live) setStaffLevel(level || null); }, () => {});
+    return () => { live = false; };
+  }, []);
   // ⚠ A DRILL-IN PANE OPENS AT ITS TOP, AND ONLY THE TALL ONE COULD EVER PROVE IT.
   // BSPage keeps ONE `.bs-scroll` across every value of `detail` and never resets it
   // when its children change — the browser behaviour `_bsScrollTopOnMount` exists for.
@@ -36459,6 +36469,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const alsoRows = [
     { title: tr('settings:section.more', { defaultValue: 'More' }), summary: isCoachRole ? tr('settings:card.moreSummaryCoach', { defaultValue: 'Public profile · Score · Store · Radio' }) : tr('settings:card.moreSummaryClient', { defaultValue: 'Goals · Habits · Library · Score · Store' }), detail: 'more' },
     { title: tr('settings:section.about', { defaultValue: 'About' }), summary: cardAboutSummary, value: bsBuildLabel(), detail: 'about' },
+    ...(staffLevel ? [{ title: tr('settings:section.admin', { defaultValue: 'Shape admin' }), summary: tr('settings:card.adminSummary', { defaultValue: 'The admin console · opens in your browser' }), detail: 'admin' }] : []),
     { title: tr('settings:section.accountActions', { defaultValue: 'Account actions' }), summary: cardAccountActionsSummary, detail: 'accountactions', accent: t.RUST },
   ];
 
@@ -36651,6 +36662,17 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       {detail === 'billing' && (<><DetailBack title={tr('settings:section.billing', { defaultValue: 'Membership & billing' })} />{renderRows(findSec('Membership & billing').rows)}</>)}
       {detail === 'more' && (<><DetailBack title={tr('settings:section.more', { defaultValue: 'More' })} />{renderRows(findSec('More').rows)}</>)}
       {detail === 'about' && (<><DetailBack title={tr('settings:section.about', { defaultValue: 'About' })} />{renderRows(findSec('About').rows)}</>)}
+      {detail === 'admin' && (<>
+        <DetailBack title={tr('settings:section.admin', { defaultValue: 'Shape admin' })} />
+        <div style={{ padding: `8px ${t.padX}px 24px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ fontFamily: t.BODY || t.DISPLAY, fontSize: 14, lineHeight: 1.5, color: t.INK }}>
+            {tr('settings:admin.body', { defaultValue: 'The admin console opens in your browser. Sign in there with your Shape account and the code from your authenticator app.' })}
+          </div>
+          <button type="button" onClick={() => window.ShapeStaff && window.ShapeStaff.openConsole()} style={{ borderRadius: 5, width: '100%', minHeight: 44, padding: '14px', background: bsTHexA(t.ACCENT, 0.07), color: t.ACCENT, border: `1px solid ${t.ACCENT}`, cursor: 'pointer',
+            fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700,
+          }}>{tr('settings:admin.open', { defaultValue: 'Open the admin console' })} ↗</button>
+        </div>
+      </>)}
       {detail === 'accountactions' && (<>
         <DetailBack title={tr('settings:section.accountActions', { defaultValue: 'Account actions' })} />
         <div style={{ padding: `4px ${t.padX}px` }}>

@@ -471,5 +471,9 @@
   "nora.memory": "Nora’nın hatırladıkları",
   "nora.memoryMeta": "Görüntüle",
   "nora.toneSupportive": "Destekleyici",
-  "nora.toneDirect": "Doğrudan"
+  "nora.toneDirect": "Doğrudan",
+  "section.admin": "Shape yönetimi",
+  "card.adminSummary": "Yönetim konsolu · tarayıcında açılır",
+  "admin.body": "Yönetim konsolu tarayıcında açılır. Orada Shape hesabınla ve doğrulama uygulamandaki kodla giriş yap.",
+  "admin.open": "Yönetim konsolunu aç"
 }
