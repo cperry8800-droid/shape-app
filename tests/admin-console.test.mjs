@@ -107,7 +107,7 @@ test('levels: where a level comes from, and that the highest wins', () => {
 
 test('levels: what each level sees in the console', () => {
   const hrefs = (l) => levels.pagesFor(l).map((p) => p.href);
-  const people = ['/admin/coaches', '/admin/members', '/dashboard/support'];
+  const people = ['/admin/coaches', '/admin/members', '/admin/requests', '/dashboard/support'];
   assert.deepEqual(hrefs('analyst'), ['/admin'], 'an analyst sees totals, never one person’s numbers');
   assert.deepEqual(hrefs('support'), ['/admin', ...people]);
   assert.deepEqual(hrefs('admin'), ['/admin', ...people, '/admin/activity']);
@@ -134,7 +134,16 @@ test('levels: an activity row reads as a sentence', () => {
   assert.equal(levels.describeActivity({ action: 'staff.change_level', target_email: 'ann@x.com', details: { from: 'support', level: 'admin' } }), 'changed ann@x.com from Support to Admin');
   assert.equal(levels.describeActivity({ action: 'staff.remove', target_email: 'ann@x.com', details: { level: 'analyst' } }), 'removed ann@x.com from staff (was Analyst)');
   assert.equal(levels.describeActivity({ action: 'lookup', target_email: 'bo@x.com', details: { found: false } }), 'looked up bo@x.com through Nora (no account)');
-  assert.equal(levels.describeActivity({ action: 'account.freeze', target_user_id: U1 }), `account.freeze on ${U1}`);
+  assert.equal(levels.describeActivity({ action: 'something.new', target_user_id: U1 }), `something.new on ${U1}`, 'an action it does not know still reads');
+  assert.equal(levels.describeActivity({ action: 'account.view', target_user_id: U1 }), `opened ${U1}'s account`);
+  assert.equal(levels.describeActivity({ action: 'account.freeze', target_email: 'bo@x.com', details: { reason: 'spam' } }), 'froze bo@x.com: "spam"');
+  assert.equal(levels.describeActivity({ action: 'account.unfreeze', target_email: 'bo@x.com' }), 'unfroze bo@x.com');
+  assert.equal(levels.describeActivity({ action: 'account.remove', target_email: 'bo@x.com', details: { subscriptions: 1 } }), "removed bo@x.com's account and cancelled 1 subscription");
+  assert.equal(levels.describeActivity({ action: 'account.remove', target_email: 'bo@x.com', details: { subscriptions: 0 } }), "removed bo@x.com's account");
+  assert.equal(levels.describeActivity({ action: 'listing.suspend', target_email: 'bo@x.com', details: { role: 'nutritionist', name: 'Bo N', reason: 'fake' } }), 'suspended the nutritionist listing "Bo N" (bo@x.com): "fake"');
+  assert.equal(levels.describeActivity({ action: 'listing.lift', target_email: 'bo@x.com', details: { role: 'trainer' } }), 'put a trainer listing (bo@x.com) back on the marketplace');
+  assert.equal(levels.describeActivity({ action: 'request.done', target_email: 'bo@x.com', details: { action: 'Pause' } }), "marked bo@x.com's Pause request done");
+  assert.equal(levels.describeActivity({ action: 'request.declined', target_email: 'bo@x.com', details: { action: '<b>' } }), "declined bo@x.com's account request");
 });
 
 // ── Who gets in (src/lib/admin-access.ts, the shipping module) ───────────────────────────
@@ -433,7 +442,7 @@ const { renderToStaticMarkup } = await import('react-dom/server');
 globalThis.React = React;
 const funnel = await import(pathToFileURL(join(ROOT, 'src/lib/funnel.mjs')).href);
 
-async function renderPage(rel, { rpc, level = 'owner', searchParams = {} }) {
+async function renderPage(rel, { rpc, level = 'owner', searchParams = {}, tables = {} }) {
   const calls = [];
   const ui = await loadRealModule(join(ROOT, 'src/app/admin/ui.tsx'), { typescript: true });
   const link = ({ href, children, ...rest }) => React.createElement('a', { href, ...rest }, children);
@@ -443,7 +452,15 @@ async function renderPage(rel, { rpc, level = 'owner', searchParams = {} }) {
       ['next/link', { __esModule: true, default: link }],
       ['next/navigation', { redirect: (to) => { const e = new Error('REDIRECT'); e.to = to; throw e; } }],
       ['@/lib/admin-access', { requireStaff: async (min) => { calls.push(min); if (!levels.atLeast(level, min)) throw new Error('Admin access required.'); return { id: OWNER_ID, email: OWNER, level }; } }],
-      ['@/lib/supabase/admin', { createAdminClient: () => ({ rpc: async (name, args) => { calls.push(`rpc:${name}`); return rpc(name, args); } }) }],
+      ['@/lib/supabase/admin', {
+        createAdminClient: () => ({
+          rpc: async (name, args) => { calls.push(`rpc:${name}`); return rpc(name, args); },
+          from: (table) => {
+            const chain = { select: () => chain, not: () => chain, then: (res, rej) => { calls.push(`select:${table}`); return Promise.resolve(tables[table] ?? { data: [], error: null }).then(res, rej); } };
+            return chain;
+          },
+        }),
+      }],
       ['@/lib/staff-levels.mjs', levels],
       ['@/lib/admin-overview.mjs', overview],
       ['@/lib/funnel.mjs', funnel],
@@ -527,8 +544,15 @@ test('render: the Overview says the migration is missing rather than failing', a
 });
 
 test('render: the Coaches page shows each coach’s progress, coach tiers, and is support and up', async () => {
-  const { html, calls } = await renderPage('src/app/admin/coaches/page.tsx', { rpc: answers, level: 'support' });
-  assert.deepEqual(calls, ['support', 'rpc:admin_coach_stats']);
+  // Trainer 1 (Ann T) has an account; nutritionist 1 (Ann N) shares the id but not the role.
+  const owners = { trainers: { data: [{ id: 1, owner_id: U1 }], error: null } };
+  const { html, calls } = await renderPage('src/app/admin/coaches/page.tsx', { rpc: answers, level: 'support', tables: owners });
+  assert.deepEqual(calls, ['support', 'rpc:admin_coach_stats', 'select:trainers', 'select:nutritionists']);
+  assert.equal((html.match(/href="\/admin\/accounts\//g) ?? []).length, 1, 'only the listing with an account links');
+  assert.ok(new RegExp(`href="/admin/accounts/${U1}"[^>]*>Ann T<`).test(html), 'Ann T links to her account');
+  assert.ok(html.includes('<div class="text-neutral-100">Ann N</div>'), 'a listing is matched by role and id, never id alone');
+  const broken = await renderPage('src/app/admin/coaches/page.tsx', { rpc: answers, level: 'support', tables: { trainers: { data: null, error: { code: 'XX000' } } } });
+  assert.ok(broken.html.includes('>Ann T<') && !broken.html.includes('/admin/accounts/'), 'a failed owner read leaves the names unlinked, never the coaches unshown');
   assert.ok(html.includes('3 listings · 1 live · 2 paying clients'));
   assert.ok(html.includes('>1 review<') && html.includes('>2 reviews<'), 'singular and plural');
   assert.ok(html.includes('>Ann T<') && html.includes('>Eli T<'));
@@ -567,6 +591,8 @@ test('every console page and action checks its own level before it reads anythin
     ['src/app/admin/activity/page.tsx', 'admin'],
     ['src/app/admin/coaches/page.tsx', 'support'],
     ['src/app/admin/members/page.tsx', 'support'],
+    ['src/app/admin/requests/page.tsx', 'support'],
+    ['src/app/admin/accounts/[id]/page.tsx', 'support'],
     ['src/app/dashboard/support/page.tsx', 'support'],
   ];
   for (const [file, min] of gates) {
@@ -586,7 +612,7 @@ test('every console page and action checks its own level before it reads anythin
   const layout = stripComments(read('src/app/admin/layout.tsx'));
   assert.match(layout, /const staff = await getStaffMember\(\);\n\s+if \(!staff\) \{/);
   assert.match(layout, /if \(!user\) redirect\('\/login\?next=\/admin'\);\n\s+notFound\(\);/, 'a signed-in non-staff account gets a 404');
-  for (const f of ['src/app/admin/layout.tsx', 'src/app/admin/page.tsx', 'src/app/admin/staff/page.tsx', 'src/app/admin/activity/page.tsx', 'src/app/admin/coaches/page.tsx', 'src/app/admin/members/page.tsx']) {
+  for (const f of ['src/app/admin/layout.tsx', 'src/app/admin/page.tsx', 'src/app/admin/staff/page.tsx', 'src/app/admin/activity/page.tsx', 'src/app/admin/coaches/page.tsx', 'src/app/admin/members/page.tsx', 'src/app/admin/requests/page.tsx', 'src/app/admin/accounts/[id]/page.tsx']) {
     assert.match(read(f), /robots: \{ index: false, follow: false \}/, `${f} is not indexed`);
   }
 });

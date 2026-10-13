@@ -1,5 +1,6 @@
 // Each member's progress: one row per account holding the member role, from
-// admin_member_stats() (service role only). Support level and up.
+// admin_member_stats() (service role only). Support level and up. Each name opens the account's
+// own page (/admin/accounts/[id]), where staff freeze, remove and handle requests.
 //
 // COUNTS ONLY. The function returns how much a member does (workouts, meal days, check-ins,
 // points), never a health value (weight, sleep, heart rate), so this page cannot show one.
@@ -61,7 +62,7 @@ const MEMBERSHIP: Record<string, string> = {
 export default async function MembersPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ q?: string; sort?: string }>;
+  searchParams?: Promise<{ q?: string; sort?: string; updated?: string; error?: string }>;
 }) {
   try {
     await requireStaff('support');
@@ -110,6 +111,7 @@ export default async function MembersPage({
                 {birthdays.map((b) => (
                   <Celebration
                     key={b.id}
+                    id={b.id}
                     name={b.name}
                     email={b.email}
                     coach={b.coach}
@@ -132,6 +134,7 @@ export default async function MembersPage({
                 {anniversaries.map((a) => (
                   <Celebration
                     key={a.id}
+                    id={a.id}
                     name={a.name}
                     email={a.email}
                     coach={a.coach}
@@ -181,6 +184,10 @@ export default async function MembersPage({
       </form>
 
       {missing && <Notice tone="amber">Not set up yet: run {MIGRATION_FILE}.</Notice>}
+      {params?.updated === 'removed' && (
+        <Notice tone="teal">Removed. Their subscriptions are cancelled and the account is erased; the activity log keeps the record.</Notice>
+      )}
+      {params?.error === 'missing_account' && <Notice tone="red">That account could not be found.</Notice>}
 
       {!missing && (
         <p className="text-sm text-neutral-400">
@@ -210,7 +217,9 @@ export default async function MembersPage({
               {rows.map((r) => (
                 <tr key={r.id} className="border-t border-neutral-900 align-top">
                   <td className="px-3 py-2 min-w-[12rem]">
-                    <div className="text-neutral-100">{r.name || '—'}</div>
+                    <Link href={`/admin/accounts/${r.id}`} prefetch={false} className="text-neutral-100 hover:text-teal-200 underline-offset-4 hover:underline">
+                      {r.name || r.email || 'No name'}
+                    </Link>
                     <div className="text-xs text-neutral-500 break-all">{r.email || 'no email'}</div>
                     <div className="text-xs text-neutral-600">
                       Joined {formatWhen(r.joined)}
@@ -254,11 +263,13 @@ export default async function MembersPage({
   );
 }
 
-function Celebration({ name, email, coach, when, today }: { name: string | null; email: string | null; coach: boolean; when: string; today: boolean }) {
+function Celebration({ id, name, email, coach, when, today }: { id: string; name: string | null; email: string | null; coach: boolean; when: string; today: boolean }) {
   return (
     <li className="py-2 flex items-baseline justify-between gap-3 flex-wrap">
       <span className="min-w-0">
-        <span className="text-neutral-100">{name || '—'}</span>
+        <Link href={`/admin/accounts/${id}`} prefetch={false} className="text-neutral-100 hover:text-teal-200 underline-offset-4 hover:underline">
+          {name || email || 'No name'}
+        </Link>
         <span className="text-xs text-neutral-500 break-all"> · {email || 'no email'}{coach ? ' · coach' : ''}</span>
       </span>
       <span className={`text-sm tabular-nums ${today ? 'text-teal-300' : 'text-neutral-400'}`}>{when}</span>

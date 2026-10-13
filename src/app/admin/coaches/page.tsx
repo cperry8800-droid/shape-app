@@ -1,6 +1,8 @@
 // Each coach's progress: one row per coach listing on a real account, from admin_coach_stats()
-// (service role only). Support level and up. Rolling 30-day windows.
+// (service role only). Support level and up. Rolling 30-day windows. Each name opens its
+// account's page (/admin/accounts/[id]), where an Admin suspends or puts back a listing.
 
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { requireStaff } from '@/lib/admin-access';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -49,10 +51,27 @@ export default async function CoachesPage() {
     redirect('/admin');
   }
 
-  const { data, error } = await createAdminClient().rpc('admin_coach_stats');
+  const db = createAdminClient();
+  const [{ data, error }, trainerOwners, nutritionistOwners] = await Promise.all([
+    db.rpc('admin_coach_stats'),
+    db.from('trainers').select('id, owner_id').not('owner_id', 'is', null),
+    db.from('nutritionists').select('id, owner_id').not('owner_id', 'is', null),
+  ]);
   const missing = Boolean(error && MISSING_FUNCTION.has(String(error.code)));
   if (error && !missing) throw error;
   const rows = (Array.isArray(data) ? data : []) as CoachRow[];
+  // Each listing's account, for the link to its page. Best effort: a failed read leaves the
+  // names unlinked, never the coaches unshown.
+  const ownerOf = new Map<string, string>();
+  for (const [role, res] of [
+    ['trainer', trainerOwners],
+    ['nutritionist', nutritionistOwners],
+  ] as const) {
+    if (res.error) continue;
+    for (const l of (res.data ?? []) as { id: number; owner_id: string | null }[]) {
+      if (l.owner_id) ownerOf.set(`${role}-${l.id}`, l.owner_id);
+    }
+  }
   const live = rows.filter((r) => r.live).length;
   const clients = rows.reduce((t, r) => t + Number(r.clients_active || 0), 0);
 
@@ -99,7 +118,17 @@ export default async function CoachesPage() {
               {rows.map((r) => (
                 <tr key={`${r.role}-${r.listing_id}`} className="border-t border-neutral-900 align-top">
                   <td className="px-3 py-2 min-w-[12rem]">
-                    <div className="text-neutral-100">{r.name || '—'}</div>
+                    {ownerOf.has(`${r.role}-${r.listing_id}`) ? (
+                      <Link
+                        href={`/admin/accounts/${ownerOf.get(`${r.role}-${r.listing_id}`)}`}
+                        prefetch={false}
+                        className="text-neutral-100 hover:text-teal-200 underline-offset-4 hover:underline"
+                      >
+                        {r.name || r.email || 'No name'}
+                      </Link>
+                    ) : (
+                      <div className="text-neutral-100">{r.name || '—'}</div>
+                    )}
                     <div className="text-xs text-neutral-500 break-all">
                       {r.role === 'trainer' ? 'Trainer' : 'Nutritionist'} · {r.email || 'no email'}
                     </div>

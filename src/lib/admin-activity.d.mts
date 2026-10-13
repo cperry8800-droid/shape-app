@@ -13,4 +13,9 @@ export function startActivity(
   actor: ActivityActor,
   entry: ActivityEntry
 ): Promise<{ id: string; error?: undefined } | { id?: undefined; error: 'missing_migration' | 'not_logged' }>;
-export function finishActivity(db: SupabaseClient, id: string, outcome: 'done' | 'failed'): Promise<void>;
+export function finishActivity(
+  db: SupabaseClient,
+  id: string,
+  outcome: 'done' | 'failed',
+  extra?: { targetEmail?: string | null }
+): Promise<void>;

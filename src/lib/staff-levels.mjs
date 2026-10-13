@@ -5,9 +5,11 @@
 //
 // THE LEVELS, lowest to highest. Each level opens everything the levels below it open.
 //   analyst  the Overview (Shape's totals, no one person's numbers)
-//   support  + each coach's and each member's progress, and the help desk
-//   admin    + every other admin tool (applications, credentials, refunds, claim, Nora's
-//            library, the War Room and Mission Control) and the activity log
+//   support  + each coach's and each member's progress, one account's page, freezing and
+//            unfreezing an account, the members' account requests, and the help desk
+//   admin    + suspending a coach listing, removing an account, every other admin tool
+//            (applications, credentials, refunds, claim, Nora's library, the War Room and
+//            Mission Control) and the activity log
 //   owner    + the Staff page: adding, changing and removing staff
 //
 // WHERE A LEVEL COMES FROM (resolveStaffLevel):
@@ -24,8 +26,8 @@ export const LEVEL_LABELS = { owner: 'Owner', admin: 'Admin', support: 'Support'
 
 export const LEVEL_SUMMARIES = {
   owner: 'Everything, including adding and removing staff.',
-  admin: 'Everything except managing staff.',
-  support: 'The Overview, each coach’s and member’s progress, and the help desk.',
+  admin: 'Everything except managing staff, including suspending listings and removing accounts.',
+  support: 'The Overview, each coach’s and member’s progress, freezing accounts, account requests and the help desk.',
   analyst: 'The Overview only.',
 };
 
@@ -64,6 +66,7 @@ export const CONSOLE_PAGES = [
   { href: '/admin', label: 'Overview', min: 'analyst' },
   { href: '/admin/coaches', label: 'Coaches', min: 'support' },
   { href: '/admin/members', label: 'Members', min: 'support' },
+  { href: '/admin/requests', label: 'Account requests', min: 'support' },
   { href: '/dashboard/support', label: 'Help requests', min: 'support' },
   { href: '/admin/activity', label: 'Activity log', min: 'admin' },
   { href: '/admin/staff', label: 'Staff', min: 'owner' },
@@ -114,7 +117,33 @@ const ACTIONS = {
   'staff.change_level': (r) => `changed ${r.target} from ${label(r.details?.from)} to ${label(r.details?.level)}`,
   'staff.remove': (r) => `removed ${r.target} from staff (was ${label(r.details?.level)})`,
   lookup: (r) => `looked up ${r.target} through Nora${r.details?.found === false ? ' (no account)' : ''}`,
+  'account.view': (r) => `opened ${r.target}'s account`,
+  'account.freeze': (r) => `froze ${r.target}${because(r)}`,
+  'account.unfreeze': (r) => `unfroze ${r.target}`,
+  'account.remove': (r) => `removed ${r.target}'s account${r.details?.subscriptions ? ` and cancelled ${count(r.details.subscriptions, 'subscription')}` : ''}`,
+  'listing.suspend': (r) => `suspended ${listing(r)} (${r.target})${because(r)}`,
+  'listing.lift': (r) => `put ${listing(r)} (${r.target}) back on the marketplace`,
+  'request.done': (r) => `marked ${r.target}'s ${request(r)} request done`,
+  'request.declined': (r) => `declined ${r.target}'s ${request(r)} request`,
 };
+
+function because(r) {
+  return r.details?.reason ? `: "${r.details.reason}"` : '';
+}
+
+function listing(r) {
+  const role = r.details?.role === 'nutritionist' ? 'nutritionist' : 'trainer';
+  return r.details?.name ? `the ${role} listing "${r.details.name}"` : `a ${role} listing`;
+}
+
+function request(r) {
+  return ['Pause', 'Export', 'Delete'].includes(r.details?.action) ? r.details.action : 'account';
+}
+
+function count(n, word) {
+  const v = Number(n) || 0;
+  return `${v} ${word}${v === 1 ? '' : 's'}`;
+}
 
 function label(level) {
   return LEVEL_LABELS[level] || 'no level';
