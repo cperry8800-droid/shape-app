@@ -8,6 +8,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { computeMembership, GATE_STAMP_HEADER, GATE_STAMP_VALUE } from '@/lib/membership-core';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { applyShapeCookieOptions } from '@/lib/supabase/cookie-options';
+import { isStaffPage, verifyUrl } from '@/lib/staff-two-factor.mjs';
 
 type PortalRole = 'client' | 'trainer' | 'nutritionist';
 
@@ -280,6 +281,25 @@ export async function updateSession(request: NextRequest) {
       /* fail open — requireMembership() in the route re-checks when the stamp
          is absent, so a gate fault degrades to the route-layer check, not to
          an open door */
+    }
+  }
+
+  // ---- Staff two-factor ----------------------------------------------------
+  // A staff page (the console and the admin tools) needs a session that passed a second factor.
+  // A signed-in session without one is sent to /staff-verify before the page renders, which sets
+  // an authenticator up or asks for its code (src/lib/staff-two-factor.mjs). A visitor is not
+  // redirected here: the page itself sends them to sign in first. This is the way in; the lock is
+  // getStaffMember(), which counts nobody as staff without the second factor.
+  if (user && isStaffPage(request.nextUrl.pathname)) {
+    const { data: assurance } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (assurance?.currentLevel !== 'aal2') {
+      const url = request.nextUrl.clone();
+      const target = new URL(verifyUrl(request.nextUrl.pathname, request.nextUrl.search), url);
+      url.pathname = target.pathname;
+      url.search = target.search;
+      const redirect = NextResponse.redirect(url);
+      response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
+      return redirect;
     }
   }
 

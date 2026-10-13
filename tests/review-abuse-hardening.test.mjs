@@ -50,6 +50,7 @@ async function proxyBucket({ cookieUser = null, bearer = null, claims = async ()
       ['@/lib/membership-core', { computeMembership: async () => ({ isMember: false, isKnownMinor: false }), GATE_STAMP_HEADER: 'x-shape-gate', GATE_STAMP_VALUE: 'ok' }],
       ['@/lib/rate-limit', { checkRateLimit: async (sb, key, max, win) => { keys.push({ key, max, win }); return { allowed: true, remaining: 99, resetSeconds: 60, limit: max }; } }],
       ['@/lib/supabase/cookie-options', { applyShapeCookieOptions: (o) => o }],
+      ['@/lib/staff-two-factor.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/staff-two-factor.mjs')).href)],
     ]),
   });
   const headers = { 'x-forwarded-for': '203.0.113.9' };
