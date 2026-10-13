@@ -152,11 +152,11 @@ export default async function CredentialsPage({
       </section>
 
       {notRecorded ? (
-        <div className="rounded-lg border border-amber-400/40 bg-amber-400/10 text-amber-200 text-sm px-4 py-3">
+        <div role="status" className="rounded-lg border border-amber-400/40 bg-amber-400/10 text-amber-200 text-sm px-4 py-3">
           {notRecorded}
         </div>
       ) : params?.updated ? (
-        <div className="rounded-lg border border-teal-400/30 bg-teal-400/10 text-teal-200 text-sm px-4 py-3">
+        <div role="status" className="rounded-lg border border-teal-400/30 bg-teal-400/10 text-teal-200 text-sm px-4 py-3">
           Credential updated: {params.updated.replace('_', ' ')}.
         </div>
       ) : null}

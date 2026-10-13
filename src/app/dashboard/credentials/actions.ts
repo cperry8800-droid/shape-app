@@ -25,7 +25,9 @@ function reviewedRevision(formData: FormData): number {
 // A verdict that matched no row: the coach changed the credentials since the page was opened, or
 // removed them. Nothing was recorded; the page says which.
 async function notRecorded(admin: ReturnType<typeof createAdminClient>, ownerId: string): Promise<never> {
-  const { data } = await admin.from('provider_credentials').select('owner_id').eq('owner_id', ownerId).maybeSingle();
+  const { data, error } = await admin.from('provider_credentials').select('owner_id').eq('owner_id', ownerId).maybeSingle();
+  // A failed read is not "no credentials" (Copilot, #2323).
+  if (error) throw error;
   redirect(`/dashboard/credentials?updated=${data ? 'changed' : 'missing'}`);
 }
 

@@ -749,10 +749,14 @@ test('6: a rejection or a request for changes is for the version reviewed too, a
     assert.equal(current.tables.provider_credentials[0].review_status, verdict);
     const gone = await loadCredentialActions(fakeAdmin({ tables: { provider_credentials: [] } }));
     assert.equal(await gone.run(action, { owner_id: COACH_UID, revision: '4', review_notes: 'x' }), 'missing');
+    // Copilot, #2323: an unreadable row is an error, never "no credentials".
+    const unread = await loadCredentialActions(fakeAdmin({ tables: { provider_credentials: [row()] }, fail: ['select:provider_credentials'] }));
+    await assert.rejects(unread.run(action, { owner_id: COACH_UID, revision: '3', review_notes: 'x' }), { message: /fake failure on select provider_credentials/ });
   }
   const page = read('src/app/dashboard/credentials/page.tsx');
   assert.match(page, /<input type="hidden" name="revision" value=\{String\(row\.revision\)\} \/>/, 'the form carries the version on screen');
   assert.match(page, /Object\.hasOwn\(NOT_RECORDED, params\.updated\)/);
+  assert.match(page, /\{notRecorded \? \(\s+<div role="status"/, 'the notice is announced (Copilot, #2323)');
 });
 
 test('6: the credential review is in the admin nav, with a waiting count', () => {

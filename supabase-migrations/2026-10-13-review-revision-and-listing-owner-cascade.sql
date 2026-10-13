@@ -8,9 +8,13 @@
 -- first and the approval behind it ended 'approved' with the coach's change. Nothing tied the
 -- verdict to what the admin had looked at.
 --
--- provider_credentials.revision is a counter the database bumps on every write (a coach's or the
--- service role's; nobody can set it). The review page carries the revision it showed, and every
--- verdict applies only while the row is still at that revision:
+-- provider_credentials.revision is a number the database sets on every write (a coach's or the
+-- service role's; nobody can set it), drawn from one sequence, so a value is never issued twice.
+-- ⚠ NOT A PER-ROW COUNTER (Codex, #2323). A counter restarted at 1 when a coach deleted their row
+-- and created it again (prov_cred_own allows both), and the coach could then edit their way back up
+-- to the revision on the admin's open form, which would approve credentials the admin never saw.
+-- The review page carries the revision it showed, and every verdict applies only while the row is
+-- still at that revision:
 --   · approve_provider_credential takes it (p_revision) and returns -1, changing nothing, when
 --     the row has moved on; the old three-argument form is dropped so no caller can approve
 --     without one;
@@ -31,10 +35,17 @@
 begin;
 
 -- ── 1a · the revision ──────────────────────────────────────────────────────────────────────
-alter table public.provider_credentials add column if not exists revision bigint not null default 1;
+create sequence if not exists public.provider_credentials_revision_seq as bigint;
+-- The trigger runs as the writer, so a coach's write draws from it. Drawing only ever moves it on.
+revoke all on sequence public.provider_credentials_revision_seq from public, anon;
+grant usage on sequence public.provider_credentials_revision_seq to authenticated, service_role;
+
+-- A volatile default: rows that exist already get distinct values too.
+alter table public.provider_credentials
+  add column if not exists revision bigint not null default nextval('public.provider_credentials_revision_seq');
 
 comment on column public.provider_credentials.revision is
-  'Bumped on every write by provider_credentials_revision; an admin verdict applies only at the revision the admin reviewed. Never written directly.';
+  'Set from provider_credentials_revision_seq on every write by provider_credentials_revision, never reused; an admin verdict applies only at the revision the admin reviewed. Never written directly.';
 
 -- The coach's read of this table is column-level (2026-10-10, L3), so a new column is granted.
 grant select (revision) on table public.provider_credentials to authenticated;
@@ -45,11 +56,7 @@ language plpgsql
 set search_path to 'public', 'pg_temp'
 as $$
 begin
-  if tg_op = 'INSERT' then
-    new.revision := 1;
-  else
-    new.revision := coalesce(old.revision, 0) + 1;
-  end if;
+  new.revision := nextval('public.provider_credentials_revision_seq');
   return new;
 end;
 $$;
@@ -124,6 +131,12 @@ begin
   end if;
   if not has_column_privilege('authenticated', 'public.provider_credentials', 'revision', 'select') then
     raise exception 'authenticated cannot read provider_credentials.revision (the column-level grant of 2026-10-10)';
+  end if;
+
+  if has_sequence_privilege('anon', 'public.provider_credentials_revision_seq', 'usage')
+     or not has_sequence_privilege('authenticated', 'public.provider_credentials_revision_seq', 'usage')
+     or not has_sequence_privilege('service_role', 'public.provider_credentials_revision_seq', 'usage') then
+    raise exception 'provider_credentials_revision_seq: the writers (authenticated, service_role) draw from it, anon does not';
   end if;
 
   if not exists (

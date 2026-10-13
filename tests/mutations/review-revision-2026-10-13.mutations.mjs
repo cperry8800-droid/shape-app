@@ -11,9 +11,9 @@ export default {
   test: 'node --test tests/credential-review-revision.test.mjs tests/coach-application-review.test.mjs',
   timeoutMs: 120_000,
   mutations: [
-    { name: 'a writer sets the revision', file: SQL,
-      find: '    new.revision := coalesce(old.revision, 0) + 1;',
-      replace: '    new.revision := coalesce(new.revision, old.revision);' },
+    { name: 'the revision is a per-row counter again', file: SQL,
+      find: "  new.revision := nextval('public.provider_credentials_revision_seq');",
+      replace: "  new.revision := case when tg_op = 'INSERT' then 1 else old.revision + 1 end;" },
     { name: 'approval ignores the reviewed revision', file: SQL,
       find: '   where owner_id = p_owner and revision = p_revision;',
       replace: '   where owner_id = p_owner;' },
