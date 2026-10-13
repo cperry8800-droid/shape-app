@@ -847,6 +847,20 @@ Everything older, newest-first: [2026-10](WORKLOG-ARCHIVE-2026-10.md) ·
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-10-13 — The Verified badge follows the credential, in the database
+
+- **Merged [#2321](https://github.com/cperry8800-droid/shape-app/pull/2321) as `83295f5`**, final head `ec99dc4`; the merged tree is byte-identical to it (tree `345daac` on both). 9 files. The owner: *"fix the two coderabbit threads"* (the two left open on #2315).
+- **The threads:** the coach's credential routes followed the coach's own write with a second, service-role write to take the badge off, and that write cleared `trainers` and then `nutritionists`, so a failure between them left one listing Verified.
+- **Migration `2026-10-13-listing-badge-follows-credential.sql`, run by the owner and verified live, read-only:** the three functions pinned, none executable by anon or authenticated; the trigger enabled; 0 credential rows and 0 Verified coach listings, so no row changed.
+  - `clear_listing_verified(owner)`: both listing tables in one statement, as its caller, service role only.
+  - `provider_credentials_zz_unverify_listings`: an AFTER trigger (pinned definer function) that clears the owner's badge whenever a credential row is written as anything but `approved`, or deleted, inside that write. A coach's edit, an admin's rejection or request for changes and the expiry cron's move all take it off with the credential write, or neither happens.
+  - ⚠ **It closed a gap neither thread named:** `prov_cred_own` lets a coach write their own credential row directly, and that write went back to `pending` with the badge still up, because only the routes took it off.
+  - `approve_provider_credential(owner, reviewer, notes)`: approval and the badge in one transaction. ⚠ **Codex's P2 on the first head:** approved in one call and badged in the next, a coach edit landing between them was un-approved by the trigger and badged anyway.
+- **Code:** the credentials and document routes make no badge write (the credentials route no service role at all) and the 503 `badge_not_cleared` is gone; approval is one RPC; reject and request-changes leave the badge to the trigger; `clearListingVerified` is one RPC, for the cron's coach with no credential write behind it.
+- **Verified on a PostgreSQL 16 copy** of the live objects (guards, RLS, column grants, the readiness triggers, the `auth.users` keys), applied three times with identical probes: before it, a coach's own write left both badges up; after it, each takes the badge off both of their listings and no one else's; a failing nutritionist write fails the coach's edit whole; with an approval held open in one session, a coach's edit in another waits and then takes the badge off. `npm test` 6759/6759 through the hook on `076f8ee`; `ec99dc4` committed under the small-commit rule after `tsc` and the seven suites it touches (471/471); CI green on the final head. Mutation specs re-aimed, not run.
+- **Written after the merge**, per the 2026-09-11 rule. Both #2315 threads are answered and resolved.
+- ⚠ **REGISTERED, NOT DONE:** an approval waiting behind a coach's edit overwrites it (measured: `approved` with the unreviewed change; always so; closing it means the form carrying the version reviewed); a user deleted from the Supabase dashboard rather than `/api/account/delete` leaves listings with `owner_id = null` and `verified` kept (predates this).
+
 ### 2026-10-12 — Coach application documents: five categories, uploaded straight to storage
 
 - **Merged [#2319](https://github.com/cperry8800-droid/shape-app/pull/2319) as `55cc284`**, final head `9befbb0`; the merged tree is byte-identical to it (tree `96c87e9` on both). **No migration.** The owner: *"make sure application process can upload resume, and other CV materials, as well as certifications and designation supportive paperwork, certificates, etc"*.
@@ -895,8 +909,8 @@ Append new entries at the top, under this note.
 - **Verified:** `npm test` 6728/6728 on `56e8bcc`; on `5e64bf4`, 678/678 across the 16 suites that read the changed files and `tsc` clean; CI green on the final head. Every new test from the review round fails against the previous source. The mutation specs are re-aimed (72, every anchor applies once) and were not run on the final head, by the owner's 2026-10-10 word.
 - **Written after the merge**, per the 2026-09-11 rule.
 - ⚠ **REGISTERED, NOT DONE:**
-  - **Owner decisions:** ~~hide approved coaches until their photo, price and payouts are ready; 5 or 7 years' minimum experience; retire the legacy root signup pages~~ **decided and shipped the same day: #2318 (hidden until ready), #2317 (5 years as the standard, below it reviewed one by one; the legacy pages retired), and #2319 for the documents the owner added (the three entries above).** Still open: the two CodeRabbit threads above.
-  - **Owner settings:** the hostname `localhost` in the Turnstile widget; `RESEND_API_KEY` in Vercel, or the decision emails do not send.
+  - **Owner decisions:** ~~hide approved coaches until their photo, price and payouts are ready; 5 or 7 years' minimum experience; retire the legacy root signup pages~~ **decided and shipped the same day: #2318 (hidden until ready), #2317 (5 years as the standard, below it reviewed one by one; the legacy pages retired), and #2319 for the documents the owner added (the three entries above).** ~~Still open: the two CodeRabbit threads above.~~ **Fixed 2026-10-13 in #2321 (the entry at the top).**
+  - **Owner settings:** the hostname `localhost` in the Turnstile widget. ~~`RESEND_API_KEY` in Vercel~~: already set (owner, 2026-10-13: *"resend api key is already implimented"*).
   - Not run live: `/auth/confirm` and the decision emails. The new app text is English only. Nora's form-filling does not know the app's new nutritionist fields.
 
 ### 2026-10-12 — Shape Score: ten scoring bugs fixed, one rank basis everywhere
