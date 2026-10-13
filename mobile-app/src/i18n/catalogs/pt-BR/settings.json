@@ -471,5 +471,9 @@
   "nora.memory": "O que Nora lembra",
   "nora.memoryMeta": "Ver",
   "nora.toneSupportive": "Acolhedor",
-  "nora.toneDirect": "Direto"
+  "nora.toneDirect": "Direto",
+  "section.admin": "Administração do Shape",
+  "card.adminSummary": "O console de administração · abre no seu navegador",
+  "admin.body": "O console de administração abre no seu navegador. Entre lá com sua conta do Shape e o código do seu app autenticador.",
+  "admin.open": "Abrir o console de administração"
 }

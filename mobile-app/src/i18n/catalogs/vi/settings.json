@@ -471,5 +471,9 @@
   "nora.memory": "Những gì Nora nhớ",
   "nora.memoryMeta": "Xem",
   "nora.toneSupportive": "Động viên",
-  "nora.toneDirect": "Thẳng thắn"
+  "nora.toneDirect": "Thẳng thắn",
+  "section.admin": "Quản trị Shape",
+  "card.adminSummary": "Bảng điều khiển quản trị · mở trong trình duyệt",
+  "admin.body": "Bảng điều khiển quản trị sẽ mở trong trình duyệt của bạn. Đăng nhập ở đó bằng tài khoản Shape và mã từ ứng dụng xác thực của bạn.",
+  "admin.open": "Mở bảng điều khiển quản trị"
 }

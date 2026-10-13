@@ -4679,6 +4679,45 @@ window.ShapeCoachListing = {
   saveRates: saveMyCoachRates,
 };
 
+// The Shape team's way into the admin console from Settings (/api/me/staff). getLevel answers
+// the signed-in account's staff level or null (signed out, not staff, or the read failed: the row
+// simply does not show). The console opens in the browser, where it asks for a website sign-in
+// and two-factor; this level grants nothing.
+async function getMyStaffLevel() {
+  if (!apiBaseUrl || !state.session?.access_token) return null;
+  try {
+    const response = await fetch(`${apiBaseUrl}/api/me/staff`, {
+      headers: { Authorization: `Bearer ${state.session.access_token}` },
+    });
+    if (!response.ok) return null;
+    const payload = await response.json().catch(() => ({}));
+    return ['owner', 'admin', 'support', 'analyst'].includes(payload.level) ? payload.level : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// The installed app opens it in the system browser; the web app in a new tab, so the app stays put.
+function openAdminConsole() {
+  const url = apiBaseUrl ? `${apiBaseUrl}/admin` : '/admin';
+  try {
+    const cap = (typeof window !== 'undefined' && window.Capacitor) || null;
+    const Browser = cap && cap.Plugins && cap.Plugins.Browser;
+    if (Capacitor.isNativePlatform() && Browser && Browser.open) {
+      Browser.open({ url, presentationStyle: 'fullscreen' });
+      return;
+    }
+  } catch (e) {}
+  // 'noopener' makes window.open answer null even when the tab opened, so its answer is not read.
+  try { window.open(url, '_blank', 'noopener'); return; } catch (e) {}
+  window.location.assign(url);
+}
+
+window.ShapeStaff = {
+  getLevel: getMyStaffLevel,
+  openConsole: openAdminConsole,
+};
+
 window.ShapeRefunds = {
   requestRefund,
 };
