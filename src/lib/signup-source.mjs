@@ -26,6 +26,11 @@ export const SOURCE_KEY = 'shape.signupSource';
 export const COACH_REF_KEY = 'shape.coachRef';
 export const SOURCE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 export const COACH_REF_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+// The EEA and the UK by device time zone: every Europe/* zone (slightly over-inclusive, which
+// fails safe), plus the EEA's zones outside Europe/* (the Canaries, Madeira, the Azores, Ceuta,
+// Cyprus, Iceland, Svalbard, and France's outermost regions; Codex on #2334). One list, written
+// out in four files; tests/consent-region.test.mjs holds them equal.
+export const CONSENT_REGION_RE = /^(?:Europe\/|(?:Atlantic\/(?:Canary|Madeira|Azores|Reykjavik|Jan_Mayen)|Africa\/Ceuta|Asia\/(?:Nicosia|Famagusta)|Arctic\/Longyearbyen|America\/(?:Guadeloupe|Martinique|Cayenne|Marigot)|Indian\/(?:Reunion|Mayotte))$)/;
 const UTM = ['utm_source', 'utm_medium', 'utm_campaign'];
 const FIELD_MAX = 60;
 const PATH_MAX = 120;
@@ -135,7 +140,7 @@ export function trackingAllowed({ consent = null, gpc = false, timeZone = '' } =
   if (consent === 'reject') return false;
   if (consent === 'accept') return true;
   if (!timeZone) return false;
-  return !/^Europe\//.test(timeZone);
+  return !CONSENT_REGION_RE.test(timeZone);
 }
 
 /** What a sign-up saves: the remembered first touch, else the sign-up page's own, plus where. */

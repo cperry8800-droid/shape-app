@@ -2851,7 +2851,12 @@ window.shapeClearLocalUserContent = function (opts) {
       if (localStorage.getItem(KEY)) return;                 // already chose
       if (gpc) { try { localStorage.setItem(KEY, "reject"); } catch (e) {} return; } // GPC = opt out, no banner
       var tz = ""; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (e) {}
-      if (!/^Europe\//.test(tz)) return;                     // region-aware: show only for EEA/UK
+      // The EEA and the UK by device time zone: every Europe/* zone (slightly over-inclusive, which
+      // fails safe), plus the EEA's zones outside Europe/* (the Canaries, Madeira, the Azores, Ceuta,
+      // Cyprus, Iceland, Svalbard, and France's outermost regions; Codex on #2334). One list, written
+      // out in four files; tests/consent-region.test.mjs holds them equal.
+      var CONSENT_REGION_RE = /^(?:Europe\/|(?:Atlantic\/(?:Canary|Madeira|Azores|Reykjavik|Jan_Mayen)|Africa\/Ceuta|Asia\/(?:Nicosia|Famagusta)|Arctic\/Longyearbyen|America\/(?:Guadeloupe|Martinique|Cayenne|Marigot)|Indian\/(?:Reunion|Mayotte))$)/;
+      if (!CONSENT_REGION_RE.test(tz)) return;               // region-aware: show only for EEA/UK
       // ONE copy string, rendered AND recorded — the consent_log row must carry
       // the exact text the visitor was shown (house rule from the cycle wave).
       var BANNER_COPY = "We use essential cookies and on-device storage to run Shape — no ad tracking, nothing cross-site. Your choice here also controls whether we remember which link brought you to Shape, and the Shape app's first-party usage stats. See our Privacy Policy.";

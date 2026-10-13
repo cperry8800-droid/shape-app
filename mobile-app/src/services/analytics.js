@@ -9,11 +9,16 @@
 // With no explicit choice we OPT-IN for EEA/UK (block until 'accept' is recorded —
 // the mobile app has no consent banner yet, so EEA first-run is never tracked)
 // and OPT-OUT elsewhere (track unless 'reject'), mirroring the web shell's
-// EEA-via-Europe/* timezone consent gating.
+// EEA/UK-by-timezone consent gating (CONSENT_REGION_RE below).
+// The EEA and the UK by device time zone: every Europe/* zone (slightly over-inclusive, which
+// fails safe), plus the EEA's zones outside Europe/* (the Canaries, Madeira, the Azores, Ceuta,
+// Cyprus, Iceland, Svalbard, and France's outermost regions; Codex on #2334). One list, written
+// out in four files; tests/consent-region.test.mjs holds them equal.
+const CONSENT_REGION_RE = /^(?:Europe\/|(?:Atlantic\/(?:Canary|Madeira|Azores|Reykjavik|Jan_Mayen)|Africa\/Ceuta|Asia\/(?:Nicosia|Famagusta)|Arctic\/Longyearbyen|America\/(?:Guadeloupe|Martinique|Cayenne|Marigot)|Indian\/(?:Reunion|Mayotte))$)/;
 function inEeaOrUk() {
   try {
     const tz = (Intl.DateTimeFormat().resolvedOptions().timeZone || '');
-    return /^Europe\//.test(tz); // EEA + UK (slightly over-inclusive → fails safe)
+    return CONSENT_REGION_RE.test(tz);
   } catch (e) { return true; }   // region unknown → treat as EEA (fail CLOSED)
 }
 function consentBlocked() {
