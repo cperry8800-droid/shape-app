@@ -689,10 +689,74 @@ test('6: no coach route or admin rejection writes the badge off itself; the cred
   assert.doesNotMatch(creds, /createAdminClient/, 'the credentials route needs no service role at all');
   const actions = stripComments(read('src/app/dashboard/credentials/actions.ts'));
   // Approval and the badge are one transaction (Codex, #2321): a coach edit cannot land between them.
-  assert.match(actions, /await admin\.rpc\('approve_provider_credential', \{\s+p_owner: ownerId,\s+p_reviewer: adminUser\.id,/)
-  assert.match(actions, /if \(error\) throw error;\n\s+if \(badged === null\) throw new Error\('This coach has no credentials to approve\.'\);/, 'nothing to approve is not announced as verified')
+  assert.match(actions, /await admin\.rpc\('approve_provider_credential', \{\s+p_owner: ownerId,\s+p_revision: revision,\s+p_reviewer: adminUser\.id,/)
+  assert.match(actions, /if \(badged === -1\) redirect\('\/dashboard\/credentials\?updated=changed'\);\n\s+if \(badged === null\) redirect\('\/dashboard\/credentials\?updated=missing'\);/, 'a changed or missing credential is not announced as verified')
   assert.doesNotMatch(actions, /from\('(trainers|nutritionists)'\)|verified: (true|false)|review_status: 'approved'/, 'no listing write and no approval outside the database function');
   assert.match(stripComments(read('src/app/api/cron/credential-expiry/route.ts')), /badgeCleared = await clearListingVerified\(admin, ownerId\);/, 'the cron clears a badge with no credential write behind it through the one database call');
+});
+
+async function loadCredentialActions(admin) {
+  const notes = [];
+  const actions = await loadRealModule(join(ROOT, 'src/app/dashboard/credentials/actions.ts'), {
+    typescript: true,
+    registry: new Map([
+      ['next/cache', { revalidatePath: () => {} }],
+      ['next/navigation', { redirect: (to) => { const e = new Error('REDIRECT'); e.to = to; throw e; } }],
+      ['@/lib/supabase/admin', { createAdminClient: () => admin.client }],
+      ['@/lib/admin-access', { requireAdminUser: async () => ADMIN }],
+      ['@/lib/notify', { createNotification: async (_c, n) => { notes.push(n); return true; } }],
+    ]),
+  });
+  const run = async (name, fields) => {
+    const fd = new FormData();
+    for (const [k, v] of Object.entries(fields)) fd.set(k, v);
+    try {
+      await actions[name](fd);
+    } catch (e) {
+      if (e.message === 'REDIRECT') return new URL(e.to, 'https://shape.test').searchParams.get('updated');
+      throw e;
+    }
+    throw new Error(`${name} returned without redirecting`);
+  };
+  return { run, notes };
+}
+
+test('6: an approval is for the version the admin reviewed, and a changed one is not approved or announced', async () => {
+  // approve_provider_credential: the badge count, -1 when the credential moved on, null when there is none.
+  for (const [answer, expect, told] of [[2, 'approved', 1], [-1, 'changed', 0], [null, 'missing', 0]]) {
+    const admin = fakeAdmin({ rpc: { approve_provider_credential: async () => ({ data: answer, error: null }) } });
+    const a = await loadCredentialActions(admin);
+    assert.equal(await a.run('approveCredential', { owner_id: COACH_UID, revision: '3', review_notes: '' }), expect, String(answer));
+    assert.deepEqual(admin.calls.find((c) => c.rpc)?.args, { p_owner: COACH_UID, p_revision: 3, p_reviewer: ADMIN.id, p_notes: 'Credentials verified.' });
+    assert.equal(a.notes.length, told, `answer ${answer}: the coach is told only of a real approval`);
+  }
+  const a = await loadCredentialActions(fakeAdmin());
+  await assert.rejects(a.run('approveCredential', { owner_id: COACH_UID, review_notes: '' }), /no credential version/, 'a form without the version is refused');
+});
+
+test('6: a rejection or a request for changes is for the version reviewed too, and says when nothing was recorded', async () => {
+  for (const action of ['rejectCredential', 'requestCredentialChanges']) {
+    const row = () => ({ owner_id: COACH_UID, review_status: 'pending', revision: 4 });
+    const stale = fakeAdmin({ tables: { provider_credentials: [row()] } });
+    const s = await loadCredentialActions(stale);
+    assert.equal(await s.run(action, { owner_id: COACH_UID, revision: '3', review_notes: 'x' }), 'changed', `${action}: the coach edited since`);
+    assert.equal(stale.tables.provider_credentials[0].review_status, 'pending', `${action}: nothing recorded on the newer version`);
+    assert.equal(s.notes.length, 0);
+    const current = fakeAdmin({ tables: { provider_credentials: [row()] } });
+    const c = await loadCredentialActions(current);
+    const verdict = action === 'rejectCredential' ? 'rejected' : 'changes_requested';
+    assert.equal(await c.run(action, { owner_id: COACH_UID, revision: '4', review_notes: 'x' }), verdict);
+    assert.equal(current.tables.provider_credentials[0].review_status, verdict);
+    const gone = await loadCredentialActions(fakeAdmin({ tables: { provider_credentials: [] } }));
+    assert.equal(await gone.run(action, { owner_id: COACH_UID, revision: '4', review_notes: 'x' }), 'missing');
+    // Copilot, #2323: an unreadable row is an error, never "no credentials".
+    const unread = await loadCredentialActions(fakeAdmin({ tables: { provider_credentials: [row()] }, fail: ['select:provider_credentials'] }));
+    await assert.rejects(unread.run(action, { owner_id: COACH_UID, revision: '3', review_notes: 'x' }), { message: /fake failure on select provider_credentials/ });
+  }
+  const page = read('src/app/dashboard/credentials/page.tsx');
+  assert.match(page, /<input type="hidden" name="revision" value=\{String\(row\.revision\)\} \/>/, 'the form carries the version on screen');
+  assert.match(page, /Object\.hasOwn\(NOT_RECORDED, params\.updated\)/);
+  assert.match(page, /\{notRecorded \? \(\s+<div role="status"/, 'the notice is announced (Copilot, #2323)');
 });
 
 test('6: the credential review is in the admin nav, with a waiting count', () => {
