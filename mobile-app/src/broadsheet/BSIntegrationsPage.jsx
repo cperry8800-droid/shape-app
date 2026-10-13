@@ -140,6 +140,14 @@ export function BSIntegrationsPage({ onBack }) {
     loadStatus();
   }, []);
 
+  // The installed app connects in its in-app browser (openIntegrationHandoff in shapeBackend.js);
+  // closing that browser fires this, and the cards show what the connection did.
+  React.useEffect(() => {
+    const reload = () => { loadStatus(); };
+    window.addEventListener('shape:integrations-changed', reload);
+    return () => window.removeEventListener('shape:integrations-changed', reload);
+  }, []);
+
   const providerMap = providers.reduce((acc, provider) => {
     acc[provider.id] = provider;
     return acc;
@@ -192,6 +200,9 @@ export function BSIntegrationsPage({ onBack }) {
     setSummary(null);
     try {
       const result = await action();
+      // Not done yet: the app's in-app browser (or the website's redirect) carries it on, and
+      // the cards reload when it comes back. Saying "connected" now would be early.
+      if (result && (result.handoff || result.redirected)) return;
       setSummary({ label, result });
       window.__bsToast?.(label, 'ok');
       await loadStatus();
@@ -317,7 +328,7 @@ export function BSIntegrationsPage({ onBack }) {
         note={tr('settings:integrations.noteWhoop', { defaultValue: 'Sync recovery, sleep, body measurements, cycles, and workouts. Imported workouts are private until you share them.' })}
       >
         <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          <Button active={!whoop.connected} onClick={() => window.ShapeIntegrations?.connectWhoop?.()}>
+          <Button active={!whoop.connected} onClick={() => runAction('whoop-connect', whoop.label, toastConnected(whoop.label), () => window.ShapeIntegrations.connectWhoop())}>
             {whoop.connected ? reconnectLabel : connectLabel}
           </Button>
           <Button disabled={!whoop.connected} onClick={() => runAction('whoop-sync', whoop.label, toastSynced(whoop.label), () => window.ShapeIntegrations.syncWhoop())}>
@@ -359,7 +370,7 @@ export function BSIntegrationsPage({ onBack }) {
         note={tr('settings:integrations.noteStrava', { defaultValue: 'Connect Strava activities and map data. Route imports will use the same private-first sharing model as WHOOP.' })}
       >
         <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          <Button active={!strava.connected} onClick={() => window.ShapeIntegrations?.connectStrava?.()}>
+          <Button active={!strava.connected} onClick={() => runAction('strava-connect', strava.label, toastConnected(strava.label), () => window.ShapeIntegrations.connectStrava())}>
             {strava.connected ? reconnectLabel : connectLabel}
           </Button>
           <Button disabled={!strava.connected} onClick={() => runAction('strava-sync', strava.label, toastSynced(strava.label), () => window.ShapeIntegrations.syncStrava())}>
@@ -391,7 +402,7 @@ export function BSIntegrationsPage({ onBack }) {
         note={tr('settings:integrations.noteSpotify', { defaultValue: 'Pick workout playlists from your Spotify library and attach them to programs. Streams in Shape Radio and the workout player.' })}
       >
         <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          <Button active={!spotify.connected} onClick={() => window.ShapeIntegrations?.connectSpotify?.()}>
+          <Button active={!spotify.connected} onClick={() => runAction('spotify-connect', spotify.label, toastConnected(spotify.label), () => window.ShapeIntegrations.connectSpotify())}>
             {spotify.connected ? reconnectLabel : connectLabel}
           </Button>
           <Button disabled={!spotify.connected} onClick={() => runAction('spotify-disconnect', spotify.label, toastDisconnected(spotify.label), () => window.ShapeIntegrations.disconnect('spotify'))}>
@@ -439,7 +450,7 @@ export function BSIntegrationsPage({ onBack }) {
         note={tr('settings:integrations.noteGarmin', { defaultValue: 'Pull Garmin Connect activities, heart rate, and sleep into your profile. Requires Garmin Health API approval on the developer account.' })}
       >
         <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          <Button active={!garmin.connected} onClick={() => window.ShapeIntegrations?.connectProvider?.('garmin')}>
+          <Button active={!garmin.connected} onClick={() => runAction('garmin-connect', garmin.label, toastConnected(garmin.label), () => window.ShapeIntegrations.connectProvider('garmin'))}>
             {garmin.connected ? reconnectLabel : connectLabel}
           </Button>
           <Button disabled={!garmin.connected} onClick={() => runAction('garmin-disconnect', garmin.label, toastDisconnected(garmin.label), () => window.ShapeIntegrations.disconnect('garmin'))}>
@@ -456,7 +467,7 @@ export function BSIntegrationsPage({ onBack }) {
         note={tr('settings:integrations.noteOura', { defaultValue: 'Sync Oura Ring sleep, readiness, and heart-rate data into your daily health snapshot. Workouts import privately, like WHOOP.' })}
       >
         <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          <Button active={!oura.connected} onClick={() => window.ShapeIntegrations?.connectProvider?.('oura')}>
+          <Button active={!oura.connected} onClick={() => runAction('oura-connect', oura.label, toastConnected(oura.label), () => window.ShapeIntegrations.connectProvider('oura'))}>
             {oura.connected ? reconnectLabel : connectLabel}
           </Button>
           <Button disabled={!oura.connected} onClick={() => runAction('oura-sync', oura.label, toastSynced(oura.label), () => window.ShapeIntegrations.syncOura())}>

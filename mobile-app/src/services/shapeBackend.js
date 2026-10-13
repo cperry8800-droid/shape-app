@@ -4057,16 +4057,36 @@ async function syncAppleHealth({ importWorkouts = true } = {}) {
   return payload;
 }
 
+// The installed app connects an integration through its in-app browser (src/lib/integration-handoff.ts
+// on the server). The authorize routes read the website's cookie session and MusicKit's sign-in
+// opens a window, and the app's WebView has neither, so the server hands back a ten-minute link to
+// /connect/{provider}: that page names the Shape account, takes the member to the provider, and
+// lands on a page that says to close it. The browser closing reloads the Integrations page.
+async function openIntegrationHandoff(provider) {
+  if (!apiBaseUrl) throw new Error('API backend URL is not configured. Set VITE_API_BASE_URL.');
+  if (!state.session?.access_token) throw new Error('Sign in before connecting integrations.');
+  const res = await fetch(`${apiBaseUrl}/api/integrations/handoff`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${state.session.access_token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ provider }),
+  });
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok || !payload.url) throw new Error(payload.error || 'Unable to start connecting.');
+  const Browser = typeof window !== 'undefined' && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser;
+  if (!Browser || !Browser.open) throw new Error('The in-app browser is not available.');
+  try {
+    const handle = await Browser.addListener('browserFinished', () => {
+      try { handle && handle.remove && handle.remove(); } catch (e) {}
+      try { window.dispatchEvent(new Event('shape:integrations-changed')); } catch (e) {}
+    });
+  } catch (e) { /* no listener: the page still reloads its status on its next visit */ }
+  await Browser.open({ url: payload.url });
+  return { handoff: true };
+}
+
 async function connectProvider(provider, { returnTo = '/newdesign/GetApp.html' } = {}) {
   if (!apiBaseUrl) {
     throw new Error('API backend URL is not configured. Set VITE_API_BASE_URL.');
-  }
-  // ⚠ The installed app cannot start this flow yet. The authorize route reads the website's
-  // cookie session, the app's session lives in its own WebView, and the navigation leaves for
-  // the system browser, so a member sent there from the app lands on "sign in" (Codex, #2332).
-  // Until a native handoff exists the app refuses here, as it did while it had no API base.
-  if (_isNative) {
-    throw new Error('Connect WHOOP, Strava and Spotify from theshapecommunity.com for now.');
   }
   if (!state.session?.access_token) {
     throw new Error('Sign in before connecting integrations.');
@@ -4074,6 +4094,9 @@ async function connectProvider(provider, { returnTo = '/newdesign/GetApp.html' }
 
   const cleanProvider = String(provider || '').toLowerCase();
   if (!cleanProvider) throw new Error('Provider is required.');
+
+  // The installed app: the in-app browser, through the handoff link (above).
+  if (_isNative) return openIntegrationHandoff(cleanProvider);
 
   await bridgeSessionToApi(state.session);
   const url = `${apiBaseUrl}/api/integrations/${cleanProvider}/authorize?return=${encodeURIComponent(returnTo)}`;
@@ -4148,6 +4171,9 @@ function loadMusicKit() {
 async function connectAppleMusic() {
   if (!apiBaseUrl) throw new Error('API backend URL is not configured. Set VITE_API_BASE_URL.');
   if (!state.session?.access_token) throw new Error('Sign in before connecting Apple Music.');
+  // The installed app: MusicKit's sign-in window cannot open in the WebView, so it runs on
+  // /connect/apple_music in the in-app browser (openIntegrationHandoff, above).
+  if (_isNative) return openIntegrationHandoff('apple_music');
 
   // The developer token is minted for signed-in members only (L8), so the session rides along.
   const tokenRes = await fetch(`${apiBaseUrl}/api/integrations/apple-music/developer-token`, { headers: sessionsAuthHeaders() });

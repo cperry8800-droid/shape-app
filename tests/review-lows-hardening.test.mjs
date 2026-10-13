@@ -399,9 +399,15 @@ test('L8: the Apple Music developer token is minted for signed-in members only, 
   process.env.APPLE_MUSIC_TEAM_ID = 'TEAM12345';
   process.env.APPLE_MUSIC_KEY_ID = 'KEY12345';
   process.env.APPLE_MUSIC_PRIVATE_KEY = privateKey.export({ type: 'pkcs8', format: 'pem' });
-  const load = (user) => loadRealModule(join(ROOT, 'src/app/api/integrations/apple-music/developer-token/route.ts'), {
+  const load = async (user) => loadRealModule(join(ROOT, 'src/app/api/integrations/apple-music/developer-token/route.ts'), {
     typescript: true,
-    registry: new Map([['next/server', nextServer], ['@/lib/request-auth', { currentUser: async () => user }]]),
+    registry: new Map([
+      ['next/server', nextServer],
+      ['@/lib/request-auth', { currentUser: async () => user }],
+      // The installed app's /connect/apple_music speaks for its member with a link token
+      // (tests/integration-handoff.test.mjs); with no X-Shape-Handoff header it adds no one.
+      ['@/lib/integration-handoff', await loadRealModule(join(ROOT, 'src/lib/integration-handoff.ts'), { typescript: true })],
+    ]),
   });
   const anon = await (await load(null)).GET(new Request('https://shape.test/api/integrations/apple-music/developer-token'));
   assert.equal(anon.status, 401);

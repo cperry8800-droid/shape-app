@@ -129,8 +129,10 @@ export default {
       find: "      String(process.env.ADMIN_EMAILS ?? '')",
       replace: "      String([process.env.ADMIN_EMAILS, process.env.APPLICATIONS_EMAIL].filter(Boolean).join(','))" },
     { name: 'an unconfirmed email is an admin', file: ADMIN,
-      find: '  if (!user || !email || !user.email_confirmed_at) return null;',
-      replace: '  if (!user || !email) return null;' },
+      // Re-aimed 2026-10-13: the check moved into staffLevelOf (#2330), the one lookup the console
+      // and /api/me/staff share.
+      find: '  if (!email || !user.email_confirmed_at) return null;',
+      replace: '  if (!email) return null;' },
     { name: 'the membership verdict ignores the confirmation', file: CORE,
       find: "  const isAdmin = !!email && opts.emailConfirmed === true && adminEmails().includes(email.toLowerCase());",
       replace: "  const isAdmin = !!email && adminEmails().includes(email.toLowerCase());" },

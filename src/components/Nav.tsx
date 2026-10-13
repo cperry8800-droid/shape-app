@@ -9,7 +9,8 @@ import SignOutButton from '@/components/SignOutButton';
 
 // Routes that get a minimal layout (no marketing nav). The pathname is
 // forwarded by the proxy via the x-pathname header.
-const HIDE_NAV_PREFIXES = ['/purchase', '/subscribe'];
+// /connect: the installed app's in-app browser, which has its own Done button and no site to browse.
+const HIDE_NAV_PREFIXES = ['/purchase', '/subscribe', '/connect'];
 
 export default async function Nav() {
   const pathname = (await headers()).get('x-pathname') ?? '';
