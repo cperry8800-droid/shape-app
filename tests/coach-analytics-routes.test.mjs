@@ -44,7 +44,7 @@ function fakeSupabase(tables, { errors = {}, rpcs = {} } = {}) {
     const q = new Proxy({}, {
       get(_t, prop) {
         if (prop === 'then') return (res, rej) => Promise.resolve(answer()).then(res, rej)
-        if (prop === 'maybeSingle' || prop === 'single') return () => Promise.resolve({ data: rows[0] ?? null, error: null })
+        if (prop === 'maybeSingle' || prop === 'single') return () => Promise.resolve(errors[table] ? { data: null, error: { message: errors[table] } } : { data: rows[0] ?? null, error: null })
         return (...args) => { call.ops.push([prop, ...args]); return q }
       },
     })
@@ -180,4 +180,54 @@ test('the Business cards print an unread figure as a dash, never as 0', () => {
   const trainer = src.slice(src.indexOf('  trainer: {', start), src.indexOf('  nutritionist: {', start))
   assert.doesNotMatch(trainer, /\?\? 0/, 'no trainer figure falls back to 0')
   assert.match(trainer, /k: dbzFig\(cp\.prs30d\), l: "PRs hit"/)
+})
+
+test('no failed read in the trainer route is published as an empty history', async () => {
+  const ok = await loadRoute('trainer', roster({ subscriptions: [sub(A)] }), { rpcs: lifts({}) })
+  // (The fake answers every subscriptions read alike, so the churn read gets rows: a list, not null.)
+  assert.deepEqual([Array.isArray(ok.body.churn), ok.body.clientProgress.weightsUnknown, ok.body.metrics.totalSessions, ok.body.ticker.programsCount], [true, false, 0, 0], 'a read that worked is reported as read')
+  for (const [table, check] of [
+    ['subscriptions', null], // the primary read: covered by coach-roster-revenue-unknown
+    ['daily_health_snapshot', (b) => assert.equal(b.clientProgress.weightsUnknown, true)],
+    ['sessions', (b) => assert.deepEqual([b.metrics.totalSessions, b.metrics.completedSessions, b.metrics.upcomingSessions, b.ticker.bookedToday, b.ticker.upcomingSessions], [null, null, null, null, null])],
+    ['client_workouts', (b) => assert.equal(b.ticker.programsCount, null)],
+  ]) {
+    if (!check) continue
+    const { body } = await loadRoute('trainer', roster({ subscriptions: [sub(A)] }), { errors: { [table]: 'timeout' }, rpcs: lifts({}) })
+    check(body)
+  }
+  // The churn read is the second subscriptions read; fail only it.
+  const churnFails = fakeSupabase(roster({ subscriptions: [sub(A)] }), { rpcs: lifts({}) })
+  const realFrom = churnFails.client.from
+  let subsReads = 0
+  churnFails.client.from = (t) => {
+    if (t === 'subscriptions' && ++subsReads === 2) return { select: () => new Proxy({}, { get: (_x, p) => (p === 'then' ? (res) => res({ data: null, error: { message: 'timeout' } }) : () => churnProxy()) }) }
+    return realFrom(t)
+  }
+  function churnProxy() { return new Proxy({}, { get: (_x, p) => (p === 'then' ? (res) => res({ data: null, error: { message: 'timeout' } }) : () => churnProxy()) }) }
+  const route = await loadRealModule(join(ROOT, 'src/app/api/trainer/analytics/route.ts'), {
+    typescript: true,
+    registry: new Map([
+      ['next/server', nextServer],
+      ['@/lib/supabase/server', { createClient: async () => churnFails.client }],
+      ['@/lib/supabase/admin', { createAdminClient: () => churnFails.client }],
+      ['@/lib/stripe', { loadStripe: async () => ({ connected: false }) }],
+      ['@/lib/platform-fee', await import(pathToFileURL(join(ROOT, 'src/lib/platform-fee.mjs')).href)],
+      ['@/lib/origin-attribution', await loadRealModule(join(ROOT, 'src/lib/origin-attribution.ts'), { typescript: true, registry: new Map([['@/lib/supabase/server', {}]]) })],
+      ['@/lib/coach-trajectory.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/coach-trajectory.mjs')).href)],
+    ]),
+  })
+  const body = await (await route.GET(new Request('https://shape.test/api/trainer/analytics'))).json()
+  assert.equal(body.churn, null)
+  assert.equal(body.metrics.activeClients, 1, 'the rest of the page is still read')
+  // And a failed read of the trainer's own row is an error, not "not a trainer".
+  const rowFails = await loadRoute('trainer', roster(), { errors: { trainers: 'timeout' } })
+  assert.deepEqual(rowFails.body, { error: 'Could not read your listing.' })
+})
+
+test('the Business page says an unread churn or weigh-in, rather than "none"', () => {
+  const src = readFileSync(join(ROOT, 'public/newdesign/dashBusiness.jsx'), 'utf8')
+  const churn = src.slice(src.indexOf('function DbzChurnZone('), src.indexOf('const rows = live ?', src.indexOf('function DbzChurnZone(')))
+  assert.match(churn, /if \(live && churn === null\) \{\s+return <div[^>]*>Couldn't read your cancellations just now\./)
+  assert.match(src, /\{cp && cp\.weightsUnknown \? "Couldn't read weigh-ins just now\." : "No weight-loss trends yet\."\}/)
 })

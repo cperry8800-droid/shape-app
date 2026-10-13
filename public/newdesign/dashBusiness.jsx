@@ -240,6 +240,10 @@ function DbzPayoutsZone({ live, stripe, providerId, role }) {
 
 // ── Churn zone — who left, when, and why (honest about the why) ─────────────
 function DbzChurnZone({ live, churn }) {
+  // null: the route could not read the cancellations, which is not "none on record".
+  if (live && churn === null) {
+    return <div style={{ fontSize: 12.5, color: DBZ_INK50, lineHeight: 1.55 }}>Couldn't read your cancellations just now. Nothing is lost; reload to try again.</div>;
+  }
   const rows = live ? (Array.isArray(churn) ? churn : []) : DBZ_DEMO_CHURN;
   const lostCents = rows.reduce((s, r) => s + (r.priceCents || 0), 0);
   if (live && !rows.length) {
@@ -417,7 +421,7 @@ function DbzOutcomesZone({ role, cp }) {
               <span style={{ fontSize: 13, fontWeight: 500 }}>{r.name || "Client"}</span>
               <span style={{ fontFamily: serif, fontSize: 15, color: DBZ_TEAL }}>{fmtWeight(r.weightChangeLb)}</span>
             </div>
-          )) : <div style={{ fontSize: 12, color: DBZ_INK50, padding: "8px 0" }}>No weight-loss trends yet.</div>}
+          )) : <div style={{ fontSize: 12, color: DBZ_INK50, padding: "8px 0" }}>{cp && cp.weightsUnknown ? "Couldn't read weigh-ins just now." : "No weight-loss trends yet."}</div>}
         </div>
         <div>
           <div style={{ fontFamily: DBZ_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DBZ_INK50, marginBottom: 6 }}>{cfg.consistentLabel}</div>

@@ -82,12 +82,17 @@ export async function GET() {
     return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   }
 
-  const { data: trainerRow } = await supabase
+  const { data: trainerRow, error: trainerErr } = await supabase
     .from('trainers')
     .select('id, stripe_account_id, stripe_account_status')
     .eq('owner_id', user.id)
     .maybeSingle();
 
+  // A failed read is not "this account is not a trainer".
+  if (trainerErr) {
+    console.warn('[shape-app] trainer analytics: trainer row read failed:', trainerErr.message);
+    return NextResponse.json({ error: 'Could not read your listing.' }, { status: 500 });
+  }
   if (!trainerRow) {
     return NextResponse.json({ isTrainer: false });
   }
@@ -122,7 +127,10 @@ export async function GET() {
   // Churn (Business page): canceled subscriptions, newest first. There is no
   // cancellation survey yet, so exit reasons are always null — the UI says so
   // instead of inventing one.
-  const { data: churnRows } = await supabase
+  // ⚠ EVERY READ BELOW KEEPS ITS ERROR, for the reason the subscriptions read above states: an
+  // empty list is a claim ("no cancellations", "no weigh-ins", "no sessions"), and a failed read
+  // has not made it. The figure goes null and the page says it could not be read.
+  const { data: churnRows, error: churnErr } = await supabase
     .from('subscriptions')
     .select('client_id, price_cents, created_at, current_period_end')
     .eq('provider_role', 'trainer')
@@ -149,7 +157,8 @@ export async function GET() {
       churnNames.set(String(r.user_id), String(r.full_name ?? '').trim());
     }
   }
-  const churn = (churnRows ?? []).map((r) => ({
+  if (churnErr) console.warn('[shape-app] trainer analytics: churn read failed — churn renders as unread:', churnErr.message);
+  const churn = churnErr ? null : (churnRows ?? []).map((r) => ({
     name: churnNames.get(String(r.client_id)) || 'Former client',
     startedAt: r.created_at ?? null,
     endedAt: r.current_period_end ?? null,
@@ -172,12 +181,13 @@ export async function GET() {
   // block's ONE profiles lookup; byOrigin is built after it (below).
   const activeNames = new Map<string, string>();
 
-  const { data: sessRows } = await supabase
+  const { data: sessRows, error: sessErr } = await supabase
     .from('sessions')
     .select('scheduled_at, status')
     .eq('provider_role', 'trainer')
     .eq('provider_id', providerId)
     .limit(1000);
+  if (sessErr) console.warn('[shape-app] trainer analytics: sessions read failed — session counts render as unread:', sessErr.message);
   const sessions = sessRows ?? [];
 
   const now = Date.now();
@@ -202,7 +212,7 @@ export async function GET() {
   }
 
   // Count of programs this trainer has published, for the home masthead ticker.
-  const { count: programsCount } = await supabase
+  const { count: programsCount, error: programsErr } = await supabase
     .from('client_workouts')
     .select('id', { count: 'exact', head: true })
     .eq('trainer_id', providerId);
@@ -229,6 +239,7 @@ export async function GET() {
   let totalPrs30d: number | null = 0;
   let adherenceNum = 0;
   let adherenceDen = 0;
+  let weightsUnknown = false;
 
   if (clientIds.length) {
     // workout_sessions / workout_set_logs RLS (can_access_workout_session)
@@ -268,6 +279,8 @@ export async function GET() {
     }
 
     const weightsByClient = new Map<string, number[]>();
+    weightsUnknown = !!snapRes.error;
+    if (weightsUnknown) console.warn('[shape-app] trainer analytics: weigh-ins read failed — weight trends render as unread:', snapRes.error?.message);
     for (const r of snapRes.data || []) {
       if (r.weight_lb == null) continue;
       const k = String(r.user_id);
@@ -390,9 +403,9 @@ export async function GET() {
       mrrGrossCents: subsUnknown ? null : grossCents,
       mrrNetCents: subsUnknown ? null : netCents,
       activeClients,
-      totalSessions: sessions.length,
-      completedSessions,
-      upcomingSessions,
+      totalSessions: sessErr ? null : sessions.length,
+      completedSessions: sessErr ? null : completedSessions,
+      upcomingSessions: sessErr ? null : upcomingSessions,
     },
     clientProgress: {
       activeClients,
@@ -400,16 +413,18 @@ export async function GET() {
       workouts7d: totalWorkouts7d,
       prs30d: totalPrs30d,
       avgAdherencePct,
+      // The weigh-ins could not be read: an empty "top weight loss" is not "no trends".
+      weightsUnknown,
       roster: roster
         .slice()
         .sort((a, b) => (b.workouts30d ?? -1) - (a.workouts30d ?? -1))
         .slice(0, 12),
     },
     ticker: {
-      bookedToday,
-      upcomingSessions,
+      bookedToday: sessErr ? null : bookedToday,
+      upcomingSessions: sessErr ? null : upcomingSessions,
       activeClients,
-      programsCount: programsCount ?? 0,
+      programsCount: programsErr ? null : programsCount ?? 0,
       workouts7d: totalWorkouts7d,
       avgAdherencePct,
     },
