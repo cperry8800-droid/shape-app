@@ -236,7 +236,7 @@ async function loadActions({ db, email = async () => ({ ok: true }), userEmail =
       ['next/cache', { revalidatePath: () => {} }],
       ['next/navigation', { redirect: (to) => { const e = new Error('REDIRECT'); e.to = to; throw e; } }],
       ['@/lib/supabase/admin', { createAdminClient: () => db }],
-      ['@/lib/admin-access', { requireAdminUser: admin }],
+      ['@/lib/admin-access', { requireStaff: async (min) => { assert.equal(min, 'support', 'the help desk is support and up'); return admin(); } }],
       ['@/lib/email', { sendEmail: async (m) => { sent.push(m); return email(m); } }],
       ['@/lib/supportRequests.mjs', support],
     ]),

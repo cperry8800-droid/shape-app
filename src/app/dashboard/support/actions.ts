@@ -10,12 +10,13 @@
 //   3. an email to the account.
 // The row is the record; a reply the thread or the email could not take is said on the page.
 //
-// Admin-guarded via requireAdminUser(); written with the service role.
+// Support level and up (requireStaff('support'), src/lib/staff-levels.mjs); written with the
+// service role.
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { requireAdminUser } from '@/lib/admin-access';
+import { requireStaff } from '@/lib/admin-access';
 import { sendEmail } from '@/lib/email';
 import { cleanReply, appendTeamToThread, replyEmail } from '@/lib/supportRequests.mjs';
 
@@ -24,7 +25,7 @@ function clean(value: FormDataEntryValue | null, max = 80): string {
 }
 
 export async function replySupportRequest(formData: FormData): Promise<void> {
-  const admin = await requireAdminUser();
+  const admin = await requireStaff('support');
   const id = clean(formData.get('request_id'));
   const reply = cleanReply(String(formData.get('reply') ?? ''));
   if (!id) redirect('/dashboard/support?error=missing_request');
@@ -65,7 +66,7 @@ export async function replySupportRequest(formData: FormData): Promise<void> {
 }
 
 export async function closeSupportRequest(formData: FormData): Promise<void> {
-  await requireAdminUser();
+  await requireStaff('support');
   const id = clean(formData.get('request_id'));
   if (!id) redirect('/dashboard/support?error=missing_request');
   const db = createAdminClient();

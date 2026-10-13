@@ -1,0 +1,523 @@
+{
+ "_comment": "admin_overview_stats(UTC), admin_coach_stats() and admin_member_stats() as the PostgreSQL 16 replica returned them for the seeded world in the 2026-10-13 PR (tests/admin-console.test.mjs). Every number was checked by hand against the seed.",
+ "coaches": [
+  {
+   "assigned_30d": 1,
+   "catalog": 1,
+   "client_workouts_30d": 0,
+   "clients_active": 1,
+   "clients_ever": 1,
+   "consults_30d": 0,
+   "consults_open": 0,
+   "email": "a@x.com",
+   "gross_mrr_cents": 4999,
+   "last_sign_in_at": "2026-10-13T15:04:06.158019+00:00",
+   "listed_at": "2026-10-13T15:04:06.162261+00:00",
+   "listing_id": 1,
+   "live": false,
+   "messages_30d": 1,
+   "name": "Ann N",
+   "owner_id": "00000000-0000-0000-0000-00000000000a",
+   "payouts": null,
+   "purchases_gross_cents": 0,
+   "purchases_paid": 0,
+   "rank_points": 2100,
+   "rating": 10.0,
+   "reviews": 1,
+   "role": "nutritionist",
+   "sessions_done_30d": 0,
+   "sessions_upcoming": 0,
+   "shape_mrr_cents": 750,
+   "verified": false,
+   "waitlist": 0
+  },
+  {
+   "assigned_30d": 1,
+   "catalog": 2,
+   "client_workouts_30d": 2,
+   "clients_active": 1,
+   "clients_ever": 2,
+   "consults_30d": 3,
+   "consults_open": 1,
+   "email": "a@x.com",
+   "gross_mrr_cents": 10000,
+   "last_sign_in_at": "2026-10-13T15:04:06.158019+00:00",
+   "listed_at": "2026-10-13T15:04:06.161273+00:00",
+   "listing_id": 1,
+   "live": true,
+   "messages_30d": 1,
+   "name": "Ann T",
+   "owner_id": "00000000-0000-0000-0000-00000000000a",
+   "payouts": "active",
+   "purchases_gross_cents": 2000,
+   "purchases_paid": 1,
+   "rank_points": 2100,
+   "rating": 8.5,
+   "reviews": 2,
+   "role": "trainer",
+   "sessions_done_30d": 1,
+   "sessions_upcoming": 1,
+   "shape_mrr_cents": 1000,
+   "verified": true,
+   "waitlist": 1
+  },
+  {
+   "assigned_30d": 0,
+   "catalog": 1,
+   "client_workouts_30d": 0,
+   "clients_active": 0,
+   "clients_ever": 0,
+   "consults_30d": 1,
+   "consults_open": 0,
+   "email": "e@x.com",
+   "gross_mrr_cents": 0,
+   "last_sign_in_at": "2026-10-12T15:04:06.158019+00:00",
+   "listed_at": "2026-10-13T15:04:06.161273+00:00",
+   "listing_id": 2,
+   "live": false,
+   "messages_30d": 0,
+   "name": "Eli T",
+   "owner_id": "00000000-0000-0000-0000-00000000000e",
+   "payouts": "pending",
+   "purchases_gross_cents": 0,
+   "purchases_paid": 0,
+   "rank_points": 0,
+   "rating": null,
+   "reviews": 0,
+   "role": "trainer",
+   "sessions_done_30d": 0,
+   "sessions_upcoming": 0,
+   "shape_mrr_cents": 0,
+   "verified": false,
+   "waitlist": 0
+  }
+ ],
+ "members": {
+  "rows": [
+   {
+    "checkins_30d": 0,
+    "coach_roles": true,
+    "coaches": 0,
+    "consults_30d": 0,
+    "email": "a@x.com",
+    "id": "00000000-0000-0000-0000-00000000000a",
+    "joined": "2026-10-13T15:04:06.158019+00:00",
+    "last_active": "2026-10-13T15:04:06.18141+00:00",
+    "last_sign_in_at": "2026-10-13T15:04:06.158019+00:00",
+    "meal_days_30d": 0,
+    "membership": null,
+    "name": "Ann Coach",
+    "points_30d": 2100,
+    "rank_points": 2100,
+    "workouts_30d": 0,
+    "workouts_7d": 0,
+    "workouts_all": 0
+   },
+   {
+    "checkins_30d": 0,
+    "coach_roles": false,
+    "coaches": 0,
+    "consults_30d": 2,
+    "email": "d@x.com",
+    "id": "00000000-0000-0000-0000-00000000000d",
+    "joined": "2026-10-10T15:04:06.158019+00:00",
+    "last_active": "2026-10-13T15:04:06.171179+00:00",
+    "last_sign_in_at": "2026-10-11T15:04:06.158019+00:00",
+    "meal_days_30d": 0,
+    "membership": "trialing",
+    "name": "Dee",
+    "points_30d": 10,
+    "rank_points": 10,
+    "workouts_30d": 0,
+    "workouts_7d": 0,
+    "workouts_all": 1
+   },
+   {
+    "checkins_30d": 1,
+    "coach_roles": false,
+    "coaches": 2,
+    "consults_30d": 2,
+    "email": "b@x.com",
+    "id": "00000000-0000-0000-0000-00000000000b",
+    "joined": "2026-10-03T15:04:06.158019+00:00",
+    "last_active": "2026-10-12T15:04:06.171179+00:00",
+    "last_sign_in_at": "2026-09-23T15:04:06.158019+00:00",
+    "meal_days_30d": 2,
+    "membership": "active",
+    "name": "Bea Member",
+    "points_30d": 15,
+    "rank_points": 815,
+    "workouts_30d": 2,
+    "workouts_7d": 1,
+    "workouts_all": 2
+   },
+   {
+    "checkins_30d": 0,
+    "coach_roles": false,
+    "coaches": 0,
+    "consults_30d": 0,
+    "email": "c@x.com",
+    "id": "00000000-0000-0000-0000-00000000000c",
+    "joined": "2026-09-03T15:04:06.158019+00:00",
+    "last_active": null,
+    "last_sign_in_at": null,
+    "meal_days_30d": 0,
+    "membership": null,
+    "name": "Cal",
+    "points_30d": 0,
+    "rank_points": 0,
+    "workouts_30d": 0,
+    "workouts_7d": 0,
+    "workouts_all": 0
+   }
+  ],
+  "total": 4
+ },
+ "overview": {
+  "accounts": {
+   "confirmed": 4,
+   "new_30d": 4,
+   "new_7d": 3,
+   "signed_in_30d": 4,
+   "signed_in_7d": 3,
+   "total": 5
+  },
+  "activity": {
+   "active_30d": 3,
+   "active_7d": 3,
+   "checkins_30d": 1,
+   "meal_days_30d": 2,
+   "meal_days_7d": 1,
+   "messages_30d": 1,
+   "points_30d": 2125,
+   "posts_30d": 0,
+   "workouts_30d": 2,
+   "workouts_7d": 1,
+   "workouts_all": 3
+  },
+  "applications": {
+   "approved": 1,
+   "approved_30d": 1,
+   "in_review": 1,
+   "new_30d": 3,
+   "new_7d": 2,
+   "oldest_open_at": "2026-09-23T15:04:06.164983+00:00",
+   "open": 2,
+   "open_nutritionist": 1,
+   "open_trainer": 1,
+   "pending": 1,
+   "rejected": 1,
+   "rejected_30d": 0,
+   "total": 5,
+   "withdrawn": 1
+  },
+  "coach_subs": {
+   "active": 2,
+   "gross_mrr_cents": 14999,
+   "past_due": 0,
+   "shape_mrr_cents": 1750
+  },
+  "consultations": {
+   "cancelled_30d": 0,
+   "completed_30d": 1,
+   "declined_30d": 0,
+   "expired_open": 1,
+   "open": 1,
+   "requested_30d": 4,
+   "requested_7d": 4,
+   "upcoming": 1
+  },
+  "credentials": {
+   "approved": 1,
+   "changes_requested": 0,
+   "pending": 1,
+   "rejected": 0
+  },
+  "daily": [
+   {
+    "active": 0,
+    "applications": 0,
+    "day": "2026-09-14",
+    "signups": 0,
+    "workouts": 0
+   },
+   {
+    "active": 0,
+    "applications": 0,
+    "day": "2026-09-15",
+    "signups": 0,
+    "workouts": 0
+   },
+   {
+    "active": 0,
+    "applications": 0,
+    "day": "2026-09-16",
+    "signups": 0,
+    "workouts": 0
+   },
+   {
+    "active": 0,
+    "applications": 0,
+    "day": "2026-09-17",
+    "signups": 0,
+    "workouts": 0
+   },
+   {
+    "active": 0,
+    "applications": 0,
+    "day": "2026-09-18",
+    "signups": 0,
+    "workouts": 0
+   },
+   {
+    "active": 0,
+    "applications": 0,
+    "day": "2026-09-19",
+    "signups": 0,
+    "workouts": 0
+   },
+   {
+    "active": 0,
+    "applications": 0,
+    "day": "2026-09-20",
+    "signups": 0,
+    "workouts": 0
+   },
+   {
+    "active": 0,
+    "applications": 0,
+    "day": "2026-09-21",
+    "signups": 0,
+    "workouts": 0
+   },
+   {
+    "active": 0,
+    "applications": 0,
+    "day": "2026-09-22",
+    "signups": 0,
+    "workouts": 0
+   },
+   {
+    "active": 0,
+    "applications": 1,
+    "day": "2026-09-23",
+    "signups": 0,
+    "workouts": 0
+   },
+   {
+    "active": 0,
+    "applications": 0,
+    "day": "2026-09-24",
+    "signups": 0,
+    "workouts": 0
+   },
+   {
+    "active": 0,
+    "applications": 0,
+    "day": "2026-09-25",
+    "signups": 0,
+    "workouts": 0
+   },
+   {
+    "active": 0,
+    "applications": 0,
+    "day": "2026-09-26",
+    "signups": 0,
+    "workouts": 0
+   },
+   {
+    "active": 0,
+    "applications": 0,
+    "day": "2026-09-27",
+    "signups": 0,
+    "workouts": 0
+   },
+   {
+    "active": 0,
+    "applications": 0,
+    "day": "2026-09-28",
+    "signups": 0,
+    "workouts": 0
+   },
+   {
+    "active": 0,
+    "applications": 0,
+    "day": "2026-09-29",
+    "signups": 0,
+    "workouts": 0
+   },
+   {
+    "active": 0,
+    "applications": 0,
+    "day": "2026-09-30",
+    "signups": 0,
+    "workouts": 0
+   },
+   {
+    "active": 1,
+    "applications": 0,
+    "day": "2026-10-01",
+    "signups": 0,
+    "workouts": 1
+   },
+   {
+    "active": 0,
+    "applications": 0,
+    "day": "2026-10-02",
+    "signups": 0,
+    "workouts": 0
+   },
+   {
+    "active": 0,
+    "applications": 0,
+    "day": "2026-10-03",
+    "signups": 1,
+    "workouts": 0
+   },
+   {
+    "active": 0,
+    "applications": 0,
+    "day": "2026-10-04",
+    "signups": 0,
+    "workouts": 0
+   },
+   {
+    "active": 0,
+    "applications": 0,
+    "day": "2026-10-05",
+    "signups": 0,
+    "workouts": 0
+   },
+   {
+    "active": 0,
+    "applications": 0,
+    "day": "2026-10-06",
+    "signups": 0,
+    "workouts": 0
+   },
+   {
+    "active": 0,
+    "applications": 0,
+    "day": "2026-10-07",
+    "signups": 0,
+    "workouts": 0
+   },
+   {
+    "active": 0,
+    "applications": 0,
+    "day": "2026-10-08",
+    "signups": 1,
+    "workouts": 0
+   },
+   {
+    "active": 0,
+    "applications": 0,
+    "day": "2026-10-09",
+    "signups": 0,
+    "workouts": 0
+   },
+   {
+    "active": 1,
+    "applications": 0,
+    "day": "2026-10-10",
+    "signups": 1,
+    "workouts": 0
+   },
+   {
+    "active": 2,
+    "applications": 1,
+    "day": "2026-10-11",
+    "signups": 0,
+    "workouts": 0
+   },
+   {
+    "active": 1,
+    "applications": 0,
+    "day": "2026-10-12",
+    "signups": 0,
+    "workouts": 1
+   },
+   {
+    "active": 2,
+    "applications": 1,
+    "day": "2026-10-13",
+    "signups": 1,
+    "workouts": 0
+   }
+  ],
+  "generated_at": "2026-10-13T15:11:16.687032+00:00",
+  "listings": {
+   "nutritionists_hidden": 1,
+   "nutritionists_live": 0,
+   "shape_own": 1,
+   "trainers_hidden": 1,
+   "trainers_live": 1,
+   "verified": 1
+  },
+  "lists": {
+   "app_launch_30d": 1,
+   "app_launch_all": 2,
+   "consultations_30d": 1,
+   "contact_30d": 1,
+   "contact_all": 1,
+   "help_30d": 1,
+   "waitlist_30d": 2,
+   "waitlist_waiting": 1
+  },
+  "memberships": {
+   "active": 1,
+   "canceled": 1,
+   "mrr_cents": 500,
+   "new_30d": 2,
+   "past_due": 0,
+   "trialing": 1
+  },
+  "purchases": {
+   "gross_30d_cents": 2000,
+   "gross_all_cents": 2000,
+   "paid_30d": 1,
+   "paid_all": 1,
+   "shape_30d_cents": 200,
+   "shape_all_cents": 200
+  },
+  "queues": {
+   "credentials_pending": 1,
+   "help_open": 1,
+   "refunds_pending": 1
+  },
+  "roles": {
+   "client": 4,
+   "nutritionist": 1,
+   "trainer": 2
+  },
+  "score": {
+   "by_category_30d": {
+    "community": 10,
+    "habits": 2100,
+    "workouts": 15
+   },
+   "coach_tiers": [
+    1,
+    0,
+    1,
+    0,
+    0
+   ],
+   "earned_30d": 2125,
+   "earned_7d": 2125,
+   "earned_all": 3425,
+   "earners_30d": 3,
+   "member_tiers": [
+    2,
+    1,
+    0,
+    0,
+    0
+   ],
+   "penalties_30d": 100,
+   "spent_store_all": 500
+  },
+  "timezone": "UTC",
+  "today": "2026-10-13"
+ }
+}

@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { requireAdminUser } from '@/lib/admin-access';
+import { requireStaff } from '@/lib/admin-access';
 import { closeSupportRequest, replySupportRequest } from './actions';
 
 // "Talk to a person" (the Ask Nora plan, step 5): the questions signed-in accounts sent the
@@ -48,7 +48,7 @@ export default async function SupportPage({
   searchParams?: Promise<{ status?: string; updated?: string; error?: string }>;
 }) {
   try {
-    await requireAdminUser();
+    await requireStaff('support');
   } catch {
     redirect('/dashboard');
   }
