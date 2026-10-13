@@ -80,7 +80,7 @@ function fakeDb(tables, { failRead = null, failWrite = false } = {}) {
       order: (...a) => { call.ops.push(['order', ...a]); return q; },
       limit: (...a) => { call.ops.push(['limit', ...a]); return q; },
       update: (patch) => { call.ops.push(['update', patch]); update = patch; return q; },
-      maybeSingle: () => Promise.resolve({ data: (tables[table] || [])[0] ?? null, error: null }),
+      maybeSingle: () => Promise.resolve(failRead === table ? { data: null, error: { message: 'boom' } } : { data: (tables[table] || [])[0] ?? null, error: null }),
       then: (res, rej) => Promise.resolve(answer()).then(res, rej),
     };
     return q;
@@ -394,4 +394,17 @@ test('app Me: a signed-in coach never sees the preview\'s rates, approved or not
   const getMine = backend.slice(backend.indexOf('async function getMyCoachListings()'), backend.indexOf('async function saveMyCoachRates('));
   assert.match(getMine, /if \(!response\.ok \|\| !Array\.isArray\(payload\.listings\)\) throw new Error/, 'a failed read is an error, not "no listing"');
   assert.match(getMine, /return payload\.listings;/);
+});
+
+test('a failed profile read is not "add a photo": GET is a 500, a POST saves and leaves the steps unknown', async () => {
+  const row = { ...trainerRow(), price: 120, listing_ready: false, stripe_account_status: 'pending' };
+  const failed = await get(await loadRoute(fakeDb({ trainers: [row], profiles: [{ avatar_url: 'https://x/a.jpg' }] }, { failRead: 'profiles' })));
+  assert.equal(failed.status, 500);
+  const db = fakeDb({ trainers: [row], profiles: [{ avatar_url: 'https://x/a.jpg' }] }, { failRead: 'profiles' });
+  const saved = await post(await loadRoute(db), { role: 'trainer', monthly: 130 });
+  assert.equal(saved.status, 200, 'the rates were saved');
+  assert.deepEqual([saved.body.listing.monthly, saved.body.listing.ready, saved.body.listing.missing], [130, false, null]);
+  // Read, the same coach is told only what is really missing.
+  const ok = await get(await loadRoute(fakeDb({ trainers: [row], profiles: [{ avatar_url: 'https://x/a.jpg' }] })));
+  assert.deepEqual(ok.body.listings[0].missing, ['payouts']);
 });

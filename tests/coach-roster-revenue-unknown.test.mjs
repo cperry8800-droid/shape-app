@@ -122,7 +122,10 @@ for (const role of ['trainer', 'nutritionist']) {
   test(`/api/${role}/analytics keeps its subscriptions error`, () => {
     const src = readFileSync(new URL(`../src/app/api/${role}/analytics/route.ts`, import.meta.url), 'utf8');
     // The primary read destructures the error…
-    assert.match(src, /const \{ data: subRows, error: subErr \} = await supabase/);
+    // (The trainer route pages it, through readAllById; the error is kept all the same.)
+    assert.match(src, role === 'trainer'
+      ? /const \{ data: subRows, error: subErr \} = await readAllById</
+      : /const \{ data: subRows, error: subErr \} = await supabase/);
     assert.match(src, /const subsUnknown = !!subErr;/);
     // …and every subscription-derived figure it publishes goes null when it fired.
     assert.match(src, /mrrGrossCents: subsUnknown \? null : grossCents,/);

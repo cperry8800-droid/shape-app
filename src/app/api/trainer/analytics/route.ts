@@ -101,12 +101,19 @@ export async function GET() {
   // and the revenue calculator adopts as a $0 pace. "You have no clients" and
   // "we could not ask" are different sentences; the subscription-derived
   // figures go null so the card can say which one it is.
-  const { data: subRows, error: subErr } = await supabase
-    .from('subscriptions')
-    .select('*') // '*' is migration-safe: an explicit fee_bps errors the query on a pre-migration DB (webhook-fallback parity)
-    .eq('provider_role', 'trainer')
-    .eq('provider_id', providerId)
-    .in('status', ['active', 'trialing']);
+  // Every active row, by the same cursor walk as the roster reads (past 1,000 the read was cut
+  // short with no error, Codex on #2324); at the ceiling it is a failed read, so the figures go null.
+  const { data: subRows, error: subErr } = await readAllById<{ id: string; client_id: string; price_cents: number | null; fee_bps?: number | null }>((after) => {
+    let q = supabase
+      .from('subscriptions')
+      .select('*') // '*' is migration-safe: an explicit fee_bps errors the query on a pre-migration DB (webhook-fallback parity)
+      .eq('provider_role', 'trainer')
+      .eq('provider_id', providerId)
+      .in('status', ['active', 'trialing']);
+    if (after) q = q.gt('id', after);
+    // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
+    return q.order('id', { ascending: true }).limit(ROW_PAGE);
+  });
   if (subErr) {
     console.warn(
       '[shape-app] trainer analytics: subscriptions read failed — MRR and active clients render "could not be read":',

@@ -43,7 +43,8 @@ function fakeSupabase(tables, { errors = {}, rpcs = {} } = {}) {
         out = out.slice().sort((a, b) => (String(a[col]) < String(b[col]) ? -dir : String(a[col]) > String(b[col]) ? dir : 0))
       }
       const limit = call.ops.find((o) => o[0] === 'limit')
-      if (limit) out = out.slice(0, limit[1])
+      // PostgREST's max_rows: an unlimited read still stops at 1,000, with no error.
+      out = out.slice(0, limit ? Math.min(limit[1], 1000) : 1000)
       return { data: out, error: null, count: out.length }
     }
     const q = new Proxy({}, {
@@ -275,4 +276,14 @@ test('appointment counts are counted by the database, each with its own filter',
   assert.ok(has(counts[1], 'eq', 'status', 'completed'))
   assert.ok(has(counts[2], 'in', 'status', ['requested', 'confirmed']) && has(counts[2], 'gte', 'scheduled_at'))
   assert.ok(has(counts[3], 'gte', 'scheduled_at') && has(counts[3], 'lt', 'scheduled_at') && has(counts[3], 'neq', 'status', 'cancelled'))
+})
+
+test('every active subscription is read, a page at a time', async () => {
+  const many = Array.from({ length: 2500 }, (_, i) => ({ ...sub('c' + String(i).padStart(6, '0'), 1000), id: 'u' + String(i).padStart(6, '0') }))
+  const { body, calls } = await loadRoute('trainer', roster({ subscriptions: many }), { rpcs: lifts({}) })
+  assert.equal(body.metrics.activeClients, 2500)
+  assert.equal(body.metrics.mrrGrossCents, 2500 * 1000)
+  const pages = calls.filter((c) => c.table === 'subscriptions' && c.ops.some((o) => o[0] === 'in' && o[1] === 'status'))
+  assert.equal(pages.length, 3)
+  assert.ok(pages.every((p) => p.ops.some((o) => o[0] === 'order' && o[1] === 'id') && p.ops.some((o) => o[0] === 'limit' && o[1] === 1000)))
 })

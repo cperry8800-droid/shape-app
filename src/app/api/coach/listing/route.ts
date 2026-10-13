@@ -4,7 +4,8 @@
 // "Set your prices", which pointed at nothing: no page let a coach set a rate, so a coach
 // approved without one stayed out of the marketplace for good.
 //
-// GET  -> { listings: [{ role, id, ready, missing, monthly, oneTime }] }  (one per role held)
+// GET  -> { listings: [{ role, id, ready, missing, monthly, oneTime }] }  (one per role held;
+//         missing is null when the steps could not be read)
 // POST { role: 'trainer' | 'nutritionist', monthly, oneTime? } -> { listing }
 //
 // Reads and writes run as the coach (RLS: a listing's own row). The rates are not admin
@@ -37,8 +38,10 @@ type Row = {
 
 const columns = (role: Role) => `id, price, ${ONE_TIME[role]}, stripe_account_status, listing_media, listing_ready`;
 
-function describe(role: Role, row: Row, avatar: string | null) {
-  const missing = listingMissing({
+// `avatar` undefined: the profile could not be read, so the steps are not known (missing: null)
+// and the coach is not told to add a photo they may already have.
+function describe(role: Role, row: Row, avatar: string | null | undefined) {
+  const missing = avatar === undefined ? null : listingMissing({
     price: row.price,
     stripeAccountStatus: row.stripe_account_status,
     portrait: row.listing_media?.portrait ?? null,
@@ -66,7 +69,7 @@ export async function GET(request: Request) {
       supabase.from(TABLE[role]).select(columns(role)).eq('owner_id', user.id).order('id').limit(1)
     ),
   ]);
-  const failed = rows.find((r) => r.error);
+  const failed = [profile, ...rows].find((r) => r.error);
   if (failed?.error) {
     console.error('[shape] coach listing read failed:', failed.error.message);
     return NextResponse.json({ error: 'Could not read your listing.' }, { status: 500 });
@@ -107,6 +110,8 @@ export async function POST(request: Request) {
   }
   const row = ((data ?? []) as unknown as Row[])[0];
   if (!row) return NextResponse.json({ error: 'Your listing appears once your coach application is approved.' }, { status: 404 });
-  const { data: profile } = await supabase.from('profiles').select('avatar_url').eq('id', user.id).maybeSingle();
-  return NextResponse.json({ listing: describe(role, row, (profile as { avatar_url?: string | null } | null)?.avatar_url ?? null) });
+  // The rates are saved; a failed profile read only leaves the steps unknown.
+  const { data: profile, error: profileErr } = await supabase.from('profiles').select('avatar_url').eq('id', user.id).maybeSingle();
+  const avatar = profileErr ? undefined : (profile as { avatar_url?: string | null } | null)?.avatar_url ?? null;
+  return NextResponse.json({ listing: describe(role, row, avatar) });
 }
