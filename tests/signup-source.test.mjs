@@ -178,15 +178,64 @@ test('on a page: a sign-up gets the remembered touch, else the page’s own, and
   assert.equal(JSON.parse(JSON.stringify(late.api.forSignup('website'))).utm_source, 'tiktok', 'a remembered touch is not read once consent is withdrawn');
 });
 
+test('the page reader the Next form and the app use answers exactly as the browser script does', () => {
+  const RealIntl = globalThis.Intl;
+  const cases = [
+    { search: '?utm_source=instagram&utm_campaign=Launch', path: '/m/', now: NOW },
+    { referrer: 'https://www.google.com/', path: '/signup', now: NOW, storage: { 'shape.signupSource': JSON.stringify({ utm_source: 'tiktok', at: new Date(NOW - DAY).toISOString() }) } },
+    { referrer: 'https://www.google.com/', path: '/signup', timeZone: 'Europe/Paris', now: NOW, storage: { 'shape.signupSource': JSON.stringify({ utm_source: 'tiktok', at: new Date(NOW - DAY).toISOString() }), 'shape.coachRef': JSON.stringify({ token: REF_ID, at: NOW - DAY }) } },
+    { search: '?utm_source=x', path: '/', gpc: true, now: NOW },
+    { path: '/', now: NOW },
+  ];
+  try {
+    for (const c of cases) {
+      globalThis.Intl = { DateTimeFormat: () => ({ resolvedOptions: () => ({ timeZone: c.timeZone || 'America/New_York' }) }) };
+      // The browser script, on a page set up this way (it captures on load).
+      const page = loadMirror(c);
+      const want = JSON.parse(JSON.stringify(page.api.forSignup('app', 'ios')));
+      // The module's reader, on an identical page that has also captured on load.
+      const store = { ...(c.storage || {}) };
+      const win = {
+        localStorage: { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: (k) => { delete store[k]; } },
+        location: { search: c.search || '', host: 'theshapecommunity.com', pathname: c.path },
+        document: { referrer: c.referrer || '' },
+        navigator: { globalPrivacyControl: c.gpc === true },
+      };
+      const realNow = Date.now;
+      Date.now = () => NOW;
+      try {
+        S.captureFromWindow(win);
+        assert.deepEqual(store['shape.signupSource'] ?? null, page.store['shape.signupSource'] ?? null, `the same thing remembered: ${JSON.stringify(c).slice(0, 60)}`);
+        assert.deepEqual(S.sourceFromWindow(win, 'app', 'ios'), want, `the same sign-up source: ${JSON.stringify(c).slice(0, 60)}`);
+      } finally {
+        Date.now = realNow;
+      }
+    }
+  } finally {
+    globalThis.Intl = RealIntl;
+  }
+  assert.deepEqual(S.sourceFromWindow({}, 'website'), { surface: 'website' }, 'a page with nothing readable is still a website sign-up');
+  // Consent withdrawn after the first touch was remembered: the sign-up does not read it.
+  const kept = { 'shape.signupSource': JSON.stringify({ utm_source: 'tiktok', at: new Date(Date.now() - DAY).toISOString() }), 'shape.consent.v1': 'reject' };
+  const win = { localStorage: { getItem: (k) => kept[k] ?? null, setItem() {}, removeItem() {} }, location: { search: '', host: 'theshapecommunity.com', pathname: '/signup' }, document: { referrer: '' }, navigator: {} };
+  assert.deepEqual(S.sourceFromWindow(win, 'website'), { surface: 'website' });
+  kept['shape.consent.v1'] = 'accept';
+  assert.equal(S.sourceFromWindow(win, 'website').utm_source, 'tiktok', 'and does with consent');
+});
+
 // ── Every way in sends it ────────────────────────────────────────────────────────────────
 test('every sign-up path saves signup_source with the new account', () => {
   assert.match(read('public/newdesign/signup.jsx'), /signup_source: \(window\.shapeSignupSource && window\.shapeSignupSource\.forSignup\("website"\)\) \|\| \{ surface: "website" \},/);
   assert.match(read('public/supabase.js'), /signup_source: \(window\.shapeSignupSource && window\.shapeSignupSource\.forSignup\('website'\)\) \|\| \{ surface: 'website' \}/);
   const app = read('mobile-app/src/services/shapeBackend.js');
-  assert.match(app, /signup_source: \{ surface: 'app', platform: signupPlatform\(\) \},/);
+  // Codex, #2325: the app in a browser at /m/ keeps a tagged link's source, not only "the app".
+  assert.match(app, /signup_source: typeof window !== 'undefined' \? sourceFromWindow\(window, 'app', signupPlatform\(\)\) : \{ surface: 'app', platform: signupPlatform\(\) \},/);
+  assert.match(app, /^if \(typeof window !== 'undefined'\) captureFromWindow\(window\);$/m, 'and remembers the first touch on load');
   assert.match(app, /return p === 'ios' \|\| p === 'android' \? p : 'web';/);
   const form = read('src/app/signup/SignupForm.tsx');
-  assert.match(form, /<input type="hidden" name="signup_source" value=\{signupSource\} \/>/);
+  // Codex, #2325: read as the form is sent, never on mount (the script may not have loaded yet).
+  assert.match(form, /async function signupAction\(_prev: State, formData: FormData\): Promise<State> \{\n[^]*?formData\.set\('signup_source', JSON\.stringify\(sourceFromWindow\(window, 'website'\)\)\);\n\s+const result = await signup\(formData\);/);
+  assert.doesNotMatch(form, /name="signup_source"/, 'no field fixed at mount');
   const action = read('src/app/login/actions.ts');
   assert.match(action, /data: \{ role, date_of_birth: dob, signup_source: signupSourceFrom\(formData\) \},/);
   assert.match(action, /return cleanSource\(\{ \.\.\.\(raw && typeof raw === 'object' && !Array\.isArray\(raw\) \? raw : \{\}\), surface: 'website' \}\) \?\? \{ surface: 'website' \};/, 'the server cleans what the browser sent');
@@ -194,6 +243,9 @@ test('every sign-up path saves signup_source with the new account', () => {
 
 test('the script loads wherever a visitor can land', () => {
   assert.match(read('public/newdesign/pageShell.jsx'), /s\.src = "\/signup-source\.js";/, 'the shared shell (68 pages)');
+  // Codex, #2325: signup-client.html and the older root pages load supabase.js, not the shell.
+  assert.match(read('public/supabase.js'), /s\.src = '\/signup-source\.js';/, 'supabase.js loads it too');
+  assert.match(read('public/signup-client.html'), /<script src="supabase\.js"><\/script>/, 'which signup-client.html loads');
   for (const f of ['public/newdesign/TrainerPublic.html', 'public/newdesign/NutritionistPublic.html']) {
     const html = read(f);
     const tag = html.indexOf('<script src="/signup-source.js"></script>');
@@ -205,8 +257,11 @@ test('the script loads wherever a visitor can land', () => {
   assert.match(read('src/app/layout.tsx'), /<Script src="\/signup-source\.js" strategy="afterInteractive" \/>/, 'the Next pages, /signup among them');
 });
 
-test('the cookie banner says its choice covers this, in the words it records', () => {
+test('the cookie banner says its choice covers this, in the words it records, and acts on it at once', () => {
   const shell = read('public/newdesign/pageShell.jsx');
+  // Codex, #2325: an Accept on the landing page keeps its link (gone after the next click), a
+  // Reject drops what was kept.
+  assert.match(shell, /function record\(choice\) \{\n\s+try \{ localStorage\.setItem\(KEY, choice\); \} catch \(e\) \{\}\n(\s+\/\/.*\n)+\s+try \{ if \(window\.shapeSignupSource\) window\.shapeSignupSource\.capture\(\); \} catch \(e\) \{\}/);
   const recorded = /var BANNER_COPY = "([^"]+)";/.exec(shell)[1];
   const shown = /txt\.appendChild\(document\.createTextNode\("([^"]+)"\)\);/.exec(shell)[1] + 'Privacy Policy.';
   assert.equal(shown, recorded, 'what is shown is what is recorded');

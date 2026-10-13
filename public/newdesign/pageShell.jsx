@@ -2857,6 +2857,10 @@ window.shapeClearLocalUserContent = function (opts) {
       var BANNER_COPY = "We use essential cookies and on-device storage to run Shape — no ad tracking, nothing cross-site. Your choice here also controls whether we remember which link brought you to Shape, and the Shape app's first-party usage stats. See our Privacy Policy.";
       function record(choice) {
         try { localStorage.setItem(KEY, choice); } catch (e) {}
+        // The choice decides whether the link that brought this visitor is remembered: run the
+        // capture again now, on this same page, so an Accept keeps it (its tags and referrer
+        // are gone after the next click) and a Reject drops it (Codex, #2325).
+        try { if (window.shapeSignupSource) window.shapeSignupSource.capture(); } catch (e) {}
         // consent_text is the VERBATIM copy shown — nothing appended; the
         // `granted` column already records which button was pressed.
         logConsent("cookies", choice === "accept", BANNER_COPY);

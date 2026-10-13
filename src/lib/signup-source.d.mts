@@ -31,3 +31,5 @@ export function forSignup(input?: {
   platform?: string | null;
 }): SignupSource;
 export function carriedQuery(params: Record<string, string | string[] | undefined> | undefined): string;
+export function sourceFromWindow(win: unknown, surface?: 'website' | 'app', platform?: string | null): SignupSource;
+export function captureFromWindow(win: unknown): SignupSource | null;

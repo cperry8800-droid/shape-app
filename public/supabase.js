@@ -1559,6 +1559,19 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
   coachRefCapture();
   coachRefBind();
 
+  // Where a sign-up came from (/signup-source.js): pages that load this file but not the
+  // website's page shell (signup-client.html and the older root pages) load it here, so their
+  // first touch is remembered (consent-gated) and their sign-up can read it.
+  (function loadSignupSource() {
+    try {
+      if (window.shapeSignupSource || document.querySelector('script[src="/signup-source.js"]')) return;
+      var s = document.createElement('script');
+      s.src = '/signup-source.js';
+      s.async = true;
+      document.head.appendChild(s);
+    } catch (e) {}
+  })();
+
   // Auto-apply nav auth state on every page that loads this script.
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function () { shapeDb.applyNavAuthState(); });

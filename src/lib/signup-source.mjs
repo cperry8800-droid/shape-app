@@ -143,6 +143,69 @@ export function forSignup({ stored = null, current = null, coachRef = false, sur
   return cleanSource({ ...(stored || current || {}), coach_ref: coachRef === true, surface, platform }) || { surface };
 }
 
+// ── The page glue, for code that can import this module (the Next sign-up form, the app) ──
+// The same steps public/signup-source.js takes on a page, read from a window-like object at the
+// moment they are needed, so a caller never depends on that script having loaded first.
+
+function storageGet(win, key) {
+  try {
+    return win.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function allowedOn(win) {
+  let timeZone = '';
+  try {
+    timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+  } catch {
+    timeZone = '';
+  }
+  let gpc = false;
+  try {
+    gpc = win.navigator?.globalPrivacyControl === true;
+  } catch {
+    gpc = false;
+  }
+  return trackingAllowed({ consent: storageGet(win, 'shape.consent.v1'), gpc, timeZone });
+}
+
+function currentTouch(win) {
+  const loc = win.location || {};
+  return touchFrom({ search: loc.search, referrer: win.document ? win.document.referrer : '', host: loc.host, path: loc.pathname });
+}
+
+/** What a sign-up made on this page saves: the remembered first touch, else this page's own. */
+export function sourceFromWindow(win, surface = 'website', platform = null) {
+  try {
+    const stored = allowedOn(win) ? readStored(storageGet(win, SOURCE_KEY)) : null;
+    return forSignup({ stored, current: currentTouch(win), coachRef: coachRefLive(storageGet(win, COACH_REF_KEY)), surface, platform });
+  } catch {
+    return { surface };
+  }
+}
+
+/** Remember this page's touch as the first, as consent allows; a withdrawn consent drops it. */
+export function captureFromWindow(win) {
+  try {
+    if (!allowedOn(win)) {
+      try {
+        win.localStorage.removeItem(SOURCE_KEY);
+      } catch {
+        /* nothing to drop */
+      }
+      return null;
+    }
+    const stored = readStored(storageGet(win, SOURCE_KEY));
+    const keep = nextStored(stored, currentTouch(win));
+    if (keep && keep !== stored) win.localStorage.setItem(SOURCE_KEY, JSON.stringify(keep));
+    return keep;
+  } catch {
+    return null;
+  }
+}
+
 // The query a server redirect carries to the page it sends a visitor to: the utm tags and a
 // coach's ?ref=, each clipped to 100 characters, nothing else. Without it the root route's
 // redirect to the homepage dropped them, and a tagged link read as a direct visit.
