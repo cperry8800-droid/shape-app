@@ -26,7 +26,7 @@ test('account controls survive remount; first pointer click opens switcher; fail
     const noop = () => null;
     const context = {
       React, window: win, shapeReadPortalMe: async () => ({ user }), shapePortalSignOutStandalone: noop,
-      useDashInboxFeed: noop, dashShellHref: () => '#today', navGroupsFor: () => [],
+      useDashInboxFeed: noop, useStaffLevel: noop, dashShellHref: () => '#today', navGroupsFor: () => [],
       ShapeMobileStyles: noop, NavDropdown: noop, SiteSearch: noop, DashInbox: noop, RadioWordmark: noop, MobileDrawer: noop,
       navSans: 'sans-serif', navDisp: 'sans-serif', sans: 'sans-serif', navChamfer: 'none',
       INK: '#111', TEAL: '#099', TEAL_BRIGHT: '#0bb', TEAL_APP: '#0aa', RUST: '#800',

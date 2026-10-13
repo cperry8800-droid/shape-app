@@ -975,7 +975,7 @@ function SiteSearch({ signedIn = false }) {
   );
 }
 
-function MobileDrawer({ open, onClose, active, authUser, onLogout }) {
+function MobileDrawer({ open, onClose, active, authUser, staffLevel, onLogout }) {
   const dialogRef = React.useRef(null);
   const closeRef = React.useRef(null);
   // Header hands a fresh onClose arrow every render; the key handler below reads
@@ -1106,6 +1106,8 @@ function MobileDrawer({ open, onClose, active, authUser, onLogout }) {
             in it never did, because `PORTAL_NAV` has no Radio entry — that was a
             gap at every narrow width, not a design). */}
         <a href="/newdesign/Radio.html" onClick={onClose} style={{ ...linkBase, color: active === "Radio" ? TEAL : INK, fontWeight: active === "Radio" ? 500 : 400 }}>Radio</a>
+        {/* Staff only (useStaffLevel): the admin console. */}
+        {authUser && staffLevel ? <a href="/admin" onClick={onClose} style={{ ...linkBase, color: INK }}>Admin</a> : null}
       </nav>
       {/* ⚠ THE DRAWER CARRIES THE SAME PAIR THE BAR DOES, so a phone is not
           missing the one control the desktop treats as primary. Signed in it
@@ -1203,6 +1205,33 @@ function shapeReadPortalMe() {
     .then(r => r.ok ? r.json() : null);
 }
 
+// Whether the signed-in account is on the Shape team, so the header can offer staff a way into
+// the admin console (/admin). /api/me/staff answers the level and grants nothing: the console
+// checks again and asks for the second factor itself. Read once per account per tab.
+function useStaffLevel(authUser) {
+  const key = authUser ? `shape_staff_level:${authUser.id || authUser.email || ''}` : null;
+  const [level, setLevel] = React.useState(() => {
+    if (!key) return null;
+    try { const v = sessionStorage.getItem(key); return v && v !== 'none' ? v : null; } catch (e) { return null; }
+  });
+  React.useEffect(() => {
+    if (!key) { setLevel(null); return undefined; }
+    try { const v = sessionStorage.getItem(key); if (v) { setLevel(v === 'none' ? null : v); return undefined; } } catch (e) {}
+    let cancelled = false;
+    fetch('/api/me/staff', { credentials: 'same-origin', cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (cancelled || !d) return;
+        const v = typeof d.level === 'string' && d.level ? d.level : null;
+        setLevel(v);
+        try { sessionStorage.setItem(key, v || 'none'); } catch (e) {}
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [key]);
+  return level;
+}
+
 function Header({ active }) {
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [authUser, setAuthUser] = React.useState(() => window.ShapePortalSession?.peek()?.user || null);
@@ -1211,6 +1240,7 @@ function Header({ active }) {
   const roleSwitchBusy = React.useRef(false);
   // One read of the inbox for the whole header, shared by the two bell render sites.
   const inbox = useDashInboxFeed(!!authUser);
+  const staffLevel = useStaffLevel(authUser);
   React.useEffect(() => {
     let cancelled = false;
     shapeReadPortalMe()
@@ -1375,6 +1405,7 @@ function Header({ active }) {
                   right. Dashboard now takes the teal button exactly where Get
                   started sits signed out, so the bar keeps one shape across the
                   sign-in boundary. */}
+              {staffLevel ? <a href="/admin" style={quietLink}>Admin</a> : null}
               <a href="#" onClick={handleLogout} style={quietLink}>Sign out</a>
               <a href={dashboardHref(authUser.role)} style={ctaBtn}>Dashboard</a>
               <RadioWordmark />
@@ -1405,7 +1436,7 @@ function Header({ active }) {
           signed-in row grew to six tabs that land in this drawer on a phone.
           The homepage's own drawer never had the problem: `.ndrawer` is a
           SIBLING of its <nav>, not a child, so nothing filters above it. */}
-      <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} active={active} authUser={authUser} onLogout={handleLogout} />
+      <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} active={active} authUser={authUser} staffLevel={staffLevel} onLogout={handleLogout} />
     </header>
     <div aria-hidden className="shape-header-spacer" style={{ height: NAV_H }} />
     </>

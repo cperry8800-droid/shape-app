@@ -49,10 +49,11 @@ const compiled = babel.transformSync(tableSrc + '\n' + fnSrc, {
 
 const noop = () => null;
 let session = null; // what ShapePortalSession.peek() and shapeReadPortalMe() answer
+let staffLevel = null; // what useStaffLevel() answers (/api/me/staff)
 const scope = {
   React, ReactDOM,
   shapeReadPortalMe: async () => ({ user: session }), shapePortalSignOutStandalone: noop,
-  useDashInboxFeed: noop, ShapeMobileStyles: noop, SiteSearch: noop, DashInbox: noop, RadioWordmark: noop,
+  useDashInboxFeed: noop, useStaffLevel: () => staffLevel, ShapeMobileStyles: noop, SiteSearch: noop, DashInbox: noop, RadioWordmark: noop,
   navSans: 'sans-serif', navDisp: 'sans-serif', sans: 'sans-serif', navChamfer: 'none',
   INK: '#f2ede4', TEAL: '#0ac5a8', TEAL_BRIGHT: '#2ee0c4', TEAL_APP: '#34d6c5', RUST: '#c0533b',
   NAV_PILL_H: 30, NAV_H: 72, NAV_LOGO_H: 40,
@@ -171,4 +172,21 @@ test('signed in, the drawer offers Store as its own link and no Shape Store item
     assert.deepEqual(links[at + 1], ['Store', 'Store.html'], 'the Store is not its own link right after Rewards: ' + names.join(' · '));
     assert.ok(!names.includes('Shape Store'), 'the signed-in drawer still carries the menu item beside the tab');
   } finally { await m.unmount(); }
+});
+
+test('signed in, staff (and only staff) get an Admin link to the console beside Sign out', async () => {
+  for (const [level, shown] of [[null, false], ['owner', true], ['support', true]]) {
+    staffLevel = level;
+    const { m } = await bar(MEMBER);
+    try {
+      const admin = [...m.host.querySelectorAll('a')].filter((a) => text(a) === 'Admin');
+      assert.equal(admin.length, shown ? 1 : 0, `level ${level}: ${admin.length} Admin links`);
+      if (shown) assert.equal(admin[0].getAttribute('href'), '/admin');
+    } finally { await m.unmount(); staffLevel = null; }
+  }
+  staffLevel = 'owner';
+  const { m } = await bar(null);
+  try {
+    assert.equal([...m.host.querySelectorAll('a')].some((a) => text(a) === 'Admin'), false, 'signed out, no Admin link');
+  } finally { await m.unmount(); staffLevel = null; }
 });

@@ -2,15 +2,35 @@
 
 // The authenticator step of a staff sign-in (./page.tsx). 'enroll': set an authenticator app up
 // (a QR code, or the key typed in by hand) and confirm it with its first code. 'verify': enter the
-// current code. Either way Supabase Auth raises this session to 'aal2' (the browser client writes
-// the upgraded session to the cookies), and the page reloads into where the staff member was going.
+// current code. Either way Supabase Auth raises this session to 'aal2' and the page reloads into
+// where the staff member was going.
+//
+// ⚠ EVERY STEP RUNS ON THE SERVER (/api/staff/two-factor). The session cookies are httpOnly, so a
+// browser Supabase client here has no session: #2329 read the factors from the page, and every
+// staff member saw "Your sign-in methods could not be read".
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { cleanCode } from '@/lib/staff-two-factor.mjs';
 import SignOutButton from '@/components/SignOutButton';
 
 type Mode = 'enroll' | 'verify';
+type Step = { ok: boolean; body: Record<string, unknown> };
+
+async function step(payload: Record<string, unknown>): Promise<Step> {
+  try {
+    const res = await fetch('/api/staff/two-factor', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return { ok: res.ok, body: ((await res.json().catch(() => ({}))) ?? {}) as Record<string, unknown> };
+  } catch {
+    return { ok: false, body: {} };
+  }
+}
+
+const text = (v: unknown) => (typeof v === 'string' && v ? v : null);
 
 export default function StaffTwoFactor({ mode, next }: { mode: Mode; next: string }) {
   const [factorId, setFactorId] = useState<string | null>(null);
@@ -23,43 +43,24 @@ export default function StaffTwoFactor({ mode, next }: { mode: Mode; next: strin
   useEffect(() => {
     let live = true;
     (async () => {
-      const supabase = createClient();
-      const { data, error: listError } = await supabase.auth.mfa.listFactors();
+      const { ok, body } = await step({ action: 'start' });
       if (!live) return;
-      if (listError || !data) {
-        setError('Your sign-in methods could not be read. Reload the page to try again.');
+      if (!ok) {
+        setError(text(body.error) ?? 'Your sign-in methods could not be read. Reload the page to try again.');
         return;
       }
-      const totp = data.all.filter((f) => f.factor_type === 'totp');
-      if (mode === 'verify') {
-        const verified = totp.find((f) => f.status === 'verified');
-        if (verified) setFactorId(verified.id);
-        else setError('No authenticator is set up on this account. Reload the page to set one up.');
+      if (body.mode === 'verified') {
+        window.location.assign(next);
         return;
       }
-      // A set-up that was started and never confirmed leaves an unverified factor; clear those so
-      // they do not pile up against Supabase's limit.
-      for (const f of totp.filter((x) => x.status === 'unverified')) {
-        await supabase.auth.mfa.unenroll({ factorId: f.id });
-      }
-      const { data: enrolled, error: enrollError } = await supabase.auth.mfa.enroll({
-        factorType: 'totp',
-        issuer: 'Shape',
-        friendlyName: `Shape console ${new Date().toISOString().slice(0, 16)}`,
-      });
-      if (!live) return;
-      if (enrollError || !enrolled) {
-        setError('An authenticator could not be set up just now. Reload the page to try again.');
-        return;
-      }
-      setFactorId(enrolled.id);
-      setQr(enrolled.totp.qr_code);
-      setSecret(enrolled.totp.secret);
+      setFactorId(text(body.factorId));
+      setQr(text(body.qr));
+      setSecret(text(body.secret));
     })();
     return () => {
       live = false;
     };
-  }, [mode]);
+  }, [mode, next]);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -71,11 +72,11 @@ export default function StaffTwoFactor({ mode, next }: { mode: Mode; next: strin
     if (!factorId) return;
     setBusy(true);
     setError(null);
-    const { error: verifyError } = await createClient().auth.mfa.challengeAndVerify({ factorId, code: typed });
-    if (verifyError) {
+    const { ok, body } = await step({ action: 'verify', factorId, code: typed });
+    if (!ok) {
       setBusy(false);
       setCode('');
-      setError('That code did not match. Codes change every 30 seconds; enter the one showing now.');
+      setError(text(body.error) ?? 'That code could not be checked just now. Try again.');
       return;
     }
     // A full load, so the server reads the upgraded session from the cookies.

@@ -7,9 +7,12 @@ const ACCESS = 'src/lib/admin-access.ts';
 const PROXY = 'src/lib/supabase/middleware.ts';
 const PAGE = 'src/app/staff-verify/page.tsx';
 const STAFF = 'src/app/admin/staff/actions.ts';
+const ROUTE = 'src/app/api/staff/two-factor/route.ts';
+const CLIENT = 'src/app/staff-verify/StaffTwoFactor.tsx';
+const SHELL = 'public/newdesign/pageShell.jsx';
 
 export default {
-  test: 'node --test tests/staff-two-factor.test.mjs tests/admin-console.test.mjs',
+  test: 'node --test tests/staff-two-factor.test.mjs tests/admin-console.test.mjs tests/nav-rewards-store.test.mjs',
   timeoutMs: 300_000,
   mutations: [
     // ── the rules ──
@@ -30,8 +33,8 @@ export default {
       find: "  return signIn?.twoFactor === 'verified' ? signIn.staff : null;",
       replace: '  return signIn ? signIn.staff : null;' },
     { name: 'an unconfirmed set-up counts as an authenticator', file: ACCESS,
-      find: "  const verifiedFactors = (user.factors ?? []).filter((f) => f.status === 'verified').length;",
-      replace: '  const verifiedFactors = (user.factors ?? []).length;' },
+      find: "  const verifiedFactors = (user.factors ?? []).filter((f) => f.status === 'verified' && f.factor_type === 'totp').length;",
+      replace: "  const verifiedFactors = (user.factors ?? []).filter((f) => f.factor_type === 'totp').length;" },
     { name: 'an unreadable token is trusted', file: ACCESS,
       find: '    currentLevel = error ? null : ((data?.claims as { aal?: string } | undefined)?.aal ?? null);',
       replace: "    currentLevel = error ? 'aal2' : ((data?.claims as { aal?: string } | undefined)?.aal ?? null);" },
@@ -72,5 +75,34 @@ export default {
     { name: 'an owner listed in ADMIN_EMAILS can be reset', file: STAFF,
       find: "    if (email && getEnvAdminEmails().includes(email) && !getOwnerEmails().includes(email)) target = { email, level: 'admin' };",
       replace: "    if (email && getEnvAdminEmails().includes(email)) target = { email, level: 'admin' };" },
+    // ── the steps on the server (owner, 2026-10-13: "this isn't working") ──
+    { name: 'the page reads the session in the browser again', file: CLIENT,
+      find: "import { cleanCode } from '@/lib/staff-two-factor.mjs';",
+      replace: "import { cleanCode } from '@/lib/staff-two-factor.mjs';\nimport { createClient } from '@/lib/supabase/client';" },
+    { name: 'the route answers an account that is not staff', file: ROUTE,
+      find: "  if (!signIn) return say('Not found.', 404);\n",
+      replace: "  if (!signIn) return NextResponse.json({ mode: 'verified' });\n" },
+    { name: 'a set-up clears a confirmed authenticator too', file: ROUTE,
+      find: "    for (const f of totp.filter((x) => x.status === 'unverified')) {",
+      replace: '    for (const f of totp) {' },
+    { name: 'a code goes to Supabase uncleaned', file: ROUTE,
+      find: '    const code = cleanCode(parsed.data.code);',
+      replace: "    const code = String(parsed.data.code ?? '');" },
+    { name: 'any factor id goes to Supabase', file: ROUTE,
+      find: "    if (!UUID_RE.test(factorId)) return say('Reload the page to try again.', 400);\n",
+      replace: '' },
+    { name: 'a wrong code is let through', file: ROUTE,
+      find: "    if (error) return say('That code did not match. Codes change every 30 seconds; enter the one showing now.', 400);\n",
+      replace: '' },
+    { name: 'a session already verified is asked to set up again', file: ROUTE,
+      find: "    if (signIn.twoFactor === 'verified') return NextResponse.json({ mode: 'verified' }, { headers: NO_STORE });\n",
+      replace: '' },
+    // ── the website's way in ──
+    { name: 'every signed-in member sees Admin', file: SHELL,
+      find: '              {staffLevel ? <a href="/admin" style={quietLink}>Admin</a> : null}',
+      replace: '              <a href="/admin" style={quietLink}>Admin</a>' },
+    { name: 'the drawer shows Admin to every signed-in member', file: SHELL,
+      find: '        {authUser && staffLevel ? <a href="/admin" onClick={onClose} style={{ ...linkBase, color: INK }}>Admin</a> : null}',
+      replace: '        {authUser ? <a href="/admin" onClick={onClose} style={{ ...linkBase, color: INK }}>Admin</a> : null}' },
   ],
 };
