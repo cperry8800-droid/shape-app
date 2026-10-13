@@ -7,7 +7,7 @@ import { redirect } from 'next/navigation';
 import { getCurrentUserAndProfile } from '@/lib/queries';
 import SignOutButton from '@/components/SignOutButton';
 import SentryUser from '@/components/SentryUser';
-import { getStaffMember } from '@/lib/admin-access';
+import { getStaffSignIn } from '@/lib/admin-access';
 import { atLeast } from '@/lib/staff-levels.mjs';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -26,7 +26,12 @@ export default async function DashboardLayout({
   const role = profile?.role ?? 'client';
   // The Shape team's level (src/lib/staff-levels.mjs): owner, admin, support or analyst, or
   // null. Admins see every admin tab, support the help desk, and every level the console.
-  const staff = await getStaffMember();
+  // ⚠ THE TABS AND THE MEMBERSHIP WAIVER READ THE LEVEL ALONE; THE PAGES THEY OPEN ALSO NEED
+  // TWO-FACTOR (src/lib/staff-two-factor.mjs), which the proxy asks for on the way in. The
+  // waiting counts below are service-role reads, so they wait for the second factor too.
+  const signIn = await getStaffSignIn();
+  const staff = signIn?.staff ?? null;
+  const verified = signIn?.twoFactor === 'verified';
   const isAdmin = atLeast(staff?.level, 'admin');
   const isSupport = atLeast(staff?.level, 'support');
 
@@ -52,7 +57,7 @@ export default async function DashboardLayout({
   // address, as the pages themselves require. Best-effort: a failed count shows no badge, never
   // blocks the page.
   const waiting = { applications: 0, credentials: 0 };
-  if (isAdmin) {
+  if (isAdmin && verified) {
     try {
       const admin = createAdminClient();
       const [apps, creds] = await Promise.all([

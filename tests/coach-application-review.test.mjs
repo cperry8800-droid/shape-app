@@ -764,7 +764,7 @@ test('6: the credential review is in the admin nav, with a waiting count', () =>
   assert.match(layout, /\{ href: '\/dashboard\/credentials', label: 'Credentials', show: isAdmin, count: waiting\.credentials \}/);
   assert.match(layout, /\{ href: '\/dashboard\/applications', label: 'Applications', show: isAdmin, count: waiting\.applications \}/);
   assert.match(layout, /from\('provider_applications'\)\.select\('id', \{ count: 'exact', head: true \}\)\.eq\('status', 'pending'\)/);
-  assert.match(layout, /if \(isAdmin\) \{/, 'counted for admins only');
+  assert.match(layout, /if \(isAdmin && verified\) \{/, 'counted for admins only, once they passed two-factor');
 });
 
 test('6: the cron takes the badge off a verified coach whose insurance has lapsed, and tells them once', async () => {

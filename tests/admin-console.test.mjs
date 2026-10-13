@@ -147,12 +147,15 @@ test('levels: an activity row reads as a sentence', () => {
 });
 
 // ── Who gets in (src/lib/admin-access.ts, the shipping module) ───────────────────────────
-async function loadAccess({ user, db = fakeDb(), adminThrows = false }) {
+// `aal` is the session's assurance level (two-factor): 'aal2' unless a test says otherwise, since
+// these tests are about levels; tests/staff-two-factor.test.mjs drives the second factor.
+async function loadAccess({ user, db = fakeDb(), adminThrows = false, aal = 'aal2' }) {
   const reads = [];
   const access = await loadRealModule(join(ROOT, 'src/lib/admin-access.ts'), {
     typescript: true,
     registry: new Map([
-      ['@/lib/supabase/server', { createClient: async () => ({ auth: { getUser: async () => ({ data: { user } }) } }) }],
+      ['@/lib/supabase/server', { createClient: async () => ({ auth: { getUser: async () => ({ data: { user } }), getClaims: async () => ({ data: { claims: { aal } }, error: null }) } }) }],
+      ['@/lib/staff-two-factor.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/staff-two-factor.mjs')).href)],
       ['@/lib/supabase/admin', { createAdminClient: () => { if (adminThrows) throw new Error('no service key'); reads.push('admin'); return db; } }],
       ['@/lib/staff-levels.mjs', levels],
     ]),
@@ -606,7 +609,7 @@ test('every console page and action checks its own level before it reads anythin
     assert.ok(Number.isFinite(firstRead) && gate < firstRead, `${file}: the gate comes before the service role`);
   }
   const staff = stripComments(read('src/app/admin/staff/actions.ts'));
-  assert.equal((staff.match(/const owner = await requireStaff\('owner'\);/g) ?? []).length, 2, 'both Staff actions are owner only');
+  assert.equal((staff.match(/const owner = await requireStaff\('owner'\);/g) ?? []).length, 3, 'all three Staff actions are owner only');
   const support = stripComments(read('src/app/dashboard/support/actions.ts'));
   assert.equal((support.match(/await requireStaff\('support'\)/g) ?? []).length, 2, 'both help-desk actions are support and up');
   const layout = stripComments(read('src/app/admin/layout.tsx'));
@@ -619,7 +622,7 @@ test('every console page and action checks its own level before it reads anythin
 
 test('the dashboard: staff get in without a membership, and each tab shows for its level', () => {
   const layout = stripComments(read('src/app/dashboard/layout.tsx'));
-  assert.match(layout, /const staff = await getStaffMember\(\);/);
+  assert.match(layout, /const signIn = await getStaffSignIn\(\);\n\s+const staff = signIn\?\.staff \?\? null;\n\s+const verified = signIn\?\.twoFactor === 'verified';/, 'the tabs read the level; the pages they open need two-factor');
   assert.match(layout, /let isMember = isCoach \|\| Boolean\(staff\);/);
   assert.match(layout, /\{ href: '\/admin', label: 'Admin console', show: Boolean\(staff\) \}/);
   assert.match(layout, /\{ href: '\/dashboard\/support', label: 'Help requests', show: isSupport \}/);

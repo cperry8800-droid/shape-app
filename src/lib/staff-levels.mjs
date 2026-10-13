@@ -116,6 +116,7 @@ const ACTIONS = {
   'staff.add': (r) => `added ${r.target} as ${label(r.details?.level)}`,
   'staff.change_level': (r) => `changed ${r.target} from ${label(r.details?.from)} to ${label(r.details?.level)}`,
   'staff.remove': (r) => `removed ${r.target} from staff (was ${label(r.details?.level)})`,
+  'staff.reset_two_factor': (r) => `reset ${r.target}'s two-factor sign-in`,
   lookup: (r) => `looked up ${r.target} through Nora${r.details?.found === false ? ' (no account)' : ''}`,
   'account.view': (r) => `opened ${r.target}'s account`,
   'account.freeze': (r) => `froze ${r.target}${because(r)}`,

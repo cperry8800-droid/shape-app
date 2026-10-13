@@ -1,0 +1,314 @@
+// Two-factor sign-in for the Shape team: the rules (src/lib/staff-two-factor.mjs), the staff check
+// that needs it (src/lib/admin-access.ts), the proxy that sends a staff page to /staff-verify
+// (src/lib/supabase/middleware.ts), that page, and the owner's reset on the Staff page.
+// Run: node --test tests/staff-two-factor.test.mjs
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { loadRealModule } from './helpers/load-real-module.mjs';
+import { stripComments } from './helpers/strip-comments.mjs';
+
+const ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..');
+const read = (rel) => readFileSync(join(ROOT, rel), 'utf8');
+const imp = (rel) => import(pathToFileURL(join(ROOT, rel)).href);
+const tf = await imp('src/lib/staff-two-factor.mjs');
+const levels = await imp('src/lib/staff-levels.mjs');
+const activity = await imp('src/lib/admin-activity.mjs');
+const nextServer = createRequire(import.meta.url)('next/server');
+const React = (await import('react')).default;
+const { renderToStaticMarkup } = await import('react-dom/server');
+// The pages are compiled with the classic JSX runtime, which reads React off the global scope.
+globalThis.React = React;
+
+const OWNER = 'cperry8800@gmail.com';
+const OWNER_ID = '99999999-9999-4999-8999-999999999999';
+const ANN = '11111111-1111-4111-8111-111111111111';
+const redirectTo = (to) => { const e = new Error('REDIRECT'); e.to = to; throw e; };
+
+// ── The rules ─────────────────────────────────────────────────────────────────────────────
+test('rules: every staff page, and only staff pages, asks for the second factor', () => {
+  for (const p of ['/admin', '/admin/', '/admin/members', '/admin/accounts/abc', '/admin/requests', '/admin/staff', '/dashboard/support',
+    '/dashboard/applications', '/dashboard/credentials', '/dashboard/refunds', '/dashboard/claim', '/dashboard/radio', '/warroom', '/console']) {
+    assert.equal(tf.isStaffPage(p), true, p);
+  }
+  for (const p of ['/', '/administrator', '/admins', '/dashboard', '/dashboard/supporting', '/warrooms', '/staff-verify', '/login',
+    '/newdesign/ClientDashboard.html', '/api/admin/radio/tracks', '', null]) {
+    assert.equal(tf.isStaffPage(p), false, String(p));
+  }
+  for (const page of [...levels.CONSOLE_PAGES, ...levels.ADMIN_TOOLS]) assert.ok(tf.STAFF_PAGE_PREFIXES.includes(page.href), `${page.href} is covered`);
+});
+
+test('rules: the state is the session’s level first, then whether an authenticator exists', () => {
+  assert.equal(tf.twoFactorState({ currentLevel: 'aal2', verifiedFactors: 1 }), 'verified');
+  assert.equal(tf.twoFactorState({ currentLevel: 'aal1', verifiedFactors: 1 }), 'verify');
+  assert.equal(tf.twoFactorState({ currentLevel: 'aal1', verifiedFactors: 0 }), 'enroll');
+  assert.equal(tf.twoFactorState({ currentLevel: null, verifiedFactors: 2 }), 'verify');
+  assert.equal(tf.twoFactorState({}), 'enroll');
+  assert.equal(tf.twoFactorState({ currentLevel: 'AAL2', verifiedFactors: 1 }), 'verify', 'the claim is matched exactly');
+});
+
+test('rules: the way back is a staff page on this site, carried in the link', () => {
+  assert.equal(tf.staffNext('/admin/members?q=bo'), '/admin/members?q=bo');
+  for (const bad of ['//evil.example/admin', 'https://evil.example', '/\\evil.example', '/newdesign/index.html', '/administrator', '', null, 42]) {
+    assert.equal(tf.staffNext(bad), '/admin', String(bad));
+  }
+  assert.equal(tf.verifyUrl('/admin/members', '?q=bo'), '/staff-verify?next=%2Fadmin%2Fmembers%3Fq%3Dbo');
+  assert.equal(tf.verifyUrl('/somewhere'), '/staff-verify?next=%2Fadmin');
+  assert.equal(tf.cleanCode(' 123 456 '), '123456');
+  assert.equal(tf.cleanCode('123-456'), '123456');
+  for (const bad of ['12345', '1234567', 'abcdef', '', null]) assert.equal(tf.cleanCode(bad), '', String(bad));
+});
+
+// ── The staff check ───────────────────────────────────────────────────────────────────────
+async function access({ user, aal = 'aal1', claimsError = false, rows = [] }) {
+  return loadRealModule(join(ROOT, 'src/lib/admin-access.ts'), {
+    typescript: true,
+    registry: new Map([
+      ['@/lib/supabase/server', {
+        createClient: async () => ({
+          auth: {
+            getUser: async () => ({ data: { user } }),
+            getClaims: async () => (claimsError ? { data: null, error: { message: 'bad token' } } : { data: { claims: { aal } }, error: null }),
+          },
+        }),
+      }],
+      ['@/lib/supabase/admin', {
+        createAdminClient: () => ({
+          from: () => {
+            const chain = { select: () => chain, eq: () => chain, maybeSingle: async () => ({ data: rows[0] ?? null, error: null }) };
+            return chain;
+          },
+        }),
+      }],
+      ['@/lib/staff-levels.mjs', levels],
+      ['@/lib/staff-two-factor.mjs', tf],
+    ]),
+  });
+}
+const owner = (factors = []) => ({ id: OWNER_ID, email: OWNER, email_confirmed_at: '2026-10-01T00:00:00Z', factors });
+const verifiedFactor = { id: 'f1', status: 'verified', factor_type: 'totp' };
+
+test('access: a password alone is not staff; the second factor is', async () => {
+  const fresh = await access({ user: owner() });
+  assert.deepEqual(await fresh.getStaffSignIn(), { staff: { id: OWNER_ID, email: OWNER, level: 'owner' }, twoFactor: 'enroll' });
+  assert.equal(await fresh.getStaffMember(), null);
+  await assert.rejects(fresh.requireStaff('analyst'), /Admin access required/);
+
+  const enrolled = await access({ user: owner([verifiedFactor]) });
+  assert.equal((await enrolled.getStaffSignIn()).twoFactor, 'verify');
+  assert.equal(await enrolled.getStaffMember(), null);
+  await assert.rejects(enrolled.requireAdminUser(), /Admin access required/, 'the older admin tools too');
+
+  const half = await access({ user: owner([{ id: 'f2', status: 'unverified', factor_type: 'totp' }]) });
+  assert.equal((await half.getStaffSignIn()).twoFactor, 'enroll', 'a set-up never confirmed is not an authenticator');
+
+  const done = await access({ user: owner([verifiedFactor]), aal: 'aal2' });
+  assert.equal((await done.getStaffSignIn()).twoFactor, 'verified');
+  assert.deepEqual(await done.getStaffMember(), { id: OWNER_ID, email: OWNER, level: 'owner' });
+  assert.deepEqual(await done.requireAdminUser(), { id: OWNER_ID, email: OWNER });
+
+  const unread = await access({ user: owner([verifiedFactor]), aal: 'aal2', claimsError: true });
+  assert.equal((await unread.getStaffSignIn()).twoFactor, 'verify', 'a token that cannot be read has no second factor');
+  assert.equal(await unread.getStaffMember(), null);
+
+  const ann = await access({ user: { id: ANN, email: 'ann@x.com', email_confirmed_at: '2026-10-01T00:00:00Z', factors: [] }, rows: [{ level: 'support' }] });
+  assert.deepEqual(await ann.getStaffSignIn(), { staff: { id: ANN, email: 'ann@x.com', level: 'support' }, twoFactor: 'enroll' });
+  const nobody = await access({ user: { id: ANN, email: 'nobody@x.com', email_confirmed_at: '2026-10-01T00:00:00Z' }, aal: 'aal2' });
+  assert.equal(await nobody.getStaffSignIn(), null, 'a second factor makes nobody staff');
+});
+
+// ── The proxy ─────────────────────────────────────────────────────────────────────────────
+async function proxy(path, { user = null, aal = 'aal1' } = {}) {
+  const asked = [];
+  const mw = await loadRealModule(join(ROOT, 'src/lib/supabase/middleware.ts'), {
+    typescript: true,
+    registry: new Map([
+      ['next/server', nextServer],
+      ['@supabase/ssr', {
+        createServerClient: () => ({
+          auth: {
+            getUser: async () => ({ data: { user } }),
+            mfa: { getAuthenticatorAssuranceLevel: async () => { asked.push('aal'); return { data: { currentLevel: aal, nextLevel: 'aal2' }, error: null }; } },
+          },
+          from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null }) }) }) }),
+        }),
+      }],
+      ['@supabase/supabase-js', { createClient: () => ({}) }],
+      ['@/lib/membership-core', { computeMembership: async () => ({ isMember: true, isKnownMinor: false }), GATE_STAMP_HEADER: 'x-shape-gate', GATE_STAMP_VALUE: 'ok' }],
+      ['@/lib/rate-limit', { checkRateLimit: async () => ({ allowed: true, remaining: 99, resetSeconds: 60, limit: 100 }), jwtSub: () => null }],
+      ['@/lib/supabase/cookie-options', { applyShapeCookieOptions: (o) => o }],
+      ['@/lib/staff-two-factor.mjs', tf],
+    ]),
+  });
+  const res = await mw.updateSession(new nextServer.NextRequest(`https://shape.test${path}`));
+  return { status: res.status, location: res.headers.get('location'), asked };
+}
+
+test('proxy: a signed-in session without the second factor is sent to /staff-verify from every staff page', async () => {
+  const me = { id: OWNER_ID };
+  const hit = await proxy('/admin/members?q=bo', { user: me });
+  assert.equal(hit.status, 307);
+  assert.equal(hit.location, 'https://shape.test/staff-verify?next=%2Fadmin%2Fmembers%3Fq%3Dbo');
+  for (const p of ['/admin', '/dashboard/refunds', '/warroom', '/console', '/admin/accounts/x']) {
+    assert.match((await proxy(p, { user: me })).location ?? '', /\/staff-verify\?next=/, p);
+  }
+  const verified = await proxy('/admin/members', { user: me, aal: 'aal2' });
+  assert.equal(verified.status, 200, 'verified: through');
+  const visitor = await proxy('/admin', {});
+  assert.equal(visitor.status, 200, 'a visitor is the page’s to send to sign-in');
+  assert.deepEqual(visitor.asked, [], 'and their session is not read');
+  for (const p of ['/staff-verify?next=%2Fadmin', '/', '/dashboard', '/newdesign/index.html']) {
+    const r = await proxy(p, { user: me });
+    assert.equal(r.status, 200, p);
+    assert.deepEqual(r.asked, [], `${p}: not a staff page`);
+  }
+});
+
+// ── The page ──────────────────────────────────────────────────────────────────────────────
+async function verifyPage({ signIn = null, user = null, next = '/admin/members' } = {}) {
+  const mod = await loadRealModule(join(ROOT, 'src/app/staff-verify/page.tsx'), {
+    typescript: true,
+    registry: new Map([
+      ['next/navigation', { redirect: redirectTo, notFound: () => { const e = new Error('NOT_FOUND'); e.notFound = true; throw e; } }],
+      ['@/lib/admin-access', { getStaffSignIn: async () => signIn }],
+      ['@/lib/supabase/server', { createClient: async () => ({ auth: { getUser: async () => ({ data: { user } }) } }) }],
+      ['@/lib/staff-two-factor.mjs', tf],
+      ['./StaffTwoFactor', { __esModule: true, default: ({ mode, next: n }) => React.createElement('div', { 'data-mode': mode, 'data-next': n }) }],
+    ]),
+  });
+  try {
+    return { html: renderToStaticMarkup(await mod.default({ searchParams: Promise.resolve({ next }) })) };
+  } catch (e) {
+    if (e.to) return { redirect: e.to };
+    if (e.notFound) return { notFound: true };
+    throw e;
+  }
+}
+const staff = (twoFactor) => ({ staff: { id: OWNER_ID, email: OWNER, level: 'owner' }, twoFactor });
+
+test('/staff-verify: set up or enter a code; a visitor signs in first; anyone else gets the 404', async () => {
+  assert.deepEqual(await verifyPage({}), { redirect: '/login?next=%2Fadmin%2Fmembers' });
+  assert.deepEqual(await verifyPage({ user: { id: ANN } }), { notFound: true });
+  assert.deepEqual(await verifyPage({ signIn: staff('verified') }), { redirect: '/admin/members' });
+  assert.deepEqual(await verifyPage({ signIn: staff('verified'), next: '//evil.example' }), { redirect: '/admin' }, 'never off-site');
+  const enroll = (await verifyPage({ signIn: staff('enroll') })).html;
+  assert.ok(enroll.includes('data-mode="enroll"') && enroll.includes('data-next="/admin/members"') && enroll.includes(OWNER));
+  assert.ok((await verifyPage({ signIn: staff('verify') })).html.includes('data-mode="verify"'));
+  const client = stripComments(read('src/app/staff-verify/StaffTwoFactor.tsx'));
+  assert.match(client, /await createClient\(\)\.auth\.mfa\.challengeAndVerify\(\{ factorId, code: typed \}\)/);
+  assert.match(client, /window\.location\.assign\(next\);/, 'a full load, so the server reads the upgraded session');
+  assert.match(client, /factorType: 'totp',/);
+  assert.match(read('src/app/staff-verify/page.tsx'), /robots: \{ index: false, follow: false \}/);
+});
+
+// ── The owner's reset ─────────────────────────────────────────────────────────────────────
+function staffWorld({ rows = [{ user_id: ANN, email: 'ann@x.com', level: 'support' }], factors = [{ id: 'f1', status: 'verified' }, { id: 'f2', status: 'unverified' }], fail = [] } = {}) {
+  const calls = [];
+  const log = [];
+  const db = {
+    calls,
+    log,
+    auth: {
+      admin: {
+        mfa: {
+          listFactors: async ({ userId }) => { calls.push(`list:${userId}`); return fail.includes('list') ? { data: null, error: { message: 'down' } } : { data: { factors }, error: null }; },
+          deleteFactor: async ({ id }) => { calls.push(`delete:${id}`); return { data: null, error: fail.includes(`delete:${id}`) ? { message: 'no' } : null }; },
+        },
+      },
+    },
+    rpc: async (name, args) => { calls.push(`rpc:${name}:${args.p_user}`); return { data: 1, error: fail.includes('rpc') ? { message: 'no' } : null }; },
+    from(table) {
+      const st = { op: 'select', payload: null, filters: [] };
+      const exec = () => {
+        calls.push(`${st.op}:${table}`);
+        if (table === 'admin_activity_log') {
+          if (st.op === 'insert') {
+            if (fail.includes('log')) return { data: null, error: { code: 'XX000', message: 'fake' } };
+            const row = { id: `log-${log.length + 1}`, ...st.payload };
+            log.push(row);
+            return { data: { id: row.id }, error: null };
+          }
+          if (st.op === 'update') { for (const r of log.filter((x) => st.filters.every(([c, v]) => x[c] === v))) Object.assign(r, st.payload); return { data: null, error: null }; }
+        }
+        const found = rows.filter((r) => st.filters.every(([c, v]) => r[c] === v));
+        return { data: found[0] ?? null, error: null };
+      };
+      const chain = {
+        select() { return chain; },
+        insert(p) { st.op = 'insert'; st.payload = p; return chain; },
+        update(p) { st.op = 'update'; st.payload = p; return chain; },
+        eq(c, v) { st.filters.push([c, v]); return chain; },
+        single() { return chain; },
+        maybeSingle() { return chain; },
+        then(res, rej) { return Promise.resolve(exec()).then(res, rej); },
+      };
+      return chain;
+    },
+  };
+  return db;
+}
+
+async function reset(db, { level = 'owner', userId = ANN } = {}) {
+  const actions = await loadRealModule(join(ROOT, 'src/app/admin/staff/actions.ts'), {
+    typescript: true,
+    registry: new Map([
+      ['next/cache', { revalidatePath: () => {} }],
+      ['next/navigation', { redirect: redirectTo }],
+      ['@/lib/supabase/admin', { createAdminClient: () => db }],
+      ['@/lib/admin-access', {
+        getOwnerEmails: () => [OWNER],
+        requireStaff: async (min) => { if (!levels.atLeast(level, min)) throw new Error('Admin access required.'); return { id: OWNER_ID, email: OWNER, level }; },
+      }],
+      ['@/lib/staff-levels.mjs', levels],
+      ['@/lib/admin-activity.mjs', activity],
+    ]),
+  });
+  const fd = new FormData();
+  fd.set('user_id', userId);
+  try { await actions.resetStaffTwoFactor(fd); return null; } catch (e) { if (e.to) return e.to; throw e; }
+}
+
+test('reset: owner only; logged first, every factor removed, signed out everywhere, then marked done', async () => {
+  const db = staffWorld();
+  assert.equal(await reset(db), '/admin/staff?updated=two_factor_reset');
+  assert.deepEqual(db.calls, ['select:staff_members', `list:${ANN}`, 'insert:admin_activity_log', 'delete:f1', 'delete:f2', `rpc:admin_end_sessions:${ANN}`, 'update:admin_activity_log']);
+  assert.equal(db.log[0].action, 'staff.reset_two_factor');
+  assert.deepEqual(db.log[0].details, { level: 'support', factors: 2 });
+  assert.equal(db.log[0].outcome, 'done');
+  assert.equal(levels.describeActivity(db.log[0]), "reset ann@x.com's two-factor sign-in");
+  await assert.rejects(reset(staffWorld(), { level: 'admin' }), /Admin access required/);
+});
+
+test('reset: only a staff row, only when there is something to reset, and a failure is said', async () => {
+  const none = staffWorld({ factors: [] });
+  assert.equal(await reset(none), '/admin/staff?updated=no_two_factor');
+  assert.ok(!none.calls.includes('insert:admin_activity_log'));
+  const owner = staffWorld({ rows: [] });
+  assert.equal(await reset(owner, { userId: OWNER_ID }), '/admin/staff?error=missing_member', 'an owner is never a row, so never reset here');
+  assert.deepEqual(owner.calls, ['select:staff_members']);
+  assert.equal(await reset(staffWorld(), { userId: 'nope' }), '/admin/staff?error=missing_member');
+  const unread = staffWorld({ fail: ['list'] });
+  assert.equal(await reset(unread), '/admin/staff?error=reset_failed');
+  assert.ok(!unread.calls.includes('insert:admin_activity_log'));
+  const unlogged = staffWorld({ fail: ['log'] });
+  assert.equal(await reset(unlogged), '/admin/staff?error=not_logged', 'a reset that cannot be logged does not run');
+  assert.ok(!unlogged.calls.some((c) => c.startsWith('delete:') || c.startsWith('rpc:')), 'no factor removed, nobody signed out');
+  for (const f of ['delete:f2', 'rpc']) {
+    const db = staffWorld({ fail: [f] });
+    assert.equal(await reset(db), '/admin/staff?error=reset_failed', f);
+    assert.equal(db.log[0].outcome, 'failed', f);
+  }
+});
+
+test('the dashboard and the Staff page read the level and the authenticator, not access', () => {
+  const layout = stripComments(read('src/app/dashboard/layout.tsx'));
+  assert.match(layout, /if \(isAdmin && verified\) \{/, 'service-role counts wait for the second factor');
+  const page = stripComments(read('src/app/admin/staff/page.tsx'));
+  assert.match(page, /admin\.auth\.admin\.mfa\.listFactors\(\{ userId: r\.user_id \}\)/);
+  assert.match(page, /\{twoFactor && \(\n\s+<form action=\{resetStaffTwoFactor\}>/, 'reset is offered only when there is an authenticator');
+  const mw = stripComments(read('src/lib/supabase/middleware.ts'));
+  assert.ok(mw.indexOf('isStaffPage(request.nextUrl.pathname)') < mw.indexOf('portalRoleForPath(request.nextUrl.pathname)'), 'the two-factor redirect runs before the portal gate');
+});

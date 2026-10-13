@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getEnvAdminEmails, getOwnerEmails, requireStaff } from '@/lib/admin-access';
 import { ASSIGNABLE_LEVELS, LEVEL_LABELS, LEVEL_SUMMARIES, STAFF_LEVELS, type StaffLevel } from '@/lib/staff-levels.mjs';
-import { removeStaffMember, saveStaffMember } from './actions';
+import { removeStaffMember, resetStaffTwoFactor, saveStaffMember } from './actions';
 import { MIGRATION_FILE, Notice } from '../ui';
 
 export const metadata = { title: 'Staff — Shape Admin', robots: { index: false, follow: false } };
@@ -19,6 +19,8 @@ const UPDATED: Record<string, string> = {
   changed: 'Level changed.',
   unchanged: 'They already have that level; nothing changed.',
   removed: 'Removed. They lose access on their next page load.',
+  two_factor_reset: 'Two-factor reset and signed out. They set up a new authenticator at their next sign-in.',
+  no_two_factor: 'They have no two-factor set up yet; nothing to reset.',
   already_removed: 'They were already removed.',
 };
 
@@ -33,6 +35,7 @@ const ERRORS: Record<string, string> = {
   not_logged: 'The change could not be logged, so nothing was changed. Try again.',
   save_failed: 'The change could not be saved. Try again.',
   missing_member: 'That staff member could not be found.',
+  reset_failed: 'Their two-factor could not be fully reset. Try again.',
 };
 
 export default async function StaffPage({
@@ -54,6 +57,20 @@ export default async function StaffPage({
   const missing = Boolean(error && (error.code === '42P01' || error.code === 'PGRST205'));
   if (error && !missing) throw error;
   const rows = (data ?? []) as Row[];
+  // Whether each staff member has an authenticator set up. Best effort: an unread one shows
+  // nothing rather than a wrong answer.
+  const admin = createAdminClient();
+  const twoFactor = new Map<string, boolean>();
+  await Promise.all(
+    rows.map(async (r) => {
+      try {
+        const { data: listed, error: listError } = await admin.auth.admin.mfa.listFactors({ userId: r.user_id });
+        if (!listError) twoFactor.set(r.user_id, (listed?.factors ?? []).some((f) => f.status === 'verified'));
+      } catch {
+        /* unknown */
+      }
+    })
+  );
   const owners = getOwnerEmails();
   const envAdmins = getEnvAdminEmails().filter((e) => !owners.includes(e));
 
@@ -120,6 +137,11 @@ export default async function StaffPage({
 
       <section className="flex flex-col gap-3">
         <h3 className="text-lg font-medium">The team</h3>
+        <p className="text-sm text-neutral-500 max-w-2xl">
+          Everyone signs in to the console with two-factor: the first time, they set up an authenticator app. If someone loses
+          theirs, Reset two-factor signs them out and they set up a new one. An owner&apos;s is reset in the Supabase dashboard
+          (Authentication → Users).
+        </p>
         <div className="rounded-xl border border-neutral-800 divide-y divide-neutral-900 bg-neutral-950">
           {owners.map((e) => (
             <Member key={`o-${e}`} email={e} level="owner" note="Set in code. Cannot be changed here." />
@@ -134,6 +156,7 @@ export default async function StaffPage({
               level={r.level}
               note={`Added by ${r.added_by_email} on ${new Date(r.created_at).toLocaleDateString('en-US')}`}
               userId={r.user_id}
+              twoFactor={twoFactor.get(r.user_id)}
             />
           ))}
           {rows.length === 0 && !missing && (
@@ -145,7 +168,19 @@ export default async function StaffPage({
   );
 }
 
-function Member({ email, level, note, userId }: { email: string; level: StaffLevel; note: string; userId?: string }) {
+function Member({
+  email,
+  level,
+  note,
+  userId,
+  twoFactor,
+}: {
+  email: string;
+  level: StaffLevel;
+  note: string;
+  userId?: string;
+  twoFactor?: boolean;
+}) {
   return (
     <div className="px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
       <div className="min-w-0">
@@ -153,14 +188,29 @@ function Member({ email, level, note, userId }: { email: string; level: StaffLev
         <div className="text-xs text-neutral-500 mt-0.5">
           {LEVEL_LABELS[level]} · {note}
         </div>
+        {twoFactor !== undefined && (
+          <div className={`text-xs mt-0.5 ${twoFactor ? 'text-teal-300' : 'text-amber-300'}`}>
+            {twoFactor ? 'Two-factor on' : 'Two-factor not set up yet (they set it up at their next sign-in)'}
+          </div>
+        )}
       </div>
       {userId && (
-        <form action={removeStaffMember}>
-          <input type="hidden" name="user_id" value={userId} />
-          <button type="submit" className="rounded-full border border-neutral-700 text-neutral-300 px-4 py-1.5 text-sm hover:border-red-400 hover:text-red-200 transition-colors">
-            Remove
-          </button>
-        </form>
+        <div className="flex gap-2 flex-wrap">
+          {twoFactor && (
+            <form action={resetStaffTwoFactor}>
+              <input type="hidden" name="user_id" value={userId} />
+              <button type="submit" className="rounded-full border border-neutral-700 text-neutral-300 px-4 py-1.5 text-sm hover:border-amber-400 hover:text-amber-200 transition-colors">
+                Reset two-factor
+              </button>
+            </form>
+          )}
+          <form action={removeStaffMember}>
+            <input type="hidden" name="user_id" value={userId} />
+            <button type="submit" className="rounded-full border border-neutral-700 text-neutral-300 px-4 py-1.5 text-sm hover:border-red-400 hover:text-red-200 transition-colors">
+              Remove
+            </button>
+          </form>
+        </div>
       )}
     </div>
   );

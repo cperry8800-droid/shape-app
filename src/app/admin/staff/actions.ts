@@ -103,3 +103,50 @@ export async function removeStaffMember(formData: FormData): Promise<void> {
   revalidatePath(PAGE);
   redirect(`${PAGE}?updated=removed`);
 }
+
+/**
+ * Takes a staff member's authenticator off (they lost their phone, or set it up on the wrong one)
+ * and signs them out everywhere, so their next sign-in sets a new one up. Staff rows only: an
+ * owner's two-factor is reset in the Supabase dashboard (Authentication → Users), never here.
+ */
+export async function resetStaffTwoFactor(formData: FormData): Promise<void> {
+  const owner = await requireStaff('owner');
+  const userId = String(formData.get('user_id') ?? '').trim();
+  if (!UUID_RE.test(userId)) redirect(`${PAGE}?error=missing_member`);
+
+  const db = createAdminClient();
+  const { data: row, error: readError } = await db
+    .from('staff_members')
+    .select('email, level')
+    .eq('user_id', userId)
+    .maybeSingle<{ email: string; level: string }>();
+  if (readError) redirect(`${PAGE}?error=${MISSING_TABLE.has(String(readError.code)) ? 'missing_migration' : 'save_failed'}`);
+  if (!row) redirect(`${PAGE}?error=missing_member`);
+
+  const { data: listed, error: listError } = await db.auth.admin.mfa.listFactors({ userId });
+  if (listError) redirect(`${PAGE}?error=reset_failed`);
+  const factors = listed?.factors ?? [];
+  if (!factors.length) redirect(`${PAGE}?updated=no_two_factor`);
+
+  const log = await startActivity(db, owner, {
+    action: 'staff.reset_two_factor',
+    targetUserId: userId,
+    targetEmail: row.email,
+    details: { level: row.level, factors: factors.length },
+  });
+  if (log.error) redirect(`${PAGE}?error=${log.error}`);
+
+  let failed = false;
+  for (const f of factors) {
+    const { error } = await db.auth.admin.mfa.deleteFactor({ userId, id: f.id });
+    if (error) failed = true;
+  }
+  // Their sessions were verified with the factor just removed; end them.
+  const { error: endError } = await db.rpc('admin_end_sessions', { p_user: userId });
+  if (endError) failed = true;
+  await finishActivity(db, log.id, failed ? 'failed' : 'done');
+  if (failed) redirect(`${PAGE}?error=reset_failed`);
+
+  revalidatePath(PAGE);
+  redirect(`${PAGE}?updated=two_factor_reset`);
+}

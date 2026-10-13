@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { atLeast, resolveStaffLevel, type StaffLevel } from '@/lib/staff-levels.mjs';
+import { twoFactorState, type TwoFactorState } from '@/lib/staff-two-factor.mjs';
 
 // The owner's own addresses. Each is an OWNER of the admin console (src/lib/staff-levels.mjs):
 // everything, including the Staff page. Owners live here, in code, and never in staff_members,
@@ -38,17 +39,21 @@ export function getAdminEmails(): string[] {
 }
 
 export type StaffMember = { id: string; email: string; level: StaffLevel };
+export type StaffSignIn = { staff: StaffMember; twoFactor: TwoFactorState };
 
 /**
- * The signed-in account's staff level, or null for a visitor, an account that is not staff, or
- * one whose address Supabase has not confirmed (L14: an allow-listed address someone registered
- * without owning it is not staff here).
+ * The signed-in account's staff level and where it stands on two-factor sign-in, or null for a
+ * visitor, an account that is not staff, or one whose address Supabase has not confirmed (L14: an
+ * allow-listed address someone registered without owning it is not staff here).
  *
  * The staff_members row is read with the service role only when the code's lists did not already
  * make the account an owner. A failed read (no table before the migration runs, no service key)
  * counts as no row: owners and ADMIN_EMAILS still get in, and nobody else does.
+ *
+ * ⚠ THIS IS NOT ACCESS. It is what /staff-verify and the dashboard's tabs read; access is
+ * getStaffMember(), which also needs the second factor.
  */
-export async function getStaffMember(): Promise<StaffMember | null> {
+export async function getStaffSignIn(): Promise<StaffSignIn | null> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -72,7 +77,27 @@ export async function getStaffMember(): Promise<StaffMember | null> {
   }
 
   const level = resolveStaffLevel({ ...base, tableLevel });
-  return level ? { id: user.id, email, level } : null;
+  if (!level) return null;
+  // The session's assurance level, from its verified token (getClaims checks the signature);
+  // a token that cannot be read is a session without a second factor.
+  let currentLevel: string | null = null;
+  try {
+    const { data, error } = await supabase.auth.getClaims();
+    currentLevel = error ? null : ((data?.claims as { aal?: string } | undefined)?.aal ?? null);
+  } catch {
+    currentLevel = null;
+  }
+  const verifiedFactors = (user.factors ?? []).filter((f) => f.status === 'verified').length;
+  return { staff: { id: user.id, email, level }, twoFactor: twoFactorState({ currentLevel, verifiedFactors }) };
+}
+
+/**
+ * The signed-in staff member, or null. Staff only once this session has passed a second factor
+ * (src/lib/staff-two-factor.mjs): a password alone opens nothing in the console.
+ */
+export async function getStaffMember(): Promise<StaffMember | null> {
+  const signIn = await getStaffSignIn();
+  return signIn?.twoFactor === 'verified' ? signIn.staff : null;
 }
 
 /** The signed-in staff member when their level opens `min`; throws otherwise. */

@@ -20,7 +20,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { fakeSupabase } from './helpers/fake-supabase.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -559,6 +559,7 @@ async function proxyAnswer(path, { user = null, member = false } = {}) {
       ['@/lib/membership-core', { computeMembership: async () => ({ isMember: member, isKnownMinor: false }), GATE_STAMP_HEADER: 'x-shape-gate', GATE_STAMP_VALUE: 'ok' }],
       ['@/lib/rate-limit', { checkRateLimit: async () => ({ allowed: true, remaining: 99, resetSeconds: 60, limit: 100 }), jwtSub: () => null }],
       ['@/lib/supabase/cookie-options', { applyShapeCookieOptions: (o) => o }],
+      ['@/lib/staff-two-factor.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/staff-two-factor.mjs')).href)],
     ]),
   });
   const res = await mw.updateSession(new nextServer.NextRequest('https://shape.test' + path));
