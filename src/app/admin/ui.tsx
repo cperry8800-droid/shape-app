@@ -3,6 +3,7 @@
 export const ADMIN_TIMEZONE = process.env.ADMIN_TIMEZONE || 'America/New_York';
 
 export const MIGRATION_FILE = 'supabase-migrations/2026-10-13-staff-access-and-admin-stats.sql';
+export const ACCOUNT_MIGRATION_FILE = 'supabase-migrations/2026-10-13-admin-account-actions.sql';
 
 /** A date in the owner's zone, or a dash for none. */
 export function formatWhen(iso: string | null | undefined, withTime = false): string {

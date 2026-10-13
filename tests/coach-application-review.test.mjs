@@ -879,6 +879,7 @@ async function deleteRoute({ user, admin }) {
       ['@/lib/request-utils', requestUtils],
       ['@/lib/delete-confirm', confirm],
       ['@/lib/supabase/admin', { createAdminClient: () => admin.client }],
+      ['@/lib/account-erasure', await loadRealModule(join(ROOT, 'src/lib/account-erasure.ts'), { typescript: true, registry: new Map([['@/lib/supabase/admin', {}]]) })],
     ]),
   });
   const token = confirm.issueDeleteConfirm(user.id).token;

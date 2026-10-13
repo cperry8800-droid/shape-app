@@ -8,6 +8,8 @@ const EMAILS = 'src/lib/coach-application-emails.ts';
 const CREDS = 'src/app/api/coach/credentials/route.ts';
 const CRON = 'src/app/api/cron/credential-expiry/route.ts';
 const DELETE = 'src/app/api/account/delete/route.ts';
+// The erasure moved out of the delete route unchanged (2026-10-13), so the console's Remove runs it too.
+const ERASURE = 'src/lib/account-erasure.ts';
 const CONFIRM = 'src/app/auth/confirm/route.ts';
 const VERIFY = 'src/lib/coach-verification.ts';
 
@@ -103,16 +105,16 @@ export default {
       find: '        .lt(\'insurance_expires\', today);',
       replace: '        .lt(\'insurance_expires\', \'0000-01-01\');' },
     // ── 8 · account deletion ───────────────────────────────────────────────────────────────
-    { name: 'deletion leaves the applications', file: DELETE,
+    { name: 'deletion leaves the applications', file: ERASURE,
       find: "      const { error } = await admin.from('provider_applications').delete().in('id', applicationIds);",
       replace: '      const error = null;' },
-    { name: 'an unconfirmed email can erase an application', file: DELETE,
+    { name: 'an unconfirmed email can erase an application', file: ERASURE,
       find: '  if (!email || !user.email_confirmed_at) return [];',
       replace: '  if (!email) return [];' },
-    { name: 'the provider-credentials bucket is not purged', file: DELETE,
+    { name: 'the provider-credentials bucket is not purged', file: ERASURE,
       find: "'member-films', 'provider-credentials'];",
       replace: "'member-films'];" },
-    { name: 'a failed application delete still deletes the account', file: DELETE,
+    { name: 'a failed application delete still deletes the account', file: ERASURE,
       find: '      applicationsDeleted = !error;',
       replace: '      applicationsDeleted = true;' },
     // ── CodeRabbit round (2026-10-12) ──────────────────────────────────────────────────────
@@ -137,7 +139,7 @@ export default {
     { name: 'a failed credential move is still reported to the coach', file: CRON,
       find: '        if (error) throw error;\n        moved = data?.length ?? 0;',
       replace: '        moved = data?.length ?? 0;' },
-    { name: 'a failed application lookup does not stop the deletion', file: DELETE,
+    { name: 'a failed application lookup does not stop the deletion', file: ERASURE,
       find: '  if (applicationIds === null) allBucketsPurged = false;\n',
       replace: '' },
     // ── the experience rule (2026-10-12) ──

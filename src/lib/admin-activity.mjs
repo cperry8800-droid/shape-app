@@ -38,10 +38,17 @@ export async function startActivity(db, actor, { action, targetUserId = null, ta
   }
 }
 
-/** Marks the row 'done' or 'failed'. Best effort: the change already happened, or did not. */
-export async function finishActivity(db, id, outcome) {
+/**
+ * Marks the row 'done' or 'failed'. Best effort: the change already happened, or did not.
+ * `targetEmail` names the account when it was only known once the change ran (opening an
+ * account's page is logged before the account is read).
+ */
+export async function finishActivity(db, id, outcome, { targetEmail } = {}) {
   try {
-    await db.from('admin_activity_log').update({ outcome: outcome === 'done' ? 'done' : 'failed' }).eq('id', id);
+    await db
+      .from('admin_activity_log')
+      .update({ outcome: outcome === 'done' ? 'done' : 'failed', ...(targetEmail ? { target_email: targetEmail } : {}) })
+      .eq('id', id);
   } catch {
     /* the row stays 'pending', which the activity page shows as unconfirmed */
   }

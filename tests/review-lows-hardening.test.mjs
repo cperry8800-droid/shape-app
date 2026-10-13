@@ -138,6 +138,7 @@ async function deleteRoute({ user = USER, admin } = {}) {
       ['@/lib/request-utils', requestUtils],
       ['@/lib/delete-confirm', confirm],
       ['@/lib/supabase/admin', { createAdminClient: () => { adminMade += 1; return admin.client; } }],
+      ['@/lib/account-erasure', await loadRealModule(join(ROOT, 'src/lib/account-erasure.ts'), { typescript: true, registry: new Map([['@/lib/supabase/admin', {}]]) })],
     ]),
   });
   const post = async (body) => {
