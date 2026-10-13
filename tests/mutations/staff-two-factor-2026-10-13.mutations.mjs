@@ -1,5 +1,6 @@
 // Mutation spec for two-factor sign-in for staff (2026-10-13): each mutation undoes one guard, and
-// tests/staff-two-factor.test.mjs or tests/admin-console.test.mjs must fail on every one.
+// tests/staff-two-factor.test.mjs, tests/admin-console.test.mjs, tests/nav-rewards-store.test.mjs or
+// tests/site-nav.test.mjs must fail on every one.
 // Run from the repo root:
 //   node scripts/mutate.mjs --spec tests/mutations/staff-two-factor-2026-10-13.mutations.mjs --fail-on-skipped
 const RULES = 'src/lib/staff-two-factor.mjs';
@@ -12,7 +13,7 @@ const CLIENT = 'src/app/staff-verify/StaffTwoFactor.tsx';
 const SHELL = 'public/newdesign/pageShell.jsx';
 
 export default {
-  test: 'node --test tests/staff-two-factor.test.mjs tests/admin-console.test.mjs tests/nav-rewards-store.test.mjs',
+  test: 'node --test tests/staff-two-factor.test.mjs tests/admin-console.test.mjs tests/nav-rewards-store.test.mjs tests/site-nav.test.mjs',
   timeoutMs: 300_000,
   mutations: [
     // ── the rules ──
@@ -104,5 +105,24 @@ export default {
     { name: 'the drawer shows Admin to every signed-in member', file: SHELL,
       find: '        {authUser && staffLevel ? <a href="/admin" onClick={onClose} style={{ ...linkBase, color: INK }}>Admin</a> : null}',
       replace: '        {authUser ? <a href="/admin" onClick={onClose} style={{ ...linkBase, color: INK }}>Admin</a> : null}' },
+    // ── the staff header's room for the link (Codex on #2340) ──
+    { name: 'the header does not mark staff', file: SHELL,
+      find: ' data-staff={staffLevel ? "" : undefined}',
+      replace: '' },
+    { name: 'a staff account keeps its greeting as long as everyone', file: SHELL,
+      find: '      @media (max-width: 1240px) {\n        .shape-header[data-staff] .shape-nav-hi { display: none !important; }\n',
+      replace: '      @media (max-width: 1240px) {\n' },
+    { name: 'a staff switch account keeps its greeting to 1340', file: SHELL,
+      find: '      @media (max-width: 1380px) {',
+      replace: '      @media (max-width: 1340px) {' },
+    { name: 'a staff switch account takes the loose gaps to 1200', file: SHELL,
+      find: '        :where(.shape-header[data-role-switch][data-staff]) .shape-header-inner { gap: 18px !important; }\n',
+      replace: '' },
+    { name: 'a staff switch account folds at 1120 with everyone', file: SHELL,
+      find: '      @media (max-width: 1170px) {',
+      replace: '      @media (max-width: 1120px) {' },
+    { name: 'the staff fold leaves the burger hidden', file: SHELL,
+      find: '        .shape-header[data-role-switch][data-staff] .shape-nav-burger { display: inline-flex !important; }\n',
+      replace: '' },
   ],
 };

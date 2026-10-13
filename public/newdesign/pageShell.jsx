@@ -1339,7 +1339,7 @@ function Header({ active }) {
   const ctaBtn = { fontFamily: navSans, fontSize: 13, fontWeight: 600, background: TEAL_APP, color: "var(--sh-deep, #06231f)", padding: "0 15px", height: NAV_PILL_H, clipPath: navChamfer, display: "inline-flex", alignItems: "center", whiteSpace: "nowrap", lineHeight: 1, textDecoration: "none", border: 0, cursor: "pointer", flex: "0 0 auto", transition: "background .16s ease" };
   return (
     <>
-    <header className="shape-header" data-role-switch={hasRoleSwitch ? "" : undefined} style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 60, background: "var(--sh-header-bg, rgba(11,14,12,0.55))", backdropFilter: "blur(20px) saturate(1.05)", WebkitBackdropFilter: "blur(20px) saturate(1.05)", borderBottom: "1px solid rgba(var(--sh-nav-ink-rgb, 245,239,225),0.06)" }}>
+    <header className="shape-header" data-role-switch={hasRoleSwitch ? "" : undefined} data-staff={staffLevel ? "" : undefined} style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 60, background: "var(--sh-header-bg, rgba(11,14,12,0.55))", backdropFilter: "blur(20px) saturate(1.05)", WebkitBackdropFilter: "blur(20px) saturate(1.05)", borderBottom: "1px solid rgba(var(--sh-nav-ink-rgb, 245,239,225),0.06)" }}>
       <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg, transparent 0%, ${TEAL} 30%, ${RUST} 70%, transparent 100%)`, opacity: 0.5 }} />
       <ShapeMobileStyles />
       {/* ⚠ FLEX, NOT A 3-COLUMN GRID, and the two outer columns are equal-BASIS
@@ -1723,7 +1723,16 @@ function ShapeMobileStyles() {
          below it — the 1020 and 900 blocks tighten the gap further and must still
          win for these accounts on a phone.
          After all three, swept every 4px from 1440 to 1016 for seven account
-         shapes: no overhang, 18px clear at the tightest, no sideways scroll. */
+         shapes: no overhang, 18px clear at the tightest, no sideways scroll.
+         ⚠ STAFF CARRY ONE MORE LINK, AND IT COSTS 39px (49 BESIDE A SWITCH).
+         The Admin link sits in the same cluster, so data-staff (stamped by the
+         same level that renders the link) moves each rule up. Measured in
+         Chromium in the real faces, 1px from 1440 to 1016, the current rules
+         applied: a single-profile staff account with a 150px name overhangs at
+         1202 (needs the greeting gone above 1200); beside the Nutritionist
+         pill it overhangs at 1350 with a 150px name, has 3px left at the loose
+         gaps just above 1200, and needs 1152 at the tight gaps. Hence 1240 ·
+         1380 · 1240 · 1170 below, each above its need. */
       @media (max-width: 1340px) {
         .shape-header[data-role-switch] .shape-nav-hi { display: none !important; }
       }
@@ -1737,6 +1746,20 @@ function ShapeMobileStyles() {
         .shape-header[data-role-switch] .shape-nav-auth { display: none !important; }
         .shape-header[data-role-switch] .shape-nav-bell { display: inline-flex !important; }
         .shape-header[data-role-switch] .shape-nav-burger { display: inline-flex !important; }
+      }
+      @media (max-width: 1380px) {
+        .shape-header[data-role-switch][data-staff] .shape-nav-hi { display: none !important; }
+      }
+      @media (max-width: 1240px) {
+        .shape-header[data-staff] .shape-nav-hi { display: none !important; }
+        :where(.shape-header[data-role-switch][data-staff]) .shape-header-inner { gap: 18px !important; }
+        :where(.shape-header[data-role-switch][data-staff]) .shape-nav-tabs { gap: 16px !important; }
+      }
+      @media (max-width: 1170px) {
+        .shape-header[data-role-switch][data-staff] .shape-nav-tabs { display: none !important; }
+        .shape-header[data-role-switch][data-staff] .shape-nav-auth { display: none !important; }
+        .shape-header[data-role-switch][data-staff] .shape-nav-bell { display: inline-flex !important; }
+        .shape-header[data-role-switch][data-staff] .shape-nav-burger { display: inline-flex !important; }
       }
       @media (max-width: 1020px) {
         .shape-header-inner { padding: 0 24px !important; gap: 14px !important; }
