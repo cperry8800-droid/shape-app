@@ -23,6 +23,7 @@ type CredentialRow = {
   submitted_at: string | null;
   reviewed_at: string | null;
   review_notes: string | null;
+  revision: number;
 };
 
 type CoachMeta = { name: string; role: string; verified: boolean };
@@ -33,6 +34,12 @@ function statusClass(status: string): string {
   if (status === 'changes_requested') return 'border-amber-400/40 bg-amber-400/10 text-amber-200';
   return 'border-blue-400/40 bg-blue-400/10 text-blue-200';
 }
+
+// A verdict that was not recorded (src/app/dashboard/credentials/actions.ts).
+const NOT_RECORDED: Record<string, string> = {
+  changed: 'Nothing was recorded: the coach changed their credentials after you opened this page. Review the current version below.',
+  missing: 'Nothing was recorded: this coach no longer has credentials on file.',
+};
 
 function expiryLabel(date: string | null): { text: string; cls: string } {
   if (!date) return { text: 'not provided', cls: 'text-neutral-500' };
@@ -54,6 +61,7 @@ export default async function CredentialsPage({
   }
 
   const params = await searchParams;
+  const notRecorded = params?.updated && Object.hasOwn(NOT_RECORDED, params.updated) ? NOT_RECORDED[params.updated] : null;
   const status = params?.status;
   const validStatus = (['pending', 'approved', 'rejected', 'changes_requested'].includes(status ?? '')
     ? status
@@ -143,11 +151,15 @@ export default async function CredentialsPage({
         </p>
       </section>
 
-      {params?.updated && (
+      {notRecorded ? (
+        <div className="rounded-lg border border-amber-400/40 bg-amber-400/10 text-amber-200 text-sm px-4 py-3">
+          {notRecorded}
+        </div>
+      ) : params?.updated ? (
         <div className="rounded-lg border border-teal-400/30 bg-teal-400/10 text-teal-200 text-sm px-4 py-3">
           Credential updated: {params.updated.replace('_', ' ')}.
         </div>
-      )}
+      ) : null}
 
       <nav className="flex gap-2 flex-wrap">
         {[
@@ -280,6 +292,8 @@ function CredentialCard({
 
       <form className="mt-5 flex flex-col gap-3">
         <input type="hidden" name="owner_id" value={row.owner_id} />
+        {/* The version on screen: a verdict applies only while the credentials are still at it. */}
+        <input type="hidden" name="revision" value={String(row.revision)} />
         <label className="flex flex-col gap-1.5">
           <span className="text-xs uppercase tracking-[0.14em] text-neutral-500">Review notes</span>
           <textarea
