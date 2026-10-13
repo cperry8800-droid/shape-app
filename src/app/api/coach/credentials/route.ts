@@ -12,10 +12,8 @@ import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson } from '@/lib/request-utils';
 import { CREDENTIAL_TYPES, credentialStatus, REQUIRED_ATTESTATIONS } from '@/lib/compliance/nutrition.mjs';
-import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/email';
 import { applicationsInbox, credentialsSubmittedEmail } from '@/lib/coach-application-emails';
-import { clearListingVerified } from '@/lib/coach-verification';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -92,25 +90,10 @@ export async function GET(request: Request) {
 }
 
 // ⚠ A SELF-WRITTEN CREDENTIAL ROW IS UNREVIEWED AGAIN (the guard trigger sends it back to
-// 'pending' and clears its verification), so the listing's Verified badge comes off until an
-// admin re-approves. A failure is the caller's to report: the write the coach asked for has
-// landed, so a retry repeats it harmlessly and clears the badge then.
-async function unverifyListings(ownerId: string): Promise<boolean> {
-  try {
-    await clearListingVerified(createAdminClient(), ownerId);
-    return true;
-  } catch (err) {
-    console.error('[shape] could not clear the Verified badge for re-review:', err);
-    return false;
-  }
-}
-
-// Saved, but the listing still shows Verified: not a success, so the coach tries again.
-const badgeNotCleared = () =>
-  NextResponse.json(
-    { error: 'Your changes were saved, but your listing could not be updated. Please try again.', code: 'badge_not_cleared' },
-    { status: 503 }
-  );
+// 'pending' and clears its verification), and the listing's Verified badge comes off with it, in
+// the same write: the provider_credentials_zz_unverify_listings trigger
+// (2026-10-13-listing-badge-follows-credential.sql). So these writes are the coach's own, under
+// RLS, and there is no second write here that could fail after the first had landed.
 
 export async function POST(request: Request) {
   const user = await currentUser(request);
@@ -143,7 +126,6 @@ export async function POST(request: Request) {
       console.error('[shape] credential submit failed:', error.message);
       return NextResponse.json({ error: 'Could not submit for review.' }, { status: 500 });
     }
-    const badgeCleared = await unverifyListings(user.id);
     // ⚠ THE ADMIN IS TOLD. A submission only flipped a row to 'pending' in a queue nobody had a
     // link to, so credentials could wait unseen. Mailed to the applications inbox, like a new
     // application; best-effort, the submission itself has already landed (and the admin nav's
@@ -166,8 +148,6 @@ export async function POST(request: Request) {
       });
       await sendEmail({ to: applicationsInbox(), ...mail }).catch((e) => console.error('[shape] credential submit notify failed', e));
     }
-    // Said after the email, because a retry finds the row already submitted and mails nobody.
-    if (!badgeCleared) return badgeNotCleared();
     return NextResponse.json({ ok: true, review: 'pending' });
   }
 
@@ -192,8 +172,6 @@ export async function POST(request: Request) {
     console.error('[shape] provider_credentials upsert failed:', credErr.message);
     return NextResponse.json({ error: 'Could not save your credentials.' }, { status: 500 });
   }
-  // The guard trigger has just sent the row back to re-review; the badge goes with it.
-  if (!(await unverifyListings(user.id))) return badgeNotCleared();
 
   // Replace the license set (states the provider is licensed in).
   if (Array.isArray(body.licenses)) {

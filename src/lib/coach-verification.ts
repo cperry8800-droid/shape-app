@@ -2,29 +2,22 @@
 // `verified` on the coach's listing row(s) (src/app/dashboard/credentials/actions.ts), and
 // everything that undoes the verdict has to take it off again.
 //
-// ⚠ THE DATABASE ALREADY UNDOES THE VERDICT; THE BADGE DID NOT FOLLOW. The
-// provider_credentials_guard_review trigger sends any self-written credential row back to
-// 'pending' and clears its verification (2026-06-25-provider-admin-column-guard.sql), and an
-// expired insurance certificate voids the review the badge rests on. Neither touched
-// trainers.verified / nutritionists.verified, so a coach under re-review, or with lapsed
-// insurance, kept showing as Verified. The coach's own client cannot clear the flag (the
-// listing's admin columns are pinned for non-service writers), so this runs as the service role,
-// always scoped to the owner it is given.
+// ⚠ THE DATABASE TAKES IT OFF ITSELF NOW (2026-10-13-listing-badge-follows-credential.sql). Any
+// write that leaves a credential row not 'approved', or deletes it, clears the owner's badge in
+// the same transaction (the provider_credentials_zz_unverify_listings trigger): a coach's own
+// edit, which the review guard sends back to 'pending', an admin's rejection or request for
+// changes, and the expiry cron's move. So the coach's routes make no badge write of their own.
+//
+// This helper is for a badge that has to come off with no credential write behind it: the
+// expiry cron's coach who shows as Verified on lapsed insurance. It calls the same database
+// function, which clears both listing tables in one statement, so the two cannot disagree.
+// Service role only (the function is not executable by members).
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 /** Take the Verified badge off every listing `ownerId` holds. Returns how many rows changed. */
 export async function clearListingVerified(admin: SupabaseClient, ownerId: string): Promise<number> {
-  let changed = 0;
-  for (const table of ['trainers', 'nutritionists'] as const) {
-    const { data, error } = await admin
-      .from(table)
-      .update({ verified: false, verified_at: null })
-      .eq('owner_id', ownerId)
-      .eq('verified', true)
-      .select('id');
-    if (error) throw error;
-    changed += data?.length ?? 0;
-  }
-  return changed;
+  const { data, error } = await admin.rpc('clear_listing_verified', { p_owner: ownerId });
+  if (error) throw error;
+  return Number(data) || 0;
 }

@@ -12,26 +12,15 @@ function clean(value: FormDataEntryValue | null, max = 4000): string {
 
 const UUID = /^[0-9a-f-]{36}$/i;
 
-// Mirror the verified flag onto whichever marketplace coach row(s) the owner holds
-// (a coach can be both a trainer and a nutritionist). Returns how many rows changed.
-async function setMarketplaceVerified(
-  admin: ReturnType<typeof createAdminClient>,
-  ownerId: string,
-  verified: boolean
-): Promise<number> {
-  const at = verified ? new Date().toISOString() : null;
-  let changed = 0;
-  for (const table of ['trainers', 'nutritionists'] as const) {
-    const { data, error } = await admin
-      .from(table)
-      .update({ verified, verified_at: at })
-      .eq('owner_id', ownerId)
-      .select('id');
-    if (error) throw error;
-    changed += (data?.length ?? 0);
-  }
-  return changed;
-}
+// The marketplace Verified badge follows the credential in the database
+// (2026-10-13-listing-badge-follows-credential.sql). Approval puts it on whichever listing(s) the
+// owner holds (a coach can be both a trainer and a nutritionist) in the same transaction as the
+// approval, through approve_provider_credential. Any write that leaves the credential not
+// 'approved' takes it off in that write (provider_credentials_zz_unverify_listings), so rejecting
+// or asking for changes needs no listing write here.
+//
+// ⚠ ONE TRANSACTION, NOT TWO CALLS (Codex, #2321). Approved in one call and badged in the next, a
+// coach edit landing between them was sent back to 'pending' and then badged anyway.
 
 export async function approveCredential(formData: FormData): Promise<void> {
   const adminUser = await requireAdminUser();
@@ -39,21 +28,14 @@ export async function approveCredential(formData: FormData): Promise<void> {
   const notes = clean(formData.get('review_notes'));
   if (!UUID.test(ownerId)) throw new Error('Invalid coach id.');
   const admin = createAdminClient();
-  const now = new Date().toISOString();
 
-  const { error } = await admin
-    .from('provider_credentials')
-    .update({
-      review_status: 'approved',
-      reviewed_by: adminUser.id,
-      reviewed_at: now,
-      review_notes: notes || 'Credentials verified.',
-      verified_at: now,
-    })
-    .eq('owner_id', ownerId);
+  const { data: badged, error } = await admin.rpc('approve_provider_credential', {
+    p_owner: ownerId,
+    p_reviewer: adminUser.id,
+    p_notes: notes || 'Credentials verified.',
+  });
   if (error) throw error;
-
-  await setMarketplaceVerified(admin, ownerId, true);
+  if (badged === null) throw new Error('This coach has no credentials to approve.');
 
   // Let the coach know (in-app bell + push spine).
   await createNotification(admin, {
@@ -88,10 +70,8 @@ export async function rejectCredential(formData: FormData): Promise<void> {
       verified_at: null,
     })
     .eq('owner_id', ownerId);
+  // Any previously granted badge came off with that write.
   if (error) throw error;
-
-  // Revoke any previously-granted badge.
-  await setMarketplaceVerified(admin, ownerId, false);
 
   revalidatePath('/dashboard/credentials');
   revalidatePath('/trainers');
@@ -118,10 +98,8 @@ export async function requestCredentialChanges(formData: FormData): Promise<void
       verified_at: null,
     })
     .eq('owner_id', ownerId);
+  // The marketplace badge came off with that write, so the coach isn't shown as verified.
   if (error) throw error;
-
-  // Drop the marketplace badge too so the coach isn't shown as verified.
-  await setMarketplaceVerified(admin, ownerId, false);
 
   await createNotification(admin, {
     userId: ownerId,

@@ -24,6 +24,7 @@ import { createRequire } from 'node:module';
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadRealModule } from './helpers/load-real-module.mjs';
+import { stripComments } from './helpers/strip-comments.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require_ = createRequire(join(ROOT, 'package.json'));
@@ -119,7 +120,18 @@ function fakeAdmin({ tables = {}, users = [], rpc = {}, fail = [], afterRead = n
   };
   const client = {
     from,
-    rpc: async (name, args) => { calls.push({ rpc: name, args }); return rpc[name] ? rpc[name](args) : { data: null, error: null }; },
+    rpc: async (name, args) => {
+      calls.push({ rpc: name, args });
+      if (fail.includes(`rpc:${name}`)) return { data: null, error: { message: `fake failure on rpc ${name}` } };
+      if (rpc[name]) return rpc[name](args);
+      // The database's clear_listing_verified (2026-10-13): both listing tables, one owner, one statement.
+      if (name === 'clear_listing_verified') {
+        const hit = ['trainers', 'nutritionists'].flatMap((t) => rowsOf(t).filter((r) => r.owner_id === args.p_owner && r.verified === true));
+        for (const r of hit) Object.assign(r, { verified: false, verified_at: null });
+        return { data: hit.length, error: null };
+      }
+      return { data: null, error: null };
+    },
     auth: {
       admin: {
         listUsers: async () => ({ data: { users }, error: null }),
@@ -583,23 +595,28 @@ test('1: the emails escape what they are given and link the coach\'s own pages',
 });
 
 // ── 6 · credentials ──────────────────────────────────────────────────────────────────────
-test('6: the badge helper clears verified on both tables for that owner only', async () => {
+test('6: the badge helper is one database call for that owner, and says when it fails', async () => {
   const admin = fakeAdmin({ tables: {
     trainers: [{ id: 1, owner_id: COACH_UID, verified: true, verified_at: 'x' }, { id: 2, owner_id: NEW_UID, verified: true, verified_at: 'y' }],
     nutritionists: [{ id: 3, owner_id: COACH_UID, verified: true, verified_at: 'z' }],
   } });
   assert.equal(await verification.clearListingVerified(admin.client, COACH_UID), 2);
+  // Both tables in one call: the database function clears them in one statement (CodeRabbit, #2315).
+  assert.deepEqual(admin.calls, [{ rpc: 'clear_listing_verified', args: { p_owner: COACH_UID } }]);
   assert.equal(admin.tables.trainers[0].verified, false);
   assert.equal(admin.tables.trainers[0].verified_at, null);
   assert.equal(admin.tables.trainers[1].verified, true, 'another coach is untouched');
   assert.equal(admin.tables.nutritionists[0].verified, false);
   assert.equal(await verification.clearListingVerified(admin.client, COACH_UID), 0, 'idempotent');
+  const broken = fakeAdmin({ tables: { trainers: [], nutritionists: [] }, fail: ['rpc:clear_listing_verified'] });
+  await assert.rejects(verification.clearListingVerified(broken.client, COACH_UID), { message: /fake failure on rpc clear_listing_verified/ });
 });
 
-async function credentialsRoute({ before, user, serviceFail = [] }) {
+async function credentialsRoute({ before, user }) {
   const prior = typeof before === 'string' ? { review_status: before } : before;
   const own = fakeAdmin({ tables: { provider_credentials: prior ? [{ owner_id: user.id, ...prior }] : [] } });
-  const service = fakeAdmin({ tables: { trainers: [{ id: 1, owner_id: user.id, verified: true }], nutritionists: [] }, fail: serviceFail });
+  // Handed to the route in case it reaches for the service role; it must not (see below).
+  const service = fakeAdmin({ tables: { trainers: [{ id: 1, owner_id: user.id, verified: true }], nutritionists: [] } });
   const sent = [];
   const requestUtils = await loadRealModule(join(ROOT, 'src/lib/request-utils.ts'), { typescript: true, registry: new Map([['next/server', nextServer]]) });
   const nutrition = await import(pathToFileURL(join(ROOT, 'src/lib/compliance/nutrition.mjs')).href);
@@ -620,10 +637,10 @@ async function credentialsRoute({ before, user, serviceFail = [] }) {
     const res = await route.POST(new Request('https://shape.test/api/coach/credentials', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }));
     return { status: res.status, body: await res.json() };
   };
-  return { post, sent, service };
+  return { post, sent, service, own };
 }
 
-test('6: a credential submission mails the applications inbox once, and the badge comes off until re-approval', async () => {
+test('6: a credential submission mails the applications inbox once, and leaves the badge to the database', async () => {
   const user = { id: COACH_UID, email: 'dana@example.invalid', user_metadata: { full_name: 'Dana Reyes' } };
   const r = await credentialsRoute({ before: 'approved', user });
   const out = await r.post({ action: 'submit' });
@@ -631,7 +648,10 @@ test('6: a credential submission mails the applications inbox once, and the badg
   assert.equal(r.sent.length, 1);
   assert.equal(r.sent[0].to, 'apps@shape.test');
   assert.match(r.sent[0].subject, /Dana Reyes/);
-  assert.equal(r.service.tables.trainers[0].verified, false, 'the listing is unverified for re-review');
+  // The badge comes off in the coach's own write (provider_credentials_zz_unverify_listings), so
+  // the route makes no service-role write of its own (CodeRabbit, #2315).
+  assert.deepEqual(r.service.calls, [], 'no service-role call');
+  assert.ok(stmts(r.own.calls, 'provider_credentials', 'upsert').length === 1, 'the submission is the coach\'s own write');
 
   const at = '2026-10-05T10:00:00.000Z';
   const again = await credentialsRoute({ before: { review_status: 'pending', submitted_at: at, updated_at: at }, user });
@@ -640,7 +660,7 @@ test('6: a credential submission mails the applications inbox once, and the badg
 
   const save = await credentialsRoute({ before: 'approved', user });
   assert.equal((await save.post({ credentialType: 'rd', attestations: {} })).status, 200);
-  assert.equal(save.service.tables.trainers[0].verified, false, 'a saved change is a change to re-review too');
+  assert.deepEqual(save.service.calls, [], 'a saved change makes no service-role call either');
   assert.equal(save.sent.length, 0);
 });
 
@@ -657,19 +677,22 @@ test('6: a resubmission after an edit is mailed: an edit puts the row back to pe
   assert.match(src, /\{ owner_id: user\.id, review_status: 'pending', submitted_at: submittedAt, updated_at: submittedAt \}/, 'one timestamp for both columns');
 });
 
-test('6: a listing that could not be unverified is not reported as done; the submission is still mailed first', async () => {
-  const user = { id: COACH_UID, email: 'dana@example.invalid', user_metadata: { full_name: 'Dana Reyes' } };
-  const submit = await credentialsRoute({ before: 'approved', user, serviceFail: ['update:trainers'] });
-  const out = await submit.post({ action: 'submit' });
-  assert.equal(out.status, 503);
-  assert.equal(out.body.code, 'badge_not_cleared');
-  assert.equal(submit.sent.length, 1, 'mailed before the failure is said, since a retry finds the row already submitted');
-  const save = await credentialsRoute({ before: 'approved', user, serviceFail: ['update:trainers'] });
-  const saved = await save.post({ credentialType: 'rd', attestations: {} });
-  assert.equal(saved.status, 503, 'a saved change that leaves the badge up is not a success');
-  assert.match(saved.body.error, /saved, but your listing could not be updated/);
-  const doc = read('src/app/api/coach/credentials/document/route.ts');
-  assert.match(doc, /console\.error\('\[shape\] could not clear the Verified badge for re-review:', err\);\n\s+return NextResponse\.json\(/, 'the document route says it too');
+test('6: no coach route or admin rejection writes the badge off itself; the credential write does', () => {
+  // Before 2026-10-13 the coach's routes took the badge off with a second, service-role write
+  // after the coach's own, one listing table at a time, and said 503 badge_not_cleared when it
+  // failed. The database now does it inside the credential write (both happen or neither).
+  const creds = stripComments(read('src/app/api/coach/credentials/route.ts'));
+  const doc = stripComments(read('src/app/api/coach/credentials/document/route.ts'));
+  for (const [name, src] of [['credentials', creds], ['document', doc]]) {
+    assert.doesNotMatch(src, /clearListingVerified|badge_not_cleared|from\('(trainers|nutritionists)'\)\s*\.update/, `the ${name} route writes the badge itself`);
+  }
+  assert.doesNotMatch(creds, /createAdminClient/, 'the credentials route needs no service role at all');
+  const actions = stripComments(read('src/app/dashboard/credentials/actions.ts'));
+  // Approval and the badge are one transaction (Codex, #2321): a coach edit cannot land between them.
+  assert.match(actions, /await admin\.rpc\('approve_provider_credential', \{\s+p_owner: ownerId,\s+p_reviewer: adminUser\.id,/)
+  assert.match(actions, /if \(error\) throw error;\n\s+if \(badged === null\) throw new Error\('This coach has no credentials to approve\.'\);/, 'nothing to approve is not announced as verified')
+  assert.doesNotMatch(actions, /from\('(trainers|nutritionists)'\)|verified: (true|false)|review_status: 'approved'/, 'no listing write and no approval outside the database function');
+  assert.match(stripComments(read('src/app/api/cron/credential-expiry/route.ts')), /badgeCleared = await clearListingVerified\(admin, ownerId\);/, 'the cron clears a badge with no credential write behind it through the one database call');
 });
 
 test('6: the credential review is in the admin nav, with a waiting count', () => {
@@ -678,7 +701,6 @@ test('6: the credential review is in the admin nav, with a waiting count', () =>
   assert.match(layout, /\{ href: '\/dashboard\/applications', label: 'Applications', show: isAdmin, count: waiting\.applications \}/);
   assert.match(layout, /from\('provider_applications'\)\.select\('id', \{ count: 'exact', head: true \}\)\.eq\('status', 'pending'\)/);
   assert.match(layout, /if \(isAdmin\) \{/, 'counted for admins only');
-  assert.match(read('src/app/api/coach/credentials/document/route.ts'), /await clearListingVerified\(admin, user\.id\);/);
 });
 
 test('6: the cron takes the badge off a verified coach whose insurance has lapsed, and tells them once', async () => {
