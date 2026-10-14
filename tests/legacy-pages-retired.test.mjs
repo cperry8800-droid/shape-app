@@ -317,14 +317,19 @@ test('an old dashboard tab that is a page now, not a route, opens that page', as
   // Codex on #2352: the old coach dashboards had a #messages tab, and the inboxes are their own
   // pages (TrainerMessages.html, NutritionistMessages.html), as Community is. Each shell forwards
   // those fragments before it renders.
+  const PREFIX = { 'TrainerApp.html': 'ta', 'NutritionistApp.html': 'na', 'ClientApp.html': 'ca' }
   const forward = (shell, hash) => {
     const src = readFileSync(`public/newdesign/${shell}`, 'utf8')
-    const head = src.slice(0, src.indexOf('</head>'))
-    const script = head.match(/<script>(\(function\(\)\{var p=\{[^<]*)<\/script>/)
-    assert.ok(script, `${shell}: the legacy-tab forward is gone`)
-    let to = null
-    new Function('location', script[1])({ hash, replace: (u) => { to = u } })
-    return to
+    const P = PREFIX[shell]
+    const from = src.indexOf(`const ${P.toUpperCase()}_LEGACY_PAGES = `)
+    const fnAt = src.indexOf(`function ${P}LegacyPage()`, from)
+    assert.ok(from >= 0 && fnAt > from, `${shell}: the legacy-page forward is gone`)
+    const block = src.slice(from, src.indexOf('\n}\n', fnAt) + 3)
+    assert.match(src, new RegExp(`if \\(${P}LegacyPage\\(\\)\\) window\\.location\\.replace\\(${P}LegacyPage\\(\\)\\);`), `${shell}: the forward is never called`)
+    // Not in <head>: this site reads a location.replace() there as "this page is a redirect stub"
+    // (coach-export, demo-coherence, newdesign-viewport), and a shell is not one.
+    assert.doesNotMatch(src.slice(0, src.indexOf('</head>')), /location\.replace\(/, `${shell}: a forward in <head> marks the shell as a stub`)
+    return new Function('window', `${block}; return ${P}LegacyPage();`)({ location: { hash } })
   }
   for (const [old, hash, page] of [
     ['/trainer-dashboard.html', '#messages', 'TrainerMessages.html'], ['/trainer-dashboard.html', '#community', 'Community.html'],

@@ -520,10 +520,11 @@ test('an old workout link opens the week that holds that workout, and marks the 
   try {
     at('/newdesign/ClientApp.html#workouts?id=w-old');
     let page = await mount(React, TR.ClientWorkoutsPage, payloads);
-    assert.ok(page.el.querySelector('[data-dtr-workout="w-old"]'), 'the week holding the linked workout is not open');
+    const has = (id) => page.el.querySelector(`[data-dtr-workout="${id}"]`) !== null;
+    assert.ok(has('w-old'), 'the week holding the linked workout is not open');
     assert.deepEqual(marked(page.el), ['w-old']);
-    assert.equal(page.el.querySelector('[data-dtr-workout="w-mid"]'), null, 'another past week opened too');
-    assert.ok(page.el.querySelector('[data-dtr-workout="w-now"]'), 'this week closed');
+    assert.equal(has('w-mid'), false, 'another past week opened too');
+    assert.equal(has('w-now'), true, 'this week closed');
     await page.unmount();
 
     // ?id= in the query itself (ClientTrain.html's own address), and an anytime assignment.
@@ -536,7 +537,7 @@ test('an old workout link opens the week that holds that workout, and marks the 
     at('/newdesign/ClientApp.html#workouts');
     page = await mount(React, TR.ClientWorkoutsPage, payloads);
     assert.deepEqual(marked(page.el), []);
-    assert.equal(page.el.querySelector('[data-dtr-workout="w-old"]'), null);
+    assert.equal(page.el.querySelector('[data-dtr-workout="w-old"]') !== null, false, 'a past week opened with no id');
     await page.unmount();
   } finally {
     at('/');
