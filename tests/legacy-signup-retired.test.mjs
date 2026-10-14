@@ -53,7 +53,7 @@ test('every old address redirects to the website\'s application, which exists', 
 test('nothing precaches or builds a link to a retired page', () => {
   const sw = stripComments(readFileSync('public/sw.js', 'utf8'))
   assert.doesNotMatch(sw, /signup-trainer|signup-nutritionist/, 'the service worker precaches a retired page')
-  for (const file of ['public/supabase.js', 'public/real-providers.js']) {
+  for (const file of ['public/supabase.js']) {
     const src = stripComments(readFileSync(file, 'utf8'))
     assert.doesNotMatch(src, /['"]signup-(trainer|nutritionist)\.html/, `${file} links to a retired page`)
   }

@@ -492,7 +492,7 @@ function CoachAccountSettings({ accountId }) {
             try {
               // no-store: the export is the coach's full personal data — keep it out of the browser HTTP cache.
               const res = await fetch("/api/account/export", { credentials: "same-origin", cache: "no-store" });
-              if (res.status === 401) { window.location.href = "/login.html"; return; }
+              if (res.status === 401) { window.location.href = "/newdesign/Login.html"; return; }
               if (!res.ok) throw new Error("export failed");
               const blob = await res.blob(); const url = URL.createObjectURL(blob);
               const a = document.createElement("a"); a.href = url; a.download = `shape-data-export-${new Date().toISOString().slice(0, 10)}.json`;
@@ -510,12 +510,12 @@ function CoachAccountSettings({ accountId }) {
               // Two requests (L1, 2026-10-08 review): the first earns a ten-minute confirmation token
               // bound to this account; the second, carrying it, deletes.
               let res = await fetch("/api/account/delete", { method: "POST", credentials: "same-origin" });
-              if (res.status === 401) { window.location.href = "/login.html"; return; }
+              if (res.status === 401) { window.location.href = "/newdesign/Login.html"; return; }
               if (res.status === 428) {
                 const step = await res.json().catch(() => ({}));
                 if (!step.confirmToken) throw new Error("delete failed");
                 res = await fetch("/api/account/delete", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirmToken: step.confirmToken }) });
-                if (res.status === 401) { window.location.href = "/login.html"; return; }
+                if (res.status === 401) { window.location.href = "/newdesign/Login.html"; return; }
               }
               if (!res.ok) throw new Error("delete failed");
               alert("Your account and data have been deleted.");

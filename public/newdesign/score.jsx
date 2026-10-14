@@ -570,7 +570,7 @@ function ScoreRecordView({ onBack }) {
         <div onClick={onBack} role="button" tabIndex={0} style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, cursor: "pointer", marginBottom: 26 }}>← Back to Shape Score</div>
         {!live && (
           <div style={{ padding: "12px 16px", border: "1px solid rgba(10,197,168,0.4)", borderRadius: 6, marginBottom: 26, fontFamily: mono, fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", color: TEAL }}>
-            Preview · demo record — an example of a live account · <a href="/newdesign/login.html" style={{ color: TEAL, borderBottom: "1px solid " + TEAL }}>Sign in →</a>
+            Preview · demo record — an example of a live account · <a href="/newdesign/Login.html" style={{ color: TEAL, borderBottom: "1px solid " + TEAL }}>Sign in →</a>
           </div>
         )}
 

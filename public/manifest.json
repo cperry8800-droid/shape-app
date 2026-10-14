@@ -2,7 +2,7 @@
   "name": "Shape — Your Body. Your Shape.",
   "short_name": "Shape",
   "description": "Subscribe to world-class personal trainers and nutritionists. Get custom workouts, meal plans, and 1-on-1 guidance.",
-  "start_url": "/home.html",
+  "start_url": "/",
   "scope": "/",
   "id": "/home.html",
   "display": "standalone",
@@ -44,14 +44,14 @@
       "name": "Dashboard",
       "short_name": "Dashboard",
       "description": "Open your Shape dashboard",
-      "url": "/clients.html",
+      "url": "/newdesign/ClientDashboard.html",
       "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Messages",
       "short_name": "Messages",
       "description": "Chat with your trainer",
-      "url": "/messages.html",
+      "url": "/newdesign/ClientTeam.html",
       "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
     },
     {

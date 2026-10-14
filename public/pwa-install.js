@@ -5,7 +5,7 @@
   }
 
   // Skip install prompt for pages where it would interfere
-  var skipPaths = ['/radio.html', '/live-workout.html', '/intro.html'];
+  var skipPaths = ['/radio.html', '/intro.html'];
   if (skipPaths.indexOf(location.pathname) !== -1) return;
 
   var DISMISS_KEY = 'shape-pwa-dismissed';
