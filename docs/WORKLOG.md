@@ -847,6 +847,16 @@ Everything older, newest-first: [2026-10](WORKLOG-ARCHIVE-2026-10.md) ·
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-10-14 — The eight live page backgrounds as WebP: 46.9 MB → 4.86 MB, same look
+
+- **Merged [#2348](https://github.com/cperry8800-droid/shape-app/pull/2348) as `f96f341`**, final head `4d004b8`; the merged tree is byte-identical to it. No migration. The owner: *"shrink the live background images too, as long as this doesnt effect the look of these images and fuctionality"*.
+- **What changed:** the eight full-bleed backgrounds the #2346 audit found (`login page 1`, `get started` in `HeroBg`, `Training 2` and `Nutrition 3` on `/trainers` and `/nutritionists`, `Pricing`, `Training 3`, `Nutrition 2`, `Home page 2`) were PNG photos of 5–8 MB each. Each is WebP at quality 95 at its own pixel size, same file stem; the 24 references in 21 files (newdesign, legacy root pages, the two Next directory pages) say `.webp`; the PNGs are gone. All eight were fully opaque with no ICC profile (six an sRGB chunk), so neither colour nor transparency moves.
+- **How "same look" was settled, measured, not assumed:** per image, 43–44 dB PSNR and luminance SSIM 0.973–0.984 against the PNG, and 2× crops of each image's most detailed area keep the grain (quality 85–90 measured lower, so 95 was chosen). Per page, all 19 pages that show one were screenshotted at 1440×900 from a tree with the PNGs restored and from the branch, animations off and the clock pinned: **mean difference ≈ 1/255, max 8, no pixel off by more than 8**; every page loaded the `.webp` with a 200 and `image/webp`. On the Vercel preview, `/trainers` names `/Training 2.webp` and `/login page 1.webp` serves 200 `image/webp`, 121,276 bytes (via the Vercel connector; the container's proxy denies `vercel.app`).
+- **Guard:** `tests/background-images.test.mjs` holds each WebP real and under 1.5 MB, each PNG gone, and every reference in `public/` and `src/` on the WebP (image extensions only, so `/newdesign/Pricing.html` is not a hit). Both regressions were applied by hand and each fails it: a page pointing back at the PNG (a black background, no error anywhere) and a PNG coming back.
+- **Verified:** `tsc` clean; every changed JSX file parses; the 119 suites that read the changed files, 1,727/1,727; committed under the small-commit rule and CI green on the final head (the suite ran 9 minutes, the longest of the day, and passed). Codex reviewed the head with no findings; Copilot declined on its quota.
+- **Written after the merge**, per the 2026-09-11 rule.
+- ⚠ **REGISTERED, NOT DONE:** other images on the site were not surveyed for size; the doc-only images and legacy pages from the #2346 entry stay as registered there.
+
 ### 2026-10-14 — 120 files nothing used, removed (about 19 MB)
 
 - **Merged [#2346](https://github.com/cperry8800-droid/shape-app/pull/2346) as `b6008f3`**, final head `ce11e08`; the merged tree is byte-identical to it. No migration. The owner: *"remove the legacy getapp v2 files"*, *"go remove them"*; then, from an audit of the rest, *"Delete unused files"*.
@@ -856,7 +866,7 @@ Append new entries at the top, under this note.
 - **Verified:** `npm test` 6,931/6,931 through the pre-commit hook on the first commit; on the second, the 36 suites that read images, assets, Get App or the bundle inputs (501/501) and `VITE_BASE=/m/ npm run build`, nothing in its output naming a removed file; CI green on the final head, the Android debug APK included. Codex reviewed both heads with no findings (the second on an explicit `@codex review`); Copilot declined on its quota.
 - **Written after the merge**, per the 2026-09-11 rule.
 - ⚠ **REGISTERED, NOT DONE (from the same audit, not asked for):**
-  - **The one change that would make pages faster:** eight live backgrounds are 5–8 MB PNGs (`login page 1.png` on the login page, `get started.png` in `HeroBg`, `Training 2.png` and `Nutrition 3.png` on `/trainers` and `/nutritionists`, `Pricing.png`, `Training 3.png`, `Nutrition 2.png`, `Home page 2.png`), ~47 MB together; as WebP they measured ~0.5 MB, each to be checked by eye.
+  - ~~**The one change that would make pages faster:** eight live backgrounds are 5–8 MB PNGs (`login page 1.png` on the login page, `get started.png` in `HeroBg`, `Training 2.png` and `Nutrition 3.png` on `/trainers` and `/nutritionists`, `Pricing.png`, `Training 3.png`, `Nutrition 2.png`, `Home page 2.png`), ~47 MB together; as WebP they measured ~0.5 MB, each to be checked by eye.~~ **Done in #2348 (the entry above): 46.9 MB → 4.86 MB, same look.**
   - Images only design notes name (`radio background upscale.jpg` 3 MB, `shape-kitchen-bg.png` 1.3 MB, a few logos), and the legacy pages still reachable by URL (`/mobile`, `Shape Redesign.html`, `index-explorations.html`, `index-print.html`, the pre-redesign root pages), which need a page-by-page review with redirects.
   - `scripts/verify-staged.sh` still skips `chat-design-v2/*`, a no-op now.
 
