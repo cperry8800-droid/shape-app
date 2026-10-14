@@ -95,6 +95,14 @@ const nextConfig: NextConfig = {
         { source, has: [{ type: 'query' as const, key: 'provider', value: '(?<id>\\d+)' }], destination: `/${role}s/:id`, permanent: true },
         { source, destination: '/newdesign/Marketplace.html', permanent: true },
       ])),
+      // The /mobile preview is retired (owner, 2026-10-14: "3. Delete /mobile + explorations"): a
+      // phone-frame copy of the app from before the app had its own build, 102 files that had
+      // drifted from it (69 of the 70 it shared with the website differed). The app itself runs
+      // in a browser at /m/. Its three sign-up pages keep their own redirects above, which come
+      // first; everything else under /mobile lands on the app.
+      { source: '/mobile', destination: '/m/', permanent: true },
+      { source: '/mobile.html', destination: '/m/', permanent: true },
+      { source: '/mobile/:path*', destination: '/m/', permanent: true },
     ];
   },
   async rewrites() {
@@ -114,12 +122,6 @@ const nextConfig: NextConfig = {
       // Each recipe gets its own page: /recipes/<slug> -> RecipeDetail.html,
       // which reads the slug from the path (?r passed for direct access too).
       { source: '/recipes/:slug', destination: '/newdesign/RecipeDetail.html?r=:slug' },
-      // Mobile preview lives at public/mobile/Mobile.html. Give it clean,
-      // lowercase URLs so the mixed-case filename isn't the only way in.
-      { source: '/mobile', destination: '/mobile/Mobile.html' },
-      { source: '/mobile/', destination: '/mobile/Mobile.html' },
-      { source: '/mobile.html', destination: '/mobile/Mobile.html' },
-      { source: '/mobile/mobile.html', destination: '/mobile/Mobile.html' },
     ];
   },
 };

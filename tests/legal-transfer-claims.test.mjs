@@ -114,20 +114,21 @@ test('the claim sweep actually found the known legal surfaces', () => {
         'ban in this file is passing vacuously.'
     );
   }
-  // 150 until 2026-10-14, when 37 old root pages were retired: 139 then (13 root, 74
-  // newdesign, 51 mobile, plus the app module).
-  assert.ok(SURFACES.length >= 125, `expected the full page set, found ${SURFACES.length}`);
+  // 150 until 2026-10-14, when the old root pages and the /mobile preview were retired:
+  // 83 after (13 root, 69 newdesign, plus the app module).
+  assert.ok(SURFACES.length >= 75, `expected the full page set, found ${SURFACES.length}`);
   // ⚠ MEASURED, because the comment this replaced was wrong and so was my first rewrite.
-  // Of the 181 tracked pages, 51 sit directly in `public/` and 130 are nested (76
-  // newdesign, 54 mobile) — so a depth-1 or public+newdesign-only set is 51 or 127 and
-  // the floor above already catches it (after 2026-10-14: 13 or 87, against 125). Naming the cohort adds DIAGNOSIS, not
-  // detection: the failure then says which 54 pages vanished instead of just a count.
-  // (Footgun met while measuring: `git ls-files 'public/*.html'` returns all 181, because
+  // Of the 181 tracked pages then, 51 sat directly in `public/` and 130 were nested (76
+  // newdesign, 54 mobile), and this asserted the mobile cohort so a sweep that stopped
+  // reaching nested directories said which pages vanished. The mobile preview is gone
+  // (2026-10-14), so the nested cohort it names now is newdesign: a depth-1 set is 13 pages,
+  // and the website's own pages would all be outside every ban below.
+  // (Footgun met while measuring: `git ls-files 'public/*.html'` returns every page, because
   // git's fnmatch lets `*` cross `/`. Do not use a pathspec to test depth.)
   assert.ok(
-    files.some((f) => f.startsWith('public/mobile/')),
-    'the sweep found no public/mobile page — the derivation stopped reaching nested ' +
-      'directories, so 54 live pages are outside every ban below.'
+    files.some((f) => f.startsWith('public/newdesign/')),
+    'the sweep found no public/newdesign page — the derivation stopped reaching nested ' +
+      'directories, so the website pages are outside every ban below.'
   );
 });
 

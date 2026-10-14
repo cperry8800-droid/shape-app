@@ -1,5 +1,8 @@
 // The old root site is retired. Owner, 2026-10-14, from the legacy-pages review: "2. Retire old
-// pages w/ redirects", and for the products Shape no longer offers, "Delete, no redirect".
+// pages w/ redirects", and for the products Shape no longer offers, "Delete, no redirect". And
+// "3. Delete /mobile + explorations": the /mobile preview (a phone-frame copy of the app from
+// before it had its own build) now redirects to the app at /m/, and the design explorations
+// (directionA/B/C and their boards) are gone.
 //
 // The root of public/ held a second copy of the site from before the website moved to
 // public/newdesign/: dashboards, a marketplace, coach profiles, sign-up, Score and the Store, each
@@ -72,11 +75,15 @@ async function loadConfig() {
   return { redirects: await mod.default.redirects(), rewrites: await mod.default.rewrites() }
 }
 
-// Next's redirect matching, for the literal sources this config uses: the first rule whose source
-// is the path and whose `has` conditions all hold wins.
+// Next's redirect matching, for the sources this config uses (a literal path, or a prefix ending
+// in `/:path*`, which matches the prefix itself and anything under it): the first rule whose
+// source matches and whose `has` conditions all hold wins.
+const sourceMatches = (source, pathname) => source.endsWith('/:path*')
+  ? pathname === source.slice(0, -7) || pathname.startsWith(source.slice(0, -6))
+  : source === pathname
 function resolve(redirects, pathname, query = {}) {
   for (const r of redirects) {
-    if (r.source !== pathname) continue
+    if (!sourceMatches(r.source, pathname)) continue
     const params = {}
     const ok = (r.has || []).every((h) => {
       if (h.type !== 'query' || query[h.key] === undefined) return false
@@ -97,10 +104,15 @@ test('the old pages, and the scripts and images only they used, are gone', () =>
   for (const f of GONE_ASSETS) assert.equal(existsSync(f), false, `${f} is back`)
 })
 
-test('every redirect source in the config is a literal path, which is what resolve() matches', async () => {
+test('every redirect source in the config is one resolve() models', async () => {
   const { redirects } = await loadConfig()
   assert.ok(redirects.length >= 60, `only ${redirects.length} redirects read; the config was not loaded whole`)
-  for (const r of redirects) assert.doesNotMatch(r.source, /[:*(]/, `${r.source} has a pattern resolve() does not model`)
+  for (const r of redirects) assert.doesNotMatch(r.source.replace(/\/:path\*$/, ''), /[:*(]/, `${r.source} has a pattern resolve() does not model`)
+  // The matcher itself, on the one pattern it allows.
+  assert.equal(sourceMatches('/mobile/:path*', '/mobile'), true)
+  assert.equal(sourceMatches('/mobile/:path*', '/mobile/a/b.html'), true)
+  assert.equal(sourceMatches('/mobile/:path*', '/mobileapp'), false)
+  assert.equal(sourceMatches('/mobile', '/mobile/x'), false)
 })
 
 test('each old address, with or without .html, lands permanently on the page that does its job', async () => {
@@ -375,4 +387,37 @@ test('the marketplace opens the side a link names, by #hash or ?role=', () => {
     'the first render does not read ?role=')
   // The website's own fallback link into the marketplace names the side that way.
   assert.match(readFileSync('src/lib/coach-profile-path.mjs', 'utf8'), /\/newdesign\/Marketplace\.html\?role=\$\{r\}/)
+})
+
+// Part 3: the /mobile preview and the design explorations.
+const GONE_EXPLORATIONS = [
+  'public/newdesign/Shape Redesign.html', 'public/newdesign/Shape Redesign-print.html',
+  'public/newdesign/index-explorations.html', 'public/newdesign/index-print.html',
+  'public/newdesign/directionA.jsx', 'public/newdesign/directionB.jsx', 'public/newdesign/directionC.jsx',
+  'public/newdesign/app.jsx', 'public/newdesign/shared.jsx',
+  // A print view only the /mobile preview's index linked; it mounted a component it never loaded.
+  'public/newdesign/ClientDashboard-print.html',
+  // Images only the explorations and the preview named.
+  'public/Home page 1.png', 'public/Make_the_lines_202604170430 (1).png', 'public/newdesign/home page new.png',
+  'public/shape-logo-new-black.png', 'public/shape-logo-teal-bright.png', 'public/shape-logo-teal-deep.png',
+]
+
+test('the /mobile preview and the design explorations are gone', () => {
+  const tracked = execFileSync('git', ['ls-files', '--', 'public/mobile']).toString().trim()
+  assert.equal(tracked, '', 'files are tracked under public/mobile again')
+  for (const f of GONE_EXPLORATIONS) assert.equal(existsSync(f), false, `${f} is back`)
+})
+
+test('every /mobile address lands on the app, except the sign-up pages, which keep theirs', async () => {
+  const { redirects, rewrites } = await loadConfig()
+  for (const source of ['/mobile', '/mobile.html', '/mobile/', '/mobile/Mobile.html', '/mobile/mobile.html', '/mobile/coach.html', '/mobile/Index.html']) {
+    assert.deepEqual(resolve(redirects, source), { destination: '/m/', permanent: true }, source)
+  }
+  // These three were redirected first (#2317) and still come first.
+  for (const [page, dest] of [['SignupTrainer', 'SignupTrainer'], ['SignupNutritionist', 'SignupNutritionist'], ['SignupClient', 'SignupClient']]) {
+    assert.deepEqual(resolve(redirects, `/mobile/${page}.html`), { destination: `/newdesign/${dest}.html`, permanent: false }, page)
+  }
+  assert.ok(!rewrites.some((r) => r.destination.startsWith('/mobile')), 'a rewrite still serves the /mobile preview')
+  // Not a neighbour of /mobile.
+  assert.equal(resolve(redirects, '/m/'), null)
 })

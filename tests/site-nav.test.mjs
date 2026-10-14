@@ -1124,9 +1124,6 @@ test('no layer that stays on screen floats over the open drawer', () => {
     'pageShell.jsx': 1,
     // Toasts (10000): a few seconds of feedback, meant to be topmost.
     'clientMeSettings.jsx': 1, 'nutritionistGoalPage.jsx': 1, 'trainerGoalPage.jsx': 1,
-    // The retired design-exploration board's tweaks panel and direction
-    // switcher (10000 and 9999), on a page linked from nowhere.
-    'app.jsx': 1, 'index-explorations.html': 1,
   };
   // Counted per FILE, never per line: a line number pins a layout, and this
   // guard must not fail on an edit that moves a toast down the file.
@@ -1296,9 +1293,10 @@ test('every newdesign page carries a nav, and the list is derived', () => {
   }
   // ⚠ NAMED, NOT COUNTED. These are the pages with no nav of any kind, and each
   // is here for a stated reason: `ClientPlaylists.html` is an embedded phone-frame
-  // surface, and `Shape Redesign-print.html` is a print sheet from the design
-  // explorations. A NEW name appearing here is a page that shipped without the
-  // bar — this test should fail rather than quietly absorb it into a count.
-  assert.deepEqual(missing, ['ClientPlaylists.html', 'Shape Redesign-print.html'],
+  // surface. (`Shape Redesign-print.html`, a print sheet from the design explorations,
+  // stood here too until the explorations were deleted on 2026-10-14.) A NEW name
+  // appearing here is a page that shipped without the bar — this test should fail
+  // rather than quietly absorb it into a count.
+  assert.deepEqual(missing, ['ClientPlaylists.html'],
     'a newdesign page carries no nav at all: ' + missing.join(', '));
 });

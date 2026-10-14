@@ -904,7 +904,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Checks: CodeRabbit\'s rounds found 12 issues on #2137 and 10 on #2169, all fixed; Codex caught a stale Save as snapshot on #2169 (fixed in 7bc7e42) and found nothing on #2175. Tests: 4,266 (#2137), 4,743 in CI (#2175)', status: 'done' },
         { label: 'Open (#2140): only five of eleven coach tabs render through the grid: Today, Goal, Score, Business and Clients (still true on main)', status: 'pending' },
         { label: 'Open (#2137 review, not re-measured since): Today\'s schedule card leaves dead space at 1440, the chat bubble overlaps the right rail at 1440×900, and at 1024 the sidebar keeps its full 240px', status: 'pending' },
-        { label: 'Open (#2140): tests/dash-grid-hosts.test.mjs pins ClientDashboard-print.html as mounting a component it never loads, but the page defines ClientDashboardPage inline; a render check should settle whether it is broken', status: 'pending' },
+        { label: 'CLOSED 2026-10-14 (#2140): tests/dash-grid-hosts.test.mjs pinned ClientDashboard-print.html as mounting a component it never loads. The page is deleted: the /mobile preview\'s index was the only thing that linked it, and the preview was retired the same day', status: 'done' },
         { label: 'On-account check (#2137): no real coach has added a widget on their own dashboard and found it on their phone', status: 'manual' },
       ],
     },
