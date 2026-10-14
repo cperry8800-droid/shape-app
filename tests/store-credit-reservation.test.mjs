@@ -162,7 +162,7 @@ async function runCheckout({ reserve, stripeCreate = 'ok' }) {
       ['@/lib/stripe-live-subscription', { hasLiveStripeSubscription: async () => false }],
       ['@/lib/stripe-customer', { stripeCustomerFor: async () => 'cus_stable' }],
       // One-time purchases are not held to the one-open-checkout rule (tests/membership-first.test.mjs).
-      ['@/lib/checkout-barrier', { claimCheckout: async () => async () => {}, currentCheckout: async () => null, isCheckoutInProgress: () => false }],
+      ['@/lib/checkout-barrier', { claimCheckout: async () => ({ confirm: async () => {}, release: async () => {} }), currentCheckout: async () => null, isCheckoutInProgress: () => false, checkoutReturnsKey: () => 'returns-key', CHECKOUT_CREATE_OPTIONS: {} }],
     ]),
   });
   const req = new Request('https://shape.test/api/stripe/checkout-session', {
