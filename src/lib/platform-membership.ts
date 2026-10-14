@@ -13,7 +13,7 @@ import { stripe } from '@/lib/stripe';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { ACTIVE_SUB } from '@/lib/membership-core';
 import { appendParam } from '@/lib/return-path';
-import { checkoutIdempotencyKey, currentCheckout } from '@/lib/checkout-barrier';
+import { claimCheckout, currentCheckout } from '@/lib/checkout-barrier';
 
 /** Where a member lands after joining when nothing asked for somewhere else. */
 export const MEMBERSHIP_HOME = '/newdesign/ClientApp.html#today';
@@ -33,22 +33,26 @@ export async function createPlatformCheckout(opts: {
   cancelPath: string;
 }): Promise<string | null> {
   // One payable membership checkout at a time (checkout-barrier.ts): an open one is handed back.
-  // A Stripe idempotency conflict propagates; callers answer it as checkout_in_progress.
-  const now = Date.now();
-  const open = await currentCheckout(opts.customerId, (s) => s.metadata?.plan === 'shape_platform', now);
-  if (open) return open;
-  const session = await stripe.checkout.sessions.create({
-    mode: 'subscription',
-    line_items: [{ price: opts.priceId, quantity: 1 }],
-    customer: opts.customerId,
-    client_reference_id: opts.userId,
-    metadata: { client_id: opts.userId, plan: 'shape_platform' },
-    subscription_data: { metadata: { client_id: opts.userId, plan: 'shape_platform' } },
-    success_url: membershipReturnUrl(opts.origin, opts.next),
-    cancel_url: `${opts.origin}${opts.cancelPath}`,
-    allow_promotion_codes: true,
-  }, { idempotencyKey: checkoutIdempotencyKey(opts.userId, 'shape_platform', now) });
-  return session.url ?? null;
+  // CheckoutInProgressError propagates; callers answer it as checkout_in_progress.
+  const release = await claimCheckout(opts.userId, 'shape_platform');
+  try {
+    const open = await currentCheckout(opts.customerId, (s) => s.metadata?.plan === 'shape_platform');
+    if (open) return open;
+    const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      line_items: [{ price: opts.priceId, quantity: 1 }],
+      customer: opts.customerId,
+      client_reference_id: opts.userId,
+      metadata: { client_id: opts.userId, plan: 'shape_platform' },
+      subscription_data: { metadata: { client_id: opts.userId, plan: 'shape_platform' } },
+      success_url: membershipReturnUrl(opts.origin, opts.next),
+      cancel_url: `${opts.origin}${opts.cancelPath}`,
+      allow_promotion_codes: true,
+    });
+    return session.url ?? null;
+  } finally {
+    await release();
+  }
 }
 
 /**

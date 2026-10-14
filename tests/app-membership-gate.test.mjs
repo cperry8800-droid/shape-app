@@ -52,8 +52,10 @@ test('the shell uses those rules, asks /api/me/membership, and re-checks when it
   assert.match(main, /localStorage\.setItem\('shape\.memberUid', uid\)/);
   assert.doesNotMatch(main, /fetch\(\s*['"`]\/api\/stripe\/subscription/, 'that read calls coaches and admins inactive and a failure "inactive"');
   assert.match(main, /setPreviewMode\(false\);/, 'a previewer who signs in is not previewing (L2)');
-  // Codex on #2353: a dietitian is a coach (roles.mjs, membership-core.ts) and passes as one.
-  assert.match(main, /const isApprovedCoach = realRole === 'trainer' \|\| realRole === 'nutritionist' \|\| realRole === 'dietitian';/);
+  // Codex on #2353: computeMembership's rule, a coach role (dietitians included) as the primary
+  // role or among roles[], passes as a coach.
+  assert.match(main, /const realRoles = \[realRole, \.\.\.\(Array\.isArray\(authState\?\.profile\?\.roles\) \? authState\.profile\.roles : \[\]\)\];/);
+  assert.match(main, /const isApprovedCoach = realRoles\.some\(\(r\) => r === 'trainer' \|\| r === 'nutritionist' \|\| r === 'dietitian'\);/);
 });
 
 test('one checkout door: the backend posts returnTo, opens the system browser natively, and re-checks on close', () => {
@@ -84,7 +86,11 @@ test('coach checkout in the app: the error carries the route\'s flags, and the m
   assert.match(be, /err\.code = payload\.code \|\| null;\n\s+err\.reason = payload\.reason \|\| null;\n\s+throw err;/);
   const mk = read('mobile-app/src/broadsheet/iosAppBroadsheetMarketplace.jsx');
   assert.match(mk, /if \(error\?\.code === 'membership_required'\) \{\n\s+setAction\(\{\n\s+\.\.\.current,\n\s+join: true,/);
-  assert.match(mk, /if \(current && current\.join\) \{ window\.ShapeMembershipApi\?\.startCheckout\?\.\(\); return; \}/);
+  // Codex on #2353: a failed membership checkout says so on the panel; a member goes back to the coach.
+  assert.match(mk, /try \{ r = await window\.ShapeMembershipApi\?\.startCheckout\?\.\(\); \} finally \{ setCheckoutBusy\(false\); \}\n\s+if \(r && r\.ok\) return;/);
+  assert.match(mk, /if \(r && r\.code === 'already_member' && current\.back\) \{ setAction\(current\.back\); return; \}/);
+  assert.match(mk, /setAction\(\{ \.\.\.current, body: message, cta: tr\('marketplace:listing\.tryAgain'[^)]*\), problem: \{ kind: 'payment', message \} \}\);/);
+  assert.match(mk, /join: true,\n\s+back: current,/);
   assert.match(mk, /cta: tr\('onboarding:paywall\.join', \{ price: '\$5' \}\),/, 'the paywall\'s own translated words');
 });
 

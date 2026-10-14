@@ -10,7 +10,7 @@ import { appendParam, sameOriginPath } from '@/lib/return-path';
 import { ACTIVE_SUB, computeMembership } from '@/lib/membership-core';
 import { hasLiveStripeSubscription } from '@/lib/stripe-live-subscription';
 import { stripeCustomerFor } from '@/lib/stripe-customer';
-import { checkoutIdempotencyKey, currentCheckout, isCheckoutInProgress } from '@/lib/checkout-barrier';
+import { claimCheckout, currentCheckout, isCheckoutInProgress } from '@/lib/checkout-barrier';
 
 export const runtime = 'nodejs';
 
@@ -367,13 +367,14 @@ export async function POST(request: Request) {
   // always covers the coach's cut — no out-of-pocket top-up is ever needed.
   const { applicationFeeCents } = feeSplit(priceCents, chargeCents, feeRate);
 
+  // One payable subscription checkout per account and coach at a time (checkout-barrier.ts):
+  // claimed here, released in the finally below. Subscriptions reserve no store credit.
+  let releaseClaim: (() => Promise<void>) | null = null;
   try {
-    // One payable subscription checkout per account and coach at a time (checkout-barrier.ts):
-    // an open one is handed back. Subscriptions reserve no store credit, so none is held.
-    const now = Date.now();
     if (isSubscription) {
+      releaseClaim = await claimCheckout(user.id, `coach-${providerRole}-${providerId}`);
       const open = await currentCheckout(customerId, (s) => s.mode === 'subscription'
-        && s.metadata?.provider_id === String(providerId) && s.metadata?.provider_role === providerRole, now);
+        && s.metadata?.provider_id === String(providerId) && s.metadata?.provider_role === providerRole);
       if (open) return NextResponse.json({ url: open, creditAppliedCents: 0 });
     }
     const session = await stripe.checkout.sessions.create({
@@ -444,7 +445,7 @@ export async function POST(request: Request) {
       success_url: `${origin}${appendParam(successPath, 'session_id', '{CHECKOUT_SESSION_ID}')}`,
       cancel_url: `${origin}${cancelPath}`,
       allow_promotion_codes: isSubscription,
-    }, isSubscription ? { idempotencyKey: checkoutIdempotencyKey(user.id, `coach-${providerRole}-${providerId}`, now) } : undefined);
+    });
 
     if (!session.url) {
       await releaseReservation();
@@ -455,10 +456,12 @@ export async function POST(request: Request) {
     await releaseReservation();
     if (isCheckoutInProgress(err)) {
       return NextResponse.json(
-        { error: 'A checkout for this coach is already open. Finish it there, or try again in a few minutes.', reason: 'checkout_in_progress' },
+        { error: 'A checkout for this coach is being opened. Try again in a moment.', reason: 'checkout_in_progress' },
         { status: 409 }
       );
     }
     return dbError(err, 'mobile checkout-session', 500, 'Could not start checkout.');
+  } finally {
+    if (releaseClaim) await releaseClaim();
   }
 }

@@ -73,37 +73,70 @@ async function liveSubscriptionLib({ stripeSubs = [], emailSubs = [], stripeThro
   });
 }
 
-// The one-checkout-at-a-time barrier (checkout-barrier.ts) against a scripted Stripe. `open` are
-// the open checkout sessions on the account's own customer; `expired` collects what it expires.
-async function barrierLib({ open = [], expired = [] } = {}) {
+// The claim table (2026-10-14-checkout-claims.sql) as a Map that every request given it shares,
+// with the SQL function's rule: taken when free or older than 60 seconds, released by its token.
+// `hold(product)` is another request holding a live claim.
+function claimsTable() {
+  const claims = new Map();
+  const calls = [];
+  const hold = (product, userId = UID) => claims.set(`${userId}|${product}`, { token: 'another-request', at: Date.now() });
+  const rpc = async (name, { p_user_id, p_product, p_token }) => {
+    calls.push(name);
+    const key = `${p_user_id}|${p_product}`;
+    if (name === 'claim_checkout') {
+      const held = claims.get(key);
+      if (held && Date.now() - held.at < 60_000) return { data: null, error: null };
+      claims.set(key, { token: p_token, at: Date.now() });
+      return { data: true, error: null };
+    }
+    if (name === 'release_checkout') {
+      if (claims.get(key)?.token === p_token) claims.delete(key);
+      return { data: null, error: null };
+    }
+    return { data: null, error: { message: `unexpected rpc ${name}` } };
+  };
+  return { claims, calls, hold, rpc };
+}
+
+// The one-checkout-at-a-time barrier (checkout-barrier.ts) against a scripted Stripe and the claim
+// table. `open` are the open checkout sessions on the account's own customer, listed newest first;
+// the create stubs below add theirs, as Stripe would. `expired` collects what it expires.
+async function barrierLib({ open = [], expired = [], table = claimsTable(), rpcError = null } = {}) {
   const stripe = { checkout: { sessions: {
-    list: async ({ customer, status }) => ({ data: customer === 'cus_stable' && status === 'open' ? open : [] }),
-    expire: async (id) => { expired.push(id); return { id, status: 'expired' }; },
+    list: async ({ customer, status }) => ({ data: customer === 'cus_stable' && status === 'open' ? [...open].reverse().sort((a, b) => b.created - a.created) : [] }),
+    expire: async (id) => { expired.push(id); const i = open.findIndex((x) => x.id === id); if (i >= 0) open.splice(i, 1); return { id, status: 'expired' }; },
   } } };
-  return loadRealModule(join(ROOT, 'src/lib/checkout-barrier.ts'), { typescript: true, registry: new Map([['@/lib/stripe', { stripe }]]) });
+  const admin = { rpc: async (name, args) => (rpcError ? { data: null, error: rpcError } : table.rpc(name, args)) };
+  return loadRealModule(join(ROOT, 'src/lib/checkout-barrier.ts'), {
+    typescript: true,
+    registry: new Map([['@/lib/stripe', { stripe }], ['@/lib/supabase/admin', { createAdminClient: () => admin }]]),
+  });
 }
 
-// A clock pinned 3 minutes into a 10-minute window (18:00–18:10 UTC), so "this window" and "an
-// earlier one" are fixed. `session(id, minutesAgo, metadata)` is an open checkout that old.
-const NOW = Date.UTC(2026, 9, 14, 18, 3, 0);
-const openSession = (id, minutesAgo, metadata, mode = 'subscription') => ({ id, created: NOW / 1000 - minutesAgo * 60, url: `https://checkout.stripe.test/${id}`, mode, metadata });
-async function atNow(fn) {
-  const real = Date.now;
-  Date.now = () => NOW;
-  try { return await fn(); } finally { Date.now = real; }
-}
-const IDEMPOTENCY_CONFLICT = Object.assign(new Error('Keys for idempotent requests can only be used with the same parameters'), { type: 'StripeIdempotencyError', rawType: 'idempotency_error' });
+/** An open checkout `minutesAgo` old. */
+const openSession = (id, minutesAgo, metadata, mode = 'subscription') => ({ id, created: Math.floor(Date.now() / 1000) - minutesAgo * 60, url: `https://checkout.stripe.test/${id}`, mode, metadata });
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/** A scripted sessions.create: records the args, takes `delay` ms, and leaves the session open. */
+const createInto = ({ created, open, prefix, delay = 0, error = null }) => async (args) => {
+  if (error) throw error;
+  created.push(args);
+  const id = `${prefix}${created.length}`;
+  if (delay) await sleep(delay);
+  const session = { id, created: Math.floor(Date.now() / 1000), url: `https://checkout.stripe.test/${id}`, mode: args.mode, metadata: args.metadata };
+  open.push(session);
+  return session;
+};
 
-async function platformMembership({ retrieve = async () => { throw new Error('unexpected retrieve'); }, admin = scripted(), created = [], createdOpts = [], open = [], expired = [], createError = null } = {}) {
+async function platformMembership({ retrieve = async () => { throw new Error('unexpected retrieve'); }, admin = scripted(), created = [], open = [], expired = [], table = claimsTable(), createDelay = 0, createError = null, barrier = null } = {}) {
   const { returnPath, membershipCore } = await baseModules();
   return loadRealModule(join(ROOT, 'src/lib/platform-membership.ts'), {
     typescript: true,
     registry: new Map([
-      ['@/lib/stripe', { stripe: { checkout: { sessions: { create: async (args, opts) => { if (createError) throw createError; created.push(args); createdOpts.push(opts); return { id: 'cs_test_platform1', url: 'https://checkout.stripe.test/cs_test_platform1' }; }, retrieve } } } }],
+      ['@/lib/stripe', { stripe: { checkout: { sessions: { create: createInto({ created, open, prefix: 'cs_test_platform', delay: createDelay, error: createError }), retrieve } } } }],
       ['@/lib/supabase/admin', { createAdminClient: () => admin.client }],
       ['@/lib/membership-core', membershipCore],
       ['@/lib/return-path', returnPath],
-      ['@/lib/checkout-barrier', await barrierLib({ open, expired })],
+      ['@/lib/checkout-barrier', barrier ?? await barrierLib({ open, expired, table })],
     ]),
   });
 }
@@ -118,10 +151,9 @@ test('appendParam puts the parameter in the query, before any fragment, whether 
 });
 
 // ── /api/stripe/checkout-session: coaching needs the membership ─────────────────────────────
-async function runCoachCheckout({ profile = ADULT, platform = [], subscriptions = [], fail = [], errors = {}, body, stripeSubs = [], emailSubs = [], stripeThrows = false, customerFails = false, open = [], createError = null } = {}) {
+async function coachRoute({ profile = ADULT, platform = [], subscriptions = [], fail = [], errors = {}, stripeSubs = [], emailSubs = [], stripeThrows = false, customerFails = false, open = [], table = claimsTable(), rpcError = null, createDelay = 0 } = {}) {
   const { requestUtils, returnPath, membershipCore, platformFee } = await baseModules();
   const created = [];
-  const createdOpts = [];
   const expired = [];
   const caller = scripted({ tables: { profiles: profile ? [profile] : [], platform_subscriptions: platform, subscriptions }, fail, errors });
   const admin = scripted({ tables: { trainers: [{ id: 4, name: 'Coach T', owner_id: '22222222-2222-4222-8222-222222222222', price: 150, session_price: 90, stripe_account_id: 'acct_T', stripe_account_status: 'active', at_capacity: false, capacity_resume_at: null }] } });
@@ -129,7 +161,7 @@ async function runCoachCheckout({ profile = ADULT, platform = [], subscriptions 
     typescript: true,
     registry: new Map([
       ['next/server', nextServer],
-      ['@/lib/stripe', { stripe: { checkout: { sessions: { create: async (args, opts) => { if (createError) throw createError; created.push(args); createdOpts.push(opts); return { id: 'cs_test_coach1', url: 'https://checkout.stripe.test/cs_test_coach1' }; } } } } }],
+      ['@/lib/stripe', { stripe: { checkout: { sessions: { create: createInto({ created, open, prefix: 'cs_test_coach', delay: createDelay }) } } } }],
       ['@/lib/supabase/admin', { createAdminClient: () => admin.client }],
       ['@/lib/capacity', { isEffectivelyAtCapacity: () => false }],
       ['@/lib/waitlist', { resolveRequestClient: async () => ({ user: { id: UID, email: 'm@example.invalid', emailConfirmed: true }, supabase: caller.client }), hasActiveWaitlistInvite: async () => false }],
@@ -140,17 +172,24 @@ async function runCoachCheckout({ profile = ADULT, platform = [], subscriptions 
       ['@/lib/membership-core', membershipCore],
       ['@/lib/stripe-live-subscription', await liveSubscriptionLib({ stripeSubs, emailSubs, stripeThrows })],
       ['@/lib/stripe-customer', { stripeCustomerFor: async () => { if (customerFails) throw new Error('stripe down'); return 'cus_stable'; } }],
-      ['@/lib/checkout-barrier', await barrierLib({ open, expired })],
+      ['@/lib/checkout-barrier', await barrierLib({ open, expired, table, rpcError })],
     ]),
   });
-  const errLog = console.error; console.error = () => {};
-  try {
-    const res = await atNow(() => route.POST(new Request('https://shape.test/api/stripe/checkout-session', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body ?? { item: { type: 'Subscription', name: 'Monthly coaching' }, coach: { provider_id: 4, provider_role: 'trainer' } }),
-    })));
-    return { status: res.status, body: await res.json(), created, createdOpts, expired };
-  } finally { console.error = errLog; }
+  const post = async (body) => {
+    const errLog = console.error; console.error = () => {};
+    try {
+      const res = await route.POST(new Request('https://shape.test/api/stripe/checkout-session', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body ?? { item: { type: 'Subscription', name: 'Monthly coaching' }, coach: { provider_id: 4, provider_role: 'trainer' } }),
+      }));
+      return { status: res.status, body: await res.json(), created, expired, table };
+    } finally { console.error = errLog; }
+  };
+  return { post, created, expired, table };
+}
+
+async function runCoachCheckout({ body, ...opts } = {}) {
+  return (await coachRoute(opts)).post(body);
 }
 
 test('coach checkout: a signed-in account without the membership is refused with the gate\'s own code, and no payment starts', async () => {
@@ -203,13 +242,13 @@ test('coach checkout: the success URL keeps the return page\'s own query', async
 });
 
 // ── /api/stripe/platform-checkout: one membership, and back to where they started ───────────
-async function runPlatformCheckout({ signedIn = true, profile = ADULT, platform = [], fail = [], errors = {}, body = {}, stripeSubs = [], email = 'm@example.invalid', open = [], createError = null } = {}) {
+async function runPlatformCheckout({ signedIn = true, profile = ADULT, platform = [], fail = [], errors = {}, body = {}, stripeSubs = [], email = 'm@example.invalid', open = [], table = claimsTable(), rpcError = null } = {}) {
   const { requestUtils, returnPath, membershipCore } = await baseModules();
   const created = [];
-  const createdOpts = [];
   const expired = [];
+  const barrier = await barrierLib({ open, expired, table, rpcError });
   const caller = scripted({ tables: { profiles: profile ? [profile] : [], platform_subscriptions: platform }, fail, errors });
-  const pm = await platformMembership({ created, createdOpts, open, expired, createError });
+  const pm = await platformMembership({ created, open, barrier });
   const route = await loadRealModule(join(ROOT, 'src/app/api/stripe/platform-checkout/route.ts'), {
     typescript: true,
     registry: new Map([
@@ -222,13 +261,13 @@ async function runPlatformCheckout({ signedIn = true, profile = ADULT, platform 
       ['@/lib/request-utils', requestUtils],
       ['@/lib/stripe-live-subscription', await liveSubscriptionLib({ stripeSubs })],
       ['@/lib/stripe-customer', { stripeCustomerFor: async () => 'cus_stable' }],
-      ['@/lib/checkout-barrier', await barrierLib()],
+      ['@/lib/checkout-barrier', barrier],
     ]),
   });
   const errLog = console.error; console.error = () => {};
   try {
-    const res = await atNow(() => route.POST(new Request('https://shape.test/api/stripe/platform-checkout', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })));
-    return { status: res.status, body: await res.json(), created, createdOpts, expired };
+    const res = await route.POST(new Request('https://shape.test/api/stripe/platform-checkout', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }));
+    return { status: res.status, body: await res.json(), created, expired, table };
   } finally { console.error = errLog; }
 }
 
@@ -392,36 +431,69 @@ test('a phone sign-up (no email) is still checked at Stripe, through its own cus
   assert.equal(r.status, 409, 'paid a moment ago, no email on the account: still one membership');
 });
 
-// ── Codex on #2353, round 3: two presses opened two payable checkouts ───────────────────────
-test('checkout barrier: one idempotency key per account, product and 10-minute window', async () => {
-  const { checkoutIdempotencyKey } = await barrierLib();
-  const key = checkoutIdempotencyKey(UID, 'shape_platform', NOW);
-  assert.equal(checkoutIdempotencyKey(UID, 'shape_platform', NOW + 6 * 60_000), key, 'a double press, or one six minutes later, is the same request');
-  assert.notEqual(checkoutIdempotencyKey(UID, 'shape_platform', NOW + 7 * 60_000), key, 'the next window is a new request');
-  assert.notEqual(checkoutIdempotencyKey(UID, 'coach-trainer-4', NOW), key, 'another product');
-  assert.notEqual(checkoutIdempotencyKey('22222222-2222-4222-8222-222222222222', 'shape_platform', NOW), key, 'another account');
-});
-
-test('checkout barrier: this window\'s open checkout is handed back; an older one for the same product is expired; others are left alone', async () => {
-  const expired = [];
-  const lib = await barrierLib({ expired, open: [
-    openSession('cs_coach_now', 1, { provider_id: '4', provider_role: 'trainer' }),
-    openSession('cs_member_now', 2, { plan: 'shape_platform' }),
-    openSession('cs_member_old', 30, { plan: 'shape_platform' }),
-    openSession('cs_coach_old', 30, { provider_id: '4', provider_role: 'trainer' }),
-  ] });
-  const member = (s) => s.metadata?.plan === 'shape_platform';
-  assert.equal(await lib.currentCheckout('cus_stable', member, NOW), 'https://checkout.stripe.test/cs_member_now');
-  assert.deepEqual(expired, ['cs_member_old'], 'the abandoned tab can no longer be paid; the coach checkouts are another product');
-  assert.equal(await lib.currentCheckout('cus_other', member, NOW), null, 'another customer\'s checkouts are not this account\'s');
-  assert.equal(lib.isCheckoutInProgress(IDEMPOTENCY_CONFLICT), true);
+// ── Codex on #2353, rounds 3 and 4: two presses opened two payable checkouts ───────────────
+test('checkout barrier: one claim per account and product, released by its holder; an unreadable claim refuses', async () => {
+  const table = claimsTable();
+  const lib = await barrierLib({ table });
+  const release = await lib.claimCheckout(UID, 'shape_platform');
+  assert.ok(table.claims.has(`${UID}|shape_platform`));
+  await (await lib.claimCheckout(UID, 'coach-trainer-4'))();
+  await (await lib.claimCheckout('22222222-2222-4222-8222-222222222222', 'shape_platform'))();
+  await release();
+  assert.equal(table.claims.size, 0, 'released, and only by its holder');
+  await (await lib.claimCheckout(UID, 'shape_platform'))();
+  const down = await barrierLib({ rpcError: { message: 'connection reset' } });
+  await assert.rejects(down.claimCheckout(UID, 'shape_platform'), { message: 'connection reset' }, 'no claim, no checkout');
+  assert.equal(lib.isCheckoutInProgress(new lib.CheckoutInProgressError()), true);
+  assert.equal(lib.isCheckoutInProgress(Object.assign(new Error('x'), { code: 'checkout_in_progress' })), true, 'by its code, whichever bundle threw it');
   assert.equal(lib.isCheckoutInProgress(new Error('card declined')), false);
 });
 
-test('membership checkout: a second press reopens the checkout already open, and a clash says so', async () => {
-  const first = await runPlatformCheckout();
-  assert.equal(first.status, 200);
-  assert.equal(first.createdOpts[0].idempotencyKey, `checkout-shape_platform-${UID}-${Math.floor(NOW / 600_000)}`, 'Stripe sees a double press as one request');
+test('checkout barrier: the newest open checkout for the product is handed back while fresh; every other is expired; other products are left alone', async () => {
+  const expired = [];
+  const open = [
+    openSession('cs_member_old', 30, { plan: 'shape_platform' }),
+    openSession('cs_coach_old', 30, { provider_id: '4', provider_role: 'trainer' }),
+    openSession('cs_member_earlier', 5, { plan: 'shape_platform' }),
+    openSession('cs_member_now', 2, { plan: 'shape_platform' }),
+    openSession('cs_coach_now', 1, { provider_id: '4', provider_role: 'trainer' }),
+  ];
+  const lib = await barrierLib({ open, expired });
+  const member = (x) => x.metadata?.plan === 'shape_platform';
+  assert.equal(await lib.currentCheckout('cus_stable', member), 'https://checkout.stripe.test/cs_member_now');
+  assert.deepEqual(expired.sort(), ['cs_member_earlier', 'cs_member_old'], 'one payable membership checkout is left; the coach ones are another product');
+  assert.equal(await lib.currentCheckout('cus_other', member), null, 'another customer\'s checkouts are not this account\'s');
+  const staleOnly = await barrierLib({ open: [openSession('cs_member_old', 11, { plan: 'shape_platform' })], expired: [] });
+  assert.equal(await staleOnly.currentCheckout('cus_stable', member), null, 'ten minutes on, a new checkout is made');
+});
+
+test('two Join presses at once make one checkout, and both are handed it', async () => {
+  const created = [];
+  const table = claimsTable();
+  const pm = await platformMembership({ created, table, createDelay: 50 });
+  const start = () => pm.createPlatformCheckout({ priceId: 'price_platform_test', userId: UID, customerId: 'cus_stable', origin: 'https://shape.test', next: HOME, cancelPath: '/newdesign/Pricing.html' });
+  const [a, b] = await Promise.all([start(), start()]);
+  assert.equal(created.length, 1, 'Codex on #2353: the second waited for the first, then found its checkout');
+  assert.equal(a, 'https://checkout.stripe.test/cs_test_platform1');
+  assert.equal(b, a);
+  assert.equal(table.claims.size, 0, 'both released');
+  const failing = claimsTable();
+  const broken = await platformMembership({ table: failing, createError: new Error('stripe down') });
+  await assert.rejects(broken.createPlatformCheckout({ priceId: 'p', userId: UID, customerId: 'cus_stable', origin: 'https://shape.test', next: HOME, cancelPath: '/' }), /stripe down/);
+  assert.equal(failing.claims.size, 0, 'a failed create releases the claim, so the next press is not held up');
+});
+
+test('two Subscribe presses at once make one checkout for the coach, and both are handed it', async () => {
+  const coach = await coachRoute({ platform: [{ status: 'active' }], createDelay: 50 });
+  const [a, b] = await Promise.all([coach.post(), coach.post()]);
+  assert.equal(a.status, 200);
+  assert.equal(b.status, 200);
+  assert.equal(coach.created.length, 1);
+  assert.equal(b.body.url, a.body.url);
+  assert.equal(coach.table.claims.size, 0);
+});
+
+test('membership checkout: a second press reopens the checkout already open; a stale one is replaced', async () => {
   const again = await runPlatformCheckout({ body: { returnTo: '/newdesign/MemberProfile.html?u=abc' }, open: [openSession('cs_member_now', 2, { client_id: UID, plan: 'shape_platform' })] });
   assert.equal(again.status, 200);
   assert.equal(again.body.url, 'https://checkout.stripe.test/cs_member_now', 'from another page: the same checkout, not a second payable one');
@@ -429,15 +501,12 @@ test('membership checkout: a second press reopens the checkout already open, and
   const stale = await runPlatformCheckout({ open: [openSession('cs_member_old', 30, { client_id: UID, plan: 'shape_platform' })] });
   assert.deepEqual(stale.expired, ['cs_member_old']);
   assert.equal(stale.created.length, 1, 'then a fresh one');
-  const clash = await runPlatformCheckout({ createError: IDEMPOTENCY_CONFLICT });
-  assert.equal(clash.status, 409);
-  assert.equal(clash.body.code, 'checkout_in_progress');
+  const down = await runPlatformCheckout({ rpcError: { message: 'connection reset' } });
+  assert.equal(down.status, 500);
+  assert.equal(down.created.length, 0, 'no claim, no checkout');
 });
 
-test('coach checkout: a second press reopens the checkout already open for this coach, and a clash says so', async () => {
-  const first = await runCoachCheckout({ platform: [{ status: 'active' }] });
-  assert.equal(first.status, 200);
-  assert.equal(first.createdOpts[0].idempotencyKey, `checkout-coach-trainer-4-${UID}-${Math.floor(NOW / 600_000)}`);
+test('coach checkout: a second press reopens the checkout already open for this coach; one-time purchases are not held to it', async () => {
   const again = await runCoachCheckout({ platform: [{ status: 'active' }], open: [openSession('cs_coach_now', 1, { client_id: UID, provider_id: '4', provider_role: 'trainer' })] });
   assert.equal(again.status, 200);
   assert.equal(again.body.url, 'https://checkout.stripe.test/cs_coach_now');
@@ -447,15 +516,30 @@ test('coach checkout: a second press reopens the checkout already open for this 
   const stale = await runCoachCheckout({ platform: [{ status: 'active' }], open: [openSession('cs_coach_old', 30, { client_id: UID, provider_id: '4', provider_role: 'trainer' })] });
   assert.deepEqual(stale.expired, ['cs_coach_old']);
   assert.equal(stale.created.length, 1);
-  const clash = await runCoachCheckout({ platform: [{ status: 'active' }], createError: IDEMPOTENCY_CONFLICT });
-  assert.equal(clash.status, 409);
-  assert.equal(clash.body.reason, 'checkout_in_progress');
   const oneTime = await runCoachCheckout({ platform: [{ status: 'active' }], body: { item: { type: 'booking', name: 'Session' }, coach: { provider_id: 4, provider_role: 'trainer' } }, open: [openSession('cs_coach_now', 1, { client_id: UID, provider_id: '4', provider_role: 'trainer' })] });
-  assert.equal(oneTime.created.length, 1, 'a one-time purchase is not held to it');
-  assert.equal(oneTime.createdOpts[0], undefined);
+  assert.equal(oneTime.created.length, 1);
+  assert.deepEqual(oneTime.table.calls, [], 'no claim taken');
 });
 
-// stripeCustomerFor, against a scripted admin client and Stripe.
+test('a claim another request keeps holding is waited for, then refused as checkout_in_progress, in every caller', async () => {
+  const heldTable = (product) => { const t = claimsTable(); t.hold(product); return t; };
+  const lib = await barrierLib({ table: heldTable('shape_platform') });
+  const [direct, member, coach, detour] = await Promise.all([
+    lib.claimCheckout(UID, 'shape_platform').then(() => null, (e) => e),
+    runPlatformCheckout({ table: heldTable('shape_platform') }),
+    runCoachCheckout({ platform: [{ status: 'active' }], table: heldTable('coach-trainer-4') }),
+    runDetour({ table: heldTable('shape_platform') }),
+  ]);
+  assert.equal(lib.isCheckoutInProgress(direct), true);
+  assert.equal(member.status, 409);
+  assert.equal(member.body.code, 'checkout_in_progress');
+  assert.equal(member.created.length, 0);
+  assert.equal(coach.status, 409);
+  assert.equal(coach.body.reason, 'checkout_in_progress');
+  assert.equal(coach.created.length, 0);
+  assert.equal(detour.out, '/newdesign/MemberProfile.html?u=abc&error=checkout_in_progress');
+});
+
 async function runCustomerFor({ stored = null, afterUpdate = undefined, updateError = null } = {}) {
   const calls = { creates: [], updates: [] };
   let value = stored;
@@ -493,10 +577,11 @@ test('stripeCustomerFor: one customer per account, made once, never replaced', a
 });
 
 // membershipDetour, the server actions' rule.
-async function runDetour({ profile = ADULT, platform = [], errors = {}, stripeSubs = [], noPrice = false, createError = null } = {}) {
+async function runDetour({ profile = ADULT, platform = [], errors = {}, stripeSubs = [], noPrice = false, table = claimsTable() } = {}) {
   const { membershipCore, returnPath } = await baseModules();
   const created = [];
-  const pm = await platformMembership({ created, createError });
+  const barrier = await barrierLib({ table });
+  const pm = await platformMembership({ created, barrier });
   const caller = scripted({ tables: { profiles: profile ? [profile] : [], platform_subscriptions: platform }, errors });
   const lib = await loadRealModule(join(ROOT, 'src/lib/membership-detour.ts'), {
     typescript: true,
@@ -505,7 +590,7 @@ async function runDetour({ profile = ADULT, platform = [], errors = {}, stripeSu
       ['@/lib/platform-membership', pm],
       ['@/lib/stripe-customer', { stripeCustomerFor: async () => 'cus_stable' }],
       ['@/lib/stripe-live-subscription', await liveSubscriptionLib({ stripeSubs })],
-      ['@/lib/checkout-barrier', await barrierLib()],
+      ['@/lib/checkout-barrier', barrier],
     ]),
   });
   const saved = process.env.STRIPE_PLATFORM_PRICE_ID;
@@ -529,7 +614,6 @@ test('membershipDetour: a member goes on; anyone else is sent to the $5 checkout
   assert.equal(paid.out, '/newdesign/MemberProfile.html?u=abc&member=pending', 'Codex on #2353: paid a moment ago, no second membership');
   assert.equal(paid.created.length, 0);
   assert.equal((await runDetour({ noPrice: true })).out, '/newdesign/MemberProfile.html?u=abc&error=membership_required');
-  assert.equal((await runDetour({ createError: IDEMPOTENCY_CONFLICT })).out, '/newdesign/MemberProfile.html?u=abc&error=checkout_in_progress', 'a checkout opened a moment ago from elsewhere');
 });
 
 test('membership checkout: a membership Stripe already holds blocks a second one', async () => {
@@ -593,11 +677,13 @@ test('the server-action checkouts (/subscribe and /purchase) take the detour, ou
   }
   const subscribe = read('src/app/subscribe/actions.ts');
   assert.match(subscribe, /redirect\(`\$\{backHref\}&error=already_subscribed`\);/);
-  // Codex on #2353, round 3: the open checkout is handed back before a product or price is made,
-  // and the product, price and session share the window's key.
-  assert.match(subscribe, /\n  if \(open\) redirect\(open\);\n/, 'outside any try');
-  assert.ok(subscribe.indexOf('if (open) redirect(open);') < subscribe.indexOf('priceResult = await getProviderConnectInfo('), 'before anything is created');
-  assert.match(subscribe, /getProviderConnectInfo\(providerRole, providerId, allowAtCapacity, checkoutKey\)/);
-  assert.match(subscribe, /\}, \{ idempotencyKey: checkoutKey \}\);/);
-  assert.equal((subscribe.match(/if \(isCheckoutInProgress\(e\)\) redirect\(`\$\{backHref\}&error=checkout_in_progress`\);/g) ?? []).length, 2);
+  // Codex on #2353, rounds 3 and 4: claimed first, the open checkout handed back before a product
+  // or price is made, and the claim released in a finally (which passes redirect()'s throw on).
+  const at = (needle) => { const i = subscribe.indexOf(needle); assert.ok(i >= 0, needle); return i; };
+  assert.ok(at('releaseClaim = await claimCheckout(user.id, `coach-${providerRole}-${providerId}`);') < at('open = await currentCheckout(customerId,'));
+  assert.ok(at('open = await currentCheckout(customerId,') < at('if (open) redirect(open);'));
+  assert.ok(at('if (open) redirect(open);') < at('priceResult = await getProviderConnectInfo('));
+  assert.match(subscribe, /if \(isCheckoutInProgress\(e\)\) redirect\(`\$\{backHref\}&error=checkout_in_progress`\);/);
+  assert.match(subscribe, /redirect\(session\.url\);\n  \} finally \{\n    await releaseClaim\(\);\n  \}/);
+  assert.doesNotMatch(subscribe, /idempotencyKey/, 'the claim replaced the 10-minute keys');
 });

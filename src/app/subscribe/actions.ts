@@ -27,17 +27,14 @@ import { ACTIVE_SUB } from '@/lib/membership-core';
 import { membershipDetour } from '@/lib/membership-detour';
 import { stripeCustomerFor } from '@/lib/stripe-customer';
 import { hasLiveStripeSubscription } from '@/lib/stripe-live-subscription';
-import { checkoutIdempotencyKey, currentCheckout, isCheckoutInProgress } from '@/lib/checkout-barrier';
+import { claimCheckout, currentCheckout, isCheckoutInProgress } from '@/lib/checkout-barrier';
 
 type ProviderRole = 'trainer' | 'nutritionist';
 
 async function getProviderConnectInfo(
   providerRole: ProviderRole,
   providerId: number,
-  allowAtCapacity = false,
-  // One checkout per account and coach at a time (checkout-barrier.ts): the product, price and
-  // session of a double press share idempotency keys, so Stripe hands back the same ones.
-  idempotencyKey?: string
+  allowAtCapacity = false
 ): Promise<
   | { priceId: string; priceCents: number; stripeAccountId: string }
   | { error: string }
@@ -71,14 +68,14 @@ async function getProviderConnectInfo(
   const product = await stripe.products.create({
     name: `${provider.name} — ${providerRole} subscription`,
     metadata: { provider_id: String(provider.id), provider_role: providerRole },
-  }, idempotencyKey ? { idempotencyKey: `${idempotencyKey}-product` } : undefined);
+  });
   const price = await stripe.prices.create({
     product: product.id,
     currency: 'usd',
     unit_amount: priceCents,
     recurring: { interval: 'month' },
     metadata: { provider_id: String(provider.id), provider_role: providerRole },
-  }, idempotencyKey ? { idempotencyKey: `${idempotencyKey}-price` } : undefined);
+  });
 
   return {
     priceId: price.id,
@@ -161,87 +158,97 @@ export async function startCheckout(formData: FormData): Promise<void> {
     redirect(`${backHref}&error=waitlist_check_failed`);
   }
 
-  // One payable checkout per account and coach at a time (checkout-barrier.ts): an open one is
-  // handed back before anything is created for a second.
-  const now = Date.now();
-  let open: string | null = null;
+  // One payable checkout per account and coach at a time (checkout-barrier.ts): claimed before
+  // anything is looked for or created, and released in the finally, which passes redirect()'s
+  // throw on.
+  let releaseClaim: () => Promise<void>;
   try {
-    open = await currentCheckout(customerId, (s) => s.mode === 'subscription'
-      && s.metadata?.provider_id === String(providerId) && s.metadata?.provider_role === providerRole, now);
-  } catch (e) {
-    console.error('[subscribe] open checkout lookup failed', e);
-    redirect(`${backHref}&error=checkout_failed`);
-  }
-  if (open) redirect(open);
-
-  const checkoutKey = checkoutIdempotencyKey(user.id, `coach-${providerRole}-${providerId}`, now);
-  let priceResult;
-  try {
-    priceResult = await getProviderConnectInfo(providerRole, providerId, allowAtCapacity, checkoutKey);
+    releaseClaim = await claimCheckout(user.id, `coach-${providerRole}-${providerId}`);
   } catch (e) {
     if (isCheckoutInProgress(e)) redirect(`${backHref}&error=checkout_in_progress`);
-    const msg = e instanceof Error ? e.message : String(e);
-    redirect(`${backHref}&error=${encodeURIComponent(`stripe_setup: ${msg}`.slice(0, 300))}`);
+    console.error('[subscribe] checkout claim failed', e);
+    redirect(`${backHref}&error=checkout_failed`);
   }
-  if ('error' in priceResult) {
-    redirect(`${backHref}&error=${encodeURIComponent(priceResult.error)}`);
-  }
-
-  // BYO commission split: resolve WHY this checkout exists → the resolved fee.
-  // A client the coach brought (an already-bound referral) pays 0%; a marketplace
-  // client pays 15%. Fail-closed to marketplace / 1500 inside the resolver.
-  const { origin: coachOrigin, feeBps, referralId } = await resolveCoachCheckoutOrigin({
-    caller: supabase,
-    providerRole,
-    providerId,
-    ref,
-  });
-
-  // Shape takes the RESOLVED application fee on the coach charge; the rest
-  // settles into the provider's connected Stripe account.
-  let session;
   try {
-    session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
-      line_items: [{ price: priceResult.priceId, quantity: 1 }],
-      customer: customerId,
-      client_reference_id: user.id,
-      metadata: {
-        client_id: user.id,
-        provider_id: String(providerId),
-        provider_role: providerRole,
-        price_cents: String(priceResult.priceCents),
-        origin: coachOrigin,
-        fee_bps: String(feeBps),
-        ...(referralId ? { referral_id: referralId } : {}),
-      },
-      subscription_data: {
-        // Stripe requires the application fee to be positive-or-absent: a 0%
-        // (BYO) fee OMITS the field — the full charge transfers to the coach and
-        // Shape absorbs Stripe's processing (the spec's deliberate subsidy).
-        ...(feeBps > 0 ? { application_fee_percent: bpsToPercent(feeBps) } : {}),
-        transfer_data: { destination: priceResult.stripeAccountId },
+    // An open checkout for this coach is handed back before anything is created for a second.
+    let open: string | null = null;
+    try {
+      open = await currentCheckout(customerId, (s) => s.mode === 'subscription'
+        && s.metadata?.provider_id === String(providerId) && s.metadata?.provider_role === providerRole);
+    } catch (e) {
+      console.error('[subscribe] open checkout lookup failed', e);
+      redirect(`${backHref}&error=checkout_failed`);
+    }
+    if (open) redirect(open);
+
+    let priceResult;
+    try {
+      priceResult = await getProviderConnectInfo(providerRole, providerId, allowAtCapacity);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      redirect(`${backHref}&error=${encodeURIComponent(`stripe_setup: ${msg}`.slice(0, 300))}`);
+    }
+    if ('error' in priceResult) {
+      redirect(`${backHref}&error=${encodeURIComponent(priceResult.error)}`);
+    }
+
+    // BYO commission split: resolve WHY this checkout exists → the resolved fee.
+    // A client the coach brought (an already-bound referral) pays 0%; a marketplace
+    // client pays 15%. Fail-closed to marketplace / 1500 inside the resolver.
+    const { origin: coachOrigin, feeBps, referralId } = await resolveCoachCheckoutOrigin({
+      caller: supabase,
+      providerRole,
+      providerId,
+      ref,
+    });
+
+    // Shape takes the RESOLVED application fee on the coach charge; the rest
+    // settles into the provider's connected Stripe account.
+    let session;
+    try {
+      session = await stripe.checkout.sessions.create({
+        mode: 'subscription',
+        line_items: [{ price: priceResult.priceId, quantity: 1 }],
+        customer: customerId,
+        client_reference_id: user.id,
         metadata: {
           client_id: user.id,
           provider_id: String(providerId),
           provider_role: providerRole,
+          price_cents: String(priceResult.priceCents),
+          origin: coachOrigin,
+          fee_bps: String(feeBps),
+          ...(referralId ? { referral_id: referralId } : {}),
         },
-      },
-      success_url: `${siteOrigin}/subscribe/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${siteOrigin}${backHref}&error=subscribe_cancelled`,
-      allow_promotion_codes: true,
-    }, { idempotencyKey: checkoutKey });
-  } catch (e) {
-    if (isCheckoutInProgress(e)) redirect(`${backHref}&error=checkout_in_progress`);
-    const msg = e instanceof Error ? e.message : String(e);
-    redirect(`${backHref}&error=${encodeURIComponent(`stripe: ${msg}`.slice(0, 300))}`);
-  }
+        subscription_data: {
+          // Stripe requires the application fee to be positive-or-absent: a 0%
+          // (BYO) fee OMITS the field — the full charge transfers to the coach and
+          // Shape absorbs Stripe's processing (the spec's deliberate subsidy).
+          ...(feeBps > 0 ? { application_fee_percent: bpsToPercent(feeBps) } : {}),
+          transfer_data: { destination: priceResult.stripeAccountId },
+          metadata: {
+            client_id: user.id,
+            provider_id: String(providerId),
+            provider_role: providerRole,
+          },
+        },
+        success_url: `${siteOrigin}/subscribe/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${siteOrigin}${backHref}&error=subscribe_cancelled`,
+        allow_promotion_codes: true,
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      redirect(`${backHref}&error=${encodeURIComponent(`stripe: ${msg}`.slice(0, 300))}`);
+    }
 
-  if (!session.url) {
-    redirect(`${backHref}&error=checkout_failed`);
-  }
+    if (!session.url) {
+      redirect(`${backHref}&error=checkout_failed`);
+    }
 
-  redirect(session.url);
+    redirect(session.url);
+  } finally {
+    await releaseClaim();
+  }
 }
 
 export async function cancelSubscription(formData: FormData): Promise<void> {

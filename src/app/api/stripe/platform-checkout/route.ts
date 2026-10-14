@@ -89,7 +89,7 @@ export async function POST(request: Request) {
   } catch (err) {
     if (isCheckoutInProgress(err)) {
       return NextResponse.json(
-        { error: 'A membership checkout is already open. Finish it there, or try again in a few minutes.', code: 'checkout_in_progress' },
+        { error: 'A membership checkout is being opened. Try again in a moment.', code: 'checkout_in_progress' },
         { status: 409 }
       );
     }
