@@ -49,8 +49,8 @@ const REDIRECTED = {
 const HTML_ONLY = {
   index: '/',
   login: '/newdesign/Login.html',
-  trainers: '/newdesign/Marketplace.html',
-  nutritionists: '/newdesign/Marketplace.html',
+  trainers: '/newdesign/Marketplace.html#trainers',
+  nutritionists: '/newdesign/Marketplace.html#nutritionists',
 }
 const NO_REDIRECT = ['gyms', 'for-gyms', 'for-gym-owners', 'gym-dashboard', 'signup-gym', 'ai-trainers', 'integrations', 'signup-radio']
 const PROFILES = ['trainer-profile', 'nutritionist-profile']
@@ -345,4 +345,34 @@ test('an old dashboard tab that is a page now, not a route, opens that page', as
   for (const [shell, hash] of [['TrainerApp.html', '#clients'], ['TrainerApp.html', ''], ['ClientApp.html', '#messages'], ['NutritionistApp.html', '#constructor']]) {
     assert.equal(forward(shell, hash), null, `${shell}${hash} forwards`)
   }
+})
+
+test("the website's sign-up honours a safe ?next=, as the retired signup-client.html did", () => {
+  // Codex on #2352: /signup-client.html?next=/pricing keeps its query through the redirect, and
+  // the replacement always went to the dashboard. The check is login.jsx's.
+  const src = readFileSync('public/newdesign/signup.jsx', 'utf8')
+  const at = src.indexOf('function suSafeNext()')
+  assert.ok(at >= 0, 'suSafeNext() is gone')
+  const body = src.slice(at, src.indexOf('\n}', at) + 2)
+  const run = (search) => new Function('window', `${body}; return suSafeNext();`)({ location: { search } })
+  assert.equal(run('?next=/pricing'), '/pricing')
+  assert.equal(run('?next=%2Fnewdesign%2FPricing.html%3Fplan%3Dpro'), '/newdesign/Pricing.html?plan=pro')
+  for (const bad of ['?next=//evil.example', '?next=/\\evil.example', '?next=https://evil.example', '?next=pricing', '?next=/a%0Ab', '', '?other=1']) {
+    assert.equal(run(bad), null, `${bad} was accepted`)
+  }
+  assert.match(src, /window\.location\.href = suSafeNext\(\) \|\| "ClientDashboard\.html";/, 'the member sign-up does not use it')
+})
+
+test('the marketplace opens the side a link names, by #hash or ?role=', () => {
+  const src = readFileSync('public/newdesign/marketplace.jsx', 'utf8')
+  const at = src.indexOf('function mkTabFromHash(')
+  const mkTabFromHash = new Function(`${src.slice(at, src.indexOf('\n}', at) + 2)}; return mkTabFromHash;`)()
+  assert.equal(mkTabFromHash('#nutritionists'), 'Nutritionist')
+  assert.equal(mkTabFromHash('nutritionist'), 'Nutritionist', 'a ?role= value')
+  assert.equal(mkTabFromHash('trainer'), 'Trainer')
+  assert.equal(mkTabFromHash(null), null)
+  assert.match(src, /mkTabFromHash\(window\.location\.hash\)\s*\|\| mkTabFromHash\(new URLSearchParams\(window\.location\.search\)\.get\("role"\)\)/,
+    'the first render does not read ?role=')
+  // The website's own fallback link into the marketplace names the side that way.
+  assert.match(readFileSync('src/lib/coach-profile-path.mjs', 'utf8'), /\/newdesign\/Marketplace\.html\?role=\$\{r\}/)
 })

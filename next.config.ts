@@ -86,8 +86,9 @@ const nextConfig: NextConfig = {
       ]),
       { source: '/index.html', destination: '/', permanent: true },
       { source: '/login.html', destination: '/newdesign/Login.html', permanent: true },
-      { source: '/trainers.html', destination: '/newdesign/Marketplace.html', permanent: true },
-      { source: '/nutritionists.html', destination: '/newdesign/Marketplace.html', permanent: true },
+      // On the matching side of the marketplace (it reads #trainers / #nutritionists).
+      { source: '/trainers.html', destination: '/newdesign/Marketplace.html#trainers', permanent: true },
+      { source: '/nutritionists.html', destination: '/newdesign/Marketplace.html#nutritionists', permanent: true },
       ...['trainer', 'nutritionist'].flatMap((role) => [`/${role}-profile`, `/${role}-profile.html`].flatMap((source) => [
         { source, has: [{ type: 'query' as const, key: 'id', value: '(?<id>\\d+)' }], destination: `/${role}s/:id`, permanent: true },
         // The old pages also took the listing as ?provider= (`params.get('id') || params.get('provider')`).

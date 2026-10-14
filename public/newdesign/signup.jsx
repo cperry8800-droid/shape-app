@@ -105,6 +105,17 @@ function applicationDocs(v) {
 // has no field for any of them either).
 const SIGNUP_NORA_NEVER = ["password", "tos", "waiver", "verify", "conduct", "bgcheck", "attest", "docs", "resumeFile", "credentialFile", "insuranceFile", "licenses"];
 
+// A same-site return path from ?next= (the retired signup-client.html honoured it, and its old
+// links redirect here with the query; Codex on #2352), checked as login.jsx checks it: one leading
+// slash, no second slash or backslash after it, no control characters.
+function suSafeNext() {
+  try {
+    const next = new URLSearchParams(window.location.search).get("next");
+    if (next && next.startsWith("/") && !next.startsWith("//") && next.charAt(1) !== "\\" && !/[\x00-\x1f\x7f]/.test(next)) return next;
+  } catch (e) {}
+  return null;
+}
+
 function Field({ label, children, span = 1 }) {
   return (
     <div style={{ gridColumn: `span ${span}` }}>
@@ -732,7 +743,7 @@ function SignupForm({ role }) {
             if (pErr) { setError("Your account was created — please sign in to finish setting up your profile."); return; }
             try { await sb.rpc("set_my_username", { p_username: cleanUsername }); } catch (e) {}
           }
-          window.location.href = "ClientDashboard.html";
+          window.location.href = suSafeNext() || "ClientDashboard.html";
         }
       } catch (err) {
         if (captchaOn) resetCaptcha();
