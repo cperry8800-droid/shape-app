@@ -35,9 +35,10 @@ const REDIRECTED = {
   'trainer-dashboard': '/newdesign/TrainerApp.html',
   'nutrition-schedule': '/newdesign/NutritionistApp.html',
   clients: '/newdesign/ClientApp.html',
-  'client-profile': '/newdesign/ClientProfile.html',
+  // The member's own profile tab; ClientProfile.html is a demo persona (Codex on #2352).
+  'client-profile': '/newdesign/ClientApp.html#profile',
   'my-team': '/newdesign/ClientTeam.html',
-  messages: '/newdesign/ClientDashboard.html',
+  messages: '/newdesign/ClientTeam.html',
   'dashboard-preview': '/newdesign/ClientApp.html',
   'my-workouts': '/newdesign/ClientTrain.html',
   workout: '/newdesign/ClientTrain.html',
@@ -89,7 +90,7 @@ function resolve(redirects, pathname, query = {}) {
   return null
 }
 
-const exists = (dest) => dest === '/' || existsSync('public' + dest.split('?')[0])
+const exists = (dest) => dest === '/' || existsSync('public' + dest.split(/[?#]/)[0])
 
 test('the old pages, and the scripts and images only they used, are gone', () => {
   for (const p of ALL_PAGES) assert.equal(existsSync(`public/${p}.html`), false, `public/${p}.html is back`)
@@ -133,8 +134,11 @@ test('an old coach profile keeps its coach', async () => {
     assert.ok(existsSync(`src/app/${route}/[id]/page.tsx`), `src/app/${route}/[id]/page.tsx is gone`)
     for (const source of [`/${page}`, `/${page}.html`]) {
       assert.deepEqual(resolve(redirects, source, { id: '42' }), { destination: `/${route}/42`, permanent: true }, `${source}?id=42`)
+      // The old pages read `params.get('id') || params.get('provider')` (Codex on #2352).
+      assert.deepEqual(resolve(redirects, source, { provider: '42' }), { destination: `/${route}/42`, permanent: true }, `${source}?provider=42`)
+      assert.deepEqual(resolve(redirects, source, { id: '7', provider: '42' }), { destination: `/${route}/7`, permanent: true }, 'id comes first, as it did')
       // Not a listing id, or none: there is no coach to keep, so the marketplace, never /trainers/abc.
-      for (const q of [{ id: 'abc' }, { id: '42x' }, { id: '' }, {}]) {
+      for (const q of [{ id: 'abc' }, { id: '42x' }, { id: '' }, { provider: 'x' }, {}]) {
         assert.deepEqual(resolve(redirects, source, q), { destination: '/newdesign/Marketplace.html', permanent: true }, `${source} ${JSON.stringify(q)}`)
       }
     }
@@ -257,9 +261,11 @@ async function land(source, { search = '', hash = '' } = {}) {
   const { redirects } = await loadConfig()
   const query = Object.fromEntries(new URLSearchParams(search))
   const { destination } = resolve(redirects, source, query)
-  const file = readFileSync(`public${destination}`, 'utf8')
+  // A fragment in the redirect replaces the visitor's; otherwise the browser keeps theirs.
+  const [destPath, destHash] = destination.split('#')
+  const file = readFileSync(`public${destPath}`, 'utf8')
   const stub = file.match(/<script>(location\.replace\([^<]*\);)<\/script>/)
-  if (!stub) return new URL(destination + search + hash, 'https://www.theshapecommunity.com')
+  if (!stub) return new URL(destPath + search + (destHash ? '#' + destHash : hash), 'https://www.theshapecommunity.com')
   let to = null
   new Function('location', stub[1])({ search, hash, replace: (u) => { to = u } })
   return new URL(to, 'https://www.theshapecommunity.com' + destination)
@@ -292,12 +298,46 @@ test('an old dashboard bookmark keeps its tab', async () => {
     ['/trainer-dashboard.html', '#goalcalc', 'goal'], ['/trainer-dashboard', '#profile', 'profile'],
     ['/nutrition-schedule.html', '#mealplans', 'plans'], ['/nutrition-schedule.html', '#clients', 'clients'],
     ['/nutrition-schedule.html', '#goalcalc', 'goal'],
+    // The member's own profile, and the old messages page (the member's team, where each coach
+    // has a Message button).
+    ['/client-profile.html', '', 'profile'], ['/client-profile', '#whatever', 'profile'],
+    ['/messages.html', '', 'team'],
   ]
   for (const [old, hash, route] of cases) {
     const landed = await land(old, { hash })
     const slug = SHELL_SLUG[landed.pathname]
     assert.ok(slug, `${old} lands on ${landed.pathname}, not a shell`)
-    assert.equal(landed.hash, hash, `${old}${hash}: the fragment was dropped on the way`)
+    // (client-profile's redirect names its own #profile, which replaces the visitor's.)
+    if (hash && !/client-profile/.test(old)) assert.equal(landed.hash, hash, `${old}${hash}: the fragment was dropped on the way`)
     assert.equal(slug(landed.hash), route, `${old}${hash} opens ${slug(landed.hash)}, not ${route}`)
+  }
+})
+
+test('an old dashboard tab that is a page now, not a route, opens that page', async () => {
+  // Codex on #2352: the old coach dashboards had a #messages tab, and the inboxes are their own
+  // pages (TrainerMessages.html, NutritionistMessages.html), as Community is. Each shell forwards
+  // those fragments before it renders.
+  const forward = (shell, hash) => {
+    const src = readFileSync(`public/newdesign/${shell}`, 'utf8')
+    const head = src.slice(0, src.indexOf('</head>'))
+    const script = head.match(/<script>(\(function\(\)\{var p=\{[^<]*)<\/script>/)
+    assert.ok(script, `${shell}: the legacy-tab forward is gone`)
+    let to = null
+    new Function('location', script[1])({ hash, replace: (u) => { to = u } })
+    return to
+  }
+  for (const [old, hash, page] of [
+    ['/trainer-dashboard.html', '#messages', 'TrainerMessages.html'], ['/trainer-dashboard.html', '#community', 'Community.html'],
+    ['/nutrition-schedule.html', '#messages', 'NutritionistMessages.html'], ['/nutrition-schedule.html', '#community', 'Community.html'],
+    ['/clients.html', '#community', 'Community.html'],
+  ]) {
+    const landed = await land(old, { hash })
+    const to = forward(landed.pathname.replace('/newdesign/', ''), landed.hash)
+    assert.equal(to, page, `${old}${hash} forwards to ${to}, not ${page}`)
+    assert.ok(existsSync(`public/newdesign/${page}`), `${page} does not exist`)
+  }
+  // Everything else renders in the shell: no forward.
+  for (const [shell, hash] of [['TrainerApp.html', '#clients'], ['TrainerApp.html', ''], ['ClientApp.html', '#messages'], ['NutritionistApp.html', '#constructor']]) {
+    assert.equal(forward(shell, hash), null, `${shell}${hash} forwards`)
   }
 })

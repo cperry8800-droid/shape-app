@@ -37,9 +37,12 @@ const retiredPages: Array<[string, string]> = [
   ['trainer-dashboard', '/newdesign/TrainerApp.html'],
   ['nutrition-schedule', '/newdesign/NutritionistApp.html'],
   ['clients', '/newdesign/ClientApp.html'],
-  ['client-profile', '/newdesign/ClientProfile.html'],
+  // The member's own profile, in the app: ClientProfile.html is a demo persona with no backend
+  // read (Codex on #2352).
+  ['client-profile', '/newdesign/ClientApp.html#profile'],
   ['my-team', '/newdesign/ClientTeam.html'],
-  ['messages', '/newdesign/ClientDashboard.html'],
+  // The member's team, where each coach has a Message button. No address opens the chat itself.
+  ['messages', '/newdesign/ClientTeam.html'],
   ['dashboard-preview', '/newdesign/ClientApp.html'],
   ['my-workouts', '/newdesign/ClientTrain.html'],
   ['workout', '/newdesign/ClientTrain.html'],
@@ -87,6 +90,8 @@ const nextConfig: NextConfig = {
       { source: '/nutritionists.html', destination: '/newdesign/Marketplace.html', permanent: true },
       ...['trainer', 'nutritionist'].flatMap((role) => [`/${role}-profile`, `/${role}-profile.html`].flatMap((source) => [
         { source, has: [{ type: 'query' as const, key: 'id', value: '(?<id>\\d+)' }], destination: `/${role}s/:id`, permanent: true },
+        // The old pages also took the listing as ?provider= (`params.get('id') || params.get('provider')`).
+        { source, has: [{ type: 'query' as const, key: 'provider', value: '(?<id>\\d+)' }], destination: `/${role}s/:id`, permanent: true },
         { source, destination: '/newdesign/Marketplace.html', permanent: true },
       ])),
     ];

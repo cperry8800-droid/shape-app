@@ -2,6 +2,9 @@
 <html>
 <head>
 <meta charset="utf-8" />
+<!-- The old root dashboard's tabs that are pages here, not routes (the dashboard was retired 2026-10-14
+     and redirects here with its #fragment; Codex on #2352). The other old tab names are read by the route parser. -->
+<script>(function(){var p={"#messages":"TrainerMessages.html","#community":"Community.html"}[String(location.hash).toLowerCase()];if(p)location.replace(p);})();</script>
 <!-- ⚠ WITHOUT THIS EVERY RESPONSIVE RULE IN dash.css AND pageShell.jsx IS DEAD.
      A phone with no viewport meta reports a 980px layout viewport, so the
      @media (max-width: 900px) block that collapses the dashboard grid and
