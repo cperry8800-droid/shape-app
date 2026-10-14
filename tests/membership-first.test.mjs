@@ -10,6 +10,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -128,8 +129,13 @@ async function barrierLib({ open = [], expired = [], table = claimsTable(), rpcE
 
 // The terms a checkout is reused on: the membership's price, and the coach's (Coach T, $150 at the
 // marketplace fee, no referral).
-const MEMBER_TERMS = { client_id: UID, plan: 'shape_platform', price_id: 'price_platform_test' };
-const COACH_TERMS = { client_id: UID, provider_id: '4', provider_role: 'trainer', price_cents: '15000', fee_bps: '1500', origin: 'marketplace' };
+// Where a checkout returns to is a term too, keyed as checkoutReturnsKey keys it (checked below).
+const returnsKey = (success, cancel) => createHash('sha256').update(`${success}\n${cancel}`).digest('hex').slice(0, 32);
+const memberReturns = (next = HOME, cancel = '/newdesign/Pricing.html?error=subscribe_cancelled') =>
+  returnsKey(`https://shape.test/api/stripe/platform-return?session_id={CHECKOUT_SESSION_ID}&next=${encodeURIComponent(next)}`, `https://shape.test${cancel}`);
+const MEMBER_TERMS = { client_id: UID, plan: 'shape_platform', price_id: 'price_platform_test', returns: memberReturns() };
+const COACH_TERMS = { client_id: UID, provider_id: '4', provider_role: 'trainer', price_cents: '15000', fee_bps: '1500', origin: 'marketplace',
+  returns: returnsKey('https://shape.test/purchase/success?session_id={CHECKOUT_SESSION_ID}', 'https://shape.test/newdesign/GetApp.html?checkout=cancelled') };
 /** An open checkout `minutesAgo` old. */
 const openSession = (id, minutesAgo, metadata, mode = 'subscription') => ({ id, created: Math.floor(Date.now() / 1000) - minutesAgo * 60, url: `https://checkout.stripe.test/${id}`, mode, metadata });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -594,8 +600,8 @@ test('an open checkout on other terms is replaced, not handed back', async () =>
   const referred = await runCoachCheckout({ platform: [{ status: 'active' }], open: [openSession('cs_coach_referred', 1, { ...COACH_TERMS, origin: 'byo', fee_bps: '0', referral_id: 'ref-1' })] });
   assert.deepEqual(referred.expired, ['cs_coach_referred']);
   assert.equal(referred.created.length, 1);
-  // Each term on its own: the same price and fee, another referral or origin.
-  for (const terms of [{ referral_id: 'ref-1' }, { origin: 'byo' }]) {
+  // Each term on its own: the same price and fee, another referral, origin or return.
+  for (const terms of [{ referral_id: 'ref-1' }, { origin: 'byo' }, { returns: returnsKey('https://shape.test/m/', 'https://shape.test/m/') }]) {
     const r = await runCoachCheckout({ platform: [{ status: 'active' }], open: [openSession('cs_coach_other', 1, { ...COACH_TERMS, ...terms })] });
     assert.deepEqual(r.expired, ['cs_coach_other'], JSON.stringify(terms));
   }
@@ -608,7 +614,7 @@ test('a checkout completed in another tab while the open checkouts are read is c
   // Codex on #2353: asked before the open checkouts were read, Stripe could say "not paying", the
   // buyer could then complete the open checkout in another tab, and the list would show nothing
   // open, so a second one was made. Stripe is asked after the read now.
-  const open = [openSession('cs_member_tab', 2, MEMBER_TERMS)];
+  const open = [openSession('cs_member_tab', 2, { ...MEMBER_TERMS, returns: memberReturns(HOME, '/') })];
   const subs = [];
   const completeInOtherTab = () => { open.splice(0, open.length); subs.push(stripeSub({ client_id: UID, plan: 'shape_platform' })); };
   const created = [];
@@ -620,7 +626,7 @@ test('a checkout completed in another tab while the open checkouts are read is c
   assert.ok(r.alreadyMember || r.url === 'https://checkout.stripe.test/cs_member_tab');
   // Completed right after Stripe was asked, before anything is handed out: the list was read
   // first, so the paid checkout is the one handed back (Stripe shows it as paid), not a new one.
-  const open2 = [openSession('cs_member_tab2', 2, MEMBER_TERMS)];
+  const open2 = [openSession('cs_member_tab2', 2, { ...MEMBER_TERMS, returns: memberReturns(HOME, '/') })];
   const subs2 = [];
   const created2 = [];
   const pm2 = await platformMembership({ created: created2, open: open2, stripeSubs: subs2, afterCheck: () => { open2.splice(0, open2.length); subs2.push(stripeSub({ client_id: UID, plan: 'shape_platform' })); } });
@@ -637,10 +643,20 @@ test('a checkout completed in another tab while the open checkouts are read is c
 });
 
 test('membership checkout: a second press reopens the checkout already open; a stale one is replaced', async () => {
-  const again = await runPlatformCheckout({ body: { returnTo: '/newdesign/MemberProfile.html?u=abc' }, open: [openSession('cs_member_now', 2, MEMBER_TERMS)] });
+  const profile = '/newdesign/MemberProfile.html?u=abc';
+  const again = await runPlatformCheckout({ body: { returnTo: profile }, open: [openSession('cs_member_now', 2, { ...MEMBER_TERMS, returns: memberReturns(profile) })] });
   assert.equal(again.status, 200);
-  assert.equal(again.body.url, 'https://checkout.stripe.test/cs_member_now', 'from another page: the same checkout, not a second payable one');
+  assert.equal(again.body.url, 'https://checkout.stripe.test/cs_member_now', 'the same checkout, not a second payable one');
   assert.equal(again.created.length, 0);
+  // Codex on #2353: a checkout opened in the app returns to its close page, so the website's
+  // coach profile gets its own, and the app's is expired.
+  const fromApp = await runPlatformCheckout({ body: { returnTo: profile }, open: [openSession('cs_member_app', 2, { ...MEMBER_TERMS, returns: memberReturns('/membership/done', '/membership/done') })] });
+  assert.deepEqual(fromApp.expired, ['cs_member_app']);
+  assert.equal(fromApp.created.length, 1);
+  assert.equal(fromApp.created[0].metadata.returns, memberReturns(profile), 'where it returns rides on the checkout, to be matched next time');
+  const lib = await barrierLib();
+  assert.equal(lib.checkoutReturnsKey('a', 'b'), returnsKey('a', 'b'), 'the tests key returns as the barrier does');
+  assert.notEqual(lib.checkoutReturnsKey('a', 'b'), lib.checkoutReturnsKey('a', 'c'));
   const stale = await runPlatformCheckout({ open: [openSession('cs_member_old', 30, MEMBER_TERMS)] });
   assert.deepEqual(stale.expired, ['cs_member_old']);
   assert.equal(stale.created.length, 1, 'then a fresh one');
@@ -830,7 +846,7 @@ test('the server-action checkouts (/subscribe and /purchase) take the detour, ou
   // the hand-back or the create.
   assert.ok(at('claim = await claimCheckout(user.id, `coach-${providerRole}-${providerId}`);') < at('priceResult = await getProviderConnectInfo('));
   assert.ok(at('await resolveCoachCheckoutOrigin(') < at('open = await currentCheckout(customerId,'));
-  assert.match(subscribe, /\(s\) => s\.metadata\?\.price_cents === String\(priceResult\.priceCents\) && s\.metadata\?\.fee_bps === String\(feeBps\)\n\s+&& s\.metadata\?\.origin === coachOrigin && \(s\.metadata\?\.referral_id \?\? null\) === \(referralId \?\? null\)\)/, 'on this request\'s terms');
+  assert.match(subscribe, /\(s\) => s\.metadata\?\.price_cents === String\(priceResult\.priceCents\) && s\.metadata\?\.fee_bps === String\(feeBps\)\n\s+&& s\.metadata\?\.origin === coachOrigin && \(s\.metadata\?\.referral_id \?\? null\) === \(referralId \?\? null\)\n\s+&& s\.metadata\?\.returns === returns\)/, 'on this request\'s terms, returns included');
   assert.ok(at('open = await currentCheckout(customerId,') < at('paid = await hasLiveStripeSubscription('), 'Stripe is asked after the read');
   assert.equal((subscribe.match(/hasLiveStripeSubscription\(/g) ?? []).length, 1, 'and only there');
   assert.match(subscribe, /if \(paid\) redirect\(`\$\{backHref\}&error=already_subscribed`\);\n\s+if \(open\) redirect\(open\);/);

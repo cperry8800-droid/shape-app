@@ -27,7 +27,7 @@ import { ACTIVE_SUB } from '@/lib/membership-core';
 import { membershipDetour } from '@/lib/membership-detour';
 import { stripeCustomerFor } from '@/lib/stripe-customer';
 import { hasLiveStripeSubscription } from '@/lib/stripe-live-subscription';
-import { CHECKOUT_CREATE_OPTIONS, claimCheckout, currentCheckout, isCheckoutInProgress, type CheckoutClaim } from '@/lib/checkout-barrier';
+import { CHECKOUT_CREATE_OPTIONS, checkoutReturnsKey, claimCheckout, currentCheckout, isCheckoutInProgress, type CheckoutClaim } from '@/lib/checkout-barrier';
 
 type ProviderRole = 'trainer' | 'nutritionist';
 
@@ -182,13 +182,17 @@ export async function startCheckout(formData: FormData): Promise<void> {
       ref,
     });
 
-    // Handed back only on this request's terms: a changed price, fee or referral makes a new one.
+    // Handed back only on this request's terms: a changed price, fee, referral or return makes a new one.
+    const successUrl = `${siteOrigin}/subscribe/success?session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = `${siteOrigin}${backHref}&error=subscribe_cancelled`;
+    const returns = checkoutReturnsKey(successUrl, cancelUrl);
     let open: string | null = null;
     try {
       open = await currentCheckout(customerId, (s) => s.mode === 'subscription'
         && s.metadata?.provider_id === String(providerId) && s.metadata?.provider_role === providerRole,
       (s) => s.metadata?.price_cents === String(priceResult.priceCents) && s.metadata?.fee_bps === String(feeBps)
-        && s.metadata?.origin === coachOrigin && (s.metadata?.referral_id ?? null) === (referralId ?? null));
+        && s.metadata?.origin === coachOrigin && (s.metadata?.referral_id ?? null) === (referralId ?? null)
+        && s.metadata?.returns === returns);
     } catch (e) {
       console.error('[subscribe] open checkout lookup failed', e);
       redirect(`${backHref}&error=checkout_failed`);
@@ -224,6 +228,7 @@ export async function startCheckout(formData: FormData): Promise<void> {
           price_cents: String(priceResult.priceCents),
           origin: coachOrigin,
           fee_bps: String(feeBps),
+          returns,
           ...(referralId ? { referral_id: referralId } : {}),
         },
         subscription_data: {
@@ -238,8 +243,8 @@ export async function startCheckout(formData: FormData): Promise<void> {
             provider_role: providerRole,
           },
         },
-        success_url: `${siteOrigin}/subscribe/success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${siteOrigin}${backHref}&error=subscribe_cancelled`,
+        success_url: successUrl,
+        cancel_url: cancelUrl,
         allow_promotion_codes: true,
       }, CHECKOUT_CREATE_OPTIONS);
     } catch (e) {

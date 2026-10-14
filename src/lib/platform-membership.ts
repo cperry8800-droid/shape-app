@@ -13,7 +13,7 @@ import { stripe } from '@/lib/stripe';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { ACTIVE_SUB } from '@/lib/membership-core';
 import { appendParam } from '@/lib/return-path';
-import { CHECKOUT_CREATE_OPTIONS, claimCheckout, currentCheckout } from '@/lib/checkout-barrier';
+import { CHECKOUT_CREATE_OPTIONS, checkoutReturnsKey, claimCheckout, currentCheckout } from '@/lib/checkout-barrier';
 import { hasLiveStripeSubscription } from '@/lib/stripe-live-subscription';
 
 /** Where a member lands after joining when nothing asked for somewhere else. */
@@ -39,7 +39,11 @@ export async function createPlatformCheckout(opts: {
   // CheckoutInProgressError and a failed Stripe read propagate; callers answer them.
   const claim = await claimCheckout(opts.userId, 'shape_platform');
   try {
-    const open = await currentCheckout(opts.customerId, (s) => s.metadata?.plan === 'shape_platform', (s) => s.metadata?.price_id === opts.priceId);
+    const successUrl = membershipReturnUrl(opts.origin, opts.next);
+    const cancelUrl = `${opts.origin}${opts.cancelPath}`;
+    const returns = checkoutReturnsKey(successUrl, cancelUrl);
+    const open = await currentCheckout(opts.customerId, (s) => s.metadata?.plan === 'shape_platform',
+      (s) => s.metadata?.price_id === opts.priceId && s.metadata?.returns === returns);
     // ⚠ ASKED HERE, WHILE HOLDING THE CLAIM AND AFTER THE OPEN CHECKOUTS ARE READ (Codex on #2353):
     // a request that waited on the claim can arrive after the first checkout was paid, and one
     // the buyer completes in another tab while this request reads them is no longer listed as
@@ -54,10 +58,10 @@ export async function createPlatformCheckout(opts: {
       line_items: [{ price: opts.priceId, quantity: 1 }],
       customer: opts.customerId,
       client_reference_id: opts.userId,
-      metadata: { client_id: opts.userId, plan: 'shape_platform', price_id: opts.priceId },
+      metadata: { client_id: opts.userId, plan: 'shape_platform', price_id: opts.priceId, returns },
       subscription_data: { metadata: { client_id: opts.userId, plan: 'shape_platform' } },
-      success_url: membershipReturnUrl(opts.origin, opts.next),
-      cancel_url: `${opts.origin}${opts.cancelPath}`,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
       allow_promotion_codes: true,
     }, CHECKOUT_CREATE_OPTIONS);
     return { alreadyMember: false, url: session.url ?? null };

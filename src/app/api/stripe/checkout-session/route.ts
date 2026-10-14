@@ -10,7 +10,7 @@ import { appendParam, sameOriginPath } from '@/lib/return-path';
 import { ACTIVE_SUB, computeMembership } from '@/lib/membership-core';
 import { hasLiveStripeSubscription } from '@/lib/stripe-live-subscription';
 import { stripeCustomerFor } from '@/lib/stripe-customer';
-import { CHECKOUT_CREATE_OPTIONS, claimCheckout, currentCheckout, isCheckoutInProgress, type CheckoutClaim } from '@/lib/checkout-barrier';
+import { CHECKOUT_CREATE_OPTIONS, checkoutReturnsKey, claimCheckout, currentCheckout, isCheckoutInProgress, type CheckoutClaim } from '@/lib/checkout-barrier';
 
 export const runtime = 'nodejs';
 
@@ -353,6 +353,9 @@ export async function POST(request: Request) {
   // coach's cut. Because credit is capped at Shape's 15% above, the charge
   // always covers the coach's cut — no out-of-pocket top-up is ever needed.
   const { applicationFeeCents } = feeSplit(priceCents, chargeCents, feeRate);
+  const successUrl = `${origin}${appendParam(successPath, 'session_id', '{CHECKOUT_SESSION_ID}')}`;
+  const cancelUrl = `${origin}${cancelPath}`;
+  const returns = checkoutReturnsKey(successUrl, cancelUrl);
 
   // One payable subscription checkout per account and coach at a time (checkout-barrier.ts):
   // claimed here, confirmed right before the create, released in the finally below.
@@ -365,7 +368,8 @@ export async function POST(request: Request) {
       const open = await currentCheckout(customerId, (s) => s.mode === 'subscription'
         && s.metadata?.provider_id === String(providerId) && s.metadata?.provider_role === providerRole,
       (s) => s.metadata?.price_cents === String(chargeCents) && s.metadata?.fee_bps === String(feeBps)
-        && s.metadata?.origin === coachOrigin && (s.metadata?.referral_id ?? null) === (referralId ?? null));
+        && s.metadata?.origin === coachOrigin && (s.metadata?.referral_id ?? null) === (referralId ?? null)
+        && s.metadata?.returns === returns);
       // ⚠ ASKED HERE, WHILE HOLDING THE CLAIM AND AFTER THE OPEN CHECKOUTS ARE READ (Codex on #2353):
       // a request that waited on the claim can arrive after the first checkout was paid, and one
       // the buyer completes in another tab while this request reads them is no longer listed as
@@ -414,6 +418,7 @@ export async function POST(request: Request) {
         item_name: String(itemName),
         origin: coachOrigin,
         fee_bps: String(feeBps),
+        returns,
         ...(referralId ? { referral_id: referralId } : {}),
         ...(storeCreditApplied > 0 ? { store_credit_kind: String(storeCreditKind), store_credit_cents: String(storeCreditApplied) } : {}),
         ...(storeCreditRef ? { store_credit_ref: storeCreditRef } : {}),
@@ -448,8 +453,8 @@ export async function POST(request: Request) {
               },
             },
           }),
-      success_url: `${origin}${appendParam(successPath, 'session_id', '{CHECKOUT_SESSION_ID}')}`,
-      cancel_url: `${origin}${cancelPath}`,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
       allow_promotion_codes: isSubscription,
     }, isSubscription ? CHECKOUT_CREATE_OPTIONS : undefined);
 

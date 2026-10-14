@@ -19,9 +19,12 @@
 //   reopens it. Every other open one for the product is expired, so an abandoned tab can no longer
 //   be paid and a changed price or fee is never charged from an old checkout (Codex on #2353).
 //   Callers ask Stripe whether the account already pays AFTER this and before handing anything
-//   out, so a checkout completed in another tab meanwhile is caught (Codex again).
+//   out, so a checkout completed in another tab meanwhile is caught (Codex again). Where a
+//   checkout returns to is one of its terms too (checkoutReturnsKey): a checkout opened in the
+//   app returns to the app's close page, and one reused from a coach's profile on the website
+//   would strand the buyer there.
 
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { stripe } from '@/lib/stripe';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -84,6 +87,11 @@ export async function claimCheckout(userId: string, product: string): Promise<Ch
       }
     },
   };
+}
+
+/** Where a checkout returns to, as one short metadata value (Stripe caps a value at 500 characters). */
+export function checkoutReturnsKey(successUrl: string, cancelUrl: string): string {
+  return createHash('sha256').update(`${successUrl}\n${cancelUrl}`).digest('hex').slice(0, 32);
 }
 
 type OpenSession = { created: number; url?: string | null; mode?: string | null; metadata?: Record<string, string> | null };
