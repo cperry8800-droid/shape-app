@@ -163,7 +163,14 @@ function caHasRoute(h) { return Object.prototype.hasOwnProperty.call(CA_ROUTES, 
 // stub forwards its query after the hash (`ClientTrain.html?id=5` → `#workouts?id=5`), so
 // without the split a query sent the member to Today instead of the page they asked for:
 // Codex on #2352, for the old `/workout.html?id=` links that now redirect to ClientTrain.html.
-function caSlug() { const h = (window.location.hash || "").replace(/^#/, "").split("?")[0].toLowerCase(); return caHasRoute(h) ? h : "today"; }
+// The old root dashboard's tab names (the page was retired 2026-10-14 and now redirects here,
+// keeping its #fragment; Codex on #2352): a bookmark such as /clients.html#training opens the tab it named.
+const CA_LEGACY_TABS = { home: "today", training: "workouts", myteam: "team", shapescore: "score" };
+function caSlug() {
+  const low = (window.location.hash || "").replace(/^#/, "").split("?")[0].toLowerCase();
+  const h = Object.prototype.hasOwnProperty.call(CA_LEGACY_TABS, low) ? CA_LEGACY_TABS[low] : low;
+  return caHasRoute(h) ? h : "today";
+}
 function ClientApp() {
   const [route, setRoute] = React.useState(caSlug());
   React.useEffect(() => {

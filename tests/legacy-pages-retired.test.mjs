@@ -31,13 +31,14 @@ const REDIRECTED = {
   'shape-store': '/newdesign/Store.html',
   community: '/newdesign/Community.html',
   'signup-client': '/newdesign/SignupClient.html',
-  'trainer-dashboard': '/newdesign/TrainerDashboard.html',
-  'nutrition-schedule': '/newdesign/NutritionistDashboard.html',
-  clients: '/newdesign/ClientDashboard.html',
+  // Straight to the app shells, so an old #tab survives (see the last test).
+  'trainer-dashboard': '/newdesign/TrainerApp.html',
+  'nutrition-schedule': '/newdesign/NutritionistApp.html',
+  clients: '/newdesign/ClientApp.html',
   'client-profile': '/newdesign/ClientProfile.html',
   'my-team': '/newdesign/ClientTeam.html',
   messages: '/newdesign/ClientDashboard.html',
-  'dashboard-preview': '/newdesign/ClientDashboard.html',
+  'dashboard-preview': '/newdesign/ClientApp.html',
   'my-workouts': '/newdesign/ClientTrain.html',
   workout: '/newdesign/ClientTrain.html',
   'live-workout': '/newdesign/ClientTrain.html',
@@ -229,32 +230,74 @@ test('the service worker precaches only files that exist, and the manifest opens
   for (const p of ALL_PAGES) assert.ok(!robots.includes(`/${p}.html`), `robots.txt still names /${p}.html`)
 })
 
+// The shells' own route readers, run from their source: the legacy tab map and the parser.
+function shellRoute(file, constName, fnName, routesName) {
+  const src = readFileSync(`public/newdesign/${file}`, 'utf8')
+  const from = src.indexOf(`const ${constName}`)
+  const fnAt = src.indexOf(`function ${fnName}()`, from)
+  assert.ok(from >= 0 && fnAt > from, `${file}: ${constName} / ${fnName}() not found`)
+  const block = src.slice(from, src.indexOf('\n}\n', fnAt) + 3)
+  const routes = [...src.slice(src.indexOf(`const ${routesName} = {`)).split('\n};')[0].matchAll(/^\s+([a-z]+):/gm)].map((m) => m[1])
+  assert.ok(routes.length >= 8, `${file}: only ${routes.length} routes read`)
+  const table = Object.fromEntries(routes.map((r) => [r, () => null]))
+  return (hash) => {
+    const out = new Function('window', routesName, 'caHasRoute', `${block}; return ${fnName}();`)(
+      { location: { hash } }, table, (h) => Object.prototype.hasOwnProperty.call(table, h))
+    return typeof out === 'string' ? out : out.slug
+  }
+}
+const caSlug = shellRoute('ClientApp.html', 'CA_LEGACY_TABS', 'caSlug', 'CA_ROUTES')
+const taSlug = shellRoute('TrainerApp.html', 'TA_LEGACY_TABS', 'taParse', 'TA_ROUTES')
+const naSlug = shellRoute('NutritionistApp.html', 'NA_LEGACY_TABS', 'naParse', 'NA_ROUTES')
+const SHELL_SLUG = { '/newdesign/ClientApp.html': caSlug, '/newdesign/TrainerApp.html': taSlug, '/newdesign/NutritionistApp.html': naSlug }
+
+// Where a visitor lands: through the redirect, then the stub's own script if the destination is
+// a stub, carrying the query and the fragment the way a browser does.
+async function land(source, { search = '', hash = '' } = {}) {
+  const { redirects } = await loadConfig()
+  const query = Object.fromEntries(new URLSearchParams(search))
+  const { destination } = resolve(redirects, source, query)
+  const file = readFileSync(`public${destination}`, 'utf8')
+  const stub = file.match(/<script>(location\.replace\([^<]*\);)<\/script>/)
+  if (!stub) return new URL(destination + search + hash, 'https://www.theshapecommunity.com')
+  let to = null
+  new Function('location', stub[1])({ search, hash, replace: (u) => { to = u } })
+  return new URL(to, 'https://www.theshapecommunity.com' + destination)
+}
+
 test('an old address with a query still opens the page it names, through the stub and the shell', async () => {
   // Codex on #2352: `/workout.html?id=<assignment>` keeps its query through the redirect, the
   // ClientTrain.html stub forwards it after the hash (`ClientApp.html#workouts?id=…`), and the
   // member shell read the whole hash as the route, so the member landed on Today. The shell now
   // reads the route up to the "?", as the coach shells do. This follows the whole chain.
-  const { redirects } = await loadConfig()
-  const shell = readFileSync('public/newdesign/ClientApp.html', 'utf8')
-  const slugLine = shell.match(/^function caSlug\(\) \{.*\}$/m)
-  assert.ok(slugLine, 'caSlug() not found in ClientApp.html')
-  const routes = new Set(['today', 'workouts', 'team', 'profile'])
-  const caSlug = (hash) => new Function('window', 'caHasRoute', `${slugLine[0]}; return caSlug();`)({ location: { hash } }, (h) => routes.has(h))
-  // The stub's own script, run against a location that carries the query.
-  const follow = (stub, search) => {
-    const script = readFileSync(`public${stub}`, 'utf8').match(/<script>(location\.replace\([^<]*\);)<\/script>/)
-    assert.ok(script, `${stub} is no longer a one-line forward`)
-    let to = null
-    new Function('location', script[1])({ search, replace: (u) => { to = u } })
-    return new URL(to, 'https://www.theshapecommunity.com' + stub)
-  }
   for (const [old, route] of [['/workout.html', 'workouts'], ['/my-workouts.html', 'workouts'], ['/my-team.html', 'team'], ['/clients.html', 'today']]) {
-    const { destination } = resolve(redirects, old, { id: '5' })
-    const landed = follow(destination, '?id=5')
+    const landed = await land(old, { search: '?id=5' })
     assert.equal(landed.pathname, '/newdesign/ClientApp.html', old)
     assert.equal(caSlug(landed.hash), route, `${old}?id=5 opens ${caSlug(landed.hash)}, not ${route}`)
   }
   // And a link with no query is unchanged.
   assert.equal(caSlug('#workouts'), 'workouts')
   assert.equal(caSlug('#nonsense?x=1'), 'today')
+  assert.equal(caSlug('#constructor'), 'today', 'a prototype key is not a route')
+})
+
+test('an old dashboard bookmark keeps its tab', async () => {
+  // Codex on #2352: the old dashboards routed tabs by #fragment, and a stub would replace it
+  // with #today. They redirect to the shells, and the shells read the old tab names.
+  const cases = [
+    ['/clients.html', '#progress', 'progress'], ['/clients.html', '#training', 'workouts'],
+    ['/clients.html', '#myteam', 'team'], ['/clients.html', '#shapescore', 'score'],
+    ['/clients.html', '#home', 'today'], ['/clients.html', '', 'today'],
+    ['/trainer-dashboard.html', '#clients', 'clients'], ['/trainer-dashboard.html', '#programs', 'programs'],
+    ['/trainer-dashboard.html', '#goalcalc', 'goal'], ['/trainer-dashboard', '#profile', 'profile'],
+    ['/nutrition-schedule.html', '#mealplans', 'plans'], ['/nutrition-schedule.html', '#clients', 'clients'],
+    ['/nutrition-schedule.html', '#goalcalc', 'goal'],
+  ]
+  for (const [old, hash, route] of cases) {
+    const landed = await land(old, { hash })
+    const slug = SHELL_SLUG[landed.pathname]
+    assert.ok(slug, `${old} lands on ${landed.pathname}, not a shell`)
+    assert.equal(landed.hash, hash, `${old}${hash}: the fragment was dropped on the way`)
+    assert.equal(slug(landed.hash), route, `${old}${hash} opens ${slug(landed.hash)}, not ${route}`)
+  }
 })

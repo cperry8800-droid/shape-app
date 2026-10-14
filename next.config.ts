@@ -31,13 +31,16 @@ const retiredPages: Array<[string, string]> = [
   ['shape-store', '/newdesign/Store.html'],
   ['community', '/newdesign/Community.html'],
   ['signup-client', '/newdesign/SignupClient.html'],
-  ['trainer-dashboard', '/newdesign/TrainerDashboard.html'],
-  ['nutrition-schedule', '/newdesign/NutritionistDashboard.html'],
-  ['clients', '/newdesign/ClientDashboard.html'],
+  // The three old dashboards go straight to their app shells, not the stubs: a browser keeps
+  // the #fragment across a redirect, and the shells read the old tab names (Codex on #2352), where
+  // the stubs replace any fragment with #today.
+  ['trainer-dashboard', '/newdesign/TrainerApp.html'],
+  ['nutrition-schedule', '/newdesign/NutritionistApp.html'],
+  ['clients', '/newdesign/ClientApp.html'],
   ['client-profile', '/newdesign/ClientProfile.html'],
   ['my-team', '/newdesign/ClientTeam.html'],
   ['messages', '/newdesign/ClientDashboard.html'],
-  ['dashboard-preview', '/newdesign/ClientDashboard.html'],
+  ['dashboard-preview', '/newdesign/ClientApp.html'],
   ['my-workouts', '/newdesign/ClientTrain.html'],
   ['workout', '/newdesign/ClientTrain.html'],
   ['live-workout', '/newdesign/ClientTrain.html'],
