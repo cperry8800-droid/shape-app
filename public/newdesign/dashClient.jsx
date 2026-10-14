@@ -629,14 +629,11 @@ function ClientDashboardPage() {
   const ghost = { ...btn, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", background: "transparent", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", textDecoration: "none", display: "inline-block" };
 
   return (
-    <div style={{ background: PAPER, color: INK, minHeight: "100vh", fontFamily: sans, display: "flex", flexDirection: "column" }}>
-      {source === "demo" && <DashDemoBand />}
-      <Header />
-      <div className="dash-shell-grid" style={{ display: "grid", gridTemplateColumns: "240px 1fr", flex: 1 }}>
-        <DashSidebar navItems={clientNavItems("today")} payoutCard={live && score
-          ? { label: "SHAPE SCORE", amount: hero.total.toLocaleString(), sub: hero.tier + (hero.next ? " · " + hero.toNext + " to " + hero.next : "") }
-          : clientPayoutCard} />
-        <main style={{ padding: "24px 44px 80px", minWidth: 0 }}>
+    <DashFrame navItems={clientNavItems("today")} payoutCard={live && score
+      ? { label: "SHAPE SCORE", amount: hero.total.toLocaleString(), sub: hero.tier + (hero.next ? " · " + hero.toNext + " to " + hero.next : "") }
+      : clientPayoutCard}>
+        {source === "demo" && <DashDemoBand />}
+        <main style={{ padding: "20px 32px 64px", minWidth: 0 }}>
           {/* Greeting — real date, not a hardcoded one */}
           <div data-tour="hero-today" style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 18, flexWrap: "wrap", marginBottom: 22 }}>
             <div>
@@ -809,9 +806,7 @@ function ClientDashboardPage() {
             ) },
           ]} />
         </main>
-      </div>
-      <Footer />
-    </div>
+    </DashFrame>
   );
 }
 

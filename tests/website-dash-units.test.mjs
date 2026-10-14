@@ -42,7 +42,7 @@ async function setup() {
   // under test is the figures inside them.
   Object.assign(globalThis, {
     PAPER: '#1a1612', INK: '#f2ede4', TEAL: '#0ac5a8', TEAL_BRIGHT: '#2ee0c4', serif: 'serif', sans: 'sans-serif', mono: 'monospace', ink50: 'rgba(0,0,0,.5)',
-    Card: Pass, DashPage: Pass, DashShell: Pass, SectionTitle: Pass, Header: () => null, Footer: () => null, DashSidebar: () => null, DashTopbar: () => null,
+    Card: Pass, DashPage: Pass, DashShell: Pass, DashFrame: Pass, SectionTitle: Pass, Header: () => null, Footer: () => null, DashSidebar: () => null, DashTopbar: () => null,
     dashShellHref: (x) => '#' + x, clientNavItems: () => [], clientPayoutCard: () => null, ShapeVideoPlayer: () => null,
     ssAlpha: (hex, a) => hex + Math.round(a * 255).toString(16).padStart(2, '0'),
     // The grid renders each widget's body in place of the draggable layout, and skips

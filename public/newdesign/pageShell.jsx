@@ -1352,7 +1352,7 @@ function Header({ active }) {
           is precisely how the homepage's "Log in" came to render across two
           lines at 1180px. */}
       <div className="shape-header-inner" style={{ maxWidth: 1440, margin: "0 auto", display: "flex", alignItems: "center", height: NAV_H, padding: "0 32px", gap: 26 }}>
-        <a href="index.html" style={{ flex: "1 1 0", minWidth: "max-content", display: "inline-flex", alignItems: "center", lineHeight: 0 }}>
+        <a href="index.html" className="shape-nav-logo" style={{ flex: "1 1 0", minWidth: "max-content", display: "inline-flex", alignItems: "center", lineHeight: 0 }}>
           <img src="/shape-logo-nav-teal-white.png" alt="Shape" style={{ height: NAV_LOGO_H, width: "auto", maxWidth: "none", display: "var(--sh-logo-dark, block)", objectFit: "contain" }} /><img src="/shape-logo-nav-black.png" alt="Shape" style={{ height: NAV_LOGO_H, width: "auto", maxWidth: "none", display: "var(--sh-logo-light, none)", objectFit: "contain" }} />
         </a>
         <nav className="shape-nav-tabs" style={{ display: "flex", gap: 22, alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", justifyContent: "center", flex: "0 1 auto", minWidth: 0 }}>
@@ -1407,7 +1407,7 @@ function Header({ active }) {
                   sign-in boundary. */}
               {staffLevel ? <a href="/admin" style={quietLink}>Admin</a> : null}
               <a href="#" onClick={handleLogout} style={quietLink}>Sign out</a>
-              <a href={dashboardHref(authUser.role)} style={ctaBtn}>Dashboard</a>
+              <a className="shape-nav-dash" href={dashboardHref(authUser.role)} style={ctaBtn}>Dashboard</a>
               <RadioWordmark />
             </>
           ) : (

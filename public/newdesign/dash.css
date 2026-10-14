@@ -495,3 +495,102 @@ button.dash-chip:focus-visible { outline:none; box-shadow:inset 0 0 0 2px var(--
 @media (max-width: 760px) {
   .dash-shell-grid { grid-template-columns: 1fr !important; }
 }
+
+/* ── The app frame (owner, 2026-10-14) ──────────────────────────────────────
+   "make it feel more like its own portal … more like a software or application";
+   picked from three previews as B's icon rail with A's labels on hover and the
+   Coaching / Practice split. trainerDashboard.jsx's DashFrame renders it on every
+   dashboard tab of all three roles.
+
+   ⚠ THE RAIL'S COLUMN IS ALWAYS 64px; ONLY ITS PANEL WIDENS. The panel is absolutely
+   placed inside the sticky column, so the 240px hover state floats over the page
+   instead of reflowing it — a page that jumped sideways every time the cursor
+   crossed the nav would be worse than a nav with no labels. Keyboard focus opens it
+   too (:has(:focus-visible), so a mouse click on a tab does not pin it open).
+
+   ⚠ THE APP BAR IS pageShell's HEADER, RESTYLED HERE. It keeps sign-out, the profile
+   switch, Admin, the bell and search exactly as the site has them; these rules take
+   it out of `position: fixed`, drop its spacer, and hide the parts that only make
+   sense outside the dashboard (the marketing tabs, the greeting, the logo — the rail
+   carries the mark — and the Dashboard button). The page title is DashFrame's own
+   element, laid over the header's empty left side. */
+.dash-app { display: grid; grid-template-columns: 64px minmax(0, 1fr); min-height: 100vh; }
+.dash-app-main { min-width: 0; display: flex; flex-direction: column; }
+
+.dash-rail { position: sticky; top: 0; height: 100vh; z-index: 70; align-self: start; }
+.dash-rail-panel { position: absolute; top: 0; left: 0; bottom: 0; width: 64px; box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 10px; padding: 14px 10px 12px;
+  background: var(--sh-card, #25211d); border-right: 1px solid var(--sh-line, #302c27);
+  overflow-x: hidden; overflow-y: auto; scrollbar-width: none;
+  transition: width .18s ease, box-shadow .18s ease; }
+.dash-rail-panel::-webkit-scrollbar { display: none; }
+.dash-rail:hover .dash-rail-panel, .dash-rail:has(:focus-visible) .dash-rail-panel {
+  width: 240px; box-shadow: 14px 0 36px rgba(0,0,0,0.28); }
+.dash-rail-label { opacity: 0; white-space: nowrap; transition: opacity .12s ease; }
+.dash-rail:hover .dash-rail-label, .dash-rail:has(:focus-visible) .dash-rail-label { opacity: 1; transition-delay: .05s; }
+.dash-rail-wide { display: none; }
+.dash-rail:hover .dash-rail-wide, .dash-rail:has(:focus-visible) .dash-rail-wide { display: block; }
+
+.dash-rail-brand { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 12px; margin-bottom: 4px;
+  color: var(--sh-ink, #f2ede4); text-decoration: none; border-radius: 9px; }
+.dash-rail-wordmark { font-family: var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif); font-weight: 700;
+  font-variation-settings: 'wdth' 125; font-size: 13px; letter-spacing: 0.2em; }
+.dash-rail-role { margin-left: auto; font-family: var(--sh-font-mono, 'JetBrains Mono', 'JetBrains Mono Fallback', monospace); font-size: 9.5px;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--sh-ink2, #a09b94);
+  border: 1px solid var(--sh-line2, #413d38); border-radius: 6px; padding: 3px 6px; }
+
+.dash-rail-nav { display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 0; }
+.dash-rail-group { display: flex; flex-direction: column; gap: 2px; }
+.dash-rail-heading { position: relative; height: 22px; display: flex; align-items: center; padding: 0 12px;
+  font-family: var(--sh-font-mono, 'JetBrains Mono', 'JetBrains Mono Fallback', monospace); font-size: 10px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--sh-ink3, #75706a); }
+/* Collapsed, a section is a short rule where its name will appear. */
+.dash-rail-heading::before { content: ""; position: absolute; left: 14px; right: 14px; top: 50%; height: 1px;
+  background: var(--sh-line, #302c27); transition: opacity .12s ease; }
+.dash-rail:hover .dash-rail-heading::before, .dash-rail:has(:focus-visible) .dash-rail-heading::before { opacity: 0; }
+.dash-rail-foot { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--sh-line, #302c27); }
+
+.dash-rail-link { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; box-sizing: border-box;
+  border-radius: 9px; color: var(--sh-ink2, #a09b94); text-decoration: none; font-size: 14px; font-weight: 500;
+  transition: background .12s ease, color .12s ease; }
+.dash-rail-link:hover { background: rgba(var(--sh-ink-rgb, 242,237,228), 0.06); color: var(--sh-ink, #f2ede4); }
+.dash-rail-link[data-active] { background: var(--sh-accent-tint, #182d26); color: var(--sh-accent, #2ee0c4); font-weight: 600; }
+.dash-rail-link:focus-visible, .dash-rail-brand:focus-visible { outline: 2px solid var(--sh-accent, #2ee0c4); outline-offset: -2px; }
+.dash-rail-icon { flex: 0 0 auto; }
+.dash-rail-count { margin-left: auto; font-family: var(--sh-font-mono, 'JetBrains Mono', 'JetBrains Mono Fallback', monospace); font-size: 11px;
+  color: var(--sh-ink3, #75706a); background: var(--sh-rest, #221e19); padding: 2px 7px; border-radius: 6px; }
+.dash-rail-link[data-active] .dash-rail-count { color: var(--sh-accent-ink, #2ee0c4); background: rgba(var(--sh-accent-rgb, 46,224,196), 0.14); }
+.dash-rail .shape-dash-payout { margin: 2px 0 8px; padding: 12px 13px; background: var(--sh-accent-tint, #182d26);
+  border: 1px solid rgba(var(--sh-accent-rgb, 46,224,196), 0.25); border-radius: 11px; white-space: nowrap; }
+
+.dash-appbar { position: sticky; top: 0; z-index: 60; }
+.dash-appbar .shape-header { position: relative !important; left: auto !important; right: auto !important;
+  background: rgba(var(--sh-ground-rgb, 26,22,18), 0.9) !important; }
+.dash-appbar .shape-header-spacer { display: none !important; }
+.dash-appbar .shape-header-inner { max-width: none !important; height: 60px !important; padding: 0 24px !important; }
+.dash-appbar .shape-nav-tabs, .dash-appbar .shape-nav-hi, .dash-appbar .shape-nav-logo,
+.dash-appbar .shape-nav-dash { display: none !important; }
+.dash-appbar-title { position: absolute; left: 32px; top: 0; height: 60px; display: flex; align-items: center; z-index: 61;
+  pointer-events: none; font-family: var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif); font-weight: 650;
+  font-variation-settings: 'wdth' 112; font-size: 17px; letter-spacing: -0.005em; color: var(--sh-ink, #f2ede4); }
+
+/* A phone or a narrow tablet: the rail becomes the horizontal tab bar under the app
+   bar (the role the old sidebar's 900px rule in pageShell.jsx played), with every tab
+   in it, Profile and Settings included. `display: contents` on the main column lets
+   the app bar be ordered above the rail. */
+@media (max-width: 900px) {
+  .dash-app { grid-template-columns: minmax(0, 1fr); }
+  .dash-app-main { display: contents; }
+  .dash-appbar { order: -1; }
+  .dash-rail { top: 60px; height: auto; z-index: 59; }
+  .dash-rail-panel, .dash-rail:hover .dash-rail-panel, .dash-rail:has(:focus-visible) .dash-rail-panel {
+    position: static; width: auto; flex-direction: row; align-items: center; gap: 4px; padding: 6px 12px;
+    overflow-x: auto; overflow-y: hidden; border-right: 0; border-bottom: 1px solid var(--sh-line, #302c27); box-shadow: none; }
+  .dash-rail-nav, .dash-rail-group { display: contents; }
+  .dash-rail-label { opacity: 1; }
+  .dash-rail-brand, .dash-rail-heading, .dash-rail-site, .dash-rail .shape-dash-payout { display: none !important; }
+  .dash-rail-link { flex: 0 0 auto; min-height: 38px; padding: 0 12px; }
+  .dash-appbar-title { display: none; }
+  .dash-appbar .shape-header-inner { padding: 0 16px !important; }
+  .dash-appbar .shape-nav-logo { display: inline-flex !important; }
+}
