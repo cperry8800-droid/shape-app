@@ -8,7 +8,6 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { computeMembership } from '@/lib/membership-core';
 import { createPlatformCheckout } from '@/lib/platform-membership';
 import { stripeCustomerFor } from '@/lib/stripe-customer';
-import { hasLiveStripeSubscription } from '@/lib/stripe-live-subscription';
 import { isCheckoutInProgress } from '@/lib/checkout-barrier';
 
 export async function membershipDetour(opts: {
@@ -31,12 +30,10 @@ export async function membershipDetour(opts: {
   if (!priceId) return `${backHref}&error=membership_required`;
   try {
     const customerId = await stripeCustomerFor(user.id, email);
+    const result = await createPlatformCheckout({ priceId, userId: user.id, customerId, email, origin, next: backHref, cancelPath: backHref });
     // Paid moments ago and our row not written yet (Codex on #2353): no second membership.
-    if (await hasLiveStripeSubscription({ customerId, email }, { client_id: user.id, plan: 'shape_platform' })) {
-      return `${backHref}&member=pending`;
-    }
-    const url = await createPlatformCheckout({ priceId, userId: user.id, customerId, origin, next: backHref, cancelPath: backHref });
-    return url ?? `${backHref}&error=membership_required`;
+    if (result.alreadyMember) return `${backHref}&member=pending`;
+    return result.url ?? `${backHref}&error=membership_required`;
   } catch (e) {
     if (isCheckoutInProgress(e)) return `${backHref}&error=checkout_in_progress`;
     console.error('[membership-detour] membership checkout failed', e);

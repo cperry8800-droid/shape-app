@@ -66,10 +66,10 @@ test('one checkout door: the backend posts returnTo, opens the system browser na
   const start = be.slice(be.indexOf('async function startMembershipCheckout('), be.indexOf('// Open Stripe Checkout so Apple Pay'));
   assert.match(start, /const back = _isNative \? '\/membership\/done' : '\/m\/';/);
   assert.match(start, /body: JSON\.stringify\(\{ returnTo: back, cancelPath: back \}\)/);
-  assert.match(start, /openCheckoutUrl\(data\.url, \{ onClose: \(\) => \{ try \{ window\.dispatchEvent\(new Event\('shape:membership-recheck'\)\); \} catch \(e\) \{\} \} \}\);/);
+  assert.match(start, /const opened = await openCheckoutUrl\(data\.url, \{ onClose: \(\) => \{ try \{ window\.dispatchEvent\(new Event\('shape:membership-recheck'\)\); \} catch \(e\) \{\} \} \}\);\n\s+return opened \? \{ ok: true \} : \{ ok: false, status: 0, code: 'browser_failed', error: null \};/);
   assert.match(start, /if \(data && data\.code === 'already_member'\) \{\n\s+try \{ window\.dispatchEvent\(new Event\('shape:membership-recheck'\)\); \} catch \(e\) \{\}/);
   assert.match(be, /window\.ShapeMembershipApi = \{ check: checkMembership, startCheckout: startMembershipCheckout \};/);
-  assert.match(be, /Browser\.addListener\('browserFinished', \(\) => \{\n\s+try \{ onClose\(\); \} catch \(e\) \{\}\n\s+try \{ if \(sub && sub\.remove\) sub\.remove\(\); \} catch \(e\) \{\}/, 'the close listener removes itself');
+  assert.match(be, /if \(payload\.url && !\(await openCheckoutUrl\(payload\.url\)\)\) \{\n\s+throw new Error\('Unable to open Stripe checkout\.'\);/, 'the coach checkout says so too');
   // every app entry to the membership checkout uses the door
   const main = read('mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx');
   assert.match(main, /async function bsmStartCheckout\(\) \{[\s\S]*?const r = await api\.startCheckout\(\);/);
@@ -79,6 +79,42 @@ test('one checkout door: the backend posts returnTo, opens the system browser na
   for (const [name, src] of [['main', main], ['client', client]]) {
     assert.doesNotMatch(src, /\/api\/stripe\/platform-checkout/, `${name}: no second door`);
   }
+});
+
+// openCheckoutUrl, lifted from the shipping file and run against a scripted system browser.
+function liftOpenCheckout({ native = true, openRejects = false } = {}) {
+  const src = read('mobile-app/src/services/shapeBackend.js');
+  const start = src.indexOf('async function openCheckoutUrl(');
+  assert.ok(start > 0, 'openCheckoutUrl exists');
+  const end = src.indexOf('\n}\n', start) + 2;
+  const listeners = [];
+  const opened = [];
+  const assigned = [];
+  const Browser = {
+    addListener: async (name, cb) => { const h = { name, cb, removed: false, remove: () => { h.removed = true; } }; listeners.push(h); return h; },
+    open: async ({ url }) => { if (openRejects) throw new Error('no browser'); opened.push(url); },
+  };
+  const window = { Capacitor: { Plugins: { Browser } }, location: { assign: (u) => assigned.push(u) } };
+  const Capacitor = { isNativePlatform: () => native };
+  const fn = new Function('window', 'Capacitor', `${src.slice(start, end)}; return openCheckoutUrl;`)(window, Capacitor);
+  return { fn, listeners, opened, assigned };
+}
+
+test('opening the checkout: the system browser natively, a close re-checks once, and a browser that will not open is reported', async () => {
+  const ok = liftOpenCheckout();
+  let closes = 0;
+  assert.equal(await ok.fn('https://checkout.stripe.test/a', { onClose: () => { closes += 1; } }), true);
+  assert.deepEqual(ok.opened, ['https://checkout.stripe.test/a']);
+  ok.listeners[0].cb();
+  assert.equal(closes, 1);
+  assert.equal(ok.listeners[0].removed, true, 'one close, one call: the listener removes itself');
+  // Codex on #2353: a rejected open used to read as success and leave the listener behind.
+  const broken = liftOpenCheckout({ openRejects: true });
+  assert.equal(await broken.fn('https://checkout.stripe.test/b', { onClose: () => {} }), false);
+  assert.equal(broken.listeners[0].removed, true, 'it never opened, so its close listener is taken back');
+  const web = liftOpenCheckout({ native: false });
+  assert.equal(await web.fn('https://checkout.stripe.test/c'), true);
+  assert.deepEqual(web.assigned, ['https://checkout.stripe.test/c'], 'the website build navigates');
 });
 
 test('coach checkout in the app: the error carries the route\'s flags, and the marketplace offers the membership', () => {

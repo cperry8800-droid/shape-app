@@ -116,23 +116,30 @@ async function barrierLib({ open = [], expired = [], table = claimsTable(), rpcE
 /** An open checkout `minutesAgo` old. */
 const openSession = (id, minutesAgo, metadata, mode = 'subscription') => ({ id, created: Math.floor(Date.now() / 1000) - minutesAgo * 60, url: `https://checkout.stripe.test/${id}`, mode, metadata });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-/** A scripted sessions.create: records the args, takes `delay` ms, and leaves the session open. */
-const createInto = ({ created, open, prefix, delay = 0, error = null }) => async (args) => {
+/** A scripted sessions.create: records the args, takes `delay` ms, and leaves the session open (`onCreated` sees it). */
+const createInto = ({ created, open, prefix, delay = 0, error = null, onCreated = null }) => async (args) => {
   if (error) throw error;
   created.push(args);
   const id = `${prefix}${created.length}`;
   if (delay) await sleep(delay);
   const session = { id, created: Math.floor(Date.now() / 1000), url: `https://checkout.stripe.test/${id}`, mode: args.mode, metadata: args.metadata };
   open.push(session);
+  if (onCreated) onCreated(session);
   return session;
 };
+/** As if the buyer paid `session` at once: it is no longer open, and Stripe holds the subscription. */
+const paidAtOnce = (open, stripeSubs) => (session) => {
+  open.splice(open.indexOf(session), 1);
+  stripeSubs.push(stripeSub({ client_id: UID, ...session.metadata }));
+};
 
-async function platformMembership({ retrieve = async () => { throw new Error('unexpected retrieve'); }, admin = scripted(), created = [], open = [], expired = [], table = claimsTable(), createDelay = 0, createError = null, barrier = null } = {}) {
+async function platformMembership({ retrieve = async () => { throw new Error('unexpected retrieve'); }, admin = scripted(), created = [], open = [], expired = [], table = claimsTable(), createDelay = 0, createError = null, barrier = null, stripeSubs = [], onCreated = null } = {}) {
   const { returnPath, membershipCore } = await baseModules();
   return loadRealModule(join(ROOT, 'src/lib/platform-membership.ts'), {
     typescript: true,
     registry: new Map([
-      ['@/lib/stripe', { stripe: { checkout: { sessions: { create: createInto({ created, open, prefix: 'cs_test_platform', delay: createDelay, error: createError }), retrieve } } } }],
+      ['@/lib/stripe', { stripe: { checkout: { sessions: { create: createInto({ created, open, prefix: 'cs_test_platform', delay: createDelay, error: createError, onCreated }), retrieve } } } }],
+      ['@/lib/stripe-live-subscription', await liveSubscriptionLib({ stripeSubs })],
       ['@/lib/supabase/admin', { createAdminClient: () => admin.client }],
       ['@/lib/membership-core', membershipCore],
       ['@/lib/return-path', returnPath],
@@ -151,7 +158,7 @@ test('appendParam puts the parameter in the query, before any fragment, whether 
 });
 
 // ── /api/stripe/checkout-session: coaching needs the membership ─────────────────────────────
-async function coachRoute({ profile = ADULT, platform = [], subscriptions = [], fail = [], errors = {}, stripeSubs = [], emailSubs = [], stripeThrows = false, customerFails = false, open = [], table = claimsTable(), rpcError = null, createDelay = 0 } = {}) {
+async function coachRoute({ profile = ADULT, platform = [], subscriptions = [], fail = [], errors = {}, stripeSubs = [], emailSubs = [], stripeThrows = false, customerFails = false, open = [], table = claimsTable(), rpcError = null, createDelay = 0, onCreated = null } = {}) {
   const { requestUtils, returnPath, membershipCore, platformFee } = await baseModules();
   const created = [];
   const expired = [];
@@ -161,7 +168,7 @@ async function coachRoute({ profile = ADULT, platform = [], subscriptions = [], 
     typescript: true,
     registry: new Map([
       ['next/server', nextServer],
-      ['@/lib/stripe', { stripe: { checkout: { sessions: { create: createInto({ created, open, prefix: 'cs_test_coach', delay: createDelay }) } } } }],
+      ['@/lib/stripe', { stripe: { checkout: { sessions: { create: createInto({ created, open, prefix: 'cs_test_coach', delay: createDelay, onCreated }) } } } }],
       ['@/lib/supabase/admin', { createAdminClient: () => admin.client }],
       ['@/lib/capacity', { isEffectivelyAtCapacity: () => false }],
       ['@/lib/waitlist', { resolveRequestClient: async () => ({ user: { id: UID, email: 'm@example.invalid', emailConfirmed: true }, supabase: caller.client }), hasActiveWaitlistInvite: async () => false }],
@@ -248,7 +255,7 @@ async function runPlatformCheckout({ signedIn = true, profile = ADULT, platform 
   const expired = [];
   const barrier = await barrierLib({ open, expired, table, rpcError });
   const caller = scripted({ tables: { profiles: profile ? [profile] : [], platform_subscriptions: platform }, fail, errors });
-  const pm = await platformMembership({ created, open, barrier });
+  const pm = await platformMembership({ created, open, barrier, stripeSubs });
   const route = await loadRealModule(join(ROOT, 'src/app/api/stripe/platform-checkout/route.ts'), {
     typescript: true,
     registry: new Map([
@@ -471,15 +478,15 @@ test('two Join presses at once make one checkout, and both are handed it', async
   const created = [];
   const table = claimsTable();
   const pm = await platformMembership({ created, table, createDelay: 50 });
-  const start = () => pm.createPlatformCheckout({ priceId: 'price_platform_test', userId: UID, customerId: 'cus_stable', origin: 'https://shape.test', next: HOME, cancelPath: '/newdesign/Pricing.html' });
+  const start = () => pm.createPlatformCheckout({ priceId: 'price_platform_test', userId: UID, customerId: 'cus_stable', email: 'm@example.invalid', origin: 'https://shape.test', next: HOME, cancelPath: '/newdesign/Pricing.html' });
   const [a, b] = await Promise.all([start(), start()]);
   assert.equal(created.length, 1, 'Codex on #2353: the second waited for the first, then found its checkout');
-  assert.equal(a, 'https://checkout.stripe.test/cs_test_platform1');
-  assert.equal(b, a);
+  assert.deepEqual(a, { alreadyMember: false, url: 'https://checkout.stripe.test/cs_test_platform1' });
+  assert.deepEqual(b, a);
   assert.equal(table.claims.size, 0, 'both released');
   const failing = claimsTable();
   const broken = await platformMembership({ table: failing, createError: new Error('stripe down') });
-  await assert.rejects(broken.createPlatformCheckout({ priceId: 'p', userId: UID, customerId: 'cus_stable', origin: 'https://shape.test', next: HOME, cancelPath: '/' }), /stripe down/);
+  await assert.rejects(broken.createPlatformCheckout({ priceId: 'p', userId: UID, customerId: 'cus_stable', email: null, origin: 'https://shape.test', next: HOME, cancelPath: '/' }), /stripe down/);
   assert.equal(failing.claims.size, 0, 'a failed create releases the claim, so the next press is not held up');
 });
 
@@ -491,6 +498,29 @@ test('two Subscribe presses at once make one checkout for the coach, and both ar
   assert.equal(coach.created.length, 1);
   assert.equal(b.body.url, a.body.url);
   assert.equal(coach.table.claims.size, 0);
+});
+
+test('a press that waited while the first checkout was paid is refused, not sold a second subscription', async () => {
+  // Codex on #2353: the claim serialised creation but the "already paying?" check ran before it.
+  // Here the first checkout is paid the moment it is made, while the second request waits.
+  const open = [];
+  const subs = [];
+  const created = [];
+  const pm = await platformMembership({ created, open, stripeSubs: subs, createDelay: 50, onCreated: paidAtOnce(open, subs) });
+  const start = () => pm.createPlatformCheckout({ priceId: 'price_platform_test', userId: UID, customerId: 'cus_stable', email: null, origin: 'https://shape.test', next: HOME, cancelPath: '/' });
+  const [a, b] = await Promise.all([start(), start()]);
+  assert.equal(a.alreadyMember, false);
+  assert.deepEqual(b, { alreadyMember: true }, 'asked again under the claim: one membership');
+  assert.equal(created.length, 1);
+
+  const coachOpen = [];
+  const coachSubs = [];
+  const coach = await coachRoute({ platform: [{ status: 'active' }], open: coachOpen, stripeSubs: coachSubs, createDelay: 50, onCreated: paidAtOnce(coachOpen, coachSubs) });
+  const [x, y] = await Promise.all([coach.post(), coach.post()]);
+  assert.equal(x.status, 200);
+  assert.equal(y.status, 409);
+  assert.equal(y.body.reason, 'already_subscribed');
+  assert.equal(coach.created.length, 1, 'one subscription to the coach');
 });
 
 test('membership checkout: a second press reopens the checkout already open; a stale one is replaced', async () => {
@@ -581,7 +611,7 @@ async function runDetour({ profile = ADULT, platform = [], errors = {}, stripeSu
   const { membershipCore, returnPath } = await baseModules();
   const created = [];
   const barrier = await barrierLib({ table });
-  const pm = await platformMembership({ created, barrier });
+  const pm = await platformMembership({ created, barrier, stripeSubs });
   const caller = scripted({ tables: { profiles: profile ? [profile] : [], platform_subscriptions: platform }, errors });
   const lib = await loadRealModule(join(ROOT, 'src/lib/membership-detour.ts'), {
     typescript: true,
@@ -680,7 +710,10 @@ test('the server-action checkouts (/subscribe and /purchase) take the detour, ou
   // Codex on #2353, rounds 3 and 4: claimed first, the open checkout handed back before a product
   // or price is made, and the claim released in a finally (which passes redirect()'s throw on).
   const at = (needle) => { const i = subscribe.indexOf(needle); assert.ok(i >= 0, needle); return i; };
-  assert.ok(at('releaseClaim = await claimCheckout(user.id, `coach-${providerRole}-${providerId}`);') < at('open = await currentCheckout(customerId,'));
+  assert.ok(at('releaseClaim = await claimCheckout(user.id, `coach-${providerRole}-${providerId}`);') < at('paid = await hasLiveStripeSubscription('), 'Stripe is asked under the claim');
+  assert.ok(at('paid = await hasLiveStripeSubscription(') < at('open = await currentCheckout(customerId,'));
+  assert.equal((subscribe.match(/hasLiveStripeSubscription\(/g) ?? []).length, 1, 'and only there');
+  assert.match(subscribe, /if \(paid\) redirect\(`\$\{backHref\}&error=already_subscribed`\);/);
   assert.ok(at('open = await currentCheckout(customerId,') < at('if (open) redirect(open);'));
   assert.ok(at('if (open) redirect(open);') < at('priceResult = await getProviderConnectInfo('));
   assert.match(subscribe, /if \(isCheckoutInProgress\(e\)\) redirect\(`\$\{backHref\}&error=checkout_in_progress`\);/);

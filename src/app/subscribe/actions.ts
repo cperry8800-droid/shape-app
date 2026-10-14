@@ -125,8 +125,9 @@ export async function startCheckout(formData: FormData): Promise<void> {
   }
   if (!customerId) redirect(`${backHref}&error=checkout_failed`);
 
-  // One live subscription per coach: paying twice made two monthly charges. Our table and
-  // Stripe are both read (stripe-live-subscription.ts says why); a failed read refuses.
+  // One live subscription per coach: paying twice made two monthly charges. Our table is read
+  // here, and Stripe under the checkout claim below (stripe-live-subscription.ts says why); a
+  // failed read refuses.
   const { data: existing, error: existingErr } = await supabase
     .from('subscriptions')
     .select('status')
@@ -134,19 +135,9 @@ export async function startCheckout(formData: FormData): Promise<void> {
     .eq('provider_id', providerId)
     .eq('provider_role', providerRole);
   if (existingErr) redirect(`${backHref}&error=subscription_check_failed`);
-  let live = (existing ?? []).some((row: { status?: unknown }) => ACTIVE_SUB.has(String(row.status)));
-  // Our row arrives with the webhook; Stripe has the subscription the moment it is paid.
-  let stripeChecked = live;
-  if (!live) {
-    try {
-      live = await hasLiveStripeSubscription({ customerId, email: user.email ?? null }, { client_id: user.id, provider_id: String(providerId), provider_role: providerRole });
-      stripeChecked = true;
-    } catch (e) {
-      console.error('[subscribe] Stripe subscription lookup failed', e);
-    }
+  if ((existing ?? []).some((row: { status?: unknown }) => ACTIVE_SUB.has(String(row.status)))) {
+    redirect(`${backHref}&error=already_subscribed`);
   }
-  if (!stripeChecked) redirect(`${backHref}&error=subscription_check_failed`);
-  if (live) redirect(`${backHref}&error=already_subscribed`);
 
   // First-dibs: a live waitlist invite lets an at-capacity coach be subscribed
   // to. Invite lookup runs on the caller's RLS-scoped client, inside a try so a
@@ -170,6 +161,18 @@ export async function startCheckout(formData: FormData): Promise<void> {
     redirect(`${backHref}&error=checkout_failed`);
   }
   try {
+    // ⚠ ASKED HERE, WHILE HOLDING THE CLAIM (Codex on #2353): a request that waited on the claim
+    // can arrive after the first checkout was paid, when there is nothing open to hand back.
+    // Stripe holds the subscription the moment it is paid; our row comes with the webhook.
+    let paid = false;
+    try {
+      paid = await hasLiveStripeSubscription({ customerId, email: user.email ?? null }, { client_id: user.id, provider_id: String(providerId), provider_role: providerRole });
+    } catch (e) {
+      console.error('[subscribe] Stripe subscription lookup failed', e);
+      redirect(`${backHref}&error=subscription_check_failed`);
+    }
+    if (paid) redirect(`${backHref}&error=already_subscribed`);
+
     // An open checkout for this coach is handed back before anything is created for a second.
     let open: string | null = null;
     try {

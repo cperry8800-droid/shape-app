@@ -179,8 +179,12 @@ export async function POST(request: Request) {
   }
   // ⚠ A SECOND SUBSCRIPTION TO THE SAME COACH WAS ONE PRESS AWAY. A member back from Stripe
   // before the webhook landed still saw Subscribe, and paying again made two monthly charges.
-  // Read on the caller's own client ("clients read own subscriptions") and at Stripe; a failed
-  // read refuses.
+  // Read here on the caller's own client ("clients read own subscriptions"), and at Stripe under
+  // the checkout claim below; a failed read refuses.
+  const alreadySubscribed = () => NextResponse.json(
+    { error: "You're already subscribed to this coach.", reason: 'already_subscribed' },
+    { status: 409 }
+  );
   if (isSubscription) {
     const { data: existing, error: existingErr } = await caller
       .from('subscriptions')
@@ -189,24 +193,7 @@ export async function POST(request: Request) {
       .eq('provider_id', providerId)
       .eq('provider_role', providerRole);
     if (existingErr) return dbError(existingErr, 'checkout existing subscription lookup', 503);
-    let live = (existing ?? []).some((row: { status?: unknown }) => ACTIVE_SUB.has(String(row.status)));
-    // Our row arrives with the webhook; Stripe has the subscription the moment it is paid.
-    if (!live) {
-      try {
-        live = await hasLiveStripeSubscription({ customerId, email: user.email ?? null }, {
-          client_id: user.id, provider_id: String(providerId), provider_role: providerRole,
-        });
-      } catch (err) {
-        console.error('[shape-app] checkout Stripe subscription lookup failed', err);
-        return NextResponse.json({ error: 'Could not check your subscriptions. Try again in a moment.' }, { status: 503 });
-      }
-    }
-    if (live) {
-      return NextResponse.json(
-        { error: "You're already subscribed to this coach.", reason: 'already_subscribed' },
-        { status: 409 }
-      );
-    }
+    if ((existing ?? []).some((row: { status?: unknown }) => ACTIVE_SUB.has(String(row.status)))) return alreadySubscribed();
   }
   const itemName = body.item?.name || (isSubscription ? 'Monthly coaching' : 'One-time purchase');
   const fallbackOneTimePrice =
@@ -373,6 +360,19 @@ export async function POST(request: Request) {
   try {
     if (isSubscription) {
       releaseClaim = await claimCheckout(user.id, `coach-${providerRole}-${providerId}`);
+      // ⚠ ASKED HERE, WHILE HOLDING THE CLAIM (Codex on #2353): a request that waited on the claim
+      // can arrive after the first checkout was paid, when there is nothing open to hand back.
+      // Stripe holds the subscription the moment it is paid; our row comes with the webhook.
+      let paid: boolean;
+      try {
+        paid = await hasLiveStripeSubscription({ customerId, email: user.email ?? null }, {
+          client_id: user.id, provider_id: String(providerId), provider_role: providerRole,
+        });
+      } catch (err) {
+        console.error('[shape-app] checkout Stripe subscription lookup failed', err);
+        return NextResponse.json({ error: 'Could not check your subscriptions. Try again in a moment.' }, { status: 503 });
+      }
+      if (paid) return alreadySubscribed();
       const open = await currentCheckout(customerId, (s) => s.mode === 'subscription'
         && s.metadata?.provider_id === String(providerId) && s.metadata?.provider_role === providerRole);
       if (open) return NextResponse.json({ url: open, creditAppliedCents: 0 });

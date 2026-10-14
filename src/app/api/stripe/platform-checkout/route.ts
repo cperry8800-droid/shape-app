@@ -20,7 +20,6 @@ import { createClient } from '@/lib/supabase/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { computeMembership } from '@/lib/membership-core';
 import { createPlatformCheckout, MEMBERSHIP_HOME } from '@/lib/platform-membership';
-import { hasLiveStripeSubscription } from '@/lib/stripe-live-subscription';
 import { stripeCustomerFor } from '@/lib/stripe-customer';
 import { isCheckoutInProgress } from '@/lib/checkout-barrier';
 import { sameOriginPath } from '@/lib/return-path';
@@ -63,12 +62,13 @@ export async function POST(request: Request) {
     if (m.isKnownMinor) {
       return NextResponse.json({ error: 'Shape is for adults 18 and over.', code: 'age_restricted' }, { status: 403 });
     }
-    // Our row arrives with the webhook (or platform-return); Stripe has it the moment it is paid.
-    // The account's own customer is where it lands (stripe-customer.ts).
-    customerId = await stripeCustomerFor(user.id, user.email ?? null);
-    if (m.isMember || await hasLiveStripeSubscription({ customerId, email: user.email ?? null }, { client_id: user.id, plan: 'shape_platform' })) {
+    if (m.isMember) {
       return NextResponse.json({ error: "You're already a Shape member.", code: 'already_member' }, { status: 409 });
     }
+    // The account's own customer is where the membership lands (stripe-customer.ts). Whether
+    // Stripe already holds one (our row arrives with the webhook) is asked under the checkout
+    // claim, in createPlatformCheckout.
+    customerId = await stripeCustomerFor(user.id, user.email ?? null);
   } catch (err) {
     console.error('[shape-app] platform-checkout membership read failed', err);
     return NextResponse.json({ error: 'Could not check your membership. Try again in a moment.' }, { status: 503 });
@@ -80,7 +80,11 @@ export async function POST(request: Request) {
   const cancelPath = sameOriginPath(body.cancelPath, '/newdesign/Pricing.html?error=subscribe_cancelled');
 
   try {
-    const url = await createPlatformCheckout({ priceId, userId: user.id, customerId, origin, next, cancelPath });
+    const result = await createPlatformCheckout({ priceId, userId: user.id, customerId, email: user.email ?? null, origin, next, cancelPath });
+    if (result.alreadyMember) {
+      return NextResponse.json({ error: "You're already a Shape member.", code: 'already_member' }, { status: 409 });
+    }
+    const url = result.url;
     if (!url) {
       return NextResponse.json({ error: 'Stripe did not return a checkout URL.' }, { status: 500 });
     }

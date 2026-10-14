@@ -14,6 +14,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { ACTIVE_SUB } from '@/lib/membership-core';
 import { appendParam } from '@/lib/return-path';
 import { claimCheckout, currentCheckout } from '@/lib/checkout-barrier';
+import { hasLiveStripeSubscription } from '@/lib/stripe-live-subscription';
 
 /** Where a member lands after joining when nothing asked for somewhere else. */
 export const MEMBERSHIP_HOME = '/newdesign/ClientApp.html#today';
@@ -28,16 +29,24 @@ export async function createPlatformCheckout(opts: {
   userId: string;
   /** The account's own Stripe customer (stripe-customer.ts), so the membership lands on it. */
   customerId: string;
+  /** Older checkouts made a customer per session from the email; those are looked at too. */
+  email: string | null;
   origin: string;
   next: string;
   cancelPath: string;
-}): Promise<string | null> {
+}): Promise<{ alreadyMember: true } | { alreadyMember: false; url: string | null }> {
   // One payable membership checkout at a time (checkout-barrier.ts): an open one is handed back.
-  // CheckoutInProgressError propagates; callers answer it as checkout_in_progress.
+  // CheckoutInProgressError and a failed Stripe read propagate; callers answer them.
   const release = await claimCheckout(opts.userId, 'shape_platform');
   try {
+    // ⚠ ASKED HERE, WHILE HOLDING THE CLAIM (Codex on #2353): a request that waited on the claim
+    // can arrive after the first checkout was paid, when there is nothing open to hand back.
+    // Stripe holds the subscription the moment it is paid; our row comes later.
+    if (await hasLiveStripeSubscription({ customerId: opts.customerId, email: opts.email }, { client_id: opts.userId, plan: 'shape_platform' })) {
+      return { alreadyMember: true };
+    }
     const open = await currentCheckout(opts.customerId, (s) => s.metadata?.plan === 'shape_platform');
-    if (open) return open;
+    if (open) return { alreadyMember: false, url: open };
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       line_items: [{ price: opts.priceId, quantity: 1 }],
@@ -49,7 +58,7 @@ export async function createPlatformCheckout(opts: {
       cancel_url: `${opts.origin}${opts.cancelPath}`,
       allow_promotion_codes: true,
     });
-    return session.url ?? null;
+    return { alreadyMember: false, url: session.url ?? null };
   } finally {
     await release();
   }

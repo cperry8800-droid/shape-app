@@ -777,7 +777,9 @@ async function startCheckout({ item, coach, user, role }) {
     throw err;
   }
 
-  if (payload.url) openCheckoutUrl(payload.url);
+  if (payload.url && !(await openCheckoutUrl(payload.url))) {
+    throw new Error('Unable to open Stripe checkout.');
+  }
 
   return payload;
 }
@@ -815,8 +817,8 @@ async function startMembershipCheckout() {
     });
     const data = await res.json().catch(() => ({}));
     if (res.ok && data.url) {
-      openCheckoutUrl(data.url, { onClose: () => { try { window.dispatchEvent(new Event('shape:membership-recheck')); } catch (e) {} } });
-      return { ok: true };
+      const opened = await openCheckoutUrl(data.url, { onClose: () => { try { window.dispatchEvent(new Event('shape:membership-recheck')); } catch (e) {} } });
+      return opened ? { ok: true } : { ok: false, status: 0, code: 'browser_failed', error: null };
     }
     if (data && data.code === 'already_member') {
       try { window.dispatchEvent(new Event('shape:membership-recheck')); } catch (e) {}
@@ -830,24 +832,36 @@ async function startMembershipCheckout() {
 // Open Stripe Checkout so Apple Pay / Google Pay can appear: on native, use the
 // system browser (SFSafariViewController via the Capacitor Browser plugin) — the
 // in-app WebView can't present the Apple Pay sheet. Falls back to the WebView.
-function openCheckoutUrl(url, { onClose } = {}) {
-  try {
-    const cap = (typeof window !== 'undefined' && window.Capacitor) || null;
-    const Browser = cap && cap.Plugins && cap.Plugins.Browser;
-    if (Capacitor.isNativePlatform() && Browser && Browser.open) {
-      if (onClose && Browser.addListener) {
+// Resolves false when the system browser would not open (Codex on #2353: a rejected
+// Browser.open read as success, and its close listener stayed behind to fire on a later,
+// unrelated browser), so the caller can say so.
+async function openCheckoutUrl(url, { onClose } = {}) {
+  const cap = (typeof window !== 'undefined' && window.Capacitor) || null;
+  const Browser = cap && cap.Plugins && cap.Plugins.Browser;
+  let native = false;
+  try { native = Capacitor.isNativePlatform(); } catch (e) {}
+  if (native && Browser && Browser.open) {
+    let handle = null;
+    if (onClose && Browser.addListener) {
+      try {
         // One close, one call: the listener removes itself.
-        let sub = null;
-        Promise.resolve(Browser.addListener('browserFinished', () => {
+        handle = await Browser.addListener('browserFinished', () => {
+          try { if (handle && handle.remove) handle.remove(); } catch (e) {}
           try { onClose(); } catch (e) {}
-          try { if (sub && sub.remove) sub.remove(); } catch (e) {}
-        })).then((h) => { sub = h; }).catch(() => {});
-      }
-      Browser.open({ url, presentationStyle: 'fullscreen' });
-      return;
+        });
+      } catch (e) { handle = null; }
     }
-  } catch (e) {}
+    try {
+      await Browser.open({ url, presentationStyle: 'fullscreen' });
+      return true;
+    } catch (e) {
+      // It never opened, so it never closes: take the listener back.
+      try { if (handle && handle.remove) handle.remove(); } catch (err) {}
+      return false;
+    }
+  }
   try { window.location.assign(url); } catch (e) { window.location.href = url; }
+  return true;
 }
 
 async function startStripeConnectOnboarding({ role } = {}) {
