@@ -788,16 +788,31 @@ async function startCheckout({ item, coach, user, role }) {
 // "Is this account a member?" is /api/me/membership: the gate's own answer, so an approved
 // coach or an admin is a member and a failed lookup is not a non-member. Resolves true,
 // false, or null when it could not be found out.
+// A lookup that never answers (a half-open connection, a stalled proxy) is unknown after this
+// long, never a wait without end (Codex on #2353): the gate then keeps this account's last answer.
+const MEMBERSHIP_LOOKUP_MS = 8000;
 async function checkMembership() {
   if (!state.user?.id) return false;
+  const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+  let timer = null;
+  const late = new Promise((resolve) => {
+    timer = setTimeout(() => { try { if (ctl) ctl.abort(); } catch (e) {} resolve(null); }, MEMBERSHIP_LOOKUP_MS);
+  });
+  const lookup = (async () => {
+    try {
+      const res = await shapeApiFetch('/api/me/membership', { cache: 'no-store', ...(ctl ? { signal: ctl.signal } : {}) });
+      if (!res.ok) return null;
+      const d = await res.json();
+      if (!d || d.signedIn !== true) return null;
+      return d.member === true;
+    } catch (e) {
+      return null;
+    }
+  })();
   try {
-    const res = await shapeApiFetch('/api/me/membership', { cache: 'no-store' });
-    if (!res.ok) return null;
-    const d = await res.json();
-    if (!d || d.signedIn !== true) return null;
-    return d.member === true;
-  } catch (e) {
-    return null;
+    return await Promise.race([lookup, late]);
+  } finally {
+    clearTimeout(timer);
   }
 }
 

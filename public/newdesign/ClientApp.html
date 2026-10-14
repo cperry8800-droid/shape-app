@@ -190,10 +190,22 @@ function caUseMembership() {
   React.useEffect(() => {
     if (m) return;
     let on = true;
-    fetch("/api/me/membership", { credentials: "same-origin", cache: "no-store" })
+    let settled = false;
+    const settle = (d) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      window.__shapeClientMembership = d || { unknown: true };
+      if (on) setM(window.__shapeClientMembership);
+    };
+    // A lookup that never answers (a stalled connection) is unknown after 8 seconds, and the page
+    // is drawn as it was, rather than staying blank (Codex on #2353).
+    const ctl = typeof AbortController === "function" ? new AbortController() : null;
+    const timer = setTimeout(() => { try { if (ctl) ctl.abort(); } catch (e) {} settle({ unknown: true }); }, 8000);
+    fetch("/api/me/membership", { credentials: "same-origin", cache: "no-store", signal: ctl ? ctl.signal : undefined })
       .then((r) => (r.ok ? r.json() : { unknown: true }))
       .catch(() => ({ unknown: true }))
-      .then((d) => { window.__shapeClientMembership = d || { unknown: true }; if (on) setM(window.__shapeClientMembership); });
+      .then(settle);
     return () => { on = false; };
   }, []);
   return m;

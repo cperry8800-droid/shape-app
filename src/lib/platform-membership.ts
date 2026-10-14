@@ -13,7 +13,7 @@ import { stripe } from '@/lib/stripe';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { ACTIVE_SUB } from '@/lib/membership-core';
 import { appendParam } from '@/lib/return-path';
-import { claimCheckout, currentCheckout } from '@/lib/checkout-barrier';
+import { CHECKOUT_CREATE_OPTIONS, claimCheckout, currentCheckout } from '@/lib/checkout-barrier';
 import { hasLiveStripeSubscription } from '@/lib/stripe-live-subscription';
 
 /** Where a member lands after joining when nothing asked for somewhere else. */
@@ -37,7 +37,7 @@ export async function createPlatformCheckout(opts: {
 }): Promise<{ alreadyMember: true } | { alreadyMember: false; url: string | null }> {
   // One payable membership checkout at a time (checkout-barrier.ts): an open one is handed back.
   // CheckoutInProgressError and a failed Stripe read propagate; callers answer them.
-  const release = await claimCheckout(opts.userId, 'shape_platform');
+  const claim = await claimCheckout(opts.userId, 'shape_platform');
   try {
     // ⚠ ASKED HERE, WHILE HOLDING THE CLAIM (Codex on #2353): a request that waited on the claim
     // can arrive after the first checkout was paid, when there is nothing open to hand back.
@@ -47,6 +47,7 @@ export async function createPlatformCheckout(opts: {
     }
     const open = await currentCheckout(opts.customerId, (s) => s.metadata?.plan === 'shape_platform');
     if (open) return { alreadyMember: false, url: open };
+    await claim.confirm();
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       line_items: [{ price: opts.priceId, quantity: 1 }],
@@ -57,10 +58,10 @@ export async function createPlatformCheckout(opts: {
       success_url: membershipReturnUrl(opts.origin, opts.next),
       cancel_url: `${opts.origin}${opts.cancelPath}`,
       allow_promotion_codes: true,
-    });
+    }, CHECKOUT_CREATE_OPTIONS);
     return { alreadyMember: false, url: session.url ?? null };
   } finally {
-    await release();
+    await claim.release();
   }
 }
 

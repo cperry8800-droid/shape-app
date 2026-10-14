@@ -60,8 +60,8 @@ test('the shell uses those rules, asks /api/me/membership, and re-checks when it
 
 test('one checkout door: the backend posts returnTo, opens the system browser natively, and re-checks on close', () => {
   const be = read('mobile-app/src/services/shapeBackend.js');
-  const check = be.slice(be.indexOf('async function checkMembership('), be.indexOf('async function startMembershipCheckout('));
-  assert.match(check, /shapeApiFetch\('\/api\/me\/membership', \{ cache: 'no-store' \}\)/);
+  const check = be.slice(be.indexOf('const MEMBERSHIP_LOOKUP_MS = 8000;'), be.indexOf('async function startMembershipCheckout('));
+  assert.match(check, /shapeApiFetch\('\/api\/me\/membership', \{ cache: 'no-store', \.\.\.\(ctl \? \{ signal: ctl\.signal \} : \{\}\) \}\)/);
   assert.match(check, /if \(!res\.ok\) return null;/, 'a refused lookup is unknown, not a non-member');
   const start = be.slice(be.indexOf('async function startMembershipCheckout('), be.indexOf('// Open Stripe Checkout so Apple Pay'));
   assert.match(start, /const back = _isNative \? '\/membership\/done' : '\/m\/';/);
@@ -79,6 +79,32 @@ test('one checkout door: the backend posts returnTo, opens the system browser na
   for (const [name, src] of [['main', main], ['client', client]]) {
     assert.doesNotMatch(src, /\/api\/stripe\/platform-checkout/, `${name}: no second door`);
   }
+});
+
+// checkMembership, lifted from the shipping file and run against a scripted fetch.
+function liftCheckMembership({ respond, lookupMs = 30 }) {
+  const src = read('mobile-app/src/services/shapeBackend.js');
+  const start = src.indexOf('async function checkMembership(');
+  assert.ok(start > 0, 'checkMembership exists');
+  const end = src.indexOf('\n}\n', start) + 2;
+  const signals = [];
+  const shapeApiFetch = (path, init) => { signals.push(init.signal); return respond(init); };
+  return { fn: new Function('state', 'shapeApiFetch', 'MEMBERSHIP_LOOKUP_MS', `${src.slice(start, end)}; return checkMembership;`)({ user: { id: 'u1' } }, shapeApiFetch, lookupMs), signals };
+}
+
+test('a membership lookup that never answers is unknown after its time, and is called off', async () => {
+  // Codex on #2353: a half-open connection left the app on its hold, and the website blank, for good.
+  const hung = liftCheckMembership({ respond: () => new Promise(() => {}) });
+  const t0 = Date.now();
+  assert.equal(await hung.fn(), null, 'unknown: the gate keeps this account\'s last answer');
+  assert.ok(Date.now() - t0 < 1000);
+  assert.equal(hung.signals[0].aborted, true, 'the request itself is aborted');
+  const member = liftCheckMembership({ respond: async () => ({ ok: true, json: async () => ({ signedIn: true, member: true }) }) });
+  assert.equal(await member.fn(), true);
+  assert.equal(member.signals[0].aborted, false);
+  const refused = liftCheckMembership({ respond: async () => ({ ok: false }) });
+  assert.equal(await refused.fn(), null);
+  assert.match(read('mobile-app/src/services/shapeBackend.js'), /const MEMBERSHIP_LOOKUP_MS = 8000;/);
 });
 
 // openCheckoutUrl, lifted from the shipping file and run against a scripted system browser.

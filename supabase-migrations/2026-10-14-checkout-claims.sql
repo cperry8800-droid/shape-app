@@ -10,10 +10,14 @@
 -- (src/lib/checkout-barrier.ts).
 --
 -- A claim is held only while a checkout is being created: released when the request ends, and
--- taken over after 60 seconds if a request died holding it.
+-- taken over after 60 seconds if a request died holding it. ⚠ A request that ran past 60 seconds
+-- may have lost its claim to another while it was still working (Codex on #2353), so right
+-- before it creates the checkout it renews the claim, and creates nothing unless the claim is
+-- still its own (renew_checkout_claim). The create is then bounded well inside the 60 seconds.
+-- Re-run 2026-10-14 to add renew_checkout_claim; everything else is unchanged.
 --
--- ⚠ THE SERVICE ROLE ONLY. The table has RLS on and no policies; both functions are invoker
--- functions revoked from anon and authenticated by name (Supabase grants them directly).
+-- ⚠ THE SERVICE ROLE ONLY. The table has RLS on and no policies; the three functions are
+-- invoker functions revoked from anon and authenticated by name (Supabase grants them directly).
 --
 -- Re-runnable: "if not exists", "create or replace", and a guard that checks the result.
 
@@ -60,10 +64,27 @@ as $$
   where user_id = p_user_id and product = p_product and token = p_token;
 $$;
 
+-- True when the claim is still the caller's, and renewed; null when another request has taken
+-- it over (the caller then creates nothing).
+create or replace function public.renew_checkout_claim(p_user_id uuid, p_product text, p_token uuid)
+returns boolean
+language sql
+volatile
+security invoker
+set search_path = public, pg_temp
+as $$
+  update public.checkout_claims
+  set claimed_at = now()
+  where user_id = p_user_id and product = p_product and token = p_token
+  returning true;
+$$;
+
 revoke all on function public.claim_checkout(uuid, text, uuid) from public, anon, authenticated;
 grant execute on function public.claim_checkout(uuid, text, uuid) to service_role;
 revoke all on function public.release_checkout(uuid, text, uuid) from public, anon, authenticated;
 grant execute on function public.release_checkout(uuid, text, uuid) to service_role;
+revoke all on function public.renew_checkout_claim(uuid, text, uuid) from public, anon, authenticated;
+grant execute on function public.renew_checkout_claim(uuid, text, uuid) to service_role;
 
 -- ── The gate: a migration that cannot prove it worked is not a gate ──────────────────────────
 do $guard$
@@ -83,12 +104,13 @@ begin
   if exists (
     select 1 from unnest(array[
       'public.claim_checkout(uuid, text, uuid)',
-      'public.release_checkout(uuid, text, uuid)'
+      'public.release_checkout(uuid, text, uuid)',
+      'public.renew_checkout_claim(uuid, text, uuid)'
     ]) f(sig)
     where has_function_privilege('anon', f.sig, 'execute') or has_function_privilege('authenticated', f.sig, 'execute')
        or not has_function_privilege('service_role', f.sig, 'execute')
   ) then
-    raise exception 'claim_checkout and release_checkout must be executable by the service role only';
+    raise exception 'claim_checkout, release_checkout and renew_checkout_claim must be executable by the service role only';
   end if;
 end
 $guard$;

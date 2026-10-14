@@ -8,6 +8,11 @@
 // - claimCheckout: the request claims (account, product) in checkout_claims, an insert that two
 //   requests cannot both win (2026-10-14-checkout-claims.sql). The loser waits for the winner to
 //   finish, then claims in turn. The claim is released when the request is done.
+// - claim.confirm, right before the checkout is created: renews the claim and refuses if it is no
+//   longer this request's. A request that ran past the claim's 60 seconds may have lost it to
+//   another while still working (Codex again); it then creates nothing. The create itself is
+//   bounded by CHECKOUT_CREATE_OPTIONS, well inside the 60 seconds, so two requests can never
+//   both hand out a checkout.
 // - currentCheckout, run while holding the claim: the account's open checkout for the product, if
 //   it is under 10 minutes old, is handed back (so the loser above gets the winner's checkout, and
 //   a second press from another page reopens it). Every other open one for the product is expired,
@@ -18,6 +23,8 @@ import { stripe } from '@/lib/stripe';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 const FRESH_MS = 10 * 60 * 1000;
+/** For the sessions.create made under a claim: done or failed within 20 seconds of claim.confirm. */
+export const CHECKOUT_CREATE_OPTIONS = { timeout: 20_000, maxNetworkRetries: 0 } as const;
 // How long a request waits for another holding the claim: a checkout is made in a second or two.
 const CLAIM_WAITS_MS = [300, 600, 900, 1200, 1500];
 
@@ -36,28 +43,43 @@ export function isCheckoutInProgress(err: unknown): boolean {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+export type CheckoutClaim = {
+  /** Renews the claim right before the checkout is created; throws CheckoutInProgressError if it was taken over. */
+  confirm: () => Promise<void>;
+  /** Releases the claim. Never throws. */
+  release: () => Promise<void>;
+};
+
 /**
- * Claims (account, product), waiting briefly while another request holds it. Returns the release,
- * which never throws. Throws CheckoutInProgressError if the claim stays held, or the database's
- * error: a checkout is never opened without the claim.
+ * Claims (account, product), waiting briefly while another request holds it. Throws
+ * CheckoutInProgressError if the claim stays held, or the database's error: a checkout is never
+ * opened without the claim.
  */
-export async function claimCheckout(userId: string, product: string): Promise<() => Promise<void>> {
+export async function claimCheckout(userId: string, product: string): Promise<CheckoutClaim> {
   const admin = createAdminClient();
   const token = randomUUID();
+  const args = { p_user_id: userId, p_product: product, p_token: token };
   for (let attempt = 0; ; attempt += 1) {
-    const { data, error } = await admin.rpc('claim_checkout', { p_user_id: userId, p_product: product, p_token: token });
+    const { data, error } = await admin.rpc('claim_checkout', args);
     if (error) throw error;
     if (data === true) break;
     if (attempt >= CLAIM_WAITS_MS.length) throw new CheckoutInProgressError();
     await sleep(CLAIM_WAITS_MS[attempt]);
   }
-  return async () => {
-    try {
-      const { error } = await admin.rpc('release_checkout', { p_user_id: userId, p_product: product, p_token: token });
-      if (error) console.error('[checkout-barrier] release failed; the claim lapses in 60 seconds', { product, error: error.message });
-    } catch (e) {
-      console.error('[checkout-barrier] release failed; the claim lapses in 60 seconds', { product, error: String(e) });
-    }
+  return {
+    confirm: async () => {
+      const { data, error } = await admin.rpc('renew_checkout_claim', args);
+      if (error) throw error;
+      if (data !== true) throw new CheckoutInProgressError();
+    },
+    release: async () => {
+      try {
+        const { error } = await admin.rpc('release_checkout', args);
+        if (error) console.error('[checkout-barrier] release failed; the claim lapses in 60 seconds', { product, error: error.message });
+      } catch (e) {
+        console.error('[checkout-barrier] release failed; the claim lapses in 60 seconds', { product, error: String(e) });
+      }
+    },
   };
 }
 

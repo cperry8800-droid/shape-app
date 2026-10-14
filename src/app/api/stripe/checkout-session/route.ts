@@ -10,7 +10,7 @@ import { appendParam, sameOriginPath } from '@/lib/return-path';
 import { ACTIVE_SUB, computeMembership } from '@/lib/membership-core';
 import { hasLiveStripeSubscription } from '@/lib/stripe-live-subscription';
 import { stripeCustomerFor } from '@/lib/stripe-customer';
-import { claimCheckout, currentCheckout, isCheckoutInProgress } from '@/lib/checkout-barrier';
+import { CHECKOUT_CREATE_OPTIONS, claimCheckout, currentCheckout, isCheckoutInProgress, type CheckoutClaim } from '@/lib/checkout-barrier';
 
 export const runtime = 'nodejs';
 
@@ -355,11 +355,12 @@ export async function POST(request: Request) {
   const { applicationFeeCents } = feeSplit(priceCents, chargeCents, feeRate);
 
   // One payable subscription checkout per account and coach at a time (checkout-barrier.ts):
-  // claimed here, released in the finally below. Subscriptions reserve no store credit.
-  let releaseClaim: (() => Promise<void>) | null = null;
+  // claimed here, confirmed right before the create, released in the finally below.
+  // Subscriptions reserve no store credit.
+  let claim: CheckoutClaim | null = null;
   try {
     if (isSubscription) {
-      releaseClaim = await claimCheckout(user.id, `coach-${providerRole}-${providerId}`);
+      claim = await claimCheckout(user.id, `coach-${providerRole}-${providerId}`);
       // ⚠ ASKED HERE, WHILE HOLDING THE CLAIM (Codex on #2353): a request that waited on the claim
       // can arrive after the first checkout was paid, when there is nothing open to hand back.
       // Stripe holds the subscription the moment it is paid; our row comes with the webhook.
@@ -376,6 +377,7 @@ export async function POST(request: Request) {
       const open = await currentCheckout(customerId, (s) => s.mode === 'subscription'
         && s.metadata?.provider_id === String(providerId) && s.metadata?.provider_role === providerRole);
       if (open) return NextResponse.json({ url: open, creditAppliedCents: 0 });
+      await claim.confirm();
     }
     const session = await stripe.checkout.sessions.create({
       mode: isSubscription ? 'subscription' : 'payment',
@@ -445,7 +447,7 @@ export async function POST(request: Request) {
       success_url: `${origin}${appendParam(successPath, 'session_id', '{CHECKOUT_SESSION_ID}')}`,
       cancel_url: `${origin}${cancelPath}`,
       allow_promotion_codes: isSubscription,
-    });
+    }, isSubscription ? CHECKOUT_CREATE_OPTIONS : undefined);
 
     if (!session.url) {
       await releaseReservation();
@@ -462,6 +464,6 @@ export async function POST(request: Request) {
     }
     return dbError(err, 'mobile checkout-session', 500, 'Could not start checkout.');
   } finally {
-    if (releaseClaim) await releaseClaim();
+    if (claim) await claim.release();
   }
 }

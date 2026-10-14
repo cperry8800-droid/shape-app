@@ -27,7 +27,7 @@ import { ACTIVE_SUB } from '@/lib/membership-core';
 import { membershipDetour } from '@/lib/membership-detour';
 import { stripeCustomerFor } from '@/lib/stripe-customer';
 import { hasLiveStripeSubscription } from '@/lib/stripe-live-subscription';
-import { claimCheckout, currentCheckout, isCheckoutInProgress } from '@/lib/checkout-barrier';
+import { CHECKOUT_CREATE_OPTIONS, claimCheckout, currentCheckout, isCheckoutInProgress, type CheckoutClaim } from '@/lib/checkout-barrier';
 
 type ProviderRole = 'trainer' | 'nutritionist';
 
@@ -150,11 +150,11 @@ export async function startCheckout(formData: FormData): Promise<void> {
   }
 
   // One payable checkout per account and coach at a time (checkout-barrier.ts): claimed before
-  // anything is looked for or created, and released in the finally, which passes redirect()'s
-  // throw on.
-  let releaseClaim: () => Promise<void>;
+  // anything is looked for or created, confirmed right before the create, and released in the
+  // finally, which passes redirect()'s throw on.
+  let claim: CheckoutClaim;
   try {
-    releaseClaim = await claimCheckout(user.id, `coach-${providerRole}-${providerId}`);
+    claim = await claimCheckout(user.id, `coach-${providerRole}-${providerId}`);
   } catch (e) {
     if (isCheckoutInProgress(e)) redirect(`${backHref}&error=checkout_in_progress`);
     console.error('[subscribe] checkout claim failed', e);
@@ -209,6 +209,7 @@ export async function startCheckout(formData: FormData): Promise<void> {
     // settles into the provider's connected Stripe account.
     let session;
     try {
+      await claim.confirm();
       session = await stripe.checkout.sessions.create({
         mode: 'subscription',
         line_items: [{ price: priceResult.priceId, quantity: 1 }],
@@ -238,8 +239,9 @@ export async function startCheckout(formData: FormData): Promise<void> {
         success_url: `${siteOrigin}/subscribe/success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${siteOrigin}${backHref}&error=subscribe_cancelled`,
         allow_promotion_codes: true,
-      });
+      }, CHECKOUT_CREATE_OPTIONS);
     } catch (e) {
+      if (isCheckoutInProgress(e)) redirect(`${backHref}&error=checkout_in_progress`);
       const msg = e instanceof Error ? e.message : String(e);
       redirect(`${backHref}&error=${encodeURIComponent(`stripe: ${msg}`.slice(0, 300))}`);
     }
@@ -250,7 +252,7 @@ export async function startCheckout(formData: FormData): Promise<void> {
 
     redirect(session.url);
   } finally {
-    await releaseClaim();
+    await claim.release();
   }
 }
 
