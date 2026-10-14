@@ -7,10 +7,9 @@
 // Every entry names where its claim comes from, and the tests hold the ones
 // that can drift to their source: the price and the fee against the pricing
 // page's own FAQ, the credentials rule against the Terms clause the app
-// renders. Where the website's FAQ and the Terms disagree (the FAQ still says
-// "we verify licenses on application"; Terms clause 04 says credentials are
-// self-reported unless a Verified badge shows), Nora follows the Terms — the
-// operative document — and the disagreement is registered for the owner.
+// renders. On credentials Nora follows the Terms (clause 04: self-reported unless a Verified
+// badge shows), the operative document. A design-exploration FAQ once said "we verify licenses on
+// application"; it was deleted on 2026-10-14 and no live page says it now.
 //
 // Plain ESM, no deps: node:test drives searchKnowledge() directly.
 

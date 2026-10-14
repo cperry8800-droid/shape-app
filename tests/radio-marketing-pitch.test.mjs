@@ -48,16 +48,9 @@ const BANNED = [
 // neutral description of the feature. A ruling about a pitch is not a ruling about
 // the product it is pitching.
 
-// Retired explorations: real files, but loaded only by the print / exploration
-// boards, which is this repo's own measured position (pageShell.jsx). They are
-// skipped here AND the skip is asserted below, so it cannot silently go stale.
-const RETIRED_EXPLORATIONS = ['directionA.jsx', 'directionB.jsx', 'directionC.jsx'];
-const EXPLORATION_BOARDS = [
-  'index-explorations.html',
-  'index-print.html',
-  'Shape Redesign.html',
-  'Shape Redesign-print.html',
-];
+// The retired explorations (directionA/B/C.jsx and their four boards) still carried the old
+// pitch and were skipped here, with the skip asserted. They were deleted on 2026-10-14, so
+// there is nothing left to skip and the sweep reads every file.
 
 // Render markup to the string a READER sees: a tag, an entity or a JSX spacer
 // running through the middle of a phrase must not hide it.
@@ -77,7 +70,7 @@ function walk(dir, out = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name);
     if (e.isDirectory()) walk(p, out);
-    else if (/\.(html|jsx|js|mjs)$/.test(e.name) && !RETIRED_EXPLORATIONS.includes(e.name)) out.push(p);
+    else if (/\.(html|jsx|js|mjs)$/.test(e.name)) out.push(p);
   }
   return out;
 }
@@ -148,26 +141,5 @@ test('the sweep can actually see the phrases it bans', () => {
   for (const s of keep) {
     const r = render(s);
     assert.ok(!BANNED.some(([re]) => re.test(r)), `the sweep fires on copy that is deliberately kept: ${JSON.stringify(s)}`);
-  }
-});
-
-test('the retired explorations the sweep skips are still only loaded by the exploration boards', () => {
-  // ⚠ THE SKIP IS ASSERTED, NOT TAKEN ON TRUST. directionA/B/C.jsx still carry the
-  // retired pitch and are deliberately out of scope — but only because nothing a
-  // visitor reaches loads them. Wire one into a live page and this fails, which is
-  // the moment the exclusion stops being true rather than the moment someone notices.
-  const loaders = [];
-  for (const f of walk('public/newdesign')) {
-    if (!f.endsWith('.html')) continue;
-    const base = path.basename(f);
-    const src = fs.readFileSync(f, 'utf8');
-    if (RETIRED_EXPLORATIONS.some((d) => src.includes(d)) && !EXPLORATION_BOARDS.includes(base)) loaders.push(f);
-  }
-  assert.deepEqual(loaders, [], `a retired exploration is loaded by a live page, so its copy is reachable: ${loaders.join(', ')}`);
-
-  // ⚠ VACUITY: if the exploration files were renamed or deleted, the check above
-  // passes for the wrong reason — nothing references a file that is not there.
-  for (const d of RETIRED_EXPLORATIONS) {
-    assert.ok(fs.existsSync(path.join('public/newdesign', d)), `${d} is gone — drop it from RETIRED_EXPLORATIONS rather than leaving a skip for a file that does not exist`);
   }
 });

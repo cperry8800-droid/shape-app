@@ -232,7 +232,8 @@ test('the homepage footer logo is the same size as the shared one', () => {
 // pages there are and that each gets one.
 test('every page still carries a footer', () => {
   const pages = readdirSync(ND).filter((f) => f.endsWith('.html'));
-  assert.ok(pages.length >= 70, 'only ' + pages.length + ' pages found');
+  // 70 until 2026-10-14, when the design explorations and a print sheet were deleted: 69 then.
+  assert.ok(pages.length >= 65, 'only ' + pages.length + ' pages found');
   const without = [];
   for (const p of pages) {
     const s = readFileSync(path.join(ND, p), 'utf8');
@@ -289,7 +290,8 @@ test('no page opts into the retired footer auto-mount', () => {
   assert.ok(!FOOTER_OPT_IN.test('<main> ... later, in prose: id="site-footer" is retired'), 'the opt-in pattern matches across a closed tag');
 
   const pages = readdirSync(ND).filter((f) => f.endsWith('.html'));
-  assert.ok(pages.length >= 70, 'only ' + pages.length + ' pages found');
+  // 70 until 2026-10-14, when the design explorations and a print sheet were deleted: 69 then.
+  assert.ok(pages.length >= 65, 'only ' + pages.length + ' pages found');
   const optIn = pages.filter((p) => FOOTER_OPT_IN.test(readFileSync(path.join(ND, p), 'utf8')));
   assert.deepEqual(optIn, [],
     'these pages carry <div id="site-footer">, which nothing mounts any more: ' + optIn.join(', '));

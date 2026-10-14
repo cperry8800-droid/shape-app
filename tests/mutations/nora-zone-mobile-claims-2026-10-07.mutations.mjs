@@ -22,11 +22,7 @@ export default {
       replace: '    if (z) return z;' },
     { name: 'the preview does not name the zone', file: ACT,
       find: "var inZone = zone === 'UTC' ? '' : ' (' + zone + ')';", replace: "var inZone = '';" },
-    { name: 'the /mobile coach page sells sync again', file: 'public/mobile/coach.jsx',
-      find: 'b: "Clients book inside Shape, into the open hours you set in your own time zone. Drag a session to move it; the client is notified." },',
-      replace: 'b: "Two-way sync with Google, Apple, Outlook. Clients book inside Shape." },' },
-    { name: 'the /mobile member page sells sync again', file: 'public/mobile/clientOverview.jsx',
-      find: 'b: "Workouts, meals, check-ins and calls in one place. Your coach sees what you see." },',
-      replace: 'b: "Workouts, meals, check-ins, calls. Syncs with Google, Apple, Outlook." },' },
+    // The two /mobile preview mutations that stood here went with the preview (deleted
+    // 2026-10-14, /mobile now redirects to the app at /m/).
   ],
 };

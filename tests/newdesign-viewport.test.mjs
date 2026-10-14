@@ -59,20 +59,23 @@ test('every real newdesign page declares a viewport meta', () => {
   assert.deepEqual(missing, [], 'these pages give phones a 980px desktop layout: ' + missing.join(', '));
 });
 
-// The print mocks allowed to pin a page width, by name.
-const PRINT_FIXED_WIDTH = new Set(['Shape Redesign-print.html', 'index-print.html']);
+// The print mocks allowed to pin a page width, by name. Empty since 2026-10-14: the two it
+// named (`Shape Redesign-print.html`, `index-print.html`) were design explorations, deleted
+// then. The rule stays, driven below with a hypothetical approval, so a new print page still
+// has to be named here to pin a width.
+const PRINT_FIXED_WIDTH = new Set();
 // A function, not an inline test, so a hypothetical future page can be put to it —
 // measured: reverting this to `/-print\.html$/` is a NO-OP on today's file set, so a
 // guard that only checks the two existing files cannot tell the two rules apart.
-const mayPinWidth = (f) => PRINT_FIXED_WIDTH.has(f);
+const mayPinWidth = (f, allow = PRINT_FIXED_WIDTH) => allow.has(f);
 // ⚠ THE WHOLE VERDICT IS A PURE FUNCTION, so a hypothetical page can be put to it.
 // Every rule here is a no-op on TODAY'S corpus — no current page blocks zoom or pins a
 // width outside the allowlist — so a guard that only sweeps the real files cannot tell a
 // working rule from a deleted one. Measured twice: two mutations survived that way.
-function viewportVerdict(file, meta) {
+function viewportVerdict(file, meta, allow = PRINT_FIXED_WIDTH) {
   if (/user-scalable\s*=\s*no/i.test(meta)) return 'blocks-zoom';
   if (/maximum-scale\s*=\s*[01](\.0)?\b/i.test(meta)) return 'caps-zoom';
-  if (/width\s*=\s*\d+/.test(meta)) return mayPinWidth(file) ? 'ok-fixed-print' : 'pins-a-width';
+  if (/width\s*=\s*\d+/.test(meta)) return mayPinWidth(file, allow) ? 'ok-fixed-print' : 'pins-a-width';
   return /width\s*=\s*device-width/i.test(meta) ? 'ok' : 'no-device-width';
 }
 
@@ -83,20 +86,23 @@ test('the viewport meta is the one the shells use, and scales', () => {
   const canonical = /<meta name="viewport" content="width=device-width, initial-scale=1" \/>/;
   for (const s of shells) assert.match(s, canonical, 'a shell changed its viewport line — re-derive the canonical form');
   // ⚠ THE EXEMPTION IS BY NAME. A `-print.html` SUFFIX rule would silently admit the
-  // next fixed-width page someone adds; the two current ones are approved deliberately.
-  assert.equal(mayPinWidth('Shape Redesign-print.html'), true);
-  assert.equal(mayPinWidth('index-print.html'), true);
-  assert.equal(mayPinWidth('Statement-print.html'), false, 'a new print page is exempted without anyone approving it');
+  // next fixed-width page someone adds; a page is approved deliberately, by name. None is
+  // today, so the exemption is driven with a hypothetical approval.
+  const APPROVED = new Set(['index-print.html']);
+  assert.equal(mayPinWidth('index-print.html', APPROVED), true);
+  assert.equal(mayPinWidth('Statement-print.html', APPROVED), false, 'a new print page is exempted without anyone approving it');
+  assert.equal(mayPinWidth('index-print.html'), false, 'a page is exempted that nobody approved');
   assert.equal(mayPinWidth('TrainerApp.html'), false);
   // ⚠ AND THE VERDICT IS DRIVEN ON PAGES THAT DO NOT EXIST, because every rule below is
   // a no-op on the real corpus and a sweep alone cannot see it deleted.
-  const V = (f, meta) => viewportVerdict(f, '<meta name="viewport" content="' + meta + '" />');
+  const V = (f, meta, allow) => viewportVerdict(f, '<meta name="viewport" content="' + meta + '" />', allow);
   assert.equal(V('TrainerApp.html', 'width=device-width, initial-scale=1'), 'ok');
   assert.equal(V('TrainerApp.html', 'width=device-width, initial-scale=1, user-scalable=no'), 'blocks-zoom');
   assert.equal(V('TrainerApp.html', 'width=device-width, initial-scale=1, maximum-scale=1'), 'caps-zoom');
   assert.equal(V('TrainerApp.html', 'width=1200, initial-scale=1'), 'pins-a-width', 'any page may pin a desktop width');
   assert.equal(V('Statement-print.html', 'width=1440, initial-scale=1'), 'pins-a-width', 'a new print page exempts itself');
-  assert.equal(V('index-print.html', 'width=1440, initial-scale=1'), 'ok-fixed-print');
+  assert.equal(V('index-print.html', 'width=1440, initial-scale=1', APPROVED), 'ok-fixed-print');
+  assert.equal(V('index-print.html', 'width=1440, initial-scale=1'), 'pins-a-width', 'an unapproved print page pins a width');
   assert.equal(V('TrainerApp.html', 'initial-scale=1'), 'no-device-width');
   // and nothing in the allowlist is stale
   for (const f of PRINT_FIXED_WIDTH) assert.ok(pages.includes(f), 'the allowlist names a page that no longer exists: ' + f);

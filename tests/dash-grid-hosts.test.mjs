@@ -73,7 +73,9 @@ const ALL = hostsThatMountAGrid();
 // It is pinned by name rather than exempted by a rule, so a SECOND page joining
 // it fails here — and so does fixing this one, which is the point: the list may
 // only ever shrink, and shrinking it is a deliberate edit.
-const KNOWN_UNLOADED = ['ClientDashboard-print.html'];
+// ⚠ SHRUNK TO EMPTY 2026-10-14: the page was deleted with the /mobile preview, whose
+// index was the only thing that linked it.
+const KNOWN_UNLOADED = [];
 
 test('a page mounts no component whose declaring module it never loads', () => {
   const broken = ALL.filter(({ html, need }) => need.some((n) => !html.includes(`src="${n.mod}`)))

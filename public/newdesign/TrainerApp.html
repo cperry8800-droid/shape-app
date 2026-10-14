@@ -55,7 +55,14 @@
       }
       var role = d.user.role;
       var dash = role === 'client' ? 'ClientApp.html' : role === 'nutritionist' ? 'NutritionistApp.html' : null;
-      if (dash) window.location.replace('/newdesign/' + dash + (window.location.hash || ''));
+      if (dash) { window.location.replace('/newdesign/' + dash + (window.location.hash || '')); return; }
+      // The old root dashboard's tabs that are pages here, not routes (it was retired 2026-10-14 and
+      // redirects here with its #fragment). Forwarded only now, once the reading says this account
+      // belongs on this dashboard: a visitor signs in first (the next= above keeps the fragment), and
+      // another role is sent to its own shell, which maps the tab itself (Codex on #2352).
+      var LEGACY_PAGES = { messages: 'TrainerMessages.html', community: 'Community.html' };
+      var tab = (window.location.hash || '').replace(/^#/, '').split('?')[0].toLowerCase();
+      if (Object.prototype.hasOwnProperty.call(LEGACY_PAGES, tab)) window.location.replace('/newdesign/' + LEGACY_PAGES[tab]);
     })
     .catch(function () {});
 })();
@@ -157,14 +164,6 @@ const TA_ROUTES = {
 // The old root dashboard's tab names (the page was retired 2026-10-14 and now redirects here,
 // keeping its #fragment; Codex on #2352): a bookmark such as /trainer-dashboard.html#goalcalc opens the tab it named.
 const TA_LEGACY_TABS = { home: "today", goalcalc: "goal" };
-// The old tabs that are pages here, not routes, open those pages. In the shell's own script, not
-// <head>: a location.replace() in <head> is how this site marks a redirect stub.
-const TA_LEGACY_PAGES = { messages: "TrainerMessages.html", community: "Community.html" };
-function taLegacyPage() {
-  const k = (window.location.hash || "").replace(/^#/, "").split("?")[0].toLowerCase();
-  return Object.prototype.hasOwnProperty.call(TA_LEGACY_PAGES, k) ? TA_LEGACY_PAGES[k] : null;
-}
-if (taLegacyPage()) window.location.replace(taLegacyPage());
 function taParse() {
   const raw = (window.location.hash || "").replace(/^#/, "").split("?")[0];
   const m = /^client\/(.+)$/.exec(raw);
