@@ -159,7 +159,26 @@ function ClientSettingsPage() {
 // Object.prototype, renders an Object into React and white-screens the SPA.
 // Both coach shells were hardened against this; the client shell was not.
 function caHasRoute(h) { return Object.prototype.hasOwnProperty.call(CA_ROUTES, h); }
-function caSlug() { const h = (window.location.hash || "").replace(/^#/, "").toLowerCase(); return caHasRoute(h) ? h : "today"; }
+// The route is the hash up to any "?", as the coach shells read it (taParse / naParse). Every
+// stub forwards its query after the hash (`ClientTrain.html?id=5` → `#workouts?id=5`), so
+// without the split a query sent the member to Today instead of the page they asked for:
+// Codex on #2352, for the old `/workout.html?id=` links that now redirect to ClientTrain.html.
+// The old root dashboard's tab names (the page was retired 2026-10-14 and now redirects here,
+// keeping its #fragment; Codex on #2352): a bookmark such as /clients.html#training opens the tab it named.
+const CA_LEGACY_TABS = { home: "today", training: "workouts", myteam: "team", shapescore: "score" };
+// The old tabs that are pages here, not routes, open those pages. In the shell's own script, not
+// <head>: a location.replace() in <head> is how this site marks a redirect stub.
+const CA_LEGACY_PAGES = { community: "Community.html" };
+function caLegacyPage() {
+  const k = (window.location.hash || "").replace(/^#/, "").split("?")[0].toLowerCase();
+  return Object.prototype.hasOwnProperty.call(CA_LEGACY_PAGES, k) ? CA_LEGACY_PAGES[k] : null;
+}
+if (caLegacyPage()) window.location.replace(caLegacyPage());
+function caSlug() {
+  const low = (window.location.hash || "").replace(/^#/, "").split("?")[0].toLowerCase();
+  const h = Object.prototype.hasOwnProperty.call(CA_LEGACY_TABS, low) ? CA_LEGACY_TABS[low] : low;
+  return caHasRoute(h) ? h : "today";
+}
 // ⚠ ASK WHETHER THIS ACCOUNT IS A MEMBER BEFORE DRAWING ANY TAB. A signed-in account that has
 // not started the $5 membership is refused every /api/client read, and each tab used to fall
 // back to the demo member's data. It gets the join panel instead (dashClient.jsx), on every tab

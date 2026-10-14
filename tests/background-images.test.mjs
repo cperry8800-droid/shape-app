@@ -52,7 +52,8 @@ test('every page that names a live background names the WebP', () => {
       }
     }
   }
-  // 24 when this was written (21 files). A count near zero means the scan stopped seeing the
-  // pages, which would let the assertion above pass on nothing.
-  assert.ok(refs >= 20, `only ${refs} references to the live backgrounds were found`);
+  // 24 when this was written (21 files); 12 once the old root pages that also showed them were
+  // retired (2026-10-14). A count near zero means the scan stopped seeing the pages, which would
+  // let the assertion above pass on nothing.
+  assert.ok(refs >= 10, `only ${refs} references to the live backgrounds were found`);
 });

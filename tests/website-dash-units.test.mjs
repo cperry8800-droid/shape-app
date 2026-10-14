@@ -501,6 +501,49 @@ test('the Score ledger and the Train page’s volume, live', async () => {
   }
 });
 
+test('an old workout link opens the week that holds that workout, and marks the row', async () => {
+  // Codex on #2352: `/workout.html?id=<assignment>` (the retired root page) redirects to
+  // ClientTrain.html, which forwards to ClientApp.html#workouts?id=…. The page reads the id,
+  // opens the week plate that holds that client_workouts row and marks it; other past weeks
+  // stay closed, as they do without an id.
+  const { React, TR, as } = await setup();
+  as(IMPERIAL);
+  const iso = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+  const payloads = { '/api/client/plan': { ok: true, training: { hasPlan: true, coach: 'Sam', workouts: [
+    { id: 'w-old', title: 'Old lower', scheduledDate: iso(-21), exercises: [] },
+    { id: 'w-mid', title: 'Mid upper', scheduledDate: iso(-14), exercises: [] },
+    { id: 'w-now', title: 'Today push', scheduledDate: iso(0), exercises: [] },
+    { id: 'w-any', title: 'Anytime mobility', exercises: [] },
+  ] } } };
+  const at = (url) => window.history.replaceState(null, '', url);
+  const marked = (el) => [...el.querySelectorAll('[aria-current="true"]')].map((n) => n.getAttribute('data-dtr-workout'));
+  try {
+    at('/newdesign/ClientApp.html#workouts?id=w-old');
+    let page = await mount(React, TR.ClientWorkoutsPage, payloads);
+    const has = (id) => page.el.querySelector(`[data-dtr-workout="${id}"]`) !== null;
+    assert.ok(has('w-old'), 'the week holding the linked workout is not open');
+    assert.deepEqual(marked(page.el), ['w-old']);
+    assert.equal(has('w-mid'), false, 'another past week opened too');
+    assert.equal(has('w-now'), true, 'this week closed');
+    await page.unmount();
+
+    // ?id= in the query itself (ClientTrain.html's own address), and an anytime assignment.
+    at('/newdesign/ClientApp.html?id=w-any#workouts');
+    page = await mount(React, TR.ClientWorkoutsPage, payloads);
+    assert.deepEqual(marked(page.el), ['w-any']);
+    await page.unmount();
+
+    // No id: nothing marked, and past weeks closed, as before.
+    at('/newdesign/ClientApp.html#workouts');
+    page = await mount(React, TR.ClientWorkoutsPage, payloads);
+    assert.deepEqual(marked(page.el), []);
+    assert.equal(page.el.querySelector('[data-dtr-workout="w-old"]') !== null, false, 'a past week opened with no id');
+    await page.unmount();
+  } finally {
+    at('/');
+  }
+});
+
 test('the living profile’s own trajectory, lifts and setting', async () => {
   const { LV } = await setup();
   const Um = { T: U, prefs: { weight: 'kg', distance: 'km', length: 'cm' } };

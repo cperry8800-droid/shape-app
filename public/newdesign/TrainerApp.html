@@ -154,11 +154,23 @@ const TA_ROUTES = {
   // NutritionistClient.html mount standalone, keyed so switching clients remounts it.
   client:    (id) => <CoachClientDetailPage key={id} clientId={id} role="trainer" inShell />,
 };
+// The old root dashboard's tab names (the page was retired 2026-10-14 and now redirects here,
+// keeping its #fragment; Codex on #2352): a bookmark such as /trainer-dashboard.html#goalcalc opens the tab it named.
+const TA_LEGACY_TABS = { home: "today", goalcalc: "goal" };
+// The old tabs that are pages here, not routes, open those pages. In the shell's own script, not
+// <head>: a location.replace() in <head> is how this site marks a redirect stub.
+const TA_LEGACY_PAGES = { messages: "TrainerMessages.html", community: "Community.html" };
+function taLegacyPage() {
+  const k = (window.location.hash || "").replace(/^#/, "").split("?")[0].toLowerCase();
+  return Object.prototype.hasOwnProperty.call(TA_LEGACY_PAGES, k) ? TA_LEGACY_PAGES[k] : null;
+}
+if (taLegacyPage()) window.location.replace(taLegacyPage());
 function taParse() {
   const raw = (window.location.hash || "").replace(/^#/, "").split("?")[0];
   const m = /^client\/(.+)$/.exec(raw);
   if (m) { try { return { slug: "client", param: decodeURIComponent(m[1]) }; } catch (e) { return { slug: "clients", param: null }; } }
-  const h = raw.toLowerCase();
+  const low = raw.toLowerCase();
+  const h = Object.prototype.hasOwnProperty.call(TA_LEGACY_TABS, low) ? TA_LEGACY_TABS[low] : low;
   // hasOwnProperty, not a bare lookup: `#constructor` resolves through
   // Object.prototype, and the route call then returns an Object that React
   // throws on instead of falling back to Today.

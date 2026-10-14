@@ -243,9 +243,9 @@ test('every sign-up path saves signup_source with the new account', () => {
 
 test('the script loads wherever a visitor can land', () => {
   assert.match(read('public/newdesign/pageShell.jsx'), /s\.src = "\/signup-source\.js";/, 'the shared shell (68 pages)');
-  // Codex, #2325: signup-client.html and the older root pages load supabase.js, not the shell.
+  // Codex, #2325: the older root pages load supabase.js, not the shell. (signup-client.html was
+  // the one with a sign-up form; it was retired on 2026-10-14. The kept root pages still load it.)
   assert.match(read('public/supabase.js'), /s\.src = '\/signup-source\.js';/, 'supabase.js loads it too');
-  assert.match(read('public/signup-client.html'), /<script src="supabase\.js"><\/script>/, 'which signup-client.html loads');
   for (const f of ['public/newdesign/TrainerPublic.html', 'public/newdesign/NutritionistPublic.html']) {
     const html = read(f);
     const tag = html.indexOf('<script src="/signup-source.js"></script>');

@@ -230,7 +230,7 @@ test('membership checkout: Stripe returns through the confirmation step, then to
   assert.equal((await runPlatformCheckout()).created[0].success_url, returnUrl(HOME), 'the dashboard when nothing asked');
   assert.equal((await runPlatformCheckout({ body: { successPath: '/m/' } })).created[0].success_url, returnUrl('/m/'), 'installed app builds still send successPath');
   assert.equal((await runPlatformCheckout({ body: { returnTo: '//evil.example/x' } })).created[0].success_url, returnUrl(HOME), 'L10: never another site');
-  assert.equal((await runPlatformCheckout({ body: { cancelPath: 'https://evil.example' } })).created[0].cancel_url, 'https://shape.test/pricing.html?error=subscribe_cancelled');
+  assert.equal((await runPlatformCheckout({ body: { cancelPath: 'https://evil.example' } })).created[0].cancel_url, 'https://shape.test/newdesign/Pricing.html?error=subscribe_cancelled');
 });
 
 // ── /api/stripe/platform-return: confirm, write the row, continue ───────────────────────────

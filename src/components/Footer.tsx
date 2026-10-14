@@ -115,8 +115,8 @@ export default async function Footer() {
             </div>
             <div className="footer-col">
               <h4>For pros</h4>
-              <Link href="/for-trainers">For trainers</Link>
-              <Link href="/for-nutritionists">For nutritionists</Link>
+              <Link href="/newdesign/Coach.html">For trainers</Link>
+              <Link href="/newdesign/Nutritionist.html">For nutritionists</Link>
             </div>
             <div className="footer-col">
               <h4>Get started</h4>

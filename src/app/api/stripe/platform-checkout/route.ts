@@ -76,7 +76,7 @@ export async function POST(request: Request) {
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? new URL(request.url).origin;
   // L10: paths on this origin only; anything else is the default.
   const next = sameOriginPath(body.returnTo ?? body.successPath, MEMBERSHIP_HOME);
-  const cancelPath = sameOriginPath(body.cancelPath, '/pricing.html?error=subscribe_cancelled');
+  const cancelPath = sameOriginPath(body.cancelPath, '/newdesign/Pricing.html?error=subscribe_cancelled');
 
   try {
     const url = await createPlatformCheckout({ priceId, userId: user.id, customerId, origin, next, cancelPath });

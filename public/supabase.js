@@ -678,7 +678,7 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
       document.body.classList.add('shape-has-demo-banner');
       var signupHref = role === 'trainer' ? '/newdesign/SignupTrainer.html'
         : (role === 'nutritionist' || role === 'dietitian') ? '/newdesign/SignupNutritionist.html'
-        : 'signup-client.html';
+        : '/newdesign/SignupClient.html';
       var label = role === 'trainer' ? 'trainer' : (role === 'nutritionist' || role === 'dietitian') ? 'nutritionist' : 'client';
       var bar = document.createElement('div');
       bar.id = 'shapeDemoBanner';
@@ -690,7 +690,7 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
         '<span style="opacity:0.85;">Sample ' + label + ' dashboard — sign up to get your own.</span>' +
         '<span style="display:inline-flex;align-items:center;gap:18px;">' +
           '<a href="' + signupHref + '" style="color:#fff;text-decoration:underline;font-weight:600;white-space:nowrap;">Sign up</a>' +
-          '<a href="login.html" style="color:#fff;opacity:0.7;white-space:nowrap;">Log in</a>' +
+          '<a href="/newdesign/Login.html" style="color:#fff;opacity:0.7;white-space:nowrap;">Log in</a>' +
         '</span>' +
         '</div>';
       document.body.insertBefore(bar, document.body.firstChild);
@@ -978,7 +978,7 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
     // onboarding URL; we send the user there.
     async startStripeOnboarding(role, providerId) {
       var session = await shapeDb.getSession();
-      if (!session) { window.location.href = 'login.html'; return; }
+      if (!session) { window.location.href = '/newdesign/Login.html'; return; }
       var res = await fetch('/api/stripe/connect/onboard', {
         method: 'POST',
         headers: {
@@ -1091,10 +1091,12 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
       });
     },
 
+    // The website dashboards, as src/lib/supabase/middleware.ts names them. These were the old
+    // root dashboards until 2026-10-14, when those pages were retired.
     dashboardFor(role) {
-      if (role === 'trainer') return 'trainer-dashboard.html';
-      if (role === 'nutritionist' || role === 'dietitian') return 'nutrition-schedule.html';
-      return 'clients.html';
+      if (role === 'trainer') return '/newdesign/TrainerDashboard.html';
+      if (role === 'nutritionist' || role === 'dietitian') return '/newdesign/NutritionistDashboard.html';
+      return '/newdesign/ClientDashboard.html';
     },
 
     // Swap any element with .shape-auth-logged-out / .shape-auth-logged-in
@@ -1500,7 +1502,7 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
   // Global sign-out helper (used by navbar buttons site-wide).
   window.shapeSignOut = async function () {
     if (window.shapeDb) await window.shapeDb.signOut();
-    window.location.href = 'home.html';
+    window.location.href = '/';
   };
 
   // ── BYO coach-referral capture (spec #1789 · rails #1794) ──────────────────

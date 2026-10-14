@@ -2,34 +2,20 @@
 // deletes every prior cache generation on install/activate, which matters
 // beyond hygiene: older generations could hold cross-origin signed media
 // (progress photos, credential files) cached token-and-all.
-const CACHE_NAME = 'shape-v133';
+const CACHE_NAME = 'shape-v134';
+// v134: the old root pages were retired on 2026-10-14 (they redirect to the website now, or are
+// gone), so they are not precached: `cache.addAll` fails the whole install on one missing file,
+// and a cached redirect cannot answer a navigation.
 const ASSETS = [
   '/',
-  '/index.html',
-  '/home.html',
   '/styles.css',
-  '/app.js',
   '/pwa-install.js',
   '/manifest.json',
   '/icon-192.png',
   '/icon-512.png',
   '/logo.png',
-  '/trainers.html',
-  '/nutritionists.html',
-  '/marketplace.html',
-  '/pricing.html',
   '/contact.html',
-  '/landing.html',
-  '/login.html',
-  '/clients.html',
-  '/nutrition-schedule.html',
-  '/trainer-dashboard.html',
-  '/messages.html',
-  '/newdesign/consultation.html',
-  '/signup-client.html',
-  '/signup-gym.html',
-  '/my-workouts.html',
-  '/workout.html'
+  '/newdesign/consultation.html'
 ];
 
 self.addEventListener('install', e => {

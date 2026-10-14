@@ -46,7 +46,9 @@ const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8');
 // mid-line is not.
 
 const HELPER = read('../public/supabase.js');
-const LEGACY_PAGE = read('../public/signup-client.html');
+// The legacy root sign-up page (signup-client.html) carried its own copy of this flow and was
+// asserted here as a fifth surface; it was retired on 2026-10-14 and now redirects to
+// newdesign/SignupClient.html, which signup.jsx renders.
 const NEWDESIGN = read('../public/newdesign/signup.jsx');
 const MOBILE = read('../mobile-app/src/services/shapeBackend.js');
 const NEXT_ACTION = read('../src/app/login/actions.ts');
@@ -88,10 +90,10 @@ test('shapeDb.signUp also carries date_of_birth in auth metadata', () => {
   assert.match(options, /date_of_birth\s*:/, 'signUp metadata omits date_of_birth — email-confirm signups stay ungated');
 });
 
-// ⚠ THE LEGACY CONFIRM PATH'S ONLY PROVISIONING POINT. signup-client.html
-// redirects to login.html (not newdesign/Login.html), and login.html REJECTS a
-// missing profile, so without this the confirmed account keeps a usable session,
-// no profiles row, and no DOB.
+// ⚠ THE LEGACY CONFIRM PATH'S ONLY PROVISIONING POINT. The retired signup-client.html
+// redirected to login.html, and login.html REJECTED a missing profile, so without this a
+// confirmed account kept a usable session, no profiles row, and no DOB. Both pages are gone
+// (2026-10-14); signIn still serves any page that loads supabase.js, so the branch stays.
 test('legacy signIn provisions a missing profile from the signup metadata', () => {
   assert.match(signInBody, /!profile/, 'signIn does not branch on a missing profile');
   assert.match(signInBody, /date_of_birth/, 'signIn provisioning drops the date of birth');
@@ -108,7 +110,6 @@ test('the Next /signup action persists the DOB when a session exists', () => {
 
 const DELEGATES = [
   ['supabase.js signUp', signUpBody, /ShapeAgeDerive/],
-  ['signup-client.html', LEGACY_PAGE, /ShapeAgeDerive/],
   ['newdesign/signup.jsx', NEWDESIGN, /ShapeAgeDerive/],
   ['shapeBackend signUp', mobileSignUp, /isMinorFromDob\(/],
   ['shapeBackend signInWithPhone', mobilePhone, /isMinorFromDob\(/],
@@ -128,7 +129,6 @@ test('no signup surface reintroduces the instant-based 18-year comparison', () =
   const rule = /setFullYear\([^)]*getFullYear\(\)\s*-\s*18\s*\)/;
   for (const [label, raw] of [
     ['supabase.js signUp', signUpBody],
-    ['signup-client.html', LEGACY_PAGE],
     ['newdesign/signup.jsx', NEWDESIGN],
     ['shapeBackend signUp', mobileSignUp],
     ['shapeBackend signInWithPhone', mobilePhone],
@@ -144,7 +144,6 @@ test('no signup surface reintroduces the instant-based 18-year comparison', () =
 test('the classic-script surfaces fail closed when the module is absent', () => {
   for (const [label, body] of [
     ['supabase.js signUp', signUpBody],
-    ['signup-client.html', LEGACY_PAGE],
     ['newdesign/signup.jsx', NEWDESIGN],
   ]) {
     assert.match(body, /typeof\s+\w+\.isMinorFromDob\s*!==\s*['"]function['"]/,
@@ -153,8 +152,8 @@ test('the classic-script surfaces fail closed when the module is absent', () => 
 });
 
 test('every page whose signup needs the mirror actually loads it', () => {
-  const pages = ['../public/signup-client.html', '../public/newdesign/SignupClient.html',
-                 '../public/newdesign/SignupNutritionist.html', '../public/newdesign/SignupTrainer.html'];
+  const pages = ['../public/newdesign/SignupClient.html', '../public/newdesign/SignupNutritionist.html',
+                 '../public/newdesign/SignupTrainer.html'];
   for (const p of pages) {
     assert.match(read(p), /src="\/age-derive\.js"/,
       `${p}: does not load /age-derive.js — its signup would fail closed on every attempt`);
@@ -162,25 +161,6 @@ test('every page whose signup needs the mirror actually loads it', () => {
 });
 
 // ── Ordering, and the things that must never be written ─────────────────────
-
-// ⚠ THE ORDER IS A SEPARATE DEFECT FROM THE MISSING DOB. completeSignup() relays
-// the entire questionnaire — injuries, medications, dietary restrictions,
-// emergency contact — to the Shape inbox BEFORE the account is created. Refusing
-// a minor only inside signUp() would still have transmitted a child's health data
-// and only then declined them.
-test('the legacy page refuses a minor BEFORE relaying their intake questionnaire', () => {
-  const fnAt = LEGACY_PAGE.indexOf('async function completeSignup()');
-  assert.notEqual(fnAt, -1, 'completeSignup() not found — re-anchor this test');
-  const body = LEGACY_PAGE.slice(fnAt);
-  // Match the CALL STATEMENT, not the bare name: the comments mention
-  // sendIntakeEmail(), and an indexOf on the name finds the prose first.
-  const checkAt = body.search(/^\s*if \(isMinor === true\) \{/m);
-  const emailAt = body.search(/^\s*sendIntakeEmail\(data\);/m);
-  assert.notEqual(checkAt, -1, 'completeSignup() has no 18+ refusal');
-  assert.notEqual(emailAt, -1, 'sendIntakeEmail call not found — re-anchor this test');
-  assert.ok(checkAt < emailAt,
-    "the 18+ check runs AFTER sendIntakeEmail() — a refused minor's health data is transmitted anyway");
-});
 
 test('both refusals run before the account is created, on every surface', () => {
   const helper = stripComments(signUpBody);
@@ -193,23 +173,13 @@ test('both refusals run before the account is created, on every surface', () => 
   assert.ok(next.indexOf('isMinorFromDob(') < nextAuthAt, 'actions.ts: the age check runs AFTER account creation');
 });
 
-test('the legacy signup page passes its collected dob into signUp', () => {
-  const callAt = LEGACY_PAGE.indexOf('shapeDb.signUp({');
-  assert.notEqual(callAt, -1, 'signup-client.html no longer calls shapeDb.signUp — re-anchor this test');
-  const call = LEGACY_PAGE.slice(callAt, LEGACY_PAGE.indexOf('});', callAt));
-  // \b matters: without it `xdob: data.dob` satisfies the match, so a renamed
-  // (and therefore ignored) key would pass. Caught by mutation-testing this guard.
-  assert.match(call, /\bdob\s*:\s*data\.dob/, 'the collected date of birth is not passed to signUp');
-});
-
 // over_18 is derived by set_over_18() from date_of_birth on every write and any
 // supplied value is discarded. Writing it directly would read as though the flag
 // were settable from the client — the misreading the DOB freeze migration exists
 // to prevent.
 test('no signup surface writes over_18 directly — it is derived, never supplied', () => {
-  for (const [label, src] of [['supabase.js', HELPER], ['signup-client.html', LEGACY_PAGE],
-                              ['signup.jsx', NEWDESIGN], ['shapeBackend.js', MOBILE],
-                              ['actions.ts', NEXT_ACTION]]) {
+  for (const [label, src] of [['supabase.js', HELPER], ['signup.jsx', NEWDESIGN],
+                              ['shapeBackend.js', MOBILE], ['actions.ts', NEXT_ACTION]]) {
     assert.ok(!/over_18\s*:/.test(src), `${label}: sets over_18 directly`);
   }
 });

@@ -1,7 +1,8 @@
 # Cinematic intro video assets
 
 Only `beat-5.mp4` (and its poster, `beat-5-poster.jpg`) is loaded: `src/app/intro-preview/IntroScroll.tsx`
-names it (`SCENE_1`) and `public/app.js` names it (`introVideo`).
+names it (`SCENE_1`). (`public/app.js` named it too, as `introVideo`, until that script was removed
+with the old root pages on 2026-10-14.)
 
 **Nothing discovers files in this directory.** A clip dropped here is not picked up
 automatically; reference it from the page or component that plays it. The guard in

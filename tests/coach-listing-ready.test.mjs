@@ -68,7 +68,6 @@ const READERS = [
   ['src/app/api/marketplace-stats/route.ts', /from\('nutritionists'\)[^\n]*\.eq\('listing_ready', true\)/, 'the homepage nutritionist count'],
   ['src/app/api/support/chat/route.ts', /sb\.from\(table\)\.select\(`\$\{LIVE_COACH_COLUMNS\}[^\n]*\.eq\('listing_ready', true\)/, "Nora's coach suggestions"],
   ['public/newdesign/marketplace.jsx', /cl\.from\(table\)\.select\(columns\)\.eq\("listing_ready", true\)/, 'the website marketplace'],
-  ['public/real-providers.js', /\.select\('id, name'\)\s*\.eq\('listing_ready', true\)/, 'the legacy "Live on Shape" cards'],
   ['mobile-app/src/broadsheet/iosAppBroadsheetMarketplace.jsx', /client\.from\('trainers'\)\.select\('[^']+'\)\.eq\('listing_ready', true\)/, 'the app marketplace, trainers'],
   ['mobile-app/src/broadsheet/iosAppBroadsheetMarketplace.jsx', /client\.from\('nutritionists'\)\.select\('[^']+'\)\.eq\('listing_ready', true\)/, 'the app marketplace, nutritionists'],
 ]
