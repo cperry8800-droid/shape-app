@@ -189,6 +189,21 @@ test('nothing live links an old page, and every website link names a file that e
     }
   }
   assert.deepEqual(hits, [], 'these still link an old page')
+  // The clean addresses too (`/for-trainers`, not only `/for-trainers.html`): the Next header and
+  // footer linked those, and a redirect is a detour, not a link. `/trainers`, `/nutritionists`,
+  // `/login` and `/` are live routes, so they are not in the list.
+  const clean = new RegExp(`["'\`(]/(${[...Object.keys(REDIRECTED), ...NO_REDIRECT, ...PROFILES].filter((p) => p !== 'home').join('|')})(?=["'\`?#)]|/["'\`])`, 'g')
+  const cleanHits = []
+  for (const f of files) {
+    const src = stripComments(readFileSync(f, 'utf8'))
+    for (const m of src.matchAll(clean)) {
+      const line = src.slice(0, m.index).split('\n').length
+      const text = src.split('\n')[line - 1]
+      if (/indexOf\(|\/api\//.test(text)) continue
+      cleanHits.push(`${f}:${line}: ${text.trim().slice(0, 120)}`)
+    }
+  }
+  assert.deepEqual(cleanHits, [], 'these link an old clean address, which only redirects')
   assert.deepEqual(missing, [], 'these link a website page that does not exist')
 })
 
