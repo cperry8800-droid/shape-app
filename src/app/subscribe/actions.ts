@@ -20,6 +20,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { stripe } from '@/lib/stripe';
 import { isEffectivelyAtCapacity } from '@/lib/capacity';
 import { hasActiveWaitlistInvite } from '@/lib/waitlist';
+import { coachProfileHref } from '@/lib/coach-profile-href';
 import { resolveCoachCheckoutOrigin } from '@/lib/coach-origin';
 import { bpsToPercent } from '@/lib/platform-fee';
 
@@ -94,12 +95,9 @@ export async function startCheckout(formData: FormData): Promise<void> {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Back-to-profile goes to the legacy static profile pages since the
-  // Next.js per-provider detail pages were removed.
-  const backHref =
-    providerRole === 'trainer'
-      ? `/trainer-profile.html?id=${providerId}`
-      : `/nutritionist-profile.html?id=${providerId}`;
+  // Back to the coach's live profile (the living profile, by the listing's owner); every
+  // error return below appends `&error=…` to it.
+  const backHref = await coachProfileHref(providerRole, providerId);
 
   if (!user) {
     redirect(`/login?next=${encodeURIComponent(backHref)}`);
