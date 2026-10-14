@@ -7,9 +7,9 @@
 //   → redirect to Stripe-hosted checkout
 //   → success_url returns to /subscribe/success
 //
-// Auth: accepts a Supabase Bearer token from legacy /public pages. If the
-// caller isn't signed in, the client-side button sends them to
-// signup-client.html first; the API returns 401 with a redirect hint.
+// Auth: accepts a Supabase Bearer token (the app) or the site's cookie session. If the
+// caller isn't signed in the API returns 401 with a redirect hint to the website's
+// sign-up (the Pricing page sends a signed-out visitor to Landing on its own).
 //
 // Pricing: we use the STRIPE_PLATFORM_PRICE_ID env var. This should be set to
 // a recurring $5/month price you've created in the Stripe dashboard for the
@@ -73,7 +73,7 @@ export async function POST(request: Request) {
 
   if (!userId) {
     return NextResponse.json(
-      { error: 'Not signed in.', redirectTo: '/signup-client.html?next=/pricing.html' },
+      { error: 'Not signed in.', redirectTo: '/newdesign/SignupClient.html' },
       { status: 401 }
     );
   }

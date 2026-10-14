@@ -42,8 +42,8 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
 
   const backHref =
     providerRole === 'trainer'
-      ? `/trainer-profile.html?id=${providerId}`
-      : `/nutritionist-profile.html?id=${providerId}`;
+      ? `/newdesign/TrainerPublic.html?id=${providerId}`
+      : `/newdesign/NutritionistPublic.html?id=${providerId}`;
 
   const supabase = await createClient();
   const {

@@ -51,7 +51,7 @@ export default async function StripeOnboardingSuccessPage({
     .eq('id', providerId);
 
   const dashboardHref =
-    providerRole === 'trainer' ? '/trainer-dashboard.html' : '/nutrition-schedule.html';
+    providerRole === 'trainer' ? '/newdesign/TrainerDashboard.html' : '/newdesign/NutritionistDashboard.html';
 
   return (
     <main className="max-w-md mx-auto px-6 py-20 text-white">

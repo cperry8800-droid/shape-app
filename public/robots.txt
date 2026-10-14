@@ -11,4 +11,4 @@ Disallow: /nutrition-schedule.html
 Disallow: /messages.html
 Disallow: /my-team.html
 
-Sitemap: https://theshapecommunity.com/sitemap.xml
+Sitemap: https://www.theshapecommunity.com/sitemap.xml
