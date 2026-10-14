@@ -160,6 +160,7 @@ async function runCheckout({ reserve, stripeCreate = 'ok' }) {
       // The buyer is a member: coaching needs the $5 membership (tests/membership-first.test.mjs).
       ['@/lib/membership-core', { ACTIVE_SUB: new Set(['active', 'trialing', 'past_due']), computeMembership: async () => ({ isMember: true, isCoach: false, isAdmin: false, isKnownMinor: false }) }],
       ['@/lib/stripe-live-subscription', { hasLiveStripeSubscription: async () => false }],
+      ['@/lib/stripe-customer', { stripeCustomerFor: async () => 'cus_stable' }],
     ]),
   });
   const req = new Request('https://shape.test/api/stripe/checkout-session', {

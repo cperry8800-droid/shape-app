@@ -6,22 +6,26 @@
 // Subscribe again in that window pay twice. Stripe holds the subscription the moment the
 // checkout completes, so the checkout routes ask here as well as there.
 //
-// Checkout makes one Stripe customer per session from the buyer's email, so every customer
-// with that email is read. A buyer with no email on the account (a phone sign-up) cannot be
-// matched this way, and the table check is all there is. A Stripe failure throws: the caller
-// refuses rather than risk a second charge.
+// The account's own customer (stripe-customer.ts) is where every checkout now lands. Checkouts
+// from before it made a customer per session from the buyer's email, so customers with that
+// email are read too. A Stripe failure throws: the caller refuses rather than risk a second
+// charge.
 
 import { stripe } from '@/lib/stripe';
 import { ACTIVE_SUB } from '@/lib/membership-core';
 
 export async function hasLiveStripeSubscription(
-  email: string | null,
+  buyer: { customerId: string | null; email: string | null },
   metadata: Record<string, string>
 ): Promise<boolean> {
-  if (!email) return false;
-  const customers = await stripe.customers.list({ email, limit: 20 });
-  for (const customer of customers.data) {
-    const subs = await stripe.subscriptions.list({ customer: customer.id, status: 'all', limit: 50 });
+  const ids = new Set<string>();
+  if (buyer.customerId) ids.add(buyer.customerId);
+  if (buyer.email) {
+    const customers = await stripe.customers.list({ email: buyer.email, limit: 20 });
+    for (const c of customers.data) ids.add(c.id);
+  }
+  for (const customer of ids) {
+    const subs = await stripe.subscriptions.list({ customer, status: 'all', limit: 50 });
     const match = subs.data.some(
       (sub) => ACTIVE_SUB.has(sub.status) && Object.entries(metadata).every(([k, v]) => sub.metadata?.[k] === v)
     );

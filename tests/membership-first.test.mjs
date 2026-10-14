@@ -57,13 +57,15 @@ async function baseModules() {
   return base;
 }
 
-// The Stripe-side duplicate check, against a scripted Stripe: `stripeSubs` are the buyer's
-// subscriptions as Stripe lists them (one customer), `stripeThrows` makes the lookup fail.
-async function liveSubscriptionLib({ stripeSubs = [], stripeThrows = false } = {}) {
+// The Stripe-side duplicate check, against a scripted Stripe. `stripeSubs` are the
+// subscriptions on the account's own customer ('cus_stable', stripe-customer.ts);
+// `emailSubs` are on an older per-checkout customer found by the buyer's email ('cus_email');
+// `stripeThrows` makes the lookup fail.
+async function liveSubscriptionLib({ stripeSubs = [], emailSubs = [], stripeThrows = false } = {}) {
   const { membershipCore } = await baseModules();
   const stripe = {
-    customers: { list: async ({ email }) => { if (stripeThrows) throw new Error('stripe down'); return { data: email ? [{ id: 'cus_1' }] : [] }; } },
-    subscriptions: { list: async ({ customer }) => ({ data: customer === 'cus_1' ? stripeSubs : [] }) },
+    customers: { list: async ({ email }) => { if (stripeThrows) throw new Error('stripe down'); return { data: email ? [{ id: 'cus_email' }] : [] }; } },
+    subscriptions: { list: async ({ customer }) => { if (stripeThrows) throw new Error('stripe down'); return { data: customer === 'cus_stable' ? stripeSubs : customer === 'cus_email' ? emailSubs : [] }; } },
   };
   return loadRealModule(join(ROOT, 'src/lib/stripe-live-subscription.ts'), {
     typescript: true,
@@ -94,7 +96,7 @@ test('appendParam puts the parameter in the query, before any fragment, whether 
 });
 
 // ── /api/stripe/checkout-session: coaching needs the membership ─────────────────────────────
-async function runCoachCheckout({ profile = ADULT, platform = [], subscriptions = [], fail = [], errors = {}, body, stripeSubs = [], stripeThrows = false } = {}) {
+async function runCoachCheckout({ profile = ADULT, platform = [], subscriptions = [], fail = [], errors = {}, body, stripeSubs = [], emailSubs = [], stripeThrows = false, customerFails = false } = {}) {
   const { requestUtils, returnPath, membershipCore, platformFee } = await baseModules();
   const created = [];
   const caller = scripted({ tables: { profiles: profile ? [profile] : [], platform_subscriptions: platform, subscriptions }, fail, errors });
@@ -112,7 +114,8 @@ async function runCoachCheckout({ profile = ADULT, platform = [], subscriptions 
       ['@/lib/coach-origin', { resolveCoachCheckoutOrigin: async () => ({ origin: 'marketplace', feeBps: 1500, referralId: null }) }],
       ['@/lib/return-path', returnPath],
       ['@/lib/membership-core', membershipCore],
-      ['@/lib/stripe-live-subscription', await liveSubscriptionLib({ stripeSubs, stripeThrows })],
+      ['@/lib/stripe-live-subscription', await liveSubscriptionLib({ stripeSubs, emailSubs, stripeThrows })],
+      ['@/lib/stripe-customer', { stripeCustomerFor: async () => { if (customerFails) throw new Error('stripe down'); return 'cus_stable'; } }],
     ]),
   });
   const errLog = console.error; console.error = () => {};
@@ -175,7 +178,7 @@ test('coach checkout: the success URL keeps the return page\'s own query', async
 });
 
 // ── /api/stripe/platform-checkout: one membership, and back to where they started ───────────
-async function runPlatformCheckout({ signedIn = true, profile = ADULT, platform = [], fail = [], errors = {}, body = {}, stripeSubs = [] } = {}) {
+async function runPlatformCheckout({ signedIn = true, profile = ADULT, platform = [], fail = [], errors = {}, body = {}, stripeSubs = [], email = 'm@example.invalid' } = {}) {
   const { requestUtils, returnPath, membershipCore } = await baseModules();
   const created = [];
   const caller = scripted({ tables: { profiles: profile ? [profile] : [], platform_subscriptions: platform }, fail, errors });
@@ -185,12 +188,13 @@ async function runPlatformCheckout({ signedIn = true, profile = ADULT, platform 
     registry: new Map([
       ['next/server', nextServer],
       ['@/lib/supabase/server', { createClient: async () => scripted().client }],
-      ['@/lib/request-auth', { currentUser: async () => (signedIn ? { id: UID, email: 'm@example.invalid', email_confirmed_at: '2026-10-01T00:00:00Z' } : null), clientForRequest: async () => caller.client }],
+      ['@/lib/request-auth', { currentUser: async () => (signedIn ? { id: UID, email, email_confirmed_at: '2026-10-01T00:00:00Z' } : null), clientForRequest: async () => caller.client }],
       ['@/lib/membership-core', membershipCore],
       ['@/lib/platform-membership', pm],
       ['@/lib/return-path', returnPath],
       ['@/lib/request-utils', requestUtils],
       ['@/lib/stripe-live-subscription', await liveSubscriptionLib({ stripeSubs })],
+      ['@/lib/stripe-customer', { stripeCustomerFor: async () => 'cus_stable' }],
     ]),
   });
   const errLog = console.error; console.error = () => {};
@@ -336,6 +340,103 @@ test('coach checkout: a subscription Stripe already holds blocks a second one, b
   const down = await runCoachCheckout({ platform: [{ status: 'active' }], stripeThrows: true });
   assert.equal(down.status, 503, 'Stripe unreadable: refuse rather than risk a second charge');
   assert.equal(down.created.length, 0);
+  const older = await runCoachCheckout({ platform: [{ status: 'active' }], emailSubs: [stripeSub({ client_id: UID, provider_id: '4', provider_role: 'trainer' })] });
+  assert.equal(older.status, 409, 'a subscription on an older per-checkout customer, found by email, counts too');
+  const noCustomer = await runCoachCheckout({ platform: [{ status: 'active' }], customerFails: true });
+  assert.equal(noCustomer.status, 503);
+  assert.equal(noCustomer.created.length, 0);
+});
+
+test('every checkout lands on the account\'s own Stripe customer', async () => {
+  const coach = await runCoachCheckout({ platform: [{ status: 'active' }] });
+  assert.equal(coach.created[0].customer, 'cus_stable');
+  assert.equal(coach.created[0].customer_email, undefined, 'no new customer per checkout');
+  const member = await runPlatformCheckout();
+  assert.equal(member.created[0].customer, 'cus_stable');
+  assert.equal(member.created[0].customer_email, undefined);
+});
+
+test('a phone sign-up (no email) is still checked at Stripe, through its own customer', async () => {
+  const lib = await liveSubscriptionLib({ stripeSubs: [stripeSub({ client_id: UID, plan: 'shape_platform' })] });
+  assert.equal(await lib.hasLiveStripeSubscription({ customerId: 'cus_stable', email: null }, { client_id: UID, plan: 'shape_platform' }), true);
+  assert.equal(await lib.hasLiveStripeSubscription({ customerId: null, email: null }, { client_id: UID, plan: 'shape_platform' }), false, 'nothing to look up');
+  const r = await runPlatformCheckout({ email: null, stripeSubs: [stripeSub({ client_id: UID, plan: 'shape_platform' })] });
+  assert.equal(r.status, 409, 'paid a moment ago, no email on the account: still one membership');
+});
+
+// stripeCustomerFor, against a scripted admin client and Stripe.
+async function runCustomerFor({ stored = null, afterUpdate = undefined, updateError = null } = {}) {
+  const calls = { creates: [], updates: [] };
+  let value = stored;
+  const admin = {
+    from: () => {
+      const q = {};
+      q.select = () => q; q.eq = () => q; q.is = (col, v) => { q._is = [col, v]; return q; };
+      q.maybeSingle = async () => ({ data: { stripe_customer_id: value }, error: null });
+      q.update = (row) => { calls.updates.push({ row }); q._update = row; return q; };
+      q.then = (res, rej) => { calls.updates[calls.updates.length - 1].is = q._is; if (!updateError) value = afterUpdate === undefined ? q._update.stripe_customer_id : afterUpdate; return Promise.resolve({ data: null, error: updateError }).then(res, rej); };
+      return q;
+    },
+  };
+  const stripe = { customers: { create: async (params, opts) => { calls.creates.push({ params, opts }); return { id: 'cus_new' }; } } };
+  const lib = await loadRealModule(join(ROOT, 'src/lib/stripe-customer.ts'), { typescript: true, registry: new Map([['@/lib/stripe', { stripe }], ['@/lib/supabase/admin', { createAdminClient: () => admin }]]) });
+  let result, error;
+  try { result = await lib.stripeCustomerFor(UID, 'm@example.invalid'); } catch (e) { error = e; }
+  return { result, error, calls };
+}
+
+test('stripeCustomerFor: one customer per account, made once, never replaced', async () => {
+  const saved = await runCustomerFor({ stored: 'cus_saved' });
+  assert.equal(saved.result, 'cus_saved');
+  assert.equal(saved.calls.creates.length, 0, 'an account with a customer gets that one');
+  const first = await runCustomerFor();
+  assert.equal(first.result, 'cus_new');
+  assert.equal(first.calls.creates.length, 1);
+  assert.deepEqual(first.calls.creates[0].opts, { idempotencyKey: `shape-customer-${UID}` }, 'two first checkouts together get one customer');
+  assert.deepEqual(first.calls.creates[0].params.metadata, { client_id: UID });
+  assert.deepEqual(first.calls.updates[0].is, ['stripe_customer_id', null], 'only an empty column is filled');
+  const raced = await runCustomerFor({ afterUpdate: 'cus_other' });
+  assert.equal(raced.result, 'cus_other', 'a customer saved by a concurrent request wins');
+  const failed = await runCustomerFor({ updateError: { message: 'boom' } });
+  assert.ok(failed.error, 'a failed save throws; the checkout refuses');
+});
+
+// membershipDetour, the server actions' rule.
+async function runDetour({ profile = ADULT, platform = [], errors = {}, stripeSubs = [], noPrice = false } = {}) {
+  const { membershipCore, returnPath } = await baseModules();
+  const created = [];
+  const pm = await platformMembership({ created });
+  const caller = scripted({ tables: { profiles: profile ? [profile] : [], platform_subscriptions: platform }, errors });
+  const lib = await loadRealModule(join(ROOT, 'src/lib/membership-detour.ts'), {
+    typescript: true,
+    registry: new Map([
+      ['@/lib/membership-core', membershipCore],
+      ['@/lib/platform-membership', pm],
+      ['@/lib/stripe-customer', { stripeCustomerFor: async () => 'cus_stable' }],
+      ['@/lib/stripe-live-subscription', await liveSubscriptionLib({ stripeSubs })],
+    ]),
+  });
+  const saved = process.env.STRIPE_PLATFORM_PRICE_ID;
+  if (noPrice) delete process.env.STRIPE_PLATFORM_PRICE_ID;
+  const errLog = console.error; console.error = () => {};
+  try {
+    const out = await lib.membershipDetour({ supabase: caller.client, user: { id: UID, email: 'm@example.invalid', email_confirmed_at: 'x' }, backHref: '/newdesign/MemberProfile.html?u=abc', origin: 'https://shape.test' });
+    return { out, created };
+  } finally { console.error = errLog; process.env.STRIPE_PLATFORM_PRICE_ID = saved; }
+}
+
+test('membershipDetour: a member goes on; anyone else is sent to the $5 checkout, back to the coach', async () => {
+  assert.equal((await runDetour({ platform: [{ status: 'active' }] })).out, null);
+  const join_ = await runDetour();
+  assert.equal(join_.out, 'https://checkout.stripe.test/cs_test_platform1');
+  assert.equal(join_.created[0].customer, 'cus_stable');
+  assert.equal(join_.created[0].success_url, returnUrl('/newdesign/MemberProfile.html?u=abc'));
+  assert.equal((await runDetour({ profile: MINOR })).out, '/newdesign/MemberProfile.html?u=abc&error=age_restricted');
+  assert.equal((await runDetour({ errors: { platform_subscriptions: PG_FAIL } })).out, '/newdesign/MemberProfile.html?u=abc&error=membership_check_failed', 'a failed read never reads as "not a member"');
+  const paid = await runDetour({ stripeSubs: [stripeSub({ client_id: UID, plan: 'shape_platform' })] });
+  assert.equal(paid.out, '/newdesign/MemberProfile.html?u=abc&member=pending', 'Codex on #2353: paid a moment ago, no second membership');
+  assert.equal(paid.created.length, 0);
+  assert.equal((await runDetour({ noPrice: true })).out, '/newdesign/MemberProfile.html?u=abc&error=membership_required');
 });
 
 test('membership checkout: a membership Stripe already holds blocks a second one', async () => {
@@ -358,7 +459,7 @@ test('a membership read that comes back with an error is unknown, never "not a m
   const core = read('src/lib/membership-core.ts');
   assert.match(core, /if \(profileError && opts\.strict\) throw profileError;/);
   assert.match(core, /if \(subError && opts\.strict\) throw subError;/);
-  for (const rel of ['src/app/api/me/membership/route.ts', 'src/app/api/stripe/platform-checkout/route.ts', 'src/app/api/stripe/checkout-session/route.ts', 'src/app/subscribe/actions.ts']) {
+  for (const rel of ['src/app/api/me/membership/route.ts', 'src/app/api/stripe/platform-checkout/route.ts', 'src/app/api/stripe/checkout-session/route.ts', 'src/lib/membership-detour.ts']) {
     assert.match(read(rel), /computeMembership\([^)]*strict: true \}\)/, `${rel} reads strictly`);
   }
 });
@@ -390,10 +491,12 @@ test('website: every membership button goes through one helper that posts return
   assert.match(read('public/newdesign/pricing.jsx'), /window\.ShapeMembership\.start\(home, "\/newdesign\/Pricing\.html"\)/);
 });
 
-test('the legacy /subscribe action holds the same rule', () => {
-  const src = read('src/app/subscribe/actions.ts');
-  assert.match(src, /if \(!membership\.isMember\) \{[\s\S]*?createPlatformCheckout\(\{[^}]*next: backHref, cancelPath: backHref \}\)/);
-  assert.match(src, /redirect\(`\$\{backHref\}&error=already_subscribed`\);/);
-  const tryBlock = src.slice(src.indexOf('membership = await computeMembership'), src.indexOf('if (!membership) redirect'));
-  assert.doesNotMatch(tryBlock, /redirect\(/, 'redirect() throws, so it is never called inside the try');
+test('the server-action checkouts (/subscribe and /purchase) take the detour, outside any try', () => {
+  for (const rel of ['src/app/subscribe/actions.ts', 'src/app/purchase/actions.ts']) {
+    const src = read(rel);
+    assert.match(src, /const detour = await membershipDetour\(\{ supabase, user, backHref, origin: [^}]+\}\);\n\s+if \(detour\) redirect\(detour\);/, rel);
+    assert.match(src, /customer: customerId,/, `${rel}: the account's own Stripe customer`);
+    assert.doesNotMatch(src, /customer_email:/, rel);
+  }
+  assert.match(read('src/app/subscribe/actions.ts'), /redirect\(`\$\{backHref\}&error=already_subscribed`\);/);
 });

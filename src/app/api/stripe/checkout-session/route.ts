@@ -9,6 +9,7 @@ import { resolveCoachCheckoutOrigin } from '@/lib/coach-origin';
 import { appendParam, sameOriginPath } from '@/lib/return-path';
 import { ACTIVE_SUB, computeMembership } from '@/lib/membership-core';
 import { hasLiveStripeSubscription } from '@/lib/stripe-live-subscription';
+import { stripeCustomerFor } from '@/lib/stripe-customer';
 
 export const runtime = 'nodejs';
 
@@ -166,6 +167,15 @@ export async function POST(request: Request) {
   const feeRate = bpsToRate(feeBps);
 
   const isSubscription = String(body.item?.type || '').toLowerCase() === 'subscription';
+  // The account's own Stripe customer (stripe-customer.ts): the purchase lands on it, and the
+  // duplicate check below can ask Stripe about it whether or not the account has an email.
+  let customerId: string;
+  try {
+    customerId = await stripeCustomerFor(user.id, user.email ?? null);
+  } catch (err) {
+    console.error('[shape-app] checkout Stripe customer failed', err);
+    return NextResponse.json({ error: 'Could not start checkout. Try again in a moment.' }, { status: 503 });
+  }
   // ⚠ A SECOND SUBSCRIPTION TO THE SAME COACH WAS ONE PRESS AWAY. A member back from Stripe
   // before the webhook landed still saw Subscribe, and paying again made two monthly charges.
   // Read on the caller's own client ("clients read own subscriptions") and at Stripe; a failed
@@ -182,7 +192,7 @@ export async function POST(request: Request) {
     // Our row arrives with the webhook; Stripe has the subscription the moment it is paid.
     if (!live) {
       try {
-        live = await hasLiveStripeSubscription(user.email ?? null, {
+        live = await hasLiveStripeSubscription({ customerId, email: user.email ?? null }, {
           client_id: user.id, provider_id: String(providerId), provider_role: providerRole,
         });
       } catch (err) {
@@ -376,7 +386,7 @@ export async function POST(request: Request) {
           quantity: 1,
         },
       ],
-      customer_email: user.email ?? undefined,
+      customer: customerId,
       client_reference_id: user.id,
       metadata: {
         client_id: user.id,

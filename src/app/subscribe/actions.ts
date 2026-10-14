@@ -23,8 +23,9 @@ import { hasActiveWaitlistInvite } from '@/lib/waitlist';
 import { coachProfileHref } from '@/lib/coach-profile-href';
 import { resolveCoachCheckoutOrigin } from '@/lib/coach-origin';
 import { bpsToPercent } from '@/lib/platform-fee';
-import { ACTIVE_SUB, computeMembership } from '@/lib/membership-core';
-import { createPlatformCheckout } from '@/lib/platform-membership';
+import { ACTIVE_SUB } from '@/lib/membership-core';
+import { membershipDetour } from '@/lib/membership-detour';
+import { stripeCustomerFor } from '@/lib/stripe-customer';
 import { hasLiveStripeSubscription } from '@/lib/stripe-live-subscription';
 
 type ProviderRole = 'trainer' | 'nutritionist';
@@ -110,28 +111,18 @@ export async function startCheckout(formData: FormData): Promise<void> {
 
   // ⚠ COACHING NEEDS AN ACTIVE SHAPE MEMBERSHIP (owner, 2026-10-14), the same rule as
   // /api/stripe/checkout-session. A non-member goes through the $5 checkout first and comes
-  // back to this coach's profile; nothing is charged for the coach until they choose again.
-  // ⚠ redirect() throws, so it is never called inside a try here.
-  let membership: Awaited<ReturnType<typeof computeMembership>> | null = null;
+  // back to this coach's profile (membership-detour.ts); nothing is charged for the coach
+  // until they choose again. redirect() throws, so it is called here, outside any try.
+  const detour = await membershipDetour({ supabase, user, backHref, origin: siteOrigin });
+  if (detour) redirect(detour);
+
+  let customerId: string | null = null;
   try {
-    membership = await computeMembership(supabase, user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at, strict: true });
-  } catch {
-    membership = null;
+    customerId = await stripeCustomerFor(user.id, user.email ?? null);
+  } catch (e) {
+    console.error('[subscribe] Stripe customer failed', e);
   }
-  if (!membership) redirect(`${backHref}&error=membership_check_failed`);
-  if (membership.isKnownMinor) redirect(`${backHref}&error=age_restricted`);
-  if (!membership.isMember) {
-    const priceId = process.env.STRIPE_PLATFORM_PRICE_ID;
-    let joinUrl: string | null = null;
-    if (priceId) {
-      try {
-        joinUrl = await createPlatformCheckout({ priceId, userId: user.id, email: user.email ?? null, origin: siteOrigin, next: backHref, cancelPath: backHref });
-      } catch (e) {
-        console.error('[subscribe] membership checkout failed', e);
-      }
-    }
-    redirect(joinUrl ?? `${backHref}&error=membership_required`);
-  }
+  if (!customerId) redirect(`${backHref}&error=checkout_failed`);
 
   // One live subscription per coach: paying twice made two monthly charges. Our table and
   // Stripe are both read (stripe-live-subscription.ts says why); a failed read refuses.
@@ -147,7 +138,7 @@ export async function startCheckout(formData: FormData): Promise<void> {
   let stripeChecked = live;
   if (!live) {
     try {
-      live = await hasLiveStripeSubscription(user.email ?? null, { client_id: user.id, provider_id: String(providerId), provider_role: providerRole });
+      live = await hasLiveStripeSubscription({ customerId, email: user.email ?? null }, { client_id: user.id, provider_id: String(providerId), provider_role: providerRole });
       stripeChecked = true;
     } catch (e) {
       console.error('[subscribe] Stripe subscription lookup failed', e);
@@ -194,7 +185,7 @@ export async function startCheckout(formData: FormData): Promise<void> {
     session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       line_items: [{ price: priceResult.priceId, quantity: 1 }],
-      customer_email: user.email ?? undefined,
+      customer: customerId,
       client_reference_id: user.id,
       metadata: {
         client_id: user.id,

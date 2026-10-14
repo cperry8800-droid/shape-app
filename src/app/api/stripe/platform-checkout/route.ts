@@ -21,6 +21,7 @@ import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { computeMembership } from '@/lib/membership-core';
 import { createPlatformCheckout, MEMBERSHIP_HOME } from '@/lib/platform-membership';
 import { hasLiveStripeSubscription } from '@/lib/stripe-live-subscription';
+import { stripeCustomerFor } from '@/lib/stripe-customer';
 import { sameOriginPath } from '@/lib/return-path';
 import { readJson } from '@/lib/request-utils';
 
@@ -51,6 +52,7 @@ export async function POST(request: Request) {
     );
   }
 
+  let customerId: string;
   // ⚠ A MEMBER COULD BUY A SECOND MEMBERSHIP. Nothing here looked for the first, so every press
   // of Join made a new $5 subscription. An approved coach or an admin is a member already and
   // has nothing to buy. Fail closed: no checkout opens on an answer we could not read.
@@ -61,7 +63,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Shape is for adults 18 and over.', code: 'age_restricted' }, { status: 403 });
     }
     // Our row arrives with the webhook (or platform-return); Stripe has it the moment it is paid.
-    if (m.isMember || await hasLiveStripeSubscription(user.email ?? null, { client_id: user.id, plan: 'shape_platform' })) {
+    // The account's own customer is where it lands (stripe-customer.ts).
+    customerId = await stripeCustomerFor(user.id, user.email ?? null);
+    if (m.isMember || await hasLiveStripeSubscription({ customerId, email: user.email ?? null }, { client_id: user.id, plan: 'shape_platform' })) {
       return NextResponse.json({ error: "You're already a Shape member.", code: 'already_member' }, { status: 409 });
     }
   } catch (err) {
@@ -75,7 +79,7 @@ export async function POST(request: Request) {
   const cancelPath = sameOriginPath(body.cancelPath, '/pricing.html?error=subscribe_cancelled');
 
   try {
-    const url = await createPlatformCheckout({ priceId, userId: user.id, email: user.email ?? null, origin, next, cancelPath });
+    const url = await createPlatformCheckout({ priceId, userId: user.id, customerId, origin, next, cancelPath });
     if (!url) {
       return NextResponse.json({ error: 'Stripe did not return a checkout URL.' }, { status: 500 });
     }

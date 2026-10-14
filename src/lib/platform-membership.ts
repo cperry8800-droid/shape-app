@@ -25,7 +25,8 @@ export function membershipReturnUrl(origin: string, next: string): string {
 export async function createPlatformCheckout(opts: {
   priceId: string;
   userId: string;
-  email: string | null;
+  /** The account's own Stripe customer (stripe-customer.ts), so the membership lands on it. */
+  customerId: string;
   origin: string;
   next: string;
   cancelPath: string;
@@ -33,7 +34,7 @@ export async function createPlatformCheckout(opts: {
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
     line_items: [{ price: opts.priceId, quantity: 1 }],
-    customer_email: opts.email ?? undefined,
+    customer: opts.customerId,
     client_reference_id: opts.userId,
     metadata: { client_id: opts.userId, plan: 'shape_platform' },
     subscription_data: { metadata: { client_id: opts.userId, plan: 'shape_platform' } },

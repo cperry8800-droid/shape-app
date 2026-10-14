@@ -14,6 +14,8 @@ import { feeSplit, bpsToRate } from '@/lib/platform-fee';
 import { hasActiveWaitlistInvite } from '@/lib/waitlist';
 import { resolveCoachCheckoutOrigin } from '@/lib/coach-origin';
 import { coachProfileHref } from '@/lib/coach-profile-href';
+import { membershipDetour } from '@/lib/membership-detour';
+import { stripeCustomerFor } from '@/lib/stripe-customer';
 
 type ProviderRole = 'trainer' | 'nutritionist';
 type Kind = 'booking' | 'meal_plan';
@@ -50,6 +52,20 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect(`/login?next=${encodeURIComponent(backHref)}`);
+
+  // ⚠ COACHING NEEDS AN ACTIVE SHAPE MEMBERSHIP (owner, 2026-10-14; client-onboarding review):
+  // a single session or meal plan as much as a subscription. This action never asked. A
+  // non-member goes through the $5 checkout first and comes back to the coach's profile.
+  // redirect() throws, so it is called here, outside any try.
+  const detour = await membershipDetour({ supabase, user, backHref, origin: process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000' });
+  if (detour) redirect(detour);
+  let customerId: string | null = null;
+  try {
+    customerId = await stripeCustomerFor(user.id, user.email ?? null);
+  } catch (e) {
+    console.error('[purchase] Stripe customer failed', e);
+  }
+  if (!customerId) redirect(`${backHref}&error=checkout_failed`);
 
   const table = providerRole === 'trainer' ? 'trainers' : 'nutritionists';
   const admin = createAdminClient();
@@ -158,7 +174,7 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
           },
         },
       ],
-      customer_email: user.email ?? undefined,
+      customer: customerId,
       client_reference_id: user.id,
       metadata: {
         client_id: user.id,
