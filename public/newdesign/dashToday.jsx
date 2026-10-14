@@ -1555,10 +1555,15 @@ function dashCountdown(ms) {
 }
 
 // The day column. `rows` is the live schedule with real instants ({ at, end, time, who,
-// sub }), or null for the signed-out preview, which passes its own rows as `demoRows`
-// and marks the next one with status "NEXT" — the preview has no clock to measure.
-// ⚠ A LIVE ROW IS DONE WHEN IT HAS ENDED, NOT WHEN IT HAS STARTED. A session in
-// progress is still the one up next: it is the one the coach is in.
+// sub, status }), or null for the signed-out preview, which passes its own rows as
+// `demoRows` and marks the next one with status "NEXT" — the preview has no clock to measure.
+// ⚠ A LIVE ROW IS DONE WHEN IT HAS ENDED, NOT WHEN IT HAS STARTED (or once it is marked
+// completed). A session in progress is still the one up next: it is the one the coach is in.
+// ⚠ AND A CANCELLED OR DECLINED BOOKING IS NOT ON THE DAY AT ALL. The role dashboard routes
+// return every booking in today's window whatever its status (Codex, #2343), so without this
+// a cancelled 3pm read "UP NEXT" with a Message button. The set is the calendar's own
+// (`.in('status', ['confirmed', 'requested', 'completed'])` in both routes).
+const DASH_NOW_STATUSES = ["requested", "confirmed", "completed"];
 function DashNowColumn({ rows, demoRows, clients, role, unit, onOpenCalendar }) {
   const [now, setNow] = React.useState(() => Date.now());
   React.useEffect(() => {
@@ -1568,7 +1573,8 @@ function DashNowColumn({ rows, demoRows, clients, role, unit, onOpenCalendar }) 
   }, [!!rows]);
   const units = useDashUnits();
   const items = rows
-    ? rows.map((r) => ({ ...r, done: +r.end <= now, live: +r.at <= now && now < +r.end }))
+    ? rows.filter((r) => !r.status || DASH_NOW_STATUSES.indexOf(r.status) !== -1)
+        .map((r) => ({ ...r, done: r.status === "completed" || +r.end <= now, live: r.status !== "completed" && +r.at <= now && now < +r.end }))
     : (demoRows || []).filter((r) => r && r.time !== "—").map((r) => ({ ...r, done: r.status === "DONE", live: false }));
   let nextIdx = rows ? items.findIndex((r) => !r.done) : items.findIndex((r) => r.status === "NEXT");
   if (!rows && nextIdx < 0) nextIdx = items.findIndex((r) => !r.done);
@@ -1718,7 +1724,7 @@ function CoachDashboardPage({ role }) {
   const nowRows = todayRows
     ? todayRows.map((s) => {
         const at = new Date(s.scheduledAt);
-        return { at, end: new Date(+at + (s.durationMin || 15) * 60000), time: dashFmtTime(s.scheduledAt),
+        return { at, end: new Date(+at + (s.durationMin || 15) * 60000), time: dashFmtTime(s.scheduledAt), status: s.status,
           who: s.clientName || "Client", sub: [s.topic, (s.durationMin || 15) + " min", s.type].filter(Boolean).join(" · ") };
       })
     : null;

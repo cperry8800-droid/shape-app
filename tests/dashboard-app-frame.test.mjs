@@ -143,6 +143,14 @@ test('up next is the first session that has not ended: in progress, then the cou
     assert.match(m.text(), /Nothing booked today/);
     assert.match(m.text(), /Your schedule is clear/);
 
+    // A cancelled or declined booking is not on the day; a session marked completed is done
+    // even before its end (Codex, #2343: the routes return every status in today's window).
+    await m.render(col([{ ...row('Cancelled', 20, 45), status: 'cancelled' }, { ...row('Declined', 40, 45), status: 'declined' },
+      { ...row('Finished early', -20, 45), status: 'completed' }, { ...row('Booked', 90, 30), status: 'confirmed' }], null));
+    assert.doesNotMatch(m.text(), /Cancelled|Declined/, 'an inactive booking is on the day column');
+    assert.match(m.text(), /UP NEXT · IN 1H 3\dM[^]*Booked/);
+    assert.doesNotMatch(m.text(), /ON NOW/, 'a session marked completed is not "on now"');
+
     // The preview has no clock: its NEXT row is up next, with no countdown.
     await m.render(col(null, [{ time: '07:00', who: 'Priya S.', sub: 'Lower pull', status: 'DONE' }, { time: '14:00', who: 'Sam O.', sub: 'Intake', status: 'NEXT' }]));
     assert.match(m.text(), /UP NEXT14:00Sam O\./);
