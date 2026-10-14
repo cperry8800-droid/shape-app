@@ -65,9 +65,12 @@ const CO_TOUR = {
   trainer: {
     label: "Trainer",
     tabs: [
+      // ⚠ NO COUNTDOWN IN THE TODAY COPY (Codex, #2344). The frame is the signed-out demo, and
+      // DashNowColumn gives demo rows a bare "UP NEXT": the countdown needs a real booking's
+      // start time, so a frame of it would need a signed-in capture. The same for both roles.
       { key: "today", file: "today", name: "Today",
-        body: "Your day on the left: the session up next, with a countdown and the client's context, above today's timeline. Beside it, Needs you puts client attention, check-ins to review, replies waiting and next week's programming one tab apart, above your figures, arranged however you like.",
-        list: ["The next session, with a countdown", "Today's timeline, marked where you are", "Needs you: attention, check-ins, replies and programs", "Joint-attention flags shared with the client's other coach"] },
+        body: "Your day on the left: the session up next, what you know about the client and a button to message them, above today's timeline. Beside it, Needs you puts client attention, check-ins to review, replies waiting and next week's programming one tab apart, above your figures, arranged however you like.",
+        list: ["The next session, one tap from a message", "Today's timeline, marked where you are", "Needs you: attention, check-ins, replies and programs", "Joint-attention flags shared with the client's other coach"] },
       { key: "week", file: "week", name: "Week",
         body: "The end-of-week review. Every client, one row: their check-in ratings, the win and the struggle they wrote, what they asked you, adherence against the week before, food logs and the weigh-in. Tick each one as you go, or close the week in one go.",
         list: ["Ratings, win, struggle and the question they asked you", "Adherence, food logs and weigh-in against the week before", "Message or leave a note from the row", "Mark all reviewed in one tap"] },
@@ -109,8 +112,8 @@ const CO_TOUR = {
     label: "Nutritionist",
     tabs: [
       { key: "today", file: "today", name: "Today",
-        body: "Your day on the left: the consult up next, with a countdown and the client's context, above today's timeline. Beside it, Needs you puts client attention, check-ins to review and replies waiting one tab apart, above your figures and roster health, arranged however you like.",
-        list: ["The next consult, with a countdown", "Today's timeline, marked where you are", "Needs you: attention, check-ins and replies", "Joint-attention flags shared with the client's trainer"] },
+        body: "Your day on the left: the consult up next, what you know about the client and a button to message them, above today's timeline. Beside it, Needs you puts client attention, check-ins to review and replies waiting one tab apart, above your figures and roster health, arranged however you like.",
+        list: ["The next consult, one tap from a message", "Today's timeline, marked where you are", "Needs you: attention, check-ins and replies", "Joint-attention flags shared with the client's trainer"] },
       { key: "week", file: "week", name: "Week",
         body: "The end-of-week review. Every client, one row: their check-in ratings, the win and the struggle they wrote, what they asked you, adherence against the week before, food logs and the weigh-in. Tick each one as you go, or close the week in one go.",
         list: ["Ratings, win, struggle and the question they asked you", "Adherence, food logs and weigh-in against the week before", "Message or leave a note from the row", "Mark all reviewed in one tap"] },

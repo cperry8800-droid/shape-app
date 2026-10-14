@@ -493,3 +493,22 @@ test('the dashboard tab row scrolls sideways without drawing a scrollbar', () =>
   assert.match(rule[1], /scrollbar-width:none/, 'the tab row draws a scrollbar in Firefox');
   assert.match(css, /\.co-tabs::-webkit-scrollbar\{display:none\}/, 'the tab row draws a scrollbar in Chrome/Safari');
 });
+
+// Codex, #2344: the Today copy promised "the session up next, with a countdown", beside a
+// frame that has none. The frames are the signed-out demo, and DashNowColumn gives demo rows
+// a bare "UP NEXT" (the countdown needs a real booking's start time). So while that holds,
+// neither role's Today tab may promise one. If the demo ever gets a countdown, this stops
+// applying and the copy can say so again.
+test('the Today copy promises no countdown the demo frame cannot show', () => {
+  const now = stripComments(read('dashToday.jsx'));
+  const demoLead = /!rows \? "UP NEXT"\s*:/.test(now);
+  assert.ok(demoLead || !/countdown/i.test(JSON.stringify(CO_TOUR)),
+    'the demo lead changed; re-check the Today frames before relying on this');
+  if (!demoLead) return;
+  for (const role of ['trainer', 'nutri']) {
+    const today = CO_TOUR[role].tabs.find((t) => t.key === 'today');
+    assert.ok(today, role + ' has no Today tab');
+    const copy = today.body + ' ' + today.list.join(' ');
+    assert.doesNotMatch(copy, /count ?down|counts down/i, role + "'s Today tab promises a countdown the signed-out frame does not show");
+  }
+});
