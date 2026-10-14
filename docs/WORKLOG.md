@@ -860,7 +860,7 @@ Append new entries at the top, under this note.
 - **What changed:**
   - **Coaching needs the membership.** Every coach checkout (`/api/stripe/checkout-session`, `/subscribe`, `/purchase`) refuses a non-member with the gate's `402 membership_required`. The server actions detour through the $5 checkout and come back to the coach (`membership-detour.ts`).
   - **No second membership, and no second subscription to one coach.** Our tables are read first, then Stripe, on the account's own customer (`profiles.stripe_customer_id`, `stripe-customer.ts`). That customer is adopted from a member's existing subscription rows, or made once. Stripe is read too because our row arrives with the webhook.
-  - **One checkout per account and product at a time** (`checkout-barrier.ts`): a claim two requests can't both win, renewed before the create, and a create bounded to 20 s. An open checkout under 10 minutes old is handed back only on the same terms (price, fee, origin, referral, where it returns). Every other one is expired.
+  - **One checkout per account and subscription at a time** (`checkout-barrier.ts`), for the membership and each coach subscription: a claim two requests can't both win, renewed before the create, and a create bounded to 20 s. One-time purchases (a session, a meal plan, a program) are not held to it. An open checkout under 10 minutes old is handed back only on the same terms (price, fee, origin, referral, where it returns). Every other one is expired.
   - **`/api/stripe/platform-return`** confirms the session with Stripe and writes the member's row before sending them on. **`/api/me/membership`** gives screens the gate's own answer.
   - **The website** shows a signed-in non-member a "Start your membership" panel, not the demo member's dashboard.
   - **The app** gates on the membership itself (`memberGate.mjs`). Every server call goes through `ShapeApi.fetch`: 27 root-relative calls had reached nothing in the installed app. The checkout opens in the system browser and re-checks membership on close. A coach role in `roles[]`, dietitians included, passes as a coach.
@@ -880,6 +880,7 @@ Append new entries at the top, under this note.
   - **Moved to the next onboarding PR (fix 2):**
     - The website and the app ignore `ageRestricted` from `/api/me/membership`, so a known minor sees the membership offer, which refuses them, instead of the age message.
     - The app checks once when the checkout browser closes on a `member=pending` payment; it should poll, as the website does.
+  - One-time coach purchases have no checkout claim: concurrent presses on a booking, meal plan or program (`/purchase`, and the route's one-time path) can each open a payable checkout. Not reviewed for #2353, which held subscriptions only (Codex on #2356).
   - `src/app/pricing/actions.ts` (`startPlatformCheckout`) is imported by nothing and still makes a membership checkout with none of these checks.
   - Not run live: a real checkout through `platform-return`, and the app on a device. The connected Stripe account is live mode only.
   - The rest of the onboarding review: fix 2 (one record of the client), fix 3 (hiring starts the relationship), fix 4 (the board, with the owner's two new reference slides for a Nora "ask to plan" panel), and phase two (Apple and Google in-app purchase outside the US).
