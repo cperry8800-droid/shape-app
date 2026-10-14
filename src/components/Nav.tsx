@@ -165,17 +165,17 @@ export default async function Nav() {
               </div>
             </div>
             <div className="nav-dropdown">
-              <Link href="/for-trainers">Trainers</Link>
+              <Link href="/newdesign/Coach.html">Trainers</Link>
               <div className="nav-dropdown-menu">
-                <Link href="/for-trainers">Overview</Link>
+                <Link href="/newdesign/Coach.html">Overview</Link>
                 <Link href="/trainers">Trainer marketplace</Link>
                 <Link href="/newdesign/TrainerDashboard.html">Trainer dashboard</Link>
               </div>
             </div>
             <div className="nav-dropdown">
-              <Link href="/for-nutritionists">Nutritionists</Link>
+              <Link href="/newdesign/Nutritionist.html">Nutritionists</Link>
               <div className="nav-dropdown-menu">
-                <Link href="/for-nutritionists">Overview</Link>
+                <Link href="/newdesign/Nutritionist.html">Overview</Link>
                 <Link href="/nutritionists">Nutritionist marketplace</Link>
                 <Link href="/newdesign/NutritionistDashboard.html">Nutritionist dashboard</Link>
               </div>

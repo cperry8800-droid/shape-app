@@ -114,11 +114,13 @@ test('the claim sweep actually found the known legal surfaces', () => {
         'ban in this file is passing vacuously.'
     );
   }
-  assert.ok(SURFACES.length >= 150, `expected the full page set, found ${SURFACES.length}`);
+  // 150 until 2026-10-14, when 37 old root pages were retired: 139 then (13 root, 74
+  // newdesign, 51 mobile, plus the app module).
+  assert.ok(SURFACES.length >= 125, `expected the full page set, found ${SURFACES.length}`);
   // ⚠ MEASURED, because the comment this replaced was wrong and so was my first rewrite.
   // Of the 181 tracked pages, 51 sit directly in `public/` and 130 are nested (76
   // newdesign, 54 mobile) — so a depth-1 or public+newdesign-only set is 51 or 127 and
-  // the >=150 floor above already catches it. Naming the cohort adds DIAGNOSIS, not
+  // the floor above already catches it (after 2026-10-14: 13 or 87, against 125). Naming the cohort adds DIAGNOSIS, not
   // detection: the failure then says which 54 pages vanished instead of just a count.
   // (Footgun met while measuring: `git ls-files 'public/*.html'` returns all 181, because
   // git's fnmatch lets `*` cross `/`. Do not use a pathspec to test depth.)

@@ -259,17 +259,13 @@ test('the website publish button goes through the evaluated boundary, not a dire
   // undated session has no week to be judged in. The builder now asks for a date
   // and posts to /api/trainer/workout, which reads the week, merges, judges and
   // publishes. If this fails, a surface has gone back around the door.
-  const page = readFileSync(join(ROOT, 'public/trainer-dashboard.html'), 'utf8');
+  // (The builder lived on the old root trainer-dashboard.html, retired on 2026-10-14; the helper
+  // in supabase.js is what remains to hold to the boundary.)
   const db = readFileSync(join(ROOT, 'public/supabase.js'), 'utf8');
 
   assert.match(db, /fetch\('\/api\/trainer\/workout'/, 'delivery posts to the evaluated route');
   assert.doesNotMatch(db, /from\('client_workouts'\)\s*\.insert\(/, 'and never inserts the table itself');
   assert.doesNotMatch(db, /publishClientWorkout/, 'the direct-insert helper is gone, not merely unused');
-  assert.doesNotMatch(page, /publishClientWorkout/, 'and nothing still calls it');
-
-  assert.match(page, /assignClientWorkout\(/, 'the builder delivers through the boundary helper');
-  assert.match(page, /scheduledDate: workout\.date,/, 'and carries the date the boundary requires');
-  assert.match(page, /if \(!workout\.date\)/, 'a dateless send is refused before it is sent');
 });
 
 test('the coach INSERT policy is dropped — and the member self-authoring policy is NOT', () => {

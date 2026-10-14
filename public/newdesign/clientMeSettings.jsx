@@ -405,13 +405,13 @@ function ClientMeSettings() {
   }
   async function exportData(ev) {
     const btn = ev && ev.currentTarget;
-    if (!signedIn) { window.location.href = "/login.html"; return; }
+    if (!signedIn) { window.location.href = "/newdesign/Login.html"; return; }
     if (!window.confirm("Download a copy of all the data Shape holds about you?")) return;
     if (btn) btn.disabled = true; // guard against double-submission
     try {
       // no-store: the export is all of the user's personal data — never let it sit in the browser HTTP cache.
       const res = await fetch("/api/account/export", { credentials: "same-origin", cache: "no-store" });
-      if (res.status === 401) { window.location.href = "/login.html"; return; }
+      if (res.status === 401) { window.location.href = "/newdesign/Login.html"; return; }
       if (!res.ok) throw new Error("export failed");
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -427,7 +427,7 @@ function ClientMeSettings() {
   }
   async function deleteAccount(ev) {
     const btn = ev && ev.currentTarget;
-    if (!signedIn) { window.location.href = "/login.html"; return; }
+    if (!signedIn) { window.location.href = "/newdesign/Login.html"; return; }
     if (!window.confirm("Permanently delete your Shape account and ALL your data? This cannot be undone.")) return;
     const typed = window.prompt("This erases your health data, history, photos, and account for good. Type DELETE to confirm.");
     if ((typed || "").trim().toUpperCase() !== "DELETE") return;
@@ -436,12 +436,12 @@ function ClientMeSettings() {
       // Two requests (L1, 2026-10-08 review): the first earns a ten-minute confirmation token
       // bound to this account; the second, carrying it, deletes.
       let res = await fetch("/api/account/delete", { method: "POST", credentials: "same-origin" });
-      if (res.status === 401) { window.location.href = "/login.html"; return; }
+      if (res.status === 401) { window.location.href = "/newdesign/Login.html"; return; }
       if (res.status === 428) {
         const step = await res.json().catch(() => ({}));
         if (!step.confirmToken) throw new Error("delete failed");
         res = await fetch("/api/account/delete", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirmToken: step.confirmToken }) });
-        if (res.status === 401) { window.location.href = "/login.html"; return; }
+        if (res.status === 401) { window.location.href = "/newdesign/Login.html"; return; }
       }
       if (!res.ok) throw new Error("delete failed");
       alert("Your account and data have been deleted.");

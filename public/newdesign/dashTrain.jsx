@@ -167,10 +167,25 @@ const DTR_DEMO = (() => {
     stats: { thisWeekCount: 2, completedCount: 42, volume7dLb: 9120 } };
 })();
 
+// One workout this page was opened for. An old `/workout.html?id=<assignment>` link (the root
+// page retired 2026-10-14; Codex on #2352) arrives as `ClientApp.html#workouts?id=…`, because
+// the ClientTrain.html stub forwards its query after the hash, or with `?id=` in the query. The
+// id is the client_workouts row the plan feed carries as `workout.id`.
+function dtrFocusId(loc) {
+  try {
+    const h = String((loc && loc.hash) || "");
+    const q = h.indexOf("?") >= 0 ? h.slice(h.indexOf("?") + 1) : String((loc && loc.search) || "").replace(/^\?/, "");
+    return new URLSearchParams(q).get("id") || null;
+  } catch (e) { return null; }
+}
+const dtrIsFocus = (w, focusId) => focusId != null && w != null && w.id != null && String(w.id) === focusId;
+// The row the page was opened for: marked, and found by the scroll below.
+const DTR_FOCUS_STYLE = { background: "rgba(var(--sh-accent-rgb, 46,224,196),0.08)", boxShadow: "inset 2px 0 0 " + DTR_TEAL };
+
 // ── Pieces ──────────────────────────────────────────────────────────────────
-function DtrDayRow({ d, coach }) {
+function DtrDayRow({ d, coach, focus }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "20px 1fr auto", gap: 12, alignItems: "center", padding: "9px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
+    <div data-dtr-workout={d.workout.id != null ? String(d.workout.id) : undefined} aria-current={focus ? "true" : undefined} style={{ display: "grid", gridTemplateColumns: "20px 1fr auto", gap: 12, alignItems: "center", padding: "9px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)", ...(focus ? DTR_FOCUS_STYLE : null) }}>
       <span style={{ color: d.done ? DTR_GREEN : DTR_INK50, fontSize: 12 }}>{d.done ? "✓" : "○"}</span>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 13.5, fontWeight: 500, opacity: d.done ? 0.75 : 1 }}>{d.workout.title}{d.isToday && <DashPill c={DTR_TEAL}>Tonight</DashPill>}</div>
@@ -183,12 +198,14 @@ function DtrDayRow({ d, coach }) {
   );
 }
 
-function DtrWeekPlate({ w, coach, defaultOpen }) {
+function DtrWeekPlate({ w, coach, defaultOpen, focusId }) {
   const [open, setOpen] = React.useState(!!defaultOpen);
   const locked = w.status === "upcoming";
+  // A locked week lists no rows, so the plate itself is what the scroll finds.
+  const holdsFocus = w.days.some((d) => dtrIsFocus(d.workout, focusId));
   const accent = w.status === "current" ? DTR_RUST : w.status === "past" ? "rgba(var(--sh-ink-rgb, 242,237,228),0.35)" : DTR_INK50;
   return (
-    <div className={"dash-plate" + (w.status === "current" ? " dash-plate--tick dash-plate--bracket" : "")} style={{ "--dac": accent, paddingLeft: 24, opacity: locked ? 0.82 : 1 }}>
+    <div className={"dash-plate" + (w.status === "current" ? " dash-plate--tick dash-plate--bracket" : "")} data-dtr-workout={locked && holdsFocus ? focusId : undefined} style={{ "--dac": accent, paddingLeft: 24, opacity: locked ? 0.82 : 1 }}>
       <div
         onClick={() => !locked && setOpen(!open)}
         onKeyDown={(e) => { if (!locked && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setOpen(!open); } }}
@@ -220,7 +237,7 @@ function DtrWeekPlate({ w, coach, defaultOpen }) {
         </div>
       ) : open && (
         <div style={{ marginTop: 8 }}>
-          {w.days.map((d, i) => <DtrDayRow key={i} d={d} coach={coach} />)}
+          {w.days.map((d, i) => <DtrDayRow key={i} d={d} coach={coach} focus={dtrIsFocus(d.workout, focusId)} />)}
         </div>
       )}
     </div>
@@ -657,6 +674,18 @@ function ClientWorkoutsPage() {
     return () => { on = false; };
   }, [reloadTick]);
   const live = source === "live";
+  // Read once: the workout this visit was opened for, if any (dtrFocusId). Only live rows can
+  // match it, so the demo preview never marks one.
+  const focusId = React.useMemo(() => dtrFocusId(window.location), []);
+  React.useEffect(() => {
+    if (!live || !focusId) return undefined;
+    // After the grid has laid the cards out.
+    const t = setTimeout(() => {
+      const el = [...document.querySelectorAll("[data-dtr-workout]")].find((n) => n.getAttribute("data-dtr-workout") === focusId);
+      if (el && el.scrollIntoView) el.scrollIntoView({ block: "center" });
+    }, 80);
+    return () => clearTimeout(t);
+  }, [live, focusId]);
   // A builder save/remove re-reads everything — the new rows ride the same
   // plan feed the weeks view renders.
   const reloadAll = React.useCallback(() => setReloadTick((t) => t + 1), []);
@@ -742,9 +771,12 @@ function ClientWorkoutsPage() {
             </div>
           </div>
         )}
-        {weeks.map((w) => (
-          <DtrWeekPlate key={w.label} w={w} coach={coach} defaultOpen={w.status === "current"} />
-        ))}
+        {weeks.map((w) => {
+          const focus = live ? focusId : null;
+          // Keyed by source too, so the live plates mount fresh (and take defaultOpen) rather
+          // than inheriting a demo plate's open state under the same "Week N" label.
+          return <DtrWeekPlate key={(live ? "live:" : "demo:") + w.label} w={w} coach={coach} focusId={focus} defaultOpen={w.status === "current" || w.days.some((d) => dtrIsFocus(d.workout, focus))} />;
+        })}
         {/* The unwritten NEXT block — always after the assigned weeks (the
             program is never "fully written"; the next one is earned at
             check-in). This is the human-loop sell, kept always-visible. */}
@@ -756,7 +788,7 @@ function ClientWorkoutsPage() {
             <div className="dash-eyebrow" style={{ color: DTR_TEAL }}>Weekly · programmed by you</div>
             <div style={{ marginTop: 6 }}>
               {repeatRows.map((w, i) => (
-                <div key={w.id || i} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 10, padding: "9px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)", alignItems: "center" }}>
+                <div key={w.id || i} data-dtr-workout={w.id != null ? String(w.id) : undefined} aria-current={live && dtrIsFocus(w, focusId) ? "true" : undefined} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 10, padding: "9px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)", alignItems: "center", ...(live && dtrIsFocus(w, focusId) ? DTR_FOCUS_STYLE : null) }}>
                   <span style={{ fontSize: 13.5, fontWeight: 500 }}>{w.title}</span>
                   <span style={{ fontFamily: DTR_MONO, fontSize: 9, color: DTR_TEAL, letterSpacing: "0.08em" }}>{dtrDayLetters(w.repeatDow)}</span>
                   <span style={{ fontFamily: DTR_MONO, fontSize: 9, color: DTR_INK50 }}>{(w.exercises || []).length} moves · repeats weekly</span>
@@ -770,7 +802,7 @@ function ClientWorkoutsPage() {
             <div className="dash-eyebrow">Anytime · unscheduled assignments</div>
             <div style={{ marginTop: 6 }}>
               {anytime.map((w, i) => (
-                <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, padding: "9px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)", alignItems: "center" }}>
+                <div key={i} data-dtr-workout={w.id != null ? String(w.id) : undefined} aria-current={live && dtrIsFocus(w, focusId) ? "true" : undefined} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, padding: "9px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)", alignItems: "center", ...(live && dtrIsFocus(w, focusId) ? DTR_FOCUS_STYLE : null) }}>
                   <span style={{ fontSize: 13.5, fontWeight: 500 }}>{w.title}</span>
                   <span style={{ fontFamily: DTR_MONO, fontSize: 9, color: DTR_INK50 }}>{(w.exercises || []).length} moves</span>
                 </div>

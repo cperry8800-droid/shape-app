@@ -80,7 +80,7 @@ export async function POST(request: Request) {
 
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? new URL(request.url).origin;
   const successPath = body.successPath || '/subscribe/success';
-  const cancelPath = body.cancelPath || '/pricing.html?error=subscribe_cancelled';
+  const cancelPath = body.cancelPath || '/newdesign/Pricing.html?error=subscribe_cancelled';
 
   try {
     const session = await stripe.checkout.sessions.create({

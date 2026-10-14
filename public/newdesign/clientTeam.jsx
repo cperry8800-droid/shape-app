@@ -15,7 +15,7 @@ const CT_INK55 = "var(--sh-ink2, #a09b94)";
 const CT_INK40 = "var(--sh-ink3, #75706a)";
 const CT_HAIR = "rgba(var(--sh-ink-rgb, 242,237,228), 0.102)";   // 0x1a/255 — the 10% hairline
 const CT_MONO = "'JetBrains Mono', monospace";
-const CT_MARKET = "/newdesign/marketplace.html";
+const CT_MARKET = "/newdesign/Marketplace.html";
 
 const CT_DEMO_COACHES = [
   { name: "Maya Okafor", role: "Head trainer", provider_role: "trainer", since: "Feb 4, 2026", plan: "Strength + hybrid · $220/mo", next: "Thu 8:00 AM", hasNext: true },

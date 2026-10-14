@@ -623,7 +623,10 @@ function Marketplace() {
   // Read at FIRST render, not in an effect: seeding "Trainer" and correcting it
   // after mount shows the wrong tab for a frame and fires the grid's reset
   // effect twice.
-  const [tab, setTab] = useS(() => mkTabFromHash(typeof window !== "undefined" && window.location.hash) || "Trainer");
+  // `?role=trainer|nutritionist` too: the website's own fallback links into the marketplace
+  // (coach-profile-path.mjs) say which side to open that way.
+  const [tab, setTab] = useS(() => (typeof window !== "undefined" && (mkTabFromHash(window.location.hash)
+    || mkTabFromHash(new URLSearchParams(window.location.search).get("role")))) || "Trainer");
   // Follow the hash while the page is open, so the menu works FROM the
   // marketplace as well as onto it.
   useE(() => {

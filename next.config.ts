@@ -7,19 +7,46 @@ import { withSentryConfig } from "@sentry/nextjs";
 
 // Pages now served by Next.js app router: /trainers, /nutritionists,
 // /pricing, /signup, /forgot-password, /reset-password — removed from
-// this list. Everything else still falls through to the legacy .html.
-const legacyPages = [
-  'home', 'landing',
-  'gyms',
-  'trainer-profile', 'nutritionist-profile', 'client-profile',
-  'trainer-dashboard', 'gym-dashboard', 'nutrition-schedule', 'clients', 'my-team',
-  'for-trainers', 'for-nutritionists', 'for-gyms', 'for-gym-owners', 'for-clients',
-  'signup-client', 'signup-gym', 'signup-radio',
-  'contact', 'help', 'community', 'integrations',
-  'privacy', 'terms',
-  'radio', 'ai-trainers', 'live-workout', 'messages',
-  'shape-score', 'shape-score-trainer', 'shape-score-nutritionist', 'shape-store',
-  'dashboard-preview',
+// this list. The rest of the old root site was retired on 2026-10-14
+// (`retiredPages` below); these are the root pages that are still live.
+const legacyPages = ['contact', 'help', 'privacy', 'terms', 'radio'];
+
+// The old root site, retired on 2026-10-14. Owner, from the legacy-pages review: "2. Retire old
+// pages w/ redirects". Each page left a copy of a flow the website now does (the dashboards,
+// the marketplace, sign-up, Score, the Store), and those copies had drifted. Every old address,
+// with or without `.html`, lands on the website page that does the same job. Permanent, since
+// none of these pages is coming back. The gym, AI-trainer, integrations and radio sign-up pages
+// were products Shape no longer offers, and are gone with no redirect (owner: "Delete, no
+// redirect"), so they 404.
+const retiredPages: Array<[string, string]> = [
+  ['home', '/'],
+  ['landing', '/newdesign/Landing.html'],
+  ['marketplace', '/newdesign/Marketplace.html'],
+  ['for-trainers', '/newdesign/Coach.html'],
+  ['for-nutritionists', '/newdesign/Nutritionist.html'],
+  ['for-clients', '/newdesign/Client.html'],
+  ['shape-score', '/newdesign/Score.html'],
+  ['shape-score-trainer', '/newdesign/Score.html'],
+  ['shape-score-nutritionist', '/newdesign/Score.html'],
+  ['shape-store', '/newdesign/Store.html'],
+  ['community', '/newdesign/Community.html'],
+  ['signup-client', '/newdesign/SignupClient.html'],
+  // The three old dashboards go straight to their app shells, not the stubs: a browser keeps
+  // the #fragment across a redirect, and the shells read the old tab names (Codex on #2352), where
+  // the stubs replace any fragment with #today.
+  ['trainer-dashboard', '/newdesign/TrainerApp.html'],
+  ['nutrition-schedule', '/newdesign/NutritionistApp.html'],
+  ['clients', '/newdesign/ClientApp.html'],
+  // The member's own profile, in the app: ClientProfile.html is a demo persona with no backend
+  // read (Codex on #2352).
+  ['client-profile', '/newdesign/ClientApp.html#profile'],
+  ['my-team', '/newdesign/ClientTeam.html'],
+  // The member's team, where each coach has a Message button. No address opens the chat itself.
+  ['messages', '/newdesign/ClientTeam.html'],
+  ['dashboard-preview', '/newdesign/ClientApp.html'],
+  ['my-workouts', '/newdesign/ClientTrain.html'],
+  ['workout', '/newdesign/ClientTrain.html'],
+  ['live-workout', '/newdesign/ClientTrain.html'],
 ];
 
 const nextConfig: NextConfig = {
@@ -48,6 +75,26 @@ const nextConfig: NextConfig = {
       { source: '/mobile/SignupTrainer.html', destination: '/newdesign/SignupTrainer.html', permanent: false },
       { source: '/mobile/SignupNutritionist.html', destination: '/newdesign/SignupNutritionist.html', permanent: false },
       { source: '/mobile/SignupClient.html', destination: '/newdesign/SignupClient.html', permanent: false },
+      // The retired root pages (above). `/trainers`, `/nutritionists` and `/login` are Next routes,
+      // so only their old `.html` files redirect. A coach profile keeps its coach: the old pages
+      // took the listing id as `?id=`, and `/trainers/<id>` and `/nutritionists/<id>` are the
+      // profiles by listing id (the query is passed through, which the page ignores). Without an
+      // id there is no coach to keep, so the marketplace.
+      ...retiredPages.flatMap(([page, destination]) => [
+        { source: `/${page}`, destination, permanent: true },
+        { source: `/${page}.html`, destination, permanent: true },
+      ]),
+      { source: '/index.html', destination: '/', permanent: true },
+      { source: '/login.html', destination: '/newdesign/Login.html', permanent: true },
+      // On the matching side of the marketplace (it reads #trainers / #nutritionists).
+      { source: '/trainers.html', destination: '/newdesign/Marketplace.html#trainers', permanent: true },
+      { source: '/nutritionists.html', destination: '/newdesign/Marketplace.html#nutritionists', permanent: true },
+      ...['trainer', 'nutritionist'].flatMap((role) => [`/${role}-profile`, `/${role}-profile.html`].flatMap((source) => [
+        { source, has: [{ type: 'query' as const, key: 'id', value: '(?<id>\\d+)' }], destination: `/${role}s/:id`, permanent: true },
+        // The old pages also took the listing as ?provider= (`params.get('id') || params.get('provider')`).
+        { source, has: [{ type: 'query' as const, key: 'provider', value: '(?<id>\\d+)' }], destination: `/${role}s/:id`, permanent: true },
+        { source, destination: '/newdesign/Marketplace.html', permanent: true },
+      ])),
     ];
   },
   async rewrites() {
