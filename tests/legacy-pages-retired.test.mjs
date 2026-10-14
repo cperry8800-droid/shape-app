@@ -325,37 +325,52 @@ test('an old dashboard bookmark keeps its tab', async () => {
   }
 })
 
-test('an old dashboard tab that is a page now, not a route, opens that page', async () => {
+test('an old dashboard tab that is a page now, not a route, opens that page, after sign-in', async () => {
   // Codex on #2352: the old coach dashboards had a #messages tab, and the inboxes are their own
-  // pages (TrainerMessages.html, NutritionistMessages.html), as Community is. Each shell forwards
-  // those fragments before it renders.
-  const PREFIX = { 'TrainerApp.html': 'ta', 'NutritionistApp.html': 'na', 'ClientApp.html': 'ca' }
-  const forward = (shell, hash) => {
+  // pages (TrainerMessages.html, NutritionistMessages.html), as Community is. Each shell's sign-in
+  // gate forwards those fragments, and only once it has read a signed-in account that belongs on
+  // that dashboard (Codex again, on the forward that ran before the reading): a visitor signs in
+  // first and keeps the fragment through next=, and another role goes to its own shell first.
+  // The gate is run from each shell's source, against a reading that settles at once.
+  const gate = (shell, reading, hash) => {
     const src = readFileSync(`public/newdesign/${shell}`, 'utf8')
-    const P = PREFIX[shell]
-    const from = src.indexOf(`const ${P.toUpperCase()}_LEGACY_PAGES = `)
-    const fnAt = src.indexOf(`function ${P}LegacyPage()`, from)
-    assert.ok(from >= 0 && fnAt > from, `${shell}: the legacy-page forward is gone`)
-    const block = src.slice(from, src.indexOf('\n}\n', fnAt) + 3)
-    assert.match(src, new RegExp(`if \\(${P}LegacyPage\\(\\)\\) window\\.location\\.replace\\(${P}LegacyPage\\(\\)\\);`), `${shell}: the forward is never called`)
     // Not in <head>: this site reads a location.replace() there as "this page is a redirect stub"
     // (coach-export, demo-coherence, newdesign-viewport), and a shell is not one.
     assert.doesNotMatch(src.slice(0, src.indexOf('</head>')), /location\.replace\(/, `${shell}: a forward in <head> marks the shell as a stub`)
-    return new Function('window', `${block}; return ${P}LegacyPage();`)({ location: { hash } })
+    const script = [...src.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]).find((b) => b.includes('ShapePortalSession.read()'))
+    assert.ok(script, `${shell}: the sign-in gate is gone`)
+    let to = null
+    const now = { then(fn) { fn(reading); return { catch() {} } } }
+    new Function('window', script)({
+      ShapePortalSession: { read: () => now },
+      location: { pathname: `/newdesign/${shell}`, search: '', hash, replace: (u) => { to = u } },
+    })
+    return to
   }
-  for (const [old, hash, page] of [
-    ['/trainer-dashboard.html', '#messages', 'TrainerMessages.html'], ['/trainer-dashboard.html', '#community', 'Community.html'],
-    ['/nutrition-schedule.html', '#messages', 'NutritionistMessages.html'], ['/nutrition-schedule.html', '#community', 'Community.html'],
-    ['/clients.html', '#community', 'Community.html'],
+  const as = (role) => ({ user: role ? { role } : null })
+  for (const [old, hash, role, page] of [
+    ['/trainer-dashboard.html', '#messages', 'trainer', '/newdesign/TrainerMessages.html'],
+    ['/trainer-dashboard.html', '#community', 'trainer', '/newdesign/Community.html'],
+    ['/nutrition-schedule.html', '#messages', 'nutritionist', '/newdesign/NutritionistMessages.html'],
+    ['/nutrition-schedule.html', '#community', 'nutritionist', '/newdesign/Community.html'],
+    ['/clients.html', '#community', 'client', '/newdesign/Community.html'],
   ]) {
     const landed = await land(old, { hash })
-    const to = forward(landed.pathname.replace('/newdesign/', ''), landed.hash)
-    assert.equal(to, page, `${old}${hash} forwards to ${to}, not ${page}`)
-    assert.ok(existsSync(`public/newdesign/${page}`), `${page} does not exist`)
+    const shell = landed.pathname.replace('/newdesign/', '')
+    assert.equal(gate(shell, as(role), landed.hash), page, `${old}${hash} as a ${role}`)
+    assert.ok(existsSync(`public${page}`), `${page} does not exist`)
+    // Signed out: to sign-in, carrying the fragment, never to the inbox.
+    assert.equal(gate(shell, as(null), landed.hash), '/newdesign/Login.html?next=' + encodeURIComponent(`/newdesign/${shell}${hash}`), `${old}${hash} signed out`)
+    // Unreadable session: the page renders, as the gate's fail-open rule says; no forward.
+    assert.equal(gate(shell, null, landed.hash), null, `${old}${hash} with no reading`)
   }
+  // Another role reaches its own shell first, fragment kept, and that shell maps the tab.
+  assert.equal(gate('TrainerApp.html', as('nutritionist'), '#messages'), '/newdesign/NutritionistApp.html#messages')
+  assert.equal(gate('NutritionistApp.html', as('trainer'), '#messages'), '/newdesign/TrainerApp.html#messages')
   // Everything else renders in the shell: no forward.
-  for (const [shell, hash] of [['TrainerApp.html', '#clients'], ['TrainerApp.html', ''], ['ClientApp.html', '#messages'], ['NutritionistApp.html', '#constructor']]) {
-    assert.equal(forward(shell, hash), null, `${shell}${hash} forwards`)
+  for (const [shell, role, hash] of [['TrainerApp.html', 'trainer', '#clients'], ['TrainerApp.html', 'trainer', ''],
+    ['ClientApp.html', 'client', '#messages'], ['NutritionistApp.html', 'nutritionist', '#constructor']]) {
+    assert.equal(gate(shell, as(role), hash), null, `${shell}${hash} forwards`)
   }
 })
 

@@ -63,7 +63,15 @@
         var search = window.location.search || '';
         var hash = window.location.hash || '';
         window.location.replace('/newdesign/' + dash + search + hash);
+        return;
       }
+      // The old root dashboard's tabs that are pages here, not routes (it was retired 2026-10-14 and
+      // redirects here with its #fragment). Forwarded only now, once the reading says this account
+      // belongs on this dashboard: a visitor signs in first (the next= above keeps the fragment), and
+      // another role is sent to its own shell, which maps the tab itself (Codex on #2352).
+      var LEGACY_PAGES = { community: 'Community.html' };
+      var tab = (window.location.hash || '').replace(/^#/, '').split('?')[0].toLowerCase();
+      if (Object.prototype.hasOwnProperty.call(LEGACY_PAGES, tab)) window.location.replace('/newdesign/' + LEGACY_PAGES[tab]);
     })
     .catch(function () {});
 })();
@@ -166,14 +174,6 @@ function caHasRoute(h) { return Object.prototype.hasOwnProperty.call(CA_ROUTES, 
 // The old root dashboard's tab names (the page was retired 2026-10-14 and now redirects here,
 // keeping its #fragment; Codex on #2352): a bookmark such as /clients.html#training opens the tab it named.
 const CA_LEGACY_TABS = { home: "today", training: "workouts", myteam: "team", shapescore: "score" };
-// The old tabs that are pages here, not routes, open those pages. In the shell's own script, not
-// <head>: a location.replace() in <head> is how this site marks a redirect stub.
-const CA_LEGACY_PAGES = { community: "Community.html" };
-function caLegacyPage() {
-  const k = (window.location.hash || "").replace(/^#/, "").split("?")[0].toLowerCase();
-  return Object.prototype.hasOwnProperty.call(CA_LEGACY_PAGES, k) ? CA_LEGACY_PAGES[k] : null;
-}
-if (caLegacyPage()) window.location.replace(caLegacyPage());
 function caSlug() {
   const low = (window.location.hash || "").replace(/^#/, "").split("?")[0].toLowerCase();
   const h = Object.prototype.hasOwnProperty.call(CA_LEGACY_TABS, low) ? CA_LEGACY_TABS[low] : low;
