@@ -773,6 +773,12 @@ last-reviewed **2026-06** and re-check it against the changelog before acting �
 several are marked SHIPPED in their own text.
 
 ### Next up (planned)
+- **Client onboarding — fix 1 SHIPPED 2026-10-14 as [#2353](https://github.com/cperry8800-droid/shape-app/pull/2353); fixes 2–4 and phase two are next.** The review and plan: https://claude.ai/artifact/PzbGsEZAasYKX3wmsg16cS.
+  - **Fix 2, one record of who the client is:** a sign-up question about personal coaching (only a yes leads to the health screening), one coach-only read of screening, goal and preferences, the screening translated. It also carries #2353's two moved items: the age message before the membership gate, and polling after a pending native checkout.
+  - **Fix 3:** hiring a coach starts the relationship, with Shape's welcome.
+  - **Fix 4:** the onboarding board, coach and member, with per-member week-one targets. The owner shared two more reference slides on 2026-10-14 for a Nora "ask to plan" panel; the existing `/api/ai/draft-program` (members) and `/api/ai/generate-plan` (coaches) are the plan tools behind it.
+  - **Phase two (owner, 2026-10-14):** the membership in the apps outside the US, through Apple in-app purchase and Google Play Billing, with one "is a member" answer combining them with Stripe (RevenueCat or Shape's own code). Coach subscriptions stay on the website outside the US, apart from live one-on-one sessions.
+  - **Owner decision pending:** refund a paid duplicate subscription automatically.
 - **Night-before prep reminders — SHIPPED 2026-10-05 as [#2202](https://github.com/cperry8800-droid/shape-app/pull/2202); Phase 2 is next.**
   The owner took the review's suggestions (https://claude.ai/artifact/VeUyVhgjsuBDqm8v6XstYE): a 7 pm reminder in the member's zone,
   a *Tonight · for tomorrow* card on Eat, and a finish screen that records the prep; the changelog entry has the detail. Phase 2,
@@ -846,6 +852,37 @@ Everything older, newest-first: [2026-10](WORKLOG-ARCHIVE-2026-10.md) ·
 [2026-06 → 2026-07](WORKLOG-ARCHIVE-2026-06-07.md) ·
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
+
+### 2026-10-14 — Membership is one fact everywhere: coaching needs it, one checkout at a time, and the app reaches its server
+
+- **Merged [#2353](https://github.com/cperry8800-droid/shape-app/pull/2353) as `ea24129`**, final head `fab802f`; the merged tree is byte-identical to it (tree `d0f8a90` on both). From the client-onboarding review (https://claude.ai/artifact/PzbGsEZAasYKX3wmsg16cS), fix 1, and the owner's ruling: *"need to be an active member to access platform"*. It closes H1, H2, H3, H5, M1, M7, L2 and L10.
+- **Migration `2026-10-14-checkout-claims.sql`: run, then re-run for `renew_checkout_claim`, by the owner, and verified live read-only.** The table has RLS on and no policies. The three functions are invoker functions with a pinned `search_path`, executable by the service role only. The table holds 0 rows.
+- **What changed:**
+  - **Coaching needs the membership.** Every coach checkout (`/api/stripe/checkout-session`, `/subscribe`, `/purchase`) refuses a non-member with the gate's `402 membership_required`. The server actions detour through the $5 checkout and come back to the coach (`membership-detour.ts`).
+  - **No second membership, and no second subscription to one coach.** Our tables are read first, then Stripe, on the account's own customer (`profiles.stripe_customer_id`, `stripe-customer.ts`). That customer is adopted from a member's existing subscription rows, or made once. Stripe is read too because our row arrives with the webhook.
+  - **One checkout per account and product at a time** (`checkout-barrier.ts`): a claim two requests can't both win, renewed before the create, and a create bounded to 20 s. An open checkout under 10 minutes old is handed back only on the same terms (price, fee, origin, referral, where it returns). Every other one is expired.
+  - **`/api/stripe/platform-return`** confirms the session with Stripe and writes the member's row before sending them on. **`/api/me/membership`** gives screens the gate's own answer.
+  - **The website** shows a signed-in non-member a "Start your membership" panel, not the demo member's dashboard.
+  - **The app** gates on the membership itself (`memberGate.mjs`). Every server call goes through `ShapeApi.fetch`: 27 root-relative calls had reached nothing in the installed app. The checkout opens in the system browser and re-checks membership on close. A coach role in `roles[]`, dietitians included, passes as a coach.
+  - **A membership lookup that never answers** is unknown after 8 seconds, on the website and in the app.
+- ⚠ **CODEX TOOK NINE ROUNDS, AND MOST FOUND A NARROWER RACE IN THE SAME CHECK-THEN-CREATE.** In order: the webhook gap, a strict read, Stripe for phone sign-ups, two presses at once, a 10-minute key boundary, the check before the claim, a claim lost past 60 s, the check before the read, stale terms and returns, and a second customer for existing members. 21 findings: 18 fixed, 1 traced and answered (a timed-out create's URL reaches nobody), and 2 moved to the next onboarding PR on the owner's call (*"Merge now, fix next"*, after *"lets get this PR completed. Taking way to long, make sure to check your work"*). **A lock on checkout creation can't close every race. Only a fix after payment can, and that moves money (registered below).**
+- **Verified:**
+  - The migration on PostgreSQL 16: 40 concurrent claims, one winner. The takeover, the renewal and the grants were probed, and it was re-run as an upgrade over the live version.
+  - `tests/membership-first.test.mjs` (33), including concurrent presses, a checkout paid while a request waits or right after Stripe answers, a claim taken over, and changed terms.
+  - The app's `openCheckoutUrl` and `checkMembership` run as shipped.
+  - 63 rules broken by hand, each caught.
+  - `npm test` 6,906/6,906 on `fab802f`, and on the merge of `main` before it. CI green on the final head.
+  - Copilot declined every head on its quota.
+- ⚠ **MY MISS:** `0b9af72` was pushed with five store-credit tests failing. The commit wasn't gated on the run, and a test's stub lacked the new helper. It was fixed in `2770e8d`, and pushes since are gated on the suites passing.
+- **Written after the merge**, per the 2026-09-11 rule.
+- ⚠ **REGISTERED, NOT DONE:**
+  - **Owner decision:** cancel and refund a duplicate subscription after it is paid. That is the only fix for a buyer paying an open checkout in another tab in the moment between Stripe's "not paying" and the create.
+  - **Moved to the next onboarding PR (fix 2):**
+    - The website and the app ignore `ageRestricted` from `/api/me/membership`, so a known minor sees the membership offer, which refuses them, instead of the age message.
+    - The app checks once when the checkout browser closes on a `member=pending` payment; it should poll, as the website does.
+  - `src/app/pricing/actions.ts` (`startPlatformCheckout`) is imported by nothing and still makes a membership checkout with none of these checks.
+  - Not run live: a real checkout through `platform-return`, and the app on a device. The connected Stripe account is live mode only.
+  - The rest of the onboarding review: fix 2 (one record of the client), fix 3 (hiring starts the relationship), fix 4 (the board, with the owner's two new reference slides for a Nora "ask to plan" panel), and phase two (Apple and Google in-app purchase outside the US).
 
 ### 2026-10-14 — The old site retired: live flows on the website, 37 root pages gone (29 behind redirects), /mobile and the explorations deleted
 
