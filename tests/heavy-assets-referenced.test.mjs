@@ -38,16 +38,12 @@ const ROOT = path.resolve(import.meta.dirname ?? path.dirname(new URL(import.met
 
 // A heavy binary nothing names but which stays on purpose, with the reason. An entry is a
 // decision somebody has to write down; the test below fails on one that has gone stale.
-// ⚠ THESE THREE WERE LISTED AS "WANTED" AT THE TRIM AND NOTHING NAMES ANY OF THEM: the
-// loose rule this replaced kept them alive on a stem that was prose (`login page`,
-// `Trainer dash` inside "Trainer dashboard") or a sibling (`directionB.jsx` names the
-// `(1)` copy, which IS referenced and stays). They are here so the doubt is on the record
-// instead of hidden inside the rule; the owner decides whether they go.
-const KEEP_UNREFERENCED = new Map([
-  ['public/login page.png', 'kept at the 2026-09-30 trim as wanted, but nothing names it — "login page" occurs only as prose; the live login background is `public/login page 1.png`'],
-  ['public/Trainer dash.png', 'kept at the 2026-09-30 trim as wanted, but nothing names it — the pages say "Trainer dashboard", and the live dashboard background is `public/trainer dash 1.png`'],
-  ['public/Make_the_lines_202604170430.png', 'kept at the 2026-09-30 trim as wanted, but nothing names it — `public/newdesign/directionB.jsx` names the `(1)` sibling, a different file that stays because it is referenced'],
-]);
+// ⚠ EMPTY SINCE 2026-10-14. Its three entries (`public/login page.png`, `public/Trainer
+// dash.png`, `public/Make_the_lines_202604170430.png`) were kept at the 2026-09-30 trim as
+// "wanted" although nothing named them, for the owner to decide; the owner had them
+// deleted (*"Delete unused files"*). The live siblings stay: `login page 1.png`,
+// `trainer dash 1.png`, and the `(1)` copy `directionB.jsx` names.
+const KEEP_UNREFERENCED = new Map([]);
 
 // Directories that must not come back: design mockups and the runtime copies of them,
 // 252 MB across 271 files, referenced by nothing (no page, script, workflow or config
