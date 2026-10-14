@@ -384,6 +384,8 @@ test('the page still declares a viewport and its own canonical', () => {
   // shells did until 2026-09-09.
   assert.match(HTML, /<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" \/>/,
     'the App page lost its viewport meta');
-  assert.match(HTML, /<link rel="canonical" href="https:\/\/theshapecommunity\.com\/newdesign\/GetApp\.html">/,
+  // On www since 2026-10-14: the bare domain redirects to www (Vercel's project domains),
+  // and a canonical should name the URL the page is served at, as the sitemap now does.
+  assert.match(HTML, /<link rel="canonical" href="https:\/\/www\.theshapecommunity\.com\/newdesign\/GetApp\.html">/,
     'the App page lost its canonical');
 });
