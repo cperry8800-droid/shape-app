@@ -496,16 +496,19 @@ test('a moments ring points at the same pixels of the capture, whatever the wind
   //
   // Re-fitted 2026-10-07 (owner: "these boxes … need to be better aligned"). The
   // old rings sat 5% in from each side, which is where the app's own content
-  // starts, so all four were drawn through their text. Each is now the target's
-  // measured bounds plus ~12 px: the calorie hero; Produce and its first item;
-  // set 01 with its LOAD/REPS/RPE labels; the PR headline and its 245 lb record
-  // (the NEW PR chip sits just above as its tag — the avatar's tip ends 5 px over
-  // the chip, so no ring can take both).
+  // starts, so all four were drawn through their text. Each is the target's
+  // measured bounds plus ~12 px.
+  // Re-shot 2026-10-14 (owner: "and app snapeshots … on website"), after the Focus
+  // redesign moved every target, so each ring was re-measured off the new capture's
+  // own elements (getBoundingClientRect × 1.6): the FUEL LEFT TODAY block with its
+  // 532 kcal row and bar; Produce and its first item; set 01 up with its LOAD/REPS/RPE
+  // labels; and on the Wall the NEW PR chip, the headline and the 245 lb record in
+  // ONE ring — the avatar's tip now clears the chip, which it did not before.
   const EXPECTED = [
-    { file: 'home-eat-v1.jpg', top: 532.5, height: 136, left: 15, right: 585 },
-    { file: 'home-grocery-v1.jpg', top: 651.8, height: 154, left: 15, right: 585 },
-    { file: 'home-session-v1.jpg', top: 302.05, height: 130, left: 15, right: 585 },
-    { file: 'home-feed-v1.jpg', top: 695.3, height: 140, left: 7.5, right: 592.5 },
+    { file: 'home-eat-v2.jpg', top: 873, height: 165, left: 15, right: 585 },
+    { file: 'home-grocery-v2.jpg', top: 824, height: 206, left: 15, right: 585 },
+    { file: 'home-session-v2.jpg', top: 482, height: 134, left: 15, right: 585 },
+    { file: 'home-feed-v2.jpg', top: 654, height: 188, left: 7.5, right: 592.5 },
   ];
 
   for (const [i, got] of momentsRings().entries()) {
@@ -595,7 +598,7 @@ test('the price phone is not a screen the journey rail already showed', () => {
   //
   // ⚠ AND "NO CAPTURE TWICE ON THE PAGE" WOULD FAIL CORRECT CODE, which is why
   // this is scoped to these two blocks. The moments strip and the rail SHARE
-  // home-session-v1.jpg and home-feed-v1.jpg deliberately, under different
+  // home-session-v2.jpg and home-feed-v2.jpg deliberately, under different
   // headlines, and the rail's stage 0 is the seeded markup by design — the test
   // above asserts that sameness. What must not repeat is the standing phone
   // beside the price showing a stage the rail has already walked the reader

@@ -24,16 +24,20 @@
 // shot before the gate existed. The next person to fulfil `{user:null}` will
 // read the redirect as the harness being broken; it is the gate working.
 //
-// Captures refreshed 2026-09-23 from the current trainer and nutritionist apps,
-// using their signed-out demo practice with Settings > Appearance > Dark selected.
-// A local static server leaves /api/me unavailable, so the existing preview fallback
-// renders; no production session or client data is used. Capture at 1440x900,
-// hide the site header, global chat button and fixed preview banner, and move
-// main up by the header's 72px. Keep the sidebar and dashboard controls intact.
-// Wait for the page and its widgets to paint before capturing. Browser captures
-// are normalized to 1440x900 JPEGs; CoFrame retains its 40px bottom crop.
-// Restore all temporary capture styles before committing. The in-frame example
-// label below remains visible in the public tour.
+// Captures refreshed 2026-10-14, after #2343 gave the dashboard its own app frame
+// (the icon rail and the app bar ARE the dashboard now, so they stay in every frame;
+// the old recipe's "hide the site header, move main up 72px" no longer applies).
+// Recipe: 1440x900, dark paper (localStorage shape.web.paper = "dark"), the signed-out
+// demo practice — every /api/* answers 401 so the preview renders — behind a signed-in
+// app bar (/api/me fulfilled with a demo coach of the frame's role, so the bar shows the
+// bell and Sign out rather than Log in). Hide #shape-global-chat-button and the fixed
+// "Preview · demo data" band; wait for the widgets and the fonts to paint. The fonts
+// matter: Google Fonts is unreachable from the capture container, so the css2 request
+// is answered with @font-face rules over the @fontsource-variable files (Anybody with
+// its wdth axis, Schibsted Grotesk, JetBrains Mono, Space Grotesk, Fraunces), and React
+// / Babel come from `npm pack` bytes as described above. JPEG quality 86; CoFrame keeps
+// its 40px bottom crop. No production session or client data is used. The in-frame
+// example label below remains visible in the public tour.
 //
 // ⚠ EVERY FRAME IS LABELLED "EXAMPLE ACCOUNT", IN THE FRAME ITSELF. These are
 // captures of the signed-out demo practice — real screens, invented numbers. An
@@ -61,9 +65,12 @@ const CO_TOUR = {
   trainer: {
     label: "Trainer",
     tabs: [
+      // ⚠ NO COUNTDOWN IN THE TODAY COPY (Codex, #2344). The frame is the signed-out demo, and
+      // DashNowColumn gives demo rows a bare "UP NEXT": the countdown needs a real booking's
+      // start time, so a frame of it would need a signed-in capture. The same for both roles.
       { key: "today", file: "today", name: "Today",
-        body: "The day at a glance: your balance and next payout, today's sessions, the programs that are due, roster compliance, and client attention that says who needs eyes first.",
-        list: ["Sessions today, with the next one marked", "Programs due, and how many are ready", "Joint-attention flags shared with the client's other coach", "Message any client from the row"] },
+        body: "Your day on the left: the session up next, what you know about the client and a button to message them, above today's timeline. Beside it, Needs you puts client attention, check-ins to review, replies waiting and next week's programming one tab apart, above your figures, arranged however you like.",
+        list: ["The next session, one tap from a message", "Today's timeline, marked where you are", "Needs you: attention, check-ins, replies and programs", "Joint-attention flags shared with the client's other coach"] },
       { key: "week", file: "week", name: "Week",
         body: "The end-of-week review. Every client, one row: their check-in ratings, the win and the struggle they wrote, what they asked you, adherence against the week before, food logs and the weigh-in. Tick each one as you go, or close the week in one go.",
         list: ["Ratings, win, struggle and the question they asked you", "Adherence, food logs and weigh-in against the week before", "Message or leave a note from the row", "Mark all reviewed in one tap"] },
@@ -105,8 +112,8 @@ const CO_TOUR = {
     label: "Nutritionist",
     tabs: [
       { key: "today", file: "today", name: "Today",
-        body: "The day at a glance: your balance and next payout, today's consults, the plans that are due, food-log compliance across the roster, and client attention that says who needs eyes first.",
-        list: ["Consults today, with the next one marked", "Plans due, and how many are ready", "Joint-attention flags shared with the client's trainer", "Message any client from the row"] },
+        body: "Your day on the left: the consult up next, what you know about the client and a button to message them, above today's timeline. Beside it, Needs you puts client attention, check-ins to review and replies waiting one tab apart, above your figures and roster health, arranged however you like.",
+        list: ["The next consult, one tap from a message", "Today's timeline, marked where you are", "Needs you: attention, check-ins and replies", "Joint-attention flags shared with the client's trainer"] },
       { key: "week", file: "week", name: "Week",
         body: "The end-of-week review. Every client, one row: their check-in ratings, the win and the struggle they wrote, what they asked you, adherence against the week before, food logs and the weigh-in. Tick each one as you go, or close the week in one go.",
         list: ["Ratings, win, struggle and the question they asked you", "Adherence, food logs and weigh-in against the week before", "Message or leave a note from the row", "Mark all reviewed in one tap"] },
@@ -145,7 +152,7 @@ const CO_TOUR = {
 // ⚠ THE FRAME CARRIES ITS OWN LABEL. Not a caption under the picture — a mark on
 // it, so the claim travels with the image wherever it is seen.
 function CoFrame({ role, tab, style = {} }) {
-  const src = `/newdesign/coaches/coaches-dash-${role}-${tab.file}.jpg?v=20260923-dark`;
+  const src = `/newdesign/coaches/coaches-dash-${role}-${tab.file}.jpg?v=20261014-frame`;
   return (
     <div style={{ border: "1px solid rgba(238,243,240,0.10)", borderRadius: 10, background: "#0a0f17", boxShadow: "0 40px 90px rgba(0,0,0,0.55)", overflow: "hidden", ...style }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, height: 34, padding: "0 12px", borderBottom: "1px solid rgba(238,243,240,0.055)", background: "rgba(255,255,255,0.02)" }}>
