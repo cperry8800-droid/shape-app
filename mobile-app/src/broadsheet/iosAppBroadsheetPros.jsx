@@ -18,6 +18,11 @@ import { bsVarianceCopy } from '../../../public/newdesign/varianceBand.mjs';
 import { bsDeriveCycle } from '../services/cyclePhase.mjs';
 import { BS_LISTING_GALLERY_MAX, BS_LISTING_CAPTION_MAX } from '../services/listingMedia.mjs';
 import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } from './bsNavShell.js';
+
+// Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
+// front and the live sign-in token. A root-relative '/api/…' fetch reaches nothing in the
+// installed app (client-onboarding review H2, 2026-10-14; tests/app-api-base.test.mjs).
+const bsApi = { fetch: (path, init) => (window.ShapeApi ? window.ShapeApi.fetch(path, init) : fetch(path, init)) };
 // Two coach surfaces share ONE severity engine (bsRowSeverity — prefers the
 // live getTriageFeed `_sig`, else the local status scorer) reading ONE roster
 // (useBSProRoster): BSProToday's THE WIRE (today's attention budget, capped at
@@ -102,7 +107,7 @@ function _bsHydrateProScore() {
   // module's signedOut sweep, which always loads before this bundle): a fetch
   // in flight at sign-out must not restore the previous coach's tier.
   const gen = window.__bsSessionGen || 0;
-  fetch(`/api/coach/score?role=${coachRole}`, { credentials: 'same-origin' })
+  bsApi.fetch(`/api/coach/score?role=${coachRole}`, { credentials: 'same-origin' })
     .then(r => (r.ok ? r.json() : null))
     .then(d => { if (gen !== (window.__bsSessionGen || 0)) return; if (d && typeof d.total === 'number') { try { window.ShapeScore = { points: d.total || 0, tier: d.current_tier || 'Certified' }; } catch (e) {} } })
     .catch(() => {});
@@ -4105,7 +4110,7 @@ function BSProCheckinDraft({ clientUid, clientName, role, stats, accent, onClose
         // client-side draft (which would bypass the scope/audit contract). The
         // DashSignals fallback is for demo / signed-out preview only.
         if (clientUid && bsProSignedIn()) {
-          const r = await fetch('/api/ai/draft-message', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: clientUid, record, role }) }).catch(() => null);
+          const r = await bsApi.fetch('/api/ai/draft-message', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: clientUid, record, role }) }).catch(() => null);
           const res = r && r.ok ? await r.json().catch(() => null) : null;
           if (!on) return;
           if (res && res.draft) { setDraft(res.draft); setCited(res.cited || []); setAuditId(res.draftAuditId || null); setLoading(false); return; }
@@ -4140,7 +4145,7 @@ function BSProCheckinDraft({ clientUid, clientName, role, stats, accent, onClose
         // surface a soft warning rather than silently dropping the audit.
         let audited = false;
         try {
-          const ar = await fetch('/api/ai/draft-message/sent', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: clientUid, sentText: body, draftAuditId: auditId, conversationId: cid }) });
+          const ar = await bsApi.fetch('/api/ai/draft-message/sent', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: clientUid, sentText: body, draftAuditId: auditId, conversationId: cid }) });
           audited = !!(ar && ar.ok);
         } catch (e) { audited = false; }
         window.__bsToast?.(audited ? tr('coach:draft.sentTo', { defaultValue: 'Sent to {name}', name: first }) : tr('coach:draft.sentNoLog', { defaultValue: "Sent to {name} — couldn't log it", name: first }), audited ? 'ok' : 'info');
@@ -8891,7 +8896,7 @@ function BSCoachGoalPlanPage({ role = 'trainer', onBack }) {
     const loggedIn = !!(window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState() && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id);
     if (!loggedIn) { toast('Sign in to view payouts'); return; }
     try {
-      const res = await fetch('/api/stripe/billing-portal', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' } });
+      const res = await bsApi.fetch('/api/stripe/billing-portal', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' } });
       const data = await res.json().catch(() => ({}));
       if (data && data.url) { window.location.href = data.url; return; }
     } catch (e) {}

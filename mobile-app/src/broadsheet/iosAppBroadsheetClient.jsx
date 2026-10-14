@@ -58,6 +58,11 @@ import { BSIntegrationsPage, BSReconcile } from './BSIntegrationsPage.jsx';
 import { BSNoraTalk, useNoraTalk, bsNoraVoiceFail } from './BSNoraTalk.jsx';
 import { BSFocusHead, BSFocusTitle, BSFocusLead, BSFocusArrival, BSFocusCountdown, BSFocusActions, BSFocusLine, BSFocusLink, BSFocusRoute, BSShopBySwitch, BSFocusLeader, BSFocusPeriod, BSFocusMealShop } from './BSFocus.jsx';
 import { bsFocusMin, bsFocusArrival, bsFocusUntil, bsFocusPrevStop, bsFocusSlot, bsGrocerySkipped, bsGroceryByMeal, bsGroceryAisleStops, bsReadShopBy, bsSaveShopBy, bsReadSkippedMeals, bsSaveSkippedMeals, bsPeriodAverage, bsReadGlancePeriod, bsSaveGlancePeriod, BS_GLANCE_DAYS, bsGroceryItemKey, bsMealShopItems, bsGroceryIsGot, bsReadGotItems, bsSaveGotItems, bsToggleGot } from '../services/focusLayout.mjs';
+
+// Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
+// front and the live sign-in token. A root-relative '/api/…' fetch reaches nothing in the
+// installed app (client-onboarding review H2, 2026-10-14; tests/app-api-base.test.mjs).
+const bsApi = { fetch: (path, init) => (window.ShapeApi ? window.ShapeApi.fetch(path, init) : fetch(path, init)) };
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
 
@@ -856,7 +861,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     // bump listener below turns into a re-render.
     bsHydrateIdentity();
     const gen = window.__bsSessionGen || 0; // sign-out mid-flight orphans this fetch (same guard as bsHydrateIdentity)
-    fetch('/api/client/score', { credentials: 'same-origin' })
+    bsApi.fetch('/api/client/score', { credentials: 'same-origin' })
       .then(r => (r.ok ? r.json() : null))
       .then(d => { if (gen !== (window.__bsSessionGen || 0)) return; if (d && typeof d.points_total === 'number') { try { window.ShapeScore = { points: d.points_total || 0, tier: d.current_tier ? d.current_tier.name : 'Base' }; } catch (e) {} setIdentityVersion(v => v + 1); } })
       .catch(() => {});
@@ -1692,7 +1697,7 @@ function useBSMembership() {
   React.useEffect(() => {
     if (!m.loading) return undefined;
     let cancelled = false;
-    fetch('/api/stripe/subscription', { credentials: 'same-origin', cache: 'no-store' })
+    bsApi.fetch('/api/stripe/subscription', { credentials: 'same-origin', cache: 'no-store' })
       .then(r => (r.ok ? r.json() : null))
       .then(d => { const active = !!(d && d.active === true); try { window.ShapeMembership = { active }; } catch (e) {} if (!cancelled) setM({ loading: false, allowed: active, signedIn: true }); })
       .catch(() => { if (!cancelled) setM({ loading: false, allowed: false, signedIn: true }); });
@@ -3443,7 +3448,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
         tr('nutrition:log.noteFailedTitle', { defaultValue: 'We couldn’t reach your coach' }),
         tr('nutrition:log.noteFailedBody', { defaultValue: 'Your note didn’t send. Try again from your chat, or send it to them directly.' }),
       );
-      fetch('/api/nutrition/meal-note', { method: 'POST', body: fd, credentials: 'same-origin' })
+      bsApi.fetch('/api/nutrition/meal-note', { method: 'POST', body: fd, credentials: 'same-origin' })
         .then(r => r.json().catch(() => ({})))
         .then(d => {
           if (!d) { noteFailed(); return; }
@@ -4325,7 +4330,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     Promise.resolve(viaHelper)
       .then(d => {
         if (d) return d;
-        return fetch('/api/client/analytics', { credentials: 'same-origin', cache: 'no-store' }).then(r => (r.ok ? r.json() : null));
+        return bsApi.fetch('/api/client/analytics', { credentials: 'same-origin', cache: 'no-store' }).then(r => (r.ok ? r.json() : null));
       })
       .then(d => { if (d) { if (d.ticker) setTicker(d.ticker); setAnalytics(d); } })
       .catch(() => {});
@@ -4339,7 +4344,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   const [ptsByDate, setPtsByDate] = useStateBSC(null); // dateString → points earned that day (live ledger)
   React.useEffect(() => {
     let cancelled = false;
-    fetch('/api/client/score', { credentials: 'same-origin', cache: 'no-store' })
+    bsApi.fetch('/api/client/score', { credentials: 'same-origin', cache: 'no-store' })
       .then(r => (r.ok ? r.json() : null))
       .then(d => {
         if (cancelled || !d || !Array.isArray(d.recent)) return;
@@ -5467,7 +5472,7 @@ function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, url, provider,
           catch (e) { if (!/not configured|VITE_API_BASE_URL/i.test(e && e.message || '')) throw e; }
         }
         if (!done) {
-          const res = await fetch('/api/integrations/spotify/save-playlist', {
+          const res = await bsApi.fetch('/api/integrations/spotify/save-playlist', {
             method: 'POST', credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url: pUrl }),
@@ -11835,7 +11840,7 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
   const [reviewText, setReviewText] = useStateBSC('');
   React.useEffect(() => {
     let cancelled = false;
-    fetch(`/api/recipes/reviews?slug=${encodeURIComponent(slug)}`, { credentials: 'same-origin' })
+    bsApi.fetch(`/api/recipes/reviews?slug=${encodeURIComponent(slug)}`, { credentials: 'same-origin' })
       .then(res => (res.ok ? res.json() : null))
       .then(d => { if (!cancelled && d && Array.isArray(d.reviews)) setReviews(d.reviews); })
       .catch(() => {});
@@ -11844,7 +11849,7 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
   const avg = reviews.length ? Math.round((reviews.reduce((s, x) => s + (x.rating || 0), 0) / reviews.length) * 10) / 10 : 0;
   const submitReview = () => {
     if (!formRating) return;
-    fetch('/api/recipes/reviews', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slug, rating: formRating, text: reviewText }) })
+    bsApi.fetch('/api/recipes/reviews', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slug, rating: formRating, text: reviewText }) })
       .then(res => (res.ok ? res.json() : res.json().then(e => Promise.reject(e))))
       .then(d => { if (d && d.review) { setReviews(prev => [d.review, ...prev]); setFormRating(0); setReviewText(''); window.__bsToast?.('Review posted', 'ok'); } })
       .catch(err => { window.__bsToast?.(err && err.error ? err.error : 'Could not post review', 'err'); });
@@ -26815,7 +26820,7 @@ function BSLeaderboard({ onBack }) {
     let cancelled = false;
     setLoading(true);
     const p = window.ShapeLeaderboard?.get ? window.ShapeLeaderboard.get(period)
-      : fetch(`/api/leaderboard?period=${period}`, { credentials: 'same-origin', cache: 'no-store' }).then(r => (r.ok ? r.json() : null));
+      : bsApi.fetch(`/api/leaderboard?period=${period}`, { credentials: 'same-origin', cache: 'no-store' }).then(r => (r.ok ? r.json() : null));
     Promise.resolve(p)
       .then(d => { if (!cancelled) { setData(d || { entries: [], me: null }); setLoading(false); } })
       .catch(() => { if (!cancelled) { setData({ entries: [], me: null }); setLoading(false); } });
@@ -30881,7 +30886,7 @@ function _bsUseLiveScore(profile) {
   React.useEffect(() => {
     if (!loggedIn) return undefined;
     let cancelled = false;
-    fetch('/api/client/score', { credentials: 'same-origin' })
+    bsApi.fetch('/api/client/score', { credentials: 'same-origin' })
       .then(r => (r.ok ? r.json() : null))
       .then(d => { if (!cancelled && d && typeof d.points_total === 'number') { setData(d); try { window.ShapeScore = { points: d.points_total || 0, tier: _tierName(d.current_tier ? d.current_tier.name : 'Base') }; } catch (e) {} } })
       .catch(() => {});
@@ -31323,7 +31328,7 @@ function BSScoreRecordPage({ onBack, tier }) {
     // WebView origin on the native build and leave a signed-in member on the empty report.
     const p = (window.ShapeScoreRecord && window.ShapeScoreRecord.get)
       ? window.ShapeScoreRecord.get()
-      : fetch('/api/client/score-record', { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : null));
+      : bsApi.fetch('/api/client/score-record', { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : null));
     Promise.resolve(p).then((d) => { if (!cancelled && d && d.ranges) setRecord(d); }).catch(() => {});
     return () => { cancelled = true; };
   }, [loggedIn]);
@@ -35063,7 +35068,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [plan, setPlan] = useStateBSC(null);
   React.useEffect(() => {
     let cancelled = false;
-    fetch('/api/stripe/subscription', { credentials: 'same-origin', cache: 'no-store' })
+    bsApi.fetch('/api/stripe/subscription', { credentials: 'same-origin', cache: 'no-store' })
       .then(r => (r.ok ? r.json() : null))
       .then(d => { if (!cancelled && d) setPlan(d); })
       .catch(() => {});
@@ -35398,7 +35403,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     const loggedIn = !!(window.ShapeAuth?.getCachedState?.()?.user?.id);
     if (!loggedIn) { window.__bsToast?.(tr('settings:toast.signInBilling', { defaultValue: 'Sign in to manage your membership' }), 'info'); return; }
     try {
-      const res = await fetch('/api/stripe/billing-portal', {
+      const res = await bsApi.fetch('/api/stripe/billing-portal', {
         method: 'POST', credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ returnPath: '/m/' }),
@@ -35417,19 +35422,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // manages an existing subscription, so a free user can't use it).
   const openUpgradeCheckout = async () => {
     if (window.bsRequireAccount && !window.bsRequireAccount('become a Shape member')) return;
-    try {
-      const res = await fetch('/api/stripe/platform-checkout', {
-        method: 'POST', credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ successPath: '/m/', cancelPath: '/m/' }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data.url) bsOpenCheckout(data.url);
-      else if (res.status === 401) { if (window.__bsGoAuth) window.__bsGoAuth('create'); else window.__bsToast?.(tr('settings:toast.createAccountMember', { defaultValue: 'Create an account to become a Shape member' }), 'info'); }
-      else window.__bsToast?.(data?.error || tr('settings:toast.upgradeUnavailable', { defaultValue: 'Upgrade unavailable right now' }), 'err');
-    } catch (e) {
-      window.__bsToast?.(tr('settings:toast.upgradeUnavailable', { defaultValue: 'Upgrade unavailable right now' }), 'err');
-    }
+    await bsStartPlatformCheckout();
   };
 
   const requestAccountAction = async (action) => {
@@ -35439,7 +35432,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       if (!signedIn) { window.__bsToast?.(tr('settings:toast.signInExport', { defaultValue: 'Sign in to export your data.' }), 'err'); return; }
       if (!window.confirm(tr('settings:confirm.exportData', { defaultValue: 'Download a copy of all the data Shape holds about you?' }))) return;
       try {
-        const res = await fetch('/api/account/export', { credentials: 'same-origin' });
+        const res = await bsApi.fetch('/api/account/export', { credentials: 'same-origin' });
         if (res.status === 401) { window.__bsToast?.(tr('settings:toast.signInExport', { defaultValue: 'Sign in to export your data.' }), 'err'); return; }
         if (!res.ok) throw new Error('export failed');
         const blob = await res.blob();
@@ -35466,12 +35459,12 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       try {
         // Two requests (L1, 2026-10-08 review): the first earns a ten-minute confirmation token
         // bound to this account; the second, carrying it, deletes.
-        let res = await fetch('/api/account/delete', { method: 'POST', credentials: 'same-origin' });
+        let res = await bsApi.fetch('/api/account/delete', { method: 'POST', credentials: 'same-origin' });
         if (res.status === 401) { window.__bsToast?.(tr('settings:toast.signInDelete', { defaultValue: 'Sign in to delete your account.' }), 'err'); return; }
         if (res.status === 428) {
           const step = await res.json().catch(() => ({}));
           if (!step.confirmToken) throw new Error('delete failed');
-          res = await fetch('/api/account/delete', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmToken: step.confirmToken }) });
+          res = await bsApi.fetch('/api/account/delete', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmToken: step.confirmToken }) });
           if (res.status === 401) { window.__bsToast?.(tr('settings:toast.signInDelete', { defaultValue: 'Sign in to delete your account.' }), 'err'); return; }
         }
         if (!res.ok) throw new Error('delete failed');
@@ -35484,7 +35477,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     }
     if (!window.confirm(tr('settings:confirm.pauseMembership', { defaultValue: 'Pause your membership? You keep your data and can resume anytime.' }))) return;
     try {
-      await fetch('/api/me/account-action', {
+      await bsApi.fetch('/api/me/account-action', {
         method: 'POST', credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action }),
@@ -37642,19 +37635,23 @@ function bsOpenCheckout(url) {
   } catch (e) {}
   try { window.location.href = url; } catch (e) {}
 }
+// The membership checkout from the app's own screens (Settings' Activate, the Store), through
+// the backend's one door (ShapeMembershipApi.startCheckout): the API base, the system browser
+// on native, the shell's re-check when it closes, no second membership for a member.
 async function bsStartPlatformCheckout() {
   if (window.bsRequireAccount && !window.bsRequireAccount('become a Shape member')) return;
-  try {
-    const res = await fetch('/api/stripe/platform-checkout', {
-      method: 'POST', credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ successPath: '/m/', cancelPath: '/m/' }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (res.ok && data.url) bsOpenCheckout(data.url);
-    else if (res.status === 401) { if (window.__bsGoAuth) window.__bsGoAuth('create'); else window.__bsToast?.('Create an account to become a Shape member', 'info'); }
-    else window.__bsToast?.(data?.error || 'Checkout unavailable right now', 'err');
-  } catch (e) { window.__bsToast?.('Checkout unavailable right now', 'err'); }
+  const t = window.ShapeI18n?.t;
+  const fail = () => window.__bsToast?.(t?.('settings:toast.upgradeUnavailable') || 'Upgrade unavailable right now', 'err');
+  const api = window.ShapeMembershipApi;
+  if (!api || !api.startCheckout) { fail(); return; }
+  const r = await api.startCheckout();
+  if (r.ok || r.code === 'already_member') return;
+  if (r.status === 401) {
+    if (window.__bsGoAuth) window.__bsGoAuth('create');
+    else window.__bsToast?.(t?.('settings:toast.createAccountMember') || 'Create an account to become a Shape member', 'info');
+    return;
+  }
+  if (r.error) window.__bsToast?.(r.error, 'err'); else fail();
 }
 
 // ── Progress hub (mirrors the website Progress / Train / Nutrition pages) ─────

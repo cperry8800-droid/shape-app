@@ -2191,6 +2191,8 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   };
 
   const confirmAction = async (current) => {
+    // The membership-first panel's button starts the $5 checkout, not the coach's again.
+    if (current && current.join) { window.ShapeMembershipApi?.startCheckout?.(); return; }
     // A retry starts clean: only the failure it reaches sets `problem` again.
     current = { ...current, problem: null };
     // Browse / no-account users can view coaches but must create an account to commit.
@@ -2214,6 +2216,18 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
           });
         }
       } catch (error) {
+        // Coaching needs the $5 membership first (owner, 2026-10-14). The route says so with
+        // the gate's own code; the panel then offers the membership, in the paywall's words.
+        if (error?.code === 'membership_required') {
+          setAction({
+            ...current,
+            join: true,
+            title: `${tr('onboarding:paywall.titlePre')} ${tr('onboarding:paywall.titleAccent')}`,
+            body: error.message,
+            cta: tr('onboarding:paywall.join', { price: '$5' }),
+          });
+          return;
+        }
         setAction({
           ...current,
           title: tr('marketplace:listing.checkoutError', { defaultValue: 'Checkout error' }),
