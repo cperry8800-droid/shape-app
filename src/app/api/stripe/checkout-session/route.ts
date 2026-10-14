@@ -8,6 +8,7 @@ import { feeSplit, maxCreditCents, bpsToRate, bpsToPercent } from '@/lib/platfor
 import { resolveCoachCheckoutOrigin } from '@/lib/coach-origin';
 import { appendParam, sameOriginPath } from '@/lib/return-path';
 import { ACTIVE_SUB, computeMembership } from '@/lib/membership-core';
+import { hasLiveStripeSubscription } from '@/lib/stripe-live-subscription';
 
 export const runtime = 'nodejs';
 
@@ -79,7 +80,7 @@ export async function POST(request: Request) {
   // carries the same code the gate uses, so a caller sends the member to the $5 checkout first.
   // Fail closed: no payment starts on a membership we could not read.
   try {
-    const m = await computeMembership(caller, user.id, user.email ?? null, { emailConfirmed: user.emailConfirmed === true });
+    const m = await computeMembership(caller, user.id, user.email ?? null, { emailConfirmed: user.emailConfirmed === true, strict: true });
     if (m.isKnownMinor) {
       return NextResponse.json({ error: 'Shape is for adults 18 and over.', code: 'age_restricted' }, { status: 403 });
     }
@@ -167,7 +168,8 @@ export async function POST(request: Request) {
   const isSubscription = String(body.item?.type || '').toLowerCase() === 'subscription';
   // ⚠ A SECOND SUBSCRIPTION TO THE SAME COACH WAS ONE PRESS AWAY. A member back from Stripe
   // before the webhook landed still saw Subscribe, and paying again made two monthly charges.
-  // Read on the caller's own client ("clients read own subscriptions"); a failed read refuses.
+  // Read on the caller's own client ("clients read own subscriptions") and at Stripe; a failed
+  // read refuses.
   if (isSubscription) {
     const { data: existing, error: existingErr } = await caller
       .from('subscriptions')
@@ -176,7 +178,19 @@ export async function POST(request: Request) {
       .eq('provider_id', providerId)
       .eq('provider_role', providerRole);
     if (existingErr) return dbError(existingErr, 'checkout existing subscription lookup', 503);
-    if ((existing ?? []).some((row: { status?: unknown }) => ACTIVE_SUB.has(String(row.status)))) {
+    let live = (existing ?? []).some((row: { status?: unknown }) => ACTIVE_SUB.has(String(row.status)));
+    // Our row arrives with the webhook; Stripe has the subscription the moment it is paid.
+    if (!live) {
+      try {
+        live = await hasLiveStripeSubscription(user.email ?? null, {
+          client_id: user.id, provider_id: String(providerId), provider_role: providerRole,
+        });
+      } catch (err) {
+        console.error('[shape-app] checkout Stripe subscription lookup failed', err);
+        return NextResponse.json({ error: 'Could not check your subscriptions. Try again in a moment.' }, { status: 503 });
+      }
+    }
+    if (live) {
       return NextResponse.json(
         { error: "You're already subscribed to this coach.", reason: 'already_subscribed' },
         { status: 409 }

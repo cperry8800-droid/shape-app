@@ -20,6 +20,7 @@ import { createClient } from '@/lib/supabase/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { computeMembership } from '@/lib/membership-core';
 import { createPlatformCheckout, MEMBERSHIP_HOME } from '@/lib/platform-membership';
+import { hasLiveStripeSubscription } from '@/lib/stripe-live-subscription';
 import { sameOriginPath } from '@/lib/return-path';
 import { readJson } from '@/lib/request-utils';
 
@@ -55,11 +56,12 @@ export async function POST(request: Request) {
   // has nothing to buy. Fail closed: no checkout opens on an answer we could not read.
   try {
     const client = await clientForRequest(request);
-    const m = await computeMembership(client, user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at });
+    const m = await computeMembership(client, user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at, strict: true });
     if (m.isKnownMinor) {
       return NextResponse.json({ error: 'Shape is for adults 18 and over.', code: 'age_restricted' }, { status: 403 });
     }
-    if (m.isMember) {
+    // Our row arrives with the webhook (or platform-return); Stripe has it the moment it is paid.
+    if (m.isMember || await hasLiveStripeSubscription(user.email ?? null, { client_id: user.id, plan: 'shape_platform' })) {
       return NextResponse.json({ error: "You're already a Shape member.", code: 'already_member' }, { status: 409 });
     }
   } catch (err) {

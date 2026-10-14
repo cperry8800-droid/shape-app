@@ -57,6 +57,20 @@ async function baseModules() {
   return base;
 }
 
+// The Stripe-side duplicate check, against a scripted Stripe: `stripeSubs` are the buyer's
+// subscriptions as Stripe lists them (one customer), `stripeThrows` makes the lookup fail.
+async function liveSubscriptionLib({ stripeSubs = [], stripeThrows = false } = {}) {
+  const { membershipCore } = await baseModules();
+  const stripe = {
+    customers: { list: async ({ email }) => { if (stripeThrows) throw new Error('stripe down'); return { data: email ? [{ id: 'cus_1' }] : [] }; } },
+    subscriptions: { list: async ({ customer }) => ({ data: customer === 'cus_1' ? stripeSubs : [] }) },
+  };
+  return loadRealModule(join(ROOT, 'src/lib/stripe-live-subscription.ts'), {
+    typescript: true,
+    registry: new Map([['@/lib/stripe', { stripe }], ['@/lib/membership-core', membershipCore]]),
+  });
+}
+
 async function platformMembership({ retrieve = async () => { throw new Error('unexpected retrieve'); }, admin = scripted(), created = [] } = {}) {
   const { returnPath, membershipCore } = await baseModules();
   return loadRealModule(join(ROOT, 'src/lib/platform-membership.ts'), {
@@ -80,7 +94,7 @@ test('appendParam puts the parameter in the query, before any fragment, whether 
 });
 
 // ── /api/stripe/checkout-session: coaching needs the membership ─────────────────────────────
-async function runCoachCheckout({ profile = ADULT, platform = [], subscriptions = [], fail = [], errors = {}, body } = {}) {
+async function runCoachCheckout({ profile = ADULT, platform = [], subscriptions = [], fail = [], errors = {}, body, stripeSubs = [], stripeThrows = false } = {}) {
   const { requestUtils, returnPath, membershipCore, platformFee } = await baseModules();
   const created = [];
   const caller = scripted({ tables: { profiles: profile ? [profile] : [], platform_subscriptions: platform, subscriptions }, fail, errors });
@@ -98,6 +112,7 @@ async function runCoachCheckout({ profile = ADULT, platform = [], subscriptions 
       ['@/lib/coach-origin', { resolveCoachCheckoutOrigin: async () => ({ origin: 'marketplace', feeBps: 1500, referralId: null }) }],
       ['@/lib/return-path', returnPath],
       ['@/lib/membership-core', membershipCore],
+      ['@/lib/stripe-live-subscription', await liveSubscriptionLib({ stripeSubs, stripeThrows })],
     ]),
   });
   const errLog = console.error; console.error = () => {};
@@ -160,10 +175,10 @@ test('coach checkout: the success URL keeps the return page\'s own query', async
 });
 
 // ── /api/stripe/platform-checkout: one membership, and back to where they started ───────────
-async function runPlatformCheckout({ signedIn = true, profile = ADULT, platform = [], fail = [], body = {} } = {}) {
+async function runPlatformCheckout({ signedIn = true, profile = ADULT, platform = [], fail = [], errors = {}, body = {}, stripeSubs = [] } = {}) {
   const { requestUtils, returnPath, membershipCore } = await baseModules();
   const created = [];
-  const caller = scripted({ tables: { profiles: profile ? [profile] : [], platform_subscriptions: platform }, fail });
+  const caller = scripted({ tables: { profiles: profile ? [profile] : [], platform_subscriptions: platform }, fail, errors });
   const pm = await platformMembership({ created });
   const route = await loadRealModule(join(ROOT, 'src/app/api/stripe/platform-checkout/route.ts'), {
     typescript: true,
@@ -175,6 +190,7 @@ async function runPlatformCheckout({ signedIn = true, profile = ADULT, platform 
       ['@/lib/platform-membership', pm],
       ['@/lib/return-path', returnPath],
       ['@/lib/request-utils', requestUtils],
+      ['@/lib/stripe-live-subscription', await liveSubscriptionLib({ stripeSubs })],
     ]),
   });
   const errLog = console.error; console.error = () => {};
@@ -277,9 +293,9 @@ test('membership return: `next` stays on this site, and the fragment stays last'
 });
 
 // ── /api/me/membership ──────────────────────────────────────────────────────────────────────
-async function runMe({ user = { id: UID, email: 'm@example.invalid', email_confirmed_at: 'x' }, profile = ADULT, platform = [], fail = [] } = {}) {
+async function runMe({ user = { id: UID, email: 'm@example.invalid', email_confirmed_at: 'x' }, profile = ADULT, platform = [], fail = [], errors = {} } = {}) {
   const { membershipCore } = await baseModules();
-  const caller = scripted({ tables: { profiles: profile ? [profile] : [], platform_subscriptions: platform }, fail });
+  const caller = scripted({ tables: { profiles: profile ? [profile] : [], platform_subscriptions: platform }, fail, errors });
   const route = await loadRealModule(join(ROOT, 'src/app/api/me/membership/route.ts'), {
     typescript: true,
     registry: new Map([['next/server', nextServer], ['@/lib/request-auth', { currentUser: async () => user, clientForRequest: async () => caller.client }], ['@/lib/membership-core', membershipCore]]),
@@ -302,6 +318,49 @@ test('me/membership answers the gate\'s question: signed out, a member, a non-me
   assert.equal(coach.body.coach, true);
   const unknown = await runMe({ fail: ['profiles'] });
   assert.equal(unknown.status, 503, 'a lookup that failed is not a non-member');
+});
+
+// ── Codex on #2353: the webhook lags, and Supabase reports a failure as a value ──────────────
+const PG_FAIL = { code: 'XX000', message: 'connection reset' };
+const stripeSub = (metadata, status = 'active') => ({ id: 'sub_x', status, metadata });
+
+test('coach checkout: a subscription Stripe already holds blocks a second one, before our row exists', async () => {
+  const paid = await runCoachCheckout({ platform: [{ status: 'active' }], subscriptions: [], stripeSubs: [stripeSub({ client_id: UID, provider_id: '4', provider_role: 'trainer' })] });
+  assert.equal(paid.status, 409, 'paid seconds ago, webhook not in yet: still one subscription');
+  assert.equal(paid.body.reason, 'already_subscribed');
+  assert.equal(paid.created.length, 0);
+  const other = await runCoachCheckout({ platform: [{ status: 'active' }], stripeSubs: [stripeSub({ client_id: UID, provider_id: '9', provider_role: 'trainer' })] });
+  assert.equal(other.status, 200, 'a subscription to another coach is not in the way');
+  const ended = await runCoachCheckout({ platform: [{ status: 'active' }], stripeSubs: [stripeSub({ client_id: UID, provider_id: '4', provider_role: 'trainer' }, 'canceled')] });
+  assert.equal(ended.status, 200, 'nor is a cancelled one');
+  const down = await runCoachCheckout({ platform: [{ status: 'active' }], stripeThrows: true });
+  assert.equal(down.status, 503, 'Stripe unreadable: refuse rather than risk a second charge');
+  assert.equal(down.created.length, 0);
+});
+
+test('membership checkout: a membership Stripe already holds blocks a second one', async () => {
+  const r = await runPlatformCheckout({ platform: [], stripeSubs: [stripeSub({ client_id: UID, plan: 'shape_platform' })] });
+  assert.equal(r.status, 409);
+  assert.equal(r.body.code, 'already_member');
+  assert.equal(r.created.length, 0);
+  assert.equal((await runPlatformCheckout({ stripeSubs: [stripeSub({ client_id: 'someone-else', plan: 'shape_platform' })] })).status, 200);
+});
+
+test('a membership read that comes back with an error is unknown, never "not a member"', async () => {
+  // Supabase reports an ordinary failure as { data: null, error }, not a rejection.
+  const second = await runPlatformCheckout({ platform: [{ status: 'active' }], errors: { platform_subscriptions: PG_FAIL } });
+  assert.equal(second.status, 503, 'an existing member is not sold a second membership on a failed read');
+  assert.equal(second.created.length, 0);
+  const coach = await runCoachCheckout({ platform: [{ status: 'active' }], errors: { profiles: PG_FAIL } });
+  assert.equal(coach.status, 503);
+  const me = await runMe({ platform: [{ status: 'active' }], errors: { platform_subscriptions: PG_FAIL } });
+  assert.equal(me.status, 503, 'the app must not show a paying member the paywall on a failed read');
+  const core = read('src/lib/membership-core.ts');
+  assert.match(core, /if \(profileError && opts\.strict\) throw profileError;/);
+  assert.match(core, /if \(subError && opts\.strict\) throw subError;/);
+  for (const rel of ['src/app/api/me/membership/route.ts', 'src/app/api/stripe/platform-checkout/route.ts', 'src/app/api/stripe/checkout-session/route.ts', 'src/app/subscribe/actions.ts']) {
+    assert.match(read(rel), /computeMembership\([^)]*strict: true \}\)/, `${rel} reads strictly`);
+  }
 });
 
 // ── the website ─────────────────────────────────────────────────────────────────────────────

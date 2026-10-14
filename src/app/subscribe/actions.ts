@@ -25,6 +25,7 @@ import { resolveCoachCheckoutOrigin } from '@/lib/coach-origin';
 import { bpsToPercent } from '@/lib/platform-fee';
 import { ACTIVE_SUB, computeMembership } from '@/lib/membership-core';
 import { createPlatformCheckout } from '@/lib/platform-membership';
+import { hasLiveStripeSubscription } from '@/lib/stripe-live-subscription';
 
 type ProviderRole = 'trainer' | 'nutritionist';
 
@@ -113,7 +114,7 @@ export async function startCheckout(formData: FormData): Promise<void> {
   // ⚠ redirect() throws, so it is never called inside a try here.
   let membership: Awaited<ReturnType<typeof computeMembership>> | null = null;
   try {
-    membership = await computeMembership(supabase, user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at });
+    membership = await computeMembership(supabase, user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at, strict: true });
   } catch {
     membership = null;
   }
@@ -132,7 +133,8 @@ export async function startCheckout(formData: FormData): Promise<void> {
     redirect(joinUrl ?? `${backHref}&error=membership_required`);
   }
 
-  // One live subscription per coach: paying twice made two monthly charges.
+  // One live subscription per coach: paying twice made two monthly charges. Our table and
+  // Stripe are both read (stripe-live-subscription.ts says why); a failed read refuses.
   const { data: existing, error: existingErr } = await supabase
     .from('subscriptions')
     .select('status')
@@ -140,9 +142,19 @@ export async function startCheckout(formData: FormData): Promise<void> {
     .eq('provider_id', providerId)
     .eq('provider_role', providerRole);
   if (existingErr) redirect(`${backHref}&error=subscription_check_failed`);
-  if ((existing ?? []).some((row: { status?: unknown }) => ACTIVE_SUB.has(String(row.status)))) {
-    redirect(`${backHref}&error=already_subscribed`);
+  let live = (existing ?? []).some((row: { status?: unknown }) => ACTIVE_SUB.has(String(row.status)));
+  // Our row arrives with the webhook; Stripe has the subscription the moment it is paid.
+  let stripeChecked = live;
+  if (!live) {
+    try {
+      live = await hasLiveStripeSubscription(user.email ?? null, { client_id: user.id, provider_id: String(providerId), provider_role: providerRole });
+      stripeChecked = true;
+    } catch (e) {
+      console.error('[subscribe] Stripe subscription lookup failed', e);
+    }
   }
+  if (!stripeChecked) redirect(`${backHref}&error=subscription_check_failed`);
+  if (live) redirect(`${backHref}&error=already_subscribed`);
 
   // First-dibs: a live waitlist invite lets an at-capacity coach be subscribed
   // to. Invite lookup runs on the caller's RLS-scoped client, inside a try so a

@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     const user = await currentUser(request);
     if (!user) return NextResponse.json({ signedIn: false }, { headers: NO_STORE });
     const client = await clientForRequest(request);
-    const m = await computeMembership(client, user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at });
+    const m = await computeMembership(client, user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at, strict: true });
     return NextResponse.json(
       { signedIn: true, member: m.isMember, coach: m.isCoach, ageRestricted: m.isKnownMinor },
       { headers: NO_STORE }

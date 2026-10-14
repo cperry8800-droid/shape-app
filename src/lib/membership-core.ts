@@ -66,7 +66,13 @@ export async function computeMembership(
   // L14 (2026-10-08 review; Codex on #2289): an admin is an allow-listed address Supabase has
   // CONFIRMED. The caller passes the state off its auth user (`!!user.email_confirmed_at`);
   // left out, it is false, so a caller that forgets grants nothing rather than everything.
-  opts: { emailConfirmed?: boolean } = {}
+  // `strict`: a read that comes back with an error THROWS. Supabase reports an ordinary
+  // failure as `{ data: null, error }`, not a rejection, so without it a failed subscription
+  // read reads as "not a member". The gate keeps that (its own fault handling is documented
+  // where it calls this); a caller that sells something on the answer, or shows the app's
+  // paywall on it, passes strict so a failed read is unknown, never a non-member (Codex on
+  // #2353: an existing member could open a second $5 checkout on a failed read).
+  opts: { emailConfirmed?: boolean; strict?: boolean } = {}
 ): Promise<Membership> {
   const isAdmin = !!email && opts.emailConfirmed === true && adminEmails().includes(email.toLowerCase());
   // ⚠ THE PROFILE AND THE SUBSCRIPTION ARE READ TOGETHER. Neither depends on the other, and
@@ -89,7 +95,8 @@ export async function computeMembership(
   // Handled here so a failure is not reported as unhandled while the profile is read; it is
   // still thrown below, where it was always awaited, when the subscription decides.
   if (subRead) subRead.then(undefined, () => {});
-  const { data: profile } = await profileRead;
+  const { data: profile, error: profileError } = await profileRead;
+  if (profileError && opts.strict) throw profileError;
   const role = (profile?.role as string) || 'client';
   const roles = Array.isArray((profile as { roles?: unknown } | null)?.roles)
     ? ((profile as { roles?: string[] }).roles as string[])
@@ -103,7 +110,8 @@ export async function computeMembership(
 
   let isMember = isCoach || isAdmin;
   if (!isMember && subRead) {
-    const { data: sub } = await subRead;
+    const { data: sub, error: subError } = await subRead;
+    if (subError && opts.strict) throw subError;
     isMember = !!(sub && ACTIVE_SUB.has(String((sub as { status?: unknown }).status)));
   }
   // Age is derived from the DATE first (see isMinorFromDob — `over_18` is a
