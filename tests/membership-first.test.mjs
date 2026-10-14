@@ -699,14 +699,19 @@ test('a claim another request keeps holding is waited for, then refused as check
   assert.equal(detour.out, '/newdesign/MemberProfile.html?u=abc&error=checkout_in_progress');
 });
 
-async function runCustomerFor({ stored = null, afterUpdate = undefined, updateError = null } = {}) {
+async function runCustomerFor({ stored = null, afterUpdate = undefined, updateError = null, platformCustomer = null, coachCustomer = null, recordError = null } = {}) {
   const calls = { creates: [], updates: [] };
   let value = stored;
+  // `platformCustomer` / `coachCustomer`: the customer a member who paid before this has on their
+  // platform_subscriptions / subscriptions rows (the webhook kept it there only).
+  const onRecord = { platform_subscriptions: platformCustomer, subscriptions: coachCustomer };
   const admin = {
-    from: () => {
+    from: (table) => {
       const q = {};
-      q.select = () => q; q.eq = () => q; q.is = (col, v) => { q._is = [col, v]; return q; };
-      q.maybeSingle = async () => ({ data: { stripe_customer_id: value }, error: null });
+      q.select = () => q; q.eq = () => q; q.not = () => q; q.limit = () => q; q.is = (col, v) => { q._is = [col, v]; return q; };
+      q.maybeSingle = async () => (table === 'profiles'
+        ? { data: { stripe_customer_id: value }, error: null }
+        : recordError ? { data: null, error: recordError } : { data: onRecord[table] ? { stripe_customer_id: onRecord[table] } : null, error: null });
       q.update = (row) => { calls.updates.push({ row }); q._update = row; return q; };
       q.then = (res, rej) => { calls.updates[calls.updates.length - 1].is = q._is; if (!updateError) value = afterUpdate === undefined ? q._update.stripe_customer_id : afterUpdate; return Promise.resolve({ data: null, error: updateError }).then(res, rej); };
       return q;
@@ -733,6 +738,17 @@ test('stripeCustomerFor: one customer per account, made once, never replaced', a
   assert.equal(raced.result, 'cus_other', 'a customer saved by a concurrent request wins');
   const failed = await runCustomerFor({ updateError: { message: 'boom' } });
   assert.ok(failed.error, 'a failed save throws; the checkout refuses');
+  // Codex on #2353: a member who paid before this keeps their customer, the one the portal opens.
+  const member = await runCustomerFor({ platformCustomer: 'cus_platform', coachCustomer: 'cus_coach' });
+  assert.equal(member.result, 'cus_platform', 'the membership\'s customer first, as the billing portal opens it');
+  assert.equal(member.calls.creates.length, 0, 'no second customer');
+  assert.equal(member.calls.updates[0].row.stripe_customer_id, 'cus_platform', 'and kept on the profile from now on');
+  const coachOnly = await runCustomerFor({ coachCustomer: 'cus_coach' });
+  assert.equal(coachOnly.result, 'cus_coach');
+  assert.equal(coachOnly.calls.creates.length, 0);
+  const unreadable = await runCustomerFor({ recordError: { message: 'connection reset' } });
+  assert.ok(unreadable.error, 'an unreadable record refuses rather than making a second customer');
+  assert.equal(unreadable.calls.creates.length, 0);
 });
 
 // membershipDetour, the server actions' rule.
@@ -811,6 +827,9 @@ test('website: the client app asks first, and a signed-in non-member gets the jo
   assert.match(shell, /window\.__shapeClientMembership = d \|\| \{ unknown: true \};/, 'an unanswered lookup keeps the page as it was');
   const dash = read('public/newdesign/dashClient.jsx');
   assert.match(dash, /function ClientJoinPage\(\)/);
+  // Codex on #2353: each pending-membership try is called off after 8 seconds.
+  assert.match(dash, /const late = setTimeout\(\(\) => \{ try \{ if \(ctl\) ctl\.abort\(\); \} catch \(e\) \{\} \}, 8000\);\n\s+fetch\("\/api\/me\/membership", \{ credentials: "same-origin", cache: "no-store", signal: ctl \? ctl\.signal : undefined \}\)/);
+  assert.match(dash, /\.then\(\(d\) => \{\n\s+clearTimeout\(late\);/);
   assert.match(dash, /window\.ShapeMembership\.start\("\/newdesign\/ClientApp\.html#today"\)/);
   assert.match(dash, /Object\.assign\(window, \{ ClientDashboardPage, ClientJoinPage,/);
   const tour = read('public/newdesign/dashTour.js');

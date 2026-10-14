@@ -931,9 +931,14 @@ function ClientJoinPage() {
     let on = true; let tries = 0;
     const tick = () => {
       if (!on) return;
-      fetch("/api/me/membership", { credentials: "same-origin", cache: "no-store" })
+      // Each try is called off after 8 seconds (Codex on #2353): one that never answered left
+      // the panel waiting for good, with the button hidden.
+      const ctl = typeof AbortController === "function" ? new AbortController() : null;
+      const late = setTimeout(() => { try { if (ctl) ctl.abort(); } catch (e) {} }, 8000);
+      fetch("/api/me/membership", { credentials: "same-origin", cache: "no-store", signal: ctl ? ctl.signal : undefined })
         .then((r) => (r.ok ? r.json() : null)).catch(() => null)
         .then((d) => {
+          clearTimeout(late);
           if (!on) return;
           if (d && d.member === true) { window.location.replace(window.location.pathname + "?member=joined#today"); return; }
           if (++tries >= 20) { setWaiting(false); return; }
