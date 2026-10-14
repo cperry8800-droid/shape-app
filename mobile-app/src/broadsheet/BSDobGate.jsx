@@ -1,6 +1,11 @@
 import React from 'react';
 import { useTr } from '../i18n/index.js';
 
+// Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
+// front and the live sign-in token. A root-relative '/api/…' fetch reaches nothing in the
+// installed app (client-onboarding review H2, 2026-10-14; tests/app-api-base.test.mjs).
+const bsApi = { fetch: (path, init) => (window.ShapeApi ? window.ShapeApi.fetch(path, init) : fetch(path, init)) };
+
 // ═══════════════════════════════════════════════════════════
 // DATE OF BIRTH — the COLLECT half of the 18+ ruling
 // ═══════════════════════════════════════════════════════════
@@ -82,7 +87,7 @@ export default function BSDobGate({ blocked, onSaved, onLogout }) {
       const token = window.ShapeAuth?.getCachedState?.()?.session?.access_token;
       const headers = { 'Content-Type': 'application/json' };
       if (token) headers.Authorization = `Bearer ${token}`;
-      const res = await fetch('/api/me/date-of-birth', {
+      const res = await bsApi.fetch('/api/me/date-of-birth', {
         method: 'POST', headers, credentials: 'same-origin', cache: 'no-store',
         body: JSON.stringify({ date_of_birth: dob }),
       });

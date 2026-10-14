@@ -3,9 +3,9 @@
 // and per-nutritionist subscriptions handled by /subscribe).
 //
 // Flow:
-//   pricing.html → POST /api/stripe/platform-checkout
-//   → redirect to Stripe-hosted checkout
-//   → success_url returns to /subscribe/success
+//   Pricing / the dashboard's join panel / a coach's profile → POST /api/stripe/platform-checkout
+//   → Stripe-hosted checkout
+//   → /api/stripe/platform-return confirms the session and continues to `returnTo`
 //
 // Auth: accepts a Supabase Bearer token (the app) or the site's cookie session. If the
 // caller isn't signed in the API returns 401 with a redirect hint to the website's
@@ -16,14 +16,20 @@
 // "Shape Platform" product.
 
 import { NextResponse } from 'next/server';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
-import { stripe } from '@/lib/stripe';
+import { clientForRequest, currentUser } from '@/lib/request-auth';
+import { computeMembership } from '@/lib/membership-core';
+import { createPlatformCheckout, MEMBERSHIP_HOME } from '@/lib/platform-membership';
+import { stripeCustomerFor } from '@/lib/stripe-customer';
+import { isCheckoutInProgress } from '@/lib/checkout-barrier';
+import { sameOriginPath } from '@/lib/return-path';
 import { readJson } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 
-type Body = { successPath?: string; cancelPath?: string };
+// `returnTo` is where the member goes once the membership is confirmed. `successPath` is its
+// older name, still sent by app builds already installed.
+type Body = { returnTo?: string; successPath?: string; cancelPath?: string };
 
 export async function POST(request: Request) {
   const priceId = process.env.STRIPE_PLATFORM_PRICE_ID;
@@ -34,81 +40,63 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: Body = {};
   const bodyResult = await readJson<Body>(request, { allowEmpty: true });
   if (!bodyResult.ok) return bodyResult.response;
-  body = bodyResult.data;
+  const body: Body = bodyResult.data || {};
 
-  // Resolve user — cookie session (Next.js pages) OR Bearer token (legacy).
-  let userEmail: string | null = null;
-  let userId: string | null = null;
-
-  const authHeader = request.headers.get('authorization') ?? '';
-  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
-
-  if (bearerMatch) {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
-    if (!url || !anonKey) {
-      return NextResponse.json({ error: 'Supabase is not configured.' }, { status: 500 });
-    }
-    const token = bearerMatch[1];
-    const client = createSupabaseClient(url, anonKey, {
-      global: { headers: { Authorization: `Bearer ${token}` } },
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-    const { data } = await client.auth.getUser(token);
-    if (data.user) {
-      userId = data.user.id;
-      userEmail = data.user.email ?? null;
-    }
-  } else {
-    const supabase = await createClient();
-    const { data } = await supabase.auth.getUser();
-    if (data.user) {
-      userId = data.user.id;
-      userEmail = data.user.email ?? null;
-    }
-  }
-
-  if (!userId) {
+  const user = await currentUser(request);
+  if (!user) {
     return NextResponse.json(
       { error: 'Not signed in.', redirectTo: '/newdesign/SignupClient.html' },
       { status: 401 }
     );
   }
 
+  let customerId: string;
+  // ⚠ A MEMBER COULD BUY A SECOND MEMBERSHIP. Nothing here looked for the first, so every press
+  // of Join made a new $5 subscription. An approved coach or an admin is a member already and
+  // has nothing to buy. Fail closed: no checkout opens on an answer we could not read.
+  try {
+    const client = await clientForRequest(request);
+    const m = await computeMembership(client, user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at, strict: true });
+    if (m.isKnownMinor) {
+      return NextResponse.json({ error: 'Shape is for adults 18 and over.', code: 'age_restricted' }, { status: 403 });
+    }
+    if (m.isMember) {
+      return NextResponse.json({ error: "You're already a Shape member.", code: 'already_member' }, { status: 409 });
+    }
+    // The account's own customer is where the membership lands (stripe-customer.ts). Whether
+    // Stripe already holds one (our row arrives with the webhook) is asked under the checkout
+    // claim, in createPlatformCheckout.
+    customerId = await stripeCustomerFor(user.id, user.email ?? null);
+  } catch (err) {
+    console.error('[shape-app] platform-checkout membership read failed', err);
+    return NextResponse.json({ error: 'Could not check your membership. Try again in a moment.' }, { status: 503 });
+  }
+
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? new URL(request.url).origin;
-  const successPath = body.successPath || '/subscribe/success';
-  const cancelPath = body.cancelPath || '/newdesign/Pricing.html?error=subscribe_cancelled';
+  // L10: paths on this origin only; anything else is the default.
+  const next = sameOriginPath(body.returnTo ?? body.successPath, MEMBERSHIP_HOME);
+  const cancelPath = sameOriginPath(body.cancelPath, '/newdesign/Pricing.html?error=subscribe_cancelled');
 
   try {
-    const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
-      line_items: [{ price: priceId, quantity: 1 }],
-      customer_email: userEmail ?? undefined,
-      client_reference_id: userId,
-      metadata: {
-        client_id: userId,
-        plan: 'shape_platform',
-      },
-      subscription_data: {
-        metadata: {
-          client_id: userId,
-          plan: 'shape_platform',
-        },
-      },
-      success_url: `${origin}${successPath}?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}${cancelPath}`,
-      allow_promotion_codes: true,
-    });
-
-    if (!session.url) {
+    const result = await createPlatformCheckout({ priceId, userId: user.id, customerId, email: user.email ?? null, origin, next, cancelPath });
+    if (result.alreadyMember) {
+      return NextResponse.json({ error: "You're already a Shape member.", code: 'already_member' }, { status: 409 });
+    }
+    const url = result.url;
+    if (!url) {
       return NextResponse.json({ error: 'Stripe did not return a checkout URL.' }, { status: 500 });
     }
     try { const supabaseTrack = await createClient(); await supabaseTrack.rpc('track_event', { p_event: 'checkout_started', p_props: { kind: 'platform' } }); } catch {}
-    return NextResponse.json({ url: session.url });
+    return NextResponse.json({ url });
   } catch (err) {
+    if (isCheckoutInProgress(err)) {
+      return NextResponse.json(
+        { error: 'A membership checkout is being opened. Try again in a moment.', code: 'checkout_in_progress' },
+        { status: 409 }
+      );
+    }
     console.error('[shape-app] platform-checkout error', err);
     return NextResponse.json({ error: 'Could not start checkout.' }, { status: 500 });
   }

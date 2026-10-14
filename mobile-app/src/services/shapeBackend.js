@@ -154,6 +154,24 @@ async function liveAccessToken() {
   return (state.session && state.session.access_token) || null;
 }
 
+// ⚠ A SHORT '/api/…' PATH REACHES NOTHING IN THE INSTALLED APP. The WebView's own origin
+// (capacitor://localhost on iOS, https://localhost on Android) serves no API, so a
+// root-relative fetch went nowhere: 27 calls across the app, among them the $5 checkout, the
+// membership check and the age check (client-onboarding review H2, 2026-10-14). #2332 gave
+// native builds their API base, but only calls that used it were helped. Every app call to
+// Shape's server goes through here: the API base in front, the live Bearer token, and the
+// same-origin cookie the hosted /m/ build still uses. tests/app-api-base.test.mjs refuses a
+// root-relative fetch anywhere in the app.
+async function shapeApiFetch(path, init = {}) {
+  const headers = new Headers(init.headers || undefined);
+  if (!headers.has('Authorization')) {
+    const token = await liveAccessToken();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+  }
+  return fetch(`${apiBaseUrl || ''}${path}`, { credentials: 'same-origin', ...init, headers });
+}
+window.ShapeApi = { fetch: shapeApiFetch, url: (path) => `${apiBaseUrl || ''}${path}` };
+
 function setCached(next = {}) {
   const prevUid = (state.user && state.user.id) || null;
   const prevName = (state.profile && state.profile.full_name) || null;
@@ -749,27 +767,116 @@ async function startCheckout({ item, coach, user, role }) {
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(payload.error || 'Unable to start checkout.');
+    // The route's flags ride on the error, so a caller branches on them, never on the
+    // sentence: `code` membership_required (coaching needs the $5 membership first, owner
+    // 2026-10-14), `reason` at_capacity / already_subscribed.
+    const err = new Error(payload.error || 'Unable to start checkout.');
+    err.status = response.status;
+    err.code = payload.code || null;
+    err.reason = payload.reason || null;
+    throw err;
   }
 
-  if (payload.url) openCheckoutUrl(payload.url);
+  if (payload.url && !(await openCheckoutUrl(payload.url))) {
+    throw new Error('Unable to open Stripe checkout.');
+  }
 
   return payload;
+}
+
+// ── The $5 membership, from anywhere in the app ────────────────────────────
+// "Is this account a member?" is /api/me/membership: the gate's own answer, so an approved
+// coach or an admin is a member and a failed lookup is not a non-member. Resolves true,
+// false, or null when it could not be found out.
+// A lookup that never answers (a half-open connection, a stalled proxy) is unknown after this
+// long, never a wait without end (Codex on #2353): the gate then keeps this account's last answer.
+const MEMBERSHIP_LOOKUP_MS = 8000;
+async function checkMembership() {
+  if (!state.user?.id) return false;
+  const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+  let timer = null;
+  const late = new Promise((resolve) => {
+    timer = setTimeout(() => { try { if (ctl) ctl.abort(); } catch (e) {} resolve(null); }, MEMBERSHIP_LOOKUP_MS);
+  });
+  const lookup = (async () => {
+    try {
+      const res = await shapeApiFetch('/api/me/membership', { cache: 'no-store', ...(ctl ? { signal: ctl.signal } : {}) });
+      if (!res.ok) return null;
+      const d = await res.json();
+      if (!d || d.signedIn !== true) return null;
+      return d.member === true;
+    } catch (e) {
+      return null;
+    }
+  })();
+  try {
+    return await Promise.race([lookup, late]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// One door for the membership checkout: the paywall's Join, the preview banner, Settings'
+// Activate and the Store. The hosted /m/ build comes back to /m/. The installed app opens the
+// checkout in the system browser, which lands on /membership/done ("close this page"); the
+// shell re-checks the membership when that browser closes or the app comes back to the
+// front ('shape:membership-recheck').
+// Resolves { ok: true }, or { ok: false, status, code, error } for the caller to act on.
+async function startMembershipCheckout() {
+  const back = _isNative ? '/membership/done' : '/m/';
+  try {
+    const res = await shapeApiFetch('/api/stripe/platform-checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ returnTo: back, cancelPath: back }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.url) {
+      const opened = await openCheckoutUrl(data.url, { onClose: () => { try { window.dispatchEvent(new Event('shape:membership-recheck')); } catch (e) {} } });
+      return opened ? { ok: true } : { ok: false, status: 0, code: 'browser_failed', error: null };
+    }
+    if (data && data.code === 'already_member') {
+      try { window.dispatchEvent(new Event('shape:membership-recheck')); } catch (e) {}
+    }
+    return { ok: false, status: res.status, code: (data && data.code) || null, error: (data && data.error) || null };
+  } catch (e) {
+    return { ok: false, status: 0, code: null, error: null };
+  }
 }
 
 // Open Stripe Checkout so Apple Pay / Google Pay can appear: on native, use the
 // system browser (SFSafariViewController via the Capacitor Browser plugin) — the
 // in-app WebView can't present the Apple Pay sheet. Falls back to the WebView.
-function openCheckoutUrl(url) {
-  try {
-    const cap = (typeof window !== 'undefined' && window.Capacitor) || null;
-    const Browser = cap && cap.Plugins && cap.Plugins.Browser;
-    if (Capacitor.isNativePlatform() && Browser && Browser.open) {
-      Browser.open({ url, presentationStyle: 'fullscreen' });
-      return;
+// Resolves false when the system browser would not open (Codex on #2353: a rejected
+// Browser.open read as success, and its close listener stayed behind to fire on a later,
+// unrelated browser), so the caller can say so.
+async function openCheckoutUrl(url, { onClose } = {}) {
+  const cap = (typeof window !== 'undefined' && window.Capacitor) || null;
+  const Browser = cap && cap.Plugins && cap.Plugins.Browser;
+  let native = false;
+  try { native = Capacitor.isNativePlatform(); } catch (e) {}
+  if (native && Browser && Browser.open) {
+    let handle = null;
+    if (onClose && Browser.addListener) {
+      try {
+        // One close, one call: the listener removes itself.
+        handle = await Browser.addListener('browserFinished', () => {
+          try { if (handle && handle.remove) handle.remove(); } catch (e) {}
+          try { onClose(); } catch (e) {}
+        });
+      } catch (e) { handle = null; }
     }
-  } catch (e) {}
+    try {
+      await Browser.open({ url, presentationStyle: 'fullscreen' });
+      return true;
+    } catch (e) {
+      // It never opened, so it never closes: take the listener back.
+      try { if (handle && handle.remove) handle.remove(); } catch (err) {}
+      return false;
+    }
+  }
   try { window.location.assign(url); } catch (e) { window.location.href = url; }
+  return true;
 }
 
 async function startStripeConnectOnboarding({ role } = {}) {
@@ -4679,6 +4786,8 @@ window.ShapePayments = {
   configured: Boolean(apiBaseUrl),
   startCheckout,
 };
+
+window.ShapeMembershipApi = { check: checkMembership, startCheckout: startMembershipCheckout };
 
 window.ShapeConnect = {
   configured: Boolean(apiBaseUrl),

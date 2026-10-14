@@ -119,6 +119,14 @@
   function startWhenReady(role, uid) {
     var tries = 0;
     (function tick() {
+      // A member's first-run tour, never a non-member's: ClientApp.html shows a signed-in
+      // account without the $5 membership the join panel, and a tour over it pointed at
+      // nothing. Wait for the shell's membership answer (left on window), then decide.
+      if (role === 'client') {
+        var m = window.__shapeClientMembership;
+        if (!m) { if (tries++ > 60) return; setTimeout(tick, 100); return; }
+        if (m.signedIn && m.member === false) return;
+      }
       if (window.SpotlightTour) { start(role, uid); return; }
       if (tries++ > 60) return;   // ~6s ceiling, then give up rather than spin
       setTimeout(tick, 100);

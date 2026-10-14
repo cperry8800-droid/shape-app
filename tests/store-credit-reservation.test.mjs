@@ -157,6 +157,12 @@ async function runCheckout({ reserve, stripeCreate = 'ok' }) {
       ['@/lib/platform-fee', platformFee],
       ['@/lib/coach-origin', { resolveCoachCheckoutOrigin: async () => ({ origin: 'marketplace', feeBps: 1500, referralId: null }) }],
       ['@/lib/return-path', returnPath],
+      // The buyer is a member: coaching needs the $5 membership (tests/membership-first.test.mjs).
+      ['@/lib/membership-core', { ACTIVE_SUB: new Set(['active', 'trialing', 'past_due']), computeMembership: async () => ({ isMember: true, isCoach: false, isAdmin: false, isKnownMinor: false }) }],
+      ['@/lib/stripe-live-subscription', { hasLiveStripeSubscription: async () => false }],
+      ['@/lib/stripe-customer', { stripeCustomerFor: async () => 'cus_stable' }],
+      // One-time purchases are not held to the one-open-checkout rule (tests/membership-first.test.mjs).
+      ['@/lib/checkout-barrier', { claimCheckout: async () => ({ confirm: async () => {}, release: async () => {} }), currentCheckout: async () => null, isCheckoutInProgress: () => false, checkoutReturnsKey: () => 'returns-key', CHECKOUT_CREATE_OPTIONS: {} }],
     ]),
   });
   const req = new Request('https://shape.test/api/stripe/checkout-session', {

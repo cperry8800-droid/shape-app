@@ -6,7 +6,11 @@ import { hasActiveWaitlistInvite, resolveRequestClient } from '@/lib/waitlist';
 import { readJson, dbError } from '@/lib/request-utils';
 import { feeSplit, maxCreditCents, bpsToRate, bpsToPercent } from '@/lib/platform-fee';
 import { resolveCoachCheckoutOrigin } from '@/lib/coach-origin';
-import { sameOriginPath } from '@/lib/return-path';
+import { appendParam, sameOriginPath } from '@/lib/return-path';
+import { ACTIVE_SUB, computeMembership } from '@/lib/membership-core';
+import { hasLiveStripeSubscription } from '@/lib/stripe-live-subscription';
+import { stripeCustomerFor } from '@/lib/stripe-customer';
+import { CHECKOUT_CREATE_OPTIONS, checkoutReturnsKey, claimCheckout, currentCheckout, isCheckoutInProgress, type CheckoutClaim } from '@/lib/checkout-barrier';
 
 export const runtime = 'nodejs';
 
@@ -71,6 +75,24 @@ export async function POST(request: Request) {
   const auth = await resolveRequestClient(request);
   if (!auth) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
   const { user, supabase: caller } = auth;
+
+  // ⚠ COACHING NEEDS AN ACTIVE SHAPE MEMBERSHIP (owner, 2026-10-14: "need to be an active member
+  // to access platform"). This route never asked, so a signed-in non-member could pay a coach and
+  // then be refused messages, the plan and the dashboard by the membership gate. The refusal
+  // carries the same code the gate uses, so a caller sends the member to the $5 checkout first.
+  // Fail closed: no payment starts on a membership we could not read.
+  try {
+    const m = await computeMembership(caller, user.id, user.email ?? null, { emailConfirmed: user.emailConfirmed === true, strict: true });
+    if (m.isKnownMinor) {
+      return NextResponse.json({ error: 'Shape is for adults 18 and over.', code: 'age_restricted' }, { status: 403 });
+    }
+    if (!m.isMember) {
+      return NextResponse.json({ error: 'Shape membership required.', code: 'membership_required' }, { status: 402 });
+    }
+  } catch (err) {
+    console.error('[shape-app] checkout membership read failed', err);
+    return NextResponse.json({ error: 'Could not check your membership. Try again in a moment.' }, { status: 503 });
+  }
 
   let body: CheckoutBody = {};
   const bodyResult = await readJson<CheckoutBody>(request, { allowEmpty: true });
@@ -146,6 +168,33 @@ export async function POST(request: Request) {
   const feeRate = bpsToRate(feeBps);
 
   const isSubscription = String(body.item?.type || '').toLowerCase() === 'subscription';
+  // The account's own Stripe customer (stripe-customer.ts): the purchase lands on it, and the
+  // duplicate check below can ask Stripe about it whether or not the account has an email.
+  let customerId: string;
+  try {
+    customerId = await stripeCustomerFor(user.id, user.email ?? null);
+  } catch (err) {
+    console.error('[shape-app] checkout Stripe customer failed', err);
+    return NextResponse.json({ error: 'Could not start checkout. Try again in a moment.' }, { status: 503 });
+  }
+  // ⚠ A SECOND SUBSCRIPTION TO THE SAME COACH WAS ONE PRESS AWAY. A member back from Stripe
+  // before the webhook landed still saw Subscribe, and paying again made two monthly charges.
+  // Read here on the caller's own client ("clients read own subscriptions"), and at Stripe under
+  // the checkout claim below; a failed read refuses.
+  const alreadySubscribed = () => NextResponse.json(
+    { error: "You're already subscribed to this coach.", reason: 'already_subscribed' },
+    { status: 409 }
+  );
+  if (isSubscription) {
+    const { data: existing, error: existingErr } = await caller
+      .from('subscriptions')
+      .select('status')
+      .eq('client_id', user.id)
+      .eq('provider_id', providerId)
+      .eq('provider_role', providerRole);
+    if (existingErr) return dbError(existingErr, 'checkout existing subscription lookup', 503);
+    if ((existing ?? []).some((row: { status?: unknown }) => ACTIVE_SUB.has(String(row.status)))) return alreadySubscribed();
+  }
   const itemName = body.item?.name || (isSubscription ? 'Monthly coaching' : 'One-time purchase');
   const fallbackOneTimePrice =
     providerRole === 'trainer'
@@ -304,8 +353,40 @@ export async function POST(request: Request) {
   // coach's cut. Because credit is capped at Shape's 15% above, the charge
   // always covers the coach's cut — no out-of-pocket top-up is ever needed.
   const { applicationFeeCents } = feeSplit(priceCents, chargeCents, feeRate);
+  const successUrl = `${origin}${appendParam(successPath, 'session_id', '{CHECKOUT_SESSION_ID}')}`;
+  const cancelUrl = `${origin}${cancelPath}`;
+  const returns = checkoutReturnsKey(successUrl, cancelUrl);
 
+  // One payable subscription checkout per account and coach at a time (checkout-barrier.ts):
+  // claimed here, confirmed right before the create, released in the finally below.
+  // Subscriptions reserve no store credit.
+  let claim: CheckoutClaim | null = null;
   try {
+    if (isSubscription) {
+      claim = await claimCheckout(user.id, `coach-${providerRole}-${providerId}`);
+      // Handed back only on this request's terms: a changed price, fee or referral makes a new one.
+      const open = await currentCheckout(customerId, (s) => s.mode === 'subscription'
+        && s.metadata?.provider_id === String(providerId) && s.metadata?.provider_role === providerRole,
+      (s) => s.metadata?.price_cents === String(chargeCents) && s.metadata?.fee_bps === String(feeBps)
+        && s.metadata?.origin === coachOrigin && (s.metadata?.referral_id ?? null) === (referralId ?? null)
+        && s.metadata?.returns === returns);
+      // ⚠ ASKED HERE, WHILE HOLDING THE CLAIM AND AFTER THE OPEN CHECKOUTS ARE READ (Codex on #2353):
+      // a request that waited on the claim can arrive after the first checkout was paid, and one
+      // the buyer completes in another tab while this request reads them is no longer listed as
+      // open. Stripe holds the subscription the moment it is paid; our row comes with the webhook.
+      let paid: boolean;
+      try {
+        paid = await hasLiveStripeSubscription({ customerId, email: user.email ?? null }, {
+          client_id: user.id, provider_id: String(providerId), provider_role: providerRole,
+        });
+      } catch (err) {
+        console.error('[shape-app] checkout Stripe subscription lookup failed', err);
+        return NextResponse.json({ error: 'Could not check your subscriptions. Try again in a moment.' }, { status: 503 });
+      }
+      if (paid) return alreadySubscribed();
+      if (open) return NextResponse.json({ url: open, creditAppliedCents: 0 });
+      await claim.confirm();
+    }
     const session = await stripe.checkout.sessions.create({
       mode: isSubscription ? 'subscription' : 'payment',
       line_items: [
@@ -325,7 +406,7 @@ export async function POST(request: Request) {
           quantity: 1,
         },
       ],
-      customer_email: user.email ?? undefined,
+      customer: customerId,
       client_reference_id: user.id,
       metadata: {
         client_id: user.id,
@@ -337,6 +418,7 @@ export async function POST(request: Request) {
         item_name: String(itemName),
         origin: coachOrigin,
         fee_bps: String(feeBps),
+        returns,
         ...(referralId ? { referral_id: referralId } : {}),
         ...(storeCreditApplied > 0 ? { store_credit_kind: String(storeCreditKind), store_credit_cents: String(storeCreditApplied) } : {}),
         ...(storeCreditRef ? { store_credit_ref: storeCreditRef } : {}),
@@ -371,10 +453,10 @@ export async function POST(request: Request) {
               },
             },
           }),
-      success_url: `${origin}${successPath}?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}${cancelPath}`,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
       allow_promotion_codes: isSubscription,
-    });
+    }, isSubscription ? CHECKOUT_CREATE_OPTIONS : undefined);
 
     if (!session.url) {
       await releaseReservation();
@@ -383,6 +465,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ url: session.url, creditAppliedCents: storeCreditApplied });
   } catch (err) {
     await releaseReservation();
+    if (isCheckoutInProgress(err)) {
+      return NextResponse.json(
+        { error: 'A checkout for this coach is being opened. Try again in a moment.', reason: 'checkout_in_progress' },
+        { status: 409 }
+      );
+    }
     return dbError(err, 'mobile checkout-session', 500, 'Could not start checkout.');
+  } finally {
+    if (claim) await claim.release();
   }
 }

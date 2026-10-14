@@ -179,7 +179,39 @@ function caSlug() {
   const h = Object.prototype.hasOwnProperty.call(CA_LEGACY_TABS, low) ? CA_LEGACY_TABS[low] : low;
   return caHasRoute(h) ? h : "today";
 }
+// ⚠ ASK WHETHER THIS ACCOUNT IS A MEMBER BEFORE DRAWING ANY TAB. A signed-in account that has
+// not started the $5 membership is refused every /api/client read, and each tab used to fall
+// back to the demo member's data. It gets the join panel instead (dashClient.jsx), on every tab
+// but Settings, which stays open for billing, sign-out and deleting the account. A signed-out
+// visitor and an unanswered lookup keep the page as it was. The answer is left on window for
+// the first-run tour (dashTour.js), which waits for it and stays away from a non-member.
+function caUseMembership() {
+  const [m, setM] = React.useState(window.__shapeClientMembership || null);
+  React.useEffect(() => {
+    if (m) return;
+    let on = true;
+    let settled = false;
+    const settle = (d) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      window.__shapeClientMembership = d || { unknown: true };
+      if (on) setM(window.__shapeClientMembership);
+    };
+    // A lookup that never answers (a stalled connection) is unknown after 8 seconds, and the page
+    // is drawn as it was, rather than staying blank (Codex on #2353).
+    const ctl = typeof AbortController === "function" ? new AbortController() : null;
+    const timer = setTimeout(() => { try { if (ctl) ctl.abort(); } catch (e) {} settle({ unknown: true }); }, 8000);
+    fetch("/api/me/membership", { credentials: "same-origin", cache: "no-store", signal: ctl ? ctl.signal : undefined })
+      .then((r) => (r.ok ? r.json() : { unknown: true }))
+      .catch(() => ({ unknown: true }))
+      .then(settle);
+    return () => { on = false; };
+  }, []);
+  return m;
+}
 function ClientApp() {
+  const membership = caUseMembership();
   const [route, setRoute] = React.useState(caSlug());
   React.useEffect(() => {
     if (!window.location.hash) { try { window.history.replaceState(null, "", "#" + route); } catch (e) {} }
@@ -187,6 +219,8 @@ function ClientApp() {
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
+  if (!membership) return null;
+  if (membership.signedIn && membership.member === false && route !== "settings") return <ClientJoinPage />;
   return (caHasRoute(route) ? CA_ROUTES[route] : CA_ROUTES.today)();
 }
 ReactDOM.createRoot(document.getElementById("root")).render(<ClientApp />);

@@ -2191,6 +2191,19 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   };
 
   const confirmAction = async (current) => {
+    // The membership-first panel's button starts the $5 checkout, not the coach's again. A failure
+    // is said on the panel (Codex on #2353: the button did nothing); an account that turns out to
+    // be a member already goes back to the coach's checkout.
+    if (current && current.join) {
+      setCheckoutBusy(true);
+      let r = null;
+      try { r = await window.ShapeMembershipApi?.startCheckout?.(); } finally { setCheckoutBusy(false); }
+      if (r && r.ok) return;
+      if (r && r.code === 'already_member' && current.back) { setAction(current.back); return; }
+      const message = (r && r.error) || tr('marketplace:listing.checkoutErrorBody', { defaultValue: 'Unable to open Stripe checkout.' });
+      setAction({ ...current, body: message, cta: tr('marketplace:listing.tryAgain', { defaultValue: 'Try again' }), problem: { kind: 'payment', message } });
+      return;
+    }
     // A retry starts clean: only the failure it reaches sets `problem` again.
     current = { ...current, problem: null };
     // Browse / no-account users can view coaches but must create an account to commit.
@@ -2214,6 +2227,19 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
           });
         }
       } catch (error) {
+        // Coaching needs the $5 membership first (owner, 2026-10-14). The route says so with
+        // the gate's own code; the panel then offers the membership, in the paywall's words.
+        if (error?.code === 'membership_required') {
+          setAction({
+            ...current,
+            join: true,
+            back: current,
+            title: `${tr('onboarding:paywall.titlePre')} ${tr('onboarding:paywall.titleAccent')}`,
+            body: error.message,
+            cta: tr('onboarding:paywall.join', { price: '$5' }),
+          });
+          return;
+        }
         setAction({
           ...current,
           title: tr('marketplace:listing.checkoutError', { defaultValue: 'Checkout error' }),

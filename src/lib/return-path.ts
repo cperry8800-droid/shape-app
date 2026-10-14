@@ -9,3 +9,14 @@ const PATH_MAX = 2048;
 export function sameOriginPath(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.length <= PATH_MAX && SAME_ORIGIN_PATH.test(value) ? value : fallback;
 }
+
+// Adds `key=value` to a path's query, before any `#fragment`. `value` goes in as given, so the
+// caller encodes it; Stripe's `{CHECKOUT_SESSION_ID}` placeholder has to stay literal.
+// ⚠ Stripe redirects used to append `?session_id=` to the path as is, so a return path that
+// already carried a query (a coach's profile, `?id=4`) came back as `?id=4?session_id=…`.
+export function appendParam(path: string, key: string, value: string): string {
+  const hashAt = path.indexOf('#');
+  const base = hashAt === -1 ? path : path.slice(0, hashAt);
+  const hash = hashAt === -1 ? '' : path.slice(hashAt);
+  return `${base}${base.includes('?') ? '&' : '?'}${key}=${value}${hash}`;
+}

@@ -6,8 +6,14 @@ import { initI18n, applyDir, useTr, i18n as bsI18n } from '../i18n/index.js';
 import BSLanguagePicker from './BSLanguagePicker.jsx';
 import BSDobGate from './BSDobGate.jsx';
 import { bsLaunchRoute, bsDailyStamp, bsAfterBeat, bsWireLines } from '../services/dailyWire.mjs';
+import { bsMemberGate, bsMembershipAfter, bsMembershipSeed } from '../services/memberGate.mjs';
 import { bsCaptureBoundaryError } from '../sentry.mjs';
 import { shapeScrubLocalUserContent, shapeInstallSignOutListener } from '../services/localScrub.mjs';
+
+// Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
+// front and the live sign-in token. A root-relative '/api/…' fetch reaches nothing in the
+// installed app (client-onboarding review H2, 2026-10-14; tests/app-api-base.test.mjs).
+const bsApi = { fetch: (path, init) => (window.ShapeApi ? window.ShapeApi.fetch(path, init) : fetch(path, init)) };
 // iosAppBroadsheetMain.jsx — App entry: splash, login, role-dispatched app, Tweaks panel.
 
 initI18n(); // idempotent — sets the initial locale + text direction from the stored
@@ -1175,18 +1181,19 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
   );
 }
 
-// Start the $5/mo platform checkout (Stripe-hosted). Bearer when available,
-// cookie otherwise; redirects to the returned checkout URL.
+// Start the $5/mo membership checkout through the backend's one door
+// (ShapeMembershipApi.startCheckout): the API base and the live token, the system
+// browser on native, and a membership re-check when it closes. A member who is
+// already one is re-checked instead of being sold a second membership; a signed-out
+// caller goes to create an account.
 async function bsmStartCheckout() {
-  try {
-    const token = window.ShapeAuth?.getCachedState?.()?.session?.access_token;
-    const headers = { 'Content-Type': 'application/json' };
-    if (token) headers.Authorization = `Bearer ${token}`;
-    const res = await fetch('/api/stripe/platform-checkout', { method: 'POST', headers, credentials: 'same-origin', body: '{}' });
-    const d = await res.json().catch(() => ({}));
-    if (d && d.url) { window.location.assign(d.url); return; }
-    window.__bsToast?.(d?.error || 'Could not start checkout — try again.', 'err');
-  } catch (e) { window.__bsToast?.('Could not start checkout — try again.', 'err'); }
+  const fail = () => window.__bsToast?.(window.ShapeI18n?.t?.('settings:toast.upgradeUnavailable') || 'Could not start checkout — try again.', 'err');
+  const api = window.ShapeMembershipApi;
+  if (!api || !api.startCheckout) { fail(); return; }
+  const r = await api.startCheckout();
+  if (r.ok || r.code === 'already_member') return;
+  if (r.status === 401) { window.__bsGoAuth?.('create'); return; }
+  if (r.error) window.__bsToast?.(r.error, 'err'); else fail();
 }
 
 // The membership-resolving hold — the wire ground, no "Checking membership…"
@@ -1376,9 +1383,9 @@ function BSAppShell({ tweaks, setTweak }) {
     // paywall on reload. window cache first, then a persisted localStorage hint.
     try {
       if (window.ShapeMembership && typeof window.ShapeMembership.active === 'boolean') return { loading: false, active: window.ShapeMembership.active };
-      const ls = localStorage.getItem('shape.member');
-      if (ls === '1') return { loading: false, active: true };
-      if (ls === '0') return { loading: false, active: false };
+      // Only an answer recorded FOR the last signed-in account; another account's is not this one's.
+      const seed = bsMembershipSeed({ stored: localStorage.getItem('shape.member'), storedUid: localStorage.getItem('shape.memberUid'), lastUid: localStorage.getItem('shape.lastUid') });
+      if (seed !== null) return { loading: false, active: seed };
     } catch (e) {}
     return { loading: true, active: false };
   });
@@ -1466,36 +1473,46 @@ function BSAppShell({ tweaks, setTweak }) {
     return () => { cancelled = true; };
   }, [role]);
 
-  // Resolve membership whenever the signed-in user changes. Coaches bypass at
-  // the gate (by role), so this only matters for clients. Signed-out → inactive.
-  // Re-verifies in the background (no loading flash when we already have a value).
+  // Resolve membership whenever the signed-in user changes, from /api/me/membership (the
+  // gate's own answer, through the API base: the old root-relative read of
+  // /api/stripe/subscription reached nothing in the installed app, and read coaches and
+  // admins as inactive). Re-checked when the checkout's browser closes, when a checkout
+  // finds the account is a member already ('shape:membership-recheck'), and when the
+  // app comes back to the front. A lookup that fails keeps this account's last answer:
+  // it never locks out a confirmed member and never admits an unknown one.
   useEffectBSM(() => {
     if (!authReady) return () => {}; // wait for session restore before deciding
     let cancelled = false;
     const uid = authState?.user?.id;
     if (!uid) {
-      try { window.ShapeMembership = { active: false }; localStorage.removeItem('shape.member'); localStorage.removeItem('shape.lastUid'); } catch (e) {}
+      try { window.ShapeMembership = { active: false }; localStorage.removeItem('shape.member'); localStorage.removeItem('shape.memberUid'); localStorage.removeItem('shape.lastUid'); } catch (e) {}
       setMembership({ loading: false, active: false });
       return () => {};
     }
     // Persist the signed-in uid so the next cold boot can make the uid-scoped
     // warm-skip decision synchronously (the auth state hydrates async).
     try { localStorage.setItem('shape.lastUid', uid); } catch (e) {}
-    fetch('/api/stripe/subscription', { credentials: 'same-origin', cache: 'no-store' })
-      .then(r => (r.ok ? r.json() : Promise.reject(new Error('unreachable'))))
-      .then(d => {
-        const active = !!(d && d.active === true);
-        try { window.ShapeMembership = { active }; localStorage.setItem('shape.member', active ? '1' : '0'); } catch (e) {}
-        if (!cancelled) setMembership({ loading: false, active });
-      })
-      .catch(() => {
-        // Couldn't verify — fail-closed, but never lock out a previously-confirmed
-        // member: fall back to the last-known status (window/localStorage cache).
-        let cached = false;
-        try { cached = (window.ShapeMembership && window.ShapeMembership.active === true) || localStorage.getItem('shape.member') === '1'; } catch (e) {}
-        if (!cancelled) setMembership({ loading: false, active: cached });
-      });
-    return () => { cancelled = true; };
+    let known = null;
+    try { known = bsMembershipSeed({ stored: localStorage.getItem('shape.member'), storedUid: localStorage.getItem('shape.memberUid'), lastUid: uid }); } catch (e) {}
+    if (known === null) setMembership({ loading: true, active: false });
+    const run = () => Promise.resolve(window.ShapeMembershipApi?.check?.() ?? null).catch(() => null).then((answer) => {
+      if (cancelled) return;
+      if (answer === true || answer === false) {
+        known = answer;
+        try { window.ShapeMembership = { active: answer }; localStorage.setItem('shape.member', answer ? '1' : '0'); localStorage.setItem('shape.memberUid', uid); } catch (e) {}
+      }
+      setMembership({ loading: false, active: bsMembershipAfter(known, answer) });
+    });
+    run();
+    const onRecheck = () => { run(); };
+    const onVisible = () => { if (document.visibilityState === 'visible') run(); };
+    window.addEventListener('shape:membership-recheck', onRecheck);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('shape:membership-recheck', onRecheck);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [authState?.user?.id, authReady]);
 
   // Account gate for browse / no-account users. Deep screens call
@@ -1544,17 +1561,16 @@ function BSAppShell({ tweaks, setTweak }) {
   // needs an active subscription. Non-members can still "Preview the app" from
   // the paywall to look around behind a persistent Join banner.
   const realRole = authState?.profile?.role;
-  const isApprovedCoach = realRole === 'trainer' || realRole === 'nutritionist';
-  // Members-only, enforced at SIGNUP: account creation routes through $5/mo
-  // checkout (see submitAuth), so every signed-in account is a paying member.
-  // Therefore a signed-in user always gets in — the paywall is only for
-  // signed-OUT visitors. (We keep the coach + active-subscription checks so the
-  // gate still resolves before auth restores, and paid features remain enforced
-  // server-side per endpoint.) This fixes the paywall re-appearing after login
-  // when the subscription re-check is slow/unavailable for a real member.
+  // computeMembership's rule: a coach role (dietitians are coaches too, roles.mjs COACH_ROLES) as
+  // the primary role or among roles[]. Narrower, an approved coach met the paywall whenever the
+  // membership lookup failed (Codex on #2353, twice).
+  const realRoles = [realRole, ...(Array.isArray(authState?.profile?.roles) ? authState.profile.roles : [])];
+  const isApprovedCoach = realRoles.some((r) => r === 'trainer' || r === 'nutritionist' || r === 'dietitian');
+  // ⚠ SIGNED IN IS NOT A MEMBER (client-onboarding review H1, 2026-10-14; memberGate.mjs
+  // says why). The membership itself decides; a returning member is seeded from this
+  // account's last answer, so the paywall does not flash.
   const signedIn = !!(authState?.user?.id);
-  const memberAllowed = isApprovedCoach || signedIn || membership.active === true;
-  const memberGateLoading = !isApprovedCoach && !signedIn && (!authReady || membership.loading);
+  const { allowed: memberAllowed, loading: memberGateLoading } = bsMemberGate({ isApprovedCoach, authReady, membership });
 
   // The membership wall ('gate') sits between the wire beat and the "Shape
   // Daily" telegram: non-members see the paywall here; members auto-advance
@@ -1658,7 +1674,7 @@ function BSAppShell({ tweaks, setTweak }) {
         const headers = {};
         if (token) headers.Authorization = `Bearer ${token}`;
         // no-store: the answer is per-account, and this device can be shared.
-        const res = await fetch('/api/me/date-of-birth', { headers, credentials: 'same-origin', cache: 'no-store' });
+        const res = await bsApi.fetch('/api/me/date-of-birth', { headers, credentials: 'same-origin', cache: 'no-store' });
         // ⚠ A NON-OK RESPONSE MUST NOT HOLD ANYONE. 401 during a token
         // refresh, 5xx, an HTML error page from a proxy — none of them are
         // evidence that this member owes us a date.
@@ -1694,6 +1710,9 @@ function BSAppShell({ tweaks, setTweak }) {
     const r = st?.profile?.role;
     if (r) { setRole(r); setTweak('role', r); }
     setBrowseMode(false);
+    // A previewer who signs in is not previewing any more: left on, preview mode skipped
+    // the age check for the rest of the session (client-onboarding review L2).
+    setPreviewMode(false);
     setBannerDismissed(false);
     setNoticeDismissed(false);
     setLoginMode('signin');
