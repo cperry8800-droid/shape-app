@@ -213,3 +213,33 @@ test('the service worker precaches only files that exist, and the manifest opens
   const robots = readFileSync('public/robots.txt', 'utf8')
   for (const p of ALL_PAGES) assert.ok(!robots.includes(`/${p}.html`), `robots.txt still names /${p}.html`)
 })
+
+test('an old address with a query still opens the page it names, through the stub and the shell', async () => {
+  // Codex on #2352: `/workout.html?id=<assignment>` keeps its query through the redirect, the
+  // ClientTrain.html stub forwards it after the hash (`ClientApp.html#workouts?id=…`), and the
+  // member shell read the whole hash as the route, so the member landed on Today. The shell now
+  // reads the route up to the "?", as the coach shells do. This follows the whole chain.
+  const { redirects } = await loadConfig()
+  const shell = readFileSync('public/newdesign/ClientApp.html', 'utf8')
+  const slugLine = shell.match(/^function caSlug\(\) \{.*\}$/m)
+  assert.ok(slugLine, 'caSlug() not found in ClientApp.html')
+  const routes = new Set(['today', 'workouts', 'team', 'profile'])
+  const caSlug = (hash) => new Function('window', 'caHasRoute', `${slugLine[0]}; return caSlug();`)({ location: { hash } }, (h) => routes.has(h))
+  // The stub's own script, run against a location that carries the query.
+  const follow = (stub, search) => {
+    const script = readFileSync(`public${stub}`, 'utf8').match(/<script>(location\.replace\([^<]*\);)<\/script>/)
+    assert.ok(script, `${stub} is no longer a one-line forward`)
+    let to = null
+    new Function('location', script[1])({ search, replace: (u) => { to = u } })
+    return new URL(to, 'https://www.theshapecommunity.com' + stub)
+  }
+  for (const [old, route] of [['/workout.html', 'workouts'], ['/my-workouts.html', 'workouts'], ['/my-team.html', 'team'], ['/clients.html', 'today']]) {
+    const { destination } = resolve(redirects, old, { id: '5' })
+    const landed = follow(destination, '?id=5')
+    assert.equal(landed.pathname, '/newdesign/ClientApp.html', old)
+    assert.equal(caSlug(landed.hash), route, `${old}?id=5 opens ${caSlug(landed.hash)}, not ${route}`)
+  }
+  // And a link with no query is unchanged.
+  assert.equal(caSlug('#workouts'), 'workouts')
+  assert.equal(caSlug('#nonsense?x=1'), 'today')
+})

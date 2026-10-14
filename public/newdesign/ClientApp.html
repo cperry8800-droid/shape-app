@@ -159,7 +159,11 @@ function ClientSettingsPage() {
 // Object.prototype, renders an Object into React and white-screens the SPA.
 // Both coach shells were hardened against this; the client shell was not.
 function caHasRoute(h) { return Object.prototype.hasOwnProperty.call(CA_ROUTES, h); }
-function caSlug() { const h = (window.location.hash || "").replace(/^#/, "").toLowerCase(); return caHasRoute(h) ? h : "today"; }
+// The route is the hash up to any "?", as the coach shells read it (taParse / naParse). Every
+// stub forwards its query after the hash (`ClientTrain.html?id=5` → `#workouts?id=5`), so
+// without the split a query sent the member to Today instead of the page they asked for:
+// Codex on #2352, for the old `/workout.html?id=` links that now redirect to ClientTrain.html.
+function caSlug() { const h = (window.location.hash || "").replace(/^#/, "").split("?")[0].toLowerCase(); return caHasRoute(h) ? h : "today"; }
 function ClientApp() {
   const [route, setRoute] = React.useState(caSlug());
   React.useEffect(() => {
