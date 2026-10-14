@@ -466,7 +466,18 @@ function LvServices({ d, light, ink, c, owner, onReviews, stHead, ratingAvg, rev
     try {
       const res = await fetch("/api/stripe/checkout-session", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ item: { type: "plan", name: o.name, price: o.price, planId: o.planId }, coach: { provider_id: o.providerId, provider_role: o.providerRole }, ref: (window.ShapeCoachRef && window.ShapeCoachRef.token()) || undefined, successPath: "/purchase/success", cancelPath: "/newdesign/MemberProfile.html" }) });
       const j = await res.json().catch(() => ({}));
-      if (j.url) window.location.href = j.url; else alert(j.error === "membership_required" ? "Become a Shape member to buy plans." : (j.error || "Could not start checkout."));
+      if (j.url) { window.location.href = j.url; return; }
+      // Coaching needs the $5 membership first (owner, 2026-10-14). The route answers 402 with
+      // the gate's own code; it never put "membership_required" in `error`, so this branch used
+      // to be unreachable and a non-member read the bare sentence instead.
+      if (res.status === 402 && j.code === "membership_required" && window.ShapeMembership) {
+        if (window.confirm("Plans are for Shape members. Start your $5/month membership now? You'll come back here to buy the plan.")) {
+          const r = await window.ShapeMembership.start();
+          if (r && r.error) alert(r.error);
+        }
+        return;
+      }
+      alert(j.error || "Could not start checkout.");
     } catch (e) { alert("Could not start checkout."); }
   };
   // categories present, in stable order
@@ -766,6 +777,12 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
   const [wl, setWl] = React.useState(null);       // { status, position, entryId } | null
   const [wlErr, setWlErr] = React.useState("");
   const [buyErr, setBuyErr] = React.useState("");
+  // Coaching needs the $5 membership first (owner, 2026-10-14): a 402 from the checkout shows
+  // the join prompt, and the membership checkout comes back here with `member=joined` (or
+  // `member=pending` while Stripe clears the payment).
+  const [needsMember, setNeedsMember] = React.useState(false);
+  const [joinErr, setJoinErr] = React.useState("");
+  const memberReturn = React.useMemo(() => { try { return new URLSearchParams(window.location.search).get("member"); } catch (e) { return null; } }, []);
   // ⚠ THE ACCOUNT, NOT A BOOLEAN — and that is the whole of CodeRabbit's finding on
   // this PR. A boolean cannot tell A from B, so an A→B switch does not change it, the
   // hydrate below does not re-run, and A's in-flight /mine response lands on B's
@@ -880,7 +897,7 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
   // page, and it costs more trust than a control that leads nowhere.
   const subscribe = async () => {
     if (busy.current) return;
-    setBuyErr(""); setWlErr("");
+    setBuyErr(""); setWlErr(""); setNeedsMember(false); setJoinErr("");
     if (!provId) { setBuyErr("This coach isn't set up for checkout yet — message " + first + " instead."); return; }
     busy.current = true;
     try {
@@ -890,10 +907,26 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
       // The route's own FLAG, never a sniff of its prose — two different 409s leave
       // that route and only the sentence told them apart.
       if (j && j.reason === "at_capacity") { setCapSrv(true); return; }
+      if (res.status === 402 && j && j.code === "membership_required") { setNeedsMember(true); return; }
       setBuyErr((j && j.error) || "Could not start checkout.");
     } catch (e) { setBuyErr("Could not start checkout — check your connection and try again."); }
     finally { busy.current = false; }
   };
+  // The join prompt and the post-join note, shown under both Subscribe buttons (the open
+  // storefront and the at-capacity invite).
+  const joinPrompt = (
+    <React.Fragment>
+      {!needsMember && memberReturn === "joined" ? <div role="status" style={{ marginTop: 11, fontFamily: lvSans, fontSize: 12.5, color: hexA(ink, 0.85) }}>Your Shape membership is active. You can subscribe to {first} now.</div> : null}
+      {!needsMember && memberReturn === "pending" ? <div role="status" style={{ marginTop: 11, fontFamily: lvSans, fontSize: 12.5, color: hexA(ink, 0.85) }}>Your membership payment is still clearing. Try Subscribe again in a minute.</div> : null}
+      {needsMember ? (
+        <div role="alert" style={{ marginTop: 12, maxWidth: 420, border: `1px solid ${hexA(ink, 0.25)}`, borderRadius: 8, padding: "12px 14px" }}>
+          <div style={{ fontFamily: lvSans, fontSize: 13, lineHeight: 1.5, color: ink }}>Coaching is for Shape members. Start your $5/month membership first, and you'll come back here to subscribe to {first}.</div>
+          <button onClick={async () => { setJoinErr(""); const r = window.ShapeMembership ? await window.ShapeMembership.start() : { error: "Could not start checkout. Reload the page and try again." }; if (r && r.error) setJoinErr(r.error); }} style={{ marginTop: 10, padding: "11px 16px", borderRadius: 8, border: 0, background: c, color: "#0c0a08", cursor: "pointer", fontFamily: lvMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Start membership · $5/month</button>
+          {joinErr ? <div style={{ marginTop: 8, fontFamily: lvMono, fontSize: 10.5, fontWeight: 700, color: "#c0533b" }}>{joinErr}</div> : null}
+        </div>
+      ) : null}
+    </React.Fragment>
+  );
   const reviewsAvg = (revAgg && revAgg.count > 0) ? revAgg.avg
     : (liveReviews && liveReviews.length) ? Math.round((liveReviews.reduce((s, r) => s + (r.rating || 0), 0) / liveReviews.length) * 10) / 10 : null;
   const reviewsCount = revAgg ? revAgg.count : (liveReviews && liveReviews.length ? liveReviews.length : d.reviewCount);
@@ -954,6 +987,7 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
           </div>
           {buyErr ? <div role="alert" style={{ marginTop: 11, fontFamily: lvMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", color: "#c0533b" }}>{buyErr}</div> : null}
           {buyErr && window.ShapeAskNoraLink ? <window.ShapeAskNoraLink label="Ask Nora what happened" draft="My checkout didn't go through. What happened?" problem={{ kind: "payment", message: buyErr }} /> : null}
+          {joinPrompt}
           </div>
         </div>
       )}
@@ -1022,6 +1056,7 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
             {wlErr ? <div role="alert" style={{ marginTop: 11, fontFamily: lvMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", color: "#c0533b" }}>{wlErr}</div> : null}
             {buyErr ? <div role="alert" style={{ marginTop: 11, fontFamily: lvMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", color: "#c0533b" }}>{buyErr}</div> : null}
             {buyErr && window.ShapeAskNoraLink ? <window.ShapeAskNoraLink label="Ask Nora what happened" draft="My checkout didn't go through. What happened?" problem={{ kind: "payment", message: buyErr }} /> : null}
+            {joinPrompt}
           </div>
         </div>
       )}

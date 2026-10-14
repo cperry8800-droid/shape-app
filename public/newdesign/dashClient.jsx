@@ -903,4 +903,86 @@ function ClientDashboardPage() {
   );
 }
 
-Object.assign(window, { ClientDashboardPage, DashWorkoutCard, DashMealLedgerCard, DashTodayCard });
+// ── Join panel: a signed-in account that has not started the $5 membership ──────────────
+// ⚠ THIS ACCOUNT USED TO GET SOMEONE ELSE'S DASHBOARD. Every /api/client read answers 402 to a
+// non-member, so useDashboard fell back to the demo member ("Welcome back, Priya") under a
+// "Preview · demo data" band whose only button was "Sign in", the page they were already on.
+// Nothing offered the membership. ClientApp.html now asks /api/me/membership first and renders
+// this panel for every tab but Settings until the account is a member.
+// `member=pending` in the URL means Stripe took the payment but the membership was not
+// confirmed on the way back (platform-return); the panel re-asks for a minute before
+// offering the button again.
+const DCL_JOIN_PERKS = [
+  "Build your own workouts, coach optional",
+  "Meal logging and macro tracking",
+  "Shape Kitchen recipes and guided cooking",
+  "Shape Score points to spend in the Store",
+  "Shape Radio and Nora",
+  "Subscribe to trainers and nutritionists when you want one",
+];
+
+function ClientJoinPage() {
+  const pending = (() => { try { return new URLSearchParams(window.location.search).get("member") === "pending"; } catch (e) { return false; } })();
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState("");
+  const [waiting, setWaiting] = React.useState(pending);
+  React.useEffect(() => {
+    if (!pending) return;
+    let on = true; let tries = 0;
+    const tick = () => {
+      if (!on) return;
+      fetch("/api/me/membership", { credentials: "same-origin", cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null)).catch(() => null)
+        .then((d) => {
+          if (!on) return;
+          if (d && d.member === true) { window.location.replace(window.location.pathname + "?member=joined#today"); return; }
+          if (++tries >= 20) { setWaiting(false); return; }
+          setTimeout(tick, 3000);
+        });
+    };
+    tick();
+    return () => { on = false; };
+  }, []);
+  const join = async () => {
+    if (busy) return;
+    setBusy(true); setErr("");
+    const r = window.ShapeMembership ? await window.ShapeMembership.start("/newdesign/ClientApp.html#today") : { error: "Could not start checkout. Reload the page and try again." };
+    if (r && r.code === "already_member") { window.location.reload(); return; }
+    if (r && r.error) setErr(r.error);
+    setBusy(false);
+  };
+  const btn = { fontFamily: DCL_MONO, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--sh-deep, #06231f)", background: DCL_TEAL, border: 0, borderRadius: 4, padding: "13px 20px", cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1 };
+  return (
+    <DashFrame navItems={clientNavItems("today")} payoutCard={null}>
+      <main style={{ padding: "40px 32px 80px", minWidth: 0, maxWidth: 680 }}>
+        <div style={{ fontFamily: DCL_MONO, fontSize: 10.5, letterSpacing: "0.14em", color: DCL_TEAL, textTransform: "uppercase" }}>Shape membership</div>
+        <h1 style={{ fontFamily: serif, fontSize: 34, letterSpacing: "-0.02em", fontWeight: 500, margin: "10px 0 0", lineHeight: 1.08 }}>
+          {waiting ? "Confirming your membership." : "Your account is ready. Start your membership to use it."}
+        </h1>
+        <p style={{ fontSize: 15, lineHeight: 1.6, color: DCL_INK50, margin: "14px 0 0" }}>
+          {waiting
+            ? "Stripe has your payment and we are waiting for it to clear. This page opens your dashboard as soon as it does."
+            : "Everything in the app is included for $5 a month. Coaches are optional, and each one is a separate subscription."}
+        </p>
+        {!waiting && (
+          <ul style={{ listStyle: "none", padding: 0, margin: "22px 0 0", display: "grid", gap: 8 }}>
+            {DCL_JOIN_PERKS.map((t) => (
+              <li key={t} style={{ fontSize: 14, display: "flex", gap: 10, alignItems: "baseline" }}>
+                <span aria-hidden style={{ color: DCL_TEAL, fontFamily: DCL_MONO }}>✓</span><span>{t}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {!waiting && (
+          <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", marginTop: 28 }}>
+            <button type="button" onClick={join} disabled={busy} style={btn}>{busy ? "Opening checkout…" : "Start membership · $5/month"}</button>
+            <span style={{ fontFamily: DCL_MONO, fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: DCL_INK50 }}>Cancel any time in Settings</span>
+          </div>
+        )}
+        {err && <div role="alert" style={{ marginTop: 14, fontSize: 13.5, color: DCL_RED }}>{err}</div>}
+      </main>
+    </DashFrame>
+  );
+}
+
+Object.assign(window, { ClientDashboardPage, ClientJoinPage, DashWorkoutCard, DashMealLedgerCard, DashTodayCard });

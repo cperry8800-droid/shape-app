@@ -23,6 +23,8 @@ import { hasActiveWaitlistInvite } from '@/lib/waitlist';
 import { coachProfileHref } from '@/lib/coach-profile-href';
 import { resolveCoachCheckoutOrigin } from '@/lib/coach-origin';
 import { bpsToPercent } from '@/lib/platform-fee';
+import { ACTIVE_SUB, computeMembership } from '@/lib/membership-core';
+import { createPlatformCheckout } from '@/lib/platform-membership';
 
 type ProviderRole = 'trainer' | 'nutritionist';
 
@@ -103,6 +105,45 @@ export async function startCheckout(formData: FormData): Promise<void> {
     redirect(`/login?next=${encodeURIComponent(backHref)}`);
   }
 
+  const siteOrigin = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+
+  // ⚠ COACHING NEEDS AN ACTIVE SHAPE MEMBERSHIP (owner, 2026-10-14), the same rule as
+  // /api/stripe/checkout-session. A non-member goes through the $5 checkout first and comes
+  // back to this coach's profile; nothing is charged for the coach until they choose again.
+  // ⚠ redirect() throws, so it is never called inside a try here.
+  let membership: Awaited<ReturnType<typeof computeMembership>> | null = null;
+  try {
+    membership = await computeMembership(supabase, user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at });
+  } catch {
+    membership = null;
+  }
+  if (!membership) redirect(`${backHref}&error=membership_check_failed`);
+  if (membership.isKnownMinor) redirect(`${backHref}&error=age_restricted`);
+  if (!membership.isMember) {
+    const priceId = process.env.STRIPE_PLATFORM_PRICE_ID;
+    let joinUrl: string | null = null;
+    if (priceId) {
+      try {
+        joinUrl = await createPlatformCheckout({ priceId, userId: user.id, email: user.email ?? null, origin: siteOrigin, next: backHref, cancelPath: backHref });
+      } catch (e) {
+        console.error('[subscribe] membership checkout failed', e);
+      }
+    }
+    redirect(joinUrl ?? `${backHref}&error=membership_required`);
+  }
+
+  // One live subscription per coach: paying twice made two monthly charges.
+  const { data: existing, error: existingErr } = await supabase
+    .from('subscriptions')
+    .select('status')
+    .eq('client_id', user.id)
+    .eq('provider_id', providerId)
+    .eq('provider_role', providerRole);
+  if (existingErr) redirect(`${backHref}&error=subscription_check_failed`);
+  if ((existing ?? []).some((row: { status?: unknown }) => ACTIVE_SUB.has(String(row.status)))) {
+    redirect(`${backHref}&error=already_subscribed`);
+  }
+
   // First-dibs: a live waitlist invite lets an at-capacity coach be subscribed
   // to. Invite lookup runs on the caller's RLS-scoped client, inside a try so a
   // lookup/env failure fails the same retryable way as the rest of setup.
@@ -123,8 +164,6 @@ export async function startCheckout(formData: FormData): Promise<void> {
   if ('error' in priceResult) {
     redirect(`${backHref}&error=${encodeURIComponent(priceResult.error)}`);
   }
-
-  const siteOrigin = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 
   // BYO commission split: resolve WHY this checkout exists → the resolved fee.
   // A client the coach brought (an already-bound referral) pays 0%; a marketplace

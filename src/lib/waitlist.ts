@@ -23,7 +23,9 @@ export type ProviderRole = 'trainer' | 'nutritionist';
 export const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export type RequestUser = { id: string; email: string | null };
+// `emailConfirmed` is what admin recognition needs (membership-core.ts, L14): an admin is an
+// allow-listed address Supabase has confirmed.
+export type RequestUser = { id: string; email: string | null; emailConfirmed?: boolean };
 
 // Resolve the caller AND a caller-scoped (RLS-enforced) Supabase client from a
 // cookie session OR a Supabase Bearer token, so user-initiated waitlist actions
@@ -45,12 +47,12 @@ export async function resolveRequestClient(
     });
     const { data } = await supabase.auth.getUser(token);
     if (!data.user) return null;
-    return { user: { id: data.user.id, email: data.user.email ?? null }, supabase };
+    return { user: { id: data.user.id, email: data.user.email ?? null, emailConfirmed: !!data.user.email_confirmed_at }, supabase };
   }
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
   if (!data.user) return null;
-  return { user: { id: data.user.id, email: data.user.email ?? null }, supabase };
+  return { user: { id: data.user.id, email: data.user.email ?? null, emailConfirmed: !!data.user.email_confirmed_at }, supabase };
 }
 
 // Back-compat: just the caller (used where the RLS-scoped client isn't needed).

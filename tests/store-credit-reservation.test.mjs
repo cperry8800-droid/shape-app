@@ -157,6 +157,8 @@ async function runCheckout({ reserve, stripeCreate = 'ok' }) {
       ['@/lib/platform-fee', platformFee],
       ['@/lib/coach-origin', { resolveCoachCheckoutOrigin: async () => ({ origin: 'marketplace', feeBps: 1500, referralId: null }) }],
       ['@/lib/return-path', returnPath],
+      // The buyer is a member: coaching needs the $5 membership (tests/membership-first.test.mjs).
+      ['@/lib/membership-core', { ACTIVE_SUB: new Set(['active', 'trialing', 'past_due']), computeMembership: async () => ({ isMember: true, isCoach: false, isAdmin: false, isKnownMinor: false }) }],
     ]),
   });
   const req = new Request('https://shape.test/api/stripe/checkout-session', {

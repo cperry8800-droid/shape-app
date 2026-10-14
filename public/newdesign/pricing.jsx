@@ -1,23 +1,16 @@
 // Pricing — single $5/mo tier. Spatial Cinema language. Trainers & nutritionists price themselves.
 
-// Kicks off the Shape Platform $5/mo checkout. Uses the Supabase session
-// cookie shared with the Next.js app. If not signed in, API 401s with a redirect hint.
+// Kicks off the Shape Platform $5/mo checkout through the site's one membership door
+// (pageShell.jsx, window.ShapeMembership): a signed-out visitor goes to sign-up, a member
+// who joined comes back to their dashboard, and one who is already a member goes straight
+// there instead of buying a second membership.
 async function startPlatformCheckout(e) {
   e.preventDefault();
-  try {
-    const res = await fetch('/api/stripe/platform-checkout', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ successPath: '/subscribe/success', cancelPath: '/pricing' }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (res.ok && data.url) { window.location.href = data.url; return; }
-    if (res.status === 401) { window.location.href = '/newdesign/Landing.html'; return; }
-    alert((data && data.error) || 'Could not start checkout. Please try again.');
-  } catch (err) {
-    console.error('[pricing] checkout failed', err);
-    alert('Network error starting checkout. Please try again.');
-  }
+  const home = "/newdesign/ClientApp.html#today";
+  if (!window.ShapeMembership) { alert("Could not start checkout. Reload the page and try again."); return; }
+  const r = await window.ShapeMembership.start(home, "/newdesign/Pricing.html");
+  if (r && r.code === "already_member") { window.location.href = home; return; }
+  if (r && r.error) alert(r.error);
 }
 
 // ⚠ THE APP FIRST, THE COACHES AFTER — owner, 2026-10-09: "we also need to market

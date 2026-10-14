@@ -1941,6 +1941,39 @@ function shapeConfirmOpen(opts) {
 }
 Object.assign(window, { ShapeConfirm: { open: shapeConfirmOpen } });
 
+// ── The $5 membership checkout, from any page ─────────────────────────────────
+// One door for every "start your membership" button on the website: the client
+// dashboard's join panel, a coach's profile when coaching needs the membership first
+// (owner, 2026-10-14), Pricing. `returnTo` is the page to come back to; the server
+// confirms the payment on the way back (/api/stripe/platform-return) and adds
+// `member=joined`, or `member=pending` when Stripe has not cleared it yet. A cancelled
+// checkout returns to `cancelTo`, else to `returnTo`.
+// Resolves to null when the page is navigating away, else { error, code } to show.
+function shapeMembershipHere() {
+  try {
+    const q = new URLSearchParams(window.location.search);
+    q.delete("member");
+    const qs = q.toString();
+    return window.location.pathname + (qs ? "?" + qs : "") + window.location.hash;
+  } catch (e) { return "/newdesign/ClientApp.html#today"; }
+}
+async function shapeStartMembership(returnTo, cancelTo) {
+  const back = returnTo || shapeMembershipHere();
+  try {
+    const res = await fetch("/api/stripe/platform-checkout", {
+      method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ returnTo: back, cancelPath: cancelTo || back }),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (res.ok && j.url) { window.location.href = j.url; return null; }
+    if (res.status === 401) { window.location.href = "/newdesign/Landing.html"; return null; }
+    return { error: (j && j.error) || "Could not start checkout. Try again.", code: (j && j.code) || null };
+  } catch (e) {
+    return { error: "Could not start checkout. Check your connection and try again.", code: null };
+  }
+}
+Object.assign(window, { ShapeMembership: { start: shapeStartMembership, here: shapeMembershipHere } });
+
 // ⚠ THE `#site-footer` AUTO-MOUNT IS GONE, AND IT WAS RENDERING EVERY MARKETING
 // FOOTER TWICE. It mounted a second <Footer /> into any page carrying
 // <div id="site-footer"></div>, in a root of its own after #root — and it never

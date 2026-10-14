@@ -6,7 +6,8 @@ import { hasActiveWaitlistInvite, resolveRequestClient } from '@/lib/waitlist';
 import { readJson, dbError } from '@/lib/request-utils';
 import { feeSplit, maxCreditCents, bpsToRate, bpsToPercent } from '@/lib/platform-fee';
 import { resolveCoachCheckoutOrigin } from '@/lib/coach-origin';
-import { sameOriginPath } from '@/lib/return-path';
+import { appendParam, sameOriginPath } from '@/lib/return-path';
+import { ACTIVE_SUB, computeMembership } from '@/lib/membership-core';
 
 export const runtime = 'nodejs';
 
@@ -71,6 +72,24 @@ export async function POST(request: Request) {
   const auth = await resolveRequestClient(request);
   if (!auth) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
   const { user, supabase: caller } = auth;
+
+  // ⚠ COACHING NEEDS AN ACTIVE SHAPE MEMBERSHIP (owner, 2026-10-14: "need to be an active member
+  // to access platform"). This route never asked, so a signed-in non-member could pay a coach and
+  // then be refused messages, the plan and the dashboard by the membership gate. The refusal
+  // carries the same code the gate uses, so a caller sends the member to the $5 checkout first.
+  // Fail closed: no payment starts on a membership we could not read.
+  try {
+    const m = await computeMembership(caller, user.id, user.email ?? null, { emailConfirmed: user.emailConfirmed === true });
+    if (m.isKnownMinor) {
+      return NextResponse.json({ error: 'Shape is for adults 18 and over.', code: 'age_restricted' }, { status: 403 });
+    }
+    if (!m.isMember) {
+      return NextResponse.json({ error: 'Shape membership required.', code: 'membership_required' }, { status: 402 });
+    }
+  } catch (err) {
+    console.error('[shape-app] checkout membership read failed', err);
+    return NextResponse.json({ error: 'Could not check your membership. Try again in a moment.' }, { status: 503 });
+  }
 
   let body: CheckoutBody = {};
   const bodyResult = await readJson<CheckoutBody>(request, { allowEmpty: true });
@@ -146,6 +165,24 @@ export async function POST(request: Request) {
   const feeRate = bpsToRate(feeBps);
 
   const isSubscription = String(body.item?.type || '').toLowerCase() === 'subscription';
+  // ⚠ A SECOND SUBSCRIPTION TO THE SAME COACH WAS ONE PRESS AWAY. A member back from Stripe
+  // before the webhook landed still saw Subscribe, and paying again made two monthly charges.
+  // Read on the caller's own client ("clients read own subscriptions"); a failed read refuses.
+  if (isSubscription) {
+    const { data: existing, error: existingErr } = await caller
+      .from('subscriptions')
+      .select('status')
+      .eq('client_id', user.id)
+      .eq('provider_id', providerId)
+      .eq('provider_role', providerRole);
+    if (existingErr) return dbError(existingErr, 'checkout existing subscription lookup', 503);
+    if ((existing ?? []).some((row: { status?: unknown }) => ACTIVE_SUB.has(String(row.status)))) {
+      return NextResponse.json(
+        { error: "You're already subscribed to this coach.", reason: 'already_subscribed' },
+        { status: 409 }
+      );
+    }
+  }
   const itemName = body.item?.name || (isSubscription ? 'Monthly coaching' : 'One-time purchase');
   const fallbackOneTimePrice =
     providerRole === 'trainer'
@@ -371,7 +408,7 @@ export async function POST(request: Request) {
               },
             },
           }),
-      success_url: `${origin}${successPath}?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${origin}${appendParam(successPath, 'session_id', '{CHECKOUT_SESSION_ID}')}`,
       cancel_url: `${origin}${cancelPath}`,
       allow_promotion_codes: isSubscription,
     });
