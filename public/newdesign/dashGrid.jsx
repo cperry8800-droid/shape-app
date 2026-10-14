@@ -1031,7 +1031,14 @@ function DashGrid({ role, tab = "today", widgets }) {
       if (destroyed || !elRef.current) return;
       const grid = window.GridStack.init({
         column: 12, columnOpts: { breakpointForWindow: true, breakpoints: [{ w: 768, c: 1 }] },
-        cellHeight: 2, margin: 8, float: true,
+        // ⚠ float:false, SO A CARD THAT SHRINKS LETS THE CARDS BELOW IT RISE. With float:true
+        // the ordered pack below ran once, on first paint, and every later fit only resized:
+        // a card that rendered tall (a loading state, a demo row) and then shrank to its live
+        // contents left its old height behind as a hole, and a saved layout kept the holes of
+        // whatever heights it was saved at. Measured 2026-10-14: both top cards shrinking left
+        // 682px of empty grid above the next card; with float:false, 0. A drag still places a
+        // card, it just cannot leave empty rows above it — every account starts packed.
+        cellHeight: 2, margin: 8, float: false,
         // A mouse drags the whole card (and the grip); a touch screen drags only the
         // grip, so a swipe anywhere else on a card still scrolls the page. Both exist
         // before React portals mount (see dgItemShell). Dragging must never intercept a
@@ -1244,8 +1251,8 @@ function DashGrid({ role, tab = "today", widgets }) {
       try { grid.load(layout, false); } catch (e) {}
     };
     // Fit heights, then (on a fresh/demo layout) re-apply the ordered pack. This must run on
-    // EVERY fit — including window resize — because a bare resizeToContent re-cascades with
-    // float:true and would undo the ordered grid.load. relayoutInOrder is idempotent (grid.load
+    // EVERY fit — including window resize — because a bare resizeToContent re-cascades the
+    // grid and would undo the ordered grid.load. relayoutInOrder is idempotent (grid.load
     // of the same computed layout), so re-running it just re-asserts the tidy layout. On a saved
     // layout we only fit heights and leave the user's placement alone.
     const run = () => {

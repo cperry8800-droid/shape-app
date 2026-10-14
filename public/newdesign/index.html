@@ -299,7 +299,7 @@
 
   /* ── the moments strip (replaces 525vh of pinned scroll) ── */
   .mo-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
-  .mo{border:1px solid var(--line);border-radius:10px;background:var(--card);padding:18px;overflow:hidden}
+  .mo{border:1px solid var(--line);border-radius:10px;background:var(--card);padding:18px;overflow:hidden;transition:border-color .25s}
   .mo h3{font-size:20px;margin-top:6px}
   .mo .shot{position:relative;margin-top:16px;border-radius:8px;overflow:hidden;aspect-ratio:3/4;
             background:var(--ink-3);border:1px solid var(--line-2)}
@@ -321,7 +321,7 @@
      or the midpoint of the gap where its neighbours are closer than that. */
   .mo .shot img{display:block;width:100%;height:auto;transform:translateY(calc(var(--y) * -1))}
   .mo .hl{position:absolute;left:2.5%;right:2.5%;border:1.5px solid var(--teal);border-radius:6px;
-          box-shadow:0 0 0 3px rgba(var(--teal-rgb),.12);opacity:0;transition:opacity .5s}
+          box-shadow:0 0 0 3px rgba(var(--teal-rgb),.12);opacity:0;transition:opacity .25s}
   .mo.on .hl{opacity:1}
   .mo.on{border-color:rgba(var(--teal-rgb),.34)}
 
@@ -922,7 +922,7 @@
 
 <!-- ══ 01 · THE LOOP ══════════════════════════════════════════
      Was 525vh of pinned scroll behind five static PNGs. Now an auto-playing
-     strip: four states of the real app, one highlighted every 3.2 s. -->
+     strip: four states of the real app, one highlighted every 1.6 s. -->
 <section class="s" id="moments">
   <div class="wrap">
     <div class="sh">
@@ -1437,7 +1437,7 @@
 
 <script>
 /* ══ THE MOMENTS STRIP ═══════════════════════════════════════════════════════
-   Four states of the app, one lit every 3.2 s. Replaces 525vh of pinned scroll:
+   Four states of the app, one lit every 1.6 s (owner, 2026-10-14: faster). Replaces 525vh of pinned scroll:
    nothing here needs the visitor to scroll, and nothing moves off screen. */
 (function(){
   var grid=document.getElementById('mo-grid'); if(!grid) return;
@@ -1451,7 +1451,7 @@
   /* Only run while the strip is actually on screen — a timer ticking behind six
      screens of page is work nobody can see. */
   var io=new IntersectionObserver(function(es){ es.forEach(function(e){
-    if(e.isIntersecting){ if(!iv) iv=setInterval(tick,3200); }
+    if(e.isIntersecting){ if(!iv) iv=setInterval(tick,1600); }
     else { clearInterval(iv); iv=null; } }); },{threshold:.2});
   io.observe(grid);
 })();
