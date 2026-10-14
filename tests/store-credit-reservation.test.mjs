@@ -161,6 +161,8 @@ async function runCheckout({ reserve, stripeCreate = 'ok' }) {
       ['@/lib/membership-core', { ACTIVE_SUB: new Set(['active', 'trialing', 'past_due']), computeMembership: async () => ({ isMember: true, isCoach: false, isAdmin: false, isKnownMinor: false }) }],
       ['@/lib/stripe-live-subscription', { hasLiveStripeSubscription: async () => false }],
       ['@/lib/stripe-customer', { stripeCustomerFor: async () => 'cus_stable' }],
+      // One-time purchases are not held to the one-open-checkout rule (tests/membership-first.test.mjs).
+      ['@/lib/checkout-barrier', { checkoutIdempotencyKey: () => 'unused', currentCheckout: async () => null, isCheckoutInProgress: () => false }],
     ]),
   });
   const req = new Request('https://shape.test/api/stripe/checkout-session', {

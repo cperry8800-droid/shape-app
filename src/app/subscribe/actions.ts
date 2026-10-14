@@ -27,13 +27,17 @@ import { ACTIVE_SUB } from '@/lib/membership-core';
 import { membershipDetour } from '@/lib/membership-detour';
 import { stripeCustomerFor } from '@/lib/stripe-customer';
 import { hasLiveStripeSubscription } from '@/lib/stripe-live-subscription';
+import { checkoutIdempotencyKey, currentCheckout, isCheckoutInProgress } from '@/lib/checkout-barrier';
 
 type ProviderRole = 'trainer' | 'nutritionist';
 
 async function getProviderConnectInfo(
   providerRole: ProviderRole,
   providerId: number,
-  allowAtCapacity = false
+  allowAtCapacity = false,
+  // One checkout per account and coach at a time (checkout-barrier.ts): the product, price and
+  // session of a double press share idempotency keys, so Stripe hands back the same ones.
+  idempotencyKey?: string
 ): Promise<
   | { priceId: string; priceCents: number; stripeAccountId: string }
   | { error: string }
@@ -67,14 +71,14 @@ async function getProviderConnectInfo(
   const product = await stripe.products.create({
     name: `${provider.name} — ${providerRole} subscription`,
     metadata: { provider_id: String(provider.id), provider_role: providerRole },
-  });
+  }, idempotencyKey ? { idempotencyKey: `${idempotencyKey}-product` } : undefined);
   const price = await stripe.prices.create({
     product: product.id,
     currency: 'usd',
     unit_amount: priceCents,
     recurring: { interval: 'month' },
     metadata: { provider_id: String(provider.id), provider_role: providerRole },
-  });
+  }, idempotencyKey ? { idempotencyKey: `${idempotencyKey}-price` } : undefined);
 
   return {
     priceId: price.id,
@@ -157,10 +161,25 @@ export async function startCheckout(formData: FormData): Promise<void> {
     redirect(`${backHref}&error=waitlist_check_failed`);
   }
 
+  // One payable checkout per account and coach at a time (checkout-barrier.ts): an open one is
+  // handed back before anything is created for a second.
+  const now = Date.now();
+  let open: string | null = null;
+  try {
+    open = await currentCheckout(customerId, (s) => s.mode === 'subscription'
+      && s.metadata?.provider_id === String(providerId) && s.metadata?.provider_role === providerRole, now);
+  } catch (e) {
+    console.error('[subscribe] open checkout lookup failed', e);
+    redirect(`${backHref}&error=checkout_failed`);
+  }
+  if (open) redirect(open);
+
+  const checkoutKey = checkoutIdempotencyKey(user.id, `coach-${providerRole}-${providerId}`, now);
   let priceResult;
   try {
-    priceResult = await getProviderConnectInfo(providerRole, providerId, allowAtCapacity);
+    priceResult = await getProviderConnectInfo(providerRole, providerId, allowAtCapacity, checkoutKey);
   } catch (e) {
+    if (isCheckoutInProgress(e)) redirect(`${backHref}&error=checkout_in_progress`);
     const msg = e instanceof Error ? e.message : String(e);
     redirect(`${backHref}&error=${encodeURIComponent(`stripe_setup: ${msg}`.slice(0, 300))}`);
   }
@@ -211,8 +230,9 @@ export async function startCheckout(formData: FormData): Promise<void> {
       success_url: `${siteOrigin}/subscribe/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${siteOrigin}${backHref}&error=subscribe_cancelled`,
       allow_promotion_codes: true,
-    });
+    }, { idempotencyKey: checkoutKey });
   } catch (e) {
+    if (isCheckoutInProgress(e)) redirect(`${backHref}&error=checkout_in_progress`);
     const msg = e instanceof Error ? e.message : String(e);
     redirect(`${backHref}&error=${encodeURIComponent(`stripe: ${msg}`.slice(0, 300))}`);
   }

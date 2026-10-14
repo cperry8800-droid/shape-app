@@ -22,6 +22,7 @@ import { computeMembership } from '@/lib/membership-core';
 import { createPlatformCheckout, MEMBERSHIP_HOME } from '@/lib/platform-membership';
 import { hasLiveStripeSubscription } from '@/lib/stripe-live-subscription';
 import { stripeCustomerFor } from '@/lib/stripe-customer';
+import { isCheckoutInProgress } from '@/lib/checkout-barrier';
 import { sameOriginPath } from '@/lib/return-path';
 import { readJson } from '@/lib/request-utils';
 
@@ -86,6 +87,12 @@ export async function POST(request: Request) {
     try { const supabaseTrack = await createClient(); await supabaseTrack.rpc('track_event', { p_event: 'checkout_started', p_props: { kind: 'platform' } }); } catch {}
     return NextResponse.json({ url });
   } catch (err) {
+    if (isCheckoutInProgress(err)) {
+      return NextResponse.json(
+        { error: 'A membership checkout is already open. Finish it there, or try again in a few minutes.', code: 'checkout_in_progress' },
+        { status: 409 }
+      );
+    }
     console.error('[shape-app] platform-checkout error', err);
     return NextResponse.json({ error: 'Could not start checkout.' }, { status: 500 });
   }

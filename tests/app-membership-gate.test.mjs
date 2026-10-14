@@ -52,6 +52,8 @@ test('the shell uses those rules, asks /api/me/membership, and re-checks when it
   assert.match(main, /localStorage\.setItem\('shape\.memberUid', uid\)/);
   assert.doesNotMatch(main, /fetch\(\s*['"`]\/api\/stripe\/subscription/, 'that read calls coaches and admins inactive and a failure "inactive"');
   assert.match(main, /setPreviewMode\(false\);/, 'a previewer who signs in is not previewing (L2)');
+  // Codex on #2353: a dietitian is a coach (roles.mjs, membership-core.ts) and passes as one.
+  assert.match(main, /const isApprovedCoach = realRole === 'trainer' \|\| realRole === 'nutritionist' \|\| realRole === 'dietitian';/);
 });
 
 test('one checkout door: the backend posts returnTo, opens the system browser natively, and re-checks on close', () => {

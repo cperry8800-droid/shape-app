@@ -1561,7 +1561,9 @@ function BSAppShell({ tweaks, setTweak }) {
   // needs an active subscription. Non-members can still "Preview the app" from
   // the paywall to look around behind a persistent Join banner.
   const realRole = authState?.profile?.role;
-  const isApprovedCoach = realRole === 'trainer' || realRole === 'nutritionist';
+  // Dietitians are coaches too (roles.mjs COACH_ROLES; computeMembership counts them): left out,
+  // an approved dietitian met the paywall whenever the membership lookup failed (Codex on #2353).
+  const isApprovedCoach = realRole === 'trainer' || realRole === 'nutritionist' || realRole === 'dietitian';
   // ⚠ SIGNED IN IS NOT A MEMBER (client-onboarding review H1, 2026-10-14; memberGate.mjs
   // says why). The membership itself decides; a returning member is seeded from this
   // account's last answer, so the paywall does not flash.

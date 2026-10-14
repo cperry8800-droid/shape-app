@@ -9,6 +9,7 @@ import { computeMembership } from '@/lib/membership-core';
 import { createPlatformCheckout } from '@/lib/platform-membership';
 import { stripeCustomerFor } from '@/lib/stripe-customer';
 import { hasLiveStripeSubscription } from '@/lib/stripe-live-subscription';
+import { isCheckoutInProgress } from '@/lib/checkout-barrier';
 
 export async function membershipDetour(opts: {
   supabase: SupabaseClient;
@@ -37,6 +38,7 @@ export async function membershipDetour(opts: {
     const url = await createPlatformCheckout({ priceId, userId: user.id, customerId, origin, next: backHref, cancelPath: backHref });
     return url ?? `${backHref}&error=membership_required`;
   } catch (e) {
+    if (isCheckoutInProgress(e)) return `${backHref}&error=checkout_in_progress`;
     console.error('[membership-detour] membership checkout failed', e);
     return `${backHref}&error=membership_check_failed`;
   }

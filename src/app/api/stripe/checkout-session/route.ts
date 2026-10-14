@@ -10,6 +10,7 @@ import { appendParam, sameOriginPath } from '@/lib/return-path';
 import { ACTIVE_SUB, computeMembership } from '@/lib/membership-core';
 import { hasLiveStripeSubscription } from '@/lib/stripe-live-subscription';
 import { stripeCustomerFor } from '@/lib/stripe-customer';
+import { checkoutIdempotencyKey, currentCheckout, isCheckoutInProgress } from '@/lib/checkout-barrier';
 
 export const runtime = 'nodejs';
 
@@ -367,6 +368,14 @@ export async function POST(request: Request) {
   const { applicationFeeCents } = feeSplit(priceCents, chargeCents, feeRate);
 
   try {
+    // One payable subscription checkout per account and coach at a time (checkout-barrier.ts):
+    // an open one is handed back. Subscriptions reserve no store credit, so none is held.
+    const now = Date.now();
+    if (isSubscription) {
+      const open = await currentCheckout(customerId, (s) => s.mode === 'subscription'
+        && s.metadata?.provider_id === String(providerId) && s.metadata?.provider_role === providerRole, now);
+      if (open) return NextResponse.json({ url: open, creditAppliedCents: 0 });
+    }
     const session = await stripe.checkout.sessions.create({
       mode: isSubscription ? 'subscription' : 'payment',
       line_items: [
@@ -435,7 +444,7 @@ export async function POST(request: Request) {
       success_url: `${origin}${appendParam(successPath, 'session_id', '{CHECKOUT_SESSION_ID}')}`,
       cancel_url: `${origin}${cancelPath}`,
       allow_promotion_codes: isSubscription,
-    });
+    }, isSubscription ? { idempotencyKey: checkoutIdempotencyKey(user.id, `coach-${providerRole}-${providerId}`, now) } : undefined);
 
     if (!session.url) {
       await releaseReservation();
@@ -444,6 +453,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ url: session.url, creditAppliedCents: storeCreditApplied });
   } catch (err) {
     await releaseReservation();
+    if (isCheckoutInProgress(err)) {
+      return NextResponse.json(
+        { error: 'A checkout for this coach is already open. Finish it there, or try again in a few minutes.', reason: 'checkout_in_progress' },
+        { status: 409 }
+      );
+    }
     return dbError(err, 'mobile checkout-session', 500, 'Could not start checkout.');
   }
 }
