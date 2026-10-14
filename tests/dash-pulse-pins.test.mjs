@@ -111,8 +111,11 @@ test('the pinned set is remembered per ACCOUNT and per ROLE', () => {
   // Todays show different rosters — a shared key puts a nutrition client at the top of
   // the training pulse.
   assert.match(t, /useRememberedSet\(prefs, "pulsePinned:" \+ role, 12\)/);
-  // both mount sites get it, or the card behaves differently in the grid than in the shell
-  assert.equal((t.match(/pinned=\{pinned\} onTogglePin=\{togglePin\}/g) || []).length, 2);
+  // every mount site gets it, or the card behaves differently in the grid, in the Needs you
+  // tab and in the shell
+  const mounts = (t.match(/<TriagePulsePanel /g) || []).length;
+  assert.ok(mounts >= 2, 'expected the pulse in more than one place, found ' + mounts);
+  assert.equal((t.match(/pinned=\{pinned\} onTogglePin=\{togglePin\}/g) || []).length, mounts);
 });
 
 test('the set store validates SHAPE and never membership', () => {

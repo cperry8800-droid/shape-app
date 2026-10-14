@@ -114,7 +114,7 @@ function lvMapPost(row) {
 }
 
 // `shell` ({ navItems, payoutCard }): renders the profile INSIDE the dashboard
-// chrome — site Header + DashSidebar (pageShell/trainerDashboard globals, only
+// frame — the rail and app bar of DashFrame (a trainerDashboard global, only
 // referenced when the prop is passed) — so the side nav stays present on the
 // dashboard Profile/Me pages. The living page then drops its own header/footer.
 // ── The member's own figures in their units (Settings → Units) ──────────────
@@ -371,14 +371,9 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
 
   // Dashboard embedding — keep the side nav present on the Profile/Me pages.
   const wrapShell = (node) => !shell ? node : (
-    <div style={{ background: PAPER, color: INK, minHeight: "100vh", fontFamily: sans, display: "flex", flexDirection: "column" }}>
-      <Header />
-      <div style={{ display: "grid", gridTemplateColumns: "240px 1fr", flex: 1 }}>
-        <DashSidebar navItems={shell.navItems} payoutCard={shell.payoutCard} />
-        <main style={{ minWidth: 0, overflowX: "hidden" }}>{node}</main>
-      </div>
-      <Footer />
-    </div>
+    <DashFrame navItems={shell.navItems} payoutCard={shell.payoutCard}>
+      <main style={{ minWidth: 0, overflowX: "hidden" }}>{node}</main>
+    </DashFrame>
   );
 
   const center = (msg, cta) => (

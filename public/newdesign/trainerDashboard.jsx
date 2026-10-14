@@ -92,11 +92,71 @@ function useDashSidebarLive(role) {
   return state;
 }
 
-// Reusable sidebar. Renders a dashboard home href + nav items with active states.
-// navItems items: { label, count, active, href }
-// Note: the marketing top nav (Header from pageShell.jsx) is rendered above
-// this sidebar by DashPage/DashShell. The fixed header is ~56px tall so the
-// sticky sidebar offsets by that amount to sit just below it.
+// ── The app frame (owner, 2026-10-14) ───────────────────────────────────────
+// "can we make it feel more like its own portal … more like a software or application",
+// then, choosing between three previews: "i like option B. Have that nav bar collapse to
+// just that [icon] view, and then when you hover over, the full name of each page appears,
+// like how A looks … I like the coaching and practice seperation on nav".
+//
+// So every dashboard tab sits in ONE frame: a 64px icon rail that widens over the page on
+// hover (or keyboard focus) to show the labels, the section names and the money card, and
+// a sticky app bar where the marketing header used to be. ⚠ THE APP BAR IS THE SITE
+// HEADER, RESTYLED BY dash.css, NOT A SECOND HEADER. Sign out, the profile switch, the
+// staff Admin link, the bell and search all live in Header, with rules this file must not
+// grow a second copy of (pageShell.jsx explains the sign-out ordering); the frame hides
+// the marketing tabs, the logo and the Dashboard button, which only make sense outside it.
+// There is no footer: an app has no site map at the bottom of every screen.
+//
+// Below 900px the rail turns into a horizontal tab bar under the app bar (dash.css), the
+// same job pageShell's old 240px-sidebar rule did, so a phone keeps every tab.
+
+// One stroke icon per tab slug, drawn on a 24px grid at 1.8 stroke. Monochrome by rule
+// (no coloured emoji for new additions), so each takes the link's own colour.
+const DASH_RAIL_ICONS = {
+  today: <><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></>,
+  week: <><rect x="3" y="5" width="18" height="15" rx="2" /><path d="M3 10h18M8 3v4M16 3v4M7 14h10" /></>,
+  schedule: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+  clients: <><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5M16 4.5a3.5 3.5 0 010 7M18 14.8c1.9.7 3.1 2.5 3.5 5.2" /></>,
+  programs: <><path d="M12 3l9 5-9 5-9-5 9-5z" /><path d="M3 13l9 5 9-5" /></>,
+  plans: <><path d="M6 3h9l3 3v15H6z" /><path d="M9 10h6M9 14h6M9 18h4" /></>,
+  playlists: <><path d="M9 18V6l11-2v12" /><circle cx="6.5" cy="18" r="2.5" /><circle cx="17.5" cy="16" r="2.5" /></>,
+  business: <><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></>,
+  goal: <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1" /></>,
+  score: <><path d="M3 17l6-6 4 4 8-8" /><path d="M15 7h6v6" /></>,
+  progress: <><path d="M4 20V4M4 20h16" /><path d="M8 15l3-4 3 2 4-6" /></>,
+  workouts: <><path d="M6.5 6.5v11M17.5 6.5v11M3 9.5v5M21 9.5v5M6.5 12h11" /></>,
+  nutrition: <><path d="M12 7c-3.5-2.5-8-1-8 4 0 4.5 3.5 9 6 9 1 0 1.3-.5 2-.5s1 .5 2 .5c2.5 0 6-4.5 6-9 0-5-4.5-6.5-8-4z" /><path d="M12 7c0-2 1-3.5 3-4" /></>,
+  library: <><path d="M4 4h4v16H4zM10 4h4v16h-4z" /><path d="M16.5 4.5l3.5 1-3.5 14.5-3.5-1z" /></>,
+  team: <><circle cx="12" cy="8" r="3.5" /><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5" /></>,
+  habits: <><rect x="3" y="3" width="18" height="18" rx="3" /><path d="M8 12l3 3 5-6" /></>,
+  profile: <><circle cx="12" cy="9" r="4" /><path d="M4 21c1-4 4.3-6 8-6s7 2 8 6" /></>,
+  settings: <><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" /></>,
+  website: <><path d="M14 4h6v6M20 4l-9 9" /><path d="M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5" /></>,
+};
+function dashRailIcon(slug) {
+  const body = DASH_RAIL_ICONS[slug] || <circle cx="12" cy="12" r="3" />;
+  return <svg className="dash-rail-icon" aria-hidden width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{body}</svg>;
+}
+
+// The rail's two groups per audience, and the account pair pinned to its foot. A slug
+// none of them names joins the last group rather than disappearing — a tab added to a
+// nav table must never be unreachable because this list was not updated.
+const DASH_RAIL_GROUPS = {
+  coach: [["Coaching", ["today", "week", "schedule", "clients", "programs", "plans", "playlists"]], ["Practice", ["business", "goal", "score"]]],
+  client: [["Training", ["today", "workouts", "nutrition", "library", "team"]], ["Progress", ["progress", "habits", "score", "goal"]]],
+};
+const DASH_RAIL_FOOT = ["profile", "settings"];
+function dashRailGroups(items, role) {
+  const plan = DASH_RAIL_GROUPS[role === "client" ? "client" : "coach"];
+  const slugOf = (n) => n.slug || String(n.label || "").toLowerCase();
+  const groups = plan.map(([label, slugs]) => ({ label, items: items.filter((n) => slugs.indexOf(slugOf(n)) !== -1) }));
+  const placed = new Set(plan.flatMap(([, slugs]) => slugs).concat(DASH_RAIL_FOOT));
+  const rest = items.filter((n) => !placed.has(slugOf(n)));
+  if (rest.length) groups[groups.length - 1].items.push(...rest);
+  return { groups: groups.filter((g) => g.items.length), foot: items.filter((n) => DASH_RAIL_FOOT.indexOf(slugOf(n)) !== -1) };
+}
+
+// The rail. navItems items: { label, slug, count, active, href }.
 function DashSidebar({ navItems, payoutCard, homeHref = "index.html" }) {
   const role = dsbRoleFromNav(navItems);
   const live = useDashSidebarLive(role);
@@ -118,37 +178,74 @@ function DashSidebar({ navItems, payoutCard, homeHref = "index.html" }) {
   }
   const liveCount = live && live.kind === "live" && live.count != null ? live.count : null;
   const items = (navItems || []).map((n) => (liveCount != null && (n.slug === "clients" || n.label === "Clients")) ? { ...n, count: liveCount } : n);
+  const { groups, foot } = dashRailGroups(items, role);
+  const roleName = role === "trainer" ? "Trainer" : role === "nutritionist" ? "Nutritionist" : role === "client" ? "Member" : null;
+  const link = (n) => (
+    <a key={n.slug || n.label} href={n.href || "#"} data-tour={'webtab-' + (n.slug || '')} className="shape-dash-navlink dash-rail-link"
+      aria-current={n.active ? "page" : undefined} data-active={n.active ? "" : undefined}>
+      {dashRailIcon(n.slug || String(n.label || "").toLowerCase())}
+      <span className="dash-rail-label">{n.label}</span>
+      {n.count != null && <span className="dash-rail-count dash-rail-label">{n.count}</span>}
+    </a>
+  );
   return (
-    <aside className="shape-dash-aside" style={{ borderRight: "1px solid var(--sh-line, #302c27)", padding: "16px 14px", display: "flex", flexDirection: "column", gap: 4, position: "sticky", top: 72, alignSelf: "start", background: "var(--sh-card, #25211d)" }}>
-      {items.map((n, i) => (
-        <a key={i} href={n.href || "#"} data-tour={'webtab-' + (n.slug || '')} className="shape-dash-navlink" style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "10px 12px", borderRadius: 9,
-          background: n.active ? "var(--sh-accent-tint, #182d26)" : "transparent",
-          color: n.active ? "var(--sh-accent, #2ee0c4)" : "var(--sh-ink2, #a09b94)",
-          fontSize: 14, fontWeight: n.active ? 600 : 500,
-          border: "1px solid transparent",
-        }}>
-          <span>{n.label}</span>
-          {n.count != null && (
-            <span style={{ fontFamily: mono, fontSize: 11, color: n.active ? "var(--sh-accent-ink, #2ee0c4)" : "var(--sh-ink3, #75706a)", background: n.active ? "rgba(var(--sh-accent-rgb, 46,224,196),0.14)" : "var(--sh-rest, #221e19)", padding: "2px 7px", borderRadius: 6 }}>{n.count}</span>
-          )}
+    <aside className="dash-rail">
+      <div className="dash-rail-panel">
+        <a href={homeHref} className="dash-rail-brand" aria-label="Shape home">
+          <svg aria-hidden viewBox="8 8 79 98" width="20" height="24" style={{ flex: "0 0 auto", display: "block" }}>
+            <polygon points="14,47 14,100 51,73" fill={TEAL_BRIGHT} />
+            <polygon points="81,14 81,65 44,39" fill={INK} />
+          </svg>
+          <span className="dash-rail-label dash-rail-wordmark">SHAPE</span>
+          {roleName && <span className="dash-rail-label dash-rail-role">{roleName}</span>}
         </a>
-      ))}
-      {card && (
-        <div className="shape-dash-payout" style={{ marginTop: 20, padding: 14, background: "var(--sh-accent-tint, #182d26)", border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.25)", borderRadius: 12 }}>
-          <div style={{ fontFamily: mono, fontSize: 9, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>{card.label}</div>
-          <div style={{ fontFamily: serif, fontSize: 24, fontWeight: 600, marginTop: 6, letterSpacing: "-0.01em", fontVariationSettings: "'wdth' 112" }}>{card.amount}</div>
-          <div style={{ fontSize: 11.5, color: "var(--sh-ink2, #a09b94)", marginTop: 2 }}>{card.sub}</div>
-        </div>
-      )}
+        <nav aria-label="Dashboard" className="dash-rail-nav">
+          {groups.map((g) => (
+            <div key={g.label} className="dash-rail-group">
+              <div className="dash-rail-heading"><span className="dash-rail-label">{g.label}</span></div>
+              {g.items.map(link)}
+            </div>
+          ))}
+          <div className="dash-rail-group dash-rail-foot">
+            {card && (
+              <div className="shape-dash-payout dash-rail-wide">
+                <div style={{ fontFamily: mono, fontSize: 9, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>{card.label}</div>
+                <div style={{ fontFamily: serif, fontSize: 22, fontWeight: 600, marginTop: 5, letterSpacing: "-0.01em", fontVariationSettings: "'wdth' 112" }}>{card.amount}</div>
+                <div style={{ fontSize: 11.5, color: "var(--sh-ink2, #a09b94)", marginTop: 2 }}>{card.sub}</div>
+              </div>
+            )}
+            {foot.map(link)}
+            <a href={homeHref} className="dash-rail-link dash-rail-site">
+              {dashRailIcon("website")}
+              <span className="dash-rail-label">Shape website</span>
+            </a>
+          </div>
+        </nav>
+      </div>
     </aside>
   );
 }
 
-// Inner-page shell: sidebar + main w/ title bar + freeform children.
-// Header (the marketing top nav from pageShell.jsx) renders above the
-// dashboard grid so dashboards share the index.html nav formatting.
+// The frame every dashboard tab renders inside: the rail, then a column holding the app
+// bar and the page's own <main>. `title` defaults to the active tab's label.
+function DashFrame({ navItems, payoutCard, title, children }) {
+  const active = (navItems || []).find((n) => n && n.active);
+  const heading = title || (active && active.label) || "";
+  return (
+    <div className="dash-app" style={{ background: PAPER, color: INK, fontFamily: sans }}>
+      <DashSidebar navItems={navItems} payoutCard={payoutCard} />
+      <div className="dash-app-main">
+        <div className="dash-appbar">
+          {heading && <div className="dash-appbar-title" aria-hidden>{heading}</div>}
+          <Header />
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// Inner-page shell: the frame + main w/ title bar + freeform children.
 function DashPage({ navItems, payoutCard, eyebrow, title, subtitle, actions, children, tourHero }) {
   // The paper switch follows the account on every shell page. dashData.jsx loads
   // AFTER this file on every dashboard page and not at all on the print page, so
@@ -156,28 +253,23 @@ function DashPage({ navItems, payoutCard, eyebrow, title, subtitle, actions, chi
   // conditionally between renders.
   if (typeof useDashPaper === "function") useDashPaper();
   return (
-    <div style={{ background: PAPER, color: INK, minHeight: "100vh", fontFamily: sans, display: "flex", flexDirection: "column" }}>
-      <Header />
-      <div style={{ display: "grid", gridTemplateColumns: "240px 1fr", flex: 1 }}>
-      <DashSidebar navItems={navItems} payoutCard={payoutCard} />
-      <main style={{ padding: "24px 40px 80px", minWidth: 0, overflowX: "hidden" }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 32 }}>
+    <DashFrame navItems={navItems} payoutCard={payoutCard}>
+      <main style={{ padding: "22px 32px 64px", minWidth: 0, overflowX: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 26 }}>
           <div data-tour={tourHero}>
-            {eyebrow && <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.14em", color: "var(--sh-ink3, #75706a)", marginBottom: 12 }}>{eyebrow}</div>}
-            <h1 style={{ fontFamily: serif, fontSize: 36, letterSpacing: "-0.02em", fontWeight: 600, margin: 0, lineHeight: 1.05, fontVariationSettings: "'wdth' 112" }}>{title}</h1>
-            {subtitle && <div style={{ fontSize: 14, color: "var(--sh-ink2, #a09b94)", marginTop: 12, maxWidth: 640, lineHeight: 1.5 }}>{subtitle}</div>}
+            {eyebrow && <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.14em", color: "var(--sh-ink3, #75706a)", marginBottom: 10 }}>{eyebrow}</div>}
+            <h1 style={{ fontFamily: serif, fontSize: 30, letterSpacing: "-0.02em", fontWeight: 600, margin: 0, lineHeight: 1.08, fontVariationSettings: "'wdth' 112" }}>{title}</h1>
+            {subtitle && <div style={{ fontSize: 14, color: "var(--sh-ink2, #a09b94)", marginTop: 10, maxWidth: 640, lineHeight: 1.5 }}>{subtitle}</div>}
           </div>
           {/* flexWrap: a nowrap row of action pills opposite a 52px title is
               clipped by main's overflowX:hidden at narrow widths (and on a
               phone, which gets the 980px desktop layout) — the buttons wrap
               under the title instead of disappearing. */}
-          {actions && <div style={{ display: "flex", gap: 10, paddingTop: 14, flexWrap: "wrap", justifyContent: "flex-end" }}>{actions}</div>}
+          {actions && <div style={{ display: "flex", gap: 10, paddingTop: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>{actions}</div>}
         </div>
         {children}
       </main>
-      </div>
-      <Footer />
-    </div>
+    </DashFrame>
   );
 }
 
@@ -330,6 +422,7 @@ function DashShell({
   gridWidgets, // optional [{ key, title, size, render }] — when present, the body sections render
                // through DashGrid (draggable/resizable, like the client tabs) instead of the fixed
                // layout. Only the coach Today pages pass this; everything else keeps the old layout.
+  nowColumn,   // optional (openCalendar) => node — the day column B's layout puts beside the grid
 }) {
   // The paper switch follows the account on every shell page. dashData.jsx loads
   // AFTER this file on every dashboard page and not at all on the print page, so
@@ -338,22 +431,19 @@ function DashShell({
   if (typeof useDashPaper === "function") useDashPaper();
   const cal = (typeof useCalendarOverlay === "function") ? useCalendarOverlay() : null;
   return (
-    <div style={{ background: PAPER, color: INK, minHeight: "100vh", fontFamily: sans, display: "flex", flexDirection: "column" }}>
-      <Header />
-      <div style={{ display: "grid", gridTemplateColumns: "240px 1fr", flex: 1 }}>
-      <DashSidebar navItems={navItems} payoutCard={payoutCard} />
+    <DashFrame navItems={navItems} payoutCard={payoutCard}>
       {calendarEvents && cal && <CalendarOverlay {...cal.props} role={role} events={calendarEvents} />}
 
       {/* Main — overflowX hidden matches DashPage; without it the Today pages
           scroll horizontally at 375px (nowrap pulse metas widen the document) */}
-      <main style={{ padding: "24px 48px 80px", minWidth: 0, overflowX: "hidden" }}>
-        {/* Top bar */}
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 24, marginBottom: 36 }}>
+      <main style={{ padding: "20px 32px 64px", minWidth: 0, overflowX: "hidden" }}>
+        {/* Greeting + the page's two actions */}
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 24, flexWrap: "wrap", marginBottom: 22 }}>
           <div data-tour={tourHero} style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.14em", color: "var(--sh-ink3, #75706a)", marginBottom: 10 }}>{date}</div>
-            <h1 style={{ fontFamily: serif, fontSize: 34, letterSpacing: "-0.02em", fontWeight: 600, margin: 0, lineHeight: 1.08, fontVariationSettings: "'wdth' 112" }}>{greeting}</h1>
+            <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.14em", color: "var(--sh-ink3, #75706a)", marginBottom: 8 }}>{date}</div>
+            <h1 style={{ fontFamily: serif, fontSize: 28, letterSpacing: "-0.02em", fontWeight: 600, margin: 0, lineHeight: 1.08, fontVariationSettings: "'wdth' 112" }}>{greeting}</h1>
           </div>
-          <div style={{ display: "flex", gap: 10, paddingTop: 10, flexShrink: 0 }}>
+          <div style={{ display: "flex", gap: 10, flexShrink: 0 }}>
             {primaryCta && (() => {
               const style = { background: "var(--sh-card, #25211d)", color: INK, border: "1px solid var(--sh-line2, #413d38)", height: 40, padding: "0 16px", borderRadius: 9, fontFamily: sans, fontSize: 14, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", boxSizing: "border-box" };
               if (typeof primaryCta[1] === "string") return <a href={primaryCta[1]} style={{ ...style, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>{primaryCta[0]}</a>;
@@ -369,9 +459,16 @@ function DashShell({
           </div>
         </div>
 
-        {gridWidgets ? (
-          <DashGrid role={role} tab="today" widgets={gridWidgets} />
-        ) : (
+        {gridWidgets ? (() => {
+          // ONE <DashGrid> call site: two with the same role+tab would share a stored layout.
+          const grid = <DashGrid role={role} tab="today" widgets={gridWidgets} />;
+          return nowColumn ? (
+            <div className="dash-today-split">
+              <div className="dash-today-now">{nowColumn(calendarEvents && cal ? cal.open : null)}</div>
+              <div className="dash-today-work">{grid}</div>
+            </div>
+          ) : grid;
+        })() : (
         <React.Fragment>
         {/* KPI strip(s) — single card w/ dividers; coach Today shows two
             (financial summary + practice). */}
@@ -475,9 +572,7 @@ function DashShell({
         </React.Fragment>
         )}
       </main>
-      </div>
-      <Footer />
-    </div>
+    </DashFrame>
   );
 }
 
@@ -689,4 +784,4 @@ function DashExportButton({ kind, build, live, label }) {
   );
 }
 
-Object.assign(window, { goalQuarterLabel, DashShell, DashPage, DashSidebar, Sparkline, Card, SectionTitle, Pill, RecentPayouts, ProfileHero, BioCard, SubscriptionCard, DashExportButton });
+Object.assign(window, { goalQuarterLabel, DashShell, DashPage, DashFrame, DashSidebar, Sparkline, Card, SectionTitle, Pill, RecentPayouts, ProfileHero, BioCard, SubscriptionCard, DashExportButton });

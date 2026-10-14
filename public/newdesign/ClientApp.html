@@ -144,20 +144,15 @@ const CA_ROUTES = {
 // Settings is its own dashboard tab (owner call 2026-07-23) — it used to ride the
 // profile page's extras slot, which made it render under EVERY profile tab (Music
 // included). ClientMeSettings brings its own "Settings." masthead + actions, so
-// this shell is the bare dashboard chrome (Header + sidebar + main), not DashPage
+// this shell is the bare dashboard frame (rail + app bar + main), not DashPage
 // (whose h1 would double the title).
 function ClientSettingsPage() {
   return (
-    <div style={{ background: PAPER, color: INK, minHeight: "100vh", fontFamily: sans, display: "flex", flexDirection: "column" }}>
-      <Header />
-      <div className="dash-shell-grid" style={{ display: "grid", gridTemplateColumns: "240px 1fr", flex: 1 }}>
-        <DashSidebar navItems={clientNavItems("settings")} payoutCard={clientPayoutCard} />
-        <main style={{ padding: "24px 8px 80px", minWidth: 0, overflowX: "hidden" }}>
-          <ClientMeSettings />
-        </main>
-      </div>
-      <Footer />
-    </div>
+    <DashFrame navItems={clientNavItems("settings")} payoutCard={clientPayoutCard}>
+      <main style={{ padding: "24px 8px 80px", minWidth: 0, overflowX: "hidden" }}>
+        <ClientMeSettings />
+      </main>
+    </DashFrame>
   );
 }
 // ⚠ hasOwnProperty, not a bare lookup — `#constructor` resolves through
