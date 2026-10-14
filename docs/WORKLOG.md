@@ -1106,12 +1106,12 @@ Append new entries at the top, under this note.
 **Her planning (#2305)**
 - `noraPlanner.mjs`: one song at a time, the best that breaks no rule: an energy arc read against the library's own spread, Camelot keys, tempo, freshness, a seeded jitter. Beat-matched within ±4 % (the locking rate, on the kick, 16 bars on the mix-out phrase), else blended over the fade, short when the keys clash. The licence's performance complement at its strictest, over any 3 hours with the earlier plays.
 - Slots in their own zone (wall clock per date, through the 2026-11-01 fall-back), an hourly cron at :05 scheduling the next week as "DJ set" by Nora and planning each set 70 minutes ahead; the first plan stored wins. ⚠ Nothing is published until the owner confirms the licences on the dashboard.
-- `2026-10-11-nora-dj-sets.sql`: **not run yet.**
+- `2026-10-11-nora-dj-sets.sql`: ~~**not run yet.**~~ **Run by the owner and verified live on 2026-10-14** (the three tables RLS on, 0 policies, no anon or member privilege; the two `nora_sets` columns, their check, foreign key and unique index; the settings row with the licences unconfirmed).
 
 **On the air (#2306)**
 - `services/nora-engine`: the mixer (a bass swap so one kick plays at a time), Shape's clock, loading ahead with a deadline, pacing to the wall clock, a play report per song, the station's title at each bass swap. Rendered from two measured songs, the beat analyser reads ONE grid across the outgoing song, the blend and the incoming one (124 BPM, confidence 0.998, 0.4 ms).
 - ⚠ **A stand-in Icecast input found a hang.** A refused source killed ffmpeg while the pipe was full, and the write waited on `'drain'` forever. A write now settles when ffmpeg exits.
-- `/api/radio/nora/engine` (token-gated, licences and publication checked on every poll), `/api/admin/radio/plays` (a month's plays as CSV for SoundExchange), `2026-10-11-nora-engine-log.sql` (**not run yet**).
+- `/api/radio/nora/engine` (token-gated, licences and publication checked on every poll), `/api/admin/radio/plays` (a month's plays as CSV for SoundExchange), `2026-10-11-nora-engine-log.sql` (~~**not run yet**~~ **run by the owner and verified live on 2026-10-14**: RLS on, 0 policies, no anon or member privilege on the table, both indexes).
 - Now-playing during her sets comes from her plan, only while her engine is on the air, naming only what is heard (6 s behind the plan, the incoming song at the bass swap), with its album. ⚠ The old rule "the artist contains 'nora'" would have called Norah Jones Nora; a station payload is never Nora now. ⚠ Her own set's row names her as the DJ, so both Radio pages read it as a guest set and would have taken her off the decks; fixed.
 
 **The booth's wall headlines her (#2306)**
@@ -1123,7 +1123,7 @@ Append new entries at the top, under this note.
 
 - **Written after the merges**, per the 2026-09-11 rule.
 - ⚠ **REGISTERED, NOT DONE:**
-  - **Owner:** run `2026-10-11-nora-dj-sets.sql` and `2026-10-11-nora-engine-log.sql` (commit-pinned links in chat); set `NORA_ENGINE_TOKEN`; connect radio.co on the dashboard; run the engine on an always-on host; the licences, the SoundExchange reports and a lawyer's check, then tick the box.
+  - **Owner:** ~~run `2026-10-11-nora-dj-sets.sql` and `2026-10-11-nora-engine-log.sql`~~ (both run and verified live on 2026-10-14); set `NORA_ENGINE_TOKEN`; connect radio.co on the dashboard; run the engine on an always-on host; the licences, the SoundExchange reports and a lawyer's check, then tick the box.
   - `HEARD_LAG_SEC` (6 s) is an estimate, to be measured once the station is live.
   - The booth follows only the label and the tempo, not her transitions from the plan; songs without a kick on every beat are faded, not beat-matched; no dashboard preview plays a set in the browser yet.
   - No signed-in pass on the dashboard or a phone. When a guest takes the decks mid-phrase the wall cuts to the guest rotation without a wipe.
