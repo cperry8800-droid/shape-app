@@ -823,7 +823,7 @@ test('website: the client app asks first, and a signed-in non-member gets the jo
   // Codex on #2353: a lookup that never answers is unknown after 8 seconds, not a blank page.
   assert.match(shell, /const timer = setTimeout\(\(\) => \{ try \{ if \(ctl\) ctl\.abort\(\); \} catch \(e\) \{\} settle\(\{ unknown: true \}\); \}, 8000\);/);
   assert.match(shell, /if \(settled\) return;\n\s+settled = true;/, 'one answer: the late reply does not overwrite the timeout');
-  assert.match(shell, /if \(!membership\) return null;\n\s+if \(membership\.signedIn && membership\.member === false && route !== "settings"\) return <ClientJoinPage \/>;/);
+  assert.match(shell, /if \(!membership\) return null;\n(?:\s*\/\/.*\n)*\s+if \(membership\.signedIn && membership\.ageRestricted === true && route !== "settings"\) return <ClientAgeRestrictedPage \/>;\n\s+if \(membership\.signedIn && membership\.member === false && route !== "settings"\) return <ClientJoinPage \/>;/);
   assert.match(shell, /window\.__shapeClientMembership = d \|\| \{ unknown: true \};/, 'an unanswered lookup keeps the page as it was');
   const dash = read('public/newdesign/dashClient.jsx');
   assert.match(dash, /function ClientJoinPage\(\)/);

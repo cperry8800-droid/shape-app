@@ -87,13 +87,13 @@ const cats = Object.fromEntries(LOCALES.map((l) => [l, JSON.parse(fs.readFileSyn
 const FRAME = ['intent.becomingPre', 'intent.becomingPost',
                'intent.titlePre', 'intent.titleAccent', 'intent.titlePost'];
 
-test('guard-the-guard: the region is the component and it derives 25 keys', () => {
+test('guard-the-guard: the region is the component and it derives 26 keys', () => {
   assert.ok(region.includes('const IDENTITY = {'), 'the region carries the IDENTITY table');
   assert.ok(region.includes('identityOf'), 'the region carries the resolver');
   assert.ok(!/\bfunction BSHealthIntake\b/.test(region), 'the region stops at the next component');
-  assert.equal(KEYS.length, 25, '13 chrome keys + 12 identity sentences');
+  assert.equal(KEYS.length, 26, '13 chrome keys + 12 identity sentences + the save-failed line it shares with the coaching step');
   assert.equal(LOCALES.length, 13);
-  for (const k of KEYS) assert.ok(k.startsWith('intent.'), `${k} is namespaced under intent.`);
+  for (const k of KEYS) assert.ok(k.startsWith('intent.') || k === 'firstRun.saveFailed', `${k} is namespaced under intent.`);
 });
 
 test('the identity keys are exactly the twelve shipped goal tokens — derived, never listed', () => {
@@ -109,7 +109,7 @@ test('every derived key is authored in en, byte-identical to the source', () => 
   }
 });
 
-test('all 25 keys are present and NON-EMPTY in every locale', () => {
+test('all 26 keys are present and NON-EMPTY in every locale', () => {
   // Under `returnEmptyString: false` an empty value renders the RAW KEY, which
   // key parity cannot see (a key whose value is "" IS present).
   for (const loc of LOCALES) {

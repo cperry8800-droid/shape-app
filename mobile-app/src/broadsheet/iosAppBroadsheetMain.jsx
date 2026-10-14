@@ -6,7 +6,7 @@ import { initI18n, applyDir, useTr, i18n as bsI18n } from '../i18n/index.js';
 import BSLanguagePicker from './BSLanguagePicker.jsx';
 import BSDobGate from './BSDobGate.jsx';
 import { bsLaunchRoute, bsDailyStamp, bsAfterBeat, bsWireLines } from '../services/dailyWire.mjs';
-import { bsMemberGate, bsMembershipAfter, bsMembershipSeed } from '../services/memberGate.mjs';
+import { bsMemberGate, bsMembershipAfter, bsMembershipSeed, bsPollMembership } from '../services/memberGate.mjs';
 import { bsCaptureBoundaryError } from '../sentry.mjs';
 import { shapeScrubLocalUserContent, shapeInstallSignOutListener } from '../services/localScrub.mjs';
 
@@ -1315,6 +1315,11 @@ function BSPreviewBannerGated({ t, onJoin }) {
   return <BSPreviewBanner t={t} onJoin={onJoin} />;
 }
 
+// How long the shell keeps asking after the checkout's browser closes: every 3 seconds for a
+// minute, the website's own patience on its "Confirming your membership" panel.
+const BSM_MEMBERSHIP_POLL_MS = 3000;
+const BSM_MEMBERSHIP_POLL_TRIES = 20;
+
 function BSAppShell({ tweaks, setTweak }) {
   const { tr } = useTr('onboarding');
   const authConfigured = Boolean(window.ShapeAuth?.configured);
@@ -1495,21 +1500,38 @@ function BSAppShell({ tweaks, setTweak }) {
     let known = null;
     try { known = bsMembershipSeed({ stored: localStorage.getItem('shape.member'), storedUid: localStorage.getItem('shape.memberUid'), lastUid: uid }); } catch (e) {}
     if (known === null) setMembership({ loading: true, active: false });
-    const run = () => Promise.resolve(window.ShapeMembershipApi?.check?.() ?? null).catch(() => null).then((answer) => {
-      if (cancelled) return;
+    // `ageRestricted` rides along: a known minor is shown the age message, not the membership offer
+    // the server would refuse them (#2353's moved item). Unknown keeps what was known.
+    let ageRestricted = false;
+    const run = () => Promise.resolve(window.ShapeMembershipApi?.lookup?.() ?? null).catch(() => null).then((d) => {
+      if (cancelled) return null;
+      const answer = d ? d.member : null;
+      if (d) ageRestricted = d.ageRestricted === true;
       if (answer === true || answer === false) {
         known = answer;
         try { window.ShapeMembership = { active: answer }; localStorage.setItem('shape.member', answer ? '1' : '0'); localStorage.setItem('shape.memberUid', uid); } catch (e) {}
       }
-      setMembership({ loading: false, active: bsMembershipAfter(known, answer) });
+      const active = bsMembershipAfter(known, answer);
+      setMembership({ loading: false, active, ageRestricted });
+      return active;
     });
     run();
-    const onRecheck = () => { run(); };
+    // After the checkout's browser closes the payment may still be clearing, so a recheck that
+    // asks to poll keeps asking every 3 seconds for a minute, until the account is a member
+    // (#2353's moved item: one check on close missed a payment that cleared a moment later).
+    let stopPoll = () => {};
+    const onRecheck = (e) => {
+      if (e && e.detail && e.detail.poll) {
+        stopPoll();
+        stopPoll = bsPollMembership(run, { tries: BSM_MEMBERSHIP_POLL_TRIES, everyMs: BSM_MEMBERSHIP_POLL_MS });
+      } else run();
+    };
     const onVisible = () => { if (document.visibilityState === 'visible') run(); };
     window.addEventListener('shape:membership-recheck', onRecheck);
     document.addEventListener('visibilitychange', onVisible);
     return () => {
       cancelled = true;
+      stopPoll();
       window.removeEventListener('shape:membership-recheck', onRecheck);
       document.removeEventListener('visibilitychange', onVisible);
     };
@@ -1571,6 +1593,8 @@ function BSAppShell({ tweaks, setTweak }) {
   // account's last answer, so the paywall does not flash.
   const signedIn = !!(authState?.user?.id);
   const { allowed: memberAllowed, loading: memberGateLoading } = bsMemberGate({ isApprovedCoach, authReady, membership });
+  // A signed-in account the server knows to be under 18: told so, ahead of the paywall and the app.
+  const ageBlocked = signedIn && !!(membership && membership.ageRestricted === true);
 
   // The membership wall ('gate') sits between the wire beat and the "Shape
   // Daily" telegram: non-members see the paywall here; members auto-advance
@@ -1818,6 +1842,8 @@ function BSAppShell({ tweaks, setTweak }) {
           // Join / Sign in / Preview (preview → the daily invite edition → app).
           memberGateLoading || memberAllowed ? (
             <BSWireHold />
+          ) : ageBlocked ? (
+            <BSDobGate blocked="age_restricted" onLogout={handleLogout} />
           ) : (
             <BSPaywall
               signedIn={!!authUserId}
@@ -1854,6 +1880,8 @@ function BSAppShell({ tweaks, setTweak }) {
           // splash. Members + previewers fall through to the real app.
           memberGateLoading ? (
             <BSWireHold />
+          ) : ageBlocked ? (
+            <BSDobGate blocked="age_restricted" onLogout={handleLogout} />
           ) : (!memberAllowed && !previewMode) ? (
             <BSPaywall
               signedIn={!!authUserId}

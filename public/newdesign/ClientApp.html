@@ -210,8 +210,20 @@ function caUseMembership() {
   }, []);
   return m;
 }
+// The website sign-up's answers (goal, experience, weekly sessions, whether they want a coach)
+// ride in the account's metadata until a signed-in visit writes them to the records the app and
+// coaches read (POST /api/me/onboarding; src/lib/signup-answers.mjs). Asked once per page load:
+// the route writes once and answers "nothing to do" after that, and a failed write is tried again
+// on the next visit.
+function caSeedOnboarding(membership) {
+  React.useEffect(() => {
+    if (!membership || !membership.signedIn) return;
+    fetch("/api/me/onboarding", { method: "POST", credentials: "same-origin", cache: "no-store" }).catch(() => {});
+  }, [membership && membership.signedIn]);
+}
 function ClientApp() {
   const membership = caUseMembership();
+  caSeedOnboarding(membership);
   const [route, setRoute] = React.useState(caSlug());
   React.useEffect(() => {
     if (!window.location.hash) { try { window.history.replaceState(null, "", "#" + route); } catch (e) {} }
@@ -220,6 +232,9 @@ function ClientApp() {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
   if (!membership) return null;
+  // A known minor is told why before anything else: the membership offer would refuse them anyway
+  // (the gate answers age_restricted to every paid read). Settings stays open, to delete the account.
+  if (membership.signedIn && membership.ageRestricted === true && route !== "settings") return <ClientAgeRestrictedPage />;
   if (membership.signedIn && membership.member === false && route !== "settings") return <ClientJoinPage />;
   return (caHasRoute(route) ? CA_ROUTES[route] : CA_ROUTES.today)();
 }

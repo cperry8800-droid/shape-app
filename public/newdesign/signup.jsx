@@ -13,7 +13,7 @@ const ROLE_CONFIG = {
       "Shape Radio included free",
     ],
     formTitle: "Create your client profile",
-    steps: ["Personal", "Goals", "Health intake", "Preferences"],
+    steps: ["Personal", "Goals", "Coaching"],
     submitLabel: "Create profile",
     doneTitle: "You're in.",
     doneBody: "Your client profile is ready. Jump into the marketplace and find your first coach.",
@@ -191,73 +191,97 @@ function ClientPersonal({ v, set }) {
       <UsernameField v={v} set={set} />
       <Field label="Email" span={2}><TextInput type="email" value={v.email || ""} onChange={e => set({ email: e.target.value })} /></Field>
       <Field label="Password" span={2}><TextInput type="password" value={v.password || ""} onChange={e => set({ password: e.target.value })} placeholder="At least 8 characters" /></Field>
+      <Field label="Date of birth — Shape is for adults 18 and over" span={2}><TextInput type="date" value={v.dob || ""} onChange={e => set({ dob: e.target.value })} /></Field>
     </div>
   );
+}
+
+// ⚠ THE ANSWERS ARE KEPT NOW (client-onboarding review H4). This form used to ask a goal, a
+// health intake and preferences, and send none of it. What it asks is the app's own vocabulary
+// (the goals, experience and weekly sessions the app stores), sent as tokens in the sign-up's
+// metadata and written to the app's records on the first signed-in visit
+// (src/lib/signup-answers.mjs, POST /api/me/onboarding). The labels are what the person and Nora
+// see; SU_* maps them to the tokens. tests/signup-answers.test.mjs holds these lists equal to the
+// app's.
+//
+// No health questions: only a member who wants personal coaching is screened, and the screening
+// is one form (the app's), not a second copy here whose answers went nowhere.
+const SU_GOALS = [
+  { id: "fat_loss", en: "Lose fat" },
+  { id: "muscle", en: "Build muscle" },
+  { id: "recomp", en: "Recomp" },
+  { id: "maintain", en: "Maintain" },
+  { id: "strength", en: "Get stronger" },
+  { id: "endurance", en: "Endurance" },
+  { id: "mobility", en: "Mobility" },
+  { id: "athletic", en: "Athletic performance" },
+  { id: "health", en: "General health" },
+  { id: "tone", en: "Tone up" },
+  { id: "race", en: "Run a race" },
+  { id: "postpartum", en: "Postpartum" },
+];
+const SU_EXPERIENCE = [
+  { id: "beginner", en: "Beginner" },
+  { id: "intermediate", en: "Intermediate" },
+  { id: "advanced", en: "Advanced" },
+];
+const SU_SESSIONS = [
+  { id: "2", en: "2 days a week" },
+  { id: "3", en: "3 days a week" },
+  { id: "4", en: "4 days a week" },
+  { id: "5", en: "5 days a week" },
+  { id: "6", en: "6 days a week" },
+];
+const SU_COACHING = [
+  { id: "training", en: "A trainer" },
+  { id: "nutrition", en: "A nutritionist" },
+  { id: "both", en: "Both" },
+  { id: "no", en: "Not right now" },
+];
+const suTokenOf = (list, label) => { const row = list.find(o => o.en === label); return row ? row.id : null; };
+
+// The answers as the metadata carries them: tokens only, and nothing that was not picked.
+function suOnboardingAnswers(v) {
+  const coaching = suTokenOf(SU_COACHING, v.coaching);
+  return {
+    goal: suTokenOf(SU_GOALS, v.goal),
+    experience: suTokenOf(SU_EXPERIENCE, v.experience),
+    sessionsPerWeek: suTokenOf(SU_SESSIONS, v.frequency),
+    wantsCoaching: coaching === null ? null : coaching !== "no",
+    coachingFor: coaching === "both" ? ["training", "nutrition"] : coaching === "training" || coaching === "nutrition" ? [coaching] : [],
+  };
 }
 
 function ClientGoals({ v, set }) {
-  const goals = ["Lose weight", "Build muscle", "Improve endurance", "Increase flexibility", "General fitness"];
-  const exp = ["Beginner", "Intermediate", "Advanced"];
-  const freq = ["1-2 times per week", "3-4 times per week", "5-6 times per week", "Daily"];
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 26 }}>
-      <Field label="What is your primary fitness goal?">
-        <Select value={v.goal || "Lose weight"} onChange={e => set({ goal: e.target.value })} options={goals} />
+      <Field label="What brings you to Shape?">
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {SU_GOALS.map(g => <Chip key={g.id} on={v.goal === g.en} onClick={() => set({ goal: g.en })}>{g.en}</Chip>)}
+        </div>
       </Field>
       <Field label="Experience level">
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {exp.map(x => <Chip key={x} on={v.experience === x} onClick={() => set({ experience: x })}>{x}</Chip>)}
+          {SU_EXPERIENCE.map(x => <Chip key={x.id} on={v.experience === x.en} onClick={() => set({ experience: x.en })}>{x.en}</Chip>)}
         </div>
       </Field>
-      <Field label="How often do you work out?">
+      <Field label="How often do you want to train?">
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {freq.map(x => <Chip key={x} on={v.frequency === x} onClick={() => set({ frequency: x })}>{x}</Chip>)}
+          {SU_SESSIONS.map(x => <Chip key={x.id} on={v.frequency === x.en} onClick={() => set({ frequency: x.en })}>{x.en}</Chip>)}
         </div>
       </Field>
     </div>
   );
 }
 
-function ClientHealth({ v, set }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-      <p style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)", margin: 0, lineHeight: 1.55 }}>This intake helps your coach keep you safe and tailor your program. Your answers stay private.</p>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
-        <Field label="Date of birth"><TextInput type="date" value={v.dob || ""} onChange={e => set({ dob: e.target.value })} /></Field>
-        <Field label="Biological sex"><Select value={v.sex || "Prefer not to say"} onChange={e => set({ sex: e.target.value })} options={["Prefer not to say", "Female", "Male"]} /></Field>
-      </div>
-      <Field label="Injuries or physical limitations"><TextInput placeholder="e.g. lower back sensitivity, recovering from ACL" value={v.injuries || ""} onChange={e => set({ injuries: e.target.value })} /></Field>
-      <Field label="Prescription medications"><TextInput placeholder="List any you take — or 'None'" value={v.medications || ""} onChange={e => set({ medications: e.target.value })} /></Field>
-      <Field label="Other medical conditions"><TextInput placeholder="Optional — e.g. asthma, type 2 diabetes" value={v.medical || ""} onChange={e => set({ medical: e.target.value })} /></Field>
-      <Field label="Allergies (food, medication, other)"><TextInput placeholder="List any — or 'None'" value={v.diet || ""} onChange={e => set({ diet: e.target.value })} /></Field>
-      <Field label="Emergency contact (name & phone)"><TextInput value={v.emergency || ""} onChange={e => set({ emergency: e.target.value })} /></Field>
-      <Field label="Accountability style">
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {["Hands-off — check in when I need help", "Balanced — weekly check-ins", "High-touch — daily messages & reminders"].map(x => (
-            <Chip key={x} on={v.accountability === x} onClick={() => set({ accountability: x })}>{x}</Chip>
-          ))}
-        </div>
-      </Field>
-      <Check on={v.waiver} onClick={() => set({ waiver: !v.waiver })}>I confirm I am physically able to begin a new exercise program, and I'll consult my doctor if unsure.</Check>
-    </div>
-  );
-}
-
-function ClientPrefs({ v, set }) {
-  const interests = ["Personal training", "Nutrition coaching", "Both"];
-  const toggleInterest = (x) => {
-    const cur = v.interests || [];
-    set({ interests: cur.includes(x) ? cur.filter(y => y !== x) : [...cur, x] });
-  };
+function ClientCoaching({ v, set }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
-      <Field label="What are you most interested in?">
+      <Field label="Are you looking for personal coaching?">
+        <p style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)", margin: "0 0 12px", lineHeight: 1.55 }}>A coach builds your plan and checks in with you. You can add one any time, and the app works without one. If you want a coach, we'll ask a short health screening before you start, so they can train you safely.</p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {interests.map(x => <Chip key={x} on={(v.interests || []).includes(x)} onClick={() => toggleInterest(x)}>{x}</Chip>)}
+          {SU_COACHING.map(x => <Chip key={x.id} on={v.coaching === x.en} onClick={() => set({ coaching: x.en })}>{x.en}</Chip>)}
         </div>
-      </Field>
-      <Field label="Budget per month (optional)">
-        <Select value={v.budget || "Optional"} onChange={e => set({ budget: e.target.value })} options={["Optional", "Under $25/mo", "$25 – $50/mo", "$50 – $100/mo", "$100+/mo"]} />
       </Field>
       <Check on={v.tos} onClick={() => set({ tos: !v.tos })}>I agree to the <a href="/terms" style={{ color: TEAL, textDecoration: "underline", textUnderlineOffset: 2 }}>Terms of Service</a> and <a href="/privacy" style={{ color: TEAL, textDecoration: "underline", textUnderlineOffset: 2 }}>Privacy Policy</a>.</Check>
     </div>
@@ -599,8 +623,7 @@ function SignupForm({ role }) {
       return [
         <ClientPersonal v={values} set={set} />,
         <ClientGoals v={values} set={set} />,
-        <ClientHealth v={values} set={set} />,
-        <ClientPrefs v={values} set={set} />,
+        <ClientCoaching v={values} set={set} />,
       ][step];
     }
     if (role === "trainer" || role === "nutritionist") {
@@ -676,8 +699,10 @@ function SignupForm({ role }) {
       if (minor === null) { setError("Enter a valid date of birth — Shape is for adults 18 and over."); return; }
       if (minor === true) { setError("You must be 18 or older to use Shape."); return; }
       // Require Terms + Privacy acceptance before creating a real account (the
-      // ClientPrefs step collects values.tos — gate on it like the coach path does).
+      // ClientCoaching step collects values.tos — gate on it like the coach path does).
       if (!values.tos) { setError("Please accept the Terms of Service and Privacy Policy to continue."); return; }
+      // Whether to screen them is decided by this answer, so it is not optional.
+      if (!suTokenOf(SU_COACHING, values.coaching)) { setError("Tell us whether you're looking for personal coaching."); return; }
       // Captcha gate — Auth CAPTCHA is enabled, so a tokenless signUp is REJECTED by
       // the server. If the human-check can't load, BLOCK with a retry message rather
       // than falling open into a confusing server-side rejection.
@@ -704,6 +729,9 @@ function SignupForm({ role }) {
               roles: ["client"],
               username: cleanUsername,
               date_of_birth: values.dob,
+              // The goal, experience, weekly sessions and coaching answer, as tokens. The first
+              // signed-in visit writes them to the app's records (POST /api/me/onboarding).
+              onboarding: suOnboardingAnswers(values),
               // Where this sign-up came from (/signup-source.js; counted on the admin console).
               signup_source: (window.shapeSignupSource && window.shapeSignupSource.forSignup("website")) || { surface: "website" },
             },
