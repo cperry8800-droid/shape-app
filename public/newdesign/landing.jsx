@@ -243,7 +243,7 @@ function ProgressRail() {
 function LandingPage() {
   return (
     <div style={{ background: INK_DEEP, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
-      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/get%20started.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/get%20started.webp')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
       <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", background: "radial-gradient(120% 90% at 50% 8%, rgba(26,24,19,0.28) 0%, rgba(11,14,12,0.5) 55%, rgba(11,14,12,0.82) 100%)" }} />
       <div style={{ position: "relative", zIndex: 1 }}>
         <ProgressRail />
