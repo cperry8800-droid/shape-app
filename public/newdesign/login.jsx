@@ -420,7 +420,7 @@ function LoginPage() {
       <div aria-hidden style={{
         position: "fixed",
         inset: 0,
-        backgroundImage: "url('/login%20page%201.png')",
+        backgroundImage: "url('/login%20page%201.webp')",
         backgroundSize: "cover",
         backgroundPosition: "center",
         zIndex: 0,

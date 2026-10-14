@@ -1446,7 +1446,7 @@ function Header({ active }) {
 function HeroBg() {
   return (
     <>
-      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/get%20started.png')", backgroundSize: "cover", backgroundPosition: "center 40%", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/get%20started.webp')", backgroundSize: "cover", backgroundPosition: "center 40%", pointerEvents: "none" }} />
       {/* Lighter gradient — let the road image breathe */}
       <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(var(--sh-ground-rgb, 26,22,18),0.55) 0%, rgba(var(--sh-ground-rgb, 26,22,18),0.1) 35%, rgba(var(--sh-ground-rgb, 26,22,18),0.1) 55%, rgba(var(--sh-ground-rgb, 26,22,18),0.85) 92%, rgba(var(--sh-ground-rgb, 26,22,18),1) 100%)", pointerEvents: "none" }} />
     </>

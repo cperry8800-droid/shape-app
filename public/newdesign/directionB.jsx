@@ -1174,7 +1174,7 @@ const DirB = (() => {
     const SharedHeader = window.Header;
     return (
       <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
-        <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/Home%20page%202.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
+        <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/Home%20page%202.webp')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
         <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, background: "rgba(26,22,18,0.6)", pointerEvents: "none" }} />
         <div style={{ position: "relative", zIndex: 1 }}>
           <SharedHeader />

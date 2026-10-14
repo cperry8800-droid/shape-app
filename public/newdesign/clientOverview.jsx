@@ -427,7 +427,7 @@ function ClientOvCTA() {
 function ClientOverviewPage() {
   return (
     <div style={{ background: DARK, color: LIGHT, fontFamily: clSans, minHeight: "100vh", position: "relative" }}>
-      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/Home%20page%202.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/Home%20page%202.webp')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
       <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, background: "rgba(6,8,10,0.15)", pointerEvents: "none" }} />
       <div style={{ position: "relative", zIndex: 1 }}>
         <Header active="Members" />

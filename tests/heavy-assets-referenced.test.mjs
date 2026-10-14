@@ -41,7 +41,7 @@ const ROOT = path.resolve(import.meta.dirname ?? path.dirname(new URL(import.met
 // ⚠ EMPTY SINCE 2026-10-14. Its three entries (`public/login page.png`, `public/Trainer
 // dash.png`, `public/Make_the_lines_202604170430.png`) were kept at the 2026-09-30 trim as
 // "wanted" although nothing named them, for the owner to decide; the owner had them
-// deleted (*"Delete unused files"*). The live siblings stay: `login page 1.png`,
+// deleted (*"Delete unused files"*). The live siblings stay: `login page 1.webp` (a PNG until 2026-10-14),
 // `trainer dash 1.png`, and the `(1)` copy `directionB.jsx` names.
 const KEEP_UNREFERENCED = new Map([]);
 
