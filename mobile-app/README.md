@@ -1,9 +1,11 @@
 # Shape — iOS App
 
 A Capacitor wrapper around a Vite + React SPA. Reuses Supabase auth and the
-existing API on `theshapecommunity.com`. The visual designs in
-`../public/mobile/*` are the source of truth — port screens into
-`src/screens/` as you go.
+existing API on `theshapecommunity.com`. The app's own source in
+`src/broadsheet/` is the source of truth; `docs/WORKLOG.md` has the map. (This
+file once pointed at `../public/mobile/*`, a design preview the screens were
+ported from. That preview was deleted on 2026-10-14; `/mobile` redirects to the
+app at `/m/`.)
 
 ## Architecture at a glance
 
@@ -97,26 +99,6 @@ Tip: for faster iteration during heavy UI work, point Capacitor at your
 laptop's dev server. Uncomment `server.url` in `capacitor.config.ts`,
 substitute your local IP and port, then `npm run dev` + run the app in
 the simulator. Code changes hot-reload onto the device.
-
-## Porting designs from `../public/mobile/`
-
-The existing files are JSX rendered via `@babel/standalone` — useful for
-fast Figma-style iteration but not shippable. The component bodies are
-fine; just lift them into TSX modules.
-
-For each screen you want to port:
-
-1. Open the source, e.g. `../public/mobile/iosAppMain.jsx`.
-2. Copy the function body into `src/screens/Whatever.tsx`.
-3. Convert inline `className="phone"` shells to a flat layout — Capacitor
-   already provides the phone canvas. Drop the `max-width: 430px` wrapper.
-4. Replace `<a href="OtherPage.html">` with `<Link to="/other-route">`
-   from `react-router-dom`.
-5. Add the route in `src/App.tsx`.
-
-The current `src/screens/Home.tsx` shows the rough shape: card primitives,
-serif headings, teal accents — all variables are already defined in
-`src/styles.css`.
 
 ## Auth + API
 

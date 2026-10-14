@@ -1,5 +1,8 @@
 // The old root site is retired. Owner, 2026-10-14, from the legacy-pages review: "2. Retire old
-// pages w/ redirects", and for the products Shape no longer offers, "Delete, no redirect".
+// pages w/ redirects", and for the products Shape no longer offers, "Delete, no redirect". And
+// "3. Delete /mobile + explorations": the /mobile preview (a phone-frame copy of the app from
+// before it had its own build) now redirects to the app at /m/, and the design explorations
+// (directionA/B/C and their boards) are gone.
 //
 // The root of public/ held a second copy of the site from before the website moved to
 // public/newdesign/: dashboards, a marketplace, coach profiles, sign-up, Score and the Store, each
@@ -72,11 +75,15 @@ async function loadConfig() {
   return { redirects: await mod.default.redirects(), rewrites: await mod.default.rewrites() }
 }
 
-// Next's redirect matching, for the literal sources this config uses: the first rule whose source
-// is the path and whose `has` conditions all hold wins.
+// Next's redirect matching, for the sources this config uses (a literal path, or a prefix ending
+// in `/:path*`, which matches the prefix itself and anything under it): the first rule whose
+// source matches and whose `has` conditions all hold wins.
+const sourceMatches = (source, pathname) => source.endsWith('/:path*')
+  ? pathname === source.slice(0, -7) || pathname.startsWith(source.slice(0, -6))
+  : source === pathname
 function resolve(redirects, pathname, query = {}) {
   for (const r of redirects) {
-    if (r.source !== pathname) continue
+    if (!sourceMatches(r.source, pathname)) continue
     const params = {}
     const ok = (r.has || []).every((h) => {
       if (h.type !== 'query' || query[h.key] === undefined) return false
@@ -97,10 +104,15 @@ test('the old pages, and the scripts and images only they used, are gone', () =>
   for (const f of GONE_ASSETS) assert.equal(existsSync(f), false, `${f} is back`)
 })
 
-test('every redirect source in the config is a literal path, which is what resolve() matches', async () => {
+test('every redirect source in the config is one resolve() models', async () => {
   const { redirects } = await loadConfig()
   assert.ok(redirects.length >= 60, `only ${redirects.length} redirects read; the config was not loaded whole`)
-  for (const r of redirects) assert.doesNotMatch(r.source, /[:*(]/, `${r.source} has a pattern resolve() does not model`)
+  for (const r of redirects) assert.doesNotMatch(r.source.replace(/\/:path\*$/, ''), /[:*(]/, `${r.source} has a pattern resolve() does not model`)
+  // The matcher itself, on the one pattern it allows.
+  assert.equal(sourceMatches('/mobile/:path*', '/mobile'), true)
+  assert.equal(sourceMatches('/mobile/:path*', '/mobile/a/b.html'), true)
+  assert.equal(sourceMatches('/mobile/:path*', '/mobileapp'), false)
+  assert.equal(sourceMatches('/mobile', '/mobile/x'), false)
 })
 
 test('each old address, with or without .html, lands permanently on the page that does its job', async () => {
@@ -313,37 +325,52 @@ test('an old dashboard bookmark keeps its tab', async () => {
   }
 })
 
-test('an old dashboard tab that is a page now, not a route, opens that page', async () => {
+test('an old dashboard tab that is a page now, not a route, opens that page, after sign-in', async () => {
   // Codex on #2352: the old coach dashboards had a #messages tab, and the inboxes are their own
-  // pages (TrainerMessages.html, NutritionistMessages.html), as Community is. Each shell forwards
-  // those fragments before it renders.
-  const PREFIX = { 'TrainerApp.html': 'ta', 'NutritionistApp.html': 'na', 'ClientApp.html': 'ca' }
-  const forward = (shell, hash) => {
+  // pages (TrainerMessages.html, NutritionistMessages.html), as Community is. Each shell's sign-in
+  // gate forwards those fragments, and only once it has read a signed-in account that belongs on
+  // that dashboard (Codex again, on the forward that ran before the reading): a visitor signs in
+  // first and keeps the fragment through next=, and another role goes to its own shell first.
+  // The gate is run from each shell's source, against a reading that settles at once.
+  const gate = (shell, reading, hash) => {
     const src = readFileSync(`public/newdesign/${shell}`, 'utf8')
-    const P = PREFIX[shell]
-    const from = src.indexOf(`const ${P.toUpperCase()}_LEGACY_PAGES = `)
-    const fnAt = src.indexOf(`function ${P}LegacyPage()`, from)
-    assert.ok(from >= 0 && fnAt > from, `${shell}: the legacy-page forward is gone`)
-    const block = src.slice(from, src.indexOf('\n}\n', fnAt) + 3)
-    assert.match(src, new RegExp(`if \\(${P}LegacyPage\\(\\)\\) window\\.location\\.replace\\(${P}LegacyPage\\(\\)\\);`), `${shell}: the forward is never called`)
     // Not in <head>: this site reads a location.replace() there as "this page is a redirect stub"
     // (coach-export, demo-coherence, newdesign-viewport), and a shell is not one.
     assert.doesNotMatch(src.slice(0, src.indexOf('</head>')), /location\.replace\(/, `${shell}: a forward in <head> marks the shell as a stub`)
-    return new Function('window', `${block}; return ${P}LegacyPage();`)({ location: { hash } })
+    const script = [...src.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]).find((b) => b.includes('ShapePortalSession.read()'))
+    assert.ok(script, `${shell}: the sign-in gate is gone`)
+    let to = null
+    const now = { then(fn) { fn(reading); return { catch() {} } } }
+    new Function('window', script)({
+      ShapePortalSession: { read: () => now },
+      location: { pathname: `/newdesign/${shell}`, search: '', hash, replace: (u) => { to = u } },
+    })
+    return to
   }
-  for (const [old, hash, page] of [
-    ['/trainer-dashboard.html', '#messages', 'TrainerMessages.html'], ['/trainer-dashboard.html', '#community', 'Community.html'],
-    ['/nutrition-schedule.html', '#messages', 'NutritionistMessages.html'], ['/nutrition-schedule.html', '#community', 'Community.html'],
-    ['/clients.html', '#community', 'Community.html'],
+  const as = (role) => ({ user: role ? { role } : null })
+  for (const [old, hash, role, page] of [
+    ['/trainer-dashboard.html', '#messages', 'trainer', '/newdesign/TrainerMessages.html'],
+    ['/trainer-dashboard.html', '#community', 'trainer', '/newdesign/Community.html'],
+    ['/nutrition-schedule.html', '#messages', 'nutritionist', '/newdesign/NutritionistMessages.html'],
+    ['/nutrition-schedule.html', '#community', 'nutritionist', '/newdesign/Community.html'],
+    ['/clients.html', '#community', 'client', '/newdesign/Community.html'],
   ]) {
     const landed = await land(old, { hash })
-    const to = forward(landed.pathname.replace('/newdesign/', ''), landed.hash)
-    assert.equal(to, page, `${old}${hash} forwards to ${to}, not ${page}`)
-    assert.ok(existsSync(`public/newdesign/${page}`), `${page} does not exist`)
+    const shell = landed.pathname.replace('/newdesign/', '')
+    assert.equal(gate(shell, as(role), landed.hash), page, `${old}${hash} as a ${role}`)
+    assert.ok(existsSync(`public${page}`), `${page} does not exist`)
+    // Signed out: to sign-in, carrying the fragment, never to the inbox.
+    assert.equal(gate(shell, as(null), landed.hash), '/newdesign/Login.html?next=' + encodeURIComponent(`/newdesign/${shell}${hash}`), `${old}${hash} signed out`)
+    // Unreadable session: the page renders, as the gate's fail-open rule says; no forward.
+    assert.equal(gate(shell, null, landed.hash), null, `${old}${hash} with no reading`)
   }
+  // Another role reaches its own shell first, fragment kept, and that shell maps the tab.
+  assert.equal(gate('TrainerApp.html', as('nutritionist'), '#messages'), '/newdesign/NutritionistApp.html#messages')
+  assert.equal(gate('NutritionistApp.html', as('trainer'), '#messages'), '/newdesign/TrainerApp.html#messages')
   // Everything else renders in the shell: no forward.
-  for (const [shell, hash] of [['TrainerApp.html', '#clients'], ['TrainerApp.html', ''], ['ClientApp.html', '#messages'], ['NutritionistApp.html', '#constructor']]) {
-    assert.equal(forward(shell, hash), null, `${shell}${hash} forwards`)
+  for (const [shell, role, hash] of [['TrainerApp.html', 'trainer', '#clients'], ['TrainerApp.html', 'trainer', ''],
+    ['ClientApp.html', 'client', '#messages'], ['NutritionistApp.html', 'nutritionist', '#constructor']]) {
+    assert.equal(gate(shell, as(role), hash), null, `${shell}${hash} forwards`)
   }
 })
 
@@ -375,4 +402,37 @@ test('the marketplace opens the side a link names, by #hash or ?role=', () => {
     'the first render does not read ?role=')
   // The website's own fallback link into the marketplace names the side that way.
   assert.match(readFileSync('src/lib/coach-profile-path.mjs', 'utf8'), /\/newdesign\/Marketplace\.html\?role=\$\{r\}/)
+})
+
+// Part 3: the /mobile preview and the design explorations.
+const GONE_EXPLORATIONS = [
+  'public/newdesign/Shape Redesign.html', 'public/newdesign/Shape Redesign-print.html',
+  'public/newdesign/index-explorations.html', 'public/newdesign/index-print.html',
+  'public/newdesign/directionA.jsx', 'public/newdesign/directionB.jsx', 'public/newdesign/directionC.jsx',
+  'public/newdesign/app.jsx', 'public/newdesign/shared.jsx',
+  // A print view only the /mobile preview's index linked; it mounted a component it never loaded.
+  'public/newdesign/ClientDashboard-print.html',
+  // Images only the explorations and the preview named.
+  'public/Home page 1.png', 'public/Make_the_lines_202604170430 (1).png', 'public/newdesign/home page new.png',
+  'public/shape-logo-new-black.png', 'public/shape-logo-teal-bright.png', 'public/shape-logo-teal-deep.png',
+]
+
+test('the /mobile preview and the design explorations are gone', () => {
+  const tracked = execFileSync('git', ['ls-files', '--', 'public/mobile']).toString().trim()
+  assert.equal(tracked, '', 'files are tracked under public/mobile again')
+  for (const f of GONE_EXPLORATIONS) assert.equal(existsSync(f), false, `${f} is back`)
+})
+
+test('every /mobile address lands on the app, except the sign-up pages, which keep theirs', async () => {
+  const { redirects, rewrites } = await loadConfig()
+  for (const source of ['/mobile', '/mobile.html', '/mobile/', '/mobile/Mobile.html', '/mobile/mobile.html', '/mobile/coach.html', '/mobile/Index.html']) {
+    assert.deepEqual(resolve(redirects, source), { destination: '/m/', permanent: true }, source)
+  }
+  // These three were redirected first (#2317) and still come first.
+  for (const [page, dest] of [['SignupTrainer', 'SignupTrainer'], ['SignupNutritionist', 'SignupNutritionist'], ['SignupClient', 'SignupClient']]) {
+    assert.deepEqual(resolve(redirects, `/mobile/${page}.html`), { destination: `/newdesign/${dest}.html`, permanent: false }, page)
+  }
+  assert.ok(!rewrites.some((r) => r.destination.startsWith('/mobile')), 'a rewrite still serves the /mobile preview')
+  // Not a neighbour of /mobile.
+  assert.equal(resolve(redirects, '/m/'), null)
 })
