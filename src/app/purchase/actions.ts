@@ -13,6 +13,7 @@ import { isEffectivelyAtCapacity } from '@/lib/capacity';
 import { feeSplit, bpsToRate } from '@/lib/platform-fee';
 import { hasActiveWaitlistInvite } from '@/lib/waitlist';
 import { resolveCoachCheckoutOrigin } from '@/lib/coach-origin';
+import { coachProfileHref } from '@/lib/coach-profile-href';
 
 type ProviderRole = 'trainer' | 'nutritionist';
 type Kind = 'booking' | 'meal_plan';
@@ -40,10 +41,9 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
     redirect('/?error=invalid_purchase');
   }
 
-  const backHref =
-    providerRole === 'trainer'
-      ? `/newdesign/TrainerPublic.html?id=${providerId}`
-      : `/newdesign/NutritionistPublic.html?id=${providerId}`;
+  // The coach's live profile (the living profile, by the listing's owner), where the visitor
+  // came from; every error return below appends `&error=…` to it.
+  const backHref = await coachProfileHref(providerRole, providerId);
 
   const supabase = await createClient();
   const {

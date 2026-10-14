@@ -28,15 +28,38 @@ test('finishing Stripe payouts and claiming a role open the new dashboards', () 
   }
 });
 
-test('the checkout and subscribe back links open the live public profiles, by id', () => {
+test('the checkout and subscribe back links open the coach\'s living profile, by owner', async () => {
+  // Codex on #2350: the first version linked `TrainerPublic.html?id=`, but those pages are
+  // redirect stubs that forward only `?u=` or `?coach=` and drop `?id=`, so the visitor
+  // landed on their own profile. The back link is built from the listing's owner instead.
   for (const f of ['src/app/purchase/actions.ts', 'src/app/subscribe/actions.ts']) {
     const src = read(f);
     assert.doesNotMatch(src, OLD_PROFILES, f + ' still links an old profile page');
-    assert.match(src, /\/newdesign\/TrainerPublic\.html\?id=\$\{providerId\}/, f);
-    assert.match(src, /\/newdesign\/NutritionistPublic\.html\?id=\$\{providerId\}/, f);
+    assert.doesNotMatch(src, /(Trainer|Nutritionist)Public\.html\?id=/, f + ' links a stub by listing id, which drops the id');
+    assert.match(src, /const backHref = await coachProfileHref\(providerRole, providerId\);/, f);
   }
-  // The live profile reads the id it is given (publicProfile.jsx), so the link lands on the coach.
-  assert.match(read('public/newdesign/publicProfile.jsx'), /URLSearchParams\(window\.location\.search\)\.get\("id"\)/);
+  const helper = read('src/lib/coach-profile-href.ts');
+  assert.match(helper, /\.select\('owner_id, name'\)/, 'the helper reads the listing owner and name');
+
+  const { coachProfilePath } = await import('../src/lib/coach-profile-path.mjs');
+  // The same link the marketplace builds for a coach with an account.
+  assert.equal(coachProfilePath('trainer', { owner_id: 'u-123', name: 'Sam O' }), '/newdesign/MemberProfile.html?u=u-123&role=trainer');
+  assert.equal(coachProfilePath('nutritionist', { owner_id: 'u 9' }), '/newdesign/MemberProfile.html?u=u%209&role=nutritionist');
+  // Shape's own listings have no owner: by name, as the marketplace does.
+  assert.equal(coachProfilePath('trainer', { owner_id: null, name: 'Maya Chen' }), '/newdesign/MemberProfile.html?name=Maya%20Chen&role=trainer');
+  // No listing read: the marketplace, never a broken profile link.
+  assert.equal(coachProfilePath('trainer', null), '/newdesign/Marketplace.html?role=trainer');
+  assert.equal(coachProfilePath('bogus', {}), '/newdesign/Marketplace.html?role=trainer');
+  // Every result can take the actions' `&error=…` suffix.
+  for (const r of [coachProfilePath('trainer', { owner_id: 'x' }), coachProfilePath('trainer', { name: 'y' }), coachProfilePath('trainer', null)]) {
+    assert.ok(r.includes('?'), r + ' has no query for &error= to join');
+  }
+  // The living profile reads exactly these parameters (livingProfilePage.jsx), and the
+  // marketplace links it the same way.
+  const living = read('public/newdesign/livingProfilePage.jsx');
+  assert.match(living, /params\.get\("u"\)/);
+  assert.match(living, /params\.get\("name"\)/);
+  assert.match(read('public/newdesign/marketplace.jsx'), /"MemberProfile\.html\?u=" \+ encodeURIComponent\(c\.ownerId\) \+ "&role="/);
 });
 
 test('/login forwards to the website login and keeps a safe next', () => {
