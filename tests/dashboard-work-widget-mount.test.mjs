@@ -32,7 +32,7 @@ for(const mode of ['Save as…','Coaching preset']) test(mode+' clones the captu
     const boards=doc.savedDashboards.trainer.boards;
     assert.equal(boards.length,2);assert.deepEqual(boards[0].tabs.clients,captured);assert.deepEqual(boards[1].tabs.clients,captured);
     assert.deepEqual(boards[1].tabs.business,{hidden:['revenue']});
-    assert.deepEqual(boards[1].tabs.today.added,mode==='Coaching preset'?['checkins','ending','week']:['movers']);
+    assert.deepEqual(boards[1].tabs.today.added,mode==='Coaching preset'?['ending','week']:['movers']);
   } finally {await act(async()=>root.unmount());dom.window.close();globalThis.window=before.window;globalThis.document=before.document;globalThis.IS_REACT_ACT_ENVIRONMENT=before.act;}
 });
 

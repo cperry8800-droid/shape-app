@@ -594,3 +594,13 @@ button.dash-chip:focus-visible { outline:none; box-shadow:inset 0 0 0 2px var(--
   .dash-appbar .shape-header-inner { padding: 0 16px !important; }
   .dash-appbar .shape-nav-logo { display: inline-flex !important; }
 }
+
+/* Today as B: the day column beside the grid. It stays in view while the grid scrolls,
+   and stacks above it once the grid would be squeezed under two half-width cards. */
+.dash-today-split { display: grid; grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); gap: 20px; align-items: start; }
+.dash-today-now { position: sticky; top: 76px; min-width: 0; max-height: calc(100vh - 92px); overflow-y: auto; scrollbar-width: thin; }
+.dash-today-work { min-width: 0; }
+@media (max-width: 1180px) {
+  .dash-today-split { grid-template-columns: minmax(0, 1fr); }
+  .dash-today-now { position: static; max-height: none; overflow: visible; }
+}

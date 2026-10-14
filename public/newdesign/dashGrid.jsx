@@ -653,7 +653,10 @@ function dgBoardEdit(doc, role, action) {
       // The preceding capture has already updated this document, even when React
       // has not redrawn the form yet. Bind replay to the source dashboard too.
       const source = boards.find((b) => b.id === action.board) || current;
-      const tabs = action.preset === "coaching" ? { ...source.tabs, today: { items: [], order: ["pulse", "schedule", "checkins", "ending", "week", "wins"], hidden: ["queue", "practice", "kpis", "business", "roster"], added: ["checkins", "ending", "week"] } } : source.tabs;
+      // The coaching focus: Needs you (whose tabs hold attention, check-ins, replies and the
+      // programming queue; the day itself is the column beside the grid), what runs out
+      // soon, the week ahead, and the wins.
+      const tabs = action.preset === "coaching" ? { ...source.tabs, today: { items: [], order: ["needs", "ending", "week", "wins"], hidden: ["practice", "kpis", "business", "roster"], added: ["ending", "week"] } } : source.tabs;
       boards.push({ id: action.id, name, tabs: JSON.parse(JSON.stringify(tabs)) });
       active = action.id;
     }

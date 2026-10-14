@@ -495,6 +495,94 @@ function DashTodayCard({ live }) {
 }
 
 // ── The page ────────────────────────────────────────────────────────────────
+// ── Today, laid out as B (owner, 2026-10-14: "have this update in dashboard apply to
+// members as well") ──
+// The member's day column: what is up next on their plan and the day it sits in, made from
+// the workout and meals this page already resolved (the live plan, or the preview's). What
+// is up next is the first item not logged and not more than half an hour behind; an item
+// past that dims, but only a logged meal counts as done — a lunch nobody logged is not.
+function dclMinutes(t) {
+  const m = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(String(t || "").trim());
+  if (!m) return null;
+  const h = Number(m[1]) % 12 + (/pm/i.test(m[3]) ? 12 : 0);
+  return h * 60 + Number(m[2]);
+}
+function DclNowColumn({ workout, meals, logged, onLog, live }) {
+  const [now, setNow] = React.useState(() => new Date());
+  React.useEffect(() => { const id = setInterval(() => setNow(new Date()), 30000); return () => clearInterval(id); }, []);
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const items = [];
+  for (const m of meals || []) items.push({ key: "meal-" + m.id, kind: "meal", meal: m, time: m.time, min: dclMinutes(m.time), title: m.title, sub: m.slot + (m.kcal ? " · " + m.kcal + " kcal" : ""), logged: !!(logged && logged[m.id]) });
+  if (workout) items.push({ key: "workout", kind: "workout", time: workout.time, min: dclMinutes(workout.time), title: workout.title, sub: ["Workout", workout.meta, workout.coach ? "with " + workout.coach : null].filter(Boolean).join(" · "), logged: false });
+  items.sort((a, b) => (a.min == null ? 1e4 : a.min) - (b.min == null ? 1e4 : b.min));
+  for (const it of items) it.past = it.logged || (it.min != null && it.min + 30 < nowMin);
+  const nextIdx = items.findIndex((it) => !it.past);
+  const next = nextIdx >= 0 ? items[nextIdx] : null;
+  const lead = !next ? null : next.min != null && next.min > nowMin ? "UP NEXT · IN " + dashCountdown((next.min - nowMin) * 60000) : "UP NEXT · NOW";
+  const eyebrow = { fontFamily: DCL_MONO, fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase" };
+  const btn = { flex: 1, minHeight: 38, borderRadius: 9, font: "inherit", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none", boxSizing: "border-box" };
+  const primary = { ...btn, border: 0, background: DCL_TEAL, color: "var(--sh-deep, #06231f)" };
+  const ghost = { ...btn, border: "1px solid var(--sh-line2, #413d38)", background: "transparent", color: INK };
+  const marker = (label) => (
+    <div aria-hidden style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
+      <span style={{ fontFamily: DCL_MONO, fontSize: 10, letterSpacing: "0.12em", color: DCL_TEAL }}>{label}</span>
+      <span style={{ flex: 1, height: 1, background: DCL_TEAL }} />
+    </div>
+  );
+  const nowLabel = "NOW " + now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <section aria-label="Up next" style={{ background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line2, #413d38)", borderRadius: 14, padding: 18 }}>
+        {next ? (
+          <React.Fragment>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+              <span style={{ ...eyebrow, color: DCL_TEAL }}>{lead}</span>
+              {next.time && <span style={{ fontFamily: DCL_MONO, fontSize: 11, color: DCL_INK50 }}>{next.time}</span>}
+            </div>
+            <div style={{ fontFamily: serif, fontSize: 24, fontWeight: 650, letterSpacing: "-0.01em", fontVariationSettings: "'wdth' 112", marginTop: 10, lineHeight: 1.1 }}>{next.title}</div>
+            <div style={{ fontSize: 13, color: "var(--sh-ink2, #a09b94)", marginTop: 4 }}>{next.sub}</div>
+            <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+              {next.kind === "meal"
+                ? <React.Fragment>
+                    <button type="button" onClick={() => onLog(next.meal)} style={primary}>Log it</button>
+                    <a href={dashShellHref("ClientNutri.html")} style={ghost}>Nutrition</a>
+                  </React.Fragment>
+                : <a href={dashShellHref("ClientTrain.html")} style={primary}>Start workout</a>}
+            </div>
+          </React.Fragment>
+        ) : (
+          <React.Fragment>
+            <span style={{ ...eyebrow, color: DCL_INK50 }}>{items.length ? "Nothing else today" : "Nothing planned today"}</span>
+            <div style={{ fontFamily: serif, fontSize: 22, fontWeight: 650, fontVariationSettings: "'wdth' 112", marginTop: 10 }}>{items.length ? "Today's plan is behind you." : live ? "No plan for today yet." : "Your day is clear."}</div>
+            <a href={dashShellHref("ClientTeam.html")} style={{ display: "inline-block", fontSize: 13, marginTop: 10, color: "var(--sh-accent-ink, #2ee0c4)", textDecoration: "none" }}>Your team →</a>
+          </React.Fragment>
+        )}
+      </section>
+
+      {items.length > 0 && (
+        <section aria-label="Today">
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+            <h2 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Today</h2>
+            {(meals || []).length > 0 && <span style={{ ...eyebrow, color: DCL_INK50 }}>{items.filter((it) => it.logged).length} of {meals.length} meals logged</span>}
+          </div>
+          {items.map((it, i) => (
+            <React.Fragment key={it.key}>
+              {i === nextIdx && marker(nowLabel)}
+              <div style={{ display: "grid", gridTemplateColumns: "62px 1fr", gap: 10, padding: "9px 0", color: it.past ? DCL_INK50 : INK }}>
+                <span style={{ fontFamily: DCL_MONO, fontSize: 11, color: i === nextIdx ? DCL_TEAL : DCL_INK50 }}>{it.time || "—"}</span>
+                <span style={{ fontSize: 13, fontWeight: i === nextIdx ? 600 : 400, minWidth: 0 }}>
+                  {it.logged ? "✓ " : ""}{it.title}<span style={{ color: DCL_INK50, fontWeight: 400 }}>{" · " + (it.kind === "meal" ? it.meal.slot : "Workout")}</span>
+                </span>
+              </div>
+            </React.Fragment>
+          ))}
+          {nextIdx < 0 && marker(nowLabel)}
+        </section>
+      )}
+    </div>
+  );
+}
+
 function ClientDashboardPage() {
   // The paper switch follows the account on every shell page. dashData.jsx loads
   // AFTER this file on every dashboard page and not at all on the print page, so
@@ -638,7 +726,7 @@ function ClientDashboardPage() {
           <div data-tour="hero-today" style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 18, flexWrap: "wrap", marginBottom: 22 }}>
             <div>
               <div style={{ fontFamily: DCL_MONO, fontSize: 10.5, letterSpacing: "0.14em", color: DCL_INK50 }}>{dclRealDate()}</div>
-              <h1 style={{ fontFamily: serif, fontSize: 40, letterSpacing: "-0.025em", fontWeight: 400, margin: "8px 0 0", lineHeight: 1.02 }}>Welcome back, {firstName}.</h1>
+              <h1 style={{ fontFamily: serif, fontSize: 30, letterSpacing: "-0.02em", fontWeight: 500, margin: "8px 0 0", lineHeight: 1.05 }}>Welcome back, {firstName}.</h1>
             </div>
             <div style={{ display: "flex", gap: 10 }}>
               <a href={dashShellHref("ClientTrain.html")} style={{ ...btn, textDecoration: "none", display: "inline-block", clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)", padding: "10px 16px" }}>Log workout</a>
@@ -657,6 +745,9 @@ function ClientDashboardPage() {
             </div>
           )}
 
+          <div className="dash-today-split">
+          <div className="dash-today-now"><DclNowColumn workout={workout} meals={meals} logged={logged} onLog={logMeal} live={live} /></div>
+          <div className="dash-today-work">
           <DashGrid role="client" widgets={[
             { key: "score", title: "Shape Score", size: "full", render: () => (
               <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ ...plate(DCL_TEAL), paddingLeft: 24 }}>
@@ -805,6 +896,8 @@ function ClientDashboardPage() {
               </div>
             ) },
           ]} />
+          </div>
+          </div>
         </main>
     </DashFrame>
   );

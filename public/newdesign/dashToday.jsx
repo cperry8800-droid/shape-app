@@ -1541,6 +1541,145 @@ function DashCapacityPanel({ role, live }) {
 
 
 // ── The shared page ─────────────────────────────────────────────────────────
+// ── Today, laid out as B (owner, 2026-10-14) ─────────────────────────────────
+// "i like option B": the day on the left — what is up next and the timeline it sits in —
+// and the work on the right, led by one "Needs you" card whose tabs are the queues a
+// coach works through. Both are composed from what this page already holds; neither
+// fetches anything of its own.
+
+// "2H 10M", "45M", "1M". Never "0M": a session starting inside the minute is "1M" away.
+function dashCountdown(ms) {
+  const mins = Math.max(1, Math.ceil(ms / 60000));
+  const h = Math.floor(mins / 60), m = mins % 60;
+  return h ? h + "H" + (m ? " " + m + "M" : "") : m + "M";
+}
+
+// The day column. `rows` is the live schedule with real instants ({ at, end, time, who,
+// sub }), or null for the signed-out preview, which passes its own rows as `demoRows`
+// and marks the next one with status "NEXT" — the preview has no clock to measure.
+// ⚠ A LIVE ROW IS DONE WHEN IT HAS ENDED, NOT WHEN IT HAS STARTED. A session in
+// progress is still the one up next: it is the one the coach is in.
+function DashNowColumn({ rows, demoRows, clients, role, unit, onOpenCalendar }) {
+  const [now, setNow] = React.useState(() => Date.now());
+  React.useEffect(() => {
+    if (!rows) return undefined;
+    const id = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(id);
+  }, [!!rows]);
+  const units = useDashUnits();
+  const items = rows
+    ? rows.map((r) => ({ ...r, done: +r.end <= now, live: +r.at <= now && now < +r.end }))
+    : (demoRows || []).filter((r) => r && r.time !== "—").map((r) => ({ ...r, done: r.status === "DONE", live: false }));
+  let nextIdx = rows ? items.findIndex((r) => !r.done) : items.findIndex((r) => r.status === "NEXT");
+  if (!rows && nextIdx < 0) nextIdx = items.findIndex((r) => !r.done);
+  const next = nextIdx >= 0 ? items[nextIdx] : null;
+  const rec = next ? dashFindRecord(clients, next.who) : null;
+  const context = rec ? dashContextLine(rec, units) : "";
+  const fileHref = rec ? dashClientHref(rec, role) : null;
+  const lead = !next ? null
+    : !rows ? "UP NEXT"
+    : next.live ? "ON NOW · UNTIL " + dashFmtTime(next.end)
+    : "UP NEXT · IN " + dashCountdown(+next.at - now);
+  const eyebrow = { fontFamily: mono, fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase" };
+  const btn = { flex: 1, minHeight: 38, borderRadius: 9, font: "inherit", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none", boxSizing: "border-box" };
+  const plural = unit + (items.length === 1 ? "" : "s");
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <section aria-label="Up next" style={{ background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line2, #413d38)", borderRadius: 14, padding: 18 }}>
+        {next ? (
+          <React.Fragment>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+              <span style={{ ...eyebrow, color: "var(--sh-accent, #2ee0c4)" }}>{lead}</span>
+              <span style={{ fontFamily: mono, fontSize: 11, color: "var(--sh-ink3, #75706a)" }}>{next.time}</span>
+            </div>
+            <div style={{ fontFamily: serif, fontSize: 24, fontWeight: 650, letterSpacing: "-0.01em", fontVariationSettings: "'wdth' 112", marginTop: 10, lineHeight: 1.1 }}>{next.who}</div>
+            {next.sub && <div style={{ fontSize: 13, color: "var(--sh-ink2, #a09b94)", marginTop: 4 }}>{next.sub}</div>}
+            <div style={{ fontSize: 12.5, color: "var(--sh-ink2, #a09b94)", marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--sh-line, #302c27)" }}>{context || "No shared history yet"}</div>
+            <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+              {fileHref
+                ? <a href={fileHref} style={{ ...btn, border: 0, background: TEAL_BRIGHT, color: "var(--sh-deep, #06231f)" }}>Client file</a>
+                : null}
+              <button type="button" onClick={() => dashMessageClient(next.who, role)} style={{ ...btn, border: "1px solid var(--sh-line2, #413d38)", background: fileHref ? "transparent" : TEAL_BRIGHT, color: fileHref ? INK : "var(--sh-deep, #06231f)" }}>Message</button>
+            </div>
+          </React.Fragment>
+        ) : (
+          <React.Fragment>
+            <span style={{ ...eyebrow, color: "var(--sh-ink3, #75706a)" }}>{items.length ? "Done for today" : "Nothing booked today"}</span>
+            <div style={{ fontFamily: serif, fontSize: 22, fontWeight: 650, fontVariationSettings: "'wdth' 112", marginTop: 10 }}>{items.length ? "Every " + unit + " is behind you." : "Your schedule is clear."}</div>
+            <a href={dashTabHref("schedule", role)} style={{ display: "inline-block", fontSize: 13, marginTop: 10, color: "var(--sh-accent-ink, #2ee0c4)", textDecoration: "none" }}>Open the schedule →</a>
+          </React.Fragment>
+        )}
+      </section>
+
+      {items.length > 0 && (
+        <section aria-label="Today">
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+            <h2 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Today</h2>
+            {onOpenCalendar
+              ? <button type="button" onClick={onOpenCalendar} style={{ background: "transparent", border: 0, padding: "6px 0", cursor: "pointer", ...eyebrow, color: "var(--sh-accent-ink, #2ee0c4)" }}>Calendar →</button>
+              : <span style={{ ...eyebrow, color: "var(--sh-ink3, #75706a)" }}>{items.length} {plural}</span>}
+          </div>
+          {items.map((r, i) => (
+            <React.Fragment key={i}>
+              {i === nextIdx && (rows || r.status === "NEXT") && (
+                <div aria-hidden style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
+                  <span style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", color: "var(--sh-accent, #2ee0c4)" }}>{rows ? "NOW " + dashFmtTime(new Date(now).toISOString()) : "NOW"}</span>
+                  <span style={{ flex: 1, height: 1, background: "var(--sh-accent, #2ee0c4)" }} />
+                </div>
+              )}
+              <div style={{ display: "grid", gridTemplateColumns: "48px 1fr", gap: 10, padding: "9px 0", color: r.done ? "var(--sh-ink3, #75706a)" : INK }}>
+                <span style={{ fontFamily: mono, fontSize: 11, color: i === nextIdx ? "var(--sh-accent, #2ee0c4)" : "var(--sh-ink3, #75706a)" }}>{r.time}</span>
+                <span style={{ fontSize: 13, fontWeight: i === nextIdx ? 600 : 400, minWidth: 0 }}>
+                  {r.who}{r.sub ? <span style={{ color: "var(--sh-ink3, #75706a)", fontWeight: 400 }}>{" · " + r.sub}</span> : null}
+                </span>
+              </div>
+            </React.Fragment>
+          ))}
+          {rows && nextIdx < 0 && (
+            <div aria-hidden style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
+              <span style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", color: "var(--sh-accent, #2ee0c4)" }}>{"NOW " + dashFmtTime(new Date(now).toISOString())}</span>
+              <span style={{ flex: 1, height: 1, background: "var(--sh-accent, #2ee0c4)" }} />
+            </div>
+          )}
+        </section>
+      )}
+    </div>
+  );
+}
+
+// One card, one tab per queue. The tab a coach left open is remembered per account and
+// per role (a trainer and a nutritionist Today are different practices). A tab may declare
+// `empty` with `emptyText` for a panel that renders nothing when it has nothing to show —
+// a tab that opens onto a blank card reads as broken.
+function DashNeedsYou({ tabs, prefs, role }) {
+  const keys = tabs.map((t) => t.key);
+  const [chosen, choose] = useRememberedChoice(prefs, "needsTab:" + role, keys, keys[0]);
+  const cur = tabs.find((t) => t.key === chosen) || tabs[0];
+  return (
+    <div style={{ background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 10, padding: 24 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+        <div style={{ fontSize: 14, fontWeight: 500 }}>Needs you</div>
+        <div role="tablist" aria-label="Needs you" style={{ display: "inline-flex", gap: 2, padding: 3, background: "var(--sh-rest, #221e19)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 10, flexWrap: "wrap" }}>
+          {tabs.map((t) => {
+            const on = t.key === cur.key;
+            return (
+              <button key={t.key} type="button" role="tab" aria-selected={on} onClick={() => choose(t.key)}
+                style={{ minHeight: 32, padding: "0 12px", borderRadius: 7, border: 0, cursor: "pointer", font: "inherit", fontSize: 12.5, fontWeight: on ? 600 : 500,
+                  background: on ? "var(--sh-card, #25211d)" : "transparent", color: on ? INK : "var(--sh-ink2, #a09b94)",
+                  boxShadow: on ? "0 1px 2px rgba(0,0,0,0.18)" : "none" }}>{t.label}</button>
+            );
+          })}
+        </div>
+      </div>
+      <div role="tabpanel" aria-label={cur.label}>
+        {cur.empty
+          ? <div style={{ fontSize: 13, color: "var(--sh-ink2, #a09b94)", lineHeight: 1.5 }}>{cur.emptyText}</div>
+          : cur.render()}
+      </div>
+    </div>
+  );
+}
+
 function CoachDashboardPage({ role }) {
   const cfg = DASH_TODAY_ROLES[role];
   const { today: live, triage, clients, queue, joint, source } = useDashboard(role);
@@ -1574,6 +1713,15 @@ function CoachDashboardPage({ role }) {
           status: i === 0 ? (s.status === "confirmed" ? "NEXT" : "PENDING") : undefined,
         }))
       : [cfg.emptySchedule];
+
+  // The day column's rows, with real instants (null in the preview, which has no clock).
+  const nowRows = todayRows
+    ? todayRows.map((s) => {
+        const at = new Date(s.scheduledAt);
+        return { at, end: new Date(+at + (s.durationMin || 15) * 60000), time: dashFmtTime(s.scheduledAt),
+          who: s.clientName || "Client", sub: [s.topic, (s.durationMin || 15) + " min", s.type].filter(Boolean).join(" · ") };
+      })
+    : null;
 
   // Everything the KPI pool derives from, gathered once. Nothing here is fetched for the
   // strips — it is the state Today already holds — which is the constraint that decides
@@ -1646,6 +1794,19 @@ function CoachDashboardPage({ role }) {
   // are the honest-absence contract — the entry stays in the array, and the catalogue
   // says why the card cannot be added yet.
   const gridWidgets = [
+    // ⚠ "NEEDS YOU" HOLDS THE QUEUES, SO THE CARDS IT REPLACED ARE OPTIONAL NOW. Client
+    // attention, the programming queue (and Check-ins / Replies above) are its tabs, and the
+    // schedule is the day column beside the grid, so none of them is on a board by default;
+    // each can still be added back as its own card from the catalogue.
+    { key: "needs", title: "Needs you", blurb: "Attention, check-ins, replies" + (cfg.programmingQueue ? " and programs" : "") + ", one tab each.", size: "full",
+      render: () => <DashNeedsYou prefs={prefs} role={role} tabs={[
+        { key: "attention", label: "Attention", empty: !triage || triage.length === 0,
+          emptyText: "No one needs your attention right now. Clients appear here when their logs, check-ins or Shape Score slip.",
+          render: () => <TriagePulsePanel feed={triage} role={role} joint={joint} pinned={pinned} onTogglePin={togglePin} prefs={prefs} /> },
+        { key: "checkins", label: "Check-ins", render: () => <DashCheckinQueuePanel clients={clients} prefs={prefs} role={role} live={source === "live"} /> },
+        { key: "replies", label: "Replies", render: () => <DashRepliesPanel role={role} live={source === "live"} /> },
+        ...(cfg.programmingQueue ? [{ key: "programs", label: "Programs", render: () => <ProgrammingQueuePanel queue={queue} role={role} live={source === "live"} /> }] : []),
+      ]} /> },
     { key: "checkins", title: "Check-ins to review", blurb: "Recent shared check-ins, oldest first, with your saved review status.", optional: true, size: "half",
       render: () => renderPanel("Check-ins to review", <DashCheckinQueuePanel clients={clients} prefs={prefs} role={role} live={source === "live"} />) },
     { key: "setup", title: "New-client setup", blurb: "Intake, first appointment, first plan and first check-in.", optional: true, size: "half",
@@ -1654,9 +1815,9 @@ function CoachDashboardPage({ role }) {
       render: () => renderPanel("Replies needed", <DashRepliesPanel role={role} live={source === "live"} />) },
     { key: "capacity", title: "Capacity this week", blurb: "Booked time, working hours and gaps over the next seven days.", optional: true, size: "half",
       render: () => renderPanel("Capacity this week", <DashCapacityPanel role={role} live={source === "live"} />) },
-    { key: "pulse", title: "Client attention", blurb: "Who needs attention, ranked by the signal engine.", size: "half", render: () => renderPanel("Client attention", <TriagePulsePanel feed={triage} role={role} joint={joint} pinned={pinned} onTogglePin={togglePin} prefs={prefs} />) },
-    { key: "schedule", title: cfg.scheduleTitle, blurb: "Today's " + cfg.unit + "s, in order, with context on each.", size: "half", render: () => renderPanel(cfg.scheduleTitle, <ExpandableSchedule schedule={schedule} clients={clients} role={role} />) },
-    ...(cfg.programmingQueue ? [{ key: "queue", title: "Programming queue", blurb: "Who is ready for next week's programming.", size: "full", render: () => renderPanel("Programming queue", <ProgrammingQueuePanel queue={queue} role={role} live={source === "live"} />) }] : []),
+    { key: "pulse", title: "Client attention", blurb: "Who needs attention, ranked by the signal engine.", optional: true, size: "half", render: () => renderPanel("Client attention", <TriagePulsePanel feed={triage} role={role} joint={joint} pinned={pinned} onTogglePin={togglePin} prefs={prefs} />) },
+    { key: "schedule", title: cfg.scheduleTitle, blurb: "Today's " + cfg.unit + "s, in order, with context on each.", optional: true, size: "half", render: () => renderPanel(cfg.scheduleTitle, <ExpandableSchedule schedule={schedule} clients={clients} role={role} />) },
+    ...(cfg.programmingQueue ? [{ key: "queue", title: "Programming queue", blurb: "Who is ready for next week's programming.", optional: true, size: "full", render: () => renderPanel("Programming queue", <ProgrammingQueuePanel queue={queue} role={role} live={source === "live"} />) }] : []),
     { key: "practice", title: "Practice", blurb: "Four figures about today's practice — pick them with ⚙.", size: "full", render: () => renderKpiStrip(practiceKpis),
       settings: dashKpiSettings(practiceChosen, role, setPracticeKpis) },
     { key: "wins", title: "Client wins", blurb: "Milestones your clients just hit, with a one-tap congratulation.", size: "full", render: () => renderPanel("Client wins", <DashWinsPanel clients={clients} role={role} />) },
@@ -1694,6 +1855,7 @@ function CoachDashboardPage({ role }) {
       tourHero="hero-today"
       role={role}
       gridWidgets={gridWidgets}
+      nowColumn={(openCalendar) => <DashNowColumn rows={nowRows} demoRows={nowRows ? null : source === "live" ? [] : cfg.mockSchedule} clients={clients} role={role} unit={cfg.unit} onOpenCalendar={openCalendar} />}
       userName={firstName}
       date={cfg.date()}
       greeting={cfg.greeting(firstName)}
@@ -1737,4 +1899,4 @@ function CoachDashboardPage({ role }) {
   );
 }
 
-Object.assign(window, { CoachDashboardPage, dashQueueRowState, dashQueueNotices, dashQueueMergeMarks, DASH_TODAY_ROLES, DASH_SEV_COLORS, DASH_FUNNEL_BENCHMARK, DashPill, DashDemoBand, TriagePulsePanel, DashWinsPanel, ProgrammingQueuePanel, DashGrowthPanel, DashFunnelPanel, DashNutriAggPanel, DashBusinessSummary, DashWeekAheadPanel, DashRosterStatusPanel, DashTopMoversPanel, DashAnniversariesPanel, DashRevenueByClientPanel, DashProgramsEndingPanel, DashNotesPanel, dashTabHref, dashMessageClient, dashMessageDraft, dashCongratsDraft, dashJointDraft, dashClientHref, dashClientPageHref, dashRelDay, dashContextLine, dashMoney, dashFmtTime, dashCalDate, dashCalTime });
+Object.assign(window, { CoachDashboardPage, DashNowColumn, DashNeedsYou, dashCountdown, dashQueueRowState, dashQueueNotices, dashQueueMergeMarks, DASH_TODAY_ROLES, DASH_SEV_COLORS, DASH_FUNNEL_BENCHMARK, DashPill, DashDemoBand, TriagePulsePanel, DashWinsPanel, ProgrammingQueuePanel, DashGrowthPanel, DashFunnelPanel, DashNutriAggPanel, DashBusinessSummary, DashWeekAheadPanel, DashRosterStatusPanel, DashTopMoversPanel, DashAnniversariesPanel, DashRevenueByClientPanel, DashProgramsEndingPanel, DashNotesPanel, dashTabHref, dashMessageClient, dashMessageDraft, dashCongratsDraft, dashJointDraft, dashClientHref, dashClientPageHref, dashRelDay, dashContextLine, dashMoney, dashFmtTime, dashCalDate, dashCalTime });

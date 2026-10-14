@@ -422,6 +422,7 @@ function DashShell({
   gridWidgets, // optional [{ key, title, size, render }] — when present, the body sections render
                // through DashGrid (draggable/resizable, like the client tabs) instead of the fixed
                // layout. Only the coach Today pages pass this; everything else keeps the old layout.
+  nowColumn,   // optional (openCalendar) => node — the day column B's layout puts beside the grid
 }) {
   // The paper switch follows the account on every shell page. dashData.jsx loads
   // AFTER this file on every dashboard page and not at all on the print page, so
@@ -458,9 +459,16 @@ function DashShell({
           </div>
         </div>
 
-        {gridWidgets ? (
-          <DashGrid role={role} tab="today" widgets={gridWidgets} />
-        ) : (
+        {gridWidgets ? (() => {
+          // ONE <DashGrid> call site: two with the same role+tab would share a stored layout.
+          const grid = <DashGrid role={role} tab="today" widgets={gridWidgets} />;
+          return nowColumn ? (
+            <div className="dash-today-split">
+              <div className="dash-today-now">{nowColumn(calendarEvents && cal ? cal.open : null)}</div>
+              <div className="dash-today-work">{grid}</div>
+            </div>
+          ) : grid;
+        })() : (
         <React.Fragment>
         {/* KPI strip(s) — single card w/ dividers; coach Today shows two
             (financial summary + practice). */}
