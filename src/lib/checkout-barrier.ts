@@ -14,9 +14,12 @@
 //   bounded by CHECKOUT_CREATE_OPTIONS, well inside the 60 seconds, so two requests can never
 //   both hand out a checkout.
 // - currentCheckout, run while holding the claim: the account's open checkout for the product, if
-//   it is under 10 minutes old, is handed back (so the loser above gets the winner's checkout, and
-//   a second press from another page reopens it). Every other open one for the product is expired,
-//   so an abandoned tab can no longer be paid and a coach's changed price is not charged from it.
+//   it is under 10 minutes old and still on this request's terms (price, fee, referral), is handed
+//   back, so the loser above gets the winner's checkout and a second press from another page
+//   reopens it. Every other open one for the product is expired, so an abandoned tab can no longer
+//   be paid and a changed price or fee is never charged from an old checkout (Codex on #2353).
+//   Callers ask Stripe whether the account already pays AFTER this and before handing anything
+//   out, so a checkout completed in another tab meanwhile is caught (Codex again).
 
 import { randomUUID } from 'node:crypto';
 import { stripe } from '@/lib/stripe';
@@ -85,10 +88,14 @@ export async function claimCheckout(userId: string, product: string): Promise<Ch
 
 type OpenSession = { created: number; url?: string | null; mode?: string | null; metadata?: Record<string, string> | null };
 
-/** Run while holding the claim: the account's newest open checkout for the product if it is fresh; every other is expired. */
+/**
+ * Run while holding the claim: the account's newest open checkout for the product, if it is fresh
+ * and on the same terms; every other open one for the product is expired.
+ */
 export async function currentCheckout(
   customerId: string,
   sameProduct: (session: OpenSession) => boolean,
+  sameTerms: (session: OpenSession) => boolean,
   now: number = Date.now()
 ): Promise<string | null> {
   const open = await stripe.checkout.sessions.list({ customer: customerId, status: 'open', limit: 100 });
@@ -96,7 +103,7 @@ export async function currentCheckout(
   // Stripe lists the newest first.
   for (const session of open.data) {
     if (!sameProduct(session)) continue;
-    if (!current && session.url && now - session.created * 1000 < FRESH_MS) {
+    if (!current && session.url && now - session.created * 1000 < FRESH_MS && sameTerms(session)) {
       current = session.url;
       continue;
     }

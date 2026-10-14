@@ -361,9 +361,15 @@ export async function POST(request: Request) {
   try {
     if (isSubscription) {
       claim = await claimCheckout(user.id, `coach-${providerRole}-${providerId}`);
-      // ⚠ ASKED HERE, WHILE HOLDING THE CLAIM (Codex on #2353): a request that waited on the claim
-      // can arrive after the first checkout was paid, when there is nothing open to hand back.
-      // Stripe holds the subscription the moment it is paid; our row comes with the webhook.
+      // Handed back only on this request's terms: a changed price, fee or referral makes a new one.
+      const open = await currentCheckout(customerId, (s) => s.mode === 'subscription'
+        && s.metadata?.provider_id === String(providerId) && s.metadata?.provider_role === providerRole,
+      (s) => s.metadata?.price_cents === String(chargeCents) && s.metadata?.fee_bps === String(feeBps)
+        && s.metadata?.origin === coachOrigin && (s.metadata?.referral_id ?? null) === (referralId ?? null));
+      // ⚠ ASKED HERE, WHILE HOLDING THE CLAIM AND AFTER THE OPEN CHECKOUTS ARE READ (Codex on #2353):
+      // a request that waited on the claim can arrive after the first checkout was paid, and one
+      // the buyer completes in another tab while this request reads them is no longer listed as
+      // open. Stripe holds the subscription the moment it is paid; our row comes with the webhook.
       let paid: boolean;
       try {
         paid = await hasLiveStripeSubscription({ customerId, email: user.email ?? null }, {
@@ -374,8 +380,6 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Could not check your subscriptions. Try again in a moment.' }, { status: 503 });
       }
       if (paid) return alreadySubscribed();
-      const open = await currentCheckout(customerId, (s) => s.mode === 'subscription'
-        && s.metadata?.provider_id === String(providerId) && s.metadata?.provider_role === providerRole);
       if (open) return NextResponse.json({ url: open, creditAppliedCents: 0 });
       await claim.confirm();
     }

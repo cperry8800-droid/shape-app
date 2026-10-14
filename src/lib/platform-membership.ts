@@ -39,13 +39,14 @@ export async function createPlatformCheckout(opts: {
   // CheckoutInProgressError and a failed Stripe read propagate; callers answer them.
   const claim = await claimCheckout(opts.userId, 'shape_platform');
   try {
-    // ⚠ ASKED HERE, WHILE HOLDING THE CLAIM (Codex on #2353): a request that waited on the claim
-    // can arrive after the first checkout was paid, when there is nothing open to hand back.
-    // Stripe holds the subscription the moment it is paid; our row comes later.
+    const open = await currentCheckout(opts.customerId, (s) => s.metadata?.plan === 'shape_platform', (s) => s.metadata?.price_id === opts.priceId);
+    // ⚠ ASKED HERE, WHILE HOLDING THE CLAIM AND AFTER THE OPEN CHECKOUTS ARE READ (Codex on #2353):
+    // a request that waited on the claim can arrive after the first checkout was paid, and one
+    // the buyer completes in another tab while this request reads them is no longer listed as
+    // open. Stripe holds the subscription the moment it is paid; our row comes later.
     if (await hasLiveStripeSubscription({ customerId: opts.customerId, email: opts.email }, { client_id: opts.userId, plan: 'shape_platform' })) {
       return { alreadyMember: true };
     }
-    const open = await currentCheckout(opts.customerId, (s) => s.metadata?.plan === 'shape_platform');
     if (open) return { alreadyMember: false, url: open };
     await claim.confirm();
     const session = await stripe.checkout.sessions.create({
@@ -53,7 +54,7 @@ export async function createPlatformCheckout(opts: {
       line_items: [{ price: opts.priceId, quantity: 1 }],
       customer: opts.customerId,
       client_reference_id: opts.userId,
-      metadata: { client_id: opts.userId, plan: 'shape_platform' },
+      metadata: { client_id: opts.userId, plan: 'shape_platform', price_id: opts.priceId },
       subscription_data: { metadata: { client_id: opts.userId, plan: 'shape_platform' } },
       success_url: membershipReturnUrl(opts.origin, opts.next),
       cancel_url: `${opts.origin}${opts.cancelPath}`,

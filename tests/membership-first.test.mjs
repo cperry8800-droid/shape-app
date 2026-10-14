@@ -61,16 +61,19 @@ async function baseModules() {
 // subscriptions on the account's own customer ('cus_stable', stripe-customer.ts);
 // `emailSubs` are on an older per-checkout customer found by the buyer's email ('cus_email');
 // `stripeThrows` makes the lookup fail.
-async function liveSubscriptionLib({ stripeSubs = [], emailSubs = [], stripeThrows = false } = {}) {
+async function liveSubscriptionLib({ stripeSubs = [], emailSubs = [], stripeThrows = false, afterCheck = null } = {}) {
   const { membershipCore } = await baseModules();
   const stripe = {
     customers: { list: async ({ email }) => { if (stripeThrows) throw new Error('stripe down'); return { data: email ? [{ id: 'cus_email' }] : [] }; } },
     subscriptions: { list: async ({ customer }) => { if (stripeThrows) throw new Error('stripe down'); return { data: customer === 'cus_stable' ? stripeSubs : customer === 'cus_email' ? emailSubs : [] }; } },
   };
-  return loadRealModule(join(ROOT, 'src/lib/stripe-live-subscription.ts'), {
+  const lib = await loadRealModule(join(ROOT, 'src/lib/stripe-live-subscription.ts'), {
     typescript: true,
     registry: new Map([['@/lib/stripe', { stripe }], ['@/lib/membership-core', membershipCore]]),
   });
+  if (!afterCheck) return lib;
+  // `afterCheck` runs once Stripe has answered: something that happens right after the check.
+  return { hasLiveStripeSubscription: async (...a) => { const r = await lib.hasLiveStripeSubscription(...a); afterCheck(); return r; } };
 }
 
 // The claim table (2026-10-14-checkout-claims.sql) as a Map that every request given it shares,
@@ -123,6 +126,10 @@ async function barrierLib({ open = [], expired = [], table = claimsTable(), rpcE
   });
 }
 
+// The terms a checkout is reused on: the membership's price, and the coach's (Coach T, $150 at the
+// marketplace fee, no referral).
+const MEMBER_TERMS = { client_id: UID, plan: 'shape_platform', price_id: 'price_platform_test' };
+const COACH_TERMS = { client_id: UID, provider_id: '4', provider_role: 'trainer', price_cents: '15000', fee_bps: '1500', origin: 'marketplace' };
 /** An open checkout `minutesAgo` old. */
 const openSession = (id, minutesAgo, metadata, mode = 'subscription') => ({ id, created: Math.floor(Date.now() / 1000) - minutesAgo * 60, url: `https://checkout.stripe.test/${id}`, mode, metadata });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -144,13 +151,13 @@ const paidAtOnce = (open, stripeSubs) => (session) => {
   stripeSubs.push(stripeSub({ client_id: UID, ...session.metadata }));
 };
 
-async function platformMembership({ retrieve = async () => { throw new Error('unexpected retrieve'); }, admin = scripted(), created = [], createdOpts = [], open = [], expired = [], table = claimsTable(), createDelay = 0, createError = null, barrier = null, stripeSubs = [], onCreated = null } = {}) {
+async function platformMembership({ retrieve = async () => { throw new Error('unexpected retrieve'); }, admin = scripted(), created = [], createdOpts = [], open = [], expired = [], table = claimsTable(), createDelay = 0, createError = null, barrier = null, stripeSubs = [], onCreated = null, afterCheck = null } = {}) {
   const { returnPath, membershipCore } = await baseModules();
   return loadRealModule(join(ROOT, 'src/lib/platform-membership.ts'), {
     typescript: true,
     registry: new Map([
       ['@/lib/stripe', { stripe: { checkout: { sessions: { create: createInto({ created, createdOpts, open, prefix: 'cs_test_platform', delay: createDelay, error: createError, onCreated }), retrieve } } } }],
-      ['@/lib/stripe-live-subscription', await liveSubscriptionLib({ stripeSubs })],
+      ['@/lib/stripe-live-subscription', await liveSubscriptionLib({ stripeSubs, afterCheck })],
       ['@/lib/supabase/admin', { createAdminClient: () => admin.client }],
       ['@/lib/membership-core', membershipCore],
       ['@/lib/return-path', returnPath],
@@ -169,7 +176,7 @@ test('appendParam puts the parameter in the query, before any fragment, whether 
 });
 
 // ── /api/stripe/checkout-session: coaching needs the membership ─────────────────────────────
-async function coachRoute({ profile = ADULT, platform = [], subscriptions = [], fail = [], errors = {}, stripeSubs = [], emailSubs = [], stripeThrows = false, customerFails = false, open = [], table = claimsTable(), rpcError = null, createDelay = 0, onCreated = null, onList = null } = {}) {
+async function coachRoute({ profile = ADULT, platform = [], subscriptions = [], fail = [], errors = {}, stripeSubs = [], emailSubs = [], stripeThrows = false, customerFails = false, open = [], table = claimsTable(), rpcError = null, createDelay = 0, onCreated = null, onList = null, afterCheck = null } = {}) {
   const { requestUtils, returnPath, membershipCore, platformFee } = await baseModules();
   const created = [];
   const createdOpts = [];
@@ -189,7 +196,7 @@ async function coachRoute({ profile = ADULT, platform = [], subscriptions = [], 
       ['@/lib/coach-origin', { resolveCoachCheckoutOrigin: async () => ({ origin: 'marketplace', feeBps: 1500, referralId: null }) }],
       ['@/lib/return-path', returnPath],
       ['@/lib/membership-core', membershipCore],
-      ['@/lib/stripe-live-subscription', await liveSubscriptionLib({ stripeSubs, emailSubs, stripeThrows })],
+      ['@/lib/stripe-live-subscription', await liveSubscriptionLib({ stripeSubs, emailSubs, stripeThrows, afterCheck })],
       ['@/lib/stripe-customer', { stripeCustomerFor: async () => { if (customerFails) throw new Error('stripe down'); return 'cus_stable'; } }],
       ['@/lib/checkout-barrier', await barrierLib({ open, expired, table, rpcError, onList })],
     ]),
@@ -480,11 +487,16 @@ test('checkout barrier: the newest open checkout for the product is handed back 
   ];
   const lib = await barrierLib({ open, expired });
   const member = (x) => x.metadata?.plan === 'shape_platform';
-  assert.equal(await lib.currentCheckout('cus_stable', member), 'https://checkout.stripe.test/cs_member_now');
+  const any = () => true;
+  assert.equal(await lib.currentCheckout('cus_stable', member, any), 'https://checkout.stripe.test/cs_member_now');
   assert.deepEqual(expired.sort(), ['cs_member_earlier', 'cs_member_old'], 'one payable membership checkout is left; the coach ones are another product');
-  assert.equal(await lib.currentCheckout('cus_other', member), null, 'another customer\'s checkouts are not this account\'s');
+  assert.equal(await lib.currentCheckout('cus_other', member, any), null, 'another customer\'s checkouts are not this account\'s');
   const staleOnly = await barrierLib({ open: [openSession('cs_member_old', 11, { plan: 'shape_platform' })], expired: [] });
-  assert.equal(await staleOnly.currentCheckout('cus_stable', member), null, 'ten minutes on, a new checkout is made');
+  assert.equal(await staleOnly.currentCheckout('cus_stable', member, any), null, 'ten minutes on, a new checkout is made');
+  const changed = [];
+  const termsLib = await barrierLib({ open: [openSession('cs_member_old_price', 1, { plan: 'shape_platform', price_id: 'price_old' })], expired: changed });
+  assert.equal(await termsLib.currentCheckout('cus_stable', member, (x) => x.metadata?.price_id === 'price_new'), null, 'on other terms: not handed back');
+  assert.deepEqual(changed, ['cs_member_old_price'], 'and expired, so its old terms can no longer be paid');
 });
 
 test('two Join presses at once make one checkout, and both are handed it', async () => {
@@ -572,12 +584,64 @@ test('a request that lost its claim while working creates nothing; the create is
   assert.match(read('supabase-migrations/2026-10-14-checkout-claims.sql'), /where c\.claimed_at < now\(\) - interval '60 seconds'/, 'the 60 seconds these numbers are measured against');
 });
 
+test('an open checkout on other terms is replaced, not handed back', async () => {
+  // Codex on #2353: a coach's changed rate, or a buyer who opened a marketplace checkout and then
+  // followed the coach's own referral (no Shape fee), was handed the old checkout and its terms.
+  const repriced = await runCoachCheckout({ platform: [{ status: 'active' }], open: [openSession('cs_coach_old_rate', 1, { ...COACH_TERMS, price_cents: '9900' })] });
+  assert.deepEqual(repriced.expired, ['cs_coach_old_rate']);
+  assert.equal(repriced.created.length, 1);
+  assert.equal(repriced.body.url, 'https://checkout.stripe.test/cs_test_coach1');
+  const referred = await runCoachCheckout({ platform: [{ status: 'active' }], open: [openSession('cs_coach_referred', 1, { ...COACH_TERMS, origin: 'byo', fee_bps: '0', referral_id: 'ref-1' })] });
+  assert.deepEqual(referred.expired, ['cs_coach_referred']);
+  assert.equal(referred.created.length, 1);
+  // Each term on its own: the same price and fee, another referral or origin.
+  for (const terms of [{ referral_id: 'ref-1' }, { origin: 'byo' }]) {
+    const r = await runCoachCheckout({ platform: [{ status: 'active' }], open: [openSession('cs_coach_other', 1, { ...COACH_TERMS, ...terms })] });
+    assert.deepEqual(r.expired, ['cs_coach_other'], JSON.stringify(terms));
+  }
+  const membership = await runPlatformCheckout({ open: [openSession('cs_member_old_price', 1, { ...MEMBER_TERMS, price_id: 'price_old' })] });
+  assert.deepEqual(membership.expired, ['cs_member_old_price']);
+  assert.equal(membership.created[0].metadata.price_id, 'price_platform_test', 'the price rides on the checkout, to be matched next time');
+});
+
+test('a checkout completed in another tab while the open checkouts are read is caught before anything is handed out', async () => {
+  // Codex on #2353: asked before the open checkouts were read, Stripe could say "not paying", the
+  // buyer could then complete the open checkout in another tab, and the list would show nothing
+  // open, so a second one was made. Stripe is asked after the read now.
+  const open = [openSession('cs_member_tab', 2, MEMBER_TERMS)];
+  const subs = [];
+  const completeInOtherTab = () => { open.splice(0, open.length); subs.push(stripeSub({ client_id: UID, plan: 'shape_platform' })); };
+  const created = [];
+  // Completed the moment the open checkouts have been read.
+  const pm = await platformMembership({ created, open, stripeSubs: subs, barrier: await barrierLib({ open, onList: () => setTimeout(completeInOtherTab, 0) }) });
+  const r = await pm.createPlatformCheckout({ priceId: 'price_platform_test', userId: UID, customerId: 'cus_stable', email: null, origin: 'https://shape.test', next: HOME, cancelPath: '/' });
+  assert.equal(created.length, 0);
+  // Either answer is safe: the checkout just paid, or "already a member". Never a new one.
+  assert.ok(r.alreadyMember || r.url === 'https://checkout.stripe.test/cs_member_tab');
+  // Completed right after Stripe was asked, before anything is handed out: the list was read
+  // first, so the paid checkout is the one handed back (Stripe shows it as paid), not a new one.
+  const open2 = [openSession('cs_member_tab2', 2, MEMBER_TERMS)];
+  const subs2 = [];
+  const created2 = [];
+  const pm2 = await platformMembership({ created: created2, open: open2, stripeSubs: subs2, afterCheck: () => { open2.splice(0, open2.length); subs2.push(stripeSub({ client_id: UID, plan: 'shape_platform' })); } });
+  const r2 = await pm2.createPlatformCheckout({ priceId: 'price_platform_test', userId: UID, customerId: 'cus_stable', email: null, origin: 'https://shape.test', next: HOME, cancelPath: '/' });
+  assert.equal(created2.length, 0, 'no second checkout');
+  assert.deepEqual(r2, { alreadyMember: false, url: 'https://checkout.stripe.test/cs_member_tab2' });
+
+  const coachOpen = [openSession('cs_coach_tab', 1, COACH_TERMS)];
+  const coachSubs = [];
+  const coach = await coachRoute({ platform: [{ status: 'active' }], open: coachOpen, stripeSubs: coachSubs, afterCheck: () => { coachOpen.splice(0, coachOpen.length); coachSubs.push(stripeSub(COACH_TERMS)); } });
+  const c = await coach.post();
+  assert.equal(coach.created.length, 0, 'the coach path reads the open checkouts first too');
+  assert.equal(c.body.url, 'https://checkout.stripe.test/cs_coach_tab');
+});
+
 test('membership checkout: a second press reopens the checkout already open; a stale one is replaced', async () => {
-  const again = await runPlatformCheckout({ body: { returnTo: '/newdesign/MemberProfile.html?u=abc' }, open: [openSession('cs_member_now', 2, { client_id: UID, plan: 'shape_platform' })] });
+  const again = await runPlatformCheckout({ body: { returnTo: '/newdesign/MemberProfile.html?u=abc' }, open: [openSession('cs_member_now', 2, MEMBER_TERMS)] });
   assert.equal(again.status, 200);
   assert.equal(again.body.url, 'https://checkout.stripe.test/cs_member_now', 'from another page: the same checkout, not a second payable one');
   assert.equal(again.created.length, 0);
-  const stale = await runPlatformCheckout({ open: [openSession('cs_member_old', 30, { client_id: UID, plan: 'shape_platform' })] });
+  const stale = await runPlatformCheckout({ open: [openSession('cs_member_old', 30, MEMBER_TERMS)] });
   assert.deepEqual(stale.expired, ['cs_member_old']);
   assert.equal(stale.created.length, 1, 'then a fresh one');
   const down = await runPlatformCheckout({ rpcError: { message: 'connection reset' } });
@@ -586,13 +650,13 @@ test('membership checkout: a second press reopens the checkout already open; a s
 });
 
 test('coach checkout: a second press reopens the checkout already open for this coach; one-time purchases are not held to it', async () => {
-  const again = await runCoachCheckout({ platform: [{ status: 'active' }], open: [openSession('cs_coach_now', 1, { client_id: UID, provider_id: '4', provider_role: 'trainer' })] });
+  const again = await runCoachCheckout({ platform: [{ status: 'active' }], open: [openSession('cs_coach_now', 1, COACH_TERMS)] });
   assert.equal(again.status, 200);
   assert.equal(again.body.url, 'https://checkout.stripe.test/cs_coach_now');
   assert.equal(again.created.length, 0);
   const otherCoach = await runCoachCheckout({ platform: [{ status: 'active' }], open: [openSession('cs_coach9_now', 1, { client_id: UID, provider_id: '9', provider_role: 'trainer' })] });
   assert.equal(otherCoach.created.length, 1, 'a checkout for another coach is not this one');
-  const stale = await runCoachCheckout({ platform: [{ status: 'active' }], open: [openSession('cs_coach_old', 30, { client_id: UID, provider_id: '4', provider_role: 'trainer' })] });
+  const stale = await runCoachCheckout({ platform: [{ status: 'active' }], open: [openSession('cs_coach_old', 30, COACH_TERMS)] });
   assert.deepEqual(stale.expired, ['cs_coach_old']);
   assert.equal(stale.created.length, 1);
   const oneTime = await runCoachCheckout({ platform: [{ status: 'active' }], body: { item: { type: 'booking', name: 'Session' }, coach: { provider_id: 4, provider_role: 'trainer' } }, open: [openSession('cs_coach_now', 1, { client_id: UID, provider_id: '4', provider_role: 'trainer' })] });
@@ -762,12 +826,14 @@ test('the server-action checkouts (/subscribe and /purchase) take the detour, ou
   // Codex on #2353, rounds 3 and 4: claimed first, the open checkout handed back before a product
   // or price is made, and the claim released in a finally (which passes redirect()'s throw on).
   const at = (needle) => { const i = subscribe.indexOf(needle); assert.ok(i >= 0, needle); return i; };
-  assert.ok(at('claim = await claimCheckout(user.id, `coach-${providerRole}-${providerId}`);') < at('paid = await hasLiveStripeSubscription('), 'Stripe is asked under the claim');
-  assert.ok(at('paid = await hasLiveStripeSubscription(') < at('open = await currentCheckout(customerId,'));
+  // Under the claim: the price and fee, then the open checkouts on those terms, then Stripe, then
+  // the hand-back or the create.
+  assert.ok(at('claim = await claimCheckout(user.id, `coach-${providerRole}-${providerId}`);') < at('priceResult = await getProviderConnectInfo('));
+  assert.ok(at('await resolveCoachCheckoutOrigin(') < at('open = await currentCheckout(customerId,'));
+  assert.match(subscribe, /\(s\) => s\.metadata\?\.price_cents === String\(priceResult\.priceCents\) && s\.metadata\?\.fee_bps === String\(feeBps\)\n\s+&& s\.metadata\?\.origin === coachOrigin && \(s\.metadata\?\.referral_id \?\? null\) === \(referralId \?\? null\)\)/, 'on this request\'s terms');
+  assert.ok(at('open = await currentCheckout(customerId,') < at('paid = await hasLiveStripeSubscription('), 'Stripe is asked after the read');
   assert.equal((subscribe.match(/hasLiveStripeSubscription\(/g) ?? []).length, 1, 'and only there');
-  assert.match(subscribe, /if \(paid\) redirect\(`\$\{backHref\}&error=already_subscribed`\);/);
-  assert.ok(at('open = await currentCheckout(customerId,') < at('if (open) redirect(open);'));
-  assert.ok(at('if (open) redirect(open);') < at('priceResult = await getProviderConnectInfo('));
+  assert.match(subscribe, /if \(paid\) redirect\(`\$\{backHref\}&error=already_subscribed`\);\n\s+if \(open\) redirect\(open\);/);
   assert.match(subscribe, /if \(isCheckoutInProgress\(e\)\) redirect\(`\$\{backHref\}&error=checkout_in_progress`\);/);
   assert.doesNotMatch(subscribe, /idempotencyKey/, 'the claim replaced the 10-minute keys');
   assert.match(subscribe, /await claim\.confirm\(\);\n\s+session = await stripe\.checkout\.sessions\.create\(/, 'renewed right before the create');

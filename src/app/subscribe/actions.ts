@@ -161,29 +161,6 @@ export async function startCheckout(formData: FormData): Promise<void> {
     redirect(`${backHref}&error=checkout_failed`);
   }
   try {
-    // ⚠ ASKED HERE, WHILE HOLDING THE CLAIM (Codex on #2353): a request that waited on the claim
-    // can arrive after the first checkout was paid, when there is nothing open to hand back.
-    // Stripe holds the subscription the moment it is paid; our row comes with the webhook.
-    let paid = false;
-    try {
-      paid = await hasLiveStripeSubscription({ customerId, email: user.email ?? null }, { client_id: user.id, provider_id: String(providerId), provider_role: providerRole });
-    } catch (e) {
-      console.error('[subscribe] Stripe subscription lookup failed', e);
-      redirect(`${backHref}&error=subscription_check_failed`);
-    }
-    if (paid) redirect(`${backHref}&error=already_subscribed`);
-
-    // An open checkout for this coach is handed back before anything is created for a second.
-    let open: string | null = null;
-    try {
-      open = await currentCheckout(customerId, (s) => s.mode === 'subscription'
-        && s.metadata?.provider_id === String(providerId) && s.metadata?.provider_role === providerRole);
-    } catch (e) {
-      console.error('[subscribe] open checkout lookup failed', e);
-      redirect(`${backHref}&error=checkout_failed`);
-    }
-    if (open) redirect(open);
-
     let priceResult;
     try {
       priceResult = await getProviderConnectInfo(providerRole, providerId, allowAtCapacity);
@@ -204,6 +181,31 @@ export async function startCheckout(formData: FormData): Promise<void> {
       providerId,
       ref,
     });
+
+    // Handed back only on this request's terms: a changed price, fee or referral makes a new one.
+    let open: string | null = null;
+    try {
+      open = await currentCheckout(customerId, (s) => s.mode === 'subscription'
+        && s.metadata?.provider_id === String(providerId) && s.metadata?.provider_role === providerRole,
+      (s) => s.metadata?.price_cents === String(priceResult.priceCents) && s.metadata?.fee_bps === String(feeBps)
+        && s.metadata?.origin === coachOrigin && (s.metadata?.referral_id ?? null) === (referralId ?? null));
+    } catch (e) {
+      console.error('[subscribe] open checkout lookup failed', e);
+      redirect(`${backHref}&error=checkout_failed`);
+    }
+    // ⚠ ASKED HERE, WHILE HOLDING THE CLAIM AND AFTER THE OPEN CHECKOUTS ARE READ (Codex on #2353):
+    // a request that waited on the claim can arrive after the first checkout was paid, and one
+    // the buyer completes in another tab while this request reads them is no longer listed as
+    // open. Stripe holds the subscription the moment it is paid; our row comes with the webhook.
+    let paid = false;
+    try {
+      paid = await hasLiveStripeSubscription({ customerId, email: user.email ?? null }, { client_id: user.id, provider_id: String(providerId), provider_role: providerRole });
+    } catch (e) {
+      console.error('[subscribe] Stripe subscription lookup failed', e);
+      redirect(`${backHref}&error=subscription_check_failed`);
+    }
+    if (paid) redirect(`${backHref}&error=already_subscribed`);
+    if (open) redirect(open);
 
     // Shape takes the RESOLVED application fee on the coach charge; the rest
     // settles into the provider's connected Stripe account.
