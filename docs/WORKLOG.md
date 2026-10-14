@@ -847,6 +847,19 @@ Everything older, newest-first: [2026-10](WORKLOG-ARCHIVE-2026-10.md) ·
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-10-14 — 120 files nothing used, removed (about 19 MB)
+
+- **Merged [#2346](https://github.com/cperry8800-droid/shape-app/pull/2346) as `b6008f3`**, final head `ce11e08`; the merged tree is byte-identical to it. No migration. The owner: *"remove the legacy getapp v2 files"*, *"go remove them"*; then, from an audit of the rest, *"Delete unused files"*.
+- **What went, 19,515,581 bytes:** seven old Get App captures (`getapp-{chat,eat,home,personalize,recipes,workout}-v2.png`, `getapp-chat-v3.png`); the three images the 2026-09-30 trim kept on `KEEP_UNREFERENCED` for the owner to decide (`login page.png`, `Trainer dash.png`, `Make_the_lines_202604170430.png`, 13 MB; the list is empty now); 28 old mockups in `public/newdesign/`; 52 debugging captures duplicated across `public/newdesign/` and `public/mobile/`; unused logo variants, stray images at the `mobile-app/` root and in `mobile-app/public/`; and `chat-design-v2/`. The Get App `-v2` captures in use (community, grocery, profile) stay.
+- **How "nothing uses it" was settled:** `git grep` across the whole tree, Android and iOS projects included, case-insensitively, by basename, `%20` form and stem. Two hits were other files (the footer's lowercase `/shape-logo-black.png`, and `/shape-wordmark-white.png` in `public/`); names built at run time (`coaches-dash-*.jpg`, `faces/*.jpg`, the Android `splash.png`) were left. ⚠ **Most of these sat under the 200 KB floor of `tests/heavy-assets-referenced.test.mjs`, which is why the guard never named them.**
+- **Effect:** no page changes; every checkout and deploy upload is ~19 MB lighter (history keeps the files).
+- **Verified:** `npm test` 6,931/6,931 through the pre-commit hook on the first commit; on the second, the 36 suites that read images, assets, Get App or the bundle inputs (501/501) and `VITE_BASE=/m/ npm run build`, nothing in its output naming a removed file; CI green on the final head, the Android debug APK included. Codex reviewed both heads with no findings (the second on an explicit `@codex review`); Copilot declined on its quota.
+- **Written after the merge**, per the 2026-09-11 rule.
+- ⚠ **REGISTERED, NOT DONE (from the same audit, not asked for):**
+  - **The one change that would make pages faster:** eight live backgrounds are 5–8 MB PNGs (`login page 1.png` on the login page, `get started.png` in `HeroBg`, `Training 2.png` and `Nutrition 3.png` on `/trainers` and `/nutritionists`, `Pricing.png`, `Training 3.png`, `Nutrition 2.png`, `Home page 2.png`), ~47 MB together; as WebP they measured ~0.5 MB, each to be checked by eye.
+  - Images only design notes name (`radio background upscale.jpg` 3 MB, `shape-kitchen-bg.png` 1.3 MB, a few logos), and the legacy pages still reachable by URL (`/mobile`, `Shape Redesign.html`, `index-explorations.html`, `index-print.html`, the pre-redesign root pages), which need a page-by-page review with redirects.
+  - `scripts/verify-staged.sh` still skips `chat-design-v2/*`, a no-op now.
+
 ### 2026-10-14 — The dashboard as its own app: an icon rail, Today beside the day, cards that close up; the website's screenshots re-shot
 
 - **Three PRs merged on 2026-10-14**, each on CI green on its final head, each merged tree byte-identical to it. No migrations.
@@ -869,7 +882,7 @@ Append new entries at the top, under this note.
   - No pass on a real signed-in account: the frame and both day columns were rendered against stubbed APIs.
   - The Coaches page frames cannot show the countdown; a signed-in capture would.
   - The Get App Habits frame shows the untouched state ("Mark done" opens sign-up in the preview), and the Radio frame has no Ask Nora.
-  - The small legacy `getapp-*-v2.png` files (chat, eat, home-v2, personalize, recipes, workout) are referenced by no live page.
+  - ~~The small legacy `getapp-*-v2.png` files (chat, eat, home-v2, personalize, recipes, workout) are referenced by no live page.~~ **Removed in #2346 (the entry above).**
 
 ### 2026-10-13 — Staff two-factor works; an Admin link on the website for staff; the splash reads "Don't climb alone."
 
