@@ -4,7 +4,7 @@
 // redirects every phone to, and until 2026-09-17 it was a ten-click carousel
 // behind its own two-link bar — the single nav destination where the site's nav
 // disappeared, writing ONE of its ten steps into the DOM at a time. It is now a
-// static page: eight beats of a member's day, ten real captures, all of it in
+// static page: ten beats of a member's day, one real capture each, all of it in
 // the markup at first paint, under the shared header and the canonical footer.
 //
 // The rules below are the ones that make it that page rather than a page that
@@ -224,9 +224,20 @@ test('every capture is labelled an example, and the hero says what that means', 
   // ⚠ THE LABEL IS WHAT MAKES THE FIGURES ON THIS PAGE ALLOWED. Each screen is
   // the app's signed-out preview: a demo persona, invented numbers. The house
   // rule is not "never show it" but "never claim it unlabelled".
-  const beats = [...HTML.matchAll(/<section class="beat"[\s\S]*?<\/section>/g)].map((m) => m[0]);
-  assert.equal(beats.length, 8, 'the page has ' + beats.length + ' beats, not eight');
+  // `<section class="beat[" ]`, so a beat that gains a modifier class is still
+  // counted rather than silently dropped from every check below.
+  const beats = [...HTML.matchAll(/<section class="beat[" ][\s\S]*?<\/section>/g)].map((m) => m[0]);
+  // ⚠ ONE SCREEN PER BEAT. Owner, 2026-10-15, on the two beats that each held a
+  // pair: "They are smaller compared to the other ones. Not as clear to read on
+  // website", then "just make each of these screen shots its own section". A
+  // pair shared one 380px column at 182px each; every other screen was 272.
+  assert.equal(beats.length, SHOTS.length, 'the page has ' + beats.length + ' beats for ' + SHOTS.length + ' screens');
   for (const b of beats) {
+    assert.equal((b.match(/<div class="ph-scr"><img /g) || []).length, 1,
+      'a beat holds more or fewer than one screen:\n' + b.slice(0, 200));
+    // An inline width outranks the stylesheet's single phone width, which is how
+    // the pairs came to be a third smaller than the rest.
+    assert.doesNotMatch(b, /class="ph" style=/, 'a phone sets its own inline width:\n' + b.slice(0, 200));
     assert.match(b, /<span class="exlabel">/, 'a beat shows a capture with no example label:\n' + b.slice(0, 200));
   }
   // The hero carries the long form once, which is what the short ones mean.
@@ -235,7 +246,8 @@ test('every capture is labelled an example, and the hero says what that means', 
 });
 
 test('every beat states one figure, and the page claims no more than it shows', () => {
-  const beats = [...HTML.matchAll(/<section class="beat"[\s\S]*?<\/section>/g)].map((m) => m[0]);
+  const beats = [...HTML.matchAll(/<section class="beat[" ][\s\S]*?<\/section>/g)].map((m) => m[0]);
+  assert.equal(beats.length, SHOTS.length, 'found ' + beats.length + ' beats — this guard is reading the wrong markup');
   for (const b of beats) {
     const fig = /<div class="num"><b>&#9632;<\/b>([^<]+)<\/div>/.exec(b);
     assert.ok(fig, 'a beat states no figure at all');
@@ -359,8 +371,8 @@ test('the sticky copy is not disabled by an ancestor scroll container', () => {
   assert.doesNotMatch(css, /overflow-x: hidden/,
     'the page sets overflow-x: hidden, which makes its own sticky copy inert');
   assert.match(css, /\.beat-copy \{[^}]*position: sticky;[^}]*top: 96px/, 'the beat copy is no longer sticky');
-  // ⚠ AND THE PHONE COLUMN MUST NOT CLAIM IT. Its travel is 1px on six of the
-  // eight beats — the phone is what sets the beat's height — so a `position:
+  // ⚠ AND THE PHONE COLUMN MUST NOT CLAIM IT. Its travel is 1px on every beat
+  // — the phone is what sets the beat's height — so a `position:
   // sticky` there is an effect that cannot happen, which the next reader reads as
   // working.
   assert.doesNotMatch(css, /\.beat-ph \{[^}]*position: sticky/,

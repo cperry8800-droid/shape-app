@@ -73,7 +73,7 @@ export default function GlobalChatButton() {
   const [messages, setMessages] = useState<Message[]>([
     {
       from: 'shape',
-      text: "Hi, I'm Nora, Shape's assistant. Ask me about coaches, billing, the app or your account.",
+      text: "Hi, I'm Nora, Shape's concierge. Ask me about coaches, billing, the app or your account.",
     },
   ]);
 
