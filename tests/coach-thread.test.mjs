@@ -434,3 +434,56 @@ test('the new-client alert opens the thread: the app\'s router and the website\'
     assert.match(page, /: Promise\.resolve\(wantedConv\);/, `${role}: the thread is selected once the inbox loads`);
   }
 });
+
+// ── Codex on #2360, third round ──────────────────────────────────────────────────────────────────
+test('a Messages page opens the thread it asked for, or none: never another client\'s', async () => {
+  const lib = await loadRealModule(join(ROOT, 'src/lib/coach-messages.ts'), { typescript: true, registry: new Map([['@/lib/supabase/server', {}]]) });
+  const id = '0f8fad5b-d9cb-469f-a165-70867728950e';
+  assert.equal(lib.wantedConversation(new Request(`https://x.test/api/trainer/messages?conversation=${id}`)), id);
+  assert.equal(lib.wantedConversation(new Request('https://x.test/api/trainer/messages?conversation=nope')), null);
+  assert.equal(lib.wantedConversation(new Request('https://x.test/api/trainer/messages')), null);
+  assert.equal(lib.wantedConversation(undefined), null, 'a call with no request (the existing harness) reads none');
+  const calls = [];
+  const sb = (row) => ({ from: (t) => { const q = { select: () => q, eq: (k, v) => { calls.push([t, k, v]); return q; }, maybeSingle: async () => ({ data: row, error: null }) }; return q; } });
+  const listed = [{ id: 'a' }, { id: 'b' }];
+  assert.equal(await lib.withWantedConversation(sb(null), listed, null, 'trainer', 4), listed, 'nothing asked for: the list as it is');
+  assert.equal(await lib.withWantedConversation(sb(null), listed, 'b', 'trainer', 4), listed, 'already listed: no read');
+  assert.equal(calls.length, 0);
+  assert.deepEqual((await lib.withWantedConversation(sb({ id }), listed, id, 'nutritionist', 9)).map((c) => c.id), [id, 'a', 'b'], 'older than the 50: read and put first');
+  assert.deepEqual(calls, [['conversations', 'kind', 'direct'], ['conversations', 'provider_role', 'nutritionist'], ['conversations', 'provider_id', 9], ['conversations', 'id', id]], 'held to this listing');
+  assert.deepEqual((await lib.withWantedConversation(sb(null), listed, id, 'trainer', 4)).map((c) => c.id), ['a', 'b'], 'not this coach\'s: nothing added');
+  for (const [role, pre] of [['trainer', 'Trainer'], ['nutritionist', 'Nutritionist']]) {
+    const route = read(`src/app/api/${role}/messages/route.ts`);
+    assert.match(route, /export async function GET\(request\?: Request\) \{/);
+    assert.match(route, new RegExp(`const conversations = await withWantedConversation\\(supabase, convRows \\?\\? \\[\\], wantedConversation\\(request\\), '${role}', providerId\\);`));
+    const page = read(`public/newdesign/${pre}Messages.html`);
+    assert.match(page, new RegExp(`fetch\\('/api/${role}/messages' \\+ \\(selectConv \\? '\\?conversation=' \\+ encodeURIComponent\\(selectConv\\) : ''\\)`));
+    assert.match(page, /if \(selectConv && !pick\) \{\s+setSelectedId\(null\);\s+setDraft\(""\);\s+setNotice\(/, `${pre}: no fallback to another thread, and no opener left to send`);
+  }
+});
+
+test('the app\'s thread shows a message once when the history and the live messages overlap', () => {
+  const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  const thread = client.slice(client.indexOf('function BSChatThread('), client.indexOf('function BSChatThread(') + 12000);
+  assert.match(thread, /const seedIds = new Set\(seed\.map\(m => m && m\.id\)\.filter\(Boolean\)\);\s+const allMessages = \[\.\.\.seed, \.\.\.extras\.filter\(e => !\(e && e\.id && seedIds\.has\(e\.id\)\)\)\];/);
+  // Every source carries the id: the backend's mapping, the list rows, a live row, a sent row once stored.
+  assert.match(read('mobile-app/src/services/shapeBackend.js'), /messages: ordered\.map\(message => \(\{\s+id: message\.id \|\| null,/);
+  assert.match(client, /messages: \(th\.messages \|\| \[\]\)\.map\(m => \(\{ id: m\.id \|\| null, who:/);
+  assert.match(thread, /setExtras\(e => \[\.\.\.e, \{ id: row\.id \|\| null, who: thread\.who \|\| 'Member'/);
+  assert.match(thread, /setExtras\(e => \[\.\.\.e, \{ id: row\.id \|\| null, who: 'Shape'/);
+  assert.match(thread, /sent\.then\(res => \{ const id = res && res\.data && res\.data\.id; if \(id\) setExtras\(e => e\.map\(x => x\.tmpId === tmpId \? \{ \.\.\.x, id \} : x\)\); \}\)/);
+});
+
+test('a tapped push opens the thread in the coach apps too', () => {
+  const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  assert.match(client, /^Object\.assign\(window, \{ bsRouteNotification \}\);$/m, 'the router is shared with the coach shells');
+  const pros = read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx');
+  for (const shell of ['function BSTrainerAppInner(', 'function BSNutritionistAppInner(']) {
+    const at = pros.indexOf(shell);
+    const body = pros.slice(at, pros.indexOf("window.removeEventListener('shape:pushRoute', fromPush); };", at) + 80);
+    assert.match(body, /const fromPush = \(e\) => \{ window\.__bsPushRoute = null; window\.bsRouteNotification\?\.\(e && e\.detail && e\.detail\.route\); \};/, shell);
+    assert.match(body, /window\.addEventListener\('shape:pushRoute', fromPush\);/, shell);
+    assert.match(body, /if \(pending\) \{ window\.__bsPushRoute = null; window\.bsRouteNotification\?\.\(pending\); \}/, `${shell}: a push that landed before the shell mounted`);
+    assert.ok(body.indexOf("window.addEventListener('shape:openConversation', open);") < body.indexOf('const pending = window.__bsPushRoute;'), `${shell}: the conversation listener is up before the pending route fires`);
+  }
+});

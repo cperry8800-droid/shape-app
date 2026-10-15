@@ -45,6 +45,38 @@ export async function clientNames(
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** The `?conversation=` a Messages page asked for (a notification, a client's Message), or null. */
+export function wantedConversation(request: Request | undefined): string | null {
+  if (!request || typeof request.url !== 'string') return null;
+  const id = new URL(request.url).searchParams.get('conversation') || '';
+  return UUID_RE.test(id) ? id : null;
+}
+
+/**
+ * The inbox lists the 50 most recent threads. A thread asked for by id that is older than those
+ * (Codex on #2360: a returning subscriber) is read on its own, held to this listing, and put
+ * first, so the page opens IT and never falls back to another client's thread.
+ */
+export async function withWantedConversation<Row extends { id: string }>(
+  supabase: Client,
+  rows: Row[],
+  wanted: string | null,
+  role: 'trainer' | 'nutritionist',
+  providerId: number,
+): Promise<Row[]> {
+  if (!wanted || rows.some((c) => c.id === wanted)) return rows;
+  const { data, error } = await supabase
+    .from('conversations')
+    .select('id, client_id, last_message, last_message_at')
+    .eq('kind', 'direct')
+    .eq('provider_role', role)
+    .eq('provider_id', providerId)
+    .eq('id', wanted)
+    .maybeSingle();
+  if (error) console.warn('[coach-messages] wanted conversation read failed:', error.message);
+  return data ? [data as unknown as Row, ...rows] : rows;
+}
+
 /**
  * Open (or find) the thread the client sees with the caller's listing: the coach's way into it
  * (get_or_create_client_conversation, 2026-10-15-coach-thread.sql). Answers an HTTP status the

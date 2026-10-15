@@ -23375,7 +23375,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     i: (th.who || 'C').toString().trim().charAt(0).toUpperCase(),
     last: th.last,
     conversation_id: th.conversation_id,
-    messages: (th.messages || []).map(m => ({ who: m.who || th.who, t: m.t || m.body || '', time: m.time || '', me: m.me || m.who === 'You', coach: m.coach, shape: m.shape || null, audio: m.audio || null, photo: m.photo || null, sharedChannel: m.sharedChannel || null, boost: m.boost || null, coachInvite: m.coachInvite || null })),
+    messages: (th.messages || []).map(m => ({ id: m.id || null, who: m.who || th.who, t: m.t || m.body || '', time: m.time || '', me: m.me || m.who === 'You', coach: m.coach, shape: m.shape || null, audio: m.audio || null, photo: m.photo || null, sharedChannel: m.sharedChannel || null, boost: m.boost || null, coachInvite: m.coachInvite || null })),
   }));
 
   // External "Message <coach>" requests (e.g. from a workout preview) land
@@ -25725,7 +25725,11 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
     ? thread.messages
     : (historyHere && historyHere.length) ? historyHere
     : (thread.last ? [{ who: thread.who, t: thread.last, time: thread.time || 'now', me: false }] : []);
-  const allMessages = [...seed, ...extras];
+  // ⚠ MERGED BY MESSAGE ID (Codex on #2360): a message that arrives, or that this view sends,
+  // while the history is loading can be in both the snapshot and `extras`. A sent message gets its
+  // id when the insert answers (send, below); one still in flight has none and is shown.
+  const seedIds = new Set(seed.map(m => m && m.id).filter(Boolean));
+  const allMessages = [...seed, ...extras.filter(e => !(e && e.id && seedIds.has(e.id)))];
   // Members' profile photos for the message avatars (visibility-ungated).
   React.useEffect(() => {
     if (!window.ShapeProfiles?.getUserAvatars) return;
@@ -25749,12 +25753,16 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
   const send = () => {
     if (!text.trim()) return;
     const body = text.trim();
-    setExtras(e => [...e, { who: 'You', t: body, time: 'now', me: true }]);
+    const tmpId = 'tmp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+    setExtras(e => [...e, { tmpId, who: 'You', t: body, time: 'now', me: true }]);
     setText('');
     // Persist to the backend: direct conversation or community channel.
     const sent = thread.conversationId ? window.ShapeMessages?.sendMessage?.({ conversationId: thread.conversationId, body })
       : thread.channelId ? window.ShapeChannels?.sendMessage?.({ channelId: thread.channelId, body }) : null;
-    if (sent && sent.catch) sent.catch(() => {});
+    // The stored row's id, once it answers, so a history snapshot that already holds it shows it once.
+    if (sent && sent.then && thread.conversationId) {
+      sent.then(res => { const id = res && res.data && res.data.id; if (id) setExtras(e => e.map(x => x.tmpId === tmpId ? { ...x, id } : x)); }).catch(() => {});
+    } else if (sent && sent.catch) sent.catch(() => {});
   };
 
   // Realtime: new messages from others drop into the open thread live.
@@ -25770,11 +25778,11 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
     } else if (thread.conversationId && window.ShapeMessages?.subscribeMessages) {
       unsub = window.ShapeMessages.subscribeMessages((row) => {
         if (!row || row.conversation_id !== thread.conversationId || row.sender_id === myId) return;
-        if (isShapeWelcome(row)) { setExtras(e => [...e, { who: 'Shape', t: row.body, time: 'now', me: false, shape: { body: row.body, sender_id: null, metadata: row.metadata } }]); return; }
+        if (isShapeWelcome(row)) { setExtras(e => [...e, { id: row.id || null, who: 'Shape', t: row.body, time: 'now', me: false, shape: { body: row.body, sender_id: null, metadata: row.metadata } }]); return; }
         // Carry the live-boost stamp on realtime appends too — a boost landing
         // while this thread is OPEN (the time-sensitive case) must render with
         // its eyebrow immediately, not only after a reload re-maps metadata.
-        setExtras(e => [...e, { who: thread.who || 'Member', t: row.body, time: 'now', me: false, userId: row.sender_id || null, boost: (row.metadata && row.metadata.kind === 'live_boost' && (row.metadata.activity === 'cooking' || row.metadata.activity === 'workout')) ? row.metadata.activity : null, coachInvite: (row.metadata && row.metadata.kind === 'coach_invite' && row.metadata.providerId != null) ? { role: row.metadata.role === 'nutritionist' ? 'nutritionist' : 'trainer', providerId: Number(row.metadata.providerId), name: String(row.metadata.name || 'Your coach') } : null }]);
+        setExtras(e => [...e, { id: row.id || null, who: thread.who || 'Member', t: row.body, time: 'now', me: false, userId: row.sender_id || null, boost: (row.metadata && row.metadata.kind === 'live_boost' && (row.metadata.activity === 'cooking' || row.metadata.activity === 'workout')) ? row.metadata.activity : null, coachInvite: (row.metadata && row.metadata.kind === 'coach_invite' && row.metadata.providerId != null) ? { role: row.metadata.role === 'nutritionist' ? 'nutritionist' : 'trainer', providerId: Number(row.metadata.providerId), name: String(row.metadata.name || 'Your coach') } : null }]);
         window.ShapeUnread?.markConversationRead?.(thread.conversationId);
       });
     }
@@ -39260,4 +39268,6 @@ function BSHelpPage({ onBack, onContact, onAskNora }) {
 }
 
 Object.assign(window, { bsNoraOpen, bsNoraPage, bsAskNora, BSAskNoraLink, BSNoraSheet, BSCookMode, BSPrepSession, BSClientApp, BSClientChat, BSSettings, BSDetailHeader, BSContactPage, BSTermsPage, BSUniversalSearch, BSSearchCorner });
+// The notification router, for the coach shells' tapped pushes (fix 3a, Codex on #2360).
+Object.assign(window, { bsRouteNotification });
 try { window.BS_HEADER_AVATAR = BS_HEADER_AVATAR; } catch (e) {}

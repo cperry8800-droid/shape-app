@@ -79,13 +79,21 @@ function NutritionistMessagesPage() {
     // A dashboard reason pill's opener rides along as ?draft=: pre-filled, never sent.
     const opener = params.get('draft');
     if (opener) setDraft(opener.slice(0, 1000));
-    const load = (selectConv) => fetch('/api/nutritionist/messages', { credentials: 'same-origin' })
+    const load = (selectConv) => fetch('/api/nutritionist/messages' + (selectConv ? '?conversation=' + encodeURIComponent(selectConv) : ''), { credentials: 'same-origin' })
       .then(r => (r.ok ? r.json() : null))
       .then(d => {
         if (cancelled || !d || !d.isNutritionist) return;
         setLive(true);
         setThreads(d.threads);
         const pick = selectConv && d.threads.find(t => t.id === selectConv);
+        // ⚠ A THREAD ASKED FOR IS OPENED OR NOTHING IS (Codex on #2360): falling back to the newest
+        // thread would show another client's messages, with the opener ready to send to them.
+        if (selectConv && !pick) {
+          setSelectedId(null);
+          setDraft("");
+          setNotice("That conversation couldn't be found in your inbox.");
+          return;
+        }
         setSelectedId(pick ? pick.id : d.threads.length ? d.threads[0].id : null);
       });
     const open = wanted

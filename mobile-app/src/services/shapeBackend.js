@@ -2167,6 +2167,7 @@ function conversationToThread(conversation, messages = [], names = {}) {
     unread: 0,
     bucket: asCoach ? 'CLIENT' : 'COACH',
     messages: ordered.map(message => ({
+      id: message.id || null,
       // Shape's welcome (sender_id null, metadata.shape = 'welcome') is from neither side.
       who: isShapeWelcome(message) ? 'Shape' : message.sender_id === myId ? 'You' : counterpart,
       t: message.body,

@@ -6,11 +6,11 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { readJson, dbError } from '@/lib/request-utils';
-import { coachThreadMessage, clientNames, openClientThread } from '@/lib/coach-messages';
+import { coachThreadMessage, clientNames, openClientThread, wantedConversation, withWantedConversation } from '@/lib/coach-messages';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request?: Request) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -42,7 +42,8 @@ export async function GET() {
     .limit(50);
 
   if (convError) return dbError(convError, 'load coach conversations');
-  const conversations = convRows ?? [];
+  // A thread asked for by id (?conversation=) is included even when older than the 50 (fix 3a).
+  const conversations = await withWantedConversation(supabase, convRows ?? [], wantedConversation(request), 'trainer', providerId);
   if (!conversations.length) {
     return NextResponse.json({ isTrainer: true, threads: [] });
   }

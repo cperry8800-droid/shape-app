@@ -1149,7 +1149,14 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
       setTab('chat');
     };
     window.addEventListener('shape:openConversation', open);
-    return () => window.removeEventListener('shape:openConversation', open);
+    // A tapped push (push.js: shape:pushRoute, or window.__bsPushRoute when it landed before this
+    // shell mounted) goes through the member shell's router, whose "chat:<id>" opens the thread
+    // through the listener above (Codex on #2360: a coach's new-client push opened nothing).
+    const fromPush = (e) => { window.__bsPushRoute = null; window.bsRouteNotification?.(e && e.detail && e.detail.route); };
+    window.addEventListener('shape:pushRoute', fromPush);
+    const pending = window.__bsPushRoute;
+    if (pending) { window.__bsPushRoute = null; window.bsRouteNotification?.(pending); }
+    return () => { window.removeEventListener('shape:openConversation', open); window.removeEventListener('shape:pushRoute', fromPush); };
   }, []);
   useEffectBSP(() => bsCoachTourAutoShow(setShowTour), []);
   useEffectBSP(() => {
@@ -6858,7 +6865,14 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
       setTab('chat');
     };
     window.addEventListener('shape:openConversation', open);
-    return () => window.removeEventListener('shape:openConversation', open);
+    // A tapped push (push.js: shape:pushRoute, or window.__bsPushRoute when it landed before this
+    // shell mounted) goes through the member shell's router, whose "chat:<id>" opens the thread
+    // through the listener above (Codex on #2360: a coach's new-client push opened nothing).
+    const fromPush = (e) => { window.__bsPushRoute = null; window.bsRouteNotification?.(e && e.detail && e.detail.route); };
+    window.addEventListener('shape:pushRoute', fromPush);
+    const pending = window.__bsPushRoute;
+    if (pending) { window.__bsPushRoute = null; window.bsRouteNotification?.(pending); }
+    return () => { window.removeEventListener('shape:openConversation', open); window.removeEventListener('shape:pushRoute', fromPush); };
   }, []);
   useEffectBSP(() => bsCoachTourAutoShow(setShowTour), []);
   useEffectBSP(() => {
