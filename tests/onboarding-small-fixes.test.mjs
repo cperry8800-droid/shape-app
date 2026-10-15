@@ -531,6 +531,7 @@ test('L3: the profile editor claims the account\'s username when it has none; a 
   // The cached username is from launch: read fresh before claiming, and claim nothing on a failed read (Fable).
   assert.match(save, /const r = sb && uid \? await sb\.from\('profiles'\)\.select\('username'\)\.eq\('id', uid\)\.maybeSingle\(\) : null;\s*accountUsername = r && !r\.error \? \(r\.data\?\.username \|\| null\) : 'unknown';/);
   assert.ok(save.indexOf("select('username')") < save.indexOf('await window.ShapeAuth.claimUsername(want);'));
+  assert.match(save, /if \(touched\.has\('handle'\) && typed && !accountUsername\) \{\s*const sb = window\.ShapeAuth\?\.client;/, 'read whenever the cached profile has none');
 });
 
 // ── L5: phone notifications are asked for when they mean something ──────────────────────────
