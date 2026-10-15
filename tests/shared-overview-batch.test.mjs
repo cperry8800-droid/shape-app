@@ -86,15 +86,29 @@ async function loadRoutes(db, { user = COACH } = {}) {
   const lib = await loadLib();
   const supabaseServer = { createClient: async () => ({ ...db, auth: { getUser: async () => ({ data: { user } }) } }) };
   const requestUtils = await loadRealModule(join(ROOT, 'src/lib/request-utils.ts'), { typescript: true, registry: new Map([['next/server', nextServer]]) });
+  // The real request-auth: the cookie client above, or (with a Bearer header, as the app sends) a
+  // token client whose getUser answers for the token it was built with.
+  const bearerClients = [];
+  const requestAuth = await loadRealModule(join(ROOT, 'src/lib/request-auth.ts'), {
+    typescript: true,
+    registry: new Map([
+      ['@/lib/supabase/server', supabaseServer],
+      ['@supabase/supabase-js', { createClient: (_url, _key, opts) => {
+        const header = opts.global.headers.Authorization;
+        bearerClients.push(header);
+        return { ...db, auth: { getUser: async (tok) => ({ data: { user: tok === 'app-token' && header === 'Bearer app-token' ? user : null } }) } };
+      } }],
+    ]),
+  });
   const single = await loadRealModule(join(ROOT, 'src/app/api/clients/[id]/shared-overview/route.ts'), {
     typescript: true,
-    registry: new Map([['next/server', nextServer], ['@/lib/supabase/server', supabaseServer], ['@/lib/shared-overview', lib]]),
+    registry: new Map([['next/server', nextServer], ['@/lib/request-auth', requestAuth], ['@/lib/shared-overview', lib]]),
   });
   const batch = await loadRealModule(join(ROOT, 'src/app/api/clients/shared-overview/route.ts'), {
     typescript: true,
-    registry: new Map([['next/server', nextServer], ['@/lib/supabase/server', supabaseServer], ['@/lib/shared-overview', lib], ['@/lib/request-utils', requestUtils]]),
+    registry: new Map([['next/server', nextServer], ['@/lib/request-auth', requestAuth], ['@/lib/shared-overview', lib], ['@/lib/request-utils', requestUtils]]),
   });
-  return { lib, single, batch };
+  return { lib, single, batch, bearerClients };
 }
 const post = (ids, raw) => new Request('https://x/api/clients/shared-overview', { method: 'POST', headers: { 'content-type': 'application/json' }, body: raw ?? JSON.stringify({ ids }) });
 const getOne = (id) => new Request(`https://x/api/clients/${id}/shared-overview`);
@@ -279,4 +293,18 @@ test('the route file exports only its handler set — a helper export fails the 
   // The War Room knows the new route.
   const warroom = fs.readFileSync(join(ROOT, 'src/lib/warroom.ts'), 'utf8');
   assert.match(warroom, /\['\/api\/clients\/shared-overview', 'POST'\]/);
+});
+
+test('the app\'s Bearer token is a session here, as the cookie is (Fable on fix 4: an installed build got 401)', async () => {
+  const db = fixture();
+  const { batch, single, bearerClients } = await loadRoutes(db, { user: COACH });
+  const withToken = (req, token) => new Request(req.url, { method: req.method, headers: { ...Object.fromEntries(req.headers), authorization: `Bearer ${token}` }, body: req.method === 'POST' ? JSON.stringify({ ids: [A] }) : undefined });
+  const b = await batch.POST(withToken(post([A]), 'app-token'));
+  assert.equal(b.status, 200);
+  assert.deepEqual(Object.keys((await json(b)).body.results), [A]);
+  const s = await single.GET(withToken(getOne(A), 'app-token'), { params: Promise.resolve({ id: A }) });
+  assert.equal(s.status, 200);
+  assert.ok(bearerClients.includes('Bearer app-token'), 'the reads run under the token');
+  const bad = await batch.POST(withToken(post([A]), 'wrong'));
+  assert.equal(bad.status, 401);
 });

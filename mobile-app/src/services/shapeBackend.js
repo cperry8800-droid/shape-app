@@ -7320,6 +7320,15 @@ window.ShapeHealthProfile = { get: healthProfileGet, set: healthProfileSet };
 // health profile is deliberately NOT share-gated — liability screening).
 window.ShapeClientKit = {
   checkins: async (userId, limit = 6) => { if (!supabase) return []; try { const { data } = await supabase.rpc('get_client_checkins', { p_user_id: userId, p_limit: limit }); return Array.isArray(data) ? data : []; } catch (e) { return []; } },
+  // The same read, for a caller that must tell "none" from "couldn't read" (the coach's Today, where
+  // an empty list says "no first check-in"): null on an error or with no backend, never [].
+  checkinsKnown: async (userId, limit = 6) => {
+    if (!supabase) return null;
+    try {
+      const { data, error } = await supabase.rpc('get_client_checkins', { p_user_id: userId, p_limit: limit });
+      return !error && Array.isArray(data) ? data : null;
+    } catch (e) { return null; }
+  },
   measurements: async (userId) => { if (!supabase) return []; try { const { data } = await supabase.rpc('get_client_measurements', { p_user_id: userId }); return Array.isArray(data) ? data : []; } catch (e) { return []; } },
   photos: async (userId, limit = 30) => { if (!supabase) return []; try { const { data } = await supabase.rpc('get_client_progress_photos', { p_user_id: userId, p_limit: limit }); return Array.isArray(data) ? data : []; } catch (e) { return []; } },
   health: async (userId) => { if (!supabase) return null; try { const { data } = await supabase.rpc('get_client_health_profile', { p_user_id: userId }); return data || null; } catch (e) { return null; } },

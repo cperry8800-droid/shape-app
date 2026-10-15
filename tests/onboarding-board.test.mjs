@@ -96,13 +96,13 @@ test('the first check-in falls due at the end of week one, never the next mornin
 // ── 2. The shared overview's reads ───────────────────────────────────────────────────────────────
 const COACH = { id: '11111111-1111-4111-8111-111111111111' };
 const A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-function overviewDb({ joined = new Date(Date.now() - 2 * DAY).toISOString(), messages, workouts = [], fail = [] } = {}) {
+function overviewDb({ joined = new Date(Date.now() - 2 * DAY).toISOString(), messages, workouts = [], fail = [], conversations, checkins = [] } = {}) {
   return fakeSupabase({
     tables: {
       trainers: [{ id: 7, name: 'Coach Q', owner_id: COACH.id }],
       nutritionists: [],
       subscriptions: [{ client_id: A, provider_role: 'trainer', provider_id: 7, status: 'active', current_period_end: null, created_at: joined }],
-      conversations: [{ id: 'conv-a', client_id: A, kind: 'direct', provider_role: 'trainer', provider_id: 7, last_message_at: joined }],
+      conversations: conversations ?? [{ id: 'conv-a', client_id: A, kind: 'direct', provider_role: 'trainer', provider_id: 7, last_message_at: joined }],
       messages: messages ?? [
         { conversation_id: 'conv-a', sender_id: null, created_at: joined, metadata: { shape: 'welcome' } },
         { conversation_id: 'conv-a', sender_id: A, created_at: joined, metadata: {} },
@@ -114,14 +114,14 @@ function overviewDb({ joined = new Date(Date.now() - 2 * DAY).toISOString(), mes
     rpcs: {
       get_display_names: ({ p_ids }) => p_ids.map((id) => ({ user_id: id, full_name: 'Jordan Reyes', avatar_url: null })),
       get_my_shared_clients: () => [], get_client_goals: () => null, get_client_stats: () => null, get_client_lifts: () => null,
-      get_client_checkins: () => [], get_client_measurements: () => [], get_client_progress_photos: () => [],
+      get_client_checkins: () => checkins, get_client_measurements: () => [], get_client_progress_photos: () => [],
       get_client_health_profile: () => null, get_client_intake: () => ({ training: { sessions_per_week: '3' } }),
       get_client_cycle: () => null, get_client_meal_prep: () => null, get_client_score_history: () => null,
     },
     fail,
   });
 }
-async function overview(db) {
+async function overview(db, me = { trainerId: 7, nutritionistId: null }) {
   const lib = await loadRealModule(join(ROOT, 'src/lib/shared-overview.ts'), {
     typescript: true,
     registry: new Map([
@@ -131,7 +131,7 @@ async function overview(db) {
       ['@/lib/coach-client-legs.mjs', LEGS],
     ]),
   });
-  return lib.buildSharedOverview(db, { clientId: A, me: { trainerId: 7, nutritionistId: null } });
+  return lib.buildSharedOverview(db, { clientId: A, me });
 }
 
 test('the overview reads Shape\'s welcome, the coach\'s own first message and their first plan', async () => {
@@ -320,7 +320,7 @@ test('the week-one route refuses the client themselves, bad input, and a caller 
 });
 
 // ── L8: publishing a meal plan tells the member ─────────────────────────────────────────────────
-async function mealPlanRoute({ insertError = null } = {}) {
+async function mealPlanRoute({ insertError = null, adminThrows = false } = {}) {
   const notices = [];
   const chain = (table) => {
     const q = {
@@ -342,7 +342,7 @@ async function mealPlanRoute({ insertError = null } = {}) {
       ['@/lib/request-utils', await loadRealModule(join(ROOT, 'src/lib/request-utils.ts'), { typescript: true, registry: new Map([['next/server', nextServer]]) })],
       ['@/lib/access-guards.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/access-guards.mjs')).href)],
       ['@/lib/compliance/server', { gateProviderAction: async () => ({ enforced: false, allowed: true, disclaimer: null, scope: null, reason: null }), blockMessage: () => '' }],
-      ['@/lib/supabase/admin', { createAdminClient: () => ({ admin: true }) }],
+      ['@/lib/supabase/admin', { createAdminClient: () => { if (adminThrows) throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY'); return { admin: true }; } }],
       ['@/lib/notify', { createNotification: async (c, n) => { notices.push([c, n]); return true; } }],
     ]),
   });
@@ -469,4 +469,108 @@ test('the member app and the website say the coach is preparing the plan, and as
   assert.match(train, /is preparing your plan\. It shows up here the moment they publish it/);
   const nutri = read('public/newdesign/dashNutri.jsx');
   assert.match(nutri, /\{plan && plan\.meals && plan\.meals\.coaching \? <>[\s\S]{0,400}is preparing your meal plan\./);
+});
+
+// ── 7. Fable's review of fix 4 ───────────────────────────────────────────────────────────────────
+test('Fable 1: the member DM is contact too: a coach who wrote there has messaged them, and said hello', async () => {
+  const key = COACH.id < A ? `${COACH.id}:${A}` : `${A}:${COACH.id}`;
+  const later = new Date(Date.now() - DAY).toISOString();
+  const me = { trainerId: 7, nutritionistId: null, userId: COACH.id };
+  const dmOnly = overviewDb({
+    conversations: [{ id: 'dm-1', kind: 'direct', dm_key: key, client_id: null, provider_id: null, provider_role: null, last_message_at: later }],
+    messages: [{ conversation_id: 'dm-1', sender_id: COACH.id, created_at: later, metadata: {} }],
+  });
+  const ov = await overview(dmOnly, me);
+  assert.deepEqual(ov.lastContact, { trainer: later, nutritionist: null }, 'the DM is the caller\'s own contact');
+  assert.equal(stepsOf(ov.onboarding.trainer).hello.done, true, 'their first message was in the DM');
+  assert.equal(stepsOf(ov.onboarding.trainer).welcome.done, false, 'Shape\'s welcome lives in the coach thread only');
+  // Another pair's DM is not this coach's contact.
+  const other = await overview(overviewDb({ conversations: [{ id: 'dm-2', kind: 'direct', dm_key: `${A}:99999999-9999-4999-8999-999999999999`, client_id: null, provider_id: null, last_message_at: later }], messages: [] }), me);
+  assert.deepEqual(other.lastContact, { trainer: null, nutritionist: null });
+  // A failed DM read is unknown, never "never messaged".
+  const failing = await overview(overviewDb({ fail: ['conversations'] }), me);
+  assert.equal('lastContact' in failing, false);
+  assert.equal(stepsOf(failing.onboarding.trainer).hello.done, null);
+  // The leg itself: the DM counts for each role the caller coaches the client in, and only those.
+  assert.deepEqual(LEGS.bsLastContactLeg([], { trainer: 7, nutritionist: null }, { last_message_at: later }), { trainer: later, nutritionist: null });
+  assert.deepEqual(LEGS.bsLastContactLeg([{ provider_role: 'trainer', provider_id: 7, last_message_at: ago(1) }], { trainer: 7, nutritionist: 3 }, { last_message_at: ago(5) }), { trainer: ago(1), nutritionist: ago(5) });
+});
+
+test('Fable 2: an empty check-in read is "none" only where the caller could read check-ins', async () => {
+  const coach = await overview(overviewDb(), { trainerId: 7, nutritionistId: null, userId: COACH.id });
+  assert.deepEqual(coach.checkins, [], 'the client\'s coach: a known none');
+  const bookingOnly = await overview(overviewDb(), { trainerId: 8, nutritionistId: null, userId: COACH.id });
+  assert.equal(bookingOnly.checkins, null, 'a coach the client does not subscribe to: not shared, never "no first check-in"');
+  const self = await overview(overviewDb(), { trainerId: null, nutritionistId: null, userId: A });
+  assert.deepEqual(self.checkins, [], 'the client\'s own view, as before');
+  // The app: the three-state reader, and only for a subscriber.
+  const be = read('mobile-app/src/services/shapeBackend.js');
+  const i = be.indexOf('  checkinsKnown: async (userId, limit = 6) => {');
+  const kit = new Function('supabase', 'return {' + be.slice(i, be.indexOf('\n  },', i) + 4) + '};');
+  const answering = (r) => kit({ rpc: async () => r });
+  assert.deepEqual(await answering({ data: [], error: null }).checkinsKnown('u'), []);
+  assert.equal(await answering({ data: null, error: { message: 'down' } }).checkinsKnown('u'), null, 'an error is unknown');
+  assert.equal(await kit({ rpc: async () => { throw new Error('offline'); } }).checkinsKnown('u'), null);
+  assert.equal(await kit(null).checkinsKnown('u'), null);
+  assert.match(read('mobile-app/src/services/shapeSignals.js'), /kit\.checkinsKnown && c\.joinedAt \? kit\.checkinsKnown\(c\.id, 2\)\.catch\(\(\) => null\) : null,/);
+});
+
+test('Fable 3: a new client whose overview did not arrive stays on the board, as unread', async () => {
+  const dom = new JSDOM('<div id="root"></div>', { url: 'https://shape.test/newdesign/TrainerApp.html#today' });
+  const before = { window: globalThis.window, document: globalThis.document, act: globalThis.IS_REACT_ACT_ENVIRONMENT };
+  globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  const { createRoot } = await import('react-dom/client');
+  const api = new Function('React', 'window', 'serif', 'sans', todayCode + ';return {DashOnboardingPanel,dashOnboardingRows};')(React, dom.window, 'serif', 'sans');
+  const day = (n) => new Date(Date.now() - n * DAY).toISOString();
+  const clients = [
+    { profile: { id: 'failed', name: 'Ola Bright', joinedAt: day(3) }, onboarding: null, progressRead: { state: 'unavailable' } },
+    { profile: { id: 'waiting', name: 'Max Ito', joinedAt: day(9) }, onboarding: null, progressRead: { state: 'loading' } },
+    { profile: { id: 'settled', name: 'Kim', joinedAt: day(45) }, onboarding: null, progressRead: { state: 'unavailable' } },
+    { profile: { id: 'ready', name: 'Rae', joinedAt: day(40) }, onboarding: null, progressRead: { state: 'ready' } },
+    { profile: { id: 'booked', name: 'Bo' }, onboarding: null, progressRead: { state: 'unavailable' } },
+  ];
+  assert.deepEqual(api.dashOnboardingRows(clients, 'trainer').map((c) => [c.profile.id, c.unread]), [['failed', 'unavailable'], ['waiting', 'loading']]);
+  const root = createRoot(document.getElementById('root'));
+  try {
+    await act(async () => root.render(React.createElement(api.DashOnboardingPanel, { clients, role: 'trainer', live: true })));
+    const text = document.body.textContent;
+    assert.ok(!/No clients in their first 30 days/.test(text), 'not "no new clients"');
+    assert.match(text, /Ola Bright.*Couldn't read their first 30 days/);
+    assert.match(text, /Max Ito.*Loading their first 30 days/);
+  } finally {
+    await act(async () => root.unmount()); dom.window.close();
+    globalThis.window = before.window; globalThis.document = before.document; globalThis.IS_REACT_ACT_ENVIRONMENT = before.act;
+  }
+});
+
+test('Fable 4: a meal plan that is live is answered as live, even when its notice cannot be written', async () => {
+  const orig = console.error; console.error = () => {};
+  try {
+    const r = await mealPlanRoute({ adminThrows: true });
+    assert.equal(r.status, 200);
+    assert.equal(r.notices.length, 0);
+  } finally { console.error = orig; }
+});
+
+test('Fable 5: a check-in filed before the subscription is not the first one; the first week is named only when the read reaches it', () => {
+  const joinedAt = '2026-10-16T09:00:00Z';
+  const now = Date.parse('2026-10-20T12:00:00Z');
+  const before = LEGS.bsOnboardingLeg({ role: 'trainer', joinedAt, checkins: [{ week_of: '2026-10-12', created_at: '2026-10-12T08:00:00Z' }], now });
+  assert.equal(stepsOf(before).checkin.done, false, 'filed on the Monday, subscribed on the Friday');
+  const after = LEGS.bsOnboardingLeg({ role: 'trainer', joinedAt, checkins: [{ week_of: '2026-10-12', created_at: '2026-10-18T08:00:00Z' }], now });
+  assert.deepEqual([stepsOf(after).checkin.done, stepsOf(after).checkin.at], [true, '2026-10-12'], 'filed after joining, for the joining week');
+  const undated = LEGS.bsOnboardingLeg({ role: 'trainer', joinedAt, checkins: [{ week_of: '2026-10-12' }], now });
+  assert.equal(stepsOf(undated).checkin.done, true, 'no filing time: the week ending after the join day counts, as before');
+  // Four rows (the read's limit), all since joining: done, but the oldest of them may not be the first.
+  const late = Date.parse('2026-11-14T12:00:00Z');
+  const four = ['2026-11-09', '2026-11-02', '2026-10-26', '2026-10-19'].map((w) => ({ week_of: w, created_at: w + 'T10:00:00Z' }));
+  const capped = LEGS.bsOnboardingLeg({ role: 'trainer', joinedAt, checkins: four, now: late });
+  assert.deepEqual([stepsOf(capped).checkin.done, stepsOf(capped).checkin.at], [true, null]);
+  assert.equal(LEGS.CHECKIN_READ_LIMIT, 4);
+  const three = LEGS.bsOnboardingLeg({ role: 'trainer', joinedAt, checkins: four.slice(0, 3), now: late });
+  assert.equal(stepsOf(three).checkin.at, '2026-10-26', 'below the limit the oldest is the first');
+  const crossed = LEGS.bsOnboardingLeg({ role: 'trainer', joinedAt, checkins: [...four.slice(0, 3), { week_of: '2026-10-12', created_at: '2026-10-12T08:00:00Z' }], now: late });
+  assert.equal(stepsOf(crossed).checkin.at, '2026-10-26', 'a row from before joining shows the read reached past the first');
+  assert.match(read('src/lib/shared-overview.ts'), /get_client_checkins', \{ p_user_id: clientId, p_limit: CHECKIN_READ_LIMIT \}/);
+  assert.match(read('public/newdesign/dashWeek.jsx'), /const DWK_CHECKIN_LIMIT = 4;/, 'the website week view keeps the same number');
 });

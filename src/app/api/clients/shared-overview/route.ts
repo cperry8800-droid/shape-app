@@ -31,9 +31,9 @@
 // on the server instead of the client. The dashboard chunks at the same number.
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson } from '@/lib/request-utils';
-import { buildSharedOverview, parseBatchIds, resolveMe } from '@/lib/shared-overview';
+import { buildSharedOverview, parseBatchIds, resolveMe, type OverviewClient } from '@/lib/shared-overview';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -49,12 +49,12 @@ export const maxDuration = 60;
 // it just stops paying an HTTP round trip and an auth check per lane.
 const BATCH_CONCURRENCY = 4;
 
+// The cookie session (the website) or the app's Bearer token (Fable on fix 4: an installed build got
+// 401 here, so its roster had no board and no last contact).
 export async function POST(req: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await currentUser(req);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+  const supabase = (await clientForRequest(req)) as unknown as OverviewClient;
 
   const parsed = await readJson<unknown>(req);
   if (!parsed.ok) return parsed.response;
@@ -80,5 +80,6 @@ export async function POST(req: Request) {
     }
   };
   await Promise.all(Array.from({ length: Math.min(BATCH_CONCURRENCY, wanted.ids.length) }, lane));
-  return NextResponse.json({ me, results, failed });
+  // `me` as it always was: the caller's provider ids (the account id is only for the DM key).
+  return NextResponse.json({ me: { trainerId: me.trainerId, nutritionistId: me.nutritionistId }, results, failed });
 }

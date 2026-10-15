@@ -105,15 +105,20 @@ export async function POST(request: Request) {
   // ⚠ PUBLISHING A MEAL PLAN TOLD THE CLIENT NOTHING (client-onboarding review, L8). A week of
   // workouts notifies through publish_client_week; a meal plan wrote its row and stopped, and only the
   // app's Assign page sent a chat line by hand. Every publish (the website builder, the app, and Nora,
-  // which posts here) now tells the member, opening Eat. Best-effort: a failed notice never fails it.
-  await createNotification(createAdminClient(), {
-    userId: clientId,
-    type: 'meal_plan',
-    title: 'New meal plan from your coach',
-    body: title,
-    route: 'eat',
-    data: { mealPlanId: inserted?.id ?? null },
-  });
+  // which posts here) now tells the member, opening Eat. Best-effort: a failed notice never fails it,
+  // and that includes the admin client failing to build (Fable on fix 4), since the plan is live by now.
+  try {
+    await createNotification(createAdminClient(), {
+      userId: clientId,
+      type: 'meal_plan',
+      title: 'New meal plan from your coach',
+      body: title,
+      route: 'eat',
+      data: { mealPlanId: inserted?.id ?? null },
+    });
+  } catch (e) {
+    console.error('[shape-api] meal plan notice failed:', e instanceof Error ? e.message : e);
+  }
   // The "not medical advice" / individualized-care disclaimer rides on every
   // assignment, plus a warning if compliance is in observe-only (not enforced) mode.
   return NextResponse.json({

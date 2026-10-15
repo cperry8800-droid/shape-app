@@ -128,7 +128,11 @@ async function coachRecords(role, options) {
       window.ShapeClientStats && window.ShapeClientStats.get ? window.ShapeClientStats.get(c.id).catch(() => null) : null,
       window.ShapeClientStats && window.ShapeClientStats.getLifts ? window.ShapeClientStats.getLifts(c.id).catch(() => null) : null,
       window.ShapeGoalsApi && window.ShapeGoalsApi.getForClient ? window.ShapeGoalsApi.getForClient(c.id).catch(() => null) : null,
-      kit.checkins ? kit.checkins(c.id, 2).catch(() => null) : null,
+      // ⚠ THREE STATES, AND ONLY FOR A SUBSCRIBER (Fable on fix 4). An empty list is the claim "no
+      // check-in" (red past the new weeks), so it must come from a read that answered: kit.checkins
+      // returns [] on an error too. And a booking-only client (no joinedAt: no subscription) is one
+      // get_client_checkins answers [] by design, which is "not shared", so it is not read at all.
+      kit.checkinsKnown && c.joinedAt ? kit.checkinsKnown(c.id, 2).catch(() => null) : null,
       // The health screening for Needs you (review M17): { ok, data }, so a failed read is
       // 'unknown' and never "missing". "Missing" also needs the coach-only intake read to have
       // answered, which says this coach IS theirs (the website's overview applies the same rule).

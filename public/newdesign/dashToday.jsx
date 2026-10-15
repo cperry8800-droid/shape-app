@@ -1434,11 +1434,25 @@ function dashObDay(v) {
   return isNaN(d.getTime()) ? "" : d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
 }
 // The clients in their first 30 days with this coach, newest first.
+// ⚠ A CLIENT WHOSE OVERVIEW DID NOT ARRIVE IS STILL A NEW CLIENT (Fable on fix 4). The board comes
+// with the overview, so a client whose overview failed (or is still loading) used to vanish from
+// the tab, which then said "No clients in their first 30 days". Their join date is on the roster, so
+// they stay, as a row that says it couldn't read the board (`unread`), never as an empty one.
 function dashOnboardingRows(clients, role) {
   const key = dashObKey(role);
-  return (clients || [])
-    .filter((c) => c && c.profile && c.profile.id && c.onboarding && c.onboarding[key] && Array.isArray(c.onboarding[key].steps))
-    .sort((a, b) => a.onboarding[key].day - b.onboarding[key].day);
+  const now = Date.now();
+  const rows = [];
+  for (const c of clients || []) {
+    if (!c || !c.profile || !c.profile.id) continue;
+    const ob = c.onboarding && c.onboarding[key];
+    if (ob && Array.isArray(ob.steps)) { rows.push({ c, day: ob.day }); continue; }
+    const read = c.progressRead && c.progressRead.state;
+    const joined = c.profile.joinedAt ? Date.parse(c.profile.joinedAt) : NaN;
+    if (c.onboarding || (read !== "loading" && read !== "unavailable") || !Number.isFinite(joined) || joined > now) continue;
+    const day = Math.floor((now - joined) / 86400000) + 1;
+    if (day <= 30) rows.push({ c: { ...c, unread: read }, day });
+  }
+  return rows.sort((a, b) => a.day - b.day).map((r) => r.c);
 }
 // What the board asks for next: the first step not done, with its date when it has one.
 function dashOnboardingNext(ob, role) {
@@ -1515,7 +1529,7 @@ function DashOnboardingBoard({ client, ob, role, live }) {
       <DashObStage n="04" title="Go live">
         <DashObLine label="Shape welcome" value={stepText(welcome, "Sent " + dashObDay(welcome && welcome.at), "Not sent")} />
         <DashObLine label="Your first message" value={stepText(hello, dashObDay(hello && hello.at), "Not yet")} />
-        <DashObLine label="First check-in" value={stepText(checkin, "Week of " + dashObDay(checkin && checkin.at), "Due " + dashObDay(checkin && checkin.due))} />
+        <DashObLine label="First check-in" value={stepText(checkin, checkin && checkin.at ? "Week of " + dashObDay(checkin.at) : "Done", "Due " + dashObDay(checkin && checkin.due))} />
         {hello && hello.done === false && <button type="button" style={{ ...DASH_WIDGET_BUTTON, marginTop: 8 }} onClick={() => dashMessageClient(client.profile.name, role, "Hi " + first + ", welcome — ", id)}>Say hello</button>}
       </DashObStage>
     </div>
@@ -1547,11 +1561,16 @@ function DashOnboardingPanel({ clients, role, live }) {
   const rows = dashOnboardingRows(clients, role);
   const key = dashObKey(role);
   const [open, setOpen] = React.useState(null);
-  const openId = open || (rows[0] ? rows[0].profile.id : null);
+  const firstBoard = rows.find((c) => !c.unread);
+  const openId = open || (firstBoard ? firstBoard.profile.id : null);
   if (!rows.length) return <p className="dw-note">No clients in their first 30 days with you.</p>;
   return <div>
     <p className="dw-note" style={{ marginTop: 0 }}>Each new client's first 30 days. A step ticks when its record exists: your message, a published plan, a check-in.</p>
     {rows.map((c) => {
+      if (c.unread) return <section key={c.profile.id} style={{ borderTop: "1px solid var(--sh-line, #302c27)", padding: "12px 0", display: "flex", gap: 12, flexWrap: "wrap", alignItems: "baseline" }}>
+        <strong style={{ fontWeight: 600 }}>{c.profile.name}</strong>
+        <span style={{ fontSize: 12, color: "var(--sh-ink2, #a09b94)" }}>{c.unread === "loading" ? "Loading their first 30 days…" : "Couldn't read their first 30 days. Reload to try again."}</span>
+      </section>;
       const ob = c.onboarding[key];
       const isOpen = openId === c.profile.id;
       return <section key={c.profile.id} style={{ borderTop: "1px solid var(--sh-line, #302c27)" }}>
