@@ -195,5 +195,7 @@
   "listing.requested": "Đã yêu cầu",
   "listing.bookedRequestBody": "Bạn đã nhờ {name} một buổi giới thiệu {minutes} phút. Bạn sẽ nhận đường dẫn cuộc gọi qua email khi họ xác nhận.",
   "listing.messageNotSent": "Chưa gửi",
-  "listing.messageNotSentBody": "Tin nhắn của bạn gửi {name} chưa được gửi. Hãy thử lại. {error}"
+  "listing.messageNotSentBody": "Tin nhắn của bạn gửi {name} chưa được gửi. Hãy thử lại. {error}",
+  "listing.lengthChanged": "Buổi giới thiệu đã thay đổi",
+  "listing.lengthChangedBody": "Buổi giới thiệu với {name} giờ kéo dài {minutes} phút. Hãy chọn lại thời gian."
 }

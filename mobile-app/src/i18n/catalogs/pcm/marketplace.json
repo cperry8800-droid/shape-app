@@ -195,5 +195,7 @@
   "listing.requested": "You don ask",
   "listing.bookedRequestBody": "You don ask {name} for {minutes}-minute intro. You go get the call link for email once dem confirm am.",
   "listing.messageNotSent": "E no send",
-  "listing.messageNotSentBody": "Your note to {name} no send. Try again. {error}"
+  "listing.messageNotSentBody": "Your note to {name} no send. Try again. {error}",
+  "listing.lengthChanged": "The intro don change",
+  "listing.lengthChangedBody": "{name} intro now dey run {minutes} minutes. Pick time again."
 }

@@ -195,5 +195,7 @@
   "listing.requested": "Запрошено",
   "listing.bookedRequestBody": "Вы попросили {name} о вводном звонке на {minutes} мин. Ссылку на звонок пришлём на почту, как только его подтвердят.",
   "listing.messageNotSent": "Не отправлено",
-  "listing.messageNotSentBody": "Ваше сообщение для {name} не отправлено. Попробуйте ещё раз. {error}"
+  "listing.messageNotSentBody": "Ваше сообщение для {name} не отправлено. Попробуйте ещё раз. {error}",
+  "listing.lengthChanged": "Вводная встреча изменилась",
+  "listing.lengthChangedBody": "Вводная встреча с {name} теперь длится {minutes} мин. Выберите время заново."
 }

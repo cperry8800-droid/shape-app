@@ -195,5 +195,7 @@
   "listing.requested": "Demandé",
   "listing.bookedRequestBody": "Vous avez demandé à {name} une intro de {minutes} minutes. Vous recevrez le lien de l’appel par e-mail dès sa confirmation.",
   "listing.messageNotSent": "Non envoyé",
-  "listing.messageNotSentBody": "Votre message à {name} n’a pas été envoyé. Réessayez. {error}"
+  "listing.messageNotSentBody": "Votre message à {name} n’a pas été envoyé. Réessayez. {error}",
+  "listing.lengthChanged": "L'appel découverte a changé",
+  "listing.lengthChangedBody": "L'appel découverte avec {name} dure maintenant {minutes} minutes. Choisis un autre créneau."
 }

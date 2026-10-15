@@ -195,5 +195,7 @@
   "listing.requested": "İstendi",
   "listing.bookedRequestBody": "{name} ile {minutes} dakikalık bir tanışma istedin. Onayladıklarında görüşme bağlantısı e-postana gelecek.",
   "listing.messageNotSent": "Gönderilmedi",
-  "listing.messageNotSentBody": "{name} için notun gönderilmedi. Tekrar dene. {error}"
+  "listing.messageNotSentBody": "{name} için notun gönderilmedi. Tekrar dene. {error}",
+  "listing.lengthChanged": "Tanışma görüşmesi değişti",
+  "listing.lengthChangedBody": "{name} ile tanışma görüşmesi artık {minutes} dakika. Lütfen yeniden bir saat seç."
 }

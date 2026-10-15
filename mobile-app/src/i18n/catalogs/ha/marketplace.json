@@ -195,5 +195,7 @@
   "listing.requested": "An nema",
   "listing.bookedRequestBody": "Ka nemi {name} don gabatarwa na mintuna {minutes}. Za ka sami hanyar kiran ta imel da zarar sun tabbatar.",
   "listing.messageNotSent": "Ba a aika ba",
-  "listing.messageNotSentBody": "Saƙonka zuwa ga {name} bai tafi ba. Sake gwadawa. {error}"
+  "listing.messageNotSentBody": "Saƙonka zuwa ga {name} bai tafi ba. Sake gwadawa. {error}",
+  "listing.lengthChanged": "Gabatarwar ta canza",
+  "listing.lengthChangedBody": "Gabatarwar {name} yanzu tana ɗaukar mintuna {minutes}. Sake zaɓar lokaci."
 }

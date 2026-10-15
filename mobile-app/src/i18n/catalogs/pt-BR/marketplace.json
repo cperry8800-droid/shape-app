@@ -195,5 +195,7 @@
   "listing.requested": "Solicitado",
   "listing.bookedRequestBody": "Você pediu a {name} uma intro de {minutes} minutos. Você vai receber o link da chamada por e-mail quando confirmarem.",
   "listing.messageNotSent": "Não enviado",
-  "listing.messageNotSentBody": "Sua mensagem para {name} não foi enviada. Tente de novo. {error}"
+  "listing.messageNotSentBody": "Sua mensagem para {name} não foi enviada. Tente de novo. {error}",
+  "listing.lengthChanged": "A conversa inicial mudou",
+  "listing.lengthChangedBody": "A conversa inicial com {name} agora dura {minutes} minutos. Escolha um horário de novo."
 }

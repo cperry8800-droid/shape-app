@@ -1544,7 +1544,7 @@ function BSPublicActionPanel({ action, coach, onClose, onConfirm, onMessageSent 
           </div>
         )}
 
-        {!isMessage && !action.done && (
+        {!isMessage && !action.done && !action.stale && (
           <button type="button" onClick={() => onConfirm(action)} style={{
             marginTop: 14,
             width: '100%',
@@ -1943,6 +1943,8 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   // `rules.consultMin` (any length from 5 to 240 minutes). 15 until it loads, the length every
   // intro had.
   const [introMin, setIntroMin] = useStateBSM2(15);
+  // Bumped to read the coach's times again (an intro length that changed under the member).
+  const [availEpoch, setAvailEpoch] = useStateBSM2(0);
   // Declared hours we cannot place on a clock — the coach has no stored zone.
   const [noZone, setNoZone] = useStateBSM2(false);
 
@@ -2009,7 +2011,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
       })
       .catch(() => {});
     return () => { on = false; };
-  }, [saleProviderId, saleProviderRole]);
+  }, [saleProviderId, saleProviderRole, availEpoch]);
   // Rate-card buckets (the plan sub-tabs died with the Listing): the single-item
   // shelf vs multi-week programs/plans, role-aware.
   const isNutriDetail = saleProviderRole === 'nutritionist';
@@ -2290,6 +2292,21 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
           body: tr('marketplace:listing.bookedRequestBody', { defaultValue: 'You asked {name} for a {minutes}-minute intro. You will get the call link by email once they confirm.', name: coach.name, minutes: introMin }),
         });
       } catch (error) {
+        // ⚠ THE COACH CHANGED THEIR INTRO LENGTH SINCE THESE TIMES WERE LAID OUT (Codex on #2370).
+        // Trying again would send the same stale length forever: the times are read again at the
+        // new length and the member picks one, as the website's consultation page does.
+        if (error?.code === 'length_changed') {
+          const minutes = Number.isInteger(error.durationMin) ? error.durationMin : introMin;
+          if (Number.isInteger(error.durationMin)) setIntroMin(error.durationMin);
+          setAvailEpoch((n) => n + 1);
+          setAction({
+            ...current,
+            stale: true,
+            title: tr('marketplace:listing.lengthChanged', { defaultValue: 'The intro changed' }),
+            body: tr('marketplace:listing.lengthChangedBody', { defaultValue: "{name}'s intro now runs {minutes} minutes. Pick a time again.", name: coach.name, minutes }),
+          });
+          return;
+        }
         setAction({
           ...current,
           title: tr('marketplace:listing.bookingError', { defaultValue: 'Booking error' }),

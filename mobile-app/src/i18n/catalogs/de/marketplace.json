@@ -195,5 +195,7 @@
   "listing.requested": "Angefragt",
   "listing.bookedRequestBody": "Du hast {name} um ein {minutes}-minütiges Intro gebeten. Den Link zum Anruf bekommst du per E-Mail, sobald es bestätigt ist.",
   "listing.messageNotSent": "Nicht gesendet",
-  "listing.messageNotSentBody": "Deine Nachricht an {name} wurde nicht gesendet. Versuch es noch einmal. {error}"
+  "listing.messageNotSentBody": "Deine Nachricht an {name} wurde nicht gesendet. Versuch es noch einmal. {error}",
+  "listing.lengthChanged": "Das Erstgespräch hat sich geändert",
+  "listing.lengthChangedBody": "Das Erstgespräch mit {name} dauert jetzt {minutes} Minuten. Wähle bitte erneut eine Zeit."
 }

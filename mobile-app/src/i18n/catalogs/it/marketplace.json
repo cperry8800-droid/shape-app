@@ -195,5 +195,7 @@
   "listing.requested": "Richiesto",
   "listing.bookedRequestBody": "Hai chiesto a {name} un’intro di {minutes} minuti. Riceverai il link della chiamata via email appena la conferma.",
   "listing.messageNotSent": "Non inviato",
-  "listing.messageNotSentBody": "Il tuo messaggio a {name} non è stato inviato. Riprova. {error}"
+  "listing.messageNotSentBody": "Il tuo messaggio a {name} non è stato inviato. Riprova. {error}",
+  "listing.lengthChanged": "L'intro è cambiata",
+  "listing.lengthChangedBody": "L'intro con {name} ora dura {minutes} minuti. Scegli di nuovo un orario."
 }

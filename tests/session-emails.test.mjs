@@ -215,6 +215,27 @@ test('the app books the intro at the coach\'s length and says it was requested, 
   }
 });
 
+test('the app takes a changed intro length: the times are read again and the member picks one (Codex on #2370)', () => {
+  const backend = read('mobile-app/src/services/shapeBackend.js');
+  const book = backend.slice(backend.indexOf('async function submitConsultationBooking('), backend.indexOf('async function submitConsultationBooking(') + 4000);
+  assert.match(book, /if \(d\?\.code\) err\.code = d\.code;\s+if \(Number\.isInteger\(d\?\.durationMin\)\) err\.durationMin = d\.durationMin;\s+throw err;/, 'the route\'s code reaches the screen');
+  const market = read('mobile-app/src/broadsheet/iosAppBroadsheetMarketplace.jsx');
+  const at = market.indexOf("if (error?.code === 'length_changed') {");
+  assert.ok(at > 0);
+  const branch = market.slice(at, market.indexOf('return;', at));
+  assert.match(branch, /if \(Number\.isInteger\(error\.durationMin\)\) setIntroMin\(error\.durationMin\);/);
+  assert.match(branch, /setAvailEpoch\(\(n\) => n \+ 1\);/, 'the times are read again');
+  assert.match(branch, /stale: true,/);
+  assert.match(market, /\}, \[saleProviderId, saleProviderRole, availEpoch\]\);/, 'the availability read follows the epoch');
+  // A stale request offers no retry: the same length would be refused forever.
+  assert.match(market, /\{!isMessage && !action\.done && !action\.stale && \(\s+<button type="button" onClick=\{\(\) => onConfirm\(action\)\}/);
+  for (const loc of ['de', 'en', 'es', 'fr', 'ha', 'id', 'it', 'pcm', 'pt-BR', 'ru', 'tr', 'uk', 'vi']) {
+    const cat = JSON.parse(read(`mobile-app/src/i18n/catalogs/${loc}/marketplace.json`));
+    assert.ok(cat['listing.lengthChanged'], loc);
+    assert.match(cat['listing.lengthChangedBody'], /\{name\}[\s\S]*\{minutes\}|\{minutes\}[\s\S]*\{name\}/, loc);
+  }
+});
+
 test('a coach books a session of any length they type, 5 minutes to 4 hours', () => {
   const src = read('public/newdesign/dashSchedule.jsx');
   assert.match(src, /const DSC_LENGTH_MIN = 5;\nconst DSC_LENGTH_MAX = 240;/);

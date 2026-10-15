@@ -1503,7 +1503,12 @@ async function submitConsultationBooking({ coach, role, slot = {}, topic = 'Free
   });
   const d = await res.json().catch(() => ({}));
   if (!res.ok || !d?.session_id) {
-    throw new Error(d?.error || 'Could not book this consultation. Try again.');
+    // The route's code rides along (length_changed: the coach's intro length changed since the
+    // times were laid out, with the new length), so the screen can act on it, not only say it.
+    const err = new Error(d?.error || 'Could not book this consultation. Try again.');
+    if (d?.code) err.code = d.code;
+    if (Number.isInteger(d?.durationMin)) err.durationMin = d.durationMin;
+    throw err;
   }
   const session = { stored: 'supabase', data: { id: d.session_id } };
   return { stored: session.stored, data: session.data, session };
