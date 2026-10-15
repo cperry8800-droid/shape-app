@@ -37,18 +37,40 @@ export function pushRoute(record: NotificationRecord): string {
   return canonicalRoute(record.route ?? '', record.data ?? null);
 }
 
-// ⚠ A ROW WRITTEN WITHOUT `channels` STILL ANSWERS TO ITS RECIPIENT (the notification audit). Only
+// ⚠ THE SWITCH A ROW ANSWERS TO IS THE ONE ITS RECIPIENT SEES (Codex on #2372). The database writes a
+// new message as type 'message' and a co-sign as 'cosign', and the preference center stores "Coach
+// messages" as 'coach_message' and "Co-signs" as 'coach_cosign', so reading the row's own type found
+// no switch and every such push went out to someone who had turned it off. A message is a "coach
+// message" only on the member's side of a coaching thread (data.side, 2026-10-15-notification-
+// routes.sql); a coach's client writing, and a member's direct message, have no switch of their own.
+export function preferenceTypeFor(type: string, data?: Record<string, unknown> | null): string {
+  if (type === 'message') return data && data.side === 'client' ? 'coach_message' : 'message';
+  if (type === 'cosign') return 'coach_cosign';
+  return type;
+}
+
+// A reminder the recipient scheduled for an hour of their own choosing (cron/reminders, types
+// reminder_*) is not held by their quiet hours: the time is theirs. Mute still silences it.
+export function heldByQuietHours(type: string): boolean {
+  return !/^reminder_/.test(type);
+}
+
+// ⚠ EVERY ROW ANSWERS TO ITS RECIPIENT, WHOEVER WROTE IT (the notification audit; Codex on #2372). Only
 // createPreferredNotification and the AI layer read the preference center; every createNotification
 // row and every row a database trigger writes (messages, workouts, plans, groceries, follows) was
 // pushed even to a member who muted everything or turned that type's push off. Read here, once per
 // push: master mute, the type's push switch, and quiet hours, which apply only to someone who saved
 // their settings (the defaults are 22:00 to 07:00 UTC, which would silence an American evening for
 // someone who never chose a zone). A read that fails sends nothing, as notify.ts does.
+// ⚠ A `data.channels` STAMP IS NOT PROOF THE SETTINGS WERE READ: the credential notices and the
+// reminders cron stamp { push: true } themselves. So the gate runs on every row; for a row the
+// preference-aware writers produced it agrees with what they already decided.
 export async function pushAllowed(
   admin: ReturnType<typeof createAdminClient>,
   userId: string,
   type: string,
   now: Date = new Date(),
+  { quietHours = true }: { quietHours?: boolean } = {},
 ): Promise<{ ok: true } | { ok: false; why: string }> {
   const [settingsRes, prefsRes] = await Promise.all([
     admin.from('notification_settings').select('muted, quiet_start, quiet_end, tz').eq('user_id', userId).maybeSingle(),
@@ -59,7 +81,7 @@ export async function pushAllowed(
   if (settings?.muted === true) return { ok: false, why: 'muted' };
   const push = ((prefsRes.data ?? []) as { channel: string; enabled: boolean }[]).find((r) => r.channel === 'push');
   if (push && push.enabled === false) return { ok: false, why: 'push_channel_off' };
-  if (settings && inQuietHours(now, { quietStart: settings.quiet_start, quietEnd: settings.quiet_end, tz: settings.tz })) {
+  if (quietHours && settings && inQuietHours(now, { quietStart: settings.quiet_start, quietEnd: settings.quiet_end, tz: settings.tz })) {
     return { ok: false, why: 'quiet_hours' };
   }
   return { ok: true };
@@ -96,12 +118,11 @@ export async function POST(request: Request) {
   }
 
   const admin = createAdminClient();
-  if (!(record.data && record.data.channels)) {
-    const gate = await pushAllowed(admin, record.user_id, record.type ?? 'general');
-    if (!gate.ok) {
-      if (gate.why === 'preferences_unreadable') console.error('[push] could not read preferences; not pushing:', record.type);
-      return NextResponse.json({ ok: true, skipped: gate.why });
-    }
+  const type = record.type ?? 'general';
+  const gate = await pushAllowed(admin, record.user_id, preferenceTypeFor(type, record.data ?? null), new Date(), { quietHours: heldByQuietHours(type) });
+  if (!gate.ok) {
+    if (gate.why === 'preferences_unreadable') console.error('[push] could not read preferences; not pushing:', record.type);
+    return NextResponse.json({ ok: true, skipped: gate.why });
   }
   await sendPushToUser(admin, record.user_id, {
     title: record.title,

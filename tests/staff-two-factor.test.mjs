@@ -482,7 +482,9 @@ test('the app: Settings shows Shape admin only for staff, and opens the console 
   // Codex, #2330: a native build has no API base today, so the door names the production site there.
   assert.match(backend, /function staffBase\(\) \{\n\s+return apiBaseUrl \|\| \(_isNative \? SHAPE_SITE : ''\);\n\}/);
   assert.match(backend, /const SHAPE_SITE = 'https:\/\/theshapecommunity\.com';/);
-  assert.match(backend, /const url = `\$\{staffBase\(\)\}\/admin`;/, 'an absolute URL for the native browser');
+  // The console is one of the website pages the app opens outside itself (openWebsitePage, #2372).
+  assert.match(backend, /function openWebsitePage\(path\) \{\n\s+const url = `\$\{staffBase\(\)\}\$\{path\}`;/, 'an absolute URL for the native browser');
+  assert.match(backend, /function openAdminConsole\(\) \{ openWebsitePage\('\/admin'\); \}/);
   assert.match(backend, /return \['owner', 'admin', 'support', 'analyst'\]\.includes\(payload\.level\) \? payload\.level : null;/, 'anything else is no row');
   assert.match(backend, /Browser\.open\(\{ url, presentationStyle: 'fullscreen' \}\);/);
   assert.match(backend, /try \{ window\.open\(url, '_blank', 'noopener'\); return; \} catch \(e\) \{\}/, 'the web app keeps its own tab');

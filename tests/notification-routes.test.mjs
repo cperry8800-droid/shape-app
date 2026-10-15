@@ -248,37 +248,151 @@ test('the website inbox opens every route for the people who receive it', () => 
   assert.equal(inTrainer({ route: 'schedule', data: { providerRole: 'trainer' } }, 'trainer'), '#schedule');
 });
 
+test('a thread names the side its recipient is on, and opens in the app that holds it (Codex on #2372)', async () => {
+  // An account that coaches and is coached: the route carries the side, and the listing's role.
+  assert.equal(R.canonicalRoute('messages', { conversationId: 'c-1', providerRole: 'trainer', side: 'client' }), 'chat:client:c-1');
+  assert.equal(R.canonicalRoute('messages', { conversationId: 'c-1', providerRole: 'nutritionist', side: 'coach' }), 'chat:coach:nutritionist:c-1');
+  assert.equal(R.canonicalRoute('messages', { conversationId: 'c-1', careTeam: true, side: 'coach' }), 'chat:coach:c-1');
+  assert.equal(R.canonicalRoute('messages', { conversationId: 'dm-1' }), 'chat:dm-1', 'no side: as before');
+  assert.deepEqual(R.parseRoute('chat:client:c-1'), { kind: 'chat', id: 'c-1', role: null, side: 'client' });
+  assert.deepEqual(R.parseRoute('chat:coach:trainer:c-1'), { kind: 'chat', id: 'c-1', role: 'trainer', side: 'coach' });
+  assert.deepEqual(R.parseRoute('chat:c-1'), { kind: 'chat', id: 'c-1', role: null });
+  assert.equal(R.parseRoute('chat:client:trainer:c-1'), null, 'a member side names no listing');
+  // Which app opens it.
+  const saved = globalThis.window;
+  globalThis.window = { ShapeAuth: { getCachedState: () => ({ profile: { roles: ['client', 'nutritionist'] } }) } };
+  try {
+    const own = (side, role) => ({ conversationId: 'c-1', side, role, fromNotification: true });
+    assert.equal(ROUTER.bsChatOwner(own('client', null), 'trainer'), 'client', 'their own coach writes: the member app');
+    assert.equal(ROUTER.bsChatOwner(own('client', null), 'client'), null);
+    assert.equal(ROUTER.bsChatOwner(own('coach', 'nutritionist'), 'trainer'), 'nutritionist', 'the other listing\'s client');
+    assert.equal(ROUTER.bsChatOwner(own('coach', 'trainer'), 'trainer'), null);
+    assert.equal(ROUTER.bsChatOwner(own('coach', 'trainer'), 'client'), 'trainer');
+    assert.equal(ROUTER.bsChatOwner(own('coach', null), 'client'), 'nutritionist', 'the care team: the account\'s coach app');
+    assert.equal(ROUTER.bsChatOwner(own('coach', null), 'trainer'), null, 'any coach app holds the care team');
+    assert.equal(ROUTER.bsChatOwner({ conversationId: 'c-1', side: 'client' }, 'trainer'), null, 'only a notification switches apps');
+    assert.equal(ROUTER.bsChatOwner({ conversationId: 'c-1', fromNotification: true }, 'trainer'), null, 'no side: opened where it is');
+  } finally { globalThis.window = saved; }
+  // A hand-over replays the same route in the other app.
+  assert.equal(ROUTER.bsRouteFor('chat', { conversationId: 'c-1', side: 'coach', role: 'nutritionist' }), 'chat:coach:nutritionist:c-1');
+  // Every shell asks before it opens a notified thread, with its own role.
+  const hand = (role) => new RegExp(`if \\(!d\\.conversationId && !d\\.channel && !d\\.support\\) return;\\n(?:\\s*//[^\\n]*\\n)*\\s*const owner = bsChatOwner\\(d, '${role}'\\);\\n\\s*if \\(owner\\) \\{ bsHandOver\\(bsRouteFor\\('chat', d\\), owner, setTweak\\); return; \\}`);
+  assert.match(CLIENT, hand('client'));
+  assert.match(PROS, hand('trainer'));
+  assert.match(PROS, hand('nutritionist'));
+});
+
+test('a credential notice opens the website\'s editor from the app; the profile there is read only (Codex on #2372)', () => {
+  for (const page of ['Trainer', 'Nutritionist']) {
+    assert.match(PROS, new RegExp(`case 'credentials':\\n\\s+if \\(window\\.ShapeSite\\?\\.open\\) \\{ window\\.ShapeSite\\.open\\('/newdesign/${page}App\\.html#profile'\\); return; \\}`), page);
+  }
+  const backend = read('mobile-app/src/services/shapeBackend.js');
+  assert.match(backend, /window\.ShapeSite = \{ open: openWebsitePage \};/);
+  assert.match(backend, /function openAdminConsole\(\) \{ openWebsitePage\('\/admin'\); \}/);
+  // The website's editor is where the route takes a coach (DASH_INBOX_COACH_TABS.credentials).
+  assert.match(read('public/newdesign/pageShell.jsx'), /credentials: "profile", waitlist: "profile",/);
+});
+
+test('the website opens a coach-only notice on the account\'s coach side, from its member side too (Codex on #2372)', () => {
+  const shell = read('public/newdesign/pageShell.jsx');
+  const fn = shell.slice(shell.indexOf('const DASH_INBOX_ROUTES = {'), shell.indexOf('// ⚠ A SHAPE CHECK, NOT A TRUST FALL.'));
+  const lib = new Function('window', `${fn}; return { dashInboxHref, dashAccountCoachRole, dashInboxConversation };`)({});
+  const h = lib.dashInboxHref;
+  // A coach using the website as a member: the certifications, the digest and a client alert open
+  // their coach shell, in the account's coach role when the row names none.
+  assert.equal(h({ route: 'credentials' }, 'client', 'trainer'), 'TrainerApp.html#profile');
+  assert.equal(h({ route: 'clients' }, 'client', 'nutritionist'), 'NutritionistApp.html#clients');
+  assert.equal(h({ route: 'client', data: { clientId: 'u-1', providerRole: 'trainer' } }, 'client', null), 'TrainerApp.html#client/u-1', 'the row\'s own role');
+  assert.equal(h({ route: 'client', data: { clientId: 'u-1' } }, 'client', 'nutritionist'), 'NutritionistApp.html#client/u-1');
+  assert.equal(h({ route: 'credentials' }, 'client', null), null, 'a member who coaches nothing has no coach page');
+  assert.equal(h({ route: 'credentials' }, 'trainer', 'nutritionist'), 'TrainerApp.html#profile', 'on a coach dashboard, that dashboard\'s role');
+  // The account's coach role, trainer first.
+  assert.equal(lib.dashAccountCoachRole({ role: 'client', roles: ['client', 'nutritionist'] }), 'nutritionist');
+  assert.equal(lib.dashAccountCoachRole({ role: 'client', roles: ['client', 'nutritionist', 'trainer'] }), 'trainer');
+  assert.equal(lib.dashAccountCoachRole({ role: 'client', roles: ['client'] }), null);
+  assert.equal((shell.match(/<DashInbox signedIn=\{!!authUser\} role=\{authUser && authUser\.role\} roles=\{authUser && authUser\.roles\} inbox=\{inbox\} \/>/g) || []).length, 2, 'both headers hand the inbox the account\'s roles');
+  assert.match(shell, /function DashInbox\(\{ signedIn, role, roles, inbox \}\) \{\n[^\n]*\n  const accountCoach = dashAccountCoachRole\(\{ role, roles \}\);/);
+  assert.match(shell, /const href = dashInboxHref\(n, role, accountCoach\);/);
+  // A thread route with its side reads back to the thread.
+  for (const r of ['chat:client:c-1', 'chat:coach:c-1', 'chat:coach:trainer:c-1', 'chat:c-1']) assert.equal(lib.dashInboxConversation({ route: r }), 'c-1', r);
+});
+
 // ── 5. The push itself ─────────────────────────────────────────────────────────────────────────
 test('a push answers the recipient\'s preferences, whichever way the row was written', async () => {
   const nextServer = require('next/server');
   const NOTIFY = await import('../src/lib/ai/notifications.mjs');
+  const st = { admin: null, sent: [] };
   const route = await loadRealModule(join(ROOT, 'src/app/api/push/dispatch/route.ts'), {
     typescript: true,
-    registry: new Map([['next/server', nextServer], ['@/lib/supabase/admin', { createAdminClient: () => null }], ['@/lib/push', {}], ['@/lib/ai/notifications.mjs', NOTIFY]]),
+    registry: new Map([
+      ['next/server', nextServer],
+      ['@/lib/supabase/admin', { createAdminClient: () => st.admin }],
+      ['@/lib/push', { pushConfigured: () => true, sendPushToUser: async (_a, userId, p) => { st.sent.push({ userId, ...p }); } }],
+      ['@/lib/ai/notifications.mjs', NOTIFY],
+    ]),
   });
-  const admin = ({ settings = null, prefs = [], fail = false } = {}) => ({
+  // notification_settings for the recipient; notification_preferences rows by type, as stored.
+  const admin = ({ settings = null, prefs = {}, fail = false } = {}) => ({
     from: (table) => {
-      const q = { select: () => q, eq: () => q };
-      const res = fail ? { data: null, error: { message: 'down' } } : { data: table === 'notification_settings' ? settings : prefs, error: null };
-      q.maybeSingle = async () => res;
-      q.then = (ok, no) => Promise.resolve(res).then(ok, no);
+      const eqs = {};
+      const q = { select: () => q, eq: (c, v) => { eqs[c] = v; return q; } };
+      const res = () => (fail ? { data: null, error: { message: 'down' } }
+        : { data: table === 'notification_settings' ? settings : (prefs[eqs.type] || []), error: null });
+      q.maybeSingle = async () => res();
+      q.then = (ok, no) => Promise.resolve(res()).then(ok, no);
       return q;
     },
   });
   const noon = new Date('2026-10-15T12:00:00Z');
   const night = new Date('2026-10-15T23:30:00Z');
   const gate = (a, now = noon) => route.pushAllowed(a, 'u-1', 'message', now);
+  const pushOff = (type) => ({ [type]: [{ channel: 'push', enabled: false }] });
   assert.deepEqual(await gate(admin()), { ok: true }, 'nobody saved anything: pushed');
   assert.deepEqual(await gate(admin(), night), { ok: true }, 'no saved settings: the 22:00 UTC default does not silence an American evening');
   assert.deepEqual(await gate(admin({ settings: { muted: true } })), { ok: false, why: 'muted' });
-  assert.deepEqual(await gate(admin({ prefs: [{ channel: 'push', enabled: false }] })), { ok: false, why: 'push_channel_off' });
-  assert.deepEqual(await gate(admin({ prefs: [{ channel: 'inapp', enabled: false }] })), { ok: true }, 'another channel off');
+  assert.deepEqual(await gate(admin({ prefs: pushOff('message') })), { ok: false, why: 'push_channel_off' });
+  assert.deepEqual(await gate(admin({ prefs: { message: [{ channel: 'inapp', enabled: false }] } })), { ok: true }, 'another channel off');
   const saved = { muted: false, quiet_start: 22, quiet_end: 7, tz: 'America/New_York' };
   assert.deepEqual(await gate(admin({ settings: saved }), new Date('2026-10-16T03:00:00Z')), { ok: false, why: 'quiet_hours' }, '23:00 in New York');
   assert.deepEqual(await gate(admin({ settings: saved }), noon), { ok: true }, '08:00 in New York');
   assert.deepEqual(await gate(admin({ fail: true })), { ok: false, why: 'preferences_unreadable' }, 'a failed read sends nothing');
-  // Rows that already carry their channels (createPreferredNotification, the AI layer) are not read twice.
-  assert.match(read('src/app/api/push/dispatch/route.ts'), /if \(!\(record\.data && record\.data\.channels\)\) \{\s+const gate = await pushAllowed\(admin, record\.user_id, record\.type \?\? 'general'\);/);
+
+  // ── The route itself, row by row (Codex on #2372) ──
+  process.env.PUSH_WEBHOOK_SECRET = 'test-secret';
+  const post = async (a, record) => {
+    st.admin = a; st.sent.length = 0;
+    const res = await route.POST(new Request('https://shape.test/api/push/dispatch', {
+      method: 'POST', headers: { 'x-push-secret': 'test-secret', 'content-type': 'application/json' }, body: JSON.stringify({ record }),
+    }));
+    const body = await res.json();
+    return { skipped: body.skipped || null, sent: st.sent.length };
+  };
+  const msg = (side) => ({ user_id: 'u-1', type: 'message', title: 'New message', route: 'messages', data: { conversationId: 'c-1', providerRole: 'trainer', side } });
+  // "Coach messages" off: the member's coach writing is not pushed; the same switch says nothing
+  // about a coach's client writing, or a member's direct message.
+  assert.deepEqual(await post(admin({ prefs: pushOff('coach_message') }), msg('client')), { skipped: 'push_channel_off', sent: 0 });
+  assert.deepEqual(await post(admin({ prefs: pushOff('coach_message') }), msg('coach')), { skipped: null, sent: 1 });
+  assert.deepEqual(await post(admin({ prefs: pushOff('coach_message') }), { user_id: 'u-1', type: 'message', title: 'New message', route: 'messages', data: { conversationId: 'dm-1' } }), { skipped: null, sent: 1 });
+  // "Co-signs" off: the database's cosign row.
+  assert.deepEqual(await post(admin({ prefs: pushOff('coach_cosign') }), { user_id: 'u-1', type: 'cosign', title: 'Co-signed', route: 'community', data: {} }), { skipped: 'push_channel_off', sent: 0 });
+  // A row that stamped its own channels is still asked: muted means muted.
+  const stamped = { user_id: 'u-1', type: 'credential_changes', title: 'Update your credentials', route: 'credentials', data: { channels: { inapp: true, push: true, email: false } } };
+  assert.deepEqual(await post(admin({ settings: { muted: true } }), stamped), { skipped: 'muted', sent: 0 });
+  assert.deepEqual(await post(admin(), stamped), { skipped: null, sent: 1 });
+  // A row the writer marked in-app only is never pushed.
+  assert.deepEqual(await post(admin(), { ...stamped, data: { channels: { inapp: true, push: false } } }), { skipped: 'push_channel_off', sent: 0 });
+  // A reminder the recipient set for this hour is not held by their quiet hours; mute still holds it.
+  const allNight = { muted: false, quiet_start: 0, quiet_end: 23, tz: 'UTC' };
+  const reminder = { user_id: 'u-1', type: 'reminder_water', title: 'Water', route: 'habits', data: { channels: { inapp: true, push: true, email: false }, reminderId: 'r-1' } };
+  const RealDate = Date;
+  globalThis.Date = class extends RealDate { constructor(...a) { if (a.length) super(...a); else super('2026-10-15T05:00:00Z'); } static now() { return RealDate.parse('2026-10-15T05:00:00Z'); } };
+  try {
+    assert.deepEqual(await post(admin({ settings: allNight }), reminder), { skipped: null, sent: 1 }, 'their own 05:00 reminder');
+    assert.deepEqual(await post(admin({ settings: allNight }), msg('client')), { skipped: 'quiet_hours', sent: 0 }, 'anything else at 05:00');
+    assert.deepEqual(await post(admin({ settings: { ...allNight, muted: true } }), reminder), { skipped: 'muted', sent: 0 });
+  } finally { globalThis.Date = RealDate; }
+  assert.equal(route.preferenceTypeFor('message', { side: 'client' }), 'coach_message');
+  assert.equal(route.preferenceTypeFor('waitlist_invite', {}), 'waitlist_invite');
 });
 
 test('the AI\'s client alerts carry the listing\'s role, so a coach with both opens the right app', async () => {

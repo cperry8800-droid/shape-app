@@ -12,7 +12,7 @@
 // the table the server's push and the guard test read too. A route is written the way a push
 // carries it (canonicalRoute), read back (parseRoute), and opened by a window event the shells
 // answer:
-//   chat:<id>            shape:openConversation { conversationId }
+//   chat:[side:[role:]]<id>  shape:openConversation { conversationId, side, role }
 //   prep:<recipe>        shape:openPrep { slug }
 //   home                 shape:goHome
 //   client:<role>:<id>   shape:openClient { clientId, providerRole }
@@ -20,14 +20,16 @@
 //   everything else      shape:openPage { page, id, role }
 // A shell that is not the route's audience (a member route in a coach app, or the other coach
 // role's) hands it to the shell that is (bsHandOver, below).
-import { canonicalRoute, parseRoute } from '../../../public/newdesign/notificationRoutes.mjs';
+import { canonicalRoute, parseRoute, chatRoute } from '../../../public/newdesign/notificationRoutes.mjs';
 
 export function bsRouteNotification(route, data) {
   const p = parseRoute(canonicalRoute(route, data));
   if (!p) return false;
   const fire = (name, detail) => window.dispatchEvent(new CustomEvent(name, detail === undefined ? undefined : { detail }));
   try {
-    if (p.kind === 'chat') { fire('shape:openConversation', { conversationId: p.id }); return true; }
+    // A thread names the side its recipient is on when the notification did, so a shell holding the
+    // other side hands it over (bsChatOwner).
+    if (p.kind === 'chat') { fire('shape:openConversation', { conversationId: p.id, ...(p.side ? { side: p.side, role: p.role, fromNotification: true } : {}) }); return true; }
     // `fromNotification`: only a notification hands a route to another shell. The same events
     // fired from inside an app (a coach's "browse the marketplace") never switch apps.
     if (p.kind === 'prep') { fire('shape:openPrep', { slug: p.id, fromNotification: true }); return true; }
@@ -63,6 +65,21 @@ export function bsAccountCoachRole() {
   return null;
 }
 
+/**
+ * The shell a notified thread belongs in, when it is not `here` ('client', 'trainer' or
+ * 'nutritionist'); null to open it where it is. A member's thread is the member app's; a coach's,
+ * its listing's coach app (the account's own coach role when the thread names none, as a care-team
+ * thread does), and any coach app holds a care-team thread.
+ */
+export function bsChatOwner(detail, here) {
+  const d = detail || {};
+  if (!d.fromNotification || !d.conversationId) return null;
+  if (d.side === 'client') return here === 'client' ? null : 'client';
+  if (d.side !== 'coach') return null;
+  if (here !== 'client') return d.role && d.role !== here ? d.role : null;
+  return d.role || bsAccountCoachRole();
+}
+
 /** The member pages: a coach app hands these to the member app. */
 export const BS_MEMBER_PAGES = Object.freeze(['sessions', 'train', 'eat', 'score', 'checkin', 'goal', 'habits', 'progress']);
 /** The coach pages: the member app hands these to the coach app. */
@@ -74,6 +91,7 @@ export function bsRouteFor(kind, detail) {
   if (kind === 'client') return d.providerRole ? `client:${d.providerRole}:${d.clientId}` : `client:${d.clientId}`;
   if (kind === 'coach') return `coach:${d.role}${d.coachId != null ? ':' + d.coachId : ''}`;
   if (kind === 'prep') return 'prep:' + d.slug;
+  if (kind === 'chat') return chatRoute(d.conversationId, d.side, d.role);
   if (kind === 'page') return d.page + (d.role ? ':' + d.role : d.id ? ':' + d.id : '');
   return '';
 }

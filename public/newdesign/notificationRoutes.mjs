@@ -15,7 +15,7 @@
 
 /** Every route kind, and who receives it: a member, a coach, or either. */
 export const ROUTES = Object.freeze({
-  chat: 'either',        // a conversation (chat:<id>); "messages" with data.conversationId is written as this
+  chat: 'either',        // a conversation: chat:<id>, chat:client:<id>, chat:coach:<id> or chat:coach:<role>:<id>; "messages" with data.conversationId is written as this
   messages: 'either',    // a "New message" without its conversation (older rows): the chat tab
   home: 'either',        // a member's Home; a coach's Today
   client: 'coach',       // a client's page: client:<role>:<id> or client:<id>
@@ -43,6 +43,23 @@ const ROLE = (r) => (r === 'trainer' || r === 'nutritionist' ? r : r === 'dietit
 const ID = (v) => (typeof v === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(v) ? v : typeof v === 'number' && Number.isFinite(v) ? String(v) : '');
 
 /**
+ * A thread's route, with the side of it the recipient is on.
+ * ⚠ THE SIDE RIDES IN THE ROUTE (Codex on #2372). An account can be a coach and a client, and a
+ * push carries only its route: "chat:<id>" opened a message from the account's OWN coach in the
+ * coach app it happened to be in, whose thread list does not hold that thread. The app hands a
+ * thread on the other side to the shell that holds it (bsNotificationRoute.mjs), and a coach's
+ * thread names its listing's role. No side (a member's direct message, a row written before
+ * `side`) is the plain "chat:<id>", opened where it lands, as before.
+ */
+export function chatRoute(conversationId, side, role) {
+  const id = ID(conversationId);
+  if (!id) return '';
+  if (side === 'client') return `chat:client:${id}`;
+  if (side === 'coach') return ROLE(role) ? `chat:coach:${ROLE(role)}:${id}` : `chat:coach:${id}`;
+  return 'chat:' + id;
+}
+
+/**
  * The route as a push carries it, from a notification's own (route, data). Ids the app needs ride
  * in the string; a route it does not know is returned as it came (and opens nothing).
  */
@@ -50,8 +67,8 @@ export function canonicalRoute(route, data) {
   if (typeof route !== 'string' || !route) return '';
   const d = data && typeof data === 'object' ? data : {};
   const conv = ID(d.conversationId);
-  if ((route === 'messages' || route === 'chat') && conv) return 'chat:' + conv;
   const role = ROLE(d.providerRole);
+  if ((route === 'messages' || route === 'chat') && conv) return chatRoute(conv, d.side, role);
   if (route === 'client') {
     const id = ID(d.clientId);
     return id ? (role ? `client:${role}:${id}` : `client:${id}`) : route;
@@ -73,7 +90,13 @@ export function parseRoute(str) {
   if (!Object.prototype.hasOwnProperty.call(ROUTES, kind)) return null;
   const rest = at < 0 ? '' : str.slice(at + 1);
   // A bare "chat" (no thread named) is the chat; "chat:" with nothing after it is malformed.
-  if (kind === 'chat') return rest ? { kind, id: rest, role: null } : at < 0 ? { kind: 'messages', id: null, role: null } : null;
+  if (kind === 'chat') {
+    if (!rest) return at < 0 ? { kind: 'messages', id: null, role: null } : null;
+    // The side the recipient is on (chatRoute); a thread id is never "client" or "coach".
+    const m = /^(client|coach):(?:(trainer|nutritionist):)?([^:]+)$/.exec(rest);
+    if (m) return m[1] === 'client' && m[2] ? null : { kind, id: m[3], role: m[2] || null, side: m[1] };
+    return { kind, id: rest, role: null };
+  }
   if (kind === 'client') {
     const m = /^(trainer|nutritionist):(.*)$/.exec(rest);
     const id = m ? m[2] : rest;

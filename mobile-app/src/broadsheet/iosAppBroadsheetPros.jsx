@@ -19,7 +19,7 @@ import { coachIntakeView, screeningState } from '../services/coachIntake.mjs';
 import { bsDeriveCycle } from '../services/cyclePhase.mjs';
 import { BS_LISTING_GALLERY_MAX, BS_LISTING_CAPTION_MAX } from '../services/listingMedia.mjs';
 import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } from './bsNavShell.js';
-import { bsRouteNotification, bsHandOver, bsRouteFor, BS_MEMBER_PAGES } from './bsNotificationRoute.mjs';
+import { bsRouteNotification, bsHandOver, bsRouteFor, bsChatOwner, BS_MEMBER_PAGES } from './bsNotificationRoute.mjs';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
 // front and the live sign-in token. A root-relative '/api/…' fetch reaches nothing in the
@@ -1139,6 +1139,9 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     const open = (e) => {
       const d = (e && e.detail) || {};
       if (!d.conversationId && !d.channel && !d.support) return;
+      // A notified thread on the member side of this account, or the other listing's, is that app's.
+      const owner = bsChatOwner(d, 'trainer');
+      if (owner) { bsHandOver(bsRouteFor('chat', d), owner, setTweak); return; }
       // Nora is a sheet over the screen you are on (option D), not a Chat segment.
       if (d.support) { setShowSearch(false); setShowSettings(false); setShowNoraSheet(true); return; }
       navJumpRef.current.navPush();
@@ -1242,8 +1245,14 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
       switch (d.page) {
         case 'clients': clear(); setTab('clients'); return;
         case 'schedule': clear(); setShowCalendar(true); return;
-        // The waiting room and the certifications are both in Settings ▸ Your practice.
-        case 'waitlist': case 'credentials': clear(); setSettingsStart('practice'); setShowSettings(true); return;
+        // ⚠ THE CERTIFICATIONS ARE EDITED ON THE WEBSITE (Codex on #2372). The app shows them on the
+        // coach's public profile, read only, so a notice asking the coach to re-upload or fix one opened
+        // a screen where they could not: it opens the website's editor (dashProfileExtras.jsx) instead.
+        case 'credentials':
+          if (window.ShapeSite?.open) { window.ShapeSite.open('/newdesign/TrainerApp.html#profile'); return; }
+          clear(); setSettingsStart('practice'); setShowSettings(true); return;
+        // The waiting room is in Settings ▸ Your practice.
+        case 'waitlist': clear(); setSettingsStart('practice'); setShowSettings(true); return;
         case 'settings': clear(); setShowSettings(true); return;
         case 'profile': clear(); setTab('me'); return;
         case 'feed': case 'community': case 'messages': clear(); setChatRequest(null); setTab('chat'); return;
@@ -6937,6 +6946,9 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     const open = (e) => {
       const d = (e && e.detail) || {};
       if (!d.conversationId && !d.channel && !d.support) return;
+      // A notified thread on the member side of this account, or the other listing's, is that app's.
+      const owner = bsChatOwner(d, 'nutritionist');
+      if (owner) { bsHandOver(bsRouteFor('chat', d), owner, setTweak); return; }
       // Nora is a sheet over the screen you are on (option D), not a Chat segment.
       if (d.support) { setShowSearch(false); setShowSettings(false); setShowNoraSheet(true); return; }
       navJumpRef.current.navPush();
@@ -7039,8 +7051,14 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
       switch (d.page) {
         case 'clients': clear(); setTab('clients'); return;
         case 'schedule': clear(); setShowCalendar(true); return;
-        // The waiting room and the certifications are both in Settings ▸ Your practice.
-        case 'waitlist': case 'credentials': clear(); setSettingsStart('practice'); setShowSettings(true); return;
+        // ⚠ THE CERTIFICATIONS ARE EDITED ON THE WEBSITE (Codex on #2372). The app shows them on the
+        // coach's public profile, read only, so a notice asking the coach to re-upload or fix one opened
+        // a screen where they could not: it opens the website's editor (dashProfileExtras.jsx) instead.
+        case 'credentials':
+          if (window.ShapeSite?.open) { window.ShapeSite.open('/newdesign/NutritionistApp.html#profile'); return; }
+          clear(); setSettingsStart('practice'); setShowSettings(true); return;
+        // The waiting room is in Settings ▸ Your practice.
+        case 'waitlist': clear(); setSettingsStart('practice'); setShowSettings(true); return;
         case 'settings': clear(); setShowSettings(true); return;
         case 'profile': clear(); setTab('me'); return;
         case 'feed': case 'community': case 'messages': clear(); setChatRequest(null); setTab('chat'); return;

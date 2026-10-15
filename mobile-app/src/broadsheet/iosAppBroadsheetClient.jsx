@@ -46,7 +46,7 @@ import { bsMergeMise, bsPrepOrder, bsPrepMatch, bsPrepWeekKey, bsScaleQty } from
 import { bsMakeAheadIndex, bsPlanByDow, bsPlanMealsOn, bsPrepCovers, bsPrepDueTonight, bsPrepRecordsFor, bsYmdAdd, bsYmdIn } from '../services/prepAhead.mjs';
 import { bsJumpLine, bsJumpActive, bsJumpAtEnd, bsJumpScrollTop } from '../services/jumpRow.mjs';
 import { isShapeWelcome, shapeWelcomeShown } from '../services/shapeWelcome.mjs';
-import { bsRouteNotification, bsHandOver, bsRouteFor, bsAccountCoachRole, BS_COACH_PAGES } from './bsNotificationRoute.mjs';
+import { bsRouteNotification, bsHandOver, bsRouteFor, bsAccountCoachRole, bsChatOwner, BS_COACH_PAGES } from './bsNotificationRoute.mjs';
 import { bsNormalizeProfileCustom, bsProfileWall, bsProfileShelf, bsProfileStartLine, bsProfileLine, bsStartLineState, bsValidStartDate, bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX, BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX, BS_PIN_KINDS, BS_PROFILE_PROMPTS, BS_COACH_PROMPTS, bsPinKindLabel, bsPinKindToken, bsPromptLabel, bsPromptToken } from '../services/profileCustom.mjs';
 import { bsOrchestrate, bsReplanCook, bsCookBlockingHold, BS_COOK_MODE, BS_ORCH, BS_SERIAL_REASON, BS_SERVE_ISSUE, bsProgressPct } from '../services/cookOrchestrator.mjs';
 import { bsTrackLanes, bsTrackLaneStatus, bsTrackWindow, bsCookNowMin, bsCookFinishAt, bsPlanEnd, bsHobOccupancy, bsHobTappable, bsDishColors, bsHeroHue, bsInkOn, BS_HOB_MAX } from '../services/cookBoard.mjs';
@@ -903,6 +903,9 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     const open = (e) => {
       const d = (e && e.detail) || {};
       if (!d.conversationId && !d.channel && !d.support) return;
+      // A notified thread on the coach side of this account (it coaches too) is the coach app's.
+      const owner = bsChatOwner(d, 'client');
+      if (owner) { bsHandOver(bsRouteFor('chat', d), owner, setTweak); return; }
       // Nora is a sheet over the screen you are on (option D), not a Chat segment.
       if (d.support) { setShowSearch(false); setShowSettings(false); setShowNoraSheet(true); return; }
       navJumpRef.current.navPush();
