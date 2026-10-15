@@ -161,6 +161,8 @@ async function runCheckout({ reserve, stripeCreate = 'ok' }) {
       ['@/lib/membership-core', { ACTIVE_SUB: new Set(['active', 'trialing', 'past_due']), computeMembership: async () => ({ isMember: true, isCoach: false, isAdmin: false, isKnownMinor: false }) }],
       ['@/lib/stripe-live-subscription', { hasLiveStripeSubscription: async () => false }],
       ['@/lib/stripe-customer', { stripeCustomerFor: async () => 'cus_stable' }],
+      // The buyer has completed the health screening a session with a trainer needs (tests/membership-first.test.mjs).
+      ['@/lib/health-screening', { hiresCoach: () => true, hasCompletedScreening: async () => true, SCREENING_REQUIRED: { error: 'x', code: 'screening_required' } }],
       // One-time purchases are not held to the one-open-checkout rule (tests/membership-first.test.mjs).
       ['@/lib/checkout-barrier', { claimCheckout: async () => ({ confirm: async () => {}, release: async () => {} }), currentCheckout: async () => null, isCheckoutInProgress: () => false, checkoutReturnsKey: () => 'returns-key', CHECKOUT_CREATE_OPTIONS: {} }],
     ]),

@@ -1012,6 +1012,15 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return () => { on = false; clearTimeout(tid); };
   }, []);
   const firstRunNext = (onb) => setFirstRun((f) => ({ ...f, onb, stage: bsFirstRunStage(onb, f.health) }));
+  // The health screening before hiring a coach (client-onboarding review, fix 2b): a coach checkout
+  // the server refuses with `screening_required` opens it here (window.bsOpenScreening, from the
+  // marketplace and a coach's profile), and once it is saved the checkout carries on. Back cancels.
+  const [screening, setScreening] = useStateBSC(null); // { onDone } | null
+  React.useEffect(() => {
+    const open = (opts) => setScreening({ onDone: opts && typeof opts.onDone === 'function' ? opts.onDone : null });
+    window.bsOpenScreening = open;
+    return () => { if (window.bsOpenScreening === open) delete window.bsOpenScreening; };
+  }, []);
 
   // ⚠ The search takeover has to be rendered by EVERY branch that returns early,
   // not just the main one. `showSearch` is shell state and BSUniversalSearch is a
@@ -1065,6 +1074,24 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       />
     </div>
   ) : null;
+  // Portaled into the phone surface so it sits above the marketplace's own sheets, which portal
+  // there too; rendered by every return below, like the overlays.
+  const screeningOverlay = screening ? createPortal(
+    <div style={{ position: 'absolute', inset: 0, zIndex: 250 }}>
+      <BSHealthIntake
+        purpose="hire"
+        initial={firstRun.health}
+        onBack={() => setScreening(null)}
+        onDone={(doc) => {
+          const next = screening.onDone;
+          setScreening(null);
+          setFirstRun((f) => ({ ...f, health: doc }));
+          if (next) { try { next(doc); } catch (e) {} }
+        }}
+      />
+    </div>,
+    (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body,
+  ) : null;
   // ⚠ The remaining early returns still have to render BOTH overlays themselves —
   // opening Settings from the calendar leaves showCalendar true, so the calendar
   // branch returns first and a main-return-only overlay would never paint.
@@ -1076,6 +1103,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
         {settingsOverlay}
         {noraSheet}
         {searchOverlay}
+        {screeningOverlay}
       </div>
     );
   }
@@ -1087,6 +1115,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
         {settingsOverlay}
         {noraSheet}
         {searchOverlay}
+        {screeningOverlay}
       </div>
     );
   }
@@ -1134,6 +1163,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       {settingsOverlay}
       {noraSheet}
       {searchOverlay}
+      {screeningOverlay}
       {showScoreIntro && <BSScoreIntro onClose={(skipped) => { setShowScoreIntro(false); if (!skipped) chainTourAfterIntro(); }} onOpenScore={() => { setShowScoreIntro(false); goScore(); }} />}
       {showTour && <BSOnboardingTour onClose={() => setShowTour(false)} onNavigate={setTab} />}
     </div>
@@ -18897,7 +18927,12 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   const doSubscribe = async () => {
     if (window.bsRequireAccount && !window.bsRequireAccount('subscribe')) return;
     try { const r = await window.ShapePayments?.startCheckout?.({ item: monthlyPkg, coach: commerceCoach, role: commerceCoach.provider_role, user: window.ShapeAuth?.getCachedState?.()?.user }); if (r && r.demo) window.__bsToast?.(r.message || tr('profile:coach.checkoutSetupNeeded', { defaultValue: 'Checkout setup needed.' }), 'info'); }
-    catch (e) { window.__bsToast?.(e?.message || tr('profile:coach.checkoutError', { defaultValue: 'Could not start checkout.' }), 'err'); }
+    catch (e) {
+      // Hiring a coach needs the health screening first (fix 2b): it opens, and once saved the
+      // subscription carries on.
+      if (e?.code === 'screening_required' && window.bsOpenScreening) { window.bsOpenScreening({ onDone: () => { doSubscribe(); } }); return; }
+      window.__bsToast?.(e?.message || tr('profile:coach.checkoutError', { defaultValue: 'Could not start checkout.' }), 'err');
+    }
   };
   const doBookIntro = async () => {
     if (window.bsRequireAccount && !window.bsRequireAccount('book a session')) return;
@@ -18917,7 +18952,10 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   const doBookOneTime = async () => {
     if (window.bsRequireAccount && !window.bsRequireAccount('book a session')) return;
     try { const r = await window.ShapePayments?.startCheckout?.({ item: { type: 'One-time', name: isNutri ? 'Meal plan' : 'Booking' }, coach: commerceCoach, role: commerceCoach.provider_role, user: window.ShapeAuth?.getCachedState?.()?.user }); if (r && r.demo) window.__bsToast?.(r.message || tr('profile:coach.checkoutSetupNeeded', { defaultValue: 'Checkout setup needed.' }), 'info'); }
-    catch (e) { window.__bsToast?.(e?.message || tr('profile:coach.checkoutError', { defaultValue: 'Could not start checkout.' }), 'err'); }
+    catch (e) {
+      if (e?.code === 'screening_required' && window.bsOpenScreening) { window.bsOpenScreening({ onDone: () => { doBookOneTime(); } }); return; }
+      window.__bsToast?.(e?.message || tr('profile:coach.checkoutError', { defaultValue: 'Could not start checkout.' }), 'err');
+    }
   };
   // ── Waiting list — only relevant when this coach is effectively at capacity.
   // The marketplace's commerce.coach carries the real DB row (at_capacity /
@@ -30476,21 +30514,38 @@ function BSWeeklyCheckin({ onBack }) {
   );
 }
 
-// ── HEALTH PROFILE (intake) — required once per client account ───────────────
+// ── HEALTH PROFILE (intake) — the health screening ───────────────────────────
 // PAR-Q+ screening + injuries / medications / emergency contact. Stored in
 // user_goals('health_profile'); a LINKED coach always sees it via
 // get_client_health_profile — deliberately not share-gated (liability).
+// Asked at first run of a member who wants personal coaching, and before any coach
+// checkout of one who has not completed it (client-onboarding review, fix 2).
+//
+// ⚠ EVERY LINE IS TRANSLATED NOW (review M2: it was English in all 13 languages). The
+// questions are keyed by a stable id; the condition chips STORE their English (coaches
+// and the website read `conditionTags` as it was always written) and SHOW the
+// member's language, the token/label split this file uses for every stored choice.
 const BS_PARQ = [
-  'Has a doctor ever said you have a heart condition and that you should only do activity recommended by a doctor?',
-  'Do you feel pain in your chest when you do physical activity?',
-  'In the past month, have you had chest pain while not doing physical activity?',
-  'Do you lose your balance because of dizziness, or do you ever lose consciousness?',
-  'Do you have a bone or joint problem that could be made worse by a change in your physical activity?',
-  'Is a doctor currently prescribing medication for your blood pressure or a heart condition?',
-  'Do you know of any other reason why you should not do physical activity?',
+  { id: 'heart', en: 'Has a doctor ever said you have a heart condition and that you should only do activity recommended by a doctor?' },
+  { id: 'chestActive', en: 'Do you feel pain in your chest when you do physical activity?' },
+  { id: 'chestRest', en: 'In the past month, have you had chest pain while not doing physical activity?' },
+  { id: 'dizzy', en: 'Do you lose your balance because of dizziness, or do you ever lose consciousness?' },
+  { id: 'joint', en: 'Do you have a bone or joint problem that could be made worse by a change in your physical activity?' },
+  { id: 'bpMeds', en: 'Is a doctor currently prescribing medication for your blood pressure or a heart condition?' },
+  { id: 'other', en: 'Do you know of any other reason why you should not do physical activity?' },
 ];
-// Common ongoing-condition quick-picks (free text still captures the rest).
-const BS_CONDITION_TAGS = ['Diabetes', 'High blood pressure', 'Asthma / respiratory', 'Heart condition', 'Thyroid', 'High cholesterol', 'Anxiety / depression', 'Arthritis / joint', 'Pregnant / postpartum'];
+// Common ongoing-condition quick-picks (free text still captures the rest). `en` is stored.
+const BS_CONDITION_TAGS = [
+  { id: 'diabetes', en: 'Diabetes' },
+  { id: 'highBp', en: 'High blood pressure' },
+  { id: 'asthma', en: 'Asthma / respiratory' },
+  { id: 'heart', en: 'Heart condition' },
+  { id: 'thyroid', en: 'Thyroid' },
+  { id: 'cholesterol', en: 'High cholesterol' },
+  { id: 'mood', en: 'Anxiety / depression' },
+  { id: 'arthritis', en: 'Arthritis / joint' },
+  { id: 'pregnant', en: 'Pregnant / postpartum' },
+];
 // One-time "What brings you here?" identity step — captures intent up front and
 // frames the member's identity, then writes the SAME canonical goal keys the
 // Goals page + coach view already read (client_goals.primaryGoal + the profile's
@@ -30664,9 +30719,14 @@ function BSCoachingStep({ onDone }) {
   );
 }
 
-function BSHealthIntake({ onDone, onBack = null, initial = null }) {
+// `purpose`: 'gate' (first run, required, no way out), 'settings' (Settings → Health profile)
+// or 'hire' (before a coach checkout; Back cancels the checkout). Without one, `onBack`
+// decides between the first two, as it always has.
+function BSHealthIntake({ onDone, onBack = null, initial = null, purpose = null }) {
   const t = useBS();
+  const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const mode = purpose || (onBack ? 'settings' : 'gate');
   _bsScrollTopOnMount();
   const [answers, setAnswers] = useStateBSC(() => (initial && Array.isArray(initial.parq) ? initial.parq : Array(BS_PARQ.length).fill(null)));
   const [injuries, setInjuries] = useStateBSC((initial && initial.injuries) || '');
@@ -30711,123 +30771,134 @@ function BSHealthIntake({ onDone, onBack = null, initial = null }) {
     };
     const ok = await window.ShapeHealthProfile?.set?.(doc);
     setBusy(false);
-    if (ok) { window.__bsToast?.('Health profile saved', 'ok'); onDone(doc); }
-    else window.__bsToast?.('Could not save — try again', 'err');
+    if (ok) { window.__bsToast?.(tr('onboarding:health.saved', { defaultValue: 'Health profile saved' }), 'ok'); onDone(doc); }
+    else window.__bsToast?.(tr('onboarding:firstRun.saveFailed', { defaultValue: 'Could not save. Check your connection and try again.' }), 'err');
   };
   // Full-bleed section bands — edge to edge, inner content keeps the page gutter.
   const card = { borderTop: `1px solid ${t.RULE}`, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER2, padding: `14px ${t.padX}px`, marginBottom: 12 };
   const lbl = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8 };
   const ta = { width: '100%', boxSizing: 'border-box', minHeight: 56, padding: '10px 12px', border: `1px solid ${t.RULE}`, background: t.PAPER, borderRadius: 8, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, outline: 'none', resize: 'vertical' };
   const field = { width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: `1px solid ${t.RULE}`, background: t.PAPER, borderRadius: 8, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, outline: 'none' };
+  const NO = tr('onboarding:health.no', { defaultValue: 'No' });
+  const YES = tr('onboarding:health.yes', { defaultValue: 'Yes' });
+  const NA = tr('onboarding:health.na', { defaultValue: 'N/A' });
   // Reusable yes/no(/n.a.) selector row — same look as the PAR-Q buttons.
   const ynRow = (value, onPick, options) => (
     <div style={{ display: 'flex', gap: 8 }}>
       {options.map(([labelTxt, v, c]) => {
         const on = value === v;
-        return <button key={labelTxt} type="button" onClick={() => onPick(v)} style={{ flex: 1, padding: '9px 0', borderRadius: 5, border: `1px solid ${on ? c : t.RULE}`, borderLeft: on ? `3px solid ${c}` : `1px solid ${t.RULE}`, background: on ? `${c}1c` : 'transparent', color: on ? c : t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{labelTxt}</button>;
+        return <button key={v} type="button" onClick={() => onPick(v)} style={{ flex: 1, padding: '9px 0', borderRadius: 5, border: `1px solid ${on ? c : t.RULE}`, borderLeft: on ? `3px solid ${c}` : `1px solid ${t.RULE}`, background: on ? `${c}1c` : 'transparent', color: on ? c : t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{labelTxt}</button>;
       })}
     </div>
   );
+  const eyebrow = mode === 'settings' ? tr('onboarding:health.eyebrowSettings', { defaultValue: 'Settings · Health profile' })
+    : mode === 'hire' ? tr('onboarding:health.eyebrowHire', { defaultValue: 'Before you hire a coach' })
+    : tr('onboarding:health.eyebrowGate', { defaultValue: 'One-time setup · Required' });
+  const saveLabel = busy ? tr('onboarding:health.saving', { defaultValue: 'Saving…' })
+    : mode === 'settings' ? tr('onboarding:health.saveSettings', { defaultValue: 'Save health profile' })
+    : mode === 'hire' ? tr('onboarding:health.saveHire', { defaultValue: 'Save & continue →' })
+    : tr('onboarding:health.saveGate', { defaultValue: 'Save & enter Shape →' });
   return (
     <BSPage>
-      {/* ⚠ Corners only in the Settings variant. This component is BOTH the
-          required PAR-Q gate (no onBack) and Settings → Health profile (onBack),
-          and BSClientAppInner returns the gate BEFORE the showSettings branch
-          and before searchOverlay — so from there ⌕ and the avatar set shell
-          state that nothing can render, while each still pushes a nav entry the
-          next back eats. A required gate must not offer an exit, least of all a
-          dead one. `onBack` is already this component's gate-vs-settings
-          discriminator on the very next line; the mast row stays either way. */}
+      {/* ⚠ Corners only in the Settings variant. This component is the required
+          first-run gate, Settings → Health profile, and the screening before a coach
+          checkout. BSClientAppInner returns the gate BEFORE the showSettings branch
+          and before searchOverlay, and the checkout's screening sits over both — so
+          from there ⌕ and the avatar set shell state that nothing can render, while
+          each still pushes a nav entry the next back eats. A required step must not
+          offer an exit, least of all a dead one. The mast row stays either way. */}
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
-        {window.BSMastRow && <window.BSMastRow trailing={onBack ? <BSMeCorner /> : null} />}
+        {window.BSMastRow && <window.BSMastRow trailing={mode === 'settings' ? <BSMeCorner /> : null} />}
       </div>
       <div style={{ padding: `12px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>{onBack ? 'Settings · Health profile' : 'One-time setup · Required'}</span>
-          {onBack && <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: 0 }}>← Back</button>}
+          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>{eyebrow}</span>
+          {onBack && <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: 0 }}>{tr('onboarding:health.back', { defaultValue: '← Back' })}</button>}
         </div>
-        <h1 style={{ margin: '10px 0 0', fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: t.INK }}>Your health <span style={{ fontStyle: 'italic', color: teal }}>profile.</span></h1>
+        <h1 style={{ margin: '10px 0 0', fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: t.INK }}>{tr('onboarding:health.titlePre', { defaultValue: 'Your health' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('onboarding:health.titleAccent', { defaultValue: 'profile.' })}</span></h1>
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.5 }}>
-          A quick safety screen (PAR-Q) before training starts. It lives on your profile and is shared with the coaches you hire — so they can program safely around your history.
+          {mode === 'hire'
+            ? tr('onboarding:health.introHire', { defaultValue: 'Before you hire a coach, a quick safety screen (PAR-Q). It is shared with the coaches you hire, so they can program safely around your history, and checkout carries on once it is saved.' })
+            : tr('onboarding:health.intro', { defaultValue: 'A quick safety screen (PAR-Q) before training starts. It lives on your profile and is shared with the coaches you hire — so they can program safely around your history.' })}
         </div>
       </div>
       <div style={{ padding: '16px 0 28px' }}>
         <div style={card}>
-          <div style={lbl}>Health screening · answer all 7</div>
+          <div style={lbl}>{tr('onboarding:health.parqLabel', { count: BS_PARQ.length, defaultValue: 'Health screening · answer all {count}' })}</div>
           {BS_PARQ.map((q, i) => (
-            <div key={i} style={{ padding: '10px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 500, color: t.INK, lineHeight: 1.4 }}>{i + 1}. {q}</div>
+            <div key={q.id} style={{ padding: '10px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 500, color: t.INK, lineHeight: 1.4 }}>{i + 1}. {tr(`onboarding:health.parq.${q.id}`, { defaultValue: q.en })}</div>
               <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                {[['No', false, teal], ['Yes', true, t.RUST]].map(([labelTxt, v, c]) => {
+                {[[NO, false, teal], [YES, true, t.RUST]].map(([labelTxt, v, c]) => {
                   const on = answers[i] === v;
-                  return <button key={labelTxt} onClick={() => setAnswers((a) => a.map((x, j) => (j === i ? v : x)))} style={{ flex: 1, padding: '9px 0', borderRadius: 5, border: `1px solid ${on ? c : t.RULE}`, borderLeft: on ? `3px solid ${c}` : `1px solid ${t.RULE}`, background: on ? `${c}1c` : 'transparent', color: on ? c : t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{labelTxt}</button>;
+                  return <button key={String(v)} onClick={() => setAnswers((a) => a.map((x, j) => (j === i ? v : x)))} style={{ flex: 1, padding: '9px 0', borderRadius: 5, border: `1px solid ${on ? c : t.RULE}`, borderLeft: on ? `3px solid ${c}` : `1px solid ${t.RULE}`, background: on ? `${c}1c` : 'transparent', color: on ? c : t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{labelTxt}</button>;
                 })}
               </div>
             </div>
           ))}
           {answers.some((a) => a === true) && (
             <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 6, border: `1px solid ${t.RUST}55`, borderLeft: `3px solid ${t.RUST}`, background: `${t.RUST}10`, fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45 }}>
-              You answered yes to a screening question — talk with your doctor before becoming much more physically active. Your coach will see this and program accordingly.
+              {tr('onboarding:health.flaggedNote', { defaultValue: 'You answered yes to a screening question — talk with your doctor before becoming much more physically active. Your coach will see this and program accordingly.' })}
             </div>
           )}
         </div>
         <div style={card}>
-          <div style={lbl}>Prescription medication · required</div>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 500, color: t.INK, lineHeight: 1.4, marginBottom: 8 }}>Are you currently taking any prescription medication(s)?</div>
-          {ynRow(rxMeds, setRxMeds, [['No', 'no', teal], ['Yes', 'yes', t.RUST]])}
+          <div style={lbl}>{tr('onboarding:health.rxLabel', { defaultValue: 'Prescription medication · required' })}</div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 500, color: t.INK, lineHeight: 1.4, marginBottom: 8 }}>{tr('onboarding:health.rxQuestion', { defaultValue: 'Are you currently taking any prescription medication(s)?' })}</div>
+          {ynRow(rxMeds, setRxMeds, [[NO, 'no', teal], [YES, 'yes', t.RUST]])}
           {rxMeds === 'yes' && (
             <div style={{ marginTop: 10 }}>
-              <div style={{ ...lbl, marginBottom: 5 }}>List your prescription medication(s)</div>
-              <textarea value={medications} onChange={(e) => setMedications(e.target.value)} placeholder="e.g. Lisinopril (blood pressure) · Levothyroxine (thyroid)" style={ta} />
+              <div style={{ ...lbl, marginBottom: 5 }}>{tr('onboarding:health.rxList', { defaultValue: 'List your prescription medication(s)' })}</div>
+              <textarea value={medications} onChange={(e) => setMedications(e.target.value)} placeholder={tr('onboarding:health.rxPlaceholder', { defaultValue: 'e.g. Lisinopril (blood pressure) · Levothyroxine (thyroid)' })} style={ta} />
             </div>
           )}
         </div>
         <div style={card}>
-          <div style={lbl}>Allergies · required</div>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 500, color: t.INK, lineHeight: 1.4, marginBottom: 8 }}>Do you have any allergies (food, medication, or other)?</div>
-          {ynRow(allergies, setAllergies, [['No', 'no', teal], ['Yes', 'yes', t.RUST]])}
+          <div style={lbl}>{tr('onboarding:health.allergyLabel', { defaultValue: 'Allergies · required' })}</div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 500, color: t.INK, lineHeight: 1.4, marginBottom: 8 }}>{tr('onboarding:health.allergyQuestion', { defaultValue: 'Do you have any allergies (food, medication, or other)?' })}</div>
+          {ynRow(allergies, setAllergies, [[NO, 'no', teal], [YES, 'yes', t.RUST]])}
           {allergies === 'yes' && (
             <div style={{ marginTop: 10 }}>
-              <div style={{ ...lbl, marginBottom: 5 }}>List your allergies</div>
-              <textarea value={allergyDetails} onChange={(e) => setAllergyDetails(e.target.value)} placeholder="e.g. Peanuts (severe) · penicillin · shellfish" style={ta} />
+              <div style={{ ...lbl, marginBottom: 5 }}>{tr('onboarding:health.allergyList', { defaultValue: 'List your allergies' })}</div>
+              <textarea value={allergyDetails} onChange={(e) => setAllergyDetails(e.target.value)} placeholder={tr('onboarding:health.allergyPlaceholder', { defaultValue: 'e.g. Peanuts (severe) · penicillin · shellfish' })} style={ta} />
             </div>
           )}
         </div>
         <div style={card}>
-          <div style={lbl}>Pregnancy · required</div>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 500, color: t.INK, lineHeight: 1.4, marginBottom: 8 }}>Are you currently pregnant, or have you given birth in the past 6 months?</div>
-          {ynRow(pregnancy, setPregnancy, [['No', 'no', teal], ['Yes', 'yes', t.RUST], ['N/A', 'na', t.INK50]])}
+          <div style={lbl}>{tr('onboarding:health.pregnancyLabel', { defaultValue: 'Pregnancy · required' })}</div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 500, color: t.INK, lineHeight: 1.4, marginBottom: 8 }}>{tr('onboarding:health.pregnancyQuestion', { defaultValue: 'Are you currently pregnant, or have you given birth in the past 6 months?' })}</div>
+          {ynRow(pregnancy, setPregnancy, [[NO, 'no', teal], [YES, 'yes', t.RUST], [NA, 'na', t.INK50]])}
         </div>
         <div style={card}>
-          <div style={lbl}>Ongoing medical conditions · optional</div>
+          <div style={lbl}>{tr('onboarding:health.conditionsLabel', { defaultValue: 'Ongoing medical conditions · optional' })}</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 10 }}>
             {BS_CONDITION_TAGS.map((tag) => {
-              const on = conditionTags.includes(tag);
-              return <button key={tag} type="button" onClick={() => toggleTag(tag)} style={{ padding: '7px 11px', borderRadius: 999, border: `1px solid ${on ? teal : t.RULE}`, background: on ? `${teal}1c` : 'transparent', color: on ? teal : t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{tag}</button>;
+              const on = conditionTags.includes(tag.en);
+              return <button key={tag.id} type="button" onClick={() => toggleTag(tag.en)} style={{ padding: '7px 11px', borderRadius: 999, border: `1px solid ${on ? teal : t.RULE}`, background: on ? `${teal}1c` : 'transparent', color: on ? teal : t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{tr(`onboarding:health.tag.${tag.id}`, { defaultValue: tag.en })}</button>;
             })}
           </div>
-          <div style={{ ...lbl, marginBottom: 5 }}>Anything else your coach should know</div>
-          <textarea value={conditions} onChange={(e) => setConditions(e.target.value)} placeholder="e.g. Type 2 diabetes — diet-managed · exercise-induced asthma" style={ta} />
+          <div style={{ ...lbl, marginBottom: 5 }}>{tr('onboarding:health.conditionsMore', { defaultValue: 'Anything else your coach should know' })}</div>
+          <textarea value={conditions} onChange={(e) => setConditions(e.target.value)} placeholder={tr('onboarding:health.conditionsPlaceholder', { defaultValue: 'e.g. Type 2 diabetes — diet-managed · exercise-induced asthma' })} style={ta} />
         </div>
         <div style={card}>
-          <div style={lbl}>Injuries & surgeries · helps your coach program safely</div>
-          <textarea value={injuries} onChange={(e) => setInjuries(e.target.value)} placeholder="e.g. Left knee ACL repair 2022 · lower-back tightness" style={ta} />
+          <div style={lbl}>{tr('onboarding:health.injuriesLabel', { defaultValue: 'Injuries & surgeries · helps your coach program safely' })}</div>
+          <textarea value={injuries} onChange={(e) => setInjuries(e.target.value)} placeholder={tr('onboarding:health.injuriesPlaceholder', { defaultValue: 'e.g. Left knee ACL repair 2022 · lower-back tightness' })} style={ta} />
         </div>
         <div style={card}>
-          <div style={lbl}>Emergency contact</div>
+          <div style={lbl}>{tr('onboarding:health.emergencyLabel', { defaultValue: 'Emergency contact' })}</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
-            <input value={emName} onChange={(e) => setEmName(e.target.value)} placeholder="Name" style={field} />
-            <input value={emPhone} onChange={(e) => setEmPhone(e.target.value)} placeholder="Phone" style={field} />
+            <input value={emName} onChange={(e) => setEmName(e.target.value)} placeholder={tr('onboarding:health.emergencyName', { defaultValue: 'Name' })} style={field} />
+            <input value={emPhone} onChange={(e) => setEmPhone(e.target.value)} placeholder={tr('onboarding:health.emergencyPhone', { defaultValue: 'Phone' })} style={field} />
           </div>
         </div>
         <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, margin: `0 ${t.padX}px 14px`, cursor: 'pointer' }}>
           <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} style={{ marginTop: 3 }} />
           <span style={{ fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45 }}>
-            I confirm these answers are accurate, and I understand they're shared with coaches I hire on Shape for my safety.
+            {tr('onboarding:health.consent', { defaultValue: 'I confirm these answers are accurate, and I understand they are shared with coaches I hire on Shape for my safety.' })}
           </span>
         </label>
-        <button onClick={save} disabled={!canSave} style={{ display: 'block', width: `calc(100% - ${t.padX * 2}px)`, margin: `0 ${t.padX}px`, padding: '15px', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: canSave ? teal : t.RULE, color: canSave ? '#04201d' : t.INK50, cursor: canSave ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{busy ? 'Saving…' : onBack ? 'Save health profile' : 'Save & enter Shape →'}</button>
-        {!screenComplete && <div style={{ marginTop: 8, textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Answer all required screening questions to continue</div>}
+        <button onClick={save} disabled={!canSave} style={{ display: 'block', width: `calc(100% - ${t.padX * 2}px)`, margin: `0 ${t.padX}px`, padding: '15px', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: canSave ? teal : t.RULE, color: canSave ? '#04201d' : t.INK50, cursor: canSave ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{saveLabel}</button>
+        {!screenComplete && <div style={{ marginTop: 8, textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('onboarding:health.incomplete', { defaultValue: 'Answer all required screening questions to continue' })}</div>}
       </div>
     </BSPage>
   );

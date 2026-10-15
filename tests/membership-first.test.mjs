@@ -182,12 +182,14 @@ test('appendParam puts the parameter in the query, before any fragment, whether 
 });
 
 // ── /api/stripe/checkout-session: coaching needs the membership ─────────────────────────────
-async function coachRoute({ profile = ADULT, platform = [], subscriptions = [], fail = [], errors = {}, stripeSubs = [], emailSubs = [], stripeThrows = false, customerFails = false, open = [], table = claimsTable(), rpcError = null, createDelay = 0, onCreated = null, onList = null, afterCheck = null } = {}) {
+// `screening`: the buyer's own health_profile document (fix 2b). Completed by default, so each
+// test here is about what it names; null is a buyer who has not completed it.
+async function coachRoute({ profile = ADULT, platform = [], subscriptions = [], fail = [], errors = {}, stripeSubs = [], emailSubs = [], stripeThrows = false, customerFails = false, open = [], table = claimsTable(), rpcError = null, createDelay = 0, onCreated = null, onList = null, afterCheck = null, screening = { consentAt: '2026-10-01T00:00:00Z' } } = {}) {
   const { requestUtils, returnPath, membershipCore, platformFee } = await baseModules();
   const created = [];
   const createdOpts = [];
   const expired = [];
-  const caller = scripted({ tables: { profiles: profile ? [profile] : [], platform_subscriptions: platform, subscriptions }, fail, errors });
+  const caller = scripted({ tables: { profiles: profile ? [profile] : [], platform_subscriptions: platform, subscriptions, user_goals: screening ? [{ data: screening }] : [] }, fail, errors });
   const admin = scripted({ tables: { trainers: [{ id: 4, name: 'Coach T', owner_id: '22222222-2222-4222-8222-222222222222', price: 150, session_price: 90, stripe_account_id: 'acct_T', stripe_account_status: 'active', at_capacity: false, capacity_resume_at: null }] } });
   const route = await loadRealModule(join(ROOT, 'src/app/api/stripe/checkout-session/route.ts'), {
     typescript: true,
@@ -205,6 +207,7 @@ async function coachRoute({ profile = ADULT, platform = [], subscriptions = [], 
       ['@/lib/stripe-live-subscription', await liveSubscriptionLib({ stripeSubs, emailSubs, stripeThrows, afterCheck })],
       ['@/lib/stripe-customer', { stripeCustomerFor: async () => { if (customerFails) throw new Error('stripe down'); return 'cus_stable'; } }],
       ['@/lib/checkout-barrier', await barrierLib({ open, expired, table, rpcError, onList })],
+      ['@/lib/health-screening', await loadRealModule(join(ROOT, 'src/lib/health-screening.ts'), { typescript: true })],
     ]),
   });
   const post = async (body) => {
@@ -249,6 +252,29 @@ test('coach checkout: a proven minor is refused, and a membership read that fail
   const fault = await runCoachCheckout({ fail: ['profiles'] });
   assert.equal(fault.status, 503, 'fail closed: no money moves on an answer we could not read');
   assert.equal(fault.created.length, 0);
+});
+
+// ── Fix 2b: hiring a coach needs the health screening ───────────────────────────────────────
+test('coach checkout: hiring a coach without the health screening is refused with its own code, and no payment starts', async () => {
+  const sub = await runCoachCheckout({ platform: [{ status: 'active' }], screening: null });
+  assert.equal(sub.status, 409);
+  assert.equal(sub.body.code, 'screening_required', 'the code the website and the app branch on');
+  assert.equal(sub.created.length, 0, 'Stripe was never asked');
+  const booking = await runCoachCheckout({ platform: [{ status: 'active' }], screening: null, body: { item: { type: 'booking', name: 'Session' }, coach: { provider_id: 4, provider_role: 'trainer' } } });
+  assert.equal(booking.body.code, 'screening_required', 'a session with a trainer hires a coach too');
+  const unsigned = await runCoachCheckout({ platform: [{ status: 'active' }], screening: { parq: [false, false, false, false, false, false, false] } });
+  assert.equal(unsigned.body.code, 'screening_required', 'answers without the confirmation are not a completed screening');
+  const plan = await runCoachCheckout({ platform: [{ status: 'active' }], screening: null, body: { item: { type: 'plan', name: 'Program', planId: '33333333-3333-4333-8333-333333333333' }, coach: { provider_id: 4, provider_role: 'trainer' } } });
+  assert.notEqual(plan.body.code, 'screening_required', 'a program is a product, not a hire');
+  const screened = await runCoachCheckout({ platform: [{ status: 'active' }] });
+  assert.equal(screened.status, 200);
+  const nonMember = await runCoachCheckout({ platform: [], screening: null });
+  assert.equal(nonMember.body.code, 'membership_required', 'the membership is asked first: it is the first thing they need');
+  const unread = await runCoachCheckout({ platform: [{ status: 'active' }], fail: ['user_goals'] });
+  assert.equal(unread.status, 503, 'a screening we could not read starts nothing');
+  assert.equal(unread.created.length, 0);
+  const errored = await runCoachCheckout({ platform: [{ status: 'active' }], errors: { user_goals: { code: 'XX000', message: 'connection reset' } } });
+  assert.equal(errored.status, 503, 'nor one that came back with an error');
 });
 
 test('coach checkout: a second live subscription to the same coach is refused; a cancelled one is not in the way', async () => {

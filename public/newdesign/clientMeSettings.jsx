@@ -607,9 +607,27 @@ const HP_PARQ = [
   "Do you know of any other reason why you should not do physical activity?",
 ];
 const HP_CONDITION_TAGS = ["Diabetes", "High blood pressure", "Asthma / respiratory", "Heart condition", "Thyroid", "High cholesterol", "Anxiety / depression", "Arthritis / joint", "Pregnant / postpartum"];
+// Sent here to hire a coach (client-onboarding review, fix 2b): /subscribe, /purchase and the coach
+// profile's Subscribe answer "screening required" with ?screening=required&next=<the coach's page>.
+// The card says why, and once the screening is saved the member goes back to the coach. `next` is
+// a same-site path only (one leading slash, no second slash or backslash, no control characters).
+function hpScreeningReturn() {
+  try {
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("screening") !== "required") return null;
+    const next = q.get("next");
+    const safe = next && next.startsWith("/") && !next.startsWith("//") && next.charAt(1) !== "\\" && !/[\x00-\x1f\x7f]/.test(next);
+    return { next: safe ? next : null };
+  } catch (e) { return null; }
+}
 function HealthProfileCard() {
   const [doc, setDoc] = React.useState(null);
   const [loaded, setLoaded] = React.useState(false);
+  // ⚠ A FAILED READ IS NOT "NOT COMPLETED YET" (client-onboarding review M3): it showed an empty
+  // form, and saving it replaced the member's answers with blanks.
+  const [loadError, setLoadError] = React.useState(false);
+  const [wanted] = React.useState(hpScreeningReturn);
+  const cardRef = React.useRef(null);
   const [answers, setAnswers] = React.useState(Array(HP_PARQ.length).fill(null));
   const [injuries, setInjuries] = React.useState("");
   const [medications, setMedications] = React.useState("");
@@ -627,7 +645,7 @@ function HealthProfileCard() {
   React.useEffect(() => {
     let cancelled = false;
     fetch("/api/client/checkin-kit", { credentials: "same-origin", cache: "no-store" })
-      .then(r => (r.ok ? r.json() : null))
+      .then(r => { if (!r.ok) throw new Error("read failed"); return r.json(); })
       .then(d => {
         if (cancelled) { return; }
         setLoaded(true);
@@ -640,11 +658,24 @@ function HealthProfileCard() {
         setConditions(h.conditions || ""); setConditionTags(Array.isArray(h.conditionTags) ? h.conditionTags : []);
         setPregnancy(h.pregnancy || null); setAllergies(h.allergies || null); setAllergyDetails(h.allergyDetails || "");
         setEmName((h.emergency && h.emergency.name) || ""); setEmPhone((h.emergency && h.emergency.phone) || "");
-      }).catch(() => setLoaded(true));
+      }).catch(() => { if (!cancelled) { setLoadError(true); setLoaded(true); } });
     return () => { cancelled = true; };
   }, []);
+  React.useEffect(() => {
+    if (loaded && wanted && cardRef.current && cardRef.current.scrollIntoView) {
+      try { cardRef.current.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) {}
+    }
+  }, [loaded]);
 
   if (!loaded) return null;
+  if (loadError) {
+    return (
+      <Card style={{ marginTop: 20 }}>
+        <SectionTitle>Health profile</SectionTitle>
+        <div role="alert" style={{ fontSize: 13, color: "var(--sh-ink2, #a09b94)", lineHeight: 1.6, marginTop: 6 }}>Your health profile could not be loaded. Reload the page to try again.</div>
+      </Card>
+    );
+  }
   const allAnswered = answers.every(a => a === true || a === false);
   const rxOk = rxMeds === "no" || (rxMeds === "yes" && medications.trim().length > 0);
   const allergyOk = allergies === "no" || (allergies === "yes" && allergyDetails.trim().length > 0);
@@ -676,7 +707,9 @@ function HealthProfileCard() {
         body: JSON.stringify({ action: "health", doc: next }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Could not save");
-      setDoc(next); setNote("Saved — visible to your linked coaches.");
+      setDoc(next);
+      if (wanted && wanted.next) { setNote("Saved. Taking you back to your coach…"); window.location.assign(wanted.next); return; }
+      setNote("Saved — visible to your linked coaches.");
     } catch (e) { setNote(e.message || "Could not save."); }
     finally { setBusy(false); }
   };
@@ -695,6 +728,12 @@ function HealthProfileCard() {
 
   return (
     <Card style={{ marginTop: 20 }}>
+      <div ref={cardRef} />
+      {wanted ? (
+        <div role="status" style={{ marginBottom: 14, padding: "12px 14px", borderRadius: 10, border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168), 0.4)", fontSize: 13, lineHeight: 1.55, color: INK }}>
+          Complete your health screening to hire a coach. It's shared with the coaches you hire, so they can train you safely.{wanted.next ? " Once it's saved, you'll go back to the coach." : ""}
+        </div>
+      ) : null}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
         <SectionTitle>Health profile</SectionTitle>
         <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", color: doc ? (doc.flagged ? "var(--sh-ember, #d2693f)" : "var(--sh-accent2, #0ac5a8)") : "var(--sh-ink2, #a09b94)" }}>
@@ -702,7 +741,7 @@ function HealthProfileCard() {
         </span>
       </div>
       <div style={{ fontSize: 12.5, color: "var(--sh-ink2, #a09b94)", lineHeight: 1.6, margin: "6px 0 14px" }}>
-        Safety screening shared with the coaches you hire (for programming + liability). Required in the app before training starts.
+        Safety screening shared with the coaches you hire (for programming + liability). Asked before you hire a coach.
       </div>
       <div style={{ display: "grid", gap: 8, marginBottom: 14 }}>
         {HP_PARQ.map((q, i) => (

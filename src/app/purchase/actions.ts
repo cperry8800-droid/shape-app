@@ -15,6 +15,7 @@ import { hasActiveWaitlistInvite } from '@/lib/waitlist';
 import { resolveCoachCheckoutOrigin } from '@/lib/coach-origin';
 import { coachProfileHref } from '@/lib/coach-profile-href';
 import { membershipDetour } from '@/lib/membership-detour';
+import { hiresCoach, hasCompletedScreening, screeningHref } from '@/lib/health-screening';
 import { stripeCustomerFor } from '@/lib/stripe-customer';
 
 type ProviderRole = 'trainer' | 'nutritionist';
@@ -59,6 +60,7 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
   // redirect() throws, so it is called here, outside any try.
   const detour = await membershipDetour({ supabase, user, backHref, origin: process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000' });
   if (detour) redirect(detour);
+
   let customerId: string | null = null;
   try {
     customerId = await stripeCustomerFor(user.id, user.email ?? null);
@@ -127,6 +129,22 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
       itemName = (pl as { name: string }).name;
       itemPrice = (pl as { price: number | null }).price ?? null;
     }
+  }
+
+  // ⚠ A SESSION WITH A TRAINER HIRES A COACH, SO IT NEEDS THE HEALTH SCREENING (client-onboarding
+  // review, fix 2b; health-screening.ts). A meal plan, or a workout found above, is a product; a
+  // booking whose workout was not found is charged as a session, so it is held to it too. A member
+  // who has not completed it goes to Settings → Health profile and comes back here. A failed read
+  // refuses.
+  if (hiresCoach({ subscription: false, providerRole, product: kind !== 'booking' || itemName != null })) {
+    let screened = false;
+    try {
+      screened = await hasCompletedScreening(supabase, user.id);
+    } catch (e) {
+      console.error('[purchase] health screening read failed', e);
+      redirect(`${backHref}&error=screening_check_failed`);
+    }
+    if (!screened) redirect(screeningHref(backHref));
   }
 
   const providerRow = provider as Record<string, number | string | null>;

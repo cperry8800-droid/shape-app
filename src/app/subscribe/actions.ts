@@ -25,6 +25,7 @@ import { resolveCoachCheckoutOrigin } from '@/lib/coach-origin';
 import { bpsToPercent } from '@/lib/platform-fee';
 import { ACTIVE_SUB } from '@/lib/membership-core';
 import { membershipDetour } from '@/lib/membership-detour';
+import { hasCompletedScreening, screeningHref } from '@/lib/health-screening';
 import { stripeCustomerFor } from '@/lib/stripe-customer';
 import { hasLiveStripeSubscription } from '@/lib/stripe-live-subscription';
 import { CHECKOUT_CREATE_OPTIONS, checkoutReturnsKey, claimCheckout, currentCheckout, isCheckoutInProgress, type CheckoutClaim } from '@/lib/checkout-barrier';
@@ -116,6 +117,18 @@ export async function startCheckout(formData: FormData): Promise<void> {
   // until they choose again. redirect() throws, so it is called here, outside any try.
   const detour = await membershipDetour({ supabase, user, backHref, origin: siteOrigin });
   if (detour) redirect(detour);
+
+  // ⚠ HIRING A COACH NEEDS THE HEALTH SCREENING (client-onboarding review, fix 2b), the same rule
+  // as /api/stripe/checkout-session: a member who has not completed it goes to Settings → Health
+  // profile and comes back here. A failed read refuses.
+  let screened = false;
+  try {
+    screened = await hasCompletedScreening(supabase, user.id);
+  } catch (e) {
+    console.error('[subscribe] health screening read failed', e);
+    redirect(`${backHref}&error=screening_check_failed`);
+  }
+  if (!screened) redirect(screeningHref(backHref));
 
   let customerId: string | null = null;
   try {
