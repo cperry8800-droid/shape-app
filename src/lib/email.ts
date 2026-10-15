@@ -22,6 +22,9 @@ type IcsArgs = {
   attendeeEmail: string;
   attendeeName: string;
   location?: string;
+  // An update to an invite already sent (same uid): a higher SEQUENCE tells the calendar to
+  // replace that event rather than add another.
+  sequence?: number;
 };
 
 function pad(n: number): string {
@@ -56,6 +59,7 @@ export function buildIcs(args: IcsArgs): string {
     'METHOD:REQUEST',
     'BEGIN:VEVENT',
     `UID:${args.uid}@theshapecommunity.com`,
+    args.sequence ? `SEQUENCE:${args.sequence}` : '',
     `DTSTAMP:${toIcsDate(now)}`,
     `DTSTART:${toIcsDate(args.start)}`,
     `DTEND:${toIcsDate(end)}`,

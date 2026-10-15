@@ -283,6 +283,7 @@ function db(tables, { label, insertError = null, updateError = null, fail = [], 
         const filters = [];
         const upd = {
           eq(col, v) { filters.push((r) => r[col] === v); return upd; },
+          neq(col, v) { filters.push((r) => r[col] !== v); return upd; },
           in(col, vs) { filters.push((r) => vs.includes(r[col])); return upd; },
           select() { return upd; }, maybeSingle() { return upd; },
           then(res, rej) {
@@ -958,6 +959,32 @@ test('a coach\'s confirm and complete hand the session to the member\'s emails; 
   const decline = await post('manage', '/api/sessions/manage', { action: 'decline', sessionId: 's-int' }, { user: COACH, tables: tables() });
   assert.equal(decline.status, 200, JSON.stringify(decline.body));
   assert.equal(decline.steps.length, 0);
+});
+
+test('two overlapping confirms tell the member once (Codex on #2370)', async () => {
+  // A double click or a retry: both requests read the session as `requested` before either writes.
+  // The confirm is claimed in the write (status is not yet confirmed), so only one hands it to the
+  // member's email and writes "Session confirmed"; the other answers 200 and tells nobody.
+  const at = '2026-10-08T14:00:00+00:00';
+  const tables = world({ sessions: [sess('s-int', at, { client_id: 'member-1', status: 'requested', duration_min: 45, intro: true, meeting_url: null })] });
+  const m = await routes();
+  const both = await Promise.all([1, 2].map(() => post('manage', '/api/sessions/manage', { action: 'confirm', sessionId: 's-int' }, { user: COACH, tables })));
+  for (const r of both) assert.equal(r.status, 200, JSON.stringify(r.body));
+  const updates = tables.__writes.filter((w) => w.table === 'sessions' && w.op === 'update');
+  // The first write moved the row; the second, claimed on `status <> 'confirmed'`, matched nothing
+  // and ran again unclaimed (a room the first lacked would be attached there).
+  assert.deepEqual(updates.map((w) => w.ids), [['s-int'], [], ['s-int']]);
+  // Each request hands its step over with the status its write found: only the claiming one says
+  // `requested`, and afterSessionStep sends nothing for `confirmed` (session-emails.test.mjs).
+  assert.deepEqual(m.state.steps.map((x) => [x.action, x.previousStatus]).sort(), [['confirm', 'confirmed'], ['confirm', 'requested']]);
+  assert.equal(m.state.notices.filter((n) => n.type === 'session_confirmed').length, 1, 'one "Session confirmed"');
+  // A confirm of a session already confirmed, as a coach's second tap is: 200, the session back,
+  // and nothing sent.
+  const again = await post('manage', '/api/sessions/manage', { action: 'confirm', sessionId: 's-int' }, { user: COACH, tables });
+  assert.equal(again.status, 200, JSON.stringify(again.body));
+  assert.equal(again.body.session.status, 'confirmed');
+  assert.deepEqual(again.steps.map((x) => x.previousStatus), ['confirmed']);
+  assert.equal(again.notices.length, 0);
 });
 
 test('the calendar marks a session the caller booked AS A CLIENT, so the Schedule does not answer it', async () => {

@@ -141,8 +141,9 @@ async function coachOf(admin: SupabaseClient, s: SessionForEmail): Promise<{ nam
 }
 
 /**
- * After a coach's confirm or complete is saved. `previousStatus` is the status before the update,
- * so a repeated confirm sends nothing. `when` is the session's time on the member's clock.
+ * After a coach's confirm or complete is saved. `previousStatus` is the status the row had when
+ * this request's write landed (the route claims a confirm in its write), so a repeated or
+ * overlapping confirm sends nothing. `when` is the session's time on the member's clock.
  */
 export async function afterSessionStep(
   admin: SupabaseClient,
@@ -161,7 +162,11 @@ export async function afterSessionStep(
       const start = new Date(s.scheduled_at);
       const ics = Number.isFinite(start.getTime())
         ? buildIcs({
-            uid: `shape-session-${s.id}@theshapecommunity.com`,
+            // ⚠ THE BOOKING'S OWN UID, AS AN UPDATE (Codex on #2370). /api/consultation sent the
+            // member an invite under the session id; a different uid here (and buildIcs adds the
+            // domain itself) put a second event on their calendar for every confirmed intro.
+            uid: s.id,
+            sequence: 1,
             start,
             durationMin: Number(s.duration_min) || 15,
             summary: `Session with ${coach.name || 'your coach'}`,

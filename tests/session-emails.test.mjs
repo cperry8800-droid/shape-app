@@ -69,7 +69,9 @@ test('confirm: the member is emailed the time, the call link and an invite, once
   assert.match(e.text, /https:\/\/meet\.shape\.test\/s-1/);
   assert.match(e.html, /Join the call/);
   assert.match(e.text, /Topic: Getting started/);
-  assert.equal(e.ics, 'ICS:shape-session-s-1@theshapecommunity.com');
+  // The booking's own invite uid (the session id; buildIcs adds the domain), as an update.
+  assert.equal(e.ics, 'ICS:s-1');
+  assert.equal(sent.ics[0].sequence, 1);
   assert.deepEqual([sent.ics[0].durationMin, sent.ics[0].attendeeEmail, sent.ics[0].location], [30, 'cara@example.com', 'https://meet.shape.test/s-1']);
   assert.equal(sent.ics[0].start.toISOString(), SESSION.scheduled_at);
   // A repeat confirm sends nothing.
@@ -215,6 +217,19 @@ test('a coach books a session of any length they type, 5 minutes to 4 hours', ()
   assert.match(src, /onChange=\{\(e\) => \{ const t = e\.target\.value; setDurText\(t\); if \(dscLengthOk\(t\)\) setDur\(Number\(t\)\); \}\}/);
   const route = read('src/app/api/sessions/manage/route.ts');
   assert.match(route, /const SESSION_MIN_LENGTH = 5;\nconst SESSION_MAX_LENGTH = 240;/);
+});
+
+test('an invite update keeps the booking\'s uid and says it is an update', async () => {
+  const { buildIcs } = await loadRealModule(join(ROOT, 'src/lib/email.ts'), { typescript: true });
+  const base = { uid: 's-1', start: new Date('2026-10-20T14:00:00Z'), durationMin: 30, summary: 'S', description: 'D', organizerEmail: 'o@x.test', organizerName: 'O', attendeeEmail: 'a@x.test', attendeeName: 'A' };
+  const first = buildIcs(base).split('\r\n');
+  const update = buildIcs({ ...base, sequence: 1 }).split('\r\n');
+  assert.ok(first.includes('UID:s-1@theshapecommunity.com'));
+  assert.ok(update.includes('UID:s-1@theshapecommunity.com'), 'the same event');
+  assert.equal(first.some((l) => l.startsWith('SEQUENCE:')), false, 'the booking\'s invite is the original');
+  assert.ok(update.includes('SEQUENCE:1'), 'the confirmation replaces it');
+  // The booking's invite is written under the session id, which is what the confirmation reuses.
+  assert.match(read('src/app/api/consultation/route.ts'), /buildIcs\(\{\s+uid: inserted\.id,/);
 });
 
 test('the intro length is read as the coach set it, 15 when they have not, and refused when unreadable', async () => {

@@ -665,12 +665,19 @@ export async function POST(request: Request) {
   // The status before this step, read before the write: the member's emails send on a change
   // (a repeat confirm sends nothing).
   const statusBefore: string | null = session.status ?? null;
-  const { data: updated, error: updErr } = await supabase
-    .from('sessions')
-    .update(patch)
-    .eq('id', sessionId)
-    .select('id, status, type, scheduled_at, duration_min, meeting_url, topic')
-    .maybeSingle();
+  const columns = 'id, status, type, scheduled_at, duration_min, meeting_url, topic';
+  // ⚠ A CONFIRM IS CLAIMED IN THE WRITE (Codex on #2370). Two overlapping confirms (a double
+  // click, a retry) both read `requested` above; the update that moves the row off another status
+  // is the one that tells the member, and the other finds it confirmed and tells nobody. A confirm
+  // of a session already confirmed still runs (it attaches a room the first one lacked).
+  let { data: updated, error: updErr } = action === 'confirm'
+    ? await supabase.from('sessions').update(patch).eq('id', sessionId).neq('status', 'confirmed').select(columns).maybeSingle()
+    : await supabase.from('sessions').update(patch).eq('id', sessionId).select(columns).maybeSingle();
+  const alreadyConfirmed = action === 'confirm' && !updErr && !updated;
+  if (alreadyConfirmed) {
+    ({ data: updated, error: updErr } = await supabase.from('sessions').update(patch).eq('id', sessionId).select(columns).maybeSingle());
+  }
+  const statusAtWrite: string | null = alreadyConfirmed ? 'confirmed' : statusBefore;
   // ⚠ A MOVE CAN LOSE THE SAME RACE A NEW BOOKING CAN: the clash read above passed, and another
   // write took the time before this one landed. The database refuses it (sessions_no_overlap);
   // the coach is told the time was taken, and nothing moved, so nobody is notified.
@@ -686,7 +693,7 @@ export async function POST(request: Request) {
   // their list. The Schedule's booking sheet now offers Cancel beside Reschedule, so it says
   // what a reschedule says. A member cancelling their own booking is not told about it.
   const coachCancel = action === 'cancel' && isCoach && session.client_id !== user.id;
-  if ((action === 'confirm' || action === 'decline' || action === 'reschedule' || coachCancel) && session.client_id) {
+  if (((action === 'confirm' && !alreadyConfirmed) || action === 'decline' || action === 'reschedule' || coachCancel) && session.client_id) {
     try {
       // For a reschedule, the meaningful time is the NEW slot, not the old.
       const whenSource = action === 'reschedule' && newScheduledAt ? newScheduledAt : session.scheduled_at;
@@ -723,7 +730,7 @@ export async function POST(request: Request) {
     await afterSessionStep(createAdminClient(), {
       action,
       session: { ...session, ...updated } as SessionForEmail,
-      previousStatus: statusBefore,
+      previousStatus: statusAtWrite,
       when,
     });
   }
