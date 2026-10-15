@@ -35034,16 +35034,27 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return () => clearTimeout(tm);
   }, [fxPreview]);
   const [detail, setDetail] = useStateBSC(''); // '' = settings page; else a drill-in card pane
+  // ⚠ A READ NEVER OVERWRITES A SAVE (Codex, #2371). The rows can be picked while the pane's read
+  // is still out, and a save's answer is the newer document. So the read is dropped if a save was
+  // in flight when it started, or one started before it answered.
+  const lbPrivacyWrites = React.useRef({ seq: 0, pending: 0 });
   React.useEffect(() => {
     if (detail !== 'privacy' || !window.ShapeLeaderboard?.privacy) return undefined;
     let on = true;
-    Promise.resolve(window.ShapeLeaderboard.privacy()).then((r) => { if (on) setLbPrivacy(r && r.kind === 'ready' ? r.data : null); }, () => {});
+    const w = lbPrivacyWrites.current;
+    const seq = w.pending ? -1 : w.seq;
+    Promise.resolve(window.ShapeLeaderboard.privacy()).then((r) => {
+      if (on && seq === w.seq && !w.pending) setLbPrivacy(r && r.kind === 'ready' ? r.data : null);
+    }, () => {});
     return () => { on = false; };
   }, [detail]);
   const pickLbPrivacy = (key, opt) => {
     const svc = window.ShapeLeaderboard;
     if (!svc?.setPrivacy) return;
-    Promise.resolve(svc.setPrivacy({ [key]: opt === 'On' })).then((d) => {
+    const w = lbPrivacyWrites.current;
+    w.seq += 1;
+    w.pending += 1;
+    Promise.resolve(svc.setPrivacy({ [key]: opt === 'On' })).finally(() => { w.pending -= 1; }).then((d) => {
       if (d) { setLbPrivacy(d); window.__bsToast?.(tr('settings:toast.saved', { defaultValue: 'Saved' }), 'ok'); }
       else window.__bsToast?.(tr('score:board.saveFailed', { defaultValue: 'That didn’t save. Your setting is unchanged.' }), 'err');
     }, () => window.__bsToast?.(tr('score:board.saveFailed', { defaultValue: 'That didn’t save. Your setting is unchanged.' }), 'err'));

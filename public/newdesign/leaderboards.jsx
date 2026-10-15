@@ -501,15 +501,19 @@ function useCoachStanding(role) {
 // switches as the board, as setting rows. Reads and writes /api/me/leaderboard-privacy.
 function useLeaderboardPrivacy() {
   const [state, setState] = React.useState({ kind: "loading" });
+  // A save's answer is newer than the first read, so the read is dropped once a save has started
+  // (Codex, #2371; Settings also refuses a tap before the read is in).
+  const saved = React.useRef(false);
   React.useEffect(() => {
     let on = true;
     fetch("/api/me/leaderboard-privacy", { credentials: "same-origin", cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (on) setState(d && typeof d.leaderboard === "boolean" ? { kind: "ready", value: d } : { kind: "error" }); },
-            () => { if (on) setState({ kind: "error" }); });
+      .then((d) => { if (on && !saved.current) setState(d && typeof d.leaderboard === "boolean" ? { kind: "ready", value: d } : { kind: "error" }); },
+            () => { if (on && !saved.current) setState({ kind: "error" }); });
     return () => { on = false; };
   }, []);
   function save(change) {
+    saved.current = true;
     return lbPutPrivacy(change).then(({ ok, d }) => {
       if (ok) { setState({ kind: "ready", value: d }); return true; }
       return false;

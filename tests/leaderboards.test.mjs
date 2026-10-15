@@ -404,6 +404,59 @@ test('the app writes the switches one at a time (Codex, on #2371)', async () => 
   assert.deepEqual(await c, { leaderboard: true, teamBoard: null });
 });
 
+// The app's Settings → Privacy pane, run on its own the same way: the read that fills the two rows
+// and the pick that saves one, with React's two hooks and the service handed in.
+test('the app\'s Settings pane: a read that answers after a save does not undo it (Codex, on #2371)', async () => {
+  const src = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  const start = src.indexOf('const lbPrivacyWrites = React.useRef(');
+  const end = src.indexOf('\n  };', start) + '\n  };'.length; // the close of pickLbPrivacy
+  assert.ok(start > 0 && end > start, 'the pane\'s read and save are gone');
+  const tick = () => new Promise((r) => setTimeout(r, 0));
+  const run = (detail) => {
+    const reads = [];
+    const writes = [];
+    const shown = [];
+    const React = { useRef: (v) => ({ current: v }), useEffect: (fn) => { fn(); } };
+    const win = {
+      ShapeLeaderboard: {
+        privacy: () => new Promise((resolve) => reads.push(resolve)),
+        setPrivacy: (change) => new Promise((resolve) => writes.push([change, resolve])),
+      },
+      __bsToast: () => {},
+    };
+    const body = src.slice(start, end) + '\nreturn { pickLbPrivacy, lbPrivacyWrites };';
+    const pane = new Function('React', 'window', 'detail', 'setLbPrivacy', 'tr', body)(React, win, detail, (v) => shown.push(v), (k, o) => o.defaultValue);
+    return { pane, reads, writes, shown };
+  };
+  const OLD = { leaderboard: true, teamBoard: null };
+  const NEW = { leaderboard: false, teamBoard: null };
+
+  // the read goes out, the member picks before it answers, the save answers, then the old read lands
+  let p = run('privacy');
+  p.pane.pickLbPrivacy('leaderboard', 'Off');
+  p.writes[0][1](NEW);
+  await tick();
+  p.reads[0]({ kind: 'ready', data: OLD });
+  await tick();
+  assert.deepEqual(p.shown, [NEW], 'the read answered after the save and put the old switches back');
+
+  // the same read answering before the save does: the save's answer is the last word
+  p = run('privacy');
+  p.pane.pickLbPrivacy('leaderboard', 'Off');
+  p.reads[0]({ kind: 'ready', data: OLD });
+  await tick();
+  p.writes[0][1](NEW);
+  await tick();
+  assert.deepEqual(p.shown, [NEW]);
+
+  // with no save, the read fills the rows
+  p = run('privacy');
+  p.reads[0]({ kind: 'ready', data: OLD });
+  await tick();
+  assert.deepEqual(p.shown, [OLD]);
+  assert.equal(p.pane.lbPrivacyWrites.current.pending, 0);
+});
+
 test('the nightly reading: the cron secret, the writer, and a database without it', async () => {
   const prev = process.env.CRON_SECRET;
   process.env.CRON_SECRET = 's3cret';

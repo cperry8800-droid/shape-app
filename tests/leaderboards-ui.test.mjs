@@ -273,6 +273,33 @@ test('website: privacy saves go one at a time, so the last answer is the newest 
   }
 });
 
+test('website: Settings\' first read never undoes a save that answered first (Codex, #2371)', async () => {
+  let answerRead = null;
+  const prev = globalThis.fetch;
+  globalThis.fetch = window.fetch = (url, init = {}) => {
+    if (init.method === 'PUT') return Promise.resolve({ status: 200, ok: true, json: () => Promise.resolve({ leaderboard: false, teamBoard: null }) });
+    return new Promise((resolve) => { answerRead = resolve; });
+  };
+  let save = null;
+  function Probe() {
+    const [state, s] = window.useLeaderboardPrivacy();
+    save = s;
+    return React.createElement('i', null, state.kind === 'ready' ? JSON.stringify(state.value) : state.kind);
+  }
+  try {
+    const v = await mount(React.createElement(Probe));
+    assert.equal(v.text(), 'loading');
+    assert.equal(await save({ leaderboard: false }), true);
+    await flush();
+    answerRead({ status: 200, ok: true, json: () => Promise.resolve({ leaderboard: true, teamBoard: null }) });
+    await flush();
+    assert.equal(v.text(), '{"leaderboard":false,"teamBoard":null}', 'the first read answered late and put the old switch back');
+    await v.unmount();
+  } finally {
+    globalThis.fetch = window.fetch = prev;
+  }
+});
+
 test('website: every state is a sentence; a hidden member is told by whom', async () => {
   for (const [status, re] of [[401, /Sign in/], [503, /switched on yet/], [500, /couldn’t read/]]) {
     routes = { '/api/leaderboard': () => ({ status, body: {} }) };
