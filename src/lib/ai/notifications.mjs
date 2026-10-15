@@ -335,9 +335,11 @@ export function clientCandidates(input) {
     out.push({ type: 'checkin_due', key: 'self', sig: `due:${wk}`, priority: 'med', ctx: {} });
   }
   // coach events (real, server-confirmed) — messages + co-signs
+  // A coach's message is always on the member's side of the thread (`side`, notificationRoutes.mjs
+  // chatRoute): an account that also coaches opens it in the member app, not its coach app.
   for (const e of coachEvents) {
     if (!e || !nonEmpty(e.id)) continue;
-    if (e.kind === 'message') out.push({ type: 'coach_message', key: e.id, sig: e.id, priority: 'high', ctx: { coach: e.coach, preview: e.preview }, data: { conversationId: e.conversationId || null } });
+    if (e.kind === 'message') out.push({ type: 'coach_message', key: e.id, sig: e.id, priority: 'high', ctx: { coach: e.coach, preview: e.preview }, data: { conversationId: e.conversationId || null, side: 'client' } });
     else if (e.kind === 'cosign') out.push({ type: 'coach_cosign', key: e.id, sig: e.id, priority: 'low', ctx: { coach: e.coach, activity: e.activity }, data: { postId: e.postId || null } });
   }
 
@@ -356,6 +358,9 @@ function finalizeClient(c, tone) {
 // owned flag. lastSeverity (from state) suppresses re-firing while unchanged.
 export function coachCandidates(input) {
   const { triageRows = [], lastSeverity = {} } = input;
+  // The listing's role rides on the alert, so a coach with both listings opens the client in the
+  // right app (the notification audit, 2026-10-15). A dietitian is on the nutritionist rails.
+  const providerRole = input.providerRole === 'trainer' ? 'trainer' : input.providerRole === 'nutritionist' || input.providerRole === 'dietitian' ? 'nutritionist' : null;
   const out = [];
   for (const row of triageRows) {
     if (!row || !nonEmpty(row.clientId)) continue;
@@ -372,7 +377,7 @@ export function coachCandidates(input) {
     if (!nonEmpty(reason)) continue;              // honest: no reason → no notification
     const type = sev === 'red' ? 'client_red' : 'client_amber';
     const copy = sanitize(coachCopy(type, { clientName: row.clientName, reason }));
-    out.push({ type, key: row.clientId, sig: `${sev}:${reason}`, priority: NOTIFY_TYPES[type].priority, route: 'client', data: { clientId: row.clientId, discipline: ownedFlags[0].discipline || null }, title: copy.title, body: copy.body, _severity: sev });
+    out.push({ type, key: row.clientId, sig: `${sev}:${reason}`, priority: NOTIFY_TYPES[type].priority, route: 'client', data: { clientId: row.clientId, discipline: ownedFlags[0].discipline || null, ...(providerRole ? { providerRole } : {}) }, title: copy.title, body: copy.body, _severity: sev });
   }
   return out;
 }

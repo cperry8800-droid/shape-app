@@ -213,7 +213,7 @@ export async function startCoaching(
         // "chat:<id>" opens the thread in the app and on the website (Codex on #2360: "messages"
         // opened nothing in either); with no thread, "client" opens the client's page.
         route: out.conversationId ? `chat:${out.conversationId}` : 'client',
-        data: { dedupe: `hire:${a.subscriptionKey}`, clientId: a.clientId, conversationId: out.conversationId, providerRole: a.providerRole },
+        data: { dedupe: `hire:${a.subscriptionKey}`, clientId: a.clientId, conversationId: out.conversationId, providerRole: a.providerRole, side: 'coach' },
       });
       // Only the call that stored the alert emails: a redelivered event finds the dedupe row.
       if (out.coachAlerted) {

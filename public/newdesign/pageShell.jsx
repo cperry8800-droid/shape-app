@@ -457,30 +457,69 @@ function dashInboxPanelBox(bellRight, innerWidth) {
 // real link that the stub then forwards. Writing `ClientApp.html#score` directly bypasses
 // the map — measured in a browser, the link rendered as a full page load from inside the
 // shell it was already in, which is the exact cost R19 removed.
+// ⚠ EVERY ROUTE IS IN public/newdesign/notificationRoutes.mjs (the notification audit, 2026-10-15),
+// and tests/notification-routes.test.mjs runs this map against it: a route a member or a coach can
+// receive that opens nothing here fails the suite. (This file is a classic script, so it keeps its
+// own map rather than importing that module.)
+// A member's pages, by route.
 const DASH_INBOX_ROUTES = {
   home: "ClientDashboard.html",
   checkin: "ClientDashboard.html",     // the check-in form lives on Today
+  sessions: "ClientDashboard.html",    // a member's sessions are on Today
   goal: "ClientGoal.html",
   score: "ClientScore.html",
   habits: "ClientHabits.html",
+  train: "ClientTrain.html",
+  eat: "ClientNutri.html",
+  progress: "ClientProgress.html",
+  settings: "ClientMe.html",
 };
+// A coach's pages, by route: the tab of their dashboard shell.
+const DASH_INBOX_COACH_TABS = {
+  home: "today", clients: "clients", schedule: "schedule", settings: "settings",
+  // The certifications and the waiting room are on the Profile page.
+  credentials: "profile", waitlist: "profile",
+};
+// The coach shell of `role` on `tab`: a hash switch inside that shell, the shell from anywhere else.
+function dashCoachHref(role, tab) {
+  const shell = role === "nutritionist" ? "NutritionistApp.html" : "TrainerApp.html";
+  const here = typeof window !== "undefined" && window.__shapeCoachShell;
+  return (here === role ? "" : shell) + "#" + tab;
+}
 // ⚠ `feed` IS NOT IN THAT MAP AND MUST NOT GO BACK IN. The feed had a page of
 // its own (`ClientCommunity.html`) and now lives in the chat bubble's Feed tab,
 // which is not a URL — so a notification about it opens the bubble instead of
 // navigating. Putting a filename back here would 404 the one notification that
 // is ABOUT the thing every page already carries.
-function dashInboxOpensFeed(n) { return !!(n && n.route === "feed"); }
+function dashInboxOpensFeed(n) { return !!(n && typeof n.route === "string" && (n.route === "feed" || n.route === "community" || n.route.indexOf("feed:") === 0)); }
+// A message: "messages" (the trigger), "chat" (Nora's note in a coach's voice) or "chat:<thread>".
+function dashInboxIsMessage(n) { return !!(n && typeof n.route === "string" && (n.route === "messages" || n.route === "chat" || n.route.indexOf("chat:") === 0)); }
+function dashInboxConversation(n) {
+  if (!dashInboxIsMessage(n)) return "";
+  // "chat:<id>", or with the side its recipient is on (notificationRoutes.mjs chatRoute).
+  if (n.route.indexOf("chat:") === 0) return n.route.slice(5).replace(/^(?:client:|coach:(?:(?:trainer|nutritionist):)?)/, "");
+  return n.data && typeof n.data.conversationId === "string" ? n.data.conversationId : "";
+}
 // A "New message" notification (route "messages", data.conversationId; fix 3a): for a member the
 // chat is the bubble, so the row opens the bubble on that thread rather than navigating.
 // A coach's care-team thread (data.careTeam, 2026-10-15-keep-care-team-private.sql) is read in the bubble
 // on the coach's own pages (coachClientDetail.jsx opens it there), never on a Messages page, which
-// lists one listing's client threads and would call it missing.
-function dashInboxIsCareTeam(n) { return !!(n && n.route === "messages" && n.data && n.data.careTeam === true); }
+// lists one listing's client threads and would call it missing. It carries side: 'coach' (its
+// recipients are coaches), so it is checked before the side.
+function dashInboxIsCareTeam(n) { return !!(dashInboxIsMessage(n) && n.data && n.data.careTeam === true); }
+// ⚠ THE NOTIFICATION SAYS WHICH SIDE ITS RECIPIENT IS ON (data.side, the notification audit): an
+// account can be a coach and a client, and a message from its own coach belongs in the bubble even
+// on its coach dashboard. A notification written before `side` falls back to the account's role.
+function dashInboxSide(n) {
+  const side = n && n.data && n.data.side;
+  return side === "client" || side === "coach" ? side : null;
+}
 function dashInboxThreadFor(n, role) {
-  if (!n || n.route !== "messages") return null;
-  if ((role === "trainer" || role === "nutritionist") && !dashInboxIsCareTeam(n)) return null;
-  const id = n.data && typeof n.data.conversationId === "string" ? n.data.conversationId : "";
-  return id || null;
+  if (!dashInboxIsMessage(n)) return null;
+  if (dashInboxIsCareTeam(n)) return dashInboxConversation(n) || null;
+  const side = dashInboxSide(n);
+  if (side === "coach" || (!side && (role === "trainer" || role === "nutritionist"))) return null;
+  return dashInboxConversation(n) || null;
 }
 // What the bubble is asked to open for a member's "New message": the thread, on its tab. A thread with
 // a coach (data.providerRole) is on Circle, a member's on Friends, so one created after the bubble read
@@ -493,18 +532,34 @@ function dashInboxChatRequest(n, conversationId) {
     ? { conversationId, tab: "circle", who: role === "nutritionist" ? "Your nutritionist" : "Your trainer", role: (role === "nutritionist" ? "Nutritionist" : "Trainer") + " · Shape coach" }
     : { conversationId, tab: "friends", who: "Direct message", role: "Direct message" };
 }
-function dashInboxHref(n, role) {
+// The account's own coach role ('trainer' first), from its roles: what a coach-only notification
+// opens when it names none (the certifications, the coach digest) and the website is on the account's
+// member side (Codex on #2372: those rows were plain text there).
+function dashAccountCoachRole(user) {
+  const roles = [].concat(user && Array.isArray(user.roles) ? user.roles : [], user && user.role ? [user.role] : []).map((r) => String(r || "").toLowerCase());
+  if (roles.includes("trainer")) return "trainer";
+  if (roles.includes("nutritionist") || roles.includes("dietitian")) return "nutritionist";
+  return null;
+}
+function dashInboxHref(n, role, accountCoach) {
   if (!n || typeof n.route !== "string") return null;
   // ⚠ A COACH WITH BOTH LISTINGS OPENS THE NOTIFICATION'S ROLE, NOT THE SHELL'S (Codex on #2360). Each
   // Messages page lists one role's threads and refuses the other's, so a trainer thread opened from
   // the nutritionist dashboard read as missing. The alerts carry it (data.providerRole).
+  // A message to the client side of a thread opens the bubble (dashInboxThreadFor), whatever the role.
+  if (dashInboxIsMessage(n) && dashInboxSide(n) === "client") return null;
   const own = n.data && (n.data.providerRole === "trainer" || n.data.providerRole === "nutritionist") ? n.data.providerRole : null;
-  if ((role === "trainer" || role === "nutritionist") && own) role = own;
+  // A coach-side notification opens the coach page of its role, from the member dashboard too.
+  if ((role === "trainer" || role === "nutritionist" || dashInboxSide(n) === "coach") && own) role = own;
+  // The coach a coach-only route opens as: the notification's role, else the dashboard's when it is a
+  // coach's, else the account's own (a coach on their member side; Codex on #2372).
+  const coachRole = own || (role === "trainer" || role === "nutritionist" ? role : null) || (accountCoach === "trainer" || accountCoach === "nutritionist" ? accountCoach : null);
   // A coach's client_red / client_amber / checkin_submitted carries the client it is
   // about; without an id there is no page to open, so it stays plain text.
   if (n.route === "client") {
     const id = n.data && (n.data.clientId || n.data.client_id);
-    if (!id || (role !== "trainer" && role !== "nutritionist")) return null;
+    if (!id || !coachRole) return null;
+    role = coachRole;
     const shell = role === "trainer" ? "TrainerApp.html" : "NutritionistApp.html";
     // In the shell of that role, a hash switch; from the other role's shell, that role's shell.
     const here = typeof window !== "undefined" && window.__shapeCoachShell;
@@ -515,13 +570,28 @@ function dashInboxHref(n, role) {
   // conversationId; fix 3a) opens their Messages page on that thread. A member's chat is the
   // bubble, not a page (dashInboxThreadFor).
   if (dashInboxIsCareTeam(n)) return null; // the bubble (dashInboxThreadFor)
-  const msgConv = n.route === "messages" && n.data && typeof n.data.conversationId === "string" ? n.data.conversationId : "";
-  if ((n.route.startsWith("chat:") && n.route.length > 5) || msgConv) {
+  const msgConv = dashInboxConversation(n);
+  if (msgConv) {
     if (role !== "trainer" && role !== "nutritionist") return null;
-    return "/newdesign/" + (role === "nutritionist" ? "Nutritionist" : "Trainer") + "Messages.html?conversation=" + encodeURIComponent(msgConv || n.route.slice(5));
+    return "/newdesign/" + (role === "nutritionist" ? "Nutritionist" : "Trainer") + "Messages.html?conversation=" + encodeURIComponent(msgConv);
   }
   // The night-before prep reminder ("prep:<recipe>") opens the website's cook page on that recipe.
   if (n.route.startsWith("prep:") && n.route.length > 5) return "/newdesign/Cook.html?r=" + encodeURIComponent(n.route.slice(5));
+  // A waiting-list invite ("coach:<role>:<id>") opens that coach's profile, where the invited member books.
+  const coachInvite = /^coach:(trainer|nutritionist):(\d+)$/.exec(n.route);
+  if (coachInvite) return "/" + (coachInvite[1] === "trainer" ? "trainers" : "nutritionists") + "/" + coachInvite[2];
+  // A follow ("profile", data.actorId): that person's profile.
+  if (n.route === "profile") {
+    const actor = n.data && typeof n.data.actorId === "string" ? n.data.actorId : "";
+    return actor ? "/newdesign/MemberProfile.html?u=" + encodeURIComponent(actor) : null;
+  }
+  // A coach's own pages, in the notification's role (a schedule, waiting room or certifications
+  // alert from the member dashboard opens the coach shell). "home" and "settings" are the coach's
+  // only when the account is on its coach dashboard.
+  const coachOnly = n.route === "clients" || n.route === "schedule" || n.route === "credentials" || n.route === "waitlist";
+  if (coachOnly || ((n.route === "home" || n.route === "settings") && (role === "trainer" || role === "nutritionist"))) {
+    return coachRole && DASH_INBOX_COACH_TABS[n.route] ? dashCoachHref(coachRole, DASH_INBOX_COACH_TABS[n.route]) : null;
+  }
   if (!Object.prototype.hasOwnProperty.call(DASH_INBOX_ROUTES, n.route)) return null;
   const target = DASH_INBOX_ROUTES[n.route];
   // In-shell this is a hash switch; from a marketing page it is a real navigation.
@@ -646,7 +716,9 @@ function useDashInboxFeed(signedIn) {
   };
 }
 
-function DashInbox({ signedIn, role, inbox }) {
+function DashInbox({ signedIn, role, roles, inbox }) {
+  // The account's coach role, for a coach-only notice viewed from its member side (dashInboxHref).
+  const accountCoach = dashAccountCoachRole({ role, roles });
   const [open, setOpen] = React.useState(false);
   const boxRef = React.useRef(null);
   const [shift, setShift] = React.useState(null);
@@ -734,7 +806,7 @@ function DashInbox({ signedIn, role, inbox }) {
               ) : rows.length === 0 ? (
                 <div style={{ padding: "22px 14px", fontSize: 12.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)" }}>Nothing new.</div>
               ) : rows.map((n) => {
-                const href = dashInboxHref(n, role);
+                const href = dashInboxHref(n, role, accountCoach);
                 const inner = (
                   <>
                     <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
@@ -1434,7 +1506,7 @@ function Header({ active }) {
         <div style={{ display: "flex", alignItems: "center", gap: 12, justifyContent: "flex-end", flex: "1 1 0", minWidth: "max-content" }}>
         <div className="shape-nav-auth" style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
           <SiteSearch signedIn={!!authUser} />
-          <DashInbox signedIn={!!authUser} role={authUser && authUser.role} inbox={inbox} />
+          <DashInbox signedIn={!!authUser} role={authUser && authUser.role} roles={authUser && authUser.roles} inbox={inbox} />
           {authUser ? (
             <>
               <span className="shape-nav-hi" style={{ fontSize: 13.5, color: INK, fontFamily: navSans, fontWeight: 500, whiteSpace: "nowrap", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", lineHeight: 1, flex: "0 0 auto" }}>Hi, {authUser.firstName || authUser.email}</span>
@@ -1484,7 +1556,7 @@ function Header({ active }) {
         {/* The mobile render site. Exclusive with the one above — exactly one of the
             two is displayed at any width — so the shared feed can never be shown twice. */}
         <div className="shape-nav-bell" style={{ display: "none", alignItems: "center" }}>
-          <DashInbox signedIn={!!authUser} role={authUser && authUser.role} inbox={inbox} />
+          <DashInbox signedIn={!!authUser} role={authUser && authUser.role} roles={authUser && authUser.roles} inbox={inbox} />
         </div>
         <button className="shape-nav-burger" aria-label="Open menu" onClick={() => setDrawerOpen(true)}
           style={{ display: "none", background: "transparent", border: 0, color: INK, width: 40, height: 40, padding: 0, cursor: "pointer", alignItems: "center", justifyContent: "center" }}>

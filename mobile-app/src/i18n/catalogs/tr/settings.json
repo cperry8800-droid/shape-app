@@ -40,6 +40,8 @@
   "health.iosApp": "iOS uygulaması",
   "health.connected": "Bağlı",
   "health.connect": "Bağlan",
+  "notif.inbox": "Bildirimlerin",
+  "notif.inboxMeta": "Aç",
   "notif.center": "Bildirim merkezi",
   "notif.centerMeta": "Tüm türler · kanallar",
   "notif.workoutReminders": "Antrenman hatırlatıcıları",

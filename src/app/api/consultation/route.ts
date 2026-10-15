@@ -372,7 +372,7 @@ export async function POST(req: NextRequest) {
       type: 'booking_request',
       title: 'New session request',
       body: `${clientName} requested a consultation${topic ? ` · ${topic}` : ''}.`,
-      route: 'sessions',
+      route: 'schedule', // the coach's calendar (the member's own sessions are 'sessions')
       data: { sessionId: inserted.id, providerRole },
     });
   }

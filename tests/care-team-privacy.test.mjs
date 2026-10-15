@@ -69,11 +69,15 @@ test('the website opens a coach\'s care-team notification in the bubble, where c
   const shell = read('public/newdesign/pageShell.jsx');
   const fn = shell.slice(shell.indexOf('const DASH_INBOX_ROUTES = {'), shell.indexOf('// ⚠ A SHAPE CHECK, NOT A TRUST FALL.'));
   const lib = new Function('window', `${fn}; return { dashInboxHref, dashInboxThreadFor, dashInboxChatRequest };`)({});
-  const care = { route: 'messages', data: { conversationId: 'c-9', careTeam: true } };
-  for (const role of ['trainer', 'nutritionist']) {
-    assert.equal(lib.dashInboxThreadFor(care, role), 'c-9', `${role}: the bubble`);
-    assert.equal(lib.dashInboxHref(care, role), null, `${role}: never a Messages page, which would call it missing`);
+  // As 2026-10-15-notification-routes.sql writes it (side: 'coach', its recipients are coaches), and
+  // as a row from before `side`.
+  for (const care of [{ route: 'messages', data: { conversationId: 'c-9', careTeam: true, side: 'coach' } }, { route: 'messages', data: { conversationId: 'c-9', careTeam: true } }]) {
+    for (const role of ['trainer', 'nutritionist']) {
+      assert.equal(lib.dashInboxThreadFor(care, role), 'c-9', `${role}: the bubble`);
+      assert.equal(lib.dashInboxHref(care, role), null, `${role}: never a Messages page, which would call it missing`);
+    }
   }
+  const care = { route: 'messages', data: { conversationId: 'c-9', careTeam: true, side: 'coach' } };
   assert.deepEqual(lib.dashInboxChatRequest(care, 'c-9'), { conversationId: 'c-9', who: 'Care team', role: 'Care team' });
   // A coach's ordinary client message still goes to their Messages page.
   const plain = { route: 'messages', data: { conversationId: 'c-1', providerRole: 'trainer' } };
@@ -95,9 +99,16 @@ test('the app opens a care-team notification as a thread, from the list and from
   globalThis.window = { dispatchEvent: (e) => events.push([e.type, e.detail]) };
   globalThis.CustomEvent = CustomEvent;
   try {
-    assert.equal(ROUTER.bsRouteNotification('messages', { conversationId: 'c-9', careTeam: true }), true);
+    assert.equal(ROUTER.bsRouteNotification('messages', { conversationId: 'c-9', careTeam: true, side: 'coach' }), true);
   } finally { [globalThis.window, globalThis.CustomEvent] = saved; }
-  assert.deepEqual(events, [['shape:openConversation', { conversationId: 'c-9' }]]);
-  // A push carries the thread in its route (dispatch: messages + conversationId → chat:<id>).
-  assert.match(read('src/app/api/push/dispatch/route.ts'), /if \(record\.route === 'messages' && id\) return `chat:\$\{id\}`;/);
+  // The care team is the coach side, with no listing named: any coach app holds it, and the member
+  // app hands it to the account's coach app (bsChatOwner).
+  assert.deepEqual(events, [['shape:openConversation', { conversationId: 'c-9', side: 'coach', role: null, fromNotification: true }]]);
+  assert.equal(ROUTER.bsChatOwner(events[0][1], 'trainer'), null);
+  assert.equal(ROUTER.bsChatOwner(events[0][1], 'nutritionist'), null);
+  // A push carries the thread and its side in its route: the dispatch writes it with the shared
+  // table's canonicalRoute (messages + conversationId + side → chat:coach:<id>).
+  const R = await import('../public/newdesign/notificationRoutes.mjs');
+  assert.equal(R.canonicalRoute('messages', { conversationId: 'c-9', careTeam: true, side: 'coach' }), 'chat:coach:c-9');
+  assert.match(read('src/app/api/push/dispatch/route.ts'), /return canonicalRoute\(record\.route \?\? '', record\.data \?\? null\);/);
 });

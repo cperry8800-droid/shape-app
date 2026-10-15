@@ -118,7 +118,7 @@ export function candidatesFor(
       reason: (r.reasons && r.reasons[0]) || '',
       flags: r.flags,
     }));
-    return { audience: 'coach', candidates: Notify.coachCandidates({ triageRows: rows, lastSeverity: opts.lastSeverity }) };
+    return { audience: 'coach', candidates: Notify.coachCandidates({ triageRows: rows, lastSeverity: opts.lastSeverity, providerRole: role }) };
   }
   const candidates: Candidate[] = [];
   const record = snapshot.record;

@@ -29,7 +29,8 @@ async function notifyProviderOwner(
     const { data } = await admin.from(table).select('owner_id').eq('id', providerId).maybeSingle();
     const ownerId = (data as { owner_id?: string } | null)?.owner_id;
     if (ownerId) {
-      await createNotification(admin, { userId: ownerId, type: 'payment', title, body, route: 'sessions' });
+      // The coach's calendar, in the listing's role ('schedule'; the member's own sessions are 'sessions').
+      await createNotification(admin, { userId: ownerId, type: 'payment', title, body, route: 'schedule', data: { providerRole: providerRole === 'nutritionist' ? 'nutritionist' : 'trainer' } });
     }
   } catch {
     /* best-effort */

@@ -222,9 +222,12 @@ test('a notification route opens the same screen from the list and from a push',
     assert.equal(MOD.bsRouteNotification(`prep:${SLUG}`), true);
     assert.equal(MOD.bsRouteNotification('coach:trainer:9'), true);
     assert.equal(MOD.bsRouteNotification('prep:'), false);
-    assert.equal(MOD.bsRouteNotification('sessions'), false, 'sessions is the Settings screen’s own');
+    // Every route opens something now (the notification audit): a member's sessions open the
+    // sessions screen through shape:openPage, from a push as from the list.
+    assert.equal(MOD.bsRouteNotification('sessions'), true);
+    assert.equal(MOD.bsRouteNotification('no-such-route'), false);
     assert.equal(MOD.bsRouteNotification(undefined), false);
-    assert.deepEqual(seen, [['shape:openPrep', { slug: SLUG }], ['shape:openMarket', { role: 'trainer' }]]);
+    assert.deepEqual(seen, [['shape:openPrep', { slug: SLUG, fromNotification: true }], ['shape:openMarket', { role: 'trainer', coachId: 9, fromNotification: true }]]);
   } finally {
     window.removeEventListener('shape:openPrep', keep);
     window.removeEventListener('shape:openMarket', keep);

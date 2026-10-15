@@ -40,6 +40,8 @@
   "health.iosApp": "Приложение iOS",
   "health.connected": "Подключено",
   "health.connect": "Подключить",
+  "notif.inbox": "Ваши уведомления",
+  "notif.inboxMeta": "Открыть",
   "notif.center": "Центр уведомлений",
   "notif.centerMeta": "Все типы · каналы",
   "notif.workoutReminders": "Напоминания о тренировках",

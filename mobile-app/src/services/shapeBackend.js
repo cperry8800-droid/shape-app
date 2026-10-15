@@ -4868,9 +4868,11 @@ async function getMyStaffLevel() {
   }
 }
 
-// The installed app opens it in the system browser; the web app in a new tab, so the app stays put.
-function openAdminConsole() {
-  const url = `${staffBase()}/admin`;
+// A page of the website: the installed app opens it in the system browser; the web app in a new tab,
+// so the app stays put. For what only the website does (the admin console, the coach's credential
+// editor in dashProfileExtras.jsx).
+function openWebsitePage(path) {
+  const url = `${staffBase()}${path}`;
   try {
     const cap = (typeof window !== 'undefined' && window.Capacitor) || null;
     const Browser = cap && cap.Plugins && cap.Plugins.Browser;
@@ -4883,11 +4885,13 @@ function openAdminConsole() {
   try { window.open(url, '_blank', 'noopener'); return; } catch (e) {}
   window.location.assign(url);
 }
+function openAdminConsole() { openWebsitePage('/admin'); }
 
 window.ShapeStaff = {
   getLevel: getMyStaffLevel,
   openConsole: openAdminConsole,
 };
+window.ShapeSite = { open: openWebsitePage };
 
 window.ShapeRefunds = {
   requestRefund,
