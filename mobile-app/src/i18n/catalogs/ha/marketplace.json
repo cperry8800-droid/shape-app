@@ -197,5 +197,7 @@
   "listing.messageNotSent": "Ba a aika ba",
   "listing.messageNotSentBody": "Saƙonka zuwa ga {name} bai tafi ba. Sake gwadawa. {error}",
   "listing.lengthChanged": "Gabatarwar ta canza",
-  "listing.lengthChangedBody": "Gabatarwar {name} yanzu tana ɗaukar mintuna {minutes}. Sake zaɓar lokaci."
+  "listing.lengthChangedBody": "Gabatarwar {name} yanzu tana ɗaukar mintuna {minutes}. Sake zaɓar lokaci.",
+  "listing.timesLoading": "Ana loda lokutan {name}…",
+  "listing.timesFailed": "Ba a iya loda lokutan {name} ba."
 }

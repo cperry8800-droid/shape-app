@@ -189,7 +189,8 @@ test('the booking page lays the times out for the coach\'s length and sends it b
   assert.match(html, /const len = Number\(data\.rules && data\.rules\.consultMin\);\s+introMin = Number\.isInteger\(len\) && len >= 5 && len <= 240 \? len : 15;/);
   assert.match(html, /now: new Date\(\), days: 28, sessionMin: introMin,/);
   assert.match(html, /durationMin: introMin,/);
-  assert.match(html, /if \(data\.code === 'length_changed'\) \{ selectedIso = null; updateConfirmation\(\); availabilityLoaded = false; loadAvailability\(\); \}/);
+  // Read again from nothing (tests/intro-times-refresh.test.mjs drives the page).
+  assert.match(html, /if \(data\.code === 'length_changed'\) \{ selectedIso = null; updateConfirmation\(\); loadAvailability\(\); \}/);
   assert.doesNotMatch(html, /15-minute|15 min · video/, 'no line still promises 15 minutes');
   assert.match(html, /you’ll get the call link once they confirm/, 'a request, not "set"');
 });
@@ -236,12 +237,41 @@ test('the app takes a changed intro length: the times are read again and the mem
   }
 });
 
+test('the app offers a live coach only their times at the current length, and says when it cannot read them (Codex on #2370)', () => {
+  const market = stripComments(read('mobile-app/src/broadsheet/iosAppBroadsheetMarketplace.jsx'));
+  const eff = market.slice(market.indexOf("if (!saleProviderId || !window.ShapeCoachAvailability?.get) { setRealAvail(null); return undefined; }"), market.indexOf('}, [saleProviderId, saleProviderRole, availEpoch]);'));
+  // Every read starts from nothing, skips the cache after the first, and a failure is said.
+  assert.match(eff, /setRealAvail\(null\);\s+setAvailState\('loading'\);/);
+  assert.match(eff, /\.get\(saleProviderRole, saleProviderId, availEpoch > 0 \? \{ fresh: true \} : undefined\)/);
+  assert.match(eff, /if \(!d \|\| !Array\.isArray\(d\.slots\)\) \{ setAvailState\('failed'\); return; \}/);
+  assert.match(eff, /\.catch\(\(\) => \{ if \(on\) setAvailState\('failed'\); \}\);/);
+  assert.match(eff, /setAvailState\('ready'\);/);
+  // A live coach whose times are not in is never shown the preview pattern, anywhere it renders.
+  assert.match(market, /const timesPending = liveTimes && realAvail == null;/);
+  assert.match(market, /: \(liveTimes \? \[\] : expandPreviewSlots\(\)\);/, 'the open-this-week rows');
+  assert.match(market, /open=\{realAvail != null \? realAvail : \(liveTimes \? \[\] : expandPreviewSlots\(\)\)\} demo=\{!liveTimes && realAvail == null\} note=\{timesNote\} onRetry=\{timesPending && availState === 'failed' \? retryTimes : null\}/, 'the calendar');
+  assert.match(market, /if \(timesPending\) \{ setShowCal\(true\); return; \}\n    if \(realAvail != null\) \{/, 'Book the intro holds no preview time');
+  assert.match(market, /\{timesPending && availState === 'failed' \? <button type="button" onClick=\{retryTimes\}/);
+  assert.match(market, /\{note\}\{onRetry \? <button type="button" onClick=\{onRetry\}/);
+  // The minute's cache is skipped on request.
+  const backend = read('mobile-app/src/services/shapeBackend.js');
+  assert.match(backend, /async function coachAvailabilityGet\(role, id, \{ fresh = false \} = \{\}\) \{/);
+  assert.match(backend, /if \(!fresh && hit && Date\.now\(\) - hit\.at < 60000\) return hit\.data;/);
+  for (const loc of ['de', 'en', 'es', 'fr', 'ha', 'id', 'it', 'pcm', 'pt-BR', 'ru', 'tr', 'uk', 'vi']) {
+    const cat = JSON.parse(read(`mobile-app/src/i18n/catalogs/${loc}/marketplace.json`));
+    assert.match(cat['listing.timesLoading'], /\{name\}/, loc);
+    assert.match(cat['listing.timesFailed'], /\{name\}/, loc);
+    assert.ok(cat['listing.tryAgain'], loc);
+  }
+});
+
 test('a coach books a session of any length they type, 5 minutes to 4 hours', () => {
   const src = read('public/newdesign/dashSchedule.jsx');
   assert.match(src, /const DSC_LENGTH_MIN = 5;\nconst DSC_LENGTH_MAX = 240;/);
   assert.match(src, /const dscLengthOk = \(v\) => \{ const n = Number\(v\); return String\(v\)\.trim\(\) !== "" && Number\.isInteger\(n\) && n >= DSC_LENGTH_MIN && n <= DSC_LENGTH_MAX; \};/);
   assert.match(src, /const blocked = busy \|\| !row \|\| v\.past \|\| !!v\.clash \|\| tooMany \|\| durBad;/);
-  assert.match(src, /onChange=\{\(e\) => \{ const t = e\.target\.value; setDurText\(t\); if \(dscLengthOk\(t\)\) setDur\(Number\(t\)\); \}\}/);
+  // The length booked is the one on screen; tests/schedule-step2.test.mjs drives it.
+  assert.match(src, /const dur = durText === "" \? pillDur : \(dscLengthOk\(durText\) \? Number\(durText\) : null\);\n  const durBad = dur == null;/);
   const route = read('src/app/api/sessions/manage/route.ts');
   assert.match(route, /const SESSION_MIN_LENGTH = 5;\nconst SESSION_MAX_LENGTH = 240;/);
 });

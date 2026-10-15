@@ -197,5 +197,7 @@
   "listing.messageNotSent": "Не отправлено",
   "listing.messageNotSentBody": "Ваше сообщение для {name} не отправлено. Попробуйте ещё раз. {error}",
   "listing.lengthChanged": "Вводная встреча изменилась",
-  "listing.lengthChangedBody": "Вводная встреча с {name} теперь длится {minutes} мин. Выберите время заново."
+  "listing.lengthChangedBody": "Вводная встреча с {name} теперь длится {minutes} мин. Выберите время заново.",
+  "listing.timesLoading": "Загружаем расписание: {name}…",
+  "listing.timesFailed": "Не удалось загрузить расписание: {name}."
 }

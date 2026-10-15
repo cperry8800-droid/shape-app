@@ -197,5 +197,7 @@
   "listing.messageNotSent": "Gönderilmedi",
   "listing.messageNotSentBody": "{name} için notun gönderilmedi. Tekrar dene. {error}",
   "listing.lengthChanged": "Tanışma görüşmesi değişti",
-  "listing.lengthChangedBody": "{name} ile tanışma görüşmesi artık {minutes} dakika. Lütfen yeniden bir saat seç."
+  "listing.lengthChangedBody": "{name} ile tanışma görüşmesi artık {minutes} dakika. Lütfen yeniden bir saat seç.",
+  "listing.timesLoading": "{name} için saatler yükleniyor…",
+  "listing.timesFailed": "{name} için saatler yüklenemedi."
 }

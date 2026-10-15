@@ -1833,7 +1833,7 @@ const BSM_DAYS3 = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 // projected open slots — real provider_availability minus booked sessions for
 // live coaches, the labeled preview week for demo rows. Tapping a slot runs the
 // SAME booking confirm as the Listing's OPEN THIS WEEK rows.
-function BSCoachAvailabilityCalendar({ coach, roleColor, open, demo, onPick, onBack }) {
+function BSCoachAvailabilityCalendar({ coach, roleColor, open, demo, note = null, onRetry = null, onPick, onBack }) {
   const t = useBS();
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -1867,6 +1867,7 @@ function BSCoachAvailabilityCalendar({ coach, roleColor, open, demo, onPick, onB
         <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: roleColor }}>{tr('marketplace:cal.eyebrow', { defaultValue: 'The calendar' })} · {first}{demo ? ` · ${tr('marketplace:cal.preview', { defaultValue: 'Preview' })}` : ''}</div>
         <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, lineHeight: 1, letterSpacing: '-0.03em', color: t.INK }}>{tr('marketplace:cal.title1', { defaultValue: 'Open to' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('marketplace:cal.title2', { defaultValue: 'book.' })}</span></h1>
         {demo ? <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('marketplace:cal.previewNote', { defaultValue: 'Preview · typical availability — confirm at booking' })}</div> : null}
+        {note ? <div data-times-note="" style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{note}{onRetry ? <button type="button" onClick={onRetry} style={{ marginLeft: 8, background: 'transparent', border: 0, padding: '2px 0', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK, borderBottom: `2px solid ${roleColor}` }}>{tr('marketplace:listing.tryAgain', { defaultValue: 'Try again' })}</button> : null}</div> : null}
         <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
           <button onClick={() => nav(-1)} aria-label={tr('marketplace:cal.prevMonth', { defaultValue: 'Previous month' })} style={{ background: 'transparent', border: `1px solid ${t.RULE}`, borderRadius: 4, width: 34, height: 30, cursor: 'pointer', color: t.INK, fontSize: 13, lineHeight: 1 }}>‹</button>
           <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{monthLabel}</span>
@@ -1943,8 +1944,11 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   // `rules.consultMin` (any length from 5 to 240 minutes). 15 until it loads, the length every
   // intro had.
   const [introMin, setIntroMin] = useStateBSM2(15);
-  // Bumped to read the coach's times again (an intro length that changed under the member).
+  // Bumped to read the coach's times again (an intro length that changed under the member, or a
+  // retry); a read after the first skips the cache.
   const [availEpoch, setAvailEpoch] = useStateBSM2(0);
+  // A live coach's times: 'loading', 'ready' (realAvail holds them) or 'failed'.
+  const [availState, setAvailState] = useStateBSM2('loading');
   // Declared hours we cannot place on a clock — the coach has no stored zone.
   const [noZone, setNoZone] = useStateBSM2(false);
 
@@ -1993,9 +1997,16 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   React.useEffect(() => {
     if (!saleProviderId || !window.ShapeCoachAvailability?.get) { setRealAvail(null); return undefined; }
     let on = true;
-    window.ShapeCoachAvailability.get(saleProviderRole, saleProviderId)
+    // ⚠ A LIVE COACH'S TIMES ARE THEIRS, LAID OUT FOR THE CURRENT LENGTH, OR NONE (Codex on #2370).
+    // A read again left the old times on screen until it answered, and a failed read was swallowed,
+    // so the member could keep picking times laid out for a length the coach no longer offers (or
+    // the preview pattern, which never books). Every read starts from nothing; a failure says so.
+    setRealAvail(null);
+    setAvailState('loading');
+    window.ShapeCoachAvailability.get(saleProviderRole, saleProviderId, availEpoch > 0 ? { fresh: true } : undefined)
       .then((d) => {
-        if (!on || !d || !Array.isArray(d.slots)) return;
+        if (!on) return;
+        if (!d || !Array.isArray(d.slots)) { setAvailState('failed'); return; }
         // ⚠ THE COACH'S ZONE IS WHAT MAKES start_minute A TIME. Without it the projection
         // fails closed (see coachAvailability.mjs), so the two empty cases have to be told
         // apart: a coach with NO pattern genuinely has no open times, while a coach whose
@@ -2008,10 +2019,16 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
         const minutes = Number.isInteger(len) && len >= 5 && len <= 240 ? len : 15;
         setIntroMin(minutes);
         setRealAvail(bsProjectAvailability({ slots: d.slots, booked: d.booked || [], weeks: 6, zone: d.timezone, busy: d.busy || [], rules: d.rules || null, sessionMin: minutes }));
+        setAvailState('ready');
       })
-      .catch(() => {});
+      .catch(() => { if (on) setAvailState('failed'); });
     return () => { on = false; };
   }, [saleProviderId, saleProviderRole, availEpoch]);
+  // A live coach whose times are not in yet (loading, or the read failed): nothing is offered, and
+  // the preview pattern is never shown in their place.
+  const liveTimes = !!(saleProviderId && typeof window !== 'undefined' && window.ShapeCoachAvailability?.get);
+  const timesPending = liveTimes && realAvail == null;
+  const retryTimes = () => setAvailEpoch((n) => n + 1);
   // Rate-card buckets (the plan sub-tabs died with the Listing): the single-item
   // shelf vs multi-week programs/plans, role-aware.
   const isNutriDetail = saleProviderRole === 'nutritionist';
@@ -2137,6 +2154,11 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   };
   const last = coach.name.split(' ').slice(1).join(' ') || p.role;
   const firstName = p.first;
+  const timesNote = timesPending
+    ? (availState === 'failed'
+      ? tr('marketplace:listing.timesFailed', { defaultValue: "Couldn't load {name}'s times.", name: firstName })
+      : tr('marketplace:listing.timesLoading', { defaultValue: "Loading {name}'s times…", name: firstName }))
+    : null;
 
   const openIntro = () => {
     // ⚠ A LIVE COACH'S NEXT OPEN TIME IS A PROJECTED SLOT, carrying its instant and the coach's
@@ -2144,6 +2166,8 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
     // neither, so booking it was refused every time. The preview is for a demo listing only, and a
     // real coach with no open time gets their calendar, which says so.
     let nextOpen;
+    // Not in yet: the calendar says so (and offers the retry), rather than holding a preview time.
+    if (timesPending) { setShowCal(true); return; }
     if (realAvail != null) {
       const s = realAvail[0];
       if (!s) { setShowCal(true); return; }
@@ -2358,7 +2382,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
     times.filter((x) => x && x !== '--').map((time) => ({ day, date, time, iso, month, weekday: new Date(`${iso}T00:00:00`).getDay() })));
 
   if (showCal) {
-    return <BSCoachAvailabilityCalendar coach={coach} roleColor={roleColor} open={realAvail != null ? realAvail : expandPreviewSlots()} demo={realAvail == null} onBack={() => setShowCal(false)} onPick={(s) => { setShowCal(false); const d = new Date(`${s.iso}T00:00:00`); selectSlot(BSM_DAYS3[d.getDay()], String(d.getDate()), s.time, s.iso, BSM_MONTHS3[d.getMonth()], s.at); }} />;
+    return <BSCoachAvailabilityCalendar coach={coach} roleColor={roleColor} open={realAvail != null ? realAvail : (liveTimes ? [] : expandPreviewSlots())} demo={!liveTimes && realAvail == null} note={timesNote} onRetry={timesPending && availState === 'failed' ? retryTimes : null} onBack={() => setShowCal(false)} onPick={(s) => { setShowCal(false); const d = new Date(`${s.iso}T00:00:00`); selectSlot(BSM_DAYS3[d.getDay()], String(d.getDate()), s.time, s.iso, BSM_MONTHS3[d.getMonth()], s.at); }} />;
   }
 
   // THE FULL PROFILE → the Signal living page, byte-identical component —
@@ -2388,7 +2412,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   const projSlotRow = (s) => { const d = new Date(`${s.iso}T00:00:00`); return { day: BSM_DAYS3[s.weekday], date: String(d.getDate()), time: s.time, iso: s.iso, month: BSM_MONTHS3[d.getMonth()], at: s.at }; };
   const allOpenSlots = realAvail != null
     ? realAvail.map(projSlotRow)
-    : expandPreviewSlots();
+    : (liveTimes ? [] : expandPreviewSlots());
   const openSlots = allOpenSlots.slice(0, 3);
   const Station = ({ children }) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: `22px ${t.padX}px 0` }}>
@@ -2513,9 +2537,10 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
       <Station>{tr('marketplace:listing.openThisWeek', { defaultValue: 'Open this week · intro is free' })}</Station>
       <div style={{ padding: `2px ${t.padX}px 0` }}>
         {openSlots.length === 0 ? (
-          <div style={{ padding: '10px 0', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{noZone
+          <div data-times-note={timesPending ? availState : undefined} style={{ padding: '10px 0', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{timesNote || (noZone
             ? tr('marketplace:listing.noTimezone', { defaultValue: "Open hours are set, but their timezone isn't — message {name} to find one.", name: firstName })
-            : tr('marketplace:listing.noOpenTimes', { defaultValue: 'No open times this week — message {name} to find one.', name: firstName })}</div>
+            : tr('marketplace:listing.noOpenTimes', { defaultValue: 'No open times this week — message {name} to find one.', name: firstName }))}
+            {timesPending && availState === 'failed' ? <button type="button" onClick={retryTimes} style={{ marginLeft: 8, background: 'transparent', border: 0, padding: '2px 0', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK, borderBottom: `2px solid ${teal}` }}>{tr('marketplace:listing.tryAgain', { defaultValue: 'Try again' })}</button> : null}</div>
         ) : openSlots.map((s, i) => (
           <button key={`${s.iso}-${s.time}`} onClick={() => selectSlot(s.day, s.date, s.time, s.iso, s.month, s.at)} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'baseline', gap: 9, minHeight: 44, boxSizing: 'border-box', padding: '10px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
             <span style={{ flexShrink: 0, width: 42, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{s.day}</span>

@@ -197,5 +197,7 @@
   "listing.messageNotSent": "E no send",
   "listing.messageNotSentBody": "Your note to {name} no send. Try again. {error}",
   "listing.lengthChanged": "The intro don change",
-  "listing.lengthChangedBody": "{name} intro now dey run {minutes} minutes. Pick time again."
+  "listing.lengthChangedBody": "{name} intro now dey run {minutes} minutes. Pick time again.",
+  "listing.timesLoading": "We dey load {name} times…",
+  "listing.timesFailed": "We no fit load {name} times."
 }

@@ -1358,6 +1358,43 @@ test('a click on empty time offers "+ Book", and the sheet books a roster client
   } finally { await page.unmount(); }
 });
 
+test('the book sheet books the length on screen: typed, cleared back to the pressed pill, or none (Codex on #2370)', async () => {
+  const { page, posts } = await open();
+  try {
+    page.layout();
+    const thu = page.doc.querySelector('[data-col-date="2026-10-08"]');
+    await page.clickAt(thu, 350, yOf(660) + 5);
+    await page.click(page.doc.querySelector('[data-dsc-ghost]'));
+    const dlg = () => page.doc.querySelector('[role=dialog]');
+    await setSel(page, dlg().querySelector('select[aria-label=Client]'), 'member-2');
+    const box = () => dlg().querySelector('[data-custom-length]');
+    const type = async (v) => {
+      Object.getOwnPropertyDescriptor(page.dom.window.HTMLInputElement.prototype, 'value').set.call(box(), v);
+      await page.act(async () => box().dispatchEvent(new page.dom.window.Event('input', { bubbles: true })));
+    };
+    const pressed = () => [...dlg().querySelectorAll('[role=group][aria-label=Length] button')].filter((b) => b.getAttribute('aria-pressed') === 'true').map((b) => b.textContent);
+    const book = () => page.buttonMatching(/^Book/, dlg());
+    await page.click(page.buttonMatching(/^30 min$/, dlg()));
+    // Typed: the box's length, no pill pressed.
+    await type('100');
+    assert.deepEqual(pressed(), []);
+    // Cleared: the pill pressed before is pressed again, and it is what books, not the 100 that
+    // no longer shows.
+    await type('');
+    assert.deepEqual(pressed(), ['30 min']);
+    // Out of range: nothing to book, and it says why.
+    await type('3');
+    assert.equal(book().disabled, true);
+    assert.ok(dlg().querySelector('[data-custom-length-error]'));
+    await type('');
+    assert.equal(book().disabled, false);
+    assert.equal(dlg().querySelector('[data-custom-length-error]'), null);
+    await page.click(book());
+    assert.equal(posts.length, 1);
+    assert.equal(posts[0].durationMin, 30);
+  } finally { await page.unmount(); }
+});
+
 test('the book sheet refuses a clash before sending, and shows the server\'s refusal in place', async () => {
   const { page, posts } = await open({ answers: { create: json(409, { error: 'That overlaps Dana K. at 11:00 AM. Pick another time.', code: 'overlap' }) } });
   try {

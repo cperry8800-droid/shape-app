@@ -197,5 +197,7 @@
   "listing.messageNotSent": "Tidak terkirim",
   "listing.messageNotSentBody": "Pesanmu untuk {name} tidak terkirim. Coba lagi. {error}",
   "listing.lengthChanged": "Sesi perkenalan berubah",
-  "listing.lengthChangedBody": "Sesi perkenalan dengan {name} sekarang {minutes} menit. Pilih waktu lagi."
+  "listing.lengthChangedBody": "Sesi perkenalan dengan {name} sekarang {minutes} menit. Pilih waktu lagi.",
+  "listing.timesLoading": "Memuat jadwal {name}…",
+  "listing.timesFailed": "Jadwal {name} gagal dimuat."
 }

@@ -197,5 +197,7 @@
   "listing.messageNotSent": "Nicht gesendet",
   "listing.messageNotSentBody": "Deine Nachricht an {name} wurde nicht gesendet. Versuch es noch einmal. {error}",
   "listing.lengthChanged": "Das Erstgespräch hat sich geändert",
-  "listing.lengthChangedBody": "Das Erstgespräch mit {name} dauert jetzt {minutes} Minuten. Wähle bitte erneut eine Zeit."
+  "listing.lengthChangedBody": "Das Erstgespräch mit {name} dauert jetzt {minutes} Minuten. Wähle bitte erneut eine Zeit.",
+  "listing.timesLoading": "{name}s Zeiten werden geladen…",
+  "listing.timesFailed": "{name}s Zeiten konnten nicht geladen werden."
 }

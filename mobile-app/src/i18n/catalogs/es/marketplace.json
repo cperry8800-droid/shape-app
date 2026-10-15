@@ -197,5 +197,7 @@
   "listing.messageNotSent": "No enviado",
   "listing.messageNotSentBody": "Tu nota para {name} no se envió. Inténtalo de nuevo. {error}",
   "listing.lengthChanged": "La intro cambió",
-  "listing.lengthChangedBody": "La intro con {name} ahora dura {minutes} minutos. Elige una hora de nuevo."
+  "listing.lengthChangedBody": "La intro con {name} ahora dura {minutes} minutos. Elige una hora de nuevo.",
+  "listing.timesLoading": "Cargando los horarios de {name}…",
+  "listing.timesFailed": "No se pudieron cargar los horarios de {name}."
 }

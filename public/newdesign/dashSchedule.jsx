@@ -1312,9 +1312,14 @@ function DscBookSheet({ slot, roster, role, verdictFor, onBook, onClose, onDone 
   const [date, setDate] = React.useState(slot.date);
   const [minute, setMinute] = React.useState(slot.minute);
   const [clientId, setClientId] = React.useState(roster.length === 1 ? roster[0].client.profile.id : "");
-  const [dur, setDur] = React.useState(role === "nutritionist" ? 15 : 60);
+  const [pillDur, setPillDur] = React.useState(role === "nutritionist" ? 15 : 60);
   const [durText, setDurText] = React.useState("");   // a typed length; "" = one of the pills
-  const durBad = durText !== "" && !dscLengthOk(durText);
+  // ⚠ THE LENGTH BOOKED IS THE ONE ON SCREEN (Codex on #2370). A typed length used to be copied
+  // into the pill's state, so clearing the box left it in force with no pill pressed, and the
+  // sheet booked a length the coach no longer saw. Typed, it is the box's; cleared, it is the
+  // pressed pill's again; typed and out of range, there is none and nothing books.
+  const dur = durText === "" ? pillDur : (dscLengthOk(durText) ? Number(durText) : null);
+  const durBad = dur == null;
   const [type, setType] = React.useState("video");
   const [topic, setTopic] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -1329,7 +1334,7 @@ function DscBookSheet({ slot, roster, role, verdictFor, onBook, onClose, onDone 
   const runDays = firstWd == null ? extraDays : [...new Set([firstWd, ...extraDays])].sort((a, b) => a - b);
   const runDates = weekly ? dscRunDates(date, weeks, runDays) : [];
   const tooMany = runDates.length > 60;
-  const v = verdictFor(null, date, minute, dur);
+  const v = verdictFor(null, date, minute, dur ?? pillDur);
   const row = roster.find((r) => r.client.profile.id === clientId) || null;
   const blocked = busy || !row || v.past || !!v.clash || tooMany || durBad;
   const pill = (on) => ({ ...dscBtn(on ? "on" : null), padding: "6px 10px" });
@@ -1376,11 +1381,11 @@ function DscBookSheet({ slot, roster, role, verdictFor, onBook, onClose, onDone 
         <div>
           <div style={{ fontFamily: DSC_MONO, fontSize: 8.5, letterSpacing: "0.1em", textTransform: "uppercase", color: DSC_INK50, marginBottom: 5 }}>Length</div>
           <div role="group" aria-label="Length" style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-            {DSC_LENGTHS.map((m) => <button key={m} type="button" aria-pressed={durText === "" && dur === m} onClick={() => { setDur(m); setDurText(""); }} style={pill(durText === "" && dur === m)}>{m} min</button>)}
+            {DSC_LENGTHS.map((m) => <button key={m} type="button" aria-pressed={durText === "" && pillDur === m} onClick={() => { setPillDur(m); setDurText(""); }} style={pill(durText === "" && pillDur === m)}>{m} min</button>)}
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
               <input type="number" inputMode="numeric" data-custom-length="" aria-label="Custom length in minutes" placeholder="Other"
                 min={DSC_LENGTH_MIN} max={DSC_LENGTH_MAX} step={1} value={durText}
-                onChange={(e) => { const t = e.target.value; setDurText(t); if (dscLengthOk(t)) setDur(Number(t)); }}
+                onChange={(e) => setDurText(e.target.value)}
                 style={{ ...dscInput, width: 64, padding: "6px 8px", fontSize: 12 }} />
               <span style={{ fontSize: 11, color: DSC_INK50 }}>min</span>
             </span>

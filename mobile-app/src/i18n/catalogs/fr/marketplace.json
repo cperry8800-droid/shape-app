@@ -197,5 +197,7 @@
   "listing.messageNotSent": "Non envoyé",
   "listing.messageNotSentBody": "Votre message à {name} n’a pas été envoyé. Réessayez. {error}",
   "listing.lengthChanged": "L'appel découverte a changé",
-  "listing.lengthChangedBody": "L'appel découverte avec {name} dure maintenant {minutes} minutes. Choisis un autre créneau."
+  "listing.lengthChangedBody": "L'appel découverte avec {name} dure maintenant {minutes} minutes. Choisis un autre créneau.",
+  "listing.timesLoading": "Chargement des créneaux de {name}…",
+  "listing.timesFailed": "Impossible de charger les créneaux de {name}."
 }

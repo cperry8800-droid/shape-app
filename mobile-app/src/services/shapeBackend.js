@@ -5757,11 +5757,13 @@ async function waitlistInvite(entryId) {
 // public weekly pattern + booked sessions from GET /api/availability. Public
 // route (no auth); 60s cache per coach so the station + calendar share a fetch.
 const _coachAvailCache = new Map();
-async function coachAvailabilityGet(role, id) {
+// `fresh` skips the minute's cache: a read again because the coach's intro length changed (or a
+// retry) must not be answered with the times laid out for the old one (Codex on #2370).
+async function coachAvailabilityGet(role, id, { fresh = false } = {}) {
   if (!apiBaseUrl || !role || !id) return null;
   const key = `${role}:${id}`;
   const hit = _coachAvailCache.get(key);
-  if (hit && Date.now() - hit.at < 60000) return hit.data;
+  if (!fresh && hit && Date.now() - hit.at < 60000) return hit.data;
   const res = await fetch(`${apiBaseUrl}/api/availability?role=${encodeURIComponent(role)}&id=${encodeURIComponent(id)}`, { credentials: 'same-origin' });
   if (!res.ok) return null;
   const data = await res.json().catch(() => null);

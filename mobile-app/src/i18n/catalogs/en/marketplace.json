@@ -197,5 +197,7 @@
   "listing.messageNotSent": "Not sent",
   "listing.messageNotSentBody": "Your note to {name} did not send. Try again. {error}",
   "listing.lengthChanged": "The intro changed",
-  "listing.lengthChangedBody": "{name}'s intro now runs {minutes} minutes. Pick a time again."
+  "listing.lengthChangedBody": "{name}'s intro now runs {minutes} minutes. Pick a time again.",
+  "listing.timesLoading": "Loading {name}'s times…",
+  "listing.timesFailed": "Couldn't load {name}'s times."
 }
