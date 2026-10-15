@@ -410,7 +410,10 @@ begin
       when position(' ' in nm.n) = 0 then nm.n
       else split_part(nm.n, ' ', 1) || ' ' || upper(left(regexp_replace(nm.n, '^.* ', ''), 1)) || '.'
     end,
-    p.avatar_url,
+    -- ⚠ The photo only for a public profile, or your own (Codex, #2371). The team board takes a
+    -- private profile on its own switch, whose ask names first name, last initial, points and tier,
+    -- not the photo. Everyone and Following hold public profiles only, so this changes the team board.
+    case when s.uid = v_me or public.shape_profile_visibility(s.uid) = 'public' then p.avatar_url end,
     s.pts,
     s.rk,
     pr.rk,

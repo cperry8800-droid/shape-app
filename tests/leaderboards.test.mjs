@@ -373,6 +373,37 @@ test('the switches route: two saves at once both land (Codex, on #2371)', async 
   assert.deepEqual(busy.st.row.data, { leaderboard: 'on' });
 });
 
+// shapeBackend.js imports the whole app, so its writer is run on its own: the source between the
+// queue and the service object, with the request function it calls handed in.
+test('the app writes the switches one at a time (Codex, on #2371)', async () => {
+  const src = read('mobile-app/src/services/shapeBackend.js');
+  const start = src.indexOf('let leaderboardPrivacyQueue');
+  const end = src.indexOf('window.ShapeLeaderboard =');
+  assert.ok(start > 0 && end > start, 'the queued writer is gone');
+  const sent = [];
+  const pending = [];
+  const shapeApiFetch = (path, init) => { sent.push(JSON.parse(init.body)); return new Promise((resolve) => pending.push(resolve)); };
+  const isPrivacy = (d) => !!d && typeof d.leaderboard === 'boolean';
+  const setPrivacy = new Function('shapeApiFetch', 'isPrivacy', src.slice(start, end) + '\nreturn setLeaderboardPrivacy;')(shapeApiFetch, isPrivacy);
+  const tick = () => new Promise((r) => setTimeout(r, 0));
+  const answer = (status, body) => ({ ok: status < 300, status, json: () => (body ? Promise.resolve(body) : Promise.reject(new Error('no body'))) });
+  const a = setPrivacy({ leaderboard: false });
+  const b = setPrivacy({ teamBoard: true });
+  const c = setPrivacy({ leaderboard: true });
+  await tick();
+  assert.deepEqual(sent, [{ leaderboard: false }], 'a second save went out before the first answered');
+  pending[0](answer(200, { leaderboard: false, teamBoard: null }));
+  assert.deepEqual(await a, { leaderboard: false, teamBoard: null });
+  await tick();
+  assert.equal(sent.length, 2);
+  pending[1](answer(503, null)); // a failed save does not hold up the next
+  assert.equal(await b, null);
+  await tick();
+  assert.deepEqual(sent, [{ leaderboard: false }, { teamBoard: true }, { leaderboard: true }]);
+  pending[2](answer(200, { leaderboard: true, teamBoard: null }));
+  assert.deepEqual(await c, { leaderboard: true, teamBoard: null });
+});
+
 test('the nightly reading: the cron secret, the writer, and a database without it', async () => {
   const prev = process.env.CRON_SECRET;
   process.env.CRON_SECRET = 's3cret';
@@ -445,6 +476,9 @@ test('the member board applies the privacy rules the switches promise', () => {
   for (const col of ['st', 'td', 'md']) {
     assert.match(body, new RegExp('case when s\\.uid = v_me then coalesce\\(' + col + '\\.n, 0\\)::integer end'), col + ' leaves for other members');
   }
+  // ⚠ a photo only for a public profile or your own: the team board's ask does not name it (Codex, #2371)
+  assert.match(body, /case when s\.uid = v_me or public\.shape_profile_visibility\(s\.uid\) = 'public' then p\.avatar_url end,/);
+  assert.ok(!/^\s*p\.avatar_url,\s*$/m.test(body), 'the photo is returned unconditionally');
   // nothing here returns a subscription or a coach
   const out = /returns table \(([\s\S]*?)\)\s*language/.exec(body)[1];
   assert.ok(!/provider|coach|subscription|full_name|email/.test(out), 'the board returns ' + out);

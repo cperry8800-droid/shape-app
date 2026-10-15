@@ -226,6 +226,53 @@ test('website: the member board, its switches, and the gap line', async () => {
   await v.unmount();
 });
 
+test('website: privacy saves go one at a time, so the last answer is the newest (Codex, #2371)', async () => {
+  const sent = [];
+  const pending = [];
+  const prev = globalThis.fetch;
+  globalThis.fetch = window.fetch = (url, init = {}) => {
+    if (init.method !== 'PUT') return Promise.resolve({ status: 200, ok: true, json: () => Promise.resolve({ leaderboard: true, teamBoard: null }) });
+    sent.push(JSON.parse(init.body));
+    return new Promise((resolve) => pending.push(resolve));
+  };
+  const answer = (body) => ({ status: 200, ok: true, json: () => Promise.resolve(body) });
+  let save = null;
+  function Probe() {
+    const [state, s] = window.useLeaderboardPrivacy();
+    save = s;
+    return React.createElement('i', null, state.kind === 'ready' ? JSON.stringify(state.value) : state.kind);
+  }
+  try {
+    const v = await mount(React.createElement(Probe));
+    // Settings: both switches tapped before either answers
+    const a = save({ leaderboard: false });
+    const b = save({ teamBoard: true });
+    await flush();
+    assert.deepEqual(sent, [{ leaderboard: false }], 'the second save went out before the first answered');
+    pending[0](answer({ leaderboard: false, teamBoard: null }));
+    await flush();
+    assert.deepEqual(sent, [{ leaderboard: false }, { teamBoard: true }]);
+    pending[1](answer({ leaderboard: false, teamBoard: true }));
+    assert.equal(await a, true);
+    assert.equal(await b, true);
+    await flush();
+    assert.equal(v.text(), '{"leaderboard":false,"teamBoard":true}');
+    // a save that fails, or cannot be read, does not hold up the next one
+    const c = window.lbPutPrivacy({ leaderboard: true });
+    await flush();
+    pending[2]({ status: 500, ok: false, json: () => Promise.reject(new Error('no body')) });
+    assert.deepEqual(await c, { ok: false, d: null });
+    const d = window.lbPutPrivacy({ leaderboard: true });
+    await flush();
+    assert.equal(sent.length, 4);
+    pending[3](answer({ leaderboard: true, teamBoard: true }));
+    assert.deepEqual(await d, { ok: true, d: { leaderboard: true, teamBoard: true } });
+    await v.unmount();
+  } finally {
+    globalThis.fetch = window.fetch = prev;
+  }
+});
+
 test('website: every state is a sentence; a hidden member is told by whom', async () => {
   for (const [status, re] of [[401, /Sign in/], [503, /switched on yet/], [500, /couldn’t read/]]) {
     routes = { '/api/leaderboard': () => ({ status, body: {} }) };

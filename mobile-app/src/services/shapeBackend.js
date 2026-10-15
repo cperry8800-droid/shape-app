@@ -5580,7 +5580,17 @@ async function getLeaderboardPrivacy() {
   return leaderboardRead('/api/me/leaderboard-privacy', isPrivacy);
 }
 // The stored switches on success, null when the change did not save.
-async function setLeaderboardPrivacy(change) {
+// ⚠ ONE WRITE AT A TIME (Codex, #2371). Each PUT answers with the switches as stored after it, so
+// two in flight (both Settings rows tapped quickly, or the board and Settings) could answer out of
+// order and leave the older document on screen. Chained, each starts after the last has answered,
+// so the last answer read back every earlier write.
+let leaderboardPrivacyQueue = Promise.resolve();
+function setLeaderboardPrivacy(change) {
+  const run = leaderboardPrivacyQueue.then(() => putLeaderboardPrivacy(change), () => putLeaderboardPrivacy(change));
+  leaderboardPrivacyQueue = run;
+  return run;
+}
+async function putLeaderboardPrivacy(change) {
   try {
     const res = await shapeApiFetch('/api/me/leaderboard-privacy', {
       method: 'PUT', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(change),

@@ -58,6 +58,19 @@ function lbRead(url, shaped) {
     }, function () { return { kind: "error" }; });
   }, function () { return { kind: "error" }; });
 }
+// ⚠ ONE PRIVACY WRITE AT A TIME (Codex, #2371). Each PUT answers with the switches as stored after
+// it, so two in flight (both switches tapped quickly, or the board and Settings) could answer out
+// of order and leave the older document on screen. Chained, each starts after the last has
+// answered, so the last answer read back every earlier write. Resolves { ok, d }; never rejects.
+let lbPrivacyQueue = Promise.resolve();
+function lbPutPrivacy(change) {
+  const run = lbPrivacyQueue.then(function () {
+    return fetch("/api/me/leaderboard-privacy", { method: "PUT", credentials: "same-origin", cache: "no-store", headers: { "Content-Type": "application/json" }, body: JSON.stringify(change) })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok && !!d && typeof d.leaderboard === "boolean", d: d }; }, function () { return { ok: false, d: null }; }); });
+  }).then(null, function () { return { ok: false, d: null }; });
+  lbPrivacyQueue = run;
+  return run;
+}
 function lbMemberShaped(d) {
   return !!d && typeof d === "object" && Array.isArray(d.entries) && "me" in d && typeof d.total === "number";
 }
@@ -179,13 +192,11 @@ function MemberLeaderboard() {
   function save(change) {
     setSaving(true);
     setSaveError(null);
-    fetch("/api/me/leaderboard-privacy", { method: "PUT", credentials: "same-origin", cache: "no-store", headers: { "Content-Type": "application/json" }, body: JSON.stringify(change) })
-      .then((r) => r.json().then((d) => ({ ok: r.ok, d }), () => ({ ok: false, d: null })))
-      .then(({ ok, d }) => {
-        setSaving(false);
-        if (ok && d && typeof d.leaderboard === "boolean") { setPrivacy(d); setReload((n) => n + 1); }
-        else setSaveError("That didn’t save. Your setting is unchanged; try again.");
-      }, () => { setSaving(false); setSaveError("That didn’t save. Your setting is unchanged; try again."); });
+    lbPutPrivacy(change).then(({ ok, d }) => {
+      setSaving(false);
+      if (ok) { setPrivacy(d); setReload((n) => n + 1); }
+      else setSaveError("That didn’t save. Your setting is unchanged; try again.");
+    });
   }
 
   const controls = (
@@ -499,14 +510,12 @@ function useLeaderboardPrivacy() {
     return () => { on = false; };
   }, []);
   function save(change) {
-    return fetch("/api/me/leaderboard-privacy", { method: "PUT", credentials: "same-origin", cache: "no-store", headers: { "Content-Type": "application/json" }, body: JSON.stringify(change) })
-      .then((r) => r.json().then((d) => ({ ok: r.ok, d }), () => ({ ok: false, d: null })))
-      .then(({ ok, d }) => {
-        if (ok && d && typeof d.leaderboard === "boolean") { setState({ kind: "ready", value: d }); return true; }
-        return false;
-      }, () => false);
+    return lbPutPrivacy(change).then(({ ok, d }) => {
+      if (ok) { setState({ kind: "ready", value: d }); return true; }
+      return false;
+    });
   }
   return [state, save];
 }
 
-Object.assign(window, { MemberLeaderboard, CoachLeaderboard, CoachScoreActions, coachStandingLine, useCoachStanding, useLeaderboardPrivacy, lbRead, lbMemberShaped, lbCoachShaped, lbStateNote, lbAbove, lbWithGaps, lbActivity, lbPodiumLine });
+Object.assign(window, { MemberLeaderboard, CoachLeaderboard, CoachScoreActions, coachStandingLine, useCoachStanding, useLeaderboardPrivacy, lbPutPrivacy, lbRead, lbMemberShaped, lbCoachShaped, lbStateNote, lbAbove, lbWithGaps, lbActivity, lbPodiumLine });
