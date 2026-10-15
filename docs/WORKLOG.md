@@ -847,6 +847,14 @@ Everything older, newest-first: [2026-10](WORKLOG-ARCHIVE-2026-10.md) ·
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-10-15 — The Schedule step 2 mutation spec runs clean again
+
+- **Merged [#2376](https://github.com/cperry8800-droid/shape-app/pull/2376) as `d9edcd3`**, final head `d69b734`. Tests and spec only; no code under test changed. Measured before: `killed 87 · survived 2 · skipped 10`, plus "create books a client who is not the coach's", broken on `main` since #2373.
+- **Eleven anchors re-aimed**, none deleted (every behaviour still exists): the consult's length is the coach's intro length (`introMin`); the grid's verdict carries `away`, and time off asks like outside the hours; the zone mutation targets the single booking (a weekly run sends the same fields); the book sheet's default is `pillDur`; decline lives inside `apply`; a refused run reverts from its snapshot; the host's module tag also loads `bookingRules.mjs`; create's client check is `const subscriber = …` (fix 3c, a paid session may be booked).
+- **Survivors:** a new test drives `/api/sessions/request` with an insert refused 23505 and 23P01 and expects a 409 `taken` with no notice. "A row with no start offers midnight" is `expectSurvive`: `num()` returns only a finite number or NaN, and a NaN start is skipped one line later by `(at - start) % 60 !== 0`.
+- **Verified:** `mutate: killed 98 · survived 0 · no-op 1 · unexpected kills 0 · timed out 0 · skipped 0 · restored byte-identical: true`; CI green on the final head; Codex reviewed it with no findings. The edits stay clear of the hunks #2375 (the coach capacity switch) changes.
+- **Written after the merge**, per the 2026-09-11 rule.
+
 ### 2026-10-15 — Member and coach leaderboards, on the website and in the app
 
 - **Merged [#2371](https://github.com/cperry8800-droid/shape-app/pull/2371) as `dc120dc`**, final head `13d4698`; the merged tree is byte-identical to it. `main` moved twice under it and was merged in both times: #2370 (another session's coach intro) at `28b7152` with no conflict, and #2372 (notifications) at `13d4698`, one conflict in the app's Settings, both sides kept. The owner, on the preview (https://claude.ai/artifact/WDiuG1YCHygFWoNkwKnBmn): *"looks good, build it"*; then *"merge if clean"*, *"run coderabbit"* (Codex had hit its limit), *"maybe have fable review also"* and *"merge when fable is clean"*.
