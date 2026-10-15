@@ -19023,11 +19023,15 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   // on #2375): at capacity a current client keeps booking and buying, never the waiting list.
   // undefined = not read yet · null = could not read (the waiting list shows; the checkout decides).
   const [clientOf, setClientOf] = useStateBSC(undefined);
+  // ⚠ KEYED ON THE ACCOUNT (Codex on #2375), as the marketplace listing's hydrate is: without it an
+  // account switch with the profile open kept the last account's entry and client answer, and the
+  // next account was shown as the coach's client. Both clear on every run, before the bail.
+  const wlAuthUid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || null;
   const wlBusy = React.useRef(false);
   React.useEffect(() => {
-    if (isSelf || !atCapacity || !capacityProviderId) { setWl(null); setClientOf(null); return undefined; }
+    setWl(null); setClientOf(undefined);
+    if (isSelf || !atCapacity || !capacityProviderId) { setClientOf(null); return undefined; }
     let live = true;
-    setClientOf(undefined);
     (async () => {
       try {
         const r = await window.ShapeWaitlist?.mine?.();
@@ -19040,7 +19044,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
       } catch (e) { if (live) setClientOf(null); }
     })();
     return () => { live = false; };
-  }, [isSelf, atCapacity, capacityProviderId, capacityProviderRole]);
+  }, [isSelf, atCapacity, capacityProviderId, capacityProviderRole, wlAuthUid]);
   const wlWithdraw = async () => {
     if (wlBusy.current) return;
     if (!wl?.entryId) { window.__bsToast?.(tr('profile:coach.refreshingSpot', { defaultValue: 'Refreshing your spot — try again in a moment.' })); return; }

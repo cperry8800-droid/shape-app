@@ -326,7 +326,9 @@ function CoachCapacityCard() {
   React.useEffect(() => {
     let on = true;
     setState((s) => ({ ...s, loading: true, error: false }));
-    fetch("/api/coach/capacity", { credentials: "same-origin", cache: "no-store" })
+    // This browser's zone rides along: a listing with no zone of its own places, and reads back, its
+    // resume day in it (Codex on #2375).
+    fetch("/api/coach/capacity?tz=" + encodeURIComponent(cpcBrowserZone() || ""), { credentials: "same-origin", cache: "no-store" })
       .then(async (r) => {
         if (r.status === 401) return { signedIn: false };
         if (!r.ok) throw new Error("read");
@@ -360,7 +362,7 @@ function CoachCapacityCard() {
     if (busy) return;
     setBusy(label); setMsg("");
     try {
-      const r = await fetch("/api/coach/capacity", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role, ...patch }) });
+      const r = await fetch("/api/coach/capacity", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role, tz: cpcBrowserZone(), ...patch }) });
       const d = await r.json().catch(() => ({}));
       if (!r.ok || !d.listing) throw new Error(d.detail || (d.error && d.error !== "save_failed" ? d.error : "") || "Could not save. Please try again.");
       setState((s) => ({ ...s, listing: d.listing }));

@@ -149,6 +149,10 @@ test('app listing: a current client sees their way to buy, never Join, and Join 
 test('app profile: a current client gets Book now, and the waiting list only for everyone else', () => {
   const src = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
   const prof = src.slice(src.indexOf('function BSSignalCoachProfile('), src.indexOf('\nfunction ', src.indexOf('function BSSignalCoachProfile(') + 10));
+  // Keyed on the account, cleared before the bail (Codex on #2375): a switch never inherits the last answer.
+  assert.match(prof, /React\.useEffect\(\(\) => \{\n    setWl\(null\); setClientOf\(undefined\);\n    if \(isSelf \|\| !atCapacity \|\| !capacityProviderId\) \{ setClientOf\(null\); return undefined; \}/);
+  assert.match(prof, /\}, \[isSelf, atCapacity, capacityProviderId, capacityProviderRole, wlAuthUid\]\);/);
+  assert.match(prof, /const wlAuthUid = \(typeof window !== 'undefined' && window\.ShapeAuth\?\.getCachedState\?\.\(\)\?\.user\?\.id\) \|\| null;/);
   assert.match(prof, /setClientOf\(Array\.isArray\(r\?\.clientOf\) \? r\.clientOf\.some\(\(cl\) => cl && String\(cl\.providerId\) === String\(capacityProviderId\) && cl\.providerRole === capacityProviderRole\) : null\);/);
   const block = (from) => { const i = prof.indexOf(from); assert.ok(i > 0, from); return prof.slice(i, prof.indexOf('\n          )}', i)); };
   const client = block('{!isSelf && atCapacity && !wl && clientOf === true && (');

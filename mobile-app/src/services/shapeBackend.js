@@ -1641,11 +1641,16 @@ function capacityFromListing(l) {
 // ⚠ THROUGH THE LIVE TOKEN (Codex on #2375). The cached session can hold a token supabase has
 // already refreshed, and sending it answered 401: Settings hid the switch, or a valid toggle
 // reverted, until another auth event updated the cache.
+function deviceZone() {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (e) { return null; }
+}
 async function getProviderCapacity({ role } = {}) {
   const token = await liveAccessToken();
   if (!token) return null;
   const want = providerDiscipline(normalizeRole(role));
-  const res = await shapeApiFetch('/api/coach/capacity', { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } });
+  // This phone's zone rides along: a listing with no zone of its own reads its resume day back in
+  // the zone it was placed in (Codex on #2375).
+  const res = await shapeApiFetch(`/api/coach/capacity?tz=${encodeURIComponent(deviceZone() || '')}`, { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } });
   if (res.status === 401) return null;
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json.error || 'Could not read your capacity.');
@@ -1659,7 +1664,7 @@ async function getProviderCapacity({ role } = {}) {
 async function setProviderCapacity({ role, atCapacity, resumeAt = null, introsAtCapacity } = {}) {
   const token = await liveAccessToken();
   if (!token) throw new Error('Sign in to update your capacity.');
-  const body = { role: providerDiscipline(normalizeRole(role)) };
+  const body = { role: providerDiscipline(normalizeRole(role)), tz: deviceZone() };
   if (typeof atCapacity === 'boolean') body.atCapacity = atCapacity;
   if (atCapacity === true && resumeAt) body.resumeAt = resumeAt;
   if (typeof introsAtCapacity === 'boolean') body.introsAtCapacity = introsAtCapacity;

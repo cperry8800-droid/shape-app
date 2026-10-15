@@ -20,6 +20,8 @@ const nextServer = require('next/server');
 const read = (rel) => readFileSync(join(ROOT, rel), 'utf8');
 
 const COACH = 'coach-1';
+// This process's zone: the app sends the phone's own (`deviceZone`).
+const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
 const NOW = Date.parse('2026-10-15T15:00:00Z');
 
 // A small PostgREST stand-in: filters by eq/in, honours order/limit, and answers count/head reads.
@@ -102,7 +104,7 @@ const world = (extra = {}) => ({
   ...extra,
 });
 
-async function call(method, { tables = world(), body, user = { id: COACH }, fail = {}, notifyFails = false } = {}) {
+async function call(method, { tables = world(), body, user = { id: COACH }, fail = {}, notifyFails = false, query = '' } = {}) {
   const { route, state } = await load();
   const writes = [];
   state.db = fakeDb(tables, { as: 'caller', fail, writes });
@@ -115,7 +117,7 @@ async function call(method, { tables = world(), body, user = { id: COACH }, fail
   globalThis.Date = Pinned;
   const errLog = console.error; console.error = () => {};
   try {
-    const req = new Request('https://shape.test/api/coach/capacity', method === 'GET' ? { method } : { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const req = new Request('https://shape.test/api/coach/capacity' + query, method === 'GET' ? { method } : { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
     const res = await route[method](req);
     return { status: res.status, body: await res.json(), writes, notices: state.notices.slice(), tables };
   } finally { globalThis.Date = Real; console.error = errLog; }
@@ -201,6 +203,21 @@ test('POST: a resume day starts at midnight on the coach\'s own clock, never the
     assert.equal(bad.body.field, 'resumeOn', resumeOn);
     assert.equal(bad.writes.length, 0, resumeOn);
   }
+});
+
+test('a listing with no zone reads its resume day back in the zone it was placed in (Codex on #2375)', async () => {
+  const bare = () => world({ trainers: [{ id: 7, owner_id: COACH, name: 'Tom', at_capacity: false, capacity_resume_at: null }] });
+  const tables = bare();
+  const r = await call('POST', { tables, body: { role: 'trainer', atCapacity: true, resumeOn: '2026-10-20', tz: 'Asia/Tokyo' } });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(tables.trainers[0].capacity_resume_at, '2026-10-19T15:00:00.000Z');
+  assert.equal(r.body.listing.resumeOn, '2026-10-20', 'the day picked, not the UTC date of its midnight');
+  const back = await call('GET', { tables, query: '?tz=Asia%2FTokyo' });
+  assert.equal(back.body.listings[0].resumeOn, '2026-10-20');
+  // With no zone sent, UTC, as before; a listing with its own zone ignores the page's.
+  assert.equal((await call('GET', { tables })).body.listings[0].resumeOn, '2026-10-19');
+  const zoned = world({ trainers: [{ id: 7, owner_id: COACH, name: 'Tom', at_capacity: true, capacity_resume_at: '2026-10-20T04:00:00.000Z', timezone: 'America/New_York' }] });
+  assert.equal((await call('GET', { tables: zoned, query: '?tz=Asia%2FTokyo' })).body.listings[0].resumeOn, '2026-10-20');
 });
 
 test('POST: reopening tells everyone still waiting, once a day, and only them', async () => {
@@ -365,7 +382,7 @@ test('app: capacity is read and written for the role in use, and shows what memb
   a.answer(200, { listings: [{ ...listings[0], effective: true, resumeAt: '2026-10-20T04:00:00+00:00', resumeOn: '2026-10-20' }] });
   assert.equal((await a.getProviderCapacity({ role: 'trainer' })).resumeOn, '2026-10-20', 'the coach\'s own day, for Settings to show');
   a.answer(200, { listings });
-  assert.equal(a.calls[0].url, 'https://shape.test/api/coach/capacity');
+  assert.equal(a.calls[0].url, 'https://shape.test/api/coach/capacity?tz=' + encodeURIComponent(TZ), 'the phone\'s zone rides along');
   assert.equal(a.calls[0].auth, 'Bearer tok');
   a.answer(200, { listings: [listings[0]] });
   assert.equal(await a.getProviderCapacity({ role: 'nutritionist' }), null, 'never the other role\'s listing');
@@ -376,13 +393,13 @@ test('app: capacity is read and written for the role in use, and shows what memb
   // Writes: only what was asked, and the resume date only when pausing.
   a.answer(200, { ok: true, listing: { ...listings[0], atCapacity: false, effective: false, resumeAt: null }, notified: 2 });
   const res = await a.setProviderCapacity({ role: 'trainer', atCapacity: false, resumeAt: '2026-11-01T00:00:00Z' });
-  assert.deepEqual(a.calls.at(-1).body, { role: 'trainer', atCapacity: false });
+  assert.deepEqual(a.calls.at(-1).body, { role: 'trainer', tz: TZ, atCapacity: false });
   assert.equal(a.calls.at(-1).method, 'POST');
   assert.equal(res.notified, 2);
   await a.setProviderCapacity({ role: 'trainer', atCapacity: true, resumeAt: '2026-11-01T00:00:00Z' });
-  assert.deepEqual(a.calls.at(-1).body, { role: 'trainer', atCapacity: true, resumeAt: '2026-11-01T00:00:00Z' });
+  assert.deepEqual(a.calls.at(-1).body, { role: 'trainer', tz: TZ, atCapacity: true, resumeAt: '2026-11-01T00:00:00Z' });
   await a.setProviderCapacity({ role: 'dietitian', introsAtCapacity: true });
-  assert.deepEqual(a.calls.at(-1).body, { role: 'nutritionist', introsAtCapacity: true }, 'the intro setting alone leaves the listing');
+  assert.deepEqual(a.calls.at(-1).body, { role: 'nutritionist', tz: TZ, introsAtCapacity: true }, 'the intro setting alone leaves the listing');
   a.answer(503, { error: 'not_set_up', detail: "Intros at capacity aren't set up yet. They'll be ready after the next update." });
   await assert.rejects(() => a.setProviderCapacity({ role: 'trainer', introsAtCapacity: true }), /aren't set up yet/);
   a.answer(500, { error: 'save_failed' });
@@ -404,7 +421,7 @@ test('app: capacity calls send the live token, never a cached one supabase has r
   a.answer(200, { ok: true, listing: { role: 'trainer', providerId: 7, atCapacity: true, effective: true }, notified: 0 });
   await a.setProviderCapacity({ role: 'trainer', atCapacity: true });
   assert.deepEqual(a.calls.map((c) => [c.method, c.url, c.auth]), [
-    ['GET', 'https://shape.test/api/coach/capacity', 'Bearer fresh'],
+    ['GET', 'https://shape.test/api/coach/capacity?tz=' + encodeURIComponent(TZ), 'Bearer fresh'],
     ['POST', 'https://shape.test/api/coach/capacity', 'Bearer fresh'],
   ]);
   // Another account's session is never borrowed.
@@ -438,7 +455,8 @@ test('website Profile: the capacity switch, a resume date, intros while full, an
   const src = read('public/newdesign/dashProfileExtras.jsx');
   assert.match(src, /<CoachListingRatesCard \/><CoachCapacityCard \/><CoachListingMediaCard \/>/);
   const card = src.slice(src.indexOf('function CoachCapacityCard() {'), src.indexOf('// Marketplace listing photos'));
-  assert.match(card, /fetch\("\/api\/coach\/capacity", \{ credentials: "same-origin", cache: "no-store" \}\)/);
+  assert.match(card, /fetch\("\/api\/coach\/capacity\?tz=" \+ encodeURIComponent\(cpcBrowserZone\(\) \|\| ""\), \{ credentials: "same-origin", cache: "no-store" \}\)/, 'the browser\'s zone rides along');
+  assert.match(card, /body: JSON\.stringify\(\{ role, tz: cpcBrowserZone\(\), \.\.\.patch \}\)/, 'on every save, so the answer reads the day back in it');
   assert.match(card, /const listing = \(\(d && d\.listings\) \|\| \[\]\)\.find\(\(l\) => l\.role === role\) \|\| null;/, 'the listing of this dashboard\'s role');
   assert.match(card, /const full = !!\(l && l\.effective\);/, 'what members meet, not the raw switch');
   assert.match(card, /save\(\{ atCapacity: false \}, "open"\)/);

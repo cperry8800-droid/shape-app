@@ -4,7 +4,7 @@
 // basically makes it so they cant add new clients, but clients can still be added to waitlist.
 // check coaches waitlist works properly also", and on intros at capacity: "let the coach decide".
 //
-// GET                         → { listings: [{ role, providerId, name, atCapacity, effective,
+// GET ?tz=                    → { listings: [{ role, providerId, name, atCapacity, effective,
 //                                 resumeAt, resumeOn, timezone, introsAtCapacity, waiting }] },
 //                                 every listing the
 //                                 caller owns (a coach can hold both roles)
@@ -92,7 +92,10 @@ async function waitingCount(role: Role, id: number): Promise<number | null> {
 // hours early, on the evening before. The page now sends the day (`resumeOn`), and it becomes the
 // start of that day in the listing's zone (`timezone`, set with its hours), or the zone the page
 // sends when the listing has none yet, or UTC. The same day comes back as `resumeOn`, so a page
-// shows the coach's date, never the viewer's.
+// shows the coach's date, never the viewer's. ⚠ THE READ USES THE SAME FALLBACK AS THE WRITE (Codex
+// on #2375): a listing with no zone read its day back in UTC, so Oct 20 picked in Tokyo (stored as
+// 15:00Z on the 19th) came back as the 19th. GET takes the page's zone as `?tz=` and POST its `tz`,
+// so for such a listing the day is placed and read back in the same zone.
 function zoneOf(row: Listing, fallback?: unknown): string {
   return normalizeZone(row.timezone) || normalizeZone(fallback) || 'UTC';
 }
@@ -105,8 +108,8 @@ function resumeDayOn(day: string, zone: string): number {
   return Number.isFinite(t) ? t : instantInZone(y, mo, d, 1, 0, zone);
 }
 
-function shape(role: Role, row: Listing, introsAtCapacity: boolean, waiting: number | null) {
-  const zone = zoneOf(row);
+function shape(role: Role, row: Listing, introsAtCapacity: boolean, waiting: number | null, fallbackZone?: unknown) {
+  const zone = zoneOf(row, fallbackZone);
   const resumeMs = row.capacity_resume_at ? Date.parse(row.capacity_resume_at) : NaN;
   return {
     role,
@@ -126,6 +129,7 @@ function shape(role: Role, row: Listing, introsAtCapacity: boolean, waiting: num
 export async function GET(request: Request) {
   const db = await resolveRequestClient(request);
   if (!db) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  const tz = new URL(request.url).searchParams.get('tz');
   const listings = [];
   for (const role of ROLES) {
     const row = await ownListing(db, role);
@@ -133,7 +137,7 @@ export async function GET(request: Request) {
     if (!row) continue;
     const intros = await introsFlag(db, role, row.id);
     if (intros === null) return NextResponse.json({ error: 'Your booking rules could not be read.' }, { status: 503 });
-    listings.push(shape(role, row, intros, await waitingCount(role, row.id)));
+    listings.push(shape(role, row, intros, await waitingCount(role, row.id), tz));
   }
   return NextResponse.json({ listings });
 }
@@ -223,7 +227,7 @@ export async function POST(request: Request) {
   }
   return NextResponse.json({
     ok: true,
-    listing: shape(role, after, intros, await waitingCount(role, before.id)),
+    listing: shape(role, after, intros, await waitingCount(role, before.id), body.tz),
     notified,
   });
 }
