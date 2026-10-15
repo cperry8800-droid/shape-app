@@ -336,7 +336,6 @@ const UNCOVERED = new Set([
   'Client::BSConsumerHealthPage', 'Client::BSContactPage', 'Client::BSCrossoverCard',
   'Client::BSDataCompliancePage', 'Client::BSDayBriefPreview',
   'Client::BSFindCoachBar', 'Client::BSFollowSuggestions',
-  'Client::BSHealthIntake',
   'Client::BSHelpPage',
   'Client::BSKitchenCard', 'Client::BSLeaderboard', 'Client::BSLegalActions',
   'Client::BSLogActivity',
@@ -847,9 +846,13 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // category with its label and help from the shared rules (src/lib/application-files.mjs, data,
   // not copy at the render site) and three strings of its own (2026-10-12). Registered in
   // UNCOVERED beside the screen it belongs to.
-  assert.equal(noneStrings, 750, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  // ⚠ AND noneStrings 750 -> 719, none.length 89 -> 88: BSHealthIntake, the health screening, is
+  // translated whole (client-onboarding review M2, fix 2b: it was English in all 13 languages),
+  // its 31 hardcoded strings keyed under onboarding:health.* with the questions and condition
+  // chips keyed by stable ids. Its line left UNCOVERED.
+  assert.equal(noneStrings, 719, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
   assert.equal(part.length, 34, 'partial-surface count moved — regenerate PARTIAL and the record');
-  assert.equal(none.length, 89, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  assert.equal(none.length, 88, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned

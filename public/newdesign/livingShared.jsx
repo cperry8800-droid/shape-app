@@ -26,6 +26,13 @@ const hexA = (hex, a) => {
   const n = parseInt(m ? m[1] : hex.slice(1), 16);
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
 };
+// Where a website member completes the health screening before hiring a coach (Settings →
+// Health profile), coming back to this page once it is saved. The same address the server sends
+// /subscribe and /purchase to (src/lib/health-screening.ts screeningHref).
+function lvScreeningHref() {
+  const back = window.location.pathname + window.location.search;
+  return "/newdesign/ClientApp.html?screening=required&next=" + encodeURIComponent(back) + "#settings";
+}
 function lvRng(seed) { let s = seed % 2147483647; if (s <= 0) s += 2147483646; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
 
 // Shape Score tiers — the member's tier is the screen's ATMOSPHERE. The SAME
@@ -781,6 +788,9 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
   // the join prompt, and the membership checkout comes back here with `member=joined` (or
   // `member=pending` while Stripe clears the payment).
   const [needsMember, setNeedsMember] = React.useState(false);
+  // Hiring a coach needs the health screening (client-onboarding review, fix 2b): the route
+  // answers 409 screening_required, and the member goes to Settings → Health profile and back.
+  const [needsScreening, setNeedsScreening] = React.useState(false);
   const [joinErr, setJoinErr] = React.useState("");
   const memberReturn = React.useMemo(() => { try { return new URLSearchParams(window.location.search).get("member"); } catch (e) { return null; } }, []);
   // ⚠ THE ACCOUNT, NOT A BOOLEAN — and that is the whole of CodeRabbit's finding on
@@ -897,7 +907,7 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
   // page, and it costs more trust than a control that leads nowhere.
   const subscribe = async () => {
     if (busy.current) return;
-    setBuyErr(""); setWlErr(""); setNeedsMember(false); setJoinErr("");
+    setBuyErr(""); setWlErr(""); setNeedsMember(false); setNeedsScreening(false); setJoinErr("");
     if (!provId) { setBuyErr("This coach isn't set up for checkout yet — message " + first + " instead."); return; }
     busy.current = true;
     try {
@@ -908,6 +918,7 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
       // that route and only the sentence told them apart.
       if (j && j.reason === "at_capacity") { setCapSrv(true); return; }
       if (res.status === 402 && j && j.code === "membership_required") { setNeedsMember(true); return; }
+      if (res.status === 409 && j && j.code === "screening_required") { setNeedsScreening(true); return; }
       setBuyErr((j && j.error) || "Could not start checkout.");
     } catch (e) { setBuyErr("Could not start checkout — check your connection and try again."); }
     finally { busy.current = false; }
@@ -918,6 +929,12 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
     <React.Fragment>
       {!needsMember && memberReturn === "joined" ? <div role="status" style={{ marginTop: 11, fontFamily: lvSans, fontSize: 12.5, color: hexA(ink, 0.85) }}>Your Shape membership is active. You can subscribe to {first} now.</div> : null}
       {!needsMember && memberReturn === "pending" ? <div role="status" style={{ marginTop: 11, fontFamily: lvSans, fontSize: 12.5, color: hexA(ink, 0.85) }}>Your membership payment is still clearing. Try Subscribe again in a minute.</div> : null}
+      {needsScreening ? (
+        <div role="alert" style={{ marginTop: 12, maxWidth: 420, border: `1px solid ${hexA(ink, 0.25)}`, borderRadius: 8, padding: "12px 14px" }}>
+          <div style={{ fontFamily: lvSans, fontSize: 13, lineHeight: 1.5, color: ink }}>Before you hire a coach, complete your health screening. It takes a few minutes, it's shared with the coaches you hire so they can train you safely, and you'll come back here to subscribe to {first}.</div>
+          <a href={lvScreeningHref()} style={{ display: "inline-block", marginTop: 10, padding: "11px 16px", borderRadius: 8, background: c, color: "#0c0a08", textDecoration: "none", fontFamily: lvMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Complete the screening</a>
+        </div>
+      ) : null}
       {needsMember ? (
         <div role="alert" style={{ marginTop: 12, maxWidth: 420, border: `1px solid ${hexA(ink, 0.25)}`, borderRadius: 8, padding: "12px 14px" }}>
           <div style={{ fontFamily: lvSans, fontSize: 13, lineHeight: 1.5, color: ink }}>Coaching is for Shape members. Start your $5/month membership first, and you'll come back here to subscribe to {first}.</div>

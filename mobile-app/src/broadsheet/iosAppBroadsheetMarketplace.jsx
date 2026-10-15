@@ -2227,6 +2227,14 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
           });
         }
       } catch (error) {
+        // Hiring a coach needs the health screening first (client-onboarding review, fix 2b): the
+        // client app's screening opens over the marketplace, and once it is saved this checkout
+        // runs again.
+        if (error?.code === 'screening_required' && window.bsOpenScreening) {
+          const retry = current;
+          window.bsOpenScreening({ onDone: () => { confirmAction(retry); } });
+          return;
+        }
         // Coaching needs the $5 membership first (owner, 2026-10-14). The route says so with
         // the gate's own code; the panel then offers the membership, in the paywall's words.
         if (error?.code === 'membership_required') {

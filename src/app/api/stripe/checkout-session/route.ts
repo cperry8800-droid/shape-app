@@ -3,6 +3,7 @@ import { stripe } from '@/lib/stripe';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { isEffectivelyAtCapacity } from '@/lib/capacity';
 import { hasActiveWaitlistInvite, resolveRequestClient } from '@/lib/waitlist';
+import { hiresCoach, hasCompletedScreening, SCREENING_REQUIRED } from '@/lib/health-screening';
 import { readJson, dbError } from '@/lib/request-utils';
 import { feeSplit, maxCreditCents, bpsToRate, bpsToPercent } from '@/lib/platform-fee';
 import { resolveCoachCheckoutOrigin } from '@/lib/coach-origin';
@@ -168,6 +169,22 @@ export async function POST(request: Request) {
   const feeRate = bpsToRate(feeBps);
 
   const isSubscription = String(body.item?.type || '').toLowerCase() === 'subscription';
+  // ⚠ HIRING A COACH NEEDS THE HEALTH SCREENING (client-onboarding review, fix 2b; owner decision
+  // 2). Only a member who wants coaching is screened at first run, so one who said no is screened
+  // here, before paying: a subscription, or a session with a trainer (health-screening.ts). A
+  // program or a meal plan is a product. Read on the caller's own client; a failed read refuses.
+  const buysProduct = body.item != null && (body.item as { planId?: unknown }).planId != null
+    && String((body.item as { planId?: unknown }).planId).trim() !== '';
+  if (hiresCoach({ subscription: isSubscription, providerRole, product: buysProduct })) {
+    let screened: boolean;
+    try {
+      screened = await hasCompletedScreening(caller, user.id);
+    } catch (err) {
+      console.error('[shape-app] checkout health screening read failed', err);
+      return NextResponse.json({ error: 'Could not check your health screening. Try again in a moment.' }, { status: 503 });
+    }
+    if (!screened) return NextResponse.json(SCREENING_REQUIRED, { status: 409 });
+  }
   // The account's own Stripe customer (stripe-customer.ts): the purchase lands on it, and the
   // duplicate check below can ask Stripe about it whether or not the account has an email.
   let customerId: string;
