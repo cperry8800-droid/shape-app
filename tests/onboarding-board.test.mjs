@@ -467,4 +467,6 @@ test('the member app and the website say the coach is preparing the plan, and as
   const train = read('public/newdesign/dashTrain.jsx');
   assert.match(train, /<DtrBuilder self=\{selfData\} onChanged=\{reloadAll\} coaching=\{plan && plan\.training && !plan\.training\.hasPlan && plan\.training\.coaching \? plan\.training\.coaching : null\} \/>/);
   assert.match(train, /is preparing your plan\. It shows up here the moment they publish it/);
+  const nutri = read('public/newdesign/dashNutri.jsx');
+  assert.match(nutri, /\{plan && plan\.meals && plan\.meals\.coaching \? <>[\s\S]{0,400}is preparing your meal plan\./);
 });
