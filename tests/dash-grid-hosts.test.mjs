@@ -139,23 +139,24 @@ test('no two DashGrid call sites in one module share a role+tab key', () => {
 // widgets rendered a visually similar page and passed every other guard in this
 // repo — the coach silently loses hide/reorder/resize and their stored layout
 // stops being read. The map may grow; a row leaving it is a deliberate edit.
+// ⚠ 2026-10-15: the coach Clients, Business, Goal and Score pages LEFT this map on purpose
+// (owner: "least overwhelming as possible, easy to navigate", the builder removed "like
+// Programs"). They are pinned as fixed pages by the test below, so neither direction can
+// happen silently. Today stays a board.
 const BOARDS = {
   'clientHabits.jsx': ['client|habits'],
   'clientScore.jsx': ['client|score'],
-  'dashBusiness.jsx': ['role|business'],
   'dashClient.jsx': ['client|'],
   'dashGoals.jsx': ['client|goal'],
   'dashNutri.jsx': ['client|nutrition'],
   'dashProgress.jsx': ['client|progress'],
   'dashTrain.jsx': ['client|workouts'],
-  'nutritionistClientsPage.jsx': ['nutritionist|clients'],
-  'nutritionistGoalPage.jsx': ['nutritionist|goal'],
-  'nutritionistScorePage.jsx': ['nutritionist|score'],
-  'trainerClientsPage.jsx': ['trainer|clients'],
   'trainerDashboard.jsx': ['role|today'],
-  'trainerGoalPage.jsx': ['trainer|goal'],
-  'trainerScorePage.jsx': ['trainer|score'],
 };
+
+// The coach pages that are FIXED: no grid, so no builder bar (My dashboard · Save as ·
+// Rename · Coaching preset · Undo · Widgets), no grip, no ×. Each declares its own layout.
+const FIXED = ['dashBusiness.jsx', 'nutritionistClientsPage.jsx', 'nutritionistGoalPage.jsx', 'nutritionistScorePage.jsx', 'trainerClientsPage.jsx', 'trainerGoalPage.jsx', 'trainerScorePage.jsx'];
 
 function gridKeys(src) {
   return [...src.matchAll(/<DashGrid\s+([^>]*?)\/?>/g)].map((m) => {
@@ -188,13 +189,23 @@ test('no two modules claim the same role+tab board', () => {
   }
 });
 
-test('the Business outcomes widget declares `empty`, because its zone needs a rollup', () => {
-  // DbzOutcomesZone is null-safe as a floor, but a card drawn with no rollup
-  // claims a 30-day outcome nobody measured. The declaration is the honest half.
+test('the coach Clients, Business, Goal and Score pages are fixed pages, not boards', () => {
+  for (const f of FIXED) {
+    const src = fs.readFileSync(path.join(ND, f), 'utf8').replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, '');
+    assert.ok(!/<DashGrid[\s/>]/.test(src), f + ' renders a DashGrid again — the builder bar, grips and × come back with it');
+    assert.ok(!/\bwidgets\s*=\s*\{|gridWidgets/.test(src), f + ' still declares a widget list for a grid it no longer has');
+  }
+  // the sections are one switch, remembered per account and per role
+  const biz = fs.readFileSync(path.join(ND, 'dashBusiness.jsx'), 'utf8');
+  assert.match(biz, /const DBZ_SECTION_KEYS = DBZ_SECTIONS\.map\(\(x\) => x\[0\]\);/);
+  assert.match(biz, /useRememberedChoice\(prefs, "businessSection:" \+ role, DBZ_SECTION_KEYS, "overview"\)/);
+  for (const k of ['overview', 'money', 'growth', 'retention']) assert.match(biz, new RegExp('\\n    ' + k + ': '), 'the ' + k + ' section has no content');
+});
+
+test('the Business outcomes card needs a rollup, and says why it is not there without one', () => {
+  // DbzOutcomesZone is null-safe as a floor, but a card drawn with no rollup claims a
+  // 30-day outcome nobody measured.
   const src = fs.readFileSync(path.join(ND, 'dashBusiness.jsx'), 'utf8');
-  const at = src.indexOf('key: "outcomes"');
-  assert.ok(at > 0, 'the outcomes widget is gone');
-  const block = src.slice(at, at + 900);
-  assert.match(block, /empty:\s*!cp\b/, 'the outcomes widget no longer declares `empty` — it would draw a roster-outcomes card with no rollup behind it');
-  assert.match(block, /emptyWhy:/, 'the outcomes widget declares `empty` with no reason — the catalogue would say only "nothing to show yet"');
+  assert.match(src, /const outcomes = cp\s*\?\s*plate\(/, 'the outcomes card is drawn without a rollup');
+  assert.match(src, /: quiet\(isLive \? "Roster outcomes load with the analytics rollup\." : "Roster outcomes appear once you are live\."\)/, 'no rollup and nothing on the page says why');
 });

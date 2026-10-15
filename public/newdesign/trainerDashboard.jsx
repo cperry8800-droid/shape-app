@@ -310,6 +310,28 @@ function SectionTitle({ children, right }) {
     </div>
   );
 }
+// The fixed coach pages' section switch (owner, 2026-10-15: Clients, Business, Goal and
+// Score lose the widget builder, "like Programs"). The same segmented control as Today's
+// Needs you card, so one control means one thing across the dashboard.
+// items: [{ key, label, count? }]
+function DashSegmented({ label, items, value, onChange }) {
+  return (
+    <div role="tablist" aria-label={label} style={{ display: "inline-flex", gap: 2, padding: 3, background: "var(--sh-rest, #221e19)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 10, flexWrap: "wrap", maxWidth: "100%" }}>
+      {items.map((it) => {
+        const on = it.key === value;
+        return (
+          <button key={it.key} type="button" role="tab" aria-selected={on} onClick={() => onChange(it.key)}
+            style={{ minHeight: 34, padding: "0 14px", borderRadius: 7, border: 0, cursor: "pointer", font: "inherit", fontSize: 13, fontWeight: on ? 600 : 500,
+              background: on ? "var(--sh-card, #25211d)" : "transparent", color: on ? "var(--sh-ink, #f2ede4)" : "var(--sh-ink2, #a09b94)",
+              boxShadow: on ? "0 1px 2px rgba(0,0,0,0.18)" : "none", display: "inline-flex", alignItems: "center", gap: 7 }}>
+            {it.label}
+            {it.count != null && <span style={{ fontFamily: mono, fontSize: 10.5, color: on ? "var(--sh-accent-ink, #2ee0c4)" : "var(--sh-ink3, #75706a)" }}>{it.count}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 function Pill({ children, tone = "mute" }) {
   // The builder's chip: a tinted box with a 7px radius, the teal one on its own tint.
   const bg = tone === "teal" ? "var(--sh-accent-tint, #182d26)" : "var(--sh-rest, #221e19)";
@@ -784,4 +806,4 @@ function DashExportButton({ kind, build, live, label }) {
   );
 }
 
-Object.assign(window, { goalQuarterLabel, DashShell, DashPage, DashFrame, DashSidebar, Sparkline, Card, SectionTitle, Pill, RecentPayouts, ProfileHero, BioCard, SubscriptionCard, DashExportButton });
+Object.assign(window, { goalQuarterLabel, DashShell, DashPage, DashFrame, DashSidebar, Sparkline, Card, SectionTitle, DashSegmented, Pill, RecentPayouts, ProfileHero, BioCard, SubscriptionCard, DashExportButton });

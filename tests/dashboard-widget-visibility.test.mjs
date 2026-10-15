@@ -309,7 +309,9 @@ test('no DashGrid page registers a widget conditionally, anywhere', () => {
   }
   // ⚠ A SWEEP THAT SCANNED NOTHING PASSES. The `<DashGrid` filter is a string match
   // on source, so a rename would silently empty the corpus and leave this green.
-  assert.ok(scanned >= 10, `only ${scanned} DashGrid pages were scanned — the corpus filter has gone stale`);
+  // 8 since 2026-10-15, when the coach Clients, Business, Goal and Score pages (7 modules)
+  // became fixed pages, "like Programs" — they no longer render a DashGrid at all.
+  assert.ok(scanned >= 8, `only ${scanned} DashGrid pages were scanned — the corpus filter has gone stale`);
   assert.deepEqual(found, [], 'a widget is registered conditionally: it will never mount, or leave an empty slot');
 });
 

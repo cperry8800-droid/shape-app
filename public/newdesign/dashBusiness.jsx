@@ -825,6 +825,11 @@ function DbzListingNotice({ listing, role }) {
   );
 }
 
+// The Business page's sections, hoisted so the remembered choice's allowlist is derived
+// from the list the switch renders.
+const DBZ_SECTIONS = [["overview", "Overview"], ["money", "Money"], ["growth", "Growth"], ["retention", "Retention"]];
+const DBZ_SECTION_KEYS = DBZ_SECTIONS.map((x) => x[0]);
+
 // ── The page ─────────────────────────────────────────────────────────────────
 function CoachBusinessPage({ role }) {
   const cfg = DBZ_ROLES[role];
@@ -867,16 +872,13 @@ function CoachBusinessPage({ role }) {
       ? { label: "BALANCE · AVAILABLE", amount: dashMoney(stripe.balanceCents), sub: dbzScheduleLine(stripe.schedule) || "Stripe connected" }
       : { label: "PAYOUTS", amount: "—", sub: "connects when payouts go live" };
 
-  // ── Business as a draggable DashGrid (role-scoped, tab="business"). Each plate
-  // below was a fixed cell in a hand-rolled `dash-cols` grid; they are widgets now,
-  // so a coach can hide the ones their practice does not use, reorder the rest and
-  // resize them — the same board every other coach tab already has.
-  //
-  // The original eight plates stay on by default. Revenue by client is an
-  // optional addition so an existing dashboard keeps its familiar arrangement.
-  //
-  // ⚠ AND THE 1.4fr/1fr PAIRS BECOME EQUAL HALVES, because the grid's only
-  // supported widths are 12 or 6 columns (dgWidgetW).
+  // ── A FIXED PAGE IN FOUR SECTIONS (owner, 2026-10-15: "least overwhelming as possible,
+  // easy to navigate", the builder removed "like Programs"). Nine cards on one board was a
+  // 2,700px page; now a switch shows one question at a time — how the practice is doing,
+  // the money, where clients come from, and who stays — and remembers the one a coach
+  // reads. The two-up rows collapse to one column below 1000px (`.dash-cols`).
+  const prefs = useRememberedChoices(source === "live");
+  const [section, setSection] = useRememberedChoice(prefs, "businessSection:" + role, DBZ_SECTION_KEYS, "overview");
   const plate = (accent, children, extraStyle) => (
     <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": accent, paddingLeft: 24, ...(extraStyle || {}) }}>{children}</div>
   );
@@ -893,13 +895,14 @@ function CoachBusinessPage({ role }) {
   );
 
   const revenueByClient = !loading && typeof DashSignals.dashRevenueByClient === "function" ? DashSignals.dashRevenueByClient(clients) : null;
-  const gridWidgets = [
-    { key: "revenue-clients", title: "Revenue by client", size: "half", optional: true,
-      blurb: "Gross subscription revenue, fees and each client's share.", empty: !revenueByClient || revenueByClient.total === 0, emptyWhy: loading ? "appears once your roster loads" : "appears once you have clients",
-      render: () => plate(cfg.accent, <React.Fragment>{head("Revenue by client", cfg.accent)}<DashRevenueByClientPanel rev={revenueByClient} role={role} /></React.Fragment>) },
-    { key: "trajectory", title: "Practice trajectory", size: "full",
-      blurb: "Active clients, joined vs left, and revenue over time — the growth question, answered first.",
-      render: () => plate(DBZ_TEAL, <React.Fragment>
+  const pair = (left, right) => (
+    <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>{left}{right}</div>
+  );
+  const quiet = (text) => (
+    <div style={{ border: "1px dashed var(--sh-line2, #413d38)", borderRadius: 10, padding: "18px 20px", fontSize: 13, color: DBZ_INK50, lineHeight: 1.5 }}>{text}</div>
+  );
+
+  const trajectory = plate(DBZ_TEAL, <React.Fragment>
         {head("Practice · trajectory", null, (
           <span style={{ display: "inline-flex", alignItems: "center", gap: 10, marginLeft: "auto" }}>
             <span style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_INK50 }}>active clients · joined vs left · revenue over time</span>
@@ -924,11 +927,9 @@ function CoachBusinessPage({ role }) {
           </span>
         ))}
         <DbzTrajectoryZone live={isLive} trajectory={extra && extra.trajectory} role={role} loading={isLive && !extra} />
-      </React.Fragment>) },
+      </React.Fragment>);
 
-    { key: "revenue", title: "Revenue · 90-day trend", size: "half",
-      blurb: "Subscription revenue over the last 90 days, with MRR net and gross.",
-      render: () => plate(DBZ_TEAL, <React.Fragment>
+  const revenue = plate(DBZ_TEAL, <React.Fragment>
         {head("Revenue · 90-day trend", null, (
           <span style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_INK50 }}>
             {mrr ? <React.Fragment>MRR <span style={{ fontFamily: serif, fontSize: 17, color: "var(--sh-ink, #f2ede4)" }}>{dashMoney(mrr.mrrNetCents)}</span> net · {dashMoney(mrr.mrrGrossCents)} gross</React.Fragment>
@@ -936,55 +937,54 @@ function CoachBusinessPage({ role }) {
           </span>
         ))}
         <DashGrowthPanel live={live} role={role} />
-      </React.Fragment>) },
+      </React.Fragment>);
 
-    { key: "payouts", title: "Payouts · schedule & history", size: "half",
-      blurb: "When Stripe pays you and what it has paid so far.",
-      render: () => plate(DBZ_GREEN, <React.Fragment>
+  const payouts = plate(DBZ_GREEN, <React.Fragment>
         {head("Payouts · schedule & history", DBZ_GREEN)}
         <DbzPayoutsZone live={isLive} stripe={stripe} providerId={extra && extra.providerId} role={role} />
-      </React.Fragment>) },
+      </React.Fragment>);
 
-    { key: "funnel", title: "Marketplace funnel", size: "half",
-      blurb: "Views → consults → signed, against the marketplace benchmark.",
-      render: () => plate(DBZ_TEAL, <React.Fragment>
+  // Revenue by client only once there is a client to list (it was an optional card that
+  // could not be added before then).
+  const revenueClients = revenueByClient && revenueByClient.total > 0
+    ? plate(cfg.accent, <React.Fragment>{head("Revenue by client", cfg.accent)}<DashRevenueByClientPanel rev={revenueByClient} role={role} /></React.Fragment>)
+    : null;
+
+  const funnel = plate(DBZ_TEAL, <React.Fragment>
         {head("Marketplace funnel · views → consults → signed")}
         <DashFunnelPanel live={live} />
-      </React.Fragment>) },
+      </React.Fragment>);
 
-    { key: "churn", title: "Churn · who left & why", size: "half",
-      blurb: "Who cancelled, when, and the reason on record.",
-      render: () => plate(DBZ_RED, <React.Fragment>
+  const churn = plate(DBZ_RED, <React.Fragment>
         {head("Churn · who left & why", DBZ_RED)}
         <DbzChurnZone live={isLive} churn={extra && extra.churn} />
-      </React.Fragment>) },
+      </React.Fragment>);
 
-    { key: "byo", title: "Bring your clients", size: "half",
-      blurb: "Your 0%-commission referral link for clients you brought yourself.",
-      render: () => plate(DBZ_TEAL, <React.Fragment>
+  const byo = plate(DBZ_TEAL, <React.Fragment>
         {head("Bring your clients · 0% commission")}
         <DbzBringClientsZone live={isLive} role={role} providerId={extra && extra.providerId} />
-      </React.Fragment>) },
+      </React.Fragment>);
 
-    { key: "origin", title: "Your roster · who found whom", size: "half",
-      blurb: "Marketplace vs brought-yourself, from each subscription's STORED fee.",
-      render: () => plate(cfg.accent, <React.Fragment>
+  const origin = plate(cfg.accent, <React.Fragment>
         {head("Your roster · who found whom", cfg.accent)}
         <DbzOriginZone live={isLive} byOrigin={extra && extra.byOrigin} />
-      </React.Fragment>) },
+      </React.Fragment>);
 
-    { key: "outcomes", title: "Roster outcomes", size: "full",
-      blurb: "What your coaching did for the roster over the last 30 days.",
-      // ⚠ `empty`, NEVER a conditional entry. DashGrid's boot effect resolves its
-      // layout from the FIRST render, where `extra` is still null — a widget omitted
-      // then would never get a portal host and would never mount at all.
-      empty: !cp,
-      emptyWhy: isLive ? "loads with the analytics rollup" : "appears once you are live",
-      render: () => plate(cfg.accent, <React.Fragment>
+  // ⚠ NO ROLLUP, NO OUTCOMES CARD. DbzOutcomesZone is null-safe as a floor, but a card drawn
+  // with no rollup claims a 30-day outcome nobody measured; the note says why it is not there.
+  const outcomes = cp
+    ? plate(cfg.accent, <React.Fragment>
         {head("The product · roster outcomes, last 30 days", cfg.accent)}
         <DbzOutcomesZone role={role} cp={cp} />
-      </React.Fragment>) },
-  ];
+      </React.Fragment>)
+    : quiet(isLive ? "Roster outcomes load with the analytics rollup." : "Roster outcomes appear once you are live.");
+
+  const sections = {
+    overview: trajectory,
+    money: <React.Fragment>{pair(revenue, payouts)}{revenueClients}</React.Fragment>,
+    growth: <React.Fragment>{pair(funnel, origin)}{byo}</React.Fragment>,
+    retention: <React.Fragment>{outcomes}{churn}</React.Fragment>,
+  };
 
   return (
     <React.Fragment>
@@ -998,7 +998,13 @@ function CoachBusinessPage({ role }) {
         subtitle="The money side, told straight — real subscription revenue, real Stripe payouts, the marketplace funnel, and who left. Nothing here is invented."
       >
         {isLive && listing && !listing.ready && <DbzListingNotice listing={listing} role={role} />}
-        <DashGrid role={role} tab="business" widgets={gridWidgets} />
+        <div style={{ marginBottom: 16 }}>
+          <DashSegmented label="Business sections" value={section} onChange={setSection}
+            items={DBZ_SECTIONS.map(([key, label]) => ({ key, label }))} />
+        </div>
+        <div role="tabpanel" aria-label={(DBZ_SECTIONS.find((x) => x[0] === section) || DBZ_SECTIONS[0])[1]} style={{ display: "grid", gap: 16 }}>
+          {sections[section] || sections.overview}
+        </div>
       </DashPage>
     </React.Fragment>
   );
