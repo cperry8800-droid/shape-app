@@ -143,6 +143,22 @@ function RadioWordmark() {
   );
 }
 
+// ⚠ A DRAWN CHEVRON, NOT THE ▾ GLYPH. Owner, 2026-10-15: "can the small triangle
+// for the sub tabs here be better aligned, look smoother and cleaner". The glyph
+// at 8px rendered soft, sat below the middle of the word, and, being text, took
+// the active tab's underline as a stray dash of its own 5px to the right of the
+// word's (measured in Chromium at 4x). An SVG is not text, so the underline runs
+// under the label only; the flex row centres it on the lowercase letters. The
+// homepage's static bar draws the same 8x5 shape (index.html, `.ndrop>a .car`).
+function NavCaret({ open }) {
+  return (
+    <svg className="shape-nav-caret" aria-hidden width="8" height="5" viewBox="0 0 8 5"
+      style={{ display: "block", flex: "0 0 auto", opacity: 0.6, transform: open ? "rotate(180deg)" : "none" }}>
+      <path d="M1 1l3 3 3-3" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 // ⚠ THE TRIGGER IS A LINK, NOT ONLY A MENU BUTTON. "Coaches" is a page AND a
 // menu: clicking it goes to the Coaches page, hovering opens the two marketplace
 // tabs. A trigger that only toggles would make the page it names unreachable
@@ -159,7 +175,7 @@ function NavDropdown({ label, href, items, active, activeMatch }) {
       <a href={href || undefined} className="shape-nav-link"
         onClick={href ? undefined : () => setOpen(o => !o)}
         style={{ fontFamily: navSans, fontSize: 13.5, fontWeight: 500, color: isActive ? "var(--sh-nav-ink, #f5efe1)" : "rgba(var(--sh-nav-ink-rgb, 245,239,225),0.78)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5, lineHeight: 1, whiteSpace: "nowrap", textDecoration: isActive ? "underline" : "none", textDecorationColor: TEAL_BRIGHT, textDecorationThickness: 1.5, textUnderlineOffset: 9 }}>
-        {label}<span aria-hidden style={{ fontSize: 8, opacity: 0.6, lineHeight: 1 }}>▾</span>
+        {label}<NavCaret open={open} />
       </a>
       {/* Invisible hover bridge — fills the gap between trigger and panel so the
           cursor never crosses dead space that could trigger mouseLeave. */}
@@ -1594,6 +1610,8 @@ function ShapeMobileStyles() {
       .shape-nav-link, .shape-foot-link { transition: color .16s ease, border-color .16s ease; }
       .shape-foot-link:hover { color: ${TEAL_BRIGHT} !important; }
       .shape-nav-link:hover { color: ${INK} !important; }
+      .shape-nav-caret { transition: transform .18s ease; }
+      @media (prefers-reduced-motion: reduce) { .shape-nav-caret { transition: none; } }
       .shape-nav-radio:hover { color: ${INK} !important; border-color: rgba(var(--sh-accent3-rgb, 52,214,197),0.4) !important; }
       .shape-header { transition: background .25s ease; }
       /* While the phone drawer is open it is a modal (aria-modal), so the

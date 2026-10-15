@@ -26,9 +26,9 @@
 <style>
   /* =====================================================================
      THE APP PAGE — ONE DAY
-     One member's day inside the app, hour by hour: eight beats from 06:45 to
-     Sunday, each one a screen of the real app beside the copy that says what it
-     is for. Owner's pick off docs/REVIEW-2026-09-17-app-page.md (Concept B);
+     One member's day inside the app, hour by hour: ten beats from 06:45 to
+     Sunday and the season, each one a screen of the real app beside the copy
+     that says what it is for. Owner's pick off docs/REVIEW-2026-09-17-app-page.md (Concept B);
      built from docs/BUILD-2026-09-17-app-page-one-day.md.
 
      What it replaced: a ten-click carousel that wrote ONE step into the DOM at a
@@ -167,15 +167,21 @@
   /* ⚠ THE PHONE COLUMN IS NOT STICKY, AND THAT IS STRUCTURAL RATHER THAN A
      CHOICE. The phone IS what makes a beat as tall as it is — 272px wide at
      600/1387 is 629px, against a 630px beat content box — so measured travel is
-     ONE PIXEL on six of the eight beats. Declaring `position: sticky` there
-     would be an effect that cannot happen, which is worse than no effect: the
-     next reader reads it as working. The two-phone beats have 75px of travel and
-     are deliberately left the same, because two beats behaving differently from
-     six is a worse page than eight behaving alike.
+     ONE PIXEL. Declaring `position: sticky` there would be an effect that
+     cannot happen, which is worse than no effect: the next reader reads it as
+     working.
      To make it real the beat would have to be taller than the phone, and this
      page is already the longest of the three concepts the owner chose from. */
   .beat-ph { align-self: start; display: flex; gap: 16px; justify-content: center; min-width: 0; }
-  .beat-ph .ph { flex: 0 1 auto; min-width: 0; }
+  /* ⚠ ONE SCREEN PER BEAT, AND ONE WIDTH FOR EVERY SCREEN, SET HERE AND
+     NOWHERE ELSE. Until 2026-10-15 each phone carried an inline width, and two
+     beats each held a pair (Community + Habits, Score + Profile) at 182px
+     against everyone else's 272: a third smaller at every width, phones
+     included, because an inline width beats the phone rule's max-width. Owner:
+     "They are smaller compared to the other ones. Not as clear to read on
+     website", then "just make each of these screen shots its own section".
+     tests/getapp-page.test.mjs holds the page to one capture per beat. */
+  .beat-ph .ph { flex: 0 1 auto; width: 272px; min-width: 0; }
 
   /* ---- the doors ------------------------------------------------------ */
   .doors { border-top: 1px solid var(--line); background: var(--paper2); }
@@ -224,14 +230,16 @@
     .beat-copy { padding-left: 0; position: static; }
     /* ⚠ 264px AND WRAPPING, BECAUSE THE POINT OF THE PAGE IS TO SEE THE APP.
        The board this page was built from put the phones at 200px on a phone and
-       sat the two-screen beats side by side at 182px each. Looked at rather than
-       measured: a 600px-wide capture shown 200px wide is a third of its pixels,
-       which renders the app's own 8px mono at under 3px — you can tell WHICH
-       screen it is and you cannot read it, and a pair at 182px is the worst case
-       on the page. 264px is this page's own precedent (what the retired
-       carousel used at this width) and still leaves 90px of the 390px screen.
-       Wrapping costs the two paired beats a row each; it buys every screen the
-       same size, which is what makes the eight beats read as one walk. */
+       sat two beats' pairs of screens side by side at 182px each. Looked at
+       rather than measured: a 600px-wide capture shown 200px wide is a third of
+       its pixels, which renders the app's own 8px mono at under 3px — you can
+       tell WHICH screen it is and you cannot read it. 264px is this page's own
+       precedent (what the retired carousel used at this width) and still leaves
+       90px of the 390px screen. Every screen the same size is what makes the
+       beats read as one walk.
+       ⚠ The pairs never reached 264px here: their inline 182px held, since
+       max-width can lower a width but not raise it. Since 2026-10-15 there are
+       no pairs; each of the ten screens is a beat of its own. */
     .beat-ph { gap: 12px; flex-wrap: wrap; }
     .beat-ph .ph { max-width: 264px; }
     .beat .time { position: static; width: auto; margin-bottom: 8px; display: block; font-size: 22px; }
@@ -308,7 +316,7 @@
           <div class="num"><b>&#9632;</b> Next stop &#183; Lower Push &#8212; Peak &#183; check-in due</div>
           <span class="exlabel">Example member</span>
         </div>
-        <div class="beat-ph"><div class="ph" style="width:272px"><div class="ph-scr"><img src="/newdesign/getapp-home-v5.png?v=20261014" width="600" height="1387" alt="The app&rsquo;s Home screen: Shape Radio, the week strip, the check-in due and the next stop on the day" decoding="async"></div></div></div>
+        <div class="beat-ph"><div class="ph"><div class="ph-scr"><img src="/newdesign/getapp-home-v5.png?v=20261014" width="600" height="1387" alt="The app&rsquo;s Home screen: Shape Radio, the week strip, the check-in due and the next stop on the day" decoding="async"></div></div></div>
       </section>
       <section class="beat" style="--sky:rgba(255,180,84,.08)">
         <div class="beat-copy">
@@ -319,7 +327,7 @@
           <div class="num"><b>&#9632;</b> 532 kcal left &#183; protein 118 / 165</div>
           <span class="exlabel">Example member</span>
         </div>
-        <div class="beat-ph"><div class="ph" style="width:272px"><div class="ph-scr"><img src="/newdesign/getapp-nutri-v3.png?v=20261014" width="600" height="1387" alt="The app&rsquo;s Eat screen: the next meal with Log it and Swap, then the fuel left today by calories and macro" loading="lazy" decoding="async"></div></div></div>
+        <div class="beat-ph"><div class="ph"><div class="ph-scr"><img src="/newdesign/getapp-nutri-v3.png?v=20261014" width="600" height="1387" alt="The app&rsquo;s Eat screen: the next meal with Log it and Swap, then the fuel left today by calories and macro" loading="lazy" decoding="async"></div></div></div>
       </section>
       <section class="beat" style="--sky:rgba(52,214,197,.10)">
         <div class="beat-copy">
@@ -330,7 +338,7 @@
           <div class="num"><b>&#9632;</b> 6 moves &#183; 54 min &#183; RPE 8</div>
           <span class="exlabel">Example member</span>
         </div>
-        <div class="beat-ph"><div class="ph" style="width:272px"><div class="ph-scr"><img src="/newdesign/getapp-train-v3.png?v=20261014" width="600" height="1387" alt="The app&rsquo;s Train screen: today&rsquo;s session with its coach and a Start button, then the program move by move with sets and loads" loading="lazy" decoding="async"></div></div></div>
+        <div class="beat-ph"><div class="ph"><div class="ph-scr"><img src="/newdesign/getapp-train-v3.png?v=20261014" width="600" height="1387" alt="The app&rsquo;s Train screen: today&rsquo;s session with its coach and a Start button, then the program move by move with sets and loads" loading="lazy" decoding="async"></div></div></div>
       </section>
       <section class="beat" style="--sky:rgba(52,214,197,.08)">
         <div class="beat-copy">
@@ -341,7 +349,7 @@
           <div class="num"><b>&#9632;</b> 245 lb &#183; new PR</div>
           <span class="exlabel">Example member</span>
         </div>
-        <div class="beat-ph"><div class="ph" style="width:272px"><div class="ph-scr"><img src="/newdesign/getapp-wall-v1.png?v=20261014" width="600" height="1387" alt="The app&rsquo;s Wall: a personal best as a record plate, with the session&rsquo;s stats, heart-rate zones and trace beneath it" loading="lazy" decoding="async"></div></div></div>
+        <div class="beat-ph"><div class="ph"><div class="ph-scr"><img src="/newdesign/getapp-wall-v1.png?v=20261014" width="600" height="1387" alt="The app&rsquo;s Wall: a personal best as a record plate, with the session&rsquo;s stats, heart-rate zones and trace beneath it" loading="lazy" decoding="async"></div></div></div>
       </section>
       <section class="beat" style="--sky:rgba(238,243,240,.05)">
         <div class="beat-copy">
@@ -352,7 +360,7 @@
           <div class="num"><b>&#9632;</b> 89 items &#183; ~$44 to go</div>
           <span class="exlabel">Example member</span>
         </div>
-        <div class="beat-ph"><div class="ph" style="width:272px"><div class="ph-scr"><img src="/newdesign/getapp-grocery-v2.png?v=20261014" width="600" height="1387" alt="The app&rsquo;s grocery list, shopped by aisle with the aisles stepped across the top, a running cost and Produce open" loading="lazy" decoding="async"></div></div></div>
+        <div class="beat-ph"><div class="ph"><div class="ph-scr"><img src="/newdesign/getapp-grocery-v2.png?v=20261014" width="600" height="1387" alt="The app&rsquo;s grocery list, shopped by aisle with the aisles stepped across the top, a running cost and Produce open" loading="lazy" decoding="async"></div></div></div>
       </section>
       <section class="beat" style="--sky:rgba(52,214,197,.12)">
         <div class="beat-copy">
@@ -363,29 +371,51 @@
           <div class="num"><b>&#9632;</b> Live &#183; Shape Sets &#183; Nora</div>
           <span class="exlabel">Example member</span>
         </div>
-        <div class="beat-ph"><div class="ph" style="width:272px"><div class="ph-scr"><img src="/newdesign/getapp-radio-v3.png?v=20261014" width="600" height="1387" alt="The app&rsquo;s Radio page: the Signal Field drawing the station&rsquo;s live spectrum over a field of dots" loading="lazy" decoding="async"></div></div></div>
+        <div class="beat-ph"><div class="ph"><div class="ph-scr"><img src="/newdesign/getapp-radio-v3.png?v=20261014" width="600" height="1387" alt="The app&rsquo;s Radio page: the Signal Field drawing the station&rsquo;s live spectrum over a field of dots" loading="lazy" decoding="async"></div></div></div>
       </section>
       <section class="beat" style="--sky:rgba(120,110,255,.10)">
         <div class="beat-copy">
           <div class="time">20:30</div>
-          <div class="eb">THE ROOM &#183; COMMUNITY + HABITS</div>
-          <h2>The social side of strong. Small things, tracked.</h2>
-          <p>See who is training right now, ask the room a question, answer someone else&rsquo;s. A members&rsquo; feed, channels for your people, and a thread straight to your coach. Tap to log a habit, earn Shape Score for every check, and see the last seven days as a grid.</p>
-          <div class="num"><b>&#9632;</b> Feed &#183; Team &#183; Channels &#183; 9 pts on the table today</div>
+          <div class="eb">THE ROOM &#183; COMMUNITY</div>
+          <h2>The social side of strong.</h2>
+          <p>See who is training right now, ask the room a question, answer someone else&rsquo;s. A members&rsquo; feed, channels for your people, and a thread straight to your coach.</p>
+          <div class="num"><b>&#9632;</b> 2,104 online now &#183; Feed &#183; Team &#183; Channels</div>
           <span class="exlabel">Example member</span>
         </div>
-        <div class="beat-ph"><div class="ph" style="width:182px"><div class="ph-scr"><img src="/newdesign/getapp-community-v2.png?v=20261014" width="600" height="1387" alt="The app&rsquo;s Community feed: members&rsquo; posts with who is online along the top" loading="lazy" decoding="async"></div></div><div class="ph" style="width:182px"><div class="ph-scr"><img src="/newdesign/getapp-habits-v1.png?v=20261014" width="600" height="1387" alt="The app&rsquo;s Habits ledger: each habit tapped to log, with the last seven days as a grid" loading="lazy" decoding="async"></div></div></div>
+        <div class="beat-ph"><div class="ph"><div class="ph-scr"><img src="/newdesign/getapp-community-v2.png?v=20261014" width="600" height="1387" alt="The app&rsquo;s Community feed: members&rsquo; posts with who is online along the top" loading="lazy" decoding="async"></div></div></div>
+      </section>
+      <section class="beat" style="--sky:rgba(120,110,255,.07)">
+        <div class="beat-copy">
+          <div class="time">21:30</div>
+          <div class="eb">WIND DOWN &#183; HABITS</div>
+          <h2>Small things, tracked.</h2>
+          <p>Tap to log a habit, the ones to keep and the ones to quit. Earn Shape Score for every check, and see the last seven days as a grid.</p>
+          <div class="num"><b>&#9632;</b> 9 pts on the table today</div>
+          <span class="exlabel">Example member</span>
+        </div>
+        <div class="beat-ph"><div class="ph"><div class="ph-scr"><img src="/newdesign/getapp-habits-v1.png?v=20261014" width="600" height="1387" alt="The app&rsquo;s Habits ledger: each habit tapped to log, with the last seven days as a grid" loading="lazy" decoding="async"></div></div></div>
       </section>
       <section class="beat" style="--sky:rgba(230,195,115,.10)">
         <div class="beat-copy">
           <div class="time sun">SUNDAY</div>
-          <div class="eb">THE WEEK &#183; SCORE + PROFILE</div>
-          <h2>One number that matters. A profile that&rsquo;s alive.</h2>
-          <p>A five-tier ladder rewarding consistency across training, nutrition and recovery. It only moves when you show up. Your climb, your Shape Score, PRs and playlists on a living page that grows as you do. Public or private; it is yours.</p>
+          <div class="eb">THE WEEK &#183; SHAPE SCORE</div>
+          <h2>One number that matters.</h2>
+          <p>A five-tier ladder rewarding consistency across training, nutrition and recovery. It only moves when you show up.</p>
           <div class="num"><b>&#9632;</b> 1,284 pts &#183; Tempo &#183; 43% of the way to Form</div>
           <span class="exlabel">Example member</span>
         </div>
-        <div class="beat-ph"><div class="ph" style="width:182px"><div class="ph-scr"><img src="/newdesign/getapp-score-v3.png?v=20261014" width="600" height="1387" alt="The app&rsquo;s Shape Score: the points total, the tier held and the ladder above it" loading="lazy" decoding="async"></div></div><div class="ph" style="width:182px"><div class="ph-scr"><img src="/newdesign/getapp-profile-v2.png?v=20261014" width="600" height="1387" alt="The app&rsquo;s member profile: the ascent drawn over the cover photo, with PRs and playlists below" loading="lazy" decoding="async"></div></div></div>
+        <div class="beat-ph"><div class="ph"><div class="ph-scr"><img src="/newdesign/getapp-score-v3.png?v=20261014" width="600" height="1387" alt="The app&rsquo;s Shape Score: the points total, the tier held and the ladder above it" loading="lazy" decoding="async"></div></div></div>
+      </section>
+      <section class="beat" style="--sky:rgba(230,195,115,.07)">
+        <div class="beat-copy">
+          <div class="time sun">SEASON</div>
+          <div class="eb">THE CLIMB &#183; PROFILE</div>
+          <h2>A profile that&rsquo;s alive.</h2>
+          <p>Your climb, your Shape Score, PRs and playlists on a living page that grows as you do. Public or private; it is yours.</p>
+          <div class="num"><b>&#9632;</b> First half-marathon &#183; 74 days out</div>
+          <span class="exlabel">Example member</span>
+        </div>
+        <div class="beat-ph"><div class="ph"><div class="ph-scr"><img src="/newdesign/getapp-profile-v2.png?v=20261014" width="600" height="1387" alt="The app&rsquo;s member profile: the ascent drawn over the cover photo, with PRs and playlists below" loading="lazy" decoding="async"></div></div></div>
       </section>
     </div>
 

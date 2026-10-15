@@ -42,7 +42,7 @@ function fnSource(name) {
 // The tables, the shell routing that `navGroupsFor` reads, and the three components.
 const tableSrc = ['COACHES_HREF', 'COACHES_ITEMS', 'REWARDS_HREF', 'STORE_TAB', 'REWARDS_ITEMS', 'SHAPE_NAV_GROUPS', 'SIGNED_OUT_ONLY', 'PORTAL_NAV', 'DASH_SHELL_STUBS']
   .map((n) => statement(SHELL, n)).join('\n');
-const fnSrc = ['dashShellRole', 'dashShellHref', 'navGroupsFor', 'NavDropdown', 'MobileDrawer', 'Header'].map(fnSource).join('\n');
+const fnSrc = ['dashShellRole', 'dashShellHref', 'navGroupsFor', 'NavCaret', 'NavDropdown', 'MobileDrawer', 'Header'].map(fnSource).join('\n');
 const compiled = babel.transformSync(tableSrc + '\n' + fnSrc, {
   presets: [presetReact], babelrc: false, configFile: false, sourceType: 'script',
 }).code;
@@ -117,7 +117,8 @@ test('signed out, the bar\'s Rewards trigger opens Rewards and its menu opens th
     const rewards = row.find((a) => text(a) === 'Rewards');
     assert.ok(rewards, 'the signed-out bar has no Rewards tab: ' + row.map(text).join(' · '));
     assert.equal(target(rewards.getAttribute('href')), 'Score.html');
-    assert.ok(rewards.textContent.includes('▾'), 'the Rewards tab shows no menu caret');
+    // The caret is a drawn chevron (NavCaret), not a ▾ glyph, since 2026-10-15.
+    assert.ok(rewards.querySelector('.shape-nav-caret'), 'the Rewards tab shows no menu caret');
     assert.ok(!row.some((a) => text(a) === 'Store'), 'the Store is a signed-out tab as well as a menu item');
     // On the Store page the Rewards menu is the lit tab.
     assert.equal(rewards.style.textDecoration, 'underline', 'the Rewards menu does not light on the Store page');
@@ -135,7 +136,7 @@ test('signed in, the bar carries Store as a tab and Rewards without a menu', asy
     assert.deepEqual(row.map(text), NAV.PORTAL_NAV.map((g) => g.label), 'the signed-in bar is not PORTAL_NAV');
     const rewards = row.find((a) => text(a) === 'Rewards');
     const store = row.find((a) => text(a) === 'Store');
-    assert.ok(!rewards.textContent.includes('▾'), 'signed in, Rewards still shows a menu caret');
+    assert.ok(!rewards.querySelector('.shape-nav-caret'), 'signed in, Rewards still shows a menu caret');
     assert.equal(target(store.getAttribute('href')), 'Store.html');
     assert.equal(store.style.textDecoration, 'underline', 'the Store tab does not light on its own page');
     assert.equal(rewards.style.textDecoration, 'none', 'Rewards lights on the Store page while the Store has its own tab');
