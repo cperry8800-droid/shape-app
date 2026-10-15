@@ -847,6 +847,66 @@ Everything older, newest-first: [2026-10](WORKLOG-ARCHIVE-2026-10.md) ·
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-10-15 — Member and coach leaderboards, on the website and in the app
+
+- **Merged [#2371](https://github.com/cperry8800-droid/shape-app/pull/2371) as `dc120dc`**, final head `13d4698`; the merged tree is byte-identical to it. `main` moved twice under it and was merged in both times: #2370 (another session's coach intro) at `28b7152` with no conflict, and #2372 (notifications) at `13d4698`, one conflict in the app's Settings, both sides kept. The owner, on the preview (https://claude.ai/artifact/WDiuG1YCHygFWoNkwKnBmn): *"looks good, build it"*; then *"merge if clean"*, *"run coderabbit"* (Codex had hit its limit), *"maybe have fable review also"* and *"merge when fable is clean"*.
+- **Members** (Score → Leaderboard on the website; Settings → More → Leaderboard in the app):
+  - **Scope:** Everyone, Following, or Your coach's team.
+  - **Window:** last 7 days, this month, or all time.
+  - **Your place:** your rank, the points needed to pass the next person, and how many places you moved in a week.
+  - **The board:** a podium, then rows.
+  - **What others see:** first name and last initial, points and tier, plus the photo for a public profile only. Your streak, training days, meal days and account id stay on your own row. Two switches, on the board and under Settings → Privacy:
+    - *Show me on leaderboards* is on by default.
+    - *Show me to my coach's team* is unanswered until asked. The team board shows only teammates who switched it on.
+- **Coaches** (the trainer and nutritionist Score pages: Your score · How it works · Leaderboard; a More row in the app):
+  - Every live listing of a role, ranked by the same Coach Score as `get_coach_scores` and `/api/coach/score`.
+  - **Climbers · 30 days** reads a nightly snapshot: `/api/cron/coach-score-snapshots` at 07:15 UTC.
+  - A coach not yet live sees where they would stand.
+  - ⚠ **The Score page subtitle had said "Top 4% of trainers on Shape", and the Tiers card "MASTER · TOP 4%", with no data behind either.** Both read the board and the live tier now.
+- **Not built: the preview's "In Austin" filter.** Listings have no city field; the only location is the private one on the coach application.
+- **Migration `2026-10-15-leaderboards.sql`, run by the owner (four times, once per privacy fix) and verified live, read-only, on the final version.**
+  - **Functions:** `shape_member_board` and `shape_coach_board` (authenticated; the coach board refuses non-coaches with 42501). `record_coach_score_snapshots` is service role only. `shape_coach_score_parts` is an internal helper the two boards call: the migration revokes it from public, anon and authenticated and grants it to nobody (the service role keeps Supabase's default execute, measured live).
+  - **Table:** `coach_score_snapshots`, RLS on, no policies.
+  - **The old boards:** `shape_leaderboard` and `shape_leaderboard_me` are closed to signed-in callers, because they returned full names.
+  - **State at merge:** every function pinned, anon refused everywhere. `score_ledger` has 0 rows, so the member boards start empty. There are 2 owned listings, neither live, so each coach board holds only its owner's own listing, marked not live, and only that owner sees it.
+- **Routes:** `/api/leaderboard` (rewritten; it falls back to the old board for Everyone if the migration is missing), `/api/coach/leaderboard`, `/api/me/leaderboard-privacy`, and the cron. All are in `RAW_ROUTES`.
+- **The app:** `BSLeaderboard.jsx` is carved out of the client module (window globals read at call time, its own `useShapeTr`). It has 65 new strings in all 13 locales.
+- ⚠ **CODEX FOUND EIGHT REAL DEFECTS ACROSS FOUR HEADS, THREE OF THEM PRIVACY.** Every one is fixed and guarded by a test that fails on the old code.
+  - **Privacy (P1):**
+    - Other members' streak, training days and meal days were returned to every board. They are now null in SQL and in the route.
+    - The switches route upserted the whole document from a stale read. It now does compare-and-set on `updated_at`, three tries, then 409.
+    - A private profile that opted into the team board sent its photo to teammates.
+  - **The boards (P2):**
+    - The podium labelled ties by position; it now labels by rank.
+    - "To pass" equalled the score and only tied it; it now says one point more.
+    - Names split on tabs or newlines were not shortened.
+  - **Saves out of order (P2):**
+    - Two privacy saves could answer out of order. They are now serialised (`lbPutPrivacy`, `ShapeLeaderboard.setPrivacy`).
+    - The app's Settings read could land after a save and undo it on screen.
+  - **The lesson:** *privacy on a public board is a column-by-column decision; check every column against the policy, not the scope's eligibility rule alone* (Fable's P1 below is the same lesson, one column later).
+- **CodeRabbit (one round, on the owner's word, on `d4c9620`):** 2 real findings, fixed in `b9cfe54`.
+  - The trainer Tiers card's "MASTER · TOP 4%" (above).
+  - `.lb-btn--on` drew `#04110f` on `var(--sh-accent)`, which moves to `#0a7a72` on the light paper (3.7:1). It uses `--sh-deep` now.
+  - A note on query cost was answered, not built: 0 ledger rows, and a `(user_id, earned_at)` index already exists. CodeRabbit withdrew it.
+- **Fable (a subagent review, on the owner's word, on `b9cfe54`):** 1 P1 and 7 smaller findings, all real. Six were fixed in `703de81`; the seventh (coaches seeing each other's stats) is the owner's call, below. Fable called the fixes and the #2372 merge clean.
+  - ⚠ **P1: EVERY ROW CARRIED THE MEMBER'S ACCOUNT ID, AND `get_display_names` (granted to every signed-in caller, no visibility check) TURNS ANY ID INTO A FULL NAME AND PHOTO.** A private profile on the team board, promised first name and initial only, was one RPC from its full name. `shape_member_board` returns an id on the caller's row only; every other row is keyed `row-<n>` for that answer.
+  - The pre-migration fallback published every member's photo (the old board never checked visibility); it publishes yours only.
+  - "To pass" at #60 named #50, because the board stopped at the top 50; the person just above you is returned now.
+  - The team board's footer said private profiles never appear (an opted-in one does); the Climbers bar read full behind someone at zero; the coach board said "updated nightly" of a live score (13 locales trimmed).
+  - `clientMeSettings.jsx` had gone CRLF → LF, so a 14-line change read as 2,300; restored.
+- **Verified:**
+  - `tests/leaderboards.test.mjs` (24) and `tests/leaderboards-ui.test.mjs` (13).
+  - `npm test` 7,037/7,037 on `28b7152`; on `d4c9620`, the 326 suites reading the changed files, 4,684/4,684; on `13d4698`, the 178 suites reading the files #2372 also touched, 2,787/2,787.
+  - Migration probes on a PostgreSQL 16 copy (privacy per scope, ties, day-one Climbers, grants); `tsc` clean; the app builds; previews at 1440 and 390 in both themes.
+  - CI green on the final head. Copilot declined on its quota; Codex reviewed four heads, then refused every later head on its usage limit.
+- **Written after the merge, and last**, per the owner.
+- ⚠ **REGISTERED, NOT DONE:**
+  - A city field on listings, for the "In Austin" filter.
+  - The app's coach Score page reads the member ledger. `/api/coach/score` is cookie-only, so the installed app's Bearer gets 401.
+  - Board cost at volume (CodeRabbit's note), worth measuring once the ledger has rows.
+  - **`get_display_names` answers any id with a full name and photo, whoever asks.** It predates this PR; about ten coach routes rely on it for their clients' names, so gating it on a relationship is its own change.
+  - **Owner:** the coach board shows every coach each other's active-client count and sessions-kept rate (as the approved preview did); Fable called it competitively sensitive. Kept until the owner says otherwise.
+
 ### 2026-10-15 — Coach Clients, Business, Goal and Score without the widget builder; Settings, the App page, the nav caret, Nora's Radio box, and Nora asks before she matches a coach
 
 - **Five PRs merged on 2026-10-15**, each on CI green on its final head. No migrations.
