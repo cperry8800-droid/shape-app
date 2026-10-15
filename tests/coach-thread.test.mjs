@@ -17,6 +17,19 @@ import { loadRealModule } from './helpers/load-real-module.mjs';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => readFileSync(join(ROOT, rel), 'utf8');
 const W = await import('../mobile-app/src/services/shapeWelcome.mjs');
+// The app's notification router, its own module since Codex's tenth round on #2360 (an app that
+// starts in a coach role never loads the client module). Run with a window that records what it
+// dispatches.
+const ROUTER = await import('../mobile-app/src/broadsheet/bsNotificationRoute.mjs');
+function routerWith(dispatch) {
+  class CustomEvent { constructor(type, init) { this.type = type; this.detail = init && init.detail; } }
+  return (route, data) => {
+    const saved = [globalThis.window, globalThis.CustomEvent];
+    globalThis.window = { dispatchEvent: dispatch };
+    globalThis.CustomEvent = CustomEvent;
+    try { return ROUTER.bsRouteNotification(route, data); } finally { [globalThis.window, globalThis.CustomEvent] = saved; }
+  };
+}
 const LOCALES = ['de', 'en', 'es', 'fr', 'ha', 'id', 'it', 'pcm', 'pt-BR', 'ru', 'tr', 'uk', 'vi'];
 const SQL = read('supabase-migrations/2026-10-15-coach-thread.sql');
 // The code, without its line comments (no string in this file carries a `--`).
@@ -435,13 +448,8 @@ test('app: the thread view loads its history by id, shows the welcome as a note,
 
 test('the new-client alert opens the thread: the app\'s router and the website\'s inbox both read "chat:<id>"', () => {
   const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
-  const at = client.indexOf('function bsRouteNotification(');
-  let depth = 0, i = client.indexOf(') {', at) + 2;
-  for (; i < client.length; i++) { if (client[i] === '{') depth++; else if (client[i] === '}' && --depth === 0) break; }
   const events = [];
-  const window = { dispatchEvent: (e) => events.push([e.type, e.detail]) };
-  class CustomEvent { constructor(type, init) { this.type = type; this.detail = init && init.detail; } }
-  const route = new Function('window', 'CustomEvent', `${client.slice(at, i + 1)}; return bsRouteNotification;`)(window, CustomEvent);
+  const route = routerWith((e) => events.push([e.type, e.detail]));
   assert.equal(route('chat:conv-9'), true);
   assert.deepEqual(events, [['shape:openConversation', { conversationId: 'conv-9' }]]);
   assert.equal(route('chat:'), false, 'no id, nothing to open');
@@ -464,12 +472,8 @@ test('the new-client alert opens the thread: the app\'s router and the website\'
 // ── Codex on #2360, fifth round ──────────────────────────────────────────────────────────────────
 test('the app opens the membership welcome ("home") and a new client with no thread ("client")', () => {
   const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
-  const at = client.indexOf('function bsRouteNotification(');
-  let depth = 0, i = client.indexOf(') {', at) + 2;
-  for (; i < client.length; i++) { if (client[i] === '{') depth++; else if (client[i] === '}' && --depth === 0) break; }
   const events = [];
-  class CustomEvent { constructor(type, init) { this.type = type; this.detail = init && init.detail; } }
-  const route = new Function('window', 'CustomEvent', `${client.slice(at, i + 1)}; return bsRouteNotification;`)({ dispatchEvent: (e) => events.push([e.type, e.detail]) }, CustomEvent);
+  const route = routerWith((e) => events.push([e.type, e.detail]));
   assert.equal(route('home', {}), true);
   assert.equal(route('client', { clientId: 'client-1' }), true);
   assert.equal(route('client', {}), false, 'no client named: nothing to open');
@@ -532,14 +536,21 @@ test('the app\'s thread shows a message once when the history and the live messa
 
 test('a tapped push opens the thread in the coach apps too', () => {
   const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
-  assert.match(client, /^Object\.assign\(window, \{ bsRouteNotification \}\);$/m, 'the router is shared with the coach shells');
+  assert.match(client, /^Object\.assign\(window, \{ bsRouteNotification \}\);$/m, 'still on window for older callers');
+  // ⚠ EVERY SHELL IMPORTS IT (Codex on #2360, tenth round): an app that starts in a coach role never
+  // loads the client module, so window.bsRouteNotification was missing there and a tapped push was lost.
+  assert.match(client, /^import \{ bsRouteNotification \} from '\.\/bsNotificationRoute\.mjs';$/m);
+  assert.doesNotMatch(client, /^function bsRouteNotification\(/m, 'one router, not a copy');
   const pros = read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx');
+  assert.match(pros, /^import \{ bsRouteNotification \} from '\.\/bsNotificationRoute\.mjs';$/m, 'the coach shells import the router');
+  assert.doesNotMatch(pros, /window\.bsRouteNotification/, 'never through window, which a coach-only start never fills');
   for (const shell of ['function BSTrainerAppInner(', 'function BSNutritionistAppInner(']) {
     const at = pros.indexOf(shell);
+    assert.ok(at > 0, shell);
     const body = pros.slice(at, pros.indexOf("window.removeEventListener('shape:pushRoute', fromPush); };", at) + 80);
-    assert.match(body, /const fromPush = \(e\) => \{ window\.__bsPushRoute = null; window\.bsRouteNotification\?\.\(e && e\.detail && e\.detail\.route\); \};/, shell);
+    assert.match(body, /const fromPush = \(e\) => \{ window\.__bsPushRoute = null; bsRouteNotification\(e && e\.detail && e\.detail\.route\); \};/, shell);
     assert.match(body, /window\.addEventListener\('shape:pushRoute', fromPush\);/, shell);
-    assert.match(body, /if \(pending\) \{ window\.__bsPushRoute = null; replay = setTimeout\(\(\) => window\.bsRouteNotification\?\.\(pending\), 0\); \}/, `${shell}: a push that landed before the shell mounted, replayed once every listener is up`);
+    assert.match(body, /if \(pending\) \{ window\.__bsPushRoute = null; replay = setTimeout\(\(\) => bsRouteNotification\(pending\), 0\); \}/, `${shell}: a push that landed before the shell mounted, replayed once every listener is up`);
     assert.match(body, /return \(\) => \{ clearTimeout\(replay\);/, `${shell}: an unmount cancels the replay`);
     assert.ok(body.indexOf("window.addEventListener('shape:openConversation', open);") < body.indexOf('const pending = window.__bsPushRoute;'), `${shell}: the conversation listener is up before the pending route fires`);
   }
@@ -589,12 +600,8 @@ test('a "New message" notification opens its thread: push, the app\'s list, and 
   assert.match(read('src/app/api/push/dispatch/route.ts'), /data: \{ route: pushRoute\(record\), type: record\.type \?\? 'general' \},/);
 
   const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
-  const at = client.indexOf('function bsRouteNotification(');
-  let depth = 0, i = client.indexOf(') {', at) + 2;
-  for (; i < client.length; i++) { if (client[i] === '{') depth++; else if (client[i] === '}' && --depth === 0) break; }
   const events = [];
-  class CustomEvent { constructor(type, init) { this.type = type; this.detail = init && init.detail; } }
-  const route = new Function('window', 'CustomEvent', `${client.slice(at, i + 1)}; return bsRouteNotification;`)({ dispatchEvent: (e) => events.push(e.detail) }, CustomEvent);
+  const route = routerWith((e) => events.push(e.detail));
   assert.equal(route('messages', { conversationId: 'conv-3' }), true);
   assert.deepEqual(events, [{ conversationId: 'conv-3' }]);
   assert.equal(route('messages', {}), false, 'no id: nothing to open');

@@ -19,6 +19,7 @@ import { coachIntakeView, screeningState } from '../services/coachIntake.mjs';
 import { bsDeriveCycle } from '../services/cyclePhase.mjs';
 import { BS_LISTING_GALLERY_MAX, BS_LISTING_CAPTION_MAX } from '../services/listingMedia.mjs';
 import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } from './bsNavShell.js';
+import { bsRouteNotification } from './bsNotificationRoute.mjs';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
 // front and the live sign-in token. A root-relative '/api/…' fetch reaches nothing in the
@@ -1150,15 +1151,16 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     };
     window.addEventListener('shape:openConversation', open);
     // A tapped push (push.js: shape:pushRoute, or window.__bsPushRoute when it landed before this
-    // shell mounted) goes through the member shell's router, whose "chat:<id>" opens the thread
+    // shell mounted) goes through the shared router (bsNotificationRoute.mjs, imported here: an app
+    // that starts in a coach role never loads the client module), whose "chat:<id>" opens the thread
     // through the listener above (Codex on #2360: a coach's new-client push opened nothing).
-    const fromPush = (e) => { window.__bsPushRoute = null; window.bsRouteNotification?.(e && e.detail && e.detail.route); };
+    const fromPush = (e) => { window.__bsPushRoute = null; bsRouteNotification(e && e.detail && e.detail.route); };
     window.addEventListener('shape:pushRoute', fromPush);
     // ⚠ REPLAYED AFTER EVERY LISTENER IS UP (Codex on #2360): shape:openClient is registered by a
     // later effect of this mount, so replaying here dispatched a cold-start "client:<id>" into nothing.
     const pending = window.__bsPushRoute;
     let replay = null;
-    if (pending) { window.__bsPushRoute = null; replay = setTimeout(() => window.bsRouteNotification?.(pending), 0); }
+    if (pending) { window.__bsPushRoute = null; replay = setTimeout(() => bsRouteNotification(pending), 0); }
     return () => { clearTimeout(replay); window.removeEventListener('shape:openConversation', open); window.removeEventListener('shape:pushRoute', fromPush); };
   }, []);
   useEffectBSP(() => bsCoachTourAutoShow(setShowTour), []);
@@ -6893,15 +6895,16 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     };
     window.addEventListener('shape:openConversation', open);
     // A tapped push (push.js: shape:pushRoute, or window.__bsPushRoute when it landed before this
-    // shell mounted) goes through the member shell's router, whose "chat:<id>" opens the thread
+    // shell mounted) goes through the shared router (bsNotificationRoute.mjs, imported here: an app
+    // that starts in a coach role never loads the client module), whose "chat:<id>" opens the thread
     // through the listener above (Codex on #2360: a coach's new-client push opened nothing).
-    const fromPush = (e) => { window.__bsPushRoute = null; window.bsRouteNotification?.(e && e.detail && e.detail.route); };
+    const fromPush = (e) => { window.__bsPushRoute = null; bsRouteNotification(e && e.detail && e.detail.route); };
     window.addEventListener('shape:pushRoute', fromPush);
     // ⚠ REPLAYED AFTER EVERY LISTENER IS UP (Codex on #2360): shape:openClient is registered by a
     // later effect of this mount, so replaying here dispatched a cold-start "client:<id>" into nothing.
     const pending = window.__bsPushRoute;
     let replay = null;
-    if (pending) { window.__bsPushRoute = null; replay = setTimeout(() => window.bsRouteNotification?.(pending), 0); }
+    if (pending) { window.__bsPushRoute = null; replay = setTimeout(() => bsRouteNotification(pending), 0); }
     return () => { clearTimeout(replay); window.removeEventListener('shape:openConversation', open); window.removeEventListener('shape:pushRoute', fromPush); };
   }, []);
   useEffectBSP(() => bsCoachTourAutoShow(setShowTour), []);

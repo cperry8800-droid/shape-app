@@ -46,6 +46,7 @@ import { bsMergeMise, bsPrepOrder, bsPrepMatch, bsPrepWeekKey, bsScaleQty } from
 import { bsMakeAheadIndex, bsPlanByDow, bsPlanMealsOn, bsPrepCovers, bsPrepDueTonight, bsPrepRecordsFor, bsYmdAdd, bsYmdIn } from '../services/prepAhead.mjs';
 import { bsJumpLine, bsJumpActive, bsJumpAtEnd, bsJumpScrollTop } from '../services/jumpRow.mjs';
 import { isShapeWelcome, shapeWelcomeShown } from '../services/shapeWelcome.mjs';
+import { bsRouteNotification } from './bsNotificationRoute.mjs';
 import { bsNormalizeProfileCustom, bsProfileWall, bsProfileShelf, bsProfileStartLine, bsProfileLine, bsStartLineState, bsValidStartDate, bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX, BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX, BS_PIN_KINDS, BS_PROFILE_PROMPTS, BS_COACH_PROMPTS, bsPinKindLabel, bsPinKindToken, bsPromptLabel, bsPromptToken } from '../services/profileCustom.mjs';
 import { bsOrchestrate, bsReplanCook, bsCookBlockingHold, BS_COOK_MODE, BS_ORCH, BS_SERIAL_REASON, BS_SERVE_ISSUE, bsProgressPct } from '../services/cookOrchestrator.mjs';
 import { bsTrackLanes, bsTrackLaneStatus, bsTrackWindow, bsCookNowMin, bsCookFinishAt, bsPlanEnd, bsHobOccupancy, bsHobTappable, bsDishColors, bsHeroHue, bsInkOn, BS_HOB_MAX } from '../services/cookBoard.mjs';
@@ -12234,48 +12235,6 @@ function bsPrepDays(dates) {
   try { return new Intl.ListFormat(loc, { style: 'long', type: 'conjunction' }).format(names); } catch (e) { return names.join(', '); }
 }
 
-// One map from a notification's route to the screen it opens, shared by the in-app list and a
-// tapped push (push.js hands its route to the shell), so the two cannot open different places.
-// Returns whether it handled the route; 'sessions' stays the Settings screen's own.
-function bsRouteNotification(route, data) {
-  if (typeof route !== 'string') return false;
-  // A "New message" notification (route "messages") opens its conversation (fix 3a).
-  if (route === 'messages' && data && typeof data.conversationId === 'string' && data.conversationId) route = 'chat:' + data.conversationId;
-  try {
-    // The night-before prep reminder ("prep:<recipe>") opens the cook screen on that recipe.
-    if (route.startsWith('prep:') && route.length > 5) {
-      window.dispatchEvent(new CustomEvent('shape:openPrep', { detail: { slug: route.slice(5) } }));
-      return true;
-    }
-    // A conversation ("chat:<id>", e.g. a coach's new-client alert, fix 3a) opens that thread, in
-    // either shell (both answer shape:openConversation).
-    if (route.startsWith('chat:') && route.length > 5) {
-      window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { conversationId: route.slice(5) } }));
-      return true;
-    }
-    // The membership welcome ("home") opens the member's Home (Codex on #2360: it opened nothing).
-    if (route === 'home') {
-      window.dispatchEvent(new CustomEvent('shape:goHome'));
-      return true;
-    }
-    // A coach's new-client alert when no thread could open ("client" with data.clientId in the list,
-    // "client:<id>" from a push, which carries only its route): that client's page in the coach app
-    // (both coach shells answer shape:openClient).
-    const clientId = route.startsWith('client:') ? route.slice(7)
-      : route === 'client' && data && typeof data.clientId === 'string' ? data.clientId : '';
-    if (clientId) {
-      window.dispatchEvent(new CustomEvent('shape:openClient', { detail: { clientId } }));
-      return true;
-    }
-    // Waitlist invite ("coach:<role>:<id>") → the marketplace on that role, so the invited client
-    // can find the coach and book (first-dibs applies).
-    if (route.startsWith('coach:')) {
-      window.dispatchEvent(new CustomEvent('shape:openMarket', { detail: { role: route.split(':')[1] || null } }));
-      return true;
-    }
-  } catch (e) { /* no window events: nothing to open */ }
-  return false;
-}
 
 // What a menu row says about prep. A made-ahead meal (`ahead`, from bsPlanMealsOn) is prepped
 // only when a prep covers it on its day (bsPrepCovers). On today's menu, until the meal's time
