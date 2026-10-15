@@ -198,6 +198,9 @@ function _dashRecordFromLive(row, ov, notesByClient, progressRead) {
   return {
     progressRead: progressRead || { state: ov ? "ready" : notesPending ? "loading" : "unavailable", checkedAt: ov ? new Date().toISOString() : null },
     profile: { id: row.id, name: row.name, isNew: !!row.isNew, status: row.status || null },
+    // The health screening for Needs you (client-onboarding review M17): the overview's
+    // 'flagged' | 'missing' | 'clear' | 'unknown'; null before the overview has answered.
+    screening: ov && ov.screening ? ov.screening : null,
     trainingAdherence: stats && stats.sessionsPlanned
       ? { pct: Math.round((stats.sessionsCompleted / stats.sessionsPlanned) * 100), done: stats.sessionsCompleted, planned: stats.sessionsPlanned }
       : null,

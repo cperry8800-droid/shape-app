@@ -160,56 +160,8 @@ create policy "anon_insert_provider_applications"
   on public.provider_applications for insert
   to anon, authenticated with check (true);
 
-create table if not exists public.client_intakes (
-  user_id uuid primary key references auth.users on delete cascade,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  first_name text, last_name text, dob date, sex text,
-  primary_goal text, experience_level text, workout_frequency text,
-  injuries text, medical text, dietary text, emergency_contact text,
-  accountability_style text, interests text, budget text,
-  details jsonb not null default '{}'::jsonb
-);
-
-create index if not exists client_intakes_primary_goal_idx on public.client_intakes (primary_goal);
-
-create or replace function public.client_intakes_touch_updated_at()
-returns trigger language plpgsql as $$
-begin new.updated_at = now(); return new; end;
-$$;
-
-drop trigger if exists client_intakes_touch on public.client_intakes;
-create trigger client_intakes_touch before update on public.client_intakes
-  for each row execute function public.client_intakes_touch_updated_at();
-
-alter table public.client_intakes enable row level security;
-drop policy if exists "users_insert_own_intake" on public.client_intakes;
-create policy "users_insert_own_intake" on public.client_intakes for insert
-  to authenticated with check (user_id = auth.uid());
-drop policy if exists "users_read_own_intake" on public.client_intakes;
-create policy "users_read_own_intake" on public.client_intakes for select
-  to authenticated using (user_id = auth.uid());
-drop policy if exists "users_update_own_intake" on public.client_intakes;
-create policy "users_update_own_intake" on public.client_intakes for update
-  to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
-
-drop policy if exists "providers_read_subscriber_intakes" on public.client_intakes;
-create policy "providers_read_subscriber_intakes"
-  on public.client_intakes for select
-  to authenticated
-  using (
-    exists (
-      select 1
-      from public.subscriptions s
-      left join public.trainers t
-        on t.id = s.provider_id and s.provider_role = 'trainer'
-      left join public.nutritionists n
-        on n.id = s.provider_id and s.provider_role = 'nutritionist'
-      where s.client_id = client_intakes.user_id
-        and s.status in ('active','trialing')
-        and (t.owner_id = auth.uid() or n.owner_id = auth.uid())
-    )
-  );
+-- client_intakes was retired 2026-10-15 (supabase-migrations/2026-10-15-coach-client-intake.sql):
+-- it had no reader, and the intake lives in user_goals, read by coaches through get_client_intake.
 
 create table if not exists public.client_profiles (
   user_id uuid primary key references auth.users(id) on delete cascade,

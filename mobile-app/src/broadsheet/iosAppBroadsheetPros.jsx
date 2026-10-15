@@ -15,6 +15,7 @@ import { bsAuthorStep, bsStepPerSideMin, BS_STATIONS } from '../services/cookabl
 import { bsSelfPlansSummary } from '../services/selfPlansSummary.mjs';
 import { bsCaseVitals } from '../services/caseVitals.mjs';
 import { bsVarianceCopy } from '../../../public/newdesign/varianceBand.mjs';
+import { coachIntakeView, screeningState } from '../services/coachIntake.mjs';
 import { bsDeriveCycle } from '../services/cyclePhase.mjs';
 import { BS_LISTING_GALLERY_MAX, BS_LISTING_CAPTION_MAX } from '../services/listingMedia.mjs';
 import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } from './bsNavShell.js';
@@ -4504,15 +4505,27 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   }, [clientUid]);
   const varRead = clientVar ? bsVarianceCopy(clientVar) : null;
   // Check-in kit (coach read): latest weekly check-in, health screening, girths.
-  const [cKit, setCKit] = useStateBSP({ checkins: [], health: null, meas: [] });
+  // `screening` is 'clear' | 'flagged' | 'missing' | 'unknown' (services/coachIntake.mjs): a read
+  // that failed is 'unknown', never "no health profile on file" (client-onboarding review M17).
+  // `intake` is who they are (get_client_intake): the goal, the coaching answer, their training and
+  // diet preferences, as the rows coachIntakeView builds.
+  const [cKit, setCKit] = useStateBSP({ checkins: [], health: null, meas: [], screening: null, intake: null });
   useEffectBSP(() => {
     if (!clientUid || !window.ShapeClientKit) return undefined;
     let on = true;
+    const kit = window.ShapeClientKit;
+    const settle = (p) => (p ? p.then((data) => ({ ok: true, data }), () => ({ ok: false })) : Promise.resolve({ ok: false }));
     Promise.all([
-      window.ShapeClientKit.checkins(clientUid, 2),
-      window.ShapeClientKit.health(clientUid),
-      window.ShapeClientKit.measurements(clientUid),
-    ]).then(([checkins, health, meas]) => { if (on) setCKit({ checkins: checkins || [], health: health || null, meas: meas || [] }); }).catch(() => {});
+      kit.checkins(clientUid, 2),
+      settle(kit.healthRead ? kit.healthRead(clientUid) : null),
+      kit.measurements(clientUid),
+      settle(kit.intake ? kit.intake(clientUid) : null),
+    ]).then(([checkins, health, meas, intake]) => {
+      if (!on) return;
+      const doc = health.ok ? health.data : null;
+      const screening = doc ? screeningState(doc, false) : screeningState(null, !health.ok || !(intake.ok && intake.data));
+      setCKit({ checkins: checkins || [], health: doc, meas: meas || [], screening, intake: intake.ok ? coachIntakeView(intake.data, tr) : null });
+    }).catch(() => {});
     return () => { on = false; };
   }, [clientUid]);
   // Accountability penalties (coach read) — recent, un-waived, for the Waive affordance.
@@ -5545,9 +5558,46 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
                 <div style={{ marginTop: 11, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:case.screeningShared', { defaultValue: 'Shared with linked coaches for safety · completed {date}', date: h.consentAt ? new Date(h.consentAt).toLocaleDateString(coachLocale()) : '' })}</div>
               </div>
             );
-          })() : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:case.noHealthRedact', { defaultValue: 'NO HEALTH PROFILE ON FILE' })} /> : emptyNote(tr('coach:case.noHealth', { defaultValue: 'No health profile on file yet' })))}
+          })() : cKit.screening === 'missing' ? (
+            <div style={{ borderLeft: `3px solid ${t.RUST}`, padding: '2px 0 2px 11px' }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.RUST, fontWeight: 800 }}>{tr('coach:case.screeningNotCompleted', { defaultValue: 'Not completed' })}</div>
+              <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.45 }}>{tr('coach:case.screeningAsk', { defaultValue: 'Ask them to complete the health screening before you program. It is in Settings, under Health profile.' })}</div>
+            </div>
+          ) : cKit.screening === 'unknown' && cKit.intake ? emptyNote(tr('coach:case.screeningUnread', { defaultValue: 'Their health screening could not be loaded. Try again in a moment.' }))
+            : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:case.noHealthRedact', { defaultValue: 'NO HEALTH PROFILE ON FILE' })} /> : emptyNote(tr('coach:case.noHealth', { defaultValue: 'No health profile on file yet' })))}
         </div>
       )}
+
+      {/* WHO THEY ARE — the goal they picked, whether they want coaching, their training and diet
+          preferences (client-onboarding review, fix 2c: H8). Only when there is something to show. */}
+      {clientUid && cKit.intake && (cKit.intake.goal || cKit.intake.coaching || cKit.intake.training.length > 0 || cKit.intake.nutrition.length > 0) && (() => {
+        const it = cKit.intake;
+        const COACHING = {
+          training: tr('onboarding:coaching.optTraining', { defaultValue: 'Yes, a trainer' }),
+          nutrition: tr('onboarding:coaching.optNutrition', { defaultValue: 'Yes, a nutritionist' }),
+          both: tr('onboarding:coaching.optBoth', { defaultValue: 'Yes, both' }),
+          no: tr('onboarding:coaching.optNo', { defaultValue: 'Not right now' }),
+        };
+        const rows = [
+          [tr('coach:case.intakeGoal', { defaultValue: 'Goal' }), it.goal || (it.goalShared ? null : tr('coach:case.intakeGoalPrivate', { defaultValue: 'Kept private' }))],
+          [tr('coach:case.intakeCoaching', { defaultValue: 'Looking for coaching' }), it.coaching ? COACHING[it.coaching] : null],
+          ...it.training.map((r) => [r.label, r.value]),
+          ...it.nutrition.map((r) => [r.label, r.value]),
+        ].filter(([, v]) => v);
+        return (
+          <div style={{ marginTop: 22 }}>
+            {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.intake', { defaultValue: 'WHO THEY ARE · INTAKE' })} />}
+            <div style={{ borderLeft: `3px solid ${heat}`, padding: '2px 0 2px 11px' }}>
+              {rows.map(([l, v]) => (
+                <div key={l} style={{ marginTop: 10 }}>
+                  <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>{l}</div>
+                  <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.45 }}>{v}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* BODY — latest measurements (dot-leader rows). */}
       {clientUid && cKit.meas.length > 0 && (

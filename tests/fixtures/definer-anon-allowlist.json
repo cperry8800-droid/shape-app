@@ -97,10 +97,6 @@
       "class": "coach-gated",
       "note": "Returns null unless is_coach_on_client(p_user_id), and honours the client's `share` opt-out."
     },
-    "get_client_health_profile": {
-      "class": "coach-gated",
-      "note": "Row only when is_coach_on_client(p_user_id) holds."
-    },
     "get_client_measurements": {
       "class": "coach-gated",
       "note": "Rows only when is_coach_on_client(p_user_id) holds."
@@ -336,6 +332,16 @@
     }
   },
   "registeredFindings": [],
-  "fixedAfterCapture": [],
+  "fixedAfterCapture": [
+    {
+      "name": "get_client_health_profile",
+      "fixedBy": "2026-10-15-coach-client-intake.sql",
+      "fix": "EXECUTE revoked from public and anon (authenticated and service_role keep it); the coach gate is now is_coach_with_client, which also counts a recent session or paid session purchase.",
+      "wasEntry": {
+        "class": "coach-gated",
+        "note": "Row only when is_coach_on_client(p_user_id) holds."
+      }
+    }
+  ],
   "registeredPinFindings": []
 }
