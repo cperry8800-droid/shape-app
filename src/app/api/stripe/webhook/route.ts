@@ -539,9 +539,16 @@ export async function POST(request: Request) {
         const moneyMoved = session.payment_status === 'paid' || session.payment_status === 'no_payment_required';
 
         let currentPeriodEnd: string | null = null;
+        // ⚠ A REDELIVERED COMPLETION COULD BRING A CANCELLED SUBSCRIPTION BACK (client-onboarding review,
+        // L9). This wrote 'active' whatever had happened since: Stripe retries an event for days, so a
+        // completion delivered again after customer.subscription.deleted (or arriving after it) put a
+        // cancelled membership or coaching subscription back to active. Stripe's own subscription,
+        // read here already, decides: one it says has ended is recorded as ended, and starts nothing.
+        let subEnded = false;
         if (typeof session.subscription === 'string') {
           const sub = await stripe.subscriptions.retrieve(session.subscription);
           currentPeriodEnd = isoOrNull(sub.items.data[0]?.current_period_end);
+          subEnded = sub.status === 'canceled' || sub.status === 'incomplete_expired';
         }
 
         if (session.metadata?.plan === 'shape_platform') {
@@ -553,12 +560,12 @@ export async function POST(request: Request) {
               typeof session.subscription === 'string'
                 ? session.subscription
                 : session.subscription?.id ?? null,
-            status: 'active',
+            status: subEnded ? 'canceled' : 'active',
             price_cents: priceCents || null,
             current_period_end: currentPeriodEnd,
           });
           // Fix 3a: a welcome from Shape when the membership starts, once per member.
-          if (membershipSaved && moneyMoved) await welcomeMember(admin, clientId);
+          if (membershipSaved && moneyMoved && !subEnded) await welcomeMember(admin, clientId);
           break;
         }
 
@@ -572,7 +579,7 @@ export async function POST(request: Request) {
             typeof session.subscription === 'string'
               ? session.subscription
               : session.subscription?.id ?? null,
-          status: 'active',
+          status: subEnded ? 'canceled' : 'active',
           price_cents: priceCents || null,
           current_period_end: currentPeriodEnd,
         };
@@ -615,7 +622,7 @@ export async function POST(request: Request) {
         // the coach thread with Shape's welcome, alert and email the coach with the client's name
         // and links, and email the member. It used to send a nameless "New subscriber" bell even
         // when the save above had failed. Each part sends once (src/lib/coach-thread.ts).
-        if (!subErr && moneyMoved && providerId && (providerRole === 'trainer' || providerRole === 'nutritionist')) {
+        if (!subErr && moneyMoved && !subEnded && providerId && (providerRole === 'trainer' || providerRole === 'nutritionist')) {
           await startCoaching(admin, {
             clientId,
             providerRole,
@@ -662,14 +669,17 @@ export async function POST(request: Request) {
         const status = event.type === 'customer.subscription.deleted' ? 'canceled' : sub.status;
         const currentPeriodEnd = isoOrNull(sub.items.data[0]?.current_period_end);
 
-        await admin
+        // ⚠ A CANCELLED SUBSCRIPTION STAYS CANCELLED (L9). Stripe never reopens one, so an update
+        // event that still says otherwise is an older one delivered late, and moved the row back.
+        const notReopened = <Q extends { neq: (c: string, v: string) => Q }>(q: Q) => (status === 'canceled' ? q : q.neq('status', 'canceled'));
+        await notReopened(admin
           .from('subscriptions')
           .update({ status, current_period_end: currentPeriodEnd })
-          .eq('stripe_subscription_id', sub.id);
-        const { error: platformError } = await admin
+          .eq('stripe_subscription_id', sub.id));
+        const { error: platformError } = await notReopened(admin
           .from('platform_subscriptions')
           .update({ status, current_period_end: currentPeriodEnd })
-          .eq('stripe_subscription_id', sub.id);
+          .eq('stripe_subscription_id', sub.id));
         if (platformError && platformError.code !== '42P01') {
           console.warn('[shape-app] platform subscription update failed:', platformError.message);
         }

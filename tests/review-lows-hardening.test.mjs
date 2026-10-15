@@ -54,11 +54,11 @@ const USER = { id: UID, email: 'priya@example.invalid' };
 function recorder({ tables = {}, rpc = null, storage = null, deleteUser = null } = {}) {
   const calls = [];
   const from = (table) => {
-    const st = { table, op: 'select', filters: [], payload: null, opts: null, inFilter: null, order: null, range: null };
+    const st = { table, op: 'select', filters: [], neqs: [], payload: null, opts: null, inFilter: null, order: null, range: null };
     const rows = () => (tables[table] = tables[table] ?? []);
     const run = () => {
       calls.push(st);
-      let hit = rows().filter((r) => st.filters.every(([c, v]) => r[c] === v) && (!st.inFilter || st.inFilter[1].includes(r[st.inFilter[0]])));
+      let hit = rows().filter((r) => st.filters.every(([c, v]) => r[c] === v) && st.neqs.every(([c, v]) => r[c] !== v) && (!st.inFilter || st.inFilter[1].includes(r[st.inFilter[0]])));
       if (st.op === 'insert' || st.op === 'upsert') {
         const row = { id: `${table}-${rows().length + 1}`, ...st.payload };
         rows().push(row);
@@ -81,7 +81,8 @@ function recorder({ tables = {}, rpc = null, storage = null, deleteUser = null }
       in(c, v) { st.inFilter = [c, v]; return q; },
       order(c, o) { st.order = [c, o]; return q; },
       range(a, b) { st.range = [a, b]; return q; },
-      limit() { return q; }, neq() { return q; }, gte() { return q; }, lte() { return q; }, gt() { return q; }, lt() { return q; },
+      neq(c, v) { st.neqs.push([c, v]); return q; },
+      limit() { return q; }, gte() { return q; }, lte() { return q; }, gt() { return q; }, lt() { return q; },
       is() { return q; }, not() { return q; }, or() { return q; }, ilike() { return q; }, filter() { return q; },
       maybeSingle: one, single: one,
       then(res, rej) { return Promise.resolve(run()).then(res, rej); },
@@ -466,7 +467,7 @@ test('L10: a Stripe return path stays on this origin', () => {
 });
 
 // ── L11 + L13: the webhook ─────────────────────────────────────────────────────────────────
-async function runWebhook(event, { tables = {}, onboarding = [] } = {}) {
+async function runWebhook(event, { tables = {}, onboarding = [], subStatus = 'active' } = {}) {
   const platformFee = await import(pathToFileURL(join(ROOT, 'src/lib/platform-fee.mjs')).href);
   const coachOrigin = await import(pathToFileURL(join(ROOT, 'src/lib/coach-origin.mjs')).href);
   const retryable = await loadRealModule(join(ROOT, 'src/lib/db-retryable.ts'), { typescript: true });
@@ -476,7 +477,7 @@ async function runWebhook(event, { tables = {}, onboarding = [] } = {}) {
     typescript: true,
     registry: new Map([
       ['next/server', nextServer],
-      ['@/lib/stripe', { stripe: { webhooks: { constructEvent: (raw) => JSON.parse(raw) }, paymentIntents: { retrieve: async () => ({ application_fee_amount: 0 }) }, subscriptions: { retrieve: async () => ({ items: { data: [{ current_period_end: 1800000000 }] } }) } } }],
+      ['@/lib/stripe', { stripe: { webhooks: { constructEvent: (raw) => JSON.parse(raw) }, paymentIntents: { retrieve: async () => ({ application_fee_amount: 0 }) }, subscriptions: { retrieve: async () => ({ status: subStatus, items: { data: [{ current_period_end: 1800000000 }] } }) } } }],
       ['@/lib/supabase/admin', { createAdminClient: () => admin.client }],
       ['@/lib/notify', { createNotification: async () => true }],
       ['@/lib/platform-fee', platformFee],
@@ -544,6 +545,44 @@ test('fix 3a (Codex on #2360): a subscription starts the coaching, and a members
     await runWebhook(sub('checkout.session.completed', status, { plan: 'shape_platform' }), { onboarding });
     assert.deepEqual(onboarding.map(([k]) => k), starts ? ['member'] : [], `membership ${status}`);
   }
+});
+
+test('onboarding review L9: a redelivered completion, or a late update, never brings a cancelled subscription back', async () => {
+  const sub = (metadata) => ({ id: 'evt_s9', type: 'checkout.session.completed', data: { object: {
+    id: 'cs_sub_9', mode: 'subscription', payment_status: 'paid', subscription: 'sub_9', customer: 'cus_9', metadata: { client_id: UID, price_cents: '10000', ...metadata },
+  } } });
+  const coach = { provider_id: '4', provider_role: 'trainer', origin: 'marketplace', fee_bps: '1500' };
+  for (const [subStatus, ended] of [['canceled', true], ['incomplete_expired', true], ['active', false], ['past_due', false]]) {
+    const onboarding = [];
+    const r = await runWebhook(sub(coach), { onboarding, subStatus });
+    assert.equal(r.status, 200);
+    const [row] = stmts(r.admin.calls, 'subscriptions', 'upsert');
+    assert.equal(row.payload.status, ended ? 'canceled' : 'active', `coaching, Stripe says ${subStatus}`);
+    assert.deepEqual(onboarding.map(([k]) => k), ended ? [] : ['coach'], `an ended subscription starts no coaching (${subStatus})`);
+    const member = [];
+    const m = await runWebhook(sub({ plan: 'shape_platform' }), { onboarding: member, subStatus });
+    const [mrow] = stmts(m.admin.calls, 'platform_subscriptions', 'upsert');
+    assert.equal(mrow.payload.status, ended ? 'canceled' : 'active', `membership, Stripe says ${subStatus}`);
+    assert.deepEqual(member.map(([k]) => k), ended ? [] : ['member'], `an ended membership sends no welcome (${subStatus})`);
+  }
+
+  const changed = (type, status) => ({ id: 'evt_u9', type, data: { object: { id: 'sub_9', status, items: { data: [{ current_period_end: 1800000000 }] } } } });
+  const tables = () => ({
+    subscriptions: [{ stripe_subscription_id: 'sub_9', status: 'canceled' }],
+    platform_subscriptions: [{ stripe_subscription_id: 'sub_9', status: 'canceled' }],
+  });
+  const late = await runWebhook(changed('customer.subscription.updated', 'active'), { tables: tables() });
+  assert.equal(late.status, 200);
+  assert.equal(late.admin.tables.subscriptions[0].status, 'canceled', 'an update delivered after the cancellation leaves it cancelled');
+  assert.equal(late.admin.tables.platform_subscriptions[0].status, 'canceled', 'the membership too');
+  for (const t of ['subscriptions', 'platform_subscriptions']) {
+    assert.deepEqual(stmts(late.admin.calls, t, 'update')[0].neqs, [['status', 'canceled']], `${t}: the update skips a cancelled row`);
+  }
+  const live = await runWebhook(changed('customer.subscription.updated', 'past_due'), { tables: { subscriptions: [{ stripe_subscription_id: 'sub_9', status: 'active' }] } });
+  assert.equal(live.admin.tables.subscriptions[0].status, 'past_due', 'a live subscription still follows Stripe');
+  const gone = await runWebhook(changed('customer.subscription.deleted', 'active'), { tables: { subscriptions: [{ stripe_subscription_id: 'sub_9', status: 'active' }] } });
+  assert.equal(gone.admin.tables.subscriptions[0].status, 'canceled', 'a deletion still cancels');
+  assert.deepEqual(stmts(gone.admin.calls, 'subscriptions', 'update')[0].neqs, [], 'and is not filtered');
 });
 
 test('L11: a Connect account\'s status lands on the row holding ITS id, not the row its metadata names', async () => {
