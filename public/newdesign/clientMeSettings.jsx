@@ -198,6 +198,9 @@ function ClientMeSettings() {
   // rendering "Off" for a member who had turned it ON would show them the
   // opposite of their own choice, and the next tap would write that back.
   const [agePublic, setAgePublic] = React.useState(null);
+  // The two leaderboard switches (leaderboards.jsx). ⚠ A FAILED READ SHOWS "—" AND REFUSES THE
+  // TAP, as the age row does: flipping an unread value would write a guess.
+  const [lbPrivacy, saveLbPrivacy] = (typeof useLeaderboardPrivacy === "function" ? useLeaderboardPrivacy : () => [{ kind: "error" }, () => Promise.resolve(false)])();
   // ⚠ ONE WRITE WINS. Two quick taps start two PUTs whose responses can land out
   // of order, and a rollback from the FIRST would otherwise overwrite the choice
   // the SECOND already saved — leaving this row disagreeing with the stored
@@ -254,6 +257,13 @@ function ClientMeSettings() {
     } catch (e) { /* still unknown */ }
     if (token !== ageWriteRef.current) return;
     showToast("We couldn't confirm that — refresh to check.");
+  }
+
+  async function toggleLeaderboard(key) {
+    if (lbPrivacy.kind !== "ready") { showToast("Couldn't load this setting — refresh and try again."); return; }
+    const next = key === "teamBoard" ? lbPrivacy.value.teamBoard !== true : !lbPrivacy.value.leaderboard;
+    const ok = await saveLbPrivacy({ [key]: next });
+    showToast(ok ? "Saved." : "That didn't save. Your setting is unchanged; try again.");
   }
 
   async function toggleAgePublic() {
@@ -530,6 +540,10 @@ function ClientMeSettings() {
           {/* Your coaches always see your age for the clients they work with —
               that is the server's rule (member_dobs_for_viewer), not this row's. */}
           <Row label="Show my age on my profile" value={agePublic == null ? "—" : agePublic ? "On" : "Off"} action="TOGGLE" onAction={toggleAgePublic} />
+          {/* Leaderboards: off takes you off every member board but your own view of it. The team
+              board is off until you turn it on, because it tells teammates you share a coach. */}
+          <Row label="Show me on leaderboards" value={lbPrivacy.kind !== "ready" ? "—" : lbPrivacy.value.leaderboard ? "On" : "Off"} action="TOGGLE" onAction={() => toggleLeaderboard("leaderboard")} />
+          <Row label="Show me to my coach’s team" value={lbPrivacy.kind !== "ready" ? "—" : lbPrivacy.value.teamBoard === true ? "On" : "Off"} action="TOGGLE" onAction={() => toggleLeaderboard("teamBoard")} />
         </Card>
       </div>
 

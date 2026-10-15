@@ -19,6 +19,11 @@ function NutritionistScorePage() {
   const [headline, setHeadline] = React.useState({ title: "5,340", eyebrow: "COACH SCORE · MASTER" });
   const [tierLabel, setTierLabel] = React.useState("MASTER");
 
+  // Your score · Leaderboard (owner, 2026-10-15: "we should have a members and coaches
+  // leaderboard"). The board is leaderboards.jsx's; the subtitle reads your rank off it.
+  const [view, setView] = React.useState("score");
+  const standing = useCoachStanding("nutritionist");
+
   React.useEffect(() => {
     let alive = true;
     fetch('/api/coach/score?role=nutritionist', { credentials: 'same-origin' })
@@ -134,11 +139,10 @@ function NutritionistScorePage() {
       payoutCard={nutriPayoutCard}
       eyebrow={headline.eyebrow}
       title={headline.title}
-      subtitle="Your coach score drives marketplace ranking, verified badge, and payout tier."
-      actions={
-        <button onClick={() => { const el = document.getElementById("score-earn"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }} style={{ background: "transparent", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" }}>How it works</button>
-      }
+      subtitle={coachStandingLine("nutritionist", standing)}
+      actions={<CoachScoreActions view={view} onView={setView} />}
     >
+      {view === "board" ? <CoachLeaderboard role="nutritionist" /> : (
       <div style={{ display: "grid", gap: 16 }}>
         {tiersCard}
         <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 16, alignItems: "start" }}>
@@ -147,6 +151,7 @@ function NutritionistScorePage() {
         </div>
         <div id="score-earn" style={{ scrollMarginTop: 80 }}>{earnCard}</div>
       </div>
+      )}
     </DashPage>
   );
 }

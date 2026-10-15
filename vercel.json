@@ -10,6 +10,10 @@
       "schedule": "0 7 * * *"
     },
     {
+      "path": "/api/cron/coach-score-snapshots",
+      "schedule": "15 7 * * *"
+    },
+    {
       "path": "/api/cron/credential-expiry",
       "schedule": "0 8 * * 1"
     },

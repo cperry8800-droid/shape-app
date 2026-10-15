@@ -337,7 +337,7 @@ const UNCOVERED = new Set([
   'Client::BSDataCompliancePage', 'Client::BSDayBriefPreview',
   'Client::BSFindCoachBar', 'Client::BSFollowSuggestions',
   'Client::BSHelpPage',
-  'Client::BSKitchenCard', 'Client::BSLeaderboard', 'Client::BSLegalActions',
+  'Client::BSKitchenCard', 'Client::BSLegalActions',
   'Client::BSLogActivity',
   'Client::BSMealLogged', 'Client::BSMessageComposer', 'Client::BSMoodSheet',
   'Client::BSNoraMemoryPage', 'Client::BSNoraProfile',
@@ -850,9 +850,13 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // translated whole (client-onboarding review M2, fix 2b: it was English in all 13 languages),
   // its 31 hardcoded strings keyed under onboarding:health.* with the questions and condition
   // chips keyed by stable ids. Its line left UNCOVERED.
-  assert.equal(noneStrings, 719, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  // ⚠ AND noneStrings 719 -> 711, none.length 88 -> 87: the leaderboard (2026-10-15) was rebuilt
+  // as its own module, BSLeaderboard.jsx, with the member boards, the coach board and the privacy
+  // switches, every string keyed under score:board.* in all 13 locales. Its old copy in the client
+  // module (eight hardcoded strings) is gone, and its line left UNCOVERED.
+  assert.equal(noneStrings, 711, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
   assert.equal(part.length, 34, 'partial-surface count moved — regenerate PARTIAL and the record');
-  assert.equal(none.length, 88, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  assert.equal(none.length, 87, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned
