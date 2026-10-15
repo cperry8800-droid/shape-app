@@ -468,24 +468,37 @@ function CoachAccountSettings({ accountId }) {
     try { const lib=await cmeSettingsSync();await lib.saveSettingsPatch(window.shapeDb,patch,uid);return null; }
     catch(e) { return e.message || "Could not save your profile details."; }
   }
-  const mono = "'JetBrains Mono', monospace";
-  const btn = (danger) => ({ background: "transparent", color: danger ? "var(--sh-danger, #e07856)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", border: `1px solid ${danger ? "rgba(224,120,86,0.4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.2)"}`, padding: "14px 16px", borderRadius: 10, fontSize: 13, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif", textAlign: "left" });
+  // ⚠ THE SAME PLATES AS THE REST OF SETTINGS — owner, 2026-10-15: "improve look and layout of
+  // this on settings page in dashboard". This section was a 900px column centred under full-width
+  // plates, with a bare heading and its own rounded cards, so the page changed width and style
+  // halfway down. It uses the page's own card now (dash-plate, the mono eyebrow over its ledger),
+  // the two short cards share a row, and the danger zone's eyebrow is the danger colour.
+  const plate = (dac) => ({ "--dac": dac, paddingLeft: 24 });
+  const note = { margin: "0 0 14px", fontSize: 12.5, lineHeight: 1.5, color: "var(--sh-ink2, #a09b94)" };
+  const btn = (danger) => ({ background: "transparent", color: danger ? "var(--sh-danger, #e07856)" : "var(--sh-ink, #f2ede4)", border: `1px solid ${danger ? "rgba(224,120,86,0.45)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.2)"}`, padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif", textAlign: "left" });
   return (
-    <section style={{ maxWidth: 900, margin: "0 auto", padding: "26px 0 34px" }}>
-      <div style={{marginBottom:24}}>
-        <h2 style={{fontSize:18,margin:"0 0 8px"}}>Profile details</h2>
-        <p style={{fontSize:13,color:"var(--sh-ink2, #a09b94)"}}>Your name, handle, location and links are shared with the app. Manage your bio, credentials and listing on your profile.</p>
-        {error && <p role="alert">{error} <button type="button" onClick={load}>Retry</button></p>}
-        <button type="button" disabled={!accountId || !details} style={btn(false)} onClick={()=>setEditing(true)}>Edit profile details</button>
-        {editing && <EditProfileModal initial={details} accountId={accountId} onClose={()=>setEditing(false)} onPersist={persist} onSaved={patch=>setDetails({...details,...patch})} />}
+    <React.Fragment>
+      <div className="dk-3up" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16, marginTop: 16 }}>
+        <div className="dash-plate" style={plate("var(--sh-accent, #2ee0c4)")}>
+          <div className="dash-eyebrow">Profile details</div>
+          <div className="dash-ledger" />
+          <p style={note}>Your name, handle, location and links are shared with the app. Manage your bio, credentials and listing on your profile.</p>
+          {error && <p role="alert" style={{ ...note, color: "var(--sh-danger, #e07856)" }}>{error} <button type="button" onClick={load} style={{ ...btn(false), padding: "4px 10px", marginLeft: 6 }}>Retry</button></p>}
+          <button type="button" disabled={!accountId || !details} style={{ ...btn(false), opacity: (!accountId || !details) ? 0.5 : 1 }} onClick={()=>setEditing(true)}>Edit profile details</button>
+          {editing && <EditProfileModal initial={details} accountId={accountId} onClose={()=>setEditing(false)} onPersist={persist} onSaved={patch=>setDetails({...details,...patch})} />}
+        </div>
+        <div className="dash-plate" style={plate("var(--sh-accent, #2ee0c4)")}>
+          <div className="dash-eyebrow">App tour</div>
+          <div className="dash-ledger" />
+          <p style={note}>A short walk through your dashboard and where everything lives.</p>
+          <button style={btn(false)} onClick={() => { try { window.dispatchEvent(new Event("shape:startTour")); } catch (e) {} }}>Take the tour</button>
+        </div>
       </div>
-      <div style={{ background: "rgba(var(--sh-ink-rgb, 242,237,228),0.03)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", borderRadius: 16, padding: "20px 22px", marginBottom: 18 }}>
-        <div style={{ fontFamily: mono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", marginBottom: 14 }}>App tour</div>
-        <button style={btn(false)} onClick={() => { try { window.dispatchEvent(new Event("shape:startTour")); } catch (e) {} }}>Take a tour — walk through your dashboard</button>
-      </div>
-      <div style={{ background: "rgba(var(--sh-ink-rgb, 242,237,228),0.03)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", borderRadius: 16, padding: "20px 22px" }}>
-        <div style={{ fontFamily: mono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", marginBottom: 14 }}>Account · Danger zone</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 14 }} className="dk-3up">
+      <div className="dash-plate" style={{ ...plate("var(--sh-danger, #e07856)"), marginTop: 16 }}>
+        <div className="dash-eyebrow">Account · Danger zone</div>
+        <div className="dash-ledger" />
+        <p style={note}>Download everything Shape holds about you, or close your account and erase it for good.</p>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
           <button style={btn(false)} onClick={async (ev) => {
             const b = ev && ev.currentTarget;
             if (b) b.disabled = true; // guard against double-submission
@@ -528,7 +541,7 @@ function CoachAccountSettings({ accountId }) {
           }}>Close account</button>
         </div>
       </div>
-    </section>
+    </React.Fragment>
   );
 }
 

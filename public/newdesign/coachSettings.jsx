@@ -810,8 +810,9 @@ function CoachCalendarFeedCard({ signedIn }) {
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
         <a href={ready ? ready.webcalUrl : undefined} aria-disabled={!live} style={linkChip(live)}>Add to calendar</a>
         <a href={ready ? cstGoogleSubscribeUrl(ready.webcalUrl) : undefined} target="_blank" rel="noopener noreferrer" aria-disabled={!live} style={linkChip(live)}>Google Calendar ↗</a>
+        {/* Set apart from the two ways in: it breaks every calendar already subscribed. */}
         <button type="button" onClick={() => { setConfirming(true); setNote(""); }} disabled={!live || confirming}
-          style={{ ...cstChip(false), minHeight: 30, opacity: live && !confirming ? 1 : 0.45 }}>Reset link</button>
+          style={{ ...cstChip(false), minHeight: 30, marginLeft: "auto", opacity: live && !confirming ? 1 : 0.45 }}>Reset link</button>
       </div>
 
       {confirming && live && (
@@ -834,9 +835,15 @@ function CoachCalendarFeedCard({ signedIn }) {
         </div>
       ) : null}
       {note ? <div role="status" style={{ marginTop: 8, fontSize: 11.5, color: CST_TEAL }}>{note}</div> : null}
-      <div style={{ marginTop: 12, fontSize: 11.5, color: CST_INK50, lineHeight: 1.5 }}>
-        Anyone with this link can see your session times, your clients' names and what they
-        booked about. Keep it to yourself, and reset it if it's shared by mistake.
+      <div style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--sh-line, #302c27)", fontSize: 11.5, color: CST_INK50, lineHeight: 1.5 }}>
+        <svg aria-hidden width="11" height="13" viewBox="0 0 11 13" style={{ flex: "none", marginTop: 2 }}>
+          <rect x="1" y="5.5" width="9" height="6.75" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
+          <path d="M3 5.5V3.75a2.5 2.5 0 0 1 5 0V5.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
+        </svg>
+        <span>
+          Anyone with this link can see your session times, your clients' names and what they
+          booked about. Keep it to yourself, and reset it if it's shared by mistake.
+        </span>
       </div>
     </React.Fragment>
   );
