@@ -337,7 +337,7 @@ function RecipeDetailPage() {
           <div className="rd-nudge">
             <span>Create a free account to save recipes to your library.</span>
             <span className="rd-nudge-b">
-              <a href="/signup" className="rd-btn p">Create account</a>
+              <a href="/newdesign/SignupClient.html" className="rd-btn p">Create account</a>
               <a href="/login" className="rd-btn">Log in</a>
             </span>
           </div>

@@ -75,6 +75,13 @@ const nextConfig: NextConfig = {
       { source: '/mobile/SignupTrainer.html', destination: '/newdesign/SignupTrainer.html', permanent: false },
       { source: '/mobile/SignupNutritionist.html', destination: '/newdesign/SignupNutritionist.html', permanent: false },
       { source: '/mobile/SignupClient.html', destination: '/newdesign/SignupClient.html', permanent: false },
+      // /signup was a second website sign-up form (client-onboarding review, M5): no name, username or
+      // Terms, Trainer quietly made a client account, and its confirmation link worked only in the
+      // browser that asked (H10). It goes to the website's sign-up, and a coach to their application.
+      // The query rides along (?next= is read there). Temporary, like the rest of this block.
+      { source: '/signup', has: [{ type: 'query' as const, key: 'role', value: 'trainer' }], destination: '/newdesign/SignupTrainer.html', permanent: false },
+      { source: '/signup', has: [{ type: 'query' as const, key: 'role', value: '(?:nutritionist|dietitian)' }], destination: '/newdesign/SignupNutritionist.html', permanent: false },
+      { source: '/signup', destination: '/newdesign/SignupClient.html', permanent: false },
       // The retired root pages (above). `/trainers`, `/nutritionists` and `/login` are Next routes,
       // so only their old `.html` files redirect. A coach profile keeps its coach: the old pages
       // took the listing id as `?id=`, and `/trainers/<id>` and `/nutritionists/<id>` are the

@@ -587,7 +587,7 @@ function ReviewsSection({ p, slug, kind }) {
             <div style={{ marginTop: 12, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
               <span style={{ fontFamily: sans, fontSize: 13.5, color: "rgba(242,237,228,0.85)" }}>Create a free account to leave a review.</span>
               <span style={{ display: "flex", gap: 10 }}>
-                <a href="/signup" style={{ background: TEAL, color: "#0a0f0d", padding: "8px 16px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 600, textDecoration: "none" }}>Create account</a>
+                <a href="/newdesign/SignupClient.html" style={{ background: TEAL, color: "#0a0f0d", padding: "8px 16px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 600, textDecoration: "none" }}>Create account</a>
                 <a href="/login" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "8px 16px", borderRadius: 999, fontFamily: sans, fontSize: 13, textDecoration: "none" }}>Log in</a>
               </span>
             </div>

@@ -232,13 +232,9 @@ test('every sign-up path saves signup_source with the new account', () => {
   assert.match(app, /signup_source: typeof window !== 'undefined' \? sourceFromWindow\(window, 'app', signupPlatform\(\)\) : \{ surface: 'app', platform: signupPlatform\(\) \},/);
   assert.match(app, /^if \(typeof window !== 'undefined'\) captureFromWindow\(window\);$/m, 'and remembers the first touch on load');
   assert.match(app, /return p === 'ios' \|\| p === 'android' \? p : 'web';/);
-  const form = read('src/app/signup/SignupForm.tsx');
-  // Codex, #2325: read as the form is sent, never on mount (the script may not have loaded yet).
-  assert.match(form, /async function signupAction\(_prev: State, formData: FormData\): Promise<State> \{\n[^]*?formData\.set\('signup_source', JSON\.stringify\(sourceFromWindow\(window, 'website'\)\)\);\n\s+const result = await signup\(formData\);/);
-  assert.doesNotMatch(form, /name="signup_source"/, 'no field fixed at mount');
-  const action = read('src/app/login/actions.ts');
-  assert.match(action, /data: \{ role, date_of_birth: dob, signup_source: signupSourceFrom\(formData\) \},/);
-  assert.match(action, /return cleanSource\(\{ \.\.\.\(raw && typeof raw === 'object' && !Array\.isArray\(raw\) \? raw : \{\}\), surface: 'website' \}\) \?\? \{ surface: 'website' \};/, 'the server cleans what the browser sent');
+  // The Next /signup form was the third path; it is gone (client-onboarding review, M5) and /signup
+  // redirects to the website's sign-up above.
+  assert.doesNotMatch(read('src/app/login/actions.ts'), /export async function signup\(/);
 });
 
 test('the script loads wherever a visitor can land', () => {

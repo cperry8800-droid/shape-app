@@ -377,7 +377,7 @@ function RecipesPage() {
           <div className="km-nudge">
             <span>Create a free account to save recipes to your library.</span>
             <span className="km-nudge-b">
-              <a href="/signup" className="km-btn p">Create account</a>
+              <a href="/newdesign/SignupClient.html" className="km-btn p">Create account</a>
               <a href="/login" className="km-btn">Log in</a>
             </span>
           </div>
@@ -417,7 +417,7 @@ function RecipesPage() {
               <>
                 <div className="km-empty-h">Your library is empty</div>
                 <p>{loggedIn ? "Tap the ♡ on any recipe to save it here." : "Create a free account, then tap the ♡ on any recipe to save it here."}</p>
-                {!loggedIn ? <a href="/signup" className="km-btn p">Create account</a> : null}
+                {!loggedIn ? <a href="/newdesign/SignupClient.html" className="km-btn p">Create account</a> : null}
               </>
             ) : (
               <>
