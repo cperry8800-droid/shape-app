@@ -45,7 +45,7 @@ const RD_CREAM30 = "rgba(238,243,240,0.34)";
 // site above it. Its two blocks were pinned `left: 32, right: 32` against the
 // VIEWPORT, while the shared header centres its own content in 1440
 // (`pageShell.jsx`'s `.shape-header-inner`: maxWidth 1440, padding 0 32px) and every
-// other section here is bounded too (Shape Sets 860, Nora 760, Join 760). Measured
+// other section here is bounded too (Nora 860, Shape Sets 860, Join 760). Measured
 // on the real page, the fold's wordmark sat 240px left of the header's logo at 1920,
 // 560px at 2560 and 1000px at 3440, and the deck and the strip ran from 712px apart
 // at 1280 to 2872px at 3440.
@@ -1142,7 +1142,7 @@ function RadioInstrument() {
             </div>
 
             <div className="rd-strip" style={{ display: "flex", gap: 10, flex: "0 0 auto" }}>
-              {[["Live", null], ["Shape Sets", "#sets"], ["Nora", "#nora"]].map(([label, href]) => (
+              {[["Live", null], ["Nora", "#nora"], ["Shape Sets", "#sets"]].map(([label, href]) => (
                 <a key={label} href={href || undefined}
                   style={{ ...eb, padding: "9px 13px", border: `1px solid ${href ? "rgba(238,243,240,0.18)" : RD_TEAL}`, color: href ? RD_CREAM50 : RD_TEAL, textDecoration: "none", clipPath: "polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 0 100%)" }}>
                   {label}
