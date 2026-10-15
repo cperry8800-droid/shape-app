@@ -122,7 +122,7 @@ export default {
       find: 'if (isDoubleBookError(insErr)) {',
       replace: 'if (false) {' },
     { name: 'create takes any length', file: MANAGE,
-      find: 'if (!Number.isInteger(durationMin) || durationMin < 15 || durationMin > 240 || durationMin % 5 !== 0) {',
+      find: 'if (!Number.isInteger(durationMin) || durationMin < SESSION_MIN_LENGTH || durationMin > SESSION_MAX_LENGTH) {',
       replace: 'if (!Number.isInteger(durationMin)) {' },
     { name: 'create takes any type', file: MANAGE,
       find: 'if (!CREATE_TYPES.includes(type)) return',

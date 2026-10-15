@@ -693,6 +693,9 @@ function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {}
   // status='completed' (award_session_kept), so Mark complete is a real signal.
   const coachSession = live && event.source === 'session' && !!event.sessionId
     && (role === 'trainer' || role === 'nutritionist');
+  // Done is a fact about the past: Mark complete waits for the session to start, as the website's
+  // Mark done does and /api/sessions/manage requires (Codex on #2370).
+  const sessionStarted = Number.isFinite(Date.parse(event.scheduledAt)) && Date.parse(event.scheduledAt) <= Date.now();
   const [busy, setBusy] = useStateBSCal(false);
   // The ONE guarded door to /api/sessions/manage from this sheet — global
   // checked like the ShapeCalendar calls in this file; confirm/complete and
@@ -799,13 +802,14 @@ function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {}
           // only a CONFIRMED one offers Mark complete.
           event.status === 'completed'
             ? <button onClick={onClose} style={primaryBtn(t)}>{tr('calendar:cta.completed', { defaultValue: 'Completed ✓' })}</button>
-            : event.status === 'confirmed'
+            : event.status === 'confirmed' && sessionStarted
               ? <button onClick={() => runSessionAction('complete', tr('calendar:msg.sessionComplete', { defaultValue: 'Session marked complete ✓' }))} disabled={busy} style={{ ...primaryBtn(t), opacity: busy ? 0.6 : 1 }}>{busy ? tr('calendar:cta.marking', { defaultValue: 'Marking…' }) : tr('calendar:cta.markComplete', { defaultValue: 'Mark complete' })}</button>
               : event.status === 'requested'
                 ? <button onClick={() => runSessionAction('confirm', tr('calendar:msg.bookingConfirmed', { defaultValue: 'Booking confirmed ✓' }))} disabled={busy} style={{ ...primaryBtn(t), opacity: busy ? 0.6 : 1 }}>{busy ? tr('calendar:cta.confirming', { defaultValue: 'Confirming…' }) : tr('calendar:cta.confirmBooking', { defaultValue: 'Confirm booking' })}</button>
-                // Terminal/unknown states (declined/cancelled shouldn't reach the
-                // calendar — its GET filters to requested/confirmed/completed, but
-                // never offer an action on one): plain close.
+                // A confirmed session that has not started, and terminal/unknown
+                // states (declined/cancelled shouldn't reach the calendar — its GET
+                // filters to requested/confirmed/completed, but never offer an
+                // action on one): plain close.
                 : <button onClick={onClose} style={primaryBtn(t)}>{tr('calendar:cta.done', { defaultValue: 'Done' })}</button>
         ) : (
           <>

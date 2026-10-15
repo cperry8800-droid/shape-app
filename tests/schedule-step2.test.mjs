@@ -283,6 +283,7 @@ function db(tables, { label, insertError = null, updateError = null, fail = [], 
         const filters = [];
         const upd = {
           eq(col, v) { filters.push((r) => r[col] === v); return upd; },
+          neq(col, v) { filters.push((r) => r[col] !== v); return upd; },
           in(col, vs) { filters.push((r) => vs.includes(r[col])); return upd; },
           select() { return upd; }, maybeSingle() { return upd; },
           then(res, rej) {
@@ -321,8 +322,9 @@ async function routes() {
   const owned = await lib('owned-provider.ts', [['@/lib/time', time], ['@supabase/supabase-js', {}]]);
   const booking = await lib('session-booking.ts', [['@supabase/supabase-js', {}], ['@/lib/owned-provider', owned]]);
   const series = await lib('session-series.ts', [['@supabase/supabase-js', {}], ['@/lib/time', time]]);
+  const emails = await lib('coach-application-emails.ts');
   const guards = await import(pathToFileURL(join(ROOT, 'src/lib/access-guards.mjs')).href);
-  const state = { client: null, admin: null, user: null, notices: [], mails: [] };
+  const state = { client: null, admin: null, user: null, notices: [], mails: [], steps: [] };
   const registry = () => new Map([
     ['next/server', nextServer],
     ['@/lib/time', time],
@@ -335,11 +337,15 @@ async function routes() {
     ['@/lib/video', { videoRoomUrl: (id) => 'https://meet.shape.test/' + id }],
     ['@/lib/notify', { createNotification: async (_c, n) => { state.notices.push(n); return true; } }],
     ['@/lib/capacity', { isEffectivelyAtCapacity: () => false }],
-    ['@/lib/email', { buildIcs: () => 'ICS', sendEmail: async (m) => { state.mails.push(m); return { ok: true }; } }],
+    ['@/lib/email', { buildIcs: () => 'ICS', calendarOrganizerEmail: () => 'no-reply@shape.test', sendEmail: async (m) => { state.mails.push(m); return { ok: true }; } }],
     // The captcha passes unless a test turns it off (`captcha: false`), the website form's
     // case with no token once TURNSTILE_SECRET_KEY is set.
     ['@/lib/turnstile', { verifyTurnstile: async () => state.captcha !== false }],
     ['@/lib/require-membership', { requireMembership: async () => null }],
+    ['@/lib/coach-application-emails', emails],
+    // What the member hears after a confirm or a complete (client-onboarding review, fix 3b);
+    // tests/session-emails.test.mjs runs the real one.
+    ['@/lib/session-emails', { afterSessionStep: async (_admin, step) => { state.steps.push(step); return { emailed: true, followedUp: false }; } }],
     ['@supabase/supabase-js', {}],
   ]);
   const load = (p) => loadRealModule(join(ROOT, 'src/app/api', p), { typescript: true, registry: registry() });
@@ -355,10 +361,12 @@ async function post(mod, path, body, { tables, user, insertError, updateError, f
   m.state.admin = db(tables, { label: 'service', insertError, fail });
   m.state.user = user;
   m.state.notices.length = 0;
+  m.state.mails.length = 0;
+  m.state.steps.length = 0;
   const res = await atNow(() => m[mod].POST(new Request('https://shape.test' + path, {
     method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body),
   })));
-  return { status: res.status, body: await res.json(), notices: m.state.notices.slice(), writes: tables.__writes || [] };
+  return { status: res.status, body: await res.json(), notices: m.state.notices.slice(), mails: m.state.mails.slice(), steps: m.state.steps.slice(), writes: tables.__writes || [] };
 }
 
 const COACH = { id: 'coach-1', email: 'coach@shape.test' };
@@ -406,6 +414,15 @@ test('create: a coach books their own active client, confirmed, on their own clo
   assert.match(r.notices[0].body, /Oct 8, 7:00 AM/, 'the member reads it on THEIR clock (Los Angeles)');
 });
 
+test('create takes any whole-minute length the coach picks, 5 minutes to 4 hours (owner, 2026-10-15)', async () => {
+  for (const len of [5, 7, 10, 25, 62, 240]) {
+    const tables = world();
+    const r = await create({ durationMin: len }, { tables });
+    assert.equal(r.status, 200, len + ' min: ' + JSON.stringify(r.body));
+    assert.equal(r.writes.find((w) => w.op === 'insert').row.duration_min, len);
+  }
+});
+
 test('create refuses a client who is not the coach\'s, a caller who is not a coach, and a time it cannot place', async () => {
   const notMine = await create({ clientId: 'member-2' }, { tables: world() });
   assert.equal(notMine.status, 403, 'a past_due subscription is not an active client');
@@ -415,7 +432,7 @@ test('create refuses a client who is not the coach\'s, a caller who is not a coa
   assert.equal(member.status, 403, 'a member cannot book as a coach');
   for (const [body, why] of [
     [{ tz: undefined }, 'no zone'], [{ tz: 'Mars/Olympus' }, 'not a zone'], [{ date: '2026-10-06' }, 'the past'],
-    [{ durationMin: 10 }, 'too short'], [{ durationMin: 300 }, 'too long'], [{ durationMin: 62 }, 'off the five-minute grid'],
+    [{ durationMin: 4 }, 'too short'], [{ durationMin: 300 }, 'too long'], [{ durationMin: 62.5 }, 'not a whole minute'],
     [{ type: 'carrier pigeon' }, 'an unknown type'], [{ date: '2027-03-14', time: '02:30' }, 'a wall clock New York skips'],
     [{ time: undefined }, 'no time'],
   ]) {
@@ -844,6 +861,156 @@ test('/api/consultation: the app books with its Bearer token and no captcha; the
   assert.equal(blank.status, 400);
 });
 
+// ── The intro's length is the coach's (client-onboarding review, fix 3b) ──────────────────────
+// Owner, 2026-10-15: "make sure coaches can set the lengh for their consultation, if they want 15
+// or 30 min" · "or even 10 min" · "it should be completly customizable".
+const rulesFor = (consultMin) => ({ provider_booking_rules: [{ provider_role: 'trainer', provider_id: 7, buffer_min: 0, max_per_day: null, min_notice_hours: 0, consult_min: consultMin }] });
+
+test('/api/consultation books the intro at the length the coach set, marks it an intro, and says the length', async () => {
+  const r = await consult({}, { tables: world({ ...rulesFor(45), emails: { 'member-1': 'priya@shape.test', 'coach-1': 'coach@shape.test' } }) });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  const ins = r.writes.filter((w) => w.op === 'insert');
+  assert.equal(ins.length, 1);
+  assert.equal(ins[0].by, 'service');
+  assert.equal(ins[0].row.duration_min, 45);
+  assert.equal(ins[0].row.intro, true, 'marked for the follow-up after it');
+  assert.equal(ins[0].row.status, 'requested');
+  const member = r.mails.find((m) => m.to === 'priya@shape.test');
+  assert.match(member.html, /45-minute video consultation/);
+  assert.match(member.text, /45-min video consultation/);
+  assert.doesNotMatch(JSON.stringify(r.mails), /15-minute|15 min/, 'no mail still says 15');
+  // The coach is sent to their Schedule, where a request is answered, not the retired dashboard.
+  const coach = r.mails.find((m) => /New consultation request/.test(m.subject));
+  assert.ok(coach, 'the coach is emailed');
+  assert.match(coach.html, /\/newdesign\/TrainerApp\.html#schedule/);
+  assert.doesNotMatch(coach.html, /\/dashboard\//);
+  assert.match(coach.text, /45 min/);
+  // Any whole minute: a 10-minute intro.
+  const ten = await consult({}, { tables: world(rulesFor(10)) });
+  assert.equal(ten.status, 200, JSON.stringify(ten.body));
+  assert.equal(ten.writes.find((w) => w.op === 'insert').row.duration_min, 10);
+  // No rules row: 15, the length every intro had.
+  const plain = await consult({}, { tables: world() });
+  assert.equal(plain.writes.find((w) => w.op === 'insert').row.duration_min, 15);
+});
+
+test('/api/consultation holds the coach\'s length to their hours, and refuses rather than guess it', async () => {
+  // Thursday is open 9–12. A 60-minute intro fits at 11; a 90-minute one does not, and 9 still fits.
+  const fits = await consult({ time: '11:00 AM' }, { tables: world(rulesFor(60)) });
+  assert.equal(fits.status, 200, JSON.stringify(fits.body));
+  const over = await consult({ time: '11:00 AM' }, { tables: world(rulesFor(90)) });
+  assert.equal(over.status, 409, JSON.stringify(over.body));
+  assert.equal(over.body.code, 'outside_hours', 'a 90-minute intro at 11 runs past noon');
+  const early = await consult({ time: '9:00 AM' }, { tables: world(rulesFor(90)) });
+  assert.equal(early.status, 200, JSON.stringify(early.body));
+  assert.equal(early.writes.find((w) => w.op === 'insert').row.duration_min, 90);
+  // The page sends the length it laid the times out for; a coach who changed it since is caught.
+  const stale = await consult({ durationMin: 15 }, { tables: world(rulesFor(30)) });
+  assert.equal(stale.status, 409);
+  assert.equal(stale.body.code, 'length_changed');
+  assert.equal(stale.body.durationMin, 30);
+  assert.match(stale.body.error, /30 minutes/);
+  const same = await consult({ durationMin: 30 }, { tables: world(rulesFor(30)) });
+  assert.equal(same.status, 200, JSON.stringify(same.body));
+  // An unreadable setting books nothing: 15 minutes for a coach who chose 45 is a wrong appointment.
+  const unread = await consult({}, { tables: world(rulesFor(45)), fail: ['provider_booking_rules'] });
+  assert.equal(unread.status, 503);
+  for (const x of [over, stale, unread]) assert.equal(x.writes.filter((w) => w.op === 'insert').length, 0);
+});
+
+test('/api/consultation refuses a suspended listing, and books without the intro mark before its column exists', async () => {
+  const suspended = await consult({}, { tables: world({ trainers: [{ id: 7, owner_id: 'coach-1', name: 'Coach', timezone: NY, suspended_at: '2026-10-01T00:00:00Z' }] }) });
+  assert.equal(suspended.status, 409);
+  assert.equal(suspended.body.code, 'suspended');
+  assert.equal(suspended.writes.filter((w) => w.op === 'insert').length, 0);
+  // Before 2026-10-15-intro-length.sql: PostgREST refuses the unknown column, and the booking is
+  // written again without it rather than refused.
+  const noColumn = (row) => (row && row.intro !== undefined
+    ? { code: 'PGRST204', message: "Could not find the 'intro' column of 'sessions' in the schema cache" } : null);
+  const pre = await consult({}, { tables: world(), insertError: noColumn });
+  assert.equal(pre.status, 200, JSON.stringify(pre.body));
+  const ins = pre.writes.filter((w) => w.op === 'insert');
+  assert.equal(ins.length, 1);
+  assert.equal('intro' in ins[0].row, false);
+  assert.equal(ins[0].row.duration_min, 15);
+  // Any other refusal is not retried.
+  const other = await consult({}, { tables: world(), insertError: { code: 'PGRST204', message: "Could not find the 'topic' column of 'sessions' in the schema cache" } });
+  assert.equal(other.status, 500);
+});
+
+test('a coach\'s confirm and complete hand the session to the member\'s emails; a decline does not', async () => {
+  const at = '2026-10-08T14:00:00+00:00';
+  const tables = () => world({ sessions: [sess('s-int', at, { client_id: 'member-1', status: 'requested', duration_min: 45, intro: true, meeting_url: null })] });
+  const confirm = await post('manage', '/api/sessions/manage', { action: 'confirm', sessionId: 's-int' }, { user: COACH, tables: tables() });
+  assert.equal(confirm.status, 200, JSON.stringify(confirm.body));
+  assert.equal(confirm.steps.length, 1);
+  const step = confirm.steps[0];
+  assert.equal(step.action, 'confirm');
+  assert.equal(step.previousStatus, 'requested', 'the status before the update, so a repeat confirm sends nothing');
+  assert.equal(step.session.status, 'confirmed');
+  assert.equal(step.session.meeting_url, 'https://meet.shape.test/s-int', 'the room the confirm attached');
+  assert.equal(step.session.intro, true);
+  assert.equal(step.session.client_id, 'member-1');
+  assert.match(step.when, /Oct 8/, 'the time, on the member\'s clock');
+  // Done once it has started: 14:30 is half an hour before NOW.
+  const t2 = world({ sessions: [sess('s-int', '2026-10-07T14:30:00+00:00', { client_id: 'member-1', status: 'confirmed', duration_min: 45, intro: true })] });
+  const complete = await post('manage', '/api/sessions/manage', { action: 'complete', sessionId: 's-int' }, { user: COACH, tables: t2 });
+  assert.equal(complete.status, 200, JSON.stringify(complete.body));
+  assert.deepEqual(complete.steps.map((x) => [x.action, x.previousStatus, x.session.status]), [['complete', 'confirmed', 'completed']]);
+  const decline = await post('manage', '/api/sessions/manage', { action: 'decline', sessionId: 's-int' }, { user: COACH, tables: tables() });
+  assert.equal(decline.status, 200, JSON.stringify(decline.body));
+  assert.equal(decline.steps.length, 0);
+});
+
+test('done is a fact about the past: a session not started, or never confirmed, is not marked done (Codex on #2370)', async () => {
+  const done = (status, at) => post('manage', '/api/sessions/manage', { action: 'complete', sessionId: 's-int' }, { user: COACH, tables: world({ sessions: [sess('s-int', at, { client_id: 'member-1', status, duration_min: 45, intro: true })] }) });
+  // Tomorrow's intro: refused, nothing written, nobody emailed.
+  const early = await done('confirmed', '2026-10-08T14:00:00+00:00');
+  assert.equal(early.status, 409);
+  assert.equal(early.body.code, 'not_started');
+  assert.equal(early.writes.filter((w) => w.op === 'update').length, 0);
+  assert.equal(early.steps.length, 0);
+  // A minute from now is still not started; the start itself is.
+  assert.equal((await done('confirmed', '2026-10-07T15:01:00+00:00')).body.code, 'not_started');
+  assert.equal((await done('confirmed', '2026-10-07T15:00:00+00:00')).status, 200);
+  // A request never confirmed, or a cancelled one, is not done however long ago it was.
+  for (const status of ['requested', 'cancelled', 'declined']) {
+    const r = await done(status, '2026-10-06T14:00:00+00:00');
+    assert.equal(r.status, 409, status);
+    assert.equal(r.body.code, 'not_confirmed', status);
+  }
+  // A second tap on a done session stays harmless.
+  const again = await done('completed', '2026-10-07T14:30:00+00:00');
+  assert.equal(again.status, 200, JSON.stringify(again.body));
+  assert.deepEqual(again.steps.map((x) => x.previousStatus), ['completed']);
+});
+
+test('two overlapping confirms tell the member once (Codex on #2370)', async () => {
+  // A double click or a retry: both requests read the session as `requested` before either writes.
+  // The confirm is claimed in the write (status is not yet confirmed), so only one hands it to the
+  // member's email and writes "Session confirmed"; the other answers 200 and tells nobody.
+  const at = '2026-10-08T14:00:00+00:00';
+  const tables = world({ sessions: [sess('s-int', at, { client_id: 'member-1', status: 'requested', duration_min: 45, intro: true, meeting_url: null })] });
+  const m = await routes();
+  const both = await Promise.all([1, 2].map(() => post('manage', '/api/sessions/manage', { action: 'confirm', sessionId: 's-int' }, { user: COACH, tables })));
+  for (const r of both) assert.equal(r.status, 200, JSON.stringify(r.body));
+  const updates = tables.__writes.filter((w) => w.table === 'sessions' && w.op === 'update');
+  // The first write moved the row; the second, claimed on `status <> 'confirmed'`, matched nothing
+  // and ran again unclaimed (a room the first lacked would be attached there).
+  assert.deepEqual(updates.map((w) => w.ids), [['s-int'], [], ['s-int']]);
+  // Each request hands its step over with the status its write found: only the claiming one says
+  // `requested`, and afterSessionStep sends nothing for `confirmed` (session-emails.test.mjs).
+  assert.deepEqual(m.state.steps.map((x) => [x.action, x.previousStatus]).sort(), [['confirm', 'confirmed'], ['confirm', 'requested']]);
+  assert.equal(m.state.notices.filter((n) => n.type === 'session_confirmed').length, 1, 'one "Session confirmed"');
+  // A confirm of a session already confirmed, as a coach's second tap is: 200, the session back,
+  // and nothing sent.
+  const again = await post('manage', '/api/sessions/manage', { action: 'confirm', sessionId: 's-int' }, { user: COACH, tables });
+  assert.equal(again.status, 200, JSON.stringify(again.body));
+  assert.equal(again.body.session.status, 'confirmed');
+  assert.deepEqual(again.steps.map((x) => x.previousStatus), ['confirmed']);
+  assert.equal(again.notices.length, 0);
+});
+
 test('the calendar marks a session the caller booked AS A CLIENT, so the Schedule does not answer it', async () => {
   // RLS hands a session to its client as well as its coach: coach-1 is also a member of
   // trainer 8, and that request of theirs comes back in their own calendar.
@@ -1212,6 +1379,43 @@ test('a click on empty time offers "+ Book", and the sheet books a roster client
     assert.equal(colOf(page, block(page, 's-new')), '2026-10-08');
     assert.equal(px(block(page, 's-new').style.top), yOf(660) + 1);
     assert.match(page.toast(), /Booked Marcus T\./);
+  } finally { await page.unmount(); }
+});
+
+test('the book sheet books the length on screen: typed, cleared back to the pressed pill, or none (Codex on #2370)', async () => {
+  const { page, posts } = await open();
+  try {
+    page.layout();
+    const thu = page.doc.querySelector('[data-col-date="2026-10-08"]');
+    await page.clickAt(thu, 350, yOf(660) + 5);
+    await page.click(page.doc.querySelector('[data-dsc-ghost]'));
+    const dlg = () => page.doc.querySelector('[role=dialog]');
+    await setSel(page, dlg().querySelector('select[aria-label=Client]'), 'member-2');
+    const box = () => dlg().querySelector('[data-custom-length]');
+    const type = async (v) => {
+      Object.getOwnPropertyDescriptor(page.dom.window.HTMLInputElement.prototype, 'value').set.call(box(), v);
+      await page.act(async () => box().dispatchEvent(new page.dom.window.Event('input', { bubbles: true })));
+    };
+    const pressed = () => [...dlg().querySelectorAll('[role=group][aria-label=Length] button')].filter((b) => b.getAttribute('aria-pressed') === 'true').map((b) => b.textContent);
+    const book = () => page.buttonMatching(/^Book/, dlg());
+    await page.click(page.buttonMatching(/^30 min$/, dlg()));
+    // Typed: the box's length, no pill pressed.
+    await type('100');
+    assert.deepEqual(pressed(), []);
+    // Cleared: the pill pressed before is pressed again, and it is what books, not the 100 that
+    // no longer shows.
+    await type('');
+    assert.deepEqual(pressed(), ['30 min']);
+    // Out of range: nothing to book, and it says why.
+    await type('3');
+    assert.equal(book().disabled, true);
+    assert.ok(dlg().querySelector('[data-custom-length-error]'));
+    await type('');
+    assert.equal(book().disabled, false);
+    assert.ok(!dlg().querySelector('[data-custom-length-error]'));
+    await page.click(book());
+    assert.equal(posts.length, 1);
+    assert.equal(posts[0].durationMin, 30);
   } finally { await page.unmount(); }
 });
 

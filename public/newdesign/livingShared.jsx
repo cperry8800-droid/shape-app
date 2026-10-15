@@ -769,7 +769,8 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
     } catch (e) { setRevMsg("Could not post your review — check your connection and try again."); }
     finally { setRevBusy(false); }
   };
-  const openChat = () => { try { if (window.__openChat) { window.__openChat({ who: d.name }); return; } const b = document.getElementById("shape-global-chat-button"); if (b) b.click(); } catch (e) {} };
+  // The coach rides along, so a first message opens the real thread with them (chatWidget.jsx).
+  const openChat = () => { try { if (window.__openChat) { window.__openChat({ who: d.name, ...(provId ? { providerRole: listingRole, providerId: provId, role: listingRole === "nutritionist" ? "Nutritionist" : "Trainer" } : {}) }); return; } const b = document.getElementById("shape-global-chat-button"); if (b) b.click(); } catch (e) {} };
   // ── The waiting list ──────────────────────────────────────────────────────
   // The app has carried this since #1498 and so do the LEGACY website pages
   // (`trainer-profile.html` / `nutritionist-profile.html`) — the canonical
@@ -1000,8 +1001,12 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
           )}
           <div style={{ display: "flex", gap: 10, marginTop: 16, maxWidth: 420 }}>
             <button onClick={subscribe} style={{ flex: 1, padding: "13px", borderRadius: 8, border: 0, background: c, color: "#0c0a08", cursor: "pointer", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Subscribe</button>
-            <button onClick={openChat} style={{ flex: 1, padding: "13px", borderRadius: 8, border: `1px solid ${hexA(ink, 0.4)}`, background: "transparent", color: ink, cursor: "pointer", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Book intro · Free</button>
+            {/* The free intro is booked on the consultation page, against the coach's open hours and
+                at the length they set. This button opened the chat panel, where nothing books an
+                intro (client-onboarding review, H6). With no listing to book, it is not offered. */}
+            {provId ? <a href={"/newdesign/consultation.html?type=" + listingRole + "&id=" + encodeURIComponent(provId) + "&name=" + encodeURIComponent(d.name || "")} data-book-intro="" style={{ flex: 1, padding: "13px", borderRadius: 8, border: `1px solid ${hexA(ink, 0.4)}`, background: "transparent", color: ink, cursor: "pointer", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", textAlign: "center", textDecoration: "none", boxSizing: "border-box" }}>Book intro · Free</a> : null}
           </div>
+          {provId ? <button type="button" onClick={openChat} data-message-coach="" style={{ marginTop: 10, padding: 0, border: 0, background: "transparent", color: hexA(ink, 0.7), cursor: "pointer", fontFamily: lvMono, fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", textDecoration: "underline", textUnderlineOffset: 3 }}>Or message {first}</button> : null}
           {buyErr ? <div role="alert" style={{ marginTop: 11, fontFamily: lvMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", color: "#c0533b" }}>{buyErr}</div> : null}
           {buyErr && window.ShapeAskNoraLink ? <window.ShapeAskNoraLink label="Ask Nora what happened" draft="My checkout didn't go through. What happened?" problem={{ kind: "payment", message: buyErr }} /> : null}
           {joinPrompt}

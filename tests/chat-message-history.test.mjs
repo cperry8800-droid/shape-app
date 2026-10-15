@@ -213,8 +213,11 @@ test('history comes from the route that gets the cap right — not a bulk read',
   // FIRST call carries no `since`, and the route answers that arm newest-first,
   // capped, re-reversed. If either half stops being true, the threads this block
   // hands over with `messages: []` never fill in.
-  assert.match(WIDGET, /const merged = since \? \[\.\.\.t\.messages, \.\.\.mapped\] : mapped;/,
+  // (An incremental poll appends to what is on screen, less the local copy of a message this page
+  // sent that the poll now returns stored — client-onboarding review, fix 3b.)
+  assert.match(WIDGET, /const merged = since \? \[\.\.\.local, \.\.\.mapped\] : mapped;/,
     'the cold-load arm no longer REPLACES a thread’s messages');
+  assert.match(WIDGET, /let local = t\.messages;\s+if \(since\) \{/, 'the local copy starts from the thread\u2019s messages');
   assert.match(WIDGET, /const since = lastSeenRef\.current\[convId\];/,
     'the poll no longer derives `since` per conversation, so there is no cold load');
   const route = readFileSync('src/app/api/conversations/[id]/messages/route.ts', 'utf8');

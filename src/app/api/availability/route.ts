@@ -61,20 +61,23 @@ export async function GET(req: NextRequest) {
       p_from: new Date(nowMs - BACK_DAYS * DAY_MS).toISOString(),
       p_to: new Date(nowMs + AHEAD_DAYS * DAY_MS).toISOString(),
     }),
+    // The whole row (`*`): the intro's length (consult_min, 2026-10-15-intro-length.sql) rides with the
+    // rules, and naming it would fail the read on a database without the column.
     supabase
       .from('provider_booking_rules')
-      .select('buffer_min, max_per_day, min_notice_hours')
+      .select('*')
       .eq('provider_role', role)
       .eq('provider_id', idRaw)
       .maybeSingle(),
-    // ⚠ `select('*')` IS MIGRATION-SAFE: naming `timezone` errors the WHOLE query on a
-    // pre-migration database, which would take the coach's open hours down with it
-    // instead of degrading to an unknown zone. The house pattern (trainer/dashboard,
-    // trainer/analytics) for exactly this reason. Both tables are public-read, so an
-    // anonymous consultation visitor can resolve the zone it needs to label a slot.
+    // ⚠ THE ONE COLUMN THIS USES, BY NAME, NEVER `*` (client-onboarding review, fix 3b). Signed-out
+    // visitors read the listing tables column by column: every column but stripe_account_id is
+    // granted to anon (2026-10-10-security-review-lows-and-anon-definers.sql), so `select('*')` was
+    // refused whole for them, the zone came back null, and the booking page told every signed-out
+    // visitor "This coach's open hours aren't on a clock yet" for a coach whose hours were set. The
+    // `*` dated from before timezone existed; it has existed since 2026-09-11.
     supabase
       .from(role === 'trainer' ? 'trainers' : 'nutritionists')
-      .select('*')
+      .select('timezone')
       .eq('id', idRaw)
       .maybeSingle(),
   ]);

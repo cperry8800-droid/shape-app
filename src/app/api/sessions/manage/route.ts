@@ -26,6 +26,7 @@ import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { videoRoomUrl } from '@/lib/video';
 import { createNotification } from '@/lib/notify';
+import { afterSessionStep, type SessionForEmail } from '@/lib/session-emails';
 import { isSessionReschedulable, unauthorizedAssignTargets } from '@/lib/access-guards.mjs';
 import { readJson, dbError } from '@/lib/request-utils';
 import { findSessionClash, isDoubleBookError } from '@/lib/session-booking';
@@ -188,6 +189,8 @@ function clashLabel(clash: { startMs: number; clientName: string | null }, zone:
 // older app builds and Nora's undo depend on; a create has no installed caller to keep, so a
 // wall clock with no zone is refused rather than read as UTC.
 const CREATE_TYPES = ['video', 'inperson', 'phone'];
+const SESSION_MIN_LENGTH = 5;
+const SESSION_MAX_LENGTH = 240;
 async function createSession(request: Request, body: Record<string, unknown>) {
   const role = body.role === 'trainer' || body.role === 'nutritionist' ? body.role : null;
   if (!role) return NextResponse.json({ error: 'create needs a role.' }, { status: 400 });
@@ -200,9 +203,12 @@ async function createSession(request: Request, body: Record<string, unknown>) {
   }
   const zone = normalizeZone(body.tz);
   if (!zone) return NextResponse.json({ error: 'create needs a valid time zone.' }, { status: 400 });
+  // Any whole number of minutes, 5 to 4 hours: the coach decides how long their meetings run
+  // (owner, 2026-10-15: "coach should have flexibility to set any meeting they want"). This was
+  // 15 to 240 in steps of 5. The floor is the sessions table's own CHECK (5 to 480).
   const durationMin = Number(body.durationMin);
-  if (!Number.isInteger(durationMin) || durationMin < 15 || durationMin > 240 || durationMin % 5 !== 0) {
-    return NextResponse.json({ error: 'A session runs 15 minutes to 4 hours.' }, { status: 400 });
+  if (!Number.isInteger(durationMin) || durationMin < SESSION_MIN_LENGTH || durationMin > SESSION_MAX_LENGTH) {
+    return NextResponse.json({ error: 'A session runs 5 minutes to 4 hours.' }, { status: 400 });
   }
   const type = body.type == null || body.type === '' ? 'video' : String(body.type);
   if (!CREATE_TYPES.includes(type)) return NextResponse.json({ error: 'Unknown session type.' }, { status: 400 });
@@ -605,6 +611,21 @@ export async function POST(request: Request) {
   if (action === 'cancel' && !isCoach && !isClient) {
     return NextResponse.json({ error: 'Not your session.' }, { status: 403 });
   }
+  // ⚠ DONE IS A FACT ABOUT THE PAST, AND ABOUT A SESSION THAT WAS ON (Codex on #2370). The app's
+  // calendar offered Mark complete on any confirmed session, a week out included, and this route
+  // took it: the member was emailed "how did your intro go?" before the call, and the score's
+  // "kept" signal counted a session that had not happened. A requested one could be completed
+  // without ever being confirmed. Done now needs a confirmed session that has started (the
+  // website's Mark done already waited for both); a repeat on a completed one stays harmless.
+  if (action === 'complete') {
+    if (session.status !== 'confirmed' && session.status !== 'completed') {
+      return NextResponse.json({ error: 'Only a confirmed session can be marked done.', code: 'not_confirmed' }, { status: 409 });
+    }
+    const startMs = Date.parse(session.scheduled_at);
+    if (!Number.isFinite(startMs) || startMs > Date.now()) {
+      return NextResponse.json({ error: "This session hasn't started yet. Mark it done once it has.", code: 'not_started' }, { status: 409 });
+    }
+  }
   // Only an active/upcoming session can be rescheduled. Reject completed (or
   // declined/cancelled) bookings server-side so a stale UI or crafted request
   // can't rewrite a past session's time — and no "moved" notification fires.
@@ -656,12 +677,22 @@ export async function POST(request: Request) {
     if (room) patch.meeting_url = room;
   }
 
-  const { data: updated, error: updErr } = await supabase
-    .from('sessions')
-    .update(patch)
-    .eq('id', sessionId)
-    .select('id, status, type, scheduled_at, duration_min, meeting_url, topic')
-    .maybeSingle();
+  // The status before this step, read before the write: the member's emails send on a change
+  // (a repeat confirm sends nothing).
+  const statusBefore: string | null = session.status ?? null;
+  const columns = 'id, status, type, scheduled_at, duration_min, meeting_url, topic';
+  // ⚠ A CONFIRM IS CLAIMED IN THE WRITE (Codex on #2370). Two overlapping confirms (a double
+  // click, a retry) both read `requested` above; the update that moves the row off another status
+  // is the one that tells the member, and the other finds it confirmed and tells nobody. A confirm
+  // of a session already confirmed still runs (it attaches a room the first one lacked).
+  let { data: updated, error: updErr } = action === 'confirm'
+    ? await supabase.from('sessions').update(patch).eq('id', sessionId).neq('status', 'confirmed').select(columns).maybeSingle()
+    : await supabase.from('sessions').update(patch).eq('id', sessionId).select(columns).maybeSingle();
+  const alreadyConfirmed = action === 'confirm' && !updErr && !updated;
+  if (alreadyConfirmed) {
+    ({ data: updated, error: updErr } = await supabase.from('sessions').update(patch).eq('id', sessionId).select(columns).maybeSingle());
+  }
+  const statusAtWrite: string | null = alreadyConfirmed ? 'confirmed' : statusBefore;
   // ⚠ A MOVE CAN LOSE THE SAME RACE A NEW BOOKING CAN: the clash read above passed, and another
   // write took the time before this one landed. The database refuses it (sessions_no_overlap);
   // the coach is told the time was taken, and nothing moved, so nobody is notified.
@@ -677,7 +708,7 @@ export async function POST(request: Request) {
   // their list. The Schedule's booking sheet now offers Cancel beside Reschedule, so it says
   // what a reschedule says. A member cancelling their own booking is not told about it.
   const coachCancel = action === 'cancel' && isCoach && session.client_id !== user.id;
-  if ((action === 'confirm' || action === 'decline' || action === 'reschedule' || coachCancel) && session.client_id) {
+  if (((action === 'confirm' && !alreadyConfirmed) || action === 'decline' || action === 'reschedule' || coachCancel) && session.client_id) {
     try {
       // For a reschedule, the meaningful time is the NEW slot, not the old.
       const whenSource = action === 'reschedule' && newScheduledAt ? newScheduledAt : session.scheduled_at;
@@ -699,6 +730,24 @@ export async function POST(request: Request) {
     } catch {
       /* best-effort */
     }
+  }
+
+  // The member's email after a confirm (the time, the call link, a calendar invite), and the one
+  // follow-up after an intro (client-onboarding review, fix 3b: the booking email promised "a
+  // second email with the call link once they accept", and nothing sent one). Best-effort:
+  // afterSessionStep never throws, and the update above already happened.
+  if ((action === 'confirm' || action === 'complete') && session.client_id && updated) {
+    let when = '';
+    if (action === 'confirm') {
+      try { when = await memberClock(supabase, session.client_id, session.scheduled_at); } catch { /* the email says the time anyway */ }
+      if (!when) when = new Date(session.scheduled_at).toUTCString();
+    }
+    await afterSessionStep(createAdminClient(), {
+      action,
+      session: { ...session, ...updated } as SessionForEmail,
+      previousStatus: statusAtWrite,
+      when,
+    });
   }
 
   return NextResponse.json({

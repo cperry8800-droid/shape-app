@@ -1458,7 +1458,7 @@ function bookingTime12h(hhmm) {
   return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
 }
 
-async function submitConsultationBooking({ coach, role, slot = {}, topic = 'Free intro call' }) {
+async function submitConsultationBooking({ coach, role, slot = {}, topic = 'Free intro call', durationMin = null }) {
   const professionalType = normalizeRole(role || coach?.provider_role);
   if (!coach?.name || !['trainer', 'nutritionist'].includes(professionalType)) {
     throw new Error('Missing provider details for booking.');
@@ -1492,6 +1492,9 @@ async function submitConsultationBooking({ coach, role, slot = {}, topic = 'Free
       date,
       time,
       scheduledAt: new Date(at).toISOString(),
+      // The intro length the times were laid out for: a cross-check the route refuses when the
+      // coach has changed it since (length_changed).
+      ...(Number.isInteger(durationMin) ? { durationMin } : {}),
       topic,
       // Read only for an account with no email of its own (phone sign-up); the route takes
       // the account's address otherwise.
@@ -1500,7 +1503,12 @@ async function submitConsultationBooking({ coach, role, slot = {}, topic = 'Free
   });
   const d = await res.json().catch(() => ({}));
   if (!res.ok || !d?.session_id) {
-    throw new Error(d?.error || 'Could not book this consultation. Try again.');
+    // The route's code rides along (length_changed: the coach's intro length changed since the
+    // times were laid out, with the new length), so the screen can act on it, not only say it.
+    const err = new Error(d?.error || 'Could not book this consultation. Try again.');
+    if (d?.code) err.code = d.code;
+    if (Number.isInteger(d?.durationMin)) err.durationMin = d.durationMin;
+    throw err;
   }
   const session = { stored: 'supabase', data: { id: d.session_id } };
   return { stored: session.stored, data: session.data, session };
@@ -5799,11 +5807,13 @@ async function waitlistInvite(entryId) {
 // public weekly pattern + booked sessions from GET /api/availability. Public
 // route (no auth); 60s cache per coach so the station + calendar share a fetch.
 const _coachAvailCache = new Map();
-async function coachAvailabilityGet(role, id) {
+// `fresh` skips the minute's cache: a read again because the coach's intro length changed (or a
+// retry) must not be answered with the times laid out for the old one (Codex on #2370).
+async function coachAvailabilityGet(role, id, { fresh = false } = {}) {
   if (!apiBaseUrl || !role || !id) return null;
   const key = `${role}:${id}`;
   const hit = _coachAvailCache.get(key);
-  if (hit && Date.now() - hit.at < 60000) return hit.data;
+  if (!fresh && hit && Date.now() - hit.at < 60000) return hit.data;
   const res = await fetch(`${apiBaseUrl}/api/availability?role=${encodeURIComponent(role)}&id=${encodeURIComponent(id)}`, { credentials: 'same-origin' });
   if (!res.ok) return null;
   const data = await res.json().catch(() => null);

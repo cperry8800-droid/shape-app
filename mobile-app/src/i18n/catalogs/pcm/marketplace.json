@@ -190,5 +190,14 @@
   "preview.action": "Wetin dey inside →",
   "rating.new": "New",
   "dir.coachNotOpen": "Dat coach listing never open. E go show for here once e open.",
-  "dir.coachNotOpenDismiss": "Close am"
+  "dir.coachNotOpenDismiss": "Close am",
+  "listing.slotBodyLength": "Free {minutes}-minute intro call with {name}. You fit reschedule am later for messages.",
+  "listing.requested": "You don ask",
+  "listing.bookedRequestBody": "You don ask {name} for {minutes}-minute intro. You go get the call link for email once dem confirm am.",
+  "listing.messageNotSent": "E no send",
+  "listing.messageNotSentBody": "Your note to {name} no send. Try again. {error}",
+  "listing.lengthChanged": "The intro don change",
+  "listing.lengthChangedBody": "{name} intro now dey run {minutes} minutes. Pick time again.",
+  "listing.timesLoading": "We dey load {name} times…",
+  "listing.timesFailed": "We no fit load {name} times."
 }

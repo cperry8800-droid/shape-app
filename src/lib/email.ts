@@ -11,6 +11,15 @@ type EmailArgs = {
   icsFilename?: string;
 };
 
+/**
+ * The organizer every Shape invite names. An update is matched to the event it updates by its uid
+ * AND its organizer, so the booking's invite and the confirmation's must name the same one (Codex
+ * on #2370), and it is never a coach's own account address.
+ */
+export function calendarOrganizerEmail(): string {
+  return process.env.CALENDAR_ORGANIZER_EMAIL || 'no-reply@theshapecommunity.com';
+}
+
 type IcsArgs = {
   uid: string;
   start: Date;
@@ -22,6 +31,9 @@ type IcsArgs = {
   attendeeEmail: string;
   attendeeName: string;
   location?: string;
+  // An update to an invite already sent (same uid): a higher SEQUENCE tells the calendar to
+  // replace that event rather than add another.
+  sequence?: number;
 };
 
 function pad(n: number): string {
@@ -56,6 +68,7 @@ export function buildIcs(args: IcsArgs): string {
     'METHOD:REQUEST',
     'BEGIN:VEVENT',
     `UID:${args.uid}@theshapecommunity.com`,
+    args.sequence ? `SEQUENCE:${args.sequence}` : '',
     `DTSTAMP:${toIcsDate(now)}`,
     `DTSTART:${toIcsDate(args.start)}`,
     `DTEND:${toIcsDate(end)}`,

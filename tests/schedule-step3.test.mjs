@@ -83,20 +83,50 @@ test('buildSlots without busy time or rules is the list it always was', () => {
 
 // ── 2 · /api/availability ───────────────────────────────────────────────────────
 
-async function availability({ tables = {}, rpc, fail = [] } = {}) {
+// A signed-out visitor's client: the listing tables grant anon every column but stripe_account_id
+// (2026-10-10-security-review-lows-and-anon-definers.sql), so a `*` read of them is refused whole.
+function anonListings(c) {
+  return { ...c, from(t) {
+    const q = c.from(t);
+    if (t !== 'trainers' && t !== 'nutritionists') return q;
+    const select = q.select.bind(q);
+    q.select = (cols, ...rest) => {
+      if (!String(cols).includes('*')) return select(cols, ...rest);
+      const refused = { eq: () => refused, maybeSingle: () => refused, then: (res, rej) => Promise.resolve({ data: null, error: { code: '42501', message: `permission denied for table ${t}` } }).then(res, rej) };
+      return refused;
+    };
+    return q;
+  } };
+}
+
+async function availability({ tables = {}, rpc, fail = [], anon = false } = {}) {
   const { loadRealModule } = await import('./helpers/load-real-module.mjs');
   const nextServer = require('next/server');
   const lib = (f, reg = []) => loadRealModule(join(ROOT, 'src/lib', f), { typescript: true, registry: new Map([['next/server', nextServer], ...reg]) });
   const time = await lib('time.ts');
   const owned = await lib('owned-provider.ts', [['@/lib/time', time], ['@supabase/supabase-js', {}]]);
-  const client = fakeSupabase({ tables, fail, rpcs: { provider_busy_blocks: rpc || (() => []) } });
+  const raw = fakeSupabase({ tables, fail, rpcs: { provider_busy_blocks: rpc || (() => []) } });
+  const client = anon ? anonListings(raw) : raw;
   const route = await loadRealModule(join(ROOT, 'src/app/api/availability/route.ts'), {
     typescript: true,
     registry: new Map([['next/server', nextServer], ['@/lib/time', time], ['@/lib/owned-provider', owned], ['@/lib/supabase/server', { createClient: async () => client }]]),
   });
   const res = await route.GET(new Request('https://shape.test/api/availability?role=trainer&id=7'));
-  return { status: res.status, body: await res.json(), calls: client._calls };
+  return { status: res.status, body: await res.json(), calls: raw._calls };
 }
+
+test('/api/availability places a signed-out visitor\'s times: it reads the zone by name, never the whole listing', async () => {
+  // ⚠ IT READ `*`, WHICH ANON IS REFUSED WHOLE (client-onboarding review, fix 3b): the zone came back
+  // null and the booking page told every signed-out visitor the coach's hours were not on a clock.
+  const r = await availability({
+    anon: true,
+    tables: { trainers: [{ id: 7, timezone: NY, stripe_account_id: 'acct_x' }], provider_availability: [{ provider_role: 'trainer', provider_id: 7, weekday: 4, start_minute: 540, duration_min: 180 }] },
+  });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(r.body.timezone, NY, 'the zone, for a visitor who is not signed in');
+  assert.equal(r.body.slots.length, 1);
+  assert.doesNotMatch(JSON.stringify(r.body), /acct_x/, 'nothing the visitor may not read');
+});
 
 test('/api/availability answers with the coach\'s busy time and rules, and `booked` from the busy read', async (t) => {
   // ⚠ THE ROUTE KEEPS A SESSION IN `booked` ONLY UNTIL IT ENDS (Date.now()), so the fixture's
@@ -112,14 +142,14 @@ test('/api/availability answers with the coach\'s busy time and rules, and `book
     tables: {
       trainers: [{ id: 7, timezone: NY }],
       provider_availability: [{ provider_role: 'trainer', provider_id: 7, weekday: 4, start_minute: 540, duration_min: 180 }],
-      provider_booking_rules: [{ provider_role: 'trainer', provider_id: 7, buffer_min: 15, max_per_day: 4, min_notice_hours: 12 }],
+      provider_booking_rules: [{ provider_role: 'trainer', provider_id: 7, buffer_min: 15, max_per_day: 4, min_notice_hours: 12, consult_min: 30 }],
     },
     rpc: (args) => { asked = args; return busy; },
   });
   assert.equal(r.status, 200, JSON.stringify(r.body));
   assert.deepEqual(r.body.busy, busy.map((b) => ({ start: b.starts_at, end: b.ends_at, kind: b.kind })));
   assert.deepEqual(r.body.booked, ['2026-10-08T13:00:00+00:00'], 'a session start, never a time-off one');
-  assert.deepEqual(r.body.rules, { bufferMin: 15, maxPerDay: 4, minNoticeHours: 12 });
+  assert.deepEqual(r.body.rules, { bufferMin: 15, maxPerDay: 4, minNoticeHours: 12, consultMin: 30 }, 'the intro length rides with the rules, so the booking pages lay out times for it');
   assert.equal(r.body.timezone, NY);
   // ⚠ THE WINDOW IS INSIDE WHAT THE FUNCTION ALLOWS: a longer one is refused outright.
   const days = (Date.parse(asked.p_to) - Date.parse(asked.p_from)) / 86400000;
@@ -354,6 +384,19 @@ test('the booking rules load, save only when changed, and say they bind members'
     assert.deepEqual(post.body, { role: 'trainer', bufferMin: 30, maxPerDay: 6, minNoticeHours: 12 });
     assert.match(page.toast(), /Booking rules saved/);
     assert.equal(plate.querySelector('[data-save-rules]').disabled, true, 'saved rules still read as changed');
+    // The free intro's length (owner, 2026-10-15: "it should be completly customizable"): typed,
+    // any whole minute from 5 to 240, sent only when it changed.
+    const intro = plate.querySelector('[data-intro-length]');
+    assert.equal(intro.value, '15', 'an answer with no length reads as 15');
+    await setValue(page, intro, '3');
+    assert.match(plate.querySelector('[data-intro-length-error]').textContent, /from 5 to 240/);
+    assert.equal(plate.querySelector('[data-save-rules]').disabled, true, 'a length out of range cannot be saved');
+    await setValue(page, intro, '10');
+    assert.ok(!plate.querySelector('[data-intro-length-error]'), 'a length in range shows no error');
+    await page.click(plate.querySelector('[data-save-rules]'));
+    const introPost = sent.filter((c) => c.path === '/api/my-booking-rules').at(-1);
+    assert.deepEqual(introPost.body, { role: 'trainer', bufferMin: 30, maxPerDay: 6, minNoticeHours: 12, consultMin: 10 });
+    assert.match(plate.textContent, /Your free intro runs as long as you set/);
   } finally { await page.unmount(); }
 });
 

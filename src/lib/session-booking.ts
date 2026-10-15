@@ -5,12 +5,12 @@
 // one decision rather than two that happen to agree.
 //
 // Callers: /api/sessions/manage (a coach's reschedule and create), /api/sessions/request (a
-// member asking their own coach for a session), /api/consultation (a prospect's 15-minute
-// consult).
+// member asking their own coach for a session), /api/consultation (a prospect's free intro, at
+// the length the coach set).
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ACTIVE_STATUSES, clashIn, fitsOpenHours, isOfferedStart } from '../../public/newdesign/scheduleRules.mjs';
-import { bookingRuleRefusal, checkSlot, OPEN_REQUESTS_CAP, openRequestsMessage } from '../../public/newdesign/bookingRules.mjs';
+import { bookingRuleRefusal, checkSlot, DEFAULT_RULES, normalizeRules, OPEN_REQUESTS_CAP, openRequestsMessage } from '../../public/newdesign/bookingRules.mjs';
 
 // The database's own refusal of a member's request (2026-10-07-booking-rules-enforced.sql), in the
 // member's words: the second of two requests sent together, which both passed checkBookingRules.
@@ -149,6 +149,28 @@ export function offeredInOpenHours(
 export function isDoubleBookError(error: unknown): boolean {
   const code = error && typeof error === 'object' ? String((error as { code?: unknown }).code ?? '') : '';
   return code === '23505' || code === '23P01';
+}
+
+/**
+ * How long the coach's free intro runs, in minutes: provider_booking_rules.consult_min, the coach's
+ * own pick (any whole minute from 5 to 240; 2026-10-15-intro-length.sql). No row is 15, the length
+ * every intro had; so is a database without the column (`select('*')`, so naming it cannot fail
+ * the read). ⚠ A FAILED READ IS null, NEVER 15: the route refuses rather than book the coach a
+ * length they did not choose.
+ */
+export async function readIntroLength(
+  db: Pick<SupabaseClient, 'from'>,
+  role: string,
+  providerId: number,
+): Promise<number | null> {
+  const { data, error } = await db
+    .from('provider_booking_rules')
+    .select('*')
+    .eq('provider_role', role)
+    .eq('provider_id', providerId)
+    .maybeSingle();
+  if (error) return isMissingRelation(error) ? DEFAULT_RULES.consultMin : null;
+  return normalizeRules(data).consultMin;
 }
 
 /**
