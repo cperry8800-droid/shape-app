@@ -87,7 +87,7 @@ const CO_TOUR = {
         list: ["Week and month views", "Drag a session to move it; the client is notified", "Open hours you set once, in your own time zone", "Bookings color-coded by client, one click to their file", "A private, read-only feed for Google Calendar, Apple Calendar or Outlook"] },
       { key: "clients", file: "clients", name: "Clients",
         body: "One roster, one view: streaks, weekly score, adherence, last food log, last contact, revenue and tenure. Sort by whatever you care about today and open any client's full file.",
-        list: ["Sort every column that has a value behind it", "Needs-eyes, new and on-track filters", "Each client's file one click away", "Export the roster as a spreadsheet"] },
+        list: ["Sort every column that has a value behind it", "Status tiles: needs you, watch, on track and new", "Each client's file one click away", "Export the roster as a spreadsheet"] },
       { key: "programs", file: "programs", name: "Programs",
         body: "Blocks, sessions, sets, reps, RPE and tempo, with autoregulation built in. Write a block once and clone it to a new client in one click.",
         list: ["Program templates by goal phase", "Who needs a program next", "Assign pre-fills the queue", "Publish a whole week at once"] },
@@ -102,7 +102,7 @@ const CO_TOUR = {
         list: ["Client, revenue, program and adherence goals", "Progress and pace against the date", "Session rate × sessions, plus subscriptions and one-time sales", "Weekly, monthly, quarterly and annual take-home, net of the platform fee"] },
       { key: "score", file: "score", name: "Score",
         body: "Your coach score, added up from active clients, adherence, session completion, client PRs, programs published and reviews. It drives marketplace ranking and the verified badge.",
-        list: ["Five tiers, Certified to Icon", "A breakdown of what earns the points", "What your tier unlocks", "A leaderboard and how it works"] },
+        list: ["Five tiers, Certified to Icon", "A breakdown of what earns the points", "What your tier unlocks", "How each action earns points"] },
       { key: "profile", file: "profile", name: "Profile",
         body: "The profile clients see on the marketplace: your credentials, coaching philosophy, Shape score and streak, availability with a book-a-consult button, and your activity, reviews and music underneath.",
         list: ["Credentials, philosophy and where you coach", "Availability, and a button to book a consult", "Activity, about, coaching, reviews and music", "Followers, following and posts"] },
@@ -126,7 +126,7 @@ const CO_TOUR = {
         list: ["Week and month views", "Drag a consult to move it; the client is notified", "Open hours you set once, in your own time zone", "Consults color-coded by client, one click to their file", "A private, read-only feed for Google Calendar, Apple Calendar or Outlook"] },
       { key: "clients", file: "clients", name: "Clients",
         body: "One roster, one view: adherence, last food log, last consult, weight trend, revenue and tenure. Filter by specialty or protocol and open any client's full file.",
-        list: ["Sort every column that has a value behind it", "Needs-eyes, new and on-track filters", "Each client's file one click away", "Export the roster as a spreadsheet"] },
+        list: ["Sort every column that has a value behind it", "Status tiles: needs you, watch, on track and new", "Each client's file one click away", "Export the roster as a spreadsheet"] },
       { key: "programs", file: "plans", name: "Plans",
         body: "Macro targets, swap rules and grocery lists that generate themselves. Save any plan as a template and reuse it across clients; the lifecycle view says who needs a plan next.",
         list: ["Plan templates by goal phase", "Expiring this week, ready for a phase change", "Assign pre-fills the plan queue", "Intake pending, so nothing is written blind"] },
@@ -141,7 +141,7 @@ const CO_TOUR = {
         list: ["Client, revenue, plan and adherence goals", "Progress and pace against the date", "Consult rate × consults, plus meal-plan subscriptions", "Weekly, monthly, quarterly and annual take-home, net of the platform fee"] },
       { key: "score", file: "score", name: "Score",
         body: "Your coach score, added up from active clients, log adherence, client body-composition wins, plans published, reviews and the Radio rooms you host. It drives marketplace ranking and the verified badge.",
-        list: ["Five tiers, Certified to Icon", "A breakdown of what earns the points", "What your tier unlocks", "A leaderboard and how it works"] },
+        list: ["Five tiers, Certified to Icon", "A breakdown of what earns the points", "What your tier unlocks", "How each action earns points"] },
       { key: "profile", file: "profile", name: "Profile",
         body: "The profile clients see on the marketplace: your credentials, practice philosophy, Shape score and streak, availability with a book-a-consult button, and your activity, reviews and music underneath.",
         list: ["Credentials, philosophy and where you practise", "Availability, and a button to book a consult", "Activity, about, coaching, reviews and music", "Followers, following and posts"] },
@@ -241,7 +241,7 @@ function CoTour({ role, setRole }) {
           <div>
             <span className="co-eyebrow">The dashboard</span>
             <h2 className="co-h2">What's waiting once your <em>account is created.</em></h2>
-            <p style={{ maxWidth: "62ch", color: "rgba(238,243,240,0.72)", fontSize: 15, lineHeight: 1.6 }}>Choose your widgets, drag them into place, and change their widths. Save multiple dashboards with all tabs together, then switch to the view you need.</p>
+            <p style={{ maxWidth: "62ch", color: "rgba(238,243,240,0.72)", fontSize: 15, lineHeight: 1.6 }}>Choose the widgets on Today, drag them into place, and change their widths. Save more than one dashboard and switch to the view you need. The other tabs come laid out for you.</p>
           </div>
           <div className="co-roles" role="group" aria-label="Show the dashboard for">
             {["trainer", "nutri"].map((r) => (

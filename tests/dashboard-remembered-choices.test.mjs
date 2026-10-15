@@ -550,8 +550,9 @@ test('the four controls are wired, and the search box deliberately is not', () =
     // that pinned the literal would have FAILED this very fix, which is the trap the
     // house records post-mortem three times over.
     assert.match(s, new RegExp('useRememberedChoice\\(prefs, "rosterFilter", ' + pre + '_FILTER_KEYS, "all"\\)'), f);
-    assert.match(s, new RegExp('const ' + pre + '_FILTER_KEYS = ' + pre + '_FILTERS\\(0\\)\\.map\\(\\(f\\) => f\\[0\\]\\)'), f);
-    assert.match(s, new RegExp('const FILTERS = ' + pre + '_FILTERS\\(eyesCount\\)'), f + ': the rendered filters stopped coming from the hoisted set');
+    assert.match(s, new RegExp('const ' + pre + '_FILTER_KEYS = ' + pre + '_FILTERS\\.map\\(\\(f\\) => f\\[0\\]\\)'), f);
+    // The status tiles (2026-10-15) render from the same hoisted set the allowlist is derived from.
+    assert.match(s, new RegExp('<DashRosterTiles [^>]*filters=\\{' + pre + '_FILTERS\\}'), f + ': the rendered filters stopped coming from the hoisted set');
     // ⚠ A HALF-TYPED NAME IS A MOMENT, NOT A PREFERENCE. Restoring it would show a coach
     // a roster mysteriously narrowed to "pri" a week later.
     assert.match(s, /const \[q, setQ\] = React\.useState\(""\)/, f + ': the search box became sticky');

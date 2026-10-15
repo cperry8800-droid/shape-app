@@ -227,17 +227,6 @@ function dgInjectStyle() {
 .dg-boards{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-right:auto;flex:1 1 380px}
 .dg-board-form{display:flex;flex-wrap:wrap;gap:8px;align-items:center;flex-basis:100%;padding:12px;border:1px solid var(--sh-line2, #413d38);border-radius:8px}
 .dg-board-form label{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.dw-client-link,.dw-action{color:var(--sh-accent-ink, #2ee0c4);text-decoration:underline;text-underline-offset:3px;display:inline-flex;align-items:center;min-height:28px}
-.dw-note{font-size:12px;color:var(--sh-ink2, #a09b94);line-height:1.5;margin:6px 0}
-.dw-row{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--sh-line, #302c27);padding:10px 0;font-size:13px}
-.dw-row>div{min-width:0}.dw-row button{margin-left:6px}
-.dw-extra{display:none}.dw-week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
-.dw-day{display:flex;flex-direction:column;gap:6px;background:var(--sh-ground, #1a1612);border:1px solid var(--sh-line, #302c27);border-radius:8px;padding:10px 6px;color:var(--sh-ink, #f2ede4);text-decoration:none;min-width:0}
-.dw-day-date,.dw-day-time{font-size:11px}.dw-day-count{font-size:22px}.dw-day-count small{font-size:11px;color:var(--sh-ink2, #a09b94)}
-.dw-status{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.dw-status-cell{display:flex;flex-direction:column;gap:6px;border:1px solid var(--sh-line, #302c27);padding:10px;border-radius:8px;color:var(--sh-ink, #f2ede4);text-decoration:none;font-size:12px}.dw-status-cell small{color:var(--sh-ink2, #a09b94)}
-.dw-movers{display:grid;gap:16px}.dw-movers .dw-row{flex-wrap:wrap}
-@container (max-width:650px){.dw-week{grid-template-columns:1fr}.dw-day{display:grid;grid-template-columns:65px 75px 1fr;align-items:center;padding:8px 10px}.dw-day-count{font-size:18px}.dw-status{grid-template-columns:1fr 1fr}.dw-row{flex-wrap:wrap}}
-@container (min-width:850px){.dw-movers{grid-template-columns:1fr 1fr}.dw-movers>p{grid-column:1/-1}.dw-extra:nth-child(-n+10){display:block}}
 .dg-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .dg-direct-drag .grid-stack-item-content{cursor:grab}.dg-direct-drag .ui-draggable-dragging{cursor:grabbing}
 @media(max-width:767px){.dash-gridstack .ui-resizable-handle,.dash-rs{display:none!important}.dg-board-form input{font-size:16px;max-width:100%}}

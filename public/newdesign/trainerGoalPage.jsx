@@ -228,10 +228,11 @@ function TrainerGoalPage() {
   const currentNet = paceIsLive ? liveWeeklyNet : currentWeekly * (1 - PLATFORM_FEE_RATE);
   const paceDelta = weekly - currentNet;
 
-  // Each card below becomes a draggable/resizable DashGrid widget (role=trainer, tab=goal),
-  // mirroring the Score refactor. The DashPage hero (title/actions) stays as the page header;
-  // only the card stack is gridded. Each goal is a half-width widget; calc + momentum are full.
-  const widgets = goals.map((g, i) => ({ key: "goal-" + (g.id || i), title: g.t || "Goal", size: "half", render: () => {
+  // ── A FIXED PAGE, NOT A BOARD (owner, 2026-10-15: "least overwhelming as possible, easy
+  // to navigate", the builder removed "like Programs"). Three parts in one order: the
+  // quarter's goals, how the quarter is going (Momentum), and the calculator to plan with.
+  // Each card keeps its own EDIT; there is nothing to drag, hide or resize.
+  const goalCard = (g, i) => {
     // A bound goal reads its CURRENT from the practice; undefined means the
     // goal is not bound (use the typed number), null means it IS bound and the
     // figure could not be read — which shows "—", never the stale typed one.
@@ -264,14 +265,14 @@ function TrainerGoalPage() {
         )}
       </Card>
     );
-  } })).concat([
-    { key: "calc", title: "Revenue calculator", size: "full", render: () => (
+  };
+  const calcCard = (
       <Card>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
           <SectionTitle right="SET YOUR TARGET">Revenue calculator</SectionTitle>
           <Chip onClick={() => setEditCalc(true)}>EDIT</Chip>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: 32, padding: "8px 4px 4px" }}>
+        <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: 32, padding: "8px 4px 4px" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
             {[
               ["Session rate", "rate", rate, 20, 300, 5, v => `$${v}`],
@@ -324,8 +325,8 @@ function TrainerGoalPage() {
           </div>
         </div>
       </Card>
-    ) },
-    { key: "momentum", title: "Momentum", size: "full", render: () => {
+  );
+  const momentumCard = () => {
       // ⚠ COMPUTED ONLY WHERE THERE IS NOTHING TO OVERWRITE. A signed-in coach
       // with no saved goals gets `momentum: []` — an empty card — and that is
       // exactly the gap the trajectory can fill. A coach who HAS typed rows
@@ -340,7 +341,7 @@ function TrainerGoalPage() {
           <SectionTitle right={isComputed ? "MEASURED" : "THIS QUARTER"}>Momentum</SectionTitle>
           <Chip onClick={() => setEditMomentum(rows)}>EDIT</Chip>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 20, padding: "12px 4px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 20, padding: "12px 4px" }}>
           {rows.map((m,i)=>(
             <div key={i}>
               <div style={{ fontFamily: serif, fontSize: 36, letterSpacing: "-0.02em", lineHeight: 1 }}>{m[0]}</div>
@@ -356,8 +357,7 @@ function TrainerGoalPage() {
         )}
       </Card>
       );
-    } },
-  ]);
+  };
 
   return (
     <DashPage
@@ -371,7 +371,24 @@ function TrainerGoalPage() {
         <button onClick={() => setEditGoalIdx("new")} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>+ New goal</button>
       </>}
     >
-      <DashGrid role="trainer" tab="goal" widgets={widgets} />
+      <div style={{ display: "grid", gap: 16 }}>
+        {goals.length ? (
+          <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            {goals.map((g, i) => <React.Fragment key={g.id || i}>{goalCard(g, i)}</React.Fragment>)}
+          </div>
+        ) : (
+          // No goals is a state with one next step, not an empty page.
+          <div style={{ border: "1px dashed var(--sh-line2, #413d38)", borderRadius: 12, padding: "26px 24px", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 280px", minWidth: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 500 }}>No goals for this quarter yet</div>
+              <div style={{ fontSize: 13, color: "var(--sh-ink2, #a09b94)", marginTop: 4, lineHeight: 1.5 }}>Set one and track it here: clients, revenue, programs, or adherence.</div>
+            </div>
+            <button onClick={() => setEditGoalIdx("new")} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>+ New goal</button>
+          </div>
+        )}
+        {momentumCard()}
+        {calcCard}
+      </div>
 
       {editGoalIdx != null && (
         <GoalEditModal

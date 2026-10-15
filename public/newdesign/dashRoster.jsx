@@ -718,6 +718,42 @@ function DashClientDrawer({ row, role, onClose, prefs }) {
 // Back-compat alias (step 6 name).
 const DashConsultDrawer = DashClientDrawer;
 
+// Which roster rows a status filter keeps. One rule for the table and for the status
+// tiles that count it (Clients, 2026-10-15), so a tile can never promise a number the
+// table then disagrees with. Anything else (including "all") keeps every row.
+function dashRosterMatches(r, filter) {
+  if (["red", "amber", "green", "unknown"].includes(filter)) return r.severity === filter;
+  if (filter === "new") return !!r.client.profile.isNew;
+  return true;
+}
+
+// The Clients page's status tiles: each tile is a count AND the filter it applies, so the
+// roster's summary, its "by status" card and its eight filter chips are one row of controls.
+// filters: [[key, label]] · `unknown` shows only while there is someone in it (or it is on).
+function DashRosterTiles({ triage, filters, value, onChange, loading }) {
+  const dot = { all: "var(--sh-ink2, #a09b94)", red: DASH_SEV_COLORS.red, amber: DASH_SEV_COLORS.amber, green: DASH_SEV_COLORS.green, new: DASH_SEV_COLORS.new, unknown: DASH_SEV_COLORS.unknown };
+  const shown = filters.filter(([k]) => k !== "unknown" || k === value || triage.some((r) => dashRosterMatches(r, k)));
+  return (
+    <div role="group" aria-label="Filter the roster by status" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: 10, marginBottom: 14 }}>
+      {shown.map(([k, label]) => {
+        const on = k === value;
+        const n = triage.filter((r) => dashRosterMatches(r, k)).length;
+        return (
+          <button key={k} type="button" aria-pressed={on} onClick={() => onChange(k)}
+            style={{ textAlign: "left", cursor: "pointer", font: "inherit", color: "var(--sh-ink, #f2ede4)", padding: "12px 14px", borderRadius: 10, minWidth: 0,
+              background: on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.08)" : "var(--sh-card, #25211d)",
+              border: "1px solid " + (on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.55)" : "var(--sh-line, #302c27)") }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 7, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.12em", textTransform: "uppercase", color: on ? "var(--sh-accent-ink, #2ee0c4)" : "var(--sh-ink2, #a09b94)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: 2, flex: "none", background: dot[k] }} />{label}
+            </span>
+            <span style={{ display: "block", fontSize: 24, fontWeight: 500, letterSpacing: "-0.01em", marginTop: 6, lineHeight: 1 }}>{loading ? "–" : n}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Roster table — triage-ordered rows + role-configured columns ─────────────
 // `sort`/`sortDir`/`onSort` are optional and default to the triage order, so a caller
 // that does not offer sorting gets exactly the table it had — and the headers render as
@@ -766,16 +802,8 @@ function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, p
   }, [idKey]);
   const view = DASH_ROSTER_VIEWS[role] || DASH_ROSTER_VIEWS.nutritionist;
 
-  const matchesFilter = (r) => {
-    if (["red", "amber", "green"].includes(filter)) return r.severity === filter;
-    if (filter === "eyes") return r.severity === "red" || r.severity === "amber";
-    if (filter === "unknown") return r.severity === "unknown";
-    if (filter === "new") return !!r.client.profile.isNew;
-    if (filter === "ontrack") return r.severity === "green" && !r.client.profile.isNew;
-    return true;
-  };
   const q = (query || "").trim().toLowerCase();
-  const filtered = triage.filter(matchesFilter).filter((r) => !q || r.client.profile.name.toLowerCase().includes(q));
+  const filtered = triage.filter((r) => dashRosterMatches(r, filter)).filter((r) => !q || r.client.profile.name.toLowerCase().includes(q));
   // Sorting is applied AFTER the filter and the search, so the three compose the way a
   // coach expects: narrow to who matters, then order what is left.
   const rows = dashRosterSorted(filtered, sort, sortDir, role);
@@ -828,7 +856,10 @@ function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, p
             aria-label={"Open " + rec.profile.name + " drilldown"}
             style={{ display: "grid", gridTemplateColumns: view.cols, gap: 12, padding: "14px 4px", alignItems: "center", borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)", cursor: "pointer" }}
           >
-            <div style={{ display: "flex", gap: 10, alignItems: "center", minWidth: 0 }}>
+            {/* The pill WRAPS under the name rather than squeezing it: at the table's
+                minimum width the name column is ~130px, and a "STREAK BROKEN" pill beside
+                it cut "Marcus T." to "M…" (measured at 390px, 2026-10-15). */}
+            <div style={{ display: "flex", gap: 10, rowGap: 4, flexWrap: "wrap", alignItems: "center", minWidth: 0 }}>
               <span style={{ width: 7, height: 7, flexShrink: 0, borderRadius: 2, background: sevColor }} />
               <span style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{rec.profile.name}</span>
               {/* ⚠ typeof, not truthiness — 0 is a real age. Absence renders as
@@ -850,4 +881,4 @@ function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, p
   );
 }
 
-Object.assign(window, { DashRosterTable, DashClientDrawer, DashConsultDrawer, DASH_DRAWER_VIEWS, dashDrawerSections, DASH_ROSTER_VIEWS, DASH_ROSTER_SORTS, DASH_ROSTER_SORT_KEYS, dashRosterSorted });
+Object.assign(window, { DashRosterTable, DashRosterTiles, dashRosterMatches, DashClientDrawer, DashConsultDrawer, DASH_DRAWER_VIEWS, dashDrawerSections, DASH_ROSTER_VIEWS, DASH_ROSTER_SORTS, DASH_ROSTER_SORT_KEYS, dashRosterSorted });

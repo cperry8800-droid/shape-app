@@ -265,7 +265,13 @@ test("every control the Today page draws clears the repo's 24px floor", () => {
 });
 
 test('widget client and action links retain a tap target and Shape typography', () => {
-  assert.match(GRID_RAW, /\.dw-client-link,\.dw-action\{[^}]*min-height:28px/);
+  // ⚠ IN dash.css, NOT THE GRID'S INJECTED SHEET (2026-10-15): Business stopped being a grid
+  // and its Revenue by client rows rendered unstyled, because the rules existed only once a
+  // DashGrid had mounted.
+  const CSS = readFileSync(new URL('../public/newdesign/dash.css', import.meta.url), 'utf8');
+  assert.match(CSS, /\.dw-client-link,\.dw-action\{[^}]*min-height:28px/);
+  assert.match(CSS, /\.dw-row\{display:flex/);
+  assert.ok(!/\.dw-row\{/.test(GRID_RAW), 'the widget rows are styled in two places again');
   assert.match(fn(GRID, 'dgPanelStyle'), /fontFamily: "var\(--sh-font-body/);
   assert.match(fn(TODAY, 'DashWidgetClient'), /className="dw-client-link"/);
 });
@@ -366,21 +372,20 @@ test('every host serving a page that calls the catalogue producers asks for a ne
   assert.deepEqual(stale, [], 'hosts asking for a signals module older than the producers they call');
 });
 
-test('the Clients boards feature-test the producers rather than just checking the global', () => {
-  // ⚠ `typeof DashSignals !== "undefined"` passes on a STALE module and then throws on the
-  // first call — and public/newdesign has no error boundary, so that is a blank page. The
-  // Today board was written this way in #2137; these two were not, until CodeRabbit said so.
+test('the Clients pages are the roster alone; the roster cards stay on Today', () => {
+  // ⚠ 2026-10-15 (owner: "least overwhelming as possible", the builder removed "like
+  // Programs"): the Clients pages stopped being boards, and the five roster cards they
+  // offered as optional widgets were already Today's optional widgets. So the Clients pages
+  // call no producer at all (nothing there can meet a stale signals module), and Today keeps
+  // all five — a card dropped from both would be a feature lost, not a page simplified.
   for (const f of ['trainerClientsPage.jsx', 'nutritionistClientsPage.jsx']) {
     const src = stripComments(readFileSync(new URL('../public/newdesign/' + f, import.meta.url), 'utf8'));
-    assert.match(src, /every\(\(fn\) => typeof DashSignals\[fn\] === "function"\)/, f + ' checks that the global exists but not that it carries the producers');
-    // every producer it calls must be in the list it tests
-    for (const fn of CATALOGUE_FNS) {
-      if (!src.includes('DashSignals.' + fn + '(')) continue;
-      assert.ok(new RegExp('"' + fn + '"').test(src.slice(src.indexOf('const sigReady'), src.indexOf('const sigOk'))), f + ' calls ' + fn + ' without feature-testing it');
-    }
-    // and a stale module must not be reported as a roster that is still loading
-    assert.match(src, /const staleWhy = sigReady \?/, f + ' collapses "still loading" and "stale module" into one reason');
+    for (const fn of CATALOGUE_FNS) assert.ok(!src.includes('DashSignals.' + fn + '('), f + ' calls ' + fn + ' again — the roster cards belong on Today');
   }
+  for (const fn of CATALOGUE_FNS) assert.ok(TODAY.includes('DashSignals.' + fn + '('), 'Today no longer offers the card built by ' + fn);
+  // Business's one producer call (Revenue by client, in Money) is feature-tested, not presence-tested.
+  const biz = stripComments(readFileSync(new URL('../public/newdesign/dashBusiness.jsx', import.meta.url), 'utf8'));
+  assert.match(biz, /typeof DashSignals\.dashRevenueByClient === "function" \? DashSignals\.dashRevenueByClient\(clients\)/);
 });
 
 test('in-card links route inside the shell, and the notes write through the account store', () => {

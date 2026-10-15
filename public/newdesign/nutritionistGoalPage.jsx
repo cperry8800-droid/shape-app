@@ -142,9 +142,9 @@ function MomentumEditModal({ momentum, onClose, onSave }) {
   );
 }
 
-// Stable goal ids: DashGrid persists layout/hidden state by widget key, so the key
-// must be tied to the goal's identity (not its array position). Legacy/default goals
-// have no id — assign deterministic ones so existing goals keep their saved layout.
+// Stable goal ids: each goal's card is keyed and edited by id, so the id must be tied to
+// the goal's identity (not its array position). Legacy/default goals have no id — assign
+// deterministic ones so an edit always lands on the goal that was opened.
 let goalIdSeq = 0;
 function nextGoalId() { return "g" + Date.now().toString(36) + "_" + (goalIdSeq++).toString(36); }
 function withGoalIds(goals) {
@@ -233,10 +233,11 @@ function NutritionistGoalPage() {
   const currentNet = paceIsLive ? liveWeeklyNet : currentWeekly * (1 - PLATFORM_FEE_RATE);
   const paceDelta = weekly - currentNet;
 
-  // Each card below becomes a draggable/resizable DashGrid widget (role=nutritionist, tab=goal),
-  // mirroring the Score refactor. The DashPage hero (title/actions) stays as the page header;
-  // only the card stack is gridded. Each goal is a half-width widget; calc + momentum are full.
-  const widgets = goals.map((g) => ({ key: "goal-" + g.id, title: g.t || "Goal", size: "half", render: () => {
+  // ── A FIXED PAGE, NOT A BOARD (owner, 2026-10-15: "least overwhelming as possible, easy
+  // to navigate", the builder removed "like Programs"). Three parts in one order: the
+  // quarter's goals, how the quarter is going (Momentum), and the calculator to plan with.
+  // Each card keeps its own EDIT; there is nothing to drag, hide or resize.
+  const goalCard = (g) => {
     // A bound goal reads its CURRENT from the practice; undefined means the
     // goal is not bound (use the typed number), null means it IS bound and the
     // figure could not be read — which shows "—", never the stale typed one.
@@ -269,14 +270,14 @@ function NutritionistGoalPage() {
         )}
       </Card>
     );
-  } })).concat([
-    { key: "calc", title: "Revenue calculator", size: "full", render: () => (
+  };
+  const calcCard = (
       <Card>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
           <SectionTitle right="SET YOUR TARGET">Revenue calculator</SectionTitle>
           <Chip onClick={() => setEditCalc(true)}>EDIT</Chip>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: 32, padding: "8px 4px 4px" }}>
+        <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: 32, padding: "8px 4px 4px" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
             {[
               ["Consult rate", "consult", consult, 40, 400, 5, v => `$${v}`],
@@ -330,8 +331,8 @@ function NutritionistGoalPage() {
           </div>
         </div>
       </Card>
-    ) },
-    { key: "momentum", title: "Momentum", size: "full", render: () => {
+  );
+  const momentumCard = () => {
       // ⚠ COMPUTED ONLY WHERE THERE IS NOTHING TO OVERWRITE. A signed-in coach
       // with no saved goals gets `momentum: []` — an empty card — and that is
       // exactly the gap the trajectory can fill. A coach who HAS typed rows
@@ -346,7 +347,7 @@ function NutritionistGoalPage() {
           <SectionTitle right={isComputed ? "MEASURED" : "THIS QUARTER"}>Momentum</SectionTitle>
           <Chip onClick={() => setEditMomentum(rows)}>EDIT</Chip>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 20, padding: "12px 4px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 20, padding: "12px 4px" }}>
           {rows.map((m,i)=>(
             <div key={i}>
               <div style={{ fontFamily: serif, fontSize: 36, letterSpacing: "-0.02em", lineHeight: 1 }}>{m[0]}</div>
@@ -362,8 +363,7 @@ function NutritionistGoalPage() {
         )}
       </Card>
       );
-    } },
-  ]);
+  };
 
   return (
     <DashPage
@@ -377,7 +377,24 @@ function NutritionistGoalPage() {
         <button onClick={() => setEditGoalId("new")} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>+ New goal</button>
       </>}
     >
-      <DashGrid role="nutritionist" tab="goal" widgets={widgets} />
+      <div style={{ display: "grid", gap: 16 }}>
+        {goals.length ? (
+          <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            {goals.map((g) => <React.Fragment key={g.id}>{goalCard(g)}</React.Fragment>)}
+          </div>
+        ) : (
+          // No goals is a state with one next step, not an empty page.
+          <div style={{ border: "1px dashed var(--sh-line2, #413d38)", borderRadius: 12, padding: "26px 24px", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 280px", minWidth: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 500 }}>No goals for this quarter yet</div>
+              <div style={{ fontSize: 13, color: "var(--sh-ink2, #a09b94)", marginTop: 4, lineHeight: 1.5 }}>Set one and track it here: clients, revenue, plans, or adherence.</div>
+            </div>
+            <button onClick={() => setEditGoalId("new")} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>+ New goal</button>
+          </div>
+        )}
+        {momentumCard()}
+        {calcCard}
+      </div>
 
       {editGoalId != null && (
         <GoalEditModal
