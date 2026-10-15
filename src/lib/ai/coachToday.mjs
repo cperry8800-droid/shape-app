@@ -144,7 +144,8 @@ export async function readCoachToday(sb, uid, opts = {}) {
       return {
         client: c,
         record: recordFromCoachData({
-          id: c.id, name: c.name || 'Client', stats: stats.data,
+          // New = joined in the last 14 days, on this read's clock (src/lib/coach-roster.ts's rule).
+          id: c.id, name: c.name || 'Client', isNew: !!c.joinedAt && now.getTime() - Date.parse(c.joinedAt) < 14 * 864e5, joinedAt: c.joinedAt || null, stats: stats.data,
           goalsDoc: goals.ok ? goals.data : null,
           checkins: checkins.ok && Array.isArray(checkins.data) ? checkins.data : null,
           recovery: rs && rs.sleepHours ? { sleepHours: rs.sleepHours } : null,

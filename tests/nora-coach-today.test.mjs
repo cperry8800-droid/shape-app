@@ -37,7 +37,9 @@ function fixture(extra = {}) {
       get_display_names: ({ p_ids }) => p_ids.map((id) => ({ user_id: id, full_name: { c1: 'Priya Shah', c2: 'Sam Lee', c9: 'Jo Intro' }[id] || null })),
       get_client_stats: ({ p_user_id }) => ({ c1: { daysLogged7d: 6, sessionsCompleted: 4, sessionsPlanned: 4 }, c2: { daysLogged7d: 0, sessionsCompleted: 0, sessionsPlanned: 4 } }[p_user_id] || null),
       get_client_goals: () => null,
-      get_client_checkins: () => [],
+      // Each client checked in this week, so these tests read the rules they were written for; the
+      // no-check-in cases are their own test below.
+      get_client_checkins: () => [{ week_of: '2026-10-05' }],
       ...extra.rpcs,
     },
     fail: extra.fail || [],
@@ -166,4 +168,24 @@ test('a coach with both listings: each client is read under the role they subscr
   const n = await readCoachToday(sb, 'coach-1', { now: NOW, zone: 'UTC', role: 'nutritionist' });
   assert.ok(!n.needsYou.items.some((i) => i.name === 'Tom Train'), 'protein is read-only for a trainer\'s client');
   assert.equal(n.needsYou.items.length, 1);
+});
+
+// ── Fix 4 (client-onboarding review, M13 / L8): Nora's Today flags what the app's and the website's do ──
+test('a client who never checked in is flagged; a new one is New, not "No logs 7d+"', async () => {
+  const day = (n) => new Date(NOW.getTime() - n * 864e5).toISOString();
+  const sb = fakeSupabase(fixture({
+    tables: { subscriptions: [
+      { client_id: 'c1', status: 'active', provider_role: 'trainer', provider_id: 7, created_at: day(2) },
+      { client_id: 'c2', status: 'active', provider_role: 'trainer', provider_id: 7, created_at: day(60) },
+    ] },
+    rpcs: {
+      get_client_stats: () => ({ daysLogged7d: 0, sessionsCompleted: 0, sessionsPlanned: 0 }),
+      get_client_checkins: () => [],
+    },
+  }));
+  const t = await readCoachToday(sb, 'coach-1', { now: NOW, zone: 'UTC', role: 'trainer' });
+  const items = Object.fromEntries(t.needsYou.items.map((i) => [i.name, i]));
+  assert.equal(items['Priya Shah'], undefined, 'two days in: nothing logged and no check-in yet is not a lapse');
+  assert.equal(items['Sam Lee'].severity, 'red', 'sixty days in with no check-in ever: as the website reads it');
+  assert.match(items['Sam Lee'].why, /first check-in/);
 });
