@@ -865,10 +865,10 @@ Append new entries at the top, under this note.
   - ⚠ **The Score page subtitle had said "Top 4% of trainers on Shape", and the Tiers card "MASTER · TOP 4%", with no data behind either.** Both read the board and the live tier now.
 - **Not built: the preview's "In Austin" filter.** Listings have no city field; the only location is the private one on the coach application.
 - **Migration `2026-10-15-leaderboards.sql`, run by the owner (four times, once per privacy fix) and verified live, read-only, on the final version.**
-  - **Functions:** `shape_member_board` and `shape_coach_board` (authenticated; the coach board refuses non-coaches with 42501). `record_coach_score_snapshots` and `shape_coach_score_parts` are service role only.
+  - **Functions:** `shape_member_board` and `shape_coach_board` (authenticated; the coach board refuses non-coaches with 42501). `record_coach_score_snapshots` is service role only. `shape_coach_score_parts` is an internal helper the two boards call: the migration revokes it from public, anon and authenticated and grants it to nobody (the service role keeps Supabase's default execute, measured live).
   - **Table:** `coach_score_snapshots`, RLS on, no policies.
   - **The old boards:** `shape_leaderboard` and `shape_leaderboard_me` are closed to signed-in callers, because they returned full names.
-  - **State at merge:** every function pinned, anon refused everywhere. `score_ledger` has 0 rows and there are 2 owned listings, neither live, so the boards start empty.
+  - **State at merge:** every function pinned, anon refused everywhere. `score_ledger` has 0 rows, so the member boards start empty. There are 2 owned listings, neither live, so each coach board holds only its owner's own listing, marked not live, and only that owner sees it.
 - **Routes:** `/api/leaderboard` (rewritten; it falls back to the old board for Everyone if the migration is missing), `/api/coach/leaderboard`, `/api/me/leaderboard-privacy`, and the cron. All are in `RAW_ROUTES`.
 - **The app:** `BSLeaderboard.jsx` is carved out of the client module (window globals read at call time, its own `useShapeTr`). It has 65 new strings in all 13 locales.
 - ⚠ **CODEX FOUND EIGHT REAL DEFECTS ACROSS FOUR HEADS, THREE OF THEM PRIVACY.** Every one is fixed and guarded by a test that fails on the old code.
