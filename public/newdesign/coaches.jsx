@@ -24,6 +24,9 @@
 // shot before the gate existed. The next person to fulfil `{user:null}` will
 // read the redirect as the harness being broken; it is the gate working.
 //
+// The Clients, Business, Goal and Score frames were re-shot 2026-10-15 (both roles), after
+// #2365 made those four pages fixed layouts with no widget builder; same recipe as below,
+// Business on its default Overview section. The ?v on `src` moved with them.
 // Captures refreshed 2026-10-14, after #2343 gave the dashboard its own app frame
 // (the icon rail and the app bar ARE the dashboard now, so they stay in every frame;
 // the old recipe's "hide the site header, move main up 72px" no longer applies).
@@ -92,7 +95,7 @@ const CO_TOUR = {
         body: "Blocks, sessions, sets, reps, RPE and tempo, with autoregulation built in. Write a block once and clone it to a new client in one click.",
         list: ["Program templates by goal phase", "Who needs a program next", "Assign pre-fills the queue", "Publish a whole week at once"] },
       { key: "business", file: "business", name: "Business",
-        body: "The money side, told straight: subscription revenue, payouts, the marketplace funnel and who left.",
+        body: "The money side, told straight, one section at a time: the practice's trajectory, revenue and payouts, the marketplace funnel, and who stayed or left.",
         list: ["Active clients, joined vs left, revenue over time", "Monthly recurring, net after the platform fee", "Churn and median tenure", "A CSV for your accountant"] },
       { key: "playlists", file: "playlists", name: "Playlists",
         body: "Paste a Spotify or Apple Music link, attach it to a workout, and your client gets a play button on the session card. Optional, always skippable.",
@@ -125,13 +128,13 @@ const CO_TOUR = {
         body: "Your week and your month. Clients book consults inside Shape, into the hours you open, and every booking reads in your own time zone. Drag one to a new day and the client is notified.",
         list: ["Week and month views", "Drag a consult to move it; the client is notified", "Open hours you set once, in your own time zone", "Consults color-coded by client, one click to their file", "A private, read-only feed for Google Calendar, Apple Calendar or Outlook"] },
       { key: "clients", file: "clients", name: "Clients",
-        body: "One roster, one view: adherence, last food log, last consult, weight trend, revenue and tenure. Filter by specialty or protocol and open any client's full file.",
+        body: "One roster, one view: adherence, last food log, last consult, weight trend, revenue and tenure. Filter by status and open any client's full file.",
         list: ["Sort every column that has a value behind it", "Status tiles: needs you, watch, on track and new", "Each client's file one click away", "Export the roster as a spreadsheet"] },
       { key: "programs", file: "plans", name: "Plans",
         body: "Macro targets, swap rules and grocery lists that generate themselves. Save any plan as a template and reuse it across clients; the lifecycle view says who needs a plan next.",
         list: ["Plan templates by goal phase", "Expiring this week, ready for a phase change", "Assign pre-fills the plan queue", "Intake pending, so nothing is written blind"] },
       { key: "business", file: "business", name: "Business",
-        body: "The money side, told straight: subscription revenue, payouts, the marketplace funnel and who left.",
+        body: "The money side, told straight, one section at a time: the practice's trajectory, revenue and payouts, the marketplace funnel, and who stayed or left.",
         list: ["Active clients, joined vs left, revenue over time", "Monthly recurring, net after the platform fee", "Churn and median tenure", "A CSV for your accountant"] },
       { key: "playlists", file: "playlists", name: "Playlists",
         body: "Paste a Spotify or Apple Music link, attach it to a meal, recipe or prep routine, and your client gets a play button in their kitchen. Optional, always skippable.",
@@ -152,7 +155,7 @@ const CO_TOUR = {
 // ⚠ THE FRAME CARRIES ITS OWN LABEL. Not a caption under the picture — a mark on
 // it, so the claim travels with the image wherever it is seen.
 function CoFrame({ role, tab, style = {} }) {
-  const src = `/newdesign/coaches/coaches-dash-${role}-${tab.file}.jpg?v=20261014-frame`;
+  const src = `/newdesign/coaches/coaches-dash-${role}-${tab.file}.jpg?v=20261015-fixed`;
   return (
     <div style={{ border: "1px solid rgba(238,243,240,0.10)", borderRadius: 10, background: "#0a0f17", boxShadow: "0 40px 90px rgba(0,0,0,0.55)", overflow: "hidden", ...style }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, height: 34, padding: "0 12px", borderBottom: "1px solid rgba(238,243,240,0.055)", background: "rgba(255,255,255,0.02)" }}>
