@@ -472,8 +472,13 @@ const DASH_INBOX_ROUTES = {
 function dashInboxOpensFeed(n) { return !!(n && n.route === "feed"); }
 // A "New message" notification (route "messages", data.conversationId; fix 3a): for a member the
 // chat is the bubble, so the row opens the bubble on that thread rather than navigating.
+// A coach's care-team thread (data.careTeam, 2026-10-15-keep-care-team-private.sql) is read in the bubble
+// on the coach's own pages (coachClientDetail.jsx opens it there), never on a Messages page, which
+// lists one listing's client threads and would call it missing.
+function dashInboxIsCareTeam(n) { return !!(n && n.route === "messages" && n.data && n.data.careTeam === true); }
 function dashInboxThreadFor(n, role) {
-  if (!n || n.route !== "messages" || role === "trainer" || role === "nutritionist") return null;
+  if (!n || n.route !== "messages") return null;
+  if ((role === "trainer" || role === "nutritionist") && !dashInboxIsCareTeam(n)) return null;
   const id = n.data && typeof n.data.conversationId === "string" ? n.data.conversationId : "";
   return id || null;
 }
@@ -481,6 +486,8 @@ function dashInboxThreadFor(n, role) {
 // a coach (data.providerRole) is on Circle, a member's on Friends, so one created after the bubble read
 // its list lands where it belongs rather than on the Feed (Codex on #2360).
 function dashInboxChatRequest(n, conversationId) {
+  // The care team: no tab named, so the bubble puts it on a tab that holds threads.
+  if (dashInboxIsCareTeam(n)) return { conversationId, who: "Care team", role: "Care team" };
   const role = n && n.data && (n.data.providerRole === "trainer" || n.data.providerRole === "nutritionist") ? n.data.providerRole : null;
   return role
     ? { conversationId, tab: "circle", who: role === "nutritionist" ? "Your nutritionist" : "Your trainer", role: (role === "nutritionist" ? "Nutritionist" : "Trainer") + " · Shape coach" }
@@ -507,6 +514,7 @@ function dashInboxHref(n, role) {
   // A coach's conversation ("chat:<id>", the new-client alert, or a "New message" with its
   // conversationId; fix 3a) opens their Messages page on that thread. A member's chat is the
   // bubble, not a page (dashInboxThreadFor).
+  if (dashInboxIsCareTeam(n)) return null; // the bubble (dashInboxThreadFor)
   const msgConv = n.route === "messages" && n.data && typeof n.data.conversationId === "string" ? n.data.conversationId : "";
   if ((n.route.startsWith("chat:") && n.route.length > 5) || msgConv) {
     if (role !== "trainer" && role !== "nutritionist") return null;
