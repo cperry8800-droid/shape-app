@@ -28,17 +28,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { isEffectivelyAtCapacity } from '@/lib/capacity';
 import { createNotification } from '@/lib/notify';
-import { buildIcs, sendEmail } from '@/lib/email';
+import { buildIcs, calendarOrganizerEmail, sendEmail } from '@/lib/email';
 
 // The calendar ORGANIZER shown to whoever requested the booking. A no-reply
 // platform identity, never a person's private account address.
-const ORGANIZER_EMAIL = process.env.CALENDAR_ORGANIZER_EMAIL || 'no-reply@theshapecommunity.com';
+const ORGANIZER_EMAIL = calendarOrganizerEmail();
 import { cleanText as clean, isEmail, readJson } from '@/lib/request-utils';
 import { verifyTurnstile } from '@/lib/turnstile';
 import { currentUser } from '@/lib/request-auth';
 
 import { instantInZone, normalizeZone } from '@/lib/time';
-import { bookingRuleRefusal, checkBookingRules, countOpenRequests, isDoubleBookError, offeredInOpenHours, OPEN_REQUESTS_CAP, openRequestsMessage, readOpenHours } from '@/lib/session-booking';
+import { bookingRuleRefusal, checkBookingRules, countOpenRequests, isDoubleBookError, offeredInOpenHours, OPEN_REQUESTS_CAP, openRequestsMessage, readIntroLength, readOpenHours } from '@/lib/session-booking';
+import { siteUrl } from '@/lib/coach-application-emails';
 export const dynamic = 'force-dynamic';
 
 const ADMIN_EMAIL = process.env.APPLICATIONS_EMAIL ?? 'chris.perry@shapecommunity.onmicrosoft.com';
@@ -69,6 +70,12 @@ function escapeHtml(s: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+// PostgREST's answer to an insert naming a column the schema does not have (PGRST204).
+function isMissingIntroColumn(error: unknown): boolean {
+  const e = (error ?? {}) as { code?: unknown; message?: unknown };
+  return String(e.code ?? '') === 'PGRST204' && /'intro'/.test(String(e.message ?? ''));
 }
 
 export async function POST(req: NextRequest) {
@@ -164,6 +171,11 @@ export async function POST(req: NextRequest) {
   if (providerError || !provider) {
     return NextResponse.json({ error: 'Provider not found.' }, { status: 404 });
   }
+  // A suspended listing is off the marketplace (#2326); its profile and an old link must not
+  // still book it (client-onboarding review, fix 3b).
+  if ((provider as { suspended_at?: unknown }).suspended_at) {
+    return NextResponse.json({ error: "This coach isn't taking bookings right now.", code: 'suspended' }, { status: 409 });
+  }
 
   // ── When the session actually is ────────────────────────────────────────────
   //
@@ -247,7 +259,27 @@ export async function POST(req: NextRequest) {
       { status: 503 }
     );
   }
-  if (!offeredInOpenHours(hours.slots, date, parsed.hour * 60 + parsed.minute, 15)) {
+
+  // ⚠ THE INTRO RUNS AS LONG AS THE COACH SAID, NOT 15 MINUTES (client-onboarding review, fix 3b;
+  // owner, 2026-10-15: "it should be completly customizable"). Every length below — the open-hours
+  // fit, the rules, the row, the invite, the emails — is this one. An unreadable setting refuses:
+  // booking 15 minutes for a coach who chose 45 is a wrong appointment, not a fallback.
+  const introMin = await readIntroLength(admin, providerRole, providerIdRaw);
+  if (introMin == null) {
+    return NextResponse.json(
+      { error: "We couldn't check this coach's calendar just now. Please try again." },
+      { status: 503 }
+    );
+  }
+  // A sent length is a cross-check, like `scheduledAt` above: the page laid out its times for the
+  // length it read, and a coach who changed it since means the member was shown a different call.
+  if (body.durationMin !== undefined && body.durationMin !== null && Number(body.durationMin) !== introMin) {
+    return NextResponse.json(
+      { error: `This coach's intro now runs ${introMin} minutes. Please pick a time again.`, code: 'length_changed', durationMin: introMin },
+      { status: 409 }
+    );
+  }
+  if (!offeredInOpenHours(hours.slots, date, parsed.hour * 60 + parsed.minute, introMin)) {
     return NextResponse.json(
       { error: "That time is outside this coach's open hours. Please pick one of the times shown.", code: 'outside_hours' },
       { status: 409 }
@@ -259,7 +291,7 @@ export async function POST(req: NextRequest) {
   // for a stale page or a crafted request. An unreadable calendar refuses, like the hours above.
   const rules = await checkBookingRules(admin, {
     role: providerRole, providerId: providerIdRaw, zone: providerZone, slots: hours.slots,
-    startMs: scheduled.getTime(), durationMin: 15, nowMs: Date.now(),
+    startMs: scheduled.getTime(), durationMin: introMin, nowMs: Date.now(),
   });
   if (!rules.ok && rules.unavailable) {
     return NextResponse.json(
@@ -291,27 +323,30 @@ export async function POST(req: NextRequest) {
   // Insert — the database refuses a double booking: the unique index on (role, provider_id,
   // scheduled_at) with 23505, and an overlap with another active booking with 23P01
   // (sessions_no_overlap, 2026-10-07).
-  const { data: inserted, error: insertError } = await admin
-    .from('sessions')
-    .insert({
-      // Stamped so a booking has an owner: it now shows up in the member's own
-      // sessions list, and the RLS policy that replaced the anon insert pins
-      // client_id = auth.uid() on every non-service-role write.
-      client_id: user.id,
-      provider_id: providerIdRaw,
-      provider_role: providerRole,
-      scheduled_at: scheduled.toISOString(),
-      duration_min: 15,
-      type: 'video',
-      status: 'requested',
-      client_name: clientName,
-      client_email: clientEmail,
-      topic: topic || null,
-    })
-    .select('id')
-    .single();
+  const row = {
+    // Stamped so a booking has an owner: it now shows up in the member's own
+    // sessions list, and the RLS policy that replaced the anon insert pins
+    // client_id = auth.uid() on every non-service-role write.
+    client_id: user.id,
+    provider_id: providerIdRaw,
+    provider_role: providerRole,
+    scheduled_at: scheduled.toISOString(),
+    duration_min: introMin,
+    type: 'video',
+    status: 'requested',
+    client_name: clientName,
+    client_email: clientEmail,
+    topic: topic || null,
+  };
+  // `intro` marks the booking for the follow-up after it (src/lib/session-emails.ts). Before
+  // 2026-10-15-intro-length.sql the column does not exist, and the booking is written without it
+  // rather than refused.
+  let { data: inserted, error: insertError } = await admin.from('sessions').insert({ ...row, intro: true }).select('id').single();
+  if (insertError && isMissingIntroColumn(insertError)) {
+    ({ data: inserted, error: insertError } = await admin.from('sessions').insert(row).select('id').single());
+  }
 
-  if (insertError) {
+  if (insertError || !inserted) {
     // The database's own check of the coach's rules (a request racing another one past the check above).
     const refused = bookingRuleRefusal(insertError);
     if (refused) {
@@ -359,8 +394,8 @@ export async function POST(req: NextRequest) {
   });
   const summary = `Shape consultation with ${provider.name}`;
   const description = topic
-    ? `15-minute consultation. Topic: ${topic}`
-    : '15-minute consultation.';
+    ? `${introMin}-minute consultation. Topic: ${topic}`
+    : `${introMin}-minute consultation.`;
 
   // ONE MEETING, TWO INVITATIONS.
   //
@@ -380,7 +415,7 @@ export async function POST(req: NextRequest) {
     buildIcs({
       uid: inserted.id,
       start: scheduled,
-      durationMin: 15,
+      durationMin: introMin,
       summary,
       description,
       organizerEmail: ORGANIZER_EMAIL,
@@ -406,7 +441,7 @@ export async function POST(req: NextRequest) {
   const clientHtml = `
     <div style="font-family:system-ui,sans-serif;max-width:560px;">
       <h2 style="margin:0 0 16px;">You're booked with ${providerNameHtml}</h2>
-      <p><strong>${niceDate}</strong><br/>15-minute video consultation</p>
+      <p><strong>${niceDate}</strong><br/>${introMin}-minute video consultation</p>
       ${topic ? `<p><em>Topic:</em> ${topicHtml}</p>` : ''}
       <p>${providerNameHtml} will confirm shortly. You'll get a second email with the call link once they accept.</p>
       <p style="color:#666;font-size:13px;margin-top:32px;">
@@ -414,13 +449,16 @@ export async function POST(req: NextRequest) {
       </p>
     </div>`.trim();
 
+  // The coach's Schedule page, where a request is accepted or declined. This pointed at
+  // /dashboard/<role>, the retired dashboard.
+  const scheduleHref = `${siteUrl()}/newdesign/${providerRole === 'nutritionist' ? 'Nutritionist' : 'Trainer'}App.html#schedule`;
   const coachHtml = `
     <div style="font-family:system-ui,sans-serif;max-width:560px;">
       <h2 style="margin:0 0 16px;">New consultation request</h2>
       <p><strong>${clientNameHtml}</strong> (${clientEmailHtml})<br/>
-      <strong>${niceDate}</strong> — 15 min video</p>
+      <strong>${niceDate}</strong> — ${introMin} min video</p>
       ${topic ? `<p><em>Topic:</em> ${topicHtml}</p>` : ''}
-      <p><a href="https://theshapecommunity.com/dashboard/${providerRole}">Open your dashboard →</a></p>
+      <p><a href="${scheduleHref}">Accept or decline it on your schedule →</a></p>
     </div>`.trim();
 
   const adminHtml = `
@@ -429,7 +467,7 @@ export async function POST(req: NextRequest) {
       <p><strong>Coach:</strong> ${providerNameHtml} (${providerRole})<br/>
       <strong>Client:</strong> ${clientNameHtml} &lt;${clientEmailHtml}&gt;<br/>
       <strong>When:</strong> ${niceDate}<br/>
-      <strong>Duration:</strong> 15 min video</p>
+      <strong>Duration:</strong> ${introMin} min video</p>
       ${topic ? `<p><em>Topic:</em> ${topicHtml}</p>` : ''}
       <p style="color:#666;font-size:12px;">Session ID: ${inserted.id}</p>
     </div>`.trim();
@@ -439,7 +477,7 @@ export async function POST(req: NextRequest) {
       to: clientEmail,
       subject: `Consultation booked with ${provider.name}`,
       html: clientHtml,
-      text: `You're booked with ${provider.name} on ${niceDate}. 15-min video consultation.`,
+      text: `You're booked with ${provider.name} on ${niceDate}. ${introMin}-min video consultation.`,
       ics: clientIcs,
       icsFilename: 'shape-consultation.ics',
     }),
@@ -448,7 +486,7 @@ export async function POST(req: NextRequest) {
           to: coachEmail,
           subject: `New consultation request — ${clientName}`,
           html: coachHtml,
-          text: `New consultation request from ${clientName} (${clientEmail}) on ${niceDate}.`,
+          text: `New consultation request from ${clientName} (${clientEmail}) on ${niceDate}, ${introMin} min. Accept or decline it on your schedule: ${scheduleHref}`,
           ics: coachIcs,
           icsFilename: 'shape-consultation.ics',
         })

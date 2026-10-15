@@ -190,5 +190,14 @@
   "preview.action": "Voir le contenu →",
   "rating.new": "Nouveau",
   "dir.coachNotOpen": "L'annonce de ce coach n'est pas encore ouverte. Il apparaîtra ici dès qu'elle le sera.",
-  "dir.coachNotOpenDismiss": "Fermer"
+  "dir.coachNotOpenDismiss": "Fermer",
+  "listing.slotBodyLength": "Appel intro gratuit de {minutes} minutes avec {name}. Vous pourrez le reprogrammer depuis les messages.",
+  "listing.requested": "Demandé",
+  "listing.bookedRequestBody": "Vous avez demandé à {name} une intro de {minutes} minutes. Vous recevrez le lien de l’appel par e-mail dès sa confirmation.",
+  "listing.messageNotSent": "Non envoyé",
+  "listing.messageNotSentBody": "Votre message à {name} n’a pas été envoyé. Réessayez. {error}",
+  "listing.lengthChanged": "L'appel découverte a changé",
+  "listing.lengthChangedBody": "L'appel découverte avec {name} dure maintenant {minutes} minutes. Choisis un autre créneau.",
+  "listing.timesLoading": "Chargement des créneaux de {name}…",
+  "listing.timesFailed": "Impossible de charger les créneaux de {name}."
 }

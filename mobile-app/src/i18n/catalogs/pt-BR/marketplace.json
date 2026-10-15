@@ -190,5 +190,14 @@
   "preview.action": "O que tem dentro →",
   "rating.new": "Novo",
   "dir.coachNotOpen": "O anúncio desse coach ainda não está aberto. Ele aparece aqui quando estiver.",
-  "dir.coachNotOpenDismiss": "Fechar"
+  "dir.coachNotOpenDismiss": "Fechar",
+  "listing.slotBodyLength": "Chamada intro grátis de {minutes} minutos com {name}. Você pode remarcar depois pelas mensagens.",
+  "listing.requested": "Solicitado",
+  "listing.bookedRequestBody": "Você pediu a {name} uma intro de {minutes} minutos. Você vai receber o link da chamada por e-mail quando confirmarem.",
+  "listing.messageNotSent": "Não enviado",
+  "listing.messageNotSentBody": "Sua mensagem para {name} não foi enviada. Tente de novo. {error}",
+  "listing.lengthChanged": "A conversa inicial mudou",
+  "listing.lengthChangedBody": "A conversa inicial com {name} agora dura {minutes} minutos. Escolha um horário de novo.",
+  "listing.timesLoading": "Carregando os horários de {name}…",
+  "listing.timesFailed": "Não foi possível carregar os horários de {name}."
 }

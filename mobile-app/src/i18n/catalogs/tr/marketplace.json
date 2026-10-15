@@ -190,5 +190,14 @@
   "preview.action": "İçinde ne var →",
   "rating.new": "Yeni",
   "dir.coachNotOpen": "O koçun ilanı henüz açık değil. Açıldığında burada görünecek.",
-  "dir.coachNotOpenDismiss": "Kapat"
+  "dir.coachNotOpenDismiss": "Kapat",
+  "listing.slotBodyLength": "{name} ile {minutes} dakikalık ücretsiz tanışma görüşmesi. Daha sonra mesajlardan yeniden planlayabilirsin.",
+  "listing.requested": "İstendi",
+  "listing.bookedRequestBody": "{name} ile {minutes} dakikalık bir tanışma istedin. Onayladıklarında görüşme bağlantısı e-postana gelecek.",
+  "listing.messageNotSent": "Gönderilmedi",
+  "listing.messageNotSentBody": "{name} için notun gönderilmedi. Tekrar dene. {error}",
+  "listing.lengthChanged": "Tanışma görüşmesi değişti",
+  "listing.lengthChangedBody": "{name} ile tanışma görüşmesi artık {minutes} dakika. Lütfen yeniden bir saat seç.",
+  "listing.timesLoading": "{name} için saatler yükleniyor…",
+  "listing.timesFailed": "{name} için saatler yüklenemedi."
 }

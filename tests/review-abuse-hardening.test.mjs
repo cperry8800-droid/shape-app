@@ -148,7 +148,7 @@ test('M3: the cap is one number on both sides, the trigger\'s refusal reads as t
   for (const file of ['src/app/api/consultation/route.ts', 'src/app/api/sessions/request/route.ts']) {
     const src = read(file);
     const check = src.indexOf('countOpenRequests(');
-    const write = src.indexOf(".from('sessions')\n    .insert(");
+    const write = src.search(/\.from\('sessions'\)\s*\.insert\(/);
     assert.ok(check > 0 && write > check, `${file}: the count comes before the insert`);
     assert.match(src, /if \(open\.count >= OPEN_REQUESTS_CAP\) \{\n\s+return NextResponse\.json\(\{ error: openRequestsMessage\(OPEN_REQUESTS_CAP\), code: 'open_requests' \}, \{ status: 409 \}\);/, `${file}: a clean 409`);
     assert.match(src, /if \(!open\.ok\) \{\n\s+return NextResponse\.json\(\{ error: "We couldn't check your open requests just now\. Please try again\."/, `${file}: a failed read writes nothing`);

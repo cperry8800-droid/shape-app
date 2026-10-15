@@ -26586,7 +26586,8 @@ function BSSessionsScreen({ onBack }) {
             {joinable && <Btn kind="solid" label="Join video call →" onClick={() => setCall({ url: s.meetingUrl, title: who })} />}
             {isCoach && s.status === 'requested' && <Btn kind="solid" label="Confirm" disabled={busyId === s.id} onClick={() => act(s.id, 'confirm')} />}
             {isCoach && s.status === 'requested' && <Btn kind="danger" label="Decline" disabled={busyId === s.id} onClick={() => act(s.id, 'decline')} />}
-            {isCoach && s.status === 'confirmed' && <Btn label="Mark done" disabled={busyId === s.id} onClick={() => act(s.id, 'complete')} />}
+            {/* Done once it has started (the route refuses a session that has not). */}
+            {isCoach && s.status === 'confirmed' && Date.parse(s.scheduledAt) <= Date.now() && <Btn label="Mark done" disabled={busyId === s.id} onClick={() => act(s.id, 'complete')} />}
             {(s.status === 'requested' || s.status === 'confirmed') && <Btn kind="danger" label="Cancel" disabled={busyId === s.id} onClick={() => act(s.id, 'cancel')} />}
           </div>
         </div>

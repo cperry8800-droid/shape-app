@@ -328,7 +328,11 @@ test('Clear takes the half-written answer with it, and later words are not drawn
 
 // ── The website panel (read from source) ──────────────────────────────────────
 test('the website panel asks for a stream, reads one only when it gets one, and draws it as her message', () => {
-  const send = WEB.slice(WEB.indexOf('if (isSupport) {\n      const sentAt'), WEB.indexOf('setTyping(true);\n    setTimeout('));
+  // Her branch of send(), to the end of send() (the scripted peer replies that followed it are gone,
+  // client-onboarding review fix 3b).
+  const sendAt = WEB.indexOf('if (isSupport) {\n      const sentAt');
+  const send = WEB.slice(sendAt, WEB.indexOf('// ── Voice input for Nora', sendAt));
+  assert.ok(sendAt > 0 && send.length > 500 && send.length < 8000, 'could not delimit her branch of send()');
   assert.match(send, /context: cwNoraContext\(\), stream: true, \.\.\.extra \}\)/);
   assert.match(send, /onText: \(t\) => \{ if \(gen === noraThreadGenRef\.current\) setNoraLive\(t\); \}/, 'a cleared conversation draws no more words');
   assert.match(send, /const read = async \(r\) => \(r\.ok && cwIsNoraStream\(r\) \? \(\(await cwReadNoraStream\(r, live\)\) \|\| \{\}\) : await r\.json\(\)\.catch\(\(\) => \(\{\}\)\)\);/);

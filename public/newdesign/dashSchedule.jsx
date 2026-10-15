@@ -554,12 +554,18 @@ function DscTimeOffPlate({ list, zone, adding, onAdd, onRemove, busyId, error })
 // What members may book: a buffer between sessions, a daily limit and a minimum notice. The
 // routes refuse a member's booking that breaks one (bookingRules.checkSlot), and the member pages
 // do not offer it. The coach's own bookings and moves are not held to them.
+// And how long the free intro runs: any whole number of minutes from 5 to 240 (owner, 2026-10-15:
+// "it should be completly customizable"), which the booking pages lay their times out for and
+// /api/consultation books.
 const DSC_BUFFERS = [0, 5, 10, 15, 20, 30, 45, 60, 90, 120];
 const DSC_LIMITS = [null, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 16, 20, 24];
 const DSC_NOTICE = [0, 1, 2, 4, 6, 12, 24, 48, 72, 168, 336];
 const dscNoticeText = (h) => (h === 0 ? "None" : h % 168 === 0 ? (h / 168) + (h === 168 ? " week" : " weeks") : h % 24 === 0 ? (h / 24) + (h === 24 ? " day" : " days") : h + (h === 1 ? " hour" : " hours"));
+const DSC_INTRO_MIN = 5;
+const DSC_INTRO_MAX = 240;
+const dscIntroOk = (v) => { const n = Number(v); return String(v).trim() !== "" && Number.isInteger(n) && n >= DSC_INTRO_MIN && n <= DSC_INTRO_MAX; };
 function DscRulesPlate({ role, live, onToast }) {
-  const [saved, setSaved] = React.useState({ bufferMin: 0, maxPerDay: null, minNoticeHours: 0 });
+  const [saved, setSaved] = React.useState({ bufferMin: 0, maxPerDay: null, minNoticeHours: 0, consultMin: 15 });
   const [draft, setDraft] = React.useState(saved);
   const [state, setState] = React.useState(live ? "loading" : "ready");   // loading | ready | notready | error | saving
   const [err, setErr] = React.useState(null);
@@ -571,19 +577,30 @@ function DscRulesPlate({ role, live, onToast }) {
       .then((j) => {
         if (!on) return;
         if (!j || !j.rules) { setState("error"); return; }
-        setSaved(j.rules); setDraft(j.rules); setState(j.ready === false ? "notready" : "ready");
+        // An answer with no intro length reads as 15, the length every intro had.
+        const got = { consultMin: 15, ...j.rules };
+        setSaved(got); setDraft(got); setState(j.ready === false ? "notready" : "ready");
       });
     return () => { on = false; };
   }, [role, live]);
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
+  // The intro length is typed, so it can be half-typed: saving waits for a whole number in range.
+  const introOk = dscIntroOk(draft.consultMin);
   const save = async () => {
-    if (!live) { setSaved(draft); onToast("Demo · these rules would apply once you're signed in."); return; }
+    if (!introOk) return;
+    const sending = { ...draft, consultMin: Number(draft.consultMin) };
+    if (!live) { setSaved(sending); setDraft(sending); onToast("Demo · these rules would apply once you're signed in."); return; }
     setState("saving"); setErr(null);
     try {
-      const res = await fetch("/api/my-booking-rules", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role, ...draft }) });
+      // The intro length goes only when it changed, so a database without its column (before
+      // 2026-10-15-intro-length.sql) still saves the other three.
+      const { consultMin, ...others } = sending;
+      const body = { role, ...others, ...(consultMin !== saved.consultMin ? { consultMin } : {}) };
+      const res = await fetch("/api/my-booking-rules", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const j = await res.json().catch(() => null);
       if (!res.ok || !j || !j.rules) { setErr((j && j.detail) || "Couldn't save your rules — try again."); setState("ready"); return; }
-      setSaved(j.rules); setDraft(j.rules); setState("ready");
+      const got = { consultMin: 15, ...j.rules };
+      setSaved(got); setDraft(got); setState("ready");
       onToast("Booking rules saved · members see them now");
     } catch (e) {
       setErr("Couldn't save your rules — try again."); setState("ready");
@@ -616,14 +633,25 @@ function DscRulesPlate({ role, live, onToast }) {
             {opts(DSC_NOTICE, draft.minNoticeHours).map((h) => <option key={h} value={String(h)}>{dscNoticeText(h)}</option>)}
           </select>
         ))}
+        {row("Free intro length", (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+            <input type="number" inputMode="numeric" data-intro-length="" aria-label="Free intro length in minutes" disabled={off}
+              min={DSC_INTRO_MIN} max={DSC_INTRO_MAX} step={1}
+              value={draft.consultMin == null ? "" : String(draft.consultMin)}
+              onChange={(e) => { const v = e.target.value; setDraft({ ...draft, consultMin: dscIntroOk(v) ? Number(v) : v }); }}
+              style={{ ...sel, width: 58, textAlign: "right" }} />
+            <span style={{ fontSize: 10.5, color: DSC_INK50 }}>min</span>
+          </span>
+        ))}
       </div>
       <div style={{ fontSize: 11.5, color: DSC_INK50, lineHeight: 1.5, marginBottom: 10 }}>
         {state === "notready" ? "Booking rules will be ready after the next update."
           : state === "error" ? "Your rules couldn't load. Reload to try again."
-          : "Members can't book inside your buffer, past your daily limit or sooner than your notice. You can still book and move clients yourself."}
+          : "Members can't book inside your buffer, past your daily limit or sooner than your notice. Your free intro runs as long as you set, any length from " + DSC_INTRO_MIN + " minutes to " + (DSC_INTRO_MAX / 60) + " hours. You can still book and move clients yourself."}
       </div>
+      {!off && !introOk && <div role="alert" data-intro-length-error="" style={{ fontSize: 11.5, color: DSC_RUST, marginBottom: 8 }}>The intro has to be a whole number of minutes from {DSC_INTRO_MIN} to {DSC_INTRO_MAX}.</div>}
       {err && <div role="alert" style={{ fontSize: 11.5, color: DSC_RUST, marginBottom: 8 }}>{err}</div>}
-      <button type="button" data-save-rules="" onClick={save} disabled={off || !dirty} style={{ ...dscBtn("on"), opacity: off || !dirty ? 0.5 : 1 }}>{state === "saving" ? "Saving…" : "Save rules"}</button>
+      <button type="button" data-save-rules="" onClick={save} disabled={off || !dirty || !introOk} style={{ ...dscBtn("on"), opacity: off || !dirty || !introOk ? 0.5 : 1 }}>{state === "saving" ? "Saving…" : "Save rules"}</button>
     </div>
   );
 }
@@ -1274,12 +1302,24 @@ function DscBookingSheet({ ev, row, colorOf, prep, busy, startInMove, verdictFor
 // clientTeam.jsx CT_SESSION_MIN) and 15 minutes for a nutritionist (the consult,
 // /api/consultation's duration_min). Both are a pick, not a rule.
 const DSC_LENGTHS = [15, 30, 45, 60, 90];
+// Or any whole number of minutes the coach types, 5 to 240: /api/sessions/manage's range (owner,
+// 2026-10-15: "coach should have flexibility to set any meeting they want").
+const DSC_LENGTH_MIN = 5;
+const DSC_LENGTH_MAX = 240;
+const dscLengthOk = (v) => { const n = Number(v); return String(v).trim() !== "" && Number.isInteger(n) && n >= DSC_LENGTH_MIN && n <= DSC_LENGTH_MAX; };
 const DSC_TYPES = [["video", "Video"], ["inperson", "In person"], ["phone", "Phone"]];
 function DscBookSheet({ slot, roster, role, verdictFor, onBook, onClose, onDone }) {
   const [date, setDate] = React.useState(slot.date);
   const [minute, setMinute] = React.useState(slot.minute);
   const [clientId, setClientId] = React.useState(roster.length === 1 ? roster[0].client.profile.id : "");
-  const [dur, setDur] = React.useState(role === "nutritionist" ? 15 : 60);
+  const [pillDur, setPillDur] = React.useState(role === "nutritionist" ? 15 : 60);
+  const [durText, setDurText] = React.useState("");   // a typed length; "" = one of the pills
+  // ⚠ THE LENGTH BOOKED IS THE ONE ON SCREEN (Codex on #2370). A typed length used to be copied
+  // into the pill's state, so clearing the box left it in force with no pill pressed, and the
+  // sheet booked a length the coach no longer saw. Typed, it is the box's; cleared, it is the
+  // pressed pill's again; typed and out of range, there is none and nothing books.
+  const dur = durText === "" ? pillDur : (dscLengthOk(durText) ? Number(durText) : null);
+  const durBad = dur == null;
   const [type, setType] = React.useState("video");
   const [topic, setTopic] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -1294,9 +1334,9 @@ function DscBookSheet({ slot, roster, role, verdictFor, onBook, onClose, onDone 
   const runDays = firstWd == null ? extraDays : [...new Set([firstWd, ...extraDays])].sort((a, b) => a - b);
   const runDates = weekly ? dscRunDates(date, weeks, runDays) : [];
   const tooMany = runDates.length > 60;
-  const v = verdictFor(null, date, minute, dur);
+  const v = verdictFor(null, date, minute, dur ?? pillDur);
   const row = roster.find((r) => r.client.profile.id === clientId) || null;
-  const blocked = busy || !row || v.past || !!v.clash || tooMany;
+  const blocked = busy || !row || v.past || !!v.clash || tooMany || durBad;
   const pill = (on) => ({ ...dscBtn(on ? "on" : null), padding: "6px 10px" });
   const submit = async () => {
     if (blocked) return;
@@ -1341,8 +1381,16 @@ function DscBookSheet({ slot, roster, role, verdictFor, onBook, onClose, onDone 
         <div>
           <div style={{ fontFamily: DSC_MONO, fontSize: 8.5, letterSpacing: "0.1em", textTransform: "uppercase", color: DSC_INK50, marginBottom: 5 }}>Length</div>
           <div role="group" aria-label="Length" style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-            {DSC_LENGTHS.map((m) => <button key={m} type="button" aria-pressed={dur === m} onClick={() => setDur(m)} style={pill(dur === m)}>{m} min</button>)}
+            {DSC_LENGTHS.map((m) => <button key={m} type="button" aria-pressed={durText === "" && pillDur === m} onClick={() => { setPillDur(m); setDurText(""); }} style={pill(durText === "" && pillDur === m)}>{m} min</button>)}
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+              <input type="number" inputMode="numeric" data-custom-length="" aria-label="Custom length in minutes" placeholder="Other"
+                min={DSC_LENGTH_MIN} max={DSC_LENGTH_MAX} step={1} value={durText}
+                onChange={(e) => setDurText(e.target.value)}
+                style={{ ...dscInput, width: 64, padding: "6px 8px", fontSize: 12 }} />
+              <span style={{ fontSize: 11, color: DSC_INK50 }}>min</span>
+            </span>
           </div>
+          {durBad && <div role="alert" data-custom-length-error="" style={{ fontSize: 11.5, color: DSC_RUST, marginTop: 5 }}>A session runs {DSC_LENGTH_MIN} minutes to {DSC_LENGTH_MAX / 60} hours, in whole minutes.</div>}
         </div>
         <div>
           <div style={{ fontFamily: DSC_MONO, fontSize: 8.5, letterSpacing: "0.1em", textTransform: "uppercase", color: DSC_INK50, marginBottom: 5 }}>Where</div>
