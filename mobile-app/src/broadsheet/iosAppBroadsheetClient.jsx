@@ -759,6 +759,18 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return () => window.removeEventListener('shape:goCommunity', open);
   }, []);
 
+  // The membership welcome's notification ("home", bsRouteNotification) lands on Home, clearing
+  // every takeover above the tabs the way goCommunity does.
+  React.useEffect(() => {
+    const open = () => {
+      navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart('');
+      setShowCalendar(false); setShowSearch(false); setShowCycle(false);
+      setChatRequest(null); setTab('home');
+    };
+    window.addEventListener('shape:goHome', open);
+    return () => window.removeEventListener('shape:goHome', open);
+  }, []);
+
   // Chat → The Wall. Same shape as goCommunity, but it carries a request the
   // chat page's openRequest effect reads, so the segment is chosen by the
   // caller rather than by whatever tab the page was last left on.
@@ -12234,6 +12246,17 @@ function bsRouteNotification(route, data) {
     // either shell (both answer shape:openConversation).
     if (route.startsWith('chat:') && route.length > 5) {
       window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { conversationId: route.slice(5) } }));
+      return true;
+    }
+    // The membership welcome ("home") opens the member's Home (Codex on #2360: it opened nothing).
+    if (route === 'home') {
+      window.dispatchEvent(new CustomEvent('shape:goHome'));
+      return true;
+    }
+    // A coach's new-client alert when no thread could open ("client", data.clientId): that client's
+    // page in the coach app (both coach shells answer shape:openClient).
+    if (route === 'client' && data && typeof data.clientId === 'string' && data.clientId) {
+      window.dispatchEvent(new CustomEvent('shape:openClient', { detail: { clientId: data.clientId } }));
       return true;
     }
     // Waitlist invite ("coach:<role>:<id>") → the marketplace on that role, so the invited client

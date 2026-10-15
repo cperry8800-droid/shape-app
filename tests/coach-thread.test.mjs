@@ -317,6 +317,8 @@ test('website: a coach\'s Message with the client id opens the thread the client
     ['public/newdesign/dashToday.jsx', 'Well done!" : undefined, m.id)'],
     ['public/newdesign/dashToday.jsx', 'proudest of so far?", h.id)'],
     ['public/newdesign/dashToday.jsx', '". ", open.clientId)'],
+    // Codex on #2360, fifth round: the joint note between a client's two coaches went to the bubble.
+    ['public/newdesign/dashToday.jsx', 'dashJointDraft(j, role), j.client.profile.id)'],
     ['public/newdesign/coachClientDetail.jsx', 'dashMessageClient(data.client.name, myRole, undefined, clientId)'],
   ]) assert.ok(read(file).includes(call), `${file}: ${call}`);
   // The standalone client page (no dashboard helper) goes to the same page.
@@ -432,6 +434,33 @@ test('the new-client alert opens the thread: the app\'s router and the website\'
     const page = read(`public/newdesign/${role}Messages.html`);
     assert.match(page, /const wantedConv = params\.get\('conversation'\);/);
     assert.match(page, /: Promise\.resolve\(\{ conv: wantedConv, failed: false \}\);/, `${role}: the thread is selected once the inbox loads`);
+  }
+});
+
+// ── Codex on #2360, fifth round ──────────────────────────────────────────────────────────────────
+test('the app opens the membership welcome ("home") and a new client with no thread ("client")', () => {
+  const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  const at = client.indexOf('function bsRouteNotification(');
+  let depth = 0, i = client.indexOf(') {', at) + 2;
+  for (; i < client.length; i++) { if (client[i] === '{') depth++; else if (client[i] === '}' && --depth === 0) break; }
+  const events = [];
+  class CustomEvent { constructor(type, init) { this.type = type; this.detail = init && init.detail; } }
+  const route = new Function('window', 'CustomEvent', `${client.slice(at, i + 1)}; return bsRouteNotification;`)({ dispatchEvent: (e) => events.push([e.type, e.detail]) }, CustomEvent);
+  assert.equal(route('home', {}), true);
+  assert.equal(route('client', { clientId: 'client-1' }), true);
+  assert.equal(route('client', {}), false, 'no client named: nothing to open');
+  assert.deepEqual(events, [['shape:goHome', undefined], ['shape:openClient', { clientId: 'client-1' }]]);
+  // The member shell lands on Home, clearing the takeovers above the tabs.
+  assert.match(client, /const open = \(\) => \{\s+navJumpRef\.current\.navPush\(\); setShowSettings\(false\); setSettingsStart\(''\);\s+setShowCalendar\(false\); setShowSearch\(false\); setShowCycle\(false\);\s+setChatRequest\(null\); setTab\('home'\);\s+\};\s+window\.addEventListener\('shape:goHome', open\);/);
+  // Both coach shells answer shape:openClient with the Clients tab and the request, and each
+  // Clients screen opens that client once the roster has them, and only them.
+  const pros = read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx');
+  assert.equal((pros.match(/window\.addEventListener\('shape:openClient', open\);/g) || []).length, 2);
+  assert.equal((pros.match(/setOpenClientReq\(\{ clientId, nonce: Date\.now\(\) \}\); setTab\('clients'\);/g) || []).length, 2);
+  for (const [fn, list] of [['BSTrainerClients', 'COACH_CLIENTS'], ['BSNutriClients', 'NUTRI_CLIENTS']]) {
+    assert.match(pros, new RegExp(`clients:  <${fn} sheet=\\{sheet\\} openRequest=\\{openClientReq\\} onOpenConsumed=\\{\\(\\) => setOpenClientReq\\(null\\)\\} />`), fn);
+    const body = pros.slice(pros.indexOf(`function ${fn}(`), pros.indexOf(`function ${fn}(`) + 3000);
+    assert.match(body, new RegExp(`if \\(!openRequest \\|\\| !openRequest\\.clientId \\|\\| rosterStatus === 'loading'\\) return;\\s+const hit = ${list}\\.find\\(\\(c\\) => c\\.userId === openRequest\\.clientId\\);\\s+if \\(hit\\) \\{ setPreviewClient\\(null\\); setFullClient\\(hit\\); \\}\\s+onOpenConsumed\\(\\);`), fn);
   }
 });
 

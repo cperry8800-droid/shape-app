@@ -1183,6 +1183,22 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     window.addEventListener('shape:goCommunity', open);
     return () => window.removeEventListener('shape:goCommunity', open);
   }, []);
+  // A new-client alert with no thread ("client", bsRouteNotification) opens that client's page:
+  // the Clients tab, which opens them once the roster has them (fix 3a; Codex on #2360).
+  const [openClientReq, setOpenClientReq] = useStateBSP(null);
+  useEffectBSP(() => {
+    const open = (e) => {
+      const clientId = e && e.detail && e.detail.clientId;
+      if (!clientId) return;
+      navJumpRef.current.navPush();
+      setShowSoundtracks(false); setShowSettings(false); setSettingsStart('');
+      setShowCalendar(false); setShowReviews(false); setShowHabits(false);
+      setQueueView(null); setLiveWatch(null); setShowSearch(false);
+      setOpenClientReq({ clientId, nonce: Date.now() }); setTab('clients');
+    };
+    window.addEventListener('shape:openClient', open);
+    return () => window.removeEventListener('shape:openClient', open);
+  }, []);
   const [showSettings, setShowSettings] = useStateBSP(false);
   const [showSoundtracks, setShowSoundtracks] = useStateBSP(false);
   const [showCalendar, setShowCalendar] = useStateBSP(false);
@@ -1380,7 +1396,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   if (liveWatch) return takeover(<BSProLiveWatch client={liveWatch.client} clientId={liveWatch.clientId} workout={liveWatch.workout} onBack={() => setLiveWatch(null)} onMessage={conversationId=>{setChatRequest({coach:liveWatch.client,role:'Client',conversationId,nonce:Date.now()});setLiveWatch(null);setTab('chat');}} />);
   const screens = {
     today:    <BSTrainerToday onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} onOpenReviews={() => { navPush(); setShowReviews(true); }} onWidgetOpen={openHomeWidget} onOpenHabits={() => { navPush(); setShowHabits(true); }} onOpenScore={() => { navPush(); setStoreView('score'); setTab('store'); }} onWatchLive={(c) => setLiveWatch(c)} tweaks={tweaks} setTweak={setTweak} />,
-    clients:  <BSTrainerClients sheet={sheet} />,
+    clients:  <BSTrainerClients sheet={sheet} openRequest={openClientReq} onOpenConsumed={() => setOpenClientReq(null)} />,
     programs: <BSTrainerPrograms sheet={sheet} initialTab={programInitialTab} openPlanRequest={openPlanRequest} />,
     chat:     <BSClientChat onProfile={goSettings} sheet={sheet} role="trainer" openRequest={chatRequest} />,
     radio:    <BSRadioScreen onBack={() => { if (!navBack()) setTab('today'); }} />,
@@ -2735,7 +2751,7 @@ function BSProAddClientSheet({ role, onClose }) {
   return target ? createPortal(sheet, target) : sheet;
 }
 
-function BSTrainerClients() {
+function BSTrainerClients({ openRequest = null, onOpenConsumed = () => {} } = {}) {
   const t = useBS();
   const tr = useShapeTr();
   const [previewClient, setPreviewClient] = useStateBSP(null);
@@ -2745,6 +2761,14 @@ function BSTrainerClients() {
   const [cFilter, setCFilter] = useStateBSP('all');
   const [needsYou, setNeedsYou] = useStateBSP(false);
   const { clients: COACH_CLIENTS, status: rosterStatus, retry: retryRoster } = useBSProRoster('trainer'); // demo → live roster when signed in
+  // A notification asked for one client (route "client"): open their page once the roster has
+  // them. A client the roster does not hold leaves the list showing, never another client's page.
+  useEffectBSP(() => {
+    if (!openRequest || !openRequest.clientId || rosterStatus === 'loading') return;
+    const hit = COACH_CLIENTS.find((c) => c.userId === openRequest.clientId);
+    if (hit) { setPreviewClient(null); setFullClient(hit); }
+    onOpenConsumed();
+  }, [openRequest, rosterStatus, COACH_CLIENTS]);
   const shownClients = COACH_CLIENTS
     .filter(c => roster === 'active' ? c.active : !c.active)
     .filter(c => bsClientMatchesFilter(c, cFilter, 'trainer'))
@@ -6899,6 +6923,21 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     window.addEventListener('shape:goCommunity', open);
     return () => window.removeEventListener('shape:goCommunity', open);
   }, []);
+  // A new-client alert with no thread ("client"): that client's page, as in the trainer shell.
+  const [openClientReq, setOpenClientReq] = useStateBSP(null);
+  useEffectBSP(() => {
+    const open = (e) => {
+      const clientId = e && e.detail && e.detail.clientId;
+      if (!clientId) return;
+      navJumpRef.current.navPush();
+      setShowSoundtracks(false); setShowSettings(false); setSettingsStart('');
+      setShowCalendar(false); setShowReviews(false); setShowHabits(false);
+      setQueueView(null); setShowSearch(false);
+      setOpenClientReq({ clientId, nonce: Date.now() }); setTab('clients');
+    };
+    window.addEventListener('shape:openClient', open);
+    return () => window.removeEventListener('shape:openClient', open);
+  }, []);
   const [showSettings, setShowSettings] = useStateBSP(false);
   const [showSoundtracks, setShowSoundtracks] = useStateBSP(false);
   const [showCalendar, setShowCalendar] = useStateBSP(false);
@@ -7053,7 +7092,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   if (queueView) return takeover(<BSProWidgetQueuePage role="nutritionist" type={queueView} onBack={() => { if (!navBack()) setQueueView(null); }} />);
   const screens = {
     today:    <BSNutriToday onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} onOpenReviews={() => { navPush(); setShowReviews(true); }} onWidgetOpen={openHomeWidget} onOpenHabits={() => { navPush(); setShowHabits(true); }} onOpenScore={() => { navPush(); setStoreView('score'); setTab('store'); }} tweaks={tweaks} setTweak={setTweak} />,
-    clients:  <BSNutriClients sheet={sheet} />,
+    clients:  <BSNutriClients sheet={sheet} openRequest={openClientReq} onOpenConsumed={() => setOpenClientReq(null)} />,
     plans:    <BSNutriPlans sheet={sheet} />,
     chat:     <BSClientChat onProfile={goSettings} sheet={sheet} role="nutritionist" openRequest={chatRequest} />,
     radio:    <BSRadioScreen onBack={() => { if (!navBack()) setTab('today'); }} />,
@@ -7089,7 +7128,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
 
 function BSNutriToday(props) { return <BSProToday role="nutritionist" {...props} />; }
 
-function BSNutriClients() {
+function BSNutriClients({ openRequest = null, onOpenConsumed = () => {} } = {}) {
   const t = useBS();
   const [previewClient, setPreviewClient] = useStateBSP(null);
   const [fullClient, setFullClient] = useStateBSP(null);
@@ -7098,6 +7137,14 @@ function BSNutriClients() {
   const [cFilter, setCFilter] = useStateBSP('all');
   const [needsYou, setNeedsYou] = useStateBSP(false);
   const { clients: NUTRI_CLIENTS, status: rosterStatus, retry: retryRoster } = useBSProRoster('nutritionist'); // demo → live roster when signed in
+  // A notification asked for one client (route "client"): open their page once the roster has
+  // them. A client the roster does not hold leaves the list showing, never another client's page.
+  useEffectBSP(() => {
+    if (!openRequest || !openRequest.clientId || rosterStatus === 'loading') return;
+    const hit = NUTRI_CLIENTS.find((c) => c.userId === openRequest.clientId);
+    if (hit) { setPreviewClient(null); setFullClient(hit); }
+    onOpenConsumed();
+  }, [openRequest, rosterStatus, NUTRI_CLIENTS]);
   const shownClients = NUTRI_CLIENTS
     .filter(c => roster === 'active' ? c.active : !c.active)
     .filter(c => bsClientMatchesFilter(c, cFilter, 'nutritionist'))

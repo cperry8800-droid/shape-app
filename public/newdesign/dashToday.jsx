@@ -903,7 +903,7 @@ function TriagePulsePanel({ feed, role, joint = [], pinned, onTogglePin, prefs }
               <b>{j.client.profile.name}</b> is slipping on both sides — {j.trainingFlags.map((f) => f.label.toLowerCase()).join(", ")} and {j.nutritionFlags.map((f) => f.label.toLowerCase()).join(", ")}. One coordinated message beats two separate nudges.
             </div>
           </div>
-          <button onClick={() => dashMessageClient(j.client.profile.name, role, dashJointDraft(j, role))} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#fff", background: "var(--sh-rust, #e0644b)", border: 0, borderRadius: 4, padding: "8px 12px", cursor: "pointer" }}>Start joint note</button>
+          <button onClick={() => dashMessageClient(j.client.profile.name, role, dashJointDraft(j, role), j.client.profile.id)} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#fff", background: "var(--sh-rust, #e0644b)", border: 0, borderRadius: 4, padding: "8px 12px", cursor: "pointer" }}>Start joint note</button>
         </div>
       ))}
       {pinnedRows.length > 0 && (
