@@ -457,6 +457,25 @@ test('the app\'s Settings pane: a read that answers after a save does not undo i
   assert.equal(p.pane.lbPrivacyWrites.current.pending, 0);
 });
 
+test('the coach Score pages claim no rank the board did not give (CodeRabbit, on #2371)', () => {
+  for (const role of ['trainer', 'nutritionist']) {
+    const page = stripComments(read(`public/newdesign/${role}ScorePage.jsx`));
+    // (the Icon rung's own description, "Top 1% of coaches", is the ladder, not a claim about you)
+    assert.ok(!/right="[^"]*TOP \d+%|Top \d+% of (trainers|nutritionists) on Shape/.test(page), `the ${role} Score page still shows a fixed percentage`);
+    assert.match(page, /<SectionTitle right=\{tierLabel\}>Tiers<\/SectionTitle>/, `the ${role} Tiers card does not read the live tier`);
+    assert.match(page, /setTierLabel\(String\(cn\(d\.current_tier\)\)\.toUpperCase\(\)\)/);
+  }
+});
+
+test('the board\'s "Show me" button takes its text colour from the paper (CodeRabbit, on #2371)', () => {
+  // --sh-accent moves with the paper (#0a7a72 on light), so near-black text on it is 3.7:1 there;
+  // --sh-deep is the house token for text on the accent (white on light, near-black on dark).
+  const rule = /\.lb-btn--on \{([^}]*)\}/.exec(read('public/newdesign/dash.css'));
+  assert.ok(rule, 'the .lb-btn--on rule is gone');
+  assert.match(rule[1], /background: var\(--sh-accent, #2ee0c4\)/);
+  assert.match(rule[1], /(^|;)\s*color: var\(--sh-deep, #06231f\);/);
+});
+
 test('the nightly reading: the cron secret, the writer, and a database without it', async () => {
   const prev = process.env.CRON_SECRET;
   process.env.CRON_SECRET = 's3cret';

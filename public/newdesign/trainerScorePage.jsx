@@ -17,6 +17,7 @@ function TrainerScorePage() {
   const [tiers, setTiers] = React.useState(STATIC_TIERS);
   const [breakdown, setBreakdown] = React.useState(STATIC_BREAKDOWN);
   const [headline, setHeadline] = React.useState({ title: "6,420", eyebrow: "COACH SCORE · MASTER" });
+  const [tierLabel, setTierLabel] = React.useState("MASTER");
 
   // Your score · Leaderboard (owner, 2026-10-15: "we should have a members and coaches
   // leaderboard"). The board is leaderboards.jsx's; the subtitle reads your rank off it.
@@ -35,6 +36,7 @@ function TrainerScorePage() {
           title: d.total.toLocaleString(),
           eyebrow: `COACH SCORE · ${String(cn(d.current_tier)).toUpperCase()}`,
         });
+        setTierLabel(String(cn(d.current_tier)).toUpperCase());
         setTiers(STATIC_TIERS.map(([t,r,desc]) => [t, r, desc, t === cn(d.current_tier)]));
       })
       .catch(() => {});
@@ -47,7 +49,7 @@ function TrainerScorePage() {
   // points are earned, which the header's "How it works" scrolls to.
   const tiersCard = (
       <Card>
-        <SectionTitle right="MASTER · TOP 4%">Tiers</SectionTitle>
+        <SectionTitle right={tierLabel}>Tiers</SectionTitle>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", marginTop: 8 }}>
           {tiers.map(([t,r,d,cur],i)=>(
             <div key={t} style={{ padding: "18px 16px", borderLeft: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", background: cur ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.08)" : "transparent" }}>
