@@ -131,8 +131,8 @@
   "shell.loading": "Caricamento dell’applicazione…",
   "shell.loadingApp": "Caricamento dell’app…",
   "shell.reload": "Ricarica →",
-  "shell.requireAccount": "Crea un account gratuito per continuare.",
-  "shell.requireAccountLabel": "Crea un account gratuito per {label}.",
+  "shell.requireAccount": "Crea un account per continuare.",
+  "shell.requireAccountLabel": "Crea un account per {label}.",
   "shell.stale": "È disponibile una nuova versione. Ricarica per continuare.",
   "login.applyAs": "Candidati come {role} →",
   "login.back": "← Indietro",
@@ -305,5 +305,10 @@
   "nora.ask": "Domande? Chiedi a Nora",
   "nora.pageApply": "Candidatura coach",
   "nora.pageLogin": "Accedi",
-  "nora.pageJoin": "Unisciti a Shape"
+  "nora.pageJoin": "Unisciti a Shape",
+  "login.agree": "Entrando, accetti i Termini di servizio e l’Informativa sulla privacy di Shape.",
+  "legal.terms": "Termini di servizio",
+  "legal.privacy": "Informativa sulla privacy",
+  "paywall.renews": "{price} al mese, si rinnova ogni mese finché non disdici.",
+  "paywall.err.inProgress": "Il pagamento si sta già aprendo. Riprova tra un momento."
 }

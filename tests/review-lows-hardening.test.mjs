@@ -200,6 +200,11 @@ async function sessionRoute() {
       ['@/lib/supabase/auth-cookies.mjs', authCookies],
       ['@/lib/request-utils', requestUtils],
       ['@/lib/native-cors', nativeCors],
+      // What a sign-in also does (the client-onboarding review's H10 and M4) is
+      // tests/onboarding-small-fixes.test.mjs's; this section is the origin check.
+      ['@/lib/provision-profile', { ensureProfile: async () => 'unchanged' }],
+      ['@/lib/legal-acceptance', { recordLegalAcceptance: async () => 'none' }],
+      ['@/lib/supabase/admin', { createAdminClient: () => ({}) }],
     ]),
   });
   const post = async (origin) => {

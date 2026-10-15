@@ -131,8 +131,8 @@
   "shell.loading": "Dey load di application…",
   "shell.loadingApp": "Dey load app…",
   "shell.reload": "Load am again →",
-  "shell.requireAccount": "Create free account make you continue.",
-  "shell.requireAccountLabel": "Create free account make you {label}.",
+  "shell.requireAccount": "Create account make you continue.",
+  "shell.requireAccountLabel": "Create account make you {label}.",
   "shell.stale": "New version don dey. Load am again make you continue.",
   "login.applyAs": "Apply as {role} →",
   "login.back": "← Back",
@@ -305,5 +305,10 @@
   "nora.ask": "Question? Ask Nora",
   "nora.pageApply": "Coach application",
   "nora.pageLogin": "Sign in",
-  "nora.pageJoin": "Join Shape"
+  "nora.pageJoin": "Join Shape",
+  "login.agree": "As you join, you don agree to Shape Terms of Service and Privacy Policy.",
+  "legal.terms": "Terms of Service",
+  "legal.privacy": "Privacy Policy",
+  "paywall.renews": "{price} every month, e go dey renew every month until you cancel.",
+  "paywall.err.inProgress": "Checkout don dey open already. Try again small time."
 }

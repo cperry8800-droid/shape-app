@@ -131,8 +131,8 @@
   "shell.loading": "Загрузка приложения…",
   "shell.loadingApp": "Загрузка…",
   "shell.reload": "Перезагрузить →",
-  "shell.requireAccount": "Создайте бесплатный аккаунт, чтобы продолжить.",
-  "shell.requireAccountLabel": "Создайте бесплатный аккаунт, чтобы {label}.",
+  "shell.requireAccount": "Создайте аккаунт, чтобы продолжить.",
+  "shell.requireAccountLabel": "Создайте аккаунт, чтобы {label}.",
   "shell.stale": "Доступна новая версия. Перезагрузите, чтобы продолжить.",
   "login.applyAs": "Подать заявку как {role} →",
   "login.back": "← Назад",
@@ -305,5 +305,10 @@
   "nora.ask": "Вопросы? Спроси Нору",
   "nora.pageApply": "Заявка тренера",
   "nora.pageLogin": "Вход",
-  "nora.pageJoin": "Вступить в Shape"
+  "nora.pageJoin": "Вступить в Shape",
+  "login.agree": "Присоединяясь, вы принимаете Условия использования и Политику конфиденциальности Shape.",
+  "legal.terms": "Условия использования",
+  "legal.privacy": "Политика конфиденциальности",
+  "paywall.renews": "{price} в месяц, продлевается ежемесячно, пока вы не отмените.",
+  "paywall.err.inProgress": "Оплата уже открывается. Попробуйте ещё раз через минуту."
 }

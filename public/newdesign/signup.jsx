@@ -734,6 +734,9 @@ function SignupForm({ role }) {
               onboarding: suOnboardingAnswers(values),
               // Where this sign-up came from (/signup-source.js; counted on the admin console).
               signup_source: (window.shapeSignupSource && window.shapeSignupSource.forSignup("website")) || { surface: "website" },
+              // The Terms tick above is required (client-onboarding review, M4: it was required and
+              // never recorded). The server records the versions in force when the account was made.
+              terms_accepted_at: new Date().toISOString(),
             },
           },
         });

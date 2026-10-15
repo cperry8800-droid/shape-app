@@ -131,8 +131,8 @@
   "shell.loading": "Uygulama yükleniyor…",
   "shell.loadingApp": "Yükleniyor…",
   "shell.reload": "Yeniden yükle →",
-  "shell.requireAccount": "Devam etmek için ücretsiz bir hesap oluştur.",
-  "shell.requireAccountLabel": "{label} için ücretsiz bir hesap oluştur.",
+  "shell.requireAccount": "Devam etmek için bir hesap oluştur.",
+  "shell.requireAccountLabel": "{label} için bir hesap oluştur.",
   "shell.stale": "Yeni bir sürüm var. Devam etmek için yeniden yükle.",
   "login.applyAs": "{role} olarak başvur →",
   "login.back": "← Geri",
@@ -305,5 +305,10 @@
   "nora.ask": "Soruların mı var? Nora'ya sor",
   "nora.pageApply": "Koç başvurusu",
   "nora.pageLogin": "Giriş yap",
-  "nora.pageJoin": "Shape'e katıl"
+  "nora.pageJoin": "Shape'e katıl",
+  "login.agree": "Katılarak Shape’in Hizmet Şartları’nı ve Gizlilik Politikası’nı kabul etmiş olursun.",
+  "legal.terms": "Hizmet Şartları",
+  "legal.privacy": "Gizlilik Politikası",
+  "paywall.renews": "Aylık {price}, iptal edene kadar her ay yenilenir.",
+  "paywall.err.inProgress": "Ödeme zaten açılıyor. Birazdan tekrar dene."
 }

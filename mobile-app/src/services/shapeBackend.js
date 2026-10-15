@@ -418,6 +418,9 @@ async function signUp({ email, password, fullName, role, username, captchaToken,
         // and referrer (or the first touch remembered on this origin, consent allowing), the
         // app, and which build (installed iOS or Android, or the app in a browser at /m/).
         signup_source: typeof window !== 'undefined' ? sourceFromWindow(window, 'app', signupPlatform()) : { surface: 'app', platform: signupPlatform() },
+        // The create form says joining accepts the Terms and the Privacy Policy (client-onboarding
+        // review, M4); the server records the versions in force when the account was made.
+        terms_accepted_at: new Date().toISOString(),
       },
     },
   });
@@ -476,6 +479,7 @@ async function signInWithPhone({ phone, fullName, role, captchaToken, dob, isCre
   if (fullName) meta.full_name = fullName;
   if (role) meta.role = normalizeRole(role);
   if (isCreate && dob) meta.date_of_birth = dob; // claimed onto profiles after OTP verify
+  if (isCreate) meta.terms_accepted_at = new Date().toISOString(); // M4: the create form names the Terms
   const { error } = await supabase.auth.signInWithOtp({
     phone: normalizedPhone,
     options: {

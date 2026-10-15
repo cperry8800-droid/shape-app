@@ -9,6 +9,11 @@
 //        had no profile, and the age check refused it. ensureProfile runs on every sign-in bridge.
 //   M5   /signup was a second, thinner sign-up form that made Trainer a client account. It
 //        redirects to the website's sign-up, and a coach's role to their application.
+//   M4   the app's sign-up and paywall named no Terms, no Privacy Policy and no renewal, and the
+//        website required a Terms tick it never recorded. Both say it now, and the server records
+//        the versions in force when the account was made (terms_acceptances).
+//   L4   the money path said "Create a free account" beside a $5 membership, and showed the
+//        checkout's English refusals as they came.
 //   L11  dead code: get-started.html, pricing/actions.ts.
 
 import test from 'node:test';
@@ -249,6 +254,7 @@ test('H10: a signed-in account with no profile gets one from its sign-up details
 
 test('H10: the sign-in bridge provisions (the website and the app both call it), and the callback uses the same function', async () => {
   const db = profilesDb();
+  const accepted = [];
   const route = await loadRealModule(join(ROOT, 'src/app/api/auth/session/route.ts'), {
     typescript: true,
     registry: new Map([
@@ -259,12 +265,15 @@ test('H10: the sign-in bridge provisions (the website and the app both call it),
       ['@/lib/request-utils', await loadRealModule(join(ROOT, 'src/lib/request-utils.ts'), { typescript: true, registry: new Map([['next/server', nextServer]]) })],
       ['@/lib/native-cors', { NATIVE_APP_ORIGINS: ['capacitor://localhost', 'https://localhost'] }],
       ['@/lib/provision-profile', provision],
+      ['@/lib/legal-acceptance', { recordLegalAcceptance: async (admin, u) => { accepted.push([admin, u]); return 'recorded'; } }],
+      ['@/lib/supabase/admin', { createAdminClient: () => ({ admin: true }) }],
     ]),
   });
   const res = await route.POST(new Request('https://shape.test/api/auth/session', { method: 'POST', headers: { 'content-type': 'application/json', origin: 'capacitor://localhost' }, body: JSON.stringify({ access_token: 'a', refresh_token: 'r' }) }));
   assert.equal(res.status, 200);
   assert.equal(db.writes.length, 1, 'the account with no row has one now');
   assert.equal(db.writes[0][0].role, 'client');
+  assert.deepEqual(accepted, [[{ admin: true }, NEWBIE]], 'and the Terms acceptance is recorded by the service role (M4)');
   const callback = read('src/app/auth/callback/route.ts');
   assert.match(callback, /await ensureProfile\(supabase as unknown as SupabaseClient, data\?\.user\);/);
   assert.doesNotMatch(callback, /from\('profiles'\)/, 'one copy of the rules, not two');
@@ -308,4 +317,86 @@ test('M5: /signup lands on the website\'s sign-up, and a coach on their applicat
 
 test('L11: the dead pricing action and get-started page are gone', () => {
   for (const f of ['src/app/pricing/actions.ts', 'public/newdesign/get-started.html']) assert.equal(fs.existsSync(join(ROOT, f)), false, `${f} is back`);
+});
+
+// ── M4: the Terms and Privacy acceptance, recorded ──────────────────────────────────────────
+const legal = await loadRealModule(join(ROOT, 'src/lib/legal-acceptance.ts'), { typescript: true });
+function acceptDb({ error = null } = {}) {
+  const rows = [];
+  return { rows, client: { from: (t) => { assert.equal(t, 'terms_acceptances'); return { upsert: async (row, opts) => { rows.push([row, opts]); return { error }; } }; } } };
+}
+
+test('M4: the versions recorded are the pages\' own "Last updated" dates', () => {
+  const pageDate = (f) => {
+    const m = /Last updated — ([A-Z][a-z]+ \d{1,2}, \d{4})/.exec(read(f));
+    assert.ok(m, `${f} has no Last updated line`);
+    return new Date(m[1] + ' 12:00 UTC').toISOString().slice(0, 10);
+  };
+  assert.equal(legal.TERMS_VERSIONS.at(-1), pageDate('public/terms.html'), 'a new Terms date needs a new entry in TERMS_VERSIONS');
+  assert.equal(legal.PRIVACY_VERSIONS.at(-1), pageDate('public/privacy.html'), 'a new privacy date needs a new entry in PRIVACY_VERSIONS');
+  assert.equal(legal.versionInForce(['2026-06-22', '2026-11-01'], '2026-10-15'), '2026-06-22');
+  assert.equal(legal.versionInForce(['2026-06-22', '2026-11-01'], '2026-11-01'), '2026-11-01');
+  assert.equal(legal.versionInForce(['2026-06-22'], '2026-01-01'), '2026-06-22', 'before the first: the first');
+});
+
+test('M4: an account that accepted at sign-up gets one record, at the account\'s own time, never the browser\'s', async () => {
+  const created = new Date(Date.now() - 2 * 86_400_000).toISOString();
+  const user = { id: 'u-1', created_at: created, user_metadata: { terms_accepted_at: '1999-01-01T00:00:00Z', signup_source: { surface: 'app', platform: 'ios' } } };
+  const db = acceptDb();
+  assert.equal(await legal.recordLegalAcceptance(db.client, user), 'recorded');
+  assert.deepEqual(db.rows, [[
+    { user_id: 'u-1', terms_version: legal.TERMS_VERSIONS.at(-1), privacy_version: legal.PRIVACY_VERSIONS.at(-1), surface: 'app', accepted_at: created },
+    { onConflict: 'user_id,terms_version,privacy_version', ignoreDuplicates: true },
+  ]], 'a repeat sign-in writes nothing new');
+  const web = acceptDb();
+  await legal.recordLegalAcceptance(web.client, { ...user, user_metadata: { terms_accepted_at: 'x' } });
+  assert.equal(web.rows[0][0].surface, 'website');
+  for (const u of [null, { id: 'u', created_at: created, user_metadata: {} }, { id: 'u', created_at: 'nope', user_metadata: { terms_accepted_at: 'x' } }]) {
+    const none = acceptDb();
+    assert.equal(await legal.recordLegalAcceptance(none.client, u), 'none');
+    assert.equal(none.rows.length, 0);
+  }
+  const old = acceptDb();
+  assert.equal(await legal.recordLegalAcceptance(old.client, { ...user, created_at: new Date(Date.now() - 40 * 86_400_000).toISOString() }), 'none', 'an account past its first month has had its record');
+  const missing = acceptDb({ error: { code: '42P01', message: 'relation does not exist' } });
+  assert.equal(await legal.recordLegalAcceptance(missing.client, user), 'failed', 'before the migration: nothing to record into, and quiet');
+});
+
+test('M4: the table is the server\'s to write; both sign-in doors record; both sign-ups carry the acceptance', () => {
+  const sql = read('supabase-migrations/2026-10-15-terms-acceptances.sql');
+  assert.match(sql, /alter table public\.terms_acceptances enable row level security;/);
+  assert.match(sql, /revoke all on public\.terms_acceptances from anon, authenticated;\ngrant select on public\.terms_acceptances to authenticated;/);
+  assert.match(sql, /using \(user_id = auth\.uid\(\)\);/);
+  assert.match(sql, /references auth\.users \(id\) on delete cascade/);
+  assert.match(sql, /raise exception 'terms_acceptances: a member or a visitor can write it/);
+  for (const f of ['src/app/api/auth/session/route.ts', 'src/app/auth/callback/route.ts']) {
+    assert.match(read(f), /try \{ await recordLegalAcceptance\(createAdminClient\(\), data\?\.user\); \} catch \{ \/\* best effort \*\/ \}/, f);
+  }
+  assert.match(read('public/newdesign/signup.jsx'), /if \(!values\.tos\) \{ setError\([^)]*\); return; \}[\s\S]*terms_accepted_at: new Date\(\)\.toISOString\(\),/, 'the website records only after its required tick');
+  const be = read('mobile-app/src/services/shapeBackend.js');
+  assert.match(be, /signup_source: typeof window[^\n]*\n[^\n]*\n[^\n]*\n\s+terms_accepted_at: new Date\(\)\.toISOString\(\),/);
+  assert.match(be, /if \(isCreate\) meta\.terms_accepted_at = new Date\(\)\.toISOString\(\);/, 'the phone create too');
+});
+
+test('M4 + L4: the app says what joining means, in every language, and never "free" beside $5', () => {
+  const main = read('mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx');
+  const paywall = main.slice(main.indexOf('function BSPaywall('), main.indexOf('// Persistent "you\'re previewing" banner'));
+  assert.match(paywall, /\{tr\('paywall\.renews', \{ price: BS_PRICE \}\)\} \{tr\('login\.agree'\)\}\s*<BSLegalLinks /);
+  const login = main.slice(main.indexOf('function BSLogin('), main.indexOf('function BSPaywall('));
+  assert.match(login, /\{isCreate && \(isPhone \|\| createStep === 2\) && \([\s\S]{0,200}\{tr\('login\.agree'\)\}\s*<BSLegalLinks /, 'on the create step that makes the account');
+  assert.match(main, /onClick=\{\(\) => bsOpenLegal\('\/terms\.html'\)\}[\s\S]{0,120}onClick=\{\(\) => bsOpenLegal\('\/privacy\.html'\)\}/);
+  for (const f of ['public/terms.html', 'public/privacy.html']) assert.ok(fs.existsSync(join(ROOT, f)));
+  // L4: the checkout's English refusals are not shown as they came.
+  const start = main.slice(main.indexOf('async function bsmStartCheckout('), main.indexOf('// The membership-resolving hold'));
+  assert.doesNotMatch(start, /__bsToast\?\.\(r\.error/);
+  assert.match(start, /r\.code === 'age_restricted'\) window\.__bsToast\?\.\(t\?\.\('onboarding:login\.err\.under18'\)/);
+  assert.match(start, /r\.code === 'checkout_in_progress'\) window\.__bsToast\?\.\(t\?\.\('onboarding:paywall\.err\.inProgress'\)/);
+  assert.doesNotMatch(main, /Create a free account/);
+  const FREE = /free|kostenlos|gratis|gratuit|kyauta|grátis|бесплатн|ücretsiz|безкоштовн|miễn phí/i;
+  for (const loc of fs.readdirSync(join(ROOT, 'mobile-app/src/i18n/catalogs'))) {
+    const cat = JSON.parse(read(`mobile-app/src/i18n/catalogs/${loc}/onboarding.json`));
+    for (const key of ['login.agree', 'legal.terms', 'legal.privacy', 'paywall.renews', 'paywall.err.inProgress']) assert.ok(cat[key], `${loc}: ${key}`);
+    assert.match(cat['paywall.renews'], /\{price\}/, `${loc}: the price`);
+    for (const key of ['shell.requireAccount', 'shell.requireAccountLabel']) assert.doesNotMatch(cat[key], FREE, `${loc}: ${key} says free`);
+  }
 });

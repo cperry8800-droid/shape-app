@@ -6,6 +6,8 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { safeReturnPath } from '@/lib/safe-redirect.mjs';
 import { ensureProfile } from '@/lib/provision-profile';
+import { recordLegalAcceptance } from '@/lib/legal-acceptance';
+import { createAdminClient } from '@/lib/supabase/admin';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export async function GET(request: Request) {
@@ -32,6 +34,8 @@ export async function GET(request: Request) {
       // legitimate confirmations working. The rules live in ensureProfile, which
       // the sign-in bridge (POST /api/auth/session) runs too (H10).
       await ensureProfile(supabase as unknown as SupabaseClient, data?.user);
+      // And the Terms acceptance the sign-up carried (M4), written by the service role.
+      try { await recordLegalAcceptance(createAdminClient(), data?.user); } catch { /* best effort */ }
       return NextResponse.redirect(`${origin}${next}`);
     }
   }

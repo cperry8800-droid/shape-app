@@ -131,8 +131,8 @@
   "shell.loading": "Đang tải ứng dụng…",
   "shell.loadingApp": "Đang tải…",
   "shell.reload": "Tải lại →",
-  "shell.requireAccount": "Tạo tài khoản miễn phí để tiếp tục.",
-  "shell.requireAccountLabel": "Tạo tài khoản miễn phí để {label}.",
+  "shell.requireAccount": "Tạo tài khoản để tiếp tục.",
+  "shell.requireAccountLabel": "Tạo tài khoản để {label}.",
   "shell.stale": "Đã có phiên bản mới. Hãy tải lại để tiếp tục.",
   "login.applyAs": "Ứng tuyển làm {role} →",
   "login.back": "← Quay lại",
@@ -305,5 +305,10 @@
   "nora.ask": "Có câu hỏi? Hỏi Nora",
   "nora.pageApply": "Đơn đăng ký huấn luyện viên",
   "nora.pageLogin": "Đăng nhập",
-  "nora.pageJoin": "Tham gia Shape"
+  "nora.pageJoin": "Tham gia Shape",
+  "login.agree": "Khi tham gia, bạn đồng ý với Điều khoản dịch vụ và Chính sách quyền riêng tư của Shape.",
+  "legal.terms": "Điều khoản dịch vụ",
+  "legal.privacy": "Chính sách quyền riêng tư",
+  "paywall.renews": "{price} mỗi tháng, tự động gia hạn hằng tháng cho đến khi bạn hủy.",
+  "paywall.err.inProgress": "Trang thanh toán đang mở. Hãy thử lại sau giây lát."
 }

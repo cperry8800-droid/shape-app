@@ -1134,6 +1134,14 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
           )}
         </div>
 
+        {/* Creating an account accepts the Terms and the Privacy Policy, so the form says so (M4). */}
+        {isCreate && (isPhone || createStep === 2) && (
+          <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', lineHeight: 1.6, color: C50 }}>
+            {tr('login.agree')}
+            <BSLegalLinks color={C70} mono={t.MONO} />
+          </div>
+        )}
+
         {/* Turnstile bot challenge — mounts whenever this screen can fire an auth
             request (interaction-only: invisible unless Cloudflare needs a click). */}
         {captchaSlot === 'form' && (
@@ -1203,7 +1211,12 @@ async function bsmStartCheckout() {
   const r = await api.startCheckout();
   if (r.ok || r.code === 'already_member') return;
   if (r.status === 401) { window.__bsGoAuth?.('create'); return; }
-  if (r.error) window.__bsToast?.(r.error, 'err'); else fail();
+  // ⚠ THE SERVER'S WORDS ARE ENGLISH (client-onboarding review, L4): a refusal it names is said in
+  // the member's language; anything else is the translated "could not start".
+  const t = window.ShapeI18n?.t;
+  if (r.code === 'age_restricted') window.__bsToast?.(t?.('onboarding:login.err.under18') || 'You must be 18 or older to use Shape.', 'err');
+  else if (r.code === 'checkout_in_progress') window.__bsToast?.(t?.('onboarding:paywall.err.inProgress') || 'Checkout is already opening. Try again in a moment.', 'info');
+  else fail();
 }
 
 // The membership-resolving hold — the wire ground, no "Checking membership…"
@@ -1251,6 +1264,23 @@ function BSWireHold() {
 // just not on it yet), the feature list as one dot-separated wire line, and a
 // clipped solid-teal JOIN as the one commerce action. Fixed-dark (a launch
 // surface), so it does NOT follow the paper theme — matching the beat/telegram.
+// The Terms of Service and the Privacy Policy, opened on the website (the system browser in the
+// installed app). Client-onboarding review, M4: the app's sign-up and paywall named neither.
+function bsOpenLegal(path) {
+  if (window.ShapeSite?.open) { window.ShapeSite.open(path); return; }
+  try { window.open(path, '_blank', 'noopener'); } catch (e) {}
+}
+function BSLegalLinks({ color, mono }) {
+  const { tr } = useTr('onboarding');
+  const link = { minHeight: 32, padding: '6px 0', border: 0, background: 'transparent', color, fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', textDecoration: 'underline', textUnderlineOffset: 3, cursor: 'pointer' };
+  return (
+    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+      <button type="button" onClick={() => bsOpenLegal('/terms.html')} style={link}>{tr('legal.terms')}</button>
+      <button type="button" onClick={() => bsOpenLegal('/privacy.html')} style={link}>{tr('legal.privacy')}</button>
+    </div>
+  );
+}
+
 function BSPaywall({ signedIn, onJoin, onSignIn, onPreview, onLogout }) {
   const { tr } = useTr('onboarding');
   ensureWireStyles();
@@ -1276,6 +1306,11 @@ function BSPaywall({ signedIn, onJoin, onSignIn, onPreview, onLogout }) {
             {feat.join(' · ')}
           </div>
           <button onClick={onJoin} style={{ ...cta, marginTop: 26 }}>{signedIn ? tr('paywall.join', { price: BS_PRICE }) : tr('paywall.createJoin', { price: BS_PRICE })}</button>
+          {/* What joining means: it renews, and it accepts the Terms and the Privacy Policy (M4). */}
+          <div style={{ marginTop: 10, fontFamily: mono, fontSize: 8.5, letterSpacing: '0.06em', lineHeight: 1.6, color: INKF50 }}>
+            {tr('paywall.renews', { price: BS_PRICE })} {tr('login.agree')}
+            <BSLegalLinks color={INKF70} mono={mono} />
+          </div>
           <button onClick={onPreview} style={{ ...ghost, marginTop: 11 }}>{tr('paywall.preview')}</button>
           {signedIn ? (
             <div style={{ marginTop: 26, display: 'flex', justifyContent: 'center' }}>
@@ -1566,8 +1601,8 @@ function BSAppShell({ tweaks, setTweak }) {
       // silence — this is the message that explains why the screen just changed.
       const i18 = window.ShapeI18n;
       const msg = label
-        ? (i18?.t?.('onboarding:shell.requireAccountLabel', { label }) || `Create a free account to ${label}.`)
-        : (i18?.t?.('onboarding:shell.requireAccount') || 'Create a free account to continue.');
+        ? (i18?.t?.('onboarding:shell.requireAccountLabel', { label }) || `Create an account to ${label}.`)
+        : (i18?.t?.('onboarding:shell.requireAccount') || 'Create an account to continue.');
       try { window.__bsToast && window.__bsToast(msg, 'info'); } catch (e) {}
       if (window.__bsGoAuth) window.__bsGoAuth('create');
       return false;
