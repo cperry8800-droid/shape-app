@@ -1213,10 +1213,22 @@ const TEMPLATE_FALLBACK_REPLY = "AI drafting is unavailable right now, so here i
 // The words a coach request can be made of and still say nothing about the coach: see the bare-ask
 // branch in fallbackReply. A trainer, a nutritionist or any goal word is not in it, so those ask
 // the directory as before.
-const BARE_COACH_ASK = new Set(['find', 'me', 'a', 'an', 'the', 'coach', 'coaches', 'please', 'can', 'could', 'would', 'you', 'help', 'i', "i'm", 'im', 'want', 'need', 'get', 'looking', 'for', 'to', 'match', 'matched', 'with', 'someone', 'recommend', 'show', 'good', 'great', 'best', 'new', 'my', 'one', 'some', 'hi', 'hey', 'hello', 'nora', 'like', 'id', "i'd"]);
+const BARE_COACH_ASK = new Set(['find', 'me', 'a', 'an', 'the', 'coach', 'coaches', 'please', 'can', 'could', 'would', 'you', 'help', 'i', "i'm", 'im', 'want', 'need', 'get', 'looking', 'for', 'to', 'match', 'matched', 'with', 'someone', 'anyone', 'recommend', 'show', 'good', 'great', 'best', 'new', 'my', 'one', 'some', 'any', 'hi', 'hey', 'hello', 'nora', 'like', 'id', "i'd", 'personal',
+  // Where and how they would train is not what they want help with either (Codex, #2362): "a local
+  // coach", "a coach near me", "an online coach". A city name is not listed, so it still searches.
+  'local', 'near', 'nearby', 'around', 'close', 'here', 'area', 'in', 'person', 'online', 'remote', 'remotely', 'virtual', 'virtually']);
 
-async function fallbackReply(text: string, coach: CoachCtx): Promise<{ reply: string; actions: SupportAction[] }> {
-  const q = text.toLowerCase();
+// The fallback's coach question, and how a later turn knows it was asked: the model's own
+// question (by the COACHES rule) names a trainer and a nutritionist too. Read so the answer to it
+// ("both", "online", "nutrition") is taken as that answer, not as a sentence about nothing.
+const COACH_QUESTION = "Happy to find you one. Are you after a trainer, a nutritionist, or both? Tell me your main goal and whether you'd rather work online or with someone in person (and where), and I'll match you.";
+const askedForCoach = (prev: string): boolean => /trainer/i.test(prev) && /nutritionist/i.test(prev) && /\?/.test(prev);
+
+async function fallbackReply(text: string, coach: CoachCtx, askedCoach = false): Promise<{ reply: string; actions: SupportAction[] }> {
+  // ⚠ AN ANSWER TO THE COACH QUESTION IS A COACH REQUEST (Codex, #2362): only the last message
+  // reaches this function, so "both" or "online" read alone matched nothing and got "I can't
+  // answer that one". After the question, the answer is read as a request for a coach.
+  const q = (askedCoach ? 'coach ' : '') + text.toLowerCase();
   const has = (...words: string[]) => words.some((w) => q.includes(w));
   // The listings to rank, and whether the app's live read failed (the website
   // always has the example directory to fall back on).
@@ -1266,8 +1278,9 @@ async function fallbackReply(text: string, coach: CoachCtx): Promise<{ reply: st
     // made only of these words names no kind of coach and no goal, so any list is a guess (the
     // model path asks the same, by its COACHES rule). Anything more specific falls through.
     const words = q.match(/[a-z']+/g) || [];
-    if (words.some((w) => w === 'coach' || w === 'coaches') && words.every((w) => BARE_COACH_ASK.has(w))) {
-      return { reply: "Happy to find you one. Are you after a trainer, a nutritionist, or both? Tell me your main goal and whether you'd rather work online or with someone in person (and where), and I'll match you.", actions: [browse] };
+    // Asked once: an answer that is still bare ("online") gets coaches, never the question again.
+    if (!askedCoach && words.some((w) => w === 'coach' || w === 'coaches') && words.every((w) => BARE_COACH_ASK.has(w))) {
+      return { reply: COACH_QUESTION, actions: [browse] };
     }
     const { pool, unavailable } = await coachPool('trainer');
     if (unavailable) return { reply: "The marketplace couldn't be read just now — try again in a moment, or open it directly to see who's listed.", actions: [browse] };
@@ -1505,7 +1518,9 @@ export async function POST(request: Request) {
     }
   }
 
-  const fb = await fallbackReply(String(lastUser.content || ''), coach);
+  const lastAt = messages.lastIndexOf(lastUser);
+  const prevReply = [...messages.slice(0, lastAt)].reverse().find((m) => m.role === 'assistant');
+  const fb = await fallbackReply(String(lastUser.content || ''), coach, !!prevReply && askedForCoach(String(prevReply.content || '')));
   return { reply: fb.reply, source: 'fallback', actions: fb.actions };
   };
 
