@@ -71,6 +71,7 @@ async function load() {
   const capacity = await loadRealModule(join(ROOT, 'src/lib/capacity.ts'), { typescript: true });
   const requestUtils = await loadRealModule(join(ROOT, 'src/lib/request-utils.ts'), { typescript: true, registry: new Map([['next/server', nextServer]]) });
   const owned = await loadRealModule(join(ROOT, 'src/lib/owned-provider.ts'), { typescript: true, registry: new Map([['@/lib/time', {}], ['@supabase/supabase-js', {}]]) });
+  const time = await loadRealModule(join(ROOT, 'src/lib/time.ts'), { typescript: true });
   const route = await loadRealModule(join(ROOT, 'src/app/api/coach/capacity/route.ts'), {
     typescript: true,
     registry: new Map([
@@ -80,6 +81,7 @@ async function load() {
       ['@/lib/request-utils', requestUtils],
       ['@/lib/capacity', capacity],
       ['@/lib/owned-provider', owned],
+      ['@/lib/time', time],
       ['@/lib/waitlist', { resolveRequestClient: async () => (state.user ? { user: state.user, supabase: state.db } : null) }],
     ]),
   });
@@ -129,9 +131,12 @@ test('GET: every listing the coach owns, with what members meet, the intro setti
   assert.equal(r.status, 200, JSON.stringify(r.body));
   assert.deepEqual(r.body.listings, [
     // Switched on, but the resume date has passed: members meet an open coach.
-    { role: 'trainer', providerId: 7, name: 'Tom', atCapacity: true, effective: false, resumeAt: '2026-10-01T00:00:00Z', introsAtCapacity: false, waiting: 2 },
-    { role: 'nutritionist', providerId: 3, name: 'Tom', atCapacity: true, effective: true, resumeAt: null, introsAtCapacity: true, waiting: 0 },
+    { role: 'trainer', providerId: 7, name: 'Tom', atCapacity: true, effective: false, resumeAt: '2026-10-01T00:00:00Z', resumeOn: '2026-10-01', timezone: null, introsAtCapacity: false, waiting: 2 },
+    { role: 'nutritionist', providerId: 3, name: 'Tom', atCapacity: true, effective: true, resumeAt: null, resumeOn: null, timezone: null, introsAtCapacity: true, waiting: 0 },
   ]);
+  // The resume day is the coach's: 04:00Z on 20 October is midnight that day in New York.
+  const ny = await call('GET', { tables: world({ trainers: [{ id: 7, owner_id: COACH, name: 'Tom', at_capacity: true, capacity_resume_at: '2026-10-20T04:00:00+00:00', timezone: 'America/New_York' }] }) });
+  assert.deepEqual([ny.body.listings[0].resumeOn, ny.body.listings[0].timezone], ['2026-10-20', 'America/New_York']);
   assert.equal((await call('GET', { user: null })).status, 401);
   assert.deepEqual((await call('GET', { user: { id: 'someone-else' } })).body.listings, [], 'nobody else\'s listing');
   assert.equal((await call('GET', { fail: { trainers: { code: 'XX000', message: 'down' } } })).status, 503);
@@ -171,6 +176,31 @@ test('POST: pauses the listing for its role, through the coach\'s own client, wi
   const paused = world({ trainers: [{ id: 7, owner_id: COACH, name: 'Tom', at_capacity: true, capacity_resume_at: '2026-11-01T00:00:00Z' }], coach_waitlist: [] });
   const open = await call('POST', { tables: paused, body: { role: 'trainer', atCapacity: false, resumeAt: '2026-11-05T00:00:00Z' } });
   assert.deepEqual(open.writes.find((w) => w.op === 'update').payload, { at_capacity: false, capacity_resume_at: null });
+});
+
+test('POST: a resume day starts at midnight on the coach\'s own clock, never the browser\'s (Codex on #2375)', async () => {
+  const listing = (timezone) => world({ trainers: [{ id: 7, owner_id: COACH, name: 'Tom', at_capacity: false, capacity_resume_at: null, ...(timezone ? { timezone } : {}) }] });
+  const paused = async (tables, body) => {
+    const r = await call('POST', { tables, body: { role: 'trainer', atCapacity: true, ...body } });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    return { at: r.writes.find((w) => w.op === 'update').payload.capacity_resume_at, listing: r.body.listing };
+  };
+  // A New York listing paused from a laptop in Tokyo reopens at midnight in New York (EDT, then EST).
+  const ny = await paused(listing('America/New_York'), { resumeOn: '2026-10-20', tz: 'Asia/Tokyo' });
+  assert.equal(ny.at, '2026-10-20T04:00:00.000Z');
+  assert.deepEqual([ny.listing.resumeOn, ny.listing.timezone], ['2026-10-20', 'America/New_York']);
+  assert.equal((await paused(listing('America/New_York'), { resumeOn: '2026-11-02' })).at, '2026-11-02T05:00:00.000Z');
+  // A listing with no zone yet takes the page's, then UTC.
+  assert.equal((await paused(listing(null), { resumeOn: '2026-10-20', tz: 'Asia/Tokyo' })).at, '2026-10-19T15:00:00.000Z');
+  assert.equal((await paused(listing(null), { resumeOn: '2026-10-20', tz: 'Not/AZone' })).at, '2026-10-20T00:00:00.000Z');
+  assert.equal((await paused(listing(null), { resumeOn: '2026-10-20' })).at, '2026-10-20T00:00:00.000Z');
+  // A day that does not exist, in another shape, already begun, or a year out: refused, nothing written.
+  for (const resumeOn of ['2026-11-31', '11/02/2026', '2026-10-15', '2027-12-01']) {
+    const bad = await call('POST', { tables: listing('America/New_York'), body: { role: 'trainer', atCapacity: true, resumeOn } });
+    assert.equal(bad.status, 400, resumeOn);
+    assert.equal(bad.body.field, 'resumeOn', resumeOn);
+    assert.equal(bad.writes.length, 0, resumeOn);
+  }
 });
 
 test('POST: reopening tells everyone still waiting, once a day, and only them', async () => {
@@ -274,6 +304,24 @@ test('the booking pages: no intro times at capacity unless the coach keeps intro
   }
 });
 
+test('the app\'s full coach profile offers a free intro at capacity when the listing does (Codex on #2375)', () => {
+  const market = read('mobile-app/src/broadsheet/iosAppBroadsheetMarketplace.jsx');
+  assert.match(market, /commerce: \{ coach, role: saleProviderRole, packages: p\.packages, introsAtCapacity: introsAtCap, bookIntro:/, 'the listing hands over the coach\'s setting');
+  const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  const prof = client.slice(client.indexOf('function BSSignalCoachProfile('), client.indexOf('\nfunction ', client.indexOf('function BSSignalCoachProfile(') + 10));
+  assert.match(prof, /const introsOpenAtCap = !!\(commerce && commerce\.introsAtCapacity === true\);/);
+  const block = (from) => { const i = prof.indexOf(from); assert.ok(i > 0, from); return prof.slice(i, prof.indexOf('\n          )}', i)); };
+  const intro = /<button onClick=\{doBookIntro\} data-intro-at-capacity=""/;
+  // Invited off the list: always (the server lets an invited member book one either way).
+  const invited = block("{!isSelf && atCapacity && wl?.status === 'invited' && (");
+  assert.match(invited, intro);
+  assert.doesNotMatch(invited, /introsOpenAtCap \?/);
+  // Waiting, or not on the list yet: only when the coach keeps intros open.
+  for (const from of ["{!isSelf && atCapacity && wl && wl.status !== 'invited' && (", '{!isSelf && atCapacity && !wl && (']) {
+    assert.match(block(from), /\{introsOpenAtCap \? <button onClick=\{doBookIntro\} data-intro-at-capacity=""/, from);
+  }
+});
+
 // ── The app: Settings changes the listing of the role in use, through the route ──────────────
 // Lifted from the shipped shapeBackend.js and run against a recorded fetch.
 function liftCapacity() {
@@ -303,11 +351,14 @@ test('app: capacity is read and written for the role in use, and shows what memb
   ];
   a.answer(200, { listings });
   // A coach with both listings, working as a nutritionist, sees the nutritionist listing.
-  assert.deepEqual(await a.getProviderCapacity({ role: 'nutritionist' }), { role: 'nutritionist', providerId: 3, atCapacity: true, switchedOn: true, resumeAt: null, introsAtCapacity: true, waiting: 0 });
+  assert.deepEqual(await a.getProviderCapacity({ role: 'nutritionist' }), { role: 'nutritionist', providerId: 3, atCapacity: true, switchedOn: true, resumeAt: null, resumeOn: null, introsAtCapacity: true, waiting: 0 });
   assert.equal((await a.getProviderCapacity({ role: 'dietitian' })).providerId, 3, 'a dietitian is on the nutritionist rails');
   // A passed resume date reads as open, the switch as on.
   const tr = await a.getProviderCapacity({ role: 'trainer' });
   assert.deepEqual([tr.atCapacity, tr.switchedOn], [false, true]);
+  a.answer(200, { listings: [{ ...listings[0], effective: true, resumeAt: '2026-10-20T04:00:00+00:00', resumeOn: '2026-10-20' }] });
+  assert.equal((await a.getProviderCapacity({ role: 'trainer' })).resumeOn, '2026-10-20', 'the coach\'s own day, for Settings to show');
+  a.answer(200, { listings });
   assert.equal(a.calls[0].url, 'https://shape.test/api/coach/capacity');
   assert.equal(a.calls[0].auth, 'Bearer tok');
   a.answer(200, { listings: [listings[0]] });
@@ -342,6 +393,7 @@ test('app Settings: the switch follows the role in use, reopening says who was t
   assert.match(client, /res\.notified > 0 \? tr\('settings:capacity\.toastReopened', \{ n: res\.notified,/);
   assert.match(client, /await window\.ShapeBookings\.setCapacity\(\{ role: capacity\.role, introsAtCapacity: next \}\);/);
   assert.match(client, /<Toggle on=\{capacity\.introsAtCapacity\} onClick=\{toggleIntros\} \/>/);
+  assert.match(client, /tr\('settings:capacity\.resumes', \{ date: \(capacity\.resumeOn \? new Date\(capacity\.resumeOn \+ 'T12:00:00'\) : new Date\(capacity\.resumeAt\)\)/, 'the coach\'s day, not the phone\'s');
   assert.doesNotMatch(client, /subscribe, book & buy are blocked/, 'current clients still book and buy');
   assert.doesNotMatch(read('mobile-app/src/services/shapeBackend.js'), /\.update\(\{ at_capacity:/, 'the app no longer writes the row itself');
   for (const loc of ['de', 'en', 'es', 'fr', 'ha', 'id', 'it', 'pcm', 'pt-BR', 'ru', 'tr', 'uk', 'vi']) {
@@ -362,19 +414,19 @@ test('website Profile: the capacity switch, a resume date, intros while full, an
   assert.match(card, /const listing = \(\(d && d\.listings\) \|\| \[\]\)\.find\(\(l\) => l\.role === role\) \|\| null;/, 'the listing of this dashboard\'s role');
   assert.match(card, /const full = !!\(l && l\.effective\);/, 'what members meet, not the raw switch');
   assert.match(card, /save\(\{ atCapacity: false \}, "open"\)/);
-  assert.match(card, /save\(\{ atCapacity: true, \.\.\.\(cpcResumeInstant\(resumeDay\) \? \{ resumeAt: cpcResumeInstant\(resumeDay\) \} : \{\}\) \}, "pause"\)/);
+  assert.match(card, /save\(\{ atCapacity: true, \.\.\.\(resumeDay \? \{ resumeOn: resumeDay, tz: cpcBrowserZone\(\) \} : \{\}\) \}, "pause"\)/, 'the day itself, placed by the route in the listing\'s zone');
+  assert.match(card, /setResumeDay\(listing && listing\.effective && listing\.resumeOn \? listing\.resumeOn : ""\);/);
+  assert.match(card, /reopening \{cpcDayLabel\(l\.resumeOn\)\}/);
+  assert.doesNotMatch(card, /new Date\(l\.resumeAt\)/, 'never the instant on the viewer\'s clock');
   assert.match(card, /save\(\{ introsAtCapacity: e\.target\.checked \}, "intros"\)/, 'the intro setting alone');
   assert.match(card, /fetch\("\/api\/waitlist\/room\?providerId=" \+ encodeURIComponent\(providerId\) \+ "&providerRole=" \+ role/);
   assert.match(card, /fetch\("\/api\/waitlist\/invite", \{ method: "POST"[\s\S]{0,200}JSON\.stringify\(\{ entryId \}\)/);
   assert.match(card, /d\.notified > 0 \? "Taking new clients again\. " \+ d\.notified/);
-  // The resume day is the start of that day on the coach's clock, sent as an instant the route accepts.
-  const lib = new Function(`${src.slice(src.indexOf('function cpcDateInput('), src.indexOf('function CoachCapacityCard() {'))}; return { cpcDateInput, cpcResumeInstant };`)();
-  const iso = lib.cpcResumeInstant('2026-11-02');
-  assert.match(iso, /Z$/);
-  assert.equal(new Date(iso).getDate(), 2);
-  assert.equal(new Date(iso).getHours(), 0);
-  assert.equal(lib.cpcResumeInstant(''), null);
-  assert.equal(lib.cpcResumeInstant('11/02/2026'), null);
-  assert.equal(lib.cpcDateInput(iso), '2026-11-02');
-  assert.equal(lib.cpcDateInput(null), '');
+  // The day is shown as that day, and the picker starts tomorrow.
+  const lib = new Function(`${src.slice(src.indexOf('function cpcBrowserZone('), src.indexOf('function CoachCapacityCard() {'))}; return { cpcBrowserZone, cpcTomorrow, cpcDayLabel };`)();
+  assert.equal(lib.cpcDayLabel('2026-11-02'), new Date(2026, 10, 2, 12).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }));
+  assert.equal(lib.cpcDayLabel(''), '');
+  assert.equal(lib.cpcDayLabel('11/02/2026'), '');
+  assert.match(lib.cpcTomorrow(), /^\d{4}-\d{2}-\d{2}$/);
+  assert.equal(typeof lib.cpcBrowserZone(), 'string');
 });

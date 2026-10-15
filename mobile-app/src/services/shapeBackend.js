@@ -1629,6 +1629,8 @@ function capacityFromListing(l) {
     atCapacity: l.effective === true,
     switchedOn: l.atCapacity === true,
     resumeAt: l.resumeAt || null,
+    // The reopening day on the coach's own clock (the route's `resumeOn`), shown as that day.
+    resumeOn: typeof l.resumeOn === 'string' ? l.resumeOn : null,
     introsAtCapacity: l.introsAtCapacity === true,
     waiting: typeof l.waiting === 'number' ? l.waiting : null,
   };

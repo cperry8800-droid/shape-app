@@ -5,9 +5,10 @@
 // check coaches waitlist works properly also", and on intros at capacity: "let the coach decide".
 //
 // GET                         → { listings: [{ role, providerId, name, atCapacity, effective,
-//                                 resumeAt, introsAtCapacity, waiting }] }, every listing the
+//                                 resumeAt, resumeOn, timezone, introsAtCapacity, waiting }] },
+//                                 every listing the
 //                                 caller owns (a coach can hold both roles)
-// POST { role, atCapacity?, resumeAt?, introsAtCapacity? }
+// POST { role, atCapacity?, resumeOn?, tz?, resumeAt?, introsAtCapacity? }
 //                             → { ok, listing, notified }; at least one of the two switches. The
 //                                 intro setting alone leaves the listing (and a resume date) as it is.
 //
@@ -32,6 +33,7 @@ import { readJson } from '@/lib/request-utils';
 import { isEffectivelyAtCapacity } from '@/lib/capacity';
 import { isMissingRelation } from '@/lib/owned-provider';
 import { resolveRequestClient } from '@/lib/waitlist';
+import { instantInZone, normalizeZone, wallClockInZone } from '@/lib/time';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,7 +45,7 @@ const RESUME_MAX_DAYS = 365;
 /** The most waiting members one reopening notifies. */
 const NOTIFY_MAX = 500;
 
-type Listing = { id: number; name: string | null; at_capacity: boolean | null; capacity_resume_at: string | null };
+type Listing = { id: number; name: string | null; at_capacity: boolean | null; capacity_resume_at: string | null; timezone?: string | null };
 
 function roleOf(raw: unknown): Role | null {
   return raw === 'trainer' || raw === 'nutritionist' ? raw : null;
@@ -52,7 +54,7 @@ function roleOf(raw: unknown): Role | null {
 async function ownListing(db: Awaited<ReturnType<typeof resolveRequestClient>> & object, role: Role) {
   const { data, error } = await db.supabase
     .from(tableOf(role))
-    .select('id, name, at_capacity, capacity_resume_at')
+    .select('id, name, at_capacity, capacity_resume_at, timezone')
     .eq('owner_id', db.user.id)
     // capped-read-ok: one listing per owner per role (the unique index from #2331); the order only
     // keeps the read deterministic if that ever changes.
@@ -85,7 +87,27 @@ async function waitingCount(role: Role, id: number): Promise<number | null> {
   return error ? null : count ?? 0;
 }
 
+// ⚠ A RESUME DATE IS A DAY ON THE COACH'S OWN CLOCK (Codex on #2375). The website turned the picked
+// day into midnight in the BROWSER's zone, so a New York listing managed from a UTC laptop reopened
+// hours early, on the evening before. The page now sends the day (`resumeOn`), and it becomes the
+// start of that day in the listing's zone (`timezone`, set with its hours), or the zone the page
+// sends when the listing has none yet, or UTC. The same day comes back as `resumeOn`, so a page
+// shows the coach's date, never the viewer's.
+function zoneOf(row: Listing, fallback?: unknown): string {
+  return normalizeZone(row.timezone) || normalizeZone(fallback) || 'UTC';
+}
+function resumeDayOn(day: string, zone: string): number {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
+  if (!m) return NaN;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  // A zone whose clocks skip midnight that day starts it at 01:00.
+  const t = instantInZone(y, mo, d, 0, 0, zone);
+  return Number.isFinite(t) ? t : instantInZone(y, mo, d, 1, 0, zone);
+}
+
 function shape(role: Role, row: Listing, introsAtCapacity: boolean, waiting: number | null) {
+  const zone = zoneOf(row);
+  const resumeMs = row.capacity_resume_at ? Date.parse(row.capacity_resume_at) : NaN;
   return {
     role,
     providerId: row.id,
@@ -94,6 +116,8 @@ function shape(role: Role, row: Listing, introsAtCapacity: boolean, waiting: num
     // What members meet: a resume date that has passed means accepting again.
     effective: isEffectivelyAtCapacity(row),
     resumeAt: row.capacity_resume_at ?? null,
+    resumeOn: Number.isFinite(resumeMs) ? wallClockInZone(resumeMs, zone)?.date ?? null : null,
+    timezone: normalizeZone(row.timezone),
     introsAtCapacity,
     waiting,
   };
@@ -131,22 +155,29 @@ export async function POST(request: Request) {
   }
   const atCapacity: boolean | undefined = body.atCapacity;
 
-  // A resume date: only while at capacity, an instant with its offset, in the future, within a year.
-  let resumeAt: string | null = null;
-  if (atCapacity && body.resumeAt != null && body.resumeAt !== '') {
-    const raw = String(body.resumeAt);
-    const t = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw) ? Date.parse(raw) : NaN;
-    if (!Number.isFinite(t) || t <= Date.now() || t > Date.now() + RESUME_MAX_DAYS * 86_400_000) {
-      return NextResponse.json({ error: 'Pick a resume date in the next year.', field: 'resumeAt' }, { status: 400 });
-    }
-    resumeAt = new Date(t).toISOString();
-  }
-
   const db = await resolveRequestClient(request);
   if (!db) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   const before = await ownListing(db, role);
   if (before === 'unavailable') return NextResponse.json({ error: 'Your listing could not be read.' }, { status: 503 });
   if (!before) return NextResponse.json({ error: 'You have no listing for this role.' }, { status: 404 });
+
+  // A resume date: only while at capacity, in the future, within a year. A day (`resumeOn`, the
+  // website) starts in the listing's zone; an instant with its offset (`resumeAt`) is taken as sent.
+  let resumeAt: string | null = null;
+  const wantsDay = body.resumeOn != null && body.resumeOn !== '';
+  const wantsInstant = body.resumeAt != null && body.resumeAt !== '';
+  if (atCapacity && (wantsDay || wantsInstant)) {
+    let t = NaN;
+    if (wantsDay) t = resumeDayOn(String(body.resumeOn), zoneOf(before, body.tz));
+    else {
+      const raw = String(body.resumeAt);
+      t = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw) ? Date.parse(raw) : NaN;
+    }
+    if (!Number.isFinite(t) || t <= Date.now() || t > Date.now() + RESUME_MAX_DAYS * 86_400_000) {
+      return NextResponse.json({ error: 'Pick a resume date in the next year.', field: wantsDay ? 'resumeOn' : 'resumeAt' }, { status: 400 });
+    }
+    resumeAt = new Date(t).toISOString();
+  }
 
   // The intros setting first: on a database without its column (before
   // 2026-10-15-capacity-intros.sql) the request is refused whole, never half-applied.
@@ -176,7 +207,7 @@ export async function POST(request: Request) {
       .update({ at_capacity: atCapacity, capacity_resume_at: atCapacity ? resumeAt : null })
       .eq('id', before.id)
       .eq('owner_id', db.user.id)
-      .select('id, name, at_capacity, capacity_resume_at')
+      .select('id, name, at_capacity, capacity_resume_at, timezone')
       .maybeSingle();
     if (updErr || !data) {
       console.error('[coach capacity] update failed', updErr);

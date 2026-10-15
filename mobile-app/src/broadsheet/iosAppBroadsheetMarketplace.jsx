@@ -2406,7 +2406,9 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
       // "Book intro" on the profile opens this listing's own calendar: an intro is booked
       // at a time the coach offers, and the profile has no slot to send (it used to call the
       // booking with none, which failed every time).
-      commerce: { coach, role: saleProviderRole, packages: p.packages, bookIntro: () => { setShowProfile(false); setShowCal(true); } },
+      // introsAtCapacity: the coach's own setting, so the profile offers the intro at capacity when
+      // this listing does (Codex on #2375).
+      commerce: { coach, role: saleProviderRole, packages: p.packages, introsAtCapacity: introsAtCap, bookIntro: () => { setShowProfile(false); setShowCal(true); } },
     };
     return <Living person={person} onBack={() => setShowProfile(false)} onMessage={(pp) => { setShowProfile(false); if (goChat) goChat((pp && pp.who) || coach.name, isNutriDetail ? 'Nutritionist' : 'Trainer'); }} />;
   }

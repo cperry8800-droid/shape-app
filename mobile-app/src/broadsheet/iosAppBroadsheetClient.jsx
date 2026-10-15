@@ -19014,6 +19014,10 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   const capacityProviderId = commerceCoach.provider_id || commerceCoach.db_id || null;
   const capacityProviderRole = commerceCoach.provider_role || (isNutri ? 'nutritionist' : 'trainer');
   const atCapacity = !!(commerceCoach.at_capacity && (!commerceCoach.capacity_resume_at || new Date(commerceCoach.capacity_resume_at).getTime() > Date.now()));
+  // At capacity a free intro is the coach's call (task #10): the marketplace listing passes their
+  // setting in `commerce` (Codex on #2375: the full profile dropped it, so an intro open on the listing
+  // closed here). A member they invited off the list can book one either way, as the server decides.
+  const introsOpenAtCap = !!(commerce && commerce.introsAtCapacity === true);
   const [wl, setWl] = useStateBSC(null); // { status, position, entryId } | null
   const wlBusy = React.useRef(false);
   React.useEffect(() => {
@@ -19482,6 +19486,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
                 <button onClick={doSubscribe} style={{ minHeight: 44, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.subscribeMo', { defaultValue: 'Subscribe /mo' })}</button>
                 <button onClick={wlWithdraw} style={{ minHeight: 44, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.decline', { defaultValue: 'Decline' })}</button>
               </div>
+              <button onClick={doBookIntro} data-intro-at-capacity="" style={{ width: '100%', minHeight: 44, marginTop: 8, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.bookIntroFree', { defaultValue: 'Book intro · Free' })}</button>
             </BSPlate>
           )}
           {!isSelf && atCapacity && wl && wl.status !== 'invited' && (
@@ -19489,6 +19494,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
               <Kick col={tTheme.RUST}>{tr('profile:coach.onWaitingList', { defaultValue: 'On the waiting list' })}</Kick>
               <div style={{ fontFamily: SANS, fontSize: 13, color: tTheme.INK70, margin: '7px 0 12px' }}>{tr('profile:coach.inLine', { pos: wl.position, name: first, defaultValue: "You're #{pos} in line. {name} will invite you when a spot opens." })}</div>
               <button onClick={wlWithdraw} style={{ width: '100%', minHeight: 44, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.leaveList', { defaultValue: 'Leave the list' })}</button>
+              {introsOpenAtCap ? <button onClick={doBookIntro} data-intro-at-capacity="" style={{ width: '100%', minHeight: 44, marginTop: 8, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.bookIntroFree', { defaultValue: 'Book intro · Free' })}</button> : null}
             </div>
           )}
           {!isSelf && atCapacity && !wl && (
@@ -19496,6 +19502,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
               <Kick col={tTheme.RUST}>{tr('profile:coach.atCapacity', { defaultValue: 'At capacity' })}</Kick>
               <div style={{ fontFamily: SANS, fontSize: 13, color: tTheme.INK70, margin: '7px 0 12px' }}>{tr('profile:coach.atCapacityBody', { name: first, defaultValue: "{name} isn't taking new clients right now. Join the waiting list to be first in line." })}</div>
               <button onClick={wlJoin} style={{ width: '100%', minHeight: 44, borderRadius: 999, border: 0, background: c, color: '#0c0a08', cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.joinWaitlist', { defaultValue: 'Join the waiting list' })}</button>
+              {introsOpenAtCap ? <button onClick={doBookIntro} data-intro-at-capacity="" style={{ width: '100%', minHeight: 44, marginTop: 8, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.bookIntroFree', { defaultValue: 'Book intro · Free' })}</button> : null}
             </div>
           )}
           {!isSelf && !atCapacity && (
@@ -36834,7 +36841,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 </div>
                 {capacity.atCapacity && capacity.resumeAt ? (
                   <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK70 }}>
-                    {tr('settings:capacity.resumes', { date: new Date(capacity.resumeAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }), defaultValue: 'Reopens {date}' })}
+                    {tr('settings:capacity.resumes', { date: (capacity.resumeOn ? new Date(capacity.resumeOn + 'T12:00:00') : new Date(capacity.resumeAt)).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }), defaultValue: 'Reopens {date}' })}
                   </div>
                 ) : null}
               </div>

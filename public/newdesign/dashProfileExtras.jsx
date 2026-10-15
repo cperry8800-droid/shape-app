@@ -279,19 +279,22 @@ function CoachListingRatesCard() {
 // switch, a resume date, free intros while full; reopening tells the waiting list) and the waitlist
 // routes (/api/waitlist/room, /api/waitlist/invite), on the website's cookie session.
 // At capacity a coach's current clients still book and buy; new ones join the waiting list.
-function cpcDateInput(iso) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (isNaN(d)) return "";
+// A picked day reopens at the start of that day on the coach's own clock: the day is sent as it is
+// (`resumeOn`) and the route places it in the listing's zone (Codex on #2375: this built midnight in
+// the browser's zone). The browser's zone rides along only for a listing that has none yet.
+function cpcBrowserZone() {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (e) { return null; }
+}
+// The earliest day the picker offers: tomorrow here (the route checks the real instant).
+function cpcTomorrow() {
+  const d = new Date(Date.now() + 86400000);
   const p = (n) => String(n).padStart(2, "0");
   return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
 }
-// A picked day reopens at the start of that day on the coach's own clock, sent as an instant.
-function cpcResumeInstant(day) {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day || "");
-  if (!m) return null;
-  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, 0, 0);
-  return isNaN(d) ? null : d.toISOString();
+// The coach's day, shown as that day wherever the page is read (noon keeps it on its date).
+function cpcDayLabel(day) {
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(day || "") ? new Date(day + "T12:00:00") : null;
+  return d && !isNaN(d) ? d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
 }
 
 function CoachCapacityCard() {
@@ -321,7 +324,7 @@ function CoachCapacityCard() {
         if (d.signedIn === false) { setState({ loading: false, error: false, signedIn: false, listing: null }); return; }
         const listing = ((d && d.listings) || []).find((l) => l.role === role) || null;
         setState({ loading: false, error: false, signedIn: true, listing });
-        setResumeDay(listing && listing.effective ? cpcDateInput(listing.resumeAt) : "");
+        setResumeDay(listing && listing.effective && listing.resumeOn ? listing.resumeOn : "");
       })
       .catch(() => { if (on) setState((s) => ({ ...s, loading: false, error: true })); });
     return () => { on = false; };
@@ -396,7 +399,7 @@ function CoachCapacityCard() {
             <span aria-hidden="true" style={{ fontFamily: mono, fontSize: 12, color: full ? rust : teal }}>{full ? "×" : "✓"}</span>
             <p style={{ ...body, color: "rgba(242,237,228,0.82)" }}>
               {full
-                ? <>You're at capacity{l.resumeAt ? <>, reopening {new Date(l.resumeAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</> : null}. New clients can join your waiting list; your current clients still book and buy.</>
+                ? <>You're at capacity{l.resumeOn ? <>, reopening {cpcDayLabel(l.resumeOn)}</> : null}. New clients can join your waiting list; your current clients still book and buy.</>
                 : "You're taking new clients. Turn this on when you're full and new clients join your waiting list instead."}
             </p>
           </div>
@@ -412,9 +415,9 @@ function CoachCapacityCard() {
             <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap", padding: "12px 0", borderTop: "1px solid rgba(242,237,228,0.08)" }}>
               <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <span style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)" }}>Reopen on · optional</span>
-                <input type="date" value={resumeDay} min={cpcDateInput(new Date(Date.now() + 86400000).toISOString())} onChange={(e) => setResumeDay(e.target.value)} aria-label="Reopen on" style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 9, padding: "8px 10px", color: "#f2ede4", fontFamily: sans, fontSize: 13 }} />
+                <input type="date" value={resumeDay} min={cpcTomorrow()} onChange={(e) => setResumeDay(e.target.value)} aria-label="Reopen on" style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 9, padding: "8px 10px", color: "#f2ede4", fontFamily: sans, fontSize: 13 }} />
               </label>
-              <button onClick={() => save({ atCapacity: true, ...(cpcResumeInstant(resumeDay) ? { resumeAt: cpcResumeInstant(resumeDay) } : {}) }, "pause")} disabled={!!busy} style={btn(true)} data-capacity-pause="">{busy === "pause" ? "Saving…" : "Pause new clients"}</button>
+              <button onClick={() => save({ atCapacity: true, ...(resumeDay ? { resumeOn: resumeDay, tz: cpcBrowserZone() } : {}) }, "pause")} disabled={!!busy} style={btn(true)} data-capacity-pause="">{busy === "pause" ? "Saving…" : "Pause new clients"}</button>
             </div>
           )}
           <div style={{ paddingTop: 14, borderTop: "1px solid rgba(242,237,228,0.08)" }}>
