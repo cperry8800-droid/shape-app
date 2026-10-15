@@ -40,6 +40,8 @@
   "health.iosApp": "Ứng dụng iOS",
   "health.connected": "Đã kết nối",
   "health.connect": "Kết nối",
+  "notif.inbox": "Thông báo của bạn",
+  "notif.inboxMeta": "Mở",
   "notif.center": "Trung tâm thông báo",
   "notif.centerMeta": "Mọi loại · kênh",
   "notif.workoutReminders": "Nhắc nhở tập luyện",

@@ -40,6 +40,8 @@
   "health.iosApp": "Aplikasi iOS",
   "health.connected": "Terhubung",
   "health.connect": "Hubungkan",
+  "notif.inbox": "Notifikasi Anda",
+  "notif.inboxMeta": "Buka",
   "notif.center": "Pusat notifikasi",
   "notif.centerMeta": "Semua jenis · saluran",
   "notif.workoutReminders": "Pengingat latihan",

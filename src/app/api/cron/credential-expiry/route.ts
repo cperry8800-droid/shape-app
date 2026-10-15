@@ -84,7 +84,7 @@ async function handle(request: Request) {
         type: 'credential_expiry',
         title: notify.title,
         body: notify.body,
-        route: 'profile',
+        route: 'credentials', // the coach's certifications ('profile' is a person's profile)
         data: { channels: { inapp: true, push: true, email: false }, kind },
       });
       sent += 1;
