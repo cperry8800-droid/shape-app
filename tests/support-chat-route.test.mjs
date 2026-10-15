@@ -1090,3 +1090,52 @@ test('STREAM: with no model she still answers, as the done event', async () => {
   assert.deepEqual(evs[0][1], await (await plain.mod.POST(post(ask('how do I connect Strava?')))).json());
   assert.equal(evs[0][1].source, 'fallback');
 });
+
+// ─── owner, 2026-10-15: "when selecting find me a coach, Nora didnt as any additional info on the
+// type of coach member may be looking for". A bare ask gets a question first, on both paths. ──────
+test('a bare "find me a coach" is asked what kind of coach, by the model rule and by the fallback', async () => {
+  // The model is told to ask before searching, and the tool says the same.
+  const r = await loadRoute({});
+  await r.mod.POST(post(ask('Find me a coach')));
+  const sys = r.calls.ai[0].body.input[0].content;
+  assert.match(sys, /a bare "Find me a coach" or "I need a coach", do NOT call the recommend_coaches tool yet/);
+  assert.match(sys, /a trainer, a nutritionist or both, what their main goal is, and whether they would rather work online or with someone in person/);
+  assert.match(sys, /Ask once\./);
+  assert.doesNotMatch(sys, /otherwise just recommend/, 'the old rule told her to skip the question');
+  const tool = r.calls.ai[0].body.tools.find((t) => t.name === 'recommend_coaches');
+  assert.match(tool.description, /for a bare request like 'find me a coach', ask first/);
+  // With no model: the bare asks get the question and the marketplace door, and no coach is guessed.
+  const fb = await loadRoute({ hasKey: false, tables: LIVE_TABLES() });
+  // Where or how they would train says nothing about the kind of coach either (Codex, #2362).
+  for (const bare of ['Find me a coach', 'can you help me find a coach please', "Hi Nora, I'm looking for a coach", 'find me a local coach', 'find me a coach near me', 'I want an online coach']) {
+    const out = await (await fb.mod.POST(post(ask(bare)))).json();
+    assert.equal(out.source, 'fallback');
+    assert.match(out.reply, /Are you after a trainer, a nutritionist, or both\?/, bare);
+    assert.equal(out.actions.filter((a) => a.type === 'coach').length, 0, `no coach is guessed for "${bare}"`);
+    assert.ok(out.actions.some((a) => a.type === 'marketplace'), 'the marketplace is still one tap away');
+  }
+  // Anything that says more still gets coaches straight away.
+  for (const said of ['find me a coach for marathon training', 'help me find a fat loss trainer', 'find me a trainer', 'find me a coach in Brooklyn']) {
+    const out = await (await fb.mod.POST(post(ask(said)))).json();
+    assert.doesNotMatch(out.reply, /Are you after a trainer/, said);
+    assert.ok(out.actions.filter((a) => a.type === 'coach').length >= 1, `"${said}" lists coaches`);
+  }
+  // ⚠ THE ANSWER TO THE QUESTION IS READ AS ONE (Codex, #2362): only the last message reaches the
+  // fallback, so "both" alone used to get "I can't answer that one". Asked once, never twice.
+  const question = (await (await fb.mod.POST(post(ask('Find me a coach')))).json()).reply;
+  const answer = (text, prev = question) => ({ messages: [{ role: 'user', content: 'Find me a coach' }, { role: 'assistant', content: prev }, { role: 'user', content: text }] });
+  for (const reply of ['both', 'online', 'in London', 'fat loss, in person']) {
+    const out = await (await fb.mod.POST(post(answer(reply)))).json();
+    assert.doesNotMatch(out.reply, /can't answer that one/, `"${reply}" is an answer`);
+    assert.doesNotMatch(out.reply, /Are you after a trainer/, `"${reply}" is not asked again`);
+    assert.ok(out.actions.filter((a) => a.type === 'coach').length >= 1, `"${reply}" gets coaches`);
+  }
+  const nut = await (await fb.mod.POST(post(answer('a nutritionist')))).json();
+  assert.match(nut.reply, /nutritionists/, 'a nutritionist answer gets nutritionists');
+  // The model's own question in its own words counts too.
+  const theirs = await (await fb.mod.POST(post(answer('both', 'Sure! Would you like a trainer, a nutritionist, or both, and what is your goal?')))).json();
+  assert.doesNotMatch(theirs.reply, /can't answer that one/);
+  // Without the question before it, a lone "both" is still not a coach request.
+  const lone = await (await fb.mod.POST(post(ask('both')))).json();
+  assert.equal(lone.actions.filter((a) => a.type === 'coach').length, 0);
+});

@@ -1675,6 +1675,12 @@ function ChatWidget(props) {
     return () => { cancelled = true; };
   }, [member]);
   const canVoice = member === true || voiceGate === true;
+  // ⚠ AND THE PEOPLE IT IS HIDDEN FROM ARE TOLD IT EXISTS — owner, 2026-10-15: "I am not seeing
+  // how to speak to nora here on website", then "make a note saying voice control capabilities
+  // unlocked with being a member", "have that say somewhere in nora chat". Hiding the controls
+  // left a visitor no sign that Nora talks at all. Shown only once the answer is no: signed out,
+  // or signed in and the gate said no; never while a member's own check is still running.
+  const voiceLocked = member === false && (voiceGate === false || (voiceGate === null && !myUserIdRef.current));
   const canVoiceRef = React.useRef(false);
   React.useEffect(() => { canVoiceRef.current = canVoice; }, [canVoice]);
 
@@ -2430,6 +2436,16 @@ function ChatWidget(props) {
                     <img src="/nora-avatar.png" alt="" aria-hidden style={{ width: 22, height: 22, borderRadius: 999, objectFit: "cover", objectPosition: "50% 32%", border: `1.5px solid ${PAPER}` }} />
                     Talk to Nora
                   </button>
+                )}
+                {voiceLocked && (
+                  <div data-nora-voice-locked style={{ flex: "1 1 100%", display: "flex", alignItems: "center", gap: 7, fontFamily: sans, fontSize: 11.5, lineHeight: 1.4, color: "var(--sh-ink2, #a09b94)" }}>
+                    <svg aria-hidden width="12" height="14" viewBox="0 0 12 14" style={{ flex: "none" }}>
+                      <rect x="3.5" y="0.75" width="5" height="8" rx="2.5" fill="none" stroke="currentColor" strokeWidth="1.3" />
+                      <path d="M1.5 6.5a4.5 4.5 0 0 0 9 0M6 11v2.25" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                    </svg>
+                    <span>Voice chat with Nora unlocks with membership.</span>
+                    <a href="/pricing" style={{ color: "var(--sh-accent-ink, #2ee0c4)", fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap" }}>Join &rarr;</a>
+                  </div>
                 )}
                 {!noraScreenOff && typeof window !== "undefined" && window.__shapeNoraPageName && (
                   // What Nora is told about where they are. × takes it off for this visit.

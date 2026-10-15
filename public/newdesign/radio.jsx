@@ -174,6 +174,22 @@ async function rdKeeper() {
   return rdBoothKeeper;
 }
 
+// ⚠ NORA HAS A BOX OF HER OWN, ABOVE SHAPE SETS — owner, 2026-10-15: "give nora its own box like
+// shape sets has, and move it above shape sets on page", "and we need a good background for noras
+// box as well". The same frame as the Sets card (860 wide, the accent bar, the shadow under the
+// copy), so the two read as a pair. The booth opens inside it.
+//
+// ⚠ ITS HEADER IS THE STAGE, NOT TYPE. Of the two the owner was shown (her portrait behind the
+// copy, or NORA up on the LED wall in Club Shape) they picked the wall, and then: "use the nora on
+// background as the header, so remove Nora in blue font". `/nora-stage.webp` is a still of the
+// booth's own scene, the wall pinned to its NORA artwork and her placeholder model hidden ("remove
+// noras avatar from snapshot"): prototypes/nora-booth/nora-wall-still.cjs makes it, camera
+// [0, 3.4, -15] at [0, 4.4, 5.44], fov 34, 1600x900, letterbox cropped to the wall's top 560 rows.
+// The band runs to the box's edges and fades into it; the heading is still an <h2>, read by a
+// screen reader and hidden on screen, because the picture is the visual header.
+const RD_NORA_STAGE = "/nora-stage.webp";
+const RD_SR_ONLY = { position: "absolute", width: 1, height: 1, margin: -1, padding: 0, overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap", border: 0 };
+
 function RadioNora() {
   const hostRef = React.useRef(null);
   const boothRef = React.useRef(null);
@@ -305,12 +321,17 @@ function RadioNora() {
   const tag = { fontFamily: RD_NUM, fontWeight: 700, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", fontVariationSettings: "'ROND' 100" };
 
   return (
-    <section id="nora" style={{ padding: "0 24px 96px" }}>
-      <div style={{ maxWidth: 960, margin: "0 auto", textAlign: "center" }}>
-        <RdReveal>
+    <section id="nora" style={{ padding: "80px 72px 0" }}>
+      <RdReveal>
+        <div style={{ "--pad": "clamp(24px, 5vw, 48px)", position: "relative", overflow: "hidden", maxWidth: 860, margin: "0 auto", padding: "var(--pad)", background: "#0a0d0c", textShadow: "0 1px 2px rgba(0,0,0,0.6), 0 0 16px rgba(0,0,0,0.5)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4, textAlign: "center" }}>
+          <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${RD_TEAL}, ${RD_HOT})`, opacity: 0.75 }} />
+          <h2 style={RD_SR_ONLY}>Nora</h2>
+          {/* ⚠ An explicit width, not just the negative margins: with only aspect-ratio and
+              min-height, the min-height is transferred through the ratio into the WIDTH, and on a
+              phone the band ran 82px past the box and pushed NORA off its right edge (measured). */}
+          <div aria-hidden style={{ width: "calc(100% + var(--pad) * 2)", margin: "calc(var(--pad) * -1) calc(var(--pad) * -1) 20px", aspectRatio: "1600 / 560", minHeight: 150, background: `linear-gradient(180deg, rgba(10,13,12,0) 55%, #0a0d0c 100%), url('${RD_NORA_STAGE}') center top / cover no-repeat` }} />
           <div style={{ ...tag, color: RD_TEAL }}>The booth</div>
-          <h2 style={{ fontFamily: RD_DISP, fontWeight: 500, fontVariationSettings: "'wdth' 105", fontSize: "clamp(26px,3vw,38px)", letterSpacing: "-0.02em", margin: "14px 0 0", color: RD_CREAM }}>Nora</h2>
-          <p style={{ fontFamily: RD_SANS, fontSize: 15, color: "rgba(238,243,240,0.7)", margin: "14px auto 0", maxWidth: 520, lineHeight: 1.6 }}>
+          <p style={{ fontFamily: RD_SANS, fontSize: 16, fontWeight: 500, color: "rgba(242,237,228,0.95)", margin: "14px auto 0", maxWidth: 560, lineHeight: 1.55 }}>
             Shape&rsquo;s resident at the decks in Club Shape. While the station is not on the air
             she plays a labelled example set; while it is, she moves on what it is playing.
           </p>
@@ -368,8 +389,8 @@ function RadioNora() {
               <button type="button" onClick={() => setAttempt((n) => n + 1)} style={chip(false)}>Try again</button>
             )}
           </div>
-        </RdReveal>
-      </div>
+        </div>
+      </RdReveal>
     </section>
   );
 }
@@ -400,8 +421,8 @@ function RadioPage() {
     <div className="radio-page" style={{ color: RD_CREAM, minHeight: "100vh", background: "#06090f" }}>
       <Header active="Radio" />
       <RadioInstrument />
-      <div id="sets"><RadioShapeSets /></div>
       <RadioNora />
+      <div id="sets"><RadioShapeSets /></div>
       <RadioJoin />
       <Footer />
       <style>{`
