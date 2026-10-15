@@ -271,7 +271,8 @@ test('the shell, the notification list and Eat are wired to the same pieces', ()
   assert.ok(CLIENT.includes('const pending = window.__bsPushRoute;\n    if (pending) { window.__bsPushRoute = null; bsRouteNotification(pending); }'));
   assert.ok(CLIENT.includes('prepTonight={prepTonight} onPrepTonightConsumed={() => setPrepTonight(null)}'));
   // The in-app list routes through the same map.
-  assert.ok(CLIENT.includes('if (bsRouteNotification(route)) setShowNotifications(false);'));
+  // The list passes each row's data too, so a message notification can open its thread (fix 3a).
+  assert.ok(CLIENT.includes('if (bsRouteNotification(route, data)) setShowNotifications(false);'));
   // Eat: the cook screen, the card and the row marks.
   assert.ok(CLIENT.includes('if (prepCook) return <BSPrepTonightCook slug={prepCook.slug} group={prepCook.group} onClose={() => setPrepCook(null)} />;'));
   assert.ok(CLIENT.includes('<BSPrepTonightCard group={g} onStart={() => setPrepCook({ slug: g.slug, group: g })} onDone={() => markPrepped(g)} />'));

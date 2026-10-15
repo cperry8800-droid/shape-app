@@ -6,7 +6,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { readJson, dbError } from '@/lib/request-utils';
-import { coachThreadMessage, clientNames, openClientThread, wantedConversation, withWantedConversation } from '@/lib/coach-messages';
+import { coachThreadMessage, clientNames, openClientThread, wantedConversation, withWantedConversation, withWantedMessages } from '@/lib/coach-messages';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,7 +43,8 @@ export async function GET(request?: Request) {
 
   if (convError) return dbError(convError, 'load coach conversations');
   // A thread asked for by id (?conversation=) is included even when older than the 50 (fix 3a).
-  const conversations = await withWantedConversation(supabase, convRows ?? [], wantedConversation(request), 'nutritionist', providerId);
+  const wanted = wantedConversation(request);
+  const conversations = await withWantedConversation(supabase, convRows ?? [], wanted, 'nutritionist', providerId);
   if (!conversations.length) {
     return NextResponse.json({ isNutritionist: true, threads: [] });
   }
@@ -58,6 +59,8 @@ export async function GET(request?: Request) {
     .limit(1000);
 
   if (msgError) return dbError(msgError, 'load coach messages');
+  // The thread asked for keeps its history even below the 1,000-row cap (fix 3a).
+  const allMsgRows = await withWantedMessages(supabase, msgRows ?? [], wanted, conversations.some((c) => c.id === wanted));
 
   // Sessions are the RLS-safe source of client display names.
   const { data: sessRows } = await supabase
@@ -78,7 +81,7 @@ export async function GET(request?: Request) {
   const names = await clientNames(supabase, conversations.map((c) => c.client_id as string), nameByClient);
 
   const msgsByConv = new Map<string, ReturnType<typeof coachThreadMessage>[]>();
-  for (const m of [...(msgRows ?? [])].reverse()) {
+  for (const m of [...allMsgRows].reverse()) {
     const arr = msgsByConv.get(m.conversation_id) ?? [];
     arr.push(coachThreadMessage(m, user.id));
     msgsByConv.set(m.conversation_id, arr);

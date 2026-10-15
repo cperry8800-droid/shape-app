@@ -454,6 +454,13 @@ const DASH_INBOX_ROUTES = {
 // navigating. Putting a filename back here would 404 the one notification that
 // is ABOUT the thing every page already carries.
 function dashInboxOpensFeed(n) { return !!(n && n.route === "feed"); }
+// A "New message" notification (route "messages", data.conversationId; fix 3a): for a member the
+// chat is the bubble, so the row opens the bubble on that thread rather than navigating.
+function dashInboxThreadFor(n, role) {
+  if (!n || n.route !== "messages" || role === "trainer" || role === "nutritionist") return null;
+  const id = n.data && typeof n.data.conversationId === "string" ? n.data.conversationId : "";
+  return id || null;
+}
 function dashInboxHref(n, role) {
   if (!n || typeof n.route !== "string") return null;
   // A coach's client_red / client_amber / checkin_submitted carries the client it is
@@ -464,11 +471,13 @@ function dashInboxHref(n, role) {
     const shell = role === "trainer" ? "TrainerApp.html" : "NutritionistApp.html";
     return (typeof window !== "undefined" && window.__shapeCoachShell ? "" : shell) + "#client/" + encodeURIComponent(String(id));
   }
-  // A coach's conversation ("chat:<id>", the new-client alert, fix 3a) opens their Messages page on
-  // that thread. A member's chat is the bubble, not a page, so it stays plain text for them.
-  if (n.route.startsWith("chat:") && n.route.length > 5) {
+  // A coach's conversation ("chat:<id>", the new-client alert, or a "New message" with its
+  // conversationId; fix 3a) opens their Messages page on that thread. A member's chat is the
+  // bubble, not a page (dashInboxThreadFor).
+  const msgConv = n.route === "messages" && n.data && typeof n.data.conversationId === "string" ? n.data.conversationId : "";
+  if ((n.route.startsWith("chat:") && n.route.length > 5) || msgConv) {
     if (role !== "trainer" && role !== "nutritionist") return null;
-    return "/newdesign/" + (role === "nutritionist" ? "Nutritionist" : "Trainer") + "Messages.html?conversation=" + encodeURIComponent(n.route.slice(5));
+    return "/newdesign/" + (role === "nutritionist" ? "Nutritionist" : "Trainer") + "Messages.html?conversation=" + encodeURIComponent(msgConv || n.route.slice(5));
   }
   // The night-before prep reminder ("prep:<recipe>") opens the website's cook page on that recipe.
   if (n.route.startsWith("prep:") && n.route.length > 5) return "/newdesign/Cook.html?r=" + encodeURIComponent(n.route.slice(5));
@@ -699,7 +708,13 @@ function DashInbox({ signedIn, role, inbox }) {
                               borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)", padding: "11px 14px", textDecoration: "none", color: "inherit" };
                 // A feed notice opens the bubble on its Feed tab rather than
                 // navigating; it is still one tap and still marks itself read.
-                return dashInboxOpensFeed(n) ? (
+                const threadId = dashInboxThreadFor(n, role);
+                return threadId ? (
+                  <button key={n.id} onClick={() => {
+                    if (!n.read) markOne(n.id, true);
+                    try { if (window.__openChat) window.__openChat({ conversationId: threadId }); else { window.__openChatRequest = { conversationId: threadId }; const b = document.getElementById("shape-global-chat-button"); if (b) b.click(); } } catch (e) {}
+                  }} style={{ ...pad, cursor: "pointer" }}>{inner}</button>
+                ) : dashInboxOpensFeed(n) ? (
                   <button key={n.id} onClick={() => {
                     if (!n.read) markOne(n.id, true);
                     try { if (window.__openChat) window.__openChat({ tab: "feed" }); else { const b = document.getElementById("shape-global-chat-button"); if (b) b.click(); } } catch (e) {}

@@ -79,12 +79,19 @@ function NutritionistMessagesPage() {
     // A dashboard reason pill's opener rides along as ?draft=: pre-filled, never sent.
     const opener = params.get('draft');
     if (opener) setDraft(opener.slice(0, 1000));
-    const load = (selectConv) => fetch('/api/nutritionist/messages' + (selectConv ? '?conversation=' + encodeURIComponent(selectConv) : ''), { credentials: 'same-origin' })
+    const load = (selectConv, openFailed) => fetch('/api/nutritionist/messages' + (selectConv ? '?conversation=' + encodeURIComponent(selectConv) : ''), { credentials: 'same-origin' })
       .then(r => (r.ok ? r.json() : null))
       .then(d => {
         if (cancelled || !d || !d.isNutritionist) return;
         setLive(true);
         setThreads(d.threads);
+        // The client's thread could not be opened (refused, or the request failed): the inbox
+        // loads with nothing selected and no opener, never another client's thread (Codex on #2360).
+        if (openFailed) {
+          setSelectedId(null);
+          setDraft("");
+          return;
+        }
         const pick = selectConv && d.threads.find(t => t.id === selectConv);
         // ⚠ A THREAD ASKED FOR IS OPENED OR NOTHING IS (Codex on #2360): falling back to the newest
         // thread would show another client's messages, with the opener ready to send to them.
@@ -102,12 +109,15 @@ function NutritionistMessagesPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ openClientId: wanted }),
         }).then(r => r.json().catch(() => ({})).then(j => {
-          if (r.ok && j && j.conversationId) return j.conversationId;
+          if (r.ok && j && j.conversationId) return { conv: j.conversationId, failed: false };
           if (!cancelled) setNotice(r.status === 403 ? "That member isn't your client, so there's no thread to open." : "That conversation couldn't be opened. Try again from their client page.");
-          return null;
-        })).catch(() => null)
-      : Promise.resolve(wantedConv);
-    open.then(conv => load(conv)).catch(() => {});
+          return { conv: null, failed: true };
+        })).catch(() => {
+          if (!cancelled) setNotice("That conversation couldn't be opened. Try again from their client page.");
+          return { conv: null, failed: true };
+        })
+      : Promise.resolve({ conv: wantedConv, failed: false });
+    open.then(o => load(o.conv, o.failed)).catch(() => {});
     return () => { cancelled = true; };
   }, []);
 

@@ -12220,8 +12220,10 @@ function bsPrepDays(dates) {
 // One map from a notification's route to the screen it opens, shared by the in-app list and a
 // tapped push (push.js hands its route to the shell), so the two cannot open different places.
 // Returns whether it handled the route; 'sessions' stays the Settings screen's own.
-function bsRouteNotification(route) {
+function bsRouteNotification(route, data) {
   if (typeof route !== 'string') return false;
+  // A "New message" notification (route "messages") opens its conversation (fix 3a).
+  if (route === 'messages' && data && typeof data.conversationId === 'string' && data.conversationId) route = 'chat:' + data.conversationId;
   try {
     // The night-before prep reminder ("prep:<recipe>") opens the cook screen on that recipe.
     if (route.startsWith('prep:') && route.length > 5) {
@@ -36237,11 +36239,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return <BSSessionsScreen onBack={() => setShowSessions(false)} />;
   }
   if (showNotifications) {
-    return <BSNotifications onBack={() => setShowNotifications(false)} onRoute={(route) => {
+    return <BSNotifications onBack={() => setShowNotifications(false)} onRoute={(route, data) => {
       if (route === 'sessions') { setShowNotifications(false); setShowSessions(true); return; }
       // Every other route goes through the map a tapped push uses too (bsRouteNotification):
-      // a waitlist invite opens the marketplace, a prep reminder the cook screen.
-      if (bsRouteNotification(route)) setShowNotifications(false);
+      // a waitlist invite opens the marketplace, a prep reminder the cook screen, a message its thread.
+      if (bsRouteNotification(route, data)) setShowNotifications(false);
     }} />;
   }
   if (showNotifyPrefs) {

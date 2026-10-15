@@ -78,6 +78,34 @@ export async function withWantedConversation<Row extends { id: string }>(
 }
 
 /**
+ * The inbox reads its messages newest-first across every listed thread, capped at 1,000 rows. A
+ * thread asked for by id can sit below that cap in a busy inbox, so its newest 200 messages are
+ * read on their own and merged in, once each (Codex on #2360). Answers the rows newest-first.
+ */
+export async function withWantedMessages<M extends { id: string; created_at: string }>(
+  supabase: Client,
+  rows: M[],
+  wanted: string | null,
+  listed: boolean,
+): Promise<M[]> {
+  if (!wanted || !listed) return rows;
+  const { data, error } = await supabase
+    .from('messages')
+    .select('id, conversation_id, sender_id, body, metadata, created_at')
+    .eq('conversation_id', wanted)
+    .order('created_at', { ascending: false })
+    .limit(200);
+  if (error) {
+    console.warn('[coach-messages] wanted conversation messages read failed:', error.message);
+    return rows;
+  }
+  const seen = new Set(rows.map((m) => m.id));
+  const extra = ((data ?? []) as unknown as M[]).filter((m) => !seen.has(m.id));
+  if (!extra.length) return rows;
+  return [...rows, ...extra].sort((x, y) => (x.created_at < y.created_at ? 1 : x.created_at > y.created_at ? -1 : 0));
+}
+
+/**
  * Open (or find) the thread the client sees with the caller's listing: the coach's way into it
  * (get_or_create_client_conversation, 2026-10-15-coach-thread.sql). Answers an HTTP status the
  * route returns as is.

@@ -25,8 +25,16 @@ type NotificationRecord = {
   body?: string;
   route?: string | null;
   type?: string;
-  data?: { channels?: { push?: boolean } } | null;
+  data?: { channels?: { push?: boolean }; conversationId?: unknown } | null;
 };
+
+// A "New message" notification (the messages trigger: route "messages", data.conversationId) is
+// pushed as "chat:<conversation>", the route the app opens a thread by (fix 3a, Codex on #2360).
+export function pushRoute(record: NotificationRecord): string {
+  const id = record.data && typeof record.data.conversationId === 'string' ? record.data.conversationId : '';
+  if (record.route === 'messages' && id) return `chat:${id}`;
+  return record.route ?? '';
+}
 
 // L7 (2026-10-08 review): the same constant-time comparison the cron routes use, so the
 // secret cannot be recovered a byte at a time from response timing.
@@ -62,7 +70,7 @@ export async function POST(request: Request) {
   await sendPushToUser(admin, record.user_id, {
     title: record.title,
     body: record.body ?? '',
-    data: { route: record.route ?? '', type: record.type ?? 'general' },
+    data: { route: pushRoute(record), type: record.type ?? 'general' },
   });
   return NextResponse.json({ ok: true });
 }

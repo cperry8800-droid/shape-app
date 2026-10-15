@@ -431,7 +431,7 @@ test('the new-client alert opens the thread: the app\'s router and the website\'
   for (const role of ['Trainer', 'Nutritionist']) {
     const page = read(`public/newdesign/${role}Messages.html`);
     assert.match(page, /const wantedConv = params\.get\('conversation'\);/);
-    assert.match(page, /: Promise\.resolve\(wantedConv\);/, `${role}: the thread is selected once the inbox loads`);
+    assert.match(page, /: Promise\.resolve\(\{ conv: wantedConv, failed: false \}\);/, `${role}: the thread is selected once the inbox loads`);
   }
 });
 
@@ -455,7 +455,8 @@ test('a Messages page opens the thread it asked for, or none: never another clie
   for (const [role, pre] of [['trainer', 'Trainer'], ['nutritionist', 'Nutritionist']]) {
     const route = read(`src/app/api/${role}/messages/route.ts`);
     assert.match(route, /export async function GET\(request\?: Request\) \{/);
-    assert.match(route, new RegExp(`const conversations = await withWantedConversation\\(supabase, convRows \\?\\? \\[\\], wantedConversation\\(request\\), '${role}', providerId\\);`));
+    assert.match(route, /const wanted = wantedConversation\(request\);/);
+    assert.match(route, new RegExp(`const conversations = await withWantedConversation\\(supabase, convRows \\?\\? \\[\\], wanted, '${role}', providerId\\);`));
     const page = read(`public/newdesign/${pre}Messages.html`);
     assert.match(page, new RegExp(`fetch\\('/api/${role}/messages' \\+ \\(selectConv \\? '\\?conversation=' \\+ encodeURIComponent\\(selectConv\\) : ''\\)`));
     assert.match(page, /if \(selectConv && !pick\) \{\s+setSelectedId\(null\);\s+setDraft\(""\);\s+setNotice\(/, `${pre}: no fallback to another thread, and no opener left to send`);
@@ -486,4 +487,69 @@ test('a tapped push opens the thread in the coach apps too', () => {
     assert.match(body, /if \(pending\) \{ window\.__bsPushRoute = null; window\.bsRouteNotification\?\.\(pending\); \}/, `${shell}: a push that landed before the shell mounted`);
     assert.ok(body.indexOf("window.addEventListener('shape:openConversation', open);") < body.indexOf('const pending = window.__bsPushRoute;'), `${shell}: the conversation listener is up before the pending route fires`);
   }
+});
+
+// ── Codex on #2360, fourth round ─────────────────────────────────────────────────────────────────
+test('a client thread that cannot be opened leaves the Messages page on nothing, with no opener', () => {
+  for (const pre of ['Trainer', 'Nutritionist']) {
+    const page = read(`public/newdesign/${pre}Messages.html`);
+    assert.match(page, /if \(openFailed\) \{\s+setSelectedId\(null\);\s+setDraft\(""\);\s+return;\s+\}/, `${pre}: no fallback after a failed open`);
+    assert.match(page, /return \{ conv: null, failed: true \};\s+\}\)\)\.catch\(\(\) => \{\s+if \(!cancelled\) setNotice\("That conversation couldn't be opened\. Try again from their client page\."\);\s+return \{ conv: null, failed: true \};/, `${pre}: a network failure is a failed open too`);
+    assert.match(page, /open\.then\(o => load\(o\.conv, o\.failed\)\)/);
+  }
+});
+
+test('the thread asked for keeps its history in a busy inbox: its messages are read on their own', async () => {
+  const lib = await loadRealModule(join(ROOT, 'src/lib/coach-messages.ts'), { typescript: true, registry: new Map([['@/lib/supabase/server', {}]]) });
+  const calls = [];
+  const sb = (data, error = null) => ({ from: (t) => { const q = { select: () => q, eq: (k, v) => { calls.push([t, k, v]); return q; }, order: () => q, limit: async (n) => { calls.push([t, 'limit', n]); return { data, error }; } }; return q; } });
+  const rows = [{ id: 'n2', created_at: '2026-10-15T10:00:00Z' }, { id: 'n1', created_at: '2026-10-15T09:00:00Z' }];
+  assert.equal(await lib.withWantedMessages(sb([]), rows, null, true), rows, 'nothing asked for');
+  assert.equal(await lib.withWantedMessages(sb([]), rows, 'c', false), rows, 'not listed (not this coach\'s): not read');
+  assert.equal(calls.length, 0);
+  const merged = await lib.withWantedMessages(sb([{ id: 'w1', created_at: '2026-01-02T00:00:00Z' }, { id: 'n1', created_at: '2026-10-15T09:00:00Z' }]), rows, 'c', true);
+  assert.deepEqual(merged.map((m) => m.id), ['n2', 'n1', 'w1'], 'merged once each, newest first');
+  assert.deepEqual(calls, [['messages', 'conversation_id', 'c'], ['messages', 'limit', 200]]);
+  assert.equal(await lib.withWantedMessages(sb(null, { message: 'x' }), rows, 'c', true), rows, 'a failed read keeps what was read');
+  for (const role of ['trainer', 'nutritionist']) {
+    const route = read(`src/app/api/${role}/messages/route.ts`);
+    assert.match(route, /const allMsgRows = await withWantedMessages\(supabase, msgRows \?\? \[\], wanted, conversations\.some\(\(c\) => c\.id === wanted\)\);/);
+    assert.match(route, /for \(const m of \[\.\.\.allMsgRows\]\.reverse\(\)\) \{/);
+  }
+});
+
+test('a "New message" notification opens its thread: push, the app\'s list, and the website\'s inbox', async () => {
+  const push = await loadRealModule(join(ROOT, 'src/app/api/push/dispatch/route.ts'), {
+    typescript: true,
+    registry: new Map([['next/server', { NextResponse: { json: () => null } }], ['@/lib/supabase/admin', {}], ['@/lib/push', {}], ['node:crypto', { timingSafeEqual: () => false }], ['crypto', { timingSafeEqual: () => false }]]),
+  });
+  assert.equal(push.pushRoute({ route: 'messages', data: { conversationId: 'conv-3' } }), 'chat:conv-3');
+  assert.equal(push.pushRoute({ route: 'messages', data: {} }), 'messages', 'no id: as it was');
+  assert.equal(push.pushRoute({ route: 'sessions', data: { conversationId: 'conv-3' } }), 'sessions', 'only a message notification');
+  assert.equal(push.pushRoute({ route: null }), '');
+  assert.match(read('src/app/api/push/dispatch/route.ts'), /data: \{ route: pushRoute\(record\), type: record\.type \?\? 'general' \},/);
+
+  const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  const at = client.indexOf('function bsRouteNotification(');
+  let depth = 0, i = client.indexOf(') {', at) + 2;
+  for (; i < client.length; i++) { if (client[i] === '{') depth++; else if (client[i] === '}' && --depth === 0) break; }
+  const events = [];
+  class CustomEvent { constructor(type, init) { this.type = type; this.detail = init && init.detail; } }
+  const route = new Function('window', 'CustomEvent', `${client.slice(at, i + 1)}; return bsRouteNotification;`)({ dispatchEvent: (e) => events.push(e.detail) }, CustomEvent);
+  assert.equal(route('messages', { conversationId: 'conv-3' }), true);
+  assert.deepEqual(events, [{ conversationId: 'conv-3' }]);
+  assert.equal(route('messages', {}), false, 'no id: nothing to open');
+  assert.match(client, /onRoute=\{\(route, data\) => \{[\s\S]{0,400}if \(bsRouteNotification\(route, data\)\) setShowNotifications\(false\);/);
+
+  const shell = read('public/newdesign/pageShell.jsx');
+  const fn = shell.slice(shell.indexOf('const DASH_INBOX_ROUTES = {'), shell.indexOf('// ⚠ A SHAPE CHECK, NOT A TRUST FALL.'));
+  const lib = new Function('window', `${fn}; return { dashInboxHref, dashInboxThreadFor };`)({});
+  const n = { route: 'messages', data: { conversationId: 'conv-3' } };
+  assert.equal(lib.dashInboxHref(n, 'trainer'), '/newdesign/TrainerMessages.html?conversation=conv-3');
+  assert.equal(lib.dashInboxThreadFor(n, 'trainer'), null, 'a coach goes to the page');
+  assert.equal(lib.dashInboxHref(n, 'client'), null);
+  assert.equal(lib.dashInboxThreadFor(n, 'client'), 'conv-3', 'a member\'s row opens the bubble on that thread');
+  assert.equal(lib.dashInboxThreadFor({ route: 'messages', data: {} }, 'client'), null);
+  assert.match(shell, /const threadId = dashInboxThreadFor\(n, role\);\s+return threadId \? \(/);
+  assert.match(shell, /window\.__openChat\(\{ conversationId: threadId \}\)/);
 });
