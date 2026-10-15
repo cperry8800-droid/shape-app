@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
 
   const supabase = await createClient();
   const nowMs = Date.now();
-  const [{ data: slots }, busyRes, rulesRes, { data: pro }] = await Promise.all([
+  const [{ data: slots }, busyRes, rulesRes, proRes] = await Promise.all([
     supabase
       .from('provider_availability')
       .select('weekday, start_minute, duration_min')
@@ -93,6 +93,13 @@ export async function GET(req: NextRequest) {
   if (rulesRes.error && !isMissingRelation(rulesRes.error)) {
     return NextResponse.json({ error: "This coach's calendar couldn't be read." }, { status: 503 });
   }
+  // ⚠ AND SO DOES THE LISTING (Codex on #2375). It carries the coach's zone and whether they are at
+  // capacity; read as null, the coach looked open, and every intro time was offered for the
+  // consultation route to refuse once the member had filled the form in.
+  if (proRes.error) {
+    return NextResponse.json({ error: "This coach's calendar couldn't be read." }, { status: 503 });
+  }
+  const pro = proRes.data;
   type Busy = { starts_at: string; ends_at: string; kind: string };
   const busy = ((busyRes.error ? [] : busyRes.data ?? []) as Busy[]).map((b) => ({ start: b.starts_at, end: b.ends_at, kind: b.kind }));
 

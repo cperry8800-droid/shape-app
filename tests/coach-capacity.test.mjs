@@ -328,19 +328,25 @@ function liftCapacity() {
   const src = read('mobile-app/src/services/shapeBackend.js');
   const i = src.indexOf('function capacityFromListing(l) {');
   const j = src.indexOf('\nfunction playlistFromRow(row) {', i);
-  assert.ok(i > 0 && j > i, 'could not lift the capacity calls');
+  // The calls go through the file's own live-token helper and API fetch, lifted with them.
+  const k = src.indexOf('async function liveAccessToken() {');
+  const m = src.indexOf('window.ShapeApi = ', k);
+  assert.ok(i > 0 && j > i && k > 0 && m > k, 'could not lift the capacity calls');
   const calls = [];
   let answer = { status: 200, body: {} };
   const fetch = async (url, init = {}) => {
-    calls.push({ url, method: init.method || 'GET', auth: init.headers && init.headers.Authorization, body: init.body ? JSON.parse(init.body) : null });
+    calls.push({ url, method: init.method || 'GET', auth: new Headers(init.headers).get('Authorization'), body: init.body ? JSON.parse(init.body) : null });
     return { ok: answer.status < 400, status: answer.status, json: async () => answer.body };
   };
   const normalizeRole = (r) => (['client', 'trainer', 'nutritionist', 'dietitian'].includes(r) ? r : 'client');
   const providerDiscipline = (r) => (r === 'dietitian' ? 'nutritionist' : r);
-  const state = { session: { access_token: 'tok' } };
-  const api = new Function('fetch', 'apiBaseUrl', 'state', 'normalizeRole', 'providerDiscipline',
-    src.slice(i, j) + '\nreturn { getProviderCapacity, setProviderCapacity };')(fetch, 'https://shape.test', state, normalizeRole, providerDiscipline);
-  return { ...api, calls, answer: (status, body) => { answer = { status, body }; }, state };
+  const state = { session: { access_token: 'tok' }, user: null };
+  // supabase's own session: null until a test sets one (a refreshed token).
+  const live = { session: null };
+  const supabase = { auth: { getSession: async () => ({ data: { session: live.session } }) } };
+  const api = new Function('fetch', 'apiBaseUrl', 'state', 'normalizeRole', 'providerDiscipline', 'supabase', 'Headers',
+    src.slice(k, m) + '\n' + src.slice(i, j) + '\nreturn { getProviderCapacity, setProviderCapacity };')(fetch, 'https://shape.test', state, normalizeRole, providerDiscipline, supabase, Headers);
+  return { ...api, calls, answer: (status, body) => { answer = { status, body }; }, state, live };
 }
 
 test('app: capacity is read and written for the role in use, and shows what members meet', async () => {
@@ -382,7 +388,29 @@ test('app: capacity is read and written for the role in use, and shows what memb
   a.answer(500, { error: 'save_failed' });
   await assert.rejects(() => a.setProviderCapacity({ role: 'trainer', atCapacity: true }), /^Error: Could not update your capacity\.$/);
   a.state.session = null;
+  const before = a.calls.length;
   assert.equal(await a.getProviderCapacity({ role: 'trainer' }), null);
+  await assert.rejects(() => a.setProviderCapacity({ role: 'trainer', atCapacity: true }), /Sign in/);
+  assert.equal(a.calls.length, before, 'signed out, nothing is sent');
+});
+
+test('app: capacity calls send the live token, never a cached one supabase has refreshed (Codex on #2375)', async () => {
+  const a = liftCapacity();
+  a.state.session = { access_token: 'stale' };
+  a.state.user = { id: 'coach-1' };
+  a.live.session = { access_token: 'fresh', user: { id: 'coach-1' } };
+  a.answer(200, { listings: [{ role: 'trainer', providerId: 7, atCapacity: false, effective: false }] });
+  await a.getProviderCapacity({ role: 'trainer' });
+  a.answer(200, { ok: true, listing: { role: 'trainer', providerId: 7, atCapacity: true, effective: true }, notified: 0 });
+  await a.setProviderCapacity({ role: 'trainer', atCapacity: true });
+  assert.deepEqual(a.calls.map((c) => [c.method, c.url, c.auth]), [
+    ['GET', 'https://shape.test/api/coach/capacity', 'Bearer fresh'],
+    ['POST', 'https://shape.test/api/coach/capacity', 'Bearer fresh'],
+  ]);
+  // Another account's session is never borrowed.
+  a.live.session = { access_token: 'someone-else', user: { id: 'other' } };
+  await a.getProviderCapacity({ role: 'trainer' });
+  assert.equal(a.calls.at(-1).auth, 'Bearer fresh', 'the cached session, now the refreshed one');
 });
 
 test('app Settings: the switch follows the role in use, reopening says who was told, and intros are the coach\'s call', () => {

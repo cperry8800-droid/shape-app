@@ -177,9 +177,11 @@ test('/api/availability answers with the coach\'s busy time and rules, and `book
   assert.deepEqual([asked.p_role, asked.p_provider_id], ['trainer', 7]);
 });
 
-test('/api/availability fails closed on an unreadable busy read or rules; a coach with neither answers nothing busy and the defaults', async () => {
+test('/api/availability fails closed on an unreadable busy read, rules or listing; a coach with neither answers nothing busy and the defaults', async () => {
   const base = { trainers: [{ id: 7, timezone: NY }], provider_availability: [] };
-  for (const fail of [['rpc:provider_busy_blocks'], ['provider_booking_rules']]) {
+  // The listing carries the zone and whether the coach is at capacity: unread, the coach looked open
+  // and every intro time was offered for the consultation route to refuse (Codex on #2375).
+  for (const fail of [['rpc:provider_busy_blocks'], ['provider_booking_rules'], ['trainers']]) {
     const r = await availability({ tables: base, fail });
     assert.equal(r.status, 503, fail.join() + ' read as a free calendar');
   }

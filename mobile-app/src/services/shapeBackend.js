@@ -1638,10 +1638,14 @@ function capacityFromListing(l) {
 
 // The signed-in coach's capacity for `role`; null when they hold no listing of that role (or are
 // not signed in). Throws on a failed read, so Settings keeps what it last showed.
+// ⚠ THROUGH THE LIVE TOKEN (Codex on #2375). The cached session can hold a token supabase has
+// already refreshed, and sending it answered 401: Settings hid the switch, or a valid toggle
+// reverted, until another auth event updated the cache.
 async function getProviderCapacity({ role } = {}) {
-  if (!apiBaseUrl || !state.session?.access_token) return null;
+  const token = await liveAccessToken();
+  if (!token) return null;
   const want = providerDiscipline(normalizeRole(role));
-  const res = await fetch(`${apiBaseUrl}/api/coach/capacity`, { headers: { Authorization: `Bearer ${state.session.access_token}` } });
+  const res = await shapeApiFetch('/api/coach/capacity', { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } });
   if (res.status === 401) return null;
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json.error || 'Could not read your capacity.');
@@ -1653,14 +1657,15 @@ async function getProviderCapacity({ role } = {}) {
 // offset, when turning it on), and/or whether free intros stay open while full. Answers the
 // listing as members now meet it, and how many waiting members a reopening told.
 async function setProviderCapacity({ role, atCapacity, resumeAt = null, introsAtCapacity } = {}) {
-  if (!apiBaseUrl || !state.session?.access_token) throw new Error('Sign in to update your capacity.');
+  const token = await liveAccessToken();
+  if (!token) throw new Error('Sign in to update your capacity.');
   const body = { role: providerDiscipline(normalizeRole(role)) };
   if (typeof atCapacity === 'boolean') body.atCapacity = atCapacity;
   if (atCapacity === true && resumeAt) body.resumeAt = resumeAt;
   if (typeof introsAtCapacity === 'boolean') body.introsAtCapacity = introsAtCapacity;
-  const res = await fetch(`${apiBaseUrl}/api/coach/capacity`, {
+  const res = await shapeApiFetch('/api/coach/capacity', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${state.session.access_token}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   const json = await res.json().catch(() => ({}));
