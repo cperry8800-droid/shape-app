@@ -953,16 +953,26 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
       {note || null}
     </div>
   );
-  // Forgot password — best effort via the auth layer; degrades to a neutral notice.
+  // Forgot password. ⚠ IT SAID "A RESET LINK IS ON ITS WAY" WHETHER OR NOT ANYTHING WAS SENT
+  // (client-onboarding review, H9): resetPassword did not exist, so the call was skipped and the
+  // toast ran anyway. The toast now follows a request the server took; anything else is the error.
   const forgotPassword = async () => {
     setAuthError('');
     const auth = window.ShapeAuth;
     const e = email.trim();
     if (!e) { setAuthError(tr('login.err.forgotEmail')); return; }
+    if (!auth?.resetPassword) { setAuthError(tr('login.err.forgotFail')); return; }
+    if (captchaOn && !captchaToken) { setAuthError(tr('login.err.captcha')); return; }
     try {
-      if (auth?.resetPassword) { await auth.resetPassword(e); }
+      await auth.resetPassword(e, captchaOn ? captchaToken : undefined);
       window.__bsToast?.(tr('login.ok.resetSent'), 'ok');
-    } catch (err) { setAuthError(err?.message || tr('login.err.forgotFail')); }
+    } catch (err) {
+      const code = err?.code;
+      setAuthError(code === 'rate_limited' ? tr('login.err.resetLimited')
+        : code === 'captcha_failed' ? tr('login.err.resetCaptcha')
+        : code === 'invalid_email' ? tr('login.err.resetAccount')
+        : tr('login.err.forgotFail'));
+    } finally { if (captchaOn) resetCaptcha(); }
   };
   // Continue with Apple — uses the auth layer if wired, else a graceful notice.
   const continueWithApple = async () => {

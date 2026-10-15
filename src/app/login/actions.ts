@@ -9,6 +9,9 @@ import { safeReturnPath } from '@/lib/safe-redirect.mjs';
 // public/age-derive.js mirror.
 import { isMinorFromDob } from '@/lib/age-derive.mjs';
 import { cleanSource, type SignupSource } from '@/lib/signup-source.mjs';
+import { headers } from 'next/headers';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { requestPasswordResetEmail, requestIp } from '@/lib/password-reset';
 
 // Where a sign-up came from: the form's hidden field (SignupForm, from /signup-source.js),
 // cleaned here because the browser wrote it. A missing or unreadable field is still a website
@@ -126,18 +129,19 @@ export async function signup(
   return { ok: true, needsConfirm: true };
 }
 
+// ⚠ SHAPE SENDS THE RESET EMAIL NOW (client-onboarding review, H9). resetPasswordForEmail through
+// this PKCE client made a link only the browser that asked could use, so a reset opened from a
+// phone's mail app failed. src/lib/password-reset.ts mails a link /auth/confirm verifies on the
+// server, the same one the app asks for through POST /api/auth/password-reset.
 export async function requestPasswordReset(
   formData: FormData
 ): Promise<{ error: string } | { ok: true }> {
-  const email = String(formData.get('email') ?? '');
-  const captchaToken = String(formData.get('captchaToken') ?? '');
-  const supabase = await createClient();
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'}/auth/callback?next=/reset-password`,
-    ...(captchaToken ? { captchaToken } : {}),
+  const result = await requestPasswordResetEmail(createAdminClient(), {
+    email: formData.get('email'),
+    captchaToken: formData.get('captchaToken'),
+    ip: requestIp(await headers()),
   });
-  if (error) return { error: error.message };
-  return { ok: true };
+  return result.ok ? { ok: true } : { error: result.error };
 }
 
 export async function updatePassword(

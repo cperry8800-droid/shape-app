@@ -4669,6 +4669,37 @@ async function signInWithApple({ role } = {}) {
   return data;
 }
 
+// ⚠ "FORGOT PASSWORD" SENT NOTHING (client-onboarding review, H9). The sign-in screen called
+// ShapeAuth.resetPassword, which did not exist, and said "a reset link is on its way" anyway. Shape
+// sends the email now (POST /api/auth/password-reset): its link opens the website's set-password
+// page in whichever browser opens it, and the new password works here. Resolves true once the
+// server has taken the request (the same answer whether or not an account has the address);
+// throws with the server's words when it refused or could not send.
+async function resetPassword(email, captchaToken) {
+  const cleanEmail = String(email || '').trim();
+  if (!cleanEmail) throw Object.assign(new Error('Enter your email first.'), { code: 'invalid_email' });
+  if (!apiBaseUrl) throw Object.assign(new Error("Password reset isn't available here. Use theshapecommunity.com/forgot-password."), { code: 'send_failed' });
+  let response;
+  try {
+    response = await fetch(`${apiBaseUrl}/api/auth/password-reset`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: cleanEmail, ...(captchaToken ? { captchaToken } : {}) }),
+    });
+  } catch (e) {
+    const error = new Error("We couldn't reach Shape. Check your connection and try again.");
+    error.code = 'send_failed';
+    throw error;
+  }
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(typeof payload.error === 'string' && payload.error ? payload.error : "We couldn't send the reset email. Please try again.");
+    error.code = typeof payload.code === 'string' ? payload.code : (response.status === 429 ? 'rate_limited' : 'send_failed');
+    throw error;
+  }
+  return true;
+}
+
 // Re-send the signup confirmation email (for the "check your email" screen).
 async function resendConfirmation(email, captchaToken) {
   if (!supabase) throw new Error('Email verification is not configured.');
@@ -4801,6 +4832,7 @@ window.ShapeAuth = {
   verifyPhoneOtp,
   signInWithApple,
   resendConfirmation,
+  resetPassword,
   signOut,
   getCurrentSession,
   updateProfileRoles,
