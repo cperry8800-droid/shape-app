@@ -263,7 +263,8 @@ test('website Profile: a refused rate shows the route\'s words; signed out and n
     assert.equal(text(m.host).includes(words), true, `${answer.status}: ${text(m.host)}`);
     await m.unmount();
   }
-  assert.match(read('public/newdesign/dashProfileExtras.jsx'), /<CoachCredentialsCard \/><CoachListingRatesCard \/><CoachListingMediaCard \/>/);
+  // The capacity card (task #10) sits between the rates and the photos.
+  assert.match(read('public/newdesign/dashProfileExtras.jsx'), /<CoachCredentialsCard \/><CoachListingRatesCard \/><CoachCapacityCard \/><CoachListingMediaCard \/>/);
 });
 
 test('GET: a listing staff suspended says so (owner: "suspended until futher review")', async () => {

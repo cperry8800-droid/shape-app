@@ -199,5 +199,6 @@
   "listing.lengthChanged": "Tanışma görüşmesi değişti",
   "listing.lengthChangedBody": "{name} ile tanışma görüşmesi artık {minutes} dakika. Lütfen yeniden bir saat seç.",
   "listing.timesLoading": "{name} için saatler yükleniyor…",
-  "listing.timesFailed": "{name} için saatler yüklenemedi."
+  "listing.timesFailed": "{name} için saatler yüklenemedi.",
+  "listing.introsClosed": "{name} şu anda yeni danışan almıyor, bu yüzden tanışma görüşmeleri kapalı. Aşağıdan bekleme listesine katıl."
 }

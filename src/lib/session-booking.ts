@@ -152,25 +152,40 @@ export function isDoubleBookError(error: unknown): boolean {
 }
 
 /**
- * How long the coach's free intro runs, in minutes: provider_booking_rules.consult_min, the coach's
- * own pick (any whole minute from 5 to 240; 2026-10-15-intro-length.sql). No row is 15, the length
- * every intro had; so is a database without the column (`select('*')`, so naming it cannot fail
- * the read). ⚠ A FAILED READ IS null, NEVER 15: the route refuses rather than book the coach a
- * length they did not choose.
+ * The coach's own intro settings (provider_booking_rules): how long it runs (consult_min, any whole
+ * minute from 5 to 240; 2026-10-15-intro-length.sql) and whether it stays open while they are at
+ * capacity (intros_at_capacity, 2026-10-15-capacity-intros.sql). No row, or a database without a
+ * column, is the defaults (15 minutes, closed at capacity); `select('*')` so naming a column cannot
+ * fail the read. ⚠ A FAILED READ IS null, NEVER THE DEFAULTS: the route refuses rather than book the
+ * coach a length, or an at-capacity intro, they did not choose.
  */
-export async function readIntroLength(
+export async function readIntroSettings(
   db: Pick<SupabaseClient, 'from'>,
   role: string,
   providerId: number,
-): Promise<number | null> {
+): Promise<{ consultMin: number; introsAtCapacity: boolean } | null> {
   const { data, error } = await db
     .from('provider_booking_rules')
     .select('*')
     .eq('provider_role', role)
     .eq('provider_id', providerId)
     .maybeSingle();
-  if (error) return isMissingRelation(error) ? DEFAULT_RULES.consultMin : null;
-  return normalizeRules(data).consultMin;
+  if (error) {
+    if (!isMissingRelation(error)) return null;
+    return { consultMin: DEFAULT_RULES.consultMin, introsAtCapacity: DEFAULT_RULES.introsAtCapacity };
+  }
+  const r = normalizeRules(data);
+  return { consultMin: r.consultMin, introsAtCapacity: r.introsAtCapacity };
+}
+
+/** The intro's length alone (readIntroSettings). */
+export async function readIntroLength(
+  db: Pick<SupabaseClient, 'from'>,
+  role: string,
+  providerId: number,
+): Promise<number | null> {
+  const s = await readIntroSettings(db, role, providerId);
+  return s ? s.consultMin : null;
 }
 
 /**

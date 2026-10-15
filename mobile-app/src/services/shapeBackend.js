@@ -1616,47 +1616,54 @@ async function getOwnedProviderId(role = 'trainer') {
   return data?.id || null;
 }
 
-// ─── At-capacity (pause new bookings) ────────────────────────────────────────
-// Read the signed-in coach's own provider row capacity flag. Returns null when
-// the user has no provider row (i.e. not a coach). RLS lets a provider read +
-// update their own row via owner_id = auth.uid().
-async function getProviderCapacity() {
-  if (!supabase || !state.user?.id) return null;
-  for (const role of ['trainer', 'nutritionist']) {
-    const table = providerTable(role);
-    const { data } = await supabase
-      .from(table)
-      .select('id, at_capacity, capacity_resume_at')
-      .eq('owner_id', state.user.id)
-      .order('id', { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    if (data) {
-      return { role, providerId: data.id, atCapacity: !!data.at_capacity, resumeAt: data.capacity_resume_at || null };
-    }
-  }
-  return null;
+// ─── At capacity (taking no new clients) ─────────────────────────────────────
+// Through /api/coach/capacity (client-onboarding task #10), for the listing of the role the coach
+// is using: a coach with both listings changed whichever row this found first. `atCapacity` is what
+// members meet (a resume date that has passed is open again); `switchedOn` is the stored switch.
+// Reopening there tells the waiting list, which a direct row write never did.
+function capacityFromListing(l) {
+  if (!l || typeof l !== 'object') return null;
+  return {
+    role: l.role,
+    providerId: l.providerId,
+    atCapacity: l.effective === true,
+    switchedOn: l.atCapacity === true,
+    resumeAt: l.resumeAt || null,
+    introsAtCapacity: l.introsAtCapacity === true,
+    waiting: typeof l.waiting === 'number' ? l.waiting : null,
+  };
 }
 
-// Flip the coach's at_capacity flag. When turning it ON you can optionally pass
-// an auto-resume date (ISO); turning it OFF clears any resume date.
-async function setProviderCapacity({ atCapacity, resumeAt = null } = {}) {
-  if (!supabase || !state.user?.id) throw new Error('Sign in to update bookings.');
-  let table = null;
-  for (const role of ['trainer', 'nutritionist']) {
-    const tbl = providerTable(role);
-    const { data } = await supabase.from(tbl).select('id').eq('owner_id', state.user.id).limit(1).maybeSingle();
-    if (data) { table = tbl; break; }
-  }
-  if (!table) throw new Error('No coach profile found for this account.');
-  const { data, error } = await supabase
-    .from(table)
-    .update({ at_capacity: !!atCapacity, capacity_resume_at: atCapacity ? (resumeAt || null) : null })
-    .eq('owner_id', state.user.id)
-    .select('id, at_capacity, capacity_resume_at')
-    .maybeSingle();
-  if (error) throw error;
-  return { atCapacity: !!data?.at_capacity, resumeAt: data?.capacity_resume_at || null };
+// The signed-in coach's capacity for `role`; null when they hold no listing of that role (or are
+// not signed in). Throws on a failed read, so Settings keeps what it last showed.
+async function getProviderCapacity({ role } = {}) {
+  if (!apiBaseUrl || !state.session?.access_token) return null;
+  const want = providerDiscipline(normalizeRole(role));
+  const res = await fetch(`${apiBaseUrl}/api/coach/capacity`, { headers: { Authorization: `Bearer ${state.session.access_token}` } });
+  if (res.status === 401) return null;
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error || 'Could not read your capacity.');
+  const listings = Array.isArray(json.listings) ? json.listings : [];
+  return capacityFromListing(listings.find((l) => l && l.role === want) || null);
+}
+
+// Turn taking new clients on or off for `role` (an optional resume date, an instant with its
+// offset, when turning it on), and/or whether free intros stay open while full. Answers the
+// listing as members now meet it, and how many waiting members a reopening told.
+async function setProviderCapacity({ role, atCapacity, resumeAt = null, introsAtCapacity } = {}) {
+  if (!apiBaseUrl || !state.session?.access_token) throw new Error('Sign in to update your capacity.');
+  const body = { role: providerDiscipline(normalizeRole(role)) };
+  if (typeof atCapacity === 'boolean') body.atCapacity = atCapacity;
+  if (atCapacity === true && resumeAt) body.resumeAt = resumeAt;
+  if (typeof introsAtCapacity === 'boolean') body.introsAtCapacity = introsAtCapacity;
+  const res = await fetch(`${apiBaseUrl}/api/coach/capacity`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${state.session.access_token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || !json.listing) throw new Error(json.detail || (json.error && json.error !== 'save_failed' ? json.error : '') || 'Could not update your capacity.');
+  return { ...capacityFromListing(json.listing), notified: Number(json.notified) || 0 };
 }
 
 function playlistFromRow(row) {

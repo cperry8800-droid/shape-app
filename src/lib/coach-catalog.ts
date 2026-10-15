@@ -41,7 +41,7 @@ export type Coach = {
 export type LiveCoachRow = {
   id?: unknown; name?: unknown; specialty?: unknown; specialty_type?: unknown; category?: unknown;
   credential?: unknown; experience?: unknown; price?: unknown; session_price?: unknown; meal_plan_price?: unknown;
-  rating?: unknown; subscribers?: unknown; tags?: unknown; services?: unknown; verified?: unknown; at_capacity?: unknown;
+  rating?: unknown; subscribers?: unknown; tags?: unknown; services?: unknown; verified?: unknown; at_capacity?: unknown; capacity_resume_at?: unknown;
   location?: unknown; format?: unknown; owner_id?: unknown;
 };
 
@@ -87,7 +87,11 @@ export function liveCoachFromRow(row: LiveCoachRow, role: CoachRole): Coach | nu
     category: text(row.category, 60),
     providerId: id,
     verified: row.verified === true,
-    atCapacity: row.at_capacity === true,
+    // What members meet: a resume date that has passed means accepting again (task #10; this read
+    // the raw column, so a coach whose resume date had passed still ranked as full). The rule of
+    // src/lib/capacity.ts isEffectivelyAtCapacity, inlined: this file loads without the @/ alias.
+    atCapacity: row.at_capacity === true
+      && !(typeof row.capacity_resume_at === 'string' && Date.parse(row.capacity_resume_at) <= Date.now()),
   };
 }
 
@@ -175,7 +179,7 @@ export function coachProfileUrl(c: Coach): string {
 // location or a format column, so liveCoachFromRow reads those as absent); a
 // named column that does not exist errors the WHOLE query, which is why the
 // role's own price column is added by livePriceColumn rather than listed.
-export const LIVE_COACH_COLUMNS = 'id, name, specialty, specialty_type, category, credential, experience, price, rating, subscribers, tags, services, verified, at_capacity, owner_id';
+export const LIVE_COACH_COLUMNS = 'id, name, specialty, specialty_type, category, credential, experience, price, rating, subscribers, tags, services, verified, at_capacity, capacity_resume_at, owner_id';
 export function livePriceColumn(role: CoachRole): 'session_price' | 'meal_plan_price' {
   return role === 'nutritionist' ? 'meal_plan_price' : 'session_price';
 }

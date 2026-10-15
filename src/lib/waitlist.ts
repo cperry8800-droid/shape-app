@@ -61,6 +61,31 @@ export async function resolveRequestUser(request: Request): Promise<RequestUser 
   return resolved ? resolved.user : null;
 }
 
+/**
+ * Whether the member already coaches with this listing: an active or trialing subscription. At
+ * capacity a coach takes no NEW clients (owner, 2026-10-15: "it basically makes it so they cant add
+ * new clients"), so a member who already is one can still buy that coach's sessions and plans.
+ * Read on the caller's own client (their own subscription rows). Throws on a failed read: callers
+ * refuse, and a failed read is never a yes.
+ */
+export async function isActiveClientOf(
+  client: SupabaseClient,
+  clientId: string,
+  providerRole: ProviderRole,
+  providerId: number
+): Promise<boolean> {
+  const { data, error } = await client
+    .from('subscriptions')
+    .select('id')
+    .eq('client_id', clientId)
+    .eq('provider_role', providerRole)
+    .eq('provider_id', providerId)
+    .in('status', ['active', 'trialing'])
+    .limit(1);
+  if (error) throw new Error(`client lookup failed: ${error.message}`);
+  return Array.isArray(data) && data.length > 0;
+}
+
 // True when this client holds a non-expired invite for this coach — the
 // first-dibs bypass consulted by the purchase guards. Runs through the caller's
 // RLS-scoped client (the "clients read own waitlist" policy). THROWS on a lookup

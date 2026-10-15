@@ -20,6 +20,7 @@
 // row they own, so a signed-out visitor or another member saw no bookings and every taken hour
 // was offered as open. provider_busy_blocks is a definer read that says WHEN a coach is busy and
 // nothing else, so `booked` now comes from it too.
+import { isEffectivelyAtCapacity } from '@/lib/capacity';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { normalizeZone } from '@/lib/time';
@@ -77,7 +78,7 @@ export async function GET(req: NextRequest) {
     // `*` dated from before timezone existed; it has existed since 2026-09-11.
     supabase
       .from(role === 'trainer' ? 'trainers' : 'nutritionists')
-      .select('timezone')
+      .select('timezone, at_capacity, capacity_resume_at')
       .eq('id', idRaw)
       .maybeSingle(),
   ]);
@@ -104,5 +105,9 @@ export async function GET(req: NextRequest) {
     // null means "we cannot place these hours" — never a defaulted UTC, which is the
     // defect this field exists to close.
     timezone: normalizeZone((pro as { timezone?: unknown } | null)?.timezone),
+    // Taking no new clients right now (a resume date that passed means accepting again). With
+    // rules.introsAtCapacity off, the booking pages offer no intro times (task #10); a member the
+    // coach invited off the waiting list can still book (/api/consultation checks the invite).
+    atCapacity: pro ? isEffectivelyAtCapacity(pro as { at_capacity: boolean | null; capacity_resume_at: string | null }) : false,
   });
 }

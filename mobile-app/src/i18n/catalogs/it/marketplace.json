@@ -199,5 +199,6 @@
   "listing.lengthChanged": "L'intro è cambiata",
   "listing.lengthChangedBody": "L'intro con {name} ora dura {minutes} minuti. Scegli di nuovo un orario.",
   "listing.timesLoading": "Caricamento degli orari di {name}…",
-  "listing.timesFailed": "Impossibile caricare gli orari di {name}."
+  "listing.timesFailed": "Impossibile caricare gli orari di {name}.",
+  "listing.introsClosed": "{name} al momento non accetta nuovi clienti, quindi le intro sono chiuse. Iscriviti alla lista d’attesa qui sotto."
 }

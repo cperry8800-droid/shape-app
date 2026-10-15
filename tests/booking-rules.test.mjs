@@ -361,22 +361,29 @@ test('openSlots is bounded: a step, a limit, a 60-day window, and nonsense refus
 // ── 7 · rules and time off as the routes store them ───────────────────────────────────────
 
 test('rules: the read side clamps, the write side refuses, and both match the database CHECKs', () => {
-  assert.deepEqual(R.normalizeRules(null), { bufferMin: 0, maxPerDay: null, minNoticeHours: 0, consultMin: 15 });
-  assert.deepEqual(R.normalizeRules({ buffer_min: 15, max_per_day: 6, min_notice_hours: 12, consult_min: 40 }), { bufferMin: 15, maxPerDay: 6, minNoticeHours: 12, consultMin: 40 });
-  assert.deepEqual(R.normalizeRules({ buffer_min: 500, max_per_day: 99, min_notice_hours: -4, consult_min: 999 }), { bufferMin: 120, maxPerDay: 24, minNoticeHours: 0, consultMin: 240 });
+  assert.deepEqual(R.normalizeRules(null), { bufferMin: 0, maxPerDay: null, minNoticeHours: 0, consultMin: 15, introsAtCapacity: false });
+  assert.deepEqual(R.normalizeRules({ buffer_min: 15, max_per_day: 6, min_notice_hours: 12, consult_min: 40 }), { bufferMin: 15, maxPerDay: 6, minNoticeHours: 12, consultMin: 40, introsAtCapacity: false });
+  assert.deepEqual(R.normalizeRules({ buffer_min: 500, max_per_day: 99, min_notice_hours: -4, consult_min: 999 }), { bufferMin: 120, maxPerDay: 24, minNoticeHours: 0, consultMin: 240, introsAtCapacity: false });
   assert.equal(R.normalizeRules({ consult_min: 1 }).consultMin, 5, 'clamped up to the shortest intro');
   assert.equal(R.normalizeRules({ consultMin: 7 }).consultMin, 7, 'any whole minute');
+  // Free intros while at capacity: only a stored true counts (task #10).
+  assert.equal(R.normalizeRules({ intros_at_capacity: true }).introsAtCapacity, true);
+  assert.equal(R.normalizeRules({ introsAtCapacity: true }).introsAtCapacity, true);
+  for (const v of [false, null, undefined, 'true', 1]) assert.equal(R.normalizeRules({ intros_at_capacity: v }).introsAtCapacity, false, String(v));
   assert.equal(R.normalizeRules({ max_per_day: 0 }).maxPerDay, null, 'a stored 0 is no limit, not a closed calendar');
   assert.equal(R.normalizeRules({ maxPerDay: '' }).maxPerDay, null);
   const ok = R.validateRules({ bufferMin: 15, maxPerDay: '6', minNoticeHours: 0 });
-  assert.deepEqual(ok, { ok: true, rules: { bufferMin: 15, maxPerDay: 6, minNoticeHours: 0, consultMin: 15 } });
-  assert.deepEqual(R.validateRules({ maxPerDay: null }, { max_per_day: 4, buffer_min: 10, consult_min: 30 }), { ok: true, rules: { bufferMin: 10, maxPerDay: null, minNoticeHours: 0, consultMin: 30 } }, 'merged over the stored row');
+  assert.deepEqual(ok, { ok: true, rules: { bufferMin: 15, maxPerDay: 6, minNoticeHours: 0, consultMin: 15, introsAtCapacity: false } });
+  assert.deepEqual(R.validateRules({ maxPerDay: null }, { max_per_day: 4, buffer_min: 10, consult_min: 30 }), { ok: true, rules: { bufferMin: 10, maxPerDay: null, minNoticeHours: 0, consultMin: 30, introsAtCapacity: false } }, 'merged over the stored row');
   assert.equal(R.validateRules({ consultMin: '10' }).rules.consultMin, 10);
+  assert.equal(R.validateRules({ introsAtCapacity: true }).rules.introsAtCapacity, true);
+  assert.equal(R.validateRules({ bufferMin: 5 }, { intros_at_capacity: true }).rules.introsAtCapacity, true, 'kept from the stored row');
   for (const [input, field] of [
     [{ bufferMin: 121 }, 'bufferMin'], [{ bufferMin: -1 }, 'bufferMin'], [{ bufferMin: 7.5 }, 'bufferMin'], [{ bufferMin: 'ten' }, 'bufferMin'],
     [{ maxPerDay: 0 }, 'maxPerDay'], [{ maxPerDay: 25 }, 'maxPerDay'], [{ maxPerDay: true }, 'maxPerDay'],
     [{ minNoticeHours: 337 }, 'minNoticeHours'], [{ minNoticeHours: null }, 'minNoticeHours'],
     [{ consultMin: 4 }, 'consultMin'], [{ consultMin: 241 }, 'consultMin'], [{ consultMin: 12.5 }, 'consultMin'], [{ consultMin: '' }, 'consultMin'],
+    [{ introsAtCapacity: 'true' }, 'introsAtCapacity'], [{ introsAtCapacity: 1 }, 'introsAtCapacity'], [{ introsAtCapacity: null }, 'introsAtCapacity'],
   ]) {
     const r = R.validateRules(input);
     assert.equal(r.ok, false, JSON.stringify(input));
@@ -395,6 +402,10 @@ test('rules: the read side clamps, the write side refuses, and both match the da
   assert.match(intro, new RegExp(`check \\(consult_min between ${L.consultMin.min} and ${L.consultMin.max}\\)`));
   assert.match(intro, new RegExp(`add column if not exists consult_min integer not null default ${R.DEFAULT_RULES.consultMin};`));
   assert.match(intro, /add column if not exists intro boolean not null default false;/);
+  // Free intros at capacity: off unless the coach turns them on (task #10).
+  const cap = readFileSync(join(ROOT, 'supabase-migrations/2026-10-15-capacity-intros.sql'), 'utf8');
+  assert.equal(R.DEFAULT_RULES.introsAtCapacity, false);
+  assert.match(cap, /add column if not exists intros_at_capacity boolean not null default false;/);
 });
 
 test('parseTimeOff: instants with offsets, whole days in the coach\'s zone, and the limits', () => {

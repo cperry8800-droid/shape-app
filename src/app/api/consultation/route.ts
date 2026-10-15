@@ -38,7 +38,8 @@ import { verifyTurnstile } from '@/lib/turnstile';
 import { currentUser } from '@/lib/request-auth';
 
 import { instantInZone, normalizeZone } from '@/lib/time';
-import { bookingRuleRefusal, checkBookingRules, countOpenRequests, isDoubleBookError, offeredInOpenHours, OPEN_REQUESTS_CAP, openRequestsMessage, readIntroLength, readOpenHours } from '@/lib/session-booking';
+import { bookingRuleRefusal, checkBookingRules, countOpenRequests, isDoubleBookError, offeredInOpenHours, OPEN_REQUESTS_CAP, openRequestsMessage, readIntroSettings, readOpenHours } from '@/lib/session-booking';
+import { hasActiveWaitlistInvite } from '@/lib/waitlist';
 import { siteUrl } from '@/lib/coach-application-emails';
 export const dynamic = 'force-dynamic';
 
@@ -234,12 +235,8 @@ export async function POST(req: NextRequest) {
   if (scheduled.getTime() < Date.now() - 60 * 60 * 1000) {
     return NextResponse.json({ error: 'Cannot book in the past.' }, { status: 400 });
   }
-  if (isEffectivelyAtCapacity(provider)) {
-    return NextResponse.json(
-      { error: 'This coach is at capacity right now. Try again later.' },
-      { status: 409 }
-    );
-  }
+  // At capacity: decided below, once the coach's own intro settings are read (task #10).
+  const atCapacity = isEffectivelyAtCapacity(provider);
 
   // ⚠ ONLY INSIDE THE COACH'S OPEN HOURS (2026-10-07). This route placed the wall clock it was
   // sent and wrote it, so a crafted request could book a coach at 3 AM: the booking page only
@@ -264,12 +261,33 @@ export async function POST(req: NextRequest) {
   // owner, 2026-10-15: "it should be completly customizable"). Every length below — the open-hours
   // fit, the rules, the row, the invite, the emails — is this one. An unreadable setting refuses:
   // booking 15 minutes for a coach who chose 45 is a wrong appointment, not a fallback.
-  const introMin = await readIntroLength(admin, providerRole, providerIdRaw);
-  if (introMin == null) {
+  const intro = await readIntroSettings(admin, providerRole, providerIdRaw);
+  if (intro == null) {
     return NextResponse.json(
       { error: "We couldn't check this coach's calendar just now. Please try again." },
       { status: 503 }
     );
+  }
+  const introMin = intro.consultMin;
+
+  // ⚠ AT CAPACITY, THE COACH DECIDES (owner, 2026-10-15: "let the coach decide"). At capacity means
+  // no new clients; whether a free intro is still open is the coach's setting (intros_at_capacity,
+  // off by default, which is how it behaved before). A member the coach invited off their waiting
+  // list holds a spot, so their intro is open either way. An unreadable invite refuses, as the
+  // checkout does: a failed read is never a yes.
+  if (atCapacity && !intro.introsAtCapacity) {
+    let invited = false;
+    try {
+      invited = await hasActiveWaitlistInvite(admin, user.id, providerRole, providerIdRaw);
+    } catch {
+      return NextResponse.json({ error: 'Could not verify your waitlist status. Please try again.' }, { status: 503 });
+    }
+    if (!invited) {
+      return NextResponse.json(
+        { error: "This coach isn't taking new clients right now. Join their waiting list and they'll let you know when a spot opens.", code: 'at_capacity' },
+        { status: 409 }
+      );
+    }
   }
   // A sent length is a cross-check, like `scheduledAt` above: the page laid out its times for the
   // length it read, and a coach who changed it since means the member was shown a different call.

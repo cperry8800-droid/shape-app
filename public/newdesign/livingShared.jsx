@@ -811,6 +811,20 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
   const [capSrv, setCapSrv] = React.useState(false);
   const atCapacity = !!((prow && prow.atCapacity) || capSrv);
   const provId = (prow && prow.id) || null;
+  // At capacity, whether this coach still takes free intros: their own setting
+  // (provider_booking_rules.intros_at_capacity, task #10; owner: "let the coach decide"). Read only
+  // when it matters, and anything but a stored true is closed, as /api/consultation reads it.
+  const [introsOpen, setIntrosOpen] = React.useState(false);
+  React.useEffect(() => {
+    setIntrosOpen(false);
+    const cl = window.shapeDb && window.shapeDb.client;
+    if (!atCapacity || !provId || !cl || !cl.from) return undefined;
+    let on = true;
+    cl.from("provider_booking_rules").select("intros_at_capacity").eq("provider_role", listingRole).eq("provider_id", provId).maybeSingle()
+      .then((r) => { if (on) setIntrosOpen(!!(r && !r.error && r.data && r.data.intros_at_capacity === true)); }, () => {});
+    return () => { on = false; };
+  }, [atCapacity, provId, listingRole]);
+  const introHref = provId ? "/newdesign/consultation.html?type=" + listingRole + "&id=" + encodeURIComponent(provId) + "&name=" + encodeURIComponent(d.name || "") : null;
   // ⚠ AND IT SUBSCRIBES, because resolving once is the other half of the same defect:
   // a member who signs in AFTER this paints keeps being told to sign in, which is the
   // #2005 defect — a coach already signed in, invited to sign in. On a cookie-only load
@@ -1004,7 +1018,7 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
             {/* The free intro is booked on the consultation page, against the coach's open hours and
                 at the length they set. This button opened the chat panel, where nothing books an
                 intro (client-onboarding review, H6). With no listing to book, it is not offered. */}
-            {provId ? <a href={"/newdesign/consultation.html?type=" + listingRole + "&id=" + encodeURIComponent(provId) + "&name=" + encodeURIComponent(d.name || "")} data-book-intro="" style={{ flex: 1, padding: "13px", borderRadius: 8, border: `1px solid ${hexA(ink, 0.4)}`, background: "transparent", color: ink, cursor: "pointer", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", textAlign: "center", textDecoration: "none", boxSizing: "border-box" }}>Book intro · Free</a> : null}
+            {introHref ? <a href={introHref} data-book-intro="" style={{ flex: 1, padding: "13px", borderRadius: 8, border: `1px solid ${hexA(ink, 0.4)}`, background: "transparent", color: ink, cursor: "pointer", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", textAlign: "center", textDecoration: "none", boxSizing: "border-box" }}>Book intro · Free</a> : null}
           </div>
           {provId ? <button type="button" onClick={openChat} data-message-coach="" style={{ marginTop: 10, padding: 0, border: 0, background: "transparent", color: hexA(ink, 0.7), cursor: "pointer", fontFamily: lvMono, fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", textDecoration: "underline", textUnderlineOffset: 3 }}>Or message {first}</button> : null}
           {buyErr ? <div role="alert" style={{ marginTop: 11, fontFamily: lvMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", color: "#c0533b" }}>{buyErr}</div> : null}
@@ -1080,6 +1094,12 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
             {buyErr && window.ShapeAskNoraLink ? <window.ShapeAskNoraLink label="Ask Nora what happened" draft="My checkout didn't go through. What happened?" problem={{ kind: "payment", message: buyErr }} /> : null}
             {joinPrompt}
           </div>
+          {/* A free intro at capacity: open when the coach keeps intros open while full (their own
+              setting, task #10), or to a member they invited off the list, whose spot is held. Below
+              the waiting list, which stays the way in. /api/consultation decides the same way. */}
+          {introHref && (introsOpen || (wl && wl.status === "invited")) ? (
+            <a href={introHref} data-book-intro-at-capacity="" style={{ display: "inline-block", marginTop: 12, fontFamily: lvMono, fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", color: ink, textDecoration: "underline", textUnderlineOffset: 3 }}>Book a free intro with {first} &rarr;</a>
+          ) : null}
         </div>
       )}
       {/* THE STUDIO — the coach's studio gallery (listing_media), a captioned

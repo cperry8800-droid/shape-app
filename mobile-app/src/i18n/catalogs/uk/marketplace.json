@@ -199,5 +199,6 @@
   "listing.lengthChanged": "Вступна зустріч змінилася",
   "listing.lengthChangedBody": "Вступна зустріч із {name} тепер триває {minutes} хв. Виберіть час знову.",
   "listing.timesLoading": "Завантажуємо розклад: {name}…",
-  "listing.timesFailed": "Не вдалося завантажити розклад: {name}."
+  "listing.timesFailed": "Не вдалося завантажити розклад: {name}.",
+  "listing.introsClosed": "{name} зараз не бере нових клієнтів, тож вступні дзвінки закриті. Запишіться в список очікування нижче."
 }

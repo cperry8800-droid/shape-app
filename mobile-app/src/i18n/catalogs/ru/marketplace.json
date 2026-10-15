@@ -199,5 +199,6 @@
   "listing.lengthChanged": "Вводная встреча изменилась",
   "listing.lengthChangedBody": "Вводная встреча с {name} теперь длится {minutes} мин. Выберите время заново.",
   "listing.timesLoading": "Загружаем расписание: {name}…",
-  "listing.timesFailed": "Не удалось загрузить расписание: {name}."
+  "listing.timesFailed": "Не удалось загрузить расписание: {name}.",
+  "listing.introsClosed": "{name} сейчас не берёт новых клиентов, поэтому вводные звонки закрыты. Запишитесь в лист ожидания ниже."
 }

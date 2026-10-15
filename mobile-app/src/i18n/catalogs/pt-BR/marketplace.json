@@ -199,5 +199,6 @@
   "listing.lengthChanged": "A conversa inicial mudou",
   "listing.lengthChangedBody": "A conversa inicial com {name} agora dura {minutes} minutos. Escolha um horário de novo.",
   "listing.timesLoading": "Carregando os horários de {name}…",
-  "listing.timesFailed": "Não foi possível carregar os horários de {name}."
+  "listing.timesFailed": "Não foi possível carregar os horários de {name}.",
+  "listing.introsClosed": "{name} não está aceitando novos clientes agora, então as intros estão fechadas. Entre na lista de espera abaixo."
 }

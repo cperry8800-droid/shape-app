@@ -199,5 +199,6 @@
   "listing.lengthChanged": "Buổi giới thiệu đã thay đổi",
   "listing.lengthChangedBody": "Buổi giới thiệu với {name} giờ kéo dài {minutes} phút. Hãy chọn lại thời gian.",
   "listing.timesLoading": "Đang tải lịch của {name}…",
-  "listing.timesFailed": "Không tải được lịch của {name}."
+  "listing.timesFailed": "Không tải được lịch của {name}.",
+  "listing.introsClosed": "{name} hiện không nhận khách hàng mới, nên buổi giới thiệu đang đóng. Hãy tham gia danh sách chờ bên dưới."
 }
