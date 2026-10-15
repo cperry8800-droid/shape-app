@@ -455,6 +455,17 @@ test('website Profile: the capacity switch, a resume date, intros while full, an
   assert.equal(lib.cpcDayLabel('2026-11-02'), new Date(2026, 10, 2, 12).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }));
   assert.equal(lib.cpcDayLabel(''), '');
   assert.equal(lib.cpcDayLabel('11/02/2026'), '');
-  assert.match(lib.cpcTomorrow(), /^\d{4}-\d{2}-\d{2}$/);
   assert.equal(typeof lib.cpcBrowserZone(), 'string');
+  // The picker's first day is tomorrow on the coach's calendar (Codex on #2375): at 01:00Z on Friday
+  // 16 October it is Friday morning in Tokyo and still Thursday evening in New York.
+  const RealDate = Date;
+  class Pinned extends RealDate { constructor(...a) { if (a.length) super(...a); else super(Date.parse('2026-10-16T01:00:00Z')); } static now() { return Date.parse('2026-10-16T01:00:00Z'); } }
+  const at = new Function('Date', `${src.slice(src.indexOf('function cpcTomorrow('), src.indexOf('// The coach\'s day, shown as that day'))}; return cpcTomorrow;`)(Pinned);
+  assert.equal(at('America/New_York'), '2026-10-16', 'a New York listing can reopen on Friday');
+  assert.equal(at('Asia/Tokyo'), '2026-10-17');
+  assert.equal(at('Pacific/Kiritimati'), '2026-10-17');
+  assert.equal(at('Pacific/Pago_Pago'), '2026-10-16');
+  assert.match(at('Not/AZone'), /^\d{4}-\d{2}-\d{2}$/, 'a zone this browser does not know falls back to its own calendar');
+  assert.equal(at('America/Los_Angeles'), '2026-10-16');
+  assert.match(card, /min=\{cpcTomorrow\(\(l && l\.timezone\) \|\| cpcBrowserZone\(\)\)\}/, 'the zone the route places the day in');
 });

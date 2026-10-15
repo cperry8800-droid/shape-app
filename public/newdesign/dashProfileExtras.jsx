@@ -285,11 +285,24 @@ function CoachListingRatesCard() {
 function cpcBrowserZone() {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (e) { return null; }
 }
-// The earliest day the picker offers: tomorrow here (the route checks the real instant).
-function cpcTomorrow() {
-  const d = new Date(Date.now() + 86400000);
+// The earliest day the picker offers: tomorrow on the COACH's calendar, the zone the route places
+// the day in (the listing's, or this browser's for a listing with none yet), because that day's
+// midnight is the first still to come. Read from this browser's calendar (Codex on #2375), a New
+// York listing managed from Tokyo on a Friday morning could not pick Friday, still to come in New
+// York; the other way round it offered a day whose midnight had passed. The route checks the instant.
+function cpcTomorrow(zone) {
+  let y, m, d;
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: zone || undefined, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+    const get = (t) => Number((parts.find((p) => p.type === t) || {}).value);
+    y = get("year"); m = get("month"); d = get("day");
+  } catch (e) { y = NaN; }
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) {
+    const now = new Date(); y = now.getFullYear(); m = now.getMonth() + 1; d = now.getDate();
+  }
+  const t = new Date(Date.UTC(y, m - 1, d + 1));
   const p = (n) => String(n).padStart(2, "0");
-  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+  return t.getUTCFullYear() + "-" + p(t.getUTCMonth() + 1) + "-" + p(t.getUTCDate());
 }
 // The coach's day, shown as that day wherever the page is read (noon keeps it on its date).
 function cpcDayLabel(day) {
@@ -415,7 +428,7 @@ function CoachCapacityCard() {
             <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap", padding: "12px 0", borderTop: "1px solid rgba(242,237,228,0.08)" }}>
               <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <span style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)" }}>Reopen on · optional</span>
-                <input type="date" value={resumeDay} min={cpcTomorrow()} onChange={(e) => setResumeDay(e.target.value)} aria-label="Reopen on" style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 9, padding: "8px 10px", color: "#f2ede4", fontFamily: sans, fontSize: 13 }} />
+                <input type="date" value={resumeDay} min={cpcTomorrow((l && l.timezone) || cpcBrowserZone())} onChange={(e) => setResumeDay(e.target.value)} aria-label="Reopen on" style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 9, padding: "8px 10px", color: "#f2ede4", fontFamily: sans, fontSize: 13 }} />
               </label>
               <button onClick={() => save({ atCapacity: true, ...(resumeDay ? { resumeOn: resumeDay, tz: cpcBrowserZone() } : {}) }, "pause")} disabled={!!busy} style={btn(true)} data-capacity-pause="">{busy === "pause" ? "Saving…" : "Pause new clients"}</button>
             </div>
