@@ -299,5 +299,9 @@
   "support.fill.button": "Isi ini",
   "support.fill.done": "Sudah diisi ✓",
   "support.fill.doneNote": "Cek tiap langkah, lalu lanjutkan. Kata sandi dan kotak persetujuan kamu isi sendiri.",
-  "support.fill.wrongForm": "Buka formulir yang dimaksud, lalu ketuk lagi."
+  "support.fill.wrongForm": "Buka formulir yang dimaksud, lalu ketuk lagi.",
+  "thread.yourClient": "Klienmu",
+  "thread.fromShape": "Dari Shape",
+  "thread.shapeWelcome": "{client} dan {coach} sekarang bekerja sama di Shape. Di utas ini kalian berbicara: pertanyaan, check-in, dan perubahan rencana semuanya masuk ke sini.",
+  "thread.shapeWelcomeNoClient": "Pelatihanmu dengan {coach} dimulai di sini. Di utas ini kalian berbicara: pertanyaan, check-in, dan perubahan rencana semuanya masuk ke sini."
 }

@@ -708,7 +708,7 @@ function DashClientDrawer({ row, role, onClose, prefs }) {
           </div>
         )}
         <div style={{ position: "sticky", bottom: -40, background: "var(--sh-ground2, #14110e)", padding: "16px 0", display: "flex", gap: 10, alignItems: "center", marginTop: 4 }}>
-          <button onClick={() => { onClose(); dashMessageClient(rec.profile.name, role, row.flags.length ? dashMessageDraft(row) : null); }} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--sh-deep, #06231f)", background: "var(--sh-accent, #2ee0c4)", border: 0, borderRadius: 4, padding: "11px 18px", cursor: "pointer" }}>Message</button>
+          <button onClick={() => { onClose(); dashMessageClient(rec.profile.name, role, row.flags.length ? dashMessageDraft(row) : null, rec.profile.id); }} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--sh-deep, #06231f)", background: "var(--sh-accent, #2ee0c4)", border: 0, borderRadius: 4, padding: "11px 18px", cursor: "pointer" }}>Message</button>
           {dashClientHref(rec, role) && <a href={dashClientHref(rec, role)} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DASH_ROSTER_INK50, textDecoration: "none" }}>Open client file →</a>}
         </div>
       </div>

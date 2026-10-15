@@ -66,17 +66,38 @@ function NutritionistMessagesPage() {
   const [sending, setSending] = React.useState(false);
   const scrollRef = React.useRef(null);
 
+  const [notice, setNotice] = React.useState("");
+
   React.useEffect(() => {
     let cancelled = false;
-    fetch('/api/nutritionist/messages', { credentials: 'same-origin' })
+    // ?client=<id> (a client page's Message button, or the new-client email): open the thread the
+    // client sees with this listing, then select it (client-onboarding review, fix 3a).
+    const params = new URLSearchParams(window.location.search);
+    const wanted = params.get('client');
+    // A dashboard reason pill's opener rides along as ?draft=: pre-filled, never sent.
+    const opener = params.get('draft');
+    if (opener) setDraft(opener.slice(0, 1000));
+    const load = (selectConv) => fetch('/api/nutritionist/messages', { credentials: 'same-origin' })
       .then(r => (r.ok ? r.json() : null))
       .then(d => {
         if (cancelled || !d || !d.isNutritionist) return;
         setLive(true);
         setThreads(d.threads);
-        setSelectedId(d.threads.length ? d.threads[0].id : null);
-      })
-      .catch(() => {});
+        const pick = selectConv && d.threads.find(t => t.id === selectConv);
+        setSelectedId(pick ? pick.id : d.threads.length ? d.threads[0].id : null);
+      });
+    const open = wanted
+      ? fetch('/api/nutritionist/messages', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ openClientId: wanted }),
+        }).then(r => r.json().catch(() => ({})).then(j => {
+          if (r.ok && j && j.conversationId) return j.conversationId;
+          if (!cancelled) setNotice(r.status === 403 ? "That member isn't your client, so there's no thread to open." : "That conversation couldn't be opened. Try again from their client page.");
+          return null;
+        })).catch(() => null)
+      : Promise.resolve(null);
+    open.then(conv => load(conv)).catch(() => {});
     return () => { cancelled = true; };
   }, []);
 
@@ -116,6 +137,9 @@ function NutritionistMessagesPage() {
       title="Messages"
       subtitle="Every nutrition conversation in one place."
     >
+      {notice && (
+        <div role="status" style={{ marginBottom: 16, padding: "12px 16px", borderRadius: 10, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", fontSize: 13, color: "var(--sh-ink2, #a09b94)" }}>{notice}</div>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: 20 }}>
         <Card style={{ padding: 0, overflow: "hidden" }}>
           <div style={{ padding: "18px 18px 10px" }}><SectionTitle>Inbox</SectionTitle></div>
@@ -157,7 +181,12 @@ function NutritionistMessagesPage() {
                 {selected.messages.length === 0 && (
                   <div style={{ margin: "auto", color: "var(--sh-ink3, #75706a)", fontSize: 13 }}>No messages yet — say hello.</div>
                 )}
-                {selected.messages.map((m) => (
+                {selected.messages.map((m) => m.shape ? (
+                  <div key={m.id} style={{ textAlign: "center", padding: "10px 6px", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--sh-ink2, #a09b94)", marginBottom: 5 }}>From Shape</div>
+                    <div style={{ fontSize: 13, lineHeight: 1.5 }}>{m.body}</div>
+                  </div>
+                ) : (
                   <div key={m.id} style={{ display: "flex", justifyContent: m.mine ? "flex-end" : "flex-start" }}>
                     <div style={{ maxWidth: "68%", background: m.mine ? TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.06)", color: m.mine ? PAPER : INK, padding: "10px 14px", borderRadius: 14, fontSize: 13.5, lineHeight: 1.5 }}>
                       {m.body}

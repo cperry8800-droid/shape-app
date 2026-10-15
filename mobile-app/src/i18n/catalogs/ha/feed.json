@@ -299,5 +299,9 @@
   "support.fill.button": "Cike waɗannan",
   "support.fill.done": "An cike ✓",
   "support.fill.doneNote": "Duba kowane mataki, sannan ka ci gaba. Kalmar sirrinka da akwatunan yarda naka ne ka yi.",
-  "support.fill.wrongForm": "Buɗe fom ɗin da suke nasa, sannan ka sake taɓawa."
+  "support.fill.wrongForm": "Buɗe fom ɗin da suke nasa, sannan ka sake taɓawa.",
+  "thread.yourClient": "Abokin cinikinka",
+  "thread.fromShape": "Daga Shape",
+  "thread.shapeWelcome": "{client} da {coach} yanzu suna aiki tare a Shape. A wannan zaren kuke magana: tambayoyi, duba-lafiya da canje-canjen tsari duk suna zuwa nan.",
+  "thread.shapeWelcomeNoClient": "Horarwarka tare da {coach} ta fara nan. A wannan zaren kuke magana: tambayoyi, duba-lafiya da canje-canjen tsari duk suna zuwa nan."
 }

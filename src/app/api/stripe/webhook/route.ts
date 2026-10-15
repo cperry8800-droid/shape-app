@@ -12,6 +12,7 @@ import { createNotification } from '@/lib/notify';
 import { coachCutCents, bpsToRate, parseFeeBpsMeta } from '@/lib/platform-fee';
 import { attributionPair, MARKETPLACE_FEE_BPS } from '@/lib/coach-origin.mjs';
 import { isRetryableDbError } from '@/lib/db-retryable';
+import { startCoaching, welcomeMember } from '@/lib/coach-thread';
 
 export const runtime = 'nodejs';
 
@@ -233,6 +234,7 @@ async function upsertPlatformSubscription(
   if (error && error.code !== '42P01') {
     console.warn('[shape-app] platform subscription upsert failed:', error.message);
   }
+  return !error;
 }
 
 export async function POST(request: Request) {
@@ -537,7 +539,7 @@ export async function POST(request: Request) {
         }
 
         if (session.metadata?.plan === 'shape_platform') {
-          await upsertPlatformSubscription(admin, {
+          const membershipSaved = await upsertPlatformSubscription(admin, {
             client_id: clientId,
             stripe_customer_id:
               typeof session.customer === 'string' ? session.customer : session.customer?.id ?? null,
@@ -549,6 +551,8 @@ export async function POST(request: Request) {
             price_cents: priceCents || null,
             current_period_end: currentPeriodEnd,
           });
+          // Fix 3a: a welcome from Shape when the membership starts, once per member.
+          if (membershipSaved) await welcomeMember(admin, clientId);
           break;
         }
 
@@ -601,12 +605,18 @@ export async function POST(request: Request) {
         } else {
           await consumeReferral(admin, session.metadata?.referral_id, 'subscription');
         }
-        if (providerId && providerRole) {
-          await notifyProviderOwner(
-            admin, Number(providerId), providerRole,
-            'New subscriber',
-            `A new client just subscribed${priceCents ? ` · ${usd(coachCutCents(priceCents, bpsToRate(subFeeBps)))}/mo to you` : ''}.`
-          );
+        // Fix 3a (client-onboarding review, H7 / M9): only once the subscription is SAVED, open
+        // the coach thread with Shape's welcome, alert and email the coach with the client's name
+        // and links, and email the member. It used to send a nameless "New subscriber" bell even
+        // when the save above had failed. Each part sends once (src/lib/coach-thread.ts).
+        if (!subErr && providerId && (providerRole === 'trainer' || providerRole === 'nutritionist')) {
+          await startCoaching(admin, {
+            clientId,
+            providerRole,
+            providerId: Number(providerId),
+            subscriptionKey: subRow.stripe_subscription_id || session.id,
+            monthlyCents: priceCents ? coachCutCents(priceCents, bpsToRate(subFeeBps)) : null,
+          });
         }
         // First-dibs: a completed subscription against an invited waitlist
         // slot is the client taking their spot — flip it to booked. Check the

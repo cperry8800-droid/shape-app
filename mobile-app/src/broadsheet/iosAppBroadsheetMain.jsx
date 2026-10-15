@@ -387,7 +387,7 @@ async function bsDigestTraining() {
 async function bsDigestCoach() {
   try {
     const res = (window.ShapeMessages && window.ShapeMessages.listDirectCoachThreads) ? await window.ShapeMessages.listDirectCoachThreads() : null;
-    const threads = (res && res.data) || [];
+    const threads = ((res && res.data) || []).filter((th) => !th.as_coach);
     const norm = threads.map((th) => {
       const cm = (th.messages || []).filter((m) => m.coach);
       const last = cm.length ? cm[cm.length - 1] : null;

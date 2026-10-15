@@ -299,5 +299,9 @@
   "support.fill.button": "Compila",
   "support.fill.done": "Compilato ✓",
   "support.fill.doneNote": "Controlla ogni passaggio, poi continua. La password e le caselle di consenso spettano a te.",
-  "support.fill.wrongForm": "Apri il modulo a cui si riferiscono, poi tocca di nuovo."
+  "support.fill.wrongForm": "Apri il modulo a cui si riferiscono, poi tocca di nuovo.",
+  "thread.yourClient": "Il tuo cliente",
+  "thread.fromShape": "Da Shape",
+  "thread.shapeWelcome": "{client} e {coach} ora lavorano insieme su Shape. In questa conversazione vi parlate: domande, check-in e modifiche al piano arrivano tutti qui.",
+  "thread.shapeWelcomeNoClient": "Il tuo coaching con {coach} inizia qui. In questa conversazione vi parlate: domande, check-in e modifiche al piano arrivano tutti qui."
 }

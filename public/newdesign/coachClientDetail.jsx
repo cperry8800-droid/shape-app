@@ -498,7 +498,13 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
   // bubble's own deep-link otherwise); Schedule and Assign are the shell's own
   // tabs, same-document inside a coach shell.
   const messageClient = () => {
-    if (typeof dashMessageClient === "function") { dashMessageClient(data.client.name, myRole); return; }
+    if (typeof dashMessageClient === "function") { dashMessageClient(data.client.name, myRole, undefined, clientId); return; }
+    // Without the dashboard helper (the standalone client page): the same Messages page, on the
+    // thread the client sees (fix 3a), before falling back to the bubble.
+    if ((myRole === "trainer" || myRole === "nutritionist") && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(clientId || ""))) {
+      window.location.href = "/newdesign/" + (myRole === "nutritionist" ? "Nutritionist" : "Trainer") + "Messages.html?client=" + encodeURIComponent(clientId);
+      return;
+    }
     const opts = { who: data.client.name };
     try { if (typeof window.__openChat === "function") { window.__openChat(opts); return; } } catch (e) {}
     const b = document.getElementById("shape-global-chat-button");

@@ -299,5 +299,9 @@
   "support.fill.button": "Rellenar",
   "support.fill.done": "Rellenado ✓",
   "support.fill.doneNote": "Revisa cada paso y luego continúa. Tu contraseña y las casillas de aceptación las marcas tú.",
-  "support.fill.wrongForm": "Abre el formulario al que corresponden y vuelve a tocar."
+  "support.fill.wrongForm": "Abre el formulario al que corresponden y vuelve a tocar.",
+  "thread.yourClient": "Tu cliente",
+  "thread.fromShape": "De Shape",
+  "thread.shapeWelcome": "{client} y {coach} ya trabajan juntos en Shape. En este hilo habláis: preguntas, check-ins y cambios del plan llegan aquí.",
+  "thread.shapeWelcomeNoClient": "Tu coaching con {coach} empieza aquí. En este hilo habláis: preguntas, check-ins y cambios del plan llegan aquí."
 }

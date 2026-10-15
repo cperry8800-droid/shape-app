@@ -299,5 +299,9 @@
   "support.fill.button": "Eintragen",
   "support.fill.done": "Eingetragen ✓",
   "support.fill.doneNote": "Prüfe jeden Schritt und mach dann weiter. Dein Passwort und die Zustimmungsfelder machst du selbst.",
-  "support.fill.wrongForm": "Öffne das Formular, zu dem das gehört, und tippe noch einmal."
+  "support.fill.wrongForm": "Öffne das Formular, zu dem das gehört, und tippe noch einmal.",
+  "thread.yourClient": "Dein Klient",
+  "thread.fromShape": "Von Shape",
+  "thread.shapeWelcome": "{client} und {coach} arbeiten jetzt auf Shape zusammen. In diesem Thread sprecht ihr miteinander: Fragen, Check-ins und Planänderungen landen alle hier.",
+  "thread.shapeWelcomeNoClient": "Dein Coaching mit {coach} beginnt hier. In diesem Thread sprecht ihr miteinander: Fragen, Check-ins und Planänderungen landen alle hier."
 }

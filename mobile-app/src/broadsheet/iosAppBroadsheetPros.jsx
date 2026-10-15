@@ -1282,6 +1282,12 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
       const uid = c && (c.userId || c.user_id || (typeof c.id === 'string' && c.id.includes('-') ? c.id : null));
       const name = (c && c.n) || 'Client';
       let cid = e?.detail?.conversationId || null;
+      // The thread the client sees under Coaches (fix 3a, H7): their direct thread with this
+      // listing. A member-to-member chat is the fallback only when that cannot be opened (not
+      // their client, or before 2026-10-15-coach-thread.sql), as it was the only path before.
+      if (!cid && uid && window.ShapeMessages?.getOrCreateClientConversation) {
+        try { const conv = await window.ShapeMessages.getOrCreateClientConversation({ clientId: uid, providerRole: 'trainer' }); cid = (conv && conv.data) || null; } catch (err) {}
+      }
       if (!cid && uid && window.ShapeMessages?.getOrCreateMemberConversation) {
         try { const conv = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: uid }); cid = (conv && conv.data) || null; } catch (err) {}
       }
@@ -6962,6 +6968,12 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
       const uid = c && (c.userId || c.user_id || (typeof c.id === 'string' && c.id.includes('-') ? c.id : null));
       const name = (c && c.n) || 'Client';
       let cid = e?.detail?.conversationId || null;
+      // The thread the client sees under Coaches (fix 3a, H7): their direct thread with this
+      // listing. A member-to-member chat is the fallback only when that cannot be opened (not
+      // their client, or before 2026-10-15-coach-thread.sql), as it was the only path before.
+      if (!cid && uid && window.ShapeMessages?.getOrCreateClientConversation) {
+        try { const conv = await window.ShapeMessages.getOrCreateClientConversation({ clientId: uid, providerRole: 'nutritionist' }); cid = (conv && conv.data) || null; } catch (err) {}
+      }
       if (!cid && uid && window.ShapeMessages?.getOrCreateMemberConversation) {
         try { const conv = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: uid }); cid = (conv && conv.data) || null; } catch (err) {}
       }

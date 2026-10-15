@@ -1,0 +1,398 @@
+// Client-onboarding review, fix 3a: hiring a coach starts the relationship (H7, M9).
+//   - When a coach subscription is saved, the Stripe webhook opens the coach thread with Shape's
+//     welcome at the top (once), alerts and emails the coach with the client's name and links
+//     (once, only after the save), and emails the member (once). A membership start welcomes the
+//     member once.
+//   - A coach opens the SAME thread the client sees, from the app and from the website, instead of
+//     a member-to-member chat nobody else can find; their side names the thread after the client.
+//   - Shape's welcome reads as a note from Shape in every thread view, in the member's language in
+//     the app.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { loadRealModule } from './helpers/load-real-module.mjs';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const read = (rel) => readFileSync(join(ROOT, rel), 'utf8');
+const W = await import('../mobile-app/src/services/shapeWelcome.mjs');
+const LOCALES = ['de', 'en', 'es', 'fr', 'ha', 'id', 'it', 'pcm', 'pt-BR', 'ru', 'tr', 'uk', 'vi'];
+const SQL = read('supabase-migrations/2026-10-15-coach-thread.sql');
+// The code, without its line comments (no string in this file carries a `--`).
+const SQL_CODE = SQL.replace(/--[^\n]*/g, '');
+
+// ── The welcome text ─────────────────────────────────────────────────────────────────────────────
+test('the welcome: from Shape, naming both people, and recognised by its marker only', () => {
+  assert.equal(W.shapeWelcomeText({ client: 'Cara Diaz', coach: 'Tom Trainer' }),
+    'Cara and Tom Trainer are now working together on Shape. This thread is where you talk: questions, check-ins and plan changes all land here.');
+  assert.match(W.shapeWelcomeText({ coach: 'Tom Trainer' }), /^Your coaching with Tom Trainer starts here\. /, 'no client name');
+  assert.match(W.shapeWelcomeText({}), /^Your coaching with your coach starts here\./);
+  assert.equal(W.shapeFirstName('  Cara   Diaz '), 'Cara');
+  assert.equal(W.shapeFirstName(null), '');
+  const row = { sender_id: null, body: 'Hello', metadata: { shape: 'welcome', coach: 'Tom Trainer', client: 'Cara' } };
+  assert.equal(W.isShapeWelcome(row), true);
+  assert.equal(W.isShapeWelcome({ ...row, sender_id: 'u1' }), false, 'a person can never send one');
+  assert.equal(W.isShapeWelcome({ ...row, metadata: { shape: 'other' } }), false);
+  assert.equal(W.isShapeWelcome({ ...row, metadata: null }), false);
+  assert.equal(W.isShapeWelcome(null), false);
+});
+
+test('the welcome in the member\'s language: from its metadata, the body when it cannot be', () => {
+  const en = JSON.parse(read('mobile-app/src/i18n/catalogs/en/feed.json'));
+  const de = JSON.parse(read('mobile-app/src/i18n/catalogs/de/feed.json'));
+  const trFor = (cat) => (key, vars) => {
+    const k = key.replace(/^feed:/, '');
+    const raw = cat[k];
+    if (!raw) return vars.defaultValue;
+    return raw.replace(/\{(\w+)\}/g, (_, v) => vars[v] ?? `{${v}}`);
+  };
+  const row = { sender_id: null, body: 'stored body', metadata: { shape: 'welcome', coach: 'Tom Trainer', client: 'Cara Diaz' } };
+  // The English catalog says exactly what the server stores, so both sides read one sentence.
+  assert.equal(W.shapeWelcomeShown(row, trFor(en)), W.shapeWelcomeText({ client: 'Cara', coach: 'Tom Trainer' }));
+  assert.equal(W.shapeWelcomeShown({ ...row, metadata: { shape: 'welcome', coach: 'Tom Trainer' } }, trFor(en)), W.shapeWelcomeText({ coach: 'Tom Trainer' }));
+  assert.match(W.shapeWelcomeShown(row, trFor(de)), /^Cara und Tom Trainer arbeiten jetzt auf Shape zusammen\./);
+  assert.equal(W.shapeWelcomeShown(row), 'stored body', 'no translator: the body');
+  assert.equal(W.shapeWelcomeShown({ ...row, metadata: { shape: 'welcome' } }, trFor(de)), 'stored body', 'no coach name: the body');
+  assert.equal(W.shapeWelcomeShown(row, () => { throw new Error('x'); }), 'stored body');
+  assert.equal(W.shapeWelcomeShown(row, (k) => k), 'stored body', 'a raw key is never shown');
+  assert.equal(W.shapeWelcomeShown({ sender_id: 'u', body: 'hi', metadata: {} }, trFor(de)), 'hi', 'a person\'s message is untouched');
+});
+
+test('the four thread strings in all 13 catalogs, placeholders kept', () => {
+  for (const loc of LOCALES) {
+    const cat = JSON.parse(read(`mobile-app/src/i18n/catalogs/${loc}/feed.json`));
+    for (const key of ['thread.yourClient', 'thread.fromShape', 'thread.shapeWelcome', 'thread.shapeWelcomeNoClient']) {
+      assert.ok(typeof cat[key] === 'string' && cat[key].trim(), `${loc}: ${key}`);
+    }
+    assert.ok(cat['thread.shapeWelcome'].includes('{client}') && cat['thread.shapeWelcome'].includes('{coach}'), `${loc}: shapeWelcome placeholders`);
+    assert.ok(cat['thread.shapeWelcomeNoClient'].includes('{coach}') && !cat['thread.shapeWelcomeNoClient'].includes('{client}'), `${loc}: shapeWelcomeNoClient placeholders`);
+  }
+});
+
+// ── The migration ────────────────────────────────────────────────────────────────────────────────
+test('migration: the welcome is posted once per thread, by the service role only', () => {
+  assert.match(SQL_CODE, /create unique index if not exists messages_shape_welcome_uidx\s+on public\.messages \(conversation_id\)\s+where sender_id is null and \(metadata->>'shape'\) = 'welcome'/);
+  assert.match(SQL_CODE, /on conflict \(conversation_id\) where sender_id is null and \(metadata->>'shape'\) = 'welcome'\s+do nothing\s+returning id into v_msg/);
+  assert.match(SQL_CODE, /return query select v_conv, v_msg is not null;/, 'it says whether THIS call posted the welcome');
+  assert.match(SQL_CODE, /revoke all on function public\.open_coach_thread\(uuid, text, bigint, text, text\) from public, anon, authenticated;\s+grant execute on function public\.open_coach_thread\(uuid, text, bigint, text, text\) to service_role;/);
+  assert.match(SQL_CODE, /revoke all on function public\.get_or_create_client_conversation\(uuid, text\) from public, anon;\s+grant execute on function public\.get_or_create_client_conversation\(uuid, text\) to authenticated, service_role;/);
+  for (const fn of ['open_coach_thread', 'get_or_create_client_conversation']) {
+    const body = SQL_CODE.slice(SQL_CODE.indexOf(`function public.${fn}(`));
+    assert.match(body.slice(0, 600), /security definer\s+set search_path = public, pg_temp/, `${fn}: definer, pinned`);
+  }
+  assert.match(SQL_CODE, /exception when unique_violation then/, 'a lost race reads the winner\'s thread');
+});
+
+test('migration: a coach opens a thread only for their own client, with the listing of that role', () => {
+  const body = SQL_CODE.slice(SQL_CODE.indexOf('function public.get_or_create_client_conversation('), SQL_CODE.indexOf('revoke all on function public.open_coach_thread'));
+  assert.match(body, /if v_uid is null then\s+raise exception 'Authentication is required\.' using errcode = '42501';/);
+  assert.match(body, /from public\.trainers t where t\.owner_id = v_uid/);
+  assert.match(body, /from public\.nutritionists n where n\.owner_id = v_uid/);
+  // Every leg of the relationship is held to THIS listing (role and id), not to any of the caller's.
+  for (const leg of ['subscriptions s', 'sessions s', 'one_time_purchases p']) {
+    const at = body.indexOf(`from public.${leg}`);
+    assert.ok(at > 0, leg);
+    assert.match(body.slice(at, at + 260), /provider_role = p_provider_role and \w\.provider_id = v_pid/, `${leg}: held to the listing`);
+  }
+  assert.match(body, /s\.status in \('active', 'trialing'\)/);
+  assert.match(body, /coalesce\(s\.status, ''\) not in \('cancelled', 'canceled', 'declined'\)\s+and s\.scheduled_at >= now\(\) - interval '90 days'/);
+  assert.match(body, /p\.kind = 'booking' and p\.status = 'paid'\s+and p\.created_at >= now\(\) - interval '90 days'/);
+  assert.match(body, /raise exception 'This member is not your client\.' using errcode = '42501';/);
+  // An existing thread is answered before the check: the coach can already read it through RLS.
+  assert.ok(body.indexOf('if v_conv is not null then') < body.indexOf("raise exception 'This member is not your client"));
+});
+
+// ── The server: startCoaching / welcomeMember ───────────────────────────────────────────────────
+function fakeAdmin({ provider = { name: 'Tom Trainer', owner_id: 'coach-1' }, client = { full_name: 'Cara Diaz' }, rpcResult = { data: [{ thread_id: 'conv-1', welcomed: true }], error: null }, emails = { 'coach-1': 'tom@example.com', 'client-1': 'cara@example.com' } } = {}) {
+  const calls = { from: [], rpc: [] };
+  const admin = {
+    from(table) {
+      calls.from.push(table);
+      const row = table === 'profiles' ? client : provider;
+      const q = { select: () => q, eq: () => q, maybeSingle: async () => ({ data: row, error: null }) };
+      return q;
+    },
+    async rpc(name, args) { calls.rpc.push([name, args]); return rpcResult; },
+    auth: { admin: { getUserById: async (id) => ({ data: { user: emails[id] ? { email: emails[id] } : null } }) } },
+  };
+  return { admin, calls };
+}
+
+async function loadCoachThread({ stored = true } = {}) {
+  const sent = { notifications: [], emails: [] };
+  const emails = await loadRealModule(join(ROOT, 'src/lib/coach-application-emails.ts'), { typescript: true });
+  const mod = await loadRealModule(join(ROOT, 'src/lib/coach-thread.ts'), {
+    typescript: true,
+    registry: new Map([
+      ['@/lib/notify', { createNotification: async (_c, n) => { sent.notifications.push(n); return typeof stored === 'function' ? stored(n) : stored; } }],
+      ['@/lib/email', { sendEmail: async (e) => { sent.emails.push(e); return { ok: true }; } }],
+      ['@/lib/coach-application-emails', emails],
+    ]),
+  });
+  return { mod, sent };
+}
+
+test('startCoaching: the thread with the welcome, the coach alerted and emailed with the name, the member emailed', async () => {
+  const { mod, sent } = await loadCoachThread();
+  const { admin, calls } = fakeAdmin();
+  const out = await mod.startCoaching(admin, { clientId: 'client-1', providerRole: 'trainer', providerId: 7, subscriptionKey: 'sub_123', monthlyCents: 8500 });
+  assert.deepEqual(out, { conversationId: 'conv-1', welcomed: true, coachAlerted: true });
+  assert.equal(calls.rpc.length, 1);
+  const [name, args] = calls.rpc[0];
+  assert.equal(name, 'open_coach_thread');
+  assert.deepEqual({ ...args, p_welcome: undefined }, { p_client_id: 'client-1', p_provider_role: 'trainer', p_provider_id: 7, p_welcome: undefined, p_client_name: 'Cara' });
+  assert.equal(args.p_welcome, W.shapeWelcomeText({ client: 'Cara', coach: 'Tom Trainer' }));
+  assert.equal(sent.notifications.length, 1);
+  const n = sent.notifications[0];
+  assert.equal(n.userId, 'coach-1');
+  assert.equal(n.type, 'new_client');
+  assert.equal(n.title, 'New client: Cara Diaz');
+  assert.match(n.body, /^Cara Diaz subscribed · \$85\.00\/mo to you\. /);
+  assert.equal(n.route, 'messages');
+  assert.deepEqual(n.data, { dedupe: 'hire:sub_123', clientId: 'client-1', conversationId: 'conv-1', providerRole: 'trainer' });
+  assert.deepEqual(sent.emails.map((e) => [e.to, e.subject]), [
+    ['tom@example.com', 'New client: Cara Diaz'],
+    ['cara@example.com', "You're working with Tom Trainer on Shape"],
+  ]);
+  assert.match(sent.emails[0].text, /\/newdesign\/TrainerMessages\.html\?client=client-1/);
+  assert.match(sent.emails[0].text, /\/newdesign\/TrainerApp\.html#client\/client-1/);
+  assert.match(sent.emails[1].text, /\/newdesign\/ClientApp\.html#team/);
+});
+
+test('startCoaching sends each part once: a redelivered event, an existing welcome, an unclaimed listing, a failed open', async () => {
+  // A redelivery: the dedupe row exists (createNotification answers false) and the welcome is
+  // already there (welcomed false). Nothing is sent again.
+  {
+    const { mod, sent } = await loadCoachThread({ stored: false });
+    const { admin } = fakeAdmin({ rpcResult: { data: [{ thread_id: 'conv-1', welcomed: false }], error: null } });
+    const out = await mod.startCoaching(admin, { clientId: 'client-1', providerRole: 'trainer', providerId: 7, subscriptionKey: 'sub_123' });
+    assert.deepEqual(out, { conversationId: 'conv-1', welcomed: false, coachAlerted: false });
+    assert.equal(sent.emails.length, 0, 'no email without a stored alert or a new welcome');
+  }
+  // A listing nobody has claimed: no coach to alert; the member is still welcomed.
+  {
+    const { mod, sent } = await loadCoachThread();
+    const { admin } = fakeAdmin({ provider: { name: 'Unclaimed', owner_id: null } });
+    const out = await mod.startCoaching(admin, { clientId: 'client-1', providerRole: 'nutritionist', providerId: 9, subscriptionKey: 'sub_9' });
+    assert.equal(out.coachAlerted, false);
+    assert.equal(sent.notifications.length, 0);
+    assert.deepEqual(sent.emails.map((e) => e.to), ['cara@example.com']);
+    assert.match(sent.emails[0].text, /thread with your nutritionist/);
+  }
+  // Before the migration (or a failed open): the coach is still told, the member is not emailed
+  // about a thread that was not opened.
+  {
+    const { mod, sent } = await loadCoachThread();
+    const { admin } = fakeAdmin({ rpcResult: { data: null, error: { message: 'missing', code: 'PGRST202' } } });
+    const out = await mod.startCoaching(admin, { clientId: 'client-1', providerRole: 'trainer', providerId: 7, subscriptionKey: 'sub_1' });
+    assert.deepEqual(out, { conversationId: null, welcomed: false, coachAlerted: true });
+    assert.deepEqual(sent.emails.map((e) => e.to), ['tom@example.com']);
+  }
+  // No name on file: the alert still names "A new client", never "undefined".
+  {
+    const { mod, sent } = await loadCoachThread();
+    const { admin } = fakeAdmin({ client: { full_name: null } });
+    await mod.startCoaching(admin, { clientId: 'client-1', providerRole: 'trainer', providerId: 7, subscriptionKey: 'sub_2' });
+    assert.equal(sent.notifications[0].title, 'New client: A new client');
+    assert.doesNotMatch(JSON.stringify(sent), /undefined|null subscribed/);
+  }
+  // A throw anywhere never escapes: the payment is already recorded.
+  {
+    const { mod } = await loadCoachThread();
+    const admin = { from() { throw new Error('boom'); } };
+    const out = await mod.startCoaching(admin, { clientId: 'client-1', providerRole: 'trainer', providerId: 7, subscriptionKey: 'x' });
+    assert.deepEqual(out, { conversationId: null, welcomed: false, coachAlerted: false });
+  }
+});
+
+test('welcomeMember: once per member, in the app and by email', async () => {
+  const { mod, sent } = await loadCoachThread();
+  const { admin } = fakeAdmin();
+  assert.equal(await mod.welcomeMember(admin, 'client-1'), true);
+  assert.deepEqual(sent.notifications.map((n) => [n.userId, n.type, n.title, n.data.dedupe]), [['client-1', 'membership_welcome', 'Welcome to Shape', 'membership-welcome']]);
+  assert.deepEqual(sent.emails.map((e) => [e.to, e.subject]), [['cara@example.com', 'Welcome to Shape']]);
+  assert.match(sent.emails[0].html, /Welcome to Shape, Cara\./);
+  const again = await loadCoachThread({ stored: false });
+  assert.equal(await again.mod.welcomeMember(fakeAdmin().admin, 'client-1'), false);
+  assert.equal(again.sent.emails.length, 0, 'a second start (the dedupe row exists) sends nothing');
+});
+
+test('the emails escape what a person typed', async () => {
+  const { mod } = await loadCoachThread();
+  const e = mod.coachHireEmail({ clientName: '<b>Eve</b>', role: 'nutritionist', clientId: 'c-1', site: 'https://x.test' });
+  assert.doesNotMatch(e.html, /<b>Eve<\/b>/);
+  assert.match(e.html, /&lt;b&gt;Eve&lt;\/b&gt;/);
+  assert.match(e.text, /https:\/\/x\.test\/newdesign\/NutritionistMessages\.html\?client=c-1/);
+  const m = mod.memberHireEmail({ coachName: '<i>Tom</i>', role: 'trainer', firstName: 'Cara', site: 'https://x.test' });
+  assert.doesNotMatch(m.html, /<i>Tom<\/i>/);
+});
+
+// ── The webhook ──────────────────────────────────────────────────────────────────────────────────
+test('webhook: the coach is told only after the subscription is saved, and the nameless bell is gone', () => {
+  const src = read('src/app/api/stripe/webhook/route.ts');
+  assert.doesNotMatch(src, /'New subscriber'/);
+  const at = src.indexOf('await startCoaching(admin, {');
+  assert.ok(at > 0);
+  const guard = src.slice(src.lastIndexOf('if (', at), at);
+  assert.match(guard, /^if \(!subErr && providerId && \(providerRole === 'trainer' \|\| providerRole === 'nutritionist'\)\) \{/);
+  assert.ok(at > src.indexOf(".from('subscriptions')\n          .upsert("), 'after the save');
+  assert.match(src.slice(at, at + 400), /subscriptionKey: subRow\.stripe_subscription_id \|\| session\.id,/);
+  // The membership: welcomed only when its row was saved.
+  assert.match(src, /const membershipSaved = await upsertPlatformSubscription\(admin, \{/);
+  assert.match(src, /if \(membershipSaved\) await welcomeMember\(admin, clientId\);/);
+  const helper = src.slice(src.indexOf('async function upsertPlatformSubscription('), src.indexOf('export async function POST'));
+  assert.match(helper, /return !error;\s*\}\s*$/);
+});
+
+// ── The coach's Messages routes ──────────────────────────────────────────────────────────────────
+test('coach Messages: the welcome from neither side, names from the profile, and the open-a-thread call', async () => {
+  const lib = await loadRealModule(join(ROOT, 'src/lib/coach-messages.ts'), { typescript: true, registry: new Map([['@/lib/supabase/server', {}]]) });
+  assert.deepEqual(lib.coachThreadMessage({ id: 'm1', sender_id: null, body: 'Welcome', metadata: { shape: 'welcome' }, created_at: 't' }, 'me'),
+    { id: 'm1', body: 'Welcome', mine: false, createdAt: 't', shape: true });
+  assert.deepEqual(lib.coachThreadMessage({ id: 'm2', sender_id: 'me', body: 'hi', metadata: {}, created_at: 't' }, 'me'),
+    { id: 'm2', body: 'hi', mine: true, createdAt: 't' });
+  assert.equal(lib.coachThreadMessage({ id: 'm3', sender_id: null, body: 'x', metadata: { shape: 'other' }, created_at: 't' }, 'me').shape, undefined);
+  assert.deepEqual(lib.coachThreadMessage({ id: 'm4', sender_id: 'client-1', body: 'x', metadata: { shape: 'welcome' }, created_at: 't' }, 'me'),
+    { id: 'm4', body: 'x', mine: false, createdAt: 't' }, 'a person\'s message is never Shape\'s, whatever its metadata says');
+
+  const rpcs = [];
+  const sb = (answer) => ({ rpc: async (n, a) => { rpcs.push([n, a]); return answer; } });
+  const names = await lib.clientNames(sb({ data: [{ user_id: 'a', full_name: 'Ana Real' }], error: null }), ['a', 'b', 'a'], new Map([['a', 'Ana Booking'], ['b', 'Bo Booking']]));
+  assert.deepEqual([...names], [['a', 'Ana Real'], ['b', 'Bo Booking']], 'the profile name wins, a booking name fills in');
+  assert.deepEqual(rpcs.at(-1), ['get_display_names', { p_ids: ['a', 'b'] }]);
+  const failed = await lib.clientNames(sb({ data: null, error: { message: 'x' } }), ['a'], new Map([['a', 'Ana Booking']]));
+  assert.deepEqual([...failed], [['a', 'Ana Booking']], 'a failed read keeps what was known');
+
+  const id = '00000000-0000-0000-0000-00000000000c';
+  assert.deepEqual(await lib.openClientThread(sb({ data: 'conv-9', error: null }), id, 'nutritionist'), { status: 200, body: { ok: true, conversationId: 'conv-9' } });
+  assert.deepEqual(rpcs.at(-1), ['get_or_create_client_conversation', { p_client_id: id, p_provider_role: 'nutritionist' }]);
+  assert.equal((await lib.openClientThread(sb({ data: null, error: { code: '42501', message: 'no' } }), id, 'trainer')).status, 403);
+  assert.equal((await lib.openClientThread(sb({ data: null, error: { code: 'PGRST202', message: 'no' } }), id, 'trainer')).status, 503);
+  assert.equal((await lib.openClientThread(sb({ data: null, error: { code: 'XX000', message: 'no' } }), id, 'trainer')).status, 500);
+  const before = rpcs.length;
+  assert.equal((await lib.openClientThread(sb({}), 'not-a-uuid', 'trainer')).status, 400);
+  assert.equal(rpcs.length, before, 'a malformed id never reaches the database');
+
+  for (const role of ['trainer', 'nutritionist']) {
+    const route = read(`src/app/api/${role}/messages/route.ts`);
+    assert.match(route, /\.select\('id, conversation_id, sender_id, body, metadata, created_at'\)/, `${role}: reads the marker`);
+    assert.match(route, /arr\.push\(coachThreadMessage\(m, user\.id\)\);/);
+    assert.match(route, /const names = await clientNames\(supabase, conversations\.map\(\(c\) => c\.client_id as string\), nameByClient\);/);
+    assert.match(route, new RegExp(`const opened = await openClientThread\\(supabase, body\\.openClientId, '${role}'\\);`));
+    const page = read(`public/newdesign/${role === 'trainer' ? 'Trainer' : 'Nutritionist'}Messages.html`);
+    assert.match(page, /const wanted = params\.get\('client'\);/);
+    assert.match(page, /body: JSON\.stringify\(\{ openClientId: wanted \}\)/);
+    assert.match(page, /const pick = selectConv && d\.threads\.find\(t => t\.id === selectConv\);/);
+    assert.match(page, /selected\.messages\.map\(\(m\) => m\.shape \? \(/);
+    assert.match(page, />From Shape</);
+  }
+});
+
+// ── The website's coach buttons and chat ─────────────────────────────────────────────────────────
+test('website: a coach\'s Message with the client id opens the thread the client sees', () => {
+  const src = read('public/newdesign/dashToday.jsx');
+  const fn = src.slice(src.indexOf('function dashMessageHref('), src.indexOf('function dashMessageClient('));
+  const dashMessageHref = new Function(`${fn}; return dashMessageHref;`)();
+  const U = '0f8fad5b-d9cb-469f-a165-70867728950e';
+  assert.equal(dashMessageHref('trainer', U), `/newdesign/TrainerMessages.html?client=${U}`);
+  assert.equal(dashMessageHref('nutritionist', U, 'Hi there'), `/newdesign/NutritionistMessages.html?client=${U}&draft=Hi%20there`);
+  assert.equal(dashMessageHref('client', U), null, 'a member keeps the bubble');
+  assert.equal(dashMessageHref('trainer', null), null, 'no id: the bubble, as before');
+  assert.equal(dashMessageHref('trainer', 'me'), null);
+  assert.equal(dashMessageHref('trainer', 'demo-3'), null, 'a demo client is not an account');
+  assert.match(src, /function dashMessageClient\(name, role, draft, clientId\) \{\s+const href = dashMessageHref\(role, clientId, draft\);\s+if \(href\) \{ window\.location\.href = href; return; \}/);
+  // The coach call sites pass the id they hold.
+  for (const [file, call] of [
+    ['public/newdesign/dashRoster.jsx', 'dashMessageDraft(row) : null, rec.profile.id)'],
+    ['public/newdesign/dashWeek.jsx', 'dashMessageDraft(row) : null, rec.profile.id)'],
+    ['public/newdesign/dashMealBuilder.jsx', 'build your first week.", c.profile.id)'],
+    ['public/newdesign/dashToday.jsx', 'dashCongratsDraft(r.client, r.hit), r.client.profile.id)'],
+    ['public/newdesign/dashToday.jsx', 'dashMessageDraft(r), c.profile.id)'],
+    ['public/newdesign/dashToday.jsx', 'Well done!" : undefined, m.id)'],
+    ['public/newdesign/dashToday.jsx', 'proudest of so far?", h.id)'],
+    ['public/newdesign/dashToday.jsx', '". ", open.clientId)'],
+    ['public/newdesign/coachClientDetail.jsx', 'dashMessageClient(data.client.name, myRole, undefined, clientId)'],
+  ]) assert.ok(read(file).includes(call), `${file}: ${call}`);
+  // The standalone client page (no dashboard helper) goes to the same page.
+  const detail = read('public/newdesign/coachClientDetail.jsx');
+  assert.match(detail, /Messages\.html\?client=" \+ encodeURIComponent\(clientId\);/);
+  assert.match(detail, /\(myRole === "trainer" \|\| myRole === "nutritionist"\) && \/\^\[0-9a-f\]\{8\}-/, 'only a real account id');
+});
+
+test('website chat: Shape\'s welcome is a note, not a message from the coach', () => {
+  const src = read('public/newdesign/chatWidget.jsx');
+  assert.match(src, /if \(!m\.sender_id && m\.metadata && m\.metadata\.shape === "welcome"\) \{\s+return \{ who: "Shape", t: m\.body, time: ts2, me: false, shape: true, userId: null \};/);
+  assert.match(src, /\{active\?\.messages\?\.map\(\(m, i\) => \{\s+if \(m && m\.shape\) \{/);
+});
+
+// ── The app ──────────────────────────────────────────────────────────────────────────────────────
+test('app backend: the coach side names the client, the welcome is from neither side, the coach opens the client\'s thread', async () => {
+  const src = read('mobile-app/src/services/shapeBackend.js');
+  const fnSrc = (name) => {
+    const at = src.indexOf(`function ${name}(`);
+    let depth = 0, i = src.indexOf(') {', at) + 2; // the body's brace, not a default parameter's
+    for (; i < src.length; i++) { if (src[i] === '{') depth++; else if (src[i] === '}' && --depth === 0) break; }
+    return src.slice(at, i + 1);
+  };
+  const state = { user: { id: 'coach-1' } };
+  const conversationToThread = new Function('state', 'isShapeWelcome', `${fnSrc('conversationToThread')}; return conversationToThread;`)(state, W.isShapeWelcome);
+  const conv = { id: 'c1', provider_role: 'trainer', provider_id: 7, client_id: 'client-1', title: 'Tom Trainer', last_message: 'x' };
+  const msgs = [
+    { id: 'w', sender_id: null, body: 'Welcome', metadata: { shape: 'welcome', coach: 'Tom Trainer' }, created_at: '2026-10-15T00:00:00Z' },
+    { id: 'a', sender_id: 'client-1', body: 'Hi coach', metadata: {}, created_at: '2026-10-15T00:01:00Z' },
+    { id: 'b', sender_id: 'coach-1', body: 'Hi Cara', metadata: {}, created_at: '2026-10-15T00:02:00Z' },
+  ];
+  const coachSide = conversationToThread(conv, msgs, { 'client-1': 'Cara Diaz' });
+  assert.equal(coachSide.as_coach, true);
+  assert.equal(coachSide.who, 'Cara Diaz');
+  assert.equal(coachSide.bucket, 'CLIENT');
+  assert.deepEqual(coachSide.messages.map((m) => [m.who, m.me, m.coach, !!m.shape]), [['Shape', false, false, true], ['Cara Diaz', false, false, false], ['You', true, false, false]]);
+  assert.equal(conversationToThread(conv, [], {}).who, 'Client', 'no name: "Client"');
+  state.user.id = 'client-1';
+  const clientSide = conversationToThread(conv, msgs, {});
+  assert.equal(clientSide.as_coach, false);
+  assert.equal(clientSide.who, 'Tom Trainer');
+  assert.equal(clientSide.bucket, 'COACH');
+  assert.deepEqual(clientSide.messages.map((m) => [m.who, m.me, m.coach, !!m.shape]), [['Shape', false, false, true], ['You', true, false, false], ['Tom Trainer', false, true, false]]);
+  // A coach↔coach care-team thread (no provider) keeps its title.
+  state.user.id = 'coach-1';
+  assert.equal(conversationToThread({ id: 'c2', provider_role: null, client_id: 'client-1', title: 'Care team' }, [], { 'client-1': 'Cara' }).who, 'Care team');
+
+  assert.match(src, /await supabase\.rpc\('get_or_create_client_conversation', \{\s+p_client_id: clientId,\s+p_provider_role: normalizeProviderRoleForMessages\(providerRole\),/);
+  assert.match(src, /getOrCreateClientConversation,\s+getConversationThread,/);
+  assert.match(fnSrc('listDirectCoachThreads'), /const names = await clientNamesFor\(conversations \|\| \[\]\);/);
+  assert.match(fnSrc('clientNamesFor'), /\.filter\(c => c && c\.provider_role && c\.client_id && c\.client_id !== myId\)/);
+});
+
+test('app: both coach shells open the client\'s thread first, with their own role', () => {
+  const pros = read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx');
+  for (const [shell, role] of [['function BSTrainerAppInner(', 'trainer'], ['function BSNutritionistAppInner(', 'nutritionist']]) {
+    const at = pros.indexOf(shell);
+    const body = pros.slice(at, pros.indexOf("window.addEventListener('shape:proMessageClient', onMsg);", at));
+    const client = body.indexOf(`getOrCreateClientConversation({ clientId: uid, providerRole: '${role}' })`);
+    const member = body.indexOf('getOrCreateMemberConversation({ otherUserId: uid })');
+    assert.ok(client > 0, `${role}: the client's thread`);
+    assert.ok(member > client, `${role}: the member chat only as the fallback`);
+    assert.match(body.slice(member - 200, member), /if \(!cid && uid && window\.ShapeMessages\?\.getOrCreateMemberConversation\)/);
+  }
+});
+
+test('app: the thread view loads its history by id, shows the welcome as a note, and a member never lists a client thread', () => {
+  const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  assert.match(client, /import \{ isShapeWelcome, shapeWelcomeShown \} from '\.\.\/services\/shapeWelcome\.mjs';/);
+  const thread = client.slice(client.indexOf('function BSChatThread('), client.indexOf('function BSChatThread(') + 9000);
+  assert.match(thread, /if \(!thread\.conversationId \|\| \(thread\.messages && thread\.messages\.length\) \|\| !window\.ShapeMessages\?\.getConversationThread\) return;/);
+  assert.match(thread, /: \(history && history\.length\) \? history/);
+  assert.match(thread, /if \(isShapeWelcome\(row\)\) \{ setExtras/);
+  assert.match(client, /if \(m\.shape\) \{\s+return \(/);
+  assert.match(client, /\{shapeWelcomeShown\(m\.shape, tr\) \|\| m\.t\}/);
+  assert.match(client, /tr\('feed:thread\.fromShape', \{ defaultValue: 'From Shape' \}\)/);
+  assert.match(client, /const _coachView = !!roleProp && roleProp !== 'client';\s+const threadRows = \(coachThreads \|\| \[\]\)\.filter\(th => _coachView \|\| !th\.as_coach\)/);
+  assert.match(client, /s: th\.as_coach \? tr\('feed:thread\.yourClient', \{ defaultValue: 'Your client' \}\)/);
+  assert.match(client, /shape: m\.shape \|\| null,/);
+  assert.match(client, /const listed = \(threadRows \|\| \[\]\)\.find\(r => r\.conversation_id === openRequest\.conversationId\);/);
+  // Member views that pick "my coach" from these threads never pick one of the account's own clients.
+  assert.equal((client.match(/\.filter\(\(?c\)? => !c\.as_coach\)/g) || []).length, 2, 'the dispatch register and the profile chip');
+  assert.match(read('mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx'), /const threads = \(\(res && res\.data\) \|\| \[\]\)\.filter\(\(th\) => !th\.as_coach\);/);
+});

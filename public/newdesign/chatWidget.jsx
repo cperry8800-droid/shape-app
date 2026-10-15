@@ -1765,12 +1765,17 @@ function ChatWidget(props) {
             const me = myUserIdRef.current;
             const mapped = newRows.map(m => {
               const ts2 = new Date(m.created_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+              // Shape's welcome at the top of a coach thread (client-onboarding review, fix 3a):
+              // no sender, metadata.shape = "welcome". From neither person, so a note, not a bubble.
+              if (!m.sender_id && m.metadata && m.metadata.shape === "welcome") {
+                return { who: "Shape", t: m.body, time: ts2, me: false, shape: true, userId: null };
+              }
               const mine = m.sender_id === me;
               return { who: mine ? "You" : t.who, t: m.body, time: ts2, me: mine, userId: m.sender_id || null };
             });
             const merged = since ? [...t.messages, ...mapped] : mapped;
             const last = mapped[mapped.length - 1];
-            return { ...t, messages: merged, last: last ? `${last.me ? "You" : t.who}: ${last.t}` : t.last, time: "now" };
+            return { ...t, messages: merged, last: last ? `${last.me ? "You" : last.shape ? "Shape" : t.who}: ${last.t}` : t.last, time: "now" };
           });
         }));
       } catch {}
@@ -2244,6 +2249,14 @@ function ChatWidget(props) {
 
             <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "18px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
               {active?.messages?.map((m, i) => {
+                if (m && m.shape) {
+                  return (
+                    <div key={i} style={{ alignSelf: "stretch", textAlign: "center", padding: "10px 6px", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--sh-ink2, #a09b94)", marginBottom: 5 }}>From Shape</div>
+                      <div style={{ fontSize: 13, lineHeight: 1.5, color: "var(--sh-ink, #f2ede4)" }}>{m.t}</div>
+                    </div>
+                  );
+                }
                 const rKey = `${tabIdx}:${activeByTab[tabIdx]}:${i}`;
                 const myReaction = reactions[rKey];
                 const pickerOpen = reactionPickerFor === rKey;

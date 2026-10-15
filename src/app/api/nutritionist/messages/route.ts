@@ -6,10 +6,9 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { readJson, dbError } from '@/lib/request-utils';
+import { coachThreadMessage, clientNames, openClientThread } from '@/lib/coach-messages';
 
 export const dynamic = 'force-dynamic';
-
-type ThreadMessage = { id: string; body: string; mine: boolean; createdAt: string };
 
 export async function GET() {
   const supabase = await createClient();
@@ -52,7 +51,7 @@ export async function GET() {
 
   const { data: msgRows, error: msgError } = await supabase
     .from('messages')
-    .select('id, conversation_id, sender_id, body, created_at')
+    .select('id, conversation_id, sender_id, body, metadata, created_at')
     .in('conversation_id', convIds)
     .order('created_at', { ascending: false })
     .limit(1000);
@@ -74,16 +73,20 @@ export async function GET() {
     }
   }
 
-  const msgsByConv = new Map<string, ThreadMessage[]>();
+  // Names: the client's own (get_display_names), then a booking's, then "Client" (fix 3a).
+  const names = await clientNames(supabase, conversations.map((c) => c.client_id as string), nameByClient);
+
+  const msgsByConv = new Map<string, ReturnType<typeof coachThreadMessage>[]>();
   for (const m of [...(msgRows ?? [])].reverse()) {
     const arr = msgsByConv.get(m.conversation_id) ?? [];
-    arr.push({ id: m.id, body: m.body, mine: m.sender_id === user.id, createdAt: m.created_at });
+    arr.push(coachThreadMessage(m, user.id));
     msgsByConv.set(m.conversation_id, arr);
   }
 
   const threads = conversations.map((c) => ({
     id: c.id,
-    clientName: (c.client_id && nameByClient.get(c.client_id)) || 'Client',
+    clientId: c.client_id ?? null,
+    clientName: (c.client_id && names.get(c.client_id)) || 'Client',
     lastMessage: c.last_message ?? '',
     lastMessageAt: c.last_message_at ?? null,
     messages: msgsByConv.get(c.id) ?? [],
@@ -104,11 +107,18 @@ export async function POST(req: Request) {
   }
 
   const bodyResult = await readJson<
-    | { conversationId?: unknown; message?: unknown }
+    | { conversationId?: unknown; message?: unknown; openClientId?: unknown }
     | null
   >(req, { allowEmpty: true });
   if (!bodyResult.ok) return bodyResult.response;
   const body = bodyResult.data;
+
+  // "Message" on a client (fix 3a, H7): open the thread the client sees with this listing, for
+  // the coach's own client only, instead of a thread nobody else can see.
+  if (body && body.openClientId !== undefined) {
+    const opened = await openClientThread(supabase, body.openClientId, 'nutritionist');
+    return NextResponse.json(opened.body, { status: opened.status });
+  }
   const conversationId = String(body?.conversationId ?? '').trim();
   const message = String(body?.message ?? '').trim();
 

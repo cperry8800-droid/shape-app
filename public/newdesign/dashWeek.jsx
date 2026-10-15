@@ -347,7 +347,7 @@ function DwkRow({ row, role, weekOf, thisMonday, live, review, adherence, readou
           )}
           {/* Actions */}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-            <button type="button" onClick={() => dashMessageClient(rec.profile.name, role, row.flags.length ? dashMessageDraft(row) : null)} style={{ ...btn, color: "var(--sh-accent-ink, #2ee0c4)", borderColor: "rgba(var(--sh-accent-rgb, 46,224,196),0.35)", background: "rgba(var(--sh-accent-rgb, 46,224,196),0.08)" }}>Message</button>
+            <button type="button" onClick={() => dashMessageClient(rec.profile.name, role, row.flags.length ? dashMessageDraft(row) : null, rec.profile.id)} style={{ ...btn, color: "var(--sh-accent-ink, #2ee0c4)", borderColor: "rgba(var(--sh-accent-rgb, 46,224,196),0.35)", background: "rgba(var(--sh-accent-rgb, 46,224,196),0.08)" }}>Message</button>
             {!(noteOpen || (review && review.note)) && <button type="button" onClick={() => setNoteOpen(true)} style={btn}>＋ Note</button>}
             {href && <a href={href} style={btn}>Client file →</a>}
           </div>
