@@ -274,7 +274,8 @@ export function BSLeaderboard({ onBack, mode = 'member', role: initialRole = 'tr
         : tr('score:board.noListingNutritionist', { defaultValue: 'You don’t have a nutritionist listing, so you aren’t on this board.' }), 'nolisting'));
     } else if (me && me.rank !== null && me.rank !== undefined) {
       const above = bsBoardAbove(entries, me, value);
-      const gap = above ? value(above) - value(me) : 0;
+      // One more than the difference: matching their score only ties them (Codex, #2371).
+      const gap = above ? value(above) - value(me) + 1 : 0;
       const pct = above && value(above) > 0 ? Math.max(6, Math.min(96, Math.round((value(me) / value(above)) * 100))) : 100;
       const of = tr('score:board.of', { defaultValue: 'of {total, number}', total: d.total });
       const moved = !climb && me.moved ? (me.moved > 0 ? ' · ▲' + me.moved : ' · ▼' + -me.moved) : '';
@@ -318,12 +319,13 @@ export function BSLeaderboard({ onBack, mode = 'member', role: initialRole = 'tr
       : tr('score:board.nobody', { defaultValue: 'Nobody has earned points in this window yet.' }), 'nobody'));
   } else {
     const podium = ranked.filter((e) => e.rank <= 3).slice(0, 3);
+    // From each row's rank, not its position: a tie at the top is two 1sts (Codex, #2371).
     const places = [tr('score:board.first', { defaultValue: '1st' }), tr('score:board.second', { defaultValue: '2nd' }), tr('score:board.third', { defaultValue: '3rd' })];
     blocks.push(
       <div key="podium" style={{ ...pad, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8, marginBottom: 10 }}>
         {podium.map((e, i) => (
-          <div key={coach ? e.providerId : e.userId} style={{ minWidth: 0, padding: '10px 10px 9px', borderRadius: t.RADIUS_SM, border: `1px solid ${i === 0 ? t.AMBER : e.isMe ? t.ACCENT : t.RULE}`, background: e.isMe ? `${t.ACCENT}12` : 'transparent' }}>
-            <div style={{ ...mono(10, i === 0 ? t.AMBER : t.INK50), fontWeight: 800 }}>{places[i]}</div>
+          <div key={coach ? e.providerId : e.userId} style={{ minWidth: 0, padding: '10px 10px 9px', borderRadius: t.RADIUS_SM, border: `1px solid ${e.rank === 1 ? t.AMBER : e.isMe ? t.ACCENT : t.RULE}`, background: e.isMe ? `${t.ACCENT}12` : 'transparent' }}>
+            <div style={{ ...mono(10, e.rank === 1 ? t.AMBER : t.INK50), fontWeight: 800 }}>{places[e.rank - 1]}</div>
             <div style={{ marginTop: 6 }}><Avatar t={t} e={e} size={28} /></div>
             <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{nameOf(e)}</div>
             <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{shown(e)}</div>

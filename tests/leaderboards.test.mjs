@@ -66,8 +66,12 @@ test('names are first name and last initial, as the database writes them', () =>
   assert.equal(LB.shortName('Cher'), 'Cher');
   assert.equal(LB.shortName('  '), 'Shape member');
   assert.equal(LB.shortName(null), 'Shape member');
-  // and the database's own expression is the one that ships to members
-  assert.match(SQL, /split_part\(btrim\(p\.full_name\), ' ', 1\) \|\| ' '\s*\|\| upper\(left\(regexp_replace\(btrim\(p\.full_name\), '\^\.\*\\s', ''\), 1\)\) \|\| '\.'/);
+  // and the database's own expression is the one that ships to members: any whitespace (a tab, a
+  // newline) is one space before it splits, as \s+ is here (Codex, #2371)
+  assert.match(SQL, /regexp_replace\(regexp_replace\(coalesce\(p\.full_name, ''\), '\^\\s\+\|\\s\+\$', '', 'g'\), '\\s\+', ' ', 'g'\) as n/);
+  assert.match(SQL, /else split_part\(nm\.n, ' ', 1\) \|\| ' ' \|\| upper\(left\(regexp_replace\(nm\.n, '\^\.\* ', ''\), 1\)\) \|\| '\.'/);
+  assert.equal(LB.shortName('Ana\tLee'), 'Ana L.');
+  assert.equal(LB.shortName('  Bo\n  Kim  '), 'Bo K.');
   assert.ok(!/p\.full_name\s*,\s*\n?\s*p\.avatar_url,\s*\n?\s*s\.pts/.test(SQL), 'the member board returns the full name');
 });
 

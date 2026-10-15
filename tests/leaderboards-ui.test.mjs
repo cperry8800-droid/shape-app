@@ -90,7 +90,7 @@ test('app: the member board draws your place, the podium and the rows, with the 
   const text = v.text();
   assert.deepEqual(calls.member[0], ['everyone', 'week']);
   assert.match(text, /#9/);
-  assert.match(text, /80 pts to pass Devon R\./, 'the place line chases the wrong member');
+  assert.match(text, /81 pts to pass Devon R\./, 'the place line chases the wrong member');
   assert.match(text, /of 1,284 · ▲3/);
   for (const n of ['Priya S.', 'Marcus T.', 'Aisha K.']) assert.match(text, new RegExp(n));
   assert.match(text, /· · ·/, 'no gap between #4 and #9');
@@ -147,7 +147,7 @@ test('app: the coach board, standing and climbers', async () => {
   const calls = fakeService({ coach: (role, view) => ({ kind: 'ready', data: view === 'climb' ? coachBoard({ since: null }) : coachBoard({ listed: false }) }) });
   const v = await mount(inChrome(React.createElement(BSLeaderboard, { onBack: () => {}, mode: 'coach', role: 'nutritionist' })));
   assert.deepEqual(calls.coach[0], ['nutritionist', 'standing']);
-  assert.match(v.text(), /100 pts to pass Dana Ortiz/);
+  assert.match(v.text(), /101 pts to pass Dana Ortiz/);
   assert.match(v.text(), /30 clients · 91% kept/);
   assert.match(v.text(), /Your listing isn’t live yet/);
   await click(byText(v.host, 'button[role="tab"]', /^Climbers$/));
@@ -156,6 +156,19 @@ test('app: the coach board, standing and climbers', async () => {
   assert.match(v.text(), /needs a reading to compare against/);
   assert.ok(!/Maya Okafor/.test(v.text()), 'climbers with no history drew a board');
   await v.unmount();
+});
+
+test('a tie on the podium is two of the same place, on both surfaces (Codex, #2371)', async () => {
+  const tied = () => { const d = memberBoard(); d.entries[1].rank = 1; d.entries[2].rank = 3; return d; }; // 1, 1, 3
+  fakeService({ member: { kind: 'ready', data: tied() } });
+  const v = await mount(inChrome(React.createElement(BSLeaderboard, { onBack: () => {} })));
+  assert.match(v.text(), /1stPS[\s\S]*1stMT[\s\S]*3rdAK/, 'the second first-place member is labelled 2nd');
+  await v.unmount();
+  routes = { '/api/leaderboard': () => ({ status: 200, body: tied() }) };
+  const w = await mount(React.createElement(window.MemberLeaderboard));
+  assert.deepEqual([...w.host.querySelectorAll('.lb-pod .lb-place')].map((x) => x.textContent), ['1ST', '1ST', '3RD']);
+  assert.equal(w.host.querySelectorAll('.lb-pod.lb-p1').length, 2);
+  await w.unmount();
 });
 
 test('app: the rows helper puts one gap where someone ranked above is missing, never at a tie', () => {
@@ -195,7 +208,7 @@ test('website: the member board, its switches, and the gap line', async () => {
   };
   const v = await mount(React.createElement(MemberLeaderboard));
   assert.match(fetchCalls[0][0], /^\/api\/leaderboard\?scope=everyone&period=week&limit=50$/);
-  assert.match(v.text(), /80 points to pass Devon R\./);
+  assert.match(v.text(), /81 points to pass Devon R\./);
   assert.match(v.text(), /of 1,284 · last 7 days/);
   assert.ok(v.host.querySelector('.lb-row--gap'), 'no gap row between #4 and #9');
   // no streak column, other members' lines name their tier, and only your row says how you train
@@ -238,14 +251,14 @@ test('website: the coach board, refused for members, and climbers before history
   const climbBoard = () => { const d = coachBoard({ since: '2026-09-15' }); d.entries.find((e) => e.isMe).gained = 98; return d; };
   routes = { '/api/coach/leaderboard': (u) => ({ status: 200, body: /view=climb/.test(u) ? climbBoard() : coachBoard() }) };
   const v = await mount(React.createElement(CoachLeaderboard, { role: 'trainer' }));
-  assert.match(v.text(), /100 points to pass Dana Ortiz/);
+  assert.match(v.text(), /101 points to pass Dana Ortiz/);
   assert.match(v.text(), /of 212 trainers/);
   assert.match(v.text(), /Top 7% of trainers on Shape/);
   await click(byText(v.host, 'button[role="tab"]', /Climbers/));
   await flush();
   assert.match(fetchCalls.at(-1)[0], /view=climb/);
   assert.match(v.text(), /since Sep 15/i);
-  assert.match(v.text(), /1 point of climb to pass Maya Okafor/, 'Climbers chases by score, not by points gained');
+  assert.match(v.text(), /2 points of climb to pass Maya Okafor/, 'Climbers chases by score, not by points gained');
   await v.unmount();
 
   routes = { '/api/coach/leaderboard': () => ({ status: 403, body: {} }) };

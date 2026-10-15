@@ -27,6 +27,9 @@ const LB_PERIODS = [
   { key: "month", long: "This month", short: "Month" },
   { key: "all", long: "All time" },
 ];
+// The podium's labels come from each row's RANK, not its position: rank() gives a tie one place,
+// so two members level at the top are both 1st (Codex, #2371).
+const LB_PLACES = ["1ST", "2ND", "3RD"];
 const LB_SCOPE_NAME = { everyone: "everyone on Shape", following: "the people you follow", team: "your coach’s team" };
 const LB_PERIOD_NAME = { week: "the last 7 days", month: "this month", all: "all time" };
 
@@ -113,7 +116,9 @@ function lbAbove(entries, me, value) {
 // "Your place": rank, the gap to the next person up, and your points. Member and coach.
 function LbYou({ me, entries, value, valueLabel, ofText, metaText, leadText, nameOf, gapUnit, sideLabel }) {
   const above = lbAbove(entries, me, value);
-  const gap = above ? value(above) - value(me) : 0;
+  // ⚠ ONE MORE THAN THE DIFFERENCE: matching their score only ties them (rank() gives a tie one
+  // place), so passing them takes one point beyond it (Codex, #2371).
+  const gap = above ? value(above) - value(me) + 1 : 0;
   const pct = above && value(above) > 0 ? Math.max(6, Math.min(96, Math.round((value(me) / value(above)) * 100))) : 100;
   return (
     <div className="lb-card lb-you">
@@ -252,8 +257,8 @@ function MemberLeaderboard() {
       <React.Fragment>
         <div className="lb-podium">
           {podium.map((e, i) => (
-            <div key={e.userId} className={"lb-card lb-pod lb-p" + (i + 1)}>
-              <div className="lb-place">{["1ST", "2ND", "3RD"][i]}</div>
+            <div key={e.userId} className={"lb-card lb-pod lb-p" + e.rank}>
+              <div className="lb-place">{LB_PLACES[e.rank - 1]}</div>
               <div className="lb-who"><LbAvatar name={e.name} url={e.avatarUrl} me={e.isMe} /><div><div className="lb-name">{nameOf(e)}</div><div className="lb-where">{lbPodiumLine(e)}</div></div></div>
               <div className="lb-score">{lbNum(e.points)}<small>points</small></div>
               <div className="lb-facts"><LbTier name={e.tier} ladder={LB_MEMBER_TIERS} /></div>
@@ -405,8 +410,8 @@ function CoachLeaderboard({ role: initialRole }) {
         <React.Fragment>
           <div className="lb-podium">
             {podium.map((e, i) => (
-              <div key={e.providerId} className={"lb-card lb-pod lb-p" + (i + 1)}>
-                <div className="lb-place">{["1ST", "2ND", "3RD"][i]}</div>
+              <div key={e.providerId} className={"lb-card lb-pod lb-p" + e.rank}>
+                <div className="lb-place">{LB_PLACES[e.rank - 1]}</div>
                 <div className="lb-who"><LbAvatar name={e.name} url={e.avatarUrl} me={e.isMe} /><div><div className="lb-name">{nameOf(e)}</div><div className="lb-where">{e.specialty || (role === "trainer" ? "Trainer" : "Nutritionist")}</div></div></div>
                 <div className="lb-score">{show(e)}<small>{climb ? "since " + sinceText : "score"}</small></div>
                 <div className="lb-facts"><LbTier name={e.tier} ladder={LB_COACH_TIERS} /><span>{e.activeClients} client{e.activeClients === 1 ? "" : "s"}</span><span>{e.completionPct}% kept</span></div>

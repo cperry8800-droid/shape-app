@@ -406,10 +406,9 @@ begin
   select
     s.uid,
     case
-      when btrim(coalesce(p.full_name, '')) = '' then 'Shape member'
-      when position(' ' in btrim(p.full_name)) = 0 then btrim(p.full_name)
-      else split_part(btrim(p.full_name), ' ', 1) || ' '
-           || upper(left(regexp_replace(btrim(p.full_name), '^.*\s', ''), 1)) || '.'
+      when nm.n = '' then 'Shape member'
+      when position(' ' in nm.n) = 0 then nm.n
+      else split_part(nm.n, ' ', 1) || ' ' || upper(left(regexp_replace(nm.n, '^.* ', ''), 1)) || '.'
     end,
     p.avatar_url,
     s.pts,
@@ -424,6 +423,11 @@ begin
     s.uid = v_me
   from shown s
   left join public.profiles p on p.id = s.uid
+  -- The name with any run of whitespace (a tab or a newline too, not only spaces) as one space,
+  -- and none at either end, so "first name and last initial" holds for every name (Codex, #2371).
+  left join lateral (
+    select regexp_replace(regexp_replace(coalesce(p.full_name, ''), '^\s+|\s+$', '', 'g'), '\s+', ' ', 'g') as n
+  ) nm on true
   left join prev_ranked pr on pr.uid = s.uid
   -- The streak the member's own dashboard shows (/api/client/dashboard): days in a row with a
   -- completed workout, counted back from today, or from yesterday when today has none yet.
