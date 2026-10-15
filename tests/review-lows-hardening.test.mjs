@@ -465,7 +465,7 @@ test('L10: a Stripe return path stays on this origin', () => {
 });
 
 // ── L11 + L13: the webhook ─────────────────────────────────────────────────────────────────
-async function runWebhook(event, { tables = {} } = {}) {
+async function runWebhook(event, { tables = {}, onboarding = [] } = {}) {
   const platformFee = await import(pathToFileURL(join(ROOT, 'src/lib/platform-fee.mjs')).href);
   const coachOrigin = await import(pathToFileURL(join(ROOT, 'src/lib/coach-origin.mjs')).href);
   const retryable = await loadRealModule(join(ROOT, 'src/lib/db-retryable.ts'), { typescript: true });
@@ -475,14 +475,18 @@ async function runWebhook(event, { tables = {} } = {}) {
     typescript: true,
     registry: new Map([
       ['next/server', nextServer],
-      ['@/lib/stripe', { stripe: { webhooks: { constructEvent: (raw) => JSON.parse(raw) }, paymentIntents: { retrieve: async () => ({ application_fee_amount: 0 }) } } }],
+      ['@/lib/stripe', { stripe: { webhooks: { constructEvent: (raw) => JSON.parse(raw) }, paymentIntents: { retrieve: async () => ({ application_fee_amount: 0 }) }, subscriptions: { retrieve: async () => ({ items: { data: [{ current_period_end: 1800000000 }] } }) } } }],
       ['@/lib/supabase/admin', { createAdminClient: () => admin.client }],
       ['@/lib/notify', { createNotification: async () => true }],
       ['@/lib/platform-fee', platformFee],
       ['@/lib/coach-origin.mjs', coachOrigin],
       ['@/lib/db-retryable', retryable],
       // What a saved subscription or membership starts (fix 3a) has its own test (coach-thread.test.mjs).
-      ['@/lib/coach-thread', { startCoaching: async () => ({ conversationId: null, welcomed: false, coachAlerted: false }), welcomeMember: async () => false }],
+      // Recorded, not run: what each start does is coach-thread.test.mjs's; WHEN it runs is here.
+      ['@/lib/coach-thread', {
+        startCoaching: async (_a, args) => { onboarding.push(['coach', args]); return { conversationId: null, welcomed: false, coachAlerted: false }; },
+        welcomeMember: async (_a, id) => { onboarding.push(['member', id]); return false; },
+      }],
     ]),
   });
   process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test';
@@ -513,6 +517,31 @@ test('L13: a one-time purchase is recorded when it is PAID: not on an unpaid com
   const failed = await runWebhook(session('checkout.session.async_payment_failed', 'unpaid', { store_credit_ref: 'ref-9' }));
   assert.equal(failed.status, 200);
   assert.deepEqual(failed.admin.calls.filter((c) => c.rpc).map((c) => [c.rpc, c.args]), [['release_store_credit_reservation', { p_ref: 'ref-9' }]], 'a failed delayed payment releases the reserved credit, as an expiry does');
+});
+
+test('fix 3a (Codex on #2360): a subscription starts the coaching, and a membership the welcome, only once the money has moved', async () => {
+  const sub = (type, payment_status, metadata) => ({ id: 'evt_s', type, data: { object: {
+    id: 'cs_sub_1', mode: 'subscription', payment_status, subscription: 'sub_1', customer: 'cus_1', metadata: { client_id: UID, price_cents: '10000', ...metadata },
+  } } });
+  const coach = { provider_id: '4', provider_role: 'trainer', origin: 'marketplace', fee_bps: '1500' };
+  for (const [type, status, starts] of [
+    ['checkout.session.completed', 'unpaid', false],
+    ['checkout.session.async_payment_succeeded', 'paid', true],
+    ['checkout.session.completed', 'paid', true],
+    ['checkout.session.completed', 'no_payment_required', true],
+  ]) {
+    const onboarding = [];
+    const r = await runWebhook(sub(type, status, coach), { onboarding });
+    assert.equal(r.status, 200);
+    assert.deepEqual(onboarding.map(([k]) => k), starts ? ['coach'] : [], `${type} ${status}`);
+    if (starts) assert.deepEqual(onboarding[0][1], { clientId: UID, providerRole: 'trainer', providerId: 4, subscriptionKey: 'sub_1', monthlyCents: 8500 });
+    assert.equal(stmts(r.admin.calls, 'subscriptions', 'upsert').length, 1, 'the subscription row is written either way');
+  }
+  for (const [status, starts] of [['unpaid', false], ['paid', true]]) {
+    const onboarding = [];
+    await runWebhook(sub('checkout.session.completed', status, { plan: 'shape_platform' }), { onboarding });
+    assert.deepEqual(onboarding.map(([k]) => k), starts ? ['member'] : [], `membership ${status}`);
+  }
 });
 
 test('L11: a Connect account\'s status lands on the row holding ITS id, not the row its metadata names', async () => {

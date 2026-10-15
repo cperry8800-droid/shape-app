@@ -532,6 +532,12 @@ export async function POST(request: Request) {
           break;
         }
 
+        // Fix 3a (Codex on #2360): the welcome, the thread and the alerts say the subscription has
+        // started, so they wait for the money. A delayed payment method (a bank debit) completes
+        // the session `unpaid`; this branch runs again on async_payment_succeeded with `paid`,
+        // and that is when they go. A trial needs no payment and starts now.
+        const moneyMoved = session.payment_status === 'paid' || session.payment_status === 'no_payment_required';
+
         let currentPeriodEnd: string | null = null;
         if (typeof session.subscription === 'string') {
           const sub = await stripe.subscriptions.retrieve(session.subscription);
@@ -552,7 +558,7 @@ export async function POST(request: Request) {
             current_period_end: currentPeriodEnd,
           });
           // Fix 3a: a welcome from Shape when the membership starts, once per member.
-          if (membershipSaved) await welcomeMember(admin, clientId);
+          if (membershipSaved && moneyMoved) await welcomeMember(admin, clientId);
           break;
         }
 
@@ -609,7 +615,7 @@ export async function POST(request: Request) {
         // the coach thread with Shape's welcome, alert and email the coach with the client's name
         // and links, and email the member. It used to send a nameless "New subscriber" bell even
         // when the save above had failed. Each part sends once (src/lib/coach-thread.ts).
-        if (!subErr && providerId && (providerRole === 'trainer' || providerRole === 'nutritionist')) {
+        if (!subErr && moneyMoved && providerId && (providerRole === 'trainer' || providerRole === 'nutritionist')) {
           await startCoaching(admin, {
             clientId,
             providerRole,
