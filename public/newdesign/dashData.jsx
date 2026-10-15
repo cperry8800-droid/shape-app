@@ -197,7 +197,13 @@ function _dashRecordFromLive(row, ov, notesByClient, progressRead) {
   const noteText = note && typeof note.text === "string" && note.text.trim() ? note.text.trim() : null;
   return {
     progressRead: progressRead || { state: ov ? "ready" : notesPending ? "loading" : "unavailable", checkedAt: ov ? new Date().toISOString() : null },
-    profile: { id: row.id, name: row.name, isNew: !!row.isNew, status: row.status || null },
+    // joinedAt: the earliest live subscription, which the engine reads for a new client's first
+    // week (client-onboarding review, M13: "No logs 7d+" on day one).
+    profile: { id: row.id, name: row.name, isNew: !!row.isNew, status: row.status || null, joinedAt: row.joinedAt || null },
+    // The onboarding board per role, for a client in their first 30 days (fix 4); null otherwise.
+    onboarding: ov && ov.onboarding && typeof ov.onboarding === "object" ? ov.onboarding : null,
+    // Who they are, for the board's first stage: the overview's coach-only intake rows (fix 2c).
+    intake: ov && ov.intake ? ov.intake : null,
     // The health screening for Needs you (client-onboarding review M17): the overview's
     // 'flagged' | 'missing' | 'clear' | 'unknown'; null before the overview has answered.
     screening: ov && ov.screening ? ov.screening : null,

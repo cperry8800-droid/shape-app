@@ -17,7 +17,7 @@
 import type { createClient } from '@/lib/supabase/server';
 import { readinessFromSeries } from '@/lib/recovery-readiness';
 import { bsVitals, vitalsCeilingISO, vitalsCutoffISO } from '@/lib/vitals-leg.mjs';
-import { bsProgramLeg, bsLogsLeg, bsNutritionTargets, bsLastContactLeg } from '@/lib/coach-client-legs.mjs';
+import { bsProgramLeg, bsLogsLeg, bsNutritionTargets, bsLastContactLeg, bsOnboardingLeg, ONBOARDING_DAYS } from '@/lib/coach-client-legs.mjs';
 import { coachIntakeView, screeningState } from '../../mobile-app/src/services/coachIntake.mjs';
 
 export type OverviewClient = Awaited<ReturnType<typeof createClient>>;
@@ -97,7 +97,7 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
   // -- see 2026-08-10-shared-clients-roster.sql for why a definer and not a new RLS policy.
   const { data: subs } = await supabase
     .from('subscriptions')
-    .select('provider_role, provider_id, status, current_period_end')
+    .select('provider_role, provider_id, status, current_period_end, created_at')
     .eq('client_id', clientId)
     .in('status', ['active', 'trialing']);
 
@@ -265,7 +265,7 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
   // photos, and the health profile (PAR-Q screening — never share-gated).
   const [
     { data: goals }, { data: stats }, { data: lifts },
-    { data: checkins, error: checkinsError }, { data: measurements }, { data: progressPhotos }, { data: healthProfile, error: healthError },
+    { data: checkins, error: checkinsError }, { data: measurements, error: measurementsError }, { data: progressPhotos }, { data: healthProfile, error: healthError },
     { data: intake, error: intakeError },
     { data: cycle },
     { data: prep },
@@ -299,7 +299,7 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     // Last contact (R4) — the caller's OWN direct thread with this client.
     // `conversations` is participant-scoped by RLS, so a coach reads only
     // threads they are in; the leg then narrows to their own provider id.
-    supabase.from('conversations').select('provider_role, provider_id, last_message_at').eq('client_id', clientId).eq('kind', 'direct'),
+    supabase.from('conversations').select('id, provider_role, provider_id, last_message_at').eq('client_id', clientId).eq('kind', 'direct'),
     // (the error is read alongside the data below — a failed read must not ship
     //  as "you have never messaged this client")
     // Weekly Shape Score + the member's streak (R4). `score_ledger` and
@@ -482,6 +482,57 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
   // rules skip every live client — they need value AND target.
   const nutritionTargets = bsNutritionTargets(programDetail);
 
+  // The onboarding board (client-onboarding review, fix 4), per role the caller coaches this client
+  // in: only while the client is inside the board's 30 days, so an established roster pays no extra
+  // reads. Every input is a record (the welcome Shape wrote, the coach's own first message, the first
+  // plan the coach published); a failed read is `undefined`, which the leg reports as unknown.
+  const onboarding: Record<string, ReturnType<typeof bsOnboardingLeg>> = {};
+  for (const role of ['trainer', 'nutritionist'] as const) {
+    const providerId = mine[role];
+    if (providerId == null) continue;
+    let joinedAt: string | null = null;
+    for (const sub of (subs ?? []) as Array<{ provider_role: string; provider_id: number; created_at?: string | null }>) {
+      if (sub.provider_role === role && String(sub.provider_id) === String(providerId) && sub.created_at && (!joinedAt || sub.created_at < joinedAt)) joinedAt = sub.created_at;
+    }
+    const joinedMs = joinedAt ? Date.parse(joinedAt) : NaN;
+    if (!Number.isFinite(joinedMs) || Date.now() - joinedMs >= ONBOARDING_DAYS * 86_400_000) continue;
+    const conv = convoErr
+      ? undefined
+      : ((convoRows ?? []) as Array<{ id: string; provider_role: string; provider_id: number }>)
+          .find((c) => c.provider_role === role && String(c.provider_id) === String(providerId)) ?? null;
+    const firstOf = (res: { data: unknown; error: unknown } | null, pick: (row: Record<string, unknown>) => unknown) => {
+      if (res === null) return null;
+      if (res.error) return undefined;
+      const row = ((res.data ?? []) as Record<string, unknown>[])[0];
+      return row ? pick(row) : null;
+    };
+    const [welcomeRes, helloRes, planRes] = await Promise.all([
+      conv ? supabase.from('messages').select('created_at').eq('conversation_id', conv.id).is('sender_id', null).eq('metadata->>shape', 'welcome').limit(1) : Promise.resolve(null),
+      // The coach's own first message: in a direct thread, the one sender who is not the client.
+      conv ? supabase.from('messages').select('created_at').eq('conversation_id', conv.id).not('sender_id', 'is', null).neq('sender_id', clientId).order('created_at', { ascending: true }).limit(1) : Promise.resolve(null),
+      // The first plan THIS coach published, archived or not (a week replaced by the next was
+      // still published). Workouts a member wrote for themselves carry no trainer_id.
+      role === 'trainer'
+        ? supabase.from('client_workouts').select('created_at, title').eq('client_id', clientId).eq('trainer_id', providerId).order('created_at', { ascending: true }).limit(1)
+        : supabase.from('client_meal_plans').select('created_at, title').eq('client_id', clientId).eq('nutritionist_id', providerId).order('created_at', { ascending: true }).limit(1),
+    ]);
+    for (const [name, res] of [['welcome', welcomeRes], ['hello', helloRes], ['first plan', planRes]] as const) {
+      if (res && res.error) console.error(`[shared-overview] onboarding ${name} read failed:`, (res.error as { message?: string }).message);
+    }
+    onboarding[role] = bsOnboardingLeg({
+      role,
+      joinedAt,
+      welcomeAt: conv === undefined ? undefined : firstOf(welcomeRes, (r) => r.created_at),
+      helloAt: conv === undefined ? undefined : firstOf(helloRes, (r) => r.created_at),
+      firstPlan: firstOf(planRes, (r) => ({ at: r.created_at, title: r.title })),
+      checkins: checkinsError ? undefined : (checkins ?? []),
+      measurements: measurementsError ? undefined : (measurements ?? []),
+      programDetail,
+      intake: intakeError ? null : intake,
+      now: Date.now(),
+    });
+  }
+
 
   return {
     client: clientProfile
@@ -526,5 +577,8 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     ...(logs === undefined ? {} : { logs }),
     nutritionTargets,
     scoreHistory: scoreHistory ?? null,
+    // The onboarding board per role, for a client in their first 30 days with the caller; omitted
+    // otherwise (fix 4).
+    ...(Object.keys(onboarding).length ? { onboarding } : {}),
   };
 }

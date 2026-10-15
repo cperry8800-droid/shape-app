@@ -57,12 +57,26 @@ export function fakeSupabase({ tables = {}, rpcs = {}, fail = [], maxRows = null
     }
     return out;
   }
+  // A column, or a JSON text path ('metadata->>shape'), the way PostgREST reads it.
+  function val(r, col) {
+    const at = String(col).indexOf('->>');
+    if (at < 0) return r[col];
+    const doc = r[col.slice(0, at)];
+    const v = doc && typeof doc === 'object' ? doc[col.slice(at + 3)] : undefined;
+    return v == null ? null : String(v);
+  }
   function from(table) {
     const state = { table, filters: [], orders: [], limit: null, range: null, single: false, select: null, count: false };
     const chain = {
       select(cols, opts) { state.select = cols; state.count = !!(opts && opts.count); return chain; },
-      eq(col, v) { state.filters.push((r) => r[col] === v); return chain; },
-      neq(col, v) { state.filters.push((r) => r[col] !== v); return chain; },
+      eq(col, v) { state.filters.push((r) => val(r, col) === v); return chain; },
+      neq(col, v) { state.filters.push((r) => val(r, col) !== v); return chain; },
+      // not(col, 'is', null): the one negation the readers use.
+      not(col, op, v) {
+        if (op !== 'is' || v !== null) throw new Error(`fake-supabase: unsupported not() ${op} ${v}`);
+        state.filters.push((r) => val(r, col) != null);
+        return chain;
+      },
       in(col, vs) { state.filters.push((r) => vs.includes(r[col])); return chain; },
       is(col, v) { state.filters.push((r) => (v === null ? r[col] == null : r[col] === v)); return chain; },
       gte(col, v) { state.filters.push((r) => r[col] != null && String(r[col]) >= String(v)); return chain; },

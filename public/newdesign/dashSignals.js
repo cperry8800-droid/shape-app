@@ -197,6 +197,25 @@
   function iso(d) {
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
   }
+  // Whole days since the client joined this coach (the earliest live subscription), or null.
+  function clientDays(c, now) {
+    var j = c && ((c.profile && c.profile.joinedAt) || (c.payments && c.payments.joinedAt));
+    var d = toDate(j);
+    return d ? daysBetween(d, now) : null;
+  }
+  // The viewer's own onboarding board for this client (the overview's `onboarding`, per role;
+  // client-onboarding review, fix 4), and one of its steps.
+  function onboardingFor(c, role) {
+    var disc = disciplineForRole(role);
+    var key = disc === "training" ? "trainer" : disc === "nutrition" ? "nutritionist" : null;
+    var ob = c && c.onboarding;
+    return key && ob && typeof ob === "object" && ob[key] ? ob[key] : null;
+  }
+  function onboardingStep(ob, key) {
+    var steps = ob && Array.isArray(ob.steps) ? ob.steps : [];
+    for (var i = 0; i < steps.length; i++) if (steps[i] && steps[i].key === key) return steps[i];
+    return null;
+  }
 
   // ── Goal projection (the Goals page core) ──────────────────────────────────
   // Pros set up to MAX_GOALS goals per client; clients view them. Each goal
@@ -524,6 +543,11 @@
     // at all, i.e. every brand-new one. A threshold at or under the window is still
     // satisfied by it, so that half keeps flagging.
     if (f.daysLogged7d === 0 && THRESHOLDS.FOOD_GAP_DAYS <= 7) {
+      // ⚠ "7d+" CLAIMS SEVEN DAYS AS A CLIENT (client-onboarding review, M13). An empty week is every
+      // client on their first day, and read amber "No logs 7d+" in place of "New". Their joining
+      // date decides it; without one, the roster's 14-day "new" does.
+      var days = clientDays(c, now);
+      if (days != null ? days < 7 : !!(c.profile && c.profile.isNew)) return null;
       return { key: "food_gap", label: "No logs 7d+", reason: "No food logs in the last week" };
     }
     return null;
@@ -552,6 +576,14 @@
   }
 
   function ruleContactGap(c, now, role) {
+    // A new client the coach has not written to yet (fix 4: the coach's own first message is its own
+    // step, after Shape's welcome). Shape's welcome dates the thread, so the quiet check below would
+    // wait five days and then call it a lapse; this says what it is, from day 3.
+    var ob = onboardingFor(c, role);
+    var hello = onboardingStep(ob, "hello");
+    if (hello && hello.done === false && ob.day >= 3) {
+      return { key: "contact_gap", label: "Say hello", reason: "You haven't written to them since they joined " + (ob.day - 1) + " days ago" };
+    }
     var lc = c.lastContact;
     if (!lc) return null;
     var ts;
@@ -564,7 +596,17 @@
       ts = a && b ? (a > b ? a : b) : (a || b);
     }
     var last = toDate(ts);
-    if (!last) return null;
+    if (!last) {
+      // ⚠ A KNOWN NEVER IS A FLAG (client-onboarding review, L8). The leg carries the coach's own
+      // role as null when they hold the link and have never messaged (bsLastContactLeg), and this
+      // returned nothing, so a client nobody had written to was the one client never flagged. An
+      // absent leg is still "not shared", never "never".
+      var own = disc === "training" ? "trainer" : disc === "nutrition" ? "nutritionist" : null;
+      if (!own || !Object.prototype.hasOwnProperty.call(lc, own) || lc[own] !== null) return null;
+      var since = clientDays(c, now);
+      if (since == null || since < THRESHOLDS.CONTACT_GAP_DAYS) return null;
+      return { key: "contact_gap", label: "Never messaged", reason: "No message in the " + since + " days since they joined" };
+    }
     var gap = daysBetween(last, now);
     if (gap >= THRESHOLDS.CONTACT_GAP_DAYS) {
       return { key: "contact_gap", label: "Quiet " + gap + "d", reason: "No contact in " + gap + " days" };
@@ -678,6 +720,15 @@
   // way). `c.screening` is the overview's read: 'flagged' | 'missing' | 'clear' | 'unknown'.
   // 'unknown' (a failed read, or a page that cannot tell) never flags: no record is never
   // evidence. Coach views only — the member's own view is never told to screen themselves here.
+  // Week 1 not live: the coach set week 1 to start on a day (the week-one target, fix 4) and that day
+  // has come with nothing published. No date, no flag: there is no fixed deadline (owner, decision 3).
+  function rulePlanDue(c, now, role) {
+    var plan = onboardingStep(onboardingFor(c, role), "plan");
+    if (!plan || plan.done !== false || typeof plan.due !== "string") return null;
+    if (iso(now) < plan.due) return null;
+    return { key: "plan_due", label: "Week 1 not live", reason: "Week 1 was set to start " + plan.due + " and no plan is published" };
+  }
+
   function ruleScreening(c) {
     var s = c && c.screening;
     if (s === "flagged") return { key: "screening_flagged", label: "Health flag", reason: "Answered yes on the health screening — read it before programming" };
@@ -731,9 +782,14 @@
     }
     if (disciplineForRole(role) !== "general") {
       if ((f = ruleScreening(c))) flags.push(f);
+      if ((f = rulePlanDue(c, now, role))) flags.push(f);
     }
 
-    var severity = progressStatus(c, now).state === "ready" ? "green" : "unknown";
+    // ⚠ A NEW CLIENT HAS NO RECENT DATA YET, AND THAT IS NOT "UNKNOWN" (client-onboarding review,
+    // M13). Their progress read answers, with nothing in it, so they sat in "Progress unknown"
+    // instead of reading "New". A read that failed or is still loading stays unknown.
+    var progress = progressStatus(c, now);
+    var severity = progress.state === "ready" || (progress.state === "insufficient" && c.profile && c.profile.isNew) ? "green" : "unknown";
     if (flags.length >= 2) severity = "red";
     else if (ciFlag && ciFlag.missedWeeks >= THRESHOLDS.CHECKIN_RED_WEEKS) severity = "red";
     else if (flags.length === 1) severity = "amber";
@@ -782,6 +838,7 @@
     goal_slip: "general",
     screening_flagged: "general", // both pros program around it
     screening_missing: "general",
+    plan_due: "general",          // each coach reads their own board's plan step
   };
   function flagDiscipline(key) { return FLAG_DISCIPLINE[key] || "general"; }
   function disciplineOwner(discipline) {
@@ -1229,7 +1286,7 @@
     checkin_overdue: 100,
     // A yes on the health screening is read before anything is programmed; a missing one is asked
     // for before the next session.
-    screening_flagged: 90, contact_gap: 80, screening_missing: 70, goal_slip: 60, food_gap: 55,
+    screening_flagged: 90, plan_due: 85, contact_gap: 80, screening_missing: 70, goal_slip: 60, food_gap: 55,
     ledger_blown: 50, protein_under: 45, streak_broken: 40, sleep_low: 35,
     // The vitals flags rank BELOW sleep_low (a chronic sleep deficit outranks a
     // soft-gauge read) and above score_drop, in energy → hunger → hydration order.

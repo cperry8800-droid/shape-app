@@ -182,3 +182,108 @@ export function bsLastContactLeg(conversations, mine) {
   };
   return { trainer: pick('trainer', t), nutritionist: pick('nutritionist', n) };
 }
+
+// ── The onboarding board, per role (client-onboarding review, fix 4) ─────────
+// One coach's first 30 days with a new client, built ONLY from records: the subscription, Shape's
+// welcome in the thread, the coach's own first message, the first plan the coach published, the
+// client's check-ins since joining, and a measurement around day 30. Nothing here is a box a coach
+// ticks (the setup card's "Confirm intake" was one); a step is done when its record exists.
+//
+// ⚠ A FAILED READ IS NEVER A "NOT YET". Each input is `undefined` when its read failed, and the step
+// it decides then reads done: null ("couldn't read"), which the board shows as such, never "to do".
+//
+// The week-one target is the coach's, per member (owner, 2026-10-14, decision 3: "no fixed 48-hour or
+// 3-day rule"): client_programs.detail[discipline].weekOne = { count, startsOn, setAt }, written through
+// set_program_detail. Until it is set, `suggested` is the client's own answer (sessions per week) for
+// a trainer; a nutritionist's unit is days logged, and nothing they told Shape says how many.
+export const ONBOARDING_DAYS = 30;
+const WEEK_ONE_MAX = 14;
+
+function weekOneOf(programDetail, discipline) {
+  const sec = programDetail && typeof programDetail === 'object' ? programDetail[discipline] : null;
+  const w = sec && typeof sec === 'object' ? sec.weekOne : null;
+  if (!w || typeof w !== 'object') return null;
+  const count = num(w.count);
+  if (count == null || !Number.isInteger(count) || count < 1 || count > WEEK_ONE_MAX) return null;
+  const startsOn = typeof w.startsOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(w.startsOn) ? w.startsOn : null;
+  return { count, startsOn, setAt: ms(w.setAt) != null ? new Date(ms(w.setAt)).toISOString() : null };
+}
+function suggestedCount(intake, role) {
+  if (role !== 'trainer') return null;
+  const v = intake && intake.training ? intake.training.sessions_per_week : null;
+  const m = /\d+/.exec(String(v == null ? '' : v));
+  const n = m ? Number(m[0]) : null;
+  return n != null && n >= 1 && n <= WEEK_ONE_MAX ? n : null;
+}
+function addDaysISO(atMs, days) { return isoDayUTC(atMs + days * DAY_MS); }
+// The Sunday that closes the week holding `day` ('YYYY-MM-DD'): check-ins are weekly, Monday-keyed.
+// `after` days are added first, so a client who joins on a Saturday is not due the next morning.
+function weekEndSunday(day, after = 0) {
+  const t = Date.parse(day + 'T00:00:00Z') + after * DAY_MS;
+  const dow = new Date(t).getUTCDay(); // 0 = Sunday
+  return isoDayUTC(t + ((7 - dow) % 7) * DAY_MS);
+}
+
+/**
+ * @param {object} input
+ *   role: 'trainer' | 'nutritionist'; joinedAt: ISO (the caller's subscription start);
+ *   welcomeAt / helloAt: ISO | null | undefined (undefined = the read failed);
+ *   firstPlan: { at, title } | null | undefined; checkins: rows | null | undefined (latest first,
+ *   at most 4); measurements: rows | null | undefined; programDetail; intake; now: ms.
+ * @returns the board, or null when there is no subscription start or it is past day 30.
+ */
+export function bsOnboardingLeg(input) {
+  const { role, joinedAt, welcomeAt, helloAt, firstPlan, checkins, measurements, programDetail, intake } = input || {};
+  const now = input && input.now != null ? input.now : Date.now();
+  if (role !== 'trainer' && role !== 'nutritionist') return null;
+  const joined = ms(joinedAt);
+  if (joined == null || joined > now) return null;
+  const day = Math.floor((now - joined) / DAY_MS) + 1;
+  if (day > ONBOARDING_DAYS) return null;
+  const joinedDay = isoDayUTC(joined);
+  const discipline = role === 'trainer' ? 'training' : 'nutrition';
+  const weekOne = weekOneOf(programDetail, discipline);
+  const iso = (v) => (ms(v) == null ? null : new Date(ms(v)).toISOString());
+
+  // Check-ins since joining. The read returns the latest four, so below four the oldest is the first.
+  let checkinsSince;
+  if (checkins === undefined || checkins === null) checkinsSince = undefined;
+  else {
+    const weeks = (Array.isArray(checkins) ? checkins : [])
+      .map((c) => (c && typeof (c.week_of || c.weekOf) === 'string' ? String(c.week_of || c.weekOf).slice(0, 10) : null))
+      .filter((w) => w && weekEndSunday(w) >= joinedDay)
+      .sort();
+    checkinsSince = { count: weeks.length, firstWeekOf: weeks.length ? weeks[0] : null };
+  }
+  // A measurement from day 28 on is the day-30 progress read.
+  const measuredAt = measurements === undefined || measurements === null ? undefined : (() => {
+    let best = null;
+    for (const m of Array.isArray(measurements) ? measurements : []) {
+      const d = m && typeof m.measured_on === 'string' ? m.measured_on.slice(0, 10) : null;
+      if (d && d >= addDaysISO(joined, 27) && (!best || d > best)) best = d;
+    }
+    return best;
+  })();
+
+  const known = (v) => (v === undefined ? null : !!v);
+  const week1Start = weekOne && weekOne.startsOn ? weekOne.startsOn : joinedDay;
+  const steps = [
+    { key: 'joined', done: true, at: iso(joinedAt) },
+    { key: 'welcome', done: known(welcomeAt), at: iso(welcomeAt) },
+    { key: 'hello', done: known(helloAt), at: iso(helloAt) },
+    { key: 'plan', done: known(firstPlan), at: firstPlan ? iso(firstPlan.at) : null, title: firstPlan && typeof firstPlan.title === 'string' ? firstPlan.title : null, due: weekOne && weekOne.startsOn ? weekOne.startsOn : null },
+    { key: 'checkin', done: checkinsSince === undefined ? null : checkinsSince.count >= 1, at: checkinsSince && checkinsSince.firstWeekOf, due: weekEndSunday(week1Start, 3) },
+    { key: 'checkin2', done: checkinsSince === undefined ? null : checkinsSince.count >= 2, due: addDaysISO(joined, 14) },
+    { key: 'progress', done: measuredAt === undefined ? null : !!measuredAt, at: measuredAt || null, due: addDaysISO(joined, ONBOARDING_DAYS) },
+  ];
+  return {
+    role,
+    joinedAt: iso(joinedAt),
+    day,
+    days: ONBOARDING_DAYS,
+    steps,
+    weekOne,
+    suggested: weekOne ? null : suggestedCount(intake, role),
+    unit: role === 'trainer' ? 'workouts' : 'days_logged',
+  };
+}

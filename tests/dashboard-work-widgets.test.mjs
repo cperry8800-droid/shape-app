@@ -8,7 +8,7 @@ const source=readFileSync(new URL('../public/newdesign/dashToday.jsx',import.met
 const shared=readFileSync(new URL('../public/newdesign/dashData.jsx',import.meta.url),'utf8');
 const reviewHelper=shared.slice(shared.indexOf('function dashCheckinReviewed('),shared.indexOf('// The unit a bound metric'));
 const code=reviewHelper + babel.transformSync(source,{presets:[preset]}).code;
-const api=new Function('window','serif','sans',code+';return {dashCapacity,dashSetupSteps,dashReplyRows,dashCheckinRows};')({},'serif','sans');
+const api=new Function('window','serif','sans',code+';return {dashCapacity,dashReplyRows,dashCheckinRows};')({},'serif','sans');
 const sig=require('../public/newdesign/dashSignals.js');
 const MONDAY=new Date(2026,8,21,0);
 
@@ -20,13 +20,7 @@ test('check-ins are oldest first; receiving is not reviewing and edits reopen a 
   client.checkins[1].wins='Edited';assert.equal(api.dashCheckinRows([client],reviews).length,2);
   assert.equal(api.dashCheckinRows([{profile:{id:'b',name:'Other'},checkins:[{week_of:'2026-09-14',wins:'Training'}]}],reviews).length,1);
 });
-test('setup distinguishes explicit intake completion, shared absence, and unreadable steps',()=>{
-  const steps=api.dashSetupSteps({progressRead:{state:'ready'},payments:{sessionCount:0},checkins:[]},false);
-  assert.deepEqual(steps.map((s)=>s.done),[false,false,null,false]);
-  const done=api.dashSetupSteps({payments:{sessionCount:1},program:{name:'Block'},checkins:[{}]},true);
-  assert.deepEqual(done.map((s)=>s.done),[true,true,true,true]);
-  assert.deepEqual(api.dashSetupSteps({},false).map((s)=>s.done),[false,null,null,null]);
-});
+// The setup card's steps moved to the onboarding board (fix 4): tests/onboarding-board.test.mjs.
 test('replies use the latest message sender, not unread status, and sort by waiting time',()=>{
   const rows=api.dashReplyRows([
     {id:'answered',unread:8,messages:[{mine:false,createdAt:'2026-09-20'},{mine:true,createdAt:'2026-09-21'}]},

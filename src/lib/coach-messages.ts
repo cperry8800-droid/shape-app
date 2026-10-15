@@ -20,9 +20,11 @@ export function coachThreadMessage(m: Row, userId: string): CoachThreadMessage {
 }
 
 /**
- * The clients' names, by id. get_display_names first (it answers any signed-in caller, up to 200
- * ids), then the name a client gave on a booking. A subscriber with no booking read "Client"
- * before, because bookings were the only source.
+ * The clients' names, by id. get_display_names first (it answers any signed-in caller), then the
+ * name a client gave on a booking. A subscriber with no booking read "Client" before, because
+ * bookings were the only source.
+ * ⚠ IN CHUNKS OF 200: the RPC refuses a longer list outright ('too many ids'), and a roster can
+ * hold more. The coach roster reads every client's name here (client-onboarding review, M12).
  */
 export async function clientNames(
   supabase: Client,
@@ -30,15 +32,19 @@ export async function clientNames(
   fallback: Map<string, string>,
 ): Promise<Map<string, string>> {
   const out = new Map(fallback);
-  const wanted = [...new Set(ids.filter(Boolean))].slice(0, 200);
+  const wanted = [...new Set(ids.filter(Boolean))];
   if (!wanted.length) return out;
-  const { data, error } = await supabase.rpc('get_display_names', { p_ids: wanted });
-  if (error) {
-    console.warn('[coach-messages] get_display_names failed:', error.message);
-    return out;
-  }
-  for (const r of (data ?? []) as { user_id?: string; full_name?: string | null }[]) {
-    if (r.user_id && r.full_name && r.full_name.trim()) out.set(r.user_id, r.full_name.trim());
+  const chunks: string[][] = [];
+  for (let i = 0; i < wanted.length; i += 200) chunks.push(wanted.slice(i, i + 200));
+  const results = await Promise.all(chunks.map((p_ids) => supabase.rpc('get_display_names', { p_ids })));
+  for (const { data, error } of results) {
+    if (error) {
+      console.warn('[coach-messages] get_display_names failed:', error.message);
+      continue;
+    }
+    for (const r of (data ?? []) as { user_id?: string; full_name?: string | null }[]) {
+      if (r.user_id && r.full_name && r.full_name.trim()) out.set(r.user_id, r.full_name.trim());
+    }
   }
   return out;
 }
