@@ -155,6 +155,7 @@
   "login.err.captchaToast": "Un moment — nous vérifions que vous êtes bien humain…",
   "login.err.credentials": "Saisissez votre e-mail et votre mot de passe.",
   "login.err.dobRequired": "Saisissez votre date de naissance — Shape est réservé aux adultes de 18 ans et plus.",
+  "login.err.nameRequired": "Saisissez votre nom.",
   "login.err.enterCode": "Saisissez le code que nous vous avons envoyé par SMS.",
   "login.err.forgotEmail": "Saisissez d’abord votre e-mail, puis touchez « mot de passe oublié ».",
   "login.err.forgotFail": "Impossible d’envoyer l’e-mail de réinitialisation.",

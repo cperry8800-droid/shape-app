@@ -952,26 +952,28 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return () => window.removeEventListener('shape:startWorkout', onStart);
   }, []);
 
-  // First-run Shape Score explainer: auto-show ONCE for newly-created accounts that
-  // haven't seen it (its own seen-flag) — shown before the app tour so a new member
-  // understands the scoring system as soon as they're in.
+  // First-run Shape Score explainer: auto-show ONCE for an account that hasn't seen it
+  // (its own seen-flag) — shown before the app tour so a new member understands the
+  // scoring system as soon as they're in.
+  // ⚠ "HASN'T SEEN IT", NOT "UNDER A DAY OLD" (client-onboarding review, L1). It showed only to
+  // accounts created in the last 24 hours, so a website sign-up who opened the app the next day,
+  // or anyone who confirmed their email a day late, never saw it (or the tour it leads into).
+  // The seen flags decide alone now. Because that reaches long-standing members on a new device,
+  // a cloud read that failed (null) is unknown, never "not seen": the next launch asks again.
   React.useEffect(() => {
     let alive = true;
     let done = false;
     try { done = localStorage.getItem('shape.scoreIntroSeen') === '1'; } catch (e) {}
     if (done) return undefined;
-    const NEW_MS = 24 * 60 * 60 * 1000;
     const decide = () => {
       if (!alive || done) return;
       const u = window.ShapeAuth?.getCachedState?.().user;
       if (!u) return;
-      const created = u.created_at ? Date.parse(u.created_at) : NaN;
-      if (!(Number.isFinite(created) && Date.now() - created < NEW_MS)) return;
       done = true;
       if (window.shapeDb?.getUserGoals) {
         window.shapeDb.getUserGoals('client_score_intro')
-          .then(d => { if (!alive) return; if (d && d.seen) { try { localStorage.setItem('shape.scoreIntroSeen', '1'); } catch (e) {} } else setShowScoreIntro(true); })
-          .catch(() => { if (alive) setShowScoreIntro(true); });
+          .then(d => { if (!alive || d == null) return; if (d.seen) { try { localStorage.setItem('shape.scoreIntroSeen', '1'); } catch (e) {} } else setShowScoreIntro(true); })
+          .catch(() => {});
       } else { setShowScoreIntro(true); }
     };
     decide();
@@ -983,8 +985,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // calls chainTourAfterIntro() below, so a new member flows intro → tour in ONE
   // launch (the old later-launch handoff meant anyone who didn't relaunch inside the
   // 24h new-account window never saw the tour at all). Checks the same seen flags as
-  // the mount effect; no new-account check needed — the intro only auto-shows for
-  // <24h accounts, so chaining inherits that gate.
+  // the mount effect. The member has just pressed "Got it", so an unreadable cloud flag still
+  // shows the tour here: they are in front of it, and it can be skipped.
   const chainTourAfterIntro = () => {
     try { if (localStorage.getItem('shape.tourSeen') === '1') return; } catch (e) {}
     if (window.shapeDb?.getUserGoals) {
@@ -994,21 +996,19 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     } else setShowTour(true);
   };
   // Mount-time auto-show — now the FALLBACK for paths chaining doesn't cover (the
-  // intro was skipped or exited via "See my score", then a relaunch inside the 24h
-  // new-account window). localStorage fast-path + cloud user_goals so it doesn't
-  // re-appear across devices. Replayable anytime via `shape:startTour`.
+  // intro was skipped or exited via "See my score", then a later launch). On the seen
+  // flags alone (L1, above): localStorage fast-path + cloud user_goals so it doesn't
+  // re-appear across devices, and a failed cloud read waits for the next launch.
+  // Replayable anytime via `shape:startTour`.
   React.useEffect(() => {
     let alive = true;
     let done = false;
     try { done = localStorage.getItem('shape.tourSeen') === '1'; } catch (e) {}
     if (done) return undefined;
-    const NEW_MS = 24 * 60 * 60 * 1000; // "new account" window
     const decide = () => {
       if (!alive || done) return;
       const u = window.ShapeAuth?.getCachedState?.().user;
-      if (!u) return; // signed out / not resolved yet — the tour is for new accounts
-      const created = u.created_at ? Date.parse(u.created_at) : NaN;
-      if (!(Number.isFinite(created) && Date.now() - created < NEW_MS)) return; // existing account
+      if (!u) return; // signed out / not resolved yet
       // Let the one-time Shape Score intro go first — its "Got it" chains the tour
       // directly (chainTourAfterIntro above); this mount path only fires on a later
       // launch, so the two never stack.
@@ -1016,8 +1016,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       done = true; // guard the retry below from double-firing
       if (window.shapeDb?.getUserGoals) {
         window.shapeDb.getUserGoals('client_onboarding')
-          .then(d => { if (!alive) return; if (d && d.tourSeen) { try { localStorage.setItem('shape.tourSeen', '1'); } catch (e) {} } else setShowTour(true); })
-          .catch(() => { if (alive) setShowTour(true); });
+          .then(d => { if (!alive || d == null) return; if (d.tourSeen) { try { localStorage.setItem('shape.tourSeen', '1'); } catch (e) {} } else setShowTour(true); })
+          .catch(() => {});
       } else { setShowTour(true); }
     };
     decide();
@@ -26449,6 +26449,37 @@ function BSNoraMemoryPage({ onBack }) {
     </BSPage>
   );
 }
+// Phone notifications on this device (client-onboarding review, L5): signing in no longer asks, so
+// this is where anyone (a coach too: coaches set no reminders) turns them on. Hidden where push does
+// not exist (the website, a build without the plugin).
+function BSPushPermissionRow() {
+  const t = useBS();
+  const tr = useShapeTr();
+  const [perm, setPerm] = useStateBSC(null);
+  React.useEffect(() => {
+    let alive = true;
+    Promise.resolve(window.ShapePush?.permission?.() || 'unavailable').then((p) => { if (alive) setPerm(p); }, () => { if (alive) setPerm('unavailable'); });
+    return () => { alive = false; };
+  }, []);
+  if (!perm || perm === 'unavailable') return null;
+  const turnOn = async () => {
+    try { const next = await window.ShapePush?.ask?.(); if (next) setPerm(next); } catch (e) {}
+  };
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 0', borderBottom: `1px solid ${t.HAIR}` }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em' }}>{tr('settings:push.title', { defaultValue: 'Phone notifications' })}</div>
+        <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50 }}>
+          {perm === 'granted' ? tr('settings:push.on', { defaultValue: 'On for this phone' }) : perm === 'denied' ? tr('settings:push.off', { defaultValue: 'Off in your phone’s settings' }) : tr('settings:push.notYet', { defaultValue: 'Not turned on yet' })}
+        </div>
+      </div>
+      {perm === 'prompt' && (
+        <button type="button" onClick={turnOn} style={{ flexShrink: 0, padding: '8px 12px', borderRadius: 999, border: `1px solid ${t.ACCENT}`, background: 'transparent', color: t.ACCENT, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('settings:push.turnOn', { defaultValue: 'Turn on' })}</button>
+      )}
+    </div>
+  );
+}
+
 function BSNotifyPrefs({ onBack, role }) {
   const t = useBS();
   const { BSPage, BSDetailHeader } = window;
@@ -26507,6 +26538,7 @@ function BSNotifyPrefs({ onBack, role }) {
         <div style={{ padding: `20px ${t.padX}px`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>
       ) : (
         <div style={{ padding: `4px ${t.padX}px 30px` }}>
+          <BSPushPermissionRow />
           <Row label="Mute everything" sub={settings.muted ? 'All notifications paused' : 'Real events only — never spam'} border={false} right={<Toggle on={settings.muted} onClick={() => saveSettings({ muted: !settings.muted })} />} />
           {!settings.muted && (
             <React.Fragment>
@@ -36059,6 +36091,17 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     const name = String(draft.name || '').trim() || identity.name;
     const typed = String(draft.handle || '').trim().replace(/^@+/, '');
     const handle = typed ? '@' + typed : '';
+    // ⚠ AN ACCOUNT WITH NO USERNAME COULD NOT GET ONE (client-onboarding review, L3). A phone
+    // sign-up could skip it, and this field saved only the profile's display handle, never the
+    // account's username (sign-in by @handle, the community). With none yet, the handle typed here
+    // is claimed as the username first; one that is taken or invalid saves nothing and says so.
+    const accountUsername = (() => { try { return window.ShapeAuth?.getCachedState?.()?.profile?.username || null; } catch (e) { return null; } })();
+    if (touched.has('handle') && typed && !accountUsername && window.ShapeAuth?.claimUsername) {
+      const want = typed.toLowerCase();
+      let claimed = false;
+      try { if (/^[a-z0-9][a-z0-9._]{2,19}$/.test(want)) { await window.ShapeAuth.claimUsername(want); claimed = true; } } catch (e) {}
+      if (!claimed) { window.__bsToast?.(window.ShapeI18n?.t?.('onboarding:login.err.usernameTaken') || 'That username is taken or invalid — try another.', 'err'); return; }
+    }
     const location = String(draft.location || '').trim();
     const bio = String(draft.bio || '');
     const fields = {};

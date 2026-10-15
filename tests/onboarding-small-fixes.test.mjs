@@ -14,6 +14,9 @@
 //        the versions in force when the account was made (terms_acceptances).
 //   L4   the money path said "Create a free account" beside a $5 membership, and showed the
 //        checkout's English refusals as they came.
+//   L1   the Score intro and the tour showed only to accounts under a day old.
+//   L3   a phone account could be made with no name, and no screen could give it a handle.
+//   L5   the system's notification prompt ran the moment an account existed.
 //   L11  dead code: get-started.html, pricing/actions.ts.
 
 import test from 'node:test';
@@ -398,5 +401,136 @@ test('M4 + L4: the app says what joining means, in every language, and never "fr
     for (const key of ['login.agree', 'legal.terms', 'legal.privacy', 'paywall.renews', 'paywall.err.inProgress']) assert.ok(cat[key], `${loc}: ${key}`);
     assert.match(cat['paywall.renews'], /\{price\}/, `${loc}: the price`);
     for (const key of ['shell.requireAccount', 'shell.requireAccountLabel']) assert.doesNotMatch(cat[key], FREE, `${loc}: ${key} says free`);
+  }
+});
+
+// ── L1: the Score intro and the tour key on "seen" alone ────────────────────────────────────
+// The mount effect, lifted from the shipped client file and run with a recorded React and window.
+function liftFirstRun(marker) {
+  const src = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  const i = src.indexOf(marker);
+  assert.ok(i > 0, marker);
+  const start = src.lastIndexOf('React.useEffect(() => {', i);
+  const end = src.indexOf('\n  }, []);', i) + '\n  }, []);'.length;
+  return src.slice(start, end);
+}
+async function runFirstRun(code, { goals, local = {}, user = { id: 'u', created_at: '2024-01-01T00:00:00Z' } }) {
+  const shown = [];
+  const storage = { ...local };
+  const localStorage = { getItem: (k) => (k in storage ? storage[k] : null), setItem: (k, v) => { storage[k] = String(v); } };
+  const win = { ShapeAuth: { getCachedState: () => ({ user }) }, shapeDb: { getUserGoals: async () => (goals instanceof Error ? Promise.reject(goals) : goals) } };
+  const React = { useEffect: (fn) => fn() };
+  new Function('React', 'window', 'localStorage', 'setTimeout', 'clearTimeout', 'setShowScoreIntro', 'setShowTour', code)(
+    React, win, localStorage, () => 0, () => {}, (v) => shown.push(['intro', v]), (v) => shown.push(['tour', v]));
+  await new Promise((r) => setImmediate(r));
+  return { shown, storage };
+}
+
+test('L1: a member of any age who has not seen the Score intro or the tour gets them; a failed read waits', async () => {
+  const intro = liftFirstRun("done = localStorage.getItem('shape.scoreIntroSeen') === '1';");
+  const tour = liftFirstRun("const decide = () => {\n      if (!alive || done) return;\n      const u = window.ShapeAuth?.getCachedState?.().user;\n      if (!u) return; // signed out / not resolved yet");
+  for (const code of [intro, tour]) assert.doesNotMatch(code, /NEW_MS|created_at/, 'no account-age window');
+  // An account made in 2024, never shown either: the intro, then (once it is seen) the tour.
+  assert.deepEqual((await runFirstRun(intro, { goals: {} })).shown, [['intro', true]]);
+  assert.deepEqual((await runFirstRun(tour, { goals: {}, local: { 'shape.scoreIntroSeen': '1' } })).shown, [['tour', true]]);
+  // Seen on another device: not shown, and remembered here.
+  const seen = await runFirstRun(intro, { goals: { seen: true } });
+  assert.deepEqual(seen.shown, []);
+  assert.equal(seen.storage['shape.scoreIntroSeen'], '1');
+  assert.deepEqual((await runFirstRun(tour, { goals: { tourSeen: true }, local: { 'shape.scoreIntroSeen': '1' } })).shown, []);
+  // The cloud read failed (getUserGoals answers null on an error, or throws): not shown; next launch asks.
+  for (const goals of [null, new Error('offline')]) {
+    assert.deepEqual((await runFirstRun(intro, { goals })).shown, [], 'a failed read is not "never seen"');
+    assert.deepEqual((await runFirstRun(tour, { goals, local: { 'shape.scoreIntroSeen': '1' } })).shown, []);
+  }
+  assert.deepEqual((await runFirstRun(intro, { goals: {}, local: { 'shape.scoreIntroSeen': '1' } })).shown, [], 'seen on this device');
+  assert.deepEqual((await runFirstRun(intro, { goals: {}, user: null })).shown, [], 'signed out');
+});
+
+// ── L3: a phone account has a name, and any account can get a handle ────────────────────────
+test('L3: the phone create needs a name, offers a handle, and claims it once the code is verified', async () => {
+  const main = read('mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx');
+  const send = main.slice(main.indexOf('const sendPhoneCode = async () => {'), main.indexOf('// Phone — step 2: verify the code and sign in.'));
+  assert.match(send, /if \(isCreate\) \{\s*if \(!fullName\.trim\(\)\) \{ setAuthError\(tr\('login\.err\.nameRequired'\)\); return; \}/);
+  assert.match(send, /username: isCreate \? username : undefined \}\);/);
+  assert.match(main, /\{isCreate && \(!stepped \|\| createStep === 1\) && wireField\(tr\('login\.fieldHandle'\),/, 'the handle field shows on the phone create too');
+  // signInWithPhone, lifted and run: the handle rides in the sign-up metadata.
+  const be = read('mobile-app/src/services/shapeBackend.js');
+  const i = be.indexOf('async function signInWithPhone(');
+  const fn = be.slice(i, be.indexOf('\n}\n', i) + 2);
+  const calls = [];
+  const supabase = { auth: { signInWithOtp: async (a) => { calls.push(a); return { error: null }; } } };
+  const signIn = new Function('supabase', 'authConfigured', 'normalizeRole', 'isMinorFromDob', fn + '\nreturn signInWithPhone;')(supabase, true, (r) => r, () => false);
+  await signIn({ phone: '+15550001111', fullName: 'Sam Lee', role: 'client', dob: '1990-01-01', isCreate: true, username: '@Sam.Lee' });
+  assert.equal(calls[0].options.data.username, 'sam.lee');
+  assert.equal(calls[0].options.data.full_name, 'Sam Lee');
+  await signIn({ phone: '+15550001111', isCreate: false, username: 'someone' });
+  assert.equal(calls[1].options.data, undefined, 'a sign-in sends no sign-up details');
+  const verify = be.slice(be.indexOf('async function verifyPhoneOtp('), be.indexOf('const cached = setCached({ user: data.user, session: data.session, profile });', be.indexOf('async function verifyPhoneOtp(')));
+  assert.match(verify, /if \(data\.user\) profile = await ensureUsernameClaimed\(data\.user, profile\);/);
+  for (const loc of fs.readdirSync(join(ROOT, 'mobile-app/src/i18n/catalogs'))) {
+    assert.ok(JSON.parse(read(`mobile-app/src/i18n/catalogs/${loc}/onboarding.json`))['login.err.nameRequired'], `${loc}: login.err.nameRequired`);
+  }
+});
+
+test('L3: the profile editor claims the account\'s username when it has none; a taken one saves nothing', () => {
+  const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  const save = client.slice(client.indexOf('const saveEdit  = async () => {'), client.indexOf('const cancelEdit = () => setEditing(false);'));
+  const claim = save.indexOf('await window.ShapeAuth.claimUsername(want);');
+  assert.ok(claim > 0, 'the claim');
+  assert.ok(claim < save.indexOf('await bsSaveIdentity(patch);'), 'before the profile is written');
+  assert.match(save, /if \(touched\.has\('handle'\) && typed && !accountUsername && window\.ShapeAuth\?\.claimUsername\) \{/);
+  assert.match(save, /if \(!claimed\) \{ window\.__bsToast\?\.\([^;]*'err'\); return; \}/);
+});
+
+// ── L5: phone notifications are asked for when they mean something ──────────────────────────
+async function loadPush(receive) {
+  const asked = [];
+  const plugin = {
+    checkPermissions: async () => ({ receive: receive.now }),
+    requestPermissions: async () => { asked.push('prompt'); receive.now = receive.answer; return { receive: receive.answer }; },
+    addListener: async () => ({ remove: () => {} }),
+    register: async () => { asked.push('register'); },
+  };
+  globalThis.window = { Capacitor: { isNativePlatform: () => true, getPlatform: () => 'ios', Plugins: { PushNotifications: plugin } } };
+  const mod = await loadRealModule(join(ROOT, 'mobile-app/src/services/push.js'), {});
+  return { mod, asked };
+}
+
+test('L5: signing in never runs the system prompt; asking does, once, and the answer is read back', async () => {
+  const before = globalThis.window;
+  try {
+    const fresh = { now: 'prompt', answer: 'granted' };
+    const a = await loadPush(fresh);
+    await a.mod.registerPush();
+    assert.deepEqual(a.asked, [], 'sign-in: no prompt, no registration');
+    assert.equal(await a.mod.pushPermission(), 'prompt');
+    assert.equal(await a.mod.askForPush(), 'granted');
+    assert.deepEqual(a.asked, ['prompt', 'register']);
+    const allowed = await loadPush({ now: 'granted' });
+    await allowed.mod.registerPush();
+    assert.deepEqual(allowed.asked, ['register'], 'a phone already allowed is registered silently');
+    const refused = await loadPush({ now: 'denied' });
+    assert.equal(await refused.mod.pushPermission(), 'denied');
+    globalThis.window = { Capacitor: { isNativePlatform: () => false } };
+    const web = await loadRealModule(join(ROOT, 'mobile-app/src/services/push.js'), {});
+    assert.equal(await web.pushPermission(), 'unavailable');
+  } finally { globalThis.window = before; }
+  // The shell asks after a reminder is saved, with an explanation first; Settings has the row.
+  const be = read('mobile-app/src/services/shapeBackend.js');
+  assert.match(be, /window\.ShapePush = \{ register: registerPush, permission: pushPermission, ask: askForPush \};/);
+  assert.match(be, /if \(res\.ok && out && out\.ok !== false\) bsReminderSet\(\);/);
+  assert.match(be, /await scheduleLocalHabit\(row\);\s*if \(row\.enabled\) bsReminderSet\(\);/);
+  const main = read('mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx');
+  const ask = main.slice(main.indexOf('function BSPushAsk() {'), main.indexOf('// Persistent "you\'re previewing" banner'));
+  assert.match(ask, /window\.addEventListener\('shape:reminderSet', onSet\);/);
+  assert.match(ask, /if \(alive && perm === 'prompt'\) setOpen\(true\);/, 'only a phone that has not answered');
+  assert.match(ask, /const turnOn = async \(\) => \{ setOpen\(false\); try \{ await window\.ShapePush\?\.ask\?\.\(\); \}/, 'the system prompt only from Turn on');
+  assert.match(main, /<App onLogout=\{handleLogout\}[^\n]*\/>\s*<BSPushAsk \/>/);
+  const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  assert.match(client, /<div style=\{\{ padding: `4px \$\{t\.padX\}px 30px` \}\}>\s*<BSPushPermissionRow \/>/);
+  for (const loc of fs.readdirSync(join(ROOT, 'mobile-app/src/i18n/catalogs'))) {
+    const cat = JSON.parse(read(`mobile-app/src/i18n/catalogs/${loc}/settings.json`));
+    for (const k of ['push.title', 'push.on', 'push.off', 'push.notYet', 'push.turnOn', 'push.askTitle', 'push.askBody', 'push.askYes', 'push.notNow']) assert.ok(cat[k], `${loc}: settings:${k}`);
   }
 });

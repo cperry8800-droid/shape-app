@@ -155,6 +155,7 @@
   "login.err.captchaToast": "Un momento — stiamo verificando che tu sia umano…",
   "login.err.credentials": "Inserisci e-mail e password.",
   "login.err.dobRequired": "Inserisci la tua data di nascita — Shape è per adulti dai 18 anni in su.",
+  "login.err.nameRequired": "Inserisci il tuo nome.",
   "login.err.enterCode": "Inserisci il codice che ti abbiamo inviato via SMS.",
   "login.err.forgotEmail": "Inserisci prima la tua e-mail, poi tocca «password dimenticata».",
   "login.err.forgotFail": "Impossibile inviare l’e-mail di reimpostazione.",

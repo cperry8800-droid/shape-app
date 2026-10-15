@@ -486,5 +486,14 @@
   "privacy.leaderboard": "Show me on leaderboards",
   "privacy.teamBoard": "Show me to my coach’s team",
   "privacy.leaderboardDesc": "On by default. Off takes you off every member leaderboard; you still see your own place. Members see your first name and last initial, never your full name.",
-  "privacy.teamBoardDesc": "Off until you turn it on. When on, members who share your coach see you on their team board, so they know you train with the same coach. It never names your coach."
+  "privacy.teamBoardDesc": "Off until you turn it on. When on, members who share your coach see you on their team board, so they know you train with the same coach. It never names your coach.",
+  "push.title": "Phone notifications",
+  "push.on": "On for this phone",
+  "push.off": "Off in your phone’s settings",
+  "push.notYet": "Not turned on yet",
+  "push.turnOn": "Turn on",
+  "push.askTitle": "Get your reminders on your phone",
+  "push.askBody": "Shape sends the reminders you set, and messages from your coach, as phone notifications. Your phone asks once; you can change it later in its settings.",
+  "push.askYes": "Turn on notifications",
+  "push.notNow": "Not now"
 }

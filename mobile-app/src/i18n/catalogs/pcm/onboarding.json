@@ -155,6 +155,7 @@
   "login.err.captchaToast": "Wait small — we dey confirm say na human being you be…",
   "login.err.credentials": "Put your email and password.",
   "login.err.dobRequired": "Put di day wey dem born you — Shape na for adult wey don reach 18.",
+  "login.err.nameRequired": "Put your name.",
   "login.err.enterCode": "Put di code wey we text you.",
   "login.err.forgotEmail": "Put your email first, then tap forgot password.",
   "login.err.forgotFail": "We no fit send di reset email.",

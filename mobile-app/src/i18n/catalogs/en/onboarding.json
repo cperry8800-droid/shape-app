@@ -155,6 +155,7 @@
   "login.err.captchaToast": "One moment — confirming you’re human…",
   "login.err.credentials": "Enter your email and password.",
   "login.err.dobRequired": "Enter your date of birth — Shape is for adults 18 and over.",
+  "login.err.nameRequired": "Enter your name.",
   "login.err.enterCode": "Enter the code we texted you.",
   "login.err.forgotEmail": "Enter your email first, then tap forgot password.",
   "login.err.forgotFail": "Could not send the reset email.",

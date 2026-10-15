@@ -155,6 +155,7 @@
   "login.err.captchaToast": "Ɗan lokaci — muna tabbatar da kai mutum ne…",
   "login.err.credentials": "Shigar da imel ɗinka da kalmar sirrinka.",
   "login.err.dobRequired": "Shigar da ranar haihuwarka — Shape na manya ne masu shekaru 18 zuwa sama.",
+  "login.err.nameRequired": "Shigar da sunanka.",
   "login.err.enterCode": "Shigar da lambar da muka aiko maka.",
   "login.err.forgotEmail": "Fara shigar da imel ɗinka, sannan ka danna manta kalmar sirri.",
   "login.err.forgotFail": "An kasa aika imel ɗin sake saiti.",

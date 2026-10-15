@@ -486,5 +486,14 @@
   "privacy.leaderboard": "Show me for leaderboards",
   "privacy.teamBoard": "Show me to my coach team",
   "privacy.leaderboardDesc": "E dey on by default. Off go comot you from every member leaderboard; you go still see your own place. Members go see your first name and the first letter of your surname, dem no go ever see your full name.",
-  "privacy.teamBoardDesc": "E dey off until you put am on. When e on, members wey get the same coach with you go see you for their team board, so dem go sabi say una dey train with the same coach. E no dey ever call your coach name."
+  "privacy.teamBoardDesc": "E dey off until you put am on. When e on, members wey get the same coach with you go see you for their team board, so dem go sabi say una dey train with the same coach. E no dey ever call your coach name.",
+  "push.title": "Phone notifications",
+  "push.on": "E dey on for dis phone",
+  "push.off": "E dey off for your phone settings",
+  "push.notYet": "You never on am yet",
+  "push.turnOn": "Turn am on",
+  "push.askTitle": "Make your reminders land for your phone",
+  "push.askBody": "Shape go send the reminders wey you set, plus messages from your coach, as phone notifications. Your phone go ask you once; you fit change am later for the phone settings.",
+  "push.askYes": "Turn notifications on",
+  "push.notNow": "No be now"
 }

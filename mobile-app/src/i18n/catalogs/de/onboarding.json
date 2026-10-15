@@ -155,6 +155,7 @@
   "login.err.captchaToast": "Einen Augenblick — wir prüfen, ob du ein Mensch bist…",
   "login.err.credentials": "Gib deine E-Mail-Adresse und dein Passwort ein.",
   "login.err.dobRequired": "Gib dein Geburtsdatum ein — Shape ist für Erwachsene ab 18 Jahren.",
+  "login.err.nameRequired": "Gib deinen Namen ein.",
   "login.err.enterCode": "Gib den Code ein, den wir dir per SMS geschickt haben.",
   "login.err.forgotEmail": "Gib zuerst deine E-Mail-Adresse ein und tippe dann auf Passwort vergessen.",
   "login.err.forgotFail": "Die E-Mail zum Zurücksetzen konnte nicht gesendet werden.",

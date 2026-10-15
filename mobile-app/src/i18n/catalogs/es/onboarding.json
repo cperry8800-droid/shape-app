@@ -155,6 +155,7 @@
   "login.err.captchaToast": "Un momento — confirmando que eres humano…",
   "login.err.credentials": "Introduce tu correo electrónico y tu contraseña.",
   "login.err.dobRequired": "Introduce tu fecha de nacimiento — Shape es para adultos de 18 años o más.",
+  "login.err.nameRequired": "Escribe tu nombre.",
   "login.err.enterCode": "Introduce el código que te enviamos por SMS.",
   "login.err.forgotEmail": "Introduce primero tu correo electrónico y luego toca «¿Olvidaste tu contraseña?».",
   "login.err.forgotFail": "No se pudo enviar el correo de restablecimiento.",

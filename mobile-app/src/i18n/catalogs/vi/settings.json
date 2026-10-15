@@ -486,5 +486,14 @@
   "privacy.leaderboard": "Hiển thị tôi trên bảng xếp hạng",
   "privacy.teamBoard": "Hiển thị tôi với đội của huấn luyện viên",
   "privacy.leaderboardDesc": "Mặc định bật. Tắt sẽ đưa bạn ra khỏi mọi bảng xếp hạng thành viên; bạn vẫn thấy vị trí của mình. Thành viên thấy tên và chữ cái đầu trong họ của bạn, không bao giờ thấy họ tên đầy đủ.",
-  "privacy.teamBoardDesc": "Tắt cho đến khi bạn bật. Khi bật, các thành viên có cùng huấn luyện viên với bạn sẽ thấy bạn trên bảng của đội, nên biết bạn tập cùng một huấn luyện viên. Huấn luyện viên của bạn không bao giờ bị nêu tên."
+  "privacy.teamBoardDesc": "Tắt cho đến khi bạn bật. Khi bật, các thành viên có cùng huấn luyện viên với bạn sẽ thấy bạn trên bảng của đội, nên biết bạn tập cùng một huấn luyện viên. Huấn luyện viên của bạn không bao giờ bị nêu tên.",
+  "push.title": "Thông báo trên điện thoại",
+  "push.on": "Đang bật trên điện thoại này",
+  "push.off": "Đã tắt trong cài đặt điện thoại",
+  "push.notYet": "Chưa bật",
+  "push.turnOn": "Bật",
+  "push.askTitle": "Nhận lời nhắc trên điện thoại",
+  "push.askBody": "Shape gửi lời nhắc bạn đặt và tin nhắn từ huấn luyện viên dưới dạng thông báo. Điện thoại chỉ hỏi một lần; bạn có thể đổi sau trong phần cài đặt.",
+  "push.askYes": "Bật thông báo",
+  "push.notNow": "Để sau"
 }

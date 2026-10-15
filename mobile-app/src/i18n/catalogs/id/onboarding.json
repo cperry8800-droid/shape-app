@@ -155,6 +155,7 @@
   "login.err.captchaToast": "Tunggu sebentar — memastikan Anda manusia…",
   "login.err.credentials": "Masukkan email dan kata sandi Anda.",
   "login.err.dobRequired": "Masukkan tanggal lahir Anda — Shape untuk orang dewasa berusia 18 tahun ke atas.",
+  "login.err.nameRequired": "Masukkan nama Anda.",
   "login.err.enterCode": "Masukkan kode yang kami kirim lewat SMS.",
   "login.err.forgotEmail": "Masukkan email Anda dulu, lalu ketuk lupa kata sandi.",
   "login.err.forgotFail": "Tidak dapat mengirim email pengaturan ulang.",

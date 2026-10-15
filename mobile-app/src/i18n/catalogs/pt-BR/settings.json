@@ -486,5 +486,14 @@
   "privacy.leaderboard": "Aparecer nos rankings",
   "privacy.teamBoard": "Aparecer para a equipe do meu coach",
   "privacy.leaderboardDesc": "Ativado por padrão. Desativado tira você de todos os rankings de membros; você continua vendo sua própria posição. Os membros veem seu primeiro nome e a inicial do sobrenome, nunca seu nome completo.",
-  "privacy.teamBoardDesc": "Desativado até você ativar. Quando ativado, os membros que têm o mesmo coach que você veem você no ranking da equipe deles, e sabem que você treina com o mesmo coach. Seu coach nunca é citado."
+  "privacy.teamBoardDesc": "Desativado até você ativar. Quando ativado, os membros que têm o mesmo coach que você veem você no ranking da equipe deles, e sabem que você treina com o mesmo coach. Seu coach nunca é citado.",
+  "push.title": "Notificações no celular",
+  "push.on": "Ativadas neste celular",
+  "push.off": "Desativadas nos ajustes do celular",
+  "push.notYet": "Ainda não ativadas",
+  "push.turnOn": "Ativar",
+  "push.askTitle": "Receba seus lembretes no celular",
+  "push.askBody": "A Shape envia os lembretes que você definir e as mensagens do seu coach como notificações. Seu celular pergunta uma vez; você pode mudar depois nos ajustes dele.",
+  "push.askYes": "Ativar notificações",
+  "push.notNow": "Agora não"
 }

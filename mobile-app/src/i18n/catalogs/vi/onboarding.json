@@ -155,6 +155,7 @@
   "login.err.captchaToast": "Chờ một chút — đang xác nhận bạn là người thật…",
   "login.err.credentials": "Nhập email và mật khẩu của bạn.",
   "login.err.dobRequired": "Hãy nhập ngày sinh — Shape dành cho người từ 18 tuổi trở lên.",
+  "login.err.nameRequired": "Nhập tên của bạn.",
   "login.err.enterCode": "Nhập mã chúng tôi đã nhắn cho bạn.",
   "login.err.forgotEmail": "Hãy nhập email trước, rồi chạm Quên mật khẩu.",
   "login.err.forgotFail": "Không thể gửi email đặt lại mật khẩu.",

@@ -155,6 +155,7 @@
   "login.err.captchaToast": "Bir dakika — insan olduğunu doğruluyoruz…",
   "login.err.credentials": "E-postanı ve parolanı gir.",
   "login.err.dobRequired": "Doğum tarihini gir — Shape 18 yaş ve üzeri yetişkinler içindir.",
+  "login.err.nameRequired": "Adını gir.",
   "login.err.enterCode": "Sana mesajla gönderdiğimiz kodu gir.",
   "login.err.forgotEmail": "Önce e-postanı gir, sonra parolamı unuttum bağlantısına dokun.",
   "login.err.forgotFail": "Sıfırlama e-postası gönderilemedi.",

@@ -155,6 +155,7 @@
   "login.err.captchaToast": "Минуту — подтверждаем, что вы человек…",
   "login.err.credentials": "Введите почту и пароль.",
   "login.err.dobRequired": "Укажите дату рождения — Shape предназначен для людей от 18 лет.",
+  "login.err.nameRequired": "Введите ваше имя.",
   "login.err.enterCode": "Введите код из SMS.",
   "login.err.forgotEmail": "Сначала введите почту, затем нажмите «Забыли пароль».",
   "login.err.forgotFail": "Не удалось отправить письмо для сброса пароля.",

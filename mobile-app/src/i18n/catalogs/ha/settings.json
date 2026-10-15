@@ -486,5 +486,14 @@
   "privacy.leaderboard": "Nuna ni a jerin jagorori",
   "privacy.teamBoard": "Nuna ni ga ƙungiyar kocina",
   "privacy.leaderboardDesc": "A kunne ta asali. A kashe yana cire ka daga duk jerin jagororin mambobi; kana ci gaba da ganin matsayinka. Mambobi suna ganin sunanka na farko da harafin farko na sunan mahaifinka, ba cikakken sunanka ba.",
-  "privacy.teamBoardDesc": "A kashe har sai ka kunna. Idan a kunne, mambobin da kuke da koci ɗaya suna ganinka a jerin ƙungiyarsu, don haka sun san kuna horo da koci ɗaya. Ba a taɓa ambaton sunan kocinka ba."
+  "privacy.teamBoardDesc": "A kashe har sai ka kunna. Idan a kunne, mambobin da kuke da koci ɗaya suna ganinka a jerin ƙungiyarsu, don haka sun san kuna horo da koci ɗaya. Ba a taɓa ambaton sunan kocinka ba.",
+  "push.title": "Sanarwa a waya",
+  "push.on": "A kunne a wannan wayar",
+  "push.off": "A kashe a saitunan wayarka",
+  "push.notYet": "Ba a kunna ba tukuna",
+  "push.turnOn": "Kunna",
+  "push.askTitle": "Samu tunatarwarka a wayarka",
+  "push.askBody": "Shape na aika tunatarwar da ka saita, da saƙonni daga kocinka, a matsayin sanarwa a waya. Wayarka za ta tambaya sau ɗaya; za ka iya canza shi daga baya a saitunanta.",
+  "push.askYes": "Kunna sanarwa",
+  "push.notNow": "Ba yanzu ba"
 }
