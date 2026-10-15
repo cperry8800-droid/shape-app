@@ -28,6 +28,12 @@
 -- this file replaces both functions and adds the owner to every direct thread that lacks them
 -- (production held no direct threads on 2026-10-15, so that touched nothing).
 --
+-- ⚠ AND A "NEW MESSAGE" NOTIFICATION NAMES THE THREAD'S ROLE (Codex on #2360). notify_on_new_message
+-- wrote data = { conversationId } only, so the website opened a coach with both listings on the
+-- Messages page of whichever role they had open, whose inbox refuses the other role's thread. It
+-- now writes providerRole too; the body is otherwise the 2026-05-30 one, with the search_path the
+-- 2026-08-09 sweep pinned. Grants are untouched (create or replace keeps them).
+--
 -- Re-runnable: "create or replace", "if not exists", "on conflict do nothing", and a guard that
 -- checks the result.
 
@@ -208,6 +214,55 @@ begin
 end;
 $$;
 
+-- A "New message" notification names its thread's role (see the header).
+create or replace function public.notify_on_new_message()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  conv record;
+  recipient uuid;
+begin
+  select client_id, provider_role, provider_id
+    into conv
+    from public.conversations
+   where id = new.conversation_id;
+  if not found then
+    return new;
+  end if;
+
+  if conv.client_id is not null and conv.client_id = new.sender_id then
+    -- Client sent it → notify the coach (provider owner).
+    if conv.provider_role = 'trainer' then
+      select owner_id into recipient from public.trainers where id = conv.provider_id;
+    elsif conv.provider_role = 'nutritionist' then
+      select owner_id into recipient from public.nutritionists where id = conv.provider_id;
+    end if;
+  else
+    -- Coach (or other) sent it → notify the client.
+    recipient := conv.client_id;
+  end if;
+
+  if recipient is null or recipient = new.sender_id then
+    return new;
+  end if;
+
+  insert into public.notifications (user_id, type, title, body, route, data)
+  values (
+    recipient,
+    'message',
+    'New message',
+    left(coalesce(new.body, ''), 80),
+    'messages',
+    jsonb_build_object('conversationId', new.conversation_id)
+      || case when conv.provider_role is not null then jsonb_build_object('providerRole', conv.provider_role) else '{}'::jsonb end
+  );
+  return new;
+end;
+$$;
+
 -- Every direct thread with a claimed listing has its coach as a participant (see the header).
 insert into public.conversation_participants (conversation_id, user_id, role)
 select c.id, coalesce(t.owner_id, n.owner_id), c.provider_role
@@ -254,6 +309,9 @@ begin
                       where cp.conversation_id = c.id and cp.user_id = coalesce(t.owner_id, n.owner_id))
   ) then
     raise exception 'a direct thread with a claimed listing is missing its coach as a participant';
+  end if;
+  if position('providerRole' in pg_get_functiondef('public.notify_on_new_message()'::regprocedure)) = 0 then
+    raise exception 'notify_on_new_message does not name the thread''s role';
   end if;
 end
 $guard$;

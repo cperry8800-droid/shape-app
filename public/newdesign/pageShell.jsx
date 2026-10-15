@@ -463,13 +463,21 @@ function dashInboxThreadFor(n, role) {
 }
 function dashInboxHref(n, role) {
   if (!n || typeof n.route !== "string") return null;
+  // ⚠ A COACH WITH BOTH LISTINGS OPENS THE NOTIFICATION'S ROLE, NOT THE SHELL'S (Codex on #2360). Each
+  // Messages page lists one role's threads and refuses the other's, so a trainer thread opened from
+  // the nutritionist dashboard read as missing. The alerts carry it (data.providerRole).
+  const own = n.data && (n.data.providerRole === "trainer" || n.data.providerRole === "nutritionist") ? n.data.providerRole : null;
+  if ((role === "trainer" || role === "nutritionist") && own) role = own;
   // A coach's client_red / client_amber / checkin_submitted carries the client it is
   // about; without an id there is no page to open, so it stays plain text.
   if (n.route === "client") {
     const id = n.data && (n.data.clientId || n.data.client_id);
     if (!id || (role !== "trainer" && role !== "nutritionist")) return null;
     const shell = role === "trainer" ? "TrainerApp.html" : "NutritionistApp.html";
-    return (typeof window !== "undefined" && window.__shapeCoachShell ? "" : shell) + "#client/" + encodeURIComponent(String(id));
+    // In the shell of that role, a hash switch; from the other role's shell, that role's shell.
+    const here = typeof window !== "undefined" && window.__shapeCoachShell;
+    const sameShell = !!here && (!own || here === own);
+    return (sameShell ? "" : shell) + "#client/" + encodeURIComponent(String(id));
   }
   // A coach's conversation ("chat:<id>", the new-client alert, or a "New message" with its
   // conversationId; fix 3a) opens their Messages page on that thread. A member's chat is the

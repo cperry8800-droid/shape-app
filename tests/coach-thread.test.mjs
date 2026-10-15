@@ -612,3 +612,25 @@ test('a "New message" notification opens its thread: push, the app\'s list, and 
   assert.match(shell, /const threadId = dashInboxThreadFor\(n, role\);\s+return threadId \? \(/);
   assert.match(shell, /window\.__openChat\(\{ conversationId: threadId \}\)/);
 });
+
+// ── Codex on #2360, ninth round ──────────────────────────────────────────────────────────────────
+test('a coach with both listings opens the notification\'s role, not the dashboard they are on', () => {
+  const shell = read('public/newdesign/pageShell.jsx');
+  const fn = shell.slice(shell.indexOf('const DASH_INBOX_ROUTES = {'), shell.indexOf('// ⚠ A SHAPE CHECK, NOT A TRUST FALL.'));
+  const at = (win) => new Function('window', `${fn}; return dashInboxHref;`)(win);
+  const inNutri = at({ __shapeCoachShell: 'nutritionist' });
+  // A trainer thread from the nutritionist dashboard: the trainer Messages page, which lists it.
+  assert.equal(inNutri({ route: 'messages', data: { conversationId: 'c-1', providerRole: 'trainer' } }, 'nutritionist'), '/newdesign/TrainerMessages.html?conversation=c-1');
+  assert.equal(inNutri({ route: 'chat:c-2', data: { providerRole: 'trainer' } }, 'nutritionist'), '/newdesign/TrainerMessages.html?conversation=c-2');
+  // A trainer client's page from the nutritionist shell: the trainer shell, not a hash switch here.
+  assert.equal(inNutri({ route: 'client', data: { clientId: 'u-1', providerRole: 'trainer' } }, 'nutritionist'), 'TrainerApp.html#client/u-1');
+  // Its own role: unchanged (a hash switch in the shell).
+  assert.equal(inNutri({ route: 'client', data: { clientId: 'u-1', providerRole: 'nutritionist' } }, 'nutritionist'), '#client/u-1');
+  assert.equal(inNutri({ route: 'messages', data: { conversationId: 'c-3' } }, 'nutritionist'), '/newdesign/NutritionistMessages.html?conversation=c-3', 'no role named: the shell\'s');
+  // A member's view never takes a coach page from it.
+  assert.equal(inNutri({ route: 'messages', data: { conversationId: 'c-1', providerRole: 'trainer' } }, 'client'), null);
+  // The trigger names the role on every "New message" notification.
+  assert.match(SQL_CODE, /create or replace function public\.notify_on_new_message\(\)[\s\S]{0,200}security definer\s+set search_path = public, pg_temp/);
+  assert.match(SQL_CODE, /jsonb_build_object\('conversationId', new\.conversation_id\)\s+\|\| case when conv\.provider_role is not null then jsonb_build_object\('providerRole', conv\.provider_role\) else '\{\}'::jsonb end/);
+  assert.match(SQL_CODE, /raise exception 'notify_on_new_message does not name the thread''s role';/);
+});
