@@ -475,5 +475,9 @@
   "section.admin": "Shape yönetimi",
   "card.adminSummary": "Yönetim konsolu · tarayıcında açılır",
   "admin.body": "Yönetim konsolu tarayıcında açılır. Orada Shape hesabınla ve doğrulama uygulamandaki kodla giriş yap.",
-  "admin.open": "Yönetim konsolunu aç"
+  "admin.open": "Yönetim konsolunu aç",
+  "privacy.leaderboard": "Beni lider tablolarında göster",
+  "privacy.teamBoard": "Beni koçumun ekibine göster",
+  "privacy.leaderboardDesc": "Varsayılan olarak açık. Kapalıyken tüm üye lider tablolarından çıkarsın; kendi yerini yine görürsün. Üyeler adını ve soyadının baş harfini görür, asla tam adını görmez.",
+  "privacy.teamBoardDesc": "Sen açana kadar kapalı. Açıkken seninle aynı koçla çalışan üyeler seni ekip tablolarında görür; böylece aynı koçla çalıştığınızı bilirler. Koçunun adı asla geçmez."
 }

@@ -475,5 +475,9 @@
   "section.admin": "Shape-Admin",
   "card.adminSummary": "Die Admin-Konsole · öffnet sich im Browser",
   "admin.body": "Die Admin-Konsole öffnet sich in deinem Browser. Melde dich dort mit deinem Shape-Konto und dem Code aus deiner Authenticator-App an.",
-  "admin.open": "Admin-Konsole öffnen"
+  "admin.open": "Admin-Konsole öffnen",
+  "privacy.leaderboard": "Mich in Bestenlisten zeigen",
+  "privacy.teamBoard": "Mich dem Team meines Coaches zeigen",
+  "privacy.leaderboardDesc": "Standardmäßig an. Aus nimmt dich von jeder Mitglieder-Bestenliste; deinen eigenen Platz siehst du weiterhin. Mitglieder sehen deinen Vornamen und den Anfangsbuchstaben deines Nachnamens, nie deinen vollen Namen.",
+  "privacy.teamBoardDesc": "Aus, bis du es einschaltest. Wenn an, sehen Mitglieder mit demselben Coach dich auf ihrer Team-Bestenliste und wissen so, dass du mit demselben Coach trainierst. Dein Coach wird nie genannt."
 }

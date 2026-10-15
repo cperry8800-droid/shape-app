@@ -475,5 +475,9 @@
   "section.admin": "Gudanarwar Shape",
   "card.adminSummary": "Na'urar gudanarwa · tana buɗewa a burauzarka",
   "admin.body": "Na'urar gudanarwa tana buɗewa a burauzarka. Shiga can da asusunka na Shape da lambar daga manhajar tantancewarka.",
-  "admin.open": "Buɗe na'urar gudanarwa"
+  "admin.open": "Buɗe na'urar gudanarwa",
+  "privacy.leaderboard": "Nuna ni a jerin jagorori",
+  "privacy.teamBoard": "Nuna ni ga ƙungiyar kocina",
+  "privacy.leaderboardDesc": "A kunne ta asali. A kashe yana cire ka daga duk jerin jagororin mambobi; kana ci gaba da ganin matsayinka. Mambobi suna ganin sunanka na farko da harafin farko na sunan mahaifinka, ba cikakken sunanka ba.",
+  "privacy.teamBoardDesc": "A kashe har sai ka kunna. Idan a kunne, mambobin da kuke da koci ɗaya suna ganinka a jerin ƙungiyarsu, don haka sun san kuna horo da koci ɗaya. Ba a taɓa ambaton sunan kocinka ba."
 }

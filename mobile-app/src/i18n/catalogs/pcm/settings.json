@@ -475,5 +475,9 @@
   "section.admin": "Shape admin",
   "card.adminSummary": "Di admin console · e go open for your browser",
   "admin.body": "Di admin console go open for your browser. Sign in there with your Shape account and di code from your authenticator app.",
-  "admin.open": "Open di admin console"
+  "admin.open": "Open di admin console",
+  "privacy.leaderboard": "Show me for leaderboards",
+  "privacy.teamBoard": "Show me to my coach team",
+  "privacy.leaderboardDesc": "E dey on by default. Off go comot you from every member leaderboard; you go still see your own place. Members go see your first name and the first letter of your surname, dem no go ever see your full name.",
+  "privacy.teamBoardDesc": "E dey off until you put am on. When e on, members wey get the same coach with you go see you for their team board, so dem go sabi say una dey train with the same coach. E no dey ever call your coach name."
 }
