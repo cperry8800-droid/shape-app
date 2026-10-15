@@ -1,18 +1,26 @@
 // A still of Club Shape with NORA on the LED wall and the decks empty: the Radio page's Nora box
 // header, public/nora-stage.webp (owner, 2026-10-15: "remove noras avatar from snapshot"; the
 // placeholder model is pinned invisible, since the opening fly-in sets the room visible again).
-//   nora-wall-still.cjs <url> <out-prefix> <cams-json>
+//   [SCALE=2] [BURST=1] nora-wall-still.cjs <url> <out-prefix> <cams-json>
 //   cams: [{ "id": "b", "pos": [x,y,z], "target": [x,y,z], "fov": 34 }]
+//   writes <out-prefix>-<id>-<k>.png for k < BURST, 1.5 s apart
 // The shipped still, with dist/ built and served as the README's Setup and Build describe:
-//   node nora-wall-still.cjs "http://127.0.0.1:8861/index.html?vrm=nora.vrm&q=high&mode=wide" /tmp/still \
+//   SCALE=2 BURST=4 node nora-wall-still.cjs "http://127.0.0.1:8861/index.html?vrm=nora.vrm&q=high&mode=wide" /tmp/still \
 //     '[{"id":"b","pos":[0,3.4,-15],"target":[0,4.4,5.44],"fov":34}]'
-// then crop the 2.39:1 letterbox and keep the wall's top 560 rows (1600x560, WebP q88).
+// then crop the 2.39:1 letterbox (its first lit row, 231 at SCALE=2) and keep the wall's top 1120
+// rows (3200x1120), and downscale with Lanczos to 1720x602, WebP q88 method 6 (PIL:
+// `im.crop((0, 231, 3200, 1351)).resize((1720, 602), Image.LANCZOS).save(out, quality=88, method=6)`).
+// ⚠ SCALE=2 IS THE POINT (owner, 2026-10-15: "looks very pixelated"). The first still was rendered
+// at 1x: the wall's 75 mm dots fell on a 5.4 px pitch the pixel grid could not hold evenly, and a
+// 2x screen upscaled it. tests/nora-stage-header.test.mjs fails a still under 2x the box's width.
+// ⚠ The moving heads follow the clock, so frames differ. BURST takes several, and the shipped one
+// is the frame whose light matches the still the owner picked (no beam across the letters).
 const { chromium } = require('playwright-core');
 (async () => {
   const [,, url, out, camsJson] = process.argv;
   const cams = JSON.parse(camsJson);
   const b = await chromium.launch({ executablePath: process.env.CHROME_PATH || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
-  const p = await b.newPage({ viewport: { width: 1600, height: 900 } });
+  const p = await b.newPage({ viewport: { width: 1600, height: 900 }, deviceScaleFactor: Number(process.env.SCALE) || 2 });
   const errs = []; p.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));
   await p.addInitScript(() => { window.__hideNora = true; });
   await p.goto(url);
@@ -46,8 +54,11 @@ const { chromium } = require('playwright-core');
       d.update = () => ({ pos: { x: c.pos[0], y: c.pos[1], z: c.pos[2] }, target: { x: c.target[0], y: c.target[1], z: c.target[2] }, fov: c.fov });
     }, c);
     await p.waitForTimeout(6000);
-    await p.screenshot({ path: `${out}-${c.id}.png`, timeout: 240000 });
-    console.log('shot', c.id);
+    for (let k = 0; k < (Number(process.env.BURST) || 1); k++) {
+      await p.screenshot({ path: `${out}-${c.id}-${k}.png`, timeout: 240000 });
+      console.log('shot', c.id, k);
+      await p.waitForTimeout(1500);
+    }
   }
   console.log(JSON.stringify(errs.slice(0, 5)));
   await b.close();

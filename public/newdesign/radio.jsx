@@ -184,7 +184,9 @@ async function rdKeeper() {
 // background as the header, so remove Nora in blue font". `/nora-stage.webp` is a still of the
 // booth's own scene, the wall pinned to its NORA artwork and her placeholder model hidden ("remove
 // noras avatar from snapshot"): prototypes/nora-booth/nora-wall-still.cjs makes it, camera
-// [0, 3.4, -15] at [0, 4.4, 5.44], fov 34, 1600x900, letterbox cropped to the wall's top 560 rows.
+// [0, 3.4, -15] at [0, 4.4, 5.44], fov 34, a 1600x900 frame rendered at 2x, letterbox cropped to the
+// wall's top 1120 rows and downscaled to 1720x602, twice the box's width. ⚠ At 1x it read "very
+// pixelated" (owner, 2026-10-15): tests/nora-stage-header.test.mjs holds the width.
 // The band runs to the box's edges and fades into it; the heading is still an <h2>, read by a
 // screen reader and hidden on screen, because the picture is the visual header.
 const RD_NORA_STAGE = "/nora-stage.webp";
