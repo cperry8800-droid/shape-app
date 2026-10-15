@@ -289,7 +289,7 @@ function NutTools() {
   const tools = [
     { t: "Meal plan builder", b: "Macro targets, swap rules, grocery lists that auto-generate. Save any plan as a template, reuse across clients." },
     { t: "Food log review", b: "Client logs land in one thread. Flag outliers, leave timestamped notes, and keep the whole history in one place." },
-    { t: "Client roster", b: "Adherence, weight trend, flagged clients, upcoming consults — all one screen. Filter by specialty or protocol." },
+    { t: "Client roster", b: "Adherence, weight trend, flagged clients, upcoming consults — all one screen. Filter by status." },
     // ⚠ This said "Two-way sync with Google, Apple, Outlook. Clients book 20-min check-ins or
     // 60-min consults. Auto-reminders, intake forms." — no sync, no session reminders, and a
     // booking is a 15-minute consult (owner, 2026-10-07; see coaches.jsx's Schedule tab).
