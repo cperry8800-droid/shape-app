@@ -24,7 +24,8 @@
 // ⚠ REOPENING TELLS THE WAITING LIST (when the coach goes from at capacity to accepting): every
 // member still waiting is notified that the coach is taking new clients, once a day per coach, under
 // their "Waitlist invites" preference (it is the same news: a coach has room for you). A spot that
-// reopens because the resume date passed is not noticed here; nothing writes at that moment.
+// reopens because the resume date passed is noticed by the hourly /api/cron/capacity-reopen, which
+// switches the listing off and tells the same list (src/lib/capacity-reopen.ts, shared with this route).
 
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -34,6 +35,7 @@ import { isEffectivelyAtCapacity } from '@/lib/capacity';
 import { isMissingRelation } from '@/lib/owned-provider';
 import { resolveRequestClient } from '@/lib/waitlist';
 import { instantInZone, normalizeZone, wallClockInZone } from '@/lib/time';
+import { tellWaitingList } from '@/lib/capacity-reopen';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,8 +44,6 @@ const ROLES: Role[] = ['trainer', 'nutritionist'];
 const tableOf = (role: Role) => (role === 'trainer' ? 'trainers' : 'nutritionists');
 /** The furthest a resume date may be set. */
 const RESUME_MAX_DAYS = 365;
-/** The most waiting members one reopening notifies. */
-const NOTIFY_MAX = 500;
 
 type Listing = { id: number; name: string | null; at_capacity: boolean | null; capacity_resume_at: string | null; timezone?: string | null };
 
@@ -185,8 +185,16 @@ export async function POST(request: Request) {
 
   // The intros setting first: on a database without its column (before
   // 2026-10-15-capacity-intros.sql) the request is refused whole, never half-applied.
+  // ⚠ AND A LISTING WRITE THAT FAILS AFTER IT PUTS IT BACK (Codex on #2375): the two writes are not
+  // one transaction, so a combined save that answered save_failed had already changed the intro
+  // setting. The setting it replaces is read first, and restored if the listing write fails.
   let intros: boolean | null;
+  let introsBefore: boolean | null = null;
   if (typeof body.introsAtCapacity === 'boolean') {
+    if (atCapacity !== undefined) {
+      introsBefore = await introsFlag(db, role, before.id);
+      if (introsBefore === null) return NextResponse.json({ error: 'Your booking rules could not be read.' }, { status: 503 });
+    }
     const { error } = await db.supabase
       .from('provider_booking_rules')
       .upsert({ provider_role: role, provider_id: before.id, intros_at_capacity: body.introsAtCapacity, updated_at: new Date().toISOString() }, { onConflict: 'provider_role,provider_id' });
@@ -215,6 +223,12 @@ export async function POST(request: Request) {
       .maybeSingle();
     if (updErr || !data) {
       console.error('[coach capacity] update failed', updErr);
+      if (introsBefore !== null && introsBefore !== intros) {
+        const { error: undoErr } = await db.supabase
+          .from('provider_booking_rules')
+          .upsert({ provider_role: role, provider_id: before.id, intros_at_capacity: introsBefore, updated_at: new Date().toISOString() }, { onConflict: 'provider_role,provider_id' });
+        if (undoErr) console.error('[coach capacity] intros restore failed', undoErr);
+      }
       return NextResponse.json({ error: 'save_failed' }, { status: 500 });
     }
     after = data as Listing;
@@ -223,50 +237,15 @@ export async function POST(request: Request) {
   // Reopened: tell everyone still waiting (best-effort; the change is already saved).
   let notified = 0;
   if (isEffectivelyAtCapacity(before) && !isEffectivelyAtCapacity(after)) {
-    notified = await tellWaitingList(role, before.id, after.name);
+    try {
+      notified = await tellWaitingList(createAdminClient(), createPreferredNotification, role, before.id, after.name);
+    } catch (err) {
+      console.error('[coach capacity] reopening notice failed', err instanceof Error ? err.message : err);
+    }
   }
   return NextResponse.json({
     ok: true,
     listing: shape(role, after, intros, await waitingCount(role, before.id), body.tz),
     notified,
   });
-}
-
-async function tellWaitingList(role: Role, providerId: number, name: string | null): Promise<number> {
-  try {
-    const admin = createAdminClient();
-    const { data, error } = await admin
-      .from('coach_waitlist')
-      .select('client_id')
-      .eq('provider_role', role)
-      .eq('provider_id', providerId)
-      .eq('status', 'waiting')
-      // capped-read-ok: first come, first told. Past the cap, the people who have waited longest are
-      // the ones who hear the coach reopened.
-      .order('created_at', { ascending: true })
-      .limit(NOTIFY_MAX);
-    if (error) {
-      console.error('[coach capacity] waiting list read failed', error.message);
-      return 0;
-    }
-    const day = new Date().toISOString().slice(0, 10);
-    const coach = (name || '').trim() || 'A coach you waited for';
-    let sent = 0;
-    const rows = (data ?? []) as { client_id: string }[];
-    for (let i = 0; i < rows.length; i += 10) {
-      const batch = await Promise.all(rows.slice(i, i + 10).map((w) => createPreferredNotification(admin, {
-        userId: w.client_id,
-        type: 'waitlist_invite',
-        title: `${coach} is taking new clients`,
-        body: 'You were on their waiting list. Their spots are open now, first come first served.',
-        route: `coach:${role}:${providerId}`,
-        data: { providerRole: role, providerId, reopened: true, dedupe: `reopen:${role}:${providerId}:${day}` },
-      })));
-      sent += batch.filter(Boolean).length;
-    }
-    return sent;
-  } catch (err) {
-    console.error('[coach capacity] reopening notice failed', err instanceof Error ? err.message : err);
-    return 0;
-  }
 }

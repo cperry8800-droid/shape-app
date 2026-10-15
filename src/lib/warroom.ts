@@ -208,6 +208,7 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/auth/resolve-username', 'POST'],
   ['/api/cron/analytics-purge', 'GET'],
   ['/api/cron/application-uploads', 'GET'],
+  ['/api/cron/capacity-reopen', 'GET'],
   ['/api/cron/guardrail-health', 'GET'],
   ['/api/cron/coach-score-snapshots', 'GET,POST'],
   ['/api/client/reminders', 'GET,POST,DELETE'],

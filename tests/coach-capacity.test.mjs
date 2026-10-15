@@ -30,7 +30,7 @@ function fakeDb(tables, { as = 'caller', fail = {}, writes = [] } = {}) {
     const filters = [];
     let op = 'select'; let payload = null; let opts = null; let count = false; let lim = Infinity;
     const rows = () => (tables[table] ||= []);
-    const match = (r) => filters.every(([k, v, kind]) => (kind === 'in' ? v.includes(r[k]) : r[k] === v));
+    const match = (r) => filters.every(([k, v, kind]) => (kind === 'in' ? v.includes(r[k]) : kind === 'lte' ? (r[k] != null && Date.parse(r[k]) <= Date.parse(v)) : r[k] === v));
     const run = () => {
       const err = fail[`${table}.${op}`] || fail[table];
       if (err) return { data: null, error: err, count: null };
@@ -54,6 +54,7 @@ function fakeDb(tables, { as = 'caller', fail = {}, writes = [] } = {}) {
       select: (_c, o) => { if (o && o.count) count = true; return q; },
       eq: (k, v) => { filters.push([k, v, 'eq']); return q; },
       in: (k, v) => { filters.push([k, v, 'in']); return q; },
+      lte: (k, v) => { filters.push([k, v, 'lte']); return q; },
       order: () => q,
       limit: (n) => { lim = n; return q; },
       upsert: (p, o) => { op = 'upsert'; payload = p; opts = o; return q; },
@@ -74,6 +75,7 @@ async function load() {
   const requestUtils = await loadRealModule(join(ROOT, 'src/lib/request-utils.ts'), { typescript: true, registry: new Map([['next/server', nextServer]]) });
   const owned = await loadRealModule(join(ROOT, 'src/lib/owned-provider.ts'), { typescript: true, registry: new Map([['@/lib/time', {}], ['@supabase/supabase-js', {}]]) });
   const time = await loadRealModule(join(ROOT, 'src/lib/time.ts'), { typescript: true });
+  const reopen = await loadRealModule(join(ROOT, 'src/lib/capacity-reopen.ts'), { typescript: true });
   const route = await loadRealModule(join(ROOT, 'src/app/api/coach/capacity/route.ts'), {
     typescript: true,
     registry: new Map([
@@ -84,10 +86,11 @@ async function load() {
       ['@/lib/capacity', capacity],
       ['@/lib/owned-provider', owned],
       ['@/lib/time', time],
+      ['@/lib/capacity-reopen', reopen],
       ['@/lib/waitlist', { resolveRequestClient: async () => (state.user ? { user: state.user, supabase: state.db } : null) }],
     ]),
   });
-  mod = { route, state };
+  mod = { route, state, reopen };
   return mod;
 }
 
@@ -218,6 +221,97 @@ test('a listing with no zone reads its resume day back in the zone it was placed
   assert.equal((await call('GET', { tables })).body.listings[0].resumeOn, '2026-10-19');
   const zoned = world({ trainers: [{ id: 7, owner_id: COACH, name: 'Tom', at_capacity: true, capacity_resume_at: '2026-10-20T04:00:00.000Z', timezone: 'America/New_York' }] });
   assert.equal((await call('GET', { tables: zoned, query: '?tz=Asia%2FTokyo' })).body.listings[0].resumeOn, '2026-10-20');
+});
+
+test('POST: a combined save whose listing write fails puts the intro setting back (Codex on #2375)', async () => {
+  const tables = world({ provider_booking_rules: [{ provider_role: 'trainer', provider_id: 7, intros_at_capacity: false }] });
+  const r = await call('POST', { tables, body: { role: 'trainer', atCapacity: true, introsAtCapacity: true }, fail: { 'trainers.update': { code: 'XX000', message: 'down' } } });
+  assert.equal(r.status, 500);
+  assert.equal(r.body.error, 'save_failed');
+  // (The fake records only writes that succeed; the listing update in between failed.)
+  assert.deepEqual(r.writes.map((w) => [w.op, w.table, w.payload.intros_at_capacity]), [
+    ['upsert', 'provider_booking_rules', true],
+    ['upsert', 'provider_booking_rules', false],
+  ], 'the setting it replaced is written back');
+  assert.equal(tables.provider_booking_rules[0].intros_at_capacity, false, 'stored state matches the failure the caller was told');
+  // The setting it would replace cannot be read: nothing is written at all.
+  const unread = await call('POST', { body: { role: 'trainer', atCapacity: true, introsAtCapacity: true }, fail: { 'provider_booking_rules.select': { code: 'XX000', message: 'down' } } });
+  assert.equal(unread.status, 503);
+  assert.equal(unread.writes.length, 0);
+  // The intro setting alone has nothing to undo, and reads nothing first.
+  const alone = await call('POST', { body: { role: 'trainer', introsAtCapacity: true }, fail: { 'provider_booking_rules.select': { code: 'XX000', message: 'down' } } });
+  assert.equal(alone.status, 200, JSON.stringify(alone.body));
+});
+
+test('the hourly job reopens a coach whose resume date passed and tells their list, once (Codex on #2375)', async () => {
+  const { reopen } = await load();
+  const at = (iso) => iso;
+  const tables = world({
+    trainers: [
+      { id: 7, owner_id: COACH, name: 'Tom Trainer', at_capacity: true, capacity_resume_at: at('2026-10-15T04:00:00+00:00') },
+      { id: 8, owner_id: 'coach-2', name: 'Ana', at_capacity: true, capacity_resume_at: at('2026-10-20T04:00:00+00:00') },
+      { id: 9, owner_id: 'coach-3', name: 'Bo', at_capacity: true, capacity_resume_at: null },
+      { id: 10, owner_id: 'coach-4', name: 'Cy', at_capacity: false, capacity_resume_at: null },
+    ],
+    nutritionists: [{ id: 3, owner_id: 'coach-5', name: 'Old Date', at_capacity: true, capacity_resume_at: at('2026-09-01T00:00:00+00:00') }],
+    coach_waitlist: [
+      { id: 'w1', provider_role: 'trainer', provider_id: 7, client_id: 'm1', status: 'waiting', created_at: '2026-10-01' },
+      { id: 'w2', provider_role: 'trainer', provider_id: 7, client_id: 'm2', status: 'waiting', created_at: '2026-10-02' },
+      { id: 'w3', provider_role: 'trainer', provider_id: 7, client_id: 'm3', status: 'left', created_at: '2026-10-03' },
+      { id: 'w4', provider_role: 'nutritionist', provider_id: 3, client_id: 'm4', status: 'waiting', created_at: '2026-10-03' },
+    ],
+  });
+  const writes = [];
+  const admin = fakeDb(tables, { as: 'service', writes });
+  const notices = [];
+  const notify = async (_c, n) => { notices.push(n); return true; };
+  const out = await reopen.reopenDueListings(admin, notify, NOW);
+  assert.deepEqual(out, { reopened: 2, notified: 2, failed: 0 });
+  assert.deepEqual([tables.trainers[0].at_capacity, tables.trainers[0].capacity_resume_at], [false, null], 'the passed date is switched off');
+  assert.deepEqual([tables.trainers[1].at_capacity, tables.trainers[2].at_capacity], [true, true], 'a date ahead, or no date, is left alone');
+  assert.equal(tables.nutritionists[0].at_capacity, false, 'a date long past is switched off too');
+  assert.deepEqual(notices.map((n) => n.userId).sort(), ['m1', 'm2'], 'only the recent reopening is news, and only to those still waiting');
+  assert.equal(notices[0].data.dedupe, 'reopen:trainer:7:2026-10-15');
+  // Each switch-off holds the date it read, so a coach who changed it meanwhile is not touched.
+  const upd = writes.find((w) => w.op === 'update' && w.table === 'trainers');
+  assert.deepEqual(upd.filters.map(([k, v]) => [k, v]), [['id', 7], ['at_capacity', true], ['capacity_resume_at', '2026-10-15T04:00:00+00:00']]);
+  // A second run finds nothing to do and tells nobody again.
+  notices.length = 0;
+  assert.deepEqual(await reopen.reopenDueListings(admin, notify, NOW), { reopened: 0, notified: 0, failed: 0 });
+  assert.equal(notices.length, 0);
+  // A read that fails is counted, and the other role still runs.
+  const broken = await reopen.reopenDueListings(fakeDb(world(), { fail: { trainers: { code: 'XX000', message: 'down' } } }), notify, NOW);
+  assert.equal(broken.failed, 1);
+});
+
+test('the hourly job: its route needs the cron secret, and it is scheduled and registered', async () => {
+  const { reopen } = await load();
+  const tables = world({ trainers: [{ id: 7, owner_id: COACH, name: 'Tom', at_capacity: true, capacity_resume_at: '2026-10-15T04:00:00+00:00' }] });
+  const route = await loadRealModule(join(ROOT, 'src/app/api/cron/capacity-reopen/route.ts'), {
+    typescript: true,
+    registry: new Map([
+      ['next/server', nextServer],
+      ['@/lib/supabase/admin', { createAdminClient: () => fakeDb(tables, { as: 'service' }) }],
+      ['@/lib/notify', { createPreferredNotification: async () => true }],
+      ['@/lib/capacity-reopen', reopen],
+    ]),
+  });
+  const before = process.env.CRON_SECRET;
+  process.env.CRON_SECRET = 'cron-test-secret';
+  try {
+    assert.equal((await route.GET(new Request('https://shape.test/api/cron/capacity-reopen'))).status, 401);
+    assert.equal((await route.GET(new Request('https://shape.test/api/cron/capacity-reopen', { headers: { authorization: 'Bearer wrong' } }))).status, 401);
+    const ok = await route.GET(new Request('https://shape.test/api/cron/capacity-reopen', { headers: { authorization: 'Bearer cron-test-secret' } }));
+    assert.equal(ok.status, 200);
+    const body = await ok.json();
+    assert.equal(body.reopened, 1);
+    assert.equal(tables.trainers[0].at_capacity, false);
+  } finally {
+    if (before === undefined) delete process.env.CRON_SECRET; else process.env.CRON_SECRET = before;
+  }
+  const crons = JSON.parse(read('vercel.json')).crons;
+  assert.ok(crons.some((c) => c.path === '/api/cron/capacity-reopen' && /^\d+ \* \* \* \*$/.test(c.schedule)), 'hourly');
+  assert.match(read('src/lib/warroom.ts'), /\['\/api\/cron\/capacity-reopen', 'GET'\]/);
 });
 
 test('POST: reopening tells everyone still waiting, once a day, and only them', async () => {

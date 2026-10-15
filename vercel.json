@@ -40,6 +40,10 @@
     {
       "path": "/api/cron/nora-sets",
       "schedule": "5 * * * *"
+    },
+    {
+      "path": "/api/cron/capacity-reopen",
+      "schedule": "20 * * * *"
     }
   ]
 }
