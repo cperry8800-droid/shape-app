@@ -299,5 +299,9 @@
   "support.fill.button": "Fill these in",
   "support.fill.done": "Filled in ✓",
   "support.fill.doneNote": "Check each step, then continue. Your password and the agreement boxes are yours to do.",
-  "support.fill.wrongForm": "Open the form these are for, then tap again."
+  "support.fill.wrongForm": "Open the form these are for, then tap again.",
+  "thread.yourClient": "Your client",
+  "thread.fromShape": "From Shape",
+  "thread.shapeWelcome": "{client} and {coach} are now working together on Shape. This thread is where you talk: questions, check-ins and plan changes all land here.",
+  "thread.shapeWelcomeNoClient": "Your coaching with {coach} starts here. This thread is where you talk: questions, check-ins and plan changes all land here."
 }

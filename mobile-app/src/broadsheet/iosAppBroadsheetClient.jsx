@@ -45,6 +45,8 @@ import { bsCookCommand } from '../services/cookCommands.mjs';
 import { bsMergeMise, bsPrepOrder, bsPrepMatch, bsPrepWeekKey, bsScaleQty } from '../services/mealPrep.mjs';
 import { bsMakeAheadIndex, bsPlanByDow, bsPlanMealsOn, bsPrepCovers, bsPrepDueTonight, bsPrepRecordsFor, bsYmdAdd, bsYmdIn } from '../services/prepAhead.mjs';
 import { bsJumpLine, bsJumpActive, bsJumpAtEnd, bsJumpScrollTop } from '../services/jumpRow.mjs';
+import { isShapeWelcome, shapeWelcomeShown } from '../services/shapeWelcome.mjs';
+import { bsRouteNotification } from './bsNotificationRoute.mjs';
 import { bsNormalizeProfileCustom, bsProfileWall, bsProfileShelf, bsProfileStartLine, bsProfileLine, bsStartLineState, bsValidStartDate, bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX, BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX, BS_PIN_KINDS, BS_PROFILE_PROMPTS, BS_COACH_PROMPTS, bsPinKindLabel, bsPinKindToken, bsPromptLabel, bsPromptToken } from '../services/profileCustom.mjs';
 import { bsOrchestrate, bsReplanCook, bsCookBlockingHold, BS_COOK_MODE, BS_ORCH, BS_SERIAL_REASON, BS_SERVE_ISSUE, bsProgressPct } from '../services/cookOrchestrator.mjs';
 import { bsTrackLanes, bsTrackLaneStatus, bsTrackWindow, bsCookNowMin, bsCookFinishAt, bsPlanEnd, bsHobOccupancy, bsHobTappable, bsDishColors, bsHeroHue, bsInkOn, BS_HOB_MAX } from '../services/cookBoard.mjs';
@@ -758,6 +760,18 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return () => window.removeEventListener('shape:goCommunity', open);
   }, []);
 
+  // The membership welcome's notification ("home", bsRouteNotification) lands on Home, clearing
+  // every takeover above the tabs the way goCommunity does.
+  React.useEffect(() => {
+    const open = () => {
+      navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart('');
+      setShowCalendar(false); setShowSearch(false); setShowCycle(false);
+      setChatRequest(null); setTab('home');
+    };
+    window.addEventListener('shape:goHome', open);
+    return () => window.removeEventListener('shape:goHome', open);
+  }, []);
+
   // Chat → The Wall. Same shape as goCommunity, but it carries a request the
   // chat page's openRequest effect reads, so the segment is chosen by the
   // caller rather than by whatever tab the page was last left on.
@@ -814,9 +828,14 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     const fromPush = (e) => { window.__bsPushRoute = null; bsRouteNotification(e && e.detail && e.detail.route); };
     window.addEventListener('shape:openPrep', open);
     window.addEventListener('shape:pushRoute', fromPush);
+    // ⚠ A PUSH THAT WOKE THE APP IS REPLAYED AFTER EVERY LISTENER IS UP (Codex on #2360). Effects run
+    // in the order they are declared, and the listeners a route lands on (shape:openConversation
+    // below) belong to later effects of this same mount, so replaying here dispatched into nothing.
+    // A zero-delay timer runs once this commit's effects have all run.
     const pending = window.__bsPushRoute;
-    if (pending) { window.__bsPushRoute = null; bsRouteNotification(pending); }
-    return () => { window.removeEventListener('shape:openPrep', open); window.removeEventListener('shape:pushRoute', fromPush); };
+    let replay = null;
+    if (pending) { window.__bsPushRoute = null; replay = setTimeout(() => bsRouteNotification(pending), 0); }
+    return () => { clearTimeout(replay); window.removeEventListener('shape:openPrep', open); window.removeEventListener('shape:pushRoute', fromPush); };
   }, []);
 
   // Universal search — the ⌕ in every header opens it (no prop-threading).
@@ -3240,7 +3259,9 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
     if (!signedIn || !window.ShapeMessages?.listDirectCoachThreads) return;
     let alive = true;
     window.ShapeMessages.listDirectCoachThreads().then((res) => {
-      const list = Array.isArray(res) ? res : (res && res.data) || [];
+      // A member's own coaches only: an account that also coaches gets its clients' threads back
+      // too (as_coach), and none of them is this member's coach.
+      const list = (Array.isArray(res) ? res : (res && res.data) || []).filter((c) => !c.as_coach);
       if (!alive || !list.length) return;
       const nutri = list.find((c) => c.provider_role === 'nutritionist');
       const co = nutri || list[0];
@@ -12214,26 +12235,6 @@ function bsPrepDays(dates) {
   try { return new Intl.ListFormat(loc, { style: 'long', type: 'conjunction' }).format(names); } catch (e) { return names.join(', '); }
 }
 
-// One map from a notification's route to the screen it opens, shared by the in-app list and a
-// tapped push (push.js hands its route to the shell), so the two cannot open different places.
-// Returns whether it handled the route; 'sessions' stays the Settings screen's own.
-function bsRouteNotification(route) {
-  if (typeof route !== 'string') return false;
-  try {
-    // The night-before prep reminder ("prep:<recipe>") opens the cook screen on that recipe.
-    if (route.startsWith('prep:') && route.length > 5) {
-      window.dispatchEvent(new CustomEvent('shape:openPrep', { detail: { slug: route.slice(5) } }));
-      return true;
-    }
-    // Waitlist invite ("coach:<role>:<id>") → the marketplace on that role, so the invited client
-    // can find the coach and book (first-dibs applies).
-    if (route.startsWith('coach:')) {
-      window.dispatchEvent(new CustomEvent('shape:openMarket', { detail: { role: route.split(':')[1] || null } }));
-      return true;
-    }
-  } catch (e) { /* no window events: nothing to open */ }
-  return false;
-}
 
 // What a menu row says about prep. A made-ahead meal (`ahead`, from bsPlanMealsOn) is prepped
 // only when a prep covers it on its day (bsPrepCovers). On today's menu, until the meal's time
@@ -17962,7 +17963,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
     if (!isSelf || !window.ShapeMessages?.listDirectCoachThreads) return;
     let alive = true;
     window.ShapeMessages.listDirectCoachThreads().then(res => {
-      const list = Array.isArray(res) ? res : (res && res.data) || [];
+      const list = (Array.isArray(res) ? res : (res && res.data) || []).filter(c => !c.as_coach);
       if (!alive || !list.length) return;
       const co = list[0]; const nm = co.who || co.name || co.full_name;
       if (!nm) return;
@@ -23355,14 +23356,18 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   }, []);
   React.useEffect(() => { loadCoachThreads(); }, [loadCoachThreads]);
   const _threadPalette = ['#147b68', '#c0533b', '#a07a2e', '#2e6fa0', '#8a5cf6'];
-  const threadRows = (coachThreads || []).map((th, i) => ({
+  // A coach's own client threads come back marked `as_coach` (named after the client). A member
+  // view never lists them: an account that both coaches and is coached reads its clients' threads
+  // in the coach app, not under "Your coaches" (client-onboarding review, fix 3a).
+  const _coachView = !!roleProp && roleProp !== 'client';
+  const threadRows = (coachThreads || []).filter(th => _coachView || !th.as_coach).map((th, i) => ({
     n: th.who || 'Coach',
-    s: th.provider_role === 'nutritionist' ? tr('feed:thread.yourNutritionist', { defaultValue: 'Your nutritionist' }) : th.provider_role === 'trainer' ? tr('feed:thread.yourCoach', { defaultValue: 'Your coach' }) : tr('feed:thread.directMessage', { defaultValue: 'Direct message' }),
+    s: th.as_coach ? tr('feed:thread.yourClient', { defaultValue: 'Your client' }) : th.provider_role === 'nutritionist' ? tr('feed:thread.yourNutritionist', { defaultValue: 'Your nutritionist' }) : th.provider_role === 'trainer' ? tr('feed:thread.yourCoach', { defaultValue: 'Your coach' }) : tr('feed:thread.directMessage', { defaultValue: 'Direct message' }),
     c: _threadPalette[i % _threadPalette.length],
     i: (th.who || 'C').toString().trim().charAt(0).toUpperCase(),
     last: th.last,
     conversation_id: th.conversation_id,
-    messages: (th.messages || []).map(m => ({ who: m.who || th.who, t: m.t || m.body || '', time: m.time || '', me: m.me || m.who === 'You', coach: m.coach, audio: m.audio || null, photo: m.photo || null, sharedChannel: m.sharedChannel || null, boost: m.boost || null, coachInvite: m.coachInvite || null })),
+    messages: (th.messages || []).map(m => ({ id: m.id || null, who: m.who || th.who, t: m.t || m.body || '', time: m.time || '', me: m.me || m.who === 'You', coach: m.coach, shape: m.shape || null, audio: m.audio || null, photo: m.photo || null, sharedChannel: m.sharedChannel || null, boost: m.boost || null, coachInvite: m.coachInvite || null })),
   }));
 
   // External "Message <coach>" requests (e.g. from a workout preview) land
@@ -23374,7 +23379,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     // Deep-link to an exact conversation (e.g. a coach tapping MESSAGE on a
     // client profile): open that thread directly by id.
     if (openRequest.conversationId) {
-      setOpenChat({ n: name || 'Client', s: openRequest.role || tr('feed:thread.directMessage', { defaultValue: 'Direct message' }), c: '#0a8f87', i: (name || 'C').charAt(0), conversation_id: openRequest.conversationId, dm: true, messages: [] });
+      // The listed row when there is one (it carries the history); otherwise the thread view
+      // loads the history itself by id.
+      const listed = (threadRows || []).find(r => r.conversation_id === openRequest.conversationId);
+      setOpenChat(listed || { n: name || 'Client', s: openRequest.role || tr('feed:thread.directMessage', { defaultValue: 'Direct message' }), c: '#0a8f87', i: (name || 'C').charAt(0), conversation_id: openRequest.conversationId, dm: true, messages: [] });
       return;
     }
     // Deep-link to a channel (e.g. from universal search): open it directly,
@@ -24075,6 +24083,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     return (
       <>
         <BSChatThread
+          key={openChat.conversation_id || (openChat.channelId != null ? 'ch:' + openChat.channelId : 'n:' + (openChat.n || ''))}
           thread={{ who: isCh && !String(openChat.n || '').startsWith('#') ? `# ${openChat.n}` : openChat.n, role: openChat.s || (isCh ? tr('feed:thread.channel', { defaultValue: 'Channel' }) : tr('feed:thread.directMessage', { defaultValue: 'Direct message' })), last: openChat.last, time: '', messages: openChat.messages || [], group: isCh, conversationId: openChat.conversation_id, channelId: openChat.channelId }}
           eyebrow={openChat.channelId ? tr('feed:thread.channel', { defaultValue: 'Channel' }) : openChat.dm ? tr('feed:thread.privateThread', { defaultValue: 'Private thread' }) : tr('feed:thread.directMessage', { defaultValue: 'Direct message' })}
           onBack={() => setOpenChat(null)}
@@ -25686,12 +25695,33 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
     const uid = userId || (!thread.group ? (thread.userId || thread.counterpartId) : null) || null;
     onOpenProfile({ who: raw, kind: threadKind, tier: bsPostTier({ who: raw }), init: bsInitials(raw), userId: uid, photo: (uid && threadAvatars[uid]) || (!uid ? bsDemoFace(raw) : null) });
   };
+  // A conversation opened by id with no history in hand (a coach's MESSAGE on a client, a
+  // notification) loads its history here, so Shape's welcome and earlier messages are there.
+  // ⚠ KEYED TO ITS CONVERSATION (Codex on #2360): a history fetched for one conversation is never
+  // shown in another, even for the moment before the next fetch lands or when it fails.
+  const [history, setHistory] = useStateBSC(null);
+  React.useEffect(() => {
+    setHistory(null);
+    if (!thread.conversationId || (thread.messages && thread.messages.length) || !window.ShapeMessages?.getConversationThread) return;
+    let on = true;
+    const id = thread.conversationId;
+    window.ShapeMessages.getConversationThread(id)
+      .then(res => { if (on && res && res.data && res.data.conversation_id === id && Array.isArray(res.data.messages)) setHistory({ id, messages: res.data.messages }); })
+      .catch(() => {});
+    return () => { on = false; };
+  }, [thread.conversationId]);
+  const historyHere = history && history.id === thread.conversationId ? history.messages : null;
   // Seed from the thread's last-message preview when it has no message history,
   // so a channel you open isn't blank before you post.
   const seed = (thread.messages && thread.messages.length)
     ? thread.messages
+    : (historyHere && historyHere.length) ? historyHere
     : (thread.last ? [{ who: thread.who, t: thread.last, time: thread.time || 'now', me: false }] : []);
-  const allMessages = [...seed, ...extras];
+  // ⚠ MERGED BY MESSAGE ID (Codex on #2360): a message that arrives, or that this view sends,
+  // while the history is loading can be in both the snapshot and `extras`. A sent message gets its
+  // id when the insert answers (send, below); one still in flight has none and is shown.
+  const seedIds = new Set(seed.map(m => m && m.id).filter(Boolean));
+  const allMessages = [...seed, ...extras.filter(e => !(e && e.id && seedIds.has(e.id)))];
   // Members' profile photos for the message avatars (visibility-ungated).
   React.useEffect(() => {
     if (!window.ShapeProfiles?.getUserAvatars) return;
@@ -25715,12 +25745,16 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
   const send = () => {
     if (!text.trim()) return;
     const body = text.trim();
-    setExtras(e => [...e, { who: 'You', t: body, time: 'now', me: true }]);
+    const tmpId = 'tmp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+    setExtras(e => [...e, { tmpId, who: 'You', t: body, time: 'now', me: true }]);
     setText('');
     // Persist to the backend: direct conversation or community channel.
     const sent = thread.conversationId ? window.ShapeMessages?.sendMessage?.({ conversationId: thread.conversationId, body })
       : thread.channelId ? window.ShapeChannels?.sendMessage?.({ channelId: thread.channelId, body }) : null;
-    if (sent && sent.catch) sent.catch(() => {});
+    // The stored row's id, once it answers, so a history snapshot that already holds it shows it once.
+    if (sent && sent.then && thread.conversationId) {
+      sent.then(res => { const id = res && res.data && res.data.id; if (id) setExtras(e => e.map(x => x.tmpId === tmpId ? { ...x, id } : x)); }).catch(() => {});
+    } else if (sent && sent.catch) sent.catch(() => {});
   };
 
   // Realtime: new messages from others drop into the open thread live.
@@ -25736,10 +25770,13 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
     } else if (thread.conversationId && window.ShapeMessages?.subscribeMessages) {
       unsub = window.ShapeMessages.subscribeMessages((row) => {
         if (!row || row.conversation_id !== thread.conversationId || row.sender_id === myId) return;
+        // Shape's welcome is shown as a note, and the thread is open, so it is read like any other
+        // message (dm_unread counts it: it is not the viewer's).
+        if (isShapeWelcome(row)) { setExtras(e => [...e, { id: row.id || null, who: 'Shape', t: row.body, time: 'now', me: false, shape: { body: row.body, sender_id: null, metadata: row.metadata } }]); window.ShapeUnread?.markConversationRead?.(thread.conversationId); return; }
         // Carry the live-boost stamp on realtime appends too — a boost landing
         // while this thread is OPEN (the time-sensitive case) must render with
         // its eyebrow immediately, not only after a reload re-maps metadata.
-        setExtras(e => [...e, { who: thread.who || 'Member', t: row.body, time: 'now', me: false, userId: row.sender_id || null, boost: (row.metadata && row.metadata.kind === 'live_boost' && (row.metadata.activity === 'cooking' || row.metadata.activity === 'workout')) ? row.metadata.activity : null, coachInvite: (row.metadata && row.metadata.kind === 'coach_invite' && row.metadata.providerId != null) ? { role: row.metadata.role === 'nutritionist' ? 'nutritionist' : 'trainer', providerId: Number(row.metadata.providerId), name: String(row.metadata.name || 'Your coach') } : null }]);
+        setExtras(e => [...e, { id: row.id || null, who: thread.who || 'Member', t: row.body, time: 'now', me: false, userId: row.sender_id || null, boost: (row.metadata && row.metadata.kind === 'live_boost' && (row.metadata.activity === 'cooking' || row.metadata.activity === 'workout')) ? row.metadata.activity : null, coachInvite: (row.metadata && row.metadata.kind === 'coach_invite' && row.metadata.providerId != null) ? { role: row.metadata.role === 'nutritionist' ? 'nutritionist' : 'trainer', providerId: Number(row.metadata.providerId), name: String(row.metadata.name || 'Your coach') } : null }]);
         window.ShapeUnread?.markConversationRead?.(thread.conversationId);
       });
     }
@@ -25778,6 +25815,16 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
           88px tab bar + 24px breathing = 178px). */}
       <div style={{ padding: `16px ${t.padX}px calc(170px + env(safe-area-inset-bottom, 0px))`, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {allMessages.map((m, i) => {
+          // Shape's welcome at the top of a coach thread (fix 3a): from neither person, so a
+          // centred note rather than a bubble, in the member's language.
+          if (m.shape) {
+            return (
+              <div key={i} style={{ alignSelf: 'stretch', margin: '2px 0 6px', padding: '12px 4px', borderTop: `1px solid ${t.SURFACE_BORDER}`, borderBottom: `1px solid ${t.SURFACE_BORDER}`, textAlign: 'center' }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 6 }}>{tr('feed:thread.fromShape', { defaultValue: 'From Shape' })}</div>
+                <div style={{ fontFamily: t.BODY, fontSize: 14, lineHeight: 1.5, color: t.INK }}>{shapeWelcomeShown(m.shape, tr) || m.t}</div>
+              </div>
+            );
+          }
           const me = m.me;
           const rKey = `dt:${i}`;
           const myR = rx.reactions[rKey];
@@ -36184,11 +36231,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return <BSSessionsScreen onBack={() => setShowSessions(false)} />;
   }
   if (showNotifications) {
-    return <BSNotifications onBack={() => setShowNotifications(false)} onRoute={(route) => {
+    return <BSNotifications onBack={() => setShowNotifications(false)} onRoute={(route, data) => {
       if (route === 'sessions') { setShowNotifications(false); setShowSessions(true); return; }
       // Every other route goes through the map a tapped push uses too (bsRouteNotification):
-      // a waitlist invite opens the marketplace, a prep reminder the cook screen.
-      if (bsRouteNotification(route)) setShowNotifications(false);
+      // a waitlist invite opens the marketplace, a prep reminder the cook screen, a message its thread.
+      if (bsRouteNotification(route, data)) setShowNotifications(false);
     }} />;
   }
   if (showNotifyPrefs) {
@@ -39215,4 +39262,6 @@ function BSHelpPage({ onBack, onContact, onAskNora }) {
 }
 
 Object.assign(window, { bsNoraOpen, bsNoraPage, bsAskNora, BSAskNoraLink, BSNoraSheet, BSCookMode, BSPrepSession, BSClientApp, BSClientChat, BSSettings, BSDetailHeader, BSContactPage, BSTermsPage, BSUniversalSearch, BSSearchCorner });
+// The notification router, for the coach shells' tapped pushes (fix 3a, Codex on #2360).
+Object.assign(window, { bsRouteNotification });
 try { window.BS_HEADER_AVATAR = BS_HEADER_AVATAR; } catch (e) {}

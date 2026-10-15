@@ -22,6 +22,8 @@ async function api(path, results = {}, user = { id: 'coach-a' }) {
     ['@/lib/supabase/server',{createClient:async()=>db}],
     ['@/lib/require-membership',{requireMembership:async()=>null}],
     ['@/lib/request-utils',{readJson:async()=>({ok:false,response:json({}, {status:400})}),dbError:()=>json({error:'unavailable'},{status:500})}],
+    // The coach Messages routes' shared helpers (fix 3a), real: names, the welcome, the open call.
+    ['@/lib/coach-messages',await loadRealModule(fileURLToPath(new URL('../src/lib/coach-messages.ts',import.meta.url)),{typescript:true,registry:new Map([['@/lib/supabase/server',{}]])})],
     ['@/lib/access-guards.mjs',{isSessionReschedulable:()=>false}],
     // The calendar places bookings with the real wall-clock helpers (2026-10-07); only the zone
     // check stays permissive here.

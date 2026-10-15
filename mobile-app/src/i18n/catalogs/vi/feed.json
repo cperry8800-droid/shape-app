@@ -299,5 +299,9 @@
   "support.fill.button": "Điền vào",
   "support.fill.done": "Đã điền ✓",
   "support.fill.doneNote": "Kiểm tra từng bước rồi tiếp tục. Mật khẩu và các ô đồng ý là phần bạn tự làm.",
-  "support.fill.wrongForm": "Mở đúng biểu mẫu rồi chạm lại."
+  "support.fill.wrongForm": "Mở đúng biểu mẫu rồi chạm lại.",
+  "thread.yourClient": "Khách hàng của bạn",
+  "thread.fromShape": "Từ Shape",
+  "thread.shapeWelcome": "{client} và {coach} giờ đã cùng làm việc trên Shape. Đây là nơi hai bên trao đổi: câu hỏi, check-in và thay đổi kế hoạch đều đến đây.",
+  "thread.shapeWelcomeNoClient": "Buổi huấn luyện của bạn với {coach} bắt đầu từ đây. Đây là nơi hai bên trao đổi: câu hỏi, check-in và thay đổi kế hoạch đều đến đây."
 }

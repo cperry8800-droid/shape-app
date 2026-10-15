@@ -319,7 +319,19 @@ function dashRelDay(isoStr) {
 // deep-linked to that client's thread — there is no standalone messages page
 // (audit decision). `draft` pre-fills the composer when a reason pill
 // triggered the tap; it's an editable opener, never an auto-send.
-function dashMessageClient(name, role, draft) {
+// ⚠ EXCEPT A COACH WITH THE CLIENT'S ID (client-onboarding review, fix 3a, H7). The bubble lists a
+// coach's OWN coaches, never their clients' threads, so a coach's Message opened an empty thread
+// that nobody else could see. With the id, it opens the Messages page on the thread the client
+// sees (TrainerMessages.html / NutritionistMessages.html ?client=), created if it is not there yet.
+// Only a real account id (a uuid): a demo client ("demo-3") or the member's own "me" keeps the bubble.
+function dashMessageHref(role, clientId, draft) {
+  if ((role !== "trainer" && role !== "nutritionist") || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(clientId || ""))) return null;
+  const page = role === "nutritionist" ? "NutritionistMessages.html" : "TrainerMessages.html";
+  return "/newdesign/" + page + "?client=" + encodeURIComponent(clientId) + (draft ? "&draft=" + encodeURIComponent(String(draft).slice(0, 1000)) : "");
+}
+function dashMessageClient(name, role, draft, clientId) {
+  const href = dashMessageHref(role, clientId, draft);
+  if (href) { window.location.href = href; return; }
   const opts = { who: name || undefined, draft: draft || undefined, tab: !name && role === "client" ? "trainers" : undefined };
   try { if (typeof window.__openChatTo === "function") { window.__openChatTo(opts); return; } } catch (e) {}
   try { if (typeof window.__openChat === "function") { window.__openChat(opts, opts.tab); return; } } catch (e) {}
@@ -454,7 +466,7 @@ function ExpandableSchedule({ schedule, clients, role }) {
                   {context || "No shared history yet"}
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <button onClick={() => dashMessageClient(s.who, role)} style={actionStyle}>Message</button>
+                  <button onClick={() => dashMessageClient(s.who, role, undefined, rec && rec.profile && rec.profile.id)} style={actionStyle}>Message</button>
                   {dashClientHref(rec, role) && <a href={dashClientHref(rec, role)} style={{ ...actionStyle, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", background: "transparent", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)" }}>Client file</a>}
                   <a href={role === "nutritionist" ? "NutritionistLiveConsole.html" : "TrainerLiveConsole.html"} style={{ ...actionStyle, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", background: "transparent", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)" }}>Start log</a>
                 </div>
@@ -770,7 +782,7 @@ function DashWinsPanel({ clients, role }) {
             <span style={{ fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.8)" }}> — {r.hit.label}</span>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.08em", textTransform: "uppercase", color: ink50, marginTop: 2 }}>{dashRelDay(r.hit.hitAt)}</div>
           </div>
-          <button onClick={() => dashMessageClient(r.client.profile.name, role, dashCongratsDraft(r.client, r.hit))} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-green, #7bbf5a)", background: "rgba(123,191,90,0.08)", border: "1px solid rgba(123,191,90,0.35)", borderRadius: 4, padding: "7px 11px", cursor: "pointer" }}>Congratulate</button>
+          <button onClick={() => dashMessageClient(r.client.profile.name, role, dashCongratsDraft(r.client, r.hit), r.client.profile.id)} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-green, #7bbf5a)", background: "rgba(123,191,90,0.08)", border: "1px solid rgba(123,191,90,0.35)", borderRadius: 4, padding: "7px 11px", cursor: "pointer" }}>Congratulate</button>
         </div>
       ))}
     </div>
@@ -869,7 +881,7 @@ function TriagePulsePanel({ feed, role, joint = [], pinned, onTogglePin, prefs }
                   style={{ flexShrink: 0, background: "transparent", border: 0, padding: "7px 4px", minWidth: 24, lineHeight: 1, fontSize: 13, cursor: "pointer", color: pinSet.has(c.profile.id) ? "var(--sh-accent, #2ee0c4)" : "var(--sh-ink3, #75706a)" }}
                 >{pinSet.has(c.profile.id) ? "\u2691" : "\u2690"}</button>
               )}
-              <button onClick={(e) => { e.stopPropagation(); dashMessageClient(c.profile.name, role, dashMessageDraft(r)); }} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-accent-ink, #2ee0c4)", background: "rgba(var(--sh-accent-rgb, 46,224,196),0.08)", border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.35)", borderRadius: 4, padding: "7px 11px", cursor: "pointer" }}>
+              <button onClick={(e) => { e.stopPropagation(); dashMessageClient(c.profile.name, role, dashMessageDraft(r), c.profile.id); }} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-accent-ink, #2ee0c4)", background: "rgba(var(--sh-accent-rgb, 46,224,196),0.08)", border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.35)", borderRadius: 4, padding: "7px 11px", cursor: "pointer" }}>
                 Message
               </button>
             </div>
@@ -891,7 +903,7 @@ function TriagePulsePanel({ feed, role, joint = [], pinned, onTogglePin, prefs }
               <b>{j.client.profile.name}</b> is slipping on both sides — {j.trainingFlags.map((f) => f.label.toLowerCase()).join(", ")} and {j.nutritionFlags.map((f) => f.label.toLowerCase()).join(", ")}. One coordinated message beats two separate nudges.
             </div>
           </div>
-          <button onClick={() => dashMessageClient(j.client.profile.name, role, dashJointDraft(j, role))} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#fff", background: "var(--sh-rust, #e0644b)", border: 0, borderRadius: 4, padding: "8px 12px", cursor: "pointer" }}>Start joint note</button>
+          <button onClick={() => dashMessageClient(j.client.profile.name, role, dashJointDraft(j, role), j.client.profile.id)} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#fff", background: "var(--sh-rust, #e0644b)", border: 0, borderRadius: 4, padding: "8px 12px", cursor: "pointer" }}>Start joint note</button>
         </div>
       ))}
       {pinnedRows.length > 0 && (
@@ -1204,7 +1216,7 @@ function DashTopMoversPanel({ movers, role }) {
       <div className="dw-note">{m.partial ? "This week so far" : "Latest completed week"}: {m.points} points{m.weekOf ? " · " + m.weekOf : ""}</div>
     </div>
     <div><strong style={{ color: up ? DASH_SEV_COLORS.green : DASH_SEV_COLORS.red }}>{m.delta > 0 ? "+" : ""}{m.delta}</strong>
-      <button type="button" style={DASH_WIDGET_BUTTON} onClick={() => dashMessageClient(m.name, role, up ? "Hi " + m.name.split(" ")[0] + " — your score rose " + m.delta + " points between the last two completed weeks. Well done!" : undefined)}>{up ? "Congratulate" : "Message"}</button>
+      <button type="button" style={DASH_WIDGET_BUTTON} onClick={() => dashMessageClient(m.name, role, up ? "Hi " + m.name.split(" ")[0] + " — your score rose " + m.delta + " points between the last two completed weeks. Well done!" : undefined, m.id)}>{up ? "Congratulate" : "Message"}</button>
     </div>
   </div>;
   return <div className="dw-movers">
@@ -1219,7 +1231,7 @@ function DashAnniversariesPanel({ marks, role }) {
   const when = (h) => h.inDays === 0 ? "today" : h.inDays === 1 ? "tomorrow" : "in " + h.inDays + " days";
   return <div><DashWidgetList rows={marks.soon} renderRow={(h) => <div className="dw-row" key={h.id || (h.name + "|" + h.label)}>
     <div><DashWidgetClient id={h.id} name={h.name} role={role} /><div className="dw-note">{h.label} with your practice · {when(h)} · {h.on}</div></div>
-    <button type="button" style={DASH_WIDGET_BUTTON} onClick={() => dashMessageClient(h.name, role, "Hi " + h.name.split(" ")[0] + " — " + h.label + " working together " + when(h) + ". Thank you for showing up. What are you proudest of so far?")}>Message draft</button>
+    <button type="button" style={DASH_WIDGET_BUTTON} onClick={() => dashMessageClient(h.name, role, "Hi " + h.name.split(" ")[0] + " — " + h.label + " working together " + when(h) + ". Thank you for showing up. What are you proudest of so far?", h.id)}>Message draft</button>
   </div>} />
     {!marks.soon.length && <p className="dw-note">No coaching anniversaries in the next 30 days.</p>}
     <p className="dw-note">Based on the earliest subscription visible to your practice.{marks.unknown ? " " + marks.unknown + " start dates are not shared." : ""}</p>
@@ -1389,7 +1401,7 @@ function DashCheckinQueuePanel({ clients, role, live }) {
       {Object.entries(open.checkin.ratings || {}).map(([label, value]) => <p className="dw-note" key={label}>{label.replace(/([A-Z])/g, " $1")}: {String(value)}</p>)}
       {[["wins", "Wins"], ["struggles", "Struggles"], ["question", "Question"], ["notes", "Notes"]].map(([field,label]) => open.checkin[field] ? <p key={field} style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}><strong>{label}: </strong>{String(open.checkin[field])}</p> : null)}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-        <button type="button" style={DASH_WIDGET_BUTTON} onClick={() => dashMessageClient(open.name, role, "Hi " + open.name.split(" ")[0] + " — thanks for your check-in for the week of " + open.week + ". ")}>Draft response</button>
+        <button type="button" style={DASH_WIDGET_BUTTON} onClick={() => dashMessageClient(open.name, role, "Hi " + open.name.split(" ")[0] + " — thanks for your check-in for the week of " + open.week + ". ", open.clientId)}>Draft response</button>
         <button type="button" style={DASH_WIDGET_BUTTON} disabled={state === "Saving review…" || !ready} onClick={() => mark(open)}>Mark reviewed</button>
         <button type="button" style={DASH_WIDGET_BUTTON} onClick={() => setSelected(null)}>Close</button>
       </div>
@@ -1605,7 +1617,7 @@ function DashNowColumn({ rows, demoRows, clients, role, unit, onOpenCalendar }) 
               {fileHref
                 ? <a href={fileHref} style={{ ...btn, border: 0, background: TEAL_BRIGHT, color: "var(--sh-deep, #06231f)" }}>Client file</a>
                 : null}
-              <button type="button" onClick={() => dashMessageClient(next.who, role)} style={{ ...btn, border: "1px solid var(--sh-line2, #413d38)", background: fileHref ? "transparent" : TEAL_BRIGHT, color: fileHref ? INK : "var(--sh-deep, #06231f)" }}>Message</button>
+              <button type="button" onClick={() => dashMessageClient(next.who, role, undefined, rec && rec.profile && rec.profile.id)} style={{ ...btn, border: "1px solid var(--sh-line2, #413d38)", background: fileHref ? "transparent" : TEAL_BRIGHT, color: fileHref ? INK : "var(--sh-deep, #06231f)" }}>Message</button>
             </div>
           </React.Fragment>
         ) : (

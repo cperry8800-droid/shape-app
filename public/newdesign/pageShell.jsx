@@ -470,15 +470,47 @@ const DASH_INBOX_ROUTES = {
 // navigating. Putting a filename back here would 404 the one notification that
 // is ABOUT the thing every page already carries.
 function dashInboxOpensFeed(n) { return !!(n && n.route === "feed"); }
+// A "New message" notification (route "messages", data.conversationId; fix 3a): for a member the
+// chat is the bubble, so the row opens the bubble on that thread rather than navigating.
+function dashInboxThreadFor(n, role) {
+  if (!n || n.route !== "messages" || role === "trainer" || role === "nutritionist") return null;
+  const id = n.data && typeof n.data.conversationId === "string" ? n.data.conversationId : "";
+  return id || null;
+}
+// What the bubble is asked to open for a member's "New message": the thread, on its tab. A thread with
+// a coach (data.providerRole) is on Circle, a member's on Friends, so one created after the bubble read
+// its list lands where it belongs rather than on the Feed (Codex on #2360).
+function dashInboxChatRequest(n, conversationId) {
+  const role = n && n.data && (n.data.providerRole === "trainer" || n.data.providerRole === "nutritionist") ? n.data.providerRole : null;
+  return role
+    ? { conversationId, tab: "circle", who: role === "nutritionist" ? "Your nutritionist" : "Your trainer", role: (role === "nutritionist" ? "Nutritionist" : "Trainer") + " · Shape coach" }
+    : { conversationId, tab: "friends", who: "Direct message", role: "Direct message" };
+}
 function dashInboxHref(n, role) {
   if (!n || typeof n.route !== "string") return null;
+  // ⚠ A COACH WITH BOTH LISTINGS OPENS THE NOTIFICATION'S ROLE, NOT THE SHELL'S (Codex on #2360). Each
+  // Messages page lists one role's threads and refuses the other's, so a trainer thread opened from
+  // the nutritionist dashboard read as missing. The alerts carry it (data.providerRole).
+  const own = n.data && (n.data.providerRole === "trainer" || n.data.providerRole === "nutritionist") ? n.data.providerRole : null;
+  if ((role === "trainer" || role === "nutritionist") && own) role = own;
   // A coach's client_red / client_amber / checkin_submitted carries the client it is
   // about; without an id there is no page to open, so it stays plain text.
   if (n.route === "client") {
     const id = n.data && (n.data.clientId || n.data.client_id);
     if (!id || (role !== "trainer" && role !== "nutritionist")) return null;
     const shell = role === "trainer" ? "TrainerApp.html" : "NutritionistApp.html";
-    return (typeof window !== "undefined" && window.__shapeCoachShell ? "" : shell) + "#client/" + encodeURIComponent(String(id));
+    // In the shell of that role, a hash switch; from the other role's shell, that role's shell.
+    const here = typeof window !== "undefined" && window.__shapeCoachShell;
+    const sameShell = !!here && (!own || here === own);
+    return (sameShell ? "" : shell) + "#client/" + encodeURIComponent(String(id));
+  }
+  // A coach's conversation ("chat:<id>", the new-client alert, or a "New message" with its
+  // conversationId; fix 3a) opens their Messages page on that thread. A member's chat is the
+  // bubble, not a page (dashInboxThreadFor).
+  const msgConv = n.route === "messages" && n.data && typeof n.data.conversationId === "string" ? n.data.conversationId : "";
+  if ((n.route.startsWith("chat:") && n.route.length > 5) || msgConv) {
+    if (role !== "trainer" && role !== "nutritionist") return null;
+    return "/newdesign/" + (role === "nutritionist" ? "Nutritionist" : "Trainer") + "Messages.html?conversation=" + encodeURIComponent(msgConv || n.route.slice(5));
   }
   // The night-before prep reminder ("prep:<recipe>") opens the website's cook page on that recipe.
   if (n.route.startsWith("prep:") && n.route.length > 5) return "/newdesign/Cook.html?r=" + encodeURIComponent(n.route.slice(5));
@@ -709,7 +741,14 @@ function DashInbox({ signedIn, role, inbox }) {
                               borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)", padding: "11px 14px", textDecoration: "none", color: "inherit" };
                 // A feed notice opens the bubble on its Feed tab rather than
                 // navigating; it is still one tap and still marks itself read.
-                return dashInboxOpensFeed(n) ? (
+                const threadId = dashInboxThreadFor(n, role);
+                return threadId ? (
+                  <button key={n.id} onClick={() => {
+                    if (!n.read) markOne(n.id, true);
+                    const req = dashInboxChatRequest(n, threadId);
+                    try { if (window.__openChat) window.__openChat(req); else { window.__openChatRequest = req; const b = document.getElementById("shape-global-chat-button"); if (b) b.click(); } } catch (e) {}
+                  }} style={{ ...pad, cursor: "pointer" }}>{inner}</button>
+                ) : dashInboxOpensFeed(n) ? (
                   <button key={n.id} onClick={() => {
                     if (!n.read) markOne(n.id, true);
                     try { if (window.__openChat) window.__openChat({ tab: "feed" }); else { const b = document.getElementById("shape-global-chat-button"); if (b) b.click(); } } catch (e) {}

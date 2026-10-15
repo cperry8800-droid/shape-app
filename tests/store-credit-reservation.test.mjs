@@ -247,6 +247,8 @@ async function runWebhook(event, { rpc }) {
         ['@/lib/platform-fee', platformFee],
         ['@/lib/coach-origin.mjs', coachOrigin],
         ['@/lib/db-retryable', retryable],
+        // What a saved subscription or membership starts (fix 3a) has its own test (coach-thread.test.mjs).
+        ['@/lib/coach-thread', { startCoaching: async () => ({ conversationId: null, welcomed: false, coachAlerted: false }), welcomeMember: async () => false }],
       ]),
     });
     process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test';

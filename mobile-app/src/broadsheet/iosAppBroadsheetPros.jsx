@@ -19,6 +19,7 @@ import { coachIntakeView, screeningState } from '../services/coachIntake.mjs';
 import { bsDeriveCycle } from '../services/cyclePhase.mjs';
 import { BS_LISTING_GALLERY_MAX, BS_LISTING_CAPTION_MAX } from '../services/listingMedia.mjs';
 import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } from './bsNavShell.js';
+import { bsRouteNotification } from './bsNotificationRoute.mjs';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
 // front and the live sign-in token. A root-relative '/api/…' fetch reaches nothing in the
@@ -1149,7 +1150,18 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
       setTab('chat');
     };
     window.addEventListener('shape:openConversation', open);
-    return () => window.removeEventListener('shape:openConversation', open);
+    // A tapped push (push.js: shape:pushRoute, or window.__bsPushRoute when it landed before this
+    // shell mounted) goes through the shared router (bsNotificationRoute.mjs, imported here: an app
+    // that starts in a coach role never loads the client module), whose "chat:<id>" opens the thread
+    // through the listener above (Codex on #2360: a coach's new-client push opened nothing).
+    const fromPush = (e) => { window.__bsPushRoute = null; bsRouteNotification(e && e.detail && e.detail.route); };
+    window.addEventListener('shape:pushRoute', fromPush);
+    // ⚠ REPLAYED AFTER EVERY LISTENER IS UP (Codex on #2360): shape:openClient is registered by a
+    // later effect of this mount, so replaying here dispatched a cold-start "client:<id>" into nothing.
+    const pending = window.__bsPushRoute;
+    let replay = null;
+    if (pending) { window.__bsPushRoute = null; replay = setTimeout(() => bsRouteNotification(pending), 0); }
+    return () => { clearTimeout(replay); window.removeEventListener('shape:openConversation', open); window.removeEventListener('shape:pushRoute', fromPush); };
   }, []);
   useEffectBSP(() => bsCoachTourAutoShow(setShowTour), []);
   useEffectBSP(() => {
@@ -1175,6 +1187,39 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     };
     window.addEventListener('shape:goCommunity', open);
     return () => window.removeEventListener('shape:goCommunity', open);
+  }, []);
+  // A new-client alert with no thread ("client", bsRouteNotification) opens that client's page:
+  // the Clients tab, which opens them once the roster has them (fix 3a; Codex on #2360).
+  const [openClientReq, setOpenClientReq] = useStateBSP(null);
+  useEffectBSP(() => {
+    const open = (e) => {
+      const clientId = e && e.detail && e.detail.clientId;
+      if (!clientId) return;
+      // A client of the account's OTHER listing (Codex on #2360): this roster holds only
+      // trainers' clients, so hand the route to that role's shell, which replays it on mount.
+      const other = e.detail.providerRole;
+      if ((other === 'trainer' || other === 'nutritionist') && other !== 'trainer') {
+        window.__bsPushRoute = 'client:' + other + ':' + clientId;
+        setTweak('role', other);
+        return;
+      }
+      navJumpRef.current.navPush();
+      setShowSoundtracks(false); setShowSettings(false); setSettingsStart('');
+      setShowCalendar(false); setShowReviews(false); setShowHabits(false);
+      setQueueView(null); setLiveWatch(null); setShowSearch(false);
+      setOpenClientReq({ clientId, nonce: Date.now() }); setTab('clients');
+    };
+    window.addEventListener('shape:openClient', open);
+    // The membership welcome ("home") on an account that is a coach now: their Today.
+    const home = () => {
+      navJumpRef.current.navPush();
+      setShowSoundtracks(false); setShowSettings(false); setSettingsStart('');
+      setShowCalendar(false); setShowReviews(false); setShowHabits(false);
+      setQueueView(null); setLiveWatch(null); setShowSearch(false);
+      setTab('today');
+    };
+    window.addEventListener('shape:goHome', home);
+    return () => { window.removeEventListener('shape:openClient', open); window.removeEventListener('shape:goHome', home); };
   }, []);
   const [showSettings, setShowSettings] = useStateBSP(false);
   const [showSoundtracks, setShowSoundtracks] = useStateBSP(false);
@@ -1282,6 +1327,12 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
       const uid = c && (c.userId || c.user_id || (typeof c.id === 'string' && c.id.includes('-') ? c.id : null));
       const name = (c && c.n) || 'Client';
       let cid = e?.detail?.conversationId || null;
+      // The thread the client sees under Coaches (fix 3a, H7): their direct thread with this
+      // listing. A member-to-member chat is the fallback only when that cannot be opened (not
+      // their client, or before 2026-10-15-coach-thread.sql), as it was the only path before.
+      if (!cid && uid && window.ShapeMessages?.getOrCreateClientConversation) {
+        try { const conv = await window.ShapeMessages.getOrCreateClientConversation({ clientId: uid, providerRole: 'trainer' }); cid = (conv && conv.data) || null; } catch (err) {}
+      }
       if (!cid && uid && window.ShapeMessages?.getOrCreateMemberConversation) {
         try { const conv = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: uid }); cid = (conv && conv.data) || null; } catch (err) {}
       }
@@ -1367,7 +1418,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   if (liveWatch) return takeover(<BSProLiveWatch client={liveWatch.client} clientId={liveWatch.clientId} workout={liveWatch.workout} onBack={() => setLiveWatch(null)} onMessage={conversationId=>{setChatRequest({coach:liveWatch.client,role:'Client',conversationId,nonce:Date.now()});setLiveWatch(null);setTab('chat');}} />);
   const screens = {
     today:    <BSTrainerToday onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} onOpenReviews={() => { navPush(); setShowReviews(true); }} onWidgetOpen={openHomeWidget} onOpenHabits={() => { navPush(); setShowHabits(true); }} onOpenScore={() => { navPush(); setStoreView('score'); setTab('store'); }} onWatchLive={(c) => setLiveWatch(c)} tweaks={tweaks} setTweak={setTweak} />,
-    clients:  <BSTrainerClients sheet={sheet} />,
+    clients:  <BSTrainerClients sheet={sheet} openRequest={openClientReq} onOpenConsumed={() => setOpenClientReq(null)} />,
     programs: <BSTrainerPrograms sheet={sheet} initialTab={programInitialTab} openPlanRequest={openPlanRequest} />,
     chat:     <BSClientChat onProfile={goSettings} sheet={sheet} role="trainer" openRequest={chatRequest} />,
     radio:    <BSRadioScreen onBack={() => { if (!navBack()) setTab('today'); }} />,
@@ -2722,7 +2773,7 @@ function BSProAddClientSheet({ role, onClose }) {
   return target ? createPortal(sheet, target) : sheet;
 }
 
-function BSTrainerClients() {
+function BSTrainerClients({ openRequest = null, onOpenConsumed = () => {} } = {}) {
   const t = useBS();
   const tr = useShapeTr();
   const [previewClient, setPreviewClient] = useStateBSP(null);
@@ -2732,6 +2783,14 @@ function BSTrainerClients() {
   const [cFilter, setCFilter] = useStateBSP('all');
   const [needsYou, setNeedsYou] = useStateBSP(false);
   const { clients: COACH_CLIENTS, status: rosterStatus, retry: retryRoster } = useBSProRoster('trainer'); // demo → live roster when signed in
+  // A notification asked for one client (route "client"): open their page once the roster has
+  // them. A client the roster does not hold leaves the list showing, never another client's page.
+  useEffectBSP(() => {
+    if (!openRequest || !openRequest.clientId || rosterStatus === 'loading') return;
+    const hit = COACH_CLIENTS.find((c) => c.userId === openRequest.clientId);
+    if (hit) { setPreviewClient(null); setFullClient(hit); }
+    onOpenConsumed();
+  }, [openRequest, rosterStatus, COACH_CLIENTS]);
   const shownClients = COACH_CLIENTS
     .filter(c => roster === 'active' ? c.active : !c.active)
     .filter(c => bsClientMatchesFilter(c, cFilter, 'trainer'))
@@ -6852,7 +6911,18 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
       setTab('chat');
     };
     window.addEventListener('shape:openConversation', open);
-    return () => window.removeEventListener('shape:openConversation', open);
+    // A tapped push (push.js: shape:pushRoute, or window.__bsPushRoute when it landed before this
+    // shell mounted) goes through the shared router (bsNotificationRoute.mjs, imported here: an app
+    // that starts in a coach role never loads the client module), whose "chat:<id>" opens the thread
+    // through the listener above (Codex on #2360: a coach's new-client push opened nothing).
+    const fromPush = (e) => { window.__bsPushRoute = null; bsRouteNotification(e && e.detail && e.detail.route); };
+    window.addEventListener('shape:pushRoute', fromPush);
+    // ⚠ REPLAYED AFTER EVERY LISTENER IS UP (Codex on #2360): shape:openClient is registered by a
+    // later effect of this mount, so replaying here dispatched a cold-start "client:<id>" into nothing.
+    const pending = window.__bsPushRoute;
+    let replay = null;
+    if (pending) { window.__bsPushRoute = null; replay = setTimeout(() => bsRouteNotification(pending), 0); }
+    return () => { clearTimeout(replay); window.removeEventListener('shape:openConversation', open); window.removeEventListener('shape:pushRoute', fromPush); };
   }, []);
   useEffectBSP(() => bsCoachTourAutoShow(setShowTour), []);
   useEffectBSP(() => {
@@ -6878,6 +6948,38 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     };
     window.addEventListener('shape:goCommunity', open);
     return () => window.removeEventListener('shape:goCommunity', open);
+  }, []);
+  // A new-client alert with no thread ("client"): that client's page, as in the trainer shell.
+  const [openClientReq, setOpenClientReq] = useStateBSP(null);
+  useEffectBSP(() => {
+    const open = (e) => {
+      const clientId = e && e.detail && e.detail.clientId;
+      if (!clientId) return;
+      // A client of the account's OTHER listing (Codex on #2360): this roster holds only
+      // nutritionists' clients, so hand the route to that role's shell, which replays it on mount.
+      const other = e.detail.providerRole;
+      if ((other === 'trainer' || other === 'nutritionist') && other !== 'nutritionist') {
+        window.__bsPushRoute = 'client:' + other + ':' + clientId;
+        setTweak('role', other);
+        return;
+      }
+      navJumpRef.current.navPush();
+      setShowSoundtracks(false); setShowSettings(false); setSettingsStart('');
+      setShowCalendar(false); setShowReviews(false); setShowHabits(false);
+      setQueueView(null); setShowSearch(false);
+      setOpenClientReq({ clientId, nonce: Date.now() }); setTab('clients');
+    };
+    window.addEventListener('shape:openClient', open);
+    // The membership welcome ("home") on an account that is a coach now: their Today.
+    const home = () => {
+      navJumpRef.current.navPush();
+      setShowSoundtracks(false); setShowSettings(false); setSettingsStart('');
+      setShowCalendar(false); setShowReviews(false); setShowHabits(false);
+      setQueueView(null); setShowSearch(false);
+      setTab('today');
+    };
+    window.addEventListener('shape:goHome', home);
+    return () => { window.removeEventListener('shape:openClient', open); window.removeEventListener('shape:goHome', home); };
   }, []);
   const [showSettings, setShowSettings] = useStateBSP(false);
   const [showSoundtracks, setShowSoundtracks] = useStateBSP(false);
@@ -6962,6 +7064,12 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
       const uid = c && (c.userId || c.user_id || (typeof c.id === 'string' && c.id.includes('-') ? c.id : null));
       const name = (c && c.n) || 'Client';
       let cid = e?.detail?.conversationId || null;
+      // The thread the client sees under Coaches (fix 3a, H7): their direct thread with this
+      // listing. A member-to-member chat is the fallback only when that cannot be opened (not
+      // their client, or before 2026-10-15-coach-thread.sql), as it was the only path before.
+      if (!cid && uid && window.ShapeMessages?.getOrCreateClientConversation) {
+        try { const conv = await window.ShapeMessages.getOrCreateClientConversation({ clientId: uid, providerRole: 'nutritionist' }); cid = (conv && conv.data) || null; } catch (err) {}
+      }
       if (!cid && uid && window.ShapeMessages?.getOrCreateMemberConversation) {
         try { const conv = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: uid }); cid = (conv && conv.data) || null; } catch (err) {}
       }
@@ -7027,7 +7135,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   if (queueView) return takeover(<BSProWidgetQueuePage role="nutritionist" type={queueView} onBack={() => { if (!navBack()) setQueueView(null); }} />);
   const screens = {
     today:    <BSNutriToday onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} onOpenReviews={() => { navPush(); setShowReviews(true); }} onWidgetOpen={openHomeWidget} onOpenHabits={() => { navPush(); setShowHabits(true); }} onOpenScore={() => { navPush(); setStoreView('score'); setTab('store'); }} tweaks={tweaks} setTweak={setTweak} />,
-    clients:  <BSNutriClients sheet={sheet} />,
+    clients:  <BSNutriClients sheet={sheet} openRequest={openClientReq} onOpenConsumed={() => setOpenClientReq(null)} />,
     plans:    <BSNutriPlans sheet={sheet} />,
     chat:     <BSClientChat onProfile={goSettings} sheet={sheet} role="nutritionist" openRequest={chatRequest} />,
     radio:    <BSRadioScreen onBack={() => { if (!navBack()) setTab('today'); }} />,
@@ -7063,7 +7171,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
 
 function BSNutriToday(props) { return <BSProToday role="nutritionist" {...props} />; }
 
-function BSNutriClients() {
+function BSNutriClients({ openRequest = null, onOpenConsumed = () => {} } = {}) {
   const t = useBS();
   const [previewClient, setPreviewClient] = useStateBSP(null);
   const [fullClient, setFullClient] = useStateBSP(null);
@@ -7072,6 +7180,14 @@ function BSNutriClients() {
   const [cFilter, setCFilter] = useStateBSP('all');
   const [needsYou, setNeedsYou] = useStateBSP(false);
   const { clients: NUTRI_CLIENTS, status: rosterStatus, retry: retryRoster } = useBSProRoster('nutritionist'); // demo → live roster when signed in
+  // A notification asked for one client (route "client"): open their page once the roster has
+  // them. A client the roster does not hold leaves the list showing, never another client's page.
+  useEffectBSP(() => {
+    if (!openRequest || !openRequest.clientId || rosterStatus === 'loading') return;
+    const hit = NUTRI_CLIENTS.find((c) => c.userId === openRequest.clientId);
+    if (hit) { setPreviewClient(null); setFullClient(hit); }
+    onOpenConsumed();
+  }, [openRequest, rosterStatus, NUTRI_CLIENTS]);
   const shownClients = NUTRI_CLIENTS
     .filter(c => roster === 'active' ? c.active : !c.active)
     .filter(c => bsClientMatchesFilter(c, cFilter, 'nutritionist'))

@@ -299,5 +299,9 @@
   "support.fill.button": "Preencher",
   "support.fill.done": "Preenchido ✓",
   "support.fill.doneNote": "Confira cada etapa e depois continue. A senha e as caixas de aceite ficam com você.",
-  "support.fill.wrongForm": "Abra o formulário a que eles pertencem e toque de novo."
+  "support.fill.wrongForm": "Abra o formulário a que eles pertencem e toque de novo.",
+  "thread.yourClient": "Seu cliente",
+  "thread.fromShape": "Da Shape",
+  "thread.shapeWelcome": "{client} e {coach} agora trabalham juntos na Shape. É nesta conversa que vocês falam: perguntas, check-ins e mudanças no plano chegam aqui.",
+  "thread.shapeWelcomeNoClient": "Seu acompanhamento com {coach} começa aqui. É nesta conversa que vocês falam: perguntas, check-ins e mudanças no plano chegam aqui."
 }

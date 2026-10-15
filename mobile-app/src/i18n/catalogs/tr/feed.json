@@ -299,5 +299,9 @@
   "support.fill.button": "Doldur",
   "support.fill.done": "Dolduruldu ✓",
   "support.fill.doneNote": "Her adımı kontrol et, sonra devam et. Şifren ve onay kutuları sana ait.",
-  "support.fill.wrongForm": "Bunların ait olduğu formu aç, sonra tekrar dokun."
+  "support.fill.wrongForm": "Bunların ait olduğu formu aç, sonra tekrar dokun.",
+  "thread.yourClient": "Danışanın",
+  "thread.fromShape": "Shape'ten",
+  "thread.shapeWelcome": "{client} ve {coach} artık Shape'te birlikte çalışıyor. Bu konuda konuşursunuz: sorular, check-in'ler ve plan değişiklikleri buraya gelir.",
+  "thread.shapeWelcomeNoClient": "{coach} ile koçluğun burada başlıyor. Bu konuda konuşursunuz: sorular, check-in'ler ve plan değişiklikleri buraya gelir."
 }

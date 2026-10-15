@@ -25,6 +25,7 @@ import { bsMaterializeProgram, bsRepeatSpec } from './trainingBuilder.mjs';
 import { bsMaterializeOutline } from './planOutline.mjs';
 import { bsPrunePrep } from './mealPrep.mjs';
 import { bsNormalizeListingMedia } from './listingMedia.mjs';
+import { isShapeWelcome } from './shapeWelcome.mjs';
 // The SHARED nora_memory doc normalizer (pure ESM, cross-root import — the
 // dashSignals.js precedent): one implementation of the {rev, notes} semantics
 // for the server tools AND this Settings mirror, so they can't drift.
@@ -2141,26 +2142,39 @@ function resolveCoachProvider(coach = {}) {
   return { providerRole, providerId };
 }
 
-function conversationToThread(conversation, messages = []) {
+// A coach thread is one row seen from two sides. The client reads it under the coach's name (the
+// row's title); the coach reads it under the CLIENT's name, which the caller passes in `names`
+// (client_id → full name). Before this (client-onboarding review, fix 3a) the coach read every
+// client thread under their own name, filed as "Your coach". A coach↔coach "Care team" thread has
+// no provider and keeps its title.
+function conversationToThread(conversation, messages = [], names = {}) {
   const providerRole = conversation.provider_role === 'nutritionist' ? 'Nutritionist' : 'Trainer';
   const ordered = [...messages].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+  const myId = state.user?.id;
+  const asCoach = !!(conversation.provider_role && conversation.client_id && myId && conversation.client_id !== myId);
+  const counterpart = asCoach ? ((names && names[conversation.client_id]) || 'Client') : (conversation.title || providerRole);
   return {
     id: `conversation-${conversation.id}`,
     conversation_id: conversation.id,
     provider_id: conversation.provider_id,
     provider_role: conversation.provider_role,
-    who: conversation.title || providerRole,
-    role: `${providerRole} - Shape coach`,
+    client_id: conversation.client_id || null,
+    as_coach: asCoach,
+    who: counterpart,
+    role: asCoach ? `Client - ${providerRole}` : `${providerRole} - Shape coach`,
     last: conversation.last_message || ordered.at(-1)?.body || 'New conversation',
     time: conversation.last_message_at ? 'synced' : 'now',
     unread: 0,
-    bucket: 'COACH',
+    bucket: asCoach ? 'CLIENT' : 'COACH',
     messages: ordered.map(message => ({
-      who: message.sender_id === state.user?.id ? 'You' : conversation.title || providerRole,
+      id: message.id || null,
+      // Shape's welcome (sender_id null, metadata.shape = 'welcome') is from neither side.
+      who: isShapeWelcome(message) ? 'Shape' : message.sender_id === myId ? 'You' : counterpart,
       t: message.body,
       time: message.created_at ? new Date(message.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'now',
-      me: message.sender_id === state.user?.id,
-      coach: message.sender_id !== state.user?.id,
+      me: !isShapeWelcome(message) && message.sender_id === myId,
+      coach: !asCoach && !isShapeWelcome(message) && message.sender_id !== myId,
+      shape: isShapeWelcome(message) ? { body: message.body, sender_id: null, metadata: message.metadata } : null,
       audio: message.metadata && message.metadata.audio ? message.metadata.audio.url : null,
       photo: message.metadata && message.metadata.photo ? message.metadata.photo.url : null,
       sharedChannel: (message.metadata && message.metadata.channel && message.metadata.channel.id != null) ? message.metadata.channel : null,
@@ -2225,6 +2239,53 @@ async function listMemberThreads() {
     byConversation = (messages || []).reduce((acc, m) => { (acc[m.conversation_id] || (acc[m.conversation_id] = [])).push(m); return acc; }, {});
   }
   return { stored: 'supabase', data: (rows || []).map(r => memberThreadFromRow(r, byConversation[r.conversation_id] || [])) };
+}
+
+// A coach opening the thread their client sees (client-onboarding review, fix 3a: H7). The coach
+// used to open a member-to-member chat instead (getOrCreateMemberConversation), which the client
+// files under DMs and the coach's Messages page never lists. get_or_create_client_conversation
+// (2026-10-15-coach-thread.sql) answers the client's direct thread with the caller's listing of
+// that role, and only for their own client.
+async function getOrCreateClientConversation({ clientId, providerRole } = {}) {
+  if (!state.user?.id) throw new Error('Sign in before messaging a client.');
+  if (!supabase) return { stored: 'local', data: null };
+  const { data, error } = await supabase.rpc('get_or_create_client_conversation', {
+    p_client_id: clientId,
+    p_provider_role: normalizeProviderRoleForMessages(providerRole),
+  });
+  if (error) throw error;
+  return { stored: 'supabase', data };
+}
+
+// Client names for the coach's side of their threads (get_display_names takes up to 200 ids).
+// A failed read leaves the threads named "Client", never empty.
+async function clientNamesFor(conversations = []) {
+  const myId = state.user?.id;
+  const ids = [...new Set(conversations
+    .filter(c => c && c.provider_role && c.client_id && c.client_id !== myId)
+    .map(c => c.client_id))].slice(0, 200);
+  if (!ids.length || !supabase) return {};
+  try {
+    const { data, error } = await supabase.rpc('get_display_names', { p_ids: ids });
+    if (error) return {};
+    return (data || []).reduce((acc, r) => { if (r && r.user_id && r.full_name) acc[r.user_id] = r.full_name; return acc; }, {});
+  } catch {
+    return {};
+  }
+}
+
+// One thread with its history, for a thread opened by id (a coach's MESSAGE, a notification).
+async function getConversationThread(conversationId) {
+  if (!state.user?.id || !supabase || !conversationId) return { stored: 'local', data: null };
+  const { data: conversation, error } = await supabase.from('conversations').select('*').eq('id', conversationId).maybeSingle();
+  if (error) throw error;
+  if (!conversation) return { stored: 'supabase', data: null };
+  const { data: messages, error: messageError } = await supabase
+    .from('messages').select('*').eq('conversation_id', conversationId)
+    .order('created_at', { ascending: false }).limit(200);
+  if (messageError) throw messageError;
+  const names = await clientNamesFor([conversation]);
+  return { stored: 'supabase', data: conversationToThread(conversation, messages || [], names) };
 }
 
 async function getOrCreateDirectConversation({ providerRole, providerId } = {}) {
@@ -2323,9 +2384,10 @@ async function listDirectCoachThreads() {
     return acc;
   }, {});
 
+  const names = await clientNamesFor(conversations || []);
   return {
     stored: 'supabase',
-    data: (conversations || []).map(conversation => conversationToThread(conversation, byConversation[conversation.id] || [])),
+    data: (conversations || []).map(conversation => conversationToThread(conversation, byConversation[conversation.id] || [], names)),
   };
 }
 
@@ -7145,6 +7207,8 @@ window.ShapeClientKit = {
 window.ShapeMessages = {
   getOrCreateDirectConversation,
   getOrCreateMemberConversation,
+  getOrCreateClientConversation,
+  getConversationThread,
   sendMessage,
   sendProviderMessage,
   listDirectCoachThreads,

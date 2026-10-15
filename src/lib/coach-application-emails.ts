@@ -29,13 +29,13 @@ export function escapeHtml(s: string): string {
     .replace(/'/g, '&#39;');
 }
 
-const WRAP_OPEN =
+export const WRAP_OPEN =
   `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#0a0d0c;">`;
-const SIGN_OFF_HTML =
+export const SIGN_OFF_HTML =
   `<p style="margin:24px 0 0;color:#666;font-size:13px;">— The Shape team<br/><a href="https://theshapecommunity.com" style="color:#0ac5a8;">theshapecommunity.com</a></p>`;
-const SIGN_OFF_TEXT = ['— The Shape team', 'https://theshapecommunity.com'];
+export const SIGN_OFF_TEXT = ['— The Shape team', 'https://theshapecommunity.com'];
 
-function button(href: string, label: string): string {
+export function button(href: string, label: string): string {
   return `<p style="margin:0 0 20px;"><a href="${escapeHtml(href)}" style="display:inline-block;background:#0ac5a8;color:#06100e;text-decoration:none;padding:11px 16px;border-radius:999px;font-size:14px;font-weight:600;">${escapeHtml(label)}</a></p>`;
 }
 
