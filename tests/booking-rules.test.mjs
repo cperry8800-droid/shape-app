@@ -361,18 +361,22 @@ test('openSlots is bounded: a step, a limit, a 60-day window, and nonsense refus
 // ── 7 · rules and time off as the routes store them ───────────────────────────────────────
 
 test('rules: the read side clamps, the write side refuses, and both match the database CHECKs', () => {
-  assert.deepEqual(R.normalizeRules(null), { bufferMin: 0, maxPerDay: null, minNoticeHours: 0 });
-  assert.deepEqual(R.normalizeRules({ buffer_min: 15, max_per_day: 6, min_notice_hours: 12 }), { bufferMin: 15, maxPerDay: 6, minNoticeHours: 12 });
-  assert.deepEqual(R.normalizeRules({ buffer_min: 500, max_per_day: 99, min_notice_hours: -4 }), { bufferMin: 120, maxPerDay: 24, minNoticeHours: 0 });
+  assert.deepEqual(R.normalizeRules(null), { bufferMin: 0, maxPerDay: null, minNoticeHours: 0, consultMin: 15 });
+  assert.deepEqual(R.normalizeRules({ buffer_min: 15, max_per_day: 6, min_notice_hours: 12, consult_min: 40 }), { bufferMin: 15, maxPerDay: 6, minNoticeHours: 12, consultMin: 40 });
+  assert.deepEqual(R.normalizeRules({ buffer_min: 500, max_per_day: 99, min_notice_hours: -4, consult_min: 999 }), { bufferMin: 120, maxPerDay: 24, minNoticeHours: 0, consultMin: 240 });
+  assert.equal(R.normalizeRules({ consult_min: 1 }).consultMin, 5, 'clamped up to the shortest intro');
+  assert.equal(R.normalizeRules({ consultMin: 7 }).consultMin, 7, 'any whole minute');
   assert.equal(R.normalizeRules({ max_per_day: 0 }).maxPerDay, null, 'a stored 0 is no limit, not a closed calendar');
   assert.equal(R.normalizeRules({ maxPerDay: '' }).maxPerDay, null);
   const ok = R.validateRules({ bufferMin: 15, maxPerDay: '6', minNoticeHours: 0 });
-  assert.deepEqual(ok, { ok: true, rules: { bufferMin: 15, maxPerDay: 6, minNoticeHours: 0 } });
-  assert.deepEqual(R.validateRules({ maxPerDay: null }, { max_per_day: 4, buffer_min: 10 }), { ok: true, rules: { bufferMin: 10, maxPerDay: null, minNoticeHours: 0 } }, 'merged over the stored row');
+  assert.deepEqual(ok, { ok: true, rules: { bufferMin: 15, maxPerDay: 6, minNoticeHours: 0, consultMin: 15 } });
+  assert.deepEqual(R.validateRules({ maxPerDay: null }, { max_per_day: 4, buffer_min: 10, consult_min: 30 }), { ok: true, rules: { bufferMin: 10, maxPerDay: null, minNoticeHours: 0, consultMin: 30 } }, 'merged over the stored row');
+  assert.equal(R.validateRules({ consultMin: '10' }).rules.consultMin, 10);
   for (const [input, field] of [
     [{ bufferMin: 121 }, 'bufferMin'], [{ bufferMin: -1 }, 'bufferMin'], [{ bufferMin: 7.5 }, 'bufferMin'], [{ bufferMin: 'ten' }, 'bufferMin'],
     [{ maxPerDay: 0 }, 'maxPerDay'], [{ maxPerDay: 25 }, 'maxPerDay'], [{ maxPerDay: true }, 'maxPerDay'],
     [{ minNoticeHours: 337 }, 'minNoticeHours'], [{ minNoticeHours: null }, 'minNoticeHours'],
+    [{ consultMin: 4 }, 'consultMin'], [{ consultMin: 241 }, 'consultMin'], [{ consultMin: 12.5 }, 'consultMin'], [{ consultMin: '' }, 'consultMin'],
   ]) {
     const r = R.validateRules(input);
     assert.equal(r.ok, false, JSON.stringify(input));
@@ -386,6 +390,11 @@ test('rules: the read side clamps, the write side refuses, and both match the da
   assert.match(sql, new RegExp(`check \\(max_per_day is null or max_per_day between ${L.maxPerDay.min} and ${L.maxPerDay.max}\\)`));
   assert.match(sql, new RegExp(`check \\(min_notice_hours between ${L.minNoticeHours.min} and ${L.minNoticeHours.max}\\)`));
   assert.match(sql, new RegExp(`char_length\\(note\\) <= ${R.TIME_OFF_NOTE_MAX}\\)`));
+  // The intro's length: its own migration states the same range and default.
+  const intro = readFileSync(join(ROOT, 'supabase-migrations/2026-10-15-intro-length.sql'), 'utf8');
+  assert.match(intro, new RegExp(`check \\(consult_min between ${L.consultMin.min} and ${L.consultMin.max}\\)`));
+  assert.match(intro, new RegExp(`add column if not exists consult_min integer not null default ${R.DEFAULT_RULES.consultMin};`));
+  assert.match(intro, /add column if not exists intro boolean not null default false;/);
 });
 
 test('parseTimeOff: instants with offsets, whole days in the coach\'s zone, and the limits', () => {

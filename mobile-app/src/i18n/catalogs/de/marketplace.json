@@ -190,5 +190,10 @@
   "preview.action": "Was drin ist →",
   "rating.new": "Neu",
   "dir.coachNotOpen": "Die Anzeige dieses Coaches ist noch nicht offen. Er erscheint hier, sobald sie es ist.",
-  "dir.coachNotOpenDismiss": "Schließen"
+  "dir.coachNotOpenDismiss": "Schließen",
+  "listing.slotBodyLength": "Kostenloser {minutes}-minütiger Intro-Anruf mit {name}. Du kannst ihn später über die Nachrichten verschieben.",
+  "listing.requested": "Angefragt",
+  "listing.bookedRequestBody": "Du hast {name} um ein {minutes}-minütiges Intro gebeten. Den Link zum Anruf bekommst du per E-Mail, sobald es bestätigt ist.",
+  "listing.messageNotSent": "Nicht gesendet",
+  "listing.messageNotSentBody": "Deine Nachricht an {name} wurde nicht gesendet. Versuch es noch einmal. {error}"
 }

@@ -298,8 +298,9 @@ function writeShapeCoachThread(coach, text, sync = {}) {
     time: sync.stored === 'supabase' ? 'synced' : 'now',
     unread: 0,
     bucket: 'COACH',
+    // Only what the member sent. This used to open with a reply in the coach's name ("Thanks for
+    // reaching out. I will reply here.") that the coach never wrote (client-onboarding review, H6).
     messages: [
-      { who: coach.name.split(' ')[0].replace('Dr.', '').trim() || coach.name, t: 'Thanks for reaching out. I will reply here.', time: 'auto', me: false, coach: true },
       { who: 'You', t: text, time: 'now', me: true },
     ],
     updatedAt: now,
@@ -1938,6 +1939,10 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   // the labeled preview pattern renders instead; [] = a live coach with no
   // open slots, which reads honestly as none).
   const [realAvail, setRealAvail] = useStateBSM2(null);
+  // How long this coach's free intro runs: their own setting, answered by /api/availability in
+  // `rules.consultMin` (any length from 5 to 240 minutes). 15 until it loads, the length every
+  // intro had.
+  const [introMin, setIntroMin] = useStateBSM2(15);
   // Declared hours we cannot place on a clock — the coach has no stored zone.
   const [noZone, setNoZone] = useStateBSM2(false);
 
@@ -1995,9 +2000,12 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
         // hours we cannot place has some — and saying "no open times" there is a false
         // claim about them rather than about our data.
         setNoZone(d.slots.length > 0 && !bsIsZone(d.timezone));
-        // `busy` + `rules`: the coach's time off, buffer, daily limit and notice (Schedule step 3).
-        // The intro consult this books is 15 minutes (shapeBackend.submitConsultationBooking).
-        setRealAvail(bsProjectAvailability({ slots: d.slots, booked: d.booked || [], weeks: 6, zone: d.timezone, busy: d.busy || [], rules: d.rules || null, sessionMin: 15 }));
+        // `busy` + `rules`: the coach's time off, buffer, daily limit and notice (Schedule step 3),
+        // and the intro's length, which the times are laid out for.
+        const len = Number(d.rules && d.rules.consultMin);
+        const minutes = Number.isInteger(len) && len >= 5 && len <= 240 ? len : 15;
+        setIntroMin(minutes);
+        setRealAvail(bsProjectAvailability({ slots: d.slots, booked: d.booked || [], weeks: 6, zone: d.timezone, busy: d.busy || [], rules: d.rules || null, sessionMin: minutes }));
       })
       .catch(() => {});
     return () => { on = false; };
@@ -2184,7 +2192,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
     setAction({
       type: 'Booking',
       title: tr('marketplace:listing.slotTitle', { defaultValue: '{day}, {month} {date} at {time}', day, month, date, time }),
-      body: tr('marketplace:listing.slotBody', { defaultValue: 'Free intro call with {name}. You can reschedule later from messages.', name: coach.name }),
+      body: tr('marketplace:listing.slotBodyLength', { defaultValue: 'Free {minutes}-minute intro call with {name}. You can reschedule later from messages.', name: coach.name, minutes: introMin }),
       cta: tr('marketplace:listing.confirmBooking', { defaultValue: 'Confirm booking' }),
       slot: { day, date, time, month, iso, at, coachDate: wall ? wall.coachDate : null, coachTime: wall ? wall.coachTime : null },
     });
@@ -2263,20 +2271,23 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
     if (current.type === 'Booking') {
       setCheckoutBusy(true);
       try {
-        const result = await window.ShapeBookings?.submitConsultationBooking?.({
+        await window.ShapeBookings?.submitConsultationBooking?.({
           coach,
           role: getPublicProfileKind(coach),
           slot: current.slot,
           topic: 'Free intro call',
+          durationMin: introMin,
         });
-        writeShapeCoachThread(coach, tr('marketplace:thread.bookedIntro', { defaultValue: 'Booked intro consultation: {title}.', title: current.title }));
+        // ⚠ NO THREAD IS STARTED HERE. This wrote a "Booked intro consultation" note from the
+        // member into a thread kept only on this phone, which the coach never received, and the
+        // panel said "A message thread has been started" (client-onboarding review, H6). The coach
+        // is told by the booking itself (a notification and an email); the member hears back by
+        // email when the coach confirms, with the call link.
         setAction({
           ...current,
           done: true,
-          title: tr('marketplace:listing.booked', { defaultValue: 'Booked' }),
-          body: result?.stored === 'supabase'
-            ? tr('marketplace:listing.bookedSyncedBody', { defaultValue: 'Your intro with {name} is saved in Shape bookings. A message thread has been started.', name: coach.name })
-            : tr('marketplace:listing.bookedLocalBody', { defaultValue: 'Your intro with {name} is held locally. A message thread has been started.', name: coach.name }),
+          title: tr('marketplace:listing.requested', { defaultValue: 'Requested' }),
+          body: tr('marketplace:listing.bookedRequestBody', { defaultValue: 'You asked {name} for a {minutes}-minute intro. You will get the call link by email once they confirm.', name: coach.name, minutes: introMin }),
         });
       } catch (error) {
         setAction({
@@ -2313,12 +2324,13 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
           : tr('marketplace:listing.messageSavedLocalBody', { defaultValue: "{name}'s thread has been added to your Chat page under Team. Sign in after the message schema is live to sync across devices.", name: coach.name }),
       });
     } catch (error) {
-      writeShapeCoachThread(coach, clean);
+      // ⚠ A FAILED SEND IS SAID, NOT STORED. This kept the note on the phone and called it "saved
+      // locally", where nothing ever sent it on (client-onboarding review, H6).
       setAction({
         type: 'Message',
-        done: true,
-        title: tr('marketplace:listing.messageSavedLocal', { defaultValue: 'Message saved locally' }),
-        body: tr('marketplace:listing.messageErrorBody', { defaultValue: "{name}'s thread was added to Chat. Supabase sync needs the conversations/messages migration run first. {error}", name: coach.name, error: error?.message || '' }),
+        title: tr('marketplace:listing.messageNotSent', { defaultValue: 'Not sent' }),
+        body: tr('marketplace:listing.messageNotSentBody', { defaultValue: 'Your note to {name} did not send. Try again. {error}', name: coach.name, error: error?.message || '' }),
+        cta: tr('marketplace:listing.sendMessage', { defaultValue: 'Send message' }),
       });
     }
   };

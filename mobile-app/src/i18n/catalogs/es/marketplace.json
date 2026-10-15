@@ -190,5 +190,10 @@
   "preview.action": "Qué incluye →",
   "rating.new": "Nuevo",
   "dir.coachNotOpen": "El anuncio de ese coach aún no está abierto. Aparecerá aquí cuando lo esté.",
-  "dir.coachNotOpenDismiss": "Cerrar"
+  "dir.coachNotOpenDismiss": "Cerrar",
+  "listing.slotBodyLength": "Llamada intro gratis de {minutes} minutos con {name}. Puedes reprogramarla luego desde los mensajes.",
+  "listing.requested": "Solicitado",
+  "listing.bookedRequestBody": "Pediste a {name} una intro de {minutes} minutos. Recibirás el enlace de la llamada por correo cuando la confirme.",
+  "listing.messageNotSent": "No enviado",
+  "listing.messageNotSentBody": "Tu nota para {name} no se envió. Inténtalo de nuevo. {error}"
 }

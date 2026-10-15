@@ -1458,7 +1458,7 @@ function bookingTime12h(hhmm) {
   return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
 }
 
-async function submitConsultationBooking({ coach, role, slot = {}, topic = 'Free intro call' }) {
+async function submitConsultationBooking({ coach, role, slot = {}, topic = 'Free intro call', durationMin = null }) {
   const professionalType = normalizeRole(role || coach?.provider_role);
   if (!coach?.name || !['trainer', 'nutritionist'].includes(professionalType)) {
     throw new Error('Missing provider details for booking.');
@@ -1492,6 +1492,9 @@ async function submitConsultationBooking({ coach, role, slot = {}, topic = 'Free
       date,
       time,
       scheduledAt: new Date(at).toISOString(),
+      // The intro length the times were laid out for: a cross-check the route refuses when the
+      // coach has changed it since (length_changed).
+      ...(Number.isInteger(durationMin) ? { durationMin } : {}),
       topic,
       // Read only for an account with no email of its own (phone sign-up); the route takes
       // the account's address otherwise.

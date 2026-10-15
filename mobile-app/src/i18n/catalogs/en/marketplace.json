@@ -190,5 +190,10 @@
   "preview.action": "What's inside →",
   "rating.new": "New",
   "dir.coachNotOpen": "That coach's listing isn't open yet. They'll appear here once it is.",
-  "dir.coachNotOpenDismiss": "Dismiss"
+  "dir.coachNotOpenDismiss": "Dismiss",
+  "listing.slotBodyLength": "Free {minutes}-minute intro call with {name}. You can reschedule later from messages.",
+  "listing.requested": "Requested",
+  "listing.bookedRequestBody": "You asked {name} for a {minutes}-minute intro. You will get the call link by email once they confirm.",
+  "listing.messageNotSent": "Not sent",
+  "listing.messageNotSentBody": "Your note to {name} did not send. Try again. {error}"
 }

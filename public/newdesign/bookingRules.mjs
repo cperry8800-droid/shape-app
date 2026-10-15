@@ -59,13 +59,18 @@ export const RULE_LIMITS = Object.freeze({
   bufferMin: Object.freeze({ min: 0, max: 120 }),
   maxPerDay: Object.freeze({ min: 1, max: 24 }),
   minNoticeHours: Object.freeze({ min: 0, max: 336 }),
+  // The free intro's length, in minutes (2026-10-15-intro-length.sql). The owner: "make sure
+  // coaches can set the length for their consultation … it should be completely customizable".
+  // Any whole number of minutes in this range; the default is the 15 every intro used to be.
+  consultMin: Object.freeze({ min: 5, max: 240 }),
 });
 
-/** @typedef {{ bufferMin: number, maxPerDay: number | null, minNoticeHours: number }} BookingRules */
+/** @typedef {{ bufferMin: number, maxPerDay: number | null, minNoticeHours: number, consultMin: number }} BookingRules */
 
-/** A coach with no stored rules: no buffer, no daily limit, no notice. Today's behaviour.
+/** A coach with no stored rules: no buffer, no daily limit, no notice, a 15-minute intro.
+ * Today's behaviour.
  * @type {Readonly<BookingRules>} */
-export const DEFAULT_RULES = Object.freeze({ bufferMin: 0, maxPerDay: null, minNoticeHours: 0 });
+export const DEFAULT_RULES = Object.freeze({ bufferMin: 0, maxPerDay: null, minNoticeHours: 0, consultMin: 15 });
 
 /** The longest window `openSlots` walks, and the longest a busy read may ask for. */
 // ⚠ 60, NOT 62 (Codex, the review of #2225). openSlots says to read busy blocks from a day before
@@ -324,7 +329,7 @@ const clampInt = (v, lim, fallback) => {
 
 /**
  * A stored rules row (snake_case, from provider_booking_rules) or a camelCase object, as
- * `{ bufferMin, maxPerDay, minNoticeHours }`. LENIENT — this is the READ side: an out-of-range
+ * `{ bufferMin, maxPerDay, minNoticeHours, consultMin }`. LENIENT — this is the READ side: an out-of-range
  * value is clamped into range and an absent one takes the default, so a row written by hand
  * cannot make the rules throw. The WRITE side is `validateRules`, which refuses instead.
  * @param {unknown} raw @returns {BookingRules}
@@ -340,6 +345,9 @@ export function normalizeRules(raw) {
     // would silently empty their calendar.
     maxPerDay: Number.isFinite(max) && max >= 1 ? clampInt(max, RULE_LIMITS.maxPerDay, null) : null,
     minNoticeHours: clampInt(pick('minNoticeHours', 'min_notice_hours'), RULE_LIMITS.minNoticeHours, DEFAULT_RULES.minNoticeHours),
+    // ⚠ A ROW FROM BEFORE 2026-10-15-intro-length.sql HAS NO consult_min, and reads as 15: the
+    // length every intro had until the coach could set one.
+    consultMin: clampInt(pick('consultMin', 'consult_min'), RULE_LIMITS.consultMin, DEFAULT_RULES.consultMin),
   };
 }
 
@@ -350,7 +358,7 @@ const WHOLE = (v) => {
 };
 
 /**
- * The write side: `{ bufferMin, maxPerDay, minNoticeHours }` from a form or a request body,
+ * The write side: `{ bufferMin, maxPerDay, minNoticeHours, consultMin }` from a form or a request body,
  * each optional, merged over `base` (the coach's stored rules). Refuses rather than clamps — a
  * coach who types 200 minutes of buffer is told the limit, not quietly given 120.
  * @param {unknown} input @param {unknown} [base]
@@ -380,6 +388,12 @@ export function validateRules(input, base = DEFAULT_RULES) {
     const { min, max } = RULE_LIMITS.minNoticeHours;
     if (!(n >= min && n <= max)) return { ok: false, field: 'minNoticeHours', error: `Notice has to be a whole number of hours from ${min} to ${max} (two weeks).` };
     rules.minNoticeHours = n;
+  }
+  if (src.consultMin !== undefined) {
+    const n = WHOLE(src.consultMin);
+    const { min, max } = RULE_LIMITS.consultMin;
+    if (!(n >= min && n <= max)) return { ok: false, field: 'consultMin', error: `The intro has to be a whole number of minutes from ${min} to ${max}.` };
+    rules.consultMin = n;
   }
   return { ok: true, rules };
 }

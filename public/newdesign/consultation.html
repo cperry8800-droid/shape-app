@@ -10,7 +10,7 @@
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://www.theshapecommunity.com/newdesign/consultation.html">
   <meta property="og:title" content="Shape — Book a Consultation">
-  <meta property="og:description" content="Meet your trainer or nutritionist before committing. A free 15-minute video call to talk goals and fit.">
+  <meta property="og:description" content="Meet your trainer or nutritionist before committing. A free video call to talk goals and fit.">
   <meta property="og:image" content="https://theshapecommunity.com/icon-512.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#0b0f0e">
@@ -209,7 +209,7 @@
     <section class="hero">
       <p class="eyebrow" id="heroEyebrow">1-on-1 · Free consultation</p>
       <h1>Book a free <i>session.</i></h1>
-      <p>Meet your trainer or nutritionist before committing — a 15-minute video call to talk through your goals and see if it's the right fit.</p>
+      <p>Meet your trainer or nutritionist before committing — a <span id="introLength">short</span> video call to talk through your goals and see if it's the right fit.</p>
     </section>
 
     <!-- Booking card -->
@@ -217,7 +217,7 @@
       <div class="coach" id="coach"><!-- populated by JS --></div>
 
       <div class="chips">
-        <div class="chip"><div class="k">15m</div><div class="t">Video call</div><div class="s">Quick intro</div></div>
+        <div class="chip"><div class="k" id="introChip">15m</div><div class="t">Video call</div><div class="s">Quick intro</div></div>
         <div class="chip"><div class="k">$0</div><div class="t">Free</div><div class="s">No commitment</div></div>
         <div class="chip"><div class="k">1:1</div><div class="t">Private</div><div class="s">Just you two</div></div>
       </div>
@@ -325,6 +325,11 @@
     let coachZone = null;          // the coach's IANA zone; null = their hours cannot be placed
     let availabilityLoaded = false;
     let availUnreadable = false;
+    // How long this coach's intro runs, in minutes: their own setting (provider_booking_rules
+    // .consult_min, any length from 5 to 240), which /api/availability answers in `rules`. 15 until
+    // it loads, the length every intro had. The times are laid out for it and the booking sends it,
+    // so a coach who changes it while the page is open is caught by the route (length_changed).
+    let introMin = 15;
 
     // ⚠ THE POST CARRIES THE *COACH'S* WALL CLOCK, NOT THE MEMBER'S. The route derives the
     // appointment itself by resolving `date` + `time` in the coach's zone — it does not trust
@@ -447,14 +452,19 @@
         if (!res.ok) throw new Error('availability ' + res.status);
         const data = await res.json();
         coachZone = window.BookingSlots.isZone(data.timezone) ? data.timezone : null;
-        // 28 days, matching the date picker's own window. The consult is 15 minutes, which
-        // is the `sessions` default and what this page's own copy promises.
+        const len = Number(data.rules && data.rules.consultMin);
+        introMin = Number.isInteger(len) && len >= 5 && len <= 240 ? len : 15;
+        const lenEl = document.getElementById('introLength');
+        if (lenEl) lenEl.textContent = introMin + '-minute';
+        const chipEl = document.getElementById('introChip');
+        if (chipEl) chipEl.textContent = introMin + 'm';
+        // 28 days, matching the date picker's own window, for a call of the coach's own length.
         const built = coachZone ? window.BookingSlots.buildSlots({
           slots: data.slots || [], booked: data.booked || [], zone: coachZone,
           // The coach's time off, buffer, daily limit and notice: the times the route would
           // refuse are not offered (Schedule step 3).
           busy: data.busy || [], rules: data.rules || null,
-          now: new Date(), days: 28, sessionMin: 15,
+          now: new Date(), days: 28, sessionMin: introMin,
         }) : [];
         slotsByDate = new Map();
         for (const sl of built) {
@@ -480,7 +490,7 @@
         // never disagree with the button they pressed.
         const dateStr = new Date(selectedIso).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
         const timeStr = window.BookingSlots.slotLabel(selectedIso);
-        detail.innerHTML = '<span><b>' + proName.replace(/</g, '&lt;') + '</b></span><span>' + dateStr + '</span><span>' + timeStr + '</span><span>15 min · video</span>';
+        detail.innerHTML = '<span><b>' + proName.replace(/</g, '&lt;') + '</b></span><span>' + dateStr + '</span><span>' + timeStr + '</span><span>' + introMin + ' min · video</span>';
         confirm.classList.add('active');
       } else { confirm.classList.remove('active'); }
     }
@@ -543,6 +553,8 @@
             providerId: proId, professionalType: proType,
             scheduledAt: selectedIso, timezone: coachZone,
             date: coachClock.date, time: coachClock.time,
+            // A cross-check too: the length these times were laid out for.
+            durationMin: introMin,
             clientName: name, clientEmail: email, topic: topic, captchaToken: captchaToken
           })
         });
@@ -552,6 +564,8 @@
           // above passed — a token can expire between the two.
           if (res.status === 401 || data.code === 'auth_required') consultAuthPrompt();
           else showBookErr(data.error || 'Could not book. Please try again.');
+          // The coach changed their intro's length since this page loaded: lay the times out again.
+          if (data.code === 'length_changed') { selectedIso = null; updateConfirmation(); availabilityLoaded = false; loadAvailability(); }
           btn.disabled = false; btn.textContent = originalLabel; return;
         }
       } catch (_) { showBookErr('Network error. Please try again.'); btn.disabled = false; btn.textContent = originalLabel; return; }
@@ -566,7 +580,7 @@
       // Inline success state (newdesign — no bounce to a legacy page).
       document.getElementById('bookingCard').style.display = 'none';
       document.getElementById('successDetail').innerHTML =
-        'Your 15-minute call with <b style="color:var(--ink)">' + proName.replace(/</g, '&lt;') + '</b> is set for <b style="color:var(--ink)">' + dateStr + ' at ' + timeStr + '</b>. We’ve emailed you both the details and a calendar invite.';
+        'You asked for a ' + introMin + '-minute call with <b style="color:var(--ink)">' + proName.replace(/</g, '&lt;') + '</b> on <b style="color:var(--ink)">' + dateStr + ' at ' + timeStr + '</b>. We’ve emailed you a calendar invite, and you’ll get the call link once they confirm.';
       document.getElementById('successPanel').classList.add('active');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }

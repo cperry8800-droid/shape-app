@@ -190,5 +190,10 @@
   "preview.action": "Что внутри →",
   "rating.new": "Новый",
   "dir.coachNotOpen": "Объявление этого тренера ещё не открыто. Он появится здесь, когда оно откроется.",
-  "dir.coachNotOpenDismiss": "Закрыть"
+  "dir.coachNotOpenDismiss": "Закрыть",
+  "listing.slotBodyLength": "Бесплатный вводный звонок на {minutes} мин. с {name}. Позже вы сможете перенести его в сообщениях.",
+  "listing.requested": "Запрошено",
+  "listing.bookedRequestBody": "Вы попросили {name} о вводном звонке на {minutes} мин. Ссылку на звонок пришлём на почту, как только его подтвердят.",
+  "listing.messageNotSent": "Не отправлено",
+  "listing.messageNotSentBody": "Ваше сообщение для {name} не отправлено. Попробуйте ещё раз. {error}"
 }

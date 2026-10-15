@@ -26,6 +26,7 @@ import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { videoRoomUrl } from '@/lib/video';
 import { createNotification } from '@/lib/notify';
+import { afterSessionStep, type SessionForEmail } from '@/lib/session-emails';
 import { isSessionReschedulable, unauthorizedAssignTargets } from '@/lib/access-guards.mjs';
 import { readJson, dbError } from '@/lib/request-utils';
 import { findSessionClash, isDoubleBookError } from '@/lib/session-booking';
@@ -188,6 +189,8 @@ function clashLabel(clash: { startMs: number; clientName: string | null }, zone:
 // older app builds and Nora's undo depend on; a create has no installed caller to keep, so a
 // wall clock with no zone is refused rather than read as UTC.
 const CREATE_TYPES = ['video', 'inperson', 'phone'];
+const SESSION_MIN_LENGTH = 5;
+const SESSION_MAX_LENGTH = 240;
 async function createSession(request: Request, body: Record<string, unknown>) {
   const role = body.role === 'trainer' || body.role === 'nutritionist' ? body.role : null;
   if (!role) return NextResponse.json({ error: 'create needs a role.' }, { status: 400 });
@@ -200,9 +203,12 @@ async function createSession(request: Request, body: Record<string, unknown>) {
   }
   const zone = normalizeZone(body.tz);
   if (!zone) return NextResponse.json({ error: 'create needs a valid time zone.' }, { status: 400 });
+  // Any whole number of minutes, 5 to 4 hours: the coach decides how long their meetings run
+  // (owner, 2026-10-15: "coach should have flexibility to set any meeting they want"). This was
+  // 15 to 240 in steps of 5. The floor is the sessions table's own CHECK (5 to 480).
   const durationMin = Number(body.durationMin);
-  if (!Number.isInteger(durationMin) || durationMin < 15 || durationMin > 240 || durationMin % 5 !== 0) {
-    return NextResponse.json({ error: 'A session runs 15 minutes to 4 hours.' }, { status: 400 });
+  if (!Number.isInteger(durationMin) || durationMin < SESSION_MIN_LENGTH || durationMin > SESSION_MAX_LENGTH) {
+    return NextResponse.json({ error: 'A session runs 5 minutes to 4 hours.' }, { status: 400 });
   }
   const type = body.type == null || body.type === '' ? 'video' : String(body.type);
   if (!CREATE_TYPES.includes(type)) return NextResponse.json({ error: 'Unknown session type.' }, { status: 400 });
@@ -656,6 +662,9 @@ export async function POST(request: Request) {
     if (room) patch.meeting_url = room;
   }
 
+  // The status before this step, read before the write: the member's emails send on a change
+  // (a repeat confirm sends nothing).
+  const statusBefore: string | null = session.status ?? null;
   const { data: updated, error: updErr } = await supabase
     .from('sessions')
     .update(patch)
@@ -699,6 +708,24 @@ export async function POST(request: Request) {
     } catch {
       /* best-effort */
     }
+  }
+
+  // The member's email after a confirm (the time, the call link, a calendar invite), and the one
+  // follow-up after an intro (client-onboarding review, fix 3b: the booking email promised "a
+  // second email with the call link once they accept", and nothing sent one). Best-effort:
+  // afterSessionStep never throws, and the update above already happened.
+  if ((action === 'confirm' || action === 'complete') && session.client_id && updated) {
+    let when = '';
+    if (action === 'confirm') {
+      try { when = await memberClock(supabase, session.client_id, session.scheduled_at); } catch { /* the email says the time anyway */ }
+      if (!when) when = new Date(session.scheduled_at).toUTCString();
+    }
+    await afterSessionStep(createAdminClient(), {
+      action,
+      session: { ...session, ...updated } as SessionForEmail,
+      previousStatus: statusBefore,
+      when,
+    });
   }
 
   return NextResponse.json({

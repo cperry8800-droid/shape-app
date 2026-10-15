@@ -190,5 +190,10 @@
   "preview.action": "Lihat isinya →",
   "rating.new": "Baru",
   "dir.coachNotOpen": "Listing coach itu belum dibuka. Coach itu akan muncul di sini setelah dibuka.",
-  "dir.coachNotOpenDismiss": "Tutup"
+  "dir.coachNotOpenDismiss": "Tutup",
+  "listing.slotBodyLength": "Panggilan intro gratis {minutes} menit dengan {name}. Kamu bisa menjadwalkan ulang nanti dari pesan.",
+  "listing.requested": "Diminta",
+  "listing.bookedRequestBody": "Kamu meminta intro {minutes} menit kepada {name}. Kamu akan menerima tautan panggilan lewat email setelah mereka mengonfirmasi.",
+  "listing.messageNotSent": "Tidak terkirim",
+  "listing.messageNotSentBody": "Pesanmu untuk {name} tidak terkirim. Coba lagi. {error}"
 }

@@ -139,13 +139,16 @@ test('rules GET: the defaults when nothing is saved, the stored row when it is, 
   const c = db({ tables: coach() });
   const empty = await call(c, 'rules', 'GET', { qs: 'role=trainer' });
   assert.equal(empty.status, 200);
-  assert.deepEqual(empty.body, { rules: { bufferMin: 0, maxPerDay: null, minNoticeHours: 0 }, providerId: 7, timezone: NY, saved: false, ready: true });
+  assert.deepEqual(empty.body, { rules: { bufferMin: 0, maxPerDay: null, minNoticeHours: 0, consultMin: 15 }, providerId: 7, timezone: NY, saved: false, ready: true });
   c.tables.provider_booking_rules = [
     { provider_role: 'trainer', provider_id: 8, buffer_min: 30, max_per_day: 2, min_notice_hours: 48 },
-    { provider_role: 'trainer', provider_id: 7, buffer_min: 15, max_per_day: 6, min_notice_hours: 12 },
+    { provider_role: 'trainer', provider_id: 7, buffer_min: 15, max_per_day: 6, min_notice_hours: 12, consult_min: 25 },
   ];
   const saved = await call(c, 'rules', 'GET', { qs: 'role=trainer' });
-  assert.deepEqual(saved.body.rules, { bufferMin: 15, maxPerDay: 6, minNoticeHours: 12 });
+  assert.deepEqual(saved.body.rules, { bufferMin: 15, maxPerDay: 6, minNoticeHours: 12, consultMin: 25 });
+  // A row from before 2026-10-15-intro-length.sql has no consult_min: 15, the length every intro had.
+  delete c.tables.provider_booking_rules[1].consult_min;
+  assert.equal((await call(c, 'rules', 'GET', { qs: 'role=trainer' })).body.rules.consultMin, 15);
   assert.equal(saved.body.saved, true);
   // Not a nutritionist: no provider row, the defaults, no id.
   const nutri = await call(c, 'rules', 'GET', { qs: 'role=nutritionist' });
@@ -169,20 +172,26 @@ test('rules POST: validated, written for the caller\'s own row, and only the fie
   const c = db({ tables: coach() });
   const first = await call(c, 'rules', 'POST', { body: { role: 'trainer', bufferMin: 15, maxPerDay: 6, minNoticeHours: 12 } });
   assert.equal(first.status, 200);
-  assert.deepEqual(first.body, { ok: true, rules: { bufferMin: 15, maxPerDay: 6, minNoticeHours: 12 } });
+  assert.deepEqual(first.body, { ok: true, rules: { bufferMin: 15, maxPerDay: 6, minNoticeHours: 12, consultMin: 15 } });
   assert.deepEqual(c.tables.provider_booking_rules.map((r) => [r.provider_role, r.provider_id]), [['trainer', 7]]);
   // A later save of the buffer alone leaves the notice another tab set.
   c.tables.provider_booking_rules[0].min_notice_hours = 24;
   const second = await call(c, 'rules', 'POST', { qs: 'role=trainer', body: { bufferMin: 30 } });
-  assert.deepEqual(second.body.rules, { bufferMin: 30, maxPerDay: 6, minNoticeHours: 24 });
+  assert.deepEqual(second.body.rules, { bufferMin: 30, maxPerDay: 6, minNoticeHours: 24, consultMin: 15 });
   const sent = c.writes.at(-1);
   assert.deepEqual(Object.keys(sent.payload).sort(), ['buffer_min', 'provider_id', 'provider_role', 'updated_at']);
   assert.equal(sent.onConflict, 'provider_role,provider_id');
+  // The free intro's length, any whole minute from 5 to 240 (owner, 2026-10-15), written alone.
+  const intro = await call(c, 'rules', 'POST', { body: { role: 'trainer', consultMin: 10 } });
+  assert.equal(intro.status, 200, JSON.stringify(intro.body));
+  assert.equal(intro.body.rules.consultMin, 10);
+  assert.deepEqual(Object.keys(c.writes.at(-1).payload).sort(), ['consult_min', 'provider_id', 'provider_role', 'updated_at']);
+  assert.equal((await call(c, 'rules', 'POST', { body: { role: 'trainer', consultMin: '240' } })).body.rules.consultMin, 240);
   // Clearing the limit is a real value.
   assert.equal((await call(c, 'rules', 'POST', { body: { role: 'trainer', maxPerDay: null } })).body.rules.maxPerDay, null);
   // Refused, with the field named, before anything is written.
   const before = c.writes.length;
-  for (const body of [{ bufferMin: 121 }, { maxPerDay: 0 }, { minNoticeHours: 400 }, { bufferMin: '15 min' }]) {
+  for (const body of [{ bufferMin: 121 }, { maxPerDay: 0 }, { minNoticeHours: 400 }, { bufferMin: '15 min' }, { consultMin: 4 }, { consultMin: 241 }, { consultMin: 12.5 }, { consultMin: null }]) {
     const r = await call(c, 'rules', 'POST', { body: { role: 'trainer', ...body } });
     assert.equal(r.status, 400, JSON.stringify(body));
     assert.equal(r.body.error, 'invalid_rules');
@@ -305,7 +314,7 @@ test('time off DELETE removes the caller\'s own block and nobody else\'s', async
 test('before the migration: reads answer with the defaults and an empty list, writes with a clear 503', async () => {
   const c = db({ tables: coach(), missing: ['provider_booking_rules', 'provider_time_off'] });
   const rules = await call(c, 'rules', 'GET', { qs: 'role=trainer' });
-  assert.deepEqual([rules.status, rules.body.ready, rules.body.rules], [200, false, { bufferMin: 0, maxPerDay: null, minNoticeHours: 0 }]);
+  assert.deepEqual([rules.status, rules.body.ready, rules.body.rules], [200, false, { bufferMin: 0, maxPerDay: null, minNoticeHours: 0, consultMin: 15 }]);
   const off = await call(c, 'off', 'GET', { qs: 'role=trainer' });
   assert.deepEqual([off.status, off.body.ready, off.body.timeOff], [200, false, []]);
   const saveRules = await call(c, 'rules', 'POST', { body: { role: 'trainer', bufferMin: 15 } });

@@ -1,16 +1,22 @@
 // Coach-facing booking rules: the buffer between sessions, the daily limit and the minimum
-// notice (coach Schedule upgrade, step 3, "Protect your time"; owner-approved 2026-10-07).
+// notice (coach Schedule upgrade, step 3, "Protect your time"; owner-approved 2026-10-07), and the
+// free intro's length (client-onboarding review, fix 3b; owner, 2026-10-15: "it should be
+// completly customizable").
 //
 // GET  ?role=trainer|nutritionist → { rules, providerId, timezone, saved, ready }
-// POST { role, bufferMin?, maxPerDay?, minNoticeHours? } → { ok, rules }
+// POST { role, bufferMin?, maxPerDay?, minNoticeHours?, consultMin? } → { ok, rules }
 //
 // Auth exactly as /api/my-availability: the cookie session, the caller's OWN provider row for
 // that role, and RLS on provider_booking_rules (owner write) as the second wall.
 //
 // The rules themselves — what each one means and how a booking is checked against them — live
 // in public/newdesign/bookingRules.mjs, the one module every booking surface asks. This route
-// only stores the three numbers, validated by that module's `validateRules`, so the form, the
-// route and the database's CHECK constraints refuse the same values.
+// only stores the numbers, validated by that module's `validateRules`, so the form, the route
+// and the database's CHECK constraints refuse the same values.
+//
+// ⚠ BEFORE 2026-10-15-intro-length.sql RUNS, a save that names consultMin is refused with the
+// not-set-up answer (PostgREST: "Could not find the 'consult_min' column … in the schema cache"),
+// and a read answers 15, the length every intro had.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
@@ -31,6 +37,7 @@ const FIELDS = [
   ['bufferMin', 'buffer_min'],
   ['maxPerDay', 'max_per_day'],
   ['minNoticeHours', 'min_notice_hours'],
+  ['consultMin', 'consult_min'],
 ] as const;
 
 export async function GET(req: NextRequest) {
@@ -78,7 +85,7 @@ export async function POST(req: NextRequest) {
   // Validated before anything is read, so a bad value never costs a round trip.
   const sent = FIELDS.filter(([key]) => body[key] !== undefined);
   if (!sent.length) {
-    return NextResponse.json({ error: 'invalid_rules', detail: 'Send at least one of bufferMin, maxPerDay or minNoticeHours.' }, { status: 400 });
+    return NextResponse.json({ error: 'invalid_rules', detail: 'Send at least one of bufferMin, maxPerDay, minNoticeHours or consultMin.' }, { status: 400 });
   }
   const checked = validateRules(body);
   if (!checked.ok) {

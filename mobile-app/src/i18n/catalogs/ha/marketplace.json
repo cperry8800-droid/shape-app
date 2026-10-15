@@ -190,5 +190,10 @@
   "preview.action": "Abin da ke ciki →",
   "rating.new": "Sabo",
   "dir.coachNotOpen": "Tallar wannan kocin ba a buɗe ta ba tukuna. Zai bayyana a nan da zarar an buɗe.",
-  "dir.coachNotOpenDismiss": "Rufe"
+  "dir.coachNotOpenDismiss": "Rufe",
+  "listing.slotBodyLength": "Kiran gabatarwa kyauta na mintuna {minutes} da {name}. Za ka iya sake tsara shi daga saƙonni daga baya.",
+  "listing.requested": "An nema",
+  "listing.bookedRequestBody": "Ka nemi {name} don gabatarwa na mintuna {minutes}. Za ka sami hanyar kiran ta imel da zarar sun tabbatar.",
+  "listing.messageNotSent": "Ba a aika ba",
+  "listing.messageNotSentBody": "Saƙonka zuwa ga {name} bai tafi ba. Sake gwadawa. {error}"
 }

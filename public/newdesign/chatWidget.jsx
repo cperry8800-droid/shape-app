@@ -1288,6 +1288,10 @@ function ChatWidget(props) {
           time: "now",
           unread: 0,
           conversationId: descriptor.conversationId || null,
+          // A coach opened from their profile: the first message opens the real thread with
+          // them (/api/messages/direct) instead of going nowhere.
+          ...(descriptor.providerRole && Number(descriptor.providerId) > 0
+            ? { providerRole: descriptor.providerRole, providerId: Number(descriptor.providerId) } : {}),
           messages: [],
         };
         // ⚠ A CONVERSATION NEVER OPENS ON THE FEED OR NORA'S TAB (Codex on #2360): a thread created
@@ -1347,25 +1351,60 @@ function ChatWidget(props) {
     // we know whether to round-trip through the API.
     const activeThread = (threadsByTab[tabIdx] || [])[activeIdx];
     const convId = activeThread && activeThread.conversationId;
+    // A coach's thread opened from their profile before any message exists: no conversation yet,
+    // but the coach is known, so the first message opens it (/api/messages/direct).
+    const provider = activeThread && !convId && activeThread.providerRole && Number(activeThread.providerId) > 0
+      ? { role: activeThread.providerRole, id: Number(activeThread.providerId) } : null;
+    // Marks the message this send added, so its outcome lands on IT whichever thread is open by then.
+    const lid = "l" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    const sendsSomewhere = !isSupport;
 
     setThreadsByTab(prev => prev.map((ts, ti) => {
       if (ti !== tabIdx) return ts;
       return ts.map((t, i) => {
         if (i !== activeIdx) return t;
-        return { ...t, last: `You: ${text}`, time: "now", unread: 0, messages: [...t.messages, { who: "You", t: text, time: stamp, me: true }] };
+        return { ...t, last: `You: ${text}`, time: "now", unread: 0, messages: [...t.messages, { who: "You", t: text, time: stamp, me: true, ...(sendsSomewhere ? { lid, pending: true } : {}) }] };
       });
     }));
     if (typeof forceText !== "string") setDraft("");
 
-    // DB-backed thread: POST the message and skip the fake-reply timer. The
-    // poll loop below will surface anything the other side sends back.
+    // The outcome of a send, on the message it added: delivered (pending cleared), or not sent
+    // with the reason. A thread's conversation id, when the send opened one, rides along.
+    const settle = (patch) => setThreadsByTab(prev => prev.map((ts, ti) => ti !== tabIdx ? ts : ts.map((t) => {
+      if (!(t.messages || []).some((m) => m.lid === lid)) return t;
+      return {
+        ...t,
+        ...(patch.conversationId ? { conversationId: patch.conversationId } : {}),
+        messages: t.messages.map((m) => m.lid !== lid ? m : { ...m, pending: false, ...(patch.failed ? { failed: patch.failed } : {}) }),
+      };
+    })));
+    const post = async (url, payload) => {
+      try {
+        const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify(payload) });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) return { failed: (data && (data.message || data.error)) || "It didn\u2019t go through. Try again." };
+        return { data };
+      } catch (e) {
+        return { failed: "No connection. Try again." };
+      }
+    };
+
+    // ⚠ NO SIMULATED REPLIES (client-onboarding review, H6). A message that was not stored said
+    // nothing, and a thread with no conversation answered with a line in the coach's name a beat
+    // later ("Good question — let me pull that up…"), written by pickReply, which the coach never
+    // saw. A member read those as their coach. Now a message goes somewhere real or says it did not.
     if (convId) {
-      fetch(`/api/conversations/${encodeURIComponent(convId)}/messages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({ body: text }),
-      }).catch(() => {});
+      post(`/api/conversations/${encodeURIComponent(convId)}/messages`, { body: text })
+        .then((r) => settle(r.failed ? { failed: r.failed } : {}));
+      return;
+    }
+    if (provider) {
+      post("/api/messages/direct", { providerRole: provider.role, providerId: provider.id, message: text })
+        .then((r) => settle(r.failed ? { failed: r.failed } : { conversationId: r.data && r.data.conversationId }));
+      return;
+    }
+    if (!isSupport) {
+      settle({ failed: "Not sent. This conversation isn\u2019t connected to anyone yet." });
       return;
     }
 
@@ -1383,7 +1422,7 @@ function ChatWidget(props) {
     // Help tab → real AI support (Nora, OpenAI) via /api/support/chat — same
     // assistant the mobile app uses. The server gracefully falls back to a
     // rule-based reply if the model is down; this also falls back to the local
-    // script on a network error. Other tabs keep their simulated peer replies.
+    // script on a network error. No other tab replies on anyone's behalf (see above).
     if (isSupport) {
       const sentAt = new Date().toISOString();
       const gen = noraThreadGenRef.current;
@@ -1441,12 +1480,6 @@ function ChatWidget(props) {
       })();
     }
 
-    setTyping(true);
-    setTimeout(() => {
-      setTyping(false);
-      const { who, text: reply } = pickReply((threadsByTab[tabIdx] || [])[activeIdx] || {}, text);
-      appendReply(who, reply);
-    }, 1200 + Math.random() * 900);
   };
 
   // ── Voice input for Nora (push-to-talk) ───────────────────────────────────
@@ -1785,7 +1818,17 @@ function ChatWidget(props) {
               const mine = m.sender_id === me;
               return { who: mine ? "You" : t.who, t: m.body, time: ts2, me: mine, userId: m.sender_id || null };
             });
-            const merged = since ? [...t.messages, ...mapped] : mapped;
+            // A message this page sent is already on screen; its stored copy replaces the local
+            // one rather than showing twice (matched on the text, once each).
+            let local = t.messages;
+            if (since) {
+              for (const row of mapped) {
+                if (!row.me) continue;
+                const k = local.findIndex((x) => x.me && x.lid && !x.failed && x.t === row.t);
+                if (k >= 0) local = local.slice(0, k).concat(local.slice(k + 1));
+              }
+            }
+            const merged = since ? [...local, ...mapped] : mapped;
             const last = mapped[mapped.length - 1];
             return { ...t, messages: merged, last: last ? `${last.me ? "You" : last.shape ? "Shape" : t.who}: ${last.t}` : t.last, time: "now" };
           });
@@ -2328,6 +2371,11 @@ function ChatWidget(props) {
                         fontSize: 13.5, lineHeight: 1.45,
                         cursor: "pointer", userSelect: "none",
                       }}>{m.t}</div>
+                      {m.me && (m.failed || m.pending) && (
+                        <div data-send-state={m.failed ? "failed" : "pending"} role={m.failed ? "alert" : undefined} style={{ marginTop: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.04em", textAlign: "right", color: m.failed ? "#c0533b" : "rgba(var(--sh-ink-rgb, 242,237,228),0.45)" }}>
+                          {m.failed ? "Not sent \u00b7 " + m.failed : "Sending\u2026"}
+                        </div>
+                      )}
                     {pickerOpen && (
                       <div style={{
                         position: "absolute",
@@ -2629,34 +2677,6 @@ function supportReply(text) {
   if (/cancel|delete|close.*account/.test(low))
     return "I can't do that from here. Email the Shape team at info@theshapecommunity.com from the address on your account.";
   return "I can't answer that just now. The Shape team answers at info@theshapecommunity.com. Anything else I can help with?";
-}
-
-// Different replies for 1:1 vs group. For group chats, a random member responds.
-function pickReply(thread, text) {
-  const low = text.toLowerCase();
-  if (thread.group) {
-    // pull a member name from the thread, excluding "You"
-    const members = [...new Set(thread.messages.filter(m => !m.me).map(m => m.who))];
-    const who = members.length ? members[Math.floor(Math.random() * members.length)] : "Someone";
-    const replies = [
-      `Love that. Keep us posted.`,
-      `Same here — week 2 and fired up.`,
-      `@You big energy. Let's go.`,
-      `Bookmarking this thread.`,
-      `Respect. That takes consistency.`,
-      `Did a similar block last year. Game changer.`,
-    ];
-    return { who, text: replies[Math.floor(Math.random() * replies.length)] };
-  }
-  const who = thread.who.split(" ")[0];
-  if (low.includes("?")) return { who, text: `Good question — let me pull that up and get back to you in a bit.` };
-  if (low.match(/thanks|thank you|appreciate/)) return { who, text: `Anytime. Keep it up.` };
-  if (low.match(/sick|hurt|pain|injur/)) return { who, text: `Okay — let's back off today. I'll adjust the plan and message you a swap.` };
-  if (low.match(/pr|crushed|nailed|done/)) return { who, text: `Huge. Proud of you. Logging it for the weekly review.` };
-  if (low.match(/meal|food|eat|macro/)) return { who, text: `I'll push an updated meal template to your Nutri tab — check in an hour.` };
-  if (low.match(/skip|cant|can't|miss/)) return { who, text: `No problem — I'll reshuffle the week. Rest is part of the plan.` };
-  const generic = [ `Got it — noted.`, `Sounds good, keep me posted.`, `Copy that. I'll check in Thursday.`, `Nice. Stay with it.` ];
-  return { who, text: generic[Math.floor(Math.random() * generic.length)] };
 }
 
 Object.assign(window, { ChatWidget });

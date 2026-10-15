@@ -89,6 +89,7 @@ async function routes() {
     ['@/lib/supabase/admin', { createAdminClient: () => ({}) }],
     ['@/lib/video', { videoRoomUrl: () => null }],
     ['@/lib/notify', { createNotification: async (_c, n) => { notices.push(n); } }],
+    ['@/lib/session-emails', { afterSessionStep: async () => ({ emailed: false, followedUp: false }) }],
     ['@supabase/supabase-js', {}],
   ]);
   const calendar = await loadRealModule(join(ROOT, 'src/app/api/calendar/route.ts'), { typescript: true, registry: registry() });
