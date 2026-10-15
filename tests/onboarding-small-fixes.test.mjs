@@ -523,7 +523,7 @@ test('L5: signing in never runs the system prompt; asking does, once, and the an
   const be = read('mobile-app/src/services/shapeBackend.js');
   assert.match(be, /window\.ShapePush = \{ register: registerPush, permission: pushPermission, ask: askForPush \};/);
   assert.match(be, /if \(res\.ok && out && out\.ok !== false\) bsReminderSet\(\);/);
-  assert.match(be, /await scheduleLocalHabit\(row\);\s*if \(row\.enabled\) bsReminderSet\(\);/);
+  assert.match(be, /await scheduleLocalHabit\(row\);\s*\/\/[^\n]*\n\s*if \(row\.enabled\) \{ try \{ if \(typeof window !== 'undefined'\) window\.dispatchEvent\(new CustomEvent\('shape:reminderSet'\)\); \}/);
   const main = read('mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx');
   const ask = main.slice(main.indexOf('function BSPushAsk() {'), main.indexOf('// Persistent "you\'re previewing" banner'));
   assert.match(ask, /window\.addEventListener\('shape:reminderSet', onSet\);/);
@@ -625,10 +625,9 @@ test('L6: a new address is asked to confirm it, and can have the email sent agai
 
 test('L7: below 900px the sign-up page is one column with 16px sides, and paired fields stack below 560px', () => {
   const src = read('public/newdesign/signup.jsx');
-  const css = src.slice(src.indexOf('const SU_RESPONSIVE_CSS = `'), src.indexOf('`;', src.indexOf('const SU_RESPONSIVE_CSS = `')));
+  const css = src.slice(src.indexOf('<style>{`'), src.indexOf('`}</style>', src.indexOf('<style>{`')));
   assert.match(css, /@media \(max-width: 900px\) \{[\s\S]*\.su-pad \{ padding-left: 16px !important; padding-right: 16px !important; \}[\s\S]*\.su-page \{ grid-template-columns: minmax\(0, 1fr\) !important;/);
   assert.match(css, /@media \(max-width: 560px\) \{[\s\S]*\.su-2col \{ grid-template-columns: minmax\(0, 1fr\) !important; \}/);
-  assert.match(src, /<style>\{SU_RESPONSIVE_CSS\}<\/style>/);
   for (const cls of ['su-pad', 'su-main', 'su-page', 'su-aside', 'su-title', 'su-card']) assert.match(src, new RegExp(`className="[^"]*\\b${cls}\\b`), cls);
   assert.doesNotMatch(src, /<div style=\{\{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1[28] \}\}>/, 'every paired-field grid stacks');
 });

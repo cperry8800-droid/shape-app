@@ -8996,7 +8996,8 @@ async function setHabitReminder({ habitId, label, time, days, enabled } = {}) {
   if (error) throw error;
   if (state.user?.id !== uid) throw new Error('Account changed.');
   await scheduleLocalHabit(row);
-  if (row.enabled) bsReminderSet();
+  // A reminder was saved: the shell may now ask for phone notifications (L5, bsReminderSet below).
+  if (row.enabled) { try { if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('shape:reminderSet')); } catch (e) {} }
   return row;
 }
 // habit_id is the global PK (→ user_habits.id), so it identifies one user's row;

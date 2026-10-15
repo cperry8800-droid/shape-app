@@ -1078,7 +1078,16 @@ function SignupForm({ role }) {
 }
 
 // -------------- Page shell --------------
-const SU_RESPONSIVE_CSS = `
+
+function SignupPage({ role }) {
+  const cfg = ROLE_CONFIG[role] || ROLE_CONFIG.client;
+  return (
+    <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh" }}>
+      {/* ⚠ THE PAGE WAS A FIXED TWO-COLUMN GRID WITH 72PX SIDES (client-onboarding review, L7), so a
+          phone got a squeezed form beside a pitch it could not see. Below 900px it is one column with
+          16px sides; below 560px the paired fields stack. The rules beat the inline styles, hence
+          !important. */}
+      <style>{`
 @media (max-width: 900px) {
   .su-pad { padding-left: 16px !important; padding-right: 16px !important; }
   .su-main { padding-top: 28px !important; padding-bottom: 48px !important; }
@@ -1093,17 +1102,7 @@ const SU_RESPONSIVE_CSS = `
   .su-2col > * { grid-column: auto !important; }
   .su-done h2 { font-size: 36px !important; }
 }
-`;
-
-function SignupPage({ role }) {
-  const cfg = ROLE_CONFIG[role] || ROLE_CONFIG.client;
-  return (
-    <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh" }}>
-      {/* ⚠ THE PAGE WAS A FIXED TWO-COLUMN GRID WITH 72PX SIDES (client-onboarding review, L7), so a
-          phone got a squeezed form beside a pitch it could not see. Below 900px it is one column with
-          16px sides; below 560px the paired fields stack. The rules beat the inline styles, hence
-          !important. */}
-      <style>{SU_RESPONSIVE_CSS}</style>
+`}</style>
       {/* Minimal header */}
       <header className="su-pad" style={{ padding: "24px 72px", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
