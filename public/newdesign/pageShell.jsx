@@ -477,6 +477,15 @@ function dashInboxThreadFor(n, role) {
   const id = n.data && typeof n.data.conversationId === "string" ? n.data.conversationId : "";
   return id || null;
 }
+// What the bubble is asked to open for a member's "New message": the thread, on its tab. A thread with
+// a coach (data.providerRole) is on Circle, a member's on Friends, so one created after the bubble read
+// its list lands where it belongs rather than on the Feed (Codex on #2360).
+function dashInboxChatRequest(n, conversationId) {
+  const role = n && n.data && (n.data.providerRole === "trainer" || n.data.providerRole === "nutritionist") ? n.data.providerRole : null;
+  return role
+    ? { conversationId, tab: "circle", who: role === "nutritionist" ? "Your nutritionist" : "Your trainer", role: (role === "nutritionist" ? "Nutritionist" : "Trainer") + " · Shape coach" }
+    : { conversationId, tab: "friends", who: "Direct message", role: "Direct message" };
+}
 function dashInboxHref(n, role) {
   if (!n || typeof n.route !== "string") return null;
   // ⚠ A COACH WITH BOTH LISTINGS OPENS THE NOTIFICATION'S ROLE, NOT THE SHELL'S (Codex on #2360). Each
@@ -736,7 +745,8 @@ function DashInbox({ signedIn, role, inbox }) {
                 return threadId ? (
                   <button key={n.id} onClick={() => {
                     if (!n.read) markOne(n.id, true);
-                    try { if (window.__openChat) window.__openChat({ conversationId: threadId }); else { window.__openChatRequest = { conversationId: threadId }; const b = document.getElementById("shape-global-chat-button"); if (b) b.click(); } } catch (e) {}
+                    const req = dashInboxChatRequest(n, threadId);
+                    try { if (window.__openChat) window.__openChat(req); else { window.__openChatRequest = req; const b = document.getElementById("shape-global-chat-button"); if (b) b.click(); } } catch (e) {}
                   }} style={{ ...pad, cursor: "pointer" }}>{inner}</button>
                 ) : dashInboxOpensFeed(n) ? (
                   <button key={n.id} onClick={() => {

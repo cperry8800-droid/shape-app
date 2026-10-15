@@ -25,7 +25,7 @@ type NotificationRecord = {
   body?: string;
   route?: string | null;
   type?: string;
-  data?: { channels?: { push?: boolean }; conversationId?: unknown; clientId?: unknown } | null;
+  data?: { channels?: { push?: boolean }; conversationId?: unknown; clientId?: unknown; providerRole?: unknown } | null;
 };
 
 // A "New message" notification (the messages trigger: route "messages", data.conversationId) is
@@ -34,9 +34,11 @@ export function pushRoute(record: NotificationRecord): string {
   const id = record.data && typeof record.data.conversationId === 'string' ? record.data.conversationId : '';
   if (record.route === 'messages' && id) return `chat:${id}`;
   // A coach's new-client alert with no thread ("client", data.clientId): a push carries only its
-  // route, so the client rides in it (Codex on #2360: the tap opened nothing without the id).
+  // route, so the client rides in it (Codex on #2360: the tap opened nothing without the id), and so
+  // does the listing's role, which a coach with both listings is opened in.
   const client = record.data && typeof record.data.clientId === 'string' ? record.data.clientId : '';
-  if (record.route === 'client' && client) return `client:${client}`;
+  const role = record.data && (record.data.providerRole === 'trainer' || record.data.providerRole === 'nutritionist') ? record.data.providerRole : '';
+  if (record.route === 'client' && client) return role ? `client:${role}:${client}` : `client:${client}`;
   return record.route ?? '';
 }
 

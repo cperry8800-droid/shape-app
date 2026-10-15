@@ -1195,6 +1195,14 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     const open = (e) => {
       const clientId = e && e.detail && e.detail.clientId;
       if (!clientId) return;
+      // A client of the account's OTHER listing (Codex on #2360): this roster holds only
+      // trainers' clients, so hand the route to that role's shell, which replays it on mount.
+      const other = e.detail.providerRole;
+      if ((other === 'trainer' || other === 'nutritionist') && other !== 'trainer') {
+        window.__bsPushRoute = 'client:' + other + ':' + clientId;
+        setTweak('role', other);
+        return;
+      }
       navJumpRef.current.navPush();
       setShowSoundtracks(false); setShowSettings(false); setSettingsStart('');
       setShowCalendar(false); setShowReviews(false); setShowHabits(false);
@@ -1202,7 +1210,16 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
       setOpenClientReq({ clientId, nonce: Date.now() }); setTab('clients');
     };
     window.addEventListener('shape:openClient', open);
-    return () => window.removeEventListener('shape:openClient', open);
+    // The membership welcome ("home") on an account that is a coach now: their Today.
+    const home = () => {
+      navJumpRef.current.navPush();
+      setShowSoundtracks(false); setShowSettings(false); setSettingsStart('');
+      setShowCalendar(false); setShowReviews(false); setShowHabits(false);
+      setQueueView(null); setLiveWatch(null); setShowSearch(false);
+      setTab('today');
+    };
+    window.addEventListener('shape:goHome', home);
+    return () => { window.removeEventListener('shape:openClient', open); window.removeEventListener('shape:goHome', home); };
   }, []);
   const [showSettings, setShowSettings] = useStateBSP(false);
   const [showSoundtracks, setShowSoundtracks] = useStateBSP(false);
@@ -6938,6 +6955,14 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     const open = (e) => {
       const clientId = e && e.detail && e.detail.clientId;
       if (!clientId) return;
+      // A client of the account's OTHER listing (Codex on #2360): this roster holds only
+      // nutritionists' clients, so hand the route to that role's shell, which replays it on mount.
+      const other = e.detail.providerRole;
+      if ((other === 'trainer' || other === 'nutritionist') && other !== 'nutritionist') {
+        window.__bsPushRoute = 'client:' + other + ':' + clientId;
+        setTweak('role', other);
+        return;
+      }
       navJumpRef.current.navPush();
       setShowSoundtracks(false); setShowSettings(false); setSettingsStart('');
       setShowCalendar(false); setShowReviews(false); setShowHabits(false);
@@ -6945,7 +6970,16 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
       setOpenClientReq({ clientId, nonce: Date.now() }); setTab('clients');
     };
     window.addEventListener('shape:openClient', open);
-    return () => window.removeEventListener('shape:openClient', open);
+    // The membership welcome ("home") on an account that is a coach now: their Today.
+    const home = () => {
+      navJumpRef.current.navPush();
+      setShowSoundtracks(false); setShowSettings(false); setSettingsStart('');
+      setShowCalendar(false); setShowReviews(false); setShowHabits(false);
+      setQueueView(null); setShowSearch(false);
+      setTab('today');
+    };
+    window.addEventListener('shape:goHome', home);
+    return () => { window.removeEventListener('shape:openClient', open); window.removeEventListener('shape:goHome', home); };
   }, []);
   const [showSettings, setShowSettings] = useStateBSP(false);
   const [showSoundtracks, setShowSoundtracks] = useStateBSP(false);

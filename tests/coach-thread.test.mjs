@@ -479,7 +479,7 @@ test('the app opens the membership welcome ("home") and a new client with no thr
   assert.equal(route('client', {}), false, 'no client named: nothing to open');
   assert.equal(route('client:client-2'), true, 'a push carries the client in its route');
   assert.equal(route('client:'), false);
-  assert.deepEqual(events, [['shape:goHome', undefined], ['shape:openClient', { clientId: 'client-1' }], ['shape:openClient', { clientId: 'client-2' }]]);
+  assert.deepEqual(events, [['shape:goHome', undefined], ['shape:openClient', { clientId: 'client-1', providerRole: null }], ['shape:openClient', { clientId: 'client-2', providerRole: null }]]);
   // The member shell lands on Home, clearing the takeovers above the tabs.
   assert.match(client, /const open = \(\) => \{\s+navJumpRef\.current\.navPush\(\); setShowSettings\(false\); setSettingsStart\(''\);\s+setShowCalendar\(false\); setShowSearch\(false\); setShowCycle\(false\);\s+setChatRequest\(null\); setTab\('home'\);\s+\};\s+window\.addEventListener\('shape:goHome', open\);/);
   // Both coach shells answer shape:openClient with the Clients tab and the request, and each
@@ -617,7 +617,7 @@ test('a "New message" notification opens its thread: push, the app\'s list, and 
   assert.equal(lib.dashInboxThreadFor(n, 'client'), 'conv-3', 'a member\'s row opens the bubble on that thread');
   assert.equal(lib.dashInboxThreadFor({ route: 'messages', data: {} }, 'client'), null);
   assert.match(shell, /const threadId = dashInboxThreadFor\(n, role\);\s+return threadId \? \(/);
-  assert.match(shell, /window\.__openChat\(\{ conversationId: threadId \}\)/);
+  assert.match(shell, /const req = dashInboxChatRequest\(n, threadId\);\s+try \{ if \(window\.__openChat\) window\.__openChat\(req\); else \{ window\.__openChatRequest = req;/);
 });
 
 // ── Codex on #2360, ninth round ──────────────────────────────────────────────────────────────────
@@ -632,6 +632,72 @@ test('an open thread that receives Shape\'s welcome keeps it read, as it does an
   const branch = welcome.slice(0, welcome.indexOf('return; }'));
   assert.match(branch, /window\.ShapeUnread\?\.markConversationRead\?\.\(thread\.conversationId\);\s*$/, 'the welcome branch marks the open thread read before it returns');
   assert.equal(handler.split('markConversationRead?.(thread.conversationId)').length - 1, 2, 'the welcome and every other message');
+});
+
+// ── Codex on #2360, twelfth round: the sweep ─────────────────────────────────────────────────────
+// Rounds three to twelve each found one more surface where a notification this PR sends reached no
+// screen. This checks every route the PR emits (chat:, messages, client, home) on every surface at
+// once: the app's list and a tapped push (which must open the same place), both coach shells and a
+// coach with both listings, and the website's member bubble.
+const PUSH = await loadRealModule(join(ROOT, 'src/app/api/push/dispatch/route.ts'), {
+  typescript: true,
+  registry: new Map([['next/server', { NextResponse: { json: () => null } }], ['@/lib/supabase/admin', {}], ['@/lib/push', {}], ['node:crypto', { timingSafeEqual: () => false }], ['crypto', { timingSafeEqual: () => false }]]),
+});
+const routed = (route, data) => { const out = []; const ok = routerWith((e) => out.push([e.type, e.detail]))(route, data); return { ok, out }; };
+
+test('every notification this PR sends opens the same screen from the app\'s list and from a push', () => {
+  const records = [
+    { route: 'chat:c-1', data: { providerRole: 'trainer', clientId: 'u-1', conversationId: 'c-1' } },          // new-client alert, thread open
+    { route: 'client', data: { providerRole: 'nutritionist', clientId: 'u-2' } },                               // new-client alert, no thread
+    { route: 'client', data: { clientId: 'u-3' } },                                                            // an older alert with no role
+    { route: 'messages', data: { conversationId: 'c-4', providerRole: 'trainer' } },                           // "New message", the welcome's included
+    { route: 'home', data: {} },                                                                               // the membership welcome
+  ];
+  for (const rec of records) {
+    const list = routed(rec.route, rec.data);
+    const push = routed(PUSH.pushRoute(rec));
+    assert.equal(list.ok, true, JSON.stringify(rec));
+    assert.deepEqual(push, list, 'push and list open the same place: ' + JSON.stringify(rec));
+  }
+  assert.equal(PUSH.pushRoute(records[1]), 'client:nutritionist:u-2', 'the role rides in the push');
+  assert.deepEqual(routed('client:trainer:u-9').out, [['shape:openClient', { clientId: 'u-9', providerRole: 'trainer' }]]);
+  assert.deepEqual(routed('client:u-9').out, [['shape:openClient', { clientId: 'u-9', providerRole: null }]]);
+  assert.equal(routed('client:trainer:').ok, false, 'a role with no client opens nothing');
+});
+
+test('both coach shells answer every route, and a client of the other listing is handed to that role\'s shell', () => {
+  const pros = read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx');
+  for (const [shell, role, other] of [['function BSTrainerAppInner(', 'trainer', 'nutritionist'], ['function BSNutritionistAppInner(', 'nutritionist', 'trainer']]) {
+    const at = pros.indexOf(shell);
+    const body = pros.slice(at, pros.indexOf('const [showSettings, setShowSettings] = useStateBSP(false);', at));
+    for (const ev of ['shape:openConversation', 'shape:openClient', 'shape:goHome', 'shape:pushRoute']) {
+      assert.ok(body.includes(`window.addEventListener('${ev}',`), `${role}: ${ev}`);
+    }
+    // The handover: the route is left for the other shell, which replays it once its listeners are up.
+    assert.match(body, new RegExp(`if \\(\\(other === 'trainer' \\|\\| other === 'nutritionist'\\) && other !== '${role}'\\) \\{\\s+window\\.__bsPushRoute = 'client:' \\+ other \\+ ':' \\+ clientId;\\s+setTweak\\('role', other\\);\\s+return;`), role);
+    assert.match(body, /if \(pending\) \{ window\.__bsPushRoute = null; replay = setTimeout\(\(\) => bsRouteNotification\(pending\), 0\); \}/, `${role}: the replay`);
+    // Handed over, the route names the receiving shell's own role, so it opens there and goes no further.
+    assert.deepEqual(routed(`client:${other}:u-1`).out, [['shape:openClient', { clientId: 'u-1', providerRole: other }]]);
+    assert.match(body, /const home = \(\) => \{[\s\S]{0,300}setTab\('today'\);\s+\};/, `${role}: home lands on Today`);
+  }
+});
+
+test('the website bubble opens a member\'s message on its own tab, never the Feed', () => {
+  const shell = read('public/newdesign/pageShell.jsx');
+  const fn = shell.slice(shell.indexOf('const DASH_INBOX_ROUTES = {'), shell.indexOf('// ⚠ A SHAPE CHECK, NOT A TRUST FALL.'));
+  const { dashInboxChatRequest } = new Function('window', `${fn}; return { dashInboxChatRequest };`)({});
+  assert.deepEqual(dashInboxChatRequest({ data: { providerRole: 'trainer' } }, 'c-1'), { conversationId: 'c-1', tab: 'circle', who: 'Your trainer', role: 'Trainer · Shape coach' });
+  assert.equal(dashInboxChatRequest({ data: { providerRole: 'nutritionist' } }, 'c-1').who, 'Your nutritionist');
+  assert.equal(dashInboxChatRequest({ data: {} }, 'c-2').tab, 'friends', 'a member\'s DM');
+  // Both tab sources carry those ids.
+  for (const src of ['public/newdesign/clientChatThreads.jsx', 'public/newdesign/globalChatButton.js']) {
+    const text = read(src);
+    assert.match(text, /id: ?"circle"/, src);
+    assert.match(text, /id: ?"friends"/, src);
+  }
+  // The widget: a thread it has not listed goes on the tab asked for, else one that holds threads.
+  const widget = read('public/newdesign/chatWidget.jsx');
+  assert.match(widget, /const holdsThreads = \(t\) => !!t && !t\.feed && !t\.support;\s+const asked = tabId \? tabs\.findIndex\(t => t\.id === tabId\) : -1;\s+const targetTab = asked >= 0 && holdsThreads\(tabs\[asked\]\) \? asked\s+: holdsThreads\(tabs\[tabIdx\]\) \? tabIdx\s+: Math\.max\(0, tabs\.findIndex\(holdsThreads\)\);/);
 });
 
 test('a coach with both listings opens the notification\'s role, not the dashboard they are on', () => {

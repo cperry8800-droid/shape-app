@@ -33,13 +33,22 @@ export function bsRouteNotification(route, data) {
       window.dispatchEvent(new CustomEvent('shape:goHome'));
       return true;
     }
-    // A coach's new-client alert when no thread could open ("client" with data.clientId in the list,
-    // "client:<id>" from a push, which carries only its route): that client's page in the coach app
-    // (both coach shells answer shape:openClient).
-    const clientId = route.startsWith('client:') ? route.slice(7)
-      : route === 'client' && data && typeof data.clientId === 'string' ? data.clientId : '';
+    // A coach's new-client alert when no thread could open ("client" with data.clientId and
+    // data.providerRole in the list; "client:<role>:<id>" or "client:<id>" from a push, which carries
+    // only its route): that client's page in the coach app of that role (both coach shells answer
+    // shape:openClient, and one holding the other role hands it over; Codex on #2360).
+    let clientId = '';
+    let providerRole = null;
+    if (route.startsWith('client:')) {
+      const rest = route.slice(7);
+      const m = /^(trainer|nutritionist):(.*)$/.exec(rest);
+      if (m) { providerRole = m[1]; clientId = m[2]; } else clientId = rest;
+    } else if (route === 'client' && data && typeof data.clientId === 'string') {
+      clientId = data.clientId;
+      providerRole = data.providerRole === 'trainer' || data.providerRole === 'nutritionist' ? data.providerRole : null;
+    }
     if (clientId) {
-      window.dispatchEvent(new CustomEvent('shape:openClient', { detail: { clientId } }));
+      window.dispatchEvent(new CustomEvent('shape:openClient', { detail: { clientId, providerRole } }));
       return true;
     }
     // Waitlist invite ("coach:<role>:<id>") → the marketplace on that role, so the invited client

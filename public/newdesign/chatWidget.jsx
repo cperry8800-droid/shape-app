@@ -1290,9 +1290,15 @@ function ChatWidget(props) {
           conversationId: descriptor.conversationId || null,
           messages: [],
         };
-        const targetTab = tabId
-          ? Math.max(0, tabs.findIndex(t => t.id === tabId))
-          : tabIdx;
+        // ⚠ A CONVERSATION NEVER OPENS ON THE FEED OR NORA'S TAB (Codex on #2360): a thread created
+        // after this widget read its list (a coach just hired) was prepended to the tab in view, the
+        // Feed by default, where no messages show. The tab asked for, else the one in view if it
+        // holds threads, else the first that does.
+        const holdsThreads = (t) => !!t && !t.feed && !t.support;
+        const asked = tabId ? tabs.findIndex(t => t.id === tabId) : -1;
+        const targetTab = asked >= 0 && holdsThreads(tabs[asked]) ? asked
+          : holdsThreads(tabs[tabIdx]) ? tabIdx
+          : Math.max(0, tabs.findIndex(holdsThreads));
         dirtyRef.current = true;
         setThreadsByTab(prev => prev.map((ts, ti) => ti !== targetTab ? ts : [fresh, ...ts]));
         setActiveByTab(prev => prev.map((v, ti) => ti === targetTab ? 0 : v));
