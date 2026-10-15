@@ -611,6 +611,21 @@ export async function POST(request: Request) {
   if (action === 'cancel' && !isCoach && !isClient) {
     return NextResponse.json({ error: 'Not your session.' }, { status: 403 });
   }
+  // ⚠ DONE IS A FACT ABOUT THE PAST, AND ABOUT A SESSION THAT WAS ON (Codex on #2370). The app's
+  // calendar offered Mark complete on any confirmed session, a week out included, and this route
+  // took it: the member was emailed "how did your intro go?" before the call, and the score's
+  // "kept" signal counted a session that had not happened. A requested one could be completed
+  // without ever being confirmed. Done now needs a confirmed session that has started (the
+  // website's Mark done already waited for both); a repeat on a completed one stays harmless.
+  if (action === 'complete') {
+    if (session.status !== 'confirmed' && session.status !== 'completed') {
+      return NextResponse.json({ error: 'Only a confirmed session can be marked done.', code: 'not_confirmed' }, { status: 409 });
+    }
+    const startMs = Date.parse(session.scheduled_at);
+    if (!Number.isFinite(startMs) || startMs > Date.now()) {
+      return NextResponse.json({ error: "This session hasn't started yet. Mark it done once it has.", code: 'not_started' }, { status: 409 });
+    }
+  }
   // Only an active/upcoming session can be rescheduled. Reject completed (or
   // declined/cancelled) bookings server-side so a stale UI or crafted request
   // can't rewrite a past session's time — and no "moved" notification fires.

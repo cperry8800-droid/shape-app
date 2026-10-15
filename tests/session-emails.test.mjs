@@ -265,6 +265,18 @@ test('the app offers a live coach only their times at the current length, and sa
   }
 });
 
+test('the app offers Mark complete once a session has started, as the website and the route do (Codex on #2370)', () => {
+  const cal = stripComments(read('mobile-app/src/broadsheet/iosAppBroadsheetCalendar.jsx'));
+  assert.match(cal, /const sessionStarted = Number\.isFinite\(Date\.parse\(event\.scheduledAt\)\) && Date\.parse\(event\.scheduledAt\) <= Date\.now\(\);/);
+  assert.match(cal, /: event\.status === 'confirmed' && sessionStarted\s+\? <button onClick=\{\(\) => runSessionAction\('complete',/);
+  assert.equal((cal.match(/runSessionAction\('complete'/g) || []).length, 1, 'one way to complete from the sheet');
+  const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  assert.match(client, /\{isCoach && s\.status === 'confirmed' && Date\.parse\(s\.scheduledAt\) <= Date\.now\(\) && <Btn label="Mark done"/);
+  assert.equal((client.match(/act\(s\.id, 'complete'\)/g) || []).length, 1);
+  // The website's own gate (tests/schedule-step2.test.mjs drives it).
+  assert.match(read('public/newdesign/dashSchedule.jsx'), /\{confirmed && <button type="button" disabled=\{busy \|\| !started\}/);
+});
+
 test('a coach books a session of any length they type, 5 minutes to 4 hours', () => {
   const src = read('public/newdesign/dashSchedule.jsx');
   assert.match(src, /const DSC_LENGTH_MIN = 5;\nconst DSC_LENGTH_MAX = 240;/);

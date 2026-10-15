@@ -952,13 +952,37 @@ test('a coach\'s confirm and complete hand the session to the member\'s emails; 
   assert.equal(step.session.intro, true);
   assert.equal(step.session.client_id, 'member-1');
   assert.match(step.when, /Oct 8/, 'the time, on the member\'s clock');
-  const t2 = world({ sessions: [sess('s-int', at, { client_id: 'member-1', status: 'confirmed', duration_min: 45, intro: true })] });
+  // Done once it has started: 14:30 is half an hour before NOW.
+  const t2 = world({ sessions: [sess('s-int', '2026-10-07T14:30:00+00:00', { client_id: 'member-1', status: 'confirmed', duration_min: 45, intro: true })] });
   const complete = await post('manage', '/api/sessions/manage', { action: 'complete', sessionId: 's-int' }, { user: COACH, tables: t2 });
   assert.equal(complete.status, 200, JSON.stringify(complete.body));
   assert.deepEqual(complete.steps.map((x) => [x.action, x.previousStatus, x.session.status]), [['complete', 'confirmed', 'completed']]);
   const decline = await post('manage', '/api/sessions/manage', { action: 'decline', sessionId: 's-int' }, { user: COACH, tables: tables() });
   assert.equal(decline.status, 200, JSON.stringify(decline.body));
   assert.equal(decline.steps.length, 0);
+});
+
+test('done is a fact about the past: a session not started, or never confirmed, is not marked done (Codex on #2370)', async () => {
+  const done = (status, at) => post('manage', '/api/sessions/manage', { action: 'complete', sessionId: 's-int' }, { user: COACH, tables: world({ sessions: [sess('s-int', at, { client_id: 'member-1', status, duration_min: 45, intro: true })] }) });
+  // Tomorrow's intro: refused, nothing written, nobody emailed.
+  const early = await done('confirmed', '2026-10-08T14:00:00+00:00');
+  assert.equal(early.status, 409);
+  assert.equal(early.body.code, 'not_started');
+  assert.equal(early.writes.filter((w) => w.op === 'update').length, 0);
+  assert.equal(early.steps.length, 0);
+  // A minute from now is still not started; the start itself is.
+  assert.equal((await done('confirmed', '2026-10-07T15:01:00+00:00')).body.code, 'not_started');
+  assert.equal((await done('confirmed', '2026-10-07T15:00:00+00:00')).status, 200);
+  // A request never confirmed, or a cancelled one, is not done however long ago it was.
+  for (const status of ['requested', 'cancelled', 'declined']) {
+    const r = await done(status, '2026-10-06T14:00:00+00:00');
+    assert.equal(r.status, 409, status);
+    assert.equal(r.body.code, 'not_confirmed', status);
+  }
+  // A second tap on a done session stays harmless.
+  const again = await done('completed', '2026-10-07T14:30:00+00:00');
+  assert.equal(again.status, 200, JSON.stringify(again.body));
+  assert.deepEqual(again.steps.map((x) => x.previousStatus), ['completed']);
 });
 
 test('two overlapping confirms tell the member once (Codex on #2370)', async () => {
@@ -1388,7 +1412,7 @@ test('the book sheet books the length on screen: typed, cleared back to the pres
     assert.ok(dlg().querySelector('[data-custom-length-error]'));
     await type('');
     assert.equal(book().disabled, false);
-    assert.equal(dlg().querySelector('[data-custom-length-error]'), null);
+    assert.ok(!dlg().querySelector('[data-custom-length-error]'));
     await page.click(book());
     assert.equal(posts.length, 1);
     assert.equal(posts[0].durationMin, 30);
