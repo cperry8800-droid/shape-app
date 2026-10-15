@@ -23,7 +23,7 @@ export function greetingKind(signedIn, m, roles) {
 
 const GREETINGS = {
   visitor: {
-    text: `Hi, I'm Nora, Shape's assistant. Ask me how Shape works, what it costs, or to find you a coach. For anything else, the Shape team reads ${EMAIL}.`,
+    text: `Hi, I'm Nora, Shape's concierge. Ask me how Shape works, what it costs, or to find you a coach. For anything else, the Shape team reads ${EMAIL}.`,
     quick: ['Find me a coach', 'What does Shape cost?', 'How does coaching work?', 'Is a coach required?'],
   },
   account: {
