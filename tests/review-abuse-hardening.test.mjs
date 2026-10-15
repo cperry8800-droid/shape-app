@@ -276,6 +276,7 @@ async function webhook(event, { upsertError = null, retrieve = async () => ({ ap
         ['@/lib/coach-origin.mjs', coachOrigin],
         ['@/lib/db-retryable', retryable],
         // What a saved subscription or membership starts (fix 3a) has its own test (coach-thread.test.mjs).
+        ['@/lib/refund-session', { cancelRefundedSession: async () => 'none' }],
         ['@/lib/coach-thread', { startCoaching: async () => ({ conversationId: null, welcomed: false, coachAlerted: false }), welcomeMember: async () => false, coachPaid: async () => ({ conversationId: null, coachAlerted: false, memberTold: false }) }],
       ]),
     });

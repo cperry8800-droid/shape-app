@@ -219,7 +219,7 @@ export async function POST(request: Request) {
     if (existingErr) return dbError(existingErr, 'checkout existing subscription lookup', 503);
     if ((existing ?? []).some((row: { status?: unknown }) => ACTIVE_SUB.has(String(row.status)))) return alreadySubscribed();
   }
-  const itemName = body.item?.name || (isSubscription ? 'Monthly coaching' : 'One-time purchase');
+  let itemName = body.item?.name || (isSubscription ? 'Monthly coaching' : 'One-time purchase');
   const fallbackOneTimePrice =
     providerRole === 'trainer'
       ? provider.session_price ?? provider.price
@@ -282,9 +282,9 @@ export async function POST(request: Request) {
     // check constraint ('program' | 'meal_plan'), so the mapping is total.
     const { data: plan, error: planErr } = await admin
       .from('coach_plans')
-      .select('price, published, owner_id, kind')
+      .select('price, published, owner_id, kind, name')
       .eq('id', planId)
-      .maybeSingle<{ price: string | null; published: boolean; owner_id: string | null; kind: string | null }>();
+      .maybeSingle<{ price: string | null; published: boolean; owner_id: string | null; kind: string | null; name: string | null }>();
     if (planErr) return dbError(planErr, 'checkout plan lookup', 500);
     if (!plan || plan.published !== true) {
       return NextResponse.json({ error: 'This plan is not available for purchase.' }, { status: 404 });
@@ -298,6 +298,9 @@ export async function POST(request: Request) {
     if (planRole !== providerRole) {
       return NextResponse.json({ error: 'This plan is not available for purchase.' }, { status: 404 });
     }
+    // The plan's own name, not the caller's (Fable on #2373): item.name rode into the Stripe line item
+    // and the coach's "bought <item>" notice as whatever the request said.
+    if (typeof plan.name === 'string' && plan.name.trim()) itemName = plan.name.trim().slice(0, 120);
     purchaseKind = plan.kind === 'meal_plan' ? 'meal_plan' : 'program';
     oneTimeCents = priceCentsFrom(plan.price);
     if (!oneTimeCents) return NextResponse.json({ error: 'This plan has no price set.' }, { status: 400 });

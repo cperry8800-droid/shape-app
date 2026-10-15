@@ -90,6 +90,9 @@ test('checkout: the sale is recorded as what it is: a session, a program, a meal
   assert.equal(program.status, 200, JSON.stringify(program.body));
   assert.equal(program.created[0].metadata.kind, 'program', 'a trainer\'s program is not a paid session');
   assert.equal(program.created[0].metadata.plan_id, PLAN);
+  // The plan's own name, not the request's (Fable on #2373): it reaches the coach's notice.
+  const renamed = await runCheckout({ plans: [{ id: PLAN, price: '49', published: true, owner_id: OWNER, kind: 'program', name: 'Strength 12' }], body: { item: { type: 'plan', name: 'Refund me now or else', planId: PLAN }, coach: { provider_id: 4, provider_role: 'trainer' } } });
+  assert.equal(renamed.created[0].metadata.item_name, 'Strength 12');
   const meal = await runCheckout({ plans: [{ id: PLAN, price: '29', published: true, owner_id: OWNER, kind: 'meal_plan' }], body: { item: { type: 'plan', name: 'Lean 4', planId: PLAN }, coach: { provider_id: 5, provider_role: 'nutritionist' } } });
   assert.equal(meal.created[0].metadata.kind, 'meal_plan');
   const consult = await runCheckout({ body: { item: { type: 'booking', name: 'Consult' }, coach: { provider_id: 5, provider_role: 'nutritionist' } } });
@@ -105,6 +108,9 @@ test('webhook: the coach is told who paid, only after the purchase is saved; the
   assert.match(src.slice(src.lastIndexOf('if (', at), at), /^if \(!purchaseErr\) \{/);
   assert.ok(at > src.indexOf(".from('one_time_purchases')\n            .upsert(withSnapshot"), 'after the save');
   assert.match(src.slice(at, at + 500), /kind: kind === 'program' \|\| kind === 'meal_plan' \? kind : 'booking',\s+checkoutId: session\.id,\s+coachCents: coachCutCents\(grossCents, payoutRate\),/);
+  // The coach's notice names the plan read from coach_plans, never the checkout's item_name (Fable on #2373).
+  assert.match(src.slice(at, at + 900), /itemName: planSnapshot && typeof planSnapshot\.name === 'string' && planSnapshot\.name\.trim\(\) \? planSnapshot\.name\.trim\(\) : null,/);
+  assert.doesNotMatch(src.slice(at, at + 900), /metadata\?\.item_name/);
   // Before the migration the table refuses 'program': the sale is recorded as a booking, not lost.
   assert.match(src, /if \(purchaseErr\?\.code === '23514' && kind === 'program'\) \{[\s\S]{0,400}withSnapshot\.kind = 'booking';/);
 });
@@ -203,6 +209,8 @@ test('a paid session is open until a session that will happen is booked against 
       paid('p-done', { session_id: 's-x' }),
       paid('p-refunded', { status: 'refunded' }),
       paid('p-program', { kind: 'program' }),
+      // A program recorded as a booking before the migration names its plan: never a session (Fable on #2373).
+      paid('p-fallback', { plan_id: 'plan-9' }),
       paid('p-other', { provider_id: 8 }),
     ],
     sessions: [{ id: 's-c', status: 'cancelled' }, { id: 's-d', status: 'declined' }, { id: 's-b', status: 'confirmed' }, { id: 's-x', status: 'completed' }],
@@ -263,6 +271,9 @@ test('migration: programs are a kind of their own, and a paid session links the 
   assert.match(sql, /add constraint one_time_purchases_kind_check\s+check \(kind in \('booking', 'meal_plan', 'program'\)\);/);
   assert.match(sql, /add column if not exists session_id uuid references public\.sessions\(id\) on delete set null;/);
   assert.match(sql, /c\.confdeltype = 'n'/, 'the guard checks the set-null');
+  // A program the webhook recorded as a booking before this ran is corrected, and the guard checks it.
+  assert.match(sql, /update public\.one_time_purchases\s+set kind = 'program'\s+where kind = 'booking'\s+and \(plan_id is not null or \(plan_snapshot is not null and plan_snapshot \? 'id'\)\);/);
+  assert.match(sql, /raise exception 'a purchase that names a plan is still recorded as a booking';/);
 });
 
 // ── M10 on the coach's phone ───────────────────────────────────────────────────────────────────
@@ -302,6 +313,15 @@ test('the return page says only what the checkout shows, to its buyer (M11)', as
   assert.deepEqual(await at(cs()), { state: 'paid', kind: 'booking', coachName: 'Tom Trainer', itemName: null });
   assert.deepEqual(await at(cs({ payment_status: 'unpaid' })), { state: 'processing', kind: 'booking', coachName: 'Tom Trainer', itemName: null }, 'a bank debit still clearing');
   assert.deepEqual(await at(cs({ status: 'expired', payment_status: 'unpaid' })), { state: 'not_paid' });
+  // A bank debit that bounced is not "processing" (Fable on #2373): the payment says so.
+  assert.deepEqual(await at(cs({ payment_status: 'unpaid', payment_intent: { status: 'requires_payment_method' } })), { state: 'failed' });
+  assert.deepEqual(await at(cs({ payment_status: 'unpaid', payment_intent: { status: 'canceled' } })), { state: 'failed' });
+  assert.deepEqual(await at(cs({ payment_status: 'unpaid', payment_intent: { status: 'processing' } })), { state: 'processing', kind: 'booking', coachName: 'Tom Trainer', itemName: null });
+  assert.deepEqual(await at(cs({ mode: 'subscription', payment_status: 'unpaid', subscription: { status: 'incomplete_expired' }, metadata: { client_id: UID, provider_id: '4', provider_role: 'trainer' } })), { state: 'failed' });
+  assert.deepEqual(await at(cs({ mode: 'subscription', payment_status: 'unpaid', subscription: { status: 'incomplete' }, metadata: { client_id: UID, provider_id: '4', provider_role: 'trainer' } })), { state: 'processing', kind: 'subscription', coachName: 'Tom Trainer', itemName: null });
+  const asked = [];
+  await (await loadReturn({ retrieve: async (...a) => { asked.push(a); return cs(); } })).readCheckoutReturn(ID);
+  assert.deepEqual(asked[0][1], { expand: ['payment_intent', 'subscription'] });
   assert.deepEqual(await at(cs({ mode: 'subscription', metadata: { client_id: UID, provider_id: '4', provider_role: 'trainer' } })), { state: 'paid', kind: 'subscription', coachName: 'Tom Trainer', itemName: null });
   assert.deepEqual(await at(cs({ metadata: { client_id: UID, provider_id: '4', provider_role: 'trainer', kind: 'program', item_name: 'Strength 12' } })), { state: 'paid', kind: 'program', coachName: 'Tom Trainer', itemName: 'Strength 12' });
   // Someone else's checkout, a made-up id, Stripe unreachable: nothing is claimed.
@@ -321,7 +341,8 @@ test('the return page says only what the checkout shows, to its buyer (M11)', as
 test('the return page\'s words: no "went through" until it did, and each kind points somewhere real', async () => {
   const { checkoutReturnCopy: c } = await loadReturn({ retrieve: async () => cs() });
   const say = (r) => c(r);
-  for (const r of [{ state: 'processing', kind: 'booking', coachName: 'Tom', itemName: null }, { state: 'not_paid' }, { state: 'unconfirmed' }]) {
+  assert.deepEqual(say({ state: 'failed' }), { title: "Your payment didn't go through", body: 'Your bank turned it down, so nothing was charged and nothing has started. You can try again from the coach’s page.', cta: { href: '/newdesign/ClientApp.html', label: 'Back to Shape' } });
+  for (const r of [{ state: 'processing', kind: 'booking', coachName: 'Tom', itemName: null }, { state: 'not_paid' }, { state: 'failed' }, { state: 'unconfirmed' }]) {
     const x = say(r);
     assert.doesNotMatch(x.title + ' ' + x.body, /went through|is paid|is active|is yours/i, r.state);
   }
@@ -349,4 +370,65 @@ test('the return page\'s words: no "went through" until it did, and each kind po
     assert.match(src, /<CheckoutReturnView result=\{result\} \/>/, rel);
     assert.doesNotMatch(src, /went through|Payment confirmed|You&rsquo;re subscribed/, rel);
   }
+});
+
+// ── A refund takes a booked paid session off both calendars (Fable on #2373) ───────────────────────
+async function refundSession({ purchase, session, fail = [] }) {
+  const sent = [];
+  const mod = await loadRealModule(join(ROOT, 'src/lib/refund-session.ts'), {
+    typescript: true,
+    registry: new Map([['@supabase/supabase-js', {}], ['@/lib/notify', { createNotification: async (_c, n) => { sent.push(n); return true; } }]]),
+  });
+  const updates = [];
+  const db = fakeSupabase({ tables: {
+    one_time_purchases: purchase ? [purchase] : [],
+    trainers: [{ id: 7, owner_id: 'coach-1', name: 'Tom Trainer' }],
+    profiles: [{ id: 'member-7', full_name: 'Cara Diaz' }],
+  }, fail });
+  // The session update, with the filters it was made under.
+  db.from = ((from) => (table) => {
+    if (table !== 'sessions') return from(table);
+    const f = [];
+    const q = {
+      update: (patch) => { updates.push({ patch, f }); return q; },
+      eq: (c, v) => { f.push(['eq', c, v]); return q; }, in: (c, v) => { f.push(['in', c, v]); return q; }, gt: (c, v) => { f.push(['gt', c, v]); return q; },
+      select: async () => {
+        if (fail.includes('sessions')) return { data: null, error: { message: 'down' } };
+        const hit = session && f.every(([op, c, v]) => op === 'eq' ? session[c] === v : op === 'in' ? v.includes(session[c]) : String(session[c]) > String(v));
+        return { data: hit ? [{ id: session.id }] : [], error: null };
+      },
+    };
+    return q;
+  })(db.from);
+  const out = await mod.cancelRefundedSession(db, 'p-1');
+  return { out, sent, updates };
+}
+
+test('a refunded paid session that is still ahead is cancelled, and both sides are told', async () => {
+  const later = new Date(Date.now() + 3 * 86400000).toISOString();
+  const earlier = new Date(Date.now() - 3 * 86400000).toISOString();
+  const r = await refundSession({ purchase: paid('p-1', { status: 'refunded', session_id: 's-1' }), session: { id: 's-1', status: 'confirmed', scheduled_at: later } });
+  assert.equal(r.out, 'cancelled');
+  assert.deepEqual(r.updates[0].patch, { status: 'cancelled' });
+  assert.deepEqual(r.updates[0].f.slice(0, 2), [['eq', 'id', 's-1'], ['in', 'status', ['requested', 'confirmed']]]);
+  assert.deepEqual(r.sent.map((n) => [n.userId, n.type, n.route]), [['member-7', 'session_cancelled', 'sessions'], ['coach-1', 'session_cancelled', 'schedule']]);
+  assert.match(r.sent[0].body, /with Tom Trainer was refunded/);
+  assert.match(r.sent[1].body, /^Cara Diaz's paid session was refunded/);
+  const R = await import(pathToFileURL(join(ROOT, 'public/newdesign/notificationRoutes.mjs')).href);
+  assert.equal(R.canonicalRoute(r.sent[1].route, r.sent[1].data), 'schedule:trainer');
+  // One that already happened, or was never booked, or a program: nothing to cancel, nobody told.
+  for (const [purchase, session] of [
+    [paid('p-1', { status: 'refunded', session_id: 's-1' }), { id: 's-1', status: 'confirmed', scheduled_at: earlier }],
+    [paid('p-1', { status: 'refunded', session_id: 's-1' }), { id: 's-1', status: 'completed', scheduled_at: later }],
+    [paid('p-1', { status: 'refunded' }), null],
+    [paid('p-1', { status: 'refunded', kind: 'program', session_id: 's-1' }), { id: 's-1', status: 'confirmed', scheduled_at: later }],
+  ]) {
+    const x = await refundSession({ purchase, session });
+    assert.equal(x.out, 'none');
+    assert.equal(x.sent.length, 0);
+  }
+  assert.equal((await refundSession({ purchase: null, session: null, fail: ['one_time_purchases'] })).out, 'failed');
+  // Both refund paths call it once the purchase is marked refunded.
+  assert.match(read('src/app/dashboard/refunds/actions.ts'), /update\(\{ status: 'refunded' \}\)\.eq\('id', claimed\.one_time_purchase_id\);\s+\/\/[^\n]*\n\s+await cancelRefundedSession\(admin, claimed\.one_time_purchase_id\);/);
+  assert.match(read('src/app/api/stripe/webhook/route.ts'), /\.eq\('status', 'pending'\);\s+\/\/[^\n]*\n\s+await cancelRefundedSession\(admin, purchase\.id\);/);
 });

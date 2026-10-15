@@ -484,7 +484,8 @@ async function runWebhook(event, { tables = {}, onboarding = [] } = {}) {
       ['@/lib/db-retryable', retryable],
       // What a saved subscription or membership starts (fix 3a) has its own test (coach-thread.test.mjs).
       // Recorded, not run: what each start does is coach-thread.test.mjs's; WHEN it runs is here.
-      ['@/lib/coach-thread', {
+      ['@/lib/refund-session', { cancelRefundedSession: async () => 'none' }],
+        ['@/lib/coach-thread', {
         startCoaching: async (_a, args) => { onboarding.push(['coach', args]); return { conversationId: null, welcomed: false, coachAlerted: false }; },
         welcomeMember: async (_a, id) => { onboarding.push(['member', id]); return false; },
       }],

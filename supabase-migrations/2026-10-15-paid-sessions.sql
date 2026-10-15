@@ -21,7 +21,13 @@
 -- booking links the oldest open one (session_id), and one whose session is cancelled or declined
 -- is open again. ON DELETE SET NULL for the same reason.
 --
--- Production held no one-time purchases on 2026-10-15, so nothing is backfilled.
+-- ── 3. A program recorded as a booking is corrected ───────────────────────────
+-- ⚠ THE WEBHOOK RECORDS A PROGRAM AS A BOOKING UNTIL THIS FILE RUNS (Fable on #2373). Before the kind
+-- check takes 'program' it refuses it, and the webhook keeps the sale as 'booking' rather than lose
+-- the buyer's entitlement. A row like that names a plan, which no session's purchase does (plan_id,
+-- or the snapshot's id when the plan was deleted before payment), so every such row becomes a program.
+-- Production held no one-time purchases on 2026-10-15, so this corrects only a row written between
+-- the deploy and this migration.
 
 alter table public.one_time_purchases drop constraint if exists one_time_purchases_kind_check;
 alter table public.one_time_purchases add constraint one_time_purchases_kind_check
@@ -29,6 +35,11 @@ alter table public.one_time_purchases add constraint one_time_purchases_kind_che
 
 alter table public.one_time_purchases
   add column if not exists session_id uuid references public.sessions(id) on delete set null;
+
+update public.one_time_purchases
+   set kind = 'program'
+ where kind = 'booking'
+   and (plan_id is not null or (plan_snapshot is not null and plan_snapshot ? 'id'));
 
 create index if not exists one_time_purchases_open_sessions_idx
   on public.one_time_purchases (provider_role, provider_id, client_id, created_at)
@@ -57,5 +68,11 @@ begin
       and c.confrelid = 'public.sessions'::regclass and c.confdeltype = 'n'
   ) then
     raise exception 'one_time_purchases.session_id must reference sessions on delete set null';
+  end if;
+  if exists (
+    select 1 from public.one_time_purchases
+    where kind = 'booking' and (plan_id is not null or (plan_snapshot is not null and plan_snapshot ? 'id'))
+  ) then
+    raise exception 'a purchase that names a plan is still recorded as a booking';
   end if;
 end $$;

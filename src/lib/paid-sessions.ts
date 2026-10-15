@@ -42,7 +42,11 @@ export async function openPaidSessions(
     .eq('provider_role', a.role)
     .eq('provider_id', a.providerId)
     .eq('kind', 'booking')
-    .eq('status', 'paid');
+    .eq('status', 'paid')
+    // ⚠ A SESSION'S PURCHASE NAMES NO PLAN. Before 2026-10-15-paid-sessions.sql the webhook records a
+    // program's sale as 'booking' (the kind check refuses 'program'), and a row like that is a product,
+    // never a session to schedule (Fable on #2373). The migration also corrects those rows.
+    .is('plan_id', null);
   if (a.clientId) q = q.eq('client_id', a.clientId);
   const { data, error } = await q.order('created_at', { ascending: true }).limit(500);
   if (error) {

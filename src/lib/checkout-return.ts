@@ -17,6 +17,7 @@ export type ReturnKind = 'subscription' | 'membership' | 'booking' | 'meal_plan'
 export type CheckoutReturn =
   | { state: 'paid' | 'processing'; kind: ReturnKind; coachName: string; itemName: string | null }
   | { state: 'not_paid' }
+  | { state: 'failed' }
   | { state: 'unconfirmed' };
 
 /** A Checkout Session id as Stripe writes it into the return address. */
@@ -29,6 +30,22 @@ export function returnKind(s: { mode?: string | null; metadata?: Record<string, 
   const m = s.metadata || {};
   if (s.mode === 'subscription') return m.plan === 'shape_platform' ? 'membership' : 'subscription';
   return m.kind === 'meal_plan' || m.kind === 'program' ? m.kind : 'booking';
+}
+
+/**
+ * A completed checkout whose bank debit was turned down. ⚠ STRIPE KEEPS IT "COMPLETE" AND "UNPAID",
+ * exactly as while the debit is still clearing (Fable on #2373), so the page told someone whose
+ * payment had bounced that it was processing and there was nothing more to do. Only the payment
+ * itself tells them apart: a payment intent back at requires_payment_method or canceled, or (a
+ * subscription's first invoice) a subscription that expired incomplete. Anything else, including
+ * no expanded object, is still processing.
+ */
+export function debitFailed(s: { payment_intent?: unknown; subscription?: unknown }): boolean {
+  const pi = s.payment_intent && typeof s.payment_intent === 'object' ? (s.payment_intent as { status?: string }) : null;
+  if (pi) return pi.status === 'requires_payment_method' || pi.status === 'canceled';
+  const sub = s.subscription && typeof s.subscription === 'object' ? (s.subscription as { status?: string }) : null;
+  if (sub) return sub.status === 'incomplete_expired' || sub.status === 'canceled';
+  return false;
 }
 
 /**
@@ -51,7 +68,7 @@ export async function readCheckoutReturn(sessionId: unknown): Promise<CheckoutRe
 
   let s: Awaited<ReturnType<typeof stripe.checkout.sessions.retrieve>>;
   try {
-    s = await stripe.checkout.sessions.retrieve(sessionId);
+    s = await stripe.checkout.sessions.retrieve(sessionId, { expand: ['payment_intent', 'subscription'] });
   } catch (err) {
     console.error('[checkout-return] session read failed', err instanceof Error ? err.message : err);
     return { state: 'unconfirmed' };
@@ -62,6 +79,7 @@ export async function readCheckoutReturn(sessionId: unknown): Promise<CheckoutRe
 
   if (s.status !== 'complete') return { state: 'not_paid' };
   const paid = s.payment_status === 'paid' || s.payment_status === 'no_payment_required';
+  if (!paid && debitFailed(s)) return { state: 'failed' };
   const kind = returnKind({ mode: s.mode, metadata: s.metadata as Record<string, string> | null });
 
   if (!userId) return { state: paid ? 'paid' : 'processing', kind, coachName: '', itemName: null };
@@ -95,6 +113,13 @@ export function checkoutReturnCopy(r: CheckoutReturn): { title: string; body: st
     return {
       title: "This checkout wasn't completed",
       body: 'Nothing was charged. You can start again from the coach’s page whenever you like.',
+      cta: { href: HOME, label: 'Back to Shape' },
+    };
+  }
+  if (r.state === 'failed') {
+    return {
+      title: "Your payment didn't go through",
+      body: 'Your bank turned it down, so nothing was charged and nothing has started. You can try again from the coach’s page.',
       cta: { href: HOME, label: 'Back to Shape' },
     };
   }

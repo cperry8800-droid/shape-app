@@ -12,6 +12,7 @@ import { coachCutCents, bpsToRate, parseFeeBpsMeta } from '@/lib/platform-fee';
 import { attributionPair, MARKETPLACE_FEE_BPS } from '@/lib/coach-origin.mjs';
 import { isRetryableDbError } from '@/lib/db-retryable';
 import { coachPaid, startCoaching, welcomeMember } from '@/lib/coach-thread';
+import { cancelRefundedSession } from '@/lib/refund-session';
 
 export const runtime = 'nodejs';
 
@@ -504,7 +505,9 @@ export async function POST(request: Request) {
               kind: kind === 'program' || kind === 'meal_plan' ? kind : 'booking',
               checkoutId: session.id,
               coachCents: coachCutCents(grossCents, payoutRate),
-              itemName: session.metadata?.item_name ?? null,
+              // The name read from coach_plans above, never the checkout's caller-supplied item_name
+              // (Fable on #2373): a buyer could put any sentence into the coach's notice.
+              itemName: planSnapshot && typeof planSnapshot.name === 'string' && planSnapshot.name.trim() ? planSnapshot.name.trim() : null,
             });
           }
           // First-dibs: a completed purchase against an invited waitlist slot
@@ -730,6 +733,8 @@ export async function POST(request: Request) {
               .update({ status: 'refunded', processed_at: new Date().toISOString() })
               .eq('one_time_purchase_id', purchase.id)
               .eq('status', 'pending');
+            // A refunded paid session that is still ahead comes off both calendars (refund-session.ts).
+            await cancelRefundedSession(admin, purchase.id);
           }
         }
         // Subscription refunds come in with an invoice → subscription link.
