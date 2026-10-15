@@ -17,7 +17,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createNotification } from '@/lib/notify';
-import { buildIcs, sendEmail } from '@/lib/email';
+import { buildIcs, calendarOrganizerEmail, sendEmail } from '@/lib/email';
 import { WRAP_OPEN, SIGN_OFF_HTML, SIGN_OFF_TEXT, button, escapeHtml, siteUrl } from '@/lib/coach-application-emails';
 
 type BuiltEmail = { subject: string; html: string; text: string };
@@ -124,20 +124,10 @@ async function memberEmail(admin: SupabaseClient, s: SessionForEmail): Promise<s
   return String(s.client_email || '').trim();
 }
 
-async function coachOf(admin: SupabaseClient, s: SessionForEmail): Promise<{ name: string; email: string }> {
+async function coachOf(admin: SupabaseClient, s: SessionForEmail): Promise<{ name: string }> {
   const table = s.provider_role === 'nutritionist' ? 'nutritionists' : 'trainers';
-  const { data } = await admin.from(table).select('name, owner_id').eq('id', s.provider_id).maybeSingle();
-  const row = data as { name?: string | null; owner_id?: string | null } | null;
-  let email = '';
-  if (row?.owner_id) {
-    try {
-      const { data: u } = await admin.auth.admin.getUserById(row.owner_id);
-      email = u?.user?.email || '';
-    } catch {
-      /* no organizer address */
-    }
-  }
-  return { name: String(row?.name || '').trim(), email };
+  const { data } = await admin.from(table).select('name').eq('id', s.provider_id).maybeSingle();
+  return { name: String((data as { name?: string | null } | null)?.name || '').trim() };
 }
 
 /**
@@ -171,7 +161,9 @@ export async function afterSessionStep(
             durationMin: Number(s.duration_min) || 15,
             summary: `Session with ${coach.name || 'your coach'}`,
             description: s.meeting_url ? `Join: ${s.meeting_url}` : 'Your coach will share how you will meet.',
-            organizerEmail: coach.email || 'notifications@theshapecommunity.com',
+            // The booking invite's organizer, so the calendar takes this as its update (Codex on
+            // #2370); the coach's name, as the booking invite shows it.
+            organizerEmail: calendarOrganizerEmail(),
             organizerName: coach.name || 'Shape',
             attendeeEmail: to,
             attendeeName: String(s.client_name || '').trim() || to,

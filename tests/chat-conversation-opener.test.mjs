@@ -46,6 +46,27 @@ test('an ID-only deep link opens the exact conversation and legacy name links st
   assert.equal(legacy.selected().conversationId,'another-client');
 });
 
+test('a coach opened from their profile is found by their listing, never by a shared name (Codex on #2370)', () => {
+  // Two threads already called "Alex": a member DM and the coach thread of another trainer.
+  const threads = [
+    [{who:'Alex Kim',conversationId:'member-dm'}],
+    [{who:'Alex Rivera',conversationId:'other-coach',providerRole:'trainer',providerId:9}, {who:'Alex Stone',conversationId:'this-coach',providerRole:'trainer',providerId:7}],
+  ];
+  // The listing's own thread: selected by role and id.
+  const found = opener({threads}); found.open({who:'Alex',providerRole:'trainer',providerId:7,role:'Trainer'});
+  assert.equal(found.selected().conversationId,'this-coach');
+  // A listing with no thread yet: a new one, carrying the listing, never another "Alex".
+  const fresh = opener({threads}); fresh.open({who:'Alex',providerRole:'nutritionist',providerId:7,role:'Nutritionist'});
+  assert.equal(fresh.selected().conversationId,null);
+  assert.deepEqual([fresh.selected().providerRole, fresh.selected().providerId], ['nutritionist', 7]);
+  assert.equal(fresh.state.threads.flat().length,4);
+  // A tab hint does not narrow a listing search to a tab without it.
+  const hinted = opener({threads}); hinted.open({who:'Alex',providerRole:'trainer',providerId:7,tab:'friends'});
+  assert.equal(hinted.selected().conversationId,'this-coach');
+  // The loaded coach threads carry the listing they are with.
+  assert.match(source, /providerRole: c\.provider_role, providerId: Number\(c\.provider_id\),/);
+});
+
 // ── Ask Nora | Chat (owner, 2026-10-07) ─────────────────────────────────────────
 const SPLIT = { tabs: [{id:'feed'},{id:'team'},{id:'support', support:true}], threads: [[], [{who:'Maya'}], [{who:'Nora'}]] };
 

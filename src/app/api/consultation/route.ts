@@ -28,11 +28,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { isEffectivelyAtCapacity } from '@/lib/capacity';
 import { createNotification } from '@/lib/notify';
-import { buildIcs, sendEmail } from '@/lib/email';
+import { buildIcs, calendarOrganizerEmail, sendEmail } from '@/lib/email';
 
 // The calendar ORGANIZER shown to whoever requested the booking. A no-reply
 // platform identity, never a person's private account address.
-const ORGANIZER_EMAIL = process.env.CALENDAR_ORGANIZER_EMAIL || 'no-reply@theshapecommunity.com';
+const ORGANIZER_EMAIL = calendarOrganizerEmail();
 import { cleanText as clean, isEmail, readJson } from '@/lib/request-utils';
 import { verifyTurnstile } from '@/lib/turnstile';
 import { currentUser } from '@/lib/request-auth';

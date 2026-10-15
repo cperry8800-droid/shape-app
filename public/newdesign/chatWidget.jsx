@@ -1065,6 +1065,9 @@ function ChatWidget(props) {
             // both arms of the poll read that same route off the SAME id — all
             // three are already keyed on `activeThread.conversationId`.
             conversationId: c.id,
+            // The listing it is with: a coach opened from their profile finds this thread by it,
+            // never by a name another thread can share (Codex on #2370).
+            providerRole: c.provider_role, providerId: Number(c.provider_id),
             messages: [],
           };
         });
@@ -1263,12 +1266,19 @@ function ChatWidget(props) {
 
       // An explicit conversation is authoritative across tabs. Names are only
       // for legacy links: two clients or a member/professional DM can share one.
-      const searchTabs = tabId && !conversationId ? [tabs.findIndex(t => t.id === tabId)] : threadsByTab.map((_, i) => i);
+      // ⚠ A COACH NAMED BY THEIR LISTING IS FOUND BY IT, NEVER BY NAME (Codex on #2370): a profile's
+      // "Message Alex" matched any thread whose name held "Alex", and the first message went to
+      // that thread's conversation. With no thread for that listing, a new one opens below.
+      const provider = !conversationId && descriptor && descriptor.providerRole && Number(descriptor.providerId) > 0
+        ? { role: descriptor.providerRole, id: Number(descriptor.providerId) } : null;
+      const searchTabs = (tabId && !conversationId && !provider) ? [tabs.findIndex(t => t.id === tabId)] : threadsByTab.map((_, i) => i);
       for (const ti of searchTabs) {
         if (ti < 0) continue;
         const idx = (threadsByTab[ti] || []).findIndex(t => conversationId
           ? t.conversationId === conversationId
-          : t.who.toLowerCase().includes(who.toLowerCase()));
+          : provider
+            ? t.providerRole === provider.role && Number(t.providerId) === provider.id
+            : t.who.toLowerCase().includes(who.toLowerCase()));
         if (idx >= 0) {
           setTabIdx(ti);
           setActiveByTab(prev => prev.map((v, i) => i === ti ? idx : v));

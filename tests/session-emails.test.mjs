@@ -28,6 +28,7 @@ async function loadEmails({ stored = true } = {}) {
       ['@/lib/notify', { createNotification: async (_c, n) => { sent.notifications.push(n); return stored; } }],
       ['@/lib/email', {
         buildIcs: (a) => { sent.ics.push(a); return 'ICS:' + a.uid; },
+    calendarOrganizerEmail: () => 'no-reply@theshapecommunity.com',
         sendEmail: async (e) => { sent.emails.push(e); return { ok: true }; },
       }],
       ['@/lib/coach-application-emails', emails],
@@ -72,6 +73,11 @@ test('confirm: the member is emailed the time, the call link and an invite, once
   // The booking's own invite uid (the session id; buildIcs adds the domain), as an update.
   assert.equal(e.ics, 'ICS:s-1');
   assert.equal(sent.ics[0].sequence, 1);
+  // The booking invite's organizer, not the coach's own address (Codex on #2370): a calendar
+  // matches an update on the uid and the organizer, and the coach's email is theirs.
+  assert.equal(sent.ics[0].organizerEmail, 'no-reply@theshapecommunity.com');
+  assert.equal(sent.ics[0].organizerName, 'Tom Trainer');
+  assert.doesNotMatch(JSON.stringify(sent.ics[0]), /tom@example\.com/);
   assert.deepEqual([sent.ics[0].durationMin, sent.ics[0].attendeeEmail, sent.ics[0].location], [30, 'cara@example.com', 'https://meet.shape.test/s-1']);
   assert.equal(sent.ics[0].start.toISOString(), SESSION.scheduled_at);
   // A repeat confirm sends nothing.
@@ -230,6 +236,9 @@ test('an invite update keeps the booking\'s uid and says it is an update', async
   assert.ok(update.includes('SEQUENCE:1'), 'the confirmation replaces it');
   // The booking's invite is written under the session id, which is what the confirmation reuses.
   assert.match(read('src/app/api/consultation/route.ts'), /buildIcs\(\{\s+uid: inserted\.id,/);
+  // Both invites name the same organizer, from one helper.
+  assert.match(read('src/app/api/consultation/route.ts'), /const ORGANIZER_EMAIL = calendarOrganizerEmail\(\);/);
+  assert.match(read('src/lib/session-emails.ts'), /organizerEmail: calendarOrganizerEmail\(\),/);
 });
 
 test('the intro length is read as the coach set it, 15 when they have not, and refused when unreadable', async () => {

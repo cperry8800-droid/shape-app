@@ -337,7 +337,7 @@ async function routes() {
     ['@/lib/video', { videoRoomUrl: (id) => 'https://meet.shape.test/' + id }],
     ['@/lib/notify', { createNotification: async (_c, n) => { state.notices.push(n); return true; } }],
     ['@/lib/capacity', { isEffectivelyAtCapacity: () => false }],
-    ['@/lib/email', { buildIcs: () => 'ICS', sendEmail: async (m) => { state.mails.push(m); return { ok: true }; } }],
+    ['@/lib/email', { buildIcs: () => 'ICS', calendarOrganizerEmail: () => 'no-reply@shape.test', sendEmail: async (m) => { state.mails.push(m); return { ok: true }; } }],
     // The captcha passes unless a test turns it off (`captcha: false`), the website form's
     // case with no token once TURNSTILE_SECRET_KEY is set.
     ['@/lib/turnstile', { verifyTurnstile: async () => state.captcha !== false }],
