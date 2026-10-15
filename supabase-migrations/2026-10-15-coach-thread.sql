@@ -20,8 +20,16 @@
 --   subscription, a session that is not cancelled or declined and is upcoming or in the last 90
 --   days, a paid session purchase in the last 90 days, or a thread that already exists.
 --
--- Nothing is written to existing rows. Re-runnable: "create or replace", "if not exists", and a
--- guard that checks the result.
+-- ⚠ BOTH FUNCTIONS ADD THE COACH AS A PARTICIPANT, as get_or_create_direct_conversation does (Codex
+-- on #2360). Reading a thread does not need it (can_access_conversation joins the listing's owner
+-- live), but the coach's unread count does: dm_unread() and mark_conversation_read() go through
+-- conversation_participants, so without the row a client's reply never counted as unread for the
+-- coach and marking the thread read did nothing. The first version shipped without it; re-running
+-- this file replaces both functions and adds the owner to every direct thread that lacks them
+-- (production held no direct threads on 2026-10-15, so that touched nothing).
+--
+-- Re-runnable: "create or replace", "if not exists", "on conflict do nothing", and a guard that
+-- checks the result.
 
 begin;
 
@@ -45,6 +53,7 @@ set search_path = public, pg_temp
 as $$
 declare
   v_name text;
+  v_owner uuid;
   v_conv uuid;
   v_msg uuid;
 begin
@@ -54,9 +63,9 @@ begin
   end if;
 
   if p_provider_role = 'trainer' then
-    select t.name into v_name from public.trainers t where t.id = p_provider_id;
+    select t.name, t.owner_id into v_name, v_owner from public.trainers t where t.id = p_provider_id;
   else
-    select n.name into v_name from public.nutritionists n where n.id = p_provider_id;
+    select n.name, n.owner_id into v_name, v_owner from public.nutritionists n where n.id = p_provider_id;
   end if;
   if v_name is null then
     raise exception 'open_coach_thread: provider not found' using errcode = 'P0002';
@@ -87,6 +96,13 @@ begin
   insert into public.conversation_participants (conversation_id, user_id, role)
   values (v_conv, p_client_id, 'client')
   on conflict (conversation_id, user_id) do nothing;
+  -- The coach too, for their unread count. An unclaimed listing has no owner yet; the coach's
+  -- access does not depend on this row (see the header).
+  if v_owner is not null then
+    insert into public.conversation_participants (conversation_id, user_id, role)
+    values (v_conv, v_owner, p_provider_role)
+    on conflict (conversation_id, user_id) do nothing;
+  end if;
 
   if nullif(btrim(coalesce(p_welcome, '')), '') is not null then
     insert into public.messages (conversation_id, sender_id, body, metadata)
@@ -139,6 +155,11 @@ begin
     and c.provider_id = v_pid and c.client_id = p_client_id
   limit 1;
   if v_conv is not null then
+    -- An existing thread (the client opened it, or the hire did): the coach joins it for their
+    -- unread count, as on a new one below.
+    insert into public.conversation_participants (conversation_id, user_id, role)
+    values (v_conv, v_uid, p_provider_role)
+    on conflict (conversation_id, user_id) do nothing;
     return v_conv;
   end if;
 
@@ -180,12 +201,21 @@ begin
   end;
 
   insert into public.conversation_participants (conversation_id, user_id, role)
-  values (v_conv, p_client_id, 'client')
+  values (v_conv, p_client_id, 'client'), (v_conv, v_uid, p_provider_role)
   on conflict (conversation_id, user_id) do nothing;
 
   return v_conv;
 end;
 $$;
+
+-- Every direct thread with a claimed listing has its coach as a participant (see the header).
+insert into public.conversation_participants (conversation_id, user_id, role)
+select c.id, coalesce(t.owner_id, n.owner_id), c.provider_role
+from public.conversations c
+left join public.trainers t on c.provider_role = 'trainer' and t.id = c.provider_id
+left join public.nutritionists n on c.provider_role = 'nutritionist' and n.id = c.provider_id
+where c.kind = 'direct' and coalesce(t.owner_id, n.owner_id) is not null
+on conflict (conversation_id, user_id) do nothing;
 
 revoke all on function public.open_coach_thread(uuid, text, bigint, text, text) from public, anon, authenticated;
 grant execute on function public.open_coach_thread(uuid, text, bigint, text, text) to service_role;
@@ -214,6 +244,16 @@ begin
       and (not p.prosecdef or not exists (select 1 from unnest(coalesce(p.proconfig, array[]::text[])) c where c like 'search_path=%pg_temp'))
   ) then
     raise exception 'the coach-thread functions must be definer functions with a search_path ending in pg_temp';
+  end if;
+  if exists (
+    select 1 from public.conversations c
+    left join public.trainers t on c.provider_role = 'trainer' and t.id = c.provider_id
+    left join public.nutritionists n on c.provider_role = 'nutritionist' and n.id = c.provider_id
+    where c.kind = 'direct' and coalesce(t.owner_id, n.owner_id) is not null
+      and not exists (select 1 from public.conversation_participants cp
+                      where cp.conversation_id = c.id and cp.user_id = coalesce(t.owner_id, n.owner_id))
+  ) then
+    raise exception 'a direct thread with a claimed listing is missing its coach as a participant';
   end if;
 end
 $guard$;

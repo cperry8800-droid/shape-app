@@ -84,6 +84,24 @@ test('migration: the welcome is posted once per thread, by the service role only
   assert.match(SQL_CODE, /exception when unique_violation then/, 'a lost race reads the winner\'s thread');
 });
 
+// Codex on #2360, seventh round: the coach's unread count (dm_unread, mark_conversation_read) goes
+// through conversation_participants, so the coach has to be one. Checked on PostgreSQL 16: a hire,
+// a coach's new thread and a coach reopening a thread they were missing from all leave both rows;
+// an unclaimed listing leaves the client's alone; a second run changes nothing.
+test('migration: the coach is a participant of every coach thread, for their unread count', () => {
+  const open = SQL_CODE.slice(SQL_CODE.indexOf('function public.open_coach_thread('), SQL_CODE.indexOf('function public.get_or_create_client_conversation('));
+  assert.match(open, /select t\.name, t\.owner_id into v_name, v_owner from public\.trainers t where t\.id = p_provider_id;/);
+  assert.match(open, /select n\.name, n\.owner_id into v_name, v_owner from public\.nutritionists n where n\.id = p_provider_id;/);
+  assert.match(open, /if v_owner is not null then\s+insert into public\.conversation_participants \(conversation_id, user_id, role\)\s+values \(v_conv, v_owner, p_provider_role\)\s+on conflict \(conversation_id, user_id\) do nothing;\s+end if;/);
+  const coach = SQL_CODE.slice(SQL_CODE.indexOf('function public.get_or_create_client_conversation('), SQL_CODE.indexOf('revoke all on function public.open_coach_thread'));
+  // On the existing-thread path, before it returns, and on a new thread.
+  assert.match(coach, /if v_conv is not null then\s+insert into public\.conversation_participants \(conversation_id, user_id, role\)\s+values \(v_conv, v_uid, p_provider_role\)\s+on conflict \(conversation_id, user_id\) do nothing;\s+return v_conv;\s+end if;/);
+  assert.match(coach, /values \(v_conv, p_client_id, 'client'\), \(v_conv, v_uid, p_provider_role\)\s+on conflict \(conversation_id, user_id\) do nothing;/);
+  // Threads opened before this: the backfill, and the guard that holds it.
+  assert.match(SQL_CODE, /insert into public\.conversation_participants \(conversation_id, user_id, role\)\s+select c\.id, coalesce\(t\.owner_id, n\.owner_id\), c\.provider_role\s+from public\.conversations c[\s\S]{0,300}where c\.kind = 'direct' and coalesce\(t\.owner_id, n\.owner_id\) is not null\s+on conflict \(conversation_id, user_id\) do nothing;/);
+  assert.match(SQL_CODE, /raise exception 'a direct thread with a claimed listing is missing its coach as a participant';/);
+});
+
 test('migration: a coach opens a thread only for their own client, with the listing of that role', () => {
   const body = SQL_CODE.slice(SQL_CODE.indexOf('function public.get_or_create_client_conversation('), SQL_CODE.indexOf('revoke all on function public.open_coach_thread'));
   assert.match(body, /if v_uid is null then\s+raise exception 'Authentication is required\.' using errcode = '42501';/);
