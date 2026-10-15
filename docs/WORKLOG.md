@@ -847,6 +847,15 @@ Everything older, newest-first: [2026-10](WORKLOG-ARCHIVE-2026-10.md) ·
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-10-15 — The Nora box header re-rendered at 2x: the LED wall no longer reads pixelated
+
+- **Merged [#2364](https://github.com/cperry8800-droid/shape-app/pull/2364) as `e29370e`**, final head `90a99ab`. No migration. The owner, on the header #2362 added: *"can the quality of this image be improved. looks very pixelated"*; offered to upscale it outside (*"post the actual image here and i can imrpove quality outside of here"*), then *"just show me preview"*, *"dont need to do a million checks"* and *"merge when green"*.
+- **Why it looked pixelated:** `public/nora-stage.webp` was rendered once at 1600×900 in SwiftShader, so the wall's 75 mm dots fell on a 5.4 px pitch the pixel grid could not hold evenly, and a 2x screen stretched the 1600 px file over the 860 px box's 1720 device pixels. An upscaler would have had to guess at the dots; the scene is ours, so it was re-rendered instead.
+- **What changed:** the same scene and camera rendered at 2x (3200×1800), letterbox-cropped to 3200×1120 and Lanczos-downscaled to 1720×602 (WebP q88, 337 KB, was 159 KB; same aspect ratio, so the band's CSS is untouched). `prototypes/nora-booth/nora-wall-still.cjs` defaults to `SCALE=2` and takes `BURST=n` frames. ⚠ **The moving heads follow the clock**: the first 2x frame had two beams across NORA, so a burst was rendered and the frame whose light matched the owner's pick (beams below the letters) shipped.
+- **Guard:** `tests/nora-stage-header.test.mjs` reads the box width and band ratio from `radio.jsx` and holds the still at 2x that width, the band's ratio and under 500 KB; it fails on the old 1600 px file.
+- **Verified:** the band's CSS rendered in Chromium at 1x, 1.25x, 2x and a 390 px phone at 3x (unpkg is unreachable from the container, so not the full page); the new test; CI green on the final head. Codex reviewed it with no findings; Copilot declined on its quota.
+- **Written after the merge**, per the 2026-09-11 rule.
+
 ### 2026-10-14 — The old site retired: live flows on the website, 37 root pages gone (29 behind redirects), /mobile and the explorations deleted
 
 - **Three PRs merged on 2026-10-14**, each on CI green on its final head. No migrations. The owner, on the legacy-pages review: *"1. Fix live flows + sitemap"*, *"2. Retire old pages w/ redirects"*, *"3. Delete /mobile + explorations"*; for the products Shape no longer offers, *"Delete, no redirect"*.
