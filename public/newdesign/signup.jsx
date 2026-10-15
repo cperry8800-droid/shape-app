@@ -185,7 +185,7 @@ function UsernameField({ v, set, span = 2 }) {
 
 function ClientPersonal({ v, set }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+    <div className="su-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
       <Field label="First name"><TextInput value={v.firstName || ""} onChange={e => set({ firstName: e.target.value })} /></Field>
       <Field label="Last name"><TextInput value={v.lastName || ""} onChange={e => set({ lastName: e.target.value })} /></Field>
       <UsernameField v={v} set={set} />
@@ -292,7 +292,7 @@ function ClientCoaching({ v, set }) {
 
 function ProPersonal({ v, set, roleNoun }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+    <div className="su-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
       <Field label="First name"><TextInput value={v.firstName || ""} onChange={e => set({ firstName: e.target.value })} /></Field>
       <Field label="Last name"><TextInput value={v.lastName || ""} onChange={e => set({ lastName: e.target.value })} /></Field>
       <UsernameField v={v} set={set} />
@@ -329,11 +329,11 @@ function ProCredentials({ v, set, kind }) {
           </p>
         </div>
       )}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+      <div className="su-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
         <Field label={isTrainer ? "Primary certification" : isDietitian ? "RD/RDN registration number" : "License type"}><TextInput value={v.cert || ""} onChange={e => set({ cert: e.target.value })} placeholder={isTrainer ? "NASM, ACE, NSCA, CSCS..." : isDietitian ? "RD #, RDN #..." : "RD, RDN, LDN, CNS..."} /></Field>
         <Field label={isTrainer ? "Expiration / renewal" : "License state + number"}><TextInput value={v.certExp || ""} onChange={e => set({ certExp: e.target.value })} /></Field>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+      <div className="su-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
         <Field label="Degree / school"><TextInput value={v.edu || ""} onChange={e => set({ edu: e.target.value })} placeholder={isTrainer ? "BS Kinesiology — UT Austin" : "MS Nutrition — NYU"} /></Field>
         <Field label="Years professional experience"><Select value={proPick(v, "years", kind)} onChange={e => set({ years: e.target.value })} options={proExperienceOptions} placeholder="Select…" /></Field>
       </div>
@@ -357,7 +357,7 @@ function ProCredentials({ v, set, kind }) {
           </div>
         );
       })()}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+      <div className="su-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
         <Field label="Liability insurance"><Select value={proPick(v, "insurance", kind)} onChange={e => set({ insurance: e.target.value })} options={["Yes", "No", "In progress"]} /></Field>
         <Field label="Previous platforms (optional)"><TextInput value={v.prev || ""} onChange={e => set({ prev: e.target.value })} placeholder="Trainerize, MyFitnessPal Pro..." /></Field>
       </div>
@@ -394,7 +394,7 @@ function NutritionCompliance({ v, set, isDietitian }) {
         </p>
       </div>
       {isDietitian && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div className="su-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <Field label="CDR registration number (RD/RDN)"><TextInput value={v.cdrId || ""} onChange={e => set({ cdrId: e.target.value })} placeholder="e.g. 1234567" /></Field>
           <Field label="Credential type"><Select value={v.rdCredential || "rd"} onChange={e => set({ rdCredential: e.target.value })} options={["rd", "rdn"]} /></Field>
         </div>
@@ -411,7 +411,7 @@ function NutritionCompliance({ v, set, isDietitian }) {
         ))}
         <button type="button" onClick={addLicense} style={{ background: "transparent", border: "1px dashed rgba(242,237,228,0.18)", borderRadius: 8, color: TEAL, fontFamily: mono, fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", padding: "8px 12px", cursor: "pointer" }}>+ Add another state</button>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+      <div className="su-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         <Field label="Insurance carrier"><TextInput value={v.insCarrier || ""} onChange={e => set({ insCarrier: e.target.value })} placeholder="e.g. HPSO" /></Field>
         <Field label="Policy number"><TextInput value={v.insPolicy || ""} onChange={e => set({ insPolicy: e.target.value })} /></Field>
         <Field label="Insurance expiration"><input type="date" value={v.insExpires || ""} onChange={e => set({ insExpires: e.target.value })} style={inputStyle} aria-label="Insurance expiration" /></Field>
@@ -499,13 +499,13 @@ function ProAvailability({ v, set, kind }) {
   const noun = kind === "trainer" ? "clients" : "clients";
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+      <div className="su-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
         <Field label={`Max ${noun} you can take`}><TextInput type="number" value={v.maxClients || ""} onChange={e => set({ maxClients: e.target.value })} placeholder="e.g. 25" /></Field>
         <Field label="Accepting new clients">
           <Select value={proPick(v, "accepting", kind)} onChange={e => set({ accepting: e.target.value })} options={["Yes", "Waitlist", "Not yet"]} />
         </Field>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+      <div className="su-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
         <Field label={kind === "trainer" ? "Offer 1-on-1 sessions" : "Offer 1-on-1 consults"}>
           <Select value={proPick(v, "oneOnOne", kind)} onChange={e => set({ oneOnOne: e.target.value })} options={["Yes", "No"]} />
         </Field>
@@ -513,7 +513,7 @@ function ProAvailability({ v, set, kind }) {
           <Select value={proPick(v, "response", kind)} onChange={e => set({ response: e.target.value })} options={["Within 12 hours", "Within 24 hours", "Within 48 hours"]} />
         </Field>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+      <div className="su-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
         <Field label={kind === "trainer" ? "Monthly subscription ($/mo)" : "Monthly plan ($/mo)"}>
           <TextInput type="number" value={v.subPrice || ""} onChange={e => set({ subPrice: e.target.value })} placeholder={kind === "trainer" ? "280" : "320"} />
         </Field>
@@ -538,6 +538,31 @@ function ProAvailability({ v, set, kind }) {
   );
 }
 
+// ⚠ A STEP SAYS WHAT IS WRONG WITH IT BEFORE YOU LEAVE IT (client-onboarding review, L6). Every
+// check ran only on the last step's submit, so a mistyped email or a short password on Personal was
+// reported two steps later. Continue runs this on Personal, and submit runs the same function.
+function suPersonalError(values) {
+  if (!values.firstName || !values.lastName) return "First and last name are required.";
+  if (!values.email || !values.email.trim()) return "Enter your email.";
+  if (!values.password || values.password.length < 8) return "Choose a password with at least 8 characters.";
+  // Normalize the username the same way it'll be submitted, THEN validate, so
+  // a value like " Jane.Doe " / "@jane" can't fail the check on a stray char.
+  const cleanUsername = String(values.username || "").trim().replace(/^@/, "").toLowerCase();
+  if (!cleanUsername || !/^[a-z0-9][a-z0-9._]{2,19}$/.test(cleanUsername)) return "Pick a valid username — letters, numbers, . _ (3–20 chars).";
+  // ⚠ 18+ gate — the SHARED derivation, not a restatement. The instant
+  // comparison this replaced read ADULT for DOB 2008-08-17 at
+  // 2026-08-17T00:30:00Z, which is still Aug 16 in Los Angeles: a minor
+  // admitted on their local birthday eve, the exact case the read-time gate
+  // reads the calendar day at UTC−12 to prevent.
+  const ageApi = window.ShapeAgeDerive;
+  // Fail closed — cannot verify an age ⇒ refuse, never admit.
+  if (!ageApi || typeof ageApi.isMinorFromDob !== "function") return "Could not verify your age. Reload the page and try again.";
+  const minor = ageApi.isMinorFromDob(values.dob);
+  if (minor === null) return "Enter a valid date of birth — Shape is for adults 18 and over.";
+  if (minor === true) return "You must be 18 or older to use Shape.";
+  return "";
+}
+
 // -------------- Main form --------------
 
 function SignupForm({ role }) {
@@ -546,6 +571,8 @@ function SignupForm({ role }) {
   const [values, setValues] = React.useState({});
   const [done, setDone] = React.useState(false);
   const [confirmEmail, setConfirmEmail] = React.useState(false);
+  const [existingAccount, setExistingAccount] = React.useState(false);
+  const [resendState, setResendState] = React.useState("");
   const [error, setError] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
   const set = (patch) => setValues(v => ({ ...v, ...patch }));
@@ -597,14 +624,14 @@ function SignupForm({ role }) {
   // Render the widget on the final step (where it's shown). The coach application needs it
   // too: /api/apply refuses a signed-out application without a token once the server's
   // Turnstile secret is set.
-  const captchaVisible = captchaOn && isLast;
+  // The confirm screen has one too: Resend is another auth request, and the form's token was spent
+  // creating the account (L6). The widget moves when the screen changes.
+  const captchaVisible = captchaOn && (isLast || confirmEmail);
   React.useEffect(() => {
-    if (!captchaVisible) {
-      if (captchaIdRef.current != null) { window.ShapeTurnstile.remove(captchaIdRef.current); captchaIdRef.current = null; }
-      setCaptchaToken("");
-      return;
-    }
-    if (!captchaRef.current || captchaIdRef.current != null) return;
+    if (captchaIdRef.current != null) { window.ShapeTurnstile.remove(captchaIdRef.current); captchaIdRef.current = null; }
+    setCaptchaToken("");
+    if (!captchaVisible) return;
+    if (!captchaRef.current) return;
     setCaptchaUnavailable(false);
     let alive = true;
     window.ShapeTurnstile.render(captchaRef.current, setCaptchaToken).then((id) => {
@@ -614,7 +641,7 @@ function SignupForm({ role }) {
     });
     const failTimer = setTimeout(() => { if (alive && !captchaTokenRef.current) setCaptchaUnavailable(true); }, 7000);
     return () => { alive = false; clearTimeout(failTimer); };
-  }, [captchaVisible]);
+  }, [captchaVisible, confirmEmail]);
   // Tokens are single-use — clear after a failed attempt so a retry re-solves.
   const resetCaptcha = () => { setCaptchaToken(""); if (captchaIdRef.current != null) window.ShapeTurnstile.reset(captchaIdRef.current); };
 
@@ -637,17 +664,64 @@ function SignupForm({ role }) {
     return null;
   })();
 
+  // Resend the confirmation (L6): the same link, to the same address. Supabase allows one a minute.
+  async function resendConfirmation() {
+    if (resendState === "sending") return;
+    if (captchaOn && !captchaToken) { setResendState(captchaUnavailable ? "captchaFailed" : "captcha"); return; }
+    const sb = window.shapeDb && window.shapeDb.client;
+    if (!sb) { setResendState("error"); return; }
+    setResendState("sending");
+    try {
+      const { error } = await sb.auth.resend({
+        type: "signup",
+        email: String(values.email || "").trim(),
+        options: { emailRedirectTo: window.location.origin + "/newdesign/Login.html", ...(captchaOn && captchaToken ? { captchaToken } : {}) },
+      });
+      setResendState(error ? "error" : "sent");
+    } catch (e) {
+      setResendState("error");
+    } finally {
+      if (captchaOn) resetCaptcha();
+    }
+  }
+  const RESEND_NOTE = {
+    sending: "Sending…",
+    sent: "Sent again. Check your inbox and your spam folder.",
+    error: "Couldn't send it again. Wait a minute, then try once more.",
+    captcha: "Just a moment — confirming you're human…",
+    captchaFailed: "Couldn't load the human-check. Refresh the page or disable any blockers, then try again.",
+  };
+
+  if (existingAccount) {
+    return (
+      <div className="su-done" style={{ padding: "60px 48px", textAlign: "left", background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 14 }}>
+        <h2 style={{ fontFamily: serif, fontSize: 48, letterSpacing: "-0.025em", fontWeight: 400, margin: "0 0 12px", lineHeight: 1 }}>You already have an account.</h2>
+        <p style={{ fontFamily: sans, fontSize: 16, color: "rgba(242,237,228,0.7)", margin: "0 0 32px", lineHeight: 1.55, maxWidth: 500 }}>{values.email} is already a Shape account, so no new one was made. Sign in with it, or reset its password if you can't remember it.</p>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <a href="Login.html" style={{ padding: "14px 24px", borderRadius: 8, background: INK, color: PAPER, border: 0, fontFamily: sans, fontSize: 14, fontWeight: 500, textDecoration: "none", display: "inline-block" }}>Sign in</a>
+          <a href="/forgot-password" style={{ padding: "14px 24px", borderRadius: 8, background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.2)", fontFamily: sans, fontSize: 14, textDecoration: "none", display: "inline-block" }}>Reset your password</a>
+        </div>
+      </div>
+    );
+  }
+
   if (confirmEmail) {
     return (
-      <div style={{ padding: "60px 48px", textAlign: "left", background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 14 }}>
+      <div className="su-done" style={{ padding: "60px 48px", textAlign: "left", background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 14 }}>
         <div style={{ width: 56, height: 56, borderRadius: "50%", background: TEAL, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 24 }}>
           <svg width="26" height="26" viewBox="0 0 26 26" fill="none"><rect x="3" y="6" width="20" height="15" rx="2" stroke={PAPER} strokeWidth="2.2"/><path d="M4 7l9 6 9-6" stroke={PAPER} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </div>
         <h2 style={{ fontFamily: serif, fontSize: 48, letterSpacing: "-0.025em", fontWeight: 400, margin: "0 0 12px", lineHeight: 1 }}>Confirm your email.</h2>
         <p style={{ fontFamily: sans, fontSize: 16, color: "rgba(242,237,228,0.7)", margin: "0 0 32px", lineHeight: 1.55, maxWidth: 500 }}>We sent a confirmation link to {values.email}. Click it, then sign in to finish — we'll claim @{(values.username || "").trim().replace(/^@/, "").toLowerCase()} for you then, if it's still available.</p>
-        <div style={{ display: "flex", gap: 10 }}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <a href="Login.html" style={{ padding: "14px 24px", borderRadius: 8, background: INK, color: PAPER, border: 0, fontFamily: sans, fontSize: 14, fontWeight: 500, textDecoration: "none", display: "inline-block" }}>Go to sign in</a>
           <a href="Landing.html" style={{ padding: "14px 24px", borderRadius: 8, background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.2)", fontFamily: sans, fontSize: 14, textDecoration: "none", display: "inline-block" }}>Back to landing</a>
+        </div>
+        <div style={{ marginTop: 28, paddingTop: 20, borderTop: "1px solid rgba(242,237,228,0.1)" }}>
+          <div style={{ fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.7)" }}>No email after a few minutes?</div>
+          {captchaVisible ? <div ref={captchaRef} style={{ marginTop: 12, minHeight: captchaUnavailable ? 0 : 65, display: captchaUnavailable ? "none" : "block" }} /> : null}
+          <button type="button" onClick={resendConfirmation} disabled={resendState === "sending"} style={{ marginTop: 12, padding: "12px 18px", borderRadius: 8, background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.2)", fontFamily: sans, fontSize: 13, cursor: resendState === "sending" ? "wait" : "pointer" }}>Send it again</button>
+          {resendState ? <div role="status" style={{ marginTop: 10, fontFamily: sans, fontSize: 13, color: resendState === "error" ? "#ff7b6e" : "rgba(242,237,228,0.7)" }}>{RESEND_NOTE[resendState]}</div> : null}
         </div>
       </div>
     );
@@ -655,7 +729,7 @@ function SignupForm({ role }) {
 
   if (done) {
     return (
-      <div style={{ padding: "60px 48px", textAlign: "left", background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 14 }}>
+      <div className="su-done" style={{ padding: "60px 48px", textAlign: "left", background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 14 }}>
         <div style={{ width: 56, height: 56, borderRadius: "50%", background: TEAL, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 24 }}>
           <svg width="26" height="26" viewBox="0 0 26 26" fill="none"><path d="M5 13.5l5 5 11-11" stroke={PAPER} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </div>
@@ -669,35 +743,25 @@ function SignupForm({ role }) {
     );
   }
 
+  // Continue: the member sign-up's Personal step is checked before it is left (L6); its other steps
+  // are chips and agreements, which the last step's submit checks. The coach application keeps its
+  // checks on submit, where its credentials and documents are checked together.
+  function advance() {
+    const isClient = role !== "trainer" && role !== "nutritionist";
+    const err = isClient && step === 0 ? suPersonalError(values) : "";
+    if (err) { setError(err); return; }
+    setError("");
+    setStep(step + 1);
+  }
+
   async function submitApplication() {
     setError("");
     // ---- CLIENT path: create a REAL Supabase auth account (mirrors the mobile app) ----
     if (role !== "trainer" && role !== "nutritionist") {
-      // Validate the collected fields.
-      if (!values.firstName || !values.lastName) { setError("First and last name are required."); return; }
-      if (!values.email || !values.email.trim()) { setError("Enter your email."); return; }
-      if (!values.password || values.password.length < 8) { setError("Choose a password with at least 8 characters."); return; }
-      // Normalize the username the same way it'll be submitted, THEN validate, so
-      // a value like " Jane.Doe " / "@jane" can't fail the check on a stray char.
+      // Validate the collected fields: the Personal step's own check, which Continue runs too (L6).
+      const personal = suPersonalError(values);
+      if (personal) { setError(personal); return; }
       const cleanUsername = String(values.username || "").trim().replace(/^@/, "").toLowerCase();
-      if (!cleanUsername || !/^[a-z0-9][a-z0-9._]{2,19}$/.test(cleanUsername)) {
-        setError("Pick a valid username — letters, numbers, . _ (3–20 chars).");
-        return;
-      }
-      // ⚠ 18+ gate — the SHARED derivation, not a restatement. The instant
-      // comparison this replaced read ADULT for DOB 2008-08-17 at
-      // 2026-08-17T00:30:00Z, which is still Aug 16 in Los Angeles: a minor
-      // admitted on their local birthday eve, the exact case the read-time gate
-      // reads the calendar day at UTC−12 to prevent.
-      const ageApi = window.ShapeAgeDerive;
-      if (!ageApi || typeof ageApi.isMinorFromDob !== "function") {
-        // Fail closed — cannot verify an age ⇒ refuse, never admit.
-        setError("Could not verify your age. Reload the page and try again.");
-        return;
-      }
-      const minor = ageApi.isMinorFromDob(values.dob);
-      if (minor === null) { setError("Enter a valid date of birth — Shape is for adults 18 and over."); return; }
-      if (minor === true) { setError("You must be 18 or older to use Shape."); return; }
       // Require Terms + Privacy acceptance before creating a real account (the
       // ClientCoaching step collects values.tos — gate on it like the coach path does).
       if (!values.tos) { setError("Please accept the Terms of Service and Privacy Policy to continue."); return; }
@@ -748,7 +812,12 @@ function SignupForm({ role }) {
         // Email confirmation enabled → signUp returns a user but no session until
         // the emailed link is clicked → show "check your inbox". If a session IS
         // returned (auto-confirm), the account is already signed in → dashboard.
-        if (data && data.user && !data.session) {
+        // ⚠ AN ADDRESS THAT ALREADY HAS AN ACCOUNT WAS TOLD TO CONFIRM IT (L6). Supabase answers a
+        // sign-up for a confirmed address with a user that has no identities and sends nothing, so
+        // "Confirm your email" waited on an email that never came. Say so, with the way back in.
+        if (data && data.user && !data.session && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+          setExistingAccount(true);
+        } else if (data && data.user && !data.session) {
           setConfirmEmail(true);
         } else {
           // Auto-confirm (no email step): a session exists immediately and we go
@@ -954,7 +1023,7 @@ function SignupForm({ role }) {
   }
 
   return (
-    <div style={{ background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 14, padding: "40px 44px 36px" }}>
+    <div className="su-card" style={{ background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 14, padding: "40px 44px 36px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase", color: TEAL }}>Step {step + 1} of {totalSteps}</div>
         <div style={{ fontFamily: sans, fontSize: 12, color: "rgba(242,237,228,0.55)" }}>{cfg.steps[step]}</div>
@@ -998,7 +1067,7 @@ function SignupForm({ role }) {
         </button>
         <button
           type="button"
-          onClick={() => isLast ? submitApplication() : setStep(step + 1)}
+          onClick={() => isLast ? submitApplication() : advance()}
           disabled={submitting}
           style={{ padding: "14px 24px", borderRadius: 8, background: INK, color: PAPER, border: 0, fontFamily: sans, fontSize: 14, fontWeight: 500, cursor: "pointer" }}>
           {submitting ? "Submitting..." : isLast ? cfg.submitLabel : "Continue"}
@@ -1009,13 +1078,34 @@ function SignupForm({ role }) {
 }
 
 // -------------- Page shell --------------
+const SU_RESPONSIVE_CSS = `
+@media (max-width: 900px) {
+  .su-pad { padding-left: 16px !important; padding-right: 16px !important; }
+  .su-main { padding-top: 28px !important; padding-bottom: 48px !important; }
+  .su-page { grid-template-columns: minmax(0, 1fr) !important; gap: 32px !important; }
+  .su-aside { position: static !important; }
+  .su-title { font-size: 40px !important; }
+  .su-done { padding: 32px 20px !important; }
+  .su-card { padding: 28px 18px 24px !important; }
+}
+@media (max-width: 560px) {
+  .su-2col { grid-template-columns: minmax(0, 1fr) !important; }
+  .su-2col > * { grid-column: auto !important; }
+  .su-done h2 { font-size: 36px !important; }
+}
+`;
 
 function SignupPage({ role }) {
   const cfg = ROLE_CONFIG[role] || ROLE_CONFIG.client;
   return (
     <div style={{ background: PAPER, color: INK, fontFamily: sans, minHeight: "100vh" }}>
+      {/* ⚠ THE PAGE WAS A FIXED TWO-COLUMN GRID WITH 72PX SIDES (client-onboarding review, L7), so a
+          phone got a squeezed form beside a pitch it could not see. Below 900px it is one column with
+          16px sides; below 560px the paired fields stack. The rules beat the inline styles, hence
+          !important. */}
+      <style>{SU_RESPONSIVE_CSS}</style>
       {/* Minimal header */}
-      <header style={{ padding: "24px 72px", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
+      <header className="su-pad" style={{ padding: "24px 72px", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <a href="Landing.html" aria-label="Shape" style={{ flex: "none", display: "inline-flex" }}><Logo variant="white" size={50} /></a>
           <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
@@ -1025,12 +1115,12 @@ function SignupPage({ role }) {
         </div>
       </header>
 
-      <main style={{ padding: "60px 72px 80px" }}>
-        <div style={{ maxWidth: 1220, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1.15fr", gap: 64, alignItems: "start" }}>
+      <main className="su-pad su-main" style={{ padding: "60px 72px 80px" }}>
+        <div className="su-page" style={{ maxWidth: 1220, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1.15fr", gap: 64, alignItems: "start" }}>
           {/* Left — pitch */}
-          <aside style={{ position: "sticky", top: 100 }}>
+          <aside className="su-aside" style={{ position: "sticky", top: 100 }}>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>{cfg.kicker}</div>
-            <h1 style={{ fontFamily: serif, fontSize: 56, letterSpacing: "-0.03em", fontWeight: 400, margin: 0, lineHeight: 1.02 }}>{cfg.titleLeft}</h1>
+            <h1 className="su-title" style={{ fontFamily: serif, fontSize: 56, letterSpacing: "-0.03em", fontWeight: 400, margin: 0, lineHeight: 1.02 }}>{cfg.titleLeft}</h1>
             <ul style={{ listStyle: "none", padding: 0, margin: "32px 0 0", display: "flex", flexDirection: "column", gap: 12 }}>
               {cfg.perks.map(p => (
                 <li key={p} style={{ fontFamily: sans, fontSize: 14.5, color: "rgba(242,237,228,0.8)", display: "flex", gap: 10, alignItems: "baseline" }}>
@@ -1048,7 +1138,7 @@ function SignupPage({ role }) {
         </div>
       </main>
 
-      <footer style={{ padding: "30px 72px", borderTop: "1px solid rgba(242,237,228,0.08)", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)" }}>
+      <footer className="su-pad" style={{ padding: "30px 72px", borderTop: "1px solid rgba(242,237,228,0.08)", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", justifyContent: "space-between", gap: 20, flexWrap: "wrap" }}>
           <span>© 2026 Shape</span>
           <div style={{ display: "flex", gap: 24 }}>

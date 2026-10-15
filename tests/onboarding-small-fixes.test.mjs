@@ -17,6 +17,9 @@
 //   L1   the Score intro and the tour showed only to accounts under a day old.
 //   L3   a phone account could be made with no name, and no screen could give it a handle.
 //   L5   the system's notification prompt ran the moment an account existed.
+//   L6   the website sign-up: errors only on the last step, no way to resend the confirmation,
+//        and an address that already had an account told to confirm it.
+//   L7   the sign-up page was a fixed two-column grid with 72px sides: too wide for a phone.
 //   L11  dead code: get-started.html, pricing/actions.ts.
 
 import test from 'node:test';
@@ -533,4 +536,99 @@ test('L5: signing in never runs the system prompt; asking does, once, and the an
     const cat = JSON.parse(read(`mobile-app/src/i18n/catalogs/${loc}/settings.json`));
     for (const k of ['push.title', 'push.on', 'push.off', 'push.notYet', 'push.turnOn', 'push.askTitle', 'push.askBody', 'push.askYes', 'push.notNow']) assert.ok(cat[k], `${loc}: settings:${k}`);
   }
+});
+
+// ── L6: the website sign-up, mounted ────────────────────────────────────────────────────────
+async function mountSignupPage(signUpAnswer) {
+  const { JSDOM } = await import('jsdom');
+  const babel = require_('next/dist/compiled/babel/core');
+  const presetReact = require_('next/dist/compiled/babel/preset-react');
+  const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: 'https://shape.test/newdesign/SignupClient.html' });
+  const before = { window: globalThis.window, document: globalThis.document, act: globalThis.IS_REACT_ACT_ENVIRONMENT };
+  globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  // ⚠ LOADED AFTER THE WINDOW EXISTS: react-dom decides at load whether the page has input events.
+  const React = (await import('react')).default;
+  const ReactDOMClient = await import('react-dom/client');
+  const calls = { signUp: [], resend: [] };
+  dom.window.ShapeAgeDerive = { isMinorFromDob: (d) => (d ? false : null) };
+  dom.window.shapeDb = { client: { auth: {
+    signUp: async (a) => { calls.signUp.push(a); return signUpAnswer; },
+    resend: async (a) => { calls.resend.push(a); return { error: null }; },
+  } } };
+  const code = babel.transformSync(read('public/newdesign/signup.jsx'), { presets: [presetReact], babelrc: false, configFile: false, sourceType: 'script' }).code;
+  let root = null;
+  const ReactDOM = { createRoot: (el) => (root = ReactDOMClient.createRoot(el)) };
+  await React.act(async () => {
+    new Function('React', 'ReactDOM', 'window', 'document', 'Logo', 'serif', 'sans', 'INK', 'PAPER', 'TEAL', code)(React, ReactDOM, dom.window, dom.window.document, () => null, 'serif', 'sans', '#fff', '#000', '#0ac5a8');
+  });
+  const doc = dom.window.document;
+  const text = () => doc.body.textContent;
+  const button = (label) => [...doc.querySelectorAll('button')].find((b) => b.textContent.trim() === label);
+  const click = async (el) => React.act(async () => { el.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })); });
+  const setValue = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value').set;
+  const type = async (input, value) => React.act(async () => { setValue.call(input, value); input.dispatchEvent(new dom.window.Event('input', { bubbles: true })); });
+  return {
+    doc, text, button, click, type, calls,
+    async unmount() {
+      try { await React.act(async () => root.unmount()); } finally {
+        dom.window.close();
+        Object.assign(globalThis, { window: before.window, document: before.document, IS_REACT_ACT_ENVIRONMENT: before.act });
+      }
+    },
+  };
+}
+async function fillAndSubmit(p) {
+  await p.click(p.button('Continue'));
+  assert.match(p.text(), /First and last name are required\./, 'Personal says what is wrong before it is left');
+  assert.match(p.text(), /Step 1 of 3/i);
+  const inputs = [...p.doc.querySelectorAll('input')];
+  const [first, last, handle, email, password, dob] = inputs;
+  await p.type(first, 'Sam'); await p.type(last, 'Lee'); await p.type(handle, 'sam.lee');
+  await p.type(email, 'sam@example.com'); await p.type(password, 'short');
+  await p.click(p.button('Continue'));
+  assert.match(p.text(), /Choose a password with at least 8 characters\./, 'a short password, on the step it was typed');
+  await p.type(password, 'long-enough-1'); await p.type(dob, '1990-04-02');
+  await p.click(p.button('Continue'));
+  assert.match(p.text(), /Step 2 of 3/i);
+  await p.click(p.button('Continue'));
+  await p.click(p.button('A trainer'));
+  await p.click([...p.doc.querySelectorAll('label')].find((l) => /Terms of Service/.test(l.textContent)));
+  await p.click(p.button('Create profile'));
+}
+
+test('L6: each step says what is wrong before it is left; an address with an account is told so, not to confirm it', async () => {
+  const existing = await mountSignupPage({ data: { user: { id: 'u-x', identities: [] }, session: null }, error: null });
+  try {
+    await fillAndSubmit(existing);
+    assert.equal(existing.calls.signUp.length, 1);
+    assert.match(existing.text(), /You already have an account\./);
+    assert.doesNotMatch(existing.text(), /Confirm your email/);
+    assert.ok([...existing.doc.querySelectorAll('a')].some((a) => a.getAttribute('href') === '/forgot-password'), 'the way back in');
+  } finally { await existing.unmount(); }
+});
+
+test('L6: a new address is asked to confirm it, and can have the email sent again', async () => {
+  const fresh = await mountSignupPage({ data: { user: { id: 'u-n', identities: [{ id: 'i' }] }, session: null }, error: null });
+  try {
+    await fillAndSubmit(fresh);
+    assert.match(fresh.text(), /Confirm your email\./);
+    await fresh.click(fresh.button('Send it again'));
+    assert.equal(fresh.calls.resend.length, 1);
+    assert.equal(fresh.calls.resend[0].type, 'signup');
+    assert.equal(fresh.calls.resend[0].email, 'sam@example.com');
+    assert.match(fresh.calls.resend[0].options.emailRedirectTo, /\/newdesign\/Login\.html$/);
+    assert.match(fresh.text(), /Sent again\. Check your inbox and your spam folder\./);
+  } finally { await fresh.unmount(); }
+  // The welcome after payment (the review's last L6 clause) already ships: welcomeMember emails it.
+  assert.match(read('src/lib/coach-thread.ts'), /if \(to\) await sendEmail\(\{ to, \.\.\.membershipWelcomeEmail\(\{ firstName: first \}\) \}\);/);
+});
+
+test('L7: below 900px the sign-up page is one column with 16px sides, and paired fields stack below 560px', () => {
+  const src = read('public/newdesign/signup.jsx');
+  const css = src.slice(src.indexOf('const SU_RESPONSIVE_CSS = `'), src.indexOf('`;', src.indexOf('const SU_RESPONSIVE_CSS = `')));
+  assert.match(css, /@media \(max-width: 900px\) \{[\s\S]*\.su-pad \{ padding-left: 16px !important; padding-right: 16px !important; \}[\s\S]*\.su-page \{ grid-template-columns: minmax\(0, 1fr\) !important;/);
+  assert.match(css, /@media \(max-width: 560px\) \{[\s\S]*\.su-2col \{ grid-template-columns: minmax\(0, 1fr\) !important; \}/);
+  assert.match(src, /<style>\{SU_RESPONSIVE_CSS\}<\/style>/);
+  for (const cls of ['su-pad', 'su-main', 'su-page', 'su-aside', 'su-title', 'su-card']) assert.match(src, new RegExp(`className="[^"]*\\b${cls}\\b`), cls);
+  assert.doesNotMatch(src, /<div style=\{\{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1[28] \}\}>/, 'every paired-field grid stacks');
 });
