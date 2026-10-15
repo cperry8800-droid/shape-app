@@ -683,7 +683,7 @@ button.dash-chip:focus-visible { outline:none; box-shadow:inset 0 0 0 2px var(--
 .lb-tier--t5 { color: var(--sh-gold, #d8a23a); border-color: rgba(var(--sh-gold-rgb, 216,162,58), .5); background: rgba(var(--sh-gold-rgb, 216,162,58), .08); }
 
 .lb-board { padding: 6px 18px 8px; }
-.lb-row { display: grid; grid-template-columns: 46px 34px minmax(0, 1.6fr) 96px 92px 92px; gap: 12px; align-items: center; padding: 11px 6px; border-top: 1px solid rgba(var(--sh-ink-rgb, 242,237,228), .06); }
+.lb-row { display: grid; grid-template-columns: 46px 34px minmax(0, 1.6fr) 96px 92px; gap: 12px; align-items: center; padding: 11px 6px; border-top: 1px solid rgba(var(--sh-ink-rgb, 242,237,228), .06); }
 .lb-board--coach .lb-row { grid-template-columns: 46px 34px minmax(0, 1.6fr) 96px 80px 96px 92px; }
 .lb-row--head { border-top: 0; font-family: var(--sh-font-mono, 'JetBrains Mono', 'JetBrains Mono Fallback', monospace); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--sh-ink3, #75706a); padding-top: 12px; }
 .lb-row--head .lb-num, .lb-row--head .lb-rk, .lb-row--head .lb-mv { font-size: 9.5px; color: var(--sh-ink3, #75706a); font-weight: 400; }

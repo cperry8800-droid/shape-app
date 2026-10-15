@@ -8,7 +8,11 @@
 --        following  the same members, narrowed to the people the caller follows
 --        team       members who share an active coach with the caller AND turned on
 --                   "Show me to my coach's team" (client_privacy_prefs.team_board = 'on')
---      Names leave as first name and last initial, never the full name.
+--      Names leave as first name and last initial, never the full name. Other members get name,
+--      photo, points, rank and tier, the fields the privacy policy lists as public ("Shape Score
+--      and tier … may appear on leaderboards"). ⚠ The streak, training days and meal days are
+--      the CALLER'S OWN ONLY (null on everyone else's row): the policy says training and
+--      nutrition data is never made public (Codex, on #2371).
 --   2. shape_coach_board(role, view) — every live listing of a role ranked by Coach Score
 --      ('standing') or by points gained over 30 days ('climb'). Coaches only.
 --   3. coach_score_snapshots + record_coach_score_snapshots() — one nightly reading of every
@@ -412,9 +416,10 @@ begin
     s.rk,
     pr.rk,
     public.shape_rank_points(s.uid),
-    coalesce(st.n, 0)::integer,
-    coalesce(td.n, 0)::integer,
-    coalesce(md.n, 0)::integer,
+    -- ⚠ Training and nutrition: the caller's own row only. Null for everyone else.
+    case when s.uid = v_me then coalesce(st.n, 0)::integer end,
+    case when s.uid = v_me then coalesce(td.n, 0)::integer end,
+    case when s.uid = v_me then coalesce(md.n, 0)::integer end,
     s.n_total,
     s.uid = v_me
   from shown s
@@ -422,11 +427,12 @@ begin
   left join prev_ranked pr on pr.uid = s.uid
   -- The streak the member's own dashboard shows (/api/client/dashboard): days in a row with a
   -- completed workout, counted back from today, or from yesterday when today has none yet.
+  -- Read for the caller's own row only (`s.uid = v_me`), like the two counts below.
   left join lateral (
     with days as (
       select distinct (coalesce(ws.started_at, ws.ended_at, ws.created_at) at time zone 'UTC')::date as d
       from public.workout_sessions ws
-      where ws.client_id = s.uid and ws.status = 'completed'
+      where ws.client_id = s.uid and s.uid = v_me and ws.status = 'completed'
         and (coalesce(ws.started_at, ws.ended_at, ws.created_at) at time zone 'UTC')::date
             between v_today - 400 and v_today
     ),
@@ -441,13 +447,13 @@ begin
   left join lateral (
     select count(distinct (coalesce(ws.started_at, ws.ended_at, ws.created_at) at time zone 'UTC')::date) as n
     from public.workout_sessions ws
-    where ws.client_id = s.uid and ws.status = 'completed'
+    where ws.client_id = s.uid and s.uid = v_me and ws.status = 'completed'
       and coalesce(ws.started_at, ws.ended_at, ws.created_at) >= v_since
   ) td on true
   left join lateral (
     select count(distinct (l.earned_at at time zone 'UTC')::date) as n
     from public.score_ledger l
-    where l.user_id = s.uid and l.category = 'nutrition' and l.source_kind = 'meal_log'
+    where l.user_id = s.uid and s.uid = v_me and l.category = 'nutrition' and l.source_kind = 'meal_log'
       and l.delta > 0 and l.earned_at >= v_since
   ) md on true
   order by s.rk, s.uid;

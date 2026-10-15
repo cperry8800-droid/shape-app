@@ -119,14 +119,18 @@ test('places moved: up is positive, and no week-ago rank is no claim', () => {
   assert.equal(LB.moved(4, 7), 3);
   assert.equal(LB.moved(7, 4), -3);
   assert.equal(LB.moved(4, null), null);
-  const m = LB.memberEntry({ user_id: 'u', display_name: 'A B.', points: '90', rank: '2', prev_rank: '5', rank_points: 2400, streak: 3, training_days: 4, meal_days: 0, is_me: false });
-  assert.deepEqual([m.points, m.rank, m.moved, m.tier, m.streak], [90, 2, 3, 'Form', 3]);
+  const m = LB.memberEntry({ user_id: 'u', display_name: 'A B.', points: '90', rank: '2', prev_rank: '5', rank_points: 2400, streak: 3, training_days: 4, meal_days: 0, is_me: true });
+  assert.deepEqual([m.points, m.rank, m.moved, m.tier, m.streak, m.trainingDays, m.mealDays], [90, 2, 3, 'Form', 3, 4, 0]);
+  // ⚠ training and nutrition stay the member's own (privacy policy; Codex on #2371): on anyone
+  // else's row they are null, even if a database sent them
+  const other = LB.memberEntry({ user_id: 'o', display_name: 'C D.', points: 80, rank: 3, rank_points: 100, streak: 9, training_days: 5, meal_days: 7, is_me: false });
+  assert.deepEqual([other.streak, other.trainingDays, other.mealDays, other.tier], [null, null, null, 'Raw']);
 });
 
 // ── 2. The routes, driven ───────────────────────────────────────────────────────────────────
 // A scripted client: `rpc` answers by function name, `tables` by table name. Every call is
 // recorded so a test can say what the route asked for.
-function fakeClient({ rpc = {}, tables = {}, onUpsert } = {}) {
+function fakeClient({ rpc = {}, tables = {}, onUpsert, onInsert, onUpdate } = {}) {
   const calls = [];
   const client = {
     calls,
@@ -145,6 +149,16 @@ function fakeClient({ rpc = {}, tables = {}, onUpsert } = {}) {
         in: (...a) => { ops.push(['in', ...a]); return b; },
         maybeSingle: () => settle(true),
         upsert: (row, opts) => { calls.push(['upsert', table, row, opts]); return Promise.resolve(onUpsert ? onUpsert(row) : { error: null }); },
+        insert: (row) => { calls.push(['insert', table, row]); return Promise.resolve(onInsert ? onInsert(row) : { error: null }); },
+        update: (patch) => {
+          const where = [];
+          const u = {
+            eq: (...a) => { where.push(['eq', ...a]); return u; },
+            is: (...a) => { where.push(['is', ...a]); return u; },
+            select: () => { calls.push(['update', table, patch, where]); return Promise.resolve(onUpdate ? onUpdate(patch, where) : { data: [], error: null }); },
+          };
+          return u;
+        },
         then: (res, rej) => settle(false).then(res, rej),
       };
       return b;
@@ -277,40 +291,82 @@ test('coach board: coaches only, each failure its own status, and the body trimm
   assert.equal((await anon.GET(req('/api/coach/leaderboard?role=trainer'))).status, 401);
 });
 
-test('the switches route: strict booleans, other keys kept, and the read-back is the answer', async () => {
-  let stored = { other: 'keep', leaderboard: 'on' };
+// A user_goals row the scripted client keeps: reads see it, a conditional update applies only
+// when its updated_at still matches, and `bump` lets a test change it underneath a request.
+function privacyStore(initial) {
+  const st = { row: initial ? { data: initial, updated_at: '2026-10-15T10:00:00.000Z' } : null, writes: 0, bump: null };
   const client = fakeClient({
-    tables: { user_goals: () => ({ data: { data: stored }, error: null }) },
-    onUpsert: (row) => { stored = row.data; return { error: null }; },
+    tables: { user_goals: () => {
+      const r = st.row ? { data: { data: st.row.data, updated_at: st.row.updated_at }, error: null } : { data: null, error: null };
+      if (st.bump) { const f = st.bump; st.bump = null; f(st); } // another write lands after this read
+      return r;
+    } },
+    onInsert: (row) => { if (st.row) return { error: { code: '23505', message: 'duplicate key' } }; st.row = { data: row.data, updated_at: row.updated_at }; st.writes++; return { error: null }; },
+    onUpdate: (patch, where) => {
+      const cond = where.find((w) => w[1] === 'updated_at');
+      const matches = cond[0] === 'is' ? st.row.updated_at === null : st.row.updated_at === cond[2];
+      if (!matches) return { data: [], error: null };
+      st.row = { data: patch.data, updated_at: patch.updated_at + '#' + (++st.writes) };
+      return { data: [{ user_id: UID }], error: null };
+    },
   });
+  return { st, client };
+}
+
+test('the switches route: strict booleans, other keys kept, and the read-back is the answer', async () => {
+  const { st, client } = privacyStore({ other: 'keep', leaderboard: 'on' });
   const route = await loadRoute('src/app/api/me/leaderboard-privacy/route.ts', client);
   assert.deepEqual(await (await route.GET(req('/api/me/leaderboard-privacy'))).json(), { leaderboard: true, teamBoard: null });
 
-  const put = (body) => route.PUT(req('/api/me/leaderboard-privacy', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }));
-  let res = await put({ teamBoard: true, leaderboard: false });
+  const put = (r, body) => r.PUT(req('/api/me/leaderboard-privacy', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }));
+  let res = await put(route, { teamBoard: true, leaderboard: false });
   assert.equal(res.status, 200);
   assert.deepEqual(await res.json(), { leaderboard: false, teamBoard: true });
-  assert.deepEqual(stored, { other: 'keep', leaderboard: 'off', team_board: 'on' });
-  const up = client.calls.find((c) => c[0] === 'upsert');
-  assert.equal(up[2].kind, 'client_privacy_prefs');
-  assert.equal(up[2].user_id, UID);
-  assert.deepEqual(up[3], { onConflict: 'user_id,kind' });
+  assert.deepEqual(st.row.data, { other: 'keep', leaderboard: 'off', team_board: 'on' });
+  assert.ok(!client.calls.some((c) => c[0] === 'upsert'), 'a whole-document upsert is back');
+  const up = client.calls.find((c) => c[0] === 'update');
+  assert.deepEqual(up[3].slice(0, 2), [['eq', 'user_id', UID], ['eq', 'kind', 'client_privacy_prefs']]);
+  assert.deepEqual(up[3][2], ['eq', 'updated_at', '2026-10-15T10:00:00.000Z'], 'the write is not conditioned on the version it read');
 
   for (const bad of [{ leaderboard: 'off' }, { teamBoard: 1 }, {}, { unrelated: true }]) {
-    assert.equal((await put(bad)).status, 400, 'accepted ' + JSON.stringify(bad));
+    assert.equal((await put(route, bad)).status, 400, 'accepted ' + JSON.stringify(bad));
   }
 
-  // a write that did not take is a 409 carrying what IS stored
-  const stuck = fakeClient({ tables: { user_goals: { data: { data: { leaderboard: 'on' } }, error: null } } });
-  res = await (await loadRoute('src/app/api/me/leaderboard-privacy/route.ts', stuck)).PUT(req('/x', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ leaderboard: false }) }));
-  assert.equal(res.status, 409);
-  assert.equal((await res.json()).leaderboard, true);
+  // a first save creates the document
+  const fresh = privacyStore(null);
+  res = await put(await loadRoute('src/app/api/me/leaderboard-privacy/route.ts', fresh.client), { leaderboard: false });
+  assert.equal(res.status, 200);
+  assert.deepEqual(fresh.st.row.data, { leaderboard: 'off' });
 
   // a failed read is not "on"
   const down = fakeClient({ tables: { user_goals: { data: null, error: { message: 'down' } } } });
   assert.equal((await (await loadRoute('src/app/api/me/leaderboard-privacy/route.ts', down)).GET(req('/x'))).status, 503);
+  assert.equal((await put(await loadRoute('src/app/api/me/leaderboard-privacy/route.ts', down), { leaderboard: false })).status, 503);
   const anon = await loadRoute('src/app/api/me/leaderboard-privacy/route.ts', fakeClient(), null);
   assert.equal((await anon.GET(req('/x'))).status, 401);
+});
+
+test('the switches route: two saves at once both land (Codex, on #2371)', async () => {
+  // Turning the team board on while another request turns the board off: the other write lands
+  // between this request's read and its write. Before the fix, the whole-document upsert wrote
+  // the stale `leaderboard: 'on'` back.
+  const { st, client } = privacyStore({ leaderboard: 'on' });
+  st.bump = (s2) => { s2.row = { data: { leaderboard: 'off' }, updated_at: '2026-10-15T10:00:01.000Z' }; };
+  const route = await loadRoute('src/app/api/me/leaderboard-privacy/route.ts', client);
+  const res = await route.PUT(req('/x', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ teamBoard: true }) }));
+  assert.equal(res.status, 200);
+  assert.deepEqual(st.row.data, { leaderboard: 'off', team_board: 'on' }, 'the other request\'s change was overwritten');
+  assert.equal(client.calls.filter((c) => c[0] === 'update').length, 2, 'the stale write was not refused and retried');
+
+  // a document that keeps changing is reported, not overwritten
+  const busy = privacyStore({ leaderboard: 'on' });
+  let n = 0;
+  const keepBumping = (s2) => { s2.row = { data: { leaderboard: 'on' }, updated_at: 'v' + (++n) }; s2.bump = keepBumping; };
+  busy.st.bump = keepBumping;
+  const r2 = await (await loadRoute('src/app/api/me/leaderboard-privacy/route.ts', busy.client)).PUT(req('/x', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ leaderboard: false }) }));
+  assert.equal(r2.status, 409);
+  assert.equal((await r2.json()).code, 'busy');
+  assert.deepEqual(busy.st.row.data, { leaderboard: 'on' });
 });
 
 test('the nightly reading: the cron secret, the writer, and a database without it', async () => {
@@ -381,6 +437,10 @@ test('the member board applies the privacy rules the switches promise', () => {
   // points: store spending and tier bonuses never count, now or a week ago
   assert.equal((body.match(/not in \('store_redeem', 'tier_bonus'\)/g) || []).length, 3);
   assert.match(body, /having sum\(l\.delta\) > 0/);
+  // ⚠ training and nutrition are the caller's own (privacy policy; Codex on #2371)
+  for (const col of ['st', 'td', 'md']) {
+    assert.match(body, new RegExp('case when s\\.uid = v_me then coalesce\\(' + col + '\\.n, 0\\)::integer end'), col + ' leaves for other members');
+  }
   // nothing here returns a subscription or a coach
   const out = /returns table \(([\s\S]*?)\)\s*language/.exec(body)[1];
   assert.ok(!/provider|coach|subscription|full_name|email/.test(out), 'the board returns ' + out);

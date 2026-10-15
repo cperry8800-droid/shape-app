@@ -284,7 +284,7 @@
   "board.coachSub": "{clients, plural, one {# client} other {# clients}} · {kept} % honorées",
   "board.streak": "{n, plural, one {Série de # jour} other {Série de # jours}}",
   "board.askTitle": "Apparaître auprès de l’équipe de votre coach ?",
-  "board.askBody": "Les membres qui ont le même coach que vous verraient votre prénom, l’initiale de votre nom, vos points et votre série : ils sauraient donc que vous vous entraînez avec le même coach. Votre coach n’est jamais nommé. Vous pouvez changer cela à tout moment.",
+  "board.askBody": "Les membres qui ont le même coach que vous verraient votre prénom, l’initiale de votre nom, vos points et votre palier : ils sauraient donc que vous vous entraînez avec le même coach. Votre coach n’est jamais nommé. Vous pouvez changer cela à tout moment.",
   "board.askYes": "M’afficher",
   "board.askNo": "Pas maintenant",
   "board.noCoach": "Le classement d’équipe est réservé aux membres qui ont un coach. Une fois que vous en aurez un, vous verrez ici ses autres membres, s’ils ont choisi d’apparaître.",

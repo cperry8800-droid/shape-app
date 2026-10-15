@@ -284,7 +284,7 @@
   "board.coachSub": "{clients, plural, one {# danışan} other {# danışan}} · {kept}% yapıldı",
   "board.streak": "{n} günlük seri",
   "board.askTitle": "Kendini koçunun ekibine göstermek ister misin?",
-  "board.askBody": "Seninle aynı koçla çalışan üyeler adını, soyadının baş harfini, puanlarını ve serini görür; böylece aynı koçla çalıştığınızı bilirler. Koçunun adı asla geçmez. Bunu istediğin zaman değiştirebilirsin.",
+  "board.askBody": "Seninle aynı koçla çalışan üyeler adını, soyadının baş harfini, puanlarını ve seviyeni görür; böylece aynı koçla çalıştığınızı bilirler. Koçunun adı asla geçmez. Bunu istediğin zaman değiştirebilirsin.",
   "board.askYes": "Beni göster",
   "board.askNo": "Şimdi değil",
   "board.noCoach": "Ekip tablosu, koçu olan üyeler içindir. Bir koç tuttuğunda, kendilerini göstermeyi seçtilerse onun diğer üyelerini burada görürsün.",

@@ -35,9 +35,10 @@ export type MemberEntry = {
   prevRank: number | null;
   moved: number | null;
   tier: string | null;
-  streak: number;
-  trainingDays: number;
-  mealDays: number;
+  /** The caller's own row only; null on everyone else's. */
+  streak: number | null;
+  trainingDays: number | null;
+  mealDays: number | null;
   isMe: boolean;
 };
 export type CoachEntry = {

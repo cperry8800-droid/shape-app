@@ -284,7 +284,7 @@
   "board.coachSub": "{clients, plural, one {# Klient} other {# Klienten}} · {kept}% gehalten",
   "board.streak": "{n}-Tage-Serie",
   "board.askTitle": "Dich dem Team deines Coaches zeigen?",
-  "board.askBody": "Mitglieder mit demselben Coach würden deinen Vornamen, den Anfangsbuchstaben deines Nachnamens, deine Punkte und deine Serie sehen — und so wissen, dass du mit demselben Coach trainierst. Dein Coach wird nie genannt. Du kannst das jederzeit ändern.",
+  "board.askBody": "Mitglieder mit demselben Coach würden deinen Vornamen, den Anfangsbuchstaben deines Nachnamens, deine Punkte und deine Stufe sehen — und so wissen, dass du mit demselben Coach trainierst. Dein Coach wird nie genannt. Du kannst das jederzeit ändern.",
   "board.askYes": "Zeig mich",
   "board.askNo": "Nicht jetzt",
   "board.noCoach": "Die Team-Bestenliste ist für Mitglieder mit Coach. Sobald du einen buchst, siehst du hier seine anderen Mitglieder, sofern sie sich zeigen möchten.",

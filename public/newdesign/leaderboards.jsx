@@ -204,6 +204,7 @@ function MemberLeaderboard() {
   const foot = (
     <div className="lb-foot">
       <span><b>First name and last initial only.</b> Members with a private profile never appear.</span>
+      <span><b>Other members see points and tier.</b> Your streak, workouts and meals stay yours.</span>
       <span>Points from workouts, meals, habits and check-ins; store spending and tier bonuses don’t count.</span>
       <span><b>{"▲▼"}</b> places moved since a week ago.</span>
     </div>
@@ -228,7 +229,7 @@ function MemberLeaderboard() {
   const ask = scope === "team" && d.hasCoach !== false && d.hidden === "team_unasked" ? (
     <div className="lb-card lb-ask">
       <h3>Show yourself to your coach’s team?</h3>
-      <p>Members who share your coach would see your first name, last initial, points and streak, so they’d know you train with the same coach. Nobody else sees this board, and it never names your coach. You can change this any time.</p>
+      <p>Members who share your coach would see your first name, last initial, points and tier, so they’d know you train with the same coach. Nobody else sees this board, and it never names your coach. You can change this any time.</p>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button type="button" className="lb-btn lb-btn--on" disabled={saving} onClick={() => save({ teamBoard: true })}>Show me</button>
         <button type="button" className="lb-btn" disabled={saving} onClick={() => save({ teamBoard: false })}>Not now</button>
@@ -253,7 +254,7 @@ function MemberLeaderboard() {
           {podium.map((e, i) => (
             <div key={e.userId} className={"lb-card lb-pod lb-p" + (i + 1)}>
               <div className="lb-place">{["1ST", "2ND", "3RD"][i]}</div>
-              <div className="lb-who"><LbAvatar name={e.name} url={e.avatarUrl} me={e.isMe} /><div><div className="lb-name">{nameOf(e)}</div><div className="lb-where">{e.streak ? e.streak + "-day streak" : "No streak running"}</div></div></div>
+              <div className="lb-who"><LbAvatar name={e.name} url={e.avatarUrl} me={e.isMe} /><div><div className="lb-name">{nameOf(e)}</div><div className="lb-where">{lbPodiumLine(e)}</div></div></div>
               <div className="lb-score">{lbNum(e.points)}<small>points</small></div>
               <div className="lb-facts"><LbTier name={e.tier} ladder={LB_MEMBER_TIERS} /></div>
             </div>
@@ -261,7 +262,7 @@ function MemberLeaderboard() {
         </div>
         {rest.length ? (
           <div className="lb-card lb-board" role="table" aria-label="Leaderboard">
-            <div className="lb-row lb-row--head" role="row"><span className="lb-rk">Rank</span><span className="lb-mv">Wk</span><span>Member</span><span className="lb-c-tier">Tier</span><span className="lb-num lb-x1">Streak</span><span className="lb-num">Points</span></div>
+            <div className="lb-row lb-row--head" role="row"><span className="lb-rk">Rank</span><span className="lb-mv">Wk</span><span>Member</span><span className="lb-c-tier">Tier</span><span className="lb-num">Points</span></div>
             {rest.map((e, i) => e === null
               ? <div key={"gap" + i} className="lb-row lb-row--gap" aria-hidden="true">{"· · ·"}</div>
               : (
@@ -270,7 +271,6 @@ function MemberLeaderboard() {
                   <LbMove moved={e.moved} />
                   <span className="lb-who"><LbAvatar name={e.name} url={e.avatarUrl} me={e.isMe} /><div><div className="lb-nm">{nameOf(e)}</div><div className="lb-ds">{lbActivity(e)}</div></div></span>
                   <span className="lb-c-tier"><LbTier name={e.tier} ladder={LB_MEMBER_TIERS} /></span>
-                  <span className="lb-num lb-x1">{e.streak ? e.streak + "d" : "—"}</span>
                   <span className="lb-num lb-num--main">{lbNum(e.points)}</span>
                 </div>
               ))}
@@ -298,6 +298,13 @@ function MemberLeaderboard() {
       {foot}
     </div>
   );
+}
+// Training and nutrition are the member's own: the route sends a streak and activity counts on
+// your row only (null on everyone else's, as the privacy policy requires), so other people's lines
+// name their tier and nothing about how they train or eat.
+function lbPodiumLine(e) {
+  if (e.isMe && e.streak !== null && e.streak !== undefined) return e.streak ? e.streak + "-day streak" : "No streak running";
+  return e.tier ? e.tier + " tier" : "";
 }
 function lbActivity(e) {
   if (e.trainingDays === null || e.trainingDays === undefined) return "";
@@ -497,4 +504,4 @@ function useLeaderboardPrivacy() {
   return [state, save];
 }
 
-Object.assign(window, { MemberLeaderboard, CoachLeaderboard, CoachScoreActions, coachStandingLine, useCoachStanding, useLeaderboardPrivacy, lbRead, lbMemberShaped, lbCoachShaped, lbStateNote, lbAbove, lbWithGaps, lbActivity });
+Object.assign(window, { MemberLeaderboard, CoachLeaderboard, CoachScoreActions, coachStandingLine, useCoachStanding, useLeaderboardPrivacy, lbRead, lbMemberShaped, lbCoachShaped, lbStateNote, lbAbove, lbWithGaps, lbActivity, lbPodiumLine });

@@ -284,7 +284,7 @@
   "board.coachSub": "{clients, plural, one {abokin ciniki #} other {abokan ciniki #}} · {kept}% an yi",
   "board.streak": "Jerin kwana {n}",
   "board.askTitle": "Ka nuna kanka ga ƙungiyar kocinka?",
-  "board.askBody": "Mambobin da kuke da koci ɗaya za su ga sunanka na farko, harafin farko na sunan mahaifinka, makinka da jerinka, don haka za su san kuna horo da koci ɗaya. Ba a taɓa ambaton sunan kocinka ba. Kana iya canza wannan kowane lokaci.",
+  "board.askBody": "Mambobin da kuke da koci ɗaya za su ga sunanka na farko, harafin farko na sunan mahaifinka, makinka da matakinka, don haka za su san kuna horo da koci ɗaya. Ba a taɓa ambaton sunan kocinka ba. Kana iya canza wannan kowane lokaci.",
   "board.askYes": "Nuna ni",
   "board.askNo": "Ba yanzu ba",
   "board.noCoach": "Jerin ƙungiya na mambobin da ke da koci ne. Da zarar ka ɗauki ɗaya, za ka ga sauran mambobinsa a nan, idan sun zaɓi su nuna kansu.",

@@ -284,7 +284,7 @@
   "board.coachSub": "{clients, plural, other {# khách}} · giữ {kept}%",
   "board.streak": "Chuỗi {n} ngày",
   "board.askTitle": "Hiển thị bạn với đội của HLV?",
-  "board.askBody": "Các thành viên có cùng HLV với bạn sẽ thấy tên, chữ cái đầu trong họ, điểm và chuỗi của bạn, nên sẽ biết bạn tập cùng một HLV. HLV của bạn không bao giờ bị nêu tên. Bạn có thể thay đổi điều này bất cứ lúc nào.",
+  "board.askBody": "Các thành viên có cùng HLV với bạn sẽ thấy tên, chữ cái đầu trong họ, điểm và bậc của bạn, nên sẽ biết bạn tập cùng một HLV. HLV của bạn không bao giờ bị nêu tên. Bạn có thể thay đổi điều này bất cứ lúc nào.",
   "board.askYes": "Hiển thị tôi",
   "board.askNo": "Để sau",
   "board.noCoach": "Bảng của đội dành cho thành viên có HLV. Khi bạn thuê một HLV, bạn sẽ thấy các thành viên khác của HLV đó ở đây, nếu họ đã chọn hiển thị.",

@@ -47,7 +47,12 @@ const click = (el) => act(async () => { el.dispatchEvent(new window.MouseEvent('
 const byText = (host, sel, re) => [...host.querySelectorAll(sel)].find((b) => re.test(b.textContent));
 
 // ── fixtures (invented people) ──────────────────────────────────────────────────────────────
-const member = (rank, name, points, extra = {}) => ({ userId: 'u' + rank, name, avatarUrl: null, points, rank, prevRank: null, moved: null, tier: 'Form', streak: 3, trainingDays: 2, mealDays: 4, isMe: false, ...extra });
+// As the route sends them: training and nutrition only on your own row (null on everyone else's).
+const member = (rank, name, points, extra = {}) => ({
+  userId: 'u' + rank, name, avatarUrl: null, points, rank, prevRank: null, moved: null, tier: 'Form', isMe: false,
+  ...(extra.isMe ? { streak: 3, trainingDays: 2, mealDays: 4 } : { streak: null, trainingDays: null, mealDays: null }),
+  ...extra,
+});
 function memberBoard({ scope = 'everyone', me = true, hidden = null, extra = {} } = {}) {
   const entries = [member(1, 'Priya S.', 412), member(2, 'Marcus T.', 388), member(3, 'Aisha K.', 371), member(4, 'Devon R.', 340)];
   if (me) entries.push(member(9, 'Sam Q.', 260, { isMe: true, moved: 3 }));
@@ -91,6 +96,9 @@ test('app: the member board draws your place, the podium and the rows, with the 
   assert.match(text, /· · ·/, 'no gap between #4 and #9');
   assert.match(text, /Show me on leaderboards/);
   assert.ok(!/Sam Q\./.test(text), 'your own row shows your name instead of You');
+  // other members' lines carry their tier and nothing about training; yours carries your streak
+  assert.match(text, /Form · 3-day streak/);
+  assert.equal((text.match(/day streak/g) || []).length, 1, 'another member\'s streak is on the board');
   await v.unmount();
 });
 
@@ -101,6 +109,8 @@ test('app: the team board asks first, and the answer is the change it writes', a
   await flush();
   assert.deepEqual(calls.member.at(-1), ['team', 'week']);
   assert.match(v.text(), /Show yourself to your coach’s team\?/);
+  assert.match(v.text(), /points and tier/);
+  assert.ok(!/streak, so they/.test(v.text()), 'the question promises teammates your streak');
   await click(byText(v.host, 'button', /^Show me$/));
   await flush();
   assert.deepEqual(calls.setPrivacy, [{ teamBoard: true }]);
@@ -188,6 +198,12 @@ test('website: the member board, its switches, and the gap line', async () => {
   assert.match(v.text(), /80 points to pass Devon R\./);
   assert.match(v.text(), /of 1,284 · last 7 days/);
   assert.ok(v.host.querySelector('.lb-row--gap'), 'no gap row between #4 and #9');
+  // no streak column, other members' lines name their tier, and only your row says how you train
+  assert.ok(![...v.host.querySelectorAll('.lb-row--head span')].some((x) => /streak/i.test(x.textContent)), 'a Streak column is back');
+  assert.deepEqual([...v.host.querySelectorAll('.lb-pod .lb-where')].map((x) => x.textContent), ['Form tier', 'Form tier', 'Form tier']);
+  const ds = [...v.host.querySelectorAll('.lb-row:not(.lb-row--head) .lb-ds')].map((x) => x.textContent);
+  assert.deepEqual(ds.filter(Boolean), ['Trained 2 days · logged meals 4 days'], 'another member\'s activity is on the board');
+  assert.match(v.text(), /Other members see points and tier\./);
   const sw = byText(v.host, 'button[role="switch"]', /Show me on leaderboards/);
   assert.equal(sw.getAttribute('aria-checked'), 'true');
   await click(sw);

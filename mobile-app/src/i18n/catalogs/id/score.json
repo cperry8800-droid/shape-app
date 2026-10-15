@@ -284,7 +284,7 @@
   "board.coachSub": "{clients, plural, other {# klien}} · {kept}% terlaksana",
   "board.streak": "Rentetan {n} hari",
   "board.askTitle": "Tampilkan dirimu ke tim coach-mu?",
-  "board.askBody": "Anggota yang punya coach yang sama denganmu akan melihat nama depan, inisial nama belakang, poin, dan rentetanmu, jadi mereka tahu kamu berlatih dengan coach yang sama. Coach-mu tidak pernah disebutkan. Kamu bisa mengubahnya kapan saja.",
+  "board.askBody": "Anggota yang punya coach yang sama denganmu akan melihat nama depan, inisial nama belakang, poin, dan tingkatmu, jadi mereka tahu kamu berlatih dengan coach yang sama. Coach-mu tidak pernah disebutkan. Kamu bisa mengubahnya kapan saja.",
   "board.askYes": "Tampilkan",
   "board.askNo": "Nanti saja",
   "board.noCoach": "Papan tim khusus untuk anggota yang punya coach. Setelah kamu memilih coach, kamu akan melihat anggota lainnya di sini, jika mereka memilih untuk tampil.",

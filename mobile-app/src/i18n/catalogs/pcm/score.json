@@ -284,7 +284,7 @@
   "board.coachSub": "{clients, plural, one {# client} other {# clients}} · {kept}% hold",
   "board.streak": "{n}-day streak",
   "board.askTitle": "Make your coach team see you?",
-  "board.askBody": "Members wey get di same coach with you go see your first name, di first letter of your surname, your points and your streak, so dem go sabi say una dey train with di same coach. E no dey ever call your coach name. You fit change am anytime.",
+  "board.askBody": "Members wey get di same coach with you go see your first name, di first letter of your surname, your points and your tier, so dem go sabi say una dey train with di same coach. E no dey ever call your coach name. You fit change am anytime.",
   "board.askYes": "Show me",
   "board.askNo": "No be now",
   "board.noCoach": "Di team board na for members wey get coach. Once you hire one, you go see di coach other members here, if dem don choose to show demself.",

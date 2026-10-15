@@ -284,7 +284,7 @@
   "board.coachSub": "{clients, plural, one {# cliente} other {# clientes}} · {kept}% cumpridas",
   "board.streak": "{n, plural, one {Sequência de # dia} other {Sequência de # dias}}",
   "board.askTitle": "Aparecer para a equipe do seu coach?",
-  "board.askBody": "Os membros que têm o mesmo coach que você veriam seu primeiro nome, a inicial do sobrenome, seus pontos e sua sequência, e saberiam que você treina com o mesmo coach. Seu coach nunca é citado. Você pode mudar isso quando quiser.",
+  "board.askBody": "Os membros que têm o mesmo coach que você veriam seu primeiro nome, a inicial do sobrenome, seus pontos e seu nível, e saberiam que você treina com o mesmo coach. Seu coach nunca é citado. Você pode mudar isso quando quiser.",
   "board.askYes": "Aparecer",
   "board.askNo": "Agora não",
   "board.noCoach": "O ranking da equipe é para membros com coach. Quando você contratar um, vai ver os outros membros dele aqui, se eles tiverem escolhido aparecer.",

@@ -106,9 +106,16 @@ export function moved(rank, prevRank) {
   return r === null || p === null ? null : p - r;
 }
 
-/** One shape_member_board row as the routes publish it. */
+/**
+ * One shape_member_board row as the routes publish it.
+ * ⚠ streak, trainingDays and mealDays are training and nutrition data, which the privacy policy
+ * keeps off every public surface: they are published for the caller's own row only, and null on
+ * everyone else's, whatever the database sent (it sends null there too; this is the second lock).
+ */
 export function memberEntry(row) {
   const rank = num(row.rank), prevRank = num(row.prev_rank);
+  const mine = row.is_me === true;
+  const own = (v) => (mine ? Number(v) || 0 : null);
   return {
     userId: row.user_id,
     name: row.display_name || 'Shape member',
@@ -118,10 +125,10 @@ export function memberEntry(row) {
     prevRank,
     moved: moved(rank, prevRank),
     tier: memberTier(row.rank_points),
-    streak: Number(row.streak) || 0,
-    trainingDays: Number(row.training_days) || 0,
-    mealDays: Number(row.meal_days) || 0,
-    isMe: row.is_me === true,
+    streak: own(row.streak),
+    trainingDays: own(row.training_days),
+    mealDays: own(row.meal_days),
+    isMe: mine,
   };
 }
 

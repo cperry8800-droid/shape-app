@@ -31,15 +31,25 @@ const privateJson = (body: unknown, init?: { status?: number }) =>
 
 const KIND = 'client_privacy_prefs';
 
+// The document, whether it exists, and the updated_at it was read at (the version a write is
+// conditioned on).
 async function readDoc(supabase: SupabaseClient, uid: string) {
   const { data, error } = await supabase
     .from('user_goals')
-    .select('data')
+    .select('data, updated_at')
     .eq('user_id', uid)
     .eq('kind', KIND)
     .maybeSingle();
-  return { doc: ((data as { data?: Record<string, unknown> } | null)?.data ?? {}) as Record<string, unknown>, error };
+  const row = data as { data?: Record<string, unknown> | null; updated_at?: string | null } | null;
+  return {
+    doc: (row?.data ?? {}) as Record<string, unknown>,
+    exists: !!row,
+    version: row?.updated_at ?? null,
+    error,
+  };
 }
+
+const ATTEMPTS = 3;
 
 export async function GET(request: Request) {
   const user = await currentUser(request);
@@ -73,13 +83,32 @@ export async function PUT(request: Request) {
   }
 
   const supabase = await clientForRequest(request);
-  const before = await readDoc(supabase, user.id);
-  if (before.error) return privateJson({ error: 'Could not read your settings.', code: 'unavailable' }, { status: 503 });
 
-  const { error: writeErr } = await supabase
-    .from('user_goals')
-    .upsert({ user_id: user.id, kind: KIND, data: writePrivacy(before.doc, change), updated_at: new Date().toISOString() }, { onConflict: 'user_id,kind' });
-  if (writeErr) return privateJson({ error: 'Could not save that.', code: 'write_failed' }, { status: 503 });
+  // ⚠ ONLY THE KEYS THIS REQUEST CHANGES, ON THE DOCUMENT AS IT IS NOW (Codex, on #2371). A
+  // whole-document upsert from a read let two quick changes (both switches, or two devices) each
+  // write back the other's old value: turning the team board on could quietly turn "Show me on
+  // leaderboards" back on. So a write is conditioned on the version it read (updated_at), and a
+  // write that finds the document changed reads it again and re-applies just this change.
+  let written = false;
+  for (let attempt = 0; attempt < ATTEMPTS && !written; attempt++) {
+    const before = await readDoc(supabase, user.id);
+    if (before.error) return privateJson({ error: 'Could not read your settings.', code: 'unavailable' }, { status: 503 });
+    const next = writePrivacy(before.doc, change);
+    const stamp = new Date().toISOString();
+    if (!before.exists) {
+      const { error } = await supabase.from('user_goals').insert({ user_id: user.id, kind: KIND, data: next, updated_at: stamp });
+      if (!error) { written = true; break; }
+      if ((error as { code?: string }).code === '23505') continue; // created in between: read it and go again
+      return privateJson({ error: 'Could not save that.', code: 'write_failed' }, { status: 503 });
+    }
+    let update = supabase.from('user_goals').update({ data: next, updated_at: stamp })
+      .eq('user_id', user.id).eq('kind', KIND);
+    update = before.version === null ? update.is('updated_at', null) : update.eq('updated_at', before.version);
+    const { data, error } = await update.select('user_id');
+    if (error) return privateJson({ error: 'Could not save that.', code: 'write_failed' }, { status: 503 });
+    if (Array.isArray(data) && data.length) written = true;
+  }
+  if (!written) return privateJson({ error: 'Your settings changed while saving. Try again.', code: 'busy' }, { status: 409 });
 
   const after = await readDoc(supabase, user.id);
   if (after.error) return privateJson({ error: 'Could not confirm the change.', code: 'unconfirmed' }, { status: 503 });
