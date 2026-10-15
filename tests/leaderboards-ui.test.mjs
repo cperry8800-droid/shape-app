@@ -105,9 +105,12 @@ test('app: the member board draws your place, the podium and the rows, with the 
 test('app: the team board asks first, and the answer is the change it writes', async () => {
   const calls = fakeService({ member: (scope) => ({ kind: 'ready', data: memberBoard({ scope, hidden: scope === 'team' ? 'team_unasked' : null, extra: scope === 'team' ? { hasCoach: true } : {} }) }) });
   const v = await mount(inChrome(React.createElement(BSLeaderboard, { onBack: () => {} })));
+  assert.match(v.text(), /Private profiles never appear/);
   await click(byText(v.host, 'button[role="tab"]', /^My team$/));
   await flush();
   assert.deepEqual(calls.member.at(-1), ['team', 'week']);
+  // an opted-in private profile does appear on the team board, so the footer does not say otherwise (Fable, #2371)
+  assert.ok(!/Private profiles never appear/.test(v.text()), 'the team board says private profiles never appear');
   assert.match(v.text(), /Show yourself to your coach’s team\?/);
   assert.match(v.text(), /points and tier/);
   assert.ok(!/streak, so they/.test(v.text()), 'the question promises teammates your streak');
@@ -150,6 +153,7 @@ test('app: the coach board, standing and climbers', async () => {
   assert.match(v.text(), /101 pts to pass Dana Ortiz/);
   assert.match(v.text(), /30 clients · 91% kept/);
   assert.match(v.text(), /Your listing isn’t live yet/);
+  assert.ok(!/nightly/i.test(v.text()), 'the standing score is live, not nightly (Fable, #2371)');
   await click(byText(v.host, 'button[role="tab"]', /^Climbers$/));
   await flush();
   assert.deepEqual(calls.coach.at(-1), ['nutritionist', 'climb']);
@@ -346,6 +350,28 @@ test('website: the coach board, refused for members, and climbers before history
   await flush();
   assert.match(x.text(), /needs a reading to compare against/);
   await x.unmount();
+});
+
+test('website: the team footer, the nightly claim, and the bar behind someone at zero (Fable, #2371)', async () => {
+  routes = { '/api/leaderboard': (u) => ({ status: 200, body: memberBoard({ scope: /scope=team/.test(u) ? 'team' : 'everyone', extra: /scope=team/.test(u) ? { hasCoach: true } : {} }) }) };
+  const v = await mount(React.createElement(MemberLeaderboard));
+  assert.match(v.text(), /Members with a private profile never appear/);
+  await click(byText(v.host, 'button[role="tab"]', /coach’s team/));
+  await flush();
+  assert.ok(!/never appear/.test(v.text()), 'the team board says private profiles never appear');
+  assert.match(v.text(), /a private profile shows initials, not a photo/);
+  await v.unmount();
+
+  // Climbers: everyone above gained nothing and you lost 20. The bar sits at its floor, not full.
+  const behind = () => { const d = coachBoard({ since: '2026-09-15' }); for (const e of d.entries) e.gained = e.isMe ? -20 : 0; d.me.gained = -20; return d; };
+  routes = { '/api/coach/leaderboard': (u) => ({ status: 200, body: /view=climb/.test(u) ? behind() : coachBoard() }) };
+  const w = await mount(React.createElement(CoachLeaderboard, { role: 'trainer' }));
+  assert.ok(!/nightly/i.test(w.text()), 'the standing score is live, not nightly');
+  await click(byText(w.host, 'button[role="tab"]', /Climbers/));
+  await flush();
+  assert.match(w.text(), /21 points of climb to pass/);
+  assert.equal(w.host.querySelector('.lb-you .lb-bar i').style.width, '6%', 'the bar reads full while you are behind');
+  await w.unmount();
 });
 
 test('website: the subtitle names a rank only when the board gave one', () => {

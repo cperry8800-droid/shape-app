@@ -27,6 +27,7 @@ export function hiddenReason(scope: Scope, privacy: Privacy | null, visibility: 
 export function moved(rank: unknown, prevRank: unknown): number | null;
 
 export type MemberEntry = {
+  /** The caller's own id on their row; on anyone else's, a key for this answer only. */
   userId: string;
   name: string;
   avatarUrl: string | null;
@@ -57,6 +58,6 @@ export type CoachEntry = {
   isMe: boolean;
   listed: boolean;
 };
-export function memberEntry(row: Record<string, unknown>): MemberEntry;
+export function memberEntry(row: Record<string, unknown>, index?: number): MemberEntry;
 export function coachEntry(row: Record<string, unknown>): CoachEntry;
 export function trimCoachBoard(entries: CoachEntry[], limit?: number): { entries: CoachEntry[]; total: number; me: CoachEntry | null };

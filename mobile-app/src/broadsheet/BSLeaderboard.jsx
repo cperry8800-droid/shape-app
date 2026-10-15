@@ -187,10 +187,11 @@ export function BSLeaderboard({ onBack, mode = 'member', role: initialRole = 'tr
     <div style={{ ...pad, margin: '14px 0 6px', display: 'grid', gap: 4, ...mono(8.5, t.INK50), letterSpacing: '0.06em', lineHeight: 1.5 }}>
       {coach
         ? <span>{role === 'trainer'
-            ? tr('score:board.coachFootTrainer', { defaultValue: 'Coach Score: active clients, sessions kept over 90 days and programs published. Updated nightly.' })
-            : tr('score:board.coachFootNutritionist', { defaultValue: 'Coach Score: active clients and sessions kept over 90 days. Updated nightly.' })}</span>
+            ? tr('score:board.coachFootTrainer', { defaultValue: 'Coach Score: active clients, sessions kept over 90 days and programs published.' })
+            : tr('score:board.coachFootNutritionist', { defaultValue: 'Coach Score: active clients and sessions kept over 90 days.' })}</span>
         : <React.Fragment>
-            <span>{tr('score:board.footNames', { defaultValue: 'First name and last initial only. Private profiles never appear.' })}</span>
+            {/* Not on the team board, where a private profile that opted in does appear (Fable, #2371). */}
+            {scope === 'team' ? null : <span>{tr('score:board.footNames', { defaultValue: 'First name and last initial only. Private profiles never appear.' })}</span>}
             <span>{tr('score:board.footPoints', { defaultValue: 'Store spending and tier bonuses don’t count.' })}</span>
           </React.Fragment>}
     </div>
@@ -276,7 +277,8 @@ export function BSLeaderboard({ onBack, mode = 'member', role: initialRole = 'tr
       const above = bsBoardAbove(entries, me, value);
       // One more than the difference: matching their score only ties them (Codex, #2371).
       const gap = above ? value(above) - value(me) + 1 : 0;
-      const pct = above && value(above) > 0 ? Math.max(6, Math.min(96, Math.round((value(me) / value(above)) * 100))) : 100;
+      // Behind someone who has gained nothing (Climbers can go negative), the bar is at its floor (Fable, #2371).
+      const pct = !above ? 100 : value(above) > 0 ? Math.max(6, Math.min(96, Math.round((value(me) / value(above)) * 100))) : 6;
       const of = tr('score:board.of', { defaultValue: 'of {total, number}', total: d.total });
       const moved = !climb && me.moved ? (me.moved > 0 ? ' · ▲' + me.moved : ' · ▼' + -me.moved) : '';
       blocks.push(

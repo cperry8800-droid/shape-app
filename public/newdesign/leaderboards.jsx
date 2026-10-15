@@ -132,7 +132,8 @@ function LbYou({ me, entries, value, valueLabel, ofText, metaText, leadText, nam
   // ⚠ ONE MORE THAN THE DIFFERENCE: matching their score only ties them (rank() gives a tie one
   // place), so passing them takes one point beyond it (Codex, #2371).
   const gap = above ? value(above) - value(me) + 1 : 0;
-  const pct = above && value(above) > 0 ? Math.max(6, Math.min(96, Math.round((value(me) / value(above)) * 100))) : 100;
+  // Behind someone who has gained nothing (Climbers can go negative), the bar is at its floor, not full (Fable, #2371).
+  const pct = !above ? 100 : value(above) > 0 ? Math.max(6, Math.min(96, Math.round((value(me) / value(above)) * 100))) : 6;
   return (
     <div className="lb-card lb-you">
       <div className="lb-rank">#{lbNum(me.rank)}<small className="lb-of">{ofText}</small></div>
@@ -219,7 +220,9 @@ function MemberLeaderboard() {
   ) : null;
   const foot = (
     <div className="lb-foot">
-      <span><b>First name and last initial only.</b> Members with a private profile never appear.</span>
+      <span><b>First name and last initial only.</b> {scope === "team"
+        ? "Teammates appear only if they switched this board on; a private profile shows initials, not a photo."
+        : "Members with a private profile never appear."}</span>
       <span><b>Other members see points and tier.</b> Your streak, workouts and meals stay yours.</span>
       <span>Points from workouts, meals, habits and check-ins; store spending and tier bonuses don’t count.</span>
       <span><b>{"▲▼"}</b> places moved since a week ago.</span>
@@ -405,7 +408,7 @@ function CoachLeaderboard({ role: initialRole }) {
           value={value} valueLabel={show} nameOf={nameOf}
           ofText={"of " + lbNum(d.total) + " " + noun}
           leadText={(climb ? "the climb among " : "") + noun + " on Shape"}
-          metaText={(climb ? "Points gained since " + sinceText : "Top " + pctTop + "% of " + noun + " on Shape") + " · updated nightly"} />
+          metaText={climb ? "Points gained since " + sinceText : "Top " + pctTop + "% of " + noun + " on Shape"} />
         {!me.listed ? <div className="lb-note"><b>Your listing isn’t live yet,</b> so other coaches don’t see you here. This is where you’d stand.</div> : null}
       </React.Fragment>
     );

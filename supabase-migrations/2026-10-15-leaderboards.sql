@@ -399,12 +399,20 @@ begin
     select p.uid, rank() over (order by p.pts desc) as rk
     from prev_totals p
   ),
+  -- The top of the board, you, and whoever is next above you (the one "to pass" names), even when
+  -- they sit below the top (Fable, #2371: at #60 the line named #50 and skipped #59).
   shown as (
     select r.* from ranked r
-    where r.rk <= v_limit or r.uid = v_me
+    where r.rk <= v_limit
+       or r.uid = v_me
+       or r.rk = (select max(a.rk) from ranked a
+                  where a.rk < (select m.rk from ranked m where m.uid = v_me))
   )
   select
-    s.uid,
+    -- ⚠ Another member's id never leaves (Fable, #2371): get_display_names answers any id with the
+    -- full name and photo, which a private profile on the team board was promised teammates would
+    -- not see. Your own row keeps yours.
+    case when s.uid = v_me then s.uid end,
     case
       when nm.n = '' then 'Shape member'
       when position(' ' in nm.n) = 0 then nm.n

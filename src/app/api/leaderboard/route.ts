@@ -88,7 +88,12 @@ export async function GET(request: Request) {
   const all = rows.map(memberEntry);
   const mine = all.find((e) => e.isMe) ?? null;
   const total = rows.length ? Number(rows[0].total) || 0 : 0;
-  const entries = all.filter((e) => (e.rank ?? Infinity) <= limit || e.isMe);
+  // The top, you, and the next person above you, which the database adds when they sit below the
+  // top (the one "to pass" names).
+  const aboveRank = mine && mine.rank !== null
+    ? all.reduce<number | null>((best, e) => (e.rank !== null && e.rank < (mine.rank as number) && (best === null || e.rank > best) ? e.rank : best), null)
+    : null;
+  const entries = all.filter((e) => (e.rank ?? Infinity) <= limit || e.isMe || (aboveRank !== null && e.rank === aboveRank));
 
   const body: Record<string, unknown> = {
     scope,
@@ -116,10 +121,11 @@ async function legacyBoard(
     supabase.rpc('shape_leaderboard_me', { p_period: period }),
   ]);
   if (error || meError) return unavailable();
-  const entries = ((rows ?? []) as Array<{ user_id: string; full_name: string; avatar_url: string | null; points: number; rank: number }>).map((r) => ({
-    userId: r.user_id,
+  // The old board never checked visibility, so another member's photo and id stay off it here.
+  const entries = ((rows ?? []) as Array<{ user_id: string; full_name: string; avatar_url: string | null; points: number; rank: number }>).map((r, i) => ({
+    userId: r.user_id === userId ? r.user_id : `row-${i}`,
     name: shortName(r.full_name),
-    avatarUrl: r.avatar_url,
+    avatarUrl: r.user_id === userId ? r.avatar_url : null,
     points: Number(r.points),
     rank: Number(r.rank),
     prevRank: null,

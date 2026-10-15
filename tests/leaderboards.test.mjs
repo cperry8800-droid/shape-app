@@ -129,6 +129,11 @@ test('places moved: up is positive, and no week-ago rank is no claim', () => {
   // else's row they are null, even if a database sent them
   const other = LB.memberEntry({ user_id: 'o', display_name: 'C D.', points: 80, rank: 3, rank_points: 100, streak: 9, training_days: 5, meal_days: 7, is_me: false });
   assert.deepEqual([other.streak, other.trainingDays, other.mealDays, other.tier], [null, null, null, 'Raw']);
+  // ⚠ and so is their id (Fable on #2371): get_display_names turns any id into a full name and
+  // photo, so another member's row carries a key for this answer only
+  assert.equal(m.userId, 'u');
+  assert.equal(LB.memberEntry({ user_id: 'o', is_me: false }, 4).userId, 'row-4');
+  assert.notEqual(other.userId, 'o');
 });
 
 // ── 2. The routes, driven ───────────────────────────────────────────────────────────────────
@@ -246,6 +251,22 @@ test('member board: a failed read is never an empty board', async () => {
   assert.equal((await anon.GET(req('/api/leaderboard'))).status, 401);
 });
 
+test('member board: no other member\'s id leaves, and the next person above you is kept (Fable, #2371)', async () => {
+  // limit 2: the database sends the top two, the member just above you (#5) and you (#6)
+  const rows = [boardRow({ rank: 1, total: 9 }), boardRow({ rank: 2, total: 9 }), boardRow({ rank: 5, total: 9 }), boardRow({ rank: 6, user_id: UID, is_me: true, total: 9 })];
+  const client = fakeClient({ rpc: { shape_member_board: { data: rows, error: null } }, tables: { user_goals: ownRows(null, null) } });
+  const body = await (await (await loadRoute('src/app/api/leaderboard/route.ts', client)).GET(req('/api/leaderboard?scope=everyone&limit=2'))).json();
+  assert.deepEqual(body.entries.map((e) => e.rank), [1, 2, 5, 6], 'the one to pass was dropped');
+  const ids = body.entries.map((e) => e.userId);
+  assert.equal(ids[3], UID);
+  for (const id of ids.slice(0, 3)) assert.ok(!/^u\d/.test(id), 'another member\'s id was published: ' + id);
+  assert.equal(new Set(ids).size, ids.length, 'row keys repeat');
+  // a row the database sent beyond the top that is not the one above you still does not show
+  const extra = fakeClient({ rpc: { shape_member_board: { data: [...rows.slice(0, 2), boardRow({ rank: 4, total: 9 }), ...rows.slice(2)], error: null } }, tables: { user_goals: ownRows(null, null) } });
+  const b2 = await (await (await loadRoute('src/app/api/leaderboard/route.ts', extra)).GET(req('/api/leaderboard?scope=everyone&limit=2'))).json();
+  assert.deepEqual(b2.entries.map((e) => e.rank), [1, 2, 5, 6]);
+});
+
 test('member board before the migration: Everyone falls back to the old board, with short names', async () => {
   const client = fakeClient({
     rpc: {
@@ -260,6 +281,17 @@ test('member board before the migration: Everyone falls back to the old board, w
   assert.equal(body.legacy, true);
   assert.deepEqual(body.entries.map((e) => e.name), ['Priya S.', 'Sam R.']);
   assert.equal(body.me.total, 9);
+  // the old board never checked visibility: another member's photo and id stay off it (Fable, #2371)
+  const legacyClient = fakeClient({
+    rpc: {
+      shape_member_board: { data: null, error: MISSING },
+      shape_leaderboard: { data: [{ user_id: 'a', full_name: 'Priya Shah', avatar_url: 'https://img/a', points: 90, rank: 1 }, { user_id: UID, full_name: 'Sam Rivera', avatar_url: 'https://img/me', points: 40, rank: 2 }], error: null },
+      shape_leaderboard_me: { data: [{ points: 40, rank: 2, total: 9 }], error: null },
+    },
+    tables: { user_goals: ownRows(null, null) },
+  });
+  const legacy = await (await (await loadRoute('src/app/api/leaderboard/route.ts', legacyClient)).GET(req('/api/leaderboard?scope=everyone'))).json();
+  assert.deepEqual(legacy.entries.map((e) => [e.userId, e.avatarUrl]), [['row-0', null], [UID, 'https://img/me']]);
   assert.equal(body.total, 9);
   // a failed old read is still not an empty board
   const broken = fakeClient({ rpc: { shape_member_board: { data: null, error: MISSING }, shape_leaderboard: { data: null, error: { message: 'x' } }, shape_leaderboard_me: { data: [], error: null } }, tables: { user_goals: ownRows(null, null) } });
@@ -550,6 +582,10 @@ test('the member board applies the privacy rules the switches promise', () => {
   }
   // ⚠ a photo only for a public profile or your own: the team board's ask does not name it (Codex, #2371)
   assert.match(body, /case when s\.uid = v_me or public\.shape_profile_visibility\(s\.uid\) = 'public' then p\.avatar_url end,/);
+  // ⚠ another member's id never leaves the function (Fable, #2371)
+  assert.match(body, /select\s+(?:--[^\n]*\n\s*)*case when s\.uid = v_me then s\.uid end,/);
+  // the top, you, and the next person above you
+  assert.match(body, /or r\.rk = \(select max\(a\.rk\) from ranked a\s+where a\.rk < \(select m\.rk from ranked m where m\.uid = v_me\)\)/);
   assert.ok(!/^\s*p\.avatar_url,\s*$/m.test(body), 'the photo is returned unconditionally');
   // nothing here returns a subscription or a coach
   const out = /returns table \(([\s\S]*?)\)\s*language/.exec(body)[1];
