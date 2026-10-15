@@ -18,6 +18,7 @@ import type { createClient } from '@/lib/supabase/server';
 import { readinessFromSeries } from '@/lib/recovery-readiness';
 import { bsVitals, vitalsCeilingISO, vitalsCutoffISO } from '@/lib/vitals-leg.mjs';
 import { bsProgramLeg, bsLogsLeg, bsNutritionTargets, bsLastContactLeg } from '@/lib/coach-client-legs.mjs';
+import { coachIntakeView, screeningState } from '../../mobile-app/src/services/coachIntake.mjs';
 
 export type OverviewClient = Awaited<ReturnType<typeof createClient>>;
 export type SharedOverviewMe = { trainerId: number | null; nutritionistId: number | null };
@@ -264,7 +265,8 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
   // photos, and the health profile (PAR-Q screening — never share-gated).
   const [
     { data: goals }, { data: stats }, { data: lifts },
-    { data: checkins, error: checkinsError }, { data: measurements }, { data: progressPhotos }, { data: healthProfile },
+    { data: checkins, error: checkinsError }, { data: measurements }, { data: progressPhotos }, { data: healthProfile, error: healthError },
+    { data: intake, error: intakeError },
     { data: cycle },
     { data: prep },
     { data: programRow },
@@ -278,6 +280,10 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     supabase.rpc('get_client_measurements', { p_user_id: clientId }),
     supabase.rpc('get_client_progress_photos', { p_user_id: clientId, p_limit: 12 }),
     supabase.rpc('get_client_health_profile', { p_user_id: clientId }),
+    // Who the client is (client-onboarding review, fix 2c): the goal, training and diet
+    // preferences and the coaching answer, coach-only (2026-10-15-coach-client-intake.sql).
+    // Before that migration the RPC 404s and the leg reads null, as the others do.
+    supabase.rpc('get_client_intake', { p_user_id: clientId }),
     // The cycle — share-gated: get_client_cycle gates on is_coach_on_client AND
     // the member's optIn AND share, all inside the definer (the get_client_goals
     // precedent above). Returns null / { share:false } / { share:true, starts }
@@ -495,6 +501,15 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     measurements: measurements ?? [],
     progressPhotos: progressPhotos ?? [],
     healthProfile: healthProfile ?? null,
+    // The screening's state for Needs you (M17). "Missing" only when the coach-only intake read
+    // answered, which says the caller IS their coach: an empty health read also comes back to the
+    // client opening their own page, to a coach whose subscription lapsed, and before the 10-15
+    // migration. Those, and a failed read, are 'unknown', never "missing".
+    screening: healthProfile
+      ? screeningState(healthProfile, false)
+      : screeningState(null, !!healthError || !!intakeError || !intake),
+    // English rows for the website's coach view; null when the read answered nothing.
+    intake: intakeError ? null : coachIntakeView(intake),
     cycle: cycle ?? null,
     prep: prep ?? null,
     coachGoals: Array.isArray(programDetail.goals) ? programDetail.goals : null,

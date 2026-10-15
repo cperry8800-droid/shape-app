@@ -1642,12 +1642,13 @@ test('NULL-logic guard: it needs the declared parameter names, and a body with n
   assert.deepEqual(flagsOf(plpg('return null;', { args: 'p_other uuid', declare: 'p_id uuid; v uuid := coalesce(p_id, auth.uid());' })).flags, []);
 });
 
-test('NULL-logic guard, over the 79 anon-reachable bodies: it touches exactly these six and flags exactly one', (t) => {
+test('NULL-logic guard, over the 78 anon-reachable bodies: it touches exactly these six and flags exactly one', (t) => {
   // 85 when this was written; 2026-10-08-security-review-access-layer.sql revoked anon on get_health_sources
   // and shape_leaderboard, and 2026-10-10-security-review-lows-and-anon-definers.sql on get_follow_list,
-  // get_active_now, get_active_activities and shape_profile_visibility, so six bodies left the reach.
+  // get_active_now, get_active_activities and shape_profile_visibility, so six bodies left the reach;
+  // 2026-10-15-coach-client-intake.sql revoked anon on get_client_health_profile, a seventh.
   const reach = M.definerRpcFns(real()).filter(M.anonExecutable);
-  assert.ok(reach.length >= 79, `only ${reach.length} anon-reachable bodies were read (79 when this was written)`);
+  assert.ok(reach.length >= 78, `only ${reach.length} anon-reachable bodies were read (78 when this was last counted)`);
   const touched = reach.map((f) => [f.name, M.nullLogicFlags(f)]).filter(([, r]) => r.sites.length);
   assert.deepEqual(touched.map(([n]) => n).sort(), ['list_member_dm_threads', 'log_ai_action', 'mark_ai_action_undone', 'set_metric_source', 'set_my_username', 'set_program_detail'], 'a new body the guard touches must be read, not waved through');
   assert.deepEqual(touched.filter(([, r]) => r.flags.length).map(([n]) => n).sort(), ['list_member_dm_threads']);
@@ -1724,9 +1725,11 @@ test('fixedAfterCapture: each item is checked against the migrations, and a fix 
   // captured again, and so were the five the 2026-10-10 Lows migration made (the four 2026-10-03
   // findings revoked from anon, and the one pin), which the 2026-10-09 capture predated. Each capture
   // showed its fixes applied (the live diff's --strict said to delete them), so the checked-in list
-  // carries none: an item left here after a capture shows it applied is stale. The rules are driven
-  // on the 2026-10-08 item as it was.
-  assert.deepEqual(ALLOW.fixedAfterCapture ?? [], [], 'the 2026-10-10 capture shows every carried fix applied: an item left here is stale');
+  // carried none after it. The rules are driven on the 2026-10-08 item as it was.
+  // The one item carried now is the anon revoke 2026-10-15-coach-client-intake.sql makes on
+  // get_client_health_profile, which postdates the 2026-10-10 capture; it stays until the owner applies
+  // that migration and the catalog is captured again (whose --strict diff then says to delete it).
+  assert.deepEqual((ALLOW.fixedAfterCapture ?? []).map((f) => f.name), ['get_client_health_profile'], 'an item a later capture shows applied is stale');
   const withItem = () => ({ ...structuredClone(ALLOW), fixedAfterCapture: [structuredClone(FIXED_ITEM)] });
   assert.ok(!anonReachableNames(real()).includes(FIXED_ITEM.name), `${FIXED_ITEM.name} is still anon-executable in the model`);
   assert.ok(real().files.includes(FIXED_ITEM.fixedBy), `${FIXED_ITEM.fixedBy} is a migration in the tree`);
@@ -1793,7 +1796,9 @@ test('fixedAfterCapture, a pin fix: accepted once the migrations pin it, refused
   // What the list said before the migration, for the pin: the finding registered, the item gone. On
   // the tree before it the four functions the same migration revoked are still anon-executable and,
   // their findings deleted since the 2026-10-10 capture, are the only thing the checker has left to say.
+  // Every item carried now postdates the pin, so the list before it held each as its old entry.
   const restored = { ...structuredClone(ALLOW), fixedAfterCapture: [], registeredPinFindings: [structuredClone(PIN.wasPinFinding)] };
+  for (const f of ALLOW.fixedAfterCapture ?? []) if (f.wasEntry) restored.entries[f.name] = structuredClone(f.wasEntry);
   const left = checkAllowlist(before, restored);
   assert.deepEqual(left.filter((m) => /save_workout_session/.test(m)), [], 'the registered pin finding is exactly right for the tree before the pin');
   assert.deepEqual(left.map((m) => /^missing from the allow-list: (\w+) /.exec(m)?.[1] ?? m).sort(), ['get_active_activities', 'get_active_now', 'get_follow_list', 'shape_profile_visibility']);

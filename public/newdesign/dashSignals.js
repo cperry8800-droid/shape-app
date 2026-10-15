@@ -672,6 +672,19 @@
     return { key: "hydration_low", label: "Water low", reason: "Averaging " + avgR + "L of a " + tgtR + "L water target — a glass with each meal closes most of it" };
   }
 
+  // ── The health screening (client-onboarding review, fix 2c: M17) ──────────
+  // A coach is told when a client answered yes on the health screening, or has none on file
+  // (they came in before the screening was asked before hiring, or by a session booked another
+  // way). `c.screening` is the overview's read: 'flagged' | 'missing' | 'clear' | 'unknown'.
+  // 'unknown' (a failed read, or a page that cannot tell) never flags: no record is never
+  // evidence. Coach views only — the member's own view is never told to screen themselves here.
+  function ruleScreening(c) {
+    var s = c && c.screening;
+    if (s === "flagged") return { key: "screening_flagged", label: "Health flag", reason: "Answered yes on the health screening — read it before programming" };
+    if (s === "missing") return { key: "screening_missing", label: "No screening", reason: "Has not completed the health screening — ask them to fill it in" };
+    return null;
+  }
+
   // ── Evaluation + triage ───────────────────────────────────────────────────
 
   // evaluateClient(record, now, role) -> { flags, severity }
@@ -715,6 +728,9 @@
     if (disciplineForRole(role) === "nutrition") {
       if ((f = ruleLedgerBlown(c))) flags.push(f);
       if ((f = ruleProteinUnder(c))) flags.push(f);
+    }
+    if (disciplineForRole(role) !== "general") {
+      if ((f = ruleScreening(c))) flags.push(f);
     }
 
     var severity = progressStatus(c, now).state === "ready" ? "green" : "unknown";
@@ -764,6 +780,8 @@
     checkin_overdue: "general",
     contact_gap: "general",
     goal_slip: "general",
+    screening_flagged: "general", // both pros program around it
+    screening_missing: "general",
   };
   function flagDiscipline(key) { return FLAG_DISCIPLINE[key] || "general"; }
   function disciplineOwner(discipline) {
@@ -1198,6 +1216,8 @@
       ledger_blown: "nutrition", protein_under: "nutrition", goal_slip: "goal",
       score_drop: "score", contact_gap: "contact", sleep_low: "sleep",
       energy_low: "energy", hunger_high: "hunger", hydration_low: "hydration",
+      // The screening is a conversation: reach out about it.
+      screening_flagged: "contact", screening_missing: "contact",
     })[key] || null;
   }
 
@@ -1206,7 +1226,10 @@
   // relationship) outranks a "grab a win" score dip. checkin_overdue escalates
   // further the longer it's been missed.
   var DIRECTIVE_PRIORITY = {
-    checkin_overdue: 100, contact_gap: 80, goal_slip: 60, food_gap: 55,
+    checkin_overdue: 100,
+    // A yes on the health screening is read before anything is programmed; a missing one is asked
+    // for before the next session.
+    screening_flagged: 90, contact_gap: 80, screening_missing: 70, goal_slip: 60, food_gap: 55,
     ledger_blown: 50, protein_under: 45, streak_broken: 40, sleep_low: 35,
     // The vitals flags rank BELOW sleep_low (a chronic sleep deficit outranks a
     // soft-gauge read) and above score_drop, in energy → hunger → hydration order.

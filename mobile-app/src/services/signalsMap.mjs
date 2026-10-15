@@ -43,7 +43,7 @@ function normalizeWeighIns(raw) {
 // ── Coach view: one client's record from the get_client_* rollups the coach
 // app already fetches (ShapeClientStats.get / .getLifts, ShapeGoalsApi). ───────
 export function recordFromCoachData(raw = {}, deps = {}) {
-  const { id, name, stats, lifts, goalsDoc, checkins, lastContact, recovery, vitals, coachDirective } = raw;
+  const { id, name, stats, lifts, goalsDoc, checkins, lastContact, recovery, vitals, coachDirective, screening } = raw;
   const rec = { profile: { id: id || null, name: name || 'Client' } };
 
   if (stats && typeof stats === 'object') {
@@ -73,6 +73,8 @@ export function recordFromCoachData(raw = {}, deps = {}) {
   if (recovery && typeof recovery === 'object') rec.recovery = recovery;
   if (vitals && typeof vitals === 'object') rec.vitals = vitals;
   if (coachDirective && typeof coachDirective === 'object') rec.coachDirective = coachDirective;
+  // The health screening for Needs you (client-onboarding review M17; services/coachIntake.mjs).
+  if (screening === 'flagged' || screening === 'missing' || screening === 'clear' || screening === 'unknown') rec.screening = screening;
   return rec;
 }
 

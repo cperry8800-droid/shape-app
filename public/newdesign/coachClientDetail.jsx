@@ -868,6 +868,53 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
 
           <CKCycleStation cycle={data.cycle} accent={accent} />
 
+          {/* Who they are (client-onboarding review, fix 2c: H8): the goal they picked, whether they
+              want coaching, their training and diet preferences. One coach-only read
+              (get_client_intake); the rows come from the overview already labelled. */}
+          {data.intake && (data.intake.goal || data.intake.coaching || data.intake.training.length > 0 || data.intake.nutrition.length > 0) && (() => {
+            const it = data.intake;
+            const COACHING = { training: "Yes, a trainer", nutrition: "Yes, a nutritionist", both: "Yes, a trainer and a nutritionist", no: "Not right now" };
+            const top = [
+              ["GOAL", it.goal || (it.goalShared ? null : "Kept private")],
+              ["LOOKING FOR COACHING", it.coaching ? COACHING[it.coaching] : null],
+            ].filter(([, v]) => v);
+            const cell = (l, v) => (
+              <div key={l}>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", color: "var(--sh-ink2, #a09b94)", textTransform: "uppercase" }}>{l}</div>
+                <div style={{ marginTop: 4, fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.75)", lineHeight: 1.55 }}>{v}</div>
+              </div>
+            );
+            return (
+              <Card style={{ marginBottom: 16 }}>
+                <CKSecHead>WHO THEY ARE · INTAKE</CKSecHead>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginTop: 10 }}>
+                  {top.map(([l, v]) => cell(l, v))}
+                  {it.training.map((r) => cell("TRAINING · " + r.label, r.value))}
+                  {it.nutrition.map((r) => cell("NUTRITION · " + r.label, r.value))}
+                </div>
+              </Card>
+            );
+          })()}
+
+          {/* The screening is shown whether or not it is on file (review M17): a coach must see that
+              it is missing, not a card that quietly is not there. 'unknown' is a read that could
+              not tell, never "missing". */}
+          {!data.healthProfile && data.screening === "missing" && (
+            <Card style={{ marginBottom: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <CKSecHead>HEALTH PROFILE · SCREENING</CKSecHead>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: rust, textTransform: "uppercase" }}>Not completed</span>
+              </div>
+              <div style={{ marginTop: 8, fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.75)", lineHeight: 1.55 }}>This client hasn't completed the health screening. Ask them to fill it in before you program: it's in Settings, under Health profile, on the website and in the app.</div>
+            </Card>
+          )}
+          {!data.healthProfile && data.screening === "unknown" && data.intake && (
+            <Card style={{ marginBottom: 16 }}>
+              <CKSecHead>HEALTH PROFILE · SCREENING</CKSecHead>
+              <div role="alert" style={{ marginTop: 8, fontSize: 13, color: "var(--sh-ink2, #a09b94)", lineHeight: 1.55 }}>Their health screening could not be loaded. Reload the page to try again.</div>
+            </Card>
+          )}
+
           {data.healthProfile && (() => {
             const h = data.healthProfile;
             const yesCount = Array.isArray(h.parq) ? h.parq.filter((a) => a === true).length : 0;

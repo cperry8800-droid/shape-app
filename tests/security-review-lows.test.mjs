@@ -280,9 +280,10 @@ test('the app\'s application fallback and the allow-list say what changed', () =
   assert.doesNotMatch(sb, /saveLocalRecord\('shape\.providerApplications'/);
   // The allow-list carried the five fixes as fixedAfterCapture until the catalog was captured again;
   // the 2026-10-10 capture records this file as applied and shows them, so the list carries none
-  // (tests/definer-grants.test.mjs holds the shape) and the capture says what the file did.
+  // (tests/definer-grants.test.mjs holds the shape) and the capture says what the file did. An item
+  // a later migration fixes (2026-10-15's get_client_health_profile revoke) is carried on its own terms.
   const allow = JSON.parse(read('tests/fixtures/definer-anon-allowlist.json'));
-  assert.deepEqual(allow.fixedAfterCapture, []);
+  assert.deepEqual(allow.fixedAfterCapture.filter((f) => f.fixedBy === '2026-10-10-security-review-lows-and-anon-definers.sql'), []);
   assert.deepEqual(allow.registeredFindings, []);
   assert.deepEqual(allow.registeredPinFindings, []);
   const live = JSON.parse(read('tests/fixtures/definer-live-2026-10-10.json'));

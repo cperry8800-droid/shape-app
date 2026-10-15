@@ -1087,96 +1087,6 @@ async function requestRefund({ subscriptionId, oneTimePurchaseId, reason } = {})
   return { stored: 'supabase', data };
 }
 
-function clientIntakeToPayload(values = {}) {
-  const profile = state.profile || {};
-  const user = state.user || {};
-
-  return {
-    user_id: user.id,
-    first_name: values.firstName ?? values.first_name ?? profile.full_name?.split(' ')?.[0] ?? '',
-    last_name: values.lastName ?? values.last_name ?? profile.full_name?.split(' ')?.slice(1).join(' ') ?? '',
-    dob: values.dob || null,
-    sex: values.sex || '',
-    primary_goal: values.primaryGoal ?? values.primary_goal ?? '',
-    experience_level: values.experienceLevel ?? values.experience_level ?? '',
-    workout_frequency: values.workoutFrequency ?? values.workout_frequency ?? '',
-    injuries: values.injuries || '',
-    medical: values.medical || '',
-    dietary: values.dietary || '',
-    emergency_contact: values.emergencyContact ?? values.emergency_contact ?? '',
-    accountability_style: values.accountabilityStyle ?? values.accountability_style ?? '',
-    interests: values.interests || '',
-    budget: values.budget || '',
-    details: {
-      height: values.height || '',
-      weight: values.weight || '',
-      equipment_access: values.equipmentAccess || values.equipment_access || '',
-      preferred_times: values.preferredTimes || values.preferred_times || '',
-      nutrition_goal: values.nutritionGoal || values.nutrition_goal || '',
-      allergies: values.allergies || '',
-      meal_cadence: values.mealCadence || values.meal_cadence || '',
-      source: 'shape-mobile-app',
-      ...(values.details || {}),
-    },
-  };
-}
-
-async function getClientIntake() {
-  if (!state.user?.id) {
-    throw new Error('Sign in before loading intake details.');
-  }
-  if (!supabase) {
-    return { stored: 'local', data: null };
-  }
-
-  const { data, error } = await supabase
-    .from('client_intakes')
-    .select('*')
-    .eq('user_id', state.user.id)
-    .maybeSingle();
-
-  if (error) throw error;
-  return { stored: 'supabase', data };
-}
-
-async function saveClientIntake(values = {}) {
-  if (!state.user?.id) {
-    throw new Error('Sign in before saving intake details.');
-  }
-
-  const payload = clientIntakeToPayload(values);
-  if (!supabase) {
-    return { stored: 'local', data: saveLocalRecord('shape.clientIntakes', payload) };
-  }
-
-  const { data, error } = await supabase
-    .from('client_intakes')
-    .upsert(payload, { onConflict: 'user_id' })
-    .select()
-    .single();
-
-  if (error) {
-    return { stored: 'local', data: saveLocalRecord('shape.clientIntakes', payload, error), error };
-  }
-
-  return { stored: 'supabase', data };
-}
-
-async function listVisibleClientIntakes() {
-  if (!state.user?.id) {
-    throw new Error('Sign in before loading client intakes.');
-  }
-  if (!supabase) return { stored: 'local', data: [] };
-
-  const { data, error } = await supabase
-    .from('client_intakes')
-    .select('*')
-    .order('updated_at', { ascending: false });
-
-  if (error) throw error;
-  return { stored: 'supabase', data: data || [] };
-}
-
 async function getClientProfileData() {
   if (!state.user?.id) {
     throw new Error('Sign in before loading client profile data.');
@@ -4914,9 +4824,6 @@ window.ShapeRefunds = {
 };
 
 window.ShapeIntakes = {
-  getClientIntake,
-  saveClientIntake,
-  listVisibleClientIntakes,
 };
 
 window.ShapeClientProfiles = {
@@ -7216,6 +7123,23 @@ window.ShapeClientKit = {
   measurements: async (userId) => { if (!supabase) return []; try { const { data } = await supabase.rpc('get_client_measurements', { p_user_id: userId }); return Array.isArray(data) ? data : []; } catch (e) { return []; } },
   photos: async (userId, limit = 30) => { if (!supabase) return []; try { const { data } = await supabase.rpc('get_client_progress_photos', { p_user_id: userId, p_limit: limit }); return Array.isArray(data) ? data : []; } catch (e) { return []; } },
   health: async (userId) => { if (!supabase) return null; try { const { data } = await supabase.rpc('get_client_health_profile', { p_user_id: userId }); return data || null; } catch (e) { return null; } },
+  // The same reads, but a failure THROWS (client-onboarding review M17): `health` answers null for
+  // a failed read and for "none on file" alike, and a coach must not be told a client has no
+  // screening because a request failed. healthRead resolves the screening or null (none on file,
+  // or not their coach); intake resolves get_client_intake (2026-10-15-coach-client-intake.sql):
+  // who they are, or null when this caller is not their coach.
+  healthRead: async (userId) => {
+    if (!supabase) throw new Error('No backend');
+    const { data, error } = await supabase.rpc('get_client_health_profile', { p_user_id: userId });
+    if (error) throw error;
+    return data && typeof data === 'object' && Object.keys(data).length ? data : null;
+  },
+  intake: async (userId) => {
+    if (!supabase) throw new Error('No backend');
+    const { data, error } = await supabase.rpc('get_client_intake', { p_user_id: userId });
+    if (error) throw error;
+    return data && typeof data === 'object' ? data : null;
+  },
 };
 
 window.ShapeMessages = {

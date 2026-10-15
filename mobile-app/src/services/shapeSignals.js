@@ -9,6 +9,7 @@
 // UI to consume in Phase 2. Nothing renders yet — this is the foundation.
 import '../../../public/newdesign/dashSignals.js'; // → window.DashSignals
 import { recordFromCoachData, recordFromSelfData, sleepRecoveryFromProgress, vitalsFromProgress } from './signalsMap.mjs';
+import { screeningState } from './coachIntake.mjs';
 
 const engine = () => (typeof window !== 'undefined' && window.DashSignals) || null;
 const deps = () => { const e = engine(); return { goalsFromDoc: e && e.goalsFromDoc }; };
@@ -115,18 +116,27 @@ async function coachRecords(role, options) {
     }
   } catch (e) { /* ignore */ }
   return pooled(clients, 4, async (c) => {
-    const [stats, lifts, goalsDoc, checkins] = await Promise.all([
+    const kit = window.ShapeClientKit || {};
+    const [stats, lifts, goalsDoc, checkins, health, intake] = await Promise.all([
       window.ShapeClientStats && window.ShapeClientStats.get ? window.ShapeClientStats.get(c.id).catch(() => null) : null,
       window.ShapeClientStats && window.ShapeClientStats.getLifts ? window.ShapeClientStats.getLifts(c.id).catch(() => null) : null,
       window.ShapeGoalsApi && window.ShapeGoalsApi.getForClient ? window.ShapeGoalsApi.getForClient(c.id).catch(() => null) : null,
-      window.ShapeClientKit && window.ShapeClientKit.checkins ? window.ShapeClientKit.checkins(c.id, 2).catch(() => null) : null,
+      kit.checkins ? kit.checkins(c.id, 2).catch(() => null) : null,
+      // The health screening for Needs you (review M17): { ok, data }, so a failed read is
+      // 'unknown' and never "missing". "Missing" also needs the coach-only intake read to have
+      // answered, which says this coach IS theirs (the website's overview applies the same rule).
+      kit.healthRead ? kit.healthRead(c.id).then((data) => ({ ok: true, data }), () => ({ ok: false })) : null,
+      kit.intake ? kit.intake(c.id).then((data) => ({ ok: true, data }), () => ({ ok: false })) : null,
     ]);
+    const screening = health && health.ok && health.data
+      ? screeningState(health.data, false)
+      : screeningState(null, !(health && health.ok) || !(intake && intake.ok && intake.data));
     // Split the roster entry into the two record legs: recovery carries ONLY the
     // sleepHours shape recoveryRead consumes; vitals is the engine's §3A leg.
     // An entry with vitals but no sleep must not fabricate a recovery leg.
     const rs = sleepByClient[c.id] || null;
     return recordFromCoachData({
-      id: c.id, name: c.name, stats, lifts, goalsDoc, checkins,
+      id: c.id, name: c.name, stats, lifts, goalsDoc, checkins, screening,
       recovery: rs && rs.sleepHours ? { sleepHours: rs.sleepHours } : null,
       vitals: rs && rs.vitals ? rs.vitals : null,
     }, deps());
