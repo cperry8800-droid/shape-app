@@ -189,6 +189,12 @@ test('startCoaching sends each part once: a redelivered event, an existing welco
     assert.deepEqual(out, { conversationId: null, welcomed: false, coachAlerted: true });
     assert.deepEqual(sent.emails.map((e) => e.to), ['tom@example.com']);
     assert.equal(sent.notifications[0].route, 'client', 'no thread: the alert opens the client page');
+    // ⚠ AND IT CLAIMS NO THREAD (Codex on #2360, sixth round): neither the alert nor the email says
+    // one is open, or that a welcome is waiting in it.
+    assert.doesNotMatch(sent.notifications[0].body, /thread with them is open/);
+    assert.match(sent.notifications[0].body, /say hello from Messages\.$/);
+    assert.doesNotMatch(sent.emails[0].text, /is open|welcome from Shape/);
+    assert.match(sent.emails[0].text, /Say hello from Messages:\n.*\/newdesign\/TrainerMessages\.html\?client=client-1/);
   }
   // No name on file: the alert still names "A new client", never "undefined".
   {
@@ -449,7 +455,9 @@ test('the app opens the membership welcome ("home") and a new client with no thr
   assert.equal(route('home', {}), true);
   assert.equal(route('client', { clientId: 'client-1' }), true);
   assert.equal(route('client', {}), false, 'no client named: nothing to open');
-  assert.deepEqual(events, [['shape:goHome', undefined], ['shape:openClient', { clientId: 'client-1' }]]);
+  assert.equal(route('client:client-2'), true, 'a push carries the client in its route');
+  assert.equal(route('client:'), false);
+  assert.deepEqual(events, [['shape:goHome', undefined], ['shape:openClient', { clientId: 'client-1' }], ['shape:openClient', { clientId: 'client-2' }]]);
   // The member shell lands on Home, clearing the takeovers above the tabs.
   assert.match(client, /const open = \(\) => \{\s+navJumpRef\.current\.navPush\(\); setShowSettings\(false\); setSettingsStart\(''\);\s+setShowCalendar\(false\); setShowSearch\(false\); setShowCycle\(false\);\s+setChatRequest\(null\); setTab\('home'\);\s+\};\s+window\.addEventListener\('shape:goHome', open\);/);
   // Both coach shells answer shape:openClient with the Clients tab and the request, and each
@@ -556,6 +564,9 @@ test('a "New message" notification opens its thread: push, the app\'s list, and 
   assert.equal(push.pushRoute({ route: 'messages', data: {} }), 'messages', 'no id: as it was');
   assert.equal(push.pushRoute({ route: 'sessions', data: { conversationId: 'conv-3' } }), 'sessions', 'only a message notification');
   assert.equal(push.pushRoute({ route: null }), '');
+  // A new-client alert with no thread: a push carries only its route, so the client rides in it.
+  assert.equal(push.pushRoute({ route: 'client', data: { clientId: 'client-1' } }), 'client:client-1');
+  assert.equal(push.pushRoute({ route: 'client', data: {} }), 'client', 'no id: as it was');
   assert.match(read('src/app/api/push/dispatch/route.ts'), /data: \{ route: pushRoute\(record\), type: record\.type \?\? 'general' \},/);
 
   const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');

@@ -49,15 +49,20 @@ function usd(cents: number): string {
 }
 
 /** The coach's email when a client subscribes. */
-export function coachHireEmail(args: { clientName: string; role: CoachRole; clientId: string; monthlyCents?: number | null; site?: string }): BuiltEmail {
+export function coachHireEmail(args: { clientName: string; role: CoachRole; clientId: string; monthlyCents?: number | null; site?: string; threadOpen?: boolean }): BuiltEmail {
   const links = coachLinks(args.role, args.clientId, args.site);
   const name = args.clientName.trim() || 'A new client';
   const pay = args.monthlyCents ? ` (${usd(args.monthlyCents)}/mo to you)` : '';
+  // ⚠ ONLY WHEN IT OPENED (Codex on #2360). With no thread (open_coach_thread failed, or the database
+  // is older than it) the link still opens one from Messages; nothing says a welcome is waiting.
+  const lead = args.threadOpen === false
+    ? 'Say hello from Messages:'
+    : 'Your thread with them is open, with a welcome from Shape at the top. Say hello there:';
   const html = `
     ${WRAP_OPEN}
       <h2 style="margin:0 0 16px;font-size:22px;font-weight:500;">New client: ${escapeHtml(name)}</h2>
       <p style="margin:0 0 16px;line-height:1.55;">${escapeHtml(name)} just subscribed to coaching with you${escapeHtml(pay)}.</p>
-      <p style="margin:0 0 12px;line-height:1.55;">Your thread with them is open, with a welcome from Shape at the top. Say hello there:</p>
+      <p style="margin:0 0 12px;line-height:1.55;">${escapeHtml(lead)}</p>
       ${button(links.thread, `Message ${shapeFirstName(name) || 'them'}`)}
       <p style="margin:0 0 16px;line-height:1.55;">Their health screening, goals and preferences are on <a href="${escapeHtml(links.client)}" style="color:#0ac5a8;">their client page</a>. Read the screening before you program.</p>
       ${SIGN_OFF_HTML}
@@ -68,7 +73,7 @@ export function coachHireEmail(args: { clientName: string; role: CoachRole; clie
     '',
     `${name} just subscribed to coaching with you${pay}.`,
     '',
-    'Your thread with them is open, with a welcome from Shape at the top. Say hello there:',
+    lead,
     links.thread,
     '',
     `Their health screening, goals and preferences are on their client page: ${links.client}`,
@@ -202,7 +207,9 @@ export async function startCoaching(
         userId: ownerId,
         type: 'new_client',
         title: `New client: ${shown}`,
-        body: `${shown} subscribed${pay}. Your thread with them is open in Messages; read their screening on their client page before you program.`,
+        body: out.conversationId
+          ? `${shown} subscribed${pay}. Your thread with them is open in Messages; read their screening on their client page before you program.`
+          : `${shown} subscribed${pay}. Read their screening on their client page before you program, and say hello from Messages.`,
         // "chat:<id>" opens the thread in the app and on the website (Codex on #2360: "messages"
         // opened nothing in either); with no thread, "client" opens the client's page.
         route: out.conversationId ? `chat:${out.conversationId}` : 'client',
@@ -211,7 +218,7 @@ export async function startCoaching(
       // Only the call that stored the alert emails: a redelivered event finds the dedupe row.
       if (out.coachAlerted) {
         const to = await emailOf(admin, ownerId);
-        if (to) await sendEmail({ to, ...coachHireEmail({ clientName: shown, role: a.providerRole, clientId: a.clientId, monthlyCents: a.monthlyCents }) });
+        if (to) await sendEmail({ to, ...coachHireEmail({ clientName: shown, role: a.providerRole, clientId: a.clientId, monthlyCents: a.monthlyCents, threadOpen: !!out.conversationId }) });
       }
     }
 

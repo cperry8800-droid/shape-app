@@ -12253,10 +12253,13 @@ function bsRouteNotification(route, data) {
       window.dispatchEvent(new CustomEvent('shape:goHome'));
       return true;
     }
-    // A coach's new-client alert when no thread could open ("client", data.clientId): that client's
-    // page in the coach app (both coach shells answer shape:openClient).
-    if (route === 'client' && data && typeof data.clientId === 'string' && data.clientId) {
-      window.dispatchEvent(new CustomEvent('shape:openClient', { detail: { clientId: data.clientId } }));
+    // A coach's new-client alert when no thread could open ("client" with data.clientId in the list,
+    // "client:<id>" from a push, which carries only its route): that client's page in the coach app
+    // (both coach shells answer shape:openClient).
+    const clientId = route.startsWith('client:') ? route.slice(7)
+      : route === 'client' && data && typeof data.clientId === 'string' ? data.clientId : '';
+    if (clientId) {
+      window.dispatchEvent(new CustomEvent('shape:openClient', { detail: { clientId } }));
       return true;
     }
     // Waitlist invite ("coach:<role>:<id>") → the marketplace on that role, so the invited client

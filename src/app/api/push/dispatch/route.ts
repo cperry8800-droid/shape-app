@@ -25,7 +25,7 @@ type NotificationRecord = {
   body?: string;
   route?: string | null;
   type?: string;
-  data?: { channels?: { push?: boolean }; conversationId?: unknown } | null;
+  data?: { channels?: { push?: boolean }; conversationId?: unknown; clientId?: unknown } | null;
 };
 
 // A "New message" notification (the messages trigger: route "messages", data.conversationId) is
@@ -33,6 +33,10 @@ type NotificationRecord = {
 export function pushRoute(record: NotificationRecord): string {
   const id = record.data && typeof record.data.conversationId === 'string' ? record.data.conversationId : '';
   if (record.route === 'messages' && id) return `chat:${id}`;
+  // A coach's new-client alert with no thread ("client", data.clientId): a push carries only its
+  // route, so the client rides in it (Codex on #2360: the tap opened nothing without the id).
+  const client = record.data && typeof record.data.clientId === 'string' ? record.data.clientId : '';
+  if (record.route === 'client' && client) return `client:${client}`;
   return record.route ?? '';
 }
 
