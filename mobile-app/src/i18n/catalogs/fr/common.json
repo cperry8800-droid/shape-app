@@ -44,5 +44,15 @@
   "search.previewNote": "Aperçu · connectez-vous pour chercher parmi tous les comptes réels",
   "search.channelsSignIn": "Connectez-vous pour parcourir les canaux de la communauté.",
   "search.noChannelsYet": "Aucun canal pour l'instant — créez-en un depuis Chat → Canaux.",
-  "search.browseCoaches": "Parcourez les coachs sur la marketplace →"
+  "search.browseCoaches": "Parcourez les coachs sur la marketplace →",
+  "coachPrep.eyebrow": "Votre coach s’en occupe",
+  "coachPrep.title": "{coach} prépare votre plan",
+  "coachPrep.titleNutri": "{coach} prépare votre plan de repas",
+  "coachPrep.coachFallback": "Votre coach",
+  "coachPrep.body": "Il apparaîtra ici dès sa publication. D’ici là, dites-lui tout ce qu’il doit savoir.",
+  "coachPrep.starts": "La semaine 1 commence le {date}",
+  "coachPrep.target": "Objectif de la semaine 1 : {count, plural, one {# séance} other {# séances}}",
+  "coachPrep.targetNutri": "Objectif de la semaine 1 : noter {count, plural, one {# jour} other {# jours}}",
+  "coachPrep.message": "Écrire à votre coach",
+  "coachPrep.meanwhile": "Noter une séance en attendant"
 }

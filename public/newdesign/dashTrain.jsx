@@ -387,7 +387,7 @@ function DtrDowToggles({ dows, setDows }) {
   );
 }
 
-function DtrBuilder({ self, onChanged }) {
+function DtrBuilder({ self, onChanged, coaching }) {
   const templates = (self && self.templates) || { sessions: [], programs: [] };
   const mine = (self && self.mine) || [];
   const [mode, setMode] = React.useState("starters"); // starters | session | program | draft
@@ -504,7 +504,12 @@ function DtrBuilder({ self, onChanged }) {
     <div className="dash-plate dash-plate--tick" style={{ "--dac": DTR_TEAL, paddingLeft: 24 }}>
       <div className="dash-eyebrow" style={{ color: DTR_TEAL }}>Build your week · self-serve training</div>
       <div style={{ fontSize: 12.5, color: DTR_INK50, lineHeight: 1.55, margin: "8px 0 12px", maxWidth: 560 }}>
-        A coach writes this <em>for</em> you — until then, build your own. Starter templates, a custom week, or ✦ a drafted program you approve before it lands. <a href="Marketplace.html" style={{ color: DTR_TEAL, textDecoration: "none" }}>Find a coach →</a>
+        {/* ⚠ A COACHED MEMBER WAS TOLD TO FIND A COACH (client-onboarding review, M16): before week 1
+            is published, the coach they pay is preparing it, and the page says so (/api/client/plan
+            training.coaching). */}
+        {coaching
+          ? <>{coaching.name || "Your coach"} is preparing your plan. It shows up here the moment they publish it{coaching.weekOne ? <> (week-one target: {coaching.weekOne.count} {coaching.weekOne.count === 1 ? "workout" : "workouts"}{coaching.weekOne.startsOn ? ", starting " + new Date(coaching.weekOne.startsOn + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }) : ""})</> : null}. Until then you can still build a session of your own. <a href="/newdesign/ClientApp.html#team" style={{ color: DTR_TEAL, textDecoration: "none" }}>Message your coach →</a></>
+          : <>A coach writes this <em>for</em> you — until then, build your own. Starter templates, a custom week, or ✦ a drafted program you approve before it lands. <a href="Marketplace.html" style={{ color: DTR_TEAL, textDecoration: "none" }}>Find a coach →</a></>}
       </div>
 
       {(yours.programs.length > 0 || yours.repeats.length > 0 || yours.oneOffs > 0) && (
@@ -816,7 +821,7 @@ function ClientWorkoutsPage() {
     // Self-serve builder — renders only for an authenticated member (the GET
     // 401s signed-out); coach-assigned weeks above always win the page lead.
     { key: "builder", title: "Build your week", size: "full", empty: !(selfData && selfData.ok), render: () => (
-      <DtrBuilder self={selfData} onChanged={reloadAll} />
+      <DtrBuilder self={selfData} onChanged={reloadAll} coaching={plan && plan.training && !plan.training.hasPlan && plan.training.coaching ? plan.training.coaching : null} />
     ) },
 
     { key: "consistency", title: "Consistency", size: "half", render: () => (

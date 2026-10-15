@@ -30473,6 +30473,13 @@ const BS_CHECKIN_RATINGS = [
   ['stress', 'Stress · 10 = calm', '#7ed4ff'],
   ['hunger', 'Hunger control', '#e8b14a'],
 ];
+// ⚠ THE CHECK-IN ASKED HOW WELL THEY FOLLOWED A PLAN THEY DID NOT HAVE (client-onboarding review, M16).
+// An adherence question is asked only for a discipline with a plan; until the plan read answers (or if
+// it fails) every question is asked, as before. The website's check-in applies the same rule.
+function bsCheckinRatings(plans) {
+  if (!plans) return BS_CHECKIN_RATINGS;
+  return BS_CHECKIN_RATINGS.filter(([k]) => (k === 'trainingAdherence' ? plans.training : k === 'nutritionAdherence' ? plans.nutrition : true));
+}
 const BS_MEASURE_SITES = [['waist', 'Waist'], ['hips', 'Hips'], ['chest', 'Chest'], ['arm', 'Upper arm'], ['thigh', 'Thigh'], ['calf', 'Calf']];
 function BSWeeklyCheckin({ onBack }) {
   const t = useBS();
@@ -30488,6 +30495,13 @@ function BSWeeklyCheckin({ onBack }) {
   const [photos, setPhotos] = useStateBSC({}); // pose → { file, url } until submit
   const [busy, setBusy] = useStateBSC(false);
   const [doneWeek, setDoneWeek] = useStateBSC(false);
+  const [plans, setPlans] = useStateBSC(null);
+  React.useEffect(() => {
+    if (!loggedIn || !window.ShapePlan?.get) return undefined;
+    let on = true;
+    window.ShapePlan.get().then((p) => { if (on && p) setPlans({ training: !!p.training?.hasPlan, nutrition: !!p.meals?.hasPlan }); }).catch(() => {});
+    return () => { on = false; };
+  }, [loggedIn]);
   // Prefill this week's check-in when it exists — saving again updates it.
   React.useEffect(() => {
     if (!loggedIn) return undefined;
@@ -30541,7 +30555,7 @@ function BSWeeklyCheckin({ onBack }) {
         )}
         <div style={card}>
           <div style={lbl}>Rate the week · 1–10</div>
-          {BS_CHECKIN_RATINGS.map(([k, label, c], idx) => (
+          {bsCheckinRatings(plans).map(([k, label, c], idx) => (
             <div key={k} style={{ padding: '9px 0', borderTop: idx === 0 ? 0 : `1px solid ${t.HAIR}` }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 7 }}>
                 <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK }}>{label}</span>

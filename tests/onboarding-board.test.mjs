@@ -363,3 +363,108 @@ test('a published meal plan notifies the member on Eat; a failed publish notifie
   assert.equal(failed.status, 500);
   assert.equal(failed.notices.length, 0);
 });
+
+// ── 6. The coach app: NEW rows, and records that match the website's ────────────────────────────
+test('the app\'s records carry New, the join date, the board and a known "no check-in", as the website\'s do', async () => {
+  const M = await import(pathToFileURL(join(ROOT, 'mobile-app/src/services/signalsMap.mjs')).href);
+  const ob = { trainer: { day: 3, steps: [{ key: 'hello', done: false }] } };
+  const rec = M.recordFromCoachData({ id: 'u', name: 'Jordan', isNew: true, joinedAt: ago(2), onboarding: ob, checkins: [], stats: { daysLogged7d: 0 } });
+  assert.deepEqual(rec.profile, { id: 'u', name: 'Jordan', isNew: true, joinedAt: ago(2) });
+  assert.equal(rec.onboarding, ob);
+  assert.deepEqual(rec.checkIn, { lastWeekOf: null }, 'a read that answered none is a known none (L8)');
+  assert.equal('checkIn' in M.recordFromCoachData({ id: 'u', name: 'J', checkins: null }), false, 'a failed read stays unset');
+  // The roster, the overview batch and the record builder are wired together.
+  assert.match(read('mobile-app/src/services/shapeBackend.js'), /sessions: c\.sessions \|\| 0, isNew: !!c\.isNew, joinedAt: c\.joinedAt \|\| null \}\)\);/);
+  assert.match(read('mobile-app/src/services/shapeBackend.js'), /for \(let i = 0; i < list\.length; i \+= 50\) \{[\s\S]{0,300}\/api\/clients\/shared-overview/);
+  const sig = read('mobile-app/src/services/shapeSignals.js');
+  assert.match(sig, /id: c\.id, name: c\.name, isNew: c\.isNew, joinedAt: c\.joinedAt, stats,/);
+  assert.match(sig, /lastContact: ov && ov\.lastContact \? ov\.lastContact : null,\s+onboarding: ov && ov\.onboarding \? ov\.onboarding : null,/);
+});
+
+const read = (rel) => readFileSync(join(ROOT, rel), 'utf8');
+function slice(src, from, to) {
+  const a = src.indexOf(from), b = src.indexOf(to, a + 1);
+  assert.ok(a >= 0 && b > a, from);
+  return src.slice(a, b);
+}
+// A translator that returns the English default with {name} filled (ICU plurals are not needed here).
+const coachTr = (_k, o = {}) => String(o.defaultValue || '').replace(/\{(\w+)\}/g, (_m, k) => (o[k] != null ? String(o[k]) : ''));
+
+test('a new client with nothing to flag is a NEW row in the app, led by their board\'s next step', () => {
+  const pros = read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx');
+  const code = slice(pros, 'function bsOnboardingFor(', 'function BSProOnboardingStation(') + slice(pros, 'function bsRowFromTriage(', '// Severity for a roster row');
+  const api = new Function('coachTr', code + ';return { bsRowFromTriage, bsOnboardingNext, bsOnboardingFor };')(coachTr);
+  const t = { GREEN: 'g', RUST: 'r', AMBER: 'a', BLUE: 'b' };
+  const ob = { trainer: { day: 3, steps: [{ key: 'joined', done: true }, { key: 'hello', done: false }, { key: 'plan', done: false, due: '2026-10-20' }] } };
+  const row = (severity, profile, extra = {}) => ({ severity, client: { profile, onboarding: ob, ...extra }, flags: [], reasons: [] });
+  const fresh = api.bsRowFromTriage(row('green', { id: 'u', name: 'Jordan Reyes', isNew: true }), 'trainer', t);
+  assert.equal(fresh._sig.sev, 'new');
+  assert.equal(fresh._sig.rank, 2);
+  assert.equal(fresh._sig.label, 'NEW');
+  assert.equal(fresh._sig.directive, 'New · Your first message');
+  assert.equal(fresh.s, 'onboard');
+  const settled = api.bsRowFromTriage(row('green', { id: 'u', name: 'Sam', isNew: false }), 'trainer', t);
+  assert.equal(settled._sig.sev, 'green');
+  assert.equal(settled._sig.label, 'ON TRACK');
+  const flagged = api.bsRowFromTriage({ severity: 'amber', client: { profile: { id: 'u', name: 'J', isNew: true }, onboarding: ob }, flags: [{ reason: 'Say hello' }], reasons: [] }, 'trainer', t);
+  assert.equal(flagged._sig.sev, 'amber', 'a flag outranks New');
+  const noBoard = api.bsRowFromTriage({ severity: 'green', client: { profile: { id: 'u', name: 'J', isNew: true } }, flags: [], reasons: [] }, 'nutritionist', t);
+  assert.equal(noBoard._sig.directive, 'New client — open their first 30 days.');
+  assert.match(api.bsOnboardingNext({ steps: [{ key: 'plan', done: false, due: '2026-10-20' }] }, 'nutritionist'), /^Meal plan live · due /);
+  assert.equal(api.bsOnboardingFor({ onboarding: ob }, 'dietitian'), null, 'a dietitian reads the nutritionist board');
+  // The client page shows the board from the same overview, and Say hello opens the thread.
+  assert.match(pros, /setOnboard\(bsOnboardingFor\(d, role\)\)/);
+  assert.match(pros, /<BSProOnboardingStation ob=\{onboard\} role=\{role\} clientUid=\{clientUid\}[^>]*onSayHello=\{\(\) => fireEvt\('shape:proMessageClient'\)\} \/>/);
+  assert.match(pros, /window\.ShapeWeekOne\.set\(clientUid, role, count, startsOn\)/);
+});
+
+// ── 7. The member: a coach preparing their plan, and a check-in about plans that exist ─────────────
+test('the plan read names the coach the member pays, their thread and their week-one target (M16)', async () => {
+  const U = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  const load = async (db) => loadRealModule(join(ROOT, 'src/app/api/client/plan/route.ts'), {
+    typescript: true,
+    registry: new Map([
+      ['next/server', { NextResponse: { json: (body, init) => ({ body, init }) } }],
+      ['@/lib/request-auth', { clientForRequest: async () => db, currentUser: async () => ({ id: U }) }],
+      ['@/lib/require-membership', { requireMembership: async () => null }],
+    ]),
+  });
+  const tables = {
+    client_workouts: [], client_meal_plans: [],
+    client_programs: [{ user_id: U, detail: { training: { weekOne: { count: 4, startsOn: '2026-10-20' } } } }],
+    subscriptions: [{ client_id: U, provider_role: 'trainer', provider_id: 7, status: 'active', created_at: ago(2) }],
+    trainers: [{ id: 7, name: 'Tom Trainer' }], nutritionists: [],
+    conversations: [{ id: 'conv-t', client_id: U, kind: 'direct', provider_role: 'trainer', provider_id: 7 }],
+  };
+  const { body } = await (await load(fakeSupabase({ tables }))).GET(new Request('https://x/api/client/plan'));
+  assert.equal(body.training.hasPlan, false);
+  assert.deepEqual(body.training.coaching, { name: 'Tom Trainer', conversationId: 'conv-t', weekOne: { count: 4, startsOn: '2026-10-20' } });
+  assert.equal(body.meals.coaching, null, 'no nutritionist: null, a known none');
+  const failed = (await (await load(fakeSupabase({ tables, fail: ['subscriptions'] }))).GET(new Request('https://x/api/client/plan'))).body;
+  assert.equal('coaching' in failed.training, false, 'an unread subscription is "could not tell", not "no coach"');
+});
+
+test('the member app and the website say the coach is preparing the plan, and ask adherence only of a plan', () => {
+  const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  // Train: a coached member with no plan gets the coach card, not "Find a trainer" and the build door.
+  assert.match(client, /\{trainCoaching\s+\? <BSCoachPreparing role="trainer" coaching=\{trainCoaching\} onOpenSession=\{\(\) => \{ setOpenSession\(true\); setSession\(true\); \}\} \/>\s+: <>\s+<BSFindCoachBar role="trainer"/);
+  assert.match(client, /setTrainCoaching\(p\?\.training\?\.coaching \|\| null\);/);
+  // Eat: the same for a nutritionist, before any menu.
+  assert.match(client, /\{bsEatSignedIn && eatPlanRead && !liveMealDays && eatCoaching && <BSCoachPreparing role="nutritionist" coaching=\{eatCoaching\} \/>\}/);
+  assert.match(client, /if \(!cancelled\) setEatCoaching\(p\?\.meals\?\.coaching \|\| null\);\s+if \(cancelled \|\| !p\?\.meals\?\.hasPlan\) return;/);
+  // The check-in's adherence questions follow the plans, in the app and on the website.
+  const RATINGS = [['trainingAdherence'], ['nutritionAdherence'], ['sleep'], ['energy']];
+  const app = new Function('BS_CHECKIN_RATINGS', slice(client, 'function bsCheckinRatings(', 'const BS_MEASURE_SITES') + ';return bsCheckinRatings;')(RATINGS);
+  const web = new Function('CK_RATINGS', slice(read('public/newdesign/dashProgress.jsx'), 'function dprCheckinRatings(', 'function DprCheckinForm(') + ';return dprCheckinRatings;')(RATINGS);
+  for (const f of [app, web]) {
+    assert.deepEqual(f(null).map(([k]) => k), ['trainingAdherence', 'nutritionAdherence', 'sleep', 'energy'], 'until it is known, every question');
+    assert.deepEqual(f({ training: false, nutrition: false }).map(([k]) => k), ['sleep', 'energy']);
+    assert.deepEqual(f({ training: true, nutrition: false }).map(([k]) => k), ['trainingAdherence', 'sleep', 'energy']);
+  }
+  assert.match(client, /\{bsCheckinRatings\(plans\)\.map\(/);
+  assert.match(read('public/newdesign/dashProgress.jsx'), /\{dprCheckinRatings\(plans\)\.map\(/);
+  // The website's Train builder says so too.
+  const train = read('public/newdesign/dashTrain.jsx');
+  assert.match(train, /<DtrBuilder self=\{selfData\} onChanged=\{reloadAll\} coaching=\{plan && plan\.training && !plan\.training\.hasPlan && plan\.training\.coaching \? plan\.training\.coaching : null\} \/>/);
+  assert.match(train, /is preparing your plan\. It shows up here the moment they publish it/);
+});

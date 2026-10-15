@@ -44,5 +44,15 @@
   "search.previewNote": "Önizleme · tüm gerçek hesaplarda aramak için giriş yap",
   "search.channelsSignIn": "Topluluk kanallarına göz atmak için giriş yap.",
   "search.noChannelsYet": "Henüz kanal yok — Sohbet → Kanallar bölümünden bir tane başlat.",
-  "search.browseCoaches": "Marketplace'te antrenörlere göz at →"
+  "search.browseCoaches": "Marketplace'te antrenörlere göz at →",
+  "coachPrep.eyebrow": "Koçun bunun üzerinde",
+  "coachPrep.title": "{coach} planını hazırlıyor",
+  "coachPrep.titleNutri": "{coach} öğün planını hazırlıyor",
+  "coachPrep.coachFallback": "Koçun",
+  "coachPrep.body": "Yayınlandığı anda burada görünür. O zamana kadar bilmesi gereken her şeyi ona anlat.",
+  "coachPrep.starts": "1. hafta {date} başlıyor",
+  "coachPrep.target": "1. hafta hedefi: {count, plural, one {# antrenman} other {# antrenman}}",
+  "coachPrep.targetNutri": "1. hafta hedefi: {count, plural, one {# gün} other {# gün}} kayıt",
+  "coachPrep.message": "Koçuna yaz",
+  "coachPrep.meanwhile": "Bu arada bir seans kaydet"
 }
