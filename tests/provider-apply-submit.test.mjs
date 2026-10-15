@@ -647,12 +647,15 @@ test('with documents the app asks for upload links (with the token), uploads eac
 
 test('without documents the app sends one request with the token, as before', async () => {
   const { submit, requests } = appSender({ respond: () => json(200, { ok: true, id: 'app-1' }) });
-  await submit({ role: 'trainer', values: VALUES });
+  await submit({ role: 'trainer', values: { ...VALUES, experienceHistory: 'Gym A, floor coach, 1 year', experienceType: 'Gym floor', experienceNotes: 'NSCA intern' } });
   assert.equal(requests.length, 1);
   assert.equal(requests[0].url, 'https://shape.test/api/apply');
   assert.equal(requests[0].form.get('turnstileToken'), 'app-token');
   assert.equal(requests[0].form.get('uploadTicket'), null);
   assert.equal(requests[0].init.headers.Authorization, undefined);
+  // The experience answers reach the route, which reads them below the years standard.
+  const details = JSON.parse(requests[0].form.get('details'));
+  assert.deepEqual([details.experience_history, details.experience_type, details.experience_notes], ['Gym A, floor coach, 1 year', 'Gym floor', 'NSCA intern']);
 });
 
 test('a refused link request, or a file that does not upload, stops the application: nothing is sent to the route', async () => {
