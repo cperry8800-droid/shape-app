@@ -173,7 +173,7 @@ export async function POST(request: Request) {
         type: 'booking_request',
         title: 'New session request',
         body: `${clientName} requested a session on ${when}.`,
-        route: 'sessions',
+        route: 'schedule', // the coach's calendar (the member's own sessions are 'sessions')
         data: { sessionId: (inserted as { id: string }).id, providerRole: role },
       });
     } catch {

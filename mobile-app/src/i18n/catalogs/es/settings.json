@@ -40,6 +40,8 @@
   "health.iosApp": "App de iOS",
   "health.connected": "Conectado",
   "health.connect": "Conectar",
+  "notif.inbox": "Tus notificaciones",
+  "notif.inboxMeta": "Abrir",
   "notif.center": "Centro de notificaciones",
   "notif.centerMeta": "Todos los tipos · canales",
   "notif.workoutReminders": "Recordatorios de entrenamiento",

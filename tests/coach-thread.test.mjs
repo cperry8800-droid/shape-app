@@ -181,7 +181,7 @@ test('startCoaching: the thread with the welcome, the coach alerted and emailed 
   assert.equal(n.title, 'New client: Cara Diaz');
   assert.match(n.body, /^Cara Diaz subscribed · \$85\.00\/mo to you\. /);
   assert.equal(n.route, 'chat:conv-1', 'the alert opens the thread (Codex on #2360: "messages" opened nothing)');
-  assert.deepEqual(n.data, { dedupe: 'hire:sub_123', clientId: 'client-1', conversationId: 'conv-1', providerRole: 'trainer' });
+  assert.deepEqual(n.data, { dedupe: 'hire:sub_123', clientId: 'client-1', conversationId: 'conv-1', providerRole: 'trainer', side: 'coach' });
   assert.deepEqual(sent.emails.map((e) => [e.to, e.subject]), [
     ['tom@example.com', 'New client: Cara Diaz'],
     ['cara@example.com', "You're working with Tom Trainer on Shape"],
@@ -479,7 +479,7 @@ test('the app opens the membership welcome ("home") and a new client with no thr
   assert.equal(route('client', {}), false, 'no client named: nothing to open');
   assert.equal(route('client:client-2'), true, 'a push carries the client in its route');
   assert.equal(route('client:'), false);
-  assert.deepEqual(events, [['shape:goHome', undefined], ['shape:openClient', { clientId: 'client-1', providerRole: null }], ['shape:openClient', { clientId: 'client-2', providerRole: null }]]);
+  assert.deepEqual(events, [['shape:goHome', undefined], ['shape:openClient', { clientId: 'client-1', providerRole: null, fromNotification: true }], ['shape:openClient', { clientId: 'client-2', providerRole: null, fromNotification: true }]]);
   // The member shell lands on Home, clearing the takeovers above the tabs.
   assert.match(client, /const open = \(\) => \{\s+navJumpRef\.current\.navPush\(\); setShowSettings\(false\); setSettingsStart\(''\);\s+setShowCalendar\(false\); setShowSearch\(false\); setShowCycle\(false\);\s+setChatRequest\(null\); setTab\('home'\);\s+\};\s+window\.addEventListener\('shape:goHome', open\);/);
   // Both coach shells answer shape:openClient with the Clients tab and the request, and each
@@ -539,10 +539,10 @@ test('a tapped push opens the thread in the coach apps too', () => {
   assert.match(client, /^Object\.assign\(window, \{ bsRouteNotification \}\);$/m, 'still on window for older callers');
   // ⚠ EVERY SHELL IMPORTS IT (Codex on #2360, tenth round): an app that starts in a coach role never
   // loads the client module, so window.bsRouteNotification was missing there and a tapped push was lost.
-  assert.match(client, /^import \{ bsRouteNotification \} from '\.\/bsNotificationRoute\.mjs';$/m);
+  assert.match(client, /^import \{ bsRouteNotification, [^}]*\} from '\.\/bsNotificationRoute\.mjs';$/m);
   assert.doesNotMatch(client, /^function bsRouteNotification\(/m, 'one router, not a copy');
   const pros = read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx');
-  assert.match(pros, /^import \{ bsRouteNotification \} from '\.\/bsNotificationRoute\.mjs';$/m, 'the coach shells import the router');
+  assert.match(pros, /^import \{ bsRouteNotification, [^}]*\} from '\.\/bsNotificationRoute\.mjs';$/m, 'the coach shells import the router');
   assert.doesNotMatch(pros, /window\.bsRouteNotification/, 'never through window, which a coach-only start never fills');
   for (const shell of ['function BSTrainerAppInner(', 'function BSNutritionistAppInner(']) {
     const at = pros.indexOf(shell);
@@ -588,7 +588,7 @@ test('the thread asked for keeps its history in a busy inbox: its messages are r
 test('a "New message" notification opens its thread: push, the app\'s list, and the website\'s inbox', async () => {
   const push = await loadRealModule(join(ROOT, 'src/app/api/push/dispatch/route.ts'), {
     typescript: true,
-    registry: new Map([['next/server', { NextResponse: { json: () => null } }], ['@/lib/supabase/admin', {}], ['@/lib/push', {}], ['node:crypto', { timingSafeEqual: () => false }], ['crypto', { timingSafeEqual: () => false }]]),
+    registry: new Map([['next/server', { NextResponse: { json: () => null } }], ['@/lib/supabase/admin', {}], ['@/lib/push', {}], ['@/lib/ai/notifications.mjs', await import('../src/lib/ai/notifications.mjs')], ['node:crypto', { timingSafeEqual: () => false }], ['crypto', { timingSafeEqual: () => false }]]),
   });
   assert.equal(push.pushRoute({ route: 'messages', data: { conversationId: 'conv-3' } }), 'chat:conv-3');
   assert.equal(push.pushRoute({ route: 'messages', data: {} }), 'messages', 'no id: as it was');
@@ -604,7 +604,9 @@ test('a "New message" notification opens its thread: push, the app\'s list, and 
   const route = routerWith((e) => events.push(e.detail));
   assert.equal(route('messages', { conversationId: 'conv-3' }), true);
   assert.deepEqual(events, [{ conversationId: 'conv-3' }]);
-  assert.equal(route('messages', {}), false, 'no id: nothing to open');
+  // No thread named (an older row): the chat itself (the notification audit).
+  assert.equal(route('messages', {}), true);
+  assert.deepEqual(events.at(-1), { page: 'messages', id: null, role: null, fromNotification: true });
   assert.match(client, /onRoute=\{\(route, data\) => \{[\s\S]{0,400}if \(bsRouteNotification\(route, data\)\) setShowNotifications\(false\);/);
 
   const shell = read('public/newdesign/pageShell.jsx');
@@ -641,7 +643,7 @@ test('an open thread that receives Shape\'s welcome keeps it read, as it does an
 // coach with both listings, and the website's member bubble.
 const PUSH = await loadRealModule(join(ROOT, 'src/app/api/push/dispatch/route.ts'), {
   typescript: true,
-  registry: new Map([['next/server', { NextResponse: { json: () => null } }], ['@/lib/supabase/admin', {}], ['@/lib/push', {}], ['node:crypto', { timingSafeEqual: () => false }], ['crypto', { timingSafeEqual: () => false }]]),
+  registry: new Map([['next/server', { NextResponse: { json: () => null } }], ['@/lib/supabase/admin', {}], ['@/lib/push', {}], ['@/lib/ai/notifications.mjs', await import('../src/lib/ai/notifications.mjs')], ['node:crypto', { timingSafeEqual: () => false }], ['crypto', { timingSafeEqual: () => false }]]),
 });
 const routed = (route, data) => { const out = []; const ok = routerWith((e) => out.push([e.type, e.detail]))(route, data); return { ok, out }; };
 
@@ -660,8 +662,8 @@ test('every notification this PR sends opens the same screen from the app\'s lis
     assert.deepEqual(push, list, 'push and list open the same place: ' + JSON.stringify(rec));
   }
   assert.equal(PUSH.pushRoute(records[1]), 'client:nutritionist:u-2', 'the role rides in the push');
-  assert.deepEqual(routed('client:trainer:u-9').out, [['shape:openClient', { clientId: 'u-9', providerRole: 'trainer' }]]);
-  assert.deepEqual(routed('client:u-9').out, [['shape:openClient', { clientId: 'u-9', providerRole: null }]]);
+  assert.deepEqual(routed('client:trainer:u-9').out, [['shape:openClient', { clientId: 'u-9', providerRole: 'trainer', fromNotification: true }]]);
+  assert.deepEqual(routed('client:u-9').out, [['shape:openClient', { clientId: 'u-9', providerRole: null, fromNotification: true }]]);
   assert.equal(routed('client:trainer:').ok, false, 'a role with no client opens nothing');
 });
 
@@ -677,7 +679,7 @@ test('both coach shells answer every route, and a client of the other listing is
     assert.match(body, new RegExp(`if \\(\\(other === 'trainer' \\|\\| other === 'nutritionist'\\) && other !== '${role}'\\) \\{\\s+window\\.__bsPushRoute = 'client:' \\+ other \\+ ':' \\+ clientId;\\s+setTweak\\('role', other\\);\\s+return;`), role);
     assert.match(body, /if \(pending\) \{ window\.__bsPushRoute = null; replay = setTimeout\(\(\) => bsRouteNotification\(pending\), 0\); \}/, `${role}: the replay`);
     // Handed over, the route names the receiving shell's own role, so it opens there and goes no further.
-    assert.deepEqual(routed(`client:${other}:u-1`).out, [['shape:openClient', { clientId: 'u-1', providerRole: other }]]);
+    assert.deepEqual(routed(`client:${other}:u-1`).out, [['shape:openClient', { clientId: 'u-1', providerRole: other, fromNotification: true }]]);
     assert.match(body, /const home = \(\) => \{[\s\S]{0,300}setTab\('today'\);\s+\};/, `${role}: home lands on Today`);
   }
 });

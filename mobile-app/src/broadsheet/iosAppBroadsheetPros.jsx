@@ -19,7 +19,7 @@ import { coachIntakeView, screeningState } from '../services/coachIntake.mjs';
 import { bsDeriveCycle } from '../services/cyclePhase.mjs';
 import { BS_LISTING_GALLERY_MAX, BS_LISTING_CAPTION_MAX } from '../services/listingMedia.mjs';
 import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } from './bsNavShell.js';
-import { bsRouteNotification } from './bsNotificationRoute.mjs';
+import { bsRouteNotification, bsHandOver, bsRouteFor, BS_MEMBER_PAGES } from './bsNotificationRoute.mjs';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
 // front and the live sign-in token. A root-relative '/api/…' fetch reaches nothing in the
@@ -1221,6 +1221,43 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     window.addEventListener('shape:goHome', home);
     return () => { window.removeEventListener('shape:openClient', open); window.removeEventListener('shape:goHome', home); };
   }, []);
+  // ⚠ EVERY OTHER NOTIFICATION LANDS HERE (the notification audit, 2026-10-15; the member shell has
+  // the same effect). A coach's own pages open here; the other listing's are handed to the
+  // nutritionist app, and a member's (a session, a workout, the score, a prep reminder, a waiting-list
+  // invite) to the member app, each of which replays the route once it mounts.
+  useEffectBSP(() => {
+    const clear = () => {
+      navJumpRef.current.navPush();
+      setShowSoundtracks(false); setShowSettings(false); setSettingsStart('');
+      setShowCalendar(false); setShowReviews(false); setShowHabits(false);
+      setQueueView(null); setLiveWatch(null); setShowSearch(false);
+    };
+    const open = (e) => {
+      const d = (e && e.detail) || {};
+      if (BS_MEMBER_PAGES.includes(d.page)) { if (d.fromNotification) bsHandOver(bsRouteFor('page', d), 'client', setTweak); return; }
+      if (d.fromNotification && d.role && d.role !== 'trainer' && (d.page === 'schedule' || d.page === 'waitlist' || d.page === 'credentials')) {
+        bsHandOver(bsRouteFor('page', d), d.role, setTweak);
+        return;
+      }
+      switch (d.page) {
+        case 'clients': clear(); setTab('clients'); return;
+        case 'schedule': clear(); setShowCalendar(true); return;
+        // The waiting room and the certifications are both in Settings ▸ Your practice.
+        case 'waitlist': case 'credentials': clear(); setSettingsStart('practice'); setShowSettings(true); return;
+        case 'settings': clear(); setShowSettings(true); return;
+        case 'profile': clear(); setTab('me'); return;
+        case 'feed': case 'community': case 'messages': clear(); setChatRequest(null); setTab('chat'); return;
+        default: return;
+      }
+    };
+    const toMember = (kind) => (e) => { if (e && e.detail && e.detail.fromNotification) bsHandOver(bsRouteFor(kind, e.detail), 'client', setTweak); };
+    const prep = toMember('prep');
+    const market = toMember('coach');
+    window.addEventListener('shape:openPage', open);
+    window.addEventListener('shape:openPrep', prep);
+    window.addEventListener('shape:openMarket', market);
+    return () => { window.removeEventListener('shape:openPage', open); window.removeEventListener('shape:openPrep', prep); window.removeEventListener('shape:openMarket', market); };
+  }, []);
   const [showSettings, setShowSettings] = useStateBSP(false);
   const [showSoundtracks, setShowSoundtracks] = useStateBSP(false);
   const [showCalendar, setShowCalendar] = useStateBSP(false);
@@ -1402,7 +1439,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   // stacking context so Settings' sheets stack inside it.
   const settingsOverlay = showSettings ? (
     <div style={{ position: 'absolute', inset: 0, zIndex: 210 }}>
-      <BSSettings initialPage={settingsStart} onBack={() => { if (!navBack()) { setShowSettings(false); setSettingsStart(''); } }} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />
+      <BSSettings key={'settings:' + settingsStart} initialPage={settingsStart} onBack={() => { if (!navBack()) { setShowSettings(false); setSettingsStart(''); } }} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />
     </div>
   ) : null;
   // Every takeover renders BOTH overlays: opening Settings from (say) the calendar
@@ -6981,6 +7018,43 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     window.addEventListener('shape:goHome', home);
     return () => { window.removeEventListener('shape:openClient', open); window.removeEventListener('shape:goHome', home); };
   }, []);
+  // ⚠ EVERY OTHER NOTIFICATION LANDS HERE (the notification audit, 2026-10-15; the member shell has
+  // the same effect). A coach's own pages open here; the other listing's are handed to the
+  // trainer app, and a member's (a session, a workout, the score, a prep reminder, a waiting-list
+  // invite) to the member app, each of which replays the route once it mounts.
+  useEffectBSP(() => {
+    const clear = () => {
+      navJumpRef.current.navPush();
+      setShowSoundtracks(false); setShowSettings(false); setSettingsStart('');
+      setShowCalendar(false); setShowReviews(false); setShowHabits(false);
+      setQueueView(null); setShowSearch(false);
+    };
+    const open = (e) => {
+      const d = (e && e.detail) || {};
+      if (BS_MEMBER_PAGES.includes(d.page)) { if (d.fromNotification) bsHandOver(bsRouteFor('page', d), 'client', setTweak); return; }
+      if (d.fromNotification && d.role && d.role !== 'nutritionist' && (d.page === 'schedule' || d.page === 'waitlist' || d.page === 'credentials')) {
+        bsHandOver(bsRouteFor('page', d), d.role, setTweak);
+        return;
+      }
+      switch (d.page) {
+        case 'clients': clear(); setTab('clients'); return;
+        case 'schedule': clear(); setShowCalendar(true); return;
+        // The waiting room and the certifications are both in Settings ▸ Your practice.
+        case 'waitlist': case 'credentials': clear(); setSettingsStart('practice'); setShowSettings(true); return;
+        case 'settings': clear(); setShowSettings(true); return;
+        case 'profile': clear(); setTab('me'); return;
+        case 'feed': case 'community': case 'messages': clear(); setChatRequest(null); setTab('chat'); return;
+        default: return;
+      }
+    };
+    const toMember = (kind) => (e) => { if (e && e.detail && e.detail.fromNotification) bsHandOver(bsRouteFor(kind, e.detail), 'client', setTweak); };
+    const prep = toMember('prep');
+    const market = toMember('coach');
+    window.addEventListener('shape:openPage', open);
+    window.addEventListener('shape:openPrep', prep);
+    window.addEventListener('shape:openMarket', market);
+    return () => { window.removeEventListener('shape:openPage', open); window.removeEventListener('shape:openPrep', prep); window.removeEventListener('shape:openMarket', market); };
+  }, []);
   const [showSettings, setShowSettings] = useStateBSP(false);
   const [showSoundtracks, setShowSoundtracks] = useStateBSP(false);
   const [showCalendar, setShowCalendar] = useStateBSP(false);
@@ -7120,7 +7194,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   // stacking context so Settings' sheets stack inside it.
   const settingsOverlay = showSettings ? (
     <div style={{ position: 'absolute', inset: 0, zIndex: 210 }}>
-      <BSSettings initialPage={settingsStart} onBack={() => { if (!navBack()) { setShowSettings(false); setSettingsStart(''); } }} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />
+      <BSSettings key={'settings:' + settingsStart} initialPage={settingsStart} onBack={() => { if (!navBack()) { setShowSettings(false); setSettingsStart(''); } }} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />
     </div>
   ) : null;
   // Every takeover renders BOTH overlays: opening Settings from (say) the calendar

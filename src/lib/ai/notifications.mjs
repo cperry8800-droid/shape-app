@@ -356,6 +356,9 @@ function finalizeClient(c, tone) {
 // owned flag. lastSeverity (from state) suppresses re-firing while unchanged.
 export function coachCandidates(input) {
   const { triageRows = [], lastSeverity = {} } = input;
+  // The listing's role rides on the alert, so a coach with both listings opens the client in the
+  // right app (the notification audit, 2026-10-15). A dietitian is on the nutritionist rails.
+  const providerRole = input.providerRole === 'trainer' ? 'trainer' : input.providerRole === 'nutritionist' || input.providerRole === 'dietitian' ? 'nutritionist' : null;
   const out = [];
   for (const row of triageRows) {
     if (!row || !nonEmpty(row.clientId)) continue;
@@ -372,7 +375,7 @@ export function coachCandidates(input) {
     if (!nonEmpty(reason)) continue;              // honest: no reason → no notification
     const type = sev === 'red' ? 'client_red' : 'client_amber';
     const copy = sanitize(coachCopy(type, { clientName: row.clientName, reason }));
-    out.push({ type, key: row.clientId, sig: `${sev}:${reason}`, priority: NOTIFY_TYPES[type].priority, route: 'client', data: { clientId: row.clientId, discipline: ownedFlags[0].discipline || null }, title: copy.title, body: copy.body, _severity: sev });
+    out.push({ type, key: row.clientId, sig: `${sev}:${reason}`, priority: NOTIFY_TYPES[type].priority, route: 'client', data: { clientId: row.clientId, discipline: ownedFlags[0].discipline || null, ...(providerRole ? { providerRole } : {}) }, title: copy.title, body: copy.body, _severity: sev });
   }
   return out;
 }

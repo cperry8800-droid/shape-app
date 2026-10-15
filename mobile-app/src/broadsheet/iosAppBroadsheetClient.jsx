@@ -46,7 +46,7 @@ import { bsMergeMise, bsPrepOrder, bsPrepMatch, bsPrepWeekKey, bsScaleQty } from
 import { bsMakeAheadIndex, bsPlanByDow, bsPlanMealsOn, bsPrepCovers, bsPrepDueTonight, bsPrepRecordsFor, bsYmdAdd, bsYmdIn } from '../services/prepAhead.mjs';
 import { bsJumpLine, bsJumpActive, bsJumpAtEnd, bsJumpScrollTop } from '../services/jumpRow.mjs';
 import { isShapeWelcome, shapeWelcomeShown } from '../services/shapeWelcome.mjs';
-import { bsRouteNotification } from './bsNotificationRoute.mjs';
+import { bsRouteNotification, bsHandOver, bsRouteFor, bsAccountCoachRole, BS_COACH_PAGES } from './bsNotificationRoute.mjs';
 import { bsNormalizeProfileCustom, bsProfileWall, bsProfileShelf, bsProfileStartLine, bsProfileLine, bsStartLineState, bsValidStartDate, bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX, BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX, BS_PIN_KINDS, BS_PROFILE_PROMPTS, BS_COACH_PROMPTS, bsPinKindLabel, bsPinKindToken, bsPromptLabel, bsPromptToken } from '../services/profileCustom.mjs';
 import { bsOrchestrate, bsReplanCook, bsCookBlockingHold, BS_COOK_MODE, BS_ORCH, BS_SERIAL_REASON, BS_SERVE_ISSUE, bsProgressPct } from '../services/cookOrchestrator.mjs';
 import { bsTrackLanes, bsTrackLaneStatus, bsTrackWindow, bsCookNowMin, bsCookFinishAt, bsPlanEnd, bsHobOccupancy, bsHobTappable, bsDishColors, bsHeroHue, bsInkOn, BS_HOB_MAX } from '../services/cookBoard.mjs';
@@ -772,6 +772,51 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return () => window.removeEventListener('shape:goHome', open);
   }, []);
 
+  // ⚠ EVERY OTHER NOTIFICATION LANDS HERE (the notification audit, 2026-10-15). The router
+  // (bsNotificationRoute.mjs) sends each route without an event of its own as shape:openPage, and
+  // fifteen of them opened nothing: a session booked, a workout or meal plan from a coach, the
+  // score, a check-in, a goal, a habit, a weigh-in, the feed, a follow. Each opens its screen,
+  // with every takeover above the tabs cleared the way goHome does. A coach route (a client page,
+  // the coach's calendar, waiting room or certifications) is handed to the coach app, which
+  // replays it once it mounts.
+  React.useEffect(() => {
+    const clear = () => {
+      navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart('');
+      setShowCalendar(false); setShowSearch(false); setShowCycle(false); setChatRequest(null);
+    };
+    const toSettings = (page) => { clear(); setSettingsStart(page); setShowSettings(true); };
+    const open = (e) => {
+      const d = (e && e.detail) || {};
+      if (BS_COACH_PAGES.includes(d.page)) {
+        const role = d.role || bsAccountCoachRole();
+        if (d.fromNotification && role) bsHandOver(bsRouteFor('page', d), role, setTweak);
+        return;
+      }
+      switch (d.page) {
+        case 'sessions': toSettings('sessions'); return;
+        case 'habits': toSettings('habits'); return;
+        case 'settings': toSettings(''); return;
+        case 'train': clear(); setTab('train'); return;
+        case 'eat': clear(); setTab('eat'); return;
+        case 'score': clear(); setStoreView('score'); setTab('store'); return;
+        case 'checkin': clear(); setTab('home'); return;
+        // The goal, progress and follows (requests are answered on the member's own profile).
+        case 'goal': case 'progress': case 'profile': clear(); setTab('me'); return;
+        case 'feed': case 'community': case 'messages': clear(); setTab('chat'); return;
+        default: return;
+      }
+    };
+    // A client's page belongs to the coach app of that listing's role.
+    const toCoach = (e) => {
+      const d = (e && e.detail) || {};
+      const role = d.providerRole || bsAccountCoachRole();
+      if (d.fromNotification && d.clientId && role) bsHandOver(bsRouteFor('client', d), role, setTweak);
+    };
+    window.addEventListener('shape:openPage', open);
+    window.addEventListener('shape:openClient', toCoach);
+    return () => { window.removeEventListener('shape:openPage', open); window.removeEventListener('shape:openClient', toCoach); };
+  }, []);
+
   // Chat → The Wall. Same shape as goCommunity, but it carries a request the
   // chat page's openRequest effect reads, so the segment is chosen by the
   // caller rather than by whatever tab the page was last left on.
@@ -1085,6 +1130,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const settingsOverlay = showSettings ? (
     <div style={{ position: 'absolute', inset: 0, zIndex: 210 }}>
       <BSSettings
+        key={'settings:' + settingsStart}
         initialPage={settingsStart}
         onBack={() => { if (!navBack()) { setShowSettings(false); setSettingsStart(''); } }}
         onLogout={onLogout}
@@ -25700,6 +25746,13 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
   // ⚠ KEYED TO ITS CONVERSATION (Codex on #2360): a history fetched for one conversation is never
   // shown in another, even for the moment before the next fetch lands or when it fails.
   const [history, setHistory] = useStateBSC(null);
+  // ⚠ AN OPEN CONVERSATION IS READ, HOWEVER IT WAS OPENED (Codex on #2360, carried to the
+  // notification audit): only the list's own tap marked it, so a thread opened from a notification,
+  // a push or a coach's Message kept the messages already in it (the welcome included) in
+  // dm_unread(), and the badge came back after a reload. Marked here, where every opener lands.
+  React.useEffect(() => {
+    if (thread.conversationId) window.ShapeUnread?.markConversationRead?.(thread.conversationId);
+  }, [thread.conversationId]);
   React.useEffect(() => {
     setHistory(null);
     if (!thread.conversationId || (thread.messages && thread.messages.length) || !window.ShapeMessages?.getConversationThread) return;
@@ -35082,8 +35135,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showConsumerHealth, setShowConsumerHealth] = useStateBSC(false);
   const [showSubprocessors, setShowSubprocessors] = useStateBSC(false);
   const [showPricing, setShowPricing] = useStateBSC(initialPage === 'pricing');
-  const [showSessions, setShowSessions] = useStateBSC(false);
-  const [showNotifications, setShowNotifications] = useStateBSC(false);
+  // A notification can open Settings on a page (initialPage; the notification audit, 2026-10-15):
+  // the member's sessions, the notification list, habits, or a coach's practice pane.
+  const [showSessions, setShowSessions] = useStateBSC(initialPage === 'sessions');
+  const [showNotifications, setShowNotifications] = useStateBSC(initialPage === 'notifications');
   const [showNotifyPrefs, setShowNotifyPrefs] = useStateBSC(false);
   const [showNoraMemory, setShowNoraMemory] = useStateBSC(false);
   const [showIntegrations, setShowIntegrations] = useStateBSC(initialPage === 'integrations');
@@ -35122,7 +35177,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     const tm = setTimeout(() => setFxPreview(null), 6000);
     return () => clearTimeout(tm);
   }, [fxPreview]);
-  const [detail, setDetail] = useStateBSC(''); // '' = settings page; else a drill-in card pane
+  const [detail, setDetail] = useStateBSC(initialPage === 'practice' ? 'practice' : ''); // '' = settings page; else a drill-in card pane
   // The Shape team's door into the admin console (window.ShapeStaff, /api/me/staff): a staff
   // level, or null for everyone else, who never see the row. Asked once per mount; a failed read
   // is null. The level grants nothing: the console asks for a website sign-in and two-factor.
@@ -35169,7 +35224,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showPublicProfile, setShowPublicProfile] = useStateBSC(false);
   const [showGoals, setShowGoals] = useStateBSC(false);
   const [showLibrary, setShowLibrary] = useStateBSC(false);
-  const [showHabits, setShowHabits] = useStateBSC(false);
+  const [showHabits, setShowHabits] = useStateBSC(initialPage === 'habits');
   const [showCheckin, setShowCheckin] = useStateBSC(false);
   const [showHealth, setShowHealth] = useStateBSC(false);
   const [healthDoc, setHealthDoc] = useStateBSC(null);
@@ -36386,6 +36441,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       title: 'Notifications',
       meta: (prefs.workoutReminders !== 'Off' || prefs.coachReplies !== 'Off' || prefs.weeklyDigest !== 'Off') ? 'On' : 'Off',
       rows: [
+        // ⚠ THE LIST HAD NO DOOR (the notification audit, 2026-10-15): BSNotifications rendered only
+        // when showNotifications was set, and nothing set it, so a tapped push was the app's only
+        // way to act on a notification.
+        { l: tr('settings:notif.inbox', { defaultValue: 'Your notifications' }), r: tr('settings:notif.inboxMeta', { defaultValue: 'Open' }), action: () => setShowNotifications(true) },
         { l: tr('settings:notif.center', { defaultValue: 'Notification center' }), r: tr('settings:notif.centerMeta', { defaultValue: 'All types · channels' }), action: () => setShowNotifyPrefs(true) },
         { l: tr('settings:notif.workoutReminders', { defaultValue: 'Workout reminders' }), key: 'workoutReminders' },
         { l: tr('settings:notif.coachReplies', { defaultValue: 'Coach replies' }),     key: 'coachReplies' },
