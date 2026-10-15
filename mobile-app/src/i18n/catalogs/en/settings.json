@@ -477,5 +477,9 @@
   "section.admin": "Shape admin",
   "card.adminSummary": "The admin console · opens in your browser",
   "admin.body": "The admin console opens in your browser. Sign in there with your Shape account and the code from your authenticator app.",
-  "admin.open": "Open the admin console"
+  "admin.open": "Open the admin console",
+  "privacy.leaderboard": "Show me on leaderboards",
+  "privacy.teamBoard": "Show me to my coach’s team",
+  "privacy.leaderboardDesc": "On by default. Off takes you off every member leaderboard; you still see your own place. Members see your first name and last initial, never your full name.",
+  "privacy.teamBoardDesc": "Off until you turn it on. When on, members who share your coach see you on their team board, so they know you train with the same coach. It never names your coach."
 }

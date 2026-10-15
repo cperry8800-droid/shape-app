@@ -477,5 +477,9 @@
   "section.admin": "Amministrazione Shape",
   "card.adminSummary": "La console di amministrazione · si apre nel browser",
   "admin.body": "La console di amministrazione si apre nel tuo browser. Accedi lì con il tuo account Shape e il codice della tua app di autenticazione.",
-  "admin.open": "Apri la console di amministrazione"
+  "admin.open": "Apri la console di amministrazione",
+  "privacy.leaderboard": "Mostrami nelle classifiche",
+  "privacy.teamBoard": "Mostrami alla squadra del mio coach",
+  "privacy.leaderboardDesc": "Attivo per impostazione predefinita. Disattivo ti toglie da tutte le classifiche dei membri; vedi comunque la tua posizione. I membri vedono il tuo nome e l’iniziale del cognome, mai il nome completo.",
+  "privacy.teamBoardDesc": "Disattivo finché non lo attivi. Quando è attivo, i membri che hanno il tuo stesso coach ti vedono nella loro classifica di squadra, e sanno così che ti alleni con lo stesso coach. Il tuo coach non viene mai nominato."
 }

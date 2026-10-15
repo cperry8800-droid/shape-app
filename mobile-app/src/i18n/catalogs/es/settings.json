@@ -477,5 +477,9 @@
   "section.admin": "Administración de Shape",
   "card.adminSummary": "La consola de administración · se abre en tu navegador",
   "admin.body": "La consola de administración se abre en tu navegador. Inicia sesión allí con tu cuenta de Shape y el código de tu app de autenticación.",
-  "admin.open": "Abrir la consola de administración"
+  "admin.open": "Abrir la consola de administración",
+  "privacy.leaderboard": "Mostrarme en las clasificaciones",
+  "privacy.teamBoard": "Mostrarme al equipo de mi coach",
+  "privacy.leaderboardDesc": "Activado por defecto. Desactivado te quita de todas las clasificaciones de miembros; tú sigues viendo tu posición. Los miembros ven tu nombre y la inicial de tu apellido, nunca tu nombre completo.",
+  "privacy.teamBoardDesc": "Desactivado hasta que lo actives. Cuando está activado, los miembros que comparten tu coach te ven en su clasificación de equipo, así que saben que entrenas con el mismo coach. Nunca se menciona a tu coach."
 }

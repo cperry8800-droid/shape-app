@@ -3,7 +3,9 @@
 // FULL LEDGER →" was href="#", and both header buttons had no handler at all).
 //
 // ⚠ NO NEW ROUTES AND NO MIGRATION. `/api/client/score-record` and `/api/leaderboard`
-// have existed and been consumed by nothing; this file is the consumer. The Record is
+// have existed and been consumed by nothing; this file is the consumer. (The leaderboard
+// itself moved to leaderboards.jsx on 2026-10-15, when it gained its own scopes, switches
+// and migration; `ClientLeaderboard` below is the Score page's door to it.) The Record is
 // `bsScoreRecord`'s own output rendered as-is — the same aggregation twin the mobile
 // app reads, so the two surfaces cannot disagree about a member's history.
 //
@@ -17,12 +19,6 @@ const CSR_MONO = "'JetBrains Mono', monospace";
 const CSR_DIM = "var(--sh-ink2, #a09b94)";
 const CSR_RED = "#e0463c";
 const CSR_RANGES = [["1w", "1W"], ["1m", "1M"], ["3m", "3M"], ["all", "ALL"]];
-// ⚠ "week" IS A ROLLING WINDOW, NOT A CALENDAR WEEK. Both RPCs define it as
-// `now() - interval '7 days'`, so early on a Tuesday it is mostly LAST week's activity
-// — calling it "This week" describes a boundary the ranking does not use. "month" IS a
-// calendar month (`date_trunc('month', now())`) and "all" is since 1970, so those two
-// labels are accurate and stay.
-const CSR_PERIODS = [["week", "Last 7 days"], ["month", "This month"], ["all", "All time"]];
 
 function csrLabel(text) {
   return <div style={{ fontFamily: CSR_MONO, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: CSR_DIM }}>{text}</div>;
@@ -76,15 +72,6 @@ function csrRecordShaped(d) {
     if (!r || typeof r !== "object" || !Array.isArray(r.series)) return false;
   }
   return true;
-}
-// `me` is legitimately null for an unranked member, so its ABSENCE is what fails and
-// its null-ness does not. An explicit `"me" in d` check was here and is gone: with the
-// key absent `d.me` is undefined, which the final line already refuses, so the check
-// was provably a no-op — measured, when a mutation deleting it changed nothing.
-function csrBoardShaped(d) {
-  if (!d || typeof d !== "object") return false;
-  if (!Array.isArray(d.entries)) return false;
-  return d.me === null || typeof d.me === "object";
 }
 // The sentence each non-ready state gets. `null` means "this state renders data".
 function csrStateNote(kind, what) {
@@ -270,66 +257,10 @@ function ClientScoreRecord() {
 }
 
 // ── The Leaderboard ──────────────────────────────────────────────────────────
+// leaderboards.jsx draws it: Everyone, Following and your coach's team, the two privacy
+// switches, and every state named. This keeps the Score page's name for it.
 function ClientLeaderboard() {
-  const [period, setPeriod] = React.useState("month");
-  const [state, setState] = React.useState({ kind: "loading" });
-  React.useEffect(() => {
-    let on = true;
-    setState({ kind: "loading" });
-    csrRead("/api/leaderboard?period=" + encodeURIComponent(period) + "&limit=50", csrBoardShaped)
-      .then((r) => { if (on) setState(r); });
-    return () => { on = false; };
-  }, [period]);
-
-  const switcher = (
-    <div style={{ display: "flex", gap: 6, marginLeft: "auto", flexWrap: "wrap" }}>
-      {CSR_PERIODS.map(([k, l]) => (
-        <button key={k} type="button" onClick={() => setPeriod(k)} aria-pressed={period === k}
-          style={{ fontFamily: CSR_MONO, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", padding: "6px 10px", minHeight: 24, borderRadius: 4, cursor: "pointer",
-            border: "1px solid " + (period === k ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)"),
-            background: period === k ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.14)" : "transparent", color: period === k ? "var(--sh-accent-ink, #2ee0c4)" : CSR_DIM }}>{l}</button>
-      ))}
-    </div>
-  );
-  const head = <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>{csrLabel("Leaderboard")}{switcher}</div>;
-
-  const note = csrStateNote(state.kind, "the leaderboard");
-  if (note) return <Card>{head}<div style={{ marginTop: 10, fontSize: 13, color: CSR_DIM }}>{note}</div></Card>;
-  const data = state.data || {};
-  const entries = Array.isArray(data.entries) ? data.entries : [];
-  const me = data.me || null;
-  return (
-    <Card>
-      {head}
-      {/* ⚠ `me === null` HAS TWO CAUSES AND THIS COPY MUST NOT PICK ONE.
-          `shape_leaderboard_me` filters `having sum(delta) > 0`, so a member who earned
-          nothing in the window gets no row — and the RPC also drops anyone whose
-          `client_privacy_prefs.leaderboard` is 'off'. An earlier draft told them to
-          "turn it on in Settings", which is wrong twice: it asserts the opt-out as the
-          cause, and NOTHING IN THIS REPOSITORY WRITES THAT KEY — not the website, not
-          the app — so it is advice nobody can follow. It states the fact instead. */}
-      {me
-        ? <div style={{ marginTop: 12, display: "flex", gap: 20, flexWrap: "wrap", alignItems: "baseline" }}>
-            <div>{csrLabel("Your rank")}<div style={{ fontFamily: serif, fontSize: 28, color: INK, fontVariantNumeric: "tabular-nums" }}>#{csrNum(me.rank)}</div></div>
-            <div>{csrLabel("Of")}<div style={{ fontFamily: CSR_MONO, fontSize: 16, color: CSR_DIM, marginTop: 6, fontVariantNumeric: "tabular-nums" }}>{csrNum(me.total)}</div></div>
-            <div>{csrLabel("Your points")}<div style={{ fontFamily: CSR_MONO, fontSize: 16, color: TEAL_BRIGHT, marginTop: 6, fontVariantNumeric: "tabular-nums" }}>{csrNum(me.points)}</div></div>
-          </div>
-        : <div style={{ marginTop: 10, fontSize: 12.5, color: CSR_DIM, lineHeight: 1.5 }}>
-            You're not ranked in this window. The board counts points earned inside it —
-            log something and you'll place.
-          </div>}
-      <div style={{ marginTop: 14 }}>
-        {entries.length ? entries.map((e) => (
-          <div key={e.userId} style={{ display: "grid", gridTemplateColumns: "44px 1fr auto", gap: 12, alignItems: "center", padding: "9px 6px", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)",
-            background: e.isMe ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.07)" : "transparent", borderRadius: e.isMe ? 4 : 0 }}>
-            <span style={{ fontFamily: CSR_MONO, fontSize: 12, color: e.rank <= 3 ? TEAL_BRIGHT : CSR_DIM, fontVariantNumeric: "tabular-nums" }}>#{csrNum(e.rank)}</span>
-            <span style={{ fontSize: 13.5, color: e.isMe ? INK : "rgba(var(--sh-ink-rgb, 242,237,228),0.82)", fontWeight: e.isMe ? 600 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.name || "A member"}{e.isMe ? " · you" : ""}</span>
-            <span style={{ fontFamily: CSR_MONO, fontSize: 12.5, color: TEAL_BRIGHT, fontVariantNumeric: "tabular-nums" }}>{csrNum(e.points)}</span>
-          </div>
-        )) : <div style={{ fontSize: 12.5, color: CSR_DIM }}>Nobody has earned points in this window yet.</div>}
-      </div>
-    </Card>
-  );
+  return <MemberLeaderboard />;
 }
 
 // ── How it works ─────────────────────────────────────────────────────────────
@@ -373,4 +304,4 @@ function ClientScoreHowItWorks({ tiers, currentTier }) {
   );
 }
 
-Object.assign(window, { ClientScoreRecord, ClientLeaderboard, ClientScoreHowItWorks, csrLineGeometry, csrStateNote, csrRecordShaped, csrBoardShaped });
+Object.assign(window, { ClientScoreRecord, ClientLeaderboard, ClientScoreHowItWorks, csrLineGeometry, csrStateNote, csrRecordShaped });

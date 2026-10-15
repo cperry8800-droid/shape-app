@@ -58,6 +58,7 @@ import { BS_LEVER_HEADS } from '../services/dailyWire.mjs';
 import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } from './bsNavShell.js';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { BSIntegrationsPage, BSReconcile } from './BSIntegrationsPage.jsx';
+import { BSLeaderboard } from './BSLeaderboard.jsx';
 import { BSNoraTalk, useNoraTalk, bsNoraVoiceFail } from './BSNoraTalk.jsx';
 import { BSFocusHead, BSFocusTitle, BSFocusLead, BSFocusArrival, BSFocusCountdown, BSFocusActions, BSFocusLine, BSFocusLink, BSFocusRoute, BSShopBySwitch, BSFocusLeader, BSFocusPeriod, BSFocusMealShop } from './BSFocus.jsx';
 import { bsFocusMin, bsFocusArrival, bsFocusUntil, bsFocusPrevStop, bsFocusSlot, bsGrocerySkipped, bsGroceryByMeal, bsGroceryAisleStops, bsReadShopBy, bsSaveShopBy, bsReadSkippedMeals, bsSaveSkippedMeals, bsPeriodAverage, bsReadGlancePeriod, bsSaveGlancePeriod, BS_GLANCE_DAYS, bsGroceryItemKey, bsMealShopItems, bsGroceryIsGot, bsReadGotItems, bsSaveGotItems, bsToggleGot } from '../services/focusLayout.mjs';
@@ -26948,97 +26949,7 @@ function _bsStepBtn(t) {
   return { width: 46, height: 46, borderRadius: 12, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, lineHeight: 1, cursor: 'pointer', flexShrink: 0 };
 }
 
-// ─── LEADERBOARD ─────────────────────────────────────────────
-// Shape Score ranking via /api/leaderboard (SECURITY DEFINER RPC, opt-out
-// aware). Week / Month / All-time toggle; the caller's own rank is pinned even
-// when outside the visible top.
-function BSLeaderboard({ onBack }) {
-  const t = useBS();
-  const { BSPage, BSDetailHeader } = window;
-  const [period, setPeriod] = useStateBSC('month');
-  const [data, setData] = useStateBSC(null);
-  const [loading, setLoading] = useStateBSC(true);
-
-  React.useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    const p = window.ShapeLeaderboard?.get ? window.ShapeLeaderboard.get(period)
-      : bsApi.fetch(`/api/leaderboard?period=${period}`, { credentials: 'same-origin', cache: 'no-store' }).then(r => (r.ok ? r.json() : null));
-    Promise.resolve(p)
-      .then(d => { if (!cancelled) { setData(d || { entries: [], me: null }); setLoading(false); } })
-      .catch(() => { if (!cancelled) { setData({ entries: [], me: null }); setLoading(false); } });
-    return () => { cancelled = true; };
-  }, [period]);
-
-  const entries = (data && data.entries) || [];
-  const me = data && data.me;
-  const medal = (rank) => rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : null;
-
-  const initials = (name) => (name || '?').split(' ').map(s => s[0]).slice(0, 2).join('').toUpperCase();
-
-  return (
-    <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow="Section · Community" kicker="Shape Score" title={<>Leader<br/>board.</>} />
-
-      {/* Period toggle */}
-      <div style={{ padding: `4px ${t.padX}px 14px` }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: 4 }}>
-          {[['week', 'This week'], ['month', 'This month'], ['all', 'All time']].map(([k, l]) => {
-            const on = period === k;
-            return <button key={k} onClick={() => setPeriod(k)} style={{ padding: '9px 4px', borderRadius: 999, border: 0, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{l}</button>;
-          })}
-        </div>
-      </div>
-
-      {loading && <div style={{ padding: `20px ${t.padX}px`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>}
-
-      {!loading && entries.length === 0 && (
-        <div style={{ padding: `0 ${t.padX}px 18px` }}>
-          <div style={{ borderTop: `2px solid ${t.INK}`, paddingTop: 14 }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, lineHeight: 1.15, letterSpacing: '-0.02em', marginBottom: 8 }}>No rankings yet.</div>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: t.INK70, lineHeight: 1.45 }}>Earn Shape Score — log workouts, hit habits, keep streaks — and you'll show up here.</div>
-          </div>
-        </div>
-      )}
-
-      {!loading && entries.length > 0 && (
-        <div style={{ padding: `0 ${t.padX}px 4px` }}>
-          {entries.map((e) => {
-            const top3 = e.rank <= 3;
-            return (
-              <div key={e.userId} style={{
-                display: 'grid', gridTemplateColumns: '34px 38px 1fr auto', alignItems: 'center', gap: 11,
-                padding: '11px 13px', marginBottom: 8, borderRadius: 13,
-                border: `1px solid ${e.isMe ? t.ACCENT : t.RULE}`,
-                background: e.isMe ? `${t.ACCENT}16` : (top3 ? t.PAPER2 : 'transparent'),
-              }}>
-                <span style={{ textAlign: 'center', fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: top3 ? 20 : 16, color: top3 ? t.INK : t.INK50, fontVariantNumeric: 'tabular-nums' }}>{medal(e.rank) || e.rank}</span>
-                <span style={{ width: 38, height: 38, borderRadius: 999, overflow: 'hidden', background: t.INK, color: t.PAPER, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 12, fontWeight: 800 }}>
-                  {e.avatarUrl ? <img src={e.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials(e.name)}
-                </span>
-                <span style={{ minWidth: 0, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: e.isMe ? 800 : 600, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.isMe ? 'You' : e.name}</span>
-                <span style={{ fontFamily: t.MONO, fontSize: 13, fontWeight: 800, color: t.GREEN, fontVariantNumeric: 'tabular-nums' }}>{e.points.toLocaleString()}</span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Your rank pinned (when outside the visible top) */}
-      {!loading && me && !entries.some(e => e.isMe) && (
-        <div style={{ padding: `8px ${t.padX}px 0` }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '34px 1fr auto', alignItems: 'center', gap: 11, padding: '12px 13px', borderRadius: 13, border: `1px solid ${t.ACCENT}`, background: `${t.ACCENT}16` }}>
-            <span style={{ textAlign: 'center', fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 16, color: t.INK }}>{me.rank}</span>
-            <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 800, color: t.INK }}>You · top {Math.round((me.rank / Math.max(1, me.total)) * 100)}%</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 13, fontWeight: 800, color: t.GREEN }}>{me.points.toLocaleString()}</span>
-          </div>
-        </div>
-      )}
-
-      <BSFooter right="Community" />
-    </BSPage>
-  );
-}
+// ─── LEADERBOARD ─── moved to BSLeaderboard.jsx (2026-10-15), with the coach board.
 
 // ═══════════════════════════════════════════════════════════
 // CLIENT GOALS — Training / Nutrition tabs + coach-visibility toggle.
@@ -35181,6 +35092,31 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return () => clearTimeout(tm);
   }, [fxPreview]);
   const [detail, setDetail] = useStateBSC(initialPage === 'practice' ? 'practice' : ''); // '' = settings page; else a drill-in card pane
+  // ⚠ A READ NEVER OVERWRITES A SAVE (Codex, #2371). The rows can be picked while the pane's read
+  // is still out, and a save's answer is the newer document. So the read is dropped if a save was
+  // in flight when it started, or one started before it answered.
+  const lbPrivacyWrites = React.useRef({ seq: 0, pending: 0 });
+  React.useEffect(() => {
+    if (detail !== 'privacy' || !window.ShapeLeaderboard?.privacy) return undefined;
+    let on = true;
+    const w = lbPrivacyWrites.current;
+    const seq = w.pending ? -1 : w.seq;
+    Promise.resolve(window.ShapeLeaderboard.privacy()).then((r) => {
+      if (on && seq === w.seq && !w.pending) setLbPrivacy(r && r.kind === 'ready' ? r.data : null);
+    }, () => {});
+    return () => { on = false; };
+  }, [detail]);
+  const pickLbPrivacy = (key, opt) => {
+    const svc = window.ShapeLeaderboard;
+    if (!svc?.setPrivacy) return;
+    const w = lbPrivacyWrites.current;
+    w.seq += 1;
+    w.pending += 1;
+    Promise.resolve(svc.setPrivacy({ [key]: opt === 'On' })).finally(() => { w.pending -= 1; }).then((d) => {
+      if (d) { setLbPrivacy(d); window.__bsToast?.(tr('settings:toast.saved', { defaultValue: 'Saved' }), 'ok'); }
+      else window.__bsToast?.(tr('score:board.saveFailed', { defaultValue: 'That didn’t save. Your setting is unchanged.' }), 'err');
+    }, () => window.__bsToast?.(tr('score:board.saveFailed', { defaultValue: 'That didn’t save. Your setting is unchanged.' }), 'err'));
+  };
   // The Shape team's door into the admin console (window.ShapeStaff, /api/me/staff): a staff
   // level, or null for everyone else, who never see the row. Asked once per mount; a failed read
   // is null. The level grants nothing: the console asks for a website sign-in and two-factor.
@@ -35237,6 +35173,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return () => { on = false; };
   }, []);
   const [showLeaderboard, setShowLeaderboard] = useStateBSC(false);
+  // The two leaderboard switches (/api/me/leaderboard-privacy), read when Privacy & data opens.
+  // null = not read (or the read failed): neither option shows as chosen, and picking one writes
+  // that explicit choice, never a flip of a value nobody read.
+  const [lbPrivacy, setLbPrivacy] = useStateBSC(null);
   // The corner avatar fires shape:openProfile from every masthead — including the
   // ones on Settings' own takeovers. The shell answers by opening Settings, which
   // is already open, so without this the tap is a no-op that still burns a back.
@@ -36224,9 +36164,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
               <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em' }}>{s.l}</span>
               <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
                 {s.segmented.map((opt, j) => {
-                  const on = prefs[s.key] === opt;
+                  const on = (s.value !== undefined ? s.value : prefs[s.key]) === opt;
                   return (
-                    <button key={opt} onClick={() => setPref(s.key, opt)} style={{ borderRadius: 5,
+                    <button key={opt} onClick={() => (s.onPick ? s.onPick(opt) : setPref(s.key, opt))} style={{ borderRadius: 5,
                       flex: 1, padding: '9px 8px', cursor: 'pointer',
                       border: `1px solid ${on ? `${t.ACCENT}66` : t.RULE}`,
                       borderLeft: on ? `3px solid ${t.ACCENT}` : `1px solid ${t.RULE}`,
@@ -36334,7 +36274,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return <BSHealthIntake initial={healthDoc} onBack={() => setShowHealth(false)} onDone={(doc) => { setHealthDoc(doc); setShowHealth(false); }} />;
   }
   if (showLeaderboard) {
-    return <BSLeaderboard onBack={() => setShowLeaderboard(false)} />;
+    return <BSLeaderboard onBack={() => setShowLeaderboard(false)} mode={isCoachRole ? 'coach' : 'member'} role={tweaks.role === 'nutritionist' ? 'nutritionist' : 'trainer'} />;
   }
   if (showPublicProfile) {
     const role = (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().profile && window.ShapeAuth.getCachedState().profile.role) || 'client';
@@ -36379,6 +36319,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const moreRows = isCoachRole ? [
     { l: tr('settings:more.publicProfile', { defaultValue: 'Public profile' }), r: tr('settings:action.view', { defaultValue: 'View' }), action: () => setShowPublicProfile(true) },
     { l: 'Shape Score', r: tr('settings:more.standing', { defaultValue: 'Standing' }), action: () => setShowScore(true) },
+    { l: tr('settings:more.leaderboard', { defaultValue: 'Leaderboard' }), r: tr('settings:more.leaderboardMeta', { defaultValue: 'Rank' }), action: () => setShowLeaderboard(true) },
     { l: 'Shape Store', r: tr('settings:more.redeem', { defaultValue: 'Redeem' }), action: () => setShowStore(true) },
     { l: 'Shape Radio', r: tr('settings:more.listen', { defaultValue: 'Listen' }), action: () => setShowRadio(true) },
   ] : [
@@ -36481,6 +36422,16 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         { l: tr('settings:privacy.online', { defaultValue: 'Show when I’m online' }), key: 'onlineVisible', segmented: PREF_OPTIONS.onlineVisible, desc: tr('settings:privacy.onlineDesc', { defaultValue: 'When on, a live dot shows on your avatar so others can see you’re active in the app right now. Turn it off to browse privately — your presence is never shown.' }) },
         { l: tr('settings:privacy.shareWorkout', { defaultValue: 'Share workout data' }), key: 'shareWorkoutData', desc: tr('settings:privacy.shareWorkoutDesc', { defaultValue: 'When on, your logged workouts, PRs, and activity can appear on your profile and in the community feed. Off keeps your training visible only to you and your linked coach(es).' }) },
         { l: tr('settings:privacy.agePublic', { defaultValue: 'Show my age on my profile' }), key: 'agePublic', segmented: PREF_OPTIONS.agePublic, desc: tr('settings:privacy.agePublicDesc', { defaultValue: 'Off by default. When on, your age — never your date of birth — shows on your profile. Your coaches always see your age for the clients they work with, because it changes how they program for you.' }) },
+        // The leaderboard switches live in their own document (client_privacy_prefs), so these two
+        // rows carry their value and their write instead of a key into `prefs`.
+        ...(isCoachRole ? [] : [
+          { l: tr('settings:privacy.leaderboard', { defaultValue: 'Show me on leaderboards' }), segmented: ['On', 'Off'], segLabels: [tr('settings:common.on', { defaultValue: 'On' }), tr('settings:common.off', { defaultValue: 'Off' })],
+            value: lbPrivacy ? (lbPrivacy.leaderboard ? 'On' : 'Off') : null, onPick: (opt) => pickLbPrivacy('leaderboard', opt),
+            desc: tr('settings:privacy.leaderboardDesc', { defaultValue: 'On by default. Off takes you off every member leaderboard; you still see your own place. Members see your first name and last initial, never your full name.' }) },
+          { l: tr('settings:privacy.teamBoard', { defaultValue: 'Show me to my coach’s team' }), segmented: ['On', 'Off'], segLabels: [tr('settings:common.on', { defaultValue: 'On' }), tr('settings:common.off', { defaultValue: 'Off' })],
+            value: lbPrivacy ? (lbPrivacy.teamBoard === true ? 'On' : 'Off') : null, onPick: (opt) => pickLbPrivacy('teamBoard', opt),
+            desc: tr('settings:privacy.teamBoardDesc', { defaultValue: 'Off until you turn it on. When on, members who share your coach see you on their team board, so they know you train with the same coach. It never names your coach.' }) },
+        ]),
       ],
     },
     {

@@ -5563,7 +5563,57 @@ window.ShapeCheckin = { log: logCheckin };
 async function getLeaderboard(period = 'month') {
   return getJsonOrDefault(`${apiBaseUrl || ''}/api/leaderboard?period=${encodeURIComponent(period)}`, { entries: [], me: null });
 }
-window.ShapeLeaderboard = { get: getLeaderboard };
+// The leaderboards screen (BSLeaderboard.jsx, 2026-10-15) needs to know WHY a read failed —
+// signed out, not a coach, not switched on yet, or could not read — so these return the
+// state instead of folding every failure into an empty board the way getJsonOrDefault does.
+// { kind: 'ready', data } | { kind: 'anon' | 'forbidden' | 'not_ready' | 'error' }
+async function leaderboardRead(path, shaped) {
+  try {
+    const res = await shapeApiFetch(path, { cache: 'no-store' });
+    if (res.status === 401) return { kind: 'anon' };
+    if (res.status === 403) return { kind: 'forbidden' };
+    if (res.status === 503) return { kind: 'not_ready' };
+    if (!res.ok) return { kind: 'error' };
+    const data = await res.json();
+    return shaped(data) ? { kind: 'ready', data } : { kind: 'error' };
+  } catch (e) {
+    return { kind: 'error' };
+  }
+}
+const isBoard = (d) => !!d && typeof d === 'object' && Array.isArray(d.entries) && 'me' in d && typeof d.total === 'number';
+const isPrivacy = (d) => !!d && typeof d === 'object' && typeof d.leaderboard === 'boolean';
+async function getMemberBoard(scope = 'everyone', period = 'week') {
+  return leaderboardRead(`/api/leaderboard?scope=${encodeURIComponent(scope)}&period=${encodeURIComponent(period)}&limit=50`, isBoard);
+}
+async function getCoachBoard(role = 'trainer', view = 'standing') {
+  return leaderboardRead(`/api/coach/leaderboard?role=${encodeURIComponent(role)}&view=${encodeURIComponent(view)}&limit=50`, (d) => isBoard(d) && 'since' in d);
+}
+async function getLeaderboardPrivacy() {
+  return leaderboardRead('/api/me/leaderboard-privacy', isPrivacy);
+}
+// The stored switches on success, null when the change did not save.
+// ⚠ ONE WRITE AT A TIME (Codex, #2371). Each PUT answers with the switches as stored after it, so
+// two in flight (both Settings rows tapped quickly, or the board and Settings) could answer out of
+// order and leave the older document on screen. Chained, each starts after the last has answered,
+// so the last answer read back every earlier write.
+let leaderboardPrivacyQueue = Promise.resolve();
+function setLeaderboardPrivacy(change) {
+  const run = leaderboardPrivacyQueue.then(() => putLeaderboardPrivacy(change), () => putLeaderboardPrivacy(change));
+  leaderboardPrivacyQueue = run;
+  return run;
+}
+async function putLeaderboardPrivacy(change) {
+  try {
+    const res = await shapeApiFetch('/api/me/leaderboard-privacy', {
+      method: 'PUT', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(change),
+    });
+    const d = await res.json().catch(() => null);
+    return res.ok && isPrivacy(d) ? d : null;
+  } catch (e) {
+    return null;
+  }
+}
+window.ShapeLeaderboard = { get: getLeaderboard, member: getMemberBoard, coach: getCoachBoard, privacy: getLeaderboardPrivacy, setPrivacy: setLeaderboardPrivacy };
 
 // Client analytics (home cards + ticker). Bearer in native, cookie on /m/.
 // Reads share the metrics cache — the ticker and the Progress hub consume the

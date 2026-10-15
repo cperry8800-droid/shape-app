@@ -17,6 +17,12 @@ function TrainerScorePage() {
   const [tiers, setTiers] = React.useState(STATIC_TIERS);
   const [breakdown, setBreakdown] = React.useState(STATIC_BREAKDOWN);
   const [headline, setHeadline] = React.useState({ title: "6,420", eyebrow: "COACH SCORE · MASTER" });
+  const [tierLabel, setTierLabel] = React.useState("MASTER");
+
+  // Your score · Leaderboard (owner, 2026-10-15: "we should have a members and coaches
+  // leaderboard"). The board is leaderboards.jsx's; the subtitle reads your rank off it.
+  const [view, setView] = React.useState("score");
+  const standing = useCoachStanding("trainer");
 
   React.useEffect(() => {
     let alive = true;
@@ -30,6 +36,7 @@ function TrainerScorePage() {
           title: d.total.toLocaleString(),
           eyebrow: `COACH SCORE · ${String(cn(d.current_tier)).toUpperCase()}`,
         });
+        setTierLabel(String(cn(d.current_tier)).toUpperCase());
         setTiers(STATIC_TIERS.map(([t,r,desc]) => [t, r, desc, t === cn(d.current_tier)]));
       })
       .catch(() => {});
@@ -42,7 +49,7 @@ function TrainerScorePage() {
   // points are earned, which the header's "How it works" scrolls to.
   const tiersCard = (
       <Card>
-        <SectionTitle right="MASTER · TOP 4%">Tiers</SectionTitle>
+        <SectionTitle right={tierLabel}>Tiers</SectionTitle>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", marginTop: 8 }}>
           {tiers.map(([t,r,d,cur],i)=>(
             <div key={t} style={{ padding: "18px 16px", borderLeft: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", background: cur ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.08)" : "transparent" }}>
@@ -132,11 +139,10 @@ function TrainerScorePage() {
       payoutCard={trainerPayoutCard}
       eyebrow={headline.eyebrow}
       title={headline.title}
-      subtitle="Top 4% of trainers on Shape. Scores drive marketplace ranking, verified badge, and payout tier."
-      actions={
-        <button onClick={() => { const el = document.getElementById("score-earn"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }} style={{ background: "transparent", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" }}>How it works</button>
-      }
+      subtitle={coachStandingLine("trainer", standing)}
+      actions={<CoachScoreActions view={view} onView={setView} />}
     >
+      {view === "board" ? <CoachLeaderboard role="trainer" /> : (
       <div style={{ display: "grid", gap: 16 }}>
         {tiersCard}
         <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 16, alignItems: "start" }}>
@@ -145,6 +151,7 @@ function TrainerScorePage() {
         </div>
         <div id="score-earn" style={{ scrollMarginTop: 80 }}>{earnCard}</div>
       </div>
+      )}
     </DashPage>
   );
 }

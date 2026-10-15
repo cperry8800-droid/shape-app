@@ -17,7 +17,10 @@ const APP = readFileSync(new URL('../public/newdesign/ClientApp.html', import.me
 const KIT = readFileSync(new URL('../src/app/api/client/checkin-kit/route.ts', import.meta.url), 'utf8');
 const MIG = readFileSync(new URL('../supabase-migrations/2026-06-12-checkin-kit.sql', import.meta.url), 'utf8');
 const LB_ROUTE = readFileSync(new URL('../src/app/api/leaderboard/route.ts', import.meta.url), 'utf8');
-const LB_SQL = readFileSync(new URL('../supabase-migrations/2026-05-31-score-and-leaderboard.sql', import.meta.url), 'utf8');
+// The member board moved to its own file and migration on 2026-10-15 (Everyone · Following · your
+// coach's team, and the two switches). tests/leaderboards.test.mjs drives its routes.
+const LB_UI = readFileSync(new URL('../public/newdesign/leaderboards.jsx', import.meta.url), 'utf8');
+const LB_SQL = readFileSync(new URL('../supabase-migrations/2026-10-15-leaderboards.sql', import.meta.url), 'utf8');
 
 // Pull a top-level `function NAME(` out of a module and evaluate it.
 function fn(src, name, deps) {
@@ -135,14 +138,18 @@ test('the record and the board name their routes, and neither invents one', () =
   // anchored on the URL, not on the call: the read goes through csrRead now, and a
   // guard about WHICH ROUTE should not break when the caller is refactored.
   assert.match(src, /"\/api\/client\/score-record"/);
-  assert.match(src, /"\/api\/leaderboard\?period="/);
-  // ⚠ THE FOUR STATES NOW LIVE IN csrStateNote AND ARE DRIVEN IN THEIR OWN TEST. What
-  // belongs here is that each surface DEFERS to it before drawing anything — a surface
-  // that renders its data first would show an empty ledger for a failed read.
-  for (const surface of ['ClientScoreRecord', 'ClientLeaderboard']) {
-    const at = src.indexOf('function ' + surface + '(');
-    const body = src.slice(at, src.indexOf('\nfunction ', at + 10));
-    const note = body.indexOf('csrStateNote(state.kind');
+  const ui = stripComments(LB_UI);
+  assert.match(ui, /"\/api\/leaderboard\?scope="/);
+  assert.match(ui, /"\/api\/coach\/leaderboard\?role="/);
+  // The Score page's Leaderboard button opens the member board, which leaderboards.jsx draws.
+  assert.match(src, /function ClientLeaderboard\(\) \{\s*return <MemberLeaderboard \/>;\s*\}/);
+  // ⚠ THE STATES LIVE IN csrStateNote / lbStateNote AND ARE DRIVEN IN THEIR OWN TEST. What
+  // belongs here is that each surface DEFERS to one before drawing anything — a surface that
+  // renders its data first would show an empty ledger for a failed read.
+  for (const [file, surface, noteFn] of [[src, 'ClientScoreRecord', 'csrStateNote'], [ui, 'MemberLeaderboard', 'lbStateNote'], [ui, 'CoachLeaderboard', 'lbStateNote']]) {
+    const at = file.indexOf('function ' + surface + '(');
+    const body = file.slice(at, file.indexOf('\nfunction ', at + 10));
+    const note = body.indexOf(noteFn + '(state.kind');
     assert.ok(note > -1, surface + ' writes its own state sentences again');
     const guard = body.indexOf('if (note)');
     assert.ok(guard > note, surface + ' computes a state note it never acts on');
@@ -185,12 +192,28 @@ test('signed out is not "it broke", and neither is a membership gate', async () 
   assert.deepEqual(await read(reply(404)), { kind: 'error' });
   assert.deepEqual(await read(reply(200)), { kind: 'error' }, 'unparseable JSON reads as data');
   assert.deepEqual(await read(new Error('offline')), { kind: 'error' }, 'a network failure reads as data');
-  for (const surface of ['ClientScoreRecord', 'ClientLeaderboard']) {
-    const at = src.indexOf('function ' + surface + '(');
+  {
+    const at = src.indexOf('function ClientScoreRecord(');
     const body = src.slice(at, src.indexOf('\nfunction ', at + 10));
-    assert.match(body, /csrRead\(/, surface + ' reads without the status map');
-    assert.match(body, /csrStateNote\(state\.kind/, surface + ' writes its own sentences again');
+    assert.match(body, /csrRead\(/, 'ClientScoreRecord reads without the status map');
+    assert.match(body, /csrStateNote\(state\.kind/, 'ClientScoreRecord writes its own sentences again');
   }
+  // The leaderboards' reader, driven the same way: five answers, five states.
+  const lbRead = (r, shaped = () => true) => fn(LB_UI, 'lbRead', { fetch: () => (r instanceof Error ? Promise.reject(r) : Promise.resolve(r)) })('/x', shaped);
+  assert.deepEqual(await lbRead(reply(401)), { kind: 'anon' });
+  assert.deepEqual(await lbRead(reply(402)), { kind: 'gated' });
+  assert.deepEqual(await lbRead(reply(403)), { kind: 'forbidden' });
+  assert.deepEqual(await lbRead(reply(503)), { kind: 'not_ready' });
+  assert.deepEqual(await lbRead(reply(500)), { kind: 'error' });
+  assert.deepEqual(await lbRead(reply(200)), { kind: 'error' }, 'unparseable JSON reads as data');
+  assert.deepEqual(await lbRead(reply(200, { a: 1 }), () => false), { kind: 'error' });
+  assert.deepEqual(await lbRead(new Error('offline')), { kind: 'error' });
+  const lbNote = fn(LB_UI, 'lbStateNote');
+  assert.ok(!/reload/i.test(lbNote('anon', false)), 'a signed-out visitor is told to reload');
+  assert.ok(!/reload/i.test(lbNote('forbidden', true)), 'a member is told to reload the coach board');
+  assert.match(lbNote('forbidden', true), /coaches/);
+  assert.match(lbNote('not_ready', false), /switched on/);
+  assert.equal(lbNote('ready', false), null);
 });
 
 test('every new control clears the 24px tap-target floor', () => {
@@ -222,18 +245,16 @@ test('every new control clears the 24px tap-target floor', () => {
 });
 
 test('a failed leaderboard read is never published as an empty board', () => {
-  // ⚠ THE ROUTE ANSWERED 200 WITH `{entries: [], me: null}` ON AN RPC ERROR, and every
-  // consumer reads that as settled — so an outage told members nobody had earned points
-  // and that they were not ranked. Both are positive claims the route cannot make.
-  // BOTH reads are covered: `me: null` is its own claim, one call further down.
+  // ⚠ THE ROUTE ONCE ANSWERED 200 WITH `{entries: [], me: null}` ON AN RPC ERROR, and every
+  // consumer reads that as settled — so an outage told members nobody had earned points and
+  // that they were not ranked. Driven in tests/leaderboards.test.mjs; held here at the source.
   const src = stripComments(LB_ROUTE);
-  assert.ok(!/if \(error\) return NextResponse\.json\(\{ period, entries: \[\], me: null \}\)/.test(src), 'the board read still swallows its error');
-  const errs = src.match(/if \(\w*[eE]rror\) return NextResponse\.json\([^;]*\);/g) || [];
-  assert.equal(errs.length, 2, 'one of the two RPC reads drops its error: ' + errs.join(' | '));
-  for (const e of errs) assert.match(e, /status: 502/, 'a failed read answers 2xx: ' + e);
-  // and the consumer maps a non-2xx to its own "couldn't read" state, not to data
-  const read = fn(CSR, 'csrRead', { fetch: () => Promise.resolve({ status: 502, ok: false, json: () => Promise.resolve({}) }) });
-  return read('/x').then((r) => assert.deepEqual(r, { kind: 'error' }));
+  assert.match(src, /const unavailable = \(\) => NextResponse\.json\(\{ error: 'Leaderboard unavailable\.' \}, \{ status: 502 \}\);/);
+  assert.match(src, /if \(board\.error\) \{\s*if \(isMissingRelation\(board\.error\)\)[^\n]*\n\s*return unavailable\(\);/, 'the board read drops its error');
+  assert.match(src, /if \(error \|\| meError\) return unavailable\(\);/, 'the fallback read drops its error');
+  // and the page maps a non-2xx to its own "couldn't read" state, not to data
+  const read = fn(LB_UI, 'lbRead', { fetch: () => Promise.resolve({ status: 502, ok: false, json: () => Promise.resolve({}) }) });
+  return read('/x', () => true).then((r) => assert.deepEqual(r, { kind: 'error' }));
 });
 
 test('a 2xx body that is not the route\u2019s payload is unreadable, not empty', () => {
@@ -243,7 +264,6 @@ test('a 2xx body that is not the route\u2019s payload is unreadable, not empty',
   // is exactly the empty-versus-unreadable distinction this reader exists to keep, and an
   // earlier cut of the test above ENSHRINED it by asserting that body was ready.
   const rec = fn(CSR, 'csrRecordShaped', { CSR_RANGES: [['1w'], ['1m'], ['3m'], ['all']] });
-  const board = fn(CSR, 'csrBoardShaped');
   const ranges = (keys) => keys.reduce((o, k) => { o[k] = { series: [] }; return o; }, {});
   const full = { lifetime: 0, history: [], ranges: ranges(['1w', '1m', '3m', 'all']) };
   assert.equal(rec(full), true, 'a real empty record is refused');
@@ -256,45 +276,48 @@ test('a 2xx body that is not the route\u2019s payload is unreadable, not empty',
   for (const bad of [null, undefined, 'text', 42, []]) assert.equal(rec(bad), false, 'accepted ' + JSON.stringify(bad));
 
   // `me` is legitimately null for an unranked member, so its ABSENCE is what fails
-  assert.equal(board({ period: 'month', entries: [], me: null }), true, 'an unranked member is refused');
-  assert.equal(board({ period: 'month', entries: [{ userId: 'a' }], me: { rank: 1 } }), true);
-  assert.equal(board({ period: 'month', entries: [] }), false, 'a body with no `me` reads as unranked');
-  assert.equal(board({ period: 'month', me: null }), false, 'a body with no entries reads as an empty board');
+  const board = fn(LB_UI, 'lbMemberShaped');
+  assert.equal(board({ period: 'month', entries: [], me: null, total: 0 }), true, 'an unranked member is refused');
+  assert.equal(board({ period: 'month', entries: [{ userId: 'a' }], me: { rank: 1 }, total: 1 }), true);
+  assert.equal(board({ period: 'month', entries: [], total: 0 }), false, 'a body with no `me` reads as unranked');
+  assert.equal(board({ period: 'month', me: null, total: 0 }), false, 'a body with no entries reads as an empty board');
+  assert.equal(board({ period: 'month', entries: [], me: null }), false, 'a body with no total reads as nobody ranked');
   for (const bad of [null, undefined, 'text', []]) assert.equal(board(bad), false, 'accepted ' + JSON.stringify(bad));
 
   // and each caller actually passes its validator \u2014 a checker nobody calls checks nothing
   const src = stripComments(CSR);
   assert.match(src, /csrRead\("\/api\/client\/score-record", csrRecordShaped\)/);
-  assert.match(src, /csrRead\("\/api\/leaderboard\?period=[\s\S]{0,90}csrBoardShaped\)/);
+  assert.match(stripComments(LB_UI), /lbRead\("\/api\/leaderboard\?scope=[\s\S]{0,160}lbMemberShaped\)/);
 });
 
 test('the period labels name the windows the RPCs actually rank', () => {
-  // ⚠ "week" IS ROLLING. Both RPCs define it as now() - interval '7 days', so early in
-  // a calendar week the result is mostly the PREVIOUS one. "month" is a real calendar
-  // month and "all" is since 1970 — those two labels were already accurate.
-  assert.match(LB_SQL, /p_period = 'week' then now\(\) - interval '7 days'/);
-  assert.match(LB_SQL, /else date_trunc\('month', now\(\)\)/);
-  const src = stripComments(CSR);
-  const periods = /const CSR_PERIODS = \[([\s\S]*?)\];/.exec(src);
-  assert.ok(periods, 'CSR_PERIODS moved');
-  assert.ok(!/"week", "This week"/.test(periods[1]), 'a rolling 7-day window is labelled as a calendar week');
-  assert.match(periods[1], /"week", "Last 7 days"/);
-  assert.match(periods[1], /"month", "This month"/);
+  // ⚠ "week" IS ROLLING. The board defines it as now() - interval '7 days', so early in a
+  // calendar week the result is mostly the PREVIOUS one. "month" is a real calendar month and
+  // "all" is since 1970 — those two labels are accurate.
+  assert.match(LB_SQL, /if p_period = 'week' then\s+v_since := now\(\) - interval '7 days';/);
+  assert.match(LB_SQL, /elsif p_period = 'month' then\s+v_since := date_trunc\('month', now\(\)\);/);
+  const src = stripComments(LB_UI);
+  const periods = /const LB_PERIODS = \[([\s\S]*?)\];/.exec(src);
+  assert.ok(periods, 'LB_PERIODS moved');
+  assert.ok(!/long: "This week"/.test(periods[1]), 'a rolling 7-day window is labelled as a calendar week');
+  assert.match(periods[1], /key: "week", long: "Last 7 days"/);
+  assert.match(periods[1], /key: "month", long: "This month"/);
 });
 
 test('an unranked member is not told a cause the data cannot establish', () => {
-  // ⚠ `me === null` HAS TWO CAUSES. `shape_leaderboard_me` filters
-  // `having sum(delta) > 0`, so a member who earned nothing in the window gets no row —
-  // and the RPC also drops anyone opted out. An earlier draft asserted the opt-out and
-  // sent them to Settings, which is wrong twice: NOTHING in this repository writes
-  // `client_privacy_prefs`, on any surface, so it was advice nobody could follow.
+  // ⚠ "NOT RANKED" AND "HIDDEN" ARE DIFFERENT FACTS. Not ranked: no points in the window
+  // (`having sum(delta) > 0`). Hidden: a switch or a private profile keeps OTHER members from
+  // seeing you, while you still see your own place. The page says the second only when the
+  // route's `hidden` field says it, never as a guess about the first. (Until 2026-10-15 nothing
+  // wrote the board switch at all; /api/me/leaderboard-privacy does now.)
   assert.match(LB_SQL, /having sum\(l\.delta\) > 0/, 'the zero-score filter is gone — re-check the copy');
-  assert.match(LB_SQL, /client_privacy_prefs/);
-  const src = stripComments(CSR);
-  const at = src.indexOf('function ClientLeaderboard(');
+  const src = stripComments(LB_UI);
+  const at = src.indexOf('function MemberLeaderboard(');
   const body = src.slice(at, src.indexOf('\nfunction ', at + 10));
-  assert.ok(!/opt-in|opt out|opted out/i.test(body), 'the copy asserts an opt-out it cannot establish');
-  assert.ok(!/Settings/.test(body), 'the copy points at a control that exists on no surface');
+  const unranked = /You’re not ranked for[^<]*/.exec(body);
+  assert.ok(unranked, 'the not-ranked line moved');
+  assert.ok(!/off|private|Settings|switch/i.test(unranked[0]), 'the not-ranked line asserts a cause: ' + unranked[0]);
+  for (const reason of ['off', 'private', 'team_off']) assert.match(body, new RegExp('d\\.hidden === "' + reason + '"'), 'no copy for hidden: ' + reason);
 });
 
 test('the check-in history reads the weeks the route already sent', () => {
