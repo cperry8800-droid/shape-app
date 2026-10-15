@@ -131,7 +131,7 @@ const SYSTEM_PROMPT = [
   "LOOKUPS: For a signed-in member you can LOOK THINGS UP with the read tools before you answer: get_training_plan (what is on today and this week, plus today's meals off their menu), get_recent_workouts (the last sessions and the top sets in each), get_week_summary (the last 7 days in numbers: nutrition, training, sleep and recovery, weigh-in trend, habit completion), get_habits (their habits with today's state and streaks), get_coaching (their coaches and booked sessions), get_reminders, get_points (recent Shape Score entries), get_account (their own profile, membership and billing status, coach subscriptions, units, language, timezone, notification and privacy preferences, Nora's voice). Use the matching tool BEFORE answering any question about the member's own plan, schedule, progress, numbers, or account — never answer those from memory or by guessing. Quote only what a tool returned, in their own units. If a tool answers unavailable, say you can't see that right now; if it answers empty, say there is nothing there yet. If the tools are not offered, you are talking to someone who is not signed in as a member — say that lookups need a signed-in membership.",
   "COACH LOOKUPS: For a COACH, find_client turns the name they said into the client id every coach action needs — call it first whenever you do not already have the id, and NEVER invent an id. If it returns several candidates, ask which one; if none, say who is on their roster. get_client_snapshot gives that client's recent training, nutrition, weight and lifts (only for a client they actively coach). For 'what needs me today' or 'what's on today', call get_coach_today and lead with what needs them: requests to confirm, then today's sessions, then the clients it flags with why; never add a client or a session it did not return.",
   '',
-  'COACHES: When a member wants to find, switch, compare, or get matched with a coach (trainer or nutritionist), CALL the recommend_coaches tool and then recommend specific people by name with one short reason each (specialty, city, or rating). Ask at most ONE clarifying question (e.g. goal, in-person vs remote) only if you truly cannot pick a sensible focus; otherwise just recommend. Never invent coaches — only mention ones the tool returns. The tool lists the live marketplace first; a result marked example is a demonstration listing rather than a real coach — prefer the real ones, and if you mention an example say it is an example listing. Quote a price, rating or credential only when the listing states one; a coach marked atCapacity is not taking new clients right now. If the tool answers noMatch, say plainly that no listing matches that yet, then offer the marketplace or a broader focus.',
+  'COACHES: When someone wants to find, switch, compare, or get matched with a coach (trainer or nutritionist), first know what they are after. If the request says neither which kind of help they want (training, nutrition, or both) nor what they are working toward, as in a bare "Find me a coach" or "I need a coach", do NOT call the recommend_coaches tool yet: reply with one short message asking whether they want a trainer, a nutritionist or both, what their main goal is, and whether they would rather work online or with someone in person (and where). Ask once. When the request or their answer gives the kind of help and a goal, or they say to just show them, CALL the recommend_coaches tool and recommend specific people by name with one short reason each (specialty, city, or rating); if they answered only part, recommend with what you have rather than asking again. Never invent coaches — only mention ones the tool returns. The tool lists the live marketplace first; a result marked example is a demonstration listing rather than a real coach — prefer the real ones, and if you mention an example say it is an example listing. Quote a price, rating or credential only when the listing states one; a coach marked atCapacity is not taking new clients right now. If the tool answers noMatch, say plainly that no listing matches that yet, then offer the marketplace or a broader focus.',
   '',
   "HOW SHAPE WORKS: For a question about Shape itself — what it costs and includes, whether a coach is required, coach prices and what coaches pay, cancelling or billing, Shape Radio, coach credentials and the Verified badge, switching coaches, the Shape Score and its tiers and rewards, habits, units, Cook Mode and recipes, privacy and data, the account, or what you can do — call shape_help and answer from what it returns (each entry names its source). If it returns no entry, say you don't have that written down and that the Shape team answers at info@theshapecommunity.com. Never invent a policy, a price or a date.",
   '',
@@ -146,7 +146,7 @@ const TOOLS = [
     type: 'function',
     name: 'recommend_coaches',
     description:
-      "Search Shape's coach catalog and return specific coaches that match the member's goal/specialty/location/format. Call this for any request to find, switch, compare, or get matched with a trainer or nutritionist.",
+      "Search Shape's coach catalog and return specific coaches that match the member's goal/specialty/location/format. Call this to find, switch, compare, or match a trainer or nutritionist once you know what they are after (the kind of help and a goal, or they asked to just be shown); for a bare request like 'find me a coach', ask first.",
     parameters: {
       type: 'object',
       properties: {
@@ -1210,6 +1210,11 @@ const TEMPLATE_FALLBACK_REPLY = "AI drafting is unavailable right now, so here i
 // all, so the app gets live listings — or, when they cannot be read, only the
 // door to the marketplace — never an example chip with no listing behind it.
 // The website lists the examples after the live rows, as its marketplace does.
+// The words a coach request can be made of and still say nothing about the coach: see the bare-ask
+// branch in fallbackReply. A trainer, a nutritionist or any goal word is not in it, so those ask
+// the directory as before.
+const BARE_COACH_ASK = new Set(['find', 'me', 'a', 'an', 'the', 'coach', 'coaches', 'please', 'can', 'could', 'would', 'you', 'help', 'i', "i'm", 'im', 'want', 'need', 'get', 'looking', 'for', 'to', 'match', 'matched', 'with', 'someone', 'recommend', 'show', 'good', 'great', 'best', 'new', 'my', 'one', 'some', 'hi', 'hey', 'hello', 'nora', 'like', 'id', "i'd"]);
+
 async function fallbackReply(text: string, coach: CoachCtx): Promise<{ reply: string; actions: SupportAction[] }> {
   const q = text.toLowerCase();
   const has = (...words: string[]) => words.some((w) => q.includes(w));
@@ -1256,6 +1261,14 @@ async function fallbackReply(text: string, coach: CoachCtx): Promise<{ reply: st
   }
   if (has('coach', 'trainer', 'find', 'match', 'strength', 'run', 'fat loss', 'lose weight', 'muscle', 'hyrox')) {
     const browse: SupportAction = { type: 'marketplace', label: 'Browse all coaches', url: '/newdesign/Marketplace.html' };
+    // ⚠ A BARE ASK GETS A QUESTION, NOT A GUESS — owner, 2026-10-15, on "Find me a coach": "Nora
+    // didnt ask any additional info on the type of coach member may be looking for". A sentence
+    // made only of these words names no kind of coach and no goal, so any list is a guess (the
+    // model path asks the same, by its COACHES rule). Anything more specific falls through.
+    const words = q.match(/[a-z']+/g) || [];
+    if (words.some((w) => w === 'coach' || w === 'coaches') && words.every((w) => BARE_COACH_ASK.has(w))) {
+      return { reply: "Happy to find you one. Are you after a trainer, a nutritionist, or both? Tell me your main goal and whether you'd rather work online or with someone in person (and where), and I'll match you.", actions: [browse] };
+    }
     const { pool, unavailable } = await coachPool('trainer');
     if (unavailable) return { reply: "The marketplace couldn't be read just now — try again in a moment, or open it directly to see who's listed.", actions: [browse] };
     const { coaches, matched } = fallbackCoaches('trainer', pool);

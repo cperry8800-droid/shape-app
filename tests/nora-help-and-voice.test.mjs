@@ -89,3 +89,27 @@ test('GET /api/ai/speak answers the gate\'s own verdict, with no audio and no ke
   assert.equal(await (await load(refusal, null)).GET(new Request('https://x/api/ai/speak')), refusal, 'the gate\'s refusal is returned as is');
   assert.equal((await (await load(null, null)).GET(new Request('https://x/api/ai/speak'))).status, 401);
 });
+
+// ── owner, 2026-10-15: "I am not seeing how to speak to nora here on website", then "make a note
+// saying voice control capabilities unlocked with being a member", "have that say somewhere in nora
+// chat". The controls stay members-only; the people they are hidden from are told voice exists.
+test('website: a non-member is told in Nora\'s chat that voice unlocks with membership', () => {
+  const m = WEB.match(/const voiceLocked = ([^;]+);/);
+  assert.ok(m, 'voiceLocked is gone');
+  // The real expression, run against every state the panel can be in.
+  const locked = new Function('member', 'voiceGate', 'myUserIdRef', `return ${m[1]};`);
+  const id = (v) => ({ current: v });
+  assert.equal(locked(false, null, id(null)), true, 'signed out: told');
+  assert.equal(locked(false, false, id('u')), true, 'signed in, the gate said no: told');
+  assert.equal(locked(null, null, id(null)), false, 'still finding out who this is: nothing yet');
+  assert.equal(locked(false, null, id('u')), false, 'signed in, the gate not answered yet: nothing yet (a dietitian or admin may still pass)');
+  assert.equal(locked(true, null, id('u')), false, 'a member: no note');
+  assert.equal(locked(false, true, id('u')), false, 'the gate let them through: no note');
+  // The note: in Nora's control row, saying so in words, with the way in.
+  const note = WEB.match(/\{voiceLocked && \(\s*<div data-nora-voice-locked[\s\S]*?<\/div>\s*\)\}/);
+  assert.ok(note, 'the note is not rendered under voiceLocked');
+  assert.match(note[0], /Voice chat with Nora unlocks with membership\./);
+  assert.match(note[0], /<a href="\/pricing"/, 'no way to join from the note');
+  assert.doesNotMatch(note[0], /onClick=\{(startTalk|toggleVoice)\}/, 'the note starts nothing: voice stays behind the gate');
+  assert.ok(WEB.indexOf('{voiceLocked && (') > WEB.indexOf('{canVoice && talkSupported && ('), 'the note sits where Talk to Nora would');
+});

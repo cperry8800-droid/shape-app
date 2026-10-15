@@ -1090,3 +1090,33 @@ test('STREAM: with no model she still answers, as the done event', async () => {
   assert.deepEqual(evs[0][1], await (await plain.mod.POST(post(ask('how do I connect Strava?')))).json());
   assert.equal(evs[0][1].source, 'fallback');
 });
+
+// ─── owner, 2026-10-15: "when selecting find me a coach, Nora didnt as any additional info on the
+// type of coach member may be looking for". A bare ask gets a question first, on both paths. ──────
+test('a bare "find me a coach" is asked what kind of coach, by the model rule and by the fallback', async () => {
+  // The model is told to ask before searching, and the tool says the same.
+  const r = await loadRoute({});
+  await r.mod.POST(post(ask('Find me a coach')));
+  const sys = r.calls.ai[0].body.input[0].content;
+  assert.match(sys, /a bare "Find me a coach" or "I need a coach", do NOT call the recommend_coaches tool yet/);
+  assert.match(sys, /a trainer, a nutritionist or both, what their main goal is, and whether they would rather work online or with someone in person/);
+  assert.match(sys, /Ask once\./);
+  assert.doesNotMatch(sys, /otherwise just recommend/, 'the old rule told her to skip the question');
+  const tool = r.calls.ai[0].body.tools.find((t) => t.name === 'recommend_coaches');
+  assert.match(tool.description, /for a bare request like 'find me a coach', ask first/);
+  // With no model: the bare asks get the question and the marketplace door, and no coach is guessed.
+  const fb = await loadRoute({ hasKey: false, tables: LIVE_TABLES() });
+  for (const bare of ['Find me a coach', 'can you help me find a coach please', "Hi Nora, I'm looking for a coach"]) {
+    const out = await (await fb.mod.POST(post(ask(bare)))).json();
+    assert.equal(out.source, 'fallback');
+    assert.match(out.reply, /Are you after a trainer, a nutritionist, or both\?/, bare);
+    assert.equal(out.actions.filter((a) => a.type === 'coach').length, 0, `no coach is guessed for "${bare}"`);
+    assert.ok(out.actions.some((a) => a.type === 'marketplace'), 'the marketplace is still one tap away');
+  }
+  // Anything that says more still gets coaches straight away.
+  for (const said of ['find me a coach for marathon training', 'help me find a fat loss trainer', 'find me a trainer']) {
+    const out = await (await fb.mod.POST(post(ask(said)))).json();
+    assert.doesNotMatch(out.reply, /Are you after a trainer/, said);
+    assert.ok(out.actions.filter((a) => a.type === 'coach').length >= 1, `"${said}" lists coaches`);
+  }
+});
