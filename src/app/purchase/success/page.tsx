@@ -1,21 +1,16 @@
-import Link from 'next/link';
+// Stripe's return page for a one-time purchase, and for the website and app checkouts that send
+// their subscriptions here (/api/stripe/checkout-session's default successPath). It checks the
+// checkout before it says anything (client-onboarding review, fix 3c: M11): it used to say the
+// payment had gone through whatever had happened.
 
-export const metadata = { title: 'Payment received — Shape' };
+import { CheckoutReturnView } from '@/components/CheckoutReturnView';
+import { readCheckoutReturn } from '@/lib/checkout-return';
 
-export default function PurchaseSuccessPage() {
-  return (
-    <main className="max-w-md mx-auto px-6 py-20 text-white">
-      <h1 className="text-3xl font-light tracking-tight mb-3">Payment received</h1>
-      <p className="text-sm text-neutral-400 mb-6">
-        Thanks — your payment went through. You can see it in your dashboard; the
-        provider will reach out shortly to schedule or deliver.
-      </p>
-      <Link
-        href="/newdesign/ClientDashboard.html"
-        className="inline-block text-sm font-medium bg-white text-neutral-950 rounded-full px-5 py-2.5 hover:bg-white/90 transition-colors"
-      >
-        Go to dashboard
-      </Link>
-    </main>
-  );
+export const metadata = { title: 'Your payment — Shape' };
+export const dynamic = 'force-dynamic';
+
+export default async function PurchaseSuccessPage({ searchParams }: { searchParams: Promise<{ session_id?: string }> }) {
+  const { session_id: sessionId } = await searchParams;
+  const result = await readCheckoutReturn(sessionId);
+  return <CheckoutReturnView result={result} />;
 }

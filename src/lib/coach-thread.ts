@@ -17,6 +17,12 @@
 // welcomeMember(), called when the $5 membership is saved: one welcome per member, ever (dedupe
 // "membership-welcome"), in the app and by email.
 //
+// coachPaid(), called by the webhook once a one-time purchase is saved (fix 3c: M10). The coach's
+// alert used to read "$X from a client for a booking": no name, nothing to do, sent again on every
+// redelivery. A paid session now opens the thread, alerts and emails the coach with the client's
+// name and a session to schedule, and tells the member what happens next. A program or meal plan
+// tells the coach who bought it. Each send is keyed on the checkout (data.dedupe).
+//
 // Best-effort throughout: the payment is already recorded, and a failed alert or email is logged,
 // never thrown, so it cannot turn into a webhook failure and a Stripe retry.
 
@@ -111,6 +117,66 @@ export function memberHireEmail(args: { coachName: string; role: CoachRole; firs
     ...SIGN_OFF_TEXT,
   ].join('\n');
   return { subject: `You're working with ${coach} on Shape`, html, text };
+}
+
+/** The coach's Schedule on the website, where a paid session waits under To schedule. */
+export function coachScheduleLink(role: CoachRole, site = siteUrl()): string {
+  return `${site}/newdesign/${role === 'nutritionist' ? 'Nutritionist' : 'Trainer'}App.html#schedule`;
+}
+
+/** The coach's email when a client pays for a session (fix 3c: M10). */
+export function coachPaidSessionEmail(args: { clientName: string; role: CoachRole; clientId: string; coachCents?: number | null; site?: string }): BuiltEmail {
+  const links = coachLinks(args.role, args.clientId, args.site);
+  const schedule = coachScheduleLink(args.role, args.site);
+  const name = args.clientName.trim() || 'A client';
+  const pay = args.coachCents ? ` (${usd(args.coachCents)} to you)` : '';
+  const html = `
+    ${WRAP_OPEN}
+      <h2 style="margin:0 0 16px;font-size:22px;font-weight:500;">Session to schedule: ${escapeHtml(name)}</h2>
+      <p style="margin:0 0 16px;line-height:1.55;">${escapeHtml(name)} paid for a session with you${escapeHtml(pay)}. It waits on your Schedule, under To schedule, until you book a time with them.</p>
+      ${button(schedule, 'Book the session')}
+      <p style="margin:0 0 16px;line-height:1.55;">Agree the time in <a href="${escapeHtml(links.thread)}" style="color:#0ac5a8;">your thread with them</a>, and read their screening on <a href="${escapeHtml(links.client)}" style="color:#0ac5a8;">their client page</a> first.</p>
+      ${SIGN_OFF_HTML}
+    </div>
+  `;
+  const text = [
+    `Session to schedule: ${name}`,
+    '',
+    `${name} paid for a session with you${pay}. It waits on your Schedule, under To schedule, until you book a time with them.`,
+    '',
+    `Book the session: ${schedule}`,
+    '',
+    `Agree the time in your thread with them: ${links.thread}`,
+    `Read their screening on their client page first: ${links.client}`,
+    '',
+    ...SIGN_OFF_TEXT,
+  ].join('\n');
+  return { subject: `Session to schedule: ${name}`, html, text };
+}
+
+/** The member's email when their session is paid (fix 3c: M10). */
+export function memberPaidSessionEmail(args: { coachName: string; firstName?: string; site?: string }): BuiltEmail {
+  const coach = args.coachName.trim() || 'your coach';
+  const first = (args.firstName || '').trim();
+  const team = memberTeamLink(args.site);
+  const html = `
+    ${WRAP_OPEN}
+      <h2 style="margin:0 0 16px;font-size:22px;font-weight:500;">Your session with ${escapeHtml(coach)} is paid${first ? `, ${escapeHtml(first)}` : ''}.</h2>
+      <p style="margin:0 0 16px;line-height:1.55;">${escapeHtml(coach)} books the time with you. Your thread with them is open in Messages: say when suits you, and you'll get the time and the call link by email once it is booked.</p>
+      ${button(team, 'Open your team')}
+      ${SIGN_OFF_HTML}
+    </div>
+  `;
+  const text = [
+    `Your session with ${coach} is paid${first ? `, ${first}` : ''}.`,
+    '',
+    `${coach} books the time with you. Your thread with them is open in Messages: say when suits you, and you'll get the time and the call link by email once it is booked.`,
+    '',
+    `Open your team: ${team}`,
+    '',
+    ...SIGN_OFF_TEXT,
+  ].join('\n');
+  return { subject: `Your session with ${coach} is paid`, html, text };
 }
 
 /** The member's email when the $5 membership starts. */
@@ -253,4 +319,92 @@ export async function welcomeMember(admin: SupabaseClient, clientId: string): Pr
     console.error('[coach-thread] welcomeMember failed:', err instanceof Error ? err.message : err);
     return false;
   }
+}
+
+export type PurchaseKind = 'booking' | 'meal_plan' | 'program';
+export type CoachPaid = { conversationId: string | null; coachAlerted: boolean; memberTold: boolean };
+
+/**
+ * A one-time purchase was saved (fix 3c: M10). `checkoutId` keys every send, so a redelivered
+ * event stores no second alert and sends no second email. `coachCents` is what the coach is paid.
+ * Never throws.
+ */
+export async function coachPaid(
+  admin: SupabaseClient,
+  a: { clientId: string; providerRole: CoachRole; providerId: number; kind: PurchaseKind; checkoutId: string; coachCents?: number | null; itemName?: string | null },
+): Promise<CoachPaid> {
+  const out: CoachPaid = { conversationId: null, coachAlerted: false, memberTold: false };
+  try {
+    const table = a.providerRole === 'nutritionist' ? 'nutritionists' : 'trainers';
+    const [{ data: provider, error: providerErr }, clientName] = await Promise.all([
+      admin.from(table).select('name, owner_id').eq('id', a.providerId).maybeSingle(),
+      fullNameOf(admin, a.clientId),
+    ]);
+    if (providerErr) console.warn('[coach-thread] provider read failed:', providerErr.message);
+    const coachName = String((provider as { name?: string | null } | null)?.name || '').trim();
+    const ownerId = (provider as { owner_id?: string | null } | null)?.owner_id || null;
+    const first = shapeFirstName(clientName);
+    const shown = clientName || 'A client';
+    const pay = a.coachCents ? ` · ${usd(a.coachCents)} to you` : '';
+
+    if (a.kind !== 'booking') {
+      // A product: the coach is told who bought what. No thread and no session: buying a program
+      // or a meal plan does not start coaching (fix 2b's rule).
+      if (ownerId) {
+        const what = (a.itemName || '').trim() || (a.kind === 'program' ? 'a program' : 'a meal plan');
+        out.coachAlerted = await createNotification(admin, {
+          userId: ownerId,
+          type: 'payment',
+          title: `Payment received: ${shown}`,
+          body: `${shown} bought ${what}${pay}.`,
+          data: { dedupe: `paid:${a.checkoutId}`, clientId: a.clientId, providerRole: a.providerRole, kind: a.kind },
+        });
+      }
+      return out;
+    }
+
+    // A paid session: the thread opens (with Shape's welcome, the first time), and the session
+    // waits on the coach's Schedule under To schedule until they book it.
+    const { data: opened, error: openErr } = await admin.rpc('open_coach_thread', {
+      p_client_id: a.clientId,
+      p_provider_role: a.providerRole,
+      p_provider_id: a.providerId,
+      p_welcome: shapeWelcomeText({ client: first, coach: coachName }),
+      p_client_name: first || null,
+    });
+    if (openErr) console.error('[coach-thread] open_coach_thread failed:', openErr.message, (openErr as { code?: string }).code);
+    else out.conversationId = ((Array.isArray(opened) ? opened[0] : opened) as { thread_id?: string } | null)?.thread_id ?? null;
+
+    if (ownerId) {
+      out.coachAlerted = await createNotification(admin, {
+        userId: ownerId,
+        type: 'session_paid',
+        title: `Session to schedule: ${shown}`,
+        body: `${shown} paid for a session${pay}. It waits on your Schedule under To schedule until you book a time with them.`,
+        route: 'schedule',
+        data: { dedupe: `paid:${a.checkoutId}`, clientId: a.clientId, conversationId: out.conversationId, providerRole: a.providerRole },
+      });
+      if (out.coachAlerted) {
+        const to = await emailOf(admin, ownerId);
+        if (to) await sendEmail({ to, ...coachPaidSessionEmail({ clientName: shown, role: a.providerRole, clientId: a.clientId, coachCents: a.coachCents }) });
+      }
+    }
+
+    out.memberTold = await createNotification(admin, {
+      userId: a.clientId,
+      type: 'session_paid',
+      title: `Your session with ${coachName || 'your coach'} is paid`,
+      body: `${coachName || 'Your coach'} books the time with you. Say when suits you in your thread.`,
+      // The thread, by id, where they agree the time; with none, the chat.
+      route: out.conversationId ? `chat:${out.conversationId}` : 'messages',
+      data: { dedupe: `paid-member:${a.checkoutId}`, conversationId: out.conversationId, providerRole: a.providerRole, side: 'client' },
+    });
+    if (out.memberTold) {
+      const to = await emailOf(admin, a.clientId);
+      if (to) await sendEmail({ to, ...memberPaidSessionEmail({ coachName, firstName: first }) });
+    }
+  } catch (err) {
+    console.error('[coach-thread] coachPaid failed:', err instanceof Error ? err.message : err);
+  }
+  return out;
 }

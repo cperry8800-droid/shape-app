@@ -5437,6 +5437,17 @@ async function createCoachSession({ role, clientId, date, time, tz, durationMin,
   if (!res.ok) throw new Error(data.error || 'Could not book the session.');
   return data;
 }
+// A coach's paid sessions not yet booked (client-onboarding review, fix 3c: M10): the To schedule
+// list. Throws when it could not be read, so the screen says so rather than showing none.
+async function listToSchedule(role) {
+  const res = await fetch(`${apiBaseUrl || ''}/api/coach/to-schedule?role=${encodeURIComponent(role)}`, {
+    credentials: 'same-origin',
+    headers: sessionsAuthHeaders(),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !Array.isArray(data.items)) throw new Error(data.error || 'Could not read your paid sessions.');
+  return data.items;
+}
 
 // ─── Notifications (in-app feed + live bell) ─────────────────────────────────
 async function listNotifications() {
@@ -5919,6 +5930,7 @@ window.ShapeSessions = {
   getSessions,
   manageSession,
   createCoachSession,
+  listToSchedule,
 };
 
 window.ShapeAvailability = {

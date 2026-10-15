@@ -1308,10 +1308,10 @@ const DSC_LENGTH_MIN = 5;
 const DSC_LENGTH_MAX = 240;
 const dscLengthOk = (v) => { const n = Number(v); return String(v).trim() !== "" && Number.isInteger(n) && n >= DSC_LENGTH_MIN && n <= DSC_LENGTH_MAX; };
 const DSC_TYPES = [["video", "Video"], ["inperson", "In person"], ["phone", "Phone"]];
-function DscBookSheet({ slot, roster, role, verdictFor, onBook, onClose, onDone }) {
+function DscBookSheet({ slot, roster, role, verdictFor, onBook, onClose, onDone, initialClientId }) {
   const [date, setDate] = React.useState(slot.date);
   const [minute, setMinute] = React.useState(slot.minute);
-  const [clientId, setClientId] = React.useState(roster.length === 1 ? roster[0].client.profile.id : "");
+  const [clientId, setClientId] = React.useState(initialClientId || (roster.length === 1 ? roster[0].client.profile.id : ""));
   const [pillDur, setPillDur] = React.useState(role === "nutritionist" ? 15 : 60);
   const [durText, setDurText] = React.useState("");   // a typed length; "" = one of the pills
   // ⚠ THE LENGTH BOOKED IS THE ONE ON SCREEN (Codex on #2370). A typed length used to be copied
@@ -1336,7 +1336,10 @@ function DscBookSheet({ slot, roster, role, verdictFor, onBook, onClose, onDone 
   const tooMany = runDates.length > 60;
   const v = verdictFor(null, date, minute, dur ?? pillDur);
   const row = roster.find((r) => r.client.profile.id === clientId) || null;
-  const blocked = busy || !row || v.past || !!v.clash || tooMany || durBad;
+  // A client who paid for one session and does not subscribe is booked once: a weekly run is a
+  // subscriber's (the route refuses it, fix 3c).
+  const paidOnly = !!(row && row.paidOnly);
+  const blocked = busy || !row || v.past || !!v.clash || tooMany || durBad || (paidOnly && weekly);
   const pill = (on) => ({ ...dscBtn(on ? "on" : null), padding: "6px 10px" });
   const submit = async () => {
     if (blocked) return;
@@ -1370,7 +1373,7 @@ function DscBookSheet({ slot, roster, role, verdictFor, onBook, onClose, onDone 
           {roster.length ? (
             <select aria-label="Client" value={clientId} onChange={(e) => setClientId(e.target.value)} style={{ ...dscInput, fontSize: 12.5, fontFamily: "inherit" }}>
               <option value="">Pick a client…</option>
-              {roster.map((r) => <option key={r.client.profile.id} value={r.client.profile.id}>{r.client.profile.name}</option>)}
+              {roster.map((r) => <option key={r.client.profile.id} value={r.client.profile.id}>{r.client.profile.name}{r.paidOnly ? " · paid session" : ""}</option>)}
             </select>
           ) : <span style={{ fontSize: 12.5, color: DSC_INK50 }}>No clients on your roster yet — a member who subscribes shows up here.</span>}
         </label>
@@ -1408,6 +1411,7 @@ function DscBookSheet({ slot, roster, role, verdictFor, onBook, onClose, onDone 
             <button type="button" aria-pressed={!weekly} onClick={() => setWeekly(false)} style={pill(!weekly)}>Doesn’t repeat</button>
             <button type="button" aria-pressed={weekly} onClick={() => setWeekly(true)} style={pill(weekly)}>Weekly</button>
           </div>
+          {paidOnly && <div data-paid-only="" style={{ fontSize: 11.5, color: DSC_INK50, marginTop: 5 }}>{row.client.profile.name.split(" ")[0]} paid for one session. A weekly run is for subscribers.</div>}
           {weekly && (
             <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
               <div role="group" aria-label="Days" style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
@@ -1500,6 +1504,28 @@ function DscRequests({ list, busyId, onAccept, onDecline, onOther, onPick }) {
         </span>
       ))}
       {list.length > shown.length && <span style={{ fontFamily: DSC_MONO, fontSize: 9, color: DSC_INK50 }}>+{list.length - shown.length} more on the calendar</span>}
+    </div>
+  );
+}
+
+// ── To schedule ─────────────────────────────────────────────────────────────
+// Sessions a client has paid for that the coach has not booked yet (client-onboarding review, fix
+// 3c: M10), from /api/coach/to-schedule. A paid session used to become nothing: no booking, no
+// list, and the coach could not even book a client who did not subscribe. Book opens the same
+// sheet with that client picked; the booking takes it off the list.
+function DscToSchedule({ list, failed, onBook }) {
+  if (!failed && !list.length) return null;
+  return (
+    <div role="region" aria-label="Paid sessions to schedule" data-to-schedule="" style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.45)", borderRadius: 8, padding: "8px 10px", background: "rgba(var(--sh-accent-rgb, 46,224,196),0.06)", marginBottom: 12 }}>
+      <span style={{ fontFamily: DSC_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: DSC_TEAL_INK }}>{failed ? "Paid sessions" : list.length + " to schedule"}</span>
+      {failed && <span role="alert" style={{ fontSize: 12.5, color: DSC_RUST }}>Paid sessions to schedule couldn't load. Reload to try again.</span>}
+      {list.map((p) => (
+        <span key={p.purchaseId} data-paid={p.purchaseId} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, paddingLeft: 10, borderLeft: "1px solid " + DSC_HAIR, flexWrap: "wrap" }}>
+          <span style={{ fontWeight: 600 }}>{p.clientName}</span>
+          <span style={{ fontFamily: DSC_MONO, fontSize: 10, color: DSC_INK50 }}>paid {new Date(p.paidAt).toLocaleDateString([], { month: "short", day: "numeric" })}</span>
+          <button type="button" onClick={() => onBook(p)} style={{ ...dscBtn("on"), padding: "3px 7px", fontSize: 8.5 }}>Book</button>
+        </span>
+      ))}
     </div>
   );
 }
@@ -1625,6 +1651,9 @@ function CoachSchedulePage({ role }) {
   React.useEffect(() => (noraSession && window.shapeNoraOpen ? window.shapeNoraOpen({ sessionId: noraSession, ...(noraClient ? { clientId: noraClient } : {}) }) : undefined), [noraSession, noraClient]);
   const [slot, setSlot] = React.useState(null);         // { date, minute, dur } — "+ Book"
   const [bookOpen, setBookOpen] = React.useState(false);
+  const [bookFor, setBookFor] = React.useState(null);   // a client picked in the sheet (To schedule's Book)
+  // Paid sessions not yet booked (fix 3c), or false when they could not be read.
+  const [toSchedule, setToSchedule] = React.useState([]);
   const [confirmMove, setConfirmMove] = React.useState(null);
   const [scopeAsk, setScopeAsk] = React.useState(null);   // { ev, date, time } — a run's move: this one or following
   const [busyId, setBusyId] = React.useState(null);
@@ -1634,6 +1663,14 @@ function CoachSchedulePage({ role }) {
   // The zone the coach's stored hours are expressed in (null until first saved).
   const [availZone, setAvailZone] = React.useState(null);
   const isLive = !!live;
+  const loadToSchedule = React.useCallback(() => {
+    if (!isLive) return;
+    fetch("/api/coach/to-schedule?role=" + encodeURIComponent(role), { credentials: "same-origin" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => setToSchedule(j && Array.isArray(j.items) ? j.items : false))
+      .catch(() => setToSchedule(false));
+  }, [isLive, role]);
+  React.useEffect(() => { loadToSchedule(); }, [loadToSchedule]);
   // Editing the week's hours on the grid (Schedule step 3).
   const [editingHours, setEditingHours] = React.useState(false);
   // Time off: the coach's blocks, { id, startsAt, endsAt, note }. The demo shows one example.
@@ -1953,6 +1990,8 @@ function CoachSchedulePage({ role }) {
       if (!res.ok || !j || !j.session) return { ok: false, error: (j && j.error) || "Couldn't book it — try again." };
       setEvents((list) => [...list, { ...ev, id: "session:" + j.session.id, sessionId: j.session.id, scheduledAt: j.session.scheduled_at, meetingUrl: j.meetingUrl || null, with: j.clientName || name }]);
       setSlot(null);
+      // A booking settles the client's oldest paid session, if they have one.
+      loadToSchedule();
       showToast("Booked " + name + " · " + when + " · " + name.split(" ")[0] + " is told");
       return { ok: true };
     } catch (e) {
@@ -2008,7 +2047,8 @@ function CoachSchedulePage({ role }) {
   // The toolbar's "+ Book": the same sheet without aiming at the grid, which is also the
   // keyboard's way in (an empty grid cell is a pointer target only). It starts at the day on
   // screen — its first open hour, or 9:00 — and never before now.
-  const bookFromToolbar = () => {
+  const bookFromToolbar = (clientId) => {
+    setBookFor(typeof clientId === "string" ? clientId : null);
     const day = dscIso(new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate()));
     const date = day < todayIso ? todayIso : day;
     const wd = dscWeekday(date);
@@ -2120,6 +2160,14 @@ function CoachSchedulePage({ role }) {
   })();
   const togglePick = (key) => setPicked((p) => (p.includes(key) ? p.filter((k) => k !== key) : [...p, key]));
   const roster = (triage || []).slice().sort((a, b) => String(a.client.profile.name).localeCompare(String(b.client.profile.name)));
+  // The sheet's clients: the roster, and anyone with a paid session to schedule who is not on it.
+  const bookRoster = (() => {
+    const out = roster.slice();
+    for (const p of toSchedule || []) {
+      if (!out.some((r) => r.client.profile.id === p.clientId)) out.push({ client: { profile: { id: p.clientId, name: p.clientName } }, paidOnly: true });
+    }
+    return out;
+  })();
   const prepFor = (ev) => dscPrep({ row: rowFor(ev), ev, events: calEvents, todayIso, nowMin, role });
 
   const monthLabel = cursor.toLocaleDateString([], { month: "long", year: "numeric" });
@@ -2140,7 +2188,7 @@ function CoachSchedulePage({ role }) {
     <DscTimeGrid rules={R} days={gridDays} byDate={byDate} blocks={blocks} offsFor={offsFor} colorOf={colorOf} todayIso={todayIso} nowMin={nowMin}
       plansFor={plansFor} onPlan={typeof window.DashClientDrawer === "function" ? (p) => { const row = rowFor({ clientId: p.clientId, with: p.with }); if (row) setDrawerRow(row); } : null}
       startHour={range.startHour} endHour={range.endHour}
-      slot={slot} onSlot={onSlot} onBookSlot={() => setBookOpen(true)}
+      slot={slot} onSlot={onSlot} onBookSlot={() => { setBookFor(null); setBookOpen(true); }}
       onPick={pickEvent} onMove={(ev, date, minute) => requestMove(ev, date, minute)} verdictFor={verdictFor}
       onDayHead={(iso) => { setCursor(dscRouteDate(iso)); pickView("day"); }} />
   );
@@ -2238,6 +2286,7 @@ function CoachSchedulePage({ role }) {
                 onCancel={() => setEditingHours(false)} onSaved={hoursSaved} />
             ) : (
             <React.Fragment>
+            <DscToSchedule list={toSchedule || []} failed={toSchedule === false} onBook={(p) => bookFromToolbar(p.clientId)} />
             <DscRequests list={requests} busyId={busyId} onPick={pickEvent}
               onAccept={(ev) => sessionAction(ev, "confirm")} onDecline={(ev) => sessionAction(ev, "decline")}
               onOther={(ev) => { setSlot(null); setBooking({ ev, move: true }); }} />
@@ -2309,7 +2358,7 @@ function CoachSchedulePage({ role }) {
           onClose={() => setBooking(null)} />
       )}
       {bookOpen && slot && (
-        <DscBookSheet slot={slot} roster={roster} role={role} verdictFor={verdictFor} onBook={bookSession} onClose={() => setBookOpen(false)} onDone={() => { setBookOpen(false); setSlot(null); }} />
+        <DscBookSheet key={bookFor || "any"} slot={slot} roster={bookRoster} initialClientId={bookFor} role={role} verdictFor={verdictFor} onBook={bookSession} onClose={() => { setBookOpen(false); setBookFor(null); }} onDone={() => { setBookOpen(false); setSlot(null); setBookFor(null); }} />
       )}
       {confirmMove && (
         <DscConfirmMove move={confirmMove} onNo={() => setConfirmMove(null)}

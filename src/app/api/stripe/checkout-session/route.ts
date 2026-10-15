@@ -51,6 +51,7 @@ type ProviderRow = {
   stripe_account_status: string | null;
   at_capacity: boolean | null;
   capacity_resume_at: string | null;
+  suspended_at: string | null;
 };
 
 function providerRoleFrom(input?: string): ProviderRole | null {
@@ -115,8 +116,8 @@ export async function POST(request: Request) {
   // values, which is the whole bug this guard closes.
   const selectFields =
     providerRole === 'trainer'
-      ? 'id, name, owner_id, price, session_price, stripe_account_id, stripe_account_status, at_capacity, capacity_resume_at'
-      : 'id, name, owner_id, price, meal_plan_price, stripe_account_id, stripe_account_status, at_capacity, capacity_resume_at';
+      ? 'id, name, owner_id, price, session_price, stripe_account_id, stripe_account_status, at_capacity, capacity_resume_at, suspended_at'
+      : 'id, name, owner_id, price, meal_plan_price, stripe_account_id, stripe_account_status, at_capacity, capacity_resume_at, suspended_at';
   const admin = createAdminClient();
   const { data: provider, error } = await admin
     .from(table)
@@ -126,6 +127,12 @@ export async function POST(request: Request) {
 
   if (error) return dbError(error, 'checkout credit lookup', 500);
   if (!provider) return NextResponse.json({ error: 'Provider not found.' }, { status: 404 });
+  // ⚠ A SUSPENDED LISTING TAKES NO PAYMENT (client-onboarding review, fix 3c: M8). Suspension
+  // (#2326) took the listing off the marketplace, and its profile, an old link or the app could
+  // still pay it. `reason` is the flag a caller reads, as `at_capacity` below.
+  if (provider.suspended_at) {
+    return NextResponse.json({ error: "This coach isn't taking payments right now.", reason: 'suspended' }, { status: 409 });
+  }
   // First-dibs: at-capacity coaches are only purchasable with a live waitlist
   // invite. The invite lookup runs through the caller's RLS-scoped client; a
   // lookup failure surfaces as retryable rather than silently denying the bypass.
@@ -212,7 +219,7 @@ export async function POST(request: Request) {
     if (existingErr) return dbError(existingErr, 'checkout existing subscription lookup', 503);
     if ((existing ?? []).some((row: { status?: unknown }) => ACTIVE_SUB.has(String(row.status)))) return alreadySubscribed();
   }
-  const itemName = body.item?.name || (isSubscription ? 'Monthly coaching' : 'One-time purchase');
+  let itemName = body.item?.name || (isSubscription ? 'Monthly coaching' : 'One-time purchase');
   const fallbackOneTimePrice =
     providerRole === 'trainer'
       ? provider.session_price ?? provider.price
@@ -227,6 +234,11 @@ export async function POST(request: Request) {
     body.item && (body.item as { planId?: unknown }).planId != null
       ? String((body.item as { planId?: unknown }).planId).trim()
       : '';
+  // What the sale is, as the purchase records it. ⚠ A PROGRAM WAS RECORDED AS A BOOKING (fix 3c:
+  // M10): this read the role alone, so a trainer's program counted as a paid session wherever a
+  // booking means one (a coaching client, a thread, a session to schedule). With a plan, the plan
+  // says; without one, a trainer's sale is a session and a nutritionist's a meal plan.
+  let purchaseKind: 'booking' | 'meal_plan' | 'program' = providerRole === 'nutritionist' ? 'meal_plan' : 'booking';
   if (!isSubscription && planId) {
     if (!/^[0-9a-f-]{36}$/i.test(planId)) {
       return NextResponse.json({ error: 'Invalid plan.' }, { status: 400 });
@@ -270,9 +282,9 @@ export async function POST(request: Request) {
     // check constraint ('program' | 'meal_plan'), so the mapping is total.
     const { data: plan, error: planErr } = await admin
       .from('coach_plans')
-      .select('price, published, owner_id, kind')
+      .select('price, published, owner_id, kind, name')
       .eq('id', planId)
-      .maybeSingle<{ price: string | null; published: boolean; owner_id: string | null; kind: string | null }>();
+      .maybeSingle<{ price: string | null; published: boolean; owner_id: string | null; kind: string | null; name: string | null }>();
     if (planErr) return dbError(planErr, 'checkout plan lookup', 500);
     if (!plan || plan.published !== true) {
       return NextResponse.json({ error: 'This plan is not available for purchase.' }, { status: 404 });
@@ -286,6 +298,10 @@ export async function POST(request: Request) {
     if (planRole !== providerRole) {
       return NextResponse.json({ error: 'This plan is not available for purchase.' }, { status: 404 });
     }
+    // The plan's own name, not the caller's (Fable on #2373): item.name rode into the Stripe line item
+    // and the coach's "bought <item>" notice as whatever the request said.
+    if (typeof plan.name === 'string' && plan.name.trim()) itemName = plan.name.trim().slice(0, 120);
+    purchaseKind = plan.kind === 'meal_plan' ? 'meal_plan' : 'program';
     oneTimeCents = priceCentsFrom(plan.price);
     if (!oneTimeCents) return NextResponse.json({ error: 'This plan has no price set.' }, { status: 400 });
   }
@@ -431,7 +447,7 @@ export async function POST(request: Request) {
         provider_role: providerRole,
         price_cents: String(chargeCents),
         gross_price_cents: String(priceCents),
-        kind: isSubscription ? 'subscription' : providerRole === 'nutritionist' ? 'meal_plan' : 'booking',
+        kind: isSubscription ? 'subscription' : purchaseKind,
         item_name: String(itemName),
         origin: coachOrigin,
         fee_bps: String(feeBps),

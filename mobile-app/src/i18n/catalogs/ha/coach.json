@@ -1186,5 +1186,9 @@
   "rates.rowSubConsult": "{monthly}/wata · {oneTime}/shawara",
   "rates.rowSubSession": "{monthly}/wata · {oneTime}/zama",
   "rates.rowSubNoListing": "Za a saita da zarar an amince da neman zama koci",
-  "rates.rowSubError": "Ba a iya loda kuɗin ka ba. Taɓa don sake gwadawa"
+  "rates.rowSubError": "Ba a iya loda kuɗin ka ba. Taɓa don sake gwadawa",
+  "today.toScheduleHead": "DON TSARAWA · {count}",
+  "today.toSchedulePaid": "An biya {date}",
+  "today.toScheduleBook": "TSARA",
+  "today.toScheduleFailed": "Ba a iya ɗora zaman da aka biya don tsarawa ba."
 }

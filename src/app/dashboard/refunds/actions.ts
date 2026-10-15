@@ -16,6 +16,7 @@ import { redirect } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { requireAdminUser } from '@/lib/admin-access';
 import { stripe } from '@/lib/stripe';
+import { cancelRefundedSession } from '@/lib/refund-session';
 
 function clean(value: FormDataEntryValue | null, max = 2000): string {
   return String(value ?? '').trim().slice(0, max);
@@ -174,6 +175,8 @@ export async function approveRefund(formData: FormData): Promise<void> {
     .eq('id', requestId);
   if (claimed.one_time_purchase_id) {
     await admin.from('one_time_purchases').update({ status: 'refunded' }).eq('id', claimed.one_time_purchase_id);
+    // A refunded paid session that is still ahead comes off both calendars (refund-session.ts).
+    await cancelRefundedSession(admin, claimed.one_time_purchase_id);
   }
 
   revalidatePath('/dashboard/refunds');

@@ -1186,5 +1186,9 @@
   "rates.rowSubConsult": "{monthly}/мес · {oneTime}/консультация",
   "rates.rowSubSession": "{monthly}/мес · {oneTime}/сессия",
   "rates.rowSubNoListing": "Задаются, когда твою заявку тренера одобрят",
-  "rates.rowSubError": "Не удалось загрузить ставки. Нажми, чтобы попробовать ещё раз"
+  "rates.rowSubError": "Не удалось загрузить ставки. Нажми, чтобы попробовать ещё раз",
+  "today.toScheduleHead": "НУЖНО ЗАПИСАТЬ · {count}",
+  "today.toSchedulePaid": "Оплачено {date}",
+  "today.toScheduleBook": "ЗАПИСАТЬ",
+  "today.toScheduleFailed": "Не удалось загрузить оплаченные сессии для записи."
 }

@@ -1186,5 +1186,9 @@
   "rates.rowSubConsult": "{monthly}/Monat · {oneTime}/Beratung",
   "rates.rowSubSession": "{monthly}/Monat · {oneTime}/Session",
   "rates.rowSubNoListing": "Festzulegen, sobald deine Coach-Bewerbung genehmigt ist",
-  "rates.rowSubError": "Deine Preise konnten nicht geladen werden. Tippe, um es noch einmal zu versuchen"
+  "rates.rowSubError": "Deine Preise konnten nicht geladen werden. Tippe, um es noch einmal zu versuchen",
+  "today.toScheduleHead": "ZU PLANEN · {count}",
+  "today.toSchedulePaid": "Bezahlt am {date}",
+  "today.toScheduleBook": "BUCHEN",
+  "today.toScheduleFailed": "Bezahlte Sitzungen zum Planen konnten nicht geladen werden."
 }

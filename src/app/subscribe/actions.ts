@@ -48,12 +48,14 @@ async function getProviderConnectInfo(
   const admin = createAdminClient();
   const { data: provider, error } = await admin
     .from(table)
-    .select('id, name, price, stripe_account_id, stripe_account_status, at_capacity, capacity_resume_at')
+    .select('id, name, price, stripe_account_id, stripe_account_status, at_capacity, capacity_resume_at, suspended_at')
     .eq('id', providerId)
     .maybeSingle();
 
   if (error) return { error: `db_${error.code ?? 'error'}: ${error.message}` };
   if (!provider) return { error: 'provider_not_found' };
+  // A suspended listing takes no payment (client-onboarding review, fix 3c: M8).
+  if ((provider as { suspended_at?: string | null }).suspended_at) return { error: 'provider_suspended' };
   if (!allowAtCapacity && isEffectivelyAtCapacity(provider)) return { error: 'provider_at_capacity' };
   if (!provider.price || provider.price <= 0) return { error: 'price_not_set' };
   if (!provider.stripe_account_id || provider.stripe_account_status !== 'active') {

@@ -1186,5 +1186,9 @@
   "rates.rowSubConsult": "{monthly}/tháng · {oneTime}/buổi tư vấn",
   "rates.rowSubSession": "{monthly}/tháng · {oneTime}/buổi",
   "rates.rowSubNoListing": "Đặt khi đơn đăng ký coach của bạn được duyệt",
-  "rates.rowSubError": "Không tải được giá của bạn. Chạm để thử lại"
+  "rates.rowSubError": "Không tải được giá của bạn. Chạm để thử lại",
+  "today.toScheduleHead": "CẦN XẾP LỊCH · {count}",
+  "today.toSchedulePaid": "Đã thanh toán {date}",
+  "today.toScheduleBook": "XẾP LỊCH",
+  "today.toScheduleFailed": "Không tải được các buổi đã thanh toán cần xếp lịch."
 }
