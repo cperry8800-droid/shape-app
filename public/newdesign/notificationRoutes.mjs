@@ -69,6 +69,11 @@ export function canonicalRoute(route, data) {
   const conv = ID(d.conversationId);
   const role = ROLE(d.providerRole);
   if ((route === 'messages' || route === 'chat') && conv) return chatRoute(conv, d.side, role);
+  // A sender that already names the thread ("chat:<id>", the hire alert) keeps the side its data
+  // carries (Fable on #2372): the route was returned as it came, and the hand-over between apps
+  // never saw that the new client's thread is the coach app's.
+  const named = /^chat:([A-Za-z0-9_-]{1,80})$/.exec(route);
+  if (named) return chatRoute(named[1], d.side, role);
   if (route === 'client') {
     const id = ID(d.clientId);
     return id ? (role ? `client:${role}:${id}` : `client:${id}`) : route;

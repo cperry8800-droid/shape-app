@@ -248,12 +248,32 @@ test('the website inbox opens every route for the people who receive it', () => 
   assert.equal(inTrainer({ route: 'schedule', data: { providerRole: 'trainer' } }, 'trainer'), '#schedule');
 });
 
+test('the AI layer\'s coach-message notice is the member\'s side, so a coach app hands it to the member app (Fable on #2372)', async () => {
+  const N = await import('../src/lib/ai/notifications.mjs');
+  const out = N.clientCandidates({ coachEvents: [{ kind: 'message', id: 'm-1', conversationId: 'c-9', coach: 'Sam', preview: 'Nice week' }] });
+  const msg = out.find((c) => c.type === 'coach_message');
+  assert.ok(msg, out.map((c) => c.type).join(','));
+  assert.equal(msg.data.side, 'client');
+  const route = R.canonicalRoute(msg.route, msg.data);
+  assert.equal(route, 'chat:client:c-9');
+  const p = R.parseRoute(route);
+  const detail = { conversationId: p.id, side: p.side, role: p.role, fromNotification: true };
+  assert.equal(ROUTER.bsChatOwner(detail, 'trainer'), 'client');
+  assert.equal(ROUTER.bsChatOwner(detail, 'client'), null);
+});
+
 test('a thread names the side its recipient is on, and opens in the app that holds it (Codex on #2372)', async () => {
   // An account that coaches and is coached: the route carries the side, and the listing's role.
   assert.equal(R.canonicalRoute('messages', { conversationId: 'c-1', providerRole: 'trainer', side: 'client' }), 'chat:client:c-1');
   assert.equal(R.canonicalRoute('messages', { conversationId: 'c-1', providerRole: 'nutritionist', side: 'coach' }), 'chat:coach:nutritionist:c-1');
   assert.equal(R.canonicalRoute('messages', { conversationId: 'c-1', careTeam: true, side: 'coach' }), 'chat:coach:c-1');
   assert.equal(R.canonicalRoute('messages', { conversationId: 'dm-1' }), 'chat:dm-1', 'no side: as before');
+  // A sender that names the thread itself keeps the side its data carries (Fable on #2372): the hire
+  // alert writes "chat:<id>", and the route came back as it went in, side and listing dropped.
+  assert.equal(R.canonicalRoute('chat:c-1', { conversationId: 'c-1', providerRole: 'trainer', side: 'coach' }), 'chat:coach:trainer:c-1');
+  assert.equal(R.canonicalRoute('chat:c-1', { side: 'client' }), 'chat:client:c-1');
+  assert.equal(R.canonicalRoute('chat:c-1', { conversationId: 'c-1' }), 'chat:c-1', 'no side: as it came');
+  assert.equal(R.canonicalRoute('chat:coach:trainer:c-1', { side: 'client' }), 'chat:coach:trainer:c-1', 'a route that already names its side is kept');
   assert.deepEqual(R.parseRoute('chat:client:c-1'), { kind: 'chat', id: 'c-1', role: null, side: 'client' });
   assert.deepEqual(R.parseRoute('chat:coach:trainer:c-1'), { kind: 'chat', id: 'c-1', role: 'trainer', side: 'coach' });
   assert.deepEqual(R.parseRoute('chat:c-1'), { kind: 'chat', id: 'c-1', role: null });

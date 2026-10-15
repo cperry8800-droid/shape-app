@@ -17,6 +17,7 @@ import { loadRealModule } from './helpers/load-real-module.mjs';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => readFileSync(join(ROOT, rel), 'utf8');
 const W = await import('../mobile-app/src/services/shapeWelcome.mjs');
+const ROUTES = await import('../public/newdesign/notificationRoutes.mjs');
 // The app's notification router, its own module since Codex's tenth round on #2360 (an app that
 // starts in a coach role never loads the client module). Run with a window that records what it
 // dispatches.
@@ -182,6 +183,14 @@ test('startCoaching: the thread with the welcome, the coach alerted and emailed 
   assert.match(n.body, /^Cara Diaz subscribed · \$85\.00\/mo to you\. /);
   assert.equal(n.route, 'chat:conv-1', 'the alert opens the thread (Codex on #2360: "messages" opened nothing)');
   assert.deepEqual(n.data, { dedupe: 'hire:sub_123', clientId: 'client-1', conversationId: 'conv-1', providerRole: 'trainer', side: 'coach' });
+  // What a push and the in-app list open (Fable on #2372): the trainer app, from any other app.
+  const pushed = ROUTES.canonicalRoute(n.route, n.data);
+  assert.equal(pushed, 'chat:coach:trainer:conv-1');
+  const p = ROUTES.parseRoute(pushed);
+  const detail = { conversationId: p.id, side: p.side, role: p.role, fromNotification: true };
+  assert.equal(ROUTER.bsChatOwner(detail, 'client'), 'trainer');
+  assert.equal(ROUTER.bsChatOwner(detail, 'nutritionist'), 'trainer');
+  assert.equal(ROUTER.bsChatOwner(detail, 'trainer'), null);
   assert.deepEqual(sent.emails.map((e) => [e.to, e.subject]), [
     ['tom@example.com', 'New client: Cara Diaz'],
     ['cara@example.com', "You're working with Tom Trainer on Shape"],

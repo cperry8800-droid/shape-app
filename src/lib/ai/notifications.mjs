@@ -335,9 +335,11 @@ export function clientCandidates(input) {
     out.push({ type: 'checkin_due', key: 'self', sig: `due:${wk}`, priority: 'med', ctx: {} });
   }
   // coach events (real, server-confirmed) — messages + co-signs
+  // A coach's message is always on the member's side of the thread (`side`, notificationRoutes.mjs
+  // chatRoute): an account that also coaches opens it in the member app, not its coach app.
   for (const e of coachEvents) {
     if (!e || !nonEmpty(e.id)) continue;
-    if (e.kind === 'message') out.push({ type: 'coach_message', key: e.id, sig: e.id, priority: 'high', ctx: { coach: e.coach, preview: e.preview }, data: { conversationId: e.conversationId || null } });
+    if (e.kind === 'message') out.push({ type: 'coach_message', key: e.id, sig: e.id, priority: 'high', ctx: { coach: e.coach, preview: e.preview }, data: { conversationId: e.conversationId || null, side: 'client' } });
     else if (e.kind === 'cosign') out.push({ type: 'coach_cosign', key: e.id, sig: e.id, priority: 'low', ctx: { coach: e.coach, activity: e.activity }, data: { postId: e.postId || null } });
   }
 
