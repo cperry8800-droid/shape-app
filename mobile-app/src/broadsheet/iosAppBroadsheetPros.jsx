@@ -1154,9 +1154,12 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     // through the listener above (Codex on #2360: a coach's new-client push opened nothing).
     const fromPush = (e) => { window.__bsPushRoute = null; window.bsRouteNotification?.(e && e.detail && e.detail.route); };
     window.addEventListener('shape:pushRoute', fromPush);
+    // ⚠ REPLAYED AFTER EVERY LISTENER IS UP (Codex on #2360): shape:openClient is registered by a
+    // later effect of this mount, so replaying here dispatched a cold-start "client:<id>" into nothing.
     const pending = window.__bsPushRoute;
-    if (pending) { window.__bsPushRoute = null; window.bsRouteNotification?.(pending); }
-    return () => { window.removeEventListener('shape:openConversation', open); window.removeEventListener('shape:pushRoute', fromPush); };
+    let replay = null;
+    if (pending) { window.__bsPushRoute = null; replay = setTimeout(() => window.bsRouteNotification?.(pending), 0); }
+    return () => { clearTimeout(replay); window.removeEventListener('shape:openConversation', open); window.removeEventListener('shape:pushRoute', fromPush); };
   }, []);
   useEffectBSP(() => bsCoachTourAutoShow(setShowTour), []);
   useEffectBSP(() => {
@@ -6894,9 +6897,12 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     // through the listener above (Codex on #2360: a coach's new-client push opened nothing).
     const fromPush = (e) => { window.__bsPushRoute = null; window.bsRouteNotification?.(e && e.detail && e.detail.route); };
     window.addEventListener('shape:pushRoute', fromPush);
+    // ⚠ REPLAYED AFTER EVERY LISTENER IS UP (Codex on #2360): shape:openClient is registered by a
+    // later effect of this mount, so replaying here dispatched a cold-start "client:<id>" into nothing.
     const pending = window.__bsPushRoute;
-    if (pending) { window.__bsPushRoute = null; window.bsRouteNotification?.(pending); }
-    return () => { window.removeEventListener('shape:openConversation', open); window.removeEventListener('shape:pushRoute', fromPush); };
+    let replay = null;
+    if (pending) { window.__bsPushRoute = null; replay = setTimeout(() => window.bsRouteNotification?.(pending), 0); }
+    return () => { clearTimeout(replay); window.removeEventListener('shape:openConversation', open); window.removeEventListener('shape:pushRoute', fromPush); };
   }, []);
   useEffectBSP(() => bsCoachTourAutoShow(setShowTour), []);
   useEffectBSP(() => {

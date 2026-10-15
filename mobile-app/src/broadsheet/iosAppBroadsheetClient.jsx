@@ -827,9 +827,14 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     const fromPush = (e) => { window.__bsPushRoute = null; bsRouteNotification(e && e.detail && e.detail.route); };
     window.addEventListener('shape:openPrep', open);
     window.addEventListener('shape:pushRoute', fromPush);
+    // ⚠ A PUSH THAT WOKE THE APP IS REPLAYED AFTER EVERY LISTENER IS UP (Codex on #2360). Effects run
+    // in the order they are declared, and the listeners a route lands on (shape:openConversation
+    // below) belong to later effects of this same mount, so replaying here dispatched into nothing.
+    // A zero-delay timer runs once this commit's effects have all run.
     const pending = window.__bsPushRoute;
-    if (pending) { window.__bsPushRoute = null; bsRouteNotification(pending); }
-    return () => { window.removeEventListener('shape:openPrep', open); window.removeEventListener('shape:pushRoute', fromPush); };
+    let replay = null;
+    if (pending) { window.__bsPushRoute = null; replay = setTimeout(() => bsRouteNotification(pending), 0); }
+    return () => { clearTimeout(replay); window.removeEventListener('shape:openPrep', open); window.removeEventListener('shape:pushRoute', fromPush); };
   }, []);
 
   // Universal search — the ⌕ in every header opens it (no prop-threading).

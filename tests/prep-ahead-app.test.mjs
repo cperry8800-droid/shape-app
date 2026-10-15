@@ -268,7 +268,10 @@ test('the shell, the notification list and Eat are wired to the same pieces', ()
   // The shell turns a prep route into Eat's cook screen, and reads a push tapped before it mounted.
   assert.ok(CLIENT.includes("window.addEventListener('shape:openPrep', open);"));
   assert.ok(CLIENT.includes("window.addEventListener('shape:pushRoute', fromPush);"));
-  assert.ok(CLIENT.includes('const pending = window.__bsPushRoute;\n    if (pending) { window.__bsPushRoute = null; bsRouteNotification(pending); }'));
+  // Replayed on a zero-delay timer, after the mount's later effects have registered the listeners a
+  // route lands on (Codex on #2360: a cold-start push dispatched into nothing).
+  assert.ok(CLIENT.includes('const pending = window.__bsPushRoute;\n    let replay = null;\n    if (pending) { window.__bsPushRoute = null; replay = setTimeout(() => bsRouteNotification(pending), 0); }'));
+  assert.ok(CLIENT.includes("return () => { clearTimeout(replay); window.removeEventListener('shape:openPrep', open);"));
   assert.ok(CLIENT.includes('prepTonight={prepTonight} onPrepTonightConsumed={() => setPrepTonight(null)}'));
   // The in-app list routes through the same map.
   // The list passes each row's data too, so a message notification can open its thread (fix 3a).

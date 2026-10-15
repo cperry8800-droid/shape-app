@@ -539,7 +539,8 @@ test('a tapped push opens the thread in the coach apps too', () => {
     const body = pros.slice(at, pros.indexOf("window.removeEventListener('shape:pushRoute', fromPush); };", at) + 80);
     assert.match(body, /const fromPush = \(e\) => \{ window\.__bsPushRoute = null; window\.bsRouteNotification\?\.\(e && e\.detail && e\.detail\.route\); \};/, shell);
     assert.match(body, /window\.addEventListener\('shape:pushRoute', fromPush\);/, shell);
-    assert.match(body, /if \(pending\) \{ window\.__bsPushRoute = null; window\.bsRouteNotification\?\.\(pending\); \}/, `${shell}: a push that landed before the shell mounted`);
+    assert.match(body, /if \(pending\) \{ window\.__bsPushRoute = null; replay = setTimeout\(\(\) => window\.bsRouteNotification\?\.\(pending\), 0\); \}/, `${shell}: a push that landed before the shell mounted, replayed once every listener is up`);
+    assert.match(body, /return \(\) => \{ clearTimeout\(replay\);/, `${shell}: an unmount cancels the replay`);
     assert.ok(body.indexOf("window.addEventListener('shape:openConversation', open);") < body.indexOf('const pending = window.__bsPushRoute;'), `${shell}: the conversation listener is up before the pending route fires`);
   }
 });
