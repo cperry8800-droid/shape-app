@@ -621,6 +621,19 @@ test('a "New message" notification opens its thread: push, the app\'s list, and 
 });
 
 // ── Codex on #2360, ninth round ──────────────────────────────────────────────────────────────────
+test('an open thread that receives Shape\'s welcome keeps it read, as it does any other message', () => {
+  // Codex, the review of #2360: the welcome branch returned before markConversationRead, so a thread
+  // open when coaching started kept an unread badge that survived a reload.
+  const src = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  const start = src.indexOf('unsub = window.ShapeMessages.subscribeMessages((row) => {');
+  assert.ok(start > 0, 'the conversation subscription moved');
+  const handler = src.slice(start, src.indexOf('\n      });', start));
+  const welcome = handler.slice(handler.indexOf('if (isShapeWelcome(row)) {'));
+  const branch = welcome.slice(0, welcome.indexOf('return; }'));
+  assert.match(branch, /window\.ShapeUnread\?\.markConversationRead\?\.\(thread\.conversationId\);\s*$/, 'the welcome branch marks the open thread read before it returns');
+  assert.equal(handler.split('markConversationRead?.(thread.conversationId)').length - 1, 2, 'the welcome and every other message');
+});
+
 test('a coach with both listings opens the notification\'s role, not the dashboard they are on', () => {
   const shell = read('public/newdesign/pageShell.jsx');
   const fn = shell.slice(shell.indexOf('const DASH_INBOX_ROUTES = {'), shell.indexOf('// ⚠ A SHAPE CHECK, NOT A TRUST FALL.'));
