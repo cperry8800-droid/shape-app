@@ -200,5 +200,7 @@
   "listing.lengthChangedBody": "{name} intro now dey run {minutes} minutes. Pick time again.",
   "listing.timesLoading": "We dey load {name} times…",
   "listing.timesFailed": "We no fit load {name} times.",
-  "listing.introsClosed": "{name} no dey take new clients now, so intro don close. Join the waiting list for down."
+  "listing.introsClosed": "{name} no dey take new clients now, so intro don close. Join the waiting list for down.",
+  "listing.yourClientTitle": "You be {name} client",
+  "listing.yourClientBody": "{name} no dey take new clients, and you don already be one. Di sessions and plans for down still dey for you to buy."
 }

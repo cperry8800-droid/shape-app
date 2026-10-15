@@ -200,5 +200,7 @@
   "listing.lengthChangedBody": "Gabatarwar {name} yanzu tana ɗaukar mintuna {minutes}. Sake zaɓar lokaci.",
   "listing.timesLoading": "Ana loda lokutan {name}…",
   "listing.timesFailed": "Ba a iya loda lokutan {name} ba.",
-  "listing.introsClosed": "{name} ba ya karɓar sababbin abokan ciniki yanzu, don haka an rufe gabatarwa. Shiga jerin jira a ƙasa."
+  "listing.introsClosed": "{name} ba ya karɓar sababbin abokan ciniki yanzu, don haka an rufe gabatarwa. Shiga jerin jira a ƙasa.",
+  "listing.yourClientTitle": "Kai abokin cinikin {name} ne",
+  "listing.yourClientBody": "{name} ba ya karɓar sabbin abokan ciniki, kuma kai ɗaya ne riga. Zama da tsare-tsaren da ke ƙasa suna nan don ka saya."
 }

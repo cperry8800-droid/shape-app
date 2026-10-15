@@ -351,5 +351,7 @@
   "prompt.q.who_i_coach_best": "Who I coach best",
   "prompt.q.wont_program": "What I won't program",
   "prompt.q.approach": "My approach",
-  "prompt.q.client_win": "A client win"
+  "prompt.q.client_win": "A client win",
+  "coach.yourClientTitle": "You're {name}'s client",
+  "coach.yourClientBody": "{name} isn't taking new clients, and you're already one. You can still book and buy as before."
 }

@@ -200,5 +200,7 @@
   "listing.lengthChangedBody": "Buổi giới thiệu với {name} giờ kéo dài {minutes} phút. Hãy chọn lại thời gian.",
   "listing.timesLoading": "Đang tải lịch của {name}…",
   "listing.timesFailed": "Không tải được lịch của {name}.",
-  "listing.introsClosed": "{name} hiện không nhận khách hàng mới, nên buổi giới thiệu đang đóng. Hãy tham gia danh sách chờ bên dưới."
+  "listing.introsClosed": "{name} hiện không nhận khách hàng mới, nên buổi giới thiệu đang đóng. Hãy tham gia danh sách chờ bên dưới.",
+  "listing.yourClientTitle": "Bạn là khách của {name}",
+  "listing.yourClientBody": "{name} không nhận khách mới, và bạn đã là khách rồi. Các buổi tập và gói bên dưới vẫn dành cho bạn."
 }

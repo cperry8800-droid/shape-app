@@ -200,5 +200,7 @@
   "listing.lengthChangedBody": "Das Erstgespräch mit {name} dauert jetzt {minutes} Minuten. Wähle bitte erneut eine Zeit.",
   "listing.timesLoading": "{name}s Zeiten werden geladen…",
   "listing.timesFailed": "{name}s Zeiten konnten nicht geladen werden.",
-  "listing.introsClosed": "{name} nimmt gerade keine neuen Klient:innen an, deshalb sind Intros geschlossen. Trag dich unten in die Warteliste ein."
+  "listing.introsClosed": "{name} nimmt gerade keine neuen Klient:innen an, deshalb sind Intros geschlossen. Trag dich unten in die Warteliste ein.",
+  "listing.yourClientTitle": "Du bist Kunde von {name}",
+  "listing.yourClientBody": "{name} nimmt keine neuen Kunden an, und du bist schon einer. Die Sessions und Pläne unten kannst du weiter kaufen."
 }

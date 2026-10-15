@@ -19019,10 +19019,15 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   // closed here). A member they invited off the list can book one either way, as the server decides.
   const introsOpenAtCap = !!(commerce && commerce.introsAtCapacity === true);
   const [wl, setWl] = useStateBSC(null); // { status, position, entryId } | null
+  // Whether this member already subscribes to the coach, from the same mine() read (task #10, Codex
+  // on #2375): at capacity a current client keeps booking and buying, never the waiting list.
+  // undefined = not read yet · null = could not read (the waiting list shows; the checkout decides).
+  const [clientOf, setClientOf] = useStateBSC(undefined);
   const wlBusy = React.useRef(false);
   React.useEffect(() => {
-    if (isSelf || !atCapacity || !capacityProviderId) { setWl(null); return undefined; }
+    if (isSelf || !atCapacity || !capacityProviderId) { setWl(null); setClientOf(null); return undefined; }
     let live = true;
+    setClientOf(undefined);
     (async () => {
       try {
         const r = await window.ShapeWaitlist?.mine?.();
@@ -19031,7 +19036,8 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           (e) => String(e.providerId) === String(capacityProviderId) && e.providerRole === capacityProviderRole
         );
         setWl(mineEntry ? { status: mineEntry.status, position: mineEntry.position, entryId: mineEntry.id } : null);
-      } catch (e) { /* leave null */ }
+        setClientOf(Array.isArray(r?.clientOf) ? r.clientOf.some((cl) => cl && String(cl.providerId) === String(capacityProviderId) && cl.providerRole === capacityProviderRole) : null);
+      } catch (e) { if (live) setClientOf(null); }
     })();
     return () => { live = false; };
   }, [isSelf, atCapacity, capacityProviderId, capacityProviderRole]);
@@ -19497,11 +19503,18 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
               {introsOpenAtCap ? <button onClick={doBookIntro} data-intro-at-capacity="" style={{ width: '100%', minHeight: 44, marginTop: 8, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.bookIntroFree', { defaultValue: 'Book intro · Free' })}</button> : null}
             </div>
           )}
-          {!isSelf && atCapacity && !wl && (
+          {!isSelf && atCapacity && !wl && clientOf === true && (
+            <div data-client-at-capacity="" style={{ margin: '24px -22px 0', ...card, borderRadius: 0, borderLeft: 0, borderRight: 0, padding: '16px 20px' }}>
+              <Kick col={tTheme.GREEN}>{tr('profile:coach.yourClientTitle', { name: first, defaultValue: "You're {name}'s client" })}</Kick>
+              <div style={{ fontFamily: SANS, fontSize: 13, color: tTheme.INK70, margin: '7px 0 12px' }}>{tr('profile:coach.yourClientBody', { name: first, defaultValue: "{name} isn't taking new clients, and you're already one. You can still book and buy as before." })}</div>
+              <button onClick={doBookOneTime} style={{ width: '100%', minHeight: 44, borderRadius: 999, border: 0, background: tTheme.GREEN, color: '#0c0a08', cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.bookNow', { defaultValue: 'Book now' })}</button>
+            </div>
+          )}
+          {!isSelf && atCapacity && !wl && clientOf !== true && (
             <div style={{ margin: '24px -22px 0', ...card, borderRadius: 0, borderLeft: 0, borderRight: 0, padding: '16px 20px' }}>
               <Kick col={tTheme.RUST}>{tr('profile:coach.atCapacity', { defaultValue: 'At capacity' })}</Kick>
               <div style={{ fontFamily: SANS, fontSize: 13, color: tTheme.INK70, margin: '7px 0 12px' }}>{tr('profile:coach.atCapacityBody', { name: first, defaultValue: "{name} isn't taking new clients right now. Join the waiting list to be first in line." })}</div>
-              <button onClick={wlJoin} style={{ width: '100%', minHeight: 44, borderRadius: 999, border: 0, background: c, color: '#0c0a08', cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.joinWaitlist', { defaultValue: 'Join the waiting list' })}</button>
+              {clientOf === undefined ? null : <button onClick={wlJoin} style={{ width: '100%', minHeight: 44, borderRadius: 999, border: 0, background: c, color: '#0c0a08', cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.joinWaitlist', { defaultValue: 'Join the waiting list' })}</button>}
               {introsOpenAtCap ? <button onClick={doBookIntro} data-intro-at-capacity="" style={{ width: '100%', minHeight: 44, marginTop: 8, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.bookIntroFree', { defaultValue: 'Book intro · Free' })}</button> : null}
             </div>
           )}

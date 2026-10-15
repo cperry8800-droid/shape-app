@@ -473,6 +473,12 @@
         if (seq !== availSeq) return;
         coachZone = window.BookingSlots.isZone(data.timezone) ? data.timezone : null;
         introsClosed = data.atCapacity === true && !(data.rules && data.rules.introsAtCapacity === true);
+        // ⚠ A MEMBER THE COACH INVITED OFF THE WAITING LIST BOOKS AN INTRO EITHER WAY (Codex on #2375):
+        // /api/consultation lets an active invite through, and the profile links them here, so the
+        // times are closed only once their own list says there is no invite. Signed out, or a list
+        // we could not read: closed, and the route still decides.
+        if (introsClosed && await consultInvited()) introsClosed = false;
+        if (seq !== availSeq) return;
         const len = Number(data.rules && data.rules.consultMin);
         introMin = Number.isInteger(len) && len >= 5 && len <= 240 ? len : 15;
         const lenEl = document.getElementById('introLength');
@@ -503,6 +509,17 @@
     }
 
     function retryAvailability() { loadAvailability(); }
+
+    // Whether the signed-in member holds a live invite off this coach's waiting list. The site's
+    // cookie session answers /api/waitlist/mine, whose list already leaves out expired invites.
+    async function consultInvited() {
+      try {
+        const res = await fetch('/api/waitlist/mine', { credentials: 'same-origin' });
+        if (!res.ok) return false;
+        const j = await res.json();
+        return Array.isArray(j && j.entries) && j.entries.some((e) => e && e.status === 'invited' && e.providerRole === proType && String(e.providerId) === String(proId));
+      } catch (_) { return false; }
+    }
 
     function selectTime(iso) { selectedIso = iso; renderTimeSlots(); updateConfirmation(); }
 

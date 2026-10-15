@@ -351,5 +351,7 @@
   "prompt.q.who_i_coach_best": "Кого я треную найкраще",
   "prompt.q.wont_program": "Що я ніколи не поставлю в план",
   "prompt.q.approach": "Мій підхід",
-  "prompt.q.client_win": "Перемога клієнта"
+  "prompt.q.client_win": "Перемога клієнта",
+  "coach.yourClientTitle": "Ви клієнт {name}",
+  "coach.yourClientBody": "{name} не бере нових клієнтів, а ви вже клієнт. Ви можете бронювати й купувати, як раніше."
 }

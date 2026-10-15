@@ -351,5 +351,7 @@
   "prompt.q.who_i_coach_best": "En iyi kimi çalıştırırım",
   "prompt.q.wont_program": "Asla programa koymadığım",
   "prompt.q.approach": "Yaklaşımım",
-  "prompt.q.client_win": "Bir danışan başarısı"
+  "prompt.q.client_win": "Bir danışan başarısı",
+  "coach.yourClientTitle": "{name} danışanısın",
+  "coach.yourClientBody": "{name} yeni danışan almıyor, sen zaten danışanısın. Eskisi gibi rezervasyon yapıp satın alabilirsin."
 }

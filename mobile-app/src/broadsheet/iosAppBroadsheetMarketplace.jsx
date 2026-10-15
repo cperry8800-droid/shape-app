@@ -2051,6 +2051,10 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   const capProviderId = coach.provider_id || coach.db_id || null;
   const atCapacity = !!(coach.at_capacity && (!coach.capacity_resume_at || new Date(coach.capacity_resume_at).getTime() > Date.now()));
   const [wl, setWl] = useStateBSM2(null);
+  // Whether this member already subscribes to the coach, from the same mine() read (task #10, Codex
+  // on #2375): at capacity a current client keeps buying, and is never sent to the waiting list.
+  // undefined = not read yet · null = could not read (the waiting list shows; the checkout decides).
+  const [clientOf, setClientOf] = useStateBSM2(undefined);
   // ⚠ AT CAPACITY, INTROS ARE THE COACH'S CALL (task #10). Closed unless they keep them open, or this
   // member holds their invite off the waiting list; /api/consultation refuses the rest, so no time
   // or Book button is offered for them.
@@ -2064,8 +2068,8 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
     // dependency change, so the cleanup discards A's answer; clearing here rather
     // than only in the bail branch stops B seeing A's row in the window before the
     // replacement lands. Same class, and the same fix, as the web profile in this PR.
-    setWl(null);
-    if (!atCapacity || !capProviderId || !bsmAuthUid || !window.ShapeWaitlist?.mine) return undefined;
+    setWl(null); setClientOf(undefined);
+    if (!atCapacity || !capProviderId || !bsmAuthUid || !window.ShapeWaitlist?.mine) { setClientOf(null); return undefined; }
     let on = true;
     (async () => {
       try {
@@ -2080,7 +2084,8 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
         // `mineEntry.id` and was always right, which is how one member could leave the
         // list from the profile and not from the listing.
         if (on) setWl(mine ? { status: mine.status, position: mine.position, entryId: mine.id || null } : null);
-      } catch (e) {}
+        if (on) setClientOf(Array.isArray(r && r.clientOf) ? r.clientOf.some((c) => c && String(c.providerId) === String(capProviderId) && c.providerRole === saleProviderRole) : null);
+      } catch (e) { if (on) setClientOf(null); }
     })();
     return () => { on = false; };
   }, [atCapacity, capProviderId, saleProviderRole, bsmAuthUid]);
@@ -2595,10 +2600,15 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
                 <div style={{ textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.RUST }}>{tr('marketplace:listing.onWaitlist', { defaultValue: 'On the waiting list' })}</div>
                 <div style={{ marginTop: 7, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK70, lineHeight: 1.45 }}>{tr('marketplace:listing.waitlistPosition', { defaultValue: "You're #{position} in line. {name} will invite you when a spot opens.", position: wl.position, name: firstName })}</div>
                 <button onClick={wlWithdraw} style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 12, minHeight: 44, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('marketplace:listing.leaveList', { defaultValue: 'Leave the list' })}</button>
+              </>) : clientOf === true ? (<>
+                {/* A current client at capacity: their sessions and plans below stay open to them. */}
+                <div data-client-at-capacity="" style={{ textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.GREEN }}>{tr('marketplace:listing.yourClientTitle', { defaultValue: "You're {name}'s client", name: firstName })}</div>
+                <div style={{ marginTop: 7, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK70, lineHeight: 1.45 }}>{tr('marketplace:listing.yourClientBody', { defaultValue: "{name} isn't taking new clients, and you're already one. The sessions and plans below are still yours to buy.", name: firstName })}</div>
               </>) : (<>
                 <div style={{ textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.RUST }}>{tr('marketplace:listing.atCapacity', { defaultValue: 'At capacity' })}</div>
                 <div style={{ marginTop: 7, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK70, lineHeight: 1.45 }}>{tr('marketplace:listing.atCapacityBody', { defaultValue: "{name} isn't taking new clients right now. Join the waiting list to be first in line.", name: firstName })}</div>
-                <button onClick={wlJoin} style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 12, minHeight: 44, border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>{tr('marketplace:listing.joinWaitlist', { defaultValue: 'Join the waiting list' })}</button>
+                {/* Signed in and not read yet: a current client must not be shown Join first. */}
+                {bsmAuthUid && clientOf === undefined ? null : <button onClick={wlJoin} style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 12, minHeight: 44, border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>{tr('marketplace:listing.joinWaitlist', { defaultValue: 'Join the waiting list' })}</button>}
               </>)
             ) : (<>
               <div style={{ textAlign: 'center', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>{tr('marketplace:listing.standingOffer', { defaultValue: '✂ · Standing offer' })}</div>

@@ -317,7 +317,7 @@ test('the app\'s full coach profile offers a free intro at capacity when the lis
   assert.match(invited, intro);
   assert.doesNotMatch(invited, /introsOpenAtCap \?/);
   // Waiting, or not on the list yet: only when the coach keeps intros open.
-  for (const from of ["{!isSelf && atCapacity && wl && wl.status !== 'invited' && (", '{!isSelf && atCapacity && !wl && (']) {
+  for (const from of ["{!isSelf && atCapacity && wl && wl.status !== 'invited' && (", '{!isSelf && atCapacity && !wl && clientOf !== true && (']) {
     assert.match(block(from), /\{introsOpenAtCap \? <button onClick=\{doBookIntro\} data-intro-at-capacity=""/, from);
   }
 });

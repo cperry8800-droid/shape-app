@@ -351,5 +351,7 @@
   "prompt.q.who_i_coach_best": "Wanda na fi iya horarwa",
   "prompt.q.wont_program": "Abin da ba zan taɓa shiryawa ba",
   "prompt.q.approach": "Hanyata",
-  "prompt.q.client_win": "Nasarar abokin ciniki"
+  "prompt.q.client_win": "Nasarar abokin ciniki",
+  "coach.yourClientTitle": "Kai abokin cinikin {name} ne",
+  "coach.yourClientBody": "{name} ba ya karɓar sabbin abokan ciniki, kuma kai ɗaya ne riga. Za ka iya ci gaba da yin ajiya da saya kamar da."
 }

@@ -200,5 +200,7 @@
   "listing.lengthChangedBody": "A conversa inicial com {name} agora dura {minutes} minutos. Escolha um horário de novo.",
   "listing.timesLoading": "Carregando os horários de {name}…",
   "listing.timesFailed": "Não foi possível carregar os horários de {name}.",
-  "listing.introsClosed": "{name} não está aceitando novos clientes agora, então as intros estão fechadas. Entre na lista de espera abaixo."
+  "listing.introsClosed": "{name} não está aceitando novos clientes agora, então as intros estão fechadas. Entre na lista de espera abaixo.",
+  "listing.yourClientTitle": "Você é cliente de {name}",
+  "listing.yourClientBody": "{name} não está aceitando novos clientes, e você já é um. As sessões e planos abaixo continuam disponíveis para você."
 }

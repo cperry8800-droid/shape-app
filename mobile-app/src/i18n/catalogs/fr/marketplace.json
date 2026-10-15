@@ -200,5 +200,7 @@
   "listing.lengthChangedBody": "L'appel découverte avec {name} dure maintenant {minutes} minutes. Choisis un autre créneau.",
   "listing.timesLoading": "Chargement des créneaux de {name}…",
   "listing.timesFailed": "Impossible de charger les créneaux de {name}.",
-  "listing.introsClosed": "{name} n’accepte pas de nouveaux clients pour le moment, donc les intros sont fermées. Rejoignez la liste d’attente ci-dessous."
+  "listing.introsClosed": "{name} n’accepte pas de nouveaux clients pour le moment, donc les intros sont fermées. Rejoignez la liste d’attente ci-dessous.",
+  "listing.yourClientTitle": "Vous êtes client de {name}",
+  "listing.yourClientBody": "{name} n’accepte pas de nouveaux clients, et vous en êtes déjà un. Les séances et programmes ci-dessous restent à votre disposition."
 }

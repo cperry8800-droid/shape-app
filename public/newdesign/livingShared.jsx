@@ -783,6 +783,11 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
   // Bearer token ("mobile (Bearer) + web (cookie) both work", its own comment), so
   // the site can call them exactly as they are.
   const [wl, setWl] = React.useState(null);       // { status, position, entryId } | null
+  // Whether the signed-in member already subscribes to this coach, from the same /mine read
+  // (task #10, Codex on #2375). At capacity a current client keeps buying and is never sent to the
+  // waiting list. `undefined` = not read yet · `null` = could not read (the waiting list shows, and
+  // the checkout decides) · true / false.
+  const [clientOf, setClientOf] = React.useState(undefined);
   const [wlErr, setWlErr] = React.useState("");
   const [buyErr, setBuyErr] = React.useState("");
   // Coaching needs the $5 membership first (owner, 2026-10-14): a 402 from the checkout shows
@@ -858,7 +863,7 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
     };
   }, []);
   React.useEffect(() => {
-    setWl(null); setWlErr("");
+    setWl(null); setWlErr(""); setClientOf(undefined);
     // A signed-out visitor is never asked to join — /api/waitlist/* answers 401, and a
     // Join button that 401s is the dead control one layer down. They get the sign-in
     // line instead, the legacy page's own behaviour.
@@ -867,7 +872,8 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
     fetch("/api/waitlist/mine", { credentials: "same-origin" })
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
-        if (!on || !j || !Array.isArray(j.entries)) return;
+        if (!on) return;
+        if (!j || !Array.isArray(j.entries)) { setClientOf(null); return; }
         // ⚠ THE ENTRY ID IS `id` HERE AND `entryId` ON /join — two spellings for one
         // thing, and reading the wrong one yields undefined, which makes "Leave the
         // list" permanently dead from the next reload onward. That is not a
@@ -877,8 +883,9 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
         // so `status === "invited"` needs no second expiry check here.
         const mine = j.entries.find((e) => e && String(e.providerId) === String(provId) && e.providerRole === listingRole);
         setWl(mine ? { status: mine.status, position: mine.position, entryId: mine.id } : null);
+        setClientOf(Array.isArray(j.clientOf) ? j.clientOf.some((c) => c && String(c.providerId) === String(provId) && c.providerRole === listingRole) : null);
       })
-      .catch(() => {});
+      .catch(() => { if (on) setClientOf(null); });
     return () => { on = false; };
   }, [atCapacity, provId, listingRole, acct]);
   const wlJoin = async () => {
@@ -987,6 +994,15 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
       .catch(() => {});
     return () => { on = false; };
   }, [pinnedKey, d.uid]);
+  // At capacity, a member who already subscribes: no waiting list, and the way to buy (task #10).
+  const clientNote = (
+    <React.Fragment>
+      <div style={{ fontFamily: lvMono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: LV_TEAL }}>✓ You&rsquo;re {first}&rsquo;s client</div>
+      <div style={{ fontFamily: lvSerif, fontSize: 24, letterSpacing: "-0.01em", marginTop: 8 }}>{first} isn&rsquo;t taking new clients, and you&rsquo;re already one.</div>
+      <p style={{ fontFamily: lvSans, fontSize: 12.5, lineHeight: 1.5, color: hexA(ink, 0.7), margin: "9px 0 0" }}>Your coaching carries on, and anything {first} sells on this page is still yours to buy.</p>
+      <button type="button" onClick={openChat} data-client-at-capacity="" style={{ marginTop: 16, padding: "13px 20px", borderRadius: 8, border: `1px solid ${hexA(ink, 0.4)}`, background: "transparent", color: ink, cursor: "pointer", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Message {first}</button>
+    </React.Fragment>
+  );
   const winsWall = pinnedKey ? pinnedKey.split(",").map((id) => pinnedResolved.find((r) => r && r.id === id && r.ownerId === d.uid && r.authorId !== r.ownerId)).filter(Boolean) : [];
   return (
     <div>
@@ -1062,7 +1078,7 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
                 <p style={{ fontFamily: lvSans, fontSize: 12.5, lineHeight: 1.5, color: hexA(ink, 0.7), margin: "9px 0 0" }}>{first} will invite you when a spot opens.</p>
                 <button onClick={wlLeave} style={{ marginTop: 16, padding: "13px 20px", borderRadius: 8, border: `1px solid ${hexA(ink, 0.4)}`, background: "transparent", color: ink, cursor: "pointer", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Leave the list</button>
               </React.Fragment>
-            ) : (
+            ) : clientOf === true ? clientNote : (
               <React.Fragment>
                 <div style={{ fontFamily: lvMono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#c0533b" }}>&times; At capacity</div>
                 <div style={{ fontFamily: lvSerif, fontSize: 24, letterSpacing: "-0.01em", marginTop: 8 }}>{first} isn&rsquo;t taking new clients right now.</div>
@@ -1084,6 +1100,9 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
                   null
                 ) : acct === null ? (
                   <a href="/newdesign/Login.html" style={{ display: "inline-block", marginTop: 16, padding: "13px 20px", borderRadius: 8, background: c, color: "#0c0a08", textDecoration: "none", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Sign in to join the list &rarr;</a>
+                ) : clientOf === undefined ? (
+                  // Not read yet: a current client must not be shown Join first.
+                  null
                 ) : (
                   <button onClick={wlJoin} style={{ marginTop: 16, padding: "13px 20px", borderRadius: 8, border: 0, background: c, color: "#0c0a08", cursor: "pointer", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Join the waiting list</button>
                 )}

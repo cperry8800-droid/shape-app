@@ -351,5 +351,7 @@
   "prompt.q.who_i_coach_best": "Siapa yang paling cocok kulatih",
   "prompt.q.wont_program": "Yang tidak akan kuprogramkan",
   "prompt.q.approach": "Pendekatanku",
-  "prompt.q.client_win": "Satu pencapaian klien"
+  "prompt.q.client_win": "Satu pencapaian klien",
+  "coach.yourClientTitle": "Kamu klien {name}",
+  "coach.yourClientBody": "{name} tidak menerima klien baru, dan kamu sudah jadi kliennya. Kamu tetap bisa memesan dan membeli seperti biasa."
 }
