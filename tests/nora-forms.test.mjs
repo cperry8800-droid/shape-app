@@ -42,7 +42,7 @@ test('the field list follows the page: every key is one the form sets, every cho
     if (name.startsWith('app')) continue;
     for (const o of options) assert.ok(SIGNUP.includes(JSON.stringify(o)), `${name}: "${o}" is offered on the page`);
   }
-  assert.equal(FORMS.signup.steps.length, 4);
+  assert.deepEqual(FORMS.signup.steps.map((s) => s.name), ['Personal', 'Goals', 'Coaching'], 'no health step: those answers went nowhere (client-onboarding review H4)');
   assert.deepEqual(FORMS.apply_trainer.steps.map((s) => s.name), ['Personal', 'Credentials', 'Specialty', 'Availability & pricing']);
   assert.ok(!keysOf('apply_trainer').includes('nutritionType') && keysOf('apply_nutritionist').includes('nutritionType'));
   assert.equal(FILL_FORM_TOOL.strict, true);
@@ -54,7 +54,8 @@ test('cleanFill: each value checked against its field; anything else dropped and
     { key: 'username', value: '@Sam.Lee!' },
     { key: 'email', value: 'Sam@Example.com' },
     { key: 'goal', value: 'build muscle' },
-    { key: 'frequency', value: '3–4 times per week' },
+    { key: 'frequency', value: '4 Days a week' },
+    { key: 'coaching', value: 'a trainer' },
     { key: 'accountability', value: 'Balanced' },
     { key: 'interests', value: 'Personal training, nutrition coaching, juggling' },
     { key: 'dob', value: '1990-02-30' },
@@ -63,11 +64,10 @@ test('cleanFill: each value checked against its field; anything else dropped and
     { key: 'sex', value: 'Other' },
   ] }, NOW);
   assert.deepEqual(out.values, {
-    firstName: 'Sam', username: 'sam.lee', email: 'sam@example.com', goal: 'Build muscle', frequency: '3-4 times per week',
-    accountability: 'Balanced — weekly check-ins', interests: ['Personal training', 'Nutrition coaching'],
+    firstName: 'Sam', username: 'sam.lee', email: 'sam@example.com', goal: 'Build muscle', frequency: '4 days a week', coaching: 'A trainer',
   });
-  assert.deepEqual(out.dropped.sort(), ['dob', 'password', 'sex', 'tos']);
-  assert.deepEqual(out.fields.map((f) => f.key), ['firstName', 'lastName', 'username', 'email', 'goal', 'experience', 'frequency', 'accountability', 'interests'].filter((k) => k in out.values), 'in the form\'s own order');
+  assert.deepEqual(out.dropped.sort(), ['accountability', 'dob', 'interests', 'password', 'sex', 'tos'], 'the health and preference fields are gone with the step');
+  assert.deepEqual(out.fields.map((f) => f.key), ['firstName', 'lastName', 'username', 'email', 'dob', 'goal', 'experience', 'frequency', 'coaching'].filter((k) => k in out.values), 'in the form\'s own order');
   assert.equal(out.fields.find((f) => f.key === 'username').label, 'Username', 'a card label without the note in brackets');
 
   const dates = cleanFill('signup', { fields: [{ key: 'dob', value: '2026-10-08' }] }, NOW);

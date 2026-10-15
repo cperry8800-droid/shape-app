@@ -105,6 +105,23 @@ export default function BSDobGate({ blocked, onSaved, onLogout }) {
     }
   }
 
+  // A known minor (/api/me/membership's ageRestricted), shown ahead of the paywall, whose
+  // membership offer would refuse them: Shape is for adults 18 and over.
+  if (blocked === 'age_restricted') {
+    return (
+      <div style={shell}>
+        <div style={topbar}>
+          <span>Shape Wire</span>
+          <span style={{ color: INKF }}>{tr('dob.eyebrow', { defaultValue: 'Account' })}</span>
+        </div>
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', width: '100%', maxWidth: 360, margin: '0 auto' }}>
+          <h1 style={{ fontFamily: serif, fontSize: 27, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1.1, margin: '14px 0 0' }}>{tr('dob.errUnder18', { defaultValue: 'Shape is for adults 18 and over.' })}</h1>
+          <button onClick={onLogout} style={signOutBtn}>{tr('dob.signout', { defaultValue: 'Sign out' })}</button>
+        </div>
+      </div>
+    );
+  }
+
   if (blocked) {
     return (
       <div style={shell}>

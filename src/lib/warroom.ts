@@ -304,6 +304,7 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/me/age-public', 'GET,PUT'],
   ['/api/me/date-of-birth', 'GET,POST'],
   ['/api/me/membership', 'GET'],
+  ['/api/me/onboarding', 'POST'],
   ['/api/me/role', 'POST'],
   ['/api/me/staff', 'GET'],
   ['/api/me', 'GET'],

@@ -27,6 +27,7 @@ import { BS_SESSION_MINUTES_CEILING, BS_SESSION_MINUTES_MAX } from '../../../pub
 import { speechLangFor } from '../../../src/lib/ai/voiceLang.mjs';
 import { bsGoalVerdict } from '../services/goalContract.mjs';
 import { BS_PREF_OPTIONS, bsPrefOptionLabel, bsPrefOptionDisplay, bsPrefOptionToken, bsGoalKind } from '../services/prefOptions.mjs';
+import { bsFirstRunStage, bsFirstRunNeedsSeed } from '../services/firstRun.mjs';
 import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveEffort.mjs';
 import { bsMealDirty, bsMealCtaLabel } from '../services/mealLoggerState.mjs';
 import { bsAssignWeekLine, bsAssignDayLine, bsWeekUnits, bsWeekSpan } from '../services/planOutline.mjs';
@@ -977,43 +978,40 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     if (tz) { window.ShapeProfile?.setTimezone?.(tz); }
   }, [signedIn]);
 
-  // Required one-time health profile (PAR-Q screening) for signed-in clients —
-  // checked after auth resolves; 'unknown' renders the app normally so the
-  // gate never flashes for members who already completed it.
-  const [healthGate, setHealthGate] = useStateBSC('unknown'); // unknown | needed | ok
+  // First run, for a signed-in member: the goal ("What brings you here?"), whether they want
+  // personal coaching, and the health screening ONLY for a yes (client-onboarding review, fix 2;
+  // services/firstRun.mjs has the rule). Checked after auth resolves; 'unknown' renders the app
+  // normally, so a step never flashes for a member who has done it.
+  //
+  // ⚠ A FAILED READ SHOWS NO STEP (review M3). It used to read as "not done", so a read error put
+  // a member who had answered back in front of the goal step, whose save then replaced their whole
+  // goals document. Now the steps wait for a read that worked, on the next visit.
+  const [firstRun, setFirstRun] = useStateBSC({ stage: 'unknown', onb: {}, health: null });
   React.useEffect(() => {
     let on = true;
+    let tid = null;
+    const read = async (kind) => {
+      const doc = await window.shapeDb?.getUserGoals?.(kind);
+      if (doc == null) throw new Error('Could not read ' + kind);
+      return doc;
+    };
     const check = async () => {
       const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
-      if (!uid) { if (on) setHealthGate('ok'); return; } // signed-out preview skips
+      if (!uid) { if (on) setFirstRun((f) => (f.stage === 'unknown' ? { ...f, stage: 'ok' } : f)); return false; } // signed-out preview skips
       try {
-        const doc = await window.ShapeHealthProfile?.get?.();
-        if (on) setHealthGate(doc && doc.consentAt ? 'ok' : 'needed');
-      } catch (e) { if (on) setHealthGate('ok'); } // never lock out on a fetch error
+        let onb = await read('client_onboarding');
+        // The website sign-up's answers first, so the app does not ask what the website asked.
+        if (bsFirstRunNeedsSeed(onb) && (await window.ShapeOnboarding?.seed?.())) onb = await read('client_onboarding');
+        const health = await window.ShapeHealthProfile.get();
+        if (on) setFirstRun({ stage: bsFirstRunStage(onb, health), onb, health });
+      } catch (e) { if (on) setFirstRun((f) => ({ ...f, stage: 'ok' })); } // never lock out on a failed read
+      return true;
     };
-    check();
-    const tid = setTimeout(check, 1600); // auth may resolve after first paint
+    // Auth may resolve after first paint: asked again once if there was no session yet.
+    check().then((hadUser) => { if (!hadUser && on) tid = setTimeout(check, 1600); });
     return () => { on = false; clearTimeout(tid); };
   }, []);
-
-  // One-time identity-intent step ("What brings you here?") — shown once, BEFORE
-  // the health screen, so Day 1 reflects what the member is here for. Keyed off
-  // client_onboarding.intentSeen (NOT the goal field, which has a silent default).
-  const [intentGate, setIntentGate] = useStateBSC('unknown'); // unknown | needed | ok
-  React.useEffect(() => {
-    let on = true;
-    const check = async () => {
-      const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
-      if (!uid) { if (on) setIntentGate('ok'); return; } // signed-out preview skips
-      try {
-        const onb = await window.shapeDb?.getUserGoals?.('client_onboarding');
-        if (on) setIntentGate(onb && onb.intentSeen ? 'ok' : 'needed');
-      } catch (e) { if (on) setIntentGate('ok'); } // never lock out on a fetch error
-    };
-    check();
-    const tid = setTimeout(check, 1600); // auth may resolve after first paint
-    return () => { on = false; clearTimeout(tid); };
-  }, []);
+  const firstRunNext = (onb) => setFirstRun((f) => ({ ...f, onb, stage: bsFirstRunStage(onb, f.health) }));
 
   // ⚠ The search takeover has to be rendered by EVERY branch that returns early,
   // not just the main one. `showSearch` is shell state and BSUniversalSearch is a
@@ -1024,18 +1022,21 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // section — deleting their ⌕ instead would defeat the contract this PR exists
   // to establish. One overlay, referenced by every return, keeps it working.
   const searchOverlay = showSearch ? <BSUniversalSearch onClose={() => { if (!navBack()) setShowSearch(false); }} /> : null;
-  // The two pre-app gates deliberately do NOT get it — they must not be
+  // The first-run steps (goal, coaching, screening) deliberately do NOT get it — they must not be
   // escapable before they are done. ⚠ An earlier version of this comment also
   // claimed they "carry no masthead, so there is no ⌕ to press". That is true of
   // BSIntentStep and FALSE of BSHealthIntake, which does render the row: the fix
   // is at that component, which now omits its corners in the gate variant. The
   // reason a required gate skips this overlay is that it is required, not that
   // it has nothing to press.
-  if (intentGate === 'needed') {
-    return <BSIntentStep onDone={() => setIntentGate('ok')} />;
+  if (firstRun.stage === 'intent') {
+    return <BSIntentStep onDone={() => firstRunNext({ ...firstRun.onb, intentSeen: true })} />;
   }
-  if (healthGate === 'needed') {
-    return <BSHealthIntake onDone={() => setHealthGate('ok')} />;
+  if (firstRun.stage === 'coaching') {
+    return <BSCoachingStep onDone={(answer) => firstRunNext({ ...firstRun.onb, ...answer })} />;
+  }
+  if (firstRun.stage === 'health') {
+    return <BSHealthIntake onDone={(doc) => setFirstRun((f) => ({ ...f, health: doc, stage: 'ok' }))} />;
   }
   // ⚠ Settings is an OVERLAY, not an early return, and that is load-bearing.
   // Returning <BSSettings/> in its place unmounted the whole tab tree beneath it,
@@ -30544,23 +30545,44 @@ function BSIntentStep({ onDone }) {
   const identityOf = (id) => (IDENTITY[id]
     ? tr(`onboarding:intent.identity.${id}`, { defaultValue: IDENTITY[id] })
     : tr('onboarding:intent.identityFallback', { defaultValue: 'someone who shows up' }));
+  // ⚠ A FAILED READ STOPS THE SAVE, AND A FAILED SAVE IS SAID (client-onboarding review M3).
+  // getUserGoals answers null when the read failed, and `{ ...null }` is `{}`: this used to write
+  // { primaryGoal } over the member's WHOLE goals document after a read error. saveUserGoals
+  // resolves { error } rather than throwing, so every failed save also went unnoticed. Resolves
+  // true only when the goal (if one was picked) and intentSeen were both written. The identity
+  // mirror is best-effort: a profile card without the label is not worth refusing the goal over.
   const persistIntent = async (id) => {
+    const db = window.shapeDb;
+    if (!db?.getUserGoals || !db?.saveUserGoals) return false;
     try {
       if (id) {
         const label = bsPrimaryGoalLabel(id, tr);
-        const goals = (await window.shapeDb?.getUserGoals?.('client_goals')) || {};
-        await window.shapeDb?.saveUserGoals?.('client_goals', { ...goals, primaryGoal: id });
-        const ident = (await window.shapeDb?.getUserGoals?.('client_identity')) || {};
-        await window.shapeDb?.saveUserGoals?.('client_identity', { ...ident, goal: label });
+        const goals = await db.getUserGoals('client_goals');
+        if (goals == null) return false;
+        const saved = await db.saveUserGoals('client_goals', { ...goals, primaryGoal: id });
+        if (!saved || saved.ok !== true) return false;
+        const ident = await db.getUserGoals('client_identity');
+        if (ident != null) await db.saveUserGoals('client_identity', { ...ident, goal: label });
         window.ShapeIdentity = { ...(window.ShapeIdentity || {}), goal: label };
         try { window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
       }
-      const onb = (await window.shapeDb?.getUserGoals?.('client_onboarding')) || {};
-      await window.shapeDb?.saveUserGoals?.('client_onboarding', { ...onb, intentSeen: true });
-    } catch (e) {}
+      const onb = await db.getUserGoals('client_onboarding');
+      if (onb == null) return false;
+      const done = await db.saveUserGoals('client_onboarding', { ...onb, intentSeen: true });
+      return !!(done && done.ok === true);
+    } catch (e) { return false; }
   };
-  const pick = (id) => { setPicked(id); persistIntent(id); };
-  const skip = () => { persistIntent(null); onDone(); };
+  const [saving, setSaving] = useStateBSC(false);
+  const pick = async (id) => {
+    if (saving) return;
+    setSaving(true);
+    const ok = await persistIntent(id);
+    setSaving(false);
+    if (ok) setPicked(id);
+    else window.__bsToast?.(tr('onboarding:firstRun.saveFailed', { defaultValue: 'Could not save. Check your connection and try again.' }), 'err');
+  };
+  // Skipping carries on whatever happened: a skip that did not save is asked again next time.
+  const skip = async () => { if (saving) return; setSaving(true); await persistIntent(null); setSaving(false); onDone(); };
 
   if (picked) {
     return (
@@ -30584,10 +30606,59 @@ function BSIntentStep({ onDone }) {
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.5 }}>{tr('onboarding:intent.pickBody', { defaultValue: 'Pick the one that fits best — it shapes your plan, your coach match, and what each day leads with. You can change it anytime.' })}</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9, marginTop: 22 }}>
           {BS_PRIMARY_GOALS.map((g) => (
-            <button key={g.id} onClick={() => pick(g.id)} style={{ padding: '11px 16px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.04em' }}>{bsPrimaryGoalLabel(g.id, tr)}</button>
+            <button key={g.id} onClick={() => pick(g.id)} disabled={saving} style={{ padding: '11px 16px', borderRadius: 999, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.6 : 1, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.04em' }}>{bsPrimaryGoalLabel(g.id, tr)}</button>
           ))}
         </div>
         <button onClick={skip} style={{ marginTop: 28, background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', padding: 0 }}>{tr('onboarding:intent.skip', { defaultValue: 'Skip for now →' })}</button>
+      </div>
+    </BSPage>
+  );
+}
+
+// One-time "Are you looking for personal coaching?" step, after the goal (client-onboarding
+// review, fix 2). Only a yes leads on to the health screening; a no goes straight into the app,
+// and is screened later only if they hire a coach. Writes client_onboarding.wantsCoaching (and
+// which kind) — the same answer the website sign-up records — and says so when the save fails.
+function BSCoachingStep({ onDone }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  _bsScrollTopOnMount();
+  const [saving, setSaving] = useStateBSC(false);
+  const OPTIONS = [
+    { id: 'training', for: ['training'], label: tr('onboarding:coaching.optTraining', { defaultValue: 'Yes, a trainer' }) },
+    { id: 'nutrition', for: ['nutrition'], label: tr('onboarding:coaching.optNutrition', { defaultValue: 'Yes, a nutritionist' }) },
+    { id: 'both', for: ['training', 'nutrition'], label: tr('onboarding:coaching.optBoth', { defaultValue: 'Yes, both' }) },
+  ];
+  const answer = async (wants, kinds) => {
+    if (saving) return;
+    setSaving(true);
+    let ok = false;
+    const patch = { wantsCoaching: wants, coachingFor: wants ? kinds : [], coachingAt: new Date().toISOString() };
+    try {
+      const onb = await window.shapeDb?.getUserGoals?.('client_onboarding');
+      if (onb != null) {
+        const res = await window.shapeDb.saveUserGoals('client_onboarding', { ...onb, ...patch });
+        ok = !!(res && res.ok === true);
+      }
+    } catch (e) { ok = false; }
+    setSaving(false);
+    if (ok) onDone(patch);
+    else window.__bsToast?.(tr('onboarding:firstRun.saveFailed', { defaultValue: 'Could not save. Check your connection and try again.' }), 'err');
+  };
+  const choice = { display: 'block', width: '100%', textAlign: 'left', padding: '15px 16px', borderRadius: 6, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.6 : 1, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 600, letterSpacing: '-0.01em' };
+  return (
+    <BSPage>
+      <div style={{ padding: `72px ${t.padX}px 0` }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>{tr('onboarding:coaching.eyebrow', { defaultValue: 'One more thing' })}</span>
+        <h1 style={{ margin: '12px 0 0', fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: t.INK }}>{tr('onboarding:coaching.title', { defaultValue: 'Are you looking for personal coaching?' })}</h1>
+        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.5 }}>{tr('onboarding:coaching.body', { defaultValue: 'A coach builds your plan and checks in with you. You can add one any time, and the app works without one. If you want a coach, a short health screening comes next, so they can train you safely.' })}</div>
+        <div style={{ display: 'grid', gap: 9, marginTop: 22 }}>
+          {OPTIONS.map((o) => (
+            <button key={o.id} type="button" disabled={saving} onClick={() => answer(true, o.for)} style={choice}>{o.label}</button>
+          ))}
+          <button type="button" disabled={saving} onClick={() => answer(false, [])} style={{ ...choice, background: 'transparent', color: t.INK70, fontWeight: 500 }}>{tr('onboarding:coaching.optNo', { defaultValue: 'Not right now' })}</button>
+        </div>
       </div>
     </BSPage>
   );

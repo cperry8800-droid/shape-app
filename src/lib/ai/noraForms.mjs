@@ -29,13 +29,11 @@ const ZONE = { key: 'tz', label: 'Time zone (an IANA name such as America/New_Yo
 
 // The choices exactly as signup.jsx offers them; a test keeps the two in step.
 export const CHOICES = {
-  goal: ['Lose weight', 'Build muscle', 'Improve endurance', 'Increase flexibility', 'General fitness'],
+  // The member sign-up's labels (SU_* in signup.jsx; the page sends their tokens).
+  goal: ['Lose fat', 'Build muscle', 'Recomp', 'Maintain', 'Get stronger', 'Endurance', 'Mobility', 'Athletic performance', 'General health', 'Tone up', 'Run a race', 'Postpartum'],
   experience: ['Beginner', 'Intermediate', 'Advanced'],
-  frequency: ['1-2 times per week', '3-4 times per week', '5-6 times per week', 'Daily'],
-  sex: ['Prefer not to say', 'Female', 'Male'],
-  accountability: ['Hands-off — check in when I need help', 'Balanced — weekly check-ins', 'High-touch — daily messages & reminders'],
-  interests: ['Personal training', 'Nutrition coaching', 'Both'],
-  budget: ['Optional', 'Under $25/mo', '$25 – $50/mo', '$50 – $100/mo', '$100+/mo'],
+  frequency: ['2 days a week', '3 days a week', '4 days a week', '5 days a week', '6 days a week'],
+  coaching: ['A trainer', 'A nutritionist', 'Both', 'Not right now'],
   nutritionType: ['Nutritionist', 'Dietitian (RD / RDN)'],
   years: [...PROVIDER_EXPERIENCE_OPTIONS],
   insurance: ['Yes', 'No', 'In progress'],
@@ -115,22 +113,13 @@ export const FORMS = {
     title: 'member sign-up',
     facts: [
       'Shape is 18+.',
-      'Signing up creates the account; health answers help their coach keep them safe and stay private.',
+      'Signing up creates the account; the $5 membership is the next step.',
+      'Personal coaching is optional. A member who wants a coach completes a short health screening before training starts; one who does not is never asked health questions.',
     ],
     steps: [
-      { name: 'Personal', fields: [text('firstName', 'First name', 60), text('lastName', 'Last name', 60), USERNAME, EMAIL] },
-      { name: 'Goals', fields: [choice('goal', 'Primary fitness goal', CHOICES.goal), choice('experience', 'Experience level', CHOICES.experience), choice('frequency', 'How often they work out', CHOICES.frequency)] },
-      { name: 'Health intake', fields: [
-        date('dob', 'Date of birth', { past: true }),
-        choice('sex', 'Biological sex', CHOICES.sex),
-        text('injuries', 'Injuries or physical limitations', 200),
-        text('medications', 'Prescription medications', 200),
-        text('medical', 'Other medical conditions', 200),
-        text('diet', 'Allergies (food, medication, other)', 200),
-        text('emergency', 'Emergency contact (name and phone)', 120),
-        choice('accountability', 'Accountability style', CHOICES.accountability),
-      ] },
-      { name: 'Preferences', fields: [many('interests', 'Most interested in', CHOICES.interests), choice('budget', 'Budget per month', CHOICES.budget)] },
+      { name: 'Personal', fields: [text('firstName', 'First name', 60), text('lastName', 'Last name', 60), USERNAME, EMAIL, date('dob', 'Date of birth', { past: true })] },
+      { name: 'Goals', fields: [choice('goal', 'What brings them to Shape', CHOICES.goal), choice('experience', 'Experience level', CHOICES.experience), choice('frequency', 'How often they want to train', CHOICES.frequency)] },
+      { name: 'Coaching', fields: [choice('coaching', 'Whether they are looking for personal coaching, and which', CHOICES.coaching)] },
     ],
   },
   apply_trainer: application('trainer'),

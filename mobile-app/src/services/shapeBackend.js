@@ -791,8 +791,10 @@ async function startCheckout({ item, coach, user, role }) {
 // A lookup that never answers (a half-open connection, a stalled proxy) is unknown after this
 // long, never a wait without end (Codex on #2353): the gate then keeps this account's last answer.
 const MEMBERSHIP_LOOKUP_MS = 8000;
-async function checkMembership() {
-  if (!state.user?.id) return false;
+// The whole answer: { member, ageRestricted }, or null when it could not be found out. A known minor
+// is told so before the membership offer, which would refuse them (#2353's moved item).
+async function lookupMembership() {
+  if (!state.user?.id) return { member: false, ageRestricted: false };
   const ctl = typeof AbortController === 'function' ? new AbortController() : null;
   let timer = null;
   const late = new Promise((resolve) => {
@@ -804,13 +806,38 @@ async function checkMembership() {
       if (!res.ok) return null;
       const d = await res.json();
       if (!d || d.signedIn !== true) return null;
-      return d.member === true;
+      return { member: d.member === true, ageRestricted: d.ageRestricted === true };
     } catch (e) {
       return null;
     }
   })();
   try {
     return await Promise.race([lookup, late]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+async function checkMembership() {
+  const d = await lookupMembership();
+  return d ? d.member : null;
+}
+
+// The website sign-up's answers, written to this account's records on a signed-in visit
+// (POST /api/me/onboarding; src/lib/signup-answers.mjs). The first-run steps wait for it so they do
+// not ask what the website already asked. Bounded like the membership lookup; resolves true when
+// the call answered, false when it failed or ran out of time (the steps then ask as before).
+async function seedOnboarding() {
+  if (!state.user?.id) return false;
+  const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+  let timer = null;
+  const late = new Promise((resolve) => {
+    timer = setTimeout(() => { try { if (ctl) ctl.abort(); } catch (e) {} resolve(false); }, MEMBERSHIP_LOOKUP_MS);
+  });
+  const call = shapeApiFetch('/api/me/onboarding', { method: 'POST', cache: 'no-store', ...(ctl ? { signal: ctl.signal } : {}) })
+    .then((res) => res.ok)
+    .catch(() => false);
+  try {
+    return await Promise.race([call, late]);
   } finally {
     clearTimeout(timer);
   }
@@ -832,7 +859,9 @@ async function startMembershipCheckout() {
     });
     const data = await res.json().catch(() => ({}));
     if (res.ok && data.url) {
-      const opened = await openCheckoutUrl(data.url, { onClose: () => { try { window.dispatchEvent(new Event('shape:membership-recheck')); } catch (e) {} } });
+      // When the browser closes the payment may still be clearing (the done page says "pending"),
+      // so the shell keeps asking for a while rather than once (#2353's moved item).
+      const opened = await openCheckoutUrl(data.url, { onClose: () => { try { window.dispatchEvent(new CustomEvent('shape:membership-recheck', { detail: { poll: true } })); } catch (e) {} } });
       return opened ? { ok: true } : { ok: false, status: 0, code: 'browser_failed', error: null };
     }
     if (data && data.code === 'already_member') {
@@ -4787,7 +4816,8 @@ window.ShapePayments = {
   startCheckout,
 };
 
-window.ShapeMembershipApi = { check: checkMembership, startCheckout: startMembershipCheckout };
+window.ShapeMembershipApi = { check: checkMembership, lookup: lookupMembership, startCheckout: startMembershipCheckout };
+window.ShapeOnboarding = { seed: seedOnboarding };
 
 window.ShapeConnect = {
   configured: Boolean(apiBaseUrl),
@@ -7159,11 +7189,23 @@ async function progressPhotoUpload(file, { pose = 'front', takenOn = null } = {}
 }
 window.ShapeProgressPhotos = { mine: progressPhotosMine, upload: progressPhotoUpload };
 
+// ⚠ A FAILED READ IS NOT AN EMPTY PROFILE, AND A FAILED WRITE IS NOT A SAVE (client-onboarding
+// review M3). getUserGoals answers null when the read failed and {} when nothing is stored;
+// saveUserGoals RESOLVES { error } rather than throwing. This read used to hand the null on as
+// "no profile", so a read error put a member who had answered back in front of the screening,
+// and this write reported every save as saved, so a failed one said "Health profile saved".
+// get resolves the document, or null when none is stored, and THROWS when it could not be read;
+// set resolves true only when the row was written.
 async function healthProfileGet() {
-  try { return window.shapeDb?.getUserGoals ? await window.shapeDb.getUserGoals('health_profile') : null; } catch (e) { return null; }
+  const doc = window.shapeDb?.getUserGoals ? await window.shapeDb.getUserGoals('health_profile') : null;
+  if (doc == null) throw new Error('Could not read the health profile.');
+  return Object.keys(doc).length ? doc : null;
 }
 async function healthProfileSet(doc) {
-  try { await window.shapeDb?.saveUserGoals?.('health_profile', doc); return true; } catch (e) { return false; }
+  try {
+    const res = await window.shapeDb?.saveUserGoals?.('health_profile', doc);
+    return !!(res && res.ok === true);
+  } catch (e) { return false; }
 }
 window.ShapeHealthProfile = { get: healthProfileGet, set: healthProfileSet };
 

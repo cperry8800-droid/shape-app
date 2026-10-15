@@ -990,4 +990,24 @@ function ClientJoinPage() {
   );
 }
 
-Object.assign(window, { ClientDashboardPage, ClientJoinPage, DashWorkoutCard, DashMealLedgerCard, DashTodayCard });
+// A signed-in account the server knows to be under 18 (/api/me/membership's ageRestricted). Shown
+// before the membership offer, which would refuse them: Shape is for adults 18 and over. Settings
+// stays reachable from the rail, for deleting the account.
+function ClientAgeRestrictedPage() {
+  return (
+    <DashFrame navItems={clientNavItems("today")} payoutCard={null}>
+      <main style={{ padding: "40px 32px 80px", minWidth: 0, maxWidth: 680 }}>
+        <div style={{ fontFamily: DCL_MONO, fontSize: 10.5, letterSpacing: "0.14em", color: DCL_TEAL, textTransform: "uppercase" }}>Account</div>
+        <h1 style={{ fontFamily: serif, fontSize: 34, letterSpacing: "-0.02em", fontWeight: 500, margin: "10px 0 0", lineHeight: 1.08 }}>Shape is for adults 18 and over.</h1>
+        <p style={{ fontSize: 15, lineHeight: 1.6, color: DCL_INK50, margin: "14px 0 0" }}>
+          The date of birth on this account is under 18, so it can't use Shape. If the date is wrong, contact support. You can delete the account in Settings.
+        </p>
+        <div style={{ marginTop: 24 }}>
+          <a href="#settings" style={{ fontFamily: DCL_MONO, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DCL_TEAL }}>Settings →</a>
+        </div>
+      </main>
+    </DashFrame>
+  );
+}
+
+Object.assign(window, { ClientDashboardPage, ClientJoinPage, ClientAgeRestrictedPage, DashWorkoutCard, DashMealLedgerCard, DashTodayCard });

@@ -36,3 +36,23 @@ export function bsMembershipSeed({ stored, storedUid, lastUid }) {
   if (stored === '0') return false;
   return null;
 }
+
+/**
+ * Asks `run` (resolving true once the account is a member) up to `tries` times, `everyMs` apart,
+ * stopping at the first true. For the checkout's browser closing while the payment may still be
+ * clearing: one check on close missed a payment that cleared a moment later (#2353's moved item).
+ * Returns a stop function. `schedule`/`unschedule` are injectable for tests.
+ */
+export function bsPollMembership(run, { tries, everyMs, schedule = setTimeout, unschedule = clearTimeout }) {
+  let timer = null;
+  let stopped = false;
+  const step = (left) => {
+    if (stopped) return;
+    Promise.resolve().then(run).catch(() => null).then((active) => {
+      if (stopped || active === true || left <= 1) return;
+      timer = schedule(() => step(left - 1), everyMs);
+    });
+  };
+  step(tries);
+  return () => { stopped = true; if (timer != null) unschedule(timer); };
+}
