@@ -869,6 +869,9 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
     // valid one that is free, and it is claimed once the code is verified.
     if (isCreate) {
       if (!fullName.trim()) { setAuthError(tr('login.err.nameRequired')); return; }
+      // A handle still being checked is not accepted yet (Fable): after the code, a taken one would
+      // be dropped silently and the account made without it.
+      if (username && unameOk === null) { setAuthError(tr('login.handleChecking')); return; }
       if (username && (unameOk === false || !/^[a-z0-9][a-z0-9._]{2,19}$/.test(username))) { setAuthError(tr('login.err.usernameTaken')); return; }
       if (!dob) { setAuthError(tr('login.err.dobRequired')); return; }
       const d = new Date(dob); const eighteen = new Date(); eighteen.setFullYear(eighteen.getFullYear() - 18);
@@ -1344,29 +1347,35 @@ function BSPaywall({ signedIn, onJoin, onSignIn, onPreview, onLogout }) {
 // build with no push, is never asked here. Settings → Notifications has the same Turn on row.
 const BS_PUSH_ASK_KEY = 'shape.pushAskAt';
 const BS_PUSH_ASK_WAIT_MS = 7 * 86400000;
-function BSPushAsk() {
+// ⚠ A COACH SETS NO REMINDERS (Fable on the small fixes), so for a coach the moment is the app
+// opening: the same explanation, in a coach's words, a few seconds after the coach app loads. A
+// phone that already allows push is registered then too, whoever is signed in.
+function BSPushAsk({ coach = false }) {
   const { tr } = useTr('onboarding');
   const [open, setOpen] = React.useState(false);
   React.useEffect(() => {
     let alive = true;
-    const onSet = async () => {
+    const decide = async () => {
       try { const at = Number(localStorage.getItem(BS_PUSH_ASK_KEY) || 0); if (at && Date.now() - at < BS_PUSH_ASK_WAIT_MS) return; } catch (e) {}
       let perm = 'unavailable';
       try { perm = await window.ShapePush?.permission?.() || 'unavailable'; } catch (e) {}
-      if (alive && perm === 'prompt') setOpen(true);
+      if (!alive) return;
+      if (perm === 'prompt') setOpen(true);
+      else if (perm === 'granted') { try { window.ShapePush?.register?.(); } catch (e) {} }
     };
-    window.addEventListener('shape:reminderSet', onSet);
-    return () => { alive = false; window.removeEventListener('shape:reminderSet', onSet); };
-  }, []);
+    window.addEventListener('shape:reminderSet', decide);
+    const tid = coach ? setTimeout(decide, 4000) : null;
+    return () => { alive = false; window.removeEventListener('shape:reminderSet', decide); if (tid) clearTimeout(tid); };
+  }, [coach]);
   if (!open) return null;
   const later = () => { try { localStorage.setItem(BS_PUSH_ASK_KEY, String(Date.now())); } catch (e) {} setOpen(false); };
   const turnOn = async () => { setOpen(false); try { await window.ShapePush?.ask?.(); } catch (e) {} };
   const mono = `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`;
   const sheet = (
-    <div role="dialog" aria-modal="true" aria-label={tr('settings:push.askTitle')} style={{ position: 'absolute', inset: 0, zIndex: 60, display: 'flex', alignItems: 'flex-end', background: 'rgba(3,5,11,0.6)' }} onClick={later}>
+    <div role="dialog" aria-modal="true" aria-label={coach ? tr('settings:push.askTitleCoach') : tr('settings:push.askTitle')} style={{ position: 'absolute', inset: 0, zIndex: 60, display: 'flex', alignItems: 'flex-end', background: 'rgba(3,5,11,0.6)' }} onClick={later}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', padding: '22px 22px max(22px, calc(14px + env(safe-area-inset-bottom, 0px)))', background: '#0b161c', borderTop: '1px solid rgba(242,237,228,0.2)', color: '#f2ede4' }}>
-        <div style={{ fontFamily: `'Newsreader', Georgia, serif`, fontSize: 24, fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{tr('settings:push.askTitle')}</div>
-        <div style={{ marginTop: 10, fontSize: 14, lineHeight: 1.5, color: 'rgba(242,237,228,0.75)' }}>{tr('settings:push.askBody')}</div>
+        <div style={{ fontFamily: `'Newsreader', Georgia, serif`, fontSize: 24, fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{coach ? tr('settings:push.askTitleCoach') : tr('settings:push.askTitle')}</div>
+        <div style={{ marginTop: 10, fontSize: 14, lineHeight: 1.5, color: 'rgba(242,237,228,0.75)' }}>{coach ? tr('settings:push.askBodyCoach') : tr('settings:push.askBody')}</div>
         <button type="button" onClick={turnOn} style={{ width: '100%', marginTop: 18, padding: 13, border: 0, background: '#34d6c5', color: '#05080c', fontFamily: mono, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('settings:push.askYes')}</button>
         <button type="button" onClick={later} style={{ width: '100%', minHeight: 44, marginTop: 8, border: '1px solid rgba(242,237,228,0.2)', background: 'transparent', color: 'rgba(242,237,228,0.7)', fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('settings:push.notNow')}</button>
       </div>
@@ -2014,7 +2023,7 @@ function BSAppShell({ tweaks, setTweak }) {
           ) : (
             <>
               <App onLogout={handleLogout} authState={authState} tweaks={tweaks} setTweak={setTweak} {...appProps} />
-              <BSPushAsk />
+              <BSPushAsk coach={isCoachRole} />
             </>
           )
         )}

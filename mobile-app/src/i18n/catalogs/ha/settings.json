@@ -495,5 +495,7 @@
   "push.askTitle": "Samu tunatarwarka a wayarka",
   "push.askBody": "Shape na aika tunatarwar da ka saita, da saƙonni daga kocinka, a matsayin sanarwa a waya. Wayarka za ta tambaya sau ɗaya; za ka iya canza shi daga baya a saitunanta.",
   "push.askYes": "Kunna sanarwa",
-  "push.notNow": "Ba yanzu ba"
+  "push.notNow": "Ba yanzu ba",
+  "push.askTitleCoach": "San lokacin da abokan cinikinka ke bukatarka",
+  "push.askBodyCoach": "Shape na sanar da kai a waya idan abokin ciniki ya aiko maka saƙo, ya yi rajista ko ya biya zaman horo, ko yana bukatar hankalinka. Wayarka za ta tambaya sau ɗaya; za ka iya canza shi daga baya a saitunanta."
 }

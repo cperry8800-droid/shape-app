@@ -495,5 +495,7 @@
   "push.askTitle": "Nhận lời nhắc trên điện thoại",
   "push.askBody": "Shape gửi lời nhắc bạn đặt và tin nhắn từ huấn luyện viên dưới dạng thông báo. Điện thoại chỉ hỏi một lần; bạn có thể đổi sau trong phần cài đặt.",
   "push.askYes": "Bật thông báo",
-  "push.notNow": "Để sau"
+  "push.notNow": "Để sau",
+  "push.askTitleCoach": "Biết ngay khi khách hàng cần bạn",
+  "push.askBodyCoach": "Shape báo cho bạn trên điện thoại khi khách hàng nhắn tin, đặt hoặc thanh toán buổi tập, hay cần bạn chú ý. Điện thoại chỉ hỏi một lần; bạn có thể đổi sau trong phần cài đặt."
 }

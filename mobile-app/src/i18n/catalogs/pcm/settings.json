@@ -495,5 +495,7 @@
   "push.askTitle": "Make your reminders land for your phone",
   "push.askBody": "Shape go send the reminders wey you set, plus messages from your coach, as phone notifications. Your phone go ask you once; you fit change am later for the phone settings.",
   "push.askYes": "Turn notifications on",
-  "push.notNow": "No be now"
+  "push.notNow": "No be now",
+  "push.askTitleCoach": "Know when your clients need you",
+  "push.askBodyCoach": "Shape go tell you for your phone when client message you, book or pay for session, or need your attention. Your phone go ask you once; you fit change am later for the phone settings."
 }

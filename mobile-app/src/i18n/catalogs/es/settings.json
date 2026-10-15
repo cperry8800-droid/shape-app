@@ -495,5 +495,7 @@
   "push.askTitle": "Recibe tus recordatorios en el teléfono",
   "push.askBody": "Shape envía los recordatorios que configuras y los mensajes de tu coach como notificaciones. Tu teléfono pregunta una vez; puedes cambiarlo después en sus ajustes.",
   "push.askYes": "Activar notificaciones",
-  "push.notNow": "Ahora no"
+  "push.notNow": "Ahora no",
+  "push.askTitleCoach": "Entérate cuando tus clientes te necesiten",
+  "push.askBodyCoach": "Shape te avisa en el teléfono cuando un cliente te escribe, reserva o paga una sesión, o necesita tu atención. Tu teléfono pregunta una vez; puedes cambiarlo después en sus ajustes."
 }

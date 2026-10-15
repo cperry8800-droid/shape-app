@@ -37,21 +37,22 @@ const nextServer = require_('next/server');
 const read = (p) => fs.readFileSync(join(ROOT, p), 'utf8');
 
 // ── H9: the reset email ─────────────────────────────────────────────────────────────────────
-async function loadReset({ limits = {}, captcha = true, sent = { ok: true } } = {}) {
+async function loadReset({ limits = {}, captcha = true, sent = { ok: true }, configured = true } = {}) {
   const mail = [];
   const limited = [];
+  const order = [];
   const mod = await loadRealModule(join(ROOT, 'src/lib/password-reset.ts'), {
     typescript: true,
     registry: new Map([
       ['next/server', nextServer],
-      ['@/lib/rate-limit', { checkRateLimit: async (_c, key, max, win) => { limited.push([key, max, win]); return { allowed: limits[key.split(':').slice(0, 2).join(':')] !== false }; } }],
-      ['@/lib/turnstile', { verifyTurnstile: async () => captcha }],
-      ['@/lib/email', { sendEmail: async (m) => { mail.push(m); return sent; } }],
+      ['@/lib/rate-limit', { checkRateLimit: async (_c, key, max, win, opts) => { order.push(key.split(':').slice(0, 2).join(':')); limited.push([key, max, win, opts || {}]); return { allowed: limits[key.split(':').slice(0, 2).join(':')] !== false }; } }],
+      ['@/lib/turnstile', { verifyTurnstile: async () => { order.push('turnstile'); return captcha; } }],
+      ['@/lib/email', { sendEmail: async (m) => { mail.push(m); return sent; }, emailConfigured: () => configured }],
       ['@/lib/coach-application-emails', await loadRealModule(join(ROOT, 'src/lib/coach-application-emails.ts'), { typescript: true })],
       ['@/lib/request-utils', await loadRealModule(join(ROOT, 'src/lib/request-utils.ts'), { typescript: true, registry: new Map([['next/server', nextServer]]) })],
     ]),
   });
-  return { mod, mail, limited };
+  return { mod, mail, limited, order };
 }
 
 function adminFor({ link = { data: { properties: { hashed_token: 'hash-abc' } }, error: null }, handles = {}, rpcError = null } = {}) {
@@ -70,7 +71,7 @@ function adminFor({ link = { data: { properties: { hashed_token: 'hash-abc' } },
 test('H9: a reset mails a link /auth/confirm verifies, in any browser, to the address that asked', async () => {
   const { mod, mail, limited } = await loadReset();
   const admin = adminFor();
-  const r = await mod.requestPasswordResetEmail(admin, { email: '  Priya@Example.com ', ip: '203.0.113.9', site: 'https://shape.test' });
+  const r = await mod.requestPasswordResetEmail(admin, { minMs: 0, email: '  Priya@Example.com ', ip: '203.0.113.9', site: 'https://shape.test' });
   assert.deepEqual(r, { ok: true });
   assert.deepEqual(admin.calls, [['generateLink', { type: 'recovery', email: 'priya@example.com' }]], 'Supabase makes the link and sends nothing');
   assert.equal(mail.length, 1);
@@ -81,53 +82,75 @@ test('H9: a reset mails a link /auth/confirm verifies, in any browser, to the ad
   assert.deepEqual(Object.fromEntries(u.searchParams), { token_hash: 'hash-abc', type: 'recovery', next: '/reset-password' });
   assert.ok(mail[0].html.includes(href.replace(/&/g, '&amp;')), 'the button carries the same link');
   assert.deepEqual(limited.map(([k]) => k), ['pwreset:ip:203.0.113.9', 'pwreset:email:priya@example.com'], 'both limits are counted');
+  assert.deepEqual(limited.map(([, , , o]) => !!o.failClosed), [false, true], 'the per-address limit fails closed (Fable): it is what stops one inbox being flooded');
 });
 
 test('H9: the answer is the same whether or not an account has the address', async () => {
   const { mod, mail } = await loadReset();
   const nobody = adminFor({ link: { data: null, error: { status: 404, code: 'user_not_found', message: 'User with this email not found' } } });
-  assert.deepEqual(await mod.requestPasswordResetEmail(nobody, { email: 'nobody@example.com' }), { ok: true });
+  assert.deepEqual(await mod.requestPasswordResetEmail(nobody, { minMs: 0, email: 'nobody@example.com' }), { ok: true });
   assert.equal(mail.length, 0, 'and nothing is sent');
 });
 
 test('H9: an @handle is resolved on the server, and its address is never sent back', async () => {
   const { mod, mail } = await loadReset();
   const admin = adminFor({ handles: { priya_lifts: 'priya@example.com' } });
-  assert.deepEqual(await mod.requestPasswordResetEmail(admin, { email: '@Priya_Lifts' }), { ok: true });
+  assert.deepEqual(await mod.requestPasswordResetEmail(admin, { minMs: 0, email: '@Priya_Lifts' }), { ok: true });
   assert.deepEqual(admin.calls[0], ['rpc', 'get_email_for_username', { p_username: 'priya_lifts' }]);
   assert.equal(mail[0].to, 'priya@example.com');
   const unknown = adminFor();
-  assert.deepEqual(await mod.requestPasswordResetEmail(unknown, { email: 'ghost.handle' }), { ok: true }, 'an unknown handle reads like a sent one');
+  assert.deepEqual(await mod.requestPasswordResetEmail(unknown, { minMs: 0, email: 'ghost.handle' }), { ok: true }, 'an unknown handle reads like a sent one');
   assert.equal(unknown.calls.filter(([k]) => k === 'generateLink').length, 0);
   const broken = adminFor({ rpcError: { message: 'down' } });
-  assert.equal((await mod.requestPasswordResetEmail(broken, { email: 'priya_lifts' })).code, 'send_failed', 'a failed lookup is not "sent"');
+  assert.equal((await mod.requestPasswordResetEmail(broken, { minMs: 0, email: 'priya_lifts' })).code, 'send_failed', 'a failed lookup is not "sent"');
 });
 
-test('H9: a refusal or a failed send says so: nobody waits for an email that never left', async () => {
+test('H9: a refusal says so only when it would for any address; a real account\'s failed send answers like any other', async () => {
   const bad = await loadReset();
   for (const email of ['', 'not an email', 'a@b', 42, 'x'.repeat(250) + '@example.com']) {
-    const r = await bad.mod.requestPasswordResetEmail(adminFor(), { email });
+    const r = await bad.mod.requestPasswordResetEmail(adminFor(), { minMs: 0, email });
     assert.equal(r.ok, false, String(email));
     assert.equal(r.status, 400);
     assert.equal(r.code, 'invalid_email');
   }
   const captcha = await loadReset({ captcha: false });
-  const c = await captcha.mod.requestPasswordResetEmail(adminFor(), { email: 'priya@example.com' });
+  const c = await captcha.mod.requestPasswordResetEmail(adminFor(), { minMs: 0, email: 'priya@example.com', ip: '203.0.113.9' });
   assert.deepEqual([c.status, c.code], [400, 'captcha_failed']);
+  assert.deepEqual(captcha.order, ['pwreset:ip', 'turnstile'], 'the cheap limit before the call to Cloudflare (Fable)');
   const perEmail = await loadReset({ limits: { 'pwreset:email': false } });
-  const pe = await perEmail.mod.requestPasswordResetEmail(adminFor(), { email: 'priya@example.com', ip: '203.0.113.9' });
+  const pe = await perEmail.mod.requestPasswordResetEmail(adminFor(), { minMs: 0, email: 'priya@example.com', ip: '203.0.113.9' });
   assert.deepEqual([pe.status, pe.code], [429, 'rate_limited']);
   assert.equal(perEmail.mail.length, 0);
   const perIp = await loadReset({ limits: { 'pwreset:ip': false } });
-  assert.equal((await perIp.mod.requestPasswordResetEmail(adminFor(), { email: 'priya@example.com', ip: '203.0.113.9' })).code, 'rate_limited');
-  const linkDown = await loadReset();
-  const ld = await linkDown.mod.requestPasswordResetEmail(adminFor({ link: { data: null, error: { status: 500, message: 'boom' } } }), { email: 'priya@example.com' });
-  assert.deepEqual([ld.status, ld.code], [503, 'send_failed']);
-  const noHash = await loadReset();
-  assert.equal((await noHash.mod.requestPasswordResetEmail(adminFor({ link: { data: { properties: {} }, error: null } }), { email: 'priya@example.com' })).code, 'send_failed');
-  const mailDown = await loadReset({ sent: { ok: false, error: 'resend_500' } });
-  const md = await mailDown.mod.requestPasswordResetEmail(adminFor(), { email: 'priya@example.com' });
-  assert.deepEqual([md.status, md.code], [503, 'send_failed']);
+  const pi = await perIp.mod.requestPasswordResetEmail(adminFor(), { minMs: 0, email: 'priya@example.com', ip: '203.0.113.9' });
+  assert.equal(pi.code, 'rate_limited');
+  assert.deepEqual(perIp.order, ['pwreset:ip'], 'past the limit: no human check, no lookup');
+  // Mail that is not set up: the same 503 for an account and for nobody.
+  const off = await loadReset({ configured: false });
+  for (const admin of [adminFor(), adminFor({ link: { data: null, error: { status: 404, message: 'User not found' } } })]) {
+    const r = await off.mod.requestPasswordResetEmail(admin, { minMs: 0, email: 'priya@example.com' });
+    assert.deepEqual([r.status, r.code], [503, 'send_failed']);
+  }
+  // ⚠ A REAL ACCOUNT'S FAILURE ANSWERS LIKE NOBODY'S (Fable): a 503 here was a yes to "does this
+  // address have an account?". Logged, retried once for the email, answered { ok: true }.
+  const errs = [];
+  const origErr = console.error; console.error = (...a) => errs.push(a.join(' '));
+  try {
+    const linkDown = await loadReset();
+    assert.deepEqual(await linkDown.mod.requestPasswordResetEmail(adminFor({ link: { data: null, error: { status: 500, message: 'boom' } } }), { minMs: 0, email: 'priya@example.com' }), { ok: true });
+    const noHash = await loadReset();
+    assert.deepEqual(await noHash.mod.requestPasswordResetEmail(adminFor({ link: { data: { properties: {} }, error: null } }), { minMs: 0, email: 'priya@example.com' }), { ok: true });
+    const mailDown = await loadReset({ sent: { ok: false, error: 'resend_500' } });
+    assert.deepEqual(await mailDown.mod.requestPasswordResetEmail(adminFor(), { minMs: 0, email: 'priya@example.com' }), { ok: true });
+    assert.equal(mailDown.mail.length, 2, 'one retry');
+  } finally { console.error = origErr; }
+  assert.ok(errs.some((e) => /generateLink failed/.test(e)) && errs.some((e) => /no token/.test(e)) && errs.some((e) => /did not send/.test(e)), 'each failure is logged for us');
+  // And at the same pace: an unknown address waits out the floor too.
+  const slow = await loadReset();
+  const t0 = Date.now();
+  await slow.mod.requestPasswordResetEmail(adminFor({ link: { data: null, error: { status: 404, message: 'User not found' } } }), { minMs: 60, email: 'nobody@example.com' });
+  assert.ok(Date.now() - t0 >= 55, 'the floor');
+  assert.equal(slow.mod.RESET_MIN_MS, 1200);
 });
 
 test('H9: the website form and the route both use the one sender; Supabase\'s browser-bound reset is gone', () => {
@@ -327,9 +350,13 @@ test('L11: the dead pricing action and get-started page are gone', () => {
 
 // ── M4: the Terms and Privacy acceptance, recorded ──────────────────────────────────────────
 const legal = await loadRealModule(join(ROOT, 'src/lib/legal-acceptance.ts'), { typescript: true });
-function acceptDb({ error = null } = {}) {
+function acceptDb({ error = null, markError = null } = {}) {
   const rows = [];
-  return { rows, client: { from: (t) => { assert.equal(t, 'terms_acceptances'); return { upsert: async (row, opts) => { rows.push([row, opts]); return { error }; } }; } } };
+  const marks = [];
+  return { rows, marks, client: {
+    from: (t) => { assert.equal(t, 'terms_acceptances'); return { upsert: async (row, opts) => { rows.push([row, opts]); return { error }; } }; },
+    auth: { admin: { updateUserById: async (id, attrs) => { marks.push([id, attrs]); return { error: markError }; } } },
+  } };
 }
 
 test('M4: the versions recorded are the pages\' own "Last updated" dates', () => {
@@ -362,8 +389,20 @@ test('M4: an account that accepted at sign-up gets one record, at the account\'s
     assert.equal(await legal.recordLegalAcceptance(none.client, u), 'none');
     assert.equal(none.rows.length, 0);
   }
-  const old = acceptDb();
-  assert.equal(await legal.recordLegalAcceptance(old.client, { ...user, created_at: new Date(Date.now() - 40 * 86_400_000).toISOString() }), 'none', 'an account past its first month has had its record');
+  // Recorded once, whenever the first sign-in is (Fable: a 30-day window lost a late first sign-in).
+  const key = `${legal.TERMS_VERSIONS.at(-1)}|${legal.PRIVACY_VERSIONS.at(-1)}`;
+  assert.deepEqual(db.marks, [['u-1', { app_metadata: { terms_recorded: key } }]], 'the marker, which only the service role can write');
+  const late = acceptDb();
+  assert.equal(await legal.recordLegalAcceptance(late.client, { ...user, created_at: new Date(Date.now() - 400 * 86_400_000).toISOString() }), 'recorded', 'a first sign-in a year later is still recorded');
+  const marked = acceptDb();
+  assert.equal(await legal.recordLegalAcceptance(marked.client, { ...user, app_metadata: { provider: 'email', terms_recorded: key } }), 'none', 'every later page load pays nothing');
+  assert.equal(marked.rows.length, 0);
+  const keepsOthers = acceptDb();
+  await legal.recordLegalAcceptance(keepsOthers.client, { ...user, app_metadata: { provider: 'email', terms_recorded: 'old|old' } });
+  assert.deepEqual(keepsOthers.marks[0][1].app_metadata, { provider: 'email', terms_recorded: key }, 'a newer version is recorded and the rest of app_metadata kept');
+  const markFails = acceptDb({ markError: { message: 'x' } });
+  const warn = console.warn; console.warn = () => {};
+  try { assert.equal(await legal.recordLegalAcceptance(markFails.client, user), 'recorded', 'the record stands; the next page load retries the marker'); } finally { console.warn = warn; }
   const missing = acceptDb({ error: { code: '42P01', message: 'relation does not exist' } });
   assert.equal(await legal.recordLegalAcceptance(missing.client, user), 'failed', 'before the migration: nothing to record into, and quiet');
 });
@@ -417,14 +456,14 @@ function liftFirstRun(marker) {
   const end = src.indexOf('\n  }, []);', i) + '\n  }, []);'.length;
   return src.slice(start, end);
 }
-async function runFirstRun(code, { goals, local = {}, user = { id: 'u', created_at: '2024-01-01T00:00:00Z' } }) {
+async function runFirstRun(code, { goals, local = {}, user = { id: 'u', created_at: '2024-01-01T00:00:00Z' }, coach = false }) {
   const shown = [];
   const storage = { ...local };
   const localStorage = { getItem: (k) => (k in storage ? storage[k] : null), setItem: (k, v) => { storage[k] = String(v); } };
   const win = { ShapeAuth: { getCachedState: () => ({ user }) }, shapeDb: { getUserGoals: async () => (goals instanceof Error ? Promise.reject(goals) : goals) } };
   const React = { useEffect: (fn) => fn() };
-  new Function('React', 'window', 'localStorage', 'setTimeout', 'clearTimeout', 'setShowScoreIntro', 'setShowTour', code)(
-    React, win, localStorage, () => 0, () => {}, (v) => shown.push(['intro', v]), (v) => shown.push(['tour', v]));
+  new Function('React', 'window', 'localStorage', 'setTimeout', 'clearTimeout', 'setShowScoreIntro', 'setShowTour', 'bsIsCoachAccount', code)(
+    React, win, localStorage, () => 0, () => {}, (v) => shown.push(['intro', v]), (v) => shown.push(['tour', v]), () => coach);
   await new Promise((r) => setImmediate(r));
   return { shown, storage };
 }
@@ -448,6 +487,10 @@ test('L1: a member of any age who has not seen the Score intro or the tour gets 
   }
   assert.deepEqual((await runFirstRun(intro, { goals: {}, local: { 'shape.scoreIntroSeen': '1' } })).shown, [], 'seen on this device');
   assert.deepEqual((await runFirstRun(intro, { goals: {}, user: null })).shown, [], 'signed out');
+  // A coach on the client app gets neither: they are the member's (Fable).
+  assert.deepEqual((await runFirstRun(intro, { goals: {}, coach: true })).shown, []);
+  assert.deepEqual((await runFirstRun(tour, { goals: {}, local: { 'shape.scoreIntroSeen': '1' }, coach: true })).shown, []);
+  assert.match(read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), /const bsIsCoachAccount = \(\) => \{\s*try \{ return \['trainer', 'nutritionist', 'dietitian'\]\.includes\(window\.ShapeAuth\?\.getCachedState\?\.\(\)\?\.profile\?\.role\); \}/);
 });
 
 // ── L3: a phone account has a name, and any account can get a handle ────────────────────────
@@ -456,6 +499,7 @@ test('L3: the phone create needs a name, offers a handle, and claims it once the
   const send = main.slice(main.indexOf('const sendPhoneCode = async () => {'), main.indexOf('// Phone — step 2: verify the code and sign in.'));
   assert.match(send, /if \(isCreate\) \{\s*if \(!fullName\.trim\(\)\) \{ setAuthError\(tr\('login\.err\.nameRequired'\)\); return; \}/);
   assert.match(send, /username: isCreate \? username : undefined \}\);/);
+  assert.match(send, /if \(username && unameOk === null\) \{ setAuthError\(tr\('login\.handleChecking'\)\); return; \}/, 'a handle still being checked is not accepted yet (Fable)');
   assert.match(main, /\{isCreate && \(!stepped \|\| createStep === 1\) && wireField\(tr\('login\.fieldHandle'\),/, 'the handle field shows on the phone create too');
   // signInWithPhone, lifted and run: the handle rides in the sign-up metadata.
   const be = read('mobile-app/src/services/shapeBackend.js');
@@ -484,6 +528,9 @@ test('L3: the profile editor claims the account\'s username when it has none; a 
   assert.ok(claim < save.indexOf('await bsSaveIdentity(patch);'), 'before the profile is written');
   assert.match(save, /if \(touched\.has\('handle'\) && typed && !accountUsername && window\.ShapeAuth\?\.claimUsername\) \{/);
   assert.match(save, /if \(!claimed\) \{ window\.__bsToast\?\.\([^;]*'err'\); return; \}/);
+  // The cached username is from launch: read fresh before claiming, and claim nothing on a failed read (Fable).
+  assert.match(save, /const r = sb && uid \? await sb\.from\('profiles'\)\.select\('username'\)\.eq\('id', uid\)\.maybeSingle\(\) : null;\s*accountUsername = r && !r\.error \? \(r\.data\?\.username \|\| null\) : 'unknown';/);
+  assert.ok(save.indexOf("select('username')") < save.indexOf('await window.ShapeAuth.claimUsername(want);'));
 });
 
 // ── L5: phone notifications are asked for when they mean something ──────────────────────────
@@ -525,16 +572,23 @@ test('L5: signing in never runs the system prompt; asking does, once, and the an
   assert.match(be, /if \(res\.ok && out && out\.ok !== false\) bsReminderSet\(\);/);
   assert.match(be, /await scheduleLocalHabit\(row\);\s*\/\/[^\n]*\n\s*if \(row\.enabled\) \{ try \{ if \(typeof window !== 'undefined'\) window\.dispatchEvent\(new CustomEvent\('shape:reminderSet'\)\); \}/);
   const main = read('mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx');
-  const ask = main.slice(main.indexOf('function BSPushAsk() {'), main.indexOf('// Persistent "you\'re previewing" banner'));
-  assert.match(ask, /window\.addEventListener\('shape:reminderSet', onSet\);/);
-  assert.match(ask, /if \(alive && perm === 'prompt'\) setOpen\(true\);/, 'only a phone that has not answered');
+  const ask = main.slice(main.indexOf('function BSPushAsk({ coach = false }) {'), main.indexOf('// Persistent "you\'re previewing" banner'));
+  assert.ok(ask.length > 100, 'the ask was found');
+  assert.match(ask, /window\.addEventListener\('shape:reminderSet', decide\);/);
+  assert.match(ask, /if \(perm === 'prompt'\) setOpen\(true\);\s*else if \(perm === 'granted'\) \{ try \{ window\.ShapePush\?\.register\?\.\(\); \} catch \(e\) \{\} \}/, 'only a phone that has not answered is asked; one that allows push is registered (Fable)');
+  assert.match(ask, /const tid = coach \? setTimeout\(decide, 4000\) : null;/, 'a coach sets no reminders: asked when the coach app opens (Fable)');
+  assert.match(ask, /\{coach \? tr\('settings:push\.askBodyCoach'\) : tr\('settings:push\.askBody'\)\}/);
   assert.match(ask, /const turnOn = async \(\) => \{ setOpen\(false\); try \{ await window\.ShapePush\?\.ask\?\.\(\); \}/, 'the system prompt only from Turn on');
-  assert.match(main, /<App onLogout=\{handleLogout\}[^\n]*\/>\s*<BSPushAsk \/>/);
+  assert.match(main, /<App onLogout=\{handleLogout\}[^\n]*\/>\s*<BSPushAsk coach=\{isCoachRole\} \/>/);
+  const pros = read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx');
+  const proNotif = pros.slice(pros.indexOf('function BSProNotificationsPage('), pros.indexOf('<BSFooter left="Notifications"'));
+  assert.match(proNotif, /const PushRow = window\.BSPushPermissionRow;[\s\S]*\{PushRow \? <PushRow \/> : null\}/, 'the coach Notifications page has the Turn on row');
+  assert.match(read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), /Object\.assign\(window, \{ BSPushPermissionRow \}\);/);
   const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
   assert.match(client, /<div style=\{\{ padding: `4px \$\{t\.padX\}px 30px` \}\}>\s*<BSPushPermissionRow \/>/);
   for (const loc of fs.readdirSync(join(ROOT, 'mobile-app/src/i18n/catalogs'))) {
     const cat = JSON.parse(read(`mobile-app/src/i18n/catalogs/${loc}/settings.json`));
-    for (const k of ['push.title', 'push.on', 'push.off', 'push.notYet', 'push.turnOn', 'push.askTitle', 'push.askBody', 'push.askYes', 'push.notNow']) assert.ok(cat[k], `${loc}: settings:${k}`);
+    for (const k of ['push.title', 'push.on', 'push.off', 'push.notYet', 'push.turnOn', 'push.askTitle', 'push.askBody', 'push.askYes', 'push.notNow', 'push.askTitleCoach', 'push.askBodyCoach']) assert.ok(cat[k], `${loc}: settings:${k}`);
   }
 });
 

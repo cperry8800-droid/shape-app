@@ -495,5 +495,7 @@
   "push.askTitle": "Deine Erinnerungen aufs Handy",
   "push.askBody": "Shape schickt deine Erinnerungen und Nachrichten von deinem Coach als Benachrichtigungen aufs Handy. Dein Handy fragt einmal; du kannst es später in seinen Einstellungen ändern.",
   "push.askYes": "Benachrichtigungen einschalten",
-  "push.notNow": "Nicht jetzt"
+  "push.notNow": "Nicht jetzt",
+  "push.askTitleCoach": "Erfahre, wann deine Klienten dich brauchen",
+  "push.askBodyCoach": "Shape sagt dir auf dem Handy Bescheid, wenn dir ein Klient schreibt, eine Session bucht oder bezahlt oder deine Aufmerksamkeit braucht. Dein Handy fragt einmal; du kannst es später in seinen Einstellungen ändern."
 }

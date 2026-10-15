@@ -495,5 +495,7 @@
   "push.askTitle": "Dapatkan pengingat di ponsel Anda",
   "push.askBody": "Shape mengirim pengingat yang Anda atur dan pesan dari pelatih Anda sebagai notifikasi ponsel. Ponsel Anda bertanya sekali; Anda bisa mengubahnya nanti di pengaturannya.",
   "push.askYes": "Aktifkan notifikasi",
-  "push.notNow": "Nanti saja"
+  "push.notNow": "Nanti saja",
+  "push.askTitleCoach": "Ketahui saat klien Anda membutuhkan Anda",
+  "push.askBodyCoach": "Shape memberi tahu Anda di ponsel saat klien mengirim pesan, memesan atau membayar sesi, atau membutuhkan perhatian Anda. Ponsel Anda bertanya sekali; Anda bisa mengubahnya nanti di pengaturannya."
 }

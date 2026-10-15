@@ -19,30 +19,34 @@ export function versionInForce(versions: readonly string[], day: string): string
   return pick;
 }
 
-const RECORD_WINDOW_MS = 30 * 86_400_000;
-
 export type AcceptanceResult = 'recorded' | 'none' | 'failed';
 
 export async function recordLegalAcceptance(
   admin: SupabaseClient,
-  user: Pick<User, 'id' | 'created_at' | 'user_metadata'> | null | undefined
+  user: Pick<User, 'id' | 'created_at' | 'user_metadata' | 'app_metadata'> | null | undefined
 ): Promise<AcceptanceResult> {
   const meta = (user?.user_metadata ?? {}) as Record<string, unknown>;
   if (!user?.id || typeof meta.terms_accepted_at !== 'string' || !meta.terms_accepted_at) return 'none';
   const created = Date.parse(String(user.created_at ?? ''));
   if (!Number.isFinite(created)) return 'none';
-  // The bridge runs on every signed-in page load. The record is written at the first sign-in, so an
-  // account older than a month has long had its row and pays nothing here.
-  if (Date.now() - created > RECORD_WINDOW_MS) return 'none';
   const day = new Date(created).toISOString().slice(0, 10);
+  const terms = versionInForce(TERMS_VERSIONS, day);
+  const privacy = versionInForce(PRIVACY_VERSIONS, day);
+  // ⚠ RECORDED ONCE, WHENEVER THE FIRST SIGN-IN IS (Fable on the small fixes). The bridge runs on
+  // every signed-in page load, and this skipped accounts over a month old to keep that cheap, which
+  // lost the record of anyone who first signed in later. Once written, the account carries a marker
+  // in app_metadata (which only the service role can write), and that is what is skipped on.
+  const key = `${terms}|${privacy}`;
+  const app = (user.app_metadata ?? {}) as Record<string, unknown>;
+  if (app.terms_recorded === key) return 'none';
   const source = meta.signup_source && typeof meta.signup_source === 'object' ? (meta.signup_source as Record<string, unknown>) : null;
   const surface = source && source.surface === 'app' ? 'app' : 'website';
   try {
     const { error } = await admin.from('terms_acceptances').upsert(
       {
         user_id: user.id,
-        terms_version: versionInForce(TERMS_VERSIONS, day),
-        privacy_version: versionInForce(PRIVACY_VERSIONS, day),
+        terms_version: terms,
+        privacy_version: privacy,
         surface,
         accepted_at: new Date(created).toISOString(),
       },
@@ -53,6 +57,9 @@ export async function recordLegalAcceptance(
       if (error.code !== '42P01') console.warn('[shape] terms acceptance not recorded', error.message);
       return 'failed';
     }
+    // The marker. A failed write only means the next page load upserts again (a no-op) and retries.
+    const { error: markErr } = await admin.auth.admin.updateUserById(user.id, { app_metadata: { ...app, terms_recorded: key } });
+    if (markErr) console.warn('[shape] terms acceptance marker not saved', markErr.message);
     return 'recorded';
   } catch (e) {
     console.warn('[shape] terms acceptance not recorded', e instanceof Error ? e.message : e);

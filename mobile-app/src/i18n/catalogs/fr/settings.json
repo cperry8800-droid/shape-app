@@ -495,5 +495,7 @@
   "push.askTitle": "Recevez vos rappels sur votre téléphone",
   "push.askBody": "Shape envoie vos rappels et les messages de votre coach sous forme de notifications. Votre téléphone ne demande qu’une fois ; vous pourrez changer cela dans ses réglages.",
   "push.askYes": "Activer les notifications",
-  "push.notNow": "Pas maintenant"
+  "push.notNow": "Pas maintenant",
+  "push.askTitleCoach": "Sachez quand vos clients ont besoin de vous",
+  "push.askBodyCoach": "Shape vous prévient sur votre téléphone quand un client vous écrit, réserve ou paie une séance, ou a besoin de vous. Votre téléphone ne demande qu’une fois ; vous pourrez changer cela dans ses réglages."
 }

@@ -9095,6 +9095,9 @@ function BSProPublicProfilePage({ role = 'trainer', name = 'Profile', onBack }) 
 
 function BSProNotificationsPage({ onBack }) {
   const t = useBS();
+  // Phone notifications on this device (client module's row, read at call time): signing in no
+  // longer asks, so this is where a coach turns them on (Fable on the small fixes).
+  const PushRow = window.BSPushPermissionRow;
   const [rules, setRules] = useStateBSP({
     sessions: true,
     messages: true,
@@ -9117,6 +9120,7 @@ function BSProNotificationsPage({ onBack }) {
       />
       <BSSection title="Push + email" meta="Delivery rules" />
       <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
+        {PushRow ? <PushRow /> : null}
         {row('Session reminders', 'sessions')}
         {row('Messages + mentions', 'messages')}
         {row('Payments + payouts', 'payments')}

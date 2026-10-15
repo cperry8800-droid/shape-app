@@ -952,6 +952,11 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return () => window.removeEventListener('shape:startWorkout', onStart);
   }, []);
 
+  // Whether the signed-in account is a coach (its profile's role): the first-run intro and tour
+  // below are the member's.
+  const bsIsCoachAccount = () => {
+    try { return ['trainer', 'nutritionist', 'dietitian'].includes(window.ShapeAuth?.getCachedState?.()?.profile?.role); } catch (e) { return false; }
+  };
   // First-run Shape Score explainer: auto-show ONCE for an account that hasn't seen it
   // (its own seen-flag) — shown before the app tour so a new member understands the
   // scoring system as soon as they're in.
@@ -969,6 +974,9 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       if (!alive || done) return;
       const u = window.ShapeAuth?.getCachedState?.().user;
       if (!u) return;
+      // The member intro, not a coach's: a coach on the client app (both roles, or the role switch)
+      // was spared it by the old day-old window (Fable).
+      if (bsIsCoachAccount()) return;
       done = true;
       if (window.shapeDb?.getUserGoals) {
         window.shapeDb.getUserGoals('client_score_intro')
@@ -1009,6 +1017,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       if (!alive || done) return;
       const u = window.ShapeAuth?.getCachedState?.().user;
       if (!u) return; // signed out / not resolved yet
+      if (bsIsCoachAccount()) return; // the member tour, as the intro above
       // Let the one-time Shape Score intro go first — its "Got it" chains the tour
       // directly (chainTourAfterIntro above); this mount path only fires on a later
       // launch, so the two never stack.
@@ -36095,7 +36104,17 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     // sign-up could skip it, and this field saved only the profile's display handle, never the
     // account's username (sign-in by @handle, the community). With none yet, the handle typed here
     // is claimed as the username first; one that is taken or invalid saves nothing and says so.
-    const accountUsername = (() => { try { return window.ShapeAuth?.getCachedState?.()?.profile?.username || null; } catch (e) { return null; } })();
+    let accountUsername = (() => { try { return window.ShapeAuth?.getCachedState?.()?.profile?.username || null; } catch (e) { return null; } })();
+    // The cached profile is from launch: a username claimed elsewhere since (the website) must not be
+    // replaced by this display handle (Fable). Read it fresh; an unreadable read claims nothing.
+    if (touched.has('handle') && typed && !accountUsername) {
+      const sb = window.ShapeAuth?.client;
+      const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
+      try {
+        const r = sb && uid ? await sb.from('profiles').select('username').eq('id', uid).maybeSingle() : null;
+        accountUsername = r && !r.error ? (r.data?.username || null) : 'unknown';
+      } catch (e) { accountUsername = 'unknown'; }
+    }
     if (touched.has('handle') && typed && !accountUsername && window.ShapeAuth?.claimUsername) {
       const want = typed.toLowerCase();
       let claimed = false;
@@ -39473,4 +39492,6 @@ function BSHelpPage({ onBack, onContact, onAskNora }) {
 Object.assign(window, { bsNoraOpen, bsNoraPage, bsAskNora, BSAskNoraLink, BSNoraSheet, BSCookMode, BSPrepSession, BSClientApp, BSClientChat, BSSettings, BSDetailHeader, BSContactPage, BSTermsPage, BSUniversalSearch, BSSearchCorner });
 // The notification router, for the coach shells' tapped pushes (fix 3a, Codex on #2360).
 Object.assign(window, { bsRouteNotification });
+// The coach app's Notifications page shows the same phone-notifications row (L5).
+Object.assign(window, { BSPushPermissionRow });
 try { window.BS_HEADER_AVATAR = BS_HEADER_AVATAR; } catch (e) {}

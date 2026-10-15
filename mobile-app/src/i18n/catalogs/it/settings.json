@@ -495,5 +495,7 @@
   "push.askTitle": "Ricevi i promemoria sul telefono",
   "push.askBody": "Shape invia i promemoria che imposti e i messaggi del tuo coach come notifiche. Il telefono lo chiede una volta; puoi cambiarlo poi nelle sue impostazioni.",
   "push.askYes": "Attiva le notifiche",
-  "push.notNow": "Non ora"
+  "push.notNow": "Non ora",
+  "push.askTitleCoach": "Sappi quando i tuoi clienti hanno bisogno di te",
+  "push.askBodyCoach": "Shape ti avvisa sul telefono quando un cliente ti scrive, prenota o paga una sessione, o ha bisogno di te. Il telefono lo chiede una volta; puoi cambiarlo poi nelle sue impostazioni."
 }

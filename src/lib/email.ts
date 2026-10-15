@@ -84,6 +84,11 @@ export function buildIcs(args: IcsArgs): string {
   return lines.filter(Boolean).join('\r\n');
 }
 
+/** Whether mail can be sent at all (the Resend key is set). */
+export function emailConfigured(): boolean {
+  return !!process.env.RESEND_API_KEY;
+}
+
 export async function sendEmail(args: EmailArgs): Promise<{ ok: boolean; error?: string }> {
   const key = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM ?? 'Shape <notifications@theshapecommunity.com>';

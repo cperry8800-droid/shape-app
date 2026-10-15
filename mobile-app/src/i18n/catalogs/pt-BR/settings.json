@@ -495,5 +495,7 @@
   "push.askTitle": "Receba seus lembretes no celular",
   "push.askBody": "A Shape envia os lembretes que você definir e as mensagens do seu coach como notificações. Seu celular pergunta uma vez; você pode mudar depois nos ajustes dele.",
   "push.askYes": "Ativar notificações",
-  "push.notNow": "Agora não"
+  "push.notNow": "Agora não",
+  "push.askTitleCoach": "Saiba quando seus clientes precisam de você",
+  "push.askBodyCoach": "A Shape avisa no seu celular quando um cliente manda mensagem, agenda ou paga uma sessão, ou precisa da sua atenção. Seu celular pergunta uma vez; você pode mudar depois nos ajustes dele."
 }

@@ -495,5 +495,7 @@
   "push.askTitle": "Hatırlatıcıların telefonuna gelsin",
   "push.askBody": "Shape, kurduğun hatırlatıcıları ve koçunun mesajlarını telefon bildirimi olarak gönderir. Telefonun bir kez sorar; sonra ayarlarından değiştirebilirsin.",
   "push.askYes": "Bildirimleri aç",
-  "push.notNow": "Şimdi değil"
+  "push.notNow": "Şimdi değil",
+  "push.askTitleCoach": "Danışanlarının sana ihtiyacı olduğunda haberin olsun",
+  "push.askBodyCoach": "Shape, bir danışan sana mesaj attığında, seans ayırttığında ya da ödediğinde veya ilgine ihtiyaç duyduğunda telefonundan haber verir. Telefonun bir kez sorar; sonra ayarlarından değiştirebilirsin."
 }
