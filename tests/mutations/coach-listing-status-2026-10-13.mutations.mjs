@@ -50,8 +50,9 @@ export default {
       find: "  if (!row) return NextResponse.json({ error: 'Your listing appears once your coach application is approved.' }, { status: 404 });\n",
       replace: "  if (!row) return NextResponse.json({ listing: null });\n" },
     { name: 'the website card keeps the old listing after a save', file: WEB,
-      find: '      setState((s) => ({ ...s, listing: d.listing }));',
-      replace: '' },
+      // The capacity card (#10) has the same line; this is the rates card's, by its message.
+      find: '      setState((s) => ({ ...s, listing: d.listing }));\n      setMsg("Rates saved ✓");',
+      replace: '      setMsg("Rates saved ✓");' },
     { name: 'the website card hides the route\'s refusal', file: WEB,
       find: '      if (!r.ok) throw new Error(d.error || "Could not save your rates. Please try again.");',
       replace: '      if (!r.ok) throw new Error("Could not save your rates. Please try again.");' },

@@ -80,9 +80,7 @@ export default {
     { name: 'an Accept does not capture the landing page', file: 'public/newdesign/pageShell.jsx',
       find: '        try { if (window.shapeSignupSource) window.shapeSignupSource.capture(); } catch (e) {}\n',
       replace: '' },
-    { name: 'the Next form sends no source', file: 'src/app/signup/SignupForm.tsx',
-      find: "  formData.set('signup_source', JSON.stringify(sourceFromWindow(window, 'website')));\n",
-      replace: '' },
+    // The Next /signup form is gone (client-onboarding review, M5): /signup redirects to signup.jsx.
     { name: 'app sign-ups record only the app again', file: 'mobile-app/src/services/shapeBackend.js',
       find: "signup_source: typeof window !== 'undefined' ? sourceFromWindow(window, 'app', signupPlatform()) : { surface: 'app', platform: signupPlatform() },",
       replace: "signup_source: { surface: 'app', platform: signupPlatform() }," },
