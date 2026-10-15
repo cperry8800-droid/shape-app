@@ -75,6 +75,8 @@ function TrainerMessagesPage() {
     // client sees with this listing, then select it (client-onboarding review, fix 3a).
     const params = new URLSearchParams(window.location.search);
     const wanted = params.get('client');
+    // ?conversation=<id> (a notification): select that thread once the inbox loads.
+    const wantedConv = params.get('conversation');
     // A dashboard reason pill's opener rides along as ?draft=: pre-filled, never sent.
     const opener = params.get('draft');
     if (opener) setDraft(opener.slice(0, 1000));
@@ -97,7 +99,7 @@ function TrainerMessagesPage() {
           if (!cancelled) setNotice(r.status === 403 ? "That member isn't your client, so there's no thread to open." : "That conversation couldn't be opened. Try again from their client page.");
           return null;
         })).catch(() => null)
-      : Promise.resolve(null);
+      : Promise.resolve(wantedConv);
     open.then(conv => load(conv)).catch(() => {});
     return () => { cancelled = true; };
   }, []);

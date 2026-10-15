@@ -149,7 +149,7 @@ test('startCoaching: the thread with the welcome, the coach alerted and emailed 
   assert.equal(n.type, 'new_client');
   assert.equal(n.title, 'New client: Cara Diaz');
   assert.match(n.body, /^Cara Diaz subscribed · \$85\.00\/mo to you\. /);
-  assert.equal(n.route, 'messages');
+  assert.equal(n.route, 'chat:conv-1', 'the alert opens the thread (Codex on #2360: "messages" opened nothing)');
   assert.deepEqual(n.data, { dedupe: 'hire:sub_123', clientId: 'client-1', conversationId: 'conv-1', providerRole: 'trainer' });
   assert.deepEqual(sent.emails.map((e) => [e.to, e.subject]), [
     ['tom@example.com', 'New client: Cara Diaz'],
@@ -188,6 +188,7 @@ test('startCoaching sends each part once: a redelivered event, an existing welco
     const out = await mod.startCoaching(admin, { clientId: 'client-1', providerRole: 'trainer', providerId: 7, subscriptionKey: 'sub_1' });
     assert.deepEqual(out, { conversationId: null, welcomed: false, coachAlerted: true });
     assert.deepEqual(sent.emails.map((e) => e.to), ['tom@example.com']);
+    assert.equal(sent.notifications[0].route, 'client', 'no thread: the alert opens the client page');
   }
   // No name on file: the alert still names "A new client", never "undefined".
   {
@@ -387,7 +388,12 @@ test('app: the thread view loads its history by id, shows the welcome as a note,
   assert.match(client, /import \{ isShapeWelcome, shapeWelcomeShown \} from '\.\.\/services\/shapeWelcome\.mjs';/);
   const thread = client.slice(client.indexOf('function BSChatThread('), client.indexOf('function BSChatThread(') + 9000);
   assert.match(thread, /if \(!thread\.conversationId \|\| \(thread\.messages && thread\.messages\.length\) \|\| !window\.ShapeMessages\?\.getConversationThread\) return;/);
-  assert.match(thread, /: \(history && history\.length\) \? history/);
+  assert.match(thread, /: \(historyHere && historyHere\.length\) \? historyHere/);
+  // One conversation's history never shows in another (Codex on #2360).
+  assert.match(thread, /React\.useEffect\(\(\) => \{\s+setHistory\(null\);/);
+  assert.match(thread, /res\.data\.conversation_id === id && Array\.isArray\(res\.data\.messages\)\) setHistory\(\{ id, messages: res\.data\.messages \}\)/);
+  assert.match(thread, /const historyHere = history && history\.id === thread\.conversationId \? history\.messages : null;/);
+  assert.match(client, /<BSChatThread\s+key=\{openChat\.conversation_id \|\| \(openChat\.channelId != null \? 'ch:' \+ openChat\.channelId : 'n:' \+ \(openChat\.n \|\| ''\)\)\}/);
   assert.match(thread, /if \(isShapeWelcome\(row\)\) \{ setExtras/);
   assert.match(client, /if \(m\.shape\) \{\s+return \(/);
   assert.match(client, /\{shapeWelcomeShown\(m\.shape, tr\) \|\| m\.t\}/);
@@ -399,4 +405,32 @@ test('app: the thread view loads its history by id, shows the welcome as a note,
   // Member views that pick "my coach" from these threads never pick one of the account's own clients.
   assert.equal((client.match(/\.filter\(\(?c\)? => !c\.as_coach\)/g) || []).length, 2, 'the dispatch register and the profile chip');
   assert.match(read('mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx'), /const threads = \(\(res && res\.data\) \|\| \[\]\)\.filter\(\(th\) => !th\.as_coach\);/);
+});
+
+test('the new-client alert opens the thread: the app\'s router and the website\'s inbox both read "chat:<id>"', () => {
+  const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  const at = client.indexOf('function bsRouteNotification(');
+  let depth = 0, i = client.indexOf(') {', at) + 2;
+  for (; i < client.length; i++) { if (client[i] === '{') depth++; else if (client[i] === '}' && --depth === 0) break; }
+  const events = [];
+  const window = { dispatchEvent: (e) => events.push([e.type, e.detail]) };
+  class CustomEvent { constructor(type, init) { this.type = type; this.detail = init && init.detail; } }
+  const route = new Function('window', 'CustomEvent', `${client.slice(at, i + 1)}; return bsRouteNotification;`)(window, CustomEvent);
+  assert.equal(route('chat:conv-9'), true);
+  assert.deepEqual(events, [['shape:openConversation', { conversationId: 'conv-9' }]]);
+  assert.equal(route('chat:'), false, 'no id, nothing to open');
+  const pros = read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx');
+  assert.equal((pros.match(/window\.addEventListener\('shape:openConversation', open\);/g) || []).length, 2, 'both coach shells answer it');
+
+  const shell = read('public/newdesign/pageShell.jsx');
+  const fn = shell.slice(shell.indexOf('const DASH_INBOX_ROUTES = {'), shell.indexOf('// ⚠ A SHAPE CHECK, NOT A TRUST FALL.'));
+  const href = new Function('window', `${fn}; return dashInboxHref;`)({});
+  assert.equal(href({ route: 'chat:conv-9' }, 'trainer'), '/newdesign/TrainerMessages.html?conversation=conv-9');
+  assert.equal(href({ route: 'chat:conv-9' }, 'nutritionist'), '/newdesign/NutritionistMessages.html?conversation=conv-9');
+  assert.equal(href({ route: 'chat:conv-9' }, 'client'), null, 'a member\'s chat is the bubble, not a page');
+  for (const role of ['Trainer', 'Nutritionist']) {
+    const page = read(`public/newdesign/${role}Messages.html`);
+    assert.match(page, /const wantedConv = params\.get\('conversation'\);/);
+    assert.match(page, /: Promise\.resolve\(wantedConv\);/, `${role}: the thread is selected once the inbox loads`);
+  }
 });

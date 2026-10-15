@@ -12228,6 +12228,12 @@ function bsRouteNotification(route) {
       window.dispatchEvent(new CustomEvent('shape:openPrep', { detail: { slug: route.slice(5) } }));
       return true;
     }
+    // A conversation ("chat:<id>", e.g. a coach's new-client alert, fix 3a) opens that thread, in
+    // either shell (both answer shape:openConversation).
+    if (route.startsWith('chat:') && route.length > 5) {
+      window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { conversationId: route.slice(5) } }));
+      return true;
+    }
     // Waitlist invite ("coach:<role>:<id>") → the marketplace on that role, so the invited client
     // can find the coach and book (first-dibs applies).
     if (route.startsWith('coach:')) {
@@ -24085,6 +24091,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     return (
       <>
         <BSChatThread
+          key={openChat.conversation_id || (openChat.channelId != null ? 'ch:' + openChat.channelId : 'n:' + (openChat.n || ''))}
           thread={{ who: isCh && !String(openChat.n || '').startsWith('#') ? `# ${openChat.n}` : openChat.n, role: openChat.s || (isCh ? tr('feed:thread.channel', { defaultValue: 'Channel' }) : tr('feed:thread.directMessage', { defaultValue: 'Direct message' })), last: openChat.last, time: '', messages: openChat.messages || [], group: isCh, conversationId: openChat.conversation_id, channelId: openChat.channelId }}
           eyebrow={openChat.channelId ? tr('feed:thread.channel', { defaultValue: 'Channel' }) : openChat.dm ? tr('feed:thread.privateThread', { defaultValue: 'Private thread' }) : tr('feed:thread.directMessage', { defaultValue: 'Direct message' })}
           onBack={() => setOpenChat(null)}
@@ -25698,20 +25705,25 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
   };
   // A conversation opened by id with no history in hand (a coach's MESSAGE on a client, a
   // notification) loads its history here, so Shape's welcome and earlier messages are there.
+  // ⚠ KEYED TO ITS CONVERSATION (Codex on #2360): a history fetched for one conversation is never
+  // shown in another, even for the moment before the next fetch lands or when it fails.
   const [history, setHistory] = useStateBSC(null);
   React.useEffect(() => {
+    setHistory(null);
     if (!thread.conversationId || (thread.messages && thread.messages.length) || !window.ShapeMessages?.getConversationThread) return;
     let on = true;
-    window.ShapeMessages.getConversationThread(thread.conversationId)
-      .then(res => { if (on && res && res.data && Array.isArray(res.data.messages)) setHistory(res.data.messages); })
+    const id = thread.conversationId;
+    window.ShapeMessages.getConversationThread(id)
+      .then(res => { if (on && res && res.data && res.data.conversation_id === id && Array.isArray(res.data.messages)) setHistory({ id, messages: res.data.messages }); })
       .catch(() => {});
     return () => { on = false; };
   }, [thread.conversationId]);
+  const historyHere = history && history.id === thread.conversationId ? history.messages : null;
   // Seed from the thread's last-message preview when it has no message history,
   // so a channel you open isn't blank before you post.
   const seed = (thread.messages && thread.messages.length)
     ? thread.messages
-    : (history && history.length) ? history
+    : (historyHere && historyHere.length) ? historyHere
     : (thread.last ? [{ who: thread.who, t: thread.last, time: thread.time || 'now', me: false }] : []);
   const allMessages = [...seed, ...extras];
   // Members' profile photos for the message avatars (visibility-ungated).

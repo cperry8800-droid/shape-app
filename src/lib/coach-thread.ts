@@ -203,7 +203,9 @@ export async function startCoaching(
         type: 'new_client',
         title: `New client: ${shown}`,
         body: `${shown} subscribed${pay}. Your thread with them is open in Messages; read their screening on their client page before you program.`,
-        route: 'messages',
+        // "chat:<id>" opens the thread in the app and on the website (Codex on #2360: "messages"
+        // opened nothing in either); with no thread, "client" opens the client's page.
+        route: out.conversationId ? `chat:${out.conversationId}` : 'client',
         data: { dedupe: `hire:${a.subscriptionKey}`, clientId: a.clientId, conversationId: out.conversationId, providerRole: a.providerRole },
       });
       // Only the call that stored the alert emails: a redelivered event finds the dedupe row.

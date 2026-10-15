@@ -464,6 +464,12 @@ function dashInboxHref(n, role) {
     const shell = role === "trainer" ? "TrainerApp.html" : "NutritionistApp.html";
     return (typeof window !== "undefined" && window.__shapeCoachShell ? "" : shell) + "#client/" + encodeURIComponent(String(id));
   }
+  // A coach's conversation ("chat:<id>", the new-client alert, fix 3a) opens their Messages page on
+  // that thread. A member's chat is the bubble, not a page, so it stays plain text for them.
+  if (n.route.startsWith("chat:") && n.route.length > 5) {
+    if (role !== "trainer" && role !== "nutritionist") return null;
+    return "/newdesign/" + (role === "nutritionist" ? "Nutritionist" : "Trainer") + "Messages.html?conversation=" + encodeURIComponent(n.route.slice(5));
+  }
   // The night-before prep reminder ("prep:<recipe>") opens the website's cook page on that recipe.
   if (n.route.startsWith("prep:") && n.route.length > 5) return "/newdesign/Cook.html?r=" + encodeURIComponent(n.route.slice(5));
   if (!Object.prototype.hasOwnProperty.call(DASH_INBOX_ROUTES, n.route)) return null;
