@@ -1013,10 +1013,10 @@ function ChatWidget(props) {
         // coach` — two coaches' private thread about them, mislabelled as one of
         // their own. Requiring a provider is what that tab means, and it also
         // makes the `roleLabel` fallback below unreachable rather than wrong.
-        // ⚠ REGISTERED, NOT FIXED: whether a member should be able to READ that
-        // thread at all is a question about `can_access_conversation`, i.e. a
-        // migration and somebody's ruling — not a filter in a chat widget. This
-        // stops surfacing it; it does not revoke anything.
+        // ⚠ AND THE MEMBER CAN NO LONGER READ IT: 2026-10-15-care-team-privacy.sql
+        // gives a thread's client access only when it has a provider (owner,
+        // 2026-10-15: "fix the privacy one first"), so this row no longer comes
+        // back at all. The clause stays: it is still what this tab means.
         const convRes = await db.from("conversations").select("*")
           .eq("kind", "direct").is("dm_key", null).eq("client_id", me)
           .not("provider_role", "is", null)
