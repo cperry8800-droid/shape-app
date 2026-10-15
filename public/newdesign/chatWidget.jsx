@@ -1013,7 +1013,7 @@ function ChatWidget(props) {
         // coach` — two coaches' private thread about them, mislabelled as one of
         // their own. Requiring a provider is what that tab means, and it also
         // makes the `roleLabel` fallback below unreachable rather than wrong.
-        // ⚠ AND THE MEMBER CAN NO LONGER READ IT: 2026-10-15-care-team-privacy.sql
+        // ⚠ AND THE MEMBER CAN NO LONGER READ IT: 2026-10-15-keep-care-team-private.sql
         // gives a thread's client access only when it has a provider (owner,
         // 2026-10-15: "fix the privacy one first"), so this row no longer comes
         // back at all. The clause stays: it is still what this tab means.

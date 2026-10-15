@@ -24,7 +24,18 @@
 --   get_or_create_client_conversation) all carry one, and a care-team thread never does;
 -- - a client a client-side write had added to a care-team thread is taken out;
 -- - a care-team message notifies the thread's other participants (the other coach), never the
---   client, with data.careTeam so the inbox opens it where coaches read it.
+--   client, with data.careTeam so the inbox opens it where coaches read it;
+-- - a care-team thread belongs to the coaches who still coach its client: a coach whose subscription
+--   ended keeps their participant row (nothing removes it), and until now kept reading, posting and
+--   hearing about the thread, so access and notifications both check for an active or trialing
+--   subscription to that coach's listing (Codex on #2367), the test
+--   get_or_create_coach_coach_conversation applies when it makes the thread. A coach who comes back
+--   reads it again.
+--
+-- ⚠ NAMED TO SORT AFTER 2026-10-15-coach-thread.sql (Codex on #2367). This file restates that one's
+-- notify_on_new_message, so a replay in filename order has to run it second; as
+-- "2026-10-15-care-team-privacy.sql" it sorted first, and a fresh database would have ended on the
+-- trigger this fixes.
 --
 -- Production held no conversations and no notifications on 2026-10-15: nobody was exposed.
 --
@@ -47,10 +58,27 @@ as $$
         -- The client of a coach thread. A care-team thread has client_id = the client it is
         -- about and no provider; the client is not one of its people.
         (c.client_id = auth.uid() and c.provider_role is not null)
+        -- A participant; on a care-team thread, only while they still coach its client.
         or exists (
           select 1
           from public.conversation_participants cp
           where cp.conversation_id = c.id and cp.user_id = auth.uid()
+            and (
+              c.provider_role is not null or c.dm_key is not null or c.client_id is null
+              or exists (
+                select 1 from public.subscriptions s
+                where s.client_id = c.client_id
+                  and s.status in ('active', 'trialing')
+                  and (
+                    (s.provider_role = 'trainer' and exists (
+                      select 1 from public.trainers t where t.id = s.provider_id and t.owner_id = auth.uid()
+                    ))
+                    or (s.provider_role = 'nutritionist' and exists (
+                      select 1 from public.nutritionists n where n.id = s.provider_id and n.owner_id = auth.uid()
+                    ))
+                  )
+              )
+            )
         )
         or (
           c.provider_role = 'trainer'
@@ -98,7 +126,8 @@ begin
     return new;
   end if;
 
-  -- A care-team thread: the other coaches on it hear, never the client it is about.
+  -- A care-team thread: the other coaches on it hear, never the client it is about, and only
+  -- those who still coach the client.
   if conv.provider_role is null and conv.dm_key is null and conv.client_id is not null then
     insert into public.notifications (user_id, type, title, body, route, data)
     select cp.user_id, 'message', 'New message', left(coalesce(new.body, ''), 80), 'messages',
@@ -106,7 +135,20 @@ begin
       from public.conversation_participants cp
      where cp.conversation_id = new.conversation_id
        and cp.user_id is distinct from new.sender_id
-       and cp.user_id <> conv.client_id;
+       and cp.user_id <> conv.client_id
+       and exists (
+         select 1 from public.subscriptions s
+         where s.client_id = conv.client_id
+           and s.status in ('active', 'trialing')
+           and (
+             (s.provider_role = 'trainer' and exists (
+               select 1 from public.trainers t where t.id = s.provider_id and t.owner_id = cp.user_id
+             ))
+             or (s.provider_role = 'nutritionist' and exists (
+               select 1 from public.nutritionists n where n.id = s.provider_id and n.owner_id = cp.user_id
+             ))
+           )
+       );
     return new;
   end if;
 
@@ -149,8 +191,14 @@ begin
   if position('c.client_id = auth.uid() and c.provider_role is not null' in v_access) = 0 then
     raise exception 'can_access_conversation still grants a care-team thread to its client';
   end if;
+  if position('c.provider_role is not null or c.dm_key is not null or c.client_id is null' in v_access) = 0 then
+    raise exception 'can_access_conversation still lets a former coach read a care-team thread';
+  end if;
   if position('''careTeam''' in v_notify) = 0 or position('providerRole' in v_notify) = 0 then
     raise exception 'notify_on_new_message is not this migration''s';
+  end if;
+  if position('t.owner_id = cp.user_id' in v_notify) = 0 or position('n.owner_id = cp.user_id' in v_notify) = 0 then
+    raise exception 'notify_on_new_message still tells a former coach about a care-team message';
   end if;
   if exists (
     select 1 from public.conversation_participants cp join public.conversations c on c.id = cp.conversation_id

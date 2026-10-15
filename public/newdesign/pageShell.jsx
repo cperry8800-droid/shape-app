@@ -472,7 +472,7 @@ const DASH_INBOX_ROUTES = {
 function dashInboxOpensFeed(n) { return !!(n && n.route === "feed"); }
 // A "New message" notification (route "messages", data.conversationId; fix 3a): for a member the
 // chat is the bubble, so the row opens the bubble on that thread rather than navigating.
-// A coach's care-team thread (data.careTeam, 2026-10-15-care-team-privacy.sql) is read in the bubble
+// A coach's care-team thread (data.careTeam, 2026-10-15-keep-care-team-private.sql) is read in the bubble
 // on the coach's own pages (coachClientDetail.jsx opens it there), never on a Messages page, which
 // lists one listing's client threads and would call it missing.
 function dashInboxIsCareTeam(n) { return !!(n && n.route === "messages" && n.data && n.data.careTeam === true); }

@@ -180,8 +180,6 @@ export const ORDER_CONSTRAINTS = [
     why: 'pr-wall-prev-race calls itself "A FOLLOW-UP FILE, NOT AN EDIT TO `2026-09-10-pr-wall-units.sql`, WHICH IS ALREADY APPLIED", generated from it, and recreates post_my_pr_to_wall with the prev_value fix' },
   { before: '2026-10-09-store-credit-reservations-and-lead-boost-redemption.sql', after: '2026-10-09-lead-boost-active-key-and-expiry.sql',
     why: 'lead-boost-active-key-and-expiry calls itself "A FOLLOW-UP FILE, NOT AN EDIT TO THAT ONE, which is already applied", generated from the redemption file\'s function text, and recreates redeem_lead_boost with the expiry and the role in its active check' },
-  { before: '2026-10-15-coach-thread.sql', after: '2026-10-15-care-team-privacy.sql',
-    why: 'care-team-privacy says notify_on_new_message\'s "body is 2026-10-15-coach-thread.sql\'s, with the care-team branch first", and its guard refuses a body without that branch, so the plain order (care < coach) would replay the trigger care-team-privacy fixed as the latest' },
 ];
 
 /**
@@ -254,6 +252,8 @@ export const REVIEWED_SAME_DAY_PAIRS = [
     ruling: 'client-weigh-ins says it EXTENDS the coach-read function and the plain order already replays it second; both bodies open with the same is_coach_on_client(p_user_id) gate and the same share opt-out, both are SECURITY DEFINER with search_path = public, and both only `grant execute ... to authenticated`, so reversing them changes which body text is latest and nothing the audit reads' },
   { files: ['2026-06-18-score-momentum.sql', '2026-06-18-score-momentum-escalation.sql'], fn: 'award_momentum_bonus()',
     ruling: 'the escalation file says it "Replaces the Phase B award_momentum_bonus()" and to "Run AFTER 2026-06-18-score-momentum.sql", and the plain order (the .sql suffix is not part of a name) already replays them that way; both take v_uid := auth.uid() and return when it is null, both are SECURITY DEFINER with search_path = public, and both only grant to authenticated, so reversing them changes only the body text' },
+  { files: ['2026-10-15-coach-thread.sql', '2026-10-15-keep-care-team-private.sql'], fn: 'notify_on_new_message()',
+    ruling: 'keep-care-team-private says its trigger body "is 2026-10-15-coach-thread.sql\'s, with the care-team branch first", is named to sort after it, and the plain order replays it second; both are SECURITY DEFINER trigger functions with search_path = public, pg_temp and grant nothing, so reversing them changes only the body text' },
   { files: ['2026-09-10-lift-units.sql', '2026-09-10-my-lifts-source.sql'], fn: 'get_my_lifts()',
     ruling: 'my-lifts-source says it is "Generated from 2026-09-10-lift-units.sql" and re-issues get_my_lifts, and the plain order already replays lift-units first; both create or replace with search_path = public, pg_temp, revoke execute from public and anon, and grant to authenticated, so reversing them changes only the body text' },
 ];
