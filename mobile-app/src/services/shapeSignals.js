@@ -94,7 +94,7 @@ async function coachClients(role, { strict = false } = {}) {
   try {
     if (window.ShapeAssign && window.ShapeAssign.clients) {
       const list = await window.ShapeAssign.clients(role, { strict });
-      return (Array.isArray(list) ? list : []).map((c) => ({ id: c.userId || c.id || c.user_id || null, name: c.name || c.full_name || 'Client' })).filter((c) => c.id);
+      return (Array.isArray(list) ? list : []).map((c) => ({ id: c.userId || c.id || c.user_id || null, name: c.name || c.full_name || 'Client', isNew: !!c.isNew, joinedAt: c.joinedAt || null })).filter((c) => c.id);
     }
   } catch (e) { if (strict) throw e; }
   if (strict) throw new Error('Client roster unavailable');
@@ -114,6 +114,13 @@ async function coachRecords(role, options) {
     if (window.ShapeRosterSleep && window.ShapeRosterSleep.get) {
       sleepByClient = (await window.ShapeRosterSleep.get(clients.map((c) => c.id))) || {};
     }
+  } catch (e) { /* ignore */ }
+  // Last contact and the onboarding board, from the roster's overviews (fix 4, and L8: the app never
+  // passed last contact, so a client nobody had written to was never flagged here, and the two views
+  // disagreed). Best-effort: a missing overview leaves both unset, which the engine reads as not shared.
+  let overviews = {};
+  try {
+    if (window.ShapeCareTeam && window.ShapeCareTeam.overviews) overviews = (await window.ShapeCareTeam.overviews(clients.map((c) => c.id))) || {};
   } catch (e) { /* ignore */ }
   return pooled(clients, 4, async (c) => {
     const kit = window.ShapeClientKit || {};
@@ -135,8 +142,11 @@ async function coachRecords(role, options) {
     // sleepHours shape recoveryRead consumes; vitals is the engine's §3A leg.
     // An entry with vitals but no sleep must not fabricate a recovery leg.
     const rs = sleepByClient[c.id] || null;
+    const ov = overviews[c.id] || null;
     return recordFromCoachData({
-      id: c.id, name: c.name, stats, lifts, goalsDoc, checkins, screening,
+      id: c.id, name: c.name, isNew: c.isNew, joinedAt: c.joinedAt, stats, lifts, goalsDoc, checkins, screening,
+      lastContact: ov && ov.lastContact ? ov.lastContact : null,
+      onboarding: ov && ov.onboarding ? ov.onboarding : null,
       recovery: rs && rs.sleepHours ? { sleepHours: rs.sleepHours } : null,
       vitals: rs && rs.vitals ? rs.vitals : null,
     }, deps());

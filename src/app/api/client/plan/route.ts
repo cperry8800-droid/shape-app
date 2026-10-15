@@ -250,6 +250,42 @@ export async function GET(request: Request) {
       : Promise.resolve(null),
   ]);
 
+  // ⚠ A COACHED MEMBER WITH NO PLAN YET WAS TOLD "NO COACH REQUIRED" (client-onboarding review, M16).
+  // The plan was the only coach signal here, so between subscribing and week 1 the member read "No
+  // plan yet", "Find a trainer" and a first check-in about a plan that did not exist. `coaching` is
+  // the coach they pay, per discipline, by their own active subscription: the name, the thread to
+  // message them in, and the week-one target the coach set (client_programs.detail[discipline]
+  // .weekOne, fix 4). Null when they have no such coach; the key is omitted when the read failed, so
+  // the app can tell "no coach" from "could not tell".
+  const { data: subRows, error: subErr } = await supabase
+    .from('subscriptions')
+    .select('provider_role, provider_id, created_at')
+    .eq('client_id', user.id)
+    .in('status', ['active', 'trialing']);
+  const coachingFor = async (role: 'trainer' | 'nutritionist') => {
+    const sub = ((subRows ?? []) as Array<{ provider_role: string; provider_id: number; created_at: string | null }>)
+      .filter((r) => r.provider_role === role)
+      .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')))[0];
+    if (!sub) return null;
+    const [nameRes, convRes] = await Promise.all([
+      supabase.from(role === 'trainer' ? 'trainers' : 'nutritionists').select('name').eq('id', sub.provider_id).maybeSingle(),
+      supabase.from('conversations').select('id').eq('client_id', user.id).eq('kind', 'direct').eq('provider_role', role).eq('provider_id', sub.provider_id).limit(1),
+    ]);
+    const section = (progRow?.detail as Record<string, unknown> | null)?.[role === 'trainer' ? 'training' : 'nutrition'] as Record<string, unknown> | undefined;
+    const w = section && typeof section.weekOne === 'object' && section.weekOne ? section.weekOne as Record<string, unknown> : null;
+    const count = w ? Number(w.count) : NaN;
+    return {
+      name: (nameRes.data as { name?: string } | null)?.name ?? null,
+      conversationId: ((convRes.data ?? []) as Array<{ id: string }>)[0]?.id ?? null,
+      weekOne: Number.isInteger(count) && count >= 1 && count <= 14
+        ? { count, startsOn: typeof w!.startsOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(w!.startsOn) ? w!.startsOn : null }
+        : null,
+    };
+  };
+  const [trainerCoaching, nutritionCoaching] = subErr
+    ? [undefined, undefined]
+    : await Promise.all([coachingFor('trainer'), coachingFor('nutritionist')]);
+
   return NextResponse.json({
     ok: true,
     weekStart,
@@ -257,6 +293,7 @@ export async function GET(request: Request) {
       hasPlan: workouts.length > 0,
       coach: trName,
       workouts,
+      ...(trainerCoaching === undefined ? {} : { coaching: trainerCoaching }),
     },
     meals: {
       hasPlan: Array.isArray(mealDays) && mealDays.length > 0,
@@ -267,6 +304,7 @@ export async function GET(request: Request) {
       // The nutritionist's live Adjust targets — when present these are the
       // CURRENT prescription and outrank the menu's authored day targets.
       coachTargets,
+      ...(nutritionCoaching === undefined ? {} : { coaching: nutritionCoaching }),
     },
   });
 }

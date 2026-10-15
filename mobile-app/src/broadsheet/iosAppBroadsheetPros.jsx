@@ -2169,8 +2169,11 @@ function bsRowFromTriage(row, role, t) {
   const initials = name.trim().split(/\s+/).map((w) => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?';
   const palette = [t.GREEN, t.RUST, t.AMBER, t.BLUE, '#8a5cf6'];
   let h = 0; for (let k = 0; k < name.length; k++) h = (h * 31 + name.charCodeAt(k)) >>> 0;
-  const sev = row.severity || 'green';
-  const rank = sev === 'red' ? 0 : sev === 'amber' ? 1 : 3;
+  // ⚠ A NEW CLIENT WITH NOTHING TO FLAG IS "NEW", AS ON THE WEBSITE (client-onboarding review, M13).
+  // The app mapped every live row to red/amber/on track, so the NEW slot the demo roster uses never
+  // showed for a real client. Its directive is the board's next step.
+  const sev = (row.severity || 'green') === 'green' && p.isNew ? 'new' : (row.severity || 'green');
+  const rank = sev === 'red' ? 0 : sev === 'amber' ? 1 : sev === 'new' ? 2 : 3;
   // Prefer the engine's ONE cross-domain directive reason (the read), falling
   // back to the first raw flag reason — same row, just a sharper "why".
   const dir = row.directive || null;
@@ -2181,7 +2184,10 @@ function bsRowFromTriage(row, role, t) {
   const reason = (dir && dir.reason && dir.reason !== '—' ? dir.reason : null)
     || [...rawReasons, ...flagReasons].filter(Boolean)[0];
   const nut = role === 'nutritionist';
-  const directive = reason || (sev === 'green' ? (nut ? coachTr('coach:roster.dirOnTrackNutri', { defaultValue: 'Logging on plan — nothing needed.' }) : coachTr('coach:roster.dirOnTrack', { defaultValue: 'On plan — nothing needed.' })) : coachTr('coach:roster.dirNeedsAttention', { defaultValue: 'Needs your attention this week.' }));
+  const obNext = sev === 'new' ? bsOnboardingNext(bsOnboardingFor(rec, role), role) : null;
+  const directive = sev === 'new'
+    ? (obNext ? coachTr('coach:onboard.dirNext', { defaultValue: 'New · {step}', step: obNext }) : coachTr('coach:onboard.dirNew', { defaultValue: 'New client — open their first 30 days.' }))
+    : reason || (sev === 'green' ? (nut ? coachTr('coach:roster.dirOnTrackNutri', { defaultValue: 'Logging on plan — nothing needed.' }) : coachTr('coach:roster.dirOnTrack', { defaultValue: 'On plan — nothing needed.' })) : coachTr('coach:roster.dirNeedsAttention', { defaultValue: 'Needs your attention this week.' }));
   const adh = (rec.trainingAdherence && rec.trainingAdherence.pct != null) ? rec.trainingAdherence.pct
     : (rec.foodLogs && rec.foodLogs.daysLogged7d != null) ? Math.round((rec.foodLogs.daysLogged7d / 7) * 100) : null;
   const streak = (rec.streaks && rec.streaks.current != null) ? rec.streaks.current : null;
@@ -2197,9 +2203,9 @@ function bsRowFromTriage(row, role, t) {
     avatar: p.avatar || p.photo || undefined,
     prog: (rec.program && rec.program.name) || '', r: String(rec.goalPhase || '').toUpperCase(),
     streak, d: adh != null ? `${adh}%` : '',
-    s: sev === 'red' ? 'missed' : sev === 'amber' ? 'review form' : 'on track',
+    s: sev === 'red' ? 'missed' : sev === 'amber' ? 'review form' : sev === 'new' ? 'onboard' : 'on track',
     active: true,
-    _sig: { sev, rank, label: sev === 'green' ? coachTr('coach:roster.labelOnTrack', { defaultValue: 'ON TRACK' }) : coachTr('coach:roster.labelNeedsYou', { defaultValue: 'NEEDS YOU' }), directive, routed },
+    _sig: { sev, rank, label: sev === 'green' ? coachTr('coach:roster.labelOnTrack', { defaultValue: 'ON TRACK' }) : sev === 'new' ? coachTr('coach:sev.new', { defaultValue: 'NEW' }) : coachTr('coach:roster.labelNeedsYou', { defaultValue: 'NEEDS YOU' }), directive, routed },
   };
 }
 // Severity for a roster row — prefers the live engine `_sig` when present, else
@@ -4424,6 +4430,110 @@ function BSCycleMonthStrip({ starts, heat, today }) {
   );
 }
 
+// ── The onboarding board in the coach app (client-onboarding review, fix 4) ──────────────────────
+// The overview's `onboarding` leg for this coach's role (src/lib/coach-client-legs.mjs), or null.
+function bsOnboardingFor(overview, role) {
+  const key = role === 'nutritionist' || role === 'dietitian' ? 'nutritionist' : 'trainer';
+  const ob = overview && overview.onboarding && overview.onboarding[key];
+  return ob && Array.isArray(ob.steps) ? ob : null;
+}
+// A board step's name, and the next step a new client's row names (the roster directive).
+function bsOnboardStepLabel(key, role) {
+  const nut = role === 'nutritionist' || role === 'dietitian';
+  switch (key) {
+    case 'joined': return coachTr('coach:onboard.stepJoined', { defaultValue: 'Subscribed' });
+    case 'welcome': return coachTr('coach:onboard.stepWelcome', { defaultValue: 'Shape welcome' });
+    case 'hello': return coachTr('coach:onboard.stepHello', { defaultValue: 'Your first message' });
+    case 'plan': return nut ? coachTr('coach:onboard.stepPlanNutri', { defaultValue: 'Meal plan live' }) : coachTr('coach:onboard.stepPlan', { defaultValue: 'Plan live' });
+    case 'checkin': return coachTr('coach:onboard.stepCheckin', { defaultValue: 'First check-in' });
+    case 'checkin2': return coachTr('coach:onboard.stepCheckin2', { defaultValue: 'Second check-in' });
+    case 'progress': return coachTr('coach:onboard.stepProgress', { defaultValue: 'Day-30 measurements' });
+    default: return key;
+  }
+}
+function bsOnboardDay(v) {
+  if (!v || typeof v !== 'string') return '';
+  const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(v) ? v + 'T12:00:00' : v);
+  return isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+}
+function bsOnboardingNext(ob, role) {
+  const next = (ob && Array.isArray(ob.steps) ? ob.steps : []).find((s) => s.done === false);
+  if (!next) return null;
+  const label = bsOnboardStepLabel(next.key, role);
+  return next.due ? coachTr('coach:onboard.nextDue', { defaultValue: '{step} · due {date}', step: label, date: bsOnboardDay(next.due) }) : label;
+}
+function BSProOnboardingStation({ ob, role, clientUid, first, heat, t, onSayHello }) {
+  const nut = role === 'nutritionist' || role === 'dietitian';
+  const [target, setTarget] = useStateBSP(ob.weekOne || null);
+  const [editing, setEditing] = useStateBSP(false);
+  const [count, setCount] = useStateBSP((ob.weekOne && ob.weekOne.count) || ob.suggested || (nut ? 5 : 3));
+  const nextMonday = (() => { const d = new Date(); d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7)); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); })();
+  const [startsOn, setStartsOn] = useStateBSP((ob.weekOne && ob.weekOne.startsOn) || nextMonday);
+  const [busy, setBusy] = useStateBSP(false);
+  const unitText = (n) => nut
+    ? coachTr('coach:onboard.targetNutri', { defaultValue: '{count, plural, one {# day} other {# days}} logged in week 1', count: n })
+    : coachTr('coach:onboard.targetTrainer', { defaultValue: '{count, plural, one {# workout} other {# workouts}} in week 1', count: n });
+  const save = async () => {
+    if (busy || !window.ShapeWeekOne) return;
+    setBusy(true);
+    const r = await window.ShapeWeekOne.set(clientUid, role, count, startsOn);
+    setBusy(false);
+    if (r && r.ok) { setTarget(r.weekOne); setEditing(false); window.__bsToast?.(coachTr('coach:onboard.saved', { defaultValue: 'Target saved' }), 'ok'); }
+    else window.__bsToast?.((r && r.error) || coachTr('coach:onboard.saveFailed', { defaultValue: 'Couldn’t save it. Try again.' }), 'info');
+  };
+  const mono = { fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase' };
+  const btn = { ...mono, fontWeight: 800, color: t.INK, background: 'transparent', border: 0, borderBottom: `1px solid ${heat}`, padding: '10px 0', minHeight: 44, cursor: 'pointer' };
+  const hello = ob.steps.find((s) => s.key === 'hello');
+  return (
+    <div style={{ marginTop: 22 }}>
+      {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={coachTr('coach:onboard.title', { defaultValue: 'FIRST 30 DAYS · DAY {day} OF {days}', day: ob.day, days: ob.days })} />}
+      <div style={{ borderLeft: `3px solid ${heat}`, padding: '2px 0 2px 11px' }}>
+        {ob.steps.map((s) => (
+          <div key={s.key} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '5px 0' }}>
+            <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 10, width: 12, color: s.done ? heat : t.INK50 }}>{s.done ? '✓' : s.done == null ? '?' : '○'}</span>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 13, color: s.done ? t.INK : t.INK70, flex: 1 }}>{bsOnboardStepLabel(s.key, role)}</span>
+            <span style={{ ...mono, fontSize: 8, color: t.INK50, whiteSpace: 'nowrap' }}>
+              {s.done && s.at ? bsOnboardDay(s.at)
+                : s.done == null ? coachTr('coach:onboard.unread', { defaultValue: 'couldn’t read' })
+                : !s.done && s.due ? coachTr('coach:onboard.due', { defaultValue: 'due {date}', date: bsOnboardDay(s.due) }) : ''}
+            </span>
+          </div>
+        ))}
+        {hello && hello.done === false && (
+          <button type="button" style={btn} onClick={onSayHello}>{coachTr('coach:onboard.sayHello', { defaultValue: 'SAY HELLO' })}</button>
+        )}
+        <div style={{ marginTop: 12 }}>
+          <div style={{ ...mono, fontSize: 7.5, fontWeight: 800, color: t.INK50 }}>{coachTr('coach:onboard.target', { defaultValue: 'Week-one target' })}</div>
+          {!editing && (
+            <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.45 }}>
+              {target
+                ? unitText(target.count) + (target.startsOn ? ' · ' + coachTr('coach:onboard.starts', { defaultValue: 'starts {date}', date: bsOnboardDay(target.startsOn) }) : '')
+                : coachTr('coach:onboard.notSet', { defaultValue: 'Not set' }) + (ob.suggested ? ' · ' + coachTr('coach:onboard.theySaid', { defaultValue: '{first} said {count, plural, one {# session} other {# sessions}} a week', first: first || coachTr('coach:common.clientFallback', { defaultValue: 'Client' }), count: ob.suggested }) : '')}
+              <div><button type="button" style={btn} onClick={() => setEditing(true)}>{target ? coachTr('coach:onboard.change', { defaultValue: 'CHANGE' }) : coachTr('coach:onboard.setTarget', { defaultValue: 'SET TARGET' })}</button></div>
+            </div>
+          )}
+          {editing && (
+            <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <button type="button" aria-label={coachTr('coach:onboard.less', { defaultValue: 'One fewer' })} style={{ ...btn, width: 44 }} disabled={count <= 1} onClick={() => setCount((n) => Math.max(1, n - 1))}>−</button>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK }}>{unitText(count)}</span>
+                <button type="button" aria-label={coachTr('coach:onboard.more', { defaultValue: 'One more' })} style={{ ...btn, width: 44 }} disabled={count >= 14} onClick={() => setCount((n) => Math.min(14, n + 1))}>+</button>
+              </div>
+              <label style={{ ...mono, color: t.INK50 }}>{coachTr('coach:onboard.startsLabel', { defaultValue: 'Week 1 starts' })}{' '}
+                <input type="date" value={startsOn} onChange={(e) => setStartsOn(e.target.value)} style={{ fontFamily: t.DISPLAY, fontSize: 13, color: t.INK, background: 'transparent', border: `1px solid ${t.INK}26`, padding: '6px 8px' }} />
+              </label>
+              <div style={{ display: 'flex', gap: 18 }}>
+                <button type="button" style={btn} disabled={busy} onClick={save}>{coachTr('coach:onboard.save', { defaultValue: 'SAVE' })}</button>
+                <button type="button" style={btn} onClick={() => setEditing(false)}>{coachTr('coach:onboard.cancel', { defaultValue: 'CANCEL' })}</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -4521,6 +4631,9 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   // The same overview fetch also carries the client's objective sleep (coach read).
   const [careTeam, setCareTeam] = useStateBSP(null);
   const [careLoaded, setCareLoaded] = useStateBSP(false);
+  // The onboarding board for this client in their first 30 days with this coach (fix 4), from the
+  // same overview; null otherwise.
+  const [onboard, setOnboard] = useStateBSP(null);
   // ⚠ A FAILED care-team read is NOT an empty care team, and the two must not render alike.
   // /api/clients/[id]/shared-overview still answers 200 when the underlying get_my_shared_clients
   // read errors (code deployed ahead of its migration, a revoked grant) and flags careTeamPartial.
@@ -4614,11 +4727,11 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   useEffectBSP(() => {
     // Reset per client + ignore a stale response, so navigating A→B never shows
     // client A's care team / sleep / cycle / prep / vitals on client B's profile.
-    setCareTeam(null); setSleepRec(null); setCycleShared(null); setPrepSignal(null); setCaseVitals(null); setCareLoaded(false); setCarePartial(false);
+    setCareTeam(null); setSleepRec(null); setCycleShared(null); setPrepSignal(null); setCaseVitals(null); setCareLoaded(false); setCarePartial(false); setOnboard(null);
     if (!clientUid || !window.ShapeCareTeam?.overview) { setCareLoaded(true); return undefined; }
     let ignore = false;
     window.ShapeCareTeam.overview(clientUid)
-      .then(d => { if (ignore) return; const team = (d && Array.isArray(d.careTeam)) ? d.careTeam.filter(c => c && !c.isMe && (c.userId || c.user_id)) : []; setCareTeam(team); setSleepRec(d && d.sleep ? d.sleep : null); setCycleShared(d && d.cycle && d.cycle.share === true && Array.isArray(d.cycle.starts) ? { starts: d.cycle.starts, today: typeof d.cycle.today === 'string' ? d.cycle.today : null } : null); setPrepSignal(d && d.prep && Number(d.prep.count) > 0 ? { count: Number(d.prep.count), lastAt: Number(d.prep.lastAt) || null, days: Array.isArray(d.prep.days) ? d.prep.days : [] } : null); setCaseVitals(bsCaseVitals(d)); setCarePartial(!!(d && d.careTeamPartial)); setCareLoaded(true); })
+      .then(d => { if (ignore) return; const team = (d && Array.isArray(d.careTeam)) ? d.careTeam.filter(c => c && !c.isMe && (c.userId || c.user_id)) : []; setCareTeam(team); setSleepRec(d && d.sleep ? d.sleep : null); setCycleShared(d && d.cycle && d.cycle.share === true && Array.isArray(d.cycle.starts) ? { starts: d.cycle.starts, today: typeof d.cycle.today === 'string' ? d.cycle.today : null } : null); setPrepSignal(d && d.prep && Number(d.prep.count) > 0 ? { count: Number(d.prep.count), lastAt: Number(d.prep.lastAt) || null, days: Array.isArray(d.prep.days) ? d.prep.days : [] } : null); setCaseVitals(bsCaseVitals(d)); setCarePartial(!!(d && d.careTeamPartial)); setOnboard(bsOnboardingFor(d, role)); setCareLoaded(true); })
       .catch(() => { if (!ignore) { setCarePartial(true); setCareLoaded(true); } });
     return () => { ignore = true; };
   }, [clientUid]);
@@ -5708,6 +5821,12 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
           ) : cKit.screening === 'unknown' && cKit.intake ? emptyNote(tr('coach:case.screeningUnread', { defaultValue: 'Their health screening could not be loaded. Try again in a moment.' }))
             : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:case.noHealthRedact', { defaultValue: 'NO HEALTH PROFILE ON FILE' })} /> : emptyNote(tr('coach:case.noHealth', { defaultValue: 'No health profile on file yet' })))}
         </div>
+      )}
+
+      {/* FIRST 30 DAYS — the onboarding board (client-onboarding review, fix 4), the website's board in
+          the app: every step ticked by a record, the coach's first message, the week-one target. */}
+      {clientUid && onboard && (
+        <BSProOnboardingStation ob={onboard} role={role} clientUid={clientUid} first={String(client?.n || client?.name || '').split(' ')[0]} heat={heat} t={t} onSayHello={() => fireEvt('shape:proMessageClient')} />
       )}
 
       {/* WHO THEY ARE — the goal they picked, whether they want coaching, their training and diet

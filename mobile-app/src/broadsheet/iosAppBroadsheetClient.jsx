@@ -5409,6 +5409,48 @@ function BSFindCoachBar({ role, onOpen }) {
   );
 }
 
+// ⚠ A COACHED MEMBER WITH NO PLAN YET IS WAITING ON THEIR COACH, NOT ON THEMSELVES (client-onboarding
+// review, M16). Train showed "No plan yet … no coach required" and "Find a trainer" to someone who
+// had just hired one, and Eat the same for a nutritionist. `coaching` is /api/client/plan's: the
+// coach's name, their thread, and the week-one target they set (fix 4).
+function BSCoachPreparing({ role, coaching, onOpenSession }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  const trainer = role === 'trainer';
+  const c = trainer ? '#c0533b' : '#a07a2e';
+  const coach = (coaching && coaching.name) || tr('common:coachPrep.coachFallback', { defaultValue: 'Your coach' });
+  const w = coaching && coaching.weekOne;
+  const fmt = (d) => { const x = new Date(d + 'T12:00:00'); return isNaN(x.getTime()) ? d : x.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }); };
+  const message = () => {
+    if (coaching && coaching.conversationId) {
+      try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { conversationId: coaching.conversationId, name: coaching.name || undefined } })); } catch (e) {}
+    } else {
+      try { window.dispatchEvent(new CustomEvent('shape:openPage', { detail: { page: 'messages' } })); } catch (e) {}
+    }
+  };
+  const act = { display: 'inline-flex', alignItems: 'center', minHeight: 44, background: 'transparent', border: 0, padding: 0, color: c, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' };
+  return (
+    <div data-coach-preparing={role} style={{ margin: `10px ${t.padX}px 0`, padding: '4px 0 4px 12px', borderLeft: `3px solid ${c}` }}>
+      <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: c, fontWeight: 700 }}>{tr('common:coachPrep.eyebrow', { defaultValue: 'Your coach is on it' })}</div>
+      <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 22, letterSpacing: '-0.02em', color: t.INK, margin: '5px 0 0', lineHeight: 1.1 }}>
+        {trainer ? tr('common:coachPrep.title', { defaultValue: '{coach} is preparing your plan', coach }) : tr('common:coachPrep.titleNutri', { defaultValue: '{coach} is preparing your meal plan', coach })}
+      </div>
+      <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.5 }}>{tr('common:coachPrep.body', { defaultValue: 'It shows up here the moment they publish it. Until then, tell them anything they should know.' })}</div>
+      {w && (
+        <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>
+          {[w.startsOn ? tr('common:coachPrep.starts', { defaultValue: 'Week 1 starts {date}', date: fmt(w.startsOn) }) : null,
+            trainer ? tr('common:coachPrep.target', { defaultValue: 'Week-one target: {count, plural, one {# workout} other {# workouts}}', count: w.count })
+              : tr('common:coachPrep.targetNutri', { defaultValue: 'Week-one target: log {count, plural, one {# day} other {# days}}', count: w.count })].filter(Boolean).join(' · ')}
+        </div>
+      )}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18, marginTop: 4 }}>
+        <button type="button" style={act} onClick={message}>{tr('common:coachPrep.message', { defaultValue: 'Message your coach' })} →</button>
+        {trainer && onOpenSession && <button type="button" style={{ ...act, color: t.INK50 }} onClick={onOpenSession}>{tr('common:coachPrep.meanwhile', { defaultValue: 'Log a session meanwhile' })} →</button>}
+      </div>
+    </div>
+  );
+}
+
 function BSWeekStrip({ activeIdx, onSelect, restFlags = [], onMonth }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -6143,6 +6185,8 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   }, []);
   const [liveWorkouts, setLiveWorkouts] = useStateBSC(null);
   const [liveTrainCoach, setLiveTrainCoach] = useStateBSC(null); // real assigning trainer
+  // The trainer this member pays, when they have one (/api/client/plan `training.coaching`, M16).
+  const [trainCoaching, setTrainCoaching] = useStateBSC(null);
   const [planLoaded, setPlanLoaded] = useStateBSC(false);
   const [builder, setBuilder] = useStateBSC(null); // { mode, ...seed } | null — the self-serve builder overlay
 
@@ -6153,6 +6197,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
     try {
       window.ShapeMetrics?.invalidate?.();
       const p = await window.ShapePlan?.get?.();
+      setTrainCoaching(p?.training?.coaching || null);
       if (p?.training?.hasPlan) { setLiveWorkouts(p.training.workouts); setLiveTrainCoach(p.training.coach || null); setDay(bsWeekdayIdx()); }
       else { setLiveWorkouts(null); setLiveTrainCoach(null); }
     } catch (e) { /* keep demo program */ }
@@ -6236,14 +6281,18 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       <BSPage>
         <BSPageHeader kicker={tr('session:train.kickerTrain', { defaultValue: 'Train' })} title={tr('session:train.yourTraining', { defaultValue: 'Your training' })} trailing={<BSHeaderTools onProfile={onProfile} />} />
         {resumeBanner}
-        <BSFindCoachBar role="trainer" onOpen={() => goMarket('trainer')} />
-        <BSBuildDoor
-          onBuild={() => setBuilder({ mode: 'session' })}
-          onOpenSession={() => { setOpenSession(true); setSession(true); }}
-          onStartTemplate={startTemplate}
-          onStartProgram={startProgram}
-          onDraft={() => setBuilder({ mode: 'program', autoDraft: true })}
-        />
+        {trainCoaching
+          ? <BSCoachPreparing role="trainer" coaching={trainCoaching} onOpenSession={() => { setOpenSession(true); setSession(true); }} />
+          : <>
+            <BSFindCoachBar role="trainer" onOpen={() => goMarket('trainer')} />
+            <BSBuildDoor
+              onBuild={() => setBuilder({ mode: 'session' })}
+              onOpenSession={() => { setOpenSession(true); setSession(true); }}
+              onStartTemplate={startTemplate}
+              onStartProgram={startProgram}
+              onDraft={() => setBuilder({ mode: 'program', autoDraft: true })}
+            />
+          </>}
       </BSPage>
     );
   }
@@ -12556,11 +12605,14 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
 
   // Pull the client's assigned meal plan; fall back to the demo menu when none.
   const [eatPlanRead, setEatPlanRead] = useStateBSC(false);
+  // The nutritionist this member pays, when they have one (/api/client/plan `meals.coaching`, M16).
+  const [eatCoaching, setEatCoaching] = useStateBSC(null);
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const p = await window.ShapePlan?.get?.();
+        if (!cancelled) setEatCoaching(p?.meals?.coaching || null);
         if (cancelled || !p?.meals?.hasPlan) return;
         setLiveMealDays(p.meals.days);
         setLiveMealCoach(p.meals.coach || null);
@@ -13981,6 +14033,8 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
       <BSWeekStrip activeIdx={day} onSelect={setDay} restFlags={PROGRAM.map(p => p.tag === 'REST')} onMonth={goCalendar} />
 
       <BSCoachAdjustBanner detail={bsEatProgram.detail} kind="nutrition" />
+
+      {bsEatSignedIn && eatPlanRead && !liveMealDays && eatCoaching && <BSCoachPreparing role="nutritionist" coaching={eatCoaching} />}
 
       {/* The next meal — on its own, today only. Log it opens the meal, where it
           is logged; Swap opens the swap sheet on this meal. */}
