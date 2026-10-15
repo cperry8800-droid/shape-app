@@ -27,6 +27,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { videoRoomUrl } from '@/lib/video';
 import { createNotification } from '@/lib/notify';
 import { afterSessionStep, type SessionForEmail } from '@/lib/session-emails';
+import { linkPaidSession, openPaidSessions } from '@/lib/paid-sessions';
 import { isSessionReschedulable, unauthorizedAssignTargets } from '@/lib/access-guards.mjs';
 import { readJson, dbError } from '@/lib/request-utils';
 import { findSessionClash, isDoubleBookError } from '@/lib/session-booking';
@@ -244,13 +245,27 @@ async function createSession(request: Request, body: Record<string, unknown>) {
     .in('status', ['active', 'trialing']);
   if (subsError) return NextResponse.json({ error: 'Could not verify your active clients. Please retry.' }, { status: 500 });
   const activeClientIds = (subs ?? []).map((s) => String((s as { client_id: unknown }).client_id));
-  if (unauthorizedAssignTargets([clientId], activeClientIds).length) {
-    return NextResponse.json({ error: 'You can only book a session with your own active client.' }, { status: 403 });
+  const subscriber = unauthorizedAssignTargets([clientId], activeClientIds).length === 0;
+  // ⚠ A CLIENT WHO PAID FOR A SESSION CAN BE BOOKED (client-onboarding review, fix 3c: M10). Only
+  // an active subscriber could be, so a single paid session had nothing to book it with. The
+  // oldest open one is linked to this booking below (paid-sessions.ts); a subscriber's open one
+  // too, so it leaves the coach's To schedule list.
+  const paid = await openPaidSessions(createAdminClient(), { role, providerId, clientId });
+  if (!subscriber && !paid.ok) {
+    return NextResponse.json({ error: 'Could not verify your clients. Please retry.' }, { status: 503 });
+  }
+  const owed = paid.ok ? paid.rows[0] ?? null : null;
+  if (!subscriber && !owed) {
+    return NextResponse.json({ error: 'You can only book a session with your own client: an active subscriber, or one who paid you for a session.' }, { status: 403 });
   }
 
   // A run ("every Tue and Thu for 8 weeks") is the same booking on each of its dates, past the
-  // same checks above; it is written by createRun.
+  // same checks above; it is written by createRun. A run is a subscriber's: one paid session is
+  // one session.
   if (body.repeat != null) {
+    if (!subscriber) {
+      return NextResponse.json({ error: 'A weekly run is for subscribers. Book the paid session on its own.', code: 'run_needs_subscription' }, { status: 403 });
+    }
     return createRun({ supabase, role, providerId, clientId, date, time, zone, durationMin, type, topic, repeat: body.repeat });
   }
 
@@ -295,6 +310,19 @@ async function createSession(request: Request, body: Record<string, unknown>) {
       return NextResponse.json({ error: 'That time was just taken. Pick another.', code: 'taken' }, { status: 409 });
     }
     return dbError(insErr, 'session create', 500);
+  }
+  // Booked against the paid session it settles. A subscriber's booking stands either way (a link
+  // that fails leaves the payment on the To schedule list, where the coach sees it).
+  // ⚠ A CLIENT WHO DOES NOT SUBSCRIBE IS BOOKED ONLY BY SETTLING A PAYMENT. Two bookings racing for
+  // one payment (a double click) both found it open; the link is conditional, so one settles it
+  // and the other is taken back here, or one payment would have bought two sessions.
+  if (owed) {
+    const linked = await linkPaidSession(admin, owed, id);
+    if (!linked && !subscriber) {
+      const { error: backErr } = await admin.from('sessions').delete().eq('id', id);
+      if (backErr) console.error('[sessions/manage] paid_taken: the booking could not be taken back', id, backErr.message);
+      return NextResponse.json({ error: 'That paid session was just booked. Nothing else was booked.', code: 'paid_taken' }, { status: 409 });
+    }
   }
 
   try {

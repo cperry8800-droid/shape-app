@@ -78,7 +78,7 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
   const { data: provider, error: providerError } = await admin
     .from(table)
     .select(
-      `id, name, price, ${priceCol}, stripe_account_id, stripe_account_status, at_capacity, capacity_resume_at`
+      `id, name, price, ${priceCol}, stripe_account_id, stripe_account_status, at_capacity, capacity_resume_at, suspended_at`
     )
     .eq('id', providerId)
     .maybeSingle();
@@ -87,6 +87,8 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
     redirect(`${backHref}&error=${encodeURIComponent(`db_${providerError.code ?? 'error'}: ${providerError.message}`)}`);
   }
   if (!provider) redirect(`${backHref}&error=provider_not_found`);
+  // A suspended listing takes no payment (client-onboarding review, fix 3c: M8).
+  if ((provider as { suspended_at?: string | null }).suspended_at) redirect(`${backHref}&error=provider_suspended`);
   // First-dibs: an at-capacity coach is only purchasable with a live waitlist
   // invite. Invite lookup runs on the caller's RLS-scoped client; a lookup
   // failure is a distinct retryable state, not a silent "at capacity".

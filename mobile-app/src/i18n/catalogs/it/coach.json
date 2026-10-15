@@ -1186,5 +1186,9 @@
   "rates.rowSubConsult": "{monthly}/mese · {oneTime}/consulenza",
   "rates.rowSubSession": "{monthly}/mese · {oneTime}/sessione",
   "rates.rowSubNoListing": "Da impostare quando la tua candidatura da coach viene approvata",
-  "rates.rowSubError": "Impossibile caricare le tue tariffe. Tocca per riprovare"
+  "rates.rowSubError": "Impossibile caricare le tue tariffe. Tocca per riprovare",
+  "today.toScheduleHead": "DA PROGRAMMARE · {count}",
+  "today.toSchedulePaid": "Pagato il {date}",
+  "today.toScheduleBook": "PROGRAMMA",
+  "today.toScheduleFailed": "Impossibile caricare le sessioni pagate da programmare."
 }

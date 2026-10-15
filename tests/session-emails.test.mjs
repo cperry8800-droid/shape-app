@@ -281,7 +281,8 @@ test('a coach books a session of any length they type, 5 minutes to 4 hours', ()
   const src = read('public/newdesign/dashSchedule.jsx');
   assert.match(src, /const DSC_LENGTH_MIN = 5;\nconst DSC_LENGTH_MAX = 240;/);
   assert.match(src, /const dscLengthOk = \(v\) => \{ const n = Number\(v\); return String\(v\)\.trim\(\) !== "" && Number\.isInteger\(n\) && n >= DSC_LENGTH_MIN && n <= DSC_LENGTH_MAX; \};/);
-  assert.match(src, /const blocked = busy \|\| !row \|\| v\.past \|\| !!v\.clash \|\| tooMany \|\| durBad;/);
+  // (A paid session is booked once: no weekly run for it, fix 3c.)
+  assert.match(src, /const blocked = busy \|\| !row \|\| v\.past \|\| !!v\.clash \|\| tooMany \|\| durBad \|\| \(paidOnly && weekly\);/);
   // The length booked is the one on screen; tests/schedule-step2.test.mjs drives it.
   assert.match(src, /const dur = durText === "" \? pillDur : \(dscLengthOk\(durText\) \? Number\(durText\) : null\);\n  const durBad = dur == null;/);
   const route = read('src/app/api/sessions/manage/route.ts');

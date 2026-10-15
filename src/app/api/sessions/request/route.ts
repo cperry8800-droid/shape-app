@@ -86,6 +86,11 @@ export async function POST(request: Request) {
   // without 2026-09-11-provider-timezone.sql (the /api/consultation and /api/availability rule).
   const { data: provider } = await admin.from(role === 'trainer' ? 'trainers' : 'nutritionists').select('*').eq('id', providerId).maybeSingle();
   if (!provider) return NextResponse.json({ error: 'Coach not found.' }, { status: 404 });
+  // A suspended listing takes no booking (client-onboarding review, fix 3c: M8), as
+  // /api/consultation refuses an intro with one.
+  if ((provider as { suspended_at?: unknown }).suspended_at) {
+    return NextResponse.json({ error: "This coach isn't taking bookings right now.", code: 'suspended' }, { status: 409 });
+  }
   const zone = normalizeZone((provider as { timezone?: unknown }).timezone);
   // Hours with no zone are hours nobody can place, so nothing is bookable against them — the
   // rule the Team page's own `nozone` state already shows the member.

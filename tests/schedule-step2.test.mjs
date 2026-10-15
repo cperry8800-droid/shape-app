@@ -281,11 +281,15 @@ function db(tables, { label, insertError = null, updateError = null, fail = [], 
       };
       chain.update = (patch) => {
         const filters = [];
+        // An update read back with `.select()` alone answers an array, as PostgREST's does; with
+        // `.maybeSingle()`, or with no select, the one row.
+        let selected = false, single = false;
         const upd = {
           eq(col, v) { filters.push((r) => r[col] === v); return upd; },
           neq(col, v) { filters.push((r) => r[col] !== v); return upd; },
           in(col, vs) { filters.push((r) => vs.includes(r[col])); return upd; },
-          select() { return upd; }, maybeSingle() { return upd; },
+          is(col, v) { filters.push((r) => (v === null ? r[col] == null : r[col] === v)); return upd; },
+          select() { selected = true; return upd; }, maybeSingle() { single = true; return upd; },
           then(res, rej) {
             const rows = (tables[table] || []).filter((r) => filters.every((f) => f(r)));
             // The database refusing the write (the overlap constraint): nothing changes. A function
@@ -294,10 +298,25 @@ function db(tables, { label, insertError = null, updateError = null, fail = [], 
             if (refused) return Promise.resolve({ data: null, error: refused }).then(res, rej);
             for (const r of rows) Object.assign(r, patch);
             writes.push({ by: label, table, op: 'update', patch, ids: rows.map((r) => r.id) });
-            return Promise.resolve({ data: rows[0] ?? null, error: null }).then(res, rej);
+            return Promise.resolve({ data: selected && !single ? rows : (rows[0] ?? null), error: null }).then(res, rej);
           },
         };
         return upd;
+      };
+      // A delete by filters (a booking taken back when its paid session went to another, fix 3c).
+      chain.delete = () => {
+        const filters = [];
+        const del = {
+          eq(col, v) { filters.push((r) => r[col] === v); return del; },
+          then(res, rej) {
+            const all = tables[table] || [];
+            const gone = all.filter((r) => filters.every((f) => f(r)));
+            tables[table] = all.filter((r) => !gone.includes(r));
+            writes.push({ by: label, table, op: 'delete', ids: gone.map((r) => r.id) });
+            return Promise.resolve({ data: null, error: null }).then(res, rej);
+          },
+        };
+        return del;
       };
       return chain;
     },
@@ -323,6 +342,7 @@ async function routes() {
   const booking = await lib('session-booking.ts', [['@supabase/supabase-js', {}], ['@/lib/owned-provider', owned]]);
   const series = await lib('session-series.ts', [['@supabase/supabase-js', {}], ['@/lib/time', time]]);
   const emails = await lib('coach-application-emails.ts');
+  const paidSessions = await lib('paid-sessions.ts', [['@supabase/supabase-js', {}]]);
   const guards = await import(pathToFileURL(join(ROOT, 'src/lib/access-guards.mjs')).href);
   const state = { client: null, admin: null, user: null, notices: [], mails: [], steps: [] };
   const registry = () => new Map([
@@ -331,6 +351,7 @@ async function routes() {
     ['@/lib/request-utils', requestUtils],
     ['@/lib/access-guards.mjs', guards],
     ['@/lib/session-booking', booking],
+    ['@/lib/paid-sessions', paidSessions],
     ['@/lib/session-series', series],
     ['@/lib/request-auth', { clientForRequest: async () => state.client, currentUser: async () => state.user }],
     ['@/lib/supabase/admin', { createAdminClient: () => state.admin }],
@@ -1011,6 +1032,79 @@ test('two overlapping confirms tell the member once (Codex on #2370)', async () 
   assert.equal(again.notices.length, 0);
 });
 
+// ── Fix 3c (M10): a paid session is booked, and the booking settles it ─────────────────────────
+const paidRow = (id, extra = {}) => ({ id, client_id: 'member-7', provider_id: 7, provider_role: 'trainer', kind: 'booking', status: 'paid', price_cents: 6000, created_at: '2026-10-01T10:00:00Z', session_id: null, ...extra });
+const paidWorld = (rows, extra = {}) => world({
+  one_time_purchases: rows,
+  names: { 'member-1': 'Priya Shah', 'member-7': 'Lee Park' },
+  emails: { 'member-1': 'priya@shape.test', 'member-7': 'lee@shape.test' },
+  ...extra,
+});
+
+test('a client who paid for a session can be booked, once per payment, and each booking settles the oldest (fix 3c: M10)', async () => {
+  const tables = paidWorld([paidRow('p-1'), paidRow('p-2', { created_at: '2026-10-02T10:00:00Z' })]);
+  // Not a subscriber: booked because they paid, and the oldest payment is settled.
+  const first = await create({ clientId: 'member-7', durationMin: 45 }, { tables });
+  assert.equal(first.status, 200, JSON.stringify(first.body));
+  const [p1, p2] = tables.one_time_purchases;
+  assert.equal(p1.session_id, first.body.session.id);
+  assert.equal(p2.session_id, null);
+  const second = await create({ clientId: 'member-7', time: '11:00', durationMin: 45 }, { tables });
+  assert.equal(second.status, 200, JSON.stringify(second.body));
+  assert.equal(p2.session_id, second.body.session.id);
+  // Both settled: a third is refused, and nothing is written.
+  const before = tables.sessions.length;
+  const third = await create({ clientId: 'member-7', date: '2026-10-09', time: '09:00', durationMin: 45 }, { tables });
+  assert.equal(third.status, 403);
+  assert.match(third.body.error, /active subscriber, or one who paid you for a session/);
+  assert.equal(tables.sessions.length, before);
+  // A cancelled booking releases its payment: the next booking settles it again.
+  tables.sessions.find((r) => r.id === first.body.session.id).status = 'cancelled';
+  const again = await create({ clientId: 'member-7', date: '2026-10-09', time: '09:00', durationMin: 45 }, { tables });
+  assert.equal(again.status, 200, JSON.stringify(again.body));
+  assert.equal(p1.session_id, again.body.session.id);
+});
+
+test('two bookings racing for one paid session: one is booked, the other is taken back (fix 3c)', async () => {
+  // A double click, or the website and the app at once: both read the payment open.
+  const tables = paidWorld([paidRow('p-1')]);
+  const [a, b] = await Promise.all([
+    create({ clientId: 'member-7', time: '10:00', durationMin: 45 }, { tables }),
+    create({ clientId: 'member-7', time: '11:00', durationMin: 45 }, { tables }),
+  ]);
+  const won = [a, b].filter((r) => r.status === 200);
+  const lost = [a, b].filter((r) => r.status === 409);
+  assert.equal(won.length, 1, JSON.stringify([a.body, b.body]));
+  assert.equal(lost.length, 1);
+  assert.equal(lost[0].body.code, 'paid_taken');
+  // One payment, one session: the loser's row is gone, and the payment names the winner.
+  assert.deepEqual(tables.sessions.map((r) => r.id), [won[0].body.session.id]);
+  assert.equal(tables.one_time_purchases[0].session_id, won[0].body.session.id);
+  // The member hears about one booking. (The two calls share the harness's notice list, so the
+  // same notice can show in both: count distinct ones.)
+  assert.equal(new Set([...a.notices, ...b.notices].filter((n) => n.userId === 'member-7')).size, 1);
+});
+
+test('a paid session is booked on its own: no weekly run, and an unreadable payment record books nothing (fix 3c)', async () => {
+  const run = await create({ clientId: 'member-7', repeat: { weeks: 4 } }, { tables: paidWorld([paidRow('p-1')]) });
+  assert.equal(run.status, 403);
+  assert.equal(run.body.code, 'run_needs_subscription');
+  assert.equal(run.writes.filter((w) => w.table === 'sessions').length, 0);
+  // A refunded payment, a product, or another coach's sale does not make anyone bookable.
+  for (const row of [paidRow('p-r', { status: 'refunded' }), paidRow('p-g', { kind: 'program' }), paidRow('p-o', { provider_id: 8 })]) {
+    const r = await create({ clientId: 'member-7' }, { tables: paidWorld([row]) });
+    assert.equal(r.status, 403, row.id);
+  }
+  // The payments could not be read: refused, never guessed.
+  const down = await create({ clientId: 'member-7' }, { tables: paidWorld([paidRow('p-1')]), fail: ['one_time_purchases'] });
+  assert.equal(down.status, 503);
+  // A subscriber with an open payment: booked as before, and the payment settled too.
+  const tables = paidWorld([paidRow('p-s', { client_id: 'member-1' })]);
+  const sub = await create({ clientId: 'member-1' }, { tables });
+  assert.equal(sub.status, 200, JSON.stringify(sub.body));
+  assert.equal(tables.one_time_purchases[0].session_id, sub.body.session.id);
+});
+
 test('the calendar marks a session the caller booked AS A CLIENT, so the Schedule does not answer it', async () => {
   // RLS hands a session to its client as well as its coach: coach-1 is also a member of
   // trainer 8, and that request of theirs comes back in their own calendar.
@@ -1089,11 +1183,13 @@ const ROSTER = [
   { client: { profile: { id: 'member-2', name: 'Marcus T.' }, payments: {} } },
 ];
 
-function server({ events = WEEK(), slots = HOURS, zone = NY, answers = {}, plans = null, plansReadable = true } = {}) {
+function server({ events = WEEK(), slots = HOURS, zone = NY, answers = {}, plans = null, plansReadable = true, toSchedule = [] } = {}) {
   const posts = [];
   const calendarUrls = [];
   const handler = async (u, init) => {
     if (u.pathname === '/api/my-availability') return json(200, { slots, timezone: zone });
+    // Paid sessions not yet booked (fix 3c): none unless a test gives some; `false` answers 503.
+    if (u.pathname === '/api/coach/to-schedule') return toSchedule === false ? json(503, { error: 'down' }) : json(200, { items: toSchedule });
     if (u.pathname === '/api/calendar') {
       calendarUrls.push(u.search);
       const from = u.searchParams.get('from'), to = u.searchParams.get('to');
@@ -1417,6 +1513,42 @@ test('the book sheet books the length on screen: typed, cleared back to the pres
     assert.equal(posts.length, 1);
     assert.equal(posts[0].durationMin, 30);
   } finally { await page.unmount(); }
+});
+
+test('paid sessions wait in a To schedule strip, and Book opens the sheet on that client (fix 3c: M10)', async () => {
+  const items = [{ purchaseId: 'p-1', clientId: 'member-7', clientName: 'Lee Park', paidAt: '2026-10-01T10:00:00Z', priceCents: 6000 }];
+  const { page, posts } = await open({
+    toSchedule: items,
+    // The booking settles the payment, so the list the page re-reads afterwards is empty.
+    answers: { create: () => { items.length = 0; return json(200, { ok: true, session: { id: 's-paid', scheduled_at: '2026-10-07T15:15:00Z' }, meetingUrl: null, clientName: 'Lee Park' }); } },
+  });
+  try {
+    const strip = () => page.doc.querySelector('[data-to-schedule]');
+    assert.match(strip().textContent, /^1 to schedule/);
+    assert.match(strip().textContent, /Lee Park/);
+    assert.match(strip().textContent, /paid Oct 1/);
+    await page.click(page.buttonMatching(/^Book$/, strip()));
+    const dlg = () => page.doc.querySelector('[role=dialog]');
+    const sel = dlg().querySelector('select[aria-label=Client]');
+    assert.equal(sel.value, 'member-7', 'the sheet opens on the client who paid');
+    assert.ok([...sel.options].some((o) => o.textContent === 'Lee Park · paid session'), 'a client off the roster is offered by the payment');
+    // One paid session is one session: a weekly run is refused before it is sent.
+    await page.click(page.buttonMatching(/^Weekly$/, dlg()));
+    assert.ok(dlg().querySelector('[data-paid-only]'));
+    assert.equal(page.buttonMatching(/^Book/, dlg()).disabled, true);
+    await page.click(page.buttonMatching(/^Doesn.t repeat$/, dlg()));
+    await page.click(page.buttonMatching(/^Book( outside hours)? · Lee is told$/, dlg()));
+    assert.equal(posts.length, 1);
+    assert.equal(posts[0].clientId, 'member-7');
+    assert.ok(!dlg());
+    await page.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    assert.ok(!strip(), 'the settled payment leaves the list');
+  } finally { await page.unmount(); }
+  // A list that cannot be read is said, not shown as none.
+  const down = await open({ toSchedule: false });
+  try {
+    assert.match(down.page.doc.querySelector('[data-to-schedule]').textContent, /couldn't load/);
+  } finally { await down.page.unmount(); }
 });
 
 test('the book sheet refuses a clash before sending, and shows the server\'s refusal in place', async () => {

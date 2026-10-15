@@ -1186,5 +1186,9 @@
   "rates.rowSubConsult": "{monthly}/mês · {oneTime}/consulta",
   "rates.rowSubSession": "{monthly}/mês · {oneTime}/sessão",
   "rates.rowSubNoListing": "Definidos quando sua inscrição de coach for aprovada",
-  "rates.rowSubError": "Não foi possível carregar seus valores. Toque para tentar de novo"
+  "rates.rowSubError": "Não foi possível carregar seus valores. Toque para tentar de novo",
+  "today.toScheduleHead": "PARA AGENDAR · {count}",
+  "today.toSchedulePaid": "Pago em {date}",
+  "today.toScheduleBook": "AGENDAR",
+  "today.toScheduleFailed": "Não foi possível carregar as sessões pagas para agendar."
 }

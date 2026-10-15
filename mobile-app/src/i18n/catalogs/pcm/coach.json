@@ -1186,5 +1186,9 @@
   "rates.rowSubConsult": "{monthly}/month · {oneTime}/consult",
   "rates.rowSubSession": "{monthly}/month · {oneTime}/session",
   "rates.rowSubNoListing": "You go set am once dem approve your coach application",
-  "rates.rowSubError": "We no fit load your rates. Tap make you try again"
+  "rates.rowSubError": "We no fit load your rates. Tap make you try again",
+  "today.toScheduleHead": "TO SCHEDULE · {count}",
+  "today.toSchedulePaid": "Dem pay {date}",
+  "today.toScheduleBook": "BOOK",
+  "today.toScheduleFailed": "Paid sessions wey you go schedule no fit load."
 }

@@ -1186,5 +1186,9 @@
   "rates.rowSubConsult": "{monthly}/міс · {oneTime}/консультація",
   "rates.rowSubSession": "{monthly}/міс · {oneTime}/сесія",
   "rates.rowSubNoListing": "Задаються, коли твою заявку тренера схвалять",
-  "rates.rowSubError": "Не вдалося завантажити ставки. Натисни, щоб спробувати ще раз"
+  "rates.rowSubError": "Не вдалося завантажити ставки. Натисни, щоб спробувати ще раз",
+  "today.toScheduleHead": "ПОТРІБНО ЗАПИСАТИ · {count}",
+  "today.toSchedulePaid": "Оплачено {date}",
+  "today.toScheduleBook": "ЗАПИСАТИ",
+  "today.toScheduleFailed": "Не вдалося завантажити оплачені сесії для запису."
 }

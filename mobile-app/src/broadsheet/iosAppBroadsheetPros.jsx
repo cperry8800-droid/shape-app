@@ -1735,6 +1735,19 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
   // the client page's local schedFor pattern.
   const [schedFor, setSchedFor] = useStateBSP(null);
 
+  // ⚠ A PAID SESSION WAITS HERE UNTIL IT IS BOOKED (client-onboarding review, fix 3c: M10). A client
+  // who paid for one session used to become nothing on the coach's side: no booking, no list, and
+  // the route would not book a client who did not subscribe. /api/coach/to-schedule lists them;
+  // Book opens the same session sheet for that client, and booking takes it off. Re-read when the
+  // sheet closes. `false` when it could not be read, which is said, not shown as none.
+  const [toSchedule, setToSchedule] = useStateBSP([]);
+  useEffectBSP(() => {
+    if (!coachSignedIn || schedFor || !window.ShapeSessions?.listToSchedule) return undefined;
+    let live = true;
+    window.ShapeSessions.listToSchedule(role).then((items) => { if (live) setToSchedule(items); }, () => { if (live) setToSchedule(false); });
+    return () => { live = false; };
+  }, [coachSignedIn, role, schedFor]);
+
   // ── Motion sections: one useBSSdInView pair per station (lead/rail/wire/inside) ──
   const [leadRef, leadSeen] = useSdInView ? useSdInView() : [null, true];
   const [railRef, railSeen] = useSdInView ? useSdInView() : [null, true];
@@ -1849,6 +1862,30 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
           {calendarStatus === 'ready' && openHoursKnown && LedgerStat && <LedgerStat INK={t.INK} label={tr('coach:today.openHrs', { defaultValue: 'OPEN HRS' })} value={String(dayShape.openHours)} seen={leadSeen} figSize={26} delay={120} />}
         </div>
       </div>
+
+      {(toSchedule === false || toSchedule.length > 0) && (
+        <div data-to-schedule="" style={{ padding: `12px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: heat }}>
+            {toSchedule === false
+              ? tr('coach:today.toScheduleFailed', { defaultValue: "Paid sessions to schedule couldn't load." })
+              : tr('coach:today.toScheduleHead', { defaultValue: 'TO SCHEDULE · {count}', count: toSchedule.length })}
+          </div>
+          {toSchedule !== false && toSchedule.map((p) => (
+            <div key={p.purchaseId} data-paid={p.purchaseId} style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: t.BODY, fontSize: 13, fontWeight: 600, color: t.INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.clientName}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>
+                  {tr('coach:today.toSchedulePaid', { defaultValue: 'Paid {date}', date: new Date(p.paidAt).toLocaleDateString([], { month: 'short', day: 'numeric' }) })}
+                </div>
+              </div>
+              <button type="button" onClick={() => setSchedFor({ n: p.clientName, userId: p.clientId })}
+                style={{ flexShrink: 0, minHeight: 36, border: `1px solid ${heat}`, background: 'transparent', color: heat, borderRadius: 999, padding: '0 14px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                {tr('coach:today.toScheduleBook', { defaultValue: 'BOOK' })}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* §A.5 WEEK STRIP */}
       <BSProWeekStrip

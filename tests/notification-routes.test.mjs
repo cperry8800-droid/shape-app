@@ -64,7 +64,10 @@ test('every route a sender writes is in the route table', () => {
 test('a coach\'s routes say whose they are: the calendar, the certifications and the client alerts', () => {
   // A member's sessions are "sessions"; a coach's booking request and payment are "schedule".
   for (const f of ['src/app/api/consultation/route.ts', 'src/app/api/sessions/request/route.ts']) assert.match(read(f), /type: 'booking_request',[\s\S]{0,200}route: 'schedule',/, f);
-  assert.match(read('src/app/api/stripe/webhook/route.ts'), /type: 'payment', title, body, route: 'schedule', data: \{ providerRole:/);
+  // A paid session (fix 3c): the coach's notice is coachPaid's, on the calendar in the listing's
+  // role; the webhook's nameless payment notice is gone.
+  assert.match(read('src/lib/coach-thread.ts'), /type: 'session_paid',[\s\S]{0,300}route: 'schedule',\n\s+data: \{ dedupe: `paid:\$\{a\.checkoutId\}`, clientId: a\.clientId, conversationId: out\.conversationId, providerRole: a\.providerRole \},/);
+  assert.doesNotMatch(read('src/app/api/stripe/webhook/route.ts'), /createNotification|route: 'sessions'/);
   assert.equal((read('src/app/dashboard/credentials/actions.ts').match(/route: 'credentials',/g) || []).length, 2);
   assert.match(read('src/app/api/cron/credential-expiry/route.ts'), /route: 'credentials',/);
   for (const f of ['src/app/api/sessions/manage/route.ts']) assert.doesNotMatch(read(f), /route: 'schedule'/, 'a member\'s session updates stay "sessions"');

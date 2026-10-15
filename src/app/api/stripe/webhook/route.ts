@@ -8,38 +8,12 @@ import { NextResponse } from 'next/server';
 import type Stripe from 'stripe';
 import { stripe } from '@/lib/stripe';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { createNotification } from '@/lib/notify';
 import { coachCutCents, bpsToRate, parseFeeBpsMeta } from '@/lib/platform-fee';
 import { attributionPair, MARKETPLACE_FEE_BPS } from '@/lib/coach-origin.mjs';
 import { isRetryableDbError } from '@/lib/db-retryable';
-import { startCoaching, welcomeMember } from '@/lib/coach-thread';
+import { coachPaid, startCoaching, welcomeMember } from '@/lib/coach-thread';
 
 export const runtime = 'nodejs';
-
-// Notify a coach (provider owner) of revenue. Best-effort; never throws.
-async function notifyProviderOwner(
-  admin: ReturnType<typeof createAdminClient>,
-  providerId: number,
-  providerRole: string,
-  title: string,
-  body: string
-): Promise<void> {
-  try {
-    const table = providerRole === 'nutritionist' ? 'nutritionists' : 'trainers';
-    const { data } = await admin.from(table).select('owner_id').eq('id', providerId).maybeSingle();
-    const ownerId = (data as { owner_id?: string } | null)?.owner_id;
-    if (ownerId) {
-      // The coach's calendar, in the listing's role ('schedule'; the member's own sessions are 'sessions').
-      await createNotification(admin, { userId: ownerId, type: 'payment', title, body, route: 'schedule', data: { providerRole: providerRole === 'nutritionist' ? 'nutritionist' : 'trainer' } });
-    }
-  } catch {
-    /* best-effort */
-  }
-}
-
-function usd(cents: number): string {
-  return `$${(Math.max(0, cents) / 100).toFixed(2)}`;
-}
 
 function isoOrNull(unixSeconds: number | null | undefined): string | null {
   if (!unixSeconds) return null;
@@ -405,6 +379,18 @@ export async function POST(request: Request) {
           let { error: purchaseErr } = await admin
             .from('one_time_purchases')
             .upsert(withSnapshot, { onConflict: 'stripe_checkout_session_id' });
+          // ⚠ BEFORE 2026-10-15-paid-sessions.sql THE TABLE REFUSES KIND 'program' (23514, its kind
+          // check). The sale is recorded as it was before that migration, a booking, rather than
+          // lost: the row is the buyer's entitlement. The alerts below still say what was sold.
+          if (purchaseErr?.code === '23514' && kind === 'program') {
+            console.error('[stripe webhook] one_time_purchases refused kind program — recorded as booking; run 2026-10-15-paid-sessions.sql', { session: session.id });
+            purchaseRow.kind = 'booking';
+            withOrigin.kind = 'booking';
+            withSnapshot.kind = 'booking';
+            ({ error: purchaseErr } = await admin
+              .from('one_time_purchases')
+              .upsert(withSnapshot, { onConflict: 'stripe_checkout_session_id' }));
+          }
           // Pre-migration (or during PostgREST schema-cache lag) the plan_snapshot
           // column doesn't exist yet. Drop ONLY that column and retry — falling
           // straight through to the origin-drop path below would let a missing
@@ -506,11 +492,21 @@ export async function POST(request: Request) {
           // rate from the stamped fee_bps so the notified figure is what they got.
           const grossCents = Number(session.metadata?.gross_price_cents ?? priceCents);
           const payoutRate = bpsToRate(purchaseFeeBps);
-          await notifyProviderOwner(
-            admin, Number(providerId), providerRole,
-            'Payment received',
-            `${usd(coachCutCents(grossCents, payoutRate))} from a client${kind === 'meal_plan' ? ' for a meal plan' : kind === 'booking' ? ' for a booking' : ''}.`
-          );
+          // ⚠ THE COACH IS TOLD WHO PAID, AND ONLY ONCE THE PURCHASE IS SAVED (fix 3c: M10). This read
+          // "$X from a client for a booking", named nobody, left a paid session with nothing to
+          // book, and was sent whether or not the row above was written. coachPaid keys each send on
+          // the checkout, so a redelivered event sends nothing twice.
+          if (!purchaseErr) {
+            await coachPaid(admin, {
+              clientId,
+              providerRole: providerRole === 'nutritionist' ? 'nutritionist' : 'trainer',
+              providerId: Number(providerId),
+              kind: kind === 'program' || kind === 'meal_plan' ? kind : 'booking',
+              checkoutId: session.id,
+              coachCents: coachCutCents(grossCents, payoutRate),
+              itemName: session.metadata?.item_name ?? null,
+            });
+          }
           // First-dibs: a completed purchase against an invited waitlist slot
           // is the client taking their spot — flip it to booked. Supabase
           // reports failures via `error` (not a throw), so check it — a failed

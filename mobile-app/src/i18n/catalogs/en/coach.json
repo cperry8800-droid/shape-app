@@ -1186,5 +1186,9 @@
   "rates.rowSubConsult": "{monthly}/mo · {oneTime}/consult",
   "rates.rowSubSession": "{monthly}/mo · {oneTime}/session",
   "rates.rowSubNoListing": "Set once your coach application is approved",
-  "rates.rowSubError": "Couldn't load your rates. Tap to try again"
+  "rates.rowSubError": "Couldn't load your rates. Tap to try again",
+  "today.toScheduleHead": "TO SCHEDULE · {count}",
+  "today.toSchedulePaid": "Paid {date}",
+  "today.toScheduleBook": "BOOK",
+  "today.toScheduleFailed": "Paid sessions to schedule couldn't load."
 }

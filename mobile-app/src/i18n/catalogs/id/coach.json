@@ -1186,5 +1186,9 @@
   "rates.rowSubConsult": "{monthly}/bln · {oneTime}/konsultasi",
   "rates.rowSubSession": "{monthly}/bln · {oneTime}/sesi",
   "rates.rowSubNoListing": "Diatur setelah pendaftaran coach Anda disetujui",
-  "rates.rowSubError": "Tarif Anda tidak bisa dimuat. Ketuk untuk mencoba lagi"
+  "rates.rowSubError": "Tarif Anda tidak bisa dimuat. Ketuk untuk mencoba lagi",
+  "today.toScheduleHead": "PERLU DIJADWALKAN · {count}",
+  "today.toSchedulePaid": "Dibayar {date}",
+  "today.toScheduleBook": "JADWALKAN",
+  "today.toScheduleFailed": "Sesi berbayar yang perlu dijadwalkan tidak dapat dimuat."
 }

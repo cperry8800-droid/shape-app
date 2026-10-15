@@ -1186,5 +1186,9 @@
   "rates.rowSubConsult": "{monthly}/mois · {oneTime}/consultation",
   "rates.rowSubSession": "{monthly}/mois · {oneTime}/séance",
   "rates.rowSubNoListing": "À définir une fois votre candidature de coach approuvée",
-  "rates.rowSubError": "Impossible de charger vos tarifs. Touchez pour réessayer"
+  "rates.rowSubError": "Impossible de charger vos tarifs. Touchez pour réessayer",
+  "today.toScheduleHead": "À PLANIFIER · {count}",
+  "today.toSchedulePaid": "Payé le {date}",
+  "today.toScheduleBook": "PLANIFIER",
+  "today.toScheduleFailed": "Impossible de charger les séances payées à planifier."
 }
