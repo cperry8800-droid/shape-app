@@ -520,6 +520,16 @@ function dprCheckinRatings(plans) {
   if (!plans) return CK_RATINGS;
   return CK_RATINGS.filter(([k]) => (k === "trainingAdherence" ? plans.training : k === "nutritionAdherence" ? plans.nutrition : true));
 }
+// What is saved is what was asked (Codex on #2378): hiding a question left its score in `ratings`, so
+// an adherence score from a week saved while a plan existed, or tapped before the plan read answered,
+// was written back. A rating the form does not know is kept as it came.
+function dprCheckinRatingsToSave(ratings, plans) {
+  const asked = new Set(dprCheckinRatings(plans).map(([k]) => k));
+  const known = new Set(CK_RATINGS.map(([k]) => k));
+  const out = {};
+  for (const [k, v] of Object.entries(ratings || {})) if (asked.has(k) || !known.has(k)) out[k] = v;
+  return out;
+}
 function DprCheckinForm({ kit, onSaved, units }) {
   const cur = dprCurrentCheckin(kit);
   const [plans, setPlans] = React.useState(null);
@@ -553,7 +563,7 @@ function DprCheckinForm({ kit, onSaved, units }) {
       const res = await fetch("/api/client/checkin-kit", {
         method: "POST", credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "checkin", ratings, wins, struggles, question, weight: weight || null, unit: wUnit, measurements, date: new Date().toLocaleDateString("en-CA") }),
+        body: JSON.stringify({ action: "checkin", ratings: dprCheckinRatingsToSave(ratings, plans), wins, struggles, question, weight: weight || null, unit: wUnit, measurements, date: new Date().toLocaleDateString("en-CA") }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Could not save");
       for (const pose of ["front", "side", "back"]) {

@@ -818,3 +818,21 @@ test('a coach the plan read could not tell is unknown, not none: no marketplace 
   assert.match(train, /\{findCoach && <> <a href="Marketplace\.html"/);
   assert.match(read('public/newdesign/dashNutri.jsx'), /with swaps and a grocery list\{plan && plan\.meals && plan\.meals\.coaching === null \? " — ask in chat, or find a coach in the marketplace\." : "\."\}/);
 });
+
+test('a check-in saves only the ratings it asked: no hidden adherence score is written back (Codex on #2378)', () => {
+  const RATINGS = [['trainingAdherence'], ['nutritionAdherence'], ['sleep'], ['energy']];
+  const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  const progress = read('public/newdesign/dashProgress.jsx');
+  const app = new Function('BS_CHECKIN_RATINGS', slice(client, 'function bsCheckinRatings(', 'const BS_MEASURE_SITES') + ';return bsCheckinRatingsToSave;')(RATINGS);
+  const web = new Function('CK_RATINGS', slice(progress, 'function dprCheckinRatings(', 'function DprCheckinForm(') + ';return dprCheckinRatingsToSave;')(RATINGS);
+  // A week saved while both plans existed, edited now with no training plan.
+  const saved = { trainingAdherence: 8, nutritionAdherence: 6, sleep: 7, energy: 5, legacy: 3 };
+  for (const f of [app, web]) {
+    assert.deepEqual(f(saved, { training: false, nutrition: true }), { nutritionAdherence: 6, sleep: 7, energy: 5, legacy: 3 }, 'a rating the form does not know is kept');
+    assert.deepEqual(f(saved, { training: false, nutrition: false }), { sleep: 7, energy: 5, legacy: 3 });
+    assert.deepEqual(f(saved, null), saved, 'until the plan read answers, every question is asked and kept');
+    assert.deepEqual(f(null, { training: true, nutrition: true }), {});
+  }
+  assert.match(client, /window\.ShapeCheckins\.submit\(\{ ratings: bsCheckinRatingsToSave\(ratings, plans\), wins,/);
+  assert.match(progress, /body: JSON\.stringify\(\{ action: "checkin", ratings: dprCheckinRatingsToSave\(ratings, plans\), wins,/);
+});

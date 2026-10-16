@@ -30487,6 +30487,15 @@ function bsCheckinRatings(plans) {
   if (!plans) return BS_CHECKIN_RATINGS;
   return BS_CHECKIN_RATINGS.filter(([k]) => (k === 'trainingAdherence' ? plans.training : k === 'nutritionAdherence' ? plans.nutrition : true));
 }
+// What is saved is what was asked (Codex on #2378), as on the website: a hidden adherence score is not
+// written back. A rating the form does not know is kept as it came.
+function bsCheckinRatingsToSave(ratings, plans) {
+  const asked = new Set(bsCheckinRatings(plans).map(([k]) => k));
+  const known = new Set(BS_CHECKIN_RATINGS.map(([k]) => k));
+  const out = {};
+  for (const [k, v] of Object.entries(ratings || {})) if (asked.has(k) || !known.has(k)) out[k] = v;
+  return out;
+}
 const BS_MEASURE_SITES = [['waist', 'Waist'], ['hips', 'Hips'], ['chest', 'Chest'], ['arm', 'Upper arm'], ['thigh', 'Thigh'], ['calf', 'Calf']];
 function BSWeeklyCheckin({ onBack }) {
   const t = useBS();
@@ -30534,7 +30543,7 @@ function BSWeeklyCheckin({ onBack }) {
     if (!loggedIn) { window.__bsToast?.('Sign in to check in', 'err'); return; }
     setBusy(true);
     try {
-      await window.ShapeCheckins.submit({ ratings, wins, struggles, question, weight: weight || null, unit: t.isMetric ? 'kg' : 'lb' });
+      await window.ShapeCheckins.submit({ ratings: bsCheckinRatingsToSave(ratings, plans), wins, struggles, question, weight: weight || null, unit: t.isMetric ? 'kg' : 'lb' });
       const entries = Object.entries(meas).filter(([, v]) => v).map(([site, v]) => ({ site, value: parseFloat(v) }));
       if (entries.length) { try { await window.ShapeMeasurements.log(entries, { unit: t.isMetric ? 'cm' : 'in' }); } catch (e) {} }
       if (weight) { try { await window.ShapeWeighIns?.log?.({ weight: parseFloat(weight), unit: t.isMetric ? 'kg' : 'lb' }); } catch (e) {} }
