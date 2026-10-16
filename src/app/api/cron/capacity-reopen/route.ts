@@ -4,7 +4,7 @@
 import { NextResponse } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { createPreferredNotification } from '@/lib/notify';
+import { preferredNotificationOutcome } from '@/lib/notify';
 import { reopenDueListings } from '@/lib/capacity-reopen';
 
 export const runtime = 'nodejs';
@@ -25,7 +25,7 @@ function authorized(req: Request): boolean {
 export async function GET(request: Request) {
   if (!authorized(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   try {
-    const result = await reopenDueListings(createAdminClient(), createPreferredNotification);
+    const result = await reopenDueListings(createAdminClient(), preferredNotificationOutcome);
     return NextResponse.json({ ok: result.failed === 0, ...result });
   } catch (e) {
     return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 200 });

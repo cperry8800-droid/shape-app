@@ -28,7 +28,7 @@ const NOW = Date.parse('2026-10-15T15:00:00Z');
 function fakeDb(tables, { as = 'caller', fail = {}, writes = [] } = {}) {
   const from = (table) => {
     const filters = [];
-    let op = 'select'; let payload = null; let opts = null; let count = false; let lim = Infinity;
+    let op = 'select'; let payload = null; let opts = null; let count = false; let lim = Infinity; let off = 0;
     const rows = () => (tables[table] ||= []);
     const match = (r) => filters.every(([k, v, kind]) => (kind === 'in' ? v.includes(r[k]) : kind === 'lte' ? (r[k] != null && Date.parse(r[k]) <= Date.parse(v)) : r[k] === v));
     const run = () => {
@@ -47,7 +47,7 @@ function fakeDb(tables, { as = 'caller', fail = {}, writes = [] } = {}) {
         hit.forEach((r) => Object.assign(r, payload));
         return { data: hit.map((r) => ({ ...r })), error: null };
       }
-      const got = rows().filter(match).slice(0, lim);
+      const got = rows().filter(match).slice(off, off + lim);
       return { data: count ? null : got.map((r) => ({ ...r })), error: null, count: count ? got.length : null };
     };
     const q = {
@@ -57,6 +57,7 @@ function fakeDb(tables, { as = 'caller', fail = {}, writes = [] } = {}) {
       lte: (k, v) => { filters.push([k, v, 'lte']); return q; },
       order: () => q,
       limit: (n) => { lim = n; return q; },
+      range: (a, b) => { off = a; lim = b - a + 1; return q; },
       upsert: (p, o) => { op = 'upsert'; payload = p; opts = o; return q; },
       update: (p) => { op = 'update'; payload = p; return q; },
       maybeSingle: async () => { const r = run(); return { ...r, data: Array.isArray(r.data) ? (r.data[0] ?? null) : r.data }; },
@@ -81,7 +82,7 @@ async function load() {
     registry: new Map([
       ['next/server', nextServer],
       ['@/lib/supabase/admin', { createAdminClient: () => state.admin }],
-      ['@/lib/notify', { createPreferredNotification: async (_c, n) => { if (state.notifyFails) return false; state.notices.push(n); return true; } }],
+      ['@/lib/notify', { preferredNotificationOutcome: async (_c, n) => { if (state.notifyFails) return 'failed'; state.notices.push(n); return 'stored'; } }],
       ['@/lib/request-utils', requestUtils],
       ['@/lib/capacity', capacity],
       ['@/lib/owned-provider', owned],
@@ -351,6 +352,71 @@ test('POST: a reopening cut off before its list is told stays due for the hourly
   assert.equal(tables.trainers[0].at_capacity, false);
 });
 
+test('a failed notice keeps the reopening due, and a member\'s own choice does not (Codex on #2375)', async () => {
+  const { reopen } = await load();
+  const due = () => world({ trainers: [{ id: 7, owner_id: COACH, name: 'Tom', at_capacity: true, capacity_resume_at: '2026-10-15T04:00:00+00:00' }] });
+  // m1's send fails (a preferences read or the insert): the listing stays due, and the next run retries only m1.
+  const tables = due();
+  const sent = [];
+  const store = storingNotify(tables, sent);
+  let flaky = true;
+  const first = await reopen.reopenDueListings(fakeDb(tables, { as: 'service' }), async (c, n) => (n.userId === 'm1' && flaky ? 'failed' : store(c, n)), NOW);
+  assert.deepEqual(first, { reopened: 0, notified: 1, pending: 1, failed: 0 });
+  assert.equal(tables.trainers[0].at_capacity, true);
+  flaky = false;
+  const second = await reopen.reopenDueListings(fakeDb(tables, { as: 'service' }), store, NOW);
+  assert.deepEqual(second, { reopened: 1, notified: 1, pending: 0, failed: 0 });
+  assert.deepEqual(sent, ['m2', 'm1']);
+  // Muted, the type off, or already sent: skipped is done.
+  const quiet = due();
+  const out = await reopen.reopenDueListings(fakeDb(quiet, { as: 'service' }), async () => 'skipped', NOW);
+  assert.deepEqual(out, { reopened: 1, notified: 0, pending: 0, failed: 0 });
+});
+
+test('every waiting member is told, past the first page (Codex on #2375)', async () => {
+  const { reopen } = await load();
+  const n = reopen.WAITLIST_PAGE * 2 + 3;
+  const tables = world({
+    trainers: [{ id: 7, owner_id: COACH, name: 'Tom', at_capacity: true, capacity_resume_at: '2026-10-15T04:00:00+00:00' }],
+    coach_waitlist: Array.from({ length: n }, (_, i) => ({ id: `w${String(i).padStart(5, '0')}`, provider_role: 'trainer', provider_id: 7, client_id: `m${i}`, status: 'waiting', created_at: '2026-10-01' })),
+  });
+  const sent = [];
+  const out = await reopen.reopenDueListings(fakeDb(tables, { as: 'service' }), storingNotify(tables, sent), NOW);
+  assert.deepEqual(out, { reopened: 1, notified: n, pending: 0, failed: 0 });
+  assert.equal(new Set(sent).size, n);
+});
+
+test('notify: why a preferred notice was not stored (Codex on #2375)', async () => {
+  const notify = await loadRealModule(join(ROOT, 'src/lib/notify.ts'), {
+    typescript: true,
+    registry: new Map([['@/lib/email', { sendEmail: async () => {} }], ['@/lib/ai/notifications.mjs', await import('../src/lib/ai/notifications.mjs')]]),
+  });
+  const db = ({ muted = false, prefsErr = null, insertErr = null } = {}) => ({
+    from: (table) => {
+      const q = {
+        select: () => q, eq: () => q, gte: () => q,
+        maybeSingle: async () => ({ data: { muted }, error: null }),
+        insert: async () => ({ error: insertErr }),
+        then: (res) => Promise.resolve(table === 'notification_preferences' ? { data: [], error: prefsErr } : { data: null, error: null, count: 0 }).then(res),
+      };
+      return q;
+    },
+    auth: { admin: { getUserById: async () => ({ data: { user: null } }) } },
+  });
+  const n = { userId: 'm1', type: 'waitlist_invite', title: 'Open', data: { dedupe: 'k' } };
+  const errLog = console.error; const infoLog = console.info; console.error = () => {}; console.info = () => {};
+  try {
+    assert.equal(await notify.preferredNotificationOutcome(db(), n), 'stored');
+    assert.equal(await notify.preferredNotificationOutcome(db({ muted: true }), n), 'skipped');
+    assert.equal(await notify.preferredNotificationOutcome(db({ insertErr: { code: '23505', message: 'dup' } }), n), 'skipped', 'already sent');
+    assert.equal(await notify.preferredNotificationOutcome(db({ insertErr: { code: 'XX000', message: 'down' } }), n), 'failed');
+    assert.equal(await notify.preferredNotificationOutcome(db({ prefsErr: { code: 'XX000', message: 'down' } }), n), 'failed');
+    // The boolean form callers already use is unchanged.
+    assert.equal(await notify.createPreferredNotification(db(), n), true);
+    assert.equal(await notify.createPreferredNotification(db({ insertErr: { code: '23505', message: 'dup' } }), n), false);
+  } finally { console.error = errLog; console.info = infoLog; }
+});
+
 test('the hourly job: its route needs the cron secret, and it is scheduled and registered', async () => {
   const { reopen } = await load();
   const tables = world({ trainers: [{ id: 7, owner_id: COACH, name: 'Tom', at_capacity: true, capacity_resume_at: '2026-10-15T04:00:00+00:00' }] });
@@ -359,7 +425,7 @@ test('the hourly job: its route needs the cron secret, and it is scheduled and r
     registry: new Map([
       ['next/server', nextServer],
       ['@/lib/supabase/admin', { createAdminClient: () => fakeDb(tables, { as: 'service' }) }],
-      ['@/lib/notify', { createPreferredNotification: async () => true }],
+      ['@/lib/notify', { preferredNotificationOutcome: async () => 'stored' }],
       ['@/lib/capacity-reopen', reopen],
     ]),
   });
@@ -399,11 +465,13 @@ test('POST: reopening tells everyone still waiting, once a day, and only them', 
   // A resume date that already passed was open to members; switching off then is no reopening.
   const lapsed = world({ trainers: [{ id: 7, owner_id: COACH, name: 'Tom', at_capacity: true, capacity_resume_at: '2026-10-01T00:00:00Z' }] });
   assert.equal((await call('POST', { tables: lapsed, body: { role: 'trainer', atCapacity: false } })).notices.length, 0);
-  // A failed notice never undoes the change.
+  // A failed notice never undoes the change: the coach is open to members, and the reopening stays
+  // due so the hourly job tries those members again (Codex on #2375).
   const failing = await call('POST', { tables: world({ trainers: [{ id: 7, owner_id: COACH, name: 'Tom', at_capacity: true, capacity_resume_at: null }] }), body: { role: 'trainer', atCapacity: false }, notifyFails: true });
   assert.equal(failing.status, 200);
   assert.equal(failing.body.notified, 0);
-  assert.equal(failing.body.listing.atCapacity, false);
+  assert.equal(failing.body.listing.effective, false, 'open to members');
+  assert.equal(failing.body.listing.atCapacity, true, 'still due');
 });
 
 test('POST: the intro setting is saved first, and a database without its column refuses the whole change', async () => {

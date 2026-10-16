@@ -29,7 +29,7 @@
 
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { createPreferredNotification } from '@/lib/notify';
+import { preferredNotificationOutcome } from '@/lib/notify';
 import { readJson } from '@/lib/request-utils';
 import { isEffectivelyAtCapacity } from '@/lib/capacity';
 import { isMissingRelation } from '@/lib/owned-provider';
@@ -252,7 +252,7 @@ export async function POST(request: Request) {
   if (reopening) {
     try {
       const admin = createAdminClient();
-      const told = await tellWaitingList(admin, createPreferredNotification, role, before.id, after.name, dueAt.slice(0, 10), Date.now() + REOPEN_REQUEST_BUDGET_MS);
+      const told = await tellWaitingList(admin, preferredNotificationOutcome, role, before.id, after.name, dueAt.slice(0, 10), Date.now() + REOPEN_REQUEST_BUDGET_MS);
       notified = told.sent;
       if (told.complete && await finishReopening(admin, role, before.id, dueAt)) {
         after = { ...after, at_capacity: false, capacity_resume_at: null };

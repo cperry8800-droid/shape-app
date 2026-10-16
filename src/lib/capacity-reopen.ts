@@ -22,8 +22,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type CapacityRole = 'trainer' | 'nutritionist';
 
-/** The most waiting members one reopening notifies. */
-export const NOTIFY_MAX = 500;
+/** Waiting members read per page; a reopening tells every page (Codex on #2375: a cap left the rest untold for good). */
+export const WAITLIST_PAGE = 500;
 /** Listings the cron reopens per role per run (the next run takes the rest). */
 export const REOPEN_BATCH = 200;
 /** A date that passed longer ago than this is switched off without a notice: news that old is not. */
@@ -39,7 +39,9 @@ type Notice = {
   route: string;
   data: Record<string, unknown>;
 };
-export type NotifyFn = (admin: SupabaseClient, notice: Notice) => Promise<boolean>;
+// true / 'stored': sent. false / 'skipped': not sent by the member's own choice, or already sent.
+// 'failed': a read or write that did not work, so the reopening stays due and a later run retries.
+export type NotifyFn = (admin: SupabaseClient, notice: Notice) => Promise<boolean | 'stored' | 'skipped' | 'failed'>;
 
 function tableOf(role: CapacityRole) {
   return role === 'trainer' ? 'trainers' : 'nutritionists';
@@ -52,8 +54,9 @@ export function reopenKey(role: CapacityRole, providerId: number, day: string) {
 
 /**
  * Tell every member still waiting that the coach is taking new clients, skipping anyone already told
- * this reopening. Best effort per member. `complete` is false when the list could not be read or the
- * deadline came before everyone was reached: the caller keeps the listing due so a later run finishes.
+ * this reopening. `complete` is false when the list could not be read, a notice failed (Codex on
+ * #2375: a failed send counted as done was lost for good), or the deadline came before everyone was
+ * reached: the caller keeps the listing due so a later run finishes.
  */
 export async function tellWaitingList(
   admin: SupabaseClient,
@@ -65,22 +68,27 @@ export async function tellWaitingList(
   deadlineMs: number = Infinity,
 ): Promise<{ sent: number; complete: boolean }> {
   try {
-    const { data, error } = await admin
-      .from('coach_waitlist')
-      .select('client_id')
-      .eq('provider_role', role)
-      .eq('provider_id', providerId)
-      .eq('status', 'waiting')
-      // capped-read-ok: first come, first told. Past the cap, the people who have waited longest are
-      // the ones who hear the coach reopened.
-      .order('created_at', { ascending: true })
-      .limit(NOTIFY_MAX);
-    if (error) {
-      console.error('[coach capacity] waiting list read failed', error.message);
-      return { sent: 0, complete: false };
+    const rows: { client_id: string }[] = [];
+    for (let from = 0; ; from += WAITLIST_PAGE) {
+      const { data, error } = await admin
+        .from('coach_waitlist')
+        .select('client_id')
+        .eq('provider_role', role)
+        .eq('provider_id', providerId)
+        .eq('status', 'waiting')
+        // capped-read-ok: a page, not a cap; every page is read, first come first told.
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, from + WAITLIST_PAGE - 1);
+      if (error) {
+        console.error('[coach capacity] waiting list read failed', error.message);
+        return { sent: 0, complete: false };
+      }
+      const page = (data ?? []) as { client_id: string }[];
+      rows.push(...page);
+      if (page.length < WAITLIST_PAGE) break;
     }
     const dedupe = reopenKey(role, providerId, day);
-    let rows = (data ?? []) as { client_id: string }[];
     // Who an earlier, cut-off run already told. A failed read skips nobody: the dedupe index still
     // refuses a second notice, so the cost is only time.
     const told = new Set<string>();
@@ -95,12 +103,13 @@ export async function tellWaitingList(
       if (seenErr) break;
       for (const r of (seen ?? []) as { user_id: string }[]) told.add(r.user_id);
     }
-    rows = rows.filter((r) => !told.has(r.client_id));
+    const todo = rows.filter((r) => !told.has(r.client_id));
     const coach = (name || '').trim() || 'A coach you waited for';
     let sent = 0;
-    for (let i = 0; i < rows.length; i += 10) {
+    let failed = 0;
+    for (let i = 0; i < todo.length; i += 10) {
       if (Date.now() >= deadlineMs) return { sent, complete: false };
-      const batch = await Promise.all(rows.slice(i, i + 10).map((w) => notify(admin, {
+      const batch = await Promise.all(todo.slice(i, i + 10).map((w) => notify(admin, {
         userId: w.client_id,
         type: 'waitlist_invite',
         title: `${coach} is taking new clients`,
@@ -108,9 +117,11 @@ export async function tellWaitingList(
         route: `coach:${role}:${providerId}`,
         data: { providerRole: role, providerId, reopened: true, dedupe },
       })));
-      sent += batch.filter(Boolean).length;
+      sent += batch.filter((o) => o === true || o === 'stored').length;
+      failed += batch.filter((o) => o === 'failed').length;
     }
-    return { sent, complete: true };
+    if (failed) console.error('[coach capacity] reopening notices failed; left due for a retry', role, providerId, failed);
+    return { sent, complete: failed === 0 };
   } catch (err) {
     console.error('[coach capacity] reopening notice failed', err instanceof Error ? err.message : err);
     return { sent: 0, complete: false };
