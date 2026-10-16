@@ -88,18 +88,21 @@ test('every capped read keeps the NEWEST rows, or says at the site why it must n
   );
 });
 
-test('the exemptions are the seven that were checked, and each is deliberate', () => {
+test('the exemptions are the eight that were checked, and each is deliberate', () => {
   // ⚠ NOT AN ALLOWLIST THE GUARD ENFORCES — it enforces the marker. This asserts the
-  // marker has not been sprinkled around to quiet the sweep: an eighth one is a decision
+  // marker has not been sprinkled around to quiet the sweep: a ninth one is a decision
   // somebody has to make, and making it means coming here. (lead-boosts/route.ts left the
   // list on 2026-10-09: its ascending provider read moved into redeem_lead_boost, where the
   // database picks the account's lowest-id provider row. trainer/analytics/route.ts joined
   // it on 2026-10-13: its two ascending reads are pages of readAllById's cursor walk over
   // every row, which the route reports as unknown at its ceiling rather than keeping a cap.
   // coach/capacity/route.ts joined on 2026-10-15: its listing read is one row by the unique
-  // index from #2331, and its waiting-list read tells the longest-waiting first.)
+  // index from #2331, and its waiting-list read tells the longest-waiting first.
+  // client/onboarding/route.ts joined on 2026-10-16: the member's own first 30 days asks for the
+  // membership's first row and the first records since it began, all bounded below by the join day.)
   const marked = capped().filter((r) => r.exempt).map((r) => r.where.replace(/:\d+$/, ''));
   assert.deepEqual([...new Set(marked)].sort(), [
+    'client/onboarding/route.ts',
     'coach/capacity/route.ts',
     'conversations/[id]/messages/route.ts',
     'cron/prep-reminders/route.ts',

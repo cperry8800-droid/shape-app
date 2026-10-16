@@ -6454,6 +6454,31 @@ async function setWeekOneTarget(clientId, role, count, startsOn) {
 }
 window.ShapeWeekOne = { set: setWeekOneTarget };
 
+// The member's own first 30 days (client-onboarding review, fix 4: the board's member mode):
+// GET /api/client/onboarding, the read the website's Today makes. { ok, board } (board null outside the
+// first 30 days) or { ok: false }. Not cached: the board follows every record, and a save re-reads it.
+async function getMemberSetup() {
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/client/onboarding`, { credentials: 'same-origin', headers: sessionsAuthHeaders() });
+    const d = await res.json().catch(() => null);
+    return res.ok && d && d.ok ? { ok: true, board: d.board || null } : { ok: false };
+  } catch (e) { return { ok: false }; }
+}
+// Their own week-one target: POST /api/client/onboarding { count, startsOn }. { ok, weekOne } or
+// { ok: false, error } (a member who pays a trainer is refused: the trainer sets it).
+async function setMemberWeekOne(count, startsOn) {
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/client/onboarding`, {
+      method: 'POST', credentials: 'same-origin',
+      headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ count, startsOn: startsOn || null }),
+    });
+    const d = await res.json().catch(() => ({}));
+    return res.ok && d.ok ? { ok: true, weekOne: d.weekOne || null } : { ok: false, error: d.error || null };
+  } catch (e) { return { ok: false, error: null }; }
+}
+window.ShapeMemberSetup = { get: getMemberSetup, setWeekOne: setMemberWeekOne };
+
 // Coach: read + waive a client's recent accountability penalties. Both are gated
 // server-side on is_coach_on_client (get_client_penalties / waive_penalty RPCs);
 // a non-coach gets [] / { waived:false }. No-op until the migration is applied.

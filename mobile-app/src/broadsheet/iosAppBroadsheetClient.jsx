@@ -4236,6 +4236,135 @@ function bsCheckinLeadSuppressed(engineFlag, prefOn) {
   return !!engineFlag && !prefOn && engineFlag.lever === 'checkin';
 }
 
+// ── Your first 30 days: the member's own board (client-onboarding review, fix 4, member mode) ──
+// The coach's FIRST 30 DAYS station with "you" in place of "the client", read from GET
+// /api/client/onboarding (src/lib/member-onboarding.mjs) — the board the website's Today shows. ⚠ EVERY
+// TICK IS A RECORD, and a step whose read failed says "couldn't read", never "to do".
+// ⚠ A FAILED REQUEST SHOWS NOTHING: the app cannot tell before the board arrives whether the member is
+// inside their 30 days, so a "couldn't read" station would also reach every member past day 30.
+const BS_SETUP_STEPS = {
+  joined: ['home:setup.stepJoined', 'Joined Shape'],
+  profile: ['home:setup.stepProfile', 'Goal set'],
+  plan: ['home:setup.stepPlan', 'Plan set'],
+  workout: ['home:setup.stepWorkout', 'First workout'],
+  review: ['home:setup.stepReview', 'Week-1 review'],
+  progress: ['home:setup.stepProgress', 'Day-30 review'],
+};
+// A day ('YYYY-MM-DD' or an ISO instant) in the UI language. A bare day is read at noon so no zone moves it.
+function bsSetupDay(v) {
+  if (!v || typeof v !== 'string') return '';
+  const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(v) ? v + 'T12:00:00' : v);
+  return isNaN(d.getTime()) ? '' : d.toLocaleDateString(bsDateLocale(), { weekday: 'short', day: 'numeric', month: 'short' });
+}
+function BSMemberSetupStation({ onGoal, onTrain, onCheckin, onFindCoach }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  const [board, setBoard] = useStateBSC(null);
+  const [nonce, setNonce] = useStateBSC(0);
+  const [editing, setEditing] = useStateBSC(false);
+  const [count, setCount] = useStateBSC(3);
+  const [startsOn, setStartsOn] = useStateBSC('');
+  const [busy, setBusy] = useStateBSC(false);
+  React.useEffect(() => {
+    let live = true;
+    const api = typeof window !== 'undefined' ? window.ShapeMemberSetup : null;
+    if (!api) return undefined;
+    api.get().then((r) => { if (live && r && r.ok) setBoard(r.board || null); }).catch(() => {});
+    return () => { live = false; };
+  }, [nonce]);
+  if (!board || !Array.isArray(board.steps)) return null;
+  const heat = t.isLight ? '#0a8f87' : '#34d6c5';
+  const mono = { fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase' };
+  const btn = { ...mono, fontWeight: 800, color: t.INK, background: 'transparent', border: 0, borderBottom: `1px solid ${heat}`, padding: '10px 0', minHeight: 44, cursor: 'pointer' };
+  const coaching = board.coaching;
+  const trainer = coaching && coaching.training != null ? coaching.training || tr('home:setup.yourTrainer', { defaultValue: 'Your trainer' }) : null;
+  const max = 14;
+  const unitText = (n) => tr('home:setup.targetCount', { defaultValue: '{count, plural, one {# workout} other {# workouts}} in week 1', count: n });
+  const NEXT = {
+    profile: [tr('home:setup.goProfile', { defaultValue: 'SET YOUR GOAL' }), onGoal],
+    plan: [tr('home:setup.goPlan', { defaultValue: 'PICK YOUR PLAN' }), onTrain],
+    workout: [tr('home:setup.goWorkout', { defaultValue: 'START WORKOUT 1' }), onTrain],
+    review: [tr('home:setup.goReview', { defaultValue: 'CHECK IN' }), onCheckin],
+    progress: [tr('home:setup.goProgress', { defaultValue: 'TAKE MEASUREMENTS' }), onCheckin],
+  };
+  const next = board.next && NEXT[board.next] && NEXT[board.next][1] ? NEXT[board.next] : null;
+  const target = board.weekOne;
+  const startEdit = () => {
+    setCount(Math.min(max, (target && target.count) || board.suggested || 3));
+    setStartsOn((target && target.startsOn) || (board.window && board.window.firstDay) || '');
+    setEditing(true);
+  };
+  const save = async () => {
+    if (busy || !window.ShapeMemberSetup) return;
+    setBusy(true);
+    const r = await window.ShapeMemberSetup.setWeekOne(count, startsOn);
+    setBusy(false);
+    // The board's dates follow the target: read it again.
+    if (r && r.ok) { setEditing(false); setNonce((n) => n + 1); window.__bsToast?.(tr('home:setup.saved', { defaultValue: 'Target saved' }), 'ok'); }
+    else window.__bsToast?.((r && r.error) || tr('home:setup.saveFailed', { defaultValue: 'Couldn’t save it. Try again.' }), 'info');
+  };
+  return (
+    <div data-member-setup style={{ margin: '18px 0 6px' }}>
+      <BSTStationHead heat={heat} INK={t.INK} label={tr('home:setup.title', { defaultValue: 'YOUR FIRST 30 DAYS · DAY {day} OF {days}', day: board.day, days: board.days })} />
+      <div style={{ borderLeft: `3px solid ${heat}`, padding: '2px 0 2px 11px' }}>
+        {board.steps.map((s) => (
+          <div key={s.key} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '5px 0' }}>
+            <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 10, width: 12, color: s.done ? heat : t.INK50 }}>{s.done ? '✓' : s.done == null ? '?' : '○'}</span>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 13, color: s.done ? t.INK : t.INK70, flex: 1 }}>{BS_SETUP_STEPS[s.key] ? tr(BS_SETUP_STEPS[s.key][0], { defaultValue: BS_SETUP_STEPS[s.key][1] }) : s.key}</span>
+            <span style={{ ...mono, fontSize: 8, color: t.INK50, whiteSpace: 'nowrap' }}>
+              {s.done && s.at ? bsSetupDay(s.at)
+                : s.done == null ? tr('home:setup.unread', { defaultValue: 'couldn’t read' })
+                : s.waiting ? tr('home:setup.coachOnIt', { defaultValue: '{name} is on it', name: trainer || tr('home:setup.yourTrainer', { defaultValue: 'Your trainer' }) })
+                : s.due ? tr('home:setup.due', { defaultValue: 'due {date}', date: bsSetupDay(s.due) }) : ''}
+            </span>
+          </div>
+        ))}
+        {next && <button type="button" style={btn} onClick={next[1]}>{next[0]}</button>}
+        {coaching && coaching.training == null && coaching.nutrition == null && onFindCoach && (
+          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.45 }}>
+            {tr('home:setup.wantCoach', { defaultValue: 'Want a coach? Answer the health screening once, and everything here goes with you.' })}
+            <div><button type="button" style={btn} onClick={onFindCoach}>{tr('home:setup.findCoach', { defaultValue: 'FIND A COACH' })}</button></div>
+          </div>
+        )}
+        <div style={{ marginTop: 12 }}>
+          <div style={{ ...mono, fontSize: 7.5, fontWeight: 800, color: t.INK50 }}>{tr('home:setup.target', { defaultValue: 'Week-one target' })}</div>
+          {!editing && (
+            <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.45 }}>
+              {target
+                ? unitText(target.count)
+                  + (target.startsOn ? ' · ' + tr('home:setup.starts', { defaultValue: 'starts {date}', date: bsSetupDay(target.startsOn) }) : '')
+                  + (board.setBy === 'coach' ? ' · ' + tr('home:setup.byCoach', { defaultValue: 'set by {name}', name: trainer || tr('home:setup.yourTrainer', { defaultValue: 'Your trainer' }) }) : '')
+                  + (board.weekOneDone != null ? ' · ' + tr('home:setup.doneCount', { defaultValue: '{count} done', count: board.weekOneDone }) : '')
+                : board.weekOneUnread ? tr('home:setup.unread', { defaultValue: 'couldn’t read' })
+                : board.coachSets ? tr('home:setup.coachSets', { defaultValue: '{name} sets your week-one target', name: trainer || tr('home:setup.yourTrainer', { defaultValue: 'Your trainer' }) })
+                : tr('home:setup.notSet', { defaultValue: 'Not set' }) + (board.suggested ? ' · ' + tr('home:setup.youSaid', { defaultValue: 'you said {count, plural, one {# session} other {# sessions}} a week', count: board.suggested }) : '')}
+              {!board.coachSets && !board.weekOneUnread && (
+                <div><button type="button" style={btn} onClick={startEdit}>{target ? tr('home:setup.change', { defaultValue: 'CHANGE' }) : tr('home:setup.setTarget', { defaultValue: 'SET TARGET' })}</button></div>
+              )}
+            </div>
+          )}
+          {editing && (
+            <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <button type="button" aria-label={tr('home:setup.less', { defaultValue: 'One fewer' })} style={{ ...btn, width: 44 }} disabled={count <= 1} onClick={() => setCount((n) => Math.max(1, n - 1))}>−</button>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK }}>{unitText(count)}</span>
+                <button type="button" aria-label={tr('home:setup.more', { defaultValue: 'One more' })} style={{ ...btn, width: 44 }} disabled={count >= max} onClick={() => setCount((n) => Math.min(max, n + 1))}>+</button>
+              </div>
+              <label style={{ ...mono, color: t.INK50 }}>{tr('home:setup.startsLabel', { defaultValue: 'Week 1 starts' })}{' '}
+                <input type="date" min={board.window && board.window.firstDay} max={board.window && board.window.lastDay} value={startsOn} onChange={(e) => setStartsOn(e.target.value)} style={{ fontFamily: t.DISPLAY, fontSize: 13, color: t.INK, background: 'transparent', border: `1px solid ${t.INK}26`, padding: '6px 8px' }} />
+              </label>
+              <div style={{ display: 'flex', gap: 18 }}>
+                <button type="button" style={btn} disabled={busy} onClick={save}>{tr('home:setup.save', { defaultValue: 'SAVE' })}</button>
+                <button type="button" style={btn} onClick={() => setEditing(false)}>{tr('home:setup.cancel', { defaultValue: 'CANCEL' })}</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = () => {}, goMarket, goScore, goChat = () => {}, goIntegrations, tweaks = {}, setTweak = () => {} }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -5023,6 +5152,13 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       {!(checkinDue && checkinPrefOn && !(engineFlag && engineFlag.lever === 'checkin')) && <BSHomeWallBulletin />}
       {/* Once today's check-in is logged it decays to a quiet index row here. */}
       <BSTodayNudge variant="row" onOpen={() => setTodayPage(true)} />
+
+      {/* ── YOUR FIRST 30 DAYS — the member's own board (client-onboarding review, fix 4), only while
+          there is one: the membership's first 30 days. The tour ends here, on Home, so it is the
+          first-run screen after the screening. */}
+      {bsHomeSignedIn && (
+        <BSMemberSetupStation onGoal={() => setGoalsPage(true)} onTrain={() => goTrain?.()} onCheckin={() => setCheckinPage(true)} onFindCoach={goMarket ? () => goMarket() : null} />
+      )}
 
       {/* ── FOCUS · THE NEXT STOP — the one next thing, on its own (today only;
           another day is a plan view, read on the line below). Timed leads carry

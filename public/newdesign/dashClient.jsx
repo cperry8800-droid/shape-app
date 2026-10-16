@@ -583,6 +583,177 @@ function DclNowColumn({ workout, meals, logged, onLog, live }) {
   );
 }
 
+// ── Your first 30 days: the member's own board (client-onboarding review, fix 4, member mode) ──
+// The coach's onboarding board with "you" in place of "the client", built by GET /api/client/onboarding
+// (src/lib/member-onboarding.mjs) from the member's own records. ⚠ EVERY TICK IS A RECORD, NEVER A BOX
+// THEY TICK, and a step whose read failed says "couldn't read", never "to do".
+// ⚠ A FAILED REQUEST SHOWS NOTHING, unlike the coach's unread board: the coach's roster knows a client
+// is inside their 30 days before the board arrives, and this page does not, so a "couldn't read" card
+// would also reach every member past day 30.
+const DCL_SETUP_STEPS = {
+  joined: "Joined Shape",
+  profile: "Goal set",
+  plan: "Plan set",
+  workout: "First workout",
+  review: "Week-1 review",
+  progress: "Day-30 review",
+};
+// A day ('YYYY-MM-DD' or an ISO instant) as "Mon 13 Oct". A bare day is read at noon so no zone moves it.
+function dclSetupDay(v) {
+  if (!v || typeof v !== "string") return "";
+  const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(v) ? v + "T12:00:00" : v);
+  return isNaN(d.getTime()) ? "" : d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+}
+const DCL_PREF_LABELS = {
+  experience: { beginner: "Beginner", novice: "Novice", intermediate: "Intermediate", advanced: "Advanced", elite: "Elite" },
+  diet: { omnivore: "Omnivore", vegetarian: "Vegetarian", vegan: "Vegan", pescatarian: "Pescatarian", keto: "Keto", paleo: "Paleo", mediterranean: "Mediterranean" },
+  calories: { by_feel: "By feel", strict: "Strict", loose: "Loose tracking", r1600_1800: "1600–1800", r1800_2000: "1800–2000", r2000_2200: "2000–2200", r2200_2400: "2200–2400", r2400_plus: "2400+" },
+};
+// A stored answer as the member reads it: a known token's label, else what they typed.
+function dclPrefLabel(row, v) {
+  if (!v) return null;
+  const map = DCL_PREF_LABELS[row] || {};
+  return Object.prototype.hasOwnProperty.call(map, v) ? map[v] : String(v).replace(/_/g, " ");
+}
+function DclSetupLine({ label, value, href, cta }) {
+  return <div className="dw-row" style={{ gap: 8 }}>
+    <span style={{ color: DCL_INK50 }}>{label}</span>
+    <span style={{ textAlign: "right", overflowWrap: "anywhere" }}>{value != null && value !== "" ? value : href ? <a className="dw-action" href={href}>{cta || "Add"} →</a> : "—"}</span>
+  </div>;
+}
+function DclSetupStage({ n, title, children }) {
+  return <div style={{ border: "1px solid var(--sh-line, #302c27)", borderRadius: 8, padding: 12, minWidth: 0 }}>
+    <div style={{ fontFamily: DCL_MONO, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: DCL_INK50, marginBottom: 8 }}>{n} · {title}</div>
+    {children}
+  </div>;
+}
+function DclSetupBoard() {
+  const [board, setBoard] = React.useState(null);
+  const load = React.useCallback(async () => {
+    try {
+      const r = await fetch("/api/client/onboarding", { credentials: "same-origin" });
+      const j = await r.json().catch(() => null);
+      if (r.ok && j && j.ok) setBoard(j.board || null);
+    } catch (e) { /* see above: nothing shows */ }
+  }, []);
+  React.useEffect(() => { load(); }, [load]);
+  if (!board || !Array.isArray(board.steps)) return null;
+  return <DclSetupBoardView board={board} onSaved={load} />;
+}
+function DclSetupBoardView({ board, onSaved }) {
+  const step = (k) => board.steps.find((s) => s.key === k) || null;
+  const state = (s, doneText, todoText) => !s ? "—" : s.done == null ? "Couldn't read" : s.done ? doneText : todoText;
+  const p = board.profile;
+  const coaching = board.coaching;
+  const trainer = coaching && coaching.training != null ? coaching.training || "Your trainer" : null;
+  const nutritionist = coaching && coaching.nutrition != null ? coaching.nutrition || "Your nutritionist" : null;
+  const settings = dashShellHref("ClientMe.html");
+  const train = dashShellHref("ClientTrain.html");
+  const progress = dashShellHref("ClientProgress.html");
+  const plan = step("plan"), workout = step("workout"), review = step("review"), day30 = step("progress");
+  const coachingText = !p ? null
+    : p.wantsCoaching === true ? "Yes" + (p.coachingFor && p.coachingFor.length ? " · " + p.coachingFor.join(" & ") : "")
+    : p.wantsCoaching === false ? "Not now" : null;
+  const w = board.start && board.start.weighIn;
+  // The week-one target: theirs, unless they pay a trainer, who sets it on their own board.
+  const [editing, setEditing] = React.useState(false);
+  const [count, setCount] = React.useState(String((board.weekOne && board.weekOne.count) || board.suggested || 3));
+  const win = board.window || {};
+  const [startsOn, setStartsOn] = React.useState((board.weekOne && board.weekOne.startsOn) || win.firstDay || "");
+  const [msg, setMsg] = React.useState("");
+  const save = async () => {
+    const n = Number(count);
+    if (!Number.isInteger(n) || n < 1 || n > 14) { setMsg("Enter a whole number from 1 to 14."); return; }
+    setMsg("Saving…");
+    try {
+      const r = await fetch("/api/client/onboarding", {
+        method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ count: n, startsOn: startsOn || null }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) { setMsg(j.error || "Couldn't save. Try again."); return; }
+      setEditing(false); setMsg("Saved");
+      // The board's dates follow the target: read it again.
+      if (onSaved) onSaved();
+    } catch (e) { setMsg("Couldn't save. Try again."); }
+  };
+  const target = board.weekOne;
+  const plate = { "--dac": DCL_TEAL };
+  return (
+    <section aria-label="Your first 30 days" className="dash-plate dash-plate--tick" style={{ ...plate, marginBottom: 16, paddingLeft: 24 }}>
+      <div className="dash-eyebrow" style={{ color: DCL_TEAL }}>Your setup · day {board.day} of {board.days}</div>
+      <div style={{ fontFamily: serif, fontSize: 21, letterSpacing: "-0.015em", margin: "6px 0 12px" }}>
+        {board.next ? "Let's set up your first week." : "You're set up. Keep going."}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 10 }}>
+        <DclSetupStage n="01" title="What Shape knows">
+          {!p ? <p className="dw-note" style={{ margin: 0 }}>Couldn't read your answers.</p> : <>
+            <DclSetupLine label="Goal" value={p.goal} href={dashShellHref("ClientGoal.html")} cta="Set it" />
+            <DclSetupLine label="Experience" value={dclPrefLabel("experience", p.experience)} href={settings} />
+            <DclSetupLine label="Trains" value={p.sessionsPerWeek ? p.sessionsPerWeek + " days / week" : null} href={settings} />
+            <DclSetupLine label="Coaching" value={trainer || nutritionist ? [trainer, nutritionist].filter(Boolean).join(" & ") : coachingText} href={settings} cta="Answer" />
+            <DclSetupLine label="Diet" value={dclPrefLabel("diet", p.diet)} href={settings} />
+            <DclSetupLine label="Devices" value={p.devices == null ? "Couldn't read" : p.devices.length ? p.devices.join(", ") : null} href={settings} cta="None · connect" />
+          </>}
+        </DclSetupStage>
+        <DclSetupStage n="02" title="Starting point">
+          <DclSetupLine label="Weight" value={w === undefined ? "Couldn't read" : w ? w.weight + " " + w.unit + (w.on ? " · " + dclSetupDay(w.on) : "") : null} href={progress} cta="Log it" />
+          <DclSetupLine label="Measurements" value={!board.start || board.start.measuredOn === undefined ? "Couldn't read" : board.start.measuredOn ? "Taken " + dclSetupDay(board.start.measuredOn) : null} href={progress} cta="Take them" />
+          <DclSetupLine label="Calories" value={p ? dclPrefLabel("calories", p.calories) : "Couldn't read"} href={settings} cta="Set a target" />
+        </DclSetupStage>
+        <DclSetupStage n="03" title="Pick your plan">
+          {plan && plan.done
+            ? <DclSetupLine label="Plan" value={(plan.title || "Week 1") + " · " + (plan.by === "coach" ? "from " + (trainer || "your coach") : "set " + dclSetupDay(plan.at))} />
+            : plan && plan.waiting
+              ? <p style={{ margin: 0, fontSize: 13 }}>{trainer} is preparing your plan. <a className="dw-action" href={dashShellHref("ClientTeam.html")}>Message →</a></p>
+              : plan && plan.done == null
+                ? <DclSetupLine label="Plan" value="Couldn't read" />
+                : <>
+                    <DclSetupLine label="Library" value={null} href={train} cta="Starter programs" />
+                    <DclSetupLine label="Or" value={null} href={train} cta="Nora drafts a week" />
+                    <DclSetupLine label="Or" value={null} href={train} cta="Build your own" />
+                  </>}
+          {coaching && !trainer && !nutritionist && (
+            <p className="dw-note" style={{ margin: "10px 0 0" }}>
+              <b>Want a coach?</b> Answer the health screening once, and everything here goes with you, so a coach starts from your plan instead of asking again.{" "}
+              {p && !p.screening ? <a className="dw-action" href={"/newdesign/ClientApp.html?screening=required&next=" + encodeURIComponent("/newdesign/Marketplace.html") + "#settings"}>Answer it →</a> : <a className="dw-action" href="Marketplace.html">Find a coach →</a>}
+            </p>
+          )}
+        </DclSetupStage>
+        <DclSetupStage n="04" title="Go live">
+          <DclSetupLine label="First workout" value={state(workout, dclSetupDay(workout && workout.at), null)} href={train} cta="Start workout 1" />
+          <DclSetupLine label="Week-1 review" value={state(review, "Checked in " + dclSetupDay(review && review.at), review && review.due ? "Due " + dclSetupDay(review.due) : null)} href={progress} cta="Check in" />
+          <DclSetupLine label="Day-30 review" value={state(day30, "Measured " + dclSetupDay(day30 && day30.at), "Due " + dclSetupDay(day30 && day30.due))} />
+        </DclSetupStage>
+      </div>
+      <ol aria-label="First 30 days" style={{ listStyle: "none", margin: "12px 0 0", padding: 0, display: "flex", flexWrap: "wrap", gap: "6px 14px", fontSize: 12.5 }}>
+        {board.steps.map((s) => <li key={s.key} style={{ color: s.done ? DCL_TEAL : DCL_INK50 }}>
+          {s.done ? "✓ " : s.done == null ? "? " : "○ "}{DCL_SETUP_STEPS[s.key] || s.key}
+          {s.done && s.at ? " · " + dclSetupDay(s.at) : s.done == null ? " · couldn't read" : s.waiting ? " · " + (trainer || "your coach") + " is on it" : s.due ? " · due " + dclSetupDay(s.due) : ""}
+        </li>)}
+      </ol>
+      <div style={{ marginTop: 12, borderTop: "1px solid var(--sh-line, #302c27)", paddingTop: 10 }}>
+        <div style={{ fontFamily: DCL_MONO, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: DCL_INK50, marginBottom: 6 }}>Week-one target</div>
+        {!editing && <p style={{ margin: 0, fontSize: 13 }}>
+          {target
+            ? <>Your target: {target.count} {target.count === 1 ? "workout" : "workouts"} in week 1{target.startsOn ? " · starts " + dclSetupDay(target.startsOn) : ""} · {board.setBy === "coach" ? "set by " + (trainer || "your trainer") : "set by you"}{board.weekOneDone != null ? " · " + board.weekOneDone + " done" : ""}</>
+            : board.weekOneUnread ? <>Couldn't read it</>
+            : board.coachSets ? <>{trainer || "Your trainer"} sets your week-one target.</>
+            : <>Not set{board.suggested ? " · you said " + board.suggested + " sessions a week" : ""}</>}
+          {" "}{!board.coachSets && !board.weekOneUnread && <button type="button" className="dw-action" style={{ background: "none", border: 0, padding: 0, cursor: "pointer", font: "inherit" }} onClick={() => { setEditing(true); setMsg(""); }}>{target ? "Change" : "Set target"}</button>}
+        </p>}
+        {editing && <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, fontSize: 13 }}>
+          <label>Workouts in week 1 <input type="number" min="1" max="14" step="1" value={count} onChange={(e) => setCount(e.target.value)} style={{ width: 64, font: "inherit" }} /></label>
+          <label>Week 1 starts <input type="date" min={win.firstDay} max={win.lastDay} value={startsOn} onChange={(e) => setStartsOn(e.target.value)} style={{ font: "inherit" }} /></label>
+          <button type="button" className="dw-action" style={{ background: "none", border: 0, padding: 0, cursor: "pointer", font: "inherit" }} disabled={msg === "Saving…"} onClick={save}>Save</button>
+          <button type="button" className="dw-action" style={{ background: "none", border: 0, padding: 0, cursor: "pointer", font: "inherit" }} onClick={() => setEditing(false)}>Cancel</button>
+        </div>}
+        <p className="dw-note" role="status" style={{ margin: "6px 0 0" }}>{msg}</p>
+      </div>
+    </section>
+  );
+}
+
 function ClientDashboardPage() {
   // The paper switch follows the account on every shell page. dashData.jsx loads
   // AFTER this file on every dashboard page and not at all on the print page, so
@@ -744,6 +915,9 @@ function ClientDashboardPage() {
               <a href={dashShellHref("ClientProgress.html")} style={{ ...btn, background: "var(--sh-gold, #d8a23a)", textDecoration: "none" }}>Check in →</a>
             </div>
           )}
+
+          {/* The member's first 30 days (client-onboarding review, fix 4): only while there is a board. */}
+          {live && <DclSetupBoard />}
 
           <div className="dash-today-split">
           <div className="dash-today-now"><DclNowColumn workout={workout} meals={meals} logged={logged} onLog={logMeal} live={live} /></div>
