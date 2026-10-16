@@ -13,6 +13,7 @@ import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { requireMembership } from '@/lib/require-membership';
+import { ACTIVE_SUB } from '@/lib/membership-core';
 import { PROVIDERS } from '@/lib/integrations/providers';
 import {
   memberOnboardingBoard,
@@ -41,13 +42,17 @@ type Res<T> = { data: T | null; error: unknown };
 // A read's rows, or undefined when it failed.
 const dataOf = <T,>(r: Res<T>): T | undefined => (r.error ? undefined : (r.data as T));
 
-// The membership's first row: when they joined. undefined when the read failed.
-// capped-read-ok: the OLDEST row is the one asked for: the day the membership began.
+// When this membership began: the first of its LIVE rows (the statuses computeMembership counts).
+// ⚠ NOT THE FIRST ROW EVER (Fable on #2380): rows are one per Stripe subscription, and a cancelled one
+// stays, so a member who left in April and came back yesterday read as joined in February and got no
+// board, while the coach board ran from the new subscription. undefined when the read failed.
+// capped-read-ok: the OLDEST live row is the one asked for: the day this membership began.
 async function joinedAtOf(supabase: SupabaseClient, userId: string): Promise<string | null | undefined> {
   const { data, error } = await supabase
     .from('platform_subscriptions')
     .select('created_at')
     .eq('client_id', userId)
+    .in('status', [...ACTIVE_SUB])
     .order('created_at', { ascending: true })
     .limit(1);
   if (error) return undefined;

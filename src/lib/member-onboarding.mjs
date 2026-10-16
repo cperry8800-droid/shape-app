@@ -4,10 +4,12 @@
 // member setting themselves up gets the same board with 'you' in place of 'the client'". This is that
 // board, for the first 30 days of the membership, built ONLY from the member's own records:
 //   joined     the membership's first platform_subscriptions row;
-//   profile    a goal on file (client_goals.primaryGoal, or client_identity.goal);
+//   profile    a goal on file: client_identity.goal or client_goals.primaryGoal (the app's goal step), or
+//              client_training_prefs.primary_goal (the website's Settings → Primary goal; Fable on #2380);
 //   plan       the first client_workouts row since joining, theirs or a coach's;
 //   workout    the first completed workout_sessions row since joining;
-//   review     the first check-in filed since joining (the week-one review);
+//   review     the first check-in filed since joining (the week-one review), due the Sunday that closes
+//              week one's check-in week, by the coach board's own rule (weekEndSunday; Fable on #2380);
 //   progress   a measurement from day 28 on (the day-30 review).
 // Nothing is a box the member ticks; a step is done when its record exists.
 //
@@ -20,7 +22,7 @@
 // board (client_programs.detail.training.weekOne), and this board shows that one, read under the coach
 // board's own rule (weekOneOf: this trainer's, set during this subscription).
 
-import { weekOneOf } from './coach-client-legs.mjs';
+import { weekOneOf, weekEndSunday } from './coach-client-legs.mjs';
 
 export const MEMBER_SETUP_DAYS = 30;
 // Workouts in week one, as on the coach board for a trainer (WEEK_ONE_MAX).
@@ -108,7 +110,7 @@ export function memberOnboardingBoard(input) {
   const goals = a && obj(a.goals), identity = a && obj(a.identity);
   const training = a && obj(a.training), nutrition = a && obj(a.nutrition);
   const onboarding = a && obj(a.onboarding), health = a && obj(a.health);
-  const goal = a ? text(identity && identity.goal) || text(goals && goals.primaryGoal) : null;
+  const goal = a ? text(identity && identity.goal) || text(goals && goals.primaryGoal) || text(training && training.primary_goal) : null;
   const wants = onboarding && typeof onboarding.wantsCoaching === 'boolean' ? onboarding.wantsCoaching : null;
   const profile = a === undefined ? null : {
     goal,
@@ -176,7 +178,7 @@ export function memberOnboardingBoard(input) {
       waiting: firstPlan === null && !!trainer,
     },
     { key: 'workout', done: sessions === undefined ? null : sessions.length > 0, at: sessions && sessions.length ? iso(sessions[0].at) : null, due: week1End },
-    { key: 'review', done: checkins === undefined ? null : checkins.length > 0, at: checkins && checkins.length ? iso(ms(checkins[0].created_at)) : null, due: week1End },
+    { key: 'review', done: checkins === undefined ? null : checkins.length > 0, at: checkins && checkins.length ? iso(ms(checkins[0].created_at)) : null, due: week1Start ? weekEndSunday(week1Start, 3) : null },
     { key: 'progress', done: day30 === undefined ? null : !!day30, at: day30 || null, due: addDays(joinedDay, MEMBER_SETUP_DAYS - 1) },
   ];
   const next = steps.find((s) => s.done === false && !s.waiting) || null;

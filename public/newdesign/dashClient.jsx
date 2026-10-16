@@ -604,7 +604,11 @@ function dclSetupDay(v) {
   const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(v) ? v + "T12:00:00" : v);
   return isNaN(d.getTime()) ? "" : d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
 }
+// The goal is a label (client_identity.goal) or a token: the app's goal step (client_goals.primaryGoal)
+// or Settings → Primary goal (client_training_prefs.primary_goal, prefOptions.mjs). Settings is where
+// the website sets it (Fable on #2380: the Goals page writes goal cards, not this).
 const DCL_PREF_LABELS = {
+  goal: { strength: "Strength", hypertrophy: "Hypertrophy", strength_hypertrophy: "Strength + hypertrophy", endurance: "Endurance", fat_loss: "Fat loss", general_health: "General health" },
   experience: { beginner: "Beginner", novice: "Novice", intermediate: "Intermediate", advanced: "Advanced", elite: "Elite" },
   diet: { omnivore: "Omnivore", vegetarian: "Vegetarian", vegan: "Vegan", pescatarian: "Pescatarian", keto: "Keto", paleo: "Paleo", mediterranean: "Mediterranean" },
   calories: { by_feel: "By feel", strict: "Strict", loose: "Loose tracking", r1600_1800: "1600–1800", r1800_2000: "1800–2000", r2000_2200: "2000–2200", r2200_2400: "2200–2400", r2400_plus: "2400+" },
@@ -688,10 +692,10 @@ function DclSetupBoardView({ board, onSaved }) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 10 }}>
         <DclSetupStage n="01" title="What Shape knows">
           {!p ? <p className="dw-note" style={{ margin: 0 }}>Couldn't read your answers.</p> : <>
-            <DclSetupLine label="Goal" value={p.goal} href={dashShellHref("ClientGoal.html")} cta="Set it" />
+            <DclSetupLine label="Goal" value={dclPrefLabel("goal", p.goal)} href={settings} cta="Set it" />
             <DclSetupLine label="Experience" value={dclPrefLabel("experience", p.experience)} href={settings} />
             <DclSetupLine label="Trains" value={p.sessionsPerWeek ? p.sessionsPerWeek + " days / week" : null} href={settings} />
-            <DclSetupLine label="Coaching" value={trainer || nutritionist ? [trainer, nutritionist].filter(Boolean).join(" & ") : coachingText} href={settings} cta="Answer" />
+            <DclSetupLine label="Coaching" value={trainer || nutritionist ? [trainer, nutritionist].filter(Boolean).join(" & ") : coachingText || "Not answered"} />
             <DclSetupLine label="Diet" value={dclPrefLabel("diet", p.diet)} href={settings} />
             <DclSetupLine label="Devices" value={p.devices == null ? "Couldn't read" : p.devices.length ? p.devices.join(", ") : null} href={settings} cta="None · connect" />
           </>}

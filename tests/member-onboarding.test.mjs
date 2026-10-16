@@ -49,7 +49,8 @@ test('the board ticks each step from its record, and names the next one', () => 
   assert.equal(s.review.done, false);
   assert.equal(s.progress.done, false);
   assert.equal(b.next, 'profile');
-  assert.equal(s.review.due, '2026-10-19', 'week one runs seven days from the join day');
+  assert.equal(s.review.due, '2026-10-18', 'the Sunday that closes week one\'s check-in week, as on the coach board');
+  assert.equal(s.workout.due, '2026-10-19', 'week one runs seven days from the join day');
   assert.equal(s.progress.due, '2026-11-11', 'day 30, the board\'s last');
   assert.equal(b.suggested, 4, 'their own answer: sessions per week');
   assert.equal(b.profile.experience, 'beginner');
@@ -115,7 +116,9 @@ test('the week-one target is the member\'s own, set during this membership, coun
   assert.equal(b.setBy, 'you');
   assert.equal(b.weekOneDone, 1, 'only sessions inside week one');
   assert.equal(b.suggested, null);
-  assert.equal(stepsOf(b).review.due, '2026-10-20', 'the review follows the start they chose');
+  const later = M.memberOnboardingBoard(base({ setup: { weekOne: { count: 3, startsOn: '2026-10-16', setAt: ago(1) } } }));
+  assert.equal(stepsOf(later).review.due, '2026-10-25', 'the review follows the start they chose');
+  assert.equal(stepsOf(later).workout.due, '2026-10-22');
   // A target saved before this membership began is an earlier run's.
   const old = M.memberOnboardingBoard(base({ setup: { weekOne: { count: 3, startsOn: '2026-10-14', setAt: ago(9) } } }));
   assert.equal(old.weekOne, null);
@@ -159,14 +162,30 @@ test('a member who pays a trainer: the trainer sets the target, and the plan is 
   assert.equal(stepsOf(live).plan.waiting, false);
 });
 
+test('a goal set in the website\'s Settings counts; the week-1 review falls due when the coach board says (Fable on #2380)', () => {
+  const b = M.memberOnboardingBoard(base({ answers: { training: { primary_goal: 'fat_loss' } } }));
+  assert.equal(b.profile.goal, 'fat_loss');
+  assert.equal(stepsOf(b).profile.done, true);
+  // The same join and the same start: one due date for the same check-in on both boards.
+  for (const joinedAt of [ago(1), ago(2), ago(4), ago(5)]) {
+    const mine = stepsOf(M.memberOnboardingBoard(base({ joinedAt }))).review.due;
+    const coach = LEGS.bsOnboardingLeg({ role: 'trainer', providerId: 7, joinedAt, welcomeAt: null, helloAt: null, firstPlan: null, checkins: [], measurements: [], programDetail: {}, now: NOW }).steps.find((x) => x.key === 'checkin').due;
+    assert.equal(mine, coach, joinedAt);
+  }
+});
+
 // ── 2. The route ─────────────────────────────────────────────────────────────────────────────────
 const U = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const MEMBERSHIP = await loadRealModule(join(ROOT, 'src/lib/membership-core.ts'), {
+  typescript: true,
+  registry: new Map([['./age-derive.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/age-derive.mjs')).href)]]),
+});
 // The route reads the real clock, so its records are dated from it.
 const rago = (days) => new Date(Date.now() - days * DAY).toISOString();
 const rday = (days) => new Date(Date.now() - days * DAY).toISOString().slice(0, 10);
 function tablesFor(over = {}) {
   return {
-    platform_subscriptions: [{ client_id: U, created_at: rago(2) }, { client_id: 'someone-else', created_at: rago(1) }],
+    platform_subscriptions: [{ client_id: U, status: 'active', created_at: rago(2) }, { client_id: 'someone-else', status: 'active', created_at: rago(1) }],
     user_goals: [
       { user_id: U, kind: 'client_identity', data: { goal: 'Build strength' } },
       { user_id: U, kind: 'client_training_prefs', data: { sessions_per_week: '3', experience: 'novice' } },
@@ -200,6 +219,7 @@ async function route(db, { denied = null, user = { id: U } } = {}) {
       ['next/server', { NextResponse: { json: (body, init) => ({ body, status: (init && init.status) || 200 }) } }],
       ['@/lib/request-auth', { clientForRequest: async () => client, currentUser: async () => user }],
       ['@/lib/require-membership', { requireMembership: async () => denied }],
+      ['@/lib/membership-core', { ACTIVE_SUB: MEMBERSHIP.ACTIVE_SUB }],
       ['@/lib/integrations/providers', { PROVIDERS: { whoop: { label: 'WHOOP' }, spotify: { label: 'Spotify' } } }],
       ['@/lib/member-onboarding.mjs', M],
     ]),
@@ -231,7 +251,7 @@ test('GET builds the board from the member\'s own records', async () => {
 });
 
 test('GET: no board past day 30 or with no membership row; a failed read is unknown; the gate holds', async () => {
-  const late = await route(fakeSupabase({ tables: tablesFor({ platform_subscriptions: [{ client_id: U, created_at: rago(40) }] }) }));
+  const late = await route(fakeSupabase({ tables: tablesFor({ platform_subscriptions: [{ client_id: U, status: 'active', created_at: rago(40) }] }) }));
   assert.deepEqual((await late.get()).body, { ok: true, board: null });
   const none = await route(fakeSupabase({ tables: tablesFor({ platform_subscriptions: [] }) }));
   assert.deepEqual((await none.get()).body, { ok: true, board: null });
@@ -248,6 +268,18 @@ test('GET: no board past day 30 or with no membership row; a failed read is unkn
   assert.equal((await gate.get()).status, 402);
   const anon = await route(fakeSupabase({ tables: tablesFor() }), { user: null });
   assert.equal((await anon.get()).status, 401);
+});
+
+test('GET: a member who left and came back gets a board from this membership (Fable on #2380)', async () => {
+  const back = await route(fakeSupabase({ tables: tablesFor({ platform_subscriptions: [
+    { client_id: U, status: 'canceled', created_at: rago(200) },
+    { client_id: U, status: 'active', created_at: rago(2) },
+  ] }) }));
+  const b = (await back.get()).body.board;
+  assert.equal(b.day, 3, 'the live subscription is the start, not the one they cancelled');
+  const lapsed = await route(fakeSupabase({ tables: tablesFor({ platform_subscriptions: [{ client_id: U, status: 'canceled', created_at: rago(2) }] }) }));
+  assert.deepEqual((await lapsed.get()).body, { ok: true, board: null }, 'no live membership, no board');
+  assert.equal((await back.post({ count: 3 })).status, 200, 'and they can set this run\'s target');
 });
 
 test('GET: a member who pays a trainer sees the trainer, and the trainer\'s target', async () => {
@@ -291,7 +323,7 @@ test('POST saves the member\'s own target, inside their 30 days, and only theirs
   const unsure = await route(fakeSupabase({ tables: tablesFor(), fail: ['subscriptions'] }));
   assert.equal((await unsure.post({ count: 3 })).status, 500, 'a coaching read that failed cannot tell');
   assert.equal(unsure.upserts.length, 0);
-  const late = await route(fakeSupabase({ tables: tablesFor({ platform_subscriptions: [{ client_id: U, created_at: rago(40) }] }) }));
+  const late = await route(fakeSupabase({ tables: tablesFor({ platform_subscriptions: [{ client_id: U, status: 'active', created_at: rago(40) }] }) }));
   assert.equal((await late.post({ count: 3 })).status, 409);
   assert.equal(late.upserts.length, 0);
 });
@@ -301,7 +333,7 @@ test('POST refuses a day that does not exist, even one that would roll into the 
   const realNow = Date.now;
   Date.now = () => Date.parse('2026-11-20T12:00:00Z');
   try {
-    const { post, upserts } = await route(fakeSupabase({ tables: tablesFor({ platform_subscriptions: [{ client_id: U, created_at: '2026-11-18T12:00:00.000Z' }] }) }));
+    const { post, upserts } = await route(fakeSupabase({ tables: tablesFor({ platform_subscriptions: [{ client_id: U, status: 'active', created_at: '2026-11-18T12:00:00.000Z' }] }) }));
     assert.equal((await post({ count: 3, startsOn: '2026-11-31' })).status, 400);
     assert.equal(upserts.length, 0);
     assert.equal((await post({ count: 3, startsOn: '2026-12-01' })).status, 200, 'the real day is accepted');
@@ -393,6 +425,17 @@ test('the website card: a trainer sets the target; a failed read or no board sho
   });
   await mountWeb(async () => { throw new Error('offline'); }, async () => {
     assert.equal(document.getElementById('root').innerHTML, '');
+  });
+});
+
+test('the website card links the goal to Settings, and an unanswered coaching question is plain text (Fable on #2380)', async () => {
+  const bare = M.memberOnboardingBoard(base({ answers: {} }));
+  await mountWeb(async () => ({ ok: true, json: async () => ({ ok: true, board: bare }) }), async () => {
+    const link = [...document.querySelectorAll('a')].find((a) => a.textContent.startsWith('Set it'));
+    assert.equal(link.getAttribute('href'), 'ClientMe.html', 'Settings → Primary goal is where the website sets it');
+    assert.match(document.body.textContent, /CoachingNot answered/);
+    assert.ok(![...document.querySelectorAll('a')].some((a) => a.textContent.trim() === 'Answer →'), 'no link to a page without the question');
+    assert.ok([...document.querySelectorAll('a')].some((a) => a.textContent.trim() === 'Answer it →'), 'the screening link in the coach fork stays');
   });
 });
 
