@@ -2,6 +2,7 @@ import { createMobileVideoComponents } from '../services/videoComponents.mjs';
 import React from 'react';
 const { ShapeVideoPlayer } = createMobileVideoComponents(React);
 import { saveAccountDocPatch } from '../../../public/newdesign/settingsSync.mjs';
+import { isEmailType, emailOnByDefault } from '../../../public/newdesign/notificationSurfaces.mjs';
 import { createPortal } from 'react-dom';
 import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM, RECIPE_GOALS, recipeNeeds, recipeMatchesDiet, bsRecipeAttribution, bsAllergenNoteText } from './shapeKitchenData.js';
 import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, BS_CLIENT_WORKOUTS, bsClientWorkoutForDay, bsBuildDemoTrainProgram, bsEmptyTrainProgram, bsApplyTrainAdjust, bsTrainT, bsTrainTagLabel } from './bsClientWeekDemo.js';
@@ -26678,12 +26679,14 @@ function BSNotifyPrefs({ onBack, role }) {
     return () => { alive = false; };
   }, []);
   const saveSettings = (patch) => { setSettings(s => ({ ...s, ...patch })); window.ShapeNotifyPrefs?.saveSettings?.(patch); };
-  const chOn = (type, ch) => { const o = matrix[type]; return (o && o[ch] !== undefined) ? o[ch] : _NP_DEF_CH[ch]; };
+  // A tier-up's email starts on (notificationSurfaces.mjs); every other default is _NP_DEF_CH.
+  const chDefault = (type, ch) => (ch === 'email' ? emailOnByDefault(type) : _NP_DEF_CH[ch]);
+  const chOn = (type, ch) => { const o = matrix[type]; return (o && o[ch] !== undefined) ? o[ch] : chDefault(type, ch); };
   const toggleCh = (type, ch) => { const next = !chOn(type, ch); setMatrix(m => ({ ...m, [type]: { ...(m[type] || {}), [ch]: next } })); window.ShapeNotifyPrefs?.setChannel?.(type, ch, next); };
 
   const TYPES = isCoach
     ? [['client_red', 'Clients in the red', 'Crosses red on your triage'], ['client_amber', 'Clients edging amber', 'An early heads-up'], ['checkin_submitted', 'Check-in submitted', 'A client logs their week'], ['waitlist_join', 'Waiting list', 'When someone joins your waiting list']]
-    : [['directive', 'Your move', 'The one thing to do today'], ['coach_message', 'Coach messages', 'When your coach writes'], ['checkin_due', 'Check-in reminders', 'Your weekly check-in is ready'], ['goal_slip', 'Goal pace', 'When your projected date slips'], ['score_drop', 'Score dips', 'When your Shape Score drops'], ['coach_cosign', 'Co-signs', 'When a coach co-signs your work'], ['streak_broken', 'Streak restarts', 'A gentle nudge — never shaming'], ['waitlist_invite', 'Waitlist invites', 'When a coach has room for you'], ['habit_reminder', 'Habit reminders', 'Set per-habit on the Habits page'], ['meal_prep', 'Prep reminders', 'The night before a meal that needs it']];
+    : [['directive', 'Your move', 'The one thing to do today'], ['coach_message', 'Coach messages', 'When your coach writes'], ['checkin_due', 'Check-in reminders', 'Your weekly check-in is ready'], ['goal_slip', 'Goal pace', 'When your projected date slips'], ['score_drop', 'Score dips', 'When your Shape Score drops'], ['tier_up', 'Tier ups', 'When you reach a new Shape Score tier'], ['coach_cosign', 'Co-signs', 'When a coach co-signs your work'], ['streak_broken', 'Streak restarts', 'A gentle nudge — never shaming'], ['waitlist_invite', 'Waitlist invites', 'When a coach has room for you'], ['habit_reminder', 'Habit reminders', 'Set per-habit on the Habits page'], ['meal_prep', 'Prep reminders', 'The night before a meal that needs it']];
 
   const Toggle = ({ on, onClick }) => (
     <button onClick={onClick} aria-pressed={on} style={{ width: 46, height: 27, borderRadius: 999, border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? t.ACCENT : 'transparent', position: 'relative', cursor: 'pointer', flexShrink: 0 }}>
@@ -26737,7 +26740,12 @@ function BSNotifyPrefs({ onBack, role }) {
                     {sub && <div style={{ marginTop: 1, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50 }}>{sub}</div>}
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
-                    {_NP_CHANNELS.map(([k, l]) => <ChannelChip key={k} on={chOn(type, k)} label={l} onClick={() => toggleCh(type, k)} />)}
+                    {/* ⚠ EMAIL ONLY WHERE IT IS OFFERED (owner, 2026-10-16): coach messages, waitlist
+                        invites, tier-ups and a coach's waiting list. Every other row has no Email
+                        switch at all, and the server never emails it. */}
+                    {_NP_CHANNELS.map(([k, l]) => (k === 'email' && !isEmailType(type)
+                      ? <span key={k} aria-hidden="true" style={{ width: 44, flexShrink: 0 }} />
+                      : <ChannelChip key={k} on={chOn(type, k)} label={l} onClick={() => toggleCh(type, k)} />))}
                   </div>
                 </div>
               ))}

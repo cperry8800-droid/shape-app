@@ -30,6 +30,11 @@ const CST_CHANNELS = [["inapp", "App"], ["push", "Push"], ["email", "Email"]];
 // red" while no email is ever sent — and their first tap then computed !true and
 // saved an explicit `email:false`, so turning it on actually took two taps.
 const CST_DEFAULT_CHANNELS = { inapp: true, push: true, email: false };
+// ⚠ EMAIL IS OFFERED ONLY FOR A NEW LEAD (owner, 2026-10-16: email for what matters, the rest
+// "save for notifications"). Red and amber clients are app and push only: no Email switch, and the
+// server never emails them. A copy of public/newdesign/notificationSurfaces.mjs EMAIL_TYPES, held
+// to it by tests/notification-email.test.mjs, because this page is not a module.
+const CST_EMAIL_TYPES = ["waitlist_join"];
 const CST_CAPS = [2, 3, 4, 6, 8];
 
 // ⚠ THE COACH'S NOTIFICATION TYPES ARE DERIVED, NOT LISTED. src/lib/ai/notifications.mjs
@@ -644,8 +649,9 @@ function CoachNotificationCard({ signedIn, acct }) {
                   <div style={{ fontSize: 13, color: CST_INK }}>{label}</div>
                   <div style={{ fontSize: 11, color: CST_INK50, lineHeight: 1.4, marginTop: 2 }}>{help}</div>
                 </td>
-                {CST_CHANNELS.map(([ch]) => (
-                  <td key={ch} style={{ padding: "10px 8px", textAlign: "center" }}>
+                {CST_CHANNELS.map(([ch]) => (ch === "email" && !CST_EMAIL_TYPES.includes(type)
+                  ? <td key={ch} style={{ padding: "10px 8px" }} aria-hidden="true" />
+                  : <td key={ch} style={{ padding: "10px 8px", textAlign: "center" }}>
                     <button type="button" role="switch" aria-checked={isOn(type, ch)} aria-label={label + " · " + ch}
                       onClick={() => toggle(type, ch, !isOn(type, ch))}
                       style={{ width: 34, minHeight: 24, borderRadius: 4, cursor: "pointer", border: "1px solid " + (isOn(type, ch) ? CST_TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)"), background: isOn(type, ch) ? "rgba(var(--sh-accent-rgb, 46,224,196),0.14)" : "transparent", color: isOn(type, ch) ? "var(--sh-accent-ink, #2ee0c4)" : CST_INK50, fontFamily: CST_MONO, fontSize: 11 }}>

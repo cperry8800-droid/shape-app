@@ -26,7 +26,9 @@ back or the file grows past 20 KB.
 - **The PR description is the record.** It covers what changed and why, what review
   found and how each finding was handled, what was verified, and what is left open.
   If the PR leaves something for later, add it to Open items below and to the War
-  Room (`src/lib/warroom.ts`). The War Room update goes last.
+  Room (`src/lib/warroom.ts`). The War Room update goes last: with several tasks in
+  flight, it is the last step of all of them, one commit in the last PR once its CI
+  and review are done (owner, 2026-10-16).
 - **Review.**
   - Read your own diff adversarially before every push.
   - Codex reviews on its own when a PR opens; read what it posts and fix or answer
@@ -150,6 +152,10 @@ planned builds.
 
 **Known gaps**
 - `get_display_names` returns a full name and photo for any id, whoever asks.
+- The app's notification list has no Clear all; a website clear hides the same rows there
+  (#2386). Email is offered only for coach messages, waitlist invites, tier-ups and a
+  coach's waiting list (#2387); a coach's red and amber clients are app and push only,
+  and a failed email is logged and dropped (no retry queue).
 - A member may pay two coaches of one role, sharing one section per discipline (#2384).
   Nora's member read, the calendar and the prep-reminder cron still read only the
   newest published meal plan, and the coach Shared clients roster is trainer to

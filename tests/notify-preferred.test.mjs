@@ -79,15 +79,26 @@ test('a muted member, or one with the type turned off, gets nothing', async () =
 test('no row, no email: an email goes out only once its notification is stored', async (t) => {
   quietLogs(t);
   emails.length = 0;
+  // A waitlist invite: one of the types email is offered for (notificationSurfaces.mjs).
+  const INVITE = { ...PREP, type: 'waitlist_invite', title: 'Coach Q is taking new clients' };
   const failed = admin({ prefs: EMAIL_ON, insertError: { message: 'insert failed' } });
-  assert.equal(await notify.createPreferredNotification(failed.client, PREP), false, 'a failed insert reads as stored');
+  assert.equal(await notify.createPreferredNotification(failed.client, INVITE), false, 'a failed insert reads as stored');
   assert.equal(failed.inserted.length, 1);
   assert.deepEqual(emails, [], 'emailed with no row to record it');
 
   const stored = admin({ prefs: EMAIL_ON });
-  assert.equal(await notify.createPreferredNotification(stored.client, PREP), true);
+  assert.equal(await notify.createPreferredNotification(stored.client, INVITE), true);
   assert.equal(emails.length, 1, 'the control: a stored row is emailed');
   assert.equal(emails[0].to, 'member@example.com');
+});
+
+test('a type email is not offered for never emails, whatever was saved for it (owner, 2026-10-16)', async (t) => {
+  quietLogs(t);
+  emails.length = 0;
+  const stored = admin({ prefs: EMAIL_ON });
+  assert.equal(await notify.createPreferredNotification(stored.client, PREP), true, 'the prep reminder is still stored');
+  assert.deepEqual(emails, [], 'a prep reminder was emailed because an old Email switch said so');
+  assert.equal(stored.inserted[0].data.channels.email, false, 'the row claims an email went out');
 });
 
 test('createNotification says whether the row was stored, and a rejected duplicate is not an error', async (t) => {
