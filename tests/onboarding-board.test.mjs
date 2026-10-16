@@ -108,6 +108,19 @@ test('the day-30 measurement falls due on day 30, the board\'s last (Codex on #2
   assert.equal(LEGS.bsOnboardingLeg({ role: 'trainer', joinedAt: '2026-10-12T10:00:00Z', now: Date.parse('2026-11-11T10:00:00Z') }), null);
 });
 
+test('a measurement dated after today never completes day 30 (Codex on #2378)', () => {
+  const joinedAt = '2026-10-12T10:00:00Z';
+  // Day 4: a measurement dated day 29 (a wrong device clock) is not the day-30 read.
+  const early = LEGS.bsOnboardingLeg({ role: 'trainer', joinedAt, measurements: [{ measured_on: '2026-11-09' }], now: Date.parse('2026-10-15T12:00:00Z') });
+  assert.equal(stepsOf(early).progress.done, false);
+  // Day 29: the same measurement, now dated today, is.
+  const onTime = LEGS.bsOnboardingLeg({ role: 'trainer', joinedAt, measurements: [{ measured_on: '2026-11-09' }], now: Date.parse('2026-11-09T12:00:00Z') });
+  assert.equal(stepsOf(onTime).progress.done, true);
+  // A member east of UTC whose own today is already tomorrow in UTC still counts.
+  const east = LEGS.bsOnboardingLeg({ role: 'trainer', joinedAt, measurements: [{ measured_on: '2026-11-10' }], now: Date.parse('2026-11-09T13:00:00Z') });
+  assert.equal(stepsOf(east).progress.done, true);
+});
+
 test('a week-one target counts only for the coach who set it (Codex on #2378)', () => {
   const leg = (weekOne, providerId) => LEGS.bsOnboardingLeg({ role: 'trainer', joinedAt: '2026-10-12T10:00:00Z', checkins: [], firstPlan: null, programDetail: { training: { weekOne } }, providerId, now: NOW });
   const mine = leg({ count: 3, startsOn: '2026-10-20', providerId: 7 }, 7);

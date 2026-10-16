@@ -285,12 +285,16 @@ export function bsOnboardingLeg(input) {
     weeks.sort();
     checkinsSince = { count: weeks.length, firstWeekOf: weeks.length && reachedJoin ? weeks[0] : null };
   }
-  // A measurement from day 28 on is the day-30 progress read.
+  // A measurement from day 28 on is the day-30 progress read. ⚠ And never one dated after today
+  // (Codex on #2378): the member's date is theirs to send, so a wrong device clock completed the step
+  // in week one. Today is read on the furthest-ahead clock (UTC+14), so no member's own date is
+  // ever "the future".
+  const latestDay = isoDayUTC(now + 14 * 3_600_000);
   const measuredAt = measurements === undefined || measurements === null ? undefined : (() => {
     let best = null;
     for (const m of Array.isArray(measurements) ? measurements : []) {
       const d = m && typeof m.measured_on === 'string' ? m.measured_on.slice(0, 10) : null;
-      if (d && d >= addDaysISO(joined, 27) && (!best || d > best)) best = d;
+      if (d && d >= addDaysISO(joined, 27) && d <= latestDay && (!best || d > best)) best = d;
     }
     return best;
   })();
