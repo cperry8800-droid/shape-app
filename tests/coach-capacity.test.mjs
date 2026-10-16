@@ -552,7 +552,7 @@ test('the booking pages: no intro times at capacity unless the coach keeps intro
 
 test('the app\'s full coach profile offers a free intro at capacity when the listing does (Codex on #2375)', () => {
   const market = read('mobile-app/src/broadsheet/iosAppBroadsheetMarketplace.jsx');
-  assert.match(market, /commerce: \{ coach, role: saleProviderRole, packages: p\.packages, introsAtCapacity: introsAtCap, bookIntro:/, 'the listing hands over the coach\'s setting');
+  assert.match(market, /commerce: \{ coach, role: saleProviderRole, packages: p\.packages, atCapacity, introsAtCapacity: introsAtCap, bookIntro:/, 'the listing hands over the coach\'s setting and what it read');
   const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
   const prof = client.slice(client.indexOf('function BSSignalCoachProfile('), client.indexOf('\nfunction ', client.indexOf('function BSSignalCoachProfile(') + 10));
   assert.match(prof, /const introsOpenAtCap = !!\(commerce && commerce\.introsAtCapacity === true\);/);
@@ -566,6 +566,37 @@ test('the app\'s full coach profile offers a free intro at capacity when the lis
   for (const from of ["{!isSelf && atCapacity && wl && wl.status !== 'invited' && (", '{!isSelf && atCapacity && !wl && clientOf !== true && (']) {
     assert.match(block(from), /\{introsOpenAtCap \? <button onClick=\{doBookIntro\} data-intro-at-capacity=""/, from);
   }
+});
+
+test('the app gates intros on capacity as the calendar read it, not the catalogue row (Codex on #2375)', () => {
+  const market = read('mobile-app/src/broadsheet/iosAppBroadsheetMarketplace.jsx');
+  // The availability read keeps the server's answer, keyed on the coach it was read for.
+  assert.match(market, /if \(typeof d\.atCapacity === 'boolean'\) setAvailCap\(\{ key: `\$\{saleProviderRole\}:\$\{saleProviderId\}`, at: d\.atCapacity \}\);/);
+  // The listing's own lines, lifted and run: a stale row loses to the fresh answer, either way.
+  const i = market.indexOf('  const rowAtCapacity = ');
+  const j = market.indexOf('  const [wl, setWl] = useStateBSM2(null);', i);
+  assert.ok(i > 0 && j > i, 'the listing\'s capacity lines');
+  const listing = new Function('coach', 'availCap', 'saleProviderRole', 'saleProviderId', `${market.slice(i, j)}\nreturn atCapacity;`);
+  const open = { at_capacity: false, capacity_resume_at: null };
+  const full = { at_capacity: true, capacity_resume_at: null };
+  assert.equal(listing(open, null, 'trainer', 7), false, 'the row stands in until the read answers');
+  assert.equal(listing(full, null, 'trainer', 7), true);
+  assert.equal(listing(open, { key: 'trainer:7', at: true }, 'trainer', 7), true, 'went full after the marketplace loaded');
+  assert.equal(listing(full, { key: 'trainer:7', at: false }, 'trainer', 7), false, 'reopened after the marketplace loaded');
+  assert.equal(listing(open, { key: 'trainer:8', at: true }, 'trainer', 7), false, 'another coach\'s answer is not this one\'s');
+  assert.equal(listing(open, { key: 'nutritionist:7', at: true }, 'trainer', 7), false, 'nor another role\'s');
+  // The intro gate reads that state.
+  assert.match(market.slice(j), /const introClosed = atCapacity && !introsAtCap && wl\?\.status !== 'invited';/);
+  // The full profile takes the listing's answer; opened any other way, the row decides.
+  const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  const k = client.indexOf('  const atCapacity = commerce && typeof commerce.atCapacity');
+  const l = client.indexOf('  // At capacity a free intro', k);
+  assert.ok(k > 0 && l > k, 'the profile\'s capacity line');
+  const profile = new Function('commerce', 'commerceCoach', `${client.slice(k, l)}\nreturn atCapacity;`);
+  assert.equal(profile({ atCapacity: true }, open), true);
+  assert.equal(profile({ atCapacity: false }, full), false);
+  assert.equal(profile({}, full), true);
+  assert.equal(profile(null, open), false);
 });
 
 // ── The app: Settings changes the listing of the role in use, through the route ──────────────

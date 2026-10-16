@@ -19013,7 +19013,11 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   // capacity_resume_at / provider_id); mirrors src/lib/capacity.ts isEffectivelyAtCapacity.
   const capacityProviderId = commerceCoach.provider_id || commerceCoach.db_id || null;
   const capacityProviderRole = commerceCoach.provider_role || (isNutri ? 'nutritionist' : 'trainer');
-  const atCapacity = !!(commerceCoach.at_capacity && (!commerceCoach.capacity_resume_at || new Date(commerceCoach.capacity_resume_at).getTime() > Date.now()));
+  // The listing hands over the state it read with the coach's times (Codex on #2375: the catalogue
+  // row can be stale), so the two screens agree; opened any other way, the row decides.
+  const atCapacity = commerce && typeof commerce.atCapacity === 'boolean'
+    ? commerce.atCapacity
+    : !!(commerceCoach.at_capacity && (!commerceCoach.capacity_resume_at || new Date(commerceCoach.capacity_resume_at).getTime() > Date.now()));
   // At capacity a free intro is the coach's call (task #10): the marketplace listing passes their
   // setting in `commerce` (Codex on #2375: the full profile dropped it, so an intro open on the listing
   // closed here). A member they invited off the list can book one either way, as the server decides.

@@ -1952,6 +1952,11 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   // Whether this coach keeps free intros open while at capacity: their own setting
   // (rules.introsAtCapacity, task #10; owner: "let the coach decide"). Closed until it loads.
   const [introsAtCap, setIntrosAtCap] = useStateBSM2(false);
+  // Whether the coach is at capacity NOW, as /api/availability answers it with their times, keyed on
+  // the coach it was read for. ⚠ THE CATALOGUE ROW CAN BE STALE (Codex on #2375): a coach who went
+  // full after the marketplace loaded still read as open here, so intro times were offered for
+  // /api/consultation to refuse. Null until a read answers; the row stands in until then.
+  const [availCap, setAvailCap] = useStateBSM2(null);
   // Declared hours we cannot place on a clock — the coach has no stored zone.
   const [noZone, setNoZone] = useStateBSM2(false);
 
@@ -2022,6 +2027,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
         const minutes = Number.isInteger(len) && len >= 5 && len <= 240 ? len : 15;
         setIntroMin(minutes);
         setIntrosAtCap(!!(d.rules && d.rules.introsAtCapacity === true));
+        if (typeof d.atCapacity === 'boolean') setAvailCap({ key: `${saleProviderRole}:${saleProviderId}`, at: d.atCapacity });
         setRealAvail(bsProjectAvailability({ slots: d.slots, booked: d.booked || [], weeks: 6, zone: d.timezone, busy: d.busy || [], rules: d.rules || null, sessionMin: minutes }));
         setAvailState('ready');
       })
@@ -2049,7 +2055,9 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   // Waiting room — port of the Signal storefront gate, shown only when the
   // coach is effectively at capacity (mirrors src/lib/capacity.ts).
   const capProviderId = coach.provider_id || coach.db_id || null;
-  const atCapacity = !!(coach.at_capacity && (!coach.capacity_resume_at || new Date(coach.capacity_resume_at).getTime() > Date.now()));
+  const rowAtCapacity = !!(coach.at_capacity && (!coach.capacity_resume_at || new Date(coach.capacity_resume_at).getTime() > Date.now()));
+  const freshAtCapacity = availCap && availCap.key === `${saleProviderRole}:${saleProviderId}` ? availCap.at : null;
+  const atCapacity = freshAtCapacity == null ? rowAtCapacity : freshAtCapacity;
   const [wl, setWl] = useStateBSM2(null);
   // Whether this member already subscribes to the coach, from the same mine() read (task #10, Codex
   // on #2375): at capacity a current client keeps buying, and is never sent to the waiting list.
@@ -2413,7 +2421,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
       // booking with none, which failed every time).
       // introsAtCapacity: the coach's own setting, so the profile offers the intro at capacity when
       // this listing does (Codex on #2375).
-      commerce: { coach, role: saleProviderRole, packages: p.packages, introsAtCapacity: introsAtCap, bookIntro: () => { setShowProfile(false); setShowCal(true); } },
+      commerce: { coach, role: saleProviderRole, packages: p.packages, atCapacity, introsAtCapacity: introsAtCap, bookIntro: () => { setShowProfile(false); setShowCal(true); } },
     };
     return <Living person={person} onBack={() => setShowProfile(false)} onMessage={(pp) => { setShowProfile(false); if (goChat) goChat((pp && pp.who) || coach.name, isNutriDetail ? 'Nutritionist' : 'Trainer'); }} />;
   }

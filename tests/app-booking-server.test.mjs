@@ -220,6 +220,6 @@ test('the profile\'s "Book intro" opens the listing\'s own calendar instead of b
   const iBook = fn.indexOf('submitConsultationBooking');
   assert.ok(iHand > 0 && iBook > iHand, 'the profile books before handing over to the listing calendar');
   const listing = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetMarketplace.jsx'), 'utf8');
-  assert.match(listing, /commerce: \{ coach, role: saleProviderRole, packages: p\.packages, introsAtCapacity: introsAtCap, bookIntro: \(\) => \{ setShowProfile\(false\); setShowCal\(true\); \} \}/,
+  assert.match(listing, /commerce: \{ coach, role: saleProviderRole, packages: p\.packages, atCapacity, introsAtCapacity: introsAtCap, bookIntro: \(\) => \{ setShowProfile\(false\); setShowCal\(true\); \} \}/,
     'the listing does not hand its calendar to the profile');
 });
