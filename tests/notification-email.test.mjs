@@ -47,14 +47,14 @@ test("the website's copies are the shared list, split by who sees each row", () 
 
 test('a row email is not offered for shows no Email switch, on the website and in the app', () => {
   const member = read('public/newdesign/clientMeSettings.jsx');
-  assert.match(member, /NP_CHANNELS\.map\(\(\[k, l\]\) => \(k === "email" && !NP_EMAIL_TYPES\.includes\(type\)\n\s+\? <span key=\{k\} aria-hidden="true" style=\{\{ width: 52 \}\} \/>/);
+  assert.match(member, /NP_CHANNELS\.map\(\(\[k, l\]\) => \(k === "email" && !NP_EMAIL_TYPES\.includes\(type\)\r?\n\s+\? <span key=\{k\} aria-hidden="true" style=\{\{ width: 52 \}\} \/>/);
   assert.match(member, /const chOn = \(type, ch\) => \{[^\n]*: npDefault\(type, ch\); \};/, 'the member page defaults a tier-up email off');
   assert.match(member, /if \(next === npDefault\(type, ch\)\) \{/, 'turning a tier-up email back on stores an override instead of clearing it');
   const coach = read('public/newdesign/coachSettings.jsx');
-  assert.match(coach, /CST_CHANNELS\.map\(\(\[ch\]\) => \(ch === "email" && !CST_EMAIL_TYPES\.includes\(type\)\n\s+\? <td key=\{ch\} style=\{\{ padding: "10px 8px" \}\} aria-hidden="true" \/>/);
+  assert.match(coach, /CST_CHANNELS\.map\(\(\[ch\]\) => \(ch === "email" && !CST_EMAIL_TYPES\.includes\(type\)\r?\n\s+\? <td key=\{ch\} style=\{\{ padding: "10px 8px" \}\} aria-hidden="true" \/>/);
   const app = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
   assert.match(app, /import \{ isEmailType, emailOnByDefault \} from '\.\.\/\.\.\/\.\.\/public\/newdesign\/notificationSurfaces\.mjs';/);
-  assert.match(app, /_NP_CHANNELS\.map\(\(\[k, l\]\) => \(k === 'email' && !isEmailType\(type\)\n\s+\? <span key=\{k\} aria-hidden="true" style=\{\{ width: 44, flexShrink: 0 \}\} \/>/);
+  assert.match(app, /_NP_CHANNELS\.map\(\(\[k, l\]\) => \(k === 'email' && !isEmailType\(type\)\r?\n\s+\? <span key=\{k\} aria-hidden="true" style=\{\{ width: 44, flexShrink: 0 \}\} \/>/);
   assert.match(app, /const chDefault = \(type, ch\) => \(ch === 'email' \? emailOnByDefault\(type\) : _NP_DEF_CH\[ch\]\);/);
   assert.match(app, /\['tier_up', 'Tier ups', 'When you reach a new Shape Score tier'\]/);
 });
@@ -142,9 +142,10 @@ test('a tier-up email answers its switch, mute and quiet hours', async () => {
   const night = { muted: false, quiet_start: 0, quiet_end: 0, tz: 'UTC' };
   // quiet_start === quiet_end is "no quiet hours"; a window covering every hour is 0 to 24.
   assert.deepEqual((await post(fakeAdmin({ settings: night }), TIER)).emailed, ['member@example.com'], 'no quiet window, still sent');
-  const always = { muted: false, quiet_start: 0, quiet_end: 23, tz: 'UTC' };
+  // A two-hour quiet window starting this hour, so the check holds at any time of day.
   const hour = new Date().getUTCHours();
-  if (hour < 23) assert.deepEqual((await post(fakeAdmin({ settings: always }), TIER)).emailed, [], 'inside quiet hours');
+  const quiet = { muted: false, quiet_start: hour, quiet_end: (hour + 2) % 24, tz: 'UTC' };
+  assert.deepEqual((await post(fakeAdmin({ settings: quiet }), TIER)).emailed, [], 'inside quiet hours');
   assert.deepEqual((await post(fakeAdmin({ earlier: 1 }), TIER)).emailed, [], 'a second tier-up email inside the hour');
   assert.deepEqual((await post(fakeAdmin({ fail: 'notification_preferences' }), TIER)).emailed, [], 'unreadable preferences send nothing');
   assert.deepEqual((await post(fakeAdmin({ fail: 'notifications' }), TIER)).emailed, [], 'an unreadable cooldown sends nothing');
