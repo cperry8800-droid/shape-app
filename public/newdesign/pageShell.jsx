@@ -647,17 +647,32 @@ function dashInboxWhen(iso, now) {
 // own state would spend a second request per page and could disagree with the first
 // after a mark. Only one of the two is ever visible (the CSS is exclusive), so their
 // open/closed states cannot conflict.
+// The newest row's time exactly as the server sent it, for "Clear all" (see clearAll). Rows
+// come newest first, and among rows in one millisecond the first is the newest.
+function dashInboxNewest(rows) {
+  let best = null, bestMs = -Infinity;
+  for (const r of rows || []) {
+    const ms = r && typeof r.createdAt === "string" ? Date.parse(r.createdAt) : NaN;
+    if (Number.isFinite(ms) && ms > bestMs) { best = r.createdAt; bestMs = ms; }
+  }
+  return best;
+}
+
 function useDashInboxFeed(signedIn) {
   // undefined = not read yet · null = the read FAILED · an object = read
   const [feed, setFeed] = React.useState(undefined);
   const [busy, setBusy] = React.useState(false);
+  const [clearFailed, setClearFailed] = React.useState(false);
   // ⚠ A GENERATION, NOT A PER-CALL FLAG, because the mount read and an on-open refresh
   // can be in flight together and only the newest of them may write.
   const genRef = React.useRef(0);
 
   const load = React.useCallback((keepOnFail) => {
     const gen = ++genRef.current;
-    return fetch("/api/notifications", { credentials: "same-origin", cache: "no-store" })
+    // ⚠ `surface=web`: the server leaves out what belongs on the phone only (the reminders a
+    // member sets, the meal-prep reminder, habit and streak nudges), and keeps mark-all and
+    // clear to what the bell shows.
+    return fetch("/api/notifications?surface=web", { credentials: "same-origin", cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .catch(() => null)
       .then((j) => {
@@ -669,13 +684,14 @@ function useDashInboxFeed(signedIn) {
         // refresh timed out is the worse of the two. A first read has nothing to keep.
         if (next === null && keepOnFail) return;
         setFeed(next);
+        if (next !== null) setClearFailed(false);
       });
   }, []);
 
   React.useEffect(() => {
     // The generation bump is what makes signing out cancel a read still in flight —
     // otherwise the previous account's notifications land in the panel after the reset.
-    if (!signedIn) { genRef.current++; setFeed(undefined); return undefined; }
+    if (!signedIn) { genRef.current++; setFeed(undefined); setClearFailed(false); return undefined; }
     load(false);
   }, [signedIn, load]);
 
@@ -695,8 +711,31 @@ function useDashInboxFeed(signedIn) {
       .catch(() => setFeed(before))
       .then(() => setBusy(false));
   };
+  // ⚠ "CLEAR ALL" HIDES WHAT THE MEMBER WAS SHOWN AND NOTHING NEWER. `before` is the newest
+  // row's time as the server sent it, so a notice that lands after the panel was read stays.
+  // The server hides cleared rows and never deletes them: the senders read them as their record
+  // of what was already sent. Optimistic with the same rollback as a mark, and a read still in
+  // flight is cancelled, or it would paint the cleared rows back. A failure says so, because
+  // rows that silently reappear read as a button that does nothing.
+  const clearAll = () => {
+    if (!feed || busy) return;
+    const newest = dashInboxNewest(feed.rows);
+    if (!newest) return;
+    const before = feed;
+    genRef.current++;
+    setFeed({ rows: [], unread: 0 });
+    setClearFailed(false);
+    setBusy(true);
+    fetch("/api/notifications", {
+      method: "POST", credentials: "same-origin",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clear: true, before: newest, surface: "web" }),
+    })
+      .then((r) => r.ok)
+      .catch(() => false)
+      .then((ok) => { if (!ok) { setFeed(before); setClearFailed(true); } setBusy(false); });
+  };
   return {
-    feed: feed, busy: busy,
+    feed: feed, busy: busy, clearFailed: clearFailed, clearAll: clearAll,
     // ⚠ REFRESHED WHEN THE PANEL OPENS. The read ran once per header mount, so a
     // notification arriving while a member stayed on one dashboard tab never reached the
     // badge until they reloaded — and a dashboard is a page people leave open all day.
@@ -704,7 +743,7 @@ function useDashInboxFeed(signedIn) {
     // again. Not while a mark is in flight: the reload would land on top of the
     // optimistic paint and undo it.
     reload: () => { if (!busy) load(true); },
-    markAll: () => mark({ all: true }, (f) => ({ rows: f.rows.map((r) => ({ ...r, read: true })), unread: 0 })),
+    markAll: () => mark({ all: true, surface: "web" }, (f) => ({ rows: f.rows.map((r) => ({ ...r, read: true })), unread: 0 })),
     // ⚠ `keepalive` FOR A MARK THAT RIDES A NAVIGATION. Outside a shell these links are a
     // real document navigation, and a POST started in the same tick is cancelled on
     // unload — so the row the member had just opened stayed unread and the badge went on
@@ -722,6 +761,9 @@ function DashInbox({ signedIn, role, roles, inbox }) {
   const [open, setOpen] = React.useState(false);
   const boxRef = React.useRef(null);
   const [shift, setShift] = React.useState(null);
+  // "Clear all" asks once: a cleared notification does not come back to the bell.
+  const [confirming, setConfirming] = React.useState(false);
+  React.useEffect(() => { if (!open) setConfirming(false); }, [open]);
 
   // ⚠ THE PANEL IS ANCHORED TO THE BELL, AND ON A PHONE THE BELL IS NOT AT THE EDGE.
   // Right-anchored to a bell whose right edge sits ~83px in from the viewport, a 340px
@@ -761,10 +803,14 @@ function DashInbox({ signedIn, role, roles, inbox }) {
   const markAll = inbox.markAll;
   const markOne = inbox.markOne;
   const reload = inbox.reload;
+  const clearAll = inbox.clearAll;
   const rows = feed && feed.rows ? feed.rows : [];
   const unread = feed ? feed.unread : 0;
 
   const badge = unread > 9 ? "9+" : String(unread);
+  const headBtn = (color) => ({ background: "transparent", border: 0, padding: "4px 0", cursor: busy ? "default" : "pointer",
+    fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase",
+    color: busy ? "rgba(var(--sh-ink-rgb, 242,237,228),0.3)" : color });
   return (
     <div ref={boxRef} style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
       <button
@@ -790,11 +836,27 @@ function DashInbox({ signedIn, role, roles, inbox }) {
                         borderRadius: 8, boxShadow: "0 20px 50px rgba(0,0,0,0.5)", overflow: "hidden" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 14px", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
               <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.45)" }}>Notifications</span>
-              {unread > 0 && (
-                <button onClick={markAll} disabled={busy} style={{ background: "transparent", border: 0, padding: 0, cursor: busy ? "default" : "pointer",
-                          fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: busy ? "rgba(var(--sh-ink-rgb, 242,237,228),0.3)" : DASH_INBOX_TEAL }}>Mark all read</button>
+              {confirming ? (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 12 }}>
+                  <span style={{ ...headBtn(null), cursor: "default", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.6)" }}>Clear all?</span>
+                  <button onClick={() => { setConfirming(false); clearAll(); }} disabled={busy} style={headBtn(DASH_INBOX_TEAL)}>Yes</button>
+                  <button onClick={() => setConfirming(false)} style={headBtn("rgba(var(--sh-ink-rgb, 242,237,228),0.5)")}>Cancel</button>
+                </span>
+              ) : (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 14 }}>
+                  {unread > 0 && (
+                    <button onClick={markAll} disabled={busy} style={{ background: "transparent", border: 0, padding: 0, cursor: busy ? "default" : "pointer",
+                              fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: busy ? "rgba(var(--sh-ink-rgb, 242,237,228),0.3)" : DASH_INBOX_TEAL }}>Mark all read</button>
+                  )}
+                  {rows.length > 0 && typeof clearAll === "function" && (
+                    <button onClick={() => setConfirming(true)} disabled={busy} style={headBtn("rgba(var(--sh-ink-rgb, 242,237,228),0.5)")}>Clear all</button>
+                  )}
+                </span>
               )}
             </div>
+            {inbox.clearFailed && (
+              <div role="status" style={{ padding: "8px 14px", fontSize: 12, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.6)", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>Couldn't clear your notifications. Try again.</div>
+            )}
             <div style={{ maxHeight: 380, overflowY: "auto" }}>
               {/* ⚠ FOUR STATES, AND THE THIRD IS THE ONE THAT MATTERS. An unreadable feed
                   must not render as "you're all caught up" — that is a claim about the

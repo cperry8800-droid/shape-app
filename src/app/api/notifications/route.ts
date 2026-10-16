@@ -1,7 +1,10 @@
 // In-app notifications feed for the signed-in user.
 //
-// GET  -> { notifications: [...recent], unread }   (latest 50)
+// GET  -> { notifications: [...recent], unread }   (latest 50, cleared ones left out)
+//         ?surface=web leaves out the phone-only types (lib/notification-surfaces.mjs).
 // POST -> mark read: { id } for one, or { all: true } for everything.
+//         clear: { clear: true, before } hides every notification up to `before`.
+//         surface: 'web' keeps mark-all and clear to what the website shows.
 //
 // Auth: cookie session OR Bearer token (mobile bridges either). Rows are
 // RLS-scoped to the caller, so we never see anyone else's notifications.
@@ -9,22 +12,36 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson, dbError } from '@/lib/request-utils';
+import { PHONE_ONLY_IN } from '../../../lib/notification-surfaces.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 type Row = { id: string; type: string; title: string; body: string; route: string | null; data: Record<string, unknown>; read_at: string | null; created_at: string };
 
+// Before 2026-10-16-notifications-clear.sql runs there is no cleared_at column: a filter on it
+// answers 42703 and a write PGRST204. Nothing can have been cleared then.
+const noClearColumn = (error: { code?: string } | null) => error?.code === '42703' || error?.code === 'PGRST204';
+
 export async function GET(request: Request) {
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   const supabase = await clientForRequest(request);
 
-  const { data, error } = await supabase
-    .from('notifications')
-    .select('id, type, title, body, route, data, read_at, created_at')
-    .order('created_at', { ascending: false })
-    .limit(200);
+  // A cleared notification is hidden, never deleted: the prep-reminder cron, the waiting-list
+  // notice and the email cooldown read a member's earlier rows as their record of what was sent.
+  // ⚠ THE WEBSITE LEAVES OUT WHAT BELONGS ON THE PHONE ONLY IN THE QUERY, BEFORE THE 200-ROW CAP.
+  // Filtered after it, a month of daily reminders filled the cap and the bell read empty while
+  // older messages and bookings sat unread (Codex on #2386).
+  const web = new URL(request.url).searchParams.get('surface') === 'web';
+  const read = (hideCleared: boolean) => {
+    let q = supabase.from('notifications').select('id, type, title, body, route, data, read_at, created_at');
+    if (hideCleared) q = q.is('cleared_at', null);
+    if (web) q = q.not('type', 'in', PHONE_ONLY_IN);
+    return q.order('created_at', { ascending: false }).limit(200);
+  };
+  let { data, error } = await read(true);
+  if (noClearColumn(error)) ({ data, error } = await read(false));
   // ⚠ A FAILED READ IS NOT AN EMPTY INBOX. This returned HTTP 200 with
   // `{ notifications: [], unread: 0 }`, which is the positive claim "nothing new" made
   // out of a query that never answered — and it made the web bell's "couldn't read your
@@ -68,11 +85,32 @@ export async function POST(request: Request) {
   const supabase = await clientForRequest(request);
 
   const nowIso = new Date().toISOString();
+  // From the website, "Clear all" and "Mark all read" touch only what the website shows: a phone
+  // reminder the member has not seen in the app stays unread and listed there.
+  const web = body.surface === 'web';
+  if (body.clear === true) {
+    // `before` is the newest notification the member was shown, passed back as the server sent
+    // it: one that arrived after they looked stays. It is not re-serialised, because the stored
+    // time has microseconds and a JS Date would round the newest row out of its own clear.
+    const before = typeof body.before === 'string' && body.before.length <= 64 && Number.isFinite(Date.parse(body.before))
+      ? body.before : null;
+    if (!before) return NextResponse.json({ error: 'Missing before.' }, { status: 400 });
+    const q = supabase
+      .from('notifications')
+      .update({ cleared_at: nowIso })
+      .is('cleared_at', null)
+      .lte('created_at', before);
+    const { error } = await (web ? q.not('type', 'in', PHONE_ONLY_IN) : q);
+    if (noClearColumn(error)) return NextResponse.json({ error: 'Clearing notifications is not available yet.' }, { status: 503 });
+    if (error) return dbError(error, 'notifications clear', 500);
+    return NextResponse.json({ ok: true });
+  }
   if (body.all === true) {
-    const { error } = await supabase
+    const q = supabase
       .from('notifications')
       .update({ read_at: nowIso })
       .is('read_at', null);
+    const { error } = await (web ? q.not('type', 'in', PHONE_ONLY_IN) : q);
     if (error) return dbError(error, 'notifications write', 500);
     return NextResponse.json({ ok: true });
   }
