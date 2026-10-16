@@ -44,7 +44,7 @@ async function mine({ subs = [], subsError = null, user = { id: 'member-1' } } =
   };
   const route = await loadRealModule(join(ROOT, 'src/app/api/waitlist/mine/route.ts'), {
     typescript: true,
-    registry: new Map([['next/server', nextServer], ['@/lib/waitlist', { resolveRequestClient: async () => (user ? { user, supabase } : null) }]]),
+    registry: new Map([['next/server', nextServer], ['@/lib/membership-core', { ACTIVE_SUB: new Set(['active', 'trialing', 'past_due']) }], ['@/lib/waitlist', { resolveRequestClient: async () => (user ? { user, supabase } : null) }]]),
   });
   const errLog = console.error; console.error = () => {};
   try {
@@ -60,7 +60,7 @@ test('/api/waitlist/mine names the coaches the caller already subscribes to, und
   assert.equal(r.body.entries[0].id, 'w1', 'the waiting list itself is unchanged');
   const [, q] = r.reads.find(([t]) => t === 'subscriptions');
   assert.equal(q.cols, 'provider_role, provider_id');
-  assert.deepEqual(q.filters, [['eq', 'client_id', 'member-1'], ['in', 'status', ['active', 'trialing']]], 'the same read as isActiveClientOf');
+  assert.deepEqual(q.filters, [['eq', 'client_id', 'member-1'], ['in', 'status', ['active', 'trialing', 'past_due']]], 'the same read as isActiveClientOf, past due included (Codex on #2375)');
   // A failed read is unknown, never "a client of nobody".
   const failed = await mine({ subsError: { message: 'down' } });
   assert.equal(failed.status, 200);

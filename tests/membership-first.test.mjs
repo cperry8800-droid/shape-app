@@ -194,7 +194,7 @@ async function coachRoute({ profile = ADULT, platform = [], subscriptions = [], 
   // The real capacity rule and the real "already their client" read (task #10), over the caller's
   // own subscription rows; the invite is scripted ('yes', 'no', 'error').
   const capacity = await loadRealModule(join(ROOT, 'src/lib/capacity.ts'), { typescript: true });
-  const waitlist = await loadRealModule(join(ROOT, 'src/lib/waitlist.ts'), { typescript: true, registry: new Map([['@supabase/supabase-js', { createClient: () => null }], ['@/lib/supabase/server', { createClient: async () => null }]]) });
+  const waitlist = await loadRealModule(join(ROOT, 'src/lib/waitlist.ts'), { typescript: true, registry: new Map([['@supabase/supabase-js', { createClient: () => null }], ['@/lib/supabase/server', { createClient: async () => null }], ['@/lib/membership-core', membershipCore]]) });
   const route = await loadRealModule(join(ROOT, 'src/app/api/stripe/checkout-session/route.ts'), {
     typescript: true,
     registry: new Map([

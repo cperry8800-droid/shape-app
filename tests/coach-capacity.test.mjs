@@ -546,8 +546,38 @@ test('a one-time purchase at capacity: a current client buys, someone new needs 
   const src = read('src/app/purchase/actions.ts');
   assert.match(src, /invited = await hasActiveWaitlistInvite\(supabase, user\.id, providerRole, providerId\)\s*\|\| await isActiveClientOf\(supabase, user\.id, providerRole, providerId\);/);
   const lib = read('src/lib/waitlist.ts');
-  assert.match(lib, /\.from\('subscriptions'\)[\s\S]{0,200}\.in\('status', \['active', 'trialing'\]\)/);
+  // The set /subscribe refuses as already subscribed, past due included (Codex on #2375).
+  assert.match(lib, /\.from\('subscriptions'\)[\s\S]{0,200}\.in\('status', Array\.from\(ACTIVE_SUB\)\)/);
+  assert.match(lib, /import \{ ACTIVE_SUB \} from '@\/lib\/membership-core';/);
+  assert.match(read('src/lib/membership-core.ts'), /export const ACTIVE_SUB = new Set\(\['active', 'trialing', 'past_due'\]\);/);
   assert.match(lib, /if \(error\) throw new Error\(`client lookup failed/, 'a failed read is never a yes');
+});
+
+test('a past-due subscriber is a current client at capacity, a cancelled one is not (Codex on #2375)', async () => {
+  // /subscribe refuses a past-due subscriber as already subscribed (membership-core's ACTIVE_SUB), so
+  // the client check must count them too, or they are left with no way to buy from their own coach.
+  const membershipCore = await loadRealModule(join(ROOT, 'src/lib/membership-core.ts'), { typescript: true });
+  const waitlist = await loadRealModule(join(ROOT, 'src/lib/waitlist.ts'), {
+    typescript: true,
+    registry: new Map([['@supabase/supabase-js', { createClient: () => null }], ['@/lib/supabase/server', { createClient: async () => null }], ['@/lib/membership-core', membershipCore]]),
+  });
+  const sub = (status) => ({ subscriptions: [{ client_id: 'm1', provider_role: 'trainer', provider_id: 7, status }] });
+  const filterAware = (tables) => ({
+    from: (t) => {
+      const filters = [];
+      const q = {
+        select: () => q,
+        eq: (k, v) => { filters.push((r) => r[k] === v); return q; },
+        in: (k, v) => { filters.push((r) => v.includes(r[k])); return q; },
+        limit: () => q,
+        then: (res) => Promise.resolve({ data: (tables[t] || []).filter((r) => filters.every((f) => f(r))), error: null }).then(res),
+      };
+      return q;
+    },
+  });
+  for (const [status, want] of [['active', true], ['trialing', true], ['past_due', true], ['canceled', false], ['incomplete', false]]) {
+    assert.equal(await waitlist.isActiveClientOf(filterAware(sub(status)), 'm1', 'trainer', 7), want, status);
+  }
 });
 
 test('the marketplace reads a passed resume date as accepting, the same rule as the server', async () => {

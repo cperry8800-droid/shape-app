@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { resolveRequestClient } from '@/lib/waitlist';
+import { ACTIVE_SUB } from '@/lib/membership-core';
 
 export const runtime = 'nodejs';
 
@@ -47,7 +48,7 @@ export async function GET(request: Request) {
     .from('subscriptions')
     .select('provider_role, provider_id')
     .eq('client_id', user.id)
-    .in('status', ['active', 'trialing'])
+    .in('status', Array.from(ACTIVE_SUB))   // past due included: /subscribe counts them as subscribed
     .limit(200);
   if (subsError) console.error('[waitlist/mine] subscriptions read failed', subsError.message);
   const clientOf = subsError
