@@ -1208,6 +1208,8 @@
   "onboard.targetTrainer": "{count, plural, one {# тренування} few {# тренування} many {# тренувань} other {# тренування}} за перший тиждень",
   "onboard.targetNutri": "{count, plural, one {# день із записами} few {# дні із записами} many {# днів із записами} other {# дня із записами}} за перший тиждень",
   "onboard.starts": "починається {date}",
+  "onboard.setBy": "задав(ла) {name}",
+  "onboard.otherCoach": "інший тренер",
   "onboard.notSet": "Не задано",
   "onboard.theySaid": "{first} вказує {count, plural, one {# заняття} few {# заняття} many {# занять} other {# заняття}} на тиждень",
   "onboard.change": "ЗМІНИТИ",

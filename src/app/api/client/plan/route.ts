@@ -12,6 +12,8 @@ import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { requireMembership } from '@/lib/require-membership';
 import { supersetKey, blockKind, videoUrl } from '../../../../../public/newdesign/workoutDocument.mjs';
+// Relative, as workoutDocument.mjs above: the route's test harnesses resolve a relative module themselves.
+import { sharedWeekOneOf } from '../../../../lib/coach-client-legs.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -165,6 +167,9 @@ export async function GET(request: Request) {
       kind: w.kind,
       // Self-authored (member-built) when there's no coach behind the row.
       selfAuthored: w.trainer_id === null,
+      // The trainer who wrote it, by name (filled below): a member may pay two (owner, 2026-10-16), so
+      // the plan-level `coach` cannot credit every workout. Null for their own, or a name not read.
+      coach: null as string | null,
       // Adjust-regeneration generation stamp (spec #1707) — the deck skips
       // display-time scaling for rows the regeneration already rewrote.
       adjustGen: Number((payload as Record<string, unknown> | null)?.adjustGen) || null,
@@ -238,60 +243,96 @@ export async function GET(request: Request) {
     ? (mp.payload as Record<string, unknown>).days
     : [];
 
-  // ── Coach attribution: resolve the assigning provider names (public-read
-  // marketplace rows) so the client UI credits the real coach, not the demo. ──
-  const trainerId = (cwRows ?? []).find((w) => w.trainer_id != null)?.trainer_id ?? null;
-  const [trName, nuName] = await Promise.all([
-    trainerId != null
-      ? supabase.from('trainers').select('name').eq('id', trainerId).maybeSingle().then((r) => r.data?.name ?? null)
-      : Promise.resolve(null),
-    mp?.nutritionist_id != null
-      ? supabase.from('nutritionists').select('name').eq('id', mp.nutritionist_id).maybeSingle().then((r) => r.data?.name ?? null)
-      : Promise.resolve(null),
-  ]);
-
-  // ⚠ A COACHED MEMBER WITH NO PLAN YET WAS TOLD "NO COACH REQUIRED" (client-onboarding review, M16).
-  // The plan was the only coach signal here, so between subscribing and week 1 the member read "No
-  // plan yet", "Find a trainer" and a first check-in about a plan that did not exist. `coaching` is
-  // the coach they pay, per discipline, by their own active subscription: the name, the thread to
-  // message them in, and the week-one target the coach set (client_programs.detail[discipline]
-  // .weekOne, fix 4). Null when they have no such coach; the key is omitted when the read failed, so
-  // the app can tell "no coach" from "could not tell".
+  // ⚠ A MEMBER MAY PAY TWO COACHES OF ONE ROLE (owner, 2026-10-16: "members can have multiple coaches
+  // if they choose to"). Read every active subscription; `coaching` per discipline names them all.
   const { data: subRows, error: subErr } = await supabase
     .from('subscriptions')
     .select('provider_role, provider_id, created_at')
     .eq('client_id', user.id)
     .in('status', ['active', 'trialing']);
-  const coachingFor = async (role: 'trainer' | 'nutritionist') => {
-    const sub = ((subRows ?? []) as Array<{ provider_role: string; provider_id: number; created_at: string | null }>)
-      .filter((r) => r.provider_role === role)
-      .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')))[0];
-    if (!sub) return null;
-    const [nameRes, convRes] = await Promise.all([
-      supabase.from(role === 'trainer' ? 'trainers' : 'nutritionists').select('name').eq('id', sub.provider_id).maybeSingle(),
-      supabase.from('conversations').select('id').eq('client_id', user.id).eq('kind', 'direct').eq('provider_role', role).eq('provider_id', sub.provider_id).limit(1),
-    ]);
-    const section = (progRow?.detail as Record<string, unknown> | null)?.[role === 'trainer' ? 'training' : 'nutrition'] as Record<string, unknown> | undefined;
-    // Only the target this coach set (Codex on #2378): the section outlives a change of coach.
-    const raw = section && typeof section.weekOne === 'object' && section.weekOne ? section.weekOne as Record<string, unknown> : null;
-    // And only one set during this subscription: an earlier run's target is not this one's (Codex on #2378).
-    const setAt = raw && typeof raw.setAt === 'string' ? Date.parse(raw.setAt) : NaN;
-    const subStart = sub.created_at ? Date.parse(sub.created_at) : NaN;
-    const stale = Number.isFinite(setAt) && Number.isFinite(subStart) && setAt < subStart;
-    const w = raw && !stale && raw.providerId != null && String(raw.providerId) === String(sub.provider_id) ? raw : null;
-    const count = w ? Number(w.count) : NaN;
+  type Sub = { provider_role: string; provider_id: number; created_at: string | null };
+  // One row per listing (its earliest live subscription), the earliest first.
+  const subsOf = (role: 'trainer' | 'nutritionist'): Sub[] => {
+    const byListing = new Map<string, Sub>();
+    for (const r of (subRows ?? []) as Sub[]) {
+      if (r.provider_role !== role) continue;
+      const prev = byListing.get(String(r.provider_id));
+      if (!prev || String(r.created_at || '') < String(prev.created_at || '')) byListing.set(String(r.provider_id), r);
+    }
+    return [...byListing.values()].sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
+  };
+  const trainerSubs = subsOf('trainer');
+  const nutriSubs = subsOf('nutritionist');
+
+  // ── Coach attribution: resolve the provider names (public-read marketplace rows) so the client UI
+  // credits the real coach, not the demo: every trainer behind a workout and every coach they pay. ──
+  const trainerIds = [...new Set([
+    ...(cwRows ?? []).map((w) => w.trainer_id).filter((id): id is number => id != null),
+    ...trainerSubs.map((r) => r.provider_id),
+  ].map(Number))];
+  const nutriIds = [...new Set([
+    ...(mp?.nutritionist_id != null ? [mp.nutritionist_id] : []),
+    ...nutriSubs.map((r) => r.provider_id),
+  ].map(Number))];
+  const [trNames, nuNames] = await Promise.all([
+    trainerIds.length ? supabase.from('trainers').select('id, name').in('id', trainerIds) : Promise.resolve({ data: [] }),
+    nutriIds.length ? supabase.from('nutritionists').select('id, name').in('id', nutriIds) : Promise.resolve({ data: [] }),
+  ]);
+  const nameMap = (res: { data: unknown }) =>
+    new Map(((res.data ?? []) as Array<{ id: number; name: string | null }>).map((r) => [String(r.id), r.name ?? null]));
+  const trainerName = nameMap(trNames);
+  const nutriName = nameMap(nuNames);
+  const trainerByWorkout = new Map((cwRows ?? []).map((w) => [w.id, w.trainer_id]));
+  for (const w of workouts) {
+    const id = trainerByWorkout.get(w.id);
+    w.coach = id != null ? trainerName.get(String(id)) ?? null : null;
+  }
+  // The plan-level name stays the first coached workout's trainer, as it was.
+  const trainerId = (cwRows ?? []).find((w) => w.trainer_id != null)?.trainer_id ?? null;
+  const trName = trainerId != null ? trainerName.get(String(trainerId)) ?? null : null;
+  const nuName = mp?.nutritionist_id != null ? nutriName.get(String(mp.nutritionist_id)) ?? null : null;
+
+  // ⚠ A COACHED MEMBER WITH NO PLAN YET WAS TOLD "NO COACH REQUIRED" (client-onboarding review, M16).
+  // The plan was the only coach signal here, so between subscribing and week 1 the member read "No
+  // plan yet", "Find a trainer" and a first check-in about a plan that did not exist. `coaching` is
+  // the coaches they pay, per discipline, by their own active subscriptions: `coaches` names every one
+  // with the thread to message them in, `name` / `conversationId` are the earliest's, and `weekOne` is
+  // the week-one target one of them set (client_programs.detail[discipline].weekOne, fix 4), with
+  // `setBy` naming who. Null when they have no such coach; the key is omitted when the read failed,
+  // so the app can tell "no coach" from "could not tell".
+  const { data: convRows, error: convErr } = trainerSubs.length || nutriSubs.length
+    ? await supabase.from('conversations').select('id, provider_role, provider_id').eq('client_id', user.id).eq('kind', 'direct').not('provider_role', 'is', null)
+    : { data: [], error: null };
+  if (convErr) console.error('[client/plan] coach thread read failed:', convErr.message);
+  const threadOf = (role: string, providerId: number) =>
+    ((convRows ?? []) as Array<{ id: string; provider_role: string | null; provider_id: number | null }>)
+      .find((c) => c.provider_role === role && String(c.provider_id) === String(providerId))?.id ?? null;
+  const coachingFor = (role: 'trainer' | 'nutritionist') => {
+    const subs = role === 'trainer' ? trainerSubs : nutriSubs;
+    if (!subs.length) return null;
+    const names = role === 'trainer' ? trainerName : nutriName;
+    const coaches = subs.map((sub) => ({
+      providerId: sub.provider_id,
+      name: names.get(String(sub.provider_id)) ?? null,
+      conversationId: threadOf(role, sub.provider_id),
+    }));
+    // The target one of them set during their own subscription (Codex on #2378: the section outlives a
+    // change of coach, and an earlier run's target is not this one's); the section is shared, so it is
+    // whichever of the coaches they pay now set it last.
+    const w = sharedWeekOneOf(progRow?.detail ?? null, role === 'trainer' ? 'training' : 'nutrition',
+      subs.map((sub) => ({ providerId: sub.provider_id, since: sub.created_at })), null);
     return {
-      name: (nameRes.data as { name?: string } | null)?.name ?? null,
-      conversationId: ((convRes.data ?? []) as Array<{ id: string }>)[0]?.id ?? null,
-      // At most seven days logged for a nutritionist (weekOneMax in coach-client-legs.mjs).
-      weekOne: Number.isInteger(count) && count >= 1 && count <= (role === 'nutritionist' ? 7 : 14)
-        ? { count, startsOn: typeof w!.startsOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(w!.startsOn) ? w!.startsOn : null }
+      name: coaches[0].name,
+      conversationId: coaches[0].conversationId,
+      coaches,
+      weekOne: w
+        ? { count: w.count, startsOn: w.startsOn, setBy: coaches.find((c) => String(c.providerId) === String(w.providerId))?.name ?? null }
         : null,
     };
   };
   const [trainerCoaching, nutritionCoaching] = subErr
     ? [undefined, undefined]
-    : await Promise.all([coachingFor('trainer'), coachingFor('nutritionist')]);
+    : [coachingFor('trainer'), coachingFor('nutritionist')];
 
   return NextResponse.json({
     ok: true,

@@ -1208,6 +1208,8 @@
   "onboard.targetTrainer": "{count, plural, other {# latihan}} di minggu 1",
   "onboard.targetNutri": "{count, plural, other {# hari tercatat}} di minggu 1",
   "onboard.starts": "mulai {date}",
+  "onboard.setBy": "ditetapkan oleh {name}",
+  "onboard.otherCoach": "pelatih lainnya",
   "onboard.notSet": "Belum diatur",
   "onboard.theySaid": "{first} bilang {count, plural, other {# sesi}} per minggu",
   "onboard.change": "UBAH",

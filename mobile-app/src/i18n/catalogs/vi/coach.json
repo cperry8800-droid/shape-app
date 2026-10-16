@@ -1208,6 +1208,8 @@
   "onboard.targetTrainer": "{count, plural, other {# buổi tập}} trong tuần 1",
   "onboard.targetNutri": "{count, plural, other {# ngày ghi nhật ký}} trong tuần 1",
   "onboard.starts": "bắt đầu {date}",
+  "onboard.setBy": "do {name} đặt",
+  "onboard.otherCoach": "huấn luyện viên còn lại",
   "onboard.notSet": "Chưa đặt",
   "onboard.theySaid": "{first} cho biết {count, plural, other {# buổi}} mỗi tuần",
   "onboard.change": "ĐỔI",

@@ -1208,6 +1208,8 @@
   "onboard.targetTrainer": "{count, plural, one {# workout} other {# workouts}} in week 1",
   "onboard.targetNutri": "{count, plural, one {# day} other {# days}} logged in week 1",
   "onboard.starts": "starts {date}",
+  "onboard.setBy": "set by {name}",
+  "onboard.otherCoach": "their other coach",
   "onboard.notSet": "Not set",
   "onboard.theySaid": "{first} said {count, plural, one {# session} other {# sessions}} a week",
   "onboard.change": "CHANGE",

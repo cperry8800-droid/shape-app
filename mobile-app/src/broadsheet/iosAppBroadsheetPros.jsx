@@ -4476,6 +4476,9 @@ function bsOnboardingNext(ob, role) {
 function BSProOnboardingStation({ ob, role, clientUid, first, heat, t, onSayHello, onSaved }) {
   const nut = role === 'nutritionist' || role === 'dietitian';
   const [target, setTarget] = useStateBSP(ob.weekOne || null);
+  // Who set it, when it was another coach of this discipline (a member may pay two; owner, 2026-10-16):
+  // they share the target, so it is this board's too. Null once this coach saves their own.
+  const [targetBy, setTargetBy] = useStateBSP(ob.weekOneBy || null);
   const [editing, setEditing] = useStateBSP(false);
   // Days logged run to seven (weekOneMax in coach-client-legs.mjs; Codex on #2378).
   const max = nut ? 7 : 14;
@@ -4496,7 +4499,7 @@ function BSProOnboardingStation({ ob, role, clientUid, first, heat, t, onSayHell
     const r = await window.ShapeWeekOne.set(clientUid, role, count, startsOn);
     setBusy(false);
     // The board's dates follow the target (Codex on #2378): the client page reads the board again.
-    if (r && r.ok) { setTarget(r.weekOne); setEditing(false); window.__bsToast?.(coachTr('coach:onboard.saved', { defaultValue: 'Target saved' }), 'ok'); if (onSaved) onSaved(); }
+    if (r && r.ok) { setTarget(r.weekOne); setTargetBy(null); setEditing(false); window.__bsToast?.(coachTr('coach:onboard.saved', { defaultValue: 'Target saved' }), 'ok'); if (onSaved) onSaved(); }
     else window.__bsToast?.((r && r.error) || coachTr('coach:onboard.saveFailed', { defaultValue: 'Couldn’t save it. Try again.' }), 'info');
   };
   const mono = { fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase' };
@@ -4526,6 +4529,7 @@ function BSProOnboardingStation({ ob, role, clientUid, first, heat, t, onSayHell
             <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.45 }}>
               {target
                 ? unitText(target.count) + (target.startsOn ? ' · ' + coachTr('coach:onboard.starts', { defaultValue: 'starts {date}', date: bsOnboardDay(target.startsOn) }) : '')
+                  + (targetBy ? ' · ' + coachTr('coach:onboard.setBy', { defaultValue: 'set by {name}', name: targetBy.name || coachTr('coach:onboard.otherCoach', { defaultValue: 'their other coach' }) }) : '')
                 : ob.weekOneUnread ? coachTr('coach:onboard.unread', { defaultValue: 'couldn’t read' })
                 : coachTr('coach:onboard.notSet', { defaultValue: 'Not set' }) + (ob.suggested ? ' · ' + coachTr('coach:onboard.theySaid', { defaultValue: '{first} said {count, plural, one {# session} other {# sessions}} a week', first: first || coachTr('coach:common.clientFallback', { defaultValue: 'Client' }), count: ob.suggested }) : '')}
               <div><button type="button" style={btn} onClick={() => setEditing(true)}>{target ? coachTr('coach:onboard.change', { defaultValue: 'CHANGE' }) : coachTr('coach:onboard.setTarget', { defaultValue: 'SET TARGET' })}</button></div>

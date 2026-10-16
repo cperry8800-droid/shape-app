@@ -649,8 +649,16 @@ function DclSetupBoardView({ board, onSaved }) {
   const state = (s, doneText, todoText) => !s ? "—" : s.done == null ? "Couldn't read" : s.done ? doneText : todoText;
   const p = board.profile;
   const coaching = board.coaching;
-  const trainer = coaching && coaching.training != null ? coaching.training || "Your trainer" : null;
-  const nutritionist = coaching && coaching.nutrition != null ? coaching.nutrition || "Your nutritionist" : null;
+  // Every coach they pay, by role (owner, 2026-10-16: a member may pay two of one role). `trainers` /
+  // `nutritionists` are the lists; an older route sent only the first, as `training` / `nutrition`.
+  const listOf = (list, one) => (Array.isArray(list) ? list : one != null ? [one] : []);
+  const trainerNames = coaching ? listOf(coaching.trainers, coaching.training) : [];
+  const nutritionistNames = coaching ? listOf(coaching.nutritionists, coaching.nutrition) : [];
+  const trainerWho = trainerNames.length ? dashNameList(trainerNames, "Your trainer", "Your trainers") : null;
+  const nutritionistWho = nutritionistNames.length ? dashNameList(nutritionistNames, "Your nutritionist", "Your nutritionists") : null;
+  const trainer = trainerWho ? trainerWho.text : null;
+  const nutritionist = nutritionistWho ? nutritionistWho.text : null;
+  const trainersMany = !!(trainerWho && trainerWho.many);
   const settings = dashShellHref("ClientMe.html");
   const train = dashShellHref("ClientTrain.html");
   const progress = dashShellHref("ClientProgress.html");
@@ -695,7 +703,7 @@ function DclSetupBoardView({ board, onSaved }) {
             <DclSetupLine label="Goal" value={dclPrefLabel("goal", p.goal)} href={settings} cta="Set it" />
             <DclSetupLine label="Experience" value={dclPrefLabel("experience", p.experience)} href={settings} />
             <DclSetupLine label="Trains" value={p.sessionsPerWeek ? p.sessionsPerWeek + " days / week" : null} href={settings} />
-            <DclSetupLine label="Coaching" value={trainer || nutritionist ? [trainer, nutritionist].filter(Boolean).join(" & ") : coachingText || "Not answered"} />
+            <DclSetupLine label="Coaching" value={trainer || nutritionist ? dashNameList([...trainerNames, ...nutritionistNames], "Your coach", "Your coaches").text : coachingText || "Not answered"} />
             <DclSetupLine label="Diet" value={dclPrefLabel("diet", p.diet)} href={settings} />
             <DclSetupLine label="Devices" value={p.devices == null ? "Couldn't read" : p.devices.length ? p.devices.join(", ") : null} href={settings} cta="None · connect" />
           </>}
@@ -709,7 +717,7 @@ function DclSetupBoardView({ board, onSaved }) {
           {plan && plan.done
             ? <DclSetupLine label="Plan" value={(plan.title || "Week 1") + " · " + (plan.by === "coach" ? "from " + (trainer || "your coach") : "set " + dclSetupDay(plan.at))} />
             : plan && plan.waiting
-              ? <p style={{ margin: 0, fontSize: 13 }}>{trainer} is preparing your plan. <a className="dw-action" href={dashShellHref("ClientTeam.html")}>Message →</a></p>
+              ? <p style={{ margin: 0, fontSize: 13 }}>{trainer} {trainersMany ? "are" : "is"} preparing your plan. <a className="dw-action" href={dashShellHref("ClientTeam.html")}>Message →</a></p>
               : plan && plan.done == null
                 ? <DclSetupLine label="Plan" value="Couldn't read" />
                 : <>
@@ -733,16 +741,16 @@ function DclSetupBoardView({ board, onSaved }) {
       <ol aria-label="First 30 days" style={{ listStyle: "none", margin: "12px 0 0", padding: 0, display: "flex", flexWrap: "wrap", gap: "6px 14px", fontSize: 12.5 }}>
         {board.steps.map((s) => <li key={s.key} style={{ color: s.done ? DCL_TEAL : DCL_INK50 }}>
           {s.done ? "✓ " : s.done == null ? "? " : "○ "}{DCL_SETUP_STEPS[s.key] || s.key}
-          {s.done && s.at ? " · " + dclSetupDay(s.at) : s.done == null ? " · couldn't read" : s.waiting ? " · " + (trainer || "your coach") + " is on it" : s.due ? " · due " + dclSetupDay(s.due) : ""}
+          {s.done && s.at ? " · " + dclSetupDay(s.at) : s.done == null ? " · couldn't read" : s.waiting ? " · " + (trainer || "your coach") + (trainersMany ? " are on it" : " is on it") : s.due ? " · due " + dclSetupDay(s.due) : ""}
         </li>)}
       </ol>
       <div style={{ marginTop: 12, borderTop: "1px solid var(--sh-line, #302c27)", paddingTop: 10 }}>
         <div style={{ fontFamily: DCL_MONO, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: DCL_INK50, marginBottom: 6 }}>Week-one target</div>
         {!editing && <p style={{ margin: 0, fontSize: 13 }}>
           {target
-            ? <>Your target: {target.count} {target.count === 1 ? "workout" : "workouts"} in week 1{target.startsOn ? " · starts " + dclSetupDay(target.startsOn) : ""} · {board.setBy === "coach" ? "set by " + (trainer || "your trainer") : "set by you"}{board.weekOneDone != null ? " · " + board.weekOneDone + " done" : ""}</>
+            ? <>Your target: {target.count} {target.count === 1 ? "workout" : "workouts"} in week 1{target.startsOn ? " · starts " + dclSetupDay(target.startsOn) : ""} · {board.setBy === "coach" ? "set by " + (board.setByName || trainer || "your trainer") : "set by you"}{board.weekOneDone != null ? " · " + board.weekOneDone + " done" : ""}</>
             : board.weekOneUnread ? <>Couldn't read it</>
-            : board.coachSets ? <>{trainer || "Your trainer"} sets your week-one target.</>
+            : board.coachSets ? <>{trainer || "Your trainer"} {trainersMany ? "set" : "sets"} your week-one target.</>
             : <>Not set{board.suggested ? " · you said " + board.suggested + " sessions a week" : ""}</>}
           {" "}{!board.coachSets && !board.weekOneUnread && <button type="button" className="dw-action" style={{ background: "none", border: 0, padding: 0, cursor: "pointer", font: "inherit" }} onClick={() => { setEditing(true); setMsg(""); }}>{target ? "Change" : "Set target"}</button>}
         </p>}
@@ -791,7 +799,7 @@ function ClientDashboardPage() {
     const w = (plan.training.workouts || []).find((x) => x.scheduledDate === todayIso)
       || (plan.training.workouts || []).find((x) => !x.scheduledDate) || null;
     workout = w ? {
-      title: w.title, time: dclFmt12(w.time), coach: plan.training.coach || "your coach",
+      title: w.title, time: dclFmt12(w.time), coach: w.coach || plan.training.coach || "your coach",
       meta: [w.durationMin ? w.durationMin + " min" : null, (w.exercises || []).length + " moves"].filter(Boolean).join(" · "),
       // ⚠ ONE RULE FOR BOTH SURFACES, and it lives in `dashSignals.js` because the
       //   member's pages that render this card never load `dashBuilderCore.js`, and

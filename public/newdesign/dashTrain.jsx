@@ -93,7 +93,8 @@ function dtrToCard(w, coach) {
   return {
     title: w.title,
     time: w.time ? (() => { const [h, m] = w.time.split(":").map(Number); const ap = h >= 12 ? "PM" : "AM"; return (h % 12 === 0 ? 12 : h % 12) + ":" + String(m || 0).padStart(2, "0") + " " + ap; })() : null,
-    coach: coach || "your coach",
+    // The trainer who wrote this one: a member may pay two (owner, 2026-10-16).
+    coach: w.coach || coach || "your coach",
     meta: [w.durationMin ? w.durationMin + " min" : null, (w.exercises || []).length + " moves"].filter(Boolean).join(" · "),
     // ⚠ ONE RULE FOR BOTH SURFACES, and it lives in `dashSignals.js` because the
     //   member's pages that render this card never load `dashBuilderCore.js`, and
@@ -507,8 +508,9 @@ function DtrBuilder({ self, onChanged, coaching, findCoach = true }) {
         {/* ⚠ A COACHED MEMBER WAS TOLD TO FIND A COACH (client-onboarding review, M16): before week 1
             is published, the coach they pay is preparing it, and the page says so (/api/client/plan
             training.coaching). */}
+        {/* Every trainer they pay, by name (owner, 2026-10-16: a member may pay two). */}
         {coaching
-          ? <>{coaching.name || "Your coach"} is preparing your plan. It shows up here the moment they publish it{coaching.weekOne ? <> (week-one target: {coaching.weekOne.count} {coaching.weekOne.count === 1 ? "workout" : "workouts"}{coaching.weekOne.startsOn ? ", starting " + new Date(coaching.weekOne.startsOn + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }) : ""})</> : null}. Until then you can still build a session of your own. <a href="/newdesign/ClientApp.html#team" style={{ color: DTR_TEAL, textDecoration: "none" }}>Message your coach →</a></>
+          ? (() => { const who = dashNameList(dashCoachingNames(coaching), "Your coach", "Your coaches"); return <>{who.text} {who.many ? "are" : "is"} preparing your plan. It shows up here the moment they publish it{coaching.weekOne ? <> (week-one target: {coaching.weekOne.count} {coaching.weekOne.count === 1 ? "workout" : "workouts"}{coaching.weekOne.startsOn ? ", starting " + new Date(coaching.weekOne.startsOn + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }) : ""}{who.many && coaching.weekOne.setBy ? ", set by " + coaching.weekOne.setBy : ""})</> : null}. Until then you can still build a session of your own. <a href="/newdesign/ClientApp.html#team" style={{ color: DTR_TEAL, textDecoration: "none" }}>{who.many ? "Message your coaches →" : "Message your coach →"}</a></>; })()
           : <>A coach writes this <em>for</em> you — until then, build your own. Starter templates, a custom week, or ✦ a drafted program you approve before it lands.{findCoach && <> <a href="Marketplace.html" style={{ color: DTR_TEAL, textDecoration: "none" }}>Find a coach →</a></>}</>}
       </div>
 

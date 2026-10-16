@@ -247,7 +247,7 @@ test('GET builds the board from the member\'s own records', async () => {
   assert.equal(s.plan.title, 'Foundations · Day 1');
   assert.equal(b.next, 'workout');
   assert.equal(b.suggested, 3);
-  assert.deepEqual(b.coaching, { training: null, nutrition: null });
+  assert.deepEqual(b.coaching, { training: null, nutrition: null, trainers: [], nutritionists: [] });
 });
 
 test('GET: no board past day 30 or with no membership row; a failed read is unknown; the gate holds', async () => {
@@ -294,6 +294,39 @@ test('GET: a member who pays a trainer sees the trainer, and the trainer\'s targ
   assert.deepEqual(b.weekOne, { count: 4, startsOn: rday(-5) });
   assert.equal(b.setBy, 'coach');
   assert.equal(stepsOf(b).plan.waiting, true);
+});
+
+test('GET: a member who pays two trainers sees both, and the target either of them set (owner, 2026-10-16)', async () => {
+  const subscriptions = [
+    { client_id: U, provider_role: 'trainer', provider_id: 7, status: 'active', created_at: rago(3) },
+    { client_id: U, provider_role: 'trainer', provider_id: 8, status: 'active', created_at: rago(2) },
+    { client_id: U, provider_role: 'nutritionist', provider_id: 5, status: 'active', created_at: rago(2) },
+  ];
+  const tables = (weekOne) => tablesFor({
+    client_workouts: [], subscriptions,
+    trainers: [{ id: 7, name: 'Tom Trainer' }, { id: 8, name: 'Sam Strong' }],
+    nutritionists: [{ id: 5, name: 'Nia' }],
+    client_programs: [{ user_id: U, detail: { training: { weekOne } } }],
+  });
+  // The second trainer set it: it is the member's target, and the board says whose.
+  const b = (await (await route(fakeSupabase({ tables: tables({ count: 5, startsOn: rday(-4), providerId: 8, setAt: rago(1) }) }))).get()).body.board;
+  assert.deepEqual(b.coaching.trainers, ['Tom Trainer', 'Sam Strong'], 'every trainer, the earliest first');
+  assert.equal(b.coaching.training, 'Tom Trainer', 'the first is still the first');
+  assert.deepEqual(b.coaching.nutritionists, ['Nia']);
+  assert.deepEqual(b.weekOne, { count: 5, startsOn: rday(-4) });
+  assert.equal(b.setBy, 'coach');
+  assert.equal(b.setByName, 'Sam Strong');
+  assert.equal(b.coachSets, true);
+  // A trainer they no longer pay is not one of theirs.
+  const gone = (await (await route(fakeSupabase({ tables: tables({ count: 5, providerId: 9, setAt: rago(1) }) }))).get()).body.board;
+  assert.equal(gone.weekOne, null);
+  // Set before that trainer's own subscription began: an earlier run's.
+  const early = (await (await route(fakeSupabase({ tables: tables({ count: 5, providerId: 8, setAt: rago(2.5) }) }))).get()).body.board;
+  assert.equal(early.weekOne, null);
+  // Either trainer sets it, so the member does not.
+  const r = await (await route(fakeSupabase({ tables: tables(null) }))).post({ count: 3 });
+  assert.equal(r.status, 409);
+  assert.equal(r.body.code, 'coach_sets');
 });
 
 test('POST saves the member\'s own target, inside their 30 days, and only theirs', async () => {
@@ -343,13 +376,15 @@ test('POST refuses a day that does not exist, even one that would roll into the 
 // ── 3. The website card ─────────────────────────────────────────────────────────────────────────
 const dcl = read('public/newdesign/dashClient.jsx');
 const cardCode = babel.transformSync(slice(dcl, 'const DCL_SETUP_STEPS = {', 'function ClientDashboardPage() {'), { presets: [preset] }).code;
+// dashData.jsx's own name-list helper, which every page that loads dashClient.jsx loads first.
+const dashNameList = new Function(slice(read('public/newdesign/dashData.jsx'), 'function dashNameList(', 'function dashCoachingNames(') + ';return dashNameList;')();
 async function mountWeb(fetchImpl, run) {
   const dom = new JSDOM('<div id="root"></div>', { url: 'https://shape.test/newdesign/ClientApp.html#today' });
   const before = { window: globalThis.window, document: globalThis.document, act: globalThis.IS_REACT_ACT_ENVIRONMENT, fetch: globalThis.fetch };
   globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true;
   const { createRoot } = await import('react-dom/client');
   globalThis.fetch = fetchImpl;
-  const Board = new Function('React', 'window', 'serif', 'DCL_INK50', 'DCL_TEAL', 'DCL_MONO', 'dashShellHref', cardCode + ';return DclSetupBoard;')(React, dom.window, 'serif', 'ink', 'teal', 'mono', (h) => h);
+  const Board = new Function('React', 'window', 'serif', 'DCL_INK50', 'DCL_TEAL', 'DCL_MONO', 'dashShellHref', 'dashNameList', cardCode + ';return DclSetupBoard;')(React, dom.window, 'serif', 'ink', 'teal', 'mono', (h) => h, dashNameList);
   const root = createRoot(document.getElementById('root'));
   try {
     await act(async () => root.render(React.createElement(Board)));
@@ -426,6 +461,25 @@ test('the website card: a trainer sets the target; a failed read or no board sho
   await mountWeb(async () => { throw new Error('offline'); }, async () => {
     assert.equal(document.getElementById('root').innerHTML, '');
   });
+});
+
+test('the website card names both trainers, and the one who set the target (owner, 2026-10-16)', async () => {
+  const trainers = [{ name: 'Tom Trainer', providerId: 7, since: ago(3) }, { name: 'Sam Strong', providerId: 8, since: ago(2) }];
+  const waiting = M.memberOnboardingBoard(base({ coaching: { training: trainers[0], nutrition: null, trainers, nutritionists: [] }, programDetail: {} }));
+  await mountWeb(async () => ({ ok: true, json: async () => ({ ok: true, board: waiting }) }), async () => {
+    const text = document.body.textContent;
+    assert.match(text, /Tom Trainer and Sam Strong are preparing your plan/);
+    assert.match(text, /Tom Trainer and Sam Strong set your week-one target/);
+    assert.match(text, /CoachingTom Trainer and Sam Strong/);
+  });
+  const set = M.memberOnboardingBoard(base({ coaching: { training: trainers[0], nutrition: null, trainers, nutritionists: [] }, programDetail: { training: { weekOne: { count: 4, providerId: 8, setAt: ago(1) } } } }));
+  await mountWeb(async () => ({ ok: true, json: async () => ({ ok: true, board: set }) }), async () => {
+    assert.match(document.body.textContent, /4 workouts in week 1 · set by Sam Strong/);
+  });
+  // One nameless coach among several reads as "Your trainers", never a list with a hole in it.
+  assert.deepEqual(dashNameList(['Tom', ''], 'Your trainer', 'Your trainers'), { text: 'Your trainers', many: true });
+  assert.deepEqual(dashNameList(['Tom'], 'Your trainer', 'Your trainers'), { text: 'Tom', many: false });
+  assert.deepEqual(dashNameList([''], 'Your trainer', 'Your trainers'), { text: 'Your trainer', many: false });
 });
 
 test('the website card links the goal to Settings, and an unanswered coaching question is plain text (Fable on #2380)', async () => {

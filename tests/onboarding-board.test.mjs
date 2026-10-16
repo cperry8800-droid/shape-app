@@ -154,6 +154,37 @@ test('a week-one target counts only for the coach who set it (Codex on #2378)', 
   assert.match(read('src/lib/shared-overview.ts'), /onboarding\[role\] = bsOnboardingLeg\(\{\n      role,\n      providerId,/);
 });
 
+test('two coaches of one discipline share the week-one target, and the board says whose (owner, 2026-10-16)', () => {
+  const joined = '2026-10-12T10:00:00Z';
+  const coaches = [
+    { providerId: 7, since: '2026-10-01T00:00:00Z', name: 'Coach Q' },
+    { providerId: 8, since: joined, name: 'Sam Strong' },
+  ];
+  const leg = (weekOne, over = {}) => LEGS.bsOnboardingLeg({ role: 'trainer', providerId: 8, joinedAt: joined, checkins: [], firstPlan: null, programDetail: { training: { weekOne } }, coaches, now: NOW, ...over });
+  // The co-trainer set it during this board: it is this board's target too, named.
+  const theirs = leg({ count: 4, startsOn: '2026-10-20', providerId: 7, setAt: '2026-10-13T00:00:00Z' });
+  assert.equal(theirs.weekOne.count, 4);
+  assert.deepEqual(theirs.weekOneBy, { providerId: 7, name: 'Coach Q' });
+  assert.equal(stepsOf(theirs).plan.due, '2026-10-20');
+  // This coach's own: no "by".
+  const own = leg({ count: 2, providerId: 8, setAt: '2026-10-13T00:00:00Z' });
+  assert.equal(own.weekOne.count, 2);
+  assert.equal(own.weekOneBy, null);
+  // Before this board's day 1, or by a coach the client no longer pays: not this board's.
+  assert.equal(leg({ count: 4, providerId: 7, setAt: '2026-10-05T00:00:00Z' }).weekOne, null);
+  assert.equal(leg({ count: 4, providerId: 9, setAt: '2026-10-13T00:00:00Z' }).weekOne, null);
+  // The co-coach read failed: someone else's target is "couldn't read", never "not set"; their own still reads.
+  const unread = leg({ count: 4, providerId: 7, setAt: '2026-10-13T00:00:00Z' }, { coaches: null });
+  assert.equal(unread.weekOne, null);
+  assert.equal(unread.weekOneUnread, true);
+  assert.equal(leg({ count: 2, providerId: 8 }, { coaches: null }).weekOne.count, 2);
+  assert.equal(leg(undefined, { coaches: null }).weekOneUnread, false, 'nothing stored: not set');
+  // The shared reader on its own: a setter's target from before their own subscription is an earlier run's.
+  assert.equal(LEGS.sharedWeekOneOf({ training: { weekOne: { count: 3, providerId: 8, setAt: '2026-10-11T00:00:00Z' } } }, 'training', coaches, null), null);
+  assert.deepEqual(LEGS.sharedWeekOneOf({ training: { weekOne: { count: 3, providerId: 8, setAt: '2026-10-13T00:00:00Z' } } }, 'training', coaches, null),
+    { count: 3, startsOn: null, setAt: '2026-10-13T00:00:00.000Z', providerId: 8 });
+});
+
 // ── 2. The shared overview's reads ───────────────────────────────────────────────────────────────
 const COACH = { id: '11111111-1111-4111-8111-111111111111' };
 const A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -194,6 +225,38 @@ async function overview(db, me = { trainerId: 7, nutritionistId: null }) {
   });
   return lib.buildSharedOverview(db, { clientId: A, me });
 }
+
+test('the overview puts a second trainer in the care team and reads the target they set (owner, 2026-10-16)', async () => {
+  const joined = new Date(Date.now() - 2 * DAY).toISOString();
+  const set = new Date(Date.now() - DAY).toISOString();
+  const db = (over = {}) => {
+    const base = overviewDb({ joined, ...over });
+    const rpc = base.rpc.bind(base);
+    base.rpc = async (name, args) => name === 'get_client_coaches'
+      ? (over.coachesFail ? { data: null, error: { message: 'down' } } : { data: [
+        { provider_role: 'trainer', provider_id: 7, name: 'Coach Q', owner_id: COACH.id, since: joined },
+        { provider_role: 'trainer', provider_id: 8, name: 'Sam Strong', owner_id: '22222222-2222-4222-8222-222222222222', since: joined },
+      ], error: null })
+      : rpc(name, args);
+    return base;
+  };
+  const withTarget = (d) => { d.from = ((from) => (t) => {
+    const q = from(t);
+    return t === 'client_programs' ? Object.assign(q, { maybeSingle: async () => ({ data: { detail: { training: { weekOne: { count: 4, startsOn: null, providerId: 8, setAt: set } } } }, error: null }) }) : q;
+  })(d.from.bind(d)); return d; };
+  const ov = await overview(withTarget(db()));
+  const team = ov.careTeam.map((c) => [c.role, c.providerId, c.name, c.isMe]);
+  assert.deepEqual(team, [['trainer', 7, 'Coach Q', true], ['trainer', 8, 'Sam Strong', false]]);
+  assert.equal(ov.careTeamPartial, false);
+  assert.equal(ov.onboarding.trainer.weekOne.count, 4, 'the co-trainer\'s target is this board\'s too');
+  assert.deepEqual(ov.onboarding.trainer.weekOneBy, { providerId: 8, name: 'Sam Strong' });
+  // The co-coach read failed: the team may be short, and their target is "couldn't read".
+  const errLog = console.error; console.error = () => {};
+  let failed;
+  try { failed = await overview(withTarget(db({ coachesFail: true }))); } finally { console.error = errLog; }
+  assert.equal(failed.careTeamPartial, true);
+  assert.equal(failed.onboarding.trainer.weekOneUnread, true);
+});
 
 test('the overview reads Shape\'s welcome, the coach\'s own first message and their first plan', async () => {
   const fresh = await overview(overviewDb());
@@ -533,13 +596,60 @@ test('the plan read names the coach the member pays, their thread and their week
   };
   const { body } = await (await load(fakeSupabase({ tables }))).GET(new Request('https://x/api/client/plan'));
   assert.equal(body.training.hasPlan, false);
-  assert.deepEqual(body.training.coaching, { name: 'Tom Trainer', conversationId: 'conv-t', weekOne: { count: 4, startsOn: '2026-10-20' } });
+  assert.deepEqual(body.training.coaching, {
+    name: 'Tom Trainer', conversationId: 'conv-t',
+    coaches: [{ providerId: 7, name: 'Tom Trainer', conversationId: 'conv-t' }],
+    weekOne: { count: 4, startsOn: '2026-10-20', setBy: 'Tom Trainer' },
+  });
   assert.equal(body.meals.coaching, null, 'no nutritionist: null, a known none');
   // A target the member's previous trainer set is not this coach's (Codex on #2378).
   const before = { ...tables, client_programs: [{ user_id: U, detail: { training: { weekOne: { count: 4, startsOn: '2026-10-20', providerId: 9 } } } }] };
   assert.equal((await (await load(fakeSupabase({ tables: before }))).GET(new Request('https://x/api/client/plan'))).body.training.coaching.weekOne, null);
   const failed = (await (await load(fakeSupabase({ tables, fail: ['subscriptions'] }))).GET(new Request('https://x/api/client/plan'))).body;
   assert.equal('coaching' in failed.training, false, 'an unread subscription is "could not tell", not "no coach"');
+});
+
+test('the plan read names every coach of a role, and credits each workout to the trainer who wrote it (owner, 2026-10-16)', async () => {
+  const U = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  const load = async (db) => loadRealModule(join(ROOT, 'src/app/api/client/plan/route.ts'), {
+    typescript: true,
+    registry: new Map([
+      ['next/server', { NextResponse: { json: (body, init) => ({ body, init }) } }],
+      ['@/lib/request-auth', { clientForRequest: async () => db, currentUser: async () => ({ id: U }) }],
+      ['@/lib/require-membership', { requireMembership: async () => null }],
+    ]),
+  });
+  const tables = {
+    client_workouts: [
+      { id: 'w1', client_id: U, status: 'published', title: 'Lower', trainer_id: 7, scheduled_date: null, created_at: ago(1), payload: {} },
+      { id: 'w2', client_id: U, status: 'published', title: 'Conditioning', trainer_id: 8, scheduled_date: null, created_at: ago(1), payload: {} },
+      { id: 'w3', client_id: U, status: 'published', title: 'My own', trainer_id: null, scheduled_date: null, created_at: ago(1), payload: {} },
+    ],
+    client_meal_plans: [],
+    client_programs: [{ user_id: U, detail: { training: { weekOne: { count: 5, startsOn: '2026-10-20', providerId: 8, setAt: ago(0.5) } } } }],
+    subscriptions: [
+      { client_id: U, provider_role: 'trainer', provider_id: 8, status: 'active', created_at: ago(1) },
+      { client_id: U, provider_role: 'trainer', provider_id: 7, status: 'active', created_at: ago(3) },
+      { client_id: U, provider_role: 'trainer', provider_id: 7, status: 'canceled', created_at: ago(30) },
+    ],
+    trainers: [{ id: 7, name: 'Tom Trainer' }, { id: 8, name: 'Sam Strong' }], nutritionists: [],
+    conversations: [
+      { id: 'conv-7', client_id: U, kind: 'direct', provider_role: 'trainer', provider_id: 7 },
+      { id: 'conv-8', client_id: U, kind: 'direct', provider_role: 'trainer', provider_id: 8 },
+      { id: 'care', client_id: U, kind: 'direct', provider_role: null, provider_id: null },
+    ],
+  };
+  const { body } = await (await load(fakeSupabase({ tables }))).GET(new Request('https://x/api/client/plan'));
+  assert.deepEqual(body.training.coaching, {
+    name: 'Tom Trainer', conversationId: 'conv-7',
+    coaches: [
+      { providerId: 7, name: 'Tom Trainer', conversationId: 'conv-7' },
+      { providerId: 8, name: 'Sam Strong', conversationId: 'conv-8' },
+    ],
+    weekOne: { count: 5, startsOn: '2026-10-20', setBy: 'Sam Strong' },
+  }, 'both trainers, the earliest first, each with their own thread; the shared target names who set it');
+  const byTitle = Object.fromEntries(body.training.workouts.map((w) => [w.title, w.coach]));
+  assert.deepEqual(byTitle, { Lower: 'Tom Trainer', Conditioning: 'Sam Strong', 'My own': null });
 });
 
 test('the member app and the website say the coach is preparing the plan, and ask adherence only of a plan', () => {
@@ -564,9 +674,33 @@ test('the member app and the website say the coach is preparing the plan, and as
   // The website's Train builder says so too.
   const train = read('public/newdesign/dashTrain.jsx');
   assert.match(train, /<DtrBuilder self=\{selfData\} onChanged=\{reloadAll\} coaching=\{dtrCoachingOf\(plan\)\} findCoach=\{dtrFindCoachOk\(plan, live\)\} \/>/);
-  assert.match(train, /is preparing your plan\. It shows up here the moment they publish it/);
+  // Every coach they pay, with the verb to match (owner, 2026-10-16: a member may pay two of one role).
+  assert.match(train, /\{who\.text\} \{who\.many \? "are" : "is"\} preparing your plan\. It shows up here the moment they publish it/);
   const nutri = read('public/newdesign/dashNutri.jsx');
-  assert.match(nutri, /\{plan && plan\.meals && plan\.meals\.coaching \? <>[\s\S]{0,400}is preparing your meal plan\./);
+  assert.match(nutri, /\{plan && plan\.meals && plan\.meals\.coaching \? <>[\s\S]{0,900}\{who\.text\} \{who\.many \? "are" : "is"\} preparing your meal plan\./);
+});
+
+test('the app names every coach of a role: the preparing card, the setup board, the weekly notes, each day (owner, 2026-10-16)', () => {
+  const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  // The preparing card: every coach, the plural title, and a message button per coach.
+  assert.match(client, /const coaches = coaching && Array\.isArray\(coaching\.coaches\) && coaching\.coaches\.length\s+\? coaching\.coaches/);
+  assert.match(client, /tr\('common:coachPrep\.titleMany', \{ defaultValue: '\{coach\} are preparing your plan', coach \}\)/);
+  assert.match(client, /coaches\.map\(\(x, i\) => <button key=\{i\} type="button" style=\{act\} onClick=\{\(\) => message\(x\)\}>/);
+  // The setup board: every trainer, and the one who set the target.
+  assert.match(client, /const trainerNames = coaching \? \(Array\.isArray\(coaching\.trainers\) \? coaching\.trainers/);
+  assert.match(client, /name: board\.setByName \|\| trainer \|\|/);
+  // Home's weekly notes: one per coach, not one per role.
+  assert.match(client, /for \(const b of banners\) if \(b\.provider_role !== 'nutritionist'\) notes\.push/);
+  assert.ok(!/banners\.find\(b => b\.provider_role !== 'nutritionist'\)/.test(client), 'no first-trainer-only note');
+  // Each coached day credits the trainer who wrote it.
+  assert.match(client, /coach: !isSelf && typeof w\.coach === 'string' && w\.coach\.trim\(\) \? w\.coach\.trim\(\) : null,/);
+  assert.match(client, /\(coachDay \? \(cur\.coach \|\| liveTrainCoach \|\|/);
+  // The coach's board says whose the target is when a co-coach set it.
+  const pros = read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx');
+  assert.match(pros, /const \[targetBy, setTargetBy\] = useStateBSP\(ob\.weekOneBy \|\| null\);/);
+  assert.match(pros, /coachTr\('coach:onboard\.setBy', \{ defaultValue: 'set by \{name\}'/);
+  const today = read('public/newdesign/dashToday.jsx');
+  assert.match(today, /set by \{targetBy \? targetBy\.name \|\| "their other coach" : "you"\}/);
 });
 
 // ── 7. Fable's review of fix 4 ───────────────────────────────────────────────────────────────────
@@ -882,7 +1016,7 @@ test('a nutritionist\'s week-one target is at most seven days logged, everywhere
     nutritionists: [{ id: 5, name: 'Nia' }],
   } }))).GET(new Request('https://x/api/client/plan'))).body.meals.coaching.weekOne;
   assert.equal(await planWith(9), null);
-  assert.deepEqual(await planWith(7), { count: 7, startsOn: null });
+  assert.deepEqual(await planWith(7), { count: 7, startsOn: null, setBy: 'Nia' });
 
   // Both editors stop at seven for a nutritionist.
   const today = read('public/newdesign/dashToday.jsx');
@@ -937,7 +1071,7 @@ test('week one starts inside the board\'s 30 days, and a target from before this
     trainers: [{ id: 7, name: 'Tom' }],
   } }))).GET(new Request('https://x/api/client/plan'))).body.training.coaching.weekOne;
   assert.equal(await planWith('2026-05-01T00:00:00Z'), null);
-  assert.deepEqual(await planWith('2026-10-14T00:00:00Z'), { count: 3, startsOn: '2026-10-20' });
+  assert.deepEqual(await planWith('2026-10-14T00:00:00Z'), { count: 3, startsOn: '2026-10-20', setBy: 'Tom' });
 
   // Both editors offer only those days, and start the picker inside them.
   for (const src of [read('public/newdesign/dashToday.jsx'), read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx')]) {

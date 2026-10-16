@@ -59,11 +59,18 @@ async function joinedAtOf(supabase: SupabaseClient, userId: string): Promise<str
   return ((data ?? []) as Array<{ created_at: string | null }>)[0]?.created_at ?? null;
 }
 
-// The trainer they pay, if any: the earliest live subscription, as /api/client/plan reads it.
+// Every coach of a role they pay, the earliest first, one row per listing (its earliest live
+// subscription). ⚠ NOT JUST THE FIRST: a member may pay two trainers (owner, 2026-10-16), and both
+// share the week-one target.
 type SubRow = { provider_role: string; provider_id: number; created_at: string | null };
-function earliest(rows: SubRow[], role: string): SubRow | null {
-  return rows.filter((r) => r.provider_role === role)
-    .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')))[0] ?? null;
+function everyOf(rows: SubRow[], role: string): SubRow[] {
+  const byListing = new Map<string, SubRow>();
+  for (const r of rows) {
+    if (r.provider_role !== role) continue;
+    const prev = byListing.get(String(r.provider_id));
+    if (!prev || String(r.created_at || '') < String(prev.created_at || '')) byListing.set(String(r.provider_id), r);
+  }
+  return [...byListing.values()].sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
 }
 async function liveSubs(supabase: SupabaseClient, userId: string): Promise<SubRow[] | undefined> {
   const { data, error } = await supabase
@@ -125,22 +132,26 @@ export async function GET(request: Request) {
   const weighRows = dataOf(weighRes as Res<Array<{ logged_on: string; weight: number; unit: string | null }>>);
   const planRows = dataOf(planRes as Res<Array<{ created_at: string; title: string | null; trainer_id: number | null }>>);
 
-  // The coach fork: the trainer and the nutritionist they pay, by name; and, for a trainer, the
-  // target the trainer set (client_programs.detail.training.weekOne).
-  let coaching: { training: { name: string | null; providerId: number; since: string | null } | null; nutrition: { name: string | null } | null } | undefined;
+  // The coach fork: every trainer and nutritionist they pay, by name; and, for trainers, the target
+  // one of them set (client_programs.detail.training.weekOne, shared by every trainer they pay).
+  type Coach = { name: string | null; providerId: number; since: string | null };
+  let coaching: { training: Coach | null; nutrition: Coach | null; trainers: Coach[]; nutritionists: Coach[] } | undefined;
   let programDetail: unknown;
   if (subs) {
-    const tr = earliest(subs, 'trainer');
-    const nu = earliest(subs, 'nutritionist');
-    const [trName, nuName, prog] = await Promise.all([
-      tr ? supabase.from('trainers').select('name').eq('id', tr.provider_id).maybeSingle() : null,
-      nu ? supabase.from('nutritionists').select('name').eq('id', nu.provider_id).maybeSingle() : null,
-      tr ? supabase.from('client_programs').select('detail').eq('user_id', user.id).maybeSingle() : null,
+    const trs = everyOf(subs, 'trainer');
+    const nus = everyOf(subs, 'nutritionist');
+    const [trNames, nuNames, prog] = await Promise.all([
+      trs.length ? supabase.from('trainers').select('id, name').in('id', trs.map((r) => r.provider_id)) : null,
+      nus.length ? supabase.from('nutritionists').select('id, name').in('id', nus.map((r) => r.provider_id)) : null,
+      trs.length ? supabase.from('client_programs').select('detail').eq('user_id', user.id).maybeSingle() : null,
     ]);
-    coaching = {
-      training: tr ? { name: (trName?.data as { name?: string } | null)?.name ?? null, providerId: tr.provider_id, since: tr.created_at } : null,
-      nutrition: nu ? { name: (nuName?.data as { name?: string } | null)?.name ?? null } : null,
+    const named = (rows: SubRow[], res: { data: unknown } | null): Coach[] => {
+      const names = new Map(((res?.data ?? []) as Array<{ id: number; name: string | null }>).map((r) => [String(r.id), r.name]));
+      return rows.map((r) => ({ name: names.get(String(r.provider_id)) ?? null, providerId: r.provider_id, since: r.created_at }));
     };
+    const trainers = named(trs, trNames);
+    const nutritionists = named(nus, nuNames);
+    coaching = { training: trainers[0] ?? null, nutrition: nutritionists[0] ?? null, trainers, nutritionists };
     if (prog) programDetail = prog.error ? undefined : ((prog.data as { detail?: unknown } | null)?.detail ?? null);
   }
 
@@ -198,11 +209,11 @@ export async function POST(request: Request) {
   if (startsOn && (startsOn < win.firstDay || startsOn > win.lastDay)) {
     return NextResponse.json({ ok: false, error: `Week 1 must start in your first 30 days (${win.firstDay} to ${win.lastDay}).` }, { status: 400 });
   }
-  // ⚠ A MEMBER WHO PAYS A TRAINER DOES NOT SET IT: the trainer does, and a failed read cannot tell.
+  // ⚠ A MEMBER WHO PAYS A TRAINER DOES NOT SET IT: their trainer does, and a failed read cannot tell.
   const subs = await liveSubs(supabase, user.id);
   if (subs === undefined) return NextResponse.json({ ok: false, error: "Couldn't check your coaching. Try again." }, { status: 500 });
-  if (earliest(subs, 'trainer')) {
-    return NextResponse.json({ ok: false, error: 'Your trainer sets your week-one target.', code: 'coach_sets' }, { status: 409 });
+  if (everyOf(subs, 'trainer').length) {
+    return NextResponse.json({ ok: false, error: 'Your coach sets your week-one target.', code: 'coach_sets' }, { status: 409 });
   }
 
   const weekOne = { count, startsOn, setAt: new Date().toISOString() };

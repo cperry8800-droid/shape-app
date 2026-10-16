@@ -115,7 +115,7 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
   // `profiles`). PostgREST 400s an unknown column, the error was dropped with `?? []`, and even
   // the caller's OWN care-team entry vanished. Providers have no avatar column; the UI falls back
   // to initials.
-  const [trainersRes, nutriRes, cpRes] = await Promise.all([
+  const [trainersRes, nutriRes, cpRes, coachesRes] = await Promise.all([
     trainerIds.length
       ? supabase.from('trainers').select('id, name, owner_id').in('id', trainerIds)
       : Promise.resolve({ data: [] as Array<{ id: number; name: string; owner_id: string | null }> }),
@@ -123,7 +123,15 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
       ? supabase.from('nutritionists').select('id, name, owner_id').in('id', nutriIds)
       : Promise.resolve({ data: [] as Array<{ id: number; name: string; owner_id: string | null }> }),
     supabase.rpc('get_my_shared_clients', { p_client_id: clientId }),
+    // Every coach this client pays, co-coaches of the caller's own role included (2026-10-16-client-
+    // coaches.sql). ⚠ get_my_shared_clients leaves those out by design (its roster is trainer <->
+    // nutritionist), and a member may pay two trainers (owner, 2026-10-16), who share the training
+    // section and so need each other in the care team.
+    supabase.rpc('get_client_coaches', { p_client_id: clientId }),
   ]);
+  type ClientCoach = { provider_role: 'trainer' | 'nutritionist'; provider_id: number; name: string | null; owner_id: string | null; since: string | null };
+  if (coachesRes.error) console.error('[shared-overview] get_client_coaches failed:', coachesRes.error.message);
+  const clientCoaches = coachesRes.error ? null : ((coachesRes.data ?? []) as ClientCoach[]);
 
   // A failed counterpart read drops every co-coach from Care Team while the rest of the page
   // renders normally — an incomplete team presented as a complete one, which is the exact
@@ -131,7 +139,7 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
   // answer 500 for it (one leg of a whole-page payload), so it degrades LOUDLY instead: the
   // partial flag rides out with the data so the surface can say the team may be incomplete
   // rather than quietly showing a short list.
-  const careTeamPartial = Boolean(cpRes.error);
+  const careTeamPartial = Boolean(cpRes.error) || clientCoaches === null;
   if (cpRes.error) console.error('[shared-overview] get_my_shared_clients failed:', cpRes.error.message);
 
   const trainers = (trainersRes.data ?? []).map(t => ({
@@ -167,7 +175,25 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     isMe: false,
   }));
 
-  const careTeam = [...trainers, ...nutritionists, ...counterparts];
+  // Co-coaches of a role the caller covers (a second trainer): every coach the client pays that is not
+  // already listed, by listing, and not the caller (a coach is never their own care team).
+  const listed = new Set([...trainers, ...nutritionists, ...counterparts].map((c) => `${c.role}:${c.providerId}`));
+  const listedOwners = new Set([...trainers, ...nutritionists, ...counterparts].map((c) => c.userId).filter(Boolean));
+  const sameRole = (clientCoaches ?? [])
+    .filter((c) => !listed.has(`${c.provider_role}:${c.provider_id}`)
+      && !(myTrainerId === c.provider_id && c.provider_role === 'trainer')
+      && !(myNutritionistId === c.provider_id && c.provider_role === 'nutritionist')
+      && c.owner_id && c.owner_id !== me.userId && !listedOwners.has(c.owner_id))
+    .map((c) => ({
+      role: c.provider_role,
+      providerId: c.provider_id,
+      name: c.name ?? 'Coach',
+      avatarUrl: null as string | null,
+      userId: c.owner_id,
+      isMe: false,
+    }));
+
+  const careTeam = [...trainers, ...nutritionists, ...counterparts, ...sameRole];
 
   // Sessions window: 30d back, 60d ahead.
   const now = new Date();
@@ -561,6 +587,13 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
       // A failed read is undefined: the week-one target then reads "couldn't read", never "Not set".
       programDetail: programError ? undefined : programDetail,
       intake: intakeError ? null : intake,
+      // Every coach of this discipline the client pays (the caller among them): the section is shared,
+      // so a co-coach's week-one target is this board's too. Null when that read failed.
+      coaches: clientCoaches === null
+        ? null
+        : clientCoaches
+          .filter((c) => c.provider_role === role)
+          .map((c) => ({ providerId: c.provider_id, since: c.since, name: c.name })),
       now: Date.now(),
     });
   }

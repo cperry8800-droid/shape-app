@@ -1208,6 +1208,8 @@
   "onboard.targetTrainer": "{count, plural, one {# workout} other {# workouts}} for week 1",
   "onboard.targetNutri": "{count, plural, one {# day} other {# days}} wey dem log for week 1",
   "onboard.starts": "go start {date}",
+  "onboard.setBy": "{name} set am",
+  "onboard.otherCoach": "im other coach",
   "onboard.notSet": "No set",
   "onboard.theySaid": "{first} talk say {count, plural, one {# session} other {# sessions}} every week",
   "onboard.change": "CHANGE AM",
