@@ -117,7 +117,9 @@ test('an iOS token goes to Apple, signed with the .p8 key; an Android token goes
     const h2 = fakeHttp2(() => [200, null]);
     const { mod, fcm, restore } = await loadPush(h2);
     try {
-      const db = tokensDb([{ token: IOS, platform: 'ios' }, { token: DROID, platform: 'android' }]);
+      // An iOS row holding an FCM token (an iOS build on Firebase Messaging) goes to FCM, not to Apple
+      // and not to the bin.
+      const db = tokensDb([{ token: IOS, platform: 'ios' }, { token: DROID, platform: 'android' }, { token: 'fcm:ios-token', platform: 'ios' }]);
       await mod.sendPushToUser(db, 'u1', { title: 'New message', body: 'Tom: see you at 6', data: { route: 'chat:abc', type: 'message' } });
       assert.equal(h2.sent.length, 1);
       const a = h2.sent[0];
@@ -133,8 +135,7 @@ test('an iOS token goes to Apple, signed with the .p8 key; an Android token goes
       assert.deepEqual(JSON.parse(Buffer.from(h, 'base64url')), { alg: 'ES256', kid: 'KEY1234567' });
       assert.equal(JSON.parse(Buffer.from(c, 'base64url')).iss, 'TEAM123456');
       assert.ok(crypto.verify('sha256', Buffer.from(`${h}.${c}`), { key: ecPub, dsaEncoding: 'ieee-p1363' }, Buffer.from(s, 'base64url')));
-      assert.equal(fcm.length, 1, 'only the Android token reaches FCM');
-      assert.equal(fcm[0].token, DROID);
+      assert.deepEqual(fcm.map((m) => m.token), [DROID, 'fcm:ios-token'], 'the APNs token never reaches FCM');
       assert.equal(db.deleted.length, 0);
     } finally { restore(); }
   });

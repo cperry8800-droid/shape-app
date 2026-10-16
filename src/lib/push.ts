@@ -195,11 +195,10 @@ function apnsReason(body: string): string {
   try { return String((JSON.parse(body) as { reason?: unknown }).reason ?? ''); } catch { return ''; }
 }
 
-// An APNs device token is hex (the plugin sends 64 characters, upper case); anything else is not one.
+// An APNs device token is hex (the plugin sends 64 characters, upper case); an FCM token never is.
 const APNS_TOKEN = /^[0-9a-f]{64,200}$/i;
 
 async function sendApns(token: string, msg: Msg): Promise<Result> {
-  if (!APNS_TOKEN.test(token)) return 'stale';
   const jwt = apnsJwt();
   if (!jwt) return 'error';
   const headers = {
@@ -227,22 +226,24 @@ async function sendApns(token: string, msg: Msg): Promise<Result> {
 // ── Fan-out ────────────────────────────────────────────────────────────────────────────────────
 
 // Send a push to all of a user's registered devices. Best-effort: prunes dead tokens, never throws.
-// `client` should be the service-role admin client. An iOS token goes to APNs and every other one to
-// FCM; a token whose service is not configured is left alone (it is not dead, there is just nothing
-// to send it with yet).
+// `client` should be the service-role admin client. An iPhone's APNs token (hex) goes to APNs and every
+// other token to FCM, so an iOS build that ever registers an FCM token is delivered, not pruned. A
+// token whose service is not configured is left alone (it is not dead; there is just nothing to send
+// it with yet).
 export async function sendPushToUser(client: SupabaseClient, userId: string, msg: Msg): Promise<void> {
   if (!pushConfigured() || !userId) return;
 
   const { data } = await client.from('push_tokens').select('token, platform').eq('user_id', userId);
   const rows = (data ?? []) as Array<{ token: string; platform: string | null }>;
   if (!rows.length) return;
-  const needsFcm = rows.some((r) => r.platform !== 'ios');
+  const toApns = (r: { token: string; platform: string | null }) => r.platform === 'ios' && APNS_TOKEN.test(r.token);
+  const needsFcm = rows.some((r) => !toApns(r));
   const fcmTok = needsFcm && fcmConfigured() ? await accessToken() : null;
 
   const stale: string[] = [];
   await Promise.all(rows.map(async (r) => {
     let result: Result | null = null;
-    if (r.platform === 'ios') {
+    if (toApns(r)) {
       if (apnsConfigured()) result = await sendApns(r.token, msg);
     } else if (fcmTok) {
       result = await sendFcm(r.token, fcmTok, msg);
