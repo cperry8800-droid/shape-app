@@ -44,5 +44,15 @@
   "search.previewNote": "Pratinjau · masuk untuk mencari semua akun asli",
   "search.channelsSignIn": "Masuk untuk menjelajahi saluran komunitas.",
   "search.noChannelsYet": "Belum ada saluran — buat satu dari Chat → Saluran.",
-  "search.browseCoaches": "Jelajahi pelatih di marketplace →"
+  "search.browseCoaches": "Jelajahi pelatih di marketplace →",
+  "coachPrep.eyebrow": "Pelatihmu sedang menyiapkannya",
+  "coachPrep.title": "{coach} sedang menyiapkan rencanamu",
+  "coachPrep.titleNutri": "{coach} sedang menyiapkan rencana makanmu",
+  "coachPrep.coachFallback": "Pelatihmu",
+  "coachPrep.body": "Rencana muncul di sini begitu diterbitkan. Sementara itu, ceritakan semua yang perlu mereka tahu.",
+  "coachPrep.starts": "Minggu 1 mulai {date}",
+  "coachPrep.target": "Target minggu 1: {count, plural, other {# latihan}}",
+  "coachPrep.targetNutri": "Target minggu 1: catat {count, plural, other {# hari}}",
+  "coachPrep.message": "Kirim pesan ke pelatihmu",
+  "coachPrep.meanwhile": "Catat sesi sambil menunggu"
 }

@@ -43,8 +43,11 @@ function normalizeWeighIns(raw) {
 // ── Coach view: one client's record from the get_client_* rollups the coach
 // app already fetches (ShapeClientStats.get / .getLifts, ShapeGoalsApi). ───────
 export function recordFromCoachData(raw = {}, deps = {}) {
-  const { id, name, stats, lifts, goalsDoc, checkins, lastContact, recovery, vitals, coachDirective, screening } = raw;
-  const rec = { profile: { id: id || null, name: name || 'Client' } };
+  const { id, name, isNew, joinedAt, onboarding, stats, lifts, goalsDoc, checkins, lastContact, recovery, vitals, coachDirective, screening } = raw;
+  // isNew / joinedAt as the website's record carries them (client-onboarding review, M13), so a
+  // client's first week reads New in the app too.
+  const rec = { profile: { id: id || null, name: name || 'Client', isNew: !!isNew, joinedAt: joinedAt || null } };
+  if (onboarding && typeof onboarding === 'object') rec.onboarding = onboarding;
 
   if (stats && typeof stats === 'object') {
     const done = firstNum(stats.sessionsCompleted, stats.sessions && stats.sessions.completed);
@@ -69,6 +72,13 @@ export function recordFromCoachData(raw = {}, deps = {}) {
 
   applyGoals(rec, goalsDoc, deps);
   applyCheckIn(rec, checkins);
+  // ⚠ A READ THAT ANSWERED "NONE" IS A KNOWN NONE (L8: the app and the website disagreed after day 14).
+  // The website reads an empty check-in list as { lastWeekOf: null }, so a client past their new
+  // weeks with no check-in at all reads "No first check-in"; the app left checkIn unset and never
+  // said so. A failed read (null) still leaves it unset: the caller reads through
+  // ShapeClientKit.checkinsKnown, which answers null on an error where checkins answers [] (Fable on
+  // fix 4), and only for a subscriber. The coach's view only: a member's own record keeps its own rule.
+  if (Array.isArray(checkins) && !checkins.length) rec.checkIn = { lastWeekOf: null };
   if (lastContact && typeof lastContact === 'object') rec.lastContact = lastContact;
   if (recovery && typeof recovery === 'object') rec.recovery = recovery;
   if (vitals && typeof vitals === 'object') rec.vitals = vitals;

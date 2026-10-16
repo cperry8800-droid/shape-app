@@ -44,5 +44,15 @@
   "search.previewNote": "Vorschau · melde dich an, um alle echten Konten zu durchsuchen",
   "search.channelsSignIn": "Melde dich an, um die Community-Kanäle zu durchstöbern.",
   "search.noChannelsYet": "Noch keine Kanäle — starte einen unter Chat → Kanäle.",
-  "search.browseCoaches": "Coaches im Marketplace durchsuchen →"
+  "search.browseCoaches": "Coaches im Marketplace durchsuchen →",
+  "coachPrep.eyebrow": "Dein Coach ist dran",
+  "coachPrep.title": "{coach} erstellt deinen Plan",
+  "coachPrep.titleNutri": "{coach} erstellt deinen Ernährungsplan",
+  "coachPrep.coachFallback": "Dein Coach",
+  "coachPrep.body": "Er erscheint hier, sobald er veröffentlicht ist. Bis dahin: Sag deinem Coach alles, was er wissen sollte.",
+  "coachPrep.starts": "Woche 1 beginnt {date}",
+  "coachPrep.target": "Ziel für Woche 1: {count, plural, one {# Workout} other {# Workouts}}",
+  "coachPrep.targetNutri": "Ziel für Woche 1: an {count, plural, one {# Tag} other {# Tagen}} protokollieren",
+  "coachPrep.message": "Schreib deinem Coach",
+  "coachPrep.meanwhile": "Bis dahin eine Einheit loggen"
 }

@@ -44,5 +44,15 @@
   "search.previewNote": "Xem trước · đăng nhập để tìm mọi tài khoản thật",
   "search.channelsSignIn": "Đăng nhập để xem các kênh cộng đồng.",
   "search.noChannelsYet": "Chưa có kênh nào — tạo một kênh từ Chat → Kênh.",
-  "search.browseCoaches": "Xem huấn luyện viên trên marketplace →"
+  "search.browseCoaches": "Xem huấn luyện viên trên marketplace →",
+  "coachPrep.eyebrow": "Huấn luyện viên đang chuẩn bị",
+  "coachPrep.title": "{coach} đang chuẩn bị kế hoạch cho bạn",
+  "coachPrep.titleNutri": "{coach} đang chuẩn bị thực đơn cho bạn",
+  "coachPrep.coachFallback": "Huấn luyện viên của bạn",
+  "coachPrep.body": "Kế hoạch sẽ hiện ở đây ngay khi được đăng. Trong lúc chờ, hãy kể cho họ mọi điều họ nên biết.",
+  "coachPrep.starts": "Tuần 1 bắt đầu {date}",
+  "coachPrep.target": "Mục tiêu tuần 1: {count, plural, other {# buổi tập}}",
+  "coachPrep.targetNutri": "Mục tiêu tuần 1: ghi nhật ký {count, plural, other {# ngày}}",
+  "coachPrep.message": "Nhắn cho huấn luyện viên",
+  "coachPrep.meanwhile": "Ghi một buổi tập trong lúc chờ"
 }

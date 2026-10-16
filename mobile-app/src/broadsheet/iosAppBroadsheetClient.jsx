@@ -5409,6 +5409,48 @@ function BSFindCoachBar({ role, onOpen }) {
   );
 }
 
+// ⚠ A COACHED MEMBER WITH NO PLAN YET IS WAITING ON THEIR COACH, NOT ON THEMSELVES (client-onboarding
+// review, M16). Train showed "No plan yet … no coach required" and "Find a trainer" to someone who
+// had just hired one, and Eat the same for a nutritionist. `coaching` is /api/client/plan's: the
+// coach's name, their thread, and the week-one target they set (fix 4).
+function BSCoachPreparing({ role, coaching, onOpenSession }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  const trainer = role === 'trainer';
+  const c = trainer ? '#c0533b' : '#a07a2e';
+  const coach = (coaching && coaching.name) || tr('common:coachPrep.coachFallback', { defaultValue: 'Your coach' });
+  const w = coaching && coaching.weekOne;
+  const fmt = (d) => { const x = new Date(d + 'T12:00:00'); return isNaN(x.getTime()) ? d : x.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }); };
+  const message = () => {
+    if (coaching && coaching.conversationId) {
+      try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { conversationId: coaching.conversationId, name: coaching.name || undefined } })); } catch (e) {}
+    } else {
+      try { window.dispatchEvent(new CustomEvent('shape:openPage', { detail: { page: 'messages' } })); } catch (e) {}
+    }
+  };
+  const act = { display: 'inline-flex', alignItems: 'center', minHeight: 44, background: 'transparent', border: 0, padding: 0, color: c, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' };
+  return (
+    <div data-coach-preparing={role} style={{ margin: `10px ${t.padX}px 0`, padding: '4px 0 4px 12px', borderLeft: `3px solid ${c}` }}>
+      <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: c, fontWeight: 700 }}>{tr('common:coachPrep.eyebrow', { defaultValue: 'Your coach is on it' })}</div>
+      <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 22, letterSpacing: '-0.02em', color: t.INK, margin: '5px 0 0', lineHeight: 1.1 }}>
+        {trainer ? tr('common:coachPrep.title', { defaultValue: '{coach} is preparing your plan', coach }) : tr('common:coachPrep.titleNutri', { defaultValue: '{coach} is preparing your meal plan', coach })}
+      </div>
+      <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.5 }}>{tr('common:coachPrep.body', { defaultValue: 'It shows up here the moment they publish it. Until then, tell them anything they should know.' })}</div>
+      {w && (
+        <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>
+          {[w.startsOn ? tr('common:coachPrep.starts', { defaultValue: 'Week 1 starts {date}', date: fmt(w.startsOn) }) : null,
+            trainer ? tr('common:coachPrep.target', { defaultValue: 'Week-one target: {count, plural, one {# workout} other {# workouts}}', count: w.count })
+              : tr('common:coachPrep.targetNutri', { defaultValue: 'Week-one target: log {count, plural, one {# day} other {# days}}', count: w.count })].filter(Boolean).join(' · ')}
+        </div>
+      )}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18, marginTop: 4 }}>
+        <button type="button" style={act} onClick={message}>{tr('common:coachPrep.message', { defaultValue: 'Message your coach' })} →</button>
+        {trainer && onOpenSession && <button type="button" style={{ ...act, color: t.INK50 }} onClick={onOpenSession}>{tr('common:coachPrep.meanwhile', { defaultValue: 'Log a session meanwhile' })} →</button>}
+      </div>
+    </div>
+  );
+}
+
 function BSWeekStrip({ activeIdx, onSelect, restFlags = [], onMonth }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -6143,6 +6185,11 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   }, []);
   const [liveWorkouts, setLiveWorkouts] = useStateBSC(null);
   const [liveTrainCoach, setLiveTrainCoach] = useStateBSC(null); // real assigning trainer
+  // The trainer this member pays, when they have one (/api/client/plan `training.coaching`, M16).
+  // The trainer this member pays: the coaching object, null when the plan read says there is none,
+  // undefined while it is unknown. ⚠ UNKNOWN IS NOT NONE (Codex on #2378): /api/client/plan omits
+  // `coaching` when its subscriptions read fails, and a coached member was sent to find a trainer.
+  const [trainCoaching, setTrainCoaching] = useStateBSC(undefined);
   const [planLoaded, setPlanLoaded] = useStateBSC(false);
   const [builder, setBuilder] = useStateBSC(null); // { mode, ...seed } | null — the self-serve builder overlay
 
@@ -6153,6 +6200,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
     try {
       window.ShapeMetrics?.invalidate?.();
       const p = await window.ShapePlan?.get?.();
+      setTrainCoaching(p && p.training && 'coaching' in p.training ? (p.training.coaching || null) : undefined);
       if (p?.training?.hasPlan) { setLiveWorkouts(p.training.workouts); setLiveTrainCoach(p.training.coach || null); setDay(bsWeekdayIdx()); }
       else { setLiveWorkouts(null); setLiveTrainCoach(null); }
     } catch (e) { /* keep demo program */ }
@@ -6236,14 +6284,18 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       <BSPage>
         <BSPageHeader kicker={tr('session:train.kickerTrain', { defaultValue: 'Train' })} title={tr('session:train.yourTraining', { defaultValue: 'Your training' })} trailing={<BSHeaderTools onProfile={onProfile} />} />
         {resumeBanner}
-        <BSFindCoachBar role="trainer" onOpen={() => goMarket('trainer')} />
-        <BSBuildDoor
-          onBuild={() => setBuilder({ mode: 'session' })}
-          onOpenSession={() => { setOpenSession(true); setSession(true); }}
-          onStartTemplate={startTemplate}
-          onStartProgram={startProgram}
-          onDraft={() => setBuilder({ mode: 'program', autoDraft: true })}
-        />
+        {trainCoaching
+          ? <BSCoachPreparing role="trainer" coaching={trainCoaching} onOpenSession={() => { setOpenSession(true); setSession(true); }} />
+          : <>
+            {(!bsTrainSignedIn || trainCoaching === null) && <BSFindCoachBar role="trainer" onOpen={() => goMarket('trainer')} />}
+            <BSBuildDoor
+              onBuild={() => setBuilder({ mode: 'session' })}
+              onOpenSession={() => { setOpenSession(true); setSession(true); }}
+              onStartTemplate={startTemplate}
+              onStartProgram={startProgram}
+              onDraft={() => setBuilder({ mode: 'program', autoDraft: true })}
+            />
+          </>}
       </BSPage>
     );
   }
@@ -6423,7 +6475,8 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
             <BSFocusLink color={t.INK50} glyph="▷" label={tr('session:train.openSession', { defaultValue: 'Open session' })} onOpen={() => { setOpenSession(true); setSession(true); }} />
           </>
         )}
-        <BSFindCoachBar role="trainer" onOpen={() => goMarket('trainer')} />
+        {/* A member who pays a trainer is not sent to find one (Codex on #2378), as at the page's head. */}
+        {(!bsTrainSignedIn || trainCoaching === null) && <BSFindCoachBar role="trainer" onOpen={() => goMarket('trainer')} />}
       </div>
 
       {/* From Jordan — the trainer's playlists (owner, 2026-10-11: "keep playlists
@@ -12556,11 +12609,15 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
 
   // Pull the client's assigned meal plan; fall back to the demo menu when none.
   const [eatPlanRead, setEatPlanRead] = useStateBSC(false);
+  // The nutritionist this member pays, when they have one (/api/client/plan `meals.coaching`, M16).
+  // As Train's: the object, null for none, undefined while unknown (Codex on #2378).
+  const [eatCoaching, setEatCoaching] = useStateBSC(undefined);
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const p = await window.ShapePlan?.get?.();
+        if (!cancelled) setEatCoaching(p && p.meals && 'coaching' in p.meals ? (p.meals.coaching || null) : undefined);
         if (cancelled || !p?.meals?.hasPlan) return;
         setLiveMealDays(p.meals.days);
         setLiveMealCoach(p.meals.coach || null);
@@ -13982,6 +14039,8 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
 
       <BSCoachAdjustBanner detail={bsEatProgram.detail} kind="nutrition" />
 
+      {bsEatSignedIn && eatPlanRead && !liveMealDays && eatCoaching && <BSCoachPreparing role="nutritionist" coaching={eatCoaching} />}
+
       {/* The next meal — on its own, today only. Log it opens the meal, where it
           is logged; Swap opens the swap sheet on this meal. */}
       {_eatNext && (
@@ -14181,7 +14240,9 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
             {cur.coachLine ? (
               <div style={{ margin: `10px ${t.padX}px 0`, padding: '2px 0 2px 12px', borderLeft: '3px solid #a07a2e', fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, lineHeight: 1.45, color: t.INK70 }}>&ldquo;{cur.coachLine}&rdquo;</div>
             ) : null}
-            <BSFindCoachBar role="nutritionist" onOpen={() => goMarket('nutritionist')} />
+            {/* A member who pays a nutritionist, or whose coach could not be read, is not sent to find
+                one (Codex on #2378); the signed-out preview keeps the pitch. */}
+            {(!bsEatSignedIn || eatCoaching === null) && <BSFindCoachBar role="nutritionist" onOpen={() => goMarket('nutritionist')} />}
           </div>
         );
       })()}
@@ -30419,6 +30480,22 @@ const BS_CHECKIN_RATINGS = [
   ['stress', 'Stress · 10 = calm', '#7ed4ff'],
   ['hunger', 'Hunger control', '#e8b14a'],
 ];
+// ⚠ THE CHECK-IN ASKED HOW WELL THEY FOLLOWED A PLAN THEY DID NOT HAVE (client-onboarding review, M16).
+// An adherence question is asked only for a discipline with a plan; until the plan read answers (or if
+// it fails) every question is asked, as before. The website's check-in applies the same rule.
+function bsCheckinRatings(plans) {
+  if (!plans) return BS_CHECKIN_RATINGS;
+  return BS_CHECKIN_RATINGS.filter(([k]) => (k === 'trainingAdherence' ? plans.training : k === 'nutritionAdherence' ? plans.nutrition : true));
+}
+// What is saved is what was asked (Codex on #2378), as on the website: a hidden adherence score is not
+// written back. A rating the form does not know is kept as it came.
+function bsCheckinRatingsToSave(ratings, plans) {
+  const asked = new Set(bsCheckinRatings(plans).map(([k]) => k));
+  const known = new Set(BS_CHECKIN_RATINGS.map(([k]) => k));
+  const out = {};
+  for (const [k, v] of Object.entries(ratings || {})) if (asked.has(k) || !known.has(k)) out[k] = v;
+  return out;
+}
 const BS_MEASURE_SITES = [['waist', 'Waist'], ['hips', 'Hips'], ['chest', 'Chest'], ['arm', 'Upper arm'], ['thigh', 'Thigh'], ['calf', 'Calf']];
 function BSWeeklyCheckin({ onBack }) {
   const t = useBS();
@@ -30434,6 +30511,13 @@ function BSWeeklyCheckin({ onBack }) {
   const [photos, setPhotos] = useStateBSC({}); // pose → { file, url } until submit
   const [busy, setBusy] = useStateBSC(false);
   const [doneWeek, setDoneWeek] = useStateBSC(false);
+  const [plans, setPlans] = useStateBSC(null);
+  React.useEffect(() => {
+    if (!loggedIn || !window.ShapePlan?.get) return undefined;
+    let on = true;
+    window.ShapePlan.get().then((p) => { if (on && p) setPlans({ training: !!p.training?.hasPlan, nutrition: !!p.meals?.hasPlan }); }).catch(() => {});
+    return () => { on = false; };
+  }, [loggedIn]);
   // Prefill this week's check-in when it exists — saving again updates it.
   React.useEffect(() => {
     if (!loggedIn) return undefined;
@@ -30459,7 +30543,7 @@ function BSWeeklyCheckin({ onBack }) {
     if (!loggedIn) { window.__bsToast?.('Sign in to check in', 'err'); return; }
     setBusy(true);
     try {
-      await window.ShapeCheckins.submit({ ratings, wins, struggles, question, weight: weight || null, unit: t.isMetric ? 'kg' : 'lb' });
+      await window.ShapeCheckins.submit({ ratings: bsCheckinRatingsToSave(ratings, plans), wins, struggles, question, weight: weight || null, unit: t.isMetric ? 'kg' : 'lb' });
       const entries = Object.entries(meas).filter(([, v]) => v).map(([site, v]) => ({ site, value: parseFloat(v) }));
       if (entries.length) { try { await window.ShapeMeasurements.log(entries, { unit: t.isMetric ? 'cm' : 'in' }); } catch (e) {} }
       if (weight) { try { await window.ShapeWeighIns?.log?.({ weight: parseFloat(weight), unit: t.isMetric ? 'kg' : 'lb' }); } catch (e) {} }
@@ -30487,7 +30571,7 @@ function BSWeeklyCheckin({ onBack }) {
         )}
         <div style={card}>
           <div style={lbl}>Rate the week · 1–10</div>
-          {BS_CHECKIN_RATINGS.map(([k, label, c], idx) => (
+          {bsCheckinRatings(plans).map(([k, label, c], idx) => (
             <div key={k} style={{ padding: '9px 0', borderTop: idx === 0 ? 0 : `1px solid ${t.HAIR}` }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 7 }}>
                 <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK }}>{label}</span>

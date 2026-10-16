@@ -321,8 +321,8 @@ test('coach side: the roster by owned provider rows, a name resolved to exactly 
   assert.equal(roster.ok, true);
   assert.equal(roster.isCoach, true);
   assert.deepEqual(roster.clients, [
-    { id: 'c-1', name: 'Priya Shah', roles: ['trainer'] }, { id: 'c-2', name: 'Sam Ortiz', roles: ['trainer'] }, { id: 'c-3', name: 'Samantha Lee', roles: ['trainer'] },
-  ], 'active/trialing on the coach\'s OWN provider row only');
+    { id: 'c-1', name: 'Priya Shah', roles: ['trainer'], joinedAt: null, joinedAtByRole: {}, isNew: null }, { id: 'c-2', name: 'Sam Ortiz', roles: ['trainer'], joinedAt: null, joinedAtByRole: {}, isNew: null }, { id: 'c-3', name: 'Samantha Lee', roles: ['trainer'], joinedAt: null, joinedAtByRole: {}, isNew: null },
+  ], 'active/trialing on the coach\'s OWN provider row only (no start date read: joinedAt and isNew unknown)');
   assert.deepEqual(findClient(roster.clients, 'priya'), { client: { id: 'c-1', name: 'Priya Shah', roles: ['trainer'] } });
   assert.deepEqual(findClient(roster.clients, 'Sam Ortiz'), { client: { id: 'c-2', name: 'Sam Ortiz', roles: ['trainer'] } }, 'exact wins over the substring sibling');
   assert.deepEqual(findClient(roster.clients, 'sam'), { error: 'ambiguous', candidates: [{ id: 'c-2', name: 'Sam Ortiz' }, { id: 'c-3', name: 'Samantha Lee' }] });

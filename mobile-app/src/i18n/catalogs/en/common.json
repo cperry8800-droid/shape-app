@@ -44,5 +44,15 @@
   "search.previewNote": "Preview · sign in to search every real account",
   "search.channelsSignIn": "Sign in to browse the community channels.",
   "search.noChannelsYet": "No channels yet — start one from Chat → Channels.",
-  "search.browseCoaches": "Browse coaches on the marketplace →"
+  "search.browseCoaches": "Browse coaches on the marketplace →",
+  "coachPrep.eyebrow": "Your coach is on it",
+  "coachPrep.title": "{coach} is preparing your plan",
+  "coachPrep.titleNutri": "{coach} is preparing your meal plan",
+  "coachPrep.coachFallback": "Your coach",
+  "coachPrep.body": "It shows up here the moment they publish it. Until then, tell them anything they should know.",
+  "coachPrep.starts": "Week 1 starts {date}",
+  "coachPrep.target": "Week-one target: {count, plural, one {# workout} other {# workouts}}",
+  "coachPrep.targetNutri": "Week-one target: log {count, plural, one {# day} other {# days}}",
+  "coachPrep.message": "Message your coach",
+  "coachPrep.meanwhile": "Log a session meanwhile"
 }

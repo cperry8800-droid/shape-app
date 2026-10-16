@@ -181,6 +181,16 @@ function DnuLogHistory({ week, currentStreak, longestStreak, loggedDays7 }) {
 }
 
 // ── The page ────────────────────────────────────────────────────────────────
+// Live or the demo: a published plan, a nutrition read with a day in it, or a nutritionist the
+// member pays. ⚠ A COACHED MEMBER WITH NO PLAN AND NOTHING LOGGED READ THE DEMO MENU (Codex on
+// #2378): /api/client/nutrition answers today: null for them, so the "preparing your meal plan"
+// state never rendered. ⚠ AND A COACH IT COULD NOT READ IS NOT "NONE" (Codex on #2378): the route omits
+// `coaching` when its subscriptions read fails, and the member got the demo menu as their own. Only a
+// confirmed `coaching: null` (no nutritionist) with nothing logged is the preview.
+function dnuSourceOf(pl, nu) {
+  return (pl && pl.ok && pl.meals && (pl.meals.hasPlan || pl.meals.coaching !== null)) || (nu && nu.ok && nu.today) ? "live" : "demo";
+}
+
 function ClientNutritionPage() {
   const [plan, setPlan] = React.useState(null);
   const [nutri, setNutri] = React.useState(null);
@@ -195,7 +205,7 @@ function ClientNutritionPage() {
       if (!on) return;
       if (pl && pl.ok) setPlan(pl);
       if (nu && nu.ok) setNutri(nu);
-      setSource((pl && pl.ok && pl.meals && pl.meals.hasPlan) || (nu && nu.ok && nu.today) ? "live" : "demo");
+      setSource(dnuSourceOf(pl, nu));
     })();
     return () => { on = false; };
   }, []);
@@ -263,10 +273,21 @@ function ClientNutritionPage() {
     ? [
         { key: "noplan", title: "No meal plan yet", size: "full", render: () => (
           <div className="dash-plate dash-plate--tick" style={{ "--dac": DNU_GOLD, paddingLeft: 24 }}>
-            <div className="dash-eyebrow" style={{ color: DNU_GOLD }}>No meal plan assigned yet</div>
-            <div style={{ fontSize: 13, color: DNU_INK50, lineHeight: 1.55, marginTop: 8, maxWidth: 480 }}>
-              Your nutritionist builds the plan and it lands here, with swaps and a grocery list — ask in chat, or find a coach in the marketplace.
-            </div>
+            {/* A member with a nutritionist is waiting on them, not on the marketplace (client-onboarding
+                review, M16; /api/client/plan meals.coaching). */}
+            {plan && plan.meals && plan.meals.coaching ? <>
+              <div className="dash-eyebrow" style={{ color: DNU_GOLD }}>Your coach is on it</div>
+              <div style={{ fontSize: 13, color: DNU_INK50, lineHeight: 1.55, marginTop: 8, maxWidth: 480 }}>
+                {plan.meals.coaching.name || "Your nutritionist"} is preparing your meal plan. It shows up here the moment they publish it, with swaps and a grocery list{plan.meals.coaching.weekOne ? " (week-one target: log " + plan.meals.coaching.weekOne.count + (plan.meals.coaching.weekOne.count === 1 ? " day" : " days") + ")" : ""}. Until then, tell them anything they should know. <a href="/newdesign/ClientApp.html#team" style={{ color: DNU_GOLD, textDecoration: "none" }}>Message your coach →</a>
+              </div>
+            </> : <>
+              <div className="dash-eyebrow" style={{ color: DNU_GOLD }}>No meal plan assigned yet</div>
+              <div style={{ fontSize: 13, color: DNU_INK50, lineHeight: 1.55, marginTop: 8, maxWidth: 480 }}>
+                {/* The marketplace only for a member the plan read says has no nutritionist: the route omits
+                    `coaching` when it could not tell (Codex on #2378). */}
+                Your nutritionist builds the plan and it lands here, with swaps and a grocery list{plan && plan.meals && plan.meals.coaching === null ? " — ask in chat, or find a coach in the marketplace." : "."}
+              </div>
+            </>}
             {window.ShapeAskNoraLink && <window.ShapeAskNoraLink style={{ marginTop: 10 }} label="Ask Nora what to eat today" draft="What should I eat today?" />}
           </div>
         ) },

@@ -44,5 +44,15 @@
   "search.previewNote": "Предпросмотр · войдите, чтобы искать по всем реальным аккаунтам",
   "search.channelsSignIn": "Войдите, чтобы посмотреть каналы сообщества.",
   "search.noChannelsYet": "Каналов пока нет — создайте первый в разделе Чат → Каналы.",
-  "search.browseCoaches": "Тренеры в маркетплейсе →"
+  "search.browseCoaches": "Тренеры в маркетплейсе →",
+  "coachPrep.eyebrow": "Твой тренер уже работает",
+  "coachPrep.title": "{coach} готовит твой план",
+  "coachPrep.titleNutri": "{coach} готовит твой план питания",
+  "coachPrep.coachFallback": "Твой тренер",
+  "coachPrep.body": "Он появится здесь, как только его опубликуют. А пока расскажи тренеру всё, что ему нужно знать.",
+  "coachPrep.starts": "Первая неделя начинается {date}",
+  "coachPrep.target": "Цель первой недели: {count, plural, one {# тренировка} few {# тренировки} many {# тренировок} other {# тренировки}}",
+  "coachPrep.targetNutri": "Цель первой недели: записать {count, plural, one {# день} few {# дня} many {# дней} other {# дня}}",
+  "coachPrep.message": "Написать тренеру",
+  "coachPrep.meanwhile": "Пока запиши занятие"
 }

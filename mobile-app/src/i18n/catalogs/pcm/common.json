@@ -44,5 +44,15 @@
   "search.previewNote": "Preview · sign in make you fit search all di real accounts",
   "search.channelsSignIn": "Sign in make you fit check di community channels.",
   "search.noChannelsYet": "No channel dey yet — start one for Chat → Channels.",
-  "search.browseCoaches": "Check coaches for di marketplace →"
+  "search.browseCoaches": "Check coaches for di marketplace →",
+  "coachPrep.eyebrow": "Your coach dey on am",
+  "coachPrep.title": "{coach} dey prepare your plan",
+  "coachPrep.titleNutri": "{coach} dey prepare your meal plan",
+  "coachPrep.coachFallback": "Your coach",
+  "coachPrep.body": "E go show here once dem publish am. Before then, tell dem anything wey dem suppose know.",
+  "coachPrep.starts": "Week 1 go start {date}",
+  "coachPrep.target": "Week-one target: {count, plural, one {# workout} other {# workouts}}",
+  "coachPrep.targetNutri": "Week-one target: log {count, plural, one {# day} other {# days}}",
+  "coachPrep.message": "Message your coach",
+  "coachPrep.meanwhile": "Log one session for now"
 }

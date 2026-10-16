@@ -17,11 +17,13 @@
 import type { createClient } from '@/lib/supabase/server';
 import { readinessFromSeries } from '@/lib/recovery-readiness';
 import { bsVitals, vitalsCeilingISO, vitalsCutoffISO } from '@/lib/vitals-leg.mjs';
-import { bsProgramLeg, bsLogsLeg, bsNutritionTargets, bsLastContactLeg } from '@/lib/coach-client-legs.mjs';
+import { bsProgramLeg, bsLogsLeg, bsNutritionTargets, bsLastContactLeg, bsOnboardingLeg, ONBOARDING_DAYS, CHECKIN_READ_LIMIT } from '@/lib/coach-client-legs.mjs';
 import { coachIntakeView, screeningState } from '../../mobile-app/src/services/coachIntake.mjs';
 
 export type OverviewClient = Awaited<ReturnType<typeof createClient>>;
-export type SharedOverviewMe = { trainerId: number | null; nutritionistId: number | null };
+// userId: the caller's account, which names the member DM with a client (fix 4). Optional so an
+// older caller still type-checks; without it the DM is not read.
+export type SharedOverviewMe = { trainerId: number | null; nutritionistId: number | null; userId?: string | null };
 
 // The batched route's cap — one roster page. An unbounded list would let one
 // request fan a coach's whole history of reads out on the server instead of the
@@ -61,6 +63,7 @@ export async function resolveMe(supabase: OverviewClient, userId: string): Promi
   return {
     trainerId: trainerRow.data?.id ?? null,
     nutritionistId: nutriRow.data?.id ?? null,
+    userId,
   };
 }
 
@@ -95,11 +98,14 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
   // cross-provider clause. Verified against production by impersonation (real owner 1 row, a
   // different coach 0, control 21 both). The counterpart half now comes from a projecting definer
   // -- see 2026-08-10-shared-clients-roster.sql for why a definer and not a new RLS policy.
-  const { data: subs } = await supabase
+  const { data: subs, error: subsError } = await supabase
     .from('subscriptions')
-    .select('provider_role, provider_id, status, current_period_end')
+    .select('provider_role, provider_id, status, current_period_end, created_at')
     .eq('client_id', clientId)
     .in('status', ['active', 'trialing']);
+  // Without these rows no join date is known, so no onboarding board is built; the coach's roster,
+  // which read the same subscription, shows the client as unread rather than settled.
+  if (subsError) console.error('[shared-overview] subscriptions read failed:', subsError.message);
 
   const trainerIds = (subs ?? []).filter(s => s.provider_role === 'trainer').map(s => s.provider_id);
   const nutriIds = (subs ?? []).filter(s => s.provider_role === 'nutritionist').map(s => s.provider_id);
@@ -265,18 +271,18 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
   // photos, and the health profile (PAR-Q screening — never share-gated).
   const [
     { data: goals }, { data: stats }, { data: lifts },
-    { data: checkins, error: checkinsError }, { data: measurements }, { data: progressPhotos }, { data: healthProfile, error: healthError },
+    { data: checkins, error: checkinsError }, { data: measurements, error: measurementsError }, { data: progressPhotos }, { data: healthProfile, error: healthError },
     { data: intake, error: intakeError },
     { data: cycle },
     { data: prep },
-    { data: programRow },
+    { data: programRow, error: programError },
     { data: convoRows, error: convoErr },
     { data: scoreHistory },
   ] = await Promise.all([
     supabase.rpc('get_client_goals', { p_user_id: clientId }),
     supabase.rpc('get_client_stats', { p_user_id: clientId }),
     supabase.rpc('get_client_lifts', { p_user_id: clientId }),
-    supabase.rpc('get_client_checkins', { p_user_id: clientId, p_limit: 4 }),
+    supabase.rpc('get_client_checkins', { p_user_id: clientId, p_limit: CHECKIN_READ_LIMIT }),
     supabase.rpc('get_client_measurements', { p_user_id: clientId }),
     supabase.rpc('get_client_progress_photos', { p_user_id: clientId, p_limit: 12 }),
     supabase.rpc('get_client_health_profile', { p_user_id: clientId }),
@@ -299,7 +305,7 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     // Last contact (R4) — the caller's OWN direct thread with this client.
     // `conversations` is participant-scoped by RLS, so a coach reads only
     // threads they are in; the leg then narrows to their own provider id.
-    supabase.from('conversations').select('provider_role, provider_id, last_message_at').eq('client_id', clientId).eq('kind', 'direct'),
+    supabase.from('conversations').select('id, provider_role, provider_id, last_message_at').eq('client_id', clientId).eq('kind', 'direct'),
     // (the error is read alongside the data below — a failed read must not ship
     //  as "you have never messaged this client")
     // Weekly Shape Score + the member's streak (R4). `score_ledger` and
@@ -310,6 +316,7 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     supabase.rpc('get_client_score_history', { p_user_id: clientId }),
   ]);
   const programDetail = (programRow?.detail ?? {}) as Record<string, unknown>;
+  if (programError) console.error('[shared-overview] client_programs read failed:', programError.message);
 
   // Objective sleep for the coach (share-gated like the other reads — the
   // providers_read_subscriber_snapshots RLS policy lets an active coach read
@@ -461,7 +468,24 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
   // would assert it about every client on the roster. Omitted on error, which
   // the column renders as its honest "Not shared".
   if (convoErr) console.error('[shared-overview] conversations read failed:', convoErr.message);
-  const lastContact = convoErr ? undefined : bsLastContactLeg(convoRows ?? [], mine);
+  // ⚠ THE MEMBER DM IS THE OTHER THREAD A COACH WRITES IN (Fable on fix 4). Before the coach thread
+  // existed (2026-10-15), a coach messaged a client from the member DM, keyed by the pair with no
+  // client or provider id, which the read above cannot see; without it every such relationship read
+  // "never messaged" and the hello step "not yet". Read only for a client the caller coaches, under
+  // the caller's own (participant-scoped) client. A failed read is unknown, like the thread's.
+  const coached = mine.trainer != null || mine.nutritionist != null;
+  const dmKey = coached && me.userId && me.userId !== clientId
+    ? (me.userId < clientId ? `${me.userId}:${clientId}` : `${clientId}:${me.userId}`)
+    : null;
+  let dm: { id: string; last_message_at: string | null } | null | undefined = null;
+  if (dmKey) {
+    const { data: dmRows, error: dmErr } = await supabase
+      .from('conversations').select('id, last_message_at')
+      .eq('kind', 'direct').eq('dm_key', dmKey).is('client_id', null).is('provider_id', null).limit(1);
+    if (dmErr) console.error('[shared-overview] member DM read failed:', dmErr.message);
+    dm = dmErr ? undefined : (((dmRows ?? []) as Array<{ id: string; last_message_at: string | null }>)[0] ?? null);
+  }
+  const lastContact = convoErr || dm === undefined ? undefined : bsLastContactLeg(convoRows ?? [], mine, dm);
   // Likewise: an unreadable TEMPLATE makes bsProgramLeg return null, which the
   // roster renders as "Not set" — "this client has no program" — for clients who
   // all have one. `templatesErr` is the only thing that can tell them apart.
@@ -482,6 +506,65 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
   // rules skip every live client — they need value AND target.
   const nutritionTargets = bsNutritionTargets(programDetail);
 
+  // The onboarding board (client-onboarding review, fix 4), per role the caller coaches this client
+  // in: only while the client is inside the board's 30 days, so an established roster pays no extra
+  // reads. Every input is a record (the welcome Shape wrote, the coach's own first message, the first
+  // plan the coach published); a failed read is `undefined`, which the leg reports as unknown.
+  const onboarding: Record<string, ReturnType<typeof bsOnboardingLeg>> = {};
+  for (const role of ['trainer', 'nutritionist'] as const) {
+    const providerId = mine[role];
+    if (providerId == null) continue;
+    let joinedAt: string | null = null;
+    for (const sub of (subs ?? []) as Array<{ provider_role: string; provider_id: number; created_at?: string | null }>) {
+      if (sub.provider_role === role && String(sub.provider_id) === String(providerId) && sub.created_at && (!joinedAt || sub.created_at < joinedAt)) joinedAt = sub.created_at;
+    }
+    const joinedMs = joinedAt ? Date.parse(joinedAt) : NaN;
+    if (!Number.isFinite(joinedMs) || Date.now() - joinedMs >= ONBOARDING_DAYS * 86_400_000) continue;
+    const conv = convoErr
+      ? undefined
+      : ((convoRows ?? []) as Array<{ id: string; provider_role: string; provider_id: number }>)
+          .find((c) => c.provider_role === role && String(c.provider_id) === String(providerId)) ?? null;
+    const firstOf = (res: { data: unknown; error: unknown } | null, pick: (row: Record<string, unknown>) => unknown) => {
+      if (res === null) return null;
+      if (res.error) return undefined;
+      const row = ((res.data ?? []) as Record<string, unknown>[])[0];
+      return row ? pick(row) : null;
+    };
+    // The threads the coach can have written in: their coach thread and the member DM.
+    const talkIds = [conv?.id, dm?.id].filter((v): v is string => typeof v === 'string');
+    const [welcomeRes, helloRes, planRes] = await Promise.all([
+      conv ? supabase.from('messages').select('created_at').eq('conversation_id', conv.id).is('sender_id', null).eq('metadata->>shape', 'welcome').limit(1) : Promise.resolve(null),
+      // The coach's own first message since this subscription began: in either thread, the one sender
+      // who is not the client. ⚠ Since `joinedAt` (Codex on #2378): a client who left and came back
+      // kept the earlier run's messages, which ticked "Your first message" before the coach wrote.
+      talkIds.length ? supabase.from('messages').select('created_at').in('conversation_id', talkIds).not('sender_id', 'is', null).neq('sender_id', clientId).gte('created_at', joinedAt).order('created_at', { ascending: true }).limit(1) : Promise.resolve(null),
+      // The first plan THIS coach published since this subscription began, archived or not (a week
+      // replaced by the next was still published). Workouts a member wrote for themselves carry no
+      // trainer_id. ⚠ Since `joinedAt` (Codex on #2378): a client who left and came back had the
+      // step ticked by a plan from the earlier run, and "Week 1 not live" never fired.
+      role === 'trainer'
+        ? supabase.from('client_workouts').select('created_at, title').eq('client_id', clientId).eq('trainer_id', providerId).gte('created_at', joinedAt).order('created_at', { ascending: true }).limit(1)
+        : supabase.from('client_meal_plans').select('created_at, title').eq('client_id', clientId).eq('nutritionist_id', providerId).gte('created_at', joinedAt).order('created_at', { ascending: true }).limit(1),
+    ]);
+    for (const [name, res] of [['welcome', welcomeRes], ['hello', helloRes], ['first plan', planRes]] as const) {
+      if (res && res.error) console.error(`[shared-overview] onboarding ${name} read failed:`, (res.error as { message?: string }).message);
+    }
+    onboarding[role] = bsOnboardingLeg({
+      role,
+      providerId,
+      joinedAt,
+      welcomeAt: conv === undefined ? undefined : firstOf(welcomeRes, (r) => r.created_at),
+      helloAt: conv === undefined || dm === undefined ? undefined : firstOf(helloRes, (r) => r.created_at),
+      firstPlan: firstOf(planRes, (r) => ({ at: r.created_at, title: r.title })),
+      checkins: checkinsError ? undefined : (checkins ?? []),
+      measurements: measurementsError ? undefined : (measurements ?? []),
+      // A failed read is undefined: the week-one target then reads "couldn't read", never "Not set".
+      programDetail: programError ? undefined : programDetail,
+      intake: intakeError ? null : intake,
+      now: Date.now(),
+    });
+  }
+
 
   return {
     client: clientProfile
@@ -497,7 +580,10 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     goals: goals ?? null,
     stats: stats ?? null,
     lifts: lifts ?? null,
-    checkins: checkinsError ? null : (checkins ?? []),
+    // ⚠ AN EMPTY READ IS "NONE" ONLY WHEN THE CALLER COULD READ THEM (Fable on fix 4).
+    // get_client_checkins answers [] to a coach who is not subscribed to the client (a booking-only
+    // client), which both views read as "No first check-in", red. That is "not shared", so null.
+    checkins: checkinsError || (!coached && me.userId !== clientId) ? null : (checkins ?? []),
     measurements: measurements ?? [],
     progressPhotos: progressPhotos ?? [],
     healthProfile: healthProfile ?? null,
@@ -526,5 +612,8 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     ...(logs === undefined ? {} : { logs }),
     nutritionTargets,
     scoreHistory: scoreHistory ?? null,
+    // The onboarding board per role, for a client in their first 30 days with the caller; omitted
+    // otherwise (fix 4).
+    ...(Object.keys(onboarding).length ? { onboarding } : {}),
   };
 }

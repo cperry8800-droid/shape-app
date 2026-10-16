@@ -44,5 +44,15 @@
   "search.previewNote": "Samfoti · shiga don nemo dukkan asusun gaske",
   "search.channelsSignIn": "Shiga don duba tashoshin al'umma.",
   "search.noChannelsYet": "Babu tashoshi tukuna — fara ɗaya daga Hira → Tashoshi.",
-  "search.browseCoaches": "Duba kociyoyi a marketplace →"
+  "search.browseCoaches": "Duba kociyoyi a marketplace →",
+  "coachPrep.eyebrow": "Kocinka yana kai",
+  "coachPrep.title": "{coach} yana shirya maka shiri",
+  "coachPrep.titleNutri": "{coach} yana shirya maka tsarin abinci",
+  "coachPrep.coachFallback": "Kocinka",
+  "coachPrep.body": "Zai bayyana a nan da zarar an wallafa shi. Kafin nan, gaya masa duk abin da ya kamata ya sani.",
+  "coachPrep.starts": "Mako na 1 zai fara {date}",
+  "coachPrep.target": "Burin mako na 1: {count, plural, one {motsa jiki #} other {motsa jiki #}}",
+  "coachPrep.targetNutri": "Burin mako na 1: rubuta {count, plural, one {rana #} other {kwanaki #}}",
+  "coachPrep.message": "Aika wa kocinka saƙo",
+  "coachPrep.meanwhile": "Rubuta zama kafin nan"
 }

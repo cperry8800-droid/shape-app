@@ -14,22 +14,23 @@
 // can never disagree about one client.
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { buildSharedOverview, resolveMe } from '@/lib/shared-overview';
+import { clientForRequest, currentUser } from '@/lib/request-auth';
+import { buildSharedOverview, resolveMe, type OverviewClient } from '@/lib/shared-overview';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+// ⚠ THE APP SIGNS ITS CALLS WITH A BEARER TOKEN (Fable on fix 4). This route read only the cookie
+// session, so an installed build (VITE_API_BASE_URL, #2332) got 401 and the coach's client page lost
+// the board and last contact. Either session now, as the week-one route reads it.
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: clientId } = await params;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await currentUser(req);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+  const supabase = (await clientForRequest(req)) as unknown as OverviewClient;
 
   const me = await resolveMe(supabase, user.id);
   return NextResponse.json(await buildSharedOverview(supabase, { clientId, me }));

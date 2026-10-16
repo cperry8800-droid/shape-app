@@ -10,6 +10,7 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { DAY_MS } from '@/lib/time';
+import { clientNames } from '@/lib/coach-messages';
 
 // `.toISOString()` throws on an invalid date; every caller here wants "no
 // answer" rather than a 500 that takes the whole roster down with it.
@@ -154,6 +155,18 @@ export async function coachClientsResponse(
         e.origin = typeof sub.origin === 'string' && sub.origin ? sub.origin : DEFAULT_ORIGIN;
       }
     }
+  }
+
+  // ⚠ A SUBSCRIBER WHO HAD NOT BOOKED HAD NO NAME (client-onboarding review, M12). A booking's
+  // client_name was the only source, so a new client read "Client" on the roster, Today and Needs
+  // you until they booked a session. Their display name comes first, then a booking's name; a failed
+  // lookup keeps the booking names, as before.
+  const bookedNames = new Map<string, string>();
+  for (const e of byClient.values()) if (e.id && e.name !== 'Client') bookedNames.set(e.id, e.name);
+  const names = await clientNames(supabase, [...byClient.values()].map((e) => e.id).filter((id): id is string => !!id), bookedNames);
+  for (const e of byClient.values()) {
+    const name = e.id ? names.get(e.id) : undefined;
+    if (name) e.name = name;
   }
 
   const now = Date.now();

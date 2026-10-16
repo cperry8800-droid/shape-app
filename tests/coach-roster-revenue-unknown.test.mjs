@@ -20,7 +20,7 @@ const UID = '11111111-1111-4111-8111-111111111111';
 
 // A scripted client: the provider lookup resolves, then `subscriptions` and
 // `sessions` answer from the table name.
-function makeClient({ subs = { data: [], error: null }, sess = { data: [], error: null } } = {}) {
+function makeClient({ subs = { data: [], error: null }, sess = { data: [], error: null }, names = { data: [], error: null } } = {}) {
   const thenable = (result) => {
     const chain = {
       select: () => chain,
@@ -35,6 +35,9 @@ function makeClient({ subs = { data: [], error: null }, sess = { data: [], error
   };
   return {
     auth: { getUser: async () => ({ data: { user: { id: UID } } }) },
+    // get_display_names (fix 4, M12): the roster's names.
+    rpcs: [],
+    async rpc(name, args) { this.rpcs.push([name, args]); return names; },
     from(table) {
       if (table === 'subscriptions') return thenable(subs);
       if (table === 'sessions') return thenable(sess);
@@ -53,6 +56,7 @@ async function load(client) {
         currentUser: async () => ({ id: UID }),
       }],
       ['@/lib/time', await import(pathToFileURL(join(ROOT, 'src/lib/time.ts')).href).catch(() => ({ DAY_MS: 86400000 }))],
+      ['@/lib/coach-messages', await loadRealModule(join(ROOT, 'src/lib/coach-messages.ts'), { typescript: true, registry: new Map([['@/lib/supabase/server', {}]]) })],
     ]),
   });
 }
@@ -144,3 +148,32 @@ for (const role of ['trainer', 'nutritionist']) {
     );
   });
 }
+
+// ── Fix 4 (client-onboarding review, M12): a subscriber who has not booked has a name ─────────────
+test('a new subscriber reads their own name, not "Client", before any booking', async () => {
+  const now = Date.now();
+  const client = makeClient({
+    subs: { data: [{ id: 1, client_id: 'u9', price_cents: 9900, created_at: new Date(now - 86400000).toISOString() }], error: null },
+    sess: SESSIONS,
+    names: { data: [{ user_id: 'u9', full_name: 'Jordan Reyes' }, { user_id: 'u1', full_name: '  ' }], error: null },
+  });
+  const mod = await load(client);
+  const body = await (await mod.coachClientsResponse('trainer', new Request('https://x/api/trainer/clients'))).json();
+  const byId = Object.fromEntries(body.clients.map((c) => [c.id, c]));
+  assert.equal(byId.u9.name, 'Jordan Reyes', 'the subscriber with no booking');
+  assert.equal(byId.u9.isNew, true);
+  assert.equal(byId.u1.name, 'Ana R.', 'a blank display name keeps the booking name');
+  assert.equal(byId.u2.name, 'Ben T.');
+  assert.deepEqual(client.rpcs.map(([n]) => n), ['get_display_names']);
+  assert.deepEqual([...client.rpcs[0][1].p_ids].sort(), ['u1', 'u2', 'u9']);
+});
+
+test('a failed name lookup keeps the booking names, and a roster over 200 reads in chunks', async () => {
+  const failed = makeClient({ sess: SESSIONS, names: { data: null, error: { message: 'boom' } } });
+  const body = await (await (await load(failed)).coachClientsResponse('trainer', new Request('https://x/api/trainer/clients'))).json();
+  assert.deepEqual(body.clients.map((c) => c.name).sort(), ['Ana R.', 'Ben T.']);
+  const subs = Array.from({ length: 450 }, (_, i) => ({ id: i, client_id: 'c' + i, price_cents: 100, created_at: new Date().toISOString() }));
+  const big = makeClient({ subs: { data: subs, error: null } });
+  await (await load(big)).coachClientsResponse('trainer', new Request('https://x/api/trainer/clients'));
+  assert.deepEqual(big.rpcs.map(([, a]) => a.p_ids.length), [200, 200, 50], 'get_display_names refuses more than 200 ids');
+});

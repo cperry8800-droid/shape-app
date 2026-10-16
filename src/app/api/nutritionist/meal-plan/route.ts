@@ -13,6 +13,8 @@ import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson } from '@/lib/request-utils';
 import { unauthorizedAssignTargets } from '@/lib/access-guards.mjs';
 import { gateProviderAction, blockMessage } from '@/lib/compliance/server';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { createNotification } from '@/lib/notify';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -99,6 +101,23 @@ export async function POST(request: Request) {
   if (error) {
     console.error('[shape-api] Failed to insert client_meal_plans:', error.message);
     return NextResponse.json({ error: 'Failed to create meal plan. Please retry.' }, { status: 500 });
+  }
+  // ⚠ PUBLISHING A MEAL PLAN TOLD THE CLIENT NOTHING (client-onboarding review, L8). A week of
+  // workouts notifies through publish_client_week; a meal plan wrote its row and stopped, and only the
+  // app's Assign page sent a chat line by hand. Every publish (the website builder, the app, and Nora,
+  // which posts here) now tells the member, opening Eat. Best-effort: a failed notice never fails it,
+  // and that includes the admin client failing to build (Fable on fix 4), since the plan is live by now.
+  try {
+    await createNotification(createAdminClient(), {
+      userId: clientId,
+      type: 'meal_plan',
+      title: 'New meal plan from your coach',
+      body: title,
+      route: 'eat',
+      data: { mealPlanId: inserted?.id ?? null },
+    });
+  } catch (e) {
+    console.error('[shape-api] meal plan notice failed:', e instanceof Error ? e.message : e);
   }
   // The "not medical advice" / individualized-care disclaimer rides on every
   // assignment, plus a warning if compliance is in observe-only (not enforced) mode.

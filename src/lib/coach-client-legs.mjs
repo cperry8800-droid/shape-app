@@ -166,13 +166,22 @@ export function bsNutritionTargets(programDetail) {
 // when every timestamp is null: a coach who has never messaged the client is a
 // KNOWN never, and collapsing it into the absent-leg case renders "Not shared"
 // against the coach's own thread. Only a caller with no link at all reads null.
-export function bsLastContactLeg(conversations, mine) {
+//
+// ⚠ AND THE MEMBER DM IS CONTACT TOO (Fable on fix 4). Before the coach thread (2026-10-15), a
+// coach wrote to a client from a member DM (get_or_create_member_conversation: kind 'direct',
+// keyed by the pair, no client or provider id), which the thread read cannot see, so every
+// relationship that lived there read "never messaged". `dm` is that conversation ({ last_message_at })
+// or null; it is the caller's own account talking to the client, so it counts for each role the
+// caller coaches them in.
+/** @param {{ last_message_at?: string | null } | null} [dm] */
+export function bsLastContactLeg(conversations, mine, dm = null) {
   const t = myId(mine, 'trainer'), n = myId(mine, 'nutritionist');
   if (t == null && n == null) return null;
   const rows = Array.isArray(conversations) ? conversations : [];
+  const dmAt = dm ? ms(dm.last_message_at) : null;
   const pick = (role, id) => {
     if (id == null) return null;
-    let best = null;
+    let best = dmAt;
     for (const c of rows) {
       if (!c || c.provider_role !== role || String(c.provider_id) !== String(id)) continue;
       const at = ms(c.last_message_at);
@@ -181,4 +190,159 @@ export function bsLastContactLeg(conversations, mine) {
     return best == null ? null : new Date(best).toISOString();
   };
   return { trainer: pick('trainer', t), nutritionist: pick('nutritionist', n) };
+}
+
+// ── The onboarding board, per role (client-onboarding review, fix 4) ─────────
+// One coach's first 30 days with a new client, built ONLY from records: the subscription, Shape's
+// welcome in the thread, the coach's own first message, the first plan the coach published, the
+// client's check-ins since joining, and a measurement around day 30. Nothing here is a box a coach
+// ticks (the setup card's "Confirm intake" was one); a step is done when its record exists.
+//
+// ⚠ A FAILED READ IS NEVER A "NOT YET". Each input is `undefined` when its read failed, and the step
+// it decides then reads done: null ("couldn't read"), which the board shows as such, never "to do".
+//
+// The week-one target is the coach's, per member (owner, 2026-10-14, decision 3: "no fixed 48-hour or
+// 3-day rule"): client_programs.detail[discipline].weekOne = { count, startsOn, setAt, providerId },
+// written through set_program_detail. ⚠ IT IS THE COACH'S WHO SET IT (Codex on #2378): the section
+// outlives a change of coach, so a target is read only when `providerId` is the listing this board
+// is for; a predecessor's count and start day are never the new coach's deadline. Until it is set, `suggested` is the client's own answer (sessions per week) for
+// a trainer; a nutritionist's unit is days logged, and nothing they told Shape says how many.
+export const ONBOARDING_DAYS = 30;
+// How many check-ins the overview reads (get_client_checkins' p_limit); the website's week view
+// keeps the same number as DWK_CHECKIN_LIMIT.
+export const CHECKIN_READ_LIMIT = 4;
+const WEEK_ONE_MAX = 14;
+// ⚠ A NUTRITIONIST'S UNIT IS DAYS LOGGED, AND WEEK ONE HAS SEVEN (Codex on #2378): "10 days logged in
+// week 1" was accepted and shown. A trainer's workouts can run to two a day. The week-one route, the
+// plan route and both editors keep the same numbers.
+export function weekOneMax(roleOrDiscipline) {
+  return roleOrDiscipline === 'nutritionist' || roleOrDiscipline === 'nutrition' ? 7 : WEEK_ONE_MAX;
+}
+
+// ⚠ AND IT IS THIS SUBSCRIPTION'S (Codex on #2378): a target set before `since` (the join time) is a
+// returning client's earlier run, whose start day would put every deadline before this one began.
+export function weekOneOf(programDetail, discipline, providerId, since) {
+  const sec = programDetail && typeof programDetail === 'object' ? programDetail[discipline] : null;
+  const w = sec && typeof sec === 'object' ? sec.weekOne : null;
+  if (!w || typeof w !== 'object') return null;
+  if (providerId == null || w.providerId == null || String(w.providerId) !== String(providerId)) return null;
+  const count = num(w.count);
+  if (count == null || !Number.isInteger(count) || count < 1 || count > weekOneMax(discipline)) return null;
+  const startsOn = typeof w.startsOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(w.startsOn) ? w.startsOn : null;
+  const setAtMs = ms(w.setAt);
+  if (since != null && setAtMs != null && setAtMs < since) return null;
+  return { count, startsOn, setAt: setAtMs != null ? new Date(setAtMs).toISOString() : null };
+}
+function suggestedCount(intake, role) {
+  if (role !== 'trainer') return null;
+  const v = intake && intake.training ? intake.training.sessions_per_week : null;
+  const m = /\d+/.exec(String(v == null ? '' : v));
+  const n = m ? Number(m[0]) : null;
+  return n != null && n >= 1 && n <= WEEK_ONE_MAX ? n : null;
+}
+function addDaysISO(atMs, days) { return isoDayUTC(atMs + days * DAY_MS); }
+// The Sunday that closes the week holding `day` ('YYYY-MM-DD'): check-ins are weekly, Monday-keyed.
+// `after` days are added first, so a client who joins on a Saturday is not due the next morning.
+function weekEndSunday(day, after = 0) {
+  const t = Date.parse(day + 'T00:00:00Z') + after * DAY_MS;
+  const dow = new Date(t).getUTCDay(); // 0 = Sunday
+  return isoDayUTC(t + ((7 - dow) % 7) * DAY_MS);
+}
+
+/**
+ * @param {object} input
+ *   role: 'trainer' | 'nutritionist'; providerId: the caller's listing id (whose week-one target
+ *   counts); joinedAt: ISO (the caller's subscription start);
+ *   welcomeAt / helloAt: ISO | null | undefined (undefined = the read failed);
+ *   firstPlan: { at, title } | null | undefined; checkins: rows | null | undefined (latest first,
+ *   at most CHECKIN_READ_LIMIT); measurements: rows | null | undefined; programDetail: object |
+ *   undefined (undefined = the client_programs read failed); intake; now: ms.
+ * @returns the board, or null when there is no subscription start or it is past day 30.
+ */
+export function bsOnboardingLeg(input) {
+  const { role, providerId, joinedAt, welcomeAt, helloAt, firstPlan, checkins, measurements, programDetail, intake } = input || {};
+  const now = input && input.now != null ? input.now : Date.now();
+  if (role !== 'trainer' && role !== 'nutritionist') return null;
+  const joined = ms(joinedAt);
+  if (joined == null || joined > now) return null;
+  const day = Math.floor((now - joined) / DAY_MS) + 1;
+  if (day > ONBOARDING_DAYS) return null;
+  const joinedDay = isoDayUTC(joined);
+  const discipline = role === 'trainer' ? 'training' : 'nutrition';
+  // ⚠ A FAILED client_programs READ IS NOT "NOT SET" (Codex on #2378): `programDetail` is undefined
+  // then, the target "couldn't read", and every due date that hangs on its start day is unknown.
+  const weekOneUnread = programDetail === undefined;
+  const weekOne = weekOneUnread ? null : weekOneOf(programDetail, discipline, providerId, joined);
+  const iso = (v) => (ms(v) == null ? null : new Date(ms(v)).toISOString());
+
+  // Check-ins since joining. ⚠ A CHECK-IN FILED BEFORE THE SUBSCRIPTION IS NOT ONE (Fable on fix 4):
+  // a member who checked in on Monday and subscribed on Friday had "First check-in ✓" for a week
+  // the coach was not part of. A row filed before joining is left out; a row with no filing time
+  // falls back to its week ending on or after the join day.
+  // ⚠ AND THE READ RETURNS ONLY THE LATEST CHECKIN_READ_LIMIT, so the oldest of them is the first
+  // since joining only when the read reached back past it: fewer rows than the limit, or one filed
+  // before joining. Otherwise the step is done and its week unnamed, rather than a later week
+  // named as the first.
+  let checkinsSince;
+  if (checkins === undefined || checkins === null) checkinsSince = undefined;
+  else {
+    const all = Array.isArray(checkins) ? checkins : [];
+    let reachedJoin = all.length < CHECKIN_READ_LIMIT;
+    const weeks = [];
+    for (const c of all) {
+      const w = c && typeof (c.week_of || c.weekOf) === 'string' ? String(c.week_of || c.weekOf).slice(0, 10) : null;
+      if (!w) continue;
+      const filed = ms(c.created_at || c.createdAt);
+      const since = filed != null ? filed >= joined : weekEndSunday(w) >= joinedDay;
+      if (since) weeks.push(w); else reachedJoin = true;
+    }
+    weeks.sort();
+    checkinsSince = { count: weeks.length, firstWeekOf: weeks.length && reachedJoin ? weeks[0] : null };
+  }
+  // A measurement from day 28 on is the day-30 progress read. ⚠ And never one dated after today
+  // (Codex on #2378): the member's date is theirs to send, so a wrong device clock completed the step
+  // in week one. Today is read on the furthest-ahead clock (UTC+14), so no member's own date is
+  // ever "the future".
+  const latestDay = isoDayUTC(now + 14 * 3_600_000);
+  // ⚠ A FUTURE ROW MAY BE HIDING THE REAL ONE (Codex on #2378): get_client_measurements returns the
+  // newest row per site, so a site whose newest row is future-dated says nothing about the rows
+  // before it. With no valid day-30 row elsewhere, that is "couldn't read", not "not yet".
+  const measuredAt = measurements === undefined || measurements === null ? undefined : (() => {
+    let best = null;
+    let hidden = false;
+    for (const m of Array.isArray(measurements) ? measurements : []) {
+      const d = m && typeof m.measured_on === 'string' ? m.measured_on.slice(0, 10) : null;
+      if (!d) continue;
+      if (d > latestDay) { hidden = true; continue; }
+      if (d >= addDaysISO(joined, 27) && (!best || d > best)) best = d;
+    }
+    // Before day 28 nothing a future row hides could be the day-30 read: "not yet" still holds.
+    return best || (hidden && addDaysISO(joined, 27) <= latestDay ? undefined : null);
+  })();
+
+  const known = (v) => (v === undefined ? null : !!v);
+  const week1Start = weekOneUnread ? null : weekOne && weekOne.startsOn ? weekOne.startsOn : joinedDay;
+  const steps = [
+    { key: 'joined', done: true, at: iso(joinedAt) },
+    { key: 'welcome', done: known(welcomeAt), at: iso(welcomeAt) },
+    { key: 'hello', done: known(helloAt), at: iso(helloAt) },
+    { key: 'plan', done: known(firstPlan), at: firstPlan ? iso(firstPlan.at) : null, title: firstPlan && typeof firstPlan.title === 'string' ? firstPlan.title : null, due: weekOne && weekOne.startsOn ? weekOne.startsOn : null },
+    { key: 'checkin', done: checkinsSince === undefined ? null : checkinsSince.count >= 1, at: checkinsSince && checkinsSince.firstWeekOf, due: week1Start ? weekEndSunday(week1Start, 3) : null },
+    // A week after the first (Codex on #2378): fixed at joined + 14 days, a week one the coach set
+    // to start later put the second check-in due before the first.
+    { key: 'checkin2', done: checkinsSince === undefined ? null : checkinsSince.count >= 2, due: week1Start ? weekEndSunday(week1Start, 10) : null },
+    // Due on day 30, the board's last (Codex on #2378): joined + 30 days was the day after it closed.
+    { key: 'progress', done: measuredAt === undefined ? null : !!measuredAt, at: measuredAt || null, due: addDaysISO(joined, ONBOARDING_DAYS - 1) },
+  ];
+  return {
+    role,
+    joinedAt: iso(joinedAt),
+    day,
+    days: ONBOARDING_DAYS,
+    steps,
+    weekOne,
+    weekOneUnread,
+    suggested: weekOne || weekOneUnread ? null : suggestedCount(intake, role),
+    unit: role === 'trainer' ? 'workouts' : 'days_logged',
+  };
 }

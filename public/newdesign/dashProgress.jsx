@@ -512,8 +512,35 @@ function dprCheckinUnits(units, cur) {
     : !!(cur && cur.weight != null && /^kg$/i.test(String(cur.unit || "kg")));
   return { w: metric ? "kg" : "lb", l: metric ? "cm" : "in" };
 }
+// ⚠ THE CHECK-IN ASKED HOW WELL THEY FOLLOWED A PLAN THEY DID NOT HAVE (client-onboarding review, M16):
+// a coached member's first check-in, before week 1 was published, rated "training adherence" against
+// nothing. An adherence question is asked only for a discipline with a plan; until the plan read
+// answers (or if it fails) every question is asked, as before.
+function dprCheckinRatings(plans) {
+  if (!plans) return CK_RATINGS;
+  return CK_RATINGS.filter(([k]) => (k === "trainingAdherence" ? plans.training : k === "nutritionAdherence" ? plans.nutrition : true));
+}
+// What is saved is what was asked (Codex on #2378): hiding a question left its score in `ratings`, so
+// an adherence score from a week saved while a plan existed, or tapped before the plan read answered,
+// was written back. A rating the form does not know is kept as it came.
+function dprCheckinRatingsToSave(ratings, plans) {
+  const asked = new Set(dprCheckinRatings(plans).map(([k]) => k));
+  const known = new Set(CK_RATINGS.map(([k]) => k));
+  const out = {};
+  for (const [k, v] of Object.entries(ratings || {})) if (asked.has(k) || !known.has(k)) out[k] = v;
+  return out;
+}
 function DprCheckinForm({ kit, onSaved, units }) {
   const cur = dprCurrentCheckin(kit);
+  const [plans, setPlans] = React.useState(null);
+  React.useEffect(() => {
+    let on = true;
+    fetch("/api/client/plan", { credentials: "same-origin" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((p) => { if (on && p && p.ok) setPlans({ training: !!(p.training && p.training.hasPlan), nutrition: !!(p.meals && p.meals.hasPlan) }); })
+      .catch(() => {});
+    return () => { on = false; };
+  }, []);
   // ⚠ THE FORM ASKED FOR KILOGRAMS AND CENTIMETRES WHATEVER THE MEMBER'S SETTING, so an
   // imperial member had to convert before typing. It asks in their units now and sends
   // the unit with each figure (the API stores lb/kg and in/cm as given). A week already
@@ -536,7 +563,7 @@ function DprCheckinForm({ kit, onSaved, units }) {
       const res = await fetch("/api/client/checkin-kit", {
         method: "POST", credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "checkin", ratings, wins, struggles, question, weight: weight || null, unit: wUnit, measurements, date: new Date().toLocaleDateString("en-CA") }),
+        body: JSON.stringify({ action: "checkin", ratings: dprCheckinRatingsToSave(ratings, plans), wins, struggles, question, weight: weight || null, unit: wUnit, measurements, date: new Date().toLocaleDateString("en-CA") }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Could not save");
       for (const pose of ["front", "side", "back"]) {
@@ -561,7 +588,7 @@ function DprCheckinForm({ kit, onSaved, units }) {
     <Card>
       <SectionTitle right={`WEEK OF ${kit.weekOf}`}>Weekly check-in</SectionTitle>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "10px 24px", marginBottom: 16 }}>
-        {CK_RATINGS.map(([k, label, c]) => (
+        {dprCheckinRatings(plans).map(([k, label, c]) => (
           <div key={k}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
               <span style={{ fontSize: 13, fontWeight: 500 }}>{label}</span>

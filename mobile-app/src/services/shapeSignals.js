@@ -94,7 +94,7 @@ async function coachClients(role, { strict = false } = {}) {
   try {
     if (window.ShapeAssign && window.ShapeAssign.clients) {
       const list = await window.ShapeAssign.clients(role, { strict });
-      return (Array.isArray(list) ? list : []).map((c) => ({ id: c.userId || c.id || c.user_id || null, name: c.name || c.full_name || 'Client' })).filter((c) => c.id);
+      return (Array.isArray(list) ? list : []).map((c) => ({ id: c.userId || c.id || c.user_id || null, name: c.name || c.full_name || 'Client', isNew: !!c.isNew, joinedAt: c.joinedAt || null })).filter((c) => c.id);
     }
   } catch (e) { if (strict) throw e; }
   if (strict) throw new Error('Client roster unavailable');
@@ -115,13 +115,24 @@ async function coachRecords(role, options) {
       sleepByClient = (await window.ShapeRosterSleep.get(clients.map((c) => c.id))) || {};
     }
   } catch (e) { /* ignore */ }
+  // Last contact and the onboarding board, from the roster's overviews (fix 4, and L8: the app never
+  // passed last contact, so a client nobody had written to was never flagged here, and the two views
+  // disagreed). Best-effort: a missing overview leaves both unset, which the engine reads as not shared.
+  let overviews = {};
+  try {
+    if (window.ShapeCareTeam && window.ShapeCareTeam.overviews) overviews = (await window.ShapeCareTeam.overviews(clients.map((c) => c.id))) || {};
+  } catch (e) { /* ignore */ }
   return pooled(clients, 4, async (c) => {
     const kit = window.ShapeClientKit || {};
     const [stats, lifts, goalsDoc, checkins, health, intake] = await Promise.all([
       window.ShapeClientStats && window.ShapeClientStats.get ? window.ShapeClientStats.get(c.id).catch(() => null) : null,
       window.ShapeClientStats && window.ShapeClientStats.getLifts ? window.ShapeClientStats.getLifts(c.id).catch(() => null) : null,
       window.ShapeGoalsApi && window.ShapeGoalsApi.getForClient ? window.ShapeGoalsApi.getForClient(c.id).catch(() => null) : null,
-      kit.checkins ? kit.checkins(c.id, 2).catch(() => null) : null,
+      // ⚠ THREE STATES, AND ONLY FOR A SUBSCRIBER (Fable on fix 4). An empty list is the claim "no
+      // check-in" (red past the new weeks), so it must come from a read that answered: kit.checkins
+      // returns [] on an error too. And a booking-only client (no joinedAt: no subscription) is one
+      // get_client_checkins answers [] by design, which is "not shared", so it is not read at all.
+      kit.checkinsKnown && c.joinedAt ? kit.checkinsKnown(c.id, 2).catch(() => null) : null,
       // The health screening for Needs you (review M17): { ok, data }, so a failed read is
       // 'unknown' and never "missing". "Missing" also needs the coach-only intake read to have
       // answered, which says this coach IS theirs (the website's overview applies the same rule).
@@ -135,8 +146,11 @@ async function coachRecords(role, options) {
     // sleepHours shape recoveryRead consumes; vitals is the engine's §3A leg.
     // An entry with vitals but no sleep must not fabricate a recovery leg.
     const rs = sleepByClient[c.id] || null;
+    const ov = overviews[c.id] || null;
     return recordFromCoachData({
-      id: c.id, name: c.name, stats, lifts, goalsDoc, checkins, screening,
+      id: c.id, name: c.name, isNew: c.isNew, joinedAt: c.joinedAt, stats, lifts, goalsDoc, checkins, screening,
+      lastContact: ov && ov.lastContact ? ov.lastContact : null,
+      onboarding: ov && ov.onboarding ? ov.onboarding : null,
       recovery: rs && rs.sleepHours ? { sleepHours: rs.sleepHours } : null,
       vitals: rs && rs.vitals ? rs.vitals : null,
     }, deps());

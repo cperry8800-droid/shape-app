@@ -92,7 +92,7 @@ test('the records carry the screening on both sides', () => {
   assert.match(sig, /kit\.healthRead \? kit\.healthRead\(c\.id\)\.then\(\(data\) => \(\{ ok: true, data \}\), \(\) => \(\{ ok: false \}\)\) : null,/);
   assert.match(sig, /: screeningState\(null, !\(health && health\.ok\) \|\| !\(intake && intake\.ok && intake\.data\)\);/,
     '"missing" only when the coach-only read says this coach is theirs');
-  assert.match(sig, /id: c\.id, name: c\.name, stats, lifts, goalsDoc, checkins, screening,/);
+  assert.match(sig, /id: c\.id, name: c\.name, isNew: c\.isNew, joinedAt: c\.joinedAt, stats, lifts, goalsDoc, checkins, screening,/);
 });
 
 test('the overview: the intake rows, and "missing" only when the caller is confirmed as their coach', () => {

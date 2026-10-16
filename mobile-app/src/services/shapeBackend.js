@@ -5676,7 +5676,9 @@ async function listAssignableClients(role, { strict = false } = {}) {
   const d = await getJsonOrDefault(`${apiBaseUrl || ''}${path}`, null);
   if (strict && !Array.isArray(d?.clients)) throw new Error('Client roster unavailable');
   const list = Array.isArray(d?.clients) ? d.clients : [];
-  return list.filter((c) => c.id).map((c) => ({ userId: c.id, name: c.name || 'Client', sessions: c.sessions || 0 }));
+  // isNew / joinedAt ride along for the coach triage (client-onboarding review, M13: the app dropped
+  // them, so a client's first day read "No logs 7d+" and the app had no "New").
+  return list.filter((c) => c.id).map((c) => ({ userId: c.id, name: c.name || 'Client', sessions: c.sessions || 0, isNew: !!c.isNew, joinedAt: c.joinedAt || null }));
 }
 async function assignClientMealPlan({ clientId, title, weekStart, days }) {
   const res = await fetch(`${apiBaseUrl || ''}/api/nutritionist/meal-plan`, {
@@ -6373,7 +6375,43 @@ async function openCoachCoachThread(clientId, counterpartUserId) {
     return res.ok ? (d.conversationId || null) : null;
   } catch (e) { return null; }
 }
-window.ShapeCareTeam = { overview: getCareTeamOverview, openThread: openCoachCoachThread };
+// The roster's overviews in one request per 50 clients (POST /api/clients/shared-overview), the same
+// read the website's Today makes: the coach triage needs each client's last contact and onboarding
+// board (fix 4), which the per-client rollups do not carry. { [clientId]: overview }; a chunk that
+// fails is simply absent, which every consumer reads as "not shared".
+async function getCareTeamOverviews(ids) {
+  const list = [...new Set((ids || []).filter(Boolean))];
+  const out = {};
+  for (let i = 0; i < list.length; i += 50) {
+    try {
+      const res = await fetch(`${apiBaseUrl || ''}/api/clients/shared-overview`, {
+        method: 'POST', credentials: 'same-origin',
+        headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ ids: list.slice(i, i + 50) }),
+      });
+      if (!res.ok) continue;
+      const d = await res.json().catch(() => null);
+      if (d && d.results && typeof d.results === 'object') Object.assign(out, d.results);
+    } catch (e) { /* this chunk reads as not shared */ }
+  }
+  return out;
+}
+window.ShapeCareTeam = { overview: getCareTeamOverview, overviews: getCareTeamOverviews, openThread: openCoachCoachThread };
+
+// A client's week-one target, set by their coach (fix 4): POST /api/clients/[id]/week-one, the route
+// the website's board uses too. { ok, weekOne } or { ok: false, error }.
+async function setWeekOneTarget(clientId, role, count, startsOn) {
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/clients/${encodeURIComponent(clientId)}/week-one`, {
+      method: 'POST', credentials: 'same-origin',
+      headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ role: providerDiscipline(role) === 'nutritionist' ? 'nutritionist' : 'trainer', count, startsOn: startsOn || null }),
+    });
+    const d = await res.json().catch(() => ({}));
+    return res.ok && d.ok ? { ok: true, weekOne: d.weekOne || null } : { ok: false, error: d.error || null };
+  } catch (e) { return { ok: false, error: null }; }
+}
+window.ShapeWeekOne = { set: setWeekOneTarget };
 
 // Coach: read + waive a client's recent accountability penalties. Both are gated
 // server-side on is_coach_on_client (get_client_penalties / waive_penalty RPCs);
@@ -7282,6 +7320,15 @@ window.ShapeHealthProfile = { get: healthProfileGet, set: healthProfileSet };
 // health profile is deliberately NOT share-gated — liability screening).
 window.ShapeClientKit = {
   checkins: async (userId, limit = 6) => { if (!supabase) return []; try { const { data } = await supabase.rpc('get_client_checkins', { p_user_id: userId, p_limit: limit }); return Array.isArray(data) ? data : []; } catch (e) { return []; } },
+  // The same read, for a caller that must tell "none" from "couldn't read" (the coach's Today, where
+  // an empty list says "no first check-in"): null on an error or with no backend, never [].
+  checkinsKnown: async (userId, limit = 6) => {
+    if (!supabase) return null;
+    try {
+      const { data, error } = await supabase.rpc('get_client_checkins', { p_user_id: userId, p_limit: limit });
+      return !error && Array.isArray(data) ? data : null;
+    } catch (e) { return null; }
+  },
   measurements: async (userId) => { if (!supabase) return []; try { const { data } = await supabase.rpc('get_client_measurements', { p_user_id: userId }); return Array.isArray(data) ? data : []; } catch (e) { return []; } },
   photos: async (userId, limit = 30) => { if (!supabase) return []; try { const { data } = await supabase.rpc('get_client_progress_photos', { p_user_id: userId, p_limit: limit }); return Array.isArray(data) ? data : []; } catch (e) { return []; } },
   health: async (userId) => { if (!supabase) return null; try { const { data } = await supabase.rpc('get_client_health_profile', { p_user_id: userId }); return data || null; } catch (e) { return null; } },

@@ -1411,35 +1411,192 @@ function DashCheckinQueuePanel({ clients, role, live }) {
   </div>;
 }
 
-function dashSetupSteps(client, confirmed) {
-  const checkins = client.checkins;
-  return [
-    { key: "intake", label: "Intake", done: !!confirmed, manual: true },
-    { key: "appointment", label: "First appointment", done: client.payments && client.payments.sessionCount != null ? client.payments.sessionCount > 0 : null },
-    { key: "plan", label: "First plan", done: client.program ? true : null },
-    { key: "checkin", label: "First check-in", done: Array.isArray(checkins) ? checkins.length > 0 : null },
-  ];
+// ── New clients: the onboarding board (client-onboarding review, fix 4) ─────────────────────────
+// One board per client in their first 30 days with this coach, read from the overview's
+// `onboarding` leg (src/lib/coach-client-legs.mjs bsOnboardingLeg). ⚠ EVERY TICK IS A RECORD, NEVER A
+// BOX THE COACH TICKS: the setup card this replaces asked the coach to "Confirm intake", and its
+// "First plan" read a table nothing writes, so it could never tick (M14). A step whose read failed
+// says so ("couldn't read"), never "to do".
+const DASH_OB_STEPS = {
+  joined: "Subscribed",
+  welcome: "Shape welcome",
+  hello: "Your first message",
+  plan: "Plan live",
+  checkin: "First check-in",
+  checkin2: "Second check-in",
+  progress: "Day-30 measurements",
+};
+function dashObKey(role) { return role === "nutritionist" || role === "dietitian" ? "nutritionist" : "trainer"; }
+// A day ('YYYY-MM-DD' or an ISO instant) as "Mon 13 Oct". A bare day is read at noon so no zone moves it.
+function dashObDay(v) {
+  if (!v || typeof v !== "string") return "";
+  const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(v) ? v + "T12:00:00" : v);
+  return isNaN(d.getTime()) ? "" : d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
 }
-function DashSetupPanel({ clients, prefs, role, live }) {
-  const key = "setupIntake:" + role;
+// The clients in their first 30 days with this coach, newest first.
+// ⚠ A CLIENT WHOSE OVERVIEW DID NOT ARRIVE IS STILL A NEW CLIENT (Fable on fix 4). The board comes
+// with the overview, so a client whose overview failed (or is still loading) used to vanish from
+// the tab, which then said "No clients in their first 30 days". Their join date is on the roster, so
+// they stay, as a row that says it couldn't read the board (`unread`), never as an empty one.
+function dashOnboardingRows(clients, role) {
+  const key = dashObKey(role);
+  const now = Date.now();
+  const rows = [];
+  for (const c of clients || []) {
+    if (!c || !c.profile || !c.profile.id) continue;
+    const ob = c.onboarding && c.onboarding[key];
+    if (ob && Array.isArray(ob.steps)) { rows.push({ c, day: ob.day }); continue; }
+    // ⚠ AN OVERVIEW THAT ARRIVED WITHOUT THIS BOARD IS NOT PROOF OF "NOT NEW" (Codex on #2378). The
+    // overview leaves the board out when its own subscriptions read fails, and the page then reads
+    // as ready. The roster's join date is the same subscription's, so inside 30 days the missing
+    // board is a read the overview could not make: the row stays, unread.
+    const read = c.progressRead && c.progressRead.state;
+    const joined = c.profile.joinedAt ? Date.parse(c.profile.joinedAt) : NaN;
+    if (!Number.isFinite(joined) || joined > now) continue;
+    const day = Math.floor((now - joined) / 86400000) + 1;
+    if (day <= 30) rows.push({ c: { ...c, unread: read === "loading" ? "loading" : "unavailable" }, day });
+  }
+  return rows.sort((a, b) => a.day - b.day).map((r) => r.c);
+}
+// What the board asks for next: the first step not done, with its date when it has one.
+function dashOnboardingNext(ob, role) {
+  const steps = ob && Array.isArray(ob.steps) ? ob.steps : [];
+  const next = steps.find((s) => s.done === false);
+  if (!next) return steps.some((s) => s.done == null) ? "Some steps couldn't be read" : "Set up";
+  const label = next.key === "plan" && dashObKey(role) === "nutritionist" ? "Meal plan live" : DASH_OB_STEPS[next.key] || next.key;
+  return label + (next.due ? " · due " + dashObDay(next.due) : "");
+}
+function DashObStage({ n, title, children }) {
+  return <div style={{ border: "1px solid var(--sh-line, #302c27)", borderRadius: 8, padding: 12, minWidth: 0 }}>
+    <div style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--sh-ink2, #a09b94)", marginBottom: 8 }}>{n} · {title}</div>
+    {children}
+  </div>;
+}
+function DashObLine({ label, value }) {
+  return <div className="dw-row" style={{ gap: 8 }}><span style={{ color: "var(--sh-ink2, #a09b94)" }}>{label}</span><span style={{ textAlign: "right", overflowWrap: "anywhere" }}>{value}</span></div>;
+}
+function DashOnboardingBoard({ client, ob, role, live }) {
+  const key = dashObKey(role);
+  const nutri = key === "nutritionist";
+  const id = client.profile.id;
+  const first = String(client.profile.name || "They").split(" ")[0];
+  const step = (k) => ob.steps.find((s) => s.key === k) || null;
+  const stepText = (s, doneText, todoText) => !s ? "—" : s.done == null ? "Couldn't read" : s.done ? doneText : todoText;
+  const it = client.intake;
+  const intakeRows = it ? [
+    ...(it.goal ? [{ key: "goal", label: "Goal", value: it.goal }] : []),
+    ...((nutri ? it.nutrition : it.training) || []).slice(0, 5),
+  ] : [];
+  const screening = client.screening === "flagged" ? "Flagged · read it first" : client.screening === "clear" ? "On file" : client.screening === "missing" ? "Not completed" : "Not shared";
+  const weights = Array.isArray(client.weighIns) ? client.weighIns.slice().sort((a, b) => String(a.on).localeCompare(String(b.on))) : [];
+  const plan = step("plan"), hello = step("hello"), welcome = step("welcome"), checkin = step("checkin");
+  // The week-one target: the coach's, saved through /api/clients/[id]/week-one.
+  const [target, setTarget] = React.useState(ob.weekOne || null);
+  const [editing, setEditing] = React.useState(false);
+  const [count, setCount] = React.useState(String((ob.weekOne && ob.weekOne.count) || ob.suggested || (nutri ? 5 : 3)));
+  // The days week one can start on: the board's 30 days, as the route checks them (Codex on #2378).
+  const obJoined = ob.joinedAt ? Date.parse(ob.joinedAt) : NaN;
+  const firstDay = Number.isFinite(obJoined) ? new Date(obJoined).toISOString().slice(0, 10) : undefined;
+  const lastDay = Number.isFinite(obJoined) ? new Date(obJoined + 29 * 86400000).toISOString().slice(0, 10) : undefined;
+  const nextMonday = (() => { const d = new Date(); d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7)); const v = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); return firstDay && v < firstDay ? firstDay : lastDay && v > lastDay ? lastDay : v; })();
+  const [startsOn, setStartsOn] = React.useState((ob.weekOne && ob.weekOne.startsOn) || nextMonday);
   const [state, setState] = React.useState("");
-  const rows = clients.filter((c) => c.profile && c.profile.isNew);
-  if (live && !["ready", "error"].includes(prefs.kind)) return <p className="dw-note">{prefs.kind === "loading" ? "Loading setup confirmations…" : "Setup confirmations unavailable. Reload to try again."}</p>;
+  const unit = nutri ? "days logged" : "workouts";
+  // Days logged run to seven (weekOneMax in coach-client-legs.mjs; Codex on #2378).
+  const max = nutri ? 7 : 14;
+  const save = async () => {
+    const n = Number(count);
+    if (!Number.isInteger(n) || n < 1 || n > max) { setState("Enter a whole number from 1 to " + max + "."); return; }
+    setState("Saving…");
+    try {
+      const r = await fetch("/api/clients/" + encodeURIComponent(id) + "/week-one", {
+        method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: key, count: n, startsOn: startsOn || null }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) { setState(j.error || "Couldn't save. Try again."); return; }
+      setTarget(j.weekOne); setEditing(false); setState("Saved");
+      // The board's dates follow the target (Codex on #2378): read this client's overview again, so
+      // the plan and check-in deadlines, and the row's next step, are the server's new ones.
+      try { window.dispatchEvent(new CustomEvent("shape:coach-progress-refresh", { detail: { clientId: id } })); } catch (e) {}
+    } catch (e) { setState("Couldn't save. Try again."); }
+  };
+  return <div style={{ padding: "4px 0 14px" }}>
+    <p className="dw-note" style={{ margin: "0 0 10px" }}>
+      Joined your roster {dashObDay(ob.joinedAt)} · {nutri ? "Nutritionist" : "Trainer"} · screening {screening.toLowerCase()} · <a className="dw-action" href={dashWidgetClientHref(id, role) || dashTabHref("clients", role)}>Client page →</a>
+    </p>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 10 }}>
+      <DashObStage n="01" title="Who they are">
+        {intakeRows.length ? intakeRows.map((r) => <DashObLine key={r.key} label={r.label} value={r.value} />) : <p className="dw-note" style={{ margin: 0 }}>{it ? "They haven't filled this in." : "Not shared yet."}</p>}
+        <DashObLine label="Screening" value={screening} />
+      </DashObStage>
+      <DashObStage n="02" title="Starting point">
+        {weights.length ? <DashObLine label="Weight" value={weights[0].weight + " " + weights[0].unit + (weights.length > 1 ? " → " + weights[weights.length - 1].weight + " " + weights[weights.length - 1].unit : "")} /> : <DashObLine label="Weight" value="No weigh-in yet" />}
+        <DashObLine label="Days logged, 7d" value={client.foodLogs && client.foodLogs.daysLogged7d != null ? client.foodLogs.daysLogged7d : "Not shared"} />
+        {!nutri && <DashObLine label="Workouts done" value={client.trainingAdherence ? client.trainingAdherence.done + " of " + client.trainingAdherence.planned : "None planned yet"} />}
+      </DashObStage>
+      <DashObStage n="03" title="Your plan">
+        <DashObLine label={nutri ? "Meal plan" : "Week 1"} value={stepText(plan, (plan && plan.title ? plan.title + " · " : "") + "published " + dashObDay(plan && plan.at), "Not published" + (plan && plan.due ? " · due " + dashObDay(plan.due) : ""))} />
+        <a className="dw-action" href={dashLinkedTab(nutri ? "plans" : "programs", role, { client: id })}>{nutri ? "Open meal plans →" : "Open program builder →"}</a>
+      </DashObStage>
+      <DashObStage n="04" title="Go live">
+        <DashObLine label="Shape welcome" value={stepText(welcome, "Sent " + dashObDay(welcome && welcome.at), "Not sent")} />
+        <DashObLine label="Your first message" value={stepText(hello, dashObDay(hello && hello.at), "Not yet")} />
+        <DashObLine label="First check-in" value={stepText(checkin, checkin && checkin.at ? "Week of " + dashObDay(checkin.at) : "Done", "Due " + dashObDay(checkin && checkin.due))} />
+        {hello && hello.done === false && <button type="button" style={{ ...DASH_WIDGET_BUTTON, marginTop: 8 }} onClick={() => dashMessageClient(client.profile.name, role, "Hi " + first + ", welcome — ", id)}>Say hello</button>}
+      </DashObStage>
+    </div>
+    <ol aria-label="First 30 days" style={{ listStyle: "none", margin: "12px 0 0", padding: 0, display: "flex", flexWrap: "wrap", gap: "6px 14px", fontSize: 12.5 }}>
+      {ob.steps.map((s) => <li key={s.key} style={{ color: s.done ? "var(--sh-accent-ink, #2ee0c4)" : "var(--sh-ink2, #a09b94)" }}>
+        {s.done ? "✓ " : s.done == null ? "? " : "○ "}{s.key === "plan" && nutri ? "Meal plan live" : DASH_OB_STEPS[s.key] || s.key}
+        {s.done && s.at ? " · " + dashObDay(s.at) : !s.done && s.due ? " · due " + dashObDay(s.due) : s.done == null ? " · couldn't read" : ""}
+      </li>)}
+    </ol>
+    <div style={{ marginTop: 12, borderTop: "1px solid var(--sh-line, #302c27)", paddingTop: 10 }}>
+      <div style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--sh-ink2, #a09b94)", marginBottom: 6 }}>Week-one target</div>
+      {!editing && <p style={{ margin: 0, fontSize: 13 }}>
+        {target
+          ? <>{first}'s target: {target.count} {unit} in week 1{target.startsOn ? " · starts " + dashObDay(target.startsOn) : ""} · set by you</>
+          : ob.weekOneUnread ? <>Couldn't read it</>
+          : <>Not set{ob.suggested ? " · they said " + ob.suggested + " sessions a week" : ""}</>}
+        {" "}<button type="button" style={DASH_WIDGET_BUTTON} disabled={!live} onClick={() => { setEditing(true); setState(""); }}>{target ? "Change" : "Set target"}</button>
+      </p>}
+      {editing && <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, fontSize: 13 }}>
+        <label>{unit[0].toUpperCase() + unit.slice(1)} in week 1 <input type="number" min="1" max={max} step="1" value={count} onChange={(e) => setCount(e.target.value)} style={{ width: 64, font: "inherit" }} /></label>
+        <label>Week 1 starts <input type="date" min={firstDay} max={lastDay} value={startsOn} onChange={(e) => setStartsOn(e.target.value)} style={{ font: "inherit" }} /></label>
+        <button type="button" style={DASH_WIDGET_BUTTON} disabled={state === "Saving…"} onClick={save}>Save</button>
+        <button type="button" style={DASH_WIDGET_BUTTON} onClick={() => setEditing(false)}>Cancel</button>
+      </div>}
+      <p className="dw-note" role="status" style={{ margin: "6px 0 0" }}>{state || (!live ? "Preview · targets save after sign-in" : "")}</p>
+    </div>
+  </div>;
+}
+function DashOnboardingPanel({ clients, role, live }) {
+  const rows = dashOnboardingRows(clients, role);
+  const key = dashObKey(role);
+  const [open, setOpen] = React.useState(null);
+  const firstBoard = rows.find((c) => !c.unread);
+  const openId = open || (firstBoard ? firstBoard.profile.id : null);
+  if (!rows.length) return <p className="dw-note">No clients in their first 30 days with you.</p>;
   return <div>
-    <p className="dw-note">Clients new to your practice. Confirm intake after you complete it; the other steps use shared records.</p>
-    {!rows.length && <p>No new clients needing setup.</p>}
-    {rows.map((client) => <section key={client.profile.id || client.profile.name} style={{ borderTop: "1px solid var(--sh-line, #302c27)", padding: "12px 0" }}>
-      <DashWidgetClient id={client.profile.id} name={client.profile.name} role={role} />
-      {dashSetupSteps(client, prefs.doc[key] && prefs.doc[key][client.profile.id]).map((step) => <div className="dw-row" key={step.key}>
-        <span>{step.done ? "✓ " : ""}{step.label}{step.done == null ? " · not shared" : step.done ? " · complete" : " · to do"}</span>
-        {step.manual ? <button type="button" style={DASH_WIDGET_BUTTON} disabled={!live || !client.profile.id || state === "Saving…" || !["ready","error"].includes(prefs.kind)} onClick={async () => {
-          setState("Saving…"); const id = client.profile.id;
-          const ok = await prefs.apply((doc) => ({ ...doc, [key]: { ...doc[key], [id]: !step.done } }));
-          setState(ok ? "Intake updated" : "Couldn't save. Try again.");
-        }}>{step.done ? "Reopen" : "Confirm intake"}</button> : !step.done && <a className="dw-action" href={step.key === "appointment" ? dashLinkedTab("schedule",role,{client:client.profile.id}) : step.key === "plan" ? dashLinkedTab(role === "nutritionist" ? "plans" : "programs",role,{client:client.profile.id}) : dashWidgetClientHref(client.profile.id,role,"checkins") || dashTabHref("clients",role)}>Open step →</a>}
-      </div>)}
-    </section>)}
-    <p className="dw-note" role="status">{state || (!live ? "Preview · intake confirmations save after sign-in" : "")}</p>
+    <p className="dw-note" style={{ marginTop: 0 }}>Each new client's first 30 days. A step ticks when its record exists: your message, a published plan, a check-in.</p>
+    {rows.map((c) => {
+      if (c.unread) return <section key={c.profile.id} style={{ borderTop: "1px solid var(--sh-line, #302c27)", padding: "12px 0", display: "flex", gap: 12, flexWrap: "wrap", alignItems: "baseline" }}>
+        <strong style={{ fontWeight: 600 }}>{c.profile.name}</strong>
+        <span style={{ fontSize: 12, color: "var(--sh-ink2, #a09b94)" }}>{c.unread === "loading" ? "Loading their first 30 days…" : "Couldn't read their first 30 days. Reload to try again."}</span>
+      </section>;
+      const ob = c.onboarding[key];
+      const isOpen = openId === c.profile.id;
+      return <section key={c.profile.id} style={{ borderTop: "1px solid var(--sh-line, #302c27)" }}>
+        <button type="button" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? "none" : c.profile.id)}
+          style={{ display: "flex", width: "100%", gap: 12, alignItems: "baseline", flexWrap: "wrap", padding: "12px 0", background: "transparent", border: 0, color: "inherit", font: "inherit", cursor: "pointer", textAlign: "left" }}>
+          <strong style={{ fontWeight: 600 }}>{c.profile.name}</strong>
+          <span style={{ fontSize: 12, color: "var(--sh-ink2, #a09b94)" }}>Day {ob.day} of {ob.days}</span>
+          <span style={{ fontSize: 12, marginLeft: "auto", color: "var(--sh-accent-ink, #2ee0c4)" }}>{dashOnboardingNext(ob, role)} {isOpen ? "▴" : "▾"}</span>
+        </button>
+        {isOpen && <DashOnboardingBoard client={c} ob={ob} role={role} live={live} />}
+      </section>;
+    })}
   </div>;
 }
 
@@ -1821,14 +1978,20 @@ function CoachDashboardPage({ role }) {
         { key: "attention", label: "Attention", empty: !triage || triage.length === 0,
           emptyText: "No one needs your attention right now. Clients appear here when their logs, check-ins or Shape Score slip.",
           render: () => <TriagePulsePanel feed={triage} role={role} joint={joint} pinned={pinned} onTogglePin={togglePin} prefs={prefs} /> },
+        // The onboarding board for clients in their first 30 days (client-onboarding review, fix 4).
+        { key: "new", label: "New clients", empty: dashOnboardingRows(clients, role).length === 0,
+          emptyText: "No clients in their first 30 days with you. A new client's board appears here the day they subscribe.",
+          render: () => <DashOnboardingPanel clients={clients} role={role} live={source === "live"} /> },
         { key: "checkins", label: "Check-ins", render: () => <DashCheckinQueuePanel clients={clients} prefs={prefs} role={role} live={source === "live"} /> },
         { key: "replies", label: "Replies", render: () => <DashRepliesPanel role={role} live={source === "live"} /> },
         ...(cfg.programmingQueue ? [{ key: "programs", label: "Programs", render: () => <ProgrammingQueuePanel queue={queue} role={role} live={source === "live"} /> }] : []),
       ]} /> },
     { key: "checkins", title: "Check-ins to review", blurb: "Recent shared check-ins, oldest first, with your saved review status.", optional: true, size: "half",
       render: () => renderPanel("Check-ins to review", <DashCheckinQueuePanel clients={clients} prefs={prefs} role={role} live={source === "live"} />) },
-    { key: "setup", title: "New-client setup", blurb: "Intake, first appointment, first plan and first check-in.", optional: true, size: "half",
-      render: () => renderPanel("New-client setup", <DashSetupPanel clients={clients} prefs={prefs} role={role} live={source === "live"} />) },
+    // The onboarding board (fix 4) is the "New clients" tab of Needs you, which the Coaching preset
+    // carries; this card is the same board for a coach who wants it on its own.
+    { key: "setup", title: "New clients", blurb: "Each new client's first 30 days, ticked by real records.", optional: true, size: "full",
+      render: () => renderPanel("New clients", <DashOnboardingPanel clients={clients} role={role} live={source === "live"} />) },
     { key: "replies", title: "Replies needed", blurb: "Conversations where the latest message came from your client.", optional: true, size: "half",
       render: () => renderPanel("Replies needed", <DashRepliesPanel role={role} live={source === "live"} />) },
     { key: "capacity", title: "Capacity this week", blurb: "Booked time, working hours and gaps over the next seven days.", optional: true, size: "half",
