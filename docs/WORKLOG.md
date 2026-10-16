@@ -41,6 +41,11 @@ back or the file grows past 20 KB.
   - A Codex review's `commit_id` names the head it read. Its inline comments all show
     the current head, so judge a finding against the review, not the comment.
   - Docs-only diffs merge on green CI without a review round.
+  - ⚠ **Codex never reviews a War Room PR** (owner, 2026-10-16). Codex reviews a PR
+    when it opens, when a draft is marked ready, or on `@codex review`. A later push
+    doesn't trigger it, and it can't skip a PR by its files. So the War Room update
+    rides in the PR it records, pushed after that PR opens. Never open a PR that only
+    updates the War Room; if one would be needed, carry it in the next code PR instead.
 - **Pre-commit hook** (`.githooks/pre-commit` → `scripts/verify-staged.sh`). It runs
   the checks a staged change can break. For a small commit, run the tests that touch
   the change and commit with `SKIP_VERIFY=1` (~4 min saved), then say in the PR what
