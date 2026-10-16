@@ -112,7 +112,9 @@ export function BSNotifications({ onBack, onRoute = () => {} }) {
     try { ok = (await window.ShapeNotifications?.clear?.({ before: newest })) === true; } catch (e) { ok = false; }
     clearing.current = false;
     setBusy(false);
-    if (!ok) { setItems(before); setFailed(true); return; }
+    if (!ok) { setItems(before); setFailed(true); }
+    // A notice that arrived while the clear was in flight is read now, whichever way it went: after
+    // a failed clear too, or it stays invisible behind the restored list (Codex on #2389).
     if (reloadAfter.current) { reloadAfter.current = false; load(); }
   };
 

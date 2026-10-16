@@ -152,6 +152,26 @@ test('a notice arriving while the clear is in flight is read once the clear has 
   await v.unmount();
 });
 
+test('a notice arriving while a clear fails is still shown (Codex on #2389)', async () => {
+  catalog = {};
+  const st = fakeService();
+  let release;
+  window.ShapeNotifications.clear = (arg) => { st.clears.push(arg); return new Promise((r) => { release = r; }); };
+  const v = await mount(inChrome(React.createElement(BSNotifications, { onBack: () => {} })));
+  await click(button(v.host, /^Clear all$/));
+  await click(button(v.host, /^Yes$/));
+  // The clear will fail, so the server still holds the old rows, and a new notice lands meanwhile.
+  const fresh = { id: 'n9', type: 'message', title: 'Sam wrote', body: '', route: null, data: {}, read: false, createdAt: '2026-10-16T22:00:00Z' };
+  window.ShapeNotifications.list = () => { st.lists++; return Promise.resolve({ notifications: [fresh, ...ROWS], unread: 2 }); };
+  await act(async () => { st.onInsert({ id: 'n9' }); });
+  await act(async () => { release(false); });
+  await flush();
+  assert.match(v.text(), /Couldn’t clear your notifications\. Try again\./);
+  assert.match(v.text(), /Tom replied/, 'the rows were not restored');
+  assert.match(v.text(), /Sam wrote/, 'the notice that arrived during the failed clear is invisible');
+  await v.unmount();
+});
+
 test('the screen speaks the member\'s language', async () => {
   catalog = JSON.parse(readFileSync(join(ROOT, 'mobile-app/src/i18n/catalogs/de/common.json'), 'utf8'));
   fakeService();
