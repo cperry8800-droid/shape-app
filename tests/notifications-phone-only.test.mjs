@@ -26,7 +26,15 @@ function fakeDb(results) {
         get(_, op) {
           if (op === 'then') {
             const r = results.shift() ?? { data: [], error: null };
-            return (res, rej) => Promise.resolve(r).then(res, rej);
+            // Applied as Postgres would: the `not in` filter, then the cap.
+            let data = r.data;
+            if (Array.isArray(data)) {
+              const not = q.ops.find((o) => o[0] === 'not' && o[1] === 'type' && o[2] === 'in');
+              if (not) { const out = not[3].slice(1, -1).split(','); data = data.filter((row) => !out.includes(row.type)); }
+              const limit = q.ops.find((o) => o[0] === 'limit');
+              if (limit) data = data.slice(0, limit[1]);
+            }
+            return (res, rej) => Promise.resolve({ ...r, data }).then(res, rej);
           }
           return (...args) => { q.ops.push([op, ...args]); return b; };
         },
@@ -66,22 +74,27 @@ test('the phone-only list is the one the owner approved', () => {
   assert.equal(PHONE_ONLY_IN, '(' + PHONE_ONLY_TYPES.join(',') + ')');
 });
 
-test('the website feed leaves out phone-only types, before the cap and in the unread count', async () => {
+test('the website feed leaves out phone-only types in the query, before the 200-row cap (Codex on #2386)', async () => {
   const at = (i) => new Date(Date.UTC(2026, 9, 16, 21, 0, 0) - i * 60000).toISOString();
-  // 60 unread phone reminders, newest first, then two notices for the website.
+  // 250 unread phone reminders, newest first (a month of a few a day), then two notices for the website.
   const rows = [
-    ...Array.from({ length: 60 }, (_, i) => ({ id: 'r' + i, type: PHONE_ONLY_TYPES[i % PHONE_ONLY_TYPES.length], title: 'Remind', body: '', route: null, data: {}, read_at: null, created_at: at(i) })),
-    { id: 'm1', type: 'message', title: 'Tom replied', body: '', route: 'chat', data: {}, read_at: null, created_at: at(61) },
-    { id: 's1', type: 'session_booked', title: 'Booked', body: '', route: null, data: {}, read_at: '2026-10-16T00:00:00Z', created_at: at(62) },
+    ...Array.from({ length: 250 }, (_, i) => ({ id: 'r' + i, type: PHONE_ONLY_TYPES[i % PHONE_ONLY_TYPES.length], title: 'Remind', body: '', route: null, data: {}, read_at: null, created_at: at(i) })),
+    { id: 'm1', type: 'message', title: 'Tom replied', body: '', route: 'chat', data: {}, read_at: null, created_at: at(251) },
+    { id: 's1', type: 'session_booked', title: 'Booked', body: '', route: null, data: {}, read_at: '2026-10-16T00:00:00Z', created_at: at(252) },
   ];
-  let res = await (await loadRoute(fakeDb([{ data: rows, error: null }]))).GET(new Request('https://shape.test/api/notifications?surface=web'));
+  const db = fakeDb([{ data: rows, error: null }]);
+  let res = await (await loadRoute(db)).GET(new Request('https://shape.test/api/notifications?surface=web'));
   let j = await res.json();
-  assert.deepEqual(j.notifications.map((n) => n.id), ['m1', 's1'], 'a run of phone reminders starved the website feed, or one got through');
+  assert.deepEqual(db.calls[0].ops.find((o) => o[0] === 'not'), ['not', 'type', 'in', PHONE_ONLY_IN], 'the website read is not filtered in the query');
+  assert.ok(db.calls[0].ops.findIndex((o) => o[0] === 'not') < db.calls[0].ops.findIndex((o) => o[0] === 'limit'));
+  assert.deepEqual(j.notifications.map((n) => n.id), ['m1', 's1'], 'the reminders filled the cap and the website bell read empty');
   assert.equal(j.unread, 1, 'the website badge counts phone reminders');
 
   // The app asks without `surface` and gets everything, as before.
-  res = await (await loadRoute(fakeDb([{ data: rows, error: null }]))).GET(new Request('https://shape.test/api/notifications'));
+  const appDb = fakeDb([{ data: rows, error: null }]);
+  res = await (await loadRoute(appDb)).GET(new Request('https://shape.test/api/notifications'));
   j = await res.json();
+  assert.ok(!appDb.calls[0].ops.some((o) => o[0] === 'not'), 'the app read lost its reminders');
   assert.equal(j.notifications.length, 50);
   assert.equal(j.notifications[0].id, 'r0');
 });

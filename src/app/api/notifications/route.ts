@@ -12,7 +12,7 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson, dbError } from '@/lib/request-utils';
-import { isPhoneOnly, PHONE_ONLY_IN } from '../../../lib/notification-surfaces.mjs';
+import { PHONE_ONLY_IN } from '../../../lib/notification-surfaces.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -30,9 +30,15 @@ export async function GET(request: Request) {
 
   // A cleared notification is hidden, never deleted: the prep-reminder cron, the waiting-list
   // notice and the email cooldown read a member's earlier rows as their record of what was sent.
+  // ⚠ THE WEBSITE LEAVES OUT WHAT BELONGS ON THE PHONE ONLY IN THE QUERY, BEFORE THE 200-ROW CAP.
+  // Filtered after it, a month of daily reminders filled the cap and the bell read empty while
+  // older messages and bookings sat unread (Codex on #2386).
+  const web = new URL(request.url).searchParams.get('surface') === 'web';
   const read = (hideCleared: boolean) => {
-    const q = supabase.from('notifications').select('id, type, title, body, route, data, read_at, created_at');
-    return (hideCleared ? q.is('cleared_at', null) : q).order('created_at', { ascending: false }).limit(200);
+    let q = supabase.from('notifications').select('id, type, title, body, route, data, read_at, created_at');
+    if (hideCleared) q = q.is('cleared_at', null);
+    if (web) q = q.not('type', 'in', PHONE_ONLY_IN);
+    return q.order('created_at', { ascending: false }).limit(200);
   };
   let { data, error } = await read(true);
   if (noClearColumn(error)) ({ data, error } = await read(false));
@@ -48,16 +54,13 @@ export async function GET(request: Request) {
   if (error) return NextResponse.json({ error: 'Could not read notifications.' }, { status: 502 });
 
   const rows = (data ?? []) as Row[];
-  const web = new URL(request.url).searchParams.get('surface') === 'web';
   // Honor the preference center's in-app channel: a row written for push/email
   // only (data.channels.inapp === false) never shows in the bell. Rows with no
   // channels metadata predate the preference stamping — default visible. The
   // query over-fetches (200 newest) BEFORE the 50-item cap so a run of hidden
   // push/email-only rows can't starve the feed of older visible ones.
-  // The website leaves out what belongs on the phone only, before the cap for the same reason.
   const visible = rows.filter(r =>
     ((r.data as { channels?: { inapp?: boolean } } | null)?.channels?.inapp) !== false
-    && !(web && isPhoneOnly(r.type))
   ).slice(0, 50);
   const notifications = visible.map(r => ({
     id: r.id,
