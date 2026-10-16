@@ -89,8 +89,9 @@ export default {
 
     // ── 2 · create ─────────────────────────────────────────────────────────────────────────
     { name: 'create books a client who is not the coach\'s', file: MANAGE,
-      find: 'if (unauthorizedAssignTargets([clientId], activeClientIds).length) {',
-      replace: 'if (false) {' },
+      // Re-aimed for fix 3c: a subscriber, or a client who paid for a session (M10), may be booked.
+      find: 'const subscriber = unauthorizedAssignTargets([clientId], activeClientIds).length === 0;',
+      replace: 'const subscriber = true;' },
     { name: 'create lets a caller with no provider row through', file: MANAGE,
       find: "  if (!pro) return NextResponse.json({ error: 'Only a coach can book a session here.' }, { status: 403 });\n",
       replace: '' },
@@ -182,13 +183,14 @@ export default {
 
     // ── 2 · the consult ────────────────────────────────────────────────────────────────────
     { name: 'a consult lands outside the coach\'s hours', file: CONSULT,
-      find: 'if (!offeredInOpenHours(hours.slots, date, parsed.hour * 60 + parsed.minute, 15)) {',
+      // Re-aimed: the consult's length is the coach's own intro length now (readIntroLength).
+      find: 'if (!offeredInOpenHours(hours.slots, date, parsed.hour * 60 + parsed.minute, introMin)) {',
       replace: 'if (false) {' },
     { name: 'a consult goes through when the hours could not be read', file: CONSULT,
       find: '  if (!hours.ok) {\n',
       replace: '  if (false) {\n' },
-    { name: 'the consult is checked as an hour, not 15 minutes', file: CONSULT,
-      find: 'parsed.hour * 60 + parsed.minute, 15)) {',
+    { name: 'the consult is checked as an hour, not the coach\'s intro length', file: CONSULT,
+      find: 'parsed.hour * 60 + parsed.minute, introMin)) {',
       replace: 'parsed.hour * 60 + parsed.minute, 60)) {' },
 
     // ── 2 · Codex on #2228: the offered times only, and the race the read cannot see ──────────
@@ -201,7 +203,11 @@ export default {
     { name: 'a short row no longer offers its own start', file: RULES,
       find: 'if (at === start) return true;   // every row offers its own start, short or not',
       replace: 'if (false) return true;' },
-    { name: 'a row with no start offers midnight', file: RULES,
+    // ⚠ A PROVEN NO-OP. num() returns a finite number or NaN, never anything else, so the two
+    // guards differ only on NaN. Past the mutated guard a NaN start meets `at === start` (false:
+    // NaN equals nothing) and then `(at - start) % 60 !== 0` (NaN !== 0, true), so the row is
+    // skipped one line later either way. The original guard is kept for its reading, not its effect.
+    { name: 'a row with no start offers midnight', file: RULES, expectSurvive: true,
       find: 'if (!(start >= 0 && start <= 1439)) continue;   // NaN (no start) fails both comparisons',
       replace: 'if (start < 0 || start > 1439) continue;' },
     { name: 'the member routes check containment only', file: LIB,
@@ -240,7 +246,7 @@ export default {
       find: 'const hit = R ? R.clashIn(items, start, start + dur, ev ? ev.id : null) : null;',
       replace: 'const hit = R ? R.clashIn(items, start, start + dur, null) : null;' },
     { name: 'a manual note is judged like a session', file: PAGE,
-      find: '    if (ev && ev.source !== "session") return { past: false, clash: null, outside: false };\n',
+      find: '    if (ev && ev.source !== "session") return { past: false, clash: null, outside: false, away: false };\n',
       replace: '' },
     { name: 'hours saved on another clock are shaded anyway', file: PAGE,
       find: 'const shadeOk = !isLive || (!!availZone && (!calZone || calZone === availZone));',
@@ -255,7 +261,8 @@ export default {
       find: '      if (v.clash) { showToast("Not moved — that overlaps " + v.clash.label + "."); return; }\n',
       replace: '' },
     { name: 'outside the hours moves without asking', file: PAGE,
-      find: '      if (v.outside) { setConfirmMove({ ev, date: dateIso, time }); return; }\n',
+      // Re-aimed: time off (`away`) asks the same way as outside the hours (Schedule step 3).
+      find: '      if (v.outside || v.away) { setConfirmMove({ ev, date: dateIso, time, why: v.away ? "away" : "outside" }); return; }\n',
       replace: '' },
     { name: 'a drop in the past moves it', file: PAGE,
       find: '      if (v.past) { showToast("That time has passed — " + (ev.with || ev.title) + " wasn\'t moved."); return; }\n',
@@ -267,11 +274,13 @@ export default {
       find: 'if (commit && d.target) onMove(ev, d.target.date, d.target.minute, d.target.verdict);',
       replace: 'if (false && commit && d.target) onMove(ev, d.target.date, d.target.minute, d.target.verdict);' },
     { name: 'a booking from a slot is sent without its zone', file: PAGE,
-      find: 'date, time, tz: calZone, durationMin, type,',
-      replace: 'date, time, durationMin, type,' },
+      // Re-aimed on the single booking; a weekly run sends the same fields plus `repeat`.
+      find: 'date, time, tz: calZone, durationMin, type, ...(topic ? { topic } : {}) }) });',
+      replace: 'date, time, durationMin, type, ...(topic ? { topic } : {}) }) });' },
     { name: 'a nutritionist books an hour by default', file: PAGE,
-      find: 'const [dur, setDur] = React.useState(role === "nutritionist" ? 15 : 60);',
-      replace: 'const [dur, setDur] = React.useState(60);' },
+      // Re-aimed: the pills' default; a typed length overrides it (#2370).
+      find: 'const [pillDur, setPillDur] = React.useState(role === "nutritionist" ? 15 : 60);',
+      replace: 'const [pillDur, setPillDur] = React.useState(60);' },
     { name: 'a linked day rewrites the remembered view', file: PAGE,
       find: 'if (requestedDate) { setCursor(requestedDate); setLinked(true); }',
       replace: 'if (requestedDate) { setCursor(requestedDate); setLinked(true); setView("day"); }' },
@@ -294,14 +303,14 @@ export default {
       find: '{confirmed && <button type="button" disabled={busy || !started}',
       replace: '{confirmed && <button type="button" disabled={busy}' },
     { name: 'a declined request stays on the grid', file: PAGE,
-      find: 'const apply = (extra) => (list) => (action === "decline" || action === "cancel"',
-      replace: 'const apply = (extra) => (list) => (action === "cancel"' },
+      find: '      return action === "decline" || action === "cancel"\n        ? list.filter((e) => e.id !== ev.id)',
+      replace: '      return action === "cancel"\n        ? list.filter((e) => e.id !== ev.id)' },
     { name: 'the sheet sends a move onto a clash', file: PAGE,
       find: 'disabled={busy || !verdict || verdict.past || !!verdict.clash || (date === ev.date && minute === s)}',
       replace: 'disabled={busy || !verdict || verdict.past || (date === ev.date && minute === s)}' },
     { name: 'the book sheet sends a clash', file: PAGE,
-      find: 'const blocked = busy || !row || v.past || !!v.clash;',
-      replace: 'const blocked = busy || !row || v.past;' },
+      find: 'const blocked = busy || !row || v.past || !!v.clash || tooMany',
+      replace: 'const blocked = busy || !row || v.past || tooMany' },
     { name: 'a past slot is offered for booking', file: PAGE,
       find: '    if (v.past) { setSlot(null); showToast("That time has passed."); return; }\n',
       replace: '' },
@@ -315,7 +324,8 @@ export default {
       find: 'const soon = date === todayIso && nowMin != null ? Math.ceil((nowMin + 1) / 15) * 15 : 0;',
       replace: 'const soon = 0;' },
     { name: 'a refused move stays where it was dropped', file: PAGE,
-      find: '      setCal((c) => (c ? { ...c, events: moveTo(ev.date, ev.time)(c.events) } : c)); // revert\n',
+      // Re-aimed: a run's move reverts from its snapshot, a single one by moving it back.
+      find: '      setCal((c) => (c ? { ...c, events: following && snapshot ? snapshot : moveTo(ev.date, ev.time)(c.events) } : c));\n',
       replace: '' },
     { name: 'the server\'s refusal is replaced with a generic one', file: PAGE,
       find: '      const j = res ? await res.json().catch(() => null) : null;\n      throw new Error((j && j.error) || "");',
@@ -327,7 +337,8 @@ export default {
       find: 'const calEvents = allEvents.filter(kindOk).map((e) => (e.source === "session" && e.asClient',
       replace: 'const calEvents = allEvents.filter(kindOk).map((e) => (false && e.asClient' },
     { name: 'a host runs the Schedule without its rules', file: HOST,
-      find: '<script type="module">import * as SR from "/newdesign/scheduleRules.mjs?v=20261007"; window.ShapeScheduleRules = SR;</script>',
-      replace: '' },
+      // Re-aimed: the same module tag now also loads bookingRules.mjs; only the Schedule rules go.
+      find: 'import * as SR from "/newdesign/scheduleRules.mjs?v=20261007"; import * as BR',
+      replace: 'const SR = undefined; import * as BR' },
   ],
 };

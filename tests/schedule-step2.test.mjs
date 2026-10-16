@@ -596,6 +596,18 @@ test('a member\'s request outside the hours, across a booking, to someone else\'
   }
 });
 
+// ⚠ THE RACE THE CLASH READ CANNOT SEE (Codex, the review of #2228): another booking written
+// between the read and this insert is refused by the database (23505 the same start, 23P01
+// sessions_no_overlap). The member gets the taken sentence and a 409, never a 500.
+test('a member\'s request that loses the race to the database is a 409 "taken", not a 500', async () => {
+  for (const code of ['23505', '23P01']) {
+    const r = await ask({}, { tables: world(), insertError: { code, message: 'refused' } });
+    assert.equal(r.status, 409, `${code} became ${r.status}`);
+    assert.equal(r.body.code, 'taken', code);
+    assert.equal(r.notices.length, 0, 'a refused request told the coach');
+  }
+});
+
 // ── Step 3: the coach's own rules ─────────────────────────────────────────────
 // Thursday Oct 8, open 9a–12p New York (13:00Z–16:00Z); the clock reads Wed Oct 7, 11:00 AM.
 const rulesRow = (r) => ({ provider_role: 'trainer', provider_id: 7, buffer_min: 0, max_per_day: null, min_notice_hours: 0, ...r });
