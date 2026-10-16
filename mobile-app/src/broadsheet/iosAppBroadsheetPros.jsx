@@ -4477,7 +4477,9 @@ function BSProOnboardingStation({ ob, role, clientUid, first, heat, t, onSayHell
   const nut = role === 'nutritionist' || role === 'dietitian';
   const [target, setTarget] = useStateBSP(ob.weekOne || null);
   const [editing, setEditing] = useStateBSP(false);
-  const [count, setCount] = useStateBSP((ob.weekOne && ob.weekOne.count) || ob.suggested || (nut ? 5 : 3));
+  // Days logged run to seven (weekOneMax in coach-client-legs.mjs; Codex on #2378).
+  const max = nut ? 7 : 14;
+  const [count, setCount] = useStateBSP(Math.min(max, (ob.weekOne && ob.weekOne.count) || ob.suggested || (nut ? 5 : 3)));
   const nextMonday = (() => { const d = new Date(); d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7)); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); })();
   const [startsOn, setStartsOn] = useStateBSP((ob.weekOne && ob.weekOne.startsOn) || nextMonday);
   const [busy, setBusy] = useStateBSP(false);
@@ -4530,7 +4532,7 @@ function BSProOnboardingStation({ ob, role, clientUid, first, heat, t, onSayHell
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <button type="button" aria-label={coachTr('coach:onboard.less', { defaultValue: 'One fewer' })} style={{ ...btn, width: 44 }} disabled={count <= 1} onClick={() => setCount((n) => Math.max(1, n - 1))}>−</button>
                 <span style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK }}>{unitText(count)}</span>
-                <button type="button" aria-label={coachTr('coach:onboard.more', { defaultValue: 'One more' })} style={{ ...btn, width: 44 }} disabled={count >= 14} onClick={() => setCount((n) => Math.min(14, n + 1))}>+</button>
+                <button type="button" aria-label={coachTr('coach:onboard.more', { defaultValue: 'One more' })} style={{ ...btn, width: 44 }} disabled={count >= max} onClick={() => setCount((n) => Math.min(max, n + 1))}>+</button>
               </div>
               <label style={{ ...mono, color: t.INK50 }}>{coachTr('coach:onboard.startsLabel', { defaultValue: 'Week 1 starts' })}{' '}
                 <input type="date" value={startsOn} onChange={(e) => setStartsOn(e.target.value)} style={{ fontFamily: t.DISPLAY, fontSize: 13, color: t.INK, background: 'transparent', border: `1px solid ${t.INK}26`, padding: '6px 8px' }} />

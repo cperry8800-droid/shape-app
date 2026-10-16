@@ -212,6 +212,12 @@ export const ONBOARDING_DAYS = 30;
 // keeps the same number as DWK_CHECKIN_LIMIT.
 export const CHECKIN_READ_LIMIT = 4;
 const WEEK_ONE_MAX = 14;
+// ⚠ A NUTRITIONIST'S UNIT IS DAYS LOGGED, AND WEEK ONE HAS SEVEN (Codex on #2378): "10 days logged in
+// week 1" was accepted and shown. A trainer's workouts can run to two a day. The week-one route, the
+// plan route and both editors keep the same numbers.
+export function weekOneMax(roleOrDiscipline) {
+  return roleOrDiscipline === 'nutritionist' || roleOrDiscipline === 'nutrition' ? 7 : WEEK_ONE_MAX;
+}
 
 export function weekOneOf(programDetail, discipline, providerId) {
   const sec = programDetail && typeof programDetail === 'object' ? programDetail[discipline] : null;
@@ -219,7 +225,7 @@ export function weekOneOf(programDetail, discipline, providerId) {
   if (!w || typeof w !== 'object') return null;
   if (providerId == null || w.providerId == null || String(w.providerId) !== String(providerId)) return null;
   const count = num(w.count);
-  if (count == null || !Number.isInteger(count) || count < 1 || count > WEEK_ONE_MAX) return null;
+  if (count == null || !Number.isInteger(count) || count < 1 || count > weekOneMax(discipline)) return null;
   const startsOn = typeof w.startsOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(w.startsOn) ? w.startsOn : null;
   return { count, startsOn, setAt: ms(w.setAt) != null ? new Date(ms(w.setAt)).toISOString() : null };
 }

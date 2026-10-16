@@ -1498,9 +1498,11 @@ function DashOnboardingBoard({ client, ob, role, live }) {
   const [startsOn, setStartsOn] = React.useState((ob.weekOne && ob.weekOne.startsOn) || nextMonday);
   const [state, setState] = React.useState("");
   const unit = nutri ? "days logged" : "workouts";
+  // Days logged run to seven (weekOneMax in coach-client-legs.mjs; Codex on #2378).
+  const max = nutri ? 7 : 14;
   const save = async () => {
     const n = Number(count);
-    if (!Number.isInteger(n) || n < 1 || n > 14) { setState("Enter a whole number from 1 to 14."); return; }
+    if (!Number.isInteger(n) || n < 1 || n > max) { setState("Enter a whole number from 1 to " + max + "."); return; }
     setState("Saving…");
     try {
       const r = await fetch("/api/clients/" + encodeURIComponent(id) + "/week-one", {
@@ -1556,7 +1558,7 @@ function DashOnboardingBoard({ client, ob, role, live }) {
         {" "}<button type="button" style={DASH_WIDGET_BUTTON} disabled={!live} onClick={() => { setEditing(true); setState(""); }}>{target ? "Change" : "Set target"}</button>
       </p>}
       {editing && <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, fontSize: 13 }}>
-        <label>{unit[0].toUpperCase() + unit.slice(1)} in week 1 <input type="number" min="1" max="14" step="1" value={count} onChange={(e) => setCount(e.target.value)} style={{ width: 64, font: "inherit" }} /></label>
+        <label>{unit[0].toUpperCase() + unit.slice(1)} in week 1 <input type="number" min="1" max={max} step="1" value={count} onChange={(e) => setCount(e.target.value)} style={{ width: 64, font: "inherit" }} /></label>
         <label>Week 1 starts <input type="date" value={startsOn} onChange={(e) => setStartsOn(e.target.value)} style={{ font: "inherit" }} /></label>
         <button type="button" style={DASH_WIDGET_BUTTON} disabled={state === "Saving…"} onClick={save}>Save</button>
         <button type="button" style={DASH_WIDGET_BUTTON} onClick={() => setEditing(false)}>Cancel</button>

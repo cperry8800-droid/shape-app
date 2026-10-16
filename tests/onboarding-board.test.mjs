@@ -836,3 +836,51 @@ test('a check-in saves only the ratings it asked: no hidden adherence score is w
   assert.match(client, /window\.ShapeCheckins\.submit\(\{ ratings: bsCheckinRatingsToSave\(ratings, plans\), wins,/);
   assert.match(progress, /body: JSON\.stringify\(\{ action: "checkin", ratings: dprCheckinRatingsToSave\(ratings, plans\), wins,/);
 });
+
+test('a nutritionist\'s week-one target is at most seven days logged, everywhere (Codex on #2378)', async () => {
+  assert.equal(LEGS.weekOneMax('nutritionist'), 7);
+  assert.equal(LEGS.weekOneMax('nutrition'), 7);
+  assert.equal(LEGS.weekOneMax('trainer'), 14, 'two workouts a day is a real week');
+  // The leg: a stored nutrition count past seven is no target; seven is.
+  const leg = (count, role = 'nutritionist') => LEGS.bsOnboardingLeg({ role, providerId: 7, joinedAt: ago(2), checkins: [], programDetail: { [role === 'trainer' ? 'training' : 'nutrition']: { weekOne: { count, providerId: 7 } } }, now: NOW }).weekOne;
+  assert.equal(leg(8), null);
+  assert.equal(leg(7).count, 7);
+  assert.equal(leg(10, 'trainer').count, 10);
+
+  // The route refuses past seven for a nutritionist, and still takes ten for a trainer.
+  const { post, calls } = await weekOneRoute();
+  const tooMany = await post(A, { role: 'nutritionist', count: 8 });
+  assert.equal(tooMany.status, 400);
+  assert.match(tooMany.body.error, /from 1 to 7\./);
+  assert.equal(calls.length, 0);
+  assert.equal((await post(A, { role: 'nutritionist', count: 7 })).status, 200);
+  assert.equal((await post(A, { role: 'trainer', count: 10 })).status, 200);
+
+  // The plan read shows the member no impossible count.
+  const U = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  const load = async (db) => loadRealModule(join(ROOT, 'src/app/api/client/plan/route.ts'), {
+    typescript: true,
+    registry: new Map([
+      ['next/server', { NextResponse: { json: (body, init) => ({ body, init }) } }],
+      ['@/lib/request-auth', { clientForRequest: async () => db, currentUser: async () => ({ id: U }) }],
+      ['@/lib/require-membership', { requireMembership: async () => null }],
+    ]),
+  });
+  const planWith = async (count) => (await (await load(fakeSupabase({ tables: {
+    client_workouts: [], client_meal_plans: [], trainers: [], conversations: [],
+    client_programs: [{ user_id: U, detail: { nutrition: { weekOne: { count, providerId: 5 } } } }],
+    subscriptions: [{ client_id: U, provider_role: 'nutritionist', provider_id: 5, status: 'active', created_at: ago(2) }],
+    nutritionists: [{ id: 5, name: 'Nia' }],
+  } }))).GET(new Request('https://x/api/client/plan'))).body.meals.coaching.weekOne;
+  assert.equal(await planWith(9), null);
+  assert.deepEqual(await planWith(7), { count: 7, startsOn: null });
+
+  // Both editors stop at seven for a nutritionist.
+  const today = read('public/newdesign/dashToday.jsx');
+  assert.match(today, /const max = nutri \? 7 : 14;/);
+  assert.match(today, /if \(!Number\.isInteger\(n\) \|\| n < 1 \|\| n > max\) \{ setState\("Enter a whole number from 1 to " \+ max \+ "\."\); return; \}/);
+  assert.match(today, /<input type="number" min="1" max=\{max\} step="1"/);
+  const pros = read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx');
+  assert.match(pros, /const max = nut \? 7 : 14;\s+const \[count, setCount\] = useStateBSP\(Math\.min\(max,/);
+  assert.match(pros, /disabled=\{count >= max\} onClick=\{\(\) => setCount\(\(n\) => Math\.min\(max, n \+ 1\)\)\}>\+<\/button>/);
+});

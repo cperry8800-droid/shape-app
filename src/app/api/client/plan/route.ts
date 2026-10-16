@@ -279,7 +279,8 @@ export async function GET(request: Request) {
     return {
       name: (nameRes.data as { name?: string } | null)?.name ?? null,
       conversationId: ((convRes.data ?? []) as Array<{ id: string }>)[0]?.id ?? null,
-      weekOne: Number.isInteger(count) && count >= 1 && count <= 14
+      // At most seven days logged for a nutritionist (weekOneMax in coach-client-legs.mjs).
+      weekOne: Number.isInteger(count) && count >= 1 && count <= (role === 'nutritionist' ? 7 : 14)
         ? { count, startsOn: typeof w!.startsOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(w!.startsOn) ? w!.startsOn : null }
         : null,
     };

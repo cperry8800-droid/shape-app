@@ -45,8 +45,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   let target: { count: number; startsOn: string | null } | null = null;
   if (body.count !== null) {
     const count = Number(body.count);
-    if (!Number.isInteger(count) || count < 1 || count > 14) {
-      return NextResponse.json({ error: 'count must be a whole number from 1 to 14.' }, { status: 400 });
+    // Days logged for a nutritionist, so at most seven (weekOneMax in coach-client-legs.mjs).
+    const max = role === 'nutritionist' ? 7 : 14;
+    if (!Number.isInteger(count) || count < 1 || count > max) {
+      return NextResponse.json({ error: `count must be a whole number from 1 to ${max}.` }, { status: 400 });
     }
     let startsOn: string | null = null;
     if (body.startsOn != null && body.startsOn !== '') {
