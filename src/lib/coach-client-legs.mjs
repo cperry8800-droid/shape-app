@@ -202,8 +202,10 @@ export function bsLastContactLeg(conversations, mine, dm = null) {
 // it decides then reads done: null ("couldn't read"), which the board shows as such, never "to do".
 //
 // The week-one target is the coach's, per member (owner, 2026-10-14, decision 3: "no fixed 48-hour or
-// 3-day rule"): client_programs.detail[discipline].weekOne = { count, startsOn, setAt }, written through
-// set_program_detail. Until it is set, `suggested` is the client's own answer (sessions per week) for
+// 3-day rule"): client_programs.detail[discipline].weekOne = { count, startsOn, setAt, providerId },
+// written through set_program_detail. ⚠ IT IS THE COACH'S WHO SET IT (Codex on #2378): the section
+// outlives a change of coach, so a target is read only when `providerId` is the listing this board
+// is for; a predecessor's count and start day are never the new coach's deadline. Until it is set, `suggested` is the client's own answer (sessions per week) for
 // a trainer; a nutritionist's unit is days logged, and nothing they told Shape says how many.
 export const ONBOARDING_DAYS = 30;
 // How many check-ins the overview reads (get_client_checkins' p_limit); the website's week view
@@ -211,10 +213,11 @@ export const ONBOARDING_DAYS = 30;
 export const CHECKIN_READ_LIMIT = 4;
 const WEEK_ONE_MAX = 14;
 
-function weekOneOf(programDetail, discipline) {
+export function weekOneOf(programDetail, discipline, providerId) {
   const sec = programDetail && typeof programDetail === 'object' ? programDetail[discipline] : null;
   const w = sec && typeof sec === 'object' ? sec.weekOne : null;
   if (!w || typeof w !== 'object') return null;
+  if (providerId == null || w.providerId == null || String(w.providerId) !== String(providerId)) return null;
   const count = num(w.count);
   if (count == null || !Number.isInteger(count) || count < 1 || count > WEEK_ONE_MAX) return null;
   const startsOn = typeof w.startsOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(w.startsOn) ? w.startsOn : null;
@@ -238,14 +241,15 @@ function weekEndSunday(day, after = 0) {
 
 /**
  * @param {object} input
- *   role: 'trainer' | 'nutritionist'; joinedAt: ISO (the caller's subscription start);
+ *   role: 'trainer' | 'nutritionist'; providerId: the caller's listing id (whose week-one target
+ *   counts); joinedAt: ISO (the caller's subscription start);
  *   welcomeAt / helloAt: ISO | null | undefined (undefined = the read failed);
  *   firstPlan: { at, title } | null | undefined; checkins: rows | null | undefined (latest first,
  *   at most CHECKIN_READ_LIMIT); measurements: rows | null | undefined; programDetail; intake; now: ms.
  * @returns the board, or null when there is no subscription start or it is past day 30.
  */
 export function bsOnboardingLeg(input) {
-  const { role, joinedAt, welcomeAt, helloAt, firstPlan, checkins, measurements, programDetail, intake } = input || {};
+  const { role, providerId, joinedAt, welcomeAt, helloAt, firstPlan, checkins, measurements, programDetail, intake } = input || {};
   const now = input && input.now != null ? input.now : Date.now();
   if (role !== 'trainer' && role !== 'nutritionist') return null;
   const joined = ms(joinedAt);
@@ -254,7 +258,7 @@ export function bsOnboardingLeg(input) {
   if (day > ONBOARDING_DAYS) return null;
   const joinedDay = isoDayUTC(joined);
   const discipline = role === 'trainer' ? 'training' : 'nutrition';
-  const weekOne = weekOneOf(programDetail, discipline);
+  const weekOne = weekOneOf(programDetail, discipline, providerId);
   const iso = (v) => (ms(v) == null ? null : new Date(ms(v)).toISOString());
 
   // Check-ins since joining. ⚠ A CHECK-IN FILED BEFORE THE SUBSCRIPTION IS NOT ONE (Fable on fix 4):
@@ -300,7 +304,8 @@ export function bsOnboardingLeg(input) {
     { key: 'plan', done: known(firstPlan), at: firstPlan ? iso(firstPlan.at) : null, title: firstPlan && typeof firstPlan.title === 'string' ? firstPlan.title : null, due: weekOne && weekOne.startsOn ? weekOne.startsOn : null },
     { key: 'checkin', done: checkinsSince === undefined ? null : checkinsSince.count >= 1, at: checkinsSince && checkinsSince.firstWeekOf, due: weekEndSunday(week1Start, 3) },
     { key: 'checkin2', done: checkinsSince === undefined ? null : checkinsSince.count >= 2, due: addDaysISO(joined, 14) },
-    { key: 'progress', done: measuredAt === undefined ? null : !!measuredAt, at: measuredAt || null, due: addDaysISO(joined, ONBOARDING_DAYS) },
+    // Due on day 30, the board's last (Codex on #2378): joined + 30 days was the day after it closed.
+    { key: 'progress', done: measuredAt === undefined ? null : !!measuredAt, at: measuredAt || null, due: addDaysISO(joined, ONBOARDING_DAYS - 1) },
   ];
   return {
     role,

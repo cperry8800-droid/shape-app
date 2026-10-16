@@ -51,7 +51,7 @@ test('the leg ticks each step from its record, and nothing else', () => {
   const done = LEGS.bsOnboardingLeg({
     role: 'trainer', joinedAt: ago(29), welcomeAt: ago(29), helloAt: ago(28), firstPlan: { at: ago(27), title: 'Base week' },
     checkins: [{ week_of: '2026-10-12' }, { week_of: '2026-10-05' }, { week_of: '2026-08-03' }],
-    measurements: [{ site: 'waist', measured_on: '2026-10-14' }], programDetail: { training: { weekOne: { count: 4, startsOn: '2026-09-22' } } }, now: NOW,
+    measurements: [{ site: 'waist', measured_on: '2026-10-14' }], programDetail: { training: { weekOne: { count: 4, startsOn: '2026-09-22', providerId: 7 } } }, providerId: 7, now: NOW,
   });
   const d = stepsOf(done);
   assert.equal(d.hello.done, true);
@@ -77,7 +77,7 @@ test('a failed read is unknown, never "to do"; past day 30 there is no board', (
   assert.equal(LEGS.bsOnboardingLeg({ role: 'client', joinedAt: ago(1), now: NOW }), null);
   // A target outside 1-14, or not a whole number, is no target.
   for (const count of [0, 15, 2.5, 'x']) {
-    assert.equal(LEGS.bsOnboardingLeg({ role: 'trainer', joinedAt: ago(1), programDetail: { training: { weekOne: { count } } }, now: NOW }).weekOne, null, String(count));
+    assert.equal(LEGS.bsOnboardingLeg({ role: 'trainer', joinedAt: ago(1), programDetail: { training: { weekOne: { count, providerId: 7 } } }, providerId: 7, now: NOW }).weekOne, null, String(count));
   }
 });
 
@@ -89,8 +89,33 @@ test('the first check-in falls due at the end of week one, never the next mornin
   const mon = LEGS.bsOnboardingLeg({ role: 'trainer', joinedAt: '2026-10-12T10:00:00Z', checkins: [], now: NOW });
   assert.equal(stepsOf(mon).checkin.due, '2026-10-18');
   // Week one set to start later moves it.
-  const later = LEGS.bsOnboardingLeg({ role: 'trainer', joinedAt: '2026-10-12T10:00:00Z', checkins: [], programDetail: { training: { weekOne: { count: 3, startsOn: '2026-10-20' } } }, now: NOW });
+  const later = LEGS.bsOnboardingLeg({ role: 'trainer', joinedAt: '2026-10-12T10:00:00Z', checkins: [], programDetail: { training: { weekOne: { count: 3, startsOn: '2026-10-20', providerId: 7 } } }, providerId: 7, now: NOW });
   assert.equal(stepsOf(later).checkin.due, '2026-10-25');
+});
+
+test('the day-30 measurement falls due on day 30, the board\'s last (Codex on #2378)', () => {
+  // Joined 2026-10-12: day 30 is 11-10, and the board is gone from 11-11.
+  const ob = LEGS.bsOnboardingLeg({ role: 'trainer', joinedAt: '2026-10-12T10:00:00Z', measurements: [], now: NOW });
+  assert.equal(stepsOf(ob).progress.due, '2026-11-10');
+  const last = LEGS.bsOnboardingLeg({ role: 'trainer', joinedAt: '2026-10-12T10:00:00Z', measurements: [], now: Date.parse('2026-11-11T09:00:00Z') });
+  assert.equal(last.day, 30);
+  assert.equal(stepsOf(last).progress.due, '2026-11-10', 'due no later than the last day the board shows');
+  assert.equal(LEGS.bsOnboardingLeg({ role: 'trainer', joinedAt: '2026-10-12T10:00:00Z', now: Date.parse('2026-11-11T10:00:00Z') }), null);
+});
+
+test('a week-one target counts only for the coach who set it (Codex on #2378)', () => {
+  const leg = (weekOne, providerId) => LEGS.bsOnboardingLeg({ role: 'trainer', joinedAt: '2026-10-12T10:00:00Z', checkins: [], firstPlan: null, programDetail: { training: { weekOne } }, providerId, now: NOW });
+  const mine = leg({ count: 3, startsOn: '2026-10-20', providerId: 7 }, 7);
+  assert.equal(mine.weekOne.count, 3);
+  assert.equal(stepsOf(mine).plan.due, '2026-10-20');
+  // The client's previous trainer set it: the new coach has no target, no deadline, and the suggestion.
+  for (const [w, id] of [[{ count: 3, startsOn: '2026-10-01', providerId: 9 }, 7], [{ count: 3, startsOn: '2026-10-01' }, 7], [{ count: 3, startsOn: '2026-10-01', providerId: 7 }, undefined]]) {
+    const ob = leg(w, id);
+    assert.equal(ob.weekOne, null, JSON.stringify([w, id]));
+    assert.equal(stepsOf(ob).plan.due, null, 'no predecessor\'s deadline');
+    assert.equal(stepsOf(ob).checkin.due, '2026-10-18', 'week one starts when they joined you');
+  }
+  assert.match(read('src/lib/shared-overview.ts'), /onboarding\[role\] = bsOnboardingLeg\(\{\n      role,\n      providerId,/);
 });
 
 // ── 2. The shared overview's reads ───────────────────────────────────────────────────────────────
@@ -267,9 +292,14 @@ test('the board is the "New clients" tab of Needs you, and the setup card shows 
 });
 
 // ── 5. POST /api/clients/[id]/week-one ─────────────────────────────────────────────────────────
-async function weekOneRoute({ user = COACH, rpcError = null } = {}) {
+async function weekOneRoute({ user = COACH, rpcError = null, listing = { id: 7 }, listingError = null } = {}) {
   const calls = [];
-  const client = { rpc: async (name, args) => { calls.push([name, args]); return { data: null, error: rpcError }; } };
+  const reads = [];
+  const client = {
+    rpc: async (name, args) => { calls.push([name, args]); return { data: null, error: rpcError }; },
+    // The caller's own listing for the role.
+    from: (table) => { const q = { select: () => q, eq: (k, v) => { reads.push([table, k, v]); return q; }, maybeSingle: async () => ({ data: listingError ? null : listing, error: listingError }) }; return q; },
+  };
   const mod = await loadRealModule(join(ROOT, 'src/app/api/clients/[id]/week-one/route.ts'), {
     typescript: true,
     registry: new Map([
@@ -282,7 +312,7 @@ async function weekOneRoute({ user = COACH, rpcError = null } = {}) {
     const res = await mod.POST(new Request(`https://x/api/clients/${id}/week-one`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }), { params: Promise.resolve({ id }) });
     return { status: res.status, body: await res.json() };
   };
-  return { post, calls };
+  return { post, calls, reads };
 }
 
 test('the week-one route writes the coach\'s own discipline through set_program_detail', async () => {
@@ -295,7 +325,7 @@ test('the week-one route writes the coach\'s own discipline through set_program_
   assert.equal(args.p_client_id, A);
   assert.equal(args.p_discipline, 'training');
   assert.equal(args.p_phase, null, 'the phase is left as it is');
-  assert.deepEqual({ ...args.p_detail.weekOne, setAt: 'x' }, { count: 4, startsOn: '2026-10-20', setAt: 'x', setBy: 'coach' });
+  assert.deepEqual({ ...args.p_detail.weekOne, setAt: 'x' }, { count: 4, startsOn: '2026-10-20', setAt: 'x', setBy: 'coach', providerId: 7 }, 'the listing that set it rides with it (Codex on #2378)');
   const nutri = await post(A, { role: 'nutritionist', count: null });
   assert.equal(nutri.status, 200);
   assert.equal(calls[1][1].p_discipline, 'nutrition');
@@ -316,6 +346,15 @@ test('the week-one route refuses the client themselves, bad input, and a caller 
   assert.equal(calls.length, 0);
   const denied = await weekOneRoute({ rpcError: { code: '42501', message: 'Not authorized to set the training program for this client.' } });
   assert.equal((await denied.post(A, { role: 'trainer', count: 3 })).status, 403);
+  // No listing of that role: refused before any write. An unreadable one: a 500, nothing written.
+  const noListing = await weekOneRoute({ listing: null });
+  assert.equal((await noListing.post(A, { role: 'nutritionist', count: 3 })).status, 403);
+  assert.deepEqual(noListing.reads, [['nutritionists', 'owner_id', COACH.id]]);
+  assert.equal(noListing.calls.length, 0);
+  const unread = await weekOneRoute({ listingError: { code: 'XX000', message: 'down' } });
+  const errLog = console.error; console.error = () => {};
+  try { assert.equal((await unread.post(A, { role: 'trainer', count: 3 })).status, 500); } finally { console.error = errLog; }
+  assert.equal(unread.calls.length, 0);
   assert.match(readFileSync(join(ROOT, 'src/lib/warroom.ts'), 'utf8'), /\['\/api\/clients\/\[id\]\/week-one', 'POST'\]/);
 });
 
@@ -431,7 +470,7 @@ test('the plan read names the coach the member pays, their thread and their week
   });
   const tables = {
     client_workouts: [], client_meal_plans: [],
-    client_programs: [{ user_id: U, detail: { training: { weekOne: { count: 4, startsOn: '2026-10-20' } } } }],
+    client_programs: [{ user_id: U, detail: { training: { weekOne: { count: 4, startsOn: '2026-10-20', providerId: 7 } } } }],
     subscriptions: [{ client_id: U, provider_role: 'trainer', provider_id: 7, status: 'active', created_at: ago(2) }],
     trainers: [{ id: 7, name: 'Tom Trainer' }], nutritionists: [],
     conversations: [{ id: 'conv-t', client_id: U, kind: 'direct', provider_role: 'trainer', provider_id: 7 }],
@@ -440,6 +479,9 @@ test('the plan read names the coach the member pays, their thread and their week
   assert.equal(body.training.hasPlan, false);
   assert.deepEqual(body.training.coaching, { name: 'Tom Trainer', conversationId: 'conv-t', weekOne: { count: 4, startsOn: '2026-10-20' } });
   assert.equal(body.meals.coaching, null, 'no nutritionist: null, a known none');
+  // A target the member's previous trainer set is not this coach's (Codex on #2378).
+  const before = { ...tables, client_programs: [{ user_id: U, detail: { training: { weekOne: { count: 4, startsOn: '2026-10-20', providerId: 9 } } } }] };
+  assert.equal((await (await load(fakeSupabase({ tables: before }))).GET(new Request('https://x/api/client/plan'))).body.training.coaching.weekOne, null);
   const failed = (await (await load(fakeSupabase({ tables, fail: ['subscriptions'] }))).GET(new Request('https://x/api/client/plan'))).body;
   assert.equal('coaching' in failed.training, false, 'an unread subscription is "could not tell", not "no coach"');
 });

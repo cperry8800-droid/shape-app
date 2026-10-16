@@ -546,6 +546,7 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     }
     onboarding[role] = bsOnboardingLeg({
       role,
+      providerId,
       joinedAt,
       welcomeAt: conv === undefined ? undefined : firstOf(welcomeRes, (r) => r.created_at),
       helloAt: conv === undefined || dm === undefined ? undefined : firstOf(helloRes, (r) => r.created_at),

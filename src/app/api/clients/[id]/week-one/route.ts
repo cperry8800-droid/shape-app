@@ -7,6 +7,10 @@
 // count is workouts in week 1 for a trainer and days logged for a nutritionist; null clears it.
 // startsOn is the day week 1 starts, which is when the onboarding board expects the plan to be live.
 //
+// ⚠ THE TARGET NAMES THE LISTING THAT SET IT (Codex on #2378). The discipline section outlives a change
+// of coach, so `providerId` is stored with it, and the board and the member's plan read a target only
+// from the coach they have now; a predecessor's is ignored.
+//
 // Stored at client_programs.detail[discipline].weekOne through set_program_detail, the sanctioned
 // discipline writer: a trainer can only write the training section and a nutritionist the nutrition
 // one (is_discipline_coach_on_client), and the rest of the row is never touched. The onboarding board
@@ -38,7 +42,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const role = body.role === 'trainer' || body.role === 'nutritionist' ? body.role : null;
   if (!role) return NextResponse.json({ error: 'role must be trainer or nutritionist.' }, { status: 400 });
 
-  let weekOne: { count: number; startsOn: string | null; setAt: string; setBy: 'coach' } | null = null;
+  let target: { count: number; startsOn: string | null } | null = null;
   if (body.count !== null) {
     const count = Number(body.count);
     if (!Number.isInteger(count) || count < 1 || count > 14) {
@@ -54,10 +58,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       }
       startsOn = d;
     }
-    weekOne = { count, startsOn, setAt: new Date().toISOString(), setBy: 'coach' };
+    target = { count, startsOn };
   }
 
   const supabase = await clientForRequest(request);
+  // The caller's own listing for this role (one per role per account: #2331's unique index), named
+  // in the target so only this coach's board and their client's plan read it.
+  const { data: mine, error: mineErr } = await supabase
+    .from(role === 'trainer' ? 'trainers' : 'nutritionists')
+    .select('id')
+    .eq('owner_id', user.id)
+    .maybeSingle();
+  if (mineErr) return dbError(mineErr, 'week-one listing read', 500);
+  const providerId = (mine as { id?: number } | null)?.id;
+  if (providerId == null) return NextResponse.json({ error: `You don't coach this client as their ${role}.` }, { status: 403 });
+  const weekOne = target ? { ...target, setAt: new Date().toISOString(), setBy: 'coach' as const, providerId } : null;
+
   const { error } = await supabase.rpc('set_program_detail', {
     p_client_id: clientId,
     p_discipline: role === 'trainer' ? 'training' : 'nutrition',

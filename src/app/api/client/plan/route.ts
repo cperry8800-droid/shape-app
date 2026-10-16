@@ -272,7 +272,9 @@ export async function GET(request: Request) {
       supabase.from('conversations').select('id').eq('client_id', user.id).eq('kind', 'direct').eq('provider_role', role).eq('provider_id', sub.provider_id).limit(1),
     ]);
     const section = (progRow?.detail as Record<string, unknown> | null)?.[role === 'trainer' ? 'training' : 'nutrition'] as Record<string, unknown> | undefined;
-    const w = section && typeof section.weekOne === 'object' && section.weekOne ? section.weekOne as Record<string, unknown> : null;
+    // Only the target this coach set (Codex on #2378): the section outlives a change of coach.
+    const raw = section && typeof section.weekOne === 'object' && section.weekOne ? section.weekOne as Record<string, unknown> : null;
+    const w = raw && raw.providerId != null && String(raw.providerId) === String(sub.provider_id) ? raw : null;
     const count = w ? Number(w.count) : NaN;
     return {
       name: (nameRes.data as { name?: string } | null)?.name ?? null,
