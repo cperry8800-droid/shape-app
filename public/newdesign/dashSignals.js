@@ -528,8 +528,16 @@
     var last = toDate(f.lastLoggedOn);
     if (last) {
       var gap = daysBetween(last, now);
+      // ⚠ THE GAP IS COUNTED FROM WHEN THEY JOINED, NOT FROM BEFORE (Codex on #2378): a log from before
+      // they hired this coach dated it, so a client who joined today after last logging ten days ago
+      // read "No logs 10d" on day one. It is bounded by their days as a client; without a joining date,
+      // the roster's 14-day "new" decides, as for the empty week below.
+      var asClient = clientDays(c, now);
+      var bounded = asClient != null && asClient < gap;
+      if (bounded) gap = asClient;
+      else if (asClient == null && c.profile && c.profile.isNew) return null;
       if (gap >= THRESHOLDS.FOOD_GAP_DAYS) {
-        return { key: "food_gap", label: "No logs " + gap + "d", reason: "No food logs in " + gap + " days" };
+        return { key: "food_gap", label: "No logs " + gap + "d", reason: bounded ? "No food logs in the " + gap + " days since they joined" : "No food logs in " + gap + " days" };
       }
       return null;
     }

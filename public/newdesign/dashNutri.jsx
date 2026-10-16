@@ -184,9 +184,11 @@ function DnuLogHistory({ week, currentStreak, longestStreak, loggedDays7 }) {
 // Live or the demo: a published plan, a nutrition read with a day in it, or a nutritionist the
 // member pays. ⚠ A COACHED MEMBER WITH NO PLAN AND NOTHING LOGGED READ THE DEMO MENU (Codex on
 // #2378): /api/client/nutrition answers today: null for them, so the "preparing your meal plan"
-// state never rendered.
+// state never rendered. ⚠ AND A COACH IT COULD NOT READ IS NOT "NONE" (Codex on #2378): the route omits
+// `coaching` when its subscriptions read fails, and the member got the demo menu as their own. Only a
+// confirmed `coaching: null` (no nutritionist) with nothing logged is the preview.
 function dnuSourceOf(pl, nu) {
-  return (pl && pl.ok && pl.meals && (pl.meals.hasPlan || pl.meals.coaching)) || (nu && nu.ok && nu.today) ? "live" : "demo";
+  return (pl && pl.ok && pl.meals && (pl.meals.hasPlan || pl.meals.coaching !== null)) || (nu && nu.ok && nu.today) ? "live" : "demo";
 }
 
 function ClientNutritionPage() {

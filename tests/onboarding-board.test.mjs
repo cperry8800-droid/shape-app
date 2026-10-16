@@ -946,3 +946,30 @@ test('week one starts inside the board\'s 30 days, and a target from before this
     assert.match(src, /<input type="date" min=\{firstDay\} max=\{lastDay\} value=\{startsOn\}/);
   }
 });
+
+test('a food gap from before the client joined does not flag, and an unreadable coach is not the demo (Codex on #2378)', () => {
+  // The engine: a dated gap waits until they have been a client for the coach's gap.
+  const now = new Date('2026-10-15T12:00:00');
+  const dayAgo = (n) => new Date(now.getTime() - n * DAY).toISOString();
+  const rec = (joinedDays, lastLog, isNew = true) => ({
+    progressRead: { state: 'ready' }, profile: { id: 'u', name: 'Jordan', isNew, ...(joinedDays == null ? {} : { joinedAt: dayAgo(joinedDays) }) },
+    foodLogs: { lastLoggedOn: dayAgo(lastLog).slice(0, 10), daysLogged7d: 0 }, checkIn: { lastWeekOf: dayAgo(1).slice(0, 10) }, lastContact: { trainer: dayAgo(1), nutritionist: null }, screening: 'clear',
+  });
+  const labels = (r) => JSON.parse(JSON.stringify(D.evaluateClient(r, now, 'trainer').flags.map((f) => f.label)));
+  assert.deepEqual(labels(rec(0, 10)), [], 'joined today, last logged ten days ago: no gap yet');
+  assert.deepEqual(labels(rec(2, 10)), [], 'two days a client: under the three-day gap');
+  assert.deepEqual(labels(rec(6, 10)), ['No logs 6d'], 'six days a client: the gap is theirs, counted from joining');
+  assert.match(D.evaluateClient(rec(6, 10), now, 'trainer').flags[0].reason, /in the 6 days since they joined/);
+  assert.deepEqual(labels(rec(20, 10, false)), ['No logs 10d'], 'a gap that began as a client is the real gap');
+  assert.deepEqual(labels(rec(null, 10, true)), [], 'no joining date: the roster\'s "new" decides');
+  assert.deepEqual(labels(rec(null, 10, false)), ['No logs 10d']);
+
+  // The website: an omitted `coaching` (the subscriptions read failed) is live, not the demo menu.
+  const dnuSourceOf = new Function(slice(read('public/newdesign/dashNutri.jsx'), 'function dnuSourceOf(', 'function ClientNutritionPage(') + ';return dnuSourceOf;')();
+  assert.equal(dnuSourceOf({ ok: true, meals: { hasPlan: false } }, { ok: true, today: null }), 'live');
+  assert.equal(dnuSourceOf({ ok: true, meals: { hasPlan: false, coaching: null } }, { ok: true, today: null }), 'demo', 'a confirmed none keeps the preview');
+  const train = read('public/newdesign/dashTrain.jsx');
+  const dtrSourceOf = new Function(slice(train, '// Live or the demo, as Nutrition', 'function ClientWorkoutsPage(') + ';return dtrSourceOf;')();
+  assert.equal(dtrSourceOf({ ok: true, training: { hasPlan: false } }, null, null), 'live');
+  assert.equal(dtrSourceOf({ ok: true, training: { hasPlan: false, coaching: null } }, null, null), 'demo');
+});

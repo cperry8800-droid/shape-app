@@ -655,7 +655,7 @@ function DtrBuilder({ self, onChanged, coaching, findCoach = true }) {
 // Live or the demo, as Nutrition decides it: a published plan, a training read, the member's own
 // builds, or a trainer the member pays (Codex on #2378).
 function dtrSourceOf(pl, tr, st) {
-  return (pl && pl.ok && pl.training && (pl.training.hasPlan || pl.training.coaching)) || (tr && tr.ok) || (st && st.ok && Array.isArray(st.mine) && st.mine.length > 0) ? "live" : "demo";
+  return (pl && pl.ok && pl.training && (pl.training.hasPlan || pl.training.coaching !== null)) || (tr && tr.ok) || (st && st.ok && Array.isArray(st.mine) && st.mine.length > 0) ? "live" : "demo";
 }
 // The trainer preparing a coached member's first plan, while none is published (M16).
 function dtrCoachingOf(plan) {
