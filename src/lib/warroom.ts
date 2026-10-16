@@ -610,13 +610,13 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
-      section: 'A member can pay more than one coach of the same role — #2384. One migration: 2026-10-16-client-coaches.sql',
+      section: 'A member can pay more than one coach of the same role — #2384. One migration, applied and verified live',
       items: [
         { label: 'Every read that kept the earliest subscription per role now names every coach: /api/client/plan (coaching.coaches, a per-workout coach), /api/client/onboarding (coaching.trainers / nutritionists) and the coach board. The website and the app name both coaches ("are preparing your plan"), with a message button per coach in the app and every coach\'s weekly note on Home', status: 'done' },
         { label: 'One shared week-one target per discipline (sharedWeekOneOf): whichever current coach set it during their own subscription; every board and the plan name who set it, and a second trainer\'s board shows the first trainer\'s target with deadlines from its own day 1', status: 'done' },
         { label: 'get_client_coaches(client): every listing the member pays, for the member and their current coaches; a co-coach of the same role now appears in the care team. A missing function (not yet migrated) reads as before, not as a failure', status: 'done' },
         { label: 'Review: one Fable round before the push, 6 findings, 4 fixed (including Home\'s weekly notes signed with demo bylines for every real coach), 2 left with reasons in the PR; mutation round killed 29 of 29', status: 'done' },
-        { label: 'OWNER — run supabase-migrations/2026-10-16-client-coaches.sql (additive; safe before or after the merge), then check it live, read-only', status: 'manual' },
+        { label: 'APPLIED + VERIFIED LIVE (2026-10-16, read-only) — 2026-10-16-client-coaches.sql: get_client_coaches present as a definer pinned to public, pg_temp, returning (provider_role, provider_id, name, owner_id, since); executable by authenticated and service_role, not anon; with no caller it answers 0 rows for a member who has a live subscription', status: 'done' },
         { label: 'Nora\'s member read, the calendar and the prep-reminder cron read only the newest published meal plan (with two nutritionists, the newer menu is the plan); the coach Shared clients roster stays trainer to nutritionist', status: 'pending' },
       ],
     },

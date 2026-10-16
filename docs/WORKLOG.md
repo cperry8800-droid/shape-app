@@ -119,8 +119,6 @@ planned builds.
 - Set up Firebase and APNs for push (0 push devices in production), then a device
   pass of a native build. That pass includes MusicKit sign-in inside
   SFSafariViewController and Chrome Custom Tabs.
-- Run `supabase-migrations/2026-10-16-client-coaches.sql` (#2384: a member's coaches,
-  for the care team and the shared week-one target).
 - Decide what happens when a buyer pays an open checkout from another tab
   (closing it means refunds).
 - In-app purchase outside the US (Phase 2) is on hold.
