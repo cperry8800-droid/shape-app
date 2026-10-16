@@ -88,9 +88,14 @@ test('the first check-in falls due at the end of week one, never the next mornin
   // Joined Monday 2026-10-12: due that Sunday.
   const mon = LEGS.bsOnboardingLeg({ role: 'trainer', joinedAt: '2026-10-12T10:00:00Z', checkins: [], now: NOW });
   assert.equal(stepsOf(mon).checkin.due, '2026-10-18');
+  assert.equal(stepsOf(mon).checkin2.due, '2026-10-25', 'the second a week after the first');
   // Week one set to start later moves it.
   const later = LEGS.bsOnboardingLeg({ role: 'trainer', joinedAt: '2026-10-12T10:00:00Z', checkins: [], programDetail: { training: { weekOne: { count: 3, startsOn: '2026-10-20', providerId: 7 } } }, providerId: 7, now: NOW });
   assert.equal(stepsOf(later).checkin.due, '2026-10-25');
+  // ...and the second with it (Codex on #2378): never due before the first.
+  assert.equal(stepsOf(later).checkin2.due, '2026-11-01');
+  const muchLater = LEGS.bsOnboardingLeg({ role: 'trainer', joinedAt: '2026-10-12T10:00:00Z', checkins: [], programDetail: { training: { weekOne: { count: 3, startsOn: '2026-11-02', providerId: 7 } } }, providerId: 7, now: NOW });
+  assert.ok(stepsOf(muchLater).checkin2.due > stepsOf(muchLater).checkin.due, 'a week one three weeks out keeps the check-ins in order');
 });
 
 test('the day-30 measurement falls due on day 30, the board\'s last (Codex on #2378)', () => {
@@ -185,8 +190,15 @@ test('the overview reads Shape\'s welcome, the coach\'s own first message and th
   assert.equal(g.plan.title, 'Base week', 'only a plan this coach published counts');
   // A client who left and came back (Codex on #2378): a plan from the earlier run is not this one's.
   const earlier = new Date(Date.now() - 90 * DAY).toISOString();
-  const back = await overview(overviewDb({ workouts: [{ client_id: A, trainer_id: 7, title: 'Last spring', created_at: earlier, status: 'archived' }] }));
+  const back = await overview(overviewDb({
+    workouts: [{ client_id: A, trainer_id: 7, title: 'Last spring', created_at: earlier, status: 'archived' }],
+    messages: [
+      { conversation_id: 'conv-a', sender_id: COACH.id, created_at: earlier, metadata: {} },
+      { conversation_id: 'conv-a', sender_id: null, created_at: new Date(Date.now() - 2 * DAY).toISOString(), metadata: { shape: 'welcome' } },
+    ],
+  }));
   assert.equal(stepsOf(back.onboarding.trainer).plan.done, false, 'a plan from before this subscription');
+  assert.equal(stepsOf(back.onboarding.trainer).hello.done, false, 'a message from the earlier run is not this one\'s hello');
 
   const unread = await overview(overviewDb({ fail: ['messages', 'client_workouts'] }));
   const u = stepsOf(unread.onboarding.trainer);

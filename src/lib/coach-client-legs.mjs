@@ -303,7 +303,9 @@ export function bsOnboardingLeg(input) {
     { key: 'hello', done: known(helloAt), at: iso(helloAt) },
     { key: 'plan', done: known(firstPlan), at: firstPlan ? iso(firstPlan.at) : null, title: firstPlan && typeof firstPlan.title === 'string' ? firstPlan.title : null, due: weekOne && weekOne.startsOn ? weekOne.startsOn : null },
     { key: 'checkin', done: checkinsSince === undefined ? null : checkinsSince.count >= 1, at: checkinsSince && checkinsSince.firstWeekOf, due: weekEndSunday(week1Start, 3) },
-    { key: 'checkin2', done: checkinsSince === undefined ? null : checkinsSince.count >= 2, due: addDaysISO(joined, 14) },
+    // A week after the first (Codex on #2378): fixed at joined + 14 days, a week one the coach set
+    // to start later put the second check-in due before the first.
+    { key: 'checkin2', done: checkinsSince === undefined ? null : checkinsSince.count >= 2, due: weekEndSunday(week1Start, 10) },
     // Due on day 30, the board's last (Codex on #2378): joined + 30 days was the day after it closed.
     { key: 'progress', done: measuredAt === undefined ? null : !!measuredAt, at: measuredAt || null, due: addDaysISO(joined, ONBOARDING_DAYS - 1) },
   ];

@@ -533,8 +533,10 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     const talkIds = [conv?.id, dm?.id].filter((v): v is string => typeof v === 'string');
     const [welcomeRes, helloRes, planRes] = await Promise.all([
       conv ? supabase.from('messages').select('created_at').eq('conversation_id', conv.id).is('sender_id', null).eq('metadata->>shape', 'welcome').limit(1) : Promise.resolve(null),
-      // The coach's own first message: in either thread, the one sender who is not the client.
-      talkIds.length ? supabase.from('messages').select('created_at').in('conversation_id', talkIds).not('sender_id', 'is', null).neq('sender_id', clientId).order('created_at', { ascending: true }).limit(1) : Promise.resolve(null),
+      // The coach's own first message since this subscription began: in either thread, the one sender
+      // who is not the client. ⚠ Since `joinedAt` (Codex on #2378): a client who left and came back
+      // kept the earlier run's messages, which ticked "Your first message" before the coach wrote.
+      talkIds.length ? supabase.from('messages').select('created_at').in('conversation_id', talkIds).not('sender_id', 'is', null).neq('sender_id', clientId).gte('created_at', joinedAt).order('created_at', { ascending: true }).limit(1) : Promise.resolve(null),
       // The first plan THIS coach published since this subscription began, archived or not (a week
       // replaced by the next was still published). Workouts a member wrote for themselves carry no
       // trainer_id. ⚠ Since `joinedAt` (Codex on #2378): a client who left and came back had the
