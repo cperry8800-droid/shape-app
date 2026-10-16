@@ -203,6 +203,15 @@
     var d = toDate(j);
     return d ? daysBetween(d, now) : null;
   }
+  // Local midnight of the day the client joined this coach, or null: for comparing with a dated log,
+  // which is a day, not a moment.
+  function clientJoinDay(c) {
+    var d = toDate(c && ((c.profile && c.profile.joinedAt) || (c.payments && c.payments.joinedAt)));
+    if (!d) return null;
+    var x = new Date(d.getTime());
+    x.setHours(0, 0, 0, 0);
+    return x;
+  }
   // The viewer's own onboarding board for this client (the overview's `onboarding`, per role;
   // client-onboarding review, fix 4), and one of its steps.
   function onboardingFor(c, role) {
@@ -532,10 +541,13 @@
       // they hired this coach dated it, so a client who joined today after last logging ten days ago
       // read "No logs 10d" on day one. It is bounded by their days as a client; without a joining date,
       // the roster's 14-day "new" decides, as for the empty week below.
-      var asClient = clientDays(c, now);
-      var bounded = asClient != null && asClient < gap;
-      if (bounded) gap = asClient;
-      else if (asClient == null && c.profile && c.profile.isNew) return null;
+      // ⚠ AT DAY GRANULARITY (Fable on #2378): the log is a day and the join a moment, so a client who
+      // joined at 8 pm and logged dinner that evening read "No logs 3d · since they joined". The bound
+      // applies only to a last log dated before the join day, and counts from that day.
+      var joinDay = clientJoinDay(c);
+      var bounded = !!joinDay && last < joinDay;
+      if (bounded) gap = daysBetween(joinDay, now);
+      else if (!joinDay && c.profile && c.profile.isNew) return null;
       if (gap >= THRESHOLDS.FOOD_GAP_DAYS) {
         return { key: "food_gap", label: "No logs " + gap + "d", reason: bounded ? "No food logs in the " + gap + " days since they joined" : "No food logs in " + gap + " days" };
       }

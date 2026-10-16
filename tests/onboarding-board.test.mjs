@@ -949,11 +949,14 @@ test('week one starts inside the board\'s 30 days, and a target from before this
 
 test('a food gap from before the client joined does not flag, and an unreadable coach is not the demo (Codex on #2378)', () => {
   // The engine: a dated gap waits until they have been a client for the coach's gap.
-  const now = new Date('2026-10-15T12:00:00');
+  // Local noon, and local calendar days for the dated log, as the engine reads them: the test holds
+  // in any time zone (Fable on #2378: a UTC date beside a local "now" broke at UTC+12 and later).
+  const now = new Date(2026, 9, 15, 12);
   const dayAgo = (n) => new Date(now.getTime() - n * DAY).toISOString();
-  const rec = (joinedDays, lastLog, isNew = true) => ({
-    progressRead: { state: 'ready' }, profile: { id: 'u', name: 'Jordan', isNew, ...(joinedDays == null ? {} : { joinedAt: dayAgo(joinedDays) }) },
-    foodLogs: { lastLoggedOn: dayAgo(lastLog).slice(0, 10), daysLogged7d: 0 }, checkIn: { lastWeekOf: dayAgo(1).slice(0, 10) }, lastContact: { trainer: dayAgo(1), nutritionist: null }, screening: 'clear',
+  const localDay = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  const rec = (joinedDays, lastLog, isNew = true, joinedAt) => ({
+    progressRead: { state: 'ready' }, profile: { id: 'u', name: 'Jordan', isNew, ...(joinedAt ? { joinedAt } : joinedDays == null ? {} : { joinedAt: dayAgo(joinedDays) }) },
+    foodLogs: { lastLoggedOn: localDay(new Date(now.getTime() - lastLog * DAY)), daysLogged7d: 0 }, checkIn: { lastWeekOf: localDay(new Date(now.getTime() - DAY)) }, lastContact: { trainer: dayAgo(1), nutritionist: null }, screening: 'clear',
   });
   const labels = (r) => JSON.parse(JSON.stringify(D.evaluateClient(r, now, 'trainer').flags.map((f) => f.label)));
   assert.deepEqual(labels(rec(0, 10)), [], 'joined today, last logged ten days ago: no gap yet');
@@ -961,6 +964,11 @@ test('a food gap from before the client joined does not flag, and an unreadable 
   assert.deepEqual(labels(rec(6, 10)), ['No logs 6d'], 'six days a client: the gap is theirs, counted from joining');
   assert.match(D.evaluateClient(rec(6, 10), now, 'trainer').flags[0].reason, /in the 6 days since they joined/);
   assert.deepEqual(labels(rec(20, 10, false)), ['No logs 10d'], 'a gap that began as a client is the real gap');
+  // Joined at 8 pm four days ago and logged dinner that evening: a log since joining, so the real gap.
+  const evening = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 4, 20).toISOString();
+  const sameDay = D.evaluateClient(rec(null, 4, false, evening), now, 'trainer').flags;
+  assert.deepEqual(JSON.parse(JSON.stringify(sameDay.map((f) => f.label))), ['No logs 4d']);
+  assert.doesNotMatch(sameDay[0].reason, /since they joined/);
   assert.deepEqual(labels(rec(null, 10, true)), [], 'no joining date: the roster\'s "new" decides');
   assert.deepEqual(labels(rec(null, 10, false)), ['No logs 10d']);
 
