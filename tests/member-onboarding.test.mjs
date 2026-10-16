@@ -299,6 +299,8 @@ test('GET: a member who pays a trainer sees the trainer, and the trainer\'s targ
 test('GET: a member who pays two trainers sees both, and the target either of them set (owner, 2026-10-16)', async () => {
   const subscriptions = [
     { client_id: U, provider_role: 'trainer', provider_id: 7, status: 'active', created_at: rago(3) },
+    // A second live row for the same listing (a re-subscribe before the old one closed) is one trainer.
+    { client_id: U, provider_role: 'trainer', provider_id: 7, status: 'trialing', created_at: rago(1) },
     { client_id: U, provider_role: 'trainer', provider_id: 8, status: 'active', created_at: rago(2) },
     { client_id: U, provider_role: 'nutritionist', provider_id: 5, status: 'active', created_at: rago(2) },
   ];

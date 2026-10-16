@@ -245,17 +245,21 @@ test('the overview puts a second trainer in the care team and reads the target t
       ? (over.coachesFail ? { data: null, error: over.coachesFail === 'missing' ? { code: 'PGRST202', message: 'Could not find the function' } : { message: 'down' } } : { data: [
         { provider_role: 'trainer', provider_id: 7, name: 'Coach Q', owner_id: COACH.id, since: joined },
         { provider_role: 'trainer', provider_id: 8, name: 'Sam Strong', owner_id: '22222222-2222-4222-8222-222222222222', since: joined },
+        // Listing ids are per table: nutritionist 9 is not trainer 9.
+        { provider_role: 'nutritionist', provider_id: 9, name: 'Nia', owner_id: '33333333-3333-4333-8333-333333333333', since: joined },
       ], error: null })
       : rpc(name, args);
     return base;
   };
-  const withTarget = (d) => { d.from = ((from) => (t) => {
+  const withTarget = (d, setter = 8) => { d.from = ((from) => (t) => {
     const q = from(t);
-    return t === 'client_programs' ? Object.assign(q, { maybeSingle: async () => ({ data: { detail: { training: { weekOne: { count: 4, startsOn: null, providerId: 8, setAt: set } } } }, error: null }) }) : q;
+    return t === 'client_programs' ? Object.assign(q, { maybeSingle: async () => ({ data: { detail: { training: { weekOne: { count: 4, startsOn: null, providerId: setter, setAt: set } } } }, error: null }) }) : q;
   })(d.from.bind(d)); return d; };
   const ov = await overview(withTarget(db()));
   const team = ov.careTeam.map((c) => [c.role, c.providerId, c.name, c.isMe]);
-  assert.deepEqual(team, [['trainer', 7, 'Coach Q', true], ['trainer', 8, 'Sam Strong', false]]);
+  assert.deepEqual(team, [['trainer', 7, 'Coach Q', true], ['trainer', 8, 'Sam Strong', false], ['nutritionist', 9, 'Nia', false]]);
+  // A training target naming listing 9 is not the nutritionist's: the trainer board reads only trainers.
+  assert.equal((await overview(withTarget(db(), 9))).onboarding.trainer.weekOne, null);
   assert.equal(ov.careTeamPartial, false);
   assert.equal(ov.onboarding.trainer.weekOne.count, 4, 'the co-trainer\'s target is this board\'s too');
   assert.deepEqual(ov.onboarding.trainer.weekOneBy, { providerId: 8, name: 'Sam Strong' });
