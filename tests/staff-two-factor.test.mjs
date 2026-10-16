@@ -286,6 +286,10 @@ test('route: with an authenticator set up it asks for that one\'s code, and chec
   }
   const wrong = await post(await twoFactorRoute(staff('verify'), mfaWorld({ fail: ['verify'] })), { action: 'verify', factorId: FACTOR, code: '000000' });
   assert.deepEqual([wrong.status, wrong.body.error], [400, 'That code did not match. Codes change every 30 seconds; enter the one showing now.']);
+  // At set-up, a reload replaced the key the staff member scanned: say so.
+  const stale = await post(await twoFactorRoute(staff('enroll'), mfaWorld({ fail: ['verify'] })), { action: 'verify', factorId: FACTOR, code: '000000' });
+  assert.equal(stale.status, 400);
+  assert.match(stale.body.error, /^That code did not match\. If you scanned this page before it last reloaded/);
 });
 
 test('nothing under src/ uses a browser Supabase client: the session cookies are httpOnly', () => {
