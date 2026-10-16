@@ -183,6 +183,10 @@ test('the overview reads Shape\'s welcome, the coach\'s own first message and th
   assert.equal(g.hello.done, true);
   assert.equal(g.plan.done, true);
   assert.equal(g.plan.title, 'Base week', 'only a plan this coach published counts');
+  // A client who left and came back (Codex on #2378): a plan from the earlier run is not this one's.
+  const earlier = new Date(Date.now() - 90 * DAY).toISOString();
+  const back = await overview(overviewDb({ workouts: [{ client_id: A, trainer_id: 7, title: 'Last spring', created_at: earlier, status: 'archived' }] }));
+  assert.equal(stepsOf(back.onboarding.trainer).plan.done, false, 'a plan from before this subscription');
 
   const unread = await overview(overviewDb({ fail: ['messages', 'client_workouts'] }));
   const u = stepsOf(unread.onboarding.trainer);

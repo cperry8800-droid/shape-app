@@ -189,3 +189,25 @@ test('a client who never checked in is flagged; a new one is New, not "No logs 7
   assert.equal(items['Sam Lee'].severity, 'red', 'sixty days in with no check-in ever: as the website reads it');
   assert.match(items['Sam Lee'].why, /first check-in/);
 });
+
+test('a client new to one discipline is new there only (Codex on #2378)', async () => {
+  const day = (n) => new Date(NOW.getTime() - n * 864e5).toISOString();
+  // Priya has trained with this coach for sixty days and subscribed for nutrition two days ago.
+  const sb = fakeSupabase(fixture({
+    tables: {
+      nutritionists: [{ id: 12, owner_id: 'coach-1', name: 'Coach' }],
+      subscriptions: [
+        { client_id: 'c1', status: 'active', provider_role: 'trainer', provider_id: 7, created_at: day(60) },
+        { client_id: 'c1', status: 'active', provider_role: 'nutritionist', provider_id: 12, created_at: day(2) },
+      ],
+    },
+    rpcs: {
+      get_client_stats: () => ({ daysLogged7d: 0, sessionsCompleted: 0, sessionsPlanned: 0 }),
+      get_client_checkins: () => [],
+    },
+  }));
+  const t = await readCoachToday(sb, 'coach-1', { now: NOW, zone: 'UTC', role: 'trainer' });
+  const priya = t.needsYou.items.find((i) => i.name === 'Priya Shah');
+  assert.equal(priya.as, 'trainer', 'flagged as their trainer (sixty days, no check-in), not as their nutritionist of two days');
+  assert.match(priya.why, /first check-in/);
+});

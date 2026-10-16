@@ -141,16 +141,16 @@ export async function readCoachToday(sb, uid, opts = {}) {
       // carries ONLY the sleepHours shape, and an entry with vitals but no sleep never
       // gets a recovery leg.
       const rs = rec.recovery[c.id] || null;
+      // The record is built per role below, each with that role's start (Codex on #2378).
       return {
         client: c,
-        record: recordFromCoachData({
-          // New = joined in the last 14 days, on this read's clock (src/lib/coach-roster.ts's rule).
-          id: c.id, name: c.name || 'Client', isNew: !!c.joinedAt && now.getTime() - Date.parse(c.joinedAt) < 14 * 864e5, joinedAt: c.joinedAt || null, stats: stats.data,
+        data: {
+          id: c.id, name: c.name || 'Client', stats: stats.data,
           goalsDoc: goals.ok ? goals.data : null,
           checkins: checkins.ok && Array.isArray(checkins.data) ? checkins.data : null,
           recovery: rs && rs.sleepHours ? { sleepHours: rs.sleepHours } : null,
           vitals: rs && rs.vitals ? rs.vitals : null,
-        }, { goalsFromDoc: engine.goalsFromDoc }),
+        },
       };
     });
     // ⚠ EACH CLIENT UNDER THE ROLE THEY SUBSCRIBE TO (Codex, #2262). A coach holding both
@@ -159,13 +159,20 @@ export async function readCoachToday(sb, uid, opts = {}) {
     // theirs. The app's Today runs one role's roster at a time; this runs each role over
     // its own clients and keeps a client flagged by both once, at the worse severity.
     const rank = { red: 2, amber: 1 };
+    // New = joined in the last 14 days, on this read's clock (src/lib/coach-roster.ts's rule), by the
+    // subscription of the role being read: a client new to one discipline is new there only.
+    const recordFor = (x, role) => {
+      const by = x.client.joinedAtByRole || {};
+      const at = by[role] || (Object.keys(by).length ? null : x.client.joinedAt) || null;
+      return recordFromCoachData({ ...x.data, isNew: !!at && now.getTime() - Date.parse(at) < 14 * 864e5, joinedAt: at }, { goalsFromDoc: engine.goalsFromDoc });
+    };
     const flaggedById = new Map();
     const both = new Set((roster.providers || []).map((p) => p.role)).size > 1;
     for (const role of ['trainer', 'nutritionist']) {
       const group = records.filter(Boolean).filter((x) => (Array.isArray(x.client.roles) && x.client.roles.length ? x.client.roles : [primary]).includes(role));
       if (!group.length) continue;
       let feed = [];
-      try { feed = engine.getTriageFeed(role, group.map((x) => x.record), now, thresholds || undefined) || []; } catch { feed = []; }
+      try { feed = engine.getTriageFeed(role, group.map((x) => recordFor(x, role)), now, thresholds || undefined) || []; } catch { feed = []; }
       for (const r of feed) {
         if (!r || !rank[r.severity]) continue;
         const id = r.client && r.client.profile && r.client.profile.id;

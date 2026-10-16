@@ -535,11 +535,13 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
       conv ? supabase.from('messages').select('created_at').eq('conversation_id', conv.id).is('sender_id', null).eq('metadata->>shape', 'welcome').limit(1) : Promise.resolve(null),
       // The coach's own first message: in either thread, the one sender who is not the client.
       talkIds.length ? supabase.from('messages').select('created_at').in('conversation_id', talkIds).not('sender_id', 'is', null).neq('sender_id', clientId).order('created_at', { ascending: true }).limit(1) : Promise.resolve(null),
-      // The first plan THIS coach published, archived or not (a week replaced by the next was
-      // still published). Workouts a member wrote for themselves carry no trainer_id.
+      // The first plan THIS coach published since this subscription began, archived or not (a week
+      // replaced by the next was still published). Workouts a member wrote for themselves carry no
+      // trainer_id. ⚠ Since `joinedAt` (Codex on #2378): a client who left and came back had the
+      // step ticked by a plan from the earlier run, and "Week 1 not live" never fired.
       role === 'trainer'
-        ? supabase.from('client_workouts').select('created_at, title').eq('client_id', clientId).eq('trainer_id', providerId).order('created_at', { ascending: true }).limit(1)
-        : supabase.from('client_meal_plans').select('created_at, title').eq('client_id', clientId).eq('nutritionist_id', providerId).order('created_at', { ascending: true }).limit(1),
+        ? supabase.from('client_workouts').select('created_at, title').eq('client_id', clientId).eq('trainer_id', providerId).gte('created_at', joinedAt).order('created_at', { ascending: true }).limit(1)
+        : supabase.from('client_meal_plans').select('created_at, title').eq('client_id', clientId).eq('nutritionist_id', providerId).gte('created_at', joinedAt).order('created_at', { ascending: true }).limit(1),
     ]);
     for (const [name, res] of [['welcome', welcomeRes], ['hello', helloRes], ['first plan', planRes]] as const) {
       if (res && res.error) console.error(`[shared-overview] onboarding ${name} read failed:`, (res.error as { message?: string }).message);

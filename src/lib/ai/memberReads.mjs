@@ -530,10 +530,13 @@ export async function readCoachRoster(sb, uid) {
   for (const l of legs) {
     for (const s of Array.isArray(l.data) ? l.data : []) {
       if (!s || !s.client_id) continue;
-      const e = byClient.get(s.client_id) || { id: s.client_id, roles: new Set(), joinedAt: null };
+      const e = byClient.get(s.client_id) || { id: s.client_id, roles: new Set(), joinedAt: null, byRole: {} };
       e.roles.add(l.role);
       // The earliest live subscription: when they became this coach's client (the roster's rule).
       if (s.created_at && (!e.joinedAt || String(s.created_at) < e.joinedAt)) e.joinedAt = String(s.created_at);
+      // ⚠ AND PER ROLE (Codex on #2378): a long-standing training client who subscribed for nutrition
+      // two days ago is new to the nutritionist, which one earliest date could not say.
+      if (s.created_at && (!e.byRole[l.role] || String(s.created_at) < e.byRole[l.role])) e.byRole[l.role] = String(s.created_at);
       byClient.set(s.client_id, e);
     }
   }
@@ -548,7 +551,8 @@ export async function readCoachRoster(sb, uid) {
   const clients = ids.map((id) => {
     const e = byClient.get(id);
     const t = e.joinedAt ? Date.parse(e.joinedAt) : NaN;
-    return { id, name: nameById.get(id) || null, roles: [...e.roles], joinedAt: Number.isFinite(t) ? e.joinedAt : null, isNew: Number.isFinite(t) ? nowMs - t < 14 * 864e5 : null };
+    const joinedAtByRole = Object.fromEntries(Object.entries(e.byRole).filter(([, v]) => Number.isFinite(Date.parse(v))));
+    return { id, name: nameById.get(id) || null, roles: [...e.roles], joinedAt: Number.isFinite(t) ? e.joinedAt : null, joinedAtByRole, isNew: Number.isFinite(t) ? nowMs - t < 14 * 864e5 : null };
   });
   // `providers`: the listings this coach owns ({ role, id }), which their bookings name.
   return { ok: true, isCoach: true, clients, providers, ...(names.ok ? {} : { namesUnavailable: true }) };
