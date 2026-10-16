@@ -121,9 +121,12 @@ The War Room has the full list. This section covers what needs the owner, plus t
 planned builds.
 
 **Waiting on the owner**
-- Set up Firebase and APNs for push (0 push devices in production), then a device
-  pass of a native build. That pass includes MusicKit sign-in inside
-  SFSafariViewController and Chrome Custom Tabs.
+- Push keys (the app side is built, #2385; 0 push devices in production). For iPhone,
+  set `APNS_KEY_ID`, `APNS_TEAM_ID` and `APNS_PRIVATE_KEY` in Vercel. For Android, add
+  the app to Firebase `shape-84d22` and save its `google-services.json` as the repo
+  secret `GOOGLE_SERVICES_JSON`. DEPLOY.md §10 has the steps. Then do a device pass of a
+  native build, including MusicKit sign-in inside SFSafariViewController and Chrome
+  Custom Tabs.
 - Decide what happens when a buyer pays an open checkout from another tab
   (closing it means refunds).
 - In-app purchase outside the US (Phase 2) is on hold.
