@@ -76,7 +76,7 @@ export async function POST(request: Request) {
     if (error) {
       return say(
         signIn.twoFactor === 'enroll'
-          ? 'That code did not match. If you scanned this page before it last reloaded, that key no longer works: delete the old Shape entry in your app and scan the code above.'
+          ? 'That code did not match. If you scanned this page before it last reloaded, that key no longer works: scan the code above again, replacing the old Shape code, and enter the new one.'
           : 'That code did not match. Codes change every 30 seconds; enter the one showing now.',
         400
       );

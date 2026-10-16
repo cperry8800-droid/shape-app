@@ -99,8 +99,8 @@ export default function StaffTwoFactor({ mode, next }: { mode: Mode; next: strin
               app the staff member meant to use (owner, 2026-10-16), and a reload enrolls a new key. */}
           <p className="text-xs text-neutral-500">
             Scanning with the iPhone camera adds Shape to the Passwords app instead. That works too: open Passwords, go to Codes,
-            and enter the code shown for Shape. This page makes a new key each time it loads, so after a reload, delete the old
-            Shape entry and scan again.
+            and enter the code shown for Shape. This page makes a new key each time it loads, so after a reload, scan again and
+            replace the old Shape code. In Passwords, remove only the code, not the saved password.
           </p>
           {qr ? (
             <div className="flex flex-col items-start gap-3">
