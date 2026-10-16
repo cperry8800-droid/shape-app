@@ -63,6 +63,24 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # ⚠ PUSH ON ANDROID NEEDS FIREBASE'S CONFIG FILE IN THE NATIVE PROJECT, and it has to be there
+      # BEFORE the web build: vite.config.ts reads whether android/app/google-services.json exists
+      # into __SHAPE_ANDROID_PUSH__, and push.js calls register() only when it does, because the
+      # plugin's register() without Firebase throws and Capacitor turns that into a crash. It is a
+      # repository secret (the file's whole contents), not a committed file, because it carries a
+      # Google API key that the secret scan flags. Unset, the build has no push, as every build had.
+      - name: Firebase config (push)
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+            node -e "JSON.parse(require('fs').readFileSync('android/app/google-services.json', 'utf8'))"
+            echo "google-services.json written: this build registers for push"
+          else
+            echo "No GOOGLE_SERVICES_JSON secret: this build never registers for push"
+          fi
+
       # ⚠ Sentry rides in HERE or not at all. Vite inlines `import.meta.env.*` at
       # BUILD time, so an APK built without these bakes in an empty DSN and can
       # never be switched on later — no redeploy reaches a shipped binary. GitHub
@@ -211,6 +229,20 @@ jobs:
       - name: Install dependencies
         if: steps.secrets.outputs.present == 'true'
         run: npm ci
+
+      # Firebase's config file, before the web build, as in the debug job above.
+      - name: Firebase config (push)
+        if: steps.secrets.outputs.present == 'true'
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+            node -e "JSON.parse(require('fs').readFileSync('android/app/google-services.json', 'utf8'))"
+            echo "google-services.json written: this build registers for push"
+          else
+            echo "No GOOGLE_SERVICES_JSON secret: this build never registers for push"
+          fi
 
       # Same reasoning as the debug job above — this is the SIGNED build that
       # actually ships, so it is the one that must not bake in an empty DSN.

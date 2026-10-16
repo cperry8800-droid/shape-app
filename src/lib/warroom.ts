@@ -160,7 +160,7 @@ const SHAPE_ARCHITECTURE: ShapeArchitecture = {
       { task: 'GPS routes on feed cards — REAL polylines now render when a post carries normalized points (Strava imports do; privacyZonesApplied=true since Strava trims via the athlete\'s privacy zones). TO DO: (1) Garmin route extraction once their API access is approved — Activity Details GPS samples → downsample(80) → normalize, and apply OUR OWN start/end privacy-zone trimming (raw Garmin GPS has none — required before those routes go public); (2) Whoop has NO GPS hardware/API — routes will never come from Whoop, only strain/HR stats (already on cards)', status: 'in-progress', priority: 'P2' },
     ] },
     { layer: 'Platform services', serves: 'All', purpose: 'The cross-cutting spine.', pieces: ['Membership & billing (Stripe $5/mo + coach subs)', 'Notifications → system push', 'Integrations (Whoop/Garmin/Strava/Oura/Spotify/Apple Health)', 'Nora AI support'], gaps: [
-      { task: 'Activate system push — CLOUD PIPELINE LIVE + verified (2026-06-21): FCM_PROJECT_ID/CLIENT_EMAIL/PRIVATE_KEY + PUSH_WEBHOOK_SECRET set in Vercel, and the Supabase DB Webhook (notifications INSERT → POST /api/push/dispatch, header x-push-secret) fires correctly — verified end-to-end with a test notification (webhook → dispatch returned 200, FCM creds recognized). The aps-environment (Push/APNs) entitlement is now committed (App.entitlements, #1484) + a full Mac-side owner checklist (docs/native-ios-build-checklist.md). Remaining (Mac-only): APNs .p8 upload into Firebase (Cloud Messaging → Apple app config) + the native iOS App Store build (GoogleService-Info.plist) so a device can actually receive it', status: 'in-progress', priority: 'P1' },
+      { task: 'Activate system push — CLOUD PIPELINE LIVE + verified (2026-06-21): FCM_PROJECT_ID/CLIENT_EMAIL/PRIVATE_KEY + PUSH_WEBHOOK_SECRET set in Vercel, and the Supabase DB Webhook (notifications INSERT → POST /api/push/dispatch, header x-push-secret) fires correctly — verified end-to-end with a test notification (webhook → dispatch returned 200, FCM creds recognized). The aps-environment (Push/APNs) entitlement is now committed (App.entitlements, #1484) + a full Mac-side owner checklist (docs/native-ios-build-checklist.md). #2385 (2026-10-16) wired the app side: AppDelegate passes the APNs token, iPhones are sent to Apple directly, Android is guarded until its Firebase file exists. Remaining (owner): APNS_KEY_ID/TEAM_ID/PRIVATE_KEY in Vercel, the GOOGLE_SERVICES_JSON repo secret, then a device pass', status: 'in-progress', priority: 'P1' },
       { task: 'User-set reminder notifications — BUILT: members add their own reminders (weigh-in / check-in / water / photo / custom) with time + days in Settings → Notifications (BSReminderManager); user_scheduled_reminders table + /api/client/reminders CRUD; hourly /api/cron/reminders fires due reminders (tz-aware, once/local-day) via the notifications→push spine. Migration APPLIED 2026-06-19 (user-reminders). Desktop-website Settings parity SHIPPED (#1483 — ReminderCard on the client Settings page, same /api/client/reminders CRUD) + a web notification-preferences dashboard (NotificationDashboard, mobile BSNotifyPrefs parity). Remaining sliver: web habit-reminder time/days authoring (web surfaces + toggles habit_reminders; setting the schedule is still mobile-only)', status: 'in-progress', priority: 'P3' },
       { task: 'Apple Pay / Google Pay on checkout — native opens Stripe Checkout in SFSafariViewController for the Apple Pay sheet; needs @capacitor/browser + Apple Pay enabled in Stripe', status: 'in-progress', priority: 'P2' },
       { task: 'Full in-app Stripe PaymentSheet (native Apple Pay / Google Pay sheet, NO browser hop) — wants @capacitor-community/stripe (or Stripe RN/iOS SDK), a PaymentIntent/SetupIntent + customer ephemeral-key endpoint for the $5/mo sub + coach/plan buys, and the native build', status: 'not-started', priority: 'P3' },
@@ -581,6 +581,9 @@ function buildConfig(): ConfigGroup[] {
       { key: 'FCM_PROJECT_ID', label: 'FCM project', present: present(env.FCM_PROJECT_ID) },
       { key: 'FCM_CLIENT_EMAIL', label: 'FCM client email', present: present(env.FCM_CLIENT_EMAIL) },
       { key: 'FCM_PRIVATE_KEY', label: 'FCM private key', present: present(env.FCM_PRIVATE_KEY) },
+      { key: 'APNS_KEY_ID', label: 'APNs key id (iPhone)', present: present(env.APNS_KEY_ID) },
+      { key: 'APNS_TEAM_ID', label: 'APNs team id', present: present(env.APNS_TEAM_ID) },
+      { key: 'APNS_PRIVATE_KEY', label: 'APNs key (.p8)', present: present(env.APNS_PRIVATE_KEY) },
       { key: 'PUSH_WEBHOOK_SECRET', label: 'Push webhook secret', present: present(env.PUSH_WEBHOOK_SECRET) },
     ], false, 'push', 'Push notifications'),
 
@@ -610,6 +613,19 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Push that can reach a phone — #2385. Apple directly for iPhones, Firebase for Android; no migration',
+      items: [
+        { label: 'iOS registers: AppDelegate passes APNs\' device token (or the error) to @capacitor/push-notifications, so the token reaches /api/push/register. No Firebase in the iOS app', status: 'done' },
+        { label: 'iPhone tokens go to Apple directly (src/lib/push.ts): HTTP/2 to api.push.apple.com with an ES256 provider token from the APNS_* keys; BadDeviceToken is retried once on the sandbox; tokens are routed by shape, so an iOS row holding an FCM token still goes to FCM', status: 'done' },
+        { label: 'Only a dead token is pruned: FCM UNREGISTERED, an FCM 400 naming the registration token, APNs 410, or BadDeviceToken on both Apple hosts. Before this, any FCM 400 (a malformed message too) deleted the device', status: 'done' },
+        { label: 'Android never calls register() without google-services.json (the plugin would crash the app): the build bakes __SHAPE_ANDROID_PUSH__, push reads unavailable without it, and android-build.yml writes the file from the GOOGLE_SERVICES_JSON secret in both jobs', status: 'done' },
+        { label: 'Mutation round killed 13 of 13; tests/push-delivery.test.mjs checks the APNs request and verifies its signature against the key\'s public half', status: 'done' },
+        { label: 'OWNER — iPhone: tick Push Notifications on the App ID com.theshapecommunity.app, create an APNs key (.p8), set APNS_KEY_ID, APNS_TEAM_ID and APNS_PRIVATE_KEY in Vercel and redeploy (DEPLOY.md §10)', status: auto(itemPresent('push', 'APNS_KEY_ID') && itemPresent('push', 'APNS_TEAM_ID') && itemPresent('push', 'APNS_PRIVATE_KEY')) },
+        { label: 'OWNER — Android: add the Android app com.theshapecommunity.app to Firebase project shape-84d22 and save its google-services.json as the GitHub secret GOOGLE_SERVICES_JSON', status: 'manual' },
+        { label: 'Device pass: the first TestFlight build after #2385 with the APNs keys set, and an Android build with the secret. No phone has received a push yet; the Swift was not compiled in CI', status: 'manual' },
+      ],
+    },
+    {
       section: 'A member can pay more than one coach of the same role — #2384. One migration, applied and verified live',
       items: [
         { label: 'Every read that kept the earliest subscription per role now names every coach: /api/client/plan (coaching.coaches, a per-workout coach), /api/client/onboarding (coaching.trainers / nutritionists) and the coach board. The website and the app name both coaches ("are preparing your plan"), with a message button per coach in the app and every coach\'s weekly note on Home', status: 'done' },
@@ -637,7 +653,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Routes, all in RAW_ROUTES: /api/me/membership, /api/stripe/platform-return, /api/me/onboarding, /api/coach/to-schedule, /api/coach/capacity, /api/cron/capacity-reopen, /api/clients/[id]/week-one, /api/auth/password-reset, /api/client/onboarding', status: 'done' },
         { label: 'OWNER DECISION — may a member have two coaches of one role? DECIDED 2026-10-16: yes ("members can have multiple coaches if they choose to"), sharing one section per discipline ("shared section is fine"). Built in #2384 (the section above)', status: 'done' },
         { label: 'OWNER DECISION — a buyer who pays an older checkout left open in another tab before the create; closing that gap means refunds', status: 'pending' },
-        { label: 'OWNER — Firebase and APNs for push delivery. Production has no push devices, so no notification reaches a phone yet', status: 'manual' },
+        { label: 'OWNER — Firebase and APNs for push delivery. The app side is built in #2385 (the section above); what is left is the owner\'s APNs keys in Vercel and the GOOGLE_SERVICES_JSON secret', status: 'manual' },
         { label: 'OWNER — Phase 2 (in-app purchase for the membership outside the US) is on hold', status: 'pending' },
         { label: 'The ?error= redirects from /purchase and /subscribe are shown nowhere; a subscription to a coach who is later suspended keeps renewing; checkin_submitted is a notification switch nothing writes', status: 'pending' },
         { label: 'A native speaker reads the PAR-Q translations before launch in each language; week one\'s workouts count by UTC day; the app\'s goal and the website\'s Settings -> Primary goal are separate fields', status: 'pending' },
@@ -1703,11 +1719,11 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       section: 'Notifications',
       items: [
         { label: 'In-app notifications (needs migrations)', status: 'done' },
-        { label: 'System push (FCM keys + webhook secret)', status: auto(pushReady) },
-        { label: 'APNs key uploaded to Firebase (iOS)', status: 'manual' },
+        { label: 'System push (FCM keys + APNs keys + webhook secret)', status: auto(pushReady) },
+        { label: 'APNs key (.p8) in Vercel for iPhones (APNS_KEY_ID / APNS_TEAM_ID / APNS_PRIVATE_KEY; #2385 sends to Apple directly, nothing is uploaded to Firebase)', status: auto(itemPresent('push', 'APNS_KEY_ID') && itemPresent('push', 'APNS_TEAM_ID') && itemPresent('push', 'APNS_PRIVATE_KEY')) },
         { label: 'Device registers its push token at sign-in (registerPush wired into getCurrentSession)', status: 'done' },
         { label: 'Supabase Database Webhook: notifications INSERT → POST /api/push/dispatch (header x-push-secret)', status: 'done' },
-        { label: 'Native build: npm i @capacitor/push-notifications + cap sync + Firebase config (google-services.json / GoogleService-Info.plist) + Push capability', status: 'manual' },
+        { label: 'Native build: Android gets google-services.json from the GOOGLE_SERVICES_JSON secret in android-build.yml (#2385); iOS needs no Firebase file, only the Push capability and the aps-environment entitlement (committed)', status: 'manual' },
         { label: 'User-set reminder notifications — members add weigh-in/check-in/water/photo/custom reminders (time + days) in mobile Settings → Notifications; hourly tz-aware cron fires them via the notifications→push spine. Migration APPLIED (2026-06-19-user-reminders.sql). Desktop-website Settings parity SHIPPED (#1483 — ReminderCard on the client Settings page)', status: 'done' },
         { label: 'Web notification dashboard (#1483) — NotificationDashboard on the client Settings page ports the mobile BSNotifyPrefs: master mute + quiet hours + daily cap + the per-type × per-channel matrix (8 types × App/Push/Email) + habit reminders (enable toggles), wired to the live notification-center tables (notification_settings / notification_preferences / habit_reminders) via the get_notification_center() RPC + RLS-scoped upserts through window.shapeDb.client — the same tables notify-core.ts reads. No new route/migration (tables already live from the 2026-06-17 batch). "Privacy & notifications" card trimmed to "Privacy"', status: 'done' },
       ],
