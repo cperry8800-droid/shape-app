@@ -24,13 +24,14 @@ const COACH = 'coach-1';
 const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
 const NOW = Date.parse('2026-10-15T15:00:00Z');
 
-// A small PostgREST stand-in: filters by eq/in, honours order/limit, and answers count/head reads.
+// A small PostgREST stand-in: filters by eq/in/lte/gt, honours order/limit/range, and answers count/head reads.
 function fakeDb(tables, { as = 'caller', fail = {}, writes = [] } = {}) {
   const from = (table) => {
     const filters = [];
-    let op = 'select'; let payload = null; let opts = null; let count = false; let lim = Infinity; let off = 0;
+    let op = 'select'; let payload = null; let opts = null; let count = false; let lim = Infinity; let off = 0; const sorts = [];
     const rows = () => (tables[table] ||= []);
-    const match = (r) => filters.every(([k, v, kind]) => (kind === 'in' ? v.includes(r[k]) : kind === 'lte' ? (r[k] != null && Date.parse(r[k]) <= Date.parse(v)) : r[k] === v));
+    const match = (r) => filters.every(([k, v, kind]) => (kind === 'in' ? v.includes(r[k]) : kind === 'lte' ? (r[k] != null && Date.parse(r[k]) <= Date.parse(v)) : kind === 'gt' ? (r[k] != null && r[k] > v) : r[k] === v));
+    const cmp = (a, b) => { for (const [k, asc] of sorts) { if (a[k] < b[k]) return asc ? -1 : 1; if (a[k] > b[k]) return asc ? 1 : -1; } return 0; };
     const run = () => {
       const err = fail[`${table}.${op}`] || fail[table];
       if (err) return { data: null, error: err, count: null };
@@ -47,7 +48,7 @@ function fakeDb(tables, { as = 'caller', fail = {}, writes = [] } = {}) {
         hit.forEach((r) => Object.assign(r, payload));
         return { data: hit.map((r) => ({ ...r })), error: null };
       }
-      const got = rows().filter(match).slice(off, off + lim);
+      const got = rows().filter(match).sort(cmp).slice(off, off + lim);
       return { data: count ? null : got.map((r) => ({ ...r })), error: null, count: count ? got.length : null };
     };
     const q = {
@@ -55,7 +56,8 @@ function fakeDb(tables, { as = 'caller', fail = {}, writes = [] } = {}) {
       eq: (k, v) => { filters.push([k, v, 'eq']); return q; },
       in: (k, v) => { filters.push([k, v, 'in']); return q; },
       lte: (k, v) => { filters.push([k, v, 'lte']); return q; },
-      order: () => q,
+      gt: (k, v) => { filters.push([k, v, 'gt']); return q; },
+      order: (k, o) => { sorts.push([k, !o || o.ascending !== false]); return q; },
       limit: (n) => { lim = n; return q; },
       range: (a, b) => { off = a; lim = b - a + 1; return q; },
       upsert: (p, o) => { op = 'upsert'; payload = p; opts = o; return q; },
@@ -384,6 +386,32 @@ test('every waiting member is told, past the first page (Codex on #2375)', async
   const out = await reopen.reopenDueListings(fakeDb(tables, { as: 'service' }), storingNotify(tables, sent), NOW);
   assert.deepEqual(out, { reopened: 1, notified: n, pending: 0, failed: 0 });
   assert.equal(new Set(sent).size, n);
+});
+
+test('a member who leaves while the list is read costs no one else their notice (Codex on #2375)', async () => {
+  const { reopen } = await load();
+  const n = reopen.WAITLIST_PAGE + 5;
+  const tables = world({
+    trainers: [{ id: 7, owner_id: COACH, name: 'Tom', at_capacity: true, capacity_resume_at: '2026-10-15T04:00:00+00:00' }],
+    // Joined newest first by id, so the join order the notices go out in is not the id order read.
+    coach_waitlist: Array.from({ length: n }, (_, i) => ({ id: `w${String(i).padStart(5, '0')}`, provider_role: 'trainer', provider_id: 7, client_id: `m${i}`, status: 'waiting', created_at: new Date(Date.UTC(2026, 9, 1) - i * 60_000).toISOString() })),
+  });
+  const db = fakeDb(tables, { as: 'service' });
+  let reads = 0;
+  // After the first page is read, its first member leaves the list.
+  const admin = { from: (t) => {
+    const q = db.from(t);
+    if (t !== 'coach_waitlist') return q;
+    const then = q.then;
+    q.then = (res, rej) => then((r) => { if (++reads === 1) tables.coach_waitlist[0].status = 'left'; return r; }).then(res, rej);
+    return q;
+  } };
+  const sent = [];
+  const out = await reopen.reopenDueListings(admin, storingNotify(tables, sent), NOW);
+  assert.ok(reads >= 2, 'the list took more than one page');
+  assert.deepEqual(out, { reopened: 1, notified: n, pending: 0, failed: 0 });
+  assert.equal(new Set(sent).size, n, 'everyone read while waiting is told, the member past the first page included');
+  assert.equal(sent[0], `m${n - 1}`, 'the earliest to join is told first');
 });
 
 test('notify: why a preferred notice was not stored (Codex on #2375)', async () => {

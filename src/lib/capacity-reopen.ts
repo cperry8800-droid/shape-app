@@ -68,26 +68,34 @@ export async function tellWaitingList(
   deadlineMs: number = Infinity,
 ): Promise<{ sent: number; complete: boolean }> {
   try {
-    const rows: { client_id: string }[] = [];
-    for (let from = 0; ; from += WAITLIST_PAGE) {
-      const { data, error } = await admin
+    // ⚠ A CURSOR, NOT AN OFFSET (Codex on #2375). The list can shrink while it is read (a member
+    // leaves or is invited), and an offset page then starts past a row nobody read: that member was
+    // skipped and the reopening still marked complete. Each page starts after the last id read,
+    // which no change to earlier rows can move. The rows are then put in join order, so members are
+    // still told first come, first served.
+    type Waiting = { id: string; client_id: string; created_at: string };
+    const rows: Waiting[] = [];
+    let after: string | null = null;
+    for (;;) {
+      let q = admin
         .from('coach_waitlist')
-        .select('client_id')
+        .select('id, client_id, created_at')
         .eq('provider_role', role)
         .eq('provider_id', providerId)
-        .eq('status', 'waiting')
-        // capped-read-ok: a page, not a cap; every page is read, first come first told.
-        .order('created_at', { ascending: true })
-        .order('id', { ascending: true })
-        .range(from, from + WAITLIST_PAGE - 1);
+        .eq('status', 'waiting');
+      if (after) q = q.gt('id', after);
+      // capped-read-ok: one page of a cursor walk over every row, not a cap.
+      const { data, error } = await q.order('id', { ascending: true }).limit(WAITLIST_PAGE);
       if (error) {
         console.error('[coach capacity] waiting list read failed', error.message);
         return { sent: 0, complete: false };
       }
-      const page = (data ?? []) as { client_id: string }[];
+      const page = (data ?? []) as Waiting[];
       rows.push(...page);
       if (page.length < WAITLIST_PAGE) break;
+      after = page[page.length - 1].id;
     }
+    rows.sort((a, b) => (Date.parse(a.created_at) - Date.parse(b.created_at)) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     const dedupe = reopenKey(role, providerId, day);
     // Who an earlier, cut-off run already told. A failed read skips nobody: the dedupe index still
     // refuses a second notice, so the cost is only time.
