@@ -27,8 +27,8 @@ computes it instead.
 | --- | --- |
 | **What is still open** | War Room — `/warroom`, `src/lib/warroom.ts` |
 | **Which migrations exist** | `ls supabase-migrations/*.sql` |
-| **What shipped, when** | `docs/WORKLOG.md` changelog |
-| **Current session state** | `ls docs/HANDOFF-*.md \| sort -r \| head -1` |
+| **What shipped, when** | `git log` and the PR descriptions; before 2026-10-16, `docs/WORKLOG-ARCHIVE-*.md` |
+| **Current rules and open items** | `docs/WORKLOG.md` (handoffs are no longer written) |
 
 ⚠ **Sort handoffs by the DATE IN THE FILENAME, not `ls -t`.** Modification time is
 re-stamped by any checkout, branch switch or edit, so `ls -t` reorders files whose
@@ -401,4 +401,4 @@ rather than pending, and so are worth naming:
 ## Related
 
 `DEPLOY.md` (prose setup) · `docs/native-ios-build-checklist.md` ·
-`docs/WORKLOG.md` (changelog + how-we-work) · `/warroom` (status board)
+`docs/WORKLOG.md` (how we work + open items) · `/warroom` (status board)
