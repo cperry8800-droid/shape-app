@@ -1,8 +1,10 @@
 // In-app notifications feed for the signed-in user.
 //
 // GET  -> { notifications: [...recent], unread }   (latest 50, cleared ones left out)
+//         ?surface=web leaves out the phone-only types (lib/notification-surfaces.mjs).
 // POST -> mark read: { id } for one, or { all: true } for everything.
 //         clear: { clear: true, before } hides every notification up to `before`.
+//         surface: 'web' keeps mark-all and clear to what the website shows.
 //
 // Auth: cookie session OR Bearer token (mobile bridges either). Rows are
 // RLS-scoped to the caller, so we never see anyone else's notifications.
@@ -10,6 +12,7 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson, dbError } from '@/lib/request-utils';
+import { isPhoneOnly, PHONE_ONLY_IN } from '../../../lib/notification-surfaces.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -45,13 +48,16 @@ export async function GET(request: Request) {
   if (error) return NextResponse.json({ error: 'Could not read notifications.' }, { status: 502 });
 
   const rows = (data ?? []) as Row[];
+  const web = new URL(request.url).searchParams.get('surface') === 'web';
   // Honor the preference center's in-app channel: a row written for push/email
   // only (data.channels.inapp === false) never shows in the bell. Rows with no
   // channels metadata predate the preference stamping — default visible. The
   // query over-fetches (200 newest) BEFORE the 50-item cap so a run of hidden
   // push/email-only rows can't starve the feed of older visible ones.
+  // The website leaves out what belongs on the phone only, before the cap for the same reason.
   const visible = rows.filter(r =>
     ((r.data as { channels?: { inapp?: boolean } } | null)?.channels?.inapp) !== false
+    && !(web && isPhoneOnly(r.type))
   ).slice(0, 50);
   const notifications = visible.map(r => ({
     id: r.id,
@@ -76,6 +82,9 @@ export async function POST(request: Request) {
   const supabase = await clientForRequest(request);
 
   const nowIso = new Date().toISOString();
+  // From the website, "Clear all" and "Mark all read" touch only what the website shows: a phone
+  // reminder the member has not seen in the app stays unread and listed there.
+  const web = body.surface === 'web';
   if (body.clear === true) {
     // `before` is the newest notification the member was shown, passed back as the server sent
     // it: one that arrived after they looked stays. It is not re-serialised, because the stored
@@ -83,20 +92,22 @@ export async function POST(request: Request) {
     const before = typeof body.before === 'string' && body.before.length <= 64 && Number.isFinite(Date.parse(body.before))
       ? body.before : null;
     if (!before) return NextResponse.json({ error: 'Missing before.' }, { status: 400 });
-    const { error } = await supabase
+    const q = supabase
       .from('notifications')
       .update({ cleared_at: nowIso })
       .is('cleared_at', null)
       .lte('created_at', before);
+    const { error } = await (web ? q.not('type', 'in', PHONE_ONLY_IN) : q);
     if (noClearColumn(error)) return NextResponse.json({ error: 'Clearing notifications is not available yet.' }, { status: 503 });
     if (error) return dbError(error, 'notifications clear', 500);
     return NextResponse.json({ ok: true });
   }
   if (body.all === true) {
-    const { error } = await supabase
+    const q = supabase
       .from('notifications')
       .update({ read_at: nowIso })
       .is('read_at', null);
+    const { error } = await (web ? q.not('type', 'in', PHONE_ONLY_IN) : q);
     if (error) return dbError(error, 'notifications write', 500);
     return NextResponse.json({ ok: true });
   }

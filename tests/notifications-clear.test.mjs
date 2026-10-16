@@ -158,15 +158,18 @@ async function mountBell(fetchImpl) {
 const json = (body, status = 200) => Promise.resolve({ ok: status >= 200 && status < 300, status, json: async () => body });
 
 test('Clear all asks once, then hides every notification shown, up to the newest one exactly', async () => {
-  const posts = [];
+  const posts = [], reads = [];
   const fetchImpl = (url, init) => {
     if (init && init.method === 'POST') { posts.push(JSON.parse(init.body)); return json({ ok: true }); }
+    reads.push(url);
     return json({ notifications: ROWS, unread: 1 });
   };
   const b = await mountBell(fetchImpl);
   try {
     assert.equal(b.bell().getAttribute('aria-label'), '1 unread notifications');
     await b.click(b.bell());
+    assert.ok(reads.length >= 2 && reads.every((u) => u === '/api/notifications?surface=web'),
+      'the bell reads the full feed, phone-only reminders included: ' + reads.join(', '));
     assert.ok(b.button('Mark all read'));
     await b.click(b.button('Clear all'));
     assert.equal(posts.length, 0, 'Clear all wrote before it was confirmed');
@@ -177,7 +180,7 @@ test('Clear all asks once, then hides every notification shown, up to the newest
 
     await b.click(b.button('Clear all'));
     await b.click(b.button('Yes'));
-    assert.deepEqual(posts, [{ clear: true, before: NEWEST }], 'the bound is the newest row, as the server sent it');
+    assert.deepEqual(posts, [{ clear: true, before: NEWEST, surface: 'web' }], 'the bound is the newest row, as the server sent it');
     assert.ok(b.host.textContent.includes('Nothing new.'));
     assert.ok(!b.host.textContent.includes('Tom replied'));
     assert.equal(b.bell().getAttribute('aria-label'), 'Notifications', 'the badge outlived the clear');
@@ -195,6 +198,24 @@ test('a clear that fails brings the list back and says so', async () => {
     assert.ok(b.host.textContent.includes('Tom replied'), 'the rows were not restored');
     assert.ok(b.host.textContent.includes("Couldn't clear your notifications. Try again."));
     assert.equal(b.bell().getAttribute('aria-label'), '1 unread notifications');
+    // Closed and opened again, the panel reads afresh and the old failure is not shown.
+    await b.click(b.bell());
+    await b.click(b.bell());
+    assert.ok(!b.host.textContent.includes("Couldn't clear"), 'a fresh read still shows the old failure');
+  } finally { await b.done(); }
+});
+
+test("the website's Mark all read leaves phone-only notifications to the app", async () => {
+  const posts = [];
+  const fetchImpl = (url, init) => {
+    if (init && init.method === 'POST') { posts.push(JSON.parse(init.body)); return json({ ok: true }); }
+    return json({ notifications: ROWS, unread: 1 });
+  };
+  const b = await mountBell(fetchImpl);
+  try {
+    await b.click(b.bell());
+    await b.click(b.button('Mark all read'));
+    assert.deepEqual(posts, [{ all: true, surface: 'web' }]);
   } finally { await b.done(); }
 });
 

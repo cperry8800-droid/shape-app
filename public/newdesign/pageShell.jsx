@@ -669,7 +669,10 @@ function useDashInboxFeed(signedIn) {
 
   const load = React.useCallback((keepOnFail) => {
     const gen = ++genRef.current;
-    return fetch("/api/notifications", { credentials: "same-origin", cache: "no-store" })
+    // ⚠ `surface=web`: the server leaves out what belongs on the phone only (the reminders a
+    // member sets, the meal-prep reminder, habit and streak nudges), and keeps mark-all and
+    // clear to what the bell shows.
+    return fetch("/api/notifications?surface=web", { credentials: "same-origin", cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .catch(() => null)
       .then((j) => {
@@ -725,7 +728,7 @@ function useDashInboxFeed(signedIn) {
     setBusy(true);
     fetch("/api/notifications", {
       method: "POST", credentials: "same-origin",
-      headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clear: true, before: newest }),
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clear: true, before: newest, surface: "web" }),
     })
       .then((r) => r.ok)
       .catch(() => false)
@@ -740,7 +743,7 @@ function useDashInboxFeed(signedIn) {
     // again. Not while a mark is in flight: the reload would land on top of the
     // optimistic paint and undo it.
     reload: () => { if (!busy) load(true); },
-    markAll: () => mark({ all: true }, (f) => ({ rows: f.rows.map((r) => ({ ...r, read: true })), unread: 0 })),
+    markAll: () => mark({ all: true, surface: "web" }, (f) => ({ rows: f.rows.map((r) => ({ ...r, read: true })), unread: 0 })),
     // ⚠ `keepalive` FOR A MARK THAT RIDES A NAVIGATION. Outside a shell these links are a
     // real document navigation, and a POST started in the same tick is cancelled on
     // unload — so the row the member had just opened stayed unread and the badge went on
