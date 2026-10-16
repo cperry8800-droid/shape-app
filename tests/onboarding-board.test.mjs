@@ -554,7 +554,7 @@ test('the member app and the website say the coach is preparing the plan, and as
   assert.match(read('public/newdesign/dashProgress.jsx'), /\{dprCheckinRatings\(plans\)\.map\(/);
   // The website's Train builder says so too.
   const train = read('public/newdesign/dashTrain.jsx');
-  assert.match(train, /<DtrBuilder self=\{selfData\} onChanged=\{reloadAll\} coaching=\{plan && plan\.training && !plan\.training\.hasPlan && plan\.training\.coaching \? plan\.training\.coaching : null\} \/>/);
+  assert.match(train, /<DtrBuilder self=\{selfData\} onChanged=\{reloadAll\} coaching=\{dtrCoachingOf\(plan\)\} \/>/);
   assert.match(train, /is preparing your plan\. It shows up here the moment they publish it/);
   const nutri = read('public/newdesign/dashNutri.jsx');
   assert.match(nutri, /\{plan && plan\.meals && plan\.meals\.coaching \? <>[\s\S]{0,400}is preparing your meal plan\./);
@@ -754,4 +754,39 @@ test('the app keeps the first-30-days station up when the board cannot be read (
     await act(async () => root.unmount()); dom.window.close();
     globalThis.window = before.window; globalThis.document = before.document; globalThis.IS_REACT_ACT_ENVIRONMENT = before.act;
   }
+});
+
+test('a coached member with no plan yet sees their coach preparing it, never the demo or a marketplace prompt (Codex on #2378)', () => {
+  // Website Nutrition: the member's nutritionist makes the page live, so the "preparing" state renders.
+  const nutri = read('public/newdesign/dashNutri.jsx');
+  const dnuSourceOf = new Function(slice(nutri, 'function dnuSourceOf(', 'function ClientNutritionPage(') + ';return dnuSourceOf;')();
+  const nothingLogged = { ok: true, today: null };
+  assert.equal(dnuSourceOf({ ok: true, meals: { hasPlan: false, coaching: { name: 'Maya' } } }, nothingLogged), 'live', 'coached, no plan, nothing logged');
+  assert.equal(dnuSourceOf({ ok: true, meals: { hasPlan: false, coaching: null } }, nothingLogged), 'demo', 'no coach, nothing yet: the preview');
+  assert.equal(dnuSourceOf({ ok: true, meals: { hasPlan: true } }, null), 'live');
+  assert.equal(dnuSourceOf(null, { ok: true, today: { kcal: 10 } }), 'live');
+  assert.equal(dnuSourceOf(null, null), 'demo', 'signed out');
+  assert.match(nutri, /setSource\(dnuSourceOf\(pl, nu\)\);/);
+
+  // Website Train: the same rule, and the empty program names the trainer instead of the marketplace.
+  const train = read('public/newdesign/dashTrain.jsx');
+  const t = new Function(slice(train, '// Live or the demo, as Nutrition', 'function ClientWorkoutsPage(') + ';return { dtrSourceOf, dtrCoachingOf };')();
+  assert.equal(t.dtrSourceOf({ ok: true, training: { hasPlan: false, coaching: { name: 'Jordan' } } }, null, null), 'live');
+  assert.equal(t.dtrSourceOf({ ok: true, training: { hasPlan: false, coaching: null } }, null, null), 'demo');
+  assert.equal(t.dtrSourceOf(null, { ok: true }, null), 'live');
+  assert.equal(t.dtrSourceOf(null, null, { ok: true, mine: [{}] }), 'live');
+  assert.deepEqual(t.dtrCoachingOf({ training: { hasPlan: false, coaching: { name: 'Jordan' } } }), { name: 'Jordan' });
+  assert.equal(t.dtrCoachingOf({ training: { hasPlan: true, coaching: { name: 'Jordan' } } }), null, 'once published, the plan speaks');
+  assert.equal(t.dtrCoachingOf(null), null);
+  assert.match(train, /setSource\(dtrSourceOf\(pl, tr, st\)\);/);
+  const program = slice(train, '{ key: "program", title: "The program, by week"', '{weeks.map(');
+  assert.match(program, /\{dtrCoachingOf\(plan\) \? "Your program is on its way" : "No program assigned yet"\}/);
+  assert.match(program, /\{dtrCoachingOf\(plan\)\s+\? \(dtrCoachingOf\(plan\)\.name \|\| "Your trainer"\) \+ " is preparing it\. It lands here, week by week, the moment they publish it\."\s+: "Your trainer assigns the block/);
+  assert.match(train, /<DtrBuilder self=\{selfData\} onChanged=\{reloadAll\} coaching=\{dtrCoachingOf\(plan\)\} \/>/);
+
+  // The app: no "find a coach" bar for a member who pays one, on Train or on Eat.
+  const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  const bars = [...client.matchAll(/<BSFindCoachBar role="(trainer|nutritionist)"/g)].map((m) => client.slice(Math.max(0, m.index - 40), m.index + 40));
+  assert.equal(bars.length, 3);
+  for (const b of bars) assert.match(b, /!trainCoaching && <BSFindCoachBar role="trainer"|!eatCoaching && <BSFindCoachBar role="nutritionist"|: <>\s+<BSFindCoachBar role="trainer"/, b);
 });

@@ -6472,7 +6472,8 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
             <BSFocusLink color={t.INK50} glyph="▷" label={tr('session:train.openSession', { defaultValue: 'Open session' })} onOpen={() => { setOpenSession(true); setSession(true); }} />
           </>
         )}
-        <BSFindCoachBar role="trainer" onOpen={() => goMarket('trainer')} />
+        {/* A member who pays a trainer is not sent to find one (Codex on #2378), as at the page's head. */}
+        {!trainCoaching && <BSFindCoachBar role="trainer" onOpen={() => goMarket('trainer')} />}
       </div>
 
       {/* From Jordan — the trainer's playlists (owner, 2026-10-11: "keep playlists
@@ -14235,7 +14236,8 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
             {cur.coachLine ? (
               <div style={{ margin: `10px ${t.padX}px 0`, padding: '2px 0 2px 12px', borderLeft: '3px solid #a07a2e', fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, lineHeight: 1.45, color: t.INK70 }}>&ldquo;{cur.coachLine}&rdquo;</div>
             ) : null}
-            <BSFindCoachBar role="nutritionist" onOpen={() => goMarket('nutritionist')} />
+            {/* A member who pays a nutritionist is not sent to find one (Codex on #2378). */}
+            {!eatCoaching && <BSFindCoachBar role="nutritionist" onOpen={() => goMarket('nutritionist')} />}
           </div>
         );
       })()}

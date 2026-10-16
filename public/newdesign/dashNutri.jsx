@@ -181,6 +181,14 @@ function DnuLogHistory({ week, currentStreak, longestStreak, loggedDays7 }) {
 }
 
 // ── The page ────────────────────────────────────────────────────────────────
+// Live or the demo: a published plan, a nutrition read with a day in it, or a nutritionist the
+// member pays. ⚠ A COACHED MEMBER WITH NO PLAN AND NOTHING LOGGED READ THE DEMO MENU (Codex on
+// #2378): /api/client/nutrition answers today: null for them, so the "preparing your meal plan"
+// state never rendered.
+function dnuSourceOf(pl, nu) {
+  return (pl && pl.ok && pl.meals && (pl.meals.hasPlan || pl.meals.coaching)) || (nu && nu.ok && nu.today) ? "live" : "demo";
+}
+
 function ClientNutritionPage() {
   const [plan, setPlan] = React.useState(null);
   const [nutri, setNutri] = React.useState(null);
@@ -195,7 +203,7 @@ function ClientNutritionPage() {
       if (!on) return;
       if (pl && pl.ok) setPlan(pl);
       if (nu && nu.ok) setNutri(nu);
-      setSource((pl && pl.ok && pl.meals && pl.meals.hasPlan) || (nu && nu.ok && nu.today) ? "live" : "demo");
+      setSource(dnuSourceOf(pl, nu));
     })();
     return () => { on = false; };
   }, []);

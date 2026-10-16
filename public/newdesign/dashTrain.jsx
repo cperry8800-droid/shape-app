@@ -652,6 +652,16 @@ function DtrBuilder({ self, onChanged, coaching }) {
 }
 
 // ── The page ────────────────────────────────────────────────────────────────
+// Live or the demo, as Nutrition decides it: a published plan, a training read, the member's own
+// builds, or a trainer the member pays (Codex on #2378).
+function dtrSourceOf(pl, tr, st) {
+  return (pl && pl.ok && pl.training && (pl.training.hasPlan || pl.training.coaching)) || (tr && tr.ok) || (st && st.ok && Array.isArray(st.mine) && st.mine.length > 0) ? "live" : "demo";
+}
+// The trainer preparing a coached member's first plan, while none is published (M16).
+function dtrCoachingOf(plan) {
+  return plan && plan.training && !plan.training.hasPlan && plan.training.coaching ? plan.training.coaching : null;
+}
+
 function ClientWorkoutsPage() {
   const [plan, setPlan] = React.useState(null);
   const [train, setTrain] = React.useState(null);
@@ -674,7 +684,7 @@ function ClientWorkoutsPage() {
       if (db && db.kpis) setDash(db);
       if (pg && pg.ok) setPrs(pg.prs || []);
       if (st && st.ok) setSelfData(st);
-      setSource((pl && pl.ok && pl.training && pl.training.hasPlan) || (tr && tr.ok) || (st && st.ok && Array.isArray(st.mine) && st.mine.length > 0) ? "live" : "demo");
+      setSource(dtrSourceOf(pl, tr, st));
     })();
     return () => { on = false; };
   }, [reloadTick]);
@@ -770,9 +780,13 @@ function ClientWorkoutsPage() {
       <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
         {weeks.length === 0 && anytime.length === 0 && (
           <div className="dash-plate dash-plate--tick" style={{ "--dac": DTR_RUST, paddingLeft: 24 }}>
-            <div className="dash-eyebrow" style={{ color: DTR_RUST }}>No program assigned yet</div>
+            {/* ⚠ A COACHED MEMBER WAS SENT TO THE MARKETPLACE HERE (Codex on #2378): the builder below
+                named their trainer while this said to browse for one. */}
+            <div className="dash-eyebrow" style={{ color: DTR_RUST }}>{dtrCoachingOf(plan) ? "Your program is on its way" : "No program assigned yet"}</div>
             <div style={{ fontSize: 13, color: DTR_INK50, lineHeight: 1.55, marginTop: 8, maxWidth: 480 }}>
-              Your trainer assigns the block and it lands here, week by week — ask in chat, or browse the marketplace for a coach.
+              {dtrCoachingOf(plan)
+                ? (dtrCoachingOf(plan).name || "Your trainer") + " is preparing it. It lands here, week by week, the moment they publish it."
+                : "Your trainer assigns the block and it lands here, week by week — ask in chat, or browse the marketplace for a coach."}
             </div>
           </div>
         )}
@@ -821,7 +835,7 @@ function ClientWorkoutsPage() {
     // Self-serve builder — renders only for an authenticated member (the GET
     // 401s signed-out); coach-assigned weeks above always win the page lead.
     { key: "builder", title: "Build your week", size: "full", empty: !(selfData && selfData.ok), render: () => (
-      <DtrBuilder self={selfData} onChanged={reloadAll} coaching={plan && plan.training && !plan.training.hasPlan && plan.training.coaching ? plan.training.coaching : null} />
+      <DtrBuilder self={selfData} onChanged={reloadAll} coaching={dtrCoachingOf(plan)} />
     ) },
 
     { key: "consistency", title: "Consistency", size: "half", render: () => (
