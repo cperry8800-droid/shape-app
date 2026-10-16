@@ -98,11 +98,14 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
   // cross-provider clause. Verified against production by impersonation (real owner 1 row, a
   // different coach 0, control 21 both). The counterpart half now comes from a projecting definer
   // -- see 2026-08-10-shared-clients-roster.sql for why a definer and not a new RLS policy.
-  const { data: subs } = await supabase
+  const { data: subs, error: subsError } = await supabase
     .from('subscriptions')
     .select('provider_role, provider_id, status, current_period_end, created_at')
     .eq('client_id', clientId)
     .in('status', ['active', 'trialing']);
+  // Without these rows no join date is known, so no onboarding board is built; the coach's roster,
+  // which read the same subscription, shows the client as unread rather than settled.
+  if (subsError) console.error('[shared-overview] subscriptions read failed:', subsError.message);
 
   const trainerIds = (subs ?? []).filter(s => s.provider_role === 'trainer').map(s => s.provider_id);
   const nutriIds = (subs ?? []).filter(s => s.provider_role === 'nutritionist').map(s => s.provider_id);

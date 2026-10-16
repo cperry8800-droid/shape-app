@@ -528,8 +528,12 @@ test('Fable 3: a new client whose overview did not arrive stays on the board, as
     { profile: { id: 'settled', name: 'Kim', joinedAt: day(45) }, onboarding: null, progressRead: { state: 'unavailable' } },
     { profile: { id: 'ready', name: 'Rae', joinedAt: day(40) }, onboarding: null, progressRead: { state: 'ready' } },
     { profile: { id: 'booked', name: 'Bo' }, onboarding: null, progressRead: { state: 'unavailable' } },
+    // Codex on #2378: the overview arrived (ready) without this coach's board, its subscriptions
+    // read having failed; the roster says day 6, so the client stays, unread.
+    { profile: { id: 'partial', name: 'Pat Moss', joinedAt: day(5) }, progressRead: { state: 'ready' } },
+    { profile: { id: 'other-role', name: 'Oz Ng', joinedAt: day(7) }, onboarding: { nutritionist: { day: 8, steps: [] } }, progressRead: { state: 'ready' } },
   ];
-  assert.deepEqual(api.dashOnboardingRows(clients, 'trainer').map((c) => [c.profile.id, c.unread]), [['failed', 'unavailable'], ['waiting', 'loading']]);
+  assert.deepEqual(api.dashOnboardingRows(clients, 'trainer').map((c) => [c.profile.id, c.unread]), [['failed', 'unavailable'], ['partial', 'unavailable'], ['other-role', 'unavailable'], ['waiting', 'loading']]);
   const root = createRoot(document.getElementById('root'));
   try {
     await act(async () => root.render(React.createElement(api.DashOnboardingPanel, { clients, role: 'trainer', live: true })));

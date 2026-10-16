@@ -1446,11 +1446,15 @@ function dashOnboardingRows(clients, role) {
     if (!c || !c.profile || !c.profile.id) continue;
     const ob = c.onboarding && c.onboarding[key];
     if (ob && Array.isArray(ob.steps)) { rows.push({ c, day: ob.day }); continue; }
+    // ⚠ AN OVERVIEW THAT ARRIVED WITHOUT THIS BOARD IS NOT PROOF OF "NOT NEW" (Codex on #2378). The
+    // overview leaves the board out when its own subscriptions read fails, and the page then reads
+    // as ready. The roster's join date is the same subscription's, so inside 30 days the missing
+    // board is a read the overview could not make: the row stays, unread.
     const read = c.progressRead && c.progressRead.state;
     const joined = c.profile.joinedAt ? Date.parse(c.profile.joinedAt) : NaN;
-    if (c.onboarding || (read !== "loading" && read !== "unavailable") || !Number.isFinite(joined) || joined > now) continue;
+    if (!Number.isFinite(joined) || joined > now) continue;
     const day = Math.floor((now - joined) / 86400000) + 1;
-    if (day <= 30) rows.push({ c: { ...c, unread: read }, day });
+    if (day <= 30) rows.push({ c: { ...c, unread: read === "loading" ? "loading" : "unavailable" }, day });
   }
   return rows.sort((a, b) => a.day - b.day).map((r) => r.c);
 }
