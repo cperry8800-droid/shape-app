@@ -60,5 +60,21 @@
   "coachPrep.setBy": "do {name} đặt",
   "coachPrep.message": "Nhắn cho huấn luyện viên",
   "coachPrep.messageName": "Nhắn cho {name}",
-  "coachPrep.meanwhile": "Ghi một buổi tập trong lúc chờ"
+  "coachPrep.meanwhile": "Ghi một buổi tập trong lúc chờ",
+  "notifications.eyebrow": "Mục · Hoạt động",
+  "notifications.kicker": "Thông báo",
+  "notifications.titleTop": "Cập nhật",
+  "notifications.titleBottom": "của bạn.",
+  "notifications.markAll": "Đánh dấu tất cả đã đọc",
+  "notifications.clearAll": "Xóa tất cả",
+  "notifications.clearConfirm": "Xóa tất cả?",
+  "notifications.clearYes": "Có",
+  "notifications.clearCancel": "Hủy",
+  "notifications.clearFailed": "Không thể xóa thông báo của bạn. Hãy thử lại.",
+  "notifications.loading": "Đang tải…",
+  "notifications.emptyTitle": "Bạn đã xem hết.",
+  "notifications.emptyBody": "Yêu cầu đặt lịch, xác nhận và các cập nhật khác sẽ hiện ở đây.",
+  "notifications.open": "Mở →",
+  "notifications.now": "vừa xong",
+  "notifications.footer": "Hoạt động"
 }

@@ -60,5 +60,21 @@
   "coachPrep.setBy": "fijado por {name}",
   "coachPrep.message": "Escribe a tu coach",
   "coachPrep.messageName": "Escribe a {name}",
-  "coachPrep.meanwhile": "Registra una sesión mientras tanto"
+  "coachPrep.meanwhile": "Registra una sesión mientras tanto",
+  "notifications.eyebrow": "Sección · Actividad",
+  "notifications.kicker": "Notificaciones",
+  "notifications.titleTop": "Tus",
+  "notifications.titleBottom": "novedades.",
+  "notifications.markAll": "Marcar todo como leído",
+  "notifications.clearAll": "Borrar todo",
+  "notifications.clearConfirm": "¿Borrar todo?",
+  "notifications.clearYes": "Sí",
+  "notifications.clearCancel": "Cancelar",
+  "notifications.clearFailed": "No se pudieron borrar tus notificaciones. Inténtalo de nuevo.",
+  "notifications.loading": "Cargando…",
+  "notifications.emptyTitle": "Estás al día.",
+  "notifications.emptyBody": "Aquí aparecerán las solicitudes de reserva, las confirmaciones y otras novedades.",
+  "notifications.open": "Abrir →",
+  "notifications.now": "ahora",
+  "notifications.footer": "Actividad"
 }

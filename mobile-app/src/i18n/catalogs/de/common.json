@@ -60,5 +60,21 @@
   "coachPrep.setBy": "festgelegt von {name}",
   "coachPrep.message": "Schreib deinem Coach",
   "coachPrep.messageName": "Schreib {name}",
-  "coachPrep.meanwhile": "Bis dahin eine Einheit loggen"
+  "coachPrep.meanwhile": "Bis dahin eine Einheit loggen",
+  "notifications.eyebrow": "Rubrik · Aktivität",
+  "notifications.kicker": "Benachrichtigungen",
+  "notifications.titleTop": "Deine",
+  "notifications.titleBottom": "Neuigkeiten.",
+  "notifications.markAll": "Alle als gelesen markieren",
+  "notifications.clearAll": "Alle entfernen",
+  "notifications.clearConfirm": "Alle entfernen?",
+  "notifications.clearYes": "Ja",
+  "notifications.clearCancel": "Abbrechen",
+  "notifications.clearFailed": "Deine Benachrichtigungen konnten nicht entfernt werden. Versuch es noch einmal.",
+  "notifications.loading": "Wird geladen…",
+  "notifications.emptyTitle": "Du bist auf dem neuesten Stand.",
+  "notifications.emptyBody": "Buchungsanfragen, Bestätigungen und andere Neuigkeiten erscheinen hier.",
+  "notifications.open": "Öffnen →",
+  "notifications.now": "jetzt",
+  "notifications.footer": "Aktivität"
 }

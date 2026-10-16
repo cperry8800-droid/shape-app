@@ -60,5 +60,21 @@
   "coachPrep.setBy": "ditetapkan oleh {name}",
   "coachPrep.message": "Kirim pesan ke pelatihmu",
   "coachPrep.messageName": "Kirim pesan ke {name}",
-  "coachPrep.meanwhile": "Catat sesi sambil menunggu"
+  "coachPrep.meanwhile": "Catat sesi sambil menunggu",
+  "notifications.eyebrow": "Bagian · Aktivitas",
+  "notifications.kicker": "Notifikasi",
+  "notifications.titleTop": "Kabar",
+  "notifications.titleBottom": "terbaru Anda.",
+  "notifications.markAll": "Tandai semua sudah dibaca",
+  "notifications.clearAll": "Hapus semua",
+  "notifications.clearConfirm": "Hapus semua?",
+  "notifications.clearYes": "Ya",
+  "notifications.clearCancel": "Batal",
+  "notifications.clearFailed": "Notifikasi Anda tidak dapat dihapus. Coba lagi.",
+  "notifications.loading": "Memuat…",
+  "notifications.emptyTitle": "Semua sudah Anda lihat.",
+  "notifications.emptyBody": "Permintaan booking, konfirmasi, dan kabar lainnya akan muncul di sini.",
+  "notifications.open": "Buka →",
+  "notifications.now": "baru saja",
+  "notifications.footer": "Aktivitas"
 }

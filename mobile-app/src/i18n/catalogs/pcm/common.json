@@ -60,5 +60,21 @@
   "coachPrep.setBy": "{name} set am",
   "coachPrep.message": "Message your coach",
   "coachPrep.messageName": "Message {name}",
-  "coachPrep.meanwhile": "Log one session for now"
+  "coachPrep.meanwhile": "Log one session for now",
+  "notifications.eyebrow": "Section · Activity",
+  "notifications.kicker": "Notifications",
+  "notifications.titleTop": "Your",
+  "notifications.titleBottom": "updates.",
+  "notifications.markAll": "Mark all as read",
+  "notifications.clearAll": "Clear all",
+  "notifications.clearConfirm": "Clear all?",
+  "notifications.clearYes": "Yes",
+  "notifications.clearCancel": "Cancel",
+  "notifications.clearFailed": "We no fit clear your notifications. Try again.",
+  "notifications.loading": "E dey load…",
+  "notifications.emptyTitle": "You don see everything.",
+  "notifications.emptyBody": "Booking requests, confirmations and other updates go show here.",
+  "notifications.open": "Open →",
+  "notifications.now": "now now",
+  "notifications.footer": "Activity"
 }
