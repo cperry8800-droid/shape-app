@@ -978,6 +978,14 @@ function ReminderCard({ signedIn }) {
 // stores only OVERRIDES; a missing (type,channel) row uses NP_DEF_CH.
 const NP_HOURS = Array.from({ length: 24 }, (_, h) => ({ v: h, l: (h === 0 ? "12 AM" : h < 12 ? h + " AM" : h === 12 ? "12 PM" : (h - 12) + " PM") }));
 const NP_DEF_CH = { inapp: true, push: true, email: false };
+// ⚠ EMAIL IS OFFERED ONLY FOR THESE (owner, 2026-10-16); every other row has no Email switch at
+// all, and the server never emails it. A copy of public/newdesign/notificationSurfaces.mjs
+// (EMAIL_TYPES, EMAIL_ON_BY_DEFAULT), held to it by tests/notification-email.test.mjs, because this
+// page is not a module.
+const NP_EMAIL_TYPES = ["coach_message", "waitlist_invite", "tier_up"];
+// A tier-up's email starts on.
+const NP_EMAIL_ON = ["tier_up"];
+const npDefault = (type, ch) => (ch === "email" ? NP_EMAIL_ON.includes(type) : NP_DEF_CH[ch]);
 const NP_CHANNELS = [["inapp", "App"], ["push", "Push"], ["email", "Email"]];
 const NP_CAPS = [2, 3, 4, 6, 8];
 const NP_TYPES = [
@@ -986,6 +994,7 @@ const NP_TYPES = [
   ["checkin_due", "Check-in reminders", "Your weekly check-in is ready"],
   ["goal_slip", "Goal pace", "When your projected date slips"],
   ["score_drop", "Score dips", "When your Shape Score drops"],
+  ["tier_up", "Tier ups", "When you reach a new Shape Score tier"],
   ["coach_cosign", "Co-signs", "When a coach co-signs your work"],
   ["streak_broken", "Streak restarts", "A gentle nudge — never shaming"],
   ["waitlist_invite", "Waitlist invites", "When a coach has room for you"],
@@ -1037,7 +1046,7 @@ function NotificationDashboard({ signedIn }) {
     const c = cli(); if (!uid || !c) return;
     onWrite(c.from("notification_settings").upsert({ user_id: uid, tz: tz(), updated_at: new Date().toISOString(), ...patch }, { onConflict: "user_id" }));
   };
-  const chOn = (type, ch) => { const o = state && state.matrix[type]; return (o && o[ch] !== undefined) ? o[ch] : NP_DEF_CH[ch]; };
+  const chOn = (type, ch) => { const o = state && state.matrix[type]; return (o && o[ch] !== undefined) ? o[ch] : npDefault(type, ch); };
   const toggleCh = (type, ch) => {
     const next = !chOn(type, ch);
     setState(st => (st ? { ...st, matrix: { ...st.matrix, [type]: { ...(st.matrix[type] || {}), [ch]: next } } } : st));
@@ -1045,7 +1054,7 @@ function NotificationDashboard({ signedIn }) {
     // notification_preferences is override-only (a missing row means "use the default"). When a
     // channel returns to its default, DELETE the override rather than freezing today's default
     // value into the user's data.
-    if (next === NP_DEF_CH[ch]) {
+    if (next === npDefault(type, ch)) {
       onWrite(c.from("notification_preferences").delete().eq("user_id", uid).eq("type", type).eq("channel", ch));
     } else {
       onWrite(c.from("notification_preferences").upsert({ user_id: uid, type, channel: ch, enabled: next, updated_at: new Date().toISOString() }, { onConflict: "user_id,type,channel" }));
@@ -1124,7 +1133,9 @@ function NotificationDashboard({ signedIn }) {
                     <div style={{ fontSize: 11.5, color: "var(--sh-ink2, #a09b94)", marginTop: 1 }}>{sub}</div>
                   </div>
                   <div style={{ display: "flex", gap: 6 }}>
-                    {NP_CHANNELS.map(([k, l]) => <button key={k} type="button" onClick={() => toggleCh(type, k)} aria-label={label + " · " + l + " · " + (chOn(type, k) ? "on" : "off")} style={chip(chOn(type, k))}>{l}</button>)}
+                    {NP_CHANNELS.map(([k, l]) => (k === "email" && !NP_EMAIL_TYPES.includes(type)
+                      ? <span key={k} aria-hidden="true" style={{ width: 52 }} />
+                      : <button key={k} type="button" onClick={() => toggleCh(type, k)} aria-label={label + " · " + l + " · " + (chOn(type, k) ? "on" : "off")} style={chip(chOn(type, k))}>{l}</button>))}
                   </div>
                 </div>
               ))}

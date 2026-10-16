@@ -4,7 +4,8 @@
 // (a directive, evaluateClient flags, getTriageFeed rows) and this decides what
 // is worth sending, to whom, how, and — critically — what NOT to send.
 //
-// Pure & dependency-light (only ./tone.mjs) so node:test runs the exact logic
+// Pure & dependency-light (./tone.mjs, and the shared notificationSurfaces.mjs list of what may be
+// emailed) so node:test runs the exact logic
 // the /api/ai/notify route runs. The route supplies real records + persists the
 // returned `nextState`; delivery is the existing notifications table (+ push
 // webhook) — this layer never writes data and never mutates the user's record.
@@ -19,6 +20,7 @@
 //   • ROLE-SCOPED — client items address the client; coach items the coach.
 
 import { normalizeTone, containsShaming } from './tone.mjs';
+import { isEmailType, emailOnByDefault } from '../../../public/newdesign/notificationSurfaces.mjs';
 
 // type → { audience, priority, route, defaultOn }. Route is the in-app
 // deep-link the bell/push opens.
@@ -43,16 +45,20 @@ export const CHANNELS = ['inapp', 'push', 'email'];
 // push on, email off everywhere by default. The per-habit reminder itself is the
 // opt-in (no reminders exist until the user makes one), so the TYPE gate is on so
 // an enabled reminder actually delivers.
-function defaultChannels() { return { inapp: true, push: true, email: false }; }
+// A tier-up is the one type whose email starts on (notificationSurfaces.mjs).
+function defaultChannels(type) { return { inapp: true, push: true, email: emailOnByDefault(type) }; }
 // Per-type × per-channel resolution: the stored override (prefs.matrix[type])
 // wins over the default; a type is OFF entirely when no channel is on.
+// ⚠ EMAIL ONLY WHERE IT IS OFFERED (owner, 2026-10-16). Every other type has no Email switch, and
+// an Email setting saved for it before the switch was taken away never sends.
 export function channelsForType(prefs, type) {
-  const base = defaultChannels();
+  const base = defaultChannels(type);
   const o = prefs && prefs.matrix && prefs.matrix[type];
-  if (o && typeof o === 'object') {
-    return { inapp: o.inapp !== undefined ? !!o.inapp : base.inapp, push: o.push !== undefined ? !!o.push : base.push, email: o.email !== undefined ? !!o.email : base.email };
-  }
-  return base;
+  const ch = o && typeof o === 'object'
+    ? { inapp: o.inapp !== undefined ? !!o.inapp : base.inapp, push: o.push !== undefined ? !!o.push : base.push, email: o.email !== undefined ? !!o.email : base.email }
+    : base;
+  if (!isEmailType(type)) ch.email = false;
+  return ch;
 }
 function anyChannelOn(ch) { return !!(ch.inapp || ch.push || ch.email); }
 

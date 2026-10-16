@@ -10,24 +10,30 @@
 //
 // Auth is the shared secret (the webhook isn't a logged-in user). Sends via FCM
 // using the service-role admin client to read the recipient's tokens.
+//
+// It also emails the rows a database trigger writes (a coach's message, a tier-up), for the few
+// types email is offered for: see emailDecision.
 
 import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendPushToUser, pushConfigured } from '@/lib/push';
-import { inQuietHours } from '@/lib/ai/notifications.mjs';
+import { sendEmail } from '@/lib/email';
+import { inQuietHours, channelsForType } from '@/lib/ai/notifications.mjs';
 import { canonicalRoute } from '../../../../../public/newdesign/notificationRoutes.mjs';
+import { isEmailType } from '../../../../../public/newdesign/notificationSurfaces.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 type NotificationRecord = {
+  id?: string;
   user_id?: string;
   title?: string;
   body?: string;
   route?: string | null;
   type?: string;
-  data?: Record<string, unknown> & { channels?: { push?: boolean } } | null;
+  data?: Record<string, unknown> & { channels?: { push?: boolean; email?: boolean } } | null;
 };
 
 // The route a push carries: the notification's own, with what the app needs to open it (a thread, a
@@ -87,6 +93,64 @@ export async function pushAllowed(
   return { ok: true };
 }
 
+// ⚠ EMAIL FOR A ROW A DATABASE TRIGGER WROTE (owner, 2026-10-16: email for coach messages,
+// waitlist invites and tier-ups only). The writers that read the preference center (notify.ts and
+// the AI layer) email for themselves and stamp data.channels.email; a trigger row (a coach's chat
+// message, a tier-up from award_tier_bonuses) carries no stamp, so it is emailed here. Only for a
+// type email is offered for, with that switch on (a tier-up's starts on), not muted, outside quiet
+// hours, and once per type per hour, as notify.ts: a coach's burst of messages is one email.
+// Anything unreadable sends nothing.
+export async function emailDecision(
+  admin: ReturnType<typeof createAdminClient>,
+  record: NotificationRecord,
+  prefType: string,
+  now: Date = new Date(),
+): Promise<{ send: true } | { send: false; why: string }> {
+  if (!isEmailType(prefType)) return { send: false, why: 'not_offered' };
+  if (record.data?.channels && typeof record.data.channels.email === 'boolean') return { send: false, why: 'writer_decided' };
+  if (!record.user_id || !record.id || !record.type) return { send: false, why: 'no_record' };
+  const [settingsRes, prefsRes] = await Promise.all([
+    admin.from('notification_settings').select('muted, quiet_start, quiet_end, tz').eq('user_id', record.user_id).maybeSingle(),
+    admin.from('notification_preferences').select('channel, enabled').eq('user_id', record.user_id).eq('type', prefType),
+  ]);
+  if (settingsRes.error || prefsRes.error) return { send: false, why: 'preferences_unreadable' };
+  const settings = settingsRes.data as { muted?: boolean; quiet_start?: number; quiet_end?: number; tz?: string } | null;
+  if (settings?.muted === true) return { send: false, why: 'muted' };
+  const overrides: Record<string, boolean> = {};
+  for (const r of (prefsRes.data ?? []) as { channel: string; enabled: boolean }[]) overrides[r.channel] = r.enabled;
+  if (!channelsForType({ matrix: { [prefType]: overrides } }, prefType).email) return { send: false, why: 'email_off' };
+  if (settings && inQuietHours(now, { quietStart: settings.quiet_start, quietEnd: settings.quiet_end, tz: settings.tz })) {
+    return { send: false, why: 'quiet_hours' };
+  }
+  let earlier = admin.from('notifications').select('id', { count: 'exact', head: true })
+    .eq('user_id', record.user_id).eq('type', record.type)
+    .gte('created_at', new Date(now.getTime() - 60 * 60 * 1000).toISOString())
+    .neq('id', record.id);
+  if (record.type === 'message') earlier = earlier.eq('data->>side', 'client');
+  const { count, error } = await earlier;
+  if (error || (count ?? 1) > 0) return { send: false, why: error ? 'cooldown_unreadable' : 'cooldown' };
+  return { send: true };
+}
+
+const htmlEscape = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+
+async function emailRow(admin: ReturnType<typeof createAdminClient>, record: NotificationRecord): Promise<void> {
+  const { data } = await admin.auth.admin.getUserById(record.user_id as string);
+  const to = data?.user?.email;
+  if (!to) return;
+  const site = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://theshapecommunity.com').replace(/\/+$/, '');
+  const title = String(record.title ?? '');
+  const body = String(record.body ?? '');
+  await sendEmail({
+    to,
+    subject: title,
+    text: `${body ? body + '\n\n' : ''}Open Shape: ${site}\n\nChange which emails you get in Settings → Notifications.`,
+    html: `<div style="font-family:system-ui,sans-serif;max-width:480px"><h2 style="margin:0 0 8px">${htmlEscape(title)}</h2>`
+      + (body ? `<p style="font-size:14px;line-height:1.5;white-space:pre-line">${htmlEscape(body)}</p>` : '')
+      + `<p><a href="${site}">Open Shape</a></p><p style="font-size:12px;color:#888">Change which emails you get in Settings → Notifications.</p></div>`,
+  });
+}
+
 // L7 (2026-10-08 review): the same constant-time comparison the cron routes use, so the
 // secret cannot be recovered a byte at a time from response timing.
 function secretMatches(given: string | null, expected: string): boolean {
@@ -101,15 +165,26 @@ export async function POST(request: Request) {
   if (!secret || !secretMatches(request.headers.get('x-push-secret'), secret)) {
     return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
   }
-  if (!pushConfigured()) {
-    // No FCM creds yet — accept the webhook so Supabase doesn't retry-storm.
-    return NextResponse.json({ ok: true, skipped: 'fcm_not_configured' });
-  }
-
   const payload = await request.json().catch(() => ({}));
   const record = (payload?.record ?? payload?.new ?? {}) as NotificationRecord;
   if (!record.user_id || !record.title) {
     return NextResponse.json({ ok: true, skipped: 'no_record' });
+  }
+  // Email first, and whether or not push is set up: it does not wait on Apple or Firebase.
+  const emailType = preferenceTypeFor(record.type ?? 'general', record.data ?? null);
+  if (isEmailType(emailType)) {
+    try {
+      const admin = createAdminClient();
+      const mail = await emailDecision(admin, record, emailType);
+      if (mail.send) await emailRow(admin, record);
+      else if (mail.why === 'preferences_unreadable' || mail.why === 'cooldown_unreadable') console.error('[push] could not read what an email needs; not emailing:', record.type);
+    } catch (err) {
+      console.error('[push] email failed:', err instanceof Error ? err.message : err);
+    }
+  }
+  if (!pushConfigured()) {
+    // No FCM creds yet — accept the webhook so Supabase doesn't retry-storm.
+    return NextResponse.json({ ok: true, skipped: 'fcm_not_configured' });
   }
   // Honor the notification preference center: a notification can be in-app-only
   // (push channel turned off for its type). Default ON when unspecified.

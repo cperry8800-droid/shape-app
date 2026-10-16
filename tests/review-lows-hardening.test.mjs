@@ -386,6 +386,7 @@ test('L7: the push webhook\'s secret is compared in constant time, and a wrong l
       ['next/server', nextServer],
       ['@/lib/supabase/admin', { createAdminClient: () => recorder().client }],
       ['@/lib/push', { pushConfigured: () => false, sendPushToUser: async () => ({ sent: 0 }) }],
+      ['@/lib/email', { sendEmail: async () => ({ ok: true }) }],
       ['@/lib/ai/notifications.mjs', await import('../src/lib/ai/notifications.mjs')],
     ]),
   });

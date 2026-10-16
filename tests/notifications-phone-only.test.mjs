@@ -10,7 +10,7 @@ import { join, dirname } from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { loadRealModule } from './helpers/load-real-module.mjs';
-import { PHONE_ONLY_TYPES, PHONE_ONLY_IN, isPhoneOnly } from '../src/lib/notification-surfaces.mjs';
+import { PHONE_ONLY_TYPES, PHONE_ONLY_IN, isPhoneOnly } from '../public/newdesign/notificationSurfaces.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const nextServer = createRequire(join(ROOT, 'package.json'))('next/server');

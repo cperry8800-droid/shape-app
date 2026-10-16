@@ -1,7 +1,7 @@
 // In-app notifications feed for the signed-in user.
 //
 // GET  -> { notifications: [...recent], unread }   (latest 50, cleared ones left out)
-//         ?surface=web leaves out the phone-only types (lib/notification-surfaces.mjs).
+//         ?surface=web leaves out the phone-only types (public/newdesign/notificationSurfaces.mjs).
 // POST -> mark read: { id } for one, or { all: true } for everything.
 //         clear: { clear: true, before } hides every notification up to `before`.
 //         surface: 'web' keeps mark-all and clear to what the website shows.
@@ -12,7 +12,7 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson, dbError } from '@/lib/request-utils';
-import { PHONE_ONLY_IN } from '../../../lib/notification-surfaces.mjs';
+import { PHONE_ONLY_IN } from '../../../../public/newdesign/notificationSurfaces.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';

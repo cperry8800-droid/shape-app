@@ -351,6 +351,7 @@ test('a push answers the recipient\'s preferences, whichever way the row was wri
       ['next/server', nextServer],
       ['@/lib/supabase/admin', { createAdminClient: () => st.admin }],
       ['@/lib/push', { pushConfigured: () => true, sendPushToUser: async (_a, userId, p) => { st.sent.push({ userId, ...p }); } }],
+      ['@/lib/email', { sendEmail: async () => ({ ok: true }) }],
       ['@/lib/ai/notifications.mjs', NOTIFY],
     ]),
   });

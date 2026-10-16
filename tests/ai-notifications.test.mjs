@@ -118,8 +118,22 @@ test('push off but in-app on → still sends, channels reflect the choice', () =
 });
 
 test('email is opt-in: off by default, on when chosen', () => {
-  assert.deepEqual(channelsForType({}, 'directive'), { inapp: true, push: true, email: false });
-  assert.deepEqual(channelsForType({ matrix: { directive: { email: true } } }, 'directive'), { inapp: true, push: true, email: true });
+  assert.deepEqual(channelsForType({}, 'coach_message'), { inapp: true, push: true, email: false });
+  assert.deepEqual(channelsForType({ matrix: { coach_message: { email: true } } }, 'coach_message'), { inapp: true, push: true, email: true });
+});
+
+test('email only where it is offered: a nudge never emails, and a tier-up starts on (owner, 2026-10-16)', () => {
+  // "Your move", streaks, habits and the rest have no Email switch; one saved before it was taken
+  // away does not send.
+  for (const type of ['directive', 'checkin_due', 'goal_slip', 'score_drop', 'coach_cosign', 'streak_broken', 'habit_reminder', 'meal_prep', 'client_red', 'client_amber']) {
+    assert.equal(channelsForType({ matrix: { [type]: { email: true } } }, type).email, false, type + ' still emails');
+  }
+  assert.deepEqual(channelsForType({}, 'tier_up'), { inapp: true, push: true, email: true }, 'a tier-up does not email by default');
+  assert.equal(channelsForType({ matrix: { tier_up: { email: false } } }, 'tier_up').email, false, 'a tier-up email cannot be turned off');
+  for (const type of ['coach_message', 'waitlist_invite', 'waitlist_join']) {
+    assert.equal(channelsForType({}, type).email, false, type + ' emails without being asked');
+    assert.equal(channelsForType({ matrix: { [type]: { email: true } } }, type).email, true, type + ' cannot be emailed');
+  }
 });
 
 test('master mute → nothing sends', () => {
