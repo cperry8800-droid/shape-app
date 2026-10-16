@@ -245,7 +245,8 @@ function weekEndSunday(day, after = 0) {
  *   counts); joinedAt: ISO (the caller's subscription start);
  *   welcomeAt / helloAt: ISO | null | undefined (undefined = the read failed);
  *   firstPlan: { at, title } | null | undefined; checkins: rows | null | undefined (latest first,
- *   at most CHECKIN_READ_LIMIT); measurements: rows | null | undefined; programDetail; intake; now: ms.
+ *   at most CHECKIN_READ_LIMIT); measurements: rows | null | undefined; programDetail: object |
+ *   undefined (undefined = the client_programs read failed); intake; now: ms.
  * @returns the board, or null when there is no subscription start or it is past day 30.
  */
 export function bsOnboardingLeg(input) {
@@ -258,7 +259,10 @@ export function bsOnboardingLeg(input) {
   if (day > ONBOARDING_DAYS) return null;
   const joinedDay = isoDayUTC(joined);
   const discipline = role === 'trainer' ? 'training' : 'nutrition';
-  const weekOne = weekOneOf(programDetail, discipline, providerId);
+  // ⚠ A FAILED client_programs READ IS NOT "NOT SET" (Codex on #2378): `programDetail` is undefined
+  // then, the target "couldn't read", and every due date that hangs on its start day is unknown.
+  const weekOneUnread = programDetail === undefined;
+  const weekOne = weekOneUnread ? null : weekOneOf(programDetail, discipline, providerId);
   const iso = (v) => (ms(v) == null ? null : new Date(ms(v)).toISOString());
 
   // Check-ins since joining. ⚠ A CHECK-IN FILED BEFORE THE SUBSCRIPTION IS NOT ONE (Fable on fix 4):
@@ -307,16 +311,16 @@ export function bsOnboardingLeg(input) {
   })();
 
   const known = (v) => (v === undefined ? null : !!v);
-  const week1Start = weekOne && weekOne.startsOn ? weekOne.startsOn : joinedDay;
+  const week1Start = weekOneUnread ? null : weekOne && weekOne.startsOn ? weekOne.startsOn : joinedDay;
   const steps = [
     { key: 'joined', done: true, at: iso(joinedAt) },
     { key: 'welcome', done: known(welcomeAt), at: iso(welcomeAt) },
     { key: 'hello', done: known(helloAt), at: iso(helloAt) },
     { key: 'plan', done: known(firstPlan), at: firstPlan ? iso(firstPlan.at) : null, title: firstPlan && typeof firstPlan.title === 'string' ? firstPlan.title : null, due: weekOne && weekOne.startsOn ? weekOne.startsOn : null },
-    { key: 'checkin', done: checkinsSince === undefined ? null : checkinsSince.count >= 1, at: checkinsSince && checkinsSince.firstWeekOf, due: weekEndSunday(week1Start, 3) },
+    { key: 'checkin', done: checkinsSince === undefined ? null : checkinsSince.count >= 1, at: checkinsSince && checkinsSince.firstWeekOf, due: week1Start ? weekEndSunday(week1Start, 3) : null },
     // A week after the first (Codex on #2378): fixed at joined + 14 days, a week one the coach set
     // to start later put the second check-in due before the first.
-    { key: 'checkin2', done: checkinsSince === undefined ? null : checkinsSince.count >= 2, due: weekEndSunday(week1Start, 10) },
+    { key: 'checkin2', done: checkinsSince === undefined ? null : checkinsSince.count >= 2, due: week1Start ? weekEndSunday(week1Start, 10) : null },
     // Due on day 30, the board's last (Codex on #2378): joined + 30 days was the day after it closed.
     { key: 'progress', done: measuredAt === undefined ? null : !!measuredAt, at: measuredAt || null, due: addDaysISO(joined, ONBOARDING_DAYS - 1) },
   ];
@@ -327,7 +331,8 @@ export function bsOnboardingLeg(input) {
     days: ONBOARDING_DAYS,
     steps,
     weekOne,
-    suggested: weekOne ? null : suggestedCount(intake, role),
+    weekOneUnread,
+    suggested: weekOne || weekOneUnread ? null : suggestedCount(intake, role),
     unit: role === 'trainer' ? 'workouts' : 'days_logged',
   };
 }

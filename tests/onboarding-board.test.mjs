@@ -83,10 +83,10 @@ test('a failed read is unknown, never "to do"; past day 30 there is no board', (
 
 test('the first check-in falls due at the end of week one, never the next morning', () => {
   // Joined Saturday 2026-10-10: due the Sunday a week later, not Sunday 10-11.
-  const sat = LEGS.bsOnboardingLeg({ role: 'trainer', joinedAt: '2026-10-10T10:00:00Z', checkins: [], now: NOW });
+  const sat = LEGS.bsOnboardingLeg({ role: 'trainer', joinedAt: '2026-10-10T10:00:00Z', checkins: [], programDetail: {}, now: NOW });
   assert.equal(stepsOf(sat).checkin.due, '2026-10-18');
   // Joined Monday 2026-10-12: due that Sunday.
-  const mon = LEGS.bsOnboardingLeg({ role: 'trainer', joinedAt: '2026-10-12T10:00:00Z', checkins: [], now: NOW });
+  const mon = LEGS.bsOnboardingLeg({ role: 'trainer', joinedAt: '2026-10-12T10:00:00Z', checkins: [], programDetail: {}, now: NOW });
   assert.equal(stepsOf(mon).checkin.due, '2026-10-18');
   assert.equal(stepsOf(mon).checkin2.due, '2026-10-25', 'the second a week after the first');
   // Week one set to start later moves it.
@@ -666,4 +666,91 @@ test('Fable 5: a check-in filed before the subscription is not the first one; th
   assert.equal(stepsOf(crossed).checkin.at, '2026-10-26', 'a row from before joining shows the read reached past the first');
   assert.match(read('src/lib/shared-overview.ts'), /get_client_checkins', \{ p_user_id: clientId, p_limit: CHECKIN_READ_LIMIT \}/);
   assert.match(read('public/newdesign/dashWeek.jsx'), /const DWK_CHECKIN_LIMIT = 4;/, 'the website week view keeps the same number');
+});
+
+test('a failed program read leaves the week-one target unread, never "Not set" (Codex on #2378)', async () => {
+  const leg = (programDetail) => LEGS.bsOnboardingLeg({ role: 'trainer', providerId: 7, joinedAt: '2026-10-12T10:00:00Z', checkins: [], firstPlan: null, programDetail, intake: { training: { sessions_per_week: '3' } }, now: NOW });
+  const unread = leg(undefined);
+  assert.equal(unread.weekOneUnread, true);
+  assert.equal(unread.weekOne, null);
+  assert.equal(unread.suggested, null, 'no suggestion over a target that may be set');
+  for (const k of ['plan', 'checkin', 'checkin2']) assert.equal(stepsOf(unread)[k].due, null, `${k}: its day hangs on the start the coach set`);
+  assert.equal(stepsOf(unread).progress.due, '2026-11-10', 'day 30 is the join date\'s, read or not');
+  const none = leg({});
+  assert.equal(none.weekOneUnread, false);
+  assert.equal(none.suggested, 3);
+  assert.equal(stepsOf(none).checkin.due, '2026-10-18', 'an empty program is a known "not set"');
+
+  const orig = console.error; console.error = () => {};
+  let failed;
+  try { failed = await overview(overviewDb({ fail: ['client_programs'] })); } finally { console.error = orig; }
+  assert.equal(failed.onboarding.trainer.weekOneUnread, true, 'the overview carries the failure to the board');
+  assert.equal((await overview(overviewDb())).onboarding.trainer.weekOneUnread, false);
+
+  // The website board says so, and still lets the coach set one.
+  const dom = new JSDOM('<div id="root"></div>', { url: 'https://shape.test/newdesign/TrainerApp.html#today' });
+  const before = { window: globalThis.window, document: globalThis.document, act: globalThis.IS_REACT_ACT_ENVIRONMENT };
+  globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  const { createRoot } = await import('react-dom/client');
+  const api = new Function('React', 'window', 'serif', 'sans', todayCode + ';return {DashOnboardingPanel};')(React, dom.window, 'serif', 'sans');
+  const ob = { ...unread, steps: unread.steps };
+  const root = createRoot(document.getElementById('root'));
+  try {
+    await act(async () => root.render(React.createElement(api.DashOnboardingPanel, { clients: [{ profile: { id: 'u', name: 'Jordan Reyes' }, onboarding: { trainer: ob } }], role: 'trainer', live: true })));
+    const text = document.body.textContent;
+    assert.match(text, /Week-one target\s*Couldn't read it/);
+    assert.ok(!/Not set/.test(text), 'not "Not set"');
+    assert.ok([...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Set target'));
+  } finally {
+    await act(async () => root.unmount()); dom.window.close();
+    globalThis.window = before.window; globalThis.document = before.document; globalThis.IS_REACT_ACT_ENVIRONMENT = before.act;
+  }
+  // And the app's station.
+  assert.match(read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx'), /: ob\.weekOneUnread \? coachTr\('coach:onboard\.unread', \{ defaultValue: 'couldn’t read' \}\)\n\s+: coachTr\('coach:onboard\.notSet'/);
+});
+
+test('the app keeps the first-30-days station up when the board cannot be read (Codex on #2378)', async () => {
+  const pros = read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx');
+  const code = slice(pros, 'function bsOnboardingFor(', 'function BSProOnboardingStation(') + slice(pros, 'function bsRowFromTriage(', '// Severity for a roster row');
+  const api = new Function('coachTr', code + ';return { bsRowFromTriage, bsOnboardDayOf };')(coachTr);
+  // The roster row carries the join date the page counts from.
+  const row = api.bsRowFromTriage({ severity: 'green', client: { profile: { id: 'u', name: 'Jordan', isNew: true, joinedAt: ago(2) } }, flags: [], reasons: [] }, 'trainer', { GREEN: 'g', RUST: 'r', AMBER: 'a', BLUE: 'b' });
+  assert.equal(row.joinedAt, ago(2));
+  assert.equal(api.bsOnboardDayOf(ago(2), NOW), 3);
+  assert.equal(api.bsOnboardDayOf(ago(29.5), NOW), 30);
+  assert.equal(api.bsOnboardDayOf(ago(30), NOW), null, 'past the 30 days');
+  assert.equal(api.bsOnboardDayOf(null, NOW), null, 'a booking-only client has no start');
+  assert.equal(api.bsOnboardDayOf(new Date(NOW + DAY).toISOString(), NOW), null);
+
+  // The page: a failed overview keeps the station, as unread, with Retry.
+  assert.match(pros, /setOnboard\(bsOnboardingFor\(d, role\)\); setOnboardRead\(d \? 'ok' : 'failed'\);/, 'the overview answers null on a failed read');
+  assert.match(pros, /\.catch\(\(\) => \{ if \(!ignore\) \{ setCarePartial\(true\); setOnboardRead\('failed'\);/);
+  assert.match(pros, /\{clientUid && !onboard && onboardRead === 'failed' && onboardUnreadDay != null && \(\n\s+<BSProOnboardingUnread day=\{onboardUnreadDay\} heat=\{heat\} t=\{t\} busy=\{onboardRetrying\} onRetry=\{retryOnboard\} \/>/);
+  assert.match(pros, /const onboardUnreadDay = bsOnboardDayOf\(client && client\.joinedAt\);/);
+  assert.match(pros, /if \(d\) \{ setOnboard\(bsOnboardingFor\(d, role\)\); setOnboardRead\('ok'\); \}/, 'a retry that reads shows the board');
+
+  // The station itself, mounted.
+  const comp = babel.transformSync(slice(pros, 'function BSProOnboardingUnread(', 'function BSProClientFullProfilePage('), { presets: [preset] }).code;
+  const dom = new JSDOM('<div id="root"></div>', { url: 'https://shape.test/m/' });
+  const before = { window: globalThis.window, document: globalThis.document, act: globalThis.IS_REACT_ACT_ENVIRONMENT };
+  globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  const { createRoot } = await import('react-dom/client');
+  dom.window.BSTStationHead = ({ label }) => React.createElement('h3', null, label);
+  const Unread = new Function('React', 'window', 'coachTr', 'BS_ONBOARD_DAYS', comp + ';return BSProOnboardingUnread;')(React, dom.window, coachTr, 30);
+  const root = createRoot(document.getElementById('root'));
+  let retries = 0;
+  try {
+    await act(async () => root.render(React.createElement(Unread, { day: 3, heat: 'red', t: { MONO: 'm', INK: 'k', INK50: 'k5' }, busy: false, onRetry: () => { retries++; } })));
+    assert.equal(document.querySelector('h3').textContent, 'FIRST 30 DAYS · DAY 3 OF 30');
+    assert.equal(document.querySelector('[role="status"]').textContent, 'couldn’t read');
+    const retry = document.querySelector('button');
+    assert.equal(retry.textContent, 'Retry');
+    await act(async () => retry.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })));
+    assert.equal(retries, 1);
+    await act(async () => root.render(React.createElement(Unread, { day: 3, heat: 'red', t: { MONO: 'm', INK: 'k', INK50: 'k5' }, busy: true, onRetry: () => { retries++; } })));
+    assert.equal(document.querySelector('button').disabled, true, 'one retry at a time');
+  } finally {
+    await act(async () => root.unmount()); dom.window.close();
+    globalThis.window = before.window; globalThis.document = before.document; globalThis.IS_REACT_ACT_ENVIRONMENT = before.act;
+  }
 });

@@ -1551,6 +1551,7 @@ function DashOnboardingBoard({ client, ob, role, live }) {
       {!editing && <p style={{ margin: 0, fontSize: 13 }}>
         {target
           ? <>{first}'s target: {target.count} {unit} in week 1{target.startsOn ? " · starts " + dashObDay(target.startsOn) : ""} · set by you</>
+          : ob.weekOneUnread ? <>Couldn't read it</>
           : <>Not set{ob.suggested ? " · they said " + ob.suggested + " sessions a week" : ""}</>}
         {" "}<button type="button" style={DASH_WIDGET_BUTTON} disabled={!live} onClick={() => { setEditing(true); setState(""); }}>{target ? "Change" : "Set target"}</button>
       </p>}

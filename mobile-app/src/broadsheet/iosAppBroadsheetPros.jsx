@@ -2200,6 +2200,8 @@ function bsRowFromTriage(row, role, t) {
     : null;
   return {
     userId: p.id || null, n: name, i: initials, c: palette[h % palette.length],
+    // The subscription start, so the client page can tell a board it could not read from no board.
+    joinedAt: p.joinedAt || null,
     avatar: p.avatar || p.photo || undefined,
     prog: (rec.program && rec.program.name) || '', r: String(rec.goalPhase || '').toUpperCase(),
     streak, d: adh != null ? `${adh}%` : '',
@@ -4437,6 +4439,15 @@ function bsOnboardingFor(overview, role) {
   const ob = overview && overview.onboarding && overview.onboarding[key];
   return ob && Array.isArray(ob.steps) ? ob : null;
 }
+// The board's 30 days, counted from the roster's subscription start: the day a new client is on when
+// their board could not be read. null outside the 30 days (or with no start).
+const BS_ONBOARD_DAYS = 30;
+function bsOnboardDayOf(joinedAt, now = Date.now()) {
+  const joined = joinedAt ? Date.parse(joinedAt) : NaN;
+  if (!Number.isFinite(joined) || joined > now) return null;
+  const day = Math.floor((now - joined) / 86400000) + 1;
+  return day <= BS_ONBOARD_DAYS ? day : null;
+}
 // A board step's name, and the next step a new client's row names (the roster directive).
 function bsOnboardStepLabel(key, role) {
   const nut = role === 'nutritionist' || role === 'dietitian';
@@ -4509,6 +4520,7 @@ function BSProOnboardingStation({ ob, role, clientUid, first, heat, t, onSayHell
             <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.45 }}>
               {target
                 ? unitText(target.count) + (target.startsOn ? ' · ' + coachTr('coach:onboard.starts', { defaultValue: 'starts {date}', date: bsOnboardDay(target.startsOn) }) : '')
+                : ob.weekOneUnread ? coachTr('coach:onboard.unread', { defaultValue: 'couldn’t read' })
                 : coachTr('coach:onboard.notSet', { defaultValue: 'Not set' }) + (ob.suggested ? ' · ' + coachTr('coach:onboard.theySaid', { defaultValue: '{first} said {count, plural, one {# session} other {# sessions}} a week', first: first || coachTr('coach:common.clientFallback', { defaultValue: 'Client' }), count: ob.suggested }) : '')}
               <div><button type="button" style={btn} onClick={() => setEditing(true)}>{target ? coachTr('coach:onboard.change', { defaultValue: 'CHANGE' }) : coachTr('coach:onboard.setTarget', { defaultValue: 'SET TARGET' })}</button></div>
             </div>
@@ -4535,6 +4547,20 @@ function BSProOnboardingStation({ ob, role, clientUid, first, heat, t, onSayHell
   );
 }
 
+// ⚠ A BOARD THAT COULD NOT BE READ STAYS ON THE PAGE (Codex on #2378): the station rendered only
+// with a board, so a failed overview read hid a new client's first 30 days, as if they had none.
+function BSProOnboardingUnread({ day, heat, t, busy, onRetry }) {
+  const mono = { fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase' };
+  return (
+    <div style={{ marginTop: 22 }}>
+      {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={coachTr('coach:onboard.title', { defaultValue: 'FIRST 30 DAYS · DAY {day} OF {days}', day, days: BS_ONBOARD_DAYS })} />}
+      <div style={{ borderLeft: `3px solid ${heat}`, padding: '2px 0 2px 11px' }}>
+        <div role="status" style={{ ...mono, fontSize: 8, color: t.INK50, padding: '5px 0' }}>{coachTr('coach:onboard.unread', { defaultValue: 'couldn’t read' })}</div>
+        <button type="button" disabled={busy} onClick={onRetry} style={{ ...mono, fontWeight: 800, color: t.INK, background: 'transparent', border: 0, borderBottom: `1px solid ${heat}`, padding: '10px 0', minHeight: 44, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.5 : 1 }}>{coachTr('coach:roster.retry', { defaultValue: 'Retry' })}</button>
+      </div>
+    </div>
+  );
+}
 function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -4638,6 +4664,10 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   // The onboarding board for this client in their first 30 days with this coach (fix 4), from the
   // same overview; null otherwise.
   const [onboard, setOnboard] = useStateBSP(null);
+  // Whether the overview answered: 'loading' | 'ok' | 'failed' (getCareTeamOverview answers null on a
+  // failed read). A failed one keeps the station up for a client inside their 30 days.
+  const [onboardRead, setOnboardRead] = useStateBSP('loading');
+  const [onboardRetrying, setOnboardRetrying] = useStateBSP(false);
   // ⚠ A FAILED care-team read is NOT an empty care team, and the two must not render alike.
   // /api/clients/[id]/shared-overview still answers 200 when the underlying get_my_shared_clients
   // read errors (code deployed ahead of its migration, a revoked grant) and flags careTeamPartial.
@@ -4731,12 +4761,12 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   useEffectBSP(() => {
     // Reset per client + ignore a stale response, so navigating A→B never shows
     // client A's care team / sleep / cycle / prep / vitals on client B's profile.
-    setCareTeam(null); setSleepRec(null); setCycleShared(null); setPrepSignal(null); setCaseVitals(null); setCareLoaded(false); setCarePartial(false); setOnboard(null);
+    setCareTeam(null); setSleepRec(null); setCycleShared(null); setPrepSignal(null); setCaseVitals(null); setCareLoaded(false); setCarePartial(false); setOnboard(null); setOnboardRead('loading'); setOnboardRetrying(false);
     if (!clientUid || !window.ShapeCareTeam?.overview) { setCareLoaded(true); return undefined; }
     let ignore = false;
     window.ShapeCareTeam.overview(clientUid)
-      .then(d => { if (ignore) return; const team = (d && Array.isArray(d.careTeam)) ? d.careTeam.filter(c => c && !c.isMe && (c.userId || c.user_id)) : []; setCareTeam(team); setSleepRec(d && d.sleep ? d.sleep : null); setCycleShared(d && d.cycle && d.cycle.share === true && Array.isArray(d.cycle.starts) ? { starts: d.cycle.starts, today: typeof d.cycle.today === 'string' ? d.cycle.today : null } : null); setPrepSignal(d && d.prep && Number(d.prep.count) > 0 ? { count: Number(d.prep.count), lastAt: Number(d.prep.lastAt) || null, days: Array.isArray(d.prep.days) ? d.prep.days : [] } : null); setCaseVitals(bsCaseVitals(d)); setCarePartial(!!(d && d.careTeamPartial)); setOnboard(bsOnboardingFor(d, role)); setCareLoaded(true); })
-      .catch(() => { if (!ignore) { setCarePartial(true); setCareLoaded(true); } });
+      .then(d => { if (ignore) return; const team = (d && Array.isArray(d.careTeam)) ? d.careTeam.filter(c => c && !c.isMe && (c.userId || c.user_id)) : []; setCareTeam(team); setSleepRec(d && d.sleep ? d.sleep : null); setCycleShared(d && d.cycle && d.cycle.share === true && Array.isArray(d.cycle.starts) ? { starts: d.cycle.starts, today: typeof d.cycle.today === 'string' ? d.cycle.today : null } : null); setPrepSignal(d && d.prep && Number(d.prep.count) > 0 ? { count: Number(d.prep.count), lastAt: Number(d.prep.lastAt) || null, days: Array.isArray(d.prep.days) ? d.prep.days : [] } : null); setCaseVitals(bsCaseVitals(d)); setCarePartial(!!(d && d.careTeamPartial)); setOnboard(bsOnboardingFor(d, role)); setOnboardRead(d ? 'ok' : 'failed'); setCareLoaded(true); })
+      .catch(() => { if (!ignore) { setCarePartial(true); setOnboardRead('failed'); setCareLoaded(true); } });
     return () => { ignore = true; };
   }, [clientUid]);
   // The board again, after the coach saves a week-one target: its deadlines are the server's.
@@ -4745,6 +4775,18 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     if (!uid || !window.ShapeCareTeam?.overview) return;
     window.ShapeCareTeam.overview(uid).then((d) => { if (d) setOnboard((prev) => (uid === clientUidRef.current ? bsOnboardingFor(d, role) : prev)); }).catch(() => {});
   };
+  // Retry after a failed read: the board, or the same "couldn't read" again.
+  const retryOnboard = () => {
+    const uid = clientUid;
+    if (!uid || onboardRetrying || !window.ShapeCareTeam?.overview) return;
+    setOnboardRetrying(true);
+    window.ShapeCareTeam.overview(uid).then((d) => d, () => null).then((d) => {
+      if (uid !== clientUidRef.current) return;
+      setOnboardRetrying(false);
+      if (d) { setOnboard(bsOnboardingFor(d, role)); setOnboardRead('ok'); }
+    });
+  };
+  const onboardUnreadDay = bsOnboardDayOf(client && client.joinedAt);
   // Weekend-adherence split for THIS client — reset per-client, ignore stale.
   const [wkndSplit, setWkndSplit] = useStateBSP(null);
   useEffectBSP(() => {
@@ -5837,6 +5879,9 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
           the app: every step ticked by a record, the coach's first message, the week-one target. */}
       {clientUid && onboard && (
         <BSProOnboardingStation ob={onboard} role={role} clientUid={clientUid} first={String(client?.n || client?.name || '').split(' ')[0]} heat={heat} t={t} onSayHello={() => fireEvt('shape:proMessageClient')} onSaved={reloadOnboard} />
+      )}
+      {clientUid && !onboard && onboardRead === 'failed' && onboardUnreadDay != null && (
+        <BSProOnboardingUnread day={onboardUnreadDay} heat={heat} t={t} busy={onboardRetrying} onRetry={retryOnboard} />
       )}
 
       {/* WHO THEY ARE — the goal they picked, whether they want coaching, their training and diet

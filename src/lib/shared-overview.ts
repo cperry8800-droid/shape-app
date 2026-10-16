@@ -275,7 +275,7 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     { data: intake, error: intakeError },
     { data: cycle },
     { data: prep },
-    { data: programRow },
+    { data: programRow, error: programError },
     { data: convoRows, error: convoErr },
     { data: scoreHistory },
   ] = await Promise.all([
@@ -316,6 +316,7 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     supabase.rpc('get_client_score_history', { p_user_id: clientId }),
   ]);
   const programDetail = (programRow?.detail ?? {}) as Record<string, unknown>;
+  if (programError) console.error('[shared-overview] client_programs read failed:', programError.message);
 
   // Objective sleep for the coach (share-gated like the other reads — the
   // providers_read_subscriber_snapshots RLS policy lets an active coach read
@@ -557,7 +558,8 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
       firstPlan: firstOf(planRes, (r) => ({ at: r.created_at, title: r.title })),
       checkins: checkinsError ? undefined : (checkins ?? []),
       measurements: measurementsError ? undefined : (measurements ?? []),
-      programDetail,
+      // A failed read is undefined: the week-one target then reads "couldn't read", never "Not set".
+      programDetail: programError ? undefined : programDetail,
       intake: intakeError ? null : intake,
       now: Date.now(),
     });
