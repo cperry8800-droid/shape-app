@@ -1616,47 +1616,66 @@ async function getOwnedProviderId(role = 'trainer') {
   return data?.id || null;
 }
 
-// ─── At-capacity (pause new bookings) ────────────────────────────────────────
-// Read the signed-in coach's own provider row capacity flag. Returns null when
-// the user has no provider row (i.e. not a coach). RLS lets a provider read +
-// update their own row via owner_id = auth.uid().
-async function getProviderCapacity() {
-  if (!supabase || !state.user?.id) return null;
-  for (const role of ['trainer', 'nutritionist']) {
-    const table = providerTable(role);
-    const { data } = await supabase
-      .from(table)
-      .select('id, at_capacity, capacity_resume_at')
-      .eq('owner_id', state.user.id)
-      .order('id', { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    if (data) {
-      return { role, providerId: data.id, atCapacity: !!data.at_capacity, resumeAt: data.capacity_resume_at || null };
-    }
-  }
-  return null;
+// ─── At capacity (taking no new clients) ─────────────────────────────────────
+// Through /api/coach/capacity (client-onboarding task #10), for the listing of the role the coach
+// is using: a coach with both listings changed whichever row this found first. `atCapacity` is what
+// members meet (a resume date that has passed is open again); `switchedOn` is the stored switch.
+// Reopening there tells the waiting list, which a direct row write never did.
+function capacityFromListing(l) {
+  if (!l || typeof l !== 'object') return null;
+  return {
+    role: l.role,
+    providerId: l.providerId,
+    atCapacity: l.effective === true,
+    switchedOn: l.atCapacity === true,
+    resumeAt: l.resumeAt || null,
+    // The reopening day on the coach's own clock (the route's `resumeOn`), shown as that day.
+    resumeOn: typeof l.resumeOn === 'string' ? l.resumeOn : null,
+    introsAtCapacity: l.introsAtCapacity === true,
+    waiting: typeof l.waiting === 'number' ? l.waiting : null,
+  };
 }
 
-// Flip the coach's at_capacity flag. When turning it ON you can optionally pass
-// an auto-resume date (ISO); turning it OFF clears any resume date.
-async function setProviderCapacity({ atCapacity, resumeAt = null } = {}) {
-  if (!supabase || !state.user?.id) throw new Error('Sign in to update bookings.');
-  let table = null;
-  for (const role of ['trainer', 'nutritionist']) {
-    const tbl = providerTable(role);
-    const { data } = await supabase.from(tbl).select('id').eq('owner_id', state.user.id).limit(1).maybeSingle();
-    if (data) { table = tbl; break; }
-  }
-  if (!table) throw new Error('No coach profile found for this account.');
-  const { data, error } = await supabase
-    .from(table)
-    .update({ at_capacity: !!atCapacity, capacity_resume_at: atCapacity ? (resumeAt || null) : null })
-    .eq('owner_id', state.user.id)
-    .select('id, at_capacity, capacity_resume_at')
-    .maybeSingle();
-  if (error) throw error;
-  return { atCapacity: !!data?.at_capacity, resumeAt: data?.capacity_resume_at || null };
+// The signed-in coach's capacity for `role`; null when they hold no listing of that role (or are
+// not signed in). Throws on a failed read, so Settings keeps what it last showed.
+// ⚠ THROUGH THE LIVE TOKEN (Codex on #2375). The cached session can hold a token supabase has
+// already refreshed, and sending it answered 401: Settings hid the switch, or a valid toggle
+// reverted, until another auth event updated the cache.
+function deviceZone() {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (e) { return null; }
+}
+async function getProviderCapacity({ role } = {}) {
+  const token = await liveAccessToken();
+  if (!token) return null;
+  const want = providerDiscipline(normalizeRole(role));
+  // This phone's zone rides along: a listing with no zone of its own reads its resume day back in
+  // the zone it was placed in (Codex on #2375).
+  const res = await shapeApiFetch(`/api/coach/capacity?tz=${encodeURIComponent(deviceZone() || '')}`, { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } });
+  if (res.status === 401) return null;
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error || 'Could not read your capacity.');
+  const listings = Array.isArray(json.listings) ? json.listings : [];
+  return capacityFromListing(listings.find((l) => l && l.role === want) || null);
+}
+
+// Turn taking new clients on or off for `role` (an optional resume date, an instant with its
+// offset, when turning it on), and/or whether free intros stay open while full. Answers the
+// listing as members now meet it, and how many waiting members a reopening told.
+async function setProviderCapacity({ role, atCapacity, resumeAt = null, introsAtCapacity } = {}) {
+  const token = await liveAccessToken();
+  if (!token) throw new Error('Sign in to update your capacity.');
+  const body = { role: providerDiscipline(normalizeRole(role)), tz: deviceZone() };
+  if (typeof atCapacity === 'boolean') body.atCapacity = atCapacity;
+  if (atCapacity === true && resumeAt) body.resumeAt = resumeAt;
+  if (typeof introsAtCapacity === 'boolean') body.introsAtCapacity = introsAtCapacity;
+  const res = await shapeApiFetch('/api/coach/capacity', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || !json.listing) throw new Error(json.detail || (json.error && json.error !== 'save_failed' ? json.error : '') || 'Could not update your capacity.');
+  return { ...capacityFromListing(json.listing), notified: Number(json.notified) || 0 };
 }
 
 function playlistFromRow(row) {
@@ -5778,8 +5797,13 @@ async function waitlistMine() {
   if (!apiBaseUrl || !state.session?.access_token) return { entries: [] };
   // Reads degrade to a soft empty state on ANY failure (offline/CORS/malformed
   // JSON), not just non-OK HTTP — callers render "no waitlists" instead of throwing.
+  // ⚠ THROUGH THE LIVE TOKEN (Codex on #2375). The cached session can hold a token supabase has
+  // already refreshed; the 401 read as "no entries and a client of nobody", so a current client
+  // was shown the waiting list and an invited member lost their intro.
   try {
-    const res = await fetch(`${apiBaseUrl}/api/waitlist/mine`, { headers: { Authorization: `Bearer ${state.session.access_token}` } });
+    const token = await liveAccessToken();
+    if (!token) return { entries: [] };
+    const res = await shapeApiFetch('/api/waitlist/mine', { headers: { Authorization: `Bearer ${token}` } });
     if (!res.ok) return { entries: [] };
     return await res.json().catch(() => ({ entries: [] }));
   } catch { return { entries: [] }; }

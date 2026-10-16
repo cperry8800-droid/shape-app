@@ -199,5 +199,8 @@
   "listing.lengthChanged": "Sesi perkenalan berubah",
   "listing.lengthChangedBody": "Sesi perkenalan dengan {name} sekarang {minutes} menit. Pilih waktu lagi.",
   "listing.timesLoading": "Memuat jadwal {name}…",
-  "listing.timesFailed": "Jadwal {name} gagal dimuat."
+  "listing.timesFailed": "Jadwal {name} gagal dimuat.",
+  "listing.introsClosed": "{name} sedang tidak menerima klien baru, jadi intro ditutup. Gabung daftar tunggu di bawah.",
+  "listing.yourClientTitle": "Kamu klien {name}",
+  "listing.yourClientBody": "{name} tidak menerima klien baru, dan kamu sudah jadi kliennya. Sesi dan paket di bawah tetap bisa kamu beli."
 }

@@ -331,6 +331,8 @@
     // it loads, the length every intro had. The times are laid out for it and the booking sends it,
     // so a coach who changes it while the page is open is caught by the route (length_changed).
     let introMin = 15;
+    // At capacity with intros closed (the coach's own setting, task #10): no times are offered.
+    let introsClosed = false;
 
     // ⚠ THE POST CARRIES THE *COACH'S* WALL CLOCK, NOT THE MEMBER'S. The route derives the
     // appointment itself by resolving `date` + `time` in the coach's zone — it does not trust
@@ -433,6 +435,14 @@
       // ABOUT. A link arriving without an id never fetched availability at all, so saying
       // "this coach's hours aren't on a clock" would invent a coach and a reason; it falls
       // through to the ordinary pick-a-date / no-availability flow instead.
+      // ⚠ A COACH AT CAPACITY WITH INTROS CLOSED OFFERS NO TIMES (task #10): /api/consultation refuses
+      // every one of them, and showing them would ask a visitor to pick a time we then refuse. Their
+      // profile has the waiting list.
+      if (proId && introsClosed) {
+        const profile = '/' + (proType === 'nutritionist' ? 'nutritionists' : 'trainers') + '/' + encodeURIComponent(proId);
+        slots.innerHTML = '<div class="empty" data-intros-closed="">This coach isn\u2019t taking new clients right now. <a href="' + profile + '">Join their waiting list</a> to hear when a spot opens.</div>';
+        return;
+      }
       if (proId && !coachZone) { slots.innerHTML = '<div class="empty">This coach\u2019s open hours aren\u2019t on a clock yet. Please check back shortly.</div>'; return; }
       if (!selectedDate) { slots.innerHTML = '<div class="empty">Pick a date to see open times.</div>'; return; }
       const list = slotsByDate.get(selectedDate) || [];
@@ -462,6 +472,13 @@
         const data = await res.json();
         if (seq !== availSeq) return;
         coachZone = window.BookingSlots.isZone(data.timezone) ? data.timezone : null;
+        introsClosed = data.atCapacity === true && !(data.rules && data.rules.introsAtCapacity === true);
+        // ⚠ A MEMBER THE COACH INVITED OFF THE WAITING LIST BOOKS AN INTRO EITHER WAY (Codex on #2375):
+        // /api/consultation lets an active invite through, and the profile links them here, so the
+        // times are closed only once their own list says there is no invite. Signed out, or a list
+        // we could not read: closed, and the route still decides.
+        if (introsClosed && await consultInvited()) introsClosed = false;
+        if (seq !== availSeq) return;
         const len = Number(data.rules && data.rules.consultMin);
         introMin = Number.isInteger(len) && len >= 5 && len <= 240 ? len : 15;
         const lenEl = document.getElementById('introLength');
@@ -492,6 +509,17 @@
     }
 
     function retryAvailability() { loadAvailability(); }
+
+    // Whether the signed-in member holds a live invite off this coach's waiting list. The site's
+    // cookie session answers /api/waitlist/mine, whose list already leaves out expired invites.
+    async function consultInvited() {
+      try {
+        const res = await fetch('/api/waitlist/mine', { credentials: 'same-origin' });
+        if (!res.ok) return false;
+        const j = await res.json();
+        return Array.isArray(j && j.entries) && j.entries.some((e) => e && e.status === 'invited' && e.providerRole === proType && String(e.providerId) === String(proId));
+      } catch (_) { return false; }
+    }
 
     function selectTime(iso) { selectedIso = iso; renderTimeSlots(); updateConfirmation(); }
 

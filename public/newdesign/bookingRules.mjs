@@ -65,12 +65,12 @@ export const RULE_LIMITS = Object.freeze({
   consultMin: Object.freeze({ min: 5, max: 240 }),
 });
 
-/** @typedef {{ bufferMin: number, maxPerDay: number | null, minNoticeHours: number, consultMin: number }} BookingRules */
+/** @typedef {{ bufferMin: number, maxPerDay: number | null, minNoticeHours: number, consultMin: number, introsAtCapacity: boolean }} BookingRules */
 
-/** A coach with no stored rules: no buffer, no daily limit, no notice, a 15-minute intro.
- * Today's behaviour.
+/** A coach with no stored rules: no buffer, no daily limit, no notice, a 15-minute intro, and no
+ * intros while at capacity. Today's behaviour.
  * @type {Readonly<BookingRules>} */
-export const DEFAULT_RULES = Object.freeze({ bufferMin: 0, maxPerDay: null, minNoticeHours: 0, consultMin: 15 });
+export const DEFAULT_RULES = Object.freeze({ bufferMin: 0, maxPerDay: null, minNoticeHours: 0, consultMin: 15, introsAtCapacity: false });
 
 /** The longest window `openSlots` walks, and the longest a busy read may ask for. */
 // ⚠ 60, NOT 62 (Codex, the review of #2225). openSlots says to read busy blocks from a day before
@@ -348,6 +348,9 @@ export function normalizeRules(raw) {
     // ⚠ A ROW FROM BEFORE 2026-10-15-intro-length.sql HAS NO consult_min, and reads as 15: the
     // length every intro had until the coach could set one.
     consultMin: clampInt(pick('consultMin', 'consult_min'), RULE_LIMITS.consultMin, DEFAULT_RULES.consultMin),
+    // Whether a coach at capacity still takes free intros (2026-10-15-capacity-intros.sql; owner:
+    // "let the coach decide"). Only a stored true counts; a row from before the column is false.
+    introsAtCapacity: pick('introsAtCapacity', 'intros_at_capacity') === true,
   };
 }
 
@@ -388,6 +391,10 @@ export function validateRules(input, base = DEFAULT_RULES) {
     const { min, max } = RULE_LIMITS.minNoticeHours;
     if (!(n >= min && n <= max)) return { ok: false, field: 'minNoticeHours', error: `Notice has to be a whole number of hours from ${min} to ${max} (two weeks).` };
     rules.minNoticeHours = n;
+  }
+  if (src.introsAtCapacity !== undefined) {
+    if (typeof src.introsAtCapacity !== 'boolean') return { ok: false, field: 'introsAtCapacity', error: 'Free intros while at capacity is on or off.' };
+    rules.introsAtCapacity = src.introsAtCapacity;
   }
   if (src.consultMin !== undefined) {
     const n = WHOLE(src.consultMin);

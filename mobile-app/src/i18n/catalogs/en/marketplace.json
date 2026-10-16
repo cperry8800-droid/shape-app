@@ -199,5 +199,8 @@
   "listing.lengthChanged": "The intro changed",
   "listing.lengthChangedBody": "{name}'s intro now runs {minutes} minutes. Pick a time again.",
   "listing.timesLoading": "Loading {name}'s times…",
-  "listing.timesFailed": "Couldn't load {name}'s times."
+  "listing.timesFailed": "Couldn't load {name}'s times.",
+  "listing.introsClosed": "{name} isn't taking new clients right now, so intros are closed. Join the waiting list below.",
+  "listing.yourClientTitle": "You're {name}'s client",
+  "listing.yourClientBody": "{name} isn't taking new clients, and you're already one. The sessions and plans below are still yours to buy."
 }

@@ -177,7 +177,8 @@ test('website chat: a message this page sent is shown once when the poll brings 
 
 test('a coach\'s profile books the intro on the consultation page, and messages the coach for real', () => {
   const src = read('public/newdesign/livingShared.jsx');
-  assert.match(src, /\{provId \? <a href=\{"\/newdesign\/consultation\.html\?type=" \+ listingRole \+ "&id=" \+ encodeURIComponent\(provId\) \+ "&name=" \+ encodeURIComponent\(d\.name \|\| ""\)\} data-book-intro=""/);
+  assert.match(src, /const introHref = provId \? "\/newdesign\/consultation\.html\?type=" \+ listingRole \+ "&id=" \+ encodeURIComponent\(provId\) \+ "&name=" \+ encodeURIComponent\(d\.name \|\| ""\) : null;/);
+  assert.match(src, /\{introHref \? <a href=\{introHref\} data-book-intro=""/);
   assert.doesNotMatch(src, /<button onClick=\{openChat\}[^>]*>Book intro/, 'Book intro no longer opens the chat');
   assert.match(src, /window\.__openChat\(\{ who: d\.name, \.\.\.\(provId \? \{ providerRole: listingRole, providerId: provId, role: listingRole === "nutritionist" \? "Nutritionist" : "Trainer" \} : \{\}\) \}\)/);
   assert.match(src, /\{provId \? <button type="button" onClick=\{openChat\} data-message-coach=""/);
@@ -249,7 +250,8 @@ test('the app offers a live coach only their times at the current length, and sa
   // A live coach whose times are not in is never shown the preview pattern, anywhere it renders.
   assert.match(market, /const timesPending = liveTimes && realAvail == null;/);
   assert.match(market, /: \(liveTimes \? \[\] : expandPreviewSlots\(\)\);/, 'the open-this-week rows');
-  assert.match(market, /open=\{realAvail != null \? realAvail : \(liveTimes \? \[\] : expandPreviewSlots\(\)\)\} demo=\{!liveTimes && realAvail == null\} note=\{timesNote\} onRetry=\{timesPending && availState === 'failed' \? retryTimes : null\}/, 'the calendar');
+  // (Intros closed at capacity, task #10, show no times at all.)
+  assert.match(market, /open=\{introClosed \? \[\] : realAvail != null \? realAvail : \(liveTimes \? \[\] : expandPreviewSlots\(\)\)\} demo=\{!introClosed && !liveTimes && realAvail == null\} note=\{introClosed \? null : timesNote\} onRetry=\{!introClosed && timesPending && availState === 'failed' \? retryTimes : null\}/, 'the calendar');
   assert.match(market, /if \(timesPending\) \{ setShowCal\(true\); return; \}\n    if \(realAvail != null\) \{/, 'Book the intro holds no preview time');
   assert.match(market, /\{timesPending && availState === 'failed' \? <button type="button" onClick=\{retryTimes\}/);
   assert.match(market, /\{note\}\{onRetry \? <button type="button" onClick=\{onRetry\}/);

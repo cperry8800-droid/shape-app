@@ -273,6 +273,195 @@ function CoachListingRatesCard() {
   );
 }
 
+// Taking new clients · the capacity switch and the waiting room (client-onboarding task #10). The
+// website had neither: a coach could pause only from the app, which changed the first listing it
+// found, and could see and invite their waiting list only there. Backed by /api/coach/capacity (the
+// switch, a resume date, free intros while full; reopening tells the waiting list) and the waitlist
+// routes (/api/waitlist/room, /api/waitlist/invite), on the website's cookie session.
+// At capacity a coach's current clients still book and buy; new ones join the waiting list.
+// A picked day reopens at the start of that day on the coach's own clock: the day is sent as it is
+// (`resumeOn`) and the route places it in the listing's zone (Codex on #2375: this built midnight in
+// the browser's zone). The browser's zone rides along only for a listing that has none yet.
+function cpcBrowserZone() {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (e) { return null; }
+}
+// The earliest day the picker offers: tomorrow on the COACH's calendar, the zone the route places
+// the day in (the listing's, or this browser's for a listing with none yet), because that day's
+// midnight is the first still to come. Read from this browser's calendar (Codex on #2375), a New
+// York listing managed from Tokyo on a Friday morning could not pick Friday, still to come in New
+// York; the other way round it offered a day whose midnight had passed. The route checks the instant.
+function cpcTomorrow(zone) {
+  let y, m, d;
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: zone || undefined, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+    const get = (t) => Number((parts.find((p) => p.type === t) || {}).value);
+    y = get("year"); m = get("month"); d = get("day");
+  } catch (e) { y = NaN; }
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) {
+    const now = new Date(); y = now.getFullYear(); m = now.getMonth() + 1; d = now.getDate();
+  }
+  const t = new Date(Date.UTC(y, m - 1, d + 1));
+  const p = (n) => String(n).padStart(2, "0");
+  return t.getUTCFullYear() + "-" + p(t.getUTCMonth() + 1) + "-" + p(t.getUTCDate());
+}
+// The coach's day, shown as that day wherever the page is read (noon keeps it on its date).
+function cpcDayLabel(day) {
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(day || "") ? new Date(day + "T12:00:00") : null;
+  return d && !isNaN(d) ? d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
+}
+
+function CoachCapacityCard() {
+  const mono = "'JetBrains Mono', monospace";
+  const sans = "'Space Grotesk', sans-serif";
+  const teal = (typeof window !== "undefined" && window.TEAL_BRIGHT) || "#2ee0c4";
+  const rust = "#e07856";
+  const role = /nutrition/i.test(typeof window !== "undefined" ? window.location.pathname : "") ? "nutritionist" : "trainer";
+  const [state, setState] = React.useState({ loading: true, error: false, signedIn: true, listing: null });
+  const [room, setRoom] = React.useState({ loading: false, error: false, entries: [] });
+  const [resumeDay, setResumeDay] = React.useState("");
+  const [busy, setBusy] = React.useState("");
+  const [msg, setMsg] = React.useState("");
+  const [reloadKey, setReloadKey] = React.useState(0);
+
+  React.useEffect(() => {
+    let on = true;
+    setState((s) => ({ ...s, loading: true, error: false }));
+    // This browser's zone rides along: a listing with no zone of its own places, and reads back, its
+    // resume day in it (Codex on #2375).
+    fetch("/api/coach/capacity?tz=" + encodeURIComponent(cpcBrowserZone() || ""), { credentials: "same-origin", cache: "no-store" })
+      .then(async (r) => {
+        if (r.status === 401) return { signedIn: false };
+        if (!r.ok) throw new Error("read");
+        return r.json();
+      })
+      .then((d) => {
+        if (!on) return;
+        if (d.signedIn === false) { setState({ loading: false, error: false, signedIn: false, listing: null }); return; }
+        const listing = ((d && d.listings) || []).find((l) => l.role === role) || null;
+        setState({ loading: false, error: false, signedIn: true, listing });
+        setResumeDay(listing && listing.effective && listing.resumeOn ? listing.resumeOn : "");
+      })
+      .catch(() => { if (on) setState((s) => ({ ...s, loading: false, error: true })); });
+    return () => { on = false; };
+  }, [role, reloadKey]);
+
+  const providerId = state.listing && state.listing.providerId;
+  const loadRoom = React.useCallback(() => {
+    if (!providerId) return () => {};
+    let on = true;
+    setRoom((r) => ({ ...r, loading: true, error: false }));
+    fetch("/api/waitlist/room?providerId=" + encodeURIComponent(providerId) + "&providerRole=" + role, { credentials: "same-origin", cache: "no-store" })
+      .then((r) => { if (!r.ok) throw new Error("room"); return r.json(); })
+      .then((d) => { if (on) setRoom({ loading: false, error: false, entries: Array.isArray(d && d.entries) ? d.entries : [] }); })
+      .catch(() => { if (on) setRoom((r) => ({ ...r, loading: false, error: true })); });
+    return () => { on = false; };
+  }, [providerId, role]);
+  React.useEffect(() => loadRoom(), [loadRoom]);
+
+  const save = async (patch, label) => {
+    if (busy) return;
+    setBusy(label); setMsg("");
+    try {
+      const r = await fetch("/api/coach/capacity", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role, tz: cpcBrowserZone(), ...patch }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d.listing) throw new Error(d.detail || (d.error && d.error !== "save_failed" ? d.error : "") || "Could not save. Please try again.");
+      setState((s) => ({ ...s, listing: d.listing }));
+      if (patch.atCapacity === true) setMsg("Paused. New clients can join your waiting list.");
+      else if (patch.atCapacity === false) setMsg(d.notified > 0 ? "Taking new clients again. " + d.notified + (d.notified === 1 ? " person" : " people") + " on your waiting list were told." : "Taking new clients again.");
+      else setMsg("Saved ✓");
+    } catch (e) { setMsg((e && e.message) || "Could not save. Please try again."); }
+    finally { setBusy(""); }
+  };
+
+  const invite = async (entryId) => {
+    if (busy) return;
+    setBusy("invite:" + entryId); setMsg("");
+    try {
+      const r = await fetch("/api/waitlist/invite", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ entryId }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || "Could not send the invite.");
+      setMsg("Invited. They have a window to book before you reopen to everyone.");
+      loadRoom();
+    } catch (e) { setMsg((e && e.message) || "Could not send the invite."); }
+    finally { setBusy(""); }
+  };
+
+  const card = { background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 16, padding: "20px 22px", marginBottom: 16 };
+  const kick = { fontFamily: mono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" };
+  const body = { fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.65)", lineHeight: 1.5, margin: 0 };
+  const btn = (primary) => ({ background: primary ? teal : "transparent", color: primary ? "#0b0e0c" : "rgba(242,237,228,0.85)", border: primary ? 0 : "1px solid rgba(242,237,228,0.25)", borderRadius: 999, padding: "9px 16px", fontFamily: sans, fontSize: 12.5, fontWeight: 600, cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1 });
+  const l = state.listing;
+  const full = !!(l && l.effective);
+  const waiting = (room.entries || []).filter((e) => e.position);
+
+  return (
+    <div style={card} data-capacity-card="">
+      <div style={{ ...kick, marginBottom: 14 }}>Taking new clients</div>
+      {state.loading ? (
+        <div style={{ fontFamily: mono, fontSize: 11, color: "rgba(242,237,228,0.4)" }}>Loading…</div>
+      ) : state.error ? (
+        <div>
+          <p style={body}>Couldn't load your capacity — nothing has changed. Try again.</p>
+          <button onClick={() => setReloadKey((k) => k + 1)} style={{ ...btn(false), marginTop: 12 }}>Retry</button>
+        </div>
+      ) : !state.signedIn ? (
+        <p style={body}>Sign in as a coach to manage your capacity.</p>
+      ) : !l ? (
+        <p style={body}>Your capacity can be set once your coach application is approved.</p>
+      ) : (
+        <>
+          <div role="status" style={{ display: "flex", gap: 10, alignItems: "baseline", padding: "10px 12px", borderRadius: 10, marginBottom: 12, border: `1px solid ${full ? "rgba(224,120,86,0.45)" : "rgba(46,224,196,0.35)"}`, background: full ? "rgba(224,120,86,0.08)" : "rgba(46,224,196,0.06)" }}>
+            <span aria-hidden="true" style={{ fontFamily: mono, fontSize: 12, color: full ? rust : teal }}>{full ? "×" : "✓"}</span>
+            <p style={{ ...body, color: "rgba(242,237,228,0.82)" }}>
+              {full
+                ? <>You're at capacity{l.resumeOn ? <>, reopening {cpcDayLabel(l.resumeOn)}</> : null}. New clients can join your waiting list; your current clients still book and buy.</>
+                : "You're taking new clients. Turn this on when you're full and new clients join your waiting list instead."}
+            </p>
+          </div>
+          {full ? (
+            <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", padding: "12px 0", borderTop: "1px solid rgba(242,237,228,0.08)" }}>
+              <button onClick={() => save({ atCapacity: false }, "open")} disabled={!!busy} style={btn(true)} data-capacity-open="">{busy === "open" ? "Saving…" : "Take new clients again"}</button>
+              <label style={{ display: "flex", gap: 8, alignItems: "center", fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.75)", cursor: "pointer" }}>
+                <input type="checkbox" checked={!!l.introsAtCapacity} disabled={!!busy} onChange={(e) => save({ introsAtCapacity: e.target.checked }, "intros")} data-capacity-intros="" />
+                Free intros while full
+              </label>
+            </div>
+          ) : (
+            <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap", padding: "12px 0", borderTop: "1px solid rgba(242,237,228,0.08)" }}>
+              <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <span style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)" }}>Reopen on · optional</span>
+                <input type="date" value={resumeDay} min={cpcTomorrow((l && l.timezone) || cpcBrowserZone())} onChange={(e) => setResumeDay(e.target.value)} aria-label="Reopen on" style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 9, padding: "8px 10px", color: "#f2ede4", fontFamily: sans, fontSize: 13 }} />
+              </label>
+              <button onClick={() => save({ atCapacity: true, ...(resumeDay ? { resumeOn: resumeDay, tz: cpcBrowserZone() } : {}) }, "pause")} disabled={!!busy} style={btn(true)} data-capacity-pause="">{busy === "pause" ? "Saving…" : "Pause new clients"}</button>
+            </div>
+          )}
+          <div style={{ paddingTop: 14, borderTop: "1px solid rgba(242,237,228,0.08)" }}>
+            <div style={{ ...kick, marginBottom: 8 }}>Waiting list · {waiting.length}</div>
+            {room.error ? (
+              <p style={body}>Couldn't load your waiting list. <button onClick={loadRoom} style={{ background: "transparent", border: 0, padding: 0, color: teal, cursor: "pointer", fontFamily: sans, fontSize: 13, textDecoration: "underline" }}>Retry</button></p>
+            ) : room.loading && !waiting.length ? (
+              <div style={{ fontFamily: mono, fontSize: 11, color: "rgba(242,237,228,0.4)" }}>Loading…</div>
+            ) : !waiting.length ? (
+              <p style={body}>No one is waiting. When you're at capacity, members can join your list from your profile.</p>
+            ) : waiting.map((e) => (
+              <div key={e.id} data-waitlist-entry="" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "9px 0", borderTop: "1px solid rgba(242,237,228,0.06)" }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: sans, fontSize: 13.5, color: "#f2ede4" }}>#{e.position} · {e.clientName || "Member"}</div>
+                  {e.note ? <div style={{ fontFamily: sans, fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 2 }}>{e.note}</div> : null}
+                </div>
+                {e.status === "invited"
+                  ? <span style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", color: teal }}>Invited</span>
+                  : <button onClick={() => invite(e.id)} disabled={!!busy} style={btn(false)} data-waitlist-invite="">{busy === "invite:" + e.id ? "Inviting…" : "Invite"}</button>}
+              </div>
+            ))}
+          </div>
+          <div role="status" style={{ fontFamily: mono, fontSize: 10.5, color: "rgba(242,237,228,0.5)", minHeight: 14, marginTop: 10 }}>{msg}</div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // Marketplace listing photos — the coach dresses their marketplace box (portrait,
 // cover, studio gallery) from the dashboard. Reads/writes the coach's OWN provider
 // row directly via window.shapeDb.client (owner-scoped RLS + the admin-column
@@ -546,5 +735,5 @@ function CoachAccountSettings({ accountId }) {
 }
 
 function DashProfileExtras() {
-  return <section style={{maxWidth:900,margin:"0 auto",padding:"26px 40px 34px"}}><CoachCredentialsCard /><CoachListingRatesCard /><CoachListingMediaCard /></section>;
+  return <section style={{maxWidth:900,margin:"0 auto",padding:"26px 40px 34px"}}><CoachCredentialsCard /><CoachListingRatesCard /><CoachCapacityCard /><CoachListingMediaCard /></section>;
 }

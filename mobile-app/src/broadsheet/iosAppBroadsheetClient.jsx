@@ -19013,11 +19013,28 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   // capacity_resume_at / provider_id); mirrors src/lib/capacity.ts isEffectivelyAtCapacity.
   const capacityProviderId = commerceCoach.provider_id || commerceCoach.db_id || null;
   const capacityProviderRole = commerceCoach.provider_role || (isNutri ? 'nutritionist' : 'trainer');
-  const atCapacity = !!(commerceCoach.at_capacity && (!commerceCoach.capacity_resume_at || new Date(commerceCoach.capacity_resume_at).getTime() > Date.now()));
+  // The listing hands over the state it read with the coach's times (Codex on #2375: the catalogue
+  // row can be stale), so the two screens agree; opened any other way, the row decides.
+  const atCapacity = commerce && typeof commerce.atCapacity === 'boolean'
+    ? commerce.atCapacity
+    : !!(commerceCoach.at_capacity && (!commerceCoach.capacity_resume_at || new Date(commerceCoach.capacity_resume_at).getTime() > Date.now()));
+  // At capacity a free intro is the coach's call (task #10): the marketplace listing passes their
+  // setting in `commerce` (Codex on #2375: the full profile dropped it, so an intro open on the listing
+  // closed here). A member they invited off the list can book one either way, as the server decides.
+  const introsOpenAtCap = !!(commerce && commerce.introsAtCapacity === true);
   const [wl, setWl] = useStateBSC(null); // { status, position, entryId } | null
+  // Whether this member already subscribes to the coach, from the same mine() read (task #10, Codex
+  // on #2375): at capacity a current client keeps booking and buying, never the waiting list.
+  // undefined = not read yet · null = could not read (the waiting list shows; the checkout decides).
+  const [clientOf, setClientOf] = useStateBSC(undefined);
+  // ⚠ KEYED ON THE ACCOUNT (Codex on #2375), as the marketplace listing's hydrate is: without it an
+  // account switch with the profile open kept the last account's entry and client answer, and the
+  // next account was shown as the coach's client. Both clear on every run, before the bail.
+  const wlAuthUid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || null;
   const wlBusy = React.useRef(false);
   React.useEffect(() => {
-    if (isSelf || !atCapacity || !capacityProviderId) { setWl(null); return undefined; }
+    setWl(null); setClientOf(undefined);
+    if (isSelf || !atCapacity || !capacityProviderId) { setClientOf(null); return undefined; }
     let live = true;
     (async () => {
       try {
@@ -19027,10 +19044,11 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           (e) => String(e.providerId) === String(capacityProviderId) && e.providerRole === capacityProviderRole
         );
         setWl(mineEntry ? { status: mineEntry.status, position: mineEntry.position, entryId: mineEntry.id } : null);
-      } catch (e) { /* leave null */ }
+        setClientOf(Array.isArray(r?.clientOf) ? r.clientOf.some((cl) => cl && String(cl.providerId) === String(capacityProviderId) && cl.providerRole === capacityProviderRole) : null);
+      } catch (e) { if (live) setClientOf(null); }
     })();
     return () => { live = false; };
-  }, [isSelf, atCapacity, capacityProviderId, capacityProviderRole]);
+  }, [isSelf, atCapacity, capacityProviderId, capacityProviderRole, wlAuthUid]);
   const wlWithdraw = async () => {
     if (wlBusy.current) return;
     if (!wl?.entryId) { window.__bsToast?.(tr('profile:coach.refreshingSpot', { defaultValue: 'Refreshing your spot — try again in a moment.' })); return; }
@@ -19482,6 +19500,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
                 <button onClick={doSubscribe} style={{ minHeight: 44, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.subscribeMo', { defaultValue: 'Subscribe /mo' })}</button>
                 <button onClick={wlWithdraw} style={{ minHeight: 44, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.decline', { defaultValue: 'Decline' })}</button>
               </div>
+              <button onClick={doBookIntro} data-intro-at-capacity="" style={{ width: '100%', minHeight: 44, marginTop: 8, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.bookIntroFree', { defaultValue: 'Book intro · Free' })}</button>
             </BSPlate>
           )}
           {!isSelf && atCapacity && wl && wl.status !== 'invited' && (
@@ -19489,13 +19508,22 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
               <Kick col={tTheme.RUST}>{tr('profile:coach.onWaitingList', { defaultValue: 'On the waiting list' })}</Kick>
               <div style={{ fontFamily: SANS, fontSize: 13, color: tTheme.INK70, margin: '7px 0 12px' }}>{tr('profile:coach.inLine', { pos: wl.position, name: first, defaultValue: "You're #{pos} in line. {name} will invite you when a spot opens." })}</div>
               <button onClick={wlWithdraw} style={{ width: '100%', minHeight: 44, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.leaveList', { defaultValue: 'Leave the list' })}</button>
+              {introsOpenAtCap ? <button onClick={doBookIntro} data-intro-at-capacity="" style={{ width: '100%', minHeight: 44, marginTop: 8, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.bookIntroFree', { defaultValue: 'Book intro · Free' })}</button> : null}
             </div>
           )}
-          {!isSelf && atCapacity && !wl && (
+          {!isSelf && atCapacity && !wl && clientOf === true && (
+            <div data-client-at-capacity="" style={{ margin: '24px -22px 0', ...card, borderRadius: 0, borderLeft: 0, borderRight: 0, padding: '16px 20px' }}>
+              <Kick col={tTheme.GREEN}>{tr('profile:coach.yourClientTitle', { name: first, defaultValue: "You're {name}'s client" })}</Kick>
+              <div style={{ fontFamily: SANS, fontSize: 13, color: tTheme.INK70, margin: '7px 0 12px' }}>{tr('profile:coach.yourClientBody', { name: first, defaultValue: "{name} isn't taking new clients, and you're already one. You can still book and buy as before." })}</div>
+              <button onClick={doBookOneTime} style={{ width: '100%', minHeight: 44, borderRadius: 999, border: 0, background: tTheme.GREEN, color: '#0c0a08', cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.bookNow', { defaultValue: 'Book now' })}</button>
+            </div>
+          )}
+          {!isSelf && atCapacity && !wl && clientOf !== true && (
             <div style={{ margin: '24px -22px 0', ...card, borderRadius: 0, borderLeft: 0, borderRight: 0, padding: '16px 20px' }}>
               <Kick col={tTheme.RUST}>{tr('profile:coach.atCapacity', { defaultValue: 'At capacity' })}</Kick>
               <div style={{ fontFamily: SANS, fontSize: 13, color: tTheme.INK70, margin: '7px 0 12px' }}>{tr('profile:coach.atCapacityBody', { name: first, defaultValue: "{name} isn't taking new clients right now. Join the waiting list to be first in line." })}</div>
-              <button onClick={wlJoin} style={{ width: '100%', minHeight: 44, borderRadius: 999, border: 0, background: c, color: '#0c0a08', cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.joinWaitlist', { defaultValue: 'Join the waiting list' })}</button>
+              {clientOf === undefined ? null : <button onClick={wlJoin} style={{ width: '100%', minHeight: 44, borderRadius: 999, border: 0, background: c, color: '#0c0a08', cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.joinWaitlist', { defaultValue: 'Join the waiting list' })}</button>}
+              {introsOpenAtCap ? <button onClick={doBookIntro} data-intro-at-capacity="" style={{ width: '100%', minHeight: 44, marginTop: 8, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.bookIntroFree', { defaultValue: 'Book intro · Free' })}</button> : null}
             </div>
           )}
           {!isSelf && !atCapacity && (
@@ -35739,26 +35767,48 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return () => { cancelled = true; };
   }, []);
   React.useEffect(() => {
-    // Booking capacity is a coach-only control — never load it for clients.
-    if (!isCoachRole) { setCapacityState(null); return undefined; }
+    // Capacity is a coach-only control — never load it for clients. It is the listing of the role
+    // in use (task #10): a coach with both listings pauses the one they are working in.
+    setCapacityState(null);
+    if (!isCoachRole) return undefined;
     let cancelled = false;
-    window.ShapeBookings?.getCapacity?.()
+    window.ShapeBookings?.getCapacity?.({ role: tweaks.role })
       .then(c => { if (!cancelled && c) setCapacityState(c); })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [isCoachRole]);
+  }, [isCoachRole, tweaks.role]);
   const toggleCapacity = async () => {
     if (!capacity || capacityBusy) return;
     const next = !capacity.atCapacity;
+    const was = capacity;
     setCapacityBusy(true);
     setCapacityState({ ...capacity, atCapacity: next }); // optimistic
     try {
-      const res = await window.ShapeBookings.setCapacity({ atCapacity: next });
-      setCapacityState(c => ({ ...c, atCapacity: res.atCapacity, resumeAt: res.resumeAt }));
-      window.__bsToast?.(next ? tr('settings:capacity.toastPaused', { defaultValue: 'Paused — new bookings are off' }) : tr('settings:capacity.toastOpen', { defaultValue: 'Open for bookings again' }), 'ok');
+      const res = await window.ShapeBookings.setCapacity({ role: capacity.role, atCapacity: next });
+      setCapacityState(res);
+      window.__bsToast?.(next ? tr('settings:capacity.toastPaused', { defaultValue: 'Paused — new clients join your waiting list' })
+        : res.notified > 0 ? tr('settings:capacity.toastReopened', { n: res.notified, defaultValue: 'Taking new clients again. Your waiting list ({n}) was told.' })
+        : tr('settings:capacity.toastOpen', { defaultValue: 'Taking new clients again' }), 'ok');
     } catch (e) {
-      setCapacityState(c => ({ ...c, atCapacity: !next })); // revert
-      window.__bsToast?.(e?.message || tr('settings:capacity.toastError', { defaultValue: 'Could not update bookings' }), 'err');
+      setCapacityState(was); // revert
+      window.__bsToast?.(e?.message || tr('settings:capacity.toastError', { defaultValue: 'Could not update your capacity' }), 'err');
+    } finally {
+      setCapacityBusy(false);
+    }
+  };
+  // Free intros while full: the coach's own call (owner, 2026-10-15: "let the coach decide").
+  const toggleIntros = async () => {
+    if (!capacity || capacityBusy) return;
+    const next = !capacity.introsAtCapacity;
+    const was = capacity;
+    setCapacityBusy(true);
+    setCapacityState({ ...capacity, introsAtCapacity: next });
+    try {
+      const res = await window.ShapeBookings.setCapacity({ role: capacity.role, introsAtCapacity: next });
+      setCapacityState(res);
+    } catch (e) {
+      setCapacityState(was);
+      window.__bsToast?.(e?.message || tr('settings:capacity.toastError', { defaultValue: 'Could not update your capacity' }), 'err');
     } finally {
       setCapacityBusy(false);
     }
@@ -36798,19 +36848,37 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       {detail === 'practice' && (<>
         <DetailBack title={tr('settings:section.practice', { defaultValue: 'Your practice' })} />
         {renderRows(practiceRows)}
-        {/* Coach-only — pause new bookings (at capacity) */}
+        {/* Coach-only — taking no new clients (at capacity). Through /api/coach/capacity, for the
+            listing of the role in use; at capacity a coach's current clients still book and buy,
+            and new ones join the waiting list (task #10). */}
         {capacity && isCoachRole && (
           <div style={{ padding: `10px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}`, background: capacity.atCapacity ? t.PAPER2 : 'transparent' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
               <div style={{ minWidth: 0 }}>
-                <BSEyebrow color={capacity.atCapacity ? t.RUST : t.GREEN}>{capacity.atCapacity ? tr('settings:capacity.atCapacity', { defaultValue: 'At capacity' }) : tr('settings:capacity.open', { defaultValue: 'Open for bookings' })}</BSEyebrow>
-                <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>{tr('settings:capacity.pause', { defaultValue: 'Pause new bookings' })}</div>
+                <BSEyebrow color={capacity.atCapacity ? t.RUST : t.GREEN}>{capacity.atCapacity ? tr('settings:capacity.atCapacity', { defaultValue: 'At capacity' }) : tr('settings:capacity.open', { defaultValue: 'Taking new clients' })}</BSEyebrow>
+                <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>{tr('settings:capacity.pause', { defaultValue: 'Pause new clients' })}</div>
                 <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.35 }}>
-                  {capacity.atCapacity ? tr('settings:capacity.descOn', { defaultValue: 'New clients see an “at capacity” notice — subscribe, book & buy are blocked.' }) : tr('settings:capacity.descOff', { defaultValue: 'Turn on to stop new subscriptions, bookings and purchases.' })}
+                  {capacity.atCapacity ? tr('settings:capacity.descOn', { defaultValue: 'New clients can join your waiting list. Your current clients still book and buy.' }) : tr('settings:capacity.descOff', { defaultValue: 'Turn on when you are full. New clients join your waiting list instead.' })}
                 </div>
+                {capacity.atCapacity && capacity.resumeAt ? (
+                  <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK70 }}>
+                    {tr('settings:capacity.resumes', { date: (capacity.resumeOn ? new Date(capacity.resumeOn + 'T12:00:00') : new Date(capacity.resumeAt)).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }), defaultValue: 'Reopens {date}' })}
+                  </div>
+                ) : null}
               </div>
               <Toggle on={capacity.atCapacity} onClick={toggleCapacity} />
             </div>
+            {capacity.atCapacity && (
+              <div data-intros-at-capacity="" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${t.HAIR}` }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>{tr('settings:capacity.introsTitle', { defaultValue: 'Free intros while full' })}</div>
+                  <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.35 }}>
+                    {capacity.introsAtCapacity ? tr('settings:capacity.introsOn', { defaultValue: 'Members can still book a free intro with you.' }) : tr('settings:capacity.introsOff', { defaultValue: 'Closed until you reopen. Members you invite off the list can still book one.' })}
+                  </div>
+                </div>
+                <Toggle on={capacity.introsAtCapacity} onClick={toggleIntros} />
+              </div>
+            )}
           </div>
         )}
 

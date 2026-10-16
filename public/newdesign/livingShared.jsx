@@ -783,6 +783,11 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
   // Bearer token ("mobile (Bearer) + web (cookie) both work", its own comment), so
   // the site can call them exactly as they are.
   const [wl, setWl] = React.useState(null);       // { status, position, entryId } | null
+  // Whether the signed-in member already subscribes to this coach, from the same /mine read
+  // (task #10, Codex on #2375). At capacity a current client keeps buying and is never sent to the
+  // waiting list. `undefined` = not read yet · `null` = could not read (the waiting list shows, and
+  // the checkout decides) · true / false.
+  const [clientOf, setClientOf] = React.useState(undefined);
   const [wlErr, setWlErr] = React.useState("");
   const [buyErr, setBuyErr] = React.useState("");
   // Coaching needs the $5 membership first (owner, 2026-10-14): a 402 from the checkout shows
@@ -811,6 +816,20 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
   const [capSrv, setCapSrv] = React.useState(false);
   const atCapacity = !!((prow && prow.atCapacity) || capSrv);
   const provId = (prow && prow.id) || null;
+  // At capacity, whether this coach still takes free intros: their own setting
+  // (provider_booking_rules.intros_at_capacity, task #10; owner: "let the coach decide"). Read only
+  // when it matters, and anything but a stored true is closed, as /api/consultation reads it.
+  const [introsOpen, setIntrosOpen] = React.useState(false);
+  React.useEffect(() => {
+    setIntrosOpen(false);
+    const cl = window.shapeDb && window.shapeDb.client;
+    if (!atCapacity || !provId || !cl || !cl.from) return undefined;
+    let on = true;
+    cl.from("provider_booking_rules").select("intros_at_capacity").eq("provider_role", listingRole).eq("provider_id", provId).maybeSingle()
+      .then((r) => { if (on) setIntrosOpen(!!(r && !r.error && r.data && r.data.intros_at_capacity === true)); }, () => {});
+    return () => { on = false; };
+  }, [atCapacity, provId, listingRole]);
+  const introHref = provId ? "/newdesign/consultation.html?type=" + listingRole + "&id=" + encodeURIComponent(provId) + "&name=" + encodeURIComponent(d.name || "") : null;
   // ⚠ AND IT SUBSCRIBES, because resolving once is the other half of the same defect:
   // a member who signs in AFTER this paints keeps being told to sign in, which is the
   // #2005 defect — a coach already signed in, invited to sign in. On a cookie-only load
@@ -844,7 +863,7 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
     };
   }, []);
   React.useEffect(() => {
-    setWl(null); setWlErr("");
+    setWl(null); setWlErr(""); setClientOf(undefined);
     // A signed-out visitor is never asked to join — /api/waitlist/* answers 401, and a
     // Join button that 401s is the dead control one layer down. They get the sign-in
     // line instead, the legacy page's own behaviour.
@@ -853,7 +872,8 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
     fetch("/api/waitlist/mine", { credentials: "same-origin" })
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
-        if (!on || !j || !Array.isArray(j.entries)) return;
+        if (!on) return;
+        if (!j || !Array.isArray(j.entries)) { setClientOf(null); return; }
         // ⚠ THE ENTRY ID IS `id` HERE AND `entryId` ON /join — two spellings for one
         // thing, and reading the wrong one yields undefined, which makes "Leave the
         // list" permanently dead from the next reload onward. That is not a
@@ -863,8 +883,9 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
         // so `status === "invited"` needs no second expiry check here.
         const mine = j.entries.find((e) => e && String(e.providerId) === String(provId) && e.providerRole === listingRole);
         setWl(mine ? { status: mine.status, position: mine.position, entryId: mine.id } : null);
+        setClientOf(Array.isArray(j.clientOf) ? j.clientOf.some((c) => c && String(c.providerId) === String(provId) && c.providerRole === listingRole) : null);
       })
-      .catch(() => {});
+      .catch(() => { if (on) setClientOf(null); });
     return () => { on = false; };
   }, [atCapacity, provId, listingRole, acct]);
   const wlJoin = async () => {
@@ -973,6 +994,15 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
       .catch(() => {});
     return () => { on = false; };
   }, [pinnedKey, d.uid]);
+  // At capacity, a member who already subscribes: no waiting list, and the way to buy (task #10).
+  const clientNote = (
+    <React.Fragment>
+      <div style={{ fontFamily: lvMono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: LV_TEAL }}>✓ You&rsquo;re {first}&rsquo;s client</div>
+      <div style={{ fontFamily: lvSerif, fontSize: 24, letterSpacing: "-0.01em", marginTop: 8 }}>{first} isn&rsquo;t taking new clients, and you&rsquo;re already one.</div>
+      <p style={{ fontFamily: lvSans, fontSize: 12.5, lineHeight: 1.5, color: hexA(ink, 0.7), margin: "9px 0 0" }}>Your coaching carries on, and anything {first} sells on this page is still yours to buy.</p>
+      <button type="button" onClick={openChat} data-client-at-capacity="" style={{ marginTop: 16, padding: "13px 20px", borderRadius: 8, border: `1px solid ${hexA(ink, 0.4)}`, background: "transparent", color: ink, cursor: "pointer", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Message {first}</button>
+    </React.Fragment>
+  );
   const winsWall = pinnedKey ? pinnedKey.split(",").map((id) => pinnedResolved.find((r) => r && r.id === id && r.ownerId === d.uid && r.authorId !== r.ownerId)).filter(Boolean) : [];
   return (
     <div>
@@ -1004,7 +1034,7 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
             {/* The free intro is booked on the consultation page, against the coach's open hours and
                 at the length they set. This button opened the chat panel, where nothing books an
                 intro (client-onboarding review, H6). With no listing to book, it is not offered. */}
-            {provId ? <a href={"/newdesign/consultation.html?type=" + listingRole + "&id=" + encodeURIComponent(provId) + "&name=" + encodeURIComponent(d.name || "")} data-book-intro="" style={{ flex: 1, padding: "13px", borderRadius: 8, border: `1px solid ${hexA(ink, 0.4)}`, background: "transparent", color: ink, cursor: "pointer", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", textAlign: "center", textDecoration: "none", boxSizing: "border-box" }}>Book intro · Free</a> : null}
+            {introHref ? <a href={introHref} data-book-intro="" style={{ flex: 1, padding: "13px", borderRadius: 8, border: `1px solid ${hexA(ink, 0.4)}`, background: "transparent", color: ink, cursor: "pointer", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", textAlign: "center", textDecoration: "none", boxSizing: "border-box" }}>Book intro · Free</a> : null}
           </div>
           {provId ? <button type="button" onClick={openChat} data-message-coach="" style={{ marginTop: 10, padding: 0, border: 0, background: "transparent", color: hexA(ink, 0.7), cursor: "pointer", fontFamily: lvMono, fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", textDecoration: "underline", textUnderlineOffset: 3 }}>Or message {first}</button> : null}
           {buyErr ? <div role="alert" style={{ marginTop: 11, fontFamily: lvMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", color: "#c0533b" }}>{buyErr}</div> : null}
@@ -1048,7 +1078,7 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
                 <p style={{ fontFamily: lvSans, fontSize: 12.5, lineHeight: 1.5, color: hexA(ink, 0.7), margin: "9px 0 0" }}>{first} will invite you when a spot opens.</p>
                 <button onClick={wlLeave} style={{ marginTop: 16, padding: "13px 20px", borderRadius: 8, border: `1px solid ${hexA(ink, 0.4)}`, background: "transparent", color: ink, cursor: "pointer", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Leave the list</button>
               </React.Fragment>
-            ) : (
+            ) : clientOf === true ? clientNote : (
               <React.Fragment>
                 <div style={{ fontFamily: lvMono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#c0533b" }}>&times; At capacity</div>
                 <div style={{ fontFamily: lvSerif, fontSize: 24, letterSpacing: "-0.01em", marginTop: 8 }}>{first} isn&rsquo;t taking new clients right now.</div>
@@ -1070,6 +1100,9 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
                   null
                 ) : acct === null ? (
                   <a href="/newdesign/Login.html" style={{ display: "inline-block", marginTop: 16, padding: "13px 20px", borderRadius: 8, background: c, color: "#0c0a08", textDecoration: "none", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Sign in to join the list &rarr;</a>
+                ) : clientOf === undefined ? (
+                  // Not read yet: a current client must not be shown Join first.
+                  null
                 ) : (
                   <button onClick={wlJoin} style={{ marginTop: 16, padding: "13px 20px", borderRadius: 8, border: 0, background: c, color: "#0c0a08", cursor: "pointer", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Join the waiting list</button>
                 )}
@@ -1080,6 +1113,12 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
             {buyErr && window.ShapeAskNoraLink ? <window.ShapeAskNoraLink label="Ask Nora what happened" draft="My checkout didn't go through. What happened?" problem={{ kind: "payment", message: buyErr }} /> : null}
             {joinPrompt}
           </div>
+          {/* A free intro at capacity: open when the coach keeps intros open while full (their own
+              setting, task #10), or to a member they invited off the list, whose spot is held. Below
+              the waiting list, which stays the way in. /api/consultation decides the same way. */}
+          {introHref && (introsOpen || (wl && wl.status === "invited")) ? (
+            <a href={introHref} data-book-intro-at-capacity="" style={{ display: "inline-block", marginTop: 12, fontFamily: lvMono, fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", color: ink, textDecoration: "underline", textUnderlineOffset: 3 }}>Book a free intro with {first} &rarr;</a>
+          ) : null}
         </div>
       )}
       {/* THE STUDIO — the coach's studio gallery (listing_media), a captioned

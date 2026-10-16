@@ -199,5 +199,8 @@
   "listing.lengthChanged": "La intro cambió",
   "listing.lengthChangedBody": "La intro con {name} ahora dura {minutes} minutos. Elige una hora de nuevo.",
   "listing.timesLoading": "Cargando los horarios de {name}…",
-  "listing.timesFailed": "No se pudieron cargar los horarios de {name}."
+  "listing.timesFailed": "No se pudieron cargar los horarios de {name}.",
+  "listing.introsClosed": "{name} no está aceptando clientes nuevos ahora mismo, así que las intros están cerradas. Únete a la lista de espera abajo.",
+  "listing.yourClientTitle": "Eres cliente de {name}",
+  "listing.yourClientBody": "{name} no acepta nuevos clientes, y tú ya eres uno. Las sesiones y planes de abajo siguen disponibles para ti."
 }

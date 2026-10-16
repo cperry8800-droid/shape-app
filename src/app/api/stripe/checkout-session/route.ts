@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { isEffectivelyAtCapacity } from '@/lib/capacity';
-import { hasActiveWaitlistInvite, resolveRequestClient } from '@/lib/waitlist';
+import { hasActiveWaitlistInvite, isActiveClientOf, resolveRequestClient } from '@/lib/waitlist';
 import { hiresCoach, hasCompletedScreening, SCREENING_REQUIRED } from '@/lib/health-screening';
 import { readJson, dbError } from '@/lib/request-utils';
 import { feeSplit, maxCreditCents, bpsToRate, bpsToPercent } from '@/lib/platform-fee';
@@ -133,13 +133,18 @@ export async function POST(request: Request) {
   if (provider.suspended_at) {
     return NextResponse.json({ error: "This coach isn't taking payments right now.", reason: 'suspended' }, { status: 409 });
   }
+  const isSubscription = String(body.item?.type || '').toLowerCase() === 'subscription';
   // First-dibs: at-capacity coaches are only purchasable with a live waitlist
   // invite. The invite lookup runs through the caller's RLS-scoped client; a
   // lookup failure surfaces as retryable rather than silently denying the bypass.
+  // ⚠ AT CAPACITY MEANS NO NEW CLIENTS, NOT NO SALES (task #10; owner, 2026-10-15). A member who
+  // already subscribes to this coach can still buy their sessions and plans; a subscription, or a
+  // purchase from someone who is not yet a client, still needs the invite.
   if (isEffectivelyAtCapacity(provider)) {
     let invited = false;
     try {
-      invited = await hasActiveWaitlistInvite(caller, user.id, providerRole, providerId);
+      invited = await hasActiveWaitlistInvite(caller, user.id, providerRole, providerId)
+        || (!isSubscription && await isActiveClientOf(caller, user.id, providerRole, providerId));
     } catch {
       return NextResponse.json(
         { error: 'Could not verify your waitlist status. Please try again.' },
@@ -175,7 +180,6 @@ export async function POST(request: Request) {
   });
   const feeRate = bpsToRate(feeBps);
 
-  const isSubscription = String(body.item?.type || '').toLowerCase() === 'subscription';
   // ⚠ HIRING A COACH NEEDS THE HEALTH SCREENING (client-onboarding review, fix 2b; owner decision
   // 2). Only a member who wants coaching is screened at first run, so one who said no is screened
   // here, before paying: a subscription, or a session with a trainer (health-screening.ts). A

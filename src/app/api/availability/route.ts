@@ -20,6 +20,7 @@
 // row they own, so a signed-out visitor or another member saw no bookings and every taken hour
 // was offered as open. provider_busy_blocks is a definer read that says WHEN a coach is busy and
 // nothing else, so `booked` now comes from it too.
+import { isEffectivelyAtCapacity } from '@/lib/capacity';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { normalizeZone } from '@/lib/time';
@@ -47,7 +48,7 @@ export async function GET(req: NextRequest) {
 
   const supabase = await createClient();
   const nowMs = Date.now();
-  const [{ data: slots }, busyRes, rulesRes, { data: pro }] = await Promise.all([
+  const [{ data: slots }, busyRes, rulesRes, proRes] = await Promise.all([
     supabase
       .from('provider_availability')
       .select('weekday, start_minute, duration_min')
@@ -77,7 +78,7 @@ export async function GET(req: NextRequest) {
     // `*` dated from before timezone existed; it has existed since 2026-09-11.
     supabase
       .from(role === 'trainer' ? 'trainers' : 'nutritionists')
-      .select('timezone')
+      .select('timezone, at_capacity, capacity_resume_at')
       .eq('id', idRaw)
       .maybeSingle(),
   ]);
@@ -92,6 +93,13 @@ export async function GET(req: NextRequest) {
   if (rulesRes.error && !isMissingRelation(rulesRes.error)) {
     return NextResponse.json({ error: "This coach's calendar couldn't be read." }, { status: 503 });
   }
+  // ⚠ AND SO DOES THE LISTING (Codex on #2375). It carries the coach's zone and whether they are at
+  // capacity; read as null, the coach looked open, and every intro time was offered for the
+  // consultation route to refuse once the member had filled the form in.
+  if (proRes.error) {
+    return NextResponse.json({ error: "This coach's calendar couldn't be read." }, { status: 503 });
+  }
+  const pro = proRes.data;
   type Busy = { starts_at: string; ends_at: string; kind: string };
   const busy = ((busyRes.error ? [] : busyRes.data ?? []) as Busy[]).map((b) => ({ start: b.starts_at, end: b.ends_at, kind: b.kind }));
 
@@ -104,5 +112,9 @@ export async function GET(req: NextRequest) {
     // null means "we cannot place these hours" — never a defaulted UTC, which is the
     // defect this field exists to close.
     timezone: normalizeZone((pro as { timezone?: unknown } | null)?.timezone),
+    // Taking no new clients right now (a resume date that passed means accepting again). With
+    // rules.introsAtCapacity off, the booking pages offer no intro times (task #10); a member the
+    // coach invited off the waiting list can still book (/api/consultation checks the invite).
+    atCapacity: pro ? isEffectivelyAtCapacity(pro as { at_capacity: boolean | null; capacity_resume_at: string | null }) : false,
   });
 }

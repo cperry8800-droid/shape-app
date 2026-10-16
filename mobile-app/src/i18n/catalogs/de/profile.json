@@ -351,5 +351,7 @@
   "prompt.q.who_i_coach_best": "Wen ich am besten coache",
   "prompt.q.wont_program": "Was ich nie programmiere",
   "prompt.q.approach": "Meine Herangehensweise",
-  "prompt.q.client_win": "Ein Erfolg einer Klientin oder eines Klienten"
+  "prompt.q.client_win": "Ein Erfolg einer Klientin oder eines Klienten",
+  "coach.yourClientTitle": "Du bist Kunde von {name}",
+  "coach.yourClientBody": "{name} nimmt keine neuen Kunden an, und du bist schon einer. Du kannst weiter buchen und kaufen wie bisher."
 }

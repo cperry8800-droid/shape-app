@@ -1949,6 +1949,14 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   const [availEpoch, setAvailEpoch] = useStateBSM2(0);
   // A live coach's times: 'loading', 'ready' (realAvail holds them) or 'failed'.
   const [availState, setAvailState] = useStateBSM2('loading');
+  // Whether this coach keeps free intros open while at capacity: their own setting
+  // (rules.introsAtCapacity, task #10; owner: "let the coach decide"). Closed until it loads.
+  const [introsAtCap, setIntrosAtCap] = useStateBSM2(false);
+  // Whether the coach is at capacity NOW, as /api/availability answers it with their times, keyed on
+  // the coach it was read for. ⚠ THE CATALOGUE ROW CAN BE STALE (Codex on #2375): a coach who went
+  // full after the marketplace loaded still read as open here, so intro times were offered for
+  // /api/consultation to refuse. Null until a read answers; the row stands in until then.
+  const [availCap, setAvailCap] = useStateBSM2(null);
   // Declared hours we cannot place on a clock — the coach has no stored zone.
   const [noZone, setNoZone] = useStateBSM2(false);
 
@@ -2018,6 +2026,8 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
         const len = Number(d.rules && d.rules.consultMin);
         const minutes = Number.isInteger(len) && len >= 5 && len <= 240 ? len : 15;
         setIntroMin(minutes);
+        setIntrosAtCap(!!(d.rules && d.rules.introsAtCapacity === true));
+        if (typeof d.atCapacity === 'boolean') setAvailCap({ key: `${saleProviderRole}:${saleProviderId}`, at: d.atCapacity });
         setRealAvail(bsProjectAvailability({ slots: d.slots, booked: d.booked || [], weeks: 6, zone: d.timezone, busy: d.busy || [], rules: d.rules || null, sessionMin: minutes }));
         setAvailState('ready');
       })
@@ -2045,8 +2055,18 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   // Waiting room — port of the Signal storefront gate, shown only when the
   // coach is effectively at capacity (mirrors src/lib/capacity.ts).
   const capProviderId = coach.provider_id || coach.db_id || null;
-  const atCapacity = !!(coach.at_capacity && (!coach.capacity_resume_at || new Date(coach.capacity_resume_at).getTime() > Date.now()));
+  const rowAtCapacity = !!(coach.at_capacity && (!coach.capacity_resume_at || new Date(coach.capacity_resume_at).getTime() > Date.now()));
+  const freshAtCapacity = availCap && availCap.key === `${saleProviderRole}:${saleProviderId}` ? availCap.at : null;
+  const atCapacity = freshAtCapacity == null ? rowAtCapacity : freshAtCapacity;
   const [wl, setWl] = useStateBSM2(null);
+  // Whether this member already subscribes to the coach, from the same mine() read (task #10, Codex
+  // on #2375): at capacity a current client keeps buying, and is never sent to the waiting list.
+  // undefined = not read yet · null = could not read (the waiting list shows; the checkout decides).
+  const [clientOf, setClientOf] = useStateBSM2(undefined);
+  // ⚠ AT CAPACITY, INTROS ARE THE COACH'S CALL (task #10). Closed unless they keep them open, or this
+  // member holds their invite off the waiting list; /api/consultation refuses the rest, so no time
+  // or Book button is offered for them.
+  const introClosed = atCapacity && !introsAtCap && wl?.status !== 'invited';
   const wlBusy = React.useRef(false);
   React.useEffect(() => {
     // ⚠ CLEARED ON EVERY RUN, NOT ONLY ON THE BAIL — and keyed on the ACCOUNT below.
@@ -2056,8 +2076,8 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
     // dependency change, so the cleanup discards A's answer; clearing here rather
     // than only in the bail branch stops B seeing A's row in the window before the
     // replacement lands. Same class, and the same fix, as the web profile in this PR.
-    setWl(null);
-    if (!atCapacity || !capProviderId || !bsmAuthUid || !window.ShapeWaitlist?.mine) return undefined;
+    setWl(null); setClientOf(undefined);
+    if (!atCapacity || !capProviderId || !bsmAuthUid || !window.ShapeWaitlist?.mine) { setClientOf(null); return undefined; }
     let on = true;
     (async () => {
       try {
@@ -2072,7 +2092,8 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
         // `mineEntry.id` and was always right, which is how one member could leave the
         // list from the profile and not from the listing.
         if (on) setWl(mine ? { status: mine.status, position: mine.position, entryId: mine.id || null } : null);
-      } catch (e) {}
+        if (on) setClientOf(Array.isArray(r && r.clientOf) ? r.clientOf.some((c) => c && String(c.providerId) === String(capProviderId) && c.providerRole === saleProviderRole) : null);
+      } catch (e) { if (on) setClientOf(null); }
     })();
     return () => { on = false; };
   }, [atCapacity, capProviderId, saleProviderRole, bsmAuthUid]);
@@ -2161,6 +2182,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
     : null;
 
   const openIntro = () => {
+    if (introClosed) return;
     // ⚠ A LIVE COACH'S NEXT OPEN TIME IS A PROJECTED SLOT, carrying its instant and the coach's
     // own clock, which is all the booking may send (Codex, #2233): the preview pattern has
     // neither, so booking it was refused every time. The preview is for a demo listing only, and a
@@ -2382,7 +2404,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
     times.filter((x) => x && x !== '--').map((time) => ({ day, date, time, iso, month, weekday: new Date(`${iso}T00:00:00`).getDay() })));
 
   if (showCal) {
-    return <BSCoachAvailabilityCalendar coach={coach} roleColor={roleColor} open={realAvail != null ? realAvail : (liveTimes ? [] : expandPreviewSlots())} demo={!liveTimes && realAvail == null} note={timesNote} onRetry={timesPending && availState === 'failed' ? retryTimes : null} onBack={() => setShowCal(false)} onPick={(s) => { setShowCal(false); const d = new Date(`${s.iso}T00:00:00`); selectSlot(BSM_DAYS3[d.getDay()], String(d.getDate()), s.time, s.iso, BSM_MONTHS3[d.getMonth()], s.at); }} />;
+    return <BSCoachAvailabilityCalendar coach={coach} roleColor={roleColor} open={introClosed ? [] : realAvail != null ? realAvail : (liveTimes ? [] : expandPreviewSlots())} demo={!introClosed && !liveTimes && realAvail == null} note={introClosed ? null : timesNote} onRetry={!introClosed && timesPending && availState === 'failed' ? retryTimes : null} onBack={() => setShowCal(false)} onPick={(s) => { setShowCal(false); const d = new Date(`${s.iso}T00:00:00`); selectSlot(BSM_DAYS3[d.getDay()], String(d.getDate()), s.time, s.iso, BSM_MONTHS3[d.getMonth()], s.at); }} />;
   }
 
   // THE FULL PROFILE → the Signal living page, byte-identical component —
@@ -2397,7 +2419,9 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
       // "Book intro" on the profile opens this listing's own calendar: an intro is booked
       // at a time the coach offers, and the profile has no slot to send (it used to call the
       // booking with none, which failed every time).
-      commerce: { coach, role: saleProviderRole, packages: p.packages, bookIntro: () => { setShowProfile(false); setShowCal(true); } },
+      // introsAtCapacity: the coach's own setting, so the profile offers the intro at capacity when
+      // this listing does (Codex on #2375).
+      commerce: { coach, role: saleProviderRole, packages: p.packages, atCapacity, introsAtCapacity: introsAtCap, bookIntro: () => { setShowProfile(false); setShowCal(true); } },
     };
     return <Living person={person} onBack={() => setShowProfile(false)} onMessage={(pp) => { setShowProfile(false); if (goChat) goChat((pp && pp.who) || coach.name, isNutriDetail ? 'Nutritionist' : 'Trainer'); }} />;
   }
@@ -2413,7 +2437,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   const allOpenSlots = realAvail != null
     ? realAvail.map(projSlotRow)
     : (liveTimes ? [] : expandPreviewSlots());
-  const openSlots = allOpenSlots.slice(0, 3);
+  const openSlots = introClosed ? [] : allOpenSlots.slice(0, 3);
   const Station = ({ children }) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: `22px ${t.padX}px 0` }}>
       <span aria-hidden style={{ flexShrink: 0, width: 10, height: 3, background: roleColor }} />
@@ -2517,7 +2541,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
             </div>
             <div aria-hidden style={{ marginTop: 10, height: 2, background: `linear-gradient(90deg, ${t.INK}, ${roleColor} 72%, transparent)` }} />
             {p.tagline ? <div style={{ marginTop: 13, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 15.5, lineHeight: 1.45, color: t.INK70, letterSpacing: '-0.01em' }}>“{p.tagline}”</div> : null}
-            <button onClick={openIntro} style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 15, padding: 14, border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>{tr('marketplace:listing.bookTheIntro', { defaultValue: 'Book the intro · $0' })}</button>
+            {introClosed ? null : <button onClick={openIntro} style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 15, padding: 14, border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>{tr('marketplace:listing.bookTheIntro', { defaultValue: 'Book the intro · $0' })}</button>}
             <button onClick={openMessage} style={{ marginTop: 12, background: 'transparent', border: 0, cursor: 'pointer', padding: '2px 0', minHeight: 24, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, borderBottom: `2px solid ${t.INK}59` }}>{tr('marketplace:listing.messageName', { defaultValue: '✉ Message {name}', name: firstName })}</button>
           </div>
         </>);
@@ -2536,7 +2560,9 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
       {/* ── Open this week ─────────────────────────────── */}
       <Station>{tr('marketplace:listing.openThisWeek', { defaultValue: 'Open this week · intro is free' })}</Station>
       <div style={{ padding: `2px ${t.padX}px 0` }}>
-        {openSlots.length === 0 ? (
+        {introClosed ? (
+          <div data-intros-closed="" style={{ padding: '10px 0', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('marketplace:listing.introsClosed', { defaultValue: "{name} isn't taking new clients right now, so intros are closed. Join the waiting list below.", name: firstName })}</div>
+        ) : openSlots.length === 0 ? (
           <div data-times-note={timesPending ? availState : undefined} style={{ padding: '10px 0', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{timesNote || (noZone
             ? tr('marketplace:listing.noTimezone', { defaultValue: "Open hours are set, but their timezone isn't — message {name} to find one.", name: firstName })
             : tr('marketplace:listing.noOpenTimes', { defaultValue: 'No open times this week — message {name} to find one.', name: firstName }))}
@@ -2549,11 +2575,11 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
             <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, borderBottom: `2px solid ${teal}`, paddingBottom: 2 }}>{tr('marketplace:slot.holdIt', { defaultValue: 'Hold it →' })}</span>
           </button>
         ))}
-        <button onClick={() => setShowCal(true)} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'baseline', gap: 9, minHeight: 44, boxSizing: 'border-box', padding: '10px 0', borderTop: `1px solid ${t.HAIR}` }}>
+        {introClosed ? null : <button onClick={() => setShowCal(true)} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'baseline', gap: 9, minHeight: 44, boxSizing: 'border-box', padding: '10px 0', borderTop: `1px solid ${t.HAIR}` }}>
           <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>{tr('marketplace:listing.seeFullCalendar', { defaultValue: 'See the full calendar' })}</span>
           <Leader />
           <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>→</span>
-        </button>
+        </button>}
       </div>
 
       {/* ── The rate card ─────────────────────────────── */}
@@ -2582,10 +2608,15 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
                 <div style={{ textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.RUST }}>{tr('marketplace:listing.onWaitlist', { defaultValue: 'On the waiting list' })}</div>
                 <div style={{ marginTop: 7, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK70, lineHeight: 1.45 }}>{tr('marketplace:listing.waitlistPosition', { defaultValue: "You're #{position} in line. {name} will invite you when a spot opens.", position: wl.position, name: firstName })}</div>
                 <button onClick={wlWithdraw} style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 12, minHeight: 44, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('marketplace:listing.leaveList', { defaultValue: 'Leave the list' })}</button>
+              </>) : clientOf === true ? (<>
+                {/* A current client at capacity: their sessions and plans below stay open to them. */}
+                <div data-client-at-capacity="" style={{ textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.GREEN }}>{tr('marketplace:listing.yourClientTitle', { defaultValue: "You're {name}'s client", name: firstName })}</div>
+                <div style={{ marginTop: 7, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK70, lineHeight: 1.45 }}>{tr('marketplace:listing.yourClientBody', { defaultValue: "{name} isn't taking new clients, and you're already one. The sessions and plans below are still yours to buy.", name: firstName })}</div>
               </>) : (<>
                 <div style={{ textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.RUST }}>{tr('marketplace:listing.atCapacity', { defaultValue: 'At capacity' })}</div>
                 <div style={{ marginTop: 7, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK70, lineHeight: 1.45 }}>{tr('marketplace:listing.atCapacityBody', { defaultValue: "{name} isn't taking new clients right now. Join the waiting list to be first in line.", name: firstName })}</div>
-                <button onClick={wlJoin} style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 12, minHeight: 44, border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>{tr('marketplace:listing.joinWaitlist', { defaultValue: 'Join the waiting list' })}</button>
+                {/* Signed in and not read yet: a current client must not be shown Join first. */}
+                {bsmAuthUid && clientOf === undefined ? null : <button onClick={wlJoin} style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 12, minHeight: 44, border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>{tr('marketplace:listing.joinWaitlist', { defaultValue: 'Join the waiting list' })}</button>}
               </>)
             ) : (<>
               <div style={{ textAlign: 'center', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>{tr('marketplace:listing.standingOffer', { defaultValue: '✂ · Standing offer' })}</div>
@@ -2739,7 +2770,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
       ) : null}
 
       <div style={{ padding: `16px ${t.padX}px 20px` }}>
-        <button onClick={openIntro} style={{ display: 'block', width: '100%', boxSizing: 'border-box', minHeight: 50, padding: '15px 10px', border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, lineHeight: 1.15, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>{tr('marketplace:listing.startWith', { defaultValue: 'Start with {name} · free intro →', name: firstName })}</button>
+        {introClosed ? null : <button onClick={openIntro} style={{ display: 'block', width: '100%', boxSizing: 'border-box', minHeight: 50, padding: '15px 10px', border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, lineHeight: 1.15, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>{tr('marketplace:listing.startWith', { defaultValue: 'Start with {name} · free intro →', name: firstName })}</button>}
       </div>
 
       {offerSheet && monthlyPkg && (() => {

@@ -184,21 +184,29 @@ test('appendParam puts the parameter in the query, before any fragment, whether 
 // ── /api/stripe/checkout-session: coaching needs the membership ─────────────────────────────
 // `screening`: the buyer's own health_profile document (fix 2b). Completed by default, so each
 // test here is about what it names; null is a buyer who has not completed it.
-async function coachRoute({ profile = ADULT, platform = [], subscriptions = [], fail = [], errors = {}, stripeSubs = [], emailSubs = [], stripeThrows = false, customerFails = false, open = [], table = claimsTable(), rpcError = null, createDelay = 0, onCreated = null, onList = null, afterCheck = null, screening = { consentAt: '2026-10-01T00:00:00Z' } } = {}) {
+async function coachRoute({ profile = ADULT, platform = [], subscriptions = [], fail = [], errors = {}, stripeSubs = [], emailSubs = [], stripeThrows = false, customerFails = false, open = [], table = claimsTable(), rpcError = null, createDelay = 0, onCreated = null, onList = null, afterCheck = null, screening = { consentAt: '2026-10-01T00:00:00Z' }, atCapacity = false, invite = 'no' } = {}) {
   const { requestUtils, returnPath, membershipCore, platformFee } = await baseModules();
   const created = [];
   const createdOpts = [];
   const expired = [];
   const caller = scripted({ tables: { profiles: profile ? [profile] : [], platform_subscriptions: platform, subscriptions, user_goals: screening ? [{ data: screening }] : [] }, fail, errors });
-  const admin = scripted({ tables: { trainers: [{ id: 4, name: 'Coach T', owner_id: '22222222-2222-4222-8222-222222222222', price: 150, session_price: 90, stripe_account_id: 'acct_T', stripe_account_status: 'active', at_capacity: false, capacity_resume_at: null }] } });
+  const admin = scripted({ tables: { trainers: [{ id: 4, name: 'Coach T', owner_id: '22222222-2222-4222-8222-222222222222', price: 150, session_price: 90, stripe_account_id: 'acct_T', stripe_account_status: 'active', at_capacity: atCapacity, capacity_resume_at: null }] } });
+  // The real capacity rule and the real "already their client" read (task #10), over the caller's
+  // own subscription rows; the invite is scripted ('yes', 'no', 'error').
+  const capacity = await loadRealModule(join(ROOT, 'src/lib/capacity.ts'), { typescript: true });
+  const waitlist = await loadRealModule(join(ROOT, 'src/lib/waitlist.ts'), { typescript: true, registry: new Map([['@supabase/supabase-js', { createClient: () => null }], ['@/lib/supabase/server', { createClient: async () => null }], ['@/lib/membership-core', membershipCore]]) });
   const route = await loadRealModule(join(ROOT, 'src/app/api/stripe/checkout-session/route.ts'), {
     typescript: true,
     registry: new Map([
       ['next/server', nextServer],
       ['@/lib/stripe', { stripe: { checkout: { sessions: { create: createInto({ created, createdOpts, open, prefix: 'cs_test_coach', delay: createDelay, onCreated }) } } } }],
       ['@/lib/supabase/admin', { createAdminClient: () => admin.client }],
-      ['@/lib/capacity', { isEffectivelyAtCapacity: () => false }],
-      ['@/lib/waitlist', { resolveRequestClient: async () => ({ user: { id: UID, email: 'm@example.invalid', emailConfirmed: true }, supabase: caller.client }), hasActiveWaitlistInvite: async () => false }],
+      ['@/lib/capacity', capacity],
+      ['@/lib/waitlist', {
+        resolveRequestClient: async () => ({ user: { id: UID, email: 'm@example.invalid', emailConfirmed: true }, supabase: caller.client }),
+        hasActiveWaitlistInvite: async () => { if (invite === 'error') throw new Error('invite lookup failed'); return invite === 'yes'; },
+        isActiveClientOf: waitlist.isActiveClientOf,
+      }],
       ['@/lib/request-utils', requestUtils],
       ['@/lib/platform-fee', platformFee],
       ['@/lib/coach-origin', { resolveCoachCheckoutOrigin: async () => ({ origin: 'marketplace', feeBps: 1500, referralId: null }) }],
@@ -252,6 +260,38 @@ test('coach checkout: a proven minor is refused, and a membership read that fail
   const fault = await runCoachCheckout({ fail: ['profiles'] });
   assert.equal(fault.status, 503, 'fail closed: no money moves on an answer we could not read');
   assert.equal(fault.created.length, 0);
+});
+
+// ── Task #10: at capacity means no new clients, not no sales ─────────────────────────────────
+// Owner, 2026-10-15: at capacity "basically makes it so they cant add new clients, but clients can
+// still be added to waitlist".
+test('coach checkout at capacity: a new client is refused, an invited one pays, and a current client still buys sessions', async () => {
+  const member = { platform: [{ status: 'active' }], atCapacity: true };
+  const session = { item: { type: 'booking', name: 'Session' }, coach: { provider_id: 4, provider_role: 'trainer' } };
+  // Someone who is not yet a client: refused with the flag the pages read, for a subscription and a session alike.
+  const sub = await runCoachCheckout(member);
+  assert.equal(sub.status, 409);
+  assert.equal(sub.body.reason, 'at_capacity');
+  const buy = await runCoachCheckout({ ...member, body: session });
+  assert.equal(buy.status, 409);
+  assert.equal(buy.body.reason, 'at_capacity');
+  assert.equal(sub.created.length + buy.created.length, 0);
+  // Invited off the waiting list: their spot is held.
+  const invited = await runCoachCheckout({ ...member, invite: 'yes' });
+  assert.equal(invited.status, 200, JSON.stringify(invited.body));
+  // A current client buys a session from their own coach while the coach is full.
+  const client = await runCoachCheckout({ ...member, subscriptions: [{ id: 's1', status: 'active' }], body: session });
+  assert.equal(client.status, 200, JSON.stringify(client.body));
+  assert.equal(client.created[0].mode, 'payment');
+  // A failed invite read is never a yes.
+  const unread = await runCoachCheckout({ ...member, invite: 'error' });
+  assert.equal(unread.status, 503);
+  // A client's read that fails refuses too (isActiveClientOf throws).
+  const clientUnread = await runCoachCheckout({ ...member, body: session, errors: { subscriptions: { code: 'XX000', message: 'down' } } });
+  assert.equal(clientUnread.status, 503);
+  // Not at capacity: neither is asked.
+  const open = await runCoachCheckout({ platform: [{ status: 'active' }] });
+  assert.equal(open.status, 200);
 });
 
 // ── Fix 2b: hiring a coach needs the health screening ───────────────────────────────────────

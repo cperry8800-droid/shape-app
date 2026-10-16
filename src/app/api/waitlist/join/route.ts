@@ -57,6 +57,7 @@ export async function POST(request: Request) {
     .maybeSingle();
 
   let isNew = false;
+  let entryId: string | null = null;
   if (existing) {
     const expiredInvite =
       existing.status === 'invited' &&
@@ -76,17 +77,49 @@ export async function POST(request: Request) {
         .select('id').maybeSingle();
       if (reErr) return NextResponse.json({ error: 'Could not join the waitlist.' }, { status: 500 });
       isNew = Boolean(reactivated);
+      if (reactivated) entryId = existing.id;
     }
     // else: already waiting or holding a live invite — dedup, no change.
   } else {
-    const { error: insErr } = await supabase.from('coach_waitlist').insert({
+    const { data: inserted, error: insErr } = await supabase.from('coach_waitlist').insert({
       provider_role: providerRole, provider_id: providerId, client_id: user.id, note, status: 'waiting',
-    });
+    }).select('id').maybeSingle();
     // 23505 = someone raced us to the unique index; treat as already-joined.
     if (insErr && insErr.code !== '23505') {
       return NextResponse.json({ error: 'Could not join the waitlist.' }, { status: 500 });
     }
-    if (!insErr) isNew = true;
+    if (!insErr) {
+      isNew = true;
+      entryId = (inserted as { id?: string } | null)?.id ?? null;
+    }
+  }
+
+  // ⚠ A JOIN THAT RACED A REOPENING (Codex on #2375). The capacity read above can see the coach full
+  // while the reopening reads its list before this row is saved; the reopening then finishes and
+  // this member waits for a notice that never comes. A reopening makes the coach open to members
+  // before it reads its list (src/lib/capacity-reopen.ts), so a read made now, after the row is
+  // saved, sees it: the entry is withdrawn and the member is told the coach is taking clients, as
+  // the check above says. A read that fails keeps the entry.
+  if (isNew && entryId) {
+    const { data: now } = await supabase
+      .from(table)
+      .select('id, at_capacity, capacity_resume_at')
+      .eq('id', providerId)
+      .maybeSingle();
+    if (now && !isEffectivelyAtCapacity(now)) {
+      // Refused only once the row is confirmed withdrawn (Codex on #2375). A withdrawal that fails,
+      // or finds the row already moved on (the coach invited them), leaves a live entry, so the
+      // join answers as it would have: the member is on the list and the coach is told.
+      const { data: withdrawn, error: wdErr } = await supabase
+        .from('coach_waitlist')
+        .update({ status: 'left', responded_at: new Date().toISOString() })
+        .eq('id', entryId).eq('client_id', user.id).eq('status', 'waiting')
+        .select('id')
+        .maybeSingle();
+      if (!wdErr && withdrawn) {
+        return NextResponse.json({ error: 'This coach is accepting clients — no waitlist needed.' }, { status: 409 });
+      }
+    }
   }
 
   // Notify the coach on a genuinely new / renewed entry. The notification write

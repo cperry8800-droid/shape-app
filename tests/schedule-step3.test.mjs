@@ -105,11 +105,12 @@ async function availability({ tables = {}, rpc, fail = [], anon = false } = {}) 
   const lib = (f, reg = []) => loadRealModule(join(ROOT, 'src/lib', f), { typescript: true, registry: new Map([['next/server', nextServer], ...reg]) });
   const time = await lib('time.ts');
   const owned = await lib('owned-provider.ts', [['@/lib/time', time], ['@supabase/supabase-js', {}]]);
+  const capacity = await lib('capacity.ts');
   const raw = fakeSupabase({ tables, fail, rpcs: { provider_busy_blocks: rpc || (() => []) } });
   const client = anon ? anonListings(raw) : raw;
   const route = await loadRealModule(join(ROOT, 'src/app/api/availability/route.ts'), {
     typescript: true,
-    registry: new Map([['next/server', nextServer], ['@/lib/time', time], ['@/lib/owned-provider', owned], ['@/lib/supabase/server', { createClient: async () => client }]]),
+    registry: new Map([['next/server', nextServer], ['@/lib/time', time], ['@/lib/owned-provider', owned], ['@/lib/capacity', capacity], ['@/lib/supabase/server', { createClient: async () => client }]]),
   });
   const res = await route.GET(new Request('https://shape.test/api/availability?role=trainer&id=7'));
   return { status: res.status, body: await res.json(), calls: raw._calls };
@@ -126,6 +127,24 @@ test('/api/availability places a signed-out visitor\'s times: it reads the zone 
   assert.equal(r.body.timezone, NY, 'the zone, for a visitor who is not signed in');
   assert.equal(r.body.slots.length, 1);
   assert.doesNotMatch(JSON.stringify(r.body), /acct_x/, 'nothing the visitor may not read');
+});
+
+test('/api/availability says whether the coach is taking new clients, and whether intros stay open while they are not', async (t) => {
+  // Task #10: a booking page offers no intro times when the coach is full and keeps intros closed.
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-10-08T10:00:00Z') });
+  const hours = [{ provider_role: 'trainer', provider_id: 7, weekday: 4, start_minute: 540, duration_min: 180 }];
+  const rules = (on) => [{ provider_role: 'trainer', provider_id: 7, buffer_min: 0, max_per_day: null, min_notice_hours: 0, consult_min: 15, intros_at_capacity: on }];
+  const full = await availability({ anon: true, tables: { trainers: [{ id: 7, timezone: NY, at_capacity: true, capacity_resume_at: null }], provider_availability: hours, provider_booking_rules: rules(false) } });
+  assert.equal(full.status, 200, JSON.stringify(full.body));
+  assert.equal(full.body.atCapacity, true, 'read by name, so a signed-out visitor is told too');
+  assert.equal(full.body.rules.introsAtCapacity, false);
+  const open = await availability({ anon: true, tables: { trainers: [{ id: 7, timezone: NY, at_capacity: true, capacity_resume_at: null }], provider_availability: hours, provider_booking_rules: rules(true) } });
+  assert.equal(open.body.rules.introsAtCapacity, true);
+  // A resume date that has passed is accepting again; one ahead is still full.
+  const passed = await availability({ tables: { trainers: [{ id: 7, timezone: NY, at_capacity: true, capacity_resume_at: '2026-10-01T00:00:00Z' }], provider_availability: hours } });
+  assert.equal(passed.body.atCapacity, false);
+  const ahead = await availability({ tables: { trainers: [{ id: 7, timezone: NY, at_capacity: true, capacity_resume_at: '2026-11-01T00:00:00Z' }], provider_availability: hours } });
+  assert.equal(ahead.body.atCapacity, true);
 });
 
 test('/api/availability answers with the coach\'s busy time and rules, and `booked` from the busy read', async (t) => {
@@ -149,7 +168,8 @@ test('/api/availability answers with the coach\'s busy time and rules, and `book
   assert.equal(r.status, 200, JSON.stringify(r.body));
   assert.deepEqual(r.body.busy, busy.map((b) => ({ start: b.starts_at, end: b.ends_at, kind: b.kind })));
   assert.deepEqual(r.body.booked, ['2026-10-08T13:00:00+00:00'], 'a session start, never a time-off one');
-  assert.deepEqual(r.body.rules, { bufferMin: 15, maxPerDay: 4, minNoticeHours: 12, consultMin: 30 }, 'the intro length rides with the rules, so the booking pages lay out times for it');
+  assert.deepEqual(r.body.rules, { bufferMin: 15, maxPerDay: 4, minNoticeHours: 12, consultMin: 30, introsAtCapacity: false }, 'the intro length rides with the rules, so the booking pages lay out times for it');
+  assert.equal(r.body.atCapacity, false);
   assert.equal(r.body.timezone, NY);
   // ⚠ THE WINDOW IS INSIDE WHAT THE FUNCTION ALLOWS: a longer one is refused outright.
   const days = (Date.parse(asked.p_to) - Date.parse(asked.p_from)) / 86400000;
@@ -157,9 +177,11 @@ test('/api/availability answers with the coach\'s busy time and rules, and `book
   assert.deepEqual([asked.p_role, asked.p_provider_id], ['trainer', 7]);
 });
 
-test('/api/availability fails closed on an unreadable busy read or rules; a coach with neither answers nothing busy and the defaults', async () => {
+test('/api/availability fails closed on an unreadable busy read, rules or listing; a coach with neither answers nothing busy and the defaults', async () => {
   const base = { trainers: [{ id: 7, timezone: NY }], provider_availability: [] };
-  for (const fail of [['rpc:provider_busy_blocks'], ['provider_booking_rules']]) {
+  // The listing carries the zone and whether the coach is at capacity: unread, the coach looked open
+  // and every intro time was offered for the consultation route to refuse (Codex on #2375).
+  for (const fail of [['rpc:provider_busy_blocks'], ['provider_booking_rules'], ['trainers']]) {
     const r = await availability({ tables: base, fail });
     assert.equal(r.status, 503, fail.join() + ' read as a free calendar');
   }

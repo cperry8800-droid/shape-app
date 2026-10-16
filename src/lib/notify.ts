@@ -31,7 +31,13 @@ export type NewNotification = {
 
 // Resolves true when the row was stored. A caller with a follow-up effect (an email) waits on it.
 export async function createNotification(client: SupabaseClient, n: NewNotification): Promise<boolean> {
-  if (!n.userId || !n.title) return false;
+  return (await insertNotification(client, n)) === 'stored';
+}
+
+// The insert, with why a row was not stored: a duplicate the dedupe index refused is a send that
+// already happened; anything else failed and may be worth a retry.
+async function insertNotification(client: SupabaseClient, n: NewNotification): Promise<'stored' | 'duplicate' | 'failed'> {
+  if (!n.userId || !n.title) return 'failed';
   try {
     const { error } = await client.from('notifications').insert({
       user_id: n.userId,
@@ -41,15 +47,18 @@ export async function createNotification(client: SupabaseClient, n: NewNotificat
       route: n.route ?? null,
       data: n.data ?? {},
     });
-    if (!error) return true;
+    if (!error) return 'stored';
     // 23505: a row with the same data.dedupe key exists (notifications_dedupe_uidx), so this
     // send has already happened. Expected when two runs of a scheduled job overlap.
-    if ((error as { code?: string }).code === '23505') console.info('[notify] duplicate skipped:', n.type);
-    else console.error('[notify] insert failed:', error.message);
-    return false;
+    if ((error as { code?: string }).code === '23505') {
+      console.info('[notify] duplicate skipped:', n.type);
+      return 'duplicate';
+    }
+    console.error('[notify] insert failed:', error.message);
+    return 'failed';
   } catch (err) {
     console.error('[notify] insert threw:', err);
-    return false;
+    return 'failed';
   }
 }
 
@@ -74,7 +83,17 @@ export async function createPreferredNotification(
   admin: SupabaseClient,
   n: NewNotification & { type: string; quiet?: boolean },
 ): Promise<boolean> {
-  if (!n.userId || !n.title) return false;
+  return (await preferredNotificationOutcome(admin, n)) === 'stored';
+}
+
+// createPreferredNotification, saying why nothing was stored: 'skipped' is the member's own choice
+// (muted, the type off) or a send that already happened (a duplicate); 'failed' is a read or write
+// that did not work, which a caller that promised the notice can try again (capacity-reopen.ts).
+export async function preferredNotificationOutcome(
+  admin: SupabaseClient,
+  n: NewNotification & { type: string; quiet?: boolean },
+): Promise<'stored' | 'skipped' | 'failed'> {
+  if (!n.userId || !n.title) return 'failed';
   let stored = false;
   try {
     const [settingsRes, prefsRes] = await Promise.all([
@@ -86,16 +105,16 @@ export async function createPreferredNotification(
     // is sent, and the skip is logged.
     if (settingsRes.error || prefsRes.error) {
       console.error('[notify] could not read preferences; not sending:', n.type, (settingsRes.error || prefsRes.error)?.message);
-      return false;
+      return 'failed';
     }
-    if ((settingsRes.data as { muted?: boolean } | null)?.muted === true) return false;
+    if ((settingsRes.data as { muted?: boolean } | null)?.muted === true) return 'skipped';
     const overrides: Record<string, boolean> = {};
     for (const row of (prefsRes.data ?? []) as { channel: string; enabled: boolean }[]) {
       overrides[row.channel] = !!row.enabled;
     }
     const channels = channelsForType({ matrix: { [n.type]: overrides } }, n.type);
     if (n.quiet) { channels.push = false; channels.email = false; }
-    if (!channels.inapp && !channels.push && !channels.email) return false;
+    if (!channels.inapp && !channels.push && !channels.email) return 'skipped';
     // Email cooldown: one email per (recipient, type) per hour, checked BEFORE
     // the insert below (which would otherwise count itself). Event loops (e.g.
     // scripted waitlist join→withdraw→join) can fire the bell/push row per
@@ -110,10 +129,13 @@ export async function createPreferredNotification(
         .eq('user_id', n.userId).eq('type', n.type).gte('created_at', since);
       if (error || (count ?? 1) > 0) allowEmail = false;
     }
-    stored = await createNotification(admin, {
+    const inserted = await insertNotification(admin, {
       userId: n.userId, type: n.type, title: n.title, body: n.body, route: n.route,
       data: { ...(n.data ?? {}), channels },
     });
+    if (inserted === 'duplicate') return 'skipped';
+    if (inserted === 'failed') return 'failed';
+    stored = true;
     // No row, no email: the cooldown above counts these rows, and a send that left none (a
     // failed insert, or a duplicate the dedupe index rejected) would otherwise email again.
     if (allowEmail && stored) {
@@ -128,9 +150,9 @@ export async function createPreferredNotification(
         });
       }
     }
-    return stored;
+    return 'stored';
   } catch (err) {
     console.error('[notify] preferred notification failed:', err);
-    return stored;
+    return stored ? 'stored' : 'failed';
   }
 }

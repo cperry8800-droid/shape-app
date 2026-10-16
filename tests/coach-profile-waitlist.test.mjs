@@ -13,6 +13,13 @@ import { stripComments } from './helpers/strip-comments.mjs';
 const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8');
 const RAW_WEB = read('../public/newdesign/livingShared.jsx');
 const WEB = stripComments(RAW_WEB);
+/** The at-capacity waiting room on the website profile, from its gate to the studio section after it. */
+function roomBlock() {
+  const start = WEB.indexOf('{!owner && atCapacity && (');
+  const end = WEB.indexOf('studio.length > 0 && (', start);
+  assert.ok(start > 0 && end > start, 'the waiting room or the studio after it moved');
+  return WEB.slice(start, end);
+}
 const MKT = stripComments(read('../mobile-app/src/broadsheet/iosAppBroadsheetMarketplace.jsx'));
 const SIGNAL = stripComments(read('../mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'));
 const CAP_TS = read('../src/lib/capacity.ts');
@@ -223,9 +230,11 @@ test('the waiting list replaces the coupon rather than sitting beside it', () =>
   assert.match(WEB, /\{!owner && !atCapacity && \(/, 'the storefront is no longer gated on capacity');
   assert.match(WEB, /\{!owner && atCapacity && \(/, 'the waiting room is no longer gated on capacity');
   // Both blocks are owner-gated: a coach must never be shown their own waiting list.
-  const room = WEB.slice(WEB.indexOf('{!owner && atCapacity && ('));
-  assert.match(room.slice(0, 4000), /onClick=\{wlJoin\}/, 'the join control is gone');
-  assert.match(room.slice(0, 4000), /onClick=\{wlLeave\}/, 'the leave control is gone');
+  // The room runs to the studio section that follows it (a character count went stale once a
+  // current client's branch was added: task #10, Codex on #2375).
+  const room = roomBlock();
+  assert.match(room, /onClick=\{wlJoin\}/, 'the join control is gone');
+  assert.match(room, /onClick=\{wlLeave\}/, 'the leave control is gone');
 });
 
 test('a same-mount coach swap cannot leak the previous coach\u2019s gate state', () => {
@@ -280,8 +289,8 @@ test('at capacity with no provider id never renders a control that cannot act', 
   // ⚠ `atCapacity` CAN BE TRUE WITH `provId` NULL — the checkout's 409 sets the flag
   // while an unreadable provider row leaves the id null. A Join button there would do
   // nothing at all, in silence, which is the dead control this whole change removes.
-  const room = WEB.slice(WEB.indexOf('{!owner && atCapacity && ('));
-  assert.match(room.slice(0, 5000), /\{!provId \? \(/, 'the no-provider branch is gone');
+  const room = roomBlock();
+  assert.match(room, /\{!provId \? \(/, 'the no-provider branch is gone');
   // And the handler says so too, rather than folding it into the in-flight lock where
   // it returns silently.
   const join = arrowBody(WEB, 'wlJoin');

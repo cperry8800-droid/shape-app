@@ -38,6 +38,7 @@ const FIELDS = [
   ['maxPerDay', 'max_per_day'],
   ['minNoticeHours', 'min_notice_hours'],
   ['consultMin', 'consult_min'],
+  ['introsAtCapacity', 'intros_at_capacity'],
 ] as const;
 
 export async function GET(req: NextRequest) {
@@ -85,7 +86,7 @@ export async function POST(req: NextRequest) {
   // Validated before anything is read, so a bad value never costs a round trip.
   const sent = FIELDS.filter(([key]) => body[key] !== undefined);
   if (!sent.length) {
-    return NextResponse.json({ error: 'invalid_rules', detail: 'Send at least one of bufferMin, maxPerDay, minNoticeHours or consultMin.' }, { status: 400 });
+    return NextResponse.json({ error: 'invalid_rules', detail: 'Send at least one of bufferMin, maxPerDay, minNoticeHours, consultMin or introsAtCapacity.' }, { status: 400 });
   }
   const checked = validateRules(body);
   if (!checked.ok) {

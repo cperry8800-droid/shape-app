@@ -351,5 +351,7 @@
   "prompt.q.who_i_coach_best": "Tôi huấn luyện ai tốt nhất",
   "prompt.q.wont_program": "Điều tôi không bao giờ đưa vào giáo án",
   "prompt.q.approach": "Cách tiếp cận của tôi",
-  "prompt.q.client_win": "Một thành tích của khách"
+  "prompt.q.client_win": "Một thành tích của khách",
+  "coach.yourClientTitle": "Bạn là khách của {name}",
+  "coach.yourClientBody": "{name} không nhận khách mới, và bạn đã là khách rồi. Bạn vẫn có thể đặt lịch và mua như trước."
 }

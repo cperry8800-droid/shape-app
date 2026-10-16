@@ -343,8 +343,9 @@ async function routes() {
   const series = await lib('session-series.ts', [['@supabase/supabase-js', {}], ['@/lib/time', time]]);
   const emails = await lib('coach-application-emails.ts');
   const paidSessions = await lib('paid-sessions.ts', [['@supabase/supabase-js', {}]]);
+  const capacity = await lib('capacity.ts');
   const guards = await import(pathToFileURL(join(ROOT, 'src/lib/access-guards.mjs')).href);
-  const state = { client: null, admin: null, user: null, notices: [], mails: [], steps: [] };
+  const state = { client: null, admin: null, user: null, notices: [], mails: [], steps: [], invite: 'no', inviteAsks: [] };
   const registry = () => new Map([
     ['next/server', nextServer],
     ['@/lib/time', time],
@@ -357,7 +358,14 @@ async function routes() {
     ['@/lib/supabase/admin', { createAdminClient: () => state.admin }],
     ['@/lib/video', { videoRoomUrl: (id) => 'https://meet.shape.test/' + id }],
     ['@/lib/notify', { createNotification: async (_c, n) => { state.notices.push(n); return true; } }],
-    ['@/lib/capacity', { isEffectivelyAtCapacity: () => false }],
+    // The real rule: a listing's at_capacity and capacity_resume_at decide it.
+    ['@/lib/capacity', capacity],
+    // A waiting-list invite (task #10): 'yes', 'no', or 'error' for a read that fails.
+    ['@/lib/waitlist', { hasActiveWaitlistInvite: async (_c, clientId, role, id) => {
+      state.inviteAsks.push({ clientId, role, id });
+      if (state.invite === 'error') throw new Error('invite lookup failed');
+      return state.invite === 'yes';
+    } }],
     ['@/lib/email', { buildIcs: () => 'ICS', calendarOrganizerEmail: () => 'no-reply@shape.test', sendEmail: async (m) => { state.mails.push(m); return { ok: true }; } }],
     // The captcha passes unless a test turns it off (`captcha: false`), the website form's
     // case with no token once TURNSTILE_SECRET_KEY is set.
@@ -374,9 +382,11 @@ async function routes() {
   loaded = { manage, request, consult, calendar, state, series };
   return loaded;
 }
-async function post(mod, path, body, { tables, user, insertError, updateError, fail, headers = {}, captcha = true } = {}) {
+async function post(mod, path, body, { tables, user, insertError, updateError, fail, headers = {}, captcha = true, invite = 'no' } = {}) {
   const m = await routes();
   m.state.captcha = captcha;
+  m.state.invite = invite;
+  m.state.inviteAsks.length = 0;
   // ⚠ BOTH CLIENTS REFUSE THE INSERT: a member's request is written through their own client.
   m.state.client = db(tables, { label: 'request', insertError, updateError, fail, rlsUser: user ? user.id : null });
   m.state.admin = db(tables, { label: 'service', insertError, fail });
@@ -387,7 +397,7 @@ async function post(mod, path, body, { tables, user, insertError, updateError, f
   const res = await atNow(() => m[mod].POST(new Request('https://shape.test' + path, {
     method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body),
   })));
-  return { status: res.status, body: await res.json(), notices: m.state.notices.slice(), mails: m.state.mails.slice(), steps: m.state.steps.slice(), writes: tables.__writes || [] };
+  return { status: res.status, body: await res.json(), notices: m.state.notices.slice(), mails: m.state.mails.slice(), steps: m.state.steps.slice(), inviteAsks: m.state.inviteAsks.slice(), writes: tables.__writes || [] };
 }
 
 const COACH = { id: 'coach-1', email: 'coach@shape.test' };
@@ -969,6 +979,49 @@ test('/api/consultation refuses a suspended listing, and books without the intro
   // Any other refusal is not retried.
   const other = await consult({}, { tables: world(), insertError: { code: 'PGRST204', message: "Could not find the 'topic' column of 'sessions' in the schema cache" } });
   assert.equal(other.status, 500);
+});
+
+// ── At capacity, the coach decides whether intros stay open (task #10) ─────────────────────────
+// Owner, 2026-10-15: at capacity a coach "cant add new clients, but clients can still be added to
+// waitlist", and on a free intro while full: "let the coach decide".
+const fullCoach = (extra = {}) => ({ trainers: [{ id: 7, owner_id: 'coach-1', name: 'Coach', timezone: NY, at_capacity: true, capacity_resume_at: null, ...extra }] });
+const introRules = (introsAtCapacity) => ({ provider_booking_rules: [{ provider_role: 'trainer', provider_id: 7, buffer_min: 0, max_per_day: null, min_notice_hours: 0, consult_min: 15, intros_at_capacity: introsAtCapacity }] });
+
+test('/api/consultation at capacity: closed by default, open when the coach says so, and open to a member they invited', async () => {
+  // The default (no rules row, or the setting off): refused with a code the pages read, nothing written.
+  for (const tables of [world(fullCoach()), world({ ...fullCoach(), ...introRules(false) })]) {
+    const shut = await consult({}, { tables });
+    assert.equal(shut.status, 409, JSON.stringify(shut.body));
+    assert.equal(shut.body.code, 'at_capacity');
+    assert.match(shut.body.error, /waiting list/);
+    assert.equal(shut.writes.filter((w) => w.op === 'insert').length, 0);
+    assert.deepEqual(shut.inviteAsks, [{ clientId: 'member-1', role: 'trainer', id: 7 }], 'the invite is checked for the caller and this listing');
+  }
+  // The coach keeps intros open while full: booked, and no invite is needed.
+  const open = await consult({}, { tables: world({ ...fullCoach(), ...introRules(true) }) });
+  assert.equal(open.status, 200, JSON.stringify(open.body));
+  assert.equal(open.writes.filter((w) => w.op === 'insert').length, 1);
+  assert.equal(open.inviteAsks.length, 0);
+  // Invited off the waiting list: their spot is held, so the intro is open either way.
+  const invited = await consult({}, { tables: world(fullCoach()), invite: 'yes' });
+  assert.equal(invited.status, 200, JSON.stringify(invited.body));
+  // A failed invite read is never a yes.
+  const unread = await consult({}, { tables: world(fullCoach()), invite: 'error' });
+  assert.equal(unread.status, 503);
+  assert.equal(unread.writes.filter((w) => w.op === 'insert').length, 0);
+  // A resume date that has passed is accepting again; one still ahead is full.
+  const resumed = await consult({}, { tables: world(fullCoach({ capacity_resume_at: '2026-10-01T00:00:00Z' })) });
+  assert.equal(resumed.status, 200, JSON.stringify(resumed.body));
+  const later = await consult({}, { tables: world(fullCoach({ capacity_resume_at: '2026-12-01T00:00:00Z' })) });
+  assert.equal(later.status, 409);
+  assert.equal(later.body.code, 'at_capacity');
+  // Unreadable settings refuse before anything else is decided.
+  const noRules = await consult({}, { tables: world({ ...fullCoach(), ...introRules(true) }), fail: ['provider_booking_rules'] });
+  assert.equal(noRules.status, 503);
+  // A coach taking clients is never asked about invites.
+  const accepting = await consult({}, { tables: world() });
+  assert.equal(accepting.status, 200);
+  assert.equal(accepting.inviteAsks.length, 0);
 });
 
 test('a coach\'s confirm and complete hand the session to the member\'s emails; a decline does not', async () => {

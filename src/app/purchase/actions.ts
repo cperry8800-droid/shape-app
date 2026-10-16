@@ -11,7 +11,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { stripe } from '@/lib/stripe';
 import { isEffectivelyAtCapacity } from '@/lib/capacity';
 import { feeSplit, bpsToRate } from '@/lib/platform-fee';
-import { hasActiveWaitlistInvite } from '@/lib/waitlist';
+import { hasActiveWaitlistInvite, isActiveClientOf } from '@/lib/waitlist';
 import { resolveCoachCheckoutOrigin } from '@/lib/coach-origin';
 import { coachProfileHref } from '@/lib/coach-profile-href';
 import { membershipDetour } from '@/lib/membership-detour';
@@ -95,7 +95,10 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
   if (isEffectivelyAtCapacity(provider)) {
     let invited = false;
     try {
-      invited = await hasActiveWaitlistInvite(supabase, user.id, providerRole, providerId);
+      // A member who already subscribes to this coach can still buy from them at capacity (task
+      // #10): at capacity means no new clients.
+      invited = await hasActiveWaitlistInvite(supabase, user.id, providerRole, providerId)
+        || await isActiveClientOf(supabase, user.id, providerRole, providerId);
     } catch {
       redirect(`${backHref}&error=waitlist_check_failed`);
     }
