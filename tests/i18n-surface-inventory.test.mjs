@@ -782,7 +782,7 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // website"). BSAboutPage leaves PARTIAL with its one hardcoded string, the founder's
   // signature: partStrings 211 -> 210, part.length 35 -> 34; noneStrings and none.length
   // unchanged.
-  assert.equal(partStrings, 210, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(partStrings, 210, 'the partial surfaces changed how much they hardcode — update the number AND say so in the PR');
   // ⚠ AND noneStrings 793 -> 796 IS THREE STRINGS ADDED ON PURPOSE, in
   // BSMealLogged (already uncovered): the plated stage was printing a 46px teal
   // `0` under `Logged ✓` for a cook whose macros are unknown — while logIt had
@@ -854,7 +854,7 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // as its own module, BSLeaderboard.jsx, with the member boards, the coach board and the privacy
   // switches, every string keyed under score:board.* in all 13 locales. Its old copy in the client
   // module (eight hardcoded strings) is gone, and its line left UNCOVERED.
-  assert.equal(noneStrings, 711, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(noneStrings, 711, 'the untranslated surfaces changed how much they hardcode — update the number AND say so in the PR');
   assert.equal(part.length, 34, 'partial-surface count moved — regenerate PARTIAL and the record');
   assert.equal(none.length, 87, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its

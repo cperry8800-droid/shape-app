@@ -6,11 +6,11 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 # Working memory
 
-Ongoing build/deploy conventions, the mobile architecture map, and a running
-changelog of what we've shipped live in **`docs/WORKLOG.md`** — read it before
-starting work, and append a dated entry whenever something ships. The live log is
-size-capped (`tests/worklog-size.test.mjs`); when that test fails, run
-`node scripts/worklog-archive.mjs` — older entries move, byte-identical, into
-`docs/WORKLOG-ARCHIVE-<YYYY-MM>.md`. Grep an archive; never `cat` or `@`-import one.
+`docs/WORKLOG.md` holds the current rules, the code map and the open items. Read it
+before starting work. It has no changelog, because the PR description records what
+shipped. When a PR changes a rule or leaves something open, edit that section of the
+file in the same PR, replacing the old line rather than adding a correction under it.
+History up to 2026-10-16 is in `docs/WORKLOG-ARCHIVE-*.md`; grep an archive, and
+never `cat` or `@`-import one.
 
 @docs/WORKLOG.md

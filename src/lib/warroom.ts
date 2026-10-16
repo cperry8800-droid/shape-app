@@ -883,7 +883,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       section: 'The auto-loaded changelog gets a size cap — SHIPPED 2026-09-30 (#2186 -> 2908baf)',
       items: [
         { label: 'docs/WORKLOG.md keeps the newest entries live and scripts/worklog-archive.mjs moves the rest into monthly archives byte for byte. tests/worklog-size.test.mjs fails past 15 entries or 256 KB. The file went from about 290k tokens to about 35k', status: 'done' },
-        { label: 'The archive\'s writes are not a transaction: an interrupted run can leave entries in both places. The script should refuse to move a block the archive already holds', status: 'pending' },
+        { label: 'Moot: the changelog was retired on 2026-10-16. docs/WORKLOG.md now holds only the current rules, the code map and the open items (about 10 KB); its 15 entries went into the October archive unchanged, and scripts/worklog-archive.mjs and tests/worklog-size.test.mjs were removed. The PR description is the record of what shipped', status: 'done' },
       ],
     },
     {
