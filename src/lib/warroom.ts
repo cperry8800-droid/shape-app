@@ -610,6 +610,17 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'A member can pay more than one coach of the same role — #2384. One migration, applied and verified live',
+      items: [
+        { label: 'Every read that kept the earliest subscription per role now names every coach: /api/client/plan (coaching.coaches, a per-workout coach), /api/client/onboarding (coaching.trainers / nutritionists) and the coach board. The website and the app name both coaches ("are preparing your plan"), with a message button per coach in the app and every coach\'s weekly note on Home', status: 'done' },
+        { label: 'One shared week-one target per discipline (sharedWeekOneOf): whichever current coach set it during their own subscription; every board and the plan name who set it, and a second trainer\'s board shows the first trainer\'s target with deadlines from its own day 1', status: 'done' },
+        { label: 'get_client_coaches(client): every listing the member pays, for the member and their current coaches; a co-coach of the same role now appears in the care team. A missing function (not yet migrated) reads as before, not as a failure', status: 'done' },
+        { label: 'Review: one Fable round before the push, 6 findings, 4 fixed (including Home\'s weekly notes signed with demo bylines for every real coach), 2 left with reasons in the PR; mutation round killed 29 of 29', status: 'done' },
+        { label: 'APPLIED + VERIFIED LIVE (2026-10-16, read-only) — 2026-10-16-client-coaches.sql: get_client_coaches present as a definer pinned to public, pg_temp, returning (provider_role, provider_id, name, owner_id, since); executable by authenticated and service_role, not anon; with no caller it answers 0 rows for a member who has a live subscription', status: 'done' },
+        { label: 'Nora\'s member read, the calendar and the prep-reminder cron read only the newest published meal plan (with two nutritionists, the newer menu is the plan); the coach Shared clients roster stays trainer to nutritionist', status: 'pending' },
+      ],
+    },
+    {
       section: 'Client onboarding, sign-up to a coach\'s first plan — SHIPPED 2026-10-14 to 2026-10-16 (#2353 -> ea24129, #2357 -> fe4bad2, #2358 -> 2619763, #2359 -> b7f90ca, #2360 -> 15e7ec7, #2367 -> 3ede81e, #2370 -> 38c4e96, #2372 -> d058e52, #2373 -> bfc143b, #2375 -> 1b4ca46, #2378 -> f0ee8d3, #2379 -> 112a89e, #2380 -> 1cc9c2c). Nine migrations, all applied and verified live 2026-10-16',
       items: [
         { label: 'The review (https://claude.ai/artifact/PzbGsEZAasYKX3wmsg16cS): 10 high, 18 medium and 11 low findings at 3a693fe, and the owner\'s six decisions of 2026-10-14. Every finding is closed by the PRs below; Phase 2 is on hold', status: 'done' },
@@ -624,7 +635,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Small fixes (#2379; H9 H10 M4 M5 L1 L3-L7 L9 L11): password reset in any browser and in the app; one sign-up form; a profile for every signed-in account; the Terms acceptance recorded from a server-only copy; phone notifications asked for when they mean something; a cancelled subscription stays cancelled', status: 'done' },
         { label: 'APPLIED + VERIFIED LIVE (2026-10-16, read-only) — the nine migrations: 2026-10-14-checkout-claims, 2026-10-15-coach-client-intake, 2026-10-15-coach-thread, 2026-10-15-keep-care-team-private, 2026-10-15-intro-length, 2026-10-15-notification-routes, 2026-10-15-paid-sessions, 2026-10-15-capacity-intros and 2026-10-15-terms-acceptances. The terms trigger ran its first version (an empty search_path) until the owner re-ran the file on 2026-10-16; checked after: search_path=pg_catalog, pg_temp, a definer neither anon nor authenticated can execute, on one trigger', status: 'done' },
         { label: 'Routes, all in RAW_ROUTES: /api/me/membership, /api/stripe/platform-return, /api/me/onboarding, /api/coach/to-schedule, /api/coach/capacity, /api/cron/capacity-reopen, /api/clients/[id]/week-one, /api/auth/password-reset, /api/client/onboarding', status: 'done' },
-        { label: 'OWNER DECISION — may a member have two coaches of one role? The plan read names one coach per discipline', status: 'pending' },
+        { label: 'OWNER DECISION — may a member have two coaches of one role? DECIDED 2026-10-16: yes ("members can have multiple coaches if they choose to"), sharing one section per discipline ("shared section is fine"). Built in #2384 (the section above)', status: 'done' },
         { label: 'OWNER DECISION — a buyer who pays an older checkout left open in another tab before the create; closing that gap means refunds', status: 'pending' },
         { label: 'OWNER — Firebase and APNs for push delivery. Production has no push devices, so no notification reaches a phone yet', status: 'manual' },
         { label: 'OWNER — Phase 2 (in-app purchase for the membership outside the US) is on hold', status: 'pending' },

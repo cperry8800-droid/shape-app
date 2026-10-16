@@ -4277,7 +4277,12 @@ function BSMemberSetupStation({ onGoal, onTrain, onCheckin, onFindCoach }) {
   const mono = { fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase' };
   const btn = { ...mono, fontWeight: 800, color: t.INK, background: 'transparent', border: 0, borderBottom: `1px solid ${heat}`, padding: '10px 0', minHeight: 44, cursor: 'pointer' };
   const coaching = board.coaching;
-  const trainer = coaching && coaching.training != null ? coaching.training || tr('home:setup.yourTrainer', { defaultValue: 'Your trainer' }) : null;
+  // Every trainer they pay (owner, 2026-10-16: a member may pay two); an older route sent only the first.
+  const trainerNames = coaching ? (Array.isArray(coaching.trainers) ? coaching.trainers : coaching.training != null ? [coaching.training] : []) : [];
+  const trainersMany = trainerNames.length > 1;
+  const trainer = !trainerNames.length ? null
+    : trainersMany ? (trainerNames.every(Boolean) ? bsNameList(trainerNames) : tr('home:setup.yourTrainers', { defaultValue: 'Your trainers' }))
+    : trainerNames[0] || tr('home:setup.yourTrainer', { defaultValue: 'Your trainer' });
   const max = 14;
   const unitText = (n) => tr('home:setup.targetCount', { defaultValue: '{count, plural, one {# workout} other {# workouts}} in week 1', count: n });
   const NEXT = {
@@ -4314,7 +4319,9 @@ function BSMemberSetupStation({ onGoal, onTrain, onCheckin, onFindCoach }) {
             <span style={{ ...mono, fontSize: 8, color: t.INK50, whiteSpace: 'nowrap' }}>
               {s.done && s.at ? bsSetupDay(s.at)
                 : s.done == null ? tr('home:setup.unread', { defaultValue: 'couldn’t read' })
-                : s.waiting ? tr('home:setup.coachOnIt', { defaultValue: '{name} is on it', name: trainer || tr('home:setup.yourTrainer', { defaultValue: 'Your trainer' }) })
+                : s.waiting ? (trainersMany
+                  ? tr('home:setup.coachesOnIt', { defaultValue: '{name} are on it', name: trainer })
+                  : tr('home:setup.coachOnIt', { defaultValue: '{name} is on it', name: trainer || tr('home:setup.yourTrainer', { defaultValue: 'Your trainer' }) }))
                 : s.due ? tr('home:setup.due', { defaultValue: 'due {date}', date: bsSetupDay(s.due) }) : ''}
             </span>
           </div>
@@ -4333,10 +4340,12 @@ function BSMemberSetupStation({ onGoal, onTrain, onCheckin, onFindCoach }) {
               {target
                 ? unitText(target.count)
                   + (target.startsOn ? ' · ' + tr('home:setup.starts', { defaultValue: 'starts {date}', date: bsSetupDay(target.startsOn) }) : '')
-                  + (board.setBy === 'coach' ? ' · ' + tr('home:setup.byCoach', { defaultValue: 'set by {name}', name: trainer || tr('home:setup.yourTrainer', { defaultValue: 'Your trainer' }) }) : '')
+                  + (board.setBy === 'coach' ? ' · ' + tr('home:setup.byCoach', { defaultValue: 'set by {name}', name: board.setByName || (trainersMany ? null : trainer) || tr('home:setup.yourTrainer', { defaultValue: 'Your trainer' }) }) : '')
                   + (board.weekOneDone != null ? ' · ' + tr('home:setup.doneCount', { defaultValue: '{count} done', count: board.weekOneDone }) : '')
                 : board.weekOneUnread ? tr('home:setup.unread', { defaultValue: 'couldn’t read' })
-                : board.coachSets ? tr('home:setup.coachSets', { defaultValue: '{name} sets your week-one target', name: trainer || tr('home:setup.yourTrainer', { defaultValue: 'Your trainer' }) })
+                : board.coachSets ? (trainersMany
+                  ? tr('home:setup.coachesSet', { defaultValue: '{name} set your week-one target', name: trainer })
+                  : tr('home:setup.coachSets', { defaultValue: '{name} sets your week-one target', name: trainer || tr('home:setup.yourTrainer', { defaultValue: 'Your trainer' }) }))
                 : tr('home:setup.notSet', { defaultValue: 'Not set' }) + (board.suggested ? ' · ' + tr('home:setup.youSaid', { defaultValue: 'you said {count, plural, one {# session} other {# sessions}} a week', count: board.suggested }) : '')}
               {!board.coachSets && !board.weekOneUnread && (
                 <div><button type="button" style={btn} onClick={startEdit}>{target ? tr('home:setup.change', { defaultValue: 'CHANGE' }) : tr('home:setup.setTarget', { defaultValue: 'SET TARGET' })}</button></div>
@@ -5199,11 +5208,13 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           the demo quotes are gone even in signed-out preview). */}
       {(() => {
         const banners = coachFeed.banners || [];
-        const trainerBanner = banners.find(b => b.provider_role !== 'nutritionist');
-        const nutriBanner = banners.find(b => b.provider_role === 'nutritionist');
+        // Every coach's note, trainers first: a member may pay two coaches of one role (owner,
+        // 2026-10-16), and each keeps one note (coach_focus_banners is one row per coach).
         const notes = [];
-        if (trainerBanner) notes.push({ role: 'trainer', text: trainerBanner.text, who: trainerBanner.provider_name || 'Jordan Chen' });
-        if (nutriBanner) notes.push({ role: 'nutritionist', text: nutriBanner.text, who: nutriBanner.provider_name || 'Dr. Maya Patel' });
+        // Each signed with its coach's name (fetchCoachConsoleFeed reads it), or the role alone: never
+        // a demo byline on a real note.
+        for (const b of banners) if (b.provider_role !== 'nutritionist') notes.push({ role: 'trainer', text: b.text, who: b.provider_name || null });
+        for (const b of banners) if (b.provider_role === 'nutritionist') notes.push({ role: 'nutritionist', text: b.text, who: b.provider_name || null });
         if (!notes.length) return null;
         return (
           <div style={{ padding: `12px ${t.padX}px 4px`, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -5211,7 +5222,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
               <div key={i} style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13, fontWeight: 500, color: t.INK70, lineHeight: 1.45, letterSpacing: '-0.01em' }}>
                 &ldquo;{n.text}&rdquo;
                 <span style={{ display: 'block', marginTop: 4, fontStyle: 'normal', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
-                  — {n.who} · {n.role === 'nutritionist' ? tr('home:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('home:role.trainer', { defaultValue: 'Trainer' })}
+                  — {n.who ? n.who + ' · ' : ''}{n.role === 'nutritionist' ? tr('home:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('home:role.trainer', { defaultValue: 'Trainer' })}
                 </span>
               </div>
             ))}
@@ -5518,6 +5529,8 @@ function bsBuildTrainProgram(workouts, t, tr) {
       coachLine: isSelf ? selfByline : (w.description || T('session:train.coachLineFallback', 'Move with intent. Quality over load.')),
       // Self-authoring metadata the hero + edit affordance read.
       selfAuthored: isSelf,
+      // The trainer who wrote it (/api/client/plan's per-workout `coach`): a member may pay two.
+      coach: !isSelf && typeof w.coach === 'string' && w.coach.trim() ? w.coach.trim() : null,
       program: prog,
       workoutId: w.id || null,
       template: w.template || null,
@@ -5563,12 +5576,20 @@ function BSCoachPreparing({ role, coaching, onOpenSession }) {
   const tr = useShapeTr();
   const trainer = role === 'trainer';
   const c = trainer ? '#c0533b' : '#a07a2e';
-  const coach = (coaching && coaching.name) || tr('common:coachPrep.coachFallback', { defaultValue: 'Your coach' });
+  // Every coach of this role they pay (`coaches`; owner, 2026-10-16: a member may pay two). An older
+  // route sent only the first, as `name` / `conversationId`.
+  const coaches = coaching && Array.isArray(coaching.coaches) && coaching.coaches.length
+    ? coaching.coaches
+    : [{ name: (coaching && coaching.name) || null, conversationId: (coaching && coaching.conversationId) || null }];
+  const many = coaches.length > 1;
+  const coach = many
+    ? (coaches.every((x) => x && x.name) ? bsNameList(coaches.map((x) => x.name)) : tr('common:coachPrep.coachesFallback', { defaultValue: 'Your coaches' }))
+    : (coaches[0] && coaches[0].name) || tr('common:coachPrep.coachFallback', { defaultValue: 'Your coach' });
   const w = coaching && coaching.weekOne;
   const fmt = (d) => { const x = new Date(d + 'T12:00:00'); return isNaN(x.getTime()) ? d : x.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }); };
-  const message = () => {
-    if (coaching && coaching.conversationId) {
-      try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { conversationId: coaching.conversationId, name: coaching.name || undefined } })); } catch (e) {}
+  const message = (who) => {
+    if (who && who.conversationId) {
+      try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { conversationId: who.conversationId, name: who.name || undefined } })); } catch (e) {}
     } else {
       try { window.dispatchEvent(new CustomEvent('shape:openPage', { detail: { page: 'messages' } })); } catch (e) {}
     }
@@ -5576,20 +5597,26 @@ function BSCoachPreparing({ role, coaching, onOpenSession }) {
   const act = { display: 'inline-flex', alignItems: 'center', minHeight: 44, background: 'transparent', border: 0, padding: 0, color: c, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' };
   return (
     <div data-coach-preparing={role} style={{ margin: `10px ${t.padX}px 0`, padding: '4px 0 4px 12px', borderLeft: `3px solid ${c}` }}>
-      <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: c, fontWeight: 700 }}>{tr('common:coachPrep.eyebrow', { defaultValue: 'Your coach is on it' })}</div>
+      <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: c, fontWeight: 700 }}>{many ? tr('common:coachPrep.eyebrowMany', { defaultValue: 'Your coaches are on it' }) : tr('common:coachPrep.eyebrow', { defaultValue: 'Your coach is on it' })}</div>
       <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 22, letterSpacing: '-0.02em', color: t.INK, margin: '5px 0 0', lineHeight: 1.1 }}>
-        {trainer ? tr('common:coachPrep.title', { defaultValue: '{coach} is preparing your plan', coach }) : tr('common:coachPrep.titleNutri', { defaultValue: '{coach} is preparing your meal plan', coach })}
+        {many
+          ? (trainer ? tr('common:coachPrep.titleMany', { defaultValue: '{coach} are preparing your plan', coach }) : tr('common:coachPrep.titleNutriMany', { defaultValue: '{coach} are preparing your meal plan', coach }))
+          : (trainer ? tr('common:coachPrep.title', { defaultValue: '{coach} is preparing your plan', coach }) : tr('common:coachPrep.titleNutri', { defaultValue: '{coach} is preparing your meal plan', coach }))}
       </div>
       <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.5 }}>{tr('common:coachPrep.body', { defaultValue: 'It shows up here the moment they publish it. Until then, tell them anything they should know.' })}</div>
       {w && (
         <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>
           {[w.startsOn ? tr('common:coachPrep.starts', { defaultValue: 'Week 1 starts {date}', date: fmt(w.startsOn) }) : null,
             trainer ? tr('common:coachPrep.target', { defaultValue: 'Week-one target: {count, plural, one {# workout} other {# workouts}}', count: w.count })
-              : tr('common:coachPrep.targetNutri', { defaultValue: 'Week-one target: log {count, plural, one {# day} other {# days}}', count: w.count })].filter(Boolean).join(' · ')}
+              : tr('common:coachPrep.targetNutri', { defaultValue: 'Week-one target: log {count, plural, one {# day} other {# days}}', count: w.count }),
+            // Whose, when two coaches share it.
+            many && w.setBy ? tr('common:coachPrep.setBy', { defaultValue: 'set by {name}', name: w.setBy }) : null].filter(Boolean).join(' · ')}
         </div>
       )}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18, marginTop: 4 }}>
-        <button type="button" style={act} onClick={message}>{tr('common:coachPrep.message', { defaultValue: 'Message your coach' })} →</button>
+        {many
+          ? coaches.map((x, i) => <button key={i} type="button" style={act} onClick={() => message(x)}>{x && x.name ? tr('common:coachPrep.messageName', { defaultValue: 'Message {name}', name: x.name }) : tr('common:coachPrep.message', { defaultValue: 'Message your coach' })} →</button>)
+          : <button type="button" style={act} onClick={() => message(coaches[0])}>{tr('common:coachPrep.message', { defaultValue: 'Message your coach' })} →</button>}
         {trainer && onOpenSession && <button type="button" style={{ ...act, color: t.INK50 }} onClick={onOpenSession}>{tr('common:coachPrep.meanwhile', { defaultValue: 'Log a session meanwhile' })} →</button>}
       </div>
     </div>
@@ -6404,7 +6431,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   // coach-SET rest. An unassigned rest day credits nobody.
   const coachDay = !!liveProgram && !cur.selfAuthored && (!isRestDay || !!cur.coachAdjust);
   const coachDayName = bsTrainSignedIn
-    ? (coachDay ? (liveTrainCoach || tr('session:train.yourTrainer', { defaultValue: 'Your trainer' })) : '')
+    ? (coachDay ? (cur.coach || liveTrainCoach || tr('session:train.yourTrainer', { defaultValue: 'Your trainer' })) : '')
     : 'Jordan Chen';
 
   // Self-serve builder overlay (Build your week / edit a self day). On save it
@@ -12472,6 +12499,13 @@ async function bsLoadPrepTonight() {
     const now = Date.now();
     return bsPrepDueTonight({ days: plan.meals.days, swaps, entries, reminded: [], today: bsLocalDay(now), index: BS_MAKE_AHEAD, dayOf: bsLocalDay, now });
   } catch (e) { return null; }
+}
+
+// Names as one phrase in the member's language: "Tom and Sam" (a member may pay two coaches of one
+// role; owner, 2026-10-16).
+function bsNameList(names) {
+  const list = (names || []).filter(Boolean);
+  try { return new Intl.ListFormat(bsDateLocale(), { style: 'long', type: 'conjunction' }).format(list); } catch (e) { return list.join(', '); }
 }
 
 // Planned dates as the member's weekdays: "Mon, Tue and Wed" in their language.

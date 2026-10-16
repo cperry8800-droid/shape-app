@@ -1208,6 +1208,8 @@
   "onboard.targetTrainer": "{count, plural, one {motsa jiki #} other {motsa jiki #}} a mako na 1",
   "onboard.targetNutri": "{count, plural, one {rana # da aka rubuta} other {kwanaki # da aka rubuta}} a mako na 1",
   "onboard.starts": "zai fara {date}",
+  "onboard.setBy": "{name} ya saita",
+  "onboard.otherCoach": "ɗayan kocinsa",
   "onboard.notSet": "Ba a saita ba",
   "onboard.theySaid": "{first} ya ce {count, plural, one {zama #} other {zama #}} a mako",
   "onboard.change": "CANZA",

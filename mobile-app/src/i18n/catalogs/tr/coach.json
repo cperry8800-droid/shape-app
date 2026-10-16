@@ -1208,6 +1208,8 @@
   "onboard.targetTrainer": "1. haftada {count, plural, one {# antrenman} other {# antrenman}}",
   "onboard.targetNutri": "1. haftada {count, plural, one {# gün kayıt} other {# gün kayıt}}",
   "onboard.starts": "{date} başlar",
+  "onboard.setBy": "{name} belirledi",
+  "onboard.otherCoach": "diğer koçu",
   "onboard.notSet": "Belirlenmedi",
   "onboard.theySaid": "{first} haftada {count, plural, one {# seans} other {# seans}} dedi",
   "onboard.change": "DEĞİŞTİR",

@@ -1624,4 +1624,26 @@ function useDashPaper() {
   return [paper, setPaperChoice, { kind }];
 }
 
-Object.assign(window, { useDashboard, useRememberedChoices, useRememberedChoice, useRememberedSet, useRememberedSlots, useDashPaper, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock, dashResolveCoachThresholds, useCoachThresholds, useSignedIn, dashReadCoachSettings, dashInvalidateCoachSettings, DASH_THRESHOLDS_EVENT, useDashUnits, dashUnitsApi, dashUnitPrefs, dashGoalText, dashMilestonesIn, dashWeighIn, dashWeighInDelta });
+// Coaches as one English phrase: "Tom", "Tom and Sam", "Ana, Tom and Sam". A member may pay two coaches
+// of one role (owner, 2026-10-16: "members can have multiple coaches if they choose to"), so copy that
+// named one coach names every one; `many` picks the verb ("is" / "are"). `one` stands in for a single
+// nameless coach and `several` for a list with a nameless one in it.
+function dashNameList(names, one, several) {
+  const list = (Array.isArray(names) ? names : []).map((n) => (typeof n === "string" ? n.trim() : ""));
+  if (!list.length) return { text: one, many: false };
+  if (list.length === 1) return { text: list[0] || one, many: false };
+  if (list.some((n) => !n)) return { text: several, many: true };
+  let text;
+  try { text = new Intl.ListFormat("en", { style: "long", type: "conjunction" }).format(list); }
+  catch (e) { text = list.slice(0, -1).join(", ") + " and " + list[list.length - 1]; }
+  return { text, many: true };
+}
+// The names behind /api/client/plan's `coaching` for one discipline: `coaches` when the route sent it,
+// else the one `name` an older route sent.
+function dashCoachingNames(coaching) {
+  if (!coaching) return [];
+  if (Array.isArray(coaching.coaches) && coaching.coaches.length) return coaching.coaches.map((c) => (c && c.name) || "");
+  return [coaching.name || ""];
+}
+
+Object.assign(window, { useDashboard, useRememberedChoices, useRememberedChoice, useRememberedSet, useRememberedSlots, useDashPaper, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock, dashResolveCoachThresholds, useCoachThresholds, useSignedIn, dashReadCoachSettings, dashInvalidateCoachSettings, DASH_THRESHOLDS_EVENT, useDashUnits, dashUnitsApi, dashUnitPrefs, dashGoalText, dashMilestonesIn, dashWeighIn, dashWeighInDelta, dashNameList, dashCoachingNames });

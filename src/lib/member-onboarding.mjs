@@ -21,8 +21,11 @@
 // startsOn, setAt } }. ⚠ A MEMBER WHO PAYS A TRAINER DOES NOT SET IT: the trainer does, on their own
 // board (client_programs.detail.training.weekOne), and this board shows that one, read under the coach
 // board's own rule (weekOneOf: this trainer's, set during this subscription).
+// ⚠ A MEMBER MAY PAY TWO TRAINERS (owner, 2026-10-16: "members can have multiple coaches if they
+// choose to"). They share the training section, so the target is whichever of them set it last
+// (sharedWeekOneOf), and the board names who.
 
-import { weekOneOf, weekEndSunday } from './coach-client-legs.mjs';
+import { sharedWeekOneOf, weekEndSunday } from './coach-client-legs.mjs';
 
 export const MEMBER_SETUP_DAYS = 30;
 // Workouts in week one, as on the coach board for a trainer (WEEK_ONE_MAX).
@@ -91,7 +94,9 @@ function sessionDay(s) {
  *   firstPlan: { at, title, coach: boolean } | null | undefined;
  *   sessions: [{ started_at, ended_at, created_at }] | null | undefined (completed, since joining);
  *   checkins: [{ week_of, created_at }] | null | undefined (filed since joining);
- *   coaching: { training: { name, providerId, since } | null, nutrition: { name } | null } | undefined;
+ *   coaching: { training: { name, providerId, since } | null, nutrition: { name } | null,
+ *     trainers?: [{ name, providerId, since }], nutritionists?: [{ name }] } | undefined
+ *     (training / nutrition are the earliest of each; the lists, when given, are every one);
  *   programDetail: client_programs.detail | null | undefined (read only for a coached member).
  * @returns the board, or null outside the membership's first 30 days.
  */
@@ -128,18 +133,29 @@ export function memberOnboardingBoard(input) {
   const coaching = i.coaching === undefined ? undefined : obj(i.coaching) || { training: null, nutrition: null };
   const trainer = coaching ? obj(coaching.training) : null;
   const nutritionist = coaching ? obj(coaching.nutrition) : null;
+  // Every coach of each role, the earliest first; just the one when the caller gave no list.
+  const everyOf = (list, one) => (Array.isArray(list) ? list.map(obj).filter(Boolean) : one ? [one] : []);
+  const trainers = coaching ? everyOf(coaching.trainers, trainer) : [];
+  const nutritionists = coaching ? everyOf(coaching.nutritionists, nutritionist) : [];
 
   // ── The week-one target ──
   // A trainer's, when they pay one; their own otherwise. `weekOneUnread` when the read it hangs on failed.
   let weekOne = null;
   let weekOneUnread = false;
   let setBy = null;
+  // The trainer who set it, by name, when the member pays more than one (so "set by" can say whose).
+  let setByName = null;
   if (coaching === undefined) weekOneUnread = true;
-  else if (trainer) {
+  else if (trainers.length) {
     if (i.programDetail === undefined) weekOneUnread = true;
     else {
-      const w = weekOneOf(i.programDetail, 'training', trainer.providerId, ms(trainer.since));
-      if (w) { weekOne = { count: w.count, startsOn: w.startsOn }; setBy = 'coach'; }
+      const w = sharedWeekOneOf(i.programDetail, 'training', trainers, null);
+      if (w) {
+        weekOne = { count: w.count, startsOn: w.startsOn };
+        setBy = 'coach';
+        const who = trainers.find((t) => String(t.providerId) === String(w.providerId));
+        setByName = who ? text(who.name) : null;
+      }
     }
   } else if (i.setup === undefined) weekOneUnread = true;
   else {
@@ -175,7 +191,7 @@ export function memberOnboardingBoard(input) {
       key: 'plan', done: known(firstPlan), at: firstPlan ? iso(ms(firstPlan.at)) : null,
       title: firstPlan ? text(firstPlan.title) : null, by: firstPlan ? (firstPlan.coach ? 'coach' : 'you') : null,
       // Not theirs to do while a trainer they pay is writing it (the trainer's name is in `coaching`).
-      waiting: firstPlan === null && !!trainer,
+      waiting: firstPlan === null && trainers.length > 0,
     },
     { key: 'workout', done: sessions === undefined ? null : sessions.length > 0, at: sessions && sessions.length ? iso(sessions[0].at) : null, due: week1End },
     { key: 'review', done: checkins === undefined ? null : checkins.length > 0, at: checkins && checkins.length ? iso(ms(checkins[0].created_at)) : null, due: week1Start ? weekEndSunday(week1Start, 3) : null },
@@ -194,18 +210,22 @@ export function memberOnboardingBoard(input) {
       measuredOn: measuredDays === undefined ? undefined : measuredDays[0] || null,
     },
     coaching: coaching === undefined ? undefined : {
-      training: trainer ? text(trainer.name) || '' : null,
-      nutrition: nutritionist ? text(nutritionist.name) || '' : null,
+      training: trainers.length ? text(trainers[0].name) || '' : null,
+      nutrition: nutritionists.length ? text(nutritionists[0].name) || '' : null,
+      // Every coach they pay, by role, the earliest first (training / nutrition above are the first).
+      trainers: trainers.map((t) => text(t.name) || ''),
+      nutritionists: nutritionists.map((n) => text(n.name) || ''),
     },
     steps,
     next: next ? next.key : null,
     weekOne,
     weekOneUnread,
     setBy,
-    // Who sets it: the trainer they pay, or the member.
-    coachSets: !!trainer,
+    setByName,
+    // Who sets it: a trainer they pay, or the member.
+    coachSets: trainers.length > 0,
     weekOneDone: weekOne && sessions ? sessions.filter((s) => s.day >= week1Start && s.day <= week1End).length : null,
-    suggested: weekOne || weekOneUnread || trainer ? null : memberSuggestedCount(training),
+    suggested: weekOne || weekOneUnread || trainers.length ? null : memberSuggestedCount(training),
     window: memberSetupWindow(joined),
   };
 }

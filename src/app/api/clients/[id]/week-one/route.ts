@@ -9,7 +9,9 @@
 //
 // ⚠ THE TARGET NAMES THE LISTING THAT SET IT (Codex on #2378). The discipline section outlives a change
 // of coach, so `providerId` is stored with it, and the board and the member's plan read a target only
-// from the coach they have now; a predecessor's is ignored.
+// from a coach they have now; a predecessor's is ignored. A member may pay two coaches of one role
+// (owner, 2026-10-16); they share the section, so either may set it, the last one set is the target,
+// and every board and the plan name who set it (sharedWeekOneOf).
 //
 // Stored at client_programs.detail[discipline].weekOne through set_program_detail, the sanctioned
 // discipline writer: a trainer can only write the training section and a nutritionist the nutrition
@@ -65,7 +67,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const supabase = await clientForRequest(request);
   // The caller's own listing for this role (one per role per account: #2331's unique index), named
-  // in the target so only this coach's board and their client's plan read it.
+  // in the target so the boards and the plan can tell whose it is.
   const { data: mine, error: mineErr } = await supabase
     .from(role === 'trainer' ? 'trainers' : 'nutritionists')
     .select('id')

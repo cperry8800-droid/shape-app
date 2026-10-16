@@ -205,7 +205,9 @@ export function bsLastContactLeg(conversations, mine, dm = null) {
 // 3-day rule"): client_programs.detail[discipline].weekOne = { count, startsOn, setAt, providerId },
 // written through set_program_detail. ⚠ IT IS THE COACH'S WHO SET IT (Codex on #2378): the section
 // outlives a change of coach, so a target is read only when `providerId` is the listing this board
-// is for; a predecessor's count and start day are never the new coach's deadline. Until it is set, `suggested` is the client's own answer (sessions per week) for
+// is for; a predecessor's count and start day are never the new coach's deadline. A co-coach of the
+// same discipline who coaches the client now is not a predecessor: the section is shared, so their
+// target counts too (sharedWeekOneOf). Until it is set, `suggested` is the client's own answer (sessions per week) for
 // a trainer; a nutritionist's unit is days logged, and nothing they told Shape says how many.
 export const ONBOARDING_DAYS = 30;
 // How many check-ins the overview reads (get_client_checkins' p_limit); the website's week view
@@ -233,6 +235,27 @@ export function weekOneOf(programDetail, discipline, providerId, since) {
   if (since != null && setAtMs != null && setAtMs < since) return null;
   return { count, startsOn, setAt: setAtMs != null ? new Date(setAtMs).toISOString() : null };
 }
+
+// ⚠ TWO COACHES OF ONE DISCIPLINE SHARE THE SECTION (owner, 2026-10-16: "members can have multiple
+// coaches if they choose to", with one shared section per discipline). Either of them may set the
+// target, and the last one set is the target, so it counts when the coach who set it still coaches the
+// member in that discipline and set it during their own subscription. `coaches` is every current coach
+// of the discipline, [{ providerId, since }]; `since` is still the reader's own start, so a board does
+// not open on a week one set before its day 1. Returns weekOneOf's shape plus the setter's providerId.
+export function sharedWeekOneOf(programDetail, discipline, coaches, since) {
+  const sec = programDetail && typeof programDetail === 'object' ? programDetail[discipline] : null;
+  const w = sec && typeof sec === 'object' ? sec.weekOne : null;
+  if (!w || typeof w !== 'object' || w.providerId == null) return null;
+  const setter = (Array.isArray(coaches) ? coaches : [])
+    .find((c) => c && c.providerId != null && String(c.providerId) === String(w.providerId));
+  if (!setter) return null;
+  const read = weekOneOf(programDetail, discipline, setter.providerId, since);
+  if (!read) return null;
+  const setterSince = ms(setter.since);
+  const setAt = ms(read.setAt);
+  if (setterSince != null && setAt != null && setAt < setterSince) return null;
+  return { ...read, providerId: setter.providerId };
+}
 function suggestedCount(intake, role) {
   if (role !== 'trainer') return null;
   const v = intake && intake.training ? intake.training.sessions_per_week : null;
@@ -256,11 +279,14 @@ export function weekEndSunday(day, after = 0) {
  *   welcomeAt / helloAt: ISO | null | undefined (undefined = the read failed);
  *   firstPlan: { at, title } | null | undefined; checkins: rows | null | undefined (latest first,
  *   at most CHECKIN_READ_LIMIT); measurements: rows | null | undefined; programDetail: object |
- *   undefined (undefined = the client_programs read failed); intake; now: ms.
+ *   undefined (undefined = the client_programs read failed); intake; now: ms;
+ *   coaches: [{ providerId, since, name }] every current coach of this discipline, the caller
+ *   included, whose week-one target the shared section may hold | null (that read failed) | absent
+ *   (only the caller's own target counts).
  * @returns the board, or null when there is no subscription start or it is past day 30.
  */
 export function bsOnboardingLeg(input) {
-  const { role, providerId, joinedAt, welcomeAt, helloAt, firstPlan, checkins, measurements, programDetail, intake } = input || {};
+  const { role, providerId, joinedAt, welcomeAt, helloAt, firstPlan, checkins, measurements, programDetail, intake, coaches } = input || {};
   const now = input && input.now != null ? input.now : Date.now();
   if (role !== 'trainer' && role !== 'nutritionist') return null;
   const joined = ms(joinedAt);
@@ -271,8 +297,37 @@ export function bsOnboardingLeg(input) {
   const discipline = role === 'trainer' ? 'training' : 'nutrition';
   // ⚠ A FAILED client_programs READ IS NOT "NOT SET" (Codex on #2378): `programDetail` is undefined
   // then, the target "couldn't read", and every due date that hangs on its start day is unknown.
-  const weekOneUnread = programDetail === undefined;
-  const weekOne = weekOneUnread ? null : weekOneOf(programDetail, discipline, providerId, joined);
+  let weekOneUnread = programDetail === undefined;
+  let weekOne = null;
+  // Set by another coach of this discipline (a member may have two trainers; owner, 2026-10-16):
+  // { providerId, name }, so the board can say whose it is. Null when it is this coach's own.
+  let weekOneBy = null;
+  if (!weekOneUnread) {
+    if (Array.isArray(coaches)) {
+      // ⚠ NOT ONLY ONE SET SINCE THIS BOARD BEGAN (Fable on the multi-coach PR): a member who adds a
+      // second trainer usually does so after the first set week one, and that board said "Not set"
+      // while the member's own showed the target, so its Set target silently replaced the first
+      // trainer's. The section is shared: the target is whichever current coach set it during their
+      // own subscription (an earlier run is still out, by the setter's own start), and this board's
+      // deadlines are clamped to its own day 1 below.
+      const shared = sharedWeekOneOf(programDetail, discipline, coaches, null);
+      if (shared) {
+        const { providerId: setterId, ...rest } = shared;
+        weekOne = rest;
+        if (String(setterId) !== String(providerId)) {
+          const setter = coaches.find((c) => c && String(c.providerId) === String(setterId));
+          weekOneBy = { providerId: setterId, name: setter && typeof setter.name === 'string' ? setter.name : null };
+        }
+      }
+    } else {
+      weekOne = weekOneOf(programDetail, discipline, providerId, joined);
+      // ⚠ `coaches: null` is a co-coach read that failed. A target another listing set may be a
+      // co-coach's, so it is "couldn't read", never "Not set" (the rule every input here keeps).
+      const stored = programDetail && programDetail[discipline] && programDetail[discipline].weekOne;
+      if (!weekOne && coaches === null && stored && typeof stored === 'object' && stored.providerId != null
+        && String(stored.providerId) !== String(providerId)) weekOneUnread = true;
+    }
+  }
   const iso = (v) => (ms(v) == null ? null : new Date(ms(v)).toISOString());
 
   // Check-ins since joining. ⚠ A CHECK-IN FILED BEFORE THE SUBSCRIPTION IS NOT ONE (Fable on fix 4):
@@ -321,12 +376,15 @@ export function bsOnboardingLeg(input) {
   })();
 
   const known = (v) => (v === undefined ? null : !!v);
-  const week1Start = weekOneUnread ? null : weekOne && weekOne.startsOn ? weekOne.startsOn : joinedDay;
+  // A start before this board's day 1 (a co-coach's week one, set before this coach joined) puts no
+  // deadline before the relationship began: this board's week one starts on its own day 1.
+  const startsOn = weekOne && weekOne.startsOn ? (weekOne.startsOn < joinedDay ? joinedDay : weekOne.startsOn) : null;
+  const week1Start = weekOneUnread ? null : startsOn || joinedDay;
   const steps = [
     { key: 'joined', done: true, at: iso(joinedAt) },
     { key: 'welcome', done: known(welcomeAt), at: iso(welcomeAt) },
     { key: 'hello', done: known(helloAt), at: iso(helloAt) },
-    { key: 'plan', done: known(firstPlan), at: firstPlan ? iso(firstPlan.at) : null, title: firstPlan && typeof firstPlan.title === 'string' ? firstPlan.title : null, due: weekOne && weekOne.startsOn ? weekOne.startsOn : null },
+    { key: 'plan', done: known(firstPlan), at: firstPlan ? iso(firstPlan.at) : null, title: firstPlan && typeof firstPlan.title === 'string' ? firstPlan.title : null, due: startsOn },
     { key: 'checkin', done: checkinsSince === undefined ? null : checkinsSince.count >= 1, at: checkinsSince && checkinsSince.firstWeekOf, due: week1Start ? weekEndSunday(week1Start, 3) : null },
     // A week after the first (Codex on #2378): fixed at joined + 14 days, a week one the coach set
     // to start later put the second check-in due before the first.
@@ -342,6 +400,7 @@ export function bsOnboardingLeg(input) {
     steps,
     weekOne,
     weekOneUnread,
+    weekOneBy,
     suggested: weekOne || weekOneUnread ? null : suggestedCount(intake, role),
     unit: role === 'trainer' ? 'workouts' : 'days_logged',
   };

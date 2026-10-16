@@ -41,6 +41,11 @@ back or the file grows past 20 KB.
   - A Codex review's `commit_id` names the head it read. Its inline comments all show
     the current head, so judge a finding against the review, not the comment.
   - Docs-only diffs merge on green CI without a review round.
+  - ⚠ **Codex never reviews a War Room PR** (owner, 2026-10-16). Codex reviews a PR
+    when it opens, when a draft is marked ready, or on `@codex review`. A later push
+    doesn't trigger it, and it can't skip a PR by its files. So the War Room update
+    rides in the PR it records, pushed after that PR opens. Never open a PR that only
+    updates the War Room; if one would be needed, carry it in the next code PR instead.
 - **Pre-commit hook** (`.githooks/pre-commit` → `scripts/verify-staged.sh`). It runs
   the checks a staged change can break. For a small commit, run the tests that touch
   the change and commit with `SKIP_VERIFY=1` (~4 min saved), then say in the PR what
@@ -119,7 +124,6 @@ planned builds.
 - Set up Firebase and APNs for push (0 push devices in production), then a device
   pass of a native build. That pass includes MusicKit sign-in inside
   SFSafariViewController and Chrome Custom Tabs.
-- Decide whether a member can have two coaches of the same role.
 - Decide what happens when a buyer pays an open checkout from another tab
   (closing it means refunds).
 - In-app purchase outside the US (Phase 2) is on hold.
@@ -143,6 +147,10 @@ planned builds.
 
 **Known gaps**
 - `get_display_names` returns a full name and photo for any id, whoever asks.
+- A member may pay two coaches of one role, sharing one section per discipline (#2384).
+  Nora's member read, the calendar and the prep-reminder cron still read only the
+  newest published meal plan, and the coach Shared clients roster is trainer to
+  nutritionist only.
 - A subscription to a coach who is later suspended keeps renewing.
 - The `?error=` redirects from `/purchase` and `/subscribe` are never shown.
 - `checkin_submitted` is a switch nothing writes.

@@ -1492,6 +1492,9 @@ function DashOnboardingBoard({ client, ob, role, live }) {
   const plan = step("plan"), hello = step("hello"), welcome = step("welcome"), checkin = step("checkin");
   // The week-one target: the coach's, saved through /api/clients/[id]/week-one.
   const [target, setTarget] = React.useState(ob.weekOne || null);
+  // Who set it, when it was another coach of this discipline (a member may pay two; owner, 2026-10-16):
+  // they share the target, so it is this board's too. Null once this coach saves their own.
+  const [targetBy, setTargetBy] = React.useState(ob.weekOneBy || null);
   const [editing, setEditing] = React.useState(false);
   const [count, setCount] = React.useState(String((ob.weekOne && ob.weekOne.count) || ob.suggested || (nutri ? 5 : 3)));
   // The days week one can start on: the board's 30 days, as the route checks them (Codex on #2378).
@@ -1515,7 +1518,7 @@ function DashOnboardingBoard({ client, ob, role, live }) {
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j.ok) { setState(j.error || "Couldn't save. Try again."); return; }
-      setTarget(j.weekOne); setEditing(false); setState("Saved");
+      setTargetBy(null); setTarget(j.weekOne); setEditing(false); setState("Saved");
       // The board's dates follow the target (Codex on #2378): read this client's overview again, so
       // the plan and check-in deadlines, and the row's next step, are the server's new ones.
       try { window.dispatchEvent(new CustomEvent("shape:coach-progress-refresh", { detail: { clientId: id } })); } catch (e) {}
@@ -1556,7 +1559,7 @@ function DashOnboardingBoard({ client, ob, role, live }) {
       <div style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--sh-ink2, #a09b94)", marginBottom: 6 }}>Week-one target</div>
       {!editing && <p style={{ margin: 0, fontSize: 13 }}>
         {target
-          ? <>{first}'s target: {target.count} {unit} in week 1{target.startsOn ? " · starts " + dashObDay(target.startsOn) : ""} · set by you</>
+          ? <>{first}'s target: {target.count} {unit} in week 1{target.startsOn ? " · starts " + dashObDay(target.startsOn) : ""} · set by {targetBy ? targetBy.name || "their other coach" : "you"}</>
           : ob.weekOneUnread ? <>Couldn't read it</>
           : <>Not set{ob.suggested ? " · they said " + ob.suggested + " sessions a week" : ""}</>}
         {" "}<button type="button" style={DASH_WIDGET_BUTTON} disabled={!live} onClick={() => { setEditing(true); setState(""); }}>{target ? "Change" : "Set target"}</button>

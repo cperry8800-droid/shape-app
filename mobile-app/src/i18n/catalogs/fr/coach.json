@@ -1208,6 +1208,8 @@
   "onboard.targetTrainer": "{count, plural, one {# séance} other {# séances}} en semaine 1",
   "onboard.targetNutri": "{count, plural, one {# jour noté} other {# jours notés}} en semaine 1",
   "onboard.starts": "commence le {date}",
+  "onboard.setBy": "fixé par {name}",
+  "onboard.otherCoach": "son autre coach",
   "onboard.notSet": "Non défini",
   "onboard.theySaid": "{first} a indiqué {count, plural, one {# séance} other {# séances}} par semaine",
   "onboard.change": "MODIFIER",
