@@ -274,7 +274,11 @@ export async function GET(request: Request) {
     const section = (progRow?.detail as Record<string, unknown> | null)?.[role === 'trainer' ? 'training' : 'nutrition'] as Record<string, unknown> | undefined;
     // Only the target this coach set (Codex on #2378): the section outlives a change of coach.
     const raw = section && typeof section.weekOne === 'object' && section.weekOne ? section.weekOne as Record<string, unknown> : null;
-    const w = raw && raw.providerId != null && String(raw.providerId) === String(sub.provider_id) ? raw : null;
+    // And only one set during this subscription: an earlier run's target is not this one's (Codex on #2378).
+    const setAt = raw && typeof raw.setAt === 'string' ? Date.parse(raw.setAt) : NaN;
+    const subStart = sub.created_at ? Date.parse(sub.created_at) : NaN;
+    const stale = Number.isFinite(setAt) && Number.isFinite(subStart) && setAt < subStart;
+    const w = raw && !stale && raw.providerId != null && String(raw.providerId) === String(sub.provider_id) ? raw : null;
     const count = w ? Number(w.count) : NaN;
     return {
       name: (nameRes.data as { name?: string } | null)?.name ?? null,

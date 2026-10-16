@@ -339,13 +339,22 @@ test('the board is the "New clients" tab of Needs you, and the setup card shows 
 });
 
 // ── 5. POST /api/clients/[id]/week-one ─────────────────────────────────────────────────────────
-async function weekOneRoute({ user = COACH, rpcError = null, listing = { id: 7 }, listingError = null } = {}) {
+async function weekOneRoute({ user = COACH, rpcError = null, listing = { id: 7 }, listingError = null, subs = [{ created_at: ago(2) }], subsError = null } = {}) {
   const calls = [];
   const reads = [];
+  const subReads = [];
   const client = {
     rpc: async (name, args) => { calls.push([name, args]); return { data: null, error: rpcError }; },
-    // The caller's own listing for the role.
-    from: (table) => { const q = { select: () => q, eq: (k, v) => { reads.push([table, k, v]); return q; }, maybeSingle: async () => ({ data: listingError ? null : listing, error: listingError }) }; return q; },
+    from: (table) => {
+      // The client's live subscription to the caller's listing, which bounds week one's start.
+      if (table === 'subscriptions') {
+        const q = { select: () => q, eq: (k, v) => { subReads.push([k, v]); return q; }, in: async (k, v) => { subReads.push([k, v]); return { data: subsError ? null : subs, error: subsError }; } };
+        return q;
+      }
+      // The caller's own listing for the role.
+      const q = { select: () => q, eq: (k, v) => { reads.push([table, k, v]); return q; }, maybeSingle: async () => ({ data: listingError ? null : listing, error: listingError }) };
+      return q;
+    },
   };
   const mod = await loadRealModule(join(ROOT, 'src/app/api/clients/[id]/week-one/route.ts'), {
     typescript: true,
@@ -359,7 +368,7 @@ async function weekOneRoute({ user = COACH, rpcError = null, listing = { id: 7 }
     const res = await mod.POST(new Request(`https://x/api/clients/${id}/week-one`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }), { params: Promise.resolve({ id }) });
     return { status: res.status, body: await res.json() };
   };
-  return { post, calls, reads };
+  return { post, calls, reads, subReads };
 }
 
 test('the week-one route writes the coach\'s own discipline through set_program_detail', async () => {
@@ -883,4 +892,57 @@ test('a nutritionist\'s week-one target is at most seven days logged, everywhere
   const pros = read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx');
   assert.match(pros, /const max = nut \? 7 : 14;\s+const \[count, setCount\] = useStateBSP\(Math\.min\(max,/);
   assert.match(pros, /disabled=\{count >= max\} onClick=\{\(\) => setCount\(\(n\) => Math\.min\(max, n \+ 1\)\)\}>\+<\/button>/);
+});
+
+test('week one starts inside the board\'s 30 days, and a target from before this subscription is not this one\'s (Codex on #2378)', async () => {
+  // The route: the window is this listing's earliest live subscription.
+  const joined = '2026-10-13T12:00:00Z'; // window 2026-10-13 .. 2026-11-11
+  const { post, calls, subReads } = await weekOneRoute({ subs: [{ created_at: '2026-10-20T00:00:00Z' }, { created_at: joined }] });
+  for (const d of ['2026-10-12', '2026-11-12']) {
+    const r = await post(A, { role: 'trainer', count: 3, startsOn: d });
+    assert.equal(r.status, 400, d);
+    assert.match(r.body.error, /first 30 days \(2026-10-13 to 2026-11-11\)/);
+  }
+  assert.equal(calls.length, 0, 'nothing written outside the window');
+  for (const d of ['2026-10-13', '2026-11-11']) assert.equal((await post(A, { role: 'trainer', count: 3, startsOn: d })).status, 200, d);
+  assert.deepEqual(subReads.slice(0, 4), [['client_id', A], ['provider_role', 'trainer'], ['provider_id', 7], ['status', ['active', 'trialing']]], 'this listing\'s live subscription');
+  assert.equal((await post(A, { role: 'trainer', count: 3 })).status, 200, 'a count alone needs no window');
+  const none = await weekOneRoute({ subs: [] });
+  assert.equal((await none.post(A, { role: 'trainer', count: 3, startsOn: '2026-10-20' })).status, 403, 'not subscribed to this coach');
+  const failed = await weekOneRoute({ subsError: { code: 'XX000', message: 'down' } });
+  const errLog = console.error; console.error = () => {};
+  try { assert.equal((await failed.post(A, { role: 'trainer', count: 3, startsOn: '2026-10-20' })).status, 500); } finally { console.error = errLog; }
+  assert.equal(none.calls.length + failed.calls.length, 0);
+
+  // The leg and the plan read: a target set before this subscription began is the earlier run's.
+  const leg = (setAt) => LEGS.bsOnboardingLeg({ role: 'trainer', providerId: 7, joinedAt: joined, checkins: [], programDetail: { training: { weekOne: { count: 3, startsOn: '2026-05-04', providerId: 7, setAt } } }, now: NOW });
+  const old = leg('2026-05-01T00:00:00Z');
+  assert.equal(old.weekOne, null);
+  assert.equal(stepsOf(old).plan.due, null, 'no deadline from the earlier run');
+  assert.equal(leg('2026-10-14T00:00:00Z').weekOne.count, 3);
+  assert.equal(leg(undefined).weekOne.count, 3, 'no time on it: kept');
+  const U = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  const load = async (db) => loadRealModule(join(ROOT, 'src/app/api/client/plan/route.ts'), {
+    typescript: true,
+    registry: new Map([
+      ['next/server', { NextResponse: { json: (body, init) => ({ body, init }) } }],
+      ['@/lib/request-auth', { clientForRequest: async () => db, currentUser: async () => ({ id: U }) }],
+      ['@/lib/require-membership', { requireMembership: async () => null }],
+    ]),
+  });
+  const planWith = async (setAt) => (await (await load(fakeSupabase({ tables: {
+    client_workouts: [], client_meal_plans: [], nutritionists: [], conversations: [],
+    client_programs: [{ user_id: U, detail: { training: { weekOne: { count: 3, startsOn: '2026-10-20', providerId: 7, setAt } } } }],
+    subscriptions: [{ client_id: U, provider_role: 'trainer', provider_id: 7, status: 'active', created_at: joined }],
+    trainers: [{ id: 7, name: 'Tom' }],
+  } }))).GET(new Request('https://x/api/client/plan'))).body.training.coaching.weekOne;
+  assert.equal(await planWith('2026-05-01T00:00:00Z'), null);
+  assert.deepEqual(await planWith('2026-10-14T00:00:00Z'), { count: 3, startsOn: '2026-10-20' });
+
+  // Both editors offer only those days, and start the picker inside them.
+  for (const src of [read('public/newdesign/dashToday.jsx'), read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx')]) {
+    assert.match(src, /const lastDay = Number\.isFinite\(obJoined\) \? new Date\(obJoined \+ 29 \* 86400000\)\.toISOString\(\)\.slice\(0, 10\) : undefined;/);
+    assert.match(src, /return firstDay && v < firstDay \? firstDay : lastDay && v > lastDay \? lastDay : v;/);
+    assert.match(src, /<input type="date" min=\{firstDay\} max=\{lastDay\} value=\{startsOn\}/);
+  }
 });

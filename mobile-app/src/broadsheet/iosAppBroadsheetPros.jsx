@@ -4480,7 +4480,11 @@ function BSProOnboardingStation({ ob, role, clientUid, first, heat, t, onSayHell
   // Days logged run to seven (weekOneMax in coach-client-legs.mjs; Codex on #2378).
   const max = nut ? 7 : 14;
   const [count, setCount] = useStateBSP(Math.min(max, (ob.weekOne && ob.weekOne.count) || ob.suggested || (nut ? 5 : 3)));
-  const nextMonday = (() => { const d = new Date(); d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7)); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); })();
+  // The days week one can start on: the board's 30 days, as the route checks them (Codex on #2378).
+  const obJoined = ob.joinedAt ? Date.parse(ob.joinedAt) : NaN;
+  const firstDay = Number.isFinite(obJoined) ? new Date(obJoined).toISOString().slice(0, 10) : undefined;
+  const lastDay = Number.isFinite(obJoined) ? new Date(obJoined + 29 * 86400000).toISOString().slice(0, 10) : undefined;
+  const nextMonday = (() => { const d = new Date(); d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7)); const v = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); return firstDay && v < firstDay ? firstDay : lastDay && v > lastDay ? lastDay : v; })();
   const [startsOn, setStartsOn] = useStateBSP((ob.weekOne && ob.weekOne.startsOn) || nextMonday);
   const [busy, setBusy] = useStateBSP(false);
   const unitText = (n) => nut
@@ -4535,7 +4539,7 @@ function BSProOnboardingStation({ ob, role, clientUid, first, heat, t, onSayHell
                 <button type="button" aria-label={coachTr('coach:onboard.more', { defaultValue: 'One more' })} style={{ ...btn, width: 44 }} disabled={count >= max} onClick={() => setCount((n) => Math.min(max, n + 1))}>+</button>
               </div>
               <label style={{ ...mono, color: t.INK50 }}>{coachTr('coach:onboard.startsLabel', { defaultValue: 'Week 1 starts' })}{' '}
-                <input type="date" value={startsOn} onChange={(e) => setStartsOn(e.target.value)} style={{ fontFamily: t.DISPLAY, fontSize: 13, color: t.INK, background: 'transparent', border: `1px solid ${t.INK}26`, padding: '6px 8px' }} />
+                <input type="date" min={firstDay} max={lastDay} value={startsOn} onChange={(e) => setStartsOn(e.target.value)} style={{ fontFamily: t.DISPLAY, fontSize: 13, color: t.INK, background: 'transparent', border: `1px solid ${t.INK}26`, padding: '6px 8px' }} />
               </label>
               <div style={{ display: 'flex', gap: 18 }}>
                 <button type="button" style={btn} disabled={busy} onClick={save}>{coachTr('coach:onboard.save', { defaultValue: 'SAVE' })}</button>

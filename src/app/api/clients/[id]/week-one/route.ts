@@ -74,6 +74,27 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (mineErr) return dbError(mineErr, 'week-one listing read', 500);
   const providerId = (mine as { id?: number } | null)?.id;
   if (providerId == null) return NextResponse.json({ error: `You don't coach this client as their ${role}.` }, { status: 403 });
+  // ⚠ WEEK ONE STARTS INSIDE THE BOARD'S 30 DAYS (Codex on #2378): a start before the client subscribed
+  // put the plan and check-in deadlines before the relationship, and "Week 1 not live" fired at once;
+  // one past day 30 fell due after the board had closed. The window is this listing's earliest live
+  // subscription, in the board's UTC days (bsOnboardingLeg).
+  if (target && target.startsOn) {
+    const { data: subRows, error: subErr } = await supabase
+      .from('subscriptions')
+      .select('created_at')
+      .eq('client_id', clientId)
+      .eq('provider_role', role)
+      .eq('provider_id', providerId)
+      .in('status', ['active', 'trialing']);
+    if (subErr) return dbError(subErr, 'week-one subscription read', 500);
+    const joined = Math.min(...((subRows ?? []) as Array<{ created_at: string | null }>).map((r) => Date.parse(String(r.created_at))).filter(Number.isFinite));
+    if (!Number.isFinite(joined)) return NextResponse.json({ error: `This client isn't subscribed to you as their ${role}.` }, { status: 403 });
+    const first = new Date(joined).toISOString().slice(0, 10);
+    const last = new Date(joined + 29 * 86_400_000).toISOString().slice(0, 10);
+    if (target.startsOn < first || target.startsOn > last) {
+      return NextResponse.json({ error: `Week 1 must start in their first 30 days (${first} to ${last}).` }, { status: 400 });
+    }
+  }
   const weekOne = target ? { ...target, setAt: new Date().toISOString(), setBy: 'coach' as const, providerId } : null;
 
   const { error } = await supabase.rpc('set_program_detail', {

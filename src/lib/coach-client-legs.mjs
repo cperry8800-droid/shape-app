@@ -219,7 +219,9 @@ export function weekOneMax(roleOrDiscipline) {
   return roleOrDiscipline === 'nutritionist' || roleOrDiscipline === 'nutrition' ? 7 : WEEK_ONE_MAX;
 }
 
-export function weekOneOf(programDetail, discipline, providerId) {
+// ⚠ AND IT IS THIS SUBSCRIPTION'S (Codex on #2378): a target set before `since` (the join time) is a
+// returning client's earlier run, whose start day would put every deadline before this one began.
+export function weekOneOf(programDetail, discipline, providerId, since) {
   const sec = programDetail && typeof programDetail === 'object' ? programDetail[discipline] : null;
   const w = sec && typeof sec === 'object' ? sec.weekOne : null;
   if (!w || typeof w !== 'object') return null;
@@ -227,7 +229,9 @@ export function weekOneOf(programDetail, discipline, providerId) {
   const count = num(w.count);
   if (count == null || !Number.isInteger(count) || count < 1 || count > weekOneMax(discipline)) return null;
   const startsOn = typeof w.startsOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(w.startsOn) ? w.startsOn : null;
-  return { count, startsOn, setAt: ms(w.setAt) != null ? new Date(ms(w.setAt)).toISOString() : null };
+  const setAtMs = ms(w.setAt);
+  if (since != null && setAtMs != null && setAtMs < since) return null;
+  return { count, startsOn, setAt: setAtMs != null ? new Date(setAtMs).toISOString() : null };
 }
 function suggestedCount(intake, role) {
   if (role !== 'trainer') return null;
@@ -268,7 +272,7 @@ export function bsOnboardingLeg(input) {
   // ⚠ A FAILED client_programs READ IS NOT "NOT SET" (Codex on #2378): `programDetail` is undefined
   // then, the target "couldn't read", and every due date that hangs on its start day is unknown.
   const weekOneUnread = programDetail === undefined;
-  const weekOne = weekOneUnread ? null : weekOneOf(programDetail, discipline, providerId);
+  const weekOne = weekOneUnread ? null : weekOneOf(programDetail, discipline, providerId, joined);
   const iso = (v) => (ms(v) == null ? null : new Date(ms(v)).toISOString());
 
   // Check-ins since joining. ⚠ A CHECK-IN FILED BEFORE THE SUBSCRIPTION IS NOT ONE (Fable on fix 4):

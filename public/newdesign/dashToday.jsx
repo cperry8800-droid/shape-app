@@ -1494,7 +1494,11 @@ function DashOnboardingBoard({ client, ob, role, live }) {
   const [target, setTarget] = React.useState(ob.weekOne || null);
   const [editing, setEditing] = React.useState(false);
   const [count, setCount] = React.useState(String((ob.weekOne && ob.weekOne.count) || ob.suggested || (nutri ? 5 : 3)));
-  const nextMonday = (() => { const d = new Date(); d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7)); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); })();
+  // The days week one can start on: the board's 30 days, as the route checks them (Codex on #2378).
+  const obJoined = ob.joinedAt ? Date.parse(ob.joinedAt) : NaN;
+  const firstDay = Number.isFinite(obJoined) ? new Date(obJoined).toISOString().slice(0, 10) : undefined;
+  const lastDay = Number.isFinite(obJoined) ? new Date(obJoined + 29 * 86400000).toISOString().slice(0, 10) : undefined;
+  const nextMonday = (() => { const d = new Date(); d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7)); const v = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); return firstDay && v < firstDay ? firstDay : lastDay && v > lastDay ? lastDay : v; })();
   const [startsOn, setStartsOn] = React.useState((ob.weekOne && ob.weekOne.startsOn) || nextMonday);
   const [state, setState] = React.useState("");
   const unit = nutri ? "days logged" : "workouts";
@@ -1559,7 +1563,7 @@ function DashOnboardingBoard({ client, ob, role, live }) {
       </p>}
       {editing && <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, fontSize: 13 }}>
         <label>{unit[0].toUpperCase() + unit.slice(1)} in week 1 <input type="number" min="1" max={max} step="1" value={count} onChange={(e) => setCount(e.target.value)} style={{ width: 64, font: "inherit" }} /></label>
-        <label>Week 1 starts <input type="date" value={startsOn} onChange={(e) => setStartsOn(e.target.value)} style={{ font: "inherit" }} /></label>
+        <label>Week 1 starts <input type="date" min={firstDay} max={lastDay} value={startsOn} onChange={(e) => setStartsOn(e.target.value)} style={{ font: "inherit" }} /></label>
         <button type="button" style={DASH_WIDGET_BUTTON} disabled={state === "Saving…"} onClick={save}>Save</button>
         <button type="button" style={DASH_WIDGET_BUTTON} onClick={() => setEditing(false)}>Cancel</button>
       </div>}
