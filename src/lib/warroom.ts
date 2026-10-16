@@ -613,6 +613,29 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Email only for what belongs in an inbox, and a tier-up notice — #2387. One migration',
+      items: [
+        { label: 'Email is offered for coach messages, waitlist invites, tier-ups and a coach\'s waiting list only (owner, 2026-10-16); every other type shows no Email switch and never emails, whatever was saved for it (channelsForType, public/newdesign/notificationSurfaces.mjs)', status: 'done' },
+        { label: 'The push webhook emails the rows the database writes (a coach\'s message, a tier-up): with the member\'s switch, mute, quiet hours and one email per kind per hour, whether or not push is set up', status: 'done' },
+        { label: 'A tier-up notice: award_tier_bonuses writes one "You reached <tier>" for the highest tier newly reached, opening Score; its email starts on. Run twice on a local PostgreSQL 16', status: 'done' },
+        { label: 'APPLIED + VERIFIED LIVE — 2026-10-16-tier-up-notice.sql: award_tier_bonuses is the pinned definer that writes the tier_up notice, and members can still run it', status: 'done' },
+        { label: 'Codex: the cooldown counts emails sent (data.emailed_at), not rows, so a burst is one email and never none; a failed send is not recorded as sent. Mutation round killed 29 of 29; the webhook runs against a fake database, row by row', status: 'done' },
+        { label: 'Email is best-effort: a failed send is logged and dropped, as in notify.ts and the AI layer (the in-app notice and the push still land). A retry queue is the owner\'s call', status: 'pending' },
+        { label: 'A coach\'s Client went red / amber are app and push only now; one line in notificationSurfaces.mjs emails them if the owner wants', status: 'pending' },
+      ],
+    },
+    {
+      section: 'Website bell: Clear all, and reminders that stay on the phone — #2386. One migration, applied and verified live',
+      items: [
+        { label: 'Clear all on the website bell: asks once, clears what the member was shown up to the newest notice in the panel, rolls back and says so on a failed write', status: 'done' },
+        { label: 'A clear hides (notifications.cleared_at) and never deletes: the prep-reminder cron, the waiting-list notice and the email cooldown read earlier rows as their record of what was sent', status: 'done' },
+        { label: 'Phone only (owner, 2026-10-16): the reminders a member sets, the night-before meal-prep reminder, and habit and streak nudges (and their ai_ rows) stay out of the website bell, filtered in the query before its 200-row cap; the app shows them and they push', status: 'done' },
+        { label: 'APPLIED + VERIFIED LIVE (2026-10-16, read-only) — 2026-10-16-notifications-clear.sql: notifications.cleared_at (timestamptz), notifications_user_uncleared_idx, and the owner update policy a clear uses', status: 'done' },
+        { label: 'Mutation round killed 29 of 29; the route runs against a fake database and the bell is mounted in JSDOM', status: 'done' },
+        { label: 'The app\'s notification list has no Clear all of its own; a website clear hides the same rows there', status: 'pending' },
+      ],
+    },
+    {
       section: 'Push that can reach a phone — #2385. Apple directly for iPhones, Firebase for Android; no migration',
       items: [
         { label: 'iOS registers: AppDelegate passes APNs\' device token (or the error) to @capacitor/push-notifications, so the token reaches /api/push/register. No Firebase in the iOS app', status: 'done' },
