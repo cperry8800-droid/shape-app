@@ -16,7 +16,7 @@ export default {
   mutations: [
     // ── what may be emailed ──
     { name: 'a nudge emails again when an old switch says so', file: LAYER,
-      find: '  if (!isEmailType(type)) ch.email = false;\n',
+      find: '  if (!isEmailType(type)) ch.email = false;',
       replace: '' },
     { name: 'a tier-up email starts off', file: LAYER,
       find: 'function defaultChannels(type) { return { inapp: true, push: true, email: emailOnByDefault(type) }; }',
@@ -66,8 +66,8 @@ export default {
       replace: '' },
     // ── the tier-up notice ──
     { name: 'every tier-up row is announced, not only a new one', file: SQL,
-      find: '      if (v_ins > 0 then v_award := v_award + v_bonus[i]; v_new := v_names[i]; end if;',
-      replace: '      v_new := v_names[i];\n      if (v_ins > 0) then v_award := v_award + v_bonus[i]; end if;' },
+      find: '      if v_ins > 0 then v_award := v_award + v_bonus[i]; v_new := v_names[i]; end if;',
+      replace: '      v_new := v_names[i];\n      if v_ins > 0 then v_award := v_award + v_bonus[i]; end if;' },
     { name: 'a notice that cannot be written costs the bonus', file: SQL,
       find: "    exception when others then\n      raise warning 'award_tier_bonuses: tier-up notice not written: %', sqlerrm;\n",
       replace: '' },
@@ -82,7 +82,7 @@ export default {
       find: ': npDefault(type, ch); };',
       replace: ': NP_DEF_CH[ch]; };' },
     { name: 'the member page has no Tier ups row', file: MEMBER,
-      find: '  ["tier_up", "Tier ups", "When you reach a new Shape Score tier"],\n',
+      find: '  ["tier_up", "Tier ups", "When you reach a new Shape Score tier"],',
       replace: '' },
     { name: 'the coach page shows Email on every row', file: COACH,
       find: '(ch === "email" && !CST_EMAIL_TYPES.includes(type)',

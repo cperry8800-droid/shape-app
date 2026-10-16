@@ -138,7 +138,9 @@ test('a tier-up is emailed and pushed by default, and the email says what was re
 
 test('a tier-up email answers its switch, mute and quiet hours', async () => {
   assert.deepEqual((await post(fakeAdmin({ prefs: { tier_up: [{ channel: 'email', enabled: false }] } }), TIER)).emailed, [], 'turned off');
-  assert.deepEqual((await post(fakeAdmin({ settings: { muted: true } }), TIER)).emailed, [], 'muted');
+  // Muted with no quiet window saved, so mute alone has to stop it (unsaved quiet hours default to
+  // 22:00-07:00, which would hide a missing mute check at night).
+  assert.deepEqual((await post(fakeAdmin({ settings: { muted: true, quiet_start: 0, quiet_end: 0, tz: 'UTC' } }), TIER)).emailed, [], 'muted');
   const night = { muted: false, quiet_start: 0, quiet_end: 0, tz: 'UTC' };
   // quiet_start === quiet_end is "no quiet hours"; a window covering every hour is 0 to 24.
   assert.deepEqual((await post(fakeAdmin({ settings: night }), TIER)).emailed, ['member@example.com'], 'no quiet window, still sent');
