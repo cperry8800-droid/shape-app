@@ -84,6 +84,12 @@ export default {
     { name: 'Clear all is offered on an empty list', file: SHELL,
       find: '{rows.length > 0 && typeof clearAll === "function" && (',
       replace: '{typeof clearAll === "function" && (' },
+    { name: 'the AI layer\'s habit nudges reach the website', file: 'src/lib/notification-surfaces.mjs',
+      find: "  'ai_habit_reminder',\n",
+      replace: '' },
+    { name: 'the AI layer\'s streak nudges reach the website', file: 'src/lib/notification-surfaces.mjs',
+      find: "  'ai_streak_broken',\n",
+      replace: '' },
     // ── the migration ──
     { name: 'the migration adds no column', file: SQL,
       find: 'alter table public.notifications add column if not exists cleared_at timestamptz;\n',

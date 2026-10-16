@@ -5,6 +5,7 @@
 // unread there. The app asks without `surface` and gets everything, as before.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -51,9 +52,14 @@ const post = (body) => new Request('https://shape.test/api/notifications', {
 
 test('the phone-only list is the one the owner approved', () => {
   assert.deepEqual([...PHONE_ONLY_TYPES].sort(), [
-    'habit_reminder', 'meal_prep', 'reminder_checkin', 'reminder_custom', 'reminder_photo',
-    'reminder_water', 'reminder_weigh_in', 'streak_broken',
+    'ai_habit_reminder', 'ai_streak_broken', 'habit_reminder', 'meal_prep', 'reminder_checkin',
+    'reminder_custom', 'reminder_photo', 'reminder_water', 'reminder_weigh_in', 'streak_broken',
   ]);
+  // The AI notify layer stores habit and streak nudges with its prefix: the bare names alone would
+  // have let every one of them onto the website.
+  const core = readFileSync(join(ROOT, 'src/lib/ai/notify-core.ts'), 'utf8');
+  assert.match(core, /type: `ai_\$\{n\.type\}`,/, 'the AI layer changed how it names its rows');
+  for (const t of ['habit_reminder', 'streak_broken']) assert.equal(isPhoneOnly('ai_' + t), true, 'ai_' + t + ' reaches the website');
   for (const t of ['message', 'session_booked', 'payment', 'new_client', 'waitlist_invite', 'coach_message', 'directive']) {
     assert.equal(isPhoneOnly(t), false, t + ' left the website');
   }

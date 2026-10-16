@@ -12,6 +12,10 @@ export const PHONE_ONLY_TYPES = Object.freeze([
   'meal_prep',
   'habit_reminder',
   'streak_broken',
+  // The AI notify layer stores its nudges as `ai_<type>` (lib/ai/notify-core.ts deliver), so
+  // those are the rows a member actually receives.
+  'ai_habit_reminder',
+  'ai_streak_broken',
 ]);
 
 export const isPhoneOnly = (type) => PHONE_ONLY_TYPES.includes(type);
