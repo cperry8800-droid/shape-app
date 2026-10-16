@@ -130,8 +130,13 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     supabase.rpc('get_client_coaches', { p_client_id: clientId }),
   ]);
   type ClientCoach = { provider_role: 'trainer' | 'nutritionist'; provider_id: number; name: string | null; owner_id: string | null; since: string | null };
+  // ⚠ BEFORE THE MIGRATION RUNS, THE FUNCTION IS NOT THERE (PostgREST's PGRST202), and treating that as
+  // a failed read made every coach's client page say the team may be incomplete and every target
+  // another listing set "couldn't read" (Fable on this PR). Not deployed is not failed: the page
+  // reads exactly as it did before (`undefined`: no same-role co-coaches, only the coach's own target).
+  const coachesMissing = (coachesRes.error as { code?: string } | null)?.code === 'PGRST202';
   if (coachesRes.error) console.error('[shared-overview] get_client_coaches failed:', coachesRes.error.message);
-  const clientCoaches = coachesRes.error ? null : ((coachesRes.data ?? []) as ClientCoach[]);
+  const clientCoaches = coachesMissing ? undefined : coachesRes.error ? null : ((coachesRes.data ?? []) as ClientCoach[]);
 
   // A failed counterpart read drops every co-coach from Care Team while the rest of the page
   // renders normally — an incomplete team presented as a complete one, which is the exact
@@ -589,8 +594,8 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
       intake: intakeError ? null : intake,
       // Every coach of this discipline the client pays (the caller among them): the section is shared,
       // so a co-coach's week-one target is this board's too. Null when that read failed.
-      coaches: clientCoaches === null
-        ? null
+      coaches: clientCoaches === undefined || clientCoaches === null
+        ? clientCoaches
         : clientCoaches
           .filter((c) => c.provider_role === role)
           .map((c) => ({ providerId: c.provider_id, since: c.since, name: c.name })),

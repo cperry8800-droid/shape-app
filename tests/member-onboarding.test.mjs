@@ -470,11 +470,21 @@ test('the website card names both trainers, and the one who set the target (owne
     const text = document.body.textContent;
     assert.match(text, /Tom Trainer and Sam Strong are preparing your plan/);
     assert.match(text, /Tom Trainer and Sam Strong set your week-one target/);
-    assert.match(text, /CoachingTom Trainer and Sam Strong/);
+    assert.match(text, /CoachingTom Trainer and Sam Strong(?!,)/);
   });
   const set = M.memberOnboardingBoard(base({ coaching: { training: trainers[0], nutrition: null, trainers, nutritionists: [] }, programDetail: { training: { weekOne: { count: 4, providerId: 8, setAt: ago(1) } } } }));
   await mountWeb(async () => ({ ok: true, json: async () => ({ ok: true, board: set }) }), async () => {
     assert.match(document.body.textContent, /4 workouts in week 1 · set by Sam Strong/);
+  });
+  // A setter whose name could not be read is "your trainer", never the whole list (Fable on this PR).
+  const nameless = M.memberOnboardingBoard(base({ coaching: { training: trainers[0], nutrition: null, trainers: [trainers[0], { ...trainers[1], name: null }], nutritionists: [] }, programDetail: { training: { weekOne: { count: 4, providerId: 8, setAt: ago(1) } } } }));
+  await mountWeb(async () => ({ ok: true, json: async () => ({ ok: true, board: nameless }) }), async () => {
+    assert.match(document.body.textContent, /4 workouts in week 1 · set by your trainer/);
+  });
+  // One coach of each role reads as it always did: "Tom & Nia".
+  const one = M.memberOnboardingBoard(base({ coaching: { training: trainers[0], nutrition: { name: 'Nia' }, trainers: [trainers[0]], nutritionists: [{ name: 'Nia' }] }, programDetail: {} }));
+  await mountWeb(async () => ({ ok: true, json: async () => ({ ok: true, board: one }) }), async () => {
+    assert.match(document.body.textContent, /CoachingTom Trainer & Nia/);
   });
   // One nameless coach among several reads as "Your trainers", never a list with a hole in it.
   assert.deepEqual(dashNameList(['Tom', ''], 'Your trainer', 'Your trainers'), { text: 'Your trainers', many: true });

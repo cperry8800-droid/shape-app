@@ -703,7 +703,7 @@ function DclSetupBoardView({ board, onSaved }) {
             <DclSetupLine label="Goal" value={dclPrefLabel("goal", p.goal)} href={settings} cta="Set it" />
             <DclSetupLine label="Experience" value={dclPrefLabel("experience", p.experience)} href={settings} />
             <DclSetupLine label="Trains" value={p.sessionsPerWeek ? p.sessionsPerWeek + " days / week" : null} href={settings} />
-            <DclSetupLine label="Coaching" value={trainer || nutritionist ? dashNameList([...trainerNames, ...nutritionistNames], "Your coach", "Your coaches").text : coachingText || "Not answered"} />
+            <DclSetupLine label="Coaching" value={trainer || nutritionist ? [trainer, nutritionist].filter(Boolean).join(" & ") : coachingText || "Not answered"} />
             <DclSetupLine label="Diet" value={dclPrefLabel("diet", p.diet)} href={settings} />
             <DclSetupLine label="Devices" value={p.devices == null ? "Couldn't read" : p.devices.length ? p.devices.join(", ") : null} href={settings} cta="None · connect" />
           </>}
@@ -748,7 +748,7 @@ function DclSetupBoardView({ board, onSaved }) {
         <div style={{ fontFamily: DCL_MONO, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: DCL_INK50, marginBottom: 6 }}>Week-one target</div>
         {!editing && <p style={{ margin: 0, fontSize: 13 }}>
           {target
-            ? <>Your target: {target.count} {target.count === 1 ? "workout" : "workouts"} in week 1{target.startsOn ? " · starts " + dclSetupDay(target.startsOn) : ""} · {board.setBy === "coach" ? "set by " + (board.setByName || trainer || "your trainer") : "set by you"}{board.weekOneDone != null ? " · " + board.weekOneDone + " done" : ""}</>
+            ? <>Your target: {target.count} {target.count === 1 ? "workout" : "workouts"} in week 1{target.startsOn ? " · starts " + dclSetupDay(target.startsOn) : ""} · {board.setBy === "coach" ? "set by " + (board.setByName || (trainersMany ? "your trainer" : trainer) || "your trainer") : "set by you"}{board.weekOneDone != null ? " · " + board.weekOneDone + " done" : ""}</>
             : board.weekOneUnread ? <>Couldn't read it</>
             : board.coachSets ? <>{trainer || "Your trainer"} {trainersMany ? "set" : "sets"} your week-one target.</>
             : <>Not set{board.suggested ? " · you said " + board.suggested + " sessions a week" : ""}</>}

@@ -304,7 +304,13 @@ export function bsOnboardingLeg(input) {
   let weekOneBy = null;
   if (!weekOneUnread) {
     if (Array.isArray(coaches)) {
-      const shared = sharedWeekOneOf(programDetail, discipline, coaches, joined);
+      // ⚠ NOT ONLY ONE SET SINCE THIS BOARD BEGAN (Fable on the multi-coach PR): a member who adds a
+      // second trainer usually does so after the first set week one, and that board said "Not set"
+      // while the member's own showed the target, so its Set target silently replaced the first
+      // trainer's. The section is shared: the target is whichever current coach set it during their
+      // own subscription (an earlier run is still out, by the setter's own start), and this board's
+      // deadlines are clamped to its own day 1 below.
+      const shared = sharedWeekOneOf(programDetail, discipline, coaches, null);
       if (shared) {
         const { providerId: setterId, ...rest } = shared;
         weekOne = rest;
@@ -370,12 +376,15 @@ export function bsOnboardingLeg(input) {
   })();
 
   const known = (v) => (v === undefined ? null : !!v);
-  const week1Start = weekOneUnread ? null : weekOne && weekOne.startsOn ? weekOne.startsOn : joinedDay;
+  // A start before this board's day 1 (a co-coach's week one, set before this coach joined) puts no
+  // deadline before the relationship began: this board's week one starts on its own day 1.
+  const startsOn = weekOne && weekOne.startsOn ? (weekOne.startsOn < joinedDay ? joinedDay : weekOne.startsOn) : null;
+  const week1Start = weekOneUnread ? null : startsOn || joinedDay;
   const steps = [
     { key: 'joined', done: true, at: iso(joinedAt) },
     { key: 'welcome', done: known(welcomeAt), at: iso(welcomeAt) },
     { key: 'hello', done: known(helloAt), at: iso(helloAt) },
-    { key: 'plan', done: known(firstPlan), at: firstPlan ? iso(firstPlan.at) : null, title: firstPlan && typeof firstPlan.title === 'string' ? firstPlan.title : null, due: weekOne && weekOne.startsOn ? weekOne.startsOn : null },
+    { key: 'plan', done: known(firstPlan), at: firstPlan ? iso(firstPlan.at) : null, title: firstPlan && typeof firstPlan.title === 'string' ? firstPlan.title : null, due: startsOn },
     { key: 'checkin', done: checkinsSince === undefined ? null : checkinsSince.count >= 1, at: checkinsSince && checkinsSince.firstWeekOf, due: week1Start ? weekEndSunday(week1Start, 3) : null },
     // A week after the first (Codex on #2378): fixed at joined + 14 days, a week one the coach set
     // to start later put the second check-in due before the first.

@@ -9301,8 +9301,20 @@ async function fetchCoachConsoleFeed() {
         .is('removed_at', null)
         .order('sent_at', { ascending: true }),
     ]);
+    // ⚠ EACH NOTE NAMES ITS COACH (Fable on the multi-coach PR). The table has no name column and
+    // nothing filled one in, so Home signed every real note with the demo bylines; with two trainers,
+    // two notes both read "Jordan Chen". The listings are public rows, so their names are read here.
+    // A name that could not be read stays null, and Home then signs the note with the role alone.
+    const banners = bannersRes.data ?? [];
+    const idsOf = (role) => [...new Set(banners.filter((b) => (role === 'nutritionist') === (b.provider_role === 'nutritionist')).map((b) => b.provider_id).filter((id) => id != null))];
+    const [trNames, nuNames] = await Promise.all([
+      idsOf('trainer').length ? supabase.from('trainers').select('id, name').in('id', idsOf('trainer')) : { data: [] },
+      idsOf('nutritionist').length ? supabase.from('nutritionists').select('id, name').in('id', idsOf('nutritionist')) : { data: [] },
+    ]);
+    const nameOf = (res) => new Map((res && res.data ? res.data : []).map((r) => [String(r.id), r.name || null]));
+    const trainerNames = nameOf(trNames), nutriNames = nameOf(nuNames);
     return {
-      banners: bannersRes.data ?? [],
+      banners: banners.map((b) => ({ ...b, provider_name: (b.provider_role === 'nutritionist' ? nutriNames : trainerNames).get(String(b.provider_id)) || null })),
       items: itemsRes.data ?? [],
     };
   } catch {

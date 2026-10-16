@@ -170,8 +170,17 @@ test('two coaches of one discipline share the week-one target, and the board say
   const own = leg({ count: 2, providerId: 8, setAt: '2026-10-13T00:00:00Z' });
   assert.equal(own.weekOne.count, 2);
   assert.equal(own.weekOneBy, null);
-  // Before this board's day 1, or by a coach the client no longer pays: not this board's.
-  assert.equal(leg({ count: 4, providerId: 7, setAt: '2026-10-05T00:00:00Z' }).weekOne, null);
+  // Set by the co-trainer BEFORE this coach joined (the usual order: a second trainer is hired after
+  // the first set week one; Fable on this PR). It is still the member's target, so this board shows it,
+  // named, and its deadlines start on this board's own day 1, never before the relationship began.
+  const earlier = leg({ count: 4, startsOn: '2026-10-05', providerId: 7, setAt: '2026-10-04T00:00:00Z' });
+  assert.equal(earlier.weekOne.count, 4);
+  assert.deepEqual(earlier.weekOneBy, { providerId: 7, name: 'Coach Q' });
+  assert.equal(stepsOf(earlier).plan.due, '2026-10-12', 'clamped to this board\'s day 1');
+  assert.equal(stepsOf(earlier).checkin.due, '2026-10-18');
+  // An earlier RUN of the setter's (before their own current subscription) and a coach the client no
+  // longer pays are not the target at all.
+  assert.equal(leg({ count: 4, providerId: 7, setAt: '2026-09-20T00:00:00Z' }).weekOne, null);
   assert.equal(leg({ count: 4, providerId: 9, setAt: '2026-10-13T00:00:00Z' }).weekOne, null);
   // The co-coach read failed: someone else's target is "couldn't read", never "not set"; their own still reads.
   const unread = leg({ count: 4, providerId: 7, setAt: '2026-10-13T00:00:00Z' }, { coaches: null });
@@ -233,7 +242,7 @@ test('the overview puts a second trainer in the care team and reads the target t
     const base = overviewDb({ joined, ...over });
     const rpc = base.rpc.bind(base);
     base.rpc = async (name, args) => name === 'get_client_coaches'
-      ? (over.coachesFail ? { data: null, error: { message: 'down' } } : { data: [
+      ? (over.coachesFail ? { data: null, error: over.coachesFail === 'missing' ? { code: 'PGRST202', message: 'Could not find the function' } : { message: 'down' } } : { data: [
         { provider_role: 'trainer', provider_id: 7, name: 'Coach Q', owner_id: COACH.id, since: joined },
         { provider_role: 'trainer', provider_id: 8, name: 'Sam Strong', owner_id: '22222222-2222-4222-8222-222222222222', since: joined },
       ], error: null })
@@ -256,6 +265,15 @@ test('the overview puts a second trainer in the care team and reads the target t
   try { failed = await overview(withTarget(db({ coachesFail: true }))); } finally { console.error = errLog; }
   assert.equal(failed.careTeamPartial, true);
   assert.equal(failed.onboarding.trainer.weekOneUnread, true);
+  // Before the migration runs the function is not there: the page reads as it did before it, not as
+  // a failure (Fable on this PR): a complete team of the caller's own listings, and only their target.
+  let missing;
+  console.error = () => {};
+  try { missing = await overview(withTarget(db({ coachesFail: 'missing' }))); } finally { console.error = errLog; }
+  assert.equal(missing.careTeamPartial, false);
+  assert.deepEqual(missing.careTeam.map((c) => c.providerId), [7]);
+  assert.equal(missing.onboarding.trainer.weekOneUnread, false);
+  assert.equal(missing.onboarding.trainer.weekOne, null, 'another listing\'s target, unread as before');
 });
 
 test('the overview reads Shape\'s welcome, the coach\'s own first message and their first plan', async () => {
@@ -688,9 +706,13 @@ test('the app names every coach of a role: the preparing card, the setup board, 
   assert.match(client, /coaches\.map\(\(x, i\) => <button key=\{i\} type="button" style=\{act\} onClick=\{\(\) => message\(x\)\}>/);
   // The setup board: every trainer, and the one who set the target.
   assert.match(client, /const trainerNames = coaching \? \(Array\.isArray\(coaching\.trainers\) \? coaching\.trainers/);
-  assert.match(client, /name: board\.setByName \|\| trainer \|\|/);
-  // Home's weekly notes: one per coach, not one per role.
-  assert.match(client, /for \(const b of banners\) if \(b\.provider_role !== 'nutritionist'\) notes\.push/);
+  assert.match(client, /name: board\.setByName \|\| \(trainersMany \? null : trainer\) \|\|/);
+  // Home's weekly notes: one per coach, not one per role, each signed with its coach's name or the
+  // role alone, never a demo byline (Fable on this PR); the feed reads the names.
+  assert.match(client, /for \(const b of banners\) if \(b\.provider_role !== 'nutritionist'\) notes\.push\(\{ role: 'trainer', text: b\.text, who: b\.provider_name \|\| null \}\);/);
+  assert.ok(!/who: b\.provider_name \|\| '(Jordan Chen|Dr\. Maya Patel)'/.test(client));
+  const backend = read('mobile-app/src/services/shapeBackend.js');
+  assert.match(backend, /banners: banners\.map\(\(b\) => \(\{ \.\.\.b, provider_name: \(b\.provider_role === 'nutritionist' \? nutriNames : trainerNames\)\.get\(String\(b\.provider_id\)\) \|\| null \}\)\),/);
   assert.ok(!/banners\.find\(b => b\.provider_role !== 'nutritionist'\)/.test(client), 'no first-trainer-only note');
   // Each coached day credits the trainer who wrote it.
   assert.match(client, /coach: !isSelf && typeof w\.coach === 'string' && w\.coach\.trim\(\) \? w\.coach\.trim\(\) : null,/);

@@ -4340,7 +4340,7 @@ function BSMemberSetupStation({ onGoal, onTrain, onCheckin, onFindCoach }) {
               {target
                 ? unitText(target.count)
                   + (target.startsOn ? ' · ' + tr('home:setup.starts', { defaultValue: 'starts {date}', date: bsSetupDay(target.startsOn) }) : '')
-                  + (board.setBy === 'coach' ? ' · ' + tr('home:setup.byCoach', { defaultValue: 'set by {name}', name: board.setByName || trainer || tr('home:setup.yourTrainer', { defaultValue: 'Your trainer' }) }) : '')
+                  + (board.setBy === 'coach' ? ' · ' + tr('home:setup.byCoach', { defaultValue: 'set by {name}', name: board.setByName || (trainersMany ? null : trainer) || tr('home:setup.yourTrainer', { defaultValue: 'Your trainer' }) }) : '')
                   + (board.weekOneDone != null ? ' · ' + tr('home:setup.doneCount', { defaultValue: '{count} done', count: board.weekOneDone }) : '')
                 : board.weekOneUnread ? tr('home:setup.unread', { defaultValue: 'couldn’t read' })
                 : board.coachSets ? (trainersMany
@@ -5211,8 +5211,10 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         // Every coach's note, trainers first: a member may pay two coaches of one role (owner,
         // 2026-10-16), and each keeps one note (coach_focus_banners is one row per coach).
         const notes = [];
-        for (const b of banners) if (b.provider_role !== 'nutritionist') notes.push({ role: 'trainer', text: b.text, who: b.provider_name || 'Jordan Chen' });
-        for (const b of banners) if (b.provider_role === 'nutritionist') notes.push({ role: 'nutritionist', text: b.text, who: b.provider_name || 'Dr. Maya Patel' });
+        // Each signed with its coach's name (fetchCoachConsoleFeed reads it), or the role alone: never
+        // a demo byline on a real note.
+        for (const b of banners) if (b.provider_role !== 'nutritionist') notes.push({ role: 'trainer', text: b.text, who: b.provider_name || null });
+        for (const b of banners) if (b.provider_role === 'nutritionist') notes.push({ role: 'nutritionist', text: b.text, who: b.provider_name || null });
         if (!notes.length) return null;
         return (
           <div style={{ padding: `12px ${t.padX}px 4px`, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -5220,7 +5222,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
               <div key={i} style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13, fontWeight: 500, color: t.INK70, lineHeight: 1.45, letterSpacing: '-0.01em' }}>
                 &ldquo;{n.text}&rdquo;
                 <span style={{ display: 'block', marginTop: 4, fontStyle: 'normal', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
-                  — {n.who} · {n.role === 'nutritionist' ? tr('home:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('home:role.trainer', { defaultValue: 'Trainer' })}
+                  — {n.who ? n.who + ' · ' : ''}{n.role === 'nutritionist' ? tr('home:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('home:role.trainer', { defaultValue: 'Trainer' })}
                 </span>
               </div>
             ))}
