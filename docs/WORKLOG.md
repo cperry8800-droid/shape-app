@@ -847,6 +847,46 @@ Everything older, newest-first: [2026-10](WORKLOG-ARCHIVE-2026-10.md) ·
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-10-16 — Client onboarding, sign-up to a coach's first plan: membership, the screening, the coach thread, a real intro, payments, both onboarding boards and the small fixes
+
+- **Thirteen PRs merged 2026-10-14 → 2026-10-16**, each on CI green on its final head, from the client-onboarding review (https://claude.ai/artifact/PzbGsEZAasYKX3wmsg16cS: 10 high · 18 medium · 11 low at `3a693fe`; the progress table there is current). The owner: *"Merge, and same for the rest"*. Their six decisions of 10-14 are on the page: coaching needs a membership; the screening only for a yes; week-one targets set per member; the welcome comes from Shape; keep Stripe; the website worldwide and the phone apps in the US first. **Phase 2 (in-app purchase outside the US) is on hold.**
+  - [#2353](https://github.com/cperry8800-droid/shape-app/pull/2353) `ea24129`, head `fab802f` (1a + 1b: H1 H2 H3 H5 M1 M7 L2 L10)
+  - [#2357](https://github.com/cperry8800-droid/shape-app/pull/2357) `fe4bad2`, head `5636695` (2a: H4 M3)
+  - [#2358](https://github.com/cperry8800-droid/shape-app/pull/2358) `2619763`, head `944ca24` (2b: M2)
+  - [#2359](https://github.com/cperry8800-droid/shape-app/pull/2359) `b7f90ca`, head `b9650a2` (2c: H8 M17 M6)
+  - [#2360](https://github.com/cperry8800-droid/shape-app/pull/2360) `15e7ec7`, head `56d3d2c` (3a: H7 M9)
+  - [#2367](https://github.com/cperry8800-droid/shape-app/pull/2367) `3ede81e`, head `9eddc2c` (from the notification audit)
+  - [#2370](https://github.com/cperry8800-droid/shape-app/pull/2370) `38c4e96`, head `399765c` (3b: H6 M18)
+  - [#2372](https://github.com/cperry8800-droid/shape-app/pull/2372) `d058e52`, head `62d5b9a` (the notification audit)
+  - [#2373](https://github.com/cperry8800-droid/shape-app/pull/2373) `bfc143b`, head `45225b3` (3c: M8 M10 M11)
+  - [#2375](https://github.com/cperry8800-droid/shape-app/pull/2375) `1b4ca46`, head `c7d2341` (at capacity and the waiting list)
+  - [#2378](https://github.com/cperry8800-droid/shape-app/pull/2378) `f0ee8d3`, head `1817358` (4: M12–M16 L8)
+  - [#2379](https://github.com/cperry8800-droid/shape-app/pull/2379) `112a89e`, head `6f5c53f` (H9 H10 M4 M5 L1 L3–L7 L9 L11)
+  - [#2380](https://github.com/cperry8800-droid/shape-app/pull/2380) `1cc9c2c`, head `3937f6f` (4b)
+  - Ten merged trees are byte-identical to their final heads. #2360, #2367 and #2373 differ only by PRs that landed on `main` under them; each PR's own diff has the same patch-id before and after.
+- **Membership (1a/1b).** One answer everywhere (`/api/me/membership`): coach checkout refuses a non-member and sends them through the $5 checkout first; a failed read is never "not a member". A claim table stops two membership checkouts racing, and the installed app gets its server address.
+- **The screening (2a/2b/2c).** Sign-up asks *"Are you looking for personal coaching?"* and only a yes leads to the screening. A coach checkout without the screening is refused (409 `screening_required`) on the website and in the app, and the PAR-Q is in 13 languages. The coach gets one read of screening, goal, training and diet (`get_client_intake`), and the old intake table is retired.
+- **Hiring starts the relationship (3a).** Once payment clears, a coach thread opens with a welcome from Shape, and the coach is alerted and emailed. Codex reviewed 13 heads and found 22 issues, all fixed. **#2367:** a client could read and post in their two coaches' private care-team thread; only coaches who still coach that client can now. **#2372:** every notification opens its screen on every surface and respects the recipient's settings; one routes table is shared by the push sender, the app and the tests.
+- **A real intro and honest payments (3b/3c).** "Book intro" opens the consultation page, at a length the coach sets (5–240 minutes). The website chat sends to the real thread, and the app no longer writes a reply the coach never sent. A suspended coach can't be paid; the return page checks the payment; a paid session becomes one the coach books; a program's sale is recorded as a program.
+- **At capacity (#2375).** It means no new clients: current clients keep booking, and new ones join a waiting list. Reopening, by hand or on a reopen date (hourly job), tells everyone waiting. Another session took the PR back for its last three commits and merged it.
+- **The boards (4/4b).** The coach gets one board per client for their first 30 days ("New clients" in Needs you; a FIRST 30 DAYS station in the app). The member gets the same board in member mode (Today on the website; YOUR FIRST 30 DAYS on the app's Home; `GET/POST /api/client/onboarding`). Every tick on both is a record, and a failed read says "couldn't read". Week-one targets: the coach's in `client_programs.detail[discipline].weekOne`, the member's own in `user_goals` kind `member_setup`; a member who pays a trainer sees the trainer's.
+- **Small fixes (#2379).** Forgot password works in any browser and in the app (Shape sends the link; `/auth/confirm`). One sign-up form. Every signed-in account gets a profile (`ensureProfile`). The Terms acceptance is recorded from a server-only copy taken at account creation (`capture_terms_acceptance`). Phone notifications are asked for when a reminder means something. A cancelled subscription stays cancelled.
+- **Migrations, every one checked in production, read-only, 2026-10-16:** `checkout-claims`, `coach-client-intake`, `coach-thread`, `keep-care-team-private`, `intro-length`, `notification-routes`, `paid-sessions`, `capacity-intros` and `terms-acceptances`. The terms trigger ran its first version (`search_path=""`) until the owner re-ran the file the same day. Checked live after the re-run: `search_path=pg_catalog, pg_temp`, still a definer that neither anon nor authenticated can execute, on one trigger.
+- ⚠ **A STACKED PR GETS NO CI.** `ci.yml` runs on a pull request into `main`, and changing a PR's base fires nothing. #2379 sat on #2378 through every review round with no CI run. Its first run, after #2378 merged (base changed, then `workflow_dispatch`), caught the empty definer `search_path` that `definer-grants` refuses. **Stack only when the base will merge first, and run CI by hand the moment the base changes.**
+- ⚠ **"FIRST ROW EVER" IS NOT "THIS MEMBERSHIP" (Fable on #2380).** `platform_subscriptions` keeps one row per Stripe subscription, cancelled ones included. So the oldest row dated a returning member's join months back, and they never got a board. The start is now the first row in `ACTIVE_SUB`. The same trap waits for anything that asks "when did they join" of a table that keeps history.
+- **Review.** Codex reviewed #2353 (7 rounds), #2360 (13 heads), #2367, #2370, #2375 (about 10 heads) and #2378 (12 rounds), and every finding was fixed or answered on its thread. It was at its usage limit for the rest. #2357–#2359 merged on CI green and my own read of the diff, with Codex and Copilot both declining. On the owner's word (*"Merge on Fable review"*), a Fable review stood in for the heads Codex refused on #2372, #2373, #2378, #2379 and #2380, and every finding was fixed or answered. Copilot declined on its quota throughout; CodeRabbit was not asked.
+- **Verified:** CI green on every final head. Full suites: 7,136 (fix 4), 7,158 (the small fixes) and 7,172/7,174 on 4b, whose two failures were house rules, fixed before push. The 4b round's suites passed 262/262. Hand mutations on 4b: 26, all caught.
+- **Written after the merges, and last**, per the owner.
+- ⚠ **REGISTERED, NOT DONE:**
+  - **Owner:** decide whether a member may have two coaches of one role (the plan read names one per discipline).
+  - **Owner:** decide what happens when a buyer pays an open checkout in another tab before the create (closing it means refunds).
+  - **Owner:** set up Firebase and APNs for push delivery (0 push devices in production).
+  - **Owner:** Phase 2 is on hold.
+  - The `?error=` redirects from `/purchase` and `/subscribe` are shown nowhere. A subscription to a coach who is later suspended keeps renewing. `checkin_submitted` is a switch nothing writes.
+  - A native speaker should read the PAR-Q translations.
+  - Week one's workouts count by UTC day. The app's goal and the website's Settings → Primary goal are separate fields.
+  - No pass on a phone or a signed-in browser; H2, M1 and L5 were never seen failing on a device.
+
 ### 2026-10-15 — The Schedule step 2 mutation spec runs clean again
 
 - **Merged [#2376](https://github.com/cperry8800-droid/shape-app/pull/2376) as `d9edcd3`**, final head `d69b734`. Tests and spec only; no code under test changed. Measured before: `killed 87 · survived 2 · skipped 10`, plus "create books a client who is not the coach's", broken on `main` since #2373.
