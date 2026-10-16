@@ -171,6 +171,8 @@ test('a sandbox token is retried on the sandbox; a dead one, on either service, 
   const { mod, restore } = await loadPush(fakeHttp2(() => [200, null]));
   restore();
   assert.equal(mod.fcmTokenIsDead(404, ''), true);
+  // UNREGISTERED is dead whatever status carries it, not only through the 404 rule.
+  assert.equal(mod.fcmTokenIsDead(400, JSON.stringify({ error: { details: [{ errorCode: 'UNREGISTERED' }] } })), true);
   assert.equal(mod.fcmTokenIsDead(400, JSON.stringify({ error: { message: 'Invalid JSON payload received.' } })), false);
   assert.equal(mod.fcmTokenIsDead(400, 'not json'), false);
   assert.equal(mod.fcmTokenIsDead(403, JSON.stringify({ error: { details: [{ errorCode: 'SENDER_ID_MISMATCH' }] } })), false);
