@@ -107,11 +107,18 @@ export async function POST(request: Request) {
       .eq('id', providerId)
       .maybeSingle();
     if (now && !isEffectivelyAtCapacity(now)) {
-      await supabase
+      // Refused only once the row is confirmed withdrawn (Codex on #2375). A withdrawal that fails,
+      // or finds the row already moved on (the coach invited them), leaves a live entry, so the
+      // join answers as it would have: the member is on the list and the coach is told.
+      const { data: withdrawn, error: wdErr } = await supabase
         .from('coach_waitlist')
         .update({ status: 'left', responded_at: new Date().toISOString() })
-        .eq('id', entryId).eq('client_id', user.id).eq('status', 'waiting');
-      return NextResponse.json({ error: 'This coach is accepting clients — no waitlist needed.' }, { status: 409 });
+        .eq('id', entryId).eq('client_id', user.id).eq('status', 'waiting')
+        .select('id')
+        .maybeSingle();
+      if (!wdErr && withdrawn) {
+        return NextResponse.json({ error: 'This coach is accepting clients — no waitlist needed.' }, { status: 409 });
+      }
     }
   }
 

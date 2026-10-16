@@ -774,7 +774,7 @@ test('app: the waiting-list read sends the live token too (Codex on #2375)', asy
 test('a join that races a reopening is withdrawn and told the coach is open (Codex on #2375)', async () => {
   const capacity = await loadRealModule(join(ROOT, 'src/lib/capacity.ts'), { typescript: true });
   const requestUtils = await loadRealModule(join(ROOT, 'src/lib/request-utils.ts'), { typescript: true, registry: new Map([['next/server', nextServer]]) });
-  const run = async ({ reads }) => {
+  const run = async ({ reads, withdraw = { data: { id: 'w9' }, error: null } }) => {
     // The listing reads in order: the first is the gate, the second the re-check after the row is saved.
     const listingReads = reads.slice();
     const writes = [];
@@ -790,6 +790,7 @@ test('a join that races a reopening is withdrawn and told the coach is open (Cod
             if (t === 'trainers') return { data: listingReads.shift() ?? null, error: null };
             if (t === 'coach_waitlist' && op === 'select') return { data: null, error: null };
             if (t === 'coach_waitlist' && op === 'insert') { writes.push(['insert', payload]); return { data: { id: 'w9' }, error: null }; }
+            if (t === 'coach_waitlist' && op === 'update') { writes.push(['update', payload, filters]); return withdraw; }
             return { data: null, error: null };
           },
           then: (res) => { if (op === 'update') writes.push(['update', payload, filters]); return Promise.resolve({ data: null, error: null }).then(res); },
@@ -832,6 +833,14 @@ test('a join that races a reopening is withdrawn and told the coach is open (Cod
   // A re-read that fails keeps the entry.
   const unread = await run({ reads: [full, null] });
   assert.equal(unread.status, 200);
+  // Refused only once the row is confirmed withdrawn: a withdrawal that fails, or finds the row
+  // already moved on, answers as a join and tells the coach.
+  const reopened = { id: 7, at_capacity: false, capacity_resume_at: null };
+  for (const withdraw of [{ data: null, error: { code: 'XX000', message: 'down' } }, { data: null, error: null }]) {
+    const kept = await run({ reads: [full, reopened], withdraw });
+    assert.equal(kept.status, 200, JSON.stringify(withdraw));
+    assert.equal(kept.notices.length, 1, 'the coach is told of a live entry');
+  }
 });
 
 test('app Settings: the switch follows the role in use, reopening says who was told, and intros are the coach\'s call', () => {
