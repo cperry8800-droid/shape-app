@@ -374,7 +374,9 @@ test('M4: the versions recorded are the pages\' own "Last updated" dates', () =>
 
 test('M4: an account that accepted at sign-up gets one record, at the account\'s own time, never the browser\'s', async () => {
   const created = new Date(Date.now() - 2 * 86_400_000).toISOString();
-  const user = { id: 'u-1', created_at: created, user_metadata: { terms_accepted_at: '1999-01-01T00:00:00Z', signup_source: { surface: 'app', platform: 'ios' } } };
+  // What the migration's trigger leaves in app_metadata as the account is created.
+  const captured = { provider: 'phone', terms_accepted_at: created, terms_surface: 'app' };
+  const user = { id: 'u-1', created_at: created, user_metadata: { terms_accepted_at: '1999-01-01T00:00:00Z', signup_source: { surface: 'website' } }, app_metadata: captured };
   const db = acceptDb();
   assert.equal(await legal.recordLegalAcceptance(db.client, user), 'recorded');
   assert.deepEqual(db.rows, [[
@@ -382,24 +384,31 @@ test('M4: an account that accepted at sign-up gets one record, at the account\'s
     { onConflict: 'user_id,terms_version,privacy_version', ignoreDuplicates: true },
   ]], 'a repeat sign-in writes nothing new');
   const web = acceptDb();
-  await legal.recordLegalAcceptance(web.client, { ...user, user_metadata: { terms_accepted_at: 'x' } });
+  await legal.recordLegalAcceptance(web.client, { ...user, app_metadata: { terms_accepted_at: created } });
   assert.equal(web.rows[0][0].surface, 'website');
-  for (const u of [null, { id: 'u', created_at: created, user_metadata: {} }, { id: 'u', created_at: 'nope', user_metadata: { terms_accepted_at: 'x' } }]) {
+  for (const u of [
+    null,
+    { id: 'u', created_at: created, user_metadata: {}, app_metadata: {} },
+    { id: 'u', created_at: 'nope', app_metadata: { terms_accepted_at: 'x' } },
+    // Codex on #2379 (P1): the member's own metadata is theirs to edit, so a flag set there later
+    // (an old account backdating an acceptance to its creation) records nothing.
+    { id: 'u', created_at: created, user_metadata: { terms_accepted_at: '2026-01-01T00:00:00Z', signup_source: { surface: 'app' } }, app_metadata: { provider: 'email' } },
+  ]) {
     const none = acceptDb();
     assert.equal(await legal.recordLegalAcceptance(none.client, u), 'none');
     assert.equal(none.rows.length, 0);
   }
   // Recorded once, whenever the first sign-in is (Fable: a 30-day window lost a late first sign-in).
   const key = `${legal.TERMS_VERSIONS.at(-1)}|${legal.PRIVACY_VERSIONS.at(-1)}`;
-  assert.deepEqual(db.marks, [['u-1', { app_metadata: { terms_recorded: key } }]], 'the marker, which only the service role can write');
+  assert.deepEqual(db.marks, [['u-1', { app_metadata: { ...captured, terms_recorded: key } }]], 'the marker, which only the service role can write');
   const late = acceptDb();
   assert.equal(await legal.recordLegalAcceptance(late.client, { ...user, created_at: new Date(Date.now() - 400 * 86_400_000).toISOString() }), 'recorded', 'a first sign-in a year later is still recorded');
   const marked = acceptDb();
-  assert.equal(await legal.recordLegalAcceptance(marked.client, { ...user, app_metadata: { provider: 'email', terms_recorded: key } }), 'none', 'every later page load pays nothing');
+  assert.equal(await legal.recordLegalAcceptance(marked.client, { ...user, app_metadata: { ...captured, terms_recorded: key } }), 'none', 'every later page load pays nothing');
   assert.equal(marked.rows.length, 0);
   const keepsOthers = acceptDb();
-  await legal.recordLegalAcceptance(keepsOthers.client, { ...user, app_metadata: { provider: 'email', terms_recorded: 'old|old' } });
-  assert.deepEqual(keepsOthers.marks[0][1].app_metadata, { provider: 'email', terms_recorded: key }, 'a newer version is recorded and the rest of app_metadata kept');
+  await legal.recordLegalAcceptance(keepsOthers.client, { ...user, app_metadata: { ...captured, terms_recorded: 'old|old' } });
+  assert.deepEqual(keepsOthers.marks[0][1].app_metadata, { ...captured, terms_recorded: key }, 'a newer version is recorded and the rest of app_metadata kept');
   const markFails = acceptDb({ markError: { message: 'x' } });
   const warn = console.warn; console.warn = () => {};
   try { assert.equal(await legal.recordLegalAcceptance(markFails.client, user), 'recorded', 'the record stands; the next page load retries the marker'); } finally { console.warn = warn; }
@@ -414,6 +423,15 @@ test('M4: the table is the server\'s to write; both sign-in doors record; both s
   assert.match(sql, /using \(user_id = auth\.uid\(\)\);/);
   assert.match(sql, /references auth\.users \(id\) on delete cascade/);
   assert.match(sql, /raise exception 'terms_acceptances: a member or a visitor can write it/);
+  // Codex on #2379 (P1): the acceptance is taken as the account is created, into app_metadata, by a
+  // BEFORE INSERT trigger (an UPDATE of user_metadata never fires it), and the guard holds it there.
+  assert.match(sql, /create trigger capture_terms_acceptance\n  before insert on auth\.users\n  for each row execute function public\.capture_terms_acceptance\(\);/);
+  assert.match(sql, /security definer\nset search_path = ''/);
+  assert.match(sql, /new\.raw_app_meta_data := coalesce\(new\.raw_app_meta_data, '\{\}'::jsonb\) \|\| jsonb_build_object\(\n      'terms_accepted_at', to_char\(coalesce\(new\.created_at, now\(\)\)/, 'the time is the account\'s, not the browser\'s');
+  assert.match(sql, /exception when others then\n  return new;/, 'a sign-up is never refused over the record');
+  assert.match(sql, /revoke all on function public\.capture_terms_acceptance\(\) from public, anon, authenticated;/);
+  assert.match(sql, /raise exception 'terms_acceptances: the capture trigger is not a row-level BEFORE INSERT trigger on auth\.users'/);
+  assert.match(read('src/lib/legal-acceptance.ts'), /const app = \(user\?\.app_metadata \?\? \{\}\) as Record<string, unknown>;\n  if \(!user\?\.id \|\| typeof app\.terms_accepted_at !== 'string'/);
   for (const f of ['src/app/api/auth/session/route.ts', 'src/app/auth/callback/route.ts']) {
     assert.match(read(f), /try \{ await recordLegalAcceptance\(createAdminClient\(\), data\?\.user\); \} catch \{ \/\* best effort \*\/ \}/, f);
   }
@@ -639,7 +657,11 @@ async function fillAndSubmit(p) {
   const inputs = [...p.doc.querySelectorAll('input')];
   const [first, last, handle, email, password, dob] = inputs;
   await p.type(first, 'Sam'); await p.type(last, 'Lee'); await p.type(handle, 'sam.lee');
-  await p.type(email, 'sam@example.com'); await p.type(password, 'short');
+  await p.type(email, 'not-an-email'); await p.type(password, 'short');
+  await p.click(p.button('Continue'));
+  assert.match(p.text(), /Enter a valid email address\./, 'a malformed email, on the step it was typed (Codex on #2379)');
+  assert.match(p.text(), /Step 1 of 3/i);
+  await p.type(email, 'sam@example.com');
   await p.click(p.button('Continue'));
   assert.match(p.text(), /Choose a password with at least 8 characters\./, 'a short password, on the step it was typed');
   await p.type(password, 'long-enough-1'); await p.type(dob, '1990-04-02');

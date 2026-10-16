@@ -1,9 +1,10 @@
 // The Terms and Privacy acceptance record (client-onboarding review, M4). The website's sign-up
 // required a Terms tick and kept no record of it; the app showed no Terms at all. Both sign-ups now
-// put `terms_accepted_at` in the account's metadata, and this writes the record the first time the
-// account signs in (the session bridge and /auth/callback): the versions in force when the account
-// was created, at that time. The time comes from the account (auth.users.created_at), never from the
-// browser, and the table is written by the service role only (2026-10-15-terms-acceptances.sql).
+// send `terms_accepted_at` with the account's creation, the migration's trigger keeps it in
+// app_metadata, and this writes the record the first time the account signs in (the session bridge
+// and /auth/callback): the versions in force when the account was created, at that time. The time
+// comes from the account (auth.users.created_at), never from the browser, and the table is written
+// by the service role only (2026-10-15-terms-acceptances.sql).
 
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 
@@ -25,8 +26,13 @@ export async function recordLegalAcceptance(
   admin: SupabaseClient,
   user: Pick<User, 'id' | 'created_at' | 'user_metadata' | 'app_metadata'> | null | undefined
 ): Promise<AcceptanceResult> {
-  const meta = (user?.user_metadata ?? {}) as Record<string, unknown>;
-  if (!user?.id || typeof meta.terms_accepted_at !== 'string' || !meta.terms_accepted_at) return 'none';
+  // ⚠ ONLY WHAT THE ACCOUNT CARRIED WHEN IT WAS CREATED (Codex on #2379, P1). This read
+  // user_metadata, which the member can edit (supabase.auth.updateUser), so an old account could set
+  // `terms_accepted_at` and have a record written backdated to its creation, naming versions it never
+  // saw. The migration's BEFORE INSERT trigger on auth.users copies the sign-up's flag into
+  // app_metadata, which only the server writes; a later edit of user_metadata never reaches it.
+  const app = (user?.app_metadata ?? {}) as Record<string, unknown>;
+  if (!user?.id || typeof app.terms_accepted_at !== 'string' || !app.terms_accepted_at) return 'none';
   const created = Date.parse(String(user.created_at ?? ''));
   if (!Number.isFinite(created)) return 'none';
   const day = new Date(created).toISOString().slice(0, 10);
@@ -37,10 +43,9 @@ export async function recordLegalAcceptance(
   // lost the record of anyone who first signed in later. Once written, the account carries a marker
   // in app_metadata (which only the service role can write), and that is what is skipped on.
   const key = `${terms}|${privacy}`;
-  const app = (user.app_metadata ?? {}) as Record<string, unknown>;
   if (app.terms_recorded === key) return 'none';
-  const source = meta.signup_source && typeof meta.signup_source === 'object' ? (meta.signup_source as Record<string, unknown>) : null;
-  const surface = source && source.surface === 'app' ? 'app' : 'website';
+  // Where the account was made, as the trigger read it from the sign-up (not the editable metadata).
+  const surface = app.terms_surface === 'app' ? 'app' : 'website';
   try {
     const { error } = await admin.from('terms_acceptances').upsert(
       {

@@ -2,14 +2,22 @@
 -- Policy were accepted, which versions, and when.
 --
 -- The website's sign-up required a Terms tick and kept no record of it; the app's sign-up showed no
--- Terms at all. Both now send `terms_accepted_at` in the sign-up metadata, and the server records
--- the acceptance at the account's first sign-in (src/lib/legal-acceptance.ts, from the session
--- bridge and /auth/callback): the versions in force when the account was created, and that time
--- (auth.users.created_at), never a time the browser sent.
+-- Terms at all. Both now send `terms_accepted_at` in the sign-up metadata, the trigger below keeps it
+-- in app_metadata as the account is created, and the server records the acceptance at the account's
+-- first sign-in (src/lib/legal-acceptance.ts, from the session bridge and /auth/callback): the
+-- versions in force when the account was created, and that time (auth.users.created_at), never a
+-- time the browser sent.
 --
 -- Written by the service role only. A member can read their own rows and change none: no insert,
 -- update or delete for anon or authenticated, so a row is what the server wrote. One row per account
 -- and pair of versions; a later version accepted is a new row. Removed with the account (cascade).
+--
+-- ⚠ THE ACCEPTANCE IS TAKEN AS THE ACCOUNT IS CREATED, NOT FROM user_metadata LATER (Codex on #2379,
+-- P1). user_metadata is the member's own to edit (supabase.auth.updateUser), so an old account could
+-- set `terms_accepted_at` and have a record written backdated to its creation, naming versions it
+-- never saw. A BEFORE INSERT trigger on auth.users copies the sign-up's flag into app_metadata, which
+-- only the server writes; a later edit of user_metadata is an UPDATE and never reaches it. The server
+-- records from app_metadata alone.
 --
 -- Idempotent: safe to re-run.
 
@@ -34,6 +42,35 @@ create policy terms_acceptances_read_own on public.terms_acceptances
   for select to authenticated
   using (user_id = auth.uid());
 
+-- The capture. Only NEW is touched, so a sign-up cannot fail on a table read; any error is swallowed
+-- and the account is created without the flag (no record), never refused.
+create or replace function public.capture_terms_acceptance()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if jsonb_typeof(new.raw_user_meta_data -> 'terms_accepted_at') = 'string'
+     and length(new.raw_user_meta_data ->> 'terms_accepted_at') > 0 then
+    new.raw_app_meta_data := coalesce(new.raw_app_meta_data, '{}'::jsonb) || jsonb_build_object(
+      'terms_accepted_at', to_char(coalesce(new.created_at, now()) at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+      'terms_surface', case when new.raw_user_meta_data -> 'signup_source' ->> 'surface' = 'app' then 'app' else 'website' end
+    );
+  end if;
+  return new;
+exception when others then
+  return new;
+end;
+$$;
+
+revoke all on function public.capture_terms_acceptance() from public, anon, authenticated;
+
+drop trigger if exists capture_terms_acceptance on auth.users;
+create trigger capture_terms_acceptance
+  before insert on auth.users
+  for each row execute function public.capture_terms_acceptance();
+
 -- Guard: refuse to finish unless the table is as described.
 do $$
 begin
@@ -56,5 +93,25 @@ begin
       and policyname = 'terms_acceptances_read_own' and cmd = 'SELECT'
   ) then
     raise exception 'terms_acceptances: the read-own policy is missing';
+  end if;
+  if not exists (
+    select 1 from pg_trigger t
+    where t.tgrelid = 'auth.users'::regclass and t.tgname = 'capture_terms_acceptance'
+      and t.tgenabled = 'O' and not t.tgisinternal
+      and (t.tgtype & 2) = 2 and (t.tgtype & 4) = 4 and (t.tgtype & 1) = 1
+      and t.tgfoid = 'public.capture_terms_acceptance()'::regprocedure
+  ) then
+    raise exception 'terms_acceptances: the capture trigger is not a row-level BEFORE INSERT trigger on auth.users';
+  end if;
+  if not exists (
+    select 1 from pg_proc p
+    where p.oid = 'public.capture_terms_acceptance()'::regprocedure
+      and p.prosecdef and p.proconfig @> array['search_path=""']
+  ) then
+    raise exception 'terms_acceptances: the capture function is not a definer with an empty search_path';
+  end if;
+  if has_function_privilege('authenticated', 'public.capture_terms_acceptance()', 'EXECUTE')
+     or has_function_privilege('anon', 'public.capture_terms_acceptance()', 'EXECUTE') then
+    raise exception 'terms_acceptances: a member or a visitor can call the capture function';
   end if;
 end $$;

@@ -544,6 +544,9 @@ function ProAvailability({ v, set, kind }) {
 function suPersonalError(values) {
   if (!values.firstName || !values.lastName) return "First and last name are required.";
   if (!values.email || !values.email.trim()) return "Enter your email.";
+  // The field is type="email", but Continue is a plain button and no form is submitted, so the
+  // browser never checks it (Codex on #2379): a malformed address reached the last step.
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email.trim())) return "Enter a valid email address.";
   if (!values.password || values.password.length < 8) return "Choose a password with at least 8 characters.";
   // Normalize the username the same way it'll be submitted, THEN validate, so
   // a value like " Jane.Doe " / "@jane" can't fail the check on a stray char.
