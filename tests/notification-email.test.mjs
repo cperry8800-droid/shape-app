@@ -93,14 +93,14 @@ function fakeAdmin({ settings = null, prefs = {}, earlier = 0, fail = null, emai
   return admin;
 }
 
-const st = { admin: null, pushes: [], emails: [], pushReady: true };
+const st = { admin: null, pushes: [], emails: [], pushReady: true, sendOk: true };
 const route = await loadRealModule(join(ROOT, 'src/app/api/push/dispatch/route.ts'), {
   typescript: true,
   registry: new Map([
     ['next/server', nextServer],
     ['@/lib/supabase/admin', { createAdminClient: () => st.admin }],
     ['@/lib/push', { pushConfigured: () => st.pushReady, sendPushToUser: async (_a, userId, p) => { st.pushes.push({ userId, ...p }); } }],
-    ['@/lib/email', { sendEmail: async (m) => { st.emails.push(m); return { ok: true }; } }],
+    ['@/lib/email', { sendEmail: async (m) => { st.emails.push(m); return st.sendOk ? { ok: true } : { ok: false, error: 'resend_500' }; } }],
     ['@/lib/ai/notifications.mjs', await import('../src/lib/ai/notifications.mjs')],
   ]),
 });
@@ -127,13 +127,29 @@ test('a tier-up is emailed and pushed by default, and the email says what was re
   assert.equal(mail.subject, 'You reached Form');
   assert.match(mail.text, /Your Form rewards are waiting in the Shape Store\./);
   assert.match(mail.text, /Settings → Notifications/, 'the email does not say how to turn it off');
-  // The cooldown read is this kind of row in the last hour, other than this one.
-  const cool = a.queries.find((q) => q.table === 'notifications');
+  // The cooldown read is this kind of row EMAILED in the last hour, other than this one: a row that
+  // was never emailed (quiet hours, switch off) does not hold the next one back (Codex on #2387).
+  const [cool, stamp] = a.queries.filter((q) => q.table === 'notifications');
   assert.deepEqual(cool.ops.find((o) => o[0] === 'neq'), ['neq', 'id', 'n-1']);
   assert.deepEqual(cool.ops.filter((o) => o[0] === 'eq'), [['eq', 'user_id', 'u-1'], ['eq', 'type', 'tier_up']]);
   const since = cool.ops.find((o) => o[0] === 'gte');
-  assert.equal(since[1], 'created_at');
+  assert.equal(since[1], 'data->>emailed_at', 'the cooldown counts rows, not emails sent');
   assert.ok(Math.abs(Date.now() - 3600_000 - Date.parse(since[2])) < 60_000, 'the cooldown is not one hour');
+  // The sent email stamps its own row, keeping what the row already carried.
+  const upd = stamp.ops.find((o) => o[0] === 'update');
+  assert.ok(upd, 'a sent email is not recorded');
+  assert.deepEqual({ ...upd[1].data, emailed_at: 'x' }, { ...TIER.data, emailed_at: 'x' });
+  assert.ok(Math.abs(Date.now() - Date.parse(upd[1].data.emailed_at)) < 60_000);
+  assert.deepEqual(stamp.ops.find((o) => o[0] === 'eq'), ['eq', 'id', 'n-1']);
+});
+
+test('a send that fails is not recorded as sent, so the next notice can still email', async () => {
+  st.sendOk = false;
+  try {
+    const a = fakeAdmin();
+    assert.deepEqual((await post(a, TIER)).emailed, ['member@example.com'], 'the send was not attempted');
+    assert.ok(!a.queries.some((q) => q.ops.some((o) => o[0] === 'update')), 'a failed send was stamped as sent');
+  } finally { st.sendOk = true; }
 });
 
 test('a tier-up email answers its switch, mute and quiet hours', async () => {

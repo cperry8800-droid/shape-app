@@ -98,8 +98,13 @@ export async function pushAllowed(
 // the AI layer) email for themselves and stamp data.channels.email; a trigger row (a coach's chat
 // message, a tier-up from award_tier_bonuses) carries no stamp, so it is emailed here. Only for a
 // type email is offered for, with that switch on (a tier-up's starts on), not muted, outside quiet
-// hours, and once per type per hour, as notify.ts: a coach's burst of messages is one email.
-// Anything unreadable sends nothing.
+// hours, and once per type per hour: a coach's burst of messages is one email. Anything unreadable
+// sends nothing.
+// ⚠ THE COOLDOWN COUNTS EMAILS SENT, NOT ROWS (Codex on #2387). A row counted whether or not it was
+// emailed, so a message that arrived in quiet hours held back the next hour's email, and two
+// messages inserted together each saw the other and neither was emailed. A sent email stamps its row
+// (data.emailed_at, emailRow); the cooldown counts stamped rows. Two webhooks for one member at the
+// same instant can still both send, before either stamps: two emails, never none.
 export async function emailDecision(
   admin: ReturnType<typeof createAdminClient>,
   record: NotificationRecord,
@@ -124,7 +129,7 @@ export async function emailDecision(
   }
   let earlier = admin.from('notifications').select('id', { count: 'exact', head: true })
     .eq('user_id', record.user_id).eq('type', record.type)
-    .gte('created_at', new Date(now.getTime() - 60 * 60 * 1000).toISOString())
+    .gte('data->>emailed_at', new Date(now.getTime() - 60 * 60 * 1000).toISOString())
     .neq('id', record.id);
   if (record.type === 'message') earlier = earlier.eq('data->>side', 'client');
   const { count, error } = await earlier;
@@ -134,14 +139,18 @@ export async function emailDecision(
 
 const htmlEscape = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 
-async function emailRow(admin: ReturnType<typeof createAdminClient>, record: NotificationRecord): Promise<void> {
+// Sends the email and, only when it went, stamps the row so the cooldown counts it. A failed send
+// (sendEmail logs why) is not stamped, so the next eligible notice can still email. Email here is
+// best-effort, as in notify.ts and the AI layer: answering the webhook with an error to have it
+// retried would push the notification a second time.
+async function emailRow(admin: ReturnType<typeof createAdminClient>, record: NotificationRecord): Promise<boolean> {
   const { data } = await admin.auth.admin.getUserById(record.user_id as string);
   const to = data?.user?.email;
-  if (!to) return;
+  if (!to) return false;
   const site = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://theshapecommunity.com').replace(/\/+$/, '');
   const title = String(record.title ?? '');
   const body = String(record.body ?? '');
-  await sendEmail({
+  const sent = await sendEmail({
     to,
     subject: title,
     text: `${body ? body + '\n\n' : ''}Open Shape: ${site}\n\nChange which emails you get in Settings → Notifications.`,
@@ -149,6 +158,12 @@ async function emailRow(admin: ReturnType<typeof createAdminClient>, record: Not
       + (body ? `<p style="font-size:14px;line-height:1.5;white-space:pre-line">${htmlEscape(body)}</p>` : '')
       + `<p><a href="${site}">Open Shape</a></p><p style="font-size:12px;color:#888">Change which emails you get in Settings → Notifications.</p></div>`,
   });
+  if (!sent.ok) return false;
+  const { error } = await admin.from('notifications')
+    .update({ data: { ...(record.data ?? {}), emailed_at: new Date().toISOString() } })
+    .eq('id', record.id as string);
+  if (error) console.error('[push] email sent but not recorded; the next one inside the hour may also send:', error.message);
+  return true;
 }
 
 // L7 (2026-10-08 review): the same constant-time comparison the cron routes use, so the
