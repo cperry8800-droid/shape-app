@@ -536,11 +536,11 @@ test('the plan read names the coach the member pays, their thread and their week
 test('the member app and the website say the coach is preparing the plan, and ask adherence only of a plan', () => {
   const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
   // Train: a coached member with no plan gets the coach card, not "Find a trainer" and the build door.
-  assert.match(client, /\{trainCoaching\s+\? <BSCoachPreparing role="trainer" coaching=\{trainCoaching\} onOpenSession=\{\(\) => \{ setOpenSession\(true\); setSession\(true\); \}\} \/>\s+: <>\s+<BSFindCoachBar role="trainer"/);
-  assert.match(client, /setTrainCoaching\(p\?\.training\?\.coaching \|\| null\);/);
+  assert.match(client, /\{trainCoaching\s+\? <BSCoachPreparing role="trainer" coaching=\{trainCoaching\} onOpenSession=\{\(\) => \{ setOpenSession\(true\); setSession\(true\); \}\} \/>\s+: <>\s+\{\(!bsTrainSignedIn \|\| trainCoaching === null\) && <BSFindCoachBar role="trainer"/);
+  assert.match(client, /setTrainCoaching\(p && p\.training && 'coaching' in p\.training \? \(p\.training\.coaching \|\| null\) : undefined\);/);
   // Eat: the same for a nutritionist, before any menu.
   assert.match(client, /\{bsEatSignedIn && eatPlanRead && !liveMealDays && eatCoaching && <BSCoachPreparing role="nutritionist" coaching=\{eatCoaching\} \/>\}/);
-  assert.match(client, /if \(!cancelled\) setEatCoaching\(p\?\.meals\?\.coaching \|\| null\);\s+if \(cancelled \|\| !p\?\.meals\?\.hasPlan\) return;/);
+  assert.match(client, /if \(!cancelled\) setEatCoaching\(p && p\.meals && 'coaching' in p\.meals \? \(p\.meals\.coaching \|\| null\) : undefined\);\s+if \(cancelled \|\| !p\?\.meals\?\.hasPlan\) return;/);
   // The check-in's adherence questions follow the plans, in the app and on the website.
   const RATINGS = [['trainingAdherence'], ['nutritionAdherence'], ['sleep'], ['energy']];
   const app = new Function('BS_CHECKIN_RATINGS', slice(client, 'function bsCheckinRatings(', 'const BS_MEASURE_SITES') + ';return bsCheckinRatings;')(RATINGS);
@@ -554,7 +554,7 @@ test('the member app and the website say the coach is preparing the plan, and as
   assert.match(read('public/newdesign/dashProgress.jsx'), /\{dprCheckinRatings\(plans\)\.map\(/);
   // The website's Train builder says so too.
   const train = read('public/newdesign/dashTrain.jsx');
-  assert.match(train, /<DtrBuilder self=\{selfData\} onChanged=\{reloadAll\} coaching=\{dtrCoachingOf\(plan\)\} \/>/);
+  assert.match(train, /<DtrBuilder self=\{selfData\} onChanged=\{reloadAll\} coaching=\{dtrCoachingOf\(plan\)\} findCoach=\{dtrFindCoachOk\(plan, live\)\} \/>/);
   assert.match(train, /is preparing your plan\. It shows up here the moment they publish it/);
   const nutri = read('public/newdesign/dashNutri.jsx');
   assert.match(nutri, /\{plan && plan\.meals && plan\.meals\.coaching \? <>[\s\S]{0,400}is preparing your meal plan\./);
@@ -782,11 +782,39 @@ test('a coached member with no plan yet sees their coach preparing it, never the
   const program = slice(train, '{ key: "program", title: "The program, by week"', '{weeks.map(');
   assert.match(program, /\{dtrCoachingOf\(plan\) \? "Your program is on its way" : "No program assigned yet"\}/);
   assert.match(program, /\{dtrCoachingOf\(plan\)\s+\? \(dtrCoachingOf\(plan\)\.name \|\| "Your trainer"\) \+ " is preparing it\. It lands here, week by week, the moment they publish it\."\s+: "Your trainer assigns the block/);
-  assert.match(train, /<DtrBuilder self=\{selfData\} onChanged=\{reloadAll\} coaching=\{dtrCoachingOf\(plan\)\} \/>/);
+  assert.match(train, /<DtrBuilder self=\{selfData\} onChanged=\{reloadAll\} coaching=\{dtrCoachingOf\(plan\)\} findCoach=\{dtrFindCoachOk\(plan, live\)\} \/>/);
 
   // The app: no "find a coach" bar for a member who pays one, on Train or on Eat.
   const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
-  const bars = [...client.matchAll(/<BSFindCoachBar role="(trainer|nutritionist)"/g)].map((m) => client.slice(Math.max(0, m.index - 40), m.index + 40));
+  const bars = [...client.matchAll(/<BSFindCoachBar role="(trainer|nutritionist)"/g)].map((m) => client.slice(Math.max(0, m.index - 60), m.index + 40));
   assert.equal(bars.length, 3);
-  for (const b of bars) assert.match(b, /!trainCoaching && <BSFindCoachBar role="trainer"|!eatCoaching && <BSFindCoachBar role="nutritionist"|: <>\s+<BSFindCoachBar role="trainer"/, b);
+  for (const b of bars) assert.match(b, /\(!bsTrainSignedIn \|\| trainCoaching === null\) && <BSFindCoachBar role="trainer"|\(!bsEatSignedIn \|\| eatCoaching === null\) && <BSFindCoachBar role="nutritionist"/, b);
+});
+
+test('a coach the plan read could not tell is unknown, not none: no marketplace prompt (Codex on #2378)', () => {
+  // The app keeps the three states apart: the coach, null for none, undefined while unknown.
+  const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  const pick = (re) => { const m = re.exec(client); assert.ok(m, String(re)); return new Function('p', 'return ' + m[1] + ';'); };
+  const trainOf = pick(/setTrainCoaching\((p && p\.training && 'coaching' in p\.training \? \(p\.training\.coaching \|\| null\) : undefined)\);/);
+  const eatOf = pick(/setEatCoaching\((p && p\.meals && 'coaching' in p\.meals \? \(p\.meals\.coaching \|\| null\) : undefined)\);/);
+  for (const [of, key] of [[trainOf, 'training'], [eatOf, 'meals']]) {
+    assert.deepEqual(of({ [key]: { coaching: { name: 'Sam' } } }), { name: 'Sam' });
+    assert.equal(of({ [key]: { coaching: null } }), null, 'the read says none');
+    assert.equal(of({ [key]: { hasPlan: false } }), undefined, 'the route omitted it: its subscriptions read failed');
+    assert.equal(of(null), undefined, 'the plan read failed');
+  }
+  assert.match(client, /const \[trainCoaching, setTrainCoaching\] = useStateBSC\(undefined\);/);
+  assert.match(client, /const \[eatCoaching, setEatCoaching\] = useStateBSC\(undefined\);/);
+
+  // The website: the marketplace for the signed-out preview and a known "none" only.
+  const train = read('public/newdesign/dashTrain.jsx');
+  const ok = new Function(slice(train, 'function dtrFindCoachOk(', 'function ClientWorkoutsPage(') + ';return dtrFindCoachOk;')();
+  assert.equal(ok(null, false), true, 'the signed-out preview keeps the pitch');
+  assert.equal(ok({ training: { coaching: null } }, true), true, 'no trainer');
+  assert.equal(ok({ training: { hasPlan: false } }, true), false, 'could not tell');
+  assert.equal(ok(null, true), false, 'the plan read failed');
+  assert.equal(ok({ training: { coaching: { name: 'J' } } }, true), false);
+  assert.match(train, /"Your trainer assigns the block and it lands here, week by week" \+ \(dtrFindCoachOk\(plan, live\) \? " — ask in chat, or browse the marketplace for a coach\." : "\."\)/);
+  assert.match(train, /\{findCoach && <> <a href="Marketplace\.html"/);
+  assert.match(read('public/newdesign/dashNutri.jsx'), /with swaps and a grocery list\{plan && plan\.meals && plan\.meals\.coaching === null \? " — ask in chat, or find a coach in the marketplace\." : "\."\}/);
 });

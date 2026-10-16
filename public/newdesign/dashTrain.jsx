@@ -387,7 +387,7 @@ function DtrDowToggles({ dows, setDows }) {
   );
 }
 
-function DtrBuilder({ self, onChanged, coaching }) {
+function DtrBuilder({ self, onChanged, coaching, findCoach = true }) {
   const templates = (self && self.templates) || { sessions: [], programs: [] };
   const mine = (self && self.mine) || [];
   const [mode, setMode] = React.useState("starters"); // starters | session | program | draft
@@ -509,7 +509,7 @@ function DtrBuilder({ self, onChanged, coaching }) {
             training.coaching). */}
         {coaching
           ? <>{coaching.name || "Your coach"} is preparing your plan. It shows up here the moment they publish it{coaching.weekOne ? <> (week-one target: {coaching.weekOne.count} {coaching.weekOne.count === 1 ? "workout" : "workouts"}{coaching.weekOne.startsOn ? ", starting " + new Date(coaching.weekOne.startsOn + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }) : ""})</> : null}. Until then you can still build a session of your own. <a href="/newdesign/ClientApp.html#team" style={{ color: DTR_TEAL, textDecoration: "none" }}>Message your coach →</a></>
-          : <>A coach writes this <em>for</em> you — until then, build your own. Starter templates, a custom week, or ✦ a drafted program you approve before it lands. <a href="Marketplace.html" style={{ color: DTR_TEAL, textDecoration: "none" }}>Find a coach →</a></>}
+          : <>A coach writes this <em>for</em> you — until then, build your own. Starter templates, a custom week, or ✦ a drafted program you approve before it lands.{findCoach && <> <a href="Marketplace.html" style={{ color: DTR_TEAL, textDecoration: "none" }}>Find a coach →</a></>}</>}
       </div>
 
       {(yours.programs.length > 0 || yours.repeats.length > 0 || yours.oneOffs > 0) && (
@@ -661,6 +661,12 @@ function dtrSourceOf(pl, tr, st) {
 function dtrCoachingOf(plan) {
   return plan && plan.training && !plan.training.hasPlan && plan.training.coaching ? plan.training.coaching : null;
 }
+// Whether the page may point at the marketplace: the signed-out preview, or a member the plan read
+// says has no trainer. ⚠ NOT WHEN IT COULD NOT TELL (Codex on #2378): the route omits `coaching` when
+// its subscriptions read fails, and a coached member was sent to find a coach.
+function dtrFindCoachOk(plan, live) {
+  return !live || !!(plan && plan.training && plan.training.coaching === null);
+}
 
 function ClientWorkoutsPage() {
   const [plan, setPlan] = React.useState(null);
@@ -786,7 +792,7 @@ function ClientWorkoutsPage() {
             <div style={{ fontSize: 13, color: DTR_INK50, lineHeight: 1.55, marginTop: 8, maxWidth: 480 }}>
               {dtrCoachingOf(plan)
                 ? (dtrCoachingOf(plan).name || "Your trainer") + " is preparing it. It lands here, week by week, the moment they publish it."
-                : "Your trainer assigns the block and it lands here, week by week — ask in chat, or browse the marketplace for a coach."}
+                : "Your trainer assigns the block and it lands here, week by week" + (dtrFindCoachOk(plan, live) ? " — ask in chat, or browse the marketplace for a coach." : ".")}
             </div>
           </div>
         )}
@@ -835,7 +841,7 @@ function ClientWorkoutsPage() {
     // Self-serve builder — renders only for an authenticated member (the GET
     // 401s signed-out); coach-assigned weeks above always win the page lead.
     { key: "builder", title: "Build your week", size: "full", empty: !(selfData && selfData.ok), render: () => (
-      <DtrBuilder self={selfData} onChanged={reloadAll} coaching={dtrCoachingOf(plan)} />
+      <DtrBuilder self={selfData} onChanged={reloadAll} coaching={dtrCoachingOf(plan)} findCoach={dtrFindCoachOk(plan, live)} />
     ) },
 
     { key: "consistency", title: "Consistency", size: "half", render: () => (

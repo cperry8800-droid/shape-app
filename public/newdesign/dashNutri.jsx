@@ -281,7 +281,9 @@ function ClientNutritionPage() {
             </> : <>
               <div className="dash-eyebrow" style={{ color: DNU_GOLD }}>No meal plan assigned yet</div>
               <div style={{ fontSize: 13, color: DNU_INK50, lineHeight: 1.55, marginTop: 8, maxWidth: 480 }}>
-                Your nutritionist builds the plan and it lands here, with swaps and a grocery list — ask in chat, or find a coach in the marketplace.
+                {/* The marketplace only for a member the plan read says has no nutritionist: the route omits
+                    `coaching` when it could not tell (Codex on #2378). */}
+                Your nutritionist builds the plan and it lands here, with swaps and a grocery list{plan && plan.meals && plan.meals.coaching === null ? " — ask in chat, or find a coach in the marketplace." : "."}
               </div>
             </>}
             {window.ShapeAskNoraLink && <window.ShapeAskNoraLink style={{ marginTop: 10 }} label="Ask Nora what to eat today" draft="What should I eat today?" />}

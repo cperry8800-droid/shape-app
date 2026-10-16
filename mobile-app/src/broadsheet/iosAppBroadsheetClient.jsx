@@ -6186,7 +6186,10 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   const [liveWorkouts, setLiveWorkouts] = useStateBSC(null);
   const [liveTrainCoach, setLiveTrainCoach] = useStateBSC(null); // real assigning trainer
   // The trainer this member pays, when they have one (/api/client/plan `training.coaching`, M16).
-  const [trainCoaching, setTrainCoaching] = useStateBSC(null);
+  // The trainer this member pays: the coaching object, null when the plan read says there is none,
+  // undefined while it is unknown. ⚠ UNKNOWN IS NOT NONE (Codex on #2378): /api/client/plan omits
+  // `coaching` when its subscriptions read fails, and a coached member was sent to find a trainer.
+  const [trainCoaching, setTrainCoaching] = useStateBSC(undefined);
   const [planLoaded, setPlanLoaded] = useStateBSC(false);
   const [builder, setBuilder] = useStateBSC(null); // { mode, ...seed } | null — the self-serve builder overlay
 
@@ -6197,7 +6200,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
     try {
       window.ShapeMetrics?.invalidate?.();
       const p = await window.ShapePlan?.get?.();
-      setTrainCoaching(p?.training?.coaching || null);
+      setTrainCoaching(p && p.training && 'coaching' in p.training ? (p.training.coaching || null) : undefined);
       if (p?.training?.hasPlan) { setLiveWorkouts(p.training.workouts); setLiveTrainCoach(p.training.coach || null); setDay(bsWeekdayIdx()); }
       else { setLiveWorkouts(null); setLiveTrainCoach(null); }
     } catch (e) { /* keep demo program */ }
@@ -6284,7 +6287,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
         {trainCoaching
           ? <BSCoachPreparing role="trainer" coaching={trainCoaching} onOpenSession={() => { setOpenSession(true); setSession(true); }} />
           : <>
-            <BSFindCoachBar role="trainer" onOpen={() => goMarket('trainer')} />
+            {(!bsTrainSignedIn || trainCoaching === null) && <BSFindCoachBar role="trainer" onOpen={() => goMarket('trainer')} />}
             <BSBuildDoor
               onBuild={() => setBuilder({ mode: 'session' })}
               onOpenSession={() => { setOpenSession(true); setSession(true); }}
@@ -6473,7 +6476,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
           </>
         )}
         {/* A member who pays a trainer is not sent to find one (Codex on #2378), as at the page's head. */}
-        {!trainCoaching && <BSFindCoachBar role="trainer" onOpen={() => goMarket('trainer')} />}
+        {(!bsTrainSignedIn || trainCoaching === null) && <BSFindCoachBar role="trainer" onOpen={() => goMarket('trainer')} />}
       </div>
 
       {/* From Jordan — the trainer's playlists (owner, 2026-10-11: "keep playlists
@@ -12607,13 +12610,14 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   // Pull the client's assigned meal plan; fall back to the demo menu when none.
   const [eatPlanRead, setEatPlanRead] = useStateBSC(false);
   // The nutritionist this member pays, when they have one (/api/client/plan `meals.coaching`, M16).
-  const [eatCoaching, setEatCoaching] = useStateBSC(null);
+  // As Train's: the object, null for none, undefined while unknown (Codex on #2378).
+  const [eatCoaching, setEatCoaching] = useStateBSC(undefined);
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const p = await window.ShapePlan?.get?.();
-        if (!cancelled) setEatCoaching(p?.meals?.coaching || null);
+        if (!cancelled) setEatCoaching(p && p.meals && 'coaching' in p.meals ? (p.meals.coaching || null) : undefined);
         if (cancelled || !p?.meals?.hasPlan) return;
         setLiveMealDays(p.meals.days);
         setLiveMealCoach(p.meals.coach || null);
@@ -14236,8 +14240,9 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
             {cur.coachLine ? (
               <div style={{ margin: `10px ${t.padX}px 0`, padding: '2px 0 2px 12px', borderLeft: '3px solid #a07a2e', fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, lineHeight: 1.45, color: t.INK70 }}>&ldquo;{cur.coachLine}&rdquo;</div>
             ) : null}
-            {/* A member who pays a nutritionist is not sent to find one (Codex on #2378). */}
-            {!eatCoaching && <BSFindCoachBar role="nutritionist" onOpen={() => goMarket('nutritionist')} />}
+            {/* A member who pays a nutritionist, or whose coach could not be read, is not sent to find
+                one (Codex on #2378); the signed-out preview keeps the pitch. */}
+            {(!bsEatSignedIn || eatCoaching === null) && <BSFindCoachBar role="nutritionist" onOpen={() => goMarket('nutritionist')} />}
           </div>
         );
       })()}
