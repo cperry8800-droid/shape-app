@@ -486,5 +486,16 @@
   "privacy.leaderboard": "Apparaître dans les classements",
   "privacy.teamBoard": "Apparaître auprès de l’équipe de mon coach",
   "privacy.leaderboardDesc": "Activé par défaut. Désactivé, vous n’apparaissez plus dans aucun classement de membres ; vous voyez toujours votre propre place. Les membres voient votre prénom et l’initiale de votre nom, jamais votre nom complet.",
-  "privacy.teamBoardDesc": "Désactivé tant que vous ne l’activez pas. Activé, les membres qui ont le même coach que vous vous voient dans leur classement d’équipe et savent ainsi que vous vous entraînez avec le même coach. Votre coach n’est jamais nommé."
+  "privacy.teamBoardDesc": "Désactivé tant que vous ne l’activez pas. Activé, les membres qui ont le même coach que vous vous voient dans leur classement d’équipe et savent ainsi que vous vous entraînez avec le même coach. Votre coach n’est jamais nommé.",
+  "push.title": "Notifications sur le téléphone",
+  "push.on": "Activées sur ce téléphone",
+  "push.off": "Désactivées dans les réglages du téléphone",
+  "push.notYet": "Pas encore activées",
+  "push.turnOn": "Activer",
+  "push.askTitle": "Recevez vos rappels sur votre téléphone",
+  "push.askBody": "Shape envoie vos rappels et les messages de votre coach sous forme de notifications. Votre téléphone ne demande qu’une fois ; vous pourrez changer cela dans ses réglages.",
+  "push.askYes": "Activer les notifications",
+  "push.notNow": "Pas maintenant",
+  "push.askTitleCoach": "Sachez quand vos clients ont besoin de vous",
+  "push.askBodyCoach": "Shape vous prévient sur votre téléphone quand un client vous écrit, réserve ou paie une séance, ou a besoin de vous. Votre téléphone ne demande qu’une fois ; vous pourrez changer cela dans ses réglages."
 }

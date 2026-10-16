@@ -18,6 +18,9 @@ const RETIRED = [
   'public/mobile/SignupNutritionist.html',
   'public/mobile/SignupClient.html',
   'public/mobile/signup.jsx',
+  // The Next /signup form (client-onboarding review, M5): it redirects to the website's sign-up.
+  'src/app/signup/page.tsx',
+  'src/app/signup/SignupForm.tsx',
 ]
 
 const REDIRECTS = [

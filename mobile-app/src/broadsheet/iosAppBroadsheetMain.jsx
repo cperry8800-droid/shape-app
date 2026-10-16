@@ -1,6 +1,7 @@
 import { effectiveAppPaper, appearancePatch, saveAppearancePatch, paperColorMode } from '../../../public/newdesign/appearanceSync.mjs';
 import React from 'react';
 import * as ReactDOM from 'react-dom/client';
+import { createPortal } from 'react-dom';
 import { I18nextProvider } from 'react-i18next';
 import { initI18n, applyDir, useTr, i18n as bsI18n } from '../i18n/index.js';
 import BSLanguagePicker from './BSLanguagePicker.jsx';
@@ -863,7 +864,15 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
     }
     // 18+ age gate — phone signup creates an account too (shouldCreateUser), so it
     // must enforce the same gate as email signup, not just the email path.
+    // ⚠ AND A NAME (client-onboarding review, L3): a phone account could be made with none, and
+    // nothing in the app could add one. The handle is offered here too; when typed it must be a
+    // valid one that is free, and it is claimed once the code is verified.
     if (isCreate) {
+      if (!fullName.trim()) { setAuthError(tr('login.err.nameRequired')); return; }
+      // A handle still being checked is not accepted yet (Fable): after the code, a taken one would
+      // be dropped silently and the account made without it.
+      if (username && unameOk === null) { setAuthError(tr('login.handleChecking')); return; }
+      if (username && (unameOk === false || !/^[a-z0-9][a-z0-9._]{2,19}$/.test(username))) { setAuthError(tr('login.err.usernameTaken')); return; }
       if (!dob) { setAuthError(tr('login.err.dobRequired')); return; }
       const d = new Date(dob); const eighteen = new Date(); eighteen.setFullYear(eighteen.getFullYear() - 18);
       if (isNaN(d.getTime()) || d > eighteen) { setAuthError(tr('login.err.under18')); return; }
@@ -872,7 +881,7 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
     setPhone(e164);
     setBusy(true);
     try {
-      await auth.signInWithPhone({ phone: e164, fullName: fullName.trim(), role: signupRole, captchaToken, dob: isCreate ? dob : undefined, isCreate });
+      await auth.signInWithPhone({ phone: e164, fullName: fullName.trim(), role: signupRole, captchaToken, dob: isCreate ? dob : undefined, isCreate, username: isCreate ? username : undefined });
       setOtpSent(true);
     } catch (error) {
       if (captchaOn) resetCaptcha();
@@ -953,16 +962,26 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
       {note || null}
     </div>
   );
-  // Forgot password — best effort via the auth layer; degrades to a neutral notice.
+  // Forgot password. ⚠ IT SAID "A RESET LINK IS ON ITS WAY" WHETHER OR NOT ANYTHING WAS SENT
+  // (client-onboarding review, H9): resetPassword did not exist, so the call was skipped and the
+  // toast ran anyway. The toast now follows a request the server took; anything else is the error.
   const forgotPassword = async () => {
     setAuthError('');
     const auth = window.ShapeAuth;
     const e = email.trim();
     if (!e) { setAuthError(tr('login.err.forgotEmail')); return; }
+    if (!auth?.resetPassword) { setAuthError(tr('login.err.forgotFail')); return; }
+    if (captchaOn && !captchaToken) { setAuthError(tr('login.err.captcha')); return; }
     try {
-      if (auth?.resetPassword) { await auth.resetPassword(e); }
+      await auth.resetPassword(e, captchaOn ? captchaToken : undefined);
       window.__bsToast?.(tr('login.ok.resetSent'), 'ok');
-    } catch (err) { setAuthError(err?.message || tr('login.err.forgotFail')); }
+    } catch (err) {
+      const code = err?.code;
+      setAuthError(code === 'rate_limited' ? tr('login.err.resetLimited')
+        : code === 'captcha_failed' ? tr('login.err.resetCaptcha')
+        : code === 'invalid_email' ? tr('login.err.resetAccount')
+        : tr('login.err.forgotFail'));
+    } finally { if (captchaOn) resetCaptcha(); }
   };
   // Continue with Apple — uses the auth layer if wired, else a graceful notice.
   const continueWithApple = async () => {
@@ -1073,7 +1092,7 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
           {isCreate && (!stepped || createStep === 1) && wireField(tr('login.fieldDob'),
             <input className="bs-wire-input" type="date" value={dob} onChange={(e) => setDob(e.target.value)} aria-label={tr('dob.label')} style={rowInput} />
           )}
-          {stepped && createStep === 1 && wireField(tr('login.fieldHandle'),
+          {isCreate && (!stepped || createStep === 1) && wireField(tr('login.fieldHandle'),
             <input className="bs-wire-input" placeholder={tr('login.phHandle')} value={username} onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._]/g, '').slice(0, 20))} autoComplete="username" autoCapitalize="none" style={rowInput} />,
             <div style={{ ...subNote, color: username ? (unameOk === false ? '#ff9b7a' : unameOk ? '#2ee0c4' : C50) : C50 }}>
               {!username ? tr('login.handleHint') : unameOk === false ? tr('login.handleBad') : unameOk ? tr('login.handleOk', { handle: username }) : tr('login.handleChecking')}
@@ -1123,6 +1142,14 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
             <button onClick={forgotPassword} style={{ alignSelf: 'flex-end', background: 'transparent', border: 0, color: '#2ee0c4', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer', padding: '2px 0' }}>{tr('login.forgot')}</button>
           )}
         </div>
+
+        {/* Creating an account accepts the Terms and the Privacy Policy, so the form says so (M4). */}
+        {isCreate && (isPhone || createStep === 2) && (
+          <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', lineHeight: 1.6, color: C50 }}>
+            {tr('login.agree')}
+            <BSLegalLinks color={C70} mono={t.MONO} />
+          </div>
+        )}
 
         {/* Turnstile bot challenge — mounts whenever this screen can fire an auth
             request (interaction-only: invisible unless Cloudflare needs a click). */}
@@ -1193,7 +1220,12 @@ async function bsmStartCheckout() {
   const r = await api.startCheckout();
   if (r.ok || r.code === 'already_member') return;
   if (r.status === 401) { window.__bsGoAuth?.('create'); return; }
-  if (r.error) window.__bsToast?.(r.error, 'err'); else fail();
+  // ⚠ THE SERVER'S WORDS ARE ENGLISH (client-onboarding review, L4): a refusal it names is said in
+  // the member's language; anything else is the translated "could not start".
+  const t = window.ShapeI18n?.t;
+  if (r.code === 'age_restricted') window.__bsToast?.(t?.('onboarding:login.err.under18') || 'You must be 18 or older to use Shape.', 'err');
+  else if (r.code === 'checkout_in_progress') window.__bsToast?.(t?.('onboarding:paywall.err.inProgress') || 'Checkout is already opening. Try again in a moment.', 'info');
+  else fail();
 }
 
 // The membership-resolving hold — the wire ground, no "Checking membership…"
@@ -1241,6 +1273,23 @@ function BSWireHold() {
 // just not on it yet), the feature list as one dot-separated wire line, and a
 // clipped solid-teal JOIN as the one commerce action. Fixed-dark (a launch
 // surface), so it does NOT follow the paper theme — matching the beat/telegram.
+// The Terms of Service and the Privacy Policy, opened on the website (the system browser in the
+// installed app). Client-onboarding review, M4: the app's sign-up and paywall named neither.
+function bsOpenLegal(path) {
+  if (window.ShapeSite?.open) { window.ShapeSite.open(path); return; }
+  try { window.open(path, '_blank', 'noopener'); } catch (e) {}
+}
+function BSLegalLinks({ color, mono }) {
+  const { tr } = useTr('onboarding');
+  const link = { minHeight: 32, padding: '6px 0', border: 0, background: 'transparent', color, fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', textDecoration: 'underline', textUnderlineOffset: 3, cursor: 'pointer' };
+  return (
+    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+      <button type="button" onClick={() => bsOpenLegal('/terms.html')} style={link}>{tr('legal.terms')}</button>
+      <button type="button" onClick={() => bsOpenLegal('/privacy.html')} style={link}>{tr('legal.privacy')}</button>
+    </div>
+  );
+}
+
 function BSPaywall({ signedIn, onJoin, onSignIn, onPreview, onLogout }) {
   const { tr } = useTr('onboarding');
   ensureWireStyles();
@@ -1266,6 +1315,11 @@ function BSPaywall({ signedIn, onJoin, onSignIn, onPreview, onLogout }) {
             {feat.join(' · ')}
           </div>
           <button onClick={onJoin} style={{ ...cta, marginTop: 26 }}>{signedIn ? tr('paywall.join', { price: BS_PRICE }) : tr('paywall.createJoin', { price: BS_PRICE })}</button>
+          {/* What joining means: it renews, and it accepts the Terms and the Privacy Policy (M4). */}
+          <div style={{ marginTop: 10, fontFamily: mono, fontSize: 8.5, letterSpacing: '0.06em', lineHeight: 1.6, color: INKF50 }}>
+            {tr('paywall.renews', { price: BS_PRICE })} {tr('login.agree')}
+            <BSLegalLinks color={INKF70} mono={mono} />
+          </div>
           <button onClick={onPreview} style={{ ...ghost, marginTop: 11 }}>{tr('paywall.preview')}</button>
           {signedIn ? (
             <div style={{ marginTop: 26, display: 'flex', justifyContent: 'center' }}>
@@ -1283,6 +1337,52 @@ function BSPaywall({ signedIn, onJoin, onSignIn, onPreview, onLogout }) {
       </div>
     </div>
   );
+}
+
+// ⚠ PHONE NOTIFICATIONS ARE ASKED FOR WHEN THEY MEAN SOMETHING (client-onboarding review, L5). The
+// system prompt ran the moment an account existed, and on iOS a "no" cannot be taken back in the
+// app. Now the first reminder a member saves (shape:reminderSet, from ShapeReminders and
+// ShapeHabitReminders) opens this explanation first, and only "Turn on notifications" runs the
+// system prompt. "Not now" waits a week before asking again; a phone that already answered, or a
+// build with no push, is never asked here. Settings → Notifications has the same Turn on row.
+const BS_PUSH_ASK_KEY = 'shape.pushAskAt';
+const BS_PUSH_ASK_WAIT_MS = 7 * 86400000;
+// ⚠ A COACH SETS NO REMINDERS (Fable on the small fixes), so for a coach the moment is the app
+// opening: the same explanation, in a coach's words, a few seconds after the coach app loads. A
+// phone that already allows push is registered then too, whoever is signed in.
+function BSPushAsk({ coach = false }) {
+  const { tr } = useTr('onboarding');
+  const [open, setOpen] = React.useState(false);
+  React.useEffect(() => {
+    let alive = true;
+    const decide = async () => {
+      try { const at = Number(localStorage.getItem(BS_PUSH_ASK_KEY) || 0); if (at && Date.now() - at < BS_PUSH_ASK_WAIT_MS) return; } catch (e) {}
+      let perm = 'unavailable';
+      try { perm = await window.ShapePush?.permission?.() || 'unavailable'; } catch (e) {}
+      if (!alive) return;
+      if (perm === 'prompt') setOpen(true);
+      else if (perm === 'granted') { try { window.ShapePush?.register?.(); } catch (e) {} }
+    };
+    window.addEventListener('shape:reminderSet', decide);
+    const tid = coach ? setTimeout(decide, 4000) : null;
+    return () => { alive = false; window.removeEventListener('shape:reminderSet', decide); if (tid) clearTimeout(tid); };
+  }, [coach]);
+  if (!open) return null;
+  const later = () => { try { localStorage.setItem(BS_PUSH_ASK_KEY, String(Date.now())); } catch (e) {} setOpen(false); };
+  const turnOn = async () => { setOpen(false); try { await window.ShapePush?.ask?.(); } catch (e) {} };
+  const mono = `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`;
+  const sheet = (
+    <div role="dialog" aria-modal="true" aria-label={coach ? tr('settings:push.askTitleCoach') : tr('settings:push.askTitle')} style={{ position: 'absolute', inset: 0, zIndex: 60, display: 'flex', alignItems: 'flex-end', background: 'rgba(3,5,11,0.6)' }} onClick={later}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', padding: '22px 22px max(22px, calc(14px + env(safe-area-inset-bottom, 0px)))', background: '#0b161c', borderTop: '1px solid rgba(242,237,228,0.2)', color: '#f2ede4' }}>
+        <div style={{ fontFamily: `'Newsreader', Georgia, serif`, fontSize: 24, fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{coach ? tr('settings:push.askTitleCoach') : tr('settings:push.askTitle')}</div>
+        <div style={{ marginTop: 10, fontSize: 14, lineHeight: 1.5, color: 'rgba(242,237,228,0.75)' }}>{coach ? tr('settings:push.askBodyCoach') : tr('settings:push.askBody')}</div>
+        <button type="button" onClick={turnOn} style={{ width: '100%', marginTop: 18, padding: 13, border: 0, background: '#34d6c5', color: '#05080c', fontFamily: mono, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('settings:push.askYes')}</button>
+        <button type="button" onClick={later} style={{ width: '100%', minHeight: 44, marginTop: 8, border: '1px solid rgba(242,237,228,0.2)', background: 'transparent', color: 'rgba(242,237,228,0.7)', fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('settings:push.notNow')}</button>
+      </div>
+    </div>
+  );
+  const host = typeof document !== 'undefined' ? document.getElementById('bs-phone-surface') : null;
+  return host ? createPortal(sheet, host) : sheet;
 }
 
 // Persistent "you're previewing" banner shown over the app for non-members who
@@ -1556,8 +1656,8 @@ function BSAppShell({ tweaks, setTweak }) {
       // silence — this is the message that explains why the screen just changed.
       const i18 = window.ShapeI18n;
       const msg = label
-        ? (i18?.t?.('onboarding:shell.requireAccountLabel', { label }) || `Create a free account to ${label}.`)
-        : (i18?.t?.('onboarding:shell.requireAccount') || 'Create a free account to continue.');
+        ? (i18?.t?.('onboarding:shell.requireAccountLabel', { label }) || `Create an account to ${label}.`)
+        : (i18?.t?.('onboarding:shell.requireAccount') || 'Create an account to continue.');
       try { window.__bsToast && window.__bsToast(msg, 'info'); } catch (e) {}
       if (window.__bsGoAuth) window.__bsGoAuth('create');
       return false;
@@ -1921,7 +2021,10 @@ function BSAppShell({ tweaks, setTweak }) {
               onLogout={handleLogout}
             />
           ) : (
-            <App onLogout={handleLogout} authState={authState} tweaks={tweaks} setTweak={setTweak} {...appProps} />
+            <>
+              <App onLogout={handleLogout} authState={authState} tweaks={tweaks} setTweak={setTweak} {...appProps} />
+              <BSPushAsk coach={isCoachRole} />
+            </>
           )
         )}
         {noraDoor && !noraSheet && <BSAskNoraDoor onAsk={askNora} />}

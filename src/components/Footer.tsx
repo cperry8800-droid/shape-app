@@ -120,7 +120,7 @@ export default async function Footer() {
             </div>
             <div className="footer-col">
               <h4>Get started</h4>
-              <Link href="/signup">Sign up</Link>
+              <Link href="/newdesign/SignupClient.html">Sign up</Link>
               <Link href="/login">Log in</Link>
               <Link href="/contact">Contact</Link>
             </div>

@@ -282,7 +282,7 @@ test('webhook: the coach is told only after the subscription is saved, and the n
   const at = src.indexOf('await startCoaching(admin, {');
   assert.ok(at > 0);
   const guard = src.slice(src.lastIndexOf('if (', at), at);
-  assert.match(guard, /^if \(!subErr && moneyMoved && providerId && \(providerRole === 'trainer' \|\| providerRole === 'nutritionist'\)\) \{/);
+  assert.match(guard, /^if \(!subErr && moneyMoved && !subEnded && providerId && \(providerRole === 'trainer' \|\| providerRole === 'nutritionist'\)\) \{/);
   // Only once the money has moved (Codex on #2360): an `unpaid` completion (a bank debit) waits
   // for async_payment_succeeded, which runs this same branch with `paid`.
   assert.match(src, /const moneyMoved = session\.payment_status === 'paid' \|\| session\.payment_status === 'no_payment_required';/);
@@ -291,7 +291,8 @@ test('webhook: the coach is told only after the subscription is saved, and the n
   assert.match(src.slice(at, at + 400), /subscriptionKey: subRow\.stripe_subscription_id \|\| session\.id,/);
   // The membership: welcomed only when its row was saved.
   assert.match(src, /const membershipSaved = await upsertPlatformSubscription\(admin, \{/);
-  assert.match(src, /if \(membershipSaved && moneyMoved\) await welcomeMember\(admin, clientId\);/);
+  // …and only while Stripe says the membership has not ended (client-onboarding review, L9).
+  assert.match(src, /if \(membershipSaved && moneyMoved && !subEnded\) await welcomeMember\(admin, clientId\);/);
   const helper = src.slice(src.indexOf('async function upsertPlatformSubscription('), src.indexOf('export async function POST'));
   assert.match(helper, /return !error;\s*\}\s*$/);
 });

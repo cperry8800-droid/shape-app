@@ -486,5 +486,16 @@
   "privacy.leaderboard": "Mostrami nelle classifiche",
   "privacy.teamBoard": "Mostrami alla squadra del mio coach",
   "privacy.leaderboardDesc": "Attivo per impostazione predefinita. Disattivo ti toglie da tutte le classifiche dei membri; vedi comunque la tua posizione. I membri vedono il tuo nome e l’iniziale del cognome, mai il nome completo.",
-  "privacy.teamBoardDesc": "Disattivo finché non lo attivi. Quando è attivo, i membri che hanno il tuo stesso coach ti vedono nella loro classifica di squadra, e sanno così che ti alleni con lo stesso coach. Il tuo coach non viene mai nominato."
+  "privacy.teamBoardDesc": "Disattivo finché non lo attivi. Quando è attivo, i membri che hanno il tuo stesso coach ti vedono nella loro classifica di squadra, e sanno così che ti alleni con lo stesso coach. Il tuo coach non viene mai nominato.",
+  "push.title": "Notifiche sul telefono",
+  "push.on": "Attive su questo telefono",
+  "push.off": "Disattivate nelle impostazioni del telefono",
+  "push.notYet": "Non ancora attive",
+  "push.turnOn": "Attiva",
+  "push.askTitle": "Ricevi i promemoria sul telefono",
+  "push.askBody": "Shape invia i promemoria che imposti e i messaggi del tuo coach come notifiche. Il telefono lo chiede una volta; puoi cambiarlo poi nelle sue impostazioni.",
+  "push.askYes": "Attiva le notifiche",
+  "push.notNow": "Non ora",
+  "push.askTitleCoach": "Sappi quando i tuoi clienti hanno bisogno di te",
+  "push.askBodyCoach": "Shape ti avvisa sul telefono quando un cliente ti scrive, prenota o paga una sessione, o ha bisogno di te. Il telefono lo chiede una volta; puoi cambiarlo poi nelle sue impostazioni."
 }

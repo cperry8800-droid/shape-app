@@ -62,7 +62,12 @@ let lastToken = null;
 // server finished processing the POST before the DELETE is even dispatched.
 let pendingRegister = null;
 
-export async function registerPush() {
+// ⚠ SIGNING IN NO LONGER ASKS (client-onboarding review, L5). This ran the system prompt the moment
+// an account existed, before the member knew what Shape would send, and on iOS a "no" is permanent.
+// Signing in registers only a device whose permission is already granted; the prompt comes from
+// askForPush(), after the first reminder is set and an explanation (the app shell's BSPushAsk), or
+// from the Turn on row in Settings → Notifications.
+export async function registerPush({ prompt = false } = {}) {
   const PushNotifications = nativePush();
   if (!PushNotifications || registered) return;
   registered = true;
@@ -76,6 +81,7 @@ export async function registerPush() {
   try {
     let perm = await PushNotifications.checkPermissions();
     if (perm.receive === 'prompt' || perm.receive === 'prompt-with-rationale') {
+      if (!prompt) { registered = false; return; }
       perm = await PushNotifications.requestPermissions();
     }
     if (perm.receive !== 'granted') { registered = false; return; }
@@ -130,6 +136,24 @@ export async function registerPush() {
     console.warn('[push] register failed', e);
     registered = false;
   }
+}
+
+/** The device's push permission: 'granted' | 'denied' | 'prompt' (not asked yet) | 'unavailable'
+ *  (not the installed app, or no push plugin). Never asks. */
+export async function pushPermission() {
+  const PushNotifications = nativePush();
+  if (!PushNotifications) return 'unavailable';
+  try {
+    const perm = await PushNotifications.checkPermissions();
+    const r = perm && perm.receive;
+    return r === 'granted' ? 'granted' : r === 'denied' ? 'denied' : 'prompt';
+  } catch (e) { return 'unavailable'; }
+}
+
+/** Ask (the system prompt, once), then register. Resolves to the permission afterwards. */
+export async function askForPush() {
+  await registerPush({ prompt: true });
+  return pushPermission();
 }
 
 // Returns true only when the server CONFIRMED a row was removed — the route

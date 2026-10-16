@@ -11,6 +11,10 @@ import { createClient } from '@/lib/supabase/server';
 import { clearSupabaseAuthCookies } from '@/lib/supabase/auth-cookies.mjs';
 import { readJson, dbError } from '@/lib/request-utils';
 import { NATIVE_APP_ORIGINS } from '@/lib/native-cors';
+import { ensureProfile } from '@/lib/provision-profile';
+import { recordLegalAcceptance } from '@/lib/legal-acceptance';
+import { createAdminClient } from '@/lib/supabase/admin';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,13 +67,21 @@ export async function POST(req: Request) {
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.setSession({
+  const { data, error } = await supabase.auth.setSession({
     access_token: tokens.access_token,
     refresh_token: tokens.refresh_token,
   });
   if (error) {
     return dbError(error, 'auth session bridge', 400);
   }
+  // ⚠ AN ACCOUNT WITH NO PROFILE GETS ONE HERE (client-onboarding review, H10). Every sign-in comes
+  // through this bridge (the website's and the app's), so an account that never passed through
+  // /auth/callback (a confirmation link opened in another browser) is provisioned on its first
+  // sign-in instead of being refused as "setup didn't complete". It fills only what is missing.
+  await ensureProfile(supabase as unknown as SupabaseClient, data?.user);
+  // And the Terms acceptance the sign-up carried (client-onboarding review, M4), written by the
+  // service role. Best effort: a record that cannot be written never blocks the sign-in.
+  try { await recordLegalAcceptance(createAdminClient(), data?.user); } catch { /* best effort */ }
   return NextResponse.json({ ok: true }, { headers: { 'cache-control': 'no-store' } });
 }
 

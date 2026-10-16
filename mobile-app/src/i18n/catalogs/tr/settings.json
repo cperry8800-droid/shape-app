@@ -486,5 +486,16 @@
   "privacy.leaderboard": "Beni lider tablolarında göster",
   "privacy.teamBoard": "Beni koçumun ekibine göster",
   "privacy.leaderboardDesc": "Varsayılan olarak açık. Kapalıyken tüm üye lider tablolarından çıkarsın; kendi yerini yine görürsün. Üyeler adını ve soyadının baş harfini görür, asla tam adını görmez.",
-  "privacy.teamBoardDesc": "Sen açana kadar kapalı. Açıkken seninle aynı koçla çalışan üyeler seni ekip tablolarında görür; böylece aynı koçla çalıştığınızı bilirler. Koçunun adı asla geçmez."
+  "privacy.teamBoardDesc": "Sen açana kadar kapalı. Açıkken seninle aynı koçla çalışan üyeler seni ekip tablolarında görür; böylece aynı koçla çalıştığınızı bilirler. Koçunun adı asla geçmez.",
+  "push.title": "Telefon bildirimleri",
+  "push.on": "Bu telefonda açık",
+  "push.off": "Telefon ayarlarında kapalı",
+  "push.notYet": "Henüz açılmadı",
+  "push.turnOn": "Aç",
+  "push.askTitle": "Hatırlatıcıların telefonuna gelsin",
+  "push.askBody": "Shape, kurduğun hatırlatıcıları ve koçunun mesajlarını telefon bildirimi olarak gönderir. Telefonun bir kez sorar; sonra ayarlarından değiştirebilirsin.",
+  "push.askYes": "Bildirimleri aç",
+  "push.notNow": "Şimdi değil",
+  "push.askTitleCoach": "Danışanlarının sana ihtiyacı olduğunda haberin olsun",
+  "push.askBodyCoach": "Shape, bir danışan sana mesaj attığında, seans ayırttığında ya da ödediğinde veya ilgine ihtiyaç duyduğunda telefonundan haber verir. Telefonun bir kez sorar; sonra ayarlarından değiştirebilirsin."
 }

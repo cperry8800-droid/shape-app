@@ -486,5 +486,16 @@
   "privacy.leaderboard": "Mich in Bestenlisten zeigen",
   "privacy.teamBoard": "Mich dem Team meines Coaches zeigen",
   "privacy.leaderboardDesc": "Standardmäßig an. Aus nimmt dich von jeder Mitglieder-Bestenliste; deinen eigenen Platz siehst du weiterhin. Mitglieder sehen deinen Vornamen und den Anfangsbuchstaben deines Nachnamens, nie deinen vollen Namen.",
-  "privacy.teamBoardDesc": "Aus, bis du es einschaltest. Wenn an, sehen Mitglieder mit demselben Coach dich auf ihrer Team-Bestenliste und wissen so, dass du mit demselben Coach trainierst. Dein Coach wird nie genannt."
+  "privacy.teamBoardDesc": "Aus, bis du es einschaltest. Wenn an, sehen Mitglieder mit demselben Coach dich auf ihrer Team-Bestenliste und wissen so, dass du mit demselben Coach trainierst. Dein Coach wird nie genannt.",
+  "push.title": "Benachrichtigungen auf dem Handy",
+  "push.on": "Auf diesem Handy an",
+  "push.off": "In den Einstellungen deines Handys aus",
+  "push.notYet": "Noch nicht eingeschaltet",
+  "push.turnOn": "Einschalten",
+  "push.askTitle": "Deine Erinnerungen aufs Handy",
+  "push.askBody": "Shape schickt deine Erinnerungen und Nachrichten von deinem Coach als Benachrichtigungen aufs Handy. Dein Handy fragt einmal; du kannst es später in seinen Einstellungen ändern.",
+  "push.askYes": "Benachrichtigungen einschalten",
+  "push.notNow": "Nicht jetzt",
+  "push.askTitleCoach": "Erfahre, wann deine Klienten dich brauchen",
+  "push.askBodyCoach": "Shape sagt dir auf dem Handy Bescheid, wenn dir ein Klient schreibt, eine Session bucht oder bezahlt oder deine Aufmerksamkeit braucht. Dein Handy fragt einmal; du kannst es später in seinen Einstellungen ändern."
 }

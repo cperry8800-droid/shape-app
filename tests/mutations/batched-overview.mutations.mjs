@@ -7,7 +7,8 @@ export default {
     { name: 'a failed client ships as an empty overview instead of being named', file: 'src/app/api/clients/shared-overview/route.ts',
       find: '        failed.push(id);\n', replace: '        results[id] = {};\n        failed.push(id);\n' },
     { name: 'auth check removed from the batch route', file: 'src/app/api/clients/shared-overview/route.ts',
-      find: "  if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });\n\n  const parsed", replace: "  if (!user && false) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });\n\n  const parsed" },
+      // Re-aimed for fix 4: the route reads the cookie or the app's Bearer (clientForRequest) after the check.
+      find: "  if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });\n  const supabase = (await clientForRequest(req))", replace: "  if (!user && false) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });\n  const supabase = (await clientForRequest(req))" },
     { name: 'validation result ignored', file: 'src/app/api/clients/shared-overview/route.ts',
       find: '  if (!wanted.ok) return NextResponse.json({ error: wanted.error }, { status: 400 });\n', replace: '  if (!wanted.ok) return NextResponse.json({ me: null, results: {}, failed: [] });\n' },
     // ── the library ────────────────────────────────────────────────────────────

@@ -196,7 +196,7 @@ export default async function Nav() {
             ) : (
               <>
                 <Link href="/login" className="nav-btn">Log in</Link>
-                <Link href="/signup" className="nav-btn nav-btn-primary">Get started</Link>
+                <Link href="/newdesign/SignupClient.html" className="nav-btn nav-btn-primary">Get started</Link>
               </>
             )}
           </div>

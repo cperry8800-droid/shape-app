@@ -10,11 +10,17 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { stripComments } from './helpers/strip-comments.mjs';
 
+// The rules moved, unchanged, into src/lib/provision-profile.ts (client-onboarding review, H10), which
+// /auth/callback and the sign-in bridge both call; this reads them where they live now.
 const SRC = stripComments(
+  readFileSync(new URL('../src/lib/provision-profile.ts', import.meta.url), 'utf8')
+);
+const CALLBACK = stripComments(
   readFileSync(new URL('../src/app/auth/callback/route.ts', import.meta.url), 'utf8')
 );
 
 test('the callback provisions without overwriting', () => {
+  assert.match(CALLBACK, /await ensureProfile\(supabase as unknown as SupabaseClient, data\?\.user\);/, 'the callback runs the shared rules');
   // It can only preserve what it reads. Asserted per COLUMN, not as one pinned string:
   // an exact-literal match goes stale the moment a column is added — which it just did.
   const select = (SRC.match(/\.select\('([^']*date_of_birth[^']*)'\)/) || [])[1];
@@ -68,8 +74,8 @@ test('an unreadable profile read never provisions (both surfaces)', () => {
   const j = SRC.indexOf('.upsert(seed');
   assert.ok(i !== -1 && j > i,
     'the upsert must be gated by the read-error branch, not precede it');
-  assert.match(SRC.slice(i, j), /\} else \{/,
-    'provisioning must be the ELSE of the read-error check');
+  assert.match(SRC.slice(i, j), /return 'unread';/,
+    'a failed read must return before provisioning');
 
   const legacy = stripComments(
     readFileSync(new URL('../public/supabase.js', import.meta.url), 'utf8')

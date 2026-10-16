@@ -486,5 +486,16 @@
   "privacy.leaderboard": "Tampilkan saya di papan peringkat",
   "privacy.teamBoard": "Tampilkan saya ke tim coach saya",
   "privacy.leaderboardDesc": "Aktif secara bawaan. Nonaktif mengeluarkan Anda dari semua papan peringkat anggota; Anda tetap melihat posisi Anda sendiri. Anggota melihat nama depan dan inisial nama belakang Anda, tidak pernah nama lengkap Anda.",
-  "privacy.teamBoardDesc": "Nonaktif sampai Anda mengaktifkannya. Saat aktif, anggota yang punya coach yang sama dengan Anda melihat Anda di papan tim mereka, sehingga mereka tahu Anda berlatih dengan coach yang sama. Coach Anda tidak pernah disebutkan."
+  "privacy.teamBoardDesc": "Nonaktif sampai Anda mengaktifkannya. Saat aktif, anggota yang punya coach yang sama dengan Anda melihat Anda di papan tim mereka, sehingga mereka tahu Anda berlatih dengan coach yang sama. Coach Anda tidak pernah disebutkan.",
+  "push.title": "Notifikasi ponsel",
+  "push.on": "Aktif di ponsel ini",
+  "push.off": "Nonaktif di pengaturan ponsel Anda",
+  "push.notYet": "Belum diaktifkan",
+  "push.turnOn": "Aktifkan",
+  "push.askTitle": "Dapatkan pengingat di ponsel Anda",
+  "push.askBody": "Shape mengirim pengingat yang Anda atur dan pesan dari pelatih Anda sebagai notifikasi ponsel. Ponsel Anda bertanya sekali; Anda bisa mengubahnya nanti di pengaturannya.",
+  "push.askYes": "Aktifkan notifikasi",
+  "push.notNow": "Nanti saja",
+  "push.askTitleCoach": "Ketahui saat klien Anda membutuhkan Anda",
+  "push.askBodyCoach": "Shape memberi tahu Anda di ponsel saat klien mengirim pesan, memesan atau membayar sesi, atau membutuhkan perhatian Anda. Ponsel Anda bertanya sekali; Anda bisa mengubahnya nanti di pengaturannya."
 }

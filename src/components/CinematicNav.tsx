@@ -33,7 +33,7 @@ export default function CinematicNav() {
         <Link href="/newdesign/Pricing.html" className="hidden hover:text-white md:inline">Pricing</Link>
         <Link href="/login" className="hover:text-white">Log in</Link>
         <Link
-          href="/signup"
+          href="/newdesign/SignupClient.html"
           className="inline-flex items-center justify-center border border-white/60 bg-transparent px-5 py-2 text-[0.68rem] font-medium uppercase tracking-[0.12em] text-white transition-all hover:bg-white hover:text-neutral-950 md:px-6 md:py-2.5"
         >
           Get Started

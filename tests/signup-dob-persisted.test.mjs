@@ -70,7 +70,8 @@ const signInBody = slice(HELPER, 'async signIn(email, password)', 'async signOut
 // two matching sites passes while either one drifts.
 const mobileSignUp = slice(MOBILE, 'async function signUp(', 'async function signInWithPhone(', 'shapeBackend signUp');
 const mobilePhone = slice(MOBILE, 'async function signInWithPhone(', 'async function verifyPhoneOtp(', 'shapeBackend signInWithPhone');
-const nextSignup = slice(NEXT_ACTION, 'export async function signup(', 'export async function requestPasswordReset(', 'actions.ts signup');
+// The Next /signup form and its action are gone (client-onboarding review, M5): /signup redirects to
+// newdesign/SignupClient.html, whose signup.jsx is covered below.
 
 // ── The DOB reaches the row the gates actually read ──────────────────────────
 
@@ -100,10 +101,8 @@ test('legacy signIn provisions a missing profile from the signup metadata', () =
   assert.match(signInBody, /from\('profiles'\)\.upsert\(/, 'signIn does not write the profiles row');
 });
 
-test('the Next /signup action persists the DOB when a session exists', () => {
-  assert.match(nextSignup, /from\('profiles'\)\.upsert\(/, '/signup never writes a profiles row — the account is ungated');
-  assert.match(nextSignup, /date_of_birth\s*:\s*dob/, '/signup does not persist the collected date');
-  assert.match(nextSignup, /data:\s*\{\s*role,\s*date_of_birth/, '/signup omits the DOB from auth metadata');
+test('the Next /signup action is gone, so it cannot create an ungated account', () => {
+  assert.doesNotMatch(NEXT_ACTION, /export async function signup\(/);
 });
 
 // ── Every surface delegates to the ONE rule, and fails closed ────────────────
@@ -113,7 +112,6 @@ const DELEGATES = [
   ['newdesign/signup.jsx', NEWDESIGN, /ShapeAgeDerive/],
   ['shapeBackend signUp', mobileSignUp, /isMinorFromDob\(/],
   ['shapeBackend signInWithPhone', mobilePhone, /isMinorFromDob\(/],
-  ['actions.ts signup', nextSignup, /isMinorFromDob\(/],
 ];
 
 test('every account-creating path delegates to the shared derivation', () => {
@@ -132,7 +130,6 @@ test('no signup surface reintroduces the instant-based 18-year comparison', () =
     ['newdesign/signup.jsx', NEWDESIGN],
     ['shapeBackend signUp', mobileSignUp],
     ['shapeBackend signInWithPhone', mobilePhone],
-    ['actions.ts signup', nextSignup],
   ]) {
     const body = stripComments(raw);
     assert.ok(!rule.test(body),
@@ -167,10 +164,6 @@ test('both refusals run before the account is created, on every surface', () => 
   const authAt = helper.indexOf('auth.signUp(');
   assert.ok(authAt > -1, 'supabase.js: auth.signUp call not found — re-anchor');
   assert.ok(helper.indexOf('ShapeAgeDerive') < authAt, 'supabase.js: the age check runs AFTER account creation');
-  const next = stripComments(nextSignup);
-  const nextAuthAt = next.indexOf('auth.signUp(');
-  assert.ok(nextAuthAt > -1, 'actions.ts: auth.signUp call not found — re-anchor');
-  assert.ok(next.indexOf('isMinorFromDob(') < nextAuthAt, 'actions.ts: the age check runs AFTER account creation');
 });
 
 // over_18 is derived by set_over_18() from date_of_birth on every write and any

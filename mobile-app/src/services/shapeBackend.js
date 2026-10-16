@@ -4,7 +4,7 @@ import { Capacitor } from '@capacitor/core';
 import { createClient } from '@supabase/supabase-js';
 import { isHealthKitPlatform, requestHealthKitAuth, collectHealthKitSnapshots } from './healthkit.js';
 import { hrmAvailable, hrmConnected, hrmCurrent, hrmReading, hrmConnect, hrmDisconnect } from './hrm.js';
-import { registerPush, teardownPush } from './push.js';
+import { registerPush, teardownPush, pushPermission, askForPush } from './push.js';
 import { signOutGen, bumpSignOutGen } from './signOutGen.mjs';
 import { makePlaybackGate } from './playbackGate.mjs';
 import { bsSetSentryUser } from '../sentry.mjs';
@@ -418,6 +418,9 @@ async function signUp({ email, password, fullName, role, username, captchaToken,
         // and referrer (or the first touch remembered on this origin, consent allowing), the
         // app, and which build (installed iOS or Android, or the app in a browser at /m/).
         signup_source: typeof window !== 'undefined' ? sourceFromWindow(window, 'app', signupPlatform()) : { surface: 'app', platform: signupPlatform() },
+        // The create form says joining accepts the Terms and the Privacy Policy (client-onboarding
+        // review, M4); the server records the versions in force when the account was made.
+        terms_accepted_at: new Date().toISOString(),
       },
     },
   });
@@ -449,7 +452,7 @@ async function signUp({ email, password, fullName, role, username, captchaToken,
 // Step 1: request an SMS one-time code. Supabase sends it via the configured
 // SMS provider (Twilio) — see the Auth → Providers → Phone settings. With
 // `shouldCreateUser: true` this doubles as passwordless sign-UP for new phones.
-async function signInWithPhone({ phone, fullName, role, captchaToken, dob, isCreate }) {
+async function signInWithPhone({ phone, fullName, role, captchaToken, dob, isCreate, username }) {
   const normalizedPhone = String(phone || '').trim();
   if (!normalizedPhone) throw new Error('Enter your phone number.');
   // 18+ age gate — account CREATION via phone must carry a valid DOB, exactly like
@@ -476,6 +479,10 @@ async function signInWithPhone({ phone, fullName, role, captchaToken, dob, isCre
   if (fullName) meta.full_name = fullName;
   if (role) meta.role = normalizeRole(role);
   if (isCreate && dob) meta.date_of_birth = dob; // claimed onto profiles after OTP verify
+  if (isCreate) meta.terms_accepted_at = new Date().toISOString(); // M4: the create form names the Terms
+  // L3: the handle the create form offers, claimed after the code is verified (ensureUsernameClaimed).
+  const cleanHandle = String(username || '').trim().replace(/^@/, '').toLowerCase();
+  if (isCreate && cleanHandle) meta.username = cleanHandle;
   const { error } = await supabase.auth.signInWithOtp({
     phone: normalizedPhone,
     options: {
@@ -510,6 +517,8 @@ async function verifyPhoneOtp({ phone, token, fullName, role, dob }) {
   // Persist the date of birth from this signup (or from earlier OTP metadata) so
   // the over_18 trigger fires — phone signups never hit the email signUp path.
   if (data.user) profile = await ensureDobPersisted(data.user, profile, dob);
+  // The handle the phone create offered (L3), as the email path claims its own at first sign-in.
+  if (data.user) profile = await ensureUsernameClaimed(data.user, profile);
 
   const cached = setCached({ user: data.user, session: data.session, profile });
   await bridgeSessionToApi(data.session).catch((error) => {
@@ -592,7 +601,7 @@ async function getCurrentSession() {
   const cached = setCached({ user, session: data.session, profile });
   if (user) { try { startPresence(); } catch (e) {} } // join "online" presence app-wide
   if (user) { try { startActivity(); } catch (e) {} } // hydrate + subscribe to live "doing now" activity (DB-backed)
-  if (user) { try { registerPush(); } catch (e) {} } // register device for system push (native only; no-op on web)
+  if (user) { try { registerPush(); } catch (e) {} } // register a device already allowed push (native only; never prompts, L5)
   if (user) { try { bsDrainAssignments(); } catch (e) {} } // publish any week held offline (no-op when the queue is empty)
   if (user) { try { window.ShapeVoice?.load?.(); } catch (e) {} } // pull the account's saved Nora tone (syncs across devices)
   if (user) { try { setTimeout(() => { window.ShapeNotify?.evaluate?.(); }, 4000); } catch (e) {} } // proactive notifications (throttled; honest — fires only on real, new events)
@@ -4669,6 +4678,37 @@ async function signInWithApple({ role } = {}) {
   return data;
 }
 
+// ⚠ "FORGOT PASSWORD" SENT NOTHING (client-onboarding review, H9). The sign-in screen called
+// ShapeAuth.resetPassword, which did not exist, and said "a reset link is on its way" anyway. Shape
+// sends the email now (POST /api/auth/password-reset): its link opens the website's set-password
+// page in whichever browser opens it, and the new password works here. Resolves true once the
+// server has taken the request (the same answer whether or not an account has the address);
+// throws with the server's words when it refused or could not send.
+async function resetPassword(email, captchaToken) {
+  const cleanEmail = String(email || '').trim();
+  if (!cleanEmail) throw Object.assign(new Error('Enter your email first.'), { code: 'invalid_email' });
+  if (!apiBaseUrl) throw Object.assign(new Error("Password reset isn't available here. Use theshapecommunity.com/forgot-password."), { code: 'send_failed' });
+  let response;
+  try {
+    response = await fetch(`${apiBaseUrl}/api/auth/password-reset`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: cleanEmail, ...(captchaToken ? { captchaToken } : {}) }),
+    });
+  } catch (e) {
+    const error = new Error("We couldn't reach Shape. Check your connection and try again.");
+    error.code = 'send_failed';
+    throw error;
+  }
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(typeof payload.error === 'string' && payload.error ? payload.error : "We couldn't send the reset email. Please try again.");
+    error.code = typeof payload.code === 'string' ? payload.code : (response.status === 429 ? 'rate_limited' : 'send_failed');
+    throw error;
+  }
+  return true;
+}
+
 // Re-send the signup confirmation email (for the "check your email" screen).
 async function resendConfirmation(email, captchaToken) {
   if (!supabase) throw new Error('Email verification is not configured.');
@@ -4801,6 +4841,7 @@ window.ShapeAuth = {
   verifyPhoneOtp,
   signInWithApple,
   resendConfirmation,
+  resetPassword,
   signOut,
   getCurrentSession,
   updateProfileRoles,
@@ -8955,6 +8996,8 @@ async function setHabitReminder({ habitId, label, time, days, enabled } = {}) {
   if (error) throw error;
   if (state.user?.id !== uid) throw new Error('Account changed.');
   await scheduleLocalHabit(row);
+  // A reminder was saved: the shell may now ask for phone notifications (L5, bsReminderSet below).
+  if (row.enabled) { try { if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('shape:reminderSet')); } catch (e) {} }
   return row;
 }
 // habit_id is the global PK (→ user_habits.id), so it identifies one user's row;
@@ -8991,8 +9034,14 @@ async function remindersSave(r) {
   const tz = _deviceTz();
   try {
     const res = await fetch(`${apiBaseUrl}/api/client/reminders`, { method: 'POST', headers, credentials: 'same-origin', body: JSON.stringify({ tz, ...r }) });
-    return await res.json().catch(() => ({ ok: false }));
+    const out = await res.json().catch(() => ({ ok: false }));
+    if (res.ok && out && out.ok !== false) bsReminderSet();
+    return out;
   } catch (e) { return { ok: false }; }
+}
+// A reminder was saved: the moment phone notifications mean something, so the shell may ask (L5).
+function bsReminderSet() {
+  try { window.dispatchEvent(new CustomEvent('shape:reminderSet')); } catch (e) {}
 }
 async function remindersRemove(id) {
   if (!apiBaseUrl || !id) return { ok: false };
@@ -9004,6 +9053,8 @@ async function remindersRemove(id) {
   } catch (e) { return { ok: false }; }
 }
 window.ShapeReminders = { list: remindersList, save: remindersSave, remove: remindersRemove };
+// Phone notifications (L5): the shell asks after the first reminder is set, Settings has a Turn on row.
+window.ShapePush = { register: registerPush, permission: pushPermission, ask: askForPush };
 
 // ─── Source reconciliation (INT2) — "which source do you trust?" ─────────────
 // On-demand data-quality view. clientId optional (a coach reconciling a client).
