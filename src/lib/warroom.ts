@@ -610,6 +610,63 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Client onboarding, sign-up to a coach\'s first plan — SHIPPED 2026-10-14 to 2026-10-16 (#2353 -> ea24129, #2357 -> fe4bad2, #2358 -> 2619763, #2359 -> b7f90ca, #2360 -> 15e7ec7, #2367 -> 3ede81e, #2370 -> 38c4e96, #2372 -> d058e52, #2373 -> bfc143b, #2375 -> 1b4ca46, #2378 -> f0ee8d3, #2379 -> 112a89e, #2380 -> 1cc9c2c). Nine migrations, all applied and verified live 2026-10-16',
+      items: [
+        { label: 'The review (https://claude.ai/artifact/PzbGsEZAasYKX3wmsg16cS): 10 high, 18 medium and 11 low findings at 3a693fe, and the owner\'s six decisions of 2026-10-14. Every finding is closed by the PRs below; Phase 2 is on hold', status: 'done' },
+        { label: 'Membership (#2353; H1 H2 H3 H5 M1 M7 L2 L10): one answer everywhere (/api/me/membership). Coach checkout refuses a non-member and sends them through the $5 checkout first; a failed read is never "not a member"; one membership checkout at a time; the installed app gets its server address', status: 'done' },
+        { label: 'The screening (#2357, #2358, #2359; H4 M3 M2 H8 M17 M6): sign-up asks "Are you looking for personal coaching?" and only a yes leads to the screening. A coach checkout without it is refused (409 screening_required) on the website and in the app; the PAR-Q is in 13 languages; the coach gets one read of screening, goal, training and diet (get_client_intake); the old intake table is retired', status: 'done' },
+        { label: 'Hiring starts the relationship (#2360; H7 M9): once the payment clears, a coach thread opens with a welcome from Shape, and the coach is alerted and emailed. Care-team threads (#2367): only coaches who still coach that client can read or are told about them', status: 'done' },
+        { label: 'Notifications (#2372): every notification opens its screen on every surface and respects the recipient\'s settings; one routes table is shared by the push sender, the app and the tests', status: 'done' },
+        { label: 'A real intro (#2370; H6 M18): Book intro opens the consultation page at the coach\'s length (5-240 minutes); the website chat sends to the real thread; the app writes no reply the coach never sent; a confirmed session emails the time, the call link and an invite', status: 'done' },
+        { label: 'Payments (#2373; M8 M10 M11): a suspended coach can\'t be paid or booked; the return page checks the payment; a paid session becomes one the coach books; a program\'s sale is recorded as a program', status: 'done' },
+        { label: 'At capacity (#2375): no new clients while full, current clients keep booking, new ones join a waiting list; reopening by hand or on a reopen date (/api/cron/capacity-reopen, hourly) tells everyone waiting', status: 'done' },
+        { label: 'The onboarding boards (#2378, #2380; M12-M16 L8): a coach\'s board per client for their first 30 days (Needs you -> New clients; FIRST 30 DAYS in the app) and the member\'s own (Today; YOUR FIRST 30 DAYS on the app\'s Home; /api/client/onboarding). Every tick is a record; week-one targets are the coach\'s (client_programs.detail) or the member\'s own (user_goals member_setup)', status: 'done' },
+        { label: 'Small fixes (#2379; H9 H10 M4 M5 L1 L3-L7 L9 L11): password reset in any browser and in the app; one sign-up form; a profile for every signed-in account; the Terms acceptance recorded from a server-only copy; phone notifications asked for when they mean something; a cancelled subscription stays cancelled', status: 'done' },
+        { label: 'APPLIED + VERIFIED LIVE (2026-10-16, read-only) — the nine migrations: 2026-10-14-checkout-claims, 2026-10-15-coach-client-intake, 2026-10-15-coach-thread, 2026-10-15-keep-care-team-private, 2026-10-15-intro-length, 2026-10-15-notification-routes, 2026-10-15-paid-sessions, 2026-10-15-capacity-intros and 2026-10-15-terms-acceptances. The terms trigger ran its first version (an empty search_path) until the owner re-ran the file on 2026-10-16; checked after: search_path=pg_catalog, pg_temp, a definer neither anon nor authenticated can execute, on one trigger', status: 'done' },
+        { label: 'Routes, all in RAW_ROUTES: /api/me/membership, /api/stripe/platform-return, /api/me/onboarding, /api/coach/to-schedule, /api/coach/capacity, /api/cron/capacity-reopen, /api/clients/[id]/week-one, /api/auth/password-reset, /api/client/onboarding', status: 'done' },
+        { label: 'OWNER DECISION — may a member have two coaches of one role? The plan read names one coach per discipline', status: 'pending' },
+        { label: 'OWNER DECISION — a buyer who pays an older checkout left open in another tab before the create; closing that gap means refunds', status: 'pending' },
+        { label: 'OWNER — Firebase and APNs for push delivery. Production has no push devices, so no notification reaches a phone yet', status: 'manual' },
+        { label: 'OWNER — Phase 2 (in-app purchase for the membership outside the US) is on hold', status: 'pending' },
+        { label: 'The ?error= redirects from /purchase and /subscribe are shown nowhere; a subscription to a coach who is later suspended keeps renewing; checkin_submitted is a notification switch nothing writes', status: 'pending' },
+        { label: 'A native speaker reads the PAR-Q translations before launch in each language; week one\'s workouts count by UTC day; the app\'s goal and the website\'s Settings -> Primary goal are separate fields', status: 'pending' },
+        { label: 'No pass on a phone or in a signed-in browser; H2, M1 and L5 were never seen failing on a device', status: 'manual' },
+      ],
+    },
+    {
+      section: 'Member and coach leaderboards — SHIPPED 2026-10-15 (#2371 -> dc120dc). One migration, applied and verified live',
+      items: [
+        { label: 'Members (Score -> Leaderboard on the website; Settings -> More in the app): Everyone, Following or Your coach\'s team; 7 days, this month or all time; your place and the points to pass the next person. Others see a first name and last initial, points and tier; two switches: Show me on leaderboards (on by default) and Show me to my coach\'s team (unanswered until asked)', status: 'done' },
+        { label: 'Coaches: every live listing of a role ranked by Coach Score; Climbers · 30 days from a nightly snapshot (/api/cron/coach-score-snapshots, 07:15 UTC). The Score page\'s "Top 4%" and "MASTER · TOP 4%" read the board now', status: 'done' },
+        { label: 'APPLIED + VERIFIED LIVE — 2026-10-15-leaderboards.sql (run four times, once per privacy fix; checked again 2026-10-16): shape_member_board, shape_coach_board, record_coach_score_snapshots and coach_score_snapshots present; the old shape_leaderboard and shape_leaderboard_me closed to signed-in callers', status: 'done' },
+        { label: 'Review: Codex found 8 real defects across four heads (three privacy), CodeRabbit 2 and Fable a P1 (every row carried the account id, which get_display_names turns into a full name) and 6 smaller; all fixed but the owner\'s call below', status: 'done' },
+        { label: 'OWNER DECISION — the coach board shows every coach each other\'s active-client count and sessions-kept rate; Fable called it competitively sensitive. Kept until the owner says otherwise', status: 'pending' },
+        { label: 'get_display_names answers any id with a full name and photo, whoever asks; about ten coach routes rely on it, so gating it is its own change', status: 'pending' },
+        { label: 'The app\'s coach Score page reads the member ledger (/api/coach/score is cookie-only, so the app\'s Bearer gets 401); a city field for the preview\'s "In Austin" filter; board cost at volume', status: 'pending' },
+      ],
+    },
+    {
+      section: 'Coach pages without the widget builder, Settings, the App page, the nav caret and Nora\'s Radio box — SHIPPED 2026-10-15 (#2361 -> 2cb65d8, #2362 -> 27b5cdd, #2363 -> fd5a930, #2364 -> e29370e, #2365 -> 0af4212, #2368 -> 0b055a8, #2376 -> d9edcd3). No migrations',
+      items: [
+        { label: 'Clients, Business, Goal and Score (#2365): no widget builder on any of the four, for either role. Clients is the roster with status tiles that filter; Business shows one section at a time; the Leaderboard button that had no handler is gone (the leaderboards came in #2371)', status: 'done' },
+        { label: 'The Coaches page frames re-shot (#2368); dashboard Settings in the page\'s own cards (#2363); every App page screen its own section and the nav caret drawn (#2361); Nora is "Shape\'s concierge"', status: 'done' },
+        { label: 'Nora (#2362, #2364): her own box on Radio with NORA on the LED wall, re-rendered at 2x; a non-member sees how voice unlocks; "Find me a coach" asks one question first', status: 'done' },
+        { label: 'The Schedule step 2 mutation spec runs clean again (#2376): killed 98, survived 0', status: 'done' },
+        { label: 'OWNER — check NORA_TTS_VOICE and NORA_TTS_INSTRUCTIONS in Vercel; if set, they override the Supportive and Direct read-aloud voices', status: 'manual' },
+        { label: 'A coach\'s saved layouts for the four fixed tabs stay unread in dashboard_layout; tap-to-answer chips after Nora\'s coach question; the nutritionist Clients caption names a weight trend the roster has no column for', status: 'pending' },
+      ],
+    },
+    {
+      section: 'The dashboard as its own app, the old site retired, lighter images — SHIPPED 2026-10-14 (#2342 -> a849492, #2343 -> cf67ecf, #2344 -> 8791032, #2346 -> b6008f3, #2348 -> f96f341, #2350 -> b197c79, #2352 -> 5ad70a2, #2354 -> c21944a). No migrations',
+      items: [
+        { label: 'The dashboard frame (#2342 to #2344): an icon rail that opens on hover, the app bar, Today beside the day for coaches and members, cards that close up; the website\'s dashboard and app screenshots re-shot', status: 'done' },
+        { label: 'Files (#2346, #2348): 120 unused files removed (about 19 MB); the eight live page backgrounds as WebP, 46.9 MB to 4.86 MB at the same look', status: 'done' },
+        { label: 'The old site retired (#2350, #2352, #2354): live flows land on the website; 37 root pages gone (28 behind permanent redirects, 8 deleted on the owner\'s word); the /mobile preview and the explorations deleted; the sitemap lists 26 live pages', status: 'done' },
+        { label: '/messages opens the member\'s Team page, not a thread; an old profile link reaches /trainers/<id>, an older profile than MemberProfile.html', status: 'pending' },
+        { label: 'No pass of the new dashboard frame on a real signed-in account', status: 'manual' },
+      ],
+    },
+    {
       section: 'Staff two-factor fixed, an Admin link on the website and the splash line — SHIPPED 2026-10-13 (#2339 -> e9c0e09, #2340 -> 883e6d1). No migrations',
       items: [
         { label: 'Staff two-factor works (#2340): #2329\'s /staff-verify read sign-in methods with a browser Supabase client, which has no session because the cookies are httpOnly, so every staff member saw "Your sign-in methods could not be read". POST /api/staff/two-factor (staff only) runs set-up and verify on the server, and a verified code writes the aal2 session to the cookies; a guard test fails if src/ imports the browser client again', status: 'done' },
@@ -649,6 +706,30 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Requests queue: no pause button (a Pause is done in Stripe, then marked done here), and the member is not emailed when a request is closed', status: 'pending' },
         { label: 'Staff added on the Staff page do not get the member-app perks the code\'s email list gives; opening the Members page is not itself logged (each account page is)', status: 'pending' },
         { label: 'No signed-in pass of /admin on the live site or of the app\'s Shape admin row on a phone. The first native builds after #2332 are the real test of the API base', status: 'manual' },
+      ],
+    },
+    {
+      section: 'Coach credentials and listings: the badge in the database, verdicts on the version reviewed, one listing per account — SHIPPED 2026-10-13 (#2321 -> 83295f5, #2323 -> 3f701e2, #2324 -> 4a7dcda, #2327 -> 4fdb62e, #2331 -> 1d345c5). Three migrations, all applied and verified live',
+      items: [
+        { label: 'The Verified badge follows the credential in the database (#2321): a credential write that is not approved, or a delete, takes the badge off both listings in the same transaction; approval and the badge are one RPC', status: 'done' },
+        { label: 'Verdicts on the version reviewed (#2323): every credential write draws a revision from one sequence, and a verdict applies only at the revision the reviewer saw; listings cascade with their owner\'s account', status: 'done' },
+        { label: 'A hidden coach is told why (#2324, #2327): /api/coach/listing with the missing steps, the website\'s notice and Rates card, the app\'s Me notice and Rates page; the trainer analytics route restored, every failed read shown as unknown', status: 'done' },
+        { label: 'One listing per role per account (#2331): the unique indexes trainers_one_per_owner and nutritionists_one_per_owner', status: 'done' },
+        { label: 'APPLIED + VERIFIED LIVE (each run by the owner; checked again 2026-10-16, read-only) — 2026-10-13-listing-badge-follows-credential (clear_listing_verified, the provider_credentials_zz_unverify_listings trigger), 2026-10-13-review-revision-and-listing-owner-cascade (the revision column; approve_provider_credential takes the revision), 2026-10-13-one-listing-per-account (both indexes)', status: 'done' },
+        { label: 'The nutritionist analytics route repeats the patterns fixed in the trainer route; the trainer route\'s name lookups fall back to "Client" and "Former client" without saying so', status: 'pending' },
+      ],
+    },
+    {
+      section: 'Coach applications and listings, Shape Score fixes and the About page — SHIPPED 2026-10-12 (#2311 -> edc56c5, #2312 -> 355517b, #2313 -> e989940, #2314 -> 83a9275, #2315 -> a68dc64, #2317 -> 9b9664b, #2318 -> 6d6dffa, #2319 -> 55cc284). Three migrations, all applied and verified live',
+      items: [
+        { label: 'Coach applications (#2315): the reviewer\'s evidence lives in admin_review, not in the applicant\'s own details; the invite lands (generateLink plus /auth/confirm); Approve and Reject email the applicant; the app\'s applications reach /api/apply', status: 'done' },
+        { label: 'Experience (#2317): five years is the standard, not a refusal; under five the application asks where and what kind, and approving below it records the exception; the legacy sign-up pages retired', status: 'done' },
+        { label: 'Listings (#2318): a coach is discoverable once the listing is ready (a price, Stripe payouts, a photo); every discovery read filters on listing_ready', status: 'done' },
+        { label: 'Application documents (#2319): five categories, several files each, uploaded straight to storage through signed links (/api/apply/uploads; the cleanup cron /api/cron/application-uploads)', status: 'done' },
+        { label: 'Shape Score (#2314): ten scoring bugs fixed and one rank basis everywhere (shape_rank_points). The About page retired (#2311); one tier palette (#2312); live coaches rated by their real reviews or "New" (#2313)', status: 'done' },
+        { label: 'APPLIED + VERIFIED LIVE (each run by the owner; checked again 2026-10-16, read-only) — 2026-10-12-coach-application-review (admin_review, provider_applications_one_open_idx), 2026-10-12-coach-listing-ready (listing_ready and its triggers), 2026-10-12-shape-score-fixes (shape_rank_points)', status: 'done' },
+        { label: 'OWNER — add the localhost hostname to the Turnstile widget', status: 'manual' },
+        { label: 'Not run live: /auth/confirm, the application decision emails, and an upload through a real signed link from the website or a phone; the rest of the app\'s coach application screen is English only', status: 'manual' },
       ],
     },
     {
