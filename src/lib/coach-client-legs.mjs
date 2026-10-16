@@ -290,13 +290,20 @@ export function bsOnboardingLeg(input) {
   // in week one. Today is read on the furthest-ahead clock (UTC+14), so no member's own date is
   // ever "the future".
   const latestDay = isoDayUTC(now + 14 * 3_600_000);
+  // ⚠ A FUTURE ROW MAY BE HIDING THE REAL ONE (Codex on #2378): get_client_measurements returns the
+  // newest row per site, so a site whose newest row is future-dated says nothing about the rows
+  // before it. With no valid day-30 row elsewhere, that is "couldn't read", not "not yet".
   const measuredAt = measurements === undefined || measurements === null ? undefined : (() => {
     let best = null;
+    let hidden = false;
     for (const m of Array.isArray(measurements) ? measurements : []) {
       const d = m && typeof m.measured_on === 'string' ? m.measured_on.slice(0, 10) : null;
-      if (d && d >= addDaysISO(joined, 27) && d <= latestDay && (!best || d > best)) best = d;
+      if (!d) continue;
+      if (d > latestDay) { hidden = true; continue; }
+      if (d >= addDaysISO(joined, 27) && (!best || d > best)) best = d;
     }
-    return best;
+    // Before day 28 nothing a future row hides could be the day-30 read: "not yet" still holds.
+    return best || (hidden && addDaysISO(joined, 27) <= latestDay ? undefined : null);
   })();
 
   const known = (v) => (v === undefined ? null : !!v);

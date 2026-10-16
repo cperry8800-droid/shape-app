@@ -119,6 +119,24 @@ test('a measurement dated after today never completes day 30 (Codex on #2378)', 
   // A member east of UTC whose own today is already tomorrow in UTC still counts.
   const east = LEGS.bsOnboardingLeg({ role: 'trainer', joinedAt, measurements: [{ measured_on: '2026-11-10' }], now: Date.parse('2026-11-09T13:00:00Z') });
   assert.equal(stepsOf(east).progress.done, true);
+  // The read returns the newest row per site, so a future waist row may hide a real day-29 one:
+  // "couldn't read", never "not yet". A valid row at another site still completes it.
+  const day29 = Date.parse('2026-11-09T12:00:00Z');
+  const hid = LEGS.bsOnboardingLeg({ role: 'trainer', joinedAt, measurements: [{ site: 'waist', measured_on: '2027-01-01' }], now: day29 });
+  assert.equal(stepsOf(hid).progress.done, null);
+  const other = LEGS.bsOnboardingLeg({ role: 'trainer', joinedAt, measurements: [{ site: 'waist', measured_on: '2027-01-01' }, { site: 'hips', measured_on: '2026-11-09' }], now: day29 });
+  assert.equal(stepsOf(other).progress.done, true);
+  const none = LEGS.bsOnboardingLeg({ role: 'trainer', joinedAt, measurements: [{ site: 'waist', measured_on: '2026-10-13' }], now: day29 });
+  assert.equal(stepsOf(none).progress.done, false, 'only older rows: not yet');
+});
+
+test('saving a week-one target reads the board again, on the website and in the app (Codex on #2378)', () => {
+  const today = read('public/newdesign/dashToday.jsx');
+  assert.match(today, /setTarget\(j\.weekOne\); setEditing\(false\); setState\("Saved"\);\n[^\n]*\n[^\n]*\n      try \{ window\.dispatchEvent\(new CustomEvent\("shape:coach-progress-refresh", \{ detail: \{ clientId: id \} \}\)\); \} catch \(e\) \{\}/);
+  const pros = read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx');
+  assert.match(pros, /window\.__bsToast\?\.\(coachTr\('coach:onboard\.saved'[^\n]*if \(onSaved\) onSaved\(\); \}/);
+  assert.match(pros, /onSayHello=\{\(\) => fireEvt\('shape:proMessageClient'\)\} onSaved=\{reloadOnboard\} \/>/);
+  assert.match(pros, /window\.ShapeCareTeam\.overview\(uid\)\.then\(\(d\) => \{ if \(d\) setOnboard\(\(prev\) => \(uid === clientUidRef\.current \? bsOnboardingFor\(d, role\) : prev\)\); \}\)/, 'a read for a client the coach has left is dropped');
 });
 
 test('a week-one target counts only for the coach who set it (Codex on #2378)', () => {
@@ -482,7 +500,7 @@ test('a new client with nothing to flag is a NEW row in the app, led by their bo
   assert.equal(api.bsOnboardingFor({ onboarding: ob }, 'dietitian'), null, 'a dietitian reads the nutritionist board');
   // The client page shows the board from the same overview, and Say hello opens the thread.
   assert.match(pros, /setOnboard\(bsOnboardingFor\(d, role\)\)/);
-  assert.match(pros, /<BSProOnboardingStation ob=\{onboard\} role=\{role\} clientUid=\{clientUid\}[^>]*onSayHello=\{\(\) => fireEvt\('shape:proMessageClient'\)\} \/>/);
+  assert.match(pros, /<BSProOnboardingStation ob=\{onboard\} role=\{role\} clientUid=\{clientUid\}[^>]*onSayHello=\{\(\) => fireEvt\('shape:proMessageClient'\)\} onSaved=\{reloadOnboard\} \/>/);
   assert.match(pros, /window\.ShapeWeekOne\.set\(clientUid, role, count, startsOn\)/);
 });
 

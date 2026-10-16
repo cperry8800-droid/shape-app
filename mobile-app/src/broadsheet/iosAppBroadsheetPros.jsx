@@ -4462,7 +4462,7 @@ function bsOnboardingNext(ob, role) {
   const label = bsOnboardStepLabel(next.key, role);
   return next.due ? coachTr('coach:onboard.nextDue', { defaultValue: '{step} · due {date}', step: label, date: bsOnboardDay(next.due) }) : label;
 }
-function BSProOnboardingStation({ ob, role, clientUid, first, heat, t, onSayHello }) {
+function BSProOnboardingStation({ ob, role, clientUid, first, heat, t, onSayHello, onSaved }) {
   const nut = role === 'nutritionist' || role === 'dietitian';
   const [target, setTarget] = useStateBSP(ob.weekOne || null);
   const [editing, setEditing] = useStateBSP(false);
@@ -4478,7 +4478,8 @@ function BSProOnboardingStation({ ob, role, clientUid, first, heat, t, onSayHell
     setBusy(true);
     const r = await window.ShapeWeekOne.set(clientUid, role, count, startsOn);
     setBusy(false);
-    if (r && r.ok) { setTarget(r.weekOne); setEditing(false); window.__bsToast?.(coachTr('coach:onboard.saved', { defaultValue: 'Target saved' }), 'ok'); }
+    // The board's dates follow the target (Codex on #2378): the client page reads the board again.
+    if (r && r.ok) { setTarget(r.weekOne); setEditing(false); window.__bsToast?.(coachTr('coach:onboard.saved', { defaultValue: 'Target saved' }), 'ok'); if (onSaved) onSaved(); }
     else window.__bsToast?.((r && r.error) || coachTr('coach:onboard.saveFailed', { defaultValue: 'Couldn’t save it. Try again.' }), 'info');
   };
   const mono = { fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase' };
@@ -4542,6 +4543,9 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   // Real per-client store when the row carries a user id (uuid); otherwise the
   // selector is local (demo roster has mock clients).
   const clientUid = client && (client.userId || client.user_id || (typeof client.id === 'string' && client.id.includes('-') ? client.id : null));
+  // The client on screen now, so a board read that answers after the coach moved on is dropped.
+  const clientUidRef = React.useRef(clientUid);
+  clientUidRef.current = clientUid;
   // Nora's "this client" (the Ask Nora plan, step 4): the server names them only when
   // they are on this coach's own roster.
   React.useEffect(() => (clientUid && window.bsNoraOpen ? window.bsNoraOpen({ clientId: clientUid }) : undefined), [clientUid]);
@@ -4735,6 +4739,12 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
       .catch(() => { if (!ignore) { setCarePartial(true); setCareLoaded(true); } });
     return () => { ignore = true; };
   }, [clientUid]);
+  // The board again, after the coach saves a week-one target: its deadlines are the server's.
+  const reloadOnboard = () => {
+    const uid = clientUid;
+    if (!uid || !window.ShapeCareTeam?.overview) return;
+    window.ShapeCareTeam.overview(uid).then((d) => { if (d) setOnboard((prev) => (uid === clientUidRef.current ? bsOnboardingFor(d, role) : prev)); }).catch(() => {});
+  };
   // Weekend-adherence split for THIS client — reset per-client, ignore stale.
   const [wkndSplit, setWkndSplit] = useStateBSP(null);
   useEffectBSP(() => {
@@ -5826,7 +5836,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
       {/* FIRST 30 DAYS — the onboarding board (client-onboarding review, fix 4), the website's board in
           the app: every step ticked by a record, the coach's first message, the week-one target. */}
       {clientUid && onboard && (
-        <BSProOnboardingStation ob={onboard} role={role} clientUid={clientUid} first={String(client?.n || client?.name || '').split(' ')[0]} heat={heat} t={t} onSayHello={() => fireEvt('shape:proMessageClient')} />
+        <BSProOnboardingStation ob={onboard} role={role} clientUid={clientUid} first={String(client?.n || client?.name || '').split(' ')[0]} heat={heat} t={t} onSayHello={() => fireEvt('shape:proMessageClient')} onSaved={reloadOnboard} />
       )}
 
       {/* WHO THEY ARE — the goal they picked, whether they want coaching, their training and diet

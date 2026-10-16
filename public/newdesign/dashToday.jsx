@@ -1510,6 +1510,9 @@ function DashOnboardingBoard({ client, ob, role, live }) {
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j.ok) { setState(j.error || "Couldn't save. Try again."); return; }
       setTarget(j.weekOne); setEditing(false); setState("Saved");
+      // The board's dates follow the target (Codex on #2378): read this client's overview again, so
+      // the plan and check-in deadlines, and the row's next step, are the server's new ones.
+      try { window.dispatchEvent(new CustomEvent("shape:coach-progress-refresh", { detail: { clientId: id } })); } catch (e) {}
     } catch (e) { setState("Couldn't save. Try again."); }
   };
   return <div style={{ padding: "4px 0 14px" }}>
