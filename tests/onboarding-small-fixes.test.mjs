@@ -426,7 +426,7 @@ test('M4: the table is the server\'s to write; both sign-in doors record; both s
   // Codex on #2379 (P1): the acceptance is taken as the account is created, into app_metadata, by a
   // BEFORE INSERT trigger (an UPDATE of user_metadata never fires it), and the guard holds it there.
   assert.match(sql, /create trigger capture_terms_acceptance\n  before insert on auth\.users\n  for each row execute function public\.capture_terms_acceptance\(\);/);
-  assert.match(sql, /security definer\nset search_path = ''/);
+  assert.match(sql, /security definer\nset search_path = pg_catalog, pg_temp\n/);
   assert.match(sql, /new\.raw_app_meta_data := coalesce\(new\.raw_app_meta_data, '\{\}'::jsonb\) \|\| jsonb_build_object\(\n      'terms_accepted_at', to_char\(coalesce\(new\.created_at, now\(\)\)/, 'the time is the account\'s, not the browser\'s');
   assert.match(sql, /exception when others then\n  return new;/, 'a sign-up is never refused over the record');
   assert.match(sql, /revoke all on function public\.capture_terms_acceptance\(\) from public, anon, authenticated;/);

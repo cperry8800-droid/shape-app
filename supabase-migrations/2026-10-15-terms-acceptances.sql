@@ -43,12 +43,14 @@ create policy terms_acceptances_read_own on public.terms_acceptances
   using (user_id = auth.uid());
 
 -- The capture. Only NEW is touched, so a sign-up cannot fail on a table read; any error is swallowed
--- and the account is created without the flag (no record), never refused.
+-- and the account is created without the flag (no record), never refused. The path names only the
+-- catalog (its body calls built-ins and reads no table) and ends in pg_temp, as every definer here
+-- does (tests/definer-grants.test.mjs): an empty path leaves pg_temp searched first.
 create or replace function public.capture_terms_acceptance()
 returns trigger
 language plpgsql
 security definer
-set search_path = ''
+set search_path = pg_catalog, pg_temp
 as $$
 begin
   if jsonb_typeof(new.raw_user_meta_data -> 'terms_accepted_at') = 'string'
@@ -106,9 +108,9 @@ begin
   if not exists (
     select 1 from pg_proc p
     where p.oid = 'public.capture_terms_acceptance()'::regprocedure
-      and p.prosecdef and p.proconfig @> array['search_path=""']
+      and p.prosecdef and p.proconfig @> array['search_path=pg_catalog, pg_temp']
   ) then
-    raise exception 'terms_acceptances: the capture function is not a definer with an empty search_path';
+    raise exception 'terms_acceptances: the capture function is not a definer pinned to pg_catalog, pg_temp';
   end if;
   if has_function_privilege('authenticated', 'public.capture_terms_acceptance()', 'EXECUTE')
      or has_function_privilege('anon', 'public.capture_terms_acceptance()', 'EXECUTE') then
