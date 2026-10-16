@@ -195,8 +195,9 @@ function apnsReason(body: string): string {
   try { return String((JSON.parse(body) as { reason?: unknown }).reason ?? ''); } catch { return ''; }
 }
 
-// An APNs device token is hex (the plugin sends 64 characters, upper case); an FCM token never is.
-const APNS_TOKEN = /^[0-9a-f]{64,200}$/i;
+// An APNs device token is hex (the plugin sends upper case); an FCM token never is, because it
+// carries a colon and base64url. No length is assumed: Apple says device tokens vary in length.
+const APNS_TOKEN = /^[0-9a-f]+$/i;
 
 async function sendApns(token: string, msg: Msg): Promise<Result> {
   const jwt = apnsJwt();

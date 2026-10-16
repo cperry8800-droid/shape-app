@@ -141,6 +141,21 @@ test('an iOS token goes to Apple, signed with the .p8 key; an Android token goes
   });
 });
 
+test('an APNs token of any length goes to Apple: Apple says device tokens vary in length', async () => {
+  await withEnv({ ...APNS_ENV, ...FCM_ENV }, async () => {
+    const h2 = fakeHttp2(() => [200, null]);
+    const { mod, fcm, restore } = await loadPush(h2);
+    try {
+      const SHORT = 'ab'.repeat(16), LONG = 'CD'.repeat(150);
+      const db = tokensDb([{ token: SHORT, platform: 'ios' }, { token: LONG, platform: 'ios' }]);
+      await mod.sendPushToUser(db, 'u1', { title: 'Hi', body: 'there' });
+      assert.deepEqual(h2.sent.map((m) => m.path).sort(), [`/3/device/${LONG}`, `/3/device/${SHORT}`].sort());
+      assert.equal(fcm.length, 0, 'neither reaches FCM');
+      assert.equal(db.deleted.length, 0);
+    } finally { restore(); }
+  });
+});
+
 test('a sandbox token is retried on the sandbox; a dead one, on either service, is pruned; a bad payload is not', async () => {
   await withEnv({ ...APNS_ENV, ...FCM_ENV }, async () => {
     const SANDBOX = 'B'.repeat(64), GONE = 'C'.repeat(64), NOWHERE = 'D'.repeat(64);
