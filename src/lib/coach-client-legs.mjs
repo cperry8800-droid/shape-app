@@ -243,7 +243,7 @@ function suggestedCount(intake, role) {
 function addDaysISO(atMs, days) { return isoDayUTC(atMs + days * DAY_MS); }
 // The Sunday that closes the week holding `day` ('YYYY-MM-DD'): check-ins are weekly, Monday-keyed.
 // `after` days are added first, so a client who joins on a Saturday is not due the next morning.
-function weekEndSunday(day, after = 0) {
+export function weekEndSunday(day, after = 0) {
   const t = Date.parse(day + 'T00:00:00Z') + after * DAY_MS;
   const dow = new Date(t).getUTCDay(); // 0 = Sunday
   return isoDayUTC(t + ((7 - dow) % 7) * DAY_MS);
