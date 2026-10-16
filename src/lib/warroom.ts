@@ -581,6 +581,9 @@ function buildConfig(): ConfigGroup[] {
       { key: 'FCM_PROJECT_ID', label: 'FCM project', present: present(env.FCM_PROJECT_ID) },
       { key: 'FCM_CLIENT_EMAIL', label: 'FCM client email', present: present(env.FCM_CLIENT_EMAIL) },
       { key: 'FCM_PRIVATE_KEY', label: 'FCM private key', present: present(env.FCM_PRIVATE_KEY) },
+      { key: 'APNS_KEY_ID', label: 'APNs key id (iPhone)', present: present(env.APNS_KEY_ID) },
+      { key: 'APNS_TEAM_ID', label: 'APNs team id', present: present(env.APNS_TEAM_ID) },
+      { key: 'APNS_PRIVATE_KEY', label: 'APNs key (.p8)', present: present(env.APNS_PRIVATE_KEY) },
       { key: 'PUSH_WEBHOOK_SECRET', label: 'Push webhook secret', present: present(env.PUSH_WEBHOOK_SECRET) },
     ], false, 'push', 'Push notifications'),
 

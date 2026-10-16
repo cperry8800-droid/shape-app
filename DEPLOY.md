@@ -153,30 +153,44 @@ temp dir at build time only.
 
 ## 10. Push notifications (app closed / locked)
 
-In-app notifications work today (live feed + toast). To also deliver system
-push when the app is **closed or the phone is locked**, wire up FCM:
+In-app notifications work today (live feed + toast). System push, when the app is
+**closed or the phone is locked**, goes to **Apple directly for iPhones** and through
+**Firebase (FCM) for Android** (`src/lib/push.ts`). Each half switches on by itself
+once its settings exist; until then `/api/push/dispatch` is a safe no-op for it.
 
-1. **Firebase project** → Project settings → Service accounts → *Generate new
-   private key*. From that JSON set in Vercel:
-   - `FCM_PROJECT_ID` = `project_id`
-   - `FCM_CLIENT_EMAIL` = `client_email`
-   - `FCM_PRIVATE_KEY` = `private_key` (keep the `\n` escapes)
-2. **iOS**: Apple Developer → create an APNs auth key (.p8) → upload it under
-   Firebase → Cloud Messaging → Apple app config.
-3. **Supabase Database Webhook** (Database → Webhooks):
+1. **Supabase Database Webhook** (done 2026-06-21; Database → Webhooks):
    - Table `notifications`, event **Insert**, HTTP **POST**
    - URL `https://theshapecommunity.com/api/push/dispatch`
-   - Header `x-push-secret: <value>`, and set the same value as
-     `PUSH_WEBHOOK_SECRET` in Vercel.
-   - This fans **every** notification (bookings, messages, coach content,
-     payments) out to push with no per-event wiring.
-4. **Mobile app**: add `@capacitor/push-notifications`, register on launch, and
-   POST the device token to `/api/push/register`. Needs the Firebase config
-   files (`google-services.json` for Android, the APNs key for iOS) before a
-   native build — this step is added once the Firebase project exists.
+   - Header `x-push-secret: <value>`, and the same value as `PUSH_WEBHOOK_SECRET` in
+     Vercel. This fans every notification out to push with no per-event wiring.
+2. **iPhone (APNs)**: Apple Developer → Certificates, Identifiers & Profiles:
+   - **Identifiers** → `com.theshapecommunity.app` → tick **Push Notifications** → Save.
+   - **Keys** → **＋** → name it "Shape push", tick **Apple Push Notifications service
+     (APNs)** → Continue → Register → **Download** the `.p8` file (Apple lets you
+     download it once) and note the **Key ID** on that page.
+   - Your **Team ID** is at the top right of the Membership page.
+   - In Vercel (Production), set `APNS_KEY_ID` = the Key ID, `APNS_TEAM_ID` = the Team
+     ID, `APNS_PRIVATE_KEY` = the whole `.p8` file (open it in a text editor and paste
+     everything, including the BEGIN and END lines), then redeploy.
+   - The next TestFlight build (Codemagic builds one on every push to `main`) is the
+     first that can register, because it carries the token hand-off in
+     `AppDelegate.swift`.
+3. **Android (FCM)**: Firebase console → project `shape-84d22`:
+   - The service-account values are set in Vercel (done 2026-06-21): `FCM_PROJECT_ID`,
+     `FCM_CLIENT_EMAIL`, `FCM_PRIVATE_KEY` (Project settings → Service accounts →
+     Generate new private key, if they ever need replacing).
+   - Project settings → General → **Add app** → Android → package name
+     `com.theshapecommunity.app` → Register → **download `google-services.json`**.
+   - GitHub → the repo → Settings → Secrets and variables → Actions → **New repository
+     secret**: name `GOOGLE_SERVICES_JSON`, value = the whole file's contents.
+     `android-build.yml` writes it into the build. It is never committed (it carries a
+     Google API key that the secret scan flags), and a build without it never
+     registers for push, because the plugin's `register()` without Firebase crashes
+     the app (`mobile-app/vite.config.ts`, `__SHAPE_ANDROID_PUSH__`).
 
-Until the FCM env vars are set, `/api/push/dispatch` is a safe no-op, so nothing
-breaks before Firebase is configured.
+**Test it:** install the new build, sign in, turn notifications on (Settings →
+Notifications, or the prompt after setting a reminder), and check that a row appears in
+`push_tokens`. Then have someone message you with the app closed.
 
 ## Database migrations
 

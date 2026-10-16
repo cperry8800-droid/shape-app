@@ -1,11 +1,14 @@
 // Native push registration (app closed / phone locked).
 //
 // Uses the runtime-exposed Capacitor plugin (window.Capacitor.Plugins.
-// PushNotifications) rather than a static import, so the web build needs no new
-// dependency and this is a no-op until the plugin is installed + a native build
-// ships. To activate:
-//   1. cd mobile-app && npm i @capacitor/push-notifications && npx cap sync
-//   2. add Firebase config (google-services.json / APNs key) — see DEPLOY.md §10
+// PushNotifications) rather than a static import, so the web build needs no
+// dependency of its own. @capacitor/push-notifications is installed; what each
+// platform still needs is in DEPLOY.md §10:
+//   - Android: Firebase's google-services.json in the build (the GOOGLE_SERVICES_JSON
+//     secret). Until it is there this never calls register() on Android (see
+//     androidPushReady), because register() without it crashes the app.
+//   - iOS: nothing in the app beyond AppDelegate's token hand-off; the server sends
+//     to Apple with an APNs key (APNS_* in Vercel).
 //
 // On a native platform it asks permission, registers with FCM/APNs, and POSTs
 // the device token to /api/push/register (Bearer-authed via ShapeAuth). Call
@@ -23,6 +26,13 @@ function nativePush() {
 function platform() {
   const cap = (typeof window !== 'undefined' && window.Capacitor) || null;
   return (cap && cap.getPlatform && cap.getPlatform()) || 'unknown';
+}
+
+// ⚠ ON ANDROID, register() WITHOUT FIREBASE CRASHES THE APP (vite.config.ts, __SHAPE_ANDROID_PUSH__:
+// the plugin's FirebaseMessaging.getInstance() throws, and Capacitor re-raises it). The build knows
+// whether google-services.json shipped; with no build flag at all (a test, a plain bundler) it is false.
+function androidPushReady() {
+  return typeof __SHAPE_ANDROID_PUSH__ !== 'undefined' && __SHAPE_ANDROID_PUSH__ === true;
 }
 
 // The deployed API's origin — MIRRORS shapeBackend.js's apiBaseUrl derivation
@@ -70,6 +80,7 @@ let pendingRegister = null;
 export async function registerPush({ prompt = false } = {}) {
   const PushNotifications = nativePush();
   if (!PushNotifications || registered) return;
+  if (platform() === 'android' && !androidPushReady()) return;
   registered = true;
   // Captured BEFORE the first await. The platform hands the token to the
   // 'registration' listener asynchronously, so a sign-out can land between this
@@ -143,6 +154,8 @@ export async function registerPush({ prompt = false } = {}) {
 export async function pushPermission() {
   const PushNotifications = nativePush();
   if (!PushNotifications) return 'unavailable';
+  // An Android build without Firebase cannot register, so nothing offers to turn push on.
+  if (platform() === 'android' && !androidPushReady()) return 'unavailable';
   try {
     const perm = await PushNotifications.checkPermissions();
     const r = perm && perm.receive;

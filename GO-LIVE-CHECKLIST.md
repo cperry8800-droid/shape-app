@@ -205,16 +205,19 @@ ones you intend.
 
 ## 5. Push notifications (app closed / locked)
 
-In-app notifications (toast + feed) work once §1 is done. System push needs:
+In-app notifications (toast + feed) work once §1 is done. System push goes to Apple
+directly for iPhones and through Firebase for Android; DEPLOY.md §10 has the steps.
 
-- [ ] `cd mobile-app && npm i @capacitor/push-notifications && npx cap sync`
-- [ ] Firebase service account key → Vercel env `FCM_PROJECT_ID`,
-      `FCM_CLIENT_EMAIL`, `FCM_PRIVATE_KEY` (keep the escaped newlines).
-- [ ] iOS: upload an APNs key to Firebase → Cloud Messaging.
-- [ ] Supabase → Database → Webhooks: on `notifications` **Insert**, HTTP POST to
+- [x] `@capacitor/push-notifications` installed; iOS hands its token to it (`AppDelegate.swift`).
+- [x] Firebase service account key → Vercel env `FCM_PROJECT_ID`,
+      `FCM_CLIENT_EMAIL`, `FCM_PRIVATE_KEY` (set 2026-06-21).
+- [x] Supabase → Database → Webhooks: on `notifications` **Insert**, HTTP POST to
       `…/api/push/dispatch`, header `x-push-secret: <value>`; same value as
-      `PUSH_WEBHOOK_SECRET` in Vercel.
-- [ ] Native build includes `google-services.json` (Android) + APNs (iOS).
+      `PUSH_WEBHOOK_SECRET` in Vercel (set 2026-06-21).
+- [ ] iPhone: Push Notifications on the App ID, an APNs key (.p8), and Vercel env
+      `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY`. No Firebase for iOS.
+- [ ] Android: add the Android app in Firebase (`com.theshapecommunity.app`) and put
+      its `google-services.json` in the GitHub secret `GOOGLE_SERVICES_JSON`.
 
 **Verify:** on a real device, trigger a notification with the app backgrounded →
 push appears on the lock screen.

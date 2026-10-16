@@ -124,9 +124,18 @@ const stripSourcemaps = {
 // alone rather than inventing a stamp.
 const pkgVersion = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf8')).version || '';
 
+// Whether this build can register for push on Android: Firebase's config file is in the native
+// project (android/app/google-services.json, written from the GOOGLE_SERVICES_JSON secret by
+// android-build.yml before this build runs). ⚠ WITHOUT IT, PushNotifications.register() CRASHES THE
+// APP: the plugin calls FirebaseMessaging.getInstance(), which throws "Default FirebaseApp is not
+// initialized", and Capacitor's Bridge re-raises a plugin method's exception as a RuntimeException.
+// push.js registers on Android only when this is true. iOS needs no Firebase (src/lib/push.ts).
+const androidPushReady = fs.existsSync(path.resolve(__dirname, 'android/app/google-services.json'));
+
 export default defineConfig({
   define: {
     __SHAPE_VERSION__: JSON.stringify(pkgVersion),
+    __SHAPE_ANDROID_PUSH__: JSON.stringify(androidPushReady),
   },
   plugins: [
     react(),

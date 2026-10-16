@@ -32,12 +32,16 @@ Once it ships, the last-mile items resolve:
     standard user-facing pushes (alert/badge/sound), not silent/content pushes, so declaring it
     would risk an App Store review flag for an unused background mode.
 
-## Still missing from the repo (owner-provided — has secrets, so not committed)
+- **`AppDelegate.swift`** hands the APNs device token to `@capacitor/push-notifications`
+  (`didRegisterForRemoteNotificationsWithDeviceToken`, added 2026-10-16). Without it the app's
+  `registration` listener never fired on iOS, which is why production had 0 push devices.
 
-- **`ios/App/App/GoogleService-Info.plist`** — download from the Firebase console (project
-  `shape-84d22`, the iOS app). Required for FCM to deliver on iOS. Drop it into `ios/App/App/`
-  and add it to the Xcode target ("Copy Bundle Resources").
-- **`android/app/google-services.json`** — the Android equivalent (for the Android release path).
+## Push on iOS needs no Firebase (changed 2026-10-16)
+
+The server sends iPhone pushes to Apple directly with an APNs key (`src/lib/push.ts`), so there
+is **no `GoogleService-Info.plist`** and no Firebase SDK in the iOS app. The plugin's token is a
+raw APNs token, which FCM cannot deliver to. Android still uses Firebase: its
+`google-services.json` comes from the `GOOGLE_SERVICES_JSON` GitHub secret (DEPLOY.md §10).
 
 ---
 
@@ -58,11 +62,9 @@ npx cap sync ios
   (Sign in with Apple too, if/when that ships).
 - Create an **APNs Authentication Key** (.p8) under Keys → note the Key ID + Team ID.
 
-### 3. Firebase (console.firebase.google.com → project `shape-84d22`)
-- **Cloud Messaging → Apple app configuration**: upload the APNs `.p8` key + Key ID + Team ID.
-  (FCM relays to APNs; without this, iOS pushes never leave Firebase.)
-- **Download `GoogleService-Info.plist`** for the iOS app → place in `ios/App/App/` and add to the
-  Xcode target.
+### 3. Vercel: the APNs key
+- Set `APNS_KEY_ID`, `APNS_TEAM_ID` and `APNS_PRIVATE_KEY` (the whole `.p8` file) in Vercel
+  (Production) and redeploy. Nothing goes into Firebase for iOS (DEPLOY.md §10).
 
 ### 4. Xcode — capabilities & signing (`ios/App/App.xcworkspace`)
 - **Signing & Capabilities**: select the team; with automatic signing, Xcode reads
@@ -75,12 +77,14 @@ npx cap sync ios
 
 ### 5. Build, run, verify push end-to-end
 - Run on a **real device** (the simulator can't receive APNs).
-- On sign-in, `registerPush()` (already wired into `getCurrentSession`) registers the token →
+- Turn notifications on (Settings → Notifications, or the prompt after a reminder is set); sign-in
+  registers a device whose permission is already granted. `registerPush()` registers the token →
   `POST /api/push/register` stores it in `push_tokens`.
 - Write a test notification for that user; the Supabase DB Webhook
   (`notifications` INSERT → `POST /api/push/dispatch`, header `x-push-secret`) fires
-  `sendPushToUser` → FCM → the device banner. The dispatch route + FCM env are already
-  verified live (returns 200; no-ops with `skipped:'fcm_not_configured'` if env is absent).
+  `sendPushToUser` → APNs (iPhone) or FCM (Android) → the device banner. A TestFlight or App
+  Store build's token is a production one; a build run from Xcode gets a sandbox token, which
+  the sender retries on Apple's sandbox host.
 
 ### 6. Submit
 - Archive → upload to App Store Connect → TestFlight → App Store review.
