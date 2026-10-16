@@ -5797,8 +5797,13 @@ async function waitlistMine() {
   if (!apiBaseUrl || !state.session?.access_token) return { entries: [] };
   // Reads degrade to a soft empty state on ANY failure (offline/CORS/malformed
   // JSON), not just non-OK HTTP — callers render "no waitlists" instead of throwing.
+  // ⚠ THROUGH THE LIVE TOKEN (Codex on #2375). The cached session can hold a token supabase has
+  // already refreshed; the 401 read as "no entries and a client of nobody", so a current client
+  // was shown the waiting list and an invited member lost their intro.
   try {
-    const res = await fetch(`${apiBaseUrl}/api/waitlist/mine`, { headers: { Authorization: `Bearer ${state.session.access_token}` } });
+    const token = await liveAccessToken();
+    if (!token) return { entries: [] };
+    const res = await shapeApiFetch('/api/waitlist/mine', { headers: { Authorization: `Bearer ${token}` } });
     if (!res.ok) return { entries: [] };
     return await res.json().catch(() => ({ entries: [] }));
   } catch { return { entries: [] }; }

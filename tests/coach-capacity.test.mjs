@@ -748,6 +748,92 @@ test('app: capacity calls send the live token, never a cached one supabase has r
   assert.equal(a.calls.at(-1).auth, 'Bearer fresh', 'the cached session, now the refreshed one');
 });
 
+test('app: the waiting-list read sends the live token too (Codex on #2375)', async () => {
+  // A 401 on the cached token read as "no entries, a client of nobody": a current client was shown
+  // the waiting list and an invited member lost their intro.
+  const src = read('mobile-app/src/services/shapeBackend.js');
+  const k = src.indexOf('async function liveAccessToken() {');
+  const m = src.indexOf('window.ShapeApi = ', k);
+  const i = src.indexOf('async function waitlistMine() {');
+  const j = src.indexOf('\nasync function waitlistWithdraw(', i);
+  assert.ok(k > 0 && m > k && i > 0 && j > i, 'could not lift waitlistMine');
+  const calls = [];
+  const fetch = async (url, init = {}) => { calls.push([url, new Headers(init.headers).get('Authorization')]); return { ok: true, status: 200, json: async () => ({ entries: [], clientOf: [] }) }; };
+  const state = { session: { access_token: 'stale' }, user: { id: 'm1' } };
+  const live = { session: { access_token: 'fresh', user: { id: 'm1' } } };
+  const supabase = { auth: { getSession: async () => ({ data: { session: live.session } }) } };
+  const mine = new Function('fetch', 'apiBaseUrl', 'state', 'supabase', 'Headers', src.slice(k, m) + '\n' + src.slice(i, j) + '\nreturn waitlistMine;')(fetch, 'https://shape.test', state, supabase, Headers);
+  assert.deepEqual(await mine(), { entries: [], clientOf: [] });
+  assert.deepEqual(calls, [['https://shape.test/api/waitlist/mine', 'Bearer fresh']]);
+  // Signed out: nothing is sent.
+  state.session = null;
+  assert.deepEqual(await mine(), { entries: [] });
+  assert.equal(calls.length, 1);
+});
+
+test('a join that races a reopening is withdrawn and told the coach is open (Codex on #2375)', async () => {
+  const capacity = await loadRealModule(join(ROOT, 'src/lib/capacity.ts'), { typescript: true });
+  const requestUtils = await loadRealModule(join(ROOT, 'src/lib/request-utils.ts'), { typescript: true, registry: new Map([['next/server', nextServer]]) });
+  const run = async ({ reads }) => {
+    // The listing reads in order: the first is the gate, the second the re-check after the row is saved.
+    const listingReads = reads.slice();
+    const writes = [];
+    const notices = [];
+    const supabase = {
+      from: (t) => {
+        let op = 'select'; let payload = null; const filters = [];
+        const q = {
+          select: () => q, eq: (k, v) => { filters.push([k, v]); return q; }, in: () => q, lt: () => q,
+          insert: (p) => { op = 'insert'; payload = p; return q; },
+          update: (p) => { op = 'update'; payload = p; return q; },
+          maybeSingle: async () => {
+            if (t === 'trainers') return { data: listingReads.shift() ?? null, error: null };
+            if (t === 'coach_waitlist' && op === 'select') return { data: null, error: null };
+            if (t === 'coach_waitlist' && op === 'insert') { writes.push(['insert', payload]); return { data: { id: 'w9' }, error: null }; }
+            return { data: null, error: null };
+          },
+          then: (res) => { if (op === 'update') writes.push(['update', payload, filters]); return Promise.resolve({ data: null, error: null }).then(res); },
+        };
+        return q;
+      },
+      rpc: async () => ({ data: [{ id: 'w9', provider_role: 'trainer', provider_id: 7, status: 'waiting', queue_position: 3 }], error: null }),
+    };
+    const admin = { from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { owner_id: 'coach-1' } }) }) }) }) };
+    const route = await loadRealModule(join(ROOT, 'src/app/api/waitlist/join/route.ts'), {
+      typescript: true,
+      registry: new Map([
+        ['next/server', nextServer],
+        ['@/lib/supabase/admin', { createAdminClient: () => admin }],
+        ['@/lib/capacity', capacity],
+        ['@/lib/notify', { createPreferredNotification: async (_c, n) => { notices.push(n); return true; } }],
+        ['@/lib/request-utils', requestUtils],
+        ['@/lib/waitlist', { resolveRequestClient: async () => ({ user: { id: 'm1' }, supabase }) }],
+      ]),
+    });
+    const res = await route.POST(new Request('https://shape.test/api/waitlist/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ providerId: 7, providerRole: 'trainer' }) }));
+    return { status: res.status, body: await res.json(), writes, notices };
+  };
+  const full = { id: 7, at_capacity: true, capacity_resume_at: null };
+  // Still full after the row is saved: joined, and the coach is told.
+  const ok = await run({ reads: [full, full] });
+  assert.equal(ok.status, 200, JSON.stringify(ok.body));
+  assert.deepEqual([ok.body.entryId, ok.body.position], ['w9', 3]);
+  assert.equal(ok.notices.length, 1);
+  // The coach reopened between the gate and the save (the reopening marks it due now, which members
+  // meet as open): the entry is withdrawn, the member told the coach is accepting, the coach not told.
+  const raced = await run({ reads: [full, { id: 7, at_capacity: true, capacity_resume_at: new Date(Date.now() - 1000).toISOString() }] });
+  assert.equal(raced.status, 409);
+  assert.match(raced.body.error, /accepting clients/);
+  const upd = raced.writes.find((w) => w[0] === 'update');
+  assert.ok(upd, 'the entry was not withdrawn');
+  assert.equal(upd[1].status, 'left');
+  assert.deepEqual(upd[2], [['id', 'w9'], ['client_id', 'm1'], ['status', 'waiting']]);
+  assert.equal(raced.notices.length, 0);
+  // A re-read that fails keeps the entry.
+  const unread = await run({ reads: [full, null] });
+  assert.equal(unread.status, 200);
+});
+
 test('app Settings: the switch follows the role in use, reopening says who was told, and intros are the coach\'s call', () => {
   const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
   assert.match(client, /window\.ShapeBookings\?\.getCapacity\?\.\(\{ role: tweaks\.role \}\)/);
