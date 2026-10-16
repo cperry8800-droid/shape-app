@@ -71,7 +71,16 @@ export async function POST(request: Request) {
     const code = cleanCode(parsed.data.code);
     if (!code) return say('Enter the 6-digit code from your authenticator app.', 400);
     const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId, code });
-    if (error) return say('That code did not match. Codes change every 30 seconds; enter the one showing now.', 400);
+    // At set-up, a code that does not match is most often from a key scanned before the page
+    // reloaded: every 'start' replaces the unconfirmed authenticator with a new key.
+    if (error) {
+      return say(
+        signIn.twoFactor === 'enroll'
+          ? 'That code did not match. If you scanned this page before it last reloaded, that key no longer works: delete the old Shape entry in your app and scan the code above.'
+          : 'That code did not match. Codes change every 30 seconds; enter the one showing now.',
+        400
+      );
+    }
     return NextResponse.json({ ok: true }, { headers: NO_STORE });
   }
 

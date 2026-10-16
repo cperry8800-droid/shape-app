@@ -92,9 +92,16 @@ export default function StaffTwoFactor({ mode, next }: { mode: Mode; next: strin
             1Password, Authy, or your phone&apos;s built-in one):
           </p>
           <ol className="list-decimal pl-5 flex flex-col gap-1 text-neutral-400">
-            <li>Scan this code with the app, or type the key below into it.</li>
-            <li>Enter the 6-digit code the app shows.</li>
+            <li>Open the app and scan this code from inside it, or type the key below into it.</li>
+            <li>Enter the 6-digit code the app shows for Shape.</li>
           </ol>
+          {/* The iPhone camera hands an authenticator QR code to Apple's Passwords app whatever
+              app the staff member meant to use (owner, 2026-10-16), and a reload enrolls a new key. */}
+          <p className="text-xs text-neutral-500">
+            Scanning with the iPhone camera adds Shape to the Passwords app instead. That works too: open Passwords, go to Codes,
+            and enter the code shown for Shape. This page makes a new key each time it loads, so after a reload, delete the old
+            Shape entry and scan again.
+          </p>
           {qr ? (
             <div className="flex flex-col items-start gap-3">
               {/* eslint-disable-next-line @next/next/no-img-element -- an inline SVG data URL from Supabase */}
