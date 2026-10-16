@@ -119,7 +119,8 @@ planned builds.
 - Set up Firebase and APNs for push (0 push devices in production), then a device
   pass of a native build. That pass includes MusicKit sign-in inside
   SFSafariViewController and Chrome Custom Tabs.
-- Decide whether a member can have two coaches of the same role.
+- Run `supabase-migrations/2026-10-16-client-coaches.sql` (#2384: a member's coaches,
+  for the care team and the shared week-one target).
 - Decide what happens when a buyer pays an open checkout from another tab
   (closing it means refunds).
 - In-app purchase outside the US (Phase 2) is on hold.
@@ -143,6 +144,10 @@ planned builds.
 
 **Known gaps**
 - `get_display_names` returns a full name and photo for any id, whoever asks.
+- A member may pay two coaches of one role, sharing one section per discipline (#2384).
+  Nora's member read, the calendar and the prep-reminder cron still read only the
+  newest published meal plan, and the coach Shared clients roster is trainer to
+  nutritionist only.
 - A subscription to a coach who is later suspended keeps renewing.
 - The `?error=` redirects from `/purchase` and `/subscribe` are never shown.
 - `checkin_submitted` is a switch nothing writes.
