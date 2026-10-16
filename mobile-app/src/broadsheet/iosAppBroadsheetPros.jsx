@@ -4548,7 +4548,10 @@ function BSProOnboardingStation({ ob, role, clientUid, first, heat, t, onSayHell
 }
 
 // ⚠ A BOARD THAT COULD NOT BE READ STAYS ON THE PAGE (Codex on #2378): the station rendered only
-// with a board, so a failed overview read hid a new client's first 30 days, as if they had none.
+// with a board, so a failed overview read hid a new client's first 30 days, as if they had none. The
+// roster's join date is the same subscription the overview reads, so inside the 30 days a missing
+// board is a failed read, whether the request failed or answered without one (its subscriptions read
+// failed), as on the website's New clients tab.
 function BSProOnboardingUnread({ day, heat, t, busy, onRetry }) {
   const mono = { fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase' };
   return (
@@ -4664,8 +4667,8 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   // The onboarding board for this client in their first 30 days with this coach (fix 4), from the
   // same overview; null otherwise.
   const [onboard, setOnboard] = useStateBSP(null);
-  // Whether the overview answered: 'loading' | 'ok' | 'failed' (getCareTeamOverview answers null on a
-  // failed read). A failed one keeps the station up for a client inside their 30 days.
+  // Whether the overview has answered: 'loading' | 'ok' | 'failed' (getCareTeamOverview answers null
+  // on a failed read). Once it has, a client inside their 30 days with no board gets the unread station.
   const [onboardRead, setOnboardRead] = useStateBSP('loading');
   const [onboardRetrying, setOnboardRetrying] = useStateBSP(false);
   // ⚠ A FAILED care-team read is NOT an empty care team, and the two must not render alike.
@@ -5880,7 +5883,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
       {clientUid && onboard && (
         <BSProOnboardingStation ob={onboard} role={role} clientUid={clientUid} first={String(client?.n || client?.name || '').split(' ')[0]} heat={heat} t={t} onSayHello={() => fireEvt('shape:proMessageClient')} onSaved={reloadOnboard} />
       )}
-      {clientUid && !onboard && onboardRead === 'failed' && onboardUnreadDay != null && (
+      {clientUid && !onboard && onboardRead !== 'loading' && onboardUnreadDay != null && (
         <BSProOnboardingUnread day={onboardUnreadDay} heat={heat} t={t} busy={onboardRetrying} onRetry={retryOnboard} />
       )}
 

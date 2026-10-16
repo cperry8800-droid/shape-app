@@ -722,10 +722,11 @@ test('the app keeps the first-30-days station up when the board cannot be read (
   assert.equal(api.bsOnboardDayOf(null, NOW), null, 'a booking-only client has no start');
   assert.equal(api.bsOnboardDayOf(new Date(NOW + DAY).toISOString(), NOW), null);
 
-  // The page: a failed overview keeps the station, as unread, with Retry.
+  // The page: a failed overview, or one that answered without this coach's board, keeps the station
+  // inside the 30 days, as unread, with Retry; it waits while the read is out.
   assert.match(pros, /setOnboard\(bsOnboardingFor\(d, role\)\); setOnboardRead\(d \? 'ok' : 'failed'\);/, 'the overview answers null on a failed read');
   assert.match(pros, /\.catch\(\(\) => \{ if \(!ignore\) \{ setCarePartial\(true\); setOnboardRead\('failed'\);/);
-  assert.match(pros, /\{clientUid && !onboard && onboardRead === 'failed' && onboardUnreadDay != null && \(\n\s+<BSProOnboardingUnread day=\{onboardUnreadDay\} heat=\{heat\} t=\{t\} busy=\{onboardRetrying\} onRetry=\{retryOnboard\} \/>/);
+  assert.match(pros, /\{clientUid && !onboard && onboardRead !== 'loading' && onboardUnreadDay != null && \(\n\s+<BSProOnboardingUnread day=\{onboardUnreadDay\} heat=\{heat\} t=\{t\} busy=\{onboardRetrying\} onRetry=\{retryOnboard\} \/>/);
   assert.match(pros, /const onboardUnreadDay = bsOnboardDayOf\(client && client\.joinedAt\);/);
   assert.match(pros, /if \(d\) \{ setOnboard\(bsOnboardingFor\(d, role\)\); setOnboardRead\('ok'\); \}/, 'a retry that reads shows the board');
 
