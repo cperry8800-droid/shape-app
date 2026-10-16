@@ -6,7 +6,8 @@ correction under it.
 
 There is **no changelog**. The PR description records what shipped, and `git log`
 covers the rest. Everything written here before 2026-10-16 is in the archives (see
-History at the end).
+History at the end). `tests/worklog-rules.test.mjs` fails if a dated entry comes
+back or the file grows past 20 KB.
 
 ## How we work
 
