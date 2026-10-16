@@ -35,7 +35,10 @@ import { isEffectivelyAtCapacity } from '@/lib/capacity';
 import { isMissingRelation } from '@/lib/owned-provider';
 import { resolveRequestClient } from '@/lib/waitlist';
 import { instantInZone, normalizeZone, wallClockInZone } from '@/lib/time';
-import { tellWaitingList } from '@/lib/capacity-reopen';
+import { finishReopening, tellWaitingList } from '@/lib/capacity-reopen';
+
+// How long a reopening request spends telling the list before leaving the rest to the hourly job.
+const REOPEN_REQUEST_BUDGET_MS = 15_000;
 
 export const dynamic = 'force-dynamic';
 
@@ -212,11 +215,20 @@ export async function POST(request: Request) {
   }
 
   // The intro setting alone: the listing is left as it is.
+  // ⚠ A REOPENING STAYS DUE UNTIL ITS LIST IS TOLD (Codex on #2375, P1). Switching the listing off
+  // and then telling the list lost everyone after the point a request was cut off. A reopening is
+  // written as at capacity with a resume date of now, which members already meet as open; it is
+  // switched off only once the list has been told, and if this request stops first, the hourly
+  // /api/cron/capacity-reopen finds it due and carries on (src/lib/capacity-reopen.ts).
+  const reopening = atCapacity === false && isEffectivelyAtCapacity(before);
+  const dueAt = new Date().toISOString();
   let after: Listing = before;
   if (atCapacity !== undefined) {
     const { data, error: updErr } = await db.supabase
       .from(tableOf(role))
-      .update({ at_capacity: atCapacity, capacity_resume_at: atCapacity ? resumeAt : null })
+      .update(reopening
+        ? { at_capacity: true, capacity_resume_at: dueAt }
+        : { at_capacity: atCapacity, capacity_resume_at: atCapacity ? resumeAt : null })
       .eq('id', before.id)
       .eq('owner_id', db.user.id)
       .select('id, name, at_capacity, capacity_resume_at, timezone')
@@ -234,11 +246,17 @@ export async function POST(request: Request) {
     after = data as Listing;
   }
 
-  // Reopened: tell everyone still waiting (best-effort; the change is already saved).
+  // Reopened: tell everyone still waiting, then switch the listing off. Best effort: the listing is
+  // already open to members, and whatever this request does not finish, the hourly job does.
   let notified = 0;
-  if (isEffectivelyAtCapacity(before) && !isEffectivelyAtCapacity(after)) {
+  if (reopening) {
     try {
-      notified = await tellWaitingList(createAdminClient(), createPreferredNotification, role, before.id, after.name);
+      const admin = createAdminClient();
+      const told = await tellWaitingList(admin, createPreferredNotification, role, before.id, after.name, dueAt.slice(0, 10), Date.now() + REOPEN_REQUEST_BUDGET_MS);
+      notified = told.sent;
+      if (told.complete && await finishReopening(admin, role, before.id, dueAt)) {
+        after = { ...after, at_capacity: false, capacity_resume_at: null };
+      }
     } catch (err) {
       console.error('[coach capacity] reopening notice failed', err instanceof Error ? err.message : err);
     }

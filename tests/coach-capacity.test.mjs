@@ -177,10 +177,16 @@ test('POST: pauses the listing for its role, through the coach\'s own client, wi
   // No listing of that role.
   assert.equal((await call('POST', { body: { role: 'nutritionist', atCapacity: true } })).status, 404);
   assert.equal((await call('POST', { user: null, body: { role: 'trainer', atCapacity: true } })).status, 401);
-  // Reopening clears the resume date.
+  // Reopening clears the resume date: first due now, under the coach's own client, then switched off
+  // once the list is told (Codex on #2375, P1).
   const paused = world({ trainers: [{ id: 7, owner_id: COACH, name: 'Tom', at_capacity: true, capacity_resume_at: '2026-11-01T00:00:00Z' }], coach_waitlist: [] });
   const open = await call('POST', { tables: paused, body: { role: 'trainer', atCapacity: false, resumeAt: '2026-11-05T00:00:00Z' } });
-  assert.deepEqual(open.writes.find((w) => w.op === 'update').payload, { at_capacity: false, capacity_resume_at: null });
+  assert.deepEqual(open.writes.filter((w) => w.op === 'update').map((w) => [w.by, w.payload]), [
+    ['caller', { at_capacity: true, capacity_resume_at: new Date(NOW).toISOString() }],
+    ['service', { at_capacity: false, capacity_resume_at: null }],
+  ]);
+  assert.deepEqual([paused.trainers[0].at_capacity, paused.trainers[0].capacity_resume_at], [false, null]);
+  assert.equal(open.body.listing.atCapacity, false);
 });
 
 test('POST: a resume day starts at midnight on the coach\'s own clock, never the browser\'s (Codex on #2375)', async () => {
@@ -266,7 +272,7 @@ test('the hourly job reopens a coach whose resume date passed and tells their li
   const notices = [];
   const notify = async (_c, n) => { notices.push(n); return true; };
   const out = await reopen.reopenDueListings(admin, notify, NOW);
-  assert.deepEqual(out, { reopened: 2, notified: 2, failed: 0 });
+  assert.deepEqual(out, { reopened: 2, notified: 2, pending: 0, failed: 0 });
   assert.deepEqual([tables.trainers[0].at_capacity, tables.trainers[0].capacity_resume_at], [false, null], 'the passed date is switched off');
   assert.deepEqual([tables.trainers[1].at_capacity, tables.trainers[2].at_capacity], [true, true], 'a date ahead, or no date, is left alone');
   assert.equal(tables.nutritionists[0].at_capacity, false, 'a date long past is switched off too');
@@ -277,11 +283,72 @@ test('the hourly job reopens a coach whose resume date passed and tells their li
   assert.deepEqual(upd.filters.map(([k, v]) => [k, v]), [['id', 7], ['at_capacity', true], ['capacity_resume_at', '2026-10-15T04:00:00+00:00']]);
   // A second run finds nothing to do and tells nobody again.
   notices.length = 0;
-  assert.deepEqual(await reopen.reopenDueListings(admin, notify, NOW), { reopened: 0, notified: 0, failed: 0 });
+  assert.deepEqual(await reopen.reopenDueListings(admin, notify, NOW), { reopened: 0, notified: 0, pending: 0, failed: 0 });
   assert.equal(notices.length, 0);
   // A read that fails is counted, and the other role still runs.
   const broken = await reopen.reopenDueListings(fakeDb(world(), { fail: { trainers: { code: 'XX000', message: 'down' } } }), notify, NOW);
   assert.equal(broken.failed, 1);
+});
+
+// ⚠ CODEX ON #2375 (P1): the listing was switched off before its list was told, so a run cut off
+// mid-list left the rest untold for good. A listing now stays due until everyone is told.
+const waiting = (n, provider = 7) => Array.from({ length: n }, (_, i) => ({ id: `w${i}`, provider_role: 'trainer', provider_id: provider, client_id: `m${i}`, status: 'waiting', created_at: `2026-10-${String(i + 1).padStart(2, '0')}` }));
+// A notice writer that stores what it sends where the next run's skip read looks for it.
+const storingNotify = (tables, sent) => async (_c, n) => {
+  sent.push(n.userId);
+  (tables.notifications ||= []).push({ user_id: n.userId, type: n.type, 'data->>dedupe': n.data.dedupe });
+  return true;
+};
+
+test('the hourly job: a run cut off mid-list leaves the listing due, and the next run tells only the rest (Codex on #2375)', async () => {
+  const { reopen } = await load();
+  const tables = world({
+    trainers: [{ id: 7, owner_id: COACH, name: 'Tom', at_capacity: true, capacity_resume_at: '2026-10-15T04:00:00+00:00' }],
+    coach_waitlist: waiting(12),
+  });
+  const admin = fakeDb(tables, { as: 'service' });
+  const sent = [];
+  const store = storingNotify(tables, sent);
+  // The first run's deadline passes after its first batch of ten.
+  let calls = 0;
+  const realNow = Date.now;
+  const cut = async (c, n) => { if (++calls === 10) Date.now = () => Number.MAX_SAFE_INTEGER - 1; return store(c, n); };
+  let first;
+  try { first = await reopen.reopenDueListings(admin, cut, NOW, realNow() + 60_000); } finally { Date.now = realNow; }
+  assert.deepEqual(first, { reopened: 0, notified: 10, pending: 1, failed: 0 });
+  assert.deepEqual([tables.trainers[0].at_capacity, tables.trainers[0].capacity_resume_at], [true, '2026-10-15T04:00:00+00:00'], 'still due');
+  // The next run finds it, tells the two left (not the ten again), and switches it off.
+  const second = await reopen.reopenDueListings(admin, store, NOW + 3_600_000);
+  assert.deepEqual(second, { reopened: 1, notified: 2, pending: 0, failed: 0 });
+  assert.deepEqual(sent.slice(10).sort(), ['m10', 'm11']);
+  assert.equal(new Set(sent).size, 12, 'nobody told twice');
+  assert.equal(tables.trainers[0].at_capacity, false);
+  // A run whose deadline has already passed starts nothing and leaves the listing due.
+  const later = world({ trainers: [{ id: 7, owner_id: COACH, name: 'Tom', at_capacity: true, capacity_resume_at: '2026-10-15T04:00:00+00:00' }] });
+  const none = [];
+  assert.deepEqual(await reopen.reopenDueListings(fakeDb(later, { as: 'service' }), storingNotify(later, none), NOW, 0), { reopened: 0, notified: 0, pending: 1, failed: 0 });
+  assert.equal(later.trainers[0].at_capacity, true);
+  assert.equal(none.length, 0);
+  // A waiting list that cannot be read leaves it due too.
+  const unread = world({ trainers: [{ id: 7, owner_id: COACH, name: 'Tom', at_capacity: true, capacity_resume_at: '2026-10-15T04:00:00+00:00' }] });
+  const r = await reopen.reopenDueListings(fakeDb(unread, { as: 'service', fail: { coach_waitlist: { code: 'XX000', message: 'down' } } }), storingNotify(unread, []), NOW);
+  assert.equal(r.pending, 1);
+  assert.equal(unread.trainers[0].at_capacity, true);
+});
+
+test('POST: a reopening cut off before its list is told stays due for the hourly job (Codex on #2375)', async () => {
+  const tables = world({ trainers: [{ id: 7, owner_id: COACH, name: 'Tom Trainer', at_capacity: true, capacity_resume_at: null }] });
+  // The waiting list cannot be read in the request: members still meet an open coach, and nothing is lost.
+  const r = await call('POST', { tables, body: { role: 'trainer', atCapacity: false }, fail: { coach_waitlist: { code: 'XX000', message: 'down' } } });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(r.body.listing.effective, false, 'open to members now');
+  assert.deepEqual([tables.trainers[0].at_capacity, tables.trainers[0].capacity_resume_at], [true, new Date(NOW).toISOString()], 'left due');
+  const { reopen } = await load();
+  const sent = [];
+  const out = await reopen.reopenDueListings(fakeDb(tables, { as: 'service' }), storingNotify(tables, sent), NOW + 3_600_000);
+  assert.deepEqual(out, { reopened: 1, notified: 2, pending: 0, failed: 0 });
+  assert.deepEqual(sent.sort(), ['m1', 'm2']);
+  assert.equal(tables.trainers[0].at_capacity, false);
 });
 
 test('the hourly job: its route needs the cron secret, and it is scheduled and registered', async () => {

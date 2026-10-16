@@ -1,11 +1,19 @@
 // A coach's reopening, and telling their waiting list (client-onboarding task #10).
 //
 // Two ways a coach goes from at capacity to accepting, and both tell everyone still waiting:
-//   · they switch it off (POST /api/coach/capacity calls tellWaitingList);
+//   · they switch it off (POST /api/coach/capacity tells the list, then calls finishReopening);
 //   · the resume date they set passes. ⚠ NOTHING WROTE AT THAT MOMENT (Codex on #2375), so members
 //     on the list of a coach who picked a date never heard the coach reopened. The hourly
 //     /api/cron/capacity-reopen runs reopenDueListings: it switches each listing whose date has
 //     passed off, and tells its list.
+//
+// ⚠ THE LIST IS TOLD BEFORE THE LISTING STOPS BEING DUE (Codex on #2375, P1). The listing used to be
+// switched off first and the list told after, in up to 50 batches; a run cut off by its time limit
+// left the rest untold, and no later run could find the listing again. Now a listing stays due
+// (at capacity, with a resume date that has passed, which members already meet as open) until
+// every waiting member has been told, and only then is switched off. A run that stops early, at its
+// own deadline or killed, leaves it due, and the next run carries on: members already holding the
+// day's notice are skipped (and the notifications dedupe index refuses a second one anyway).
 //
 // The service-role client and the notice writer are passed in, so the route and the cron share one
 // copy and the tests drive it with recorded fakes.
@@ -20,6 +28,8 @@ export const NOTIFY_MAX = 500;
 export const REOPEN_BATCH = 200;
 /** A date that passed longer ago than this is switched off without a notice: news that old is not. */
 export const REOPEN_NOTICE_DAYS = 7;
+/** How long one cron run spends telling lists, inside its 60-second limit. */
+export const REOPEN_BUDGET_MS = 45_000;
 
 type Notice = {
   userId: string;
@@ -35,7 +45,16 @@ function tableOf(role: CapacityRole) {
   return role === 'trainer' ? 'trainers' : 'nutritionists';
 }
 
-/** Tell every member still waiting that the coach is taking new clients. Best effort: answers how many were told. */
+/** The dedupe key of one reopening's notices: one per coach, role and day. */
+export function reopenKey(role: CapacityRole, providerId: number, day: string) {
+  return `reopen:${role}:${providerId}:${day}`;
+}
+
+/**
+ * Tell every member still waiting that the coach is taking new clients, skipping anyone already told
+ * this reopening. Best effort per member. `complete` is false when the list could not be read or the
+ * deadline came before everyone was reached: the caller keeps the listing due so a later run finishes.
+ */
 export async function tellWaitingList(
   admin: SupabaseClient,
   notify: NotifyFn,
@@ -43,7 +62,8 @@ export async function tellWaitingList(
   providerId: number,
   name: string | null,
   day: string = new Date().toISOString().slice(0, 10),
-): Promise<number> {
+  deadlineMs: number = Infinity,
+): Promise<{ sent: number; complete: boolean }> {
   try {
     const { data, error } = await admin
       .from('coach_waitlist')
@@ -57,42 +77,86 @@ export async function tellWaitingList(
       .limit(NOTIFY_MAX);
     if (error) {
       console.error('[coach capacity] waiting list read failed', error.message);
-      return 0;
+      return { sent: 0, complete: false };
     }
+    const dedupe = reopenKey(role, providerId, day);
+    let rows = (data ?? []) as { client_id: string }[];
+    // Who an earlier, cut-off run already told. A failed read skips nobody: the dedupe index still
+    // refuses a second notice, so the cost is only time.
+    const told = new Set<string>();
+    for (let i = 0; i < rows.length; i += 100) {
+      const ids = rows.slice(i, i + 100).map((r) => r.client_id);
+      const { data: seen, error: seenErr } = await admin
+        .from('notifications')
+        .select('user_id')
+        .eq('type', 'waitlist_invite')
+        .eq('data->>dedupe', dedupe)
+        .in('user_id', ids);
+      if (seenErr) break;
+      for (const r of (seen ?? []) as { user_id: string }[]) told.add(r.user_id);
+    }
+    rows = rows.filter((r) => !told.has(r.client_id));
     const coach = (name || '').trim() || 'A coach you waited for';
     let sent = 0;
-    const rows = (data ?? []) as { client_id: string }[];
     for (let i = 0; i < rows.length; i += 10) {
+      if (Date.now() >= deadlineMs) return { sent, complete: false };
       const batch = await Promise.all(rows.slice(i, i + 10).map((w) => notify(admin, {
         userId: w.client_id,
         type: 'waitlist_invite',
         title: `${coach} is taking new clients`,
         body: 'You were on their waiting list. Their spots are open now, first come first served.',
         route: `coach:${role}:${providerId}`,
-        data: { providerRole: role, providerId, reopened: true, dedupe: `reopen:${role}:${providerId}:${day}` },
+        data: { providerRole: role, providerId, reopened: true, dedupe },
       })));
       sent += batch.filter(Boolean).length;
     }
-    return sent;
+    return { sent, complete: true };
   } catch (err) {
     console.error('[coach capacity] reopening notice failed', err instanceof Error ? err.message : err);
-    return 0;
+    return { sent: 0, complete: false };
   }
 }
 
 /**
- * Switch off every listing whose resume date has passed, and tell its waiting list. Each listing is
- * switched off only if it still holds the date that was read, so a coach who changed it meanwhile is
- * left alone, and two overlapping runs tell a list once.
+ * Switch a due listing off once its list has been told: only while it still holds the date it was
+ * due on, so a coach who changed it meanwhile is left alone and two overlapping runs switch it once.
+ * Answers true when this call switched it, null when the write failed.
+ */
+export async function finishReopening(
+  admin: SupabaseClient,
+  role: CapacityRole,
+  providerId: number,
+  dueAt: string,
+): Promise<boolean | null> {
+  const { data, error } = await admin
+    .from(tableOf(role))
+    .update({ at_capacity: false, capacity_resume_at: null })
+    .eq('id', providerId)
+    .eq('at_capacity', true)
+    .eq('capacity_resume_at', dueAt)
+    .select('id');
+  if (error) {
+    console.error('[capacity reopen] update failed', role, providerId, error.message);
+    return null;
+  }
+  return Array.isArray(data) && data.length > 0;
+}
+
+/**
+ * Tell the list of every listing whose resume date has passed, then switch it off. A listing whose
+ * list was not all told by `deadlineMs` stays due for the next run (`pending`), and once the
+ * deadline passes no further listing is started.
  */
 export async function reopenDueListings(
   admin: SupabaseClient,
   notify: NotifyFn,
   nowMs: number = Date.now(),
-): Promise<{ reopened: number; notified: number; failed: number }> {
+  deadlineMs: number = Date.now() + REOPEN_BUDGET_MS,
+): Promise<{ reopened: number; notified: number; pending: number; failed: number }> {
   const nowIso = new Date(nowMs).toISOString();
   let reopened = 0;
   let notified = 0;
+  let pending = 0;
   let failed = 0;
   for (const role of ['trainer', 'nutritionist'] as CapacityRole[]) {
     const { data, error } = await admin
@@ -110,25 +174,17 @@ export async function reopenDueListings(
     }
     for (const row of (data ?? []) as { id: number; name: string | null; capacity_resume_at: string | null }[]) {
       if (!row.capacity_resume_at) continue;
-      const { data: done, error: updErr } = await admin
-        .from(tableOf(role))
-        .update({ at_capacity: false, capacity_resume_at: null })
-        .eq('id', row.id)
-        .eq('at_capacity', true)
-        .eq('capacity_resume_at', row.capacity_resume_at)
-        .select('id');
-      if (updErr) {
-        console.error('[capacity reopen] update failed', role, row.id, updErr.message);
-        failed++;
-        continue;
-      }
-      if (!Array.isArray(done) || done.length === 0) continue; // changed meanwhile, or another run took it
-      reopened++;
+      if (Date.now() >= deadlineMs) { pending++; continue; }
       const resumeMs = Date.parse(row.capacity_resume_at);
       if (Number.isFinite(resumeMs) && nowMs - resumeMs <= REOPEN_NOTICE_DAYS * 86_400_000) {
-        notified += await tellWaitingList(admin, notify, role, row.id, row.name, new Date(resumeMs).toISOString().slice(0, 10));
+        const told = await tellWaitingList(admin, notify, role, row.id, row.name, new Date(resumeMs).toISOString().slice(0, 10), deadlineMs);
+        notified += told.sent;
+        if (!told.complete) { pending++; continue; }   // still due: the next run carries on
       }
+      const done = await finishReopening(admin, role, row.id, row.capacity_resume_at);
+      if (done === null) failed++;
+      else if (done) reopened++;
     }
   }
-  return { reopened, notified, failed };
+  return { reopened, notified, pending, failed };
 }
