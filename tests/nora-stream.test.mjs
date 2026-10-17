@@ -357,8 +357,9 @@ test('a thread loaded through the website cookie names its account; refused as a
     e.render();
     assert.equal(composer(e).props.value, 'and tomorrow?', 'what they typed goes back in the box');
     assert.deepEqual(toasts, [["You're signed in as another account now. Open the conversation again.", 'err']]);
-    // Signed in with the app's own token, nothing is named: the token is the account, even
-    // before the sheet has noticed the sign-in and let go of the cookie's thread.
+    // Signed in with the app's own account, the question names that account: a token that is
+    // someone else's by the time it goes is refused the same way (the hosted /m/ app shares its
+    // sign-in across tabs).
     window.ShapeAuth = { getCachedState: () => ({ user: { id: 'u1' } }) };
     asked.length = 0;
     window.ShapeSupport.ask = async (hist, tone, extra) => { asked.push(extra.account); return { reply: 'ok', actions: [] }; };
@@ -367,7 +368,7 @@ test('a thread loaded through the website cookie names its account; refused as a
     f.render();
     sheet._bsNoraMarkSynced('anon', 'acct-A');
     await composer(f).props.onSend();
-    assert.deepEqual(asked, [null]);
+    assert.deepEqual(asked, ['u1'], 'the account it was drawn for, not the cookie account');
   } finally { delete window.ShapeSupport; delete window.ShapeAuth; delete window.__bsToast; sheet._bsNoraForget(); reset(); }
 });
 

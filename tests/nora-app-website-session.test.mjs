@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { loadBroadsheet, SRC } from './helpers/broadsheet-mount.mjs';
 
-const B = await loadBroadsheet(['_bsNoraSave', '_bsNoraMarkSynced', '_bsNoraForget', '_bsNoraPublish', '_bsNoraSubs', '_bsNoraGen']);
+const B = await loadBroadsheet(['_bsNoraSave', '_bsNoraMarkSynced', '_bsNoraForget', '_bsNoraPublish', '_bsNoraSubs', '_bsNoraGen', '_bsNoraAccount', 'BSNoraSheet']);
 const { _bsNoraSave, _bsNoraMarkSynced, _bsNoraForget } = B;
 
 const sent = [];
@@ -51,10 +51,42 @@ test('held while the store could not answer: an exchange answered as another acc
   assert.ok(sent.every((m) => !('_as' in m)), 'the held mark is not sent');
 });
 
-test('app signed in: appended as said, as before, with no account named (the token is the account)', () => {
+test('app signed in: appended as said, naming the account; one answered as another account is not kept (Codex on #2393)', () => {
   const appended = world('u1');
   _bsNoraSave([msg('hello')]);
-  assert.deepEqual(appended, [{ texts: ['hello'], account: null }]);
+  _bsNoraSave([msg('answered as u1')], 'u1');
+  // The app's own account changed in another tab while she answered: the exchange was another account's.
+  _bsNoraSave([msg('answered as u0')], 'u0');
+  assert.deepEqual(appended, [{ texts: ['hello'], account: 'u1' }, { texts: ['answered as u1'], account: 'u1' }]);
+});
+
+test('said before signing in, then the store answers for the app account: sent naming that account', () => {
+  const appended = world(null);
+  _bsNoraSave([msg('asked as a visitor')], null);
+  window.ShapeAuth = { getCachedState: () => ({ user: { id: 'u1' } }) };
+  _bsNoraMarkSynced('u1', 'u1');
+  assert.deepEqual(appended, [{ texts: ['asked as a visitor'], account: 'u1' }]);
+});
+
+test('whose conversation the sheet holds: the app account it was drawn for, else the cookie account it loaded as', async () => {
+  const { drive } = await import('./helpers/broadsheet-mount.mjs');
+  globalThis.document = globalThis.document || { getElementById: () => null, body: {} };
+  world(null);
+  const draw = () => drive(B.BSNoraSheet, { onClose: () => {} });
+  draw();
+  assert.equal(B._bsNoraAccount(), null, 'a visitor: none');
+  _bsNoraMarkSynced('anon', 'acct-A');
+  assert.equal(B._bsNoraAccount(), 'acct-A', 'loaded through the cookie: the account it loaded as');
+  // The app signs in elsewhere: until the sheet is drawn again, it still holds the cookie account's.
+  window.ShapeAuth = { getCachedState: () => ({ user: { id: 'u1' } }) };
+  assert.equal(B._bsNoraAccount(), 'acct-A');
+  draw();
+  assert.equal(B._bsNoraAccount(), 'u1', 'drawn for the app account: that account');
+  _bsNoraMarkSynced('u1', 'u1');
+  window.ShapeAuth = { getCachedState: () => ({ user: { id: 'u2' } }) };
+  assert.equal(B._bsNoraAccount(), 'u1', 'the app account changed in another tab: still the one it was drawn for');
+  window.ShapeAuth = { getCachedState: () => ({ user: null }) };
+  draw();
 });
 
 test('the cookie changed account: the write is refused, the sheet starts again, and holds what is said next', async () => {

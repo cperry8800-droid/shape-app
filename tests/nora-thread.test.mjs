@@ -250,11 +250,12 @@ test('app: loads once a session into an untouched thread, appends what it said, 
   assert.match(sheet, /if \(!Array\.isArray\(list\)\) \{ _bsNoraLoaded = null; return; \}\n\s+_bsNoraMarkSynced\(who, r\.account\);\n\s+setPersonSynced\(true\);/);
   // A reopen through the cookie that finds another account, or none, starts again (Codex on #2393).
   assert.match(sheet, /if \(who === 'anon' && r && \(r\.signedOut \|\| \(r\.account && _bsNoraCookie && r\.account !== _bsNoraCookie\)\)\) \{\n\s+_bsNoraForget\(\);\n\s+if \(!r\.signedOut\) firstLoad\(\);\n\s+return;\n\s+\}/);
-  // "Talk to a person" through the cookie names the account too, and a refusal starts again.
-  assert.match(sheet, /const account = _bsNoraWho\(\) === 'anon' \? _bsNoraCookie : null;\n\s+const r = await window\.ShapeSupport\.talkToPerson\(\{ question, surface: 'app', page: _bsNoraOpen\.page \|\| null, account \}\)/);
+  // "Talk to a person" names the account the conversation belongs to, and a refusal starts again.
+  assert.match(sheet, /const account = _bsNoraAccount\(\);\n\s+const r = await window\.ShapeSupport\.talkToPerson\(\{ question, surface: 'app', page: _bsNoraOpen\.page \|\| null, account \}\)/);
   assert.match(sheet, /if \(r && r\.code === 'account_changed'\) \{\n\s+setPersonForm\(null\);\n\s+_bsNoraForget\(\);/);
-  // Through the cookie, Clear clears as the account the thread loaded as (Codex on #2393).
-  assert.match(between(sheet, 'const clearThread = async () => {', 'if (!ok) window.__bsToast'), /if \(anon && !\(_bsNoraSynced === 'anon' && _bsNoraCookie\)\) return;\n\s+const ok = await window\.ShapeSupport\.thread\.clear\(anon \? \{ account: _bsNoraCookie \} : undefined\);\n\s+if \(ok === 'account_changed'\) \{ _bsNoraForget\(\); return; \}/);
+  // Clear clears as the account the conversation belongs to, and with nothing loaded through the
+  // cookie there is nothing stored to clear (Codex on #2393).
+  assert.match(between(sheet, 'const clearThread = async () => {', 'if (!ok) window.__bsToast'), /const account = _bsNoraAccount\(\);\n\s+if \(!account\) return;\n\s+const ok = await window\.ShapeSupport\.thread\.clear\(\{ account \}\);\n\s+if \(ok === 'account_changed'\) \{ _bsNoraForget\(\); return; \}/);
   // ⚠ CLEAR WHILE SHE ANSWERS (Codex, #2255), in the sheet and in Settings.
   assert.match(between(sheet, 'const clearThread = async () => {', 'const ok = await'), /_bsNoraGen \+= 1;/);
   assert.match(sheet, /const gen = _bsNoraGen;[\s\S]{0,1200}if \(gen !== _bsNoraGen\) return null;\n\s+\/\/ Refused as another account[^\n]*\n\s+if \(res && res\.accountChanged\) \{[^}]*\}\n\s+const reply =/);
