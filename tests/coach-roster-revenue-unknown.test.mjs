@@ -134,11 +134,10 @@ for (const role of ['trainer', 'nutritionist']) {
     // …and every subscription-derived figure it publishes goes null when it fired.
     assert.match(src, /mrrGrossCents: subsUnknown \? null : grossCents,/);
     assert.match(src, /mrrNetCents: subsUnknown \? null : netCents,/);
-    // The trainer route counts each client once (one client can hold two active rows, Codex on
-    // #2324); the nutritionist route still counts rows. Either goes null on a failed read.
-    assert.match(src, role === 'trainer'
-      ? /const activeClients = subsUnknown \? null : clientIds\.length;/
-      : /const activeClients = subsUnknown \? null : subs\.length;/);
+    // Both routes count each client once (one client can hold two active rows: Codex on #2324 for
+    // the trainer route, the Business review of 2026-10-17 for the nutritionist's). Either goes
+    // null on a failed read.
+    assert.match(src, /const activeClients = subsUnknown \? null : clientIds\.length;/);
     // ⚠ AND NOTHING STILL PUBLISHES THE RAW ROW COUNT. `activeClients: subs.length`
     // appeared THREE times — metrics, clientProgress and ticker — so fixing one
     // and leaving two would have left the same zero on two surfaces.
