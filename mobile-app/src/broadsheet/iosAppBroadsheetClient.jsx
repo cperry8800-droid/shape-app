@@ -1930,12 +1930,16 @@ const BS_COOK_CHOICE = { SOONEST: 'soonest', SERVE: 'serve', SEQUENCE: 'sequence
 
 const BS_KITCHEN_KEY = 'shape.cook.kitchen';
 const BS_KITCHEN_MAX = 8;
+// How many people are cooking. Two cooks can both have hands-on work at the same moment, so
+// "ready together" stops being refused for the one-pair-of-hands reason. Capped at what the
+// planner models (`COOKS_MAX` in cookOrchestrator.mjs).
+const BS_COOKS_MAX = 4;
 function bsCookKitchenRead() {
   try {
     const raw = JSON.parse((window.localStorage && window.localStorage.getItem(BS_KITCHEN_KEY)) || 'null');
-    const num = (v, d) => (typeof v === 'number' && Number.isFinite(v) && v >= 1 ? Math.min(BS_KITCHEN_MAX, Math.floor(v)) : d);
-    return { stove: num(raw && raw.stove, 1), oven: num(raw && raw.oven, 1), board: num(raw && raw.board, 1) };
-  } catch (e) { return { stove: 1, oven: 1, board: 1 }; }
+    const num = (v, d, max = BS_KITCHEN_MAX) => (typeof v === 'number' && Number.isFinite(v) && v >= 1 ? Math.min(max, Math.floor(v)) : d);
+    return { stove: num(raw && raw.stove, 1), oven: num(raw && raw.oven, 1), board: num(raw && raw.board, 1), cooks: num(raw && raw.cooks, 1, BS_COOKS_MAX) };
+  } catch (e) { return { stove: 1, oven: 1, board: 1, cooks: 1 }; }
 }
 function bsCookKitchenWrite(k) {
   try { window.localStorage && window.localStorage.setItem(BS_KITCHEN_KEY, JSON.stringify(k)); } catch (e) {}
@@ -9678,6 +9682,7 @@ function bsCkModeCard({ key, sel, off = false, title, figure = null, sub, mini, 
 function bsCkKit({ tr, kitchen, max, onStation }) {
   const burners = Math.max(1, kitchen.stove || 1);
   const ovens = Math.max(1, kitchen.oven || 1);
+  const cooks = Math.max(1, kitchen.cooks || 1);
   const lbl = (s) => <span className="bsck-sr">{s}</span>;
   return (
     <div className="kit" role="group" aria-label={tr('cook:prep.kitchenAsk', { defaultValue: 'Your kitchen' })}>
@@ -9696,6 +9701,15 @@ function bsCkKit({ tr, kitchen, max, onStation }) {
         {ovens > 1
           ? <button type="button" onClick={() => onStation('oven', ovens - 1)}>{tr('cook:ck.lessOven', { defaultValue: '− Oven' })}</button>
           : <button type="button" disabled={ovens >= max} onClick={() => onStation('oven', ovens + 1)}>{tr('cook:ck.moreOven', { defaultValue: '+ Oven' })}</button>}
+      </div>
+      {/* Who is cooking. One person can only do one hands-on step at a time; two can overlap
+          them, which is what lets dishes land together. Remembered with the rest of the kitchen. */}
+      <div className="kh"><span>{cooks > 1
+        ? tr('cook:ck.cooksN', { defaultValue: '{n} people cooking', n: cooks })
+        : tr('cook:ck.cooksOne', { defaultValue: 'Just you cooking' })}</span></div>
+      <div className="kbtns">
+        <button type="button" disabled={cooks <= 1} onClick={() => onStation('cooks', cooks - 1)}>{tr('cook:ck.lessCook', { defaultValue: '− Cook' })}</button>
+        <button type="button" disabled={cooks >= BS_COOKS_MAX} onClick={() => onStation('cooks', cooks + 1)}>{tr('cook:ck.moreCook', { defaultValue: '+ Cook' })}</button>
       </div>
     </div>
   );
@@ -11060,8 +11074,15 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
   const { doc: myDoc } = useBSMyRecipes();
   const [resumeCandidate] = useStateBSC(() => bsReadBatch(window.localStorage, window.ShapeAuth?.getCachedState?.().user?.id || null));
   const [resuming, setResuming] = useStateBSC(null);
-  const [catalogOpen, setCatalogOpen] = useStateBSC(catalog);
+  // ⚠ THE WHOLE KITCHEN IS ON OFFER FROM "COOK WITH SOMETHING ELSE". Arriving with a
+  // dish (a seed) the member is choosing a partner for it, not planning a week: they were
+  // shown only the nutritionist's plan and their saved recipes, with the full catalog
+  // behind a small "Shape Kitchen" button below the fold, so it read as if the app had no
+  // other recipes. Open by default for a seeded session, and a typed search always
+  // reaches the whole catalog (`catalogOn`) so a recipe is never hidden by a closed list.
+  const [catalogOpen, setCatalogOpen] = useStateBSC(catalog || !!(seed && seed.cookable && (seed.cookable.steps || []).length));
   const [recipeQuery, setRecipeQuery] = useStateBSC('');
+  const catalogOn = catalogOpen || recipeQuery.trim().length > 0;
   const [stage, setStage] = useStateBSC('picker'); // picker | plan | mise | transition | cook | wrap
   // key -> servings (number). A seeded dish starts ticked — the member already
   // said they were cooking it by tapping its door, so making them tick it again
@@ -11177,13 +11198,13 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
         out.push({ key: 'lib-' + bsCookSlug(title), cookable: c, group: libGroup });
       });
     } catch (e) {}
-    if (catalogOpen) SHAPE_KITCHEN_RECIPES.forEach(r => {
+    if (catalogOn) SHAPE_KITCHEN_RECIPES.forEach(r => {
       if (seen.has(String(r.title).toLowerCase())) return;
       const c = bsCookableFromRecipe(r);
       if (c?.steps?.length) out.push({ key: 'catalog-' + bsCookSlug(r.title), cookable: c, group: 'Shape Kitchen' });
     });
     return out;
-  }, [program, myDoc, catalogOpen]);
+  }, [program, myDoc, catalogOn]);
 
   // The dish the member arrived with. Held to the SAME bar as every other
   // candidate — a real written method — because the whole session is built on
@@ -11310,7 +11331,7 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
   // is measured against the hob they actually have.
   const [kitchen, setKitchen] = useStateBSC(bsCookKitchenRead);
   const setStation = (st, n) => {
-    const next = { ...kitchen, [st]: Math.max(1, Math.min(BS_KITCHEN_MAX, n)) };
+    const next = { ...kitchen, [st]: Math.max(1, Math.min(st === 'cooks' ? BS_COOKS_MAX : BS_KITCHEN_MAX, n)) };
     setKitchen(next);
     bsCookKitchenWrite(next);
   };
@@ -11673,7 +11694,7 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
   );
   const pickExtras = (<>
     {candidates.length === 0 ? <p className="note">{tr('cook:prep.none', { defaultValue: 'Nothing prep-able yet — meals with a written method (or saved recipes) show up here.' })}</p> : null}
-    {!catalogOpen ? <button type="button" className="btn-q" onClick={() => setCatalogOpen(true)} style={{ alignSelf: 'flex-start' }}>{bsCkIco('plus', true)}{tr('cook:prep.catalog', { defaultValue: 'Shape Kitchen' })}</button> : null}
+    {!catalogOn ? <button type="button" className="btn-q" onClick={() => setCatalogOpen(true)} style={{ alignSelf: 'flex-start' }}>{bsCkIco('plus', true)}{tr('cook:prep.catalog', { defaultValue: 'Shape Kitchen' })}</button> : null}
   </>);
   // One dish ticked with others to choose from: say what a second one buys. The disabled
   // button and the empty lane say what to do; this says why.
@@ -11802,10 +11823,10 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
     {orch.coordinated === false && !orch.invalidTiming ? <p className="warn" role="status">{ordered.length > 2
       ? (serveNeedsRoom
         ? tr('cook:ck.serveNeedsRoomMany', { defaultValue: 'Your kitchen as set can’t hold all of them at once, so they can’t all be ready together. Add a burner or oven if you have one, or cook them one after another.' })
-        : tr('cook:ck.serveNeedsHandsMany', { defaultValue: 'These dishes need your hands at the same time, so they can’t all be ready together. Cook them one after another instead.' }))
+        : tr('cook:ck.serveNeedsHandsMany', { defaultValue: 'These dishes need your hands at the same time, so they can’t all be ready together. Add another cook if someone is helping, or cook them one after another.' }))
       : serveNeedsRoom
         ? tr('cook:ck.serveNeedsRoom', { defaultValue: 'Your kitchen as set can’t hold both at once, so they can’t be ready together. Add a burner or oven if you have one, or cook them one after another.' })
-        : tr('cook:ck.serveNeedsHands', { defaultValue: 'Both dishes need your hands at the same time, so they can’t be ready together. Cook them one after another instead.' })}</p> : null}
+        : tr('cook:ck.serveNeedsHands', { defaultValue: 'Both dishes need your hands at the same time, so they can’t be ready together. Add a second cook if someone is helping, or cook them one after another.' })}</p> : null}
     {serveReady && (orch.ready || []).length ? (
       <p className="note">{(orch.ready || []).map((d) => `${tr('cook:prep.ready', { defaultValue: '{title} ready', title: bsCkShort(d.title) })} ${bsCkClockShort(nowRef.current + d.readyAt * 60000)}`).join(' · ')}</p>
     ) : null}

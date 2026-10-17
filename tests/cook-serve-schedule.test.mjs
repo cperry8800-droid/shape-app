@@ -1373,13 +1373,27 @@ test('prep sheet: an uncoordinated serve plan cannot silently start as a separat
   assert.equal(s.buttons().find(b => b.label.startsWith('Next: ingredients')).disabled, false);
 });
 
-// ⚠ AND WHEN THE LIMIT IS THE EQUIPMENT, THE SHEET SAYS SO AND THE FIX WORKS. These two dishes
-// both want the stove at the end, so one burner cannot land them together while two can
-// (measured with the planner itself). The refusal offers the burner only because a plan with
-// more room really works, and adding one clears it.
+// ⚠ AND WHEN THE LIMIT IS THE EQUIPMENT, THE SHEET SAYS SO AND THE FIX WORKS. The pair is
+// FOUND, not named: one burner refuses it and two land it together, measured with the planner
+// itself. (The pair this test used to name, chicken and rice with the steak hash, now lands on
+// one burner because one cook may alternate steps, which is exactly the kind of change that
+// should move the fixture rather than delete the test.) The refusal offers the burner only
+// because a plan with more room really works, and adding one clears it.
+const ONE_BURNER = { stove: 1, oven: 1, board: 1 };
+const burnerPair = (() => {
+  const walk = cookables.filter((c) => c.steps && c.steps.length);
+  for (let i = 0; i < walk.length; i++) for (let j = i + 1; j < walk.length; j++) {
+    const pair = [walk[i], walk[j]];
+    const one = bsOrchestrate(pair, { mode: BS_COOK_MODE.SERVE, kitchen: ONE_BURNER });
+    if (one.coordinated !== false || !(one.issues || []).includes('stations')) continue;
+    if (bsOrchestrate(pair, { mode: BS_COOK_MODE.SERVE, kitchen: { ...ONE_BURNER, stove: 2 } }).coordinated === true) return pair;
+  }
+  return null;
+})();
 test('prep sheet: a refusal that another burner would fix says so, and adding one clears it', () => {
+  assert.ok(burnerPair, 'the catalog no longer holds a pair one burner refuses and two land — this test is vacuous');
   try { globalThis.window?.localStorage?.removeItem?.('shape.cook.kitchen'); } catch (e) {}
-  const program = [{ meals: ['One-pan chicken and rice', 'Steak and sweet potato hash'].map((title, i) => ({ id: `room-${i}`, slot: 'Dinner', title, kcal: 600, p: 40, c: 50, f: 20 })) }];
+  const program = [{ meals: burnerPair.map((c) => c.title).map((title, i) => ({ id: `room-${i}`, slot: 'Dinner', title, kcal: 600, p: 40, c: 50, f: 20 })) }];
   const s = drive(MOD.BSPrepSession, { program, onClose() {} });
   for (const meal of program[0].meals) s.click(meal.title, pressable);
   toSetup(s);
@@ -1388,6 +1402,40 @@ test('prep sheet: a refusal that another burner would fix says so, and adding on
   assert.equal(s.buttons().find((b) => b.label.startsWith('Next: ingredients')).disabled, true);
   s.click('+ Burner');
   assert.ok(!s.text.includes('can’t be ready together'), 'a second burner did not clear the refusal');
+  assert.equal(s.buttons().find((b) => b.label.startsWith('Next: ingredients')).disabled, false);
+  try { globalThis.window?.localStorage?.removeItem?.('shape.cook.kitchen'); } catch (e) {}
+});
+
+// ⚠ AND WHEN THE LIMIT IS THE ONE COOK, THE SHEET OFFERS A SECOND ONE (owner, 2026-10-17: "maybe
+// someone is cooking with another person also"). Found, not named: a pair no amount of burners
+// or ovens lands for one cook, which two cooks on the same one-burner kitchen do land.
+const handsPair = (() => {
+  const walk = cookables.filter((c) => c.steps && c.steps.length);
+  const roomy = { ...ONE_BURNER, stove: 8, oven: 8 };
+  for (let i = 0; i < walk.length; i++) for (let j = i + 1; j < walk.length; j++) {
+    const pair = [walk[i], walk[j]];
+    if (bsOrchestrate(pair, { mode: BS_COOK_MODE.SERVE, kitchen: ONE_BURNER }).coordinated !== false) continue;
+    if (bsOrchestrate(pair, { mode: BS_COOK_MODE.SERVE, kitchen: roomy }).coordinated !== false) continue;
+    if (bsOrchestrate(pair, { mode: BS_COOK_MODE.SERVE, kitchen: { ...ONE_BURNER, cooks: 2 } }).coordinated === true) return pair;
+  }
+  return null;
+})();
+test('prep sheet: a refusal a second cook would fix says so, and adding one clears it', () => {
+  assert.ok(handsPair, 'the catalog no longer holds a pair only a second cook lands — this test is vacuous');
+  try { globalThis.window?.localStorage?.removeItem?.('shape.cook.kitchen'); } catch (e) {}
+  const program = [{ meals: handsPair.map((c) => c.title).map((title, i) => ({ id: `hands-${i}`, slot: 'Dinner', title, kcal: 600, p: 40, c: 50, f: 20 })) }];
+  const s = drive(MOD.BSPrepSession, { program, onClose() {} });
+  for (const meal of program[0].meals) s.click(meal.title, pressable);
+  toSetup(s);
+  s.click('Ready at a set time');
+  assert.ok(s.text.includes('Add a second cook if someone is helping'), 'a refusal a helper could fix does not say how');
+  assert.ok(!s.text.includes('Add a burner or oven'), 'and it does not blame the kitchen');
+  assert.equal(s.buttons().find((b) => b.label.startsWith('Next: ingredients')).disabled, true);
+  assert.ok(s.text.includes('Just you cooking'), 'the kitchen says how many are cooking');
+  s.click('+ Cook');
+  // The harness installs no translator, so the count renders as its placeholder.
+  assert.ok(/people cooking/.test(s.text) && !s.text.includes('Just you cooking'), 'the kitchen did not take the second cook');
+  assert.ok(!s.text.includes('can’t be ready together'), 'a second cook did not clear the refusal');
   assert.equal(s.buttons().find((b) => b.label.startsWith('Next: ingredients')).disabled, false);
   try { globalThis.window?.localStorage?.removeItem?.('shape.cook.kitchen'); } catch (e) {}
 });

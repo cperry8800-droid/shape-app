@@ -53,8 +53,16 @@ const PROGRAM = [{
 // selection. Read off the rendered tree rather than off the button's own label:
 // the harness installs no translator, so `toMise` renders its `{n}` placeholder
 // verbatim and the count is NOT in the text.
-const rows = (s) => s.nodes().filter((n) => n.props && typeof n.props['aria-pressed'] === 'boolean');
-const ticked = (s) => rows(s).filter((n) => n.props['aria-pressed'] === true);
+const isRow = (n) => n.props && typeof n.props['aria-pressed'] === 'boolean';
+const allRows = (s) => s.nodes().filter(isRow);
+// ⚠ A SEEDED SESSION ALSO LISTS THE WHOLE KITCHEN (owner, 2026-10-17: "all the recipes need to
+// be available when I click to cook with something else"). Those rows sit under their own
+// "Shape Kitchen" heading after everything else, so the seeding and dedupe counts below are
+// taken above that heading, and the kitchen's own rows are asserted on their own.
+const kitchenAt = (ns) => ns.findIndex((n) => n.props && n.props.className === 'grp' && textOf(n) === 'Shape Kitchen');
+const rows = (s) => { const ns = s.nodes(); const k = kitchenAt(ns); return (k < 0 ? ns : ns.slice(0, k)).filter(isRow); };
+const kitchenRows = (s) => { const ns = s.nodes(); const k = kitchenAt(ns); return k < 0 ? [] : ns.slice(k).filter(isRow); };
+const ticked = (s) => allRows(s).filter((n) => n.props['aria-pressed'] === true);
 
 // `s.click` matches on text STARTING WITH the label, and a TICKED row's text
 // starts with its ✓ glyph — so a title alone can select a row but never
@@ -219,11 +227,40 @@ test('the picker says what a SECOND dish buys, at one dish and not at two', () =
 });
 
 test('the nudge is not shown when there is nothing to add', () => {
-  // A member whose only candidate is the dish they arrived with would otherwise
-  // read an instruction they cannot follow.
-  const s = drive(MOD.BSPrepSession, { program: [], seed: { cookable: SEED }, onClose() {} });
-  assert.equal(rows(s).length, 1, 'the seed is the only candidate');
+  // A member whose only candidate is the one dish ticked would otherwise read an
+  // instruction they cannot follow. A seeded session always has the whole kitchen to
+  // add from, so this is the "Prep the week" session with one meal on the menu.
+  const one = [{ meals: [PROGRAM[0].meals[0]] }];
+  const s = drive(MOD.BSPrepSession, { program: one, onClose() {} });
+  s.click(PROGRAM[0].meals[0].title, pressable);
+  assert.equal(allRows(s).length, 1, 'the one meal is the only candidate');
+  assert.equal(ticked(s).length, 1);
   assert.doesNotMatch(s.text, /Tick another dish/);
+});
+
+test('cook with something else offers every Shape Kitchen recipe, not just the plan', () => {
+  // The reported defect: the picker listed the nutritionist's plan and nothing else, with the
+  // catalog behind a button below the fold, so it read as if the app had no other recipes.
+  const s = drive(MOD.BSPrepSession, { program: PROGRAM, seed: { cookable: SEED }, onClose() {} });
+  const shown = new Set([SEED.title, ...PROGRAM[0].meals.map((m) => m.title)].map((t) => t.toLowerCase()));
+  const expected = SHAPE_KITCHEN_RECIPES
+    .filter((r) => (bsCookableFromRecipe(r)?.steps || []).length && !shown.has(String(r.title).toLowerCase())).length;
+  assert.ok(expected > 0, 'the catalog must hold dishes beyond the fixture');
+  assert.equal(kitchenRows(s).length, expected, 'every other walkable catalog dish is offered, once');
+  const titles = allRows(s).map((n) => textOf({ props: { children: n } }));
+  assert.equal(titles.filter((t) => t.includes(SEED.title)).length, 1, 'the arrived-with dish is not offered twice');
+
+  // Guard the guard: the week's session still opens on the plan alone, and a search reaches the
+  // whole kitchen there too, so no recipe is hidden behind a closed list.
+  const week = drive(MOD.BSPrepSession, { program: PROGRAM, onClose() {} });
+  assert.equal(kitchenRows(week).length, 0, 'Prep the week does not open the catalog by itself');
+  const other = SHAPE_KITCHEN_RECIPES.find((r) => !shown.has(String(r.title).toLowerCase()));
+  const box = week.nodes().find((n) => n.type === 'input' && n.props && n.props.type === 'search');
+  assert.ok(box, 'no recipe search box');
+  box.props.onChange({ target: { value: other.title.slice(0, 12) } });
+  week.render();
+  assert.ok(allRows(week).some((n) => textOf({ props: { children: n } }).includes(other.title)),
+    'a search finds a catalog dish that is not in the plan');
 });
 
 test('the door renders beside a walkable dish and fires shape:cookWith', () => {

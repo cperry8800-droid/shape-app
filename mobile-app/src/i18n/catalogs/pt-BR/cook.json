@@ -215,9 +215,9 @@
   "ck.ingredients": "Ingredientes",
   "ck.timersOn": "Timers rodando",
   "ck.serveNeedsRoom": "Do jeito que sua cozinha está configurada, não cabem os dois de uma vez, então não podem ficar prontos juntos. Adicione uma boca ou um forno se você tiver, ou cozinhe um depois do outro.",
-  "ck.serveNeedsHands": "Os dois pratos precisam das suas mãos ao mesmo tempo, então não podem ficar prontos juntos. Em vez disso, cozinhe um depois do outro.",
+  "ck.serveNeedsHands": "Os dois pratos precisam das suas mãos ao mesmo tempo, então não podem ficar prontos juntos. Adicione uma segunda pessoa se alguém estiver ajudando, ou cozinhe um depois do outro.",
   "ck.serveNeedsRoomMany": "Do jeito que sua cozinha está configurada, não cabem todos de uma vez, então não podem ficar todos prontos juntos. Adicione uma boca ou um forno se você tiver, ou cozinhe um depois do outro.",
-  "ck.serveNeedsHandsMany": "Esses pratos precisam das suas mãos ao mesmo tempo, então não podem ficar todos prontos juntos. Em vez disso, cozinhe um depois do outro.",
+  "ck.serveNeedsHandsMany": "Esses pratos precisam das suas mãos ao mesmo tempo, então não podem ficar todos prontos juntos. Adicione outra pessoa se alguém estiver ajudando, ou cozinhe um depois do outro.",
   "ck.readsOnToast": "A voz de Nora está ativada. Ela vai ler cada etapa em voz alta.",
   "ck.readsOffToast": "A voz de Nora está desativada. As etapas continuam na tela.",
   "ck.laterHead": "Na hora de comer",
@@ -234,5 +234,9 @@
   "prepAhead.savedFor": "Salvo como preparado para {days}. Nada é registrado como comido.",
   "prepAhead.saved": "Salvo como preparado. Nada é registrado como comido.",
   "prepAhead.notPrepped": "Não foi preparado ontem à noite",
-  "plated.prepped": "Preparado para amanhã."
+  "plated.prepped": "Preparado para amanhã.",
+  "ck.cooksN": "{n} pessoas cozinhando",
+  "ck.cooksOne": "Só você cozinhando",
+  "ck.lessCook": "− Pessoa",
+  "ck.moreCook": "+ Pessoa"
 }

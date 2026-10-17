@@ -215,9 +215,9 @@
   "ck.ingredients": "Ingredienti",
   "ck.timersOn": "Timer in corso",
   "ck.serveNeedsRoom": "Così com’è impostata, la tua cucina non ha posto per entrambi in una volta, quindi non possono essere pronti insieme. Aggiungi un fornello o un forno se ce l’hai, oppure cucinali uno dopo l’altro.",
-  "ck.serveNeedsHands": "Entrambi i piatti hanno bisogno delle tue mani nello stesso momento, quindi non possono essere pronti insieme. Cucinali invece uno dopo l’altro.",
+  "ck.serveNeedsHands": "Entrambi i piatti hanno bisogno delle tue mani nello stesso momento, quindi non possono essere pronti insieme. Aggiungi una seconda persona se qualcuno ti aiuta, oppure cucinali uno dopo l’altro.",
   "ck.serveNeedsRoomMany": "Così com’è impostata, la tua cucina non ha posto per tutti in una volta, quindi non possono essere pronti tutti insieme. Aggiungi un fornello o un forno se ce l’hai, oppure cucinali uno dopo l’altro.",
-  "ck.serveNeedsHandsMany": "Questi piatti hanno bisogno delle tue mani nello stesso momento, quindi non possono essere pronti tutti insieme. Cucinali invece uno dopo l’altro.",
+  "ck.serveNeedsHandsMany": "Questi piatti hanno bisogno delle tue mani nello stesso momento, quindi non possono essere tutti pronti insieme. Aggiungi un’altra persona se qualcuno ti aiuta, oppure cucinali uno dopo l’altro.",
   "ck.readsOnToast": "La voce di Nora è attiva. Leggerà ogni passaggio ad alta voce.",
   "ck.readsOffToast": "La voce di Nora è disattivata. I passaggi restano sullo schermo.",
   "ck.laterHead": "Quando sei pronto a mangiare",
@@ -234,5 +234,9 @@
   "prepAhead.savedFor": "Salvato come preparato per {days}. Niente viene registrato come mangiato.",
   "prepAhead.saved": "Salvato come preparato. Niente viene registrato come mangiato.",
   "prepAhead.notPrepped": "Non preparato ieri sera",
-  "plated.prepped": "Preparato per domani."
+  "plated.prepped": "Preparato per domani.",
+  "ck.cooksN": "{n} persone ai fornelli",
+  "ck.cooksOne": "Cucini solo tu",
+  "ck.lessCook": "− Persona",
+  "ck.moreCook": "+ Persona"
 }

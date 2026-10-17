@@ -215,9 +215,9 @@
   "ck.ingredients": "Bahan",
   "ck.timersOn": "Timer berjalan",
   "ck.serveNeedsRoom": "Dengan pengaturan sekarang, dapurmu tidak cukup untuk keduanya sekaligus, jadi tidak bisa siap serempak. Tambah tungku atau oven kalau kamu punya, atau masak satu per satu.",
-  "ck.serveNeedsHands": "Kedua hidangan butuh tanganmu di saat yang sama, jadi tidak bisa siap serempak. Masak satu per satu saja.",
+  "ck.serveNeedsHands": "Kedua hidangan butuh tanganmu di saat yang sama, jadi tidak bisa siap serempak. Tambahkan juru masak kedua kalau ada yang membantu, atau masak satu per satu.",
   "ck.serveNeedsRoomMany": "Dengan pengaturan sekarang, dapurmu tidak cukup untuk semuanya sekaligus, jadi tidak bisa siap serempak. Tambah tungku atau oven kalau kamu punya, atau masak satu per satu.",
-  "ck.serveNeedsHandsMany": "Hidangan-hidangan ini butuh tanganmu di saat yang sama, jadi tidak bisa siap serempak semuanya. Masak satu per satu saja.",
+  "ck.serveNeedsHandsMany": "Hidangan-hidangan ini butuh tanganmu di saat yang sama, jadi tidak bisa siap serempak. Tambahkan juru masak lain kalau ada yang membantu, atau masak satu per satu.",
   "ck.readsOnToast": "Suara Nora aktif. Ia akan membacakan setiap langkah.",
   "ck.readsOffToast": "Suara Nora nonaktif. Langkah-langkahnya tetap di layar.",
   "ck.laterHead": "Saat kamu siap makan",
@@ -234,5 +234,9 @@
   "prepAhead.savedFor": "Disimpan sebagai sudah disiapkan untuk {days}. Tidak ada yang dicatat sebagai sudah dimakan.",
   "prepAhead.saved": "Disimpan sebagai sudah disiapkan. Tidak ada yang dicatat sebagai sudah dimakan.",
   "prepAhead.notPrepped": "Belum disiapkan semalam",
-  "plated.prepped": "Sudah disiapkan untuk besok."
+  "plated.prepped": "Sudah disiapkan untuk besok.",
+  "ck.cooksN": "{n} orang memasak",
+  "ck.cooksOne": "Hanya kamu yang memasak",
+  "ck.lessCook": "− Juru masak",
+  "ck.moreCook": "+ Juru masak"
 }
