@@ -106,41 +106,41 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
   const daily = (stats?.daily ?? []) as DailyRow[];
 
   return (
-    <div className="flex flex-col gap-10">
-      <section className="flex flex-col gap-3">
-        <h2 className={PAGE_TITLE}>
-          Overview<Period />
-        </h2>
-        <p className="text-sm text-neutral-400 max-w-2xl">Shape&apos;s numbers across the website and the app.</p>
-        {stats?.generated_at && (
-          <p className={`${MONO} text-[11px] uppercase tracking-[0.14em] text-neutral-500`}>
-            As of {new Date(stats.generated_at).toLocaleString('en-US', { timeZone: TIMEZONE, dateStyle: 'medium', timeStyle: 'short' })}
-            {stats.timezone ? ` · days in ${stats.timezone}` : ''}
+    <div className="flex flex-col gap-8">
+      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4 border-b border-border-hairline pb-5">
+        <div className="flex flex-col gap-2 min-w-0">
+          <h2 className={PAGE_TITLE}>
+            Overview<Period />
+          </h2>
+          <p className={`${MONO} flex flex-wrap gap-x-3 gap-y-1 text-[11px] uppercase tracking-[0.14em] text-neutral-500`}>
+            {stats?.generated_at && (
+              <span>
+                As of {new Date(stats.generated_at).toLocaleString('en-US', { timeZone: TIMEZONE, dateStyle: 'medium', timeStyle: 'short' })}
+                {stats.timezone ? ` · days in ${stats.timezone}` : ''}
+              </span>
+            )}
+            <ExternalLink href={VERCEL_ANALYTICS}>Page views (Vercel)</ExternalLink>
+            <ExternalLink href={STRIPE_DASHBOARD}>Payments (Stripe)</ExternalLink>
           </p>
-        )}
-        <div className="flex gap-2 flex-wrap mt-1">
-          <ExternalLink href={VERCEL_ANALYTICS}>Page views (Vercel Analytics)</ExternalLink>
-          <ExternalLink href={STRIPE_DASHBOARD}>Payouts and payments (Stripe)</ExternalLink>
         </div>
-      </section>
-
-      <nav aria-label="Overview views" className={`${PANEL} flex overflow-x-auto [scrollbar-width:none] p-1 w-fit max-w-full`}>
-        {OVERVIEW_VIEWS.map((v) => {
-          const open = v.key === view.key;
-          return (
-            <Link
-              key={v.key}
-              href={viewHref(v.key)}
-              aria-current={open ? 'page' : undefined}
-              className={`${MONO} ${FOCUS} shrink-0 inline-flex items-center min-h-[40px] px-4 text-[11px] uppercase tracking-[0.14em] transition-colors ${
-                open ? 'bg-neutral-100 text-neutral-950' : 'text-neutral-400 hover:text-neutral-50 hover:bg-white/5'
-              }`}
-            >
-              {v.label}
-            </Link>
-          );
-        })}
-      </nav>
+        <nav aria-label="Overview views" className="flex overflow-x-auto [scrollbar-width:none] border border-border-hairline max-w-full">
+          {OVERVIEW_VIEWS.map((v) => {
+            const open = v.key === view.key;
+            return (
+              <Link
+                key={v.key}
+                href={viewHref(v.key)}
+                aria-current={open ? 'page' : undefined}
+                className={`${MONO} ${FOCUS} shrink-0 inline-flex items-center min-h-[40px] px-4 text-[11px] uppercase tracking-[0.14em] transition-colors ${
+                  open ? 'bg-neutral-100 text-neutral-950' : 'text-neutral-400 hover:text-neutral-50 hover:bg-white/5'
+                }`}
+              >
+                {v.label}
+              </Link>
+            );
+          })}
+        </nav>
+      </header>
 
       {missing && (
         <div className="border border-amber-400/30 bg-amber-400/10 text-amber-200 text-sm px-4 py-3">
@@ -154,14 +154,24 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
       )}
 
       {stats && view.key === 'summary' && (
-        <>
-          <Waiting tiles={section('queues')?.tiles ?? []} />
-          <section className="flex flex-col gap-4">
-            <SectionHead title="Key numbers" note="One from each view; open a tile for the rest of its view." />
-            <TileGrid tiles={keyNumbers(sections).map(openable)} />
-          </section>
-          {daily.length > 0 && <LastThirtyDays daily={daily} />}
-        </>
+        // On a wide screen the key numbers ride beside the inbox and the 30 days; narrower, they
+        // follow the inbox, before the charts.
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px] xl:grid-rows-[auto_1fr] items-start">
+          <div className="xl:col-start-1 xl:row-start-1 min-w-0">
+            <Inbox tiles={section('queues')?.tiles ?? []} />
+          </div>
+          <div className="xl:col-start-2 xl:row-start-1 xl:row-span-2 min-w-0">
+            <KeyNumbers tiles={keyNumbers(sections).map(openable)} />
+          </div>
+          {daily.length > 0 && (
+            <div className="xl:col-start-1 xl:row-start-2 min-w-0">
+              <LastThirtyDays daily={daily} />
+            </div>
+          )}
+          <div className="xl:col-span-2 min-w-0">
+            <ViewCards sections={sections} />
+          </div>
+        </div>
       )}
 
       {view.sections.map((key) => {
@@ -190,49 +200,47 @@ const FOCUS = 'focus-visible:outline-2 focus-visible:outline-accent focus-visibl
 
 function ExternalLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      className={`${FOCUS} inline-flex items-center gap-2 min-h-[40px] px-4 border border-white/15 text-sm text-neutral-200 hover:border-accent/60 hover:text-neutral-50 transition-colors`}
-    >
+    <a href={href} target="_blank" rel="noreferrer" className={`${FOCUS} text-neutral-300 hover:text-accent transition-colors`}>
       {children} <span aria-hidden="true">↗</span>
     </a>
   );
 }
 
-// What is waiting on the team, first: the queues' total as a sentence, then each queue. The spine
-// is the accent while anything waits.
-function Waiting({ tiles }: { tiles: OverviewTile[] }) {
+// What is waiting on the team, first: the queues' total as a sentence, then a row for each,
+// opening where it is handled. The spine is the accent while anything waits.
+function Inbox({ tiles }: { tiles: OverviewTile[] }) {
   const { total, line } = waitingLine(tiles);
   return (
-    <section aria-labelledby="waiting" className={`${PANEL} relative p-5 sm:p-6 pl-6 sm:pl-7`}>
+    <section aria-labelledby="waiting" className={`${PANEL} relative`}>
       <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-[3px] ${total ? 'bg-accent' : 'bg-white/15'}`} />
-      <h3 id="waiting" className={EYEBROW}>
-        Waiting on the team
-      </h3>
-      <p className={`${DISPLAY} text-2xl sm:text-3xl font-light tracking-tight text-neutral-50 mt-2`}>{line}</p>
-      <ul className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-border-hairline border border-border-hairline mt-5">
+      <div className="px-5 sm:px-6 pt-5 pb-4">
+        <h3 id="waiting" className={EYEBROW}>
+          Waiting on the team
+        </h3>
+        <p className={`${DISPLAY} text-2xl sm:text-[28px] font-light tracking-tight text-neutral-50 mt-2`}>{line}</p>
+      </div>
+      <ul>
         {tiles.map((t) => {
           const waiting = (t.count ?? 0) > 0;
           const body = (
             <>
-              <span className={`text-3xl font-light tabular-nums ${waiting ? 'text-neutral-50' : 'text-neutral-600'}`}>{t.value}</span>
-              <span className="flex items-center justify-between gap-2 text-sm text-neutral-400">
-                {t.label}
-                {t.href && (
-                  <span aria-hidden="true" className="text-neutral-600 group-hover:text-accent transition-colors">
-                    →
-                  </span>
-                )}
+              <span className={`text-2xl font-light tabular-nums w-10 shrink-0 ${waiting ? 'text-neutral-50' : 'text-neutral-600'}`}>{t.value}</span>
+              <span className="min-w-0 flex-1">
+                <span className={`block text-sm ${waiting ? 'text-neutral-100' : 'text-neutral-400'}`}>{t.label}</span>
+                {t.sub && <span className="block text-xs text-neutral-500 mt-0.5">{t.sub}</span>}
               </span>
+              {t.href && (
+                <span className={`${MONO} shrink-0 border border-white/15 px-3 py-2 text-[10.5px] uppercase tracking-[0.14em] text-neutral-300 group-hover:border-accent/60 group-hover:text-neutral-50 transition-colors`}>
+                  Open <span aria-hidden="true">→</span>
+                </span>
+              )}
             </>
           );
-          const cls = 'flex flex-col gap-1 p-4 h-full bg-card';
+          const cls = 'flex items-center gap-4 px-5 sm:px-6 py-3.5 border-t border-border-hairline';
           return (
             <li key={t.label}>
               {t.href ? (
-                <Link href={t.href} className={`${cls} ${FOCUS} group hover:bg-white/[0.03] transition-colors`}>
+                <Link href={t.href} className={`${cls} ${FOCUS} group hover:bg-white/[0.02] transition-colors`}>
                   {body}
                 </Link>
               ) : (
@@ -243,6 +251,61 @@ function Waiting({ tiles }: { tiles: OverviewTile[] }) {
         })}
       </ul>
     </section>
+  );
+}
+
+// The summary's key numbers as a column of rows: each opens the view that has the rest.
+function KeyNumbers({ tiles }: { tiles: OverviewTile[] }) {
+  return (
+    <section aria-labelledby="key-numbers" className={PANEL}>
+      <h3 id="key-numbers" className={`${EYEBROW} px-5 pt-5 pb-3`}>
+        Key numbers
+      </h3>
+      <ul>
+        {tiles.map((t) => {
+          const body = (
+            <>
+              <span className="min-w-0">
+                <span className="block text-[13px] text-neutral-200">{t.label}</span>
+                {t.sub && <span className="block text-xs text-neutral-500 mt-0.5">{t.sub}</span>}
+              </span>
+              <span className="text-2xl font-light tabular-nums text-neutral-50 shrink-0">{t.value}</span>
+            </>
+          );
+          const cls = 'flex items-baseline justify-between gap-4 px-5 py-3 border-t border-border-hairline';
+          return (
+            <li key={t.label}>
+              {t.href ? (
+                <Link href={t.href} className={`${cls} ${FOCUS} hover:bg-white/[0.02] transition-colors`}>
+                  {body}
+                </Link>
+              ) : (
+                <div className={cls}>{body}</div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+// The rest of the numbers, one card per view, each naming what it holds.
+function ViewCards({ sections }: { sections: OverviewSection[] }) {
+  const titles = (keys: ReadonlyArray<string>) =>
+    keys.map((k) => sections.find((s) => s.key === k)?.title).filter(Boolean).join(' · ');
+  return (
+    <nav aria-label="The views" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {OVERVIEW_VIEWS.filter((v) => v.key !== 'summary').map((v) => (
+        <Link key={v.key} href={viewHref(v.key)} className={`${PANEL} ${FOCUS} group flex flex-col gap-1.5 p-4 hover:border-accent/50 transition-colors`}>
+          <span className={EYEBROW}>View</span>
+          <span className={`${DISPLAY} text-xl font-light text-neutral-50`}>
+            {v.label} <span aria-hidden="true" className="text-neutral-600 group-hover:text-accent transition-colors">→</span>
+          </span>
+          <span className="text-xs text-neutral-500">{titles(v.sections)}</span>
+        </Link>
+      ))}
+    </nav>
   );
 }
 
@@ -257,7 +320,7 @@ function Section({ section }: { section: OverviewSection }) {
 
 function TileGrid({ tiles }: { tiles: OverviewTile[] }) {
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+    <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
       {tiles.map((t) => (
         <StatTile key={t.label} tile={t} />
       ))}
@@ -294,8 +357,13 @@ function StatTile({ tile: t }: { tile: OverviewTile }) {
 
 function LastThirtyDays({ daily }: { daily: DailyRow[] }) {
   return (
-    <section className="flex flex-col gap-4">
-      <SectionHead title="Last 30 days" note="Hover a column for its day. Each chart has its own scale." />
+    <section aria-labelledby="last-30" className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 id="last-30" className={EYEBROW}>
+          Last 30 days
+        </h3>
+        <span className="text-xs text-neutral-500">Hover a column for its day. Each chart has its own scale.</span>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {DAILY_CHARTS.map((c) => (
           <DailyChart key={c.key} title={c.title} daily={daily} field={c.key} />

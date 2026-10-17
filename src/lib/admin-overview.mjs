@@ -37,7 +37,7 @@ export function shapeMrrCents(stats) {
 
 const tile = (label, value, sub = '', href = '') => ({ label, value, sub, href });
 // A queue's tile also carries its count, so the Overview can say how much is waiting.
-const queueTile = (label, v, href) => ({ ...tile(label, formatCount(v), '', href), count: Math.max(0, Math.round(n(v))) });
+const queueTile = (label, v, sub, href) => ({ ...tile(label, formatCount(v), sub, href), count: Math.max(0, Math.round(n(v))) });
 
 /** "1 review", "2 reviews", "1,204 reviews". */
 export function countOf(v, one, many = `${one}s`) {
@@ -218,10 +218,10 @@ export function overviewSections(stats, extras = {}) {
       title: 'Waiting on the team',
       note: '',
       tiles: [
-        queueTile('Help requests open', q.help_open, '/dashboard/support'),
-        queueTile('Refunds pending', q.refunds_pending, '/dashboard/refunds'),
-        queueTile('Credentials to review', q.credentials_pending, '/dashboard/credentials'),
-        queueTile('Applications to review', ap.open, '/dashboard/applications'),
+        queueTile('Help requests open', q.help_open, 'sent from Nora’s chat', '/dashboard/support'),
+        queueTile('Refunds pending', q.refunds_pending, 'waiting for a decision', '/dashboard/refunds'),
+        queueTile('Credentials to review', q.credentials_pending, 'coaches waiting to go live', '/dashboard/credentials'),
+        queueTile('Applications to review', ap.open, `${countOf(ap.open_trainer, 'trainer')} · ${countOf(ap.open_nutritionist, 'nutritionist')}`, '/dashboard/applications'),
       ],
     },
   ];

@@ -669,6 +669,42 @@ test('every console page and action checks its own level before it reads anythin
   }
 });
 
+test('the sidebar counts what is waiting, only on the pages the level opens, and only after the staff check', async () => {
+  const asked = [];
+  const db = {
+    from: (table) => ({
+      select: (cols, opts) => ({
+        in: async (column, values) => {
+          asked.push(`${table}.${column}=${values.join('|')}`);
+          assert.deepEqual([cols, opts], ['*', { count: 'exact', head: true }], 'a head count, never the rows');
+          if (table === 'refund_requests') return { count: null, error: { code: 'XX000' } };
+          return { count: { support_requests: 2, account_action_requests: 1, provider_applications: 3, provider_credentials: 0 }[table], error: null };
+        },
+      }),
+    }),
+  };
+  const waiting = await loadRealModule(join(ROOT, 'src/lib/admin-waiting.ts'), {
+    typescript: true,
+    registry: new Map([['@/lib/supabase/admin', { createAdminClient: () => db }], ['@/lib/staff-levels.mjs', levels]]),
+  });
+  assert.deepEqual(await waiting.waitingCounts('analyst'), {}, 'an analyst opens no queue');
+  assert.deepEqual(asked, [], 'and nothing is read for one');
+  assert.deepEqual(await waiting.waitingCounts('support'), { '/dashboard/support': 2, '/admin/requests': 1 }, 'support: the help desk and account requests');
+  assert.deepEqual(
+    await waiting.waitingCounts('owner'),
+    { '/dashboard/support': 2, '/admin/requests': 1, '/dashboard/applications': 3, '/dashboard/credentials': 0 },
+    'a count that cannot be read is left out, not shown as 0'
+  );
+  assert.ok(asked.includes('provider_applications.status=pending|in_review') && asked.includes('provider_credentials.review_status=pending'));
+  // The same queues the Overview counts (admin_overview_stats' queues and applications.open).
+  const sql = read('supabase-migrations/2026-10-13-staff-access-and-admin-stats.sql');
+  for (const q of ["public.support_requests where status = 'open'", "public.refund_requests where status = 'pending'", "public.provider_credentials where review_status = 'pending'", "public.provider_applications where status in ('pending', 'in_review')"]) {
+    assert.ok(sql.includes(q), q);
+  }
+  const layout = stripComments(read('src/app/admin/layout.tsx'));
+  assert.ok(layout.indexOf('const staff = await getStaffMember();') < layout.indexOf('await waitingCounts(staff.level)'), 'counted after the staff check, at the staff member’s level');
+});
+
 test('the dashboard: staff get in without a membership, and each tab shows for its level', () => {
   const layout = stripComments(read('src/app/dashboard/layout.tsx'));
   assert.match(layout, /const signIn = await getStaffSignIn\(\);\n\s+const staff = signIn\?\.staff \?\? null;\n\s+const verified = signIn\?\.twoFactor === 'verified';/, 'the tabs read the level; the pages they open need two-factor');
