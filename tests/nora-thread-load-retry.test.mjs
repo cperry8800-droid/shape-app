@@ -34,7 +34,8 @@ const settle = async (n = 6) => { for (let i = 0; i < n; i++) await React.act(as
 // A 'hold' in threadGets, or holdAnswer, keeps that answer on its way until release() (stored
 // may be a function, read when the request is made).
 // teamTab: a second, non-Nora tab beside hers; member: an active subscription (the composer outside Nora's tab).
-async function mount({ signedIn = true, threadGets = [200], stored = [], me = null, db = null, docked = false, seed = {}, greeting = {}, holdAnswer = false, holdRequest = false, teamTab = false, member = false } = {}) {
+// conversations: the stored messages GET /api/conversations/<id>/messages returns.
+async function mount({ signedIn = true, threadGets = [200], stored = [], me = null, db = null, docked = false, seed = {}, greeting = {}, holdAnswer = false, holdRequest = false, teamTab = false, member = false, conversations = {} } = {}) {
   const dom = new JSDOM('<!doctype html><body><div id="r"></div></body>', { url: 'https://shape.test/newdesign/ClientApp.html', pretendToBeVisual: true });
   const w = dom.window;
   const before = { window: globalThis.window, document: globalThis.document, localStorage: globalThis.localStorage, navigator: Object.getOwnPropertyDescriptor(globalThis, 'navigator'), act: globalThis.IS_REACT_ACT_ENVIRONMENT, fetch: globalThis.fetch };
@@ -70,6 +71,8 @@ async function mount({ signedIn = true, threadGets = [200], stored = [], me = nu
     if (u.includes('/api/support/request') && holdRequest) return new Promise((resolve) => { held.request = () => resolve(answer(200, { ok: true })); });
     if (u.includes('/api/nora/thread')) return answer(200, { ok: true });
     if (u.includes('/api/stripe/subscription')) return answer(200, { active: member });
+    const conv = /\/api\/conversations\/([^/]+)\/messages/.exec(u);
+    if (conv && method === 'GET') return answer(200, { messages: url.includes('since=') ? [] : (conversations[decodeURIComponent(conv[1])] || []) });
     return answer(200, {});
   };
   if (db) w.shapeEnsureDb = async () => { w.shapeDb = db; return db; };
@@ -348,6 +351,40 @@ test('what was opened or said in another tab while /api/me was unanswered joins 
     assert.deepEqual(channel.messages.map((x) => x.t), ['Welcome', 'Member team note', 'Said while unanswered'], 'the account\'s own thread, then what was said in it meanwhile');
   } finally {
     await m.done();
+  }
+});
+
+test('a conversation opened while /api/me was unanswered replaces, not repeats, the account\'s copy of it', async () => {
+  // The account's copy already has conv-1; opened meanwhile, its first read fills it from the
+  // server, history and all.
+  const { me, fail } = flakyMe();
+  const saved = { threadsByTab: [memberCopy.threadsByTab[0].slice(0, 1), [{ who: 'Team channel', messages: [] }, { who: 'Coach Maya', conversationId: 'conv-1', messages: [{ who: 'Coach Maya', t: 'Old hello', time: 'yesterday', me: false }] }]], activeByTab: [0, 0] };
+  const conversations = { 'conv-1': [{ body: 'Old hello', created_at: '2026-10-16T09:00:00Z', sender_id: 'coach' }, { body: 'Newer reply', created_at: '2026-10-17T09:00:00Z', sender_id: 'coach' }] };
+  const m = await mount({ me, stored: [], teamTab: true, conversations, seed: { [MEMBER]: saved } });
+  try {
+    await unknownThenKnown(m, fail, async () => {
+      await React.act(async () => { m.w.__openChat({ who: 'Coach Maya', conversationId: 'conv-1', tab: 'team' }, 'team'); });
+      await settle();
+    });
+    const team = JSON.parse(m.w.localStorage.getItem(MEMBER)).threadsByTab[1];
+    const convs = team.filter((th) => th.conversationId === 'conv-1');
+    assert.equal(convs.length, 1, 'one thread for the conversation');
+    assert.deepEqual(convs[0].messages.map((x) => x.t), ['Old hello', 'Newer reply'], 'its history once');
+  } finally {
+    await m.done();
+  }
+  // Opened meanwhile but not read yet (nothing came back): the account's copy of it stands.
+  const again = flakyMe();
+  const unread = await mount({ me: again.me, stored: [], teamTab: true, seed: { [MEMBER]: saved } });
+  try {
+    await unknownThenKnown(unread, again.fail, async () => {
+      await React.act(async () => { unread.w.__openChat({ who: 'Coach Maya', conversationId: 'conv-1', tab: 'team' }, 'team'); });
+      await settle();
+    });
+    const conv = JSON.parse(unread.w.localStorage.getItem(MEMBER)).threadsByTab[1].find((th) => th.conversationId === 'conv-1');
+    assert.deepEqual(conv.messages.map((x) => x.t), ['Old hello'], 'not emptied by a thread with nothing in it yet');
+  } finally {
+    await unread.done();
   }
 });
 

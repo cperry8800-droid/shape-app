@@ -985,8 +985,13 @@ function ChatWidget(props) {
                 const added = (th.messages || []).slice(was ? (was.messages || []).length : 0);
                 if (was && !added.length) return;
                 const at = out.findIndex((x) => id(x) === id(th));
-                if (at >= 0) out[at] = { ...out[at], last: th.last, time: th.time, messages: [...(out[at].messages || []), ...added] };
-                else out.push({ ...th, messages: added });
+                if (at < 0) { out.push({ ...th, messages: added }); return; }
+                if (!added.length) return;
+                // A conversation's messages here were read from the server (a thread's first read
+                // replaces them), so it stands for the account's copy of the thread rather than
+                // being appended to it, which repeated its history (Codex, #2391).
+                if (th.conversationId) { out[at] = { ...out[at], ...th }; return; }
+                out[at] = { ...out[at], last: th.last, time: th.time, messages: [...(out[at].messages || []), ...added] };
               });
               return out;
             });
