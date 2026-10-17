@@ -8578,24 +8578,43 @@ async function noraGreeting({ signal } = {}) {
 // cookie session is there: the server answered Nora as the account, but these calls needed a
 // token and saved nothing (the trace for the owner, 2026-10-17). The token goes when there is
 // one; otherwise the cookie does, and a visitor's call answers 401: null, as before.
-async function noraThreadCall(method, body) {
+// ⚠ AND THE COOKIE CAN CHANGE ACCOUNT UNDER THE APP (Codex on #2393): signed out or signed in as
+// someone else in another tab. So a load answers the account it read (`loadAs`), and a write can
+// name the account it is meant for: the server refuses one that is not the caller's, and the call
+// answers 'account_changed' so the sheet starts again. A 401 answers { signedOut: true }.
+async function noraThreadCall(method, body, query = '') {
   if (!apiBaseUrl) return null;
   try {
-    const res = await shapeApiFetch('/api/nora/thread', { method, headers: body ? { 'Content-Type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' });
+    const res = await shapeApiFetch(`/api/nora/thread${query}`, { method, headers: body ? { 'Content-Type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' });
     const payload = await res.json().catch(() => ({}));
-    return res.ok ? payload : null;
+    if (res.ok) return payload;
+    if (res.status === 401) return { signedOut: true };
+    return payload && payload.code === 'account_changed' ? { accountChanged: true } : null;
   } catch (e) { return null; }
 }
 const noraThread = {
   async load() { const p = await noraThreadCall('GET'); return p && Array.isArray(p.messages) ? p.messages : null; },
-  async append(messages) { const p = await noraThreadCall('POST', { append: messages }); return !!(p && p.ok); },
-  async clear() { const p = await noraThreadCall('DELETE'); return !!(p && p.ok); },
+  // { messages, account } | { signedOut: true } | null (could not read)
+  async loadAs() {
+    const p = await noraThreadCall('GET');
+    if (p && p.signedOut) return { signedOut: true };
+    return p && Array.isArray(p.messages) ? { messages: p.messages, account: typeof p.account === 'string' ? p.account : null } : null;
+  },
+  // true | false | 'account_changed'
+  async append(messages, { account } = {}) {
+    const p = await noraThreadCall('POST', account ? { append: messages, account } : { append: messages });
+    return p && p.accountChanged ? 'account_changed' : !!(p && p.ok);
+  },
+  async clear({ account } = {}) {
+    const p = await noraThreadCall('DELETE', null, account ? `?account=${encodeURIComponent(account)}` : '');
+    return p && p.accountChanged ? 'account_changed' : !!(p && p.ok);
+  },
 };
 
 // "Talk to a person" (the Ask Nora plan, step 5): the question goes to the Shape team with the
 // stored conversation; a person replies in it and by email. Resolves { ok, error? } and never
 // throws: the sheet shows the server's own words when it refuses.
-async function talkToPerson({ question, surface = 'app', page = null } = {}) {
+async function talkToPerson({ question, surface = 'app', page = null, account = null } = {}) {
   if (!apiBaseUrl) return { ok: false, error: 'Talking to a person needs a connection to Shape.' };
   try {
     // The token when the app has one, the website's cookie session otherwise (noraThreadCall);
@@ -8603,7 +8622,8 @@ async function talkToPerson({ question, surface = 'app', page = null } = {}) {
     const res = await shapeApiFetch('/api/support/request', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question, surface, page }),
+      // `account`: the account the conversation was loaded as, when the cookie carries it (noraThread).
+      body: JSON.stringify(account ? { question, surface, page, account } : { question, surface, page }),
       cache: 'no-store',
     });
     const payload = await res.json().catch(() => ({}));
