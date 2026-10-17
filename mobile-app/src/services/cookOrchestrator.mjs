@@ -332,6 +332,9 @@ const invalidServe = () => ({ timeline: [], serveAt: 0, earliestServe: 0, spread
 // hands-on work at the same moment, so the number of cooks is a fact about the KITCHEN like the
 // burner count: `kitchen.cooks`. An absent or junk figure is one cook, so an unconfigured kitchen
 // plans exactly as it always did.
+// ⚠ NOTHING IN THE APP SETS IT ABOVE ONE YET. The live board walks one step at a time, so a plan
+// with two hands-on steps at once could not show the second cook theirs until the first was done
+// (Codex, #2392). The "+ Cook" control waits for a board that shows each cook their own step.
 const COOKS_MAX = 4;
 const cooksOf = (kitchen) => {
   const n = Math.floor(kitchen && kitchen.cooks);
@@ -345,9 +348,13 @@ const handsPull = (busy, from, to, cooks = 1) => {
   // Above one cook, count PEAK simultaneous steps, as `stationPull` does for burners: two steps
   // that tile the window one after the other are one cook's worth of work, not two. One cook
   // keeps the original test exactly, since any overlap at all is already too many.
+  // The pull is then only past the first instant that is actually full, as it is for a burner:
+  // pulling before every overlapping step's start pushed a two-cook plan of 10, 4 and 3 minutes
+  // out to 13 when [0,10], [3,7] and [0,3] fit (Codex, #2392).
   if (cooks > 1) {
-    const points = [from, ...mine.map((h) => h.from).filter((f) => f > from && f < to)];
-    if (!points.some((t) => mine.filter((h) => h.from <= t && t < h.to).length + 1 > cooks)) return null;
+    const points = [from, ...mine.map((h) => h.from).filter((f) => f > from && f < to)].sort((a, b) => a - b);
+    const full = points.find((t) => mine.filter((h) => h.from <= t && t < h.to).length + 1 > cooks);
+    return full == null ? null : Math.max(1e-8, to - full);
   }
   // Pull the dish earlier by enough to finish this step before the earliest step it hits.
   return Math.max(1e-8, to - Math.min(...mine.map((h) => h.from)));

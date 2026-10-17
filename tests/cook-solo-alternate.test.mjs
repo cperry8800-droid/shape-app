@@ -4,7 +4,8 @@
 // The owner: "You can easily cook 1 thing and do 1 step for 1 meal and then immediately go to
 // the other meal ... Or maybe someone is cooking with another person also." Two engine changes
 // answer that, and this file holds both to their promises:
-//   - `kitchen.cooks` is how many pairs of hands there are (default one, as before);
+//   - `kitchen.cooks` is how many pairs of hands there are (default one, as before). The app does
+//     not offer it yet: the live board cannot show two cooks their concurrent steps (#2392);
 //   - when the authored plan would be refused, a step that leaves nothing on the stove or in the
 //     oven may be followed by a short wait, so one cook can do a step of another dish there.
 import test from 'node:test';
@@ -107,4 +108,12 @@ test('a recipe with no stations anywhere is never split, and a big session is ne
   // The rescue is a whole second search, so it is offered only up to alternateMaxDishes.
   const big = recipes.slice(0, BS_ORCH.alternateMaxDishes + 1);
   assert.ok(!serve(big).alternates, 'a session above the bound was searched twice');
+});
+
+test('two cooks are pulled only past the instant that is full (Codex, #2392)', () => {
+  // Three hands-on dishes of 10, 4 and 3 minutes: two cooks fit them as [0,10], [3,7] and [0,3].
+  const dish = (title, min) => ({ key: title, title, steps: ['Do it'], stepMeta: [{ min, passive: false }] });
+  const plan = serve([dish('Long', 10), dish('Mid', 4), dish('Short', 3)], { ...ONE, cooks: 2 });
+  assert.equal(plan.earliestServe, 10, 'two cooks finish all three in the longest dish');
+  assert.equal(plan.coordinated, true);
 });

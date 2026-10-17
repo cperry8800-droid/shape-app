@@ -1406,40 +1406,6 @@ test('prep sheet: a refusal that another burner would fix says so, and adding on
   try { globalThis.window?.localStorage?.removeItem?.('shape.cook.kitchen'); } catch (e) {}
 });
 
-// ⚠ AND WHEN THE LIMIT IS THE ONE COOK, THE SHEET OFFERS A SECOND ONE (owner, 2026-10-17: "maybe
-// someone is cooking with another person also"). Found, not named: a pair no amount of burners
-// or ovens lands for one cook, which two cooks on the same one-burner kitchen do land.
-const handsPair = (() => {
-  const walk = cookables.filter((c) => c.steps && c.steps.length);
-  const roomy = { ...ONE_BURNER, stove: 8, oven: 8 };
-  for (let i = 0; i < walk.length; i++) for (let j = i + 1; j < walk.length; j++) {
-    const pair = [walk[i], walk[j]];
-    if (bsOrchestrate(pair, { mode: BS_COOK_MODE.SERVE, kitchen: ONE_BURNER }).coordinated !== false) continue;
-    if (bsOrchestrate(pair, { mode: BS_COOK_MODE.SERVE, kitchen: roomy }).coordinated !== false) continue;
-    if (bsOrchestrate(pair, { mode: BS_COOK_MODE.SERVE, kitchen: { ...ONE_BURNER, cooks: 2 } }).coordinated === true) return pair;
-  }
-  return null;
-})();
-test('prep sheet: a refusal a second cook would fix says so, and adding one clears it', () => {
-  assert.ok(handsPair, 'the catalog no longer holds a pair only a second cook lands — this test is vacuous');
-  try { globalThis.window?.localStorage?.removeItem?.('shape.cook.kitchen'); } catch (e) {}
-  const program = [{ meals: handsPair.map((c) => c.title).map((title, i) => ({ id: `hands-${i}`, slot: 'Dinner', title, kcal: 600, p: 40, c: 50, f: 20 })) }];
-  const s = drive(MOD.BSPrepSession, { program, onClose() {} });
-  for (const meal of program[0].meals) s.click(meal.title, pressable);
-  toSetup(s);
-  s.click('Ready at a set time');
-  assert.ok(s.text.includes('Add a second cook if someone is helping'), 'a refusal a helper could fix does not say how');
-  assert.ok(!s.text.includes('Add a burner or oven'), 'and it does not blame the kitchen');
-  assert.equal(s.buttons().find((b) => b.label.startsWith('Next: ingredients')).disabled, true);
-  assert.ok(s.text.includes('Just you cooking'), 'the kitchen says how many are cooking');
-  s.click('+ Cook');
-  // The harness installs no translator, so the count renders as its placeholder.
-  assert.ok(/people cooking/.test(s.text) && !s.text.includes('Just you cooking'), 'the kitchen did not take the second cook');
-  assert.ok(!s.text.includes('can’t be ready together'), 'a second cook did not clear the refusal');
-  assert.equal(s.buttons().find((b) => b.label.startsWith('Next: ingredients')).disabled, false);
-  try { globalThis.window?.localStorage?.removeItem?.('shape.cook.kitchen'); } catch (e) {}
-});
-
 test('prep sheet: unusable timing shows an explanation and blocks every cooking mode', () => {
   const seed = { cookable: { title: 'Extreme recipe', servings: 1, ingredients: [], steps: ['Prep', 'Finish'],
     stepMeta: [{ min: 1e308, maxPause: 1 }, { min: 1e308 }] } };

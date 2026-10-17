@@ -261,6 +261,14 @@ test('cook with something else offers every Shape Kitchen recipe, not just the p
   week.render();
   assert.ok(allRows(week).some((n) => textOf({ props: { children: n } }).includes(other.title)),
     'a search finds a catalog dish that is not in the plan');
+
+  // A dish picked from that search stays picked when the search is cleared (Codex, #2392).
+  toggle(week, other.title);
+  assert.equal(ticked(week).length, 1);
+  box.props.onChange({ target: { value: '' } });
+  week.render();
+  assert.equal(ticked(week).length, 1, 'clearing the search dropped the dish just picked from it');
+  assert.ok(textOf({ props: { children: ticked(week)[0] } }).includes(other.title));
 });
 
 test('the door renders beside a walkable dish and fires shape:cookWith', () => {
