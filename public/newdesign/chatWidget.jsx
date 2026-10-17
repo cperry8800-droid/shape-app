@@ -522,6 +522,9 @@ function ChatWidget(props) {
   const [authProbe, setAuthProbe] = React.useState("pending");
   // Bumped to read /api/me again after a read that did not complete (the Nora retry below).
   const [authTry, setAuthTry] = React.useState(0);
+  // The account /api/me named ("anon" when it named none), set by the hydrate: what is read per
+  // account (Nora's tone and voice) is read again when it changes (Codex, #2391).
+  const [authWho, setAuthWho] = React.useState(null);
   const dirtyRef = React.useRef(false);
 
   // Nora's voice OUTPUT (read replies aloud) — OFF by default, fully usable
@@ -542,9 +545,11 @@ function ChatWidget(props) {
   // Read at mount, it found no `window.shapeDb` on most pages (the history read below says
   // why) and an anonymous client on the rest, so she read in "auto" and the voice chosen in
   // the app's Settings never applied here, with no picker left to choose it (Codex, #2391).
+  // Another account's choice is never kept: back to the defaults until this account's is read.
   React.useEffect(() => {
     if (authProbe === "pending" || authProbe === "out") return undefined;
     let cancelled = false;
+    setNoraVoiceState(s => (s.tone === "supportive" && s.voice === "auto" ? s : { ...s, tone: "supportive", voice: "auto" }));
     (async () => {
       try {
         const sdb = (window.shapeEnsureDb ? await window.shapeEnsureDb() : null) || window.shapeDb;
@@ -555,7 +560,7 @@ function ChatWidget(props) {
       } catch (e) { /* default supportive/auto */ }
     })();
     return () => { cancelled = true; };
-  }, [authProbe]);
+  }, [authProbe, authWho]);
   const saveNoraAccount = (tone, voice) => { try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals("nora_voice", { tone, voice: normNoraVoice(voice) }); } catch (e) {} };
   // ⚠ ONE PLAYER, UNLOCKED BY THE TAP. A new Audio() per reply, played after the network
   // wait, was blocked on Safari and on a phone every time: Listen did nothing (owner,
@@ -899,6 +904,8 @@ function ChatWidget(props) {
     let cancelled = false;
     // This run asks again after /api/me went unanswered (the copy held is the signed-out one).
     const wasUnknown = authProbe === "unknown";
+    // No hydrate has finished yet: what is drawn is still the threads the widget started with.
+    const firstRun = !hydratedRef.current;
     (async () => {
       let uid = "anon";
       let probe = "unknown";
@@ -911,12 +918,17 @@ function ChatWidget(props) {
       } catch {}
       if (cancelled) return;
       setAuthProbe(probe);
+      setAuthWho(uid);
       // Still unanswered while the panel is on screen: a miss, so the retry asks again.
       if (probe === "unknown" && openRef.current) setNoraMissed((n) => n + 1);
       const key = `shape.chat.${STORE_VER}.${uid}`;
       const rekeyed = !!storeKeyRef.current && storeKeyRef.current !== key;
       storeKeyRef.current = key;
       let hydratedThreads = null;
+      // ⚠ TYPED BEFORE THIS FIRST ANSWER: the copy is not read, and what is drawn is the starting
+      // threads plus what was typed. Measured from the starting threads, so what was typed is
+      // what was added (a baseline taken from the drawn copy saw nothing added; Codex, #2391).
+      const start = firstRun && dirtyRef.current ? tabs.map((t) => t.threads) : null;
       // Don't clobber a message the user typed before hydration finished. ⚠ EXCEPT ON A
       // RE-KEY: the account's saved copy is read whatever was typed, or the next save wrote
       // the signed-out copy over it, losing its messages and channels (Codex, #2391).
@@ -1006,8 +1018,8 @@ function ChatWidget(props) {
       setHydrateRuns((n) => n + 1);
       // Measured against the threads just set, which this render has not drawn yet. A later
       // hydrate moves it only when nothing was typed, so nothing is held (a re-key set it above).
-      if (!rekeyed && (!dirtyRef.current || !noraFromRef.current)) noraFromRef.current = { base: cwNoraLocal(hydratedThreads).length, gen: noraThreadGenRef.current, mine: probe === "in" };
-      if (probe === "unknown" && (!dirtyRef.current || !unknownSnapRef.current)) unknownSnapRef.current = hydratedThreads || threadsRef.current;
+      if (!rekeyed && (!dirtyRef.current || !noraFromRef.current)) noraFromRef.current = { base: cwNoraLocal(hydratedThreads || start).length, gen: noraThreadGenRef.current, mine: probe === "in" };
+      if (probe === "unknown" && (!dirtyRef.current || !unknownSnapRef.current)) unknownSnapRef.current = hydratedThreads || start || threadsRef.current;
       // One conversation per account (the Ask Nora plan, step 4): the stored thread replaces
       // this browser's copy of Nora's, and a browser that kept one before the account had
       // any sends it up once. Signed out, or before the migration runs, nothing changes.

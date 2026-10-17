@@ -189,7 +189,7 @@ test('website: loads after sign-in, appends each answered exchange, clears on ev
   assert.match(W, /if \(probe === "in" && !cancelled\) cwLoadNoraThread\(\(\) => cancelled\);/);
   // Measured against the hydrated copy, which this render has not drawn yet, and kept for a
   // retry: what was said after it is held (Codex, #2391; run in nora-thread-load-retry).
-  assert.match(W, /if \(!rekeyed && \(!dirtyRef\.current \|\| !noraFromRef\.current\)\) noraFromRef\.current = \{ base: cwNoraLocal\(hydratedThreads\)\.length, gen: noraThreadGenRef\.current, mine: probe === "in" \};/);
+  assert.match(W, /if \(!rekeyed && \(!dirtyRef\.current \|\| !noraFromRef\.current\)\) noraFromRef\.current = \{ base: cwNoraLocal\(hydratedThreads \|\| start\)\.length, gen: noraThreadGenRef\.current, mine: probe === "in" \};/);
   // A re-key reads the account's copy whatever was typed, and nothing is saved before /api/me
   // answers (Codex, #2391; run in nora-thread-load-retry).
   assert.match(W, /if \(!dirtyRef\.current \|\| rekeyed\) \{/);

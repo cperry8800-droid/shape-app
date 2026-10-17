@@ -388,6 +388,30 @@ test('a conversation opened while /api/me was unanswered replaces, not repeats, 
   }
 });
 
+test('what was said and opened before the first /api/me read failed is kept once it answers', async () => {
+  const { me, fail } = flakyMe();
+  const memberWithTeam = { threadsByTab: [memberCopy.threadsByTab[0].slice(0, 1), [{ who: 'Team channel', messages: [{ who: 'Ann', t: 'Welcome', me: false }] }]], activeByTab: [0, 0] };
+  const m = await mount({ me, stored: [], teamTab: true, seed: { [MEMBER]: memberWithTeam } });
+  try {
+    // /api/me has not answered at all yet: a question to Nora, and a conversation opened.
+    await m.open();
+    await m.say('How do I log a meal?');
+    await React.act(async () => { m.w.__openChat({ who: 'Coach Maya', conversationId: 'conv-1', tab: 'team' }, 'team'); });
+    await settle();
+    await React.act(async () => { fail({ stayDown: true }); }); // the first read fails
+    await settle();
+    await React.act(async () => { fail(); }); // and the next answers
+    await waitForRetry();
+    assert.equal(m.threadGetsSoFar(), 1, 'loaded once it answered');
+    const copy = JSON.parse(m.w.localStorage.getItem(MEMBER));
+    assert.ok(copy.threadsByTab[1].some((th) => th.conversationId === 'conv-1'), 'the conversation opened before is kept');
+    assert.deepEqual(copy.threadsByTab[0][0].messages.map((x) => x.t), ['Hi, I am Nora.', 'Member saved question', 'Member saved answer', 'How do I log a meal?', 'Tap + on Eat.'], 'the account\'s thread, then the exchange with Nora');
+    assert.deepEqual(m.appended().flat().map((x) => x.text), ['Member saved question', 'Member saved answer', 'How do I log a meal?', 'Tap + on Eat.'], 'the account\'s own copy migrates, then the exchange, once');
+  } finally {
+    await m.done();
+  }
+});
+
 test('the account\'s greeting is applied again after a re-key starts the thread afresh', async () => {
   const { me, fail } = flakyMe();
   const m = await mount({ me, stored: [], greeting: { text: 'Welcome back, Ann.', quick: ['Plan my week'] } });
@@ -508,6 +532,29 @@ test('a team-reply pull or a Talk to a person send on its way when the account c
     assert.ok(!person.appended().flat().some((x) => /Sent to the Shape team/.test(x.text)), 'nor kept on u2\'s account');
   } finally {
     await person.done();
+  }
+});
+
+test('another account\'s Nora tone is never kept: it is read again when the account changes', async () => {
+  let who = 'u1';
+  const me = () => Promise.resolve({ user: { id: who, email: `${who}@shape.test` } });
+  const db = {
+    getSession: async () => ({}),
+    // u2's read fails: what stands is the default, never u1's.
+    getUserGoals: async (kind) => { if (who !== 'u1') throw new Error('read failed'); return kind === 'nora_voice' ? { tone: 'direct', voice: 'sage' } : null; },
+  };
+  const m = await mount({ me, stored: [], db });
+  try {
+    await m.open();
+    await m.say('Hi');
+    const tones = () => m.posts.filter(([u]) => u === '/api/support/chat').map(([, b]) => b.tone);
+    assert.deepEqual(tones(), ['direct'], 'u1\'s tone');
+    who = 'u2';
+    await m.addTab();
+    await m.say('Hi');
+    assert.deepEqual(tones(), ['direct', 'supportive'], 'u2\'s could not be read: the default, not u1\'s');
+  } finally {
+    await m.done();
   }
 });
 
