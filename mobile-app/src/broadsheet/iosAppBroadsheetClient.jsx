@@ -60,6 +60,7 @@ import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } 
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { BSIntegrationsPage, BSReconcile } from './BSIntegrationsPage.jsx';
 import { BSLeaderboard } from './BSLeaderboard.jsx';
+import { BSNotifications } from './BSNotifications.jsx';
 import { BSNoraTalk, useNoraTalk, bsNoraVoiceFail } from './BSNoraTalk.jsx';
 import { BSFocusHead, BSFocusTitle, BSFocusLead, BSFocusArrival, BSFocusCountdown, BSFocusActions, BSFocusLine, BSFocusLink, BSFocusRoute, BSShopBySwitch, BSFocusLeader, BSFocusPeriod, BSFocusMealShop } from './BSFocus.jsx';
 import { bsFocusMin, bsFocusArrival, bsFocusUntil, bsFocusPrevStop, bsFocusSlot, bsGrocerySkipped, bsGroceryByMeal, bsGroceryAisleStops, bsReadShopBy, bsSaveShopBy, bsReadSkippedMeals, bsSaveSkippedMeals, bsPeriodAverage, bsReadGlancePeriod, bsSaveGlancePeriod, BS_GLANCE_DAYS, bsGroceryItemKey, bsMealShopItems, bsGroceryIsGot, bsReadGotItems, bsSaveGotItems, bsToggleGot } from '../services/focusLayout.mjs';
@@ -26448,29 +26449,8 @@ const SHAPE_SCORE_PROFILES = {
   },
 };
 
-// ─── NOTIFICATIONS ───────────────────────────────────────────
-// In-app feed backed by /api/notifications. Tapping a notification marks it
-// read and (if it carries a `route`) deep-links via onRoute.
-function _bsNotifAgo(iso) {
-  const d = new Date(iso).getTime();
-  if (isNaN(d)) return '';
-  const s = Math.max(0, Math.floor((Date.now() - d) / 1000));
-  if (s < 60) return 'now';
-  if (s < 3600) return `${Math.floor(s / 60)}m`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h`;
-  return `${Math.floor(s / 86400)}d`;
-}
-
-// Accent per notification type (falls back to the theme accent).
-function _bsNotifStyle(type, t) {
-  const map = {
-    booking_request: t.AMBER, session_confirmed: t.GREEN, session_declined: t.RUST,
-    payment: t.GREEN, message: t.BLUE, workout: t.AMBER,
-    meal_plan: t.RUST, program: t.ACCENT, grocery: t.RUST, general: t.ACCENT,
-  };
-  return map[type] || map.general;
-}
-
+// ─── NOTIFICATIONS ─── the list moved to BSNotifications.jsx (2026-10-16), with Clear all.
+// The preference center and reminders below stay here.
 const _NP_HOURS = Array.from({ length: 24 }, (_, h) => ({ v: h, l: (h === 0 ? '12 AM' : h < 12 ? h + ' AM' : h === 12 ? '12 PM' : (h - 12) + ' PM') }));
 const _NP_DEF_CH = { inapp: true, push: true, email: false };
 const _NP_CHANNELS = [['inapp', 'App'], ['push', 'Push'], ['email', 'Email']];
@@ -26758,87 +26738,6 @@ function BSNotifyPrefs({ onBack, role }) {
     </BSPage>
   );
 }
-function BSNotifications({ onBack, onRoute = () => {} }) {
-  const t = useBS();
-  const { BSPage, BSDetailHeader } = window;
-  const [items, setItems] = useStateBSC(null);
-
-  const load = () => window.ShapeNotifications?.list?.()
-    .then(d => setItems(Array.isArray(d.notifications) ? d.notifications : []))
-    .catch(() => setItems([]));
-  React.useEffect(() => {
-    load();
-    const unsub = window.ShapeNotifications?.subscribe?.(() => load()) || (() => {});
-    return () => { try { unsub(); } catch (e) {} };
-  }, []);
-
-  const open = async (n) => {
-    if (!n.read) {
-      setItems(list => (list || []).map(x => x.id === n.id ? { ...x, read: true } : x));
-      window.ShapeNotifications?.markRead?.({ id: n.id }).catch(() => {});
-    }
-    if (n.route) onRoute(n.route, n.data || {});
-  };
-  const markAll = async () => {
-    setItems(list => (list || []).map(x => ({ ...x, read: true })));
-    window.ShapeNotifications?.markRead?.({ all: true }).catch(() => {});
-  };
-
-  const list = items || [];
-  const unread = list.filter(n => !n.read).length;
-
-  return (
-    <BSPage>
-      <BSDetailHeader
-        onBack={onBack}
-        eyebrow="Section · Activity"
-        kicker="Notifications"
-        title={<>Your<br/>updates.</>}
-        trailing={unread ? (
-          <button onClick={markAll} style={{ padding: '8px 12px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Mark all read</button>
-        ) : null}
-      />
-      {items === null && (
-        <div style={{ padding: `20px ${t.padX}px`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>
-      )}
-      {items !== null && list.length === 0 && (
-        <div style={{ padding: `0 ${t.padX}px 18px` }}>
-          <div style={{ borderTop: `2px solid ${t.INK}`, paddingTop: 14 }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, lineHeight: 1.15, letterSpacing: '-0.02em', marginBottom: 8 }}>You’re all caught up.</div>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: t.INK70, lineHeight: 1.45 }}>Booking requests, confirmations and other updates will show up here.</div>
-          </div>
-        </div>
-      )}
-      {list.length > 0 && (
-        <div style={{ padding: `12px ${t.padX}px 4px` }}>
-          {list.map((n) => {
-            const accent = _bsNotifStyle(n.type, t);
-            return (
-              <button key={n.id} onClick={() => open(n)} style={{
-                width: '100%', textAlign: 'left', display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'start', gap: 11,
-                padding: '12px 13px', marginBottom: 9, borderRadius: 13, cursor: n.route ? 'pointer' : 'default',
-                border: `1px solid ${n.read ? t.RULE : accent}`, borderLeft: `3px solid ${accent}`,
-                background: n.read ? 'transparent' : `${accent}14`,
-              }}>
-                <span style={{ minWidth: 0 }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                    {!n.read && <span style={{ width: 6, height: 6, borderRadius: 99, background: accent, flexShrink: 0 }} />}
-                    <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: n.read ? 600 : 700, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.title}</span>
-                  </span>
-                  {n.body ? <span style={{ display: 'block', marginTop: 3, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, fontWeight: 500, lineHeight: 1.35 }}>{n.body}</span> : null}
-                  {n.route ? <span style={{ display: 'block', marginTop: 5, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent, fontWeight: 700 }}>Open →</span> : null}
-                </span>
-                <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', marginTop: 2 }}>{_bsNotifAgo(n.createdAt)}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-      <BSFooter right="Activity" />
-    </BSPage>
-  );
-}
-
 // ─── SESSIONS & IN-APP VIDEO CALLS ───────────────────────────
 // Live coach↔client bookings from /api/sessions/manage. Coaches confirm /
 // decline requests; confirming a video session mints a Jitsi room into

@@ -60,5 +60,21 @@
   "coachPrep.setBy": "fissato da {name}",
   "coachPrep.message": "Scrivi al tuo coach",
   "coachPrep.messageName": "Scrivi a {name}",
-  "coachPrep.meanwhile": "Registra una sessione nel frattempo"
+  "coachPrep.meanwhile": "Registra una sessione nel frattempo",
+  "notifications.eyebrow": "Sezione · Attività",
+  "notifications.kicker": "Notifiche",
+  "notifications.titleTop": "I tuoi",
+  "notifications.titleBottom": "aggiornamenti.",
+  "notifications.markAll": "Segna tutto come letto",
+  "notifications.clearAll": "Cancella tutto",
+  "notifications.clearConfirm": "Cancellare tutto?",
+  "notifications.clearYes": "Sì",
+  "notifications.clearCancel": "Annulla",
+  "notifications.clearFailed": "Impossibile cancellare le tue notifiche. Riprova.",
+  "notifications.loading": "Caricamento…",
+  "notifications.emptyTitle": "Sei in pari.",
+  "notifications.emptyBody": "Qui compariranno richieste di prenotazione, conferme e altri aggiornamenti.",
+  "notifications.open": "Apri →",
+  "notifications.now": "ora",
+  "notifications.footer": "Attività"
 }

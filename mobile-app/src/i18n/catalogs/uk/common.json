@@ -60,5 +60,21 @@
   "coachPrep.setBy": "задав(ла) {name}",
   "coachPrep.message": "Написати тренерові",
   "coachPrep.messageName": "Написати: {name}",
-  "coachPrep.meanwhile": "Поки що запиши заняття"
+  "coachPrep.meanwhile": "Поки що запиши заняття",
+  "notifications.eyebrow": "Розділ · Активність",
+  "notifications.kicker": "Сповіщення",
+  "notifications.titleTop": "Ваші",
+  "notifications.titleBottom": "новини.",
+  "notifications.markAll": "Позначити всі як прочитані",
+  "notifications.clearAll": "Очистити все",
+  "notifications.clearConfirm": "Очистити все?",
+  "notifications.clearYes": "Так",
+  "notifications.clearCancel": "Скасувати",
+  "notifications.clearFailed": "Не вдалося очистити сповіщення. Спробуйте ще раз.",
+  "notifications.loading": "Завантаження…",
+  "notifications.emptyTitle": "Ви все переглянули.",
+  "notifications.emptyBody": "Тут з’являтимуться запити на запис, підтвердження та інші новини.",
+  "notifications.open": "Відкрити →",
+  "notifications.now": "зараз",
+  "notifications.footer": "Активність"
 }

@@ -60,5 +60,21 @@
   "coachPrep.setBy": "{name} ya saita",
   "coachPrep.message": "Aika wa kocinka saƙo",
   "coachPrep.messageName": "Aika wa {name} saƙo",
-  "coachPrep.meanwhile": "Rubuta zama kafin nan"
+  "coachPrep.meanwhile": "Rubuta zama kafin nan",
+  "notifications.eyebrow": "Sashe · Ayyuka",
+  "notifications.kicker": "Sanarwoyi",
+  "notifications.titleTop": "Sabbin",
+  "notifications.titleBottom": "labaranka.",
+  "notifications.markAll": "Yi alamar an karanta duka",
+  "notifications.clearAll": "Share duka",
+  "notifications.clearConfirm": "A share duka?",
+  "notifications.clearYes": "Ee",
+  "notifications.clearCancel": "Soke",
+  "notifications.clearFailed": "Ba a iya share sanarwoyinka ba. Sake gwadawa.",
+  "notifications.loading": "Ana lodawa…",
+  "notifications.emptyTitle": "Ka ga komai.",
+  "notifications.emptyBody": "Buƙatun ajiyar lokaci, tabbatarwa da sauran labarai za su bayyana a nan.",
+  "notifications.open": "Buɗe →",
+  "notifications.now": "yanzu",
+  "notifications.footer": "Ayyuka"
 }

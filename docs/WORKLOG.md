@@ -152,10 +152,10 @@ planned builds.
 
 **Known gaps**
 - `get_display_names` returns a full name and photo for any id, whoever asks.
-- The app's notification list has no Clear all; a website clear hides the same rows there
-  (#2386). Email is offered only for coach messages, waitlist invites, tier-ups and a
-  coach's waiting list (#2387); a coach's red and amber clients are app and push only,
-  and a failed email is logged and dropped (no retry queue).
+- The app's notification list reads a failed load as "You're all caught up" (Clear all
+  is on both, #2386 and #2389). Email is offered only for coach messages, waitlist
+  invites, tier-ups and a coach's waiting list (#2387); a coach's red and amber clients
+  are app and push only, and a failed email is logged and dropped (no retry queue).
 - A member may pay two coaches of one role, sharing one section per discipline (#2384).
   Nora's member read, the calendar and the prep-reminder cron still read only the
   newest published meal plan, and the coach Shared clients roster is trainer to

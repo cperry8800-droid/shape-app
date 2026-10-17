@@ -60,5 +60,21 @@
   "coachPrep.setBy": "задал(а) {name}",
   "coachPrep.message": "Написать тренеру",
   "coachPrep.messageName": "Написать: {name}",
-  "coachPrep.meanwhile": "Пока запиши занятие"
+  "coachPrep.meanwhile": "Пока запиши занятие",
+  "notifications.eyebrow": "Раздел · Активность",
+  "notifications.kicker": "Уведомления",
+  "notifications.titleTop": "Ваши",
+  "notifications.titleBottom": "новости.",
+  "notifications.markAll": "Отметить все как прочитанные",
+  "notifications.clearAll": "Очистить всё",
+  "notifications.clearConfirm": "Очистить всё?",
+  "notifications.clearYes": "Да",
+  "notifications.clearCancel": "Отмена",
+  "notifications.clearFailed": "Не удалось очистить уведомления. Попробуйте ещё раз.",
+  "notifications.loading": "Загрузка…",
+  "notifications.emptyTitle": "Вы всё прочитали.",
+  "notifications.emptyBody": "Здесь появятся запросы на запись, подтверждения и другие новости.",
+  "notifications.open": "Открыть →",
+  "notifications.now": "сейчас",
+  "notifications.footer": "Активность"
 }

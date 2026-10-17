@@ -5523,6 +5523,23 @@ async function markNotificationRead({ id, all } = {}) {
   });
   return res.ok;
 }
+// Clear all (owner, 2026-10-16): hides every notification up to `before`, the newest the list
+// showed, passed back as the server sent it. Hidden, never deleted (/api/notifications). The app
+// shows every type, so it clears every type: no `surface`. Resolves true only when it landed.
+async function clearNotifications({ before } = {}) {
+  if (typeof before !== 'string' || !before) return false;
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/notifications`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ clear: true, before }),
+    });
+    return res.ok;
+  } catch (e) {
+    return false;
+  }
+}
 // Live subscription on the user's notifications (added to supabase_realtime by
 // the 2026-05-30 migration). Fires onInsert for new rows; returns unsubscribe.
 function subscribeNotifications(onInsert) {
@@ -5815,6 +5832,7 @@ window.ShapeStore = { get: getStore, redeem: redeemStoreItem, checkout: checkout
 window.ShapeNotifications = {
   list: listNotifications,
   markRead: markNotificationRead,
+  clear: clearNotifications,
   subscribe: subscribeNotifications,
 };
 

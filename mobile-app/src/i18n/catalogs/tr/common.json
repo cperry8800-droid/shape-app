@@ -60,5 +60,21 @@
   "coachPrep.setBy": "{name} belirledi",
   "coachPrep.message": "Koçuna yaz",
   "coachPrep.messageName": "{name} adlı koça yaz",
-  "coachPrep.meanwhile": "Bu arada bir seans kaydet"
+  "coachPrep.meanwhile": "Bu arada bir seans kaydet",
+  "notifications.eyebrow": "Bölüm · Etkinlik",
+  "notifications.kicker": "Bildirimler",
+  "notifications.titleTop": "Senin",
+  "notifications.titleBottom": "güncellemelerin.",
+  "notifications.markAll": "Tümünü okundu işaretle",
+  "notifications.clearAll": "Tümünü temizle",
+  "notifications.clearConfirm": "Tümü temizlensin mi?",
+  "notifications.clearYes": "Evet",
+  "notifications.clearCancel": "İptal",
+  "notifications.clearFailed": "Bildirimlerin temizlenemedi. Tekrar dene.",
+  "notifications.loading": "Yükleniyor…",
+  "notifications.emptyTitle": "Her şeyi gördün.",
+  "notifications.emptyBody": "Rezervasyon talepleri, onaylar ve diğer güncellemeler burada görünecek.",
+  "notifications.open": "Aç →",
+  "notifications.now": "şimdi",
+  "notifications.footer": "Etkinlik"
 }

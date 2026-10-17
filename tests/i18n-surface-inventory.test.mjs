@@ -341,7 +341,7 @@ const UNCOVERED = new Set([
   'Client::BSLogActivity',
   'Client::BSMealLogged', 'Client::BSMessageComposer', 'Client::BSMoodSheet',
   'Client::BSNoraMemoryPage', 'Client::BSNoraProfile',
-  'Client::BSNotifications', 'Client::BSNotifyPrefs',
+  'Client::BSNotifyPrefs',
   'Client::BSPlaylistCard', 'Client::BSPricingPage', 'Client::BSPrivacyPage',
   'Client::BSProfileIdentityHead', 'Client::BSProgChart',
   'Client::BSRecipePreview',
@@ -854,9 +854,13 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // as its own module, BSLeaderboard.jsx, with the member boards, the coach board and the privacy
   // switches, every string keyed under score:board.* in all 13 locales. Its old copy in the client
   // module (eight hardcoded strings) is gone, and its line left UNCOVERED.
-  assert.equal(noneStrings, 711, 'the untranslated surfaces changed how much they hardcode — update the number AND say so in the PR');
+  // ⚠ AND noneStrings 711 -> 702, none.length 87 -> 86: the notification list (2026-10-16) moved
+  // to its own module, BSNotifications.jsx, when Clear all was added (owner: "add clear all to the
+  // app too"), every string keyed under common:notifications.* in all 13 locales. Its old copy in
+  // the client module is gone, and its line left UNCOVERED.
+  assert.equal(noneStrings, 702, 'the untranslated surfaces changed how much they hardcode — update the number AND say so in the PR');
   assert.equal(part.length, 34, 'partial-surface count moved — regenerate PARTIAL and the record');
-  assert.equal(none.length, 87, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  assert.equal(none.length, 86, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned

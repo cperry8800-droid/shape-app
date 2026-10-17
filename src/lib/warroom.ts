@@ -613,6 +613,15 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Clear all in the app\'s notification list — #2389. No migration',
+      items: [
+        { label: 'Clear all in the app (owner, 2026-10-16): asks once, clears what the list showed up to its newest notice, rolls back and says so on a failed write. It covers every type, the phone-only reminders included', status: 'done' },
+        { label: 'A read in flight can\'t paint cleared rows back, and a notice that arrives mid-clear is read once the clear lands, failed or not (Codex). Mutation round killed 16 of 16; the screen is mounted in the real broadsheet chrome', status: 'done' },
+        { label: 'The list moved out of iosAppBroadsheetClient.jsx into BSNotifications.jsx and is translated in all 13 locales', status: 'done' },
+        { label: 'The app\'s list still reads a failed load as "You\'re all caught up"', status: 'pending' },
+      ],
+    },
+    {
       section: 'Email only for what belongs in an inbox, and a tier-up notice — #2387. One migration',
       items: [
         { label: 'Email is offered for coach messages, waitlist invites, tier-ups and a coach\'s waiting list only (owner, 2026-10-16); every other type shows no Email switch and never emails, whatever was saved for it (channelsForType, public/newdesign/notificationSurfaces.mjs)', status: 'done' },
@@ -632,7 +641,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Phone only (owner, 2026-10-16): the reminders a member sets, the night-before meal-prep reminder, and habit and streak nudges (and their ai_ rows) stay out of the website bell, filtered in the query before its 200-row cap; the app shows them and they push', status: 'done' },
         { label: 'APPLIED + VERIFIED LIVE (2026-10-16, read-only) — 2026-10-16-notifications-clear.sql: notifications.cleared_at (timestamptz), notifications_user_uncleared_idx, and the owner update policy a clear uses', status: 'done' },
         { label: 'Mutation round killed 29 of 29; the route runs against a fake database and the bell is mounted in JSDOM', status: 'done' },
-        { label: 'The app\'s notification list has no Clear all of its own; a website clear hides the same rows there', status: 'pending' },
+        { label: 'The app\'s notification list has its own Clear all now (#2389). Rows a website clear hides leave the app too; the app\'s clear also takes the phone-only reminders, which the website never shows', status: 'done' },
       ],
     },
     {
