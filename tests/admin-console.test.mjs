@@ -398,6 +398,24 @@ test('overview: every tile reads the number it says it reads', () => {
   const empty = overview.overviewSections({}).flatMap((s) => s.tiles);
   assert.ok(empty.every((t) => !/undefined|NaN|null/.test(`${t.value} ${t.sub}`)), 'no undefined, NaN or null on an empty answer');
   assert.equal(empty.find((t) => t.label === 'Oldest waiting').value, 'None');
+  // The queues carry their counts, for the summary's first line.
+  assert.deepEqual(sections.find((s) => s.key === 'queues').tiles.map((t) => t.count), [1, 1, 1, 2]);
+  assert.deepEqual(overview.waitingLine(overview.overviewSections({}).find((s) => s.key === 'queues').tiles), { total: 0, line: 'Nothing is waiting on the team.' });
+});
+
+test('overview: the views split the sections, and the summary’s key numbers open their views', () => {
+  const keys = overview.overviewSections(STATS).map((s) => s.key);
+  const placed = overview.OVERVIEW_VIEWS.flatMap((v) => v.sections);
+  assert.deepEqual([...placed].sort(), keys.filter((k) => k !== 'queues').sort(), 'every section but the queues is in exactly one view');
+  assert.equal(new Set(placed).size, placed.length);
+  assert.deepEqual(['money', 'growth', '', 'Money', undefined, '__proto__'].map((v) => overview.overviewView(v).key), ['money', 'growth', 'summary', 'summary', 'summary', 'summary']);
+  assert.deepEqual([overview.viewHref('summary'), overview.viewHref('money')], ['/admin', '/admin?view=money']);
+  const key = overview.keyNumbers(overview.overviewSections(STATS));
+  assert.deepEqual(key.map((t) => t.label), ['Accounts', 'New accounts, 7 days', 'Active, 7 days', 'Shape’s monthly recurring revenue', 'Paying members', 'Payment failing', 'Live listings', 'Workouts logged, 7 days']);
+  assert.ok(key.every((t) => /^\/admin\?view=(growth|money|coaching|engagement)$/.test(t.href)));
+  assert.equal(key.find((t) => t.label === 'Accounts').value, '5', 'the tile’s own number, not a copy');
+  assert.deepEqual(overview.keyNumbers([]), []);
+  assert.deepEqual([1, 2].map((c) => overview.waitingLine([{ count: c }]).line), ['1 thing is waiting on the team.', '2 things are waiting on the team.']);
 });
 
 test('overview: sign-up sources, birthdays and anniversaries read plainly', () => {
@@ -490,30 +508,61 @@ const answers = (name, args) => {
   return { data: null, error: { code: 'PGRST202' } };
 };
 
-test('render: the Overview shows the sections, the tiers and four 30-day charts', async () => {
-  const { html, calls } = await renderPage('src/app/admin/page.tsx', { rpc: answers });
+const overviewOf = (view, level = 'owner') => renderPage('src/app/admin/page.tsx', { rpc: answers, level, searchParams: view ? { view } : {} });
+const h3s = (html) => [...html.matchAll(/<h3[^>]*>([^<]*)<\/h3>/g)].map((m) => m[1]);
+
+test('render: the Overview is in views, and between them shows every section, the tiers and four 30-day charts', async () => {
+  const { html, calls } = await overviewOf('');
   assert.equal(calls[0], 'analyst', 'the level is checked first');
-  for (const h of ['People', 'Money', 'Coach applications', 'Consultations and sessions', 'Shape Score', 'Shape Score tiers', 'Sign-up lists and messages', 'Last 30 days', 'Sign-up funnel, last 30 days']) {
-    assert.ok(html.includes(`>${h}</h3>`), `the ${h} section`);
+  assert.deepEqual(calls.slice(1), ['rpc:admin_overview_stats'], 'the summary asks for the stats alone; the funnel and birthdays are Growth’s');
+  const views = { summary: html };
+  for (const v of ['growth', 'money', 'coaching', 'engagement']) views[v] = (await overviewOf(v)).html;
+  const seen = Object.fromEntries(Object.entries(views).map(([k, h]) => [k, h3s(h)]));
+  assert.deepEqual(seen.summary, ['Waiting on the team', 'Key numbers', 'Last 30 days'], 'the summary leads with what is waiting');
+  assert.deepEqual(seen.growth, ['People', 'Sign-up lists and messages', 'Sign-ups by source', 'Sign-up funnel, last 30 days']);
+  assert.deepEqual(seen.money, ['Money']);
+  assert.deepEqual(seen.coaching, ['Coach applications', 'Coach listings', 'Consultations and sessions']);
+  assert.deepEqual(seen.engagement, ['Activity', 'Shape Score', 'Shape Score tiers']);
+  for (const name of ['Raw', 'Tempo', 'Legend', 'Certified', 'Elite', 'Icon']) assert.ok(views.engagement.includes(`>${name} <`), `the ${name} tier row`);
+  assert.equal((html.match(/<figure/g) ?? []).length, 4, 'four daily charts on the summary');
+  assert.ok(html.includes('$22.50'), 'Shape’s MRR is a key number');
+  for (const [v, h] of Object.entries(views)) {
+    assert.ok(!/NaN|undefined/.test(h), `no NaN or undefined anywhere on ${v}`);
+    assert.ok(h.includes('href="https://dashboard.stripe.com/"') && h.includes('vercel.com/cperry8800-droids-projects/shape-app/analytics'), `${v} links out`);
+    assert.equal((h.match(/aria-current="page"/g) ?? []).length, 1, `${v}: one view is marked`);
   }
-  for (const name of ['Raw', 'Tempo', 'Legend', 'Certified', 'Elite', 'Icon']) assert.ok(html.includes(`>${name} <`), `the ${name} tier row`);
-  assert.equal((html.match(/<figure/g) ?? []).length, 4, 'four daily charts');
-  assert.ok(html.includes('$22.50'));
-  assert.ok(!/NaN|undefined/.test(html), 'no NaN or undefined anywhere on the page');
-  assert.ok(html.includes('href="https://dashboard.stripe.com/"') && html.includes('vercel.com/cperry8800-droids-projects/shape-app/analytics'));
+  assert.ok(views.money.includes('href="/admin?view=money" aria-current="page"'));
+  assert.equal((await overviewOf('drop table')).html, html, 'an unknown view is the summary');
+});
+
+test('render: the summary says how much is waiting on the team, and its key numbers open their views', async () => {
+  const { html } = await overviewOf('');
+  // The replica: one help request, one refund, one credential and two applications are open.
+  const q = overview.overviewSections(STATS).find((s) => s.key === 'queues').tiles;
+  const { total, line } = overview.waitingLine(q);
+  assert.ok(total > 0 && html.includes(`>${line}</p>`), line);
+  assert.ok(html.indexOf('Waiting on the team') < html.indexOf('Key numbers'), 'what is waiting comes first');
+  for (const v of ['growth', 'money', 'coaching', 'engagement']) assert.ok(html.includes(`href="/admin?view=${v}"`), `a key number opens ${v}`);
 });
 
 test('render: an analyst’s tiles never link to a page the analyst cannot open', async () => {
-  const { html } = await renderPage('src/app/admin/page.tsx', { rpc: answers, level: 'analyst' });
-  for (const href of ['/dashboard/applications', '/dashboard/support', '/dashboard/refunds', '/dashboard/credentials', '/admin/members', '/admin/coaches']) {
-    assert.ok(!html.includes(`href="${href}"`), `no link to ${href}`);
+  for (const v of ['', 'growth', 'money', 'coaching', 'engagement']) {
+    const { html } = await overviewOf(v, 'analyst');
+    for (const href of ['/dashboard/applications', '/dashboard/support', '/dashboard/refunds', '/dashboard/credentials', '/admin/members', '/admin/coaches']) {
+      assert.ok(!html.includes(`href="${href}`), `${v || 'summary'}: no link to ${href}`);
+    }
   }
-  const owner = await renderPage('src/app/admin/page.tsx', { rpc: answers, level: 'owner' });
-  assert.ok(owner.html.includes('href="/dashboard/applications"') && owner.html.includes('href="/admin/members"'));
+  const owner = await overviewOf('', 'owner');
+  assert.ok(owner.html.includes('href="/dashboard/applications"') && owner.html.includes('href="/dashboard/support"'), 'the queues open their pages');
+  const growth = await overviewOf('growth', 'owner');
+  assert.ok(growth.html.includes('href="/admin/members"'));
+  // A link to a part of a page opens for whoever opens the page: the birthdays on Members.
+  const support = await overviewOf('growth', 'support');
+  assert.ok(support.html.includes('href="/admin/members#birthdays"') && support.html.includes('href="/admin/members#anniversaries"'));
 });
 
 test('render: the Overview shows sign-ups by source, and this week’s birthdays and anniversaries as counts', async () => {
-  const { html } = await renderPage('src/app/admin/page.tsx', { rpc: answers, level: 'analyst' });
+  const { html } = await overviewOf('growth', 'analyst');
   assert.ok(html.includes('>Sign-ups by source</h3>'));
   for (const src of ['coach link', 'google.com', 'instagram', 'the app', 'not recorded']) assert.ok(html.includes(`>${src}</span>`), src);
   assert.ok(html.includes('3 on the website · 1 in the app · 1 not recorded'));

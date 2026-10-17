@@ -16,7 +16,7 @@ import { formatCount, formatMoney, tierName } from '@/lib/admin-overview.mjs';
 import { LEVEL_LABELS, resolveStaffLevel, type StaffLevel } from '@/lib/staff-levels.mjs';
 import { accountRefusal, canDoAccountAction, REASON_MAX, REASON_MIN } from '@/lib/admin-account-actions.mjs';
 import { freezeAccount, handleRequest, liftListing, removeAccount, suspendListing, unfreezeAccount } from '../actions';
-import { ACCOUNT_MIGRATION_FILE, formatWhen, MIGRATION_FILE, Notice } from '../../ui';
+import { ACCOUNT_MIGRATION_FILE, formatWhen, MIGRATION_FILE, Notice, PAGE_TITLE, SECTION_TITLE } from '../../ui';
 
 export const metadata = { title: 'Account — Shape Admin', robots: { index: false, follow: false } };
 export const dynamic = 'force-dynamic';
@@ -230,7 +230,7 @@ export default async function AccountPage({
 
       <section className="flex flex-col gap-2">
         <div className="flex items-baseline gap-3 flex-wrap">
-          <h2 className="text-2xl font-light tracking-tight break-all">{name}</h2>
+          <h2 className={`${PAGE_TITLE} break-all`}>{name}</h2>
           {freeze ? (
             <span className="text-xs uppercase tracking-[0.14em] rounded-full border border-red-400/40 text-red-200 px-2.5 py-0.5">Frozen</span>
           ) : (
@@ -271,7 +271,7 @@ export default async function AccountPage({
       </section>
 
       <section className={card} aria-labelledby="activity">
-        <h3 id="activity" className="text-lg font-medium">
+        <h3 id="activity" className={SECTION_TITLE}>
           Activity
         </h3>
         <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm tabular-nums">
@@ -289,7 +289,7 @@ export default async function AccountPage({
       </section>
 
       <section className={card} aria-labelledby="billing">
-        <h3 id="billing" className="text-lg font-medium">
+        <h3 id="billing" className={SECTION_TITLE}>
           Membership and coaches
         </h3>
         {a.memberships.length === 0 && a.coach_subscriptions.length === 0 ? (
@@ -323,7 +323,7 @@ export default async function AccountPage({
       {a.listings.length > 0 && (
         <section className={card} aria-labelledby="listings">
           <div>
-            <h3 id="listings" className="text-lg font-medium">
+            <h3 id="listings" className={SECTION_TITLE}>
               Coach listings
             </h3>
             <p className="text-sm text-neutral-500">A suspended listing is off the marketplace until it is put back. The coach keeps it.</p>
@@ -381,7 +381,7 @@ export default async function AccountPage({
 
       <section className={card} aria-labelledby="freeze">
         <div>
-          <h3 id="freeze" className="text-lg font-medium">
+          <h3 id="freeze" className={SECTION_TITLE}>
             {freeze ? 'Frozen' : 'Freeze'}
           </h3>
           <p className="text-sm text-neutral-500">
@@ -433,7 +433,7 @@ export default async function AccountPage({
 
       <section className={card} aria-labelledby="requests">
         <div>
-          <h3 id="requests" className="text-lg font-medium">
+          <h3 id="requests" className={SECTION_TITLE}>
             Requests from Settings
           </h3>
           <p className="text-sm text-neutral-500">
@@ -451,7 +451,7 @@ export default async function AccountPage({
 
       {(a.freezes.length > 0 || a.suspensions.length > 0) && (
         <section className={card} aria-labelledby="history">
-          <h3 id="history" className="text-lg font-medium">
+          <h3 id="history" className={SECTION_TITLE}>
             History
           </h3>
           <ul className="flex flex-col gap-1.5 text-sm text-neutral-400">
@@ -475,7 +475,7 @@ export default async function AccountPage({
       {can('remove') && (
         <section className="rounded-xl border border-red-400/30 bg-red-400/5 p-4 sm:p-5 flex flex-col gap-3" aria-labelledby="remove">
           <div>
-            <h3 id="remove" className="text-lg font-medium text-red-100">
+            <h3 id="remove" className={`${SECTION_TITLE} text-red-100`}>
               Remove this account
             </h3>
             <p className="text-sm text-neutral-400">

@@ -7,7 +7,7 @@ import { redirect } from 'next/navigation';
 import { requireStaff } from '@/lib/admin-access';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { countOf, formatCount, formatMoney, tierName } from '@/lib/admin-overview.mjs';
-import { formatWhen, MIGRATION_FILE, Notice } from '../ui';
+import { formatWhen, MIGRATION_FILE, Notice, PAGE_TITLE, Period } from '../ui';
 
 export const metadata = { title: 'Coaches — Shape Admin', robots: { index: false, follow: false } };
 export const dynamic = 'force-dynamic';
@@ -78,7 +78,7 @@ export default async function CoachesPage() {
   return (
     <div className="flex flex-col gap-6">
       <section className="flex flex-col gap-2">
-        <h2 className="text-2xl font-light tracking-tight">Coaches</h2>
+        <h2 className={PAGE_TITLE}>Coaches<Period /></h2>
         <p className="text-sm text-neutral-400 max-w-3xl">
           Each coach&apos;s progress: their listing, clients and income, consultations and sessions, reviews, the work they
           assign, and their Shape Score tier. A coach with both roles has a row for each. &ldquo;30 days&rdquo; is the last 30

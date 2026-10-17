@@ -7,7 +7,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { getEnvAdminEmails, getOwnerEmails, requireStaff } from '@/lib/admin-access';
 import { ASSIGNABLE_LEVELS, LEVEL_LABELS, LEVEL_SUMMARIES, STAFF_LEVELS, type StaffLevel } from '@/lib/staff-levels.mjs';
 import { removeStaffMember, resetStaffTwoFactor, saveStaffMember } from './actions';
-import { MIGRATION_FILE, Notice } from '../ui';
+import { MIGRATION_FILE, Notice, PAGE_TITLE, Period, SECTION_TITLE } from '../ui';
 
 export const metadata = { title: 'Staff — Shape Admin', robots: { index: false, follow: false } };
 export const dynamic = 'force-dynamic';
@@ -91,7 +91,7 @@ export default async function StaffPage({
   return (
     <div className="flex flex-col gap-8">
       <section className="flex flex-col gap-2">
-        <h2 className="text-2xl font-light tracking-tight">Staff</h2>
+        <h2 className={PAGE_TITLE}>Staff<Period /></h2>
         <p className="text-sm text-neutral-400 max-w-2xl">
           People who work with Shape and can open this console. They sign in with their own Shape account; add them by the
           email that account uses.
@@ -103,7 +103,7 @@ export default async function StaffPage({
       {params?.error && <Notice tone="red">{ERRORS[params.error] ?? 'That could not be done.'}</Notice>}
 
       <section className="rounded-xl border border-neutral-800 bg-neutral-950 p-5 flex flex-col gap-4">
-        <h3 className="text-lg font-medium">Add someone, or change their level</h3>
+        <h3 className={SECTION_TITLE}>Add someone, or change their level</h3>
         <form action={saveStaffMember} className="flex flex-col sm:flex-row gap-3 sm:items-end">
           <label className="flex flex-col gap-1.5 flex-1 min-w-0">
             <span className="text-xs uppercase tracking-[0.14em] text-neutral-500">Their Shape account email</span>
@@ -150,7 +150,7 @@ export default async function StaffPage({
       </section>
 
       <section className="flex flex-col gap-3">
-        <h3 className="text-lg font-medium">The team</h3>
+        <h3 className={SECTION_TITLE}>The team</h3>
         <p className="text-sm text-neutral-500 max-w-2xl">
           Everyone signs in to the console with two-factor: the first time, they set up an authenticator app. If someone loses
           theirs, Reset two-factor signs them out and they set up a new one; that includes admins set in Vercel. An owner&apos;s

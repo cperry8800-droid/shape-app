@@ -10,7 +10,7 @@ import { redirect } from 'next/navigation';
 import { requireStaff } from '@/lib/admin-access';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { birthdayLabel, countOf, formatCount, tierName, whenLabel, yearsLabel } from '@/lib/admin-overview.mjs';
-import { ADMIN_TIMEZONE, formatDay, formatWhen, MIGRATION_FILE, Notice } from '../ui';
+import { ADMIN_TIMEZONE, formatDay, formatWhen, MIGRATION_FILE, Notice, PAGE_TITLE, Period, SECTION_TITLE } from '../ui';
 
 export const metadata = { title: 'Members — Shape Admin', robots: { index: false, follow: false } };
 export const dynamic = 'force-dynamic';
@@ -90,7 +90,7 @@ export default async function MembersPage({
   return (
     <div className="flex flex-col gap-6">
       <section className="flex flex-col gap-2">
-        <h2 className="text-2xl font-light tracking-tight">Members</h2>
+        <h2 className={PAGE_TITLE}>Members<Period /></h2>
         <p className="text-sm text-neutral-400 max-w-3xl">
           Each member&apos;s progress: their membership and coaches, how much they log, and their Shape Score tier. Counts only;
           no health values. &ldquo;7 days&rdquo; and &ldquo;30 days&rdquo; are the last 7 and 30 days to now.
@@ -101,7 +101,7 @@ export default async function MembersPage({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <section id="birthdays" className="rounded-xl border border-neutral-800 bg-neutral-950 p-4 flex flex-col gap-3">
             <div>
-              <h3 className="text-lg font-medium">Birthdays, next {CELEBRATION_DAYS} days</h3>
+              <h3 className={SECTION_TITLE}>Birthdays, next {CELEBRATION_DAYS} days</h3>
               <p className="text-sm text-neutral-500">From the date of birth given at sign-up. Month and day only; no year or age.</p>
             </div>
             {birthdays.length === 0 ? (
@@ -124,7 +124,7 @@ export default async function MembersPage({
           </section>
           <section id="anniversaries" className="rounded-xl border border-neutral-800 bg-neutral-950 p-4 flex flex-col gap-3">
             <div>
-              <h3 className="text-lg font-medium">Shape anniversaries, next {CELEBRATION_DAYS} days</h3>
+              <h3 className={SECTION_TITLE}>Shape anniversaries, next {CELEBRATION_DAYS} days</h3>
               <p className="text-sm text-neutral-500">The yearly date each account joined Shape, from its first full year.</p>
             </div>
             {anniversaries.length === 0 ? (
