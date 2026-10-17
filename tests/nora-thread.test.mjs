@@ -257,7 +257,7 @@ test('app: loads once a session into an untouched thread, appends what it said, 
   assert.match(between(sheet, 'const clearThread = async () => {', 'if (!ok) window.__bsToast'), /if \(anon && !\(_bsNoraSynced === 'anon' && _bsNoraCookie\)\) return;\n\s+const ok = await window\.ShapeSupport\.thread\.clear\(anon \? \{ account: _bsNoraCookie \} : undefined\);\n\s+if \(ok === 'account_changed'\) \{ _bsNoraForget\(\); return; \}/);
   // ⚠ CLEAR WHILE SHE ANSWERS (Codex, #2255), in the sheet and in Settings.
   assert.match(between(sheet, 'const clearThread = async () => {', 'const ok = await'), /_bsNoraGen \+= 1;/);
-  assert.match(sheet, /const gen = _bsNoraGen;[\s\S]{0,900}if \(gen !== _bsNoraGen\) return null;\n\s+const reply =/);
+  assert.match(sheet, /const gen = _bsNoraGen;[\s\S]{0,1200}if \(gen !== _bsNoraGen\) return null;\n\s+\/\/ Refused as another account[^\n]*\n\s+if \(res && res\.accountChanged\) \{[^}]*\}\n\s+const reply =/);
   assert.match(between(APP, 'function BSNoraThreadCard(', 'return ('), /_bsNoraGen \+= 1;\n\s+const ok = await window\.ShapeSupport\?\.thread\?\.clear\?\.\(accountRef\.current \? \{ account: accountRef\.current \} : undefined\);\n\s+if \(ok === 'account_changed'\) \{ setCount\(null\); return; \}/);
   assert.match(sheet, /if \(!list\.length \|\| cur\.length !== 1\) return;/);
   assert.match(sheet, /if \(res && res\.reply\) _bsNoraSave\(\[\{ role: 'user', text: clean, at: sentAt \}, \{ role: 'assistant', text: reply, at: new Date\(\)\.toISOString\(\) \}\], res\.account \|\| null\);/, 'kept with the account she answered as (Codex on #2393)');

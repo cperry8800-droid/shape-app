@@ -1367,6 +1367,15 @@ export async function POST(request: Request) {
   // signed-in-NON-member request runs the exact pre-PR-B path — same prompt,
   // same TOOLS array, no context — byte-identical behavior.
   const actor = await resolveActor(request).catch(() => null);
+  // ⚠ A CONVERSATION LOADED AS ONE ACCOUNT IS NEVER ANSWERED AS ANOTHER (Codex on #2393). The app
+  // signed out in its own client asks through the website's cookie, which can change account in
+  // another tab while the app holds the first account's thread; it names the account the thread
+  // loaded as (`account`), and a request whose caller is not that account is refused before any
+  // of its history is read.
+  const meant = (body as { account?: unknown }).account;
+  if (typeof meant === 'string' && meant && (!actor || actor.user.id !== meant)) {
+    return NextResponse.json({ error: "You're signed in as another account now. Open the conversation again.", code: 'account_changed', account: actor ? actor.user.id : null }, { status: 409 });
+  }
   // ⚠ WHAT DOES NOT WAIT ON MEMBERSHIP STARTS NOW (speed, 2026-10-08: about a second of setup
   // ran one read after another before the model was asked). The Shape team's replies need
   // only the account. A coach's Schedule zone needs only their role, the same profile row

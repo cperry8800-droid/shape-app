@@ -25367,9 +25367,19 @@ function BSNoraSheet({ onClose }) {
       // what it showed. An answer for a cleared conversation is never drawn.
       const onText = (txt) => { if (gen === _bsNoraGen) _bsNoraLiveSet(txt); };
       const onReset = () => _bsNoraLiveSet('');
-      const res = await window.ShapeSupport?.ask?.(hist, undefined, { voice: opts.voice === true, context: bsNoraContext(!screenOffRef.current), onText, onReset });
+      // A thread loaded through the website's cookie names the account it loaded as: a cookie that
+      // is another account now is refused before the history is read (Codex on #2393).
+      const account = _bsNoraWho() === 'anon' && _bsNoraSynced === 'anon' ? _bsNoraCookie : null;
+      const res = await window.ShapeSupport?.ask?.(hist, undefined, { voice: opts.voice === true, context: bsNoraContext(!screenOffRef.current), onText, onReset, account });
       // Cleared while she was answering: the answer belongs to the conversation that went.
       if (gen !== _bsNoraGen) return null;
+      // Refused as another account: the sheet starts again, and what they typed goes back in the box.
+      if (res && res.accountChanged) {
+        _bsNoraForget();
+        if (!opts.silent && !opts.voice) setSupportDraft(clean);
+        if (res.error) window.__bsToast?.(res.error, 'err');
+        return null;
+      }
       const reply = (res && res.reply) || "I can't answer that just now. The Shape team answers at info@theshapecommunity.com.";
       const acts = (res && Array.isArray(res.actions) && res.actions.length) ? res.actions : undefined;
       _bsNoraLive = '';

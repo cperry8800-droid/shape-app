@@ -4514,6 +4514,9 @@ async function askSupportBot(messages, tone, extra = {}) {
   // Where they are (the Ask Nora plan, step 4): the screen, what it has open, the zone.
   if (extra.context && typeof extra.context === 'object') body.context = extra.context;
   if (typeof extra.turnstileToken === 'string' && extra.turnstileToken) body.turnstileToken = extra.turnstileToken;
+  // The account a thread loaded through the website's cookie belongs to: the server refuses the
+  // question if the cookie is another account now, before reading the history (Codex on #2393).
+  if (typeof extra.account === 'string' && extra.account) body.account = extra.account;
   const locale = appLocaleCode();
   if (locale) body.locale = locale;
   const streaming = typeof extra.onText === 'function';
@@ -4533,6 +4536,7 @@ async function askSupportBot(messages, tone, extra = {}) {
     return done;
   }
   const payload = await res.json().catch(() => ({}));
+  if (res.status === 409 && payload && payload.code === 'account_changed') return { reply: '', accountChanged: true, error: payload.error || null };
   // A signed-out question passes Nora's bot check first (the Ask Nora plan): the paywall,
   // sign-in and application doors exist for people with no account yet (Codex, #2259).
   // The check is solved once and the question asked again with its token. A cross-origin
