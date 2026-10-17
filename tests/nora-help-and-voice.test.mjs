@@ -37,10 +37,13 @@ test('website: voice controls show only to someone the gate lets through', () =>
     '{!m.me && isSupport && canVoice && (() => {',
     '{canVoice && <button onClick={() => setNoraEnabled(!noraVoice.enabled)}',
     '{isSupport && canVoice && talkSupported && (',
-    '{canVoice && <select value={noraVoice.voice}',
     '{isSupport && canVoice && voiceSupported && (',
   ];
   for (const g of guarded) assert.ok(WEB.includes(g), `guarded: ${g.split('\n')[0]}`);
+  // No voice picker in the pop-up (owner, 2026-10-17): Voice on/off is the choice; the voice
+  // itself is the app's Settings', synced through the account and still sent with each read.
+  assert.doesNotMatch(WEB, /<select value=\{noraVoice\.voice\}|Auto voice|setNoraVoiceId/);
+  assert.match(WEB, /voice: noraVoice\.voice !== "auto" \? noraVoice\.voice : undefined/, 'the account\'s chosen voice still reads');
   assert.match(WEB, /if \(!opts\.silent && canVoiceRef\.current && noraVoice\.enabled\) speakNora\(finalReply\);/, 'no auto-read for a non-member');
   // every speak / mic entry point in the Support composer is one of the guarded ones
   assert.equal((WEB.match(/onClick=\{toggleVoice\}/g) || []).length, 1);

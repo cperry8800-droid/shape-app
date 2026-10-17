@@ -522,6 +522,9 @@ function ChatWidget(props) {
   // Nora's voice OUTPUT (read replies aloud) — OFF by default, fully usable
   // without it. tone + voice sync from the account (user_goals 'nora_voice') so
   // they match the mobile app; the on/off flag is per-device (localStorage).
+  // The pop-up offers Voice on/off and the tone; which voice she reads in is
+  // picked in the app's Settings, not here (owner, 2026-10-17: no voice picker
+  // in the pop-up), and the account's choice still applies.
   const NORA_VOICES = [
     { id: "shimmer", label: "Warm" }, { id: "alloy", label: "Neutral" }, { id: "sage", label: "Calm" },
     { id: "nova", label: "Bright" }, { id: "onyx", label: "Deep" }, { id: "verse", label: "Expressive" },
@@ -575,7 +578,6 @@ function ChatWidget(props) {
   };
   const setNoraEnabled = (on) => { try { localStorage.setItem("shape.nora.voice", on ? "on" : "off"); } catch (e) {} if (!on) stopNora(); setNoraVoiceState(s => ({ ...s, enabled: on })); };
   const setNoraTone = (tone) => setNoraVoiceState(s => { const n = { ...s, tone }; saveNoraAccount(n.tone, n.voice); return n; });
-  const setNoraVoiceId = (voice) => setNoraVoiceState(s => { const n = { ...s, voice: normNoraVoice(voice) }; saveNoraAccount(n.tone, n.voice); return n; });
   // Server-only voice (mobile #1653 parity): the speechSynthesis robot is
   // DEAD — silence over brand-damaging robot audio. Returns an honest
   // { ok, ended } or { ok: false, reason: 'signed_out' | 'members' | 'playback_blocked' |
@@ -2564,11 +2566,6 @@ function ChatWidget(props) {
                       style={{ padding: "5px 10px", border: 0, background: noraVoice.tone === tn ? TEAL : "transparent", color: noraVoice.tone === tn ? PAPER : "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer" }}>{tn}</button>
                   ))}
                 </div>
-                {canVoice && <select value={noraVoice.voice} onChange={(e) => setNoraVoiceId(e.target.value)} title="Nora's voice"
-                  style={{ background: "rgba(var(--sh-ink-rgb, 242,237,228),0.06)", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", borderRadius: 999, padding: "5px 8px", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, cursor: "pointer" }}>
-                  <option value="auto">Auto voice</option>
-                  {NORA_VOICES.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}
-                </select>}
               </div>
             )}
             {isSupport && personForm && (
