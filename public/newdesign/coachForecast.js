@@ -1,9 +1,10 @@
 // Coach forecast — the math behind the Business page's Plan tab (owner, 2026-10-17:
-// "forecast on business"; design E).
+// "forecast on business"; design E), on the website and in the app.
 //
 // PURE module: no React, no DOM, no fetch. Loads as a plain <script> in the browser
-// (exposes window.CoachForecast) and via require() in Node, so every figure the Plan
-// tab prints is unit-tested (tests/coach-forecast.test.mjs).
+// (exposes window.CoachForecast), as a side-effect import in the app's bundle
+// (mobile-app/src/broadsheet/BSCoachBusiness.jsx), and via require() in Node, so every
+// figure the Plan tab prints is unit-tested (tests/coach-forecast.test.mjs).
 //
 // Money is in cents throughout and rounded only where it is printed.
 //
@@ -141,5 +142,110 @@
     return { months: 1 / c, valueCents: v / c };
   }
 
-  return { FEE_RATE, PACE_DAYS, netOf, earn, forecast, earnedOver, monthsTo, paceFrom, lifetime };
+  // ── The figures the website's Business page and the app's both print ──
+  // (the app's Business page, owner 2026-10-17: "match what is on website"). Numbers only;
+  // each page words them in its own copy.
+
+  // The rate a plan starts from when there is no listing price and no clients to average.
+  const DEFAULT_RATE_CENTS = 15000;
+  const DEFAULT_ADDS = 1;
+  const DEFAULT_CHURN_PCT = 5;
+  const round1 = (v) => Math.round(v * 10) / 10;
+  // A churn rate (a share a month) as the percentage a page prints and a planner starts from.
+  // ⚠ A MEASURED CHURN IS KEPT TO A TENTH OF A POINT, AND NEVER ROUNDS TO 0. Whole points turned
+  // one departure from 70 clients in three months (0.45% a month) into "0% leave a month" beside
+  // "a client stays about 223 months": the plan lost its attrition and the two figures disagreed.
+  const churnPct = (churn) => (churn > 0 ? Math.max(0.1, round1(churn * 100)) : 0);
+
+  // Today's clients and net, from the analytics route's payload: the trajectory's latest week,
+  // else its `metrics`. null when neither could be read.
+  // ⚠ THE ROUTE'S OWN `metrics` LEAVE OUT A CLIENT WHOSE PAYMENT IS RETRYING (past_due), while the
+  // trajectory counts them, as membership does: they still have access and have not left. Read
+  // from `metrics`, the Plan said "12 clients" on the page whose Overview said 13 (Business review,
+  // 2026-10-17). `metrics` stands in only when the trajectory could not be read.
+  function todayFrom(extra) {
+    const weeks = extra && extra.trajectory && Array.isArray(extra.trajectory.weeks) ? extra.trajectory.weeks : null;
+    const last = weeks && weeks.length ? weeks[weeks.length - 1] : null;
+    if (last) return { clients: last.active, mrrNetCents: last.mrrNetCents, mrrGrossCents: last.mrrGrossCents };
+    const m = (extra && extra.metrics) || {};
+    return m.activeClients == null || m.mrrNetCents == null ? null : { clients: m.activeClients, mrrNetCents: m.mrrNetCents, mrrGrossCents: m.mrrGrossCents };
+  }
+
+  // Where a plan starts, from the analytics payload and the coach's listing price (dollars, as
+  // /api/coach/listing sends it): today's figures, the rate a new client pays and where it came
+  // from ('listing' | 'average' | 'default'), the share the coach brought (from each
+  // subscription's stored fee), and the pace. null when today's figures could not be read.
+  // ⚠ AN UNREAD INPUT IS SAID AS UNREAD, NEVER AS A MEASUREMENT (Business sweep, #2394). Each one
+  // still starts the plan at a stated fallback, and says why:
+  //   listingUnread  the listing read failed (`listingFailed`), so the rate is not "no listing
+  //                  price yet" but a fallback from an unread price
+  //   broughtUnread  byOrigin is null (a failed read), so the brought share starts at 0% as a
+  //                  default, not as a measured none
+  //   pace.unread    the trajectory read failed, so there is no pace and an unread history, not
+  //                  an empty one
+  function planNumbers({ extra, listingMonthly, listingFailed = false, now = Date.now() }) {
+    const m = todayFrom(extra);
+    if (!m) return null;
+    const subsRead = !!extra && Array.isArray(extra.byOrigin);
+    const subs = subsRead ? extra.byOrigin.filter((r) => r.kind === "subscription") : [];
+    const brought = subs.filter((r) => r.feeBps === 0).length;
+    const listed = listingMonthly != null && Number(listingMonthly) > 0 ? Math.round(Number(listingMonthly) * 100) : null;
+    const avg = m.clients > 0 && m.mrrGrossCents > 0 ? Math.round(m.mrrGrossCents / m.clients / 500) * 500 : null;
+    return {
+      clients: m.clients, mrrNetCents: m.mrrNetCents, mrrGrossCents: m.mrrGrossCents,
+      rateCents: listed != null ? listed : avg != null ? avg : DEFAULT_RATE_CENTS,
+      rateFrom: listed != null ? "listing" : avg != null ? "average" : "default",
+      listingUnread: listed == null && !!listingFailed,
+      byoShare: subs.length ? brought / subs.length : 0, brought, subs: subs.length,
+      broughtUnread: !subsRead,
+      // A failed trajectory read is "no pace", which the sliders say, not a pace of zero; and it is
+      // an unread history, not an empty one, which they say too.
+      pace: extra && extra.trajectory ? paceFrom(extra.trajectory, now) : { adds: null, churn: null, days: 0, fromFirst: false, unread: true },
+    };
+  }
+
+  // The planner's starting values, rounded to what its sliders hold, so an untouched plan IS
+  // today's pace rather than a near-copy of it. Never clamped to the sliders' usual range: the
+  // ranges stretch to the coach's own numbers instead, so "yours" is the figure it measured.
+  //   → { adds, churnPct (to a tenth, never 0 for a measured churn: churnPct above), rate (whole
+  //       dollars, a multiple of 5), goal (whole dollars) }
+  function planStart(base) {
+    const pace = (base && base.pace) || {};
+    return {
+      adds: pace.adds != null ? round1(pace.adds) : DEFAULT_ADDS,
+      churnPct: pace.churn != null ? churnPct(pace.churn) : DEFAULT_CHURN_PCT,
+      rate: Math.max(5, Math.round((base.rateCents || 0) / 500) * 5),
+      goal: Math.max(1000, Math.ceil(((base.mrrNetCents || 0) / 100) * 1.5 / 500) * 500),
+    };
+  }
+
+  // This week's renewals that will happen: only a row Stripe confirmed (`ending === false`) is
+  // money coming in. null when there are no rows to sum, or none could be checked.
+  // ⚠ NONE CHECKED IS NO TOTAL (Stripe down, or no key on a preview): a "0 clients · $0" total would
+  // read as no renewals beside a list of them. The rows say "not checked"; the header says nothing.
+  // All of them cancelled is a checked zero, and says so.
+  function renewalsSum(rows) {
+    if (!Array.isArray(rows) || !rows.length) return null;
+    const sure = rows.filter((r) => r && r.ending === false);
+    if (!sure.length && rows.some((r) => !r || r.ending == null)) return null;
+    return { count: sure.length, netCents: sure.reduce((s, r) => s + (Number(r.netCents) || 0), 0) };
+  }
+
+  // "Your money", from the Stripe summary the analytics route sends (src/lib/stripe.ts loadStripe):
+  // what is on its way to the bank (payouts in transit or pending) and the soonest of them to land,
+  // what is ready to pay out, and what is still clearing. comingCents is the three together.
+  function moneyFrom(stripe) {
+    const s = stripe || {};
+    const onWay = (Array.isArray(s.payouts) ? s.payouts : []).filter((p) => p && (p.status === "in_transit" || p.status === "pending"));
+    const next = onWay.slice().sort((a, b) => (a.arrivalDate || Infinity) - (b.arrivalDate || Infinity))[0] || null;
+    const onWayCents = onWay.reduce((t, p) => t + (p.amountCents || 0), 0);
+    const balanceCents = s.balanceCents != null ? s.balanceCents : null;
+    const pendingCents = s.pendingCents || 0;
+    return { onWay: onWay.length, onWayCents, next, balanceCents, pendingCents, comingCents: onWayCents + (balanceCents || 0) + pendingCents };
+  }
+
+  return {
+    FEE_RATE, PACE_DAYS, DEFAULT_RATE_CENTS, netOf, earn, forecast, earnedOver, monthsTo, paceFrom, lifetime,
+    round1, churnPct, todayFrom, planNumbers, planStart, renewalsSum, moneyFrom,
+  };
 });

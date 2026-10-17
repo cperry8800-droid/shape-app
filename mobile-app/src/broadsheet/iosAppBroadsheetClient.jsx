@@ -60,6 +60,7 @@ import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } 
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { BSIntegrationsPage, BSReconcile } from './BSIntegrationsPage.jsx';
 import { BSLeaderboard } from './BSLeaderboard.jsx';
+import { BSCoachBusinessPage, BSCoachBusinessCard } from './BSCoachBusiness.jsx';
 import { BSNotifications } from './BSNotifications.jsx';
 import { BSNoraTalk, useNoraTalk, bsNoraVoiceFail } from './BSNoraTalk.jsx';
 import { BSFocusHead, BSFocusTitle, BSFocusLead, BSFocusArrival, BSFocusCountdown, BSFocusActions, BSFocusLine, BSFocusLink, BSFocusRoute, BSShopBySwitch, BSFocusLeader, BSFocusPeriod, BSFocusMealShop } from './BSFocus.jsx';
@@ -19156,6 +19157,10 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   }, [person.userId]);
   const [custom, setCustom] = useStateBSC(null);
   const [showCustomizer, setShowCustomizer] = useStateBSC(false);
+  // Business (owner, 2026-10-17: the website's Business page, designed for the app, inside Me):
+  // null, or the tab it opens on. Only the coach's own Me tab shows the card that opens it.
+  const [showBusiness, setShowBusiness] = useStateBSC(null);
+  const bizRole = person && person.kind === 'NUTRI' ? 'nutritionist' : 'trainer';
   const [ringLive, setRingLive] = useStateBSC(null);
   const [showLog, setShowLog] = useStateBSC(false);
   const [coachFeedReloadNonce, setCoachFeedReloadNonce] = useStateBSC(0);
@@ -19514,6 +19519,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   const { photo, fileRef, onPick } = useBSProfilePhoto(person, isSelf);
   // Tap a reviewer → open who wrote the review (their public profile).
   if (reviewerProfile) return <BSPublicProfile person={reviewerProfile} onBack={() => setReviewerProfile(null)} onMessage={onMessage} />;
+  if (showBusiness) return <BSCoachBusinessPage role={bizRole} tab={showBusiness} onBack={() => setShowBusiness(null)} />;
   return (
     <div className="bs-scroll" style={{ position: 'absolute', inset: 0, background: BG, color: INK, overflowY: 'auto', overflowX: 'hidden', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column' }}>
       {isSelf && <input ref={fileRef} type="file" accept="image/*" onChange={onPick} style={{ display: 'none' }} />}
@@ -19627,6 +19633,14 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           <div style={{ width: 1, height: 34, background: bsTHexA(INK, 0.12) }} />
           <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: MONO, fontSize: 11, color: TEAL }}>{ratingLabel} · <span onClick={() => setTab('reviews')} style={{ cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>{tr('profile:coach.reviewCount', { count: liveCoach ? reviewCount : (liveReviews && liveReviews.length ? liveReviews.length : reviewCount), defaultValue: '{count, plural, one {# review} other {# reviews}}' })}</span></div><div style={{ fontFamily: SANS, fontSize: 11.5, color: bsTHexA(INK, 0.55), marginTop: 4 }}>{tr('profile:coach.respondsWithinHours', { defaultValue: 'Responds within hours' })}</div></div>
         </div>
+
+        {/* Business: the coach's own net a month, clients and payouts, opening the full page
+            (Money · Plan · Clients). Their own Me tab only: never on a profile someone else views. */}
+        {meMode && isSelf && (
+          <div style={{ marginTop: 16 }}>
+            <BSCoachBusinessCard role={bizRole} accent={bizRole === 'nutritionist' ? '#a07a2e' : (tTheme.RUST || '#c0533b')} onOpen={() => setShowBusiness('money')} />
+          </div>
+        )}
 
         {isPrivate ? (
           <div style={{ ...card, padding: '18px 20px', margin: '18px -22px 0', borderRadius: 0, borderLeft: 0, borderRight: 0, display: 'flex', gap: 12, alignItems: 'flex-start' }}><span aria-hidden style={{ fontSize: 16 }}>🔒</span><div style={{ fontFamily: SANS, fontSize: 14, color: bsTHexA(INK, 0.7), lineHeight: 1.5 }}>{live && live.visibility === 'friends' ? tr('profile:coach.privateFriends', { name: first, defaultValue: '{name} shares their profile with friends — connect to see more.' }) : tr('profile:coach.privateOnly', { name: first, defaultValue: '{name} keeps their profile private — only name and tier are shown.' })}</div></div>
@@ -35549,6 +35563,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showRadio, setShowRadio] = useStateBSC(false);
   const [showProgress, setShowProgress] = useStateBSC(false);
   const [showPublicProfile, setShowPublicProfile] = useStateBSC(false);
+  // Your practice → Payouts opens Business on Money (null, or the tab it opens on).
+  const [showBusiness, setShowBusiness] = useStateBSC(null);
   const [showGoals, setShowGoals] = useStateBSC(false);
   const [showLibrary, setShowLibrary] = useStateBSC(false);
   const [showHabits, setShowHabits] = useStateBSC(initialPage === 'habits');
@@ -35594,7 +35610,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       setShowScore(false); setShowStore(false); setShowRadio(false);
       setShowProgress(false); setShowGoals(false); setShowLibrary(false);
       setShowHabits(false); setShowCheckin(false); setShowHealth(false);
-      setShowLeaderboard(false); setShowPublicProfile(false);
+      setShowLeaderboard(false); setShowPublicProfile(false); setShowBusiness(null);
     };
     window.addEventListener('shape:openProfile', toRoot);
     window.addEventListener('shape:openProSettings', toRoot);
@@ -36707,6 +36723,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   if (showLeaderboard) {
     return <BSLeaderboard onBack={() => setShowLeaderboard(false)} mode={isCoachRole ? 'coach' : 'member'} role={tweaks.role === 'nutritionist' ? 'nutritionist' : 'trainer'} />;
   }
+  if (showBusiness) {
+    return <BSCoachBusinessPage role={tweaks.role === 'nutritionist' ? 'nutritionist' : 'trainer'} tab={showBusiness} onBack={() => setShowBusiness(null)} />;
+  }
   if (showPublicProfile) {
     const role = (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().profile && window.ShapeAuth.getCachedState().profile.role) || 'client';
     const uid = (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id) || null;
@@ -36738,12 +36757,15 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   ].map((row) => ({ l: row.l, r: bsPrefOptionLabel(row.k, trainingPrefs[row.k], tr) || tr('settings:common.notSet', { defaultValue: 'Not set' }), action: () => openPrefEdit('training', row.k, row.l, { placeholder: row.placeholder, options: row.options }) }));
   // Coach practice shortcuts (consolidated into Settings). Availability + Soundtracks
   // are hosted by the coach shell (it owns those screens) via window events; Payouts
-  // calls Stripe Connect directly; the rest open the coach's own public profile.
+  // opens Business; the rest open the coach's own public profile.
   const practiceRows = [
     { l: tr('settings:practice.profileRates', { defaultValue: 'Public profile & rates' }), r: tr('settings:action.edit', { defaultValue: 'Edit' }), action: () => setShowPublicProfile(true) },
     { l: tr('settings:practice.listing', { defaultValue: 'Marketplace listing' }), r: tr('settings:action.view', { defaultValue: 'View' }), action: () => setShowPublicProfile(true) },
     { l: tr('settings:practice.availability', { defaultValue: 'Availability' }), r: tr('settings:action.set', { defaultValue: 'Set' }), action: () => { try { window.dispatchEvent(new Event('shape:proAvailability')); } catch (e) {} } },
-    { l: tr('settings:practice.payouts', { defaultValue: 'Payouts' }), r: tr('settings:practice.payoutsMeta', { defaultValue: 'Stripe' }), action: () => { try { window.ShapeConnect && window.ShapeConnect.startOnboarding && window.ShapeConnect.startOnboarding({ role: tweaks.role }); } catch (e) {} } },
+    // Payouts is Business → Money: what is on its way, the schedule, renewals, the coach's own
+    // Stripe, and "Set up payouts" for one not linked yet (it went straight to Stripe onboarding,
+    // which a linked coach does not need).
+    { l: tr('settings:practice.payouts', { defaultValue: 'Payouts' }), r: tr('settings:practice.payoutsMeta', { defaultValue: 'Stripe' }), action: () => setShowBusiness('money') },
     { l: tr('settings:practice.soundtracks', { defaultValue: 'Soundtracks' }), r: tr('settings:action.manage', { defaultValue: 'Manage' }), action: () => { try { window.dispatchEvent(new Event('shape:proSoundtracks')); } catch (e) {} } },
     { l: tr('settings:practice.certifications', { defaultValue: 'Certifications' }), r: tr('settings:action.edit', { defaultValue: 'Edit' }), action: () => setShowPublicProfile(true) },
   ];

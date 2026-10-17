@@ -6,7 +6,8 @@
 // are intentionally absent — they need per-client analytics with no backing.
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { clientForRequest, userLookupForRequest } from '@/lib/request-auth';
 import { loadStripe, loadCancelFlags } from '@/lib/stripe';
 import { pickRenewals, renewalRows, RENEWAL_CHECK_CAP, type RenewalSource } from '@/lib/coach-renewals.mjs';
 import { coachCutCents, bpsToRate } from '@/lib/platform-fee';
@@ -22,11 +23,10 @@ export async function GET(request: Request) {
   // Renewals cost a Stripe read each, so only the page that shows them asks for them: the Business
   // page sends ?renewals=1, and the Goal page's live figures (dashData.jsx) do not.
   const wantRenewals = new URL(request.url).searchParams.get('renewals') === '1';
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: authErr,
-  } = await supabase.auth.getUser();
+  // The website's cookie session, or the app's Bearer token (the app's Business page reads this
+  // route too, 2026-10-17): it was cookie-only, so the app could never read it.
+  const supabase = await clientForRequest(request);
+  const { user, error: authErr } = await userLookupForRequest(request);
 
   if (!user) {
     // ⚠ AN AUTH OUTAGE IS NOT A SIGNED-OUT VIEWER (src/lib/auth-lookup.ts). getUser() answers a

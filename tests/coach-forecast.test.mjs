@@ -203,3 +203,66 @@ test('paceFrom: with a growing practice, churn is against the average headcount,
   const months = (now - open) / DAY / 30.4;
   near(p.churn, 2 / avg / months);
 });
+
+// ── The figures both Business pages print (the website's dashBusiness.jsx and the app's
+// BSCoachBusiness.jsx read these, so the two say the same numbers) ──
+
+test("todayFrom: the trajectory's latest week, so a client whose payment is retrying counts; metrics only when it is missing", () => {
+  const weeks = [{ active: 9, mrrNetCents: 1, mrrGrossCents: 2 }, { active: 13, mrrNetCents: 170000, mrrGrossCents: 200000 }];
+  assert.deepEqual(CF.todayFrom({ trajectory: { weeks }, metrics: { activeClients: 12, mrrNetCents: 150000, mrrGrossCents: 180000 } }), { clients: 13, mrrNetCents: 170000, mrrGrossCents: 200000 });
+  assert.deepEqual(CF.todayFrom({ trajectory: null, metrics: { activeClients: 12, mrrNetCents: 150000, mrrGrossCents: 180000 } }), { clients: 12, mrrNetCents: 150000, mrrGrossCents: 180000 });
+  assert.equal(CF.todayFrom({ trajectory: null, metrics: { activeClients: null, mrrNetCents: null } }), null, 'unread is not zero');
+  assert.equal(CF.todayFrom(null), null);
+});
+
+test('planNumbers: the listing price, else the clients\' average to $5, else the default; the brought share from stored fees', () => {
+  const extra = {
+    trajectory: null,
+    metrics: { activeClients: 4, mrrNetCents: 60000, mrrGrossCents: 70300 },
+    byOrigin: [{ kind: 'subscription', feeBps: 0 }, { kind: 'subscription', feeBps: 1500 }, { kind: 'subscription', feeBps: 1500 }, { kind: 'purchase', feeBps: 0 }],
+  };
+  const listed = CF.planNumbers({ extra, listingMonthly: 180 });
+  assert.equal(listed.rateCents, 18000);
+  assert.equal(listed.rateFrom, 'listing');
+  assert.equal(listed.brought, 1);
+  assert.equal(listed.subs, 3, 'a one-time purchase is not a subscription');
+  near(listed.byoShare, 1 / 3);
+  assert.deepEqual([listed.pace.adds, listed.pace.churn], [null, null], 'no trajectory is no pace, not a pace of zero');
+  const avg = CF.planNumbers({ extra, listingMonthly: 0 });
+  assert.equal(avg.rateFrom, 'average');
+  assert.equal(avg.rateCents, 17500, '$175.75 a client rounds to $175');
+  const none = CF.planNumbers({ extra: { metrics: { activeClients: 0, mrrNetCents: 0, mrrGrossCents: 0 } }, listingMonthly: null });
+  assert.deepEqual([none.rateCents, none.rateFrom, none.byoShare], [CF.DEFAULT_RATE_CENTS, 'default', 0]);
+  assert.equal(CF.planNumbers({ extra: { metrics: {} }, listingMonthly: 180 }), null);
+});
+
+test('planStart: today\'s pace rounded to the sliders, the rate to $5, the goal half again above today', () => {
+  const s = CF.planStart({ rateCents: 17800, mrrNetCents: 189000, pace: { adds: 2.34, churn: 0.0712 } });
+  assert.deepEqual(s, { adds: 2.3, churnPct: 7, rate: 180, goal: 3000 });
+  // No history: the stated defaults. A tiny practice still aims at $1,000.
+  assert.deepEqual(CF.planStart({ rateCents: 15000, mrrNetCents: 20000, pace: { adds: null, churn: null } }), { adds: 1, churnPct: 5, rate: 150, goal: 1000 });
+  // A churn past the slider's usual 30% is kept, not clamped (the range stretches to it).
+  assert.equal(CF.planStart({ rateCents: 15000, mrrNetCents: 0, pace: { adds: 1, churn: 0.42 } }).churnPct, 42);
+});
+
+test('renewalsSum: only a renewal Stripe confirmed counts; cancelled and unchecked do not', () => {
+  const rows = [{ netCents: 15300, ending: false }, { netCents: 18000, ending: false }, { netCents: 9000, ending: true }, { netCents: 7000, ending: null }];
+  assert.deepEqual(CF.renewalsSum(rows), { count: 2, netCents: 33300 });
+  assert.equal(CF.renewalsSum([]), null);
+  assert.equal(CF.renewalsSum(null), null);
+});
+
+test('moneyFrom: on its way, ready and clearing add up to what is coming; a paid payout is not on its way', () => {
+  const m = CF.moneyFrom({
+    balanceCents: 52000, pendingCents: 9000,
+    payouts: [
+      { status: 'in_transit', amountCents: 40000, arrivalDate: Date.UTC(2026, 9, 21) },
+      { status: 'pending', amountCents: 12000, arrivalDate: Date.UTC(2026, 9, 19) },
+      { status: 'paid', amountCents: 99999, arrivalDate: Date.UTC(2026, 9, 10) },
+    ],
+  });
+  assert.deepEqual([m.onWay, m.onWayCents, m.balanceCents, m.pendingCents, m.comingCents], [2, 52000, 52000, 9000, 113000]);
+  assert.equal(m.next.amountCents, 12000, 'the soonest to land');
+  const none = CF.moneyFrom({ connected: true, balanceCents: null, payouts: [] });
+  assert.deepEqual([none.onWay, none.next, none.balanceCents, none.comingCents], [0, null, null, 0]);
+});

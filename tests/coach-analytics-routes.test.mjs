@@ -21,6 +21,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const require_ = createRequire(join(ROOT, 'package.json'))
 const nextServer = require_('next/server')
 const COACH = { id: '33333333-3333-4333-8333-333333333333' }
+const APP_TOKEN = 'app-access-token'
 
 // Every table read answers from `tables` (or `errors`); any chain of filters is accepted, and
 // recorded. `rpc` answers from `rpcs[name](args)`.
@@ -71,7 +72,7 @@ function fakeSupabase(tables, { errors = {}, rpcs = {}, auth = null, honorStatus
     const answer = rpcs[name]
     return answer ? answer(args) : { data: null, error: null }
   }
-  return { reads, calls, client: { from, rpc, auth: { getUser: async () => auth ?? { data: { user: COACH }, error: null } } } }
+  return { reads, calls, bearer: [], client: { from, rpc, auth: { getUser: async () => auth ?? { data: { user: COACH }, error: null } } } }
 }
 
 async function loadRoute(role, tables, opts) {
@@ -91,10 +92,22 @@ async function loadRoute(role, tables, opts) {
       ['@/lib/coach-trajectory.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/coach-trajectory.mjs')).href)],
       ['@/lib/read-all-by-id', await ts('src/lib/read-all-by-id.ts')],
       ['@/lib/auth-lookup', await ts('src/lib/auth-lookup.ts')],
+      // The real request-auth: the cookie client when there is no Bearer token, else a client made
+      // for the token, which answers only the app's token (APP_TOKEN) as the coach.
+      ['@/lib/request-auth', await loadRealModule(join(ROOT, 'src/lib/request-auth.ts'), {
+        typescript: true,
+        registry: new Map([
+          ['@/lib/supabase/server', { createClient: async () => db.client }],
+          ['@supabase/supabase-js', { createClient: (_url, _key, o) => {
+            db.bearer.push(o?.global?.headers?.Authorization)
+            return { ...db.client, auth: { getUser: async (token) => ({ data: { user: token === APP_TOKEN ? COACH : null } }) } }
+          } }],
+        ]),
+      })],
     ]),
   })
-  const res = await route.GET(new Request(`https://shape.test/api/${role}/analytics${opts?.query || ''}`))
-  return { status: res.status, body: await res.json(), reads: db.reads, calls: db.calls }
+  const res = await route.GET(new Request(`https://shape.test/api/${role}/analytics${opts?.query || ''}`, { headers: opts?.headers || {} }))
+  return { status: res.status, body: await res.json(), reads: db.reads, calls: db.calls, bearer: db.bearer }
 }
 
 test('a trainer reads the trainer analytics: their listing, their roster\'s workouts and PRs', async () => {
@@ -115,6 +128,23 @@ test('a nutritionist still reads the nutritionist analytics, and a trainer is no
   assert.deepEqual(t.body, { isNutritionist: false })
   const other = await loadRoute('trainer', { nutritionists: [{ id: 9 }] })
   assert.deepEqual(other.body, { isTrainer: false })
+})
+
+// The app's Business page (2026-10-17) reads these routes with its own token: the routes were
+// cookie-only, so the app could not read them at all.
+test('the app\'s Bearer token reads as the coach on both routes; a token that is not valid is a 401', async () => {
+  for (const [role, table, okKey] of [['trainer', 'trainers', 'isTrainer'], ['nutritionist', 'nutritionists', 'isNutritionist']]) {
+    const app = await loadRoute(role, { [table]: [{ id: 7, stripe_account_id: null, stripe_account_status: null }] }, { headers: { Authorization: `Bearer ${APP_TOKEN}` } })
+    assert.equal(app.status, 200, role)
+    assert.equal(app.body[okKey], true, role)
+    assert.ok(app.bearer.length >= 1 && app.bearer.every((h) => h === `Bearer ${APP_TOKEN}`), `${role}: the reads ran as the token, ${app.bearer.join(', ')}`)
+    const bad = await loadRoute(role, { [table]: [{ id: 7 }] }, { headers: { Authorization: 'Bearer expired' } })
+    assert.equal(bad.status, 401, role)
+    // The website, as before: no header, the cookie session.
+    const web = await loadRoute(role, { [table]: [{ id: 7, stripe_account_id: null, stripe_account_status: null }] })
+    assert.equal(web.body[okKey], true, role)
+    assert.deepEqual(web.bearer, [], `${role}: no token, no token client`)
+  }
 })
 
 test('the two routes are not one file', () => {
@@ -266,6 +296,7 @@ test('no failed read in the trainer route is published as an empty history', asy
       ['next/server', nextServer],
       ['@/lib/supabase/server', { createClient: async () => churnFails.client }],
       ['@/lib/supabase/admin', { createAdminClient: () => churnFails.client }],
+      ['@/lib/request-auth', { clientForRequest: async () => churnFails.client, userLookupForRequest: async () => ({ user: COACH, error: null }) }],
       ['@/lib/stripe', { loadStripe: async () => ({ connected: false }), loadCancelFlags: async (ids) => new Map(ids.map((id) => [id, false])) }],
       ['@/lib/coach-renewals.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/coach-renewals.mjs')).href)],
       ['@/lib/platform-fee', await import(pathToFileURL(join(ROOT, 'src/lib/platform-fee.mjs')).href)],
