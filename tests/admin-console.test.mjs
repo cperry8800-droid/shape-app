@@ -717,6 +717,17 @@ test('the sidebar counts what is waiting, only on the pages the level opens, and
   }
   const layout = stripComments(read('src/app/admin/layout.tsx'));
   assert.ok(layout.indexOf('const staff = await getStaffMember();') < layout.indexOf('await waitingCounts(staff.level)'), 'counted after the staff check, at the staff member’s level');
+  // No service key: the client throws, and the badges go, not the console (Codex, #2390).
+  const keyless = await loadRealModule(join(ROOT, 'src/lib/admin-waiting.ts'), {
+    typescript: true,
+    registry: new Map([['@/lib/supabase/admin', { createAdminClient: () => { throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY'); } }], ['@/lib/staff-levels.mjs', levels]]),
+  });
+  assert.deepEqual(await keyless.waitingCounts('owner'), {});
+  assert.equal(await keyless.waitingCount('/admin/requests'), null);
+  // A link in the phone's menu closes it, even one to the same path with another ?view= (Codex, #2390).
+  const sidebar = stripComments(read('src/app/admin/AdminSidebar.tsx'));
+  assert.match(sidebar, /href=\{item\.href\}\s*onClick=\{\(\) => setMenuOn\(null\)\}/);
+  assert.match(sidebar, /const menu = menuOn === pathname;/);
 });
 
 test('the dashboard: staff get in without a membership, and each tab shows for its level', () => {

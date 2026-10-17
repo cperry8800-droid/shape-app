@@ -4,7 +4,8 @@
 // every console page can show them without the Overview's whole call.
 //
 // Read with the service role, so only after the layout's staff check. A count that cannot be
-// read is left out (no badge), never shown as zero.
+// read is left out (no badge), never shown as zero; nor does a missing service key (the client
+// throws) take the console down with it (Codex, #2390).
 
 import { createAdminClient } from '@/lib/supabase/admin';
 import { canOpen, type StaffLevel } from '@/lib/staff-levels.mjs';
@@ -18,11 +19,12 @@ export const WAITING: ReadonlyArray<{ href: string; table: string; column: strin
 ];
 
 /** One queue's count, or null when it cannot be read (the Overview reads account requests here). */
-export async function waitingCount(href: string, db = createAdminClient()): Promise<number | null> {
+export async function waitingCount(href: string, db?: ReturnType<typeof createAdminClient>): Promise<number | null> {
   const w = WAITING.find((x) => x.href === href);
   if (!w) return null;
   try {
-    const { count, error } = await db.from(w.table).select('*', { count: 'exact', head: true }).in(w.column, w.values);
+    const client = db ?? createAdminClient();
+    const { count, error } = await client.from(w.table).select('*', { count: 'exact', head: true }).in(w.column, w.values);
     return error || typeof count !== 'number' ? null : count;
   } catch {
     return null;
@@ -32,7 +34,12 @@ export async function waitingCount(href: string, db = createAdminClient()): Prom
 export async function waitingCounts(level: StaffLevel): Promise<Record<string, number>> {
   const queues = WAITING.filter((w) => canOpen(level, w.href));
   if (!queues.length) return {};
-  const db = createAdminClient();
+  let db: ReturnType<typeof createAdminClient>;
+  try {
+    db = createAdminClient();
+  } catch {
+    return {};
+  }
   const counted = await Promise.all(queues.map(async (w) => [w.href, await waitingCount(w.href, db)] as const));
   return Object.fromEntries(counted.filter((c): c is readonly [string, number] => c[1] !== null));
 }

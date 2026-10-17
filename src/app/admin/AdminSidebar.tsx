@@ -27,7 +27,8 @@ export default function AdminSidebar({
   account: React.ReactNode;
 }) {
   const pathname = usePathname() ?? '';
-  // The phone's menu is open on the page it was opened on: following a link closes it.
+  // The phone's menu is open on the page it was opened on, and a link closes it: following one
+  // to the same path ('/admin?view=growth' to '/admin') changes no path (Codex, #2390).
   const [menuOn, setMenuOn] = useState<string | null>(null);
   const menu = menuOn === pathname;
   const isOpen = (href: string) => (href === '/admin' ? pathname === href : pathname === href || pathname.startsWith(`${href}/`));
@@ -44,6 +45,7 @@ export default function AdminSidebar({
             <Link
               key={item.href}
               href={item.href}
+              onClick={() => setMenuOn(null)}
               aria-current={open ? 'page' : undefined}
               className={`${FOCUS} flex items-center justify-between gap-3 min-h-[40px] px-3 border-l-2 text-sm transition-colors ${
                 open ? 'border-accent bg-accent/[0.07] text-neutral-50' : 'border-transparent text-neutral-400 hover:text-neutral-50 hover:bg-white/[0.03]'
