@@ -11,7 +11,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { loadBroadsheet, SRC } from './helpers/broadsheet-mount.mjs';
 
-const B = await loadBroadsheet(['_bsNoraSave', '_bsNoraMarkSynced', '_bsNoraForget', '_bsNoraPublish', '_bsNoraSubs', '_bsNoraGen', '_bsNoraAccount', 'BSNoraSheet']);
+const B = await loadBroadsheet(['_bsNoraSave', '_bsNoraMarkSynced', '_bsNoraForget', '_bsNoraPublish', '_bsNoraSubs', '_bsNoraGen', '_bsNoraAccount', '_bsNoraDropOther', '_bsNoraHeldAs', 'BSNoraSheet']);
+const { drive } = await import('./helpers/broadsheet-mount.mjs');
+globalThis.document = globalThis.document || { getElementById: () => null, body: {} };
+// What the sheet shows now (a fresh draw reads the shared thread).
+const shown = () => drive(B.BSNoraSheet, { onClose: () => {} }).text;
+const showing = (...texts) => B._bsNoraPublish([{ who: 'Nora', t: 'Hi.', time: 'now', me: false, bot: true }, ...texts.map((t) => ({ who: 'You', t, time: 'now', me: true }))]);
 const { _bsNoraSave, _bsNoraMarkSynced, _bsNoraForget } = B;
 
 const sent = [];
@@ -39,16 +44,54 @@ test('app signed out: held until the store answers for the website session, then
   assert.deepEqual(appended.map((a) => a.account), ['acct-A', 'acct-A'], 'each write names the account the thread loaded as');
 });
 
-test('held while the store could not answer: an exchange answered as another account is never sent as this one', () => {
+test('held while the store could not answer: an exchange answered as another account is never sent as this one, nor left on screen', () => {
   const appended = world(null);
+  shown();
   _bsNoraSave([msg('answered as A')], 'acct-A');
   _bsNoraSave([msg('asked as a visitor')], null);
   _bsNoraSave([msg('answered as B')], 'acct-B');
+  showing('answered as A', 'asked as a visitor', 'answered as B');
+  const gen = B._bsNoraGen;
   // The cookie is account B by the time the store answers.
   _bsNoraMarkSynced('anon', 'acct-B');
   assert.deepEqual(appended.map((a) => a.texts), [['asked as a visitor', 'answered as B']], "A's exchange stays out of B's conversation (Codex on #2393)");
   assert.deepEqual(appended.map((a) => a.account), ['acct-B']);
   assert.ok(sent.every((m) => !('_as' in m)), 'the held mark is not sent');
+  // ⚠ And off the screen: the next question would carry A's transcript as B (Codex on #2393).
+  assert.doesNotMatch(shown(), /answered as A/);
+  assert.equal(B._bsNoraGen, gen + 1, 'an answer still on its way is dropped, as at a Clear');
+});
+
+test('held exchanges all answered as the account the store answers for: kept on screen and sent', () => {
+  const appended = world(null);
+  shown();
+  _bsNoraSave([msg('asked as a visitor')], null);
+  _bsNoraSave([msg('answered as A')], 'acct-A');
+  showing('asked as a visitor', 'answered as A');
+  const gen = B._bsNoraGen;
+  _bsNoraMarkSynced('anon', 'acct-A');
+  assert.deepEqual(appended.map((a) => a.texts), [['asked as a visitor', 'answered as A']]);
+  assert.match(shown(), /asked as a visitor[\s\S]*answered as A/);
+  assert.equal(B._bsNoraGen, gen);
+});
+
+test('the store answers signed out: an exchange answered as an account goes from the screen and from what is held', () => {
+  const appended = world(null);
+  shown();
+  _bsNoraSave([msg('asked as a visitor')], null);
+  _bsNoraSave([msg('answered as A')], 'acct-A');
+  showing('asked as a visitor', 'answered as A');
+  assert.equal(B._bsNoraHeldAs(), 'acct-A', 'until then, the next question names the account it was answered as');
+  assert.equal(B._bsNoraDropOther(null), true);
+  assert.doesNotMatch(shown(), /answered as A/);
+  assert.equal(B._bsNoraHeldAs(), null);
+  // What a visitor said is still sent once a store answers.
+  _bsNoraMarkSynced('anon', 'acct-C');
+  assert.deepEqual(appended.map((a) => a.texts), [['asked as a visitor']]);
+  // Nothing answered as an account: nothing goes.
+  world(null);
+  _bsNoraSave([msg('asked as a visitor')], null);
+  assert.equal(B._bsNoraDropOther(null), false);
 });
 
 test('app signed in: appended as said, naming the account; one answered as another account is not kept (Codex on #2393)', () => {
@@ -69,8 +112,6 @@ test('said before signing in, then the store answers for the app account: sent n
 });
 
 test('whose conversation the sheet holds: the app account it was drawn for, else the cookie account it loaded as', async () => {
-  const { drive } = await import('./helpers/broadsheet-mount.mjs');
-  globalThis.document = globalThis.document || { getElementById: () => null, body: {} };
   world(null);
   const draw = () => drive(B.BSNoraSheet, { onClose: () => {} });
   draw();

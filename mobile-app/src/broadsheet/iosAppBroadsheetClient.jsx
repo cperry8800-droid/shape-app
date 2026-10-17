@@ -25151,13 +25151,30 @@ function _bsNoraAppendAs(messages, account) {
       .then((r) => { if (r === 'account_changed') _bsNoraForget(); }).catch(() => {});
   } catch (e) {}
 }
+// ⚠ WHAT THE SHEET SHOWS CAN BE ANOTHER ACCOUNT'S (Codex on #2393). While the store can't answer,
+// an exchange answered as account A is held and shown; if the store then answers as B, or as no
+// account, A's exchange stays out of B's conversation and the thread on screen goes too, as at a
+// Clear (an answer on its way is dropped), or the next question would carry A's transcript as B.
+// True when it went.
+function _bsNoraDropOther(account) {
+  if (!_bsNoraHeld.some((m) => m._as && m._as !== account)) return false;
+  _bsNoraHeld = _bsNoraHeld.filter((m) => !m._as || m._as === account);
+  _bsNoraGen += 1;
+  _bsNoraLive = '';
+  _bsNoraPublish([_bsNoraSeed()]);
+  return true;
+}
+// The account the held exchanges were answered as, while the store has not answered: the next
+// question names it, so a cookie that is another account by then is refused (and the sheet starts
+// again). That is also why they never hold two accounts.
+const _bsNoraHeldAs = () => (_bsNoraHeld.find((m) => m._as) || {})._as || null;
 // The store answered for `who` (as `account`, through the cookie): what was said before it is sent now.
 function _bsNoraMarkSynced(who, account = null) {
   _bsNoraSynced = who;
   if (who === 'anon') _bsNoraCookie = account || null;
-  // Only what was answered as this account (or as no account, said before signing in) is sent:
-  // an exchange answered as another one stays out of this account's conversation.
-  const held = _bsNoraHeld.filter((m) => !m._as || !account || m._as === account).map(({ _as, ...m }) => m);
+  // Only what was answered as this account (or as no account, said before signing in) is sent.
+  if (account) _bsNoraDropOther(account);
+  const held = _bsNoraHeld.map(({ _as, ...m }) => m);
   _bsNoraHeld = [];
   if (!held.length) return;
   _bsNoraAppendAs(held, who === 'anon' ? _bsNoraCookie : who);
@@ -25282,7 +25299,12 @@ function BSNoraSheet({ onClose }) {
       read().then((r) => {
         if (_bsNoraLoaded !== who) return;
         const list = r && r.messages;
-        if (!Array.isArray(list)) { _bsNoraLoaded = null; return; }
+        if (!Array.isArray(list)) {
+          _bsNoraLoaded = null;
+          // Signed out now: a visitor's next question doesn't carry an account's exchange.
+          if (r && r.signedOut) _bsNoraDropOther(null);
+          return;
+        }
         _bsNoraMarkSynced(who, r.account);
         setPersonSynced(true);
         const cur = _bsNoraThread || [SUPPORT_GREETING];
@@ -25316,6 +25338,8 @@ function BSNoraSheet({ onClose }) {
     _bsNoraGen += 1;
     try { window.ShapeVoice?.stop?.(); } catch (e) {}
     _bsNoraLive = '';
+    // What was held for the store goes with the conversation it was part of.
+    _bsNoraHeld = [];
     _bsNoraPublish([(_bsNoraThread || supportMsgs)[0] || SUPPORT_GREETING]);
     if (!window.ShapeSupport?.thread) return;
     // Cleared as the account the conversation belongs to (Codex on #2393): signed out in the app,
@@ -25391,9 +25415,10 @@ function BSNoraSheet({ onClose }) {
       // what it showed. An answer for a cleared conversation is never drawn.
       const onText = (txt) => { if (gen === _bsNoraGen) _bsNoraLiveSet(txt); };
       const onReset = () => _bsNoraLiveSet('');
-      // The question names the account the conversation belongs to: a caller who is another
-      // account now is refused before the history is read (Codex on #2393).
-      const account = _bsNoraAccount();
+      // The question names the account the conversation belongs to (or, before the store has
+      // answered, the one its held exchanges were answered as): a caller who is another account
+      // now is refused before the history is read (Codex on #2393).
+      const account = _bsNoraAccount() || _bsNoraHeldAs();
       const res = await window.ShapeSupport?.ask?.(hist, undefined, { voice: opts.voice === true, context: bsNoraContext(!screenOffRef.current), onText, onReset, account });
       // Cleared while she was answering: the answer belongs to the conversation that went.
       if (gen !== _bsNoraGen) return null;

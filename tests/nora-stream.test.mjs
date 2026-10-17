@@ -276,7 +276,7 @@ test('the app names the account its thread loaded as, and a refusal for another 
 
 // ── The app's Nora sheet ───────────────────────────────────────────────────────
 globalThis.document = globalThis.document || { getElementById: () => null, body: {} };
-const sheet = await loadBroadsheet(['BSNoraSheet', '_bsNoraPublish', '_bsNoraLiveSet', '_bsNoraLive', '_bsNoraMarkSynced', '_bsNoraForget', '_bsNoraGen']);
+const sheet = await loadBroadsheet(['BSNoraSheet', '_bsNoraPublish', '_bsNoraLiveSet', '_bsNoraLive', '_bsNoraMarkSynced', '_bsNoraForget', '_bsNoraGen', '_bsNoraSave']);
 const reset = () => { sheet._bsNoraPublish(null, false); sheet._bsNoraLiveSet(''); };
 const open = () => drive(sheet.BSNoraSheet, { onClose: () => {} });
 const composer = (d) => d.nodes().find((n) => n.props && typeof n.props.onSend === 'function');
@@ -370,6 +370,24 @@ test('a thread loaded through the website cookie names its account; refused as a
     await composer(f).props.onSend();
     assert.deepEqual(asked, ['u1'], 'the account it was drawn for, not the cookie account');
   } finally { delete window.ShapeSupport; delete window.ShapeAuth; delete window.__bsToast; sheet._bsNoraForget(); reset(); }
+});
+
+test('before the store has answered, a question names the account her held answers were given as (Codex on #2393)', async () => {
+  reset();
+  const asked = [];
+  window.ShapeAuth = { getCachedState: () => ({ user: null }) };
+  window.ShapeSupport = { ask: async (hist, tone, extra) => { asked.push(extra.account); return { reply: 'ok', actions: [], account: 'acct-A' }; } };
+  try {
+    sheet._bsNoraForget();
+    const d = open();
+    composer(d).props.onChange('first');
+    d.render();
+    await composer(d).props.onSend();
+    composer(d).props.onChange('second');
+    d.render();
+    await composer(d).props.onSend();
+    assert.deepEqual(asked, [null, 'acct-A'], 'nothing to name at first; then the account the first answer was given as');
+  } finally { delete window.ShapeSupport; delete window.ShapeAuth; sheet._bsNoraForget(); reset(); }
 });
 
 test('Clear takes the half-written answer with it, and later words are not drawn', async () => {

@@ -247,7 +247,9 @@ test('app: loads once a session into an untouched thread, appends what it said, 
   assert.match(sheet, /if \(_bsNoraThreadWho !== _bsNoraWho\(\)\) \{ _bsNoraThread = null; _bsNoraThreadWho = _bsNoraWho\(\); _bsNoraLoaded = null; _bsNoraSynced = null; _bsNoraCookie = null; _bsNoraHeld = \[\]; \}/, 'another account\'s thread is never shown, and signing back in loads again (Codex, #2255)');
   // Signed out in the app, the store's own answer decides: the load is asked for 'anon' too.
   assert.doesNotMatch(sheet, /if \(who === 'anon' \|\| !window\.ShapeSupport\?\.thread\) return;/);
-  assert.match(sheet, /if \(!Array\.isArray\(list\)\) \{ _bsNoraLoaded = null; return; \}\n\s+_bsNoraMarkSynced\(who, r\.account\);\n\s+setPersonSynced\(true\);/);
+  assert.match(sheet, /if \(!Array\.isArray\(list\)\) \{\n\s+_bsNoraLoaded = null;\n[^\n]*\n\s+if \(r && r\.signedOut\) _bsNoraDropOther\(null\);\n\s+return;\n\s+\}\n\s+_bsNoraMarkSynced\(who, r\.account\);\n\s+setPersonSynced\(true\);/, 'signed out now, a shown exchange answered as an account goes (Codex on #2393)');
+  // A Clear takes what was held for the store with it.
+  assert.match(between(sheet, 'const clearThread = async () => {', 'if (!window.ShapeSupport?.thread) return;'), /_bsNoraHeld = \[\];/);
   // A reopen through the cookie that finds another account, or none, starts again (Codex on #2393).
   assert.match(sheet, /if \(who === 'anon' && r && \(r\.signedOut \|\| \(r\.account && _bsNoraCookie && r\.account !== _bsNoraCookie\)\)\) \{\n\s+_bsNoraForget\(\);\n\s+if \(!r\.signedOut\) firstLoad\(\);\n\s+return;\n\s+\}/);
   // "Talk to a person" names the account the conversation belongs to, and a refusal starts again.
