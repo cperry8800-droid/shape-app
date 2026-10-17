@@ -56,6 +56,12 @@ export const BS_ORCH = {
   serveSearchMax: 512,
   // Shared across all phase orders, including candidate and collision probes.
   phaseSearchMax: 100000,
+  // How long a dish may wait between two hands-on steps when the first one leaves nothing on
+  // the heat (see `withPrepPauses`). Long enough for one step of another dish; short enough
+  // that nothing chopped or measured has gone off.
+  prepPauseMin: 5,
+  // The largest session that is offered alternating steps when it would otherwise be refused.
+  alternateMaxDishes: 4,
 };
 
 const STATIONS_EXCLUSIVE = ['oven', 'stove', 'board']; // 'off' (rest/chill) ties up nothing
@@ -67,7 +73,7 @@ const STATIONS_EXCLUSIVE = ['oven', 'stove', 'board']; // 'off' (rest/chill) tie
 // station; only the CAPACITY of that station is a fact about the kitchen, not the food.
 // Defaults are deliberately the old behaviour, so an unconfigured kitchen schedules
 // exactly as before rather than quietly promising a hob nobody owns.
-export const BS_KITCHEN_DEFAULT = { stove: 1, oven: 1, board: 1 };
+export const BS_KITCHEN_DEFAULT = { stove: 1, oven: 1, board: 1, cooks: 1 };
 
 const capacityOf = (station, kitchen) => {
   const raw = kitchen && kitchen[station];
@@ -210,6 +216,39 @@ const assumesLengths = (rs, activeMin) => rs.some((r) => shortfallOf(r, activeMi
 
 const isWindow = (m, minPassive) => !!m && m.passive === true && m.station != null && (realMin(m) ?? 0) >= minPassive;
 
+// ⚠ ONE COOK CAN SWITCH BETWEEN DISHES (owner, 2026-10-17: "You can easily cook 1 thing and
+// do 1 step for 1 meal and then immediately go to the other meal"). Unannotated recipes used to
+// run as one unbroken block, so with one pair of hands a second dish could only fit inside the
+// first one's hands-off waits, and "Ready at a set time" refused most pairs. Measured with the
+// curried quinoa: ready together with 22 of the 99 other catalog dishes on one burner.
+//
+// A step that puts nothing on the stove or in the oven leaves nothing to burn, so the dish can
+// wait there for a few minutes while the cook does a step of another dish. That is the same
+// permission an authored `maxPause` gives, derived instead of written, and only from what the
+// step's own station says. The engine already treats an unannotated step as off the heat (the
+// sticky burner is released when it starts). A recipe with NO station anywhere tells us nothing
+// about its heat, so it stays one block, as does any step on the heat: pausing a sauté is how
+// food burns. An authored `maxPause` always wins.
+const holdsHeat = (m) => stepStations(m).some((x) => STICKY.includes(x));
+const withPrepPauses = (meta, n) => {
+  if (!meta.some((m) => m && m.station != null)) return meta;
+  return Array.from({ length: n }, (_, i) => {
+    const m = meta[i] || {};
+    if (i >= n - 1 || m.passive === true || m.makeAhead === true || m.finishesLater === true
+      || pauseOf(m) || holdsHeat(m)) return meta[i];
+    return { ...m, maxPause: BS_ORCH.prepPauseMin };
+  });
+};
+// The same dishes with those derived pauses, or null when they would add none.
+const withAlternation = (rs) => {
+  let added = false;
+  const out = rs.map((r) => {
+    const meta = withPrepPauses(r.meta, r.steps.length);
+    if (meta !== r.meta && meta.some((m, i) => pauseOf(m) && !pauseOf(r.meta[i]))) added = true;
+    return { ...r, meta };
+  });
+  return added ? out : null;
+};
 const cleanRecipes = (recipes) =>
   (Array.isArray(recipes) ? recipes : [])
     .filter((r) => r && Array.isArray(r.steps) && r.steps.length)
@@ -289,12 +328,34 @@ const invalidServe = () => ({ timeline: [], serveAt: 0, earliestServe: 0, spread
 // A hold needs no hands, which is exactly why it can host another dish. Deliberately kept
 // local to serve placement: `bsOrchestrate`'s interleaver advances one recipe at a time and
 // so has always serialised the cook implicitly.
-const HANDS_CAPACITY = 1;
+// ⚠ ONE PAIR OF HANDS IS THE DEFAULT, NOT A LAW. Two people cooking together can each have
+// hands-on work at the same moment, so the number of cooks is a fact about the KITCHEN like the
+// burner count: `kitchen.cooks`. An absent or junk figure is one cook, so an unconfigured kitchen
+// plans exactly as it always did.
+// ⚠ NOTHING IN THE APP SETS IT ABOVE ONE YET. The live board walks one step at a time, so a plan
+// with two hands-on steps at once could not show the second cook theirs until the first was done
+// (Codex, #2392). The "+ Cook" control waits for a board that shows each cook their own step.
+const COOKS_MAX = 4;
+const cooksOf = (kitchen) => {
+  const n = Math.floor(kitchen && kitchen.cooks);
+  return Number.isFinite(n) && n >= 1 ? Math.min(COOKS_MAX, n) : 1;
+};
 const needsHands = (m) => m.passive !== true;
 const pauseOf = (m) => m?.passive !== true && typeof m?.maxPause === 'number' && Number.isFinite(m.maxPause) && m.maxPause > 0 ? m.maxPause : 0;
-const handsPull = (busy, from, to) => {
+const handsPull = (busy, from, to, cooks = 1) => {
   const mine = busy.filter((h) => from < h.to && h.from < to);
-  if (mine.length + 1 <= HANDS_CAPACITY) return null;
+  if (mine.length + 1 <= cooks) return null;
+  // Above one cook, count PEAK simultaneous steps, as `stationPull` does for burners: two steps
+  // that tile the window one after the other are one cook's worth of work, not two. One cook
+  // keeps the original test exactly, since any overlap at all is already too many.
+  // The pull is then only past the first instant that is actually full, as it is for a burner:
+  // pulling before every overlapping step's start pushed a two-cook plan of 10, 4 and 3 minutes
+  // out to 13 when [0,10], [3,7] and [0,3] fit (Codex, #2392).
+  if (cooks > 1) {
+    const points = [from, ...mine.map((h) => h.from).filter((f) => f > from && f < to)].sort((a, b) => a - b);
+    const full = points.find((t) => mine.filter((h) => h.from <= t && t < h.to).length + 1 > cooks);
+    return full == null ? null : Math.max(1e-8, to - full);
+  }
   // Pull the dish earlier by enough to finish this step before the earliest step it hits.
   return Math.max(1e-8, to - Math.min(...mine.map((h) => h.from)));
 };
@@ -344,7 +405,7 @@ function placePhases(rs, activeMin, T, kitchen, orderIdx, budget, allowance) {
           if (!spend()) return null;
           const m = r.meta[i] || {}, len = stepCost(m, activeMin);
           const station = stepPull(result.holds, m, at, at + len, kitchen);
-          const cook = needsHands(m) ? handsPull(result.hands, at, at + len) || 0 : 0;
+          const cook = needsHands(m) ? handsPull(result.hands, at, at + len, cooksOf(kitchen)) || 0 : 0;
           if (station) result.byStation = true;
           if (cook) result.byCook = true;
           pull = Math.max(pull, station, cook);
@@ -428,7 +489,7 @@ function placeAt(rs, activeMin, T, kitchen, orderIdx) {
         // recorded on its own, because "a station was busy" and "you were busy" are
         // different facts to report and only one of them is usually true.
         const byStation = stepPull(holds, m, at, at + len, kitchen);
-        const byCook = needsHands(m) ? (handsPull(hands, at, at + len) || 0) : 0;
+        const byCook = needsHands(m) ? (handsPull(hands, at, at + len, cooksOf(kitchen)) || 0) : 0;
         const pull = Math.max(byStation, byCook);
         if (pull) {
           clash = pull;
@@ -827,11 +888,29 @@ export function bsOrchestrate(recipes, opts = {}) {
   const single = rs.length < 2;
 
   if (mode === BS_COOK_MODE.SERVE) {
-    const sv = serveTimeline(rs, activeMin, opts.serveAt, opts.kitchen);
+    let sv = serveTimeline(rs, activeMin, opts.serveAt, opts.kitchen);
+    // ⚠ ALTERNATING IS A RESCUE, NOT A REPLACEMENT. Every plan that already lands the dishes
+    // together is kept exactly as it was: letting every off-heat step pause sends the search
+    // down the phase path, which ranks overlap and gap rather than the earliest time, and
+    // MEASURED that way it served later (60 → 63 and 126 → 128 min on pinned sessions). So
+    // the derived pauses are tried only when the authored plan would be refused, and kept
+    // only when they land the dishes together.
+    //
+    // ⚠ AND ONLY FOR A TONIGHT-SIZED COOK. A refused rescue costs a whole second search, and
+    // above four dishes that search is what dominates: MEASURED on 60 catalog sessions with one
+    // burner, the worst plan went 120 ms at four dishes, 804 ms at five, and a six-dish session
+    // that already took 4.7 s took 8.4 s. Two to four dishes is the cook-together case.
+    if (sv.coordinated === false && !sv.invalidTiming && rs.length <= BS_ORCH.alternateMaxDishes) {
+      const alt = withAlternation(rs);
+      const sv2 = alt && serveTimeline(alt, activeMin, opts.serveAt, opts.kitchen);
+      // The search cost is both searches: the refused one ran first and still counts.
+      if (sv2 && sv2.coordinated === true && !sv2.invalidTiming) sv = { ...sv2, alternates: true, placements: sv.placements };
+    }
     return {
       timeline: sv.timeline, serial: false, canInterleave, mode, reason: null,
       serveAt: sv.serveAt, earliestServe: sv.earliestServe, spread: sv.spread, issues: sv.issues,
       exact: sv.exact, estimated: sv.estimated, coordinated: sv.coordinated, ready: sv.ready,
+      ...(sv.alternates ? { alternates: true } : {}),
       ...(sv.invalidTiming ? { invalidTiming: true } : {}),
       ...(sv.searchWork != null ? { searchWork: sv.searchWork } : {}),
       ...(sv.placements != null ? { placements: sv.placements } : {}),
