@@ -33,7 +33,8 @@ const settle = async (n = 6) => { for (let i = 0; i < n; i++) await React.act(as
 // seed: localStorage entries already on the browser; greeting: GET /api/support/chat's answer.
 // A 'hold' in threadGets, or holdAnswer, keeps that answer on its way until release() (stored
 // may be a function, read when the request is made).
-async function mount({ signedIn = true, threadGets = [200], stored = [], me = null, db = null, docked = false, seed = {}, greeting = {}, holdAnswer = false, holdRequest = false } = {}) {
+// teamTab: a second, non-Nora tab beside hers; member: an active subscription (the composer outside Nora's tab).
+async function mount({ signedIn = true, threadGets = [200], stored = [], me = null, db = null, docked = false, seed = {}, greeting = {}, holdAnswer = false, holdRequest = false, teamTab = false, member = false } = {}) {
   const dom = new JSDOM('<!doctype html><body><div id="r"></div></body>', { url: 'https://shape.test/newdesign/ClientApp.html', pretendToBeVisual: true });
   const w = dom.window;
   const before = { window: globalThis.window, document: globalThis.document, localStorage: globalThis.localStorage, navigator: Object.getOwnPropertyDescriptor(globalThis, 'navigator'), act: globalThis.IS_REACT_ACT_ENVIRONMENT, fetch: globalThis.fetch };
@@ -68,7 +69,7 @@ async function mount({ signedIn = true, threadGets = [200], stored = [], me = nu
     if (u.includes('/api/support/chat')) return answer(200, greeting);
     if (u.includes('/api/support/request') && holdRequest) return new Promise((resolve) => { held.request = () => resolve(answer(200, { ok: true })); });
     if (u.includes('/api/nora/thread')) return answer(200, { ok: true });
-    if (u.includes('/api/stripe/subscription')) return answer(200, { active: false });
+    if (u.includes('/api/stripe/subscription')) return answer(200, { active: member });
     return answer(200, {});
   };
   if (db) w.shapeEnsureDb = async () => { w.shapeDb = db; return db; };
@@ -76,6 +77,7 @@ async function mount({ signedIn = true, threadGets = [200], stored = [], me = nu
   new Function('React', 'ReactDOM', 'shapeReadPortalMe', WIDGET)(React, ReactDOMClient, readMe);
   // Her seed greeting, with the chips say() taps.
   const tabs = [{ id: 'nora', label: 'Nora', title: 'Nora', support: true, threads: [{ who: 'Nora', messages: [{ who: 'Nora', t: 'Hi, I am Nora.', me: false }], quick: ['How do I log a meal?', 'Hi'] }] }];
+  if (teamTab) tabs.push({ id: 'team', label: 'Team', title: 'Team', threads: [{ who: 'Team channel', messages: [{ who: 'Ann', t: 'Welcome', me: false }] }] });
   const root = ReactDOMClient.createRoot(w.document.getElementById('r'));
   await React.act(async () => root.render(React.createElement(w.ChatWidget, { tabs, docked })));
   // Draw again with more tabs (the hydrate re-runs when the count changes, as the Feed tab does).
@@ -308,6 +310,42 @@ test('a Clear pressed while /api/me was unanswered clears the account\'s copy to
     assert.ok(!/Member saved question|Private question/.test(text), 'nothing from before the Clear is drawn');
     assert.ok(text.includes('Tap + on Eat.'));
     assert.doesNotMatch(m.w.localStorage.getItem(MEMBER) || '', /Member saved question/, 'nor kept on this browser');
+  } finally {
+    await m.done();
+  }
+});
+
+test('what was opened or said in another tab while /api/me was unanswered joins the account\'s copy', async () => {
+  // The hydrate's /api/me read fails; the member check's own read (the composer outside Nora's
+  // tab is members-only) answers, so a member can send there meanwhile. Then /api/me answers.
+  const { me: flaky, fail } = flakyMe();
+  let reads = 0;
+  const me = () => (++reads === 2 ? Promise.resolve({ user: { id: 'u1', email: 'ann@shape.test' } }) : flaky());
+  const memberWithTeam = { threadsByTab: [memberCopy.threadsByTab[0].slice(0, 1), [{ who: 'Team channel', messages: [{ who: 'Ann', t: 'Welcome', me: false }, { who: 'You', t: 'Member team note', me: true }] }]], activeByTab: [0, 0] };
+  const m = await mount({ me, stored: [], teamTab: true, member: true, seed: { [MEMBER]: memberWithTeam } });
+  // Open a thread with a draft (the composer is filled without typing) and send it. React DOM
+  // loads before jsdom here, so it uses its input polyfill, which needs a focused box to watch
+  // before a keydown.
+  const sendDraft = async (descriptor) => {
+    await React.act(async () => { m.w.__openChat(descriptor, 'team'); });
+    await settle();
+    const box = m.w.document.querySelector('textarea');
+    box.attachEvent = box.detachEvent = () => {}; // the polyfill's old-IE hooks
+    await React.act(async () => { box.dispatchEvent(new m.w.FocusEvent('focusin', { bubbles: true })); });
+    await React.act(async () => { box.dispatchEvent(new m.w.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
+    await settle();
+    assert.equal(box.value, '', 'sent: the composer is empty');
+  };
+  try {
+    await unknownThenKnown(m, fail, async () => {
+      await React.act(async () => { m.w.__openChat({ who: 'Coach Maya', conversationId: 'conv-1', tab: 'team' }, 'team'); });
+      await settle();
+      await sendDraft({ who: 'Team channel', draft: 'Said while unanswered', tab: 'team' });
+    });
+    const team = JSON.parse(m.w.localStorage.getItem(MEMBER)).threadsByTab[1];
+    assert.ok(team.some((th) => th.conversationId === 'conv-1'), 'the conversation opened meanwhile is kept');
+    const channel = team.find((th) => th.who === 'Team channel');
+    assert.deepEqual(channel.messages.map((x) => x.t), ['Welcome', 'Member team note', 'Said while unanswered'], 'the account\'s own thread, then what was said in it meanwhile');
   } finally {
     await m.done();
   }

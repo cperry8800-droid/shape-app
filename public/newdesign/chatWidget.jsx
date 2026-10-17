@@ -742,6 +742,9 @@ function ChatWidget(props) {
   // `mine`: the copy was hydrated under this account's key. One read under the signed-out key
   // (/api/me unanswered) may be someone else's on a shared browser, so it never migrates.
   const noraFromRef = React.useRef(null);
+  // The threads outside Nora's tab as the signed-out copy stood when /api/me went unanswered,
+  // so a re-key can tell what was added to them since (Codex, #2391).
+  const unknownSnapRef = React.useRef(null);
   // Loads that failed while the panel was open, since it opened (the retry below).
   const [noraMissed, setNoraMissed] = React.useState(0);
   // On screen: a docked pop-out always is, though its `open` stays false (`isOpen` below,
@@ -966,6 +969,29 @@ function ChatWidget(props) {
             return { ...th, messages: [...own, ...said] };
           }) : list);
           noraFromRef.current = { base: kept, gen: cleared ? from.gen : noraThreadGenRef.current, mine: probe === "in" };
+          // ⚠ AND WHAT WAS ADDED IN THE OTHER TABS: a conversation opened, a channel made, a message
+          // sent while /api/me was unanswered. Nothing was saved then, so it lives only here:
+          // what was added since the signed-out copy stood joins the account's copy.
+          const snap = wasUnknown && dirtyRef.current ? unknownSnapRef.current : null;
+          if (snap) {
+            const id = (th) => th.conversationId || th.who;
+            const live = threadsRef.current || [];
+            hydratedThreads = hydratedThreads.map((list, i) => {
+              if (tabs[i] && tabs[i].support) return list;
+              const before = new Map((snap[i] || []).map((th) => [id(th), th]));
+              const out = [...(list || [])];
+              (live[i] || []).forEach((th) => {
+                const was = before.get(id(th));
+                const added = (th.messages || []).slice(was ? (was.messages || []).length : 0);
+                if (was && !added.length) return;
+                const at = out.findIndex((x) => id(x) === id(th));
+                if (at >= 0) out[at] = { ...out[at], last: th.last, time: th.time, messages: [...(out[at].messages || []), ...added] };
+                else out.push({ ...th, messages: added });
+              });
+              return out;
+            });
+          }
+          unknownSnapRef.current = null;
         }
         // And read as drawn from here: the load's answer can land before this render does.
         if (hydratedThreads) { setThreadsByTab(hydratedThreads); threadsRef.current = hydratedThreads; }
@@ -976,6 +1002,7 @@ function ChatWidget(props) {
       // Measured against the threads just set, which this render has not drawn yet. A later
       // hydrate moves it only when nothing was typed, so nothing is held (a re-key set it above).
       if (!rekeyed && (!dirtyRef.current || !noraFromRef.current)) noraFromRef.current = { base: cwNoraLocal(hydratedThreads).length, gen: noraThreadGenRef.current, mine: probe === "in" };
+      if (probe === "unknown" && (!dirtyRef.current || !unknownSnapRef.current)) unknownSnapRef.current = hydratedThreads || threadsRef.current;
       // One conversation per account (the Ask Nora plan, step 4): the stored thread replaces
       // this browser's copy of Nora's, and a browser that kept one before the account had
       // any sends it up once. Signed out, or before the migration runs, nothing changes.
