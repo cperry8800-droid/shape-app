@@ -30,8 +30,8 @@ const settle = async (n = 6) => { for (let i = 0; i < n; i++) await React.act(as
 // signedIn: what /api/me says; threadGets: the status of each GET /api/nora/thread in turn;
 // stored: the account's thread a 200 returns; me: /api/me's read, when a test holds it back;
 // db: what window.shapeEnsureDb loads, as on the 25 pages without /supabase.js.
-// seed: localStorage entries already on the browser.
-async function mount({ signedIn = true, threadGets = [200], stored = [], me = null, db = null, docked = false, seed = {} } = {}) {
+// seed: localStorage entries already on the browser; greeting: GET /api/support/chat's answer.
+async function mount({ signedIn = true, threadGets = [200], stored = [], me = null, db = null, docked = false, seed = {}, greeting = {} } = {}) {
   const dom = new JSDOM('<!doctype html><body><div id="r"></div></body>', { url: 'https://shape.test/newdesign/ClientApp.html', pretendToBeVisual: true });
   const w = dom.window;
   const before = { window: globalThis.window, document: globalThis.document, localStorage: globalThis.localStorage, navigator: Object.getOwnPropertyDescriptor(globalThis, 'navigator'), act: globalThis.IS_REACT_ACT_ENVIRONMENT, fetch: globalThis.fetch };
@@ -56,6 +56,7 @@ async function mount({ signedIn = true, threadGets = [200], stored = [], me = nu
     }
     if (method === 'POST' && (u.includes('/api/nora/thread') || u.includes('/api/support/chat'))) posts.push([u.split('?')[0], JSON.parse(opts.body)]);
     if (u.includes('/api/support/chat') && method === 'POST') return answer(200, { reply: 'Tap + on Eat.' });
+    if (u.includes('/api/support/chat')) return answer(200, greeting);
     if (u.includes('/api/nora/thread')) return answer(200, { ok: true });
     if (u.includes('/api/stripe/subscription')) return answer(200, { active: false });
     return answer(200, {});
@@ -296,6 +297,21 @@ test('a Clear pressed while /api/me was unanswered clears the account\'s copy to
     assert.ok(!/Member saved question|Private question/.test(text), 'nothing from before the Clear is drawn');
     assert.ok(text.includes('Tap + on Eat.'));
     assert.doesNotMatch(m.w.localStorage.getItem(MEMBER) || '', /Member saved question/, 'nor kept on this browser');
+  } finally {
+    await m.done();
+  }
+});
+
+test('the account\'s greeting is applied again after a re-key starts the thread afresh', async () => {
+  const { me, fail } = flakyMe();
+  const m = await mount({ me, stored: [], greeting: { text: 'Welcome back, Ann.', quick: ['Plan my week'] } });
+  try {
+    await unknownThenKnown(m, fail, async () => {
+      assert.ok(m.w.document.body.textContent.includes('Welcome back, Ann.'), 'greeted while unanswered');
+    });
+    const text = m.w.document.body.textContent;
+    assert.ok(text.includes('Welcome back, Ann.'), 'still greeted after the re-key');
+    assert.ok(!text.includes('Hi, I am Nora.'), 'not the seed');
   } finally {
     await m.done();
   }

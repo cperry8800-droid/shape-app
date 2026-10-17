@@ -511,6 +511,9 @@ function ChatWidget(props) {
   // install below has to wait for the localStorage hydrate (see there), so the
   // same fact is published as STATE as well.
   const [hydrated, setHydrated] = React.useState(false);
+  // Each hydrate that finished, counted: one that ran again (/api/me answered on a later read)
+  // can set the threads afresh, and what is applied over them is applied again.
+  const [hydrateRuns, setHydrateRuns] = React.useState(0);
   // "pending" | "in" | "out" | "unknown" — the /api/me answer the hydrate below
   // already fetches, published so the history read can decide whether it is worth
   // loading the Supabase bundle at all. THREE states, not two: that route answers
@@ -959,6 +962,7 @@ function ChatWidget(props) {
       }
       hydratedRef.current = true;
       setHydrated(true);
+      setHydrateRuns((n) => n + 1);
       // Measured against the threads just set, which this render has not drawn yet. A later
       // hydrate moves it only when nothing was typed, so nothing is held (a re-key set it above).
       if (!rekeyed && (!dirtyRef.current || !noraFromRef.current)) noraFromRef.current = { base: cwNoraLocal(hydratedThreads).length, gen: noraThreadGenRef.current, mine: probe === "in" };
@@ -973,7 +977,7 @@ function ChatWidget(props) {
   // ⚠ THE GREETING IS APPLIED ONLY ONCE THE SAVED THREADS ARE IN. The fetch races the
   // localStorage hydrate above, and a hydrate that landed second restored the saved seed
   // over the account's greeting for good (Codex, #2247). So it waits on `hydrated`, and
-  // re-applies if either arrives later.
+  // re-applies if either arrives later, or after a hydrate that ran again (Codex, #2391).
   React.useEffect(() => {
     if (!noraGreeting || !hydrated) return;
     const g = noraGreeting;
@@ -982,7 +986,7 @@ function ChatWidget(props) {
       if (th.who !== "Nora" || msgs.length !== 1 || msgs[0].me) return th;
       return { ...th, last: g.text, quick: g.quick, messages: [{ ...msgs[0], t: g.text }] };
     }) : list));
-  }, [noraGreeting, hydrated]);
+  }, [noraGreeting, hydrated, hydrateRuns]);
 
   // ⚠ NOTHING IS SAVED WHILE /api/me IS UNANSWERED. The key is then the signed-out one, and a
   // member's words saved there would be shown to the next person on the browser; the copy
