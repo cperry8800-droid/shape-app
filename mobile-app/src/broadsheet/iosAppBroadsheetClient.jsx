@@ -25099,9 +25099,28 @@ function bsNoraNewTeam(cur, list) {
   const add = (Array.isArray(list) ? list : []).filter((m) => m && m.role === 'team' && !seen.has(String(m.text || ''))).map(bsNoraFromStored);
   return add.length ? [...(cur || []), ...add] : null;
 }
+// ⚠ SIGNED OUT IN THE APP IS NOT SIGNED OUT. The hosted /m/ app in a browser (and the
+// website's cook iframe) can have no session in its own client while the website's cookie
+// session is there, and the server answers Nora as that account (the trace for the owner,
+// 2026-10-17: the only signed-in exchanges in production were these, and none was kept).
+// So with the app signed out, the store's own answer decides: `_bsNoraSynced` is the 'who'
+// the stored thread loaded for, and what is said before it answers is held, then sent.
+let _bsNoraSynced = null;
+let _bsNoraHeld = [];
 // What this device added, appended to the account's thread; nothing is written signed out.
 function _bsNoraSave(messages) {
-  try { if (_bsNoraWho() !== 'anon') window.ShapeSupport?.thread?.append?.(messages); } catch (e) {}
+  try {
+    const who = _bsNoraWho();
+    if (who !== 'anon' || _bsNoraSynced === who) { window.ShapeSupport?.thread?.append?.(messages); return; }
+    _bsNoraHeld = [..._bsNoraHeld, ...messages].slice(-20);
+  } catch (e) {}
+}
+// The store answered for `who`: what was said before it is sent now.
+function _bsNoraMarkSynced(who) {
+  _bsNoraSynced = who;
+  const held = _bsNoraHeld;
+  _bsNoraHeld = [];
+  if (held.length) { try { window.ShapeSupport?.thread?.append?.(held); } catch (e) {} }
 }
 const _bsNoraWho = () => { try { return window.ShapeAuth?.getCachedState?.()?.user?.id || 'anon'; } catch (e) { return 'anon'; } };
 function _bsNoraPublish(thread, busy) {
@@ -25127,14 +25146,16 @@ function BSNoraSheet({ onClose }) {
   const SUPPORT_GREETING = { who: 'Nora', t: "Hi, I'm Nora — Shape's concierge. Ask me anything: connecting integrations, your plan, billing, or your account. If I can't sort it out, the Shape team answers at info@theshapecommunity.com.", time: 'now', me: false, bot: true, greet: true };
   // Another account's session thread is never shown: a different account starts from its own.
   // The load marker goes with it: signing out and back into the same account loads again (Codex, #2255).
-  if (_bsNoraThreadWho !== _bsNoraWho()) { _bsNoraThread = null; _bsNoraThreadWho = _bsNoraWho(); _bsNoraLoaded = null; }
+  if (_bsNoraThreadWho !== _bsNoraWho()) { _bsNoraThread = null; _bsNoraThreadWho = _bsNoraWho(); _bsNoraLoaded = null; _bsNoraSynced = null; _bsNoraHeld = []; }
   const [supportMsgs, setSupportMsgs] = useStateBSC(() => _bsNoraThread || [SUPPORT_GREETING]);
   const [supportDraft, setSupportDraft] = useStateBSC(() => { const d = _bsNoraDraft; _bsNoraDraft = ''; return d; });
   const [supportBusy, setSupportBusy] = useStateBSC(() => _bsNoraBusy);
   const [supportLive, setSupportLive] = useStateBSC(() => _bsNoraLive);
   // "Talk to a person" (the Ask Nora plan, step 5): signed in only. The question goes to the
-  // Shape team with the stored conversation, and a person replies here and by email.
-  const personOk = _bsNoraWho() !== 'anon' && !!window.ShapeSupport?.talkToPerson;
+  // Shape team with the stored conversation, and a person replies here and by email. With the
+  // app signed out, once the store has answered for the website's session (_bsNoraSynced).
+  const [personSynced, setPersonSynced] = useStateBSC(() => _bsNoraSynced !== null && _bsNoraSynced === _bsNoraWho());
+  const personOk = (_bsNoraWho() !== 'anon' || personSynced) && !!window.ShapeSupport?.talkToPerson;
   const [personForm, setPersonForm] = useStateBSC(null); // null | { text, busy, err }
   const openPersonForm = () => {
     const mine = (_bsNoraThread || supportMsgs).filter((m) => m.me && m.t);
@@ -25179,7 +25200,8 @@ function BSNoraSheet({ onClose }) {
   // appended to it, so nothing is lost either way. Unavailable is tried again next open.
   React.useEffect(() => {
     const who = _bsNoraWho();
-    if (who === 'anon' || !window.ShapeSupport?.thread) return;
+    // 'anon' too: the website's cookie session may answer for it (_bsNoraSynced above).
+    if (!window.ShapeSupport?.thread) return;
     if (_bsNoraLoaded === who) {
       // Loaded earlier this session: a reply the Shape team sent since joins it on this open.
       window.ShapeSupport.thread.load().then((list) => {
@@ -25193,6 +25215,8 @@ function BSNoraSheet({ onClose }) {
     window.ShapeSupport.thread.load().then((list) => {
       if (_bsNoraLoaded !== who) return;
       if (!Array.isArray(list)) { _bsNoraLoaded = null; return; }
+      _bsNoraMarkSynced(who);
+      setPersonSynced(true);
       const cur = _bsNoraThread || [SUPPORT_GREETING];
       if (!list.length || cur.length !== 1) return;
       _bsNoraPublish([cur[0], ...list.map(bsNoraFromStored)]);

@@ -65,6 +65,20 @@ export async function askNora(
   }
 }
 
+// The account keeps one conversation with Nora (/api/nora/thread), which the website pop-up
+// and the app continue: an answered exchange here is appended to it too. This panel kept
+// nothing, so what was asked on a dashboard or admin page was lost to both (the trace for the
+// owner, 2026-10-17). A visitor's append answers 401 and keeps nothing; a failure is silent.
+export function keepNoraExchange(question: string, reply: string, fetcher: typeof fetch = fetch): void {
+  const at = new Date().toISOString();
+  fetcher('/api/nora/thread', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ append: [{ role: 'user', text: question, at }, { role: 'assistant', text: reply, at }] }),
+  }).catch(() => {});
+}
+
 export default function GlobalChatButton() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -110,6 +124,8 @@ export default function GlobalChatButton() {
     setBusy(true);
     const { reply, links } = await askNora(next);
     setMessages((current) => [...current, { from: 'shape', text: reply, links }]);
+    // Only an answer: "can't be reached" is not part of the conversation.
+    if (reply !== NORA_DOWN) keepNoraExchange(value, reply);
     setBusy(false);
   }
 

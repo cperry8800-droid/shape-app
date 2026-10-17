@@ -328,9 +328,11 @@ test('the website panel: the button for a signed-in conversation, a form, and th
 test('the app sheet: the same button and form, the team drawn as a person, and the call through the backend', async () => {
   const A = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
   const B = read('mobile-app/src/services/shapeBackend.js');
-  assert.match(B, /fetch\(`\$\{apiBaseUrl\}\/api\/support\/request`, \{\n\s+method: 'POST',\n\s+headers: \{ Authorization: `Bearer \$\{token\}`/);
+  // The token when the app has one, the website's cookie otherwise (the trace, 2026-10-17).
+  assert.match(B, /const res = await shapeApiFetch\('\/api\/support\/request', \{\n\s+method: 'POST',/);
+  assert.doesNotMatch(B.slice(B.indexOf('async function talkToPerson('), B.indexOf('window.ShapeSupport = {')), /liveAccessToken|if \(!token\)/);
   assert.match(B, /greeting: noraGreeting,\n\s+talkToPerson,\n\};/);
-  assert.match(A, /const personOk = _bsNoraWho\(\) !== 'anon' && !!window\.ShapeSupport\?\.talkToPerson;/);
+  assert.match(A, /const personOk = \(_bsNoraWho\(\) !== 'anon' \|\| personSynced\) && !!window\.ShapeSupport\?\.talkToPerson;/);
   assert.match(A, /const hist = next\.map\(m => \(\{ role: m\.team \? 'team' : m\.me \? 'user' : 'assistant'/);
   const { loadBroadsheet } = await import('./helpers/broadsheet-mount.mjs');
   const { bsNoraFromStored } = await loadBroadsheet(['bsNoraFromStored']);

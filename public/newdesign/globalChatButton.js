@@ -426,6 +426,16 @@
     // greeted people as Nora and answered from four canned lines. It now asks the same
     // endpoint the full chat does; a failure says so and gives the address a person reads.
     var NORA_DOWN = "I can't be reached right now. Try again in a moment, or email the Shape team at info@theshapecommunity.com.";
+    // The account keeps one conversation with Nora (/api/nora/thread), as the pop-up and the app
+    // do: an answered exchange is appended to it. A visitor's append answers 401: nothing kept.
+    function keepNoraExchange(question, reply) {
+      if (typeof window.fetch !== "function") return;
+      var at = new Date().toISOString();
+      window.fetch("/api/nora/thread", {
+        method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ append: [{ role: "user", text: question, at: at }, { role: "assistant", text: reply, at: at }] })
+      }).catch(function () {});
+    }
     function askNora(thread) {
       var history = (thread.messages || []).filter(function (m) { return !m.pending; }).slice(-12).map(function (m) {
         return { role: m.me ? "user" : "assistant", content: String(m.t || "") };
@@ -628,6 +638,7 @@
         askNora(th).then(function (r) {
           pending.t = r.reply; pending.links = r.links; pending.time = stamp(); delete pending.pending;
           render();
+          if (r.reply !== NORA_DOWN) keepNoraExchange(value, r.reply);
         });
       }
     }

@@ -219,9 +219,18 @@ test('app: loads once a session into an untouched thread, appends what it said, 
   const APP = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
   const BE = read('mobile-app/src/services/shapeBackend.js');
   assert.match(BE, /async append\(messages\) \{ const p = await noraThreadCall\('POST', \{ append: messages \}\); return !!\(p && p\.ok\); \}/);
-  assert.match(BE, /if \(!token\) return null;/, 'signed out, nothing is written');
+  // ⚠ THE TOKEN WHEN THERE IS ONE, THE WEBSITE'S COOKIE OTHERWISE (the trace for the owner,
+  // 2026-10-17): the hosted /m/ app signed out in its own client saved nothing while the server
+  // answered as the account. A visitor's 401 is still null: nothing written.
+  const call = between(BE, 'async function noraThreadCall(', 'const noraThread = {');
+  assert.match(call, /await shapeApiFetch\('\/api\/nora\/thread', \{ method,/);
+  assert.doesNotMatch(call, /liveAccessToken|if \(!token\)/, 'no token gate of its own');
+  assert.match(call, /return res\.ok \? payload : null;/);
   const sheet = between(APP, 'function BSNoraSheet(', '// Chat tab for ALL roles');
-  assert.match(sheet, /if \(_bsNoraThreadWho !== _bsNoraWho\(\)\) \{ _bsNoraThread = null; _bsNoraThreadWho = _bsNoraWho\(\); _bsNoraLoaded = null; \}/, 'another account\'s thread is never shown, and signing back in loads again (Codex, #2255)');
+  assert.match(sheet, /if \(_bsNoraThreadWho !== _bsNoraWho\(\)\) \{ _bsNoraThread = null; _bsNoraThreadWho = _bsNoraWho\(\); _bsNoraLoaded = null; _bsNoraSynced = null; _bsNoraHeld = \[\]; \}/, 'another account\'s thread is never shown, and signing back in loads again (Codex, #2255)');
+  // Signed out in the app, the store's own answer decides: the load is asked for 'anon' too.
+  assert.doesNotMatch(sheet, /if \(who === 'anon' \|\| !window\.ShapeSupport\?\.thread\) return;/);
+  assert.match(sheet, /if \(!Array\.isArray\(list\)\) \{ _bsNoraLoaded = null; return; \}\n\s+_bsNoraMarkSynced\(who\);\n\s+setPersonSynced\(true\);/);
   // ⚠ CLEAR WHILE SHE ANSWERS (Codex, #2255), in the sheet and in Settings.
   assert.match(between(sheet, 'const clearThread = async () => {', 'const ok = await'), /_bsNoraGen \+= 1;/);
   assert.match(sheet, /const gen = _bsNoraGen;[\s\S]{0,900}if \(gen !== _bsNoraGen\) return null;\n\s+const reply =/);
