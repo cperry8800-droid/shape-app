@@ -1,20 +1,17 @@
-// Business v2 — the old Analytics pages (Trainer/NutritionistAnalytics.html)
-// MIGRATED into one role-parameterized Business page that also absorbs
-// payouts (dashboard-v2 spec step). Zones: revenue trend (90d, real
-// subscriber adds), payout schedule + history (REAL Stripe Connect data the
-// analytics API already returned but no page ever rendered), the marketplace
-// funnel with its benchmark, a churn list with exit reasons, and the migrated
-// roster-outcomes section (the product the business sells).
+// Business — one role-parameterized page in five sections (design E, owner 2026-10-17):
+// Overview (the practice trajectory), Money (what's coming to you from Stripe, this week's
+// renewals, net a month over 13 weeks), Plan (what clients earn you, and the next 12 months),
+// Growth (the marketplace funnel, who found whom, bringing your own clients, the waiting list)
+// and Retention (what a client is worth, roster outcomes, who left and why).
 //
-// HONEST DATA RULE — hardest on this page: every dollar is either a real
-// Stripe payout, a real available balance, or MRR derived from real
-// subscription rows (labeled as such). When payouts aren't connected, money
-// reads "—" with "connects when payouts go live" and a real Set-up CTA
-// (Stripe Connect onboarding) — never plausible-looking fake money. Demo
-// numbers exist ONLY under the demo band.
+// HONEST DATA RULE — hardest on this page: every dollar is either a real Stripe figure, MRR
+// derived from real subscription rows, or a projection labelled as one and started from the
+// coach's own numbers. When payouts aren't connected, the Money tab says so with a real Set-up
+// CTA (Stripe Connect onboarding) — never plausible-looking fake money. Demo numbers exist ONLY
+// under the demo band.
 //
-// Load order: pageShell → trainerDashboard → coachNav → dashSignals.js →
-// dashData.jsx → dashToday.jsx (DashGrowthPanel/DashFunnelPanel/band) → this.
+// Load order: pageShell → trainerDashboard → coachNav → dashSignals.js → coachForecast.js →
+// dashData.jsx → dashToday.jsx (DashFunnelPanel/band) → this.
 
 const DBZ_INK50 = "var(--sh-ink2, #a09b94)";
 const DBZ_MONO = "'JetBrains Mono', monospace";
@@ -24,6 +21,10 @@ const DBZ_AMBER = "var(--sh-gold, #d8a23a)";
 const DBZ_RED = "var(--sh-rust, #e0644b)";
 const DBZ_INK = "var(--sh-ink, #f2ede4)";        // the dashboard's fixed-dark cream ink
 const DBZ_TEAL_INK = "var(--sh-deep, #06231f)";   // ink ON a teal-filled control
+// The Plan and Money tabs' type: a small-caps label, a plain note, and the rule between rows.
+const DBZ_LBL = { fontFamily: DBZ_MONO, fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: DBZ_INK50 };
+const DBZ_NOTE = { fontSize: 12, color: DBZ_INK50, lineHeight: 1.5 };
+const DBZ_RULE = "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)";
 
 function dbzDate(v) {
   if (!v) return "—";
@@ -160,10 +161,14 @@ function dbzScheduleLine(s) {
   return line;
 }
 
-function DbzPayoutsZone({ live, stripe, providerId, role }) {
+// ── Your money (design E, owner 2026-10-17: the payout boxes "dont love the looks of these") ──
+// One sentence and a short list, from Stripe: what is on its way to the bank, what is ready to
+// pay out, what is still clearing, and the net a month the subscriptions bring in. A coach with a
+// Standard account manages payouts in their own Stripe dashboard, which the link opens.
+const DBZ_STRIPE_DASHBOARD = "https://dashboard.stripe.com/";
+function DbzPayoutsZone({ live, stripe, providerId, role, metrics }) {
   const [linking, setLinking] = React.useState(false);
   const data = live ? stripe : dbzDemoPayouts();
-  const connected = live ? !!(stripe && stripe.connected && stripe.status !== "error") : true;
   const startOnboarding = async () => {
     if (!providerId || linking) return;
     setLinking(true);
@@ -179,61 +184,54 @@ function DbzPayoutsZone({ live, stripe, providerId, role }) {
     setLinking(false);
   };
 
-  if (live && !connected) {
+  if (live && !data) return <div style={DBZ_NOTE}>Your payouts load with the analytics rollup…</div>;
+  if (live && !data.connected) {
     return (
       <div>
-        <div style={{ display: "flex", gap: 26, flexWrap: "wrap" }}>
-          {[["Available balance"], ["Next payout"], ["Paid out · all time"]].map(([l]) => (
-            <div key={l}>
-              <div style={{ fontFamily: serif, fontSize: 26, lineHeight: 1, color: DBZ_INK50 }}>—</div>
-              <div style={{ fontFamily: DBZ_MONO, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DBZ_INK50, marginTop: 5 }}>{l}</div>
-            </div>
-          ))}
-        </div>
-        <div style={{ fontSize: 12.5, color: DBZ_INK50, lineHeight: 1.55, margin: "12px 0" }}>
-          This zone connects when payouts go live — link a Stripe account and every number here turns real: balance, schedule, and the full payout history.
+        <div style={{ fontSize: 13.5, color: DBZ_INK50, lineHeight: 1.55, marginBottom: 12 }}>
+          Payouts aren't set up yet. Link a Stripe account and this fills in: what's ready to pay out, what's on its way to your bank, and when.
         </div>
         {providerId != null && (
-          <button onClick={startOnboarding} disabled={linking} style={{ fontFamily: DBZ_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--sh-deep, #06231f)", background: DBZ_TEAL, border: 0, borderRadius: 4, padding: "10px 16px", cursor: "pointer", opacity: linking ? 0.6 : 1, clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" }}>
+          <button onClick={startOnboarding} disabled={linking} style={{ fontFamily: DBZ_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DBZ_TEAL_INK, background: DBZ_TEAL, border: 0, borderRadius: 4, padding: "10px 16px", cursor: "pointer", opacity: linking ? 0.6 : 1, clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" }}>
             {linking ? "Opening Stripe…" : "Set up payouts →"}
           </button>
         )}
       </div>
     );
   }
+  // Linked, but Stripe could not be read just now: say that, rather than an empty account.
+  if (live && data.error) {
+    return <div style={DBZ_NOTE}>Couldn't reach Stripe just now. Your balance and payouts are safe there; reload to try again, or open your Stripe dashboard.</div>;
+  }
 
-  const paidTotal = (data.payouts || []).filter((p) => p.status === "paid").reduce((s, p) => s + p.amountCents, 0);
-  const inTransit = (data.payouts || []).find((p) => p.status === "in_transit" || p.status === "pending");
+  const onWay = (data.payouts || []).filter((p) => p.status === "in_transit" || p.status === "pending");
+  const next = onWay.slice().sort((a, b) => (a.arrivalDate || Infinity) - (b.arrivalDate || Infinity))[0] || null;
+  const onWayCents = onWay.reduce((s, p) => s + (p.amountCents || 0), 0);
+  const rows = [
+    onWay.length ? { k: "On its way to your bank", s: next && next.arrivalDate ? "arrives " + dbzDate(next.arrivalDate) : "paid out, not landed yet", v: onWayCents } : null,
+    data.balanceCents != null ? { k: "Ready to pay out", s: "in your Stripe balance now", v: data.balanceCents } : null,
+    data.pendingCents ? { k: "Still clearing", s: "new charges Stripe hasn't released yet", v: data.pendingCents } : null,
+  ].filter(Boolean);
+  const coming = rows.reduce((s, r) => s + r.v, 0);
+  if (metrics && metrics.mrrNetCents != null) {
+    rows.push({ k: "Net a month, at today's clients", s: dashMoney(metrics.mrrGrossCents) + " billed · " + dashMoney((metrics.mrrGrossCents || 0) - metrics.mrrNetCents) + " Shape fee", v: metrics.mrrNetCents });
+  }
+  const b = (t) => <b style={{ color: DBZ_INK, fontWeight: 600 }}>{t}</b>;
   return (
     <div>
-      <div style={{ display: "flex", gap: 26, flexWrap: "wrap" }}>
-        <div>
-          <div style={{ fontFamily: serif, fontSize: 26, lineHeight: 1 }}>{data.balanceCents != null ? dashMoney(data.balanceCents) : "—"}</div>
-          <div style={{ fontFamily: DBZ_MONO, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DBZ_INK50, marginTop: 5 }}>Available balance</div>
-        </div>
-        <div>
-          <div style={{ fontFamily: serif, fontSize: 26, lineHeight: 1 }}>{inTransit ? dashMoney(inTransit.amountCents) : data.balanceCents != null ? dashMoney(data.balanceCents) : "—"}</div>
-          <div style={{ fontFamily: DBZ_MONO, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DBZ_INK50, marginTop: 5 }}>{inTransit ? "In transit · arrives " + dbzDate(inTransit.arrivalDate) : "Next payout · est."}</div>
-        </div>
-        <div>
-          <div style={{ fontFamily: serif, fontSize: 26, lineHeight: 1 }}>{dashMoney(paidTotal)}</div>
-          <div style={{ fontFamily: DBZ_MONO, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DBZ_INK50, marginTop: 5 }}>Paid · last {(data.payouts || []).length} payouts</div>
-        </div>
-      </div>
-      {dbzScheduleLine(data.schedule) && (
-        <div style={{ fontFamily: DBZ_MONO, fontSize: 9, letterSpacing: "0.06em", color: DBZ_TEAL, marginTop: 11 }}>{dbzScheduleLine(data.schedule)}</div>
-      )}
-      <div style={{ marginTop: 12 }}>
-        {(data.payouts || []).length ? (data.payouts || []).map((p, i) => (
-          <div key={p.id || i} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 12, alignItems: "center", padding: "9px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
-            <span style={{ fontFamily: DBZ_MONO, fontSize: 10, color: DBZ_INK50 }}>{dbzDate(p.arrivalDate || p.created)}</span>
-            <DashPill c={p.status === "paid" ? DBZ_GREEN : p.status === "failed" ? DBZ_RED : DBZ_AMBER}>{(p.status || "pending").replace("_", " ")}</DashPill>
-            <span style={{ fontFamily: serif, fontSize: 16 }}>{dashMoney(p.amountCents)}</span>
+      <p style={{ margin: "0 0 4px", fontSize: 15, lineHeight: 1.6, color: DBZ_INK50 }}>
+        {b(dashMoney(coming))} is coming to you.{next && next.arrivalDate ? <React.Fragment> The next payout, {b(dashMoney(next.amountCents))}, lands {b(dbzDate(next.arrivalDate))}.</React.Fragment> : null}
+      </p>
+      {rows.map((r, i) => (
+        <div key={r.k} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "baseline", padding: "12px 0", borderBottom: i < rows.length - 1 ? DBZ_RULE : 0 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 14 }}>{r.k}</div>
+            <div style={{ fontSize: 12, color: DBZ_INK50, marginTop: 2 }}>{r.s}</div>
           </div>
-        )) : (
-          <div style={{ fontSize: 12.5, color: DBZ_INK50, padding: "10px 0" }}>Connected — your first payout lands here on the schedule above.</div>
-        )}
-      </div>
+          <div style={{ fontFamily: serif, fontSize: 21, fontVariantNumeric: "tabular-nums" }}>{dashMoney(r.v)}</div>
+        </div>
+      ))}
+      {dbzScheduleLine(data.schedule) && <div style={{ ...DBZ_NOTE, marginTop: 8 }}>{dbzScheduleLine(data.schedule)}.</div>}
     </div>
   );
 }
@@ -618,11 +616,29 @@ function dbzBarPath(x, w, yTop, yBase) {
   return `M${x},${yBase} V${yTop + r} Q${x},${yTop} ${x + r},${yTop} H${x + w - r} Q${x + w},${yTop} ${x + w},${yTop + r} V${yBase} Z`;
 }
 
+// The width a chart is drawn at, so its 9px labels stay 9px: a chart drawn at 760 units and
+// shrunk onto a phone printed them at 4px. Wider than 760 it still scales up, as before.
+function useDbzChartWidth(ref, base) {
+  const [w, setW] = React.useState(base);
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === "undefined") return undefined;
+    const ro = new ResizeObserver((es) => {
+      const cw = Math.round(es[0].contentRect.width);
+      if (cw > 0) setW(Math.max(300, Math.min(base, cw)));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [base]);
+  return w;
+}
+
 // One small multiple. kind: "line" (value → area + line + endpoint) or "bars"
 // (series: [{ key, color }] side by side per bucket), optionally with a line
 // on the same axis (MRR over one-time). All series share ONE scale.
 function DbzChart({ buckets, series, line, unit, hover, onHover, fmt }) {
-  const W = 760, H = 150, padL = 44, padR = 16, padT = 12, padB = 24;
+  const ref = React.useRef(null);
+  const W = useDbzChartWidth(ref, 760), H = 150, padL = 44, padR = 16, padT = 12, padB = 24;
   const plotW = W - padL - padR, plotH = H - padT - padB;
   const n = buckets.length;
   const vals = [];
@@ -632,7 +648,6 @@ function DbzChart({ buckets, series, line, unit, hover, onHover, fmt }) {
   const y = (v) => padT + plotH - (Math.max(0, v) / top) * plotH;
   const xc = (i) => padL + (n <= 1 ? plotW / 2 : (i + 0.5) * (plotW / n));
   const band = n ? plotW / n : plotW;
-  const ref = React.useRef(null);
   const move = (e) => {
     if (!ref.current || !n) return;
     const r = ref.current.getBoundingClientRect();
@@ -640,7 +655,9 @@ function DbzChart({ buckets, series, line, unit, hover, onHover, fmt }) {
     const i = Math.max(0, Math.min(n - 1, Math.floor((px - padL) / band)));
     onHover(i);
   };
-  const labelEvery = n > 16 ? Math.ceil(n / 8) : n > 8 ? 2 : 1;
+  // About one label per 70 units, so a phone's narrower chart thins them instead of overprinting.
+  const room = Math.max(2, Math.floor(plotW / 70));
+  const labelEvery = n > room ? Math.ceil(n / room) : 1;
   const fmtTick = (v) => unit === "$" ? "$" + Math.round(v / 100).toLocaleString() : String(Math.round(v));
   return (
     <svg ref={ref} viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block", height: "auto", overflow: "visible" }} onMouseMove={move} onMouseLeave={() => onHover(null)} role="img" aria-hidden="true">
@@ -790,6 +807,408 @@ function DbzTrajectoryZone({ live, trajectory, role, loading }) {
   );
 }
 
+// ── Plan: what clients earn you, and the next 12 months (design E, owner 2026-10-17) ──
+// "forecast on business"; the owner picked the calculator near the top and asked for a page
+// that is "easy to use and read/understand" and not "overwhelming". So: one calculator, one
+// planner with four sliders, one sentence that says what the chart shows, one chart, and a
+// three-row table. The math is coachForecast.js (unit-tested); this file only lays it out.
+//
+// ⚠ IT STARTS FROM THE COACH'S OWN NUMBERS AND SAYS SO. Each starting figure names where it
+// came from ("your listing price", "2.3 over the last 90 days"); a figure the practice cannot
+// answer yet starts at a stated default ("no history yet · set your own"), never at a
+// plausible-looking measurement.
+const DBZ_PATH_TODAY = "var(--sh-ink2, #a09b94)";
+const DBZ_DEFAULT_ADDS = 1;
+const DBZ_DEFAULT_CHURN_PCT = 5;
+const DBZ_DEFAULT_RATE_CENTS = 15000;
+const dbzRound1 = (v) => Math.round(v * 10) / 10;
+const dbzMonthsWord = (m) => (m === 1 ? "1 month" : m + " months");
+
+// ⚠ THE PREVIEW'S PACE INCLUDES THE PREVIEW'S DEPARTURES. The demo walk is rescaled onto the
+// demo roster, which turns its flows into net level changes, so on its own it reads "no one has
+// left" beside a churn list of three people who did. The departures inside the window are put
+// back on both sides (each one left, and someone joined to keep the headcount), so the pace,
+// the headcount and the churn list tell one story.
+function dbzDemoPace(CF, traj, now) {
+  const pace = CF.paceFrom(traj, now);
+  if (pace.adds == null) return pace;
+  const from = now - CF.PACE_DAYS * 86400000;
+  const left = DBZ_DEMO_CHURN.filter((r) => new Date(r.endedAt).getTime() >= from).length;
+  const months = pace.days / 30.4;
+  const ended = pace.ended + left;
+  return { ...pace, ended, added: pace.added + left, adds: pace.adds + left / months, churn: pace.avgActive > 0 ? Math.min(1, ended / pace.avgActive / months) : pace.churn };
+}
+const dbzPaceWhen = (pace) => (pace.fromFirst ? "since your first client" : "over the last 3 months");
+
+// Where the Plan tab starts: today's clients and net, the rate a new client pays, the share
+// the coach brings, and the pace. { state: "loading" | "unread" | "ready", ... }
+function dbzPlanBase({ live, extra, listing, listingRead, now = Date.now() }) {
+  const CF = window.CoachForecast;
+  if (!CF) return { state: "unread" };
+  if (!live) {
+    const traj = dbzDemoTrajectory();
+    const last = traj.weeks[traj.weeks.length - 1];
+    const subs = DBZ_DEMO_ORIGIN.filter((r) => r.kind === "subscription");
+    const brought = subs.filter((r) => r.feeBps === 0).length;
+    return {
+      state: "ready", clients: last.active, mrrNetCents: last.mrrNetCents, mrrGrossCents: last.mrrGrossCents,
+      rateCents: last.active ? Math.round(last.mrrGrossCents / last.active / 500) * 500 : DBZ_DEFAULT_RATE_CENTS, rateFrom: "your clients' average",
+      byoShare: subs.length ? brought / subs.length : 0, byoNote: "0% Shape fee on these",
+      pace: dbzDemoPace(CF, traj, now),
+    };
+  }
+  if (!extra || !listingRead) return { state: "loading" };
+  const m = extra.metrics || {};
+  if (m.activeClients == null || m.mrrNetCents == null) return { state: "unread" };
+  const subs = Array.isArray(extra.byOrigin) ? extra.byOrigin.filter((r) => r.kind === "subscription") : [];
+  const brought = subs.filter((r) => r.feeBps === 0).length;
+  const listed = listing && listing.monthly != null && Number(listing.monthly) > 0 ? Math.round(Number(listing.monthly) * 100) : null;
+  const avg = m.activeClients > 0 && m.mrrGrossCents > 0 ? Math.round(m.mrrGrossCents / m.activeClients / 500) * 500 : null;
+  return {
+    state: "ready", clients: m.activeClients, mrrNetCents: m.mrrNetCents, mrrGrossCents: m.mrrGrossCents,
+    rateCents: listed != null ? listed : avg != null ? avg : DBZ_DEFAULT_RATE_CENTS,
+    rateFrom: listed != null ? "your listing price" : avg != null ? "your clients' average" : "no listing price yet · set your own",
+    byoShare: subs.length ? brought / subs.length : 0,
+    byoNote: subs.length ? "0% fee · " + brought + " of your " + subs.length : "0% Shape fee on these",
+    // A failed trajectory read is "no pace", which the sliders say, not a pace of zero.
+    pace: extra.trajectory ? CF.paceFrom(extra.trajectory, now) : { adds: null, churn: null, days: 0 },
+  };
+}
+
+function DbzNumberField({ label, value, onChange, prefix, suffix, note, max }) {
+  return (
+    <label style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+      <span style={DBZ_LBL}>{label}</span>
+      <span style={{ display: "flex", alignItems: "center", gap: 6, border: "1px solid var(--sh-line2, #413d38)", borderRadius: 7, padding: "8px 11px", background: "var(--sh-rest, #221e19)" }}>
+        {prefix && <span style={{ fontFamily: DBZ_MONO, fontSize: 12, color: DBZ_INK50 }}>{prefix}</span>}
+        <input type="number" inputMode="decimal" min="0" max={max} value={value} onChange={(e) => onChange(e.target.value)}
+          style={{ width: "100%", minWidth: 0, background: "transparent", border: 0, outline: "none", color: DBZ_INK, fontFamily: DBZ_MONO, fontSize: 15, fontVariantNumeric: "tabular-nums" }} />
+        {suffix && <span style={{ fontFamily: DBZ_MONO, fontSize: 12, color: DBZ_INK50 }}>{suffix}</span>}
+      </span>
+      {note && <span style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_INK50, lineHeight: 1.4 }}>{note}</span>}
+    </label>
+  );
+}
+
+// "What clients earn you": type a client count and a rate, read the net.
+function DbzEarnZone({ base }) {
+  const CF = window.CoachForecast;
+  // A round number above today's count: the question is "what if I had more".
+  const [clients, setClients] = React.useState(String(Math.max(20, Math.ceil((base.clients + 1) / 10) * 10)));
+  const [rate, setRate] = React.useState(String(Math.round(base.rateCents / 100)));
+  const [byo, setByo] = React.useState(String(Math.round(base.byoShare * 100)));
+  const n = Math.max(0, Math.round(Number(clients) || 0));
+  const e = CF.earn({ clients: n, priceCents: Math.max(0, Number(rate) || 0) * 100, byoShare: Math.min(100, Math.max(0, Number(byo) || 0)) / 100 });
+  return (
+    <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "minmax(0,1.25fr) minmax(0,1fr)", gap: 28, alignItems: "end" }}>
+      {/* Three short fields stay side by side on a phone: pageShell stacks any "repeat(3" grid. */}
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)", gap: 12 }}>
+        <DbzNumberField label="Clients" value={clients} onChange={setClients} max="999" note={"you have " + base.clients + " today"} />
+        <DbzNumberField label="Monthly rate" value={rate} onChange={setRate} prefix="$" max="9999" note={base.rateFrom} />
+        <DbzNumberField label="Brought by you" value={byo} onChange={setByo} suffix="%" max="100" note={base.byoNote} />
+      </div>
+      <div style={{ display: "flex", gap: 28, alignItems: "flex-end", flexWrap: "wrap" }}>
+        <div>
+          <div style={{ fontFamily: serif, fontSize: 48, letterSpacing: "-0.02em", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{dashMoney(e.netCents)}</div>
+          <div style={{ ...DBZ_LBL, marginTop: 7 }}>net a month</div>
+        </div>
+        <div>
+          <div style={{ fontFamily: serif, fontSize: 30, letterSpacing: "-0.02em", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{dashMoney(e.yearNetCents)}</div>
+          <div style={{ ...DBZ_LBL, marginTop: 7 }}>a year</div>
+          <div style={{ ...DBZ_NOTE, marginTop: 3 }}>{dashMoney(e.grossCents)} billed · {dashMoney(e.feeCents)} Shape fee</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DbzSlider({ label, value, shown, was, min, max, step, onChange, note }) {
+  return (
+    <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+      <span style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+        <span style={DBZ_LBL}>{label}</span>
+        <span style={{ fontFamily: DBZ_MONO, fontSize: 15, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+          {shown}{was != null && <span style={{ fontSize: 11, color: DBZ_INK50 }}> · was {was}</span>}
+        </span>
+      </span>
+      <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))}
+        style={{ width: "100%", accentColor: "var(--sh-accent, #2ee0c4)" }} />
+      {note && <span style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_INK50, lineHeight: 1.4 }}>{note}</span>}
+    </label>
+  );
+}
+
+// The paths over 24 months on one axis: today's pace (dashed), the plan (bright), the what-if.
+function DbzPathsChart({ paths, goalCents }) {
+  const ref = React.useRef(null);
+  const W = useDbzChartWidth(ref, 760), H = 210, padL = 50, padR = 34, padT = 12, padB = 24, months = 24;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  let max = goalCents || 0;
+  for (const p of paths) for (const r of p.f.rows) if (r.m <= months) max = Math.max(max, r.netCents);
+  const ticks = dbzTicks(max, false);
+  const top = ticks[ticks.length - 1] || 1;
+  const x = (m) => padL + (m / months) * plotW;
+  const y = (v) => padT + plotH - (Math.max(0, v) / top) * plotH;
+  return (
+    <svg ref={ref} viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block", height: "auto", overflow: "visible" }} role="img"
+      aria-label={"Net a month over the next 24 months: " + paths.map((p) => p.label + " " + dashMoney(p.f.rows[12].netCents) + " in 12 months").join("; ")}>
+      {ticks.map((t, i) => (
+        <g key={i}>
+          <line x1={padL} x2={W - padR} y1={y(t)} y2={y(t)} stroke={DBZ_T_GRID} strokeWidth="1" />
+          <text x={padL - 6} y={y(t) + 3} textAnchor="end" fill="var(--sh-ink2, #a09b94)" fontFamily={DBZ_MONO} fontSize="9">{dashMoney(t)}</text>
+        </g>
+      ))}
+      {(W < 480 ? [0, 12, 24] : [0, 6, 12, 18, 24]).map((m) => (
+        <text key={m} x={x(m)} y={H - 6} textAnchor="middle" fill="var(--sh-ink2, #a09b94)" fontFamily={DBZ_MONO} fontSize="9">{m === 0 ? "now" : "mo " + m}</text>
+      ))}
+      {goalCents > 0 && (
+        <g>
+          <line x1={padL} x2={W - padR} y1={y(goalCents)} y2={y(goalCents)} stroke={DBZ_GREEN} strokeWidth="1.5" strokeDasharray="5 4" />
+          <text x={W - padR + 6} y={y(goalCents) + 3} fill={DBZ_GREEN} fontFamily={DBZ_MONO} fontSize="9">goal</text>
+        </g>
+      )}
+      {paths.map((p) => (
+        <polyline key={p.key} fill="none" stroke={p.color} strokeWidth={p.width} strokeDasharray={p.dash ? "4 3" : undefined} strokeLinejoin="round" strokeLinecap="round"
+          points={p.f.rows.filter((r) => r.m <= months).map((r) => x(r.m).toFixed(1) + "," + y(r.netCents).toFixed(1)).join(" ")} />
+      ))}
+    </svg>
+  );
+}
+
+function DbzPathKey({ p }) {
+  return p.dash
+    ? <span aria-hidden="true" style={{ display: "inline-block", width: 16, borderTop: "2px dashed " + p.color, verticalAlign: 4, marginRight: 8 }} />
+    : <span aria-hidden="true" style={{ display: "inline-block", width: 16, height: p.width, background: p.color, borderRadius: 1, verticalAlign: 3, marginRight: 8 }} />;
+}
+
+function DbzPlanZone({ base }) {
+  const CF = window.CoachForecast;
+  const known = base.pace.adds != null;
+  // The starting values, rounded to what the sliders can hold, so an untouched plan IS
+  // today's pace rather than a near-copy of it.
+  const start = React.useMemo(() => {
+    // Never clamped to the sliders' usual range: the ranges stretch to the coach's own numbers
+    // instead, so the "yours" note under each one is the figure it measured.
+    const adds = known ? dbzRound1(base.pace.adds) : DBZ_DEFAULT_ADDS;
+    const churnPct = base.pace.churn != null ? Math.round(base.pace.churn * 100) : DBZ_DEFAULT_CHURN_PCT;
+    const rate = Math.max(5, Math.round(base.rateCents / 500) * 5);
+    const goal = Math.max(1000, Math.ceil((base.mrrNetCents / 100) * 1.5 / 500) * 500);
+    return { adds, churnPct, rate, goal };
+  }, [base]);
+  const [adds, setAdds] = React.useState(start.adds);
+  const [churnPct, setChurnPct] = React.useState(start.churnPct);
+  const [rate, setRate] = React.useState(start.rate);
+  const [goal, setGoal] = React.useState(start.goal);
+  const [whatIf, setWhatIf] = React.useState("more");
+  const reset = () => { setAdds(start.adds); setChurnPct(start.churnPct); setRate(start.rate); setGoal(start.goal); setWhatIf("more"); };
+  const touched = adds !== start.adds || churnPct !== start.churnPct || rate !== start.rate;
+
+  const run = (o) => CF.forecast({ clients: base.clients, mrrNetCents: base.mrrNetCents, byoShare: base.byoShare, months: 36, priceCents: o.rate * 100, adds: o.adds, churn: o.churnPct / 100 });
+  const plan = { adds, churnPct, rate };
+  const keepPct = Math.max(0, churnPct - 3);
+  const priceUp = Math.round((rate * 1.15) / 5) * 5;
+  const WHAT_IFS = [
+    { key: "more", label: "+1 client a month", o: { ...plan, adds: adds + 1 } },
+    churnPct > 0 ? { key: "keep", label: "Churn " + keepPct + "%", o: { ...plan, churnPct: keepPct } } : null,
+    { key: "price", label: "$" + priceUp + " for new clients", o: { ...plan, rate: priceUp } },
+  ].filter(Boolean);
+  const wi = WHAT_IFS.find((w) => w.key === whatIf) || null;
+  const goalCents = goal * 100;
+  // Until a slider moves, the plan IS today's pace: one bright line, named for what it is. Once
+  // one moves, today's pace stays behind as the dashed line to compare against.
+  const compare = known && touched;
+  const paths = [
+    compare ? { key: "today", label: "Today's pace", color: DBZ_PATH_TODAY, width: 2, dash: true, f: run(start) } : null,
+    { key: "plan", label: known && !touched ? "Today's pace" : "Your plan", color: DBZ_T_TEAL, width: 3, f: run(plan) },
+    wi ? { key: "whatif", label: "What if: " + wi.label.charAt(0).toLowerCase() + wi.label.slice(1), color: DBZ_T_AMBER, width: 2, f: run(wi.o) } : null,
+  ].filter(Boolean);
+  const P = paths.find((p) => p.key === "plan");
+  const T = paths.find((p) => p.key === "today");
+  const reach = (p) => CF.monthsTo(goalCents, p.f);
+  const reachText = (m) => (m == null ? "—" : m === 0 ? "now" : "mo " + m);
+
+  // The sentence says what the chart shows, in words (owner: "easy to use and read/understand").
+  const b = (t, color) => <b style={{ color: color || DBZ_INK, fontWeight: 600 }}>{t}</b>;
+  const planReach = reach(P), todayReach = T ? reach(T) : null;
+  const goalWords = dashMoney(goalCents) + " goal";
+  let goalLine;
+  if (base.mrrNetCents >= goalCents) goalLine = <React.Fragment> You're already past your {b(goalWords, DBZ_GREEN)}.</React.Fragment>;
+  else if (planReach == null) goalLine = <React.Fragment> That doesn't reach your {goalWords} within three years{P.f.steadyNetCents != null ? <React.Fragment>: it levels off near {b(dashMoney(P.f.steadyNetCents) + " a month")}</React.Fragment> : null}.</React.Fragment>;
+  else if (!T) goalLine = <React.Fragment>, and you reach your {b(goalWords + " in " + dbzMonthsWord(planReach), DBZ_GREEN)}.</React.Fragment>;
+  else goalLine = <React.Fragment>, and you reach your {b(goalWords + " in " + dbzMonthsWord(planReach), DBZ_GREEN)} {todayReach != null ? "instead of " + dbzMonthsWord(todayReach) : "(today's pace doesn't, within three years)"}.</React.Fragment>;
+  const lead = <React.Fragment>{known ? "Today you have " : "You have "}{b(base.clients + (base.clients === 1 ? " client" : " clients"))} and net {b(dashMoney(base.mrrNetCents) + " a month")}.</React.Fragment>;
+  const planYear = b(dashMoney(P.f.rows[12].netCents) + " a month", DBZ_T_TEAL);
+  const sentence = T
+    ? <React.Fragment>{lead} At today's pace that becomes {b(dashMoney(T.f.rows[12].netCents))} in a year. With {b("your plan", DBZ_T_TEAL)} it's {planYear}{planReach != null && base.mrrNetCents < goalCents ? goalLine : <React.Fragment>.{goalLine}</React.Fragment>}</React.Fragment>
+    : <React.Fragment>{lead} {known ? "At today's pace" : "With your plan"} that becomes {planYear} in a year{planReach != null && base.mrrNetCents < goalCents ? goalLine : <React.Fragment>.{goalLine}</React.Fragment>}</React.Fragment>;
+
+  return (
+    <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "280px minmax(0,1fr)", gap: 30 }}>
+      <div style={{ display: "grid", gap: 18, alignContent: "start" }}>
+        <DbzSlider label="New clients a month" value={adds} shown={adds.toFixed(1)} was={adds !== start.adds ? start.adds.toFixed(1) : null}
+          min={0} max={Math.max(10, Math.ceil(start.adds * 3))} step={0.1} onChange={(v) => setAdds(dbzRound1(v))}
+          note={known ? "yours: " + start.adds.toFixed(1) + " " + dbzPaceWhen(base.pace) : "no history yet · set your own"} />
+        <DbzSlider label="Monthly churn" value={churnPct} shown={churnPct + "%"} was={churnPct !== start.churnPct ? start.churnPct + "%" : null}
+          min={0} max={Math.max(30, start.churnPct)} step={1} onChange={setChurnPct}
+          note={base.pace.churn != null ? "yours: " + start.churnPct + "% leave a month, " + dbzPaceWhen(base.pace) : "no history yet · set your own"} />
+        <DbzSlider label="Rate for new clients" value={rate} shown={"$" + rate} was={rate !== start.rate ? "$" + start.rate : null}
+          min={Math.min(20, start.rate)} max={Math.max(500, start.rate * 2)} step={5} onChange={setRate}
+          note="today's clients keep the price they joined at" />
+        <DbzSlider label="Goal · net a month" value={goal} shown={dashMoney(goalCents)}
+          min={500} max={Math.max(20000, start.goal * 3)} step={250} onChange={setGoal} note="the dashed line" />
+        <div>
+          <div style={{ ...DBZ_LBL, marginBottom: 7 }}>Compare a what-if</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {WHAT_IFS.map((w) => {
+              const on = w.key === whatIf;
+              return (
+                <button key={w.key} type="button" aria-pressed={on} onClick={() => setWhatIf(on ? null : w.key)}
+                  style={{ fontFamily: DBZ_MONO, fontSize: 10, letterSpacing: "0.04em", padding: "6px 10px", borderRadius: 999, cursor: "pointer", border: "1px solid " + (on ? DBZ_T_AMBER : "var(--sh-line2, #413d38)"), color: on ? DBZ_T_AMBER : DBZ_INK50, background: on ? "rgba(216,162,58,0.08)" : "transparent" }}>
+                  {w.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        {(touched || goal !== start.goal || whatIf !== "more") && (
+          <button type="button" onClick={reset} style={{ justifySelf: "start", fontFamily: DBZ_MONO, fontSize: 10, letterSpacing: "0.06em", color: DBZ_TEAL, background: "transparent", border: 0, padding: 0, cursor: "pointer" }}>↺ Back to my numbers</button>
+        )}
+      </div>
+      <div style={{ minWidth: 0 }}>
+        <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6, color: DBZ_INK50 }}>{sentence}</p>
+        <div style={{ marginTop: 14 }}><DbzPathsChart paths={paths} goalCents={goalCents} /></div>
+        <div className="dbz-scroll" style={{ overflowX: "auto" }}>
+          <table className="dbz-cmp" style={{ width: "100%", borderCollapse: "collapse", marginTop: 12, fontVariantNumeric: "tabular-nums" }}>
+            <thead><tr>{["In 12 months", "Net a month", "Clients", "Earned in the year", "Reach goal"].map((h, i) => (
+              <th key={h} style={{ ...DBZ_LBL, fontSize: 8.5, fontWeight: 700, textAlign: i ? "right" : "left", padding: "8px 10px", borderBottom: DBZ_RULE, whiteSpace: "nowrap" }}>{h}</th>
+            ))}</tr></thead>
+            <tbody>{paths.map((p) => {
+              const r = reach(p);
+              const cell = { padding: "11px 10px", textAlign: "right", borderBottom: DBZ_RULE, fontFamily: serif, fontSize: 18, whiteSpace: "nowrap" };
+              return (
+                <tr key={p.key}>
+                  <td style={{ ...cell, textAlign: "left", fontFamily: "inherit", fontSize: 13.5, whiteSpace: "normal" }}><DbzPathKey p={p} /><b style={{ color: p.key === "today" ? DBZ_INK : p.color, fontWeight: 600 }}>{p.label}</b></td>
+                  <td style={cell}>{dashMoney(p.f.rows[12].netCents)}</td>
+                  <td style={cell}>{Math.round(p.f.rows[12].clients)}</td>
+                  <td style={cell}>{dashMoney(CF.earnedOver(p.f, 12))}</td>
+                  <td style={{ ...cell, color: r == null ? DBZ_AMBER : DBZ_GREEN }}>{reachText(r)}</td>
+                </tr>
+              );
+            })}</tbody>
+          </table>
+        </div>
+        <div style={{ ...DBZ_NOTE, marginTop: 10 }}>
+          A projection from your own numbers, not a promise. Today's clients keep the price they pay now; new clients join at the rate above, after Shape's fee on those who find you here.
+          {P.f.steadyClients != null && <React.Fragment> At this pace it levels off near {Math.round(P.f.steadyClients)} clients, where each new one replaces one who leaves.</React.Fragment>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Money: renewals this week (design E) ─────────────────────────────────────
+// From /api/{role}/analytics `renewals` (src/lib/coach-renewals.mjs): the active rows whose
+// period ends in the next 7 days, each asked of Stripe. Only a confirmed renewal counts as
+// money coming in; a cancelled one says so, and one Stripe could not be asked about says that.
+function dbzDemoRenewals() {
+  const day = 86400000, now = Date.now();
+  return DBZ_DEMO_ORIGIN.filter((r) => r.kind === "subscription").slice(0, 4).map((r, i) => ({
+    name: r.name, dueAt: new Date(now + (1 + i * 2) * day).toISOString(), priceCents: r.priceCents,
+    netCents: Math.round(r.priceCents * (1 - (r.feeBps || 0) / 10000)), ending: i === 3,
+  }));
+}
+function dbzDay(v) {
+  try { return new Date(v).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }); } catch (e) { return "—"; }
+}
+function DbzRenewalsZone({ live, renewals }) {
+  if (live && renewals === undefined) return <div style={DBZ_NOTE}>Your renewals load with the analytics rollup…</div>;
+  if (live && renewals === null) return <div style={DBZ_NOTE}>Couldn't read your subscriptions just now. Nothing is lost; reload to try again.</div>;
+  const rows = live ? renewals : dbzDemoRenewals();
+  if (!rows.length) return <div style={DBZ_NOTE}>No one renews in the next 7 days.</div>;
+  const unchecked = rows.some((r) => r.ending == null);
+  return (
+    <div>
+      {rows.map((r, i) => (
+        <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "baseline", padding: "12px 0", borderBottom: i < rows.length - 1 ? DBZ_RULE : 0 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 14 }}>{r.name}</div>
+            <div style={{ fontSize: 12, color: r.ending ? DBZ_RED : DBZ_INK50, marginTop: 2 }}>
+              {r.ending ? "Cancelled · ends " + dbzDay(r.dueAt) : dbzDay(r.dueAt) + " · " + dashMoney(r.priceCents) + " a month"}
+            </div>
+          </div>
+          <div style={{ fontFamily: serif, fontSize: 21, fontVariantNumeric: "tabular-nums", color: r.ending ? DBZ_INK50 : DBZ_INK, textDecoration: r.ending ? "line-through" : "none" }}>{dashMoney(r.netCents)}</div>
+        </div>
+      ))}
+      <div style={{ ...DBZ_NOTE, marginTop: 8 }}>
+        Net to you, after Shape's fee.{unchecked ? " Some couldn't be checked with Stripe just now, so they aren't counted above." : ""}
+      </div>
+    </div>
+  );
+}
+function dbzRenewalsHead(live, renewals) {
+  const rows = live ? renewals : dbzDemoRenewals();
+  if (!Array.isArray(rows) || !rows.length) return null;
+  const sure = rows.filter((r) => r.ending === false);
+  return sure.length + (sure.length === 1 ? " client · " : " clients · ") + dashMoney(sure.reduce((s, r) => s + r.netCents, 0)) + " net";
+}
+
+// ── Money: net a month, the last 13 weeks ────────────────────────────────────
+function DbzNetWeeksZone({ live, trajectory }) {
+  const [hover, setHover] = React.useState(null);
+  const traj = live ? trajectory : dbzDemoTrajectory();
+  if (live && !traj) return <div style={DBZ_NOTE}>{trajectory === undefined ? "Loads with the analytics rollup…" : "Couldn't read your subscriptions just now. Nothing is lost; reload to try again."}</div>;
+  const buckets = dbzBuckets(traj, "90d");
+  const hb = hover != null ? buckets[hover] : null;
+  return (
+    <div style={{ position: "relative" }}>
+      <DbzChart buckets={buckets} series={[{ key: "mrrNetCents", color: DBZ_T_TEAL }]} unit="$" hover={hover} onHover={setHover} fmt={dashMoney} />
+      {hb && (
+        <div style={{ position: "absolute", top: 4, ...(hover < buckets.length / 2 ? { right: 8 } : { left: 52 }), pointerEvents: "none", background: "rgba(var(--sh-ground2-rgb, 20,17,14),0.96)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", borderRadius: 6, padding: "8px 11px" }}>
+          <div style={{ ...DBZ_LBL, marginBottom: 4 }}>Week of {hb.label}</div>
+          <div style={{ fontFamily: DBZ_MONO, fontSize: 12, color: DBZ_T_INK, fontWeight: 700 }}>{dashMoney(hb.mrrNetCents)} net a month · {hb.active} clients</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Retention: what a client is worth ────────────────────────────────────────
+function DbzLifetimeZone({ base }) {
+  const CF = window.CoachForecast;
+  if (!base || base.state === "loading") return <div style={DBZ_NOTE}>Loads with the analytics rollup…</div>;
+  if (base.state !== "ready") return <div style={DBZ_NOTE}>Couldn't read your subscriptions just now. Nothing is lost; reload to try again.</div>;
+  const perClient = base.clients > 0 ? base.mrrNetCents / base.clients : null;
+  if (base.pace.churn == null || perClient == null) return <div style={DBZ_NOTE}>This fills in after a month with clients: how long a client stays with you on average, and what that's worth.</div>;
+  if (base.pace.churn === 0) return <div style={DBZ_NOTE}>No one has left {dbzPaceWhen(base.pace)}, so there isn't an average stay to measure yet.</div>;
+  const lt = CF.lifetime({ netPerClientCents: perClient, churn: base.pace.churn });
+  return (
+    <div>
+      <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6, color: DBZ_INK50 }}>
+        A client stays about <b style={{ color: DBZ_INK, fontWeight: 600 }}>{dbzMonthsWord(Math.round(lt.months))}</b> on average, so each one is worth about <b style={{ color: DBZ_INK, fontWeight: 600 }}>{dashMoney(lt.valueCents)}</b> to you.
+      </p>
+      <div style={{ ...DBZ_NOTE, marginTop: 6 }}>From {Math.round(base.pace.churn * 100)}% of clients leaving a month {dbzPaceWhen(base.pace)}, and {dashMoney(perClient)} net a client a month.</div>
+    </div>
+  );
+}
+
+// ── Growth: the waiting list, in money ───────────────────────────────────────
+// /api/coach/capacity `waiting` (people still waiting, not invited). They are Shape members, so
+// they found the coach here: each one nets the listing price less Shape's 15%.
+function DbzWaitlistZone({ live, waiting, rateCents }) {
+  const CF = window.CoachForecast;
+  const n = live ? waiting : 3;
+  if (n === undefined) return <div style={DBZ_NOTE}>Loads with your listing…</div>;
+  if (n == null) return <div style={DBZ_NOTE}>Couldn't read your waiting list just now.</div>;
+  if (!n) return <div style={DBZ_NOTE}>No one is waiting. When you mark your listing full on your Profile, members can join a waiting list here.</div>;
+  const net = CF && rateCents ? CF.earn({ clients: n, priceCents: rateCents, byoShare: 0 }).netCents : null;
+  return (
+    <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6, color: DBZ_INK50 }}>
+      <b style={{ color: DBZ_INK, fontWeight: 600 }}>{n === 1 ? "1 person is" : n + " people are"}</b> waiting to join you.
+      {net != null && <React.Fragment> If {n === 1 ? "they join" : "they all join"} at {dashMoney(rateCents)} a month, that's about <b style={{ color: DBZ_INK, fontWeight: 600 }}>{dashMoney(net)} a month</b> to you.</React.Fragment>}
+    </p>
+  );
+}
+
 // ── Not in the marketplace yet ───────────────────────────────────────────────
 // A coach's listing is hidden from the marketplace until it has a monthly price, active payouts
 // and a photo (listing_ready, 2026-10-12). Only the approval email said so; this says it where
@@ -827,13 +1246,13 @@ function DbzListingNotice({ listing, role }) {
 
 // The Business page's sections, hoisted so the remembered choice's allowlist is derived
 // from the list the switch renders.
-const DBZ_SECTIONS = [["overview", "Overview"], ["money", "Money"], ["growth", "Growth"], ["retention", "Retention"]];
+const DBZ_SECTIONS = [["overview", "Overview"], ["money", "Money"], ["plan", "Plan"], ["growth", "Growth"], ["retention", "Retention"]];
 const DBZ_SECTION_KEYS = DBZ_SECTIONS.map((x) => x[0]);
 
 // ── The page ─────────────────────────────────────────────────────────────────
 function CoachBusinessPage({ role }) {
   const cfg = DBZ_ROLES[role];
-  const { loading, today: live, clients, source } = useDashboard(role);
+  const { today: live, source } = useDashboard(role);
   const [extra, setExtra] = React.useState(null); // /api/{role}/analytics payload
 
   React.useEffect(() => {
@@ -848,13 +1267,33 @@ function CoachBusinessPage({ role }) {
   const isLive = !!live || !!extra;
   // The coach's own listing (live only): the notice above the plates when it is not ready.
   const [listing, setListing] = React.useState(null);
+  // Whether the listing read has finished (either way): the Plan tab starts from its price, so it
+  // waits for the answer rather than starting from a fallback and jumping when the price lands.
+  const [listingRead, setListingRead] = React.useState(false);
   React.useEffect(() => {
     if (!isLive) return undefined;
     let on = true;
     fetch("/api/coach/listing", { credentials: "same-origin", cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (on && d) setListing(((d.listings || []).find((l) => l.role === role)) || null); })
-      .catch(() => {});
+      .catch(() => {})
+      .then(() => { if (on) setListingRead(true); });
+    return () => { on = false; };
+  }, [role, isLive]);
+  // The waiting list (Growth): how many members are waiting, from the capacity route.
+  // undefined while it loads, null when it could not be read.
+  const [waiting, setWaiting] = React.useState(undefined);
+  React.useEffect(() => {
+    if (!isLive) return undefined;
+    let on = true;
+    fetch("/api/coach/capacity", { credentials: "same-origin", cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!on) return;
+        const l = d && Array.isArray(d.listings) ? d.listings.find((x) => x.role === role) : null;
+        setWaiting(l && typeof l.waiting === "number" ? l.waiting : null);
+      })
+      .catch(() => { if (on) setWaiting(null); });
     return () => { on = false; };
   }, [role, isLive]);
   const stripe = extra && extra.stripe ? extra.stripe : null;
@@ -894,7 +1333,6 @@ function CoachBusinessPage({ role }) {
     </React.Fragment>
   );
 
-  const revenueByClient = !loading && typeof DashSignals.dashRevenueByClient === "function" ? DashSignals.dashRevenueByClient(clients) : null;
   const pair = (left, right) => (
     <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>{left}{right}</div>
   );
@@ -929,26 +1367,38 @@ function CoachBusinessPage({ role }) {
         <DbzTrajectoryZone live={isLive} trajectory={extra && extra.trajectory} role={role} loading={isLive && !extra} />
       </React.Fragment>);
 
-  const revenue = plate(DBZ_TEAL, <React.Fragment>
-        {head("Revenue · 90-day trend", null, (
-          <span style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_INK50 }}>
-            {mrr ? <React.Fragment>MRR <span style={{ fontFamily: serif, fontSize: 17, color: "var(--sh-ink, #f2ede4)" }}>{dashMoney(mrr.mrrNetCents)}</span> net · {dashMoney(mrr.mrrGrossCents)} gross</React.Fragment>
-              : isLive ? "MRR — · no active subscriptions" : "MRR from active subscriptions"}
-          </span>
-        ))}
-        <DashGrowthPanel live={live} role={role} />
-      </React.Fragment>);
-
-  const payouts = plate(DBZ_GREEN, <React.Fragment>
-        {head("Payouts · schedule & history", DBZ_GREEN)}
-        <DbzPayoutsZone live={isLive} stripe={stripe} providerId={extra && extra.providerId} role={role} />
-      </React.Fragment>);
-
-  // Revenue by client only once there is a client to list (it was an optional card that
-  // could not be added before then).
-  const revenueClients = revenueByClient && revenueByClient.total > 0
-    ? plate(cfg.accent, <React.Fragment>{head("Revenue by client", cfg.accent)}<DashRevenueByClientPanel rev={revenueByClient} role={role} /></React.Fragment>)
+  // ── Money (design E): your money and this week's renewals side by side, the last 13 weeks under.
+  const demoLast = !isLive ? dbzDemoTrajectory().weeks.slice(-1)[0] : null;
+  const moneyMetrics = isLive ? mrr : { mrrNetCents: demoLast.mrrNetCents, mrrGrossCents: demoLast.mrrGrossCents };
+  const stripeLink = (!isLive || (stripe && stripe.connected))
+    ? <a href={isLive ? DBZ_STRIPE_DASHBOARD : undefined} target="_blank" rel="noopener noreferrer" style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_TEAL, textDecoration: "none", opacity: isLive ? 1 : 0.6 }}>Open your Stripe ↗</a>
     : null;
+  const payouts = plate(DBZ_GREEN, <React.Fragment>
+        {head("Your money", DBZ_GREEN, stripeLink)}
+        <DbzPayoutsZone live={isLive} stripe={extra ? stripe : undefined} providerId={extra && extra.providerId} role={role} metrics={moneyMetrics} />
+      </React.Fragment>);
+  const renewalsHead = dbzRenewalsHead(isLive, extra ? extra.renewals : undefined);
+  const renewals = plate(DBZ_RED, <React.Fragment>
+        {head("Renewing this week", DBZ_RED, renewalsHead ? <span style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_INK50 }}>{renewalsHead}</span> : null)}
+        <DbzRenewalsZone live={isLive} renewals={extra ? extra.renewals : undefined} />
+      </React.Fragment>);
+  const netWeeks = plate(DBZ_TEAL, <React.Fragment>
+        {head("Net a month · last 13 weeks", null, moneyMetrics && moneyMetrics.mrrNetCents != null ? <span style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_INK50 }}>from your subscriptions · {dashMoney(moneyMetrics.mrrNetCents)} now</span> : null)}
+        <DbzNetWeeksZone live={isLive} trajectory={extra ? extra.trajectory : undefined} />
+      </React.Fragment>);
+
+  // ── Plan (design E): what clients earn you, then the next 12 months.
+  const planBase = dbzPlanBase({ live: isLive, extra, listing, listingRead });
+  const planKey = planBase.state === "ready" ? JSON.stringify([planBase.clients, planBase.mrrNetCents, planBase.rateCents, planBase.byoShare, planBase.pace]) : planBase.state;
+  const planWait = planBase.state === "loading" ? "Your numbers load with the analytics rollup…" : "Couldn't read your subscriptions just now, and the plan starts from them. Nothing is lost; reload to try again.";
+  const earnPlate = plate(DBZ_TEAL, <React.Fragment>
+        {head("What clients earn you", null, <span style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_INK50 }}>after Shape's fee · card processing is on Shape</span>)}
+        {planBase.state === "ready" ? <DbzEarnZone key={planKey} base={planBase} /> : <div style={DBZ_NOTE}>{planWait}</div>}
+      </React.Fragment>);
+  const planPlate = plate(DBZ_TEAL, <React.Fragment>
+        {head("Plan the next 12 months", DBZ_TEAL)}
+        {planBase.state === "ready" ? <DbzPlanZone key={planKey} base={planBase} /> : <div style={DBZ_NOTE}>{planWait}</div>}
+      </React.Fragment>);
 
   const funnel = plate(DBZ_TEAL, <React.Fragment>
         {head("Marketplace funnel · views → consults → signed")}
@@ -963,6 +1413,16 @@ function CoachBusinessPage({ role }) {
   const byo = plate(DBZ_TEAL, <React.Fragment>
         {head("Bring your clients · 0% commission")}
         <DbzBringClientsZone live={isLive} role={role} providerId={extra && extra.providerId} />
+      </React.Fragment>);
+
+  const waitlist = plate(DBZ_TEAL, <React.Fragment>
+        {head("Your waiting list")}
+        <DbzWaitlistZone live={isLive} waiting={waiting} rateCents={planBase.state === "ready" ? planBase.rateCents : null} />
+      </React.Fragment>);
+
+  const lifetime = plate(cfg.accent, <React.Fragment>
+        {head("What a client is worth", cfg.accent)}
+        <DbzLifetimeZone base={planBase} />
       </React.Fragment>);
 
   const origin = plate(cfg.accent, <React.Fragment>
@@ -981,9 +1441,10 @@ function CoachBusinessPage({ role }) {
 
   const sections = {
     overview: trajectory,
-    money: <React.Fragment>{pair(revenue, payouts)}{revenueClients}</React.Fragment>,
-    growth: <React.Fragment>{pair(funnel, origin)}{byo}</React.Fragment>,
-    retention: <React.Fragment>{outcomes}{churn}</React.Fragment>,
+    money: <React.Fragment>{pair(payouts, renewals)}{netWeeks}</React.Fragment>,
+    plan: <React.Fragment>{earnPlate}{planPlate}</React.Fragment>,
+    growth: <React.Fragment>{pair(funnel, origin)}{pair(byo, waitlist)}</React.Fragment>,
+    retention: <React.Fragment>{lifetime}{outcomes}{churn}</React.Fragment>,
   };
 
   return (
@@ -993,9 +1454,9 @@ function CoachBusinessPage({ role }) {
         tourHero="hero-business"
         navItems={cfg.nav("business")}
         payoutCard={payoutCard}
-        eyebrow="REVENUE · PAYOUTS · FUNNEL · CHURN"
+        eyebrow="REVENUE · PAYOUTS · PLAN"
         title="Business"
-        subtitle="The money side, told straight — real subscription revenue, real Stripe payouts, the marketplace funnel, and who left. Nothing here is invented."
+        subtitle="The money side, told straight: real subscription revenue and Stripe payouts, and a plan built from your own price, clients and churn."
       >
         {isLive && listing && !listing.ready && <DbzListingNotice listing={listing} role={role} />}
         <div style={{ marginBottom: 16 }}>

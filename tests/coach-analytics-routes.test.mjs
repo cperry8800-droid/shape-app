@@ -74,7 +74,8 @@ async function loadRoute(role, tables, opts) {
       ['next/server', nextServer],
       ['@/lib/supabase/server', { createClient: async () => db.client }],
       ['@/lib/supabase/admin', { createAdminClient: () => db.client }],
-      ['@/lib/stripe', { loadStripe: async () => ({ connected: false }) }],
+      ['@/lib/stripe', { loadStripe: async () => ({ connected: false }), loadCancelFlags: async (ids, cap) => { opts?.flagCalls?.push({ ids, cap }); return new Map(ids.map((id) => [id, (opts?.cancelled || []).includes(id)])) } }],
+      ['@/lib/coach-renewals.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/coach-renewals.mjs')).href)],
       ['@/lib/platform-fee', await import(pathToFileURL(join(ROOT, 'src/lib/platform-fee.mjs')).href)],
       ['@/lib/origin-attribution', await ts('src/lib/origin-attribution.ts')],
       ['@/lib/coach-trajectory.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/coach-trajectory.mjs')).href)],
@@ -217,7 +218,8 @@ test('no failed read in the trainer route is published as an empty history', asy
       ['next/server', nextServer],
       ['@/lib/supabase/server', { createClient: async () => churnFails.client }],
       ['@/lib/supabase/admin', { createAdminClient: () => churnFails.client }],
-      ['@/lib/stripe', { loadStripe: async () => ({ connected: false }) }],
+      ['@/lib/stripe', { loadStripe: async () => ({ connected: false }), loadCancelFlags: async (ids) => new Map(ids.map((id) => [id, false])) }],
+      ['@/lib/coach-renewals.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/coach-renewals.mjs')).href)],
       ['@/lib/platform-fee', await import(pathToFileURL(join(ROOT, 'src/lib/platform-fee.mjs')).href)],
       ['@/lib/origin-attribution', await loadRealModule(join(ROOT, 'src/lib/origin-attribution.ts'), { typescript: true, registry: new Map([['@/lib/supabase/server', {}]]) })],
       ['@/lib/coach-trajectory.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/coach-trajectory.mjs')).href)],
@@ -303,4 +305,29 @@ test('a failed subscriptions read leaves every roster outcome unknown, not 0 or 
   assert.ok(Array.isArray(none.body.byOrigin))
   const origin = page.slice(page.indexOf('function DbzOriginZone('), page.indexOf('const rows = live ?', page.indexOf('function DbzOriginZone(')))
   assert.match(origin, /if \(live && byOrigin === null\) \{\s+return <div[^>]*>Couldn't read where your clients came from just now\./)
+})
+
+// ── Business page, Money tab (design E): renewals this week ────────────────
+test('renewals: the active rows due in the next 7 days, each asked of Stripe, net at the stored fee', async () => {
+  const soon = (d) => new Date(Date.now() + d * 86400000).toISOString()
+  const C = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+  const subs = [
+    { ...sub(A, 18000), id: 'r1', stripe_subscription_id: 'sub_A', current_period_end: soon(2) },
+    { ...sub(B, 16500), id: 'r2', fee_bps: 0, stripe_subscription_id: 'sub_B', current_period_end: soon(5) },
+    { ...sub(C, 20000), id: 'r3', stripe_subscription_id: 'sub_C', current_period_end: soon(12) },
+  ]
+  for (const role of ['trainer', 'nutritionist']) {
+    const flagCalls = []
+    const tables = role === 'trainer' ? roster({ subscriptions: subs }) : { nutritionists: [{ id: 9, stripe_account_id: null, stripe_account_status: null }], subscriptions: subs.map((r) => ({ ...r, provider_role: 'nutritionist' })) }
+    const { body } = await loadRoute(role, tables, { rpcs: lifts({}), cancelled: ['sub_B'], flagCalls })
+    assert.deepEqual(flagCalls.map((c) => c.ids), [['sub_A', 'sub_B']], role + ': only the rows due this week are asked about')
+    assert.deepEqual(body.renewals.map((r) => [r.priceCents, r.netCents, r.ending]), [[18000, 15300, false], [16500, 16500, true]], role)
+  }
+})
+
+test('renewals: a failed subscriptions read is "could not read", not "no one renews"', async () => {
+  const flagCalls = []
+  const { body } = await loadRoute('trainer', roster(), { errors: { subscriptions: 'timeout' }, rpcs: lifts({}), flagCalls })
+  assert.equal(body.renewals, null)
+  assert.deepEqual(flagCalls.map((c) => c.ids), [[]], 'Stripe is not asked about rows nobody read')
 })
