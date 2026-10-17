@@ -67,6 +67,12 @@ async function mount({ signedIn = true, threadGets = [200], stored = [], me = nu
   const tabs = [{ id: 'nora', label: 'Nora', title: 'Nora', support: true, threads: [{ who: 'Nora', messages: [{ who: 'Nora', t: 'Hi, I am Nora.', me: false }], quick: ['How do I log a meal?', 'Hi'] }] }];
   const root = ReactDOMClient.createRoot(w.document.getElementById('r'));
   await React.act(async () => root.render(React.createElement(w.ChatWidget, { tabs, docked })));
+  // Draw again with more tabs (the hydrate re-runs when the count changes, as the Feed tab does).
+  const addTab = async () => {
+    const more = [...tabs, { id: 'team', label: 'Team', title: 'Team', threads: [{ who: 'Team channel', messages: [] }] }];
+    await React.act(async () => root.render(React.createElement(w.ChatWidget, { tabs: more, docked })));
+    await settle();
+  };
   await settle();
   const open = async () => { await React.act(async () => { w.__openChat({ tab: 'nora' }, 'nora'); }); await settle(); };
   const close = async () => { await React.act(async () => { w.__closeChat ? w.__closeChat() : w.document.querySelector('[data-chat-panel] button[aria-label="Close"]')?.click(); }); await settle(); };
@@ -87,7 +93,7 @@ async function mount({ signedIn = true, threadGets = [200], stored = [], me = nu
     await settle();
   };
   const appended = () => posts.filter(([u]) => u === '/api/nora/thread').map(([, b]) => b.append);
-  return { w, calls, posts, open, close, done, threadGetsSoFar, personButton, say, appended };
+  return { w, calls, posts, open, close, done, threadGetsSoFar, personButton, say, appended, addTab };
 }
 
 test('a failed first load is tried again when the panel opens, and then Talk to a person shows', async () => {
@@ -230,6 +236,83 @@ test('what is said while /api/me is unanswered is kept; the signed-out copy it w
     await waitForRetry(); // asked again 2 seconds on: signed in, so it loads
     assert.equal(m.threadGetsSoFar(), 1);
     assert.deepEqual(m.appended().flat().map((x) => x.text), ['How do I log a meal?', 'Tap + on Eat.'], 'only what this person said here');
+  } finally {
+    await m.done();
+  }
+});
+
+// The account's own saved copy on this browser, and a signed-out copy beside it.
+const MEMBER = 'shape.chat.v2.u1';
+const memberCopy = { threadsByTab: [[
+  { who: 'Nora', messages: [{ who: 'Nora', t: 'Hi, I am Nora.', me: false }, { who: 'You', t: 'Member saved question', me: true }, { who: 'Nora', t: 'Member saved answer', me: false }], quick: ['How do I log a meal?'] },
+  { who: 'Team channel', messages: [{ who: 'You', t: 'Member channel note', me: true }] },
+]], activeByTab: [0] };
+const anonCopyWithChips = { threadsByTab: [[{ who: 'Nora', messages: [{ who: 'Nora', t: 'Hi, I am Nora.', me: false }, { who: 'You', t: 'Anon question', me: true }, { who: 'Nora', t: 'Anon answer', me: false }], quick: ['How do I log a meal?'] }]], activeByTab: [0] };
+
+// /api/me fails at sign-in and again when the panel opens; `between` runs while it is down.
+async function unknownThenKnown(m, fail, between) {
+  await React.act(async () => { fail({ stayDown: true }); });
+  await settle();
+  await m.open();
+  await React.act(async () => { fail({ stayDown: true }); });
+  await settle();
+  await between();
+  assert.equal(m.threadGetsSoFar(), 0, 'nothing loads while it is unanswered');
+  await React.act(async () => { fail(); });
+  await waitForRetry();
+  assert.equal(m.threadGetsSoFar(), 1, 'loaded once it answers');
+}
+
+test('a re-key after typing keeps the account\'s saved copy, adds what was said, and saved nothing meanwhile', async () => {
+  const { me, fail } = flakyMe();
+  const m = await mount({ me, stored: [], seed: { [MEMBER]: memberCopy, 'shape.chat.v2.anon': anonCopyWithChips } });
+  try {
+    await unknownThenKnown(m, fail, () => m.say('How do I log a meal?'));
+    const mine = JSON.parse(m.w.localStorage.getItem(MEMBER));
+    const said = (who) => mine.threadsByTab[0].find((th) => th.who === who).messages.map((x) => x.t);
+    assert.deepEqual(said('Nora'), ['Hi, I am Nora.', 'Member saved question', 'Member saved answer', 'How do I log a meal?', 'Tap + on Eat.'], 'the account\'s copy, then what was said meanwhile');
+    assert.deepEqual(said('Team channel'), ['Member channel note'], 'its other threads kept');
+    assert.deepEqual(JSON.parse(m.w.localStorage.getItem('shape.chat.v2.anon')), anonCopyWithChips, 'nothing saved under the signed-out key while unanswered');
+    assert.deepEqual(m.appended().flat().map((x) => x.text), ['Member saved question', 'Member saved answer', 'How do I log a meal?', 'Tap + on Eat.'], 'the account\'s own copy migrates, then what was said');
+  } finally {
+    await m.done();
+  }
+});
+
+test('a Clear pressed while /api/me was unanswered clears the account\'s copy too', async () => {
+  const { me, fail } = flakyMe();
+  const m = await mount({ me, stored: [{ role: 'user', text: 'Private question', at: '2026-10-16T10:00:00Z' }], seed: { [MEMBER]: memberCopy, 'shape.chat.v2.anon': anonCopyWithChips } });
+  m.w.confirm = () => true;
+  try {
+    await unknownThenKnown(m, fail, async () => {
+      await React.act(async () => { m.w.document.querySelector('[data-nora-clear]').click(); });
+      await settle();
+      await m.say('How do I log a meal?');
+    });
+    assert.ok(m.calls.indexOf('DELETE /api/nora/thread') >= 0, 'the Clear reaches the account once it is known');
+    assert.ok(m.calls.indexOf('DELETE /api/nora/thread') < m.calls.lastIndexOf('POST /api/nora/thread'), 'cleared, then what was said after');
+    assert.deepEqual(m.appended().flat().map((x) => x.text), ['How do I log a meal?', 'Tap + on Eat.']);
+    const text = m.w.document.body.textContent;
+    assert.ok(!/Member saved question|Private question/.test(text), 'nothing from before the Clear is drawn');
+    assert.ok(text.includes('Tap + on Eat.'));
+    assert.doesNotMatch(m.w.localStorage.getItem(MEMBER) || '', /Member saved question/, 'nor kept on this browser');
+  } finally {
+    await m.done();
+  }
+});
+
+test('a switch between two known accounts carries nothing from one copy to the other', async () => {
+  let who = 'u1';
+  const me = () => Promise.resolve({ user: { id: who, email: `${who}@shape.test` } });
+  const m = await mount({ me, stored: [] });
+  try {
+    await m.open();
+    await m.say('How do I log a meal?'); // synced as u1: sent to u1's account
+    who = 'u2';
+    await m.addTab(); // the hydrate re-runs and finds u2
+    const u2 = m.w.localStorage.getItem('shape.chat.v2.u2') || '';
+    assert.ok(u2, 'u2 has a copy');
+    assert.doesNotMatch(u2, /Tap \+ on Eat/, 'u1\'s exchange never lands in u2\'s copy');
   } finally {
     await m.done();
   }

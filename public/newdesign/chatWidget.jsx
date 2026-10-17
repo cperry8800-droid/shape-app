@@ -866,6 +866,9 @@ function ChatWidget(props) {
     noraThreadGenRef.current += 1;
     noraHeldRef.current = [];
     stopNora();
+    // Before the store answers, what is said from here on is what follows the join point (its
+    // Clear count stays the hydrate's, so the load clears the account first).
+    if (noraFromRef.current) { const cur = cwNoraLocal(); noraFromRef.current = { ...noraFromRef.current, base: cur.length && !cur[0].me ? 1 : 0 }; }
     setThreadsByTab((prev) => prev.map((list, i) => (tabs[i] && tabs[i].support) ? list.map((th) => {
       if (th.who !== "Nora") return th;
       const msgs = th.messages || [];
@@ -880,6 +883,8 @@ function ChatWidget(props) {
 
   React.useEffect(() => {
     let cancelled = false;
+    // This run asks again after /api/me went unanswered (the copy held is the signed-out one).
+    const wasUnknown = authProbe === "unknown";
     (async () => {
       let uid = "anon";
       let probe = "unknown";
@@ -898,8 +903,10 @@ function ChatWidget(props) {
       const rekeyed = !!storeKeyRef.current && storeKeyRef.current !== key;
       storeKeyRef.current = key;
       let hydratedThreads = null;
-      // Don't clobber a message the user typed before hydration finished.
-      if (!dirtyRef.current) {
+      // Don't clobber a message the user typed before hydration finished. ⚠ EXCEPT ON A
+      // RE-KEY: the account's saved copy is read whatever was typed, or the next save wrote
+      // the signed-out copy over it, losing its messages and channels (Codex, #2391).
+      if (!dirtyRef.current || rekeyed) {
         try {
           const raw = localStorage.getItem(key);
           if (raw) {
@@ -922,25 +929,39 @@ function ChatWidget(props) {
             const threads = saved && fit(saved.threadsByTab, []);
             if (threads) {
               hydratedThreads = threads;
-              setThreadsByTab(threads);
               const active = fit(saved.activeByTab, 0);
               if (active) setActiveByTab(active);
             }
           }
         } catch {}
-        // Re-keyed (/api/me answered on a later read) to an account with nothing saved here:
-        // it starts where a first visit would, not with the signed-out copy.
-        if (rekeyed && !hydratedThreads) {
-          hydratedThreads = tabs.map((t) => t.threads);
-          setThreadsByTab(hydratedThreads);
-          setActiveByTab(tabs.map(() => 0));
+        if (rekeyed) {
+          // Re-keyed (/api/me answered on a later read): the account's copy, or where a first
+          // visit starts, never the signed-out copy. What was said to Nora since the join
+          // point is held for the account, so it carries onto the copy, after a Clear made
+          // meanwhile; the load then measures from there. Only from an unanswered /api/me:
+          // a switch between known accounts carries nothing across.
+          const from = wasUnknown ? noraFromRef.current : null;
+          const said = from ? cwNoraLocal().slice(from.base) : [];
+          const cleared = !!from && from.gen !== noraThreadGenRef.current;
+          if (!hydratedThreads) { hydratedThreads = tabs.map((t) => t.threads); setActiveByTab(tabs.map(() => 0)); }
+          let kept = 0;
+          hydratedThreads = hydratedThreads.map((list, i) => (tabs[i] && tabs[i].support) ? (list || []).map((th) => {
+            if (th.who !== "Nora") return th;
+            const msgs = th.messages || [];
+            const own = cleared ? msgs.slice(0, msgs.length && !msgs[0].me ? 1 : 0) : msgs;
+            kept = own.length;
+            return { ...th, messages: [...own, ...said] };
+          }) : list);
+          noraFromRef.current = { base: kept, gen: cleared ? from.gen : noraThreadGenRef.current, mine: probe === "in" };
         }
+        // And read as drawn from here: the load's answer can land before this render does.
+        if (hydratedThreads) { setThreadsByTab(hydratedThreads); threadsRef.current = hydratedThreads; }
       }
       hydratedRef.current = true;
       setHydrated(true);
       // Measured against the threads just set, which this render has not drawn yet. A later
-      // hydrate moves it only when nothing was typed, so nothing is held.
-      if (!dirtyRef.current || !noraFromRef.current) noraFromRef.current = { base: cwNoraLocal(hydratedThreads).length, gen: noraThreadGenRef.current, mine: probe === "in" };
+      // hydrate moves it only when nothing was typed, so nothing is held (a re-key set it above).
+      if (!rekeyed && (!dirtyRef.current || !noraFromRef.current)) noraFromRef.current = { base: cwNoraLocal(hydratedThreads).length, gen: noraThreadGenRef.current, mine: probe === "in" };
       // One conversation per account (the Ask Nora plan, step 4): the stored thread replaces
       // this browser's copy of Nora's, and a browser that kept one before the account had
       // any sends it up once. Signed out, or before the migration runs, nothing changes.
@@ -963,12 +984,15 @@ function ChatWidget(props) {
     }) : list));
   }, [noraGreeting, hydrated]);
 
+  // ⚠ NOTHING IS SAVED WHILE /api/me IS UNANSWERED. The key is then the signed-out one, and a
+  // member's words saved there would be shown to the next person on the browser; the copy
+  // is saved under the account's key once it is known (Codex, #2391).
   React.useEffect(() => {
-    if (!hydratedRef.current || !storeKeyRef.current) return;
+    if (!hydratedRef.current || !storeKeyRef.current || authProbe === "unknown") return;
     try {
       localStorage.setItem(storeKeyRef.current, JSON.stringify({ threadsByTab, activeByTab }));
     } catch {}
-  }, [threadsByTab, activeByTab]);
+  }, [threadsByTab, activeByTab, authProbe]);
 
   // ── REAL MESSAGE HISTORY ──────────────────────────────────────────
   // ⚠ THE THREADS THIS WIDGET SHIPPED WITH ARE DEMO, AND THERE WAS NO HISTORY AT
