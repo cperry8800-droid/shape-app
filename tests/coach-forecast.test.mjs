@@ -132,3 +132,19 @@ test('lifetime: the average stay is 1 / churn, and the value is the net over it'
   assert.equal(CF.lifetime({ netPerClientCents: 15750, churn: null }), null);
   assert.equal(CF.lifetime({ netPerClientCents: null, churn: 0.1 }), null);
 });
+
+test('paceFrom: with a growing practice, churn is against the average headcount, not the first week\'s', () => {
+  const now = Date.UTC(2026, 9, 17, 12);
+  // 4 active at the window's start, 20 by its end; 2 departures.
+  const weeks = weeksTo(now, 104, (i, n) => {
+    const k = i - (n - 14);
+    return { active: k < 0 ? 4 : 4 + Math.min(16, k * 2), added: 0, ended: k === 5 || k === 9 ? 1 : 0 };
+  });
+  const p = CF.paceFrom({ weeks, firstSubAt: '2025-01-01T00:00:00Z' }, now);
+  const open = Date.UTC(2026, 6, 13);
+  const inWin = weeks.filter((w) => Date.parse(w.weekOf + 'T00:00:00Z') >= open);
+  const avg = inWin.reduce((s, w) => s + w.active, 0) / inWin.length;
+  assert.ok(avg > inWin[0].active * 2, 'the fixture grows');
+  const months = (now - open) / DAY / 30.4;
+  near(p.churn, 2 / avg / months);
+});
