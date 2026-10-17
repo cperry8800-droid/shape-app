@@ -716,8 +716,12 @@ function ChatWidget(props) {
     ((from || threadsRef.current) || []).forEach((list, i) => { if (tabs[i] && tabs[i].support) (list || []).forEach((th) => { if (!out && th.who === "Nora") out = th.messages || []; }); });
     return out || [];
   };
+  // One load at a time, and none once the store has answered.
+  const noraLoadingRef = React.useRef(false);
   // `hydrated`: the threads the hydrate just set, which this render has not drawn yet.
   const cwLoadNoraThread = (isCancelled, hydrated) => {
+    if (noraLoadingRef.current || noraThreadSyncRef.current) return;
+    noraLoadingRef.current = true;
     // This browser's own copy, as hydrated; anything past it is said while loading.
     const base = cwNoraLocal(hydrated).length;
     const gen = noraThreadGenRef.current;
@@ -755,8 +759,16 @@ function ChatWidget(props) {
         }) : list));
         cwNoraPost(cwNoraHeld());
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => { noraLoadingRef.current = false; });
   };
+  // ⚠ A LOAD THAT FAILED IS TRIED AGAIN WHEN THE PANEL OPENS. The load ran once, at sign-in,
+  // so one failed request (a 429 from the proxy, a dropped connection, /api/me down) left
+  // the page unsynced for good: nothing said there was kept, and Talk to a person never
+  // showed (the trace for the owner, 2026-10-17). A visitor's GET answers 401: nothing.
+  React.useEffect(() => {
+    if (open && !noraThreadSyncRef.current && authProbe !== "out" && hydratedRef.current) cwLoadNoraThread(() => false, null);
+  }, [open]);
   // A reply the Shape team sent after the conversation loaded joins it each time the panel
   // opens ("Talk to a person", Codex #2265). Only team replies are added: the rest is here.
   const cwPullTeam = () => {
