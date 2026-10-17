@@ -400,6 +400,9 @@ test('overview: every tile reads the number it says it reads', () => {
   assert.equal(empty.find((t) => t.label === 'Oldest waiting').value, 'None');
   // The queues carry their counts, for the summary's first line.
   assert.deepEqual(sections.find((s) => s.key === 'queues').tiles.map((t) => t.count), [1, 1, 1, 2]);
+  assert.equal(get('Applications to review').sub, '1 trainer · 1 nutritionist', 'what is waiting says which roles');
+  const splitQueue = overview.overviewSections({ applications: { open: 5, open_trainer: 3, open_nutritionist: 2 } }).flatMap((x) => x.tiles).find((t) => t.label === 'Applications to review');
+  assert.equal(splitQueue.sub, '3 trainers · 2 nutritionists');
   assert.deepEqual(overview.waitingLine(overview.overviewSections({}).find((s) => s.key === 'queues').tiles), { total: 0, line: 'Nothing is waiting on the team.' });
 });
 
