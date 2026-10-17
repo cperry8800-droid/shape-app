@@ -208,7 +208,8 @@ test('website: loads after sign-in, appends each answered exchange, clears on ev
   // ⚠ CLEAR WHILE SHE ANSWERS (Codex, #2255): the late answer is neither drawn nor saved.
   const clear = between(W, 'const clearNoraThread = () => {', 'stopNora();');
   assert.match(clear, /noraThreadGenRef\.current \+= 1;\n\s+noraHeldRef\.current = \[\];/);
-  assert.match(W, /const gen = noraThreadGenRef\.current;[\s\S]{0,4000}if \(gen !== noraThreadGenRef\.current\) return null;\n\s+const finalReply = reply \|\| supportReply\(text\);/);
+  // And an answer that lands after the account changed is not the next account's (Codex, #2391).
+  assert.match(W, /const gen = noraThreadGenRef\.current;[\s\S]{0,4000}if \(gen !== noraThreadGenRef\.current \|\| acct !== noraAcctRef\.current\) return null;\n\s+const finalReply = reply \|\| supportReply\(text\);/);
   assert.match(load, /if \(gen !== noraThreadGenRef\.current\) \{[\s\S]{0,300}method: "DELETE"/, 'cleared while it loaded: the Clear applies to the account');
   assert.match(W, /fetch\("\/api\/nora\/thread", \{ method: "DELETE", credentials: "same-origin" \}\)/);
   assert.match(W, /<button type="button" data-nora-clear onClick=\{clearNoraThread\}/);

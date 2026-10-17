@@ -31,7 +31,9 @@ const settle = async (n = 6) => { for (let i = 0; i < n; i++) await React.act(as
 // stored: the account's thread a 200 returns; me: /api/me's read, when a test holds it back;
 // db: what window.shapeEnsureDb loads, as on the 25 pages without /supabase.js.
 // seed: localStorage entries already on the browser; greeting: GET /api/support/chat's answer.
-async function mount({ signedIn = true, threadGets = [200], stored = [], me = null, db = null, docked = false, seed = {}, greeting = {} } = {}) {
+// A 'hold' in threadGets, or holdAnswer, keeps that answer on its way until release() (stored
+// may be a function, read when the request is made).
+async function mount({ signedIn = true, threadGets = [200], stored = [], me = null, db = null, docked = false, seed = {}, greeting = {}, holdAnswer = false, holdRequest = false } = {}) {
   const dom = new JSDOM('<!doctype html><body><div id="r"></div></body>', { url: 'https://shape.test/newdesign/ClientApp.html', pretendToBeVisual: true });
   const w = dom.window;
   const before = { window: globalThis.window, document: globalThis.document, localStorage: globalThis.localStorage, navigator: Object.getOwnPropertyDescriptor(globalThis, 'navigator'), act: globalThis.IS_REACT_ACT_ENVIRONMENT, fetch: globalThis.fetch };
@@ -45,6 +47,7 @@ async function mount({ signedIn = true, threadGets = [200], stored = [], me = nu
   const calls = [];
   const posts = []; // the bodies sent to /api/nora/thread and /api/support/chat
   const gets = [...threadGets];
+  const held = {};
   const answer = (status, body) => Promise.resolve({ ok: status < 400, status, json: async () => body, text: async () => JSON.stringify(body) });
   globalThis.fetch = w.fetch = async (url, opts = {}) => {
     const u = String(url);
@@ -52,11 +55,18 @@ async function mount({ signedIn = true, threadGets = [200], stored = [], me = nu
     calls.push(`${method} ${u.split('?')[0]}`);
     if (u.includes('/api/nora/thread') && method === 'GET') {
       if (!signedIn) return answer(401, { error: 'Sign in.' });
-      return answer(gets.length ? gets.shift() : 200, { messages: stored });
+      const status = gets.length ? gets.shift() : 200;
+      const body = { messages: typeof stored === 'function' ? stored() : stored };
+      if (status === 'hold') return new Promise((resolve) => { held.get = () => resolve(answer(200, body)); });
+      return answer(status, body);
     }
     if (method === 'POST' && (u.includes('/api/nora/thread') || u.includes('/api/support/chat'))) posts.push([u.split('?')[0], JSON.parse(opts.body)]);
-    if (u.includes('/api/support/chat') && method === 'POST') return answer(200, { reply: 'Tap + on Eat.' });
+    if (u.includes('/api/support/chat') && method === 'POST') {
+      if (holdAnswer) return new Promise((resolve) => { held.answer = () => resolve(answer(200, { reply: 'Tap + on Eat.' })); });
+      return answer(200, { reply: 'Tap + on Eat.' });
+    }
     if (u.includes('/api/support/chat')) return answer(200, greeting);
+    if (u.includes('/api/support/request') && holdRequest) return new Promise((resolve) => { held.request = () => resolve(answer(200, { ok: true })); });
     if (u.includes('/api/nora/thread')) return answer(200, { ok: true });
     if (u.includes('/api/stripe/subscription')) return answer(200, { active: false });
     return answer(200, {});
@@ -94,7 +104,8 @@ async function mount({ signedIn = true, threadGets = [200], stored = [], me = nu
     await settle();
   };
   const appended = () => posts.filter(([u]) => u === '/api/nora/thread').map(([, b]) => b.append);
-  return { w, calls, posts, open, close, done, threadGetsSoFar, personButton, say, appended, addTab };
+  const release = async (k) => { await React.act(async () => { held[k](); }); await settle(); };
+  return { w, calls, posts, open, close, done, threadGetsSoFar, personButton, say, appended, addTab, release };
 }
 
 test('a failed first load is tried again when the panel opens, and then Talk to a person shows', async () => {
@@ -324,13 +335,104 @@ test('a switch between two known accounts carries nothing from one copy to the o
   try {
     await m.open();
     await m.say('How do I log a meal?'); // synced as u1: sent to u1's account
+    const gets = m.threadGetsSoFar();
     who = 'u2';
     await m.addTab(); // the hydrate re-runs and finds u2
     const u2 = m.w.localStorage.getItem('shape.chat.v2.u2') || '';
     assert.ok(u2, 'u2 has a copy');
     assert.doesNotMatch(u2, /Tap \+ on Eat/, 'u1\'s exchange never lands in u2\'s copy');
+    // u1's sync is not u2's (Codex, #2391): u2's own conversation is loaded.
+    assert.equal(m.threadGetsSoFar(), gets + 1, 'u2\'s conversation is loaded');
+    assert.ok(m.personButton(), 'and u2 is synced');
   } finally {
     await m.done();
+  }
+});
+
+test('what one account held while its store was down is never sent into the next account', async () => {
+  let who = 'u1';
+  const me = () => Promise.resolve({ user: { id: who, email: `${who}@shape.test` } });
+  const m = await mount({ me, stored: [], threadGets: [429, 429, 200] });
+  try {
+    await m.open(); // u1: sign-in and open both missed
+    await m.say('How do I log a meal?'); // held for u1
+    who = 'u2';
+    await m.addTab(); // u2 is found, and its load works
+    assert.equal(m.threadGetsSoFar(), 3);
+    assert.ok(m.personButton(), 'u2 is synced');
+    assert.deepEqual(m.appended(), [], 'u1\'s held exchange is not u2\'s');
+  } finally {
+    await m.done();
+  }
+});
+
+test('a load or an answer on its way when the account changes is not the next account\'s', async () => {
+  let who = 'u1';
+  const me = () => Promise.resolve({ user: { id: who, email: `${who}@shape.test` } });
+  const stored = () => (who === 'u1' ? [{ role: 'user', text: 'U1 private', at: '2026-10-16T10:00:00Z' }] : []);
+  // u1's sign-in load fails; the retry the panel's open starts is still on its way at the switch
+  // (a hydrate's own load is dropped by its cancel; a retry's is not).
+  const load = await mount({ me, stored, threadGets: [429, 'hold', 200] });
+  try {
+    await load.open();
+    assert.equal(load.threadGetsSoFar(), 2, 'the retry is on its way');
+    who = 'u2';
+    await load.addTab();
+    await load.release('get'); // u1's thread arrives after the switch: dropped, a miss
+    assert.ok(!load.w.document.body.textContent.includes('U1 private'), 'u1\'s thread is not drawn for u2');
+    await waitForRetry();
+    assert.ok(load.personButton(), 'u2\'s own load ran and worked');
+    assert.doesNotMatch(load.w.localStorage.getItem('shape.chat.v2.u2') || '', /U1 private/);
+  } finally {
+    await load.done();
+  }
+  who = 'u1';
+  const ask = await mount({ me, stored: [], holdAnswer: true });
+  try {
+    await ask.open();
+    await ask.say('How do I log a meal?'); // u1 asks; her answer is on its way
+    who = 'u2';
+    await ask.addTab();
+    await ask.release('answer');
+    assert.ok(!ask.w.document.body.textContent.includes('Tap + on Eat.'), 'u1\'s answer is not drawn for u2');
+    assert.deepEqual(ask.appended(), [], 'nor sent to u2\'s account');
+  } finally {
+    await ask.done();
+  }
+});
+
+test('a team-reply pull or a Talk to a person send on its way when the account changes is not the next account\'s', async () => {
+  let who = 'u1';
+  const me = () => Promise.resolve({ user: { id: who, email: `${who}@shape.test` } });
+  const stored = () => (who === 'u1' ? [{ role: 'team', text: 'Team reply for u1', at: '2026-10-16T10:00:00Z' }] : []);
+  // u1 loads at sign-in; the pull for team replies the open starts is on its way at the switch.
+  const pull = await mount({ me, stored, threadGets: [200, 'hold', 200] });
+  try {
+    await pull.open();
+    who = 'u2';
+    await pull.addTab();
+    assert.ok(pull.personButton(), 'u2 is synced');
+    await pull.release('get');
+    assert.ok(!pull.w.document.body.textContent.includes('Team reply for u1'), 'u1\'s team reply is not drawn for u2');
+  } finally {
+    await pull.done();
+  }
+  who = 'u1';
+  const person = await mount({ me, stored: [], holdRequest: true });
+  try {
+    await person.open();
+    await person.say('How do I log a meal?');
+    await React.act(async () => { person.personButton().click(); });
+    await settle();
+    await React.act(async () => { person.w.document.querySelector('[data-nora-person-send]').click(); });
+    await settle();
+    who = 'u2';
+    await person.addTab();
+    await person.release('request');
+    assert.ok(!person.w.document.body.textContent.includes('Sent to the Shape team'), 'u1\'s request is not confirmed in u2\'s chat');
+    assert.ok(!person.appended().flat().some((x) => /Sent to the Shape team/.test(x.text)), 'nor kept on u2\'s account');
+  } finally {
+    await person.done();
   }
 });
 

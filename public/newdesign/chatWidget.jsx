@@ -703,6 +703,9 @@ function ChatWidget(props) {
   // /api/nora/thread keeps the account's last messages, so the website and the app continue
   // the same conversation. Each device APPENDS what it added; none replaces the thread.
   const noraThreadSyncRef = React.useRef(false); // signed in, and the store answered
+  // Bumped when the hydrate finds another known account: the sync above, what is held, a load
+  // in flight and an answer on its way all belong to the account they started under (Codex, #2391).
+  const noraAcctRef = React.useRef(0);
   // Exchanges answered before the store did, sent once the load has placed the stored
   // thread (Codex, #2255: a question asked while it loaded was dropped from both).
   const noraHeldRef = React.useRef([]);
@@ -750,11 +753,12 @@ function ChatWidget(props) {
     if (noraLoadingRef.current || noraThreadSyncRef.current) return;
     noraLoadingRef.current = true;
     const { base, gen, mine } = noraFromRef.current || { base: cwNoraLocal().length, gen: noraThreadGenRef.current, mine: false };
+    const acct = noraAcctRef.current;
     let signedOut = false; // a 401: no account to load, so nothing to try again
     fetch("/api/nora/thread", { credentials: "same-origin", cache: "no-store" })
       .then((r) => { signedOut = r.status === 401; return r.ok ? r.json() : null; })
       .then((j) => {
-        if (isCancelled() || !j || !Array.isArray(j.messages)) return;
+        if (isCancelled() || acct !== noraAcctRef.current || !j || !Array.isArray(j.messages)) return;
         noraThreadSyncRef.current = true;
         setNoraPersonOk(true);
         if (gen !== noraThreadGenRef.current) {
@@ -813,10 +817,11 @@ function ChatWidget(props) {
   // opens ("Talk to a person", Codex #2265). Only team replies are added: the rest is here.
   const cwPullTeam = () => {
     if (!noraThreadSyncRef.current) return;
+    const acct = noraAcctRef.current;
     fetch("/api/nora/thread", { credentials: "same-origin", cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
-        const fresh = j && Array.isArray(j.messages) ? j.messages.filter((m) => m && m.role === "team") : [];
+        const fresh = j && acct === noraAcctRef.current && Array.isArray(j.messages) ? j.messages.filter((m) => m && m.role === "team") : [];
         if (!fresh.length) return;
         setThreadsByTab((prev) => prev.map((list, i) => (tabs[i] && tabs[i].support) ? list.map((th) => {
           if (th.who !== "Nora") return th;
@@ -850,10 +855,13 @@ function ChatWidget(props) {
     const question = String(personForm.text || "").trim();
     if (!question) { setPersonForm({ ...personForm, err: "Write your question first." }); return; }
     setPersonForm({ ...personForm, busy: true, err: "" });
+    const acct = noraAcctRef.current;
     try {
       const page = typeof window.__shapeNoraPageName === "function" ? window.__shapeNoraPageName() : null;
       const res = await fetch("/api/support/request", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question, surface: "web", page }) });
       const j = await res.json().catch(() => ({}));
+      // Asked under the account before: its outcome is not this one's to show or keep.
+      if (acct !== noraAcctRef.current) { setPersonForm(null); return; }
       if (!res.ok || !j.ok) { setPersonForm({ text: question, busy: false, err: (j && j.error) || "Your question could not be sent. Try again in a moment." }); return; }
       const note = "Sent to the Shape team. A person will reply here in this chat, and by email.";
       cwNoraAppend("Nora", note);
@@ -944,6 +952,8 @@ function ChatWidget(props) {
           // meanwhile; the load then measures from there. Only from an unanswered /api/me:
           // a switch between known accounts carries nothing across.
           const from = wasUnknown ? noraFromRef.current : null;
+          // Another known account (or signed out since): nothing of the last one's sync carries.
+          if (!wasUnknown) { noraAcctRef.current += 1; noraThreadSyncRef.current = false; noraHeldRef.current = []; setNoraPersonOk(false); }
           const said = from ? cwNoraLocal().slice(from.base) : [];
           const cleared = !!from && from.gen !== noraThreadGenRef.current;
           if (!hydratedThreads) { hydratedThreads = tabs.map((t) => t.threads); setActiveByTab(tabs.map(() => 0)); }
@@ -1528,6 +1538,7 @@ function ChatWidget(props) {
     if (isSupport) {
       const sentAt = new Date().toISOString();
       const gen = noraThreadGenRef.current;
+      const acct = noraAcctRef.current;
       // A Send tap is the gesture her player needs to read the reply aloud later.
       if (!opts.silent && canVoiceRef.current && noraVoice.enabled) primeNoraAudio();
       setTyping(true);
@@ -1570,7 +1581,7 @@ function ChatWidget(props) {
         setTyping(false);
         setNoraLive("");
         // Cleared while she was answering: the answer belongs to the conversation that went.
-        if (gen !== noraThreadGenRef.current) return null;
+        if (gen !== noraThreadGenRef.current || acct !== noraAcctRef.current) return null;
         const finalReply = reply || supportReply(text);
         appendReply("Nora", finalReply, actions);
         // Kept on the account only when she answered: the scripted fallback is not the conversation.
