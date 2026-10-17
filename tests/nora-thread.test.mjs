@@ -260,7 +260,7 @@ test('app: loads once a session into an untouched thread, appends what it said, 
   assert.match(sheet, /const gen = _bsNoraGen;[\s\S]{0,900}if \(gen !== _bsNoraGen\) return null;\n\s+const reply =/);
   assert.match(between(APP, 'function BSNoraThreadCard(', 'return ('), /_bsNoraGen \+= 1;\n\s+const ok = await window\.ShapeSupport\?\.thread\?\.clear\?\.\(accountRef\.current \? \{ account: accountRef\.current \} : undefined\);\n\s+if \(ok === 'account_changed'\) \{ setCount\(null\); return; \}/);
   assert.match(sheet, /if \(!list\.length \|\| cur\.length !== 1\) return;/);
-  assert.match(sheet, /if \(res && res\.reply\) _bsNoraSave\(\[\{ role: 'user', text: clean, at: sentAt \}, \{ role: 'assistant', text: reply/);
+  assert.match(sheet, /if \(res && res\.reply\) _bsNoraSave\(\[\{ role: 'user', text: clean, at: sentAt \}, \{ role: 'assistant', text: reply, at: new Date\(\)\.toISOString\(\) \}\], res\.account \|\| null\);/, 'kept with the account she answered as (Codex on #2393)');
   assert.match(sheet, /<button type="button" onClick=\{clearThread\}/);
   const page = between(APP, 'function BSNoraMemoryPage(', 'function BSNotifyPrefs(');
   assert.match(page, /<BSNoraThreadCard \/>/);

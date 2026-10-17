@@ -14,11 +14,13 @@ import { loadBroadsheet, SRC } from './helpers/broadsheet-mount.mjs';
 const B = await loadBroadsheet(['_bsNoraSave', '_bsNoraMarkSynced', '_bsNoraForget', '_bsNoraPublish', '_bsNoraSubs', '_bsNoraGen']);
 const { _bsNoraSave, _bsNoraMarkSynced, _bsNoraForget } = B;
 
+const sent = [];
 function world(userId, { answer = true } = {}) {
   const appended = [];
+  sent.length = 0;
   globalThis.window = globalThis.window || {};
   window.ShapeAuth = { getCachedState: () => ({ user: userId ? { id: userId } : null }) };
-  window.ShapeSupport = { thread: { append: (messages, opts) => { appended.push({ texts: messages.map((m) => m.text), account: (opts && opts.account) || null }); return Promise.resolve(answer); } } };
+  window.ShapeSupport = { thread: { append: (messages, opts) => { appended.push({ texts: messages.map((m) => m.text), account: (opts && opts.account) || null }); sent.push(...messages); return Promise.resolve(answer); } } };
   // Each test starts from a sheet that has not loaded.
   _bsNoraForget();
   return appended;
@@ -35,6 +37,18 @@ test('app signed out: held until the store answers for the website session, then
   _bsNoraSave([msg('asked after')]);
   assert.deepEqual(appended.map((a) => a.texts), [['asked before the load'], ['asked after']]);
   assert.deepEqual(appended.map((a) => a.account), ['acct-A', 'acct-A'], 'each write names the account the thread loaded as');
+});
+
+test('held while the store could not answer: an exchange answered as another account is never sent as this one', () => {
+  const appended = world(null);
+  _bsNoraSave([msg('answered as A')], 'acct-A');
+  _bsNoraSave([msg('asked as a visitor')], null);
+  _bsNoraSave([msg('answered as B')], 'acct-B');
+  // The cookie is account B by the time the store answers.
+  _bsNoraMarkSynced('anon', 'acct-B');
+  assert.deepEqual(appended.map((a) => a.texts), [['asked as a visitor', 'answered as B']], "A's exchange stays out of B's conversation (Codex on #2393)");
+  assert.deepEqual(appended.map((a) => a.account), ['acct-B']);
+  assert.ok(sent.every((m) => !('_as' in m)), 'the held mark is not sent');
 });
 
 test('app signed in: appended as said, as before, with no account named (the token is the account)', () => {

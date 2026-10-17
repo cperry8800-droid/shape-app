@@ -25114,12 +25114,15 @@ let _bsNoraHeld = [];
 // another account, or none, does the same.
 let _bsNoraCookie = null;
 // What this device added, appended to the account's thread; nothing is written signed out.
-function _bsNoraSave(messages) {
+// `answeredAs` is the account Nora answered it as (/api/support/chat `account`, null for a
+// visitor): a held exchange keeps it, so one answered as account A is never sent once the
+// cookie loads as account B (Codex on #2393).
+function _bsNoraSave(messages, answeredAs = null) {
   try {
     const who = _bsNoraWho();
     if (who !== 'anon') { window.ShapeSupport?.thread?.append?.(messages); return; }
     if (_bsNoraSynced === who) { _bsNoraAppendAsCookie(messages); return; }
-    _bsNoraHeld = [..._bsNoraHeld, ...messages].slice(-20);
+    _bsNoraHeld = [..._bsNoraHeld, ...messages.map((m) => ({ ...m, _as: answeredAs || null }))].slice(-20);
   } catch (e) {}
 }
 function _bsNoraAppendAsCookie(messages) {
@@ -25132,7 +25135,9 @@ function _bsNoraAppendAsCookie(messages) {
 function _bsNoraMarkSynced(who, account = null) {
   _bsNoraSynced = who;
   if (who === 'anon') _bsNoraCookie = account || null;
-  const held = _bsNoraHeld;
+  // Only what was answered as this account (or as no account, said before signing in) is sent:
+  // an exchange answered as another one stays out of this account's conversation.
+  const held = _bsNoraHeld.filter((m) => !m._as || !account || m._as === account).map(({ _as, ...m }) => m);
   _bsNoraHeld = [];
   if (!held.length) return;
   if (who === 'anon') _bsNoraAppendAsCookie(held);
@@ -25372,7 +25377,7 @@ function BSNoraSheet({ onClose }) {
       // Settings → Nora voice on reads every reply aloud (off by default); failures are silent.
       if (!opts.silent && window.ShapeVoice && window.ShapeVoice.enabled()) speakReply(reply);
       // Kept on the account only when she answered: a "can't reach" line is not the conversation.
-      if (res && res.reply) _bsNoraSave([{ role: 'user', text: clean, at: sentAt }, { role: 'assistant', text: reply, at: new Date().toISOString() }]);
+      if (res && res.reply) _bsNoraSave([{ role: 'user', text: clean, at: sentAt }, { role: 'assistant', text: reply, at: new Date().toISOString() }], res.account || null);
       return res && res.reply ? reply : null;
     } catch (e) {
       if (gen !== _bsNoraGen) return null;
