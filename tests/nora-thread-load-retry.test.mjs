@@ -36,7 +36,8 @@ const settle = async (n = 6) => { for (let i = 0; i < n; i++) await React.act(as
 // teamTab: a second, non-Nora tab beside hers; member: an active subscription (the composer outside Nora's tab).
 // conversations: the stored messages GET /api/conversations/<id>/messages returns.
 // streamAnswer: each answer streams, as the live route does; held.streams[i] is the i-th, with
-// .text(t) to send what she has written so far and .end(reply) to finish it.
+// .text(t) to send what she has written so far, .reset() to take it back (a round that turned
+// out to be a lookup) and .end(reply) to finish it.
 // holdRequest: 'reject' fails the held "Talk to a person" send instead of answering it.
 async function mount({ signedIn = true, threadGets = [200], stored = [], me = null, db = null, docked = false, seed = {}, greeting = {}, holdAnswer = false, holdRequest = false, teamTab = false, member = false, conversations = {}, streamAnswer = false } = {}) {
   const dom = new JSDOM('<!doctype html><body><div id="r"></div></body>', { url: 'https://shape.test/newdesign/ClientApp.html', pretendToBeVisual: true });
@@ -71,7 +72,7 @@ async function mount({ signedIn = true, threadGets = [200], stored = [], me = nu
       let wake = null;
       const push = (v) => { queue.push(v); if (wake) { const f = wake; wake = null; f(); } };
       const sse = (event, data) => ({ value: new TextEncoder().encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`), done: false });
-      (held.streams = held.streams || []).push({ text: (t) => push(sse('text', { text: t })), end: (reply) => { push(sse('done', { reply })); push({ value: undefined, done: true }); } });
+      (held.streams = held.streams || []).push({ text: (t) => push(sse('text', { text: t })), reset: () => push(sse('reset', {})), end: (reply) => { push(sse('done', { reply })); push({ value: undefined, done: true }); } });
       const reader = { read: () => new Promise((resolve) => { const next = () => resolve(queue.shift()); if (queue.length) next(); else wake = next; }) };
       return { ok: true, status: 200, headers: { get: (k) => (/content-type/i.test(k) ? 'text/event-stream' : null) }, body: { getReader: () => reader }, json: async () => ({}) };
     }
@@ -692,6 +693,38 @@ test('a Clear while she is writing ends her typing line, and the reply that fini
     await step(() => m.held.streams[0].end('After the clear'));
     assert.ok(!shown('After the clear'), 'the finished reply belongs to the conversation that went');
     assert.ok(!shown('Nora is typing'), 'nothing is left typing');
+  } finally {
+    await m.done();
+  }
+});
+
+test('an old reply taking back its words does not blank the reply being written now', async () => {
+  let who = 'u1';
+  const me = () => Promise.resolve({ user: { id: who, email: `${who}@shape.test` } });
+  const m = await mount({ me, stored: [], streamAnswer: true });
+  const step = async (f) => { await React.act(async () => { f(); }); await settle(); };
+  const shown = (t) => m.w.document.body.textContent.includes(t);
+  try {
+    await m.open();
+    // After a Clear: the conversation that went takes its words back while the next is written.
+    await m.say('How do I log a meal?');
+    await step(() => m.held.streams[0].text('Before the clear'));
+    m.w.confirm = () => true;
+    await step(() => m.w.document.querySelector('[data-nora-clear]').click());
+    await m.say('Hi');
+    await step(() => m.held.streams[1].text('After the clear, partial'));
+    await step(() => m.held.streams[0].reset());
+    assert.ok(shown('After the clear, partial'), 'a cleared conversation\'s reset leaves the current reply up');
+    await step(() => m.held.streams[1].end('After the clear, full'));
+    // After a switch: u1's reply takes its words back while u2's is written.
+    await m.say('How do I log a meal?');
+    await step(() => m.held.streams[2].text('U1 partial'));
+    who = 'u2';
+    await m.addTab();
+    await m.say('Hi');
+    await step(() => m.held.streams[3].text('U2 partial'));
+    await step(() => m.held.streams[2].reset());
+    assert.ok(shown('U2 partial'), 'the last account\'s reset leaves u2\'s reply up');
   } finally {
     await m.done();
   }

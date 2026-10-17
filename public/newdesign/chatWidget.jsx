@@ -1615,7 +1615,7 @@ function ChatWidget(props) {
           // back what it showed. The limit and the bot check still answer as plain JSON.
           const live = {
             onText: (t) => { if (gen === noraThreadGenRef.current && acct === noraAcctRef.current) setNoraLive(t); },
-            onReset: () => setNoraLive(""),
+            onReset: () => { if (gen === noraThreadGenRef.current && acct === noraAcctRef.current) setNoraLive(""); },
           };
           const read = async (r) => (r.ok && cwIsNoraStream(r) ? ((await cwReadNoraStream(r, live)) || {}) : await r.json().catch(() => ({})));
           let res = await ask({});
