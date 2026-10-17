@@ -70,6 +70,16 @@ test('website: Talk replaced the Voice chat chip and hold-to-talk, and starts in
   assert.doesNotMatch(WEB, /Voice chat \{voiceChat/);
   assert.doesNotMatch(WEB, /holdStart|holdEnd|holdSupported/);
   assert.match(WEB, /<button type="button" data-nora-talk-button onClick=\{startTalk\} disabled=\{!talkMod\}/);
+  // Talk is her face in the header, before her name, as in the app's talk view (owner,
+  // 2026-10-17): no "Talk to Nora" pill in the control row.
+  const face = WEB.match(/\{isSupport && canVoice && talkSupported && \(\s*\/\/[^\n]*\n\s*<button type="button" data-nora-talk-button[\s\S]*?<\/button>\s*\)\}/);
+  assert.ok(face, 'her face is the talk button, on Nora\'s tab, when she can listen');
+  assert.match(face[0], /aria-label="Talk to Nora"/);
+  assert.match(face[0], /<img src="\/nora-avatar\.png" alt="" aria-hidden/);
+  assert.ok(WEB.indexOf('data-nora-talk-button') < WEB.indexOf('{noraMode ? "✦ ASK NORA" : "SHAPE"}'), 'in the header, before her name');
+  assert.equal((WEB.match(/data-nora-talk-button/g) ?? []).length, 1, 'one way in');
+  assert.doesNotMatch(WEB, />\s*Talk to Nora\s*<\/button>/, 'the pill is gone');
+  assert.match(WEB, /@media \(prefers-reduced-motion: reduce\) \{ \.cw-nora-face \{ transition: none; \} \.cw-nora-face::before \{ animation: none;/, 'the ring holds still for reduced motion');
   const start = between(WEB, 'const startTalk = () => {', '};');
   assert.match(start, /loop\.start\(\);/, 'start() is called in the click itself, not after an await');
   assert.doesNotMatch(start, /await|then\(/);

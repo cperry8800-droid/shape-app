@@ -1897,6 +1897,13 @@ function ChatWidget(props) {
         .chw-row:hover { background: rgba(var(--sh-ink-rgb, 242,237,228),0.03); }
         [data-chat-panel] *::-webkit-scrollbar { width: 0; height: 0; background: transparent; }
         [data-chat-panel] * { scrollbar-width: none; }
+        /* Talk to Nora: her face in the header, with a ring that breathes so it reads as a button. */
+        .cw-nora-face { transition: transform .15s ease; }
+        .cw-nora-face:hover:not(:disabled) { transform: scale(1.05); }
+        .cw-nora-face:focus-visible { outline: 2px solid var(--sh-accent-ink, #2ee0c4); outline-offset: 3px; }
+        .cw-nora-face::before { content: ""; position: absolute; inset: -4px; border-radius: 999px; border: 2px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.6); animation: cwNoraFaceRing 2.6s ease-out infinite; pointer-events: none; }
+        @keyframes cwNoraFaceRing { 0% { transform: scale(1); opacity: .75 } 70%, 100% { transform: scale(1.3); opacity: 0 } }
+        @media (prefers-reduced-motion: reduce) { .cw-nora-face { transition: none; } .cw-nora-face::before { animation: none; opacity: .5; } }
         @media (max-width: 640px) {
           .chw-bubble { padding: 14px 20px 14px 16px !important; font-size: 14px !important; gap: 10px !important; right: 16px !important; bottom: 16px !important; }
           .chw-bubble svg { width: 18px !important; height: 18px !important; }
@@ -1941,6 +1948,21 @@ function ChatWidget(props) {
             }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
               <span style={{ color: "var(--sh-ink3, #75706a)", display: "inline-flex", alignItems: "center" }}><DragDots /></span>
+              {isSupport && canVoice && talkSupported && (
+                // Talk to Nora: press her face. Starts inside this tap, then her face takes the pane.
+                <button type="button" data-nora-talk-button onClick={startTalk} disabled={!talkMod}
+                  className="cw-nora-face" aria-label="Talk to Nora"
+                  title="Press to talk to Nora: she listens, answers in the chat, and reads it to you"
+                  style={{ position: "relative", flex: "none", width: 44, height: 44, padding: 0, border: 0, borderRadius: 999, background: "transparent", cursor: talkMod ? "pointer" : "progress", opacity: talkMod ? 1 : 0.7 }}>
+                  <img src="/nora-avatar.png" alt="" aria-hidden style={{ display: "block", width: 44, height: 44, borderRadius: 999, objectFit: "cover", objectPosition: "50% 32%", boxShadow: `0 0 0 2px ${TEAL}` }} />
+                  <span aria-hidden style={{ position: "absolute", right: -3, bottom: -3, width: 19, height: 19, borderRadius: 999, background: TEAL, color: PAPER, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 0 2px var(--sh-ground, #1a1612)" }}>
+                    <svg width="9" height="12" viewBox="0 0 12 14">
+                      <rect x="3.5" y="0.75" width="5" height="8" rx="2.5" fill="currentColor" />
+                      <path d="M1.5 6.5a4.5 4.5 0 0 0 9 0M6 11v2.25" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                    </svg>
+                  </span>
+                </button>
+              )}
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.18em", color: TEAL_BRIGHT, marginBottom: 2 }}>{noraMode ? "✦ ASK NORA" : "SHAPE"}</div>
                 <div style={{ fontFamily: serif, fontSize: 26, lineHeight: 1.05, letterSpacing: "-0.02em", color: INK, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{noraMode ? "Nora" : "Your community"}</div>
@@ -2505,15 +2527,6 @@ function ChatWidget(props) {
             <React.Fragment>
             {isSupport && (
               <div style={{ padding: "8px 14px 0", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                {canVoice && talkSupported && (
-                  // Talk to Nora: starts inside this tap, then her face takes the pane.
-                  <button type="button" data-nora-talk-button onClick={startTalk} disabled={!talkMod}
-                    title="Talk to Nora out loud: she listens, answers in the chat, and reads it to you"
-                    style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "3px 12px 3px 3px", borderRadius: 999, border: 0, background: TEAL, color: PAPER, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: talkMod ? "pointer" : "progress", opacity: talkMod ? 1 : 0.7 }}>
-                    <img src="/nora-avatar.png" alt="" aria-hidden style={{ width: 22, height: 22, borderRadius: 999, objectFit: "cover", objectPosition: "50% 32%", border: `1.5px solid ${PAPER}` }} />
-                    Talk to Nora
-                  </button>
-                )}
                 {voiceLocked && (
                   <div data-nora-voice-locked style={{ flex: "1 1 100%", display: "flex", alignItems: "center", gap: 7, fontFamily: sans, fontSize: 11.5, lineHeight: 1.4, color: "var(--sh-ink2, #a09b94)" }}>
                     <svg aria-hidden width="12" height="14" viewBox="0 0 12 14" style={{ flex: "none" }}>

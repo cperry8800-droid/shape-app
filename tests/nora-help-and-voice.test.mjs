@@ -36,7 +36,7 @@ test('website: voice controls show only to someone the gate lets through', () =>
   const guarded = [
     '{!m.me && isSupport && canVoice && (() => {',
     '{canVoice && <button onClick={() => setNoraEnabled(!noraVoice.enabled)}',
-    '{canVoice && talkSupported && (',
+    '{isSupport && canVoice && talkSupported && (',
     '{canVoice && <select value={noraVoice.voice}',
     '{isSupport && canVoice && voiceSupported && (',
   ];
@@ -111,5 +111,5 @@ test('website: a non-member is told in Nora\'s chat that voice unlocks with memb
   assert.match(note[0], /Voice chat with Nora unlocks with membership\./);
   assert.match(note[0], /<a href="\/pricing"/, 'no way to join from the note');
   assert.doesNotMatch(note[0], /onClick=\{(startTalk|toggleVoice)\}/, 'the note starts nothing: voice stays behind the gate');
-  assert.ok(WEB.indexOf('{voiceLocked && (') > WEB.indexOf('{canVoice && talkSupported && ('), 'the note sits where Talk to Nora would');
+  assert.ok(WEB.indexOf('{voiceLocked && (') > WEB.indexOf('{isSupport && canVoice && talkSupported && ('), 'the note sits in the control row, after Talk (her face, in the header)');
 });
