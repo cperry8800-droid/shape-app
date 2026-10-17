@@ -6,13 +6,20 @@
 // itself (requireStaff), and this layout's check only keeps the frame from rendering for a
 // visitor or a non-staff account.
 
-import Link from 'next/link';
+import { Fraunces, JetBrains_Mono } from 'next/font/google';
 import { notFound, redirect } from 'next/navigation';
 import SignOutButton from '@/components/SignOutButton';
 import SentryUser from '@/components/SentryUser';
 import { getStaffMember } from '@/lib/admin-access';
+import { waitingCounts } from '@/lib/admin-waiting';
 import { createClient } from '@/lib/supabase/server';
 import { LEVEL_LABELS, pagesFor, toolsFor } from '@/lib/staff-levels.mjs';
+import AdminSidebar from './AdminSidebar';
+import { MONO } from './ui';
+
+// The website's titles and labels (public/newdesign), for the console only.
+const display = Fraunces({ subsets: ['latin'], axes: ['opsz'], variable: '--font-admin-display' });
+const mono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-admin-mono' });
 
 export const metadata = {
   title: 'Shape — Admin',
@@ -33,47 +40,30 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     notFound();
   }
 
-  const pages = pagesFor(staff.level);
-  const tools = toolsFor(staff.level);
+  // Plain objects for the client sidebar: the label and where it goes.
+  const pages = pagesFor(staff.level).map(({ href, label }) => ({ href, label }));
+  const tools = toolsFor(staff.level).map(({ href, label }) => ({ href, label }));
+  const counts = await waitingCounts(staff.level);
+
+  const account = (
+    <div className="flex flex-col gap-1">
+      <div className="text-[13px] text-neutral-200 truncate" title={staff.email}>
+        {staff.email}
+      </div>
+      <div className={`${MONO} text-[9.5px] uppercase tracking-[0.16em] text-neutral-500`}>{LEVEL_LABELS[staff.level]}</div>
+      <SignOutButton className="mt-2 self-start inline-flex items-center min-h-[36px] px-4 border border-white/15 text-[13px] text-neutral-100 hover:border-white/40 hover:bg-white/5 transition-colors">
+        Log out
+      </SignOutButton>
+    </div>
+  );
 
   return (
-    <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
+    <div className={`${display.variable} ${mono.variable} lg:grid lg:grid-cols-[248px_minmax(0,1fr)] min-h-[100dvh]`}>
       <SentryUser id={staff.id} />
-      <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
-        <div>
-          <div className="text-xs uppercase tracking-[0.12em] text-teal-400 mb-1">Shape · Admin</div>
-          <h1 className="text-2xl sm:text-3xl font-light tracking-tight break-all">{staff.email}</h1>
-          <p className="text-sm text-neutral-500 mt-1">{LEVEL_LABELS[staff.level]}</p>
-        </div>
-        <SignOutButton className="text-sm font-medium border border-neutral-700 text-neutral-100 rounded-full px-4 py-2 hover:bg-neutral-900 transition-colors">
-          Log out
-        </SignOutButton>
-      </div>
-
-      <nav className="flex gap-1 flex-wrap border-b border-neutral-800 mb-3" aria-label="Admin console">
-        {pages.map((p) => (
-          <Link
-            key={p.href}
-            href={p.href}
-            className="text-sm text-neutral-300 hover:text-neutral-100 px-3 sm:px-4 py-2.5 border-b-2 border-transparent hover:border-neutral-700 transition-colors -mb-px"
-          >
-            {p.label}
-          </Link>
-        ))}
-      </nav>
-      {tools.length > 0 && (
-        <nav className="flex gap-x-3 gap-y-1 flex-wrap mb-8 text-xs text-neutral-500" aria-label="Admin tools">
-          <span className="uppercase tracking-[0.14em]">Tools</span>
-          {tools.map((t) => (
-            <Link key={t.href} href={t.href} className="hover:text-neutral-200 transition-colors">
-              {t.label}
-            </Link>
-          ))}
-        </nav>
-      )}
-      {tools.length === 0 && <div className="mb-8" />}
-
-      {children}
-    </main>
+      <AdminSidebar pages={pages} tools={tools} counts={counts} account={account} />
+      <main className="min-w-0 px-4 sm:px-6 lg:px-10 py-8 sm:py-10">
+        <div className="max-w-[1180px]">{children}</div>
+      </main>
+    </div>
   );
 }

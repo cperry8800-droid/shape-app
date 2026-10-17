@@ -1,4 +1,4 @@
-export type OverviewTile = { label: string; value: string; sub: string; href: string };
+export type OverviewTile = { label: string; value: string; sub: string; href: string; count?: number };
 export type OverviewSection = { key: string; title: string; note: string; tiles: OverviewTile[] };
 export type DailyRow = { day: string; signups: number; active: number; workouts: number; applications: number };
 export type AdminOverviewStats = {
@@ -24,7 +24,7 @@ export function countOf(v: unknown, one: string, many?: string): string;
 export function formatMoney(cents: unknown): string;
 export function shapeMrrCents(stats: AdminOverviewStats | null | undefined): number;
 export type CelebrationCounts = { birthdays: { week: number; today: number }; anniversaries: { week: number; today: number } };
-export function overviewSections(stats: AdminOverviewStats | null | undefined, extras?: { celebrations?: CelebrationCounts | null }): OverviewSection[];
+export function overviewSections(stats: AdminOverviewStats | null | undefined, extras?: { celebrations?: CelebrationCounts | null; accountRequests?: number | null }): OverviewSection[];
 export function niceMax(max: number): number;
 export function dailyColumns(
   daily: DailyRow[] | null | undefined,
@@ -38,3 +38,9 @@ export function birthdayLabel(month: unknown, day: unknown): string;
 export function whenLabel(daysUntil: unknown): string;
 export function celebrationCounts(answer: unknown): CelebrationCounts;
 export function yearsLabel(years: unknown): string;
+export type OverviewView = { key: 'summary' | 'growth' | 'money' | 'coaching' | 'engagement'; label: string; sections: ReadonlyArray<string> };
+export const OVERVIEW_VIEWS: ReadonlyArray<OverviewView>;
+export function overviewView(raw: unknown): OverviewView;
+export function viewHref(key: string): string;
+export function keyNumbers(sections: OverviewSection[] | null | undefined): OverviewTile[];
+export function waitingLine(tiles: OverviewTile[] | null | undefined): { total: number; line: string };

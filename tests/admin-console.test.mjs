@@ -398,6 +398,29 @@ test('overview: every tile reads the number it says it reads', () => {
   const empty = overview.overviewSections({}).flatMap((s) => s.tiles);
   assert.ok(empty.every((t) => !/undefined|NaN|null/.test(`${t.value} ${t.sub}`)), 'no undefined, NaN or null on an empty answer');
   assert.equal(empty.find((t) => t.label === 'Oldest waiting').value, 'None');
+  // The queues carry their counts, for the summary's first line.
+  assert.deepEqual(sections.find((s) => s.key === 'queues').tiles.map((t) => t.count), [1, 1, 1, 2]);
+  assert.deepEqual(overview.overviewSections(STATS, { accountRequests: 0 }).find((s) => s.key === 'queues').tiles.map((t) => [t.label, t.count, t.href]).slice(0, 2),
+    [['Help requests open', 1, '/dashboard/support'], ['Account requests open', 0, '/admin/requests']], 'a read count of 0 still shows the row');
+  assert.equal(get('Applications to review').sub, '1 trainer · 1 nutritionist', 'what is waiting says which roles');
+  const splitQueue = overview.overviewSections({ applications: { open: 5, open_trainer: 3, open_nutritionist: 2 } }).flatMap((x) => x.tiles).find((t) => t.label === 'Applications to review');
+  assert.equal(splitQueue.sub, '3 trainers · 2 nutritionists');
+  assert.deepEqual(overview.waitingLine(overview.overviewSections({}).find((s) => s.key === 'queues').tiles), { total: 0, line: 'Nothing is waiting on the team.' });
+});
+
+test('overview: the views split the sections, and the summary’s key numbers open their views', () => {
+  const keys = overview.overviewSections(STATS).map((s) => s.key);
+  const placed = overview.OVERVIEW_VIEWS.flatMap((v) => v.sections);
+  assert.deepEqual([...placed].sort(), keys.filter((k) => k !== 'queues').sort(), 'every section but the queues is in exactly one view');
+  assert.equal(new Set(placed).size, placed.length);
+  assert.deepEqual(['money', 'growth', '', 'Money', undefined, '__proto__'].map((v) => overview.overviewView(v).key), ['money', 'growth', 'summary', 'summary', 'summary', 'summary']);
+  assert.deepEqual([overview.viewHref('summary'), overview.viewHref('money')], ['/admin', '/admin?view=money']);
+  const key = overview.keyNumbers(overview.overviewSections(STATS));
+  assert.deepEqual(key.map((t) => t.label), ['Accounts', 'New accounts, 7 days', 'Active, 7 days', 'Shape’s monthly recurring revenue', 'Paying members', 'Payment failing', 'Live listings', 'Workouts logged, 7 days']);
+  assert.ok(key.every((t) => /^\/admin\?view=(growth|money|coaching|engagement)$/.test(t.href)));
+  assert.equal(key.find((t) => t.label === 'Accounts').value, '5', 'the tile’s own number, not a copy');
+  assert.deepEqual(overview.keyNumbers([]), []);
+  assert.deepEqual([1, 2].map((c) => overview.waitingLine([{ count: c }]).line), ['1 thing is waiting on the team.', '2 things are waiting on the team.']);
 });
 
 test('overview: sign-up sources, birthdays and anniversaries read plainly', () => {
@@ -449,21 +472,24 @@ async function renderPage(rel, { rpc, level = 'owner', searchParams = {}, tables
   const calls = [];
   const ui = await loadRealModule(join(ROOT, 'src/app/admin/ui.tsx'), { typescript: true });
   const link = ({ href, children, ...rest }) => React.createElement('a', { href, ...rest }, children);
+  const admin = {
+    createAdminClient: () => ({
+      rpc: async (name, args) => { calls.push(`rpc:${name}`); return rpc(name, args); },
+      from: (table) => {
+        const chain = { select: () => chain, not: () => chain, in: () => chain, eq: () => chain, then: (res, rej) => { calls.push(`select:${table}`); return Promise.resolve(tables[table] ?? { data: [], error: null }).then(res, rej); } };
+        return chain;
+      },
+    }),
+  };
+  const waiting = await loadRealModule(join(ROOT, 'src/lib/admin-waiting.ts'), { typescript: true, registry: new Map([['@/lib/supabase/admin', admin], ['@/lib/staff-levels.mjs', levels]]) });
   const page = await loadRealModule(join(ROOT, rel), {
     typescript: true,
     registry: new Map([
       ['next/link', { __esModule: true, default: link }],
       ['next/navigation', { redirect: (to) => { const e = new Error('REDIRECT'); e.to = to; throw e; } }],
       ['@/lib/admin-access', { requireStaff: async (min) => { calls.push(min); if (!levels.atLeast(level, min)) throw new Error('Admin access required.'); return { id: OWNER_ID, email: OWNER, level }; } }],
-      ['@/lib/supabase/admin', {
-        createAdminClient: () => ({
-          rpc: async (name, args) => { calls.push(`rpc:${name}`); return rpc(name, args); },
-          from: (table) => {
-            const chain = { select: () => chain, not: () => chain, then: (res, rej) => { calls.push(`select:${table}`); return Promise.resolve(tables[table] ?? { data: [], error: null }).then(res, rej); } };
-            return chain;
-          },
-        }),
-      }],
+      ['@/lib/supabase/admin', admin],
+      ['@/lib/admin-waiting', waiting],
       ['@/lib/staff-levels.mjs', levels],
       ['@/lib/admin-overview.mjs', overview],
       ['@/lib/funnel.mjs', funnel],
@@ -490,30 +516,67 @@ const answers = (name, args) => {
   return { data: null, error: { code: 'PGRST202' } };
 };
 
-test('render: the Overview shows the sections, the tiers and four 30-day charts', async () => {
-  const { html, calls } = await renderPage('src/app/admin/page.tsx', { rpc: answers });
+// Two account requests are open: counted beside admin_overview_stats, as the sidebar counts them.
+const ACCOUNT_REQUESTS = { account_action_requests: { count: 2, error: null } };
+const overviewOf = (view, level = 'owner', tables = ACCOUNT_REQUESTS) => renderPage('src/app/admin/page.tsx', { rpc: answers, level, searchParams: view ? { view } : {}, tables });
+const h3s = (html) => [...html.matchAll(/<h3[^>]*>([^<]*)<\/h3>/g)].map((m) => m[1]);
+
+test('render: the Overview is in views, and between them shows every section, the tiers and four 30-day charts', async () => {
+  const { html, calls } = await overviewOf('');
   assert.equal(calls[0], 'analyst', 'the level is checked first');
-  for (const h of ['People', 'Money', 'Coach applications', 'Consultations and sessions', 'Shape Score', 'Shape Score tiers', 'Sign-up lists and messages', 'Last 30 days', 'Sign-up funnel, last 30 days']) {
-    assert.ok(html.includes(`>${h}</h3>`), `the ${h} section`);
+  assert.deepEqual(calls.slice(1).sort(), ['rpc:admin_overview_stats', 'select:account_action_requests'], 'the summary asks for the stats and the account requests; the funnel and birthdays are Growth’s');
+  const views = { summary: html };
+  for (const v of ['growth', 'money', 'coaching', 'engagement']) views[v] = (await overviewOf(v)).html;
+  const seen = Object.fromEntries(Object.entries(views).map(([k, h]) => [k, h3s(h)]));
+  assert.deepEqual(seen.summary, ['Waiting on the team', 'Key numbers', 'Last 30 days'], 'the summary leads with what is waiting');
+  assert.deepEqual(seen.growth, ['People', 'Sign-up lists and messages', 'Sign-ups by source', 'Sign-up funnel, last 30 days']);
+  assert.deepEqual(seen.money, ['Money']);
+  assert.deepEqual(seen.coaching, ['Coach applications', 'Coach listings', 'Consultations and sessions']);
+  assert.deepEqual(seen.engagement, ['Activity', 'Shape Score', 'Shape Score tiers']);
+  for (const name of ['Raw', 'Tempo', 'Legend', 'Certified', 'Elite', 'Icon']) assert.ok(views.engagement.includes(`>${name} <`), `the ${name} tier row`);
+  assert.equal((html.match(/<figure/g) ?? []).length, 4, 'four daily charts on the summary');
+  assert.ok(html.includes('$22.50'), 'Shape’s MRR is a key number');
+  for (const [v, h] of Object.entries(views)) {
+    assert.ok(!/NaN|undefined/.test(h), `no NaN or undefined anywhere on ${v}`);
+    assert.ok(h.includes('href="https://dashboard.stripe.com/"') && h.includes('vercel.com/cperry8800-droids-projects/shape-app/analytics'), `${v} links out`);
+    assert.equal((h.match(/aria-current="page"/g) ?? []).length, 1, `${v}: one view is marked`);
   }
-  for (const name of ['Raw', 'Tempo', 'Legend', 'Certified', 'Elite', 'Icon']) assert.ok(html.includes(`>${name} <`), `the ${name} tier row`);
-  assert.equal((html.match(/<figure/g) ?? []).length, 4, 'four daily charts');
-  assert.ok(html.includes('$22.50'));
-  assert.ok(!/NaN|undefined/.test(html), 'no NaN or undefined anywhere on the page');
-  assert.ok(html.includes('href="https://dashboard.stripe.com/"') && html.includes('vercel.com/cperry8800-droids-projects/shape-app/analytics'));
+  assert.ok(views.money.includes('href="/admin?view=money" aria-current="page"'));
+  assert.equal((await overviewOf('drop table')).html, html, 'an unknown view is the summary');
+});
+
+test('render: the summary says how much is waiting on the team, and its key numbers open their views', async () => {
+  const { html } = await overviewOf('');
+  // The replica: one help request, one refund, one credential and two applications are open.
+  const q = overview.overviewSections(STATS, { accountRequests: 2 }).find((s) => s.key === 'queues').tiles;
+  const { total, line } = overview.waitingLine(q);
+  assert.equal(total, 7, 'the open account requests count too, as on the sidebar (Codex, #2390)');
+  assert.ok(html.includes(`>${line}</p>`), line);
+  assert.ok(html.includes('href="/admin/requests"') && html.includes('Account requests open'));
+  const unread = await overviewOf('', 'owner', { account_action_requests: { count: null, error: { code: 'XX000' } } });
+  assert.ok(!unread.html.includes('Account requests open') && unread.html.includes('>5 things are waiting on the team.</p>'), 'a count that cannot be read leaves the row out');
+  assert.ok(html.indexOf('Waiting on the team') < html.indexOf('Key numbers'), 'what is waiting comes first');
+  for (const v of ['growth', 'money', 'coaching', 'engagement']) assert.ok(html.includes(`href="/admin?view=${v}"`), `a key number opens ${v}`);
 });
 
 test('render: an analyst’s tiles never link to a page the analyst cannot open', async () => {
-  const { html } = await renderPage('src/app/admin/page.tsx', { rpc: answers, level: 'analyst' });
-  for (const href of ['/dashboard/applications', '/dashboard/support', '/dashboard/refunds', '/dashboard/credentials', '/admin/members', '/admin/coaches']) {
-    assert.ok(!html.includes(`href="${href}"`), `no link to ${href}`);
+  for (const v of ['', 'growth', 'money', 'coaching', 'engagement']) {
+    const { html } = await overviewOf(v, 'analyst');
+    for (const href of ['/dashboard/applications', '/dashboard/support', '/dashboard/refunds', '/dashboard/credentials', '/admin/members', '/admin/coaches', '/admin/requests']) {
+      assert.ok(!html.includes(`href="${href}`), `${v || 'summary'}: no link to ${href}`);
+    }
   }
-  const owner = await renderPage('src/app/admin/page.tsx', { rpc: answers, level: 'owner' });
-  assert.ok(owner.html.includes('href="/dashboard/applications"') && owner.html.includes('href="/admin/members"'));
+  const owner = await overviewOf('', 'owner');
+  assert.ok(owner.html.includes('href="/dashboard/applications"') && owner.html.includes('href="/dashboard/support"'), 'the queues open their pages');
+  const growth = await overviewOf('growth', 'owner');
+  assert.ok(growth.html.includes('href="/admin/members"'));
+  // A link to a part of a page opens for whoever opens the page: the birthdays on Members.
+  const support = await overviewOf('growth', 'support');
+  assert.ok(support.html.includes('href="/admin/members#birthdays"') && support.html.includes('href="/admin/members#anniversaries"'));
 });
 
 test('render: the Overview shows sign-ups by source, and this week’s birthdays and anniversaries as counts', async () => {
-  const { html } = await renderPage('src/app/admin/page.tsx', { rpc: answers, level: 'analyst' });
+  const { html } = await overviewOf('growth', 'analyst');
   assert.ok(html.includes('>Sign-ups by source</h3>'));
   for (const src of ['coach link', 'google.com', 'instagram', 'the app', 'not recorded']) assert.ok(html.includes(`>${src}</span>`), src);
   assert.ok(html.includes('3 on the website · 1 in the app · 1 not recorded'));
@@ -618,6 +681,53 @@ test('every console page and action checks its own level before it reads anythin
   for (const f of ['src/app/admin/layout.tsx', 'src/app/admin/page.tsx', 'src/app/admin/staff/page.tsx', 'src/app/admin/activity/page.tsx', 'src/app/admin/coaches/page.tsx', 'src/app/admin/members/page.tsx', 'src/app/admin/requests/page.tsx', 'src/app/admin/accounts/[id]/page.tsx']) {
     assert.match(read(f), /robots: \{ index: false, follow: false \}/, `${f} is not indexed`);
   }
+});
+
+test('the sidebar counts what is waiting, only on the pages the level opens, and only after the staff check', async () => {
+  const asked = [];
+  const db = {
+    from: (table) => ({
+      select: (cols, opts) => ({
+        in: async (column, values) => {
+          asked.push(`${table}.${column}=${values.join('|')}`);
+          assert.deepEqual([cols, opts], ['*', { count: 'exact', head: true }], 'a head count, never the rows');
+          if (table === 'refund_requests') return { count: null, error: { code: 'XX000' } };
+          return { count: { support_requests: 2, account_action_requests: 1, provider_applications: 3, provider_credentials: 0 }[table], error: null };
+        },
+      }),
+    }),
+  };
+  const waiting = await loadRealModule(join(ROOT, 'src/lib/admin-waiting.ts'), {
+    typescript: true,
+    registry: new Map([['@/lib/supabase/admin', { createAdminClient: () => db }], ['@/lib/staff-levels.mjs', levels]]),
+  });
+  assert.deepEqual(await waiting.waitingCounts('analyst'), {}, 'an analyst opens no queue');
+  assert.deepEqual(asked, [], 'and nothing is read for one');
+  assert.deepEqual(await waiting.waitingCounts('support'), { '/dashboard/support': 2, '/admin/requests': 1 }, 'support: the help desk and account requests');
+  assert.deepEqual(
+    await waiting.waitingCounts('owner'),
+    { '/dashboard/support': 2, '/admin/requests': 1, '/dashboard/applications': 3, '/dashboard/credentials': 0 },
+    'a count that cannot be read is left out, not shown as 0'
+  );
+  assert.ok(asked.includes('provider_applications.status=pending|in_review') && asked.includes('provider_credentials.review_status=pending'));
+  // The same queues the Overview counts (admin_overview_stats' queues and applications.open).
+  const sql = read('supabase-migrations/2026-10-13-staff-access-and-admin-stats.sql');
+  for (const q of ["public.support_requests where status = 'open'", "public.refund_requests where status = 'pending'", "public.provider_credentials where review_status = 'pending'", "public.provider_applications where status in ('pending', 'in_review')"]) {
+    assert.ok(sql.includes(q), q);
+  }
+  const layout = stripComments(read('src/app/admin/layout.tsx'));
+  assert.ok(layout.indexOf('const staff = await getStaffMember();') < layout.indexOf('await waitingCounts(staff.level)'), 'counted after the staff check, at the staff member’s level');
+  // No service key: the client throws, and the badges go, not the console (Codex, #2390).
+  const keyless = await loadRealModule(join(ROOT, 'src/lib/admin-waiting.ts'), {
+    typescript: true,
+    registry: new Map([['@/lib/supabase/admin', { createAdminClient: () => { throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY'); } }], ['@/lib/staff-levels.mjs', levels]]),
+  });
+  assert.deepEqual(await keyless.waitingCounts('owner'), {});
+  assert.equal(await keyless.waitingCount('/admin/requests'), null);
+  // A link in the phone's menu closes it, even one to the same path with another ?view= (Codex, #2390).
+  const sidebar = stripComments(read('src/app/admin/AdminSidebar.tsx'));
+  assert.match(sidebar, /href=\{item\.href\}\s*onClick=\{\(\) => setMenuOn\(null\)\}/);
+  assert.match(sidebar, /const menu = menuOn === pathname;/);
 });
 
 test('the dashboard: staff get in without a membership, and each tab shows for its level', () => {

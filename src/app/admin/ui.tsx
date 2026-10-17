@@ -23,6 +23,33 @@ export function formatDay(ymd: string | null | undefined): string {
   return d.toLocaleDateString('en-US', { timeZone: 'UTC', dateStyle: 'medium' });
 }
 
+// The console's type is the website's pair (public/newdesign): Fraunces for titles, JetBrains Mono
+// for labels. admin/layout.tsx loads both and sets these variables on the frame; outside it the
+// text falls back to the site's Inter.
+export const DISPLAY = 'font-[family-name:var(--font-admin-display)]';
+export const MONO = 'font-[family-name:var(--font-admin-mono)]';
+export const EYEBROW = `${MONO} text-[10.5px] uppercase tracking-[0.16em] text-neutral-400`;
+export const PAGE_TITLE = `${DISPLAY} text-3xl sm:text-4xl font-light tracking-tight text-neutral-50`;
+export const SECTION_TITLE = `${DISPLAY} text-xl sm:text-2xl font-light tracking-tight text-neutral-100`;
+/** A quiet surface for a tile, a chart or a list: the site's card and hairline. */
+export const PANEL = 'border border-border-hairline bg-card';
+
+/** The house's accent period after a page title. */
+export function Period() {
+  return <span className="text-accent">.</span>;
+}
+
+/** A section's title over the ledger rule (ink into the accent), and what the section counts. */
+export function SectionHead({ title, note }: { title: string; note?: string }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <h3 className={SECTION_TITLE}>{title}</h3>
+      <div aria-hidden="true" className="h-[2px] bg-linear-to-r from-neutral-200 via-accent/70 to-transparent" />
+      {note && <p className="text-sm text-neutral-500 max-w-3xl">{note}</p>}
+    </div>
+  );
+}
+
 export function Notice({ tone, children }: { tone: 'teal' | 'amber' | 'red'; children: React.ReactNode }) {
   const cls = {
     teal: 'border-teal-400/30 bg-teal-400/10 text-teal-200',

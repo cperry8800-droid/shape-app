@@ -1,4 +1,6 @@
-// The admin console's Overview: Shape's numbers on one page, analyst level and up.
+// The admin console's Overview: Shape's numbers, analyst level and up, in views so no page is a
+// wall of numbers. The summary leads with what is waiting on the team, then the key numbers and the
+// last 30 days; Growth, Money, Coaching and Engagement hold the rest (OVERVIEW_VIEWS, ?view=).
 //
 // One database call (admin_overview_stats, service role only) returns every number, and the
 // funnel comes from get_funnel, as on the War Room. src/lib/admin-overview.mjs turns both into
@@ -12,6 +14,7 @@ import { redirect } from 'next/navigation';
 import { requireStaff } from '@/lib/admin-access';
 import { canOpen, type StaffLevel } from '@/lib/staff-levels.mjs';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { waitingCount } from '@/lib/admin-waiting';
 import { buildFunnel } from '@/lib/funnel.mjs';
 import type { FunnelRow } from '@/lib/funnel';
 import {
@@ -19,17 +22,23 @@ import {
   DAILY_CHARTS,
   dailyColumns,
   formatCount,
+  keyNumbers,
+  OVERVIEW_VIEWS,
   overviewSections,
+  overviewView,
   sourceRows,
   surfaceLine,
   tierBreakdown,
+  viewHref,
+  waitingLine,
   type AdminOverviewStats,
   type CelebrationCounts,
   type TierRow,
   type DailyRow,
   type OverviewSection,
+  type OverviewTile,
 } from '@/lib/admin-overview.mjs';
-import { ADMIN_TIMEZONE } from './ui';
+import { ADMIN_TIMEZONE, DISPLAY, EYEBROW, MONO, PAGE_TITLE, PANEL, Period, SectionHead } from './ui';
 
 export const metadata = { title: 'Overview — Shape Admin', robots: { index: false, follow: false } };
 export const dynamic = 'force-dynamic';
@@ -75,163 +84,335 @@ async function loadFunnel(): Promise<FunnelRow[] | null> {
   }
 }
 
-export default async function AdminOverviewPage() {
+export default async function AdminOverviewPage({ searchParams }: { searchParams?: Promise<{ view?: string }> }) {
   let level: StaffLevel = 'analyst';
   try {
     level = (await requireStaff('analyst')).level;
   } catch {
     redirect('/login?next=/admin');
   }
+  const view = overviewView((await searchParams)?.view);
+  const growth = view.key === 'growth';
 
-  const [{ stats, missing, failed }, funnel, celebrations] = await Promise.all([loadStats(), loadFunnel(), loadCelebrations()]);
-  // A tile links only to a page this level opens.
-  const sections = (stats ? overviewSections(stats, { celebrations }) : []).map((s) => ({
-    ...s,
-    tiles: s.tiles.map((t) => (t.href && !canOpen(level, t.href) ? { ...t, href: '' } : t)),
-  }));
+  // The funnel and this week's birthdays are Growth's alone; the open account requests, the
+  // summary's (the same count as the sidebar's badge).
+  const [{ stats, missing, failed }, funnel, celebrations, accountRequests] = await Promise.all([
+    loadStats(),
+    growth ? loadFunnel() : Promise.resolve(null),
+    growth ? loadCelebrations() : Promise.resolve(null),
+    view.key === 'summary' ? waitingCount('/admin/requests') : Promise.resolve(null),
+  ]);
+  // A tile links only to a page this level opens ('/admin/members#birthdays' is the Members page).
+  const openable = (t: OverviewTile) => (t.href && !canOpen(level, t.href.split(/[?#]/)[0]) ? { ...t, href: '' } : t);
+  const sections = (stats ? overviewSections(stats, { celebrations, accountRequests }) : []).map((s) => ({ ...s, tiles: s.tiles.map(openable) }));
+  const section = (key: string) => sections.find((s) => s.key === key);
   const daily = (stats?.daily ?? []) as DailyRow[];
-  const tiers = stats ? tierBreakdown(stats) : null;
 
   return (
-    <div className="flex flex-col gap-10">
-      <section className="flex flex-col gap-2">
-        <h2 className="text-2xl font-light tracking-tight">Overview</h2>
-        <p className="text-sm text-neutral-400 max-w-2xl">
-          Shape&apos;s numbers across the website and the app
-          {stats?.generated_at ? `, as of ${new Date(stats.generated_at).toLocaleString('en-US', { timeZone: TIMEZONE })}` : ''}
-          {stats?.timezone ? ` (days in ${stats.timezone})` : ''}.
-        </p>
-        <div className="flex gap-2 flex-wrap mt-1">
-          <a href={VERCEL_ANALYTICS} target="_blank" rel="noreferrer" className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-200 hover:border-neutral-500 transition-colors">
-            Page views (Vercel Analytics) ↗
-          </a>
-          <a href={STRIPE_DASHBOARD} target="_blank" rel="noreferrer" className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-200 hover:border-neutral-500 transition-colors">
-            Payouts and payments (Stripe) ↗
-          </a>
+    <div className="flex flex-col gap-8">
+      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4 border-b border-border-hairline pb-5">
+        <div className="flex flex-col gap-2 min-w-0">
+          <h2 className={PAGE_TITLE}>
+            Overview<Period />
+          </h2>
+          <p className={`${MONO} flex flex-wrap gap-x-3 gap-y-1 text-[11px] uppercase tracking-[0.14em] text-neutral-500`}>
+            {stats?.generated_at && (
+              <span>
+                As of {new Date(stats.generated_at).toLocaleString('en-US', { timeZone: TIMEZONE, dateStyle: 'medium', timeStyle: 'short' })}
+                {stats.timezone ? ` · days in ${stats.timezone}` : ''}
+              </span>
+            )}
+            <ExternalLink href={VERCEL_ANALYTICS}>Page views (Vercel)</ExternalLink>
+            <ExternalLink href={STRIPE_DASHBOARD}>Payments (Stripe)</ExternalLink>
+          </p>
         </div>
-      </section>
+        <nav aria-label="Overview views" className="flex overflow-x-auto [scrollbar-width:none] border border-border-hairline max-w-full">
+          {OVERVIEW_VIEWS.map((v) => {
+            const open = v.key === view.key;
+            return (
+              <Link
+                key={v.key}
+                href={viewHref(v.key)}
+                aria-current={open ? 'page' : undefined}
+                className={`${MONO} ${FOCUS} shrink-0 inline-flex items-center min-h-[40px] px-4 text-[11px] uppercase tracking-[0.14em] transition-colors ${
+                  open ? 'bg-neutral-100 text-neutral-950' : 'text-neutral-400 hover:text-neutral-50 hover:bg-white/5'
+                }`}
+              >
+                {v.label}
+              </Link>
+            );
+          })}
+        </nav>
+      </header>
 
       {missing && (
-        <div className="rounded-lg border border-amber-400/30 bg-amber-400/10 text-amber-200 text-sm px-4 py-3">
+        <div className="border border-amber-400/30 bg-amber-400/10 text-amber-200 text-sm px-4 py-3">
           Not set up yet: run supabase-migrations/2026-10-13-staff-access-and-admin-stats.sql.
         </div>
       )}
       {failed && (
-        <div className="rounded-lg border border-red-400/30 bg-red-400/10 text-red-200 text-sm px-4 py-3">
+        <div className="border border-red-400/30 bg-red-400/10 text-red-200 text-sm px-4 py-3">
           The numbers could not be loaded. Reload the page; if it keeps failing, check the Supabase logs.
         </div>
       )}
 
-      {sections.map((section) => (
-        <Section key={section.key} section={section} />
-      ))}
-
-      {stats && (
-        <SignupSources
-          sources={stats.signup_sources as SignupSourceStats | undefined}
-        />
-      )}
-
-      {tiers && (
-        <section className="flex flex-col gap-4">
-          <div>
-            <h3 className="text-lg font-medium">Shape Score tiers</h3>
-            <p className="text-sm text-neutral-500 max-w-3xl">
-              How many accounts sit at each tier, on the points that set it (everything earned, without Store purchases or tier
-              bonuses; a tier never drops). Coaches climb the same rungs under their own names.
-            </p>
+      {stats && view.key === 'summary' && (
+        // On a wide screen the key numbers ride beside the inbox and the 30 days; narrower, they
+        // follow the inbox, before the charts.
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px] xl:grid-rows-[auto_1fr] items-start">
+          <div className="xl:col-start-1 xl:row-start-1 min-w-0">
+            <Inbox tiles={section('queues')?.tiles ?? []} />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Tiers title="Members" rows={tiers.members} />
-            <Tiers title="Coaches" rows={tiers.coaches} />
+          <div className="xl:col-start-2 xl:row-start-1 xl:row-span-2 min-w-0">
+            <KeyNumbers tiles={keyNumbers(sections).map(openable)} />
           </div>
-        </section>
-      )}
-
-      {daily.length > 0 && (
-        <section className="flex flex-col gap-4">
-          <div>
-            <h3 className="text-lg font-medium">Last 30 days</h3>
-            <p className="text-sm text-neutral-500">Hover a column for its day. Each chart has its own scale.</p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {DAILY_CHARTS.map((c) => (
-              <DailyChart key={c.key} title={c.title} daily={daily} field={c.key} />
-            ))}
-          </div>
-          <details className="rounded-xl border border-neutral-800 bg-neutral-950 p-4">
-            <summary className="text-xs uppercase tracking-[0.14em] text-neutral-500 cursor-pointer">The 30 days as a table</summary>
-            <div className="overflow-x-auto mt-3">
-              <table className="w-full text-sm tabular-nums">
-                <thead>
-                  <tr className="text-left text-neutral-500">
-                    <th className="py-1 pr-4 font-normal">Day</th>
-                    <th className="py-1 pr-4 font-normal text-right">New accounts</th>
-                    <th className="py-1 pr-4 font-normal text-right">Active</th>
-                    <th className="py-1 pr-4 font-normal text-right">Workouts</th>
-                    <th className="py-1 font-normal text-right">Applications</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[...daily].reverse().map((d) => (
-                    <tr key={d.day} className="border-t border-neutral-900 text-neutral-300">
-                      <td className="py-1 pr-4">{d.day}</td>
-                      <td className="py-1 pr-4 text-right">{formatCount(d.signups)}</td>
-                      <td className="py-1 pr-4 text-right">{formatCount(d.active)}</td>
-                      <td className="py-1 pr-4 text-right">{formatCount(d.workouts)}</td>
-                      <td className="py-1 text-right">{formatCount(d.applications)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          {daily.length > 0 && (
+            <div className="xl:col-start-1 xl:row-start-2 min-w-0">
+              <LastThirtyDays daily={daily} />
             </div>
-          </details>
-        </section>
+          )}
+          <div className="xl:col-span-2 min-w-0">
+            <ViewCards sections={sections} />
+          </div>
+        </div>
       )}
 
-      {funnel && (
+      {view.sections.map((key) => {
+        const s = section(key);
+        return s ? <Section key={key} section={s} /> : null;
+      })}
+
+      {stats && growth && <SignupSources sources={stats.signup_sources as SignupSourceStats | undefined} />}
+
+      {funnel && growth && (
         <section className="flex flex-col gap-4">
-          <div>
-            <h3 className="text-lg font-medium">Sign-up funnel, last 30 days</h3>
-            <p className="text-sm text-neutral-500">
-              Of the accounts that signed up in the last 30 days, how many reached each step. The app records these steps only
-              where its analytics consent allows.
-            </p>
-          </div>
+          <SectionHead
+            title="Sign-up funnel, last 30 days"
+            note="Of the accounts that signed up in the last 30 days, how many reached each step. The app records these steps only where its analytics consent allows."
+          />
           <Funnel rows={funnel} />
         </section>
       )}
+
+      {stats && view.key === 'engagement' && <ScoreTiers tiers={tierBreakdown(stats)} />}
     </div>
+  );
+}
+
+const FOCUS = 'focus-visible:outline-2 focus-visible:outline-accent focus-visible:-outline-offset-2';
+
+function ExternalLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <a href={href} target="_blank" rel="noreferrer" className={`${FOCUS} text-neutral-300 hover:text-accent transition-colors`}>
+      {children} <span aria-hidden="true">↗</span>
+    </a>
+  );
+}
+
+// What is waiting on the team, first: the queues' total as a sentence, then a row for each,
+// opening where it is handled. The spine is the accent while anything waits.
+function Inbox({ tiles }: { tiles: OverviewTile[] }) {
+  const { total, line } = waitingLine(tiles);
+  return (
+    <section aria-labelledby="waiting" className={`${PANEL} relative`}>
+      <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-[3px] ${total ? 'bg-accent' : 'bg-white/15'}`} />
+      <div className="px-5 sm:px-6 pt-5 pb-4">
+        <h3 id="waiting" className={EYEBROW}>
+          Waiting on the team
+        </h3>
+        <p className={`${DISPLAY} text-2xl sm:text-[28px] font-light tracking-tight text-neutral-50 mt-2`}>{line}</p>
+      </div>
+      <ul>
+        {tiles.map((t) => {
+          const waiting = (t.count ?? 0) > 0;
+          const body = (
+            <>
+              <span className={`text-2xl font-light tabular-nums w-10 shrink-0 ${waiting ? 'text-neutral-50' : 'text-neutral-600'}`}>{t.value}</span>
+              <span className="min-w-0 flex-1">
+                <span className={`block text-sm ${waiting ? 'text-neutral-100' : 'text-neutral-400'}`}>{t.label}</span>
+                {t.sub && <span className="block text-xs text-neutral-500 mt-0.5">{t.sub}</span>}
+              </span>
+              {t.href && (
+                <span className={`${MONO} shrink-0 border border-white/15 px-3 py-2 text-[10.5px] uppercase tracking-[0.14em] text-neutral-300 group-hover:border-accent/60 group-hover:text-neutral-50 transition-colors`}>
+                  Open <span aria-hidden="true">→</span>
+                </span>
+              )}
+            </>
+          );
+          const cls = 'flex items-center gap-4 px-5 sm:px-6 py-3.5 border-t border-border-hairline';
+          return (
+            <li key={t.label}>
+              {t.href ? (
+                <Link href={t.href} className={`${cls} ${FOCUS} group hover:bg-white/[0.02] transition-colors`}>
+                  {body}
+                </Link>
+              ) : (
+                <div className={cls}>{body}</div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+// The summary's key numbers as a column of rows: each opens the view that has the rest.
+function KeyNumbers({ tiles }: { tiles: OverviewTile[] }) {
+  return (
+    <section aria-labelledby="key-numbers" className={PANEL}>
+      <h3 id="key-numbers" className={`${EYEBROW} px-5 pt-5 pb-3`}>
+        Key numbers
+      </h3>
+      <ul>
+        {tiles.map((t) => {
+          const body = (
+            <>
+              <span className="min-w-0">
+                <span className="block text-[13px] text-neutral-200">{t.label}</span>
+                {t.sub && <span className="block text-xs text-neutral-500 mt-0.5">{t.sub}</span>}
+              </span>
+              <span className="text-2xl font-light tabular-nums text-neutral-50 shrink-0">{t.value}</span>
+            </>
+          );
+          const cls = 'flex items-baseline justify-between gap-4 px-5 py-3 border-t border-border-hairline';
+          return (
+            <li key={t.label}>
+              {t.href ? (
+                <Link href={t.href} className={`${cls} ${FOCUS} hover:bg-white/[0.02] transition-colors`}>
+                  {body}
+                </Link>
+              ) : (
+                <div className={cls}>{body}</div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+// The rest of the numbers, one card per view, each naming what it holds.
+function ViewCards({ sections }: { sections: OverviewSection[] }) {
+  const titles = (keys: ReadonlyArray<string>) =>
+    keys.map((k) => sections.find((s) => s.key === k)?.title).filter(Boolean).join(' · ');
+  return (
+    <nav aria-label="The views" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {OVERVIEW_VIEWS.filter((v) => v.key !== 'summary').map((v) => (
+        <Link key={v.key} href={viewHref(v.key)} className={`${PANEL} ${FOCUS} group flex flex-col gap-1.5 p-4 hover:border-accent/50 transition-colors`}>
+          <span className={EYEBROW}>View</span>
+          <span className={`${DISPLAY} text-xl font-light text-neutral-50`}>
+            {v.label} <span aria-hidden="true" className="text-neutral-600 group-hover:text-accent transition-colors">→</span>
+          </span>
+          <span className="text-xs text-neutral-500">{titles(v.sections)}</span>
+        </Link>
+      ))}
+    </nav>
   );
 }
 
 function Section({ section }: { section: OverviewSection }) {
   return (
-    <section className="flex flex-col gap-3">
-      <div>
-        <h3 className="text-lg font-medium">{section.title}</h3>
-        {section.note && <p className="text-sm text-neutral-500 max-w-3xl">{section.note}</p>}
+    <section className="flex flex-col gap-4">
+      <SectionHead title={section.title} note={section.note} />
+      <TileGrid tiles={section.tiles} />
+    </section>
+  );
+}
+
+function TileGrid({ tiles }: { tiles: OverviewTile[] }) {
+  return (
+    <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+      {tiles.map((t) => (
+        <StatTile key={t.label} tile={t} />
+      ))}
+    </div>
+  );
+}
+
+// A number with its label above and what it counts below. A tile that opens a page says so with
+// an arrow, and its edge takes the accent on hover.
+function StatTile({ tile: t }: { tile: OverviewTile }) {
+  const body = (
+    <>
+      <div className="flex items-start justify-between gap-2">
+        <span className={`${EYEBROW} leading-snug`}>{t.label}</span>
+        {t.href && (
+          <span aria-hidden="true" className="text-neutral-600 group-hover:text-accent transition-colors">
+            →
+          </span>
+        )}
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-        {section.tiles.map((t) => {
-          const body = (
-            <>
-              <div className="text-xs text-neutral-400">{t.label}</div>
-              <div className="text-2xl font-semibold tracking-tight text-neutral-100 mt-1 break-words">{t.value}</div>
-              {t.sub && <div className="text-xs text-neutral-500 mt-1">{t.sub}</div>}
-            </>
-          );
-          const cls = 'rounded-xl border border-neutral-800 bg-neutral-950 p-4 min-w-0';
-          return t.href ? (
-            <Link key={t.label} href={t.href} className={`${cls} hover:border-neutral-600 transition-colors`}>
-              {body}
-            </Link>
-          ) : (
-            <div key={t.label} className={cls}>
-              {body}
-            </div>
-          );
-        })}
+      <div className="text-3xl font-light tracking-tight tabular-nums text-neutral-50 mt-3 break-words">{t.value}</div>
+      {t.sub && <div className="text-xs text-neutral-500 mt-1.5 leading-relaxed">{t.sub}</div>}
+    </>
+  );
+  const cls = `${PANEL} flex flex-col p-4 min-w-0`;
+  return t.href ? (
+    <Link href={t.href} className={`${cls} ${FOCUS} group hover:border-accent/50 transition-colors`}>
+      {body}
+    </Link>
+  ) : (
+    <div className={cls}>{body}</div>
+  );
+}
+
+function LastThirtyDays({ daily }: { daily: DailyRow[] }) {
+  return (
+    <section aria-labelledby="last-30" className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 id="last-30" className={EYEBROW}>
+          Last 30 days
+        </h3>
+        <span className="text-xs text-neutral-500">Hover a column for its day. Each chart has its own scale.</span>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {DAILY_CHARTS.map((c) => (
+          <DailyChart key={c.key} title={c.title} daily={daily} field={c.key} />
+        ))}
+      </div>
+      <details className={`${PANEL} p-4`}>
+        <summary className={`${EYEBROW} cursor-pointer`}>The 30 days as a table</summary>
+        <div className="overflow-x-auto mt-3">
+          <table className="w-full text-sm tabular-nums">
+            <thead>
+              <tr className="text-left text-neutral-500">
+                <th className="py-1 pr-4 font-normal">Day</th>
+                <th className="py-1 pr-4 font-normal text-right">New accounts</th>
+                <th className="py-1 pr-4 font-normal text-right">Active</th>
+                <th className="py-1 pr-4 font-normal text-right">Workouts</th>
+                <th className="py-1 font-normal text-right">Applications</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...daily].reverse().map((d) => (
+                <tr key={d.day} className="border-t border-border-hairline text-neutral-300">
+                  <td className="py-1 pr-4">{d.day}</td>
+                  <td className="py-1 pr-4 text-right">{formatCount(d.signups)}</td>
+                  <td className="py-1 pr-4 text-right">{formatCount(d.active)}</td>
+                  <td className="py-1 pr-4 text-right">{formatCount(d.workouts)}</td>
+                  <td className="py-1 text-right">{formatCount(d.applications)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </section>
+  );
+}
+
+function ScoreTiers({ tiers }: { tiers: { members: TierRow[]; coaches: TierRow[] } }) {
+  return (
+    <section className="flex flex-col gap-4">
+      <SectionHead
+        title="Shape Score tiers"
+        note="How many accounts sit at each tier, on the points that set it (everything earned, without Store purchases or tier bonuses; a tier never drops). Coaches climb the same rungs under their own names."
+      />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Tiers title="Members" rows={tiers.members} />
+        <Tiers title="Coaches" rows={tiers.coaches} />
       </div>
     </section>
   );
@@ -245,10 +426,10 @@ function DailyChart({ title, daily, field }: { title: string; daily: DailyRow[];
   const first = cols[0]?.day ?? '';
   const last = cols[cols.length - 1]?.day ?? '';
   return (
-    <figure className="rounded-xl border border-neutral-800 bg-neutral-950 p-4 min-w-0">
+    <figure className={`${PANEL} p-4 min-w-0`}>
       <figcaption className="flex items-baseline justify-between gap-2">
-        <span className="text-sm text-neutral-300">{title}</span>
-        <span className="text-xs text-neutral-500">{formatCount(total)} in 30 days</span>
+        <span className={EYEBROW}>{title}</span>
+        <span className="text-xs text-neutral-500 tabular-nums">{formatCount(total)} in 30 days</span>
       </figcaption>
       <div className="flex gap-2 mt-3">
         <div className="flex flex-col justify-between text-[10px] text-neutral-500 tabular-nums" style={{ height: 96 }}>
@@ -263,7 +444,7 @@ function DailyChart({ title, daily, field }: { title: string; daily: DailyRow[];
           role="img"
           aria-label={`${title}: ${formatCount(total)} in the last 30 days`}
         >
-          <line x1="0" y1={CHART_H - 0.5} x2={CHART_W} y2={CHART_H - 0.5} stroke="#262626" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+          <line x1="0" y1={CHART_H - 0.5} x2={CHART_W} y2={CHART_H - 0.5} stroke="var(--border-strong)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
           {cols.map((c) => (
             <g key={c.day}>
               {/* The hit target is the whole day's slot, taller than the column. */}
@@ -271,7 +452,7 @@ function DailyChart({ title, daily, field }: { title: string; daily: DailyRow[];
                 <title>{`${c.day}: ${formatCount(c.value)}`}</title>
               </rect>
               {c.h > 0 && (
-                <path d={columnPath(c.x, c.y, c.w, c.h)} fill="#2dd4bf" pointerEvents="none" />
+                <path d={columnPath(c.x, c.y, c.w, c.h)} fill="var(--accent)" pointerEvents="none" />
               )}
             </g>
           ))}
@@ -285,9 +466,9 @@ function DailyChart({ title, daily, field }: { title: string; daily: DailyRow[];
   );
 }
 
-// A column with a rounded top (up to 4 units) and a square foot on the baseline.
+// A column with a softened top (up to 2 units) and a square foot on the baseline.
 function columnPath(x: number, y: number, w: number, h: number): string {
-  const r = Math.min(4, w / 2, h);
+  const r = Math.min(2, w / 2, h);
   return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`;
 }
 
@@ -305,15 +486,11 @@ function SignupSources({ sources }: { sources?: SignupSourceStats }) {
   const campaigns = Array.isArray(sources?.campaigns_30d) ? sources.campaigns_30d : [];
   return (
     <section className="flex flex-col gap-4">
-      <div>
-        <h3 className="text-lg font-medium">Sign-ups by source</h3>
-        <p className="text-sm text-neutral-500 max-w-3xl">
-          Where new accounts came from: a coach&apos;s referral link, the link&apos;s utm_source tag, the site that sent them,
-          or the app. &ldquo;Direct&rdquo; came with neither a tag nor another site. &ldquo;Not recorded&rdquo; is every account
-          made before sources were recorded.
-        </p>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <SectionHead
+        title="Sign-ups by source"
+        note="Where new accounts came from: a coach’s referral link, the link’s utm_source tag, the site that sent them, or the app. “Direct” came with neither a tag nor another site. “Not recorded” is every account made before sources were recorded."
+      />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Bars title="Last 30 days" note={surfaceLine(sources?.surface_30d)} rows={last30.map((r) => ({ name: r.source, count: r.count }))} />
         <Bars title="All time" note={surfaceLine(sources?.surface_all)} rows={all.map((r) => ({ name: r.source, count: r.count }))} />
       </div>
@@ -330,17 +507,17 @@ function SignupSources({ sources }: { sources?: SignupSourceStats }) {
 function Bars({ title, note, rows }: { title: string; note: string; rows: Array<{ name: string; count: number }> }) {
   const max = Math.max(1, ...rows.map((r) => r.count));
   return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-950 p-4 flex flex-col gap-3">
+    <div className={`${PANEL} p-4 flex flex-col gap-3`}>
       <div className="flex items-baseline justify-between gap-2 flex-wrap">
-        <span className="text-sm text-neutral-300">{title}</span>
+        <span className={EYEBROW}>{title}</span>
         <span className="text-xs text-neutral-500">{note}</span>
       </div>
       {rows.length === 0 && <div className="text-sm text-neutral-500">No sign-ups.</div>}
       {rows.map((r) => (
         <div key={r.name} className="grid grid-cols-[minmax(0,10rem)_1fr_auto] items-center gap-3 text-sm">
           <span className="text-neutral-300 truncate" title={r.name}>{r.name}</span>
-          <div className="h-3 rounded-full bg-neutral-900 overflow-hidden" aria-hidden="true">
-            <div className="h-full rounded-full bg-teal-400" style={{ width: `${Math.round((r.count / max) * 100)}%` }} />
+          <div className="h-2 bg-white/[0.06] overflow-hidden" aria-hidden="true">
+            <div className="h-full bg-accent" style={{ width: `${Math.round((r.count / max) * 100)}%` }} />
           </div>
           <span className="text-neutral-400 tabular-nums text-right">{formatCount(r.count)}</span>
         </div>
@@ -354,18 +531,18 @@ function Tiers({ title, rows }: { title: string; rows: TierRow[] }) {
   const max = Math.max(1, ...rows.map((r) => r.count));
   const total = rows.reduce((t, r) => t + r.count, 0);
   return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-950 p-4 flex flex-col gap-3">
+    <div className={`${PANEL} p-4 flex flex-col gap-3`}>
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-sm text-neutral-300">{title}</span>
-        <span className="text-xs text-neutral-500">{formatCount(total)} accounts</span>
+        <span className={EYEBROW}>{title}</span>
+        <span className="text-xs text-neutral-500 tabular-nums">{formatCount(total)} accounts</span>
       </div>
       {rows.map((r) => (
         <div key={r.name} className="grid grid-cols-[minmax(0,8rem)_1fr_auto] items-center gap-3 text-sm">
           <span className="text-neutral-300 truncate">
             {r.name} <span className="text-neutral-500 text-xs">{formatCount(r.from)}+</span>
           </span>
-          <div className="h-3 rounded-full bg-neutral-900 overflow-hidden" aria-hidden="true">
-            <div className="h-full rounded-full bg-teal-400" style={{ width: `${Math.round((r.count / max) * 100)}%` }} />
+          <div className="h-2 bg-white/[0.06] overflow-hidden" aria-hidden="true">
+            <div className="h-full bg-accent" style={{ width: `${Math.round((r.count / max) * 100)}%` }} />
           </div>
           <span className="text-neutral-400 tabular-nums text-right">{formatCount(r.count)}</span>
         </div>
@@ -377,12 +554,12 @@ function Tiers({ title, rows }: { title: string; rows: TierRow[] }) {
 function Funnel({ rows }: { rows: FunnelRow[] }) {
   const max = Math.max(1, rows[0]?.count ?? 0);
   return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-950 p-4 flex flex-col gap-3">
+    <div className={`${PANEL} p-4 flex flex-col gap-3`}>
       {rows.map((r) => (
         <div key={r.key} className="grid grid-cols-[minmax(0,10rem)_1fr_auto] items-center gap-3 text-sm">
           <span className="text-neutral-300 truncate">{r.label}</span>
-          <div className="h-3 rounded-full bg-neutral-900 overflow-hidden" aria-hidden="true">
-            <div className="h-full rounded-full bg-teal-400" style={{ width: `${Math.round((r.count / max) * 100)}%` }} />
+          <div className="h-2 bg-white/[0.06] overflow-hidden" aria-hidden="true">
+            <div className="h-full bg-accent" style={{ width: `${Math.round((r.count / max) * 100)}%` }} />
           </div>
           <span className="text-neutral-400 tabular-nums text-right">
             {formatCount(r.count)}

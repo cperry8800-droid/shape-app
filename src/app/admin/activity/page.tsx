@@ -8,7 +8,7 @@ import { redirect } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { requireStaff } from '@/lib/admin-access';
 import { describeActivity } from '@/lib/staff-levels.mjs';
-import { ADMIN_TIMEZONE } from '../ui';
+import { ADMIN_TIMEZONE, PAGE_TITLE, Period } from '../ui';
 
 export const metadata = { title: 'Activity log — Shape Admin', robots: { index: false, follow: false } };
 export const dynamic = 'force-dynamic';
@@ -86,7 +86,7 @@ export default async function ActivityPage() {
   return (
     <div className="flex flex-col gap-6">
       <section className="flex flex-col gap-2">
-        <h2 className="text-2xl font-light tracking-tight">Activity log</h2>
+        <h2 className={PAGE_TITLE}>Activity log<Period /></h2>
         <p className="text-sm text-neutral-400 max-w-2xl">
           Everything the Shape team has changed from this console, and every account looked up through Nora&apos;s help desk,
           newest first. The latest {LIMIT}.

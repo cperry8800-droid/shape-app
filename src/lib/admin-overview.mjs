@@ -36,6 +36,8 @@ export function shapeMrrCents(stats) {
 }
 
 const tile = (label, value, sub = '', href = '') => ({ label, value, sub, href });
+// A queue's tile also carries its count, so the Overview can say how much is waiting.
+const queueTile = (label, v, sub, href) => ({ ...tile(label, formatCount(v), sub, href), count: Math.max(0, Math.round(n(v))) });
 
 /** "1 review", "2 reviews", "1,204 reviews". */
 export function countOf(v, one, many = `${one}s`) {
@@ -83,6 +85,9 @@ export function daysSince(iso, now) {
 export function overviewSections(stats, extras = {}) {
   const s = stats || {};
   const cel = extras.celebrations || null;
+  // Account requests are counted outside admin_overview_stats (src/lib/admin-waiting.ts, as the
+  // sidebar counts them): a count that was not read leaves the row out.
+  const accountRequests = typeof extras.accountRequests === 'number' ? extras.accountRequests : null;
   const a = s.accounts || {};
   const r = s.roles || {};
   const l = s.listings || {};
@@ -216,13 +221,61 @@ export function overviewSections(stats, extras = {}) {
       title: 'Waiting on the team',
       note: '',
       tiles: [
-        tile('Help requests open', formatCount(q.help_open), '', '/dashboard/support'),
-        tile('Refunds pending', formatCount(q.refunds_pending), '', '/dashboard/refunds'),
-        tile('Credentials to review', formatCount(q.credentials_pending), '', '/dashboard/credentials'),
-        tile('Applications to review', formatCount(ap.open), '', '/dashboard/applications'),
+        queueTile('Help requests open', q.help_open, 'sent from Nora’s chat', '/dashboard/support'),
+        ...(accountRequests === null ? [] : [queueTile('Account requests open', accountRequests, 'asked for in Settings, done by hand', '/admin/requests')]),
+        queueTile('Refunds pending', q.refunds_pending, 'waiting for a decision', '/dashboard/refunds'),
+        queueTile('Credentials to review', q.credentials_pending, 'coaches waiting to go live', '/dashboard/credentials'),
+        queueTile('Applications to review', ap.open, `${countOf(ap.open_trainer, 'trainer')} · ${countOf(ap.open_nutritionist, 'nutritionist')}`, '/dashboard/applications'),
       ],
     },
   ];
+}
+
+// ── The Overview's views ──
+// The sections, grouped so no view is a wall of numbers: a summary (what is waiting on the team,
+// the key numbers, the last 30 days) and one view per part of Shape. ?view= picks one; anything
+// else is the summary. The queues are the summary's alone.
+export const OVERVIEW_VIEWS = [
+  { key: 'summary', label: 'Summary', sections: [] },
+  { key: 'growth', label: 'Growth', sections: ['people', 'lists'] },
+  { key: 'money', label: 'Money', sections: ['money'] },
+  { key: 'coaching', label: 'Coaching', sections: ['applications', 'coaches', 'consultations'] },
+  { key: 'engagement', label: 'Engagement', sections: ['activity', 'score'] },
+];
+
+export function overviewView(raw) {
+  return OVERVIEW_VIEWS.find((v) => v.key === raw) ?? OVERVIEW_VIEWS[0];
+}
+
+export function viewHref(key) {
+  return key === 'summary' ? '/admin' : `/admin?view=${key}`;
+}
+
+// The summary's key numbers: a tile from each view, linking to the view that has the rest.
+const KEY_NUMBERS = [
+  ['Accounts', 'growth'],
+  ['New accounts, 7 days', 'growth'],
+  ['Active, 7 days', 'growth'],
+  ['Shape’s monthly recurring revenue', 'money'],
+  ['Paying members', 'money'],
+  ['Payment failing', 'money'],
+  ['Live listings', 'coaching'],
+  ['Workouts logged, 7 days', 'engagement'],
+];
+
+export function keyNumbers(sections) {
+  const tiles = (sections || []).flatMap((s) => s.tiles || []);
+  return KEY_NUMBERS.flatMap(([label, view]) => {
+    const t = tiles.find((x) => x.label === label);
+    return t ? [{ ...t, href: viewHref(view) }] : [];
+  });
+}
+
+/** The queues' total, as the summary's first line. */
+export function waitingLine(tiles) {
+  const total = (tiles || []).reduce((sum, t) => sum + n(t?.count), 0);
+  if (total === 0) return { total, line: 'Nothing is waiting on the team.' };
+  return { total, line: `${countOf(total, 'thing')} ${total === 1 ? 'is' : 'are'} waiting on the team.` };
 }
 
 // ── Sign-ups by source ──

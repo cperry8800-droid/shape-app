@@ -12,7 +12,7 @@ import { requireStaff } from '@/lib/admin-access';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { REASON_MAX } from '@/lib/admin-account-actions.mjs';
 import { handleRequest } from '../accounts/actions';
-import { ACCOUNT_MIGRATION_FILE, formatWhen, Notice } from '../ui';
+import { ACCOUNT_MIGRATION_FILE, formatWhen, Notice, PAGE_TITLE, Period } from '../ui';
 
 export const metadata = { title: 'Account requests — Shape Admin', robots: { index: false, follow: false } };
 export const dynamic = 'force-dynamic';
@@ -74,7 +74,7 @@ export default async function RequestsPage({
   return (
     <div className="flex flex-col gap-6">
       <section className="flex flex-col gap-2">
-        <h2 className="text-2xl font-light tracking-tight">Account requests</h2>
+        <h2 className={PAGE_TITLE}>Account requests<Period /></h2>
         <p className="text-sm text-neutral-400 max-w-3xl">
           What members asked for from Settings that the team has to do by hand: today, pausing their membership (exporting and
           deleting are self-serve, but an older app can still ask). Oldest first. Closing one does not email the member.
