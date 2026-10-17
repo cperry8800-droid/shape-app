@@ -427,13 +427,16 @@
     // endpoint the full chat does; a failure says so and gives the address a person reads.
     var NORA_DOWN = "I can't be reached right now. Try again in a moment, or email the Shape team at info@theshapecommunity.com.";
     // The account keeps one conversation with Nora (/api/nora/thread), as the pop-up and the app
-    // do: an answered exchange is appended to it. A visitor's append answers 401: nothing kept.
-    function keepNoraExchange(question, reply) {
-      if (typeof window.fetch !== "function") return;
+    // do: an answered exchange is appended to it, as the account she answered (`account`, from
+    // her answer). The cookie can change account in another tab while she answers, and the thread
+    // route refuses an append for an account that is no longer the caller (Codex on #2393). A
+    // visitor's answer names no account, and nothing is kept.
+    function keepNoraExchange(question, reply, account) {
+      if (typeof window.fetch !== "function" || !account) return;
       var at = new Date().toISOString();
       window.fetch("/api/nora/thread", {
         method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ append: [{ role: "user", text: question, at: at }, { role: "assistant", text: reply, at: at }] })
+        body: JSON.stringify({ append: [{ role: "user", text: question, at: at }, { role: "assistant", text: reply, at: at }], account: account })
       }).catch(function () {});
     }
     function askNora(thread) {
@@ -455,7 +458,7 @@
       function settle(r) {
         var ok = r.res.ok || r.data.needsCheck;
         if (!ok || typeof r.data.reply !== "string" || !r.data.reply.trim()) return { reply: NORA_DOWN, links: [] };
-        return { reply: r.data.reply, links: noraLinks(r.data.actions) };
+        return { reply: r.data.reply, links: noraLinks(r.data.actions), account: typeof r.data.account === "string" && r.data.account ? r.data.account : null };
       }
       return post(null).then(function (r) {
         // A visitor's first question passes the bot check: solve it once and ask again.
@@ -638,7 +641,7 @@
         askNora(th).then(function (r) {
           pending.t = r.reply; pending.links = r.links; pending.time = stamp(); delete pending.pending;
           render();
-          if (r.reply !== NORA_DOWN) keepNoraExchange(value, r.reply);
+          if (r.reply !== NORA_DOWN) keepNoraExchange(value, r.reply, r.account);
         });
       }
     }

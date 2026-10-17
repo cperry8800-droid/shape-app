@@ -33,7 +33,7 @@ export async function askNora(
   history: Message[],
   fetcher: typeof fetch = fetch,
   solve: () => Promise<string> = solveTurnstile,
-): Promise<{ reply: string; links: { label: string; url: string }[] }> {
+): Promise<{ reply: string; links: { label: string; url: string }[]; account: string | null }> {
   const post = async (extra: Record<string, unknown>) => {
     const res = await fetcher('/api/support/chat', {
       method: 'POST',
@@ -47,7 +47,7 @@ export async function askNora(
         ...extra,
       }),
     });
-    const data = (await res.json().catch(() => ({}))) as { reply?: unknown; actions?: unknown; needsCheck?: unknown };
+    const data = (await res.json().catch(() => ({}))) as { reply?: unknown; actions?: unknown; needsCheck?: unknown; account?: unknown };
     return { res, data };
   };
   try {
@@ -58,24 +58,30 @@ export async function askNora(
       if (token) ({ res, data } = await post({ turnstileToken: token }));
     }
     const ok = res.ok || data.needsCheck === true;
-    if (!ok || typeof data.reply !== 'string' || !data.reply.trim()) return { reply: NORA_DOWN, links: [] };
-    return { reply: data.reply, links: noraLinks(data.actions) };
+    if (!ok || typeof data.reply !== 'string' || !data.reply.trim()) return { reply: NORA_DOWN, links: [], account: null };
+    // Who she answered as (null for a visitor): the exchange is kept as that account only.
+    return { reply: data.reply, links: noraLinks(data.actions), account: typeof data.account === 'string' && data.account ? data.account : null };
   } catch {
-    return { reply: NORA_DOWN, links: [] };
+    return { reply: NORA_DOWN, links: [], account: null };
   }
 }
 
 // The account keeps one conversation with Nora (/api/nora/thread), which the website pop-up
 // and the app continue: an answered exchange here is appended to it too. This panel kept
 // nothing, so what was asked on a dashboard or admin page was lost to both (the trace for the
-// owner, 2026-10-17). A visitor's append answers 401 and keeps nothing; a failure is silent.
-export function keepNoraExchange(question: string, reply: string, fetcher: typeof fetch = fetch): void {
+// owner, 2026-10-17). A failure is silent.
+// ⚠ AS THE ACCOUNT SHE ANSWERED (Codex on #2393). The cookie can change account in another tab
+// while she answers; the append names `account` (from the answer), and the thread route refuses
+// one that is no longer the caller, so one account's exchange never lands in another's
+// conversation. A visitor's answer names none, and nothing is kept.
+export function keepNoraExchange(question: string, reply: string, account: string | null, fetcher: typeof fetch = fetch): void {
+  if (!account) return;
   const at = new Date().toISOString();
   fetcher('/api/nora/thread', {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ append: [{ role: 'user', text: question, at }, { role: 'assistant', text: reply, at }] }),
+    body: JSON.stringify({ append: [{ role: 'user', text: question, at }, { role: 'assistant', text: reply, at }], account }),
   }).catch(() => {});
 }
 
@@ -122,10 +128,10 @@ export default function GlobalChatButton() {
     setMessages(next);
     setDraft('');
     setBusy(true);
-    const { reply, links } = await askNora(next);
+    const { reply, links, account } = await askNora(next);
     setMessages((current) => [...current, { from: 'shape', text: reply, links }]);
     // Only an answer: "can't be reached" is not part of the conversation.
-    if (reply !== NORA_DOWN) keepNoraExchange(value, reply);
+    if (reply !== NORA_DOWN) keepNoraExchange(value, reply, account);
     setBusy(false);
   }
 

@@ -1462,8 +1462,11 @@ export async function POST(request: Request) {
   const counted = countedEarly
     ? settledValue(await countedEarly)
     : await countQuestion(await clientForRequest(request).catch(() => null), { tier, uid: null, visitorId, ip: requestIp(request) });
+  // `account`: who Nora answered as (null for a visitor). A panel that saves the exchange to the
+  // account's conversation names it, so a cookie that changed account while she answered saves
+  // nothing to the other one (/api/nora/thread refuses the mismatch; Codex on #2393).
   const respond = (payload: Record<string, unknown>, init?: ResponseInit) => {
-    const res = NextResponse.json(payload, init);
+    const res = NextResponse.json({ ...payload, account: actor ? actor.user.id : null }, init);
     if (setCookie) res.headers.append('Set-Cookie', setCookie);
     return res;
   };
@@ -1555,7 +1558,7 @@ export async function POST(request: Request) {
         try {
           const ai = await ask(sink);
           if (timer) { clearTimeout(timer); timer = null; }
-          send('done', await answer(ai));
+          send('done', { ...(await answer(ai)), account: actor ? actor.user.id : null });
         } catch {
           send('done', { reply: '', source: 'error', actions: [] });
         } finally {

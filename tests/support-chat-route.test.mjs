@@ -216,7 +216,8 @@ test('⚠ A LOOKUP RUNS: the model asks for the plan, the member\'s own rows com
   assert.equal(result.training.coach, 'Maya Okafor');
   assert.equal(result.training.thisWeek[0].title, 'Upper body — push');
   assert.deepEqual(result.training.todays, ['Upper body — push'], 'a row dated today is today\'s session');
-  assert.deepEqual(out, { reply: 'Today is Upper body — push: bench press 4 × 6, from Maya.', source: 'ai', actions: [], model: 'pinned' });
+  // `account`: who she answered as, so a panel keeps the exchange as that account only (Codex on #2393).
+  assert.deepEqual(out, { reply: 'Today is Upper body — push: bench press 4 × 6, from Maya.', source: 'ai', actions: [], model: 'pinned', account: 'member-1' });
 });
 
 test('a read that fails answers ok:false to the model — never an empty plan — and a read for a non-member fails closed', async () => {
@@ -1079,7 +1080,7 @@ test('STREAM: the limit and the bot check still answer as JSON, and no model wri
   assert.match(passed.headers.get('content-type'), /^text\/event-stream/);
   assert.match(passed.headers.get('set-cookie') || '', /^shape_nora_v=/);
   const evs = await events(passed);
-  assert.deepEqual(evs[evs.length - 1], ['done', { reply: 'Hi!', source: 'ai', actions: [], model: evs[evs.length - 1][1].model }]);
+  assert.deepEqual(evs[evs.length - 1], ['done', { reply: 'Hi!', source: 'ai', actions: [], model: evs[evs.length - 1][1].model, account: null }], 'a visitor: answered as no account');
 });
 
 test('STREAM: with no model she still answers, as the done event', async () => {
