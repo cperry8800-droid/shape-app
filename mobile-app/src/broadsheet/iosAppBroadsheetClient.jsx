@@ -11060,8 +11060,15 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
   const { doc: myDoc } = useBSMyRecipes();
   const [resumeCandidate] = useStateBSC(() => bsReadBatch(window.localStorage, window.ShapeAuth?.getCachedState?.().user?.id || null));
   const [resuming, setResuming] = useStateBSC(null);
-  const [catalogOpen, setCatalogOpen] = useStateBSC(catalog);
+  // ⚠ THE WHOLE KITCHEN IS ON OFFER FROM "COOK WITH SOMETHING ELSE". Arriving with a
+  // dish (a seed) the member is choosing a partner for it, not planning a week: they were
+  // shown only the nutritionist's plan and their saved recipes, with the full catalog
+  // behind a small "Shape Kitchen" button below the fold, so it read as if the app had no
+  // other recipes. Open by default for a seeded session, and a typed search always
+  // reaches the whole catalog (`catalogOn`) so a recipe is never hidden by a closed list.
+  const [catalogOpen, setCatalogOpen] = useStateBSC(catalog || !!(seed && seed.cookable && (seed.cookable.steps || []).length));
   const [recipeQuery, setRecipeQuery] = useStateBSC('');
+  const catalogOn = catalogOpen || recipeQuery.trim().length > 0;
   const [stage, setStage] = useStateBSC('picker'); // picker | plan | mise | transition | cook | wrap
   // key -> servings (number). A seeded dish starts ticked — the member already
   // said they were cooking it by tapping its door, so making them tick it again
@@ -11177,13 +11184,13 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
         out.push({ key: 'lib-' + bsCookSlug(title), cookable: c, group: libGroup });
       });
     } catch (e) {}
-    if (catalogOpen) SHAPE_KITCHEN_RECIPES.forEach(r => {
+    if (catalogOn) SHAPE_KITCHEN_RECIPES.forEach(r => {
       if (seen.has(String(r.title).toLowerCase())) return;
       const c = bsCookableFromRecipe(r);
       if (c?.steps?.length) out.push({ key: 'catalog-' + bsCookSlug(r.title), cookable: c, group: 'Shape Kitchen' });
     });
     return out;
-  }, [program, myDoc, catalogOpen]);
+  }, [program, myDoc, catalogOn]);
 
   // The dish the member arrived with. Held to the SAME bar as every other
   // candidate — a real written method — because the whole session is built on
@@ -11607,7 +11614,13 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
   // ── Pick the dishes ──
   const q = recipeQuery.trim().toLowerCase();
   const shown = candidates.filter((x) => !q || String(x.cookable.title || '').toLowerCase().includes(q));
-  const toggleDish = (x) => setSel((m) => { const n = { ...m }; if (n[x.key] != null) delete n[x.key]; else n[x.key] = x.cookable.servings || 1; return n; });
+  // ⚠ A KITCHEN DISH TICKED FROM A SEARCH KEEPS THE KITCHEN OPEN. The search opens the catalog
+  // only while there is a query, and `selected` is read off the candidates, so clearing the box
+  // silently dropped a dish the member had just picked (Codex, #2392).
+  const toggleDish = (x) => {
+    if (String(x.key).startsWith('catalog-')) setCatalogOpen(true);
+    setSel((m) => { const n = { ...m }; if (n[x.key] != null) delete n[x.key]; else n[x.key] = x.cookable.servings || 1; return n; });
+  };
   const pickRow = (x) => {
     const on = sel[x.key] != null;
     const c = x.cookable;
@@ -11673,7 +11686,7 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
   );
   const pickExtras = (<>
     {candidates.length === 0 ? <p className="note">{tr('cook:prep.none', { defaultValue: 'Nothing prep-able yet — meals with a written method (or saved recipes) show up here.' })}</p> : null}
-    {!catalogOpen ? <button type="button" className="btn-q" onClick={() => setCatalogOpen(true)} style={{ alignSelf: 'flex-start' }}>{bsCkIco('plus', true)}{tr('cook:prep.catalog', { defaultValue: 'Shape Kitchen' })}</button> : null}
+    {!catalogOn ? <button type="button" className="btn-q" onClick={() => setCatalogOpen(true)} style={{ alignSelf: 'flex-start' }}>{bsCkIco('plus', true)}{tr('cook:prep.catalog', { defaultValue: 'Shape Kitchen' })}</button> : null}
   </>);
   // One dish ticked with others to choose from: say what a second one buys. The disabled
   // button and the empty lane say what to do; this says why.
