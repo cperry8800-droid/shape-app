@@ -24,7 +24,7 @@ export function countOf(v: unknown, one: string, many?: string): string;
 export function formatMoney(cents: unknown): string;
 export function shapeMrrCents(stats: AdminOverviewStats | null | undefined): number;
 export type CelebrationCounts = { birthdays: { week: number; today: number }; anniversaries: { week: number; today: number } };
-export function overviewSections(stats: AdminOverviewStats | null | undefined, extras?: { celebrations?: CelebrationCounts | null }): OverviewSection[];
+export function overviewSections(stats: AdminOverviewStats | null | undefined, extras?: { celebrations?: CelebrationCounts | null; accountRequests?: number | null }): OverviewSection[];
 export function niceMax(max: number): number;
 export function dailyColumns(
   daily: DailyRow[] | null | undefined,

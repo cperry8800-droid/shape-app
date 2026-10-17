@@ -85,6 +85,9 @@ export function daysSince(iso, now) {
 export function overviewSections(stats, extras = {}) {
   const s = stats || {};
   const cel = extras.celebrations || null;
+  // Account requests are counted outside admin_overview_stats (src/lib/admin-waiting.ts, as the
+  // sidebar counts them): a count that was not read leaves the row out.
+  const accountRequests = typeof extras.accountRequests === 'number' ? extras.accountRequests : null;
   const a = s.accounts || {};
   const r = s.roles || {};
   const l = s.listings || {};
@@ -219,6 +222,7 @@ export function overviewSections(stats, extras = {}) {
       note: '',
       tiles: [
         queueTile('Help requests open', q.help_open, 'sent from Nora’s chat', '/dashboard/support'),
+        ...(accountRequests === null ? [] : [queueTile('Account requests open', accountRequests, 'asked for in Settings, done by hand', '/admin/requests')]),
         queueTile('Refunds pending', q.refunds_pending, 'waiting for a decision', '/dashboard/refunds'),
         queueTile('Credentials to review', q.credentials_pending, 'coaches waiting to go live', '/dashboard/credentials'),
         queueTile('Applications to review', ap.open, `${countOf(ap.open_trainer, 'trainer')} · ${countOf(ap.open_nutritionist, 'nutritionist')}`, '/dashboard/applications'),

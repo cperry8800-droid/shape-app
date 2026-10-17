@@ -17,19 +17,22 @@ export const WAITING: ReadonlyArray<{ href: string; table: string; column: strin
   { href: '/dashboard/refunds', table: 'refund_requests', column: 'status', values: ['pending'] },
 ];
 
+/** One queue's count, or null when it cannot be read (the Overview reads account requests here). */
+export async function waitingCount(href: string, db = createAdminClient()): Promise<number | null> {
+  const w = WAITING.find((x) => x.href === href);
+  if (!w) return null;
+  try {
+    const { count, error } = await db.from(w.table).select('*', { count: 'exact', head: true }).in(w.column, w.values);
+    return error || typeof count !== 'number' ? null : count;
+  } catch {
+    return null;
+  }
+}
+
 export async function waitingCounts(level: StaffLevel): Promise<Record<string, number>> {
   const queues = WAITING.filter((w) => canOpen(level, w.href));
   if (!queues.length) return {};
   const db = createAdminClient();
-  const counted = await Promise.all(
-    queues.map(async (w): Promise<[string, number] | null> => {
-      try {
-        const { count, error } = await db.from(w.table).select('*', { count: 'exact', head: true }).in(w.column, w.values);
-        return error || typeof count !== 'number' ? null : [w.href, count];
-      } catch {
-        return null;
-      }
-    })
-  );
-  return Object.fromEntries(counted.filter((c): c is [string, number] => c !== null));
+  const counted = await Promise.all(queues.map(async (w) => [w.href, await waitingCount(w.href, db)] as const));
+  return Object.fromEntries(counted.filter((c): c is readonly [string, number] => c[1] !== null));
 }

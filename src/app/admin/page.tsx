@@ -14,6 +14,7 @@ import { redirect } from 'next/navigation';
 import { requireStaff } from '@/lib/admin-access';
 import { canOpen, type StaffLevel } from '@/lib/staff-levels.mjs';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { waitingCount } from '@/lib/admin-waiting';
 import { buildFunnel } from '@/lib/funnel.mjs';
 import type { FunnelRow } from '@/lib/funnel';
 import {
@@ -93,15 +94,17 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
   const view = overviewView((await searchParams)?.view);
   const growth = view.key === 'growth';
 
-  // The funnel and this week's birthdays are Growth's alone.
-  const [{ stats, missing, failed }, funnel, celebrations] = await Promise.all([
+  // The funnel and this week's birthdays are Growth's alone; the open account requests, the
+  // summary's (the same count as the sidebar's badge).
+  const [{ stats, missing, failed }, funnel, celebrations, accountRequests] = await Promise.all([
     loadStats(),
     growth ? loadFunnel() : Promise.resolve(null),
     growth ? loadCelebrations() : Promise.resolve(null),
+    view.key === 'summary' ? waitingCount('/admin/requests') : Promise.resolve(null),
   ]);
   // A tile links only to a page this level opens ('/admin/members#birthdays' is the Members page).
   const openable = (t: OverviewTile) => (t.href && !canOpen(level, t.href.split(/[?#]/)[0]) ? { ...t, href: '' } : t);
-  const sections = (stats ? overviewSections(stats, { celebrations }) : []).map((s) => ({ ...s, tiles: s.tiles.map(openable) }));
+  const sections = (stats ? overviewSections(stats, { celebrations, accountRequests }) : []).map((s) => ({ ...s, tiles: s.tiles.map(openable) }));
   const section = (key: string) => sections.find((s) => s.key === key);
   const daily = (stats?.daily ?? []) as DailyRow[];
 
