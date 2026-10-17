@@ -341,3 +341,18 @@ test('renewals are read only when the page asks: the Goal page\'s figures cost n
   const page = readFileSync(join(ROOT, 'public/newdesign/dashBusiness.jsx'), 'utf8')
   assert.match(page, /fetch\(cfg\.api \+ "\?renewals=1"/, 'the Business page asks for them')
 })
+
+// ── Business review 2026-10-17: the nutritionist route keeps the trainer route's rules ──
+test('nutritionist: one client is one client, a failed read is said, not zero', async () => {
+  const nutri = { nutritionists: [{ id: 9, stripe_account_id: null, stripe_account_status: null }] }
+  const two = [{ ...sub(A, 10000), id: 'n1', provider_role: 'nutritionist' }, { ...sub(A, 5000), id: 'n2', provider_role: 'nutritionist' }, { ...sub(B, 10000), id: 'n3', provider_role: 'nutritionist' }]
+  const { body } = await loadRoute('nutritionist', { ...nutri, subscriptions: two })
+  assert.equal(body.metrics.activeClients, 2, 'two clients, though one holds two rows')
+  assert.equal(body.metrics.mrrGrossCents, 25000, 'every row still counts toward revenue')
+  const failed = await loadRoute('nutritionist', { ...nutri, subscriptions: two }, { errors: { subscriptions: 'timeout' } })
+  assert.equal(failed.body.byOrigin, null, 'the origin feed is built from the same rows')
+  assert.equal(failed.body.clientProgress.rosterUnknown, true)
+  assert.equal(failed.body.churn, null, 'the churn read failed too: unread, not "no cancellations"')
+  const rowFails = await loadRoute('nutritionist', nutri, { errors: { nutritionists: 'timeout' } })
+  assert.deepEqual(rowFails.body, { error: 'Could not read your listing.' }, 'not "this account is not a nutritionist"')
+})

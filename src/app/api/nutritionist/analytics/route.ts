@@ -29,12 +29,17 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   }
 
-  const { data: nutriRow } = await supabase
+  const { data: nutriRow, error: nutriErr } = await supabase
     .from('nutritionists')
     .select('id, stripe_account_id, stripe_account_status')
     .eq('owner_id', user.id)
     .maybeSingle();
 
+  // A failed read is not "this account is not a nutritionist" (the trainer route's rule).
+  if (nutriErr) {
+    console.warn('[shape-app] nutritionist analytics: nutritionist row read failed:', nutriErr.message);
+    return NextResponse.json({ error: 'Could not read your listing.' }, { status: 500 });
+  }
   if (!nutriRow) {
     return NextResponse.json({ isNutritionist: false });
   }
@@ -61,7 +66,10 @@ export async function GET(request: Request) {
   }
   const subsUnknown = !!subErr;
   const subs = subRows ?? [];
-  const activeClients = subsUnknown ? null : subs.length;
+  // One client is one client, however many active rows they hold with this nutritionist (the
+  // trainer route's rule): the revenue sums below keep every row, the counts and the roster do not.
+  const clientIds = [...new Set(subs.map((r: { client_id: string }) => r.client_id).filter(Boolean))] as string[];
+  const activeClients = subsUnknown ? null : clientIds.length;
   const grossCents = subs.reduce(
     (sum: number, r: { price_cents: number | null }) => sum + (r.price_cents ?? 0),
     0
@@ -73,7 +81,6 @@ export async function GET(request: Request) {
       sum + coachCutCents(r.price_cents ?? 0, bpsToRate(r.fee_bps ?? 1500)),
     0
   );
-  const clientIds = subs.map((r: { client_id: string }) => r.client_id).filter(Boolean);
 
   // BYO origin labels (rails #1794, Business page): filled by the roster
   // block's ONE profiles lookup; byOrigin is built after it (below).
@@ -81,7 +88,8 @@ export async function GET(request: Request) {
 
   // Churn (Business page): canceled subscriptions, newest first. No
   // cancellation survey yet → exit reasons are always null and the UI says so.
-  const { data: churnRows } = await supabase
+  // ⚠ THE ERROR IS KEPT: an empty list says "no cancellations", which a failed read has not said.
+  const { data: churnRows, error: churnErr } = await supabase
     .from('subscriptions')
     .select('client_id, price_cents, created_at, current_period_end')
     .eq('provider_role', 'nutritionist')
@@ -108,7 +116,8 @@ export async function GET(request: Request) {
       churnNames.set(String(r.user_id), String(r.full_name ?? '').trim());
     }
   }
-  const churn = (churnRows ?? []).map((r) => ({
+  if (churnErr) console.warn('[shape-app] nutritionist analytics: churn read failed — churn renders as unread:', churnErr.message);
+  const churn = churnErr ? null : (churnRows ?? []).map((r) => ({
     name: churnNames.get(String(r.client_id)) || 'Former client',
     startedAt: r.created_at ?? null,
     endedAt: r.current_period_end ?? null,
@@ -296,7 +305,8 @@ export async function GET(request: Request) {
     isNutritionist: true,
     providerId,
     churn,
-    byOrigin,
+    // Built from the active subscriptions: when they could not be read, neither can this.
+    byOrigin: subsUnknown ? null : byOrigin,
     trajectory,
     ...(wantRenewals ? { renewals } : {}),
     metrics: {
@@ -309,6 +319,8 @@ export async function GET(request: Request) {
     },
     clientProgress: {
       activeClients,
+      // The roster itself could not be read: an empty list below is not "no history".
+      rosterUnknown: subsUnknown,
       proteinAdherencePct,
       avgLogsPerClient,
       totalDaysLogged,

@@ -243,15 +243,20 @@ function DbzChurnZone({ live, churn }) {
     return <div style={{ fontSize: 12.5, color: DBZ_INK50, lineHeight: 1.55 }}>Couldn't read your cancellations just now. Nothing is lost; reload to try again.</div>;
   }
   const rows = live ? (Array.isArray(churn) ? churn : []) : DBZ_DEMO_CHURN;
-  const lostCents = rows.reduce((s, r) => s + (r.priceCents || 0), 0);
   if (live && !rows.length) {
     return <div style={{ fontSize: 12.5, color: DBZ_INK50, lineHeight: 1.55 }}>No cancellations on record — churn rows appear here the day one lands, with the MRR it took.</div>;
   }
+  // ⚠ THE TOTAL HAS A WINDOW (Business review, 2026-10-17). It summed the last 12 cancellations
+  // whenever they happened, so a "−$X MRR" could add a departure from last week to one from two
+  // years ago. It now counts the last 90 days, and says so; the rows below still list the recent ones.
+  const since = Date.now() - 90 * 86400000;
+  const recent = rows.filter((r) => r.endedAt && new Date(r.endedAt).getTime() >= since);
+  const lostCents = recent.reduce((s, r) => s + (r.priceCents || 0), 0);
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
-        <span style={{ fontFamily: DBZ_MONO, fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: DBZ_INK50 }}>{rows.length} departed · recent</span>
-        {lostCents > 0 && <span style={{ fontFamily: DBZ_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: DBZ_RED }}>−{dashMoney(lostCents)} MRR</span>}
+        <span style={{ fontFamily: DBZ_MONO, fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: DBZ_INK50 }}>{recent.length ? recent.length + " left in the last 90 days" : "None left in the last 90 days"}</span>
+        {lostCents > 0 && <span style={{ fontFamily: DBZ_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: DBZ_RED }}>−{dashMoney(lostCents)} a month</span>}
       </div>
       {rows.map((r, i) => {
         const tenure = r.startedAt && r.endedAt ? dbzMonthsBetween(r.startedAt, r.endedAt) : null;
@@ -840,6 +845,20 @@ function dbzDemoPace(CF, traj, now) {
 }
 const dbzPaceWhen = (pace) => (pace.fromFirst ? "since your first client" : "over the last 3 months");
 
+// Today's clients and net, from the same series the Overview draws (the trajectory's latest
+// week), so every tab says the same number.
+// ⚠ THE ROUTE'S OWN `metrics` LEAVE OUT A CLIENT WHOSE PAYMENT IS RETRYING (past_due), while the
+// trajectory counts them, as membership does: they still have access and have not left. Read from
+// `metrics`, the Plan said "12 clients" on the page whose Overview said 13 (Business review,
+// 2026-10-17). `metrics` stands in only when the trajectory could not be read.
+function dbzToday(extra) {
+  const weeks = extra && extra.trajectory && Array.isArray(extra.trajectory.weeks) ? extra.trajectory.weeks : null;
+  const last = weeks && weeks.length ? weeks[weeks.length - 1] : null;
+  if (last) return { clients: last.active, mrrNetCents: last.mrrNetCents, mrrGrossCents: last.mrrGrossCents };
+  const m = (extra && extra.metrics) || {};
+  return m.activeClients == null || m.mrrNetCents == null ? null : { clients: m.activeClients, mrrNetCents: m.mrrNetCents, mrrGrossCents: m.mrrGrossCents };
+}
+
 // Where the Plan tab starts: today's clients and net, the rate a new client pays, the share
 // the coach brings, and the pace. { state: "loading" | "unread" | "ready", ... }
 function dbzPlanBase({ live, extra, listing, listingRead, now = Date.now() }) {
@@ -858,14 +877,14 @@ function dbzPlanBase({ live, extra, listing, listingRead, now = Date.now() }) {
     };
   }
   if (!extra || !listingRead) return { state: "loading" };
-  const m = extra.metrics || {};
-  if (m.activeClients == null || m.mrrNetCents == null) return { state: "unread" };
+  const m = dbzToday(extra);
+  if (!m) return { state: "unread" };
   const subs = Array.isArray(extra.byOrigin) ? extra.byOrigin.filter((r) => r.kind === "subscription") : [];
   const brought = subs.filter((r) => r.feeBps === 0).length;
   const listed = listing && listing.monthly != null && Number(listing.monthly) > 0 ? Math.round(Number(listing.monthly) * 100) : null;
-  const avg = m.activeClients > 0 && m.mrrGrossCents > 0 ? Math.round(m.mrrGrossCents / m.activeClients / 500) * 500 : null;
+  const avg = m.clients > 0 && m.mrrGrossCents > 0 ? Math.round(m.mrrGrossCents / m.clients / 500) * 500 : null;
   return {
-    state: "ready", clients: m.activeClients, mrrNetCents: m.mrrNetCents, mrrGrossCents: m.mrrGrossCents,
+    state: "ready", clients: m.clients, mrrNetCents: m.mrrNetCents, mrrGrossCents: m.mrrGrossCents,
     rateCents: listed != null ? listed : avg != null ? avg : DBZ_DEFAULT_RATE_CENTS,
     rateFrom: listed != null ? "your listing price" : avg != null ? "your clients' average" : "no listing price yet · set your own",
     byoShare: subs.length ? brought / subs.length : 0,
@@ -918,6 +937,41 @@ function DbzEarnZone({ base }) {
           <div style={{ ...DBZ_NOTE, marginTop: 3 }}>{dashMoney(e.grossCents)} billed · {dashMoney(e.feeCents)} Shape fee</div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// The Goal tab's calculator is this one (Business review, 2026-10-17). It was a weekly
+// session-rate model that took 15% off everything, including clients a coach brings, and
+// multiplied weeks by 4.33. The Goal tab keeps a calculator where coaches look for one, now
+// "What clients earn you" started from their live figures (dashData.jsx useCoachLiveFigures),
+// with the planner one tap away on Business → Plan.
+function dbzGoalEarnBase(live) {
+  if (!live || live.kind === "loading") return { state: "loading" };
+  if (live.kind === "demo") return dbzPlanBase({ live: false });
+  if (live.kind !== "live") return { state: "unread" };
+  const now = dbzToday({ trajectory: live.trajectory, metrics: { activeClients: live.activeClients, mrrNetCents: live.mrrNetCents, mrrGrossCents: live.mrrGrossCents } });
+  if (!now) return { state: "unread" };
+  const avg = now.clients > 0 && now.mrrGrossCents > 0 ? Math.round(now.mrrGrossCents / now.clients / 500) * 500 : null;
+  return {
+    state: "ready", clients: now.clients, mrrNetCents: now.mrrNetCents, mrrGrossCents: now.mrrGrossCents,
+    rateCents: avg != null ? avg : DBZ_DEFAULT_RATE_CENTS,
+    rateFrom: avg != null ? "your clients' average" : "no clients yet · set your rate",
+    byoShare: live.byoShare != null ? live.byoShare : 0,
+    byoNote: live.byoNote || "0% Shape fee on these",
+  };
+}
+function DbzGoalEarn({ role, live }) {
+  const base = dbzGoalEarnBase(live);
+  const href = typeof dashLinkedTab === "function" ? dashLinkedTab("business", role, { section: "plan" }) : (role === "nutritionist" ? "NutritionistApp.html" : "TrainerApp.html") + "#business?section=plan";
+  return (
+    <div>
+      {base.state === "ready"
+        ? <DbzEarnZone base={base} />
+        : <div style={DBZ_NOTE}>{base.state === "loading" ? "Your numbers load with your live figures…" : "Couldn't read your subscriptions just now. Nothing is lost; reload to try again."}</div>}
+      <a href={href} style={{ display: "inline-block", marginTop: 14, fontFamily: DBZ_MONO, fontSize: 10, letterSpacing: "0.06em", color: DBZ_TEAL, textDecoration: "none" }}>
+        Plan the next 12 months on Business →
+      </a>
     </div>
   );
 }
@@ -1298,7 +1352,6 @@ function CoachBusinessPage({ role }) {
     return () => { on = false; };
   }, [role, isLive]);
   const stripe = extra && extra.stripe ? extra.stripe : null;
-  const mrr = extra && extra.metrics ? extra.metrics : null;
   // Outcomes: the live rollup verbatim (the route always returns the full
   // shape), the demo set ONLY under the band — a live viewer with a failed
   // analytics fetch gets an honest loading state, never demo numbers.
@@ -1319,6 +1372,12 @@ function CoachBusinessPage({ role }) {
   // reads. The two-up rows collapse to one column below 1000px (`.dash-cols`).
   const prefs = useRememberedChoices(source === "live");
   const [section, setSection] = useRememberedChoice(prefs, "businessSection:" + role, DBZ_SECTION_KEYS, "overview");
+  // A link that names a section opens on it (the Goal tab's "Plan the next 12 months" sends
+  // #business?section=plan). It counts as the coach's choice, as a tap on that tab would.
+  React.useEffect(() => {
+    const asked = typeof dashRouteParam === "function" ? dashRouteParam("section") : null;
+    if (asked && DBZ_SECTION_KEYS.includes(asked)) setSection(asked);
+  }, []);
   const plate = (accent, children, extraStyle) => (
     <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": accent, paddingLeft: 24, ...(extraStyle || {}) }}>{children}</div>
   );
@@ -1370,7 +1429,7 @@ function CoachBusinessPage({ role }) {
 
   // ── Money (design E): your money and this week's renewals side by side, the last 13 weeks under.
   const demoLast = !isLive ? dbzDemoTrajectory().weeks.slice(-1)[0] : null;
-  const moneyMetrics = isLive ? mrr : { mrrNetCents: demoLast.mrrNetCents, mrrGrossCents: demoLast.mrrGrossCents };
+  const moneyMetrics = isLive ? (extra ? dbzToday(extra) : null) : { mrrNetCents: demoLast.mrrNetCents, mrrGrossCents: demoLast.mrrGrossCents };
   const stripeLink = (!isLive || (stripe && stripe.connected))
     ? <a href={isLive ? DBZ_STRIPE_DASHBOARD : undefined} target="_blank" rel="noopener noreferrer" style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_TEAL, textDecoration: "none", opacity: isLive ? 1 : 0.6 }}>Open your Stripe ↗</a>
     : null;
@@ -1472,4 +1531,4 @@ function CoachBusinessPage({ role }) {
   );
 }
 
-Object.assign(window, { CoachBusinessPage, DbzListingNotice, DbzPayoutsZone, DbzChurnZone, DbzOutcomesZone, DbzBringClientsZone, DbzOriginZone });
+Object.assign(window, { CoachBusinessPage, DbzGoalEarn, DbzListingNotice, DbzPayoutsZone, DbzChurnZone, DbzOutcomesZone, DbzBringClientsZone, DbzOriginZone });

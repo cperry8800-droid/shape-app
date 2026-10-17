@@ -163,20 +163,14 @@ test('the Goal pages consume the shared helpers rather than each keeping a copy'
   }
 });
 
-test('no coloured delta is drawn against a subscriptions-only pace', () => {
-  // The target includes session and one-time income; the live figure is
-  // subscription revenue only. Subtracting them showed a surplus that isn't one.
+test('both Goal pages use Business\'s "What clients earn you", not a weekly session-rate model', () => {
+  // ⚠ 2026-10-17 (Business review): the Goal tab's calculator took 15% off everything, including
+  // clients a coach brings, and multiplied a week by 4.33. Its two guards here (no delta against a
+  // subscriptions-only pace; -$n not $-n) went with it: the calculator is now the shared one in
+  // dashBusiness.jsx, started from the coach's live figures and tested in business-plan-page.test.mjs.
   for (const [name, src] of [['trainer', GOAL], ['nutritionist', NUTRI_GOAL]]) {
-    assert.match(src, /paceIsLive \? null : paceDelta/, name + ' must suppress the delta when the pace is live');
-  }
-});
-
-test('both Goal pages format a negative as -$n, not $-n', () => {
-  for (const [name, src] of [['trainer', GOAL], ['nutritionist', NUTRI_GOAL]]) {
-    const { fmt } = new Function(/const fmt = [^;]+;/.exec(src)[0] + '\nreturn { fmt };')();
-    assert.equal(fmt(-6007), '-$6,007', name);
-    assert.equal(fmt(6007), '$6,007', name);
-    assert.equal(fmt(0), '$0', name);
+    assert.match(src, new RegExp('<DbzGoalEarn role="' + name + '" live=\\{live\\} />'), name);
+    assert.doesNotMatch(src, /4\.33|PLATFORM_FEE_RATE|CalcEditModal|paceDelta|grossWeekly/, name + ' keeps none of the old model');
   }
 });
 

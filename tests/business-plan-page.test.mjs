@@ -28,7 +28,7 @@ const money = globalThis.dashMoney;
 
 const { loadRealModule } = await import('./helpers/load-real-module.mjs');
 const B = await loadRealModule(ND('dashBusiness.jsx'), {
-  appendExports: 'export { dbzPlanBase, DbzPlanZone, DbzEarnZone, DbzPayoutsZone, DbzRenewalsZone, dbzRenewalsHead, DbzWaitlistZone, DbzLifetimeZone, DBZ_DEMO_CHURN };',
+  appendExports: 'export { DbzChurnZone, DbzGoalEarn, dbzGoalEarnBase, dbzPlanBase, DbzPlanZone, DbzEarnZone, DbzPayoutsZone, DbzRenewalsZone, dbzRenewalsHead, DbzWaitlistZone, DbzLifetimeZone, DBZ_DEMO_CHURN };',
 });
 
 async function mount(el) {
@@ -61,6 +61,17 @@ test('dbzPlanBase waits for the analytics AND the listing, and says when the pra
   const ok = B.dbzPlanBase({ live: true, extra, listing: null, listingRead: true });
   assert.equal(ok.state, 'ready');
   assert.deepEqual([ok.pace.adds, ok.pace.churn], [null, null], 'an unread trajectory is no pace, not a pace of zero');
+});
+
+test('today\'s clients and net come from the Overview\'s series, so a client whose payment is retrying counts on every tab', () => {
+  // The route's metrics count active and trialing rows (12); the trajectory also counts past_due (13).
+  const weeks = [{ weekOf: '2026-10-05', active: 12, mrrNetCents: 180000, mrrGrossCents: 210000 }, { weekOf: '2026-10-12', active: 13, mrrNetCents: 195300, mrrGrossCents: 228000 }];
+  const extra = { metrics: { activeClients: 12, mrrNetCents: 179550, mrrGrossCents: 210000 }, byOrigin: [], trajectory: { weeks, firstSubAt: null } };
+  const b = B.dbzPlanBase({ live: true, extra, listing: null, listingRead: true });
+  assert.deepEqual([b.clients, b.mrrNetCents, b.mrrGrossCents], [13, 195300, 228000]);
+  // With the trajectory unread, the metrics stand in.
+  const m = B.dbzPlanBase({ live: true, extra: { ...extra, trajectory: null }, listing: null, listingRead: true });
+  assert.deepEqual([m.clients, m.mrrNetCents], [12, 179550]);
 });
 
 test('dbzPlanBase: the rate is the listing price, else the clients\' average, else a stated default', () => {
@@ -277,4 +288,44 @@ test('what a client is worth: the average stay at your churn, and the net over i
   const none = await mount(React.createElement(B.DbzLifetimeZone, { base: { ...BASE, pace: { ...PACE, churn: 0 } } }));
   assert.equal(none.text(), "No one has left over the last 3 months, so there isn't an average stay to measure yet.");
   await none.unmount();
+});
+
+test('the churn total counts the last 90 days and says so, not every cancellation listed', async () => {
+  const day = 86400000;
+  const rows = [
+    { name: 'Recent', startedAt: new Date(Date.now() - 200 * day).toISOString(), endedAt: new Date(Date.now() - 10 * day).toISOString(), priceCents: 18000, reason: null },
+    { name: 'Long gone', startedAt: new Date(Date.now() - 900 * day).toISOString(), endedAt: new Date(Date.now() - 400 * day).toISOString(), priceCents: 22000, reason: null },
+  ];
+  const m = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: rows }));
+  assert.match(m.text(), /^1 left in the last 90 days−\$180 a month/);
+  assert.match(m.text(), /Long gone/, 'the older departure is still listed');
+  await m.unmount();
+  const old = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: rows.slice(1) }));
+  assert.match(old.text(), /^None left in the last 90 days/);
+  assert.doesNotMatch(old.text(), /a month/, 'no total for a window with no departures');
+  await old.unmount();
+});
+
+// ── The Goal tab's calculator (Business review, 2026-10-17) ──────────────────
+test('the Goal tab starts "What clients earn you" from the coach\'s live figures, or says why it cannot', () => {
+  assert.equal(B.dbzGoalEarnBase({ kind: 'loading' }).state, 'loading');
+  assert.equal(B.dbzGoalEarnBase({ kind: 'unknown' }).state, 'unread');
+  assert.equal(B.dbzGoalEarnBase({ kind: 'demo' }).state, 'ready', 'the preview starts from the preview practice');
+  const weeks = [{ weekOf: '2026-10-12', active: 13, mrrNetCents: 195300, mrrGrossCents: 228000 }];
+  const b = B.dbzGoalEarnBase({ kind: 'live', activeClients: 12, mrrNetCents: 179550, mrrGrossCents: 210000, trajectory: { weeks }, byoShare: 0.25, byoNote: '0% fee · 3 of your 12' });
+  assert.deepEqual([b.state, b.clients, b.rateCents, b.rateFrom, b.byoShare, b.byoNote], ['ready', 13, 17500, "your clients' average", 0.25, '0% fee · 3 of your 12']);
+  const none = B.dbzGoalEarnBase({ kind: 'live', activeClients: 0, mrrNetCents: 0, mrrGrossCents: 0, trajectory: null, byoShare: null });
+  assert.deepEqual([none.rateCents, none.byoShare], [15000, 0]);
+  assert.match(none.rateFrom, /set your rate/);
+});
+
+test('the Goal tab\'s calculator links to the planner on Business, opened on Plan', async () => {
+  const m = await mount(React.createElement(B.DbzGoalEarn, { role: 'nutritionist', live: { kind: 'demo' } }));
+  const a = m.div.querySelector('a');
+  assert.equal(a.textContent, 'Plan the next 12 months on Business →');
+  assert.equal(a.getAttribute('href'), 'NutritionistApp.html#business?section=plan');
+  assert.ok(m.div.querySelectorAll('input[type=number]').length === 3, 'the same three fields as on Business');
+  await m.unmount();
+  const src = readFileSync(ND('dashBusiness.jsx'), 'utf8');
+  assert.match(src, /const asked = typeof dashRouteParam === "function" \? dashRouteParam\("section"\) : null;\n\s+if \(asked && DBZ_SECTION_KEYS\.includes\(asked\)\) setSection\(asked\);/, 'Business opens the section a link names');
 });

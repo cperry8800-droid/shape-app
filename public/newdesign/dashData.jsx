@@ -641,9 +641,15 @@ function useCoachLiveFigures(role) {
         kind: "live",
         activeClients: m.activeClients != null ? m.activeClients : null,
         mrrNetCents: net != null ? net : null,
-        // 4.33 weeks/month — the same divisor the Goal page's own calculator
-        // uses, so the pace it compares against is on its scale.
-        weeklyNetCents: net != null ? Math.round(net / 4.33) : null,
+        mrrGrossCents: m.mrrGrossCents != null ? m.mrrGrossCents : null,
+        // The share of clients the coach brought (0% fee), from each subscription's STORED fee:
+        // the Goal tab's "What clients earn you" starts from it (dashBusiness.jsx DbzGoalEarn).
+        ...(() => {
+          const subs = Array.isArray(a.byOrigin) ? a.byOrigin.filter((r) => r.kind === "subscription") : null;
+          if (!subs || !subs.length) return { byoShare: null, byoNote: null };
+          const brought = subs.filter((r) => r.feeBps === 0).length;
+          return { byoShare: brought / subs.length, byoNote: "0% fee · " + brought + " of your " + subs.length };
+        })(),
         // ⚠ THE TWO ROLES MEASURE DIFFERENT THINGS AND NAME THEM DIFFERENTLY.
         // The trainer route returns `avgAdherencePct` (sessions completed vs
         // planned); the nutritionist route returns `proteinAdherencePct` and has
