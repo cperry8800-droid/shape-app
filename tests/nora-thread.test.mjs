@@ -186,14 +186,17 @@ test('the migration: one row per account, RLS to its own row for every verb', ()
 // ── The surfaces ─────────────────────────────────────────────────────────────────
 test('website: loads after sign-in, appends each answered exchange, clears on every device', () => {
   const W = read('public/newdesign/chatWidget.jsx');
-  assert.match(W, /if \(probe === "in" && !cancelled\) cwLoadNoraThread\(\(\) => cancelled, hydratedThreads\);/, 'measured against the hydrated copy, which this render has not drawn yet');
+  assert.match(W, /if \(probe === "in" && !cancelled\) cwLoadNoraThread\(\(\) => cancelled\);/);
+  // Measured against the hydrated copy, which this render has not drawn yet, and kept for a
+  // retry: what was said after it is held (Codex, #2391; run in nora-thread-load-retry).
+  assert.match(W, /if \(hydratedThreads \|\| !noraFromRef\.current\) noraFromRef\.current = \{ base: cwNoraLocal\(hydratedThreads\)\.length, gen: noraThreadGenRef\.current \};/);
   assert.match(W, /if \(reply\) cwNoraSave\(\[\{ role: "user", text, at: sentAt \}, \{ role: "assistant", text: reply, at: new Date\(\)\.toISOString\(\) \}\]\);/, 'the scripted fallback is never kept');
   assert.match(W, /body: JSON\.stringify\(\{ append: messages \}\)/);
-  const load = between(W, 'const cwLoadNoraThread = (isCancelled, hydrated) => {', 'const clearNoraThread');
+  const load = between(W, 'const cwLoadNoraThread = (isCancelled) => {', 'const clearNoraThread');
   assert.match(load, /if \(!stored\.length\) \{/, 'a browser\'s own copy is sent up only when the account has none');
   // ⚠ A QUESTION ASKED WHILE IT LOADS (Codex, #2255): kept after the stored thread, and an
   // answer that landed before the store did is held, then sent once the load has placed it.
-  assert.match(load, /const base = cwNoraLocal\(hydrated\)\.length;/);
+  assert.match(load, /const \{ base, gen \} = noraFromRef\.current \|\| /);
   assert.match(load, /const since = msgs\.slice\(Math\.max\(base, head \? 1 : 0\)\);\n\s+const kept = \[\.\.\.stored\.map\(cwNoraMsg\), \.\.\.since\];/);
   assert.match(load, /const msgs = cwNoraLocal\(\)\.slice\(0, base\);/, 'only the browser\'s own copy migrates; what was said while loading saves itself');
   assert.match(load, /cwNoraPost\(cwNoraHeld\(\)\);/);

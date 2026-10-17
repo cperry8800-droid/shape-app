@@ -533,16 +533,24 @@ function ChatWidget(props) {
   const readNoraEnabled = () => { try { return localStorage.getItem("shape.nora.voice") === "on"; } catch (e) { return false; } };
   const [noraVoice, setNoraVoiceState] = React.useState({ enabled: readNoraEnabled(), tone: "supportive", voice: "auto" });
   const noraAudioRef = React.useRef(null);
+  // ⚠ READ ONCE /api/me HAS ANSWERED, WITH THE CLIENT LOADED AND THE COOKIE SESSION BRIDGED.
+  // Read at mount, it found no `window.shapeDb` on most pages (the history read below says
+  // why) and an anonymous client on the rest, so she read in "auto" and the voice chosen in
+  // the app's Settings never applied here, with no picker left to choose it (Codex, #2391).
   React.useEffect(() => {
+    if (authProbe === "pending" || authProbe === "out") return undefined;
     let cancelled = false;
     (async () => {
       try {
-        const doc = window.shapeDb && window.shapeDb.getUserGoals ? await window.shapeDb.getUserGoals("nora_voice") : null;
+        const sdb = (window.shapeEnsureDb ? await window.shapeEnsureDb() : null) || window.shapeDb;
+        if (cancelled || !sdb || !sdb.getUserGoals) return;
+        if (sdb.getSession) await sdb.getSession();
+        const doc = await sdb.getUserGoals("nora_voice");
         if (!cancelled && doc && typeof doc === "object") setNoraVoiceState(s => ({ ...s, tone: doc.tone === "direct" ? "direct" : "supportive", voice: normNoraVoice(doc.voice) }));
       } catch (e) { /* default supportive/auto */ }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [authProbe]);
   const saveNoraAccount = (tone, voice) => { try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals("nora_voice", { tone, voice: normNoraVoice(voice) }); } catch (e) {} };
   // ⚠ ONE PLAYER, UNLOCKED BY THE TAP. A new Audio() per reply, played after the network
   // wait, was blocked on Safari and on a phone every time: Listen did nothing (owner,
@@ -718,15 +726,23 @@ function ChatWidget(props) {
   };
   // One load at a time, and none once the store has answered.
   const noraLoadingRef = React.useRef(false);
-  // `hydrated`: the threads the hydrate just set, which this render has not drawn yet.
-  const cwLoadNoraThread = (isCancelled, hydrated) => {
+  // ⚠ WHERE THE ACCOUNT'S THREAD JOINS THIS BROWSER'S: { base, gen }, the hydrated copy's
+  // length and the Clear count, set by the hydrate. Everything said after it is held
+  // (cwNoraSave), so every attempt starts from that point. A retry that measured the thread
+  // as drawn posted held exchanges twice into an empty account, or dropped them from view
+  // beside a stored one (Codex, #2391). A Clear since then clears the account once it answers.
+  const noraFromRef = React.useRef(null);
+  // Loads that failed while the panel was open, since it opened (the retry below).
+  const [noraMissed, setNoraMissed] = React.useState(0);
+  const openRef = React.useRef(open);
+  openRef.current = open;
+  const cwLoadNoraThread = (isCancelled) => {
     if (noraLoadingRef.current || noraThreadSyncRef.current) return;
     noraLoadingRef.current = true;
-    // This browser's own copy, as hydrated; anything past it is said while loading.
-    const base = cwNoraLocal(hydrated).length;
-    const gen = noraThreadGenRef.current;
+    const { base, gen } = noraFromRef.current || { base: cwNoraLocal().length, gen: noraThreadGenRef.current };
+    let signedOut = false; // a 401: no account to load, so nothing to try again
     fetch("/api/nora/thread", { credentials: "same-origin", cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
+      .then((r) => { signedOut = r.status === 401; return r.ok ? r.json() : null; })
       .then((j) => {
         if (isCancelled() || !j || !Array.isArray(j.messages)) return;
         noraThreadSyncRef.current = true;
@@ -760,15 +776,24 @@ function ChatWidget(props) {
         cwNoraPost(cwNoraHeld());
       })
       .catch(() => {})
-      .finally(() => { noraLoadingRef.current = false; });
+      .finally(() => {
+        noraLoadingRef.current = false;
+        if (!noraThreadSyncRef.current && !signedOut && openRef.current) setNoraMissed((n) => n + 1);
+      });
   };
-  // ⚠ A LOAD THAT FAILED IS TRIED AGAIN WHEN THE PANEL OPENS. The load ran once, at sign-in,
+  // ⚠ A LOAD THAT FAILED IS TRIED AGAIN WHILE THE PANEL IS OPEN. The load ran once, at sign-in,
   // so one failed request (a 429 from the proxy, a dropped connection, /api/me down) left
   // the page unsynced for good: nothing said there was kept, and Talk to a person never
-  // showed (the trace for the owner, 2026-10-17). A visitor's GET answers 401: nothing.
+  // showed (the trace for the owner, 2026-10-17). It is tried when the panel opens, or once
+  // the hydrate and /api/me answer if it opened first, and after each miss while it stays
+  // open, 2, 4, 8 and 16 seconds on; closing it starts the count again (Codex, #2391). A
+  // visitor's GET answers 401: nothing.
+  React.useEffect(() => { if (!open) setNoraMissed(0); }, [open]);
   React.useEffect(() => {
-    if (open && !noraThreadSyncRef.current && authProbe !== "out" && hydratedRef.current) cwLoadNoraThread(() => false, null);
-  }, [open]);
+    if (!open || !hydrated || authProbe === "out" || noraThreadSyncRef.current || noraMissed > 4) return undefined;
+    const t = setTimeout(() => cwLoadNoraThread(() => false), noraMissed ? 1000 * 2 ** noraMissed : 0);
+    return () => clearTimeout(t);
+  }, [open, hydrated, authProbe, noraMissed]);
   // A reply the Shape team sent after the conversation loaded joins it each time the panel
   // opens ("Talk to a person", Codex #2265). Only team replies are added: the rest is here.
   const cwPullTeam = () => {
@@ -891,10 +916,14 @@ function ChatWidget(props) {
       }
       hydratedRef.current = true;
       setHydrated(true);
+      // Measured against the threads just set, which this render has not drawn yet. A later
+      // hydrate moves it only when it read the saved copy again: nothing was typed, so
+      // nothing is held.
+      if (hydratedThreads || !noraFromRef.current) noraFromRef.current = { base: cwNoraLocal(hydratedThreads).length, gen: noraThreadGenRef.current };
       // One conversation per account (the Ask Nora plan, step 4): the stored thread replaces
       // this browser's copy of Nora's, and a browser that kept one before the account had
       // any sends it up once. Signed out, or before the migration runs, nothing changes.
-      if (probe === "in" && !cancelled) cwLoadNoraThread(() => cancelled, hydratedThreads);
+      if (probe === "in" && !cancelled) cwLoadNoraThread(() => cancelled);
     })();
     return () => { cancelled = true; };
   }, [tabs.length, feedReady]);

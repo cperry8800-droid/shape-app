@@ -27,8 +27,10 @@ const WIDGET = babel.transformSync(`${SHELL_CONSTS}\n${read('public/newdesign/ch
 
 const settle = async (n = 6) => { for (let i = 0; i < n; i++) await React.act(async () => { await new Promise((r) => setTimeout(r, 5)); }); };
 
-// signedIn: what /api/me says; threadGets: the status of each GET /api/nora/thread in turn.
-async function mount({ signedIn = true, threadGets = [200] } = {}) {
+// signedIn: what /api/me says; threadGets: the status of each GET /api/nora/thread in turn;
+// stored: the account's thread a 200 returns; me: /api/me's read, when a test holds it back;
+// db: what window.shapeEnsureDb loads, as on the 25 pages without /supabase.js.
+async function mount({ signedIn = true, threadGets = [200], stored = [], me = null, db = null } = {}) {
   const dom = new JSDOM('<!doctype html><body><div id="r"></div></body>', { url: 'https://shape.test/newdesign/ClientApp.html', pretendToBeVisual: true });
   const w = dom.window;
   const before = { window: globalThis.window, document: globalThis.document, localStorage: globalThis.localStorage, navigator: Object.getOwnPropertyDescriptor(globalThis, 'navigator'), act: globalThis.IS_REACT_ACT_ENVIRONMENT, fetch: globalThis.fetch };
@@ -39,6 +41,7 @@ async function mount({ signedIn = true, threadGets = [200] } = {}) {
   w.HTMLElement.prototype.scrollTo = function () {};
   w.HTMLElement.prototype.scrollIntoView = function () {};
   const calls = [];
+  const posts = []; // the bodies sent to /api/nora/thread and /api/support/chat
   const gets = [...threadGets];
   const answer = (status, body) => Promise.resolve({ ok: status < 400, status, json: async () => body, text: async () => JSON.stringify(body) });
   globalThis.fetch = w.fetch = async (url, opts = {}) => {
@@ -47,15 +50,19 @@ async function mount({ signedIn = true, threadGets = [200] } = {}) {
     calls.push(`${method} ${u.split('?')[0]}`);
     if (u.includes('/api/nora/thread') && method === 'GET') {
       if (!signedIn) return answer(401, { error: 'Sign in.' });
-      return answer(gets.length ? gets.shift() : 200, { messages: [] });
+      return answer(gets.length ? gets.shift() : 200, { messages: stored });
     }
+    if (method === 'POST' && (u.includes('/api/nora/thread') || u.includes('/api/support/chat'))) posts.push([u.split('?')[0], JSON.parse(opts.body)]);
+    if (u.includes('/api/support/chat') && method === 'POST') return answer(200, { reply: 'Tap + on Eat.' });
     if (u.includes('/api/nora/thread')) return answer(200, { ok: true });
     if (u.includes('/api/stripe/subscription')) return answer(200, { active: false });
     return answer(200, {});
   };
-  const me = () => Promise.resolve(signedIn ? { user: { id: 'u1', email: 'ann@shape.test' } } : { user: null });
-  new Function('React', 'ReactDOM', 'shapeReadPortalMe', WIDGET)(React, ReactDOMClient, me);
-  const tabs = [{ id: 'nora', label: 'Nora', title: 'Nora', support: true, threads: [{ who: 'Nora', messages: [] }] }];
+  if (db) w.shapeEnsureDb = async () => { w.shapeDb = db; return db; };
+  const readMe = me || (() => Promise.resolve(signedIn ? { user: { id: 'u1', email: 'ann@shape.test' } } : { user: null }));
+  new Function('React', 'ReactDOM', 'shapeReadPortalMe', WIDGET)(React, ReactDOMClient, readMe);
+  // Her seed greeting, with the chips say() taps.
+  const tabs = [{ id: 'nora', label: 'Nora', title: 'Nora', support: true, threads: [{ who: 'Nora', messages: [{ who: 'Nora', t: 'Hi, I am Nora.', me: false }], quick: ['How do I log a meal?', 'Hi'] }] }];
   const root = ReactDOMClient.createRoot(w.document.getElementById('r'));
   await React.act(async () => root.render(React.createElement(w.ChatWidget, { tabs })));
   await settle();
@@ -69,7 +76,16 @@ async function mount({ signedIn = true, threadGets = [200] } = {}) {
   };
   const threadGetsSoFar = () => calls.filter((c) => c === 'GET /api/nora/thread').length;
   const personButton = () => w.document.querySelector('[data-nora-person]');
-  return { w, calls, open, close, done, threadGetsSoFar, personButton };
+  // Ask Nora by her suggestion chip, which sends through the composer's own send(). (React DOM
+  // loads before jsdom here, so it falls back to an input-event polyfill a typed message trips.)
+  const say = async (text) => {
+    const chip = [...w.document.querySelectorAll('button')].find((b) => b.textContent === text);
+    assert.ok(chip, `no chip for ${text}`);
+    await React.act(async () => { chip.click(); });
+    await settle();
+  };
+  const appended = () => posts.filter(([u]) => u === '/api/nora/thread').map(([, b]) => b.append);
+  return { w, calls, posts, open, close, done, threadGetsSoFar, personButton, say, appended };
 }
 
 test('a failed first load is tried again when the panel opens, and then Talk to a person shows', async () => {
@@ -102,5 +118,79 @@ test('a load that worked is not repeated on open, and a visitor is never asked',
     assert.equal(visitor.personButton(), null);
   } finally {
     await visitor.done();
+  }
+});
+
+// ── Codex, #2391 ─────────────────────────────────────────────────────────────────
+// What is said while the store is down is held, and the retry joins the stored thread at the
+// hydrate's point, as the first attempt did: never measured against the thread as drawn.
+const waitForRetry = async () => { await React.act(async () => { await new Promise((r) => setTimeout(r, 2300)); }); await settle(); };
+
+test('an exchange held while the store was down is sent once into an empty account', async () => {
+  const m = await mount({ threadGets: [429, 429, 200] });
+  try {
+    await m.open();
+    assert.equal(m.threadGetsSoFar(), 2, 'sign-in and open both missed');
+    await m.say('How do I log a meal?');
+    assert.deepEqual(m.appended(), [], 'held: the store has not answered');
+    await waitForRetry();
+    assert.equal(m.threadGetsSoFar(), 3, 'a miss while the panel is open is tried again, 2 seconds on');
+    const sent = m.appended().flat().map((x) => `${x.role}: ${x.text}`);
+    assert.deepEqual(sent, ['user: How do I log a meal?', 'assistant: Tap + on Eat.'], 'once: not migrated as the browser\'s copy and then sent again as held');
+    assert.ok(m.personButton());
+  } finally {
+    await m.done();
+  }
+});
+
+test('an exchange held while the store was down stays in view after the stored thread', async () => {
+  const stored = [{ role: 'user', text: 'Earlier question', at: '2026-10-16T10:00:00Z' }, { role: 'assistant', text: 'Earlier answer', at: '2026-10-16T10:00:05Z' }];
+  const m = await mount({ threadGets: [429, 429, 200], stored });
+  try {
+    await m.open();
+    await m.say('How do I log a meal?');
+    await waitForRetry();
+    const text = m.w.document.body.textContent;
+    assert.ok(text.includes('Earlier answer'), 'the stored thread is placed');
+    assert.ok(text.indexOf('How do I log a meal?') > text.indexOf('Earlier answer'), 'and what was said here follows it');
+    assert.ok(text.includes('Tap + on Eat.'));
+    assert.deepEqual(m.appended().flat().map((x) => x.text), ['How do I log a meal?', 'Tap + on Eat.'], 'only the held exchange is sent');
+  } finally {
+    await m.done();
+  }
+});
+
+test('a panel opened before /api/me answered loads once it does, even when that read failed', async () => {
+  const waiting = []; // the hydrate and the member check each read it
+  const me = () => new Promise((_, reject) => { waiting.push(reject); });
+  const fail = () => waiting.forEach((reject) => reject(new Error('down')));
+  const m = await mount({ me });
+  try {
+    await m.open();
+    assert.equal(m.threadGetsSoFar(), 0, 'nothing to measure against yet');
+    await React.act(async () => { fail(); });
+    await settle();
+    assert.equal(m.threadGetsSoFar(), 1, '"unknown" tries: the GET settles who this is');
+    assert.ok(m.personButton());
+  } finally {
+    await m.done();
+  }
+});
+
+test('the account\'s Nora settings are read through the loaded client, after the cookie session', async () => {
+  const order = [];
+  const db = {
+    getSession: async () => { order.push('getSession'); return {}; },
+    getUserGoals: async (kind) => { order.push(`getUserGoals ${kind}`); return kind === 'nora_voice' ? { tone: 'direct', voice: 'sage' } : null; },
+  };
+  const m = await mount({ db });
+  try {
+    assert.deepEqual(order.filter((x) => x === 'getSession' || x === 'getUserGoals nora_voice').slice(0, 2), ['getSession', 'getUserGoals nora_voice']);
+    await m.open();
+    await m.say('Hi');
+    const ask = m.posts.find(([u]) => u === '/api/support/chat');
+    assert.equal(ask && ask[1].tone, 'direct', 'the tone chosen in the app\'s Settings shapes her reply here');
+  } finally {
+    await m.done();
   }
 });
