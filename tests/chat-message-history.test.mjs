@@ -163,7 +163,8 @@ test('the bundle is loaded only for a session, and "cannot tell" TRIES', () => {
     'a measured signed-out visitor no longer short-circuits the load');
   assert.doesNotMatch(BLOCK, /authProbe === "unknown"/,
     'an unreadable /api/me now skips the load — it must try, or a blip costs a member their inbox');
-  assert.match(BLOCK, /\}, \[authProbe\]\);/, 'the read does not re-run when the probe resolves');
+  // And again for another account (authWho), so a switch reads that account's list (Codex, #2391).
+  assert.match(BLOCK, /\}, \[authProbe, authWho\]\);/, 'the read does not re-run when the probe resolves, or for another account');
 });
 
 test('a COACH viewer never sees their own name on every thread', () => {

@@ -558,6 +558,31 @@ test('another account\'s Nora tone is never kept: it is read again when the acco
   }
 });
 
+test('a switch between known accounts closes an open Talk to a person form and reads the new account\'s conversations', async () => {
+  let who = 'u1';
+  const me = () => Promise.resolve({ user: { id: who, email: `${who}@shape.test` } });
+  const reads = []; // whose conversation list the client was asked for
+  const db = {
+    getSession: async () => ({}),
+    getUserGoals: async () => null,
+    client: { auth: { getUser: async () => { reads.push(who); return { data: { user: { id: who } } }; } }, from: () => { throw new Error('no tables here'); } },
+  };
+  const m = await mount({ me, stored: [], db });
+  try {
+    await m.open();
+    await m.say('How do I log a meal?');
+    await React.act(async () => { m.personButton().click(); });
+    await settle();
+    assert.ok(m.w.document.querySelector('[data-nora-person-send]'), 'u1\'s form is open');
+    who = 'u2';
+    await m.addTab();
+    assert.equal(m.w.document.querySelector('[data-nora-person-send]'), null, 'closed: u1\'s question is not u2\'s to send');
+    assert.ok(reads.includes('u2'), 'u2\'s conversation list is read');
+  } finally {
+    await m.done();
+  }
+});
+
 test('the account\'s Nora settings are read through the loaded client, after the cookie session', async () => {
   const order = [];
   const db = {

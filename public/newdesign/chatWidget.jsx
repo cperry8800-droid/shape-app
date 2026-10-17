@@ -968,7 +968,9 @@ function ChatWidget(props) {
           // a switch between known accounts carries nothing across.
           const from = wasUnknown ? noraFromRef.current : null;
           // Another known account (or signed out since): nothing of the last one's sync carries.
-          if (!wasUnknown) { noraAcctRef.current += 1; noraThreadSyncRef.current = false; noraHeldRef.current = []; setNoraPersonOk(false); }
+          // A "Talk to a person" form open with the last one's question closes; and what is drawn is
+          // now this account's own copy, so nothing typed under the last one holds back its reads.
+          if (!wasUnknown) { noraAcctRef.current += 1; noraThreadSyncRef.current = false; noraHeldRef.current = []; setNoraPersonOk(false); setPersonForm(null); dirtyRef.current = false; }
           const said = from ? cwNoraLocal().slice(from.base) : [];
           const cleared = !!from && from.gen !== noraThreadGenRef.current;
           if (!hydratedThreads) { hydratedThreads = tabs.map((t) => t.threads); setActiveByTab(tabs.map(() => 0)); }
@@ -1092,6 +1094,7 @@ function ChatWidget(props) {
     if (authProbe === "pending") return undefined;
     if (authProbe === "out") { setThreadsLive(false); return undefined; }
     let cancelled = false;
+    // Read again for another account (authWho), and its list installed over the copy (Codex, #2391).
     (async () => {
       // ⚠ LOAD THE CLIENT; DO NOT ASSUME IT. 25 of the 35 pages that carry this
       // widget do not load /supabase.js — chatPopout.html and every marketing
@@ -1232,7 +1235,7 @@ function ChatWidget(props) {
       }
     })();
     return () => { cancelled = true; };
-  }, [authProbe]);
+  }, [authProbe, authWho]);
 
   // Install the real threads over the sample ones, by TAB ID rather than index
   // — the tab list differs between the two files that supply it, so a positional
