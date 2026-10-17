@@ -186,22 +186,30 @@ test('the migration: one row per account, RLS to its own row for every verb', ()
 // ── The surfaces ─────────────────────────────────────────────────────────────────
 test('website: loads after sign-in, appends each answered exchange, clears on every device', () => {
   const W = read('public/newdesign/chatWidget.jsx');
-  assert.match(W, /if \(probe === "in" && !cancelled\) cwLoadNoraThread\(\(\) => cancelled, hydratedThreads\);/, 'measured against the hydrated copy, which this render has not drawn yet');
+  assert.match(W, /if \(probe === "in" && !cancelled\) cwLoadNoraThread\(\(\) => cancelled\);/);
+  // Measured against the hydrated copy, which this render has not drawn yet, and kept for a
+  // retry: what was said after it is held (Codex, #2391; run in nora-thread-load-retry).
+  assert.match(W, /if \(!rekeyed && \(!dirtyRef\.current \|\| !noraFromRef\.current\)\) noraFromRef\.current = \{ base: cwNoraLocal\(hydratedThreads \|\| start\)\.length, gen: noraThreadGenRef\.current, mine: probe === "in" \};/);
+  // A re-key reads the account's copy whatever was typed, and nothing is saved before /api/me
+  // answers (Codex, #2391; run in nora-thread-load-retry).
+  assert.match(W, /if \(!dirtyRef\.current \|\| rekeyed\) \{/);
+  assert.match(W, /if \(!hydratedRef\.current \|\| !storeKeyRef\.current \|\| authProbe === "unknown"\) return;/);
   assert.match(W, /if \(reply\) cwNoraSave\(\[\{ role: "user", text, at: sentAt \}, \{ role: "assistant", text: reply, at: new Date\(\)\.toISOString\(\) \}\]\);/, 'the scripted fallback is never kept');
   assert.match(W, /body: JSON\.stringify\(\{ append: messages \}\)/);
-  const load = between(W, 'const cwLoadNoraThread = (isCancelled, hydrated) => {', 'const clearNoraThread');
+  const load = between(W, 'const cwLoadNoraThread = (isCancelled) => {', 'const clearNoraThread');
   assert.match(load, /if \(!stored\.length\) \{/, 'a browser\'s own copy is sent up only when the account has none');
   // ⚠ A QUESTION ASKED WHILE IT LOADS (Codex, #2255): kept after the stored thread, and an
   // answer that landed before the store did is held, then sent once the load has placed it.
-  assert.match(load, /const base = cwNoraLocal\(hydrated\)\.length;/);
+  assert.match(load, /const \{ base, gen, mine \} = noraFromRef\.current \|\| /);
   assert.match(load, /const since = msgs\.slice\(Math\.max\(base, head \? 1 : 0\)\);\n\s+const kept = \[\.\.\.stored\.map\(cwNoraMsg\), \.\.\.since\];/);
-  assert.match(load, /const msgs = cwNoraLocal\(\)\.slice\(0, base\);/, 'only the browser\'s own copy migrates; what was said while loading saves itself');
+  assert.match(load, /const msgs = mine \? cwNoraLocal\(\)\.slice\(0, base\) : \[\];/, 'only the browser\'s own copy migrates, never one kept under the signed-out key; what was said while loading saves itself');
   assert.match(load, /cwNoraPost\(cwNoraHeld\(\)\);/);
   assert.match(W, /if \(!noraThreadSyncRef\.current\) \{ noraHeldRef\.current = \[\.\.\.noraHeldRef\.current, \.\.\.messages\]\.slice\(-20\); return; \}/);
   // ⚠ CLEAR WHILE SHE ANSWERS (Codex, #2255): the late answer is neither drawn nor saved.
   const clear = between(W, 'const clearNoraThread = () => {', 'stopNora();');
   assert.match(clear, /noraThreadGenRef\.current \+= 1;\n\s+noraHeldRef\.current = \[\];/);
-  assert.match(W, /const gen = noraThreadGenRef\.current;[\s\S]{0,4000}if \(gen !== noraThreadGenRef\.current\) return null;\n\s+const finalReply = reply \|\| supportReply\(text\);/);
+  // And an answer that lands after the account changed is not the next account's (Codex, #2391).
+  assert.match(W, /const gen = noraThreadGenRef\.current;[\s\S]{0,4000}if \(gen !== noraThreadGenRef\.current \|\| acct !== noraAcctRef\.current\) return null;\n\s+setTyping\(false\);\n\s+setNoraLive\(""\);\n\s+const finalReply = reply \|\| supportReply\(text\);/);
   assert.match(load, /if \(gen !== noraThreadGenRef\.current\) \{[\s\S]{0,300}method: "DELETE"/, 'cleared while it loaded: the Clear applies to the account');
   assert.match(W, /fetch\("\/api\/nora\/thread", \{ method: "DELETE", credentials: "same-origin" \}\)/);
   assert.match(W, /<button type="button" data-nora-clear onClick=\{clearNoraThread\}/);

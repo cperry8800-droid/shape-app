@@ -511,17 +511,28 @@ function ChatWidget(props) {
   // install below has to wait for the localStorage hydrate (see there), so the
   // same fact is published as STATE as well.
   const [hydrated, setHydrated] = React.useState(false);
+  // Each hydrate that finished, counted: one that ran again (/api/me answered on a later read)
+  // can set the threads afresh, and what is applied over them is applied again.
+  const [hydrateRuns, setHydrateRuns] = React.useState(0);
   // "pending" | "in" | "out" | "unknown" — the /api/me answer the hydrate below
   // already fetches, published so the history read can decide whether it is worth
   // loading the Supabase bundle at all. THREE states, not two: that route answers
   // 200 {user:null} for a MEASURED signed-out visitor and 503 for a read that did
   // not complete, and only the first is evidence of anything.
   const [authProbe, setAuthProbe] = React.useState("pending");
+  // Bumped to read /api/me again after a read that did not complete (the Nora retry below).
+  const [authTry, setAuthTry] = React.useState(0);
+  // The account /api/me named ("anon" when it named none), set by the hydrate: what is read per
+  // account (Nora's tone and voice) is read again when it changes (Codex, #2391).
+  const [authWho, setAuthWho] = React.useState(null);
   const dirtyRef = React.useRef(false);
 
   // Nora's voice OUTPUT (read replies aloud) — OFF by default, fully usable
   // without it. tone + voice sync from the account (user_goals 'nora_voice') so
   // they match the mobile app; the on/off flag is per-device (localStorage).
+  // The pop-up offers Voice on/off and the tone; which voice she reads in is
+  // picked in the app's Settings, not here (owner, 2026-10-17: no voice picker
+  // in the pop-up), and the account's choice still applies.
   const NORA_VOICES = [
     { id: "shimmer", label: "Warm" }, { id: "alloy", label: "Neutral" }, { id: "sage", label: "Calm" },
     { id: "nova", label: "Bright" }, { id: "onyx", label: "Deep" }, { id: "verse", label: "Expressive" },
@@ -530,16 +541,26 @@ function ChatWidget(props) {
   const readNoraEnabled = () => { try { return localStorage.getItem("shape.nora.voice") === "on"; } catch (e) { return false; } };
   const [noraVoice, setNoraVoiceState] = React.useState({ enabled: readNoraEnabled(), tone: "supportive", voice: "auto" });
   const noraAudioRef = React.useRef(null);
+  // ⚠ READ ONCE /api/me HAS ANSWERED, WITH THE CLIENT LOADED AND THE COOKIE SESSION BRIDGED.
+  // Read at mount, it found no `window.shapeDb` on most pages (the history read below says
+  // why) and an anonymous client on the rest, so she read in "auto" and the voice chosen in
+  // the app's Settings never applied here, with no picker left to choose it (Codex, #2391).
+  // Another account's choice is never kept: back to the defaults until this account's is read.
   React.useEffect(() => {
+    if (authProbe === "pending" || authProbe === "out") return undefined;
     let cancelled = false;
+    setNoraVoiceState(s => (s.tone === "supportive" && s.voice === "auto" ? s : { ...s, tone: "supportive", voice: "auto" }));
     (async () => {
       try {
-        const doc = window.shapeDb && window.shapeDb.getUserGoals ? await window.shapeDb.getUserGoals("nora_voice") : null;
+        const sdb = (window.shapeEnsureDb ? await window.shapeEnsureDb() : null) || window.shapeDb;
+        if (cancelled || !sdb || !sdb.getUserGoals) return;
+        if (sdb.getSession) await sdb.getSession();
+        const doc = await sdb.getUserGoals("nora_voice");
         if (!cancelled && doc && typeof doc === "object") setNoraVoiceState(s => ({ ...s, tone: doc.tone === "direct" ? "direct" : "supportive", voice: normNoraVoice(doc.voice) }));
       } catch (e) { /* default supportive/auto */ }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [authProbe, authWho]);
   const saveNoraAccount = (tone, voice) => { try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals("nora_voice", { tone, voice: normNoraVoice(voice) }); } catch (e) {} };
   // ⚠ ONE PLAYER, UNLOCKED BY THE TAP. A new Audio() per reply, played after the network
   // wait, was blocked on Safari and on a phone every time: Listen did nothing (owner,
@@ -575,7 +596,6 @@ function ChatWidget(props) {
   };
   const setNoraEnabled = (on) => { try { localStorage.setItem("shape.nora.voice", on ? "on" : "off"); } catch (e) {} if (!on) stopNora(); setNoraVoiceState(s => ({ ...s, enabled: on })); };
   const setNoraTone = (tone) => setNoraVoiceState(s => { const n = { ...s, tone }; saveNoraAccount(n.tone, n.voice); return n; });
-  const setNoraVoiceId = (voice) => setNoraVoiceState(s => { const n = { ...s, voice: normNoraVoice(voice) }; saveNoraAccount(n.tone, n.voice); return n; });
   // Server-only voice (mobile #1653 parity): the speechSynthesis robot is
   // DEAD — silence over brand-damaging robot audio. Returns an honest
   // { ok, ended } or { ok: false, reason: 'signed_out' | 'members' | 'playback_blocked' |
@@ -688,6 +708,9 @@ function ChatWidget(props) {
   // /api/nora/thread keeps the account's last messages, so the website and the app continue
   // the same conversation. Each device APPENDS what it added; none replaces the thread.
   const noraThreadSyncRef = React.useRef(false); // signed in, and the store answered
+  // Bumped when the hydrate finds another known account: the sync above, what is held, a load
+  // in flight and an answer on its way all belong to the account they started under (Codex, #2391).
+  const noraAcctRef = React.useRef(0);
   // Exchanges answered before the store did, sent once the load has placed the stored
   // thread (Codex, #2255: a question asked while it loaded was dropped from both).
   const noraHeldRef = React.useRef([]);
@@ -714,15 +737,36 @@ function ChatWidget(props) {
     ((from || threadsRef.current) || []).forEach((list, i) => { if (tabs[i] && tabs[i].support) (list || []).forEach((th) => { if (!out && th.who === "Nora") out = th.messages || []; }); });
     return out || [];
   };
-  // `hydrated`: the threads the hydrate just set, which this render has not drawn yet.
-  const cwLoadNoraThread = (isCancelled, hydrated) => {
-    // This browser's own copy, as hydrated; anything past it is said while loading.
-    const base = cwNoraLocal(hydrated).length;
-    const gen = noraThreadGenRef.current;
+  // One load at a time, and none once the store has answered.
+  const noraLoadingRef = React.useRef(false);
+  // ⚠ WHERE THE ACCOUNT'S THREAD JOINS THIS BROWSER'S: { base, gen, mine }, the hydrated
+  // copy's length and the Clear count, set by the hydrate. Everything said after it is held
+  // (cwNoraSave), so every attempt starts from that point. A retry that measured the thread
+  // as drawn posted held exchanges twice into an empty account, or dropped them from view
+  // beside a stored one (Codex, #2391). A Clear since then clears the account once it answers.
+  // `mine`: the copy was hydrated under this account's key. One read under the signed-out key
+  // (/api/me unanswered) may be someone else's on a shared browser, so it never migrates.
+  const noraFromRef = React.useRef(null);
+  // The threads outside Nora's tab as the signed-out copy stood when /api/me went unanswered,
+  // so a re-key can tell what was added to them since (Codex, #2391).
+  const unknownSnapRef = React.useRef(null);
+  // Loads that failed while the panel was open, since it opened (the retry below).
+  const [noraMissed, setNoraMissed] = React.useState(0);
+  // On screen: a docked pop-out always is, though its `open` stays false (`isOpen` below,
+  // read here before it is declared; Codex, #2391).
+  const shown = docked || open;
+  const openRef = React.useRef(shown);
+  openRef.current = shown;
+  const cwLoadNoraThread = (isCancelled) => {
+    if (noraLoadingRef.current || noraThreadSyncRef.current) return;
+    noraLoadingRef.current = true;
+    const { base, gen, mine } = noraFromRef.current || { base: cwNoraLocal().length, gen: noraThreadGenRef.current, mine: false };
+    const acct = noraAcctRef.current;
+    let signedOut = false; // a 401: no account to load, so nothing to try again
     fetch("/api/nora/thread", { credentials: "same-origin", cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
+      .then((r) => { signedOut = r.status === 401; return r.ok ? r.json() : null; })
       .then((j) => {
-        if (isCancelled() || !j || !Array.isArray(j.messages)) return;
+        if (isCancelled() || acct !== noraAcctRef.current || !j || !Array.isArray(j.messages)) return;
         noraThreadSyncRef.current = true;
         setNoraPersonOk(true);
         if (gen !== noraThreadGenRef.current) {
@@ -735,7 +779,7 @@ function ChatWidget(props) {
         if (!stored.length) {
           // Migrate this browser's own copy only when the account has none yet, then what
           // was answered while it loaded.
-          const msgs = cwNoraLocal().slice(0, base);
+          const msgs = mine ? cwNoraLocal().slice(0, base) : [];
           const local = msgs.slice(msgs.length && !msgs[0].me ? 1 : 0).filter((m) => !m.pending && !m.saved && m.t);
           cwNoraPost([...local.map(cwNoraStored), ...cwNoraHeld()]);
           return;
@@ -753,16 +797,39 @@ function ChatWidget(props) {
         }) : list));
         cwNoraPost(cwNoraHeld());
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        noraLoadingRef.current = false;
+        if (!noraThreadSyncRef.current && !signedOut && openRef.current) setNoraMissed((n) => n + 1);
+      });
   };
+  // ⚠ A LOAD THAT FAILED IS TRIED AGAIN WHILE THE PANEL IS OPEN. The load ran once, at sign-in,
+  // so one failed request (a 429 from the proxy, a dropped connection, /api/me down) left
+  // the page unsynced for good: nothing said there was kept, and Talk to a person never
+  // showed (the trace for the owner, 2026-10-17). It is tried when the panel opens, or once
+  // the hydrate and /api/me answer if it opened first, and after each miss while it stays
+  // open, 2, 4, 8 and 16 seconds on; closing it starts the count again (Codex, #2391). A
+  // visitor's GET answers 401: nothing.
+  // ⚠ NOTHING LOADS UNTIL /api/me SAYS WHO THIS IS. Unanswered, the hydrate keeps this copy
+  // under the signed-out key, and the account's thread drawn into it would be saved there
+  // for the next person on the browser (Codex, #2391). So a retry then asks /api/me again
+  // (the hydrate re-runs and re-keys the copy), and the load follows once it answers.
+  React.useEffect(() => { if (!shown) setNoraMissed(0); }, [shown]);
+  React.useEffect(() => {
+    if (!shown || !hydrated || authProbe === "out" || noraThreadSyncRef.current || noraMissed > 4) return undefined;
+    const retry = authProbe === "in" ? () => cwLoadNoraThread(() => false) : () => setAuthTry((n) => n + 1);
+    const t = setTimeout(retry, noraMissed ? 1000 * 2 ** noraMissed : 0);
+    return () => clearTimeout(t);
+  }, [shown, hydrated, authProbe, noraMissed]);
   // A reply the Shape team sent after the conversation loaded joins it each time the panel
   // opens ("Talk to a person", Codex #2265). Only team replies are added: the rest is here.
   const cwPullTeam = () => {
     if (!noraThreadSyncRef.current) return;
+    const acct = noraAcctRef.current;
     fetch("/api/nora/thread", { credentials: "same-origin", cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
-        const fresh = j && Array.isArray(j.messages) ? j.messages.filter((m) => m && m.role === "team") : [];
+        const fresh = j && acct === noraAcctRef.current && Array.isArray(j.messages) ? j.messages.filter((m) => m && m.role === "team") : [];
         if (!fresh.length) return;
         setThreadsByTab((prev) => prev.map((list, i) => (tabs[i] && tabs[i].support) ? list.map((th) => {
           if (th.who !== "Nora") return th;
@@ -796,16 +863,21 @@ function ChatWidget(props) {
     const question = String(personForm.text || "").trim();
     if (!question) { setPersonForm({ ...personForm, err: "Write your question first." }); return; }
     setPersonForm({ ...personForm, busy: true, err: "" });
+    const acct = noraAcctRef.current;
     try {
       const page = typeof window.__shapeNoraPageName === "function" ? window.__shapeNoraPageName() : null;
       const res = await fetch("/api/support/request", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question, surface: "web", page }) });
       const j = await res.json().catch(() => ({}));
+      // Asked under the account before: its outcome is not this one's to show or keep.
+      if (acct !== noraAcctRef.current) { setPersonForm(null); return; }
       if (!res.ok || !j.ok) { setPersonForm({ text: question, busy: false, err: (j && j.error) || "Your question could not be sent. Try again in a moment." }); return; }
       const note = "Sent to the Shape team. A person will reply here in this chat, and by email.";
       cwNoraAppend("Nora", note);
       cwNoraSave([{ role: "assistant", text: note, at: new Date().toISOString() }]);
       setPersonForm(null);
     } catch (e) {
+      // A failed send is checked the same way: the question is not reopened under another account.
+      if (acct !== noraAcctRef.current) { setPersonForm(null); return; }
       setPersonForm({ text: question, busy: false, err: "Your question could not be sent. Try again in a moment." });
     }
   };
@@ -815,6 +887,11 @@ function ChatWidget(props) {
     noraThreadGenRef.current += 1;
     noraHeldRef.current = [];
     stopNora();
+    // A reply she was still writing belongs to the conversation that went.
+    setNoraLive(""); setTyping(false);
+    // Before the store answers, what is said from here on is what follows the join point (its
+    // Clear count stays the hydrate's, so the load clears the account first).
+    if (noraFromRef.current) { const cur = cwNoraLocal(); noraFromRef.current = { ...noraFromRef.current, base: cur.length && !cur[0].me ? 1 : 0 }; }
     setThreadsByTab((prev) => prev.map((list, i) => (tabs[i] && tabs[i].support) ? list.map((th) => {
       if (th.who !== "Nora") return th;
       const msgs = th.messages || [];
@@ -829,6 +906,10 @@ function ChatWidget(props) {
 
   React.useEffect(() => {
     let cancelled = false;
+    // This run asks again after /api/me went unanswered (the copy held is the signed-out one).
+    const wasUnknown = authProbe === "unknown";
+    // No hydrate has finished yet: what is drawn is still the threads the widget started with.
+    const firstRun = !hydratedRef.current;
     (async () => {
       let uid = "anon";
       let probe = "unknown";
@@ -841,11 +922,22 @@ function ChatWidget(props) {
       } catch {}
       if (cancelled) return;
       setAuthProbe(probe);
+      setAuthWho(uid);
+      // Still unanswered while the panel is on screen: a miss, so the retry asks again.
+      if (probe === "unknown" && openRef.current) setNoraMissed((n) => n + 1);
       const key = `shape.chat.${STORE_VER}.${uid}`;
+      const prevKey = storeKeyRef.current;
+      const rekeyed = !!prevKey && prevKey !== key;
       storeKeyRef.current = key;
       let hydratedThreads = null;
-      // Don't clobber a message the user typed before hydration finished.
-      if (!dirtyRef.current) {
+      // ⚠ TYPED BEFORE THIS FIRST ANSWER: the copy is not read, and what is drawn is the starting
+      // threads plus what was typed. Measured from the starting threads, so what was typed is
+      // what was added (a baseline taken from the drawn copy saw nothing added; Codex, #2391).
+      const start = firstRun && dirtyRef.current ? tabs.map((t) => t.threads) : null;
+      // Don't clobber a message the user typed before hydration finished. ⚠ EXCEPT ON A
+      // RE-KEY: the account's saved copy is read whatever was typed, or the next save wrote
+      // the signed-out copy over it, losing its messages and channels (Codex, #2391).
+      if (!dirtyRef.current || rekeyed) {
         try {
           const raw = localStorage.getItem(key);
           if (raw) {
@@ -868,27 +960,100 @@ function ChatWidget(props) {
             const threads = saved && fit(saved.threadsByTab, []);
             if (threads) {
               hydratedThreads = threads;
-              setThreadsByTab(threads);
               const active = fit(saved.activeByTab, 0);
               if (active) setActiveByTab(active);
             }
           }
         } catch {}
+        if (rekeyed) {
+          // Re-keyed (/api/me answered on a later read): the account's copy, or where a first
+          // visit starts, never the signed-out copy. What was said to Nora since the join
+          // point is held for the account, so it carries onto the copy, after a Clear made
+          // meanwhile; the load then measures from there. Only from an unanswered /api/me:
+          // a switch between known accounts carries nothing across.
+          const from = wasUnknown ? noraFromRef.current : null;
+          // Another known account (or signed out since): nothing of the last one's sync carries.
+          // A "Talk to a person" form open with the last one's question closes, and a reply she was
+          // still writing for it stops showing; and what is drawn is now this account's own copy,
+          // so nothing typed under the last one holds back its reads.
+          if (!wasUnknown) { noraAcctRef.current += 1; noraThreadSyncRef.current = false; noraHeldRef.current = []; setNoraPersonOk(false); setPersonForm(null); setNoraLive(""); setTyping(false); dirtyRef.current = false; }
+          // ⚠ AWAY FROM A SIGNED-IN ACCOUNT, THE PAGE RELOADS (Codex, #2391). Thirteen review rounds
+          // found one more thing per round that a mounted widget carried from one account to the
+          // next: a load, an answer, a stream, a form, a greeting, her voice still reading, an open
+          // microphone. The page around the widget is the last account's too (its dashboard, its
+          // name in the header), so the honest fix is the whole page: a fresh load belongs to one
+          // account from the start. Her voice and the microphone stop first, and the resets above
+          // stay as the floor for the moment before the reload lands. The last copy was under a
+          // signed-in key, so this excludes a visitor signing in and a first answer after an
+          // unanswered /api/me (that copy sits under the signed-out key): both keep the re-key below.
+          if (prevKey !== `shape.chat.${STORE_VER}.anon`) {
+            try { stopNora(); } catch (e) {}
+            try { if (talkLoopRef.current) talkLoopRef.current.end(); } catch (e) {}
+            try { window.location.reload(); } catch (e) {}
+          }
+          const said = from ? cwNoraLocal().slice(from.base) : [];
+          const cleared = !!from && from.gen !== noraThreadGenRef.current;
+          if (!hydratedThreads) { hydratedThreads = tabs.map((t) => t.threads); setActiveByTab(tabs.map(() => 0)); }
+          let kept = 0;
+          hydratedThreads = hydratedThreads.map((list, i) => (tabs[i] && tabs[i].support) ? (list || []).map((th) => {
+            if (th.who !== "Nora") return th;
+            const msgs = th.messages || [];
+            const own = cleared ? msgs.slice(0, msgs.length && !msgs[0].me ? 1 : 0) : msgs;
+            kept = own.length;
+            return { ...th, messages: [...own, ...said] };
+          }) : list);
+          noraFromRef.current = { base: kept, gen: cleared ? from.gen : noraThreadGenRef.current, mine: probe === "in" };
+          // ⚠ AND WHAT WAS ADDED IN THE OTHER TABS: a conversation opened, a channel made, a message
+          // sent while /api/me was unanswered. Nothing was saved then, so it lives only here:
+          // what was added since the signed-out copy stood joins the account's copy.
+          const snap = wasUnknown && dirtyRef.current ? unknownSnapRef.current : null;
+          if (snap) {
+            const id = (th) => th.conversationId || th.who;
+            const live = threadsRef.current || [];
+            hydratedThreads = hydratedThreads.map((list, i) => {
+              if (tabs[i] && tabs[i].support) return list;
+              const before = new Map((snap[i] || []).map((th) => [id(th), th]));
+              const out = [...(list || [])];
+              (live[i] || []).forEach((th) => {
+                const was = before.get(id(th));
+                const added = (th.messages || []).slice(was ? (was.messages || []).length : 0);
+                if (was && !added.length) return;
+                const at = out.findIndex((x) => id(x) === id(th));
+                if (at < 0) { out.push({ ...th, messages: added }); return; }
+                if (!added.length) return;
+                // A conversation's messages here were read from the server (a thread's first read
+                // replaces them), so it stands for the account's copy of the thread rather than
+                // being appended to it, which repeated its history (Codex, #2391).
+                if (th.conversationId) { out[at] = { ...out[at], ...th }; return; }
+                out[at] = { ...out[at], last: th.last, time: th.time, messages: [...(out[at].messages || []), ...added] };
+              });
+              return out;
+            });
+          }
+          unknownSnapRef.current = null;
+        }
+        // And read as drawn from here: the load's answer can land before this render does.
+        if (hydratedThreads) { setThreadsByTab(hydratedThreads); threadsRef.current = hydratedThreads; }
       }
       hydratedRef.current = true;
       setHydrated(true);
+      setHydrateRuns((n) => n + 1);
+      // Measured against the threads just set, which this render has not drawn yet. A later
+      // hydrate moves it only when nothing was typed, so nothing is held (a re-key set it above).
+      if (!rekeyed && (!dirtyRef.current || !noraFromRef.current)) noraFromRef.current = { base: cwNoraLocal(hydratedThreads || start).length, gen: noraThreadGenRef.current, mine: probe === "in" };
+      if (probe === "unknown" && (!dirtyRef.current || !unknownSnapRef.current)) unknownSnapRef.current = hydratedThreads || start || threadsRef.current;
       // One conversation per account (the Ask Nora plan, step 4): the stored thread replaces
       // this browser's copy of Nora's, and a browser that kept one before the account had
       // any sends it up once. Signed out, or before the migration runs, nothing changes.
-      if (probe === "in" && !cancelled) cwLoadNoraThread(() => cancelled, hydratedThreads);
+      if (probe === "in" && !cancelled) cwLoadNoraThread(() => cancelled);
     })();
     return () => { cancelled = true; };
-  }, [tabs.length, feedReady]);
+  }, [tabs.length, feedReady, authTry]);
 
   // ⚠ THE GREETING IS APPLIED ONLY ONCE THE SAVED THREADS ARE IN. The fetch races the
   // localStorage hydrate above, and a hydrate that landed second restored the saved seed
   // over the account's greeting for good (Codex, #2247). So it waits on `hydrated`, and
-  // re-applies if either arrives later.
+  // re-applies if either arrives later, or after a hydrate that ran again (Codex, #2391).
   React.useEffect(() => {
     if (!noraGreeting || !hydrated) return;
     const g = noraGreeting;
@@ -897,14 +1062,17 @@ function ChatWidget(props) {
       if (th.who !== "Nora" || msgs.length !== 1 || msgs[0].me) return th;
       return { ...th, last: g.text, quick: g.quick, messages: [{ ...msgs[0], t: g.text }] };
     }) : list));
-  }, [noraGreeting, hydrated]);
+  }, [noraGreeting, hydrated, hydrateRuns]);
 
+  // ⚠ NOTHING IS SAVED WHILE /api/me IS UNANSWERED. The key is then the signed-out one, and a
+  // member's words saved there would be shown to the next person on the browser; the copy
+  // is saved under the account's key once it is known (Codex, #2391).
   React.useEffect(() => {
-    if (!hydratedRef.current || !storeKeyRef.current) return;
+    if (!hydratedRef.current || !storeKeyRef.current || authProbe === "unknown") return;
     try {
       localStorage.setItem(storeKeyRef.current, JSON.stringify({ threadsByTab, activeByTab }));
     } catch {}
-  }, [threadsByTab, activeByTab]);
+  }, [threadsByTab, activeByTab, authProbe]);
 
   // ── REAL MESSAGE HISTORY ──────────────────────────────────────────
   // ⚠ THE THREADS THIS WIDGET SHIPPED WITH ARE DEMO, AND THERE WAS NO HISTORY AT
@@ -946,6 +1114,7 @@ function ChatWidget(props) {
     if (authProbe === "pending") return undefined;
     if (authProbe === "out") { setThreadsLive(false); return undefined; }
     let cancelled = false;
+    // Read again for another account (authWho), and its list installed over the copy (Codex, #2391).
     (async () => {
       // ⚠ LOAD THE CLIENT; DO NOT ASSUME IT. 25 of the 35 pages that carry this
       // widget do not load /supabase.js — chatPopout.html and every marketing
@@ -1086,7 +1255,7 @@ function ChatWidget(props) {
       }
     })();
     return () => { cancelled = true; };
-  }, [authProbe]);
+  }, [authProbe, authWho]);
 
   // Install the real threads over the sample ones, by TAB ID rather than index
   // — the tab list differs between the two files that supply it, so a positional
@@ -1103,8 +1272,21 @@ function ChatWidget(props) {
     if (!hydrated) return;
     // ⚠ DO NOT CLOBBER SOMETHING THE MEMBER HAS ALREADY TYPED OR SENT. The same
     // guard the localStorage hydrate uses; a real read landing mid-compose must
-    // not take their message away.
-    if (dirtyRef.current) return;
+    // not take their message away. ⚠ BUT IT IS NOT DROPPED EITHER: every thread
+    // here stays as it is, and the conversations the read found that this copy does
+    // not have yet are added. Dropped, a member who typed before /api/me first
+    // answered never saw a coach thread that only the server had (Codex, #2391).
+    if (dirtyRef.current) {
+      setThreadsByTab(prev => prev.map((list, i) => {
+        const id = tabs[i] && tabs[i].id;
+        const live = Object.prototype.hasOwnProperty.call(threadsLive, id) ? threadsLive[id] : null;
+        if (!live) return list;
+        const have = new Set((list || []).map((t) => t.conversationId).filter(Boolean));
+        const add = live.filter((t) => t.conversationId && !have.has(t.conversationId));
+        return add.length ? [...(list || []), ...add] : list;
+      }));
+      return;
+    }
     setThreadsByTab(prev => prev.map((list, i) => {
       const id = tabs[i] && tabs[i].id;
       const next = Object.prototype.hasOwnProperty.call(threadsLive, id) ? threadsLive[id] : null;
@@ -1436,6 +1618,7 @@ function ChatWidget(props) {
     if (isSupport) {
       const sentAt = new Date().toISOString();
       const gen = noraThreadGenRef.current;
+      const acct = noraAcctRef.current;
       // A Send tap is the gesture her player needs to read the reply aloud later.
       if (!opts.silent && canVoiceRef.current && noraVoice.enabled) primeNoraAudio();
       setTyping(true);
@@ -1459,8 +1642,8 @@ function ChatWidget(props) {
           // Her words appear as she writes them; a round that turned out to be a lookup takes
           // back what it showed. The limit and the bot check still answer as plain JSON.
           const live = {
-            onText: (t) => { if (gen === noraThreadGenRef.current) setNoraLive(t); },
-            onReset: () => setNoraLive(""),
+            onText: (t) => { if (gen === noraThreadGenRef.current && acct === noraAcctRef.current) setNoraLive(t); },
+            onReset: () => { if (gen === noraThreadGenRef.current && acct === noraAcctRef.current) setNoraLive(""); },
           };
           const read = async (r) => (r.ok && cwIsNoraStream(r) ? ((await cwReadNoraStream(r, live)) || {}) : await r.json().catch(() => ({})));
           let res = await ask({});
@@ -1475,10 +1658,12 @@ function ChatWidget(props) {
           }
           if (data && data.reply && (res.ok || data.needsCheck)) { reply = data.reply; actions = data.actions; }
         } catch (e) { /* fall back below */ }
+        // Cleared, or another account, while she was answering: the answer belongs to the
+        // conversation that went. The Clear and the switch already stopped its typing line, and
+        // one asked since may be showing its own, which this must not take down.
+        if (gen !== noraThreadGenRef.current || acct !== noraAcctRef.current) return null;
         setTyping(false);
         setNoraLive("");
-        // Cleared while she was answering: the answer belongs to the conversation that went.
-        if (gen !== noraThreadGenRef.current) return null;
         const finalReply = reply || supportReply(text);
         appendReply("Nora", finalReply, actions);
         // Kept on the account only when she answered: the scripted fallback is not the conversation.
@@ -1897,6 +2082,13 @@ function ChatWidget(props) {
         .chw-row:hover { background: rgba(var(--sh-ink-rgb, 242,237,228),0.03); }
         [data-chat-panel] *::-webkit-scrollbar { width: 0; height: 0; background: transparent; }
         [data-chat-panel] * { scrollbar-width: none; }
+        /* Talk to Nora: her face in the header, with a ring that breathes so it reads as a button. */
+        .cw-nora-face { transition: transform .15s ease; }
+        .cw-nora-face:hover:not(:disabled) { transform: scale(1.05); }
+        .cw-nora-face:focus-visible { outline: 2px solid var(--sh-accent-ink, #2ee0c4); outline-offset: 3px; }
+        .cw-nora-face::before { content: ""; position: absolute; inset: -4px; border-radius: 999px; border: 2px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.6); animation: cwNoraFaceRing 2.6s ease-out infinite; pointer-events: none; }
+        @keyframes cwNoraFaceRing { 0% { transform: scale(1); opacity: .75 } 70%, 100% { transform: scale(1.3); opacity: 0 } }
+        @media (prefers-reduced-motion: reduce) { .cw-nora-face { transition: none; } .cw-nora-face::before { animation: none; opacity: .5; } }
         @media (max-width: 640px) {
           .chw-bubble { padding: 14px 20px 14px 16px !important; font-size: 14px !important; gap: 10px !important; right: 16px !important; bottom: 16px !important; }
           .chw-bubble svg { width: 18px !important; height: 18px !important; }
@@ -1941,6 +2133,21 @@ function ChatWidget(props) {
             }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
               <span style={{ color: "var(--sh-ink3, #75706a)", display: "inline-flex", alignItems: "center" }}><DragDots /></span>
+              {isSupport && canVoice && talkSupported && (
+                // Talk to Nora: press her face. Starts inside this tap, then her face takes the pane.
+                <button type="button" data-nora-talk-button onClick={startTalk} disabled={!talkMod}
+                  className="cw-nora-face" aria-label="Talk to Nora"
+                  title="Press to talk to Nora: she listens, answers in the chat, and reads it to you"
+                  style={{ position: "relative", flex: "none", width: 44, height: 44, padding: 0, border: 0, borderRadius: 999, background: "transparent", cursor: talkMod ? "pointer" : "progress", opacity: talkMod ? 1 : 0.7 }}>
+                  <img src="/nora-avatar.png" alt="" aria-hidden style={{ display: "block", width: 44, height: 44, borderRadius: 999, objectFit: "cover", objectPosition: "50% 32%", boxShadow: `0 0 0 2px ${TEAL}` }} />
+                  <span aria-hidden style={{ position: "absolute", right: -3, bottom: -3, width: 19, height: 19, borderRadius: 999, background: TEAL, color: PAPER, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 0 2px var(--sh-ground, #1a1612)" }}>
+                    <svg width="9" height="12" viewBox="0 0 12 14">
+                      <rect x="3.5" y="0.75" width="5" height="8" rx="2.5" fill="currentColor" />
+                      <path d="M1.5 6.5a4.5 4.5 0 0 0 9 0M6 11v2.25" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                    </svg>
+                  </span>
+                </button>
+              )}
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.18em", color: TEAL_BRIGHT, marginBottom: 2 }}>{noraMode ? "✦ ASK NORA" : "SHAPE"}</div>
                 <div style={{ fontFamily: serif, fontSize: 26, lineHeight: 1.05, letterSpacing: "-0.02em", color: INK, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{noraMode ? "Nora" : "Your community"}</div>
@@ -2505,15 +2712,6 @@ function ChatWidget(props) {
             <React.Fragment>
             {isSupport && (
               <div style={{ padding: "8px 14px 0", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                {canVoice && talkSupported && (
-                  // Talk to Nora: starts inside this tap, then her face takes the pane.
-                  <button type="button" data-nora-talk-button onClick={startTalk} disabled={!talkMod}
-                    title="Talk to Nora out loud: she listens, answers in the chat, and reads it to you"
-                    style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "3px 12px 3px 3px", borderRadius: 999, border: 0, background: TEAL, color: PAPER, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: talkMod ? "pointer" : "progress", opacity: talkMod ? 1 : 0.7 }}>
-                    <img src="/nora-avatar.png" alt="" aria-hidden style={{ width: 22, height: 22, borderRadius: 999, objectFit: "cover", objectPosition: "50% 32%", border: `1.5px solid ${PAPER}` }} />
-                    Talk to Nora
-                  </button>
-                )}
                 {voiceLocked && (
                   <div data-nora-voice-locked style={{ flex: "1 1 100%", display: "flex", alignItems: "center", gap: 7, fontFamily: sans, fontSize: 11.5, lineHeight: 1.4, color: "var(--sh-ink2, #a09b94)" }}>
                     <svg aria-hidden width="12" height="14" viewBox="0 0 12 14" style={{ flex: "none" }}>
@@ -2551,11 +2749,6 @@ function ChatWidget(props) {
                       style={{ padding: "5px 10px", border: 0, background: noraVoice.tone === tn ? TEAL : "transparent", color: noraVoice.tone === tn ? PAPER : "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer" }}>{tn}</button>
                   ))}
                 </div>
-                {canVoice && <select value={noraVoice.voice} onChange={(e) => setNoraVoiceId(e.target.value)} title="Nora's voice"
-                  style={{ background: "rgba(var(--sh-ink-rgb, 242,237,228),0.06)", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", borderRadius: 999, padding: "5px 8px", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, cursor: "pointer" }}>
-                  <option value="auto">Auto voice</option>
-                  {NORA_VOICES.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}
-                </select>}
               </div>
             )}
             {isSupport && personForm && (

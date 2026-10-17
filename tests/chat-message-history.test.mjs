@@ -89,7 +89,11 @@ test('the install is BY TAB ID, waits for the hydrate, and never clobbers a draf
   // the other. Without the gate, the run where the hydrate lands SECOND restores
   // the sample threads over the real ones.
   assert.match(BLOCK, /if \(!hydrated\) return;/, 'the install no longer waits for the localStorage hydrate');
-  assert.match(BLOCK, /if \(dirtyRef\.current\) return;/, 'a real read can clobber what the member typed');
+  // With something typed, nothing here is replaced: the read only adds the conversations this copy
+  // lacks (chatWidget.jsx; Codex on #2391 — dropping the read kept a server-only coach thread out),
+  // and the mount test in nora-thread-load-retry.test.mjs drives it.
+  assert.match(BLOCK, /if \(dirtyRef\.current\) \{\n\s+setThreadsByTab\(prev => prev\.map\(\(list, i\) => \{/, 'a real read can clobber what the member typed');
+  assert.match(BLOCK, /const add = live\.filter\(\(t\) => t\.conversationId && !have\.has\(t\.conversationId\)\);\n\s+return add\.length \? \[\.\.\.\(list \|\| \[\]\), \.\.\.add\] : list;/, 'the typed-in copy only gains the missing conversations');
 });
 
 test('the hydrate publishes its completion as STATE, not only a ref', () => {
@@ -163,7 +167,8 @@ test('the bundle is loaded only for a session, and "cannot tell" TRIES', () => {
     'a measured signed-out visitor no longer short-circuits the load');
   assert.doesNotMatch(BLOCK, /authProbe === "unknown"/,
     'an unreadable /api/me now skips the load — it must try, or a blip costs a member their inbox');
-  assert.match(BLOCK, /\}, \[authProbe\]\);/, 'the read does not re-run when the probe resolves');
+  // And again for another account (authWho), so a switch reads that account's list (Codex, #2391).
+  assert.match(BLOCK, /\}, \[authProbe, authWho\]\);/, 'the read does not re-run when the probe resolves, or for another account');
 });
 
 test('a COACH viewer never sees their own name on every thread', () => {
