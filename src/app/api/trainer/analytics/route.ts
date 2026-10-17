@@ -69,7 +69,10 @@ async function readAllById<T extends { id: unknown }>(
 type SessionRow = { id: string; client_id: string; started_at: string | null; ended_at: string | null; created_at: string };
 const sessionAt = (r: SessionRow) => r.started_at ?? r.ended_at ?? r.created_at;
 
-export async function GET() {
+export async function GET(request: Request) {
+  // Renewals cost a Stripe read each, so only the page that shows them asks for them: the Business
+  // page sends ?renewals=1, and the Goal page's live figures (dashData.jsx) do not.
+  const wantRenewals = new URL(request.url).searchParams.get('renewals') === '1';
   const supabase = await createClient();
   const {
     data: { user },
@@ -406,7 +409,7 @@ export async function GET() {
   // Renewing in the next 7 days (Business page, Money tab). Each one is asked of Stripe, because a
   // member who cancelled keeps an active row until the period ends (src/lib/coach-renewals.mjs).
   // Built from the active subscriptions: when they could not be read, neither can this.
-  const due = subsUnknown ? [] : pickRenewals(subs as RenewalSource[]);
+  const due = subsUnknown || !wantRenewals ? [] : pickRenewals(subs as RenewalSource[]);
   const [stripeSummary, cancelFlags] = await Promise.all([
     loadStripe(trainerRow.stripe_account_id ?? null, trainerRow.stripe_account_status ?? null),
     loadCancelFlags(due.map((r) => r.stripe_subscription_id).filter((v): v is string => !!v).map(String), RENEWAL_CHECK_CAP),
@@ -426,7 +429,7 @@ export async function GET() {
     // Built from the active subscriptions: when they could not be read, neither can this.
     byOrigin: subsUnknown ? null : byOrigin,
     trajectory,
-    renewals,
+    ...(wantRenewals ? { renewals } : {}),
     metrics: {
       mrrGrossCents: subsUnknown ? null : grossCents,
       mrrNetCents: subsUnknown ? null : netCents,

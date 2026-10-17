@@ -1257,7 +1257,8 @@ function CoachBusinessPage({ role }) {
 
   React.useEffect(() => {
     let on = true;
-    fetch(cfg.api, { credentials: "same-origin", cache: "no-store" })
+    // ?renewals=1: this page shows this week's renewals, each checked with Stripe (the route skips them otherwise).
+    fetch(cfg.api + "?renewals=1", { credentials: "same-origin", cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (on && d && d[cfg.okKey]) setExtra(d); })
       .catch(() => {});

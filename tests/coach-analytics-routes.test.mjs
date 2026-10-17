@@ -81,7 +81,7 @@ async function loadRoute(role, tables, opts) {
       ['@/lib/coach-trajectory.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/coach-trajectory.mjs')).href)],
     ]),
   })
-  const res = await route.GET(new Request(`https://shape.test/api/${role}/analytics`))
+  const res = await route.GET(new Request(`https://shape.test/api/${role}/analytics${opts?.query || ''}`))
   return { body: await res.json(), reads: db.reads, calls: db.calls }
 }
 
@@ -319,7 +319,7 @@ test('renewals: the active rows due in the next 7 days, each asked of Stripe, ne
   for (const role of ['trainer', 'nutritionist']) {
     const flagCalls = []
     const tables = role === 'trainer' ? roster({ subscriptions: subs }) : { nutritionists: [{ id: 9, stripe_account_id: null, stripe_account_status: null }], subscriptions: subs.map((r) => ({ ...r, provider_role: 'nutritionist' })) }
-    const { body } = await loadRoute(role, tables, { rpcs: lifts({}), cancelled: ['sub_B'], flagCalls })
+    const { body } = await loadRoute(role, tables, { rpcs: lifts({}), cancelled: ['sub_B'], flagCalls, query: '?renewals=1' })
     assert.deepEqual(flagCalls.map((c) => c.ids), [['sub_A', 'sub_B']], role + ': only the rows due this week are asked about')
     assert.deepEqual(body.renewals.map((r) => [r.priceCents, r.netCents, r.ending]), [[18000, 15300, false], [16500, 16500, true]], role)
   }
@@ -327,7 +327,17 @@ test('renewals: the active rows due in the next 7 days, each asked of Stripe, ne
 
 test('renewals: a failed subscriptions read is "could not read", not "no one renews"', async () => {
   const flagCalls = []
-  const { body } = await loadRoute('trainer', roster(), { errors: { subscriptions: 'timeout' }, rpcs: lifts({}), flagCalls })
+  const { body } = await loadRoute('trainer', roster(), { errors: { subscriptions: 'timeout' }, rpcs: lifts({}), flagCalls, query: '?renewals=1' })
   assert.equal(body.renewals, null)
   assert.deepEqual(flagCalls.map((c) => c.ids), [[]], 'Stripe is not asked about rows nobody read')
+})
+
+test('renewals are read only when the page asks: the Goal page\'s figures cost no Stripe reads', async () => {
+  const soon = new Date(Date.now() + 2 * 86400000).toISOString()
+  const flagCalls = []
+  const { body } = await loadRoute('trainer', roster({ subscriptions: [{ ...sub(A), id: 'r1', stripe_subscription_id: 'sub_A', current_period_end: soon }] }), { rpcs: lifts({}), flagCalls })
+  assert.ok(!('renewals' in body), 'no renewals without ?renewals=1')
+  assert.deepEqual(flagCalls.map((c) => c.ids), [[]], 'and Stripe is asked about nothing')
+  const page = readFileSync(join(ROOT, 'public/newdesign/dashBusiness.jsx'), 'utf8')
+  assert.match(page, /fetch\(cfg\.api \+ "\?renewals=1"/, 'the Business page asks for them')
 })
