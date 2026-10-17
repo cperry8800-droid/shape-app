@@ -734,8 +734,11 @@ function ChatWidget(props) {
   const noraFromRef = React.useRef(null);
   // Loads that failed while the panel was open, since it opened (the retry below).
   const [noraMissed, setNoraMissed] = React.useState(0);
-  const openRef = React.useRef(open);
-  openRef.current = open;
+  // On screen: a docked pop-out always is, though its `open` stays false (`isOpen` below,
+  // read here before it is declared; Codex, #2391).
+  const shown = docked || open;
+  const openRef = React.useRef(shown);
+  openRef.current = shown;
   const cwLoadNoraThread = (isCancelled) => {
     if (noraLoadingRef.current || noraThreadSyncRef.current) return;
     noraLoadingRef.current = true;
@@ -788,12 +791,12 @@ function ChatWidget(props) {
   // the hydrate and /api/me answer if it opened first, and after each miss while it stays
   // open, 2, 4, 8 and 16 seconds on; closing it starts the count again (Codex, #2391). A
   // visitor's GET answers 401: nothing.
-  React.useEffect(() => { if (!open) setNoraMissed(0); }, [open]);
+  React.useEffect(() => { if (!shown) setNoraMissed(0); }, [shown]);
   React.useEffect(() => {
-    if (!open || !hydrated || authProbe === "out" || noraThreadSyncRef.current || noraMissed > 4) return undefined;
+    if (!shown || !hydrated || authProbe === "out" || noraThreadSyncRef.current || noraMissed > 4) return undefined;
     const t = setTimeout(() => cwLoadNoraThread(() => false), noraMissed ? 1000 * 2 ** noraMissed : 0);
     return () => clearTimeout(t);
-  }, [open, hydrated, authProbe, noraMissed]);
+  }, [shown, hydrated, authProbe, noraMissed]);
   // A reply the Shape team sent after the conversation loaded joins it each time the panel
   // opens ("Talk to a person", Codex #2265). Only team replies are added: the rest is here.
   const cwPullTeam = () => {

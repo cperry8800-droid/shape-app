@@ -30,7 +30,7 @@ const settle = async (n = 6) => { for (let i = 0; i < n; i++) await React.act(as
 // signedIn: what /api/me says; threadGets: the status of each GET /api/nora/thread in turn;
 // stored: the account's thread a 200 returns; me: /api/me's read, when a test holds it back;
 // db: what window.shapeEnsureDb loads, as on the 25 pages without /supabase.js.
-async function mount({ signedIn = true, threadGets = [200], stored = [], me = null, db = null } = {}) {
+async function mount({ signedIn = true, threadGets = [200], stored = [], me = null, db = null, docked = false } = {}) {
   const dom = new JSDOM('<!doctype html><body><div id="r"></div></body>', { url: 'https://shape.test/newdesign/ClientApp.html', pretendToBeVisual: true });
   const w = dom.window;
   const before = { window: globalThis.window, document: globalThis.document, localStorage: globalThis.localStorage, navigator: Object.getOwnPropertyDescriptor(globalThis, 'navigator'), act: globalThis.IS_REACT_ACT_ENVIRONMENT, fetch: globalThis.fetch };
@@ -64,7 +64,7 @@ async function mount({ signedIn = true, threadGets = [200], stored = [], me = nu
   // Her seed greeting, with the chips say() taps.
   const tabs = [{ id: 'nora', label: 'Nora', title: 'Nora', support: true, threads: [{ who: 'Nora', messages: [{ who: 'Nora', t: 'Hi, I am Nora.', me: false }], quick: ['How do I log a meal?', 'Hi'] }] }];
   const root = ReactDOMClient.createRoot(w.document.getElementById('r'));
-  await React.act(async () => root.render(React.createElement(w.ChatWidget, { tabs })));
+  await React.act(async () => root.render(React.createElement(w.ChatWidget, { tabs, docked })));
   await settle();
   const open = async () => { await React.act(async () => { w.__openChat({ tab: 'nora' }, 'nora'); }); await settle(); };
   const close = async () => { await React.act(async () => { w.__closeChat ? w.__closeChat() : w.document.querySelector('[data-chat-panel] button[aria-label="Close"]')?.click(); }); await settle(); };
@@ -190,6 +190,19 @@ test('the account\'s Nora settings are read through the loaded client, after the
     await m.say('Hi');
     const ask = m.posts.find(([u]) => u === '/api/support/chat');
     assert.equal(ask && ask[1].tone, 'direct', 'the tone chosen in the app\'s Settings shapes her reply here');
+  } finally {
+    await m.done();
+  }
+});
+
+test('the docked pop-out is always open: a failed load there is tried again without an open', async () => {
+  // chatPopout.html mounts the widget docked: on screen in its own window, with `open` false.
+  const m = await mount({ docked: true, threadGets: [429, 200] });
+  try {
+    assert.ok(m.threadGetsSoFar() >= 1);
+    await waitForRetry();
+    assert.equal(m.threadGetsSoFar(), 2, 'the miss counted, and the retry ran 2 seconds on');
+    assert.ok(m.personButton(), 'synced: Talk to a person is offered');
   } finally {
     await m.done();
   }
