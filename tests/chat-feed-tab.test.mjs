@@ -378,5 +378,6 @@ test('the pre-Feed persisted chat state is migrated, not discarded', () => {
   assert.match(s, /\[empty\]\.concat\(arr\)/, 'the pre-Feed record is not realigned onto the Feed tab');
   // The migration is keyed on the Feed tab existing, so it must re-run if the
   // module lands late — otherwise it is decided on a tabs.length it never saw.
-  assert.match(s, /\}, \[tabs\.length, feedReady\]\);/, 'the hydrate effect no longer re-runs when the Feed tab appears');
+  // (`authTry` re-runs it to read /api/me again after a read that did not complete; Codex, #2391.)
+  assert.match(s, /\}, \[tabs\.length, feedReady, authTry\]\);/, 'the hydrate effect no longer re-runs when the Feed tab appears');
 });

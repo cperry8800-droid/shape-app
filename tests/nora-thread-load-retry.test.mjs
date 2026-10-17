@@ -30,13 +30,15 @@ const settle = async (n = 6) => { for (let i = 0; i < n; i++) await React.act(as
 // signedIn: what /api/me says; threadGets: the status of each GET /api/nora/thread in turn;
 // stored: the account's thread a 200 returns; me: /api/me's read, when a test holds it back;
 // db: what window.shapeEnsureDb loads, as on the 25 pages without /supabase.js.
-async function mount({ signedIn = true, threadGets = [200], stored = [], me = null, db = null, docked = false } = {}) {
+// seed: localStorage entries already on the browser.
+async function mount({ signedIn = true, threadGets = [200], stored = [], me = null, db = null, docked = false, seed = {} } = {}) {
   const dom = new JSDOM('<!doctype html><body><div id="r"></div></body>', { url: 'https://shape.test/newdesign/ClientApp.html', pretendToBeVisual: true });
   const w = dom.window;
   const before = { window: globalThis.window, document: globalThis.document, localStorage: globalThis.localStorage, navigator: Object.getOwnPropertyDescriptor(globalThis, 'navigator'), act: globalThis.IS_REACT_ACT_ENVIRONMENT, fetch: globalThis.fetch };
   Object.assign(globalThis, { window: w, document: w.document, localStorage: w.localStorage, IS_REACT_ACT_ENVIRONMENT: true });
   Object.defineProperty(globalThis, 'navigator', { value: w.navigator, configurable: true });
   w.React = React;
+  for (const [k, v] of Object.entries(seed)) w.localStorage.setItem(k, JSON.stringify(v));
   w.matchMedia = () => ({ matches: false, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
   w.HTMLElement.prototype.scrollTo = function () {};
   w.HTMLElement.prototype.scrollIntoView = function () {};
@@ -160,18 +162,74 @@ test('an exchange held while the store was down stays in view after the stored t
   }
 });
 
-test('a panel opened before /api/me answered loads once it does, even when that read failed', async () => {
-  const waiting = []; // the hydrate and the member check each read it
-  const me = () => new Promise((_, reject) => { waiting.push(reject); });
-  const fail = () => waiting.forEach((reject) => reject(new Error('down')));
+// /api/me down on the first read, answering on the next (it is not cached when it fails).
+function flakyMe() {
+  const waiting = [];
+  let down = true;
+  const me = () => (down ? new Promise((_, reject) => { waiting.push(reject); }) : Promise.resolve({ user: { id: 'u1', email: 'ann@shape.test' } }));
+  // Fails the reads waiting now; `stayDown` keeps the next ones failing too.
+  const fail = ({ stayDown = false } = {}) => { down = stayDown; waiting.splice(0).forEach((reject) => reject(new Error('down'))); };
+  return { me, fail };
+}
+
+test('with /api/me unanswered nothing loads; it is asked again, and the load follows its answer', async () => {
+  const { me, fail } = flakyMe();
   const m = await mount({ me });
   try {
     await m.open();
     assert.equal(m.threadGetsSoFar(), 0, 'nothing to measure against yet');
     await React.act(async () => { fail(); });
     await settle();
-    assert.equal(m.threadGetsSoFar(), 1, '"unknown" tries: the GET settles who this is');
+    assert.equal(m.threadGetsSoFar(), 0, 'unknown: no load');
+    // The panel was open when the read failed, a miss: /api/me is asked again 2 seconds on.
+    await waitForRetry();
+    assert.equal(m.threadGetsSoFar(), 1, 'loaded once the account is known');
     assert.ok(m.personButton());
+  } finally {
+    await m.done();
+  }
+});
+
+test('an unknown identity never writes the account\'s thread under the signed-out key, nor sends that copy up', async () => {
+  const ANON = 'shape.chat.v2.anon';
+  const anonCopy = { threadsByTab: [[{ who: 'Nora', messages: [{ who: 'Nora', t: 'Hi, I am Nora.', me: false }, { who: 'You', t: 'Anon question', me: true }, { who: 'Nora', t: 'Anon answer', me: false }] }]], activeByTab: [0] };
+  for (const stored of [[], [{ role: 'user', text: 'Private question', at: '2026-10-16T10:00:00Z' }, { role: 'assistant', text: 'Private answer', at: '2026-10-16T10:00:05Z' }]]) {
+    const { me, fail } = flakyMe();
+    const m = await mount({ me, stored, seed: { [ANON]: anonCopy } });
+    try {
+      await React.act(async () => { fail(); }); // the first read fails with the panel closed
+      await settle();
+      assert.equal(m.threadGetsSoFar(), 0, 'unknown: no load');
+      await m.open(); // asks /api/me again, which answers: re-keyed, then loaded
+      assert.equal(m.threadGetsSoFar(), 1);
+      assert.ok(m.personButton());
+      const anon = m.w.localStorage.getItem(ANON) || '';
+      assert.doesNotMatch(anon, /Private/, 'the account\'s thread never lands under the signed-out key');
+      assert.ok(!m.appended().flat().some((x) => /Anon/.test(x.text)), 'the signed-out copy is never sent to the account');
+      if (stored.length) assert.ok(m.w.document.body.textContent.includes('Private answer'), 'the account\'s thread is shown');
+    } finally {
+      await m.done();
+    }
+  }
+});
+
+test('what is said while /api/me is unanswered is kept; the signed-out copy it was said beside is not sent up', async () => {
+  const ANON = 'shape.chat.v2.anon';
+  const anonCopy = { threadsByTab: [[{ who: 'Nora', messages: [{ who: 'Nora', t: 'Hi, I am Nora.', me: false }, { who: 'You', t: 'Anon question', me: true }, { who: 'Nora', t: 'Anon answer', me: false }], quick: ['How do I log a meal?'] }]], activeByTab: [0] };
+  const { me, fail } = flakyMe();
+  const m = await mount({ me, stored: [], seed: { [ANON]: anonCopy } });
+  try {
+    await React.act(async () => { fail({ stayDown: true }); });
+    await settle();
+    await m.open(); // asks again at once; that read waits
+    await React.act(async () => { fail({ stayDown: true }); }); // and fails: a miss
+    await settle();
+    await m.say('How do I log a meal?'); // said while unknown: held
+    assert.equal(m.threadGetsSoFar(), 0);
+    await React.act(async () => { fail(); }); // /api/me answers from here on
+    await waitForRetry(); // asked again 2 seconds on: signed in, so it loads
+    assert.equal(m.threadGetsSoFar(), 1);
+    assert.deepEqual(m.appended().flat().map((x) => x.text), ['How do I log a meal?', 'Tap + on Eat.'], 'only what this person said here');
   } finally {
     await m.done();
   }

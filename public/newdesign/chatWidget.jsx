@@ -517,6 +517,8 @@ function ChatWidget(props) {
   // 200 {user:null} for a MEASURED signed-out visitor and 503 for a read that did
   // not complete, and only the first is evidence of anything.
   const [authProbe, setAuthProbe] = React.useState("pending");
+  // Bumped to read /api/me again after a read that did not complete (the Nora retry below).
+  const [authTry, setAuthTry] = React.useState(0);
   const dirtyRef = React.useRef(false);
 
   // Nora's voice OUTPUT (read replies aloud) — OFF by default, fully usable
@@ -726,11 +728,13 @@ function ChatWidget(props) {
   };
   // One load at a time, and none once the store has answered.
   const noraLoadingRef = React.useRef(false);
-  // ⚠ WHERE THE ACCOUNT'S THREAD JOINS THIS BROWSER'S: { base, gen }, the hydrated copy's
-  // length and the Clear count, set by the hydrate. Everything said after it is held
+  // ⚠ WHERE THE ACCOUNT'S THREAD JOINS THIS BROWSER'S: { base, gen, mine }, the hydrated
+  // copy's length and the Clear count, set by the hydrate. Everything said after it is held
   // (cwNoraSave), so every attempt starts from that point. A retry that measured the thread
   // as drawn posted held exchanges twice into an empty account, or dropped them from view
   // beside a stored one (Codex, #2391). A Clear since then clears the account once it answers.
+  // `mine`: the copy was hydrated under this account's key. One read under the signed-out key
+  // (/api/me unanswered) may be someone else's on a shared browser, so it never migrates.
   const noraFromRef = React.useRef(null);
   // Loads that failed while the panel was open, since it opened (the retry below).
   const [noraMissed, setNoraMissed] = React.useState(0);
@@ -742,7 +746,7 @@ function ChatWidget(props) {
   const cwLoadNoraThread = (isCancelled) => {
     if (noraLoadingRef.current || noraThreadSyncRef.current) return;
     noraLoadingRef.current = true;
-    const { base, gen } = noraFromRef.current || { base: cwNoraLocal().length, gen: noraThreadGenRef.current };
+    const { base, gen, mine } = noraFromRef.current || { base: cwNoraLocal().length, gen: noraThreadGenRef.current, mine: false };
     let signedOut = false; // a 401: no account to load, so nothing to try again
     fetch("/api/nora/thread", { credentials: "same-origin", cache: "no-store" })
       .then((r) => { signedOut = r.status === 401; return r.ok ? r.json() : null; })
@@ -760,7 +764,7 @@ function ChatWidget(props) {
         if (!stored.length) {
           // Migrate this browser's own copy only when the account has none yet, then what
           // was answered while it loaded.
-          const msgs = cwNoraLocal().slice(0, base);
+          const msgs = mine ? cwNoraLocal().slice(0, base) : [];
           const local = msgs.slice(msgs.length && !msgs[0].me ? 1 : 0).filter((m) => !m.pending && !m.saved && m.t);
           cwNoraPost([...local.map(cwNoraStored), ...cwNoraHeld()]);
           return;
@@ -791,10 +795,15 @@ function ChatWidget(props) {
   // the hydrate and /api/me answer if it opened first, and after each miss while it stays
   // open, 2, 4, 8 and 16 seconds on; closing it starts the count again (Codex, #2391). A
   // visitor's GET answers 401: nothing.
+  // ⚠ NOTHING LOADS UNTIL /api/me SAYS WHO THIS IS. Unanswered, the hydrate keeps this copy
+  // under the signed-out key, and the account's thread drawn into it would be saved there
+  // for the next person on the browser (Codex, #2391). So a retry then asks /api/me again
+  // (the hydrate re-runs and re-keys the copy), and the load follows once it answers.
   React.useEffect(() => { if (!shown) setNoraMissed(0); }, [shown]);
   React.useEffect(() => {
     if (!shown || !hydrated || authProbe === "out" || noraThreadSyncRef.current || noraMissed > 4) return undefined;
-    const t = setTimeout(() => cwLoadNoraThread(() => false), noraMissed ? 1000 * 2 ** noraMissed : 0);
+    const retry = authProbe === "in" ? () => cwLoadNoraThread(() => false) : () => setAuthTry((n) => n + 1);
+    const t = setTimeout(retry, noraMissed ? 1000 * 2 ** noraMissed : 0);
     return () => clearTimeout(t);
   }, [shown, hydrated, authProbe, noraMissed]);
   // A reply the Shape team sent after the conversation loaded joins it each time the panel
@@ -883,7 +892,10 @@ function ChatWidget(props) {
       } catch {}
       if (cancelled) return;
       setAuthProbe(probe);
+      // Still unanswered while the panel is on screen: a miss, so the retry asks again.
+      if (probe === "unknown" && openRef.current) setNoraMissed((n) => n + 1);
       const key = `shape.chat.${STORE_VER}.${uid}`;
+      const rekeyed = !!storeKeyRef.current && storeKeyRef.current !== key;
       storeKeyRef.current = key;
       let hydratedThreads = null;
       // Don't clobber a message the user typed before hydration finished.
@@ -916,20 +928,26 @@ function ChatWidget(props) {
             }
           }
         } catch {}
+        // Re-keyed (/api/me answered on a later read) to an account with nothing saved here:
+        // it starts where a first visit would, not with the signed-out copy.
+        if (rekeyed && !hydratedThreads) {
+          hydratedThreads = tabs.map((t) => t.threads);
+          setThreadsByTab(hydratedThreads);
+          setActiveByTab(tabs.map(() => 0));
+        }
       }
       hydratedRef.current = true;
       setHydrated(true);
       // Measured against the threads just set, which this render has not drawn yet. A later
-      // hydrate moves it only when it read the saved copy again: nothing was typed, so
-      // nothing is held.
-      if (hydratedThreads || !noraFromRef.current) noraFromRef.current = { base: cwNoraLocal(hydratedThreads).length, gen: noraThreadGenRef.current };
+      // hydrate moves it only when nothing was typed, so nothing is held.
+      if (!dirtyRef.current || !noraFromRef.current) noraFromRef.current = { base: cwNoraLocal(hydratedThreads).length, gen: noraThreadGenRef.current, mine: probe === "in" };
       // One conversation per account (the Ask Nora plan, step 4): the stored thread replaces
       // this browser's copy of Nora's, and a browser that kept one before the account had
       // any sends it up once. Signed out, or before the migration runs, nothing changes.
       if (probe === "in" && !cancelled) cwLoadNoraThread(() => cancelled);
     })();
     return () => { cancelled = true; };
-  }, [tabs.length, feedReady]);
+  }, [tabs.length, feedReady, authTry]);
 
   // ⚠ THE GREETING IS APPLIED ONLY ONCE THE SAVED THREADS ARE IN. The fetch races the
   // localStorage hydrate above, and a hydrate that landed second restored the saved seed
