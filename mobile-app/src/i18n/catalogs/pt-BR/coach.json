@@ -1342,5 +1342,7 @@
   "business.unreadSubs": "Não foi possível ler suas assinaturas agora. Nada foi perdido; tente de novo daqui a pouco.",
   "business.weeks.aria": "Líquido por mês nas últimas 13 semanas, de {from} para {to}",
   "business.weeks.head": "Líquido por mês, últimas 13 semanas",
-  "business.window": "nos últimos 3 meses"
+  "business.window": "nos últimos 3 meses",
+  "offer.row": "Oferta mensal",
+  "offer.rowSub": "O que está incluído, mostrado no seu perfil do marketplace"
 }

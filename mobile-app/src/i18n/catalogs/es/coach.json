@@ -1342,5 +1342,7 @@
   "business.unreadSubs": "No se pudieron leer tus suscripciones ahora mismo. No se ha perdido nada; inténtalo de nuevo en un momento.",
   "business.weeks.aria": "Neto al mes en las últimas 13 semanas, de {from} a {to}",
   "business.weeks.head": "Neto al mes, últimas 13 semanas",
-  "business.window": "en los últimos 3 meses"
+  "business.window": "en los últimos 3 meses",
+  "offer.row": "Oferta mensual",
+  "offer.rowSub": "Lo que incluye, visible en tu perfil del marketplace"
 }

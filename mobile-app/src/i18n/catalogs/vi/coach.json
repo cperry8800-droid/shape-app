@@ -1342,5 +1342,7 @@
   "business.unreadSubs": "Hiện không đọc được các gói đăng ký của bạn. Không có gì bị mất; hãy thử lại sau ít phút.",
   "business.weeks.aria": "Thực nhận mỗi tháng trong 13 tuần qua, từ {from} đến {to}",
   "business.weeks.head": "Thực nhận mỗi tháng, 13 tuần qua",
-  "business.window": "trong 3 tháng qua"
+  "business.window": "trong 3 tháng qua",
+  "offer.row": "Gói hằng tháng",
+  "offer.rowSub": "Những gì được bao gồm, hiển thị trên hồ sơ chợ của bạn"
 }

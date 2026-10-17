@@ -1342,5 +1342,7 @@
   "business.unreadSubs": "We no fit read your subscriptions right now. Nothing lost; try again small time.",
   "business.weeks.aria": "Net every month for the last 13 weeks, from {from} to {to}",
   "business.weeks.head": "Net every month, last 13 weeks",
-  "business.window": "for the last 3 months"
+  "business.window": "for the last 3 months",
+  "offer.row": "Monthly offer",
+  "offer.rowSub": "Wetin dey inside, e dey show for your marketplace profile"
 }

@@ -1342,5 +1342,7 @@
   "business.unreadSubs": "Ba a iya karanta biyan kuɗinka na wata-wata a yanzu ba. Babu abin da ya ɓace; sake gwadawa nan da ɗan lokaci.",
   "business.weeks.aria": "Tsabta a wata cikin makonni 13 da suka wuce, daga {from} zuwa {to}",
   "business.weeks.head": "Tsabta a wata, makonni 13 da suka wuce",
-  "business.window": "cikin watanni 3 da suka wuce"
+  "business.window": "cikin watanni 3 da suka wuce",
+  "offer.row": "Tayin wata-wata",
+  "offer.rowSub": "Abin da ya ƙunsa, ana nuna shi a bayanin martabarka a kasuwa"
 }

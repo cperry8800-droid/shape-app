@@ -105,7 +105,6 @@
   "training.injuries": "Cedera & catatan",
   "training.injuriesPh": "Bahu kiri, lutut…",
   "training.preferredTimes": "Waktu yang disukai",
-  "practice.profileRates": "Profil publik & tarif",
   "practice.listing": "Daftar marketplace",
   "practice.availability": "Ketersediaan",
   "practice.payouts": "Pembayaran",
@@ -497,5 +496,6 @@
   "push.askYes": "Aktifkan notifikasi",
   "push.notNow": "Nanti saja",
   "push.askTitleCoach": "Ketahui saat klien Anda membutuhkan Anda",
-  "push.askBodyCoach": "Shape memberi tahu Anda di ponsel saat klien mengirim pesan, memesan atau membayar sesi, atau membutuhkan perhatian Anda. Ponsel Anda bertanya sekali; Anda bisa mengubahnya nanti di pengaturannya."
+  "push.askBodyCoach": "Shape memberi tahu Anda di ponsel saat klien mengirim pesan, memesan atau membayar sesi, atau membutuhkan perhatian Anda. Ponsel Anda bertanya sekali; Anda bisa mengubahnya nanti di pengaturannya.",
+  "practice.payoutsFailed": "Tidak bisa memulai pengaturan pembayaran Stripe."
 }

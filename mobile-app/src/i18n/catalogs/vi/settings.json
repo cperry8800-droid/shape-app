@@ -105,7 +105,6 @@
   "training.injuries": "Chấn thương & ghi chú",
   "training.injuriesPh": "Vai trái, đầu gối…",
   "training.preferredTimes": "Thời điểm ưa thích",
-  "practice.profileRates": "Hồ sơ công khai & bảng giá",
   "practice.listing": "Tin đăng trên marketplace",
   "practice.availability": "Lịch trống",
   "practice.payouts": "Chi trả",
@@ -497,5 +496,6 @@
   "push.askYes": "Bật thông báo",
   "push.notNow": "Để sau",
   "push.askTitleCoach": "Biết ngay khi khách hàng cần bạn",
-  "push.askBodyCoach": "Shape báo cho bạn trên điện thoại khi khách hàng nhắn tin, đặt hoặc thanh toán buổi tập, hay cần bạn chú ý. Điện thoại chỉ hỏi một lần; bạn có thể đổi sau trong phần cài đặt."
+  "push.askBodyCoach": "Shape báo cho bạn trên điện thoại khi khách hàng nhắn tin, đặt hoặc thanh toán buổi tập, hay cần bạn chú ý. Điện thoại chỉ hỏi một lần; bạn có thể đổi sau trong phần cài đặt.",
+  "practice.payoutsFailed": "Không thể bắt đầu thiết lập chi trả Stripe."
 }

@@ -1342,5 +1342,7 @@
   "business.unreadSubs": "Langgananmu tidak bisa dibaca saat ini. Tidak ada yang hilang; coba lagi sebentar lagi.",
   "business.weeks.aria": "Bersih per bulan selama 13 minggu terakhir, dari {from} ke {to}",
   "business.weeks.head": "Bersih per bulan, 13 minggu terakhir",
-  "business.window": "dalam 3 bulan terakhir"
+  "business.window": "dalam 3 bulan terakhir",
+  "offer.row": "Penawaran bulanan",
+  "offer.rowSub": "Apa saja yang termasuk, tampil di profil marketplace-mu"
 }

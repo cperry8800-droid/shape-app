@@ -1342,5 +1342,7 @@
   "business.unreadSubs": "Aboneliklerin şu an okunamadı. Hiçbir şey kaybolmadı; birazdan tekrar dene.",
   "business.weeks.aria": "Son 13 haftada aylık net, {from} tutarından {to} tutarına",
   "business.weeks.head": "Aylık net, son 13 hafta",
-  "business.window": "son 3 ayda"
+  "business.window": "son 3 ayda",
+  "offer.row": "Aylık teklif",
+  "offer.rowSub": "Neler dahil, pazar yeri profilinde gösterilir"
 }

@@ -1342,5 +1342,7 @@
   "business.unreadSubs": "Couldn't read your subscriptions just now. Nothing is lost; try again in a moment.",
   "business.weeks.aria": "Net a month over the last 13 weeks, from {from} to {to}",
   "business.weeks.head": "Net a month, last 13 weeks",
-  "business.window": "over the last 3 months"
+  "business.window": "over the last 3 months",
+  "offer.row": "Monthly offer",
+  "offer.rowSub": "What's included, shown on your marketplace listing"
 }

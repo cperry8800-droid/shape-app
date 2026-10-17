@@ -370,8 +370,8 @@ const UNCOVERED = new Set([
   // developer Tweaks overlay, never shown to a member, so it stays uncovered
   // deliberately rather than shipping 15 dev-only strings to 13 locales.
   'Main::BSTweaksPanel',
-  'Pros::BSCoachGoalPlanPage', 'Pros::BSCoachPlaylistStudio', 'Pros::BSGoalEditSheet',
-  'Pros::BSProMonthlyOfferSheet', 'Pros::BSProNotificationsPage', 'Pros::BSProPublicProfilePage',
+  'Pros::BSCoachPlaylistStudio',
+  'Pros::BSProMonthlyOfferSheet',
   'ProviderApply::BSProviderApplicationScreen', 'Widgets::BSWidgetPicker',
   // The application screen's document pickers (2026-10-12), split out of it as their own
   // component: three strings of the screen's, which has no translator and is translated whole
@@ -450,7 +450,7 @@ const PARTIAL = new Set([
   'Client::BSGoalsContract',
   'Marketplace::BSCoachDetailPublic', 'Marketplace::MktCoachCard',
   'Marketplace::MktComboCard', 'Marketplace::MktRow', 'Pros::BSProClientPreviewPage',
-  'Pros::BSProMe', 'Pros::BSProSoundtracks',
+  'Pros::BSProSoundtracks',
   'Pros::ProWeekendPlate', 'Radio::BSNowPlayingMuted', 'Radio::BSRadioScreen',
   'Radio::BSShapeSetsScreen',
 ]);
@@ -782,7 +782,11 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // website"). BSAboutPage leaves PARTIAL with its one hardcoded string, the founder's
   // signature: partStrings 211 -> 210, part.length 35 -> 34; noneStrings and none.length
   // unchanged.
-  assert.equal(partStrings, 210, 'the partial surfaces changed how much they hardcode — update the number AND say so in the PR');
+  // The old coach Me page (BSProMe) is deleted (2026-10-17): nothing rendered it. Its listing
+  // tools moved to Settings → Your practice, keyed, and the Business card took the coach's Me
+  // tab (BSCoachBusiness.jsx, keyed in all 13 locales). Its 25 hardcoded strings go with it:
+  // partStrings 210 -> 185, part.length 34 -> 33.
+  assert.equal(partStrings, 185, 'the partial surfaces changed how much they hardcode — update the number AND say so in the PR');
   // ⚠ AND noneStrings 793 -> 796 IS THREE STRINGS ADDED ON PURPOSE, in
   // BSMealLogged (already uncovered): the plated stage was printing a 46px teal
   // `0` under `Logged ✓` for a cook whose macros are unknown — while logIt had
@@ -858,9 +862,13 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // to its own module, BSNotifications.jsx, when Clear all was added (owner: "add clear all to the
   // app too"), every string keyed under common:notifications.* in all 13 locales. Its old copy in
   // the client module is gone, and its line left UNCOVERED.
-  assert.equal(noneStrings, 702, 'the untranslated surfaces changed how much they hardcode — update the number AND say so in the PR');
-  assert.equal(part.length, 34, 'partial-surface count moved — regenerate PARTIAL and the record');
-  assert.equal(none.length, 86, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  // ⚠ AND noneStrings 702 -> 652, none.length 86 -> 82: four pros screens that only the old
+  // coach Me page opened were deleted with it (2026-10-17), with their 50 hardcoded strings:
+  // the practice-goal page and its edit sheet (a sample goal shown to every coach), a public
+  // profile editor that saved nothing, and a Notifications page whose switches were local.
+  assert.equal(noneStrings, 652, 'the untranslated surfaces changed how much they hardcode — update the number AND say so in the PR');
+  assert.equal(part.length, 33, 'partial-surface count moved — regenerate PARTIAL and the record');
+  assert.equal(none.length, 82, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned

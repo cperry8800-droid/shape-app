@@ -1342,5 +1342,7 @@
   "business.unreadSubs": "Deine Abos konnten gerade nicht gelesen werden. Es ist nichts verloren; versuch es gleich noch einmal.",
   "business.weeks.aria": "Netto im Monat über die letzten 13 Wochen, von {from} auf {to}",
   "business.weeks.head": "Netto im Monat, letzte 13 Wochen",
-  "business.window": "in den letzten 3 Monaten"
+  "business.window": "in den letzten 3 Monaten",
+  "offer.row": "Monatsangebot",
+  "offer.rowSub": "Was enthalten ist, angezeigt in deinem Marktplatz-Profil"
 }
