@@ -212,7 +212,7 @@ test('website: loads after sign-in, appends each answered exchange, clears on ev
   assert.match(W, /if \(!dirtyRef\.current \|\| rekeyed\) \{/);
   assert.match(W, /if \(!hydratedRef\.current \|\| !storeKeyRef\.current \|\| authProbe === "unknown"\) return;/);
   assert.match(W, /if \(reply\) cwNoraSave\(\[\{ role: "user", text, at: sentAt \}, \{ role: "assistant", text: reply, at: new Date\(\)\.toISOString\(\) \}\]\);/, 'the scripted fallback is never kept');
-  assert.match(W, /body: JSON\.stringify\(\{ append: messages \}\)/);
+  assert.match(W, /body: JSON\.stringify\(account \? \{ append: messages, account \} : \{ append: messages \}\)/, 'each append names the account the copy belongs to (Codex on #2393; run in nora-thread-load-retry)');
   const load = between(W, 'const cwLoadNoraThread = (isCancelled) => {', 'const clearNoraThread');
   assert.match(load, /if \(!stored\.length\) \{/, 'a browser\'s own copy is sent up only when the account has none');
   // ⚠ A QUESTION ASKED WHILE IT LOADS (Codex, #2255): kept after the stored thread, and an
@@ -226,9 +226,10 @@ test('website: loads after sign-in, appends each answered exchange, clears on ev
   const clear = between(W, 'const clearNoraThread = () => {', 'stopNora();');
   assert.match(clear, /noraThreadGenRef\.current \+= 1;\n\s+noraHeldRef\.current = \[\];/);
   // And an answer that lands after the account changed is not the next account's (Codex, #2391).
-  assert.match(W, /const gen = noraThreadGenRef\.current;[\s\S]{0,4000}if \(gen !== noraThreadGenRef\.current \|\| acct !== noraAcctRef\.current\) return null;\n\s+setTyping\(false\);\n\s+setNoraLive\(""\);\n\s+const finalReply = reply \|\| supportReply\(text\);/);
-  assert.match(load, /if \(gen !== noraThreadGenRef\.current\) \{[\s\S]{0,300}method: "DELETE"/, 'cleared while it loaded: the Clear applies to the account');
-  assert.match(W, /fetch\("\/api\/nora\/thread", \{ method: "DELETE", credentials: "same-origin" \}\)/);
+  assert.match(W, /const gen = noraThreadGenRef\.current;[\s\S]{0,4000}if \(gen !== noraThreadGenRef\.current \|\| acct !== noraAcctRef\.current\) return null;\n\s+setTyping\(false\);\n\s+setNoraLive\(""\);\n[^\n]*\n\s+if \(refused\) \{[^\n]*\}\n\s+const finalReply = reply \|\| supportReply\(text\);/);
+  assert.match(load, /if \(gen !== noraThreadGenRef\.current\) \{[\s\S]{0,300}cwNoraDelete\(\)\.then/, 'cleared while it loaded: the Clear applies to the account');
+  // Cleared as the account the copy belongs to (Codex on #2393; run in nora-thread-load-retry).
+  assert.match(W, /fetch\(`\/api\/nora\/thread\$\{account \? `\?account=\$\{encodeURIComponent\(account\)\}` : ""\}`, \{ method: "DELETE", credentials: "same-origin" \}\)/);
   assert.match(W, /<button type="button" data-nora-clear onClick=\{clearNoraThread\}/);
 });
 

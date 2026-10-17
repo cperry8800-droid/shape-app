@@ -40,7 +40,10 @@ const settle = async (n = 6) => { for (let i = 0; i < n; i++) await React.act(as
 // out to be a lookup) and .end(reply) to finish it.
 // holdRequest: 'reject' fails the held "Talk to a person" send instead of answering it.
 // circleTab: a coaches tab (id 'circle') for the live coach threads the db option can serve.
-async function mount({ signedIn = true, threadGets = [200], stored = [], me = null, db = null, docked = false, seed = {}, greeting = {}, holdAnswer = false, holdRequest = false, teamTab = false, member = false, conversations = {}, streamAnswer = false, circleTab = false } = {}) {
+// serverAs: the account the server reads from the cookie now (read at each request); a write or a
+// question that names another one is refused with 409 account_changed, as the routes do.
+// busySave: each save answers 409 thread_busy (other devices kept winning the write).
+async function mount({ signedIn = true, threadGets = [200], stored = [], me = null, db = null, docked = false, seed = {}, greeting = {}, holdAnswer = false, holdRequest = false, teamTab = false, member = false, conversations = {}, streamAnswer = false, circleTab = false, serverAs = null, busySave = false } = {}) {
   // jsdom cannot reload a page; it says so on its console, and that is where a reload is counted.
   const reloads = [];
   const vc = new VirtualConsole();
@@ -57,8 +60,13 @@ async function mount({ signedIn = true, threadGets = [200], stored = [], me = nu
   w.HTMLElement.prototype.scrollTo = function () {};
   w.HTMLElement.prototype.scrollIntoView = function () {};
   const calls = [];
-  const posts = []; // the bodies sent to /api/nora/thread and /api/support/chat
+  const posts = []; // the bodies sent to /api/nora/thread, /api/support/chat and /api/support/request
+  const deletes = []; // each DELETE /api/nora/thread, with its query
   const gets = [...threadGets];
+  // By default the server reads the same cookie /api/me does: the account it last named.
+  let lastMe = signedIn ? 'u1' : null;
+  const caller = () => (serverAs ? serverAs() : lastMe);
+  const refusedFor = (named) => (named && named !== caller() ? answer(409, { error: "You're signed in as another account now. Open the conversation again.", code: 'account_changed', account: caller() }) : null);
   const held = {};
   const answer = (status, body) => Promise.resolve({ ok: status < 400, status, json: async () => body, text: async () => JSON.stringify(body) });
   globalThis.fetch = w.fetch = async (url, opts = {}) => {
@@ -68,11 +76,21 @@ async function mount({ signedIn = true, threadGets = [200], stored = [], me = nu
     if (u.includes('/api/nora/thread') && method === 'GET') {
       if (!signedIn) return answer(401, { error: 'Sign in.' });
       const status = gets.length ? gets.shift() : 200;
-      const body = { messages: typeof stored === 'function' ? stored() : stored };
+      const body = { messages: typeof stored === 'function' ? stored() : stored, account: caller() };
       if (status === 'hold') return new Promise((resolve) => { held.get = () => resolve(answer(200, body)); });
       return answer(status, body);
     }
-    if (method === 'POST' && (u.includes('/api/nora/thread') || u.includes('/api/support/chat'))) posts.push([u.split('?')[0], JSON.parse(opts.body)]);
+    if (method === 'POST' && (u.includes('/api/nora/thread') || u.includes('/api/support/chat') || u.includes('/api/support/request'))) posts.push([u.split('?')[0], JSON.parse(opts.body)]);
+    if (method === 'DELETE' && u.includes('/api/nora/thread')) deletes.push(u);
+    if (method === 'POST' && (u.includes('/api/nora/thread') || u.includes('/api/support/chat') || u.includes('/api/support/request'))) {
+      const no = refusedFor(JSON.parse(opts.body).account);
+      if (no) return no;
+      if (busySave && u.includes('/api/nora/thread')) return answer(409, { error: 'Your conversation is busy on another device. Try again.', code: 'thread_busy' });
+    }
+    if (method === 'DELETE' && u.includes('/api/nora/thread')) {
+      const no = refusedFor(new URL(u, 'https://shape.test').searchParams.get('account'));
+      if (no) return no;
+    }
     if (u.includes('/api/support/chat') && method === 'POST' && streamAnswer) {
       const queue = [];
       let wake = null;
@@ -95,7 +113,9 @@ async function mount({ signedIn = true, threadGets = [200], stored = [], me = nu
     return answer(200, {});
   };
   if (db) w.shapeEnsureDb = async () => { w.shapeDb = db; return db; };
-  const readMe = me || (() => Promise.resolve(signedIn ? { user: { id: 'u1', email: 'ann@shape.test' } } : { user: null }));
+  const readMe0 = me || (() => Promise.resolve(signedIn ? { user: { id: 'u1', email: 'ann@shape.test' } } : { user: null }));
+  let meReads = 0;
+  const readMe = (...a) => { meReads += 1; return Promise.resolve(readMe0(...a)).then((j) => { if (j) lastMe = (j.user && j.user.id) || null; return j; }); };
   new Function('React', 'ReactDOM', 'shapeReadPortalMe', WIDGET)(React, ReactDOMClient, readMe);
   // Her seed greeting, with the chips say() taps.
   const tabs = [{ id: 'nora', label: 'Nora', title: 'Nora', support: true, threads: [{ who: 'Nora', messages: [{ who: 'Nora', t: 'Hi, I am Nora.', me: false }], quick: ['How do I log a meal?', 'Hi'] }] }];
@@ -131,7 +151,7 @@ async function mount({ signedIn = true, threadGets = [200], stored = [], me = nu
   };
   const appended = () => posts.filter(([u]) => u === '/api/nora/thread').map(([, b]) => b.append);
   const release = async (k) => { await React.act(async () => { held[k](); }); await settle(); };
-  return { w, calls, posts, held, reloads, open, close, done, threadGetsSoFar, personButton, say, appended, addTab, release };
+  return { w, calls, posts, deletes, held, reloads, open, close, done, threadGetsSoFar, personButton, say, appended, addTab, release, meReads: () => meReads };
 }
 
 test('a failed first load is tried again when the panel opens, and then Talk to a person shows', async () => {
@@ -806,6 +826,171 @@ test('a coach thread only the server has joins the copy even when something was 
     assert.match(flat, /Coach Live/, 'the server\'s coach thread is in the account\'s copy');
     assert.match(flat, /Sample coach/, 'and what was here stays');
     assert.match(flat, /How do I log a meal\?/, 'with what was typed');
+  } finally {
+    await m.done();
+  }
+});
+
+// ── Codex on #2393: the website's cookie can change account under an open pop-up ─────────────
+// Every question, save, Clear and "Talk to a person" names the account the copy belongs to; the
+// server refuses one whose caller is someone else now, and the pop-up asks /api/me again, which
+// finds the other account and reloads the page for it.
+const asCookie = () => {
+  const c = { who: 'u1' };
+  c.me = () => Promise.resolve(c.who ? { user: { id: c.who, email: `${c.who}@shape.test` } } : { user: null });
+  c.serverAs = () => c.who;
+  return c;
+};
+const chatPosts = (m) => m.posts.filter(([u]) => u === '/api/support/chat').map(([, b]) => b);
+// The notice that says why clears itself 3.5 seconds on; let it, before the page is taken down.
+const noticeGone = async () => { await React.act(async () => { await new Promise((r) => setTimeout(r, 3600)); }); await settle(); };
+
+test('every question, save and Clear names the account the copy belongs to', async () => {
+  const m = await mount({ stored: [] });
+  try {
+    await m.open();
+    await m.say('How do I log a meal?');
+    assert.deepEqual(chatPosts(m).map((b) => b.account), ['u1'], 'the question');
+    assert.deepEqual(m.posts.filter(([u]) => u === '/api/nora/thread').map(([, b]) => b.account), ['u1'], 'the save');
+    m.w.confirm = () => true;
+    await React.act(async () => { m.w.document.querySelector('[data-nora-clear]').click(); });
+    await settle();
+    assert.deepEqual(m.deletes, ['/api/nora/thread?account=u1'], 'the Clear');
+  } finally {
+    await m.done();
+  }
+  // A visitor's copy names no account.
+  const v = await mount({ signedIn: false });
+  try {
+    await v.open();
+    await v.say('How do I log a meal?');
+    assert.ok(chatPosts(v).length && chatPosts(v).every((b) => !('account' in b)));
+  } finally {
+    await v.done();
+  }
+});
+
+test('the cookie changed account while the pop-up stayed open: refused, nothing kept, and the page reloads for the new account', async () => {
+  const c = asCookie();
+  const m = await mount({ me: c.me, serverAs: c.serverAs, stored: [] });
+  try {
+    await m.open();
+    await m.say('How do I log a meal?');
+    const saved = m.appended().length;
+    const reads = m.meReads();
+    c.who = 'u2'; // signed in as someone else in another tab
+    await m.say('Hi');
+    assert.equal(chatPosts(m).at(-1).account, 'u1', 'asked as the account on screen');
+    assert.equal(m.appended().length, saved, 'nothing kept');
+    assert.ok(m.w.document.body.textContent.includes("You're signed in as another account now."), 'it says why');
+    assert.equal(m.meReads(), reads + 1, '/api/me is asked again');
+    assert.equal(m.reloads.length, 1, 'and the page reloads for u2');
+    assert.doesNotMatch(m.w.localStorage.getItem('shape.chat.v2.u2') || '', /Tap \+ on Eat|"me":true/, 'u1\'s conversation never lands in u2\'s copy');
+    await noticeGone();
+  } finally {
+    await m.done();
+  }
+});
+
+test('a load or a team-reply pull that answers for another account is not drawn, and /api/me is asked once', async () => {
+  // /api/me names u1, the store answers for u2 (a cookie switched between the two reads).
+  const stored = [{ role: 'user', text: 'U2 private', at: '2026-10-16T10:00:00Z' }];
+  const load = await mount({ serverAs: () => 'u2', stored });
+  try {
+    await load.open();
+    await waitForRetry();
+    assert.ok(!load.w.document.body.textContent.includes('U2 private'), 'u2\'s thread is not drawn in u1\'s copy');
+    assert.equal(load.personButton(), null, 'not synced');
+    // Two reads at mount (the hydrate and the member check), and one more for the mismatch.
+    assert.equal(load.meReads(), 3, 'asked again once');
+    await waitForRetry();
+    assert.equal(load.meReads(), 3, 'not on every load');
+    assert.doesNotMatch(load.w.localStorage.getItem('shape.chat.v2.u1') || '', /U2 private/);
+  } finally {
+    await load.done();
+  }
+  const c = asCookie();
+  const team = () => (c.who === 'u2' ? [{ role: 'team', text: 'Team reply for u2', at: '2026-10-16T10:00:00Z' }] : []);
+  const pull = await mount({ me: c.me, serverAs: c.serverAs, stored: team });
+  try {
+    await pull.open();
+    assert.ok(pull.personButton(), 'u1 synced');
+    await pull.close();
+    c.who = 'u2';
+    await pull.open(); // the pull for team replies reads u2's
+    // (jsdom can't reload, so the widget then carries on as u2, with u2's own copy.)
+    assert.doesNotMatch(pull.w.localStorage.getItem('shape.chat.v2.u1') || '', /Team reply for u2/, 'u2\'s team reply never lands in u1\'s copy');
+    assert.equal(pull.reloads.length, 1, 'the page reloads for u2');
+  } finally {
+    await pull.done();
+  }
+});
+
+test('Talk to a person names the account; refused as another, the form closes and says why', async () => {
+  const c = asCookie();
+  const m = await mount({ me: c.me, serverAs: c.serverAs, stored: [] });
+  const tap = async (sel) => { await React.act(async () => { m.w.document.querySelector(sel).click(); }); await settle(); };
+  try {
+    await m.open();
+    await m.say('How do I log a meal?');
+    await tap('[data-nora-person]');
+    c.who = 'u2';
+    await tap('[data-nora-person-send]');
+    const req = m.posts.filter(([u]) => u === '/api/support/request').map(([, b]) => b);
+    assert.deepEqual(req.map((b) => b.account), ['u1']);
+    assert.equal(m.w.document.querySelector('[data-nora-person-send]'), null, 'the form closed');
+    assert.ok(!m.w.document.body.textContent.includes('Sent to the Shape team'));
+    assert.ok(m.w.document.body.textContent.includes("You're signed in as another account now."));
+    await noticeGone();
+  } finally {
+    await m.done();
+  }
+});
+
+test('an answer that lands after the cookie switched: its save is refused, and the page reloads for the new account', async () => {
+  const c = asCookie();
+  const m = await mount({ me: c.me, serverAs: c.serverAs, stored: [], holdAnswer: true });
+  try {
+    await m.open();
+    await m.say('How do I log a meal?'); // asked and answered as u1; the answer is on its way
+    c.who = 'u2';
+    await m.release('answer');
+    const saves = m.posts.filter(([u]) => u === '/api/nora/thread').map(([, b]) => b.account);
+    assert.deepEqual(saves, ['u1'], 'the save names u1, so the server refuses it');
+    assert.equal(m.reloads.length, 1, 'and the page reloads for u2');
+    assert.doesNotMatch(m.w.localStorage.getItem('shape.chat.v2.u2') || '', /Tap \+ on Eat/);
+  } finally {
+    await m.done();
+  }
+});
+
+test('a Clear refused as another account reloads for the new account and says nothing failed', async () => {
+  const c = asCookie();
+  const m = await mount({ me: c.me, serverAs: c.serverAs, stored: [] });
+  try {
+    await m.open();
+    await m.say('How do I log a meal?');
+    c.who = 'u2';
+    m.w.confirm = () => true;
+    await React.act(async () => { m.w.document.querySelector('[data-nora-clear]').click(); });
+    await settle();
+    assert.deepEqual(m.deletes, ['/api/nora/thread?account=u1']);
+    assert.equal(m.reloads.length, 1);
+    assert.ok(!m.w.document.body.textContent.includes("Couldn't clear it"), 'not a failed Clear: the page is about to load for u2');
+  } finally {
+    await m.done();
+  }
+});
+
+test('a save the store is too busy for is not an account switch: /api/me is not asked again', async () => {
+  const m = await mount({ stored: [], busySave: true });
+  try {
+    await m.open();
+    const reads = m.meReads();
+    await m.say('How do I log a meal?');
+    assert.deepEqual(m.appended().length, 1, 'the save was tried');
+    assert.equal(m.meReads(), reads, 'a busy store is not another account');
+    assert.equal(m.reloads.length, 0);
   } finally {
     await m.done();
   }

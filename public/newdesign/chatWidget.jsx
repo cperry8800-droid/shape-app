@@ -525,6 +525,23 @@ function ChatWidget(props) {
   // The account /api/me named ("anon" when it named none), set by the hydrate: what is read per
   // account (Nora's tone and voice) is read again when it changes (Codex, #2391).
   const [authWho, setAuthWho] = React.useState(null);
+  // ⚠ WHOSE CONVERSATION THE POP-UP HOLDS (Codex on #2393): the account /api/me named, whose copy is
+  // drawn (null for a visitor). The website's cookie can change account in another tab while the
+  // pop-up stays open, so every question, save and Clear names it, and the server refuses one whose
+  // caller is someone else now (409 account_changed). Then /api/me is asked again: the hydrate finds
+  // the other account and reloads the page for it, as it does for any switch.
+  const authWhoRef = React.useRef(null);
+  authWhoRef.current = authWho;
+  const cwNoraAccount = () => (authWhoRef.current && authWhoRef.current !== "anon" ? authWhoRef.current : null);
+  // Asked once for the copy on screen: if /api/me still names the same account, nothing loops
+  // (the pop-up stays unsynced and keeps nothing until the next account or the next page).
+  const switchAskedRef = React.useRef(null);
+  const cwNoraSwitched = () => {
+    if (switchAskedRef.current === authWhoRef.current) return;
+    switchAskedRef.current = authWhoRef.current;
+    setAuthTry((n) => n + 1);
+  };
+  const cwNoraRefused = (r, j) => r && r.status === 409 && j && j.code === "account_changed";
   const dirtyRef = React.useRef(false);
 
   // Nora's voice OUTPUT (read replies aloud) — OFF by default, fully usable
@@ -723,7 +740,16 @@ function ChatWidget(props) {
   const cwNoraStored = (m) => ({ role: m.me ? "user" : "assistant", text: String(m.t || ""), at: new Date().toISOString() });
   const cwNoraPost = (messages) => {
     if (!messages.length) return;
-    fetch("/api/nora/thread", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ append: messages }) }).catch(() => {});
+    const account = cwNoraAccount();
+    fetch("/api/nora/thread", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(account ? { append: messages, account } : { append: messages }) })
+      .then(async (r) => { if (cwNoraRefused(r, await r.json().catch(() => null))) cwNoraSwitched(); })
+      .catch(() => {});
+  };
+  // Clear the account's stored conversation, as the account the copy belongs to.
+  const cwNoraDelete = () => {
+    const account = cwNoraAccount();
+    return fetch(`/api/nora/thread${account ? `?account=${encodeURIComponent(account)}` : ""}`, { method: "DELETE", credentials: "same-origin" })
+      .then(async (r) => { if (cwNoraRefused(r, await r.json().catch(() => null))) { cwNoraSwitched(); return { ok: true }; } return r; });
   };
   const cwNoraSave = (messages) => {
     if (!messages.length) return;
@@ -767,12 +793,13 @@ function ChatWidget(props) {
       .then((r) => { signedOut = r.status === 401; return r.ok ? r.json() : null; })
       .then((j) => {
         if (isCancelled() || acct !== noraAcctRef.current || !j || !Array.isArray(j.messages)) return;
+        // The cookie answers for another account than the copy's: not drawn here (Codex on #2393).
+        if (j.account && cwNoraAccount() && j.account !== cwNoraAccount()) { signedOut = true; cwNoraSwitched(); return; }
         noraThreadSyncRef.current = true;
         setNoraPersonOk(true);
         if (gen !== noraThreadGenRef.current) {
           // Cleared while it loaded: the Clear applies to the account too, then what was said after it.
-          fetch("/api/nora/thread", { method: "DELETE", credentials: "same-origin" })
-            .then(() => cwNoraPost(cwNoraHeld()), () => cwNoraPost(cwNoraHeld()));
+          cwNoraDelete().then(() => cwNoraPost(cwNoraHeld()), () => cwNoraPost(cwNoraHeld()));
           return;
         }
         const stored = j.messages;
@@ -829,6 +856,7 @@ function ChatWidget(props) {
     fetch("/api/nora/thread", { credentials: "same-origin", cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
+        if (j && j.account && cwNoraAccount() && j.account !== cwNoraAccount()) { cwNoraSwitched(); return; }
         const fresh = j && acct === noraAcctRef.current && Array.isArray(j.messages) ? j.messages.filter((m) => m && m.role === "team") : [];
         if (!fresh.length) return;
         setThreadsByTab((prev) => prev.map((list, i) => (tabs[i] && tabs[i].support) ? list.map((th) => {
@@ -866,10 +894,12 @@ function ChatWidget(props) {
     const acct = noraAcctRef.current;
     try {
       const page = typeof window.__shapeNoraPageName === "function" ? window.__shapeNoraPageName() : null;
-      const res = await fetch("/api/support/request", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question, surface: "web", page }) });
+      const account = cwNoraAccount();
+      const res = await fetch("/api/support/request", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(account ? { question, surface: "web", page, account } : { question, surface: "web", page }) });
       const j = await res.json().catch(() => ({}));
       // Asked under the account before: its outcome is not this one's to show or keep.
       if (acct !== noraAcctRef.current) { setPersonForm(null); return; }
+      if (cwNoraRefused(res, j)) { setPersonForm(null); flashSpeakNotice(j.error || "You're signed in as another account now."); cwNoraSwitched(); return; }
       if (!res.ok || !j.ok) { setPersonForm({ text: question, busy: false, err: (j && j.error) || "Your question could not be sent. Try again in a moment." }); return; }
       const note = "Sent to the Shape team. A person will reply here in this chat, and by email.";
       cwNoraAppend("Nora", note);
@@ -898,7 +928,7 @@ function ChatWidget(props) {
       return { ...th, messages: msgs.length && !msgs[0].me ? [msgs[0]] : [] };
     }) : list));
     if (noraThreadSyncRef.current) {
-      fetch("/api/nora/thread", { method: "DELETE", credentials: "same-origin" })
+      cwNoraDelete()
         .then((r) => { if (!r.ok) flashSpeakNotice("Couldn't clear it on your account. Try again."); })
         .catch(() => flashSpeakNotice("Couldn't clear it on your account. Try again."));
     }
@@ -923,6 +953,8 @@ function ChatWidget(props) {
       if (cancelled) return;
       setAuthProbe(probe);
       setAuthWho(uid);
+      // Now, not at the next render: the load below starts in this same step.
+      authWhoRef.current = uid;
       // Still unanswered while the panel is on screen: a miss, so the retry asks again.
       if (probe === "unknown" && openRef.current) setNoraMissed((n) => n + 1);
       const key = `shape.chat.${STORE_VER}.${uid}`;
@@ -1619,6 +1651,10 @@ function ChatWidget(props) {
       const sentAt = new Date().toISOString();
       const gen = noraThreadGenRef.current;
       const acct = noraAcctRef.current;
+      // The question names the account the copy belongs to: refused before its history is read
+      // when the cookie is someone else now (Codex on #2393).
+      const account = cwNoraAccount();
+      let refused = null;
       // A Send tap is the gesture her player needs to read the reply aloud later.
       if (!opts.silent && canVoiceRef.current && noraVoice.enabled) primeNoraAudio();
       setTyping(true);
@@ -1637,7 +1673,7 @@ function ChatWidget(props) {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "same-origin",
-            body: JSON.stringify({ messages: history, tone: noraVoice.tone, voice: !!(opts && opts.voice), surface: "web", locale: cwLocale(), context: cwNoraContext(), stream: true, ...extra }),
+            body: JSON.stringify({ messages: history, tone: noraVoice.tone, voice: !!(opts && opts.voice), surface: "web", locale: cwLocale(), context: cwNoraContext(), stream: true, ...(account ? { account } : {}), ...extra }),
           });
           // Her words appear as she writes them; a round that turned out to be a lookup takes
           // back what it showed. The limit and the bot check still answer as plain JSON.
@@ -1656,7 +1692,8 @@ function ChatWidget(props) {
             const token = solve ? await solve() : "";
             if (token) { res = await ask({ turnstileToken: token }); data = await read(res); }
           }
-          if (data && data.reply && (res.ok || data.needsCheck)) { reply = data.reply; actions = data.actions; }
+          if (cwNoraRefused(res, data)) refused = data;
+          else if (data && data.reply && (res.ok || data.needsCheck)) { reply = data.reply; actions = data.actions; }
         } catch (e) { /* fall back below */ }
         // Cleared, or another account, while she was answering: the answer belongs to the
         // conversation that went. The Clear and the switch already stopped its typing line, and
@@ -1664,6 +1701,8 @@ function ChatWidget(props) {
         if (gen !== noraThreadGenRef.current || acct !== noraAcctRef.current) return null;
         setTyping(false);
         setNoraLive("");
+        // Refused as another account: no answer and nothing kept; /api/me is asked again.
+        if (refused) { flashSpeakNotice(refused.error || "You're signed in as another account now."); cwNoraSwitched(); return null; }
         const finalReply = reply || supportReply(text);
         appendReply("Nora", finalReply, actions);
         // Kept on the account only when she answered: the scripted fallback is not the conversation.

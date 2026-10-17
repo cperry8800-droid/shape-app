@@ -418,7 +418,7 @@ test('the website panel asks for a stream, reads one only when it gets one, and 
   const sendAt = WEB.indexOf('if (isSupport) {\n      const sentAt');
   const send = WEB.slice(sendAt, WEB.indexOf('// ── Voice input for Nora', sendAt));
   assert.ok(sendAt > 0 && send.length > 500 && send.length < 8000, 'could not delimit her branch of send()');
-  assert.match(send, /context: cwNoraContext\(\), stream: true, \.\.\.extra \}\)/);
+  assert.match(send, /context: cwNoraContext\(\), stream: true, \.\.\.\(account \? \{ account \} : \{\}\), \.\.\.extra \}\)/);
   assert.match(send, /onText: \(t\) => \{ if \(gen === noraThreadGenRef\.current && acct === noraAcctRef\.current\) setNoraLive\(t\); \}/, 'a cleared conversation, or another account\'s, draws no more words');
   assert.match(send, /const read = async \(r\) => \(r\.ok && cwIsNoraStream\(r\) \? \(\(await cwReadNoraStream\(r, live\)\) \|\| \{\}\) : await r\.json\(\)\.catch\(\(\) => \(\{\}\)\)\);/);
   assert.match(send, /let res = await ask\(\{\}\);\n\s+let data = await read\(res\);/);
