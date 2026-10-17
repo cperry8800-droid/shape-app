@@ -1272,8 +1272,21 @@ function ChatWidget(props) {
     if (!hydrated) return;
     // ⚠ DO NOT CLOBBER SOMETHING THE MEMBER HAS ALREADY TYPED OR SENT. The same
     // guard the localStorage hydrate uses; a real read landing mid-compose must
-    // not take their message away.
-    if (dirtyRef.current) return;
+    // not take their message away. ⚠ BUT IT IS NOT DROPPED EITHER: every thread
+    // here stays as it is, and the conversations the read found that this copy does
+    // not have yet are added. Dropped, a member who typed before /api/me first
+    // answered never saw a coach thread that only the server had (Codex, #2391).
+    if (dirtyRef.current) {
+      setThreadsByTab(prev => prev.map((list, i) => {
+        const id = tabs[i] && tabs[i].id;
+        const live = Object.prototype.hasOwnProperty.call(threadsLive, id) ? threadsLive[id] : null;
+        if (!live) return list;
+        const have = new Set((list || []).map((t) => t.conversationId).filter(Boolean));
+        const add = live.filter((t) => t.conversationId && !have.has(t.conversationId));
+        return add.length ? [...(list || []), ...add] : list;
+      }));
+      return;
+    }
     setThreadsByTab(prev => prev.map((list, i) => {
       const id = tabs[i] && tabs[i].id;
       const next = Object.prototype.hasOwnProperty.call(threadsLive, id) ? threadsLive[id] : null;

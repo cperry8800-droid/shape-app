@@ -89,7 +89,11 @@ test('the install is BY TAB ID, waits for the hydrate, and never clobbers a draf
   // the other. Without the gate, the run where the hydrate lands SECOND restores
   // the sample threads over the real ones.
   assert.match(BLOCK, /if \(!hydrated\) return;/, 'the install no longer waits for the localStorage hydrate');
-  assert.match(BLOCK, /if \(dirtyRef\.current\) return;/, 'a real read can clobber what the member typed');
+  // With something typed, nothing here is replaced: the read only adds the conversations this copy
+  // lacks (chatWidget.jsx; Codex on #2391 — dropping the read kept a server-only coach thread out),
+  // and the mount test in nora-thread-load-retry.test.mjs drives it.
+  assert.match(BLOCK, /if \(dirtyRef\.current\) \{\n\s+setThreadsByTab\(prev => prev\.map\(\(list, i\) => \{/, 'a real read can clobber what the member typed');
+  assert.match(BLOCK, /const add = live\.filter\(\(t\) => t\.conversationId && !have\.has\(t\.conversationId\)\);\n\s+return add\.length \? \[\.\.\.\(list \|\| \[\]\), \.\.\.add\] : list;/, 'the typed-in copy only gains the missing conversations');
 });
 
 test('the hydrate publishes its completion as STATE, not only a ref', () => {

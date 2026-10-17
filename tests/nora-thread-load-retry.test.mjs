@@ -39,7 +39,8 @@ const settle = async (n = 6) => { for (let i = 0; i < n; i++) await React.act(as
 // .text(t) to send what she has written so far, .reset() to take it back (a round that turned
 // out to be a lookup) and .end(reply) to finish it.
 // holdRequest: 'reject' fails the held "Talk to a person" send instead of answering it.
-async function mount({ signedIn = true, threadGets = [200], stored = [], me = null, db = null, docked = false, seed = {}, greeting = {}, holdAnswer = false, holdRequest = false, teamTab = false, member = false, conversations = {}, streamAnswer = false } = {}) {
+// circleTab: a coaches tab (id 'circle') for the live coach threads the db option can serve.
+async function mount({ signedIn = true, threadGets = [200], stored = [], me = null, db = null, docked = false, seed = {}, greeting = {}, holdAnswer = false, holdRequest = false, teamTab = false, member = false, conversations = {}, streamAnswer = false, circleTab = false } = {}) {
   // jsdom cannot reload a page; it says so on its console, and that is where a reload is counted.
   const reloads = [];
   const vc = new VirtualConsole();
@@ -99,6 +100,8 @@ async function mount({ signedIn = true, threadGets = [200], stored = [], me = nu
   // Her seed greeting, with the chips say() taps.
   const tabs = [{ id: 'nora', label: 'Nora', title: 'Nora', support: true, threads: [{ who: 'Nora', messages: [{ who: 'Nora', t: 'Hi, I am Nora.', me: false }], quick: ['How do I log a meal?', 'Hi'] }] }];
   if (teamTab) tabs.push({ id: 'team', label: 'Team', title: 'Team', threads: [{ who: 'Team channel', messages: [{ who: 'Ann', t: 'Welcome', me: false }] }] });
+  // circleTab: the coaches tab, where the live coach threads are installed (by tab id).
+  if (circleTab) tabs.push({ id: 'circle', label: 'Coaches', title: 'Coaches', threads: [{ who: 'Sample coach', messages: [{ who: 'Sample coach', t: 'Hi!', me: false }] }] });
   const root = ReactDOMClient.createRoot(w.document.getElementById('r'));
   await React.act(async () => root.render(React.createElement(w.ChatWidget, { tabs, docked })));
   // Draw again with more tabs (the hydrate re-runs when the count changes, as the Feed tab does).
@@ -771,5 +774,39 @@ test('the page reloads when the signed-in account changes under it, and only the
     assert.equal(visitor.reloads.length, 0, 'a visitor signing in re-keys in place');
   } finally {
     await visitor.done();
+  }
+});
+
+test('a coach thread only the server has joins the copy even when something was typed first', async () => {
+  // /api/me fails, the member asks Nora something (the copy is now "typed in"), then /api/me answers.
+  // The live coach list is read for the account and must not be thrown away for that typing.
+  const { me, fail } = flakyMe();
+  let known = false;
+  const rows = (data) => { const q = new Proxy({}, { get: (_t, k) => (k === 'then' ? (res) => res({ data, error: null }) : () => q) }); return q; };
+  const db = {
+    getSession: async () => ({}),
+    getUserGoals: async () => null,
+    client: {
+      auth: { getUser: async () => ({ data: { user: known ? { id: 'u1' } : null } }) },
+      from: () => rows([{ id: 'conv-live', provider_role: 'trainer', provider_id: 3, title: 'Coach Live', last_message: 'Live hello', last_message_at: new Date().toISOString() }]),
+      rpc: async () => ({ data: [], error: null }),
+    },
+  };
+  const m = await mount({ me, db, circleTab: true, stored: [] });
+  try {
+    await m.open();
+    await React.act(async () => { fail(); });
+    await settle();
+    await m.say('How do I log a meal?');
+    known = true;
+    await m.addTab(); // the hydrate asks /api/me again, which answers now
+    await settle();
+    const saved = JSON.parse(m.w.localStorage.getItem('shape.chat.v2.u1') || 'null');
+    const flat = JSON.stringify(saved);
+    assert.match(flat, /Coach Live/, 'the server\'s coach thread is in the account\'s copy');
+    assert.match(flat, /Sample coach/, 'and what was here stays');
+    assert.match(flat, /How do I log a meal\?/, 'with what was typed');
+  } finally {
+    await m.done();
   }
 });
