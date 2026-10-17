@@ -926,7 +926,8 @@ function ChatWidget(props) {
       // Still unanswered while the panel is on screen: a miss, so the retry asks again.
       if (probe === "unknown" && openRef.current) setNoraMissed((n) => n + 1);
       const key = `shape.chat.${STORE_VER}.${uid}`;
-      const rekeyed = !!storeKeyRef.current && storeKeyRef.current !== key;
+      const prevKey = storeKeyRef.current;
+      const rekeyed = !!prevKey && prevKey !== key;
       storeKeyRef.current = key;
       let hydratedThreads = null;
       // ⚠ TYPED BEFORE THIS FIRST ANSWER: the copy is not read, and what is drawn is the starting
@@ -976,6 +977,20 @@ function ChatWidget(props) {
           // still writing for it stops showing; and what is drawn is now this account's own copy,
           // so nothing typed under the last one holds back its reads.
           if (!wasUnknown) { noraAcctRef.current += 1; noraThreadSyncRef.current = false; noraHeldRef.current = []; setNoraPersonOk(false); setPersonForm(null); setNoraLive(""); setTyping(false); dirtyRef.current = false; }
+          // ⚠ AWAY FROM A SIGNED-IN ACCOUNT, THE PAGE RELOADS (Codex, #2391). Thirteen review rounds
+          // found one more thing per round that a mounted widget carried from one account to the
+          // next: a load, an answer, a stream, a form, a greeting, her voice still reading, an open
+          // microphone. The page around the widget is the last account's too (its dashboard, its
+          // name in the header), so the honest fix is the whole page: a fresh load belongs to one
+          // account from the start. Her voice and the microphone stop first, and the resets above
+          // stay as the floor for the moment before the reload lands. The last copy was under a
+          // signed-in key, so this excludes a visitor signing in and a first answer after an
+          // unanswered /api/me (that copy sits under the signed-out key): both keep the re-key below.
+          if (prevKey !== `shape.chat.${STORE_VER}.anon`) {
+            try { stopNora(); } catch (e) {}
+            try { if (talkLoopRef.current) talkLoopRef.current.end(); } catch (e) {}
+            try { window.location.reload(); } catch (e) {}
+          }
           const said = from ? cwNoraLocal().slice(from.base) : [];
           const cleared = !!from && from.gen !== noraThreadGenRef.current;
           if (!hydratedThreads) { hydratedThreads = tabs.map((t) => t.threads); setActiveByTab(tabs.map(() => 0)); }

@@ -12,7 +12,7 @@ import { createRequire } from 'node:module';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
-const { JSDOM } = require('jsdom');
+const { JSDOM, VirtualConsole } = require('jsdom');
 const babel = require('next/dist/compiled/babel/core');
 const presetReact = require('next/dist/compiled/babel/preset-react');
 const React = require('react');
@@ -40,7 +40,12 @@ const settle = async (n = 6) => { for (let i = 0; i < n; i++) await React.act(as
 // out to be a lookup) and .end(reply) to finish it.
 // holdRequest: 'reject' fails the held "Talk to a person" send instead of answering it.
 async function mount({ signedIn = true, threadGets = [200], stored = [], me = null, db = null, docked = false, seed = {}, greeting = {}, holdAnswer = false, holdRequest = false, teamTab = false, member = false, conversations = {}, streamAnswer = false } = {}) {
-  const dom = new JSDOM('<!doctype html><body><div id="r"></div></body>', { url: 'https://shape.test/newdesign/ClientApp.html', pretendToBeVisual: true });
+  // jsdom cannot reload a page; it says so on its console, and that is where a reload is counted.
+  const reloads = [];
+  const vc = new VirtualConsole();
+  vc.forwardTo(console, { jsdomErrors: 'none' });
+  vc.on('jsdomError', (e) => { if (/Not implemented: navigation/.test(String(e && e.message))) reloads.push(e.message); else console.error(e); });
+  const dom = new JSDOM('<!doctype html><body><div id="r"></div></body>', { url: 'https://shape.test/newdesign/ClientApp.html', pretendToBeVisual: true, virtualConsole: vc });
   const w = dom.window;
   const before = { window: globalThis.window, document: globalThis.document, localStorage: globalThis.localStorage, navigator: Object.getOwnPropertyDescriptor(globalThis, 'navigator'), act: globalThis.IS_REACT_ACT_ENVIRONMENT, fetch: globalThis.fetch };
   Object.assign(globalThis, { window: w, document: w.document, localStorage: w.localStorage, IS_REACT_ACT_ENVIRONMENT: true });
@@ -123,7 +128,7 @@ async function mount({ signedIn = true, threadGets = [200], stored = [], me = nu
   };
   const appended = () => posts.filter(([u]) => u === '/api/nora/thread').map(([, b]) => b.append);
   const release = async (k) => { await React.act(async () => { held[k](); }); await settle(); };
-  return { w, calls, posts, held, open, close, done, threadGetsSoFar, personButton, say, appended, addTab, release };
+  return { w, calls, posts, held, reloads, open, close, done, threadGetsSoFar, personButton, say, appended, addTab, release };
 }
 
 test('a failed first load is tried again when the panel opens, and then Talk to a person shows', async () => {
@@ -727,5 +732,44 @@ test('an old reply taking back its words does not blank the reply being written 
     assert.ok(shown('U2 partial'), 'the last account\'s reset leaves u2\'s reply up');
   } finally {
     await m.done();
+  }
+});
+
+test('the page reloads when the signed-in account changes under it, and only then', async () => {
+  // A switch from one signed-in account to another, or to signed out: the page is the last
+  // account's, so it loads again (Codex on #2391: her voice and the microphone went on across it).
+  for (const next of ['u2', 'out']) {
+    let who = 'u1';
+    const me = () => Promise.resolve(who === 'out' ? { user: null } : { user: { id: who, email: `${who}@shape.test` } });
+    const m = await mount({ me, stored: [] });
+    try {
+      assert.equal(m.reloads.length, 0, 'not on the first load');
+      who = next;
+      await m.addTab();
+      assert.equal(m.reloads.length, 1, 'u1 → ' + next + ' reloads once');
+    } finally {
+      await m.done();
+    }
+  }
+  // Not a switch: the first answer after an unanswered /api/me, and a visitor who signs in.
+  const { me: firstFails, fail } = flakyMe();
+  const unknown = await mount({ me: firstFails, stored: [] });
+  try {
+    await React.act(async () => { fail(); });
+    await settle();
+    await unknown.addTab();
+    assert.equal(unknown.reloads.length, 0, 'unknown → u1 re-keys in place');
+  } finally {
+    await unknown.done();
+  }
+  let who = 'out';
+  const me = () => Promise.resolve(who === 'out' ? { user: null } : { user: { id: who, email: `${who}@shape.test` } });
+  const visitor = await mount({ me, stored: [] });
+  try {
+    who = 'u1';
+    await visitor.addTab();
+    assert.equal(visitor.reloads.length, 0, 'a visitor signing in re-keys in place');
+  } finally {
+    await visitor.done();
   }
 });
