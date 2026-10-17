@@ -876,6 +876,8 @@ function ChatWidget(props) {
       cwNoraSave([{ role: "assistant", text: note, at: new Date().toISOString() }]);
       setPersonForm(null);
     } catch (e) {
+      // A failed send is checked the same way: the question is not reopened under another account.
+      if (acct !== noraAcctRef.current) { setPersonForm(null); return; }
       setPersonForm({ text: question, busy: false, err: "Your question could not be sent. Try again in a moment." });
     }
   };
@@ -885,6 +887,8 @@ function ChatWidget(props) {
     noraThreadGenRef.current += 1;
     noraHeldRef.current = [];
     stopNora();
+    // A reply she was still writing belongs to the conversation that went.
+    setNoraLive(""); setTyping(false);
     // Before the store answers, what is said from here on is what follows the join point (its
     // Clear count stays the hydrate's, so the load clears the account first).
     if (noraFromRef.current) { const cur = cwNoraLocal(); noraFromRef.current = { ...noraFromRef.current, base: cur.length && !cur[0].me ? 1 : 0 }; }
@@ -968,9 +972,10 @@ function ChatWidget(props) {
           // a switch between known accounts carries nothing across.
           const from = wasUnknown ? noraFromRef.current : null;
           // Another known account (or signed out since): nothing of the last one's sync carries.
-          // A "Talk to a person" form open with the last one's question closes; and what is drawn is
-          // now this account's own copy, so nothing typed under the last one holds back its reads.
-          if (!wasUnknown) { noraAcctRef.current += 1; noraThreadSyncRef.current = false; noraHeldRef.current = []; setNoraPersonOk(false); setPersonForm(null); dirtyRef.current = false; }
+          // A "Talk to a person" form open with the last one's question closes, and a reply she was
+          // still writing for it stops showing; and what is drawn is now this account's own copy,
+          // so nothing typed under the last one holds back its reads.
+          if (!wasUnknown) { noraAcctRef.current += 1; noraThreadSyncRef.current = false; noraHeldRef.current = []; setNoraPersonOk(false); setPersonForm(null); setNoraLive(""); setTyping(false); dirtyRef.current = false; }
           const said = from ? cwNoraLocal().slice(from.base) : [];
           const cleared = !!from && from.gen !== noraThreadGenRef.current;
           if (!hydratedThreads) { hydratedThreads = tabs.map((t) => t.threads); setActiveByTab(tabs.map(() => 0)); }
@@ -1609,7 +1614,7 @@ function ChatWidget(props) {
           // Her words appear as she writes them; a round that turned out to be a lookup takes
           // back what it showed. The limit and the bot check still answer as plain JSON.
           const live = {
-            onText: (t) => { if (gen === noraThreadGenRef.current) setNoraLive(t); },
+            onText: (t) => { if (gen === noraThreadGenRef.current && acct === noraAcctRef.current) setNoraLive(t); },
             onReset: () => setNoraLive(""),
           };
           const read = async (r) => (r.ok && cwIsNoraStream(r) ? ((await cwReadNoraStream(r, live)) || {}) : await r.json().catch(() => ({})));
@@ -1625,10 +1630,12 @@ function ChatWidget(props) {
           }
           if (data && data.reply && (res.ok || data.needsCheck)) { reply = data.reply; actions = data.actions; }
         } catch (e) { /* fall back below */ }
+        // Cleared, or another account, while she was answering: the answer belongs to the
+        // conversation that went. The Clear and the switch already stopped its typing line, and
+        // one asked since may be showing its own, which this must not take down.
+        if (gen !== noraThreadGenRef.current || acct !== noraAcctRef.current) return null;
         setTyping(false);
         setNoraLive("");
-        // Cleared while she was answering: the answer belongs to the conversation that went.
-        if (gen !== noraThreadGenRef.current || acct !== noraAcctRef.current) return null;
         const finalReply = reply || supportReply(text);
         appendReply("Nora", finalReply, actions);
         // Kept on the account only when she answered: the scripted fallback is not the conversation.

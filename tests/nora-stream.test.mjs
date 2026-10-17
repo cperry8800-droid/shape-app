@@ -334,11 +334,13 @@ test('the website panel asks for a stream, reads one only when it gets one, and 
   const send = WEB.slice(sendAt, WEB.indexOf('// ── Voice input for Nora', sendAt));
   assert.ok(sendAt > 0 && send.length > 500 && send.length < 8000, 'could not delimit her branch of send()');
   assert.match(send, /context: cwNoraContext\(\), stream: true, \.\.\.extra \}\)/);
-  assert.match(send, /onText: \(t\) => \{ if \(gen === noraThreadGenRef\.current\) setNoraLive\(t\); \}/, 'a cleared conversation draws no more words');
+  assert.match(send, /onText: \(t\) => \{ if \(gen === noraThreadGenRef\.current && acct === noraAcctRef\.current\) setNoraLive\(t\); \}/, 'a cleared conversation, or another account\'s, draws no more words');
   assert.match(send, /const read = async \(r\) => \(r\.ok && cwIsNoraStream\(r\) \? \(\(await cwReadNoraStream\(r, live\)\) \|\| \{\}\) : await r\.json\(\)\.catch\(\(\) => \(\{\}\)\)\);/);
   assert.match(send, /let res = await ask\(\{\}\);\n\s+let data = await read\(res\);/);
   assert.match(send, /if \(token\) \{ res = await ask\(\{ turnstileToken: token \}\); data = await read\(res\); \}/, 'the bot check\'s second ask streams too');
-  assert.match(send, /setTyping\(false\);\n\s+setNoraLive\(""\);/);
+  // Only the current conversation's answer ends the typing line: a Clear or a switch already did,
+  // and one asked since may be showing its own (chatWidget.jsx, Codex on #2391).
+  assert.match(send, /if \(gen !== noraThreadGenRef\.current \|\| acct !== noraAcctRef\.current\) return null;\n\s+setTyping\(false\);\n\s+setNoraLive\(""\);/);
   assert.ok(!/res\.json\(\)/.test(send), 'no path reads the body as JSON without checking for a stream');
   assert.match(WEB, /\{typing && isSupport && noraLive \? \(\(\) => \{/);
   assert.match(WEB, /\}\)\(\) : typing && \(\n\s+<div style=\{\{ display: "flex", alignItems: "center", gap: 6/, 'the typing line until her first words');

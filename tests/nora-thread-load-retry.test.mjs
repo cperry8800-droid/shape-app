@@ -35,7 +35,10 @@ const settle = async (n = 6) => { for (let i = 0; i < n; i++) await React.act(as
 // may be a function, read when the request is made).
 // teamTab: a second, non-Nora tab beside hers; member: an active subscription (the composer outside Nora's tab).
 // conversations: the stored messages GET /api/conversations/<id>/messages returns.
-async function mount({ signedIn = true, threadGets = [200], stored = [], me = null, db = null, docked = false, seed = {}, greeting = {}, holdAnswer = false, holdRequest = false, teamTab = false, member = false, conversations = {} } = {}) {
+// streamAnswer: each answer streams, as the live route does; held.streams[i] is the i-th, with
+// .text(t) to send what she has written so far and .end(reply) to finish it.
+// holdRequest: 'reject' fails the held "Talk to a person" send instead of answering it.
+async function mount({ signedIn = true, threadGets = [200], stored = [], me = null, db = null, docked = false, seed = {}, greeting = {}, holdAnswer = false, holdRequest = false, teamTab = false, member = false, conversations = {}, streamAnswer = false } = {}) {
   const dom = new JSDOM('<!doctype html><body><div id="r"></div></body>', { url: 'https://shape.test/newdesign/ClientApp.html', pretendToBeVisual: true });
   const w = dom.window;
   const before = { window: globalThis.window, document: globalThis.document, localStorage: globalThis.localStorage, navigator: Object.getOwnPropertyDescriptor(globalThis, 'navigator'), act: globalThis.IS_REACT_ACT_ENVIRONMENT, fetch: globalThis.fetch };
@@ -63,12 +66,21 @@ async function mount({ signedIn = true, threadGets = [200], stored = [], me = nu
       return answer(status, body);
     }
     if (method === 'POST' && (u.includes('/api/nora/thread') || u.includes('/api/support/chat'))) posts.push([u.split('?')[0], JSON.parse(opts.body)]);
+    if (u.includes('/api/support/chat') && method === 'POST' && streamAnswer) {
+      const queue = [];
+      let wake = null;
+      const push = (v) => { queue.push(v); if (wake) { const f = wake; wake = null; f(); } };
+      const sse = (event, data) => ({ value: new TextEncoder().encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`), done: false });
+      (held.streams = held.streams || []).push({ text: (t) => push(sse('text', { text: t })), end: (reply) => { push(sse('done', { reply })); push({ value: undefined, done: true }); } });
+      const reader = { read: () => new Promise((resolve) => { const next = () => resolve(queue.shift()); if (queue.length) next(); else wake = next; }) };
+      return { ok: true, status: 200, headers: { get: (k) => (/content-type/i.test(k) ? 'text/event-stream' : null) }, body: { getReader: () => reader }, json: async () => ({}) };
+    }
     if (u.includes('/api/support/chat') && method === 'POST') {
       if (holdAnswer) return new Promise((resolve) => { held.answer = () => resolve(answer(200, { reply: 'Tap + on Eat.' })); });
       return answer(200, { reply: 'Tap + on Eat.' });
     }
     if (u.includes('/api/support/chat')) return answer(200, greeting);
-    if (u.includes('/api/support/request') && holdRequest) return new Promise((resolve) => { held.request = () => resolve(answer(200, { ok: true })); });
+    if (u.includes('/api/support/request') && holdRequest) return new Promise((resolve, reject) => { held.request = () => (holdRequest === 'reject' ? reject(new TypeError('Failed to fetch')) : resolve(answer(200, { ok: true }))); });
     if (u.includes('/api/nora/thread')) return answer(200, { ok: true });
     if (u.includes('/api/stripe/subscription')) return answer(200, { active: member });
     const conv = /\/api\/conversations\/([^/]+)\/messages/.exec(u);
@@ -110,7 +122,7 @@ async function mount({ signedIn = true, threadGets = [200], stored = [], me = nu
   };
   const appended = () => posts.filter(([u]) => u === '/api/nora/thread').map(([, b]) => b.append);
   const release = async (k) => { await React.act(async () => { held[k](); }); await settle(); };
-  return { w, calls, posts, open, close, done, threadGetsSoFar, personButton, say, appended, addTab, release };
+  return { w, calls, posts, held, open, close, done, threadGetsSoFar, personButton, say, appended, addTab, release };
 }
 
 test('a failed first load is tried again when the panel opens, and then Talk to a person shows', async () => {
@@ -576,7 +588,7 @@ test('a switch between known accounts closes an open Talk to a person form and r
     assert.ok(m.w.document.querySelector('[data-nora-person-send]'), 'u1\'s form is open');
     who = 'u2';
     await m.addTab();
-    assert.equal(m.w.document.querySelector('[data-nora-person-send]'), null, 'closed: u1\'s question is not u2\'s to send');
+    assert.ok(!m.w.document.querySelector('[data-nora-person-send]'), 'closed: u1\'s question is not u2\'s to send');
     assert.ok(reads.includes('u2'), 'u2\'s conversation list is read');
   } finally {
     await m.done();
@@ -609,6 +621,77 @@ test('the docked pop-out is always open: a failed load there is tried again with
     await waitForRetry();
     assert.equal(m.threadGetsSoFar(), 2, 'the miss counted, and the retry ran 2 seconds on');
     assert.ok(m.personButton(), 'synced: Talk to a person is offered');
+  } finally {
+    await m.done();
+  }
+});
+
+test('a Talk to a person send that fails after the account changes does not reopen the last one\'s question', async () => {
+  let who = 'u1';
+  const me = () => Promise.resolve({ user: { id: who, email: `${who}@shape.test` } });
+  const m = await mount({ me, stored: [], holdRequest: 'reject' });
+  try {
+    await m.open();
+    await m.say('How do I log a meal?');
+    await React.act(async () => { m.personButton().click(); });
+    await settle();
+    await React.act(async () => { m.w.document.querySelector('[data-nora-person-send]').click(); });
+    await settle();
+    who = 'u2';
+    await m.addTab();
+    await m.release('request'); // u1's send fails now, under u2
+    assert.ok(!m.w.document.querySelector('[data-nora-person-send]'), 'u1\'s question is not reopened for u2');
+    assert.ok(!m.w.document.body.textContent.includes('could not be sent'), 'nor its error shown to u2');
+  } finally {
+    await m.done();
+  }
+});
+
+test('a reply still being written when the account changes stops showing, and does not cut off the next account\'s', async () => {
+  let who = 'u1';
+  const me = () => Promise.resolve({ user: { id: who, email: `${who}@shape.test` } });
+  const m = await mount({ me, stored: [], streamAnswer: true });
+  const step = async (f) => { await React.act(async () => { f(); }); await settle(); };
+  const shown = (t) => m.w.document.body.textContent.includes(t);
+  try {
+    await m.open();
+    await m.say('How do I log a meal?');
+    await step(() => m.held.streams[0].text('U1 private partial'));
+    assert.ok(shown('U1 private partial'), 'her words show as she writes them');
+    who = 'u2';
+    await m.addTab();
+    assert.ok(!shown('U1 private partial'), 'what she had written for u1 is gone at the switch');
+    await m.say('Hi'); // u2 asks; her answer to u2 is being written
+    await step(() => m.held.streams[1].text('U2 partial'));
+    await step(() => m.held.streams[0].text('U1 private partial, continued'));
+    assert.ok(!shown('U1 private partial, continued'), 'more of u1\'s reply is not drawn in u2\'s panel');
+    assert.ok(shown('U2 partial'), 'u2\'s own reply is still showing');
+    await step(() => m.held.streams[0].end('U1 private full'));
+    assert.ok(!shown('U1 private full'), 'u1\'s finished reply is dropped');
+    assert.ok(shown('U2 partial'), 'and its end does not take down u2\'s reply in progress');
+    await step(() => m.held.streams[1].end('U2 full answer'));
+    assert.ok(shown('U2 full answer'));
+  } finally {
+    await m.done();
+  }
+});
+
+test('a Clear while she is writing ends her typing line, and the reply that finishes later is not drawn', async () => {
+  const m = await mount({ stored: [], streamAnswer: true });
+  const step = async (f) => { await React.act(async () => { f(); }); await settle(); };
+  const shown = (t) => m.w.document.body.textContent.includes(t);
+  try {
+    await m.open();
+    await m.say('How do I log a meal?');
+    await step(() => m.held.streams[0].text('Before the clear'));
+    assert.ok(shown('Before the clear'));
+    m.w.confirm = () => true;
+    await step(() => m.w.document.querySelector('[data-nora-clear]').click());
+    assert.ok(!shown('Before the clear'), 'what she had written goes with the conversation');
+    assert.ok(!shown('Nora is typing'), 'and her typing line with it');
+    await step(() => m.held.streams[0].end('After the clear'));
+    assert.ok(!shown('After the clear'), 'the finished reply belongs to the conversation that went');
+    assert.ok(!shown('Nora is typing'), 'nothing is left typing');
   } finally {
     await m.done();
   }
