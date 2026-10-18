@@ -80,7 +80,7 @@ async function loadModule() {
   const dir = dirname(SRC);
   // Substitute ALL of `import.meta` — the file also probes a bare
   // `typeof import.meta`, a SyntaxError inside a CJS function body.
-  const source = `${readFileSync(SRC, 'utf8').replace(/import\.meta/g, '__VITE_IMPORTMETA__')}\nexport { BSTodayNudge, BSTodayCard, bsCheckinLeadSuppressed, bsDailyCheckinOn, bsDailyCheckinApply, bsDailyCheckinMirrorWrite, bsDailyCheckinMirrorRead };\n`;
+  const source = `${readFileSync(SRC, 'utf8').replace(/import\.meta/g, '__VITE_IMPORTMETA__')}\nexport { BSTodayNudge, BSTodayCard, BSReminderManager, useBSDailyCheckinPrefState, bsCheckinLeadSuppressed, bsDailyCheckinOn, bsDailyCheckinApply, bsDailyCheckinMirrorWrite, bsDailyCheckinMirrorRead };\n`;
   const { code } = babel.transformSync(source, {
     presets: [presetReact],
     plugins: [commonjs],
@@ -541,8 +541,9 @@ test('the check-in LEAD is suppressed by the pref, and nothing else is', () => {
 // asserted against the source.
 test('both Home surfaces consult the pref', () => {
   const src = readFileSync(SRC, 'utf8');
-  assert.match(src, /const checkinPrefOn = useBSDailyCheckinPref\(\);/,
+  assert.match(src, /const \{ on: checkinPrefOn, settled: checkinPrefSettled \} = useBSDailyCheckinPrefState\(\);/,
     'Home must read the pref at all');
+  assert.match(src, /function useBSDailyCheckinPref\(\) \{ return useBSDailyCheckinPrefState\(\)\.on; \}/);
   assert.match(src, /engineFlag && !bsCheckinLeadSuppressed\(engineFlag, checkinPrefOn\)/,
     'the LEAD must consult the rule, or the loudest check-in surface ignores the pref');
   assert.match(src, /\{checkinDue && checkinPrefOn &&/,
@@ -709,16 +710,103 @@ test('Home routes the reminder: the shell hands Home a nonce, Home clears its pa
   assert.match(src, /checkinOpen=\{checkinOpen\} onCheckinOpenConsumed=\{\(\) => setCheckinOpen\(null\)\}/);
   const home = src.slice(src.indexOf('const [checkinOpenReq, setCheckinOpenReq]'), src.indexOf('// Weekly check-in nudge — due when'));
   assert.match(home, /setCheckinPage\(false\); setHomeProgressPage\(false\); setGoalsPage\(false\)/, "Home kept another page over the card");
-  assert.match(home, /if \(checkinPrefOn\) \{ setTodayPage\(false\); setCheckinOpenReq\(checkinOpen\.nonce\); \} else setTodayPage\(true\);/, 'with Check-ins off the reminder opened nothing');
+  assert.match(home, /setTodayPage\(false\); setCheckinOpenReq\(checkinOpen\.nonce\);\n    onCheckinOpenConsumed\(\);/);
   assert.match(home, /onCheckinOpenConsumed\(\);/);
-  // Check-ins reading as off before the card used the request: the page opens now, and the request
-  // is dropped rather than open the walkthrough whenever Check-ins is next switched on.
-  assert.match(home, /React\.useEffect\(\(\) => \{\n    if \(checkinPrefOn \|\| !checkinOpenReq\) return;\n    setCheckinOpenReq\(null\);\n    setTodayPage\(true\);\n  \}, \[checkinPrefOn, checkinOpenReq\]\);/, 'a request the card never took waits for Check-ins to come back on');
-  assert.match(src, /<BSTodayNudge onOpen=\{\(\) => setTodayPage\(true\)\} variant="bulletin" openRequest=\{checkinOpenReq\} onOpenRequestConsumed=\{\(\) => setCheckinOpenReq\(null\)\} \/>/, 'Home keeps a used request, so a card mounted again opens it again');
+  // The request waits for the account's Check-ins setting (Codex on #2405). Off: the check-in page
+  // opens, and the request is dropped rather than open the walkthrough whenever Check-ins is next
+  // switched on. On: the card takes it.
+  assert.match(home, /React\.useEffect\(\(\) => \{\n    if \(!checkinOpenReq \|\| !checkinPrefSettled \|\| checkinPrefOn\) return;\n    setCheckinOpenReq\(null\);\n    setTodayPage\(true\);\n  \}, \[checkinOpenReq, checkinPrefSettled, checkinPrefOn\]\);/, 'with Check-ins off the reminder opened nothing, or the request waited for Check-ins to come back on');
+  assert.match(src, /<BSTodayNudge onOpen=\{\(\) => setTodayPage\(true\)\} variant="bulletin" openRequest=\{checkinPrefSettled \? checkinOpenReq : null\} onOpenRequestConsumed=\{\(\) => setCheckinOpenReq\(null\)\} \/>/, 'Home keeps a used request, or hands it over before the account has answered');
   // The reminder itself: a kind of its own, opening the card, in the app's and the website's lists.
   const cron = readFileSync(join(ROOT, 'src/app/api/cron/reminders/route.ts'), 'utf8');
   assert.match(cron, /case 'daily_checkin':\n\s+return \{ type: 'reminder_daily_checkin', title: l \|\| 'Daily check-in', body: 'Four quick checks, about 30 seconds\.', route: 'today' \};/);
   assert.match(readFileSync(join(ROOT, 'src/app/api/client/reminders/route.ts'), 'utf8'), /const KINDS = \[[^\]]*'daily_checkin'/);
   assert.match(src, /\['daily_checkin', 'Daily check-in'\]/);
   assert.match(readFileSync(join(ROOT, 'public/newdesign/clientMeSettings.jsx'), 'utf8'), /\["daily_checkin", "Daily check-in"\]/);
+});
+
+test("the Check-ins setting says when the account has answered, so a reminder waits for it", async () => {
+  // Codex on #2405: a fresh device seeds ON; the card took the request before the account's OFF landed.
+  const seen = [];
+  const Probe = () => { seen.push(MOD.useBSDailyCheckinPrefState()); return null; };
+  let answer;
+  env({ uid: 'member-settle', doc: () => new Promise((r) => { answer = r; }) });
+  let m = await mount(React.createElement(Probe));
+  try {
+    assert.deepEqual(seen.at(-1), { on: true, settled: false }, "the device's seed read as the account's answer");
+    await React.act(async () => { answer({ dailyCheckin: 'Off' }); });
+    assert.deepEqual(seen.at(-1), { on: false, settled: true });
+  } finally { m.unmount(); }
+
+  // A read that can't know (null) settles on the device's choice; so does a failed read.
+  env({ uid: 'member-settle-2', doc: async () => null });
+  m = await mount(React.createElement(Probe));
+  try { assert.deepEqual(seen.at(-1), { on: true, settled: true }); } finally { m.unmount(); }
+  env({ uid: 'member-settle-3', doc: async () => { throw new Error('offline'); } });
+  m = await mount(React.createElement(Probe));
+  try { assert.deepEqual(seen.at(-1), { on: true, settled: true }); } finally { m.unmount(); }
+
+  // The member's own toggle is the answer, even with the read still out.
+  env({ uid: 'member-settle-4', doc: () => new Promise(() => {}) });
+  m = await mount(React.createElement(Probe));
+  try {
+    assert.equal(seen.at(-1).settled, false);
+    await m.act(() => { MOD.bsDailyCheckinApply(false); });
+    assert.deepEqual(seen.at(-1), { on: false, settled: true });
+  } finally { m.unmount(); }
+
+  // Signed out there is no account to wait for.
+  env({ uid: null });
+  m = await mount(React.createElement(Probe));
+  try { assert.deepEqual(seen.at(-1), { on: true, settled: true }); } finally { m.unmount(); }
+
+  // A read the network holds settles after 3 seconds rather than hold a reminder forever.
+  const src = readFileSync(SRC, 'utf8');
+  assert.match(src, /const timer = setTimeout\(settle, 3000\);/);
+  assert.match(src, /\}\)\.catch\(\(\) => \{\}\)\.then\(settle\);\n    return \(\) => \{ alive = false; clearTimeout\(timer\); \};/);
+});
+
+test("the reminder list and picker read in the member's language, the Daily check-in included", async () => {
+  // Codex on #2405: the new kind rendered in English in all 12 other locales, as the whole manager did.
+  const es = JSON.parse(readFileSync(join(ROOT, 'mobile-app/src/i18n/catalogs/es/settings.json'), 'utf8'));
+  const realI18n = dom.window.ShapeI18n;
+  dom.window.ShapeI18n = {
+    t: (key, opts = {}) => {
+      const [ns, k] = key.split(':');
+      const v = ns === 'settings' ? es[k] : undefined;
+      return v == null ? key : v.replace(/\{(\w+)\}/g, (_, n) => (opts[n] != null ? String(opts[n]) : ''));
+    },
+    intlLocale: () => 'es',
+  };
+  dom.window.ShapeReminders = {
+    list: async () => ({ reminders: [
+      { id: 'r1', kind: 'daily_checkin', label: '', at_time: '08:00', days: [0, 1, 2, 3, 4, 5, 6], enabled: true },
+      { id: 'r2', kind: 'checkin', label: '', at_time: '18:00', days: [1, 3], enabled: false },
+    ] }),
+  };
+  env({ uid: 'member-rem-es' });
+  const m = await mount(React.createElement(MOD.BSReminderManager));
+  try {
+    await m.rerenderFlush();
+    const text = m.host.textContent;
+    assert.match(text, /Tus recordatorios/);
+    assert.match(text, /Check-in diario/, 'the Daily check-in reminder was not in Spanish');
+    assert.match(text, /Check-in semanal/);
+    assert.match(text, /Todos los días/);
+    assert.match(text, /lun\.? mié\.?/i, 'the days were not named in Spanish');
+    assert.doesNotMatch(text, /Daily check-in|Weekly check-in|Every day|Your reminders/, 'English copy was left in the list');
+    const toggle = m.host.querySelector('button[aria-pressed="true"]');
+    assert.equal(toggle.getAttribute('aria-label'), 'Desactivar recordatorio: Check-in diario');
+    const add = [...m.host.querySelectorAll('button')].find((b) => /Añadir/.test(b.textContent));
+    await m.act(() => { add.click(); });
+    const kinds = [...m.host.querySelectorAll('button')].map((b) => b.textContent);
+    for (const k of ['Pesaje', 'Check-in diario', 'Check-in semanal', 'Agua', 'Foto de progreso', 'Personalizado', 'Cancelar', 'Guardar']) {
+      assert.ok(kinds.includes(k), k + ' is missing from the picker');
+    }
+    assert.ok(m.host.querySelector('button[aria-label="lunes"]'), 'the day buttons were not named in Spanish');
+  } finally {
+    m.unmount();
+    dom.window.ShapeI18n = realI18n;
+    delete dom.window.ShapeReminders;
+  }
 });
