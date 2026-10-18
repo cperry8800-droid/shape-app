@@ -24,7 +24,7 @@ import {
   drive, pressable, count, textOf, loadBroadsheet, importSibling,
 } from './helpers/broadsheet-mount.mjs';
 
-const MOD = await loadBroadsheet(['BSRecipeBox', 'BSPrepSession', 'BSCookMode']);
+const MOD = await loadBroadsheet(['BSRecipeBox', 'BS_KM_COURSES', 'BSPrepSession', 'BSCookMode']);
 const DATA = await importSibling('shapeKitchenData.js');
 const { SHAPE_KITCHEN_RECIPES, recipeNeeds, bsAllergenNoteText } = DATA;
 const { bsCookableFromRecipe } = await importSibling('..', 'services', 'cookable.mjs');
@@ -50,25 +50,43 @@ const pickRecipe = (pred, why) => {
 
 const driveBox = (props) => drive(MOD.BSRecipeBox, props, { rowMarker: ROW_MARKER });
 
-// ⚠ THE MENU PAGES EACH COURSE, so the list these three tests reason about is
-// NOT what the first render holds. BSRecipeBox groups the catalog by cooking
-// time and shows the first 12 rows of any course longer than 16, behind a
-// "Show all N" door (the design the owner picked on 2026-09-15). Measured on
-// today's catalog that is 61 of 100 recipes off the first render — which is why
-// this helper exists rather than a `slice`: a guard about certifications must
-// see every row that claims one, not the dozen that happen to be above a door.
+// ⚠ THE MENU SHOWS ONE COURSE AT A TIME, so the list these three tests reason
+// about is NOT what any single render holds. BSRecipeBox groups the catalog by
+// cooking time, and its time tabs show ONE course right under the tab row (owner,
+// 2026-10-18); a course longer than 16 rows also shows only its first 12, behind a
+// "Show all N" door (the design the owner picked on 2026-09-15). A guard about
+// certifications must see every row that claims one, not the dozen that happen to
+// be in the course on screen.
 //
-// It is DERIVED, not a list of course keys: each open door carries the React key
-// `more-<course>` and each opened one `fewer-<course>`, so clicking every
-// `more-*` until none remain opens exactly the doors that exist — a course added
-// or retired needs no edit here. The bound is a runaway guard, not a count.
-const openAllCourses = (box) => {
-  for (let i = 0; i < 12; i += 1) {
-    const door = box.nodes().find((n) => typeof n.key === 'string' && n.key.startsWith('more-') && n.props && typeof n.props.onClick === 'function');
-    if (!door) return box;
-    box.clickKey(door.key);
+// So this visits every course: it taps each enabled time tab (keyed by the course),
+// opens that course's door if it has one (keyed `more-<course>`), and keeps what
+// rendered. Derived from BS_KM_COURSES, so a course added or retired needs no edit
+// here. `row()` and `text` then answer over every course the way `box.row()` and
+// `box.text` answer over one render.
+const everyCourse = (box) => {
+  const views = [];
+  for (const c of MOD.BS_KM_COURSES) {
+    const tab = box.nodes().find((n) => n.type === 'button' && String(n.key) === c.key);
+    assert.ok(tab, `the ${c.key} time tab is gone — this helper no longer reaches the courses`);
+    if (tab.props.disabled) continue;
+    box.clickKey(c.key);
+    const door = box.nodes().find((n) => String(n.key) === `more-${c.key}` && n.props && typeof n.props.onClick === 'function');
+    if (door) box.clickKey(door.key);
+    views.push(box.nodes());
   }
-  throw new Error('openAllCourses did not run out of doors — the paging door key stopped changing state');
+  const rowIn = (nodes, title) => {
+    const hits = nodes
+      .filter((n) => { const s = textOf(n); return s.includes(title) && count(s, ROW_MARKER) === 1; })
+      .sort((a, b) => textOf(a).length - textOf(b).length);
+    return hits.length ? textOf(hits[0]) : null;
+  };
+  return {
+    row(title) {
+      for (const v of views) { const r = rowIn(v, title); if (r !== null) return r; }
+      return null;
+    },
+    text: views.map((v) => textOf(v[0])).join('\n'),
+  };
 };
 
 
@@ -127,28 +145,27 @@ test('recipe box: the Gluten-free filter returns rows that carry their certifica
   const box = driveBox({
     recipes: SHAPE_KITCHEN_RECIPES, onOpenRecipe() {}, onSendToGrocery() {}, onChangeView() {},
   });
-  // ⚠ `box.click('Filters')` USED TO STAND HERE and is deleted, not relocated.
-  // The Menu has no filters drawer: its whole claim is that what is on the page
-  // is what there is, so the toggles render on one scrolling strip and there is
-  // no button to open. What this test is about — a free-from claim carrying its
-  // certification — is untouched by that; `clickChip` still reaches the toggle
-  // because it is still a component with a `label` prop carrying the raw token.
+  // The filters sit behind one dropdown (owner, 2026-10-18), so it is opened
+  // first. What this test is about — a free-from claim carrying its certification
+  // — is untouched by that; `clickChip` still reaches the toggle because it is
+  // still a component with a `label` prop carrying the raw token.
+  box.clickKey('km-filters');
   box.clickChip('Gluten-free');
-  openAllCourses(box);
+  const menu = everyCourse(box);
 
   const listed = SHAPE_KITCHEN_RECIPES.filter((r) => recipeNeeds(r).includes('Gluten-free'));
   assert.ok(listed.length > 0, 'nothing claims Gluten-free — the filter proves nothing');
-  const shown = listed.filter((r) => box.row(r.title) !== null);
+  const shown = listed.filter((r) => menu.row(r.title) !== null);
   assert.equal(shown.length, listed.length, 'the Gluten-free filter did not return the rows it should have');
   // Guard the guard: a filter that returned NOTHING, or a click that missed,
   // would leave every "the note is there" assertion below trivially satisfied.
   const excluded = SHAPE_KITCHEN_RECIPES.find((r) => !recipeNeeds(r).includes('Gluten-free'));
-  assert.equal(box.row(excluded.title), null, `the filter did not apply — "${excluded.title}" is still listed`);
+  assert.equal(menu.row(excluded.title), null, `the filter did not apply — "${excluded.title}" is still listed`);
 
   const missing = [];
   for (const r of listed) {
     if (!(r.allergenNotes || []).length) continue;
-    const row = box.row(r.title);
+    const row = menu.row(r.title);
     for (const n of r.allergenNotes) {
       if (!row.includes(n.certification)) missing.push(`${r.title}: ${n.allergen}`);
     }
@@ -161,10 +178,10 @@ test('recipe box: the certification renders BEFORE the row grocery action, unatt
   const box = driveBox({
     recipes: SHAPE_KITCHEN_RECIPES, onOpenRecipe() {}, onSendToGrocery() {}, onChangeView() {},
   });
-  openAllCourses(box);
+  const menu = everyCourse(box);
   const r = NOTED.find((x) => recipeNeeds(x).includes('Gluten-free') && x.allergenNotes[0].allergen === 'gluten');
   assert.ok(r, 'no gluten-noted recipe with a restored claim');
-  const row = box.row(r.title);
+  const row = menu.row(r.title);
   assert.ok(row, `"${r.title}" is not in the unfiltered list`);
   const n = r.allergenNotes[0];
   assert.ok(row.includes(`ALLERGEN · ${n.allergen.toUpperCase()}`), 'the row note is missing its unattributed eyebrow');
@@ -193,12 +210,12 @@ test('recipe box: the note block renders on exactly the note-bearing rows', () =
   const box = driveBox({
     recipes: SHAPE_KITCHEN_RECIPES, onOpenRecipe() {}, onSendToGrocery() {}, onChangeView() {},
   });
-  openAllCourses(box);
+  const menu = everyCourse(box);
   const expected = SHAPE_KITCHEN_RECIPES.reduce((a, r) => a + (r.allergenNotes || []).length, 0);
-  assert.equal(count(box.text, 'ALLERGEN · '), expected,
+  assert.equal(count(menu.text, 'ALLERGEN · '), expected,
     'the row note block rendered on the wrong set of recipes');
   const plain = SHAPE_KITCHEN_RECIPES.find((r) => r.allergenNotes === undefined);
-  assert.ok(!box.row(plain.title).includes('ALLERGEN'), `"${plain.title}" carries no note but rendered one`);
+  assert.ok(!menu.row(plain.title).includes('ALLERGEN'), `"${plain.title}" carries no note but rendered one`);
 });
 
 // ── P1-B · the Prep Session merged mise ─────────────────────────────────────
