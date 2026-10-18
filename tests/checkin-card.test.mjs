@@ -252,15 +252,15 @@ test('every step shows the last 7 days, and a tap on a day reuses its answer', a
     assert.equal(strip().getAttribute('data-bs-checkin-week'), 'energy');
     const cells = [...strip().querySelectorAll('[aria-label]')].map((el) => el.getAttribute('aria-label'));
     assert.equal(cells.length, 7);
-    assert.match(cells[0], /11: —$/, 'a day with no answer is not shown as one');
+    assert.match(cells[0], /11: No answer$/, 'a day with no answer is not read out as one');
     assert.match(cells[6], /17: Good$/, 'yesterday is not the last day');
-    assert.match(m.text(), /Mostly Good this week\./);
+    assert.match(m.text(), /Mostly good this week\./);
     // A tap on yesterday reuses its own value: a 7 stays a 7.
     await m.click(/17: Good/);
     assert.deepEqual(calls.log, [{ energy: 7 }]);
     assert.match(m.text(), /Step 2 of 4 · Hunger/);
     assert.equal(strip().getAttribute('data-bs-checkin-week'), 'hunger');
-    assert.match(m.text(), /Mostly Normal this week\./);
+    assert.match(m.text(), /Mostly normal this week\./);
     await m.click(/^Normal$/);
     // Sleep: a tap on a day fills the stepper and its Rested; Next saves them.
     await m.click(/17: 6h 30/);
@@ -616,10 +616,11 @@ test("a save from the day before that fails after midnight changes nothing on th
       mock.timers.setTime(new Date(2026, 9, 19, 9, 0).getTime());
       dom.window.ShapeProgress = { progress: async () => ({ series: series({}) }) };
       await m.rerender();
-      assert.match(m.text(), /Four quick checks/);
+      // The new day's card reads once the save on its way has settled.
       failEdit(new Error('500'));
       await m.flush();
       await m.flush();
+      assert.match(m.text(), /Four quick checks/);
       assert.doesNotMatch(m.text(), /✓ Energy/, "the failed save from the day before put its energy into the new day");
       assert.doesNotMatch(m.text(), /Could not save/, "the day before's failure shows on the new day");
     } finally { m.unmount(); }
@@ -804,7 +805,7 @@ test('signed out, the card previews the flow and saves nothing', async () => {
   const m = await mount();
   try {
     await m.click(/Start check-in/);
-    assert.match(m.text(), /Mostly Good this week\./, 'the preview has no sample week');
+    assert.match(m.text(), /Mostly good this week\./, 'the preview has no sample week');
     await m.click(/^Good$/);
     await m.click(/^Normal$/);
     await m.click(/^Next/);
@@ -818,4 +819,310 @@ test('signed out, the card previews the flow and saves nothing', async () => {
     await m.click(/^Done$/);
     assert.match(m.text(), /8 oz \/ 101 oz/, 'the preview did not count its glass');
   } finally { m.unmount(); }
+});
+
+// ── The second review round on #2398 ─────────────────────────────────────────
+
+test("a night a watch wrote is known from the server's sources, not from a resting heart rate", async () => {
+  const s = (days, device) => ({ ...series(days), sleepFromDevice: device.map((date) => ({ date, value: 1 })) });
+  // A watch worn by day reports a resting heart rate; the night was typed.
+  assert.equal(CARD.bsCiDay(s({ [TODAY]: { sleep: 7, restingHr: 58 } }, []), TODAY).device, false);
+  assert.equal(CARD.bsCiDay(s({ [TODAY]: { sleep: 7 } }, [TODAY]), TODAY).device, true);
+  // A server without the series keeps the old sign.
+  assert.equal(CARD.bsCiDay(series({ [TODAY]: { sleep: 7, restingHr: 58 } }), TODAY).device, true);
+
+  const calls = env({ days: {} });
+  dom.window.ShapeProgress = { progress: async () => ({ series: s({ [TODAY]: { energy: 8, hunger: 6, sleep: 7, restingHr: 58 }, [YDAY]: { energy: 6, hunger: 6, sleep: 6.5, restingHr: 57 } }, []) }) };
+  const m = await mount();
+  try {
+    await m.click(/^Edit$/);
+    await m.click(/^Change$/, 2);
+    assert.doesNotMatch(m.text(), /From your watch/, "the member's typed hours read as the watch's, so they cannot correct them");
+    assert.ok(m.button(/^Skip$/), 'a typed night lost its stepper');
+    assert.match(m.text(), /^(?!.*Your usual night).*7h(?! \d)/s, "the stepper did not start at today's own hours");
+  } finally { m.unmount(); }
+  assert.deepEqual(calls.log, []);
+});
+
+test("typed hours on a day with a watch's heart rate stay the member's own after they are saved", async () => {
+  // An older server: no sleepFromDevice, so the heart rate still marks the day.
+  const calls = env({ days: { [TODAY]: { energy: 8, hunger: 6, restingHr: 58 } } });
+  const m = await mount();
+  try {
+    await m.click(/^Continue/);
+    assert.match(m.text(), /Step 3 of 4 · Sleep/);
+    await m.click(/^Next/);
+    assert.deepEqual(calls.log, [{ sleepHours: 7.5 }]);
+    await m.click(/^Finish/);
+    await m.click(/^Change$/, 2);
+    assert.doesNotMatch(m.text(), /From your watch/, 'the hours just typed now read as the watch\'s');
+    assert.ok(m.button(/^Skip$/));
+  } finally { m.unmount(); }
+});
+
+test('a card mounted while a save is on its way reads after it, so Same as yesterday never writes over it', async () => {
+  let stored = { energy: null };
+  let land;
+  const gate = new Promise((r) => { land = r; });
+  const calls = env({ days: {}, log: (p) => gate.then(() => { stored = { ...stored, ...p }; return { ok: true }; }) });
+  // The progress read answers from its cache until the save lands and clears it.
+  let cache = null;
+  dom.window.ShapeProgress = { progress: async () => (cache ||= { series: series({ [YDAY]: { energy: 6, hunger: 6 }, ...(stored.energy != null ? { [TODAY]: { energy: stored.energy } } : {}) }) }) };
+  let m = await mount();
+  try {
+    await m.click(/Start check-in/);
+    await m.click(/^Low$/);
+    await m.click(/Close/);
+  } finally { m.unmount(); }
+  m = await mount();             // Home again, the save still out
+  try {
+    assert.doesNotMatch(m.text(), /Same as yesterday/, 'the new card asked from the cache before the save landed');
+    cache = null;
+    land();
+    await m.flush();
+    await m.flush();
+    assert.match(m.text(), /Continue/, "the new card did not read the answer that landed");
+    assert.match(m.text(), /✓ Energy/);
+  } finally { m.unmount(); land(); }
+  assert.deepEqual(calls.log, [{ energy: 4 }]);
+});
+
+test('a save the network holds keeps the next card waiting 3 seconds at most', async () => {
+  let land;
+  const gate = new Promise((r) => { land = r; });
+  env({ days: {}, log: () => gate });
+  let m = await mount();
+  await m.click(/Start check-in/);
+  await m.click(/^Good$/);
+  m.unmount();
+  m = await mount();
+  try {
+    assert.doesNotMatch(m.text(), /Four quick checks/);
+    await React.act(async () => { await new Promise((r) => setTimeout(r, 3100)); });
+    await m.flush();
+    assert.match(m.text(), /Four quick checks/, 'a held save kept the card off Home');
+  } finally { m.unmount(); land({ ok: true }); }
+});
+
+test('two failed answers to one question put back what is stored, not the first unsaved answer', async () => {
+  let failFirst;
+  const first = new Promise((_, reject) => { failFirst = reject; });
+  const calls = env({ days: {}, log: (p) => (p.energy === 8 ? first : Promise.reject(new Error('500'))) });
+  const m = await mount();
+  try {
+    await m.click(/Start check-in/);
+    await m.click(/^Good$/);           // saving
+    await m.click(/Back/);
+    await m.click(/^Low$/);            // queued behind it
+    failFirst(new Error('500'));
+    await m.flush();
+    await m.flush();
+    await m.click(/Back/);
+    assert.deepEqual(m.pressed(), [], 'an answer that never saved shows as given');
+    await m.click(/Close/);
+    assert.doesNotMatch(m.text(), /✓ Energy/, 'Home shows an energy answer that is not stored');
+  } finally { m.unmount(); }
+  assert.deepEqual(calls.log, [{ energy: 8 }, { energy: 4 }]);
+});
+
+test('one failed answer after one that saved puts back the one that saved', async () => {
+  const calls = env({ days: {}, log: (p) => (p.energy === 4 ? Promise.reject(new Error('500')) : { ok: true }) });
+  const m = await mount();
+  try {
+    await m.click(/Start check-in/);
+    await m.click(/^Good$/);
+    await m.click(/Back/);
+    await m.click(/^Low$/);
+    await m.flush();
+    await m.click(/Back/);
+    assert.deepEqual(m.pressed(), ['Good'], 'the answer that saved was taken back with the one that failed');
+  } finally { m.unmount(); }
+  assert.deepEqual(calls.log, [{ energy: 8 }, { energy: 4 }]);
+});
+
+test('a Details tap still waiting does not leave once the member has moved on', async () => {
+  let release;
+  let opened = 0;
+  const gate = new Promise((r) => { release = r; });
+  env({ days: { [YDAY]: { energy: 7, hunger: 5, sleep: 6.5 } }, log: () => gate });
+  const m = await mount({ onOpen: () => { opened += 1; } });
+  try {
+    await m.click(/Same as yesterday/);
+    await m.click(/Details/);
+    await m.click(/^Edit$/);
+    release({ ok: true });
+    await m.flush();
+    await m.flush();
+    assert.equal(opened, 0, 'Details left from under the walkthrough the member had opened');
+    assert.ok(m.walk());
+  } finally { m.unmount(); }
+});
+
+test('the water read waits for a glass on its way, so a card mounted meanwhile shows it', async () => {
+  let server = 0.5;
+  let land;
+  env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
+  dom.window.ShapeHydration = {
+    get: async () => ({ ok: true, hydrationL: server, targetL: 3 }),
+    add: (d) => new Promise((r) => { land = () => { server += d; r({ ok: true, hydrationL: server }); }; }),
+  };
+  let m = await mount();
+  await m.click(/\+ Glass/);
+  m.unmount();
+  m = await mount();
+  try {
+    land();
+    await m.flush();
+    await m.flush();
+    assert.match(m.text(), /25 oz \/ 101 oz/, 'the new card read the total from before the glass landed');
+  } finally { m.unmount(); }
+});
+
+test('a Details tap still waiting does not leave once the member adds a glass', async () => {
+  let release;
+  let opened = 0;
+  const gate = new Promise((r) => { release = r; });
+  const calls = env({ days: { [YDAY]: { energy: 7, hunger: 5, sleep: 6.5 } }, log: () => gate });
+  const m = await mount({ onOpen: () => { opened += 1; } });
+  try {
+    await m.click(/Same as yesterday/);
+    await m.click(/Details/);
+    await m.click(/\+ Glass/);
+    release({ ok: true });
+    await m.flush();
+    await m.flush();
+    assert.equal(calls.add.length, 1);
+    assert.equal(opened, 0, 'Details left while the member was adding water');
+  } finally { m.unmount(); }
+});
+
+test("the sheet owns its touches in the native app, and each step's question takes focus", async () => {
+  env({ days: {} });
+  const m = await mount();
+  try {
+    const start = m.button(/Start check-in/);
+    start.focus();
+    await m.click(/Start check-in/);
+    const sheet = m.walk();
+    assert.ok(sheet.closest('.bs-scroll, .bsck-scroll') === sheet, "the native touch router scrolls Home behind the sheet");
+    assert.ok(sheet.hasAttribute('data-bs-layer'), 'a drag on the sheet can fall through to the page');
+    assert.equal(document.activeElement.tagName, 'H1');
+    assert.match(document.activeElement.textContent, /How's your energy\?/);
+    Object.defineProperty(sheet, 'scrollTop', { value: 240, writable: true, configurable: true });
+    await m.click(/^Good$/);
+    assert.equal(sheet.scrollTop, 0, 'the next step opened scrolled to where the last one was');
+    assert.match(document.activeElement.textContent, /How hungry are you\?/, 'focus fell to the page when the tapped tile went away');
+    await React.act(async () => { m.walk().dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
+    await m.flush();
+    assert.equal(m.walk(), null, 'Escape did not close the walkthrough');
+    assert.ok(document.activeElement === m.button(/Continue/), 'focus did not come back to the card');
+  } finally { m.unmount(); }
+});
+
+test('the preview never says it saves, and a failed save is not told "saved as you went"', async () => {
+  env({ uid: null });
+  let m = await mount();
+  try {
+    assert.doesNotMatch(m.text(), /Saved as you go/, 'the signed-out card promises a save');
+    await m.click(/Start check-in/);
+    await m.click(/^Good$/);
+    await m.click(/^Normal$/);
+    await m.click(/^Next/);
+    await m.click(/^Finish/);
+    assert.doesNotMatch(m.text(), /Saved as you went/, 'the preview summary says its answers were saved');
+  } finally { m.unmount(); }
+
+  env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } }, log: () => Promise.reject(new Error('500')) });
+  m = await mount();
+  try {
+    await m.click(/^Edit$/);
+    assert.match(m.text(), /Saved as you went/);
+    await m.click(/^Change$/, 0);
+    await m.click(/^Great$/);         // back on the summary, and the save fails
+    await m.flush();
+    assert.match(m.text(), /You're checked in/);
+    assert.match(m.text(), /Could not save check-in/);
+    assert.doesNotMatch(m.text(), /Saved as you went/, 'the summary says saved beside the failure');
+  } finally { m.unmount(); }
+});
+
+test("hours and litres are said in the member's language", async () => {
+  assert.equal(CARD.bsCiHM(7.5, (h, mm) => `${h} ч ${mm}`), '7 ч 30');
+  assert.equal(CARD.bsCiHM(7, (h, mm) => (mm == null ? `${h} ч` : 'x')), '7 ч');
+  dom.window.ShapeI18n.intlLocale = () => 'de-DE';
+  theme.isMetric = true;
+  try {
+    env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } }, water: { ok: true, hydrationL: 2.25, targetL: 3 } });
+    const m = await mount();
+    assert.match(m.text(), /2,25 L \/ 3 L/, 'a German member reads a decimal point');
+    m.unmount();
+  } finally { theme.isMetric = false; delete dom.window.ShapeI18n.intlLocale; }
+  const t = dom.window.ShapeI18n.t;
+  dom.window.ShapeI18n.t = (key, opts) => (key === 'home:checkin.hm' ? `${opts.h} ч ${opts.m}` : t(key, opts));
+  try {
+    env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7.5 } } });
+    const m = await mount();
+    assert.match(m.text(), /7 ч 30/, "the card's hours are not put through the member's catalog");
+    m.unmount();
+  } finally { dom.window.ShapeI18n.t = t; }
+});
+
+test('the stepper says its hours as they change', async () => {
+  env({ days: { [TODAY]: { energy: 8, hunger: 6 } } });
+  const m = await mount();
+  try {
+    await m.click(/^Continue/);
+    const live = document.querySelector('[aria-live="polite"]');
+    assert.ok(live && /7h 30/.test(live.textContent), 'the hours are not announced');
+    await m.click(/Thirty minutes more/);
+    assert.match(document.querySelector('[aria-live="polite"]').textContent, /8h/);
+  } finally { m.unmount(); }
+});
+
+test('a failed save leaves alone an answer whose own save is still on its way', async () => {
+  // The rollback reads what is stored when React renders. Here the newer answer has not landed
+  // by then, so a rollback of the whole day, or of a field it does not own, would wipe it.
+  let failEnergy;
+  let landHunger;
+  const energySave = new Promise((_, reject) => { failEnergy = reject; });
+  const hungerSave = new Promise((r) => { landHunger = r; });
+  const calls = env({ days: {}, log: (p) => (p.energy != null ? energySave : hungerSave) });
+  const m = await mount();
+  try {
+    await m.click(/Start check-in/);
+    await m.click(/^Good$/);           // saving
+    await m.click(/^Normal$/);         // queued, and on its way once energy fails
+    failEnergy(new Error('500'));
+    await m.flush();
+    await m.flush();
+    assert.match(m.text(), /✓ Hunger/, 'the failed energy save took back the hunger answer still on its way');
+    assert.doesNotMatch(m.text(), /✓ Energy/);
+    landHunger({ ok: true });
+    await m.flush();
+    assert.match(m.text(), /✓ Hunger/);
+  } finally { m.unmount(); }
+  assert.deepEqual(calls.log, [{ energy: 8 }, { hunger: 6 }]);
+});
+
+test('an older failed save leaves alone a newer answer to the same question still on its way', async () => {
+  let failGood;
+  let landLow;
+  const good = new Promise((_, reject) => { failGood = reject; });
+  const low = new Promise((r) => { landLow = r; });
+  const calls = env({ days: {}, log: (p) => (p.energy === 8 ? good : low) });
+  const m = await mount();
+  try {
+    await m.click(/Start check-in/);
+    await m.click(/^Good$/);           // saving
+    await m.click(/Back/);
+    await m.click(/^Low$/);            // queued, and on its way once Good fails
+    failGood(new Error('500'));
+    await m.flush();
+    await m.flush();
+    await m.click(/Back/);
+    assert.deepEqual(m.pressed(), ['Low'], 'the older failure took back the newer answer still on its way');
+    landLow({ ok: true });
+    await m.flush();
+  } finally { m.unmount(); }
+  assert.deepEqual(calls.log, [{ energy: 8 }, { energy: 4 }]);
 });

@@ -67,15 +67,19 @@ function bsCiShift(iso, days) {
 }
 
 // One day's answers off the progress series ({ date, value } points per metric). `device` is
-// true when a wearable reported that night (efficiency / resting HR / HRV — a manual log never
-// writes those), which is the only honest sign the hours were not typed.
+// true when a watch wrote that night's hours: the route's `sleepFromDevice`, from the snapshot's
+// per-field sources. A resting heart rate is not the sign: a watch worn by day and charged at
+// night reports one with no night, and the member's typed hours then read as the watch's, locked
+// and never copied (review on #2398). A server without that series falls back to the old sign.
 export function bsCiDay(series, iso) {
   const at = (k) => {
     const p = ((series && series[k]) || []).find((s) => s && s.date === iso);
     const n = p ? Number(p.value) : NaN;
     return Number.isFinite(n) ? n : null;
   };
-  const device = at('sleepEfficiency') != null || at('restingHr') != null || at('hrv') != null;
+  const device = Array.isArray(series && series.sleepFromDevice)
+    ? at('sleepFromDevice') != null
+    : at('sleepEfficiency') != null || at('restingHr') != null || at('hrv') != null;
   return { energy: at('energy'), hunger: at('hunger'), sleep: at('sleep'), rested: at('sleepQuality'), device };
 }
 
@@ -143,13 +147,16 @@ export function bsCiSamePatch(yesterday, today) {
   return Object.keys(patch).length ? patch : null;
 }
 
-export function bsCiHM(h) {
+// Hours as hours and minutes. `say(hh, mm)` words it in the member's language (the card passes
+// home:checkin.hm / hOnly; Russian reads "7 ч 30"); without one it is "7h 30".
+export function bsCiHM(h, say) {
   const n = h == null ? NaN : Number(h);
   if (!Number.isFinite(n)) return '—';
   const total = Math.round(n * 60); // in whole minutes first, so 7.999h reads 8h, never 7h 60
   const hh = Math.floor(total / 60);
-  const mm = total % 60;
-  return mm ? `${hh}h ${String(mm).padStart(2, '0')}` : `${hh}h`;
+  const mm = String(total % 60).padStart(2, '0');
+  if (say) return say(hh, total % 60 ? mm : null);
+  return total % 60 ? `${hh}h ${mm}` : `${hh}h`;
 }
 
 // The seven days before today, oldest first: the strip under every step. Water is the day's total.
@@ -208,6 +215,14 @@ function bsCiEnqueue(line, uid, send) {
   return run;
 }
 function bsCiSave(patch, uid) { return bsCiEnqueue('checkin', uid, () => window.ShapeCheckin.log(patch)); }
+// A line's saves have settled, or `ms` has passed: a read waits for saves on their way, but a
+// request the network holds does not keep the card off Home for good.
+const BS_CI_READ_WAIT_MS = 3000;
+function bsCiSettled(line) {
+  let timer;
+  const waited = new Promise((r) => { timer = setTimeout(r, BS_CI_READ_WAIT_MS); });
+  return Promise.race([bsCiLines[line], waited]).finally(() => clearTimeout(timer));
+}
 
 // ── The card, and the walkthrough it opens ───────────────────────────────────
 
@@ -245,22 +260,36 @@ function BSCheckinDay({ onOpen, dayIso }) {
   // of state here, only ever holds this card's own day.
   const [ready, setReady] = useState(!signedIn || !window.ShapeProgress?.progress);
   const alive = useRef(true);
-  useEffect(() => () => { alive.current = false; }, []);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   // The newest answer per field, numbered, so an older save that fails never undoes a newer one.
   const latest = useRef({ n: 0 });
+  // What is stored, as far as this card knows: the day as read, then each answer once its save
+  // lands. A failed save puts this back, never the screen from before its tap, which may hold an
+  // earlier answer that failed too (review on #2398).
+  const confirmed = useRef({ energy: null, hunger: null, sleep: null, rested: null });
+  // Bumped by a tap that starts something new (Edit, a check, a glass), so a Details tap still
+  // waiting on saves does not leave once the member has moved on (review on #2398). An answer
+  // needs the walkthrough open first, so opening it is the bump.
+  const moved = useRef(0);
   const failures = useRef(0); // saves that failed (answers and glasses), so Details can tell whether to leave
   // Litres added on screen whose save has not answered yet: the server's total plus these is what shows.
   const waterPending = useRef(0);
   const [, bump] = useState(0); // a re-render, for a tap that finds its day already over
 
+  // ⚠ THE READS WAIT FOR SAVES ALREADY ON THEIR WAY (review on #2398). The lines outlive a card:
+  // a member who answers on a slow connection, leaves Home and comes back mounts a new card while
+  // the old card's save is still out, and the progress read would answer from its 60-second cache
+  // from before it. That card then asked again, and Same as yesterday wrote over the answer. A
+  // save the network holds is waited for 3 seconds at most (bsCiSettled).
   useEffect(() => {
     if (!signedIn || !window.ShapeProgress?.progress) return undefined;
     let on = true;
     // A read that fails still opens the card, on its own empty day.
-    window.ShapeProgress.progress().then((p) => {
+    bsCiSettled('checkin').then(() => window.ShapeProgress.progress()).then((p) => {
       if (!on) return;
       if (p && p.series) {
         const day = bsCiDay(p.series, todayIso);
+        confirmed.current = day;
         setToday(day);
         setYesterday(bsCiDay(p.series, bsCiShift(todayIso, -1)));
         setWeek(bsCiWeek(p.series, todayIso));
@@ -275,12 +304,34 @@ function BSCheckinDay({ onOpen, dayIso }) {
   useEffect(() => {
     if (!signedIn || !window.ShapeHydration?.get) return undefined;
     let on = true;
-    window.ShapeHydration.get().then((d) => {
+    bsCiSettled('water').then(() => window.ShapeHydration.get()).then((d) => {
       if (!on) return;
       setWater(d && d.ok ? { l: Number(d.hydrationL) || 0, target: Number(d.targetL) || 3 } : BS_CI_WATER_UNKNOWN);
     }).catch(() => { if (on) setWater(BS_CI_WATER_UNKNOWN); });
     return () => { on = false; };
   }, [signedIn]);
+
+  // ⚠ THE SHEET IS A DIALOG (review on #2398): each step starts at its top with its question
+  // focused, so a screen reader reads it and the tile just tapped does not drop focus to the
+  // page; Escape closes it; and closing hands focus back to what opened it, or to the card.
+  const sheetRef = useRef(null);
+  const cardRef = useRef(null);
+  const openerRef = useRef(null);
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (walk != null) {
+      wasOpen.current = true;
+      const el = sheetRef.current;
+      if (!el) return;
+      el.scrollTop = 0;
+      el.querySelector('h1')?.focus?.({ preventScroll: true });
+      return;
+    }
+    if (!wasOpen.current) return;
+    wasOpen.current = false;
+    const back = openerRef.current && openerRef.current.isConnected ? openerRef.current : cardRef.current?.querySelector('button');
+    back?.focus?.({ preventScroll: true });
+  }, [walk]);
 
   // A card whose day is over shows nothing and saves nothing; Home's next render mounts the new day's.
   if (bsCiIso(now) !== todayIso) return null;
@@ -296,29 +347,32 @@ function BSCheckinDay({ onOpen, dayIso }) {
   // whole day would hide an answer that is stored.
   const answer = (patch) => {
     if (bsCiIso(new Date()) !== todayIso) { bump((n) => n + 1); return; }
-    const before = today;
     const merged = { ...today };
     const fields = [];
     if (patch.energy != null) { merged.energy = patch.energy; fields.push('energy'); }
     if (patch.hunger != null) { merged.hunger = patch.hunger; fields.push('hunger'); }
-    if (patch.sleepHours != null) { merged.sleep = patch.sleepHours; fields.push('sleep'); }
+    if (patch.sleepHours != null) { merged.sleep = patch.sleepHours; merged.device = false; fields.push('sleep'); }
     if (patch.sleepQuality != null) { merged.rested = patch.sleepQuality; fields.push('rested'); }
     const mine = {};
     for (const k of fields) { latest.current.n += 1; latest.current[k] = latest.current.n; mine[k] = latest.current.n; }
     setToday(merged);
     setErr(null);
     if (!signedIn) return;
+    // Saves run one at a time, so when this one settles every earlier one has, and `confirmed`
+    // is what is stored. (Typed hours set `device` false above; a watch's night is never typed
+    // over, since its step shows no stepper, so a failed night never has a watch's to put back.)
+    const landed = () => { for (const k of fields) confirmed.current = { ...confirmed.current, [k]: merged[k] }; };
     const undo = (msg) => {
       setToday((cur) => {
         const back = { ...cur };
-        for (const k of fields) if (latest.current[k] === mine[k]) back[k] = before[k];
+        for (const k of fields) if (latest.current[k] === mine[k]) back[k] = confirmed.current[k];
         return back;
       });
       failures.current += 1;
       setErr(msg);
     };
     if (!window.ShapeCheckin?.log) { undo('unavailable'); return; }
-    bsCiSave(patch, uid).catch(() => { if (alive.current) undo('failed'); });
+    bsCiSave(patch, uid).then(landed, () => { if (alive.current) undo('failed'); });
   };
   const streak = streakBefore + (bsCiAnswered(today) ? 1 : 0);
 
@@ -329,6 +383,7 @@ function BSCheckinDay({ onOpen, dayIso }) {
   const addWater = (glasses) => {
     if (bsCiIso(new Date()) !== todayIso) { bump((n) => n + 1); return; }
     if (!water) return;
+    moved.current += 1;
     const deltaL = Math.round(glassL * glasses * 10000) / 10000;
     const round = (l) => Math.round(Math.max(0, l) * 1000) / 1000;
     setWater((w) => ({ ...w, l: round(w.l + deltaL) }));
@@ -351,15 +406,22 @@ function BSCheckinDay({ onOpen, dayIso }) {
   // ⚠ DETAILS WAITS FOR THE SAVES ON THEIR WAY, ANSWERS AND GLASSES (Codex P2 on #2398). Leaving
   // at once unmounts this card, so the page would read the totals from before the save, and a save
   // that then failed could no longer say so. It opens once both lines have settled, and stays here
-  // if one failed.
+  // if one failed, or if the member has since tapped something else (an answer, a glass, Edit).
   const openDetails = () => {
     const before = failures.current;
-    Promise.all([bsCiLines.checkin, bsCiLines.water]).then(() => { if (alive.current && failures.current === before) onOpen(); });
+    const tap = moved.current;
+    Promise.all([bsCiLines.checkin, bsCiLines.water]).then(() => {
+      if (alive.current && failures.current === before && moved.current === tap) onOpen();
+    });
   };
 
   // ── walkthrough navigation ──
   const reset = () => { setSleepH(null); setRestedPick(null); setErr(null); };
-  const open = (i, back) => { reset(); setFromSummary(!!back); setWalk(i); };
+  const open = (i, back) => {
+    moved.current += 1;
+    if (walk == null) openerRef.current = document.activeElement;
+    reset(); setFromSummary(!!back); setWalk(i);
+  };
   const close = () => { reset(); setFromSummary(false); setWalk(null); };
   const next = () => {
     setSleepH(null); setRestedPick(null);
@@ -375,17 +437,22 @@ function BSCheckinDay({ onOpen, dayIso }) {
   const H = [0, 1, 2, 3, 4].map((i) => tr(`home:checkin.h${i}`, { defaultValue: ['Not hungry', 'A little', 'Normal', 'Hungry', 'Starving'][i] }));
   const R = [0, 1, 2, 3, 4].map((i) => tr(`home:checkin.r${i}`, { defaultValue: ['Wrecked', 'Tired', 'OK', 'Rested', 'Fresh'][i] }));
   const word = (list, v) => { const i = bsCiWordIndex(v); return i == null ? null : list[i]; };
+  const locale = window.ShapeI18n?.intlLocale?.() || undefined;
+  const hm = (h) => bsCiHM(h, (hh, mm) => (mm == null
+    ? tr('home:checkin.hOnly', { defaultValue: '{h}h', h: hh })
+    : tr('home:checkin.hm', { defaultValue: '{h}h {m}', h: hh, m: mm })));
   const NAME = {
     energy: tr('home:today.energy', { defaultValue: 'Energy' }),
     hunger: tr('home:today.hunger', { defaultValue: 'Hunger' }),
     sleep: tr('home:today.sleep', { defaultValue: 'Sleep' }),
     water: tr('home:checkin.water', { defaultValue: 'Water' }),
   };
-  const litres = (l) => (t.isMetric ? `${Math.round(l * 100) / 100} L` : `${Math.round(l * 33.814)} oz`);
+  const num = (n, digits) => { try { return new Intl.NumberFormat(locale, { maximumFractionDigits: digits }).format(n); } catch (e) { return String(n); } };
+  const litres = (l) => (t.isMetric ? `${num(Math.round(l * 100) / 100, 2)} L` : `${num(Math.round(l * 33.814), 0)} oz`);
   const target = water ? water.target : 3;
 
   const same = bsCiSamePatch(yesterday, today);
-  const sameLine = yesterday ? [word(E, yesterday.energy), word(H, yesterday.hunger), yesterday.sleep != null && !yesterday.device ? bsCiHM(yesterday.sleep) : null].filter(Boolean).join(' · ') : '';
+  const sameLine = yesterday ? [word(E, yesterday.energy), word(H, yesterday.hunger), yesterday.sleep != null && !yesterday.device ? hm(yesterday.sleep) : null].filter(Boolean).join(' · ') : '';
   const wornNight = bsCiWornNight(today);
   const sleepFromUsual = sleepH == null && !(today.sleep != null && !today.device);
   const sleepValue = sleepH != null ? sleepH : (sleepFromUsual ? usual : today.sleep);
@@ -402,6 +469,13 @@ function BSCheckinDay({ onOpen, dayIso }) {
     </div>
   ) : null;
 
+  // A word in a narrow tile or cell: a step smaller and tighter when it is long (German, Russian,
+  // Portuguese at 320 px with Large text), and hyphenated in the page's language where it must break.
+  const fit = (text, base) => {
+    const n = Math.max(0, ...String(text || '').split(/\s+/).map((x) => x.length));
+    return { fontSize: n >= 10 ? base - 1.5 : n >= 7 ? base - 1 : base, letterSpacing: n >= 7 ? '0.01em' : '0.05em', overflowWrap: 'anywhere', hyphens: 'auto', WebkitHyphens: 'auto' };
+  };
+
   // The five-word answers, as tiles with a rising bar.
   const tiles = (prefix, words, color, current, onPick) => (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 7 }}>
@@ -416,7 +490,7 @@ function BSCheckinDay({ onOpen, dayIso }) {
             <span aria-hidden style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 18 }}>
               {[0, 1, 2, 3, 4].map((b) => <span key={b} style={{ width: 3.5, height: 5 + b * 3.2, background: b <= i ? (on ? t.PAPER : color) : t.RULE }} />)}
             </span>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', textAlign: 'center', lineHeight: 1.15 }}>{w}</span>
+            <span style={{ fontFamily: t.MONO, fontWeight: 800, textTransform: 'uppercase', textAlign: 'center', lineHeight: 1.15, maxWidth: '100%', ...fit(w, 8.5) }}>{w}</span>
           </button>
         );
       })}
@@ -424,7 +498,6 @@ function BSCheckinDay({ onOpen, dayIso }) {
   );
 
   // The last seven days under a step. `onPick` reuses a day's answer; `tip` and `trend` frame it.
-  const locale = window.ShapeI18n?.intlLocale?.() || undefined;
   const strip = (kind, color, tip, trend, onPick) => (
     <div data-bs-checkin-week={kind} style={{ borderTop: `1px solid ${t.HAIR}`, paddingTop: 13, marginTop: 4 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, marginBottom: 9 }}>
@@ -436,7 +509,7 @@ function BSCheckinDay({ onOpen, dayIso }) {
           const v = d[kind];
           const has = v != null;
           const pct = !has ? 0 : kind === 'sleep' ? Math.min(1, v / 10) : kind === 'water' ? Math.min(1, v / (target || 3)) : ((bsCiWordIndex(v) || 0) + 1) / 5;
-          const label = !has ? '—' : kind === 'energy' ? word(E, v) : kind === 'hunger' ? word(H, v) : kind === 'sleep' ? bsCiHM(v) : litres(v);
+          const label = !has ? '—' : kind === 'energy' ? word(E, v) : kind === 'hunger' ? word(H, v) : kind === 'sleep' ? hm(v) : litres(v);
           const [y, m, dd] = d.iso.split('-').map(Number);
           const date = new Date(y, m - 1, dd, 12);
           const dayName = date.toLocaleDateString(locale, { weekday: 'short' });
@@ -449,14 +522,14 @@ function BSCheckinDay({ onOpen, dayIso }) {
               <span aria-hidden style={{ width: 14, height: 44, background: t.HAIR, position: 'relative' }}>
                 <span style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: `${Math.round(pct * 100)}%`, background: color, opacity: 0.85 }} />
               </span>
-              <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.03em', textTransform: 'uppercase', color: has ? t.INK : t.INK50, textAlign: 'center', lineHeight: 1.15, minHeight: 18 }}>{label}</span>
+              <span style={{ fontFamily: t.MONO, fontWeight: 800, textTransform: 'uppercase', color: has ? t.INK : t.INK50, textAlign: 'center', lineHeight: 1.15, minHeight: 18, maxWidth: '100%', ...fit(label, 7.5) }}>{label}</span>
             </>
           );
           const cellStyle = { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '8px 0 7px', borderRadius: 5, border: `1px solid ${isYesterday ? t.RULE : 'transparent'}`, background: 'transparent', color: t.INK, minWidth: 0 };
           return pick ? (
             <button key={d.iso} type="button" onClick={pick} aria-label={`${dayName} ${dd}: ${label}`} style={{ ...cellStyle, cursor: 'pointer' }}>{cell}</button>
           ) : (
-            <div key={d.iso} aria-label={`${dayName} ${dd}: ${label}`} style={cellStyle}>{cell}</div>
+            <div key={d.iso} role="img" aria-label={`${dayName} ${dd}: ${has ? label : noAnswer}`} style={cellStyle}>{cell}</div>
           );
         })}
       </div>
@@ -465,11 +538,16 @@ function BSCheckinDay({ onOpen, dayIso }) {
   );
   const mostlyLine = (list, kind) => {
     const i = bsCiMostly(week.map((d) => d[kind]));
-    return i == null ? null : tr('home:checkin.trendMostly', { defaultValue: 'Mostly {word} this week.', word: list[i] });
+    if (i == null) return null;
+    // Mid-sentence the word is lower case: "Mostly good this week", "Diese Woche meist gut".
+    let w = list[i];
+    try { w = w.toLocaleLowerCase(locale); } catch (e) { w = w.toLowerCase(); }
+    return tr('home:checkin.trendMostly', { defaultValue: 'Mostly {word} this week.', word: w });
   };
   const hasWaterWeek = week.some((d) => d.water != null);
   const reached = week.filter((d) => d.water != null && d.water >= target).length;
   const tapTip = tr('home:checkin.tapReuse', { defaultValue: 'Tap a day to reuse it' });
+  const noAnswer = tr('home:checkin.noAnswer', { defaultValue: 'No answer' });
 
   // ── one screen of the walkthrough ──
   const screen = () => {
@@ -478,20 +556,20 @@ function BSCheckinDay({ onOpen, dayIso }) {
         <div key={kind} style={{ display: 'grid', gridTemplateColumns: '78px minmax(0, 1fr) auto', alignItems: 'center', gap: 10, padding: '14px 0', borderBottom: `1px solid ${t.HAIR}` }}>
           <span style={{ ...mono, letterSpacing: '0.14em', color: COLOR[kind] }}>{NAME[kind]}</span>
           <span style={{ fontFamily: t.DISPLAY, fontSize: 19, color: value ? t.INK : t.INK50 }}>{value || '—'}</span>
-          <button type="button" onClick={() => open(i, true)} style={{ minHeight: 36, padding: '4px 2px', border: 0, background: 'transparent', color: t.INK50, cursor: 'pointer', ...mono, letterSpacing: '0.12em' }}>{tr(actionKey, { defaultValue: actionDefault })}</button>
+          <button type="button" onClick={() => open(i, true)} style={{ minHeight: 44, padding: '4px 2px', border: 0, background: 'transparent', color: t.INK50, cursor: 'pointer', ...mono, letterSpacing: '0.12em' }}>{tr(actionKey, { defaultValue: actionDefault })}</button>
         </div>
       );
-      const sleepText = today.sleep != null ? [bsCiHM(today.sleep), today.rested != null ? word(R, today.rested) : null].filter(Boolean).join(' · ') : sleepSkipped ? tr('home:checkin.skipped', { defaultValue: 'Skipped' }) : null;
+      const sleepText = today.sleep != null ? [hm(today.sleep), today.rested != null ? word(R, today.rested) : null].filter(Boolean).join(' · ') : sleepSkipped ? tr('home:checkin.skipped', { defaultValue: 'Skipped' }) : null;
       const done = status === 'done';
       return (
         <>
           <span style={{ ...mono, color: teal }}>{done ? tr('home:checkin.allDone', { defaultValue: 'All checks done' }) : tr('home:checkin.nearly', { defaultValue: 'Nearly there' })}</span>
-          <h1 style={{ margin: 0, fontFamily: t.DISPLAY, fontWeight: 300, fontSize: 32, letterSpacing: '-0.02em', lineHeight: 1.08, color: t.INK }}>
+          <h1 tabIndex={-1} style={{ margin: 0, fontFamily: t.DISPLAY, fontWeight: 300, fontSize: 32, letterSpacing: '-0.02em', lineHeight: 1.08, color: t.INK, outline: 'none' }}>
             {!signedIn ? tr('home:today.joinToSave', { defaultValue: 'Join Shape to save your check-in' })
               : done ? <>{tr('home:checkin.checkedIn', { defaultValue: "You're checked in" })} <span style={{ color: teal }}>✓</span></>
               : tr('home:checkin.notYet', { defaultValue: 'A check is still open' })}
           </h1>
-          <p style={{ margin: 0, fontFamily: t.BODY, fontSize: 14.5, lineHeight: 1.45, color: t.INK70 }}>{tr('home:checkin.savedAsYouWent', { defaultValue: 'Saved as you went. Change any answer below, or come back to it from Home.' })}</p>
+          {signedIn && !err ? <p style={{ margin: 0, fontFamily: t.BODY, fontSize: 14.5, lineHeight: 1.45, color: t.INK70 }}>{tr('home:checkin.savedAsYouWent', { defaultValue: 'Saved as you went. Change any answer below, or come back to it from Home.' })}</p> : null}
           {errLine}
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             {row('energy', word(E, today.energy), 0, 'home:checkin.change', 'Change')}
@@ -513,7 +591,7 @@ function BSCheckinDay({ onOpen, dayIso }) {
     const head = (askKey, askDefault, whyKey, whyDefault) => (
       <>
         <span style={{ ...mono, color }}>{tr('home:checkin.stepLabel', { defaultValue: 'Step {n} of {total} · {name}', n: walk + 1, total: 4, name: NAME[kind] })}</span>
-        <h1 style={{ margin: 0, fontFamily: t.DISPLAY, fontWeight: 300, fontSize: 32, letterSpacing: '-0.02em', lineHeight: 1.08, color: t.INK }}>{tr(askKey, { defaultValue: askDefault })}</h1>
+        <h1 tabIndex={-1} style={{ margin: 0, fontFamily: t.DISPLAY, fontWeight: 300, fontSize: 32, letterSpacing: '-0.02em', lineHeight: 1.08, color: t.INK, outline: 'none' }}>{tr(askKey, { defaultValue: askDefault })}</h1>
         <p style={{ margin: 0, fontFamily: t.BODY, fontSize: 14.5, lineHeight: 1.45, color: t.INK70 }}>{tr(whyKey, { defaultValue: whyDefault })}</p>
         {errLine}
       </>
@@ -539,10 +617,10 @@ function BSCheckinDay({ onOpen, dayIso }) {
     if (kind === 'sleep') {
       return (
         <>
-          {head('home:checkin.askSleep', 'How did you sleep?', 'home:checkin.whySleep', "Hours of sleep last night. It's the biggest lever on recovery. A connected watch fills this in for you.")}
+          {head('home:checkin.askSleep', 'How did you sleep?', 'home:checkin.whySleep', "Hours of sleep last night. It's the biggest lever on recovery. A connected watch fills this in once it syncs.")}
           {wornNight ? (
             <div style={{ textAlign: 'center', padding: '6px 0' }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 44, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1, color: t.INK }}>{bsCiHM(today.sleep)}</div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 44, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1, color: t.INK }}>{hm(today.sleep)}</div>
               <div style={{ ...mono, marginTop: 6, fontSize: 8.5, color: t.INK50 }}>{tr('home:checkin.fromWatch', { defaultValue: 'From your watch' })}</div>
             </div>
           ) : (
@@ -550,7 +628,7 @@ function BSCheckinDay({ onOpen, dayIso }) {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                 <button type="button" aria-label={tr('home:checkin.less', { defaultValue: 'Thirty minutes less' })} onClick={() => setSleepH(Math.max(3, sleepValue - 0.5))} style={{ width: 54, height: 54, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontSize: 24, cursor: 'pointer' }}>−</button>
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 44, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{bsCiHM(sleepValue)}</div>
+                  <div aria-live="polite" style={{ fontFamily: t.DISPLAY, fontSize: 44, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{hm(sleepValue)}</div>
                   <div style={{ ...mono, marginTop: 6, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.12em', color: t.INK50 }}>{sleepFromUsual ? tr('home:checkin.usualNight', { defaultValue: 'Your usual night' }) : ' '}</div>
                 </div>
                 <button type="button" aria-label={tr('home:checkin.more', { defaultValue: 'Thirty minutes more' })} onClick={() => setSleepH(Math.min(12, sleepValue + 0.5))} style={{ width: 54, height: 54, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontSize: 24, cursor: 'pointer' }}>+</button>
@@ -563,7 +641,7 @@ function BSCheckinDay({ onOpen, dayIso }) {
             {R.map((w, i) => {
               const on = bsCiWordIndex(restedValue) === i;
               return (
-                <button key={`r${i}`} type="button" aria-pressed={on} onClick={() => setRestedPick(on ? null : BS_CI_STORED[i])} style={{ minHeight: 38, borderRadius: 5, cursor: 'pointer', padding: '4px 2px', border: `1px solid ${on ? color : t.RULE}`, background: on ? color : 'transparent', color: on ? t.PAPER : t.INK, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{w}</button>
+                <button key={`r${i}`} type="button" aria-pressed={on} onClick={() => setRestedPick(on ? null : BS_CI_STORED[i])} style={{ minHeight: 44, borderRadius: 5, cursor: 'pointer', padding: '4px 2px', border: `1px solid ${on ? color : t.RULE}`, background: on ? color : 'transparent', color: on ? t.PAPER : t.INK, fontFamily: t.MONO, fontWeight: 800, textTransform: 'uppercase', ...fit(w, 8) }}>{w}</button>
               );
             })}
           </div>
@@ -622,11 +700,15 @@ function BSCheckinDay({ onOpen, dayIso }) {
   };
 
   const sheet = walk == null ? null : (
-    <div role="dialog" aria-modal="true" aria-label={tr('home:checkin.title', { defaultValue: 'Daily check-in' })} data-bs-checkin-walk={walk} style={{ position: 'absolute', inset: 0, zIndex: 250, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+    // `bsck-scroll` and `data-bs-layer`: in the native app a drag is routed by getTargetScroller
+    // (iosAppBroadsheet.jsx), which scrolled Home behind the sheet, and Finish sat below the fold
+    // of a small phone (review on #2398). The class has no style of its own.
+    <div ref={sheetRef} className="bsck-scroll" data-bs-layer="checkin" role="dialog" aria-modal="true" aria-label={tr('home:checkin.title', { defaultValue: 'Daily check-in' })} data-bs-checkin-walk={walk}
+      onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } }} style={{ position: 'absolute', inset: 0, zIndex: 250, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'calc(env(safe-area-inset-top, 0px) + 18px) 20px 10px' }}>
-        <button type="button" onClick={back} style={{ minHeight: 36, padding: 0, border: 0, background: 'transparent', color: t.INK70, cursor: 'pointer', visibility: walk > 0 && walk < 4 ? 'visible' : 'hidden', ...mono, fontSize: 10, fontWeight: 700, letterSpacing: '0.12em' }}>{tr('home:checkin.back', { defaultValue: '← Back' })}</button>
+        <button type="button" onClick={back} style={{ minHeight: 44, padding: 0, border: 0, background: 'transparent', color: t.INK70, cursor: 'pointer', visibility: walk > 0 && walk < 4 ? 'visible' : 'hidden', ...mono, fontSize: 10, fontWeight: 700, letterSpacing: '0.12em' }}>{tr('home:checkin.back', { defaultValue: '← Back' })}</button>
         <span style={{ ...mono, color: t.INK50 }}>{tr('home:checkin.title', { defaultValue: 'Daily check-in' })}</span>
-        <button type="button" onClick={close} aria-label={tr('home:checkin.close', { defaultValue: 'Close' })} style={{ width: 36, height: 36, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, cursor: 'pointer', fontSize: 16 }}>×</button>
+        <button type="button" onClick={close} aria-label={tr('home:checkin.close', { defaultValue: 'Close' })} style={{ width: 44, height: 44, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, cursor: 'pointer', fontSize: 16 }}>×</button>
       </div>
       <div aria-hidden style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 6, padding: '4px 20px 0' }}>
         {BS_CI_STEPS.map((k, i) => {
@@ -650,7 +732,7 @@ function BSCheckinDay({ onOpen, dayIso }) {
   const done = status === 'done';
   return (
     <>
-      <div data-bs-checkin-card="" style={{ margin: `10px ${t.padX}px 4px`, padding: '14px 13px 12px', border: `1px solid ${done ? t.RULE : `${teal}66`}`, background: t.PAPER2 || t.PAPER, clipPath: 'polygon(0 0, calc(100% - 13px) 0, 100% 13px, 100% 100%, 0 100%)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div ref={cardRef} data-bs-checkin-card="" style={{ margin: `10px ${t.padX}px 4px`, padding: '14px 13px 12px', border: `1px solid ${done ? t.RULE : `${teal}66`}`, background: t.PAPER2 || t.PAPER, clipPath: 'polygon(0 0, calc(100% - 13px) 0, 100% 13px, 100% 100%, 0 100%)', display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
           <span style={{ ...mono, color: teal }}>{done ? tr('home:today.checkinLabel', { defaultValue: 'Check-in' }) : tr('home:bulletin.checkin', { defaultValue: 'Check-in due' })}</span>
           {done ? null : <span style={{ ...mono, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50 }}>{tr('home:checkin.cardMeta', { defaultValue: '4 checks · 30 sec' })}</span>}
@@ -666,7 +748,7 @@ function BSCheckinDay({ onOpen, dayIso }) {
                 {[
                   today.energy != null ? `${NAME.energy} ${word(E, today.energy)}` : null,
                   today.hunger != null ? `${NAME.hunger} ${word(H, today.hunger)}` : null,
-                  today.sleep != null ? `${NAME.sleep} ${bsCiHM(today.sleep)}` : null,
+                  today.sleep != null ? `${NAME.sleep} ${hm(today.sleep)}` : null,
                   today.rested != null ? word(R, today.rested) : null,
                 ].filter(Boolean).join(' · ')}
               </div>
@@ -682,7 +764,7 @@ function BSCheckinDay({ onOpen, dayIso }) {
         ) : (
           <>
             <h2 style={{ margin: 0, fontFamily: t.DISPLAY, fontWeight: 300, fontSize: 25, letterSpacing: '-0.02em', lineHeight: 1.1, color: t.INK }}>
-              {tr('home:checkin.cardTitle', { defaultValue: 'Four quick checks.' })}<br />{tr('home:checkin.cardSub', { defaultValue: 'Saved as you go.' })}
+              {tr('home:checkin.cardTitle', { defaultValue: 'Four quick checks.' })}{signedIn ? <><br />{tr('home:checkin.cardSub', { defaultValue: 'Saved as you go.' })}</> : null}
             </h2>
             <div aria-hidden style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 6 }}>
               {BS_CI_STEPS.map((k) => (

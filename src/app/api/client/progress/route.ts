@@ -112,6 +112,15 @@ export async function GET(request: Request) {
   const bodyFatSeries = weighInBodyFatSeries.length ? weighInBodyFatSeries : seriesFor('body_fat_pct');
   const restingHrSeries = seriesFor('resting_hr');
   const sleepSeries = seriesFor('sleep_hours');
+  // The nights a watch wrote (value 1): every device sync stamps `sources.sleep_hours` through
+  // upsertSnapshot, and a typed check-in never does. The Home check-in reads this, not a resting
+  // heart rate on the day, which a watch worn by day and charged at night reports with no night.
+  const sleepFromDeviceSeries = snaps
+    .filter((s) => {
+      const src = (s as { sources?: Record<string, unknown> | null }).sources;
+      return (s as Record<string, unknown>).sleep_hours != null && !!src && typeof src.sleep_hours === 'string' && src.sleep_hours !== '';
+    })
+    .map((s) => ({ date: (s as Record<string, string>).snapshot_date, value: 1 }));
   const hrvSeries = seriesFor('hrv_ms');
   const volumeSeries = seriesFor('workout_minutes');
   const proteinSeries = seriesFor('protein_g');
@@ -330,6 +339,7 @@ export async function GET(request: Request) {
       bodyFat: bodyFatSeries,
       restingHr: restingHrSeries,
       sleep: sleepSeries,
+      sleepFromDevice: sleepFromDeviceSeries,
       sleepEfficiency: sleepEfficiencySeries,
       hrv: hrvSeries,
       volume: volumeSeries,

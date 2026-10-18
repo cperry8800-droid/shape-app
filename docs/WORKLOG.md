@@ -226,6 +226,12 @@ planned builds.
   uploads.
 - Native mic and camera plugins (including iOS barcode scanning) and on-device macro
   reads from a meal photo aren't built yet.
+- The daily check-in (#2398): its saves have no timeout, so a request the network holds
+  keeps Details waiting (the next card reads after 3 seconds anyway). `hydration_l` is
+  `numeric(4,2)`, so an 8 oz glass is stored as 0.24 L and totals drift up about 1.4%.
+  The full check-in page still reads a watch's night by a heart rate on the day.
+- Android back leaves the native app from any sheet (no `@capacitor/app`); in the hosted
+  `/m/`, sheets add no history entry.
 
 ## History
 

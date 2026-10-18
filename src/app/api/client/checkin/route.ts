@@ -84,7 +84,17 @@ export async function POST(request: Request) {
     const { error } = await supabase
       .from('daily_health_snapshot')
       .insert({ user_id: user.id, snapshot_date: today, ...patch });
-    if (error) return dbError(error, 'checkin write', 500);
+    // ⚠ ANOTHER WRITE CAN MAKE TODAY'S ROW BETWEEN THE READ AND THIS INSERT: a glass of water
+    // (its own save line on the Home card), a watch sync, a meal log. The insert then hits the
+    // unique (user_id, snapshot_date) key, and the answer is written to that row instead.
+    if (error && error.code === '23505') {
+      const { error: again } = await supabase
+        .from('daily_health_snapshot')
+        .update(patch)
+        .eq('user_id', user.id)
+        .eq('snapshot_date', today);
+      if (again) return dbError(again, 'checkin write', 500);
+    } else if (error) return dbError(error, 'checkin write', 500);
   }
 
   return NextResponse.json({ ok: true, mood, energy, hunger, sleepHours, sleepQuality });

@@ -200,7 +200,11 @@ async function run(request: Request) {
       // not charged, so turning it back on charges from the next completed week. A missing stamp
       // (a change from before this) reads the value as long-standing. The one leniency: a member
       // who turns it off between the week's end and this job's first run skips that one week.
-      const weekEnd = thisMon.getTime();
+      // ⚠ THE WEEK ENDS AT THE MEMBER'S LOCAL MONDAY, which can be up to 14 hours before Monday
+      // 00:00 UTC (week_of is the local Monday). A member at UTC+9 who turns it on at 08:00 on
+      // their Monday did so after their week ended, though before Monday in UTC. So the earliest
+      // a week can end is the line, leaning, like the rest of this, toward not charging.
+      const weekEnd = thisMon.getTime() - 14 * 3600_000;
       checkinOff = new Set(((settingsRes.data || []) as SettingsRow[])
         .filter((r) => {
           const d = r.data && typeof r.data === 'object' ? r.data : {};

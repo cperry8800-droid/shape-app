@@ -25,6 +25,9 @@ const SECRET = 'score-secret';
 // A change stamped now is after last week ended; one 8 days ago is before it.
 const AFTER = () => new Date().toISOString();
 const BEFORE = () => new Date(Date.now() - 8 * 86400000).toISOString();
+// Five hours before this Monday 00:00 UTC: 08:00 on Monday in Tokyo, after that member's week ended.
+const UTC_MONDAY = () => { const d = new Date(); d.setUTCHours(0, 0, 0, 0); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); return d.getTime(); };
+const EAST = () => new Date(UTC_MONDAY() - 5 * 3600000).toISOString();
 
 const TABLES = () => ({
   platform_subscriptions: [
@@ -35,6 +38,7 @@ const TABLES = () => ({
     { client_id: 'back-on', status: 'active' },
     { client_id: 'on-long', status: 'active' },
     { client_id: 'off-after', status: 'active' },
+    { client_id: 'east', status: 'active' },
   ],
   sessions: [],
   client_workouts: [],
@@ -50,6 +54,8 @@ const TABLES = () => ({
     // On since before last week ended: charged as usual.
     { user_id: 'on-long', kind: 'client_settings', data: { dailyCheckin: 'On', dailyCheckinSince: BEFORE() } },
     { user_id: 'off-after', kind: 'client_settings', data: { dailyCheckin: 'Off', dailyCheckinSince: AFTER() } },
+    // Turned back on early on their own Monday, east of UTC: still before Monday in UTC.
+    { user_id: 'east', kind: 'client_settings', data: { dailyCheckin: 'On', dailyCheckinSince: EAST() } },
   ],
 });
 
@@ -83,7 +89,7 @@ async function run({ fail = [] } = {}) {
 test('a member with Check-ins off is not charged for a missed weekly check-in', async () => {
   const { status, body, charged } = await run();
   assert.equal(status, 200);
-  assert.equal(body.evaluated, 7, 'the job no longer evaluates every active member');
+  assert.equal(body.evaluated, 8, 'the job no longer evaluates every active member');
   assert.ok(charged.includes('checkin:on'), 'a member with Check-ins on was not charged');
   assert.ok(charged.includes('checkin:no-doc'), 'a member with no settings saved reads as on, as the notification routes read it');
   assert.ok(!charged.includes('checkin:off'), "a member who turned Check-ins off was charged −7 for one");
@@ -95,6 +101,7 @@ test("last week is judged by the switch as it stood when the week ended (Codex P
   assert.ok(!charged.includes('checkin:back-on'), 'a member who turned Check-ins back on was charged for the week they had it off');
   assert.ok(charged.includes('checkin:on-long'), 'a member on since before the week ended was not charged');
   assert.ok(!charged.includes('checkin:off-after'), 'a member with Check-ins off now was charged');
+  assert.ok(!charged.includes('checkin:east'), "a member east of UTC who turned it on after their own week ended was charged for it");
 });
 
 test('a failed read of the setting charges nobody in that chunk', async () => {

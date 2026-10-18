@@ -120,8 +120,10 @@ so that is the owner's call.
   it.
 
 ## 4. Phases
-1. **The Home card and a step-by-step walkthrough (app only, no schema or route change). Built in
-   the app** (`BSCheckinCard.jsx`, `tests/checkin-card.test.mjs`).
+1. **The Home card and a step-by-step walkthrough (no schema change). Built in the app**
+   (`BSCheckinCard.jsx`, `tests/checkin-card.test.mjs`). Two routes changed with it: the progress
+   route names the nights a watch wrote (`series.sleepFromDevice`, from the snapshot's sources), and
+   the check-in write survives another write making the day's row first.
    - The owner, on the first build: *"have it be a step by step, almost like a tutorial that walks
      through each check"*, with the member's answers from the days before under each step.
    - The card on Home is the door: Start check-in, or Same as yesterday in one tap.
@@ -147,14 +149,17 @@ so that is the owner's call.
    Rested · Fresh. Stored as 2 · 4 · 6 · 8 · 10, keyed in all 13 locales.
 2. **Rested folds into the sleep step,** optional. When a wearable supplied the night, the hours
    are read-only and Rested is still offered: it is the member's own check, the case file's RESTED
-   reads it, and the full page always offered it (amended on Codex's finding in #2398).
+   reads it, and the full page always offered it (amended on Codex's finding in #2398). A night
+   is a wearable's when a device sync wrote its hours (`sources.sleep_hours`), not when the day
+   has a resting heart rate: a watch worn by day reports one with no night.
 3. **A streak, no points.** Points are the Store's currency, and "Same as yesterday" would mint them
    for one tap. The streak (consecutive local days with an answer) shows on the card's done line;
    the weekly check-in keeps its +15, and the day already counts for momentum.
 4. **No −7 while the switch is off.** The switch turns check-ins off, so charging for one reads as
    a penalty for using a setting. The coach still sees the missed week, and switching back on
    charges again from the next completed week. The score cron reads the stored preference the way
-   the notification routes do (absent reads On).
+   the notification routes do (absent reads On), and judges last week by the switch as it stood
+   when the week ended: the earliest local Monday, 14 hours before Monday in UTC.
 5. **The card shows from 4 a.m. local,** not midnight: at 1 a.m. "last night" has not been slept.
    No new setting; the member's own check-in reminder already decides when they are nudged.
 
