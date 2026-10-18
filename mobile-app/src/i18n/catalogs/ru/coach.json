@@ -1329,6 +1329,7 @@
   "business.renew.due": "{date} · {price} в месяц",
   "business.renew.head": "Продления на этой неделе",
   "business.renew.none": "В ближайшие 7 дней никто не продлевает.",
+  "business.renew.notChecked": "{date} · не проверено в Stripe",
   "business.renew.note": "Чистыми для вас, после комиссии Shape.",
   "business.renew.sum": "{count, plural, one {# клиент} few {# клиента} many {# клиентов} other {# клиента}} · {net} чистыми",
   "business.renew.unchecked": "Некоторые не удалось проверить в Stripe, поэтому они не учтены выше.",

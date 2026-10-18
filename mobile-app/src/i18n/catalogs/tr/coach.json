@@ -1329,6 +1329,7 @@
   "business.renew.due": "{date} · ayda {price}",
   "business.renew.head": "Bu hafta yenilenenler",
   "business.renew.none": "Önümüzdeki 7 günde kimse yenilenmiyor.",
+  "business.renew.notChecked": "{date} · Stripe ile kontrol edilmedi",
   "business.renew.note": "Shape ücretinden sonra sana kalan net.",
   "business.renew.sum": "{count, plural, one {# danışan} other {# danışan}} · {net} net",
   "business.renew.unchecked": "Bazıları şu an Stripe ile kontrol edilemedi, bu yüzden yukarıda sayılmadı.",

@@ -163,14 +163,14 @@ function Note({ t, children, style }) {
 function Sentence({ t, children }) {
   return <p style={{ margin: 0, fontFamily: t.DISPLAY, fontSize: 18, lineHeight: 1.4, color: t.INK, letterSpacing: '-0.01em' }}>{children}</p>;
 }
-function Row({ t, label, sub, value, strike, subColor, last }) {
+function Row({ t, label, sub, value, strike, dim, subColor, last }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'baseline', padding: '12px 0', borderBottom: last ? 0 : `1px solid ${t.HAIR}` }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK }}>{label}</div>
         {sub ? <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.04em', color: subColor || t.INK50 }}>{sub}</div> : null}
       </div>
-      <span style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 600, color: strike ? t.INK50 : t.INK, textDecoration: strike ? 'line-through' : 'none', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{value}</span>
+      <span style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 600, color: strike || dim ? t.INK50 : t.INK, textDecoration: strike ? 'line-through' : 'none', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{value}</span>
     </div>
   );
 }
@@ -263,8 +263,12 @@ function MoneyTab({ t, biz, role }) {
     renew = (
       <div>
         {rows.map((r, i) => (
-          <Row key={i} t={t} label={r.name} last={i === rows.length - 1} strike={!!r.ending} subColor={r.ending ? t.RUST : null}
-            sub={r.ending ? tr('coach:business.renew.cancelled', { defaultValue: 'Cancelled · ends {date}', date: bizDate(r.dueAt, true) }) : tr('coach:business.renew.due', { defaultValue: '{date} · {price} a month', date: bizDate(r.dueAt, true), price: bsBizMoney(r.priceCents) })}
+          // ending is three-state: true cancelled, false renews, null not checked (the footnote can't
+          // say which, so the row does, dimmed like money not counted but not struck through).
+          <Row key={i} t={t} label={r.name} last={i === rows.length - 1} strike={!!r.ending} dim={r.ending == null} subColor={r.ending ? t.RUST : r.ending == null ? t.AMBER : null}
+            sub={r.ending ? tr('coach:business.renew.cancelled', { defaultValue: 'Cancelled · ends {date}', date: bizDate(r.dueAt, true) })
+              : r.ending == null ? tr('coach:business.renew.notChecked', { defaultValue: '{date} · not checked with Stripe', date: bizDate(r.dueAt, true) })
+              : tr('coach:business.renew.due', { defaultValue: '{date} · {price} a month', date: bizDate(r.dueAt, true), price: bsBizMoney(r.priceCents) })}
             value={bsBizMoney(r.netCents)} />
         ))}
         <Note t={t} style={{ marginTop: 8 }}>

@@ -1329,6 +1329,7 @@
   "business.renew.due": "{date} · {price} par mois",
   "business.renew.head": "Renouvellements cette semaine",
   "business.renew.none": "Personne ne renouvelle dans les 7 prochains jours.",
+  "business.renew.notChecked": "{date} · non vérifié auprès de Stripe",
   "business.renew.note": "Net pour toi, après les frais Shape.",
   "business.renew.sum": "{count, plural, one {# client} other {# clients}} · {net} net",
   "business.renew.unchecked": "Certains n'ont pas pu être vérifiés auprès de Stripe pour le moment, ils ne sont donc pas comptés ci-dessus.",

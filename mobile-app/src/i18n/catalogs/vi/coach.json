@@ -1329,6 +1329,7 @@
   "business.renew.due": "{date} · {price} mỗi tháng",
   "business.renew.head": "Gia hạn trong tuần này",
   "business.renew.none": "Không ai gia hạn trong 7 ngày tới.",
+  "business.renew.notChecked": "{date} · chưa kiểm tra với Stripe",
   "business.renew.note": "Bạn thực nhận, sau phí Shape.",
   "business.renew.sum": "{count, plural, one {# khách hàng} other {# khách hàng}} · thực nhận {net}",
   "business.renew.unchecked": "Một số khoản hiện không kiểm tra được với Stripe, nên không được tính ở trên.",

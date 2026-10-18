@@ -1329,6 +1329,7 @@
   "business.renew.due": "{date} · {price} every month",
   "business.renew.head": "Renewing dis week",
   "business.renew.none": "Nobody dey renew for the next 7 days.",
+  "business.renew.notChecked": "{date} · we never check am with Stripe",
   "business.renew.note": "Net for you, after Shape fee.",
   "business.renew.sum": "{count, plural, one {# client} other {# clients}} · {net} net",
   "business.renew.unchecked": "We no fit check some with Stripe right now, so we no count dem for up.",

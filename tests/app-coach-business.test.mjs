@@ -131,6 +131,14 @@ test("Money: today's figures from the trajectory, what's coming from Stripe, and
   assert.match(m.text(), /Renewing this week2 clients · \$333 net/);
   assert.match(m.text(), /Cancelled · ends/);
   assert.match(m.text(), /Some couldn't be checked with Stripe just now/);
+  // The footnote can't say which client wasn't checked, so Sam's own row does: amber, with no
+  // monthly price like a renewal's, and the amount dimmed like money not counted, but not struck.
+  assert.match(m.text(), /Sam K\.[^$]* · not checked with Stripe\$153/);
+  const row = (name) => [...m.host.querySelectorAll('div')].find((d) => d.textContent === name).parentElement;
+  const amount = (name) => row(name).nextElementSibling.style;
+  const sub = (name) => row(name).lastElementChild.style.color;
+  assert.deepEqual([amount('Sam K.').color === amount('Casey M.').color, amount('Sam K.').color === amount('Jordan P.').color, amount('Sam K.').textDecoration], [false, true, 'none']);
+  assert.deepEqual([sub('Sam K.') === sub('Casey M.'), sub('Sam K.') === sub('Jordan P.'), sub('Jordan P.') === sub('Casey M.')], [false, false, false]);
   await click(button(m.host, /Open your Stripe/));
   assert.equal(st.stripe, 1, 'payouts are in the coach\'s own Stripe dashboard');
   await m.unmount();

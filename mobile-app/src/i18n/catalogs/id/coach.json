@@ -1329,6 +1329,7 @@
   "business.renew.due": "{date} · {price} per bulan",
   "business.renew.head": "Diperpanjang minggu ini",
   "business.renew.none": "Tidak ada yang diperpanjang dalam 7 hari ke depan.",
+  "business.renew.notChecked": "{date} · belum dicek dengan Stripe",
   "business.renew.note": "Bersih untukmu, setelah biaya Shape.",
   "business.renew.sum": "{count, plural, one {# klien} other {# klien}} · {net} bersih",
   "business.renew.unchecked": "Beberapa tidak bisa dicek dengan Stripe saat ini, jadi tidak dihitung di atas.",

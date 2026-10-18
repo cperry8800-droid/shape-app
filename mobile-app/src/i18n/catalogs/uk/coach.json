@@ -1329,6 +1329,7 @@
   "business.renew.due": "{date} · {price} на місяць",
   "business.renew.head": "Продовження цього тижня",
   "business.renew.none": "У найближчі 7 днів ніхто не продовжує.",
+  "business.renew.notChecked": "{date} · не перевірено в Stripe",
   "business.renew.note": "Чистими для вас, після комісії Shape.",
   "business.renew.sum": "{count, plural, one {# клієнт} few {# клієнти} many {# клієнтів} other {# клієнта}} · {net} чистими",
   "business.renew.unchecked": "Деякі не вдалося перевірити в Stripe, тому їх не враховано вище.",

@@ -1329,6 +1329,7 @@
   "business.renew.due": "{date} · {price} a wata",
   "business.renew.head": "Masu sabuntawa a wannan mako",
   "business.renew.none": "Babu mai sabuntawa cikin kwanaki 7 masu zuwa.",
+  "business.renew.notChecked": "{date} · ba a duba da Stripe ba",
   "business.renew.note": "Tsabta gare ka, bayan kuɗin Shape.",
   "business.renew.sum": "{count, plural, one {# abokin hulɗa} other {# abokan hulɗa}} · {net} tsabta",
   "business.renew.unchecked": "Wasu ba a iya duba su da Stripe a yanzu ba, don haka ba a ƙidaya su a sama ba.",
