@@ -23,14 +23,14 @@ export default {
       find: '        userId: coach.ownerId,', replace: '        userId: p.clientId,' },
 
     // ── The owners ──
-    { name: 'owners: an unconfirmed account with the address counts', file: NOTICES,
-      find: '      if (email && user?.email_confirmed_at && owners.includes(email)) ids.push(row.id);',
-      replace: '      if (email && owners.includes(email)) ids.push(row.id);' },
-    { name: 'owners: the profile\'s email is trusted (anyone can type it)', file: NOTICES,
-      find: '      if (email && user?.email_confirmed_at && owners.includes(email)) ids.push(row.id);',
-      replace: '      if (user?.email_confirmed_at) ids.push(row.id);' },
-    { name: 'owners: the Auth address is compared as typed', file: NOTICES,
-      find: "      const email = String(user?.email || '').toLowerCase();", replace: "      const email = String(user?.email || '');" },
+    { name: 'owners: an unconfirmed account counts', file: NOTICES,
+      find: '    return account?.id && account.email_confirmed_at ? account.id : null;',
+      replace: '    return account?.id ? account.id : null;' },
+    { name: 'owners: one owner that can\'t be read leaves nobody told', file: NOTICES,
+      find: "      console.error('[payment-notices] owner account not read:', error.message);\n      return null;",
+      replace: "      throw new Error(error.message);" },
+    { name: 'owners: an array answer is read as the account itself', file: NOTICES,
+      find: '    const account = (Array.isArray(data) ? data[0] : data)', replace: '    const account = (data)' },
     { name: 'owners: a stored count includes a duplicate', file: NOTICES,
       find: '      if (stored) out.owners += 1;', replace: '      out.owners += 1;' },
 

@@ -21,7 +21,7 @@ const read = (p) => fs.readFileSync(join(ROOT, p), 'utf8');
 const UID = '55555555-5555-4555-8555-555555555555';
 const OWNER = '11111111-1111-4111-8111-111111111111';
 const COACH_USER = '22222222-2222-4222-8222-222222222222';
-const IMPOSTOR = '33333333-3333-4333-8333-333333333333';
+const SECOND = '33333333-3333-4333-8333-333333333333';
 const UNCONFIRMED = '44444444-4444-4444-8444-444444444444';
 const ACCT = 'acct_1CoachTrainer4';
 
@@ -55,10 +55,11 @@ async function loadNotices(notify, owners = ['owner@shape.test', 'second@shape.t
 }
 
 /**
- * The service-role client payment-notices reads: profiles (names, and the owners' lead by email),
- * trainers / nutritionists, and Supabase Auth's account for each lead.
+ * The service-role client payment-notices reads: profiles (names), trainers / nutritionists, and
+ * admin_account_by_email, which finds an owner's account by its sign-in address (auth.users).
+ * `accounts` maps an address to what that function answers: an account, a row array, or an error.
  */
-function fakeAdmin({ profiles = [], coaches = { trainers: [{ id: 4, name: 'Tom Trainer', owner_id: COACH_USER }] }, users = {}, errors = {} } = {}) {
+function fakeAdmin({ profiles = [], coaches = { trainers: [{ id: 4, name: 'Tom Trainer', owner_id: COACH_USER }] }, accounts = {}, errors = {} } = {}) {
   const reads = [];
   return {
     reads,
@@ -79,21 +80,22 @@ function fakeAdmin({ profiles = [], coaches = { trainers: [{ id: 4, name: 'Tom T
       };
       return q;
     },
-    auth: { admin: { getUserById: async (id) => ({ data: { user: users[id] ?? null }, error: null }) } },
+    async rpc(name, args) {
+      reads.push({ rpc: name, args });
+      if (name !== 'admin_account_by_email') throw new Error(`unexpected rpc ${name}`);
+      const a = accounts[args.p_email];
+      if (a && a.error) return { data: null, error: a.error };
+      return { data: a ?? [], error: null };
+    },
   };
 }
 
-const PROFILES = [
-  { id: UID, full_name: 'Cara Diaz', email: 'cara@example.com' },
-  { id: OWNER, full_name: 'Chris Owner', email: 'owner@shape.test' },
-  // Typed an owner's address into their profile; their account is someone else's.
-  { id: IMPOSTOR, full_name: 'Ivy', email: 'second@shape.test' },
-  { id: UNCONFIRMED, full_name: 'Una', email: 'owner@shape.test' },
-];
-const USERS = {
-  [OWNER]: { id: OWNER, email: 'Owner@Shape.test', email_confirmed_at: '2026-01-01T00:00:00Z' },
-  [IMPOSTOR]: { id: IMPOSTOR, email: 'ivy@example.com', email_confirmed_at: '2026-01-01T00:00:00Z' },
-  [UNCONFIRMED]: { id: UNCONFIRMED, email: 'owner@shape.test', email_confirmed_at: null },
+// The owner has no profile row at all (a profile is created best effort): only their account counts.
+const PROFILES = [{ id: UID, full_name: 'Cara Diaz', email: 'cara@example.com' }];
+const ACCOUNTS = {
+  'owner@shape.test': [{ id: OWNER, created_at: '2026-01-01T00:00:00Z', email_confirmed_at: '2026-01-01T00:00:00Z', last_sign_in_at: null }],
+  // Signed up with the second owner address and never confirmed it.
+  'second@shape.test': { id: UNCONFIRMED, email_confirmed_at: null },
 };
 const renewal = (extra = {}) => ({
   key: 'in_1', clientId: UID, amountCents: 12000, paidFor: 'coaching', renewal: true,
@@ -143,26 +145,35 @@ test('who hears what: no second receipt for a paid session, and the coach hears 
   assert.equal(m.coachGetsRenewal({ paidFor: 'coaching', renewal: true, provider: null }), false);
 });
 
-test('the owners: a profile email is only a lead; the Auth account must have that address, confirmed', async () => {
+test('the owners: found by their sign-in account, confirmed, never by a profile\'s email', async () => {
   const m = await loadNotices(fakeNotify());
-  const admin = fakeAdmin({ profiles: PROFILES, users: USERS });
-  assert.deepEqual(await m.ownerAccountIds(admin), [OWNER]);
-  const lead = admin.reads.find((r) => r.table === 'profiles');
-  assert.deepEqual(lead.ins, [['email', ['owner@shape.test', 'second@shape.test']]]);
+  const admin = fakeAdmin({ profiles: PROFILES, accounts: ACCOUNTS });
+  assert.deepEqual(await m.ownerAccountIds(admin), [OWNER], 'no profile row needed; an unconfirmed account is not an owner');
+  assert.deepEqual(admin.reads.map((r) => r.rpc ? [r.rpc, r.args.p_email] : r.table), [
+    ['admin_account_by_email', 'owner@shape.test'],
+    ['admin_account_by_email', 'second@shape.test'],
+  ], 'profiles are never read to find an owner');
 
+  // Once the second address is confirmed it counts; an address with no account is skipped.
+  const confirmed = { ...ACCOUNTS, 'second@shape.test': { id: SECOND, email_confirmed_at: '2026-02-01T00:00:00Z' } };
+  assert.deepEqual(await m.ownerAccountIds(fakeAdmin({ accounts: confirmed })), [OWNER, SECOND]);
+  assert.deepEqual(await m.ownerAccountIds(fakeAdmin({ accounts: {} })), []);
+
+  // One owner that can't be read leaves the other told.
   const logs = [];
   const orig = console.error;
   console.error = (...a) => logs.push(a.join(' '));
   try {
-    assert.deepEqual(await m.ownerAccountIds(fakeAdmin({ profiles: PROFILES, users: USERS, errors: { profiles: { message: 'down' } } })), []);
+    const down = { ...confirmed, 'owner@shape.test': { error: { message: 'down' } } };
+    assert.deepEqual(await m.ownerAccountIds(fakeAdmin({ accounts: down })), [SECOND]);
   } finally { console.error = orig; }
-  assert.ok(logs.some((l) => /owner accounts not read: down/.test(l)));
+  assert.ok(logs.some((l) => /owner account not read: down/.test(l)));
 });
 
 test('a renewal of a coach plan: the owner, the member and the coach are each told once, keyed on the invoice', async () => {
   const notify = fakeNotify();
   const m = await loadNotices(notify);
-  const admin = fakeAdmin({ profiles: PROFILES, users: USERS });
+  const admin = fakeAdmin({ profiles: PROFILES, accounts: ACCOUNTS });
   assert.deepEqual(await m.announcePayment(admin, renewal()), { owners: 1, member: true, coach: true });
   assert.deepEqual(notify.sent.map((n) => [n.userId, n.type, n.data.dedupe]), [
     [OWNER, 'platform_payment', 'pay:in_1'],
@@ -184,7 +195,7 @@ test('a renewal of a coach plan: the owner, the member and the coach are each to
 test('a first month, a paid session, a nutritionist and the membership each reach the right people', async () => {
   const notify = fakeNotify();
   const m = await loadNotices(notify);
-  const admin = fakeAdmin({ profiles: PROFILES, users: USERS, coaches: { trainers: [{ id: 4, name: 'Tom Trainer', owner_id: COACH_USER }], nutritionists: [{ id: 9, name: 'Nia Nutrition', owner_id: 'nia-user' }] } });
+  const admin = fakeAdmin({ profiles: PROFILES, accounts: ACCOUNTS, coaches: { trainers: [{ id: 4, name: 'Tom Trainer', owner_id: COACH_USER }], nutritionists: [{ id: 9, name: 'Nia Nutrition', owner_id: 'nia-user' }] } });
 
   assert.deepEqual(await m.announcePayment(admin, renewal({ key: 'cs_first', renewal: false })), { owners: 1, member: true, coach: false }, 'the first month: startCoaching already alerts the coach');
   assert.deepEqual(await m.announcePayment(admin, renewal({ key: 'cs_session', paidFor: 'booking', renewal: false })), { owners: 1, member: false, coach: false });
@@ -196,7 +207,7 @@ test('a first month, a paid session, a nutritionist and the membership each reac
 test('nothing for a payment that moved no money, and a failure never escapes', async () => {
   const notify = fakeNotify();
   const m = await loadNotices(notify);
-  const admin = fakeAdmin({ profiles: PROFILES, users: USERS });
+  const admin = fakeAdmin({ profiles: PROFILES, accounts: ACCOUNTS });
   for (const p of [renewal({ amountCents: 0 }), renewal({ amountCents: null }), renewal({ key: '' }), renewal({ clientId: '' })]) {
     assert.deepEqual(await m.announcePayment(admin, p), { owners: 0, member: false, coach: false });
   }

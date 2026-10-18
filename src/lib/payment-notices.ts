@@ -10,8 +10,8 @@
 //
 // What this adds, through announcePayment():
 // - THE OWNER: one notice per payment of any kind, the membership and coach sales alike, with what
-//   was paid and Shape's fee. Owners are the addresses in admin-access.ts, each checked against its
-//   Supabase Auth account (confirmed, the same address): a profile's email is only where to look.
+//   was paid and Shape's fee. Owners are the addresses in admin-access.ts, each found by its
+//   confirmed Supabase Auth account (ownerAccountIds), never by a profile's email.
 // - THE MEMBER: a receipt for every payment but a paid session, whose "Your session is paid" is
 //   its receipt already.
 // - THE COACH: a monthly renewal of their client's plan. The first month is the "New client" alert.
@@ -118,29 +118,22 @@ export function coachRenewal(p: PaymentNotice, client: string): { title: string;
 }
 
 /**
- * The owners' accounts. A profile row with an owner's address is only a lead: each is kept only
- * when its Supabase Auth account has that same address, confirmed, so an account that typed an
- * owner's address into its profile is told nothing.
+ * The owners' accounts, found by their sign-in identity (admin_account_by_email reads auth.users;
+ * the service role only), never by profiles.email: a profile is created best effort and can be
+ * missing, and it keeps the first address after an email change (Codex on #2402). An account
+ * counts once its address is confirmed. One owner that can't be read leaves the others told.
  */
 export async function ownerAccountIds(admin: SupabaseClient): Promise<string[]> {
-  const owners = getOwnerEmails().map((e) => e.toLowerCase());
-  const { data, error } = await admin.from('profiles').select('id').in('email', owners);
-  if (error) {
-    console.error('[payment-notices] owner accounts not read:', error.message);
-    return [];
-  }
-  const ids: string[] = [];
-  for (const row of (data ?? []) as { id: string }[]) {
-    try {
-      const { data: found } = await admin.auth.admin.getUserById(row.id);
-      const user = found?.user;
-      const email = String(user?.email || '').toLowerCase();
-      if (email && user?.email_confirmed_at && owners.includes(email)) ids.push(row.id);
-    } catch (err) {
-      console.error('[payment-notices] owner account not checked:', err instanceof Error ? err.message : err);
+  const found = await Promise.all(getOwnerEmails().map(async (email) => {
+    const { data, error } = await admin.rpc('admin_account_by_email', { p_email: email });
+    if (error) {
+      console.error('[payment-notices] owner account not read:', error.message);
+      return null;
     }
-  }
-  return ids;
+    const account = (Array.isArray(data) ? data[0] : data) as { id?: string | null; email_confirmed_at?: string | null } | null;
+    return account?.id && account.email_confirmed_at ? account.id : null;
+  }));
+  return found.filter((id): id is string => !!id);
 }
 
 async function nameOf(admin: SupabaseClient, userId: string): Promise<string> {
