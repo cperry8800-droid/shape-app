@@ -120,13 +120,24 @@ so that is the owner's call.
   it.
 
 ## 4. Phases
-1. **The Home card (app only, no schema or route change). Built in the app** (`BSCheckinCard.jsx`,
-   `tests/checkin-card.test.mjs`). It has a save per tap, five-word scales mapped to 2/4/6/8/10,
-   "Same as yesterday", and the 3-12h sleep stepper with Skip for the day. Rested sits on the sleep
-   step, water is `+ Glass`, and the full page is behind Details. The website's `DashTodayCard` is
-   still to follow.
-2. **Sleep that fills itself, and a reminder that lands on the card.** HealthKit read on app open,
-   a WHOOP/Oura pull on open (server), and notification deep links to the card.
+1. **The Home card and a step-by-step walkthrough (app only, no schema or route change). Built in
+   the app** (`BSCheckinCard.jsx`, `tests/checkin-card.test.mjs`).
+   - The owner, on the first build: *"have it be a step by step, almost like a tutorial that walks
+     through each check"*, with the member's answers from the days before under each step.
+   - The card on Home is the door: Start check-in, or Same as yesterday in one tap.
+   - The walkthrough gives one screen per check: Energy, Hunger, Sleep (Rested optional, or Skip)
+     and Water. Each says what it asks and why, and every tap saves.
+   - Under each step are the last 7 days, with a "Mostly …" line when a real majority shows.
+     Tapping a past day reuses its answer.
+   - A summary with Change follows; Edit on Home opens it. The full page is behind Details.
+   - The website's `DashTodayCard` is still to follow.
+2. **Sleep, water and an energy hint from a watch, and a reminder that lands on the card.**
+   - Sync Apple Health, Oura and WHOOP when the app opens (Garmin already pushes), so the sleep
+     step is filled before it is reached.
+   - Water from Apple Health.
+   - Readiness or recovery pre-selects an energy word; the member confirms it.
+   - Notification deep links to the card. The owner asked whether watches can fill this in
+     (2026-10-18).
 3. **Answer from the notification.** Native notification actions for energy, plus the streak if
    ruling 3 says yes.
 
