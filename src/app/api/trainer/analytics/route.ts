@@ -14,6 +14,7 @@ import { coachCutCents, bpsToRate } from '@/lib/platform-fee';
 import { buildOriginFeed, byoMixOf } from '@/lib/origin-attribution';
 import { buildTrajectory } from '@/lib/coach-trajectory.mjs';
 import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
+import { isMeasuredSignedOut } from '@/lib/auth-lookup';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -54,9 +55,18 @@ export async function GET(request: Request) {
   const supabase = await createClient();
   const {
     data: { user },
+    error: authErr,
   } = await supabase.auth.getUser();
 
   if (!user) {
+    // ⚠ AN AUTH OUTAGE IS NOT A SIGNED-OUT VIEWER (src/lib/auth-lookup.ts). getUser() answers a
+    // dead network or an auth-server 5xx with a null user too, and the Business page reads a 401 as
+    // "show the preview": a signed-in coach was shown the preview's payouts as their own. A 503 is
+    // the unread state each zone already has.
+    if (!isMeasuredSignedOut(authErr)) {
+      console.warn('[shape-app] trainer analytics: the sign-in check failed — answering 503, not 401:', authErr?.message);
+      return NextResponse.json({ error: 'Could not check your sign-in just now.' }, { status: 503 });
+    }
     return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   }
 

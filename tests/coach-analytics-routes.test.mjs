@@ -24,7 +24,8 @@ const COACH = { id: '33333333-3333-4333-8333-333333333333' }
 
 // Every table read answers from `tables` (or `errors`); any chain of filters is accepted, and
 // recorded. `rpc` answers from `rpcs[name](args)`.
-function fakeSupabase(tables, { errors = {}, rpcs = {} } = {}) {
+// `auth` is what getUser resolves (a signed-in coach unless a test says otherwise).
+function fakeSupabase(tables, { errors = {}, rpcs = {}, auth = null } = {}) {
   const reads = []
   const calls = []
   const from = (table) => {
@@ -61,7 +62,7 @@ function fakeSupabase(tables, { errors = {}, rpcs = {} } = {}) {
     const answer = rpcs[name]
     return answer ? answer(args) : { data: null, error: null }
   }
-  return { reads, calls, client: { from, rpc, auth: { getUser: async () => ({ data: { user: COACH } }) } } }
+  return { reads, calls, client: { from, rpc, auth: { getUser: async () => auth ?? { data: { user: COACH }, error: null } } } }
 }
 
 async function loadRoute(role, tables, opts) {
@@ -80,10 +81,11 @@ async function loadRoute(role, tables, opts) {
       ['@/lib/origin-attribution', await ts('src/lib/origin-attribution.ts')],
       ['@/lib/coach-trajectory.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/coach-trajectory.mjs')).href)],
       ['@/lib/read-all-by-id', await ts('src/lib/read-all-by-id.ts')],
+      ['@/lib/auth-lookup', await ts('src/lib/auth-lookup.ts')],
     ]),
   })
   const res = await route.GET(new Request(`https://shape.test/api/${role}/analytics${opts?.query || ''}`))
-  return { body: await res.json(), reads: db.reads, calls: db.calls }
+  return { status: res.status, body: await res.json(), reads: db.reads, calls: db.calls }
 }
 
 test('a trainer reads the trainer analytics: their listing, their roster\'s workouts and PRs', async () => {
@@ -128,6 +130,42 @@ const roster = (over = {}) => ({
   ...over,
 })
 const lifts = (prs) => ({ get_client_lifts: async ({ p_user_id }) => ({ data: { prs: prs[p_user_id] ?? 0, keyLifts: [] }, error: null }) })
+
+// ── An auth outage is not a signed-out viewer (review of #2394) ─────────────
+// getUser() resolves { user: null, error } for an outage exactly as it does for a visitor with no
+// session: auth-js turns a dead network or an auth-server 5xx into an AuthRetryableFetchError and
+// hands it back with a null user. Both routes read `!user` as "answer 401", and the Business page
+// reads a 401 as "show the preview", so an outage showed a signed-in coach the preview's payouts,
+// renewals and plan. The errors are the SDK's own, not look-alikes.
+const { AuthRetryableFetchError, AuthSessionMissingError, AuthApiError } = require_('@supabase/supabase-js')
+const noUser = (error) => ({ data: { user: null }, error })
+
+test('an auth outage answers 503 in both routes; only a missing or refused session is a 401', async () => {
+  for (const role of ['trainer', 'nutritionist']) {
+    for (const [why, error] of [
+      ['the auth server could not be reached', new AuthRetryableFetchError('fetch failed', 0)],
+      ['the auth server answered a 502', new AuthRetryableFetchError('Bad Gateway', 502)],
+      ['the auth server was rate limiting', new AuthApiError('too many requests', 429, 'over_request_rate_limit')],
+      ['an error nobody anticipated', new Error('something else')],
+    ]) {
+      const r = await loadRoute(role, roster(), { auth: noUser(error) })
+      assert.equal(r.status, 503, `${role}, ${why}: ${JSON.stringify(r.body)}`)
+      assert.deepEqual(r.body, { error: 'Could not check your sign-in just now.' })
+      assert.deepEqual(r.reads, [], `${role}, ${why}: nothing is read for a viewer the route could not identify`)
+    }
+    for (const [why, error] of [
+      ['a clean read that found nobody', null],
+      ['no session at all', new AuthSessionMissingError()],
+      ['a token the auth server refused', new AuthApiError('invalid JWT', 403, 'bad_jwt')],
+      ['no authorization presented', new AuthApiError('no authorization', 401, 'no_authorization')],
+    ]) {
+      const r = await loadRoute(role, roster(), { auth: noUser(error) })
+      assert.equal(r.status, 401, `${role}, ${why}: ${JSON.stringify(r.body)}`)
+      assert.deepEqual(r.body, { error: 'Authentication required.' })
+      assert.deepEqual(r.reads, [])
+    }
+  }
+})
 
 test('PRs are lifts beaten, from get_client_lifts per client, never sets logged', async () => {
   const { body, calls } = await loadRoute('trainer', roster(), { rpcs: lifts({ [A]: 2, [B]: 1 }) })
@@ -225,6 +263,7 @@ test('no failed read in the trainer route is published as an empty history', asy
       ['@/lib/origin-attribution', await loadRealModule(join(ROOT, 'src/lib/origin-attribution.ts'), { typescript: true, registry: new Map([['@/lib/supabase/server', {}]]) })],
       ['@/lib/coach-trajectory.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/coach-trajectory.mjs')).href)],
       ['@/lib/read-all-by-id', await loadRealModule(join(ROOT, 'src/lib/read-all-by-id.ts'), { typescript: true })],
+      ['@/lib/auth-lookup', await loadRealModule(join(ROOT, 'src/lib/auth-lookup.ts'), { typescript: true })],
     ]),
   })
   const body = await (await route.GET(new Request('https://shape.test/api/trainer/analytics'))).json()

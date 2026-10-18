@@ -16,6 +16,7 @@ const TR_DASH = 'src/app/api/trainer/dashboard/route.ts';
 const NU_DASH = 'src/app/api/nutritionist/dashboard/route.ts';
 const DATA = 'public/newdesign/dashData.jsx';
 const ORIGIN = 'src/lib/origin-attribution.ts';
+const AUTH = 'src/lib/auth-lookup.ts';
 
 export default {
   test: 'node --test tests/coach-forecast.test.mjs tests/coach-renewals.test.mjs tests/stripe-summary.test.mjs tests/business-plan-page.test.mjs tests/coach-analytics-routes.test.mjs tests/coach-growth.test.mjs tests/marketing-earnings.test.mjs',
@@ -296,11 +297,14 @@ export default {
       find: '        {!isLive || live\n          ? <DashFunnelPanel live={live} />',
       replace: '        {true\n          ? <DashFunnelPanel live={live} />' },
     { name: 'preview gate: the funnel says unread while the analytics are out', file: BIZ,
-      find: '{source == null || analytics === "pending" ? "Your funnel is loading…"',
+      find: '{source == null || (source === "demo" && analytics === "pending") ? "Your funnel is loading…"',
       replace: '{source == null ? "Your funnel is loading…"' },
     { name: 'preview gate: the funnel says unread while the dashboard is out', file: BIZ,
-      find: '{source == null || analytics === "pending" ? "Your funnel is loading…"',
-      replace: '{analytics === "pending" ? "Your funnel is loading…"' },
+      find: '{source == null || (source === "demo" && analytics === "pending") ? "Your funnel is loading…"',
+      replace: '{(source === "demo" && analytics === "pending") ? "Your funnel is loading…"' },
+    { name: 'preview gate: a live coach\'s failed feed waits on the analytics', file: BIZ,
+      find: '{source == null || (source === "demo" && analytics === "pending") ? "Your funnel is loading…"',
+      replace: '{source == null || analytics === "pending" ? "Your funnel is loading…"' },
     { name: 'preview gate: loading cancellations are "none on record"', file: BIZ,
       find: '  if (live && churn === undefined) {\n',
       replace: '  if (false) {\n' },
@@ -313,5 +317,30 @@ export default {
     { name: 'preview gate: where clients came from, still loading, is a failed read', file: BIZ,
       find: '<DbzOriginZone live={isLive} byOrigin={fromExtra("byOrigin")} />',
       replace: '<DbzOriginZone live={isLive} byOrigin={extra && extra.byOrigin} />' },
+    // ── An auth outage is not a signed-out viewer (review of #2394) ──
+    { name: 'auth outage: the trainer route answers an outage as signed out', file: TR,
+      find: '    if (!isMeasuredSignedOut(authErr)) {\n',
+      replace: '    if (false) {\n' },
+    { name: 'auth outage: the nutritionist route answers an outage as signed out', file: NU,
+      find: '    if (!isMeasuredSignedOut(authErr)) {\n',
+      replace: '    if (false) {\n' },
+    { name: 'auth outage: every auth error is signed out (a deny-list of none)', file: AUTH,
+      find: '  return status === 401 || status === 403;\n',
+      replace: '  return true;\n' },
+    { name: 'auth outage: a token checked and refused (403) is an outage', file: AUTH,
+      find: '  return status === 401 || status === 403;\n',
+      replace: '  return status === 401;\n' },
+    { name: 'auth outage: no authorization presented (401) is an outage', file: AUTH,
+      find: '  return status === 401 || status === 403;\n',
+      replace: '  return status === 403;\n' },
+    { name: 'auth outage: no session at all is an outage', file: AUTH,
+      find: '  if (isAuthSessionMissingError(error)) return true; // no token was presented\n',
+      replace: '' },
+    { name: 'auth outage: a clean read that found nobody is an outage', file: AUTH,
+      find: '  if (!error) return true; // a clean read that found nobody\n',
+      replace: '  if (!error) return false;\n' },
+    { name: 'auth outage: the page reads a 503 as signed out', file: BIZ,
+      find: '.then((r) => (r.status === 401 || r.status === 403 ? asPreview : r.ok ? r.json() : null))',
+      replace: '.then((r) => (r.status === 401 || r.status === 403 || r.status === 503 ? asPreview : r.ok ? r.json() : null))' },
   ],
 };

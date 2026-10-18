@@ -497,6 +497,9 @@ test('a signed-in coach whose reads all failed sees unread states, never the pre
   };
   const outages = [
     ['a 500', answer(500, { error: 'Could not read your listing.' })],
+    // An auth outage: the routes answer 503, never 401, when getUser() could not ask the auth
+    // server (src/lib/auth-lookup.ts; coach-analytics-routes drives the route side).
+    ['an auth outage (a 503)', answer(503, { error: 'Could not check your sign-in just now.' })],
     ['a thrown fetch', () => Promise.reject(new TypeError('Failed to fetch'))],
     ['an answer that is not JSON', () => Promise.resolve({ ok: true, status: 200, json: () => Promise.reject(new SyntaxError('Unexpected token <')) })],
   ];
@@ -592,6 +595,23 @@ test('a "signed out" analytics answer is a preview only when the dashboard resol
     assert.match(m.text(), /Couldn't read your payouts just now/, source);
     await m.unmount();
   }
+});
+
+// useDashboard sets source "live" (and `today`) in one setState once the roster AND dashboard reads
+// have both settled, so a live coach with no feed is a coach whose feed failed: the analytics read,
+// still out, cannot make them a preview, and the funnel (fed by the dashboard, not the analytics)
+// says it couldn't be read rather than loading until an unrelated read answers.
+test('a live coach whose dashboard feed failed is told the funnel could not be read, without waiting on the analytics', async () => {
+  stubPage({ source: 'live', section: 'growth' });
+  globalThis.fetch = window.fetch = () => new Promise(() => {});
+  const m = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
+  await settle();
+  const t = m.text();
+  assert.match(t, /Couldn't read your funnel just now/, t.slice(0, 400));
+  assert.doesNotMatch(t, /Your funnel is loading|DEMO FUNNEL|PREVIEW/, t.slice(0, 400));
+  // The zone the analytics feed is still loading: only the funnel had its answer.
+  assert.match(t, /Where your clients came from loads with the analytics rollup/);
+  await m.unmount();
 });
 
 // ── The whole page: the plan holds what the coach set ────────────────────────

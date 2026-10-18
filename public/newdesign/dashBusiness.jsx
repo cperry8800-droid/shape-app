@@ -1540,10 +1540,14 @@ function CoachBusinessPage({ role }) {
   const funnel = plate(DBZ_TEAL, <React.Fragment>
         {head("Marketplace funnel · views → consults → signed")}
         {/* The panel draws the preview's funnel when it has no feed, so a viewer who is not a
-            preview and has no feed (the reads still out, or failed) is told which, never shown it. */}
+            preview and has no feed (the reads still out, or failed) is told which, never shown it.
+            ⚠ ONLY A DEMO WAITS ON THE ANALYTICS. useDashboard sets source "live" once the roster
+            and dashboard reads have both settled, so a live coach with no feed has a failed feed,
+            and no analytics answer can make them a preview: waiting on that read (several seconds
+            with ?renewals=1, or forever if it never settles) said "loading" over a failed read. */}
         {!isLive || live
           ? <DashFunnelPanel live={live} />
-          : <div style={DBZ_NOTE}>{source == null || analytics === "pending" ? "Your funnel is loading…" : "Couldn't read your funnel just now. Nothing is lost; reload to try again."}</div>}
+          : <div style={DBZ_NOTE}>{source == null || (source === "demo" && analytics === "pending") ? "Your funnel is loading…" : "Couldn't read your funnel just now. Nothing is lost; reload to try again."}</div>}
       </React.Fragment>);
 
   const churn = plate(DBZ_RED, <React.Fragment>
