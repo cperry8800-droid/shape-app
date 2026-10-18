@@ -237,6 +237,8 @@ function DbzPayoutsZone({ live, stripe, providerId, role, metrics }) {
 }
 
 // ── Churn zone — who left, when, and why (honest about the why) ─────────────
+// How many cancellations the analytics routes send, newest first (their `.limit(12)`).
+const DBZ_CHURN_LIST = 12;
 function DbzChurnZone({ live, churn }) {
   // null: the route could not read the cancellations, which is not "none on record".
   if (live && churn === null) {
@@ -249,14 +251,17 @@ function DbzChurnZone({ live, churn }) {
   // ⚠ THE TOTAL HAS A WINDOW (Business review, 2026-10-17). It summed the last 12 cancellations
   // whenever they happened, so a "−$X MRR" could add a departure from last week to one from two
   // years ago. It now counts the last 90 days, and says so; the rows below still list the recent ones.
+  // ⚠ AND THE LIST STOPS AT DBZ_CHURN_LIST ROWS (the routes' .limit(12)). When every row it holds
+  // is inside the 90 days, more may have left than it shows, so the total is a floor and says so.
   const since = Date.now() - 90 * 86400000;
   const recent = rows.filter((r) => r.endedAt && new Date(r.endedAt).getTime() >= since);
   const lostCents = recent.reduce((s, r) => s + (r.priceCents || 0), 0);
+  const floor = live && rows.length >= DBZ_CHURN_LIST && recent.length === rows.length;
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
-        <span style={{ fontFamily: DBZ_MONO, fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: DBZ_INK50 }}>{recent.length ? recent.length + " left in the last 90 days" : "None left in the last 90 days"}</span>
-        {lostCents > 0 && <span style={{ fontFamily: DBZ_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: DBZ_RED }}>−{dashMoney(lostCents)} a month</span>}
+        <span style={{ fontFamily: DBZ_MONO, fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: DBZ_INK50 }}>{recent.length ? recent.length + (floor ? " or more" : "") + " left in the last 90 days" : "None left in the last 90 days"}</span>
+        {lostCents > 0 && <span style={{ fontFamily: DBZ_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: DBZ_RED }}>{floor ? "at least " : ""}−{dashMoney(lostCents)} a month</span>}
       </div>
       {rows.map((r, i) => {
         const tenure = r.startedAt && r.endedAt ? dbzMonthsBetween(r.startedAt, r.endedAt) : null;

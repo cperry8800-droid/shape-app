@@ -317,6 +317,18 @@ test('the churn total counts the last 90 days and says so, not every cancellatio
   assert.match(old.text(), /^None left in the last 90 days/);
   assert.doesNotMatch(old.text(), /a month/, 'no total for a window with no departures');
   await old.unmount();
+  // The routes send the newest 12. When all 12 are inside the window, more may have left: a floor.
+  const full = Array.from({ length: 12 }, (_, i) => ({ ...rows[0], name: 'C' + i, endedAt: new Date(Date.now() - (5 + i) * day).toISOString() }));
+  const many = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: full }));
+  assert.match(many.text(), /^12 or more left in the last 90 daysat least −\$2,160 a month/);
+  await many.unmount();
+  const eleven = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: [...full.slice(0, 11), rows[1]] }));
+  assert.match(eleven.text(), /^11 left in the last 90 days−\$1,980 a month/, 'one row outside the window: the count is whole');
+  await eleven.unmount();
+  for (const role of ['trainer', 'nutritionist']) {
+    const src = readFileSync(fileURLToPath(new URL(`../src/app/api/${role}/analytics/route.ts`, import.meta.url)), 'utf8');
+    assert.match(src, /\.eq\('status', 'canceled'\)\n\s+\.order\('current_period_end', \{ ascending: false, nullsFirst: false \}\)\n\s+\.limit\(12\);/, role + ' sends the newest 12, as DBZ_CHURN_LIST says');
+  }
 });
 
 // ── The Goal tab's calculator (Business review, 2026-10-17) ──────────────────
