@@ -42,6 +42,17 @@ function useShapeTr() {
 const CF = () => window.CoachForecast;
 const DAY = 86400000;
 export const BS_BIZ_TABS = ['money', 'plan', 'clients'];
+// How many cancellations the analytics routes send, newest first (their `.limit(12)`).
+export const BS_BIZ_CHURN_LIST = 12;
+
+// ⚠ A MEASURED CHURN IS KEPT TO A TENTH OF A POINT, AND NEVER ROUNDS TO 0 (the website's
+// dbzChurnPct, Business sweep 2026-10-18). Whole points turned one departure from 70 clients in
+// three months (0.45% a month) into "0% leave a month" beside "a client stays about 223 months":
+// the plan lost its attrition and the two figures disagreed. planStart in coachForecast.js still
+// rounds to whole points, so the planner takes its churn from here.
+export const bsBizChurnPct = (churn) => (churn > 0 ? Math.max(0.1, Math.round(churn * 100 * 10) / 10) : 0);
+// A percentage as the planner prints it: whole when it is whole, else to a tenth (dbzPct).
+const pctNum = (p) => (Number.isInteger(p) ? String(p) : p.toFixed(1));
 
 function intlLocale() {
   try { return window.ShapeI18n?.intlLocale?.() || window.ShapeI18n?.current?.() || undefined; } catch (e) { return undefined; }
@@ -440,7 +451,10 @@ export function BSBizPlan({ t, base }) {
   const tr = useShapeTr();
   const F = CF();
   const known = base.pace.adds != null;
-  const start = React.useMemo(() => F.planStart(base), [base]);
+  const start = React.useMemo(() => {
+    const s = F.planStart(base);
+    return base.pace.churn != null ? { ...s, churnPct: bsBizChurnPct(base.pace.churn) } : s;
+  }, [base]);
   const [adds, setAdds] = React.useState(start.adds);
   const [churnPct, setChurnPct] = React.useState(start.churnPct);
   const [rate, setRate] = React.useState(start.rate);
@@ -470,9 +484,16 @@ export function BSBizPlan({ t, base }) {
   else lines.push(tr('coach:business.plan.yearPlan', { defaultValue: 'With your plan that becomes {amount} a month in a year.', amount: bsBizMoney(planF.rows[12].netCents) }));
   if (base.mrrNetCents >= goalCents) lines.push(tr('coach:business.plan.goalPast', { defaultValue: "You're already past your {goal} goal.", goal: goalMoney }));
   else if (planReach == null) {
-    lines.push(planF.steadyNetCents != null
-      ? tr('coach:business.plan.goalNeverSteady', { defaultValue: "That doesn't reach your {goal} goal within three years: it levels off near {steady} a month.", goal: goalMoney, steady: bsBizMoney(planF.steadyNetCents) })
-      : tr('coach:business.plan.goalNever', { defaultValue: "That doesn't reach your {goal} goal within three years.", goal: goalMoney }));
+    // A plan that misses the goal for three years either levels off below it, which is why it
+    // misses, or is still climbing past it and gets there later; the sentence says which.
+    const steady = planF.steadyNetCents;
+    lines.push(steady == null
+      ? tr('coach:business.plan.goalNever', { defaultValue: "That doesn't reach your {goal} goal within three years.", goal: goalMoney })
+      : steady < goalCents
+        ? tr('coach:business.plan.goalNeverSteady', { defaultValue: "That doesn't reach your {goal} goal within three years: it levels off near {steady} a month.", goal: goalMoney, steady: bsBizMoney(steady) })
+        : tr('coach:business.plan.goalNeverClimbing', { defaultValue: "That doesn't reach your {goal} goal within three years, but it's still climbing, toward {steady} a month.", goal: goalMoney, steady: bsBizMoney(steady) }));
+  } else if (todayF && todayReach === planReach) {
+    lines.push(tr('coach:business.plan.goalSame', { defaultValue: "You reach your {goal} goal in {months, plural, one {# month} other {# months}}, the same month as at today's pace.", goal: goalMoney, months: planReach }));
   } else if (todayF && todayReach != null) {
     lines.push(tr('coach:business.plan.goalInstead', { defaultValue: 'You reach your {goal} goal in {months, plural, one {# month} other {# months}}, instead of {today, plural, one {# month} other {# months}}.', goal: goalMoney, months: planReach, today: todayReach }));
   } else if (todayF) {
@@ -480,7 +501,7 @@ export function BSBizPlan({ t, base }) {
   } else {
     lines.push(tr('coach:business.plan.goalIn', { defaultValue: 'You reach your {goal} goal in {months, plural, one {# month} other {# months}}.', goal: goalMoney, months: planReach }));
   }
-  const when = base.pace.fromFirst ? tr('coach:business.since', { defaultValue: 'since your first client' }) : tr('coach:business.window', { defaultValue: 'over the last 3 months' });
+  const when = base.pace.fromFirst ? tr('coach:business.since', { defaultValue: 'after your first week' }) : tr('coach:business.window', { defaultValue: 'over the last 3 months' });
   const noHistory = tr('coach:business.plan.noHistory', { defaultValue: 'no history yet · set your own' });
 
   return (
@@ -495,9 +516,9 @@ export function BSBizPlan({ t, base }) {
         <Slider t={t} label={tr('coach:business.plan.adds', { defaultValue: 'New clients a month' })} value={adds} shown={adds.toFixed(1)} was={adds !== start.adds ? start.adds.toFixed(1) : null}
           min={0} max={Math.max(10, Math.ceil(start.adds * 3))} step={0.1} onChange={(v) => setAdds(F.round1(v))}
           note={known ? tr('coach:business.plan.yoursAdds', { defaultValue: 'yours: {value} {when}', value: start.adds.toFixed(1), when }) : noHistory} />
-        <Slider t={t} label={tr('coach:business.plan.churn', { defaultValue: 'Monthly churn' })} value={churnPct} shown={churnPct + '%'} was={churnPct !== start.churnPct ? start.churnPct + '%' : null}
-          min={0} max={Math.max(30, start.churnPct)} step={1} onChange={setChurnPct}
-          note={base.pace.churn != null ? tr('coach:business.plan.yoursChurn', { defaultValue: 'yours: {value}% leave a month, {when}', value: start.churnPct, when }) : noHistory} />
+        <Slider t={t} label={tr('coach:business.plan.churn', { defaultValue: 'Monthly churn' })} value={churnPct} shown={pctNum(churnPct) + '%'} was={churnPct !== start.churnPct ? pctNum(start.churnPct) + '%' : null}
+          min={0} max={Math.max(30, Math.ceil(start.churnPct))} step={0.1} onChange={(v) => setChurnPct(F.round1(v))}
+          note={base.pace.churn != null ? tr('coach:business.plan.yoursChurn', { defaultValue: 'yours: {value}% leave a month, {when}', value: pctNum(start.churnPct), when }) : noHistory} />
         <Slider t={t} label={tr('coach:business.plan.rate', { defaultValue: 'Rate for new clients' })} value={rate} shown={'$' + rate} was={rate !== start.rate ? '$' + start.rate : null}
           min={Math.min(20, start.rate)} max={Math.max(500, start.rate * 2)} step={5} onChange={setRate}
           note={tr('coach:business.plan.rateNote', { defaultValue: "today's clients keep the price they joined at" })} />
@@ -518,9 +539,9 @@ export function BSBizPlan({ t, base }) {
   );
 }
 
-function PlanTab({ t, biz }) {
+function PlanTab({ t, biz, now }) {
   const tr = useShapeTr();
-  const base = bsBizPlanBase(biz);
+  const base = bsBizPlanBase(biz, now);
   const body = (fn) => (base.state === 'ready' ? fn() : (
     <Note t={t}>{base.state === 'loading' ? tr('coach:business.loading', { defaultValue: 'Reading your numbers…' }) : tr('coach:business.unreadSubs', { defaultValue: "Couldn't read your subscriptions just now. Nothing is lost; try again in a moment." })}</Note>
   ));
@@ -535,12 +556,12 @@ function PlanTab({ t, biz }) {
 }
 
 // ── Clients ─────────────────────────────────────────────────────────────────
-function ClientsTab({ t, biz }) {
+function ClientsTab({ t, biz, now }) {
   const tr = useShapeTr();
   const F = CF();
-  const base = bsBizPlanBase(biz);
+  const base = bsBizPlanBase(biz, now);
   const extra = biz.extra || {};
-  const when = (pace) => (pace.fromFirst ? tr('coach:business.since', { defaultValue: 'since your first client' }) : tr('coach:business.window', { defaultValue: 'over the last 3 months' }));
+  const when = (pace) => (pace.fromFirst ? tr('coach:business.since', { defaultValue: 'after your first week' }) : tr('coach:business.window', { defaultValue: 'over the last 3 months' }));
   const loading = <Note t={t}>{tr('coach:business.loading', { defaultValue: 'Reading your numbers…' })}</Note>;
   const unread = <Note t={t}>{tr('coach:business.unreadSubs', { defaultValue: "Couldn't read your subscriptions just now. Nothing is lost; try again in a moment." })}</Note>;
 
@@ -564,7 +585,7 @@ function ClientsTab({ t, biz }) {
       worth = (
         <div>
           <Sentence t={t}>{tr('coach:business.clients.worth', { defaultValue: 'A client stays about {months, plural, one {# month} other {# months}} on average, so each one is worth about {value} to you.', months: Math.round(lt.months), value: bsBizMoney(lt.valueCents) })}</Sentence>
-          <Note t={t} style={{ marginTop: 6 }}>{tr('coach:business.clients.worthFrom', { defaultValue: 'From {pct}% of clients leaving a month {when}, and {net} net a client a month.', pct: Math.round(base.pace.churn * 100), when: when(base.pace), net: bsBizMoney(perClient) })}</Note>
+          <Note t={t} style={{ marginTop: 6 }}>{tr('coach:business.clients.worthFrom', { defaultValue: 'From {pct}% of clients leaving a month {when}, and {net} net a client a month.', pct: pctNum(bsBizChurnPct(base.pace.churn)), when: when(base.pace), net: bsBizMoney(perClient) })}</Note>
         </div>
       );
     }
@@ -587,12 +608,16 @@ function ClientsTab({ t, biz }) {
   }
 
   // Who left in the last 90 days (the website's churn total has the same window).
+  // ⚠ THE LIST STOPS AT BS_BIZ_CHURN_LIST ROWS (the routes' .limit(12)). When every row it holds
+  // is inside the 90 days, more may have left than it shows, and a note says so (the website's
+  // total reads "12 or more" and "at least" then).
   let left;
   if (extra.churn === null) left = <Note t={t}>{tr('coach:business.clients.leftUnread', { defaultValue: "Couldn't read your cancellations just now." })}</Note>;
   else if (!Array.isArray(extra.churn)) left = loading;
   else {
-    const since = Date.now() - 90 * DAY;
+    const since = now - 90 * DAY;
     const recent = extra.churn.filter((r) => r.endedAt && new Date(r.endedAt).getTime() >= since);
+    const full = biz.kind === 'live' && extra.churn.length >= BS_BIZ_CHURN_LIST && recent.length === extra.churn.length;
     left = !recent.length ? <Note t={t}>{tr('coach:business.clients.leftNone', { defaultValue: 'No one has left in the last 90 days.' })}</Note> : (
       <div>
         {recent.map((r, i) => (
@@ -600,6 +625,7 @@ function ClientsTab({ t, biz }) {
             sub={tr('coach:business.clients.leftOn', { defaultValue: 'left {date}', date: bizDate(r.endedAt) })}
             value={r.priceCents != null ? tr('coach:business.clients.leftPrice', { defaultValue: '−{price}/mo', price: bsBizMoney(r.priceCents) }) : '—'} />
         ))}
+        {full ? <Note t={t} style={{ marginTop: 8 }}>{tr('coach:business.clients.leftMore', { defaultValue: 'Only the latest {count} are shown; more may have left in these 90 days.', count: BS_BIZ_CHURN_LIST })}</Note> : null}
       </div>
     );
   }
@@ -625,6 +651,12 @@ export function BSCoachBusinessPage({ role = 'trainer', onBack, tab: initialTab 
   const tr = useShapeTr();
   const [reload, setReload] = React.useState(0);
   const biz = useBSCoachBusiness(role, { renewals: true, reload });
+  // ⚠ THE PACE IS READ AT ONE MOMENT PER VISIT (the website's planNow, Business sweep
+  // 2026-10-18). Its rates are counts over the days to now, so read at each render they moved
+  // with the clock: a late answer (the waiting list landing) or a language change re-read
+  // "yours" from a later now, so an untouched plan could turn into a moved one, with a "was" and
+  // a second line, and the Clients figures shifted under the coach. Try again reads afresh.
+  const [readAt, setReadAt] = React.useState(() => Date.now());
   const [tab, setTab] = React.useState(BS_BIZ_TABS.includes(initialTab) ? initialTab : 'money');
   const accent = role === 'nutritionist' ? '#a07a2e' : (t.RUST || '#c0533b');
   const today = biz.kind === 'live' || biz.kind === 'demo' ? CF().todayFrom(biz.extra) : null;
@@ -640,7 +672,7 @@ export function BSCoachBusinessPage({ role = 'trainer', onBack, tab: initialTab 
     body = (
       <div style={{ marginTop: 20 }}>
         <Note t={t}>{tr('coach:business.error', { defaultValue: "Couldn't read your business figures just now. Nothing is lost." })}</Note>
-        <Pill t={t} onClick={() => setReload((n) => n + 1)}>{tr('coach:business.retry', { defaultValue: 'Try again' })}</Pill>
+        <Pill t={t} onClick={() => { setReadAt(Date.now()); setReload((n) => n + 1); }}>{tr('coach:business.retry', { defaultValue: 'Try again' })}</Pill>
       </div>
     );
   } else if (biz.kind === 'none') body = <Note t={t} style={{ marginTop: 20 }}>{tr('coach:business.none', { defaultValue: 'Business fills in once your coach application is approved and your listing is set up.' })}</Note>;
@@ -658,7 +690,7 @@ export function BSCoachBusinessPage({ role = 'trainer', onBack, tab: initialTab 
             );
           })}
         </div>
-        {tab === 'money' ? <MoneyTab t={t} biz={biz} role={role} /> : tab === 'plan' ? <PlanTab t={t} biz={biz} /> : <ClientsTab t={t} biz={biz} />}
+        {tab === 'money' ? <MoneyTab t={t} biz={biz} role={role} /> : tab === 'plan' ? <PlanTab t={t} biz={biz} now={readAt} /> : <ClientsTab t={t} biz={biz} now={readAt} />}
       </div>
     );
   }

@@ -65,21 +65,22 @@ const money = (c) => '$' + Math.round(c / 100).toLocaleString('en-US');
 const DAY = 86400000;
 
 // 26 weekly buckets ending this week: 9 clients growing to 12, two departures in the window.
-function trajectory(now = Date.now()) {
+// `start`, `adds` and `ends` (week indexes, 0 oldest) and `firstDays` reshape it.
+function trajectory(now = Date.now(), { start = 9, adds = [16, 19, 22, 24, 25], ends = [18, 23], firstDays = 300 } = {}) {
   const monday = new Date(now); monday.setUTCHours(0, 0, 0, 0); monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));
   const weeks = [];
-  let active = 9;
+  let active = start;
   for (let i = 25; i >= 0; i--) {
     const k = 25 - i;
-    const added = k === 16 || k === 19 || k === 22 || k === 24 || k === 25 ? 1 : 0;
-    const ended = k === 18 || k === 23 ? 1 : 0;
+    const added = adds.includes(k) ? 1 : 0;
+    const ended = ends.includes(k) ? 1 : 0;
     active += added - ended;
     weeks.push({ weekOf: new Date(monday.getTime() - i * 7 * DAY).toISOString().slice(0, 10), active, added, ended, mrrGrossCents: active * 18000, mrrNetCents: active * 15300 });
   }
-  return { weeks, firstSubAt: new Date(now - 300 * DAY).toISOString() };
+  return { weeks, firstSubAt: new Date(now - firstDays * DAY).toISOString() };
 }
-function payload(over = {}) {
-  const traj = trajectory();
+function payload(over = {}, shape) {
+  const traj = trajectory(Date.now(), shape);
   const last = traj.weeks[traj.weeks.length - 1];
   return {
     isTrainer: true, providerId: 7,
@@ -114,6 +115,22 @@ function world({ signedIn = true, answer = payload(), listing = { role: 'trainer
   return st;
 }
 const page = (props = {}) => inChrome(React.createElement(BIZ.BSCoachBusinessPage, { role: 'trainer', onBack: () => {}, ...props }));
+// The planner on its own, from a base the test sets (as the website's tests mount DbzPlanZone).
+const PlanOnly = ({ base }) => React.createElement(BIZ.BSBizPlan, { t: window.useBS(), base });
+const plan = (base) => inChrome(React.createElement(PlanOnly, { base }));
+const setRange = async (input, v) => {
+  assert.ok(input, 'no such slider');
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(input, String(v));
+    input.dispatchEvent(new window.Event('input', { bubbles: true }));
+  });
+  await flush();
+};
+const ranges = (host) => [...host.querySelectorAll('input[type="range"]')];
+const sentence = (host) => host.querySelector('p').textContent;
+// Where the planner starts: coachForecast.js planStart, with the churn kept to a tenth.
+const startOf = (base) => ({ ...CF.planStart(base), ...(base.pace.churn != null ? { churnPct: BIZ.bsBizChurnPct(base.pace.churn) } : {}) });
+const runFor = (base, o) => CF.forecast({ clients: base.clients, mrrNetCents: base.mrrNetCents, byoShare: base.byoShare, months: 36, priceCents: o.rate * 100, adds: o.adds, churn: o.churnPct / 100 });
 
 test("Money: today's figures from the trajectory, what's coming from Stripe, and this week's renewals checked", async () => {
   const st = world();
@@ -189,12 +206,12 @@ test('Plan: the calculator and the planner start from the listing price and the 
   assert.match(m.text(), new RegExp(`\\${money(e.netCents)}net a month\\${money(e.yearNetCents)}a year`));
   assert.match(m.text(), /0% fee · 1 of your 4/);
   // The planner's sentence says what the chart shows, from today's pace.
-  const start = CF.planStart(base);
-  const f = CF.forecast({ clients: base.clients, mrrNetCents: base.mrrNetCents, byoShare: base.byoShare, months: 36, priceCents: start.rate * 100, adds: start.adds, churn: start.churnPct / 100 });
+  const start = startOf(base);
+  const f = runFor(base, start);
   assert.match(m.text(), new RegExp(`You have ${base.clients} clients and net \\${money(base.mrrNetCents)} a month\\. At today's pace that becomes \\${money(f.rows[12].netCents)} a month in a year\\.`));
   const reach = CF.monthsTo(start.goal * 100, f);
   assert.match(m.text(), reach == null ? /doesn't reach your/ : new RegExp(`reach your \\$${start.goal.toLocaleString('en-US')} goal in ${reach} months?`));
-  assert.match(m.text(), new RegExp(`yours: ${start.adds.toFixed(1)} (since your first client|over the last 3 months)`));
+  assert.match(m.text(), new RegExp(`yours: ${start.adds.toFixed(1)} over the last 3 months`));
   assert.equal(m.host.querySelectorAll('polyline').length, 1, 'untouched, one line: today\'s pace');
   await m.unmount();
 });
@@ -230,6 +247,140 @@ test('Clients: joined and left, what a client is worth, the waiting list in mone
   assert.match(m.text(), /Riley T\./);
   assert.doesNotMatch(m.text(), /Old Departure/, 'the list has the 90-day window its heading says');
   await m.unmount();
+});
+
+// ── The website's Business sweep (2026-10-18), mirrored ─────────────────────
+test('the pace is read once per visit: a re-render under a moving clock keeps the plan where it started', async () => {
+  // The waiting list answers late, as a slow network does, and re-renders the page.
+  let land;
+  const late = new Promise((r) => { land = r; });
+  world();
+  window.ShapeBookings = { getCapacity: () => late.then(() => ({ waiting: 3 })) };
+  const realNow = Date.now;
+  const t0 = realNow();
+  let clock = t0;
+  Date.now = () => clock;
+  try {
+    const p = payload();
+    const m = await mount(page({ tab: 'plan' }));
+    const base = CF.planNumbers({ extra: p, listingMonthly: 180, now: t0 });
+    const start = startOf(base);
+    assert.match(m.text(), new RegExp(`yours: ${start.adds.toFixed(1)} over the last 3 months`));
+    await setRange(ranges(m.host)[0], start.adds + 2);
+    const moved = m.text();
+    assert.match(moved, new RegExp(`· was ${start.adds.toFixed(1)}`));
+    // Two months on by the clock, far enough that even the rounded pace would read differently
+    // (in a browser it moves every render; at a tenth of a point a day can be enough).
+    clock = t0 + 60 * DAY;
+    assert.notEqual(startOf(CF.planNumbers({ extra: p, listingMonthly: 180, now: clock })).adds, start.adds, 'the fixture\'s pace moves with the clock');
+    await act(async () => { land(); await late; });
+    await flush();
+    assert.equal(Number(ranges(m.host)[0].value), start.adds + 2, 'the coach\'s plan survives the re-render');
+    assert.equal(m.text(), moved, 'the same "yours", the same "was", the same line to beat');
+    // The Clients tab reads the same moment: what a client is worth, from the pace at t0.
+    await click(button(m.host, /^Clients$/));
+    const lt = CF.lifetime({ netPerClientCents: base.mrrNetCents / base.clients, churn: base.pace.churn });
+    assert.match(m.text(), new RegExp(`${base.pace.added} clients joined and ${base.pace.ended} left over the last 3 months`));
+    assert.match(m.text(), new RegExp(`stays about ${Math.round(lt.months)} months on average, so each one is worth about \\${money(lt.valueCents)} to you`));
+    await m.unmount();
+  } finally {
+    Date.now = realNow;
+  }
+});
+
+test('a younger practice\'s pace reads "after your first week" (the opening roster is not a pace)', async () => {
+  world({ answer: payload({}, { firstDays: 60 }) });
+  let m = await mount(page({ tab: 'plan' }));
+  assert.match(m.text(), /yours: \d+\.\d after your first week/);
+  assert.match(m.text(), /% leave a month, after your first week/);
+  assert.doesNotMatch(m.text(), /since your first client/);
+  await m.unmount();
+  m = await mount(page({ tab: 'clients' }));
+  assert.match(m.text(), /joined and \d+ left after your first week\./);
+  assert.match(m.text(), /of clients leaving a month after your first week/);
+  await m.unmount();
+});
+
+test('a small measured churn is kept to a tenth of a point, and a departure never reads as 0%', async () => {
+  // One departure from about 70 clients in three months: under half a point a month.
+  const p = payload({}, { start: 70, adds: [16, 20, 24], ends: [22] });
+  world({ answer: p });
+  const base = CF.planNumbers({ extra: p, listingMonthly: 180 });
+  const pct = BIZ.bsBizChurnPct(base.pace.churn);
+  assert.ok(pct > 0 && pct < 1 && !Number.isInteger(pct), 'the fixture churns under a point: ' + pct);
+  assert.equal(CF.planStart(base).churnPct, 0, 'whole points read it as nobody leaving');
+  let m = await mount(page({ tab: 'plan' }));
+  const churn = ranges(m.host)[1];
+  assert.equal(churn.getAttribute('step'), '0.1');
+  assert.match(m.text(), new RegExp(`Monthly churn${pct.toFixed(1)}%`));
+  assert.match(m.text(), new RegExp(`yours: ${pct.toFixed(1)}% leave a month, over the last 3 months`));
+  const f = runFor(base, startOf(base));
+  assert.match(sentence(m.host), new RegExp(`At today's pace that becomes \\${money(f.rows[12].netCents)} a month in a year\\.`), 'the plan runs at the measured churn, not at 0%');
+  // A tenth of a point at a time, with the was in the same precision.
+  await setRange(churn, pct + 0.3);
+  assert.match(m.text(), new RegExp(`Monthly churn${(pct + 0.3).toFixed(1)}% · was ${pct.toFixed(1)}%`));
+  await m.unmount();
+  m = await mount(page({ tab: 'clients' }));
+  assert.match(m.text(), new RegExp(`From ${pct.toFixed(1)}% of clients leaving a month over the last 3 months`));
+  await m.unmount();
+  // One departure from 800 clients in three months rounds to 0.0: it still reads 0.1%.
+  const big = payload({}, { start: 800, adds: [16, 20, 24], ends: [22] });
+  world({ answer: big });
+  assert.equal(Math.round(CF.planNumbers({ extra: big, listingMonthly: 180 }).pace.churn * 1000), 0, 'the fixture rounds to 0.0');
+  m = await mount(page({ tab: 'clients' }));
+  assert.match(m.text(), /From 0\.1% of clients leaving a month/);
+  await click(button(m.host, /^Plan$/));
+  assert.match(m.text(), /yours: 0\.1% leave a month/);
+  await m.unmount();
+});
+
+test('the goal sentence never contradicts its figures: still climbing, levelling off, or the same month', async () => {
+  const BASE = { state: 'ready', rateFrom: 'listing', brought: 0, subs: 0, byoShare: 0, rateCents: 15000 };
+  // 8 clients, $1,020 net a month, 0.7 a month, 2% churn, $150: it plateaus near $4,463, above a
+  // $3,500 goal it takes more than three years to reach.
+  const climbing = { ...BASE, clients: 8, mrrNetCents: 102000, pace: { adds: 0.7, churn: 0.02, fromFirst: false, added: 2, ended: 0 } };
+  let m = await mount(plan(climbing));
+  await setRange(ranges(m.host)[3], 3500);
+  const T = runFor(climbing, { adds: 0.7, churnPct: 2, rate: 150 });
+  assert.equal(CF.monthsTo(350000, T), null);
+  assert.ok(T.steadyNetCents > 350000, 'the fixture plateaus above the goal');
+  assert.ok(sentence(m.host).endsWith(`That doesn't reach your $3,500 goal within three years, but it's still climbing, toward ${money(T.steadyNetCents)} a month.`), sentence(m.host));
+  assert.doesNotMatch(sentence(m.host), /levels off/);
+  // Above the plateau, it does level off below the goal, and says so.
+  await setRange(ranges(m.host)[3], 5000);
+  assert.ok(sentence(m.host).endsWith(`That doesn't reach your $5,000 goal within three years: it levels off near ${money(T.steadyNetCents)} a month.`), sentence(m.host));
+  await m.unmount();
+  // The plan and today's pace reach the goal the same month: not "in 8 months, instead of 8 months".
+  const same = { ...BASE, clients: 10, mrrNetCents: 127500, pace: { adds: 1, churn: 0.02, fromFirst: false, added: 3, ended: 1 } };
+  m = await mount(plan(same));
+  await setRange(ranges(m.host)[2], 155);
+  const goal = Number(ranges(m.host)[3].value) * 100;
+  const [pr, tr] = [CF.monthsTo(goal, runFor(same, { adds: 1, churnPct: 2, rate: 155 })), CF.monthsTo(goal, runFor(same, { adds: 1, churnPct: 2, rate: 150 }))];
+  assert.ok(pr != null && pr === tr, 'the fixture reaches the goal the same month both ways: ' + pr + ' ' + tr);
+  assert.ok(sentence(m.host).endsWith(`goal in ${pr} months, the same month as at today's pace.`), sentence(m.host));
+  assert.doesNotMatch(sentence(m.host), /instead of/);
+  await m.unmount();
+});
+
+test('Left in the last 90 days: a full list all inside the window says more may have left', async () => {
+  const row = (i, days) => ({ name: 'C' + i, endedAt: new Date(Date.now() - days * DAY).toISOString(), priceCents: 18000 });
+  const full = Array.from({ length: BIZ.BS_BIZ_CHURN_LIST }, (_, i) => row(i, 5 + i));
+  world({ answer: payload({ churn: full }) });
+  let m = await mount(page({ tab: 'clients' }));
+  assert.match(m.text(), /C11left [^$]*\$180\/moOnly the latest 12 are shown; more may have left in these 90 days\./);
+  await m.unmount();
+  // One of the twelve is older than the window: the list is whole, and no note.
+  world({ answer: payload({ churn: [...full.slice(0, 11), row(11, 120)] }) });
+  m = await mount(page({ tab: 'clients' }));
+  assert.match(m.text(), /C10left /);
+  assert.doesNotMatch(m.text(), /C11|Only the latest/);
+  await m.unmount();
+  // The routes send the newest 12, as BS_BIZ_CHURN_LIST says.
+  assert.equal(BIZ.BS_BIZ_CHURN_LIST, 12);
+  for (const role of ['trainer', 'nutritionist']) {
+    const src = readFileSync(join(ROOT, `src/app/api/${role}/analytics/route.ts`), 'utf8');
+    assert.match(src, /\.eq\('status', 'canceled'\)\n\s+\.order\('current_period_end', \{ ascending: false, nullsFirst: false \}\)\n\s+\.limit\(12\);/, role + ' sends the newest 12');
+  }
 });
 
 test('signed out: a preview with sample numbers that says so, and no reads', async () => {
