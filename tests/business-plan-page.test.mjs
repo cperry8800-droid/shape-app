@@ -30,7 +30,7 @@ const ROSTER_NAMES = new RegExp(globalThis.DashSignals.buildMockClients(new Date
 
 const { loadRealModule } = await import('./helpers/load-real-module.mjs');
 const B = await loadRealModule(ND('dashBusiness.jsx'), {
-  appendExports: 'export { DbzChurnZone, DbzGoalEarn, dbzGoalEarnBase, dbzPlanBase, DbzPlanZone, DbzEarnZone, DbzPayoutsZone, DbzRenewalsZone, dbzRenewalsHead, DbzWaitlistZone, DbzLifetimeZone, DBZ_DEMO_CHURN, dbzDemoTrajectory, dbzDemoBook, dbzDemoOrigin, dbzDemoRenewals };',
+  appendExports: 'export { DbzChurnZone, DbzGoalEarn, dbzGoalEarnBase, dbzPlanBase, DbzPlanZone, DbzEarnZone, DbzPayoutsZone, DbzRenewalsZone, dbzRenewalsHead, DbzWaitlistZone, DbzLifetimeZone, DBZ_DEMO_CHURN, dbzDemoTrajectory, dbzDemoBook, dbzDemoOrigin, dbzDemoRenewals, DBZ_DEMO_OUTCOMES };',
 });
 
 async function mount(el) {
@@ -612,8 +612,9 @@ function stubPage({ source, today = null, section }) {
 const settle = () => React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
 const SECTIONS = ['overview', 'money', 'plan', 'growth', 'retention'];
 // Anything only the preview draws: its band, its people, its money sentence, its practice, its
-// funnel, its waiting list. Its people include the roster its origin list and renewals now name
-// (ROSTER_NAMES, read from the roster rather than restated).
+// funnel, its waiting list. Its people include the roster its origin list, renewals and outcomes
+// plate now name (ROSTER_NAMES, read from the roster rather than restated); the older names stay
+// in the detector so a plate that brings them back is still caught.
 const DEMO = new RegExp(/PREVIEW|Casey Morgan|Alex Rivera|Riley Kim|Sam Patel|Drew Park|Quinn Choi|Devon Sharpe|Mara Ellison|Theo Brandt|is coming to you|Active now|you have \d+ today|DEMO FUNNEL|people are waiting/.source + '|' + ROSTER_NAMES.source);
 // Every figure on an unread page would be invented; the bring-your-clients pitch's $5 is the one
 // fixed price the page states.
@@ -674,7 +675,7 @@ test('the preview is for a viewer the analytics answer as signed out or not a co
   }
   // Each preview tab draws the preview's own figures, under the band.
   // The preview's waiting list is valued at its sample rate, as a listing price would value it.
-  for (const [section, re] of [['growth', /DEMO FUNNEL.*Found you on Shape.*3 people are waiting to join you\. If they all join at \$\d+ a month, that's about \$\d+ a month to you\./], ['retention', /Alex Rivera.*Devon Sharpe/]]) {
+  for (const [section, re] of [['growth', /DEMO FUNNEL.*Found you on Shape.*3 people are waiting to join you\. If they all join at \$\d+ a month, that's about \$\d+ a month to you\./], ['retention', /Jordan M\..*Devon Sharpe/]]) {
     stubPage({ source: 'demo', section });
     globalThis.fetch = window.fetch = answer(401, { error: 'x' });
     const m = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
@@ -797,6 +798,50 @@ test('the preview states one net on every tab: Today, the sidebar, the KPI strip
   for (const c of roster) assert.match(growthTab, new RegExp(esc(c.profile.name) + (c.payments.feeCents ? 'Found you on Shape · 15% fee' : 'You brought · 0% fee')), c.profile.name);
 });
 
+// ── The outcomes plate is the same roster (the sweep after #2394 round 10) ──
+// Growth's origin list and Money's renewals name Today's ten; Retention's "most consistent" and
+// "top weight loss" named six people of their own beside "Active clients 10". Each name is read
+// off the mounted plate and looked up on the roster the rest of the preview shows.
+test("the preview's roster outcomes are the preview's roster, each on a list their own record fits", async () => {
+  const now = new Date();
+  const roster = DashSignals.buildMockClients(now);
+  const byName = new Map(roster.map((c) => [c.profile.name, c]));
+  const weights = {};
+  let compared = 0;
+  for (const [role, consistentLabel] of [['trainer', 'Most consistent · 30d'], ['nutritionist', 'Most consistent loggers · 30d']]) {
+    stubPage({ source: 'demo', section: 'retention' });
+    globalThis.fetch = window.fetch = answer(401, { error: 'x' });
+    const m = await mount(React.createElement(window.CoachBusinessPage, { role }));
+    await settle();
+    assert.match(m.text(), /^PREVIEW/, role);
+    const list = (label) => {
+      const head = [...m.div.querySelectorAll('div')].find((d) => d.children.length === 0 && d.textContent.trim() === label);
+      assert.ok(head, role + ': the plate has no "' + label + '" list');
+      return [...head.parentElement.querySelectorAll(':scope > div > span:first-child')].map((s) => [s.textContent.trim(), s.nextElementSibling.textContent.trim()]);
+    };
+    const losers = list('Top weight loss · 30d');
+    const consistent = list(consistentLabel);
+    assert.ok(losers.length > 0 && consistent.length > 0, role + ': an empty list proves nothing');
+    for (const [name] of [...losers, ...consistent]) {
+      const c = byName.get(name);
+      assert.ok(c, role + ': ' + name + ' is on the outcomes plate but not on the roster Today and Growth name');
+      // A 30-day figure needs 30 days with the coach (Tess B. joined five days ago).
+      const days = (now.getTime() - new Date(c.payments.joinedAt + 'T00:00:00').getTime()) / 86400000;
+      assert.ok(days >= 30, role + ': ' + name + ' has a 30-day figure after ' + Math.floor(days) + ' days');
+    }
+    // A stalled weight (Marcus T., 181.5 to 181.4 lb) is not a weight loss.
+    assert.ok(!losers.some(([n]) => n === 'Marcus T.'), role + ': the stalled weight is a top weight loss');
+    // A person's 30-day weight change is one fact: the trainer's preview and the nutritionist's
+    // read the same one.
+    for (const [n, w] of losers) {
+      if (weights[n] != null) { compared++; assert.equal(w, weights[n], n + "'s 30 days: one weight change on one preview, another on the other"); }
+      weights[n] = w;
+    }
+    await m.unmount();
+  }
+  assert.ok(compared > 0, "no one is on both previews' weight lists, so the one-weight rule goes unread");
+});
+
 test("the preview's practice falls back to what the roster would have returned, and lists no one it can't read", () => {
   const b = bookOf(DashSignals.buildMockClients(new Date()));
   const want = { clients: b.clients, grossCents: b.gross, netCents: b.net };
@@ -807,6 +852,15 @@ test("the preview's practice falls back to what the roster would have returned, 
     delete globalThis.DashSignals;
     assert.deepEqual(B.dbzDemoBook(), want, 'the fallback is not the practice dashSignals would have returned');
     assert.deepEqual(B.dbzDemoOrigin().map((r) => r.kind), ['purchase'], 'with no roster, the origin list invents subscribers');
+    for (const role of ['trainer', 'nutritionist']) assert.deepEqual(B.DBZ_DEMO_OUTCOMES[role].roster, [], role + ': with no roster, the outcomes plate invents people');
+    // A row whose roster client is gone is not listed, under no name or another's.
+    globalThis.DashSignals = { ...saved, buildMockClients: (d) => saved.buildMockClients(d).filter((c) => c.profile.id !== 'demo-5') };
+    const left = new Set(globalThis.DashSignals.buildMockClients(new Date()).map((c) => c.profile.name));
+    for (const role of ['trainer', 'nutritionist']) {
+      const rows = B.DBZ_DEMO_OUTCOMES[role].roster;
+      assert.ok(rows.length > 0, role);
+      for (const r of rows) assert.ok(left.has(r.name), role + ': "' + r.name + '" is listed but not on the roster');
+    }
   } finally {
     globalThis.DashSignals = saved;
   }

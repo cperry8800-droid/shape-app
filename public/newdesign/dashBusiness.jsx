@@ -84,31 +84,45 @@ const DBZ_DEMO_CHURN = [
   { name: "Mara Ellison", startedAt: new Date(Date.now() - 460 * 86400000).toISOString(), endedAt: new Date(Date.now() - 31 * 86400000).toISOString(), priceCents: 22000, reason: "Hit her goal — graduated to self-managed" },
   { name: "Theo Brandt", startedAt: new Date(Date.now() - 88 * 86400000).toISOString(), endedAt: new Date(Date.now() - 64 * 86400000).toISOString(), priceCents: 16000, reason: "Moved cities — wanted in-person" },
 ];
-// Roster outcomes — migrated verbatim from the old Analytics pages' mocks.
+// Roster outcomes — the aggregates migrated verbatim from the old Analytics pages' mocks.
+// ⚠ THE OUTCOMES PLATE NAMES THE PREVIEW'S ROSTER (the sweep after #2394 round 10). Its six rows
+// were people of their own (Alex Rivera, Casey Morgan, Sam Patel, Riley Kim, Drew Park, Quinn
+// Choi), so once Growth's origin list and Money's renewals became Today's ten, Retention listed
+// five strangers as the most consistent clients of a roster Growth had just named, beside "Active
+// clients 10". Each row is now a roster client, found by the id their row carries
+// (buildMockClients' "demo-N") and named at render, lazily as the origin list is, because the
+// roster reads `new Date()` and dashSignals may not be up at load. With no roster there are no
+// rows of it. A row fits its persona: the new client (Tess B., five days in), the one three weeks
+// without a check-in and the one at 64% adherence are on no 30-day list, the stalled weight
+// (Marcus T.) is not a weight loss, and the one eating over target (Deandre K.) gained. A
+// person's weight change is one fact, so both roles' previews read the same one.
+const DBZ_DEMO_OUTCOME_ROWS = [
+  { id: "demo-1", weightChangeLb: -3.4, workouts30d: 18, workouts7d: 4, prs30d: 3, daysLogged30d: 28, avgProteinG: 142 },
+  { id: "demo-5", weightChangeLb: -6.2, workouts30d: 16, workouts7d: 4, prs30d: 2, daysLogged30d: 26, avgProteinG: 96 },
+  { id: "demo-3", weightChangeLb: -2.6, workouts30d: 15, workouts7d: 3, prs30d: 1, daysLogged30d: 25, avgProteinG: 142 },
+  { id: "demo-6", weightChangeLb: -1.8, workouts30d: 14, workouts7d: 4, prs30d: 2, daysLogged30d: 22, avgProteinG: 142 },
+  { id: "demo-7", weightChangeLb: 1.4, workouts30d: 12, workouts7d: 2, prs30d: 0, daysLogged30d: 17, avgProteinG: 138 },
+  { id: "demo-10", weightChangeLb: -0.4, workouts30d: 11, workouts7d: 3, prs30d: 1, daysLogged30d: 24, avgProteinG: 142 },
+];
+function dbzDemoOutcomeRoster(role) {
+  const names = {};
+  try {
+    for (const c of DashSignals.buildMockClients(new Date())) names[c.profile.id] = c.profile.name;
+  } catch (e) { return []; }   // dashSignals not up yet — no roster, so no rows of it
+  return DBZ_DEMO_OUTCOME_ROWS.filter((r) => names[r.id]).map((r) => (role === "trainer"
+    ? { name: names[r.id], workouts30d: r.workouts30d, workouts7d: r.workouts7d, weightChangeLb: r.weightChangeLb, prs30d: r.prs30d }
+    : { name: names[r.id], daysLogged30d: r.daysLogged30d, avgProteinG: r.avgProteinG, weightChangeLb: r.weightChangeLb }));
+}
 const DBZ_DEMO_OUTCOMES = {
   trainer: {
     get activeClients() { return dbzDemoRosterSize(); },   // was a literal 34 — see V5 above
     workouts30d: 412, workouts7d: 96, prs30d: 41, avgAdherencePct: 88,
-    roster: [
-      { name: "Alex Rivera", workouts30d: 18, workouts7d: 4, weightChangeLb: -6.2, prs30d: 3 },
-      { name: "Casey Morgan", workouts30d: 16, workouts7d: 4, weightChangeLb: -3.4, prs30d: 2 },
-      { name: "Sam Patel", workouts30d: 15, workouts7d: 3, weightChangeLb: -1.8, prs30d: 1 },
-      { name: "Riley Kim", workouts30d: 14, workouts7d: 4, weightChangeLb: -2.6, prs30d: 2 },
-      { name: "Drew Park", workouts30d: 12, workouts7d: 2, weightChangeLb: 1.2, prs30d: 0 },
-      { name: "Quinn Choi", workouts30d: 11, workouts7d: 3, weightChangeLb: -0.8, prs30d: 1 },
-    ],
+    get roster() { return dbzDemoOutcomeRoster("trainer"); },
   },
   nutritionist: {
     get activeClients() { return dbzDemoRosterSize(); },   // was a literal 28
     proteinAdherencePct: 78, avgLogsPerClient: 22, totalDaysLogged: 612,
-    roster: [
-      { name: "Casey Morgan", daysLogged30d: 28, avgProteinG: 168, weightChangeLb: -5.2 },
-      { name: "Riley Kim", daysLogged30d: 26, avgProteinG: 152, weightChangeLb: -3.4 },
-      { name: "Alex Rivera", daysLogged30d: 25, avgProteinG: 175, weightChangeLb: -2.8 },
-      { name: "Sam Patel", daysLogged30d: 22, avgProteinG: 138, weightChangeLb: 1.4 },
-      { name: "Drew Park", daysLogged30d: 19, avgProteinG: 142, weightChangeLb: -1.2 },
-      { name: "Quinn Choi", daysLogged30d: 17, avgProteinG: 128, weightChangeLb: -0.6 },
-    ],
+    get roster() { return dbzDemoOutcomeRoster("nutritionist"); },
   },
 };
 
