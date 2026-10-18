@@ -400,7 +400,7 @@ test('a coach who reconnected: Shape\'s recent checkouts on the former account a
   const rec = (id, acct, created, extra = {}) => record({ stripe_checkout_session_id: id, stripe_account_id: acct, mode: 'subscription', kind: 'subscription', created_at: created, ...extra });
   const load = (rows, st = stripe) => loadRealModule(join(ROOT, 'src/lib/checkout-barrier.ts'), { typescript: true, registry: new Map([['@/lib/stripe', { stripe: st }], ['@/lib/supabase/admin', { createAdminClient: () => fakeDb({ tables: { coach_checkouts: rows } }).client }]]) });
   const b = await load([
-    rec('cs_formerOpen', FORMER, ago(2)), rec('cs_formerPaid', FORMER, ago(30)), rec('cs_formerOld', FORMER, ago(24 * 4)),
+    rec('cs_formerOpen', FORMER, ago(2)), rec('cs_formerPaid', FORMER, ago(30)), rec('cs_formerOld', FORMER, ago(24 * 5)),
     rec('cs_formerOtherCoach', FORMER, ago(1), { provider_id: 5 }),
   ]);
   const r = await b.retireCoachCheckouts(UID, ACCT, { provider_role: 'trainer', provider_id: 4 }, NOW);
@@ -413,8 +413,12 @@ test('a coach who reconnected: Shape\'s recent checkouts on the former account a
   // The coach revoked Shape's access to the former account: unverified, not a failure.
   const revoked = await (await load([rec('cs_revokedRecent', REVOKED, ago(5))])).retireCoachCheckouts(UID, ACCT, { provider_role: 'trainer', provider_id: 4 }, NOW);
   assert.equal(revoked.unverified, true);
+  // The window is the checkout's 24-hour life plus Stripe's 3 days of retries (Codex on #2403): one
+  // paid at the end of its life is still held on day 4 ...
+  const lastDay = await (await load([rec('cs_revokedRecent', REVOKED, ago(24 * 4 - 1))])).retireCoachCheckouts(UID, ACCT, { provider_role: 'trainer', provider_id: 4 }, NOW);
+  assert.equal(lastDay.unverified, true);
   // ... and only for the window: an older one there is never read, so it never blocks for good.
-  const later = await (await load([rec('cs_revokedRecent', REVOKED, ago(24 * 3 + 1))])).retireCoachCheckouts(UID, ACCT, { provider_role: 'trainer', provider_id: 4 }, NOW);
+  const later = await (await load([rec('cs_revokedRecent', REVOKED, ago(24 * 4 + 1))])).retireCoachCheckouts(UID, ACCT, { provider_role: 'trainer', provider_id: 4 }, NOW);
   assert.equal(later.unverified, false);
   // On the coach's CURRENT account a permission error is a failure, and the caller refuses.
   await assert.rejects((await load([rec('cs_now', REVOKED, ago(1))])).retireCoachCheckouts(UID, REVOKED, { provider_role: 'trainer', provider_id: 4 }, NOW));

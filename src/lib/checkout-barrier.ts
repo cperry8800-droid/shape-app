@@ -144,13 +144,17 @@ type SessionRef = { id: string; status?: string | null; subscription?: string | 
  * ⚠ A COACH WHO RECONNECTED LEAVES CHECKOUTS ON THEIR FORMER ACCOUNT (Codex on #2403). A member who
  * paid there just before the coach disconnected may not have a row yet, and the coach's row now
  * names a new account. So Shape's recorded checkouts on any other account from the last
- * FORMER_ACCOUNT_WINDOW_MS (Stripe's webhook retry window) are read too, each on its own account:
+ * FORMER_ACCOUNT_WINDOW_MS are read too, each on its own account. The window runs from the record,
+ * so it is a checkout's lifetime (Stripe's default 24 hours; Shape sets none) plus the 3 days Stripe
+ * retries the webhook after the payment, which can come at the end of that lifetime (Codex):
  * an open one is expired and a completed one's subscription is returned in `former`. One Shape can
  * no longer read there (the coach took Shape's access with them) can't be ruled out, so it is
  * returned as `unverified` and the caller refuses for now; that ends with the window, so it never
  * blocks the member from this coach for good.
  */
-export const FORMER_ACCOUNT_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
+const CHECKOUT_LIFETIME_MS = 24 * 60 * 60 * 1000;
+const WEBHOOK_RETRY_MS = 3 * 24 * 60 * 60 * 1000;
+export const FORMER_ACCOUNT_WINDOW_MS = CHECKOUT_LIFETIME_MS + WEBHOOK_RETRY_MS;
 
 export type RetiredCoachCheckouts = {
   /** Subscriptions behind Shape's completed checkouts on the coach's current account. */
