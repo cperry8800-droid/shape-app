@@ -138,16 +138,15 @@ planned builds.
 - Decide what happens when a buyer pays an open checkout from another tab
   (closing it means refunds).
 - In-app purchase outside the US (Phase 2) is on hold.
-- Finish setting up the authenticator at `/admin`. Scan the code from inside the
-  authenticator app (the iPhone Camera sends it to Passwords, which also works), and
-  scan again after a reload (#2388).
 - Decide how a suspended coach appeals.
-- Have counsel read the 2026-10-13 privacy policy text, and `terms.html`'s line that
-  card-processing fees are deducted separately from a coach's net (Shape pays them;
-  #2394).
-- Decide the fee and payout copy in `coaches.jsx` and `pricing.jsx`: they still say
-  card processing is separate and "15% on everything", and `coaches.jsx` promises
-  weekly payouts (#2394).
+- Have counsel read the 2026-10-13 privacy policy text.
+- Direct charges, part A (#2401): run `2026-10-18-coach-direct-charges-groundwork.sql`;
+  in Stripe (test, then live) add an event destination for Connected accounts at
+  `/api/stripe/webhook` with the eleven events in the PR; set
+  `STRIPE_CONNECT_WEBHOOK_SECRET` and `STRIPE_CONNECT_APPLICATION_ID` in Vercel per
+  environment. Until both are set, every Connect payment is refused.
+- Decide the perks the website's "What Master unlocks" card and `leaderboards.jsx`
+  promise (payout tier, ranking, a verified badge): nothing grants them.
 - Decide whether the coach leaderboard should keep showing every coach each other's
   active-client count and sessions-kept rate.
 - Check `NORA_TTS_VOICE` and `NORA_TTS_INSTRUCTIONS` in Vercel. Nora reads only in a
@@ -162,6 +161,12 @@ planned builds.
 - Get a native speaker to read the PAR-Q translations.
 
 **Planned next**
+- Coach payments as direct charges on the coaches' own Stripe accounts (owner,
+  2026-10-18: Stripe's fee comes out of the coach's share). Part A, the groundwork, is
+  #2401. Part B: checkout on the coach's account, Shape and coach discount codes, the fee
+  and amounts from the Stripe objects rather than metadata, reconnecting a
+  disconnected coach, and one end-to-end test purchase. Part C: copy and a processing
+  estimate.
 - Night-before prep, Phase 2: a nutritionist's "prep the night before" tick, a
   reminder time the member chooses, planning tomorrow, and a morning swap.
 - Nora as the account-setup assistant: she answers and fills forms today, but setting
@@ -195,24 +200,23 @@ planned builds.
   browser that signed up (two days), so confirming on another device lands on the
   dashboard.
 - `checkin_submitted` is a switch nothing writes.
-- The app's coach Score page reads the member ledger, and `/api/coach/score` returns
-  401 to the app's Bearer token.
-- Both analytics routes' name lookups fall back to "Client" and "Former client"
-  without saying so. The nutritionist route's `newClients7d` prints a failed count as
-  0 (nothing reads it), and its name read stops at 1,000 clients.
-- Business (#2394, #2395): the plan's goal isn't remembered; renewals past 25 a load
-  aren't checked with Stripe; the 90-day churn total is a floor once all 12 listed
-  cancellations fall inside it; "who found whom" counts rows, not clients. The Clients
-  badge can read one higher than the Clients list (a client whose payment is
-  retrying), and the dashboard routes still read 1,000 subscriptions at most and send
-  0 for a failed read.
+- Until direct charges ship (part B), Stripe bills coach-payment processing to Shape,
+  though the pages already say it is the coach's.
+- Business: the plan's goal isn't remembered; renewals past 25 a load aren't checked
+  with Stripe; the 90-day churn total is a floor once all 12 listed cancellations fall
+  inside it. The dashboard routes' session reads and their coach-row read drop their
+  errors. Renewals and the origin feed show "—" for both an unread name and none on
+  file.
+- `/api/client/score` reads only the cookie, so the installed app's member Score page
+  likely gets 401.
+- A client whose payment is retrying keeps access until Stripe cancels the plan; a
+  Stripe setting that leaves it past_due keeps it open.
 - In the hosted `/m/` app signed out in its own client, a Nora load that starts as one
   cookie account and ends after another tab switched accounts still shows the first
   account's conversation (every write is refused). Not to be fixed (owner: "the m app
   website will not be in effect once the app is live on app store").
-- Eleven mutations in older specs (ai-draft, builder-fixes, builder-step2,
-  cook-owner-fixes, focus-layout, prep-reminders, talk-to-person) anchor on removed
-  code, so `--fail-on-skipped` fails on those specs.
+- 52 mutations in 17 older specs anchor on removed code, so `--fail-on-skipped` fails
+  on those specs.
 - Apple Music playlists in the installed app still run MusicKit in the WebView.
 - Staff two-factor has no recovery codes, and reloading `/staff-verify` during set-up
   makes a new key (#2388). The Radio page can ask for the code again.

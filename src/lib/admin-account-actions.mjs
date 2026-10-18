@@ -66,35 +66,51 @@ export function confirmsRemoval(typed, { id, email } = {}) {
 /** Statuses on which Stripe can still charge. canceled and incomplete_expired cannot. */
 export const BILLING_STATUSES = ['active', 'trialing', 'past_due', 'unpaid', 'incomplete', 'paused'];
 
-/** The Stripe subscription ids a removal cancels: each once, only those that can still charge. */
+/**
+ * The Stripe subscriptions a removal cancels: each once, only those that can still charge, each
+ * with the account it lives on, as [{ id, account }]. A row's `stripe_account_id` says where: an
+ * acct_ id is a coach's own account (a direct charge), null is Shape's platform account. ⚠ A row
+ * WITHOUT the key (undefined: its account could not be read) is "account unknown", which
+ * cancelSubscriptions treats strictly. Of two rows for one subscription, a known account wins.
+ */
 export function subscriptionsToCancel(rows) {
-  const ids = new Set();
+  const out = new Map();
   for (const r of Array.isArray(rows) ? rows : []) {
     const id = String(r?.stripe_subscription_id || '').trim();
-    if (id && BILLING_STATUSES.includes(r?.status)) ids.add(id);
+    if (!id || !BILLING_STATUSES.includes(r?.status)) continue;
+    const account = r?.stripe_account_id === undefined ? undefined : String(r.stripe_account_id || '').trim() || null;
+    if (!out.has(id) || out.get(id).account === undefined) out.set(id, { id, account });
   }
-  return [...ids];
+  return [...out.values()];
 }
 
 const ENDED = new Set(['canceled', 'incomplete_expired']);
 
 /**
- * Cancels each subscription now. One Stripe has never heard of, or that has already ended,
- * counts as done: nothing will charge on it. Anything else that fails is returned in `failed`,
- * and the caller erases nothing.
+ * Cancels each subscription now, on the account it lives on. One that has already ended counts as
+ * done: nothing will charge on it. One Stripe has never heard of counts as done ONLY when its
+ * account was known (an acct_ id, or null for the platform), so it was looked for where it lives.
+ * ⚠ Asked on the wrong account, every direct charge reads "no such subscription", and the removal
+ * would erase a member a coach's account still charges every month. With the account unknown
+ * (undefined, or a bare id) a missing subscription is a failure. Anything that fails is returned in
+ * `failed`, and the caller erases nothing.
  */
-export async function cancelSubscriptions(stripe, ids) {
+export async function cancelSubscriptions(stripe, items) {
   const cancelled = [];
   const failed = [];
-  for (const id of Array.isArray(ids) ? ids : []) {
+  for (const item of Array.isArray(items) ? items : []) {
+    const id = typeof item === 'string' ? item : item?.id;
+    if (!id) continue;
+    const account = typeof item === 'string' ? undefined : item.account;
+    const opts = account ? { stripeAccount: account } : undefined;
     try {
-      await stripe.subscriptions.cancel(id);
+      await stripe.subscriptions.cancel(id, undefined, opts);
       cancelled.push(id);
     } catch (e) {
-      if (e?.code === 'resource_missing') continue;
+      if (e?.code === 'resource_missing' && account !== undefined) continue;
       let ended = false;
       try {
-        const sub = await stripe.subscriptions.retrieve(id);
+        const sub = await stripe.subscriptions.retrieve(id, undefined, opts);
         ended = ENDED.has(sub?.status);
       } catch {
         ended = false;

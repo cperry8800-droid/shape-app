@@ -16,6 +16,7 @@ import { redirect } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { requireAdminUser } from '@/lib/admin-access';
 import { stripe } from '@/lib/stripe';
+import { acctOpts } from '@/lib/stripe-connect';
 import { cancelRefundedSession } from '@/lib/refund-session';
 
 function clean(value: FormDataEntryValue | null, max = 2000): string {
@@ -30,9 +31,16 @@ type ClaimedRequest = {
   created_at: string;
 };
 
+// `account`: the coach's connected account a direct charge lives on, or null for a destination
+// charge on Shape's own account (every row before 2026-10-18). Every Stripe call below is made
+// there.
 type RefundTarget =
-  | { kind: 'one_time'; chargeId: string }
-  | { kind: 'subscription'; chargeId: string; subscriptionId: string };
+  | { kind: 'one_time'; chargeId: string; account: string | null }
+  | { kind: 'subscription'; chargeId: string; subscriptionId: string; account: string | null };
+
+// The row's account. '*' is migration-safe: before the 2026-10-18 migration the column is absent
+// and the row is a platform one.
+const accountOf = (row: { stripe_account_id?: string | null } | null): string | null => row?.stripe_account_id || null;
 
 function chargeIdOf(value: unknown): string | null {
   if (!value) return null;
@@ -60,31 +68,33 @@ async function resolveTarget(
       // another member's purchase, and the admin's approval would refund that charge.
       const { data } = await admin
         .from('one_time_purchases')
-        .select('stripe_payment_intent_id')
+        .select('*')
         .eq('id', req.one_time_purchase_id)
         .eq('client_id', req.client_id)
-        .maybeSingle<{ stripe_payment_intent_id: string | null }>();
+        .maybeSingle<{ stripe_payment_intent_id: string | null; stripe_account_id?: string | null }>();
       if (!data?.stripe_payment_intent_id) return { error: 'purchase_missing_payment_intent' };
+      const account = accountOf(data);
       const pi = await stripe.paymentIntents.retrieve(data.stripe_payment_intent_id, {
         expand: ['latest_charge'],
-      });
+      }, acctOpts(account));
       const chargeId = chargeIdOf((pi as unknown as { latest_charge?: unknown }).latest_charge);
       if (!chargeId) return { error: 'no_charge_on_purchase' };
-      return { kind: 'one_time', chargeId };
+      return { kind: 'one_time', chargeId, account };
     }
     if (req.subscription_id) {
       const { data } = await admin
         .from('subscriptions')
-        .select('stripe_subscription_id')
+        .select('*')
         .eq('id', req.subscription_id)
         .eq('client_id', req.client_id)
-        .maybeSingle<{ stripe_subscription_id: string | null }>();
+        .maybeSingle<{ stripe_subscription_id: string | null; stripe_account_id?: string | null }>();
       if (!data?.stripe_subscription_id) return { error: 'subscription_missing_stripe_id' };
+      const account = accountOf(data);
       const requestedAt = Math.floor(new Date(req.created_at).getTime() / 1000);
       const invoices = await stripe.invoices.list({
         subscription: data.stripe_subscription_id,
         limit: 100,
-      });
+      }, acctOpts(account));
       const chosen = invoices.data
         .filter((inv) => (inv.created ?? 0) <= requestedAt)
         .sort((a, b) => (b.created ?? 0) - (a.created ?? 0))[0];
@@ -93,7 +103,7 @@ async function resolveTarget(
       if (!chosen) return { error: 'no_invoice_at_request_time' };
       const chargeId = extractInvoiceChargeId(chosen);
       if (!chargeId) return { error: 'no_charge_on_invoice' };
-      return { kind: 'subscription', chargeId, subscriptionId: data.stripe_subscription_id };
+      return { kind: 'subscription', chargeId, subscriptionId: data.stripe_subscription_id, account };
     }
     return { error: 'invalid_target' };
   } catch {
@@ -140,22 +150,27 @@ export async function approveRefund(formData: FormData): Promise<void> {
     // Unwind the Connect transfer + application fee only when the charge has them
     // (a coach sale). A platform-only charge refunds plainly. Deterministic
     // idempotency key: a retried submit returns the same refund, never a second.
-    const charge = await stripe.charges.retrieve(target.chargeId);
+    // A DIRECT CHARGE (on the coach's own account) has no Shape transfer to reverse: the refund
+    // is made on that account and gives back Shape's application fee whenever there is one.
+    const opts = acctOpts(target.account);
+    const charge = await stripe.charges.retrieve(target.chargeId, undefined, opts);
     const hasTransfer = Boolean((charge as unknown as { transfer?: unknown }).transfer);
     const hasFee = Boolean((charge as unknown as { application_fee?: unknown }).application_fee);
+    const unwind = target.account
+      ? { ...(hasFee ? { refund_application_fee: true } : {}) }
+      : {
+          ...(hasTransfer ? { reverse_transfer: true } : {}),
+          ...(hasTransfer && hasFee ? { refund_application_fee: true } : {}),
+        };
     await stripe.refunds.create(
-      {
-        charge: target.chargeId,
-        ...(hasTransfer ? { reverse_transfer: true } : {}),
-        ...(hasTransfer && hasFee ? { refund_application_fee: true } : {}),
-      },
-      { idempotencyKey: `refund-req-${requestId}` }
+      { charge: target.chargeId, ...unwind },
+      { idempotencyKey: `refund-req-${requestId}`, ...opts }
     );
     // Refunding a coach subscription also cancels it so the client isn't billed
     // again (customer.subscription.deleted then flips the row to canceled).
     if (target.kind === 'subscription') {
       try {
-        await stripe.subscriptions.cancel(target.subscriptionId);
+        await stripe.subscriptions.cancel(target.subscriptionId, undefined, opts);
       } catch {
         /* already canceled — fine */
       }

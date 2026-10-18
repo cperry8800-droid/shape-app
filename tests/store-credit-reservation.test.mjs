@@ -242,6 +242,8 @@ async function runWebhook(event, { rpc }) {
       registry: new Map([
         ['next/server', nextServer],
         ['@/lib/stripe', { stripe: { webhooks: { constructEvent: (raw) => JSON.parse(raw) }, paymentIntents: { retrieve: async () => ({ application_fee_amount: 0 }) } } }],
+        // The Connect helpers the webhook imports (coach direct charges, 2026-10-18), as they ship.
+        ['@/lib/stripe-connect', await loadRealModule(join(ROOT, 'src/lib/stripe-connect.ts'), { typescript: true })],
         ['@/lib/supabase/admin', { createAdminClient: () => admin }],
         ['@/lib/notify', { createNotification: async () => true }],
         ['@/lib/platform-fee', platformFee],
