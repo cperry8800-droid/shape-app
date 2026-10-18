@@ -146,7 +146,7 @@ const SHAPE_ARCHITECTURE: ShapeArchitecture = {
     ] },
     { layer: 'The Loop (member value)', serves: 'Member', purpose: 'The daily reason to open the app.', pieces: ['Train', 'Eat', 'Habits', 'Goals', 'Shape Score', 'Progress hub', 'Library', 'Store'], gaps: [
       { task: 'Train deck now reflects coach Adjust (bsApplyTrainAdjust over client_programs.detail.training): intensity scales loads + shown RPE, the weekly split re-themes days + sets coach rest days, the note rides onto the day — the live session/preview inherit the scaled moves. Banner still summarizes. Remaining: full per-day exercise authoring (coach can\'t yet write new moves, only tune)', status: 'in-progress', priority: 'P3' },
-      { task: 'One-tap daily check-in on Home (docs/REVIEW-2026-10-18-daily-checkin.md; rulings made 2026-10-18): a save per tap, five-word scales stored as 2/4/6/8/10, Same as yesterday, Rested on the sleep step, a streak and no points, the card from 4 a.m., no −7 for a missed weekly check-in while the switch is off. Four designs previewed (A: one card on Home, B: yesterday\'s ticket, C: from the reminder, D: answer without opening); A then C recommended', status: 'not-started', priority: 'P2' },
+      { task: 'One-tap daily check-in (docs/REVIEW-2026-10-18-daily-checkin.md). Phase 1 BUILT in the app (#2398): one card on Home and a step-by-step walkthrough with the last 7 days under each check, a save per tap, five-word scales stored as 2/4/6/8/10, Same as yesterday, the sleep stepper with Rested and Skip, water, a streak and no points, from 4 a.m.; and no −7 while Check-ins is off. Still to build: the website\'s DashTodayCard, sleep, water and an energy hint from a watch when the app opens, the reminder opening the card (design C), and answers from the notification (design D)', status: 'in-progress', priority: 'P2' },
       { task: 'On-device macro-read from a meal photo', status: 'not-started', priority: 'P3' },
       { task: 'Some Progress sub-data still illustrative', status: 'not-started', priority: 'P3' },
     ] },
@@ -613,6 +613,21 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
   const auto = (ok: boolean): 'done' | 'pending' => (ok ? 'done' : 'pending');
 
   return [
+    {
+      section: 'The daily check-in: a card on Home and a step-by-step walkthrough, and no −7 while Check-ins is off — #2398. No migration',
+      items: [
+        { label: 'The daily check-in is one card on Home and a step-by-step walkthrough (owner, 2026-10-18: "make it easier to update each day and less effort for user each day", then "have it be a step by step, almost like a tutorial"). One screen per check — energy, hunger, sleep (Rested optional, or Skip), water — each saying why it is asked, with the member\'s last 7 days under it; a tap on a past day reuses it. Every tap saves through the partial-patch route, one save at a time, bound to its account and day. Five words per scale stored as 2/4/6/8/10, so energy_low, hunger_high and every coach reader are unchanged. Same as yesterday logs the day in one tap; done is one line with a streak (no points), Edit and Details. It asks from 4 a.m., one card per local day, and shows whatever the lead is', status: 'done' },
+        { label: 'Which nights a watch wrote now comes from the snapshot\'s sources (/api/client/progress series.sleepFromDevice), not a heart rate on the day, so a member who charges the watch at night can correct and copy their typed hours; and the day\'s first check-in write survives a glass of water making the row first', status: 'done' },
+        { label: 'No −7 for a missed weekly check-in while the member has Check-ins off (owner ruling 2026-10-18): the score cron reads client_settings the way the notification routes do (absent is on), judges last week by the switch as it stood when the earliest local week ended (dailyCheckinSince), and a failed read skips the chunk', status: 'done' },
+        { label: 'A failed save puts the answer back and says so in the card (toasts are a no-op app-wide). A watch that reports a resting heart rate but no night no longer stops the sleep question (found by the mutation round)', status: 'done' },
+        { label: 'Review: Codex rounds 1–14 (round 14 clean on 1c7f866) and an own three-reviewer round before round 10; every finding fixed or answered in the PR. Mutation rounds: card, walkthrough and two routes 103/103 killed (+1 proven no-op), score cron 11/11', status: 'done' },
+        { label: 'The website\'s DashTodayCard still shows the 1-10 gauges (Phase 1 parity), and the full check-in page (Details) keeps its gauges and Log button', status: 'pending' },
+        { label: 'Phase 2: sleep, water and an energy hint from a watch when the app opens, and the check-in reminder opening the card. Phase 3: answering from the notification', status: 'pending' },
+        { label: 'Check-in and water saves have no timeout (a held request keeps Details waiting), and hydration_l is numeric(4,2), so an 8 oz glass is stored as 0.24 L (about 1.4% high)', status: 'pending' },
+        { label: 'A typed night\'s hours and its manual stamp are two writes, so a watch sync landing between them can label the night wrong (one SQL function closes it); a member\'s device clock set behind can date a Check-ins change before the week ended, so that week is charged (a DB trigger closes it)', status: 'pending' },
+        { label: 'No signed-in pass on a phone: the card\'s save per tap, Same as yesterday and the streak against a real account', status: 'manual' },
+      ],
+    },
     {
       section: 'Coach payments on the coaches\' own Stripe accounts (direct charges), part A: the groundwork — #2401. One migration, for the owner to run',
       items: [

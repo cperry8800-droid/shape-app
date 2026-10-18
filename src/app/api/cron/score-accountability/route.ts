@@ -17,6 +17,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createNotification } from '@/lib/notify';
 import { ACTIVE_SUB } from '@/lib/membership-core';
+import { dailyCheckinOn } from '@/lib/ai/notifications.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -126,11 +127,13 @@ async function run(request: Request) {
     type SessRow = { id: string; client_id: string };
     type WoRow = { id: string; client_id: string; scheduled_date: string };
     type HabitRow = { id: string; user_id: string };
+    type SettingsRow = { user_id: string; updated_at?: string | null; data: { dailyCheckin?: unknown; dailyCheckinSince?: unknown } | null };
     let sessBy: Map<string, SessRow[]>;
     let wosBy: Map<string, WoRow[]>;
     let habitsBy: Map<string, HabitRow[]>;
+    let checkinOff: Set<string>;
     try {
-      const [sessRes, wosRes, habitsRes] = await Promise.all([
+      const [sessRes, wosRes, habitsRes, settingsRes] = await Promise.all([
         // (1) Kept sessions → +12. There is NO session PENALTY: a session's only
         // "kept" signal is the coach marking it 'completed', so a lingering
         // 'confirmed' is coach bookkeeping, not a client miss — penalizing it
@@ -160,24 +163,61 @@ async function run(request: Request) {
           .eq('cadence', 'daily')
           .is('archived_at', null)
           .limit(ROWS_MAX),
+        // (3) Who turned Check-ins off. ⚠ NO −7 FOR A WEEKLY CHECK-IN THE MEMBER
+        // TURNED OFF (owner ruling, 2026-10-18): the switch hides every prompt that
+        // would have reminded them, so charging for the miss is a penalty for using a
+        // setting. Read the way the notification routes read it — dailyCheckinOn, so
+        // a missing settings doc or key is ON — and a failed read skips the chunk
+        // like the three above, rather than charging a member who may be off.
+        admin
+          .from('user_goals')
+          .select('user_id, data, updated_at')
+          .in('user_id', ids)
+          .eq('kind', 'client_settings')
+          .limit(ROWS_MAX),
       ]);
       // Supabase queries RESOLVE with `.error` set rather than throwing — an
       // unchecked failure would group `data || []` and silently part-score the
       // chunk (rewards/penalties missing while check-ins still apply). A read
       // error OR a full page (possible silent truncation at the row cap) skips
       // the whole chunk instead; the idempotent RPCs retry it next run.
-      if (sessRes.error || wosRes.error || habitsRes.error) {
+      if (sessRes.error || wosRes.error || habitsRes.error || settingsRes.error) {
         console.error('[score-accountability] chunk read failed — skipping chunk:',
-          sessRes.error || wosRes.error || habitsRes.error);
+          sessRes.error || wosRes.error || habitsRes.error || settingsRes.error);
         continue;
       }
-      if ([sessRes, wosRes, habitsRes].some((r) => (r.data || []).length >= ROWS_MAX)) {
+      if ([sessRes, wosRes, habitsRes, settingsRes].some((r) => (r.data || []).length >= ROWS_MAX)) {
         console.error(`[score-accountability] chunk hit the ${ROWS_MAX}-row page bound (possible truncation) — skipping chunk`);
         continue;
       }
       sessBy = groupBy((sessRes.data || []) as SessRow[], (r) => r.client_id);
       wosBy = groupBy((wosRes.data || []) as WoRow[], (r) => r.client_id);
       habitsBy = groupBy((habitsRes.data || []) as HabitRow[], (r) => r.user_id);
+      // ⚠ LAST WEEK IS JUDGED BY THE SWITCH AS IT STOOD WHEN THE WEEK ENDED (Codex P2 on #2398).
+      // This job retries last week's penalty every day, so the switch as it is now would charge
+      // a week the member had off as soon as they turned it back on. The Settings writer stamps
+      // `dailyCheckinSince` on every change, and a change since the week ended means the week is
+      // not charged, so turning it back on charges from the next completed week. A missing stamp
+      // (a change from before this) reads the value as long-standing. The one leniency: a member
+      // who turns it off between the week's end and this job's first run skips that one week.
+      // ⚠ THE WEEK ENDS AT THE MEMBER'S LOCAL MONDAY, which can be up to 14 hours before Monday
+      // 00:00 UTC (week_of is the local Monday). A member at UTC+9 who turns it on at 08:00 on
+      // their Monday did so after their week ended, though before Monday in UTC. So the earliest
+      // a week can end is the line, leaning, like the rest of this, toward not charging.
+      const weekEnd = thisMon.getTime() - 14 * 3600_000;
+      checkinOff = new Set(((settingsRes.data || []) as SettingsRow[])
+        .filter((r) => {
+          const d = r.data && typeof r.data === 'object' ? r.data : {};
+          const stamped = typeof d.dailyCheckinSince === 'string' ? Date.parse(d.dailyCheckinSince) : NaN;
+          // The stamp is the member's device clock; the row's updated_at is the database's (a
+          // trigger sets it on every write), and the switch cannot have changed after the write
+          // that carried it. So a clock set ahead never exempts the weeks after it was switched
+          // back on (Codex P2 on #2398). A clock set behind still dates the change early.
+          const wrote = typeof r.updated_at === 'string' ? Date.parse(r.updated_at) : NaN;
+          const since = Number.isFinite(stamped) && Number.isFinite(wrote) ? Math.min(stamped, wrote) : stamped;
+          return !dailyCheckinOn(d.dailyCheckin) || (Number.isFinite(since) && since >= weekEnd);
+        })
+        .map((r) => r.user_id));
     } catch (e) {
       // Fail-open per chunk — a bad batch read can't abort the whole run.
       console.error('[score-accountability] chunk read threw — skipping chunk:', e);
@@ -216,8 +256,9 @@ async function run(request: Request) {
           await penalize('workout', w.id, w.scheduled_date, 'a skipped workout');
         }
 
-        // (3) Missed weekly check-in for the just-completed ISO week.
-        await penalize('checkin', null, lastMonday, "last week's check-in");
+        // (3) Missed weekly check-in for the just-completed ISO week — unless the
+        // member has Check-ins switched off (see the settings read above).
+        if (!checkinOff.has(uid)) await penalize('checkin', null, lastMonday, "last week's check-in");
 
         // (4) Broken streaks on active daily DO-habits (penalty day = yesterday).
         for (const h of habitsBy.get(uid) || []) {

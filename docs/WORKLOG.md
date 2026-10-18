@@ -174,10 +174,14 @@ planned builds.
 - Nora as a Shape Radio DJ, Phase 2 onward
   ([`REVIEW-2026-09-29-nora-dj.md`](REVIEW-2026-09-29-nora-dj.md)). This waits on a
   signed station provider.
-- A one-tap daily check-in on Home
-  ([`REVIEW-2026-10-18-daily-checkin.md`](REVIEW-2026-10-18-daily-checkin.md)): a save
-  per tap, five-word scales, "Same as yesterday", and sleep from a wearable. Rulings are
-  made (§5), including no −7 for a missed weekly check-in while the switch is off.
+- The daily check-in
+  ([`REVIEW-2026-10-18-daily-checkin.md`](REVIEW-2026-10-18-daily-checkin.md) §4). Built:
+  the app's Home card and its step-by-step walkthrough (Phase 1), and the rule of no −7 while
+  Check-ins is off. Still to build:
+  - the website's `DashTodayCard`;
+  - Phase 2: watches filling sleep, water and an energy hint when the app opens, and the
+    reminder opening the card;
+  - answers from the notification.
 
 **Known gaps**
 - `get_display_names` returns a full name and photo for any id, whoever asks.
@@ -226,6 +230,16 @@ planned builds.
   uploads.
 - Native mic and camera plugins (including iOS barcode scanning) and on-device macro
   reads from a meal photo aren't built yet.
+- The daily check-in (#2398): its saves have no timeout, so a request the network holds
+  keeps Details waiting (the next card reads after 3 seconds anyway). `hydration_l` is
+  `numeric(4,2)`, so an 8 oz glass is stored as 0.24 L and totals drift up about 1.4%.
+  The full check-in page still reads a watch's night by a heart rate on the day. A
+  typed night's hours and its `manual` stamp are two writes, so a watch sync landing
+  between them can label the night wrong (closing it needs one SQL function). The score
+  job caps the device's Check-ins stamp at the row's database write time, but a clock set
+  behind can still date a change before the week ended (closing it needs a DB trigger).
+- Android back leaves the native app from any sheet (no `@capacitor/app`); in the hosted
+  `/m/`, sheets add no history entry.
 
 ## History
 
