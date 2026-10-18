@@ -7,9 +7,6 @@
 // + certifications, then submit for admin review. On approval a ✓ Verified badge
 // shows on the marketplace + profile. Backed by /api/coach/credentials(+/document).
 function CoachCredentialsCard() {
-  const mono = "'JetBrains Mono', monospace";
-  const sans = "'Space Grotesk', sans-serif";
-  const teal = "#2ee0c4";
   const [st, setSt] = React.useState({ loading: true });
   const [busy, setBusy] = React.useState("");
   const [msg, setMsg] = React.useState("");
@@ -57,61 +54,52 @@ function CoachCredentialsCard() {
   const verified = !!d.verified;
   const status = verified ? "verified" : (review.status || "none");
   const badge = {
-    verified: ["✓ Verified", teal],
-    pending: ["In review", "#d8b25a"],
-    changes_requested: ["Changes requested", "#e0a23a"],
-    rejected: ["Not verified", "#e07856"],
-    approved: ["✓ Verified", teal],
-    none: ["Not submitted", "rgba(242,237,228,0.5)"],
-  }[status] || ["—", "rgba(242,237,228,0.5)"];
-
-  const card = { background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 16, padding: "20px 22px" };
-  const kick = { fontFamily: mono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" };
-  const lbl = { fontFamily: mono, fontSize: 10, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)" };
-  const fileBtn = { display: "inline-block", cursor: "pointer", fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.8)", border: "1px solid rgba(242,237,228,0.25)", borderRadius: 9, padding: "9px 13px" };
-  const input = { background: "rgba(0,0,0,0.2)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 9, padding: "9px 11px", color: "#f2ede4", fontFamily: sans, fontSize: 12.5, outline: "none", minWidth: 0 };
+    verified: ["✓ Verified", "teal"],
+    pending: ["In review", "amber"],
+    changes_requested: ["Changes requested", "amber"],
+    rejected: ["Not verified", "rust"],
+    approved: ["✓ Verified", "teal"],
+    none: ["Not submitted", "muted"],
+  }[status] || ["—", "muted"];
+  const blocked = !review.hasCoi || status === "pending";
 
   return (
-    <div style={{ ...card, marginBottom: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
-        <div style={kick}>Credentials & verification</div>
-        <span style={{ fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: badge[1], border: `1px solid ${badge[1]}55`, borderRadius: 999, padding: "4px 10px" }}>{badge[0]}</span>
-      </div>
+    <div className="px-card" style={pxCard} data-px-card="credentials">
+      <PxHead title="Credentials & verification" pill={st.data ? badge[0] : null} tone={badge[1]}
+        desc={<>Upload proof of certification and your professional liability insurance (COI). Once verified, a <span style={{ color: PX.teal }}>✓ Verified</span> badge shows on your marketplace profile.</>} />
 
       {st.loading ? (
-        <div style={{ fontFamily: mono, fontSize: 11, color: "rgba(242,237,228,0.4)" }}>Loading…</div>
+        <div style={pxQuiet}>Loading…</div>
       ) : !st.data ? (
-        <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)" }}>Sign in as a coach to manage your credentials.</div>
+        <p style={pxBody}>Sign in as a coach to manage your credentials.</p>
       ) : (
         <>
-          <p style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.6)", margin: "0 0 16px", lineHeight: 1.5 }}>
-            Upload proof of certification and your professional liability insurance (COI). Once verified, a
-            <span style={{ color: teal }}> ✓ Verified</span> badge shows on your marketplace profile.
-            {review.notes && status !== "verified" ? <span style={{ display: "block", marginTop: 8, color: "#e0a23a" }}>Reviewer note: {review.notes}</span> : null}
-          </p>
+          {review.notes && status !== "verified" ? (
+            <div style={pxNotice("amber")}><span aria-hidden="true" style={{ fontFamily: PX.mono, fontSize: 12, color: PX.amber }}>!</span><p style={{ ...pxBody, color: "rgba(242,237,228,0.85)" }}>Reviewer note: {review.notes}</p></div>
+          ) : null}
 
           {/* COI */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 0", borderTop: "1px solid rgba(242,237,228,0.08)", flexWrap: "wrap" }}>
+          <div style={{ ...pxRow, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
             <div>
-              <div style={lbl}>Insurance · COI</div>
-              <div style={{ fontFamily: sans, fontSize: 12, color: review.hasCoi ? teal : "rgba(242,237,228,0.45)", marginTop: 3 }}>{review.hasCoi ? "On file ✓" : "Not uploaded"}</div>
+              <div style={pxLabel}>Insurance · COI</div>
+              <div style={{ ...pxValue, color: review.hasCoi ? PX.teal : PX.faint }}>{review.hasCoi ? "On file ✓" : "Not uploaded"}</div>
             </div>
-            <label style={fileBtn}>
+            <label style={pxButton(false, busy === "coi")}>
               {busy === "coi" ? "Uploading…" : (review.hasCoi ? "Replace COI" : "Upload COI")}
               <input type="file" accept="application/pdf,image/*,.doc,.docx" style={{ display: "none" }} disabled={busy === "coi"} onChange={(e) => upload("coi", e.target.files && e.target.files[0])} />
             </label>
           </div>
 
           {/* Certifications */}
-          <div style={{ padding: "12px 0", borderTop: "1px solid rgba(242,237,228,0.08)" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-              <div style={lbl}>Certifications</div>
-              <div style={{ fontFamily: sans, fontSize: 12, color: review.certCount ? teal : "rgba(242,237,228,0.45)" }}>{review.certCount ? `${review.certCount} on file ✓` : "None yet"}</div>
+          <div style={pxRow}>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
+              <div style={pxLabel}>Certifications</div>
+              <div style={{ ...pxValue, marginTop: 0, color: review.certCount ? PX.teal : PX.faint }}>{review.certCount ? `${review.certCount} on file ✓` : "None yet"}</div>
             </div>
-            <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-              <input aria-label="Certification type" style={{ ...input, flex: "1 1 120px" }} placeholder="Cert (e.g. NASM-CPT)" value={cert.type} onChange={(e) => setCert((c) => ({ ...c, type: e.target.value }))} />
-              <input aria-label="Certification number" style={{ ...input, flex: "1 1 120px" }} placeholder="Cert # (optional)" value={cert.number} onChange={(e) => setCert((c) => ({ ...c, number: e.target.value }))} />
-              <label style={fileBtn}>
+            <div className="px-cert" style={{ display: "grid", gridTemplateColumns: "minmax(0,1.4fr) minmax(0,1fr) auto", gap: 8, marginTop: 10 }}>
+              <input aria-label="Certification type" style={pxInput} placeholder="Cert (e.g. NASM-CPT)" value={cert.type} onChange={(e) => setCert((c) => ({ ...c, type: e.target.value }))} />
+              <input aria-label="Certification number" style={pxInput} placeholder="Cert # (optional)" value={cert.number} onChange={(e) => setCert((c) => ({ ...c, number: e.target.value }))} />
+              <label style={pxButton(false, busy === "cert")}>
                 {busy === "cert" ? "Uploading…" : "Add file"}
                 <input type="file" accept="application/pdf,image/*,.doc,.docx" style={{ display: "none" }} disabled={busy === "cert"} onChange={(e) => upload("cert", e.target.files && e.target.files[0], cert)} />
               </label>
@@ -119,12 +107,12 @@ function CoachCredentialsCard() {
           </div>
 
           {/* Submit */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, paddingTop: 14, borderTop: "1px solid rgba(242,237,228,0.08)", flexWrap: "wrap" }}>
-            <div style={{ fontFamily: mono, fontSize: 10.5, color: "rgba(242,237,228,0.45)", minHeight: 14 }}>{msg}</div>
+          <div style={pxFoot}>
+            <div role="status" style={pxMsg}>{msg}</div>
             <button
               onClick={submit}
-              disabled={busy === "submit" || !review.hasCoi || status === "pending"}
-              style={{ background: (!review.hasCoi || status === "pending") ? "rgba(46,224,196,0.25)" : teal, color: "#0b0e0c", border: 0, borderRadius: 999, padding: "10px 18px", fontFamily: sans, fontSize: 12.5, fontWeight: 600, cursor: (!review.hasCoi || status === "pending") ? "default" : "pointer" }}
+              disabled={busy === "submit" || blocked}
+              style={pxButton(true, blocked)}
               title={!review.hasCoi ? "Upload your COI first" : status === "pending" ? "Already in review" : "Submit for verification"}
             >
               {status === "pending" ? "In review" : busy === "submit" ? "Submitting…" : "Submit for review"}
@@ -151,11 +139,70 @@ function listingStepsLine(missing) {
   return parts.slice(0, -1).join(", ") + " and " + parts[parts.length - 1];
 }
 
+// ── The coach setup cards' one look (owner, 2026-10-18: "improve design and look of this on
+// profile page on website"). Each card opens with a plain title, a status pill where there is a
+// state to report, and a line saying what it is for; rows sit on hairlines, fields are one height,
+// and buttons are pills. The four sit in two columns on a wide screen (DashProfileExtras). The
+// living profile is always dark, whatever the paper, so the palette is literal, as it was.
+const PX = {
+  ink: "#f2ede4", muted: "rgba(242,237,228,0.64)", faint: "rgba(242,237,228,0.42)", line: "rgba(242,237,228,0.08)",
+  teal: (typeof window !== "undefined" && window.TEAL_BRIGHT) || "#2ee0c4", amber: "#d8a23a", rust: "#e07856",
+  mono: "'JetBrains Mono', monospace", sans: "'Space Grotesk', sans-serif", serif: "'Fraunces', serif",
+};
+// [text, border, fill] for a pill or a notice.
+const PX_TONES = {
+  teal: ["#2ee0c4", "rgba(46,224,196,0.38)", "rgba(46,224,196,0.07)"],
+  amber: ["#d8a23a", "rgba(216,162,58,0.45)", "rgba(216,162,58,0.08)"],
+  rust: ["#e07856", "rgba(224,120,86,0.45)", "rgba(224,120,86,0.08)"],
+  muted: ["rgba(242,237,228,0.6)", "rgba(242,237,228,0.2)", "rgba(242,237,228,0.03)"],
+};
+const pxCard = { background: "linear-gradient(180deg, rgba(242,237,228,0.04), rgba(242,237,228,0.015))", border: "1px solid rgba(242,237,228,0.09)", borderRadius: 16, padding: "22px 24px 20px", marginBottom: 16, breakInside: "avoid", boxSizing: "border-box", width: "100%" };
+const pxLabel = { fontFamily: PX.mono, fontSize: 9.5, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" };
+const pxBody = { fontFamily: PX.sans, fontSize: 13, color: PX.muted, lineHeight: 1.5, margin: 0 };
+const pxQuiet = { fontFamily: PX.mono, fontSize: 11, color: "rgba(242,237,228,0.4)" };
+const pxValue = { fontFamily: PX.sans, fontSize: 13, marginTop: 4 };
+const pxRow = { padding: "14px 0", borderTop: "1px solid " + PX.line };
+const pxFoot = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, paddingTop: 16, borderTop: "1px solid " + PX.line };
+// The save line shrinks beside its button rather than wrapping the button onto a line of its own.
+const pxMsg = { fontFamily: PX.mono, fontSize: 10.5, color: "rgba(242,237,228,0.55)", minHeight: 14, flex: "1 1 0", minWidth: 0 };
+const pxInput = { height: 40, boxSizing: "border-box", background: "rgba(0,0,0,0.25)", border: "1px solid rgba(242,237,228,0.16)", borderRadius: 10, padding: "0 12px", color: PX.ink, fontFamily: PX.sans, fontSize: 13.5, outline: "none", minWidth: 0, width: "100%" };
+function pxNotice(tone) {
+  const t = PX_TONES[tone] || PX_TONES.muted;
+  return { display: "flex", gap: 10, alignItems: "baseline", padding: "11px 13px", borderRadius: 11, marginBottom: 14, border: "1px solid " + t[1], background: t[2] };
+}
+function pxButton(primary, off) {
+  const base = { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, height: 38, boxSizing: "border-box", padding: "0 17px", borderRadius: 999, fontFamily: PX.sans, fontSize: 13, whiteSpace: "nowrap", cursor: off ? "default" : "pointer" };
+  return primary
+    ? { ...base, border: 0, fontWeight: 600, background: off ? "rgba(46,224,196,0.16)" : PX.teal, color: off ? "rgba(46,224,196,0.75)" : "#0b0e0c" }
+    : { ...base, fontWeight: 500, background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.22)", color: PX.ink, opacity: off ? 0.55 : 1 };
+}
+function PxHead({ title, desc, pill, tone }) {
+  const t = PX_TONES[tone] || PX_TONES.muted;
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <h3 style={{ margin: 0, fontFamily: PX.sans, fontSize: 17, fontWeight: 600, letterSpacing: "-0.01em", color: PX.ink, lineHeight: 1.25 }}>{title}</h3>
+        {pill ? <span data-px-pill="" style={{ flex: "none", fontFamily: PX.mono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: t[0], border: "1px solid " + t[1], background: t[2], borderRadius: 999, padding: "4px 10px" }}>{pill}</span> : null}
+      </div>
+      {desc ? <p style={{ ...pxBody, marginTop: 6 }}>{desc}</p> : null}
+    </div>
+  );
+}
+// A money field: the dollar sign and the period sit inside the box with the number.
+function PxMoney({ label, value, onChange, placeholder, aria, per }) {
+  return (
+    <label style={{ display: "flex", flexDirection: "column", gap: 7, minWidth: 0 }}>
+      <span style={pxLabel}>{label}</span>
+      <span className="px-money" style={{ ...pxInput, display: "flex", alignItems: "center", gap: 6, padding: "0 12px" }}>
+        <span aria-hidden="true" style={{ fontFamily: PX.mono, fontSize: 12, color: PX.faint }}>$</span>
+        <input style={{ flex: 1, minWidth: 0, background: "transparent", border: 0, outline: "none", color: PX.ink, fontFamily: PX.sans, fontSize: 14, fontVariantNumeric: "tabular-nums" }} inputMode="decimal" value={value} onChange={onChange} placeholder={placeholder} aria-label={aria} />
+        {per ? <span aria-hidden="true" style={{ fontFamily: PX.mono, fontSize: 11, color: PX.faint }}>{per}</span> : null}
+      </span>
+    </label>
+  );
+}
+
 function CoachListingRatesCard() {
-  const mono = "'JetBrains Mono', monospace";
-  const sans = "'Space Grotesk', sans-serif";
-  const teal = (typeof window !== "undefined" && window.TEAL_BRIGHT) || "#2ee0c4";
-  const amber = "#d8a23a";
   const role = /nutrition/i.test(typeof window !== "undefined" ? window.location.pathname : "") ? "nutritionist" : "trainer";
   const oneTimeLabel = role === "nutritionist" ? "Single consult" : "Single session";
   const [state, setState] = React.useState({ loading: true, error: false, listing: null, signedIn: true });
@@ -218,32 +265,28 @@ function CoachListingRatesCard() {
     finally { setBusy(false); }
   };
 
-  const card = { background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 16, padding: "20px 22px", marginBottom: 16 };
-  const kick = { fontFamily: mono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" };
-  const lbl = { fontFamily: mono, fontSize: 10, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)" };
-  const input = { background: "rgba(0,0,0,0.2)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 9, padding: "9px 11px", color: "#f2ede4", fontFamily: sans, fontSize: 13, outline: "none", width: 140 };
-  const body = { fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.65)", lineHeight: 1.5, margin: 0 };
   const l = state.listing;
+  const pill = !l ? null : l.ready ? ["Live", "teal"] : l.suspended ? ["Suspended", "rust"] : ["Not listed", "amber"];
 
   return (
-    <div style={card}>
-      <div style={{ ...kick, marginBottom: 14 }}>Marketplace listing · rates</div>
+    <div className="px-card" style={pxCard} data-px-card="rates">
+      <PxHead title="Rates" pill={pill && pill[0]} tone={pill && pill[1]} desc={"What members pay to hire you: a monthly rate, and a " + oneTimeLabel.toLowerCase() + " if you offer one."} />
       {state.loading ? (
-        <div style={{ fontFamily: mono, fontSize: 11, color: "rgba(242,237,228,0.4)" }}>Loading…</div>
+        <div style={pxQuiet}>Loading…</div>
       ) : state.error ? (
         <div>
-          <p style={body}>Couldn't load your listing — nothing has changed. Try again.</p>
-          <button onClick={() => setReloadKey((k) => k + 1)} style={{ marginTop: 12, background: "transparent", color: "rgba(242,237,228,0.8)", border: "1px solid rgba(242,237,228,0.25)", borderRadius: 9, padding: "8px 12px", fontFamily: sans, fontSize: 12, cursor: "pointer" }}>Retry</button>
+          <p style={pxBody}>Couldn't load your listing — nothing has changed. Try again.</p>
+          <button onClick={() => setReloadKey((k) => k + 1)} style={{ ...pxButton(false), marginTop: 12 }}>Retry</button>
         </div>
       ) : !state.signedIn ? (
-        <p style={body}>Sign in as a coach to set your rates.</p>
+        <p style={pxBody}>Sign in as a coach to set your rates.</p>
       ) : !l ? (
-        <p style={body}>Your listing appears once your coach application is approved.</p>
+        <p style={pxBody}>Your listing appears once your coach application is approved.</p>
       ) : (
         <>
-          <div role="status" style={{ display: "flex", gap: 10, alignItems: "baseline", padding: "10px 12px", borderRadius: 10, marginBottom: 12, border: `1px solid ${l.ready ? "rgba(46,224,196,0.35)" : "rgba(216,162,58,0.45)"}`, background: l.ready ? "rgba(46,224,196,0.06)" : "rgba(216,162,58,0.08)" }}>
-            <span aria-hidden="true" style={{ fontFamily: mono, fontSize: 12, color: l.ready ? teal : amber }}>{l.ready ? "✓" : "!"}</span>
-            <p style={{ ...body, color: "rgba(242,237,228,0.82)" }}>
+          <div role="status" style={pxNotice(l.ready ? "teal" : "amber")}>
+            <span aria-hidden="true" style={{ fontFamily: PX.mono, fontSize: 12, color: l.ready ? PX.teal : PX.amber }}>{l.ready ? "✓" : "!"}</span>
+            <p style={{ ...pxBody, color: "rgba(242,237,228,0.85)" }}>
               {l.ready
                 ? "Your listing is in the marketplace."
                 : l.suspended
@@ -253,19 +296,13 @@ function CoachListingRatesCard() {
                   : "Your listing isn't in the marketplace yet."}
             </p>
           </div>
-          <div style={{ display: "flex", gap: 18, flexWrap: "wrap", padding: "12px 0", borderTop: "1px solid rgba(242,237,228,0.08)" }}>
-            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <span style={lbl}>Monthly rate · $</span>
-              <input style={input} inputMode="decimal" value={monthly} onChange={(e) => setMonthly(e.target.value)} placeholder="120" aria-label="Monthly rate in dollars" />
-            </label>
-            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <span style={lbl}>{oneTimeLabel} · $ · optional</span>
-              <input style={input} inputMode="decimal" value={oneTime} onChange={(e) => setOneTime(e.target.value)} placeholder="60" aria-label={oneTimeLabel + " price in dollars"} />
-            </label>
+          <div style={{ ...pxRow, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14 }}>
+            <PxMoney label="Monthly rate" per="/ mo" value={monthly} onChange={(e) => setMonthly(e.target.value)} placeholder="120" aria="Monthly rate in dollars" />
+            <PxMoney label={oneTimeLabel + " · optional"} value={oneTime} onChange={(e) => setOneTime(e.target.value)} placeholder="60" aria={oneTimeLabel + " price in dollars"} />
           </div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, paddingTop: 14, borderTop: "1px solid rgba(242,237,228,0.08)", flexWrap: "wrap" }}>
-            <div role="status" style={{ fontFamily: mono, fontSize: 10.5, color: "rgba(242,237,228,0.5)", minHeight: 14 }}>{msg}</div>
-            <button onClick={save} disabled={busy} style={{ background: busy ? "rgba(46,224,196,0.25)" : teal, color: "#0b0e0c", border: 0, borderRadius: 999, padding: "10px 18px", fontFamily: sans, fontSize: 12.5, fontWeight: 600, cursor: busy ? "default" : "pointer" }}>{busy ? "Saving…" : "Save rates"}</button>
+          <div style={pxFoot}>
+            <div role="status" style={pxMsg}>{msg}</div>
+            <button onClick={save} disabled={busy} style={pxButton(true, busy)}>{busy ? "Saving…" : "Save rates"}</button>
           </div>
         </>
       )}
@@ -311,10 +348,6 @@ function cpcDayLabel(day) {
 }
 
 function CoachCapacityCard() {
-  const mono = "'JetBrains Mono', monospace";
-  const sans = "'Space Grotesk', sans-serif";
-  const teal = (typeof window !== "undefined" && window.TEAL_BRIGHT) || "#2ee0c4";
-  const rust = "#e07856";
   const role = /nutrition/i.test(typeof window !== "undefined" ? window.location.pathname : "") ? "nutritionist" : "trainer";
   const [state, setState] = React.useState({ loading: true, error: false, signedIn: true, listing: null });
   const [room, setRoom] = React.useState({ loading: false, error: false, entries: [] });
@@ -386,76 +419,73 @@ function CoachCapacityCard() {
     finally { setBusy(""); }
   };
 
-  const card = { background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 16, padding: "20px 22px", marginBottom: 16 };
-  const kick = { fontFamily: mono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" };
-  const body = { fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.65)", lineHeight: 1.5, margin: 0 };
-  const btn = (primary) => ({ background: primary ? teal : "transparent", color: primary ? "#0b0e0c" : "rgba(242,237,228,0.85)", border: primary ? 0 : "1px solid rgba(242,237,228,0.25)", borderRadius: 999, padding: "9px 16px", fontFamily: sans, fontSize: 12.5, fontWeight: 600, cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1 });
   const l = state.listing;
   const full = !!(l && l.effective);
   const waiting = (room.entries || []).filter((e) => e.position);
+  const btn = (primary) => pxButton(primary, !!busy);
 
   return (
-    <div style={card} data-capacity-card="">
-      <div style={{ ...kick, marginBottom: 14 }}>Taking new clients</div>
+    <div className="px-card" style={pxCard} data-capacity-card="">
+      <PxHead title="Taking new clients" pill={l ? (full ? "Paused" : "Open") : null} tone={full ? "rust" : "teal"} />
       {state.loading ? (
-        <div style={{ fontFamily: mono, fontSize: 11, color: "rgba(242,237,228,0.4)" }}>Loading…</div>
+        <div style={pxQuiet}>Loading…</div>
       ) : state.error ? (
         <div>
-          <p style={body}>Couldn't load your capacity — nothing has changed. Try again.</p>
+          <p style={pxBody}>Couldn't load your capacity — nothing has changed. Try again.</p>
           <button onClick={() => setReloadKey((k) => k + 1)} style={{ ...btn(false), marginTop: 12 }}>Retry</button>
         </div>
       ) : !state.signedIn ? (
-        <p style={body}>Sign in as a coach to manage your capacity.</p>
+        <p style={pxBody}>Sign in as a coach to manage your capacity.</p>
       ) : !l ? (
-        <p style={body}>Your capacity can be set once your coach application is approved.</p>
+        <p style={pxBody}>Your capacity can be set once your coach application is approved.</p>
       ) : (
         <>
-          <div role="status" style={{ display: "flex", gap: 10, alignItems: "baseline", padding: "10px 12px", borderRadius: 10, marginBottom: 12, border: `1px solid ${full ? "rgba(224,120,86,0.45)" : "rgba(46,224,196,0.35)"}`, background: full ? "rgba(224,120,86,0.08)" : "rgba(46,224,196,0.06)" }}>
-            <span aria-hidden="true" style={{ fontFamily: mono, fontSize: 12, color: full ? rust : teal }}>{full ? "×" : "✓"}</span>
-            <p style={{ ...body, color: "rgba(242,237,228,0.82)" }}>
+          <div role="status" style={pxNotice(full ? "rust" : "teal")}>
+            <span aria-hidden="true" style={{ fontFamily: PX.mono, fontSize: 12, color: full ? PX.rust : PX.teal }}>{full ? "×" : "✓"}</span>
+            <p style={{ ...pxBody, color: "rgba(242,237,228,0.85)" }}>
               {full
                 ? <>You're at capacity{l.resumeOn ? <>, reopening {cpcDayLabel(l.resumeOn)}</> : null}. New clients can join your waiting list; your current clients still book and buy.</>
-                : "You're taking new clients. Turn this on when you're full and new clients join your waiting list instead."}
+                : "You're taking new clients. Pause when you're full, and new clients join your waiting list instead."}
             </p>
           </div>
           {full ? (
-            <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", padding: "12px 0", borderTop: "1px solid rgba(242,237,228,0.08)" }}>
+            <div style={{ ...pxRow, display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
               <button onClick={() => save({ atCapacity: false }, "open")} disabled={!!busy} style={btn(true)} data-capacity-open="">{busy === "open" ? "Saving…" : "Take new clients again"}</button>
-              <label style={{ display: "flex", gap: 8, alignItems: "center", fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.75)", cursor: "pointer" }}>
-                <input type="checkbox" checked={!!l.introsAtCapacity} disabled={!!busy} onChange={(e) => save({ introsAtCapacity: e.target.checked }, "intros")} data-capacity-intros="" />
+              <label style={{ display: "flex", gap: 8, alignItems: "center", fontFamily: PX.sans, fontSize: 13, color: "rgba(242,237,228,0.8)", cursor: "pointer" }}>
+                <input type="checkbox" checked={!!l.introsAtCapacity} disabled={!!busy} onChange={(e) => save({ introsAtCapacity: e.target.checked }, "intros")} data-capacity-intros="" style={{ width: 16, height: 16, accentColor: PX.teal }} />
                 Free intros while full
               </label>
             </div>
           ) : (
-            <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap", padding: "12px 0", borderTop: "1px solid rgba(242,237,228,0.08)" }}>
-              <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <span style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)" }}>Reopen on · optional</span>
-                <input type="date" value={resumeDay} min={cpcTomorrow((l && l.timezone) || cpcBrowserZone())} onChange={(e) => setResumeDay(e.target.value)} aria-label="Reopen on" style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 9, padding: "8px 10px", color: "#f2ede4", fontFamily: sans, fontSize: 13 }} />
+            <div style={{ ...pxRow, display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
+              <label style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                <span style={pxLabel}>Reopen on · optional</span>
+                <input type="date" value={resumeDay} min={cpcTomorrow((l && l.timezone) || cpcBrowserZone())} onChange={(e) => setResumeDay(e.target.value)} aria-label="Reopen on" style={{ ...pxInput, width: 170, colorScheme: "dark" }} />
               </label>
               <button onClick={() => save({ atCapacity: true, ...(resumeDay ? { resumeOn: resumeDay, tz: cpcBrowserZone() } : {}) }, "pause")} disabled={!!busy} style={btn(true)} data-capacity-pause="">{busy === "pause" ? "Saving…" : "Pause new clients"}</button>
             </div>
           )}
-          <div style={{ paddingTop: 14, borderTop: "1px solid rgba(242,237,228,0.08)" }}>
-            <div style={{ ...kick, marginBottom: 8 }}>Waiting list · {waiting.length}</div>
+          <div style={{ ...pxRow, paddingBottom: 0 }}>
+            <div style={{ ...pxLabel, marginBottom: 8 }}>Waiting list · {waiting.length}</div>
             {room.error ? (
-              <p style={body}>Couldn't load your waiting list. <button onClick={loadRoom} style={{ background: "transparent", border: 0, padding: 0, color: teal, cursor: "pointer", fontFamily: sans, fontSize: 13, textDecoration: "underline" }}>Retry</button></p>
+              <p style={pxBody}>Couldn't load your waiting list. <button onClick={loadRoom} style={{ background: "transparent", border: 0, padding: 0, color: PX.teal, cursor: "pointer", fontFamily: PX.sans, fontSize: 13, textDecoration: "underline" }}>Retry</button></p>
             ) : room.loading && !waiting.length ? (
-              <div style={{ fontFamily: mono, fontSize: 11, color: "rgba(242,237,228,0.4)" }}>Loading…</div>
+              <div style={pxQuiet}>Loading…</div>
             ) : !waiting.length ? (
-              <p style={body}>No one is waiting. When you're at capacity, members can join your list from your profile.</p>
+              <p style={pxBody}>No one is waiting. When you're at capacity, members can join your list from your profile.</p>
             ) : waiting.map((e) => (
-              <div key={e.id} data-waitlist-entry="" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "9px 0", borderTop: "1px solid rgba(242,237,228,0.06)" }}>
+              <div key={e.id} data-waitlist-entry="" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 0", borderTop: "1px solid rgba(242,237,228,0.06)" }}>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: sans, fontSize: 13.5, color: "#f2ede4" }}>#{e.position} · {e.clientName || "Member"}</div>
-                  {e.note ? <div style={{ fontFamily: sans, fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 2 }}>{e.note}</div> : null}
+                  <div style={{ fontFamily: PX.sans, fontSize: 13.5, color: PX.ink }}><span style={{ fontFamily: PX.mono, fontSize: 11, color: PX.faint, marginRight: 8 }}>#{e.position}</span>{e.clientName || "Member"}</div>
+                  {e.note ? <div style={{ fontFamily: PX.sans, fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 2 }}>{e.note}</div> : null}
                 </div>
                 {e.status === "invited"
-                  ? <span style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", color: teal }}>Invited</span>
+                  ? <span style={{ fontFamily: PX.mono, fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", color: PX.teal }}>Invited</span>
                   : <button onClick={() => invite(e.id)} disabled={!!busy} style={btn(false)} data-waitlist-invite="">{busy === "invite:" + e.id ? "Inviting…" : "Invite"}</button>}
               </div>
             ))}
           </div>
-          <div role="status" style={{ fontFamily: mono, fontSize: 10.5, color: "rgba(242,237,228,0.5)", minHeight: 14, marginTop: 10 }}>{msg}</div>
+          <div role="status" style={{ ...pxMsg, minHeight: 0, marginTop: msg ? 10 : 0 }}>{msg}</div>
         </>
       )}
     </div>
@@ -469,10 +499,6 @@ function CoachCapacityCard() {
 // normalized by the canonical ShapeListingLib at both write and (server-side)
 // render, so an invalid/foreign URL never persists or shows.
 function CoachListingMediaCard() {
-  const mono = "'JetBrains Mono', monospace";
-  const sans = "'Space Grotesk', sans-serif";
-  const rust = "#e07856";
-  const teal = (typeof window !== "undefined" && window.TEAL_BRIGHT) || "#2ee0c4"; // pageShell's shared TEAL_BRIGHT; literal fallback if it hasn't loaded
   const lib = (typeof window !== "undefined" && window.ShapeListingLib) || null;
   const GMAX = (lib && lib.BS_LISTING_GALLERY_MAX) || 6;
   const CMAX = (lib && lib.BS_LISTING_CAPTION_MAX) || 80;
@@ -576,61 +602,75 @@ function CoachListingMediaCard() {
     finally { setBusy(false); }
   };
 
-  const card = { background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 16, padding: "20px 22px", marginBottom: 16 };
-  const kick = { fontFamily: mono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" };
-  const lbl = { fontFamily: mono, fontSize: 10, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)" };
-  const fileBtn = { display: "inline-block", cursor: "pointer", fontFamily: sans, fontSize: 12, color: "rgba(242,237,228,0.8)", border: "1px solid rgba(242,237,228,0.25)", borderRadius: 9, padding: "8px 12px" };
-  const linkBtn = { background: "transparent", border: 0, cursor: "pointer", fontFamily: mono, fontSize: 10, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)", padding: "8px 4px" };
-  const input = { background: "rgba(0,0,0,0.2)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 9, padding: "9px 11px", color: "#f2ede4", fontFamily: sans, fontSize: 12.5, outline: "none", minWidth: 0, flex: 1 };
-  const thumb = (url, w, h) => ({ width: w, height: h, flex: "none", borderRadius: 10, border: "1px solid rgba(242,237,228,0.16)", background: url ? `center/cover no-repeat url("${url}")` : "rgba(0,0,0,0.2)" });
-  const slot = (label, url, ctl, wide) => (
-    <div style={{ padding: "12px 0", borderTop: "1px solid rgba(242,237,228,0.08)" }}>
-      <div style={lbl}>{label}</div>
-      <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
-        <div aria-hidden="true" style={thumb(url, wide ? 108 : 60, 60)} />
-        <label style={fileBtn}>{url ? "↻ Replace" : "＋ Add photo"}<input type="file" accept="image/*" style={{ display: "none" }} disabled={uploading || busy} onChange={pickSlot(ctl.set)} /></label>
-        {url ? <button style={linkBtn} onClick={() => ctl.clear()}>× Remove</button> : null}
-      </div>
+  const off = uploading || busy;
+  const linkBtn = { background: "transparent", border: 0, cursor: "pointer", fontFamily: PX.mono, fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)", padding: "6px 2px" };
+  // A slot is its own upload button: empty, a dashed tile that says what goes in it; filled, the
+  // photo, with Replace and Remove under it.
+  const tile = (url, w, h, word, onPick) => (
+    <label className="px-tile" title={url ? "Replace" : "Add " + word.toLowerCase()} style={{ position: "relative", width: w, height: h, flex: "none", borderRadius: 12, cursor: off ? "progress" : "pointer", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 4, boxSizing: "border-box", border: url ? "1px solid rgba(242,237,228,0.16)" : "1.5px dashed rgba(242,237,228,0.24)", background: url ? `center/cover no-repeat url("${url}")` : "rgba(242,237,228,0.025)" }}>
+      {url ? null : <>
+        <span aria-hidden="true" style={{ fontFamily: PX.sans, fontSize: 20, lineHeight: 1, color: PX.teal }}>＋</span>
+        <span style={{ fontFamily: PX.mono, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)" }}>{word}</span>
+      </>}
+      <input type="file" accept="image/*" aria-label={(url ? "Replace " : "Add ") + word.toLowerCase()} style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }} disabled={off} onChange={onPick} />
+    </label>
+  );
+  const slot = (label, word, url, ctl, w) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
+      <div style={pxLabel}>{label}</div>
+      {tile(url, w, 96, word, pickSlot(ctl.set))}
+      {portrait || cover ? (
+        <div style={{ minHeight: 24, display: "flex", gap: 10 }}>
+          {url ? <button style={linkBtn} onClick={() => ctl.clear()}>× Remove</button> : null}
+        </div>
+      ) : null}
     </div>
   );
 
   return (
-    <div style={card}>
-      <div style={{ ...kick, marginBottom: 14 }}>Marketplace listing · photos</div>
+    <div className="px-card" style={pxCard} data-px-card="photos">
+      <PxHead title="Listing photos" desc={"Your box on the marketplace — a portrait of you, a cover (the box's background), and a studio gallery of your space."} />
       {meta.loading ? (
-        <div style={{ fontFamily: mono, fontSize: 11, color: "rgba(242,237,228,0.4)" }}>Loading…</div>
+        <div style={pxQuiet}>Loading…</div>
       ) : meta.loadError ? (
         <div>
-          <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.65)" }}>Couldn't load your listing photos — your saved photos are untouched. Try again.</div>
-          <button style={{ ...fileBtn, marginTop: 12 }} onClick={() => setReloadKey((k) => k + 1)}>Retry</button>
+          <p style={pxBody}>Couldn't load your listing photos — your saved photos are untouched. Try again.</p>
+          <button style={{ ...pxButton(false), marginTop: 12 }} onClick={() => setReloadKey((k) => k + 1)}>Retry</button>
         </div>
       ) : !meta.signedIn ? (
-        <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)" }}>Sign in as a coach to manage your listing photos.</div>
+        <p style={pxBody}>Sign in as a coach to manage your listing photos.</p>
       ) : !meta.hasRow ? (
-        <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)" }}>Your listing box appears once your coach application is approved.</div>
+        <p style={pxBody}>Your listing box appears once your coach application is approved.</p>
       ) : (
         <>
-          <p style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.6)", margin: "0 0 4px", lineHeight: 1.5 }}>Your box on the marketplace — a portrait of you, a cover (the box's background), and a studio gallery of your space.</p>
-          {slot("Portrait · you", portrait, { set: setPortrait, clear: () => setPortrait(null) }, false)}
-          {slot("Cover · your background", cover, { set: setCover, clear: () => setCover(null) }, true)}
-          <div style={{ padding: "12px 0", borderTop: "1px solid rgba(242,237,228,0.08)" }}>
-            <div style={lbl}>{`Studio gallery · up to ${GMAX}`}</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8 }}>
+          <div style={{ ...pxRow, display: "flex", gap: 18, flexWrap: "wrap" }}>
+            {slot("Portrait · you", "Portrait", portrait, { set: setPortrait, clear: () => setPortrait(null) }, 96)}
+            {slot("Cover · your background", "Cover", cover, { set: setCover, clear: () => setCover(null) }, 172)}
+          </div>
+          <div style={pxRow}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline" }}>
+              <div style={pxLabel}>Studio gallery</div>
+              <div style={{ fontFamily: PX.mono, fontSize: 10, color: PX.faint }}>{gallery.length} of {GMAX}</div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10 }}>
               {gallery.map((g) => (
                 <div key={g.id} style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                  <div aria-hidden="true" style={thumb(g.url, 52, 52)} />
-                  <input aria-label="Caption" style={input} placeholder="Caption" maxLength={CMAX} value={g.caption} onChange={(e) => setCap(g.id, e.target.value)} />
-                  <button aria-label="Remove" style={{ ...linkBtn, fontSize: 15, color: rust }} onClick={() => rmGal(g.id)}>×</button>
+                  <div aria-hidden="true" style={{ width: 52, height: 52, flex: "none", borderRadius: 10, border: "1px solid rgba(242,237,228,0.16)", background: `center/cover no-repeat url("${g.url}")` }} />
+                  <input aria-label="Caption" style={{ ...pxInput, flex: 1 }} placeholder="Caption" maxLength={CMAX} value={g.caption} onChange={(e) => setCap(g.id, e.target.value)} />
+                  <button aria-label="Remove" style={{ ...linkBtn, fontSize: 16, color: PX.rust, padding: "6px 8px" }} onClick={() => rmGal(g.id)}>×</button>
                 </div>
               ))}
+              {gallery.length < GMAX ? (
+                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                  {tile(null, 52, 52, "Add", pickGallery)}
+                  <span style={{ ...pxBody, fontSize: 12.5 }}>{gallery.length ? "Add another photo of your space." : "Show members where you coach: your gym, your kitchen, your studio."}</span>
+                </div>
+              ) : null}
             </div>
-            {gallery.length < GMAX ? (
-              <label style={{ ...fileBtn, marginTop: 10 }}>＋ Add photo<input type="file" accept="image/*" style={{ display: "none" }} disabled={uploading || busy} onChange={pickGallery} /></label>
-            ) : null}
           </div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, paddingTop: 14, borderTop: "1px solid rgba(242,237,228,0.08)", flexWrap: "wrap" }}>
-            <div style={{ fontFamily: mono, fontSize: 10.5, color: "rgba(242,237,228,0.5)", minHeight: 14 }}>{msg}</div>
-            <button onClick={save} disabled={busy || uploading} style={{ background: (busy || uploading) ? "rgba(46,224,196,0.25)" : teal, color: "#0b0e0c", border: 0, borderRadius: 999, padding: "10px 18px", fontFamily: sans, fontSize: 12.5, fontWeight: 600, cursor: (busy || uploading) ? "default" : "pointer" }}>{busy ? "Saving…" : "Save listing"}</button>
+          <div style={pxFoot}>
+            <div role="status" style={pxMsg}>{uploading ? "Uploading…" : msg}</div>
+            <button onClick={save} disabled={off} style={pxButton(true, off)}>{busy ? "Saving…" : "Save listing"}</button>
           </div>
         </>
       )}
@@ -734,6 +774,26 @@ function CoachAccountSettings({ accountId }) {
   );
 }
 
+// The coach's own setup, under their profile: a heading that says only they see it, then the four
+// cards in two columns on a wide screen, one on a phone. It takes the profile's own width (1240,
+// as the hero and tabs do); at 900 it sat narrower than the tabs above it, off their edge.
+const PX_CSS = ".px-setup .px-grid{columns:2 440px;column-gap:16px}"
+  + ".px-setup input:focus-visible,.px-setup button:focus-visible,.px-setup label:focus-within{outline:2px solid #2ee0c4;outline-offset:2px}"
+  + ".px-setup .px-money:focus-within{outline:2px solid #2ee0c4;outline-offset:2px}"
+  + ".px-setup .px-tile:hover{border-color:rgba(46,224,196,0.55)!important}"
+  + "@media (max-width:760px){.px-setup{padding:28px 16px 24px!important}.px-setup .px-cert{grid-template-columns:1fr 1fr!important}.px-setup .px-cert label{grid-column:1 / -1}}";
 function DashProfileExtras() {
-  return <section style={{maxWidth:900,margin:"0 auto",padding:"26px 40px 34px"}}><CoachCredentialsCard /><CoachListingRatesCard /><CoachCapacityCard /><CoachListingMediaCard /></section>;
+  return (
+    <section className="px-setup" aria-labelledby="px-setup-title" style={{ maxWidth: 1240, margin: "0 auto", padding: "44px 40px 34px", boxSizing: "border-box" }}>
+      <style>{PX_CSS}</style>
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: "12px 32px", flexWrap: "wrap", paddingBottom: 18, marginBottom: 22, borderBottom: "1px solid rgba(242,237,228,0.1)" }}>
+        <div>
+          <div style={{ fontFamily: PX.mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: PX.teal }}>Coach setup · only you see this</div>
+          <h2 id="px-setup-title" style={{ margin: "8px 0 0", fontFamily: PX.serif, fontSize: 30, fontWeight: 400, letterSpacing: "-0.015em", lineHeight: 1.1, color: PX.ink }}>Your listing, rates and verification</h2>
+        </div>
+        <p style={{ ...pxBody, maxWidth: 440 }}>What members find in the marketplace, what they pay you, and whether you're taking new clients.</p>
+      </div>
+      <div className="px-grid"><CoachCredentialsCard /><CoachListingRatesCard /><CoachCapacityCard /><CoachListingMediaCard /></div>
+    </section>
+  );
 }
