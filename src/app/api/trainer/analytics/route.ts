@@ -13,7 +13,7 @@ import { loadStripe, loadCancelFlags } from '@/lib/stripe';
 import { pickRenewals, renewalRows, RENEWAL_CHECK_CAP, type RenewalSource } from '@/lib/coach-renewals.mjs';
 import { coachCutCents, bpsToRate } from '@/lib/platform-fee';
 import { buildOriginFeed, byoMixOf, openSubsToday } from '@/lib/origin-attribution';
-import { buildTrajectory, subDeparture, NOT_ENDED_STATUSES } from '@/lib/coach-trajectory.mjs';
+import { buildTrajectory, subDeparture, NOT_ENDED_STATUSES, OPEN_SUB_STATUSES } from '@/lib/coach-trajectory.mjs';
 import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
 import { isMeasuredSignedOut } from '@/lib/auth-lookup';
 
@@ -101,7 +101,7 @@ export async function GET(request: Request) {
       .select('*') // '*' is migration-safe: an explicit fee_bps errors the query on a pre-migration DB (webhook-fallback parity)
       .eq('provider_role', 'trainer')
       .eq('provider_id', providerId)
-      .in('status', ['active', 'trialing']);
+      .in('status', OPEN_SUB_STATUSES);
     if (after) q = q.gt('id', after);
     // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
     return q.order('id', { ascending: true }).limit(ROW_PAGE);

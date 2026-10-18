@@ -554,7 +554,7 @@ test('the app\'s records carry New, the join date, the board and a known "no che
   assert.deepEqual(rec.checkIn, { lastWeekOf: null }, 'a read that answered none is a known none (L8)');
   assert.equal('checkIn' in M.recordFromCoachData({ id: 'u', name: 'J', checkins: null }), false, 'a failed read stays unset');
   // The roster, the overview batch and the record builder are wired together.
-  assert.match(read('mobile-app/src/services/shapeBackend.js'), /sessions: c\.sessions \|\| 0, isNew: !!c\.isNew, joinedAt: c\.joinedAt \|\| null \}\)\);/);
+  assert.match(read('mobile-app/src/services/shapeBackend.js'), /sessions: c\.sessions \|\| 0, isNew: !!c\.isNew, joinedAt: c\.joinedAt \|\| null, paymentRetrying: c\.paymentRetrying === true \}\)\);/);
   assert.match(read('mobile-app/src/services/shapeBackend.js'), /for \(let i = 0; i < list\.length; i \+= 50\) \{[\s\S]{0,300}\/api\/clients\/shared-overview/);
   const sig = read('mobile-app/src/services/shapeSignals.js');
   assert.match(sig, /id: c\.id, name: c\.name, isNew: c\.isNew, joinedAt: c\.joinedAt, stats,/);
@@ -1065,7 +1065,7 @@ test('week one starts inside the board\'s 30 days, and a target from before this
   }
   assert.equal(calls.length, 0, 'nothing written outside the window');
   for (const d of ['2026-10-13', '2026-11-11']) assert.equal((await post(A, { role: 'trainer', count: 3, startsOn: d })).status, 200, d);
-  assert.deepEqual(subReads.slice(0, 4), [['client_id', A], ['provider_role', 'trainer'], ['provider_id', 7], ['status', ['active', 'trialing']]], 'this listing\'s live subscription');
+  assert.deepEqual(subReads.slice(0, 4), [['client_id', A], ['provider_role', 'trainer'], ['provider_id', 7], ['status', ['active', 'trialing', 'past_due']]], 'this listing\'s live subscription (a retrying renewal is live: owner, 2026-10-18)');
   assert.equal((await post(A, { role: 'trainer', count: 3 })).status, 200, 'a count alone needs no window');
   const none = await weekOneRoute({ subs: [] });
   assert.equal((await none.post(A, { role: 'trainer', count: 3, startsOn: '2026-10-20' })).status, 403, 'not subscribed to this coach');

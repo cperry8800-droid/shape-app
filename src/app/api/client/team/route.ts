@@ -9,6 +9,7 @@ import { NextResponse } from 'next/server';
 import { dbError } from '@/lib/request-utils';
 import { createClient } from '@/lib/supabase/server';
 import { requireMembership } from '@/lib/require-membership';
+import { OPEN_SUB_STATUSES } from '../../../../lib/coach-trajectory.mjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,7 +52,7 @@ export async function GET(request: Request) {
     .from('subscriptions')
     .select('provider_id, provider_role, status, price_cents, created_at')
     .eq('client_id', user.id)
-    .in('status', ['active', 'trialing'])
+    .in('status', OPEN_SUB_STATUSES)
     .order('created_at', { ascending: true });
   if (subsErr) return dbError(subsErr, 'team subscriptions read', 500);
 

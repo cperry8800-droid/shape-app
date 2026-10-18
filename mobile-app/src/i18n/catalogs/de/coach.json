@@ -735,6 +735,7 @@
   "roster.noPast": "KEINE EHEMALIGEN KLIENTEN",
   "roster.pastClients": "EHEMALIGE KLIENTEN",
   "roster.pastClientsToggle": "EHEMALIGE KLIENTEN · {count} ›",
+  "roster.paymentRetrying": "Zahlung wird wiederholt",
   "roster.searchAria": "Klienten suchen",
   "roster.searchPlaceholder": "{count} Klienten durchsuchen",
   "roster.show": "ANZEIGEN ›",

@@ -629,6 +629,8 @@ test('both routes take the brought-in share over today\'s clients, so a brought 
   // A and B found the coach on Shape and are active; C was brought (0%) and her payment is retrying;
   // D cancelled. Today is three clients (the trajectory's latest week, as membership counts), so the
   // share is 1 of 3. Over the active and trialing rows it read 0 of 2 beside "you have 3 today".
+  // (Owner, 2026-10-18: a client whose payment is retrying is a client of their coach in every read,
+  // so the active read takes past_due too, and the fallback says 1 of 3 as well.)
   const C = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
   const D = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
   const rows = (role) => [
@@ -642,7 +644,7 @@ test('both routes take the brought-in share over today\'s clients, so a brought 
     const tables = { ...listing, subscriptions: rows(role) }
     const { body } = await loadRoute(role, tables, { honorStatus: true })
     assert.equal(body.trajectory.weeks[body.trajectory.weeks.length - 1].active, 3, role + ': today is three clients')
-    assert.equal(body.metrics.activeClients, 2, role + ': the active read is still active and trialing')
+    assert.equal(body.metrics.activeClients, 3, role + ': the active read takes the retrying payment too (owner, 2026-10-18)')
     assert.deepEqual(body.byoMix, { clients: 3, brought: 1 }, role + ': 1 of today\'s 3, not 0 of the 2 active rows')
     // Through the shared forecast both Business pages read: "you have 3 today" beside "1 of your 3".
     const n = CF.planNumbers({ extra: body, listingMonthly: null })
@@ -650,9 +652,9 @@ test('both routes take the brought-in share over today\'s clients, so a brought 
     // The trajectory unread: the share falls back to the active read, as todayFrom falls back to metrics.
     const noHistory = await loadRoute(role, tables, { honorStatus: true, failTrajectory: true })
     assert.equal(noHistory.body.trajectory, null, role)
-    assert.deepEqual(noHistory.body.byoMix, { clients: 2, brought: 0 }, role + ': the active rows, when there is no trajectory')
+    assert.deepEqual(noHistory.body.byoMix, { clients: 3, brought: 1 }, role + ': the open rows, when there is no trajectory')
     const n2 = CF.planNumbers({ extra: noHistory.body, listingMonthly: null })
-    assert.deepEqual([n2.clients, n2.byoClients], [2, 2], role + ': the two fall back together')
+    assert.deepEqual([n2.clients, n2.byoClients], [3, 3], role + ': the two fall back together')
     // The active read unread and the trajectory read: the share is still today's.
     const noActive = await loadRoute(role, tables, { honorStatus: true, failActive: true })
     assert.deepEqual(noActive.body.byoMix, { clients: 3, brought: 1 }, role)
@@ -675,7 +677,8 @@ test('both routes list today\'s clients in the Growth tab\'s "who found whom", s
     { ...sub(C), id: 'r3', fee_bps: 0, status: 'past_due', provider_role: role },
     { ...sub(D), id: 'r4', fee_bps: 0, status: 'canceled', current_period_end: '2026-10-01T00:00:00Z', provider_role: role },
   ]
-  // `profiles` answers what the coach's policy shows (active and trialing clients: A and B);
+  // `profiles` answers what the coach's policy showed before 2026-10-18-coach-access-past-due.sql
+  // runs (active and trialing clients: A and B), so the code is right in that window too;
   // get_display_names names anyone, and says whom it was asked about.
   const asked = []
   const names = { [A]: 'Ada', [B]: 'Ben', [C]: 'Cleo', [D]: 'Dee' }
@@ -690,9 +693,9 @@ test('both routes list today\'s clients in the Growth tab\'s "who found whom", s
     // The plate's own count (DbzOriginZone: rows at 0% are "you brought") agrees with the Plan's.
     assert.equal(subsFeed.filter((r) => r.feeBps === 0).length, body.byoMix.brought, role + ': "1 you brought" beside "1 of your 3"')
     assert.equal(new Set(subsFeed.map((r) => r.name)).size, body.byoMix.clients, role)
-    // The trajectory unread: both fall back to the active rows together.
+    // The trajectory unread: both fall back to the open rows together, the retrying client among them.
     const noHistory = await loadRoute(role, tables, { honorStatus: true, failTrajectory: true, rpcs })
-    assert.deepEqual(noHistory.body.byOrigin.map((r) => r.name), ['Ada', 'Ben'], role)
+    assert.deepEqual(noHistory.body.byOrigin.map((r) => r.name), ['Ada', 'Ben', 'Cleo'], role)
     // The active read unread: no roster, so no profiles read; every name comes from get_display_names.
     asked.length = 0
     const noActive = await loadRoute(role, tables, { honorStatus: true, failActive: true, rpcs })
@@ -731,8 +734,8 @@ test('nutritionist: every active subscription is read, a page at a time; at the 
   assert.equal(body.metrics.mrrGrossCents, 2500 * 1000)
   const pages = calls.filter((c) => c.table === 'subscriptions' && c.ops.some((o) => o[0] === 'in' && o[1] === 'status'))
   assert.equal(pages.length, 3)
-  assert.ok(pages.every((p) => has(p, 'eq', 'provider_role', 'nutritionist') && has(p, 'eq', 'provider_id', 9) && has(p, 'in', 'status', ['active', 'trialing'])),
-    'every page is this nutritionist\'s active and trialing rows, not every coach\'s')
+  assert.ok(pages.every((p) => has(p, 'eq', 'provider_role', 'nutritionist') && has(p, 'eq', 'provider_id', 9) && has(p, 'in', 'status', ['active', 'trialing', 'past_due'])),
+    'every page is this nutritionist\'s open rows (active, trialing, past_due), not every coach\'s')
   assert.deepEqual(pages.map((p) => p.ops.find((o) => o[0] === 'gt')?.[2] ?? null), [null, 'u000999', 'u001999'], 'each page after the last id read')
   assert.ok(pages.every((p) => p.ops.some((o) => o[0] === 'order' && o[1] === 'id') && p.ops.some((o) => o[0] === 'limit' && o[1] === 1000)))
   const capped = await loadRoute('nutritionist', { ...NUTRI, subscriptions: nutriSubs(50_000) })

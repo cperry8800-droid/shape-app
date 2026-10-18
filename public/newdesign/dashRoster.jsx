@@ -142,6 +142,14 @@ function dashTenureLabel(rec) {
   const months = Math.floor(d / 30.44);
   return months < 12 ? { text: months + "mo" } : { text: (d / 365.25).toFixed(1) + "y" };
 }
+// A renewal Stripe is still retrying (past_due). The client keeps their coach, their logs stay
+// visible and plans still go out (owner, 2026-10-18: "They stay normal clients until Stripe gives
+// up"), so the row stays where its progress puts it and only carries a quiet mark: the payment,
+// not the client, is what needs a look. True only when the roster route said so (dashData.jsx
+// sets payments.status to "past_due" from its `paymentRetrying`).
+function dashPaymentRetrying(rec) {
+  return !!(rec && rec.payments && rec.payments.status === "past_due");
+}
 function dashScoreCell(rec) {
   // DashSignals.scoreWeekReading is the ONE definition of this delta — it
   // compares the two newest COMPLETE weeks, so an in-progress current week
@@ -870,6 +878,7 @@ function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, p
               {r.flags.length > 0 && <DashPill c={sevColor}>{r.flags[0].label}</DashPill>}
               {r.severity === "unknown" && <DashPill c={DASH_SEV_COLORS.unknown}>{(r.progress || DashSignals.progressStatus(rec)).label}</DashPill>}
               {rec.profile.isNew && r.severity === "green" && <DashPill c={DASH_SEV_COLORS.new}>New</DashPill>}
+              {dashPaymentRetrying(rec) && <DashPill c={DASH_SEV_COLORS.unknown}>Payment retrying</DashPill>}
             </div>
             {view.cells(rec, role).map((cell, j) => <React.Fragment key={j}>{cell}</React.Fragment>)}
           </div>
@@ -881,4 +890,4 @@ function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, p
   );
 }
 
-Object.assign(window, { DashRosterTable, DashRosterTiles, dashRosterMatches, DashClientDrawer, DashConsultDrawer, DASH_DRAWER_VIEWS, dashDrawerSections, DASH_ROSTER_VIEWS, DASH_ROSTER_SORTS, DASH_ROSTER_SORT_KEYS, dashRosterSorted });
+Object.assign(window, { DashRosterTable, DashRosterTiles, dashRosterMatches, dashPaymentRetrying, DashClientDrawer, DashConsultDrawer, DASH_DRAWER_VIEWS, dashDrawerSections, DASH_ROSTER_VIEWS, DASH_ROSTER_SORTS, DASH_ROSTER_SORT_KEYS, dashRosterSorted });

@@ -735,6 +735,7 @@
   "roster.noPast": "NO PAST CLIENTS",
   "roster.pastClients": "PAST CLIENTS",
   "roster.pastClientsToggle": "PAST CLIENTS · {count} ›",
+  "roster.paymentRetrying": "Payment retrying",
   "roster.searchAria": "Search clients",
   "roster.searchPlaceholder": "Search {count} clients",
   "roster.show": "SHOW ›",

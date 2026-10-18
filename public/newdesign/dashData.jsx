@@ -273,12 +273,35 @@ function _dashRecordFromLive(row, ov, notesByClient, progressRead) {
     // except the one that matters — a coerced zero publishes "this client pays
     // nothing" as a measurement. `feeCents`/`origin` are the R12 export's columns and
     // follow the same rule.
+    // ⚠ A RENEWAL STRIPE IS RETRYING IS STILL A CLIENT (owner, 2026-10-18: "They stay normal clients
+    // until Stripe gives up"). The roster route lists them and sends `paymentRetrying`; the status
+    // says past_due and the roster marks the row "Payment retrying". `onPlan` is whether they hold
+    // an open plan at all (null when the plans could not be read): the roster also lists people
+    // from recent sessions with no plan, who are on the list but not counted as active clients.
     payments: {
-      mrrCents: row.mrrCents ?? null, status: "active", sessionCount: row.sessions ?? null,
+      mrrCents: row.mrrCents ?? null, status: row.paymentRetrying === true ? "past_due" : "active", sessionCount: row.sessions ?? null,
       lastSessionAt: row.lastAt || null, joinedAt: row.joinedAt || null,
       feeCents: row.feeCents ?? null, origin: row.origin ?? null,
+      paymentRetrying: row.paymentRetrying === true, onPlan: typeof row.onPlan === "boolean" ? row.onPlan : row.onPlan === null ? null : undefined,
     },
   };
+}
+
+// The Clients pages' "N ACTIVE CLIENTS": the people on the roster who hold an open plan (active,
+// trialing, or a renewal Stripe is retrying), the count the Clients badge gives (the dashboard
+// routes' activeClients). ⚠ NOT `clients.length`: the roster also lists people from recent
+// sessions who hold no plan ($0/mo), and counting them read one or more higher than the badge.
+// They stay on the list. null when the plans could not be read (the route sends onPlan: null),
+// which the page shows as "—", never as a count. A record with no `onPlan` at all (the preview's
+// cast, or a route from before the flag) is counted, as every one of them was before.
+function dashPlanClientCount(clients) {
+  let n = 0;
+  for (const c of Array.isArray(clients) ? clients : []) {
+    const on = c && c.payments ? c.payments.onPlan : undefined;
+    if (on === null) return null;
+    if (on !== false) n += 1;
+  }
+  return n;
 }
 
 // The coach's own client notes, one read for the whole roster.
@@ -1659,4 +1682,4 @@ function dashCoachingNames(coaching) {
   return [coaching.name || ""];
 }
 
-Object.assign(window, { useDashboard, useRememberedChoices, useRememberedChoice, useRememberedSet, useRememberedSlots, useDashPaper, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock, dashResolveCoachThresholds, useCoachThresholds, useSignedIn, dashReadCoachSettings, dashInvalidateCoachSettings, DASH_THRESHOLDS_EVENT, useDashUnits, dashUnitsApi, dashUnitPrefs, dashGoalText, dashMilestonesIn, dashWeighIn, dashWeighInDelta, dashNameList, dashCoachingNames });
+Object.assign(window, { useDashboard, useRememberedChoices, useRememberedChoice, useRememberedSet, useRememberedSlots, useDashPaper, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock, dashResolveCoachThresholds, useCoachThresholds, useSignedIn, dashReadCoachSettings, dashInvalidateCoachSettings, DASH_THRESHOLDS_EVENT, useDashUnits, dashUnitsApi, dashUnitPrefs, dashGoalText, dashMilestonesIn, dashWeighIn, dashWeighInDelta, dashNameList, dashCoachingNames, dashPlanClientCount });

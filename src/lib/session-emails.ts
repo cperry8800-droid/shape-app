@@ -19,6 +19,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createNotification } from '@/lib/notify';
 import { buildIcs, calendarOrganizerEmail, sendEmail } from '@/lib/email';
 import { WRAP_OPEN, SIGN_OFF_HTML, SIGN_OFF_TEXT, button, escapeHtml, siteUrl } from '@/lib/coach-application-emails';
+import { OPEN_SUB_STATUSES } from './coach-trajectory.mjs';
 
 type BuiltEmail = { subject: string; html: string; text: string };
 export type CoachRole = 'trainer' | 'nutritionist';
@@ -188,7 +189,7 @@ export async function afterSessionStep(
         .eq('client_id', s.client_id)
         .eq('provider_role', role)
         .eq('provider_id', s.provider_id)
-        .in('status', ['active', 'trialing'])
+        .in('status', OPEN_SUB_STATUSES)
         .limit(1);
       if (subErr || (subs && subs.length)) return out;
       const coach = await coachOf(admin, s);

@@ -21,6 +21,9 @@
 
 import { dayIn } from './noraContext.mjs';
 import { matchNamed } from './memberTools.mjs';
+// The coach↔client relationship (active, trialing, past_due): a member whose renewal is retrying
+// keeps their coaches, and a coach keeps them on the roster Nora reads (owner, 2026-10-18).
+import { OPEN_SUB_STATUSES } from '../coach-trajectory.mjs';
 
 export const READ_CAPS = Object.freeze({
   workouts: 12, exercises: 10, sessions: 8, movesPerSession: 5,
@@ -425,7 +428,7 @@ export async function readCoaching(sb, uid, { now = new Date() } = {}) {
       .eq('client_id', uid).gte('scheduled_at', nowIso).in('status', ['requested', 'confirmed']).order('scheduled_at', { ascending: true }).limit(READ_CAPS.coaching)),
     leg(sb.from('sessions').select('scheduled_at, duration_min, type, status, topic, provider_id, provider_role')
       .eq('client_id', uid).lt('scheduled_at', nowIso).order('scheduled_at', { ascending: false }).limit(3)),
-    leg(sb.from('subscriptions').select('provider_id, provider_role, status').eq('client_id', uid).in('status', ['active', 'trialing'])),
+    leg(sb.from('subscriptions').select('provider_id, provider_role, status').eq('client_id', uid).in('status', OPEN_SUB_STATUSES)),
   ]);
   if (!up.ok && !subs.ok) return { ok: false };
   const upRows = Array.isArray(up.data) ? up.data : [];
@@ -523,7 +526,7 @@ export async function readCoachRoster(sb, uid) {
   for (const r of Array.isArray(nu.data) ? nu.data : []) if (r && r.id != null) providers.push({ role: 'nutritionist', id: r.id });
   if (!providers.length) return { ok: true, isCoach: false, clients: [] };
   const legs = await Promise.all(providers.map((p) =>
-    leg(sb.from('subscriptions').select('client_id, status, created_at').eq('provider_role', p.role).eq('provider_id', p.id).in('status', ['active', 'trialing']).limit(READ_CAPS.roster))
+    leg(sb.from('subscriptions').select('client_id, status, created_at').eq('provider_role', p.role).eq('provider_id', p.id).in('status', OPEN_SUB_STATUSES).limit(READ_CAPS.roster))
       .then((r) => ({ ...r, role: p.role }))));
   if (legs.every((l) => !l.ok)) return { ok: false };
   const byClient = new Map();
