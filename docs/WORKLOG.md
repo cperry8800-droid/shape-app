@@ -153,8 +153,6 @@ planned builds.
 - Check `NORA_TTS_VOICE` and `NORA_TTS_INSTRUCTIONS` in Vercel.
 - Add the `localhost` hostname to the Turnstile widget.
 - Get a native speaker to read the PAR-Q translations.
-- Decide whether a missed weekly check-in should still cost −7 when the member has
-  turned the Check-ins switch off (today it does, while every prompt is hidden).
 
 **Planned next**
 - Night-before prep, Phase 2: a nutritionist's "prep the night before" tick, a
@@ -166,8 +164,8 @@ planned builds.
   signed station provider.
 - A one-tap daily check-in on Home
   ([`REVIEW-2026-10-18-daily-checkin.md`](REVIEW-2026-10-18-daily-checkin.md)): a save
-  per tap, five-word scales, "Same as yesterday", and sleep from a wearable. It waits on
-  the owner's rulings in §5 of that file.
+  per tap, five-word scales, "Same as yesterday", and sleep from a wearable. Rulings are
+  made (§5), including no −7 for a missed weekly check-in while the switch is off.
 
 **Known gaps**
 - `get_display_names` returns a full name and photo for any id, whoever asks.

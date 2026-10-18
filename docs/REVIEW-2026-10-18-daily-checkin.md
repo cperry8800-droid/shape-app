@@ -4,8 +4,8 @@
 to update each day and less effort for user each day. add to task list"* (on the app's
 "How are you." page: Energy, Hunger, Sleep · last night, Rested, Log today, Hydration).
 
-**Status:** a plan. Nothing in it is built. §2 is the design, §4 the phases, §5 the rulings it
-needs before a build. §1 was read from the code on `main` at 47c6729.
+**Status:** a plan with its rulings made (§5). Nothing in it is built yet. §2 is the design, §4
+the phases. §1 was read from the code on `main` at 47c6729.
 
 ## 1. What the check-in is today (read from the code)
 
@@ -129,13 +129,21 @@ so that is the owner's call.
 3. **Answer from the notification.** Native notification actions for energy, plus the streak if
    ruling 3 says yes.
 
-## 5. Owner rulings needed
-1. The five words for energy, hunger and rested in §2.2, and the 2/4/6/8/10 mapping.
-2. Rested: keep it as its own question, fold it into the sleep step (proposed), or drop it.
-3. Should a daily check-in earn points or a streak? It earns nothing today.
-4. With the Check-ins switch **off**, should a missed **weekly** check-in still cost −7? Today it
-   does, while the switch hides every prompt that would have reminded the member.
-5. Should the card wait until a time the member picks (a morning default), or show from midnight?
+## 5. Rulings (owner, 2026-10-18: *"i think you can make these decisions on what you think makes the most sense"*)
+1. **The words.** Energy: Drained · Low · OK · Good · Great. Hunger: Not hungry · A little · Normal
+   · Hungry · Starving ("Light" read as a meal, not a feeling). Rested: Wrecked · Tired · OK ·
+   Rested · Fresh. Stored as 2 · 4 · 6 · 8 · 10, keyed in all 13 locales.
+2. **Rested folds into the sleep step,** optional, and is skipped when a device supplied sleep
+   efficiency. The column and the case file's RESTED stay.
+3. **A streak, no points.** Points are the Store's currency, and "Same as yesterday" would mint them
+   for one tap. The streak (consecutive local days with an answer) shows on the card's done line;
+   the weekly check-in keeps its +15, and the day already counts for momentum.
+4. **No −7 while the switch is off.** The switch turns check-ins off, so charging for one reads as
+   a penalty for using a setting. The coach still sees the missed week, and switching back on
+   charges again from the next completed week. The score cron reads the stored preference the way
+   the notification routes do (absent reads On).
+5. **The card shows from 4 a.m. local,** not midnight: at 1 a.m. "last night" has not been slept.
+   No new setting; the member's own check-in reminder already decides when they are nudged.
 
 ## 6. Found while mapping it
 - `shapeSignals.js` called `window.ShapeCheckins.list`, which does not exist (`shapeBackend.js`
