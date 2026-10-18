@@ -140,10 +140,12 @@ planned builds.
 - In-app purchase outside the US (Phase 2) is on hold.
 - Decide how a suspended coach appeals.
 - Have counsel read the 2026-10-13 privacy policy text.
-- Before direct charges part B: in Stripe test mode, add the Connected accounts
-  destination (DEPLOY.md §5) and set both Connect variables under Vercel's Preview; add
-  `invoice.paid` to the Connected accounts destination in both modes. Live mode is done
-  (the migration verified live, both variables in Production).
+- Make the direct-charges test purchase (#2403's Owner steps): in Stripe test mode, add the
+  Connected accounts destination with `invoice.paid`, set both Connect variables under
+  Vercel's Preview (the test-mode `ca_…`), then buy from a test coach on staging.
+- Decide what Shape does for a member whose coach disconnected Stripe while their plan
+  still renews: Shape can't open the portal or cancel on that account (they get a 409 that
+  says so).
 - Decide the perks the website's "What Master unlocks" card and `leaderboards.jsx`
   promise (payout tier, ranking, a verified badge): nothing grants them.
 - Decide whether the coach leaderboard should keep showing every coach each other's
@@ -162,13 +164,9 @@ planned builds.
   the website's claims do nothing.
 
 **Planned next**
-- Coach payments as direct charges on the coaches' own Stripe accounts (owner,
-  2026-10-18: Stripe's fee comes out of the coach's share). Part A, the groundwork, is
-  #2401. Part B: checkout on the coach's account, Shape and coach discount codes, the fee
-  and amounts from the Stripe objects rather than metadata, reconnecting a
-  disconnected coach, and one end-to-end test purchase (it confirms a Checkout-made
-  payment carries `STRIPE_CONNECT_APPLICATION_ID`). Part C: copy and a processing
-  estimate.
+- Coach payments, direct charges part C: the coach pages' copy and a labelled processing
+  estimate. Part A is #2401 and part B (checkout on the coach's account, codes, records in
+  `coach_checkouts`) is #2403.
 - Night-before prep, Phase 2: a nutritionist's "prep the night before" tick, a
   reminder time the member chooses, planning tomorrow, and a morning swap.
 - Nora as the account-setup assistant: she answers and fills forms today, but setting
@@ -205,8 +203,9 @@ planned builds.
 - `checkin_submitted` is a switch nothing writes.
 - Payment notices (#2402) reach the owners in code (`admin-access.ts`), not Staff-page
   staff.
-- Until direct charges ship (part B), Stripe bills coach-payment processing to Shape,
-  though the pages already say it is the coach's.
+- Direct charges (#2403): the app profile's one-tap Subscribe and Book have no code box (the
+  marketplace panel has one), and a one-time percent code's fee can be a cent off Stripe's
+  rounding.
 - Business: the plan's goal isn't remembered; renewals past 25 a load aren't checked
   with Stripe; the 90-day churn total is a floor once all 12 listed cancellations fall
   inside it. The dashboard routes' session reads and their coach-row read drop their
