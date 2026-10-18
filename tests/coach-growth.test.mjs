@@ -65,6 +65,31 @@ test('a client who leaves after the window opens and comes back inside it is new
   assert.equal(g.funnel.signed90, 1);
 });
 
+test('a failed read is an error, not an empty history: the dashboards show growth and the funnel as unread', async () => {
+  const T = Date.now();
+  const at = (d) => new Date(T - d * DAY).toISOString();
+  const sub = (client_id, d, over = {}) => ({ provider_role: 'trainer', provider_id: 7, client_id, created_at: at(d), status: 'active', price_cents: 10000, fee_bps: 1500, ...over });
+  const tables = { subscriptions: [sub('a', 200), sub('a', 30)] };
+  // Read through, a's in-window row is a plan change, so no one is new.
+  assert.equal(total(await G.coachGrowthAndFunnel(fakeSupabase({ tables }), 'trainer', 7, 0)), 0);
+  await assert.rejects(G.coachGrowthAndFunnel(fakeSupabase({ tables, fail: ['subscriptions'] }), 'trainer', 7, 0), /coach growth/);
+  // Only the read of the earlier subscriptions fails: a must not turn into a new client.
+  const failNth = (db, n) => {
+    let k = 0;
+    return { ...db, from(t) {
+      const chain = db.from(t);
+      if (++k === n) chain.then = (res, rej) => Promise.resolve({ data: null, error: { message: 'timeout' } }).then(res, rej);
+      return chain;
+    } };
+  };
+  await assert.rejects(G.coachGrowthAndFunnel(failNth(fakeSupabase({ tables }), 2), 'trainer', 7, 0), /coach growth: timeout/);
+  // Both dashboards turn the error into null, which their panels read as not available.
+  for (const role of ['trainer', 'nutritionist']) {
+    const src = readFileSync(ROOT + `src/app/api/${role}/dashboard/route.ts`, 'utf8');
+    assert.match(src, /const g = await coachGrowthAndFunnel\([^)]*\);\s*growth = g\.growth;\s*funnel = g\.funnel;\s*\} catch/);
+  }
+});
+
 test('the comparison is the last 30 days against the 30 before, not a part-month against a whole one', () => {
   const g = G.growthFrom([row('a', 5), row('b', 12), row('c', 29), row('d', 35), row('e', 50), row('f', 70)], { consults90: 0, now: NOW });
   assert.equal(g.growth.momPct, 50, '3 in the last 30 days against 2 in the 30 before');

@@ -100,13 +100,17 @@ export async function coachGrowthAndFunnel(
   consults90: number
 ): Promise<{ growth: CoachGrowth; funnel: CoachFunnel }> {
   const since = new Date(Date.now() - 90 * DAY_MS).toISOString();
-  const { data: addRows } = await supabase
+  // ⚠ A FAILED READ THROWS. Supabase answers { error } instead of throwing, and read as no
+  // rows it would say no one joined, or (below) that every returning client is new. The
+  // dashboards catch it and show growth and the funnel as unread (Codex, #2394).
+  const { data: addRows, error: addError } = await supabase
     .from('subscriptions')
     .select('*') // '*' is migration-safe: an explicit fee_bps errors the query on a pre-migration DB
     .eq('provider_role', role)
     .eq('provider_id', providerId)
     .gte('created_at', since)
     .order('created_at', { ascending: true });
+  if (addError) throw new Error('coach growth: ' + addError.message);
   const rows = (addRows ?? []) as AddRow[];
   // Of the clients with a row in the window, when their membership from before it ended: the
   // latest end of their earlier subscriptions. One that ended before the window opened can't
@@ -114,13 +118,14 @@ export async function coachGrowthAndFunnel(
   const ids = [...new Set(rows.map((r) => r.client_id).filter((v): v is string => !!v))];
   const existing = new Map<string, number>();
   if (ids.length) {
-    const { data: before } = await supabase
+    const { data: before, error: beforeError } = await supabase
       .from('subscriptions')
       .select('*')
       .eq('provider_role', role)
       .eq('provider_id', providerId)
       .lt('created_at', since)
       .in('client_id', ids);
+    if (beforeError) throw new Error('coach growth: ' + beforeError.message);
     for (const r of (before ?? []) as AddRow[]) {
       if (subNeverStarted(r) || !r.client_id) continue;
       const ended = subEndedAt(r) ?? Infinity;
