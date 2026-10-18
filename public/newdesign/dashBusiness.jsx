@@ -827,6 +827,11 @@ const DBZ_DEFAULT_ADDS = 1;
 const DBZ_DEFAULT_CHURN_PCT = 5;
 const DBZ_DEFAULT_RATE_CENTS = 15000;
 const dbzRound1 = (v) => Math.round(v * 10) / 10;
+// ⚠ A MEASURED CHURN IS KEPT TO A TENTH OF A POINT, AND NEVER ROUNDS TO 0. Whole points turned
+// one departure from 70 clients in three months (0.45% a month) into "0% leave a month" beside
+// "a client stays about 223 months": the plan lost its attrition and the two figures disagreed.
+const dbzChurnPct = (churn) => (churn > 0 ? Math.max(0.1, dbzRound1(churn * 100)) : 0);
+const dbzPct = (p) => (Number.isInteger(p) ? p : p.toFixed(1)) + "%";
 const dbzMonthsWord = (m) => (m === 1 ? "1 month" : m + " months");
 
 // ⚠ THE PREVIEW'S PACE INCLUDES THE PREVIEW'S DEPARTURES. The demo walk is rescaled onto the
@@ -1044,7 +1049,7 @@ function DbzPlanZone({ base }) {
     // Never clamped to the sliders' usual range: the ranges stretch to the coach's own numbers
     // instead, so the "yours" note under each one is the figure it measured.
     const adds = known ? dbzRound1(base.pace.adds) : DBZ_DEFAULT_ADDS;
-    const churnPct = base.pace.churn != null ? Math.round(base.pace.churn * 100) : DBZ_DEFAULT_CHURN_PCT;
+    const churnPct = base.pace.churn != null ? dbzChurnPct(base.pace.churn) : DBZ_DEFAULT_CHURN_PCT;
     const rate = Math.max(5, Math.round(base.rateCents / 500) * 5);
     const goal = Math.max(1000, Math.ceil((base.mrrNetCents / 100) * 1.5 / 500) * 500);
     return { adds, churnPct, rate, goal };
@@ -1059,11 +1064,11 @@ function DbzPlanZone({ base }) {
 
   const run = (o) => CF.forecast({ clients: base.clients, mrrNetCents: base.mrrNetCents, byoShare: base.byoShare, months: 36, priceCents: o.rate * 100, adds: o.adds, churn: o.churnPct / 100 });
   const plan = { adds, churnPct, rate };
-  const keepPct = Math.max(0, churnPct - 3);
+  const keepPct = Math.max(0, dbzRound1(churnPct - 3));
   const priceUp = Math.round((rate * 1.15) / 5) * 5;
   const WHAT_IFS = [
     { key: "more", label: "+1 client a month", o: { ...plan, adds: adds + 1 } },
-    churnPct > 0 ? { key: "keep", label: "Churn " + keepPct + "%", o: { ...plan, churnPct: keepPct } } : null,
+    churnPct > 0 ? { key: "keep", label: "Churn " + dbzPct(keepPct), o: { ...plan, churnPct: keepPct } } : null,
     { key: "price", label: "$" + priceUp + " for new clients", o: { ...plan, rate: priceUp } },
   ].filter(Boolean);
   const wi = WHAT_IFS.find((w) => w.key === whatIf) || null;
@@ -1087,9 +1092,16 @@ function DbzPlanZone({ base }) {
   const goalWords = dashMoney(goalCents) + " goal";
   let goalLine;
   if (base.mrrNetCents >= goalCents) goalLine = <React.Fragment> You're already past your {b(goalWords, DBZ_GREEN)}.</React.Fragment>;
-  else if (planReach == null) goalLine = <React.Fragment> That doesn't reach your {goalWords} within three years{P.f.steadyNetCents != null ? <React.Fragment>: it levels off near {b(dashMoney(P.f.steadyNetCents) + " a month")}</React.Fragment> : null}.</React.Fragment>;
+  // A plan that misses the goal for three years either levels off below it, which is why it
+  // misses, or is still climbing past it and gets there later; the sentence says which.
+  else if (planReach == null) {
+    const steady = P.f.steadyNetCents;
+    goalLine = <React.Fragment> That doesn't reach your {goalWords} within three years{steady == null ? null
+      : steady < goalCents ? <React.Fragment>: it levels off near {b(dashMoney(steady) + " a month")}</React.Fragment>
+      : <React.Fragment>, but it's still climbing, toward {b(dashMoney(steady) + " a month")}</React.Fragment>}.</React.Fragment>;
+  }
   else if (!T) goalLine = <React.Fragment>, and you reach your {b(goalWords + " in " + dbzMonthsWord(planReach), DBZ_GREEN)}.</React.Fragment>;
-  else goalLine = <React.Fragment>, and you reach your {b(goalWords + " in " + dbzMonthsWord(planReach), DBZ_GREEN)} {todayReach != null ? "instead of " + dbzMonthsWord(todayReach) : "(today's pace doesn't, within three years)"}.</React.Fragment>;
+  else goalLine = <React.Fragment>, and you reach your {b(goalWords + " in " + dbzMonthsWord(planReach), DBZ_GREEN)} {todayReach == null ? "(today's pace doesn't, within three years)" : todayReach === planReach ? "the same month as at today's pace" : "instead of " + dbzMonthsWord(todayReach)}.</React.Fragment>;
   const lead = <React.Fragment>{known ? "Today you have " : "You have "}{b(base.clients + (base.clients === 1 ? " client" : " clients"))} and net {b(dashMoney(base.mrrNetCents) + " a month")}.</React.Fragment>;
   const planYear = b(dashMoney(P.f.rows[12].netCents) + " a month", DBZ_T_TEAL);
   const sentence = T
@@ -1102,9 +1114,9 @@ function DbzPlanZone({ base }) {
         <DbzSlider label="New clients a month" value={adds} shown={adds.toFixed(1)} was={adds !== start.adds ? start.adds.toFixed(1) : null}
           min={0} max={Math.max(10, Math.ceil(start.adds * 3))} step={0.1} onChange={(v) => setAdds(dbzRound1(v))}
           note={known ? "yours: " + start.adds.toFixed(1) + " " + dbzPaceWhen(base.pace) : "no history yet · set your own"} />
-        <DbzSlider label="Monthly churn" value={churnPct} shown={churnPct + "%"} was={churnPct !== start.churnPct ? start.churnPct + "%" : null}
-          min={0} max={Math.max(30, start.churnPct)} step={1} onChange={setChurnPct}
-          note={base.pace.churn != null ? "yours: " + start.churnPct + "% leave a month, " + dbzPaceWhen(base.pace) : "no history yet · set your own"} />
+        <DbzSlider label="Monthly churn" value={churnPct} shown={dbzPct(churnPct)} was={churnPct !== start.churnPct ? dbzPct(start.churnPct) : null}
+          min={0} max={Math.max(30, Math.ceil(start.churnPct))} step={0.1} onChange={(v) => setChurnPct(dbzRound1(v))}
+          note={base.pace.churn != null ? "yours: " + dbzPct(start.churnPct) + " leave a month, " + dbzPaceWhen(base.pace) : "no history yet · set your own"} />
         <DbzSlider label="Rate for new clients" value={rate} shown={"$" + rate} was={rate !== start.rate ? "$" + start.rate : null}
           min={Math.min(20, start.rate)} max={Math.max(500, start.rate * 2)} step={5} onChange={setRate}
           note="today's clients keep the price they joined at" />
@@ -1242,7 +1254,7 @@ function DbzLifetimeZone({ base }) {
       <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6, color: DBZ_INK50 }}>
         A client stays about <b style={{ color: DBZ_INK, fontWeight: 600 }}>{dbzMonthsWord(Math.round(lt.months))}</b> on average, so each one is worth about <b style={{ color: DBZ_INK, fontWeight: 600 }}>{dashMoney(lt.valueCents)}</b> to you.
       </p>
-      <div style={{ ...DBZ_NOTE, marginTop: 6 }}>From {Math.round(base.pace.churn * 100)}% of clients leaving a month {dbzPaceWhen(base.pace)}, and {dashMoney(perClient)} net a client a month.</div>
+      <div style={{ ...DBZ_NOTE, marginTop: 6 }}>From {dbzPct(dbzChurnPct(base.pace.churn))} of clients leaving a month {dbzPaceWhen(base.pace)}, and {dashMoney(perClient)} net a client a month.</div>
     </div>
   );
 }

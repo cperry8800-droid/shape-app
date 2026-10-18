@@ -391,3 +391,48 @@ test('the Plan keeps the coach\'s sliders when the page re-renders (the pace is 
     Date.now = realNow;
   }
 });
+
+// ── The plan's words agree with its figures (sweep before Codex round 4, #2394) ──
+const runFor = (base, o) => CF.forecast({ clients: base.clients, mrrNetCents: base.mrrNetCents, byoShare: base.byoShare, months: 36, priceCents: o.rate * 100, adds: o.adds, churn: o.churnPct / 100 });
+
+test('a small measured churn is kept to a tenth of a point, never rounded to 0%', async () => {
+  // One departure from 70 clients in three months: 0.45% a month.
+  const base = { ...BASE, clients: 70, mrrNetCents: 70 * 15300, pace: { ...PACE, adds: 1, churn: 0.00448 } };
+  const m = await mount(React.createElement(B.DbzPlanZone, { base }));
+  assert.match(m.text(), /yours: 0\.4% leave a month, over the last 3 months/);
+  assert.match(m.text(), /Monthly churn0\.4%/);
+  const T = runFor(base, { adds: 1, churnPct: 0.4, rate: 180 });
+  assert.ok(sentence(m.div).includes(money(T.rows[12].netCents)), 'the plan runs at 0.4%, not 0%: ' + sentence(m.div));
+  await m.unmount();
+  const life = await mount(React.createElement(B.DbzLifetimeZone, { base: { ...base, state: 'ready' } }));
+  assert.match(life.text(), /From 0\.4% of clients leaving a month/);
+  await life.unmount();
+  const tiny = await mount(React.createElement(B.DbzLifetimeZone, { base: { ...base, state: 'ready', pace: { ...base.pace, churn: 0.0002 } } }));
+  assert.match(tiny.text(), /From 0\.1% of clients leaving a month/, 'a departure is never 0%');
+  await tiny.unmount();
+});
+
+test('a plan that misses the goal but is still climbing past it says so, not that it levels off', async () => {
+  // 8 clients, $1,020 net a month, 0.7 a month, 2% churn, $150: it plateaus near $4,463, above a
+  // $3,500 goal it takes more than three years to reach.
+  const base = { ...BASE, clients: 8, mrrNetCents: 102000, rateCents: 15000, byoShare: 0, pace: { ...PACE, adds: 0.7, churn: 0.02 } };
+  const m = await mount(React.createElement(B.DbzPlanZone, { base }));
+  await setValue(m.div.querySelectorAll('input[type=range]')[3], 3500);
+  const T = runFor(base, { adds: 0.7, churnPct: 2, rate: 150 });
+  assert.equal(CF.monthsTo(350000, T), null);
+  assert.ok(T.steadyNetCents > 350000, 'the fixture plateaus above the goal');
+  assert.ok(sentence(m.div).endsWith(`That doesn't reach your $3,500 goal within three years, but it's still climbing, toward ${money(T.steadyNetCents)} a month.`), sentence(m.div));
+  await m.unmount();
+});
+
+test('when the plan and today\'s pace reach the goal the same month, the sentence says so', async () => {
+  const base = { ...BASE, clients: 10, mrrNetCents: 127500, rateCents: 15000, byoShare: 0, pace: { ...PACE, adds: 1, churn: 0.02 } };
+  const m = await mount(React.createElement(B.DbzPlanZone, { base }));
+  await setValue(m.div.querySelectorAll('input[type=range]')[2], 155);
+  const goal = Number(m.div.querySelectorAll('input[type=range]')[3].value) * 100;
+  const [pr, tr] = [CF.monthsTo(goal, runFor(base, { adds: 1, churnPct: 2, rate: 155 })), CF.monthsTo(goal, runFor(base, { adds: 1, churnPct: 2, rate: 150 }))];
+  assert.ok(pr != null && pr === tr, 'the fixture reaches the goal the same month both ways: ' + pr + ' ' + tr);
+  assert.ok(sentence(m.div).endsWith(`goal in ${months(pr)} the same month as at today's pace.`), sentence(m.div));
+  assert.doesNotMatch(sentence(m.div), /instead of/);
+  await m.unmount();
+});
