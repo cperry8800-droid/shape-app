@@ -137,13 +137,30 @@ export async function GET(request: Request) {
   if (churnErr) console.warn('[shape-app] nutritionist analytics: churn read failed — churn renders as unread:', churnErr.message);
   // ⚠ A CANCELLED PLAN IS NOT A DEPARTURE WHILE THE CLIENT HOLDS ANOTHER (Codex round 8 on #2394, the
   // trajectory's rule in coach-trajectory.mjs leftIn). Each row says whose it is, and whether that
-  // client is still active here (null when the active subscriptions couldn't be read), so the
-  // page counts the people who left, not the plans that ended.
-  const activeNow = new Set(clientIds.map(String));
+  // client still holds a plan here, so the page counts the people who left, not the plans that
+  // ended. null is "couldn't tell" (a read below failed), which the page says rather than guessing;
+  // a row with no client has no other plan to hold, so it is a departure.
+  // ⚠ AND A RETRYING PLAN IS STILL A MEMBERSHIP (Codex round 9 on #2394). The active read above takes
+  // active and trialing; the trajectory (OPEN_STATUSES) also counts past_due. Only the churned
+  // clients are asked about (at most the 12 listed), so one read holds them all.
+  let retrying: Set<string> | null = new Set();
+  if (!churnErr && churnIds.length) {
+    const { data, error } = await supabase
+      .from('subscriptions')
+      .select('client_id')
+      .eq('provider_role', 'nutritionist')
+      .eq('provider_id', providerId)
+      .eq('status', 'past_due')
+      .in('client_id', churnIds);
+    if (error) console.warn("[shape-app] nutritionist analytics: retrying-plans read failed — who left renders as unread:", error.message);
+    retrying = error ? null : new Set((data ?? []).map((r: { client_id: string | null }) => String(r.client_id)));
+  }
+  const membersKnown = !subsUnknown && retrying != null;
+  const holdsPlan = new Set([...clientIds.map(String), ...(retrying ?? [])]);
   const churn = churnErr ? null : (churnRows ?? []).map((r) => ({
     name: churnNames.get(String(r.client_id)) || 'Former client',
     clientId: r.client_id == null ? null : String(r.client_id),
-    stillClient: subsUnknown || r.client_id == null ? null : activeNow.has(String(r.client_id)),
+    stillClient: !membersKnown ? null : r.client_id == null ? false : holdsPlan.has(String(r.client_id)),
     startedAt: r.created_at ?? null,
     endedAt: r.current_period_end ?? null,
     priceCents: r.price_cents ?? null,

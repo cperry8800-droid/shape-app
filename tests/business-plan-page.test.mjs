@@ -342,12 +342,15 @@ test('the churn total counts the last 90 days and says so, not every cancellatio
     { ...rows[0], name: 'Stayed', clientId: 's', stillClient: true, priceCents: 9000 },
     { ...rows[0], name: 'Left twice', clientId: 'l', stillClient: false, priceCents: 18000 },
     { ...rows[0], name: 'Left twice', clientId: 'l', stillClient: false, priceCents: 6000 },
-    { ...rows[0], name: 'Unknown', clientId: 'u', stillClient: null, priceCents: 1000 },
   ];
   const people = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: twoPlans }));
-  assert.match(people.text(), /^2 left in the last 90 days−\$250 a month/, 'Left twice once, and Unknown (no word they are still here)');
+  assert.match(people.text(), /^1 left in the last 90 days−\$240 a month/, 'Left twice, once');
   assert.doesNotMatch(people.text(), /Stayed/, 'a current client is not listed as gone');
   await people.unmount();
+  // Who stayed unread (stillClient null, Codex round 9): no one is counted, listed or subtracted.
+  const unsure = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: [...twoPlans, { ...rows[0], name: 'Unknown', clientId: 'u', stillClient: null }] }));
+  assert.equal(unsure.text(), "Couldn't check who still has a plan with you just now, so no one is counted as gone. Nothing is lost; reload to try again.");
+  await unsure.unmount();
   // The floor is the route's list: 12 rows, all inside the window, even when some are left out.
   const fullMixed = full.map((r, i) => (i < 3 ? { ...r, clientId: 'k' + i, stillClient: true } : { ...r, clientId: 'g' + i, stillClient: false }));
   const floored = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: fullMixed }));

@@ -26,8 +26,9 @@ const COACH = { id: '33333333-3333-4333-8333-333333333333' }
 // recorded. `rpc` answers from `rpcs[name](args)`.
 // `auth` is what getUser resolves (a signed-in coach unless a test says otherwise).
 // `honorStatus` also applies status filters (eq / in on `status`), for a test whose rows differ by
-// status; `failActive` fails the active-subscriptions walk (its `.in('status', …)`) alone.
-function fakeSupabase(tables, { errors = {}, rpcs = {}, auth = null, honorStatus = false, failActive = false } = {}) {
+// status; `failActive` fails the active-subscriptions walk (its `.in('status', …)`) alone, and
+// `failRetrying` the read of the churned clients' past_due plans alone.
+function fakeSupabase(tables, { errors = {}, rpcs = {}, auth = null, honorStatus = false, failActive = false, failRetrying = false } = {}) {
   const reads = []
   const calls = []
   const from = (table) => {
@@ -39,6 +40,7 @@ function fakeSupabase(tables, { errors = {}, rpcs = {}, auth = null, honorStatus
     const answer = () => {
       if (errors[table]) return { data: null, error: { message: errors[table] }, count: null }
       if (failActive && call.ops.some(([op, col]) => op === 'in' && col === 'status')) return { data: null, error: { message: 'timeout' }, count: null }
+      if (failRetrying && call.ops.some(([op, col, v]) => op === 'eq' && col === 'status' && v === 'past_due')) return { data: null, error: { message: 'timeout' }, count: null }
       let out = rows
       if (honorStatus) for (const [op, col, v] of call.ops) {
         if (op === 'eq' && col === 'status') out = out.filter((r) => r.status === v)
@@ -377,19 +379,27 @@ test('renewals: the active rows due in the next 7 days, each asked of Stripe, ne
 // ── Codex round 8 (#2394): the page counts people, not plans ──────────────────
 // A client who cancels one plan while holding another hasn't left (coach-trajectory.mjs leftIn), so
 // each cancellation says whose it is and whether that client is still active here.
-test('each cancellation says whose it is and whether that client is still a client; unread when the active read failed', async () => {
+test('each cancellation says whose it is and whether that client still holds a plan; unread when either membership read failed', async () => {
   const C = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+  const D = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
   const subs = [
     { ...sub(A, 18000), id: 'r1' },
     { ...sub(A, 12000), id: 'r2', status: 'canceled', current_period_end: '2026-10-01T00:00:00Z' },
     { ...sub(C, 15000), id: 'r3', status: 'canceled', current_period_end: '2026-10-02T00:00:00Z' },
+    // D's other plan is retrying (past_due): still a membership, as the trajectory counts it (Codex round 9).
+    { ...sub(D, 9000), id: 'r4', status: 'past_due' },
+    { ...sub(D, 7000), id: 'r5', status: 'canceled', current_period_end: '2026-09-30T00:00:00Z' },
+    // A row with no client has no other plan to hold: a departure.
+    { ...sub(null, 5000), id: 'r6', status: 'canceled', current_period_end: '2026-09-29T00:00:00Z' },
   ]
   for (const role of ['trainer', 'nutritionist']) {
     const tables = role === 'trainer' ? roster({ subscriptions: subs }) : { nutritionists: [{ id: 9, stripe_account_id: null, stripe_account_status: null }], subscriptions: subs.map((r) => ({ ...r, provider_role: 'nutritionist' })) }
     const { body } = await loadRoute(role, tables, { rpcs: lifts({}), honorStatus: true })
-    assert.deepEqual(body.churn.map((r) => [r.clientId, r.stillClient]), [[C, false], [A, true]], role + ': C left; A dropped a plan and is still here')
-    const unread = await loadRoute(role, tables, { rpcs: lifts({}), honorStatus: true, failActive: true })
-    assert.deepEqual(unread.body.churn.map((r) => [r.clientId, r.stillClient]), [[C, null], [A, null]], role + ': with the active read failed, no one is known to be still here')
+    assert.deepEqual(body.churn.map((r) => [r.clientId, r.stillClient]), [[C, false], [A, true], [D, true], [null, false]], role + ': C left; A dropped a plan; D still holds a retrying plan; a clientless row left')
+    for (const fail of ['failActive', 'failRetrying']) {
+      const unread = await loadRoute(role, tables, { rpcs: lifts({}), honorStatus: true, [fail]: true })
+      assert.deepEqual(unread.body.churn.map((r) => r.stillClient), [null, null, null, null], role + ', ' + fail + ': no one is known to be still here')
+    }
   }
 })
 

@@ -260,6 +260,12 @@ function DbzChurnZone({ live, churn }) {
   // years ago. It now counts the last 90 days, and says so; the rows below still list the recent ones.
   // ⚠ AND THE LIST STOPS AT DBZ_CHURN_LIST ROWS (the routes' .limit(12)). When every row it holds
   // is inside the 90 days, more may have left than it shows, so the total is a floor and says so.
+  // ⚠ WHO LEFT CAN'T BE SAID WHILE WHO STAYED IS UNREAD (Codex round 9, #2394). The route sends
+  // stillClient null when it couldn't read who still holds a plan; counting those rows as gone
+  // would report departures (and money lost) it never established.
+  if (live && rows.some((r) => r.stillClient === null)) {
+    return <div style={{ fontSize: 12.5, color: DBZ_INK50, lineHeight: 1.55 }}>Couldn't check who still has a plan with you just now, so no one is counted as gone. Nothing is lost; reload to try again.</div>;
+  }
   // ⚠ PEOPLE WHO LEFT, NOT PLANS THAT ENDED (Codex round 8, #2394). A client who cancelled one plan
   // and still holds another hasn't left (the trajectory's rule, which the pace and Overview use),
   // and one who cancelled two plans left once. The route says whether each row's client is still
