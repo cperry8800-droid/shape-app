@@ -138,9 +138,10 @@ so that is the owner's call.
 5. Should the card wait until a time the member picks (a morning default), or show from midnight?
 
 ## 6. Found while mapping it
-- `shapeSignals.js` calls `window.ShapeCheckins.list`, which does not exist (`shapeBackend.js`
-  exports `submit`, `mine` and `weekOf`), so the member's engine never sees check-in history and
-  its "check-in overdue" rule never fires.
+- `shapeSignals.js` called `window.ShapeCheckins.list`, which does not exist (`shapeBackend.js`
+  exports `submit`, `mine` and `weekOf`), so the member's engine never saw check-in history and
+  its "check-in overdue" rule never fired. Fixed in the same PR: the record reads `mine(1)`, and
+  not at all when the member has turned Check-ins off (`tests/self-record-checkins.test.mjs`).
 - With the switch on, today not logged, and a lead whose lever is `checkin`, Home has no door to the
   daily page: the bulletin is hidden in favour of the lead (which opens the weekly page) and the row
   renders nothing.

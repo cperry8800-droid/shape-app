@@ -206,8 +206,6 @@ planned builds.
 - The website's usage stats don't wait for the consent banner in the EEA and UK.
 - Nothing opens the chat panel from a URL. `TrainerNewProgram.html` and
   `get-started.html` aren't linked from anywhere.
-- The member's engine reads `window.ShapeCheckins.list`, which doesn't exist, so its
-  "check-in overdue" rule never fires.
 - The website's Kitchen (`recipesPage.jsx`) still runs its filter toggles and jump row
   off the right edge of a phone; the app's moved to a dropdown and in-place time tabs.
 - No signed-in pass has been done in a browser or on a phone for client onboarding,

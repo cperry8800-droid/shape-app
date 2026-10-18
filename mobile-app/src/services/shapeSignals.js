@@ -47,12 +47,26 @@ async function selfRecord() {
   const SP = (typeof window !== 'undefined' && window.ShapeProgress) || null;
   const uid = (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id) || null;
   const name = (typeof window !== 'undefined' && typeof window.bsMyName === 'function') ? window.bsMyName() : 'You';
+  const signedIn = !!uid;
+  // §3D opt-out gate: when the member turned the daily check-in OFF, the vitals
+  // leg AND the weekly check-in leg drop IMMEDIATELY on the client — home
+  // directives and the persisted notify_snapshot go quiet at once instead of
+  // waiting for data to age out. Absent module reads as ON.
+  const checkinOff = typeof window !== 'undefined' && window.ShapeCheckinPref && typeof window.ShapeCheckinPref.on === 'function' && window.ShapeCheckinPref.on() === false;
+  const CK = (typeof window !== 'undefined' && window.ShapeCheckins) || null;
   const [nutrition, train, weighIns, goalsDoc, checkins, prog, progress, hydro] = await Promise.all([
     SP && SP.nutrition ? SP.nutrition().catch(() => null) : null,
     SP && SP.train ? SP.train().catch(() => null) : null,
     window.ShapeWeighIns && window.ShapeWeighIns.list ? window.ShapeWeighIns.list().catch(() => null) : null,
     window.shapeDb && window.shapeDb.getUserGoals ? window.shapeDb.getUserGoals('client_goals').catch(() => null) : null,
-    window.ShapeCheckins && window.ShapeCheckins.list ? window.ShapeCheckins.list().catch(() => null) : null,
+    // ⚠ `mine`, NOT `list`. This read asked for `ShapeCheckins.list`, which never
+    // existed (shapeBackend.js exports submit / mine / weekOf), so the guard
+    // quietly answered null and the member's record never carried a check-in: the
+    // engine's checkin_overdue could not fire, in the app's lead or in a push,
+    // while the score cron charged −7 for every missed week. `mine` reads
+    // client_checkins newest first, and the newest is all applyCheckIn reads.
+    // A failed read answers [] or null, which leaves checkIn unset: no nag on a guess.
+    signedIn && !checkinOff && CK && typeof CK.mine === 'function' ? CK.mine(1).catch(() => null) : null,
     window.ShapeProgramApi && window.ShapeProgramApi.get ? window.ShapeProgramApi.get().catch(() => null) : null,
     SP && SP.progress ? SP.progress().catch(() => null) : null,
     // The member's REAL hydration target. The GET returns TWO fields: `targetL`
@@ -69,7 +83,6 @@ async function selfRecord() {
   if (train && train.stats && train.stats.longestStreak != null && nut.longestStreak == null) nut.longestStreak = train.stats.longestStreak;
   // The coach's directive override (if any) rides on the client's program detail;
   // it WINS in buildDirective. Signed-out preview seeds the demo sleep lever.
-  const signedIn = !!uid;
   const coachDirective = signedIn ? ((prog && prog.detail && prog.detail.directive) || null) : DEMO_SLEEP_DIRECTIVE;
   // Real sleep drives the engine's recovery lever for signed-in members
   // (signed-out keeps the demo seed so the preview still shows the lever).
@@ -78,13 +91,7 @@ async function selfRecord() {
     : { sleepHours: { avg7: 6.2, lastNight: null, target: 7.5 } };
   // The check-in vitals leg (spec §3A) — energy/hunger/hydration/rested from the
   // SAME cached progress response. Signed-in only: the signed-out preview never
-  // fabricates gauge data it doesn't have.
-  // §3D opt-out gate: when the member turned the daily check-in OFF, the leg
-  // drops IMMEDIATELY on the client — home directives and the persisted
-  // notify_snapshot go quiet at once instead of waiting for data to age out.
-  // Tolerant by design: window.ShapeCheckinPref ships in the §3D PR — absent
-  // module (either merge order) reads as ON, so the two PRs stand alone.
-  const checkinOff = typeof window !== 'undefined' && window.ShapeCheckinPref && typeof window.ShapeCheckinPref.on === 'function' && window.ShapeCheckinPref.on() === false;
+  // fabricates gauge data it doesn't have. Gated on `checkinOff` above.
   const vitals = signedIn && !checkinOff ? vitalsFromProgress(progress, { hydrationTargetL: hydro && hydro.targetStoredL }) : null;
   return recordFromSelfData({ uid, name, nutrition: nut, weighIns: Array.isArray(weighIns) ? weighIns : (weighIns && weighIns.weighIns) || null, goalsDoc, checkins, recovery, vitals, coachDirective }, deps());
 }
