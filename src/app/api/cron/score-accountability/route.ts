@@ -127,7 +127,7 @@ async function run(request: Request) {
     type SessRow = { id: string; client_id: string };
     type WoRow = { id: string; client_id: string; scheduled_date: string };
     type HabitRow = { id: string; user_id: string };
-    type SettingsRow = { user_id: string; data: { dailyCheckin?: unknown; dailyCheckinSince?: unknown } | null };
+    type SettingsRow = { user_id: string; updated_at?: string | null; data: { dailyCheckin?: unknown; dailyCheckinSince?: unknown } | null };
     let sessBy: Map<string, SessRow[]>;
     let wosBy: Map<string, WoRow[]>;
     let habitsBy: Map<string, HabitRow[]>;
@@ -171,7 +171,7 @@ async function run(request: Request) {
         // like the three above, rather than charging a member who may be off.
         admin
           .from('user_goals')
-          .select('user_id, data')
+          .select('user_id, data, updated_at')
           .in('user_id', ids)
           .eq('kind', 'client_settings')
           .limit(ROWS_MAX),
@@ -208,7 +208,13 @@ async function run(request: Request) {
       checkinOff = new Set(((settingsRes.data || []) as SettingsRow[])
         .filter((r) => {
           const d = r.data && typeof r.data === 'object' ? r.data : {};
-          const since = typeof d.dailyCheckinSince === 'string' ? Date.parse(d.dailyCheckinSince) : NaN;
+          const stamped = typeof d.dailyCheckinSince === 'string' ? Date.parse(d.dailyCheckinSince) : NaN;
+          // The stamp is the member's device clock; the row's updated_at is the database's (a
+          // trigger sets it on every write), and the switch cannot have changed after the write
+          // that carried it. So a clock set ahead never exempts the weeks after it was switched
+          // back on (Codex P2 on #2398). A clock set behind still dates the change early.
+          const wrote = typeof r.updated_at === 'string' ? Date.parse(r.updated_at) : NaN;
+          const since = Number.isFinite(stamped) && Number.isFinite(wrote) ? Math.min(stamped, wrote) : stamped;
           return !dailyCheckinOn(d.dailyCheckin) || (Number.isFinite(since) && since >= weekEnd);
         })
         .map((r) => r.user_id));

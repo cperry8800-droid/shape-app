@@ -235,7 +235,9 @@ planned builds.
   `numeric(4,2)`, so an 8 oz glass is stored as 0.24 L and totals drift up about 1.4%.
   The full check-in page still reads a watch's night by a heart rate on the day. A
   typed night's hours and its `manual` stamp are two writes, so a watch sync landing
-  between them can label the night wrong (closing it needs one SQL function).
+  between them can label the night wrong (closing it needs one SQL function). The score
+  job caps the device's Check-ins stamp at the row's database write time, but a clock set
+  behind can still date a change before the week ended (closing it needs a DB trigger).
 - Android back leaves the native app from any sheet (no `@capacitor/app`); in the hosted
   `/m/`, sheets add no history entry.
 

@@ -39,6 +39,8 @@ const TABLES = () => ({
     { client_id: 'on-long', status: 'active' },
     { client_id: 'off-after', status: 'active' },
     { client_id: 'east', status: 'active' },
+    { client_id: 'clock-ahead', status: 'active' },
+    { client_id: 'clock-ok', status: 'active' },
   ],
   sessions: [],
   client_workouts: [],
@@ -56,6 +58,11 @@ const TABLES = () => ({
     { user_id: 'off-after', kind: 'client_settings', data: { dailyCheckin: 'Off', dailyCheckinSince: AFTER() } },
     // Turned back on early on their own Monday, east of UTC: still before Monday in UTC.
     { user_id: 'east', kind: 'client_settings', data: { dailyCheckin: 'On', dailyCheckinSince: EAST() } },
+    // A device clock a month ahead stamped the change; the database wrote the row 8 days ago,
+    // before last week ended, so the week is charged (Codex P2 on #2398).
+    { user_id: 'clock-ahead', kind: 'client_settings', updated_at: BEFORE(), data: { dailyCheckin: 'On', dailyCheckinSince: new Date(Date.now() + 30 * 86400000).toISOString() } },
+    // A true stamp since the week ended, on a row written just now: not charged.
+    { user_id: 'clock-ok', kind: 'client_settings', updated_at: AFTER(), data: { dailyCheckin: 'On', dailyCheckinSince: AFTER() } },
   ],
 });
 
@@ -89,7 +96,7 @@ async function run({ fail = [] } = {}) {
 test('a member with Check-ins off is not charged for a missed weekly check-in', async () => {
   const { status, body, charged } = await run();
   assert.equal(status, 200);
-  assert.equal(body.evaluated, 8, 'the job no longer evaluates every active member');
+  assert.equal(body.evaluated, 10, 'the job no longer evaluates every active member');
   assert.ok(charged.includes('checkin:on'), 'a member with Check-ins on was not charged');
   assert.ok(charged.includes('checkin:no-doc'), 'a member with no settings saved reads as on, as the notification routes read it');
   assert.ok(!charged.includes('checkin:off'), "a member who turned Check-ins off was charged −7 for one");
@@ -102,6 +109,8 @@ test("last week is judged by the switch as it stood when the week ended (Codex P
   assert.ok(charged.includes('checkin:on-long'), 'a member on since before the week ended was not charged');
   assert.ok(!charged.includes('checkin:off-after'), 'a member with Check-ins off now was charged');
   assert.ok(!charged.includes('checkin:east'), "a member east of UTC who turned it on after their own week ended was charged for it");
+  assert.ok(charged.includes('checkin:clock-ahead'), "a device clock set ahead exempted a week the database says the switch was already on");
+  assert.ok(!charged.includes('checkin:clock-ok'), 'a true stamp on a fresh row was charged');
 });
 
 test('a failed read of the setting charges nobody in that chunk', async () => {

@@ -161,7 +161,8 @@ so that is the owner's call.
    a penalty for using a setting. The coach still sees the missed week, and switching back on
    charges again from the next completed week. The score cron reads the stored preference the way
    the notification routes do (absent reads On), and judges last week by the switch as it stood
-   when the week ended: the earliest local Monday, 14 hours before Monday in UTC.
+   when the week ended: the earliest local Monday, 14 hours before Monday in UTC. The change's
+   time is the device's stamp, never later than the settings row's own database write time.
 5. **The card shows from 4 a.m. local,** not midnight: at 1 a.m. "last night" has not been slept.
    No new setting; the member's own check-in reminder already decides when they are nudged.
 
