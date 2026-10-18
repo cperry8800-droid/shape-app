@@ -36,6 +36,25 @@ test('overlapping asleep time counts once', () => {
   assert.equal(HK.asleepSeconds([]), 0);
 });
 
+test("a night's stages either side of midnight are one night, filed under the day it ends, and a nap is not added", () => {
+  // Apple Watch writes each stage as its own sample (Codex on #2404).
+  const h = 3_600_000;
+  const day = (ms) => (ms < 24 * h ? 'D1' : 'D2');
+  const m = HK.nightsByDay([
+    { start: 22 * h, end: 23.5 * h },          // core, before midnight
+    { start: 23.5 * h, end: 24.5 * h },        // deep, across it
+    { start: 24.75 * h, end: 30 * h },         // after a 15-minute wake
+    { start: 38 * h, end: 38.5 * h },          // a nap that afternoon
+  ], day);
+  assert.equal(m.get('D2'), (1.5 + 1 + 5.25) * 3600, 'the stages before midnight were split off, or the nap was added');
+  assert.equal(m.has('D1'), false, 'part of the night was filed under the day before');
+  // Three hours apart are two sessions; the longer is the night.
+  const two = HK.nightsByDay([{ start: 0, end: 1 * h }, { start: 4 * h, end: 10 * h }], () => 'D');
+  assert.equal(two.get('D'), 6 * 3600);
+  const near = HK.nightsByDay([{ start: 0, end: 1 * h }, { start: 3.9 * h, end: 10 * h }], () => 'D');
+  assert.equal(near.get('D'), 7.1 * 3600, 'a wake under three hours split the night');
+});
+
 test('a night two sources wrote is its own hours, and only whole days are sent', async () => {
   const now = new Date();
   const today = local(now.getFullYear(), now.getMonth() + 1, now.getDate());

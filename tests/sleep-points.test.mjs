@@ -4,7 +4,8 @@
 // default function grants and probed: a watch's 7h, 12h, last night and the 14th night back each paid +5 once and a
 // second claim paid nothing; 6.5h, 13h, a typed ('manual') night, an unstamped night, a night
 // stamped by a provider the member has not connected, the 15th night back and tomorrow paid
-// nothing; a member with no zone was paid for today; signed out paid nothing; anon could not
+// nothing; a member with no zone was paid for nights from 14 UTC days back to UTC tomorrow, and
+// not 15 back or 2 ahead; signed out paid nothing; anon could not
 // execute it. These tests hold the source to what was probed, and the app and website to
 // claiming it.
 import test from 'node:test'
@@ -31,8 +32,13 @@ test('+5 in habits, once per night, for the caller only', () => {
 
 test('a night of 7 to 12 hours, from the last 14 nights: last night and the 13 before it', () => {
   assert.match(BODY, /and s\.sleep_hours >= 7 and s\.sleep_hours <= 12\n/)
-  assert.match(BODY, /and s\.snapshot_date <= v_today\n\s+and s\.snapshot_date >= v_today - 13\n/, 'the window holds more or fewer than 14 nights (Codex on #2404)')
-  assert.match(BODY, /v_today := case when v_tz is not null then \(now\(\) at time zone v_tz\)::date\n\s+else \(now\(\) at time zone 'utc'\)::date \+ 1 end;/)
+  assert.match(BODY, /and s\.snapshot_date <= v_hi\n\s+and s\.snapshot_date >= v_lo\n/)
+  // A known zone: its own today and the 13 nights before it (Codex on #2404: the first draft held 15).
+  assert.match(BODY, /v_today date := case when v_tz is not null then \(now\(\) at time zone v_tz\)::date end;/)
+  // No zone: from the earliest today any zone has (a UTC day behind) back 13 nights, up to the
+  // latest (a UTC day ahead), so no zone's 14th night is cut off (Codex on #2404).
+  assert.match(BODY, /v_hi date := coalesce\(v_today, \(now\(\) at time zone 'utc'\)::date \+ 1\);/)
+  assert.match(BODY, /v_lo date := coalesce\(v_today, \(now\(\) at time zone 'utc'\)::date - 1\) - 13;/)
 })
 
 test('watch nights only: stamped by a provider the member has connected', () => {

@@ -18,8 +18,9 @@
 -- ⚠ THE NIGHT BELONGS TO THE MORNING IT ENDS. snapshot_date is the member's local day, so
 -- today's row holds last night, and it counts as soon as a watch has written it. The window is
 -- 14 nights, last night and the 13 before it, for a watch that syncs late (Codex on #2404: the
--- first draft's inclusive bounds held 15). Zone unknown: a UTC day ahead, which no zone on earth
--- is past.
+-- first draft's inclusive bounds held 15). Zone unknown: the window reaches from the earliest
+-- today any zone can have (a UTC day behind) back 13 nights, up to the latest (a UTC day ahead),
+-- so no zone's 14th night is cut off (Codex on #2404: shifting the whole window a day ahead did).
 --
 -- SECURITY DEFINER, scoped to auth.uid() (no user_id parameter, so it only ever credits the
 -- caller), with a fixed amount. Revoked from public and anon by name (Supabase grants EXECUTE on
@@ -38,21 +39,20 @@ as $$
 declare
   v_uid uuid := auth.uid();
   v_tz  text := public.shape_user_tz(auth.uid());
-  v_today date;
+  v_today date := case when v_tz is not null then (now() at time zone v_tz)::date end;
+  v_hi date := coalesce(v_today, (now() at time zone 'utc')::date + 1);
+  v_lo date := coalesce(v_today, (now() at time zone 'utc')::date - 1) - 13;
   r record;
 begin
   if v_uid is null then return; end if;
-
-  v_today := case when v_tz is not null then (now() at time zone v_tz)::date
-                  else (now() at time zone 'utc')::date + 1 end;
 
   for r in
     select s.snapshot_date as d
     from public.daily_health_snapshot s
     where s.user_id = v_uid
       and s.sleep_hours >= 7 and s.sleep_hours <= 12
-      and s.snapshot_date <= v_today
-      and s.snapshot_date >= v_today - 13
+      and s.snapshot_date <= v_hi
+      and s.snapshot_date >= v_lo
       and s.sources->>'sleep_hours' in ('apple_health', 'garmin', 'oura', 'whoop')
       and exists (
         select 1 from public.user_integrations i

@@ -228,7 +228,8 @@ function bsCiSettled(line) {
 // for"). The night's hours are the one check a watch measures, so opening the card asks each
 // connected one for last night first, and the sleep step then shows the watch's hours instead of
 // asking. Energy, hunger, Rested and water stay the member's own. At most once in 30 minutes per
-// account on this device (a status read that fails does not use the 30 minutes up); Garmin sends
+// account on this device (a status read that fails, or syncs that all fail, do not use the 30
+// minutes up, so the next open tries again: Codex on #2404); Garmin sends
 // its nights on its own, and Apple Health is read only in the iPhone app, for today and yesterday,
 // and never asks for permission from here. True when a sync answered.
 export const BS_CI_SYNC_EVERY_MS = 30 * 60 * 1000;
@@ -254,7 +255,9 @@ export async function bsCiSyncDevices(uid, nowMs = Date.now()) {
   if (on.has('apple_health') && I.syncAppleHealth && I.appleHealthAvailable && I.appleHealthAvailable()) runs.push(I.syncAppleHealth({ importWorkouts: false, prompt: false, days: 2 }));
   if (!runs.length) return false;
   const done = await Promise.allSettled(runs);
-  return done.some((r) => r.status === 'fulfilled');
+  if (done.some((r) => r.status === 'fulfilled')) return true;
+  keep(last);
+  return false;
 }
 
 // ── The card, and the walkthrough it opens ───────────────────────────────────

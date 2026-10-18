@@ -77,6 +77,29 @@ export function asleepSeconds(intervals) {
   return total / 1000;
 }
 
+// ⚠ A NIGHT IS ONE SESSION, FILED UNDER THE DAY IT ENDS (Codex on #2404). Apple Watch writes each
+// sleep stage as its own sample, so the stages that ended before midnight landed on the day before
+// and split one night across two days. Asleep samples less than three hours apart are one session,
+// filed under the local day its last sample ends; a day's night is its longest session, counted
+// once where samples overlap, so an afternoon nap is not added to it. `dayOf(ms)` is the local day.
+const SESSION_GAP_MS = 3 * 3_600_000;
+export function nightsByDay(intervals, dayOf) {
+  const xs = intervals.filter((x) => Number.isFinite(x.start) && Number.isFinite(x.end) && x.end > x.start).sort((a, b) => a.start - b.start);
+  const sessions = [];
+  for (const x of xs) {
+    const cur = sessions[sessions.length - 1];
+    if (cur && x.start - cur.end < SESSION_GAP_MS) { cur.end = Math.max(cur.end, x.end); cur.items.push(x); continue; }
+    sessions.push({ end: x.end, items: [x] });
+  }
+  const out = new Map();
+  for (const s of sessions) {
+    const day = dayOf(s.end);
+    const secs = asleepSeconds(s.items);
+    if (day && secs > (out.get(day) || 0)) out.set(day, secs);
+  }
+  return out;
+}
+
 // Read recent samples and roll them up into per-day snapshot patches plus a flat
 // list of workouts (for optional import). Returns { days, workouts }.
 // ⚠ EVERY DAY SENT IS A WHOLE DAY: `days` local days ending today, each from its own midnight,
@@ -105,7 +128,7 @@ export async function collectHealthKitSnapshots({ days = LOOKBACK_DAYS } = {}) {
 
   const acc = new Map();
   const bucket = (key) => {
-    if (!acc.has(key)) acc.set(key, { steps: 0, energy: 0, distanceM: 0, hr: [], resting: [], hrv: [], asleep: [], workoutMin: 0 });
+    if (!acc.has(key)) acc.set(key, { steps: 0, energy: 0, distanceM: 0, hr: [], resting: [], hrv: [], workoutMin: 0 });
     return acc.get(key);
   };
   const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : Number(v));
@@ -116,16 +139,18 @@ export async function collectHealthKitSnapshots({ days = LOOKBACK_DAYS } = {}) {
   for (const s of heart) { const k = dayKey(s.startDate); const v = num(s.value); if (k && Number.isFinite(v)) bucket(k).hr.push(v); }
   for (const s of resting) { const k = dayKey(s.startDate); const v = num(s.value); if (k && Number.isFinite(v)) bucket(k).resting.push(v); }
   for (const s of hrv) { const k = dayKey(s.startDate); const v = num(s.value); if (k && Number.isFinite(v)) bucket(k).hrv.push(v); }
+  // Only "asleep" states count toward sleep hours (not inBed / awake); each night is one session
+  // filed under the day it ends (nightsByDay, above).
+  const asleep = [];
   for (const s of sleep) {
-    // Only "asleep" states count toward sleep hours (not inBed / awake). A night belongs to
-    // the day it ends.
     const state = String(s.sleepState ?? '').toLowerCase();
     if (!state.startsWith('asleep')) continue;
-    const k = dayKey(s.endDate || s.startDate);
     const endMs = Date.parse(s.endDate);
     const startMs = Number.isFinite(Date.parse(s.startDate)) ? Date.parse(s.startDate) : endMs - num(s.duration) * 1000;
-    if (k && Number.isFinite(startMs) && Number.isFinite(endMs)) bucket(k).asleep.push({ start: startMs, end: endMs });
+    if (Number.isFinite(startMs) && Number.isFinite(endMs)) asleep.push({ start: startMs, end: endMs });
   }
+  const nights = nightsByDay(asleep, dayKey);
+  for (const k of nights.keys()) bucket(k);
 
   const flatWorkouts = [];
   for (const w of workouts) {
@@ -149,7 +174,7 @@ export async function collectHealthKitSnapshots({ days = LOOKBACK_DAYS } = {}) {
   const daysOut = [];
   for (const [date, b] of acc) {
     if (date < firstKey) continue; // the evening before the window: read for its night only
-    const sleepSec = asleepSeconds(b.asleep);
+    const sleepSec = nights.get(date) || 0;
     daysOut.push({
       date,
       patch: {

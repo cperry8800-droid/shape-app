@@ -902,6 +902,8 @@ test('opening the card asks each connected watch for its night, at most every 30
     assert.equal(await CARD.bsCiSyncDevices('sync-d', at(12)), false, 'nothing to ask still read as a sync');
     d = devices({ connected: ['whoop', 'oura'], fail: ['whoop', 'oura'] });
     assert.equal(await CARD.bsCiSyncDevices('sync-e', at(12)), false, 'syncs that all failed read as one that answered');
+    d = devices({ connected: ['whoop'] });
+    assert.equal(await CARD.bsCiSyncDevices('sync-e', at(12, 1)), true, 'syncs that all failed held the watches back for 30 minutes (Codex on #2404)');
     d = devices({ connected: ['whoop', 'oura'], fail: ['whoop'] });
     assert.equal(await CARD.bsCiSyncDevices('sync-f', at(12)), true);
     assert.equal(await CARD.bsCiSyncDevices(null, at(12)), false);
