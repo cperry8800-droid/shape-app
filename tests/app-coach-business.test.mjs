@@ -293,6 +293,28 @@ test('the waiting list is valued at the listing price, and says why when there i
   }
 });
 
+// The website's Codex round 8 (#2394): people, not plans. A client still here who cancelled one
+// plan hasn't left; one client with two plans due is one client.
+test('Left in the last 90 days leaves out a current client, and the renewals header counts people', async () => {
+  const p = payload();
+  const recentEnd = p.churn[0].endedAt;
+  const soon = new Date(Date.now() + 2 * DAY).toISOString();
+  world({ answer: payload({
+    churn: [...p.churn, { name: 'Still Here', clientId: 'still', stillClient: true, endedAt: recentEnd, priceCents: 9000 }],
+    renewals: [
+      { name: 'Two Plans', clientId: 'two', dueAt: soon, priceCents: 18000, netCents: 15300, ending: false },
+      { name: 'Two Plans', clientId: 'two', dueAt: soon, priceCents: 6000, netCents: 5100, ending: false },
+    ],
+  }) });
+  const clients = await mount(page({ tab: 'clients' }));
+  assert.match(clients.text(), /Riley T\./);
+  assert.doesNotMatch(clients.text(), /Still Here/, 'a current client is not listed as gone');
+  await clients.unmount();
+  const moneyTab = await mount(page({ tab: 'money' }));
+  assert.match(moneyTab.text(), new RegExp('1 client · \\' + money(20400) + ' net'));
+  await moneyTab.unmount();
+});
+
 // ── The website's Business sweep (2026-10-18), mirrored ─────────────────────
 test('the pace is read once per visit: a re-render under a moving clock keeps the plan where it started', async () => {
   // The waiting list answers late, as a slow network does, and re-renders the page.

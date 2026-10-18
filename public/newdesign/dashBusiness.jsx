@@ -241,7 +241,7 @@ function DbzPayoutsZone({ live, stripe, providerId, role, metrics }) {
 const DBZ_CHURN_LIST = 12;
 // How many people the rows belong to: one client with two plans is one client. A row with no
 // client id stands alone, as everywhere else that counts clients.
-const dbzPeople = (rows) => new Set(rows.map((r, i) => (r.clientId != null ? "c:" + r.clientId : "row:" + i))).size;
+const dbzPeople = (rows) => window.CoachForecast.people(rows);
 function DbzChurnZone({ live, churn }) {
   // undefined: the analytics are still loading, which is neither "none on record" nor a failed read.
   if (live && churn === undefined) {

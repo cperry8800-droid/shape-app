@@ -21,5 +21,9 @@ export default {
     { name: 'waiting list: the shared listing price takes a zero price as a price', file: CF,
       find: '    return listingMonthly != null && Number(listingMonthly) > 0 ? Math.round(Number(listingMonthly) * 100) : null;',
       replace: '    return listingMonthly != null ? Math.round(Number(listingMonthly) * 100) : null;' },
+    // ── People, not plans (the website's Codex round 8, #2394) ──
+    { name: 'left: a current client is listed as gone', file: APP,
+      find: "    const gone = extra.churn.filter((r) => r.stillClient !== true);",
+      replace: "    const gone = extra.churn;" },
   ],
 };

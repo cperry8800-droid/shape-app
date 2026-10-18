@@ -670,8 +670,12 @@ function ClientsTab({ t, biz, now }) {
   else if (!Array.isArray(extra.churn)) left = loading;
   else {
     const since = now - 90 * DAY;
-    const recent = extra.churn.filter((r) => r.endedAt && new Date(r.endedAt).getTime() >= since);
-    const full = biz.kind === 'live' && extra.churn.length >= BS_BIZ_CHURN_LIST && recent.length === extra.churn.length;
+    // A client still active here who cancelled one plan hasn't left (the website's Codex round 8,
+    // #2394; the trajectory's rule): the route says so per row, and the row isn't listed.
+    const gone = extra.churn.filter((r) => r.stillClient !== true);
+    const recent = gone.filter((r) => r.endedAt && new Date(r.endedAt).getTime() >= since);
+    // The route's full list of 12, all inside the window, before any row is left out.
+    const full = biz.kind === 'live' && extra.churn.length >= BS_BIZ_CHURN_LIST && extra.churn.every((r) => r.endedAt && new Date(r.endedAt).getTime() >= since);
     left = !recent.length ? <Note t={t}>{tr('coach:business.clients.leftNone', { defaultValue: 'No one has left in the last 90 days.' })}</Note> : (
       <div>
         {recent.map((r, i) => (

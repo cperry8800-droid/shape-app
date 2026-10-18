@@ -237,11 +237,18 @@
   // ⚠ NONE CHECKED IS NO TOTAL (Stripe down, or no key on a preview): a "0 clients · $0" total would
   // read as no renewals beside a list of them. The rows say "not checked"; the header says nothing.
   // All of them cancelled is a checked zero, and says so.
+  // How many people the rows belong to: one client with two plans is one client (Codex round 8 on
+  // #2394). A row with no client id stands alone, as everywhere else that counts clients.
+  function people(rows) {
+    return new Set((rows || []).map((r, i) => (r && r.clientId != null ? "c:" + r.clientId : "row:" + i))).size;
+  }
+
   function renewalsSum(rows) {
     if (!Array.isArray(rows) || !rows.length) return null;
     const sure = rows.filter((r) => r && r.ending === false);
     if (!sure.length && rows.some((r) => !r || r.ending == null)) return null;
-    return { count: sure.length, netCents: sure.reduce((s, r) => s + (Number(r.netCents) || 0), 0) };
+    // People, not plans; each plan's net still counts.
+    return { count: people(sure), netCents: sure.reduce((s, r) => s + (Number(r.netCents) || 0), 0) };
   }
 
   // "Your money", from the Stripe summary the analytics route sends (src/lib/stripe.ts loadStripe):
@@ -259,6 +266,6 @@
 
   return {
     FEE_RATE, PACE_DAYS, DEFAULT_RATE_CENTS, netOf, earn, forecast, earnedOver, monthsTo, paceFrom, lifetime,
-    round1, churnPct, todayFrom, listedCents, planNumbers, planStart, renewalsSum, moneyFrom,
+    round1, churnPct, todayFrom, listedCents, planNumbers, planStart, people, renewalsSum, moneyFrom,
   };
 });
