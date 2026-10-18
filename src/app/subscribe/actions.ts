@@ -30,7 +30,7 @@ import { stripeCustomerFor } from '@/lib/stripe-customer';
 import { acctOpts, connectedCustomerFor, madeByShape } from '@/lib/stripe-connect';
 import { coachNotPayable, directChargesReady, normalizeCode, recordCoachCheckout, resolveCheckoutCode, type CheckoutCode } from '@/lib/coach-checkout';
 import { hasLiveStripeSubscription } from '@/lib/stripe-live-subscription';
-import { CHECKOUT_CREATE_OPTIONS, checkoutReturnsKey, claimCheckout, currentCheckout, isCheckoutInProgress, type CheckoutClaim } from '@/lib/checkout-barrier';
+import { CHECKOUT_CREATE_OPTIONS, checkoutReturnsKey, claimCheckout, currentCheckout, isCheckoutInProgress, retireCoachCheckouts, type CheckoutClaim } from '@/lib/checkout-barrier';
 
 type ProviderRole = 'trainer' | 'nutritionist';
 
@@ -238,16 +238,22 @@ export async function startCheckout(formData: FormData): Promise<void> {
     const cancelUrl = `${siteOrigin}${backHref}&error=subscribe_cancelled`;
     const returns = checkoutReturnsKey(successUrl, cancelUrl);
     let open: string | null = null;
+    let retired: { subscriptions: Set<string> } = { subscriptions: new Set() };
     try {
       const sameProduct = (s: { mode?: string | null; metadata?: Record<string, string> | null }) => s.mode === 'subscription'
         && s.metadata?.provider_id === String(providerId) && s.metadata?.provider_role === providerRole;
       const sameTerms = (s: { metadata?: Record<string, string> | null }) => s.metadata?.price_cents === String(priceResult.priceCents) && s.metadata?.fee_bps === String(feeBps)
         && s.metadata?.origin === coachOrigin && (s.metadata?.referral_id ?? null) === (referralId ?? null)
         && s.metadata?.returns === returns && (s.metadata?.code ?? null) === (checkoutCode?.code ?? null);
-      // On a direct charge, a destination-charge checkout still open on Shape's account is expired.
-      open = direct
-        ? (await currentCheckout(customerId, sameProduct, () => false), await currentCheckout(buyer, sameProduct, sameTerms, Date.now(), account))
-        : await currentCheckout(customerId, sameProduct, sameTerms);
+      // On a direct charge, a destination-charge checkout still open on Shape's account is expired,
+      // and on the coach's account nothing is handed back: Shape's recorded open checkouts for this
+      // coach are expired and a fresh one is made (checkout-barrier.ts, retireCoachCheckouts).
+      if (direct) {
+        await currentCheckout(customerId, sameProduct, () => false);
+        retired = await retireCoachCheckouts(buyer, account, { provider_role: providerRole, provider_id: providerId });
+      } else {
+        open = await currentCheckout(customerId, sameProduct, sameTerms);
+      }
     } catch (e) {
       console.error('[subscribe] open checkout lookup failed', e);
       redirect(`${backHref}&error=checkout_failed`);
@@ -260,7 +266,7 @@ export async function startCheckout(formData: FormData): Promise<void> {
     try {
       const wanted = { client_id: user.id, provider_id: String(providerId), provider_role: providerRole };
       paid = await hasLiveStripeSubscription({ customerId, email: user.email ?? null }, wanted)
-        || (direct && await hasLiveStripeSubscription({ customerId: buyer, email: null }, wanted, account, (sub) => madeByShape(sub.application)));
+        || (direct && await hasLiveStripeSubscription({ customerId: buyer, email: null }, wanted, account, (sub) => madeByShape(sub.application) || retired.subscriptions.has(sub.id ?? '')));
     } catch (e) {
       console.error('[subscribe] Stripe subscription lookup failed', e);
       redirect(`${backHref}&error=subscription_check_failed`);

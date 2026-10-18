@@ -13,7 +13,7 @@ import { hasLiveStripeSubscription } from '@/lib/stripe-live-subscription';
 import { stripeCustomerFor } from '@/lib/stripe-customer';
 import { connectedCustomerFor, madeByShape } from '@/lib/stripe-connect';
 import { CODE_MESSAGES, afterCode, coachNotPayable, directChargesReady, normalizeCode, recordCoachCheckout, resolveCheckoutCode, type CheckoutCode } from '@/lib/coach-checkout';
-import { CHECKOUT_CREATE_OPTIONS, checkoutReturnsKey, claimCheckout, currentCheckout, isCheckoutInProgress, type CheckoutClaim } from '@/lib/checkout-barrier';
+import { CHECKOUT_CREATE_OPTIONS, checkoutReturnsKey, claimCheckout, currentCheckout, isCheckoutInProgress, retireCoachCheckouts, type CheckoutClaim } from '@/lib/checkout-barrier';
 
 export const runtime = 'nodejs';
 
@@ -467,10 +467,18 @@ export async function POST(request: Request) {
         && s.metadata?.origin === coachOrigin && (s.metadata?.referral_id ?? null) === (referralId ?? null)
         && s.metadata?.returns === returns && (s.metadata?.code ?? null) === (checkoutCode?.code ?? null);
       // ⚠ A destination-charge checkout still open on Shape's account from before the move could
-      // still be paid; on a direct charge every one of them is expired, and none is handed back.
-      const open = direct
-        ? (await currentCheckout(customerId, sameProduct, () => false), await currentCheckout(buyer, sameProduct, sameTerms, Date.now(), account))
-        : await currentCheckout(customerId, sameProduct, sameTerms);
+      // still be paid; on a direct charge every one of them is expired, and none is handed back. On
+      // the coach's account nothing is handed back either: Shape's recorded open checkouts for this
+      // coach are expired and a fresh one is made, since the coach can rewrite a session's metadata
+      // (checkout-barrier.ts, retireCoachCheckouts; Codex on #2403).
+      let retired: { subscriptions: Set<string> } = { subscriptions: new Set() };
+      let open: string | null = null;
+      if (direct) {
+        await currentCheckout(customerId, sameProduct, () => false);
+        retired = await retireCoachCheckouts(buyer, account, { provider_role: providerRole, provider_id: providerId });
+      } else {
+        open = await currentCheckout(customerId, sameProduct, sameTerms);
+      }
       // ⚠ ASKED HERE, WHILE HOLDING THE CLAIM AND AFTER THE OPEN CHECKOUTS ARE READ (Codex on #2353):
       // a request that waited on the claim can arrive after the first checkout was paid, and one
       // the buyer completes in another tab while this request reads them is no longer listed as
@@ -480,7 +488,10 @@ export async function POST(request: Request) {
       try {
         const wanted = { client_id: user.id, provider_id: String(providerId), provider_role: providerRole };
         paid = await hasLiveStripeSubscription({ customerId, email: user.email ?? null }, wanted)
-          || (direct && await hasLiveStripeSubscription({ customerId: buyer, email: null }, wanted, account, (sub) => madeByShape(sub.application)));
+          || (direct && await hasLiveStripeSubscription({ customerId: buyer, email: null }, wanted, account,
+            // Shape's application made it, or it came from a checkout Shape recorded and the member
+            // completed (Stripe may leave `application` unset; Codex on #2403).
+            (sub) => madeByShape(sub.application) || retired.subscriptions.has(sub.id ?? '')));
       } catch (err) {
         console.error('[shape-app] checkout Stripe subscription lookup failed', err);
         return NextResponse.json({ error: 'Could not check your subscriptions. Try again in a moment.' }, { status: 503 });

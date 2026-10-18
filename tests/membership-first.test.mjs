@@ -935,9 +935,9 @@ test('the server-action checkouts (/subscribe and /purchase) take the detour, ou
   // Under the claim: the price and fee, then the open checkouts on those terms, then Stripe, then
   // the hand-back or the create.
   assert.ok(at('claim = await claimCheckout(user.id, `coach-${providerRole}-${providerId}`);') < at('priceResult = await getProviderConnectInfo('));
-  assert.ok(at('await resolveCoachCheckoutOrigin(') < at('open = direct'));
+  assert.ok(at('await resolveCoachCheckoutOrigin(') < at('open = await currentCheckout(customerId, sameProduct, sameTerms);'));
   assert.match(subscribe, /=> s\.metadata\?\.price_cents === String\(priceResult\.priceCents\) && s\.metadata\?\.fee_bps === String\(feeBps\)\n\s+&& s\.metadata\?\.origin === coachOrigin && \(s\.metadata\?\.referral_id \?\? null\) === \(referralId \?\? null\)\n\s+&& s\.metadata\?\.returns === returns && \(s\.metadata\?\.code \?\? null\) === \(checkoutCode\?\.code \?\? null\);/, 'on this request\'s terms, returns and code included');
-  assert.ok(at('open = direct') < at('paid = await hasLiveStripeSubscription('), 'Stripe is asked after the read');
+  assert.ok(at('open = await currentCheckout(customerId, sameProduct, sameTerms);') < at('paid = await hasLiveStripeSubscription('), 'Stripe is asked after the read');
   assert.equal((subscribe.match(/hasLiveStripeSubscription\(/g) ?? []).length, 2, 'and only there: Shape\'s account, and the coach\'s on a direct charge');
   assert.match(subscribe, /if \(paid\) redirect\(`\$\{backHref\}&error=already_subscribed`\);\n\s+if \(open\) redirect\(open\);/);
   assert.match(subscribe, /if \(isCheckoutInProgress\(e\)\) redirect\(`\$\{backHref\}&error=checkout_in_progress`\);/);

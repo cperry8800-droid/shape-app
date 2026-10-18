@@ -26,7 +26,7 @@ export async function hasLiveStripeSubscription(
   buyer: { customerId: string | null; email: string | null },
   metadata: Record<string, string>,
   account: string | null = null,
-  shapes: (sub: { application?: unknown }) => boolean = () => true
+  shapes: (sub: { id?: string; application?: unknown }) => boolean = () => true
 ): Promise<boolean> {
   const opts = account ? { stripeAccount: account } : undefined;
   const ids = new Set<string>();

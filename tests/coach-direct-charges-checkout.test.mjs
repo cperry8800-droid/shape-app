@@ -301,30 +301,35 @@ test('the coach\'s own code is applied as the coach\'s promotion code; an unknow
 });
 
 // ── The open checkouts and the live subscription on a coach's account ─────────────────────────
-test('on a coach\'s account only a checkout Shape recorded is handed back or expired (Codex on #2403)', async () => {
-  const now = Date.now();
-  const open = [
-    { id: 'cs_coachMade', created: Math.floor(now / 1000), url: 'https://checkout.stripe.test/coach', mode: 'subscription', metadata: { provider_id: '4', provider_role: 'trainer' } },
-    { id: 'cs_shapeMade', created: Math.floor(now / 1000) - 5, url: 'https://checkout.stripe.test/shape', mode: 'subscription', metadata: { provider_id: '4', provider_role: 'trainer' } },
-    { id: 'cs_shapeOld', created: Math.floor(now / 1000) - 3600, url: 'https://checkout.stripe.test/old', mode: 'subscription', metadata: { provider_id: '4', provider_role: 'trainer' } },
-  ];
+test('on a coach\'s account nothing is handed back: Shape\'s recorded open checkouts are expired, and its completed ones name their subscriptions (Codex on #2403)', async () => {
+  const sessions = {
+    open: [
+      { id: 'cs_coachMade', subscription: null },
+      { id: 'cs_shapeOpen', subscription: null },
+      { id: 'cs_shapeOtherCoach', subscription: null },
+    ],
+    complete: [
+      { id: 'cs_shapeDone', subscription: 'sub_fromShape' },
+      { id: 'cs_coachDone', subscription: 'sub_coachOwn' },
+      { id: 'cs_shapeDoneExpanded', subscription: { id: 'sub_expanded' } },
+    ],
+  };
   const listed = [];
   const expired = [];
   const stripe = { checkout: { sessions: {
-    list: async (p, o) => { listed.push(o); return { data: open }; },
+    list: async (p, o) => { listed.push([p.status, o]); return { data: sessions[p.status] }; },
     expire: async (id, p, o) => { expired.push([id, o]); return {}; },
   } } };
-  const db = fakeDb({ tables: { coach_checkouts: [record({ stripe_checkout_session_id: 'cs_shapeMade' }), record({ stripe_checkout_session_id: 'cs_shapeOld' }), record({ stripe_checkout_session_id: 'cs_coachMade', stripe_account_id: OTHER_ACCT })] } });
+  const rec = (id, extra = {}) => record({ stripe_checkout_session_id: id, mode: 'subscription', kind: 'subscription', ...extra });
+  const db = fakeDb({ tables: { coach_checkouts: [rec('cs_shapeOpen'), rec('cs_shapeOtherCoach', { provider_id: 5 }), rec('cs_shapeDone'), rec('cs_shapeDoneExpanded'), rec('cs_coachMade', { stripe_account_id: OTHER_ACCT })] } });
   const barrier = await loadRealModule(join(ROOT, 'src/lib/checkout-barrier.ts'), { typescript: true, registry: new Map([['@/lib/stripe', { stripe }], ['@/lib/supabase/admin', { createAdminClient: () => db.client }]]) });
-  const url = await barrier.currentCheckout('cus_onCoach', () => true, () => true, now, ACCT);
-  assert.equal(url, 'https://checkout.stripe.test/shape', 'the coach-made one (newest) is never handed back');
-  assert.deepEqual(expired, [['cs_shapeOld', { stripeAccount: ACCT }]], 'and never expired: only Shape\'s stale one is');
-  assert.deepEqual(listed, [{ stripeAccount: ACCT }]);
-  // On Shape's own account nothing changes: no record is asked for.
-  const plat = fakeDb();
-  const p = await loadRealModule(join(ROOT, 'src/lib/checkout-barrier.ts'), { typescript: true, registry: new Map([['@/lib/stripe', { stripe }], ['@/lib/supabase/admin', { createAdminClient: () => plat.client }]]) });
-  assert.equal(await p.currentCheckout('cus_platform', () => true, () => true, now), 'https://checkout.stripe.test/coach');
-  assert.equal(plat.calls.length, 0);
+  const r = await barrier.retireCoachCheckouts('cus_onCoach', ACCT, { provider_role: 'trainer', provider_id: 4 });
+  assert.deepEqual(expired, [['cs_shapeOpen', { stripeAccount: ACCT }]], 'only Shape\'s, for this coach: the coach\'s own and another coach\'s are left');
+  assert.deepEqual([...r.subscriptions].sort(), ['sub_expanded', 'sub_fromShape'], 'the coach\'s own completed checkout names none');
+  assert.deepEqual(listed, [['open', { stripeAccount: ACCT }], ['complete', { stripeAccount: ACCT }]]);
+  const down = fakeDb({ errors: { 'select:coach_checkouts': { code: '57014', message: 'timeout' } } });
+  const b2 = await loadRealModule(join(ROOT, 'src/lib/checkout-barrier.ts'), { typescript: true, registry: new Map([['@/lib/stripe', { stripe }], ['@/lib/supabase/admin', { createAdminClient: () => down.client }]]) });
+  await assert.rejects(b2.retireCoachCheckouts('cus_onCoach', ACCT, { provider_role: 'trainer', provider_id: 4 }), 'a failed read refuses');
 });
 
 test('the live-subscription check on a coach\'s account counts only what the caller says is Shape\'s', async () => {
@@ -440,7 +445,7 @@ async function runCheckout({ body = {}, provider = TRAINER, env = CONNECT_ENV, e
       ['@/lib/stripe-live-subscription', { hasLiveStripeSubscription: async (...a) => { live.push(a); return false; } }],
       ['@/lib/stripe-customer', { stripeCustomerFor: async () => 'cus_platform' }],
       ['@/lib/health-screening', { hiresCoach: () => false, hasCompletedScreening: async () => true, SCREENING_REQUIRED: {} }],
-      ['@/lib/checkout-barrier', { claimCheckout: async () => ({ confirm: async () => {}, release: async () => {} }), currentCheckout: async (...a) => { open.push(a); return null; }, isCheckoutInProgress: () => false, checkoutReturnsKey: () => 'returns-key', CHECKOUT_CREATE_OPTIONS: { timeout: 20000, maxNetworkRetries: 0 } }],
+      ['@/lib/checkout-barrier', { claimCheckout: async () => ({ confirm: async () => {}, release: async () => {} }), currentCheckout: async (...a) => { open.push(a); return null; }, retireCoachCheckouts: async (...a) => { open.push(['retire', ...a]); return { subscriptions: new Set(['sub_recordedNoApp']) }; }, isCheckoutInProgress: () => false, checkoutReturnsKey: () => 'returns-key', CHECKOUT_CREATE_OPTIONS: { timeout: 20000, maxNetworkRetries: 0 } }],
     ]),
   });
   const logs = [];
@@ -493,7 +498,9 @@ test('checkout: a subscription on the coach\'s account takes application_fee_per
   assert.equal(r.open.length, 2);
   assert.equal(r.open[0][0], 'cus_platform');
   assert.equal(r.open[0][2]({}), false, 'every open checkout on Shape\'s account is expired, none handed back');
-  assert.deepEqual([r.open[1][0], r.open[1][4]], ['cus_onCoach', ACCT]);
+  // ⚠ On the coach's account nothing is handed back (Codex on #2403): Shape's recorded open ones for
+  // this coach are retired by their record, never matched by metadata the coach can rewrite.
+  assert.deepEqual(r.open[1], ['retire', 'cus_onCoach', ACCT, { provider_role: 'trainer', provider_id: 4 }]);
   assert.deepEqual(r.live.map((a) => [a[0].customerId, a[2] ?? null]), [['cus_platform', null], ['cus_onCoach', ACCT]]);
   // ⚠ On the coach's account only a subscription Shape's application made counts (Codex on #2403):
   // the coach can make one with the member's metadata.
@@ -503,6 +510,9 @@ test('checkout: a subscription on the coach\'s account takes application_fee_per
     assert.equal(shapes({ application: APP }), true);
     assert.equal(shapes({ application: null }), false, 'the coach\'s own, made off Shape');
     assert.equal(shapes({ application: 'ca_other' }), false);
+    // One from a checkout Shape recorded and the member completed counts with no application
+    // (Codex on #2403): the window before the webhook writes its row.
+    assert.equal(shapes({ id: 'sub_recordedNoApp', application: null }), true);
   });
   assert.equal(stmts(r.db.calls, 'coach_checkouts', 'insert')[0].payload.mode, 'subscription');
 });

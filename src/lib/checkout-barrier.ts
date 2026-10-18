@@ -98,50 +98,81 @@ type OpenSession = { id: string; created: number; url?: string | null; mode?: st
 
 /**
  * Run while holding the claim: the account's newest open checkout for the product, if it is fresh
- * and on the same terms; every other open one for the product is expired. `stripeAccount` reads
- * (and expires) the checkouts on a coach's own account, where a direct charge's checkout lives,
- * for the member's customer on that account.
+ * and on the same terms; every other open one for the product is expired. Shape's own account only:
+ * a coach's account goes through retireCoachCheckouts.
  */
 export async function currentCheckout(
   customerId: string,
   sameProduct: (session: OpenSession) => boolean,
   sameTerms: (session: OpenSession) => boolean,
-  now: number = Date.now(),
-  stripeAccount: string | null = null
+  now: number = Date.now()
 ): Promise<string | null> {
-  const opts = stripeAccount ? { stripeAccount } : undefined;
-  const open = await stripe.checkout.sessions.list({ customer: customerId, status: 'open', limit: 100 }, opts);
-  // ⚠ ON A COACH'S ACCOUNT ONLY A CHECKOUT SHAPE RECORDED IS SHAPE'S (Codex on #2403). The coach can
-  // open a checkout there for the member's customer and copy every metadata value `sameProduct` and
-  // `sameTerms` read, at any price; handing its address back would charge the member for a checkout
-  // the webhook then refuses. So only the ones in coach_checkouts are handed back or expired, and the
-  // coach's own are left alone. A failed read throws: the caller refuses.
-  let recorded: Set<string> | null = null;
-  if (stripeAccount) {
-    const ids = open.data.filter((s) => sameProduct(s)).map((s) => s.id);
-    recorded = new Set();
-    if (ids.length) {
-      const { data, error } = await createAdminClient()
-        .from('coach_checkouts')
-        .select('stripe_checkout_session_id')
-        .eq('stripe_account_id', stripeAccount)
-        .in('stripe_checkout_session_id', ids);
-      if (error) throw error;
-      for (const r of (data ?? []) as Array<{ stripe_checkout_session_id: string }>) recorded.add(r.stripe_checkout_session_id);
-    }
-  }
+  const open = await stripe.checkout.sessions.list({ customer: customerId, status: 'open', limit: 100 });
   let current: string | null = null;
   // Stripe lists the newest first.
   for (const session of open.data) {
     if (!sameProduct(session)) continue;
-    if (recorded && !recorded.has(session.id)) continue;
     if (!current && session.url && now - session.created * 1000 < FRESH_MS && sameTerms(session)) {
       current = session.url;
       continue;
     }
     // Throws when the session closed in between (paid, say): the caller refuses, and the next
     // press finds the subscription.
-    await stripe.checkout.sessions.expire(session.id, undefined, opts);
+    await stripe.checkout.sessions.expire(session.id);
   }
   return current;
+}
+
+type SessionRef = { id: string; subscription?: string | { id?: string } | null };
+
+/**
+ * Run while holding the claim, for a subscription checkout on a COACH'S account (direct charges).
+ * ⚠ NOTHING THERE IS HANDED BACK, AND NOTHING IS READ FROM ITS METADATA (Codex on #2403). The coach
+ * can open a checkout for the member's customer with copied metadata, and rewrite the metadata of
+ * the ones Shape made (Stripe lets an account update a session's metadata), so neither "is this
+ * Shape's?" nor "is it on these terms?" can be answered from it. So:
+ *   · every open checkout Shape RECORDED for this coach and member (coach_checkouts, by its own
+ *     provider and mode) is expired, and a fresh one is made: no old price is ever charged, and the
+ *     coach's own checkouts are left alone;
+ *   · the subscriptions behind the checkouts Shape recorded and the member COMPLETED are returned,
+ *     so the "already pays?" check counts one even when Stripe stamped no application on it and the
+ *     webhook has not written its row yet.
+ * A failed read throws: the caller refuses.
+ */
+export async function retireCoachCheckouts(
+  customerId: string,
+  stripeAccount: string,
+  product: { provider_role: string; provider_id: number }
+): Promise<{ subscriptions: Set<string> }> {
+  const opts = { stripeAccount };
+  const ours = async (sessions: SessionRef[]): Promise<Set<string>> => {
+    const ids = sessions.map((s) => s.id);
+    const out = new Set<string>();
+    if (!ids.length) return out;
+    const { data, error } = await createAdminClient()
+      .from('coach_checkouts')
+      .select('stripe_checkout_session_id')
+      .eq('stripe_account_id', stripeAccount)
+      .eq('provider_role', product.provider_role)
+      .eq('provider_id', product.provider_id)
+      .eq('mode', 'subscription')
+      .in('stripe_checkout_session_id', ids);
+    if (error) throw error;
+    for (const r of (data ?? []) as Array<{ stripe_checkout_session_id: string }>) out.add(r.stripe_checkout_session_id);
+    return out;
+  };
+  const open = (await stripe.checkout.sessions.list({ customer: customerId, status: 'open', limit: 100 }, opts)).data as SessionRef[];
+  const openOurs = await ours(open);
+  for (const session of open) {
+    if (openOurs.has(session.id)) await stripe.checkout.sessions.expire(session.id, undefined, opts);
+  }
+  const done = (await stripe.checkout.sessions.list({ customer: customerId, status: 'complete', limit: 100 }, opts)).data as SessionRef[];
+  const doneOurs = await ours(done);
+  const subscriptions = new Set<string>();
+  for (const session of done) {
+    if (!doneOurs.has(session.id)) continue;
+    const sub = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id;
+    if (sub) subscriptions.add(sub);
+  }
+  return { subscriptions };
 }
