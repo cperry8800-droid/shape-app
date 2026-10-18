@@ -557,6 +557,21 @@ test('a walkthrough open at midnight closes, and a tap after midnight saves noth
   } finally { mock.timers.setTime(at(12)); }
 });
 
+test("a glass tapped on a card whose day is over saves nothing (Codex P2 on #2398)", async () => {
+  try {
+    mock.timers.setTime(new Date(2026, 9, 18, 23, 59).getTime());
+    const calls = env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
+    const m = await mount();
+    try {
+      assert.match(m.text(), /Checked in ✓/);
+      mock.timers.setTime(new Date(2026, 9, 19, 0, 1).getTime());
+      await m.click(/\+ Glass/);
+      assert.deepEqual(calls.add, [], "a 00:01 glass on the day before's card was saved into the new day");
+      assert.doesNotMatch(m.text(), /Checked in/, "the day before's card still shows after its day ended");
+    } finally { m.unmount(); }
+  } finally { mock.timers.setTime(at(12)); }
+});
+
 test("a save from the day before that fails after midnight changes nothing on the new day (Codex P2 on #2398)", async () => {
   try {
     let failEdit;

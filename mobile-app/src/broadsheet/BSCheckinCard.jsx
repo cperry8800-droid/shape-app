@@ -236,9 +236,9 @@ function BSCheckinDay({ onOpen, dayIso }) {
   const [skippedDay, setSkippedDay] = useState(() => (bsCiReadSkip(uid, todayIso) ? todayIso : null)); // the day the night was skipped
   // Signed in, nothing is asked until today's answers are read: a tap on a card that has not
   // loaded would be overwritten by the read. A failed read asks anyway (every tap still saves).
-  // ⚠ PER DAY (Codex P2 on #2398): across midnight the card would otherwise show yesterday's
-  // answers as today's until the new read lands, and an Edit would write them into the new day.
-  const [readyDay, setReadyDay] = useState(null);
+  // A new local day mounts a new card (BSCheckinCard, below), so this gate, like every other piece
+  // of state here, only ever holds this card's own day.
+  const [ready, setReady] = useState(!signedIn || !window.ShapeProgress?.progress);
   const alive = useRef(true);
   useEffect(() => () => { alive.current = false; }, []);
   // The newest answer per field, numbered, so an older save that fails never undoes a newer one.
@@ -250,19 +250,19 @@ function BSCheckinDay({ onOpen, dayIso }) {
   useEffect(() => {
     if (!signedIn || !window.ShapeProgress?.progress) return undefined;
     let on = true;
-    // A read that fails or brings no series still opens the card, on an empty day: never on the
-    // day before's answers.
-    const settle = (series) => {
+    // A read that fails still opens the card, on its own empty day.
+    window.ShapeProgress.progress().then((p) => {
       if (!on) return;
-      const day = series ? bsCiDay(series, todayIso) : { energy: null, hunger: null, sleep: null, rested: null, device: false };
-      setToday(day);
-      setYesterday(series ? bsCiDay(series, bsCiShift(todayIso, -1)) : null);
-      setWeek(series ? bsCiWeek(series, todayIso) : []);
-      setUsual(series ? bsCiUsualNight(series, todayIso) : 7.5);
-      setStreakBefore(series ? bsCiStreak(series, todayIso) - (bsCiAnswered(day) ? 1 : 0) : 0);
-      setReadyDay(todayIso);
-    };
-    window.ShapeProgress.progress().then((p) => settle(p && p.series ? p.series : null)).catch(() => settle(null));
+      if (p && p.series) {
+        const day = bsCiDay(p.series, todayIso);
+        setToday(day);
+        setYesterday(bsCiDay(p.series, bsCiShift(todayIso, -1)));
+        setWeek(bsCiWeek(p.series, todayIso));
+        setUsual(bsCiUsualNight(p.series, todayIso));
+        setStreakBefore(bsCiStreak(p.series, todayIso) - (bsCiAnswered(day) ? 1 : 0));
+      }
+      setReady(true);
+    }).catch(() => { if (on) setReady(true); });
     return () => { on = false; };
   }, [signedIn, todayIso]);
 
@@ -273,12 +273,10 @@ function BSCheckinDay({ onOpen, dayIso }) {
       if (on && d && d.ok) setWater({ l: Number(d.hydrationL) || 0, target: Number(d.targetL) || 3 });
     }).catch(() => {});
     return () => { on = false; };
-    // A new local day reads the new day's water, as the answers above do (Codex P2 on #2398).
-  }, [signedIn, todayIso]);
+  }, [signedIn]);
 
   // A card whose day is over shows nothing and saves nothing; Home's next render mounts the new day's.
   if (bsCiIso(now) !== todayIso) return null;
-  const ready = !signedIn || !window.ShapeProgress?.progress || readyDay === todayIso;
   if (!ready) return null;
   const sleepSkipped = skippedDay === todayIso;
   const status = bsCiStep(today, sleepSkipped);
