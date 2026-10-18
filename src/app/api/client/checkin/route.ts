@@ -60,7 +60,7 @@ export async function POST(request: Request) {
 
   const { data: existing } = await supabase
     .from('daily_health_snapshot')
-    .select('id')
+    .select('id, sleep_hours')
     .eq('user_id', user.id)
     .eq('snapshot_date', today)
     .maybeSingle();
@@ -74,17 +74,41 @@ export async function POST(request: Request) {
   if (sleepHours != null) patch.sleep_hours = sleepHours;
   if (sleepQuality != null) patch.sleep_quality = sleepQuality;
 
+  // ⚠ HOURS THE MEMBER TYPED OVER A WATCH'S NIGHT ARE THEIRS (Codex P2 on #2398). A device sync
+  // stamps `sources.sleep_hours`, and the Home check-in reads that stamp as "a watch's night":
+  // read-only, and never copied by Same as yesterday. So when this write changes the night's
+  // hours, the stamp says "manual". The Details page re-sends a watch's own hours on every Log;
+  // the same value keeps the watch's stamp.
+  let typedOverNight = false;
   if (existing && (existing as { id: string }).id) {
     const { error } = await supabase
       .from('daily_health_snapshot')
       .update(patch)
       .eq('id', (existing as { id: string }).id);
     if (error) return dbError(error, 'checkin write', 500);
+    const before = (existing as { sleep_hours?: unknown }).sleep_hours;
+    typedOverNight = sleepHours != null && before != null && Number(before) !== sleepHours;
   } else {
     const { error } = await supabase
       .from('daily_health_snapshot')
       .insert({ user_id: user.id, snapshot_date: today, ...patch });
-    if (error) return dbError(error, 'checkin write', 500);
+    // ⚠ ANOTHER WRITE CAN MAKE TODAY'S ROW BETWEEN THE READ AND THIS INSERT: a glass of water
+    // (its own save line on the Home card), a watch sync, a meal log. The insert then hits the
+    // unique (user_id, snapshot_date) key, and the answer is written to that row instead.
+    if (error && error.code === '23505') {
+      const { error: again } = await supabase
+        .from('daily_health_snapshot')
+        .update(patch)
+        .eq('user_id', user.id)
+        .eq('snapshot_date', today);
+      if (again) return dbError(again, 'checkin write', 500);
+      typedOverNight = sleepHours != null; // the row the other write made may hold a watch's night
+    } else if (error) return dbError(error, 'checkin write', 500);
+  }
+  if (typedOverNight) {
+    // The hours are saved either way; a failed stamp only leaves the night labelled as the watch's.
+    const { error } = await supabase.rpc('merge_snapshot_sources', { p_user_id: user.id, p_date: today, p_sources: { sleep_hours: 'manual' } });
+    if (error) console.error('[shape-api] checkin sleep source:', error.message || error);
   }
 
   return NextResponse.json({ ok: true, mood, energy, hunger, sleepHours, sleepQuality });

@@ -120,12 +120,26 @@ so that is the owner's call.
   it.
 
 ## 4. Phases
-1. **The Home card (app only, no schema or route change).** Inline card, a save per tap, five-word
-   scales mapped to 2/4/6/8/10, yesterday's answers and "Same as yesterday", the 3-12h sleep stepper
-   that can be cleared, Rested on the sleep step, and water as `+ glass`. The full page stays behind
-   Edit. Mount tests on the card. The website's `DashTodayCard` follows in the same phase.
-2. **Sleep that fills itself, and a reminder that lands on the card.** HealthKit read on app open,
-   a WHOOP/Oura pull on open (server), and notification deep links to the card.
+1. **The Home card and a step-by-step walkthrough (no schema change). Built in the app**
+   (`BSCheckinCard.jsx`, `tests/checkin-card.test.mjs`). Two routes changed with it: the progress
+   route names the nights a watch wrote (`series.sleepFromDevice`, from the snapshot's sources), and
+   the check-in write survives another write making the day's row first.
+   - The owner, on the first build: *"have it be a step by step, almost like a tutorial that walks
+     through each check"*, with the member's answers from the days before under each step.
+   - The card on Home is the door: Start check-in, or Same as yesterday in one tap.
+   - The walkthrough gives one screen per check: Energy, Hunger, Sleep (Rested optional, or Skip)
+     and Water. Each says what it asks and why, and every tap saves.
+   - Under each step are the last 7 days, with a "Mostly …" line when a real majority shows.
+     Tapping a past day reuses its answer.
+   - A summary with Change follows; Edit on Home opens it. The full page is behind Details.
+   - The website's `DashTodayCard` is still to follow.
+2. **Sleep, water and an energy hint from a watch, and a reminder that lands on the card.**
+   - Sync Apple Health, Oura and WHOOP when the app opens (Garmin already pushes), so the sleep
+     step is filled before it is reached.
+   - Water from Apple Health.
+   - Readiness or recovery pre-selects an energy word; the member confirms it.
+   - Notification deep links to the card. The owner asked whether watches can fill this in
+     (2026-10-18).
 3. **Answer from the notification.** Native notification actions for energy, plus the streak if
    ruling 3 says yes.
 
@@ -133,15 +147,22 @@ so that is the owner's call.
 1. **The words.** Energy: Drained · Low · OK · Good · Great. Hunger: Not hungry · A little · Normal
    · Hungry · Starving ("Light" read as a meal, not a feeling). Rested: Wrecked · Tired · OK ·
    Rested · Fresh. Stored as 2 · 4 · 6 · 8 · 10, keyed in all 13 locales.
-2. **Rested folds into the sleep step,** optional, and is skipped when a device supplied sleep
-   efficiency. The column and the case file's RESTED stay.
+2. **Rested folds into the sleep step,** optional. When a wearable supplied the night, the hours
+   are read-only and Rested is still offered: it is the member's own check, the case file's RESTED
+   reads it, and the full page always offered it (amended on Codex's finding in #2398). A night
+   is a wearable's when a device sync wrote its hours (`sources.sleep_hours`), not when the day
+   has a resting heart rate: a watch worn by day reports one with no night. Different hours the
+   member types over it (the Details page) stamp it `manual`, and it is theirs again. Same as
+   yesterday copies Rested on its own, whoever supplied either night's hours.
 3. **A streak, no points.** Points are the Store's currency, and "Same as yesterday" would mint them
    for one tap. The streak (consecutive local days with an answer) shows on the card's done line;
    the weekly check-in keeps its +15, and the day already counts for momentum.
 4. **No −7 while the switch is off.** The switch turns check-ins off, so charging for one reads as
    a penalty for using a setting. The coach still sees the missed week, and switching back on
    charges again from the next completed week. The score cron reads the stored preference the way
-   the notification routes do (absent reads On).
+   the notification routes do (absent reads On), and judges last week by the switch as it stood
+   when the week ended: the earliest local Monday, 14 hours before Monday in UTC. The change's
+   time is the device's stamp, never later than the settings row's own database write time.
 5. **The card shows from 4 a.m. local,** not midnight: at 1 a.m. "last night" has not been slept.
    No new setting; the member's own check-in reminder already decides when they are nudged.
 
@@ -150,7 +171,7 @@ so that is the owner's call.
   exports `submit`, `mine` and `weekOf`), so the member's engine never saw check-in history and
   its "check-in overdue" rule never fired. Fixed in the same PR: the record reads `mine(1)`, and
   not at all when the member has turned Check-ins off (`tests/self-record-checkins.test.mjs`).
-- With the switch on, today not logged, and a lead whose lever is `checkin`, Home has no door to the
-  daily page: the bulletin is hidden in favour of the lead (which opens the weekly page) and the row
-  renders nothing.
+- With the switch on, today not logged, and a lead whose lever is `checkin`, Home had no door to the
+  daily page: the bulletin was hidden in favour of the lead (which opens the weekly page) and the
+  row rendered nothing. Fixed with Phase 1: the card shows whatever the lead is.
 - `BSMoodSheet` is mounted but nothing opens it, and `BSHomeCards` is never mounted.
