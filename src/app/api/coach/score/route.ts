@@ -1,7 +1,8 @@
 // Coach score for the signed-in trainer or nutritionist.
 //
 // Derives the breakdown the Trainer / Nutritionist Score pages render:
-//   - Active clients (active+trialing subscriptions on this provider)
+//   - Active clients (distinct clients with an open plan on this provider: active, trialing or
+//     retrying, as Business counts them)
 //   - Session completion % (last 90 days of sessions)
 //   - Client PRs attributed (count of community_posts with activity_type='pr'
 //     authored by this provider's subscribed clients in the last 90 days)
@@ -16,6 +17,8 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, userLookupForRequest } from '@/lib/request-auth';
 import { isMeasuredSignedOut } from '@/lib/auth-lookup';
+import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
+import { OPEN_SUB_STATUSES } from '@/lib/coach-trajectory.mjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -79,14 +82,25 @@ export async function GET(req: Request) {
   // the marketplace's get_coach_scores counts every row. The two "canonical"
   // numbers could therefore disagree for exactly the busiest coaches, which
   // defeats the point of having one ladder on both surfaces.
-  // ⚠ KEEP IN SYNC with supabase-migrations/2026-07-25-coach-scores-batch.sql.
+  // ⚠ KEEP IN SYNC with supabase-migrations/2026-10-18-coach-score-distinct-clients.sql.
+  //
+  // ⚠ CLIENTS, NOT PLANS, AND A CLIENT WHOSE PAYMENT IS RETRYING COUNTS (owner, 2026-10-18). The
+  // first term is "50 a client", but this counted subscription rows, active and trialing only: a
+  // client on two plans earned 100 (Codex on #2400), and a retrying client, who keeps their coach,
+  // earned nothing. A head count cannot count distinct clients, so the open rows are walked a page
+  // at a time (every row, as the count was) and counted by client; a row with no client stands alone.
   const [activeRes, sessTotalRes, sessDoneRes, workoutsRes] = await Promise.all([
-    supabase
-      .from('subscriptions')
-      .select('id', { count: 'exact', head: true })
-      .eq('provider_id', providerId)
-      .eq('provider_role', role)
-      .in('status', ['active', 'trialing']),
+    readAllById<{ id: string; client_id: string | null }>((after) => {
+      let q = supabase
+        .from('subscriptions')
+        .select('id, client_id')
+        .eq('provider_id', providerId)
+        .eq('provider_role', role)
+        .in('status', OPEN_SUB_STATUSES);
+      if (after) q = q.gt('id', after);
+      // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
+      return q.order('id', { ascending: true }).limit(ROW_PAGE);
+    }),
     supabase
       .from('sessions')
       .select('id', { count: 'exact', head: true })
@@ -119,7 +133,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Could not read your score right now.' }, { status: 500 });
   }
 
-  const activeClients = (activeRes as { count: number | null }).count || 0;
+  const activeClients = new Set((activeRes.data ?? []).map((r) => (r.client_id != null ? 'c:' + r.client_id : 'sub:' + r.id))).size;
 
   const totalSessions = (sessTotalRes as { count: number | null }).count || 0;
   const completed = (sessDoneRes as { count: number | null }).count || 0;

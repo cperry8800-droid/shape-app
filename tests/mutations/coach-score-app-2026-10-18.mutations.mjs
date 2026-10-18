@@ -79,6 +79,18 @@ export default {
       find: "    .eq('owner_id', user.id)\n    .order('id', { ascending: true });", replace: "    .eq('owner_id', user.id);" },
     { name: 'codex-2400 route: a failed listing read is "no listing"', file: ROUTE,
       find: '  if (listErr) {', replace: '  if (false) {' },
+    // ── The score counts distinct open clients (owner, 2026-10-18; Codex round 5 on #2400) ──
+    { name: 'score route: counts plans again', file: ROUTE,
+      find: "(r.client_id != null ? 'c:' + r.client_id : 'sub:' + r.id)", replace: "('sub:' + r.id)" },
+    { name: 'score route: a retrying client earns nothing', file: ROUTE,
+      find: "        .in('status', OPEN_SUB_STATUSES);", replace: "        .in('status', ['active', 'trialing']);" },
+    { name: 'score route: a failed walk is a zero', file: ROUTE,
+      find: '  const failed = [activeRes, sessTotalRes, sessDoneRes, workoutsRes]', replace: '  const failed = [sessTotalRes, sessDoneRes, workoutsRes]' },
+    ...[['get_coach_scores', 'join ids on ids.id = s.provider_id'], ['shape_coach_score_parts', 'join listings l on l.id = s.provider_id']].map(([fn, join]) => ({
+      name: `score sql: ${fn} counts plans, active and trialing only, again`, file: 'supabase-migrations/2026-10-18-coach-score-distinct-clients.sql',
+      find: `           count(distinct coalesce(s.client_id::text, 'sub:' || s.id::text))\n             filter (where s.status in ('active', 'trialing', 'past_due')) as active_clients\n    from public.subscriptions s\n    ${join}`,
+      replace: `           count(*) filter (where s.status in ('active', 'trialing')) as active_clients\n    from public.subscriptions s\n    ${join}`,
+    })),
     { name: 'trainer page: the programs term is priced wrong', file: TRAINER, find: `    ["Programs published", "Per program · each program you've published", "+80"],`, replace: `    ["Programs published", "Per program · each program you've published", "+40"],` },
   ],
 };

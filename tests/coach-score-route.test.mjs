@@ -10,7 +10,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { readFileSync } from 'node:fs';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -73,6 +74,8 @@ async function call(tables, opts = {}) {
     ['@/lib/supabase/server', { createClient: async () => db.cookie }],
     ['@/lib/request-auth', requestAuth],
     ['@/lib/auth-lookup', await ts('src/lib/auth-lookup.ts', new Map())],
+    ['@/lib/read-all-by-id', await ts('src/lib/read-all-by-id.ts', new Map())],
+    ['@/lib/coach-trajectory.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/coach-trajectory.mjs')).href)],
   ]));
   const res = await route.GET(new Request(`https://shape.test/api/coach/score?role=${opts.role || 'trainer'}${opts.query || ''}`, { headers: opts.headers || {} }));
   return { status: res.status, body: await res.json(), ...db };
@@ -85,10 +88,10 @@ const PRACTICE = {
   trainers: [{ id: 7, owner_id: COACH.id }],
   nutritionists: [{ id: 9, owner_id: COACH.id }],
   subscriptions: [
-    { provider_id: 7, provider_role: 'trainer', status: 'active' },
-    { provider_id: 7, provider_role: 'trainer', status: 'active' },
-    { provider_id: 7, provider_role: 'trainer', status: 'trialing' },
-    { provider_id: 7, provider_role: 'trainer', status: 'canceled' },
+    { id: 's1', client_id: 'c1', provider_id: 7, provider_role: 'trainer', status: 'active' },
+    { id: 's2', client_id: 'c2', provider_id: 7, provider_role: 'trainer', status: 'active' },
+    { id: 's3', client_id: 'c3', provider_id: 7, provider_role: 'trainer', status: 'trialing' },
+    { id: 's4', client_id: 'c4', provider_id: 7, provider_role: 'trainer', status: 'canceled' },
   ],
   sessions: [
     { provider_id: 7, provider_role: 'trainer', status: 'completed', scheduled_at: recent },
@@ -178,4 +181,50 @@ test('a listing read that failed is a 503, not "no listing"', async () => {
   assert.equal(failed.status, 503, JSON.stringify(failed.body));
   const none = await call({ ...PRACTICE, trainers: [] }, { headers: BEARER, cookieAuth: NO_COOKIE });
   assert.equal(none.status, 404, 'no listing at all is still a 404');
+});
+
+// ⚠ CLIENTS, NOT PLANS, AND A RETRYING CLIENT COUNTS (owner, 2026-10-18; Codex on #2400). The term is
+// "50 a client": a client on two plans with one coach is one client, a client whose payment is
+// retrying keeps their coach and counts, and an ended plan does not.
+test('the score counts distinct open clients: two plans are one client, a retrying client counts, an ended one does not', async () => {
+  const subs = [
+    { id: 's1', client_id: 'c1', provider_id: 7, provider_role: 'trainer', status: 'active' },
+    { id: 's2', client_id: 'c1', provider_id: 7, provider_role: 'trainer', status: 'active' },
+    { id: 's3', client_id: 'c2', provider_id: 7, provider_role: 'trainer', status: 'past_due' },
+    { id: 's4', client_id: 'c3', provider_id: 7, provider_role: 'trainer', status: 'trialing' },
+    { id: 's5', client_id: 'c4', provider_id: 7, provider_role: 'trainer', status: 'canceled' },
+    { id: 's6', client_id: 'c5', provider_id: 7, provider_role: 'trainer', status: 'unpaid' },
+    { id: 's7', client_id: null, provider_id: 7, provider_role: 'trainer', status: 'active' },
+    { id: 's8', client_id: 'c1', provider_id: 8, provider_role: 'trainer', status: 'active' },
+  ];
+  const r = await call({ ...PRACTICE, subscriptions: subs }, { headers: BEARER, cookieAuth: NO_COOKIE });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  const active = r.body.breakdown.find((b) => b.label === 'Active clients');
+  assert.equal(active.points, 4 * 50, 'c1 (two plans), c2 (retrying), c3 (trialing) and one row with no client');
+  assert.equal(active.sub, '4 clients');
+  // A failed or overlong walk is a failed count, never a zero.
+  const failed = await call(PRACTICE, { headers: BEARER, cookieAuth: NO_COOKIE, errors: { subscriptions: { message: 'timeout' } } });
+  assert.equal(failed.status, 500);
+});
+
+test('the directory and the leaderboard count the same way (2026-10-18-coach-score-distinct-clients.sql)', () => {
+  const sql = readFileSync(join(ROOT, 'supabase-migrations/2026-10-18-coach-score-distinct-clients.sql'), 'utf8');
+  const code = sql.replace(/--[^\n]*/g, '');
+  for (const name of ['get_coach_scores', 'shape_coach_score_parts']) {
+    const at = code.indexOf(`create or replace function public.${name}(`);
+    assert.ok(at >= 0, name);
+    const body = code.slice(at, code.indexOf('$function$;', at));
+    assert.match(body, /count\(distinct coalesce\(s\.client_id::text, 'sub:' \|\| s\.id::text\)\)\s+filter \(where s\.status in \('active', 'trialing', 'past_due'\)\) as active_clients/, name + ': distinct open clients');
+    assert.doesNotMatch(body, /count\(\*\) filter \(where s\.status in \('active', 'trialing'\)\)/, name + ': still counts plans');
+    assert.match(body, /set search_path = public, pg_temp/, name);
+  }
+  const scores = code.slice(code.indexOf('function public.get_coach_scores('), code.indexOf('function public.shape_coach_score_parts('));
+  assert.match(scores, /language plpgsql\s+stable\s+security definer/, 'get_coach_scores stays a definer');
+  const parts = code.slice(code.indexOf('function public.shape_coach_score_parts('));
+  assert.doesNotMatch(parts.slice(0, parts.indexOf('$function$')), /security definer/, 'the score parts stay an invoker');
+  assert.doesNotMatch(code, /^\s*(grant|revoke|drop function|alter function)\b/im, 'create or replace keeps owner and grants');
+  assert.match(code, /^begin;/m);
+  assert.match(code, /do \$check\$[\s\S]*raise exception '%: does not count distinct open clients'[\s\S]*\$check\$;\s*commit;/);
+  // the route says where its twin lives
+  assert.match(readFileSync(join(ROOT, 'src/app/api/coach/score/route.ts'), 'utf8'), /KEEP IN SYNC with supabase-migrations\/2026-10-18-coach-score-distinct-clients\.sql/);
 });

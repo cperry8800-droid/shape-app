@@ -169,10 +169,9 @@ test('the file refuses to commit unless every widened function and policy names 
 
 // Reads that stop at active and trialing ON PURPOSE. Each says why; an entry whose file no longer
 // has such a list fails below, so a stale exemption cannot outlive the reason.
-const ALLOW_TWO = {
-  'src/app/api/coach/score/route.ts':
-    'The coach score counts active and trialing subscriptions for its "Active clients" points, kept in step with get_coach_scores and shape_coach_score_parts (left alone by the migration). A count inside a score, not a relationship; whether a retrying client earns the coach points is the owner\'s call, and all three change together.',
-};
+// (The coach score was one, until the owner ruled a retrying client counts:
+// 2026-10-18-coach-score-distinct-clients.sql and the route now read the open statuses.)
+const ALLOW_TWO = {};
 // The only places a literal (active, trialing, past_due) list may be written. Everything that
 // decides a coach↔client relationship reads coach-trajectory.mjs OPEN_SUB_STATUSES instead.
 const ALLOW_THREE = {
@@ -262,6 +261,7 @@ const SITES = {
   'src/lib/ai/memberReads.mjs': 2,
   'src/app/api/trainer/analytics/route.ts': 1,
   'src/app/api/nutritionist/analytics/route.ts': 1,
+  'src/app/api/coach/score/route.ts': 1,
 };
 test('each widened read uses OPEN_SUB_STATUSES, and the consoles count an open plan as current', async () => {
   const { OPEN_SUB_STATUSES } = await import(pathToFileURL(join(ROOT, 'src/lib/coach-trajectory.mjs')).href);
