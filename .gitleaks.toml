@@ -17,6 +17,10 @@ regexes = [
   # Client-side localStorage key NAMES (e.g. shape.grocery.lists.v1) — these
   # trip the generic-api-key rule on the `..._KEY = "..."` shape but are not keys.
   '''shape\.[A-Za-z.]+\.v\d+''',
+  # The webhook's idempotency key for returning Shape's fee on a refund, as a test asserts it
+  # (refund-appfee-<charge id>-<refunded cents>): built from a charge id and an amount, not a
+  # credential. generic-api-key reads any quoted value beside an `idempotencyKey` field.
+  '''refund-appfee-ch_[A-Za-z0-9]+-[0-9]+''',
 ]
 paths = [
   # Generated/minified mobile bundle + source maps + lockfiles + Next build
