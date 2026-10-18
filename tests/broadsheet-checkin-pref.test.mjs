@@ -12,7 +12,7 @@
 //
 // Loading technique is broadsheet-session-render's: compile the shipping file
 // in memory, resolve its real imports, append exports. No source copied.
-import test from 'node:test';
+import test, { mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -113,6 +113,10 @@ async function loadModule() {
 }
 
 const MOD = await loadModule();
+// The bulletin is the one-tap card (BSCheckinCard.jsx), which asks only from 4 a.m. local. Every
+// test here is about the pref, so the clock is held at local noon; the hour rule has its own test
+// in tests/checkin-card.test.mjs.
+mock.timers.enable({ apis: ['Date'], now: new Date(2026, 9, 18, 12).getTime() });
 // The mirror is PER-UID: 'shape.dailyCheckin.<uid>' (one shared slot let
 // account B's default-ON hydrate delete account A's OFF record).
 const lsKey = (uid) => `shape.dailyCheckin.${uid}`;
@@ -155,7 +159,7 @@ test('bsDailyCheckinOn tolerates BOTH storage shapes (house string + spec boolea
   assert.equal(MOD.bsDailyCheckinOn('Off'), false);
 });
 
-test('signed-out preview is byte-identical: bulletin due, no residue row, unknown variant nothing', () => {
+test('signed-out preview: the card asks, no row, unknown variant nothing', () => {
   env({ uid: null });
   // Even a stale OFF record on the device must not touch the signed-out demo.
   dom.window.localStorage.setItem(lsKey('somebody-else'), JSON.stringify({ uid: 'somebody-else', off: true }));
@@ -163,12 +167,12 @@ test('signed-out preview is byte-identical: bulletin due, no residue row, unknow
   assert.equal(bulletin.warnings.length, 0, bulletin.warnings.join('\n'));
   assert.match(bulletin.html, /Check-in due/);
   const row = renderStatic(nudge({ variant: 'row' }));
-  assert.equal(row.html, ''); // not logged → no residue row (unchanged behavior)
+  assert.equal(row.html, ''); // pref on → the card carries the done line; there is no row
   const unknown = renderStatic(nudge({ variant: 'weird' }));
   assert.equal(unknown.html, ''); // explicit-variant contract holds
 });
 
-test('signed-in with no stored pref: first paint identical to today (default ON)', () => {
+test('signed-in with no stored pref: the card asks (default ON)', () => {
   env({ uid: 'member-1' });
   const bulletin = renderStatic(nudge({ variant: 'bulletin' }));
   assert.equal(bulletin.warnings.length, 0, bulletin.warnings.join('\n'));
@@ -187,7 +191,7 @@ test('pref OFF: the bulletin never renders; the row is the quiet door (no "due",
   assert.match(row.html, /Check-in/);
   assert.match(row.html, /add water/);
   assert.doesNotMatch(row.html, /due/i);      // never nags
-  assert.doesNotMatch(row.html, /Logged/);    // not the residue row
+  assert.doesNotMatch(row.html, /Logged|Checked in/); // not a done state
   assert.doesNotMatch(row.html, /✓/);         // no done-tick semantics
   const unknown = renderStatic(nudge({ variant: 'weird' }));
   assert.equal(unknown.html, ''); // the contract survives the OFF branch too

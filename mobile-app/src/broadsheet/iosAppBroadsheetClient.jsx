@@ -59,6 +59,7 @@ import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } 
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { BSIntegrationsPage, BSReconcile } from './BSIntegrationsPage.jsx';
 import { BSLeaderboard } from './BSLeaderboard.jsx';
+import { BSCheckinCard } from './BSCheckinCard.jsx';
 import { BSCoachBusinessPage, BSCoachBusinessCard } from './BSCoachBusiness.jsx';
 import { BSNotifications } from './BSNotifications.jsx';
 import { BSNoraTalk, useNoraTalk, bsNoraVoiceFail } from './BSNoraTalk.jsx';
@@ -4498,8 +4499,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   // bulletins below are deliberately suppressed to avoid duplication, so an opted-out
   // member had the quiet surfaces hidden by their pref and the loudest one left standing.
   // A second instance of this hook is deliberate and safe: it seeds from the same per-uid
-  // mirror and converges on the same value, unlike useBSCheckinLogged whose two instances
-  // would race one async fetch against another.
+  // mirror and converges on the same value.
   const checkinPrefOn = useBSDailyCheckinPref();
   // Weekly check-in nudge — due when a signed-in client has no row this week.
   React.useEffect(() => {
@@ -5150,18 +5150,18 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       </div>
 
       {/* ── CHECK-INS — up top, right under the week, as before the Focus layout
-          (owner, 2026-10-11: "check-in should be towards the top"). Max two
-          slim lines, each suppressed only when its own lever is the lead; the
-          daily one self-gates on today's check-in being logged; the wall
-          bulletin yields to the weekly check-in so the block stays at two. */}
-      {!(engineFlag && engineFlag.lever === 'checkin') && (
-        <BSTodayNudge onOpen={() => setTodayPage(true)} variant="bulletin" />
-      )}
+          (owner, 2026-10-11: "check-in should be towards the top"). The daily
+          check-in is the one-tap card itself (BSCheckinCard, 2026-10-18), shown
+          whatever the lead is: the 'checkin' lever is the WEEKLY check-in, and
+          the card is where today's answers are given, not a nag. The weekly
+          line is suppressed when its own lever is the lead; the wall bulletin
+          yields to it. */}
+      <BSTodayNudge onOpen={() => setTodayPage(true)} variant="bulletin" />
       {checkinDue && checkinPrefOn && !(engineFlag && engineFlag.lever === 'checkin') && (
         <BSHomeBulletin label={tr('home:bulletin.weeklyCheckin', { defaultValue: 'Weekly check-in due' })} detail={tr('home:bulletin.weeklyCheckinDetail', { defaultValue: '2 min' })} onOpen={() => setCheckinPage(true)} />
       )}
       {!(checkinDue && checkinPrefOn && !(engineFlag && engineFlag.lever === 'checkin')) && <BSHomeWallBulletin />}
-      {/* Once today's check-in is logged it decays to a quiet index row here. */}
+      {/* With Check-ins off, the quiet door to the check-in page and water. */}
       <BSTodayNudge variant="row" onOpen={() => setTodayPage(true)} />
 
       {/* ── YOUR FIRST 30 DAYS — the member's own board (client-onboarding review, fix 4), only while
@@ -29733,28 +29733,6 @@ function useBSOnlineRailPref() {
   return on;
 }
 
-// useBSCheckinLogged — the manual-signal "logged for today" predicate, extracted
-// VERBATIM from BSTodayNudge's own effect (see the comment above — the has()/
-// deviceMeta/rule is copied unchanged, only lifted into a reusable hook).
-function useBSCheckinLogged() {
-  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
-  const [logged, setLogged] = useStateBSC(false);
-  React.useEffect(() => {
-    if (!signedIn || !window.ShapeProgress?.progress) return undefined;
-    let on = true;
-    const d = new Date();
-    const todayIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    window.ShapeProgress.progress().then((p) => {
-      if (!on || !p || !p.series) return;
-      const has = (k) => (p.series[k] || []).some((s) => s.date === todayIso);
-      const deviceMeta = has('sleepEfficiency') || has('restingHr') || has('hrv');
-      if (has('energy') || has('hunger') || has('sleepQuality') || (has('sleep') && !deviceMeta)) setLogged(true);
-    }).catch(() => {});
-    return () => { on = false; };
-  }, [signedIn]);
-  return logged;
-}
-
 // useBSStepsToday — the steps-today data effect + derived render flags, extracted
 // VERBATIM from BSStepsCard (goal via the existing useBSStepGoal() hook, signed-out
 // preview sample, todayKnown honesty gate, Shape Steps→points conversion).
@@ -29811,43 +29789,26 @@ function useBSStepsToday() {
 // dot-progress + quick-add row that STAYS LIVE even after the check-in collapses to
 // its one-line summary (you sip water all day). Recovery readiness + the sleep-detail
 // door sit in the footer. Replaces BSDailyCheckinCard + BSHydrationCard.
-// TODAY nudge — the check-in + hydration box moved to its own page (BSTodayPage);
-// Home carries this compact notification-style door instead. Status-aware: "due"
-// until a MANUAL signal exists for today (same rule as the card — a wearable
-// syncing sleep alone never reads as logged), then flips to a quiet "logged ✓".
-// `variant` is REQUIRED — no silent fallback to the old bare-plate look (Task 6
-// deleted that dead branch once every call site carried an explicit variant).
-// variant 'bulletin' → BSHomeBulletin CHECK-IN DUE, rendered only while due
-// (signed-in gating carried from the plate's own logged-detection scope — the
-// bulletin simply renders nothing once logged, matching "decays to an index row once
-// logged" from the spec; the index-row decay itself is variant 'row'). variant 'row'
-// → BSIndexRow CHECK-IN residue (Logged ✓ · add water), rendered only once logged.
-// Spec §3D "Optional check-in": when the member's dailyCheckin pref is OFF,
-// the bulletin renders NOTHING (no due nag, ever) and the 'row' variant swaps
-// its logged-residue logic for a quiet, always-present "Check-in" index door —
-// never the word "due", never a done-tick — so the check-in page (and the
-// hydration quick-add living on it) stays one tap away. Pref ON = today's
-// behavior byte-identical.
+// TODAY nudge — the check-in on Home. `variant` is REQUIRED: an omitted or mistyped one renders
+// nothing rather than silently picking a surface.
+//   'bulletin' → the one-tap card (BSCheckinCard.jsx, owner 2026-10-18, design A): it asks one
+//                question at a time, saves every tap and decays to its own done line, so there is
+//                no separate "logged" row any more.
+//   'row'      → only with the member's dailyCheckin pref OFF (spec §3D "Optional check-in"): a
+//                quiet, always-present "Check-in · add water" door to the check-in page, never the
+//                word "due" and never a done tick. Pref OFF, the bulletin renders NOTHING.
 function BSTodayNudge({ onOpen, variant }) {
   const tr = useShapeTr();
   const checkinOn = useBSDailyCheckinPref();
-  const logged = useBSCheckinLogged();
   if (variant === 'bulletin') {
     if (!checkinOn) return null; // pref OFF — Home never nags (spec §3D)
-    if (logged) return null;
-    return <BSHomeBulletin label={tr('home:bulletin.checkin', { defaultValue: 'Check-in due' })} detail={tr('home:bulletin.checkinDetail', { defaultValue: 'Energy · sleep · 30 sec' })} onOpen={onOpen} />;
+    return <BSCheckinCard onOpen={onOpen} />;
   }
-  // Explicit contract: only 'row' renders the residue — an omitted or mistyped
-  // variant renders nothing rather than silently picking a surface.
   if (variant !== 'row') return null;
-  if (!checkinOn) {
-    // The quiet door: reuses the EXISTING home:today keys (no new home strings)
-    // and deliberately carries no `figure` and no `done` tick — a neutral index
-    // entry, not a status claim.
-    return <BSIndexRow label={tr('home:today.checkinLabel', { defaultValue: 'Check-in' })} status={tr('home:today.addWater', { defaultValue: 'add water' })} onOpen={onOpen} />;
-  }
-  if (!logged) return null;
-  return <BSIndexRow label={tr('home:today.checkinLabel', { defaultValue: 'Check-in' })} figure={tr('home:today.loggedFigure', { defaultValue: 'Logged ✓' })} status={tr('home:today.addWater', { defaultValue: 'add water' })} done onOpen={onOpen} />;
+  if (checkinOn) return null; // the card carries the done line
+  // The quiet door: the existing home:today keys, no `figure` and no `done` tick — a neutral
+  // index entry, not a status claim.
+  return <BSIndexRow label={tr('home:today.checkinLabel', { defaultValue: 'Check-in' })} status={tr('home:today.addWater', { defaultValue: 'add water' })} onOpen={onOpen} />;
 }
 
 // TODAY page — the full daily check-in + hydration box on its own page,
