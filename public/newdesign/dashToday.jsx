@@ -79,7 +79,7 @@ function dashDemoKpis(now) {
   const v = [
     { k: dashMoney(p.balanceCents), l: "Current balance", sub: "settled · 7-day hold" },
     { k: p.payoutShort, l: "Next payout", sub: p.daysToPayout === 0 ? "today" : "in " + p.daysToPayout + " day" + (p.daysToPayout === 1 ? "" : "s") },
-    { k: dashMoney(p.thisMonthCents), l: "This month", sub: "net · after 15% fee" },
+    { k: dashMoney(p.thisMonthCents), l: "This month", sub: "net · after Shape's fee" },
     { k: dashMoney(p.lifetimeCents), l: "Lifetime", sub: p.months + " month" + (p.months === 1 ? "" : "s") + " on Shape" },
   ];
   _dashDemoKpis = { key, v };
@@ -89,6 +89,19 @@ function dashDemoKpis(now) {
 function dashMoney(cents) {
   try { return "$" + Math.round((cents || 0) / 100).toLocaleString(); }
   catch (e) { return "$0"; }
+}
+
+// Today's sidebar card from the dashboard's kpis: net a month, and today's clients.
+// ⚠ CLIENTS, NOT "ACTIVE SUBS" (the sweep after #2394 round 10). The dashboards count today's
+// practice by the Business page's rule (coach-trajectory.mjs practiceToday): people, a client whose
+// payment is retrying among them, so the card says what the Business page it sits beside says.
+function dashLivePayoutCard(k) {
+  const n = k ? k.activeClients : null;
+  return {
+    label: "MONTHLY · NET",
+    amount: k && k.monthlyNetCents != null ? dashMoney(k.monthlyNetCents) : "—",
+    sub: (n == null ? "—" : n === 1 ? "1 client" : n + " clients") + " · payouts connect soon",
+  };
 }
 
 // ── The KPI picker (review 2026-09-09, R15) ─────────────────────────────────
@@ -953,20 +966,36 @@ function DashDemoBand() {
 // days against the 30 before (src/lib/coach-growth.ts). Read by the Business summary
 // card below; the Business page's own Money tab draws from its trajectory instead.
 // Demo shows the example series.
+// The preview's new clients over 90 days are its weeks summed (it has no clients before them).
+const dashDemoGrowth = (counts, centsEach, momPct) => ({
+  weeklyAdds: counts.map((c, i) => ({ weekOf: "w" + i, count: c, addedCents: c * centsEach })),
+  added90: counts.reduce((s, c) => s + c, 0), momPct,
+});
 const DASH_DEMO_GROWTH = {
-  trainer: { weeklyAdds: [1, 0, 2, 1, 3, 1, 2, 2, 1, 3, 2, 4, 3].map((c, i) => ({ weekOf: "w" + i, count: c, addedCents: c * 20000 })), momPct: 9 },
-  nutritionist: { weeklyAdds: [0, 1, 1, 2, 1, 1, 2, 1, 2, 2, 1, 2, 2].map((c, i) => ({ weekOf: "w" + i, count: c, addedCents: c * 16000 })), momPct: 12 },
+  trainer: dashDemoGrowth([1, 0, 2, 1, 3, 1, 2, 2, 1, 3, 2, 4, 3], 20000, 9),
+  nutritionist: dashDemoGrowth([0, 1, 1, 2, 1, 1, 2, 1, 2, 2, 1, 2, 2], 16000, 12),
 };
 // Marketplace funnel: profile views → consults → signed. Views aren't tracked
 // yet → honest "connects soon"; consults + signings are real on live.
-const DASH_DEMO_FUNNEL = { views: 1240, consults90: 86, signed90: 34 };
+// The preview's signings are some of its new clients (18 for a nutritionist, 25 for a trainer), never more.
+const DASH_DEMO_FUNNEL = { views: 1240, consults90: 40, signed90: 14 };
 const DASH_FUNNEL_BENCHMARK = 30; // % consult→signed close rate, marketplace norm
-// Consult → signed, as a percent. "Signed" is the clients who found the coach on Shape, but one
-// can still sign without a consult, so the rate is capped at 100: past it is not a close rate.
+// Consult → signed, as a percent. "Signed" is the clients who found the coach on Shape.
 // Unread signings (the dashboards send signed90 null when the subscriptions could not be read)
 // are no rate, not 0%.
+// ⚠ MORE SIGNED THAN CONSULTED IS NO CLOSE RATE, NOT 100% (the sweep after #2394 round 10). A
+// client can sign without a consult, so the signings can outnumber the consults. The rate was capped
+// at 100 there, and the funnel and Today printed it as a measurement, "100% — above the ~30%
+// marketplace benchmark". It is null, and dashCloseWhy says which of the reasons it is.
 function dashCloseRate(f) {
-  return f && f.consults90 > 0 && f.signed90 != null ? Math.min(100, Math.round((f.signed90 / f.consults90) * 100)) : null;
+  return f && f.consults90 > 0 && f.signed90 != null && f.signed90 <= f.consults90 ? Math.round((f.signed90 / f.consults90) * 100) : null;
+}
+// Why there is no close rate, or null when there is one: "unread" (the signings couldn't be read),
+// "over" (more clients signed than booked a consult), "none" (nothing to measure yet).
+function dashCloseWhy(f) {
+  if (!f || dashCloseRate(f) != null) return null;
+  if (f.signed90 == null) return "unread";
+  return f.signed90 > (f.consults90 || 0) ? "over" : "none";
 }
 function DashFunnelPanel({ live }) {
   const f = live ? (live.funnel || null) : DASH_DEMO_FUNNEL;
@@ -979,11 +1008,13 @@ function DashFunnelPanel({ live }) {
   ];
   const maxV = Math.max(...stages.map((s) => s.v || 0), 1);
   const close = dashCloseRate(f);
+  const why = dashCloseWhy(f);
   const insight = close != null
     ? close >= DASH_FUNNEL_BENCHMARK
       ? "Your consult→client close rate is " + close + "% — above the ~" + DASH_FUNNEL_BENCHMARK + "% marketplace benchmark. The lever now is more consults at the top."
       : "Your consult→client close rate is " + close + "% vs the ~" + DASH_FUNNEL_BENCHMARK + "% benchmark — tightening the intake call converts more of the consults you already get."
-    : f.signed90 == null ? "Your signings couldn't be read just now, so there's no close rate to show. Nothing is lost; reload to try again."
+    : why === "unread" ? "Your signings couldn't be read just now, so there's no close rate to show. Nothing is lost; reload to try again."
+    : why === "over" ? "More clients signed than booked a consult, so there's no close rate to show: some signed without one."
     : "Book consults from the marketplace to start the funnel — signings are tracked automatically.";
   return (
     <div>
@@ -1010,16 +1041,25 @@ function DashFunnelPanel({ live }) {
 // full Business page (revenue trend · payouts · funnel · churn). Money
 // honesty: monthly net derives from real subscriptions; payout-flavored
 // numbers never appear here — the Business page owns those (real or "—").
+// ⚠ THE PREVIEW'S NET IS EACH CLIENT AFTER THEIR OWN FEE, NOT THE ROSTER AT 15% (the sweep after
+// #2394 round 10). This took 15% off all ten demo clients ($1,547) while Business's origin list
+// and Plan said half of them were brought at 0%, and Business quoted its own figure. The rule is
+// dashSignals.js `rosterNetCents`, which the sidebar card and Business read too, so the preview
+// states one net; and since a brought client pays no fee, the line no longer says "after 15%".
 function DashBusinessSummary({ live, role, clients }) {
   const ink50 = "var(--sh-ink2, #a09b94)";
   const g = live ? (live.growth || null) : DASH_DEMO_GROWTH[role];
   const f = live ? (live.funnel || null) : DASH_DEMO_FUNNEL;
   const counts = g && Array.isArray(g.weeklyAdds) ? g.weeklyAdds.map((w) => w.count) : null;
-  const adds90 = counts ? counts.reduce((s, c) => s + c, 0) : null;
+  // ⚠ THE 90 DAYS THE SIGNINGS COVER, NOT THE SUMMED WEEKS (the sweep after #2394 round 10): the
+  // weekly buckets open up to six days after them, so the sum could fall below "Signed from Shape ·
+  // 90d", a subset of these clients (src/lib/coach-growth.ts added90). The weeks draw the sparkline.
+  const adds90 = g && g.added90 != null ? g.added90 : null;
   const close = dashCloseRate(f);
+  const why = dashCloseWhy(f);
   const netCents = live
     ? (live.kpis && live.kpis.monthlyNetCents != null ? live.kpis.monthlyNetCents : null)
-    : Math.round(clients.reduce((s, c) => s + ((c.payments && c.payments.mrrCents) || 0), 0) * 0.85);
+    : DashSignals.rosterNetCents(clients);
   const href = role === "nutritionist" ? "NutritionistAnalytics.html" : "TrainerAnalytics.html";
   const max = counts ? Math.max(...counts, 1) : 1;
   const stat = (k, l, sub, color) => (
@@ -1032,9 +1072,13 @@ function DashBusinessSummary({ live, role, clients }) {
   return (
     <div>
       <div style={{ display: "flex", alignItems: "flex-end", gap: 22, flexWrap: "wrap" }}>
-        {stat(netCents != null ? dashMoney(netCents) : "—", "Monthly · net", netCents != null ? "from active subs · after 15%" : "no subscription data")}
+        {/* ⚠ NOT "AFTER 15%" (the sweep after #2394 round 10): a client the coach brought pays no fee, and
+            the net is each plan's own; the clients are today's, as Business counts them (the routes' practiceToday). */}
+        {stat(netCents != null ? dashMoney(netCents) : "—", "Monthly · net", netCents != null ? "today's clients · after Shape's fee" : "no subscription data")}
         {stat(adds90 != null ? "+" + adds90 : "—", "New clients · 90d", !g ? "couldn't be read just now" : g.momPct != null ? (g.momPct >= 0 ? "+" : "") + g.momPct + "% vs the 30 days before" : "none in the 30 days before to compare")}
-        {stat(close != null ? close + "%" : "—", "Consult → signed", "benchmark ~" + DASH_FUNNEL_BENCHMARK + "%", close == null ? null : close >= DASH_FUNNEL_BENCHMARK ? "var(--sh-green, #7bbf5a)" : "var(--sh-gold, #d8a23a)")}
+        {stat(close != null ? close + "%" : "—", "Consult → signed",
+          why === "over" ? "more signed than booked a consult" : why === "unread" ? "couldn't be read just now" : "benchmark ~" + DASH_FUNNEL_BENCHMARK + "%",
+          close == null ? null : close >= DASH_FUNNEL_BENCHMARK ? "var(--sh-green, #7bbf5a)" : "var(--sh-gold, #d8a23a)")}
         {counts && (
           <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 34, flex: 1, minWidth: 120 }}>
             {counts.map((c, i) => (
@@ -2015,9 +2059,7 @@ function CoachDashboardPage({ role }) {
       primaryCta={cfg.primaryCta}
       secondaryCta={cfg.secondaryCta}
       navItems={cfg.navItems()}
-      payoutCard={live
-        ? { label: "MONTHLY · NET", amount: live.kpis.monthlyNetCents != null ? dashMoney(live.kpis.monthlyNetCents) : "—", sub: live.kpis.activeClients + " active subs · payouts connect soon" }
-        : cfg.payoutCard()}
+      payoutCard={live ? dashLivePayoutCard(live.kpis) : cfg.payoutCard()}
       kpis={kpis}
       kpis2={practiceKpis}
       scheduleTitle={cfg.scheduleTitle}
@@ -2052,4 +2094,4 @@ function CoachDashboardPage({ role }) {
   );
 }
 
-Object.assign(window, { CoachDashboardPage, DashNowColumn, DashNeedsYou, dashCountdown, dashQueueRowState, dashQueueNotices, dashQueueMergeMarks, DASH_TODAY_ROLES, DASH_SEV_COLORS, DASH_FUNNEL_BENCHMARK, DashPill, DashDemoBand, TriagePulsePanel, DashWinsPanel, ProgrammingQueuePanel, dashCloseRate, DashFunnelPanel, DashNutriAggPanel, DashBusinessSummary, DashWeekAheadPanel, DashRosterStatusPanel, DashTopMoversPanel, DashAnniversariesPanel, DashRevenueByClientPanel, DashProgramsEndingPanel, DashNotesPanel, dashTabHref, dashMessageClient, dashMessageDraft, dashCongratsDraft, dashJointDraft, dashClientHref, dashClientPageHref, dashRelDay, dashContextLine, dashMoney, dashFmtTime, dashCalDate, dashCalTime });
+Object.assign(window, { CoachDashboardPage, DashNowColumn, DashNeedsYou, dashCountdown, dashQueueRowState, dashQueueNotices, dashQueueMergeMarks, DASH_TODAY_ROLES, DASH_SEV_COLORS, DASH_FUNNEL_BENCHMARK, DashPill, DashDemoBand, TriagePulsePanel, DashWinsPanel, ProgrammingQueuePanel, dashCloseRate, dashCloseWhy, DashFunnelPanel, DashNutriAggPanel, DashBusinessSummary, DashWeekAheadPanel, DashRosterStatusPanel, DashTopMoversPanel, DashAnniversariesPanel, DashRevenueByClientPanel, DashProgramsEndingPanel, DashNotesPanel, dashTabHref, dashMessageClient, dashMessageDraft, dashCongratsDraft, dashJointDraft, dashClientHref, dashClientPageHref, dashRelDay, dashContextLine, dashMoney, dashLivePayoutCard, dashFmtTime, dashCalDate, dashCalTime });

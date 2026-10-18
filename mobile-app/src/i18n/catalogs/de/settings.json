@@ -105,7 +105,6 @@
   "training.injuries": "Verletzungen & Notizen",
   "training.injuriesPh": "Linke Schulter, Knie…",
   "training.preferredTimes": "Bevorzugte Zeiten",
-  "practice.profileRates": "Öffentliches Profil & Tarife",
   "practice.listing": "Marketplace-Eintrag",
   "practice.availability": "Verfügbarkeit",
   "practice.payouts": "Auszahlungen",
@@ -497,5 +496,6 @@
   "push.askYes": "Benachrichtigungen einschalten",
   "push.notNow": "Nicht jetzt",
   "push.askTitleCoach": "Erfahre, wann deine Klienten dich brauchen",
-  "push.askBodyCoach": "Shape sagt dir auf dem Handy Bescheid, wenn dir ein Klient schreibt, eine Session bucht oder bezahlt oder deine Aufmerksamkeit braucht. Dein Handy fragt einmal; du kannst es später in seinen Einstellungen ändern."
+  "push.askBodyCoach": "Shape sagt dir auf dem Handy Bescheid, wenn dir ein Klient schreibt, eine Session bucht oder bezahlt oder deine Aufmerksamkeit braucht. Dein Handy fragt einmal; du kannst es später in seinen Einstellungen ändern.",
+  "practice.payoutsFailed": "Die Einrichtung der Stripe-Auszahlungen konnte nicht gestartet werden."
 }

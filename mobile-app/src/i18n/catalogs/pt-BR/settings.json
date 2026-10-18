@@ -105,7 +105,6 @@
   "training.injuries": "Lesões e observações",
   "training.injuriesPh": "Ombro esquerdo, joelho…",
   "training.preferredTimes": "Horários preferidos",
-  "practice.profileRates": "Perfil público e valores",
   "practice.listing": "Anúncio no marketplace",
   "practice.availability": "Disponibilidade",
   "practice.payouts": "Repasses",
@@ -497,5 +496,6 @@
   "push.askYes": "Ativar notificações",
   "push.notNow": "Agora não",
   "push.askTitleCoach": "Saiba quando seus clientes precisam de você",
-  "push.askBodyCoach": "A Shape avisa no seu celular quando um cliente manda mensagem, agenda ou paga uma sessão, ou precisa da sua atenção. Seu celular pergunta uma vez; você pode mudar depois nos ajustes dele."
+  "push.askBodyCoach": "A Shape avisa no seu celular quando um cliente manda mensagem, agenda ou paga uma sessão, ou precisa da sua atenção. Seu celular pergunta uma vez; você pode mudar depois nos ajustes dele.",
+  "practice.payoutsFailed": "Não foi possível iniciar a configuração de repasses da Stripe."
 }

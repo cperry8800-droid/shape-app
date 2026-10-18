@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/server';
 import { DAY_MS, startOfWeek } from '@/lib/time';
 import { coachGrowthAndFunnel } from '@/lib/coach-growth';
 import { coachCutCents, bpsToRate } from '@/lib/platform-fee';
+import { OPEN_SUB_STATUSES, practiceToday } from '@/lib/coach-trajectory.mjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,23 +70,26 @@ export async function GET() {
   let pulse: Array<Record<string, unknown>> = [];
 
   if (providerId != null) {
-    // Active subscribers + monthly recurring revenue. Shape withholds a 15%
-    // platform fee, so the provider's net is 85% of gross.
+    // Today's clients + monthly recurring revenue.
+    // ⚠ BY THE BUSINESS PAGE'S RULE, SO TODAY AND BUSINESS SAY ONE NUMBER (the sweep after #2394
+    // round 10). This read took active and trialing rows and counted rows: a client whose payment
+    // is retrying (past_due, still a member, membership-core.ts ACTIVE_SUB) was left out, and a
+    // client on two plans counted twice, so Today said "Monthly · net $1,700" beside the Business
+    // page it links to, which says $1,827. Every open status is read, and practiceToday counts them
+    // as the trajectory's latest week does: people, and the net from each row's STORED fee_bps (BYO
+    // subs pay 0%), never a hardcoded 85%. Every reader of these kpis (Today's Business card and
+    // sidebar, the KPI picker, the other pages' sidebars) prints them as clients and net a month.
     const { data: subRows } = await supabase
       .from('subscriptions')
       .select('*') // '*' is migration-safe: an explicit fee_bps errors the query on a pre-migration DB
       .eq('provider_role', 'trainer')
       .eq('provider_id', providerId)
-      .in('status', ['active', 'trialing']);
-    const subs = subRows ?? [];
-    activeClients = subs.length;
-    // Net from each row's STORED fee_bps (BYO subs pay 0% — the coach keeps
-    // 100%), never a hardcoded 85%: the stored rate is the billing truth.
-    monthlyNetCents = subs.reduce(
-      (sum: number, r: { price_cents: number | null; fee_bps?: number | null }) =>
-        sum + coachCutCents(r.price_cents ?? 0, bpsToRate(r.fee_bps ?? 1500)),
-      0
-    );
+      .in('status', OPEN_SUB_STATUSES);
+    const practice = practiceToday(subRows ?? [], {
+      cutCents: (priceCents: number, feeBps: number | null) => coachCutCents(priceCents, bpsToRate(feeBps ?? 1500)),
+    });
+    activeClients = practice.clients;
+    monthlyNetCents = practice.mrrNetCents;
 
     const { data: sessions } = await supabase
       .from('sessions')

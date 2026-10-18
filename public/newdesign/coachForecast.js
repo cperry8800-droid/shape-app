@@ -1,9 +1,10 @@
 // Coach forecast — the math behind the Business page's Plan tab (owner, 2026-10-17:
-// "forecast on business"; design E).
+// "forecast on business"; design E), on the website and in the app.
 //
 // PURE module: no React, no DOM, no fetch. Loads as a plain <script> in the browser
-// (exposes window.CoachForecast) and via require() in Node, so every figure the Plan
-// tab prints is unit-tested (tests/coach-forecast.test.mjs).
+// (exposes window.CoachForecast), as a side-effect import in the app's bundle
+// (mobile-app/src/broadsheet/BSCoachBusiness.jsx), and via require() in Node, so every
+// figure the Plan tab prints is unit-tested (tests/coach-forecast.test.mjs).
 //
 // Money is in cents throughout and rounded only where it is printed.
 //
@@ -94,8 +95,10 @@
   // The coach's own pace from the trajectory's weekly buckets (src/lib/coach-trajectory.mjs):
   // new clients a month and the share who leave a month, over about the last three months,
   // or after the practice's first week when that is shorter.
-  //   → { adds, churn, days, fromFirst, added, ended, avgActive }; adds and churn are null when
-  //     there is too little history to say. `days` is the span the rates are taken over.
+  //   → { adds, churn, days, from, fromFirst, added, ended, avgActive }; adds and churn are null
+  //     when there is too little history to say. `days` is the span the rates are taken over, and
+  //     `from` where it opens (ms; null with no history), so a page that counts departures over the
+  //     same days can open its count there (churnWindow).
   // ⚠ CHURN IS MEASURED AGAINST THE CLIENTS WHO COULD HAVE LEFT, the average headcount over
   // the window, not against the count 30 days ago. One departure in a month with no one at
   // the start would otherwise read as 100%, or as nothing at all.
@@ -109,7 +112,7 @@
   // ⚠ NO FIRST CLIENT IS NO PACE. A practice with no clients yet has no history, which the
   // sliders say; read as three empty months it was "0 a month over the last 3 months".
   function paceFrom(trajectory, now = Date.now()) {
-    const none = { adds: null, churn: null, days: 0, fromFirst: false, added: 0, ended: 0, avgActive: 0 };
+    const none = { adds: null, churn: null, days: 0, from: null, fromFirst: false, added: 0, ended: 0, avgActive: 0 };
     const weeks = trajectory && Array.isArray(trajectory.weeks) ? trajectory.weeks : [];
     if (!weeks.length) return none;
     const first = trajectory.firstSubAt ? new Date(trajectory.firstSubAt).getTime() : NaN;
@@ -121,7 +124,7 @@
     const inWindow = weeks.filter((w) => new Date(w.weekOf + "T00:00:00Z").getTime() >= from);
     const histDays = (now - from) / DAY_MS;
     const days = Math.max(0, Math.round(histDays));
-    if (!inWindow.length || histDays < PACE_MIN_DAYS) return { ...none, days, fromFirst };
+    if (!inWindow.length || histDays < PACE_MIN_DAYS) return { ...none, days, from, fromFirst };
     const months = histDays / MONTH_DAYS;
     const added = inWindow.reduce((s, w) => s + (w.added || 0), 0);
     const ended = inWindow.reduce((s, w) => s + (w.ended || 0), 0);
@@ -129,7 +132,96 @@
     return {
       adds: added / months,
       churn: avgActive > 0 ? clamp01(ended / avgActive / months) : null,
-      days, fromFirst, added, ended, avgActive,
+      days, from, fromFirst, added, ended, avgActive,
+    };
+  }
+
+  // ── Who left: the churn list both Business pages print (the routes' `churn` rows) ──
+  // How many cancellations the analytics routes send, newest first (their `.limit(12)`), and the
+  // window a count falls back to when there is no pace to share.
+  const CHURN_LIST = 12;
+  const CHURN_DAYS = 90;
+
+  // ⚠ WHO LEFT IS COUNTED OVER THE PACE'S OWN WINDOW, IN THE PACE'S OWN WORDS (the sweep after #2394
+  // round 10). "What a client is worth" reads its churn from paceFrom, from the Monday on or before
+  // 91 days ago (or the Monday after the first client's week), "over the last 3 months"; the churn
+  // list counted from exactly 90 days ago, "in the last 90 days". One tab could then say "1.6% leave
+  // a month" beside "None left": a departure on day 92 was in one and not the other. The list now
+  // opens where the pace opens whenever the pace has a window (its rates are measured); with no pace
+  // (no history, an unread one, under a month of it) it falls back to the last 90 days and says so.
+  //   → { from (ms), paced, fromFirst }: paced is true when the window is the pace's, so the page
+  //     words it as the pace does ("over the last 3 months" / "after your first week").
+  function churnWindow(pace, now = Date.now()) {
+    if (pace && pace.adds != null && num(pace.from) != null) return { from: pace.from, paced: true, fromFirst: !!pace.fromFirst };
+    return { from: now - CHURN_DAYS * DAY_MS, paced: false, fromFirst: false };
+  }
+
+  // The departures in the routes' churn rows, and the ones inside the window.
+  //   → null when a row's departure could not be told (`departed` null: the route could not read
+  //     the subscription history it is decided from), so no one is counted as gone;
+  //   → { list, inWindow, count, lostCents, floor, window } otherwise. `list` is every departure the
+  //     rows hold, newest first; `count` and `lostCents` are the ones inside the window.
+  // ⚠ A DEPARTURE IS ONE CLIENT LEAVING AT ONE MOMENT, AND ITS MONEY IS EVERY PLAN THAT ENDED THEN (the
+  // sweep after #2394 round 10). The count was of people while the money added every row: a client who
+  // left in August, came back and left again in October was "1 left" beside both plans' money. The
+  // route now decides each row (`departed`), so the count is of departures: two separate departures
+  // of one client count twice, each with its own money, as the pace's ended count does. A row the
+  // route marks `departed: false` (the client held another plan then) is not one. A row with no client
+  // id stands alone, as everywhere else that counts clients.
+  // ⚠ AND THE MOMENT IS THE ISO WEEK, AS THE PACE'S ENDED COUNT HAS IT (the sweep after #2394 round 10,
+  // its review). The trajectory counts a client once in a week they left in (leftIn), and the route
+  // decides each row at that week's close (coach-trajectory.mjs subDeparture). Grouped by the exact
+  // instant, a client who left on a Monday, came back on the Tuesday and left again on the Wednesday
+  // was "2 left" beside the pace's 1. So one client's departures in one week (Monday, UTC) are one,
+  // whose money is every plan in it and whose date is the last of their ends; plans ended at the same
+  // moment are one as before, and departures in different weeks still count apart.
+  // ⚠ AND THE LIST STOPS AT `cap` ROWS (the routes' .limit(12)). When every row it holds is inside the
+  // window, more may have left than it shows: `floor` says the count is a floor. It is about the
+  // route's list, before any row is left out.
+  function departures(rows, { pace = null, now = Date.now(), cap = CHURN_LIST } = {}) {
+    const all = Array.isArray(rows) ? rows.filter(Boolean) : [];
+    if (all.some((r) => r.departed === null)) return null;
+    const win = churnWindow(pace, now);
+    const at = (r) => (r.endedAt ? new Date(r.endedAt).getTime() : NaN);
+    // One client's ended rows in one week, in the order the route sent them (newest first).
+    const groups = [];
+    const byWeek = new Map();
+    all.forEach((r, i) => {
+      if (r.departed === false) return;
+      const t = at(r);
+      const key = (r.clientId != null ? "c:" + r.clientId : "row:" + i) + "@" + (Number.isFinite(t) ? mondayOf(t) : "row:" + i);
+      if (!byWeek.has(key)) { byWeek.set(key, []); groups.push(byWeek.get(key)); }
+      byWeek.get(key).push(r);
+    });
+    // ⚠ A DEPARTURE'S MONEY IS THE PLANS HELD WHEN IT HAPPENED (Codex on #2395). A client who left on
+    // Monday, came back on Tuesday and left again on Wednesday is one departure that week, as the pace
+    // counts it, but they paid for one plan at a time: adding both read one $180 membership as
+    // "−$360/mo". The departure is dated by the week's last end, and its money (and plans, start and
+    // reason) are the plans held at the same time as the last one; a plan that ended before it began
+    // was an earlier membership, already gone. When the last plan's start is unknown, all are held.
+    const ms = (v) => (v ? new Date(v).getTime() : NaN);
+    const list = groups.map((g) => {
+      const last = g.reduce((a, r) => (at(r) > at(a) ? r : a));
+      const held = g.filter((r) => r === last || !(at(r) < ms(last.startedAt)));
+      const priced = held.filter((r) => r.priceCents != null);
+      const starts = held.map((r) => ms(r.startedAt)).filter(Number.isFinite);
+      const why = held.find((r) => r.reason);
+      return {
+        name: last.name, clientId: last.clientId == null ? null : last.clientId,
+        startedAt: starts.length ? new Date(Math.min(...starts)).toISOString() : null,
+        endedAt: last.endedAt || null,
+        priceCents: priced.length ? priced.reduce((s, r) => s + (Number(r.priceCents) || 0), 0) : null,
+        reason: why ? why.reason : null,
+        plans: held.length,
+      };
+    });
+    const inWindow = list.filter((d) => d.endedAt && at(d) >= win.from);
+    return {
+      list, inWindow,
+      count: inWindow.length,
+      lostCents: inWindow.reduce((s, d) => s + (d.priceCents || 0), 0),
+      floor: all.length >= cap && all.every((r) => r.endedAt && at(r) >= win.from),
+      window: win,
     };
   }
 
@@ -141,5 +233,150 @@
     return { months: 1 / c, valueCents: v / c };
   }
 
-  return { FEE_RATE, PACE_DAYS, netOf, earn, forecast, earnedOver, monthsTo, paceFrom, lifetime };
+  // ── The figures the website's Business page and the app's both print ──
+  // (the app's Business page, owner 2026-10-17: "match what is on website"). Numbers only;
+  // each page words them in its own copy.
+
+  // The rate a plan starts from when there is no listing price and no clients to average.
+  const DEFAULT_RATE_CENTS = 15000;
+  const DEFAULT_ADDS = 1;
+  const DEFAULT_CHURN_PCT = 5;
+  const round1 = (v) => Math.round(v * 10) / 10;
+  // A churn rate (a share a month) as the percentage a page prints and a planner starts from.
+  // ⚠ A MEASURED CHURN IS KEPT TO A TENTH OF A POINT, AND NEVER ROUNDS TO 0. Whole points turned
+  // one departure from 70 clients in three months (0.45% a month) into "0% leave a month" beside
+  // "a client stays about 223 months": the plan lost its attrition and the two figures disagreed.
+  const churnPct = (churn) => (churn > 0 ? Math.max(0.1, round1(churn * 100)) : 0);
+
+  // Today's clients and net, from the analytics route's payload: the trajectory's latest week,
+  // else its `metrics`. null when neither could be read.
+  // ⚠ THE ROUTE'S OWN `metrics` LEAVE OUT A CLIENT WHOSE PAYMENT IS RETRYING (past_due), while the
+  // trajectory counts them, as membership does: they still have access and have not left. Read
+  // from `metrics`, the Plan said "12 clients" on the page whose Overview said 13 (Business review,
+  // 2026-10-17). `metrics` stands in only when the trajectory could not be read.
+  function todayFrom(extra) {
+    const weeks = extra && extra.trajectory && Array.isArray(extra.trajectory.weeks) ? extra.trajectory.weeks : null;
+    const last = weeks && weeks.length ? weeks[weeks.length - 1] : null;
+    if (last) return { clients: last.active, mrrNetCents: last.mrrNetCents, mrrGrossCents: last.mrrGrossCents };
+    const m = (extra && extra.metrics) || {};
+    return m.activeClients == null || m.mrrNetCents == null ? null : { clients: m.activeClients, mrrNetCents: m.mrrNetCents, mrrGrossCents: m.mrrGrossCents };
+  }
+
+  // Where a plan starts, from the analytics payload and the coach's listing price (dollars, as
+  // /api/coach/listing sends it): today's figures, the rate a new client pays and where it came
+  // from ('listing' | 'average' | 'default'), the share of clients the coach brought (the route's
+  // byoMix), and the pace. null when today's figures could not be read.
+  // ⚠ AN UNREAD INPUT IS SAID AS UNREAD, NEVER AS A MEASUREMENT (Business sweep, #2394). Each one
+  // still starts the plan at a stated fallback, and says why:
+  //   listingUnread  the listing read failed (`listingFailed`), so the rate is not "no listing
+  //                  price yet" but a fallback from an unread price
+  //   broughtUnread  byoMix is null (a failed read), so the brought share starts at 0% as a
+  //                  default, not as a measured none
+  //   pace.unread    the trajectory read failed, so there is no pace and an unread history, not
+  //                  an empty one
+  // The listing's monthly price in cents, or null when there is none. The waiting list is valued
+  // at this alone: the Plan's rate falls back to the clients' average or a default, which is where
+  // a slider starts, not what a waiting member would pay (Codex round 7 on #2394).
+  function listedCents(listingMonthly) {
+    return listingMonthly != null && Number(listingMonthly) > 0 ? Math.round(Number(listingMonthly) * 100) : null;
+  }
+
+  function planNumbers({ extra, listingMonthly, listingFailed = false, now = Date.now() }) {
+    const m = todayFrom(extra);
+    if (!m) return null;
+    // ⚠ THE BROUGHT-IN SHARE IS PER CLIENT, NOT PER SUBSCRIPTION ROW (Codex round 5 on #2394). Both
+    // analytics routes send byoMix, { clients, brought } counted per client (byoMixOf in
+    // src/lib/origin-attribution.ts: one client on two plans is one client). byOrigin has a row per
+    // subscription, so counting it read one brought client with two plans beside one from Shape as
+    // "2 of your 3" (67%), and the calculators seeded from it overstated take-home.
+    const mix = (extra && extra.byoMix) || null;
+    const listed = listedCents(listingMonthly);
+    const avg = m.clients > 0 && m.mrrGrossCents > 0 ? Math.round(m.mrrGrossCents / m.clients / 500) * 500 : null;
+    return {
+      clients: m.clients, mrrNetCents: m.mrrNetCents, mrrGrossCents: m.mrrGrossCents,
+      rateCents: listed != null ? listed : avg != null ? avg : DEFAULT_RATE_CENTS,
+      rateFrom: listed != null ? "listing" : avg != null ? "average" : "default",
+      listingUnread: listed == null && !!listingFailed,
+      // brought of byoClients: the mix's own count of clients. The routes take it over today's
+      // clients by the trajectory's rule (byoMixToday in src/lib/origin-attribution.ts, the sweep
+      // after #2394 round 10), so it is the `clients` above whenever the trajectory was read, and
+      // both fall back to the active read together when it was not.
+      byoShare: mix && mix.clients ? mix.brought / mix.clients : 0,
+      brought: mix ? mix.brought : 0, byoClients: mix ? mix.clients : 0,
+      broughtUnread: !mix,
+      // A failed trajectory read is "no pace", which the sliders say, not a pace of zero; and it is
+      // an unread history, not an empty one, which they say too.
+      pace: extra && extra.trajectory ? paceFrom(extra.trajectory, now) : { adds: null, churn: null, days: 0, fromFirst: false, unread: true },
+    };
+  }
+
+  // The planner's starting values, rounded to what its sliders hold, so an untouched plan IS
+  // today's pace rather than a near-copy of it. Never clamped to the sliders' usual range: the
+  // ranges stretch to the coach's own numbers instead, so "yours" is the figure it measured.
+  //   → { adds, churnPct (to a tenth, never 0 for a measured churn: churnPct above), rate (the
+  //       base's rate in dollars, to the cent: rateRange below holds it), goal (whole dollars) }
+  // ⚠ THE RATE IS THE BASE'S OWN, NEVER ROUNDED TO $5 (the sweep after #2394 round 10). Rounded, a
+  // $149 listing price started the plan at $150 beside "What clients earn you"'s "$149 · your
+  // listing price", and every row, the year's net and the goal month were figured at a price the
+  // coach does not charge, with nothing saying so. Only the coach's own drag changes it.
+  function planStart(base) {
+    const pace = (base && base.pace) || {};
+    return {
+      adds: pace.adds != null ? round1(pace.adds) : DEFAULT_ADDS,
+      churnPct: pace.churn != null ? churnPct(pace.churn) : DEFAULT_CHURN_PCT,
+      rate: base.rateCents > 0 ? base.rateCents / 100 : 5,
+      goal: Math.max(1000, Math.ceil(((base.mrrNetCents || 0) / 100) * 1.5 / 500) * 500),
+    };
+  }
+
+  // The rate slider's range, in dollars, around the plan's starting rate (planStart's `rate`), for
+  // the website's planner and the app's alike.
+  // ⚠ THE SLIDER HOLDS THE STARTING RATE EXACTLY (the sweep after #2394 round 10). A range input
+  // snaps its value to its low end plus a whole number of steps, and this one ran from $20 in $5
+  // steps: a $149 listing price could not sit on it, and a drag never came back to it. The step is a
+  // dollar, and the low end sits a whole number of dollars below the rate, so $149.50 sits on it too
+  // (a drag from it moves in whole dollars). The top is $500, or twice the rate when that is more.
+  function rateRange(rate) {
+    const cents = Math.max(0, Math.round((num(rate) || 0) * 100));
+    const low = Math.min(2000, cents);
+    const minCents = cents - Math.floor((cents - low) / 100) * 100;
+    return { min: minCents / 100, max: Math.max(500, Math.ceil((cents * 2) / 100)), step: 1 };
+  }
+
+  // This week's renewals that will happen: only a row Stripe confirmed (`ending === false`) is
+  // money coming in. null when there are no rows to sum, or none could be checked.
+  // ⚠ NONE CHECKED IS NO TOTAL (Stripe down, or no key on a preview): a "0 clients · $0" total would
+  // read as no renewals beside a list of them. The rows say "not checked"; the header says nothing.
+  // All of them cancelled is a checked zero, and says so.
+  // How many people the rows belong to: one client with two plans is one client (Codex round 8 on
+  // #2394). A row with no client id stands alone, as everywhere else that counts clients.
+  function people(rows) {
+    return new Set((rows || []).map((r, i) => (r && r.clientId != null ? "c:" + r.clientId : "row:" + i))).size;
+  }
+
+  function renewalsSum(rows) {
+    if (!Array.isArray(rows) || !rows.length) return null;
+    const sure = rows.filter((r) => r && r.ending === false);
+    if (!sure.length && rows.some((r) => !r || r.ending == null)) return null;
+    // People, not plans; each plan's net still counts.
+    return { count: people(sure), netCents: sure.reduce((s, r) => s + (Number(r.netCents) || 0), 0) };
+  }
+
+  // "Your money", from the Stripe summary the analytics route sends (src/lib/stripe.ts loadStripe):
+  // what is on its way to the bank (payouts in transit or pending) and the soonest of them to land,
+  // what is ready to pay out, and what is still clearing. comingCents is the three together.
+  function moneyFrom(stripe) {
+    const s = stripe || {};
+    const onWay = (Array.isArray(s.payouts) ? s.payouts : []).filter((p) => p && (p.status === "in_transit" || p.status === "pending"));
+    const next = onWay.slice().sort((a, b) => (a.arrivalDate || Infinity) - (b.arrivalDate || Infinity))[0] || null;
+    const onWayCents = onWay.reduce((t, p) => t + (p.amountCents || 0), 0);
+    const balanceCents = s.balanceCents != null ? s.balanceCents : null;
+    const pendingCents = s.pendingCents || 0;
+    return { onWay: onWay.length, onWayCents, next, balanceCents, pendingCents, comingCents: onWayCents + (balanceCents || 0) + pendingCents };
+  }
+
+  return {
+    FEE_RATE, PACE_DAYS, DEFAULT_RATE_CENTS, CHURN_LIST, CHURN_DAYS, netOf, earn, forecast, earnedOver, monthsTo, paceFrom, lifetime,
+    churnWindow, departures, round1, churnPct, todayFrom, listedCents, planNumbers, planStart, rateRange, people, renewalsSum, moneyFrom,
+  };
 });

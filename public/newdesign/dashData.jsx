@@ -635,13 +635,18 @@ function useCoachLiveFigures(role) {
       catch (e) { if (on) setState({ kind: "unknown" }); return; }
       if (!on) return;
       if (!a || !a[roleKey]) return setState({ kind: "demo" });
-      const m = a.metrics || {};
-      const net = m.mrrNetCents;
+      // ⚠ TODAY'S CLIENTS AND NET ARE THE PLAN'S, BY ONE RULE (the sweep after #2394 round 10):
+      // coachForecast.js `todayFrom`, the trajectory's latest week, which counts a client whose
+      // payment is retrying (past_due) as membership does. Read from `metrics` (active and trialing
+      // only), a goal bound to active clients read 12 on the tab whose calculator says "you have 13
+      // today", and the net bound beside it left that client's plan out. todayFrom reads `metrics`
+      // only when the trajectory could not be read, and is null (unread) when neither could be.
+      const today = window.CoachForecast ? window.CoachForecast.todayFrom(a) : null;
       setState({
         kind: "live",
-        activeClients: m.activeClients != null ? m.activeClients : null,
-        mrrNetCents: net != null ? net : null,
-        mrrGrossCents: m.mrrGrossCents != null ? m.mrrGrossCents : null,
+        activeClients: today && today.clients != null ? today.clients : null,
+        mrrNetCents: today && today.mrrNetCents != null ? today.mrrNetCents : null,
+        mrrGrossCents: today && today.mrrGrossCents != null ? today.mrrGrossCents : null,
         // The share of CLIENTS the coach brought (0% fee), per client from the route's byoMix (one
         // client with two plans is one client): the Goal tab's "What clients earn you" starts from it
         // (dashBusiness.jsx DbzGoalEarn).

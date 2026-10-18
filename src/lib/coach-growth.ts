@@ -38,6 +38,8 @@ import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
 
 export type CoachGrowth = {
   weeklyAdds: Array<{ weekOf: string; count: number; addedCents: number }>;
+  // New clients over the 90 days the read covers: the clients the funnel's signings are taken from.
+  added90: number;
   // New clients in the last 30 days against the 30 before, as a percent change;
   // null when there were none in the 30 before (no base to compare with).
   momPct: number | null;
@@ -84,6 +86,13 @@ export function growthFrom(rows: AddRow[], { existing = new Map<string, number>(
   for (let i = 12; i >= 0; i--) buckets.set(mondayISO(new Date(now - i * 7 * DAY_MS)), { count: 0, addedCents: 0 });
   let last30 = 0;
   let prior30 = 0;
+  // ⚠ NEW CLIENTS AND SIGNINGS ARE COUNTED OVER THE SAME 90 DAYS (the sweep after #2394 round 10).
+  // Today's "New clients · 90d" summed the 13 weekly buckets, which open on the Monday of twelve
+  // weeks ago (84 to 90 days back), while the rows are read from 90 days back and the signings count
+  // every one of them: so the card could print fewer new clients than "Signed from Shape · 90d", a
+  // subset of them. added90 counts the new clients the signings are taken from; the buckets stay
+  // the sparkline's.
+  let added90 = 0;
   let signed = 0;
   for (const r of adds) {
     const at = Date.parse(String(r.created_at));
@@ -91,6 +100,7 @@ export function growthFrom(rows: AddRow[], { existing = new Map<string, number>(
     if (b) { b.count += 1; b.addedCents += Number(r.price_cents) || 0; }
     if (at > now - 30 * DAY_MS) last30 += 1;
     else if (at > now - 60 * DAY_MS) prior30 += 1;
+    added90 += 1;
     // Found on Shape: the stored fee is above 0 (a row with none was written before BYO
     // existed, when every client paid the standard fee).
     if (r.fee_bps == null || Number(r.fee_bps) > 0) signed += 1;
@@ -98,7 +108,7 @@ export function growthFrom(rows: AddRow[], { existing = new Map<string, number>(
   const weeklyAdds = [...buckets.entries()].map(([weekOf, b]) => ({ weekOf, ...b }));
   const momPct = prior30 > 0 ? Math.round(((last30 - prior30) / prior30) * 100) : null;
   return {
-    growth: { weeklyAdds, momPct },
+    growth: { weeklyAdds, added90, momPct },
     funnel: { views: null, consults90, signed90: signed },
   };
 }

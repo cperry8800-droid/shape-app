@@ -1,7 +1,8 @@
 // The coach dashboards' 90-day growth and funnel (src/lib/coach-growth.ts), and the two places
 // that read them (dashToday.jsx), after the Business review of 2026-10-17: a new client is a person
 // who started paying, once; the comparison is over equal spans; "signed" is the clients who found
-// the coach on Shape, and the close rate stops at 100.
+// the coach on Shape, and more of them than consults is no close rate (the sweep after #2394 round
+// 10; it was capped at 100).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -106,19 +107,150 @@ test('"signed" counts the clients who found the coach on Shape; a row with no st
   assert.equal(g.funnel.views, null);
 });
 
-test('the dashboards cap consult → signed at 100 and say what the comparison is', () => {
+// ── The sweep after #2394 round 10: new clients and signings over the same 90 days ──
+test('new clients over 90 days are counted over the rows the signings are: never fewer than "Signed from Shape · 90d"', async () => {
+  // A Monday: the 13 weekly buckets open on the Monday of twelve weeks ago, 84.5 days back, while the
+  // read (and the signings) reach 90 days back. Two clients joined in the five days between.
+  const MON = Date.UTC(2026, 9, 19, 12);
+  const back = (d) => new Date(MON - d * DAY).toISOString();
+  const g = G.growthFrom([
+    { client_id: 'a', created_at: back(88), status: 'active', price_cents: 10000, fee_bps: 1500 },
+    { client_id: 'b', created_at: back(86), status: 'active', price_cents: 10000, fee_bps: 1500 },
+    { client_id: 'c', created_at: back(10), status: 'active', price_cents: 10000, fee_bps: 0 },
+  ], { consults90: 5, now: MON });
+  assert.equal(g.growth.weeklyAdds[0].weekOf, '2026-07-27', 'the weeks open after a and b joined');
+  assert.equal(total(g), 1, 'the weeks hold c alone');
+  assert.equal(g.funnel.signed90, 2, 'a and b found the coach on Shape');
+  assert.equal(g.growth.added90, 3, 'a, b and c joined in the 90 days');
+  // Today's card prints that count, not the summed weeks, beside the funnel's signings.
+  const { createRequire } = await import('node:module');
+  const require_ = createRequire(import.meta.url);
+  const React = require_('react');
+  const { renderToStaticMarkup } = require_('react-dom/server');
+  const babel = require_('next/dist/compiled/babel/core');
+  const presetReact = require_('next/dist/compiled/babel/preset-react');
+  const src = readFileSync(ROOT + 'public/newdesign/dashToday.jsx', 'utf8');
+  const pick = (re) => re.exec(src)[0];
+  const code = [
+    pick(/const DASH_FUNNEL_BENCHMARK = [^\n]*/),
+    pick(/function dashCloseRate\(f\) \{[\s\S]*?\n\}/),
+    pick(/function dashCloseWhy\(f\) \{[\s\S]*?\n\}/),
+    pick(/function DashBusinessSummary\([\s\S]*?\n\}/),
+  ].join('\n');
+  const js = babel.transformSync(code, { presets: [presetReact], babelrc: false, configFile: false }).code;
+  const { DashBusinessSummary } = new Function('React', 'serif', 'dashMoney', 'DASH_MONO_LINK', 'DASH_DEMO_GROWTH', 'DASH_DEMO_FUNNEL',
+    js + '\nreturn { DashBusinessSummary };')(React, 'serif', (c) => '$' + c / 100, {}, {}, {});
+  const card = renderToStaticMarkup(React.createElement(DashBusinessSummary, { live: { growth: g.growth, funnel: g.funnel, kpis: { monthlyNetCents: 1 } }, role: 'trainer', clients: [] })).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  assert.match(card, /\+3 New clients · 90d/);
+  // And the preview's own figures keep the rule: its signings are some of its new clients.
+  const demoCode = [pick(/const dashDemoGrowth = [\s\S]*?\n\}\);/), pick(/const DASH_DEMO_GROWTH = \{[\s\S]*?\n\};/), pick(/const DASH_DEMO_FUNNEL = [^\n]*/)].join('\n');
+  const { DASH_DEMO_GROWTH, DASH_DEMO_FUNNEL } = new Function(demoCode + '\nreturn { DASH_DEMO_GROWTH, DASH_DEMO_FUNNEL };')();
+  for (const role of ['trainer', 'nutritionist']) {
+    const demo = DASH_DEMO_GROWTH[role];
+    assert.equal(demo.added90, demo.weeklyAdds.reduce((s, w) => s + w.count, 0), role);
+    assert.ok(DASH_DEMO_FUNNEL.signed90 <= demo.added90, role + ': ' + DASH_DEMO_FUNNEL.signed90 + ' signed of ' + demo.added90 + ' new');
+  }
+});
+
+// ⚠ The sweep after #2394 round 10: this pinned close({ consults90: 4, signed90: 6 }) at 100, a
+// capped figure the funnel then printed as a measured rate "above the ~30% marketplace benchmark".
+// More signed than consulted is no close rate, and says so in its own words.
+test('consult → signed: more clients signed than booked a consult is no rate, said in its own words, apart from an unread one', () => {
   const src = readFileSync(ROOT + 'public/newdesign/dashToday.jsx', 'utf8');
   const fn = /function dashCloseRate\(f\) \{[\s\S]*?\n\}/.exec(src);
   assert.ok(fn, 'dashCloseRate moved');
   const close = new Function(fn[0] + '\nreturn dashCloseRate;')();
-  assert.equal(close({ consults90: 4, signed90: 6 }), 100);
+  assert.equal(close({ consults90: 4, signed90: 6 }), null, 'more signed than consulted is no rate, not 100%');
+  assert.equal(close({ consults90: 4, signed90: 4 }), 100, 'every consult signed is 100%');
   assert.equal(close({ consults90: 10, signed90: 3 }), 30);
   assert.equal(close({ consults90: 0, signed90: 3 }), null);
   assert.equal(close(null), null);
+  const whyFn = /function dashCloseWhy\(f\) \{[\s\S]*?\n\}/.exec(src);
+  assert.ok(whyFn, 'dashCloseWhy moved');
+  const why = new Function(fn[0] + '\n' + whyFn[0] + '\nreturn dashCloseWhy;')();
+  assert.deepEqual([{ consults90: 4, signed90: 6 }, { consults90: 0, signed90: 3 }, { consults90: 10, signed90: null }, { consults90: 0, signed90: 0 }, { consults90: 10, signed90: 3 }].map(why), ['over', 'over', 'unread', 'none', null]);
   assert.equal((src.match(/const close = dashCloseRate\(f\);/g) || []).length, 2, 'both readers use it');
   assert.ok(!/MoM/.test(src), 'no month-over-month label is left for a 30-day comparison');
   assert.ok(!/function DashGrowthPanel\(/.test(src), 'the growth panel nothing showed is gone');
   assert.equal(close({ consults90: 10, signed90: null }), null, 'unread signings are no rate, not 0%');
+});
+
+// ── The sweep after #2394 round 10: Today counts today's practice by the Business page's rule ──
+// The dashboards' kpis (Today's Business card and sidebar, the KPI picker, the other pages' sidebars)
+// took active and trialing rows and counted rows. Business counts today's clients from the
+// trajectory: people, a client whose payment is retrying (past_due) among them.
+test('both dashboards count today\'s clients and net as the Business page does: a retrying payment counts, a client on two plans is one', async () => {
+  const { createRequire } = await import('node:module');
+  const require_ = createRequire(import.meta.url);
+  const trajectory = await import(pathToFileURL(ROOT + 'src/lib/coach-trajectory.mjs').href);
+  const fee = await import(pathToFileURL(ROOT + 'src/lib/platform-fee.mjs').href);
+  const COACH = '33333333-3333-4333-8333-333333333333';
+  const T = Date.now();
+  const at = (d) => new Date(T - d * DAY).toISOString();
+  for (const [role, table] of [['trainer', 'trainers'], ['nutritionist', 'nutritionists']]) {
+    const sub = (id, client_id, over = {}) => ({ id, provider_role: role, provider_id: 7, client_id, created_at: at(200), status: 'active', price_cents: 18000, fee_bps: 1500, ...over });
+    const subs = [
+      sub('s1', 'a'),
+      sub('s2', 'a', { status: 'trialing', price_cents: 5000 }),        // a's second plan: one client
+      sub('s3', 'a', { price_cents: 2000 }),                            // and a third
+      sub('s4', 'b', { fee_bps: 0 }),                                   // brought: no fee
+      sub('s5', 'c', { status: 'past_due' }),                           // retrying: still a client
+      sub('s6', 'd', { status: 'canceled', current_period_end: at(-10) }), // paid through, but gone
+      sub('s7', 'e', { status: 'incomplete' }),                         // never a client
+      sub('s8', 'f', { provider_id: 8 }),                               // another coach's
+    ];
+    const db = fakeSupabase({ tables: { [table]: [{ id: 7, owner_id: COACH }], profiles: [{ id: COACH, full_name: 'Casey Coach' }], subscriptions: subs, sessions: [] } });
+    const client = { ...db, auth: { getUser: async () => ({ data: { user: { id: COACH, email: 'casey@shape.test' } }, error: null }) } };
+    const route = await loadRealModule(ROOT + `src/app/api/${role}/dashboard/route.ts`, {
+      typescript: true,
+      registry: new Map([
+        ['next/server', require_('next/server')],
+        ['@/lib/supabase/server', { createClient: async () => client }],
+        ['@/lib/time', await loadRealModule(ROOT + 'src/lib/time.ts', { typescript: true })],
+        ['@/lib/coach-growth', G],
+        ['@/lib/platform-fee', fee],
+        ['@/lib/coach-trajectory.mjs', trajectory],
+      ]),
+    });
+    const body = await (await route.GET()).json();
+    // What the Business page counts: the trajectory's latest week over this coach's rows.
+    const last = trajectory.buildTrajectory({ subs: subs.filter((r) => r.provider_id === 7), cutCents: (p, bps) => fee.coachCutCents(p, fee.bpsToRate(bps ?? 1500)) }).weeks.slice(-1)[0];
+    assert.deepEqual([body.kpis.activeClients, body.kpis.monthlyNetCents], [last.active, last.mrrNetCents], role + ': Today says what Business says');
+    assert.deepEqual([body.kpis.activeClients, body.kpis.monthlyNetCents], [3, 15300 + 4250 + 1700 + 18000 + 15300], role + ': a, b and c; b keeps all of hers');
+  }
+});
+
+test('Today\'s Business card and sidebar say today\'s clients and Shape\'s fee, not "active subs" and a flat 15%', async () => {
+  const { createRequire } = await import('node:module');
+  const require_ = createRequire(import.meta.url);
+  const React = require_('react');
+  const { renderToStaticMarkup } = require_('react-dom/server');
+  const babel = require_('next/dist/compiled/babel/core');
+  const presetReact = require_('next/dist/compiled/babel/preset-react');
+  const src = readFileSync(ROOT + 'public/newdesign/dashToday.jsx', 'utf8');
+  const pick = (re) => re.exec(src)[0];
+  const code = [
+    pick(/function dashMoney\(cents\) \{[\s\S]*?\n\}/),
+    pick(/function dashLivePayoutCard\(k\) \{[\s\S]*?\n\}/),
+    pick(/const DASH_FUNNEL_BENCHMARK = [^\n]*/),
+    pick(/function dashCloseRate\(f\) \{[\s\S]*?\n\}/),
+    pick(/function dashCloseWhy\(f\) \{[\s\S]*?\n\}/),
+    pick(/function DashBusinessSummary\([\s\S]*?\n\}/),
+  ].join('\n');
+  const js = babel.transformSync(code, { presets: [presetReact], babelrc: false, configFile: false }).code;
+  const { dashLivePayoutCard, DashBusinessSummary } = new Function('React', 'serif', 'DASH_MONO_LINK', 'DASH_DEMO_GROWTH', 'DASH_DEMO_FUNNEL',
+    js + '\nreturn { dashLivePayoutCard, DashBusinessSummary };')(React, 'serif', {}, {}, {});
+  const card = renderToStaticMarkup(React.createElement(DashBusinessSummary, { live: { growth: null, funnel: null, kpis: { activeClients: 13, monthlyNetCents: 182700 } }, role: 'trainer', clients: [] })).replace(/<[^>]+>/g, ' ').replace(/&#x27;/g, "'").replace(/\s+/g, ' ');
+  assert.match(card, /\$1,827 Monthly · net today's clients · after Shape's fee/);
+  assert.doesNotMatch(card, /15%|active subs/);
+  assert.deepEqual(dashLivePayoutCard({ activeClients: 13, monthlyNetCents: 182700 }), { label: 'MONTHLY · NET', amount: '$1,827', sub: '13 clients · payouts connect soon' });
+  assert.equal(dashLivePayoutCard({ activeClients: 1, monthlyNetCents: 15300 }).sub, '1 client · payouts connect soon');
+  // Every page's sidebar reads it, or says clients in its own words (the app frame has no dashToday.jsx).
+  const page = (f) => readFileSync(ROOT + 'public/newdesign/' + f, 'utf8');
+  assert.match(src, /payoutCard=\{live \? dashLivePayoutCard\(live\.kpis\) : cfg\.payoutCard\(\)\}/);
+  assert.match(page('dashMealBuilder.jsx'), /payoutCard=\{live \? dashLivePayoutCard\(live\.kpis\) : nutriPayoutCard\}/);
+  assert.match(page('dashBuilder.jsx'), /payoutCard=\{live\?dashLivePayoutCard\(live\.kpis\):trainerPayoutCard\}/);
+  for (const f of ['dashToday.jsx', 'dashMealBuilder.jsx', 'dashBuilder.jsx', 'trainerDashboard.jsx']) assert.doesNotMatch(page(f), /active subs/, f);
 });
 
 test('when the subscriptions can\'t be read, Today and the funnel say so: the consults stay, nothing claims none', async () => {
@@ -138,6 +270,7 @@ test('when the subscriptions can\'t be read, Today and the funnel say so: the co
   const code = [
     pick(/const DASH_FUNNEL_BENCHMARK = [^\n]*/),
     pick(/function dashCloseRate\(f\) \{[\s\S]*?\n\}/),
+    pick(/function dashCloseWhy\(f\) \{[\s\S]*?\n\}/),
     pick(/function DashFunnelPanel\([\s\S]*?\n\}/),
     pick(/function DashBusinessSummary\([\s\S]*?\n\}/),
   ].join('\n');
@@ -149,13 +282,23 @@ test('when the subscriptions can\'t be read, Today and the funnel say so: the co
   const card = text(React.createElement(DashBusinessSummary, { live, role: 'trainer', clients: [] }));
   assert.match(card, /— New clients · 90d couldn't be read just now/);
   assert.doesNotMatch(card, /none in the 30 days before/);
+  // (The sweep after #2394 round 10) the card's close rate says so too, as the funnel does.
+  assert.match(card, /— Consult → signed couldn't be read just now/);
+  // More signed than consulted: no rate, in its own words, on the funnel and the card alike.
+  const over = { ...live, growth: { weeklyAdds: [{ weekOf: 'w', count: 6, addedCents: 6 }], added90: 6, momPct: null }, funnel: { views: null, consults90: 4, signed90: 6 } };
+  const overFunnel = text(React.createElement(DashFunnelPanel, { live: over }));
+  assert.match(overFunnel, /More clients signed than booked a consult, so there's no close rate to show/);
+  assert.doesNotMatch(overFunnel, /100%|benchmark\. The lever|YOU ·|couldn't be read|Book consults/);
+  const overCard = text(React.createElement(DashBusinessSummary, { live: over, role: 'trainer', clients: [] }));
+  assert.match(overCard, /— Consult → signed more signed than booked a consult/);
+  assert.doesNotMatch(overCard, /100%|couldn't be read/);
   const funnel = text(React.createElement(DashFunnelPanel, { live }));
   assert.match(funnel, /Consults · 90d 7/);
   assert.match(funnel, /Signed from Shape · 90d couldn't be read just now/);
   assert.match(funnel, /Your signings couldn't be read just now/);
   assert.doesNotMatch(funnel, /Funnel data connects soon|Book consults/);
   // A read that worked with no one in the 30 days before still says that.
-  const none = text(React.createElement(DashBusinessSummary, { live: { ...live, growth: { weeklyAdds: [{ weekOf: 'w', count: 1, addedCents: 1 }], momPct: null } }, role: 'trainer', clients: [] }));
+  const none = text(React.createElement(DashBusinessSummary, { live: { ...live, growth: { weeklyAdds: [{ weekOf: 'w', count: 1, addedCents: 1 }], added90: 1, momPct: null } }, role: 'trainer', clients: [] }));
   assert.match(none, /none in the 30 days before to compare/);
 });
 

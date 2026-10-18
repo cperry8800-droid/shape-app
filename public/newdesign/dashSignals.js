@@ -26,8 +26,10 @@
 //     coachNotes: [{ on: 'YYYY-MM-DD', text }] | null,         // trainer console notes
 //     milestones: [{ key, kind: 'pr'|'workout_count'|'streak'|'goal', label, hitAt? }] | null,
 //     totals:    { workouts: n } | null,                       // lifetime counts
-//     payments:  { mrrCents, status?, lastSessionAt?, joinedAt? } | null,
-//                // lastSessionAt = last consult/session; joinedAt = earliest subscription
+//     payments:  { mrrCents, status?, lastSessionAt?, joinedAt?, feeCents?, origin? } | null,
+//                // lastSessionAt = last consult/session; joinedAt = earliest subscription;
+//                // feeCents = the platform fee the rows STORE (coach-roster.ts), origin = who
+//                // brought the client (coach_link / coach_invite / marketplace)
 //     recentLogs: [{ on: 'YYYY-MM-DD', kcal, protein }] | null,  // newest first, ≤3 (drawer)
 //     goals:     [{ id, label, metric?, unit?, target, start?, startedOn?,
 //                   setBy?, now?, history: [{on, value}] }] | null,
@@ -967,6 +969,20 @@
     var gh = function (pairs) {
       return pairs.map(function (p) { return { on: ago(p[0]), value: p[1] }; });
     };
+    // ⚠ EVERY CLIENT SAYS WHO BROUGHT THEM, AND CARRIES THE FEE THEIR ROW STORES (the sweep
+    // after #2394 round 10). The roster had prices and no origins, so Today netted all ten at
+    // 15% ($1,547) while Business's origin list and its Plan said half were brought at 0%, and
+    // the two tabs quoted two different nets for one practice. The preview's net is now each
+    // client's price less the fee on their own row (`rosterNetCents`), the shape the live roster
+    // route sends (coach-roster.ts: feeCents and origin), and Business lists these same people
+    // as its origin list. The coach brought their longest-standing clients; the newer ones
+    // found them on Shape, at the published rate.
+    var pay = function (mrrCents, lastDays, joinedDays, origin) {
+      return {
+        mrrCents: mrrCents, status: "active", lastSessionAt: ago(lastDays), joinedAt: ago(joinedDays),
+        origin: origin, feeCents: origin === "marketplace" ? Math.round(mrrCents * (1 - PREVIEW_NET_RATE)) : 0,
+      };
+    };
     var person = function (id, name, over) {
       var base = {
         profile: { id: "demo-" + id, name: name, isNew: false, status: "ontrack" },
@@ -991,7 +1007,7 @@
           { key: "m50", kind: "goal", label: "50% to goal", hitAt: ago(12) },
         ],
         totals: { workouts: 64 },
-        payments: { mrrCents: 18000, status: "active", lastSessionAt: ago(2), joinedAt: ago(400) },
+        payments: pay(18000, 2, 400, "coach_link"),
         recentLogs: [
           { on: ago(0), kcal: 2105, protein: 148 },
           { on: ago(1), kcal: 2210, protein: 139 },
@@ -1026,7 +1042,7 @@
       // been flat for weeks: stalled BOTH weeks, so there was never an ETA to
       // slip — the card shows the honest "no ETA" state without a flag.
       person(2, "Marcus T.", {
-        payments: { mrrCents: 18000, status: "active", lastSessionAt: ago(6), joinedAt: ago(96) },
+        payments: pay(18000, 6, 96, "marketplace"),
         streaks: { current: 0, best: 12, lastActiveOn: ago(4) },
         foodLogs: { lastLoggedOn: ago(3), daysLogged7d: 3 },
         shapeScoreHistory: history([62, 65, 60, 68, 64, 70, 71, 63]),
@@ -1054,7 +1070,7 @@
       }),
       // red — no food logs in 4 days + no contact in 7
       person(4, "Sam R.", {
-        payments: { mrrCents: 18000, status: "active", lastSessionAt: ago(9), joinedAt: ago(730) },
+        payments: pay(18000, 9, 730, "coach_invite"),
         recentLogs: [],
         program: { name: "Foundations", week: 4, weeks: 8 },
         foodLogs: { lastLoggedOn: ago(4), daysLogged7d: 2 },
@@ -1072,7 +1088,7 @@
           { key: "m50", kind: "goal", label: "50% to goal", hitAt: ago(20) },
         ],
         nutrition: { avgCalories: 1840, targetCalories: 1900, avgProtein: 96, targetProtein: 150 },
-        payments: { mrrCents: 22000, status: "active", lastSessionAt: ago(1), joinedAt: ago(210) },
+        payments: pay(22000, 1, 210, "marketplace"),
         recentLogs: [
           { on: ago(0), kcal: 1815, protein: 92 },
           { on: ago(1), kcal: 1870, protein: 101 },
@@ -1086,7 +1102,7 @@
       // amber for the trainer (food gap); RED on the nutritionist feed — the
       // logs that do exist average 21% over the calorie target
       person(7, "Deandre K.", {
-        payments: { mrrCents: 18000, status: "active", lastSessionAt: ago(4), joinedAt: ago(45) },
+        payments: pay(18000, 4, 45, "marketplace"),
         foodLogs: { lastLoggedOn: ago(3), daysLogged7d: 4 },
         nutrition: { avgCalories: 2540, targetCalories: 2100, avgProtein: 138, targetProtein: 150 },
         recentLogs: [
@@ -1097,7 +1113,7 @@
       }),
       // red — three weeks without a check-in (red on its own)
       person(8, "Jonah W.", {
-        payments: { mrrCents: 18000, status: "active", lastSessionAt: ago(13), joinedAt: ago(18) },
+        payments: pay(18000, 13, 18, "marketplace"),
         checkIn: { lastWeekOf: mondaysAgo(3) },
         trainingAdherence: { pct: 71, done: 10, planned: 14 },
       }),
@@ -1106,7 +1122,7 @@
       // one" state.
       person(9, "Tess B.", {
         profile: { id: "demo-9", name: "Tess B.", isNew: true, status: "new" },
-        payments: { mrrCents: 16000, status: "active", lastSessionAt: ago(1), joinedAt: ago(5) },
+        payments: pay(16000, 1, 5, "marketplace"),
         goal: { target: 150, unit: "lb", now: 158 },
         trainingAdherence: { pct: 100, done: 2, planned: 2 },
         foodLogs: { lastLoggedOn: ago(0), daysLogged7d: 3 },
@@ -1640,25 +1656,52 @@
   // Everything now falls out of the roster's own MRR. Each figure means something
   // DIFFERENT, or it would just be the same number wearing four labels:
   //   monthly     Σ of what the demo clients pay — the anchor
-  //   net         after the 15% platform fee, the rate dashToday already applies
+  //   net         each client's price less the fee their own row stores (`rosterNetCents`)
   //   thisMonth   net accrued month-to-date
   //   balance     the settled part: accrued up to the 7-day holding period
   //   lifetime    net × the months since the LONGEST-TENURED client joined
   // ⚠ THE PREVIEW'S PLATFORM FEE HAS ONE DEFINITION, AND IT HAD TO, because this file
-  // now applies it in TWO places — the current month (`demoPayouts`) and every past
-  // month (`demoPayoutHistory`). Two copies of a rate is the disagreement this whole
-  // block was written to remove, one layer down: change one and the history stops
-  // reconciling with the month beside it, silently, on a page whose entire point is
-  // that its figures agree. `dashToday.jsx` and `dashBusiness.jsx` still spell it
-  // themselves — pre-existing, registered rather than swept, and pinned by a guard in
-  // tests/demo-coherence.test.mjs that fails the day any of the four diverges.
+  // applies it in several places — the current month (`demoPayouts`), every past month
+  // (`demoPayoutHistory`), the KPI strip and the fee the roster's marketplace clients store.
+  // Two copies of a rate is the disagreement this whole block was written to remove, one
+  // layer down: change one and the history stops reconciling with the month beside it,
+  // silently, on a page whose entire point is that its figures agree. Every net now goes
+  // through `rosterNetCents` below; `dashBusiness.jsx` still reads the rate for the walk's
+  // one-time purchases, pinned by a guard in tests/demo-coherence.test.mjs.
   var PREVIEW_NET_RATE = 0.85;   // after the 15% platform fee
+
+  // ⚠ ONE NET FOR THE WHOLE PREVIEW, FROM EACH CLIENT'S OWN FEE (the sweep after #2394 round 10).
+  // Today netted the roster at a flat 15% ($1,547 a month) while Business's origin list and its
+  // Plan ("Brought by you", 50%) said half the clients were brought at 0%, and Business's Money
+  // row, Plan sentence and 13-week header quoted a third figure from a walk of its own ($1,585).
+  // One practice, three nets. A client's net is their price less the fee their row stores (0%
+  // for one the coach brought, 15% for one who found them on Shape: coach-roster.ts sends it as
+  // `feeCents`); a row that stores none falls back to the published rate, as coach-trajectory.mjs
+  // does for a subscription with no `fee_bps`. Today's card, the KPI strip, the sidebar card, the
+  // payout history and Business's trajectory all read this, so they state one net.
+  // An unreadable row (`mrrCents` null) is left out, never counted as a measured $0 (kpiNum).
+  function rowNetCents(c) {
+    var pay = c && c.payments;
+    var mrr = pay ? kpiNum(pay.mrrCents) : null;
+    if (mrr == null) return null;
+    var fee = kpiNum(pay.feeCents);
+    return fee != null ? mrr - fee : Math.round(mrr * PREVIEW_NET_RATE);
+  }
+  function rosterNetCents(clients) {
+    var rows = Array.isArray(clients) ? clients : [];
+    var net = 0;
+    for (var i = 0; i < rows.length; i++) {
+      var v = rowNetCents(rows[i]);
+      if (v != null) net += v;
+    }
+    return net;
+  }
 
   function demoPayouts(clients, now) {
     const at = now instanceof Date ? now : new Date();
     const rows = Array.isArray(clients) ? clients : [];
     const monthlyCents = rows.reduce((sum, c) => sum + ((c && c.payments && c.payments.mrrCents) || 0), 0);
-    const netCents = Math.round(monthlyCents * PREVIEW_NET_RATE);
+    const netCents = rosterNetCents(rows);
 
     const daysInMonth = new Date(at.getFullYear(), at.getMonth() + 1, 0).getDate();
     const dayOfMonth = at.getDate();
@@ -1755,7 +1798,8 @@
         if (live && live.kpis) return { value: kpiNum(live.kpis.monthlyNetCents), unit: "money", sub: "after the platform fee" };
         var gross = kpiMrr(ctx);
         if (gross.value == null) return { value: null, unit: "money", why: gross.why };
-        return { value: Math.round(gross.value * PREVIEW_NET_RATE), unit: "money", sub: "after the platform fee" };
+        // Each row after its own stored fee, the net Today's card and Business state (rosterNetCents).
+        return { value: rosterNetCents(kpiRows(ctx)), unit: "money", sub: "after the platform fee" };
       },
     },
     weekSessions: {
@@ -1982,6 +2026,7 @@
       const end = new Date(at.getFullYear(), at.getMonth() - i + 1, 0);
       const endMs = end.getTime();
       let monthlyCents = 0;
+      const joined = [];
       for (const c of rows) {
         const pay = c && c.payments;
         if (!pay || !pay.joinedAt) continue;
@@ -1989,11 +2034,13 @@
         const t = j.getTime();
         if (!isFinite(t) || t > endMs) continue;
         monthlyCents += pay.mrrCents || 0;
+        joined.push(c);
       }
       if (monthlyCents <= 0) continue;          // nobody had joined yet — no payout ran
       out.push({
         id: "demo-po-" + i,
-        amountCents: Math.round(monthlyCents * PREVIEW_NET_RATE),
+        // the month's clients, each after their own fee (rosterNetCents), as the current month is
+        amountCents: rosterNetCents(joined),
         status: "paid",
         arrivalDate: endMs,
         created: endMs - 2 * 86400000,
@@ -2345,6 +2392,7 @@
     crossoverRead: crossoverRead,
     crossoverCopy: crossoverCopy,
     PREVIEW_NET_RATE: PREVIEW_NET_RATE,
+    rosterNetCents: rosterNetCents,
     pulseOrder: pulseOrder,
     DASH_KPI_METRICS: DASH_KPI_METRICS,
     DASH_KPI_KEYS: DASH_KPI_KEYS,

@@ -105,7 +105,6 @@
   "training.injuries": "Injury & notes",
   "training.injuriesPh": "Left shoulder, knee…",
   "training.preferredTimes": "Time wey you prefer",
-  "practice.profileRates": "Public profile & rates",
   "practice.listing": "Marketplace listing",
   "practice.availability": "When you dey available",
   "practice.payouts": "Payouts",
@@ -497,5 +496,6 @@
   "push.askYes": "Turn notifications on",
   "push.notNow": "No be now",
   "push.askTitleCoach": "Know when your clients need you",
-  "push.askBodyCoach": "Shape go tell you for your phone when client message you, book or pay for session, or need your attention. Your phone go ask you once; you fit change am later for the phone settings."
+  "push.askBodyCoach": "Shape go tell you for your phone when client message you, book or pay for session, or need your attention. Your phone go ask you once; you fit change am later for the phone settings.",
+  "practice.payoutsFailed": "We no fit start Stripe payout setup."
 }

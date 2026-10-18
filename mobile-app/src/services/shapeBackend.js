@@ -1667,6 +1667,27 @@ async function getProviderCapacity({ role } = {}) {
   return capacityFromListing(listings.find((l) => l && l.role === want) || null);
 }
 
+// ─── The coach's Business page (Me → Business, 2026-10-17) ────────────────────
+// The rollup the website's Business page reads (/api/trainer/analytics, /api/nutritionist/analytics):
+// today's clients and net, the 104-week trajectory, payouts from Stripe, where clients came from,
+// who left. `renewals: true` adds this week's renewals, each checked with Stripe, so only the
+// Business page asks for them; the Me card does not. null: no listing of that role (the route's
+// isTrainer: false). A failed read throws, so the page says it could not read rather than "no clients".
+// ⚠ A REFUSED TOKEN OR A LOST SESSION IS A FAILED READ, NOT "NO LISTING" (the website's Business
+// sweep, #2394: a failed analytics read says so). The page only asks for a signed-in coach, and
+// the route answers 401 only when it has no user; returned as null, both told an approved coach
+// "Business fills in once your coach application is approved". They throw: "Couldn't read", Try again.
+async function getCoachAnalytics({ role, renewals = false } = {}) {
+  const token = await liveAccessToken();
+  if (!token) throw new Error('Sign in again to read your business figures.');
+  const r = providerDiscipline(normalizeRole(role));
+  if (r !== 'trainer' && r !== 'nutritionist') return null;
+  const res = await shapeApiFetch(`/api/${r}/analytics${renewals ? '?renewals=1' : ''}`, { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } });
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json) throw new Error((json && json.error) || 'Could not read your business figures.');
+  return json[r === 'nutritionist' ? 'isNutritionist' : 'isTrainer'] ? json : null;
+}
+
 // Turn taking new clients on or off for `role` (an optional resume date, an instant with its
 // offset, when turning it on), and/or whether free intros stay open while full. Answers the
 // listing as members now meet it, and how many waiting members a reopening told.
@@ -4937,6 +4958,11 @@ async function getMyStaffLevel() {
 // editor in dashProfileExtras.jsx).
 function openWebsitePage(path) {
   const url = `${staffBase()}${path}`;
+  openOutside(url);
+}
+// Any page outside the app (a coach's own Stripe dashboard, from Business): the system browser in
+// the installed app, a new tab in the web app.
+function openOutside(url) {
   try {
     const cap = (typeof window !== 'undefined' && window.Capacitor) || null;
     const Browser = cap && cap.Plugins && cap.Plugins.Browser;
@@ -5844,6 +5870,13 @@ window.ShapeBookings = {
   submitConsultationBooking,
   getCapacity: getProviderCapacity,
   setCapacity: setProviderCapacity,
+};
+
+// Coaches have Standard Stripe accounts, so payouts, schedule and statements are in their own
+// Stripe dashboard (the website's Business page links the same place).
+window.ShapeCoachBusiness = {
+  analytics: getCoachAnalytics,
+  openStripe: () => openOutside('https://dashboard.stripe.com/'),
 };
 
 // ─── Coach waiting list (join / mine / withdraw / room / invite) ─────────────

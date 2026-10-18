@@ -21,14 +21,16 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const require_ = createRequire(join(ROOT, 'package.json'))
 const nextServer = require_('next/server')
 const COACH = { id: '33333333-3333-4333-8333-333333333333' }
+const APP_TOKEN = 'app-access-token'
 
 // Every table read answers from `tables` (or `errors`); any chain of filters is accepted, and
 // recorded. `rpc` answers from `rpcs[name](args)`.
 // `auth` is what getUser resolves (a signed-in coach unless a test says otherwise).
-// `honorStatus` also applies status filters (eq / in on `status`), for a test whose rows differ by
-// status; `failActive` fails the active-subscriptions walk (its `.in('status', …)`) alone, and
-// `failRetrying` the read of the churned clients' past_due plans alone.
-function fakeSupabase(tables, { errors = {}, rpcs = {}, auth = null, honorStatus = false, failActive = false, failRetrying = false } = {}) {
+// `honorStatus` also applies status filters (eq / in / not in on `status`), for a test whose rows
+// differ by status; `failActive` fails the active-subscriptions walk (its `.in('status', …)`) alone,
+// and `failTrajectory` / `failHistory` the trajectory's walk over every row (no status filter) alone:
+// the first matches any subscriptions read without one, the second only the walk ordered by id.
+function fakeSupabase(tables, { errors = {}, rpcs = {}, auth = null, honorStatus = false, failActive = false, failTrajectory = false, failHistory = false } = {}) {
   const reads = []
   const calls = []
   const from = (table) => {
@@ -40,11 +42,14 @@ function fakeSupabase(tables, { errors = {}, rpcs = {}, auth = null, honorStatus
     const answer = () => {
       if (errors[table]) return { data: null, error: { message: errors[table] }, count: null }
       if (failActive && call.ops.some(([op, col]) => op === 'in' && col === 'status')) return { data: null, error: { message: 'timeout' }, count: null }
-      if (failRetrying && call.ops.some(([op, col, v]) => op === 'eq' && col === 'status' && v === 'past_due')) return { data: null, error: { message: 'timeout' }, count: null }
+      if (failTrajectory && table === 'subscriptions' && !call.ops.some(([, col]) => col === 'status')) return { data: null, error: { message: 'timeout' }, count: null }
+      if (failHistory && table === 'subscriptions' && call.ops.some(([op, col]) => op === 'order' && col === 'id') && !call.ops.some(([op, col]) => ['eq', 'in', 'not'].includes(op) && col === 'status')) return { data: null, error: { message: 'timeout' }, count: null }
       let out = rows
-      if (honorStatus) for (const [op, col, v] of call.ops) {
+      if (honorStatus) for (const [op, col, v, w] of call.ops) {
         if (op === 'eq' && col === 'status') out = out.filter((r) => r.status === v)
         if (op === 'in' && col === 'status') out = out.filter((r) => v.includes(r.status))
+        // PostgREST's not.in.(a,b): `.not('status', 'in', '(a,b)')`.
+        if (op === 'not' && col === 'status' && v === 'in') { const list = String(w).replace(/^\(|\)$/g, '').split(','); out = out.filter((r) => !list.includes(r.status)) }
       }
       for (const [op, col, v] of call.ops) if (op === 'gt') out = out.filter((r) => String(r[col]) > String(v))
       for (const [op, col, o] of call.ops) {
@@ -71,7 +76,7 @@ function fakeSupabase(tables, { errors = {}, rpcs = {}, auth = null, honorStatus
     const answer = rpcs[name]
     return answer ? answer(args) : { data: null, error: null }
   }
-  return { reads, calls, client: { from, rpc, auth: { getUser: async () => auth ?? { data: { user: COACH }, error: null } } } }
+  return { reads, calls, bearer: [], client: { from, rpc, auth: { getUser: async () => auth ?? { data: { user: COACH }, error: null } } } }
 }
 
 async function loadRoute(role, tables, opts) {
@@ -91,10 +96,22 @@ async function loadRoute(role, tables, opts) {
       ['@/lib/coach-trajectory.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/coach-trajectory.mjs')).href)],
       ['@/lib/read-all-by-id', await ts('src/lib/read-all-by-id.ts')],
       ['@/lib/auth-lookup', await ts('src/lib/auth-lookup.ts')],
+      // The real request-auth: the cookie client when there is no Bearer token, else a client made
+      // for the token, which answers only the app's token (APP_TOKEN) as the coach.
+      ['@/lib/request-auth', await loadRealModule(join(ROOT, 'src/lib/request-auth.ts'), {
+        typescript: true,
+        registry: new Map([
+          ['@/lib/supabase/server', { createClient: async () => db.client }],
+          ['@supabase/supabase-js', { createClient: (_url, _key, o) => {
+            db.bearer.push(o?.global?.headers?.Authorization)
+            return { ...db.client, auth: { getUser: async (token) => opts?.bearerAuth ?? ({ data: { user: token === APP_TOKEN ? COACH : null }, error: null }) } }
+          } }],
+        ]),
+      })],
     ]),
   })
-  const res = await route.GET(new Request(`https://shape.test/api/${role}/analytics${opts?.query || ''}`))
-  return { status: res.status, body: await res.json(), reads: db.reads, calls: db.calls }
+  const res = await route.GET(new Request(`https://shape.test/api/${role}/analytics${opts?.query || ''}`, { headers: opts?.headers || {} }))
+  return { status: res.status, body: await res.json(), reads: db.reads, calls: db.calls, bearer: db.bearer }
 }
 
 test('a trainer reads the trainer analytics: their listing, their roster\'s workouts and PRs', async () => {
@@ -115,6 +132,36 @@ test('a nutritionist still reads the nutritionist analytics, and a trainer is no
   assert.deepEqual(t.body, { isNutritionist: false })
   const other = await loadRoute('trainer', { nutritionists: [{ id: 9 }] })
   assert.deepEqual(other.body, { isTrainer: false })
+})
+
+// The app's Business page (2026-10-17) reads these routes with its own token: the routes were
+// cookie-only, so the app could not read them at all.
+test('the app\'s Bearer token reads as the coach on both routes; a token that is not valid is a 401', async () => {
+  for (const [role, table, okKey] of [['trainer', 'trainers', 'isTrainer'], ['nutritionist', 'nutritionists', 'isNutritionist']]) {
+    const app = await loadRoute(role, { [table]: [{ id: 7, stripe_account_id: null, stripe_account_status: null }] }, { headers: { Authorization: `Bearer ${APP_TOKEN}` } })
+    assert.equal(app.status, 200, role)
+    assert.equal(app.body[okKey], true, role)
+    assert.ok(app.bearer.length >= 1 && app.bearer.every((h) => h === `Bearer ${APP_TOKEN}`), `${role}: the reads ran as the token, ${app.bearer.join(', ')}`)
+    const bad = await loadRoute(role, { [table]: [{ id: 7 }] }, { headers: { Authorization: 'Bearer expired' } })
+    assert.equal(bad.status, 401, role)
+    // The website, as before: no header, the cookie session.
+    const web = await loadRoute(role, { [table]: [{ id: 7, stripe_account_id: null, stripe_account_status: null }] })
+    assert.equal(web.body[okKey], true, role)
+    assert.deepEqual(web.bearer, [], `${role}: no token, no token client`)
+  }
+})
+
+// The 503 rule (src/lib/auth-lookup.ts) holds for the app's token too: request-auth's lookup keeps
+// the auth server's error on the Bearer path, so an outage is not read as a refused token.
+test('an auth outage behind the app\'s Bearer token answers 503; a refused token is a 401', async () => {
+  for (const role of ['trainer', 'nutritionist']) {
+    const headers = { Authorization: `Bearer ${APP_TOKEN}` }
+    const down = await loadRoute(role, roster(), { headers, bearerAuth: noUser(new AuthRetryableFetchError('fetch failed', 0)) })
+    assert.equal(down.status, 503, `${role}: ${JSON.stringify(down.body)}`)
+    assert.deepEqual(down.reads, [])
+    const refused = await loadRoute(role, roster(), { headers, bearerAuth: noUser(new AuthApiError('invalid JWT', 403, 'bad_jwt')) })
+    assert.equal(refused.status, 401, role)
+  }
 })
 
 test('the two routes are not one file', () => {
@@ -266,6 +313,7 @@ test('no failed read in the trainer route is published as an empty history', asy
       ['next/server', nextServer],
       ['@/lib/supabase/server', { createClient: async () => churnFails.client }],
       ['@/lib/supabase/admin', { createAdminClient: () => churnFails.client }],
+      ['@/lib/request-auth', { clientForRequest: async () => churnFails.client, userLookupForRequest: async () => ({ user: COACH, error: null }) }],
       ['@/lib/stripe', { loadStripe: async () => ({ connected: false }), loadCancelFlags: async (ids) => new Map(ids.map((id) => [id, false])) }],
       ['@/lib/coach-renewals.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/coach-renewals.mjs')).href)],
       ['@/lib/platform-fee', await import(pathToFileURL(join(ROOT, 'src/lib/platform-fee.mjs')).href)],
@@ -376,30 +424,134 @@ test('renewals: the active rows due in the next 7 days, each asked of Stripe, ne
   }
 })
 
-// ── Codex round 8 (#2394): the page counts people, not plans ──────────────────
-// A client who cancels one plan while holding another hasn't left (coach-trajectory.mjs leftIn), so
-// each cancellation says whose it is and whether that client is still active here.
-test('each cancellation says whose it is and whether that client still holds a plan; unread when either membership read failed', async () => {
+// ── Codex round 8 (#2394) and the sweep after round 10: departures, decided when each plan ended ──
+// A plan that ended is a departure unless its client held another plan at the close of the week it
+// ended in (coach-trajectory.mjs subDeparture, the trajectory's leftIn rule). Whether they hold one NOW
+// is not the question: a client who left and came back in a later week still left.
+test('each ended plan says whose it is and whether it ended their membership, decided at its week\'s close', async () => {
   const C = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
   const D = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+  const E = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+  const F = 'ffffffff-ffff-4fff-8fff-ffffffffffff'
+  const J = 'jjjjjjjj-jjjj-4jjj-8jjj-jjjjjjjjjjjj'
+  const K = 'kkkkkkkk-kkkk-4kkk-8kkk-kkkkkkkkkkkk'
+  const at = (iso, o) => ({ created_at: iso, ...o })
   const subs = [
+    // A dropped one plan while holding another that opened before it ended: not a departure.
     { ...sub(A, 18000), id: 'r1' },
-    { ...sub(A, 12000), id: 'r2', status: 'canceled', current_period_end: '2026-10-01T00:00:00Z' },
+    { ...sub(A, 12000), id: 'r2', ...at('2026-08-01T00:00:00Z'), status: 'canceled', current_period_end: '2026-10-01T00:00:00Z' },
+    // C left: no other plan.
     { ...sub(C, 15000), id: 'r3', status: 'canceled', current_period_end: '2026-10-02T00:00:00Z' },
     // D's other plan is retrying (past_due): still a membership, as the trajectory counts it (Codex round 9).
     { ...sub(D, 9000), id: 'r4', status: 'past_due' },
     { ...sub(D, 7000), id: 'r5', status: 'canceled', current_period_end: '2026-09-30T00:00:00Z' },
     // A row with no client has no other plan to hold: a departure.
     { ...sub(null, 5000), id: 'r6', status: 'canceled', current_period_end: '2026-09-29T00:00:00Z' },
+    // E LEFT ON AUG 20 AND CAME BACK ON SEP 25: active now, and the Aug 20 departure is still one.
+    { ...sub(E, 14000), id: 'r7', ...at('2026-06-01T00:00:00Z'), status: 'canceled', current_period_end: '2026-08-20T00:00:00Z' },
+    { ...sub(E, 14000), id: 'r8', ...at('2026-09-25T00:00:00Z') },
+    // An 'unpaid' plan closed the span in the trajectory, so it is an ended plan here too.
+    { ...sub(F, 6000), id: 'r9', ...at('2026-07-01T00:00:00Z'), status: 'unpaid', current_period_end: '2026-09-28T00:00:00Z' },
+    // A checkout never paid is no row at all: not listed.
+    { ...sub(C, 6000), id: 'r10', status: 'incomplete_expired', current_period_end: '2026-09-27T00:00:00Z' },
+    // J's Sep 10 cancellation came while another plan was open (it ended later, Oct 5): not a
+    // departure. That later one ended theirs.
+    { ...sub(J, 8000), id: 'r12', ...at('2026-07-01T00:00:00Z'), status: 'canceled', current_period_end: '2026-09-10T00:00:00Z' },
+    { ...sub(J, 8000), id: 'r13', ...at('2026-08-01T00:00:00Z'), status: 'canceled', current_period_end: '2026-10-05T00:00:00Z' },
+    // K ended two plans at the same moment: each row ended their membership (the page makes them one).
+    { ...sub(K, 4000), id: 'r14', ...at('2026-06-01T00:00:00Z'), status: 'canceled', current_period_end: '2026-09-15T00:00:00Z' },
+    { ...sub(K, 3000), id: 'r15', ...at('2026-07-01T00:00:00Z'), status: 'canceled', current_period_end: '2026-09-15T00:00:00Z' },
   ]
   for (const role of ['trainer', 'nutritionist']) {
     const tables = role === 'trainer' ? roster({ subscriptions: subs }) : { nutritionists: [{ id: 9, stripe_account_id: null, stripe_account_status: null }], subscriptions: subs.map((r) => ({ ...r, provider_role: 'nutritionist' })) }
-    const { body } = await loadRoute(role, tables, { rpcs: lifts({}), honorStatus: true })
-    assert.deepEqual(body.churn.map((r) => [r.clientId, r.stillClient]), [[C, false], [A, true], [D, true], [null, false]], role + ': C left; A dropped a plan; D still holds a retrying plan; a clientless row left')
-    for (const fail of ['failActive', 'failRetrying']) {
-      const unread = await loadRoute(role, tables, { rpcs: lifts({}), honorStatus: true, [fail]: true })
-      assert.deepEqual(unread.body.churn.map((r) => r.stillClient), [null, null, null, null], role + ', ' + fail + ': no one is known to be still here')
+    const { body, calls } = await loadRoute(role, tables, { rpcs: lifts({}), honorStatus: true })
+    assert.deepEqual(body.churn.map((r) => [r.clientId, r.endedAt.slice(0, 10), r.departed]), [
+      [J, '2026-10-05', true], [C, '2026-10-02', true], [A, '2026-10-01', false], [D, '2026-09-30', false], [null, '2026-09-29', true],
+      [F, '2026-09-28', true], [K, '2026-09-15', true], [K, '2026-09-15', true], [J, '2026-09-10', false], [E, '2026-08-20', true],
+    ], role + ': newest first; F\'s unpaid plan ended; A and D held another plan; J left once, in October; K left once with two plans; E left, though back now')
+    assert.ok(!body.churn.some((r) => 'stillClient' in r), role + ': no field says who is here now')
+    // The read takes the trajectory's closed set: everything but open and never-started.
+    const churnRead = calls.find((c) => c.table === 'subscriptions' && c.ops.some(([op, col]) => op === 'order' && col === 'current_period_end'))
+    assert.deepEqual(churnRead.ops.filter(([op, col]) => col === 'status'), [['not', 'status', 'in', '(active,trialing,past_due,incomplete,incomplete_expired)']], role)
+    assert.ok(has(churnRead, 'limit', 12) && has(churnRead, 'eq', 'provider_role', role), role)
+    // The round-9 read of the churned clients' past_due plans is gone: the trajectory's rows decide.
+    assert.ok(!calls.some((c) => c.table === 'subscriptions' && c.ops.some(([op, col, v]) => op === 'eq' && col === 'status' && v === 'past_due')), role + ': no separate retrying read')
+    // A failed active read is not a failed history: each row is still decided.
+    const noActive = await loadRoute(role, tables, { rpcs: lifts({}), honorStatus: true, failActive: true })
+    assert.deepEqual(noActive.body.churn.map((r) => r.departed), body.churn.map((r) => r.departed), role + ': the active read does not decide who left')
+    // The trajectory's rows unread: no one is known to have left, and the list is still read.
+    const unread = await loadRoute(role, tables, { rpcs: lifts({}), honorStatus: true, failHistory: true })
+    assert.equal(unread.body.trajectory, null, role)
+    assert.deepEqual(unread.body.churn.map((r) => r.departed), Array(10).fill(null), role + ': who left is unread')
+    assert.equal(unread.body.churn[0].endedAt.slice(0, 10), '2026-10-05', role + ': the dates are still the rows\' own')
+  }
+})
+
+test('a client who left and came back is listed as a departure in both routes, matching the trajectory', async () => {
+  const E = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+  const day = 86400000
+  const ago = (d) => new Date(Date.now() - d * day).toISOString()
+  // Left 40 days ago after four months; came back 10 days ago.
+  const subs = (role) => [
+    { ...sub(E, 14000), id: 'r1', provider_role: role, created_at: ago(160), status: 'canceled', current_period_end: ago(40) },
+    { ...sub(E, 14000), id: 'r2', provider_role: role, created_at: ago(10) },
+  ]
+  for (const [role, listing] of [['trainer', { trainers: [{ id: 7, stripe_account_id: null, stripe_account_status: null }] }], ['nutritionist', NUTRI]]) {
+    const { body } = await loadRoute(role, { ...listing, subscriptions: subs(role) }, { rpcs: lifts({}), honorStatus: true })
+    assert.deepEqual(body.churn.map((r) => [r.clientId, r.departed]), [[E, true]], role + ': the departure is listed, though the client is back')
+    const ended = body.trajectory.weeks.reduce((s, w) => s + w.ended, 0)
+    assert.equal(ended, 1, role + ': the trajectory counts the same departure')
+    assert.equal(body.trajectory.weeks[body.trajectory.weeks.length - 1].active, 1, role + ': and the client as active today')
+  }
+})
+
+// Its review: each row is decided at the close of the ISO week it ended in, the instant the trajectory's
+// weekly `ended` is judged at, so the list and the pace count the same departures. Judged at the
+// instant itself, a client back on the Thursday of the week they left in was a departure in the list
+// and none in the trajectory (the Retention tab's "No one has left" above "1 left").
+test('a client back later in the week they left in is no departure, in both routes, as trajectory.weeks\' ended has it', async () => {
+  const X = 'abababab-abab-4bab-8bab-abababababab'
+  const CF = require_(join(ROOT, 'public/newdesign/coachForecast.js'))
+  const day = 86400000
+  // The Monday three weeks back, so the whole week is past and inside the pace's window.
+  const now = Date.now()
+  const m = new Date(now); m.setUTCHours(0, 0, 0, 0); m.setUTCDate(m.getUTCDate() - ((m.getUTCDay() + 6) % 7))
+  const monday = m.getTime() - 21 * day
+  const iso = (t) => new Date(t).toISOString()
+  const weekOf = iso(monday).slice(0, 10)
+  const others = (role) => Array.from({ length: 5 }, (_, i) => ({ ...sub('0000000' + i + '-0000-4000-8000-000000000000', 18000), id: 'o' + i, provider_role: role, created_at: iso(now - 200 * day) }))
+  // x's plan ends on the Monday at 10:00 (a card failed).
+  const mon = (role) => ({ ...sub(X, 18000), id: 'x1', provider_role: role, created_at: iso(now - 200 * day), status: 'unpaid', current_period_end: iso(monday + 10 * 3600000) })
+  const cases = [
+    // Back on the Thursday: no one left that week.
+    ['back on the Thursday', (role) => [{ ...sub(X, 18000), id: 'x2', provider_role: role, created_at: iso(monday + 3 * day + 9 * 3600000) }], [false], 0, 0],
+    // Back on the Tuesday, gone again on the Wednesday: one departure, and the money lost is the plan
+    // held when they left, not the Monday membership too (Codex on #2395).
+    ['gone twice that week', (role) => [{ ...sub(X, 6000), id: 'x2', provider_role: role, created_at: iso(monday + day + 8 * 3600000), status: 'canceled', current_period_end: iso(monday + 2 * day + 18 * 3600000) }], [true, true], 1, 6000],
+    // Two plans held together, one ended on the Monday and one on the Wednesday: one departure.
+    ['two plans, two days', (role) => [{ ...sub(X, 6000), id: 'x2', provider_role: role, created_at: iso(now - 150 * day), status: 'canceled', current_period_end: iso(monday + 2 * day + 18 * 3600000) }], [true, true], 1, 24000],
+  ]
+  for (const [role, listing] of [['trainer', { trainers: [{ id: 7, stripe_account_id: null, stripe_account_status: null }] }], ['nutritionist', NUTRI]]) {
+    for (const [what, more, departed, ended, lost] of cases) {
+      const { body } = await loadRoute(role, { ...listing, subscriptions: [...others(role), mon(role), ...more(role)] }, { rpcs: lifts({}), honorStatus: true })
+      assert.deepEqual(body.churn.map((r) => r.departed).reverse(), departed, `${role}, ${what}: each ended plan, decided at the week's close`)
+      assert.equal(body.trajectory.weeks.find((w) => w.weekOf === weekOf).ended, ended, `${role}, ${what}: the trajectory's week`)
+      // And what the Retention tab and the Clients tab print from them agrees.
+      const pace = CF.paceFrom(body.trajectory, now)
+      const gone = CF.departures(body.churn, { pace, now })
+      assert.deepEqual([pace.ended, gone.count, gone.lostCents], [ended, ended, lost], `${role}, ${what}: the pace and the list count the same departures`)
     }
+  }
+})
+
+test('an ended plan\'s date is the trajectory\'s close: a period end in the future is clamped to now', async () => {
+  // Cancelled mid-period: the status says gone, the period end is three weeks out.
+  const subs = (role) => [{ ...sub(A, 9000), id: 'r1', provider_role: role, created_at: '2026-06-01T00:00:00Z', status: 'canceled', current_period_end: new Date(Date.now() + 21 * 86400000).toISOString() }]
+  for (const [role, listing] of [['trainer', { trainers: [{ id: 7, stripe_account_id: null, stripe_account_status: null }] }], ['nutritionist', NUTRI]]) {
+    const before = Date.now()
+    const { body } = await loadRoute(role, { ...listing, subscriptions: subs(role) }, { rpcs: lifts({}), honorStatus: true })
+    const t = Date.parse(body.churn[0].endedAt)
+    assert.ok(t >= before && t <= Date.now(), role + ': ended now, not ' + body.churn[0].endedAt)
   }
 })
 
@@ -470,6 +622,100 @@ test('both routes send the brought-in share per client, not per subscription row
     const failed = await loadRoute(role, { ...listing, subscriptions: rows(role) }, { errors: { subscriptions: 'timeout' } })
     assert.equal(failed.body.byoMix, null, role + ': an unread share is unread, not 0%')
   }
+})
+
+// ── The sweep after #2394 round 10: the brought-in share is "of" the clients the Plan counts ──
+test('both routes take the brought-in share over today\'s clients, so a brought client whose payment is retrying is in it, as in the Plan\'s count', async () => {
+  // A and B found the coach on Shape and are active; C was brought (0%) and her payment is retrying;
+  // D cancelled. Today is three clients (the trajectory's latest week, as membership counts), so the
+  // share is 1 of 3. Over the active and trialing rows it read 0 of 2 beside "you have 3 today".
+  const C = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+  const D = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+  const rows = (role) => [
+    { ...sub(A), id: 'r1', provider_role: role },
+    { ...sub(B), id: 'r2', provider_role: role },
+    { ...sub(C), id: 'r3', fee_bps: 0, status: 'past_due', provider_role: role },
+    { ...sub(D), id: 'r4', fee_bps: 0, status: 'canceled', current_period_end: '2026-10-01T00:00:00Z', provider_role: role },
+  ]
+  const CF = require_('./public/newdesign/coachForecast.js')
+  for (const [role, listing] of [['trainer', { trainers: [{ id: 7, stripe_account_id: null, stripe_account_status: null }] }], ['nutritionist', { nutritionists: [{ id: 9, stripe_account_id: null, stripe_account_status: null }] }]]) {
+    const tables = { ...listing, subscriptions: rows(role) }
+    const { body } = await loadRoute(role, tables, { honorStatus: true })
+    assert.equal(body.trajectory.weeks[body.trajectory.weeks.length - 1].active, 3, role + ': today is three clients')
+    assert.equal(body.metrics.activeClients, 2, role + ': the active read is still active and trialing')
+    assert.deepEqual(body.byoMix, { clients: 3, brought: 1 }, role + ': 1 of today\'s 3, not 0 of the 2 active rows')
+    // Through the shared forecast both Business pages read: "you have 3 today" beside "1 of your 3".
+    const n = CF.planNumbers({ extra: body, listingMonthly: null })
+    assert.deepEqual([n.clients, n.brought, n.byoClients], [3, 1, 3], role)
+    // The trajectory unread: the share falls back to the active read, as todayFrom falls back to metrics.
+    const noHistory = await loadRoute(role, tables, { honorStatus: true, failTrajectory: true })
+    assert.equal(noHistory.body.trajectory, null, role)
+    assert.deepEqual(noHistory.body.byoMix, { clients: 2, brought: 0 }, role + ': the active rows, when there is no trajectory')
+    const n2 = CF.planNumbers({ extra: noHistory.body, listingMonthly: null })
+    assert.deepEqual([n2.clients, n2.byoClients], [2, 2], role + ': the two fall back together')
+    // The active read unread and the trajectory read: the share is still today's.
+    const noActive = await loadRoute(role, tables, { honorStatus: true, failActive: true })
+    assert.deepEqual(noActive.body.byoMix, { clients: 3, brought: 1 }, role)
+    assert.deepEqual(noActive.body.byOrigin.map((r) => r.feeBps), [1500, 1500, 0], role + ': and so is the origin feed (the test below)')
+    // Neither: unread, never 0%.
+    const neither = await loadRoute(role, tables, { honorStatus: true, failActive: true, failTrajectory: true })
+    assert.equal(neither.body.byoMix, null, role)
+  }
+})
+
+test('both routes list today\'s clients in the Growth tab\'s "who found whom", so a brought client whose payment is retrying is there, as in the Plan\'s "1 of your 3"', async () => {
+  // The scenario above: A and B from Shape and active, C brought (0%) and past_due, D cancelled.
+  // The feed was built from the active and trialing rows, so the plate on the Plan's own page
+  // listed A and B alone: "0 you brought · 2 found you on Shape" beside "0% fee · 1 of your 3".
+  const C = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+  const D = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+  const rows = (role) => [
+    { ...sub(A), id: 'r1', provider_role: role },
+    { ...sub(B), id: 'r2', provider_role: role },
+    { ...sub(C), id: 'r3', fee_bps: 0, status: 'past_due', provider_role: role },
+    { ...sub(D), id: 'r4', fee_bps: 0, status: 'canceled', current_period_end: '2026-10-01T00:00:00Z', provider_role: role },
+  ]
+  // `profiles` answers what the coach's policy shows (active and trialing clients: A and B);
+  // get_display_names names anyone, and says whom it was asked about.
+  const asked = []
+  const names = { [A]: 'Ada', [B]: 'Ben', [C]: 'Cleo', [D]: 'Dee' }
+  const rpcs = { get_display_names: ({ p_ids }) => { asked.push(p_ids); return { data: p_ids.map((id) => ({ user_id: id, full_name: names[id] })), error: null } } }
+  for (const [role, listing] of [['trainer', { trainers: [{ id: 7, stripe_account_id: null, stripe_account_status: null }] }], ['nutritionist', { nutritionists: [{ id: 9, stripe_account_id: null, stripe_account_status: null }] }]]) {
+    const tables = { ...listing, subscriptions: rows(role), profiles: [{ id: A, full_name: 'Ada' }, { id: B, full_name: 'Ben' }] }
+    asked.length = 0
+    const { body } = await loadRoute(role, tables, { honorStatus: true, rpcs })
+    const subsFeed = body.byOrigin.filter((r) => r.kind === 'subscription')
+    assert.deepEqual(subsFeed.map((r) => [r.name, r.feeBps]), [['Ada', 1500], ['Ben', 1500], ['Cleo', 0]], role + ': C is listed, by name, at 0%; D (cancelled) is not')
+    assert.deepEqual(asked, [[D], [C]], role + ': the churn list asks for D; the feed asks for the one name the profiles read could not see, and only that one')
+    // The plate's own count (DbzOriginZone: rows at 0% are "you brought") agrees with the Plan's.
+    assert.equal(subsFeed.filter((r) => r.feeBps === 0).length, body.byoMix.brought, role + ': "1 you brought" beside "1 of your 3"')
+    assert.equal(new Set(subsFeed.map((r) => r.name)).size, body.byoMix.clients, role)
+    // The trajectory unread: both fall back to the active rows together.
+    const noHistory = await loadRoute(role, tables, { honorStatus: true, failTrajectory: true, rpcs })
+    assert.deepEqual(noHistory.body.byOrigin.map((r) => r.name), ['Ada', 'Ben'], role)
+    // The active read unread: no roster, so no profiles read; every name comes from get_display_names.
+    asked.length = 0
+    const noActive = await loadRoute(role, tables, { honorStatus: true, failActive: true, rpcs })
+    assert.deepEqual(noActive.body.byOrigin.map((r) => r.name), ['Ada', 'Ben', 'Cleo'], role + ': named, not "—"')
+    assert.deepEqual(asked, [[D], [A, B, C]], role)
+    // Neither: unread, never "no clients yet".
+    const neither = await loadRoute(role, tables, { honorStatus: true, failActive: true, failTrajectory: true, rpcs })
+    assert.equal(neither.body.byOrigin, null, role)
+  }
+})
+
+test('the origin feed names the clients it lacks 200 at a time, the most get_display_names takes', async () => {
+  const { buildOriginFeed } = await loadRealModule(join(ROOT, 'src/lib/origin-attribution.ts'), { typescript: true, registry: new Map([['@/lib/supabase/server', {}]]) })
+  const db = fakeSupabase({}, { rpcs: { get_display_names: ({ p_ids }) => (p_ids.length > 200 ? { data: null, error: { message: 'at most 200 ids' } } : { data: p_ids.map((id) => ({ user_id: id, full_name: 'N ' + id })), error: null }) } })
+  const subs = Array.from({ length: 450 }, (_, i) => ({ client_id: 'c' + i, price_cents: 1000, fee_bps: 1500 }))
+  const feed = await buildOriginFeed(db.client, 'trainer', 7, subs, new Map([['c0', 'Known']]))
+  assert.deepEqual(db.calls.filter((c) => c.rpc === 'get_display_names').map((c) => c.args.p_ids.length), [200, 200, 49])
+  assert.equal(feed[0].name, 'Known', 'a name the roster already read is not asked for again')
+  assert.ok(feed.every((r) => r.name !== '—'), 'every client named')
+  // A failed purchases read is still subscriptions-only, and still named.
+  const failed = fakeSupabase({}, { errors: { one_time_purchases: 'timeout' }, rpcs: { get_display_names: ({ p_ids }) => ({ data: p_ids.map((id) => ({ user_id: id, full_name: 'Cleo' })), error: null }) } })
+  const only = await buildOriginFeed(failed.client, 'trainer', 7, [{ client_id: 'c', price_cents: 1000, fee_bps: 0 }], new Map())
+  assert.deepEqual(only.map((r) => [r.kind, r.name, r.feeBps]), [['subscription', 'Cleo', 0]])
 })
 
 // ── #2394's open item: the nutritionist route reads every row, a page at a time ──

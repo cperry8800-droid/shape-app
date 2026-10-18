@@ -105,7 +105,6 @@
   "training.injuries": "Raunuka da bayanai",
   "training.injuriesPh": "Kafada ta hagu, gwiwa…",
   "training.preferredTimes": "Lokutan da aka fi so",
-  "practice.profileRates": "Bayanan martaba na jama'a da farashi",
   "practice.listing": "Talla a marketplace",
   "practice.availability": "Samuwa",
   "practice.payouts": "Biyan kuɗi",
@@ -497,5 +496,6 @@
   "push.askYes": "Kunna sanarwa",
   "push.notNow": "Ba yanzu ba",
   "push.askTitleCoach": "San lokacin da abokan cinikinka ke bukatarka",
-  "push.askBodyCoach": "Shape na sanar da kai a waya idan abokin ciniki ya aiko maka saƙo, ya yi rajista ko ya biya zaman horo, ko yana bukatar hankalinka. Wayarka za ta tambaya sau ɗaya; za ka iya canza shi daga baya a saitunanta."
+  "push.askBodyCoach": "Shape na sanar da kai a waya idan abokin ciniki ya aiko maka saƙo, ya yi rajista ko ya biya zaman horo, ko yana bukatar hankalinka. Wayarka za ta tambaya sau ɗaya; za ka iya canza shi daga baya a saitunanta.",
+  "practice.payoutsFailed": "Ba a iya fara saita biyan Stripe ba."
 }

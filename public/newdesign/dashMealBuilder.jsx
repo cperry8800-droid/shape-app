@@ -908,9 +908,7 @@ function NutritionistPlansPage() {
       <DashPage
         tourHero="hero-plans"
         navItems={nutriNavItems("plans")}
-        payoutCard={live
-          ? { label: "MONTHLY · NET", amount: live.kpis.monthlyNetCents != null ? dashMoney(live.kpis.monthlyNetCents) : "—", sub: live.kpis.activeClients + " active subs · payouts connect soon" }
-          : nutriPayoutCard}
+        payoutCard={live ? dashLivePayoutCard(live.kpis) : nutriPayoutCard}
         eyebrow={(templates ? templates.length : 0) + " TEMPLATES · BY GOAL PHASE"}
         title="Plans"
         subtitle={view ? "Editing — autosaves as you build; Assign publishes a scaled snapshot to the client's meals + grocery." : "Your meal-plan library and who needs a plan next. Assign pre-fills the plan queue."}

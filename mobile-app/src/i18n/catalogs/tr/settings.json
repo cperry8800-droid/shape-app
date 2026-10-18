@@ -105,7 +105,6 @@
   "training.injuries": "Sakatlıklar ve notlar",
   "training.injuriesPh": "Sol omuz, diz…",
   "training.preferredTimes": "Tercih edilen saatler",
-  "practice.profileRates": "Herkese açık profil ve ücretler",
   "practice.listing": "Marketplace ilanı",
   "practice.availability": "Uygunluk",
   "practice.payouts": "Ödemeler",
@@ -497,5 +496,6 @@
   "push.askYes": "Bildirimleri aç",
   "push.notNow": "Şimdi değil",
   "push.askTitleCoach": "Danışanlarının sana ihtiyacı olduğunda haberin olsun",
-  "push.askBodyCoach": "Shape, bir danışan sana mesaj attığında, seans ayırttığında ya da ödediğinde veya ilgine ihtiyaç duyduğunda telefonundan haber verir. Telefonun bir kez sorar; sonra ayarlarından değiştirebilirsin."
+  "push.askBodyCoach": "Shape, bir danışan sana mesaj attığında, seans ayırttığında ya da ödediğinde veya ilgine ihtiyaç duyduğunda telefonundan haber verir. Telefonun bir kez sorar; sonra ayarlarından değiştirebilirsin.",
+  "practice.payoutsFailed": "Stripe ödeme kurulumu başlatılamadı."
 }

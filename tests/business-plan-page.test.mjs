@@ -25,10 +25,14 @@ globalThis.serif = 'serif';
 const today = readFileSync(ND('dashToday.jsx'), 'utf8');
 globalThis.dashMoney = new Function(/function dashMoney\(cents\) \{[\s\S]*?\n\}/.exec(today)[0] + '\nreturn dashMoney;')();
 const money = globalThis.dashMoney;
+// The preview roster's people (Today's ten), which Business's origin list and renewals name too.
+const ROSTER_NAMES = new RegExp(globalThis.DashSignals.buildMockClients(new Date()).map((c) => c.profile.name.replace(/[.$]/g, '\\$&')).join('|'));
 
 const { loadRealModule } = await import('./helpers/load-real-module.mjs');
+// The routes' own rules for the trajectory and for each ended plan (both analytics routes use them).
+const { buildTrajectory, subDeparture, NOT_ENDED_STATUSES } = await import('../src/lib/coach-trajectory.mjs');
 const B = await loadRealModule(ND('dashBusiness.jsx'), {
-  appendExports: 'export { DbzChurnZone, DbzGoalEarn, dbzGoalEarnBase, dbzPlanBase, DbzPlanZone, DbzEarnZone, DbzPayoutsZone, DbzRenewalsZone, dbzRenewalsHead, DbzWaitlistZone, DbzLifetimeZone, DBZ_DEMO_CHURN };',
+  appendExports: 'export { DbzChurnZone, DbzGoalEarn, dbzGoalEarnBase, dbzPlanBase, DbzPlanZone, DbzEarnZone, DbzPayoutsZone, DbzRenewalsZone, dbzRenewalsHead, DbzWaitlistZone, DbzLifetimeZone, DBZ_DEMO_CHURN, dbzDemoTrajectory, dbzDemoBook, dbzDemoOrigin, dbzDemoRenewals, DBZ_DEMO_OUTCOMES };',
 });
 
 async function mount(el) {
@@ -94,6 +98,11 @@ test('dbzPlanBase: the brought-by-you share is the routes\' per-client mix, not 
   const b = B.dbzPlanBase({ live: true, extra: { metrics: { activeClients: 4, mrrNetCents: 1, mrrGrossCents: 1 }, byOrigin, byoMix: { clients: 4, brought: 1 }, trajectory: null }, listing: null, listingRead: true });
   assert.equal(b.byoShare, 0.25, 'from the mix, not the 2 of 4 rows');
   assert.equal(b.byoNote, '0% fee · 1 of your 4');
+  // Today's count takes in a client whose payment is retrying (the trajectory's latest week); the
+  // note and the share stay the mix's own 1 of 4 (coachForecast.js planNumbers, which the app reads too).
+  const week = { weekOf: '2026-10-12', active: 5, added: 0, ended: 0, mrrNetCents: 1, mrrGrossCents: 1 };
+  const t = B.dbzPlanBase({ live: true, extra: { metrics: { activeClients: 4, mrrNetCents: 1, mrrGrossCents: 1 }, byOrigin, byoMix: { clients: 4, brought: 1 }, trajectory: { weeks: [week], firstSubAt: null } }, listing: null, listingRead: true });
+  assert.deepEqual([t.clients, t.byoShare, t.byoNote], [5, 0.25, '0% fee · 1 of your 4']);
 });
 
 test("the preview's pace includes the preview's own departures, so Retention never says no one left beside its churn list", async () => {
@@ -207,6 +216,75 @@ test('a pace outside the sliders\' usual range is kept, and the range stretches 
   assert.match(m.text(), /yours: 24\.0 over the last 3 months/);
   assert.match(m.text(), /yours: 45% leave a month/);
   await m.unmount();
+});
+
+// ── The rate for new clients (the sweep after #2394 round 10) ───────────────
+// The note under a slider, and whether a browser would snap the slider's value (jsdom does not
+// snap a range input, but it does report the step mismatch a browser would snap away).
+const sliderNote = (input) => input.closest('label').lastElementChild.textContent;
+const holds = (input) => !input.validity.stepMismatch && !input.validity.rangeUnderflow && !input.validity.rangeOverflow;
+
+test('a $149 listing price: the untouched plan runs at $149, not $150, and the slider holds it', async () => {
+  const base = { ...BASE, rateCents: 14900 };
+  const T = run({ adds: 2.3, churn: 0.08, rate: 149 });
+  const at150 = run({ adds: 2.3, churn: 0.08, rate: 150 });
+  assert.notEqual(money(T.rows[12].netCents), money(at150.rows[12].netCents), 'the fixture tells $149 from $150 in a year');
+  assert.notEqual(money(CF.earnedOver(T, 12)), money(CF.earnedOver(at150, 12)));
+  const m = await mount(React.createElement(B.DbzPlanZone, { base }));
+  const rate = m.div.querySelectorAll('input[type=range]')[2];
+  assert.equal(rate.value, '149');
+  assert.ok(holds(rate), `a browser keeps $149 on this slider: min ${rate.min}, step ${rate.step}`);
+  assert.match(m.text(), /Rate for new clients\$149your listing price/);
+  assert.ok(sentence(m.div).includes(`At today's pace that becomes ${money(T.rows[12].netCents)} a month in a year`), sentence(m.div));
+  const cells = [...m.div.querySelectorAll('table.dbz-cmp tbody tr')][0].textContent;
+  assert.ok(cells.includes(money(CF.earnedOver(T, 12))), cells);
+  // A drag away and back is the coach's own price again: untouched, one line, no "was".
+  await setValue(rate, 160);
+  assert.match(m.text(), /\$160 · was \$149/);
+  await setValue(rate, 149);
+  assert.doesNotMatch(m.text(), /· was \$/);
+  assert.deepEqual(rowLabels(m.div), ["Today's pace", 'What if: +1 client a month']);
+  await m.unmount();
+});
+
+test('a listing price with cents is held to the cent, on the plan and in What clients earn you', async () => {
+  const base = { ...BASE, rateCents: 14950 };
+  const m = await mount(React.createElement(B.DbzPlanZone, { base }));
+  const rate = m.div.querySelectorAll('input[type=range]')[2];
+  assert.equal(rate.value, '149.5');
+  assert.ok(holds(rate), `a browser keeps $149.50 on this slider: min ${rate.min}, step ${rate.step}`);
+  assert.match(m.text(), /Rate for new clients\$149\.50your listing price/);
+  const T = CF.forecast({ clients: 12, mrrNetCents: 189000, byoShare: 2 / 12, months: 36, priceCents: 14950, adds: 2.3, churn: 0.08 });
+  assert.ok(sentence(m.div).includes(`becomes ${money(T.rows[12].netCents)} a month in a year`), sentence(m.div));
+  await setValue(rate, 150.5);
+  assert.match(m.text(), /\$150\.50 · was \$149\.50/);
+  await m.unmount();
+  const e = await mount(React.createElement(B.DbzEarnZone, { base }));
+  assert.equal(e.div.querySelectorAll('input[type=number]')[1].value, '149.5');
+  assert.ok(e.text().includes(money(CF.earn({ clients: 20, priceCents: 14950, byoShare: 0.17 }).netCents) + 'net a month'), e.text());
+  await e.unmount();
+});
+
+test('the rate slider says where its starting number came from, as What clients earn you does', async () => {
+  const extra = (m) => ({ metrics: m, byOrigin: [], byoMix: { clients: 0, brought: 0 }, trajectory: null });
+  const some = { activeClients: 3, mrrNetCents: 40000, mrrGrossCents: 47300 };
+  const none = { activeClients: 0, mrrNetCents: 0, mrrGrossCents: 0 };
+  for (const [why, args, from] of [
+    ['a listing price', { extra: extra(some), listing: { monthly: 149 } }, 'your listing price'],
+    ["the clients' average", { extra: extra(some), listing: { monthly: null } }, "your clients' average"],
+    ['the default', { extra: extra(none), listing: null }, 'no listing price yet · set your own'],
+    ['an unread listing, averaged', { extra: extra(some), listing: null, listingFailed: true }, "couldn't read your listing price · your clients' average"],
+    ['an unread listing, no clients', { extra: extra(none), listing: null, listingFailed: true }, "couldn't read your listing price · set your own"],
+  ]) {
+    const base = B.dbzPlanBase({ live: true, listingRead: true, ...args });
+    assert.equal(base.rateFrom, from, why);
+    const m = await mount(React.createElement(B.DbzPlanZone, { base }));
+    const rate = m.div.querySelectorAll('input[type=range]')[2];
+    assert.equal(sliderNote(rate), from + " · today's clients keep their price", why);
+    assert.equal(rate.value, String(base.rateCents / 100), why + ': the plan starts at the rate the note names');
+    assert.ok(holds(rate), why);
+    await m.unmount();
+  }
 });
 
 // ── Your money ───────────────────────────────────────────────────────────────
@@ -335,31 +413,155 @@ test('the churn total counts the last 90 days and says so, not every cancellatio
   const eleven = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: [...full.slice(0, 11), rows[1]] }));
   assert.match(eleven.text(), /^11 left in the last 90 days−\$1,980 a month/, 'one row outside the window: the count is whole');
   await eleven.unmount();
-  // People who left, not plans that ended (Codex round 8, #2394). A client still active here who
-  // dropped one plan hasn't left: not counted, not listed. A client who cancelled two plans left
-  // once, and both plans' money is lost.
+  // Departures, not plans that ended and not people (Codex round 8 and the sweep after round 10,
+  // #2394). The route decides each row at the close of the week it ended in: a row whose client held
+  // another plan then (departed false) is no departure, and is not listed. Plans one client ended at
+  // one moment (or in one week) are one departure, and both plans' money is lost.
   const twoPlans = [
-    { ...rows[0], name: 'Stayed', clientId: 's', stillClient: true, priceCents: 9000 },
-    { ...rows[0], name: 'Left twice', clientId: 'l', stillClient: false, priceCents: 18000 },
-    { ...rows[0], name: 'Left twice', clientId: 'l', stillClient: false, priceCents: 6000 },
+    { ...rows[0], name: 'Held another', clientId: 's', departed: false, priceCents: 9000 },
+    { ...rows[0], name: 'Two at once', clientId: 'l', departed: true, priceCents: 18000 },
+    { ...rows[0], name: 'Two at once', clientId: 'l', departed: true, priceCents: 6000 },
   ];
-  const people = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: twoPlans }));
-  assert.match(people.text(), /^1 left in the last 90 days−\$240 a month/, 'Left twice, once');
-  assert.doesNotMatch(people.text(), /Stayed/, 'a current client is not listed as gone');
-  await people.unmount();
-  // Who stayed unread (stillClient null, Codex round 9): no one is counted, listed or subtracted.
-  const unsure = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: [...twoPlans, { ...rows[0], name: 'Unknown', clientId: 'u', stillClient: null }] }));
+  const once = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: twoPlans }));
+  assert.match(once.text(), /^1 left in the last 90 days−\$240 a month/, 'two plans at one moment, one departure');
+  assert.match(once.text(), /Two at once[^−]*−\$240\/mo/, 'listed once, with both plans\' money');
+  assert.doesNotMatch(once.text(), /Held another/, 'a plan ended while another was held is not a departure');
+  await once.unmount();
+  // A client who left, came back and left again left twice, each with its own money, as the pace's
+  // ended count has it. Counting people said "1 left" beside both departures' money.
+  const twice = [
+    { ...rows[0], name: 'Back and gone', clientId: 'b', departed: true, endedAt: new Date(Date.now() - 5 * day).toISOString(), priceCents: 18000 },
+    { ...rows[0], name: 'Back and gone', clientId: 'b', departed: true, endedAt: new Date(Date.now() - 60 * day).toISOString(), priceCents: 6000 },
+  ];
+  const left2 = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: twice }));
+  assert.match(left2.text(), /^2 left in the last 90 days−\$240 a month/, 'two departures, two counts, and the money of both');
+  assert.equal((left2.text().match(/Back and gone/g) || []).length, 2);
+  await left2.unmount();
+  // The history each departure is decided from unread (departed null, Codex round 9): no one is
+  // counted, listed or subtracted.
+  const unsure = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: [...twoPlans, { ...rows[0], name: 'Unknown', clientId: 'u', departed: null }] }));
   assert.equal(unsure.text(), "Couldn't check who still has a plan with you just now, so no one is counted as gone. Nothing is lost; reload to try again.");
   await unsure.unmount();
   // The floor is the route's list: 12 rows, all inside the window, even when some are left out.
-  const fullMixed = full.map((r, i) => (i < 3 ? { ...r, clientId: 'k' + i, stillClient: true } : { ...r, clientId: 'g' + i, stillClient: false }));
+  const fullMixed = full.map((r, i) => (i < 3 ? { ...r, clientId: 'k' + i, departed: false } : { ...r, clientId: 'g' + i, departed: true }));
   const floored = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: fullMixed }));
   assert.match(floored.text(), /^9 or more left in the last 90 daysat least −\$1,620 a month/);
   await floored.unmount();
   for (const role of ['trainer', 'nutritionist']) {
     const src = readFileSync(fileURLToPath(new URL(`../src/app/api/${role}/analytics/route.ts`, import.meta.url)), 'utf8');
-    assert.match(src, /\.eq\('status', 'canceled'\)\n\s+\.order\('current_period_end', \{ ascending: false, nullsFirst: false \}\)\n\s+\.limit\(12\);/, role + ' sends the newest 12, as DBZ_CHURN_LIST says');
+    // Every ended plan (the trajectory's closed set, not 'canceled' alone), newest first, 12 of them.
+    assert.match(src, /\.not\('status', 'in', `\(\$\{NOT_ENDED_STATUSES\.join\(','\)\}\)`\)\n\s+\.order\('current_period_end', \{ ascending: false, nullsFirst: false \}\)\n\s+\.limit\(12\);/, role + ' sends the newest 12 ended plans, as DBZ_CHURN_LIST says');
   }
+});
+
+// ── The sweep after #2394 round 10: who left counts over the pace's own window ──
+// "What a client is worth" reads the pace (paceFrom: from the Monday on or before 91 days ago, or
+// the Monday after the first client's week), "over the last 3 months"; the churn zone counted exactly
+// 90 days, "in the last 90 days", so a departure on day 90.5 was in one and not the other.
+const weeksFor = (now, firstDays, ends = []) => {
+  const monday = new Date(now); monday.setUTCHours(0, 0, 0, 0); monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));
+  const weeks = [];
+  for (let i = 25; i >= 0; i--) weeks.push({ weekOf: new Date(monday.getTime() - i * 7 * 86400000).toISOString().slice(0, 10), active: 10, added: 0, ended: ends.includes(25 - i) ? 1 : 0, mrrGrossCents: 180000, mrrNetCents: 153000 });
+  return { weeks, firstSubAt: new Date(now - firstDays * 86400000).toISOString() };
+};
+test('the churn zone counts over the pace\'s window and says it in the pace\'s words', async () => {
+  const day = 86400000;
+  const now = Date.now();
+  const traj = weeksFor(now, 400, [13]);
+  const pace = CF.paceFrom(traj, now);
+  assert.ok(pace.adds != null && pace.from <= now - 91 * day, 'a pace over the last 3 months');
+  // Ended 90.5 days ago: inside the pace's window, outside a 90-day one.
+  const rows = [{ name: 'Day ninety', clientId: 'n', departed: true, startedAt: new Date(now - 300 * day).toISOString(), endedAt: new Date(now - 90.5 * day).toISOString(), priceCents: 18000, reason: null }];
+  const m = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: rows, pace, now }));
+  assert.match(m.text(), /^1 left over the last 3 months−\$180 a month/);
+  await m.unmount();
+  const none = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: [{ ...rows[0], endedAt: new Date(pace.from - day).toISOString() }], pace, now }));
+  assert.match(none.text(), /^None left over the last 3 months/, 'before the window opens');
+  await none.unmount();
+  // A younger practice: the pace opens the Monday after the first client's week, and says so.
+  const young = CF.paceFrom(weeksFor(now, 60), now);
+  assert.ok(young.fromFirst && young.adds != null);
+  const y = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: [{ ...rows[0], endedAt: new Date(now - 10 * day).toISOString() }], pace: young, now }));
+  assert.match(y.text(), /^1 left after your first week−\$180 a month/);
+  await y.unmount();
+  // No pace (an unread history, or under a month of it): the last 90 days, said as such.
+  for (const p of [null, { adds: null, churn: null, unread: true }, CF.paceFrom(weeksFor(now, 20), now)]) {
+    const f = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: rows, pace: p, now }));
+    assert.match(f.text(), /^None left in the last 90 days/, JSON.stringify(p));
+    await f.unmount();
+  }
+});
+
+// The whole page, live, opened on one section, with the analytics answering `analytics`.
+async function mountBusiness(analytics, section) {
+  stubPage({ source: 'live', section });
+  const ok = (d) => Promise.resolve({ ok: true, json: () => Promise.resolve(d) });
+  globalThis.fetch = window.fetch = (url) => {
+    if (url.startsWith('/api/trainer/analytics')) return ok(analytics);
+    if (url.startsWith('/api/coach/listing')) return ok({ listings: [{ role: 'trainer', monthly: 180, ready: true }] });
+    if (url.startsWith('/api/coach/capacity')) return ok({ listings: [{ role: 'trainer', waiting: 0 }] });
+    return Promise.reject(new Error('unexpected ' + url));
+  };
+  const m = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
+  await settle();
+  await settle();
+  return m;
+}
+
+test('on the Retention tab, who left and what a client is worth read one window', async () => {
+  const day = 86400000;
+  const now = Date.now();
+  const weeks = weeksFor(now, 400, [13]);
+  const analytics = { isTrainer: true, providerId: 7, metrics: {}, byOrigin: [], byoMix: { clients: 10, brought: 0 }, trajectory: weeks, renewals: [], stripe: { connected: false },
+    churn: [{ name: 'Day ninety', clientId: 'n', departed: true, startedAt: new Date(now - 300 * day).toISOString(), endedAt: new Date(now - 90.5 * day).toISOString(), priceCents: 18000, reason: null }] };
+  const m = await mountBusiness(analytics, 'retention');
+  assert.match(m.text(), /From [\d.]+% of clients leaving a month over the last 3 months/);
+  assert.match(m.text(), /1 left over the last 3 months−\$180 a month/);
+  assert.doesNotMatch(m.text(), /None left/);
+  await m.unmount();
+});
+
+// Its review (the sweep after #2394 round 10): the route decides each ended plan at the close of the
+// week it ended in, and the page counts one client's departures in one week once, so the churn zone
+// and "What a client is worth" count the same departures. The analytics here are built from
+// subscription rows by the routes' own rules, as the route sends them.
+function analyticsFrom(subs, now) {
+  const churn = subs.filter((r) => !NOT_ENDED_STATUSES.includes(r.status))
+    .sort((a, b) => Date.parse(b.current_period_end) - Date.parse(a.current_period_end))
+    .map((r) => { const e = subDeparture(r, subs, now); return { name: r.name, clientId: r.client_id, departed: e.departed, startedAt: r.created_at, endedAt: new Date(e.endedAt).toISOString(), priceCents: r.price_cents, reason: null }; });
+  return { isTrainer: true, providerId: 7, metrics: {}, byOrigin: [], byoMix: { clients: 6, brought: 0 }, trajectory: buildTrajectory({ subs, now }), renewals: [], stripe: { connected: false }, churn };
+}
+// Five clients who stay, and x: their plan ends on a Monday three weeks back at 10:00.
+function weekCase(now) {
+  const day = 86400000;
+  const m = new Date(now); m.setUTCHours(0, 0, 0, 0); m.setUTCDate(m.getUTCDate() - ((m.getUTCDay() + 6) % 7));
+  const monday = m.getTime() - 21 * day;
+  const iso = (t) => new Date(t).toISOString();
+  const row = (o) => ({ status: 'active', price_cents: 18000, fee_bps: 1500, created_at: iso(now - 200 * day), ...o });
+  const others = Array.from({ length: 5 }, (_, i) => row({ id: 'o' + i, client_id: 'o' + i, name: 'Stays ' + i }));
+  const gone = row({ id: 'x1', client_id: 'x', name: 'Card Failed', status: 'unpaid', current_period_end: iso(monday + 10 * 3600000) });
+  return { monday, day, iso, row, others, gone };
+}
+test('on the Retention tab, a client back later the week they left is no departure in either zone', async () => {
+  const now = Date.now();
+  const { monday, day, iso, row, others, gone } = weekCase(now);
+  // Back on the Thursday: the pace has no one leaving, and neither does the churn zone.
+  const back = row({ id: 'x2', client_id: 'x', name: 'Card Failed', created_at: iso(monday + 3 * day + 9 * 3600000) });
+  let m = await mountBusiness(analyticsFrom([...others, gone, back], now), 'retention');
+  assert.match(m.text(), /No one has left over the last 3 months, so there isn't an average stay to measure yet\./);
+  assert.match(m.text(), /None left over the last 3 months/);
+  assert.doesNotMatch(m.text(), /1 left over the last 3 months|Card Failed/);
+  await m.unmount();
+  // Back on the Tuesday and gone again on the Wednesday: one departure in each, and the money lost is
+  // the plan they held when they left, not the earlier one too (Codex on #2395).
+  const again = row({ id: 'x2', client_id: 'x', name: 'Card Failed', status: 'canceled', price_cents: 6000, created_at: iso(monday + day + 8 * 3600000), current_period_end: iso(monday + 2 * day + 18 * 3600000) });
+  const twice = analyticsFrom([...others, gone, again], now);
+  assert.equal(CF.paceFrom(twice.trajectory, now).ended, 1, 'the pace counts one');
+  m = await mountBusiness(twice, 'retention');
+  assert.match(m.text(), /From [\d.]+% of clients leaving a month over the last 3 months/);
+  assert.match(m.text(), /1 left over the last 3 months−\$60 a month/);
+  assert.equal((m.text().match(/Card Failed/g) || []).length, 1, 'listed once');
+  await m.unmount();
 });
 
 // ── The Goal tab's calculator (Business review, 2026-10-17) ──────────────────
@@ -373,6 +575,35 @@ test('the Goal tab starts "What clients earn you" from the coach\'s live figures
   const none = B.dbzGoalEarnBase({ kind: 'live', activeClients: 0, mrrNetCents: 0, mrrGrossCents: 0, trajectory: null, byoShare: null });
   assert.deepEqual([none.rateCents, none.byoShare], [15000, 0]);
   assert.match(none.rateFrom, /set your rate/);
+});
+
+// ── The sweep after #2394 round 10: the Goal tab's live figures are today's, by the Plan's rule ──
+test('the Goal tab\'s live clients and net are today\'s (coachForecast.js todayFrom), as the Plan\'s are: a client whose payment is retrying counts', async () => {
+  // The hook itself, lifted from dashData.jsx and run against a scripted analytics answer.
+  const data = readFileSync(ND('dashData.jsx'), 'utf8');
+  const src = /function useCoachLiveFigures\(role\) \{[\s\S]*?\n\}/.exec(data)[0];
+  const live = async (answer) => {
+    let state = null;
+    const R = { useState: (init) => [init, (v) => { state = v; }], useEffect: (fn) => { fn(); } };
+    const hook = new Function('React', '_dashJson', 'window', src + '\nreturn useCoachLiveFigures;')(R, async () => answer, { CoachForecast: CF });
+    hook('trainer');
+    for (let i = 0; i < 5; i++) await new Promise((r) => setTimeout(r, 0));
+    return state;
+  };
+  // 13 clients today, one of them retrying (past_due): the route's `metrics` count 12.
+  const weeks = [{ weekOf: '2026-10-05', active: 12, mrrNetCents: 170000, mrrGrossCents: 200000 }, { weekOf: '2026-10-12', active: 13, mrrNetCents: 182700, mrrGrossCents: 215000 }];
+  const answer = { isTrainer: true, metrics: { activeClients: 12, mrrNetCents: 170000, mrrGrossCents: 200000 }, trajectory: { weeks, firstSubAt: null, summary: {} }, byoMix: { clients: 13, brought: 3 } };
+  const l = await live(answer);
+  assert.deepEqual([l.kind, l.activeClients, l.mrrNetCents, l.mrrGrossCents], ['live', 13, 182700, 215000], 'today, not the active and trialing rows');
+  const plan = CF.planNumbers({ extra: answer, listingMonthly: null });
+  assert.deepEqual([l.activeClients, l.mrrNetCents], [plan.clients, plan.mrrNetCents], 'the Goal tab and the Plan say the same today');
+  assert.equal(B.dbzGoalEarnBase(l).clients, plan.clients);
+  assert.equal(l.byoNote, '0% fee · 3 of your 13');
+  // The trajectory unread: `metrics` stand in, as todayFrom says. Neither: unread, not 0.
+  const fallback = await live({ ...answer, trajectory: null });
+  assert.deepEqual([fallback.activeClients, fallback.mrrNetCents], [12, 170000]);
+  const neither = await live({ ...answer, trajectory: null, metrics: { activeClients: null, mrrNetCents: null, mrrGrossCents: null } });
+  assert.deepEqual([neither.kind, neither.activeClients, neither.mrrNetCents], ['live', null, null]);
 });
 
 test('the Goal tab\'s calculator links to the planner on Business, opened on Plan', async () => {
@@ -470,6 +701,7 @@ test('a signed-in coach never sees the preview\'s figures while the page is stil
   globalThis.fetch = window.fetch = () => new Promise(() => {});
   const m = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
   assert.doesNotMatch(m.text(), /Casey Morgan|Alex Rivera|Riley Kim|is coming to you/, m.text().slice(0, 300));
+  assert.doesNotMatch(m.text(), ROSTER_NAMES, 'the preview roster is shown to a coach whose page is still reading');
   assert.match(m.text(), /Your payouts load with the analytics rollup/);
   await m.unmount();
   // A viewer the dashboard resolved as a demo, and the analytics answered as signed out, still sees
@@ -506,8 +738,10 @@ function stubPage({ source, today = null, section }) {
 const settle = () => React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
 const SECTIONS = ['overview', 'money', 'plan', 'growth', 'retention'];
 // Anything only the preview draws: its band, its people, its money sentence, its practice, its
-// funnel, its waiting list.
-const DEMO = /PREVIEW|Casey Morgan|Alex Rivera|Riley Kim|Sam Patel|Drew Park|Quinn Choi|Devon Sharpe|Mara Ellison|Theo Brandt|is coming to you|Active now|you have \d+ today|DEMO FUNNEL|people are waiting/;
+// funnel, its waiting list. Its people include the roster its origin list, renewals and outcomes
+// plate now name (ROSTER_NAMES, read from the roster rather than restated); the older names stay
+// in the detector so a plate that brings them back is still caught.
+const DEMO = new RegExp(/PREVIEW|Casey Morgan|Alex Rivera|Riley Kim|Sam Patel|Drew Park|Quinn Choi|Devon Sharpe|Mara Ellison|Theo Brandt|is coming to you|Active now|you have \d+ today|DEMO FUNNEL|people are waiting/.source + '|' + ROSTER_NAMES.source);
 // Every figure on an unread page would be invented; the bring-your-clients pitch's $5 is the one
 // fixed price the page states.
 const dollars = (t) => /\$\d/.test(t.replace('members at $5/mo', ''));
@@ -567,7 +801,7 @@ test('the preview is for a viewer the analytics answer as signed out or not a co
   }
   // Each preview tab draws the preview's own figures, under the band.
   // The preview's waiting list is valued at its sample rate, as a listing price would value it.
-  for (const [section, re] of [['growth', /DEMO FUNNEL.*Found you on Shape.*3 people are waiting to join you\. If they all join at \$\d+ a month, that's about \$\d+ a month to you\./], ['retention', /Alex Rivera.*Devon Sharpe/]]) {
+  for (const [section, re] of [['growth', /DEMO FUNNEL.*Found you on Shape.*3 people are waiting to join you\. If they all join at \$\d+ a month, that's about \$\d+ a month to you\./], ['retention', /Jordan M\..*Devon Sharpe/]]) {
     stubPage({ source: 'demo', section });
     globalThis.fetch = window.fetch = answer(401, { error: 'x' });
     const m = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
@@ -575,6 +809,187 @@ test('the preview is for a viewer the analytics answer as signed out or not a co
     assert.match(m.text(), /^PREVIEW/, section);
     assert.match(m.text().replace(/&#x27;/g, "'"), re, section);
     await m.unmount();
+  }
+});
+
+// ── One practice across the preview, in money too (the sweep after #2394 round 10) ──
+// Today's card took 15% off the whole demo roster ($1,547 a month). Business's Money row, Plan
+// sentence and 13-week header read the last week of a walk that priced its own clients and took
+// 15% off those ($1,585), beside an origin list and a Plan ("Brought by you", 50%) saying half the
+// clients were brought at 0%. Every figure here is read off what the viewer sees, and the net it
+// must equal is worked out from the roster's own prices and stored fees, not read from the code.
+const bookOf = (cs) => ({
+  clients: cs.length,
+  gross: cs.reduce((s, c) => s + c.payments.mrrCents, 0),
+  net: cs.reduce((s, c) => s + c.payments.mrrCents - c.payments.feeCents, 0),
+});
+// Today's Business card, the shipped function lifted out of dashToday.jsx (as coach-growth does).
+function todayCard() {
+  const babel = require_('next/dist/compiled/babel/core');
+  const presetReact = require_('next/dist/compiled/babel/preset-react');
+  const pick = (re) => { const m = re.exec(today); assert.ok(m, re + ' moved'); return m[0]; };
+  const code = [
+    pick(/const DASH_FUNNEL_BENCHMARK = [^\n]*/),
+    pick(/function dashCloseRate\(f\) \{[\s\S]*?\n\}/),
+    pick(/function dashCloseWhy\(f\) \{[\s\S]*?\n\}/),
+    pick(/function DashBusinessSummary\([\s\S]*?\n\}/),
+  ].join('\n');
+  const js = babel.transformSync(code, { presets: [presetReact], babelrc: false, configFile: false }).code;
+  return new Function('React', 'serif', 'dashMoney', 'DASH_MONO_LINK', 'DASH_DEMO_GROWTH', 'DASH_DEMO_FUNNEL', js + '\nreturn DashBusinessSummary;')(
+    React, 'serif', money, {}, { trainer: null, nutritionist: null }, null);
+}
+const esc = (s) => s.replace(/[.$()]/g, '\\$&');
+
+test('the preview states one net on every tab: Today, the sidebar, the KPI strip, Money, the Plan and the 13 weeks', async () => {
+  const now = new Date();
+  const roster = DashSignals.buildMockClients(now);
+  const book = bookOf(roster);
+  // The roster has both kinds of client, so a flat rate and a per-client fee are different numbers.
+  assert.ok(roster.some((c) => c.payments.feeCents === 0), 'no client in the preview was brought by the coach');
+  for (const c of roster.filter((x) => x.payments.feeCents > 0)) {
+    assert.equal(c.payments.origin, 'marketplace', c.profile.name + ' pays a fee without having found the coach on Shape');
+    assert.equal(c.payments.feeCents, Math.round(c.payments.mrrCents * CF.FEE_RATE), c.profile.name + ' stores a fee that is not the published rate');
+  }
+  assert.ok(roster.some((c) => c.payments.feeCents > 0), 'no client in the preview found the coach on Shape');
+  assert.notEqual(book.net, Math.round(book.gross * (1 - CF.FEE_RATE)), 'the fee mix makes no difference to the net');
+  // The shared rule: each row after its own stored fee; a row that stores none nets at the
+  // published rate (coach-trajectory.mjs's fallback); an unreadable row is left out.
+  assert.equal(DashSignals.rosterNetCents([{ payments: { mrrCents: 10000 } }, { payments: { mrrCents: 20000, feeCents: 0 } }, { payments: { mrrCents: null, feeCents: null } }]),
+    Math.round(10000 * (1 - CF.FEE_RATE)) + 20000);
+
+  // Today: the Business card, the KPI strip's net, and the sidebar card's month (demoPayouts).
+  const Card = todayCard();
+  const card = await mount(React.createElement(Card, { live: null, role: 'trainer', clients: roster }));
+  assert.match(card.text(), new RegExp(esc(money(book.net)) + 'Monthly · net'), "Today's card: " + card.text());
+  assert.match(card.text(), /after Shape's fee/, 'a net with brought clients in it is not "after 15%"');
+  await card.unmount();
+  assert.equal(DashSignals.dashKpiValue('monthlyNet', { live: null, clients: roster }).value, book.net, 'the KPI strip');
+  const p = DashSignals.demoPayouts(roster, now);
+  assert.deepEqual([p.monthlyCents, p.netCents], [book.gross, book.net], 'the sidebar card and the payouts strip');
+  // Each past payout is that month's clients after their own fees.
+  // ⚠ A JOIN DATE IS A LOCAL DAY, AS THE CODE READS IT (the sweep after #2394 round 10). A bare
+  // 'YYYY-MM-DD' parses as UTC midnight, so east of UTC this oracle dropped a client who joined on
+  // a month's last day from that month while demoPayoutHistory (local midnight) counted them: red
+  // in Berlin and Tokyo on the days a join lands there, green in CI. The fixed day puts one there
+  // (Jonah W., joined 30 September) so the boundary is read every day, in every timezone.
+  const localDay = (s) => new Date(String(s).length === 10 ? s + 'T00:00:00' : s).getTime();
+  const boundary = new Date('2026-10-18T12:00:00');
+  const atBoundary = DashSignals.buildMockClients(boundary);
+  assert.ok(DashSignals.demoPayoutHistory(atBoundary, boundary, 4).some((r) => atBoundary.some((c) => localDay(c.payments.joinedAt) === r.arrivalDate)),
+    'no client joins on a payout day, so the boundary goes unread');
+  for (const [at, cs] of [[now, roster], [boundary, atBoundary]]) {
+    for (const r of DashSignals.demoPayoutHistory(cs, at, 4)) {
+      const joined = cs.filter((c) => localDay(c.payments.joinedAt) <= r.arrivalDate);
+      assert.equal(r.amountCents, bookOf(joined).net, 'the payout of ' + new Date(r.arrivalDate).toDateString());
+    }
+  }
+
+  // Business: the practice the Plan starts from, and the series the Overview and the 13 weeks draw.
+  const base = B.dbzPlanBase({ live: false });
+  assert.deepEqual([base.clients, base.mrrGrossCents, base.mrrNetCents], [book.clients, book.gross, book.net], "Business's today");
+  const weeks = B.dbzDemoTrajectory().weeks;
+  for (const w of weeks) {
+    assert.ok(Math.abs(w.mrrGrossCents - book.gross * w.active / book.clients) <= 0.5, w.weekOf + ': billed is not the practice at its headcount');
+    assert.ok(Math.abs(w.mrrNetCents - book.net * w.active / book.clients) <= 0.5, w.weekOf + ': net is not the practice at its headcount');
+  }
+  // The origin list is the roster, at the fees it stores, and the Plan's brought share is its share.
+  const subs = B.dbzDemoOrigin().filter((r) => r.kind === 'subscription');
+  assert.deepEqual(subs.map((r) => r.name), roster.map((c) => c.profile.name), 'the origin list is not the roster');
+  assert.equal(subs.reduce((s, r) => s + Math.round(r.priceCents * (1 - r.feeBps / 10000)), 0), book.net, 'the origin list shows another fee mix');
+  assert.equal(base.byoShare, subs.filter((r) => r.feeBps === 0).length / subs.length);
+  // The renewals are roster clients, each at their own fee.
+  for (const r of B.dbzDemoRenewals()) {
+    const c = roster.find((x) => x.profile.name === r.name);
+    assert.ok(c, r.name + ' renews but is not on the roster');
+    assert.equal(r.netCents, c.payments.mrrCents - c.payments.feeCents, r.name);
+  }
+
+  // What the viewer reads: Money's row and the 13 weeks' header, the Plan's sentence, the origin list.
+  const read = async (section) => {
+    stubPage({ source: 'demo', section });
+    globalThis.fetch = window.fetch = answer(401, { error: 'x' });
+    const m = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
+    await settle();
+    const t = m.text();
+    await m.unmount();
+    return t;
+  };
+  const moneyTab = await read('money');
+  assert.match(moneyTab, new RegExp("Net a month, at today's clients" + esc(money(book.gross)) + ' billed · ' + esc(money(book.gross - book.net)) + ' Shape fee' + esc(money(book.net))), moneyTab.slice(0, 600));
+  assert.match(moneyTab, new RegExp('from your subscriptions · ' + esc(money(book.net)) + ' now'), 'the 13 weeks header');
+  const planTab = await read('plan');
+  assert.match(planTab, new RegExp('Today you have ' + book.clients + ' clients and net ' + esc(money(book.net)) + ' a month\\.'), planTab.slice(0, 600));
+  const growthTab = await read('growth');
+  const brought = B.dbzDemoOrigin().filter((r) => r.feeBps === 0).length;
+  assert.match(growthTab, new RegExp(brought + ' you brought · ' + (B.dbzDemoOrigin().length - brought) + ' found you on Shape'));
+  for (const c of roster) assert.match(growthTab, new RegExp(esc(c.profile.name) + (c.payments.feeCents ? 'Found you on Shape · 15% fee' : 'You brought · 0% fee')), c.profile.name);
+});
+
+// ── The outcomes plate is the same roster (the sweep after #2394 round 10) ──
+// Growth's origin list and Money's renewals name Today's ten; Retention's "most consistent" and
+// "top weight loss" named six people of their own beside "Active clients 10". Each name is read
+// off the mounted plate and looked up on the roster the rest of the preview shows.
+test("the preview's roster outcomes are the preview's roster, each on a list their own record fits", async () => {
+  const now = new Date();
+  const roster = DashSignals.buildMockClients(now);
+  const byName = new Map(roster.map((c) => [c.profile.name, c]));
+  const weights = {};
+  let compared = 0;
+  for (const [role, consistentLabel] of [['trainer', 'Most consistent · 30d'], ['nutritionist', 'Most consistent loggers · 30d']]) {
+    stubPage({ source: 'demo', section: 'retention' });
+    globalThis.fetch = window.fetch = answer(401, { error: 'x' });
+    const m = await mount(React.createElement(window.CoachBusinessPage, { role }));
+    await settle();
+    assert.match(m.text(), /^PREVIEW/, role);
+    const list = (label) => {
+      const head = [...m.div.querySelectorAll('div')].find((d) => d.children.length === 0 && d.textContent.trim() === label);
+      assert.ok(head, role + ': the plate has no "' + label + '" list');
+      return [...head.parentElement.querySelectorAll(':scope > div > span:first-child')].map((s) => [s.textContent.trim(), s.nextElementSibling.textContent.trim()]);
+    };
+    const losers = list('Top weight loss · 30d');
+    const consistent = list(consistentLabel);
+    assert.ok(losers.length > 0 && consistent.length > 0, role + ': an empty list proves nothing');
+    for (const [name] of [...losers, ...consistent]) {
+      const c = byName.get(name);
+      assert.ok(c, role + ': ' + name + ' is on the outcomes plate but not on the roster Today and Growth name');
+      // A 30-day figure needs 30 days with the coach (Tess B. joined five days ago).
+      const days = (now.getTime() - new Date(c.payments.joinedAt + 'T00:00:00').getTime()) / 86400000;
+      assert.ok(days >= 30, role + ': ' + name + ' has a 30-day figure after ' + Math.floor(days) + ' days');
+    }
+    // A stalled weight (Marcus T., 181.5 to 181.4 lb) is not a weight loss.
+    assert.ok(!losers.some(([n]) => n === 'Marcus T.'), role + ': the stalled weight is a top weight loss');
+    // A person's 30-day weight change is one fact: the trainer's preview and the nutritionist's
+    // read the same one.
+    for (const [n, w] of losers) {
+      if (weights[n] != null) { compared++; assert.equal(w, weights[n], n + "'s 30 days: one weight change on one preview, another on the other"); }
+      weights[n] = w;
+    }
+    await m.unmount();
+  }
+  assert.ok(compared > 0, "no one is on both previews' weight lists, so the one-weight rule goes unread");
+});
+
+test("the preview's practice falls back to what the roster would have returned, and lists no one it can't read", () => {
+  const b = bookOf(DashSignals.buildMockClients(new Date()));
+  const want = { clients: b.clients, grossCents: b.gross, netCents: b.net };
+  assert.deepEqual(B.dbzDemoBook(), want);
+  // dashBusiness can render before dashSignals is up (dbzDemoRosterSize's rule).
+  const saved = globalThis.DashSignals;
+  try {
+    delete globalThis.DashSignals;
+    assert.deepEqual(B.dbzDemoBook(), want, 'the fallback is not the practice dashSignals would have returned');
+    assert.deepEqual(B.dbzDemoOrigin().map((r) => r.kind), ['purchase'], 'with no roster, the origin list invents subscribers');
+    for (const role of ['trainer', 'nutritionist']) assert.deepEqual(B.DBZ_DEMO_OUTCOMES[role].roster, [], role + ': with no roster, the outcomes plate invents people');
+    // A row whose roster client is gone is not listed, under no name or another's.
+    globalThis.DashSignals = { ...saved, buildMockClients: (d) => saved.buildMockClients(d).filter((c) => c.profile.id !== 'demo-5') };
+    const left = new Set(globalThis.DashSignals.buildMockClients(new Date()).map((c) => c.profile.name));
+    for (const role of ['trainer', 'nutritionist']) {
+      const rows = B.DBZ_DEMO_OUTCOMES[role].roster;
+      assert.ok(rows.length > 0, role);
+      for (const r of rows) assert.ok(left.has(r.name), role + ': "' + r.name + '" is listed but not on the roster');
+    }
+  } finally {
+    globalThis.DashSignals = saved;
   }
 });
 

@@ -7,6 +7,8 @@ const ROUTE = 'src/app/api/coach/listing/route.ts';
 const WEB = 'public/newdesign/dashProfileExtras.jsx';
 const BIZ = 'public/newdesign/dashBusiness.jsx';
 const PROS = 'mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx';
+// The listing read and the Rates row moved from the Pros Me page to Settings → Your practice.
+const CLIENT = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
 const MARKET = 'mobile-app/src/broadsheet/iosAppBroadsheetMarketplace.jsx';
 
 export default {
@@ -74,15 +76,15 @@ export default {
     { name: 'the website refresh resets the rates being typed', file: WEB,
       find: '          if (on && listing) setState((s) => ({ ...s, listing }));',
       replace: '          if (on && listing) { setState((s) => ({ ...s, listing })); setMonthly(String(listing.monthly ?? "")); }' },
-    { name: 'the app Me page does not read the listing again after the photo sheet', file: PROS,
-      find: '  }, [role, listingReads]);',
-      replace: '  }, [role]);' },
-    { name: 'a failed listing read shows the preview\'s rates', file: PROS,
+    { name: 'the app Your practice page does not read the listing again after the photo sheet', file: CLIENT,
+      find: '  }, [tweaks.role, listingReads]);',
+      replace: '  }, [tweaks.role]);' },
+    { name: 'a failed listing read shows the preview\'s rates', file: CLIENT,
       find: "    }).catch(() => { if (on) setListingRead('error'); });",
       replace: '    }).catch(() => {});' },
-    { name: 'a coach not yet approved is shown the preview\'s rates', file: PROS,
-      find: "          listingRead === 'live'\n",
-      replace: "          listingRead === 'live' && myListing\n" },
+    { name: 'a coach not yet approved is shown the preview\'s rates', file: CLIENT,
+      find: "  const ratesRow = listingRead === 'live'\n",
+      replace: "  const ratesRow = listingRead === 'live' && myListing\n" },
     { name: 'a failed listing read is "no listing"', file: 'mobile-app/src/services/shapeBackend.js',
       find: "  if (!response.ok || !Array.isArray(payload.listings)) throw new Error(payload.error || 'Could not read your listing.');",
       replace: '  if (!response.ok || !Array.isArray(payload.listings)) return [];' },

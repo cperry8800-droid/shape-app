@@ -599,9 +599,9 @@ test('L5: signing in never runs the system prompt; asking does, once, and the an
   assert.match(ask, /\{coach \? tr\('settings:push\.askBodyCoach'\) : tr\('settings:push\.askBody'\)\}/);
   assert.match(ask, /const turnOn = async \(\) => \{ setOpen\(false\); try \{ await window\.ShapePush\?\.ask\?\.\(\); \}/, 'the system prompt only from Turn on');
   assert.match(main, /<App onLogout=\{handleLogout\}[^\n]*\/>\s*<BSPushAsk coach=\{isCoachRole\} \/>/);
-  const pros = read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx');
-  const proNotif = pros.slice(pros.indexOf('function BSProNotificationsPage('), pros.indexOf('<BSFooter left="Notifications"'));
-  assert.match(proNotif, /const PushRow = window\.BSPushPermissionRow;[\s\S]*\{PushRow \? <PushRow \/> : null\}/, 'the coach Notifications page has the Turn on row');
+  // A coach turns push on in Settings → Notifications, as a member does (the row below). The pros
+  // module's own Notifications page hung off the old coach Me page, which nothing rendered, and
+  // was deleted with it (2026-10-17).
   assert.match(read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), /Object\.assign\(window, \{ BSPushPermissionRow \}\);/);
   const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
   assert.match(client, /<div style=\{\{ padding: `4px \$\{t\.padX\}px 30px` \}\}>\s*<BSPushPermissionRow \/>/);

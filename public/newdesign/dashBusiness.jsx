@@ -84,31 +84,45 @@ const DBZ_DEMO_CHURN = [
   { name: "Mara Ellison", startedAt: new Date(Date.now() - 460 * 86400000).toISOString(), endedAt: new Date(Date.now() - 31 * 86400000).toISOString(), priceCents: 22000, reason: "Hit her goal — graduated to self-managed" },
   { name: "Theo Brandt", startedAt: new Date(Date.now() - 88 * 86400000).toISOString(), endedAt: new Date(Date.now() - 64 * 86400000).toISOString(), priceCents: 16000, reason: "Moved cities — wanted in-person" },
 ];
-// Roster outcomes — migrated verbatim from the old Analytics pages' mocks.
+// Roster outcomes — the aggregates migrated verbatim from the old Analytics pages' mocks.
+// ⚠ THE OUTCOMES PLATE NAMES THE PREVIEW'S ROSTER (the sweep after #2394 round 10). Its six rows
+// were people of their own (Alex Rivera, Casey Morgan, Sam Patel, Riley Kim, Drew Park, Quinn
+// Choi), so once Growth's origin list and Money's renewals became Today's ten, Retention listed
+// five strangers as the most consistent clients of a roster Growth had just named, beside "Active
+// clients 10". Each row is now a roster client, found by the id their row carries
+// (buildMockClients' "demo-N") and named at render, lazily as the origin list is, because the
+// roster reads `new Date()` and dashSignals may not be up at load. With no roster there are no
+// rows of it. A row fits its persona: the new client (Tess B., five days in), the one three weeks
+// without a check-in and the one at 64% adherence are on no 30-day list, the stalled weight
+// (Marcus T.) is not a weight loss, and the one eating over target (Deandre K.) gained. A
+// person's weight change is one fact, so both roles' previews read the same one.
+const DBZ_DEMO_OUTCOME_ROWS = [
+  { id: "demo-1", weightChangeLb: -3.4, workouts30d: 18, workouts7d: 4, prs30d: 3, daysLogged30d: 28, avgProteinG: 142 },
+  { id: "demo-5", weightChangeLb: -6.2, workouts30d: 16, workouts7d: 4, prs30d: 2, daysLogged30d: 26, avgProteinG: 96 },
+  { id: "demo-3", weightChangeLb: -2.6, workouts30d: 15, workouts7d: 3, prs30d: 1, daysLogged30d: 25, avgProteinG: 142 },
+  { id: "demo-6", weightChangeLb: -1.8, workouts30d: 14, workouts7d: 4, prs30d: 2, daysLogged30d: 22, avgProteinG: 142 },
+  { id: "demo-7", weightChangeLb: 1.4, workouts30d: 12, workouts7d: 2, prs30d: 0, daysLogged30d: 17, avgProteinG: 138 },
+  { id: "demo-10", weightChangeLb: -0.4, workouts30d: 11, workouts7d: 3, prs30d: 1, daysLogged30d: 24, avgProteinG: 142 },
+];
+function dbzDemoOutcomeRoster(role) {
+  const names = {};
+  try {
+    for (const c of DashSignals.buildMockClients(new Date())) names[c.profile.id] = c.profile.name;
+  } catch (e) { return []; }   // dashSignals not up yet — no roster, so no rows of it
+  return DBZ_DEMO_OUTCOME_ROWS.filter((r) => names[r.id]).map((r) => (role === "trainer"
+    ? { name: names[r.id], workouts30d: r.workouts30d, workouts7d: r.workouts7d, weightChangeLb: r.weightChangeLb, prs30d: r.prs30d }
+    : { name: names[r.id], daysLogged30d: r.daysLogged30d, avgProteinG: r.avgProteinG, weightChangeLb: r.weightChangeLb }));
+}
 const DBZ_DEMO_OUTCOMES = {
   trainer: {
     get activeClients() { return dbzDemoRosterSize(); },   // was a literal 34 — see V5 above
     workouts30d: 412, workouts7d: 96, prs30d: 41, avgAdherencePct: 88,
-    roster: [
-      { name: "Alex Rivera", workouts30d: 18, workouts7d: 4, weightChangeLb: -6.2, prs30d: 3 },
-      { name: "Casey Morgan", workouts30d: 16, workouts7d: 4, weightChangeLb: -3.4, prs30d: 2 },
-      { name: "Sam Patel", workouts30d: 15, workouts7d: 3, weightChangeLb: -1.8, prs30d: 1 },
-      { name: "Riley Kim", workouts30d: 14, workouts7d: 4, weightChangeLb: -2.6, prs30d: 2 },
-      { name: "Drew Park", workouts30d: 12, workouts7d: 2, weightChangeLb: 1.2, prs30d: 0 },
-      { name: "Quinn Choi", workouts30d: 11, workouts7d: 3, weightChangeLb: -0.8, prs30d: 1 },
-    ],
+    get roster() { return dbzDemoOutcomeRoster("trainer"); },
   },
   nutritionist: {
     get activeClients() { return dbzDemoRosterSize(); },   // was a literal 28
     proteinAdherencePct: 78, avgLogsPerClient: 22, totalDaysLogged: 612,
-    roster: [
-      { name: "Casey Morgan", daysLogged30d: 28, avgProteinG: 168, weightChangeLb: -5.2 },
-      { name: "Riley Kim", daysLogged30d: 26, avgProteinG: 152, weightChangeLb: -3.4 },
-      { name: "Alex Rivera", daysLogged30d: 25, avgProteinG: 175, weightChangeLb: -2.8 },
-      { name: "Sam Patel", daysLogged30d: 22, avgProteinG: 138, weightChangeLb: 1.4 },
-      { name: "Drew Park", daysLogged30d: 19, avgProteinG: 142, weightChangeLb: -1.2 },
-      { name: "Quinn Choi", daysLogged30d: 17, avgProteinG: 128, weightChangeLb: -0.6 },
-    ],
+    get roster() { return dbzDemoOutcomeRoster("nutritionist"); },
   },
 };
 
@@ -204,15 +218,15 @@ function DbzPayoutsZone({ live, stripe, providerId, role, metrics }) {
     return <div style={DBZ_NOTE}>Couldn't reach Stripe just now. Your balance and payouts are safe there; reload to try again, or open your Stripe dashboard.</div>;
   }
 
-  const onWay = (data.payouts || []).filter((p) => p.status === "in_transit" || p.status === "pending");
-  const next = onWay.slice().sort((a, b) => (a.arrivalDate || Infinity) - (b.arrivalDate || Infinity))[0] || null;
-  const onWayCents = onWay.reduce((s, p) => s + (p.amountCents || 0), 0);
+  // The sums are coachForecast.js `moneyFrom`, which the app's Business page reads too.
+  const m = window.CoachForecast.moneyFrom(data);
+  const next = m.next;
   const rows = [
-    onWay.length ? { k: "On its way to your bank", s: next && next.arrivalDate ? "arrives " + dbzDate(next.arrivalDate) : "paid out, not landed yet", v: onWayCents } : null,
-    data.balanceCents != null ? { k: "Ready to pay out", s: "in your Stripe balance now", v: data.balanceCents } : null,
-    data.pendingCents ? { k: "Still clearing", s: "new charges Stripe hasn't released yet", v: data.pendingCents } : null,
+    m.onWay ? { k: "On its way to your bank", s: next && next.arrivalDate ? "arrives " + dbzDate(next.arrivalDate) : "paid out, not landed yet", v: m.onWayCents } : null,
+    m.balanceCents != null ? { k: "Ready to pay out", s: "in your Stripe balance now", v: m.balanceCents } : null,
+    m.pendingCents ? { k: "Still clearing", s: "new charges Stripe hasn't released yet", v: m.pendingCents } : null,
   ].filter(Boolean);
-  const coming = rows.reduce((s, r) => s + r.v, 0);
+  const coming = m.comingCents;
   if (metrics && metrics.mrrNetCents != null) {
     rows.push({ k: "Net a month, at today's clients", s: dashMoney(metrics.mrrGrossCents) + " billed · " + dashMoney((metrics.mrrGrossCents || 0) - metrics.mrrNetCents) + " Shape fee", v: metrics.mrrNetCents });
   }
@@ -239,10 +253,9 @@ function DbzPayoutsZone({ live, stripe, providerId, role, metrics }) {
 // ── Churn zone — who left, when, and why (honest about the why) ─────────────
 // How many cancellations the analytics routes send, newest first (their `.limit(12)`).
 const DBZ_CHURN_LIST = 12;
-// How many people the rows belong to: one client with two plans is one client. A row with no
-// client id stands alone, as everywhere else that counts clients.
-const dbzPeople = (rows) => new Set(rows.map((r, i) => (r.clientId != null ? "c:" + r.clientId : "row:" + i))).size;
-function DbzChurnZone({ live, churn }) {
+// `pace` is the one "What a client is worth" reads (paceFrom at the page's one moment, `now`), so
+// the two zones count the same departures over the same days.
+function DbzChurnZone({ live, churn, pace = null, now = Date.now() }) {
   // undefined: the analytics are still loading, which is neither "none on record" nor a failed read.
   if (live && churn === undefined) {
     return <div style={{ fontSize: 12.5, color: DBZ_INK50, lineHeight: 1.55 }}>Your cancellations load with the analytics rollup…</div>;
@@ -257,34 +270,35 @@ function DbzChurnZone({ live, churn }) {
   }
   // ⚠ THE TOTAL HAS A WINDOW (Business review, 2026-10-17). It summed the last 12 cancellations
   // whenever they happened, so a "−$X MRR" could add a departure from last week to one from two
-  // years ago. It now counts the last 90 days, and says so; the rows below still list the recent ones.
+  // years ago. It counts a window, and says which; the rows below still list the older ones.
+  // ⚠ AND THE WINDOW IS THE PACE'S, IN THE PACE'S WORDS (the sweep after #2394 round 10). It was the
+  // last 90 days while "What a client is worth" on the same tab read the pace's window, so the tab
+  // could say "1.6% leave a month" beside "None left". coachForecast.js `churnWindow` opens the count
+  // where the pace opens, and falls back to the last 90 days only when there is no pace.
   // ⚠ AND THE LIST STOPS AT DBZ_CHURN_LIST ROWS (the routes' .limit(12)). When every row it holds
-  // is inside the 90 days, more may have left than it shows, so the total is a floor and says so.
-  // ⚠ WHO LEFT CAN'T BE SAID WHILE WHO STAYED IS UNREAD (Codex round 9, #2394). The route sends
-  // stillClient null when it couldn't read who still holds a plan; counting those rows as gone
-  // would report departures (and money lost) it never established.
-  if (live && rows.some((r) => r.stillClient === null)) {
+  // is inside the window, more may have left than it shows, so the total is a floor and says so.
+  // ⚠ WHO LEFT CAN'T BE SAID WHILE THE HISTORY IT IS DECIDED FROM IS UNREAD (Codex round 9, #2394; the
+  // sweep after round 10). The route sends departed null when it couldn't read the subscription rows
+  // each departure is decided from; counting those rows as gone would report departures (and money
+  // lost) it never established.
+  // ⚠ DEPARTURES, NOT PLANS THAT ENDED, AND NOT PEOPLE (Codex round 8, #2394; the sweep after round
+  // 10). The route decides each row at the close of the week it ended in, as the pace's ended count
+  // is judged: a client who held another plan then hadn't left (departed false), whoever they are now.
+  // One client's plans ended in one week are one departure whose money adds; a client who left in two
+  // weeks left twice (coachForecast.js `departures`), so this count and the pace's agree.
+  const gone = window.CoachForecast.departures(rows, { pace, now, cap: DBZ_CHURN_LIST });
+  if (!gone) {
     return <div style={{ fontSize: 12.5, color: DBZ_INK50, lineHeight: 1.55 }}>Couldn't check who still has a plan with you just now, so no one is counted as gone. Nothing is lost; reload to try again.</div>;
   }
-  // ⚠ PEOPLE WHO LEFT, NOT PLANS THAT ENDED (Codex round 8, #2394). A client who cancelled one plan
-  // and still holds another hasn't left (the trajectory's rule, which the pace and Overview use),
-  // and one who cancelled two plans left once. The route says whether each row's client is still
-  // active (stillClient); those rows are left out, and the count is of people.
-  const since = Date.now() - 90 * 86400000;
-  const left = rows.filter((r) => r.stillClient !== true);
-  const recent = left.filter((r) => r.endedAt && new Date(r.endedAt).getTime() >= since);
-  const lostCents = recent.reduce((s, r) => s + (r.priceCents || 0), 0);
-  const people = dbzPeople(recent);
-  // The floor is about the route's list, before any row is left out: 12 rows read, all inside the
-  // window, and older ones may be past the cut.
-  const floor = live && rows.length >= DBZ_CHURN_LIST && rows.every((r) => r.endedAt && new Date(r.endedAt).getTime() >= since);
+  const when = gone.window.paced ? dbzPaceWhen(gone.window) : "in the last 90 days";
+  const floor = live && gone.floor;
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
-        <span style={{ fontFamily: DBZ_MONO, fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: DBZ_INK50 }}>{people ? people + (floor ? " or more" : "") + " left in the last 90 days" : "None left in the last 90 days"}</span>
-        {lostCents > 0 && <span style={{ fontFamily: DBZ_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: DBZ_RED }}>{floor ? "at least " : ""}−{dashMoney(lostCents)} a month</span>}
+        <span style={{ fontFamily: DBZ_MONO, fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: DBZ_INK50 }}>{gone.count ? gone.count + (floor ? " or more" : "") + " left " + when : "None left " + when}</span>
+        {gone.lostCents > 0 && <span style={{ fontFamily: DBZ_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: DBZ_RED }}>{floor ? "at least " : ""}−{dashMoney(gone.lostCents)} a month</span>}
       </div>
-      {left.map((r, i) => {
+      {gone.list.map((r, i) => {
         const tenure = r.startedAt && r.endedAt ? dbzMonthsBetween(r.startedAt, r.endedAt) : null;
         return (
           <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "start", padding: "10px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
@@ -311,13 +325,29 @@ function DbzChurnZone({ live, churn }) {
 // URL (copy · email · raw URL for an Instagram bio); the origin zone labels
 // each active client from the STORED fee_bps — never re-derived from origin +
 // the current constant, so a future rate change alters no existing label.
-const DBZ_DEMO_ORIGIN = [
-  { name: "Casey Morgan", kind: "subscription", origin: "coach_link", feeBps: 0, priceCents: 22000 },
-  { name: "Alex Rivera", kind: "subscription", origin: "marketplace", feeBps: 1500, priceCents: 18000 },
-  { name: "Riley Kim", kind: "subscription", origin: "coach_invite", feeBps: 0, priceCents: 16000 },
+// ⚠ THE PREVIEW'S ORIGIN LIST IS THE PREVIEW'S ROSTER (the sweep after #2394 round 10). It was
+// five people of its own (four subscribers) beside a roster of ten on Today, and its fee mix (half
+// brought at 0%) never reached a net: Today took 15% off everyone and Business's trajectory did
+// too. Each subscriber row is now a roster client, at the fee their row stores, so the list, the
+// Plan's "Brought by you", the renewals and every net on the preview describe one practice. The
+// stored fee is in cents (coach-roster.ts's shape); the list shows it as the rate it is.
+// Lazy, like the trajectory: the roster reads `new Date()` and dashSignals may not be up at load.
+const DBZ_DEMO_PURCHASES = [
   { name: "Drew Park", kind: "purchase", origin: "coach_link", feeBps: 0, priceCents: 9000 },
-  { name: "Sam Patel", kind: "subscription", origin: "marketplace", feeBps: 1500, priceCents: 20000 },
 ];
+function dbzDemoOrigin() {
+  let subs = [];
+  try {
+    subs = DashSignals.buildMockClients(new Date()).map((c) => {
+      const p = c.payments || {};
+      return {
+        name: c.profile.name, kind: "subscription", origin: p.origin, priceCents: p.mrrCents,
+        feeBps: p.mrrCents > 0 ? Math.round((p.feeCents || 0) / p.mrrCents * 10000) : 0,
+      };
+    });
+  } catch (e) { /* dashSignals not up yet — no roster, so no rows of it */ }
+  return subs.concat(DBZ_DEMO_PURCHASES);
+}
 const DBZ_BYO_PITCH = "Clients you bring pay no Shape commission — you keep your full rate. They join Shape as members at $5/mo. Members already in your Shape waiting room count as Shape-found.";
 function DbzBringClientsZone({ live, role, providerId }) {
   const [link, setLink] = React.useState(null); // null = generating / unavailable
@@ -385,7 +415,7 @@ function DbzOriginZone({ live, byOrigin }) {
   if (live && byOrigin === null) {
     return <div style={{ fontSize: 12.5, color: DBZ_INK50, lineHeight: 1.55 }}>Couldn't read where your clients came from just now. Nothing is lost; reload to try again.</div>;
   }
-  const rows = live ? (Array.isArray(byOrigin) ? byOrigin : []) : DBZ_DEMO_ORIGIN;
+  const rows = live ? (Array.isArray(byOrigin) ? byOrigin : []) : dbzDemoOrigin();
   if (live && !rows.length) {
     return <div style={{ fontSize: 12.5, color: DBZ_INK50, lineHeight: 1.55 }}>Origin labels land here as clients subscribe — "You brought" at your full rate, "Found you on Shape" at the marketplace fee.</div>;
   }
@@ -524,7 +554,9 @@ const DBZ_T_INK = "var(--sh-ink, #f2ede4)";
 // The rate has one definition (`DashSignals.PREVIEW_NET_RATE`) and is read through the
 // guarded pattern `dbzDemoRosterSize` establishes, because this module can render before
 // dashSignals is up. The fallback is pinned to the constant by a guard in
-// tests/demo-coherence.test.mjs, so the two cannot drift apart unnoticed.
+// tests/demo-coherence.test.mjs, so the two cannot drift apart unnoticed. Since the sweep
+// after #2394 round 10 the walk's MRR is netted by each roster client's own fee instead
+// (`dbzDemoBook` below); this rate nets only its one-time purchases, which store none.
 function dbzNetRate() {
   try {
     const r = DashSignals.PREVIEW_NET_RATE;
@@ -536,6 +568,28 @@ function dbzDemoRosterSize() {
     const n = DashSignals.buildMockClients(new Date()).length;
     return n > 0 ? n : 10;
   } catch (e) { return 10; }   // dashSignals not up yet — the ten it would have returned
+}
+// ⚠ THE PREVIEW'S TODAY IS TODAY'S PRACTICE, IN MONEY TOO (the sweep after #2394 round 10). The walk
+// priced its own clients (active × $185, plus a wobble) and took 15% off every one, so the last
+// week said $1,865 billed and $1,585 net while Today, from the roster, said $1,820 and $1,547, and
+// the origin list two tabs over had half the clients brought at 0%. Money's "Net a month", the
+// Plan's sentence and the 13-week header all read that last week. Its gross is now the roster's
+// own prices and its net the roster after each client's stored fee (dashSignals.js
+// `rosterNetCents`, which Today's card and the sidebar card read), and every earlier week is the
+// same practice at its headcount then. The fallback is what the roster would have returned,
+// pinned to it by a guard in tests/business-plan-page.test.mjs.
+function dbzDemoBook() {
+  try {
+    const cs = DashSignals.buildMockClients(new Date());
+    if (cs.length > 0) {
+      return {
+        clients: cs.length,
+        grossCents: cs.reduce((s, c) => s + ((c.payments && c.payments.mrrCents) || 0), 0),
+        netCents: DashSignals.rosterNetCents(cs),
+      };
+    }
+  } catch (e) { /* dashSignals not up yet */ }
+  return { clients: 10, grossCents: 182000, netCents: 168200 };
 }
 // ⚠ LAZY AND DAY-KEYED, FOR TWO REASONS. It reads `dbzDemoRosterSize()`, and an IIFE at
 // module scope would read it at LOAD while the outcomes plate's getter reads it at
@@ -556,14 +610,15 @@ function dbzDemoTrajectory() {
     const added = rnd() < 0.42 ? 1 + (rnd() < 0.25 ? 1 : 0) : 0;
     const ended = rnd() < 0.2 && active > 4 ? 1 : 0;
     active = Math.max(0, active + added - ended);
-    const gross = active * 18500 + (active % 3) * 1500;
     weeks.push({
       weekOf: new Date(monday.getTime() - i * 7 * 86400000).toISOString().slice(0, 10),
       active, added, ended,
-      mrrGrossCents: gross, mrrNetCents: Math.round(gross * dbzNetRate()),
+      mrrGrossCents: 0, mrrNetCents: 0,   // priced below, once the headcounts land on the roster
       oneTimeCents: rnd() < 0.3 ? 9000 * (1 + Math.floor(rnd() * 2)) : 0, oneTimeNetCents: 0,
     });
   }
+  // One-time purchases in the walk store no fee, so they net at the published rate, as a live row
+  // with no stored fee does (coach-trajectory.mjs). The preview never prints them; the export is live only.
   weeks.forEach((w) => { w.oneTimeNetCents = Math.round(w.oneTimeCents * dbzNetRate()); });
   // Land the curve on the roster the rest of the preview shows, keeping its shape.
   const target = dbzDemoRosterSize();
@@ -577,11 +632,15 @@ function dbzDemoTrajectory() {
       // scaled independently — otherwise the series stops adding up.
       if (prev != null) { const d = w.active - prev; w.added = Math.max(0, d); w.ended = Math.max(0, -d); }
       prev = w.active;
-      const gross = w.active * 18500 + (w.active % 3) * 1500;
-      w.mrrGrossCents = gross;
-      w.mrrNetCents = Math.round(gross * dbzNetRate());
     });
   }
+  // Every week is the roster's practice at that week's headcount, so the last one IS the roster:
+  // its prices billed, and each client after their own fee (dbzDemoBook above).
+  const book = dbzDemoBook();
+  weeks.forEach((w) => {
+    w.mrrGrossCents = Math.round(book.grossCents * w.active / book.clients);
+    w.mrrNetCents = Math.round(book.netCents * w.active / book.clients);
+  });
   const last = weeks[weeks.length - 1];
   return {
     weeks,
@@ -853,15 +912,14 @@ function DbzTrajectoryZone({ live, trajectory, role, loading }) {
 // answer yet starts at a stated default ("no history yet · set your own"), never at a
 // plausible-looking measurement.
 const DBZ_PATH_TODAY = "var(--sh-ink2, #a09b94)";
-const DBZ_DEFAULT_ADDS = 1;
-const DBZ_DEFAULT_CHURN_PCT = 5;
-const DBZ_DEFAULT_RATE_CENTS = 15000;
-const dbzRound1 = (v) => Math.round(v * 10) / 10;
-// ⚠ A MEASURED CHURN IS KEPT TO A TENTH OF A POINT, AND NEVER ROUNDS TO 0. Whole points turned
-// one departure from 70 clients in three months (0.45% a month) into "0% leave a month" beside
-// "a client stays about 223 months": the plan lost its attrition and the two figures disagreed.
-const dbzChurnPct = (churn) => (churn > 0 ? Math.max(0.1, dbzRound1(churn * 100)) : 0);
+const DBZ_DEFAULT_RATE_CENTS = 15000;   // CoachForecast.DEFAULT_RATE_CENTS, for the pages that read no forecast
+// ⚠ A MEASURED CHURN IS KEPT TO A TENTH OF A POINT, AND NEVER ROUNDS TO 0. The rule, and why, is
+// coachForecast.js `churnPct`, which the planner's start (`planStart`) and the app's page read too.
+const dbzChurnPct = (churn) => window.CoachForecast.churnPct(churn);
 const dbzPct = (p) => (Number.isInteger(p) ? p : p.toFixed(1)) + "%";
+// A rate as the planner's slider prints it: whole dollars, or to the cent when the listing price
+// has cents ("$149.50", never "$149.5").
+const dbzRate = (r) => "$" + (Number.isInteger(r) ? r : r.toFixed(2));
 const dbzMonthsWord = (m) => (m === 1 ? "1 month" : m + " months");
 
 // ⚠ THE PREVIEW'S PACE INCLUDES THE PREVIEW'S DEPARTURES. The demo walk is rescaled onto the
@@ -872,8 +930,8 @@ const dbzMonthsWord = (m) => (m === 1 ? "1 month" : m + " months");
 function dbzDemoPace(CF, traj, now) {
   const pace = CF.paceFrom(traj, now);
   if (pace.adds == null) return pace;
-  const from = now - CF.PACE_DAYS * 86400000;
-  const left = DBZ_DEMO_CHURN.filter((r) => new Date(r.endedAt).getTime() >= from).length;
+  // The pace's own window, the one the churn zone counts the demo's departures over.
+  const left = DBZ_DEMO_CHURN.filter((r) => new Date(r.endedAt).getTime() >= pace.from).length;
   const months = pace.days / 30.4;
   const ended = pace.ended + left;
   return { ...pace, ended, added: pace.added + left, adds: pace.adds + left / months, churn: pace.avgActive > 0 ? Math.min(1, ended / pace.avgActive / months) : pace.churn };
@@ -881,21 +939,15 @@ function dbzDemoPace(CF, traj, now) {
 const dbzPaceWhen = (pace) => (pace.fromFirst ? "after your first week" : "over the last 3 months");
 
 // Today's clients and net, from the same series the Overview draws (the trajectory's latest
-// week), so every tab says the same number.
-// ⚠ THE ROUTE'S OWN `metrics` LEAVE OUT A CLIENT WHOSE PAYMENT IS RETRYING (past_due), while the
-// trajectory counts them, as membership does: they still have access and have not left. Read from
-// `metrics`, the Plan said "12 clients" on the page whose Overview said 13 (Business review,
-// 2026-10-17). `metrics` stands in only when the trajectory could not be read.
+// week), so every tab says the same number. The rule, and why a past_due client counts, is in
+// coachForecast.js `todayFrom`, which the app's Business page reads too.
 function dbzToday(extra) {
-  const weeks = extra && extra.trajectory && Array.isArray(extra.trajectory.weeks) ? extra.trajectory.weeks : null;
-  const last = weeks && weeks.length ? weeks[weeks.length - 1] : null;
-  if (last) return { clients: last.active, mrrNetCents: last.mrrNetCents, mrrGrossCents: last.mrrGrossCents };
-  const m = (extra && extra.metrics) || {};
-  return m.activeClients == null || m.mrrNetCents == null ? null : { clients: m.activeClients, mrrNetCents: m.mrrNetCents, mrrGrossCents: m.mrrGrossCents };
+  const CF = window.CoachForecast;
+  return CF ? CF.todayFrom(extra) : null;
 }
 
 // The listing's monthly price in cents, or null when there is none (or no listing).
-const dbzListedCents = (listing) => (listing && listing.monthly != null && Number(listing.monthly) > 0 ? Math.round(Number(listing.monthly) * 100) : null);
+const dbzListedCents = (listing) => { const CF = window.CoachForecast; return CF ? CF.listedCents(listing ? listing.monthly : null) : null; };
 
 // Where the Plan tab starts: today's clients and net, the rate a new client pays, the share
 // the coach brings, and the pace. { state: "loading" | "unread" | "ready", ... }
@@ -905,7 +957,7 @@ function dbzPlanBase({ live, extra, failed = false, listing, listingRead, listin
   if (!live) {
     const traj = dbzDemoTrajectory();
     const last = traj.weeks[traj.weeks.length - 1];
-    const subs = DBZ_DEMO_ORIGIN.filter((r) => r.kind === "subscription");
+    const subs = dbzDemoOrigin().filter((r) => r.kind === "subscription");
     const brought = subs.filter((r) => r.feeBps === 0).length;
     return {
       state: "ready", clients: last.active, mrrNetCents: last.mrrNetCents, mrrGrossCents: last.mrrGrossCents,
@@ -916,22 +968,18 @@ function dbzPlanBase({ live, extra, failed = false, listing, listingRead, listin
   }
   if (!extra && failed) return { state: "unread" };
   if (!extra || !listingRead) return { state: "loading" };
-  const m = dbzToday(extra);
-  if (!m) return { state: "unread" };
-  // The brought-in share is per client (the routes' byoMix: one client with two plans is one
-  // client). Null is a failed read: the share starts at 0% and says so, never as a measurement.
-  const mix = extra.byoMix || null;
-  const listed = dbzListedCents(listing);
-  const avg = m.clients > 0 && m.mrrGrossCents > 0 ? Math.round(m.mrrGrossCents / m.clients / 500) * 500 : null;
+  // The numbers are coachForecast.js `planNumbers`, which the app's Business page reads too: it
+  // marks an unread listing, brought share and history (pace.unread), and the copy here says so.
+  const n = CF.planNumbers({ extra, listingMonthly: listing ? listing.monthly : null, listingFailed, now });
+  if (!n) return { state: "unread" };
   return {
-    state: "ready", clients: m.clients, mrrNetCents: m.mrrNetCents, mrrGrossCents: m.mrrGrossCents,
-    rateCents: listed != null ? listed : avg != null ? avg : DBZ_DEFAULT_RATE_CENTS,
-    rateFrom: listed != null ? "your listing price" : listingFailed ? "couldn't read your listing price" + (avg != null ? " · your clients' average" : " · set your own") : avg != null ? "your clients' average" : "no listing price yet · set your own",
-    byoShare: mix && mix.clients ? mix.brought / mix.clients : 0,
-    byoNote: !mix ? "couldn't read who you brought · set your own" : mix.clients ? "0% fee · " + mix.brought + " of your " + mix.clients : "0% Shape fee on these",
-    // A failed trajectory read is "no pace", which the sliders say, not a pace of zero; and it is
-    // an unread history, not an empty one, which they say too.
-    pace: extra.trajectory ? CF.paceFrom(extra.trajectory, now) : { adds: null, churn: null, days: 0, unread: true },
+    ...n, state: "ready",
+    rateFrom: n.rateFrom === "listing" ? "your listing price"
+      : n.listingUnread ? "couldn't read your listing price" + (n.rateFrom === "average" ? " · your clients' average" : " · set your own")
+      : n.rateFrom === "average" ? "your clients' average" : "no listing price yet · set your own",
+    // The brought-in share is per client (the routes' byoMix: one client with two plans is one
+    // client). Null is a failed read: the share starts at 0% and says so, never as a measurement.
+    byoNote: n.broughtUnread ? "couldn't read who you brought · set your own" : n.byoClients ? "0% fee · " + n.brought + " of your " + n.byoClients : "0% Shape fee on these",
   };
 }
 
@@ -955,10 +1003,12 @@ function DbzEarnZone({ base }) {
   const CF = window.CoachForecast;
   // A round number above today's count: the question is "what if I had more".
   const [clients, setClients] = React.useState(String(Math.max(20, Math.ceil((base.clients + 1) / 10) * 10)));
-  const [rate, setRate] = React.useState(String(Math.round(base.rateCents / 100)));
+  // The rate as it is, to the cent: a $149.50 listing price is not "150 · your listing price"
+  // (the sweep after #2394 round 10; the Plan's slider holds it the same way).
+  const [rate, setRate] = React.useState(String(base.rateCents / 100));
   const [byo, setByo] = React.useState(String(Math.round(base.byoShare * 100)));
   const n = Math.max(0, Math.round(Number(clients) || 0));
-  const e = CF.earn({ clients: n, priceCents: Math.max(0, Number(rate) || 0) * 100, byoShare: Math.min(100, Math.max(0, Number(byo) || 0)) / 100 });
+  const e = CF.earn({ clients: n, priceCents: Math.round(Math.max(0, Number(rate) || 0) * 100), byoShare: Math.min(100, Math.max(0, Number(byo) || 0)) / 100 });
   return (
     <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "minmax(0,1.25fr) minmax(0,1fr)", gap: 28, alignItems: "end" }}>
       {/* Three short fields stay side by side on a phone: pageShell stacks any "repeat(3" grid. */}
@@ -1083,15 +1133,8 @@ function DbzPlanZone({ base }) {
   const noHistory = base.pace.unread ? "couldn't read your history just now · set your own" : "no history yet · set your own";
   // The starting values, rounded to what the sliders can hold, so an untouched plan IS
   // today's pace rather than a near-copy of it.
-  const start = React.useMemo(() => {
-    // Never clamped to the sliders' usual range: the ranges stretch to the coach's own numbers
-    // instead, so the "yours" note under each one is the figure it measured.
-    const adds = known ? dbzRound1(base.pace.adds) : DBZ_DEFAULT_ADDS;
-    const churnPct = base.pace.churn != null ? dbzChurnPct(base.pace.churn) : DBZ_DEFAULT_CHURN_PCT;
-    const rate = Math.max(5, Math.round(base.rateCents / 500) * 5);
-    const goal = Math.max(1000, Math.ceil((base.mrrNetCents / 100) * 1.5 / 500) * 500);
-    return { adds, churnPct, rate, goal };
-  }, [base]);
+  // (coachForecast.js `planStart`, shared with the app's planner: churn to a tenth, never 0.)
+  const start = React.useMemo(() => CF.planStart(base), [base]);
   const [adds, setAdds] = React.useState(start.adds);
   const [churnPct, setChurnPct] = React.useState(start.churnPct);
   const [rate, setRate] = React.useState(start.rate);
@@ -1100,9 +1143,18 @@ function DbzPlanZone({ base }) {
   const reset = () => { setAdds(start.adds); setChurnPct(start.churnPct); setRate(start.rate); setGoal(start.goal); setWhatIf("more"); };
   const touched = adds !== start.adds || churnPct !== start.churnPct || rate !== start.rate;
 
-  const run = (o) => CF.forecast({ clients: base.clients, mrrNetCents: base.mrrNetCents, byoShare: base.byoShare, months: 36, priceCents: o.rate * 100, adds: o.adds, churn: o.churnPct / 100 });
+  const run = (o) => CF.forecast({ clients: base.clients, mrrNetCents: base.mrrNetCents, byoShare: base.byoShare, months: 36, priceCents: Math.round(o.rate * 100), adds: o.adds, churn: o.churnPct / 100 });
+  // The rate slider holds the starting rate exactly, to the cent (coachForecast.js `rateRange`,
+  // shared with the app's planner).
+  const rateRange = CF.rateRange(start.rate);
+  // ⚠ THE RATE SAYS WHERE IT CAME FROM, AS THE ADDS AND CHURN DO (the sweep after #2394 round 10).
+  // A default ($150: no listing price and no clients) or the clients' average started the plan's
+  // sentence with nothing on the Plan saying so: the note only ever said today's clients keep the
+  // price they joined at. Now it names the source "What clients earn you" names, and keeps that
+  // point, briefly.
+  const rateNote = base.rateFrom + " · today's clients keep their price";
   const plan = { adds, churnPct, rate };
-  const keepPct = Math.max(0, dbzRound1(churnPct - 3));
+  const keepPct = Math.max(0, CF.round1(churnPct - 3));
   const priceUp = Math.round((rate * 1.15) / 5) * 5;
   const WHAT_IFS = [
     { key: "more", label: "+1 client a month", o: { ...plan, adds: adds + 1 } },
@@ -1150,14 +1202,14 @@ function DbzPlanZone({ base }) {
     <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "280px minmax(0,1fr)", gap: 30 }}>
       <div style={{ display: "grid", gap: 18, alignContent: "start" }}>
         <DbzSlider label="New clients a month" value={adds} shown={adds.toFixed(1)} was={adds !== start.adds ? start.adds.toFixed(1) : null}
-          min={0} max={Math.max(10, Math.ceil(start.adds * 3))} step={0.1} onChange={(v) => setAdds(dbzRound1(v))}
+          min={0} max={Math.max(10, Math.ceil(start.adds * 3))} step={0.1} onChange={(v) => setAdds(CF.round1(v))}
           note={known ? "yours: " + start.adds.toFixed(1) + " " + dbzPaceWhen(base.pace) : noHistory} />
         <DbzSlider label="Monthly churn" value={churnPct} shown={dbzPct(churnPct)} was={churnPct !== start.churnPct ? dbzPct(start.churnPct) : null}
-          min={0} max={Math.max(30, Math.ceil(start.churnPct))} step={0.1} onChange={(v) => setChurnPct(dbzRound1(v))}
+          min={0} max={Math.max(30, Math.ceil(start.churnPct))} step={0.1} onChange={(v) => setChurnPct(CF.round1(v))}
           note={base.pace.churn != null ? "yours: " + dbzPct(start.churnPct) + " leave a month, " + dbzPaceWhen(base.pace) : noHistory} />
-        <DbzSlider label="Rate for new clients" value={rate} shown={"$" + rate} was={rate !== start.rate ? "$" + start.rate : null}
-          min={Math.min(20, start.rate)} max={Math.max(500, start.rate * 2)} step={5} onChange={setRate}
-          note="today's clients keep the price they joined at" />
+        <DbzSlider label="Rate for new clients" value={rate} shown={dbzRate(rate)} was={rate !== start.rate ? dbzRate(start.rate) : null}
+          min={rateRange.min} max={rateRange.max} step={rateRange.step} onChange={setRate}
+          note={rateNote} />
         <DbzSlider label="Goal · net a month" value={goal} shown={dashMoney(goalCents)}
           min={500} max={Math.max(20000, start.goal * 3)} step={250} onChange={setGoal} note="the dashed line" />
         <div>
@@ -1218,7 +1270,7 @@ function DbzPlanZone({ base }) {
 // the footnote alone can't tell the coach which client it is.
 function dbzDemoRenewals() {
   const day = 86400000, now = Date.now();
-  return DBZ_DEMO_ORIGIN.filter((r) => r.kind === "subscription").slice(0, 4).map((r, i) => ({
+  return dbzDemoOrigin().filter((r) => r.kind === "subscription").slice(0, 4).map((r, i) => ({
     name: r.name, dueAt: new Date(now + (1 + i * 2) * day).toISOString(), priceCents: r.priceCents,
     netCents: Math.round(r.priceCents * (1 - (r.feeBps || 0) / 10000)), ending: i === 3,
   }));
@@ -1252,16 +1304,12 @@ function DbzRenewalsZone({ live, renewals }) {
   );
 }
 function dbzRenewalsHead(live, renewals) {
-  const rows = live ? renewals : dbzDemoRenewals();
-  if (!Array.isArray(rows) || !rows.length) return null;
-  const sure = rows.filter((r) => r.ending === false);
-  // None checked (Stripe down, or no key on a preview): a "0 clients · $0" total would read as
-  // no renewals beside a list of them. The rows say "not checked"; the header says nothing.
-  if (!sure.length && rows.some((r) => r.ending == null)) return null;
-  // ⚠ PEOPLE, NOT PLANS (Codex round 8, #2394): one client with two plans due is one client. Each
-  // plan's net still counts toward the total.
-  const people = dbzPeople(sure);
-  return people + (people === 1 ? " client · " : " clients · ") + dashMoney(sure.reduce((s, r) => s + r.netCents, 0)) + " net";
+  // coachForecast.js `renewalsSum`, which the app's page reads too: only a confirmed renewal
+  // counts, and none checked (Stripe down, or no key on a preview) is no total, not "0 clients · $0".
+  const CF = window.CoachForecast;
+  const sum = CF ? CF.renewalsSum(live ? renewals : dbzDemoRenewals()) : null;
+  if (!sum) return null;
+  return sum.count + (sum.count === 1 ? " client · " : " clients · ") + dashMoney(sum.netCents) + " net";
 }
 
 // ── Money: net a month, the last 13 weeks ────────────────────────────────────
@@ -1578,9 +1626,14 @@ function CoachBusinessPage({ role }) {
           : <div style={DBZ_NOTE}>{source == null || (source === "demo" && analytics === "pending") ? "Your funnel is loading…" : "Couldn't read your funnel just now. Nothing is lost; reload to try again."}</div>}
       </React.Fragment>);
 
+  // Who left counts over the pace "What a client is worth" reads, at the same moment (planNow): the
+  // plan's own when it is ready, else the trajectory's straight (the listing read still out), else
+  // none, and the zone falls back to the last 90 days.
+  const churnPace = planBase.state === "ready" ? planBase.pace
+    : isLive && extra && extra.trajectory && window.CoachForecast ? window.CoachForecast.paceFrom(extra.trajectory, planNow) : null;
   const churn = plate(DBZ_RED, <React.Fragment>
         {head("Churn · who left & why", DBZ_RED)}
-        <DbzChurnZone live={isLive} churn={fromExtra("churn")} />
+        <DbzChurnZone live={isLive} churn={fromExtra("churn")} pace={churnPace} now={planNow} />
       </React.Fragment>);
 
   const byo = plate(DBZ_TEAL, <React.Fragment>
