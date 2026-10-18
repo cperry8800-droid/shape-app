@@ -129,6 +129,10 @@ const DBZ_DEMO_OUTCOMES = {
 // Both analytics routes send null for a figure they could not read (or have nothing to measure);
 // it reads "—", never 0, which is a measurement.
 const dbzFig = (v, suffix = "") => (v == null ? "—" : String(v) + suffix);
+// A client's name is null when none is on file or when it couldn't be read (`nameUnread`), and the
+// page says which: the routes sent "Client" and "Former client" for both, so an unread name looked
+// like no name at all. `none` is the word for a client with no name on file.
+const dbzName = (r, none) => r.name || (r.nameUnread ? "Name couldn't be read" : none);
 
 const DBZ_ROLES = {
   trainer: {
@@ -303,7 +307,7 @@ function DbzChurnZone({ live, churn, pace = null, now = Date.now() }) {
         return (
           <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "start", padding: "10px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 13.5, fontWeight: 500 }}>{r.name}</div>
+              <div style={{ fontSize: 13.5, fontWeight: 500 }}>{dbzName(r, "Former client")}</div>
               <div style={{ fontFamily: DBZ_MONO, fontSize: 8.5, letterSpacing: "0.06em", textTransform: "uppercase", color: DBZ_INK50, marginTop: 3 }}>
                 {r.endedAt ? "ended " + dbzDate(r.endedAt) : "ended —"}{tenure ? " · " + tenure + " mo client" : ""}
               </div>
@@ -485,7 +489,7 @@ function DbzOutcomesZone({ role, cp }) {
           <div style={{ fontFamily: DBZ_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DBZ_INK50, marginBottom: 6 }}>Top weight loss · 30d</div>
           {topLosers.length ? topLosers.map((r, i) => (
             <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "8px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
-              <span style={{ fontSize: 13, fontWeight: 500 }}>{r.name || "Client"}</span>
+              <span style={{ fontSize: 13, fontWeight: 500 }}>{dbzName(r, "Client")}</span>
               <span style={{ fontFamily: serif, fontSize: 15, color: DBZ_TEAL }}>{fmtWeight(r.weightChangeLb)}</span>
             </div>
           )) : <div style={{ fontSize: 12, color: DBZ_INK50, padding: "8px 0" }}>{cp && cp.weightsUnknown ? "Couldn't read weigh-ins just now." : "No weight-loss trends yet."}</div>}
@@ -496,7 +500,7 @@ function DbzOutcomesZone({ role, cp }) {
             const v = cfg.consistentValue(r);
             return (
               <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "8px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
-                <span style={{ fontSize: 13, fontWeight: 500 }}>{r.name || "Client"}</span>
+                <span style={{ fontSize: 13, fontWeight: 500 }}>{dbzName(r, "Client")}</span>
                 <span style={{ fontFamily: serif, fontSize: 15 }}>{v.n} <span style={{ fontFamily: DBZ_MONO, fontSize: 9, color: DBZ_INK50, textTransform: "uppercase" }}>{v.unit}</span></span>
               </div>
             );

@@ -30,7 +30,8 @@ const APP_TOKEN = 'app-access-token'
 // differ by status; `failActive` fails the active-subscriptions walk (its `.in('status', …)`) alone,
 // and `failTrajectory` / `failHistory` the trajectory's walk over every row (no status filter) alone:
 // the first matches any subscriptions read without one, the second only the walk ordered by id.
-function fakeSupabase(tables, { errors = {}, rpcs = {}, auth = null, honorStatus = false, failActive = false, failTrajectory = false, failHistory = false } = {}) {
+// `failCall(call)` fails any one read it picks ({ table, ops }), e.g. one batch of the names read.
+function fakeSupabase(tables, { errors = {}, rpcs = {}, auth = null, honorStatus = false, failActive = false, failTrajectory = false, failHistory = false, failCall = null } = {}) {
   const reads = []
   const calls = []
   const from = (table) => {
@@ -38,9 +39,11 @@ function fakeSupabase(tables, { errors = {}, rpcs = {}, auth = null, honorStatus
     const call = { table, ops: [] }
     calls.push(call)
     const rows = tables[table] ?? []
-    // gt, order and limit are honoured (on whatever column they name), so a paged read pages.
+    // gt, order and limit are honoured (on whatever column they name), so a paged read pages; and an
+    // `in` on `id` (the names read's batches: no other read the routes make filters on `id`).
     const answer = () => {
       if (errors[table]) return { data: null, error: { message: errors[table] }, count: null }
+      if (failCall && failCall(call)) return { data: null, error: { message: 'timeout' }, count: null }
       if (failActive && call.ops.some(([op, col]) => op === 'in' && col === 'status')) return { data: null, error: { message: 'timeout' }, count: null }
       if (failTrajectory && table === 'subscriptions' && !call.ops.some(([, col]) => col === 'status')) return { data: null, error: { message: 'timeout' }, count: null }
       if (failHistory && table === 'subscriptions' && call.ops.some(([op, col]) => op === 'order' && col === 'id') && !call.ops.some(([op, col]) => ['eq', 'in', 'not'].includes(op) && col === 'status')) return { data: null, error: { message: 'timeout' }, count: null }
@@ -52,6 +55,7 @@ function fakeSupabase(tables, { errors = {}, rpcs = {}, auth = null, honorStatus
         if (op === 'not' && col === 'status' && v === 'in') { const list = String(w).replace(/^\(|\)$/g, '').split(','); out = out.filter((r) => !list.includes(r.status)) }
       }
       for (const [op, col, v] of call.ops) if (op === 'gt') out = out.filter((r) => String(r[col]) > String(v))
+      for (const [op, col, v] of call.ops) if (op === 'in' && col === 'id') out = out.filter((r) => v.includes(r.id))
       for (const [op, col, o] of call.ops) {
         if (op !== 'order') continue
         const dir = o && o.ascending === false ? -1 : 1
@@ -95,6 +99,7 @@ async function loadRoute(role, tables, opts) {
       ['@/lib/origin-attribution', await ts('src/lib/origin-attribution.ts')],
       ['@/lib/coach-trajectory.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/coach-trajectory.mjs')).href)],
       ['@/lib/read-all-by-id', await ts('src/lib/read-all-by-id.ts')],
+      ['@/lib/client-names', await ts('src/lib/client-names.ts')],
       ['@/lib/auth-lookup', await ts('src/lib/auth-lookup.ts')],
       // The real request-auth: the cookie client when there is no Bearer token, else a client made
       // for the token, which answers only the app's token (APP_TOKEN) as the coach.
@@ -320,6 +325,7 @@ test('no failed read in the trainer route is published as an empty history', asy
       ['@/lib/origin-attribution', await loadRealModule(join(ROOT, 'src/lib/origin-attribution.ts'), { typescript: true, registry: new Map([['@/lib/supabase/server', {}]]) })],
       ['@/lib/coach-trajectory.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/coach-trajectory.mjs')).href)],
       ['@/lib/read-all-by-id', await loadRealModule(join(ROOT, 'src/lib/read-all-by-id.ts'), { typescript: true })],
+      ['@/lib/client-names', await loadRealModule(join(ROOT, 'src/lib/client-names.ts'), { typescript: true })],
       ['@/lib/auth-lookup', await loadRealModule(join(ROOT, 'src/lib/auth-lookup.ts'), { typescript: true })],
     ]),
   })
@@ -800,4 +806,108 @@ test('the nutritionist Business cards print an unread figure as a dash, never as
   assert.doesNotMatch(nutritionist, /\?\? 0/, 'no nutritionist figure falls back to 0')
   assert.match(nutritionist, /k: dbzFig\(cp\.proteinAdherencePct, "%"\), l: "Protein adherence"/)
   assert.match(nutritionist, /consistentValue: \(r\) => \(\{ n: dbzFig\(r\.daysLogged30d\), unit: "days" \}\)/)
+})
+
+// ── Left open by #2394 and #2395: every client's name, and a name that couldn't be read says so ──
+// Both routes read their roster's names in ONE `profiles` select over every client id: it stopped at
+// 1,000 rows (the API's cap, which fakeSupabase keeps), could pass the URL length limit, and dropped
+// its error, so a name it didn't have read "Client" (the churn list's, "Former client") as if none
+// were on file, in English in every language. Each name is now null when it isn't had, and
+// `nameUnread` says whether the read failed (src/lib/client-names.ts).
+const TRAINER = { trainers: [{ id: 7, stripe_account_id: null, stripe_account_status: null }] }
+const LISTINGS = [['trainer', TRAINER], ['nutritionist', NUTRI]]
+const cid = (i) => 'c' + String(i).padStart(6, '0')
+// `n` clients, one active plan each, each with a name on file unless `named(i)` says not.
+const practice = (role, n, named = () => true) => ({
+  subscriptions: Array.from({ length: n }, (_, i) => ({ ...sub(cid(i), 1000), id: 'u' + String(i).padStart(6, '0'), provider_role: role })),
+  profiles: Array.from({ length: n }, (_, i) => ({ id: cid(i), full_name: named(i) ? 'Name ' + i : null })),
+})
+// The clients `ids` are the busiest, so the payload's roster (its 12 busiest) is them.
+const busiest = (role, ids) => (role === 'trainer'
+  ? { workout_sessions: ids.map((c, k) => ({ id: 's' + String(k).padStart(4, '0'), client_id: c, started_at: recent, status: 'completed' })) }
+  : { daily_health_snapshot: ids.map((c, k) => ({ id: 'h' + String(k).padStart(4, '0'), user_id: c, snapshot_date: recent.slice(0, 10), protein_g: 100, dietary_kcal: 2000, weight_lb: null })) })
+// The ids each `profiles` read asked for, in the order the reads were made.
+const nameReads = (calls) => calls.filter((c) => c.table === 'profiles').map((c) => c.ops.find(([op, col]) => op === 'in' && col === 'id')[2])
+
+test('both routes name every client, 100 ids a read: past the 1,000th they read "Client"', async () => {
+  const N = 1200
+  // The last 12 in line are past the first 1,000 profiles rows, and the busiest, so the roster shows them.
+  const late = Array.from({ length: 12 }, (_, k) => cid(N - 12 + k))
+  for (const [role, listing] of LISTINGS) {
+    const { body, calls } = await loadRoute(role, { ...listing, ...practice(role, N), ...busiest(role, late) }, { rpcs: lifts({}) })
+    const roster = body.clientProgress.roster
+    assert.deepEqual(roster.map((r) => r.client_id).sort(), late, role + ': the 12 busiest')
+    assert.deepEqual(roster.map((r) => [r.client_id, r.name, r.nameUnread]), roster.map((r) => [r.client_id, 'Name ' + Number(r.client_id.slice(1)), false]),
+      role + ': each one named, though past the 1,000th')
+    const batches = nameReads(calls)
+    assert.equal(batches.length, 12, role + ': 1,200 ids, a read for each 100')
+    assert.ok(batches.every((b) => b.length <= 100), role + ': no read carries more than 100 ids (one list of every id could pass the URL length limit)')
+    assert.deepEqual(batches.flat().sort(), practice(role, N).profiles.map((p) => p.id), role + ': each client asked for once')
+  }
+})
+
+test('a names read that fails is said as unread, for its own batch alone; no name on file is not unread', async () => {
+  // 150 clients are two reads, and the second (c000100 to c000149) fails. c000001 has no name on file.
+  const N = 150
+  const shown = [0, 1, 2, 3, 4, 5, 144, 145, 146, 147, 148, 149].map(cid)
+  const failSecond = (c) => c.table === 'profiles' && c.ops.some(([op, col, v]) => op === 'in' && col === 'id' && v.includes(cid(149)))
+  for (const [role, listing] of LISTINGS) {
+    const { body, calls } = await loadRoute(role, { ...listing, ...practice(role, N, (i) => i !== 1), ...busiest(role, shown) }, { rpcs: lifts({}), failCall: failSecond })
+    assert.equal(nameReads(calls).length, 2, role)
+    const got = Object.fromEntries(body.clientProgress.roster.map((r) => [r.client_id, [r.name, r.nameUnread]]))
+    assert.deepEqual(got[cid(0)], ['Name 0', false], role + ': read')
+    assert.deepEqual(got[cid(1)], [null, false], role + ': read, with no name on file, which is not unread')
+    for (const id of shown.slice(6)) assert.deepEqual(got[id], [null, true], `${role}: ${id}'s read failed: unread, not "Client"`)
+    assert.equal(body.metrics.activeClients, N, role + ': the rest of the page is still read')
+  }
+})
+
+test('both routes: when the churned clients\' names couldn\'t be read, every row the call was to name says so', async () => {
+  const C = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+  const D = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+  const ended = (role) => [
+    { ...sub(A), id: 'r1', provider_role: role },
+    { ...sub(C, 15000), id: 'r2', provider_role: role, status: 'canceled', current_period_end: '2026-10-02T00:00:00Z' },
+    { ...sub(D, 9000), id: 'r3', provider_role: role, status: 'canceled', current_period_end: '2026-10-01T00:00:00Z' },
+    { ...sub(null, 5000), id: 'r4', provider_role: role, status: 'canceled', current_period_end: '2026-09-29T00:00:00Z' },
+  ]
+  // D has no name on file.
+  const named = { get_display_names: ({ p_ids }) => ({ data: p_ids.map((id) => ({ user_id: id, full_name: id === D ? null : 'N ' + id.slice(0, 4) })), error: null }) }
+  const refused = { get_display_names: () => ({ data: null, error: { message: 'function get_display_names(uuid[]) does not exist' } }) }
+  for (const [role, listing] of LISTINGS) {
+    const ok = await loadRoute(role, { ...listing, subscriptions: ended(role) }, { rpcs: { ...lifts({}), ...named }, honorStatus: true })
+    assert.deepEqual(ok.body.churn.map((r) => [r.clientId, r.name, r.nameUnread]), [[C, 'N cccc', false], [D, null, false], [null, null, false]],
+      role + ': a name; none on file; no client to name')
+    const bad = await loadRoute(role, { ...listing, subscriptions: ended(role) }, { rpcs: { ...lifts({}), ...refused }, honorStatus: true })
+    assert.deepEqual(bad.body.churn.map((r) => [r.clientId, r.name, r.nameUnread]), [[C, null, true], [D, null, true], [null, null, false]],
+      role + ': each churned client\'s name unread, not "Former client"; a row with no client had none to read')
+    assert.deepEqual(bad.body.churn.map((r) => [r.departed, r.priceCents]), ok.body.churn.map((r) => [r.departed, r.priceCents]), role + ': the rest of each row is still read')
+  }
+})
+
+test('profileNames: each id asked for once, nothing read for no ids, and a failed batch is its ids alone', async () => {
+  const { profileNames, NAME_BATCH } = await loadRealModule(join(ROOT, 'src/lib/client-names.ts'), { typescript: true })
+  assert.equal(NAME_BATCH, 100)
+  const db = fakeSupabase({ profiles: [{ id: 'a', full_name: '  Ada  ' }, { id: 'b', full_name: null }] })
+  const got = await profileNames(db.client, ['a', 'b', 'a', null, '', undefined, 'z'])
+  assert.deepEqual(nameReads(db.calls), [['a', 'b', 'z']], 'a repeated id is asked for once; no id is no id')
+  assert.deepEqual([[...got.names], [...got.unread]], [[['a', 'Ada'], ['b', '']], []], 'z has no profile the caller can see: neither named nor unread')
+  const none = fakeSupabase({})
+  const empty = await profileNames(none.client, [])
+  assert.deepEqual([none.calls.length, empty.names.size, empty.unread.size], [0, 0, 0], 'no read for no ids')
+  // 250 ids are three reads, of 100, 100 and 50; the middle one fails.
+  const ids = Array.from({ length: 250 }, (_, i) => cid(i))
+  const some = fakeSupabase({ profiles: ids.map((id) => ({ id, full_name: 'N' })) }, { failCall: (c) => c.table === 'profiles' && c.ops.some(([op, col, v]) => op === 'in' && col === 'id' && v.includes(cid(150))) })
+  const part = await profileNames(some.client, ids)
+  assert.deepEqual(nameReads(some.calls).map((b) => b.length), [100, 100, 50])
+  assert.deepEqual([part.names.size, part.unread.size, part.unread.has(cid(100)), part.unread.has(cid(199)), part.unread.has(cid(99)), part.unread.has(cid(200))], [150, 100, true, true, false, false])
+})
+
+test('nutritionist: the ticker sends no newClients7d, and no count of new subscriptions is read', async () => {
+  // It counted rows (an abandoned checkout, a plan change), printed a failed count as 0, and nothing
+  // read it (public/, mobile-app/src/ and src/ name it nowhere else).
+  const { body, calls } = await loadRoute('nutritionist', { ...NUTRI, subscriptions: nutriSubs(2) })
+  assert.ok(body.ticker && !('newClients7d' in body.ticker), JSON.stringify(body.ticker))
+  assert.ok(!calls.some((c) => c.table === 'subscriptions' && (has(c, 'gte', 'created_at') || c.ops.some((o) => o[0] === 'select' && o[2]?.head === true))),
+    'no count of the subscriptions created this week is read')
 })

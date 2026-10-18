@@ -32,7 +32,7 @@ const { loadRealModule } = await import('./helpers/load-real-module.mjs');
 // The routes' own rules for the trajectory and for each ended plan (both analytics routes use them).
 const { buildTrajectory, subDeparture, NOT_ENDED_STATUSES } = await import('../src/lib/coach-trajectory.mjs');
 const B = await loadRealModule(ND('dashBusiness.jsx'), {
-  appendExports: 'export { DbzChurnZone, DbzGoalEarn, dbzGoalEarnBase, dbzPlanBase, DbzPlanZone, DbzEarnZone, DbzPayoutsZone, DbzRenewalsZone, dbzRenewalsHead, DbzWaitlistZone, DbzLifetimeZone, DBZ_DEMO_CHURN, dbzDemoTrajectory, dbzDemoBook, dbzDemoOrigin, dbzDemoRenewals, DBZ_DEMO_OUTCOMES };',
+  appendExports: 'export { DbzChurnZone, DbzOutcomesZone, DbzGoalEarn, dbzGoalEarnBase, dbzPlanBase, DbzPlanZone, DbzEarnZone, DbzPayoutsZone, DbzRenewalsZone, dbzRenewalsHead, DbzWaitlistZone, DbzLifetimeZone, DBZ_DEMO_CHURN, dbzDemoTrajectory, dbzDemoBook, dbzDemoOrigin, dbzDemoRenewals, DBZ_DEMO_OUTCOMES };',
 });
 
 async function mount(el) {
@@ -452,6 +452,33 @@ test('the churn total counts the last 90 days and says so, not every cancellatio
     // Every ended plan (the trajectory's closed set, not 'canceled' alone), newest first, 12 of them.
     assert.match(src, /\.not\('status', 'in', `\(\$\{NOT_ENDED_STATUSES\.join\(','\)\}\)`\)\n\s+\.order\('current_period_end', \{ ascending: false, nullsFirst: false \}\)\n\s+\.limit\(12\);/, role + ' sends the newest 12 ended plans, as DBZ_CHURN_LIST says');
   }
+});
+
+// ── Left open by #2394 and #2395: a name the routes don't have is null, and nameUnread says why ──
+// They sent "Former client" and "Client" for a name that couldn't be read and for none on file alike.
+test('who left: a name that couldn\'t be read says so, and one with none on file reads "Former client"', async () => {
+  const day = 86400000;
+  const row = (o) => ({ departed: true, startedAt: new Date(Date.now() - 300 * day).toISOString(), priceCents: 18000, reason: null, ...o });
+  const rows = [
+    row({ name: null, nameUnread: true, clientId: 'u', endedAt: new Date(Date.now() - 5 * day).toISOString() }),
+    row({ name: null, nameUnread: false, clientId: 'n', endedAt: new Date(Date.now() - 6 * day).toISOString() }),
+    row({ name: 'Ada Lovelace', nameUnread: false, clientId: 'a', endedAt: new Date(Date.now() - 7 * day).toISOString() }),
+  ];
+  const m = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: rows }));
+  assert.match(m.text(), /^3 left in the last 90 days−\$540 a monthName couldn't be readended [^−]*−\$180\/moFormer clientended [^−]*−\$180\/moAda Lovelaceended /);
+  await m.unmount();
+});
+
+test('the roster outcomes say a name that couldn\'t be read, and "Client" for one with none on file', async () => {
+  globalThis.useDashUnits = globalThis.useDashUnits || (() => ({ measure: (value, unit) => ({ value, unit }) }));
+  const row = (client_id, name, nameUnread, workouts30d, weightChangeLb) => ({ client_id, name, nameUnread, workouts30d, workouts7d: 1, weightStart: 200, weightLatest: 200 + weightChangeLb, weightChangeLb, prs30d: 0 });
+  const roster = [row('u', null, true, 9, -6), row('n', null, false, 8, -5), row('a', 'Ada Lovelace', false, 7, -4)];
+  const cp = { activeClients: 3, workouts30d: 24, workouts7d: 3, avgAdherencePct: 50, prs30d: 0, weightsUnknown: false, rosterUnknown: false, roster };
+  const m = await mount(React.createElement(B.DbzOutcomesZone, { role: 'trainer', cp }));
+  // Both lists: the top weight loss, and the most consistent.
+  assert.match(m.text(), /Top weight loss · 30dName couldn't be read−6\.0 lbClient−5\.0 lbAda Lovelace−4\.0 lb/);
+  assert.match(m.text(), /Most consistent · 30dName couldn't be read9 workoutsClient8 workoutsAda Lovelace7 workouts/);
+  await m.unmount();
 });
 
 // ── The sweep after #2394 round 10: who left counts over the pace's own window ──
