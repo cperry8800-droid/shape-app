@@ -173,7 +173,11 @@ test('the origin guard: the account must be the named coach\'s, and the object S
 
 test('connectedCustomerFor: one customer per member and coach account, made on that account, never replaced', async () => {
   const created = [];
-  const stripe = { customers: { create: async (params, opts) => { created.push({ params, opts }); return { id: 'cus_onCoach' }; } } };
+  const asked = [];
+  const stripe = { customers: {
+    create: async (params, opts) => { created.push({ params, opts }); return { id: 'cus_onCoach' }; },
+    retrieve: async (id, params, opts) => { asked.push([id, opts]); return { id }; },
+  } };
   const fresh = fakeDb();
   assert.equal(await connect.connectedCustomerFor(stripe, fresh.client, { userId: UID, account: ACCT, email: 'm@example.invalid' }), 'cus_onCoach');
   assert.deepEqual(created, [{ params: { email: 'm@example.invalid', metadata: { client_id: UID } }, opts: { stripeAccount: ACCT, idempotencyKey: `shape-customer-${UID}-${ACCT}` } }]);
@@ -185,6 +189,7 @@ test('connectedCustomerFor: one customer per member and coach account, made on t
   const known = fakeDb({ tables: { stripe_connected_customers: [{ user_id: UID, stripe_account_id: ACCT, customer_id: 'cus_known' }, { user_id: UID, stripe_account_id: OTHER_ACCT, customer_id: 'cus_elsewhere' }] } });
   assert.equal(await connect.connectedCustomerFor(stripe, known.client, { userId: UID, account: ACCT, email: null }), 'cus_known');
   assert.equal(created.length, 0);
+  assert.deepEqual(asked, [['cus_known', { stripeAccount: ACCT }]], 'asked on the coach\'s account that it still exists (part B)');
   // Another account's customer is not this one's.
   const elsewhere = fakeDb({ tables: { stripe_connected_customers: [{ user_id: UID, stripe_account_id: OTHER_ACCT, customer_id: 'cus_elsewhere' }] } });
   assert.equal(await connect.connectedCustomerFor(stripe, elsewhere.client, { userId: UID, account: ACCT, email: null }), 'cus_onCoach');
@@ -202,6 +207,27 @@ test('connectedCustomerFor: one customer per member and coach account, made on t
   await assert.rejects(connect.connectedCustomerFor(stripe, fakeDb({ errors: { 'select:stripe_connected_customers': { message: 'down' } } }).client, { userId: UID, account: ACCT, email: null }));
   await assert.rejects(connect.connectedCustomerFor(stripe, fakeDb({ errors: { 'upsert:stripe_connected_customers': { message: 'down' } } }).client, { userId: UID, account: ACCT, email: null }));
   await assert.rejects(connect.connectedCustomerFor(stripe, fakeDb().client, { userId: UID, account: 'cus_notAnAccount', email: null }), /connected account/);
+});
+
+// ⚠ THE COACH CAN DELETE THE MEMBER'S CUSTOMER ON THEIR OWN ACCOUNT (Codex on #2403, part B): one
+// Stripe reports deleted, or no longer has, is replaced, so the member is never shut out for good.
+test('connectedCustomerFor: a customer the coach deleted is replaced, only over itself; any other failure refuses', async () => {
+  const run = async (retrieve) => {
+    const created = [];
+    const stripe = { customers: { create: async (params, opts) => { created.push(opts); return { id: 'cus_fresh' }; }, retrieve } };
+    const db = fakeDb({ tables: { stripe_connected_customers: [{ user_id: UID, stripe_account_id: ACCT, customer_id: 'cus_gone' }] } });
+    const id = await connect.connectedCustomerFor(stripe, db.client, { userId: UID, account: ACCT, email: null });
+    return { id, created, db };
+  };
+  const deleted = await run(async (id) => ({ id, deleted: true }));
+  assert.equal(deleted.id, 'cus_fresh');
+  assert.deepEqual(deleted.created, [{ stripeAccount: ACCT, idempotencyKey: `shape-customer-${UID}-${ACCT}-after-cus_gone` }]);
+  const [upd] = stmts(deleted.db.calls, 'stripe_connected_customers', 'update');
+  assert.deepEqual(upd.eqs, [['user_id', UID], ['stripe_account_id', ACCT], ['customer_id', 'cus_gone']], 'only over the deleted one');
+  assert.equal(deleted.db.tables.stripe_connected_customers[0].customer_id, 'cus_fresh');
+  const missing = await run(async () => { throw Object.assign(new Error('No such customer'), { code: 'resource_missing' }); });
+  assert.equal(missing.id, 'cus_fresh');
+  await assert.rejects(run(async () => { throw Object.assign(new Error('rate limited'), { code: 'rate_limit' }); }), /rate limited/);
 });
 
 test('platformCoachCustomer: a coaching row\'s customer counts only when the row is on Shape\'s own account', async () => {

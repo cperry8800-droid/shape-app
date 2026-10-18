@@ -150,6 +150,13 @@ export default {
       find: '          if (!discountsExpanded(sub)) {', replace: '          if (false) {' },
     { name: 'webhook: a change with no application is ignored', file: WEBHOOK,
       find: '        if (acct && !shapeOrUnmarked(sub.application)) {', replace: '        if (acct && sub.application !== process.env.STRIPE_CONNECT_APPLICATION_ID) {' },
+    // ── The member's customer on a coach's account ──
+    { name: 'customer: one the coach deleted is still used (Codex on #2403)', file: CONNECT,
+      find: '    if (!gone) return existing;', replace: '    return existing;' },
+    { name: 'customer: a missing one throws', file: CONNECT,
+      find: "      if ((err as { code?: string })?.code !== 'resource_missing') throw err;\n      gone = true;", replace: '      throw err;' },
+    { name: 'customer: the replacement overwrites a concurrent one', file: CONNECT,
+      find: ".eq('stripe_account_id', account).eq('customer_id', replacing);", replace: ".eq('stripe_account_id', account);" },
     // ── shapeOrUnmarked ──
     { name: 'connect: with the variable unset an unmarked object passes', file: CONNECT,
       find: "export function shapeOrUnmarked(application: unknown, expected: string | undefined = process.env.STRIPE_CONNECT_APPLICATION_ID): boolean {\n  if (!String(expected ?? '').trim()) return false;",

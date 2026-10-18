@@ -162,6 +162,7 @@ export async function platformCoachCustomer(
 type StripeCustomers = {
   customers: {
     create: (params: Record<string, unknown>, opts: { stripeAccount: string; idempotencyKey: string }) => PromiseLike<{ id: string }>;
+    retrieve: (id: string, params: undefined, opts: { stripeAccount: string }) => PromiseLike<{ id: string; deleted?: unknown }>;
   };
 };
 
@@ -188,12 +189,36 @@ export async function connectedCustomerFor(
     return ((data as { customer_id?: string | null } | null)?.customer_id) || null;
   };
   const existing = await read();
-  if (existing) return existing;
-  // The idempotency key gives two first checkouts started together one customer, not two.
+  // ⚠ THE COACH CAN DELETE IT (Codex on #2403): the account is theirs, and a customer they delete in
+  // their dashboard would be named by every later checkout, which Stripe refuses, so the member could
+  // never buy from that coach again. One Stripe reports deleted (or no longer has) is replaced; any
+  // other failure to ask throws, and the caller refuses the checkout.
+  let replacing: string | null = null;
+  if (existing) {
+    let gone = false;
+    try {
+      gone = (await stripe.customers.retrieve(existing, undefined, { stripeAccount: account })).deleted === true;
+    } catch (err) {
+      if ((err as { code?: string })?.code !== 'resource_missing') throw err;
+      gone = true;
+    }
+    if (!gone) return existing;
+    replacing = existing;
+  }
+  // The idempotency key gives two first checkouts started together one customer, not two; a
+  // replacement is keyed on the customer it replaces.
   const customer = await stripe.customers.create(
     { ...(email ? { email } : {}), metadata: { client_id: userId } },
-    { stripeAccount: account, idempotencyKey: `shape-customer-${userId}-${account}` }
+    { stripeAccount: account, idempotencyKey: `shape-customer-${userId}-${account}${replacing ? `-after-${replacing}` : ''}` }
   );
+  if (replacing) {
+    // Only over the deleted one: a replacement saved by a concurrent request wins.
+    const { error } = await (q(admin, 'stripe_connected_customers') as unknown as {
+      update: (row: Record<string, unknown>) => { eq: (c: string, v: unknown) => { eq: (c: string, v: unknown) => { eq: (c: string, v: unknown) => PromiseLike<QueryResult> } } };
+    }).update({ customer_id: customer.id }).eq('user_id', userId).eq('stripe_account_id', account).eq('customer_id', replacing);
+    if (error) throw error;
+    return (await read()) ?? customer.id;
+  }
   // Never replaces a row: a customer saved by a concurrent request wins, and is the one returned.
   const { error } = await q(admin, 'stripe_connected_customers').upsert(
     { user_id: userId, stripe_account_id: account, customer_id: customer.id },
