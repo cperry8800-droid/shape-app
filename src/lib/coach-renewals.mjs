@@ -44,6 +44,8 @@ export function renewalRows(picked, { names, flags, cutCents }) {
       // — is an unknown name (the profiles read failed), as on the origin feed: a row of
       // "Client"s would hide who is renewing and who cancelled.
       name: (names && names.get(String(r.client_id))) || '—',
+      // Who the plan belongs to: the page counts people, not plans (one client can hold two).
+      clientId: r.client_id == null ? null : String(r.client_id),
       dueAt: new Date(ms(r.current_period_end)).toISOString(),
       priceCents: price,
       netCents: cutCents(price, r.fee_bps == null ? null : r.fee_bps),

@@ -271,6 +271,11 @@ test('renewals: the total counts confirmed renewals only; a cancellation and an 
   // None could be checked: no "0 clients · $0" beside a list of renewals.
   assert.equal(B.dbzRenewalsHead(true, RENEWALS.map((r) => ({ ...r, ending: null }))), null);
   assert.equal(B.dbzRenewalsHead(true, RENEWALS.filter((r) => r.ending === true)), '0 clients · $0 net', 'all cancelled is a checked zero');
+  // People, not plans (Codex round 8, #2394): one client with two plans due is one client, and
+  // both plans' net count. A row with no client id stands alone.
+  const two = [{ ...RENEWALS[0], clientId: 'c1' }, { ...RENEWALS[0], clientId: 'c1', netCents: 10000 }];
+  assert.equal(B.dbzRenewalsHead(true, two), '1 client · ' + money(RENEWALS[0].netCents + 10000) + ' net');
+  assert.equal(B.dbzRenewalsHead(true, [...two, { ...RENEWALS[0], clientId: null }, { ...RENEWALS[0], clientId: null }]), '3 clients · ' + money(3 * RENEWALS[0].netCents + 10000) + ' net');
 });
 
 test('renewals: none due, not read, and still loading are three different sentences', async () => {
@@ -330,6 +335,24 @@ test('the churn total counts the last 90 days and says so, not every cancellatio
   const eleven = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: [...full.slice(0, 11), rows[1]] }));
   assert.match(eleven.text(), /^11 left in the last 90 days−\$1,980 a month/, 'one row outside the window: the count is whole');
   await eleven.unmount();
+  // People who left, not plans that ended (Codex round 8, #2394). A client still active here who
+  // dropped one plan hasn't left: not counted, not listed. A client who cancelled two plans left
+  // once, and both plans' money is lost.
+  const twoPlans = [
+    { ...rows[0], name: 'Stayed', clientId: 's', stillClient: true, priceCents: 9000 },
+    { ...rows[0], name: 'Left twice', clientId: 'l', stillClient: false, priceCents: 18000 },
+    { ...rows[0], name: 'Left twice', clientId: 'l', stillClient: false, priceCents: 6000 },
+    { ...rows[0], name: 'Unknown', clientId: 'u', stillClient: null, priceCents: 1000 },
+  ];
+  const people = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: twoPlans }));
+  assert.match(people.text(), /^2 left in the last 90 days−\$250 a month/, 'Left twice once, and Unknown (no word they are still here)');
+  assert.doesNotMatch(people.text(), /Stayed/, 'a current client is not listed as gone');
+  await people.unmount();
+  // The floor is the route's list: 12 rows, all inside the window, even when some are left out.
+  const fullMixed = full.map((r, i) => (i < 3 ? { ...r, clientId: 'k' + i, stillClient: true } : { ...r, clientId: 'g' + i, stillClient: false }));
+  const floored = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: fullMixed }));
+  assert.match(floored.text(), /^9 or more left in the last 90 daysat least −\$1,620 a month/);
+  await floored.unmount();
   for (const role of ['trainer', 'nutritionist']) {
     const src = readFileSync(fileURLToPath(new URL(`../src/app/api/${role}/analytics/route.ts`, import.meta.url)), 'utf8');
     assert.match(src, /\.eq\('status', 'canceled'\)\n\s+\.order\('current_period_end', \{ ascending: false, nullsFirst: false \}\)\n\s+\.limit\(12\);/, role + ' sends the newest 12, as DBZ_CHURN_LIST says');

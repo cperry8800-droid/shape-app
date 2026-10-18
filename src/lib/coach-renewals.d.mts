@@ -14,6 +14,8 @@ export type RenewalSource = {
 
 export type Renewal = {
   name: string;
+  /** whose plan it is; null when the row has no client */
+  clientId: string | null;
   dueAt: string;
   priceCents: number;
   netCents: number;

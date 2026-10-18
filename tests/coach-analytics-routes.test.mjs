@@ -25,7 +25,9 @@ const COACH = { id: '33333333-3333-4333-8333-333333333333' }
 // Every table read answers from `tables` (or `errors`); any chain of filters is accepted, and
 // recorded. `rpc` answers from `rpcs[name](args)`.
 // `auth` is what getUser resolves (a signed-in coach unless a test says otherwise).
-function fakeSupabase(tables, { errors = {}, rpcs = {}, auth = null } = {}) {
+// `honorStatus` also applies status filters (eq / in on `status`), for a test whose rows differ by
+// status; `failActive` fails the active-subscriptions walk (its `.in('status', …)`) alone.
+function fakeSupabase(tables, { errors = {}, rpcs = {}, auth = null, honorStatus = false, failActive = false } = {}) {
   const reads = []
   const calls = []
   const from = (table) => {
@@ -36,7 +38,12 @@ function fakeSupabase(tables, { errors = {}, rpcs = {}, auth = null } = {}) {
     // gt, order and limit are honoured (on whatever column they name), so a paged read pages.
     const answer = () => {
       if (errors[table]) return { data: null, error: { message: errors[table] }, count: null }
+      if (failActive && call.ops.some(([op, col]) => op === 'in' && col === 'status')) return { data: null, error: { message: 'timeout' }, count: null }
       let out = rows
+      if (honorStatus) for (const [op, col, v] of call.ops) {
+        if (op === 'eq' && col === 'status') out = out.filter((r) => r.status === v)
+        if (op === 'in' && col === 'status') out = out.filter((r) => v.includes(r.status))
+      }
       for (const [op, col, v] of call.ops) if (op === 'gt') out = out.filter((r) => String(r[col]) > String(v))
       for (const [op, col, o] of call.ops) {
         if (op !== 'order') continue
@@ -363,6 +370,26 @@ test('renewals: the active rows due in the next 7 days, each asked of Stripe, ne
     const { body } = await loadRoute(role, tables, { rpcs: lifts({}), cancelled: ['sub_B'], flagCalls, query: '?renewals=1' })
     assert.deepEqual(flagCalls.map((c) => c.ids), [['sub_A', 'sub_B']], role + ': only the rows due this week are asked about')
     assert.deepEqual(body.renewals.map((r) => [r.priceCents, r.netCents, r.ending]), [[18000, 15300, false], [16500, 16500, true]], role)
+    assert.deepEqual(body.renewals.map((r) => r.clientId), [A, B], role + ': each renewal says whose plan it is, so the page counts people')
+  }
+})
+
+// ── Codex round 8 (#2394): the page counts people, not plans ──────────────────
+// A client who cancels one plan while holding another hasn't left (coach-trajectory.mjs leftIn), so
+// each cancellation says whose it is and whether that client is still active here.
+test('each cancellation says whose it is and whether that client is still a client; unread when the active read failed', async () => {
+  const C = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+  const subs = [
+    { ...sub(A, 18000), id: 'r1' },
+    { ...sub(A, 12000), id: 'r2', status: 'canceled', current_period_end: '2026-10-01T00:00:00Z' },
+    { ...sub(C, 15000), id: 'r3', status: 'canceled', current_period_end: '2026-10-02T00:00:00Z' },
+  ]
+  for (const role of ['trainer', 'nutritionist']) {
+    const tables = role === 'trainer' ? roster({ subscriptions: subs }) : { nutritionists: [{ id: 9, stripe_account_id: null, stripe_account_status: null }], subscriptions: subs.map((r) => ({ ...r, provider_role: 'nutritionist' })) }
+    const { body } = await loadRoute(role, tables, { rpcs: lifts({}), honorStatus: true })
+    assert.deepEqual(body.churn.map((r) => [r.clientId, r.stillClient]), [[C, false], [A, true]], role + ': C left; A dropped a plan and is still here')
+    const unread = await loadRoute(role, tables, { rpcs: lifts({}), honorStatus: true, failActive: true })
+    assert.deepEqual(unread.body.churn.map((r) => [r.clientId, r.stillClient]), [[C, null], [A, null]], role + ': with the active read failed, no one is known to be still here')
   }
 })
 

@@ -239,6 +239,9 @@ function DbzPayoutsZone({ live, stripe, providerId, role, metrics }) {
 // ── Churn zone — who left, when, and why (honest about the why) ─────────────
 // How many cancellations the analytics routes send, newest first (their `.limit(12)`).
 const DBZ_CHURN_LIST = 12;
+// How many people the rows belong to: one client with two plans is one client. A row with no
+// client id stands alone, as everywhere else that counts clients.
+const dbzPeople = (rows) => new Set(rows.map((r, i) => (r.clientId != null ? "c:" + r.clientId : "row:" + i))).size;
 function DbzChurnZone({ live, churn }) {
   // undefined: the analytics are still loading, which is neither "none on record" nor a failed read.
   if (live && churn === undefined) {
@@ -257,17 +260,25 @@ function DbzChurnZone({ live, churn }) {
   // years ago. It now counts the last 90 days, and says so; the rows below still list the recent ones.
   // ⚠ AND THE LIST STOPS AT DBZ_CHURN_LIST ROWS (the routes' .limit(12)). When every row it holds
   // is inside the 90 days, more may have left than it shows, so the total is a floor and says so.
+  // ⚠ PEOPLE WHO LEFT, NOT PLANS THAT ENDED (Codex round 8, #2394). A client who cancelled one plan
+  // and still holds another hasn't left (the trajectory's rule, which the pace and Overview use),
+  // and one who cancelled two plans left once. The route says whether each row's client is still
+  // active (stillClient); those rows are left out, and the count is of people.
   const since = Date.now() - 90 * 86400000;
-  const recent = rows.filter((r) => r.endedAt && new Date(r.endedAt).getTime() >= since);
+  const left = rows.filter((r) => r.stillClient !== true);
+  const recent = left.filter((r) => r.endedAt && new Date(r.endedAt).getTime() >= since);
   const lostCents = recent.reduce((s, r) => s + (r.priceCents || 0), 0);
-  const floor = live && rows.length >= DBZ_CHURN_LIST && recent.length === rows.length;
+  const people = dbzPeople(recent);
+  // The floor is about the route's list, before any row is left out: 12 rows read, all inside the
+  // window, and older ones may be past the cut.
+  const floor = live && rows.length >= DBZ_CHURN_LIST && rows.every((r) => r.endedAt && new Date(r.endedAt).getTime() >= since);
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
-        <span style={{ fontFamily: DBZ_MONO, fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: DBZ_INK50 }}>{recent.length ? recent.length + (floor ? " or more" : "") + " left in the last 90 days" : "None left in the last 90 days"}</span>
+        <span style={{ fontFamily: DBZ_MONO, fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: DBZ_INK50 }}>{people ? people + (floor ? " or more" : "") + " left in the last 90 days" : "None left in the last 90 days"}</span>
         {lostCents > 0 && <span style={{ fontFamily: DBZ_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: DBZ_RED }}>{floor ? "at least " : ""}−{dashMoney(lostCents)} a month</span>}
       </div>
-      {rows.map((r, i) => {
+      {left.map((r, i) => {
         const tenure = r.startedAt && r.endedAt ? dbzMonthsBetween(r.startedAt, r.endedAt) : null;
         return (
           <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "start", padding: "10px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
@@ -1241,7 +1252,10 @@ function dbzRenewalsHead(live, renewals) {
   // None checked (Stripe down, or no key on a preview): a "0 clients · $0" total would read as
   // no renewals beside a list of them. The rows say "not checked"; the header says nothing.
   if (!sure.length && rows.some((r) => r.ending == null)) return null;
-  return sure.length + (sure.length === 1 ? " client · " : " clients · ") + dashMoney(sure.reduce((s, r) => s + r.netCents, 0)) + " net";
+  // ⚠ PEOPLE, NOT PLANS (Codex round 8, #2394): one client with two plans due is one client. Each
+  // plan's net still counts toward the total.
+  const people = dbzPeople(sure);
+  return people + (people === 1 ? " client · " : " clients · ") + dashMoney(sure.reduce((s, r) => s + r.netCents, 0)) + " net";
 }
 
 // ── Money: net a month, the last 13 weeks ────────────────────────────────────

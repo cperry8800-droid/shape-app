@@ -153,8 +153,15 @@ export async function GET(request: Request) {
     }
   }
   if (churnErr) console.warn('[shape-app] trainer analytics: churn read failed — churn renders as unread:', churnErr.message);
+  // ⚠ A CANCELLED PLAN IS NOT A DEPARTURE WHILE THE CLIENT HOLDS ANOTHER (Codex round 8 on #2394, the
+  // trajectory's rule in coach-trajectory.mjs leftIn). Each row says whose it is, and whether that
+  // client is still active here (null when the active subscriptions couldn't be read), so the
+  // page counts the people who left, not the plans that ended.
+  const activeNow = new Set(clientIds.map(String));
   const churn = churnErr ? null : (churnRows ?? []).map((r) => ({
     name: churnNames.get(String(r.client_id)) || 'Former client',
+    clientId: r.client_id == null ? null : String(r.client_id),
+    stillClient: subsUnknown || r.client_id == null ? null : activeNow.has(String(r.client_id)),
     startedAt: r.created_at ?? null,
     endedAt: r.current_period_end ?? null,
     priceCents: r.price_cents ?? null,
