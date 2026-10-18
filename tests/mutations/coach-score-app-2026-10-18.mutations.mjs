@@ -70,6 +70,15 @@ export default {
     ...website('the sample is not labelled in the headline', '    ? { title: score.total.toLocaleString(), eyebrow: `COACH SCORE · ${tierLabel}${read.state === "sample" ? " · SAMPLE" : ""}` }', '    ? { title: score.total.toLocaleString(), eyebrow: `COACH SCORE · ${tierLabel}` }'),
     ...website('the demo band is not shown for the sample', '      {read.state === "sample" && typeof DashDemoBand === "function" && <DashDemoBand />}', ''),
     ...website('the path card is the old fixed figure', '          ? `${Math.max(0, Number(score.points_to_next) || 0).toLocaleString()} more points.', '          ? `8,580 more points.'),
+    // ── Codex on #2400: a coach's every listing of the role, the named one or the oldest ──
+    { name: 'codex-2400 route: the named listing is ignored', file: ROUTE,
+      find: '  const providerId = (owned.find((p) => p.id === asked) ?? owned[0]).id;', replace: '  const providerId = owned[0].id;' },
+    { name: 'codex-2400 route: any listing id asked for is read, owned or not', file: ROUTE,
+      find: '  const providerId = (owned.find((p) => p.id === asked) ?? owned[0]).id;', replace: '  const providerId = asked > 0 ? asked : owned[0].id;' },
+    { name: 'codex-2400 route: the listings come in no order', file: ROUTE,
+      find: "    .eq('owner_id', user.id)\n    .order('id', { ascending: true });", replace: "    .eq('owner_id', user.id);" },
+    { name: 'codex-2400 route: a failed listing read is "no listing"', file: ROUTE,
+      find: '  if (listErr) {', replace: '  if (false) {' },
     { name: 'trainer page: the programs term is priced wrong', file: TRAINER, find: `    ["Programs published", "Per program · each program you've published", "+80"],`, replace: `    ["Programs published", "Per program · each program you've published", "+40"],` },
   ],
 };

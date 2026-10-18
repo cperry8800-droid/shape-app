@@ -25,7 +25,7 @@ const NO_COOKIE = noUser(new AuthSessionMissingError());
 // Every table answers from `tables`, with eq/in filters honoured, so a count is the matching rows.
 // `cookieAuth` is what the cookie client's getUser resolves; `bearerAuth` what a token client's does
 // (by default: APP_TOKEN is the coach, any other token nobody).
-function fakeDb(tables, { cookieAuth = { data: { user: COACH }, error: null }, bearerAuth = null } = {}) {
+function fakeDb(tables, { cookieAuth = { data: { user: COACH }, error: null }, bearerAuth = null, errors = {} } = {}) {
   const db = { reads: [], readsAs: { cookie: [], token: [] }, bearer: [], providerOwner: [] };
   const client = (authFor, who) => ({
     from(table) {
@@ -36,7 +36,14 @@ function fakeDb(tables, { cookieAuth = { data: { user: COACH }, error: null }, b
         op === 'eq' ? r[col] === v : op === 'in' ? v.includes(r[col]) : true)));
       const q = new Proxy({}, {
         get(_t, prop) {
-          if (prop === 'then') return (res, rej) => Promise.resolve({ data: null, error: null, count: rows().length }).then(res, rej);
+          if (prop === 'then') {
+            const owner = ops.find(([op, col]) => op === 'eq' && col === 'owner_id');
+            if (owner) db.providerOwner.push(owner[2]);
+            if (errors[table]) return (res, rej) => Promise.resolve({ data: null, error: errors[table], count: null }).then(res, rej);
+            const order = ops.find(([op]) => op === 'order');
+            const list = order ? rows().slice().sort((a, b) => (a[order[1]] < b[order[1]] ? -1 : 1) * (order[2] && order[2].ascending === false ? -1 : 1)) : rows();
+            return (res, rej) => Promise.resolve({ data: list, error: null, count: list.length }).then(res, rej);
+          }
           if (prop === 'maybeSingle') return async () => {
             const owner = ops.find(([op, col]) => op === 'eq' && col === 'owner_id');
             db.providerOwner.push(owner && owner[2]);
@@ -67,7 +74,7 @@ async function call(tables, opts = {}) {
     ['@/lib/request-auth', requestAuth],
     ['@/lib/auth-lookup', await ts('src/lib/auth-lookup.ts', new Map())],
   ]));
-  const res = await route.GET(new Request(`https://shape.test/api/coach/score?role=${opts.role || 'trainer'}`, { headers: opts.headers || {} }));
+  const res = await route.GET(new Request(`https://shape.test/api/coach/score?role=${opts.role || 'trainer'}${opts.query || ''}`, { headers: opts.headers || {} }));
   return { status: res.status, body: await res.json(), ...db };
 }
 
@@ -145,4 +152,30 @@ test('the website\'s cookie still works, and a visitor with no session is a 401'
   const out = await call(PRACTICE, { cookieAuth: NO_COOKIE });
   assert.equal(out.status, 401);
   assert.deepEqual(out.reads, []);
+});
+
+// ⚠ TWO LISTINGS OF ONE ROLE (Codex on #2400). owner_id is not unique; the listing read was
+// maybeSingle, which errors on two rows, so the route answered 404 and the coach's Score page
+// stayed unread for good.
+test('a coach with two listings of one role gets a score: the oldest, or the one ?provider_id names when it is theirs', async () => {
+  const two = {
+    ...PRACTICE,
+    trainers: [{ id: 8, owner_id: COACH.id }, { id: 7, owner_id: COACH.id }, { id: 12, owner_id: 'someone-else' }],
+    subscriptions: [...PRACTICE.subscriptions, { provider_id: 8, provider_role: 'trainer', status: 'active' }, { provider_id: 12, provider_role: 'trainer', status: 'active' }],
+  };
+  const oldest = await call(two, { headers: BEARER, cookieAuth: NO_COOKIE });
+  assert.equal(oldest.status, 200, JSON.stringify(oldest.body));
+  assert.equal(oldest.body.total, 1060, 'listing 7, the oldest: the same score as with one listing');
+  const named = await call(two, { headers: BEARER, cookieAuth: NO_COOKIE, query: '&provider_id=8' });
+  assert.equal(named.status, 200);
+  assert.equal(named.body.breakdown.find((b) => b.label === 'Active clients').points, 50, 'listing 8: its one client');
+  const notTheirs = await call(two, { headers: BEARER, cookieAuth: NO_COOKIE, query: '&provider_id=12' });
+  assert.equal(notTheirs.body.total, 1060, 'another coach\'s listing is never read: back to their own oldest');
+});
+
+test('a listing read that failed is a 503, not "no listing"', async () => {
+  const failed = await call(PRACTICE, { headers: BEARER, cookieAuth: NO_COOKIE, errors: { trainers: { message: 'canceling statement due to statement timeout' } } });
+  assert.equal(failed.status, 503, JSON.stringify(failed.body));
+  const none = await call({ ...PRACTICE, trainers: [] }, { headers: BEARER, cookieAuth: NO_COOKIE });
+  assert.equal(none.status, 404, 'no listing at all is still a 404');
 });

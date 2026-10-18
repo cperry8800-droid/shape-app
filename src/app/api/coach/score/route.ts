@@ -50,14 +50,25 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   }
 
+  // ⚠ A LIST READ, NEVER maybeSingle (Codex on #2400). owner_id is not unique, and a coach may own
+  // two listings of one role (memberReads.mjs readCoachRoster). maybeSingle on two rows is an error
+  // with no data, which answered 404, so that coach's Score page could never be read. A score is
+  // one listing's: the one ?provider_id names when the caller owns it, otherwise their oldest. A
+  // read that failed is 503, not "no listing".
   const providerTable = role === 'trainer' ? 'trainers' : 'nutritionists';
-  const { data: provider } = await supabase
+  const { data: listings, error: listErr } = await supabase
     .from(providerTable)
     .select('id')
     .eq('owner_id', user.id)
-    .maybeSingle();
-  if (!provider) return NextResponse.json({ error: 'No provider profile found.' }, { status: 404 });
-  const providerId = provider.id;
+    .order('id', { ascending: true });
+  if (listErr) {
+    console.warn(`[coach/score] the ${providerTable} read failed — answering 503, not 404:`, listErr.message);
+    return NextResponse.json({ error: 'Could not read your listing just now.' }, { status: 503 });
+  }
+  const owned = (listings ?? []) as Array<{ id: number }>;
+  if (!owned.length) return NextResponse.json({ error: 'No provider profile found.' }, { status: 404 });
+  const asked = Number(url.searchParams.get('provider_id'));
+  const providerId = (owned.find((p) => p.id === asked) ?? owned[0]).id;
 
   const since90 = new Date(); since90.setUTCDate(since90.getUTCDate() - 90);
   const since90Iso = since90.toISOString();
