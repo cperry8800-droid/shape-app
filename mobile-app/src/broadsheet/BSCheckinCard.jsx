@@ -175,7 +175,7 @@ export function BSCheckinCard({ onOpen }) {
   const [editing, setEditing] = useState(null);   // a step reopened by Edit, or null
   const [sleepH, setSleepH] = useState(null);     // the stepper, before it is confirmed
   const [restedPick, setRestedPick] = useState(null);
-  const [water, setWater] = useState(null);       // { l, target }
+  const [water, setWater] = useState(signedIn ? null : { l: 1.25, target: 3 }); // { l, target }; a sample in the preview
   const [err, setErr] = useState(null);           // the last write that failed, said in the card
   const [skippedDay, setSkippedDay] = useState(() => (bsCiReadSkip(uid, todayIso) ? todayIso : null)); // the day the night was skipped
   // Signed in, nothing is asked until today's answers are read: a tap on a card that has not
@@ -270,10 +270,12 @@ export function BSCheckinCard({ onOpen }) {
   const glassL = t.isMetric ? 0.25 : 0.2366;
 
   const addGlass = () => {
-    if (!water || !signedIn || !window.ShapeHydration?.add) return;
+    if (!water) return;
     const before = water;
     setWater({ ...water, l: Math.round((water.l + glassL) * 1000) / 1000 });
     setErr(null);
+    if (!signedIn) return; // the preview counts locally and saves nothing
+    if (!window.ShapeHydration?.add) { setWater(before); setErr('water'); return; }
     window.ShapeHydration.add(glassL).then((d) => { if (alive.current && d && d.ok) setWater((w) => ({ ...(w || before), l: Number(d.hydrationL) || 0 })); }).catch(() => {
       if (!alive.current) return;
       setWater(before);
@@ -361,7 +363,7 @@ export function BSCheckinCard({ onOpen }) {
       {step === 'done' ? (
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0 }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 600, letterSpacing: '-0.02em', color: t.INK }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: signedIn ? 21 : 16, fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1.2, color: t.INK }}>
               {signedIn ? <>{tr('home:checkin.done', { defaultValue: 'Checked in' })} <span style={{ color: teal }}>✓</span></> : tr('home:today.joinToSave', { defaultValue: 'Join Shape to save your check-in' })}
             </div>
             <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK70, lineHeight: 1.4 }}>

@@ -372,5 +372,10 @@ test('signed out, the card previews the flow and saves nothing', async () => {
     assert.match(m.text(), /Join Shape to save your check-in/);
     assert.doesNotMatch(m.text(), /Checked in/, 'the preview claimed a check-in it never saved');
     assert.doesNotMatch(m.text(), /days running/);
+    // Water counts in the preview too, and is not written either.
+    assert.match(m.text(), /42 \/ 101 oz/);
+    await m.click(/\+ Glass/);
+    assert.deepEqual(calls.add, [], 'the preview wrote a glass');
+    assert.match(m.text(), /50 \/ 101 oz/);
   } finally { m.unmount(); }
 });
