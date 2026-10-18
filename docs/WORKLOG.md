@@ -186,6 +186,10 @@ planned builds.
   nutritionist only.
 - A subscription to a coach who is later suspended keeps renewing.
 - The `?error=` redirects from `/purchase` and `/subscribe` are never shown.
+- A coach's referral link brings a new member back to the coach after sign-up, but the
+  confirmation email's own link opens a bare `Login.html`: the way back rides in the
+  browser that signed up (two days), so confirming on another device lands on the
+  dashboard.
 - `checkin_submitted` is a switch nothing writes.
 - The app's coach Score page reads the member ledger, and `/api/coach/score` returns
   401 to the app's Bearer token.
