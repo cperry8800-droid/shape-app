@@ -111,10 +111,30 @@ export async function currentCheckout(
 ): Promise<string | null> {
   const opts = stripeAccount ? { stripeAccount } : undefined;
   const open = await stripe.checkout.sessions.list({ customer: customerId, status: 'open', limit: 100 }, opts);
+  // ⚠ ON A COACH'S ACCOUNT ONLY A CHECKOUT SHAPE RECORDED IS SHAPE'S (Codex on #2403). The coach can
+  // open a checkout there for the member's customer and copy every metadata value `sameProduct` and
+  // `sameTerms` read, at any price; handing its address back would charge the member for a checkout
+  // the webhook then refuses. So only the ones in coach_checkouts are handed back or expired, and the
+  // coach's own are left alone. A failed read throws: the caller refuses.
+  let recorded: Set<string> | null = null;
+  if (stripeAccount) {
+    const ids = open.data.filter((s) => sameProduct(s)).map((s) => s.id);
+    recorded = new Set();
+    if (ids.length) {
+      const { data, error } = await createAdminClient()
+        .from('coach_checkouts')
+        .select('stripe_checkout_session_id')
+        .eq('stripe_account_id', stripeAccount)
+        .in('stripe_checkout_session_id', ids);
+      if (error) throw error;
+      for (const r of (data ?? []) as Array<{ stripe_checkout_session_id: string }>) recorded.add(r.stripe_checkout_session_id);
+    }
+  }
   let current: string | null = null;
   // Stripe lists the newest first.
   for (const session of open.data) {
     if (!sameProduct(session)) continue;
+    if (recorded && !recorded.has(session.id)) continue;
     if (!current && session.url && now - session.created * 1000 < FRESH_MS && sameTerms(session)) {
       current = session.url;
       continue;

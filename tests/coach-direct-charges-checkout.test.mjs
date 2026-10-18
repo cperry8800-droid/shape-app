@@ -292,6 +292,45 @@ test('the coach\'s own code is applied as the coach\'s promotion code; an unknow
   assert.deepEqual(await resolve(codeStripe({ coach: [{ ...own, expires_at: 1 }] }), { code: 'TOMS10' }), { ok: false, reason: 'code_invalid' });
 });
 
+// ── The open checkouts and the live subscription on a coach's account ─────────────────────────
+test('on a coach\'s account only a checkout Shape recorded is handed back or expired (Codex on #2403)', async () => {
+  const now = Date.now();
+  const open = [
+    { id: 'cs_coachMade', created: Math.floor(now / 1000), url: 'https://checkout.stripe.test/coach', mode: 'subscription', metadata: { provider_id: '4', provider_role: 'trainer' } },
+    { id: 'cs_shapeMade', created: Math.floor(now / 1000) - 5, url: 'https://checkout.stripe.test/shape', mode: 'subscription', metadata: { provider_id: '4', provider_role: 'trainer' } },
+    { id: 'cs_shapeOld', created: Math.floor(now / 1000) - 3600, url: 'https://checkout.stripe.test/old', mode: 'subscription', metadata: { provider_id: '4', provider_role: 'trainer' } },
+  ];
+  const listed = [];
+  const expired = [];
+  const stripe = { checkout: { sessions: {
+    list: async (p, o) => { listed.push(o); return { data: open }; },
+    expire: async (id, p, o) => { expired.push([id, o]); return {}; },
+  } } };
+  const db = fakeDb({ tables: { coach_checkouts: [record({ stripe_checkout_session_id: 'cs_shapeMade' }), record({ stripe_checkout_session_id: 'cs_shapeOld' }), record({ stripe_checkout_session_id: 'cs_coachMade', stripe_account_id: OTHER_ACCT })] } });
+  const barrier = await loadRealModule(join(ROOT, 'src/lib/checkout-barrier.ts'), { typescript: true, registry: new Map([['@/lib/stripe', { stripe }], ['@/lib/supabase/admin', { createAdminClient: () => db.client }]]) });
+  const url = await barrier.currentCheckout('cus_onCoach', () => true, () => true, now, ACCT);
+  assert.equal(url, 'https://checkout.stripe.test/shape', 'the coach-made one (newest) is never handed back');
+  assert.deepEqual(expired, [['cs_shapeOld', { stripeAccount: ACCT }]], 'and never expired: only Shape\'s stale one is');
+  assert.deepEqual(listed, [{ stripeAccount: ACCT }]);
+  // On Shape's own account nothing changes: no record is asked for.
+  const plat = fakeDb();
+  const p = await loadRealModule(join(ROOT, 'src/lib/checkout-barrier.ts'), { typescript: true, registry: new Map([['@/lib/stripe', { stripe }], ['@/lib/supabase/admin', { createAdminClient: () => plat.client }]]) });
+  assert.equal(await p.currentCheckout('cus_platform', () => true, () => true, now), 'https://checkout.stripe.test/coach');
+  assert.equal(plat.calls.length, 0);
+});
+
+test('the live-subscription check on a coach\'s account counts only what the caller says is Shape\'s', async () => {
+  const subs = [{ id: 'sub_coach', status: 'active', application: null, metadata: { client_id: UID, provider_id: '4', provider_role: 'trainer' } }];
+  const asked = [];
+  const stripe = { customers: { list: async () => { throw new Error('no email lookup on a coach account'); } }, subscriptions: { list: async (p, o) => { asked.push(o); return { data: subs }; } } };
+  const lib = await loadRealModule(join(ROOT, 'src/lib/stripe-live-subscription.ts'), { typescript: true, registry: new Map([['@/lib/stripe', { stripe }], ['@/lib/membership-core', { ACTIVE_SUB: new Set(['active', 'trialing', 'past_due']) }]]) });
+  const wanted = { client_id: UID, provider_id: '4', provider_role: 'trainer' };
+  assert.equal(await lib.hasLiveStripeSubscription({ customerId: 'cus_onCoach', email: 'a@example.invalid' }, wanted, ACCT, (s) => connect.madeByShape(s.application, APP)), false, 'the coach\'s own subscription does not block a real checkout');
+  assert.deepEqual(asked, [{ stripeAccount: ACCT }]);
+  subs[0].application = APP;
+  assert.equal(await lib.hasLiveStripeSubscription({ customerId: 'cus_onCoach', email: null }, wanted, ACCT, (s) => connect.madeByShape(s.application, APP)), true, 'Shape\'s does');
+});
+
 // ── The billing portal and reconnecting ───────────────────────────────────────────────────────
 test('the portal on a coach\'s account uses Shape\'s own configuration, made once', async () => {
   const calls = [];
@@ -445,6 +484,15 @@ test('checkout: a subscription on the coach\'s account takes application_fee_per
   assert.equal(r.open[0][2]({}), false, 'every open checkout on Shape\'s account is expired, none handed back');
   assert.deepEqual([r.open[1][0], r.open[1][4]], ['cus_onCoach', ACCT]);
   assert.deepEqual(r.live.map((a) => [a[0].customerId, a[2] ?? null]), [['cus_platform', null], ['cus_onCoach', ACCT]]);
+  // ⚠ On the coach's account only a subscription Shape's application made counts (Codex on #2403):
+  // the coach can make one with the member's metadata.
+  const shapes = r.live[1][3];
+  assert.equal(typeof shapes, 'function');
+  await withEnv(CONNECT_ENV, async () => {
+    assert.equal(shapes({ application: APP }), true);
+    assert.equal(shapes({ application: null }), false, 'the coach\'s own, made off Shape');
+    assert.equal(shapes({ application: 'ca_other' }), false);
+  });
   assert.equal(stmts(r.db.calls, 'coach_checkouts', 'insert')[0].payload.mode, 'subscription');
 });
 

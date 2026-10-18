@@ -11,7 +11,7 @@ import { appendParam, sameOriginPath } from '@/lib/return-path';
 import { ACTIVE_SUB, computeMembership } from '@/lib/membership-core';
 import { hasLiveStripeSubscription } from '@/lib/stripe-live-subscription';
 import { stripeCustomerFor } from '@/lib/stripe-customer';
-import { connectedCustomerFor } from '@/lib/stripe-connect';
+import { connectedCustomerFor, madeByShape } from '@/lib/stripe-connect';
 import { CODE_MESSAGES, afterCode, coachNotPayable, directChargesReady, normalizeCode, recordCoachCheckout, resolveCheckoutCode, type CheckoutCode } from '@/lib/coach-checkout';
 import { CHECKOUT_CREATE_OPTIONS, checkoutReturnsKey, claimCheckout, currentCheckout, isCheckoutInProgress, type CheckoutClaim } from '@/lib/checkout-barrier';
 
@@ -480,7 +480,7 @@ export async function POST(request: Request) {
       try {
         const wanted = { client_id: user.id, provider_id: String(providerId), provider_role: providerRole };
         paid = await hasLiveStripeSubscription({ customerId, email: user.email ?? null }, wanted)
-          || (direct && await hasLiveStripeSubscription({ customerId: buyer, email: null }, wanted, account));
+          || (direct && await hasLiveStripeSubscription({ customerId: buyer, email: null }, wanted, account, (sub) => madeByShape(sub.application)));
       } catch (err) {
         console.error('[shape-app] checkout Stripe subscription lookup failed', err);
         return NextResponse.json({ error: 'Could not check your subscriptions. Try again in a moment.' }, { status: 503 });

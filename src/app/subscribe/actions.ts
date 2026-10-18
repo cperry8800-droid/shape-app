@@ -27,7 +27,7 @@ import { ACTIVE_SUB } from '@/lib/membership-core';
 import { membershipDetour } from '@/lib/membership-detour';
 import { hasCompletedScreening, screeningHref } from '@/lib/health-screening';
 import { stripeCustomerFor } from '@/lib/stripe-customer';
-import { acctOpts, connectedCustomerFor } from '@/lib/stripe-connect';
+import { acctOpts, connectedCustomerFor, madeByShape } from '@/lib/stripe-connect';
 import { coachNotPayable, directChargesReady, normalizeCode, recordCoachCheckout, resolveCheckoutCode, type CheckoutCode } from '@/lib/coach-checkout';
 import { hasLiveStripeSubscription } from '@/lib/stripe-live-subscription';
 import { CHECKOUT_CREATE_OPTIONS, checkoutReturnsKey, claimCheckout, currentCheckout, isCheckoutInProgress, type CheckoutClaim } from '@/lib/checkout-barrier';
@@ -260,7 +260,7 @@ export async function startCheckout(formData: FormData): Promise<void> {
     try {
       const wanted = { client_id: user.id, provider_id: String(providerId), provider_role: providerRole };
       paid = await hasLiveStripeSubscription({ customerId, email: user.email ?? null }, wanted)
-        || (direct && await hasLiveStripeSubscription({ customerId: buyer, email: null }, wanted, account));
+        || (direct && await hasLiveStripeSubscription({ customerId: buyer, email: null }, wanted, account, (sub) => madeByShape(sub.application)));
     } catch (e) {
       console.error('[subscribe] Stripe subscription lookup failed', e);
       redirect(`${backHref}&error=subscription_check_failed`);
