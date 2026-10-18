@@ -101,8 +101,8 @@ async function mount({ signedIn = true, threadGets = [200], stored = [], me = nu
       return { ok: true, status: 200, headers: { get: (k) => (/content-type/i.test(k) ? 'text/event-stream' : null) }, body: { getReader: () => reader }, json: async () => ({}) };
     }
     if (u.includes('/api/support/chat') && method === 'POST') {
-      if (holdAnswer) return new Promise((resolve) => { held.answer = () => resolve(answer(200, { reply: 'Tap + on Eat.' })); });
-      return answer(200, { reply: 'Tap + on Eat.' });
+      if (holdAnswer) return new Promise((resolve) => { held.answer = () => resolve(answer(200, { reply: 'Tap + on Eat.', account: caller() })); });
+      return answer(200, { reply: 'Tap + on Eat.', account: caller() });
     }
     if (u.includes('/api/support/chat')) return answer(200, greeting);
     if (u.includes('/api/support/request') && holdRequest) return new Promise((resolve, reject) => { held.request = () => (holdRequest === 'reject' ? reject(new TypeError('Failed to fetch')) : resolve(answer(200, { ok: true }))); });
@@ -991,6 +991,35 @@ test('a save the store is too busy for is not an account switch: /api/me is not 
     assert.deepEqual(m.appended().length, 1, 'the save was tried');
     assert.equal(m.meReads(), reads, 'a busy store is not another account');
     assert.equal(m.reloads.length, 0);
+  } finally {
+    await m.done();
+  }
+});
+
+test('answered as one account while /api/me was unanswered, then the store loads as another: not sent, and gone from the screen', async () => {
+  const c = { who: 'u1' };
+  const waiting = [];
+  let down = true;
+  const me = () => (down ? new Promise((_, reject) => { waiting.push(reject); }) : Promise.resolve({ user: { id: c.who, email: `${c.who}@shape.test` } }));
+  const fail = ({ stayDown = false } = {}) => { down = stayDown; waiting.splice(0).forEach((reject) => reject(new Error('down'))); };
+  const m = await mount({ me, serverAs: () => c.who, stored: [] });
+  try {
+    await React.act(async () => { fail({ stayDown: true }); });
+    await settle();
+    await m.open();
+    await React.act(async () => { fail({ stayDown: true }); });
+    await settle();
+    await m.say('How do I log a meal?'); // answered as u1 through the cookie, and held
+    assert.equal(chatPosts(m)[0].account, undefined, 'nothing to name yet');
+    await m.say('Hi');
+    assert.equal(chatPosts(m)[1].account, 'u1', 'then the account the held answer was given as');
+    c.who = 'u2'; // signed in as someone else in another tab
+    await React.act(async () => { fail(); }); // /api/me answers from here on, as u2
+    await waitForRetry();
+    assert.equal(m.threadGetsSoFar(), 1, 'u2 loads');
+    assert.deepEqual(m.appended(), [], "u1's exchanges are not sent into u2's conversation");
+    assert.ok(!m.w.document.body.textContent.includes('Tap + on Eat.'), 'nor left on screen');
+    assert.doesNotMatch(m.w.localStorage.getItem('shape.chat.v2.u2') || '', /Tap \+ on Eat/);
   } finally {
     await m.done();
   }

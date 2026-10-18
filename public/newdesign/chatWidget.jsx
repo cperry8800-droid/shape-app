@@ -751,12 +751,19 @@ function ChatWidget(props) {
     return fetch(`/api/nora/thread${account ? `?account=${encodeURIComponent(account)}` : ""}`, { method: "DELETE", credentials: "same-origin" })
       .then(async (r) => { if (cwNoraRefused(r, await r.json().catch(() => null))) { cwNoraSwitched(); return { ok: true }; } return r; });
   };
-  const cwNoraSave = (messages) => {
+  // ⚠ A HELD EXCHANGE KEEPS WHO ANSWERED IT (Codex on #2393). Asked before /api/me or the store
+  // answered, it can be answered as cookie account A (`answeredAs`); a store that then loads as B
+  // gets only what was answered as B or as no account (cwNoraHeld), and the unsaved part on screen
+  // goes (cwLoadNoraThread).
+  const cwNoraSave = (messages, answeredAs = null) => {
     if (!messages.length) return;
-    if (!noraThreadSyncRef.current) { noraHeldRef.current = [...noraHeldRef.current, ...messages].slice(-20); return; }
+    if (!noraThreadSyncRef.current) { noraHeldRef.current = [...noraHeldRef.current, ...messages.map((m) => ({ ...m, _as: answeredAs || null }))].slice(-20); return; }
     cwNoraPost(messages);
   };
-  const cwNoraHeld = () => { const held = noraHeldRef.current; noraHeldRef.current = []; return held; };
+  const cwNoraHeld = (account) => { const held = noraHeldRef.current; noraHeldRef.current = []; return held.filter((m) => !m._as || m._as === account).map(({ _as, ...m }) => m); };
+  // Before the store answers, the next question names the account the held answers were given as,
+  // so a cookie that changed by then is refused. That is also why they never hold two accounts.
+  const cwNoraHeldAs = () => (noraHeldRef.current.find((m) => m._as) || {})._as || null;
   // The Nora thread's messages (the Help tab's thread with Nora), as drawn now or in `from`.
   const cwNoraLocal = (from) => {
     let out = null;
@@ -799,8 +806,20 @@ function ChatWidget(props) {
         setNoraPersonOk(true);
         if (gen !== noraThreadGenRef.current) {
           // Cleared while it loaded: the Clear applies to the account too, then what was said after it.
-          cwNoraDelete().then(() => cwNoraPost(cwNoraHeld()), () => cwNoraPost(cwNoraHeld()));
+          cwNoraDelete().then(() => cwNoraPost(cwNoraHeld(j.account)), () => cwNoraPost(cwNoraHeld(j.account)));
           return;
+        }
+        // Held here and answered as another account (Codex on #2393): what this copy shows since the
+        // join point is that account's, so it goes, as at a Clear, with an answer still on its way.
+        const other = noraHeldRef.current.some((m) => m._as && m._as !== j.account);
+        if (other) {
+          noraThreadGenRef.current += 1;
+          setNoraLive(""); setTyping(false);
+          setThreadsByTab((prev) => prev.map((list, i) => (tabs[i] && tabs[i].support) ? list.map((th) => {
+            if (th.who !== "Nora") return th;
+            const msgs = th.messages || [];
+            return { ...th, messages: msgs.slice(0, Math.max(base, msgs.length && !msgs[0].me ? 1 : 0)) };
+          }) : list));
         }
         const stored = j.messages;
         if (!stored.length) {
@@ -808,7 +827,7 @@ function ChatWidget(props) {
           // was answered while it loaded.
           const msgs = mine ? cwNoraLocal().slice(0, base) : [];
           const local = msgs.slice(msgs.length && !msgs[0].me ? 1 : 0).filter((m) => !m.pending && !m.saved && m.t);
-          cwNoraPost([...local.map(cwNoraStored), ...cwNoraHeld()]);
+          cwNoraPost([...local.map(cwNoraStored), ...cwNoraHeld(j.account)]);
           return;
         }
         setThreadsByTab((prev) => prev.map((list, i) => (tabs[i] && tabs[i].support) ? list.map((th) => {
@@ -822,7 +841,7 @@ function ChatWidget(props) {
           const last = kept[kept.length - 1];
           return { ...th, last: last ? `${last.me ? "You" : last.team ? "Shape team" : "Nora"}: ${last.t}` : th.last, messages: head ? [head, ...kept] : kept };
         }) : list));
-        cwNoraPost(cwNoraHeld());
+        cwNoraPost(cwNoraHeld(j.account));
       })
       .catch(() => {})
       .finally(() => {
@@ -1651,10 +1670,12 @@ function ChatWidget(props) {
       const sentAt = new Date().toISOString();
       const gen = noraThreadGenRef.current;
       const acct = noraAcctRef.current;
-      // The question names the account the copy belongs to: refused before its history is read
-      // when the cookie is someone else now (Codex on #2393).
-      const account = cwNoraAccount();
+      // The question names the account the copy belongs to (or, before /api/me and the store have
+      // answered, the one its held answers were given as): refused before its history is read when
+      // the cookie is someone else now (Codex on #2393).
+      const account = cwNoraAccount() || cwNoraHeldAs();
       let refused = null;
+      let answeredAs = null;
       // A Send tap is the gesture her player needs to read the reply aloud later.
       if (!opts.silent && canVoiceRef.current && noraVoice.enabled) primeNoraAudio();
       setTyping(true);
@@ -1693,7 +1714,7 @@ function ChatWidget(props) {
             if (token) { res = await ask({ turnstileToken: token }); data = await read(res); }
           }
           if (cwNoraRefused(res, data)) refused = data;
-          else if (data && data.reply && (res.ok || data.needsCheck)) { reply = data.reply; actions = data.actions; }
+          else if (data && data.reply && (res.ok || data.needsCheck)) { reply = data.reply; actions = data.actions; answeredAs = typeof data.account === "string" && data.account ? data.account : null; }
         } catch (e) { /* fall back below */ }
         // Cleared, or another account, while she was answering: the answer belongs to the
         // conversation that went. The Clear and the switch already stopped its typing line, and
@@ -1706,7 +1727,7 @@ function ChatWidget(props) {
         const finalReply = reply || supportReply(text);
         appendReply("Nora", finalReply, actions);
         // Kept on the account only when she answered: the scripted fallback is not the conversation.
-        if (reply) cwNoraSave([{ role: "user", text, at: sentAt }, { role: "assistant", text: reply, at: new Date().toISOString() }]);
+        if (reply) cwNoraSave([{ role: "user", text, at: sentAt }, { role: "assistant", text: reply, at: new Date().toISOString() }], answeredAs);
         // Auto-play the reply when the voice pref is on. Failures stay silent
         // (auto-speak is never a toast).
         if (!opts.silent && canVoiceRef.current && noraVoice.enabled) speakNora(finalReply);

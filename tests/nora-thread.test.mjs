@@ -211,7 +211,7 @@ test('website: loads after sign-in, appends each answered exchange, clears on ev
   // answers (Codex, #2391; run in nora-thread-load-retry).
   assert.match(W, /if \(!dirtyRef\.current \|\| rekeyed\) \{/);
   assert.match(W, /if \(!hydratedRef\.current \|\| !storeKeyRef\.current \|\| authProbe === "unknown"\) return;/);
-  assert.match(W, /if \(reply\) cwNoraSave\(\[\{ role: "user", text, at: sentAt \}, \{ role: "assistant", text: reply, at: new Date\(\)\.toISOString\(\) \}\]\);/, 'the scripted fallback is never kept');
+  assert.match(W, /if \(reply\) cwNoraSave\(\[\{ role: "user", text, at: sentAt \}, \{ role: "assistant", text: reply, at: new Date\(\)\.toISOString\(\) \}\], answeredAs\);/, 'the scripted fallback is never kept; an answer is held as the account she gave it as');
   assert.match(W, /body: JSON\.stringify\(account \? \{ append: messages, account \} : \{ append: messages \}\)/, 'each append names the account the copy belongs to (Codex on #2393; run in nora-thread-load-retry)');
   const load = between(W, 'const cwLoadNoraThread = (isCancelled) => {', 'const clearNoraThread');
   assert.match(load, /if \(!stored\.length\) \{/, 'a browser\'s own copy is sent up only when the account has none');
@@ -220,8 +220,8 @@ test('website: loads after sign-in, appends each answered exchange, clears on ev
   assert.match(load, /const \{ base, gen, mine \} = noraFromRef\.current \|\| /);
   assert.match(load, /const since = msgs\.slice\(Math\.max\(base, head \? 1 : 0\)\);\n\s+const kept = \[\.\.\.stored\.map\(cwNoraMsg\), \.\.\.since\];/);
   assert.match(load, /const msgs = mine \? cwNoraLocal\(\)\.slice\(0, base\) : \[\];/, 'only the browser\'s own copy migrates, never one kept under the signed-out key; what was said while loading saves itself');
-  assert.match(load, /cwNoraPost\(cwNoraHeld\(\)\);/);
-  assert.match(W, /if \(!noraThreadSyncRef\.current\) \{ noraHeldRef\.current = \[\.\.\.noraHeldRef\.current, \.\.\.messages\]\.slice\(-20\); return; \}/);
+  assert.match(load, /cwNoraPost\(cwNoraHeld\(j\.account\)\);/, 'only what was answered as the account it loaded as (Codex on #2393)');
+  assert.match(W, /if \(!noraThreadSyncRef\.current\) \{ noraHeldRef\.current = \[\.\.\.noraHeldRef\.current, \.\.\.messages\.map\(\(m\) => \(\{ \.\.\.m, _as: answeredAs \|\| null \}\)\)\]\.slice\(-20\); return; \}/);
   // ⚠ CLEAR WHILE SHE ANSWERS (Codex, #2255): the late answer is neither drawn nor saved.
   const clear = between(W, 'const clearNoraThread = () => {', 'stopNora();');
   assert.match(clear, /noraThreadGenRef\.current \+= 1;\n\s+noraHeldRef\.current = \[\];/);
