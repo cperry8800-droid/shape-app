@@ -396,6 +396,14 @@ test('Settings carries the dailyCheckin pref end to end (both writers, row, load
 // than on the check-in row Codex found it through. Mutation-checked: restoring
 // the bare `saveUserGoals('client_settings', next)` call, or dropping the
 // no-real-document refusal, fails the matching assertion.
+test('the Settings writer stamps when Check-ins last changed, for the score job', () => {
+  const src = readFileSync(SRC, 'utf8');
+  const at = src.indexOf('const persistPrefs = (key, value) => {');
+  assert.ok(at > 0);
+  assert.match(src.slice(at, at + 600), /if \(key === 'dailyCheckin'\) editedRef\.current\.dailyCheckinSince = new Date\(\)\.toISOString\(\);/,
+    'a change of Check-ins is no longer stamped, so the score job charges a week the member had off once they turn it back on');
+});
+
 test('every Settings write goes through the deferred, merge-on-a-real-document writer', () => {
   const src = readFileSync(SRC, 'utf8');
   const settings = src.slice(src.indexOf('function BSSettings('));

@@ -127,7 +127,7 @@ async function run(request: Request) {
     type SessRow = { id: string; client_id: string };
     type WoRow = { id: string; client_id: string; scheduled_date: string };
     type HabitRow = { id: string; user_id: string };
-    type SettingsRow = { user_id: string; data: { dailyCheckin?: unknown } | null };
+    type SettingsRow = { user_id: string; data: { dailyCheckin?: unknown; dailyCheckinSince?: unknown } | null };
     let sessBy: Map<string, SessRow[]>;
     let wosBy: Map<string, WoRow[]>;
     let habitsBy: Map<string, HabitRow[]>;
@@ -193,8 +193,20 @@ async function run(request: Request) {
       sessBy = groupBy((sessRes.data || []) as SessRow[], (r) => r.client_id);
       wosBy = groupBy((wosRes.data || []) as WoRow[], (r) => r.client_id);
       habitsBy = groupBy((habitsRes.data || []) as HabitRow[], (r) => r.user_id);
+      // ⚠ LAST WEEK IS JUDGED BY THE SWITCH AS IT STOOD WHEN THE WEEK ENDED (Codex P2 on #2398).
+      // This job retries last week's penalty every day, so the switch as it is now would charge
+      // a week the member had off as soon as they turned it back on. The Settings writer stamps
+      // `dailyCheckinSince` on every change, and a change since the week ended means the week is
+      // not charged, so turning it back on charges from the next completed week. A missing stamp
+      // (a change from before this) reads the value as long-standing. The one leniency: a member
+      // who turns it off between the week's end and this job's first run skips that one week.
+      const weekEnd = thisMon.getTime();
       checkinOff = new Set(((settingsRes.data || []) as SettingsRow[])
-        .filter((r) => !dailyCheckinOn(r.data && typeof r.data === 'object' ? r.data.dailyCheckin : undefined))
+        .filter((r) => {
+          const d = r.data && typeof r.data === 'object' ? r.data : {};
+          const since = typeof d.dailyCheckinSince === 'string' ? Date.parse(d.dailyCheckinSince) : NaN;
+          return !dailyCheckinOn(d.dailyCheckin) || (Number.isFinite(since) && since >= weekEnd);
+        })
         .map((r) => r.user_id));
     } catch (e) {
       // Fail-open per chunk — a bad batch read can't abort the whole run.

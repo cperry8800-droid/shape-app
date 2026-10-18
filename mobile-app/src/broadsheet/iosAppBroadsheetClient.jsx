@@ -35777,6 +35777,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // the clobber this exists to prevent.
   const persistPrefs = (key, value) => {
     editedRef.current[key] = value;
+    // When Check-ins last changed: the score job charges a missed weekly check-in only for a week
+    // that ended with the switch as it is now (src/app/api/cron/score-accountability).
+    if (key === 'dailyCheckin') editedRef.current.dailyCheckinSince = new Date().toISOString();
     const db = window.shapeDb;
     const expectedUserId = window.ShapeAuth?.getCachedState?.()?.user?.id;
     if (!(db && db.saveUserGoals)) return;

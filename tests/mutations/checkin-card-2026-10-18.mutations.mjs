@@ -208,6 +208,9 @@ export default {
       replace: "{false ? tr('home:today.joinToSave'" },
 
     // ── Home ──
+    { name: 'a change of Check-ins is not stamped for the score job', file: CLIENT,
+      find: "    if (key === 'dailyCheckin') editedRef.current.dailyCheckinSince = new Date().toISOString();\n",
+      replace: '' },
     { name: 'the card shows with Check-ins off', file: CLIENT,
       find: "    if (!checkinOn) return null; // pref OFF — Home never nags (spec §3D)\n    return <BSCheckinCard",
       replace: '    return <BSCheckinCard' },

@@ -22,12 +22,19 @@ const notifyLayer = await import('../src/lib/ai/notifications.mjs');
 const membership = await loadRealModule(join(ROOT, 'src/lib/membership-core.ts'), { typescript: true });
 const SECRET = 'score-secret';
 
+// A change stamped now is after last week ended; one 8 days ago is before it.
+const AFTER = () => new Date().toISOString();
+const BEFORE = () => new Date(Date.now() - 8 * 86400000).toISOString();
+
 const TABLES = () => ({
   platform_subscriptions: [
     { client_id: 'on', status: 'active' },
     { client_id: 'off', status: 'active' },
     { client_id: 'no-doc', status: 'active' },
     { client_id: 'false', status: 'trialing' },
+    { client_id: 'back-on', status: 'active' },
+    { client_id: 'on-long', status: 'active' },
+    { client_id: 'off-after', status: 'active' },
   ],
   sessions: [],
   client_workouts: [],
@@ -38,6 +45,11 @@ const TABLES = () => ({
     { user_id: 'false', kind: 'client_settings', data: { dailyCheckin: false } },
     // Another member's other doc must not be read as their settings.
     { user_id: 'no-doc', kind: 'notify_state', data: { dailyCheckin: 'Off' } },
+    // Off all last week, turned back on since it ended: that week is not charged.
+    { user_id: 'back-on', kind: 'client_settings', data: { dailyCheckin: 'On', dailyCheckinSince: AFTER() } },
+    // On since before last week ended: charged as usual.
+    { user_id: 'on-long', kind: 'client_settings', data: { dailyCheckin: 'On', dailyCheckinSince: BEFORE() } },
+    { user_id: 'off-after', kind: 'client_settings', data: { dailyCheckin: 'Off', dailyCheckinSince: AFTER() } },
   ],
 });
 
@@ -71,11 +83,18 @@ async function run({ fail = [] } = {}) {
 test('a member with Check-ins off is not charged for a missed weekly check-in', async () => {
   const { status, body, charged } = await run();
   assert.equal(status, 200);
-  assert.equal(body.evaluated, 4, 'the job no longer evaluates every active member');
+  assert.equal(body.evaluated, 7, 'the job no longer evaluates every active member');
   assert.ok(charged.includes('checkin:on'), 'a member with Check-ins on was not charged');
   assert.ok(charged.includes('checkin:no-doc'), 'a member with no settings saved reads as on, as the notification routes read it');
   assert.ok(!charged.includes('checkin:off'), "a member who turned Check-ins off was charged −7 for one");
   assert.ok(!charged.includes('checkin:false'), 'the legacy boolean false is off too');
+});
+
+test("last week is judged by the switch as it stood when the week ended (Codex P2 on #2398)", async () => {
+  const { charged } = await run();
+  assert.ok(!charged.includes('checkin:back-on'), 'a member who turned Check-ins back on was charged for the week they had it off');
+  assert.ok(charged.includes('checkin:on-long'), 'a member on since before the week ended was not charged');
+  assert.ok(!charged.includes('checkin:off-after'), 'a member with Check-ins off now was charged');
 });
 
 test('a failed read of the setting charges nobody in that chunk', async () => {
