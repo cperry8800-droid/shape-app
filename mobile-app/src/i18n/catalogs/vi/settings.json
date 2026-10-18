@@ -386,7 +386,7 @@
   "integrations.live": "Đang bật",
   "integrations.loadError": "Không tải được các tích hợp.",
   "integrations.notConnected": "Chưa kết nối",
-  "integrations.noteAppleHealthNative": "Đọc số bước, nhịp tim, HRV, HR lúc nghỉ, giấc ngủ, năng lượng vận động và buổi tập từ Apple Health (gồm cả Apple Watch của bạn) vào bản tóm tắt hằng ngày.",
+  "integrations.noteAppleHealthNative": "Đọc số bước, nhịp tim, HRV, HR lúc nghỉ, giấc ngủ, năng lượng vận động, nước và buổi tập từ Apple Health (gồm cả Apple Watch của bạn) vào bản tóm tắt hằng ngày.",
   "integrations.noteAppleHealthWeb": "Dữ liệu Apple Health (và Apple Watch) chỉ có trong ứng dụng Shape cho iOS. Hãy mở Shape trên iPhone để kết nối.",
   "integrations.noteAppleMusic": "Cấp quyền cho Apple Music qua MusicKit để dùng thư viện của bạn cho playlist tập luyện. Bạn cấp quyền ngay tại đây — không chuyển hướng.",
   "integrations.noteGarmin": "Kéo hoạt động, nhịp tim và giấc ngủ từ Garmin Connect vào hồ sơ của bạn. Cần được duyệt Garmin Health API trên tài khoản nhà phát triển.",

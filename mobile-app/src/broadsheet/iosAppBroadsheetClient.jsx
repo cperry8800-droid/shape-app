@@ -4517,6 +4517,14 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     if (checkinPrefOn) { setTodayPage(false); setCheckinOpenReq(checkinOpen.nonce); } else setTodayPage(true);
     onCheckinOpenConsumed();
   }, [checkinOpen && checkinOpen.nonce]);
+  // Check-ins read as off (the account's setting landing after a stale one on this device) before
+  // the card used the request: there is no card to take it, so the check-in page opens now, and the
+  // request is dropped rather than open the walkthrough whenever Check-ins is next switched on.
+  React.useEffect(() => {
+    if (checkinPrefOn || !checkinOpenReq) return;
+    setCheckinOpenReq(null);
+    setTodayPage(true);
+  }, [checkinPrefOn, checkinOpenReq]);
   // Weekly check-in nudge — due when a signed-in client has no row this week.
   React.useEffect(() => {
     const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;

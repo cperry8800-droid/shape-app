@@ -386,7 +386,7 @@
   "integrations.live": "Activas",
   "integrations.loadError": "No se pudieron cargar las integraciones.",
   "integrations.notConnected": "Sin conectar",
-  "integrations.noteAppleHealthNative": "Lee pasos, frecuencia cardíaca, HRV, HR en reposo, sueño, energía activa y entrenamientos de Apple Health (incluido tu Apple Watch) para tu resumen diario.",
+  "integrations.noteAppleHealthNative": "Lee pasos, frecuencia cardíaca, HRV, HR en reposo, sueño, energía activa, agua y entrenamientos de Apple Health (incluido tu Apple Watch) para tu resumen diario.",
   "integrations.noteAppleHealthWeb": "Los datos de Apple Health (y del Apple Watch) solo están disponibles en la app de Shape para iOS. Abre Shape en tu iPhone para conectarla.",
   "integrations.noteAppleMusic": "Autoriza Apple Music con MusicKit para usar tu biblioteca en las listas de entrenamiento. Das el acceso aquí mismo, sin salir de la app.",
   "integrations.noteGarmin": "Trae actividades, frecuencia cardíaca y sueño de Garmin Connect a tu perfil. Requiere la aprobación de la Garmin Health API en la cuenta de desarrollador.",

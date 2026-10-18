@@ -487,7 +487,7 @@ export function BSIntegrationsPage({ onBack }) {
         eyebrow={tr('settings:integrations.ebAppleHealth', { defaultValue: 'Apple Watch · Health' })}
         name="Apple Health"
         status={appleHealth.connected ? connectedLabel : (healthKitNative ? connectLabel : iosAppLabel)}
-        note={healthKitNative ? tr('settings:integrations.noteAppleHealthNative', { defaultValue: 'Read steps, heart rate, HRV, resting HR, sleep, active energy, and workouts from Apple Health (including your Apple Watch) into your daily snapshot.' }) : tr('settings:integrations.noteAppleHealthWeb', { defaultValue: 'Apple Health (and Apple Watch) data is only available in the Shape iOS app. Open Shape on your iPhone to connect.' })}
+        note={healthKitNative ? tr('settings:integrations.noteAppleHealthNative', { defaultValue: 'Read steps, heart rate, HRV, resting HR, sleep, active energy, water, and workouts from Apple Health (including your Apple Watch) into your daily snapshot.' }) : tr('settings:integrations.noteAppleHealthWeb', { defaultValue: 'Apple Health (and Apple Watch) data is only available in the Shape iOS app. Open Shape on your iPhone to connect.' })}
       >
         {healthKitNative ? (
           <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>

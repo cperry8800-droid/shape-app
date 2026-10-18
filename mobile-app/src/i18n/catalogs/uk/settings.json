@@ -386,7 +386,7 @@
   "integrations.live": "Наживо",
   "integrations.loadError": "Не вдалося завантажити інтеграції.",
   "integrations.notConnected": "Не підключено",
-  "integrations.noteAppleHealthNative": "Читаємо кроки, пульс, HRV, пульс спокою, сон, активні калорії та тренування з Apple Health (разом з Apple Watch) у ваше денне зведення.",
+  "integrations.noteAppleHealthNative": "Читаємо кроки, пульс, HRV, пульс спокою, сон, активні калорії, воду та тренування з Apple Health (разом з Apple Watch) у ваше денне зведення.",
   "integrations.noteAppleHealthWeb": "Дані Apple Health (і Apple Watch) доступні лише в застосунку Shape для iOS. Відкрийте Shape на iPhone, щоб підключити.",
   "integrations.noteAppleMusic": "Надайте MusicKit доступ до Apple Music, щоб брати плейлисти для тренувань зі своєї медіатеки. Доступ ви надаєте просто тут — без переходів.",
   "integrations.noteGarmin": "Підтягуємо активності, пульс і сон із Garmin Connect у ваш профіль. Потрібне схвалення Garmin Health API для акаунта розробника.",

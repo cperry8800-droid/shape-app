@@ -386,7 +386,7 @@
   "integrations.live": "Aktif",
   "integrations.loadError": "Integrasi tidak bisa dimuat.",
   "integrations.notConnected": "Belum terhubung",
-  "integrations.noteAppleHealthNative": "Membaca langkah, detak jantung, HRV, HR istirahat, tidur, energi aktif, dan latihan dari Apple Health (termasuk Apple Watch Anda) ke ringkasan harian Anda.",
+  "integrations.noteAppleHealthNative": "Membaca langkah, detak jantung, HRV, HR istirahat, tidur, energi aktif, air, dan latihan dari Apple Health (termasuk Apple Watch Anda) ke ringkasan harian Anda.",
   "integrations.noteAppleHealthWeb": "Data Apple Health (dan Apple Watch) hanya tersedia di aplikasi Shape untuk iOS. Buka Shape di iPhone Anda untuk menghubungkannya.",
   "integrations.noteAppleMusic": "Otorisasi Apple Music dengan MusicKit untuk memakai pustaka Anda pada playlist latihan. Anda memberi akses langsung di sini — tanpa pengalihan.",
   "integrations.noteGarmin": "Menarik aktivitas, detak jantung, dan tidur dari Garmin Connect ke profil Anda. Memerlukan persetujuan Garmin Health API pada akun developer.",

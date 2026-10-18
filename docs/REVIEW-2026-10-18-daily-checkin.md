@@ -145,15 +145,17 @@ so that is the owner's call.
      change in Apple Health's own reading (`set_apple_health_water`, the reading kept in
      `health_metric_observations`), so glasses logged in Shape are never written over. The card
      syncs even on a day with a watch's night, reads the water again after, and says how much of
-     the total came from Apple Health. A member who connected Apple Health before this build reads
-     water once they tap Sync on Integrations, since the card's sync never asks for permission.
+     the total came from Apple Health. Water is sent only when the window holds some, so a phone
+     never allowed water never takes another phone's off the total. A member who connected Apple
+     Health before this build is asked for water once per install, the first time the card's sync
+     finds other Apple Health data on that phone.
    - Dropped: readiness pre-selecting an energy word. The owner asked for device data only where
      it matches the question, and readiness is not energy.
    - **Built: a Daily check-in reminder that opens the card** (owner: "Add a Daily check-in
      reminder"). A new reminder kind, `daily_checkin`, with its own route, `today`. Its tap lands on
      Home with the walkthrough open at the first check not yet answered, or the summary when the
-     day is done. With Check-ins off it opens the check-in page. The weekly check-in's reminder is
-     unchanged.
+     day is done. With Check-ins off it opens the check-in page. Like every reminder a member sets, it
+     stays off the website bell. The weekly check-in's reminder is unchanged.
 3. **Answer from the notification.** Native notification actions for energy, plus the streak if
    ruling 3 says yes.
 

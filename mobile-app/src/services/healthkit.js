@@ -104,7 +104,7 @@ export function nightsByDay(intervals, dayOf) {
 }
 
 // Read recent samples and roll them up into per-day snapshot patches plus a flat
-// list of workouts (for optional import). Returns { days, workouts }.
+// list of workouts (for optional import). Returns { days, workouts, waterSamples }.
 // ⚠ EVERY DAY SENT IS A WHOLE DAY: `days` local days ending today, each from its own midnight,
 // read from the evening before the first so its night is whole too. A sync overwrites each day it
 // sends, so a day cut off at the start of the window would replace that day's full steps and
@@ -133,9 +133,13 @@ export async function collectHealthKitSnapshots({ days = LOOKBACK_DAYS } = {}) {
   // took an empty answer as a sync that worked and waited 30 minutes before trying again.
   if (read.every((r) => r === null)) throw new Error('Apple Health could not be read.');
   const [steps, heart, resting, hrv, energy, dist, sleep, workouts, water] = read.map((r) => r || []);
-  // A failed water read sends no water: a day's 0 would take Apple Health's earlier reading off
-  // the glasses' total.
-  const waterRead = read[8] !== null;
+  // ⚠ WATER IS SENT ONLY WHEN THE WINDOW HOLDS SOME. Each day's reading replaces Apple Health's
+  // share of that day's total (set_apple_health_water), and HealthKit reads a type it was never
+  // allowed as empty, with no error. So a phone never asked for water, or a failed read, would send
+  // 0 and take water another phone recorded off the total. With water in the window, every day in
+  // it is sent, 0 included, so water deleted in Apple Health leaves the total too.
+  const waterInWindow = read[8] === null ? null : water.filter((s) => (dayKey(s.startDate) || '') >= firstKey).length;
+  const waterSeen = waterInWindow > 0;
 
   const acc = new Map();
   const bucket = (key) => {
@@ -147,7 +151,10 @@ export async function collectHealthKitSnapshots({ days = LOOKBACK_DAYS } = {}) {
   for (const s of steps) { const k = dayKey(s.startDate); if (k) bucket(k).steps += num(s.value) || 0; }
   for (const s of energy) { const k = dayKey(s.startDate); if (k) bucket(k).energy += num(s.value) || 0; }
   for (const s of dist) { const k = dayKey(s.startDate); if (k) bucket(k).distanceM += num(s.value) || 0; }
-  for (const s of water) { const k = dayKey(s.startDate); if (k) bucket(k).waterL += num(s.value) || 0; }
+  if (waterSeen) {
+    for (let d = new Date(first); dayKey(d) <= dayKey(end); d.setDate(d.getDate() + 1)) bucket(dayKey(d));
+    for (const s of water) { const k = dayKey(s.startDate); if (k) bucket(k).waterL += num(s.value) || 0; }
+  }
   for (const s of heart) { const k = dayKey(s.startDate); const v = num(s.value); if (k && Number.isFinite(v)) bucket(k).hr.push(v); }
   for (const s of resting) { const k = dayKey(s.startDate); const v = num(s.value); if (k && Number.isFinite(v)) bucket(k).resting.push(v); }
   for (const s of hrv) { const k = dayKey(s.startDate); const v = num(s.value); if (k && Number.isFinite(v)) bucket(k).hrv.push(v); }
@@ -198,12 +205,12 @@ export async function collectHealthKitSnapshots({ days = LOOKBACK_DAYS } = {}) {
         hrv_ms: b.hrv.length ? Number(avg(b.hrv).toFixed(1)) : null,
         sleep_hours: sleepSec ? Number((sleepSec / 3600).toFixed(2)) : null,
         workout_minutes: b.workoutMin || null,
-        // Every day sends its water, 0 included, so water deleted in Apple Health leaves the
-        // day's total too. The route adds it to the glasses logged in Shape (set_apple_health_water).
-        hydration_l: waterRead ? Math.round(b.waterL * 100) / 100 : null,
+        // Added to the glasses logged in Shape by the route (set_apple_health_water).
+        hydration_l: waterSeen ? Math.round(b.waterL * 100) / 100 : null,
       },
     });
   }
 
-  return { days: daysOut, workouts: flatWorkouts };
+  // waterSamples: the water samples in the window, or null when the water read failed.
+  return { days: daysOut, workouts: flatWorkouts, waterSamples: waterInWindow };
 }

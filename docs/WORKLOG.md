@@ -249,9 +249,10 @@ planned builds.
   could still earn +5 a night for the last 14 days. Apple Health's nights and its connection
   are whatever the app posts, so any signed-in member can post made-up Health nights, as they
   can post made-up steps for Shape Steps.
-- A member who connected Apple Health before water was read gets no water until they tap Sync on
-  Integrations (the card's sync never asks for permission). An app that logs the same drink to
-  Apple Health and in Shape counts it twice.
+- Water from Apple Health: two apps writing the same drink to Apple Health count it twice (raw
+  samples, as for steps), and so does a drink logged in both Apple Health and Shape. Deleting every
+  drink in a sync's window leaves Apple Health's last reading. Nora's meal-log undo refuses when a
+  sync moved the day's water in between. The Daily check-in reminder fires on a day already done.
 - Android back leaves the native app from any sheet (no `@capacitor/app`); in the hosted
   `/m/`, sheets add no history entry.
 

@@ -310,6 +310,7 @@ function BSCheckinDay({ onOpen, dayIso, openRequest = null, onOpenRequestConsume
   const failures = useRef(0); // saves that failed (answers and glasses), so Details can tell whether to leave
   // Litres added on screen whose save has not answered yet: the server's total plus these is what shows.
   const waterPending = useRef(0);
+  const waterTaps = useRef(0); // glasses tapped, so a read sent before one never shows a total without it
   const [, bump] = useState(0); // a re-render, for a tap that finds its day already over
 
   // ⚠ THE READS WAIT FOR SAVES ALREADY ON THEIR WAY (review on #2398). The lines outlive a card:
@@ -355,10 +356,15 @@ function BSCheckinDay({ onOpen, dayIso, openRequest = null, onOpenRequestConsume
       Promise.resolve(window.ShapeSleepPoints?.check?.()).catch(() => {});
       if (!on) return null;
       if (window.ShapeHydration?.get) {
+        const taps = waterTaps.current;
         window.ShapeHydration.get().then((d) => {
           if (!on || !d || !d.ok) return;
+          const deviceL = Number(d.deviceL) > 0 ? Number(d.deviceL) : null;
+          // A glass tapped after this read went out answers with its own total, which this read
+          // would replace with an older one once that glass is no longer on its way.
+          if (waterTaps.current !== taps) { setWater((w) => ({ ...w, deviceL })); return; }
           // Glasses still on their way are added on top, as a glass's own answer does.
-          setWater((w) => ({ ...w, l: Math.round(((Number(d.hydrationL) || 0) + waterPending.current) * 1000) / 1000, target: Number(d.targetL) || (w && w.target) || 3, deviceL: Number(d.deviceL) > 0 ? Number(d.deviceL) : null, unknown: false }));
+          setWater((w) => ({ ...w, l: Math.round(((Number(d.hydrationL) || 0) + waterPending.current) * 1000) / 1000, target: Number(d.targetL) || (w && w.target) || 3, deviceL, unknown: false }));
         }).catch(() => {});
       }
       if (!window.ShapeProgress?.progress) return null;
@@ -482,6 +488,7 @@ function BSCheckinDay({ onOpen, dayIso, openRequest = null, onOpenRequestConsume
     if (bsCiIso(new Date()) !== todayIso) { bump((n) => n + 1); return; }
     if (!water) return;
     moved.current += 1;
+    waterTaps.current += 1;
     const deltaL = Math.round(glassL * glasses * 10000) / 10000;
     const round = (l) => Math.round(Math.max(0, l) * 1000) / 1000;
     setWater((w) => ({ ...w, l: round(w.l + deltaL) }));
@@ -759,8 +766,9 @@ function BSCheckinDay({ onOpen, dayIso, openRequest = null, onOpenRequestConsume
           <span style={{ fontFamily: t.DISPLAY, fontSize: 44, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{waterKnown ? litres(water.l) : '—'}</span>
           <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK50 }}>{tr('home:checkin.ofTarget', { defaultValue: 'of {target}', target: litres(target) })}</span>
         </div>
-        {waterKnown && water.deviceL ? (
-          <div style={{ marginTop: -6, fontFamily: t.BODY, fontSize: 12.5, color: t.INK50 }}>{tr('home:checkin.waterFromHealth', { defaultValue: 'Includes {amount} from Apple Health', amount: litres(water.deviceL) })}</div>
+        {waterKnown && water.deviceL && water.l > 0 ? (
+          // Never more than the total: glasses taken off in Shape can bring it under Apple Health's share.
+          <div style={{ marginTop: -6, fontFamily: t.BODY, fontSize: 12.5, color: t.INK50 }}>{tr('home:checkin.waterFromHealth', { defaultValue: 'Includes {amount} from Apple Health', amount: litres(Math.min(water.deviceL, water.l)) })}</div>
         ) : null}
         <div aria-hidden style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {Array.from({ length: glasses }, (_, i) => (

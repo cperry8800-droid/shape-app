@@ -61,8 +61,15 @@ const post = (body) => new Request('https://shape.test/api/notifications', {
 test('the phone-only list is the one the owner approved', () => {
   assert.deepEqual([...PHONE_ONLY_TYPES].sort(), [
     'ai_habit_reminder', 'ai_streak_broken', 'habit_reminder', 'meal_prep', 'reminder_checkin',
-    'reminder_custom', 'reminder_photo', 'reminder_water', 'reminder_weigh_in', 'streak_broken',
+    'reminder_custom', 'reminder_daily_checkin', 'reminder_photo', 'reminder_water', 'reminder_weigh_in',
+    'streak_broken',
   ]);
+  // Every reminder a member sets is phone-only, including a kind added later (the Daily check-in's
+  // reached the website bell before it was listed here).
+  const cron = readFileSync(join(ROOT, 'src/app/api/cron/reminders/route.ts'), 'utf8');
+  const sent = [...cron.matchAll(/type: '(reminder_[a-z_]+)'/g)].map((m) => m[1]);
+  assert.ok(sent.length >= 6, 'the cron changed how it names its reminders');
+  for (const t of sent) assert.equal(isPhoneOnly(t), true, t + ' reaches the website bell');
   // The AI notify layer stores habit and streak nudges with its prefix: the bare names alone would
   // have let every one of them onto the website.
   const core = readFileSync(join(ROOT, 'src/lib/ai/notify-core.ts'), 'utf8');

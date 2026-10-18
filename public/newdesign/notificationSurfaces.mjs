@@ -11,6 +11,7 @@
 export const PHONE_ONLY_TYPES = Object.freeze([
   'reminder_weigh_in',
   'reminder_checkin',
+  'reminder_daily_checkin',
   'reminder_water',
   'reminder_photo',
   'reminder_custom',

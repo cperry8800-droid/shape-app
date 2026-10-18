@@ -1070,6 +1070,49 @@ test("a day that already has a watch's night still asks Apple Health for the day
   } finally { m.unmount(); delete dom.window.ShapeIntegrations; }
 });
 
+test("a glass tapped while the water is read again after a sync is never dropped from the screen", async () => {
+  // Review on this PR: the read's older total landed after the glass's own answer.
+  let release;
+  let gets = 0;
+  env({ uid: 'sync-card-water-race' });
+  dom.window.ShapeProgress = { progress: async () => ({ series: series({ [TODAY]: { energy: 8, hunger: 6, sleep: 7 } }) }) };
+  dom.window.ShapeHydration = {
+    get: async () => {
+      gets += 1;
+      if (gets === 1) return { ok: true, hydrationL: 0.5, targetL: 3 };
+      await new Promise((r) => { release = r; });
+      return { ok: true, hydrationL: 1.7, targetL: 3, deviceL: 1.2 };
+    },
+    add: async (d) => ({ ok: true, hydrationL: Math.round((1.7 + d) * 1000) / 1000, targetL: 3 }),
+  };
+  devices({ connected: ['apple_health'], healthKit: true });
+  const m = await mount();
+  try {
+    assert.equal(gets, 2, 'the card did not read the water again after the sync');
+    await m.click(/^Edit$/);
+    await m.click(/^Add$/);
+    await m.click(/\+ Glass/);
+    await React.act(async () => { release(); await new Promise((r) => setTimeout(r, 0)); });
+    await m.flush();
+    assert.doesNotMatch(m.text(), /57 oz \//, "the read sent before the glass replaced the glass's total");
+    assert.match(m.text(), /65 oz \//, "the glass's own total was not shown");
+    assert.match(m.text(), /Includes 41 oz from Apple Health/, "Apple Health's share from that read was dropped too");
+  } finally { m.unmount(); delete dom.window.ShapeIntegrations; }
+});
+
+test("Apple Health's share is never said as more than the day's total", async () => {
+  // Review on this PR: glasses taken off in Shape can bring the total under Apple Health's share.
+  env({ uid: 'sync-card-share' });
+  dom.window.ShapeProgress = { progress: async () => ({ series: series({ [TODAY]: { energy: 8, hunger: 6, sleep: 7 } }) }) };
+  dom.window.ShapeHydration = { get: async () => ({ ok: true, hydrationL: 0.3, targetL: 3, deviceL: 1.2 }), add: async () => ({ ok: true }) };
+  const m = await mount();
+  try {
+    await m.click(/^Edit$/);
+    await m.click(/^Add$/);
+    assert.match(m.text(), /Includes 10 oz from Apple Health/, 'the share was said as more than the total');
+  } finally { m.unmount(); }
+});
+
 test("typed hours the server keeps a watch's night over show the watch's hours", async () => {
   const calls = env({ uid: 'sync-card-3', days: { [TODAY]: { energy: 8, hunger: 6 } }, log: (patch) => (patch.sleepHours != null ? { ok: true, sleepHours: 6.9, sleepFromDevice: true } : { ok: true }) });
   const m = await mount();
@@ -1371,7 +1414,8 @@ test("a glass after a failed water read brings back the member's own target (Cod
 test('a reminder opens the walkthrough at the first check not yet answered, and says the request is used', async () => {
   env({ uid: 'remind-1', days: { [TODAY]: { energy: 8 } } });
   let used = 0;
-  let m = await mount({ openRequest: 1, onOpenRequestConsumed: () => { used += 1; } });
+  const props = { openRequest: 1, onOpenRequestConsumed: () => { used += 1; } };
+  let m = await mount(props);
   try {
     assert.ok(m.walk(), 'the reminder opened nothing');
     assert.match(m.text(), /Step 2 of 4 · Hunger/, 'the walkthrough did not open at the first open check');
@@ -1379,6 +1423,12 @@ test('a reminder opens the walkthrough at the first check not yet answered, and 
     await m.click(/^Close$/);
     await m.rerender();
     assert.equal(m.walk(), null, 'the walkthrough opened again on its own');
+    assert.equal(used, 1);
+    // A second reminder tapped later is a new request, and opens it again.
+    props.openRequest = 2;
+    await m.rerender();
+    assert.ok(m.walk(), 'a second reminder opened nothing');
+    assert.equal(used, 2);
   } finally { m.unmount(); }
 
   env({ uid: 'remind-2', days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });

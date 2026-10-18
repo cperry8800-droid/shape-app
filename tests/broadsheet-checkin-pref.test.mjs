@@ -711,6 +711,9 @@ test('Home routes the reminder: the shell hands Home a nonce, Home clears its pa
   assert.match(home, /setCheckinPage\(false\); setHomeProgressPage\(false\); setGoalsPage\(false\)/, "Home kept another page over the card");
   assert.match(home, /if \(checkinPrefOn\) \{ setTodayPage\(false\); setCheckinOpenReq\(checkinOpen\.nonce\); \} else setTodayPage\(true\);/, 'with Check-ins off the reminder opened nothing');
   assert.match(home, /onCheckinOpenConsumed\(\);/);
+  // Check-ins reading as off before the card used the request: the page opens now, and the request
+  // is dropped rather than open the walkthrough whenever Check-ins is next switched on.
+  assert.match(home, /React\.useEffect\(\(\) => \{\n    if \(checkinPrefOn \|\| !checkinOpenReq\) return;\n    setCheckinOpenReq\(null\);\n    setTodayPage\(true\);\n  \}, \[checkinPrefOn, checkinOpenReq\]\);/, 'a request the card never took waits for Check-ins to come back on');
   assert.match(src, /<BSTodayNudge onOpen=\{\(\) => setTodayPage\(true\)\} variant="bulletin" openRequest=\{checkinOpenReq\} onOpenRequestConsumed=\{\(\) => setCheckinOpenReq\(null\)\} \/>/, 'Home keeps a used request, so a card mounted again opens it again');
   // The reminder itself: a kind of its own, opening the card, in the app's and the website's lists.
   const cron = readFileSync(join(ROOT, 'src/app/api/cron/reminders/route.ts'), 'utf8');

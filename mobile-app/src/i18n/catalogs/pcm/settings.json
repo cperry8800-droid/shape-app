@@ -386,7 +386,7 @@
   "integrations.live": "Live",
   "integrations.loadError": "We no fit load di integrations.",
   "integrations.notConnected": "E never connect",
-  "integrations.noteAppleHealthNative": "Read your steps, heart rate, HRV, resting HR, sleep, active energy, and workouts from Apple Health (Apple Watch too) go inside your daily snapshot.",
+  "integrations.noteAppleHealthNative": "Read your steps, heart rate, HRV, resting HR, sleep, active energy, water, and workouts from Apple Health (Apple Watch too) go inside your daily snapshot.",
   "integrations.noteAppleHealthWeb": "Apple Health (and Apple Watch) data dey only for di Shape iOS app. Open Shape for your iPhone make you connect am.",
   "integrations.noteAppleMusic": "Authorize Apple Music with MusicKit make your library fit give you workout playlist. Na here you dey give di access — no redirect.",
   "integrations.noteGarmin": "Pull Garmin Connect activities, heart rate, and sleep enter your profile. E need Garmin Health API approval for di developer account.",
