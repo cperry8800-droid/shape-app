@@ -342,6 +342,7 @@ test('the roster\'s client count is the dashboard\'s activeClients on the same r
         ['@/lib/coach-growth', G],
         ['@/lib/platform-fee', fee],
         ['@/lib/coach-trajectory.mjs', trajectory],
+        ['@/lib/read-all-by-id', await loadRealModule(join(ROOT, 'src/lib/read-all-by-id.ts'), { typescript: true })],
       ]),
     });
     const badge = (await (await dash.GET()).json()).kpis.activeClients;

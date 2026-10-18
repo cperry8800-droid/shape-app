@@ -95,7 +95,7 @@ export function byoMixOf(subs: OriginSourceRow[]): { clients: number; brought: n
 // that read failed the active read, as coachForecast.js todayFrom falls back to `metrics`. null
 // when neither could be read: unread, never "no clients".
 //   all     the trajectory read's rows (any status), or null when that read failed
-//   active  the active and trialing rows, or null when that read failed
+//   active  the open rows (OPEN_SUB_STATUSES), or null when that read failed
 export function openSubsToday(all: Array<Record<string, unknown>> | null, active: OriginSourceRow[] | null, now = Date.now()): OriginSourceRow[] | null {
   if (all) return openSubsAt(all, now) as OriginSourceRow[];
   return active;
@@ -153,9 +153,10 @@ export async function buildOriginFeed(
   const otps = (otpError ? [] : otpRows ?? []) as OriginSourceRow[];
 
   // ⚠ A CLIENT WHOSE PAYMENT IS RETRYING IS NAMED TOO (the sweep after #2394 round 10). `activeNames`
-  // comes from a `profiles` read, and the coach's policy there (providers_read_subscriber_profiles_base,
-  // 2026-05-29-provider-rls-hardening.sql) shows active and trialing clients only. Today's rows also
-  // hold past_due ones, and when the active read failed the map is empty: unnamed here, they read "—".
+  // comes from a `profiles` read, and the coach's policy there (providers_read_subscriber_profiles_base)
+  // showed active and trialing clients only until 2026-10-18-coach-access-past-due.sql, so before that
+  // runs a past_due client is missing from it; and when the active read failed the map is empty.
+  // Unnamed here, they would read "—".
   const missing = [
     ...new Set(
       [...subs, ...otps]
@@ -166,8 +167,9 @@ export async function buildOriginFeed(
   // ⚠ NOT a profiles table read. `profiles` no longer exposes other members'
   // rows (it carried email/phone/DOB/stripe_customer_id behind a USING (true)
   // SELECT policy). get_display_names is the definer that returns display
-  // fields ONLY, and these ids are deliberately outside the coach policy's
-  // active/trialing scope, so the table would return nothing here.
+  // fields ONLY, and these ids are the ones the coach policy's open-status
+  // scope did not show (a one-time buyer, or a retrying client before the
+  // 2026-10-18 migration), so the table would return nothing here.
   const batches: string[][] = [];
   for (let i = 0; i < missing.length; i += NAME_BATCH) batches.push(missing.slice(i, i + NAME_BATCH));
   const named = await Promise.all(batches.map((ids) => supabase.rpc('get_display_names', { p_ids: ids })));

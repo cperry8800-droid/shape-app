@@ -144,8 +144,9 @@ export async function GET(request: Request) {
   // The churned clients whose names went unread: the call below failed, so it named none of them.
   const churnUnread = new Set<string>();
   if (churnIds.length) {
-    // ⚠ A CHURNED CLIENT IS OUTSIDE THE COACH POLICY BY DEFINITION. It scopes to
-    // status in ('active','trialing'), and these rows come from status='canceled'.
+    // ⚠ A CHURNED CLIENT IS OUTSIDE THE COACH POLICY BY DEFINITION. It scopes to the
+    // open statuses (active, trialing and, since 2026-10-18-coach-access-past-due.sql,
+    // past_due), and these rows come from status='canceled'.
     // Reading `profiles` directly returned nothing once the USING (true) policy
     // was dropped, and the fallback was the literal string 'Former client' —
     // so this failed SILENTLY, rendering plausible copy for every churn row.
