@@ -243,6 +243,34 @@ test('What clients earn you: the brought-in share is per client, so a brought cl
   await m.unmount();
 });
 
+// The sweep after #2394 round 10: the brought-in share is "of" the clients the Plan counts. A brought
+// client whose payment is retrying (past_due) is one of today's clients (the trajectory, as
+// membership counts), and the routes now take the share over the same clients (byoMixToday).
+test('What clients earn you: a brought client whose payment is retrying is in today\'s count and in the brought-in share alike', async () => {
+  const { byoMixToday, byoMixOf } = await loadRealModule(join(ROOT, 'src/lib/origin-attribution.ts'), { typescript: true, registry: new Map([['@/lib/supabase/server', {}]]) });
+  const { buildTrajectory } = await import(new URL('../src/lib/coach-trajectory.mjs', import.meta.url).href);
+  const at = new Date(Date.now() - 200 * DAY).toISOString();
+  const rows = [
+    { id: 'r1', client_id: 'A', status: 'active', fee_bps: 1500, price_cents: 18000, created_at: at },
+    { id: 'r2', client_id: 'B', status: 'active', fee_bps: 1500, price_cents: 18000, created_at: at },
+    { id: 'r3', client_id: 'C', status: 'past_due', fee_bps: 0, price_cents: 18000, created_at: at },
+  ];
+  const active = rows.filter((r) => r.status !== 'past_due');
+  // What the routes send, built by the routes' own functions from the rows they read.
+  const traj = buildTrajectory({ subs: rows });
+  const byoMix = byoMixToday(rows, active);
+  assert.deepEqual(byoMix, { clients: 3, brought: 1 });
+  assert.deepEqual(byoMixOf(active), { clients: 2, brought: 0 }, 'over the active rows alone it was 0 of 2');
+  world({ answer: payload({ trajectory: { ...traj, oneTimeUnknown: false }, metrics: { activeClients: 2, mrrNetCents: 30600, mrrGrossCents: 36000 }, byoMix }) });
+  const m = await mount(page({ tab: 'plan' }));
+  assert.match(m.text(), /you have 3 today/);
+  assert.match(m.text(), /0% fee · 1 of your 3/);
+  assert.doesNotMatch(m.text(), /of your 2/);
+  const inputs = [...m.host.querySelectorAll('input[type="number"]')].map((i) => i.value);
+  assert.equal(inputs[2], '33', 'the calculator starts at 1 of 3 brought');
+  await m.unmount();
+});
+
 test('Plan: moving a slider makes it your plan, with today\'s pace kept as the dashed line, and Back to my numbers', async () => {
   world();
   const m = await mount(page({ tab: 'plan' }));

@@ -449,6 +449,35 @@ test('the Goal tab starts "What clients earn you" from the coach\'s live figures
   assert.match(none.rateFrom, /set your rate/);
 });
 
+// ── The sweep after #2394 round 10: the Goal tab's live figures are today's, by the Plan's rule ──
+test('the Goal tab\'s live clients and net are today\'s (coachForecast.js todayFrom), as the Plan\'s are: a client whose payment is retrying counts', async () => {
+  // The hook itself, lifted from dashData.jsx and run against a scripted analytics answer.
+  const data = readFileSync(ND('dashData.jsx'), 'utf8');
+  const src = /function useCoachLiveFigures\(role\) \{[\s\S]*?\n\}/.exec(data)[0];
+  const live = async (answer) => {
+    let state = null;
+    const R = { useState: (init) => [init, (v) => { state = v; }], useEffect: (fn) => { fn(); } };
+    const hook = new Function('React', '_dashJson', 'window', src + '\nreturn useCoachLiveFigures;')(R, async () => answer, { CoachForecast: CF });
+    hook('trainer');
+    for (let i = 0; i < 5; i++) await new Promise((r) => setTimeout(r, 0));
+    return state;
+  };
+  // 13 clients today, one of them retrying (past_due): the route's `metrics` count 12.
+  const weeks = [{ weekOf: '2026-10-05', active: 12, mrrNetCents: 170000, mrrGrossCents: 200000 }, { weekOf: '2026-10-12', active: 13, mrrNetCents: 182700, mrrGrossCents: 215000 }];
+  const answer = { isTrainer: true, metrics: { activeClients: 12, mrrNetCents: 170000, mrrGrossCents: 200000 }, trajectory: { weeks, firstSubAt: null, summary: {} }, byoMix: { clients: 13, brought: 3 } };
+  const l = await live(answer);
+  assert.deepEqual([l.kind, l.activeClients, l.mrrNetCents, l.mrrGrossCents], ['live', 13, 182700, 215000], 'today, not the active and trialing rows');
+  const plan = CF.planNumbers({ extra: answer, listingMonthly: null });
+  assert.deepEqual([l.activeClients, l.mrrNetCents], [plan.clients, plan.mrrNetCents], 'the Goal tab and the Plan say the same today');
+  assert.equal(B.dbzGoalEarnBase(l).clients, plan.clients);
+  assert.equal(l.byoNote, '0% fee · 3 of your 13');
+  // The trajectory unread: `metrics` stand in, as todayFrom says. Neither: unread, not 0.
+  const fallback = await live({ ...answer, trajectory: null });
+  assert.deepEqual([fallback.activeClients, fallback.mrrNetCents], [12, 170000]);
+  const neither = await live({ ...answer, trajectory: null, metrics: { activeClients: null, mrrNetCents: null, mrrGrossCents: null } });
+  assert.deepEqual([neither.kind, neither.activeClients, neither.mrrNetCents], ['live', null, null]);
+});
+
 test('the Goal tab\'s calculator links to the planner on Business, opened on Plan', async () => {
   const m = await mount(React.createElement(B.DbzGoalEarn, { role: 'nutritionist', live: { kind: 'demo' } }));
   const a = m.div.querySelector('a');

@@ -206,8 +206,10 @@
       rateCents: listed != null ? listed : avg != null ? avg : DEFAULT_RATE_CENTS,
       rateFrom: listed != null ? "listing" : avg != null ? "average" : "default",
       listingUnread: listed == null && !!listingFailed,
-      // brought of byoClients: the mix's own count of clients, which is not `clients` above (that
-      // one counts a client whose payment is retrying; the mix counts active and trialing plans).
+      // brought of byoClients: the mix's own count of clients. The routes take it over today's
+      // clients by the trajectory's rule (byoMixToday in src/lib/origin-attribution.ts, the sweep
+      // after #2394 round 10), so it is the `clients` above whenever the trajectory was read, and
+      // both fall back to the active read together when it was not.
       byoShare: mix && mix.clients ? mix.brought / mix.clients : 0,
       brought: mix ? mix.brought : 0, byoClients: mix ? mix.clients : 0,
       broughtUnread: !mix,

@@ -9,6 +9,7 @@
 // so recent paid one_time_purchases rows join the feed too.
 
 import type { createClient } from '@/lib/supabase/server';
+import { openSubsAt } from './coach-trajectory.mjs';
 
 type ServerClient = Awaited<ReturnType<typeof createClient>>;
 type ProviderRole = 'trainer' | 'nutritionist';
@@ -47,6 +48,20 @@ export function byoMixOf(subs: OriginSourceRow[]): { clients: number; brought: n
     byClient.set(key, byClient.get(key) === true || Number(r.fee_bps ?? 1500) === 0);
   });
   return { clients: byClient.size, brought: [...byClient.values()].filter(Boolean).length };
+}
+
+// ⚠ THE BROUGHT-IN SHARE IS TAKEN OVER TODAY'S CLIENTS, THE ONES THE PLAN COUNTS (the sweep after
+// #2394 round 10). It was byoMixOf(the active and trialing rows), while the Plan's clients are the
+// trajectory's latest week, which counts a client whose payment is retrying (past_due) as
+// membership does: "you have 13 today" sat beside "0% fee · 3 of your 12". Both routes take it
+// here, from the trajectory's rows (every status) by the series' own rule (openSubsAt), and only
+// when that read failed from the active read, as coachForecast.js todayFrom falls back to
+// `metrics`. null when neither could be read: unread, never 0%.
+//   all     the trajectory read's rows (any status), or null when that read failed
+//   active  the active and trialing rows, or null when that read failed
+export function byoMixToday(all: Array<Record<string, unknown>> | null, active: OriginSourceRow[] | null, now = Date.now()): { clients: number; brought: number } | null {
+  if (all) return byoMixOf(openSubsAt(all, now) as OriginSourceRow[]);
+  return active ? byoMixOf(active) : null;
 }
 
 /**

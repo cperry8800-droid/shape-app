@@ -27,9 +27,10 @@ const APP_TOKEN = 'app-access-token'
 // recorded. `rpc` answers from `rpcs[name](args)`.
 // `auth` is what getUser resolves (a signed-in coach unless a test says otherwise).
 // `honorStatus` also applies status filters (eq / in on `status`), for a test whose rows differ by
-// status; `failActive` fails the active-subscriptions walk (its `.in('status', …)`) alone, and
-// `failRetrying` the read of the churned clients' past_due plans alone.
-function fakeSupabase(tables, { errors = {}, rpcs = {}, auth = null, honorStatus = false, failActive = false, failRetrying = false } = {}) {
+// status; `failActive` fails the active-subscriptions walk (its `.in('status', …)`) alone,
+// `failRetrying` the read of the churned clients' past_due plans alone, and `failTrajectory` the
+// trajectory's walk over every subscription (the one subscriptions read with no status filter).
+function fakeSupabase(tables, { errors = {}, rpcs = {}, auth = null, honorStatus = false, failActive = false, failRetrying = false, failTrajectory = false } = {}) {
   const reads = []
   const calls = []
   const from = (table) => {
@@ -42,6 +43,7 @@ function fakeSupabase(tables, { errors = {}, rpcs = {}, auth = null, honorStatus
       if (errors[table]) return { data: null, error: { message: errors[table] }, count: null }
       if (failActive && call.ops.some(([op, col]) => op === 'in' && col === 'status')) return { data: null, error: { message: 'timeout' }, count: null }
       if (failRetrying && call.ops.some(([op, col, v]) => op === 'eq' && col === 'status' && v === 'past_due')) return { data: null, error: { message: 'timeout' }, count: null }
+      if (failTrajectory && table === 'subscriptions' && !call.ops.some(([, col]) => col === 'status')) return { data: null, error: { message: 'timeout' }, count: null }
       let out = rows
       if (honorStatus) for (const [op, col, v] of call.ops) {
         if (op === 'eq' && col === 'status') out = out.filter((r) => r.status === v)
@@ -513,6 +515,45 @@ test('both routes send the brought-in share per client, not per subscription row
     assert.equal(body.byOrigin.filter((r) => r.kind === 'subscription').length, 3, role + ': the origin feed still lists each row')
     const failed = await loadRoute(role, { ...listing, subscriptions: rows(role) }, { errors: { subscriptions: 'timeout' } })
     assert.equal(failed.body.byoMix, null, role + ': an unread share is unread, not 0%')
+  }
+})
+
+// ── The sweep after #2394 round 10: the brought-in share is "of" the clients the Plan counts ──
+test('both routes take the brought-in share over today\'s clients, so a brought client whose payment is retrying is in it, as in the Plan\'s count', async () => {
+  // A and B found the coach on Shape and are active; C was brought (0%) and her payment is retrying;
+  // D cancelled. Today is three clients (the trajectory's latest week, as membership counts), so the
+  // share is 1 of 3. Over the active and trialing rows it read 0 of 2 beside "you have 3 today".
+  const C = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+  const D = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+  const rows = (role) => [
+    { ...sub(A), id: 'r1', provider_role: role },
+    { ...sub(B), id: 'r2', provider_role: role },
+    { ...sub(C), id: 'r3', fee_bps: 0, status: 'past_due', provider_role: role },
+    { ...sub(D), id: 'r4', fee_bps: 0, status: 'canceled', current_period_end: '2026-10-01T00:00:00Z', provider_role: role },
+  ]
+  const CF = require_('./public/newdesign/coachForecast.js')
+  for (const [role, listing] of [['trainer', { trainers: [{ id: 7, stripe_account_id: null, stripe_account_status: null }] }], ['nutritionist', { nutritionists: [{ id: 9, stripe_account_id: null, stripe_account_status: null }] }]]) {
+    const tables = { ...listing, subscriptions: rows(role) }
+    const { body } = await loadRoute(role, tables, { honorStatus: true })
+    assert.equal(body.trajectory.weeks[body.trajectory.weeks.length - 1].active, 3, role + ': today is three clients')
+    assert.equal(body.metrics.activeClients, 2, role + ': the active read is still active and trialing')
+    assert.deepEqual(body.byoMix, { clients: 3, brought: 1 }, role + ': 1 of today\'s 3, not 0 of the 2 active rows')
+    // Through the shared forecast both Business pages read: "you have 3 today" beside "1 of your 3".
+    const n = CF.planNumbers({ extra: body, listingMonthly: null })
+    assert.deepEqual([n.clients, n.brought, n.byoClients], [3, 1, 3], role)
+    // The trajectory unread: the share falls back to the active read, as todayFrom falls back to metrics.
+    const noHistory = await loadRoute(role, tables, { honorStatus: true, failTrajectory: true })
+    assert.equal(noHistory.body.trajectory, null, role)
+    assert.deepEqual(noHistory.body.byoMix, { clients: 2, brought: 0 }, role + ': the active rows, when there is no trajectory')
+    const n2 = CF.planNumbers({ extra: noHistory.body, listingMonthly: null })
+    assert.deepEqual([n2.clients, n2.byoClients], [2, 2], role + ': the two fall back together')
+    // The active read unread and the trajectory read: the share is still today's.
+    const noActive = await loadRoute(role, tables, { honorStatus: true, failActive: true })
+    assert.deepEqual(noActive.body.byoMix, { clients: 3, brought: 1 }, role)
+    assert.equal(noActive.body.byOrigin, null, role + ': the origin feed is still built from the active rows alone')
+    // Neither: unread, never 0%.
+    const neither = await loadRoute(role, tables, { honorStatus: true, failActive: true, failTrajectory: true })
+    assert.equal(neither.body.byoMix, null, role)
   }
 })
 

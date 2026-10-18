@@ -11,7 +11,7 @@ import { clientForRequest, userLookupForRequest } from '@/lib/request-auth';
 import { loadStripe, loadCancelFlags } from '@/lib/stripe';
 import { pickRenewals, renewalRows, RENEWAL_CHECK_CAP, type RenewalSource } from '@/lib/coach-renewals.mjs';
 import { coachCutCents, bpsToRate } from '@/lib/platform-fee';
-import { buildOriginFeed, byoMixOf } from '@/lib/origin-attribution';
+import { buildOriginFeed, byoMixToday } from '@/lib/origin-attribution';
 import { buildTrajectory } from '@/lib/coach-trajectory.mjs';
 import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
 import { isMeasuredSignedOut } from '@/lib/auth-lookup';
@@ -361,8 +361,10 @@ export async function GET(request: Request) {
     churn,
     // Built from the active subscriptions: when they could not be read, neither can this.
     byOrigin: subsUnknown ? null : byOrigin,
-    // The share of CLIENTS the coach brought (byoMixOf): the Plan and Goal calculators start from it.
-    byoMix: subsUnknown ? null : byoMixOf(subs),
+    // The share of CLIENTS the coach brought: the Plan and Goal calculators start from it. Taken over
+    // today's clients, the trajectory's latest week (byoMixToday), so it is "of" the same count the
+    // Plan says "you have" (the sweep after #2394 round 10).
+    byoMix: byoMixToday(subsAllRes.error ? null : subsAllRes.data ?? [], subsUnknown ? null : subs),
     trajectory,
     ...(wantRenewals ? { renewals } : {}),
     metrics: {

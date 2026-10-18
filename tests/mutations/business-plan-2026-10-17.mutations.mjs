@@ -16,6 +16,7 @@ const TR_DASH = 'src/app/api/trainer/dashboard/route.ts';
 const NU_DASH = 'src/app/api/nutritionist/dashboard/route.ts';
 const DATA = 'public/newdesign/dashData.jsx';
 const ORIGIN = 'src/lib/origin-attribution.ts';
+const TRAJ = 'src/lib/coach-trajectory.mjs';
 const AUTH = 'src/lib/auth-lookup.ts';
 const RENEW = 'src/lib/coach-renewals.mjs';
 const REQ_AUTH = 'src/lib/request-auth.ts';
@@ -546,5 +547,27 @@ export default {
     { name: "plan rate: the website prints a cent rate without its cents' zero", file: BIZ,
       find: 'const dbzRate = (r) => "$" + (Number.isInteger(r) ? r : r.toFixed(2));',
       replace: 'const dbzRate = (r) => "$" + r;' },
+    // ── The sweep after #2394 round 10: today's figures agree (the Plan, the Goal tab, Today) ──
+    { name: "today's figures: the brought-in share skips the trajectory's rows", file: ORIGIN,
+      find: '  if (all) return byoMixOf(openSubsAt(all, now) as OriginSourceRow[]);',
+      replace: '  if (false) return byoMixOf(openSubsAt(all, now) as OriginSourceRow[]);' },
+    { name: "today's figures: the brought-in share counts every row the trajectory read", file: ORIGIN,
+      find: '  if (all) return byoMixOf(openSubsAt(all, now) as OriginSourceRow[]);',
+      replace: '  if (all) return byoMixOf(all as OriginSourceRow[]);' },
+    { name: "today's figures: an unread trajectory leaves the brought-in share unread", file: ORIGIN,
+      find: '  return active ? byoMixOf(active) : null;',
+      replace: '  return null;' },
+    { name: "today's figures: the trainer route's brought-in share is the active rows again", file: TR,
+      find: '    byoMix: byoMixToday(subsAllRes.error ? null : subsAllRes.data ?? [], subsUnknown ? null : subs),',
+      replace: '    byoMix: byoMixToday(null, subsUnknown ? null : subs),' },
+    { name: "today's figures: the nutritionist route's brought-in share is the active rows again", file: NU,
+      find: '    byoMix: byoMixToday(subsAllRes.error ? null : subsAllRes.data ?? [], subsUnknown ? null : subs),',
+      replace: '    byoMix: byoMixToday(null, subsUnknown ? null : subs),' },
+    { name: "today's figures: a closed row is open today", file: TRAJ,
+      find: '    return !!s && s.start <= now && (s.end == null || s.end > now);',
+      replace: '    return !!s;' },
+    { name: "today's figures: the Goal tab reads the route's metrics again", file: DATA,
+      find: '      const today = window.CoachForecast ? window.CoachForecast.todayFrom(a) : null;',
+      replace: '      const today = a.metrics ? { clients: a.metrics.activeClients, mrrNetCents: a.metrics.mrrNetCents, mrrGrossCents: a.metrics.mrrGrossCents } : null;' },
   ],
 };

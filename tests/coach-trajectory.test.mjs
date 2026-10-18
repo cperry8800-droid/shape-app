@@ -5,7 +5,7 @@
 // current week is measured at "now"; the summary figures agree with the series.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildTrajectory, mondayUTC, subEndedAt, subNeverStarted, TRAJECTORY_WEEKS } from '../src/lib/coach-trajectory.mjs';
+import { buildTrajectory, mondayUTC, openSubsAt, OPEN_SUB_STATUSES, practiceToday, subEndedAt, subNeverStarted, TRAJECTORY_WEEKS } from '../src/lib/coach-trajectory.mjs';
 
 const DAY = 86400000;
 const WEEK = 7 * DAY;
@@ -214,4 +214,33 @@ test('median tenure is still measured over spans, and totalSpans is its denomina
   assert.equal(t.summary.totalSpans, 2, 'two memberships');
   // Two spans of ~10 days each — a per-PERSON reading would have been ~100.
   assert.ok(t.summary.medianTenureDays <= 12, `spans, not people: ${t.summary.medianTenureDays}`);
+});
+
+// ── The sweep after #2394 round 10: today's figures are the series' latest point, by its rule ──
+test('openSubsAt and practiceToday are the latest week, from the same rows: a retrying payment counts, a cancelled or abandoned one does not', () => {
+  const future = new Date(NOW + 20 * DAY).toISOString();
+  const rows = [
+    sub({ client_id: 'a', created_at: iso(40 * DAY), fee_bps: 0 }),
+    sub({ client_id: 'a', created_at: iso(10 * DAY), price_cents: 5000 }),            // a's second plan: one client
+    sub({ client_id: 'b', created_at: iso(30 * DAY), status: 'past_due' }),            // retrying: still a client
+    sub({ client_id: 'c', created_at: iso(20 * DAY), status: 'trialing' }),
+    sub({ client_id: 'd', created_at: iso(50 * DAY), status: 'canceled', current_period_end: future }), // paid through, but gone
+    sub({ client_id: 'e', created_at: iso(5 * DAY), status: 'incomplete' }),            // never a client
+    sub({ client_id: 'f', created_at: iso(60 * DAY), status: 'unpaid' }),               // closed
+    sub({ client_id: null, created_at: iso(15 * DAY) }),                                // stands alone
+    sub({ client_id: 'g', created_at: null }),                                          // no span at all
+    sub({ client_id: 'h', created_at: new Date(NOW + DAY).toISOString() }),             // not open yet
+  ];
+  const last = buildTrajectory({ subs: rows, now: NOW }).weeks.slice(-1)[0];
+  const open = openSubsAt(rows, NOW);
+  assert.deepEqual(open.map((r) => r.client_id), ['a', 'a', 'b', 'c', null]);
+  const today = practiceToday(rows, { now: NOW });
+  assert.deepEqual(today, { clients: last.active, mrrGrossCents: last.mrrGrossCents, mrrNetCents: last.mrrNetCents });
+  assert.deepEqual(today, { clients: 4, mrrGrossCents: 18000 * 4 + 5000, mrrNetCents: 18000 + 4250 + 15300 * 3 });
+  // A route's own cut is used for the net, as buildTrajectory uses it.
+  const cut = (p, bps) => p - Math.round(p * (bps == null ? 1500 : bps) / 10000) - 1;
+  assert.equal(practiceToday(rows, { now: NOW, cutCents: cut }).mrrNetCents, buildTrajectory({ subs: rows, now: NOW, cutCents: cut }).weeks.slice(-1)[0].mrrNetCents);
+  // The statuses a read asks for are the ones the series keeps open (membership-core.ts ACTIVE_SUB).
+  assert.deepEqual(OPEN_SUB_STATUSES, ['active', 'trialing', 'past_due']);
+  assert.deepEqual(practiceToday([], { now: NOW }), { clients: 0, mrrGrossCents: 0, mrrNetCents: 0 });
 });

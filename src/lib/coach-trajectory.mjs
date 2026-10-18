@@ -45,8 +45,10 @@
 export const TRAJECTORY_WEEKS = 104;
 const DAY_MS = 86400000;
 const WEEK_MS = 7 * DAY_MS;
-// Open while the status is one of these (membership-core.ts's ACTIVE_SUB).
-const OPEN_STATUSES = new Set(['active', 'trialing', 'past_due']);
+// Open while the status is one of these (membership-core.ts's ACTIVE_SUB). The list is exported
+// for a read that asks only for open rows (the coach dashboards' kpis).
+export const OPEN_SUB_STATUSES = ['active', 'trialing', 'past_due'];
+const OPEN_STATUSES = new Set(OPEN_SUB_STATUSES);
 // Never a client: no join, no departure, no row in the series.
 const NEVER_STARTED = new Set(['incomplete', 'incomplete_expired']);
 
@@ -84,6 +86,42 @@ function defaultCut(priceCents, feeBps) {
   return Math.round((Number(priceCents) || 0) * (1 - bps / 10000));
 }
 
+// A subscription row as a span: when it opened and when it closed (null while open), or null for
+// a row that is no span at all (never started, or no open date). buildTrajectory and openSubsAt
+// both take a row's span from here.
+function spanOf(r, now) {
+  if (subNeverStarted(r)) return null;   // an abandoned checkout is not a join and not a departure
+  const start = ms(r && r.created_at);
+  if (start == null) return null;
+  const end = subEndedAt(r, now);
+  return { start, end: end != null && end < start ? start : end }; // a close before its open is a data error; treat as a zero-length span
+}
+
+// ⚠ TODAY'S CLIENTS ARE THE SERIES' LATEST POINT, AND EVERY FIGURE BESIDE THEM IS TAKEN OVER THE
+// SAME ROWS (the sweep after #2394 round 10). The Plan's "you have 13 today" is the latest week's
+// `active`, which counts a client whose payment is retrying (past_due); the brought-in share was
+// taken over the active and trialing rows alone, so it read "0% fee · 3 of your 12" beside it, and
+// Today's monthly net left the same client out of a figure the Business page counts. These are the
+// rows open at `now` by the series' own rule: the ones its latest week counts.
+export function openSubsAt(subs = [], now = Date.now()) {
+  return (Array.isArray(subs) ? subs : []).filter((r) => {
+    const s = spanOf(r, now);
+    return !!s && s.start <= now && (s.end == null || s.end > now);
+  });
+}
+
+// Today's practice from those rows: clients (people, as the series counts them: a row with no
+// client_id stands alone), and the monthly gross and net, cut by each row's STORED fee. The same
+// three numbers as buildTrajectory's latest week, from the same rows.
+export function practiceToday(subs = [], { now = Date.now(), cutCents = defaultCut } = {}) {
+  const open = openSubsAt(subs, now);
+  return {
+    clients: new Set(open.map((r, i) => (r.client_id != null ? 'c:' + String(r.client_id) : 'row:' + i))).size,
+    mrrGrossCents: open.reduce((s, r) => s + (Number(r.price_cents) || 0), 0),
+    mrrNetCents: open.reduce((s, r) => s + cutCents(Number(r.price_cents) || 0, r.fee_bps == null ? null : r.fee_bps), 0),
+  };
+}
+
 function median(nums) {
   if (!nums.length) return null;
   const s = nums.slice().sort((a, b) => a - b);
@@ -97,13 +135,10 @@ function median(nums) {
 export function buildTrajectory({ subs = [], purchases = [], now = Date.now(), weeks = TRAJECTORY_WEEKS, cutCents = defaultCut } = {}) {
   const spans = [];
   for (const r of subs) {
-    if (subNeverStarted(r)) continue;   // an abandoned checkout is not a join and not a departure
-    const start = ms(r && r.created_at);
-    if (start == null) continue;
-    const end = subEndedAt(r, now);
+    const span = spanOf(r, now);
+    if (!span) continue;
     spans.push({
-      start,
-      end: end != null && end < start ? start : end, // a close before its open is a data error; treat as a zero-length span
+      ...span,
       price: Number(r.price_cents) || 0,
       net: cutCents(Number(r.price_cents) || 0, r.fee_bps == null ? null : r.fee_bps),
       // ⚠ A SPAN IS A SUBSCRIPTION ROW; A CLIENT IS A PERSON. Nothing in the
