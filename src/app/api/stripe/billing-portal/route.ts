@@ -76,12 +76,32 @@ export async function POST(req: Request) {
     if (!plan) {
       return NextResponse.json({ error: 'No plan with this coach is billed on their account.', reason: 'no_coach_plan' }, { status: 404 });
     }
+    // ⚠ A COACH WHO DISCONNECTED TOOK SHAPE'S ACCESS TO THEIR ACCOUNT WITH THEM (Codex on #2403): no
+    // portal can be opened there, and Shape cannot cancel the plan for the member. The member is told
+    // so in words, with who can stop the charge, never a bare 500. The admin was alerted when the
+    // coach disconnected (the webhook's account.application.deauthorized).
+    const disconnected = () => NextResponse.json({
+      error: "This coach has disconnected their payments from Shape, so Shape can't change this plan any more. Ask your coach to cancel it, or contact Shape support and we'll help.",
+      reason: 'coach_disconnected',
+    }, { status: 409 });
+    const admin = createAdminClient();
+    const { data: coachRow, error: coachErr } = await admin
+      .from(role === 'trainer' ? 'trainers' : 'nutritionists')
+      .select('stripe_account_id, stripe_account_status')
+      .eq('id', providerId)
+      .maybeSingle();
+    if (coachErr) return dbError(coachErr, 'billing portal coach read', 503);
+    const row = coachRow as { stripe_account_id?: string | null; stripe_account_status?: string | null } | null;
+    if (!row || row.stripe_account_id !== plan.stripe_account_id || row.stripe_account_status === 'disconnected') return disconnected();
     try {
-      const url = await coachPortalUrl(stripe, createAdminClient(), {
+      const url = await coachPortalUrl(stripe, admin, {
         account: plan.stripe_account_id, customer: plan.stripe_customer_id, returnUrl,
       });
       return NextResponse.json({ url });
     } catch (err) {
+      // Stripe's answer for an account that no longer lets Shape in, before the webhook has said so.
+      const e = err as { type?: string; code?: string };
+      if (e?.type === 'StripePermissionError' || e?.code === 'account_invalid') return disconnected();
       return dbError(err, 'stripe coach billing portal', 500, 'Stripe portal session failed.');
     }
   }

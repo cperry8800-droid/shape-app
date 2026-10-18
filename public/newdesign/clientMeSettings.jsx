@@ -97,6 +97,8 @@ async function openCoachBilling(c) {
   const back = "/newdesign/ClientApp.html#settings";
   let r = c && c.provider_id && c.provider_role ? await post({ coach: { provider_role: c.provider_role, provider_id: c.provider_id }, returnPath: back }) : { ok: false, d: { reason: "no_coach_plan" } };
   if (!r.ok && r.d && r.d.reason === "no_coach_plan") r = await post({ returnPath: back });
+  // A coach who disconnected their payments from Shape: no portal can open; the route says who can help.
+  if (!r.ok && r.d && r.d.reason === "coach_disconnected") { window.alert(r.d.error); return; }
   window.location.href = (r.ok && r.d && r.d.url) ? r.d.url : "/pricing";
 }
 

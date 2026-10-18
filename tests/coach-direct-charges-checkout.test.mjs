@@ -263,6 +263,10 @@ test('one visible code can be several promotion codes: the member\'s own, then t
   assert.equal((await resolve(codeStripe({ shape: [theirs, open] }))).code.percentOff, 10, 'another member\'s first in the list: the open one is used');
   assert.equal((await resolve(codeStripe({ shape: [open, theirs, mine] }))).code.percentOff, 30, 'the member\'s own wins');
   assert.deepEqual(await resolve(codeStripe({ shape: [theirs] })), { ok: false, reason: 'code_invalid' }, 'only someone else\'s');
+  // A Shape code that is only other members' falls through to the coach's own code of the same letters.
+  const coachSame = { id: 'promo_cs', code: 'SPRING25', restrictions: {}, promotion: { coupon: { id: 'c', valid: true, percent_off: 15 } } };
+  const through = await resolve(codeStripe({ shape: [theirs], coach: [coachSame] }));
+  assert.deepEqual(through.code.discount, { promotion_code: 'promo_cs' }, 'the coach\'s, not refused');
   const s = codeStripe({ shape: [open] });
   await resolve(s);
   assert.equal(s.calls.find((c) => c[0] === 'promotionCodes.list')[1].limit, 20, 'every match is read, not the first');
@@ -794,6 +798,8 @@ test('the return page vouches for a checkout on a coach\'s account from Shape\'s
 // ── The billing portal route ──────────────────────────────────────────────────────────────────
 test('the billing portal opens on the coach\'s account for a plan billed there', async () => {
   const portal = [];
+  let portalThrows = null;
+  const coachRows = [{ id: 4, name: 'Tom Trainer', stripe_account_id: ACCT, stripe_account_status: 'active' }, { id: 6, name: 'Old Plan', stripe_account_id: null, stripe_account_status: null }];
   const plans = [
     { client_id: UID, provider_id: 4, provider_role: 'trainer', status: 'active', stripe_account_id: ACCT, stripe_customer_id: 'cus_onCoach' },
     { client_id: UID, provider_id: 6, provider_role: 'trainer', status: 'active', stripe_account_id: null, stripe_customer_id: 'cus_platform' },
@@ -805,9 +811,9 @@ test('the billing portal opens on the coach\'s account for a plan billed there',
       ['next/server', nextServer],
       ['@/lib/stripe', { stripe: { billingPortal: { sessions: { create: async (p, o) => { portal.push(['platform', p, o]); return { url: 'https://billing.stripe.test/platform' }; } } } } }],
       ['@/lib/stripe-connect', connect],
-      ['@/lib/coach-checkout', { ...cc, coachPortalUrl: async (_s, _a, args) => { portal.push(['coach', args]); return 'https://billing.stripe.test/coach'; } }],
+      ['@/lib/coach-checkout', { ...cc, coachPortalUrl: async (_s, _a, args) => { portal.push(['coach', args]); if (portalThrows) throw portalThrows; return 'https://billing.stripe.test/coach'; } }],
       ['@/lib/membership-core', { ACTIVE_SUB: new Set(['active', 'trialing', 'past_due']) }],
-      ['@/lib/supabase/admin', { createAdminClient: () => fakeDb({ tables: { trainers: [{ id: 4, name: 'Tom Trainer' }, { id: 6, name: 'Old Plan' }] } }).client }],
+      ['@/lib/supabase/admin', { createAdminClient: () => fakeDb({ tables: { trainers: coachRows } }).client }],
       ['@/lib/request-auth', { currentUser: async () => ({ id: UID }), clientForRequest: async () => member.client }],
       ['@/lib/request-utils', await loadRealModule(join(ROOT, 'src/lib/request-utils.ts'), { typescript: true, registry: new Map([['next/server', nextServer]]) })],
       ['@/lib/return-path', await loadRealModule(join(ROOT, 'src/lib/return-path.ts'), { typescript: true })],
@@ -820,6 +826,23 @@ test('the billing portal opens on the coach\'s account for a plan billed there',
   const coach = await post({ coach: { provider_role: 'trainer', provider_id: 4 }, returnPath: '/m/' });
   assert.equal(coach.body.url, 'https://billing.stripe.test/coach');
   assert.deepEqual(portal.at(-1), ['coach', { account: ACCT, customer: 'cus_onCoach', returnUrl: 'https://shape.test/m/' }]);
+  // ⚠ A coach who disconnected took Shape's access with them (Codex on #2403): the member is told who
+  // can stop the charge, never a 500, and no portal is attempted on the dead account.
+  coachRows[0].stripe_account_status = 'disconnected';
+  portal.length = 0;
+  const off = await post({ coach: { provider_role: 'trainer', provider_id: 4 } });
+  assert.deepEqual([off.status, off.body.reason], [409, 'coach_disconnected']);
+  assert.match(off.body.error, /Ask your coach to cancel it, or contact Shape support/);
+  assert.equal(portal.length, 0);
+  coachRows[0].stripe_account_status = 'active';
+  coachRows[0].stripe_account_id = 'acct_1BrandNewOne9';
+  assert.equal((await post({ coach: { provider_role: 'trainer', provider_id: 4 } })).body.reason, 'coach_disconnected', 'reconnected on a new account: the old plan\'s account is gone');
+  coachRows[0].stripe_account_id = ACCT;
+  portalThrows = Object.assign(new Error('The provided key does not have access to account'), { type: 'StripePermissionError' });
+  assert.equal((await post({ coach: { provider_role: 'trainer', provider_id: 4 } })).body.reason, 'coach_disconnected', 'Stripe refuses before the webhook has said so');
+  portalThrows = Object.assign(new Error('rate limited'), { type: 'StripeRateLimitError' });
+  assert.equal((await post({ coach: { provider_role: 'trainer', provider_id: 4 } })).status, 500, 'any other failure is a failure');
+  portalThrows = null;
   const legacy = await post({ coach: { provider_role: 'trainer', provider_id: 6 } });
   assert.deepEqual([legacy.status, legacy.body.reason], [404, 'no_coach_plan'], 'a plan from before the move is in Shape\'s own portal');
   assert.equal((await post({ coach: { provider_role: 'admin', provider_id: 4 } })).status, 400);
@@ -864,6 +887,7 @@ test('the website\'s Settings opens each coaching plan\'s billing where it is pa
   const fn = src.slice(src.indexOf('async function openCoachBilling('), src.indexOf('function PlanBillingCard('));
   assert.match(fn, /post\(\{ coach: \{ provider_role: c\.provider_role, provider_id: c\.provider_id \}, returnPath: back \}\)/, 'the coach\'s account first');
   assert.match(fn, /if \(!r\.ok && r\.d && r\.d\.reason === "no_coach_plan"\) r = await post\(\{ returnPath: back \}\);/, 'a plan from before the move: Shape\'s own portal');
+  assert.match(fn, /if \(!r\.ok && r\.d && r\.d\.reason === "coach_disconnected"\) \{ window\.alert\(r\.d\.error\); return; \}/, 'a disconnected coach: the member is told who can help');
 });
 
 // ── The migration ─────────────────────────────────────────────────────────────────────────────

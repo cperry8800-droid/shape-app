@@ -237,8 +237,9 @@ export async function resolveCheckoutCode(
   const fits = (c: Coupon) => args.mode === 'subscription' || afterCode(args.listCents, { percentOff: c.percent_off ?? null, amountOff: c.amount_off ?? null }) >= 50;
 
   const shape = pickCode((await stripe.promotionCodes.list({ code: args.code, active: true, limit: 20, expand: ['data.promotion.coupon.applies_to'] })).data, args.code, args.platformCustomerId);
-  if (shape === 'others') return { ok: false, reason: 'code_invalid' };
-  if (shape) {
+  // A Shape code that is only other members' is a miss here, not a refusal: the coach's account
+  // keeps its own codes, and the same letters may be one there for this member (Codex on #2403).
+  if (shape && shape !== 'others') {
     const c = couponOf(shape);
     if (shape.expires_at && shape.expires_at <= now) return { ok: false, reason: 'code_invalid' };
     if (c?.redeem_by && c.redeem_by <= now) return { ok: false, reason: 'code_invalid' };
