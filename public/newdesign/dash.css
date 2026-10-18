@@ -482,6 +482,15 @@ button.dash-chip:focus-visible { outline:none; box-shadow:inset 0 0 0 2px var(--
 @media (max-width: 1000px) {
   .dash-cols { grid-template-columns: 1fr !important; }
 }
+/* The Business page's Plan table (design E): on a phone the client count and the year's total
+   give way, so the net a month and the month the goal is reached stay on screen without a
+   sideways scroll. */
+@media (max-width: 600px) {
+  .dbz-cmp th:nth-child(3), .dbz-cmp td:nth-child(3),
+  .dbz-cmp th:nth-child(4), .dbz-cmp td:nth-child(4) { display: none; }
+  .dbz-cmp th, .dbz-cmp td { padding-left: 6px !important; padding-right: 6px !important; }
+  .dbz-cmp td { font-size: 15px !important; }
+}
 /* ⚠ THIS BLOCK USED TO HIDE THE SIDEBAR ENTIRELY BELOW 760px, and the sidebar
    IS the dashboard's navigation. It never fired in practice — the shells
    declared no viewport meta, so a phone reported 980px (review 2026-09-09, V7)

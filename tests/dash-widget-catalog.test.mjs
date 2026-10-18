@@ -383,9 +383,12 @@ test('the Clients pages are the roster alone; the roster cards stay on Today', (
     for (const fn of CATALOGUE_FNS) assert.ok(!src.includes('DashSignals.' + fn + '('), f + ' calls ' + fn + ' again — the roster cards belong on Today');
   }
   for (const fn of CATALOGUE_FNS) assert.ok(TODAY.includes('DashSignals.' + fn + '('), 'Today no longer offers the card built by ' + fn);
-  // Business's one producer call (Revenue by client, in Money) is feature-tested, not presence-tested.
+  // ⚠ 2026-10-17 (design E, owner: the Money tab "easy to use and read/understand", not
+  // "overwhelming"): Business's Money tab is now what's coming to you, this week's renewals and
+  // 13 weeks of net, and no longer carries Revenue by client. The card is not lost: Today still
+  // offers it (the loop above), so Business calls no producer at all.
   const biz = stripComments(readFileSync(new URL('../public/newdesign/dashBusiness.jsx', import.meta.url), 'utf8'));
-  assert.match(biz, /typeof DashSignals\.dashRevenueByClient === "function" \? DashSignals\.dashRevenueByClient\(clients\)/);
+  for (const fn of CATALOGUE_FNS) assert.ok(!biz.includes('DashSignals.' + fn + '('), 'dashBusiness.jsx calls ' + fn + ' again');
 });
 
 test('in-card links route inside the shell, and the notes write through the account store', () => {

@@ -120,7 +120,8 @@ test('the coach\'s numbers read calories eaten', () => {
   const t = read('src/app/api/trainer/analytics/route.ts');
   const n = read('src/app/api/nutritionist/analytics/route.ts');
   for (const src of [n]) {
-    assert.match(src, /\.select\('user_id, snapshot_date, protein_g, dietary_kcal, weight_lb'\)/);
+    // (`id` is the cursor the rows are paged on: tests/coach-analytics-routes.test.mjs.)
+    assert.match(src, /\.select\('id, user_id, snapshot_date, protein_g, dietary_kcal, weight_lb'\)/);
     assert.match(src, /const cals = rows\.map\(\(r\) => r\.dietary_kcal\)/);
     // Codex on #2310: days logged are days with a meal, not every snapshot row.
     assert.match(src, /const loggedDays = rows\.filter\(\(r\) => r\.dietary_kcal != null \|\| r\.protein_g != null\)\.length;/);

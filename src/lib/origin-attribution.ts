@@ -35,6 +35,20 @@ export type OriginFeedRow = {
   priceCents: number | null;
 };
 
+// ⚠ THE BROUGHT-IN SHARE IS PER CLIENT, NOT PER ROW (Codex, #2394). The feed above has a row per
+// subscription, and one client may hold several (a plan change, two plans), so one brought client
+// with two plans beside one from Shape read as "2 of your 3" (67%), and the calculators seeded
+// from it overstated take-home. A client counts as brought when any of their active rows carries
+// the 0% fee; a row with no client_id stands alone, as in every other per-client count.
+export function byoMixOf(subs: OriginSourceRow[]): { clients: number; brought: number } {
+  const byClient = new Map<string, boolean>();
+  subs.forEach((r, i) => {
+    const key = r.client_id != null ? 'c:' + String(r.client_id) : 'row:' + i;
+    byClient.set(key, byClient.get(key) === true || Number(r.fee_bps ?? 1500) === 0);
+  });
+  return { clients: byClient.size, brought: [...byClient.values()].filter(Boolean).length };
+}
+
 /**
  * Fold the provider's subscriptions + recent paid one-time purchases into one
  * attribution feed. Reads under the CALLER's RLS client (the routes pass their

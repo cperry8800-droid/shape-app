@@ -949,57 +949,25 @@ function DashDemoBand() {
 
 // ── Step 8 business panels — real data or an honest "connects soon" state ───
 
-// 90-day growth: weekly subscriber adds + the MRR they brought. Live series
-// is REAL (subscriptions.created_at); payout-flavored history stays "—" until
-// payouts go live. Demo shows the example series.
+// 90-day growth: new clients a week + the monthly price they brought, and the last 30
+// days against the 30 before (src/lib/coach-growth.ts). Read by the Business summary
+// card below; the Business page's own Money tab draws from its trajectory instead.
+// Demo shows the example series.
 const DASH_DEMO_GROWTH = {
   trainer: { weeklyAdds: [1, 0, 2, 1, 3, 1, 2, 2, 1, 3, 2, 4, 3].map((c, i) => ({ weekOf: "w" + i, count: c, addedCents: c * 20000 })), momPct: 9 },
   nutritionist: { weeklyAdds: [0, 1, 1, 2, 1, 1, 2, 1, 2, 2, 1, 2, 2].map((c, i) => ({ weekOf: "w" + i, count: c, addedCents: c * 16000 })), momPct: 12 },
 };
-function DashGrowthPanel({ live, role }) {
-  const g = live ? (live.growth || null) : DASH_DEMO_GROWTH[role];
-  const ink50 = "var(--sh-ink2, #a09b94)";
-  if (!g || !Array.isArray(g.weeklyAdds) || !g.weeklyAdds.length) {
-    return <div style={{ fontSize: 13, color: ink50 }}>Growth history connects when payouts go live — current numbers are in the stat bar.</div>;
-  }
-  const counts = g.weeklyAdds.map((w) => w.count);
-  const max = Math.max(...counts, 1);
-  const totalAdds = counts.reduce((s, c) => s + c, 0);
-  const addedCents = g.weeklyAdds.reduce((s, w) => s + (w.addedCents || 0), 0);
-  return (
-    <div>
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 56, flex: 1, minWidth: 200 }}>
-          {counts.map((c, i) => (
-            <div key={i} title={c + " new"} style={{ flex: 1, height: Math.max(6, Math.round((c / max) * 100)) + "%", background: c ? "var(--sh-accent, #2ee0c4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.1)", opacity: c ? 0.4 + 0.6 * (i / counts.length) : 1, borderRadius: 1 }} />
-          ))}
-        </div>
-        <div style={{ display: "flex", gap: 22, flexShrink: 0 }}>
-          <div>
-            <div style={{ fontFamily: serif, fontSize: 24, lineHeight: 1 }}>{totalAdds}</div>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: ink50, marginTop: 4 }}>New subscribers · 90d</div>
-          </div>
-          <div>
-            <div style={{ fontFamily: serif, fontSize: 24, lineHeight: 1 }}>{dashMoney(addedCents)}</div>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: ink50, marginTop: 4 }}>MRR added · gross</div>
-          </div>
-          <div>
-            <div style={{ fontFamily: serif, fontSize: 24, lineHeight: 1, color: g.momPct == null ? ink50 : g.momPct >= 0 ? "var(--sh-green, #7bbf5a)" : "var(--sh-rust, #e0644b)" }}>{g.momPct == null ? "—" : (g.momPct >= 0 ? "+" : "") + g.momPct + "%"}</div>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: ink50, marginTop: 4 }}>Adds · MoM</div>
-          </div>
-        </div>
-      </div>
-      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.08em", color: ink50, marginTop: 10 }}>
-        Weekly subscriber adds · payout history connects when payouts go live
-      </div>
-    </div>
-  );
-}
-
 // Marketplace funnel: profile views → consults → signed. Views aren't tracked
 // yet → honest "connects soon"; consults + signings are real on live.
 const DASH_DEMO_FUNNEL = { views: 1240, consults90: 86, signed90: 34 };
 const DASH_FUNNEL_BENCHMARK = 30; // % consult→signed close rate, marketplace norm
+// Consult → signed, as a percent. "Signed" is the clients who found the coach on Shape, but one
+// can still sign without a consult, so the rate is capped at 100: past it is not a close rate.
+// Unread signings (the dashboards send signed90 null when the subscriptions could not be read)
+// are no rate, not 0%.
+function dashCloseRate(f) {
+  return f && f.consults90 > 0 && f.signed90 != null ? Math.min(100, Math.round((f.signed90 / f.consults90) * 100)) : null;
+}
 function DashFunnelPanel({ live }) {
   const f = live ? (live.funnel || null) : DASH_DEMO_FUNNEL;
   const ink50 = "var(--sh-ink2, #a09b94)";
@@ -1007,14 +975,15 @@ function DashFunnelPanel({ live }) {
   const stages = [
     { l: "Profile views", v: f.views, note: f.views == null ? "view tracking connects soon" : null },
     { l: "Consults · 90d", v: f.consults90 },
-    { l: "Signed clients · 90d", v: f.signed90 },
+    { l: "Signed from Shape · 90d", v: f.signed90, note: f.signed90 == null ? "couldn't be read just now" : null },
   ];
   const maxV = Math.max(...stages.map((s) => s.v || 0), 1);
-  const close = f.consults90 > 0 ? Math.round((f.signed90 / f.consults90) * 100) : null;
+  const close = dashCloseRate(f);
   const insight = close != null
     ? close >= DASH_FUNNEL_BENCHMARK
       ? "Your consult→client close rate is " + close + "% — above the ~" + DASH_FUNNEL_BENCHMARK + "% marketplace benchmark. The lever now is more consults at the top."
       : "Your consult→client close rate is " + close + "% vs the ~" + DASH_FUNNEL_BENCHMARK + "% benchmark — tightening the intake call converts more of the consults you already get."
+    : f.signed90 == null ? "Your signings couldn't be read just now, so there's no close rate to show. Nothing is lost; reload to try again."
     : "Book consults from the marketplace to start the funnel — signings are tracked automatically.";
   return (
     <div>
@@ -1047,7 +1016,7 @@ function DashBusinessSummary({ live, role, clients }) {
   const f = live ? (live.funnel || null) : DASH_DEMO_FUNNEL;
   const counts = g && Array.isArray(g.weeklyAdds) ? g.weeklyAdds.map((w) => w.count) : null;
   const adds90 = counts ? counts.reduce((s, c) => s + c, 0) : null;
-  const close = f && f.consults90 > 0 ? Math.round((f.signed90 / f.consults90) * 100) : null;
+  const close = dashCloseRate(f);
   const netCents = live
     ? (live.kpis && live.kpis.monthlyNetCents != null ? live.kpis.monthlyNetCents : null)
     : Math.round(clients.reduce((s, c) => s + ((c.payments && c.payments.mrrCents) || 0), 0) * 0.85);
@@ -1064,7 +1033,7 @@ function DashBusinessSummary({ live, role, clients }) {
     <div>
       <div style={{ display: "flex", alignItems: "flex-end", gap: 22, flexWrap: "wrap" }}>
         {stat(netCents != null ? dashMoney(netCents) : "—", "Monthly · net", netCents != null ? "from active subs · after 15%" : "no subscription data")}
-        {stat(adds90 != null ? "+" + adds90 : "—", "New subs · 90d", g && g.momPct != null ? (g.momPct >= 0 ? "+" : "") + g.momPct + "% MoM" : "MoM needs 2 months")}
+        {stat(adds90 != null ? "+" + adds90 : "—", "New clients · 90d", !g ? "couldn't be read just now" : g.momPct != null ? (g.momPct >= 0 ? "+" : "") + g.momPct + "% vs the 30 days before" : "none in the 30 days before to compare")}
         {stat(close != null ? close + "%" : "—", "Consult → signed", "benchmark ~" + DASH_FUNNEL_BENCHMARK + "%", close == null ? null : close >= DASH_FUNNEL_BENCHMARK ? "var(--sh-green, #7bbf5a)" : "var(--sh-gold, #d8a23a)")}
         {counts && (
           <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 34, flex: 1, minWidth: 120 }}>
@@ -2083,4 +2052,4 @@ function CoachDashboardPage({ role }) {
   );
 }
 
-Object.assign(window, { CoachDashboardPage, DashNowColumn, DashNeedsYou, dashCountdown, dashQueueRowState, dashQueueNotices, dashQueueMergeMarks, DASH_TODAY_ROLES, DASH_SEV_COLORS, DASH_FUNNEL_BENCHMARK, DashPill, DashDemoBand, TriagePulsePanel, DashWinsPanel, ProgrammingQueuePanel, DashGrowthPanel, DashFunnelPanel, DashNutriAggPanel, DashBusinessSummary, DashWeekAheadPanel, DashRosterStatusPanel, DashTopMoversPanel, DashAnniversariesPanel, DashRevenueByClientPanel, DashProgramsEndingPanel, DashNotesPanel, dashTabHref, dashMessageClient, dashMessageDraft, dashCongratsDraft, dashJointDraft, dashClientHref, dashClientPageHref, dashRelDay, dashContextLine, dashMoney, dashFmtTime, dashCalDate, dashCalTime });
+Object.assign(window, { CoachDashboardPage, DashNowColumn, DashNeedsYou, dashCountdown, dashQueueRowState, dashQueueNotices, dashQueueMergeMarks, DASH_TODAY_ROLES, DASH_SEV_COLORS, DASH_FUNNEL_BENCHMARK, DashPill, DashDemoBand, TriagePulsePanel, DashWinsPanel, ProgrammingQueuePanel, dashCloseRate, DashFunnelPanel, DashNutriAggPanel, DashBusinessSummary, DashWeekAheadPanel, DashRosterStatusPanel, DashTopMoversPanel, DashAnniversariesPanel, DashRevenueByClientPanel, DashProgramsEndingPanel, DashNotesPanel, dashTabHref, dashMessageClient, dashMessageDraft, dashCongratsDraft, dashJointDraft, dashClientHref, dashClientPageHref, dashRelDay, dashContextLine, dashMoney, dashFmtTime, dashCalDate, dashCalTime });

@@ -6,7 +6,6 @@ const DEFAULT_GOALS_STATE = {
     { t: "Publish 2 new programs",        cur: 1, tgt: 2, sub: "Return-to-lifting shipping next week" },
     { t: "95% avg client adherence",      cur: 92, tgt: 95, sub: "30d rolling · +3 pts needed", pct: true },
   ],
-  calc: { rate: 85, spw: 22, prog: 400, workoutSales: 300, currentWeekly: 4620 },
   momentum: [
     ["+11","Net new clients","vs +6 last Q"],
     ["+$3.4k","MRR growth","vs +$1.8k last Q"],
@@ -100,25 +99,6 @@ function GoalEditModal({ goal, role, onClose, onSave, onDelete }) {
   );
 }
 
-function CalcEditModal({ calc, labels, onClose, onSave }) {
-  const [c, setC] = React.useState({ ...calc });
-  return (
-    <ModalShell
-      eyebrow="EDIT · REVENUE CALCULATOR"
-      title="Calculator inputs."
-      onClose={onClose}
-      footer={<>
-        <button onClick={onClose} style={{ background: "transparent", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
-        <button onClick={() => onSave(c)} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Save</button>
-      </>}
-    >
-      {labels.map(([key, label]) => (
-        <Field key={key} label={label} type="number" value={c[key]} onChange={v => setC({ ...c, [key]: v === "" ? 0 : v })} />
-      ))}
-    </ModalShell>
-  );
-}
-
 function MomentumEditModal({ momentum, onClose, onSave }) {
   const [m, setM] = React.useState(momentum.map(row => [...row]));
   return (
@@ -152,7 +132,6 @@ function TrainerGoalPage() {
   const [signedIn, setSignedIn] = React.useState(false);
   const [toast, setToast] = React.useState(null);
   const [editGoalIdx, setEditGoalIdx] = React.useState(null); // number | 'new' | null
-  const [editCalc, setEditCalc] = React.useState(false);
   // Holds the ROWS to edit (or false) — the modal is seeded with whatever the
   // card is showing, so opening it on a computed card adopts those figures as
   // the coach's own starting point rather than a blank grid.
@@ -167,10 +146,10 @@ function TrainerGoalPage() {
       setSignedIn(true);
       const remote = await window.shapeDb.getUserGoals("trainer");
       if (remote && Object.keys(remote).length > 0) {
-        setState(s => ({ ...s, ...remote, goals: ensureGoalIds(remote.goals || s.goals), calc: { ...s.calc, ...(remote.calc || {}) } }));
+        setState(s => ({ ...s, ...remote, goals: ensureGoalIds(remote.goals || s.goals) }));
       } else {
         // Signed in with no saved goals → a clean empty state, not the demo goals.
-        setState(s => ({ ...s, goals: [], momentum: [], calc: { rate: 0, spw: 0, prog: 0, workoutSales: 0, currentWeekly: 0 } }));
+        setState(s => ({ ...s, goals: [], momentum: [] }));
       }
     })();
   }, []);
@@ -202,35 +181,12 @@ function TrainerGoalPage() {
     persist({ ...state, goals });
   }
 
-  const { goals, calc, momentum } = state;
-  const { rate, spw, prog, workoutSales = 0, currentWeekly } = calc;
-  const PLATFORM_FEE_RATE = 0.15;
-  const grossWeekly = rate*spw + prog + workoutSales;
-  const monthly = grossWeekly * 4.33 * (1 - PLATFORM_FEE_RATE);
-  const weekly = monthly / 4.33;
-  const quarterly = monthly * 3;
-  const annual = monthly * 12;
-  // ⚠ The sign goes OUTSIDE the currency symbol. This read `"$" + n` and every
-  // caller happened to pass a positive, so a shortfall rendered "$-6,007" — and
-  // binding the pace to real subscriptions is exactly what starts producing
-  // negatives (a coach whose calculator is still zeroed is now BELOW their
-  // actual pace rather than level with a typed 0).
-  const fmt = n => (n < 0 ? "-$" : "$") + Math.abs(Math.round(n)).toLocaleString();
-  // ⚠ THE PACE THE CALCULATOR COMPARES AGAINST WAS A NUMBER THE COACH TYPED.
-  // "vs $4,620 current pace" was `calc.currentWeekly`, entered once and never
-  // revisited — so the whole comparison drifted quietly out of date. When the
-  // coach has not set one and the practice can answer, use the real weekly net
-  // from their subscriptions and SAY which it is; a typed figure still wins,
-  // because a coach who set one is asserting something the subscriptions do
-  // not know (cash work, a rate change landing next month).
-  const liveWeeklyNet = live && live.kind === "live" && live.weeklyNetCents != null ? live.weeklyNetCents / 100 : null;
-  const paceIsLive = !Number(currentWeekly) && liveWeeklyNet != null;
-  const currentNet = paceIsLive ? liveWeeklyNet : currentWeekly * (1 - PLATFORM_FEE_RATE);
-  const paceDelta = weekly - currentNet;
+  const { goals, momentum } = state;
 
   // ── A FIXED PAGE, NOT A BOARD (owner, 2026-10-15: "least overwhelming as possible, easy
   // to navigate", the builder removed "like Programs"). Three parts in one order: the
-  // quarter's goals, how the quarter is going (Momentum), and the calculator to plan with.
+  // quarter's goals, how the quarter is going (Momentum), and what clients earn you, with
+  // the planner one tap away on Business → Plan (dashBusiness.jsx DbzGoalEarn, 2026-10-17).
   // Each card keeps its own EDIT; there is nothing to drag, hide or resize.
   const goalCard = (g, i) => {
     // A bound goal reads its CURRENT from the practice; undefined means the
@@ -266,64 +222,14 @@ function TrainerGoalPage() {
       </Card>
     );
   };
+  // The calculator is Business's "What clients earn you", started from this coach's live figures:
+  // the weekly session-rate model it replaces took 15% off everything and scaled a week up to a month.
   const calcCard = (
       <Card>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-          <SectionTitle right="SET YOUR TARGET">Revenue calculator</SectionTitle>
-          <Chip onClick={() => setEditCalc(true)}>EDIT</Chip>
-        </div>
-        <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: 32, padding: "8px 4px 4px" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-            {[
-              ["Session rate", "rate", rate, 20, 300, 5, v => `$${v}`],
-              ["Sessions / week", "spw", spw, 0, 60, 1, v => `${v}`],
-              ["Program subscriptions / week", "prog", prog, 0, 5000, 50, v => `$${v}`],
-              ["One-time workout sales / week", "workoutSales", workoutSales, 0, 5000, 25, v => `$${v}`],
-            ].map(([label, key, val, min, max, step, fmtV]) => (
-              <div key={key}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                  <span style={{ fontSize: 12.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)" }}>{label}</span>
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5, color: INK }}>{fmtV(val)}</span>
-                </div>
-                <input type="range" min={min} max={max} step={step} value={val}
-                  onChange={e => setState({ ...state, calc: { ...calc, [key]: +e.target.value } })}
-                  onMouseUp={e => persist({ ...state, calc: { ...calc, [key]: +e.target.value } })}
-                  onTouchEnd={e => persist({ ...state, calc: { ...calc, [key]: +e.target.value } })}
-                  style={{ width: "100%", accentColor: "var(--sh-accent2, #0ac5a8)", cursor: "pointer" }} />
-              </div>
-            ))}
-            <div style={{ fontSize: 11.5, color: "var(--sh-ink2, #a09b94)", lineHeight: 1.5, marginTop: 4 }}>
-              Based on session earnings, program subscriptions, and one-time workout sales. Numbers shown are <strong style={{ color: INK }}>take-home</strong> after Shape's 15% platform fee. Gross this week: <span style={{ color: INK }}>{fmt(grossWeekly)}</span>.
-            </div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignSelf: "start" }}>
-            {[
-              // ⚠ NO DELTA AGAINST A LIVE PACE. The target includes session work and
-              // one-time sales; the live figure is SUBSCRIPTION revenue only (both
-              // analytics routes sum `subscriptions` and nothing else). Subtracting
-              // one from the other produced a coloured "+$745 surplus" for a trainer
-              // already past target on session income. The figure is worth showing;
-              // the difference between them is not a number.
-              ["WEEKLY TAKE-HOME", fmt(weekly), paceIsLive
-                ? `subscriptions today: ${fmt(currentNet)} · ${fmt(grossWeekly)} gross target`
-                : `vs ${fmt(currentNet)} current pace · ${fmt(grossWeekly)} gross`, paceIsLive ? null : paceDelta],
-              ["MONTHLY TAKE-HOME", fmt(monthly), `${fmt(grossWeekly * 4.33)} gross · 4.33 weeks avg`, null],
-              ["QUARTERLY TAKE-HOME", fmt(quarterly), `${fmt(grossWeekly * 4.33 * 3)} gross · 3 months`, null],
-              ["ANNUAL TAKE-HOME", fmt(annual), `${fmt(grossWeekly * 4.33 * 12)} gross · 12 months`, null],
-            ].map(([lab, val, sub, delta], i) => (
-              <div key={i} style={{ padding: 20, background: i === 0 ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.1)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: `1px solid ${i === 0 ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.25)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.08)"}`, borderRadius: 10 }}>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: i === 0 ? TEAL_BRIGHT : "var(--sh-ink2, #a09b94)", marginBottom: 10 }}>{lab}</div>
-                <div style={{ fontFamily: serif, fontSize: 32, letterSpacing: "-0.02em", lineHeight: 1 }}>{val}</div>
-                <div style={{ fontSize: 11, color: "var(--sh-ink2, #a09b94)", marginTop: 6 }}>
-                  {delta != null ? (
-                    <span style={{ color: delta >= 0 ? TEAL_BRIGHT : "var(--sh-danger, #e07856)" }}>{delta >= 0 ? "+" : ""}{fmt(delta)} </span>
-                  ) : null}
-                  {sub}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <SectionTitle right="AFTER SHAPE'S FEE">What clients earn you</SectionTitle>
+        {typeof DbzGoalEarn === "function"
+          ? <DbzGoalEarn role="trainer" live={live} />
+          : <div style={{ fontSize: 12.5, color: "var(--sh-ink2, #a09b94)" }}>The calculator is on Business → Plan.</div>}
       </Card>
   );
   const momentumCard = () => {
@@ -397,14 +303,6 @@ function TrainerGoalPage() {
           onClose={() => setEditGoalIdx(null)}
           onSave={saveGoal}
           onDelete={editGoalIdx === "new" ? null : deleteGoal}
-        />
-      )}
-      {editCalc && (
-        <CalcEditModal
-          calc={calc}
-          labels={[["rate","Session rate ($)"],["spw","Sessions / week"],["prog","Program subscriptions / week ($)"],["workoutSales","One-time workout sales / week ($)"],["currentWeekly","Current weekly pace ($)"]]}
-          onClose={() => setEditCalc(false)}
-          onSave={c => { setEditCalc(false); persist({ ...state, calc: c }); }}
         />
       )}
       {editMomentum && (

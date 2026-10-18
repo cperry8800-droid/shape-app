@@ -8,10 +8,13 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { loadStripe } from '@/lib/stripe';
+import { loadStripe, loadCancelFlags } from '@/lib/stripe';
+import { pickRenewals, renewalRows, RENEWAL_CHECK_CAP, type RenewalSource } from '@/lib/coach-renewals.mjs';
 import { coachCutCents, bpsToRate } from '@/lib/platform-fee';
-import { buildOriginFeed } from '@/lib/origin-attribution';
+import { buildOriginFeed, byoMixOf } from '@/lib/origin-attribution';
 import { buildTrajectory } from '@/lib/coach-trajectory.mjs';
+import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
+import { isMeasuredSignedOut } from '@/lib/auth-lookup';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -40,41 +43,30 @@ async function clientPrs(
   return prs;
 }
 
-// ⚠ EVERY ROW, A PAGE AT A TIME. One select returns at most 1,000 rows (the API's cap) and says
-// nothing when it stops there, so a big roster's workouts and weigh-ins were read short (Codex on
-// #2324). Keyset on id, not an offset (cron/guardrail-health says why: a row written mid-read
-// shifts every later offset); a read that reaches the ceiling is unknown, not short. `page` builds
-// one filtered page: rows after `after`, ordered by id, ROW_PAGE at most.
-const ROW_PAGE = 1000;
-const ROW_PAGES = 50;
-async function readAllById<T extends { id: unknown }>(
-  page: (after: string | null) => PromiseLike<{ data: unknown; error: { message: string } | null }>,
-): Promise<{ data: T[] | null; error: { message: string } | null }> {
-  const rows: T[] = [];
-  let after: string | null = null;
-  for (let i = 0; i < ROW_PAGES; i += 1) {
-    const { data, error } = await page(after);
-    if (error) return { data: null, error };
-    const got = (data ?? []) as T[];
-    rows.push(...got);
-    if (got.length < ROW_PAGE) return { data: rows, error: null };
-    after = String(got[got.length - 1].id);
-  }
-  return { data: null, error: { message: `more than ${ROW_PAGE * ROW_PAGES} rows` } };
-}
-
 // When a workout happened: its start, else its end, else when it was logged (`started_at` can be
 // null; `created_at` cannot). The window filter below reads the same order.
 type SessionRow = { id: string; client_id: string; started_at: string | null; ended_at: string | null; created_at: string };
 const sessionAt = (r: SessionRow) => r.started_at ?? r.ended_at ?? r.created_at;
 
-export async function GET() {
+export async function GET(request: Request) {
+  // Renewals cost a Stripe read each, so only the page that shows them asks for them: the Business
+  // page sends ?renewals=1, and the Goal page's live figures (dashData.jsx) do not.
+  const wantRenewals = new URL(request.url).searchParams.get('renewals') === '1';
   const supabase = await createClient();
   const {
     data: { user },
+    error: authErr,
   } = await supabase.auth.getUser();
 
   if (!user) {
+    // ⚠ AN AUTH OUTAGE IS NOT A SIGNED-OUT VIEWER (src/lib/auth-lookup.ts). getUser() answers a
+    // dead network or an auth-server 5xx with a null user too, and the Business page reads a 401 as
+    // "show the preview": a signed-in coach was shown the preview's payouts as their own. A 503 is
+    // the unread state each zone already has.
+    if (!isMeasuredSignedOut(authErr)) {
+      console.warn('[shape-app] trainer analytics: the sign-in check failed — answering 503, not 401:', authErr?.message);
+      return NextResponse.json({ error: 'Could not check your sign-in just now.' }, { status: 503 });
+    }
     return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   }
 
@@ -161,8 +153,32 @@ export async function GET() {
     }
   }
   if (churnErr) console.warn('[shape-app] trainer analytics: churn read failed — churn renders as unread:', churnErr.message);
+  // ⚠ A CANCELLED PLAN IS NOT A DEPARTURE WHILE THE CLIENT HOLDS ANOTHER (Codex round 8 on #2394, the
+  // trajectory's rule in coach-trajectory.mjs leftIn). Each row says whose it is, and whether that
+  // client still holds a plan here, so the page counts the people who left, not the plans that
+  // ended. null is "couldn't tell" (a read below failed), which the page says rather than guessing;
+  // a row with no client has no other plan to hold, so it is a departure.
+  // ⚠ AND A RETRYING PLAN IS STILL A MEMBERSHIP (Codex round 9 on #2394). The active read above takes
+  // active and trialing; the trajectory (OPEN_STATUSES) also counts past_due. Only the churned
+  // clients are asked about (at most the 12 listed), so one read holds them all.
+  let retrying: Set<string> | null = new Set();
+  if (!churnErr && churnIds.length) {
+    const { data, error } = await supabase
+      .from('subscriptions')
+      .select('client_id')
+      .eq('provider_role', 'trainer')
+      .eq('provider_id', providerId)
+      .eq('status', 'past_due')
+      .in('client_id', churnIds);
+    if (error) console.warn("[shape-app] trainer analytics: retrying-plans read failed — who left renders as unread:", error.message);
+    retrying = error ? null : new Set((data ?? []).map((r: { client_id: string | null }) => String(r.client_id)));
+  }
+  const membersKnown = !subsUnknown && retrying != null;
+  const holdsPlan = new Set([...clientIds.map(String), ...(retrying ?? [])]);
   const churn = churnErr ? null : (churnRows ?? []).map((r) => ({
     name: churnNames.get(String(r.client_id)) || 'Former client',
+    clientId: r.client_id == null ? null : String(r.client_id),
+    stillClient: !membersKnown ? null : r.client_id == null ? false : holdsPlan.has(String(r.client_id)),
     startedAt: r.created_at ?? null,
     endedAt: r.current_period_end ?? null,
     priceCents: r.price_cents ?? null,
@@ -353,31 +369,29 @@ export async function GET() {
   // ISO week into active / added / ended / MRR / one-time. Read with the same
   // provider-scoped policies as the rows above.
   //
-  // ⚠ NEWEST FIRST, because the cap has to cut the OLD end. Ordered ascending,
-  // a coach past the limit would lose their most recent rows — the half
-  // activeNow, the adds and the churn rate are computed from.
-  //
-  // ⚠ AND A FAILED READ MUST NOT RENDER AS "no subscribers yet". `data` is null
+  // ⚠ A FAILED READ MUST NOT RENDER AS "no subscribers yet". `data` is null
   // for an RLS denial, a timeout or a pre-migration column mismatch alike, and
   // an empty series is a claim about the coach's business rather than about the
   // read — so the error sends `trajectory: null` and the plate says it could not
   // be read.
+  // ⚠ EVERY ROW, A PAGE AT A TIME (Codex, #2394). This was one read, newest first, cut at 1,000
+  // by the API whatever its `.limit(2000)` said. The cut dropped the OLDEST rows, and those hold
+  // the longest-standing clients who are still active, so today's headcount and MRR (which the
+  // Plan and the Goal tab start from) came out short with no error. The series doesn't depend on
+  // the order the rows arrive in.
   const [subsAllRes, purchasesRes] = await Promise.all([
-    supabase
-      .from('subscriptions')
-      .select('*')
-      .eq('provider_role', 'trainer')
-      .eq('provider_id', providerId)
-      .order('created_at', { ascending: false })
-      .limit(2000),
-    supabase
-      .from('one_time_purchases')
-      .select('*')
-      .eq('provider_role', 'trainer')
-      .eq('provider_id', providerId)
-      .eq('status', 'paid')
-      .order('created_at', { ascending: false })
-      .limit(2000),
+    readAllById<{ id: string }>((after) => {
+      let q = supabase.from('subscriptions').select('*').eq('provider_role', 'trainer').eq('provider_id', providerId);
+      if (after) q = q.gt('id', after);
+      // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
+      return q.order('id', { ascending: true }).limit(ROW_PAGE);
+    }),
+    readAllById<{ id: string }>((after) => {
+      let q = supabase.from('one_time_purchases').select('*').eq('provider_role', 'trainer').eq('provider_id', providerId).eq('status', 'paid');
+      if (after) q = q.gt('id', after);
+      // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
+      return q.order('id', { ascending: true }).limit(ROW_PAGE);
+    }),
   ]);
   if (subsAllRes.error) {
     console.warn('[shape-app] trainer analytics: trajectory subscriptions read failed — the plate renders "could not be read":', subsAllRes.error.message);
@@ -402,10 +416,21 @@ export async function GET() {
       }),
     };
 
-  const stripeSummary = await loadStripe(
-    trainerRow.stripe_account_id ?? null,
-    trainerRow.stripe_account_status ?? null
-  );
+  // Renewing in the next 7 days (Business page, Money tab). Each one is asked of Stripe, because a
+  // member who cancelled keeps an active row until the period ends (src/lib/coach-renewals.mjs).
+  // Built from the active subscriptions: when they could not be read, neither can this.
+  const due = subsUnknown || !wantRenewals ? [] : pickRenewals(subs as RenewalSource[]);
+  const [stripeSummary, cancelFlags] = await Promise.all([
+    loadStripe(trainerRow.stripe_account_id ?? null, trainerRow.stripe_account_status ?? null),
+    loadCancelFlags(due.map((r) => r.stripe_subscription_id).filter((v): v is string => !!v).map(String), RENEWAL_CHECK_CAP),
+  ]);
+  const renewals = subsUnknown
+    ? null
+    : renewalRows(due, {
+      names: activeNames,
+      flags: cancelFlags,
+      cutCents: (priceCents: number, feeBps: number | null) => coachCutCents(priceCents, bpsToRate(feeBps ?? 1500)),
+    });
 
   return NextResponse.json({
     isTrainer: true,
@@ -413,7 +438,10 @@ export async function GET() {
     churn,
     // Built from the active subscriptions: when they could not be read, neither can this.
     byOrigin: subsUnknown ? null : byOrigin,
+    // The share of CLIENTS the coach brought (byoMixOf): the Plan and Goal calculators start from it.
+    byoMix: subsUnknown ? null : byoMixOf(subs),
     trajectory,
+    ...(wantRenewals ? { renewals } : {}),
     metrics: {
       mrrGrossCents: subsUnknown ? null : grossCents,
       mrrNetCents: subsUnknown ? null : netCents,

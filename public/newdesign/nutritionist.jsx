@@ -121,7 +121,7 @@ function NutHero() {
 // ---------- Value strip ----------
 function NutStats() {
   const items = [
-    { k: "Weekly", v: "Payouts direct to your bank, or instant any day." },
+    { k: "Direct", v: "Payouts straight to your bank, on the schedule you set in Stripe." },
     { k: "Verified", v: "Every RD, RDN, CNS, and license checked on intake." },
     { k: "Yours", v: "Your practice, your pricing, your clients. No lock-in." },
   ];
@@ -209,10 +209,13 @@ function NutHow() {
 // ---------- Earnings calculator ----------
 function NutEarnings() {
   const [clients, setClients] = React.useState(18);
+  // A monthly rate per client, as clients pay on Shape (Business review, 2026-10-17: this was a
+  // consult price times a guessed two visits a month). Clients a coach brings pay no Shape fee.
   const [price, setPrice] = React.useState(140);
+  const [byo, setByo] = React.useState(0);
   const PLATFORM_FEE_RATE = 0.15;
-  const grossMonthly = clients * price * 2;
-  const feeMonthly = grossMonthly * PLATFORM_FEE_RATE;
+  const grossMonthly = clients * price;
+  const feeMonthly = Math.round(grossMonthly * (1 - byo / 100) * PLATFORM_FEE_RATE);
   const monthly = grossMonthly - feeMonthly;
   const yearly = monthly * 12;
   return (
@@ -223,16 +226,16 @@ function NutEarnings() {
             <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>Earnings</div>
             <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5vw, 78px)", letterSpacing: "-0.04em", fontWeight: 300, margin: "0 0 28px", lineHeight: 0.96, color: INK }}>Your rate. <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>See your take-home.</em></h2>
             <p style={{ fontFamily: sans, fontSize: 16, color: "rgba(242,237,228,0.68)", lineHeight: 1.62, margin: "0 0 28px", maxWidth: 500 }}>
-              Set your own session and plan pricing and keep what you earn. No monthly dues, no setup fees, no per-booking cuts — Shape only takes a small platform fee when you get paid. Cancel any time.
+              Set your own monthly rate and keep what you earn. No monthly dues, no setup fees, no per-booking cuts — Shape only takes a small platform fee when you get paid. Cancel any time.
             </p>
             <div style={{ background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, padding: "22px 24px", marginBottom: 28, maxWidth: 500 }}>
               <div style={{ fontFamily: mono, fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase", color: TEAL, marginBottom: 10 }}>What Shape covers</div>
               <div style={{ fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.72)", lineHeight: 1.55 }}>
-                Client acquisition through the Shape marketplace, in-app messaging and video, meal plan hosting, scheduling, and liability coverage. Standard card processing is separate.
+                Client acquisition through the Shape marketplace, in-app messaging and video, meal plan hosting, scheduling, and liability coverage. Card processing is on Shape, too.
               </div>
             </div>
             <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 14 }}>
-              {["No monthly fee — you only pay Shape when you earn", "Link your existing Stripe account, or set one up in 5 minutes", "Weekly payouts direct to your bank"].map(t => (
+              {["No monthly fee — you only pay Shape when you earn", "Link your existing Stripe account, or set one up in 5 minutes", "Payouts straight to your bank, on the schedule you set in Stripe"].map(t => (
                 <li key={t} style={{ fontFamily: sans, fontSize: 14.5, color: "rgba(242,237,228,0.76)", display: "flex", gap: 12, alignItems: "baseline" }}>
                   <span style={{ color: TEAL }}>→</span>{t}
                 </li>
@@ -251,10 +254,18 @@ function NutEarnings() {
             </div>
             <div style={{ marginBottom: 32 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
-                <label style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.7)" }}>Consult / plan price</label>
+                <label style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.7)" }}>Monthly rate per client</label>
                 <div style={{ fontFamily: serif, fontSize: 30, color: INK, letterSpacing: "-0.02em" }}>${price}</div>
               </div>
-              <input type="range" min="60" max="400" step="10" value={price} onChange={e => setPrice(+e.target.value)} style={{ width: "100%", accentColor: TEAL }} />
+              <input type="range" min="50" max="500" step="5" value={price} onChange={e => setPrice(+e.target.value)} style={{ width: "100%", accentColor: TEAL }} />
+            </div>
+            <div style={{ marginBottom: 32 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
+                <label style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.7)" }}>Clients you bring</label>
+                <div style={{ fontFamily: serif, fontSize: 30, color: INK, letterSpacing: "-0.02em" }}>{byo}%</div>
+              </div>
+              <input type="range" min="0" max="100" step="5" value={byo} onChange={e => setByo(+e.target.value)} style={{ width: "100%", accentColor: TEAL }} />
+              <div style={{ fontFamily: sans, fontSize: 11.5, color: "rgba(242,237,228,0.45)", marginTop: 8 }}>No Shape fee on clients you bring.</div>
             </div>
             <div style={{ padding: "22px 0 0", borderTop: "1px solid rgba(242,237,228,0.1)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
@@ -262,7 +273,7 @@ function NutEarnings() {
                 <div style={{ fontFamily: mono, fontSize: 14, color: "rgba(242,237,228,0.75)" }}>${grossMonthly.toLocaleString()}</div>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", paddingBottom: 18, borderBottom: "1px dashed rgba(242,237,228,0.12)" }}>
-                <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)" }}>Platform fee</div>
+                <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)" }}>Platform fee · 15% on clients who find you</div>
                 <div style={{ fontFamily: mono, fontSize: 14, color: "rgba(242,237,228,0.55)" }}>-${Math.round(feeMonthly).toLocaleString()}</div>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 18 }}>
@@ -275,7 +286,7 @@ function NutEarnings() {
               </div>
             </div>
             <div style={{ marginTop: 28, fontFamily: sans, fontSize: 11.5, color: "rgba(242,237,228,0.4)", lineHeight: 1.5 }}>
-              Estimate assumes 2 billable touchpoints per client per month, less Shape's small platform fee. Actual earnings vary by specialty and practice model.
+              Estimate at one monthly rate per client. Shape takes 15% on clients who find you on Shape and nothing on clients you bring, and pays the card processing. Actual earnings vary by specialty and practice model.
             </div>
           </div>
         </div>
@@ -295,7 +306,7 @@ function NutTools() {
     // booking is a 15-minute consult (owner, 2026-10-07; see coaches.jsx's Schedule tab).
     { t: "Scheduling", b: "Clients book consults inside Shape, into the hours you open in your own time zone. Drag one to a new day and the client is notified." },
     { t: "Messaging", b: "Secure client chat. Voice notes, photos of meals and labs, saved replies for the questions you answer weekly." },
-    { t: "Payouts & docs", b: "Weekly direct deposit, or instant. Clean monthly statements. Tax docs when January comes." },
+    { t: "Payouts & docs", b: "Straight to your bank, on the schedule you set in Stripe. Clean monthly statements. Tax docs when January comes." },
   ];
   return (
     <section style={{ padding: "140px 72px" }}>
@@ -360,10 +371,10 @@ function NutFeatured() {
 function NutFAQ() {
   const faqs = [
     { q: "What credentials do I need?", a: "RD, RDN, CNS, CDN, or state-licensed dietitian. CSSD (sports) or IFMCP (functional) help but aren't required. Non-licensed health/nutrition coaches accepted under a distinct scope-of-practice tier." },
-    { q: "What does Shape cost?", a: "You keep the vast majority of everything your clients pay you. No monthly dues, no listing fees — Shape only takes a small platform fee when you get paid. Standard card processing is separate." },
+    { q: "What does Shape cost?", a: "You keep the vast majority of everything your clients pay you. No monthly dues, no listing fees — Shape only takes a small platform fee when you get paid, and pays the card processing." },
     { q: "How does Shape handle HIPAA and scope of practice?", a: "Client records are encrypted at rest and in transit. Scope-of-practice tiers are enforced by credential — non-RDs can't access medical nutrition therapy flows. BAAs available for practices that need them." },
     { q: "Can I bring my existing clients?", a: "Yes. We help with transition emails, pricing continuity, and importing plan templates." },
-    { q: "Payouts?", a: "Weekly, direct to your bank. Instant payouts available any day. 1099s auto-generated every January." },
+    { q: "Payouts?", a: "Straight to your bank, on the schedule you set in your own Stripe account. 1099s auto-generated every January." },
     { q: "Plans only, no consults — is that a thing?", a: "Yes. Publish meal plans as one-time or recurring products. Many nutritionists earn 30–40% of revenue from plan sales alone." },
   ];
   const [open, setOpen] = React.useState(0);

@@ -110,7 +110,7 @@ function TrainerHero() {
 function TrainerStats() {
   const items = [
     { k: "Free", v: "To join and list your services. No monthly dues, no setup fees, no per-booking cuts." },
-    { k: "Weekly", v: "Payouts direct to your bank, or instant any day." },
+    { k: "Direct", v: "Payouts straight to your bank, on the schedule you set in Stripe." },
     { k: "Verified", v: "Every coach credential-checked on intake." },
     { k: "Yours", v: "Your brand, your pricing, your clients. No lock-in." },
   ];
@@ -198,10 +198,13 @@ function TrainerHow() {
 // ---------- Earnings calculator ----------
 function TrainerEarnings() {
   const [clients, setClients] = React.useState(20);
-  const [price, setPrice] = React.useState(120);
+  // A monthly rate per client, as clients pay on Shape (Business review, 2026-10-17: this was a
+  // per-session price times a guessed number of sessions). Clients a coach brings pay no Shape fee.
+  const [price, setPrice] = React.useState(150);
+  const [byo, setByo] = React.useState(0);
   const PLATFORM_FEE_RATE = 0.15;
-  const grossMonthly = clients * price * 4;
-  const feeMonthly = grossMonthly * PLATFORM_FEE_RATE;
+  const grossMonthly = clients * price;
+  const feeMonthly = Math.round(grossMonthly * (1 - byo / 100) * PLATFORM_FEE_RATE);
   const monthly = grossMonthly - feeMonthly;
   const yearly = monthly * 12;
   return (
@@ -212,16 +215,16 @@ function TrainerEarnings() {
             <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>Earnings</div>
             <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5vw, 78px)", letterSpacing: "-0.04em", fontWeight: 300, margin: "0 0 28px", lineHeight: 0.96, color: INK }}>Set your price. <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>See your take-home.</em></h2>
             <p style={{ fontFamily: sans, fontSize: 16, color: "rgba(242,237,228,0.68)", lineHeight: 1.62, margin: "0 0 28px", maxWidth: 500 }}>
-              Set your own session price and keep what you earn. No monthly dues, no setup fees, no per-booking cuts — Shape only takes a small platform fee when you get paid. Cancel any time.
+              Set your own monthly rate and keep what you earn. No monthly dues, no setup fees, no per-booking cuts — Shape only takes a small platform fee when you get paid. Cancel any time.
             </p>
             <div style={{ background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, padding: "22px 24px", marginBottom: 28, maxWidth: 500 }}>
               <div style={{ fontFamily: mono, fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase", color: TEAL, marginBottom: 10 }}>What Shape covers</div>
               <div style={{ fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.72)", lineHeight: 1.55 }}>
-                Client acquisition through the Shape marketplace, in-app messaging and video, program hosting, scheduling, and liability coverage. Standard card processing is separate.
+                Client acquisition through the Shape marketplace, in-app messaging and video, program hosting, scheduling, and liability coverage. Card processing is on Shape, too.
               </div>
             </div>
             <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 14 }}>
-              {["No monthly fee — you only pay Shape when you earn", "Link your existing Stripe account, or set one up in 5 minutes", "Weekly payouts direct to your bank"].map(t => (
+              {["No monthly fee — you only pay Shape when you earn", "Link your existing Stripe account, or set one up in 5 minutes", "Payouts straight to your bank, on the schedule you set in Stripe"].map(t => (
                 <li key={t} style={{ fontFamily: sans, fontSize: 14.5, color: "rgba(242,237,228,0.76)", display: "flex", gap: 12, alignItems: "baseline" }}>
                   <span style={{ color: TEAL }}>→</span>{t}
                 </li>
@@ -240,10 +243,18 @@ function TrainerEarnings() {
             </div>
             <div style={{ marginBottom: 32 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
-                <label style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.7)" }}>Session price</label>
+                <label style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.7)" }}>Monthly rate per client</label>
                 <div style={{ fontFamily: serif, fontSize: 30, color: INK, letterSpacing: "-0.02em" }}>${price}</div>
               </div>
-              <input type="range" min="40" max="300" step="5" value={price} onChange={e => setPrice(+e.target.value)} style={{ width: "100%", accentColor: TEAL }} />
+              <input type="range" min="50" max="500" step="5" value={price} onChange={e => setPrice(+e.target.value)} style={{ width: "100%", accentColor: TEAL }} />
+            </div>
+            <div style={{ marginBottom: 32 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
+                <label style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.7)" }}>Clients you bring</label>
+                <div style={{ fontFamily: serif, fontSize: 30, color: INK, letterSpacing: "-0.02em" }}>{byo}%</div>
+              </div>
+              <input type="range" min="0" max="100" step="5" value={byo} onChange={e => setByo(+e.target.value)} style={{ width: "100%", accentColor: TEAL }} />
+              <div style={{ fontFamily: sans, fontSize: 11.5, color: "rgba(242,237,228,0.45)", marginTop: 8 }}>No Shape fee on clients you bring.</div>
             </div>
             <div style={{ padding: "22px 0 0", borderTop: "1px solid rgba(242,237,228,0.1)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
@@ -251,7 +262,7 @@ function TrainerEarnings() {
                 <div style={{ fontFamily: mono, fontSize: 14, color: "rgba(242,237,228,0.75)" }}>${grossMonthly.toLocaleString()}</div>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", paddingBottom: 18, borderBottom: "1px dashed rgba(242,237,228,0.12)" }}>
-                <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)" }}>Platform fee</div>
+                <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)" }}>Platform fee · 15% on clients who find you</div>
                 <div style={{ fontFamily: mono, fontSize: 14, color: "rgba(242,237,228,0.55)" }}>-${Math.round(feeMonthly).toLocaleString()}</div>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 18 }}>
@@ -264,7 +275,7 @@ function TrainerEarnings() {
               </div>
             </div>
             <div style={{ marginTop: 28, fontFamily: sans, fontSize: 11.5, color: "rgba(242,237,228,0.4)", lineHeight: 1.5 }}>
-              Estimate assumes 4 sessions per client per month, less Shape's small platform fee. Actual earnings vary by specialty, location, and hours worked.
+              Estimate at one monthly rate per client. Shape takes 15% on clients who find you on Shape and nothing on clients you bring, and pays the card processing. Actual earnings vary by specialty, location, and how many clients you take on.
             </div>
           </div>
         </div>
@@ -283,7 +294,7 @@ function TrainerTools() {
     // no-show handling" — none of which exists (owner, 2026-10-07; see coaches.jsx's Schedule tab).
     { t: "Scheduling", b: "Clients book inside Shape, into the hours you open in your own time zone. Drag a session to a new day and the client is notified." },
     { t: "Messaging", b: "Typing indicators, read receipts, voice notes. Quick replies for the things you type all day." },
-    { t: "Payouts", b: "Weekly direct deposit, or instant. Clean monthly statements. Tax docs when January comes." },
+    { t: "Payouts", b: "Straight to your bank, on the schedule you set in Stripe. Clean monthly statements. Tax docs when January comes." },
   ];
   return (
     <section style={{ padding: "140px 72px" }}>
@@ -348,9 +359,9 @@ function TrainerFeatured() {
 function TrainerFAQ() {
   const faqs = [
     { q: "What credentials do I need?", a: "An accredited personal training certification (NASM, ACE, NSCA, ACSM, NCSF, or similar), plus proof of current CPR/AED. Specialty certs (CSCS, RKC, FMS) help but aren't required." },
-    { q: "What does Shape cost trainers?", a: "You keep the vast majority of everything your clients pay you. No monthly dues, no listing fees — Shape only takes a small platform fee when you get paid. Standard card processing is separate." },
+    { q: "What does Shape cost trainers?", a: "You keep the vast majority of everything your clients pay you. No monthly dues, no listing fees — Shape only takes a small platform fee when you get paid, and pays the card processing." },
     { q: "Can I bring my existing clients?", a: "Yes. We'll help with invitations, transfer flows, and pricing continuity." },
-    { q: "How fast do payouts land?", a: "Weekly, direct to your bank — usually Monday. Need it faster? Instant payouts are available any day." },
+    { q: "How fast do payouts land?", a: "On the schedule you set in your own Stripe account, straight to your bank. Change it there any time." },
     { q: "Am I locked in?", a: "No exclusivity. Coach on Shape, on your own site, wherever — it's your business. Leave anytime, take your clients with you." },
     { q: "What if I only want to sell programs, not sessions?", a: "That works. Publish programs as one-time purchases or subscriptions. Many trainers earn 30–50% of revenue from programs alone." },
   ];

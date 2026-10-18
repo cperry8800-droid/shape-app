@@ -3,6 +3,8 @@
 // Run from the repo root:
 //   node scripts/mutate.mjs --spec tests/mutations/trainer-analytics-2026-10-13.mutations.mjs --fail-on-skipped
 const ROUTE = 'src/app/api/trainer/analytics/route.ts';
+// readAllById moved here on 2026-10-18, shared with the nutritionist route.
+const PAGED = 'src/lib/read-all-by-id.ts';
 const BIZ = 'public/newdesign/dashBusiness.jsx';
 
 export default {
@@ -21,13 +23,13 @@ export default {
     { name: 'a reviewed session is not a workout', file: ROUTE,
       find: ".in('status', ['completed', 'reviewed'])",
       replace: ".eq('status', 'completed')" },
-    { name: 'the sessions read stops at the first 1,000', file: ROUTE,
+    { name: 'the sessions read stops at the first 1,000', file: PAGED,
       find: '    if (got.length < ROW_PAGE) return { data: rows, error: null };',
       replace: '    return { data: rows, error: null };' },
-    { name: 'each page reads from the start again', file: ROUTE,
+    { name: 'each page reads from the start again', file: PAGED,
       find: '    after = String(got[got.length - 1].id);\n',
       replace: '' },
-    { name: 'a read at the ceiling is reported as complete', file: ROUTE,
+    { name: 'a read at the ceiling is reported as complete', file: PAGED,
       find: "  return { data: null, error: { message: `more than ${ROW_PAGE * ROW_PAGES} rows` } };",
       replace: '  return { data: rows, error: null };' },
     { name: 'a workout with no start time drops out', file: ROUTE,

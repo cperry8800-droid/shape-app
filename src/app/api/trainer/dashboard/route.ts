@@ -212,16 +212,21 @@ export async function GET() {
   let growth = null;
   let funnel = null;
   if (providerId != null) {
+    const since90 = Date.now() - 90 * 86400000;
+    const consults90 = calendar.filter((c) => {
+      const t = new Date(c.at as string).getTime();
+      return t >= since90 && t <= Date.now() && c.kind !== 'NUTRITION' && c.kind !== 'TRAINING';
+    }).length;
     try {
-      const since90 = Date.now() - 90 * 86400000;
-      const consults90 = calendar.filter((c) => {
-        const t = new Date(c.at as string).getTime();
-        return t >= since90 && t <= Date.now() && c.kind !== 'NUTRITION' && c.kind !== 'TRAINING';
-      }).length;
       const g = await coachGrowthAndFunnel(supabase, 'trainer', providerId, consults90);
       growth = g.growth;
       funnel = g.funnel;
-    } catch (e) { /* panels render their honest empty states */ }
+    } catch (e) {
+      // The subscriptions could not be read (coachGrowthAndFunnel throws rather than read a
+      // failure as no history). Growth goes unread; the consults were counted above from the
+      // calendar, so the funnel keeps them and only the signings go unread.
+      funnel = { views: null, consults90, signed90: null };
+    }
   }
 
   return NextResponse.json({

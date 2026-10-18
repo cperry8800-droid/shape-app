@@ -24,7 +24,11 @@ const COACH = { id: '33333333-3333-4333-8333-333333333333' }
 
 // Every table read answers from `tables` (or `errors`); any chain of filters is accepted, and
 // recorded. `rpc` answers from `rpcs[name](args)`.
-function fakeSupabase(tables, { errors = {}, rpcs = {} } = {}) {
+// `auth` is what getUser resolves (a signed-in coach unless a test says otherwise).
+// `honorStatus` also applies status filters (eq / in on `status`), for a test whose rows differ by
+// status; `failActive` fails the active-subscriptions walk (its `.in('status', …)`) alone, and
+// `failRetrying` the read of the churned clients' past_due plans alone.
+function fakeSupabase(tables, { errors = {}, rpcs = {}, auth = null, honorStatus = false, failActive = false, failRetrying = false } = {}) {
   const reads = []
   const calls = []
   const from = (table) => {
@@ -35,7 +39,13 @@ function fakeSupabase(tables, { errors = {}, rpcs = {} } = {}) {
     // gt, order and limit are honoured (on whatever column they name), so a paged read pages.
     const answer = () => {
       if (errors[table]) return { data: null, error: { message: errors[table] }, count: null }
+      if (failActive && call.ops.some(([op, col]) => op === 'in' && col === 'status')) return { data: null, error: { message: 'timeout' }, count: null }
+      if (failRetrying && call.ops.some(([op, col, v]) => op === 'eq' && col === 'status' && v === 'past_due')) return { data: null, error: { message: 'timeout' }, count: null }
       let out = rows
+      if (honorStatus) for (const [op, col, v] of call.ops) {
+        if (op === 'eq' && col === 'status') out = out.filter((r) => r.status === v)
+        if (op === 'in' && col === 'status') out = out.filter((r) => v.includes(r.status))
+      }
       for (const [op, col, v] of call.ops) if (op === 'gt') out = out.filter((r) => String(r[col]) > String(v))
       for (const [op, col, o] of call.ops) {
         if (op !== 'order') continue
@@ -61,7 +71,7 @@ function fakeSupabase(tables, { errors = {}, rpcs = {} } = {}) {
     const answer = rpcs[name]
     return answer ? answer(args) : { data: null, error: null }
   }
-  return { reads, calls, client: { from, rpc, auth: { getUser: async () => ({ data: { user: COACH } }) } } }
+  return { reads, calls, client: { from, rpc, auth: { getUser: async () => auth ?? { data: { user: COACH }, error: null } } } }
 }
 
 async function loadRoute(role, tables, opts) {
@@ -74,14 +84,17 @@ async function loadRoute(role, tables, opts) {
       ['next/server', nextServer],
       ['@/lib/supabase/server', { createClient: async () => db.client }],
       ['@/lib/supabase/admin', { createAdminClient: () => db.client }],
-      ['@/lib/stripe', { loadStripe: async () => ({ connected: false }) }],
+      ['@/lib/stripe', { loadStripe: async () => ({ connected: false }), loadCancelFlags: async (ids, cap) => { opts?.flagCalls?.push({ ids, cap }); return new Map(ids.map((id) => [id, (opts?.cancelled || []).includes(id)])) } }],
+      ['@/lib/coach-renewals.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/coach-renewals.mjs')).href)],
       ['@/lib/platform-fee', await import(pathToFileURL(join(ROOT, 'src/lib/platform-fee.mjs')).href)],
       ['@/lib/origin-attribution', await ts('src/lib/origin-attribution.ts')],
       ['@/lib/coach-trajectory.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/coach-trajectory.mjs')).href)],
+      ['@/lib/read-all-by-id', await ts('src/lib/read-all-by-id.ts')],
+      ['@/lib/auth-lookup', await ts('src/lib/auth-lookup.ts')],
     ]),
   })
-  const res = await route.GET(new Request(`https://shape.test/api/${role}/analytics`))
-  return { body: await res.json(), reads: db.reads, calls: db.calls }
+  const res = await route.GET(new Request(`https://shape.test/api/${role}/analytics${opts?.query || ''}`))
+  return { status: res.status, body: await res.json(), reads: db.reads, calls: db.calls }
 }
 
 test('a trainer reads the trainer analytics: their listing, their roster\'s workouts and PRs', async () => {
@@ -126,6 +139,42 @@ const roster = (over = {}) => ({
   ...over,
 })
 const lifts = (prs) => ({ get_client_lifts: async ({ p_user_id }) => ({ data: { prs: prs[p_user_id] ?? 0, keyLifts: [] }, error: null }) })
+
+// ── An auth outage is not a signed-out viewer (review of #2394) ─────────────
+// getUser() resolves { user: null, error } for an outage exactly as it does for a visitor with no
+// session: auth-js turns a dead network or an auth-server 5xx into an AuthRetryableFetchError and
+// hands it back with a null user. Both routes read `!user` as "answer 401", and the Business page
+// reads a 401 as "show the preview", so an outage showed a signed-in coach the preview's payouts,
+// renewals and plan. The errors are the SDK's own, not look-alikes.
+const { AuthRetryableFetchError, AuthSessionMissingError, AuthApiError } = require_('@supabase/supabase-js')
+const noUser = (error) => ({ data: { user: null }, error })
+
+test('an auth outage answers 503 in both routes; only a missing or refused session is a 401', async () => {
+  for (const role of ['trainer', 'nutritionist']) {
+    for (const [why, error] of [
+      ['the auth server could not be reached', new AuthRetryableFetchError('fetch failed', 0)],
+      ['the auth server answered a 502', new AuthRetryableFetchError('Bad Gateway', 502)],
+      ['the auth server was rate limiting', new AuthApiError('too many requests', 429, 'over_request_rate_limit')],
+      ['an error nobody anticipated', new Error('something else')],
+    ]) {
+      const r = await loadRoute(role, roster(), { auth: noUser(error) })
+      assert.equal(r.status, 503, `${role}, ${why}: ${JSON.stringify(r.body)}`)
+      assert.deepEqual(r.body, { error: 'Could not check your sign-in just now.' })
+      assert.deepEqual(r.reads, [], `${role}, ${why}: nothing is read for a viewer the route could not identify`)
+    }
+    for (const [why, error] of [
+      ['a clean read that found nobody', null],
+      ['no session at all', new AuthSessionMissingError()],
+      ['a token the auth server refused', new AuthApiError('invalid JWT', 403, 'bad_jwt')],
+      ['no authorization presented', new AuthApiError('no authorization', 401, 'no_authorization')],
+    ]) {
+      const r = await loadRoute(role, roster(), { auth: noUser(error) })
+      assert.equal(r.status, 401, `${role}, ${why}: ${JSON.stringify(r.body)}`)
+      assert.deepEqual(r.body, { error: 'Authentication required.' })
+      assert.deepEqual(r.reads, [])
+    }
+  }
+})
 
 test('PRs are lifts beaten, from get_client_lifts per client, never sets logged', async () => {
   const { body, calls } = await loadRoute('trainer', roster(), { rpcs: lifts({ [A]: 2, [B]: 1 }) })
@@ -217,10 +266,13 @@ test('no failed read in the trainer route is published as an empty history', asy
       ['next/server', nextServer],
       ['@/lib/supabase/server', { createClient: async () => churnFails.client }],
       ['@/lib/supabase/admin', { createAdminClient: () => churnFails.client }],
-      ['@/lib/stripe', { loadStripe: async () => ({ connected: false }) }],
+      ['@/lib/stripe', { loadStripe: async () => ({ connected: false }), loadCancelFlags: async (ids) => new Map(ids.map((id) => [id, false])) }],
+      ['@/lib/coach-renewals.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/coach-renewals.mjs')).href)],
       ['@/lib/platform-fee', await import(pathToFileURL(join(ROOT, 'src/lib/platform-fee.mjs')).href)],
       ['@/lib/origin-attribution', await loadRealModule(join(ROOT, 'src/lib/origin-attribution.ts'), { typescript: true, registry: new Map([['@/lib/supabase/server', {}]]) })],
       ['@/lib/coach-trajectory.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/coach-trajectory.mjs')).href)],
+      ['@/lib/read-all-by-id', await loadRealModule(join(ROOT, 'src/lib/read-all-by-id.ts'), { typescript: true })],
+      ['@/lib/auth-lookup', await loadRealModule(join(ROOT, 'src/lib/auth-lookup.ts'), { typescript: true })],
     ]),
   })
   const body = await (await route.GET(new Request('https://shape.test/api/trainer/analytics'))).json()
@@ -303,4 +355,203 @@ test('a failed subscriptions read leaves every roster outcome unknown, not 0 or 
   assert.ok(Array.isArray(none.body.byOrigin))
   const origin = page.slice(page.indexOf('function DbzOriginZone('), page.indexOf('const rows = live ?', page.indexOf('function DbzOriginZone(')))
   assert.match(origin, /if \(live && byOrigin === null\) \{\s+return <div[^>]*>Couldn't read where your clients came from just now\./)
+})
+
+// ── Business page, Money tab (design E): renewals this week ────────────────
+test('renewals: the active rows due in the next 7 days, each asked of Stripe, net at the stored fee', async () => {
+  const soon = (d) => new Date(Date.now() + d * 86400000).toISOString()
+  const C = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+  const subs = [
+    { ...sub(A, 18000), id: 'r1', stripe_subscription_id: 'sub_A', current_period_end: soon(2) },
+    { ...sub(B, 16500), id: 'r2', fee_bps: 0, stripe_subscription_id: 'sub_B', current_period_end: soon(5) },
+    { ...sub(C, 20000), id: 'r3', stripe_subscription_id: 'sub_C', current_period_end: soon(12) },
+  ]
+  for (const role of ['trainer', 'nutritionist']) {
+    const flagCalls = []
+    const tables = role === 'trainer' ? roster({ subscriptions: subs }) : { nutritionists: [{ id: 9, stripe_account_id: null, stripe_account_status: null }], subscriptions: subs.map((r) => ({ ...r, provider_role: 'nutritionist' })) }
+    const { body } = await loadRoute(role, tables, { rpcs: lifts({}), cancelled: ['sub_B'], flagCalls, query: '?renewals=1' })
+    assert.deepEqual(flagCalls.map((c) => c.ids), [['sub_A', 'sub_B']], role + ': only the rows due this week are asked about')
+    assert.deepEqual(body.renewals.map((r) => [r.priceCents, r.netCents, r.ending]), [[18000, 15300, false], [16500, 16500, true]], role)
+    assert.deepEqual(body.renewals.map((r) => r.clientId), [A, B], role + ': each renewal says whose plan it is, so the page counts people')
+  }
+})
+
+// ── Codex round 8 (#2394): the page counts people, not plans ──────────────────
+// A client who cancels one plan while holding another hasn't left (coach-trajectory.mjs leftIn), so
+// each cancellation says whose it is and whether that client is still active here.
+test('each cancellation says whose it is and whether that client still holds a plan; unread when either membership read failed', async () => {
+  const C = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+  const D = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+  const subs = [
+    { ...sub(A, 18000), id: 'r1' },
+    { ...sub(A, 12000), id: 'r2', status: 'canceled', current_period_end: '2026-10-01T00:00:00Z' },
+    { ...sub(C, 15000), id: 'r3', status: 'canceled', current_period_end: '2026-10-02T00:00:00Z' },
+    // D's other plan is retrying (past_due): still a membership, as the trajectory counts it (Codex round 9).
+    { ...sub(D, 9000), id: 'r4', status: 'past_due' },
+    { ...sub(D, 7000), id: 'r5', status: 'canceled', current_period_end: '2026-09-30T00:00:00Z' },
+    // A row with no client has no other plan to hold: a departure.
+    { ...sub(null, 5000), id: 'r6', status: 'canceled', current_period_end: '2026-09-29T00:00:00Z' },
+  ]
+  for (const role of ['trainer', 'nutritionist']) {
+    const tables = role === 'trainer' ? roster({ subscriptions: subs }) : { nutritionists: [{ id: 9, stripe_account_id: null, stripe_account_status: null }], subscriptions: subs.map((r) => ({ ...r, provider_role: 'nutritionist' })) }
+    const { body } = await loadRoute(role, tables, { rpcs: lifts({}), honorStatus: true })
+    assert.deepEqual(body.churn.map((r) => [r.clientId, r.stillClient]), [[C, false], [A, true], [D, true], [null, false]], role + ': C left; A dropped a plan; D still holds a retrying plan; a clientless row left')
+    for (const fail of ['failActive', 'failRetrying']) {
+      const unread = await loadRoute(role, tables, { rpcs: lifts({}), honorStatus: true, [fail]: true })
+      assert.deepEqual(unread.body.churn.map((r) => r.stillClient), [null, null, null, null], role + ', ' + fail + ': no one is known to be still here')
+    }
+  }
+})
+
+test('renewals: a failed subscriptions read is "could not read", not "no one renews"', async () => {
+  const flagCalls = []
+  const { body } = await loadRoute('trainer', roster(), { errors: { subscriptions: 'timeout' }, rpcs: lifts({}), flagCalls, query: '?renewals=1' })
+  assert.equal(body.renewals, null)
+  assert.deepEqual(flagCalls.map((c) => c.ids), [[]], 'Stripe is not asked about rows nobody read')
+})
+
+test('renewals are read only when the page asks: the Goal page\'s figures cost no Stripe reads', async () => {
+  const soon = new Date(Date.now() + 2 * 86400000).toISOString()
+  const flagCalls = []
+  const { body } = await loadRoute('trainer', roster({ subscriptions: [{ ...sub(A), id: 'r1', stripe_subscription_id: 'sub_A', current_period_end: soon }] }), { rpcs: lifts({}), flagCalls })
+  assert.ok(!('renewals' in body), 'no renewals without ?renewals=1')
+  assert.deepEqual(flagCalls.map((c) => c.ids), [[]], 'and Stripe is asked about nothing')
+  const page = readFileSync(join(ROOT, 'public/newdesign/dashBusiness.jsx'), 'utf8')
+  assert.match(page, /fetch\(cfg\.api \+ "\?renewals=1"/, 'the Business page asks for them')
+})
+
+// ── Business review 2026-10-17: the nutritionist route keeps the trainer route's rules ──
+test('nutritionist: one client is one client, a failed read is said, not zero', async () => {
+  const nutri = { nutritionists: [{ id: 9, stripe_account_id: null, stripe_account_status: null }] }
+  const two = [{ ...sub(A, 10000), id: 'n1', provider_role: 'nutritionist' }, { ...sub(A, 5000), id: 'n2', provider_role: 'nutritionist' }, { ...sub(B, 10000), id: 'n3', provider_role: 'nutritionist' }]
+  const { body } = await loadRoute('nutritionist', { ...nutri, subscriptions: two })
+  assert.equal(body.metrics.activeClients, 2, 'two clients, though one holds two rows')
+  assert.equal(body.metrics.mrrGrossCents, 25000, 'every row still counts toward revenue')
+  const failed = await loadRoute('nutritionist', { ...nutri, subscriptions: two }, { errors: { subscriptions: 'timeout' } })
+  assert.equal(failed.body.byOrigin, null, 'the origin feed is built from the same rows')
+  assert.equal(failed.body.clientProgress.rosterUnknown, true)
+  assert.equal(failed.body.churn, null, 'the churn read failed too: unread, not "no cancellations"')
+  const rowFails = await loadRoute('nutritionist', nutri, { errors: { nutritionists: 'timeout' } })
+  assert.deepEqual(rowFails.body, { error: 'Could not read your listing.' }, 'not "this account is not a nutritionist"')
+})
+
+// ── Codex, #2394: the practice trajectory reads every row ────────────────────
+test('both routes read the whole practice trajectory, so a long-standing client is still today\'s', async () => {
+  // 1,200 subscription rows: one client on the same plan for three years, and 1,199 who came
+  // and went this year. A newest-first read cut at 1,000 lost the oldest 200, the long-standing
+  // client among them, and the Plan started from one client too few.
+  const DAY = 86400000
+  const at = (d) => new Date(Date.now() - d * DAY).toISOString()
+  // Its row has the highest id too, so it sits on the last page: one page of the walk misses it.
+  const subs = [{ id: 'r9999', client_id: 'old', created_at: at(3 * 365), status: 'active', price_cents: 20000, fee_bps: 1500, current_period_end: at(-20) }]
+  for (let i = 1; i < 1200; i += 1) {
+    subs.push({ id: 'r' + String(i).padStart(4, '0'), client_id: 'c' + i, created_at: at(300 - (i % 280)), status: 'canceled', price_cents: 15000, fee_bps: 1500, current_period_end: at(200 - (i % 190)) })
+  }
+  for (const [role, listing] of [['trainer', { trainers: [{ id: 7, stripe_account_id: null, stripe_account_status: null }] }], ['nutritionist', { nutritionists: [{ id: 9, stripe_account_id: null, stripe_account_status: null }] }]]) {
+    const { body, calls } = await loadRoute(role, { ...listing, subscriptions: subs })
+    const weeks = body.trajectory?.weeks
+    assert.ok(weeks && weeks.length, role + ': ' + JSON.stringify(body.trajectory).slice(0, 200))
+    assert.equal(weeks[weeks.length - 1].active, 1, role + ': the three-year client is active today')
+    assert.equal(body.trajectory.firstSubAt.slice(0, 10), subs[0].created_at.slice(0, 10), role + ': the practice began three years ago')
+    const traj = calls.filter((c) => c.table === 'subscriptions' && c.ops.some(([op, col]) => op === 'order' && col === 'id') && !c.ops.some(([op, col]) => op === 'eq' && col === 'status') && !c.ops.some(([op]) => op === 'in'))
+    assert.ok(traj.length >= 2, role + ': the trajectory read pages by id')
+  }
+})
+
+// ── Codex, #2394: the brought-in share is per client ─────────────────────────
+test('both routes send the brought-in share per client, not per subscription row', async () => {
+  // A was brought (0%) and holds a second plan; B found the coach on Shape. That is 1 of 2
+  // clients, not 2 of 3 rows.
+  const rows = (role) => [{ ...sub(A), id: 'r1', fee_bps: 0, provider_role: role }, { ...sub(A, 5000), id: 'r2', provider_role: role }, { ...sub(B), id: 'r3', provider_role: role }]
+  for (const [role, listing] of [['trainer', { trainers: [{ id: 7, stripe_account_id: null, stripe_account_status: null }] }], ['nutritionist', { nutritionists: [{ id: 9, stripe_account_id: null, stripe_account_status: null }] }]]) {
+    const { body } = await loadRoute(role, { ...listing, subscriptions: rows(role) })
+    assert.deepEqual(body.byoMix, { clients: 2, brought: 1 }, role)
+    assert.equal(body.byOrigin.filter((r) => r.kind === 'subscription').length, 3, role + ': the origin feed still lists each row')
+    const failed = await loadRoute(role, { ...listing, subscriptions: rows(role) }, { errors: { subscriptions: 'timeout' } })
+    assert.equal(failed.body.byoMix, null, role + ': an unread share is unread, not 0%')
+  }
+})
+
+// ── #2394's open item: the nutritionist route reads every row, a page at a time ──
+const NUTRI = { nutritionists: [{ id: 9, stripe_account_id: null, stripe_account_status: null }] }
+const nutriSubs = (n) => Array.from({ length: n }, (_, i) => ({ ...sub('c' + String(i).padStart(6, '0'), 1000), id: 'u' + String(i).padStart(6, '0'), provider_role: 'nutritionist' }))
+// ⚠ fakeSupabase applies only gt, order and limit: an eq, in or gte is recorded and ignored, so a
+// dropped filter changes no figure. Each read's filters are pinned by name with this.
+const has = (c, op, col, v) => c.ops.some((o) => o[0] === op && o[1] === col && (v === undefined || JSON.stringify(o[2]) === JSON.stringify(v)))
+
+test('nutritionist: every active subscription is read, a page at a time; at the ceiling it is unknown, not short', async () => {
+  const { body, calls } = await loadRoute('nutritionist', { ...NUTRI, subscriptions: nutriSubs(2500) })
+  assert.equal(body.metrics.activeClients, 2500, 'every client, not the first 1,000')
+  assert.equal(body.metrics.mrrGrossCents, 2500 * 1000)
+  const pages = calls.filter((c) => c.table === 'subscriptions' && c.ops.some((o) => o[0] === 'in' && o[1] === 'status'))
+  assert.equal(pages.length, 3)
+  assert.ok(pages.every((p) => has(p, 'eq', 'provider_role', 'nutritionist') && has(p, 'eq', 'provider_id', 9) && has(p, 'in', 'status', ['active', 'trialing'])),
+    'every page is this nutritionist\'s active and trialing rows, not every coach\'s')
+  assert.deepEqual(pages.map((p) => p.ops.find((o) => o[0] === 'gt')?.[2] ?? null), [null, 'u000999', 'u001999'], 'each page after the last id read')
+  assert.ok(pages.every((p) => p.ops.some((o) => o[0] === 'order' && o[1] === 'id') && p.ops.some((o) => o[0] === 'limit' && o[1] === 1000)))
+  const capped = await loadRoute('nutritionist', { ...NUTRI, subscriptions: nutriSubs(50_000) })
+  const m = capped.body.metrics
+  // (Scalars only: a failure diffing a 50,000-row byOrigin ran the test process out of memory.)
+  assert.deepEqual([m.activeClients, m.mrrGrossCents, m.mrrNetCents, capped.body.clientProgress.rosterUnknown, capped.body.byOrigin === null], [null, null, null, true, true])
+  const cp = capped.body.clientProgress
+  assert.deepEqual([cp.totalDaysLogged, cp.avgLogsPerClient, cp.weightsUnknown], [null, null, true], 'no roster was read, so no logs were: unknown, not 0')
+})
+
+test('nutritionist: every snapshot in the window is read, and each client\'s first and latest weigh-in are by date, not by id', async () => {
+  // 40 clients logging 30 days each is 1,200 rows; ids run opposite to dates.
+  const day = (d) => new Date(Date.now() - (29 - d) * 86400000).toISOString().slice(0, 10)
+  const snaps = []
+  for (let d = 0; d < 30; d += 1) {
+    for (let k = 0; k < 40; k += 1) {
+      snaps.push({ id: 'h' + String(1199 - snaps.length).padStart(6, '0'), user_id: 'c' + String(k).padStart(6, '0'), snapshot_date: day(d), protein_g: d % 2 ? 100 : 130, dietary_kcal: 2000, weight_lb: 200 - d })
+    }
+  }
+  // The window's first day, taken either side of the read, so a run across midnight UTC still passes.
+  const since30 = () => new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
+  const windowStarts = [since30()]
+  const { body, calls } = await loadRoute('nutritionist', { ...NUTRI, subscriptions: nutriSubs(40), daily_health_snapshot: snaps })
+  windowStarts.push(since30())
+  const reads = calls.filter((c) => c.table === 'daily_health_snapshot')
+  assert.equal(reads.length, 2, 'two pages, not the first 1,000')
+  assert.ok(reads.every((r) => r.ops.some((o) => o[0] === 'order' && o[1] === 'id') && r.ops.some((o) => o[0] === 'limit' && o[1] === 1000)))
+  const rosterIds = JSON.stringify(Array.from({ length: 40 }, (_, k) => 'c' + String(k).padStart(6, '0')))
+  assert.ok(reads.every((r) => r.ops.some((o) => o[0] === 'in' && o[1] === 'user_id' && Array.isArray(o[2]) && JSON.stringify([...o[2]].sort()) === rosterIds)),
+    'every page is the roster\'s snapshots, not every member\'s')
+  assert.ok(reads.every((r) => r.ops.some((o) => o[0] === 'gte' && o[1] === 'snapshot_date' && windowStarts.includes(o[2]))),
+    'every page is the last 30 days, not every snapshot ever under a 30-day label')
+  const cp = body.clientProgress
+  assert.deepEqual([cp.totalDaysLogged, cp.avgLogsPerClient, cp.proteinAdherencePct, cp.weightsUnknown], [1200, 30, 50, false])
+  assert.equal(cp.roster.length, 12)
+  for (const r of cp.roster) assert.deepEqual([r.daysLogged30d, r.weightStart, r.weightLatest, r.weightChangeLb], [30, 200, 171, -29], r.client_id)
+  // A failed read is unknown, not a roster that logged nothing.
+  const failed = await loadRoute('nutritionist', { ...NUTRI, subscriptions: nutriSubs(2) }, { errors: { daily_health_snapshot: 'timeout' } })
+  const f = failed.body.clientProgress
+  assert.deepEqual([f.totalDaysLogged, f.avgLogsPerClient, f.proteinAdherencePct, f.weightsUnknown, f.activeClients], [null, null, null, true, 2])
+  assert.ok(f.roster.length === 2 && f.roster.every((r) => r.daysLogged30d === null && r.avgProteinG === null && r.avgCalories === null && r.weightLatest === null))
+  assert.equal(failed.body.ticker.avgLogsPerClient, null)
+})
+
+test('nutritionist: appointment counts are counted by the database, and a failed count is unknown', async () => {
+  const { body, calls } = await loadRoute('nutritionist', { ...NUTRI, subscriptions: nutriSubs(2) })
+  const counts = calls.filter((c) => c.table === 'sessions')
+  assert.equal(counts.length, 4)
+  assert.ok(counts.every((c) => c.ops.some((o) => o[0] === 'select' && o[2]?.count === 'exact' && o[2]?.head === true)), 'head counts, no rows')
+  assert.ok(!counts.some((c) => c.ops.some((o) => o[0] === 'limit')), 'no row limit')
+  assert.ok(counts.every((c) => has(c, 'eq', 'provider_role', 'nutritionist') && has(c, 'eq', 'provider_id', 9)))
+  assert.ok(has(counts[1], 'eq', 'status', 'completed'))
+  assert.ok(has(counts[2], 'in', 'status', ['requested', 'confirmed']) && has(counts[2], 'gte', 'scheduled_at'))
+  assert.ok(has(counts[3], 'gte', 'scheduled_at') && has(counts[3], 'lt', 'scheduled_at') && has(counts[3], 'neq', 'status', 'cancelled'))
+  assert.deepEqual([body.metrics.totalSessions, body.ticker.consultsToday], [0, 0], 'a count that worked is reported')
+  const failed = await loadRoute('nutritionist', { ...NUTRI, subscriptions: nutriSubs(2) }, { errors: { sessions: 'timeout' } })
+  const b = failed.body
+  assert.deepEqual([b.metrics.totalSessions, b.metrics.completedSessions, b.metrics.upcomingSessions, b.ticker.consultsToday, b.ticker.upcomingSessions], [null, null, null, null, null])
+})
+
+test('the nutritionist Business cards print an unread figure as a dash, never as 0', () => {
+  const src = readFileSync(join(ROOT, 'public/newdesign/dashBusiness.jsx'), 'utf8')
+  const at = src.indexOf('  nutritionist: {', src.indexOf('const DBZ_ROLES ='))
+  const nutritionist = src.slice(at, src.indexOf('\n};', at))
+  assert.doesNotMatch(nutritionist, /\?\? 0/, 'no nutritionist figure falls back to 0')
+  assert.match(nutritionist, /k: dbzFig\(cp\.proteinAdherencePct, "%"\), l: "Protein adherence"/)
+  assert.match(nutritionist, /consistentValue: \(r\) => \(\{ n: dbzFig\(r\.daysLogged30d\), unit: "days" \}\)/)
 })
