@@ -797,6 +797,10 @@ test("the preview's net is its own clients after the fees its origin list shows"
   const netOf = (r) => Math.round(r.priceCents * (1 - r.feeBps / 10000));
   assert.ok(subs.some((r) => r.feeBps === 0) && subs.some((r) => r.feeBps > 0), 'the preview has no fee mix to agree with');
   assert.equal(today.clients, subs.length, 'the origin list is not the practice');
+  // One row a client, in the routes' shape (origin-attribution.ts folds a client's plans into one
+  // row), so counting the rows counts clients, as its byoMix below does.
+  assert.equal(new Set(subs.map((r) => r.clientId)).size, subs.length, 'two rows of the origin list are one client');
+  assert.ok(subs.every((r) => r.clientId && r.plans === 1 && r.mixedFees === false), 'a row is not one client on one plan');
   assert.equal(today.mrrGrossCents, subs.reduce((s, r) => s + r.priceCents, 0));
   assert.equal(today.mrrNetCents, subs.reduce((s, r) => s + netOf(r), 0), 'the preview states a net its origin list does not');
   assert.deepEqual([demo.metrics.activeClients, demo.metrics.mrrNetCents], [today.clients, today.mrrNetCents]);

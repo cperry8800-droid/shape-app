@@ -286,9 +286,10 @@
     if (!m) return null;
     // ⚠ THE BROUGHT-IN SHARE IS PER CLIENT, NOT PER SUBSCRIPTION ROW (Codex round 5 on #2394). Both
     // analytics routes send byoMix, { clients, brought } counted per client (byoMixOf in
-    // src/lib/origin-attribution.ts: one client on two plans is one client). byOrigin has a row per
-    // subscription, so counting it read one brought client with two plans beside one from Shape as
-    // "2 of your 3" (67%), and the calculators seeded from it overstated take-home.
+    // src/lib/origin-attribution.ts: one client on two plans is one client). byOrigin had a row per
+    // subscription then, so counting it read one brought client with two plans beside one from Shape
+    // as "2 of your 3" (67%), and the calculators seeded from it overstated take-home. (Its rows are
+    // clients now, by the same fold, but it lists one-time purchases too: the share stays byoMix.)
     const mix = (extra && extra.byoMix) || null;
     const listed = listedCents(listingMonthly);
     const avg = m.clients > 0 && m.mrrGrossCents > 0 ? Math.round(m.mrrGrossCents / m.clients / 500) * 500 : null;

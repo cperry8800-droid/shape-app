@@ -156,12 +156,14 @@ export default {
     { name: "the preview's pace forgets its departures", file: BIZ,
       find: '      pace: dbzDemoPace(CF, traj, now),',
       replace: '      pace: CF.paceFrom(traj, now),' },
+    // (Re-anchored in the follow-up to #2395 on clientsOf, the one fold the share and the origin
+    // feed now share, so each breaks both.)
     { name: 'the brought-in share counts rows, not clients', file: ORIGIN,
       find: "    const key = r.client_id != null ? 'c:' + String(r.client_id) : 'row:' + i;",
       replace: "    const key = 'row:' + i;" },
     { name: 'the brought-in share drops a brought client\'s second plan', file: ORIGIN,
-      find: '    byClient.set(key, byClient.get(key) === true || Number(r.fee_bps ?? 1500) === 0);',
-      replace: '    byClient.set(key, Number(r.fee_bps ?? 1500) === 0);' },
+      find: '    c.brought = c.brought || feeOf(r) === 0;',
+      replace: '    c.brought = feeOf(r) === 0;' },
     // planNumbers takes the routes' per-client byoMix (aaba063): the rows are never counted again.
     { name: 'the brought-in share counts subscription rows, not clients', file: CF,
       find: '    const mix = (extra && extra.byoMix) || null;',

@@ -108,13 +108,18 @@ export function bsBizDemo(now = Date.now()) {
   }
   const names = ['Casey M.', 'Alex R.', 'Jordan P.', 'Sam K.', 'Riley T.', 'Morgan L.', 'Jamie D.', 'Taylor B.', 'Avery S.', 'Quinn H.', 'Drew N.', 'Blake W.'];
   const last = weeks[weeks.length - 1];
-  const byOrigin = names.slice(0, last.active).map((name, i) => ({ name, kind: 'subscription', feeBps: i % 4 === 0 ? 0 : 1500, priceCents: 17500 }));
+  // One row a client, in the routes' shape (origin-attribution.ts folds each client's plans into one
+  // row); each holds one plan here. The app lists none of it: the share and the renewals read it.
+  const byOrigin = names.slice(0, last.active).map((name, i) => ({
+    name, clientId: 'demo-' + (i + 1), kind: 'subscription', origin: i % 4 === 0 ? 'coach_link' : 'marketplace',
+    feeBps: i % 4 === 0 ? 0 : 1500, priceCents: 17500, plans: 1, mixedFees: false,
+  }));
   return {
     extra: {
       trajectory: { weeks, firstSubAt: new Date(now - 400 * DAY).toISOString() },
       metrics: { activeClients: last.active, mrrNetCents: last.mrrNetCents, mrrGrossCents: last.mrrGrossCents },
       byOrigin,
-      // The routes' per-client brought-in share (byoMixOf): one plan a client here, so it matches the rows.
+      // The routes' per-client brought-in share (byoMixOf): the rows are clients, as the routes' are.
       byoMix: { clients: byOrigin.length, brought: byOrigin.filter((r) => r.feeBps === 0).length },
       stripe: {
         connected: true, balanceCents: 61200, pendingCents: 9800,

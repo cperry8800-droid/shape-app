@@ -618,7 +618,10 @@ test('both routes send the brought-in share per client, not per subscription row
   for (const [role, listing] of [['trainer', { trainers: [{ id: 7, stripe_account_id: null, stripe_account_status: null }] }], ['nutritionist', { nutritionists: [{ id: 9, stripe_account_id: null, stripe_account_status: null }] }]]) {
     const { body } = await loadRoute(role, { ...listing, subscriptions: rows(role) })
     assert.deepEqual(body.byoMix, { clients: 2, brought: 1 }, role)
-    assert.equal(body.byOrigin.filter((r) => r.kind === 'subscription').length, 3, role + ': the origin feed still lists each row')
+    // The origin feed lists the same two clients, A once with both plans (origin-attribution.ts's
+    // fold, the share's own). It listed each row, so the Growth tab's header counted A twice beside
+    // the Plan's "1 of your 2" (the follow-up to #2395).
+    assert.deepEqual(body.byOrigin.filter((r) => r.kind === 'subscription').map((r) => [r.clientId, r.plans, r.feeBps]), [[A, 2, 0], [B, 1, 1500]], role + ': one row a client, not one a plan')
     const failed = await loadRoute(role, { ...listing, subscriptions: rows(role) }, { errors: { subscriptions: 'timeout' } })
     assert.equal(failed.body.byoMix, null, role + ': an unread share is unread, not 0%')
   }
@@ -689,7 +692,10 @@ test('both routes list today\'s clients in the Growth tab\'s "who found whom", s
     assert.deepEqual(asked, [[D], [C]], role + ': the churn list asks for D; the feed asks for the one name the profiles read could not see, and only that one')
     // The plate's own count (DbzOriginZone: rows at 0% are "you brought") agrees with the Plan's.
     assert.equal(subsFeed.filter((r) => r.feeBps === 0).length, body.byoMix.brought, role + ': "1 you brought" beside "1 of your 3"')
-    assert.equal(new Set(subsFeed.map((r) => r.name)).size, body.byoMix.clients, role)
+    // The feed sends one row a client now (the follow-up to #2395), so its rows are the count. A set
+    // of their names, read when it sent a row a plan, merged two clients who share a name, or two
+    // whose names could not be read ("—").
+    assert.equal(subsFeed.length, body.byoMix.clients, role)
     // The trajectory unread: both fall back to the active rows together.
     const noHistory = await loadRoute(role, tables, { honorStatus: true, failTrajectory: true, rpcs })
     assert.deepEqual(noHistory.body.byOrigin.map((r) => r.name), ['Ada', 'Ben'], role)
@@ -716,6 +722,118 @@ test('the origin feed names the clients it lacks 200 at a time, the most get_dis
   const failed = fakeSupabase({}, { errors: { one_time_purchases: 'timeout' }, rpcs: { get_display_names: ({ p_ids }) => ({ data: p_ids.map((id) => ({ user_id: id, full_name: 'Cleo' })), error: null }) } })
   const only = await buildOriginFeed(failed.client, 'trainer', 7, [{ client_id: 'c', price_cents: 1000, fee_bps: 0 }], new Map())
   assert.deepEqual(only.map((r) => [r.kind, r.name, r.feeBps]), [['subscription', 'Cleo', 0]])
+})
+
+// ── The follow-up to #2395: "who found whom" counts clients, as the brought-in share does ──
+// The feed sent a row per plan and one per one-time purchase, and the Growth tab's header counted
+// them all: a client on two plans was two, and a purchase one more, beside the Plan's per-client
+// "1 of your 2". The feed now folds each client's plans into one row by the share's own rule
+// (origin-attribution.ts clientsOf), and a purchase is listed on its own row, never as a client.
+const originModule = () => loadRealModule(join(ROOT, 'src/lib/origin-attribution.ts'), { typescript: true, registry: new Map([['@/lib/supabase/server', {}]]) })
+const C3 = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+const D4 = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+
+test('the origin feed lists a client once: two plans are one row, their prices added, with plans: 2', async () => {
+  const { buildOriginFeed, byoMixOf } = await originModule()
+  const db = fakeSupabase({})
+  // A's two plans sit apart in the rows, as an id-ordered read leaves them; C's second plan's price
+  // was not read.
+  const subs = [
+    { client_id: A, price_cents: 10000, fee_bps: 1500, origin: 'marketplace' },
+    { client_id: B, price_cents: 8000, fee_bps: 0, origin: 'coach_link' },
+    { client_id: A, price_cents: 5000, fee_bps: 1500, origin: 'marketplace' },
+    { client_id: C3, price_cents: 7000, fee_bps: 1500, origin: 'marketplace' },
+    { client_id: C3, price_cents: null, fee_bps: 1500, origin: 'marketplace' },
+  ]
+  const feed = await buildOriginFeed(db.client, 'trainer', 7, subs, new Map([[A, 'Ada'], [B, 'Ben'], [C3, 'Cleo']]))
+  assert.deepEqual(feed, [
+    { name: 'Ada', clientId: A, kind: 'subscription', origin: 'marketplace', feeBps: 1500, priceCents: 15000, plans: 2, mixedFees: false },
+    { name: 'Ben', clientId: B, kind: 'subscription', origin: 'coach_link', feeBps: 0, priceCents: 8000, plans: 1, mixedFees: false },
+    // A plan of unknown price is not a $0 plan: the other plan's $70 is not her total.
+    { name: 'Cleo', clientId: C3, kind: 'subscription', origin: 'marketplace', feeBps: 1500, priceCents: null, plans: 2, mixedFees: false },
+  ])
+  // Rows with no client id stand alone, each a client of one plan, as the share counts them.
+  const lone = await buildOriginFeed(db.client, 'trainer', 7, [{ client_id: null, price_cents: 1000, fee_bps: 0 }, { client_id: null, price_cents: 2000, fee_bps: 1500 }], new Map())
+  assert.deepEqual(lone.map((r) => [r.name, r.clientId, r.plans, r.feeBps, r.priceCents]), [['—', null, 1, 0, 1000], ['—', null, 1, 1500, 2000]])
+  // A plan from before the feature stores no origin or fee: it paid 15% to a client from the
+  // marketplace, so beside a plan that stores 15% the client is not brought, and the fees agree.
+  const old = [{ client_id: A, price_cents: 1000 }, { client_id: A, price_cents: 2000, fee_bps: 1500, origin: 'marketplace' }]
+  const pre = await buildOriginFeed(db.client, 'trainer', 7, old, new Map([[A, 'Ada']]))
+  assert.deepEqual(pre.map((r) => [r.origin, r.feeBps, r.plans, r.mixedFees, r.priceCents]), [['marketplace', 1500, 2, false, 3000]])
+  assert.deepEqual(byoMixOf(old), { clients: 1, brought: 0 })
+})
+
+test('mixed fees: a client with any plan at 0% is brought, and the row says their plans\' fees differ', async () => {
+  const { buildOriginFeed, byoMixOf } = await originModule()
+  const db = fakeSupabase({})
+  // A took the 0% plan second, B first; D's two plans are at two marketplace rates.
+  const subs = [
+    { client_id: A, price_cents: 10000, fee_bps: 1500, origin: 'marketplace' },
+    { client_id: A, price_cents: 5000, fee_bps: 0, origin: 'coach_link' },
+    { client_id: B, price_cents: 9000, fee_bps: 0, origin: 'coach_link' },
+    { client_id: B, price_cents: 4000, fee_bps: 1500, origin: 'marketplace' },
+    { client_id: D4, price_cents: 6000, fee_bps: 1500, origin: 'marketplace' },
+    { client_id: D4, price_cents: 6000, fee_bps: 1200, origin: 'marketplace' },
+  ]
+  const feed = await buildOriginFeed(db.client, 'trainer', 7, subs, new Map([[A, 'Ada'], [B, 'Ben'], [D4, 'Dee']]))
+  assert.deepEqual(feed.map((r) => [r.name, r.feeBps, r.origin, r.mixedFees, r.plans, r.priceCents]), [
+    ['Ada', 0, 'coach_link', true, 2, 15000],
+    ['Ben', 0, 'coach_link', true, 2, 13000],
+    // No plan at 0%: found on Shape, at the first plan's rate, and the row says the rates differ.
+    ['Dee', 1500, 'marketplace', true, 2, 12000],
+  ])
+  // The share counts the same two as brought: the feed's rule is the share's, any plan at 0%.
+  assert.deepEqual(byoMixOf(subs), { clients: 3, brought: 2 })
+  assert.equal(feed.filter((r) => r.feeBps === 0).length, byoMixOf(subs).brought)
+})
+
+test('a subscriber\'s one-time purchase adds no client: the feed lists it on its own row, and its clients are the share\'s', async () => {
+  // A (brought) and B (found on Shape) subscribe; A also buys a meal plan, and P buys one without
+  // subscribing. Two clients, 1 brought, and two purchases listed beside them.
+  const subs = (role) => [{ ...sub(A), id: 'r1', fee_bps: 0, origin: 'coach_link', provider_role: role }, { ...sub(B), id: 'r2', provider_role: role }]
+  const P = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+  const purchases = [
+    { id: 'p1', client_id: P, price_cents: 6000, fee_bps: 1500, origin: 'marketplace', status: 'paid', created_at: '2026-10-05T00:00:00Z' },
+    { id: 'p2', client_id: A, price_cents: 9000, fee_bps: 0, origin: 'coach_link', status: 'paid', created_at: '2026-10-10T00:00:00Z' },
+  ]
+  const names = { [A]: 'Ada', [B]: 'Ben', [P]: 'Pia' }
+  const rpcs = { get_display_names: ({ p_ids }) => ({ data: p_ids.map((id) => ({ user_id: id, full_name: names[id] })), error: null }) }
+  for (const [role, listing] of [['trainer', { trainers: [{ id: 7, stripe_account_id: null, stripe_account_status: null }] }], ['nutritionist', { nutritionists: [{ id: 9, stripe_account_id: null, stripe_account_status: null }] }]]) {
+    const { body } = await loadRoute(role, { ...listing, subscriptions: subs(role), one_time_purchases: purchases, profiles: [{ id: A, full_name: 'Ada' }, { id: B, full_name: 'Ben' }] }, { rpcs })
+    assert.deepEqual(body.byoMix, { clients: 2, brought: 1 }, role)
+    const clients = body.byOrigin.filter((r) => r.kind === 'subscription')
+    assert.deepEqual(clients.map((r) => [r.clientId, r.name, r.plans]), [[A, 'Ada', 1], [B, 'Ben', 1]], role + ': A\'s purchase is not a plan, and P, who only bought, is not a client')
+    assert.equal(clients.length, body.byoMix.clients, role)
+    // The purchases are still listed, newest first, each on its own row.
+    assert.deepEqual(body.byOrigin.filter((r) => r.kind === 'purchase').map((r) => [r.name, r.feeBps, r.priceCents]), [['Ada', 0, 9000], ['Pia', 1500, 6000]], role)
+    assert.equal(body.byOrigin.length, 4, role + ': two clients and two purchases, nothing else')
+  }
+})
+
+test('both routes: the origin feed\'s clients and brought clients are the brought-in share\'s, whatever the plans', async () => {
+  // A brought on a second plan, B from Shape, C brought on two plans, D on two marketplace rates,
+  // and two rows with no client id (one at 0%), with purchases beside them: 6 clients, 3 brought.
+  const rows = (role) => [
+    { ...sub(A), id: 'r1', provider_role: role },
+    { ...sub(B), id: 'r2', provider_role: role },
+    { ...sub(A, 5000), id: 'r3', fee_bps: 0, origin: 'coach_link', provider_role: role },
+    { ...sub(C3), id: 'r4', fee_bps: 0, origin: 'coach_link', provider_role: role },
+    { ...sub(C3, 4000), id: 'r5', fee_bps: 0, origin: 'coach_link', provider_role: role },
+    { ...sub(D4), id: 'r6', provider_role: role },
+    { ...sub(D4), id: 'r7', fee_bps: 1200, provider_role: role },
+    { ...sub(null), id: 'r8', fee_bps: 0, origin: 'coach_link', provider_role: role },
+    { ...sub(null), id: 'r9', provider_role: role },
+  ]
+  const purchases = [{ id: 'p1', client_id: A, price_cents: 9000, fee_bps: 0, origin: 'coach_link', status: 'paid', created_at: '2026-10-10T00:00:00Z' }]
+  for (const [role, listing] of [['trainer', { trainers: [{ id: 7, stripe_account_id: null, stripe_account_status: null }] }], ['nutritionist', { nutritionists: [{ id: 9, stripe_account_id: null, stripe_account_status: null }] }]]) {
+    for (const [label, subsRows, want] of [['every case', rows(role), { clients: 6, brought: 3 }], ['one plan each', rows(role).filter((r) => ['r1', 'r2'].includes(r.id)), { clients: 2, brought: 0 }], ['no clients', [], { clients: 0, brought: 0 }]]) {
+      const { body } = await loadRoute(role, { ...listing, subscriptions: subsRows, one_time_purchases: purchases })
+      assert.deepEqual(body.byoMix, want, role + ', ' + label)
+      const clients = body.byOrigin.filter((r) => r.kind === 'subscription')
+      assert.equal(clients.length, body.byoMix.clients, role + ', ' + label + ': the header\'s clients are the share\'s')
+      assert.equal(clients.filter((r) => r.feeBps === 0).length, body.byoMix.brought, role + ', ' + label + ': and so are its brought ones')
+    }
+  }
 })
 
 // ── #2394's open item: the nutritionist route reads every row, a page at a time ──

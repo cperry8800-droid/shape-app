@@ -221,8 +221,8 @@ test('planNumbers: the listing price, else the clients\' average to $5, else the
   const extra = {
     trajectory: null,
     metrics: { activeClients: 4, mrrNetCents: 60000, mrrGrossCents: 70300 },
-    // The origin feed has a row per subscription: the one brought client, on two plans, is two 0% rows
-    // (2 of 5), and a one-time purchase is a row too.
+    // An origin feed of a row per subscription, as the routes sent until the follow-up to #2395: the
+    // one brought client, on two plans, is two 0% rows (2 of 5), and a one-time purchase is a row too.
     byOrigin: [{ kind: 'subscription', feeBps: 0 }, { kind: 'subscription', feeBps: 0 }, { kind: 'subscription', feeBps: 1500 }, { kind: 'subscription', feeBps: 1500 }, { kind: 'subscription', feeBps: 1500 }, { kind: 'purchase', feeBps: 0 }],
     // The routes count clients (byoMixOf, Codex round 5 on #2394): 1 of 4.
     byoMix: { clients: 4, brought: 1 },
