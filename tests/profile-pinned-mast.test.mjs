@@ -58,4 +58,8 @@ test('the sticky tab rows stick below the pinned masthead, not under it', () => 
   // One measurement for every sticky row in a BSPage, read off the bar itself.
   const hook = body('function useBSPinnedMastTop(');
   assert.match(hook, /querySelector\('\[data-bs-pinned-mast\]'\)/, 'the offset is no longer measured off the bar');
+  // In layout px: a rect is zoomed by the Small/Large text size and `top` is zoomed again
+  // (Codex, P2 on #2397). tests/kitchen-course-tabs.test.mjs runs it at all three sizes.
+  assert.match(hook, /el\.offsetHeight/, 'the bar is measured in screen px again');
+  assert.doesNotMatch(hook, /getBoundingClientRect/, 'the bar is measured in screen px again');
 });

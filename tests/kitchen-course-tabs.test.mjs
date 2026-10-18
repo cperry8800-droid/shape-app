@@ -82,21 +82,34 @@ const { SHAPE_KITCHEN_RECIPES, recipeMatchesDiet } = await import(pathToFileURL(
 
 // The layout: the condensed masthead the row sticks under is 92px (measured in
 // Chromium at 390×844), the scroller starts 20px down the screen, and the tab row's
-// own place in the page is 600px down the scroller's content.
+// own place in the page is 600px down the scroller's content. ZOOM is the app's text
+// size, a CSS `zoom` on the phone surface: rects come back in ZOOMED screen px while
+// offsetHeight, scrollTop and a sticky `top` stay in layout px (measured in Chromium
+// 141: the bar's rect is 103px at Large and 83px at Small; its offsetHeight is 92).
 const MAST = 92;
 const HOST_TOP = 20;
 const ROW_AT = 600;
+const VIEW = 824;
+let ZOOM = 1;
 const host = () => document.querySelector('.bs-scroll');
 const realRect = dom.window.HTMLElement.prototype.getBoundingClientRect;
 dom.window.HTMLElement.prototype.getBoundingClientRect = function rect() {
   const box = (top, height) => ({ top, bottom: top + height, height, left: 0, right: 390, width: 390, x: 0, y: top });
-  if (this.hasAttribute('data-bs-pinned-mast')) return box(HOST_TOP, MAST);
-  if (this.classList.contains('bs-scroll')) return box(HOST_TOP, 824);
+  if (this.hasAttribute('data-bs-pinned-mast')) return box(HOST_TOP, MAST * ZOOM);
+  if (this.classList.contains('bs-scroll')) return box(HOST_TOP, VIEW * ZOOM);
   // The anchor ends where the row's own place is: ROW_AT down the content, moved up the
   // screen by however far the scroller has scrolled.
-  if (this.hasAttribute('data-km-tabs-anchor')) return box(HOST_TOP + ROW_AT - 10 - (host()?.scrollTop || 0), 10);
+  if (this.hasAttribute('data-km-tabs-anchor')) return box(HOST_TOP + (ROW_AT - 10 - (host()?.scrollTop || 0)) * ZOOM, 10 * ZOOM);
   return realRect.call(this);
 };
+Object.defineProperty(dom.window.HTMLElement.prototype, 'offsetHeight', {
+  configurable: true,
+  get() {
+    if (this.hasAttribute('data-bs-pinned-mast')) return MAST;
+    if (this.classList.contains('bs-scroll')) return VIEW;
+    return 0;
+  },
+});
 
 // Each course in the order the menu lists it (a course over 16 rows shows its first 12).
 const COURSE_ROWS = BS_KM_COURSES.map((c, i) => bsKmSortByTime(SHAPE_KITCHEN_RECIPES.filter((r) => bsKmCourseIndex(r) === i)));
@@ -157,22 +170,29 @@ test('one course shows, and a tap shows another right under the row without scro
   await React.act(async () => page.root.unmount());
 });
 
-test('tapped from down in a list, the page goes back to the row, never down to a course', async () => {
-  const page = await mount();
-  // Deep in a list, the row is stuck under the masthead. The new list must start right
-  // under it: the page returns to the row's own place, where on screen the stuck row
-  // already sits.
-  page.setScrollTop(2400);
-  await page.tap(page.tabs()[1]);
-  assert.deepEqual(page.picked(), [1]);
-  assert.equal(page.scrollTop(), ROW_AT - MAST, 'the new list does not start under the row');
-  // Not stuck (the row is still in its place on the page): nothing moves at all.
-  page.setScrollTop(300);
-  await page.tap(page.tabs()[3]);
-  assert.deepEqual(page.picked(), [3]);
-  assert.equal(page.scrollTop(), 300, 'a tap with the row in view moved the page');
-  await React.act(async () => page.root.unmount());
-});
+for (const [size, zoom] of [['Medium', 1], ['Large', 1.12], ['Small', 0.9]]) {
+  test(`tapped from down in a list, the page goes back to the row, never down to a course (${size} text)`, async () => {
+    ZOOM = zoom;
+    const page = await mount();
+    // The row sticks right under the bar, in layout px, at every text size.
+    const row = page.tabs()[0].closest('[aria-label="Cooking time"]').parentElement;
+    assert.equal(row.style.top, `${MAST}px`, `at ${size} text the row sticks ${row.style.top} down, not under the ${MAST}px bar`);
+    // Deep in a list, the row is stuck under the masthead. The new list must start right
+    // under it: the page returns to the row's own place, where on screen the stuck row
+    // already sits.
+    page.setScrollTop(2400);
+    await page.tap(page.tabs()[1]);
+    assert.deepEqual(page.picked(), [1]);
+    assert.equal(page.scrollTop(), ROW_AT - MAST, `at ${size} text the new list does not start under the row`);
+    // Not stuck (the row is still in its place on the page): nothing moves at all.
+    page.setScrollTop(300);
+    await page.tap(page.tabs()[3]);
+    assert.deepEqual(page.picked(), [3]);
+    assert.equal(page.scrollTop(), 300, 'a tap with the row in view moved the page');
+    await React.act(async () => page.root.unmount());
+    ZOOM = 1;
+  });
+}
 
 test('the filters are one dropdown that names what is on', async () => {
   const page = await mount();

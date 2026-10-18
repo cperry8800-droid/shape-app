@@ -7787,14 +7787,20 @@ function BSKmToggle({ label, on, color, onClick, count }) {
 // 64px (iosAppBroadsheet.jsx, BSPage), or spend the whole scroll underneath it.
 // The offset is MEASURED off that bar rather than restating its padding + row
 // height, so a safe-area inset, a notch floor or a text-size change moves the
-// two together. Used by the Kitchen menu's jump row and the profile tab rows.
+// two together. Used by the Kitchen menu's time tabs and the profile tab rows.
+// ⚠ `offsetHeight`, NOT `getBoundingClientRect().height` (Codex, P2 on #2397).
+// The Small and Large text sizes are a CSS `zoom` on #bs-phone-surface, and the
+// rect is in ZOOMED screen px while `top` is laid out inside the same zoomed
+// surface, so the zoom landed twice: measured in Chromium, the row hung 12px
+// below the bar at Large and slid 8px under it at Small. offsetHeight is the
+// bar's own layout height, which is the unit `top` is written in.
 function useBSPinnedMastTop() {
   const [top, setTop] = useStateBSC(0);
   React.useEffect(() => {
     const measure = () => {
       try {
         const el = document.querySelector('[data-bs-pinned-mast]');
-        const h = el ? Math.round(el.getBoundingClientRect().height) : 0;
+        const h = el ? Math.round(el.offsetHeight || 0) : 0;
         setTop(h > 0 ? h : 0);
       } catch (e) { /* no DOM (the mount harness) — 0 is the honest answer */ }
     };
@@ -7878,7 +7884,11 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
       const a = tabsAnchorRef.current;
       const host = a && a.closest ? a.closest('.bs-scroll') : null;
       if (!host) return;
-      const rowAt = Math.round(host.scrollTop + a.getBoundingClientRect().bottom - host.getBoundingClientRect().top - stickyTop);
+      // The rects are screen px, which the text-size `zoom` scales; scrollTop and
+      // stickyTop are layout px. `k` turns one into the other (1 at Medium).
+      const hostRect = host.getBoundingClientRect();
+      const k = host.offsetHeight ? hostRect.height / host.offsetHeight : 1;
+      const rowAt = Math.round(host.scrollTop + (a.getBoundingClientRect().bottom - hostRect.top) / (k || 1) - stickyTop);
       if (host.scrollTop > rowAt) host.scrollTop = rowAt;
     } catch (e) { /* the list still swaps; only the return to the row is lost */ }
   };
