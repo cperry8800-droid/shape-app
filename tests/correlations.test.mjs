@@ -415,14 +415,20 @@ test('the check-in still writes sleep and energy onto one snapshot day', async (
     /const\s+today\s*=\s*clientLocalDay\(/,
     'the check-in should resolve ONE local day for the whole write'
   );
-  // ...and every field, sleep and energy alike, patched onto that one row.
-  for (const field of ['sleep_hours', 'sleep_quality', 'energy']) {
+  // ...and every field, sleep and energy alike, written onto that one row. The night's hours
+  // ride the first insert, or a conditional write of their own (a watch's night comes first,
+  // owner 2026-10-18), both on the same `today`; tests/checkin-route-first-write.test.mjs drives it.
+  for (const field of ['sleep_quality', 'energy']) {
     assert.match(
       src,
       new RegExp(`patch\\.${field}\\s*=`),
       `${field} should be written into the same patch as the rest of the check-in`
     );
   }
+  assert.match(src, /\.insert\(\{ user_id: user\.id, snapshot_date: today, \.\.\.patch, \.\.\.\(sleepHours != null \? \{ sleep_hours: sleepHours \} : \{\}\) \}\)/,
+    'the first write of the day should carry the hours with the rest of the check-in');
+  assert.match(src, /\.update\(\{ sleep_hours: sleepHours \}\)\s*\.eq\('user_id', user\.id\)\s*\.eq\('snapshot_date', today\)/,
+    'the hours should be written to the same day as the rest of the check-in');
   assert.equal(
     (src.match(/clientLocalDay\(/g) || []).length,
     1,

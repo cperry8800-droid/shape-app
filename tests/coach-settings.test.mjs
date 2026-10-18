@@ -93,7 +93,7 @@ test('the evidence floors are NOT tunable, and that is the principled line', () 
   // flagged for skipping it. A coach who could lower those to zero would be
   // manufacturing flags out of no data, which is not a preference.
   const tunable = new Set(TUNABLES.map((t) => t.key));
-  for (const k of ['ENERGY_MIN_DAYS', 'HUNGER_MIN_DAYS', 'HYDRATION_MIN_DAYS',
+  for (const k of ['ENERGY_MIN_DAYS', 'HUNGER_MIN_DAYS', 'HYDRATION_MIN_DAYS', 'SLEEP_MIN_NIGHTS',
                    'GOAL_RECENT_DAYS', 'GOAL_MIN_SPAN_DAYS', 'GOAL_FAR_DAYS', 'STREAK_MIN_BEST']) {
     assert.ok(!tunable.has(k), k + ' became tunable — a coach can now fabricate evidence');
     assert.ok(k in DEFAULT_THRESHOLDS, k + ' left the engine; this guard is now vacuous');

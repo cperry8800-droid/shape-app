@@ -74,7 +74,7 @@ export const SHAPE_KNOWLEDGE = Object.freeze([
     id: 'shape-score',
     title: 'How the Shape Score and its tiers work',
     tags: ['score', 'shape score', 'points', 'tier', 'tiers', 'level', 'ladder', 'rank', 'raw', 'tempo', 'form', 'peak', 'legend', 'rewards', 'reward', 'store', 'redeem'],
-    body: 'You earn points for consistency — workouts logged, meals tracked, sessions kept, habits done. Your all-time points set your tier: Raw from 0, Tempo from 750 (a free Shape cap), Form from 2,000 (a free coach workout or plan), Peak from 5,000 (a free month with a coach), Legend from 15,000 (a free year of Shape plus a cap). Coaches climb the same rungs as Certified, Pro, Elite, Master and Icon. Tier rewards are claimed free in the Shape Store; points are not cash, are not transferable, and may be adjusted for abuse.',
+    body: 'You earn points for consistency — workouts logged, meals tracked, sessions kept, habits done, and a good night’s sleep (+5 for a night of 7 hours or more that a connected watch or ring recorded; typed hours don’t earn). Your all-time points set your tier: Raw from 0, Tempo from 750 (a free Shape cap), Form from 2,000 (a free coach workout or plan), Peak from 5,000 (a free month with a coach), Legend from 15,000 (a free year of Shape plus a cap). Coaches climb the same rungs as Certified, Pro, Elite, Master and Icon. Tier rewards are claimed free in the Shape Store; points are not cash, are not transferable, and may be adjusted for abuse.',
     source: 'The app’s Score page · Terms of service, clause 06',
   },
   {

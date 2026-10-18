@@ -26554,6 +26554,7 @@ const SHAPE_SCORE_PROFILES = {
       { id: 'logMeal', capKey: 'daily', name: 'Log a meal', pts: '+10', cap: 'Daily', note: 'Any real logged meal' },
       { id: 'completeHabit', capKey: 'perHabit', name: 'Complete a habit', pts: '+3', cap: 'Per habit', note: 'Each one you check off' },
       { id: 'dailySteps', capKey: 'daily', name: 'Daily steps', pts: '+1 / 5k', cap: 'Daily', note: '+3 at your goal' },
+      { id: 'goodNight', capKey: 'daily', name: 'A good night', pts: '+5', cap: 'Daily', note: '7h+ from your watch or ring' },
       { id: 'coachSessionKept', capKey: 'perSession', name: 'Coach session kept', pts: '+12', cap: 'Per session', note: 'Marked complete' },
       { id: 'newPr', capKey: 'perLiftMo', name: 'New PR', pts: '+12', cap: 'Per lift / mo', note: 'A new personal best' },
       { id: 'careerMilestone', capKey: 'monthly', name: 'Career milestone', pts: '+25', cap: 'Monthly', note: 'Log a work win — any visibility' },
@@ -26576,7 +26577,7 @@ const SHAPE_SCORE_PROFILES = {
       ['APR 18', '+3', 'Morning mobility logged'],
       ['APR 17', '+5', 'Protein target hit - 3rd day'],
       ['APR 17', '+13', 'Session kept - Rae Lindqvist'],
-      ['APR 16', '+3', 'Sleep >= 7h'],
+      ['APR 16', '+5', "A good night's sleep"],
       ['APR 16', '+9', 'Upper pull logged'],
       ['APR 15', '+15', 'Weekly review submitted'],
       ['APR 15', '+2', 'Steps >= 8,000'],
@@ -29916,14 +29917,20 @@ function BSTodayCard() {
       const hrvToday = (p.series.hrv || []).find((s) => s.date === todayIso);
       const meta = { efficiency: effToday ? Math.round(Number(effToday.value)) : null, rhr: rhrToday ? Math.round(Number(rhrToday.value)) : null, hrv: hrvToday ? Math.round(Number(hrvToday.value)) : null };
       const hasDeviceMeta = meta.efficiency != null || meta.rhr != null || meta.hrv != null;
+      // The night is a watch's when a device sync wrote its hours: the route's `sleepFromDevice`,
+      // from the snapshot's per-field sources (bsCiDay in BSCheckinCard.jsx keeps the same rule).
+      // A watch worn by day reports a resting heart rate with no night, so that is the sign only
+      // on a server without the series.
+      const devNights = Array.isArray(p.series.sleepFromDevice) ? p.series.sleepFromDevice : null;
+      const devToday = devNights ? devNights.some((s) => s && s.date === todayIso) : hasDeviceMeta;
       // A check-in counts as logged from a MANUAL signal: energy/hunger, the rested
       // rating, or manually-entered sleep hours — never a passive device sync alone
       // (so sleep/rested-only check-ins stay collapsed after reload, but a wearable
       // syncing sleep doesn't fake a "logged ✓" the member never tapped).
-      if (e || h || qToday || (sToday && !hasDeviceMeta)) setLogged(true);
+      if (e || h || qToday || (sToday && !devToday)) setLogged(true);
       if (sToday) {
         setSleepHours(Number(sToday.value));
-        setSleepSynced(hasDeviceMeta);
+        setSleepSynced(devToday);
         if (hasDeviceMeta) setSleepMeta(meta);
       }
       if (qToday) setRested(Math.round(Number(qToday.value)));
@@ -29982,7 +29989,9 @@ function BSTodayCard() {
     if (!window.ShapeCheckin?.log) { window.__bsToast?.(tr('home:today.checkinUnavailable', { defaultValue: 'Check-in is unavailable — try again' }), 'err'); return; }
     setSaving(true);
     try {
-      await window.ShapeCheckin.log({ energy, hunger, sleepHours, sleepQuality: rested });
+      const d = await window.ShapeCheckin.log({ energy, hunger, sleepHours, sleepQuality: rested });
+      // A watch's night stands over typed hours (the route keeps it), so show the watch's.
+      if (d && d.sleepFromDevice && d.sleepHours != null) { setSleepHours(Number(d.sleepHours)); setSleepSynced(true); }
       setLogged(true); setEditing(false);   // only after the write succeeds
     } catch (e) {
       window.__bsToast?.(tr('home:today.checkinFailed', { defaultValue: 'Could not save check-in — try again' }), 'err');
@@ -31427,7 +31436,7 @@ const _BS_SCORE_CATEGORY_LABELS = {
 //                                                a brand noun anyway)
 const _BS_LEDGER_KINDS = new Set([
   'checkin', 'community_post', 'habit_completion', 'meal_log', 'momentum_bonus',
-  'penalty_waive', 'session_kept', 'work_milestone', 'workout_session',
+  'penalty_waive', 'session_kept', 'sleep_night', 'work_milestone', 'workout_session',
   // Accountability penalties + weekly commitments — also fixed notes
   // (2026-06-18-score-accountability.sql / -score-commitments.sql).
   'penalty_checkin', 'penalty_workout', 'penalty_habit',

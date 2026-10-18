@@ -88,7 +88,7 @@ async function selfRecord() {
   // (signed-out keeps the demo seed so the preview still shows the lever).
   const recovery = signedIn
     ? sleepRecoveryFromProgress(progress)
-    : { sleepHours: { avg7: 6.2, lastNight: null, target: 7.5 } };
+    : { sleepHours: { avg7: 6.2, lastNight: null, target: 7.5, n: 5 } };
   // The check-in vitals leg (spec §3A) — energy/hunger/hydration/rested from the
   // SAME cached progress response. Signed-in only: the signed-out preview never
   // fabricates gauge data it doesn't have. Gated on `checkinOff` above.

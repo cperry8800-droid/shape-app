@@ -80,7 +80,7 @@ async function loadModule() {
   const dir = dirname(SRC);
   // Substitute ALL of `import.meta` — the file also probes a bare
   // `typeof import.meta`, a SyntaxError inside a CJS function body.
-  const source = `${readFileSync(SRC, 'utf8').replace(/import\.meta/g, '__VITE_IMPORTMETA__')}\nexport { BSTodayNudge, bsCheckinLeadSuppressed, bsDailyCheckinOn, bsDailyCheckinApply, bsDailyCheckinMirrorWrite, bsDailyCheckinMirrorRead };\n`;
+  const source = `${readFileSync(SRC, 'utf8').replace(/import\.meta/g, '__VITE_IMPORTMETA__')}\nexport { BSTodayNudge, BSTodayCard, bsCheckinLeadSuppressed, bsDailyCheckinOn, bsDailyCheckinApply, bsDailyCheckinMirrorWrite, bsDailyCheckinMirrorRead };\n`;
   const { code } = babel.transformSync(source, {
     presets: [presetReact],
     plugins: [commonjs],
@@ -614,4 +614,77 @@ test('every agePublic transition updates prefsRef synchronously', () => {
     3,
     `expected exactly three call sites (hydrate, optimistic, rollback); found ${routed.length}`,
   );
+});
+
+// ── The check-in page and a watch's night (owner, 2026-10-18: device data first) ──
+// The night is a watch's when the server says a device sync wrote its hours (`sleepFromDevice`).
+// A watch worn by day reports a resting heart rate with no night, so typed hours on such a day
+// stay the member's own, and change.
+async function todayPage(series, log) {
+  env({ uid: 'member-sleep' });
+  dom.window.ShapeProgress = { progress: async () => ({ series }) };
+  dom.window.ShapeHydration = { get: async () => ({ ok: true, hydrationL: 0, targetL: 3 }) };
+  const calls = [];
+  dom.window.ShapeCheckin = { log: async (patch) => { calls.push(patch); return log ? log(patch) : { ok: true }; } };
+  const m = await mount(React.createElement(MOD.BSTodayCard));
+  await m.rerenderFlush();
+  return { m, calls };
+}
+const TODAY_ISO = '2026-10-18';
+const pt = (value) => [{ date: TODAY_ISO, value }];
+
+test("the check-in page knows a watch's night from the server's sources, not a resting heart rate", async () => {
+  let { m } = await todayPage({ sleep: pt(7), restingHr: pt(58), sleepFromDevice: [] });
+  try {
+    const edit = [...m.host.querySelectorAll('button')].find((b) => /edit/i.test(b.textContent));
+    assert.ok(edit, 'a typed night did not count as checked in');
+    await m.act(() => { edit.click(); });
+    assert.doesNotMatch(m.host.textContent, /RHR 58|Synced from your device/, "typed hours on a day-only watch's day read as the watch's");
+    assert.ok(m.host.querySelector('button[aria-pressed="true"]'), 'the typed night lost its hour chips');
+  } finally { m.unmount(); }
+
+  ({ m } = await todayPage({ sleep: pt(7), restingHr: pt(58), sleepFromDevice: pt(1) }));
+  try {
+    assert.match(m.host.textContent, /RHR 58/);
+  } finally { m.unmount(); }
+
+  // A server without the series keeps the old sign.
+  ({ m } = await todayPage({ sleep: pt(7), restingHr: pt(58) }));
+  try {
+    assert.match(m.host.textContent, /RHR 58/);
+  } finally { m.unmount(); }
+});
+
+test("hours the server keeps a watch's night over show as the watch's after Log today", async () => {
+  const { m, calls } = await todayPage({ energy: pt(6) }, (patch) => (patch.sleepHours != null ? { ok: true, sleepHours: 6.9, sleepFromDevice: true } : { ok: true }));
+  try {
+    const edit = [...m.host.querySelectorAll('button')].find((b) => /edit/i.test(b.textContent));
+    if (edit) await m.act(() => { edit.click(); });
+    const chip = [...m.host.querySelectorAll('button')].find((b) => b.textContent.trim() === '7.5');
+    assert.ok(chip, `no 7.5 chip in: ${m.host.textContent}`);
+    await m.act(() => { chip.click(); });
+    const log = [...m.host.querySelectorAll('button')].find((b) => /Log today/i.test(b.textContent));
+    await m.act(() => { log.click(); });
+    await m.rerenderFlush();
+    assert.equal(calls.at(-1).sleepHours, 7.5);
+    const editAgain = [...m.host.querySelectorAll('button')].find((b) => /edit/i.test(b.textContent));
+    if (editAgain) await m.act(() => { editAgain.click(); });
+    assert.match(m.host.textContent, /Synced from your device/, "the typed hours the server did not keep still show as the member's");
+    assert.match(m.host.textContent, /6h 54/);
+  } finally { m.unmount(); }
+
+  // Hours the server kept stay the member's own.
+  const kept = await todayPage({ energy: pt(6) }, (patch) => ({ ok: true, sleepHours: patch.sleepHours ?? null, sleepFromDevice: false }));
+  try {
+    const open = [...kept.m.host.querySelectorAll('button')].find((b) => /edit/i.test(b.textContent));
+    if (open) await kept.m.act(() => { open.click(); });
+    const chip = [...kept.m.host.querySelectorAll('button')].find((b) => b.textContent.trim() === '7.5');
+    await kept.m.act(() => { chip.click(); });
+    const log = [...kept.m.host.querySelectorAll('button')].find((b) => /Log today/i.test(b.textContent));
+    await kept.m.act(() => { log.click(); });
+    await kept.m.rerenderFlush();
+    const edit = [...kept.m.host.querySelectorAll('button')].find((b) => /edit/i.test(b.textContent));
+    if (edit) await kept.m.act(() => { edit.click(); });
+    assert.doesNotMatch(kept.m.host.textContent, /Synced from your device/, 'hours the server kept read as the watch\'s');
+  } finally { kept.m.unmount(); }
 });

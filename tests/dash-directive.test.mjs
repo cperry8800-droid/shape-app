@@ -34,7 +34,7 @@ test('cross-domain: sleep is the lever from DATA when recovery is low and nutrit
   const rec = {
     profile: { name: 'Sam' },
     nutrition: { avgCalories: 1800, targetCalories: 2000 },        // deficit holding
-    recovery: { sleepHours: { avg7: 6.2, lastNight: null, target: 7.5 } }, // short + not logged
+    recovery: { sleepHours: { avg7: 6.2, lastNight: null, target: 7.5, n: 5 } }, // short + not logged
   };
   const d = buildDirective(rec, NOW, 'client');
   assert.equal(d.source, 'engine');
@@ -50,7 +50,7 @@ test('a real triage flag (food gap) leads the directive over the sleep lever', (
     profile: { name: 'Deandre' },
     foodLogs: { lastLoggedOn: daysAgo(5), daysLogged7d: 1 },
     nutrition: { avgCalories: 1800, targetCalories: 2000 },
-    recovery: { sleepHours: { avg7: 6.0, lastNight: null, target: 7.5 } },
+    recovery: { sleepHours: { avg7: 6.0, lastNight: null, target: 7.5, n: 5 } },
   };
   const d = buildDirective(rec, NOW, 'client');
   assert.equal(d.lever, 'nutrition');

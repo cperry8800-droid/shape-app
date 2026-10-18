@@ -119,7 +119,8 @@ export function buildRosterVitals(rows, opts = {}) {
 export const RECOVERY_QUERY_DAYS = 14;
 
 /**
- * { [userId]: { sleepHours?: { avg7, lastNight, target }, vitals? } } from snapshot rows
+ * { [userId]: { sleepHours?: { avg7, lastNight, target, n }, vitals? } } from snapshot rows.
+ * `n` is the nights averaged: the engine reads nothing below its SLEEP_MIN_NIGHTS floor.
  * in snapshot_date order.
  * @param {unknown[]} rows
  * @param {{ now?: Date }} [opts]
@@ -143,15 +144,15 @@ export function buildRosterRecovery(rows, opts = {}) {
     const last7 = vals.slice(-7);
     return Math.round((last7.reduce((a, b) => a + b, 0) / last7.length) * 100) / 100;
   };
-  /** @type {Record<string, { sleepHours?: { avg7: number, lastNight: number, target: number }, vitals?: object }>} */
+  /** @type {Record<string, { sleepHours?: { avg7: number, lastNight: number, target: number, n: number }, vitals?: object }>} */
   const recovery = {};
   // A client may have sleep with no in-window vitals, or vitals with no sleep: walk the
   // union so neither leg can drop the other's entry.
   for (const k of new Set([...sleepByUser.keys(), ...vitalsByUser.keys()])) {
-    /** @type {{ sleepHours?: { avg7: number, lastNight: number, target: number }, vitals?: object }} */
+    /** @type {{ sleepHours?: { avg7: number, lastNight: number, target: number, n: number }, vitals?: object }} */
     const entry = {};
     const sleep = sleepByUser.get(k);
-    if (sleep && sleep.length) entry.sleepHours = { avg7: avg7(sleep), lastNight: sleep[sleep.length - 1], target: 7.5 };
+    if (sleep && sleep.length) entry.sleepHours = { avg7: avg7(sleep), lastNight: sleep[sleep.length - 1], target: 7.5, n: Math.min(7, sleep.length) };
     const vitals = vitalsByUser.get(k);
     if (vitals) entry.vitals = vitals;
     if (entry.sleepHours || entry.vitals) recovery[k] = entry;

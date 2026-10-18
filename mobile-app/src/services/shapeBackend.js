@@ -608,6 +608,7 @@ async function getCurrentSession() {
   if (user) { try { supabase.rpc('award_tier_bonuses').then(() => {}, () => {}); } catch (e) {} } // grant any one-time tier bonuses (idempotent; swallow async rejection so it can't surface as an unhandled rejection)
   if (user) { try { window.ShapeMomentum?.check?.().catch(() => {}); } catch (e) {} } // grant any earned weekly momentum bonus (idempotent; no-op pre-migration)
   if (user) { try { window.ShapeStepPoints?.check?.().catch(() => {}); } catch (e) {} } // credit Shape Steps points for completed days (idempotent; no-op pre-migration)
+  if (user) { try { window.ShapeSleepPoints?.check?.().catch(() => {}); } catch (e) {} } // credit a watch's good nights (idempotent; no-op pre-migration)
   if (user) { try { window.ShapeCareerAward?.catchUp?.().catch(() => {}); } catch (e) {} } // re-fire a milestone +25 that failed at post time (idempotent monthly dedupe; no-op pre-migration)
   if (data.session) {
     await bridgeSessionToApi(data.session).catch((error) => {
@@ -7254,6 +7255,21 @@ async function awardStepPoints() {
   } catch (e) { return []; }
 }
 window.ShapeStepPoints = { check: awardStepPoints };
+
+// A good night's points (owner, 2026-10-18): +5 for a night of 7-12h that a connected watch or
+// ring wrote, once per night, over the last 14 days (supabase-migrations/2026-10-18-sleep-points.sql).
+// Typed hours never earn. Returns [{ day, points }] for the nights credited by THIS call, or [] on
+// no-op / pre-migration.
+async function awardSleepPoints() {
+  if (!supabase || !state.user?.id) return [];
+  try {
+    const { data, error } = await supabase.rpc('award_sleep_points');
+    if (error || !Array.isArray(data) || !data.length) return [];
+    invalidateClientMetrics();
+    return data;
+  } catch (e) { return []; }
+}
+window.ShapeSleepPoints = { check: awardSleepPoints };
 
 // Opportunistic, non-throwing: mirror the authenticated-fetch pattern used by
 // postProConsole (there is NO generic postJson helper in this file).

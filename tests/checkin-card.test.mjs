@@ -846,8 +846,9 @@ test("a night a watch wrote is known from the server's sources, not from a resti
 });
 
 test("typed hours on a day with a watch's heart rate stay the member's own after they are saved", async () => {
-  // An older server: no sleepFromDevice, so the heart rate still marks the day.
-  const calls = env({ days: { [TODAY]: { energy: 8, hunger: 6, restingHr: 58 } } });
+  // An older server: no sleepFromDevice, so the heart rate still marks the day. The save answers
+  // as the route does for hours it kept.
+  const calls = env({ days: { [TODAY]: { energy: 8, hunger: 6, restingHr: 58 } }, log: (patch) => ({ ok: true, sleepHours: patch.sleepHours ?? null, sleepFromDevice: false }) });
   const m = await mount();
   try {
     await m.click(/^Continue/);
@@ -858,6 +859,174 @@ test("typed hours on a day with a watch's heart rate stay the member's own after
     await m.click(/^Change$/, 2);
     assert.doesNotMatch(m.text(), /From your watch/, 'the hours just typed now read as the watch\'s');
     assert.ok(m.button(/^Skip$/));
+  } finally { m.unmount(); }
+});
+
+// ── A watch's night comes first (owner, 2026-10-18) ───────────────────────────
+// `connected` is the providers the status read reports; `syncs` records each sync asked for.
+function devices({ connected = [], healthKit = false, fail = [], onSync } = {}) {
+  const syncs = [];
+  let statusReads = 0;
+  const run = (id, arg) => async () => {
+    syncs.push(arg === undefined ? id : [id, arg]);
+    if (fail.includes(id)) throw new Error(`${id} sync failed`);
+    if (onSync) onSync(id);
+    return { ok: true };
+  };
+  dom.window.ShapeIntegrations = {
+    getStatus: async () => { statusReads += 1; return { providers: ['whoop', 'oura', 'garmin', 'apple_health'].map((id) => ({ id, connected: connected.includes(id) })) }; },
+    syncWhoop: (o) => run('whoop', o)(),
+    syncOura: (o) => run('oura', o)(),
+    syncAppleHealth: (o) => run('apple_health', o)(),
+    appleHealthAvailable: () => healthKit,
+  };
+  return { syncs, reads: () => statusReads };
+}
+
+test('opening the card asks each connected watch for its night, at most every 30 minutes', async () => {
+  try {
+    let d = devices({ connected: ['whoop', 'apple_health'] });
+    assert.equal(await CARD.bsCiSyncDevices('sync-a', at(12)), true);
+    assert.deepEqual(d.syncs, ['whoop'], "Apple Health was read outside the iPhone app, or a provider that is not connected was synced");
+    assert.equal(await CARD.bsCiSyncDevices('sync-a', at(12, 29)), false);
+    assert.equal(d.reads(), 1, 'a second open within 30 minutes asked again');
+    assert.equal(await CARD.bsCiSyncDevices('sync-a', at(12, 30)), true, 'the watches were never asked again');
+    assert.equal(await CARD.bsCiSyncDevices('sync-b', at(12, 31)), true, "one account's sync held back another's");
+
+    d = devices({ connected: ['oura', 'garmin', 'apple_health'], healthKit: true });
+    assert.equal(await CARD.bsCiSyncDevices('sync-c', at(12)), true);
+    assert.deepEqual(d.syncs, ['oura', ['apple_health', { importWorkouts: false }]], 'Garmin sends its own nights, and the check-in imports no workouts');
+
+    d = devices({ connected: ['garmin'] });
+    assert.equal(await CARD.bsCiSyncDevices('sync-d', at(12)), false, 'nothing to ask still read as a sync');
+    d = devices({ connected: ['whoop', 'oura'], fail: ['whoop', 'oura'] });
+    assert.equal(await CARD.bsCiSyncDevices('sync-e', at(12)), false, 'syncs that all failed read as one that answered');
+    d = devices({ connected: ['whoop', 'oura'], fail: ['whoop'] });
+    assert.equal(await CARD.bsCiSyncDevices('sync-f', at(12)), true);
+    assert.equal(await CARD.bsCiSyncDevices(null, at(12)), false);
+
+    // The time is kept on the device, so an app reopened within 30 minutes does not ask again…
+    assert.equal(dom.window.localStorage.getItem('shape.checkin.deviceSync.sync-f'), String(at(12)), 'the sync time was not kept for the next open');
+    dom.window.localStorage.setItem('shape.checkin.deviceSync.sync-g', String(at(12)));
+    d = devices({ connected: ['whoop'] });
+    assert.equal(await CARD.bsCiSyncDevices('sync-g', at(12, 10)), false, 'a sync from before the app reopened was forgotten');
+    assert.equal(d.reads(), 0);
+    // …and with no storage at all (a private window), the module's own time still holds.
+    const real = Object.getOwnPropertyDescriptor(dom.window, 'localStorage');
+    Object.defineProperty(dom.window, 'localStorage', { configurable: true, get() { throw new Error('storage blocked'); } });
+    try {
+      assert.equal(await CARD.bsCiSyncDevices('sync-h', at(12)), true);
+      assert.equal(await CARD.bsCiSyncDevices('sync-h', at(12, 5)), false, 'without storage every open asked the watches again');
+    } finally { Object.defineProperty(dom.window, 'localStorage', real); }
+  } finally { delete dom.window.ShapeIntegrations; }
+});
+
+test("a watch's night that syncs when the card opens is shown, not asked", async () => {
+  const days = { [TODAY]: { energy: 8, hunger: 6 } };
+  let cleared = 0;
+  let claimed = 0;
+  env({ uid: 'sync-card-1', days });
+  dom.window.ShapeMetrics = { invalidate: () => { cleared += 1; } };
+  dom.window.ShapeSleepPoints = { check: async () => { claimed += 1; return []; } };
+  const d = devices({ connected: ['oura'], onSync: () => { days[TODAY].sleep = 6.5; } });
+  dom.window.ShapeProgress = { progress: async () => ({ series: { ...series(days), sleepFromDevice: days[TODAY].sleep ? [{ date: TODAY, value: 1 }] : [] } }) };
+  const m = await mount();
+  try {
+    assert.deepEqual(d.syncs, ['oura']);
+    assert.ok(cleared >= 1, 'the read after the sync answered from the cache from before it');
+    assert.equal(claimed, 1, "the good night's points waited for the next app open");
+    assert.match(m.text(), /Checked in/, 'the night the watch sent was still asked');
+    assert.match(m.text(), /Sleep 6h 30/);
+    await m.click(/^Edit$/);
+    await m.click(/^Change$/, 2);
+    assert.match(m.text(), /From your watch/);
+    assert.equal(m.button(/^Skip$/), undefined, "the watch's night could be typed over");
+  } finally { m.unmount(); delete dom.window.ShapeIntegrations; delete dom.window.ShapeMetrics; delete dom.window.ShapeSleepPoints; }
+});
+
+test("a sync that brings no watch night leaves the member's typed night their own", async () => {
+  env({ uid: 'sync-card-4', days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
+  dom.window.ShapeProgress = { progress: async () => ({ series: { ...series({ [TODAY]: { energy: 8, hunger: 6, sleep: 7 } }), sleepFromDevice: [] } }) };
+  const d = devices({ connected: ['whoop'] });
+  const m = await mount();
+  try {
+    assert.deepEqual(d.syncs, ['whoop']);
+    await m.click(/^Edit$/);
+    await m.click(/^Change$/, 2);
+    assert.doesNotMatch(m.text(), /From your watch/, 'a sync with no night marked the typed one as the watch\'s');
+    assert.ok(m.button(/^Skip$/));
+  } finally { m.unmount(); delete dom.window.ShapeIntegrations; }
+});
+
+test("a watch's night that syncs while typed hours are held is kept when they fail", async () => {
+  // The typed save is held past the read's 3-second wait, so the watch's night comes in first;
+  // the typed save then fails, and what is put back is the watch's night, not the empty read.
+  const days = { [TODAY]: { energy: 8, hunger: 6 } };
+  let fail;
+  env({ uid: 'sync-card-5', days, log: () => new Promise((_, reject) => { fail = reject; }) });
+  let release;
+  const held = new Promise((r) => { release = r; });
+  dom.window.ShapeIntegrations = {
+    getStatus: async () => ({ providers: [{ id: 'oura', connected: true }] }),
+    syncOura: async () => { await held; days[TODAY].sleep = 6.5; return { ok: true }; },
+    appleHealthAvailable: () => false,
+  };
+  dom.window.ShapeProgress = { progress: async () => ({ series: { ...series(days), sleepFromDevice: days[TODAY].sleep ? [{ date: TODAY, value: 1 }] : [] } }) };
+  const m = await mount();
+  try {
+    await m.click(/^Continue/);
+    await m.click(/^Next/);
+    await React.act(async () => { release(); await new Promise((r) => setTimeout(r, 3100)); });
+    await m.flush();
+    await React.act(async () => { fail(new Error('network')); await new Promise((r) => setTimeout(r, 0)); });
+    await m.flush();
+    await m.click(/^Finish/);
+    assert.match(m.text(), /6h 30/, "the failed typed save put back the empty night over the watch's");
+  } finally { m.unmount(); delete dom.window.ShapeIntegrations; }
+});
+
+test("hours typed again before the server's answer are put back to the watch's when they fail", async () => {
+  // Two typed saves queued; the first answers that a watch's night stands, the second fails.
+  const pending = [];
+  const calls = env({ uid: 'sync-card-6', days: { [TODAY]: { energy: 8, hunger: 6 } }, log: () => new Promise((resolve, reject) => { pending.push({ resolve, reject }); }) });
+  const m = await mount();
+  try {
+    await m.click(/^Continue/);
+    await m.click(/^Next/);                  // 7h 30, held
+    await m.click(/Back/);
+    await m.click(/Thirty minutes more/);
+    await m.click(/^Next/);                  // 8h, queued behind it
+    assert.equal(calls.log.length, 1);
+    await React.act(async () => { pending[0].resolve({ ok: true, sleepHours: 6.9, sleepFromDevice: true }); await new Promise((r) => setTimeout(r, 0)); });
+    await m.flush();
+    await React.act(async () => { pending[1].reject(new Error('network')); await new Promise((r) => setTimeout(r, 0)); });
+    await m.flush();
+    await m.click(/^Finish/);
+    assert.match(m.text(), /6h 54/, "the failed second save put back the first typed hours, not the watch's");
+  } finally { m.unmount(); }
+});
+
+test("a day that already has a watch's night asks no watch", async () => {
+  env({ uid: 'sync-card-2' });
+  dom.window.ShapeProgress = { progress: async () => ({ series: { ...series({ [TODAY]: { energy: 8, hunger: 6, sleep: 7 } }), sleepFromDevice: [{ date: TODAY, value: 1 }] } }) };
+  const d = devices({ connected: ['whoop'] });
+  const m = await mount();
+  try {
+    assert.equal(d.reads(), 0, 'the watches were asked for a night the day already has');
+  } finally { m.unmount(); delete dom.window.ShapeIntegrations; }
+});
+
+test("typed hours the server keeps a watch's night over show the watch's hours", async () => {
+  const calls = env({ uid: 'sync-card-3', days: { [TODAY]: { energy: 8, hunger: 6 } }, log: (patch) => (patch.sleepHours != null ? { ok: true, sleepHours: 6.9, sleepFromDevice: true } : { ok: true }) });
+  const m = await mount();
+  try {
+    await m.click(/^Continue/);
+    await m.click(/^Next/);
+    assert.deepEqual(calls.log, [{ sleepHours: 7.5 }]);
+    await m.click(/^Finish/);
+    assert.match(m.text(), /6h 54/, "the summary kept the typed hours the server did not keep");
+    await m.click(/^Change$/, 2);
+    assert.match(m.text(), /From your watch/);
   } finally { m.unmount(); }
 });
 
