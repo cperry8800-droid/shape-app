@@ -184,7 +184,7 @@ function DbzPayoutsZone({ live, stripe, providerId, role, metrics }) {
     setLinking(false);
   };
 
-  if (live && !data) return <div style={DBZ_NOTE}>Your payouts load with the analytics rollup…</div>;
+  if (live && !data) return <div style={DBZ_NOTE}>{data === null ? "Couldn't read your payouts just now. Nothing is lost; reload to try again." : "Your payouts load with the analytics rollup…"}</div>;
   if (live && !data.connected) {
     return (
       <div>
@@ -871,7 +871,7 @@ function dbzToday(extra) {
 
 // Where the Plan tab starts: today's clients and net, the rate a new client pays, the share
 // the coach brings, and the pace. { state: "loading" | "unread" | "ready", ... }
-function dbzPlanBase({ live, extra, listing, listingRead, now = Date.now() }) {
+function dbzPlanBase({ live, extra, failed = false, listing, listingRead, now = Date.now() }) {
   const CF = window.CoachForecast;
   if (!CF) return { state: "unread" };
   if (!live) {
@@ -886,6 +886,7 @@ function dbzPlanBase({ live, extra, listing, listingRead, now = Date.now() }) {
       pace: dbzDemoPace(CF, traj, now),
     };
   }
+  if (!extra && failed) return { state: "unread" };
   if (!extra || !listingRead) return { state: "loading" };
   const m = dbzToday(extra);
   if (!m) return { state: "unread" };
@@ -1330,16 +1331,23 @@ function CoachBusinessPage({ role }) {
   const cfg = DBZ_ROLES[role];
   const { today: live, source } = useDashboard(role);
   const [extra, setExtra] = React.useState(null); // /api/{role}/analytics payload
+  // ⚠ A FAILED ANALYTICS READ IS NOT STILL LOADING. A 500, a timeout or a thrown fetch left
+  // `extra` null for good, so every zone below said it was loading forever; each has its own
+  // "couldn't read" copy, which it now shows.
+  const [extraFailed, setExtraFailed] = React.useState(false);
 
   React.useEffect(() => {
     let on = true;
     // ?renewals=1: this page shows this week's renewals, each checked with Stripe (the route skips them otherwise).
     fetch(cfg.api + "?renewals=1", { credentials: "same-origin", cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (on && d && d[cfg.okKey]) setExtra(d); })
-      .catch(() => {});
+      .then((d) => { if (!on) return; if (d && d[cfg.okKey]) setExtra(d); else setExtraFailed(true); })
+      .catch(() => { if (on) setExtraFailed(true); });
     return () => { on = false; };
   }, [role]);
+  // What a zone reads from the payload: the value once it has landed, null (unread) when the read
+  // failed, undefined while it loads.
+  const fromExtra = (k) => (extra ? extra[k] : extraFailed ? null : undefined);
 
   const isLive = !!live || !!extra;
   // The coach's own listing (live only): the notice above the plates when it is not ready.
@@ -1448,7 +1456,7 @@ function CoachBusinessPage({ role }) {
               build={() => window.DashExport.revenueCsv(extra.trajectory)} />
           </span>
         ))}
-        <DbzTrajectoryZone live={isLive} trajectory={extra && extra.trajectory} role={role} loading={isLive && !extra} />
+        <DbzTrajectoryZone live={isLive} trajectory={extra && extra.trajectory} role={role} loading={isLive && !extra && !extraFailed} />
       </React.Fragment>);
 
   // ── Money (design E): your money and this week's renewals side by side, the last 13 weeks under.
@@ -1459,16 +1467,16 @@ function CoachBusinessPage({ role }) {
     : null;
   const payouts = plate(DBZ_GREEN, <React.Fragment>
         {head("Your money", DBZ_GREEN, stripeLink)}
-        <DbzPayoutsZone live={isLive} stripe={extra ? stripe : undefined} providerId={extra && extra.providerId} role={role} metrics={moneyMetrics} />
+        <DbzPayoutsZone live={isLive} stripe={extra ? stripe : fromExtra("stripe")} providerId={extra && extra.providerId} role={role} metrics={moneyMetrics} />
       </React.Fragment>);
-  const renewalsHead = dbzRenewalsHead(isLive, extra ? extra.renewals : undefined);
+  const renewalsHead = dbzRenewalsHead(isLive, fromExtra("renewals"));
   const renewals = plate(DBZ_RED, <React.Fragment>
         {head("Renewing this week", DBZ_RED, renewalsHead ? <span style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_INK50 }}>{renewalsHead}</span> : null)}
-        <DbzRenewalsZone live={isLive} renewals={extra ? extra.renewals : undefined} />
+        <DbzRenewalsZone live={isLive} renewals={fromExtra("renewals")} />
       </React.Fragment>);
   const netWeeks = plate(DBZ_TEAL, <React.Fragment>
         {head("Net a month · last 13 weeks", null, moneyMetrics && moneyMetrics.mrrNetCents != null ? <span style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_INK50 }}>from your subscriptions · {dashMoney(moneyMetrics.mrrNetCents)} now</span> : null)}
-        <DbzNetWeeksZone live={isLive} trajectory={extra ? extra.trajectory : undefined} />
+        <DbzNetWeeksZone live={isLive} trajectory={fromExtra("trajectory")} />
       </React.Fragment>);
 
   // ── Plan (design E): what clients earn you, then the next 12 months.
@@ -1477,7 +1485,7 @@ function CoachBusinessPage({ role }) {
   // every re-render (a tab's remembered choice saving, a late fetch landing) remounted both
   // zones and threw away the coach's sliders and typed values.
   const [planNow] = React.useState(() => Date.now());
-  const planBase = dbzPlanBase({ live: isLive, extra, listing, listingRead, now: planNow });
+  const planBase = dbzPlanBase({ live: isLive, extra, failed: extraFailed, listing, listingRead, now: planNow });
   const planKey = planBase.state === "ready" ? JSON.stringify([planBase.clients, planBase.mrrNetCents, planBase.rateCents, planBase.byoShare, planBase.pace]) : planBase.state;
   const planWait = planBase.state === "loading" ? "Your numbers load with the analytics rollup…" : "Couldn't read your subscriptions just now, and the plan starts from them. Nothing is lost; reload to try again.";
   const earnPlate = plate(DBZ_TEAL, <React.Fragment>

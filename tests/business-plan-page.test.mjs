@@ -382,6 +382,28 @@ test('the sidebar money card says when Stripe couldn\'t be reached, as the Money
   }
 });
 
+test('a failed analytics read says so in every zone it feeds, instead of loading forever', async () => {
+  let section = 'money';
+  Object.assign(globalThis, {
+    useDashboard: () => ({ today: { kind: 'live' }, source: 'live' }),
+    useRememberedChoices: () => null,
+    useRememberedChoice: () => React.useState(section),
+    DashPage: ({ children }) => React.createElement(React.Fragment, null, children),
+    DashSegmented: () => null, DashExportButton: () => null, DashFunnelPanel: () => null, DashDemoBand: () => null,
+    trainerNavItems: () => [], trainerPayoutCard: {}, nutriPayoutCard: {},
+  });
+  for (const fail of [() => Promise.resolve({ ok: false, json: () => Promise.resolve({ error: 'x' }) }), () => Promise.reject(new Error('offline'))]) {
+    globalThis.fetch = window.fetch = (url) => url.startsWith('/api/trainer/analytics') ? fail() : Promise.resolve({ ok: true, json: () => Promise.resolve({ listings: [] }) });
+    for (section of ['money', 'plan']) {
+      const m = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
+      await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+      assert.doesNotMatch(m.text(), /load with the analytics rollup|load with your|Loads with/, section + ': ' + m.text().slice(0, 300));
+      assert.match(m.text(), section === 'money' ? /Couldn't read your payouts just now.*Couldn't read your subscriptions just now.*Couldn't read your subscriptions just now/ : /Couldn't read your subscriptions just now, and the plan starts from them/);
+      await m.unmount();
+    }
+  }
+});
+
 // ── The whole page: the plan holds what the coach set ────────────────────────
 test('the Plan keeps the coach\'s sliders when the page re-renders (the pace is read once per visit)', async () => {
   // The page's own neighbours, as the dashboard loads them: the chrome only passes children
