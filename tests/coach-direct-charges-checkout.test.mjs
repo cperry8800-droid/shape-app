@@ -278,6 +278,18 @@ test('one visible code can be several promotion codes: the member\'s own, then t
   const coachSame = { id: 'promo_cs', code: 'SPRING25', restrictions: {}, promotion: { coupon: { id: 'c', valid: true, percent_off: 15 } } };
   const through = await resolve(codeStripe({ shape: [theirs], coach: [coachSame] }));
   assert.deepEqual(through.code.discount, { promotion_code: 'promo_cs' }, 'the coach\'s, not refused');
+  // The member's own entry that fails a check doesn't hide a valid open one (Codex on #2403).
+  const mineTooBig = shapeCode({ id: 'promo_mineMin', customer: 'cus_platform', restrictions: { minimum_amount: 50000, minimum_amount_currency: 'usd' } }, { percent_off: 30 });
+  const fell = await resolve(codeStripe({ shape: [mineTooBig, open] }));
+  assert.equal(fell.code.percentOff, 10, 'the open one, when the member\'s own has an unmet minimum');
+  assert.deepEqual(fell.code.discount, { coupon: 'shape-promo_open' });
+  const capped = shapeCode({ id: 'promo_capped', max_redemptions: 5 });
+  assert.deepEqual(await resolve(codeStripe({ shape: [mineTooBig, capped] })), { ok: false, reason: 'code_not_here' }, 'none passes: the first one\'s refusal');
+  const expiredMine = shapeCode({ id: 'promo_mineOld', customer: 'cus_platform', expires_at: 1 });
+  assert.deepEqual(await resolve(codeStripe({ shape: [expiredMine, capped] })), { ok: false, reason: 'code_invalid' }, 'the member\'s own refusal is the one told');
+  const coachMineMin = { id: 'promo_cmm', code: 'TOMS10', customer: 'cus_onCoach', restrictions: { minimum_amount: 50000 }, promotion: { coupon: { id: 'c', valid: true, percent_off: 20 } } };
+  const coachOpenOk = { id: 'promo_cok', code: 'TOMS10', restrictions: {}, promotion: { coupon: { id: 'c', valid: true, percent_off: 12 } } };
+  assert.deepEqual((await resolve(codeStripe({ coach: [coachMineMin, coachOpenOk] }), { code: 'TOMS10', coachCustomerId: 'cus_onCoach' })).code.discount, { promotion_code: 'promo_cok' }, 'the same on the coach\'s account');
   // The member's own entry past the first page is still found, on either account (Codex on #2403).
   const crowd = Array.from({ length: 5 }, (_, i) => shapeCode({ id: `promo_other${i}`, customer: `cus_other${i}` }, { percent_off: 50 }));
   const paged = codeStripe({ shape: [...crowd, mine], pageSize: 2 });

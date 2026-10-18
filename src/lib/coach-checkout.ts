@@ -180,12 +180,26 @@ const customerOf = (p: PromotionCode): string | null => {
  * The promotion code a member means, among those Stripe holds under the code they typed. ⚠ ONE
  * VISIBLE CODE CAN BE SEVERAL PROMOTION CODES (Codex on #2403): Stripe keeps a code unique per
  * customer, so the same letters can be one member's own code, another member's, and one open to
- * all. The member's own wins, then the open one; 'others' when every match is someone else's.
+ * all. The member's own come first, then the open ones; 'others' when every match is someone
+ * else's. All of them are returned, in that order: the caller uses the first that passes its checks,
+ * so a member's own entry with an unmet minimum doesn't hide a valid open one (Codex on #2403).
  */
-function pickCode(list: PromotionCode[], typed: string, customer: string | null): PromotionCode | 'others' | null {
+function pickCode(list: PromotionCode[], typed: string, customer: string | null): PromotionCode[] | 'others' | null {
   const same = list.filter((p) => p.code?.toLowerCase() === typed.toLowerCase());
   if (!same.length) return null;
-  return (customer ? same.find((p) => customerOf(p) === customer) : undefined) ?? same.find((p) => !customerOf(p)) ?? 'others';
+  const ranked = [...(customer ? same.filter((p) => customerOf(p) === customer) : []), ...same.filter((p) => !customerOf(p))];
+  return ranked.length ? ranked : 'others';
+}
+
+/** The first candidate that passes `refusal`, or the first one's refusal when none does. */
+function firstUsable(ranked: PromotionCode[], refusal: (p: PromotionCode) => CodeRefusal | null): { pick: PromotionCode } | { reason: CodeRefusal } {
+  let first: CodeRefusal | null = null;
+  for (const p of ranked) {
+    const why = refusal(p);
+    if (!why) return { pick: p };
+    first ??= why;
+  }
+  return { reason: first ?? 'code_invalid' };
 }
 
 const couponOf = (p: PromotionCode): Coupon | null => {
@@ -254,17 +268,23 @@ export async function resolveCheckoutCode(
   };
   const fits = (c: Coupon) => args.mode === 'subscription' || afterCode(args.listCents, { percentOff: c.percent_off ?? null, amountOff: c.amount_off ?? null }) >= 50;
 
-  const shape = pickCode(await codesNamed(stripe, args.code), args.code, args.platformCustomerId);
+  const shapeRanked = pickCode(await codesNamed(stripe, args.code), args.code, args.platformCustomerId);
   // A Shape code that is only other members' is a miss here, not a refusal: the coach's account
   // keeps its own codes, and the same letters may be one there for this member (Codex on #2403).
-  if (shape && shape !== 'others') {
-    const c = couponOf(shape);
-    if (shape.expires_at && shape.expires_at <= now) return { ok: false, reason: 'code_invalid' };
-    if (c?.redeem_by && c.redeem_by <= now) return { ok: false, reason: 'code_invalid' };
-    // ⚠ A limit on the code OR ITS COUPON cannot be held to on another account (Codex on #2403): the
-    // coach's account never counts against Shape's.
-    if (shape.max_redemptions != null || c?.max_redemptions != null || shape.restrictions?.first_time_transaction) return { ok: false, reason: 'code_not_here' };
-    if (!usable(c) || !fits(c) || !minimumMet(shape, args.listCents)) return { ok: false, reason: 'code_not_here' };
+  if (shapeRanked && shapeRanked !== 'others') {
+    const found = firstUsable(shapeRanked, (p) => {
+      const c = couponOf(p);
+      if (p.expires_at && p.expires_at <= now) return 'code_invalid';
+      if (c?.redeem_by && c.redeem_by <= now) return 'code_invalid';
+      // ⚠ A limit on the code OR ITS COUPON cannot be held to on another account (Codex on #2403):
+      // the coach's account never counts against Shape's.
+      if (p.max_redemptions != null || c?.max_redemptions != null || p.restrictions?.first_time_transaction) return 'code_not_here';
+      if (!usable(c) || !fits(c) || !minimumMet(p, args.listCents)) return 'code_not_here';
+      return null;
+    });
+    if ('reason' in found) return { ok: false, reason: found.reason };
+    const shape = found.pick;
+    const c = couponOf(shape) as Coupon;
     const mirrorId = `shape-${shape.id}`;
     const opts = { stripeAccount: args.account };
     let mirror: Coupon | null = null;
@@ -291,12 +311,18 @@ export async function resolveCheckoutCode(
     };
   }
 
-  const own = pickCode(await codesNamed(stripe, args.code, { stripeAccount: args.account }), args.code, args.coachCustomerId ?? null);
-  if (own === 'others') return { ok: false, reason: 'code_invalid' };
-  if (own) {
-    const c = couponOf(own);
-    if (own.expires_at && own.expires_at <= now) return { ok: false, reason: 'code_invalid' };
-    if (!usable(c) || !fits(c) || !minimumMet(own, args.listCents)) return { ok: false, reason: 'code_not_here' };
+  const ownRanked = pickCode(await codesNamed(stripe, args.code, { stripeAccount: args.account }), args.code, args.coachCustomerId ?? null);
+  if (ownRanked === 'others') return { ok: false, reason: 'code_invalid' };
+  if (ownRanked) {
+    const found = firstUsable(ownRanked, (p) => {
+      const c = couponOf(p);
+      if (p.expires_at && p.expires_at <= now) return 'code_invalid';
+      if (!usable(c) || !fits(c) || !minimumMet(p, args.listCents)) return 'code_not_here';
+      return null;
+    });
+    if ('reason' in found) return { ok: false, reason: found.reason };
+    const own = found.pick;
+    const c = couponOf(own) as Coupon;
     return {
       ok: true,
       code: { source: 'coach', code: own.code || args.code, discount: { promotion_code: own.id }, percentOff: c.percent_off ?? null, amountOff: c.percent_off ? null : c.amount_off ?? null },
