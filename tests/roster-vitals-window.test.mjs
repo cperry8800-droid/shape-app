@@ -127,8 +127,11 @@ test('buildRosterRecovery: sleep from the last 7 logged nights, vitals in 7 cale
   ];
   const r = buildRosterRecovery(rows, { now });
   assert.deepEqual(Object.keys(r).sort(), ['gauges', 'sleepy']);
-  assert.deepEqual(r.sleepy, { sleepHours: { avg7: 5, lastNight: 5, target: 7.5 } }, 'the last 7 logged nights (the 9-hour one is the 8th back); a null night is absence');
+  assert.deepEqual(r.sleepy, { sleepHours: { avg7: 5, lastNight: 5, target: 7.5, n: 7 } }, 'the last 7 logged nights (the 9-hour one is the 8th back); a null night is absence');
   assert.equal(r.gauges.sleepHours, undefined, 'a 0-hour night is absence: no fabricated sleep leg');
+  // Two nights in the 14 days count as two, so the engine's floor holds them back.
+  const two = buildRosterRecovery([5, 4].map((n) => ({ user_id: 'two', snapshot_date: day(n), sleep_hours: 5, energy: null, hunger: null, hydration_l: null })), { now });
+  assert.equal(two.two.sleepHours.n, 2);
   assert.deepEqual(r.gauges.vitals.energy, { avg7: 3, n: 3 });
   // The read: ok:false on a failed query, so a caller can say so.
   const failing = { from: () => ({ select: () => ({ in: () => ({ gte: () => ({ order: async () => ({ data: null, error: { message: 'down' } }) }) }) }) }) };

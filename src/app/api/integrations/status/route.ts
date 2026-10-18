@@ -3,37 +3,22 @@
 // presence of a row, the scope granted, and connection timestamps.
 
 import { NextResponse } from 'next/server';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
-import { createClient } from '@/lib/supabase/server';
+import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { PROVIDERS } from '@/lib/integrations/providers';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-async function resolveUser(request: Request): Promise<{ id: string } | null> {
-  const authHeader = request.headers.get('authorization') ?? '';
-  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
-  if (bearerMatch) {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
-    if (!url || !anonKey) return null;
-    const client = createSupabaseClient(url, anonKey, {
-      global: { headers: { Authorization: `Bearer ${bearerMatch[1]}` } },
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-    const { data } = await client.auth.getUser(bearerMatch[1]);
-    return data.user ? { id: data.user.id } : null;
-  }
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  return data.user ? { id: data.user.id } : null;
-}
-
+// ⚠ THE READ RUNS AS THE CALLER, BEARER OR COOKIE (review on the device-first check-in). The
+// installed app sends a Bearer token and no cookie, and the cookie-only client read the table as
+// anon: user_integrations is readable `to authenticated` only, so every provider came back
+// unconnected, the Integrations page showed nothing connected, and the check-in card never asked
+// a watch for last night.
 export async function GET(request: Request) {
-  const user = await resolveUser(request);
+  const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
 
-  const supabase = await createClient();
+  const supabase = await clientForRequest(request);
   const { data } = await supabase
     .from('user_integrations')
     .select('provider, scope, connected_at, updated_at, provider_user_id')

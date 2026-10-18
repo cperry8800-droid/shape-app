@@ -26,12 +26,14 @@ test('builds avg7 + lastNight from the sleep series', () => {
   assert.equal(r.sleepHours.lastNight, 5.5);                 // most recent point
   assert.equal(Math.round(r.sleepHours.avg7 * 10) / 10, 6.6); // mean of the last 7
   assert.equal(r.sleepHours.target, 7.5);
+  assert.equal(r.sleepHours.n, 7, 'the engine cannot tell how many nights the average is over');
 });
 
 test('fewer than 7 points still averages what exists', () => {
   const r = at({ series: { sleep: [{ date: '2026-06-25', value: 6 }, { date: '2026-06-26', value: 8 }] } });
   assert.equal(r.sleepHours.lastNight, 8);
   assert.equal(r.sleepHours.avg7, 7);
+  assert.equal(r.sleepHours.n, 2, 'two nights read as more, past the floor');
 });
 
 test('drops non-positive / non-finite / missing-value points (lastNight from filtered, not raw tail)', () => {

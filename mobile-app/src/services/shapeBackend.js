@@ -608,6 +608,7 @@ async function getCurrentSession() {
   if (user) { try { supabase.rpc('award_tier_bonuses').then(() => {}, () => {}); } catch (e) {} } // grant any one-time tier bonuses (idempotent; swallow async rejection so it can't surface as an unhandled rejection)
   if (user) { try { window.ShapeMomentum?.check?.().catch(() => {}); } catch (e) {} } // grant any earned weekly momentum bonus (idempotent; no-op pre-migration)
   if (user) { try { window.ShapeStepPoints?.check?.().catch(() => {}); } catch (e) {} } // credit Shape Steps points for completed days (idempotent; no-op pre-migration)
+  if (user) { try { window.ShapeSleepPoints?.check?.().catch(() => {}); } catch (e) {} } // credit a watch's good nights (idempotent; no-op pre-migration)
   if (user) { try { window.ShapeCareerAward?.catchUp?.().catch(() => {}); } catch (e) {} } // re-fire a milestone +25 that failed at post time (idempotent monthly dedupe; no-op pre-migration)
   if (data.session) {
     await bridgeSessionToApi(data.session).catch((error) => {
@@ -4195,7 +4196,10 @@ async function syncOura({ importWorkouts = false } = {}) {
 
 // Apple Health (HealthKit) — reads samples on-device and posts daily roll-ups.
 // Connecting and syncing are the same flow: prompt for permission, read, upload.
-async function syncAppleHealth({ importWorkouts = true } = {}) {
+// `prompt: false` (the check-in card's sync on Home) never asks for permission: a member who
+// connected on another phone is not shown the Health sheet on opening Home, and reads nothing
+// until they connect from Integrations. A read that finds nothing posts nothing.
+async function syncAppleHealth({ importWorkouts = true, prompt = true, days } = {}) {
   if (!isHealthKitPlatform()) {
     throw new Error('Apple Health is only available in the iOS app.');
   }
@@ -4205,15 +4209,16 @@ async function syncAppleHealth({ importWorkouts = true } = {}) {
   if (!state.session?.access_token) {
     throw new Error('Sign in before syncing Apple Health.');
   }
-  await requestHealthKitAuth();
-  const { days, workouts } = await collectHealthKitSnapshots();
+  if (prompt) await requestHealthKitAuth();
+  const { days: rollups, workouts } = await collectHealthKitSnapshots(days ? { days } : undefined);
+  if (!prompt && !rollups.length) return { ok: true, days: 0 };
   const response = await fetch(`${apiBaseUrl}/api/integrations/apple-health/sync`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${state.session.access_token}`,
     },
-    body: JSON.stringify({ days, workouts: importWorkouts ? workouts : [] }),
+    body: JSON.stringify({ days: rollups, workouts: importWorkouts ? workouts : [] }),
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -7254,6 +7259,25 @@ async function awardStepPoints() {
   } catch (e) { return []; }
 }
 window.ShapeStepPoints = { check: awardStepPoints };
+
+// A good night's points (owner, 2026-10-18): +5 for a night of 7-12h that a connected watch or
+// ring wrote, once per night, over the last 14 nights (supabase-migrations/2026-10-18-sleep-points.sql).
+// Typed hours never earn. Returns [{ day, points }] for the nights credited by THIS call, or [] on
+// no-op / pre-migration.
+// ⚠ A CREDIT CHECKS THE TIER BONUSES AGAIN (Codex on #2404). Sign-in runs award_tier_bonuses
+// alongside this claim, and the check-in card claims after its own sync, so a night that carries
+// the member over a tier would otherwise wait for the next session for its bonus and its notice.
+async function awardSleepPoints() {
+  if (!supabase || !state.user?.id) return [];
+  try {
+    const { data, error } = await supabase.rpc('award_sleep_points');
+    if (error || !Array.isArray(data) || !data.length) return [];
+    invalidateClientMetrics();
+    try { await supabase.rpc('award_tier_bonuses'); } catch (e) { /* the next session checks again */ }
+    return data;
+  } catch (e) { return []; }
+}
+window.ShapeSleepPoints = { check: awardSleepPoints };
 
 // Opportunistic, non-throwing: mirror the authenticated-fetch pattern used by
 // postProConsole (there is NO generic postJson helper in this file).

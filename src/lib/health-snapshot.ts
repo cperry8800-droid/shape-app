@@ -195,6 +195,17 @@ function pickDate(record: Record<string, unknown>): string | null {
   return asString(record.start) ?? asString(record.created_at) ?? null;
 }
 
+// The member's own calendar day for a WHOOP time. WHOOP sends UTC times with the member's
+// offset when they were recorded ("+01:00"); without one, the UTC day.
+export function whoopLocalDate(ts: string | null, offset: unknown): string | null {
+  if (!ts) return null;
+  const t = Date.parse(ts);
+  if (!Number.isFinite(t)) return null;
+  const m = typeof offset === 'string' ? /^([+-])(\d{2}):?(\d{2})$/.exec(offset) : null;
+  const shift = m ? (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3])) * 60_000 : 0;
+  return new Date(t + shift).toISOString().slice(0, 10);
+}
+
 export async function writeWhoopSnapshots(
   client: SupabaseClient,
   userId: string,
@@ -206,9 +217,25 @@ export async function writeWhoopSnapshots(
     byDate.set(date, { ...existing, ...patch });
   };
 
+  // ⚠ A NIGHT BELONGS TO THE MORNING IT ENDS, IN THE MEMBER'S OWN DAY (review on the
+  // device-first check-in). snapshot_date is the member's local day, and the check-in reads
+  // today's row as last night. Filed by its UTC start, a night begun at 23:00 in Paris
+  // (21:00 UTC) landed on the day before, so the check-in asked for a night the watch had,
+  // and the next night's sync wrote over the hours typed in. A nap is not the night: it used
+  // to write its own hours over the night's. A recovery is the morning after its sleep.
+  const sleepDay = new Map<string, string>();
+  for (const raw of whoop.sleeps?.records ?? []) {
+    const record = asRecord(raw);
+    if (record.nap === true) continue;
+    const date = whoopLocalDate(asString(record.end) ?? asString(record.start), record.timezone_offset);
+    if (!date) continue;
+    const id = asString(record.id);
+    if (id) sleepDay.set(id, date);
+  }
+
   for (const raw of whoop.recoveries?.records ?? []) {
     const record = asRecord(raw);
-    const date = pickDate(record);
+    const date = sleepDay.get(asString(record.sleep_id) ?? '') ?? pickDate(record);
     if (!date) continue;
     const score = asRecord(record.score);
     merge(isoDate(date), {
@@ -220,14 +247,15 @@ export async function writeWhoopSnapshots(
 
   for (const raw of whoop.sleeps?.records ?? []) {
     const record = asRecord(raw);
-    const date = pickDate(record);
+    if (record.nap === true) continue;
+    const date = whoopLocalDate(asString(record.end) ?? asString(record.start), record.timezone_offset);
     if (!date) continue;
     const score = asRecord(record.score);
     const stage = asRecord(score.stage_summary);
     const inBedMs = asNumber(stage.total_in_bed_time_milli) ?? 0;
     const awakeMs = asNumber(stage.total_awake_time_milli) ?? 0;
     const sleepHours = inBedMs > 0 ? Number(((inBedMs - awakeMs) / 3_600_000).toFixed(2)) : null;
-    merge(isoDate(date), {
+    merge(date, {
       sleep_hours: sleepHours,
       sleep_performance_pct: asNumber(score.sleep_performance_percentage),
       sleep_efficiency_pct: asNumber(score.sleep_efficiency_percentage),

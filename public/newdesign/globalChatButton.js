@@ -1026,7 +1026,7 @@
       cl.auth.getUser().then(function (r) {
         if (!(r && r.data && r.data.user)) return;
         var quiet = function (p) { return Promise.resolve(p).catch(function () {}); };
-        Promise.all([quiet(cl.rpc("award_step_points")), quiet(cl.rpc("award_momentum_bonus"))])
+        Promise.all([quiet(cl.rpc("award_step_points")), quiet(cl.rpc("award_sleep_points")), quiet(cl.rpc("award_momentum_bonus"))])
           .then(function () { return quiet(cl.rpc("award_tier_bonuses")); });
       }).catch(function () {});
     }

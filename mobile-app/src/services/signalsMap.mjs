@@ -184,7 +184,8 @@ export function sleepRecoveryFromProgress(progress, opts = {}) {
   // an 8th reading widen the "7-day" average it claims to be.
   const last7 = vals.slice(-7);
   const avg7 = last7.reduce((a, b) => a + b, 0) / last7.length;
-  return { sleepHours: { avg7, lastNight, target: 7.5 } };
+  // `n`, the nights averaged: the engine reads nothing below its SLEEP_MIN_NIGHTS floor.
+  return { sleepHours: { avg7, lastNight, target: 7.5, n: last7.length } };
 }
 
 // Build the engine's `vitals` leg from the SAME cached progress response the

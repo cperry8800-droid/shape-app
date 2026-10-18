@@ -320,6 +320,7 @@ function ScoreActivity() {
               ["Consistency", "Meal logged", "any real logged meal", "10"],
               ["Consistency", "Habit completed", "each one you check off", "3"],
               ["Consistency", "Daily steps", "+3 at your goal", "1 / 5k"],
+              ["Consistency", "A good night", "7h+ from your watch or ring", "5"],
               ["Coaching", "Coach session kept", "marked complete", "12"],
               ["Progress", "New PR", "a personal best", "12"],
               ["Progress", "Career milestone", "log a work win · max once a month", "25"],
