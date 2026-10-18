@@ -112,8 +112,8 @@ const DBZ_DEMO_OUTCOMES = {
   },
 };
 
-// The trainer route sends null for a figure it could not read (or has nothing to measure); it
-// reads "—", never 0, which is a measurement.
+// Both analytics routes send null for a figure they could not read (or have nothing to measure);
+// it reads "—", never 0, which is a measurement.
 const dbzFig = (v, suffix = "") => (v == null ? "—" : String(v) + suffix);
 
 const DBZ_ROLES = {
@@ -138,13 +138,13 @@ const DBZ_ROLES = {
     api: "/api/nutritionist/analytics",
     okKey: "isNutritionist",
     outcomeCards: (cp) => [
-      { k: String(cp.activeClients ?? 0), l: "Active clients", sub: "with an active plan" },
-      { k: String(cp.avgLogsPerClient ?? 0), l: "Avg log days", sub: "per client, last 30d" },
-      { k: (cp.proteinAdherencePct ?? 0) + "%", l: "Protein adherence", sub: "days ≥ 120g across roster" },
-      { k: String(cp.totalDaysLogged ?? 0), l: "Total log days", sub: "across roster, 30d" },
+      { k: dbzFig(cp.activeClients), l: "Active clients", sub: "with an active plan" },
+      { k: dbzFig(cp.avgLogsPerClient), l: "Avg log days", sub: "per client, last 30d" },
+      { k: dbzFig(cp.proteinAdherencePct, "%"), l: "Protein adherence", sub: "days ≥ 120g across roster" },
+      { k: dbzFig(cp.totalDaysLogged), l: "Total log days", sub: "across roster, 30d" },
     ],
     consistentLabel: "Most consistent loggers · 30d",
-    consistentValue: (r) => ({ n: r.daysLogged30d || 0, unit: "days" }),
+    consistentValue: (r) => ({ n: dbzFig(r.daysLogged30d), unit: "days" }),
     consistentSort: (a, b) => (b.daysLogged30d || 0) - (a.daysLogged30d || 0),
   },
 };

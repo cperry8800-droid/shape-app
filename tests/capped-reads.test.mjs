@@ -100,9 +100,10 @@ test('the exemptions are the nine that were checked, and each is deliberate', ()
   // index from #2331, and its waiting-list read tells the longest-waiting first.
   // client/onboarding/route.ts joined on 2026-10-16: the member's own first 30 days asks for the
   // membership's first row and the first records since it began, all bounded below by the join day.
-  // nutritionist/analytics/route.ts joined on 2026-10-18: its two ascending reads are pages of the
+  // nutritionist/analytics/route.ts joined on 2026-10-18: its four ascending reads are pages of the
   // same readAllById walk as the trainer route's, now shared from src/lib/read-all-by-id.ts, over
-  // the practice trajectory's rows, which a newest-first read cut at 1,000 (Codex, #2394).)
+  // the practice trajectory's rows, which a newest-first read cut at 1,000, and over the active
+  // subscriptions and the 30-day snapshots, which one read each cut at 1,000 (Codex, #2394).)
   const marked = capped().filter((r) => r.exempt).map((r) => r.where.replace(/:\d+$/, ''));
   assert.deepEqual([...new Set(marked)].sort(), [
     'client/onboarding/route.ts',

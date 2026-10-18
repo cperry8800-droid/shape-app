@@ -53,12 +53,19 @@ export async function GET(request: Request) {
   // and the revenue calculator adopts as a $0 pace. "You have no clients" and
   // "we could not ask" are different sentences; the subscription-derived
   // figures go null so the card can say which one it is.
-  const { data: subRows, error: subErr } = await supabase
-    .from('subscriptions')
-    .select('*') // '*' is migration-safe: an explicit fee_bps errors the query on a pre-migration DB (webhook-fallback parity)
-    .eq('provider_role', 'nutritionist')
-    .eq('provider_id', providerId)
-    .in('status', ['active', 'trialing']);
+  // Every active row, by the trainer route's cursor walk (one read stopped at 1,000 with no error,
+  // #2394); at the ceiling it is a failed read, so the figures go null.
+  const { data: subRows, error: subErr } = await readAllById<{ id: string; client_id: string; price_cents: number | null; fee_bps?: number | null }>((after) => {
+    let q = supabase
+      .from('subscriptions')
+      .select('*') // '*' is migration-safe: an explicit fee_bps errors the query on a pre-migration DB (webhook-fallback parity)
+      .eq('provider_role', 'nutritionist')
+      .eq('provider_id', providerId)
+      .in('status', ['active', 'trialing']);
+    if (after) q = q.gt('id', after);
+    // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
+    return q.order('id', { ascending: true }).limit(ROW_PAGE);
+  });
   if (subErr) {
     console.warn(
       '[shape-app] nutritionist analytics: subscriptions read failed — MRR and active clients render "could not be read":',
@@ -126,34 +133,26 @@ export async function GET(request: Request) {
     reason: null, // collects once the cancellation survey ships
   }));
 
-  const { data: sessRows } = await supabase
-    .from('sessions')
-    .select('scheduled_at, status')
-    .eq('provider_role', 'nutritionist')
-    .eq('provider_id', providerId)
-    .limit(1000);
-  const sessions = sessRows ?? [];
-
-  const now = Date.now();
+  // Appointment counts, counted by the database as the trainer route counts them: the rows were read
+  // with a 1,000-row limit and no order, so past 1,000 lifetime consults every count was a sample,
+  // and a failed read was 0 consults (#2394). A failed count is unread, not 0.
+  const nowIso = new Date().toISOString();
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
   const todayEnd = new Date(todayStart.getTime() + 86400000);
-  let completedSessions = 0;
-  let upcomingSessions = 0;
-  let bookedToday = 0;
-  for (const s of sessions) {
-    if (s.status === 'completed') {
-      completedSessions += 1;
-    } else if (
-      (s.status === 'requested' || s.status === 'confirmed') &&
-      new Date(s.scheduled_at).getTime() >= now
-    ) {
-      upcomingSessions += 1;
-    }
-    const sched = new Date(s.scheduled_at).getTime();
-    if (sched >= todayStart.getTime() && sched < todayEnd.getTime() && s.status !== 'cancelled') {
-      bookedToday += 1;
-    }
-  }
+  const countSessions = () => supabase
+    .from('sessions')
+    .select('id', { count: 'exact', head: true })
+    .eq('provider_role', 'nutritionist')
+    .eq('provider_id', providerId);
+  const sessCounts = await Promise.all([
+    countSessions(),
+    countSessions().eq('status', 'completed'),
+    countSessions().in('status', ['requested', 'confirmed']).gte('scheduled_at', nowIso),
+    countSessions().gte('scheduled_at', todayStart.toISOString()).lt('scheduled_at', todayEnd.toISOString()).neq('status', 'cancelled'),
+  ]);
+  const sessErr = sessCounts.find((r) => r.error)?.error ?? null;
+  if (sessErr) console.warn('[shape-app] nutritionist analytics: sessions count failed — session counts render as unread:', sessErr.message);
+  const [totalSessions, completedSessions, upcomingSessions, bookedToday] = sessCounts.map((r) => r.count ?? 0);
 
   // New clients in the last 7 days (any subscription created since).
   const since7 = new Date(Date.now() - 7 * 86400000).toISOString();
@@ -167,10 +166,12 @@ export async function GET(request: Request) {
   // -------- Client-progress rollups for nutritionist roster -----------------
   const since30Date = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
 
+  // ⚠ A FIGURE THAT COULD NOT BE READ IS NULL, NOT 0 (the trainer route's rule): a failed read
+  // is not a roster that logged nothing.
   type RosterRow = {
     client_id: string;
     name?: string;
-    daysLogged30d: number;
+    daysLogged30d: number | null;
     avgProteinG: number | null;
     avgCalories: number | null;
     weightStart: number | null;
@@ -181,25 +182,37 @@ export async function GET(request: Request) {
   let totalDaysLogged = 0;
   let totalProteinDays = 0;
   let proteinHits = 0; // >=120g
+  // A failed subscriptions read leaves no roster to read, so its logs start unknown, not 0.
+  let snapsUnknown = subsUnknown;
 
   if (clientIds.length) {
+    // dietary_kcal = calories EATEN; the snapshot's `calories` is a device's burn.
+    type Snap = { id: string; user_id: string; snapshot_date: string; protein_g: number | null; dietary_kcal: number | null; weight_lb: number | null };
     const [snapRes, namesRes] = await Promise.all([
-      supabase
-        .from('daily_health_snapshot')
-        .select('user_id, snapshot_date, protein_g, dietary_kcal, weight_lb')
-        .in('user_id', clientIds)
-        .gte('snapshot_date', since30Date)
-        .order('snapshot_date', { ascending: true }),
+      // Every row in the window, a page at a time: about 33 clients logging daily pass 1,000 rows,
+      // and the one read (in date order) kept the oldest days and dropped every client's latest.
+      readAllById<Snap>((after) => {
+        let q = supabase
+          .from('daily_health_snapshot')
+          .select('id, user_id, snapshot_date, protein_g, dietary_kcal, weight_lb')
+          .in('user_id', clientIds)
+          .gte('snapshot_date', since30Date);
+        if (after) q = q.gt('id', after);
+        // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
+        return q.order('id', { ascending: true }).limit(ROW_PAGE);
+      }),
       supabase
         .from('profiles')
         .select('id, full_name')
         .in('id', clientIds),
     ]);
 
-    // dietary_kcal = calories EATEN; the snapshot's `calories` is a device's burn.
-    type Snap = { user_id: string; snapshot_date: string; protein_g: number | null; dietary_kcal: number | null; weight_lb: number | null };
+    snapsUnknown = !!snapRes.error;
+    if (snapsUnknown) console.warn('[shape-app] nutritionist analytics: snapshots read failed — logs, protein and weight trends render as unread:', snapRes.error?.message);
     const byClient = new Map<string, Snap[]>();
-    for (const r of (snapRes.data || []) as Snap[]) {
+    // The pages come in id order; a client's rows are put in date order before first and latest.
+    const snaps = (snapRes.data || []).slice().sort((a, b) => String(a.snapshot_date).localeCompare(String(b.snapshot_date)));
+    for (const r of snaps) {
       const list = byClient.get(r.user_id) || [];
       list.push(r);
       byClient.set(r.user_id, list);
@@ -207,6 +220,10 @@ export async function GET(request: Request) {
     for (const r of namesRes.data || []) activeNames.set(String(r.id), String(r.full_name || '').trim());
 
     for (const cid of clientIds) {
+      if (snapsUnknown) {
+        roster.push({ client_id: cid, daysLogged30d: null, avgProteinG: null, avgCalories: null, weightStart: null, weightLatest: null, weightChangeLb: null });
+        continue;
+      }
       const rows = byClient.get(cid) || [];
       const proteins = rows.map((r) => r.protein_g).filter((v) => v != null) as number[];
       const cals = rows.map((r) => r.dietary_kcal).filter((v) => v != null) as number[];
@@ -237,9 +254,10 @@ export async function GET(request: Request) {
   // with the trainer route so the mapping can't drift.
   const byOrigin = await buildOriginFeed(supabase, 'nutritionist', providerId, subs, activeNames);
 
-  // ⚠ NULL, NOT 0, WHEN THERE IS NOTHING TO MEASURE — see the trainer route.
+  // ⚠ NULL, NOT 0, WHEN THERE IS NOTHING TO MEASURE — see the trainer route. Nor when the logs
+  // could not be read.
   const proteinAdherencePct = totalProteinDays ? Math.round((proteinHits / totalProteinDays) * 100) : null;
-  const avgLogsPerClient = clientIds.length ? Math.round(totalDaysLogged / clientIds.length) : 0;
+  const avgLogsPerClient = snapsUnknown ? null : clientIds.length ? Math.round(totalDaysLogged / clientIds.length) : 0;
 
   // The practice trajectory (review 2026-09-09, R8) — the same series the trainer
   // route builds, read the same way: every row, a page at a time, and a failed read
@@ -317,25 +335,28 @@ export async function GET(request: Request) {
       mrrGrossCents: subsUnknown ? null : grossCents,
       mrrNetCents: subsUnknown ? null : netCents,
       activeClients,
-      totalSessions: sessions.length,
-      completedSessions,
-      upcomingSessions,
+      totalSessions: sessErr ? null : totalSessions,
+      completedSessions: sessErr ? null : completedSessions,
+      upcomingSessions: sessErr ? null : upcomingSessions,
     },
     clientProgress: {
       activeClients,
       // The roster itself could not be read: an empty list below is not "no history".
       rosterUnknown: subsUnknown,
+      // The snapshots could not be read: an empty "top weight loss" is not "no trends", and the
+      // log figures are null rather than a roster that logged nothing.
+      weightsUnknown: snapsUnknown,
       proteinAdherencePct,
       avgLogsPerClient,
-      totalDaysLogged,
+      totalDaysLogged: snapsUnknown ? null : totalDaysLogged,
       roster: roster
         .slice()
-        .sort((a, b) => b.daysLogged30d - a.daysLogged30d)
+        .sort((a, b) => (b.daysLogged30d ?? -1) - (a.daysLogged30d ?? -1))
         .slice(0, 12),
     },
     ticker: {
-      consultsToday: bookedToday,
-      upcomingSessions,
+      consultsToday: sessErr ? null : bookedToday,
+      upcomingSessions: sessErr ? null : upcomingSessions,
       activeClients,
       proteinAdherencePct,
       newClients7d: newClients7d ?? 0,

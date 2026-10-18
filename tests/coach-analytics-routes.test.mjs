@@ -394,4 +394,74 @@ test('both routes send the brought-in share per client, not per subscription row
     const failed = await loadRoute(role, { ...listing, subscriptions: rows(role) }, { errors: { subscriptions: 'timeout' } })
     assert.equal(failed.body.byoMix, null, role + ': an unread share is unread, not 0%')
   }
+
+// ── #2394's open item: the nutritionist route reads every row, a page at a time ──
+const NUTRI = { nutritionists: [{ id: 9, stripe_account_id: null, stripe_account_status: null }] }
+const nutriSubs = (n) => Array.from({ length: n }, (_, i) => ({ ...sub('c' + String(i).padStart(6, '0'), 1000), id: 'u' + String(i).padStart(6, '0'), provider_role: 'nutritionist' }))
+
+test('nutritionist: every active subscription is read, a page at a time; at the ceiling it is unknown, not short', async () => {
+  const { body, calls } = await loadRoute('nutritionist', { ...NUTRI, subscriptions: nutriSubs(2500) })
+  assert.equal(body.metrics.activeClients, 2500, 'every client, not the first 1,000')
+  assert.equal(body.metrics.mrrGrossCents, 2500 * 1000)
+  const pages = calls.filter((c) => c.table === 'subscriptions' && c.ops.some((o) => o[0] === 'in' && o[1] === 'status'))
+  assert.equal(pages.length, 3)
+  assert.deepEqual(pages.map((p) => p.ops.find((o) => o[0] === 'gt')?.[2] ?? null), [null, 'u000999', 'u001999'], 'each page after the last id read')
+  assert.ok(pages.every((p) => p.ops.some((o) => o[0] === 'order' && o[1] === 'id') && p.ops.some((o) => o[0] === 'limit' && o[1] === 1000)))
+  const capped = await loadRoute('nutritionist', { ...NUTRI, subscriptions: nutriSubs(50_000) })
+  const m = capped.body.metrics
+  // (Scalars only: a failure diffing a 50,000-row byOrigin ran the test process out of memory.)
+  assert.deepEqual([m.activeClients, m.mrrGrossCents, m.mrrNetCents, capped.body.clientProgress.rosterUnknown, capped.body.byOrigin === null], [null, null, null, true, true])
+  const cp = capped.body.clientProgress
+  assert.deepEqual([cp.totalDaysLogged, cp.avgLogsPerClient, cp.weightsUnknown], [null, null, true], 'no roster was read, so no logs were: unknown, not 0')
+})
+
+test('nutritionist: every snapshot in the window is read, and each client\'s first and latest weigh-in are by date, not by id', async () => {
+  // 40 clients logging 30 days each is 1,200 rows; ids run opposite to dates.
+  const day = (d) => new Date(Date.now() - (29 - d) * 86400000).toISOString().slice(0, 10)
+  const snaps = []
+  for (let d = 0; d < 30; d += 1) {
+    for (let k = 0; k < 40; k += 1) {
+      snaps.push({ id: 'h' + String(1199 - snaps.length).padStart(6, '0'), user_id: 'c' + String(k).padStart(6, '0'), snapshot_date: day(d), protein_g: d % 2 ? 100 : 130, dietary_kcal: 2000, weight_lb: 200 - d })
+    }
+  }
+  const { body, calls } = await loadRoute('nutritionist', { ...NUTRI, subscriptions: nutriSubs(40), daily_health_snapshot: snaps })
+  const reads = calls.filter((c) => c.table === 'daily_health_snapshot')
+  assert.equal(reads.length, 2, 'two pages, not the first 1,000')
+  assert.ok(reads.every((r) => r.ops.some((o) => o[0] === 'order' && o[1] === 'id') && r.ops.some((o) => o[0] === 'limit' && o[1] === 1000)))
+  const cp = body.clientProgress
+  assert.deepEqual([cp.totalDaysLogged, cp.avgLogsPerClient, cp.proteinAdherencePct, cp.weightsUnknown], [1200, 30, 50, false])
+  assert.equal(cp.roster.length, 12)
+  for (const r of cp.roster) assert.deepEqual([r.daysLogged30d, r.weightStart, r.weightLatest, r.weightChangeLb], [30, 200, 171, -29], r.client_id)
+  // A failed read is unknown, not a roster that logged nothing.
+  const failed = await loadRoute('nutritionist', { ...NUTRI, subscriptions: nutriSubs(2) }, { errors: { daily_health_snapshot: 'timeout' } })
+  const f = failed.body.clientProgress
+  assert.deepEqual([f.totalDaysLogged, f.avgLogsPerClient, f.proteinAdherencePct, f.weightsUnknown, f.activeClients], [null, null, null, true, 2])
+  assert.ok(f.roster.length === 2 && f.roster.every((r) => r.daysLogged30d === null && r.avgProteinG === null && r.avgCalories === null && r.weightLatest === null))
+  assert.equal(failed.body.ticker.avgLogsPerClient, null)
+})
+
+test('nutritionist: appointment counts are counted by the database, and a failed count is unknown', async () => {
+  const { body, calls } = await loadRoute('nutritionist', { ...NUTRI, subscriptions: nutriSubs(2) })
+  const counts = calls.filter((c) => c.table === 'sessions')
+  assert.equal(counts.length, 4)
+  assert.ok(counts.every((c) => c.ops.some((o) => o[0] === 'select' && o[2]?.count === 'exact' && o[2]?.head === true)), 'head counts, no rows')
+  assert.ok(!counts.some((c) => c.ops.some((o) => o[0] === 'limit')), 'no row limit')
+  const has = (c, op, col, v) => c.ops.some((o) => o[0] === op && o[1] === col && (v === undefined || JSON.stringify(o[2]) === JSON.stringify(v)))
+  assert.ok(counts.every((c) => has(c, 'eq', 'provider_role', 'nutritionist') && has(c, 'eq', 'provider_id', 9)))
+  assert.ok(has(counts[1], 'eq', 'status', 'completed'))
+  assert.ok(has(counts[2], 'in', 'status', ['requested', 'confirmed']) && has(counts[2], 'gte', 'scheduled_at'))
+  assert.ok(has(counts[3], 'gte', 'scheduled_at') && has(counts[3], 'lt', 'scheduled_at') && has(counts[3], 'neq', 'status', 'cancelled'))
+  assert.deepEqual([body.metrics.totalSessions, body.ticker.consultsToday], [0, 0], 'a count that worked is reported')
+  const failed = await loadRoute('nutritionist', { ...NUTRI, subscriptions: nutriSubs(2) }, { errors: { sessions: 'timeout' } })
+  const b = failed.body
+  assert.deepEqual([b.metrics.totalSessions, b.metrics.completedSessions, b.metrics.upcomingSessions, b.ticker.consultsToday, b.ticker.upcomingSessions], [null, null, null, null, null])
+})
+
+test('the nutritionist Business cards print an unread figure as a dash, never as 0', () => {
+  const src = readFileSync(join(ROOT, 'public/newdesign/dashBusiness.jsx'), 'utf8')
+  const at = src.indexOf('  nutritionist: {', src.indexOf('const DBZ_ROLES ='))
+  const nutritionist = src.slice(at, src.indexOf('\n};', at))
+  assert.doesNotMatch(nutritionist, /\?\? 0/, 'no nutritionist figure falls back to 0')
+  assert.match(nutritionist, /k: dbzFig\(cp\.proteinAdherencePct, "%"\), l: "Protein adherence"/)
+  assert.match(nutritionist, /consistentValue: \(r\) => \(\{ n: dbzFig\(r\.daysLogged30d\), unit: "days" \}\)/)
 })
