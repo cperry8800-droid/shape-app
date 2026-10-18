@@ -394,10 +394,14 @@ test('both routes send the brought-in share per client, not per subscription row
     const failed = await loadRoute(role, { ...listing, subscriptions: rows(role) }, { errors: { subscriptions: 'timeout' } })
     assert.equal(failed.body.byoMix, null, role + ': an unread share is unread, not 0%')
   }
+})
 
 // ── #2394's open item: the nutritionist route reads every row, a page at a time ──
 const NUTRI = { nutritionists: [{ id: 9, stripe_account_id: null, stripe_account_status: null }] }
 const nutriSubs = (n) => Array.from({ length: n }, (_, i) => ({ ...sub('c' + String(i).padStart(6, '0'), 1000), id: 'u' + String(i).padStart(6, '0'), provider_role: 'nutritionist' }))
+// ⚠ fakeSupabase applies only gt, order and limit: an eq, in or gte is recorded and ignored, so a
+// dropped filter changes no figure. Each read's filters are pinned by name with this.
+const has = (c, op, col, v) => c.ops.some((o) => o[0] === op && o[1] === col && (v === undefined || JSON.stringify(o[2]) === JSON.stringify(v)))
 
 test('nutritionist: every active subscription is read, a page at a time; at the ceiling it is unknown, not short', async () => {
   const { body, calls } = await loadRoute('nutritionist', { ...NUTRI, subscriptions: nutriSubs(2500) })
@@ -405,6 +409,8 @@ test('nutritionist: every active subscription is read, a page at a time; at the 
   assert.equal(body.metrics.mrrGrossCents, 2500 * 1000)
   const pages = calls.filter((c) => c.table === 'subscriptions' && c.ops.some((o) => o[0] === 'in' && o[1] === 'status'))
   assert.equal(pages.length, 3)
+  assert.ok(pages.every((p) => has(p, 'eq', 'provider_role', 'nutritionist') && has(p, 'eq', 'provider_id', 9) && has(p, 'in', 'status', ['active', 'trialing'])),
+    'every page is this nutritionist\'s active and trialing rows, not every coach\'s')
   assert.deepEqual(pages.map((p) => p.ops.find((o) => o[0] === 'gt')?.[2] ?? null), [null, 'u000999', 'u001999'], 'each page after the last id read')
   assert.ok(pages.every((p) => p.ops.some((o) => o[0] === 'order' && o[1] === 'id') && p.ops.some((o) => o[0] === 'limit' && o[1] === 1000)))
   const capped = await loadRoute('nutritionist', { ...NUTRI, subscriptions: nutriSubs(50_000) })
@@ -424,10 +430,19 @@ test('nutritionist: every snapshot in the window is read, and each client\'s fir
       snaps.push({ id: 'h' + String(1199 - snaps.length).padStart(6, '0'), user_id: 'c' + String(k).padStart(6, '0'), snapshot_date: day(d), protein_g: d % 2 ? 100 : 130, dietary_kcal: 2000, weight_lb: 200 - d })
     }
   }
+  // The window's first day, taken either side of the read, so a run across midnight UTC still passes.
+  const since30 = () => new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
+  const windowStarts = [since30()]
   const { body, calls } = await loadRoute('nutritionist', { ...NUTRI, subscriptions: nutriSubs(40), daily_health_snapshot: snaps })
+  windowStarts.push(since30())
   const reads = calls.filter((c) => c.table === 'daily_health_snapshot')
   assert.equal(reads.length, 2, 'two pages, not the first 1,000')
   assert.ok(reads.every((r) => r.ops.some((o) => o[0] === 'order' && o[1] === 'id') && r.ops.some((o) => o[0] === 'limit' && o[1] === 1000)))
+  const rosterIds = JSON.stringify(Array.from({ length: 40 }, (_, k) => 'c' + String(k).padStart(6, '0')))
+  assert.ok(reads.every((r) => r.ops.some((o) => o[0] === 'in' && o[1] === 'user_id' && Array.isArray(o[2]) && JSON.stringify([...o[2]].sort()) === rosterIds)),
+    'every page is the roster\'s snapshots, not every member\'s')
+  assert.ok(reads.every((r) => r.ops.some((o) => o[0] === 'gte' && o[1] === 'snapshot_date' && windowStarts.includes(o[2]))),
+    'every page is the last 30 days, not every snapshot ever under a 30-day label')
   const cp = body.clientProgress
   assert.deepEqual([cp.totalDaysLogged, cp.avgLogsPerClient, cp.proteinAdherencePct, cp.weightsUnknown], [1200, 30, 50, false])
   assert.equal(cp.roster.length, 12)
@@ -446,7 +461,6 @@ test('nutritionist: appointment counts are counted by the database, and a failed
   assert.equal(counts.length, 4)
   assert.ok(counts.every((c) => c.ops.some((o) => o[0] === 'select' && o[2]?.count === 'exact' && o[2]?.head === true)), 'head counts, no rows')
   assert.ok(!counts.some((c) => c.ops.some((o) => o[0] === 'limit')), 'no row limit')
-  const has = (c, op, col, v) => c.ops.some((o) => o[0] === op && o[1] === col && (v === undefined || JSON.stringify(o[2]) === JSON.stringify(v)))
   assert.ok(counts.every((c) => has(c, 'eq', 'provider_role', 'nutritionist') && has(c, 'eq', 'provider_id', 9)))
   assert.ok(has(counts[1], 'eq', 'status', 'completed'))
   assert.ok(has(counts[2], 'in', 'status', ['requested', 'confirmed']) && has(counts[2], 'gte', 'scheduled_at'))
