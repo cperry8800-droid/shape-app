@@ -750,12 +750,13 @@ test('who left and "Joined and left" agree when a client comes back, or leaves t
   assert.match(m.text(), /Left over the last 3 monthsNo one has left over the last 3 months\./);
   assert.doesNotMatch(m.text(), /Card Failed/);
   await m.unmount();
-  // Back on the Tuesday, gone again on the Wednesday: one in each, with both plans' money.
+  // Back on the Tuesday, gone again on the Wednesday: one in each, and the money lost is the plan held
+  // when they left, not the Monday membership too (Codex on #2395).
   world({ answer: from([...others, gone, row({ id: 'x2', client_id: 'x', status: 'canceled', price_cents: 6000, created_at: iso(monday + DAY + 8 * 3600000), current_period_end: iso(monday + 2 * DAY + 18 * 3600000) })]) });
   m = await mount(page({ tab: 'clients' }));
   assert.match(m.text(), /0 clients joined and 1 left over the last 3 months\./);
   assert.equal((m.text().match(/Card Failed/g) || []).length, 1, 'listed once');
-  assert.match(m.text(), /Left over the last 3 monthsCard Failedleft [^$]*\$240\/mo/);
+  assert.match(m.text(), /Left over the last 3 monthsCard Failedleft [^$]*\$60\/mo/);
   await m.unmount();
 });
 

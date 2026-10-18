@@ -399,7 +399,7 @@ test('departures: one client at one moment is one departure whose money adds; tw
 });
 
 // ── Its review (the sweep after #2394 round 10): one client's departures in one ISO week are one ──
-test('departures: one client\'s departures in one week are one, with every plan\'s money, dated by the last end', () => {
+test('departures: one client\'s departures in one week are one, with the money of the plans held when it happened, dated by the last end', () => {
   const now = Date.UTC(2026, 9, 16, 12);
   // Newest first, as the routes send them. x left Monday 09-14, came back Tuesday, left again
   // Wednesday 09-16; and before that left on Sunday 09-06, the week before last.
@@ -412,14 +412,24 @@ test('departures: one client\'s departures in one week are one, with every plan\
     { name: 'No client', clientId: null, departed: true, endedAt: '2026-09-15T01:00:00Z', priceCents: 3000 },
   ];
   const d = CF.departures(rows, { now });
+  // x's Monday plan ended before the Tuesday one began: an earlier membership, not money lost on
+  // Wednesday (Codex on #2395). One departure, the $180 plan they held when they left.
   assert.deepEqual(d.list.map((x) => [x.name, x.endedAt, x.priceCents, x.plans]), [
-    ['X', '2026-09-16T18:00:00Z', 24000, 2], ['X', '2026-09-06T23:00:00Z', 9000, 1], ['No client', '2026-09-15T00:00:00Z', 4000, 1], ['No client', '2026-09-15T01:00:00Z', 3000, 1],
+    ['X', '2026-09-16T18:00:00Z', 18000, 1], ['X', '2026-09-06T23:00:00Z', 9000, 1], ['No client', '2026-09-15T00:00:00Z', 4000, 1], ['No client', '2026-09-15T01:00:00Z', 3000, 1],
   ]);
-  assert.deepEqual([d.list[0].startedAt, d.list[0].reason], ['2026-09-10T08:00:00Z', 'Card failed']);
-  assert.deepEqual([d.count, d.lostCents], [4, 24000 + 9000 + 4000 + 3000]);
+  assert.deepEqual([d.list[0].startedAt, d.list[0].reason], ['2026-09-15T08:00:00.000Z', null], 'the start and reason of the plan held');
+  assert.deepEqual([d.count, d.lostCents], [4, 18000 + 9000 + 4000 + 3000]);
   // Whatever order the rows arrive in, the week's departure is dated by its last end.
   const flipped = CF.departures([rows[1], rows[0]], { now });
-  assert.deepEqual(flipped.list.map((x) => [x.endedAt, x.priceCents]), [['2026-09-16T18:00:00Z', 24000]]);
+  assert.deepEqual(flipped.list.map((x) => [x.endedAt, x.priceCents]), [['2026-09-16T18:00:00Z', 18000]]);
+  // Two plans held together and ended on different days of one week: both were lost.
+  const together = CF.departures([
+    { name: 'Y', clientId: 'y', departed: true, startedAt: '2026-08-01T00:00:00Z', endedAt: '2026-09-16T12:00:00Z', priceCents: 5000 },
+    { name: 'Y', clientId: 'y', departed: true, startedAt: '2026-09-01T00:00:00Z', endedAt: '2026-09-15T10:00:00Z', priceCents: 10000, reason: 'Moved' },
+  ], { now });
+  assert.deepEqual(together.list.map((x) => [x.priceCents, x.plans, x.startedAt, x.reason]), [[15000, 2, '2026-08-01T00:00:00.000Z', 'Moved']]);
+  // When the last plan's start is unknown, the week's other plans are counted as held.
+  assert.equal(CF.departures([{ ...rows[0], startedAt: null }, { ...rows[1] }], { now }).list[0].priceCents, 24000);
   // Sunday 23:00 and the next Monday 01:00 are two weeks, so two departures.
   assert.equal(CF.departures([{ ...rows[2], endedAt: '2026-09-13T23:00:00Z' }, { ...rows[1], endedAt: '2026-09-14T01:00:00Z' }], { now }).count, 2);
 });

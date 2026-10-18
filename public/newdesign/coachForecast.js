@@ -183,24 +183,37 @@
     if (all.some((r) => r.departed === null)) return null;
     const win = churnWindow(pace, now);
     const at = (r) => (r.endedAt ? new Date(r.endedAt).getTime() : NaN);
-    const list = [];
+    // One client's ended rows in one week, in the order the route sent them (newest first).
+    const groups = [];
     const byWeek = new Map();
     all.forEach((r, i) => {
       if (r.departed === false) return;
       const t = at(r);
       const key = (r.clientId != null ? "c:" + r.clientId : "row:" + i) + "@" + (Number.isFinite(t) ? mondayOf(t) : "row:" + i);
-      const d = byWeek.get(key);
-      if (!d) {
-        const first = { name: r.name, clientId: r.clientId == null ? null : r.clientId, startedAt: r.startedAt || null, endedAt: r.endedAt || null, priceCents: r.priceCents == null ? null : Number(r.priceCents) || 0, reason: r.reason || null, plans: 1 };
-        byWeek.set(key, first);
-        list.push(first);
-        return;
-      }
-      d.plans += 1;
-      if (t > at(d)) d.endedAt = r.endedAt;
-      if (r.priceCents != null) d.priceCents = (d.priceCents || 0) + (Number(r.priceCents) || 0);
-      if (r.startedAt && (!d.startedAt || new Date(r.startedAt).getTime() < new Date(d.startedAt).getTime())) d.startedAt = r.startedAt;
-      if (!d.reason && r.reason) d.reason = r.reason;
+      if (!byWeek.has(key)) { byWeek.set(key, []); groups.push(byWeek.get(key)); }
+      byWeek.get(key).push(r);
+    });
+    // ⚠ A DEPARTURE'S MONEY IS THE PLANS HELD WHEN IT HAPPENED (Codex on #2395). A client who left on
+    // Monday, came back on Tuesday and left again on Wednesday is one departure that week, as the pace
+    // counts it, but they paid for one plan at a time: adding both read one $180 membership as
+    // "−$360/mo". The departure is dated by the week's last end, and its money (and plans, start and
+    // reason) are the plans held at the same time as the last one; a plan that ended before it began
+    // was an earlier membership, already gone. When the last plan's start is unknown, all are held.
+    const ms = (v) => (v ? new Date(v).getTime() : NaN);
+    const list = groups.map((g) => {
+      const last = g.reduce((a, r) => (at(r) > at(a) ? r : a));
+      const held = g.filter((r) => r === last || !(at(r) < ms(last.startedAt)));
+      const priced = held.filter((r) => r.priceCents != null);
+      const starts = held.map((r) => ms(r.startedAt)).filter(Number.isFinite);
+      const why = held.find((r) => r.reason);
+      return {
+        name: last.name, clientId: last.clientId == null ? null : last.clientId,
+        startedAt: starts.length ? new Date(Math.min(...starts)).toISOString() : null,
+        endedAt: last.endedAt || null,
+        priceCents: priced.length ? priced.reduce((s, r) => s + (Number(r.priceCents) || 0), 0) : null,
+        reason: why ? why.reason : null,
+        plans: held.length,
+      };
     });
     const inWindow = list.filter((d) => d.endedAt && at(d) >= win.from);
     return {

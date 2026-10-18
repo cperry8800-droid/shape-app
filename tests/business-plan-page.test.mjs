@@ -552,13 +552,14 @@ test('on the Retention tab, a client back later the week they left is no departu
   assert.match(m.text(), /None left over the last 3 months/);
   assert.doesNotMatch(m.text(), /1 left over the last 3 months|Card Failed/);
   await m.unmount();
-  // Back on the Tuesday and gone again on the Wednesday: one departure in each, with both plans' money.
+  // Back on the Tuesday and gone again on the Wednesday: one departure in each, and the money lost is
+  // the plan they held when they left, not the earlier one too (Codex on #2395).
   const again = row({ id: 'x2', client_id: 'x', name: 'Card Failed', status: 'canceled', price_cents: 6000, created_at: iso(monday + day + 8 * 3600000), current_period_end: iso(monday + 2 * day + 18 * 3600000) });
   const twice = analyticsFrom([...others, gone, again], now);
   assert.equal(CF.paceFrom(twice.trajectory, now).ended, 1, 'the pace counts one');
   m = await mountBusiness(twice, 'retention');
   assert.match(m.text(), /From [\d.]+% of clients leaving a month over the last 3 months/);
-  assert.match(m.text(), /1 left over the last 3 months−\$240 a month/);
+  assert.match(m.text(), /1 left over the last 3 months−\$60 a month/);
   assert.equal((m.text().match(/Card Failed/g) || []).length, 1, 'listed once');
   await m.unmount();
 });

@@ -525,8 +525,9 @@ test('a client back later in the week they left in is no departure, in both rout
   const cases = [
     // Back on the Thursday: no one left that week.
     ['back on the Thursday', (role) => [{ ...sub(X, 18000), id: 'x2', provider_role: role, created_at: iso(monday + 3 * day + 9 * 3600000) }], [false], 0, 0],
-    // Back on the Tuesday, gone again on the Wednesday: one departure, both plans' money.
-    ['gone twice that week', (role) => [{ ...sub(X, 6000), id: 'x2', provider_role: role, created_at: iso(monday + day + 8 * 3600000), status: 'canceled', current_period_end: iso(monday + 2 * day + 18 * 3600000) }], [true, true], 1, 24000],
+    // Back on the Tuesday, gone again on the Wednesday: one departure, and the money lost is the plan
+    // held when they left, not the Monday membership too (Codex on #2395).
+    ['gone twice that week', (role) => [{ ...sub(X, 6000), id: 'x2', provider_role: role, created_at: iso(monday + day + 8 * 3600000), status: 'canceled', current_period_end: iso(monday + 2 * day + 18 * 3600000) }], [true, true], 1, 6000],
     // Two plans held together, one ended on the Monday and one on the Wednesday: one departure.
     ['two plans, two days', (role) => [{ ...sub(X, 6000), id: 'x2', provider_role: role, created_at: iso(now - 150 * day), status: 'canceled', current_period_end: iso(monday + 2 * day + 18 * 3600000) }], [true, true], 1, 24000],
   ]
