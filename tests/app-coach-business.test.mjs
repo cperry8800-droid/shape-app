@@ -339,18 +339,25 @@ test('a small measured churn is kept to a tenth of a point, and a departure neve
   await m.unmount();
 });
 
-test('a tenth reads in the coach\'s language: a comma in German, beside money grouped with a point', async () => {
-  // The German catalog the app ships, formatted as the app formats it, with the app's de-DE.
-  const DE = JSON.parse(readFileSync(join(ROOT, 'mobile-app/src/i18n/catalogs/de/coach.json'), 'utf8'));
-  const english = window.ShapeI18n;
+// The catalog the app ships for `loc`, formatted as the app formats it, with the app's Intl locale.
+const LOCALES = ['en', 'de', 'es', 'fr', 'it', 'pt-BR', 'ru', 'uk', 'tr', 'vi', 'id', 'ha', 'pcm'];
+const catalogOf = (loc) => JSON.parse(readFileSync(join(ROOT, `mobile-app/src/i18n/catalogs/${loc}/coach.json`), 'utf8'));
+function speak(loc, intl) {
+  const C = catalogOf(loc);
   window.ShapeI18n = {
     t: (key, opts = {}) => {
       const k = key.replace(/^coach:/, '');
-      assert.ok(key.startsWith('coach:') && k in DE, `${key} is not in the German coach catalog`);
-      return new IntlMessageFormat(DE[k], 'de-DE').format(opts);
+      assert.ok(key.startsWith('coach:') && k in C, `${key} is not in the ${loc} coach catalog`);
+      return new IntlMessageFormat(C[k], intl).format(opts);
     },
-    intlLocale: () => 'de-DE',
+    intlLocale: () => intl,
   };
+}
+
+test('a tenth reads in the coach\'s language: a comma in German, beside money grouped with a point, and the percent sign where the language writes it', async () => {
+  const english = window.ShapeI18n;
+  speak('de', 'de-DE');
+  // German and Turkish both write the tenth with a comma.
   const de1 = (v) => v.toFixed(1).replace('.', ',');
   try {
     const p = payload({}, { start: 70, adds: [16, 20, 24], ends: [22] });
@@ -367,19 +374,43 @@ test('a tenth reads in the coach\'s language: a comma in German, beside money gr
     assert.match(m.text(), new RegExp(`Aus ${de1(pct)} % der Klienten, die in den letzten 3 Monaten pro Monat gehen`));
     assert.doesNotMatch(m.text(), /\d\.\d %/, 'no English decimal point beside a German percent');
     await click(button(m.host, /^Plan$/));
-    assert.match(m.text(), new RegExp(`Monatliche Abwanderung${de1(pct)}%`));
-    assert.match(m.text(), new RegExp(`deins: ${de1(pct)} % gehen im Monat, in den letzten 3 Monaten`));
+    // The slider writes its percent as the note under it does: "0,4 %" in German, not "0,4%".
+    assert.match(m.text(), new RegExp(`Monatliche Abwanderung${de1(pct)} %deins: ${de1(pct)} % gehen im Monat, in den letzten 3 Monaten`));
     assert.match(m.text(), new RegExp(`Neue Klienten im Monat${de1(start.adds)}`));
     assert.match(m.text(), new RegExp(`deins: ${de1(start.adds)} in den letzten 3 Monaten`));
-    // Moved, the "vorher" carries the same comma.
+    // Moved, the "vorher" carries the same comma and the same sign.
     await setRange(ranges(m.host)[1], pct + 0.3);
     await setRange(ranges(m.host)[0], start.adds + 2);
-    assert.match(m.text(), new RegExp(`Monatliche Abwanderung${de1(pct + 0.3)}% · vorher ${de1(pct)}%`));
+    assert.match(m.text(), new RegExp(`Monatliche Abwanderung${de1(pct + 0.3)} % · vorher ${de1(pct)} %deins`));
     assert.match(m.text(), new RegExp(`Neue Klienten im Monat${de1(start.adds + 2)} · vorher ${de1(start.adds)}`));
     await m.unmount();
+    // Turkish writes the sign first ("%0,4"): the slider, its "önce" and its note alike.
+    speak('tr', 'tr-TR');
+    world({ answer: p });
+    const tm = await mount(page({ tab: 'plan' }));
+    assert.match(tm.text(), new RegExp(`Aylık kayıp%${de1(pct)}seninki: her ay %${de1(pct)} ayrılıyor, son 3 ayda`));
+    await setRange(ranges(tm.host)[1], pct + 0.3);
+    assert.match(tm.text(), new RegExp(`Aylık kayıp%${de1(pct + 0.3)} · önce %${de1(pct)}seninki`));
+    await tm.unmount();
   } finally {
     window.ShapeI18n = english;
   }
+});
+
+test('the churn slider\'s percent sign sits where its note puts it, in all 13 languages, and is never glued on in English', () => {
+  for (const loc of LOCALES) {
+    const C = catalogOf(loc);
+    assert.ok(C['business.plan.pct'], `${loc} has the slider's percent`);
+    const shown = new IntlMessageFormat(C['business.plan.pct'], 'en').format({ value: 'N' });
+    assert.ok(shown.includes('N') && shown.includes('%'), `${loc}: "${shown}"`);
+    // The note under the slider and the Clients tab's worth both write the same percent.
+    const note = new IntlMessageFormat(C['business.plan.yoursChurn'], 'en').format({ value: 'N', when: 'W' });
+    const worth = new IntlMessageFormat(C['business.clients.worthFrom'], 'en').format({ pct: 'N', when: 'W', net: '$1' });
+    assert.ok(note.includes(shown), `${loc}: the slider reads "${shown}", its note "${note}"`);
+    assert.ok(worth.includes(shown), `${loc}: the slider reads "${shown}", the worth "${worth}"`);
+  }
+  const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSCoachBusiness.jsx'), 'utf8');
+  assert.doesNotMatch(src, /\+ '%'/, 'no English percent sign appended to a number in the coach\'s language');
 });
 
 test('the goal sentence never contradicts its figures: still climbing, levelling off, or the same month', async () => {

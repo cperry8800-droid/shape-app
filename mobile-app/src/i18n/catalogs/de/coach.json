@@ -1323,6 +1323,7 @@
   "business.plan.noHistory": "noch keine Historie · leg deine Werte fest",
   "business.plan.noHistoryUnread": "deine Historie konnte gerade nicht gelesen werden · leg deine Werte fest",
   "business.plan.note": "Eine Hochrechnung aus deinen eigenen Zahlen, kein Versprechen. Heutige Klienten behalten ihren jetzigen Preis; neue Klienten starten zum Preis oben, nach Shapes Gebühr für die, die dich hier finden.",
+  "business.plan.pct": "{value} %",
   "business.plan.rate": "Preis für neue Klienten",
   "business.plan.rateNote": "heutige Klienten behalten den Preis, zu dem sie angefangen haben",
   "business.plan.reset": "↺ Zurück zu meinen Zahlen",

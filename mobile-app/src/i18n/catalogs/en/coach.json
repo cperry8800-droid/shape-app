@@ -1323,6 +1323,7 @@
   "business.plan.noHistory": "no history yet · set your own",
   "business.plan.noHistoryUnread": "couldn't read your history just now · set your own",
   "business.plan.note": "A projection from your own numbers, not a promise. Today's clients keep the price they pay now; new clients join at the rate above, after Shape's fee on those who find you here.",
+  "business.plan.pct": "{value}%",
   "business.plan.rate": "Rate for new clients",
   "business.plan.rateNote": "today's clients keep the price they joined at",
   "business.plan.reset": "↺ Back to my numbers",

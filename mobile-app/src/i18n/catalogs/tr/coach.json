@@ -1323,6 +1323,7 @@
   "business.plan.noHistory": "henüz geçmiş yok · kendininkini belirle",
   "business.plan.noHistoryUnread": "geçmişin şu an okunamadı · kendininkini belirle",
   "business.plan.note": "Kendi rakamlarından bir tahmin, bir söz değil. Bugünkü danışanların şu anki fiyatı öder; yeni danışanlar yukarıdaki ücretle başlar, seni burada bulanlarda Shape ücretinden sonra.",
+  "business.plan.pct": "%{value}",
   "business.plan.rate": "Yeni danışan ücreti",
   "business.plan.rateNote": "bugünkü danışanlar başladıkları fiyatı korur",
   "business.plan.reset": "↺ Kendi rakamlarıma dön",

@@ -1323,6 +1323,7 @@
   "business.plan.noHistory": "belum ada riwayat · tetapkan sendiri",
   "business.plan.noHistoryUnread": "riwayatmu tidak bisa dibaca saat ini · tetapkan sendiri",
   "business.plan.note": "Proyeksi dari angkamu sendiri, bukan janji. Klien saat ini tetap membayar harga mereka sekarang; klien baru bergabung dengan tarif di atas, setelah biaya Shape untuk yang menemukanmu di sini.",
+  "business.plan.pct": "{value}%",
   "business.plan.rate": "Tarif untuk klien baru",
   "business.plan.rateNote": "klien saat ini tetap di harga saat mereka bergabung",
   "business.plan.reset": "↺ Kembali ke angkaku",

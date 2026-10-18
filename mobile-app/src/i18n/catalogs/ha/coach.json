@@ -1323,6 +1323,7 @@
   "business.plan.noHistory": "babu tarihi tukuna · saita naka",
   "business.plan.noHistoryUnread": "ba a iya karanta tarihinka a yanzu ba · saita naka",
   "business.plan.note": "Hasashe daga lambobinka, ba alkawari ba. Abokan hulɗarka na yau suna biyan farashinsu na yanzu; sababbi suna shigowa a farashin da ke sama, bayan kuɗin Shape ga waɗanda suka same ka a nan.",
+  "business.plan.pct": "{value}%",
   "business.plan.rate": "Farashin sababbin abokan hulɗa",
   "business.plan.rateNote": "abokan hulɗa na yau suna riƙe farashin da suka fara da shi",
   "business.plan.reset": "↺ Koma zuwa lambobina",

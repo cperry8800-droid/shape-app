@@ -64,6 +64,11 @@ function bizTenth(v, whole) {
 }
 // A percentage as the planner prints it: whole when it is whole, else to a tenth.
 const pctNum = (p) => bizTenth(p, true);
+// ⚠ …AND ITS SIGN WHERE THE COACH'S LANGUAGE PUTS IT, from the catalog, never a '%' appended in
+// code. Turkish writes %7,1 and German 7,1 %; the churn slider appended one, an English "7,1%",
+// above a note reading "%7,1". business.plan.pct writes the sign as each catalog's own yoursChurn
+// and worthFrom do (tests/app-coach-business.test.mjs checks all 13).
+const pctText = (tr, p) => tr('coach:business.plan.pct', { defaultValue: '{value}%', value: pctNum(p) });
 // New clients a month: always to a tenth ("1,0").
 const addsNum = (v) => bizTenth(v, false);
 
@@ -551,7 +556,7 @@ export function BSBizPlan({ t, base }) {
         <Slider t={t} label={tr('coach:business.plan.adds', { defaultValue: 'New clients a month' })} value={adds} shown={addsNum(adds)} was={adds !== start.adds ? addsNum(start.adds) : null}
           min={0} max={Math.max(10, Math.ceil(start.adds * 3))} step={0.1} onChange={(v) => setAdds(F.round1(v))}
           note={known ? tr('coach:business.plan.yoursAdds', { defaultValue: 'yours: {value} {when}', value: addsNum(start.adds), when }) : noHistory} />
-        <Slider t={t} label={tr('coach:business.plan.churn', { defaultValue: 'Monthly churn' })} value={churnPct} shown={pctNum(churnPct) + '%'} was={churnPct !== start.churnPct ? pctNum(start.churnPct) + '%' : null}
+        <Slider t={t} label={tr('coach:business.plan.churn', { defaultValue: 'Monthly churn' })} value={churnPct} shown={pctText(tr, churnPct)} was={churnPct !== start.churnPct ? pctText(tr, start.churnPct) : null}
           min={0} max={Math.max(30, Math.ceil(start.churnPct))} step={0.1} onChange={(v) => setChurnPct(F.round1(v))}
           note={base.pace.churn != null ? tr('coach:business.plan.yoursChurn', { defaultValue: 'yours: {value}% leave a month, {when}', value: pctNum(start.churnPct), when }) : noHistory} />
         <Slider t={t} label={tr('coach:business.plan.rate', { defaultValue: 'Rate for new clients' })} value={rate} shown={'$' + rate} was={rate !== start.rate ? '$' + start.rate : null}

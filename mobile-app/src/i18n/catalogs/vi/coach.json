@@ -1323,6 +1323,7 @@
   "business.plan.noHistory": "chưa có lịch sử · hãy tự đặt",
   "business.plan.noHistoryUnread": "hiện không đọc được lịch sử của bạn · hãy tự đặt",
   "business.plan.note": "Một dự báo từ chính số liệu của bạn, không phải lời hứa. Khách hàng hiện tại giữ mức giá đang trả; khách mới vào với mức giá ở trên, sau phí Shape với những người tìm thấy bạn ở đây.",
+  "business.plan.pct": "{value}%",
   "business.plan.rate": "Giá cho khách hàng mới",
   "business.plan.rateNote": "khách hàng hiện tại giữ mức giá lúc họ bắt đầu",
   "business.plan.reset": "↺ Quay về số liệu của tôi",

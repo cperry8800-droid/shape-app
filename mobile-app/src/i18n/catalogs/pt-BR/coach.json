@@ -1323,6 +1323,7 @@
   "business.plan.noHistory": "ainda sem histórico · defina o seu",
   "business.plan.noHistoryUnread": "não foi possível ler seu histórico agora · defina o seu",
   "business.plan.note": "Uma projeção com os seus próprios números, não uma promessa. Os clientes de hoje mantêm o preço que pagam; os novos entram no valor acima, depois da taxa da Shape para quem te encontra aqui.",
+  "business.plan.pct": "{value}%",
   "business.plan.rate": "Valor para novos clientes",
   "business.plan.rateNote": "os clientes de hoje mantêm o preço com que começaram",
   "business.plan.reset": "↺ Voltar aos meus números",
