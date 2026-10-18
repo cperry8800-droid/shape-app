@@ -99,9 +99,13 @@ export async function GET(request: Request) {
     .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
 
   // ---- Subscriptions -> coach team ---------------------------------------
+  // The member's OWN plans. RLS also shows a coach the plans their clients hold with them, so
+  // without the client filter an account that is both a member and a coach listed its own
+  // listing on its coach team, once for every client it has.
   const { data: subs } = await supabase
     .from('subscriptions')
     .select('provider_id, provider_role, status')
+    .eq('client_id', user.id)
     .in('status', OPEN_SUB_STATUSES);
   const subRows = subs ?? [];
 

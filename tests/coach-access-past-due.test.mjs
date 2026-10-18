@@ -277,6 +277,13 @@ test('each widened read uses OPEN_SUB_STATUSES, and the consoles count an open p
   }
 });
 
+test('the member dashboard\'s coach team reads the member\'s own plans, not a coach\'s clients\' plans', () => {
+  // RLS shows a coach the plans their clients hold with them, so a read with no client filter
+  // listed a member-and-coach account's own listing as one of its coaches.
+  const code = stripComments(readFileSync(join(ROOT, 'src/app/api/client/dashboard/route.ts'), 'utf8'));
+  assert.match(code, /\.from\('subscriptions'\)\s*\.select\('provider_id, provider_role, status'\)\s*\.eq\('client_id', user\.id\)\s*\.in\('status', OPEN_SUB_STATUSES\)/);
+});
+
 // ── 3. The Clients list and the Clients badge count the same people ──────────────────────────────
 
 test('the roster\'s client count is the dashboard\'s activeClients on the same rows: a retrying client in both, a session-only person in neither', async () => {
