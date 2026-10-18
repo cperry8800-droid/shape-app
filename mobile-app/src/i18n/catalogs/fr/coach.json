@@ -1303,6 +1303,7 @@
   "business.money.scheduleWeekly": "Versé chaque semaine",
   "business.money.scheduleWeeklyOn": "Versé chaque semaine, le {day}",
   "business.money.setUp": "Configurer les versements →",
+  "business.money.setUpFailed": "Impossible de lancer la configuration des versements Stripe.",
   "business.money.stripeError": "Impossible de joindre Stripe pour le moment. Ton solde et tes versements y sont en sécurité ; réessaie dans un instant ou ouvre ton tableau de bord Stripe.",
   "business.money.unread": "Impossible de lire tes versements pour le moment. Rien n'est perdu ; réessaie dans un instant.",
   "business.none": "Activité se remplit une fois ta candidature de coach acceptée et ton profil prêt.",

@@ -1303,6 +1303,7 @@
   "business.money.scheduleWeekly": "Dem dey pay out every week",
   "business.money.scheduleWeeklyOn": "Dem dey pay out every week, on {day}",
   "business.money.setUp": "Set up payouts →",
+  "business.money.setUpFailed": "We no fit start Stripe payout setup.",
   "business.money.stripeError": "We no fit reach Stripe right now. Your balance and payouts dey safe there; try again small time, or open your Stripe dashboard.",
   "business.money.unread": "We no fit read your payouts right now. Nothing lost; try again small time.",
   "business.none": "Business go fill once dem approve your coach application and your profile don ready.",

@@ -1303,6 +1303,7 @@
   "business.money.scheduleWeekly": "Her hafta ödenir",
   "business.money.scheduleWeeklyOn": "Her hafta ödenir, gün: {day}",
   "business.money.setUp": "Ödemeleri ayarla →",
+  "business.money.setUpFailed": "Stripe ödeme kurulumu başlatılamadı.",
   "business.money.stripeError": "Şu an Stripe'a ulaşılamadı. Bakiyen ve ödemelerin orada güvende; birazdan tekrar dene ya da Stripe panelini aç.",
   "business.money.unread": "Ödemelerin şu an okunamadı. Hiçbir şey kaybolmadı; birazdan tekrar dene.",
   "business.none": "Koçluk başvurun onaylanıp profilin hazır olunca İşletme dolar.",

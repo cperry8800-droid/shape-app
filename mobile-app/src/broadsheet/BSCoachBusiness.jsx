@@ -251,10 +251,19 @@ function MoneyTab({ t, biz, role }) {
   const extra = biz.extra || {};
   const F = CF();
   const [linking, setLinking] = React.useState(false);
+  // ⚠ A SET-UP THAT DIDN'T START SAYS SO (Codex on #2395). A rejected start (the API, the network or the
+  // native bridge) was swallowed, and the button went from "Opening Stripe…" back to itself, so the one
+  // thing an unlinked coach can do here looked broken. It says what Settings → Your practice says.
+  const [linkFailed, setLinkFailed] = React.useState(false);
   const setUp = async () => {
     if (linking) return;
     setLinking(true);
-    try { await window.ShapeConnect?.startOnboarding?.({ role }); } catch (e) {}
+    setLinkFailed(false);
+    try {
+      const start = window.ShapeConnect && window.ShapeConnect.startOnboarding;
+      if (!start) throw new Error('no payout set-up here');
+      await start({ role });
+    } catch (e) { setLinkFailed(true); }
     setLinking(false);
   };
   const stripe = extra.stripe;
@@ -265,6 +274,7 @@ function MoneyTab({ t, biz, role }) {
       <div>
         <Note t={t}>{tr('coach:business.money.notLinked', { defaultValue: "Payouts aren't set up yet. Link a Stripe account and this fills in: what's ready to pay out, what's on its way to your bank, and when." })}</Note>
         <Pill t={t} solid onClick={setUp} disabled={linking}>{linking ? tr('coach:business.money.opening', { defaultValue: 'Opening Stripe…' }) : tr('coach:business.money.setUp', { defaultValue: 'Set up payouts →' })}</Pill>
+        {linkFailed ? <Note t={t} style={{ marginTop: 8, color: t.RUST }}>{tr('coach:business.money.setUpFailed', { defaultValue: 'Could not start Stripe payout setup.' })}</Note> : null}
       </div>
     );
   } else if (stripe.error) {

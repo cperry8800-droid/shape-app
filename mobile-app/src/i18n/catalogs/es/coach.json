@@ -1303,6 +1303,7 @@
   "business.money.scheduleWeekly": "Pagos semanales",
   "business.money.scheduleWeeklyOn": "Pagos semanales, los {day}",
   "business.money.setUp": "Configurar pagos →",
+  "business.money.setUpFailed": "No se pudo iniciar la configuración de pagos de Stripe.",
   "business.money.stripeError": "No se pudo conectar con Stripe ahora mismo. Tu saldo y tus pagos están seguros allí; inténtalo de nuevo en un momento o abre tu panel de Stripe.",
   "business.money.unread": "No se pudieron leer tus pagos ahora mismo. No se ha perdido nada; inténtalo de nuevo en un momento.",
   "business.none": "Negocio se completa cuando aprueben tu solicitud como coach y tu perfil esté listo.",

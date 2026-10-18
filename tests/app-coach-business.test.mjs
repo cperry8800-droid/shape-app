@@ -175,7 +175,18 @@ test('Money: not linked offers set-up; a failed Stripe read says so; no renewals
   assert.match(m.text(), /No one renews in the next 7 days\./);
   await click(button(m.host, /Set up payouts/));
   assert.deepEqual(st.onboard, [{ role: 'trainer' }]);
+  assert.doesNotMatch(m.text(), /Could not start Stripe payout setup/);
   await m.unmount();
+  // A start that fails (the API, the network, the native bridge), or no payout service at all, says
+  // so instead of the button quietly turning back into itself (Codex on #2395).
+  for (const connect of [{ startOnboarding: () => Promise.reject(new Error('offline')) }, undefined]) {
+    world({ answer: payload({ stripe: { connected: false }, renewals: [] }) });
+    window.ShapeConnect = connect;
+    m = await mount(page());
+    await click(button(m.host, /Set up payouts/));
+    assert.match(m.text(), /Set up payouts →Could not start Stripe payout setup\./, connect ? 'a rejected start' : 'no service');
+    await m.unmount();
+  }
   st = world({ answer: payload({ stripe: { connected: true, error: true }, renewals: null }) });
   m = await mount(page());
   assert.match(m.text(), /Couldn't reach Stripe just now/);

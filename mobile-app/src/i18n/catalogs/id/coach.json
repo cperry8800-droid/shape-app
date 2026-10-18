@@ -1303,6 +1303,7 @@
   "business.money.scheduleWeekly": "Dibayarkan setiap minggu",
   "business.money.scheduleWeeklyOn": "Dibayarkan setiap minggu, hari {day}",
   "business.money.setUp": "Atur pembayaran →",
+  "business.money.setUpFailed": "Tidak bisa memulai pengaturan pembayaran Stripe.",
   "business.money.stripeError": "Stripe tidak bisa dihubungi saat ini. Saldo dan pembayaranmu aman di sana; coba lagi sebentar lagi, atau buka dasbor Stripe-mu.",
   "business.money.unread": "Pembayaranmu tidak bisa dibaca saat ini. Tidak ada yang hilang; coba lagi sebentar lagi.",
   "business.none": "Bisnis terisi setelah pengajuan pelatihmu disetujui dan profilmu siap.",

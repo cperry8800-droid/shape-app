@@ -1303,6 +1303,7 @@
   "business.money.scheduleWeekly": "Wöchentlich ausgezahlt",
   "business.money.scheduleWeeklyOn": "Wöchentlich ausgezahlt, am {day}",
   "business.money.setUp": "Auszahlungen einrichten →",
+  "business.money.setUpFailed": "Die Einrichtung der Stripe-Auszahlungen konnte nicht gestartet werden.",
   "business.money.stripeError": "Stripe war gerade nicht erreichbar. Dein Guthaben und deine Auszahlungen sind dort sicher; versuch es gleich noch einmal oder öffne dein Stripe-Dashboard.",
   "business.money.unread": "Deine Auszahlungen konnten gerade nicht gelesen werden. Es ist nichts verloren; versuch es gleich noch einmal.",
   "business.none": "Business füllt sich, sobald deine Coach-Bewerbung angenommen und dein Profil eingerichtet ist.",

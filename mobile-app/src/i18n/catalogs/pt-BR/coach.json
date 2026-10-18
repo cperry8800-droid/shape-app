@@ -1303,6 +1303,7 @@
   "business.money.scheduleWeekly": "Repasse semanal",
   "business.money.scheduleWeeklyOn": "Repasse semanal, às {day}",
   "business.money.setUp": "Configurar repasses →",
+  "business.money.setUpFailed": "Não foi possível iniciar a configuração de repasses da Stripe.",
   "business.money.stripeError": "Não foi possível falar com a Stripe agora. Seu saldo e seus repasses estão seguros lá; tente de novo daqui a pouco ou abra seu painel da Stripe.",
   "business.money.unread": "Não foi possível ler seus repasses agora. Nada foi perdido; tente de novo daqui a pouco.",
   "business.none": "Negócio se preenche quando sua candidatura de coach for aprovada e seu perfil estiver pronto.",

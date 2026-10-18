@@ -1303,6 +1303,7 @@
   "business.money.scheduleWeekly": "Ana biya kowane mako",
   "business.money.scheduleWeeklyOn": "Ana biya kowane mako, ranar {day}",
   "business.money.setUp": "Saita biya →",
+  "business.money.setUpFailed": "Ba a iya fara saita biyan Stripe ba.",
   "business.money.stripeError": "Ba a iya kaiwa Stripe a yanzu ba. Ma'auninka da biyanka suna nan lafiya a can; sake gwadawa nan da ɗan lokaci, ko buɗe dashboard ɗin Stripe ɗinka.",
   "business.money.unread": "Ba a iya karanta biyanka a yanzu ba. Babu abin da ya ɓace; sake gwadawa nan da ɗan lokaci.",
   "business.none": "Kasuwanci zai cika da zarar an amince da buƙatarka ta koci kuma bayanin martabarka ya shirya.",

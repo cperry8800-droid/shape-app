@@ -83,5 +83,12 @@ export default {
     { name: 'who left · week: the route judges each plan at the instant it ended again', file: TRAJ,
       find: '  const close = weekEnd(mondayUTC(end), now) - 1;',
       replace: '  const close = end;' },
+    // ── Codex on #2395: a payout set-up that didn't start says so ──
+    { name: 'set up payouts: a failed start is swallowed again', file: APP,
+      find: '    } catch (e) { setLinkFailed(true); }',
+      replace: '    } catch (e) {}' },
+    { name: 'set up payouts: no payout service is a quiet no-op again', file: APP,
+      find: "      if (!start) throw new Error('no payout set-up here');",
+      replace: '      if (!start) return;' },
   ],
 };

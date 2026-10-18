@@ -1303,6 +1303,7 @@
   "business.money.scheduleWeekly": "Chi trả hằng tuần",
   "business.money.scheduleWeeklyOn": "Chi trả hằng tuần, vào {day}",
   "business.money.setUp": "Thiết lập chi trả →",
+  "business.money.setUpFailed": "Không thể bắt đầu thiết lập chi trả Stripe.",
   "business.money.stripeError": "Hiện không kết nối được Stripe. Số dư và các khoản chi trả của bạn vẫn an toàn ở đó; hãy thử lại sau ít phút hoặc mở bảng điều khiển Stripe.",
   "business.money.unread": "Hiện không đọc được các khoản chi trả của bạn. Không có gì bị mất; hãy thử lại sau ít phút.",
   "business.none": "Mục Kinh doanh sẽ hiện khi đơn đăng ký huấn luyện viên được duyệt và hồ sơ của bạn sẵn sàng.",

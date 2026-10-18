@@ -1303,6 +1303,7 @@
   "business.money.scheduleWeekly": "Выплаты раз в неделю",
   "business.money.scheduleWeeklyOn": "Выплаты раз в неделю, день: {day}",
   "business.money.setUp": "Настроить выплаты →",
+  "business.money.setUpFailed": "Не удалось начать настройку выплат Stripe.",
   "business.money.stripeError": "Не удалось связаться со Stripe. Ваш баланс и выплаты там в сохранности; попробуйте чуть позже или откройте панель Stripe.",
   "business.money.unread": "Не удалось прочитать ваши выплаты. Ничего не потеряно; попробуйте чуть позже.",
   "business.none": "Раздел заполнится, когда вашу заявку тренера одобрят и профиль будет настроен.",
