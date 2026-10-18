@@ -703,12 +703,44 @@ test('Edit opens the summary, and a Change goes back to it', async () => {
   } finally { m.unmount(); }
 });
 
+test('Details waits for saves on their way, and stays on Home if one fails (Codex P2 on #2398)', async () => {
+  let release;
+  let opened = 0;
+  const gate = new Promise((r) => { release = r; });
+  env({ days: { [YDAY]: { energy: 7, hunger: 5, sleep: 6.5 } }, log: () => gate });
+  let m = await mount({ onOpen: () => { opened += 1; } });
+  try {
+    await m.click(/Same as yesterday/);
+    await m.click(/Details/);
+    assert.equal(opened, 0, 'Details left while the check-in was still saving');
+    release({ ok: true });
+    await m.flush();
+    assert.equal(opened, 1, 'Details never opened once the save landed');
+  } finally { m.unmount(); }
+
+  opened = 0;
+  let fail;
+  const failing = new Promise((_, reject) => { fail = reject; });
+  env({ days: { [YDAY]: { energy: 7, hunger: 5, sleep: 6.5 } }, log: () => failing });
+  m = await mount({ onOpen: () => { opened += 1; } });
+  try {
+    await m.click(/Same as yesterday/);
+    await m.click(/Details/);
+    fail(new Error('500'));
+    await m.flush();
+    await m.flush();
+    assert.equal(opened, 0, 'Details left after the save failed, so the member never saw it');
+    assert.match(m.text(), /Could not save check-in/);
+  } finally { m.unmount(); }
+});
+
 test('Details opens the check-in page, and a glass of water is one tap in the member\'s units', async () => {
   let opened = 0;
   let calls = env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
   let m = await mount({ onOpen: () => { opened += 1; } });
   try {
     await m.click(/Details/);
+    await m.flush();
     assert.equal(opened, 1);
     assert.match(m.text(), /17 oz \/ 101 oz/);
     await m.click(/\+ Glass/);

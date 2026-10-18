@@ -247,6 +247,7 @@ function BSCheckinDay({ onOpen, dayIso }) {
   useEffect(() => () => { alive.current = false; }, []);
   // The newest answer per field, numbered, so an older save that fails never undoes a newer one.
   const latest = useRef({ n: 0 });
+  const failures = useRef(0); // check-in saves that failed, so Details can tell whether to leave
   // Litres added on screen whose save has not answered yet: the server's total plus these is what shows.
   const waterPending = useRef(0);
   const [, bump] = useState(0); // a re-render, for a tap that finds its day already over
@@ -312,6 +313,7 @@ function BSCheckinDay({ onOpen, dayIso }) {
         for (const k of fields) if (latest.current[k] === mine[k]) back[k] = before[k];
         return back;
       });
+      failures.current += 1;
       setErr(msg);
     };
     if (!window.ShapeCheckin?.log) { undo('unavailable'); return; }
@@ -342,6 +344,14 @@ function BSCheckinDay({ onOpen, dayIso }) {
       setWater((w) => ({ ...w, l: round(w.l - deltaL) }));
       setErr('water');
     });
+  };
+
+  // ⚠ DETAILS WAITS FOR THE SAVES ON THEIR WAY (Codex P2 on #2398). Leaving at once unmounts this
+  // card, so the page would read the metrics cache from before the save, and a save that then
+  // failed could no longer say so. It opens once they have settled, and stays here if one failed.
+  const openDetails = () => {
+    const before = failures.current;
+    bsCiLines.checkin.then(() => { if (alive.current && failures.current === before) onOpen(); });
   };
 
   // ── walkthrough navigation ──
@@ -663,7 +673,7 @@ function BSCheckinDay({ onOpen, dayIso }) {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flex: 'none' }}>
               <button type="button" onClick={() => open(4)} style={{ minHeight: 34, padding: '5px 11px', borderRadius: 4, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', ...mono, fontSize: 8.5 }}>{tr('home:action.edit', { defaultValue: 'Edit' })}</button>
-              {onOpen ? <button type="button" onClick={onOpen} style={{ minHeight: 30, padding: '4px 0', border: 0, background: 'transparent', color: t.INK50, cursor: 'pointer', ...mono, fontSize: 8.5 }}>{tr('home:checkin.details', { defaultValue: 'Details →' })}</button> : null}
+              {onOpen ? <button type="button" onClick={openDetails} style={{ minHeight: 30, padding: '4px 0', border: 0, background: 'transparent', color: t.INK50, cursor: 'pointer', ...mono, fontSize: 8.5 }}>{tr('home:checkin.details', { defaultValue: 'Details →' })}</button> : null}
             </div>
           </div>
         ) : (
