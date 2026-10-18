@@ -305,6 +305,12 @@ test("a wearable's night is not asked, and Same as yesterday leaves it alone", a
     await m.click(/^Next/);
     assert.equal(calls.log.length, 1, "Next wrote over the wearable's night");
     assert.match(m.text(), /You're checked in/);
+    // Rested is the member's own check, and a wearable's night still takes it, on its own.
+    await m.click(/^Change$/, 2);
+    await m.click(/^Rested$/);
+    await m.click(/^Next/);
+    assert.deepEqual(calls.log[1], { sleepQuality: 8 }, "a wearable member's Rested was not saved, or the watch's hours were re-typed with it");
+    assert.match(m.text(), /7h 12 · Rested/);
   } finally { m.unmount(); }
 });
 

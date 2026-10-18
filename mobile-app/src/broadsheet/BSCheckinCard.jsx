@@ -542,17 +542,18 @@ function BSCheckinDay({ onOpen, dayIso }) {
                 </div>
                 <button type="button" aria-label={tr('home:checkin.more', { defaultValue: 'Thirty minutes more' })} onClick={() => setSleepH(Math.min(12, sleepValue + 0.5))} style={{ width: 54, height: 54, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontSize: 24, cursor: 'pointer' }}>+</button>
               </div>
-              <div style={{ ...mono, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.12em', color: t.INK50 }}>{tr('home:checkin.restedOptional', { defaultValue: 'Rested? · optional' })}</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 6 }}>
-                {R.map((w, i) => {
-                  const on = bsCiWordIndex(restedValue) === i;
-                  return (
-                    <button key={`r${i}`} type="button" aria-pressed={on} onClick={() => setRestedPick(on ? null : BS_CI_STORED[i])} style={{ minHeight: 38, borderRadius: 5, cursor: 'pointer', padding: '4px 2px', border: `1px solid ${on ? color : t.RULE}`, background: on ? color : 'transparent', color: on ? t.PAPER : t.INK, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{w}</button>
-                  );
-                })}
-              </div>
             </>
           )}
+          {/* Rested is the member's own check, so a wearable's night still offers it (Codex P2 on #2398). */}
+          <div style={{ ...mono, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.12em', color: t.INK50 }}>{tr('home:checkin.restedOptional', { defaultValue: 'Rested? · optional' })}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 6 }}>
+            {R.map((w, i) => {
+              const on = bsCiWordIndex(restedValue) === i;
+              return (
+                <button key={`r${i}`} type="button" aria-pressed={on} onClick={() => setRestedPick(on ? null : BS_CI_STORED[i])} style={{ minHeight: 38, borderRadius: 5, cursor: 'pointer', padding: '4px 2px', border: `1px solid ${on ? color : t.RULE}`, background: on ? color : 'transparent', color: on ? t.PAPER : t.INK, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{w}</button>
+              );
+            })}
+          </div>
           {strip('sleep', color, wornNight ? null : tapTip, null, wornNight ? null : (d) => { setSleepH(d.sleep); if (d.rested != null) setRestedPick(d.rested); })}
         </>
       );
@@ -593,7 +594,12 @@ function BSCheckinDay({ onOpen, dayIso }) {
       return (
         <>
           {wornNight ? null : <button type="button" onClick={() => { bsCiWriteSkip(uid, todayIso); setSkippedDay(todayIso); next(); }} style={btnGhost}>{tr('home:checkin.skip', { defaultValue: 'Skip' })}</button>}
-          <button type="button" onClick={() => { if (!wornNight) answer({ sleepHours: sleepValue, ...(restedValue != null ? { sleepQuality: restedValue } : {}) }); next(); }} style={btnPrimary}>{tr('home:checkin.next', { defaultValue: 'Next →' })}</button>
+          <button type="button" onClick={() => {
+            // A wearable's hours are never re-typed; its Rested is saved on its own when picked.
+            if (!wornNight) answer({ sleepHours: sleepValue, ...(restedValue != null ? { sleepQuality: restedValue } : {}) });
+            else if (restedPick != null && restedPick !== today.rested) answer({ sleepQuality: restedPick });
+            next();
+          }} style={btnPrimary}>{tr('home:checkin.next', { defaultValue: 'Next →' })}</button>
         </>
       );
     }

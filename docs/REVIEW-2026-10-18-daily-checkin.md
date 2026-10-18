@@ -145,8 +145,9 @@ so that is the owner's call.
 1. **The words.** Energy: Drained · Low · OK · Good · Great. Hunger: Not hungry · A little · Normal
    · Hungry · Starving ("Light" read as a meal, not a feeling). Rested: Wrecked · Tired · OK ·
    Rested · Fresh. Stored as 2 · 4 · 6 · 8 · 10, keyed in all 13 locales.
-2. **Rested folds into the sleep step,** optional, and is skipped when a device supplied sleep
-   efficiency. The column and the case file's RESTED stay.
+2. **Rested folds into the sleep step,** optional. When a wearable supplied the night, the hours
+   are read-only and Rested is still offered: it is the member's own check, the case file's RESTED
+   reads it, and the full page always offered it (amended on Codex's finding in #2398).
 3. **A streak, no points.** Points are the Store's currency, and "Same as yesterday" would mint them
    for one tap. The streak (consecutive local days with an answer) shows on the card's done line;
    the weekly check-in keeps its +15, and the day already counts for momentum.
