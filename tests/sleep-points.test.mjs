@@ -1,9 +1,9 @@
 // Shape Score points for a good night (owner, 2026-10-18: "also lets give shape score points for
 // good sleep", then: watch nights only, +5 for 7h or more). The migration
 // (2026-10-18-sleep-points.sql) was applied twice to a local PostgreSQL 16 scaffold with Supabase's
-// default function grants and probed: a watch's 7h, 12h and last night each paid +5 once and a
+// default function grants and probed: a watch's 7h, 12h, last night and the 14th night back each paid +5 once and a
 // second claim paid nothing; 6.5h, 13h, a typed ('manual') night, an unstamped night, a night
-// stamped by a provider the member has not connected, a night 15 days back and tomorrow paid
+// stamped by a provider the member has not connected, the 15th night back and tomorrow paid
 // nothing; a member with no zone was paid for today; signed out paid nothing; anon could not
 // execute it. These tests hold the source to what was probed, and the app and website to
 // claiming it.
@@ -29,9 +29,9 @@ test('+5 in habits, once per night, for the caller only', () => {
   assert.match(BODY, /on conflict do nothing;\n\n\s+if found then\n\s+day := r\.d; points := 5; return next;/)
 })
 
-test('a night of 7 to 12 hours, from the last 14 days through last night', () => {
+test('a night of 7 to 12 hours, from the last 14 nights: last night and the 13 before it', () => {
   assert.match(BODY, /and s\.sleep_hours >= 7 and s\.sleep_hours <= 12\n/)
-  assert.match(BODY, /and s\.snapshot_date <= v_today\n\s+and s\.snapshot_date >= v_today - 14\n/)
+  assert.match(BODY, /and s\.snapshot_date <= v_today\n\s+and s\.snapshot_date >= v_today - 13\n/, 'the window holds more or fewer than 14 nights (Codex on #2404)')
   assert.match(BODY, /v_today := case when v_tz is not null then \(now\(\) at time zone v_tz\)::date\n\s+else \(now\(\) at time zone 'utc'\)::date \+ 1 end;/)
 })
 
@@ -55,6 +55,9 @@ test('the app claims it on sign-in and after the check-in syncs a watch; the web
   const backend = read('mobile-app/src/services/shapeBackend.js')
   assert.match(backend, /await supabase\.rpc\('award_sleep_points'\);/)
   assert.match(backend, /window\.ShapeSleepPoints = \{ check: awardSleepPoints \};/)
+  // A credit checks the tier bonuses again, after it (Codex on #2404).
+  const fn = backend.slice(backend.indexOf('async function awardSleepPoints()'), backend.indexOf('window.ShapeSleepPoints ='))
+  assert.match(fn, /invalidateClientMetrics\(\);\n\s+try \{ await supabase\.rpc\('award_tier_bonuses'\); \}/)
   assert.match(backend, /if \(user\) \{ try \{ window\.ShapeSleepPoints\?\.check\?\.\(\)\.catch\(\(\) => \{\}\); \} catch \(e\) \{\} \}/)
   assert.match(read('mobile-app/src/broadsheet/BSCheckinCard.jsx'), /window\.ShapeSleepPoints\?\.check\?\.\(\)/)
   assert.match(read('public/newdesign/globalChatButton.js'), /quiet\(cl\.rpc\("award_sleep_points"\)\)/)

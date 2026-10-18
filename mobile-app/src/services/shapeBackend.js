@@ -7261,15 +7261,19 @@ async function awardStepPoints() {
 window.ShapeStepPoints = { check: awardStepPoints };
 
 // A good night's points (owner, 2026-10-18): +5 for a night of 7-12h that a connected watch or
-// ring wrote, once per night, over the last 14 days (supabase-migrations/2026-10-18-sleep-points.sql).
+// ring wrote, once per night, over the last 14 nights (supabase-migrations/2026-10-18-sleep-points.sql).
 // Typed hours never earn. Returns [{ day, points }] for the nights credited by THIS call, or [] on
 // no-op / pre-migration.
+// ⚠ A CREDIT CHECKS THE TIER BONUSES AGAIN (Codex on #2404). Sign-in runs award_tier_bonuses
+// alongside this claim, and the check-in card claims after its own sync, so a night that carries
+// the member over a tier would otherwise wait for the next session for its bonus and its notice.
 async function awardSleepPoints() {
   if (!supabase || !state.user?.id) return [];
   try {
     const { data, error } = await supabase.rpc('award_sleep_points');
     if (error || !Array.isArray(data) || !data.length) return [];
     invalidateClientMetrics();
+    try { await supabase.rpc('award_tier_bonuses'); } catch (e) { /* the next session checks again */ }
     return data;
   } catch (e) { return []; }
 }

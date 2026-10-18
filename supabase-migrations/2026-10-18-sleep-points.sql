@@ -16,9 +16,10 @@
 -- days can earn +5 a night, as made-up steps already earn Shape Steps.
 -- ⚠ OVER 12 HOURS IS NO NIGHT: a watch left on the nightstand.
 -- ⚠ THE NIGHT BELONGS TO THE MORNING IT ENDS. snapshot_date is the member's local day, so
--- today's row holds last night, and it counts as soon as a watch has written it. The window
--- reaches back 14 days for a watch that syncs late. Zone unknown: a UTC day ahead, which no
--- zone on earth is past.
+-- today's row holds last night, and it counts as soon as a watch has written it. The window is
+-- 14 nights, last night and the 13 before it, for a watch that syncs late (Codex on #2404: the
+-- first draft's inclusive bounds held 15). Zone unknown: a UTC day ahead, which no zone on earth
+-- is past.
 --
 -- SECURITY DEFINER, scoped to auth.uid() (no user_id parameter, so it only ever credits the
 -- caller), with a fixed amount. Revoked from public and anon by name (Supabase grants EXECUTE on
@@ -51,7 +52,7 @@ begin
     where s.user_id = v_uid
       and s.sleep_hours >= 7 and s.sleep_hours <= 12
       and s.snapshot_date <= v_today
-      and s.snapshot_date >= v_today - 14
+      and s.snapshot_date >= v_today - 13
       and s.sources->>'sleep_hours' in ('apple_health', 'garmin', 'oura', 'whoop')
       and exists (
         select 1 from public.user_integrations i
