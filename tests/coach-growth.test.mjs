@@ -175,19 +175,41 @@ test('consult → signed: more clients signed than booked a consult is no rate, 
   assert.equal(close({ consults90: 10, signed90: null }), null, 'unread signings are no rate, not 0%');
 });
 
+// ── The dashboard routes themselves (src/app/api/{role}/dashboard/route.ts), run on a fake database ──
+const COACH = '33333333-3333-4333-8333-333333333333';
+const ROLES = [['trainer', 'trainers'], ['nutritionist', 'nutritionists']];
+// The coach's own listing (id 7) and profile, beside the rows a test gives.
+const coachTables = (table, rows) => ({ [table]: [{ id: 7, owner_id: COACH }], profiles: [{ id: COACH, full_name: 'Casey Coach' }], sessions: [], ...rows });
+// A role's dashboard as that coach sees it, read through `db` (fakeSupabase, or recorded() around one).
+async function dashboardGET(role, db) {
+  const { createRequire } = await import('node:module');
+  const require_ = createRequire(import.meta.url);
+  const client = { ...db, auth: { getUser: async () => ({ data: { user: { id: COACH, email: 'casey@shape.test' } }, error: null }) } };
+  const route = await loadRealModule(ROOT + `src/app/api/${role}/dashboard/route.ts`, {
+    typescript: true,
+    registry: new Map([
+      ['next/server', require_('next/server')],
+      ['@/lib/supabase/server', { createClient: async () => client }],
+      ['@/lib/time', await loadRealModule(ROOT + 'src/lib/time.ts', { typescript: true })],
+      ['@/lib/coach-growth', G],
+      ['@/lib/platform-fee', await import(pathToFileURL(ROOT + 'src/lib/platform-fee.mjs').href)],
+      ['@/lib/coach-trajectory.mjs', await import(pathToFileURL(ROOT + 'src/lib/coach-trajectory.mjs').href)],
+      ['@/lib/read-all-by-id', await loadRealModule(ROOT + 'src/lib/read-all-by-id.ts', { typescript: true })],
+    ]),
+  });
+  return (await route.GET()).json();
+}
+
 // ── The sweep after #2394 round 10: Today counts today's practice by the Business page's rule ──
 // The dashboards' kpis (Today's Business card and sidebar, the KPI picker, the other pages' sidebars)
 // took active and trialing rows and counted rows. Business counts today's clients from the
 // trajectory: people, a client whose payment is retrying (past_due) among them.
 test('both dashboards count today\'s clients and net as the Business page does: a retrying payment counts, a client on two plans is one', async () => {
-  const { createRequire } = await import('node:module');
-  const require_ = createRequire(import.meta.url);
   const trajectory = await import(pathToFileURL(ROOT + 'src/lib/coach-trajectory.mjs').href);
   const fee = await import(pathToFileURL(ROOT + 'src/lib/platform-fee.mjs').href);
-  const COACH = '33333333-3333-4333-8333-333333333333';
   const T = Date.now();
   const at = (d) => new Date(T - d * DAY).toISOString();
-  for (const [role, table] of [['trainer', 'trainers'], ['nutritionist', 'nutritionists']]) {
+  for (const [role, table] of ROLES) {
     const sub = (id, client_id, over = {}) => ({ id, provider_role: role, provider_id: 7, client_id, created_at: at(200), status: 'active', price_cents: 18000, fee_bps: 1500, ...over });
     const subs = [
       sub('s1', 'a'),
@@ -199,24 +221,37 @@ test('both dashboards count today\'s clients and net as the Business page does: 
       sub('s7', 'e', { status: 'incomplete' }),                         // never a client
       sub('s8', 'f', { provider_id: 8 }),                               // another coach's
     ];
-    const db = fakeSupabase({ tables: { [table]: [{ id: 7, owner_id: COACH }], profiles: [{ id: COACH, full_name: 'Casey Coach' }], subscriptions: subs, sessions: [] } });
-    const client = { ...db, auth: { getUser: async () => ({ data: { user: { id: COACH, email: 'casey@shape.test' } }, error: null }) } };
-    const route = await loadRealModule(ROOT + `src/app/api/${role}/dashboard/route.ts`, {
-      typescript: true,
-      registry: new Map([
-        ['next/server', require_('next/server')],
-        ['@/lib/supabase/server', { createClient: async () => client }],
-        ['@/lib/time', await loadRealModule(ROOT + 'src/lib/time.ts', { typescript: true })],
-        ['@/lib/coach-growth', G],
-        ['@/lib/platform-fee', fee],
-        ['@/lib/coach-trajectory.mjs', trajectory],
-      ]),
-    });
-    const body = await (await route.GET()).json();
+    const body = await dashboardGET(role, fakeSupabase({ tables: coachTables(table, { subscriptions: subs }) }));
     // What the Business page counts: the trajectory's latest week over this coach's rows.
     const last = trajectory.buildTrajectory({ subs: subs.filter((r) => r.provider_id === 7), cutCents: (p, bps) => fee.coachCutCents(p, fee.bpsToRate(bps ?? 1500)) }).weeks.slice(-1)[0];
     assert.deepEqual([body.kpis.activeClients, body.kpis.monthlyNetCents], [last.active, last.mrrNetCents], role + ': Today says what Business says');
     assert.deepEqual([body.kpis.activeClients, body.kpis.monthlyNetCents], [3, 15300 + 4250 + 1700 + 18000 + 15300], role + ': a, b and c; b keeps all of hers');
+  }
+});
+
+// ── The dashboards after #2395: a failed read is null, not 0 clients and $0 ──
+// The read's error was dropped (`subRows ?? []`), so a failed read sent 0 clients and $0 net, and every
+// reader printed them as a measurement.
+test('when the subscriptions can\'t be read, both dashboards send today\'s clients and net as null, not 0 and $0, and log why', async () => {
+  const T = Date.now();
+  const at = (d) => new Date(T - d * DAY).toISOString();
+  for (const [role, table] of ROLES) {
+    const tables = coachTables(table, { subscriptions: [{ id: 's1', provider_role: role, provider_id: 7, client_id: 'a', created_at: at(200), status: 'active', price_cents: 18000, fee_bps: 1500 }] });
+    const warned = [];
+    const warn = console.warn;
+    console.warn = (...args) => { warned.push(args.join(' ')); };
+    let body;
+    try { body = await dashboardGET(role, fakeSupabase({ tables, fail: ['subscriptions'] })); } finally { console.warn = warn; }
+    assert.deepEqual([body.kpis.activeClients, body.kpis.monthlyNetCents], [null, null], role + ': unread, not 0 clients and $0');
+    assert.ok(warned.some((w) => w.startsWith(`[shape-app] ${role} dashboard: subscriptions read failed`) && w.endsWith('fake failure on subscriptions')), role + ': the failure is logged with its reason: ' + JSON.stringify(warned));
+    // The rest of the payload still answers: this is a coach, and the funnel keeps the consults it counted.
+    assert.equal(body[role === 'trainer' ? 'isTrainer' : 'isNutritionist'], true, role);
+    assert.deepEqual([body.growth, body.funnel], [null, { views: null, consults90: 0, signed90: null }], role);
+    // Read through, the same tables count the client; a practice with no one in it is a measured 0.
+    const read = await dashboardGET(role, fakeSupabase({ tables }));
+    assert.deepEqual([read.kpis.activeClients, read.kpis.monthlyNetCents], [1, 15300], role);
+    const none = await dashboardGET(role, fakeSupabase({ tables: { ...tables, subscriptions: [] } }));
+    assert.deepEqual([none.kpis.activeClients, none.kpis.monthlyNetCents], [0, 0], role + ': no clients is a measured 0');
   }
 });
 
@@ -251,6 +286,65 @@ test('Today\'s Business card and sidebar say today\'s clients and Shape\'s fee, 
   assert.match(page('dashMealBuilder.jsx'), /payoutCard=\{live \? dashLivePayoutCard\(live\.kpis\) : nutriPayoutCard\}/);
   assert.match(page('dashBuilder.jsx'), /payoutCard=\{live\?dashLivePayoutCard\(live\.kpis\):trainerPayoutCard\}/);
   for (const f of ['dashToday.jsx', 'dashMealBuilder.jsx', 'dashBuilder.jsx', 'trainerDashboard.jsx']) assert.doesNotMatch(page(f), /active subs/, f);
+});
+
+// ── The dashboards after #2395: every reader says an unread figure couldn't be read ──
+// The routes send today's clients and net as null when the subscriptions couldn't be read. The other
+// pages' sidebar printed that as "0 clients", Today's card as "— · payouts connect soon", and Today's
+// summary as "no subscription data".
+test('when the dashboards can\'t read the subscriptions, Today\'s card, every page\'s sidebar and the summary say so: never "0 clients" or "no subscription data"', async () => {
+  const { createRequire } = await import('node:module');
+  const require_ = createRequire(import.meta.url);
+  const React = require_('react');
+  const { renderToStaticMarkup } = require_('react-dom/server');
+  const babel = require_('next/dist/compiled/babel/core');
+  const presetReact = require_('next/dist/compiled/babel/preset-react');
+  const src = readFileSync(ROOT + 'public/newdesign/dashToday.jsx', 'utf8');
+  const pick = (re) => re.exec(src)[0];
+  const code = [
+    pick(/function dashMoney\(cents\) \{[\s\S]*?\n\}/),
+    pick(/function dashLivePayoutCard\(k\) \{[\s\S]*?\n\}/),
+    pick(/const DASH_FUNNEL_BENCHMARK = [^\n]*/),
+    pick(/function dashCloseRate\(f\) \{[\s\S]*?\n\}/),
+    pick(/function dashCloseWhy\(f\) \{[\s\S]*?\n\}/),
+    pick(/function DashBusinessSummary\([\s\S]*?\n\}/),
+  ].join('\n');
+  const js = babel.transformSync(code, { presets: [presetReact], babelrc: false, configFile: false }).code;
+  const { dashLivePayoutCard, DashBusinessSummary } = new Function('React', 'serif', 'DASH_MONO_LINK', 'DASH_DEMO_GROWTH', 'DASH_DEMO_FUNNEL',
+    js + '\nreturn { dashLivePayoutCard, DashBusinessSummary };')(React, 'serif', {}, {}, {});
+  const unread = { activeClients: null, monthlyNetCents: null };
+  // Today's card, which Workouts and Meal plans hand the sidebar too (the callers above).
+  assert.deepEqual(dashLivePayoutCard(unread), { label: 'MONTHLY · NET', amount: '—', sub: "clients couldn't be read just now" });
+  assert.deepEqual(dashLivePayoutCard({ activeClients: 0, monthlyNetCents: 0 }), { label: 'MONTHLY · NET', amount: '$0', sub: '0 clients · payouts connect soon' }, 'a measured 0 is still a figure');
+  // Every other page's sidebar builds its own card (trainerDashboard.jsx): its hook, run against each route's answer.
+  const shell = readFileSync(ROOT + 'public/newdesign/trainerDashboard.jsx', 'utf8');
+  const lift = (re) => { const m = re.exec(shell); assert.ok(m, re + ' moved'); return m[0]; };
+  const hookSrc = [
+    lift(/const _dsbCache = new Map\(\);/),
+    lift(/async function dsbFetch\(url\) \{[\s\S]*?\n\}/),
+    lift(/function dsbMoney\(cents\) \{[\s\S]*?\n\}/),
+    lift(/function useDashSidebarLive\(role\) \{[\s\S]*?\n\}/),
+  ].join('\n');
+  const sidebar = async (role, kpis) => {
+    let state = null;
+    const R = { useState: (init) => [init, (v) => { state = v; }], useEffect: (fn) => { fn(); } };
+    const answer = { [role === 'trainer' ? 'isTrainer' : 'isNutritionist']: true, kpis };
+    new Function('React', 'window', hookSrc + '\nreturn useDashSidebarLive;')(R, { dashJson: async () => answer })(role);
+    for (let i = 0; i < 5; i++) await new Promise((r) => setTimeout(r, 0));
+    return state;
+  };
+  for (const [role] of ROLES) {
+    const s = await sidebar(role, unread);
+    assert.deepEqual([s.kind, s.count, s.card], ['live', null, dashLivePayoutCard(unread)], role + ': the sidebar says what Today\'s card says, and puts no count on Clients');
+    for (const kpis of [{ activeClients: 13, monthlyNetCents: 182700 }, { activeClients: 1, monthlyNetCents: 15300 }, { activeClients: 0, monthlyNetCents: 0 }]) {
+      const live = await sidebar(role, kpis);
+      assert.deepEqual([live.count, live.card], [kpis.activeClients, dashLivePayoutCard(kpis)], role + ': ' + kpis.activeClients + ' clients');
+    }
+  }
+  // Today's summary: the net is a dash, said as unread.
+  const card = renderToStaticMarkup(React.createElement(DashBusinessSummary, { live: { growth: null, funnel: null, kpis: unread }, role: 'trainer', clients: [] })).replace(/<[^>]+>/g, ' ').replace(/&#x27;/g, "'").replace(/\s+/g, ' ');
+  assert.match(card, /— Monthly · net couldn't be read just now/);
+  assert.doesNotMatch(card, /\$0|no subscription data/);
 });
 
 test('when the subscriptions can\'t be read, Today and the funnel say so: the consults stay, nothing claims none', async () => {
@@ -429,4 +523,40 @@ test('a read past the walk\'s ceiling is unknown, not short: it throws, as a fai
   await assert.rejects(G.coachGrowthAndFunnel(stub('earlier'), 'trainer', 7, 0), /coach growth: more than 50000 rows/);
   // And a walk that ends below the ceiling reads through: the one client left and came back.
   assert.equal(total(await G.coachGrowthAndFunnel(stub(null), 'trainer', 7, 0)), 1);
+});
+
+// ── The dashboards after #2395: today's clients and net are every open row, a page at a time ──
+// Today's practice was one select, which stops at 1,000 rows with no error (maxRows here), so past
+// 1,000 open plans Today's clients and net came out short; the analytics routes already walk the rows.
+test('both dashboards read every open subscription, a page at a time: 2,500 clients today are 2,500, not the first 1,000 rows', async () => {
+  const fee = await import(pathToFileURL(ROOT + 'src/lib/platform-fee.mjs').href);
+  const T = Date.now();
+  const at = (d) => new Date(T - d * DAY).toISOString();
+  for (const [role, table] of ROLES) {
+    const sub = (client_id, over = {}) => ({ provider_role: role, provider_id: 7, client_id, created_at: at(200), status: 'active', price_cents: 10000, fee_bps: 1500, ...over });
+    const subs = withIds([
+      // 2,500 clients today: a tenth retrying a payment, a tenth on a trial, a tenth brought by the coach (no fee)...
+      ...Array.from({ length: 2500 }, (_, i) => sub('c' + pad(i), i % 10 === 3 ? { status: 'past_due' } : i % 10 === 5 ? { status: 'trialing' } : i % 10 === 7 ? { fee_bps: 0 } : {})),
+      // ...and rows that are not today's practice: plans that ended, another coach's, the other role's.
+      ...Array.from({ length: 300 }, (_, k) => sub('e' + pad(k), { status: 'canceled', current_period_end: at(30) })),
+      ...Array.from({ length: 200 }, (_, k) => sub('y' + pad(k), { provider_id: 8 })),
+      ...Array.from({ length: 200 }, (_, k) => sub('z' + pad(k), { provider_role: role === 'trainer' ? 'nutritionist' : 'trainer' })),
+    ]);
+    const db = recorded(fakeSupabase({ tables: coachTables(table, { subscriptions: subs }), maxRows: 1000 }));
+    const body = await dashboardGET(role, db);
+    const cut = fee.coachCutCents(10000, fee.bpsToRate(1500));
+    assert.deepEqual([body.kpis.activeClients, body.kpis.monthlyNetCents], [2500, 2250 * cut + 250 * 10000], role + ': every client today, and each one\'s net');
+    // Every page asks for this coach's open rows in id order, 1,000 at most, after the last id the page before read.
+    const open = subs.filter((r) => r.provider_role === role && r.provider_id === 7 && r.status !== 'canceled').map((r) => r.id).sort();
+    const pages = db.reads.filter((r) => r.table === 'subscriptions' && op(r, 'in', 'status'));
+    assert.equal(pages.length, 3, role + ': a page per 1,000 rows, not one read');
+    pages.forEach((p, k) => {
+      assert.deepEqual(op(p, 'eq', 'provider_role'), ['eq', 'provider_role', role], role + ': this role only');
+      assert.deepEqual(op(p, 'eq', 'provider_id'), ['eq', 'provider_id', 7], role + ': this coach only');
+      assert.deepEqual(op(p, 'in', 'status'), ['in', 'status', ['active', 'trialing', 'past_due']], role + ': every open status');
+      assert.deepEqual(op(p, 'order'), ['order', 'id', { ascending: true }], role + ': in id order');
+      assert.deepEqual(op(p, 'limit'), ['limit', 1000], role + ': a page of 1,000 at most');
+      assert.deepEqual(op(p, 'gt')?.slice(1) ?? null, k === 0 ? null : ['id', open[k * 1000 - 1]], role + ': after the last id read');
+    });
+  }
 });

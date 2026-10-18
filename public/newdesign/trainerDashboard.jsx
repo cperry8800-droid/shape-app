@@ -86,7 +86,10 @@ function useDashSidebarLive(role) {
         amount: k.monthlyNetCents != null ? dsbMoney(k.monthlyNetCents) : "—",
         // Clients, not subscriptions: the dashboards count today's practice by the Business page's
         // rule, people with a client whose payment is retrying among them (the sweep after #2394 round 10).
-        sub: (k.activeClients === 1 ? "1 client" : (k.activeClients != null ? k.activeClients : 0) + " clients") + " · payouts connect soon",
+        // ⚠ A COUNT THE ROUTE COULDN'T READ IS SAID, NOT PRINTED AS "0 clients" (the dashboards after
+        // #2395): the route sends null for a failed read, and this printed null as 0. Today's own card
+        // (dashToday.jsx dashLivePayoutCard) says the same words.
+        sub: k.activeClients == null ? "clients couldn't be read just now" : (k.activeClients === 1 ? "1 client" : k.activeClients + " clients") + " · payouts connect soon",
       } });
     })();
     return () => { on = false; };
