@@ -60,9 +60,12 @@ test('⚠ THE PRICE AND THE FEE ARE THE PRICING PAGE\'S OWN', () => {
   // is on a client who found the coach on Shape, nothing on one the coach brought, and Shape pays the
   // card processing. The entry said "15% on everything" and "card processing is separate" after the
   // pages stopped saying it (Codex on #2396).
-  assert.match(PRICING, /nothing on clients they bring, and pays the card processing/, 'the pricing page changed its fee terms — update the coach-fees entry');
+  assert.match(PRICING, /nothing on a client who subscribes through their own invite or referral link, and pays the card processing/, 'the pricing page changed its fee terms — update the coach-fees entry');
   const fees = entry('coach-fees').body;
-  assert.match(fees, /when a client who found the coach on Shape pays them, and nothing on clients the coach brings/);
+  assert.match(fees, /when a client who found the coach on Shape pays them, and nothing on a client who subscribes through the coach’s own invite or referral link within 30 days of it/);
+  // The 0% is a 30-day window from the invite or the link (resolve_coach_checkout_origin), not a
+  // promise about every client a coach knows (Codex on #2396).
+  assert.doesNotMatch(fees, /nothing on clients the coach brings\b/);
   assert.match(fees, /Shape pays the card processing/);
   assert.match(fees, /on the schedule they set there/, 'payouts follow the coach\'s own Stripe schedule');
   assert.doesNotMatch(fees, /on everything|processing is separate|weekly|instant/i);

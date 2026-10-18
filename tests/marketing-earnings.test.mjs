@@ -173,17 +173,22 @@ test('coaches.jsx and pricing.jsx state the fee as charged: 15% on clients found
     assert.doesNotMatch(copy, /processing is separate|15% (platform fee )?on everything/i, f);
     assert.equal(cadenceClaim(copy), null, f + ' promises a payout cadence');
     assert.match(copy, /15% platform fee/, f + ': the fee is still stated');
-    assert.match(copy, /nothing on clients (you|they) bring/, f + ': and that it is not charged on a client the coach brings');
+    assert.match(copy, /nothing on a client who subscribes through (your|their) own invite or referral link/, f + ': and that it is not charged on a client the coach brings');
     assert.match(copy, /pays the card processing/, f + ': and who pays the card processing');
   }
   const coaches = pageCopy('coaches.jsx');
   assert.match(coaches, /Direct · Payouts to your bank\. · On the schedule you set in your own Stripe account\./, 'the facts strip');
   assert.match(coaches, /Stripe pays it out to your bank on the schedule you set there/, 'the payouts answer');
+  // The 0% holds for a client who subscribes within 30 days of the coach's invite or link
+  // (resolve_coach_checkout_origin, 2026-07-21 migration), so the page doesn't promise it on every
+  // client a coach already has (Codex on #2396).
+  assert.match(coaches, /a client who subscribes within 30 days of it pays no Shape fee on that plan, for as long as it renews/);
+  assert.doesNotMatch(coaches, /takes no fee on them/);
   assert.match(pageCopy('pricing.jsx'), /\$5\/month/, 'members pay $5 a month');
   // The app's own pricing page answers the same question.
   const app = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx', import.meta.url), 'utf8');
   const answer = app.slice(app.indexOf("{ q: 'Do coaches pay to be on Shape?'"), app.indexOf('\n', app.indexOf("{ q: 'Do coaches pay to be on Shape?'")));
-  assert.match(answer, /15% on clients the Shape marketplace brought you, and 0% on clients you brought yourself[^"]*Shape pays the card processing\./);
+  assert.match(answer, /15% on clients the Shape marketplace brought you, and 0% on clients you brought yourself through your invite or referral link, if they subscribe within 30 days of it\. Shape pays the card processing\./);
   assert.doesNotMatch(answer, /processing is separate/);
 });
 
