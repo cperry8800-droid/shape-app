@@ -64,6 +64,7 @@
   "checkin.hOnly": "{h} ч",
   "checkin.noAnswer": "Нет ответа",
   "checkin.targetTip": "Цель {target}",
+  "checkin.waterFromHealth": "Включая {amount} из «Здоровья»",
   "checkin.trendWater": "{n, plural, =0 {Цель на этой неделе не достигнута.} one {Цель достигнута # день на этой неделе.} few {Цель достигнута # дня на этой неделе.} many {Цель достигнута # дней на этой неделе.} other {Цель достигнута # дня на этой неделе.}}",
   "checkin.ofTarget": "из {target}",
   "checkin.addGlasses": "{n, plural, one {+ # стакан} few {+ # стакана} many {+ # стаканов} other {+ # стакана}}",

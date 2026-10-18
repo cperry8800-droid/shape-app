@@ -64,6 +64,7 @@
   "checkin.hOnly": "{h}h",
   "checkin.noAnswer": "Sem resposta",
   "checkin.targetTip": "Meta {target}",
+  "checkin.waterFromHealth": "Inclui {amount} do app Saúde",
   "checkin.trendWater": "{n, plural, =0 {Meta não atingida esta semana.} one {Meta atingida uma vez esta semana.} other {Meta atingida em # dias esta semana.}}",
   "checkin.ofTarget": "de {target}",
   "checkin.addGlasses": "{n, plural, one {+ # copo} other {+ # copos}}",

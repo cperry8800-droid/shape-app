@@ -55,6 +55,10 @@ function content(kind: string, label: string): { type: string; title: string; bo
       return { type: 'reminder_weigh_in', title: l || 'Time to weigh in', body: 'A quick weigh-in keeps your trend honest.', route: 'progress' };
     case 'checkin':
       return { type: 'reminder_checkin', title: l || 'Weekly check-in', body: 'Your check-in is ready when you are.', route: 'progress' };
+    // The daily check-in (owner, 2026-10-18: a Daily check-in reminder opens the card): a tap
+    // lands on Home with the walkthrough open at the first check not yet answered.
+    case 'daily_checkin':
+      return { type: 'reminder_daily_checkin', title: l || 'Daily check-in', body: 'Four quick checks, about 30 seconds.', route: 'today' };
     case 'water':
       return { type: 'reminder_water', title: l || 'Hydration check', body: 'Water break — keep it flowing.', route: null };
     case 'photo':

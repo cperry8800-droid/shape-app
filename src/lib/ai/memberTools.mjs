@@ -4,7 +4,7 @@
 
 // Mirrors src/app/api/client/reminders/route.ts KINDS — the tool validates
 // before proposing so a bad kind never reaches the confirm card.
-export const REMINDER_KINDS = ['weigh_in', 'checkin', 'water', 'photo', 'custom'];
+export const REMINDER_KINDS = ['weigh_in', 'checkin', 'daily_checkin', 'water', 'photo', 'custom'];
 
 export function validReminderTime(t) {
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(String(t || ''));

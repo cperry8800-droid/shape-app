@@ -76,12 +76,17 @@ test('a night two sources wrote is its own hours, and only whole days are sent',
       { sleepState: 'asleepCore', startDate: iso(at(before, 1)), endDate: iso(at(before, 8)), duration: 7 * 3600 },
     ],
     stepCount: [{ value: 4000, startDate: iso(at(before, 20)), endDate: iso(at(before, 21)) }, { value: 9000, startDate: iso(at(y, 12)), endDate: iso(at(y, 13)) }],
+    dietaryWater: [{ value: 0.5, startDate: iso(at(today, 8)), endDate: iso(at(today, 8)) }, { value: 0.333, startDate: iso(at(today, 11)), endDate: iso(at(today, 11)) }],
   };
   const { days } = await HK.collectHealthKitSnapshots({ days: 2 });
   const byDay = Object.fromEntries(days.map((d) => [d.date, d.patch]));
   assert.deepEqual(Object.keys(byDay).sort(), [key(y), key(today)], 'a day cut off at the start of the window was sent');
   assert.equal(byDay[key(today)].sleep_hours, 7.5, 'a night two sources wrote was counted twice');
   assert.equal(byDay[key(y)].steps, 9000);
+  // Water (owner, 2026-10-18: added to the glasses logged in Shape): litres per day, and 0 on a
+  // day with none, so water deleted in Apple Health leaves the day's total too.
+  assert.equal(byDay[key(today)].hydration_l, 0.83);
+  assert.equal(byDay[key(y)].hydration_l, 0, 'a day with no water in Apple Health did not say so');
   // The read starts the evening before the first day, so that day's night is whole.
   assert.ok(Date.parse(asked) <= at(before, 12).getTime() && Date.parse(asked) < y.getTime(), `the read began at ${asked}`);
 });
@@ -104,9 +109,50 @@ test('a read where every query failed is an error, and one where some failed sti
     failing = ['heartRate', 'sleepAnalysis'];
     const { days } = await HK.collectHealthKitSnapshots({ days: 2 });
     assert.equal(days.reduce((n, d) => n + (d.patch.steps || 0), 0), 5000, 'a failed query lost the types that were read');
+    // No water in the window, or a failed water read, sends no water: a 0 would take water another
+    // phone recorded off the day's total (set_apple_health_water moves the total by the change in
+    // Apple Health's reading), and HealthKit reads a type never allowed as empty.
+    const none = await HK.collectHealthKitSnapshots({ days: 2 });
+    assert.ok(none.days.every((d) => d.patch.hydration_l === null), 'a window with no water sent 0s');
+    assert.equal(none.waterSamples, 0);
+    failing = ['dietaryWater'];
+    const noWater = await HK.collectHealthKitSnapshots({ days: 2 });
+    assert.ok(noWater.days.length > 0 && noWater.days.every((d) => d.patch.hydration_l === null), 'a failed water read was sent as no water');
+    assert.equal(noWater.waterSamples, null);
     // A member who allowed nothing reads empty with no error: that is a read, not a failure.
     failing = null;
     samples = {};
     assert.deepEqual((await HK.collectHealthKitSnapshots({ days: 2 })).days, []);
   } finally { failing = null; }
+});
+
+test("with water in the window every day is sent, so a day whose only water was deleted says 0", async () => {
+  const now = new Date();
+  const today = local(now.getFullYear(), now.getMonth() + 1, now.getDate());
+  const days3 = [2, 1, 0].map((n) => new Date(today.getFullYear(), today.getMonth(), today.getDate() - n));
+  const at = (d, h) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), h);
+  // Water today only; the day before had water and nothing else, since deleted; no steps anywhere.
+  samples = { dietaryWater: [{ value: 0.4, startDate: iso(at(today, 9)), endDate: iso(at(today, 9)) }] };
+  const out = await HK.collectHealthKitSnapshots({ days: 3 });
+  const byDay = Object.fromEntries(out.days.map((d) => [d.date, d.patch]));
+  assert.deepEqual(Object.keys(byDay).sort(), days3.map(key), 'a day with no other samples was not sent');
+  assert.equal(byDay[key(today)].hydration_l, 0.4);
+  assert.equal(byDay[key(days3[1])].hydration_l, 0, "a day whose water was deleted kept Apple Health's old share");
+  assert.equal(byDay[key(days3[1])].steps, null);
+  assert.equal(out.waterSamples, 1);
+  // Water from before the window's first day is read for nothing and does not count as water seen.
+  samples = { dietaryWater: [{ value: 0.4, startDate: iso(at(days3[0], -2)), endDate: iso(at(days3[0], -2)) }], stepCount: [{ value: 100, startDate: iso(at(today, 9)), endDate: iso(at(today, 9)) }] };
+  const before = await HK.collectHealthKitSnapshots({ days: 3 });
+  assert.equal(before.waterSamples, 0);
+  assert.ok(before.days.every((d) => d.patch.hydration_l === null));
+});
+
+test("the card's sync asks for water once per install, only on a phone already reading Apple Health", () => {
+  // A member who connected before Shape read water was never asked for it (review on this PR).
+  const src = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
+  const fn = src.slice(src.indexOf('async function syncAppleHealth('), src.indexOf('\n}\n', src.indexOf('async function syncAppleHealth(')));
+  assert.match(fn, /if \(!prompt && rollups\.length && waterSamples === 0 && !hkWaterAsked\(\)\) \{\n    markHkWaterAsked\(\);\n    try \{\n      await requestHealthKitAuth\(\);/);
+  assert.ok(fn.indexOf('markHkWaterAsked();') < fn.indexOf('await requestHealthKitAuth();\n      ({'), 'the flag is set before the ask, so an ask that fails or never answers is not repeated on every open');
+  assert.match(src, /function hkWaterAsked\(\) \{\n  if \(hkWaterAskedMem\) return true;\n  try \{ return window\.localStorage\.getItem\(HK_WATER_ASKED_KEY\) === '1'; \} catch \(e\) \{ return false; \}\n\}/);
+  assert.match(src, /function markHkWaterAsked\(\) \{\n  hkWaterAskedMem = true;\n  try \{ window\.localStorage\.setItem\(HK_WATER_ASKED_KEY, '1'\);/);
 });

@@ -64,6 +64,7 @@
   "checkin.hOnly": "{h} sa",
   "checkin.noAnswer": "Yanıt yok",
   "checkin.targetTip": "Hedef {target}",
+  "checkin.waterFromHealth": "Apple Sağlık'tan {amount} dahil",
   "checkin.trendWater": "{n, plural, =0 {Bu hafta hedefe ulaşılmadı.} one {Bu hafta hedefe bir kez ulaşıldı.} other {Bu hafta hedefe # gün ulaşıldı.}}",
   "checkin.ofTarget": "/ {target}",
   "checkin.addGlasses": "{n, plural, one {+ # bardak} other {+ # bardak}}",

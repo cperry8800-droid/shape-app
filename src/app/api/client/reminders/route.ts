@@ -15,7 +15,7 @@ import { requireMembership } from '@/lib/require-membership';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const KINDS = ['weigh_in', 'checkin', 'water', 'photo', 'custom'];
+const KINDS = ['weigh_in', 'checkin', 'daily_checkin', 'water', 'photo', 'custom'];
 const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const UUID = /^[0-9a-f-]{36}$/i;
 

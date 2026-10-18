@@ -64,6 +64,7 @@
   "checkin.hOnly": "{h} год",
   "checkin.noAnswer": "Немає відповіді",
   "checkin.targetTip": "Мета {target}",
+  "checkin.waterFromHealth": "Разом із {amount} з «Здоров'я»",
   "checkin.trendWater": "{n, plural, =0 {Мети цього тижня не досягнуто.} one {Мети досягнуто # день цього тижня.} few {Мети досягнуто # дні цього тижня.} many {Мети досягнуто # днів цього тижня.} other {Мети досягнуто # дня цього тижня.}}",
   "checkin.ofTarget": "з {target}",
   "checkin.addGlasses": "{n, plural, one {+ # склянка} few {+ # склянки} many {+ # склянок} other {+ # склянки}}",
