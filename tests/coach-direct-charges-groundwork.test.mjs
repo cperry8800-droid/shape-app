@@ -128,9 +128,10 @@ test('acctOpts sends a call to a connected account, and is nothing for a platfor
   assert.equal(connect.missingColumn(null), false);
 });
 
-test('madeByShape: the object\'s application must be Shape\'s, once STRIPE_CONNECT_APPLICATION_ID is set', () => {
-  assert.equal(connect.madeByShape('ca_whatever', ''), true, 'unset: this half is off');
-  assert.equal(connect.madeByShape(null, undefined), true);
+test('madeByShape: the object\'s application must be Shape\'s, and with STRIPE_CONNECT_APPLICATION_ID unset nothing is', () => {
+  assert.equal(connect.madeByShape('ca_whatever', ''), false, 'unset: refused, never waved through');
+  assert.equal(connect.madeByShape(null, undefined), false);
+  assert.equal(connect.madeByShape('ca_whatever', '  '), false);
   assert.equal(connect.madeByShape(APP, APP), true);
   assert.equal(connect.madeByShape({ id: APP, object: 'application' }, APP), true, 'an expanded application');
   assert.equal(connect.madeByShape('ca_other', APP), false);
@@ -156,7 +157,8 @@ test('the origin guard: the account must be the named coach\'s, and the object S
   assert.deepEqual(await connect.checkConnectOrigin(fakeDb({ tables: coaches() }).client, { account: 'nope', providerRole: 'trainer', providerId: '4', application: APP }, APP), { ok: false, reason: 'not_a_coach' });
   assert.deepEqual(await guard({ providerRole: 'trainer', providerId: '4', application: 'ca_other' }), { ok: false, reason: 'application_mismatch' }, 'the coach\'s own checkout, outside Shape and its fee');
   assert.deepEqual(await guard({ providerRole: 'trainer', providerId: '4', application: null }), { ok: false, reason: 'application_mismatch' });
-  assert.deepEqual(await guard({ providerRole: 'trainer', providerId: '4', application: 'ca_other' }, ''), { ok: true }, 'the application half is off while the variable is unset');
+  assert.deepEqual(await guard({ providerRole: 'trainer', providerId: '4', application: APP }, ''), { ok: false, reason: 'application_unset' }, 'unset: refused, even for the right coach');
+  assert.deepEqual(await guard({ providerRole: 'trainer', providerId: '4', application: null, checkApplication: false }, ''), { ok: true }, 'unset: an event with no payment object still checks the account alone');
   assert.deepEqual(await guard({ providerRole: 'trainer', providerId: '4', application: null, checkApplication: false }), { ok: true }, 'an event with no payment object skips it');
   const failed = await guard({ providerRole: 'trainer', providerId: '4', application: APP }, APP, coaches(), { 'select:trainers': { code: '57014', message: 'timeout' } });
   assert.equal(failed.ok, false);
@@ -386,9 +388,13 @@ test('webhook ORIGIN GUARD: a checkout from another coach\'s account, or one Sha
   // The same, carried by the platform destination: the account the event names is what counts.
   const viaPlatform = await runWebhook(purchaseEvent({ provider_id: '5' }), { secret: PLATFORM_SECRET, tables: coaches() });
   assert.equal(wrote(viaPlatform), 0, 'an event that names an account is a Connect event, whichever secret signed it');
-  // With STRIPE_CONNECT_APPLICATION_ID unset, the account half still holds; the application half is off.
-  const unset = await runWebhook(purchaseEvent(), { tables: coaches(), env: { STRIPE_CONNECT_APPLICATION_ID: undefined }, stripeOpts: { pi: { application: 'ca_someoneElse' } } });
-  assert.equal(stmts(unset.db.calls, 'one_time_purchases', 'upsert').length, 1);
+  // With STRIPE_CONNECT_APPLICATION_ID unset, a Connect payment writes nothing, even one Shape made
+  // for the right coach: the account half alone would let a coach record their own sale as Shape's.
+  const unset = await runWebhook(purchaseEvent(), { tables: coaches(), env: { STRIPE_CONNECT_APPLICATION_ID: undefined } });
+  assert.equal(wrote(unset), 0, 'unset: refused');
+  assert.ok(unset.logs.some((l) => l.includes('application_unset')), 'unset: says why');
+  const unsetSub = await runWebhook(subEvent(), { tables: coaches(), env: { STRIPE_CONNECT_APPLICATION_ID: undefined } });
+  assert.equal(wrote(unsetSub), 0, 'unset: a subscription too');
   const unsetWrongCoach = await runWebhook(purchaseEvent({ provider_id: '5' }), { tables: coaches(), env: { STRIPE_CONNECT_APPLICATION_ID: undefined } });
   assert.equal(wrote(unsetWrongCoach), 0);
   // A coach row that cannot be read for a passing reason is retried, not refused.

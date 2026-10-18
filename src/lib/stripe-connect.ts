@@ -51,17 +51,19 @@ export function applicationIdOf(v: unknown): string | null {
 }
 
 /**
- * Whether a Stripe object was made by Shape's Connect application. Only checked when
- * STRIPE_CONNECT_APPLICATION_ID is set; unset, every object passes this half (the account half of
- * the origin guard still holds).
+ * Whether a Stripe object was made by Shape's Connect application.
+ * ⚠ UNSET, NOTHING PASSES. With only the account half, a coach could make a checkout on their own
+ * account with Shape's metadata naming themselves and have the webhook record it as a Shape sale,
+ * with no Shape fee. So until STRIPE_CONNECT_APPLICATION_ID is set (the owner sets it beside
+ * STRIPE_CONNECT_WEBHOOK_SECRET), a Connect payment, subscription or refund writes nothing.
  */
 export function madeByShape(application: unknown, expected: string | undefined = process.env.STRIPE_CONNECT_APPLICATION_ID): boolean {
   const want = String(expected ?? '').trim();
-  if (!want) return true;
+  if (!want) return false;
   return applicationIdOf(application) === want;
 }
 
-export type OriginRefusal = 'not_a_coach' | 'no_coach_row' | 'account_mismatch' | 'application_mismatch' | 'read_failed';
+export type OriginRefusal = 'not_a_coach' | 'no_coach_row' | 'account_mismatch' | 'application_unset' | 'application_mismatch' | 'read_failed';
 export type OriginVerdict = { ok: true } | { ok: false; reason: OriginRefusal; error?: unknown };
 
 /**
@@ -72,9 +74,9 @@ export type OriginVerdict = { ok: true } | { ok: false; reason: OriginRefusal; e
  * webhook record a Shape subscription or purchase for it, or name ANOTHER coach and write rows on
  * that coach's books. So a Connect event writes a row only when
  *   1. the account it came from is the account on record for the coach its metadata names, and
- *   2. the payment object behind it was made by Shape's Connect application (when
- *      STRIPE_CONNECT_APPLICATION_ID is set; `checkApplication: false` skips this half for an
- *      event that carries no such object, an expired checkout).
+ *   2. the payment object behind it was made by Shape's Connect application, which needs
+ *      STRIPE_CONNECT_APPLICATION_ID set (madeByShape); `checkApplication: false` skips this half
+ *      for an event that carries no such object, an expired checkout.
  * Anything else is refused: the caller logs it, answers 200 and writes nothing.
  */
 export async function checkConnectOrigin(
@@ -95,7 +97,7 @@ export async function checkConnectOrigin(
   if (!data) return { ok: false, reason: 'no_coach_row' };
   if ((data as { stripe_account_id?: unknown }).stripe_account_id !== args.account) return { ok: false, reason: 'account_mismatch' };
   if (args.checkApplication !== false && !madeByShape(args.application, expectedApplication)) {
-    return { ok: false, reason: 'application_mismatch' };
+    return { ok: false, reason: String(expectedApplication ?? '').trim() ? 'application_mismatch' : 'application_unset' };
   }
   return { ok: true };
 }

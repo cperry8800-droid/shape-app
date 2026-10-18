@@ -27,6 +27,8 @@ export default {
     { name: 'guard: the account half is gone (a coach writes rows for another coach)', file: CONNECT,
       find: "  if ((data as { stripe_account_id?: unknown }).stripe_account_id !== args.account) return { ok: false, reason: 'account_mismatch' };\n",
       replace: '' },
+    { name: 'connect: an unset application id waves every object through', file: 'src/lib/stripe-connect.ts',
+      find: '  if (!want) return false;', replace: '  if (!want) return true;' },
     { name: 'guard: the application half is gone (a coach\'s own checkout is recorded)', file: CONNECT,
       find: '  if (args.checkApplication !== false && !madeByShape(args.application, expectedApplication)) {',
       replace: '  if (false) {' },
