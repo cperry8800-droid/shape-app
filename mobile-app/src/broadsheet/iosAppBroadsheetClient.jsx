@@ -36233,6 +36233,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.url) { window.location.href = data.url; return; }
       if (data?.reason === 'no_coach_plan') { openBillingPortal(); return; }
+      // The coach disconnected: Shape can't open their account, so the member is sent to support in
+      // words (toasts are a no-op app-wide, so it is an alert, as on the website).
+      if (data?.reason === 'coach_disconnected' && data?.error) { window.alert(data.error); return; }
       window.__bsToast?.(data?.error || tr('settings:toast.billingUnavailable', { defaultValue: 'Billing portal unavailable' }), 'err');
     } catch (e) {
       window.__bsToast?.(tr('settings:toast.billingUnavailable', { defaultValue: 'Billing portal unavailable' }), 'err');

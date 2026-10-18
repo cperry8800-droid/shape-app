@@ -12,8 +12,8 @@ import { ACTIVE_SUB, computeMembership } from '@/lib/membership-core';
 import { hasLiveStripeSubscription } from '@/lib/stripe-live-subscription';
 import { stripeCustomerFor } from '@/lib/stripe-customer';
 import { connectedCustomerFor, madeByShape } from '@/lib/stripe-connect';
-import { CODE_MESSAGES, afterCode, coachNotPayable, directChargesReady, normalizeCode, recordCoachCheckout, recordedSubscriptionLive, resolveCheckoutCode, type CheckoutCode } from '@/lib/coach-checkout';
-import { CHECKOUT_CREATE_OPTIONS, checkoutReturnsKey, claimCheckout, currentCheckout, isCheckoutInProgress, retireCoachCheckouts, type CheckoutClaim } from '@/lib/checkout-barrier';
+import { CODE_MESSAGES, afterCode, coachNotPayable, directChargesReady, normalizeCode, formerSubscriptionLive, recordCoachCheckout, recordedSubscriptionLive, resolveCheckoutCode, type CheckoutCode } from '@/lib/coach-checkout';
+import { CHECKOUT_CREATE_OPTIONS, checkoutReturnsKey, claimCheckout, currentCheckout, isCheckoutInProgress, retireCoachCheckouts, type CheckoutClaim, type RetiredCoachCheckouts } from '@/lib/checkout-barrier';
 
 export const runtime = 'nodejs';
 
@@ -244,6 +244,12 @@ export async function POST(request: Request) {
     { error: "You're already subscribed to this coach.", reason: 'already_subscribed' },
     { status: 409 }
   );
+  // A recent checkout on the coach's former account Shape can no longer read: it may have been paid,
+  // so no second plan is sold until Stripe's retries for it are over (retireCoachCheckouts).
+  const paymentPending = () => NextResponse.json(
+    { error: "Your recent payment to this coach is still being confirmed. Try again in a few days, or contact Shape support and we'll check it for you.", reason: 'payment_pending' },
+    { status: 409 }
+  );
   if (isSubscription) {
     const { data: existing, error: existingErr } = await caller
       .from('subscriptions')
@@ -471,7 +477,7 @@ export async function POST(request: Request) {
       // the coach's account nothing is handed back either: Shape's recorded open checkouts for this
       // coach are expired and a fresh one is made, since the coach can rewrite a session's metadata
       // (checkout-barrier.ts, retireCoachCheckouts; Codex on #2403).
-      let retired: { subscriptions: Set<string> } = { subscriptions: new Set() };
+      let retired: RetiredCoachCheckouts = { subscriptions: new Set(), former: new Map(), unverified: false };
       let open: string | null = null;
       if (direct) {
         await currentCheckout(customerId, sameProduct, () => false);
@@ -490,6 +496,8 @@ export async function POST(request: Request) {
         paid = await hasLiveStripeSubscription({ customerId, email: user.email ?? null }, wanted)
           // Shape's recorded ones, each read by its id: a list the coach can bury is never relied on.
           || (direct && await recordedSubscriptionLive(stripe, account, retired.subscriptions, ACTIVE_SUB))
+          // And the same on a former account of this coach's, while a payment there may be unrecorded.
+          || (direct && await formerSubscriptionLive(stripe, retired.former, ACTIVE_SUB))
           || (direct && await hasLiveStripeSubscription({ customerId: buyer, email: null }, wanted, account,
             // Shape's application made it, or it came from a checkout Shape recorded and the member
             // completed (Stripe may leave `application` unset; Codex on #2403).
@@ -499,6 +507,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Could not check your subscriptions. Try again in a moment.' }, { status: 503 });
       }
       if (paid) return alreadySubscribed();
+      if (retired.unverified) return paymentPending();
       if (open) return NextResponse.json({ url: open, creditAppliedCents: 0 });
       await claim.confirm();
     }

@@ -141,40 +141,72 @@ type SessionRef = { id: string; status?: string | null; subscription?: string | 
  * own id, so a coach who opens a hundred newer checkouts for the member's customer can't push one of
  * Shape's off a page. A recorded checkout the account no longer has is skipped; any other failed
  * read throws, and the caller refuses.
+ * ⚠ A COACH WHO RECONNECTED LEAVES CHECKOUTS ON THEIR FORMER ACCOUNT (Codex on #2403). A member who
+ * paid there just before the coach disconnected may not have a row yet, and the coach's row now
+ * names a new account. So Shape's recorded checkouts on any other account from the last
+ * FORMER_ACCOUNT_WINDOW_MS (Stripe's webhook retry window) are read too, each on its own account:
+ * an open one is expired and a completed one's subscription is returned in `former`. One Shape can
+ * no longer read there (the coach took Shape's access with them) can't be ruled out, so it is
+ * returned as `unverified` and the caller refuses for now; that ends with the window, so it never
+ * blocks the member from this coach for good.
  */
+export const FORMER_ACCOUNT_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
+
+export type RetiredCoachCheckouts = {
+  /** Subscriptions behind Shape's completed checkouts on the coach's current account. */
+  subscriptions: Set<string>;
+  /** The same on a former account of this coach's, by account. */
+  former: Map<string, Set<string>>;
+  /** A recent checkout on a former account Shape can no longer read. */
+  unverified: boolean;
+};
+
+const noAccess = (err: unknown) => {
+  const e = err as { type?: string; code?: string };
+  return e?.type === 'StripePermissionError' || e?.code === 'account_invalid';
+};
+
 export async function retireCoachCheckouts(
   clientId: string,
   stripeAccount: string,
-  product: { provider_role: string; provider_id: number }
-): Promise<{ subscriptions: Set<string> }> {
-  const opts = { stripeAccount };
+  product: { provider_role: string; provider_id: number },
+  now = Date.now()
+): Promise<RetiredCoachCheckouts> {
   const { data, error } = await createAdminClient()
     .from('coach_checkouts')
-    .select('stripe_checkout_session_id')
+    .select('stripe_checkout_session_id, stripe_account_id, created_at')
     .eq('client_id', clientId)
-    .eq('stripe_account_id', stripeAccount)
     .eq('provider_role', product.provider_role)
     .eq('provider_id', product.provider_id)
     .eq('mode', 'subscription');
   if (error) throw error;
-  const ids = ((data ?? []) as Array<{ stripe_checkout_session_id: string }>).map((r) => r.stripe_checkout_session_id);
-  const sessions = await Promise.all(ids.map(async (id): Promise<SessionRef | null> => {
+  const since = now - FORMER_ACCOUNT_WINDOW_MS;
+  const rows = ((data ?? []) as Array<{ stripe_checkout_session_id: string; stripe_account_id: string; created_at?: string | null }>)
+    .filter((r) => r.stripe_account_id === stripeAccount || Date.parse(r.created_at ?? '') >= since);
+  let unverified = false;
+  const sessions = await Promise.all(rows.map(async (r): Promise<{ account: string; session: SessionRef } | null> => {
     try {
-      return await stripe.checkout.sessions.retrieve(id, undefined, opts) as SessionRef;
+      return { account: r.stripe_account_id, session: await stripe.checkout.sessions.retrieve(r.stripe_checkout_session_id, undefined, { stripeAccount: r.stripe_account_id }) as SessionRef };
     } catch (err) {
       if ((err as { code?: string })?.code === 'resource_missing') return null;
+      // Only a former account can have taken Shape's access away; on the current one it's a failure.
+      if (r.stripe_account_id !== stripeAccount && noAccess(err)) { unverified = true; return null; }
       throw err;
     }
   }));
   const subscriptions = new Set<string>();
-  for (const session of sessions) {
-    if (!session) continue;
+  const former = new Map<string, Set<string>>();
+  for (const found of sessions) {
+    if (!found) continue;
+    const { account, session } = found;
     if (session.status === 'open') {
-      await stripe.checkout.sessions.expire(session.id, undefined, opts);
+      await stripe.checkout.sessions.expire(session.id, undefined, { stripeAccount: account });
     } else if (session.status === 'complete') {
       const sub = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id;
-      if (sub) subscriptions.add(sub);
+      if (!sub) continue;
+      if (account === stripeAccount) subscriptions.add(sub);
+      else former.set(account, (former.get(account) ?? new Set()).add(sub));
     }
   }
-  return { subscriptions };
+  return { subscriptions, former, unverified };
 }

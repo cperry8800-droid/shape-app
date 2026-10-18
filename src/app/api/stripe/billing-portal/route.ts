@@ -77,11 +77,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'No plan with this coach is billed on their account.', reason: 'no_coach_plan' }, { status: 404 });
     }
     // ⚠ A COACH WHO DISCONNECTED TOOK SHAPE'S ACCESS TO THEIR ACCOUNT WITH THEM (Codex on #2403): no
-    // portal can be opened there, and Shape cannot cancel the plan for the member. The member is told
-    // so in words, with who can stop the charge, never a bare 500. The admin was alerted when the
-    // coach disconnected (the webhook's account.application.deauthorized).
+    // portal can be opened there, and Shape cannot cancel the plan from here. The member is sent to
+    // Shape support (owner, 2026-10-18: "contact support"), never shown a bare 500. The admin was
+    // alerted when the coach disconnected (the webhook's account.application.deauthorized).
     const disconnected = () => NextResponse.json({
-      error: "This coach has disconnected their payments from Shape, so Shape can't change this plan any more. Ask your coach to cancel it, or contact Shape support and we'll help.",
+      error: "This coach has disconnected their payments from Shape, so this plan can't be changed here. Contact Shape support and we'll sort it out with you.",
       reason: 'coach_disconnected',
     }, { status: 409 });
     const admin = createAdminClient();

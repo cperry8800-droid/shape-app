@@ -939,7 +939,9 @@ test('the server-action checkouts (/subscribe and /purchase) take the detour, ou
   assert.match(subscribe, /=> s\.metadata\?\.price_cents === String\(priceResult\.priceCents\) && s\.metadata\?\.fee_bps === String\(feeBps\)\n\s+&& s\.metadata\?\.origin === coachOrigin && \(s\.metadata\?\.referral_id \?\? null\) === \(referralId \?\? null\)\n\s+&& s\.metadata\?\.returns === returns && \(s\.metadata\?\.code \?\? null\) === \(checkoutCode\?\.code \?\? null\);/, 'on this request\'s terms, returns and code included');
   assert.ok(at('open = await currentCheckout(customerId, sameProduct, sameTerms);') < at('paid = await hasLiveStripeSubscription('), 'Stripe is asked after the read');
   assert.equal((subscribe.match(/hasLiveStripeSubscription\(/g) ?? []).length, 2, 'and only there: Shape\'s account, and the coach\'s on a direct charge');
-  assert.match(subscribe, /if \(paid\) redirect\(`\$\{backHref\}&error=already_subscribed`\);\n\s+if \(open\) redirect\(open\);/);
+  // Paid first, then a recent checkout on the coach's former account Shape can no longer read
+  // (Codex on #2403), and only then the hand-back.
+  assert.match(subscribe, /if \(paid\) redirect\(`\$\{backHref\}&error=already_subscribed`\);\n(?:\s+\/\/[^\n]*\n)*\s+if \(retired\.unverified\) redirect\(`\$\{backHref\}&error=payment_pending`\);\n\s+if \(open\) redirect\(open\);/);
   assert.match(subscribe, /if \(isCheckoutInProgress\(e\)\) redirect\(`\$\{backHref\}&error=checkout_in_progress`\);/);
   assert.doesNotMatch(subscribe, /idempotencyKey/, 'the claim replaced the 10-minute keys');
   assert.match(subscribe, /await claim\.confirm\(\);\n\s+session = await stripe\.checkout\.sessions\.create\(/, 'renewed right before the create');

@@ -28,9 +28,9 @@ import { membershipDetour } from '@/lib/membership-detour';
 import { hasCompletedScreening, screeningHref } from '@/lib/health-screening';
 import { stripeCustomerFor } from '@/lib/stripe-customer';
 import { acctOpts, connectedCustomerFor, madeByShape } from '@/lib/stripe-connect';
-import { coachNotPayable, directChargesReady, normalizeCode, recordCoachCheckout, recordedSubscriptionLive, resolveCheckoutCode, type CheckoutCode } from '@/lib/coach-checkout';
+import { coachNotPayable, directChargesReady, normalizeCode, formerSubscriptionLive, recordCoachCheckout, recordedSubscriptionLive, resolveCheckoutCode, type CheckoutCode } from '@/lib/coach-checkout';
 import { hasLiveStripeSubscription } from '@/lib/stripe-live-subscription';
-import { CHECKOUT_CREATE_OPTIONS, checkoutReturnsKey, claimCheckout, currentCheckout, isCheckoutInProgress, retireCoachCheckouts, type CheckoutClaim } from '@/lib/checkout-barrier';
+import { CHECKOUT_CREATE_OPTIONS, checkoutReturnsKey, claimCheckout, currentCheckout, isCheckoutInProgress, retireCoachCheckouts, type CheckoutClaim, type RetiredCoachCheckouts } from '@/lib/checkout-barrier';
 
 type ProviderRole = 'trainer' | 'nutritionist';
 
@@ -238,7 +238,7 @@ export async function startCheckout(formData: FormData): Promise<void> {
     const cancelUrl = `${siteOrigin}${backHref}&error=subscribe_cancelled`;
     const returns = checkoutReturnsKey(successUrl, cancelUrl);
     let open: string | null = null;
-    let retired: { subscriptions: Set<string> } = { subscriptions: new Set() };
+    let retired: RetiredCoachCheckouts = { subscriptions: new Set(), former: new Map(), unverified: false };
     try {
       const sameProduct = (s: { mode?: string | null; metadata?: Record<string, string> | null }) => s.mode === 'subscription'
         && s.metadata?.provider_id === String(providerId) && s.metadata?.provider_role === providerRole;
@@ -268,12 +268,16 @@ export async function startCheckout(formData: FormData): Promise<void> {
       paid = await hasLiveStripeSubscription({ customerId, email: user.email ?? null }, wanted)
         // Shape's recorded ones, each read by its id: a list the coach can bury is never relied on.
         || (direct && await recordedSubscriptionLive(stripe, account, retired.subscriptions, ACTIVE_SUB))
+        // And the same on a former account of this coach's, while a payment there may be unrecorded.
+        || (direct && await formerSubscriptionLive(stripe, retired.former, ACTIVE_SUB))
         || (direct && await hasLiveStripeSubscription({ customerId: buyer, email: null }, wanted, account, (sub) => madeByShape(sub.application) || retired.subscriptions.has(sub.id ?? '')));
     } catch (e) {
       console.error('[subscribe] Stripe subscription lookup failed', e);
       redirect(`${backHref}&error=subscription_check_failed`);
     }
     if (paid) redirect(`${backHref}&error=already_subscribed`);
+    // A recent checkout on the coach's former account Shape can no longer read (retireCoachCheckouts).
+    if (retired.unverified) redirect(`${backHref}&error=payment_pending`);
     if (open) redirect(open);
 
     // Shape takes the RESOLVED application fee on the coach charge; the rest

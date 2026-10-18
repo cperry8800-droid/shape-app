@@ -375,6 +375,51 @@ test('on a coach\'s account nothing is handed back: Shape\'s recorded open check
   await assert.rejects(b3.retireCoachCheckouts(UID, ACCT, { provider_role: 'trainer', provider_id: 4 }), 'a failed Stripe read refuses');
 });
 
+test('a coach who reconnected: Shape\'s recent checkouts on the former account are read there, and one it can no longer read holds a second plan back for the window only (Codex on #2403)', async () => {
+  const NOW = Date.parse('2026-10-18T12:00:00Z');
+  const ago = (h) => new Date(NOW - h * 3600_000).toISOString();
+  const FORMER = OTHER_ACCT;
+  const REVOKED = 'acct_1RevokedCoach99';
+  const onAccount = {
+    [`${FORMER}/cs_formerOpen`]: { id: 'cs_formerOpen', status: 'open', subscription: null },
+    [`${FORMER}/cs_formerPaid`]: { id: 'cs_formerPaid', status: 'complete', subscription: 'sub_formerPaid' },
+    [`${FORMER}/cs_formerOld`]: { id: 'cs_formerOld', status: 'complete', subscription: 'sub_formerOld' },
+  };
+  const retrieved = [];
+  const expired = [];
+  const stripe = { checkout: { sessions: {
+    retrieve: async (id, p, o) => {
+      retrieved.push([id, o.stripeAccount]);
+      if (o.stripeAccount === REVOKED) throw Object.assign(new Error('The provided key does not have access to account'), { type: 'StripePermissionError' });
+      const found = onAccount[`${o.stripeAccount}/${id}`];
+      if (!found) throw Object.assign(new Error('No such checkout.session'), { code: 'resource_missing' });
+      return found;
+    },
+    expire: async (id, p, o) => { expired.push([id, o.stripeAccount]); return {}; },
+  } } };
+  const rec = (id, acct, created, extra = {}) => record({ stripe_checkout_session_id: id, stripe_account_id: acct, mode: 'subscription', kind: 'subscription', created_at: created, ...extra });
+  const load = (rows, st = stripe) => loadRealModule(join(ROOT, 'src/lib/checkout-barrier.ts'), { typescript: true, registry: new Map([['@/lib/stripe', { stripe: st }], ['@/lib/supabase/admin', { createAdminClient: () => fakeDb({ tables: { coach_checkouts: rows } }).client }]]) });
+  const b = await load([
+    rec('cs_formerOpen', FORMER, ago(2)), rec('cs_formerPaid', FORMER, ago(30)), rec('cs_formerOld', FORMER, ago(24 * 4)),
+    rec('cs_formerOtherCoach', FORMER, ago(1), { provider_id: 5 }),
+  ]);
+  const r = await b.retireCoachCheckouts(UID, ACCT, { provider_role: 'trainer', provider_id: 4 }, NOW);
+  assert.deepEqual(expired, [['cs_formerOpen', FORMER]], 'an open one on the former account is expired there');
+  assert.deepEqual([...(r.former.get(FORMER) ?? [])], ['sub_formerPaid'], 'a paid one there is returned by account');
+  assert.equal(r.subscriptions.size, 0, 'kept apart from the current account\'s');
+  assert.equal(r.unverified, false);
+  assert.ok(!retrieved.some(([id]) => id === 'cs_formerOld'), 'older than the webhook window: not read');
+  assert.ok(!retrieved.some(([id]) => id === 'cs_formerOtherCoach'), 'another coach\'s: not read');
+  // The coach revoked Shape's access to the former account: unverified, not a failure.
+  const revoked = await (await load([rec('cs_revokedRecent', REVOKED, ago(5))])).retireCoachCheckouts(UID, ACCT, { provider_role: 'trainer', provider_id: 4 }, NOW);
+  assert.equal(revoked.unverified, true);
+  // ... and only for the window: an older one there is never read, so it never blocks for good.
+  const later = await (await load([rec('cs_revokedRecent', REVOKED, ago(24 * 3 + 1))])).retireCoachCheckouts(UID, ACCT, { provider_role: 'trainer', provider_id: 4 }, NOW);
+  assert.equal(later.unverified, false);
+  // On the coach's CURRENT account a permission error is a failure, and the caller refuses.
+  await assert.rejects((await load([rec('cs_now', REVOKED, ago(1))])).retireCoachCheckouts(UID, REVOKED, { provider_role: 'trainer', provider_id: 4 }, NOW));
+});
+
 test('the live-subscription check on a coach\'s account counts only what the caller says is Shape\'s', async () => {
   const subs = [{ id: 'sub_coach', status: 'active', application: null, metadata: { client_id: UID, provider_id: '4', provider_role: 'trainer' } }];
   const asked = [];
@@ -445,7 +490,7 @@ test('the Connect routes onboard through onboardingAccountFor, and refresh sends
 // ── The app's checkout route ──────────────────────────────────────────────────────────────────
 const TRAINER = { id: 4, name: 'Coach T', owner_id: 'owner-1', price: 180, session_price: 180, stripe_account_id: ACCT, stripe_account_status: 'active', at_capacity: false, capacity_resume_at: null, suspended_at: null };
 
-async function runCheckout({ body = {}, provider = TRAINER, env = CONNECT_ENV, errors = {}, codes = {}, reserve = 0, created: createdOverride, recordedSubStatus = 'canceled' } = {}) {
+async function runCheckout({ body = {}, provider = TRAINER, env = CONNECT_ENV, errors = {}, codes = {}, reserve = 0, created: createdOverride, recordedSubStatus = 'canceled', retired = null } = {}) {
   const db = fakeDb({
     tables: { trainers: [{ ...provider }], stripe_connected_customers: [] },
     errors,
@@ -489,7 +534,7 @@ async function runCheckout({ body = {}, provider = TRAINER, env = CONNECT_ENV, e
       ['@/lib/stripe-live-subscription', { hasLiveStripeSubscription: async (...a) => { live.push(a); return false; } }],
       ['@/lib/stripe-customer', { stripeCustomerFor: async () => 'cus_platform' }],
       ['@/lib/health-screening', { hiresCoach: () => false, hasCompletedScreening: async () => true, SCREENING_REQUIRED: {} }],
-      ['@/lib/checkout-barrier', { claimCheckout: async () => ({ confirm: async () => {}, release: async () => {} }), currentCheckout: async (...a) => { open.push(a); return null; }, retireCoachCheckouts: async (...a) => { open.push(['retire', ...a]); return { subscriptions: new Set(['sub_recordedNoApp']) }; }, isCheckoutInProgress: () => false, checkoutReturnsKey: () => 'returns-key', CHECKOUT_CREATE_OPTIONS: { timeout: 20000, maxNetworkRetries: 0 } }],
+      ['@/lib/checkout-barrier', { claimCheckout: async () => ({ confirm: async () => {}, release: async () => {} }), currentCheckout: async (...a) => { open.push(a); return null; }, retireCoachCheckouts: async (...a) => { open.push(['retire', ...a]); return retired ?? { subscriptions: new Set(['sub_recordedNoApp']), former: new Map(), unverified: false }; }, isCheckoutInProgress: () => false, checkoutReturnsKey: () => 'returns-key', CHECKOUT_CREATE_OPTIONS: { timeout: 20000, maxNetworkRetries: 0 } }],
     ]),
   });
   const logs = [];
@@ -565,6 +610,26 @@ test('checkout: a subscription on the coach\'s account takes application_fee_per
   const paid = await runCheckout({ body: { item: { type: 'Subscription', name: 'Monthly coaching' } }, recordedSubStatus: 'active' });
   assert.deepEqual([paid.status, paid.body.reason], [409, 'already_subscribed']);
   assert.equal(paid.created.length, 0);
+});
+
+test('checkout: a recent checkout on the coach\'s former account stops a second plan until it is settled (Codex on #2403)', async () => {
+  const body = { item: { type: 'Subscription', name: 'Monthly coaching' } };
+  // Shape can no longer read the former account: refused for now, in words, and nothing is made.
+  const pending = await runCheckout({ body, retired: { subscriptions: new Set(), former: new Map(), unverified: true } });
+  assert.equal(pending.status, 409);
+  assert.equal(pending.body.reason, 'payment_pending');
+  assert.match(pending.body.error, /still being confirmed/);
+  assert.equal(pending.created.length, 0, 'no second checkout');
+  // A plan the member paid on the former account counts, read on that account by its id.
+  const paidThere = await runCheckout({ body, recordedSubStatus: 'active', retired: { subscriptions: new Set(), former: new Map([[OTHER_ACCT, new Set(['sub_onFormer'])]]), unverified: false } });
+  assert.equal(paidThere.status, 409);
+  assert.equal(paidThere.body.reason, 'already_subscribed');
+  assert.ok(paidThere.customers.some((c) => c[0] === 'sub' && c[1] === 'sub_onFormer' && c[2]?.stripeAccount === OTHER_ACCT), 'asked on the former account');
+  assert.equal(paidThere.created.length, 0);
+  // One that has ended there doesn't stop a new plan.
+  const endedThere = await runCheckout({ body, recordedSubStatus: 'canceled', retired: { subscriptions: new Set(), former: new Map([[OTHER_ACCT, new Set(['sub_onFormer'])]]), unverified: false } });
+  assert.equal(endedThere.status, 200);
+  assert.equal(endedThere.created.length, 1);
 });
 
 test('recordedSubscriptionLive reads each recorded subscription by its id', async () => {
@@ -655,6 +720,11 @@ test('the website\'s two forms create on the coach\'s account, record the checko
     assert.match(src, /coachNotPayable\(provider\)/, p);
   }
   assert.match(read('src/app/subscribe/actions.ts'), /\}, onCoach\);\n  const price = await stripe\.prices\.create\(\{/, 'the price is made on the coach\'s account');
+  // A coach who reconnected: the former account is asked, and an unreadable recent checkout holds it (Codex on #2403).
+  assert.match(read('src/app/subscribe/actions.ts'), /\|\| \(direct && await formerSubscriptionLive\(stripe, retired\.former, ACTIVE_SUB\)\)/);
+  assert.match(read('src/app/subscribe/actions.ts'), /if \(retired\.unverified\) redirect\(`\$\{backHref\}&error=payment_pending`\);\n    if \(open\) redirect\(open\);/);
+  // A disconnected coach's member is sent to support in words in the app too (toasts are a no-op there).
+  assert.match(read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), /if \(data\?\.reason === 'coach_disconnected' && data\?\.error\) \{ window\.alert\(data\.error\); return; \}/);
   assert.match(read('src/app/purchase/actions.ts'), /const \{ applicationFeeCents \} = feeSplit\(chargeCents, chargeCents, bpsToRate\(feeBps\)\);/, 'the fee of the price after the code');
   for (const p of ['src/app/subscribe/page.tsx', 'src/app/purchase/page.tsx']) assert.match(read(p), /<CheckoutCodeField \/>/, p);
   assert.match(read('src/components/CheckoutCodeField.tsx'), /name="code"/);
@@ -910,7 +980,8 @@ test('the billing portal opens on the coach\'s account for a plan billed there',
   portal.length = 0;
   const off = await post({ coach: { provider_role: 'trainer', provider_id: 4 } });
   assert.deepEqual([off.status, off.body.reason], [409, 'coach_disconnected']);
-  assert.match(off.body.error, /Ask your coach to cancel it, or contact Shape support/);
+  assert.match(off.body.error, /Contact Shape support/, 'the member is sent to support (owner, 2026-10-18)');
+  assert.doesNotMatch(off.body.error, /Ask your coach/);
   assert.equal(portal.length, 0);
   coachRows[0].stripe_account_status = 'active';
   coachRows[0].stripe_account_id = 'acct_1BrandNewOne9';

@@ -381,6 +381,17 @@ export type SubLike = {
  * Whether a subscription's discounts are all expanded down to their coupons: an id alone, a
  * discount or its `source.coupon`, says nothing about the money (Codex on #2403).
  */
+/**
+ * `recordedSubscriptionLive` on each former account of the coach's (retireCoachCheckouts' `former`):
+ * a plan the member paid there before the coach reconnected counts until its row is written.
+ */
+export async function formerSubscriptionLive(stripe: SubStripe, former: Map<string, Set<string>>, live: ReadonlySet<string>): Promise<boolean> {
+  for (const [account, ids] of former) {
+    if (await recordedSubscriptionLive(stripe, account, ids, live)) return true;
+  }
+  return false;
+}
+
 export function discountsExpanded(sub: SubLike): boolean {
   return (sub.discounts ?? []).every((d) => d && typeof d === 'object' && !!(d.source?.coupon ?? d.coupon) && typeof (d.source?.coupon ?? d.coupon) === 'object');
 }
