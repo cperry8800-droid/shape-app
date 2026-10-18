@@ -22,13 +22,17 @@ function page(fetchImpl, greet = () => json(404, {})) {
   const w = dom.window;
   w.matchMedia = () => ({ matches: false });
   const calls = [];
+  // What is kept on the account (POST /api/nora/thread) after an answer, apart from the questions.
+  const kept = [];
+  const keptAs = [];
   // The panel's greeting is a GET on open; the questions are the POSTs this harness reads.
   w.fetch = (url, init) => {
     if (!init || init.method !== 'POST') { gets.push(url); return greet(url); }
+    if (url === '/api/nora/thread') { const b = JSON.parse(init.body); kept.push(b.append); keptAs.push(b.account); return json(200, { ok: true }); }
     calls.push({ url, body: JSON.parse(init.body) }); return fetchImpl(url, init);
   };
   w.eval(BUTTON);
-  return { w, doc: w.document, calls, gets };
+  return { w, doc: w.document, calls, gets, kept, keptAs };
 }
 const json = (status, body) => Promise.resolve({ ok: status < 400, status, json: () => Promise.resolve(body) });
 
@@ -48,7 +52,7 @@ async function askHelp(p, text) {
 }
 
 test('older pages: the Help tab asks the real Nora and shows her reply', async () => {
-  const p = page(() => json(200, { reply: 'A strength coach near you: Maya Okafor.', actions: [{ type: 'coach', label: 'Maya Okafor', url: '/newdesign/TrainerProfile.html?id=1' }] }));
+  const p = page(() => json(200, { reply: 'A strength coach near you: Maya Okafor.', actions: [{ type: 'coach', label: 'Maya Okafor', url: '/newdesign/TrainerProfile.html?id=1' }], account: 'u1' }));
   const panel = await askHelp(p, 'find me a strength coach');
   assert.equal(p.calls.length, 1);
   assert.equal(p.calls[0].url, '/api/support/chat');
@@ -62,6 +66,14 @@ test('older pages: the Help tab asks the real Nora and shows her reply', async (
   const links = [...panel.querySelectorAll('.sgc-quick a')];
   assert.deepEqual(links.map((a) => [a.textContent, a.getAttribute('href')]), [['Maya Okafor', '/newdesign/TrainerProfile.html?id=1']]);
   assert.doesNotMatch(panel.textContent, /teammate will follow up|route this to billing|bring in the Shape team/);
+  assert.deepEqual(p.kept.map((a) => a.map((m) => [m.role, m.text])), [[['user', 'find me a strength coach'], ['assistant', 'A strength coach near you: Maya Okafor.']]], 'the answered exchange is kept on the account');
+  assert.deepEqual(p.keptAs, ['u1'], 'as the account she answered (Codex on #2393)');
+});
+
+test('older pages: a visitor\'s answer names no account, and nothing is kept', async () => {
+  const p = page(() => json(200, { reply: 'Shape is $5 a month.', account: null }));
+  await askHelp(p, 'pricing?');
+  assert.deepEqual(p.kept, []);
 });
 
 test('older pages: a link is a same-site path or nothing', async () => {
@@ -79,6 +91,7 @@ test('older pages: a failed call or an empty reply says so and gives the address
     const panel = await askHelp(p, 'refund');
     const msgs = [...panel.querySelectorAll('.sgc-msg.them')].map((m) => m.textContent);
     assert.match(msgs.at(-1), DOWN);
+    assert.deepEqual(p.kept, [], '"can\'t be reached" is not kept');
   }
 });
 
@@ -89,19 +102,37 @@ test('older pages: Nora\'s greeting promises nothing', () => {
 // ── the Next app's button ────────────────────────────────────────────────────────
 const nextBtn = await loadRealModule(join(ROOT, 'src/components/GlobalChatButton.tsx'), {
   typescript: true,
-  registry: new Map([['react', { useState: () => [], useEffect: () => {} }], ['next/navigation', { usePathname: () => '/dashboard' }], ['@/components/Turnstile', { solveTurnstile: async () => '' }]]),
+  registry: new Map([['react', { useState: () => [], useEffect: () => {}, useRef: () => ({ current: null }) }], ['next/navigation', { usePathname: () => '/dashboard' }], ['@/components/Turnstile', { solveTurnstile: async () => '' }]]),
 });
 
 test('Next app: askNora posts the conversation and returns her reply with safe links', async () => {
   const seen = [];
-  const r = await nextBtn.askNora([{ from: 'shape', text: 'Hi' }, { from: 'you', text: 'pricing?' }], (url, init) => { seen.push({ url, body: JSON.parse(init.body) }); return json(200, { reply: '$5 a month.', actions: [{ label: 'Pricing', url: '/newdesign/Pricing.html' }, { label: 'x', url: 'https://evil.example' }] }); });
+  const r = await nextBtn.askNora([{ from: 'shape', text: 'Hi' }, { from: 'you', text: 'pricing?' }], (url, init) => { seen.push({ url, body: JSON.parse(init.body) }); return json(200, { reply: '$5 a month.', actions: [{ label: 'Pricing', url: '/newdesign/Pricing.html' }, { label: 'x', url: 'https://evil.example' }], account: 'u1' }); });
   assert.equal(seen[0].url, '/api/support/chat');
   assert.deepEqual(seen[0].body, { surface: 'web', confirmCards: false, messages: [{ role: 'assistant', content: 'Hi' }, { role: 'user', content: 'pricing?' }] });
-  assert.deepEqual(r, { reply: '$5 a month.', links: [{ label: 'Pricing', url: '/newdesign/Pricing.html' }] });
+  assert.deepEqual(r, { reply: '$5 a month.', links: [{ label: 'Pricing', url: '/newdesign/Pricing.html' }], account: 'u1' }, 'with who she answered as');
   const down = await nextBtn.askNora([{ from: 'you', text: 'x' }], () => Promise.reject(new Error('offline')));
   assert.match(down.reply, DOWN);
   const empty = await nextBtn.askNora([{ from: 'you', text: 'x' }], () => json(503, {}));
   assert.match(empty.reply, DOWN);
+});
+
+test('an answered exchange is kept on the account, from the Next app\'s button and the older pages\' panel (the trace, 2026-10-17)', () => {
+  const seen = [];
+  nextBtn.keepNoraExchange('pricing?', '$5 a month.', 'u1', (url, init) => { seen.push({ url, init }); return Promise.resolve({ ok: true }); });
+  assert.equal(seen.length, 1);
+  assert.equal(JSON.parse(seen[0].init.body).account, 'u1', 'named for the account she answered: a cookie that changed since keeps nothing (Codex on #2393)');
+  nextBtn.keepNoraExchange('pricing?', '$5 a month.', null, (url, init) => { seen.push({ url, init }); return Promise.resolve({ ok: true }); });
+  assert.equal(seen.length, 1, 'a visitor\'s answer names no account: nothing is kept');
+  assert.equal(seen[0].url, '/api/nora/thread');
+  assert.deepEqual([seen[0].init.method, seen[0].init.credentials], ['POST', 'same-origin'], 'the account\'s own cookie: a visitor\'s answers 401');
+  assert.deepEqual(JSON.parse(seen[0].init.body).append.map((m) => [m.role, m.text]), [['user', 'pricing?'], ['assistant', '$5 a month.']]);
+  assert.doesNotThrow(() => nextBtn.keepNoraExchange('q', 'a', 'u1', () => Promise.reject(new Error('offline'))), 'a failure is silent');
+  const src = readFileSync(join(ROOT, 'src/components/GlobalChatButton.tsx'), 'utf8');
+  assert.match(src, /const \{ reply, links, account, refused \} = await askNora\(next, fetch, solveTurnstile, accountRef\.current\);/);
+  assert.match(src, /if \(reply !== NORA_DOWN\) keepNoraExchange\(value, reply, account\);/, 'only an answer is kept');
+  assert.match(BUTTON, /if \(r\.reply !== NORA_DOWN\) keepNoraExchange\(value, r\.reply, r\.account\);/);
+  assert.match(BUTTON, /window\.fetch\("\/api\/nora\/thread", \{\n\s+method: "POST", credentials: "same-origin"/);
 });
 
 test('Next app: no scripted replies and no invented unread count', () => {
@@ -239,4 +270,68 @@ test('the corner steps aside while a panel is open, and comes back when it close
   const rich = p.doc.createElement('div'); rich.setAttribute('data-chat-panel', ''); p.doc.body.appendChild(rich);
   await new Promise((r) => setTimeout(r, 0));
   assert.ok(dock.classList.contains('shape-global-chat-hidden'), 'hidden under the rich widget too');
+});
+
+// ── Codex on #2393: the cookie can change account between two questions ───────────────────
+// Each panel keeps the account its conversation is with (from her first answer as one) and
+// names it on every later question; the server refuses one whose caller is someone else now,
+// and the conversation starts again from her greeting with the question back in the box.
+const SWITCHED = "You're signed in as another account now, so this conversation started again.";
+const REFUSED = { error: "You're signed in as another account now. Open the conversation again.", code: 'account_changed', account: 'u2' };
+
+test('older pages: a later question names the account, and a refusal starts the conversation again', async () => {
+  let who = 'u1';
+  const p = page((url, init) => {
+    const named = JSON.parse(init.body).account;
+    if (named && named !== who) return json(409, REFUSED);
+    return json(200, { reply: `Answer for ${who}.`, account: who });
+  });
+  const panel = await askHelp(p, 'first');
+  assert.equal(p.calls[0].body.account, undefined, 'nothing to name before her first answer');
+  const input = panel.querySelector('textarea');
+  const ask = async (text) => {
+    input.value = text;
+    input.dispatchEvent(new p.w.Event('input'));
+    panel.querySelector('.sgc-send').click();
+    for (let i = 0; i < 5; i++) await tick();
+  };
+  await ask('second');
+  assert.equal(p.calls[1].body.account, 'u1', 'then the account she answered as');
+  who = 'u2'; // signed in as someone else in another tab
+  await ask('third');
+  assert.equal(p.calls[2].body.account, 'u1');
+  const shown = [...panel.querySelectorAll('.sgc-msg')].map((m) => m.textContent);
+  assert.ok(!shown.some((t) => /Answer for u1|first|second/.test(t)), "u1's conversation is gone from the panel");
+  assert.equal(shown.at(-1), SWITCHED, 'it says why');
+  assert.equal(input.value, 'third', 'the question goes back in the box');
+  assert.deepEqual(p.keptAs, ['u1', 'u1'], 'nothing kept for the refused question');
+  // Asked again, the conversation is u2's from here.
+  await ask('third');
+  assert.equal(p.calls[3].body.account, undefined);
+  await ask('fourth');
+  assert.equal(p.calls[4].body.account, 'u2');
+});
+
+test('older pages: any other 409 is a failed request, not another account', async () => {
+  const p = page(() => json(409, { error: 'busy' }));
+  const panel = await askHelp(p, 'first');
+  const shown = [...panel.querySelectorAll('.sgc-msg')].map((m) => m.textContent);
+  assert.ok(shown.includes('first'), 'the conversation stays');
+  assert.match(shown.at(-1), DOWN);
+});
+
+test('Next app: askNora names the account and reads a refusal; the button keeps it and starts again', async () => {
+  const seen = [];
+  const r = await nextBtn.askNora([{ from: 'you', text: 'x' }], (url, init) => { seen.push(JSON.parse(init.body)); return json(409, REFUSED); }, async () => '', 'u1');
+  assert.equal(seen[0].account, 'u1');
+  assert.deepEqual(r, { reply: '', links: [], account: null, refused: true });
+  const none = [];
+  await nextBtn.askNora([{ from: 'you', text: 'x' }], (url, init) => { none.push(JSON.parse(init.body)); return json(200, { reply: 'ok' }); });
+  assert.ok(!('account' in none[0]), 'nothing to name: none is sent');
+  const other = await nextBtn.askNora([{ from: 'you', text: 'x' }], () => json(409, { error: 'busy' }), async () => '', 'u1');
+  assert.match(other.reply, DOWN, 'any other 409 is a failed request');
+  const src = readFileSync(join(ROOT, 'src/components/GlobalChatButton.tsx'), 'utf8');
+  const send = src.slice(src.indexOf('async function send('), src.indexOf('return (', src.indexOf('async function send(')));
+  assert.match(send, /if \(refused\) \{\n(?:\s+\/\/[^\n]*\n)+\s+accountRef\.current = null;\n\s+setMessages\(\[next\[0\], \{ from: 'shape', text: NORA_SWITCHED \}\]\);\n\s+setDraft\(value\);\n\s+setBusy\(false\);\n\s+return;\n\s+\}\n\s+if \(account && !accountRef\.current\) accountRef\.current = account;/);
+  assert.match(src, new RegExp(`const NORA_SWITCHED = "${SWITCHED.replace(/[.?]/g, '\\$&')}";`));
 });

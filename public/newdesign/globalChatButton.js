@@ -426,12 +426,30 @@
     // greeted people as Nora and answered from four canned lines. It now asks the same
     // endpoint the full chat does; a failure says so and gives the address a person reads.
     var NORA_DOWN = "I can't be reached right now. Try again in a moment, or email the Shape team at info@theshapecommunity.com.";
+    // The account keeps one conversation with Nora (/api/nora/thread), as the pop-up and the app
+    // do: an answered exchange is appended to it, as the account she answered (`account`, from
+    // her answer). The cookie can change account in another tab while she answers, and the thread
+    // route refuses an append for an account that is no longer the caller (Codex on #2393). A
+    // visitor's answer names no account, and nothing is kept.
+    function keepNoraExchange(question, reply, account) {
+      if (typeof window.fetch !== "function" || !account) return;
+      var at = new Date().toISOString();
+      window.fetch("/api/nora/thread", {
+        method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ append: [{ role: "user", text: question, at: at }, { role: "assistant", text: reply, at: at }], account: account })
+      }).catch(function () {});
+    }
+    var NORA_SWITCHED = "You're signed in as another account now, so this conversation started again.";
+    // `thread.account`: the account the conversation is with, from her first answer as one. Each
+    // later question names it, so a cookie that is someone else's by then is refused before the
+    // history is read (Codex on #2393), and the answer is { refused: true }.
     function askNora(thread) {
       var history = (thread.messages || []).filter(function (m) { return !m.pending; }).slice(-12).map(function (m) {
         return { role: m.me ? "user" : "assistant", content: String(m.t || "") };
       });
       function post(extra) {
         var body = { messages: history, surface: "web", confirmCards: false, context: window.__shapeNoraContext() };
+        if (thread.account) body.account = thread.account;
         if (extra) for (var k in extra) body[k] = extra[k];
         return fetch("/api/support/chat", {
           method: "POST",
@@ -443,9 +461,10 @@
         });
       }
       function settle(r) {
+        if (r.res.status === 409 && r.data.code === "account_changed") return { refused: true };
         var ok = r.res.ok || r.data.needsCheck;
         if (!ok || typeof r.data.reply !== "string" || !r.data.reply.trim()) return { reply: NORA_DOWN, links: [] };
-        return { reply: r.data.reply, links: noraLinks(r.data.actions) };
+        return { reply: r.data.reply, links: noraLinks(r.data.actions), account: typeof r.data.account === "string" && r.data.account ? r.data.account : null };
       }
       return post(null).then(function (r) {
         // A visitor's first question passes the bot check: solve it once and ask again.
@@ -626,8 +645,20 @@
         th.messages.push(pending);
         render();
         askNora(th).then(function (r) {
+          if (r.refused) {
+            // The conversation was the last account's: it starts again from her greeting, says
+            // why, and the question goes back in the box.
+            th.account = null;
+            th.messages = [th.messages[0], { who: "Nora", t: NORA_SWITCHED, time: stamp(), me: false }];
+            input.value = value;
+            send.disabled = false;
+            render();
+            return;
+          }
+          if (r.account && !th.account) th.account = r.account;
           pending.t = r.reply; pending.links = r.links; pending.time = stamp(); delete pending.pending;
           render();
+          if (r.reply !== NORA_DOWN) keepNoraExchange(value, r.reply, r.account);
         });
       }
     }

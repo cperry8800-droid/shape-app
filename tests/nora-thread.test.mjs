@@ -109,7 +109,7 @@ test('route: signed out is 401; GET is the account\'s own row, empty when there 
   const mod = await loadThreadRoute({ id: 'u1' }, db);
   const res = await mod.GET(req('GET'));
   assert.equal(res.headers.get('cache-control'), 'no-store');
-  assert.deepEqual(await res.json(), { messages: [{ role: 'user', text: 'hi', at: '2026-10-08T00:00:00.000Z' }], updatedAt: '2026-10-08T00:00:01Z' });
+  assert.deepEqual(await res.json(), { messages: [{ role: 'user', text: 'hi', at: '2026-10-08T00:00:00.000Z' }], updatedAt: '2026-10-08T00:00:01Z', account: 'u1' });
   assert.deepEqual(db.calls[0].filters, { user_id: 'u1' }, 'read by the caller\'s own id');
   const none = await loadThreadRoute({ id: 'u2' }, fakeDb());
   assert.deepEqual((await (await none.GET(req('GET'))).json()).messages, []);
@@ -129,6 +129,23 @@ test('route: POST appends to what is stored; DELETE clears; a missing table is a
   const r = await missing.GET(req('GET'));
   assert.equal(r.status, 503);
   assert.equal((await r.json()).code, 'thread_not_set_up');
+});
+
+// ⚠ THE COOKIE CAN CHANGE ACCOUNT UNDER THE APP (Codex on #2393). A write that names the account
+// it was loaded as, when that is no longer the caller, writes nothing.
+test('route: an append or a Clear meant for another account is refused, and nothing is written', async () => {
+  const db = fakeDb({ u2: { messages: [{ role: 'user', text: 'mine', at: '2026-10-08T00:00:00Z' }], updated_at: '2026-10-08T00:00:00.000Z' } });
+  const mod = await loadThreadRoute({ id: 'u2' }, db);
+  const post = await mod.POST(req('POST', { append: [{ role: 'user', text: 'said to u1' }], account: 'u1' }));
+  assert.equal(post.status, 409);
+  assert.equal((await post.json()).code, 'account_changed');
+  const del = await mod.DELETE(new Request('https://x/api/nora/thread?account=u1', { method: 'DELETE' }));
+  assert.equal(del.status, 409);
+  assert.deepEqual(db.rows.u2.messages.map((m) => m.text), ['mine'], 'u2\'s conversation is untouched');
+  assert.ok(!db.calls.some((c) => c.op === 'update' || c.op === 'insert' || c.op === 'delete'), 'no write was attempted');
+  // Its own account, or none named (the website, the signed-in app): as before.
+  assert.deepEqual(await (await mod.POST(req('POST', { append: [{ role: 'user', text: 'again' }], account: 'u2' }))).json(), { ok: true, count: 2 });
+  assert.deepEqual(await (await mod.DELETE(new Request('https://x/api/nora/thread?account=u2', { method: 'DELETE' }))).json(), { ok: true });
 });
 
 // ⚠ TWO DEVICES APPENDING AT ONCE (Codex, #2255): a read, append and upsert let the later
@@ -194,8 +211,8 @@ test('website: loads after sign-in, appends each answered exchange, clears on ev
   // answers (Codex, #2391; run in nora-thread-load-retry).
   assert.match(W, /if \(!dirtyRef\.current \|\| rekeyed\) \{/);
   assert.match(W, /if \(!hydratedRef\.current \|\| !storeKeyRef\.current \|\| authProbe === "unknown"\) return;/);
-  assert.match(W, /if \(reply\) cwNoraSave\(\[\{ role: "user", text, at: sentAt \}, \{ role: "assistant", text: reply, at: new Date\(\)\.toISOString\(\) \}\]\);/, 'the scripted fallback is never kept');
-  assert.match(W, /body: JSON\.stringify\(\{ append: messages \}\)/);
+  assert.match(W, /if \(reply\) cwNoraSave\(\[\{ role: "user", text, at: sentAt \}, \{ role: "assistant", text: reply, at: new Date\(\)\.toISOString\(\) \}\], answeredAs\);/, 'the scripted fallback is never kept; an answer is held as the account she gave it as');
+  assert.match(W, /body: JSON\.stringify\(account \? \{ append: messages, account \} : \{ append: messages \}\)/, 'each append names the account the copy belongs to (Codex on #2393; run in nora-thread-load-retry)');
   const load = between(W, 'const cwLoadNoraThread = (isCancelled) => {', 'const clearNoraThread');
   assert.match(load, /if \(!stored\.length\) \{/, 'a browser\'s own copy is sent up only when the account has none');
   // ⚠ A QUESTION ASKED WHILE IT LOADS (Codex, #2255): kept after the stored thread, and an
@@ -203,31 +220,51 @@ test('website: loads after sign-in, appends each answered exchange, clears on ev
   assert.match(load, /const \{ base, gen, mine \} = noraFromRef\.current \|\| /);
   assert.match(load, /const since = msgs\.slice\(Math\.max\(base, head \? 1 : 0\)\);\n\s+const kept = \[\.\.\.stored\.map\(cwNoraMsg\), \.\.\.since\];/);
   assert.match(load, /const msgs = mine \? cwNoraLocal\(\)\.slice\(0, base\) : \[\];/, 'only the browser\'s own copy migrates, never one kept under the signed-out key; what was said while loading saves itself');
-  assert.match(load, /cwNoraPost\(cwNoraHeld\(\)\);/);
-  assert.match(W, /if \(!noraThreadSyncRef\.current\) \{ noraHeldRef\.current = \[\.\.\.noraHeldRef\.current, \.\.\.messages\]\.slice\(-20\); return; \}/);
+  assert.match(load, /cwNoraPost\(cwNoraHeld\(j\.account\)\);/, 'only what was answered as the account it loaded as (Codex on #2393)');
+  assert.match(W, /if \(!noraThreadSyncRef\.current\) \{ noraHeldRef\.current = \[\.\.\.noraHeldRef\.current, \.\.\.messages\.map\(\(m\) => \(\{ \.\.\.m, _as: answeredAs \|\| null \}\)\)\]\.slice\(-20\); return; \}/);
   // ⚠ CLEAR WHILE SHE ANSWERS (Codex, #2255): the late answer is neither drawn nor saved.
   const clear = between(W, 'const clearNoraThread = () => {', 'stopNora();');
   assert.match(clear, /noraThreadGenRef\.current \+= 1;\n\s+noraHeldRef\.current = \[\];/);
   // And an answer that lands after the account changed is not the next account's (Codex, #2391).
-  assert.match(W, /const gen = noraThreadGenRef\.current;[\s\S]{0,4000}if \(gen !== noraThreadGenRef\.current \|\| acct !== noraAcctRef\.current\) return null;\n\s+setTyping\(false\);\n\s+setNoraLive\(""\);\n\s+const finalReply = reply \|\| supportReply\(text\);/);
-  assert.match(load, /if \(gen !== noraThreadGenRef\.current\) \{[\s\S]{0,300}method: "DELETE"/, 'cleared while it loaded: the Clear applies to the account');
-  assert.match(W, /fetch\("\/api\/nora\/thread", \{ method: "DELETE", credentials: "same-origin" \}\)/);
+  assert.match(W, /const gen = noraThreadGenRef\.current;[\s\S]{0,4000}if \(gen !== noraThreadGenRef\.current \|\| acct !== noraAcctRef\.current\) return null;\n\s+setTyping\(false\);\n\s+setNoraLive\(""\);\n[^\n]*\n\s+if \(refused\) \{[^\n]*\}\n\s+const finalReply = reply \|\| supportReply\(text\);/);
+  assert.match(load, /if \(gen !== noraThreadGenRef\.current\) \{[\s\S]{0,300}cwNoraDelete\(\)\.then/, 'cleared while it loaded: the Clear applies to the account');
+  // Cleared as the account the copy belongs to (Codex on #2393; run in nora-thread-load-retry).
+  assert.match(W, /fetch\(`\/api\/nora\/thread\$\{account \? `\?account=\$\{encodeURIComponent\(account\)\}` : ""\}`, \{ method: "DELETE", credentials: "same-origin" \}\)/);
   assert.match(W, /<button type="button" data-nora-clear onClick=\{clearNoraThread\}/);
 });
 
 test('app: loads once a session into an untouched thread, appends what it said, clears, and lists it in Settings', () => {
   const APP = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
   const BE = read('mobile-app/src/services/shapeBackend.js');
-  assert.match(BE, /async append\(messages\) \{ const p = await noraThreadCall\('POST', \{ append: messages \}\); return !!\(p && p\.ok\); \}/);
-  assert.match(BE, /if \(!token\) return null;/, 'signed out, nothing is written');
+  assert.match(BE, /async append\(messages, \{ account \} = \{\}\) \{\n\s+const p = await noraThreadCall\('POST', account \? \{ append: messages, account \} : \{ append: messages \}\);\n\s+return p && p\.accountChanged \? 'account_changed' : !!\(p && p\.ok\);/);
+  // ⚠ THE TOKEN WHEN THERE IS ONE, THE WEBSITE'S COOKIE OTHERWISE (the trace for the owner,
+  // 2026-10-17): the hosted /m/ app signed out in its own client saved nothing while the server
+  // answered as the account. A visitor's 401 is still null: nothing written.
+  const call = between(BE, 'async function noraThreadCall(', 'const noraThread = {');
+  assert.match(call, /await shapeApiFetch\(`\/api\/nora\/thread\$\{query\}`, \{ method,/);
+  assert.doesNotMatch(call, /liveAccessToken|if \(!token\)/, 'no token gate of its own');
+  assert.match(call, /if \(res\.ok\) return payload;\n\s+if \(res\.status === 401\) return \{ signedOut: true \};\n\s+return payload && payload\.code === 'account_changed' \? \{ accountChanged: true \} : null;/);
   const sheet = between(APP, 'function BSNoraSheet(', '// Chat tab for ALL roles');
-  assert.match(sheet, /if \(_bsNoraThreadWho !== _bsNoraWho\(\)\) \{ _bsNoraThread = null; _bsNoraThreadWho = _bsNoraWho\(\); _bsNoraLoaded = null; \}/, 'another account\'s thread is never shown, and signing back in loads again (Codex, #2255)');
+  assert.match(sheet, /if \(_bsNoraThreadWho !== _bsNoraWho\(\)\) \{ _bsNoraThread = null; _bsNoraThreadWho = _bsNoraWho\(\); _bsNoraLoaded = null; _bsNoraSynced = null; _bsNoraCookie = null; _bsNoraHeld = \[\]; \}/, 'another account\'s thread is never shown, and signing back in loads again (Codex, #2255)');
+  // Signed out in the app, the store's own answer decides: the load is asked for 'anon' too.
+  assert.doesNotMatch(sheet, /if \(who === 'anon' \|\| !window\.ShapeSupport\?\.thread\) return;/);
+  assert.match(sheet, /if \(!Array\.isArray\(list\)\) \{\n\s+_bsNoraLoaded = null;\n[^\n]*\n\s+if \(r && r\.signedOut\) _bsNoraDropOther\(null\);\n\s+return;\n\s+\}\n\s+_bsNoraMarkSynced\(who, r\.account\);\n\s+setPersonSynced\(true\);/, 'signed out now, a shown exchange answered as an account goes (Codex on #2393)');
+  // A Clear takes what was held for the store with it.
+  assert.match(between(sheet, 'const clearThread = async () => {', 'if (!window.ShapeSupport?.thread) return;'), /_bsNoraHeld = \[\];/);
+  // A reopen through the cookie that finds another account, or none, starts again (Codex on #2393).
+  assert.match(sheet, /if \(who === 'anon' && r && \(r\.signedOut \|\| \(r\.account && _bsNoraCookie && r\.account !== _bsNoraCookie\)\)\) \{\n\s+_bsNoraForget\(\);\n\s+if \(!r\.signedOut\) firstLoad\(\);\n\s+return;\n\s+\}/);
+  // "Talk to a person" names the account the conversation belongs to, and a refusal starts again.
+  assert.match(sheet, /const account = _bsNoraAccount\(\);\n\s+const r = await window\.ShapeSupport\.talkToPerson\(\{ question, surface: 'app', page: _bsNoraOpen\.page \|\| null, account \}\)/);
+  assert.match(sheet, /if \(r && r\.code === 'account_changed'\) \{\n\s+setPersonForm\(null\);\n\s+_bsNoraForget\(\);/);
+  // Clear clears as the account the conversation belongs to, and with nothing loaded through the
+  // cookie there is nothing stored to clear (Codex on #2393).
+  assert.match(between(sheet, 'const clearThread = async () => {', 'if (!ok) window.__bsToast'), /const account = _bsNoraAccount\(\);\n\s+if \(!account\) return;\n\s+const ok = await window\.ShapeSupport\.thread\.clear\(\{ account \}\);\n\s+if \(ok === 'account_changed'\) \{ _bsNoraForget\(\); return; \}/);
   // ⚠ CLEAR WHILE SHE ANSWERS (Codex, #2255), in the sheet and in Settings.
   assert.match(between(sheet, 'const clearThread = async () => {', 'const ok = await'), /_bsNoraGen \+= 1;/);
-  assert.match(sheet, /const gen = _bsNoraGen;[\s\S]{0,900}if \(gen !== _bsNoraGen\) return null;\n\s+const reply =/);
-  assert.match(between(APP, 'function BSNoraThreadCard(', 'return ('), /_bsNoraGen \+= 1;\n\s+const ok = await window\.ShapeSupport\?\.thread\?\.clear\?\.\(\);/);
+  assert.match(sheet, /const gen = _bsNoraGen;[\s\S]{0,1200}if \(gen !== _bsNoraGen\) return null;\n\s+\/\/ Refused as another account[^\n]*\n\s+if \(res && res\.accountChanged\) \{[^}]*\}\n\s+const reply =/);
+  assert.match(between(APP, 'function BSNoraThreadCard(', 'return ('), /_bsNoraGen \+= 1;\n\s+const ok = await window\.ShapeSupport\?\.thread\?\.clear\?\.\(accountRef\.current \? \{ account: accountRef\.current \} : undefined\);\n\s+if \(ok === 'account_changed'\) \{ setCount\(null\); return; \}/);
   assert.match(sheet, /if \(!list\.length \|\| cur\.length !== 1\) return;/);
-  assert.match(sheet, /if \(res && res\.reply\) _bsNoraSave\(\[\{ role: 'user', text: clean, at: sentAt \}, \{ role: 'assistant', text: reply/);
+  assert.match(sheet, /if \(res && res\.reply\) _bsNoraSave\(\[\{ role: 'user', text: clean, at: sentAt \}, \{ role: 'assistant', text: reply, at: new Date\(\)\.toISOString\(\) \}\], res\.account \|\| null\);/, 'kept with the account she answered as (Codex on #2393)');
   assert.match(sheet, /<button type="button" onClick=\{clearThread\}/);
   const page = between(APP, 'function BSNoraMemoryPage(', 'function BSNotifyPrefs(');
   assert.match(page, /<BSNoraThreadCard \/>/);

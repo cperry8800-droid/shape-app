@@ -1367,6 +1367,15 @@ export async function POST(request: Request) {
   // signed-in-NON-member request runs the exact pre-PR-B path — same prompt,
   // same TOOLS array, no context — byte-identical behavior.
   const actor = await resolveActor(request).catch(() => null);
+  // ⚠ A CONVERSATION LOADED AS ONE ACCOUNT IS NEVER ANSWERED AS ANOTHER (Codex on #2393). The app
+  // signed out in its own client asks through the website's cookie, which can change account in
+  // another tab while the app holds the first account's thread; it names the account the thread
+  // loaded as (`account`), and a request whose caller is not that account is refused before any
+  // of its history is read.
+  const meant = (body as { account?: unknown }).account;
+  if (typeof meant === 'string' && meant && (!actor || actor.user.id !== meant)) {
+    return NextResponse.json({ error: "You're signed in as another account now. Open the conversation again.", code: 'account_changed', account: actor ? actor.user.id : null }, { status: 409 });
+  }
   // ⚠ WHAT DOES NOT WAIT ON MEMBERSHIP STARTS NOW (speed, 2026-10-08: about a second of setup
   // ran one read after another before the model was asked). The Shape team's replies need
   // only the account. A coach's Schedule zone needs only their role, the same profile row
@@ -1462,8 +1471,11 @@ export async function POST(request: Request) {
   const counted = countedEarly
     ? settledValue(await countedEarly)
     : await countQuestion(await clientForRequest(request).catch(() => null), { tier, uid: null, visitorId, ip: requestIp(request) });
+  // `account`: who Nora answered as (null for a visitor). A panel that saves the exchange to the
+  // account's conversation names it, so a cookie that changed account while she answered saves
+  // nothing to the other one (/api/nora/thread refuses the mismatch; Codex on #2393).
   const respond = (payload: Record<string, unknown>, init?: ResponseInit) => {
-    const res = NextResponse.json(payload, init);
+    const res = NextResponse.json({ ...payload, account: actor ? actor.user.id : null }, init);
     if (setCookie) res.headers.append('Set-Cookie', setCookie);
     return res;
   };
@@ -1555,7 +1567,7 @@ export async function POST(request: Request) {
         try {
           const ai = await ask(sink);
           if (timer) { clearTimeout(timer); timer = null; }
-          send('done', await answer(ai));
+          send('done', { ...(await answer(ai)), account: actor ? actor.user.id : null });
         } catch {
           send('done', { reply: '', source: 'error', actions: [] });
         } finally {

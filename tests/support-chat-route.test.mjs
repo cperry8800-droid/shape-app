@@ -216,7 +216,8 @@ test('⚠ A LOOKUP RUNS: the model asks for the plan, the member\'s own rows com
   assert.equal(result.training.coach, 'Maya Okafor');
   assert.equal(result.training.thisWeek[0].title, 'Upper body — push');
   assert.deepEqual(result.training.todays, ['Upper body — push'], 'a row dated today is today\'s session');
-  assert.deepEqual(out, { reply: 'Today is Upper body — push: bench press 4 × 6, from Maya.', source: 'ai', actions: [], model: 'pinned' });
+  // `account`: who she answered as, so a panel keeps the exchange as that account only (Codex on #2393).
+  assert.deepEqual(out, { reply: 'Today is Upper body — push: bench press 4 × 6, from Maya.', source: 'ai', actions: [], model: 'pinned', account: 'member-1' });
 });
 
 test('a read that fails answers ok:false to the model — never an empty plan — and a read for a non-member fails closed', async () => {
@@ -1079,7 +1080,32 @@ test('STREAM: the limit and the bot check still answer as JSON, and no model wri
   assert.match(passed.headers.get('content-type'), /^text\/event-stream/);
   assert.match(passed.headers.get('set-cookie') || '', /^shape_nora_v=/);
   const evs = await events(passed);
-  assert.deepEqual(evs[evs.length - 1], ['done', { reply: 'Hi!', source: 'ai', actions: [], model: evs[evs.length - 1][1].model }]);
+  assert.deepEqual(evs[evs.length - 1], ['done', { reply: 'Hi!', source: 'ai', actions: [], model: evs[evs.length - 1][1].model, account: null }], 'a visitor: answered as no account');
+});
+
+test('⚠ a conversation loaded as one account is refused as another, before its history is read (Codex on #2393)', async () => {
+  const history = { messages: [{ role: 'user', content: 'my private question' }, { role: 'assistant', content: 'my private answer' }, { role: 'user', content: 'and now?' }] };
+  for (const [opts, who] of [[{}, U], [{ user: null }, null]]) {
+    for (const stream of [false, true]) {
+      const r = await loadRoute({ ...opts, answers: [say('x')] });
+      const res = await r.mod.POST(post({ ...history, stream, account: 'someone-else' }));
+      assert.equal(res.status, 409, `${who || 'a visitor'} asked for someone-else's conversation: refused`);
+      assert.match(res.headers.get('content-type'), /application\/json/);
+      assert.deepEqual(await res.json(), { error: "You're signed in as another account now. Open the conversation again.", code: 'account_changed', account: who });
+      assert.equal(r.calls.ai.length, 0, 'no model read the history');
+      assert.equal(r.calls.rate.length, 0, 'and nothing counted against a limit');
+    }
+  }
+  // The account it loaded as is answered as before; no `account` is a request as before.
+  const same = await loadRoute({ answers: [say('Still here.')] });
+  const ok = await same.mod.POST(post({ ...history, account: U }));
+  assert.equal(ok.status, 200);
+  assert.equal((await ok.json()).account, U);
+  assert.equal(same.calls.ai.length, 1);
+  for (const account of [undefined, '', 42]) {
+    const plain = await loadRoute({ answers: [say('Hi.')] });
+    assert.equal((await plain.mod.POST(post({ ...history, account }))).status, 200, `account ${JSON.stringify(account)} names nothing`);
+  }
 });
 
 test('STREAM: with no model she still answers, as the done event', async () => {

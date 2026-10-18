@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { solveTurnstile } from '@/components/Turnstile';
 
@@ -15,6 +15,7 @@ type Message = {
 // It now asks the same endpoint as every other Nora; a failure says so and gives the
 // address a person actually reads (nothing records a question for the team).
 const NORA_DOWN = "I can't be reached right now. Try again in a moment, or email the Shape team at info@theshapecommunity.com.";
+const NORA_SWITCHED = "You're signed in as another account now, so this conversation started again.";
 
 // Nora's follow-ups as plain links: a same-site path only, whatever the reply carries.
 export function noraLinks(actions: unknown): { label: string; url: string }[] {
@@ -29,11 +30,15 @@ export function noraLinks(actions: unknown): { label: string; url: string }[] {
   return out;
 }
 
+// `account`: the account this conversation is with (from her first answer). A cookie that is
+// someone else's by the next question is refused before its history is read (Codex on #2393),
+// and `refused` comes back instead of a reply.
 export async function askNora(
   history: Message[],
   fetcher: typeof fetch = fetch,
   solve: () => Promise<string> = solveTurnstile,
-): Promise<{ reply: string; links: { label: string; url: string }[] }> {
+  account: string | null = null,
+): Promise<{ reply: string; links: { label: string; url: string }[]; account: string | null; refused?: boolean }> {
   const post = async (extra: Record<string, unknown>) => {
     const res = await fetcher('/api/support/chat', {
       method: 'POST',
@@ -44,10 +49,11 @@ export async function askNora(
         // This panel renders text and links only, so Nora is asked for no drafted changes.
         confirmCards: false,
         messages: history.slice(-12).map((m) => ({ role: m.from === 'you' ? 'user' : 'assistant', content: m.text })),
+        ...(account ? { account } : {}),
         ...extra,
       }),
     });
-    const data = (await res.json().catch(() => ({}))) as { reply?: unknown; actions?: unknown; needsCheck?: unknown };
+    const data = (await res.json().catch(() => ({}))) as { reply?: unknown; actions?: unknown; needsCheck?: unknown; account?: unknown; code?: unknown };
     return { res, data };
   };
   try {
@@ -57,12 +63,33 @@ export async function askNora(
       const token = await solve().catch(() => '');
       if (token) ({ res, data } = await post({ turnstileToken: token }));
     }
+    if (res.status === 409 && data.code === 'account_changed') return { reply: '', links: [], account: null, refused: true };
     const ok = res.ok || data.needsCheck === true;
-    if (!ok || typeof data.reply !== 'string' || !data.reply.trim()) return { reply: NORA_DOWN, links: [] };
-    return { reply: data.reply, links: noraLinks(data.actions) };
+    if (!ok || typeof data.reply !== 'string' || !data.reply.trim()) return { reply: NORA_DOWN, links: [], account: null };
+    // Who she answered as (null for a visitor): the exchange is kept as that account only.
+    return { reply: data.reply, links: noraLinks(data.actions), account: typeof data.account === 'string' && data.account ? data.account : null };
   } catch {
-    return { reply: NORA_DOWN, links: [] };
+    return { reply: NORA_DOWN, links: [], account: null };
   }
+}
+
+// The account keeps one conversation with Nora (/api/nora/thread), which the website pop-up
+// and the app continue: an answered exchange here is appended to it too. This panel kept
+// nothing, so what was asked on a dashboard or admin page was lost to both (the trace for the
+// owner, 2026-10-17). A failure is silent.
+// ⚠ AS THE ACCOUNT SHE ANSWERED (Codex on #2393). The cookie can change account in another tab
+// while she answers; the append names `account` (from the answer), and the thread route refuses
+// one that is no longer the caller, so one account's exchange never lands in another's
+// conversation. A visitor's answer names none, and nothing is kept.
+export function keepNoraExchange(question: string, reply: string, account: string | null, fetcher: typeof fetch = fetch): void {
+  if (!account) return;
+  const at = new Date().toISOString();
+  fetcher('/api/nora/thread', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ append: [{ role: 'user', text: question, at }, { role: 'assistant', text: reply, at }], account }),
+  }).catch(() => {});
 }
 
 export default function GlobalChatButton() {
@@ -76,6 +103,9 @@ export default function GlobalChatButton() {
       text: "Hi, I'm Nora, Shape's concierge. Ask me about coaches, billing, the app or your account.",
     },
   ]);
+
+  // The account this conversation is with: from her first answer as one, named on each later question.
+  const accountRef = useRef<string | null>(null);
 
   const [quick, setQuick] = useState<string[]>(['Find me a coach', 'What does Shape cost?', 'How does coaching work?']);
   const [greeted, setGreeted] = useState(false);
@@ -108,8 +138,20 @@ export default function GlobalChatButton() {
     setMessages(next);
     setDraft('');
     setBusy(true);
-    const { reply, links } = await askNora(next);
+    const { reply, links, account, refused } = await askNora(next, fetch, solveTurnstile, accountRef.current);
+    if (refused) {
+      // The conversation was the last account's: it starts again from her greeting, says why, and
+      // the question goes back in the box.
+      accountRef.current = null;
+      setMessages([next[0], { from: 'shape', text: NORA_SWITCHED }]);
+      setDraft(value);
+      setBusy(false);
+      return;
+    }
+    if (account && !accountRef.current) accountRef.current = account;
     setMessages((current) => [...current, { from: 'shape', text: reply, links }]);
+    // Only an answer: "can't be reached" is not part of the conversation.
+    if (reply !== NORA_DOWN) keepNoraExchange(value, reply, account);
     setBusy(false);
   }
 

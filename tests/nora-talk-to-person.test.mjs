@@ -198,6 +198,18 @@ test('POST: the question and the STORED conversation are saved as an open reques
   assert.match(r.sent[0].subject, /Priya Shah/);
 });
 
+// ⚠ THE APP SIGNED OUT IN ITS OWN CLIENT SENDS THIS THROUGH THE WEBSITE'S COOKIE (Codex on #2393),
+// naming the account its conversation loaded as. A cookie that changed account since is refused.
+test('POST: a question meant for another account is refused and nothing is saved or emailed', async () => {
+  const r = await loadRequest();
+  const out = await r.post({ question: 'Refund?', surface: 'app', account: 'someone-else' });
+  assert.equal(out.status, 409);
+  assert.equal(out.body.code, 'account_changed');
+  assert.equal((r.db._tables.support_requests || []).length, 0);
+  assert.equal(r.sent.length, 0);
+  assert.equal((await r.post({ question: 'Refund?', surface: 'app', account: U })).status, 200, 'its own account goes through');
+});
+
 test('POST: signed out, empty, three a day, not set up, and an email that fails still saves', async () => {
   assert.equal((await (await loadRequest({ user: null })).post({ question: 'Hi' })).status, 401);
   assert.equal((await (await loadRequest()).post({ question: '   ' })).status, 400);
@@ -328,9 +340,11 @@ test('the website panel: the button for a signed-in conversation, a form, and th
 test('the app sheet: the same button and form, the team drawn as a person, and the call through the backend', async () => {
   const A = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
   const B = read('mobile-app/src/services/shapeBackend.js');
-  assert.match(B, /fetch\(`\$\{apiBaseUrl\}\/api\/support\/request`, \{\n\s+method: 'POST',\n\s+headers: \{ Authorization: `Bearer \$\{token\}`/);
+  // The token when the app has one, the website's cookie otherwise (the trace, 2026-10-17).
+  assert.match(B, /const res = await shapeApiFetch\('\/api\/support\/request', \{\n\s+method: 'POST',/);
+  assert.doesNotMatch(B.slice(B.indexOf('async function talkToPerson('), B.indexOf('window.ShapeSupport = {')), /liveAccessToken|if \(!token\)/);
   assert.match(B, /greeting: noraGreeting,\n\s+talkToPerson,\n\};/);
-  assert.match(A, /const personOk = _bsNoraWho\(\) !== 'anon' && !!window\.ShapeSupport\?\.talkToPerson;/);
+  assert.match(A, /const personOk = \(_bsNoraWho\(\) !== 'anon' \|\| personSynced\) && !!window\.ShapeSupport\?\.talkToPerson;/);
   assert.match(A, /const hist = next\.map\(m => \(\{ role: m\.team \? 'team' : m\.me \? 'user' : 'assistant'/);
   const { loadBroadsheet } = await import('./helpers/broadsheet-mount.mjs');
   const { bsNoraFromStored } = await loadBroadsheet(['bsNoraFromStored']);
@@ -349,7 +363,7 @@ test('a reply sent after the conversation loaded joins it the next time it opens
   assert.deepEqual(next.slice(2).map((m) => [m.who, m.t, m.team, m.bot]), [['Shape team', 'Also credited a month.', true, false]], 'only the reply the sheet does not show yet');
   assert.equal(bsNoraNewTeam(next, list), null, 'nothing new, nothing published');
   // The sheet asks on every open after the first load; the first open loads the whole thread.
-  assert.match(app, /if \(_bsNoraLoaded === who\) \{\n      \/\/ Loaded earlier this session: a reply the Shape team sent since joins it on this open\.\n      window\.ShapeSupport\.thread\.load\(\)\.then\(\(list\) => \{\n        if \(_bsNoraLoaded !== who\) return;\n        const next = bsNoraNewTeam\(_bsNoraThread \|\| \[SUPPORT_GREETING\], list\);\n        if \(next\) _bsNoraPublish\(next\);/);
+  assert.match(app, /if \(_bsNoraLoaded === who\) \{\n      \/\/ Loaded earlier this session: a reply the Shape team sent since joins it on this open\.\n      read\(\)\.then\(\(r\) => \{\n        if \(_bsNoraLoaded !== who\) return;[\s\S]{0,600}const next = bsNoraNewTeam\(_bsNoraThread \|\| \[SUPPORT_GREETING\], r && r\.messages\);\n        if \(next\) _bsNoraPublish\(next\);/);
 
   const web = read('public/newdesign/chatWidget.jsx');
   assert.match(web, /React\.useEffect\(\(\) => \{ if \(open\) cwPullTeam\(\); \}, \[open\]\);/, 'each time the panel opens');

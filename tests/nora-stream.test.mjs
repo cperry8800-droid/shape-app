@@ -257,9 +257,26 @@ test('the app: JSON still answers a streamed ask (the limit), and a broken strea
   await assert.rejects(failed.ask([{ role: 'user', content: 'x' }], undefined, { onText: () => {} }), /unavailable/, 'the sheet shows its "can\'t be reached" line, as for a 500');
 });
 
+test('the app names the account its thread loaded as, and a refusal for another account is no answer (Codex on #2393)', async () => {
+  const refused = { error: "You're signed in as another account now. Open the conversation again.", code: 'account_changed', account: 'acct-B' };
+  for (const onText of [undefined, () => {}]) {
+    const c = appClient(() => new Response(JSON.stringify(refused), { status: 409, headers: { 'Content-Type': 'application/json' } }));
+    const r = await c.ask([{ role: 'user', content: 'x' }], undefined, { onText, account: 'acct-A' });
+    assert.equal(c.calls[0].account, 'acct-A');
+    assert.deepEqual(r, { reply: '', accountChanged: true, error: refused.error }, onText ? 'streamed' : 'plain');
+  }
+  // No account to name (signed in with the app's token, or a visitor): none is sent.
+  const plain = appClient(() => new Response(JSON.stringify({ reply: 'hi', actions: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+  await plain.ask([{ role: 'user', content: 'x' }], undefined, { account: null });
+  assert.ok(!('account' in plain.calls[0]));
+  // Any other 409 is still a failed request.
+  const other = appClient(() => new Response(JSON.stringify({ error: 'busy' }), { status: 409, headers: { 'Content-Type': 'application/json' } }));
+  await assert.rejects(other.ask([{ role: 'user', content: 'x' }]), /busy/);
+});
+
 // ── The app's Nora sheet ───────────────────────────────────────────────────────
 globalThis.document = globalThis.document || { getElementById: () => null, body: {} };
-const sheet = await loadBroadsheet(['BSNoraSheet', '_bsNoraPublish', '_bsNoraLiveSet', '_bsNoraLive']);
+const sheet = await loadBroadsheet(['BSNoraSheet', '_bsNoraPublish', '_bsNoraLiveSet', '_bsNoraLive', '_bsNoraMarkSynced', '_bsNoraForget', '_bsNoraGen', '_bsNoraSave']);
 const reset = () => { sheet._bsNoraPublish(null, false); sheet._bsNoraLiveSet(''); };
 const open = () => drive(sheet.BSNoraSheet, { onClose: () => {} });
 const composer = (d) => d.nodes().find((n) => n.props && typeof n.props.onSend === 'function');
@@ -305,6 +322,74 @@ test('a send streams into the sheet, and the finished reply replaces the live te
   } finally { delete window.ShapeSupport; reset(); }
 });
 
+test('a thread loaded through the website cookie names its account; refused as another, the sheet starts again (Codex on #2393)', async () => {
+  reset();
+  const toasts = [];
+  const asked = [];
+  window.ShapeAuth = { getCachedState: () => ({ user: null }) };
+  window.__bsToast = (text, kind) => toasts.push([text, kind]);
+  window.ShapeSupport = {
+    ask: async (hist, tone, extra) => {
+      asked.push(extra.account);
+      return extra.account === 'acct-A' && asked.length === 1
+        ? { reply: 'Leg day.', actions: [], account: 'acct-A' }
+        : { reply: '', accountChanged: true, error: "You're signed in as another account now. Open the conversation again." };
+    },
+    thread: { append: () => Promise.resolve(true) },
+  };
+  try {
+    sheet._bsNoraForget();
+    sheet._bsNoraMarkSynced('anon', 'acct-A');
+    sheet._bsNoraPublish([{ who: 'Nora', t: 'Hi.', time: 'now', me: false, bot: true }, { who: 'You', t: 'my private question', time: 'now', me: true }]);
+    const d = open();
+    composer(d).props.onChange('what is on today?');
+    d.render();
+    await composer(d).props.onSend();
+    assert.match(open().text, /Leg day\./, 'the account it loaded as is answered as before');
+    const gen = sheet._bsNoraGen;
+    const e = open();
+    composer(e).props.onChange('and tomorrow?');
+    e.render();
+    await composer(e).props.onSend();
+    assert.deepEqual(asked, ['acct-A', 'acct-A'], 'every question names the account the thread loaded as');
+    assert.equal(sheet._bsNoraGen, gen + 1, 'the sheet starts again');
+    assert.doesNotMatch(open().text, /my private question|Leg day/, "the first account's conversation is gone");
+    e.render();
+    assert.equal(composer(e).props.value, 'and tomorrow?', 'what they typed goes back in the box');
+    assert.deepEqual(toasts, [["You're signed in as another account now. Open the conversation again.", 'err']]);
+    // Signed in with the app's own account, the question names that account: a token that is
+    // someone else's by the time it goes is refused the same way (the hosted /m/ app shares its
+    // sign-in across tabs).
+    window.ShapeAuth = { getCachedState: () => ({ user: { id: 'u1' } }) };
+    asked.length = 0;
+    window.ShapeSupport.ask = async (hist, tone, extra) => { asked.push(extra.account); return { reply: 'ok', actions: [] }; };
+    const f = open();
+    composer(f).props.onChange('hi');
+    f.render();
+    sheet._bsNoraMarkSynced('anon', 'acct-A');
+    await composer(f).props.onSend();
+    assert.deepEqual(asked, ['u1'], 'the account it was drawn for, not the cookie account');
+  } finally { delete window.ShapeSupport; delete window.ShapeAuth; delete window.__bsToast; sheet._bsNoraForget(); reset(); }
+});
+
+test('before the store has answered, a question names the account her held answers were given as (Codex on #2393)', async () => {
+  reset();
+  const asked = [];
+  window.ShapeAuth = { getCachedState: () => ({ user: null }) };
+  window.ShapeSupport = { ask: async (hist, tone, extra) => { asked.push(extra.account); return { reply: 'ok', actions: [], account: 'acct-A' }; } };
+  try {
+    sheet._bsNoraForget();
+    const d = open();
+    composer(d).props.onChange('first');
+    d.render();
+    await composer(d).props.onSend();
+    composer(d).props.onChange('second');
+    d.render();
+    await composer(d).props.onSend();
+    assert.deepEqual(asked, [null, 'acct-A'], 'nothing to name at first; then the account the first answer was given as');
+  } finally { delete window.ShapeSupport; delete window.ShapeAuth; sheet._bsNoraForget(); reset(); }
+});
+
 test('Clear takes the half-written answer with it, and later words are not drawn', async () => {
   reset();
   window.ShapeSupport = {
@@ -333,7 +418,7 @@ test('the website panel asks for a stream, reads one only when it gets one, and 
   const sendAt = WEB.indexOf('if (isSupport) {\n      const sentAt');
   const send = WEB.slice(sendAt, WEB.indexOf('// ── Voice input for Nora', sendAt));
   assert.ok(sendAt > 0 && send.length > 500 && send.length < 8000, 'could not delimit her branch of send()');
-  assert.match(send, /context: cwNoraContext\(\), stream: true, \.\.\.extra \}\)/);
+  assert.match(send, /context: cwNoraContext\(\), stream: true, \.\.\.\(account \? \{ account \} : \{\}\), \.\.\.extra \}\)/);
   assert.match(send, /onText: \(t\) => \{ if \(gen === noraThreadGenRef\.current && acct === noraAcctRef\.current\) setNoraLive\(t\); \}/, 'a cleared conversation, or another account\'s, draws no more words');
   assert.match(send, /const read = async \(r\) => \(r\.ok && cwIsNoraStream\(r\) \? \(\(await cwReadNoraStream\(r, live\)\) \|\| \{\}\) : await r\.json\(\)\.catch\(\(\) => \(\{\}\)\)\);/);
   assert.match(send, /let res = await ask\(\{\}\);\n\s+let data = await read\(res\);/);

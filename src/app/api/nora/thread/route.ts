@@ -1,11 +1,18 @@
 // One conversation with Nora per account (the Ask Nora plan, step 4): the website and the
 // app both pick it up, so a question asked on a laptop continues on the phone.
 //
-// GET                         -> { messages, updatedAt }  (no row yet: an empty list)
-// POST { append: [message] }  -> { ok, count }  the messages this device added since it
+// GET                         -> { messages, updatedAt, account }  (no row yet: an empty list)
+// POST { append: [message], account? }
+//                             -> { ok, count }  the messages this device added since it
 //                                 loaded; appended to what is stored (src/lib/ai/noraThread.mjs)
 //                                 409 `thread_busy` when other devices kept winning the write
-// DELETE                      -> { ok }  Clear, in the panel and in Settings
+// DELETE ?account=            -> { ok }  Clear, in the panel and in Settings
+//
+// ⚠ `account` IS THE ACCOUNT THE CALLER LOADED THE THREAD AS (GET answers it). The app signed out
+// in its own client reaches this through the website's cookie, and that cookie can change
+// account in another tab while the app still shows the first account's thread (Codex on #2393).
+// A write that names an account other than the caller's is refused (409 `account_changed`), so
+// one account's exchanges never land in another's conversation, and the app starts again.
 //
 // Any signed-in account, by cookie or Bearer token; a visitor's thread stays in their
 // browser. Read and written with the CALLER's client, so RLS holds every account to its
@@ -47,6 +54,12 @@ async function caller(request: Request): Promise<{ userId: string; supabase: Sup
   return { userId: user.id, supabase: await clientForRequest(request) };
 }
 
+// The account a write was meant for is not the one asking: nothing is written.
+function accountChanged(meant: unknown, userId: string) {
+  if (typeof meant !== 'string' || !meant || meant === userId) return null;
+  return json({ error: "You're signed in as another account now. Open the conversation again.", code: 'account_changed' }, 409);
+}
+
 async function readRow(supabase: Supa, userId: string) {
   return supabase.from('nora_threads').select('messages, updated_at').eq('user_id', userId).maybeSingle();
 }
@@ -68,14 +81,16 @@ export async function GET(request: Request) {
   // A reply from the Shape team ('team') is shown only when it is one of the account's answered
   // requests: the account can write this row directly, so its role alone proves nothing.
   const messages = await verifiedThread(who.supabase, who.userId, row?.messages, new Date());
-  return json({ messages, updatedAt: row?.updated_at ?? null });
+  return json({ messages, updatedAt: row?.updated_at ?? null, account: who.userId });
 }
 
 export async function POST(request: Request) {
   const who = await caller(request);
   if ('response' in who) return who.response;
-  const parsed = await readJson<{ append?: unknown }>(request);
+  const parsed = await readJson<{ append?: unknown; account?: unknown }>(request);
   if (!parsed.ok) return parsed.response;
+  const changed = accountChanged(parsed.data.account, who.userId);
+  if (changed) return changed;
   const now = new Date();
   const added = Array.isArray(parsed.data.append) ? parsed.data.append : [];
   // Nothing valid in the request is nothing to save: the stored row is left untouched.
@@ -112,6 +127,8 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   const who = await caller(request);
   if ('response' in who) return who.response;
+  const changed = accountChanged(new URL(request.url).searchParams.get('account'), who.userId);
+  if (changed) return changed;
   const { error } = await who.supabase.from('nora_threads').delete().eq('user_id', who.userId);
   if (error) return failed('clear', error);
   return json({ ok: true });

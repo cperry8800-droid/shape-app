@@ -25112,11 +25112,93 @@ function bsNoraNewTeam(cur, list) {
   const add = (Array.isArray(list) ? list : []).filter((m) => m && m.role === 'team' && !seen.has(String(m.text || ''))).map(bsNoraFromStored);
   return add.length ? [...(cur || []), ...add] : null;
 }
+// ⚠ SIGNED OUT IN THE APP IS NOT SIGNED OUT. The hosted /m/ app in a browser (and the
+// website's cook iframe) can have no session in its own client while the website's cookie
+// session is there, and the server answers Nora as that account (the trace for the owner,
+// 2026-10-17: the only signed-in exchanges in production were these, and none was kept).
+// So with the app signed out, the store's own answer decides: `_bsNoraSynced` is the 'who'
+// the stored thread loaded for, and what is said before it answers is held, then sent.
+let _bsNoraSynced = null;
+let _bsNoraHeld = [];
+// ⚠ AND THE COOKIE CAN CHANGE ACCOUNT UNDER THE SHEET (Codex on #2393): signed out, or signed in as
+// someone else, in another tab, while _bsNoraWho() stays 'anon'. `_bsNoraCookie` is the account
+// the stored thread loaded as; every write through the cookie names it, the server refuses one
+// that is not the caller's, and the sheet then starts again (_bsNoraForget). A reopen that finds
+// another account, or none, does the same.
+let _bsNoraCookie = null;
 // What this device added, appended to the account's thread; nothing is written signed out.
-function _bsNoraSave(messages) {
-  try { if (_bsNoraWho() !== 'anon') window.ShapeSupport?.thread?.append?.(messages); } catch (e) {}
+// `answeredAs` is the account Nora answered it as (/api/support/chat `account`, null for a
+// visitor): a held exchange keeps it, so one answered as account A is never sent once the
+// cookie loads as account B (Codex on #2393).
+function _bsNoraSave(messages, answeredAs = null) {
+  try {
+    const who = _bsNoraWho();
+    if (who !== 'anon') {
+      // Answered as another account (the app's own account changed while she answered, in
+      // another tab of the hosted /m/ app): it is not this account's to keep (Codex on #2393).
+      if (answeredAs && answeredAs !== who) return;
+      _bsNoraAppendAs(messages, who);
+      return;
+    }
+    if (_bsNoraSynced === who) { _bsNoraAppendAs(messages, _bsNoraCookie); return; }
+    _bsNoraHeld = [..._bsNoraHeld, ...messages.map((m) => ({ ...m, _as: answeredAs || null }))].slice(-20);
+  } catch (e) {}
+}
+// Every write names the account it is for, so a caller who is someone else now is refused.
+function _bsNoraAppendAs(messages, account) {
+  try {
+    Promise.resolve(window.ShapeSupport?.thread?.append?.(messages, { account }))
+      .then((r) => { if (r === 'account_changed') _bsNoraForget(); }).catch(() => {});
+  } catch (e) {}
+}
+// ⚠ WHAT THE SHEET SHOWS CAN BE ANOTHER ACCOUNT'S (Codex on #2393). While the store can't answer,
+// an exchange answered as account A is held and shown; if the store then answers as B, or as no
+// account, A's exchange stays out of B's conversation and the thread on screen goes too, as at a
+// Clear (an answer on its way is dropped), or the next question would carry A's transcript as B.
+// True when it went.
+function _bsNoraDropOther(account) {
+  if (!_bsNoraHeld.some((m) => m._as && m._as !== account)) return false;
+  _bsNoraHeld = _bsNoraHeld.filter((m) => !m._as || m._as === account);
+  _bsNoraGen += 1;
+  _bsNoraLive = '';
+  _bsNoraPublish([_bsNoraSeed()]);
+  return true;
+}
+// The account the held exchanges were answered as, while the store has not answered: the next
+// question names it, so a cookie that is another account by then is refused (and the sheet starts
+// again). That is also why they never hold two accounts.
+const _bsNoraHeldAs = () => (_bsNoraHeld.find((m) => m._as) || {})._as || null;
+// The store answered for `who` (as `account`, through the cookie): what was said before it is sent now.
+function _bsNoraMarkSynced(who, account = null) {
+  _bsNoraSynced = who;
+  if (who === 'anon') _bsNoraCookie = account || null;
+  // Only what was answered as this account (or as no account, said before signing in) is sent.
+  if (account) _bsNoraDropOther(account);
+  const held = _bsNoraHeld.map(({ _as, ...m }) => m);
+  _bsNoraHeld = [];
+  if (!held.length) return;
+  _bsNoraAppendAs(held, who === 'anon' ? _bsNoraCookie : who);
+}
+// The greeting a thread starts from (BSNoraSheet's seed).
+function _bsNoraSeed() {
+  return { who: 'Nora', t: "Hi, I'm Nora — Shape's concierge. Ask me anything: connecting integrations, your plan, billing, or your account. If I can't sort it out, the Shape team answers at info@theshapecommunity.com.", time: 'now', me: false, bot: true, greet: true };
+}
+// The website's cookie answers for another account now, or for none: the thread the sheet holds
+// is the last account's. It goes, with what was held for it, as a Clear would end it (an answer
+// on its way is dropped), and the next load is whoever the cookie is now.
+function _bsNoraForget() {
+  _bsNoraGen += 1;
+  try { window.ShapeVoice?.stop?.(); } catch (e) {}
+  _bsNoraLoaded = null; _bsNoraSynced = null; _bsNoraCookie = null; _bsNoraHeld = []; _bsNoraGreeted = null;
+  _bsNoraLive = '';
+  _bsNoraPublish([_bsNoraSeed()]);
 }
 const _bsNoraWho = () => { try { return window.ShapeAuth?.getCachedState?.()?.user?.id || 'anon'; } catch (e) { return 'anon'; } };
+// ⚠ WHOSE CONVERSATION THE SHEET HOLDS (Codex on #2393): the app's own account it was drawn for,
+// else the account it loaded as through the website's cookie (_bsNoraCookie is set only once it
+// has loaded); null for a visitor. Either can change in another tab while it is open, so every
+// question and write names it, and the server refuses one whose caller is someone else now.
+const _bsNoraAccount = () => (_bsNoraThreadWho && _bsNoraThreadWho !== 'anon' ? _bsNoraThreadWho : _bsNoraCookie);
 function _bsNoraPublish(thread, busy) {
   if (thread) _bsNoraThread = thread;
   if (typeof busy === 'boolean') _bsNoraBusy = busy;
@@ -25137,17 +25219,19 @@ function BSNoraSheet({ onClose }) {
   // Support assistant — one continuous AI-backed thread that lives for the
   // session. It stays put while you move between tabs, but a fresh app load /
   // reload starts a clean thread with the current greeting (no persistence).
-  const SUPPORT_GREETING = { who: 'Nora', t: "Hi, I'm Nora — Shape's concierge. Ask me anything: connecting integrations, your plan, billing, or your account. If I can't sort it out, the Shape team answers at info@theshapecommunity.com.", time: 'now', me: false, bot: true, greet: true };
+  const SUPPORT_GREETING = _bsNoraSeed();
   // Another account's session thread is never shown: a different account starts from its own.
   // The load marker goes with it: signing out and back into the same account loads again (Codex, #2255).
-  if (_bsNoraThreadWho !== _bsNoraWho()) { _bsNoraThread = null; _bsNoraThreadWho = _bsNoraWho(); _bsNoraLoaded = null; }
+  if (_bsNoraThreadWho !== _bsNoraWho()) { _bsNoraThread = null; _bsNoraThreadWho = _bsNoraWho(); _bsNoraLoaded = null; _bsNoraSynced = null; _bsNoraCookie = null; _bsNoraHeld = []; }
   const [supportMsgs, setSupportMsgs] = useStateBSC(() => _bsNoraThread || [SUPPORT_GREETING]);
   const [supportDraft, setSupportDraft] = useStateBSC(() => { const d = _bsNoraDraft; _bsNoraDraft = ''; return d; });
   const [supportBusy, setSupportBusy] = useStateBSC(() => _bsNoraBusy);
   const [supportLive, setSupportLive] = useStateBSC(() => _bsNoraLive);
   // "Talk to a person" (the Ask Nora plan, step 5): signed in only. The question goes to the
-  // Shape team with the stored conversation, and a person replies here and by email.
-  const personOk = _bsNoraWho() !== 'anon' && !!window.ShapeSupport?.talkToPerson;
+  // Shape team with the stored conversation, and a person replies here and by email. With the
+  // app signed out, once the store has answered for the website's session (_bsNoraSynced).
+  const [personSynced, setPersonSynced] = useStateBSC(() => _bsNoraSynced !== null && _bsNoraSynced === _bsNoraWho());
+  const personOk = (_bsNoraWho() !== 'anon' || personSynced) && !!window.ShapeSupport?.talkToPerson;
   const [personForm, setPersonForm] = useStateBSC(null); // null | { text, busy, err }
   const openPersonForm = () => {
     const mine = (_bsNoraThread || supportMsgs).filter((m) => m.me && m.t);
@@ -25158,7 +25242,15 @@ function BSNoraSheet({ onClose }) {
     const question = String(personForm.text || '').trim();
     if (!question) { setPersonForm({ ...personForm, err: tr('feed:support.person.empty', { defaultValue: 'Write your question first.' }) }); return; }
     setPersonForm({ ...personForm, busy: true, err: '' });
-    const r = await window.ShapeSupport.talkToPerson({ question, surface: 'app', page: _bsNoraOpen.page || null }).catch(() => ({ ok: false }));
+    // The account the conversation belongs to: one that changed since is refused.
+    const account = _bsNoraAccount();
+    const r = await window.ShapeSupport.talkToPerson({ question, surface: 'app', page: _bsNoraOpen.page || null, account }).catch(() => ({ ok: false }));
+    if (r && r.code === 'account_changed') {
+      setPersonForm(null);
+      _bsNoraForget();
+      if (r.error) window.__bsToast?.(r.error, 'err');
+      return;
+    }
     if (!r || !r.ok) {
       setPersonForm({ text: question, busy: false, err: (r && r.error) || tr('feed:support.person.failed', { defaultValue: 'Your question could not be sent. Try again in a moment.' }) });
       return;
@@ -25169,7 +25261,12 @@ function BSNoraSheet({ onClose }) {
     setPersonForm(null);
   };
   React.useEffect(() => {
-    const sync = () => { if (_bsNoraThread) setSupportMsgs(_bsNoraThread); setSupportBusy(_bsNoraBusy); setSupportLive(_bsNoraLive); };
+    const sync = () => {
+      if (_bsNoraThread) setSupportMsgs(_bsNoraThread);
+      setSupportBusy(_bsNoraBusy); setSupportLive(_bsNoraLive);
+      // A cookie account that changed (_bsNoraForget) takes "Talk to a person" with it.
+      setPersonSynced(_bsNoraSynced !== null && _bsNoraSynced === _bsNoraWho());
+    };
     _bsNoraSubs.add(sync);
     return () => { _bsNoraSubs.delete(sync); };
   }, []);
@@ -25192,24 +25289,46 @@ function BSNoraSheet({ onClose }) {
   // appended to it, so nothing is lost either way. Unavailable is tried again next open.
   React.useEffect(() => {
     const who = _bsNoraWho();
-    if (who === 'anon' || !window.ShapeSupport?.thread) return;
+    // 'anon' too: the website's cookie session may answer for it (_bsNoraSynced above).
+    if (!window.ShapeSupport?.thread) return;
+    // { messages, account } | { signedOut: true } | null: who the store answered as (the cookie's
+    // account, signed out in the app), so a reopen can tell when it changed.
+    const read = () => window.ShapeSupport.thread.loadAs();
+    const firstLoad = () => {
+      _bsNoraLoaded = who;
+      read().then((r) => {
+        if (_bsNoraLoaded !== who) return;
+        const list = r && r.messages;
+        if (!Array.isArray(list)) {
+          _bsNoraLoaded = null;
+          // Signed out now: a visitor's next question doesn't carry an account's exchange.
+          if (r && r.signedOut) _bsNoraDropOther(null);
+          return;
+        }
+        _bsNoraMarkSynced(who, r.account);
+        setPersonSynced(true);
+        const cur = _bsNoraThread || [SUPPORT_GREETING];
+        if (!list.length || cur.length !== 1) return;
+        _bsNoraPublish([cur[0], ...list.map(bsNoraFromStored)]);
+      }).catch(() => { if (_bsNoraLoaded === who) _bsNoraLoaded = null; });
+    };
     if (_bsNoraLoaded === who) {
       // Loaded earlier this session: a reply the Shape team sent since joins it on this open.
-      window.ShapeSupport.thread.load().then((list) => {
+      read().then((r) => {
         if (_bsNoraLoaded !== who) return;
-        const next = bsNoraNewTeam(_bsNoraThread || [SUPPORT_GREETING], list);
+        // Through the cookie, the account it loaded as is gone (signed out, or another account):
+        // the sheet starts again, with whoever the cookie is now.
+        if (who === 'anon' && r && (r.signedOut || (r.account && _bsNoraCookie && r.account !== _bsNoraCookie))) {
+          _bsNoraForget();
+          if (!r.signedOut) firstLoad();
+          return;
+        }
+        const next = bsNoraNewTeam(_bsNoraThread || [SUPPORT_GREETING], r && r.messages);
         if (next) _bsNoraPublish(next);
       }).catch(() => {});
       return;
     }
-    _bsNoraLoaded = who;
-    window.ShapeSupport.thread.load().then((list) => {
-      if (_bsNoraLoaded !== who) return;
-      if (!Array.isArray(list)) { _bsNoraLoaded = null; return; }
-      const cur = _bsNoraThread || [SUPPORT_GREETING];
-      if (!list.length || cur.length !== 1) return;
-      _bsNoraPublish([cur[0], ...list.map(bsNoraFromStored)]);
-    }).catch(() => { if (_bsNoraLoaded === who) _bsNoraLoaded = null; });
+    firstLoad();
   }, []);
   // Clear (in this sheet and in Settings → What Nora remembers): the conversation goes on
   // every device; the greeting stays, and what Nora remembers is untouched.
@@ -25219,9 +25338,17 @@ function BSNoraSheet({ onClose }) {
     _bsNoraGen += 1;
     try { window.ShapeVoice?.stop?.(); } catch (e) {}
     _bsNoraLive = '';
+    // What was held for the store goes with the conversation it was part of.
+    _bsNoraHeld = [];
     _bsNoraPublish([(_bsNoraThread || supportMsgs)[0] || SUPPORT_GREETING]);
-    if (_bsNoraWho() === 'anon' || !window.ShapeSupport?.thread) return;
-    const ok = await window.ShapeSupport.thread.clear();
+    if (!window.ShapeSupport?.thread) return;
+    // Cleared as the account the conversation belongs to (Codex on #2393): signed out in the app,
+    // the one it loaded as through the website's cookie, and with nothing loaded there is
+    // nothing stored to clear.
+    const account = _bsNoraAccount();
+    if (!account) return;
+    const ok = await window.ShapeSupport.thread.clear({ account });
+    if (ok === 'account_changed') { _bsNoraForget(); return; }
     if (!ok) window.__bsToast?.(tr('feed:support.thread.failed', { defaultValue: "Couldn't clear it on your account. Try again." }), 'err');
   };
   // Talk to Nora (owner, 2026-10-08): the Talk button opens her face over the sheet and a
@@ -25288,9 +25415,20 @@ function BSNoraSheet({ onClose }) {
       // what it showed. An answer for a cleared conversation is never drawn.
       const onText = (txt) => { if (gen === _bsNoraGen) _bsNoraLiveSet(txt); };
       const onReset = () => _bsNoraLiveSet('');
-      const res = await window.ShapeSupport?.ask?.(hist, undefined, { voice: opts.voice === true, context: bsNoraContext(!screenOffRef.current), onText, onReset });
+      // The question names the account the conversation belongs to (or, before the store has
+      // answered, the one its held exchanges were answered as): a caller who is another account
+      // now is refused before the history is read (Codex on #2393).
+      const account = _bsNoraAccount() || _bsNoraHeldAs();
+      const res = await window.ShapeSupport?.ask?.(hist, undefined, { voice: opts.voice === true, context: bsNoraContext(!screenOffRef.current), onText, onReset, account });
       // Cleared while she was answering: the answer belongs to the conversation that went.
       if (gen !== _bsNoraGen) return null;
+      // Refused as another account: the sheet starts again, and what they typed goes back in the box.
+      if (res && res.accountChanged) {
+        _bsNoraForget();
+        if (!opts.silent && !opts.voice) setSupportDraft(clean);
+        if (res.error) window.__bsToast?.(res.error, 'err');
+        return null;
+      }
       const reply = (res && res.reply) || "I can't answer that just now. The Shape team answers at info@theshapecommunity.com.";
       const acts = (res && Array.isArray(res.actions) && res.actions.length) ? res.actions : undefined;
       _bsNoraLive = '';
@@ -25298,7 +25436,7 @@ function BSNoraSheet({ onClose }) {
       // Settings → Nora voice on reads every reply aloud (off by default); failures are silent.
       if (!opts.silent && window.ShapeVoice && window.ShapeVoice.enabled()) speakReply(reply);
       // Kept on the account only when she answered: a "can't reach" line is not the conversation.
-      if (res && res.reply) _bsNoraSave([{ role: 'user', text: clean, at: sentAt }, { role: 'assistant', text: reply, at: new Date().toISOString() }]);
+      if (res && res.reply) _bsNoraSave([{ role: 'user', text: clean, at: sentAt }, { role: 'assistant', text: reply, at: new Date().toISOString() }], res.account || null);
       return res && res.reply ? reply : null;
     } catch (e) {
       if (gen !== _bsNoraGen) return null;
@@ -26546,14 +26684,21 @@ function BSNoraThreadCard() {
   const t = useBS();
   const tr = useShapeTr();
   const [count, setCount] = useStateBSC(undefined); // undefined loading · null unavailable · number
-  const load = () => Promise.resolve(window.ShapeSupport?.thread?.load?.()).then((list) => setCount(Array.isArray(list) ? list.length : null)).catch(() => setCount(null));
+  // The account the count was read as: Clear names it, so a website cookie that changed account
+  // since (the app signed out in its own client) clears nothing it did not count (Codex on #2393).
+  const accountRef = React.useRef(null);
+  const load = () => Promise.resolve(window.ShapeSupport?.thread?.loadAs?.()).then((r) => {
+    accountRef.current = (r && r.account) || null;
+    setCount(r && Array.isArray(r.messages) ? r.messages.length : null);
+  }).catch(() => setCount(null));
   React.useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   if (count === undefined || count === null) return null;
   const clear = async () => {
     const ask = window.bsAskConfirm;
     if (ask && !(await ask({ title: tr('feed:support.thread.confirmTitle', { defaultValue: 'Clear your conversation with Nora?' }), message: tr('feed:support.thread.confirmBody', { defaultValue: 'This deletes it on every device. What Nora remembers stays.' }), confirmLabel: tr('feed:support.thread.clear', { defaultValue: 'Clear conversation' }) }))) return;
     _bsNoraGen += 1;
-    const ok = await window.ShapeSupport?.thread?.clear?.();
+    const ok = await window.ShapeSupport?.thread?.clear?.(accountRef.current ? { account: accountRef.current } : undefined);
+    if (ok === 'account_changed') { setCount(null); return; }
     if (!ok) { window.__bsToast?.(tr('feed:support.thread.failed', { defaultValue: "Couldn't clear it on your account. Try again." }), 'err'); return; }
     // The open sheet's thread goes too, so it cannot be appended back from this session.
     if (_bsNoraThread && _bsNoraThread.length > 1) _bsNoraPublish([_bsNoraThread[0]]);

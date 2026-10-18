@@ -96,7 +96,9 @@ test('a follow-up that opens another screen closes the sheet', () => {
 // ── The account's greeting in the sheet (the Ask Nora plan, step 2, after #2247) ──────
 test('the sheet greets with the account\'s own greeting and suggestions, once, and only an untouched thread', () => {
   const sheet = between(APP, 'function BSNoraSheet(', '// Chat tab for ALL roles');
-  assert.match(sheet, /greet: true \};/, 'the seed is marked, so only it is ever replaced');
+  // The seed is built by _bsNoraSeed(), which a cookie account change also starts from.
+  assert.match(sheet, /const SUPPORT_GREETING = _bsNoraSeed\(\);/);
+  assert.match(APP.slice(APP.indexOf('function _bsNoraSeed() {'), APP.indexOf('function _bsNoraForget() {')), /greet: true \};/, 'the seed is marked, so only it is ever replaced');
   // Keyed by the account, so a sign-in after a signed-out preview fetches the new account's (Codex, #2249).
   assert.match(sheet, /const who = _bsNoraWho\(\);\n\s+if \(_bsNoraGreeted === who \|\| !window\.ShapeSupport\?\.greeting\) return;/);
   assert.match(APP, /const _bsNoraWho = \(\) => \{ try \{ return window\.ShapeAuth\?\.getCachedState\?\.\(\)\?\.user\?\.id \|\| 'anon'; \}/);

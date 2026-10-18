@@ -39,8 +39,15 @@ const NOT_SET_UP = { error: "Talking to a person isn't set up yet. Email the Sha
 export async function POST(request: Request) {
   const user = await currentUser(request);
   if (!user) return json({ error: 'Sign in to send your question to the Shape team, or email info@theshapecommunity.com.' }, 401);
-  const parsed = await readJson<{ question?: unknown; surface?: unknown; page?: unknown }>(request);
+  const parsed = await readJson<{ question?: unknown; surface?: unknown; page?: unknown; account?: unknown }>(request);
   if (!parsed.ok) return parsed.response;
+  // The app signed out in its own client sends this through the website's cookie, naming the
+  // account its conversation was loaded as (/api/nora/thread): one that changed since is refused,
+  // so a question never goes to the team under another account (Codex on #2393).
+  const meant = parsed.data.account;
+  if (typeof meant === 'string' && meant && meant !== user.id) {
+    return json({ error: "You're signed in as another account now. Open the conversation again.", code: 'account_changed' }, 409);
+  }
   const question = cleanQuestion(parsed.data.question);
   if (!question) return json({ error: 'Write your question (up to 2,000 characters).' }, 400);
   const surface = parsed.data.surface === 'app' ? 'app' : 'web';
