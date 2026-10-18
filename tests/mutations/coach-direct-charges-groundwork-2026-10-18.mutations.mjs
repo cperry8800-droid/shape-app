@@ -51,7 +51,10 @@ export default {
       find: "  if (verdict.reason === 'read_failed' && isRetryableDbError(verdict.error)) {",
       replace: '  if (false) {' },
     // Part B binds an expired checkout's credit to its record (coach-direct-charges-checkout spec).
-    { name: 'webhook: an expired Connect checkout releases any reservation', file: WEBHOOK,
+    // ⚠ A PROVEN NO-OP since part B: on a coach's account `ref` is then always overwritten by the
+    // record's (or undefined), and the one path that skips the overwrite (an unreadable record)
+    // breaks before any release. Part B's spec guards the record read itself.
+    { name: 'webhook: an expired Connect checkout releases any reservation', file: WEBHOOK, expectSurvive: true,
       find: '        let ref = acct ? undefined : session.metadata?.store_credit_ref;',
       replace: '        let ref = session.metadata?.store_credit_ref;' },
     // ── The Connect secret ──
