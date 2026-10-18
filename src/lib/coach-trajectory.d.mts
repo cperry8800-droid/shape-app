@@ -21,6 +21,18 @@ export function practiceToday(subs?: Array<Record<string, unknown>>, opts?: {
   cutCents?: (priceCents: number, feeBps: number | null) => number;
 }): { clients: number; mrrGrossCents: number; mrrNetCents: number };
 
+// Every status that does not close a span (open, or never a client): a read of the rows that ended
+// filters on everything else.
+export const NOT_ENDED_STATUSES: string[];
+
+// When a row ended (the series' own close, clamped to now) and whether that ended the client's
+// membership: false when another of their plans was open across that instant, or the row has not ended.
+export function subDeparture(
+  row: Record<string, unknown>,
+  subs?: Array<Record<string, unknown>> | null,
+  now?: number,
+): { endedAt: number | null; departed: boolean };
+
 export type TrajectoryBucket = {
   weekOf: string;
   active: number;

@@ -411,31 +411,112 @@ test('the churn total counts the last 90 days and says so, not every cancellatio
   const eleven = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: [...full.slice(0, 11), rows[1]] }));
   assert.match(eleven.text(), /^11 left in the last 90 days−\$1,980 a month/, 'one row outside the window: the count is whole');
   await eleven.unmount();
-  // People who left, not plans that ended (Codex round 8, #2394). A client still active here who
-  // dropped one plan hasn't left: not counted, not listed. A client who cancelled two plans left
-  // once, and both plans' money is lost.
+  // Departures, not plans that ended and not people (Codex round 8 and the sweep after round 10,
+  // #2394). The route decides each row at the moment it ended: a row whose client held another plan
+  // then (departed false) is no departure, and is not listed. Plans one client ended at one moment
+  // are one departure, and both plans' money is lost.
   const twoPlans = [
-    { ...rows[0], name: 'Stayed', clientId: 's', stillClient: true, priceCents: 9000 },
-    { ...rows[0], name: 'Left twice', clientId: 'l', stillClient: false, priceCents: 18000 },
-    { ...rows[0], name: 'Left twice', clientId: 'l', stillClient: false, priceCents: 6000 },
+    { ...rows[0], name: 'Held another', clientId: 's', departed: false, priceCents: 9000 },
+    { ...rows[0], name: 'Two at once', clientId: 'l', departed: true, priceCents: 18000 },
+    { ...rows[0], name: 'Two at once', clientId: 'l', departed: true, priceCents: 6000 },
   ];
-  const people = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: twoPlans }));
-  assert.match(people.text(), /^1 left in the last 90 days−\$240 a month/, 'Left twice, once');
-  assert.doesNotMatch(people.text(), /Stayed/, 'a current client is not listed as gone');
-  await people.unmount();
-  // Who stayed unread (stillClient null, Codex round 9): no one is counted, listed or subtracted.
-  const unsure = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: [...twoPlans, { ...rows[0], name: 'Unknown', clientId: 'u', stillClient: null }] }));
+  const once = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: twoPlans }));
+  assert.match(once.text(), /^1 left in the last 90 days−\$240 a month/, 'two plans at one moment, one departure');
+  assert.match(once.text(), /Two at once[^−]*−\$240\/mo/, 'listed once, with both plans\' money');
+  assert.doesNotMatch(once.text(), /Held another/, 'a plan ended while another was held is not a departure');
+  await once.unmount();
+  // A client who left, came back and left again left twice, each with its own money, as the pace's
+  // ended count has it. Counting people said "1 left" beside both departures' money.
+  const twice = [
+    { ...rows[0], name: 'Back and gone', clientId: 'b', departed: true, endedAt: new Date(Date.now() - 5 * day).toISOString(), priceCents: 18000 },
+    { ...rows[0], name: 'Back and gone', clientId: 'b', departed: true, endedAt: new Date(Date.now() - 60 * day).toISOString(), priceCents: 6000 },
+  ];
+  const left2 = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: twice }));
+  assert.match(left2.text(), /^2 left in the last 90 days−\$240 a month/, 'two departures, two counts, and the money of both');
+  assert.equal((left2.text().match(/Back and gone/g) || []).length, 2);
+  await left2.unmount();
+  // The history each departure is decided from unread (departed null, Codex round 9): no one is
+  // counted, listed or subtracted.
+  const unsure = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: [...twoPlans, { ...rows[0], name: 'Unknown', clientId: 'u', departed: null }] }));
   assert.equal(unsure.text(), "Couldn't check who still has a plan with you just now, so no one is counted as gone. Nothing is lost; reload to try again.");
   await unsure.unmount();
   // The floor is the route's list: 12 rows, all inside the window, even when some are left out.
-  const fullMixed = full.map((r, i) => (i < 3 ? { ...r, clientId: 'k' + i, stillClient: true } : { ...r, clientId: 'g' + i, stillClient: false }));
+  const fullMixed = full.map((r, i) => (i < 3 ? { ...r, clientId: 'k' + i, departed: false } : { ...r, clientId: 'g' + i, departed: true }));
   const floored = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: fullMixed }));
   assert.match(floored.text(), /^9 or more left in the last 90 daysat least −\$1,620 a month/);
   await floored.unmount();
   for (const role of ['trainer', 'nutritionist']) {
     const src = readFileSync(fileURLToPath(new URL(`../src/app/api/${role}/analytics/route.ts`, import.meta.url)), 'utf8');
-    assert.match(src, /\.eq\('status', 'canceled'\)\n\s+\.order\('current_period_end', \{ ascending: false, nullsFirst: false \}\)\n\s+\.limit\(12\);/, role + ' sends the newest 12, as DBZ_CHURN_LIST says');
+    // Every ended plan (the trajectory's closed set, not 'canceled' alone), newest first, 12 of them.
+    assert.match(src, /\.not\('status', 'in', `\(\$\{NOT_ENDED_STATUSES\.join\(','\)\}\)`\)\n\s+\.order\('current_period_end', \{ ascending: false, nullsFirst: false \}\)\n\s+\.limit\(12\);/, role + ' sends the newest 12 ended plans, as DBZ_CHURN_LIST says');
   }
+});
+
+// ── The sweep after #2394 round 10: who left counts over the pace's own window ──
+// "What a client is worth" reads the pace (paceFrom: from the Monday on or before 91 days ago, or
+// the Monday after the first client's week), "over the last 3 months"; the churn zone counted exactly
+// 90 days, "in the last 90 days", so a departure on day 90.5 was in one and not the other.
+const weeksFor = (now, firstDays, ends = []) => {
+  const monday = new Date(now); monday.setUTCHours(0, 0, 0, 0); monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));
+  const weeks = [];
+  for (let i = 25; i >= 0; i--) weeks.push({ weekOf: new Date(monday.getTime() - i * 7 * 86400000).toISOString().slice(0, 10), active: 10, added: 0, ended: ends.includes(25 - i) ? 1 : 0, mrrGrossCents: 180000, mrrNetCents: 153000 });
+  return { weeks, firstSubAt: new Date(now - firstDays * 86400000).toISOString() };
+};
+test('the churn zone counts over the pace\'s window and says it in the pace\'s words', async () => {
+  const day = 86400000;
+  const now = Date.now();
+  const traj = weeksFor(now, 400, [13]);
+  const pace = CF.paceFrom(traj, now);
+  assert.ok(pace.adds != null && pace.from <= now - 91 * day, 'a pace over the last 3 months');
+  // Ended 90.5 days ago: inside the pace's window, outside a 90-day one.
+  const rows = [{ name: 'Day ninety', clientId: 'n', departed: true, startedAt: new Date(now - 300 * day).toISOString(), endedAt: new Date(now - 90.5 * day).toISOString(), priceCents: 18000, reason: null }];
+  const m = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: rows, pace, now }));
+  assert.match(m.text(), /^1 left over the last 3 months−\$180 a month/);
+  await m.unmount();
+  const none = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: [{ ...rows[0], endedAt: new Date(pace.from - day).toISOString() }], pace, now }));
+  assert.match(none.text(), /^None left over the last 3 months/, 'before the window opens');
+  await none.unmount();
+  // A younger practice: the pace opens the Monday after the first client's week, and says so.
+  const young = CF.paceFrom(weeksFor(now, 60), now);
+  assert.ok(young.fromFirst && young.adds != null);
+  const y = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: [{ ...rows[0], endedAt: new Date(now - 10 * day).toISOString() }], pace: young, now }));
+  assert.match(y.text(), /^1 left after your first week−\$180 a month/);
+  await y.unmount();
+  // No pace (an unread history, or under a month of it): the last 90 days, said as such.
+  for (const p of [null, { adds: null, churn: null, unread: true }, CF.paceFrom(weeksFor(now, 20), now)]) {
+    const f = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: rows, pace: p, now }));
+    assert.match(f.text(), /^None left in the last 90 days/, JSON.stringify(p));
+    await f.unmount();
+  }
+});
+
+// The whole page, live, opened on one section, with the analytics answering `analytics`.
+async function mountBusiness(analytics, section) {
+  stubPage({ source: 'live', section });
+  const ok = (d) => Promise.resolve({ ok: true, json: () => Promise.resolve(d) });
+  globalThis.fetch = window.fetch = (url) => {
+    if (url.startsWith('/api/trainer/analytics')) return ok(analytics);
+    if (url.startsWith('/api/coach/listing')) return ok({ listings: [{ role: 'trainer', monthly: 180, ready: true }] });
+    if (url.startsWith('/api/coach/capacity')) return ok({ listings: [{ role: 'trainer', waiting: 0 }] });
+    return Promise.reject(new Error('unexpected ' + url));
+  };
+  const m = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
+  await settle();
+  await settle();
+  return m;
+}
+
+test('on the Retention tab, who left and what a client is worth read one window', async () => {
+  const day = 86400000;
+  const now = Date.now();
+  const weeks = weeksFor(now, 400, [13]);
+  const analytics = { isTrainer: true, providerId: 7, metrics: {}, byOrigin: [], byoMix: { clients: 10, brought: 0 }, trajectory: weeks, renewals: [], stripe: { connected: false },
+    churn: [{ name: 'Day ninety', clientId: 'n', departed: true, startedAt: new Date(now - 300 * day).toISOString(), endedAt: new Date(now - 90.5 * day).toISOString(), priceCents: 18000, reason: null }] };
+  const m = await mountBusiness(analytics, 'retention');
+  assert.match(m.text(), /From [\d.]+% of clients leaving a month over the last 3 months/);
+  assert.match(m.text(), /1 left over the last 3 months−\$180 a month/);
+  assert.doesNotMatch(m.text(), /None left/);
+  await m.unmount();
 });
 
 // ── The Goal tab's calculator (Business review, 2026-10-17) ──────────────────

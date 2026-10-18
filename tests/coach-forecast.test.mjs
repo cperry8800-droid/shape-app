@@ -342,3 +342,74 @@ test('moneyFrom: on its way, ready and clearing add up to what is coming; a paid
   const none = CF.moneyFrom({ connected: true, balanceCents: null, payouts: [] });
   assert.deepEqual([none.onWay, none.next, none.balanceCents, none.comingCents], [0, null, null, 0]);
 });
+
+// ── Who left (the sweep after #2394 round 10): the churn list both Business pages print ──
+test('paceFrom says where its window opens, so a count of departures can open there too', () => {
+  const now = Date.UTC(2026, 9, 17, 12);   // a Saturday
+  const weeks = weeksTo(now, 104, () => ({ active: 10, added: 0, ended: 0 }));
+  assert.equal(CF.paceFrom({ weeks, firstSubAt: '2025-01-01T00:00:00Z' }, now).from, Date.UTC(2026, 6, 13), 'the Monday on or before 91 days ago');
+  // A younger practice: the Monday after its first week.
+  const first = Date.UTC(2026, 8, 2, 9);   // a Wednesday; its week opens Monday 08-31
+  assert.equal(CF.paceFrom({ weeks, firstSubAt: new Date(first).toISOString() }, now).from, Date.UTC(2026, 8, 7));
+  assert.equal(CF.paceFrom({ weeks, firstSubAt: null }, now).from, null, 'no history, no window');
+});
+
+test('churnWindow: the pace\'s window whenever the pace has one, else the last 90 days', () => {
+  const now = Date.UTC(2026, 9, 17, 12);
+  const weeks = weeksTo(now, 104, (i, n) => ({ active: 10, added: 0, ended: i === n - 3 ? 1 : 0 }));
+  const pace = CF.paceFrom({ weeks, firstSubAt: '2025-01-01T00:00:00Z' }, now);
+  assert.deepEqual(CF.churnWindow(pace, now), { from: Date.UTC(2026, 6, 13), paced: true, fromFirst: false });
+  const young = CF.paceFrom({ weeks, firstSubAt: new Date(Date.UTC(2026, 8, 2, 9)).toISOString() }, now);
+  assert.deepEqual(CF.churnWindow(young, now), { from: Date.UTC(2026, 8, 7), paced: true, fromFirst: true });
+  const ninety = { from: now - 90 * DAY, paced: false, fromFirst: false };
+  // Under a month of history has a window but no pace: the 90 days, and the page says so.
+  const tooYoung = CF.paceFrom({ weeks, firstSubAt: new Date(now - 20 * DAY).toISOString() }, now);
+  assert.equal(tooYoung.adds, null);
+  assert.deepEqual(CF.churnWindow(tooYoung, now), ninety);
+  assert.deepEqual(CF.churnWindow({ adds: null, churn: null, unread: true }, now), ninety, 'an unread history');
+  assert.deepEqual(CF.churnWindow(null, now), ninety);
+});
+
+test('departures: one client at one moment is one departure whose money adds; two moments are two', () => {
+  const now = Date.UTC(2026, 9, 17, 12);
+  const at = (d) => new Date(now - d * DAY).toISOString();
+  const rows = [
+    { name: 'Two at once', clientId: 'a', departed: true, startedAt: at(200), endedAt: at(5), priceCents: 18000 },
+    { name: 'Two at once', clientId: 'a', departed: true, startedAt: at(300), endedAt: at(5), priceCents: 6000, reason: 'Moved' },
+    { name: 'Held another', clientId: 'h', departed: false, endedAt: at(6), priceCents: 9000 },
+    { name: 'Back and gone', clientId: 'b', departed: true, endedAt: at(10), priceCents: 15000 },
+    { name: 'Back and gone', clientId: 'b', departed: true, endedAt: at(70), priceCents: 9000 },
+    { name: 'No client', clientId: null, departed: true, endedAt: at(70), priceCents: 4000 },
+    { name: 'No client', clientId: null, departed: true, endedAt: at(70), priceCents: 3000 },
+    { name: 'Long gone', clientId: 'g', departed: true, endedAt: at(400), priceCents: 22000 },
+  ];
+  const d = CF.departures(rows, { now });
+  assert.deepEqual(d.list.map((x) => [x.name, x.priceCents, x.plans]), [
+    ['Two at once', 24000, 2], ['Back and gone', 15000, 1], ['Back and gone', 9000, 1], ['No client', 4000, 1], ['No client', 3000, 1], ['Long gone', 22000, 1],
+  ]);
+  assert.equal(d.list[0].startedAt, at(300), 'the earliest start of the plans that ended together');
+  assert.equal(d.list[0].reason, 'Moved');
+  assert.deepEqual([d.count, d.lostCents, d.floor, d.window.paced], [5, 24000 + 15000 + 9000 + 4000 + 3000, false, false], 'the last 90 days with no pace');
+  // A row nobody could decide (the route's history read failed) makes the whole list unread.
+  assert.equal(CF.departures([...rows, { name: 'Unknown', clientId: 'u', departed: null, endedAt: at(3) }], { now }), null);
+  // A row the route did not decide (the preview's rows) is a departure.
+  assert.equal(CF.departures([{ name: 'Preview', endedAt: at(3), priceCents: 100 }], { now }).count, 1);
+});
+
+test('departures: the count opens where the pace opens; a full list inside it is a floor', () => {
+  const now = Date.UTC(2026, 9, 17, 12);
+  const weeks = weeksTo(now, 104, (i, n) => ({ active: 10, added: 0, ended: i === n - 3 ? 1 : 0 }));
+  const pace = CF.paceFrom({ weeks, firstSubAt: '2025-01-01T00:00:00Z' }, now);
+  const row = (days, o) => ({ name: 'C' + days, clientId: 'c' + days, departed: true, endedAt: new Date(now - days * DAY).toISOString(), priceCents: 1000, ...o });
+  // Ended 92 days ago: after the pace's Monday (2026-07-13, 96.5 days back), outside 90 days.
+  assert.deepEqual([CF.departures([row(92)], { pace, now }).count, CF.departures([row(92)], { now }).count], [1, 0]);
+  assert.equal(CF.departures([row(100)], { pace, now }).count, 0, 'before the window opens');
+  const full = Array.from({ length: 12 }, (_, i) => row(3 + i));
+  assert.equal(CF.departures(full, { pace, now }).floor, true);
+  assert.equal(CF.departures(full.slice(0, 11), { pace, now }).floor, false, 'fewer than the route sends: the list is whole');
+  assert.equal(CF.departures([...full.slice(0, 11), row(100)], { pace, now }).floor, false, 'one older than the window: whole');
+  // The floor is the route's list, before a row is left out.
+  assert.equal(CF.departures(full.map((r, i) => (i < 3 ? { ...r, departed: false } : r)), { pace, now }).floor, true);
+  assert.equal(CF.departures(full, { pace, now, cap: 13 }).floor, false);
+  assert.equal(CF.CHURN_LIST, 12);
+});

@@ -253,10 +253,9 @@ function DbzPayoutsZone({ live, stripe, providerId, role, metrics }) {
 // ── Churn zone — who left, when, and why (honest about the why) ─────────────
 // How many cancellations the analytics routes send, newest first (their `.limit(12)`).
 const DBZ_CHURN_LIST = 12;
-// How many people the rows belong to: one client with two plans is one client. A row with no
-// client id stands alone, as everywhere else that counts clients.
-const dbzPeople = (rows) => window.CoachForecast.people(rows);
-function DbzChurnZone({ live, churn }) {
+// `pace` is the one "What a client is worth" reads (paceFrom at the page's one moment, `now`), so
+// the two zones count the same departures over the same days.
+function DbzChurnZone({ live, churn, pace = null, now = Date.now() }) {
   // undefined: the analytics are still loading, which is neither "none on record" nor a failed read.
   if (live && churn === undefined) {
     return <div style={{ fontSize: 12.5, color: DBZ_INK50, lineHeight: 1.55 }}>Your cancellations load with the analytics rollup…</div>;
@@ -271,34 +270,34 @@ function DbzChurnZone({ live, churn }) {
   }
   // ⚠ THE TOTAL HAS A WINDOW (Business review, 2026-10-17). It summed the last 12 cancellations
   // whenever they happened, so a "−$X MRR" could add a departure from last week to one from two
-  // years ago. It now counts the last 90 days, and says so; the rows below still list the recent ones.
+  // years ago. It counts a window, and says which; the rows below still list the older ones.
+  // ⚠ AND THE WINDOW IS THE PACE'S, IN THE PACE'S WORDS (the sweep after #2394 round 10). It was the
+  // last 90 days while "What a client is worth" on the same tab read the pace's window, so the tab
+  // could say "1.6% leave a month" beside "None left". coachForecast.js `churnWindow` opens the count
+  // where the pace opens, and falls back to the last 90 days only when there is no pace.
   // ⚠ AND THE LIST STOPS AT DBZ_CHURN_LIST ROWS (the routes' .limit(12)). When every row it holds
-  // is inside the 90 days, more may have left than it shows, so the total is a floor and says so.
-  // ⚠ WHO LEFT CAN'T BE SAID WHILE WHO STAYED IS UNREAD (Codex round 9, #2394). The route sends
-  // stillClient null when it couldn't read who still holds a plan; counting those rows as gone
-  // would report departures (and money lost) it never established.
-  if (live && rows.some((r) => r.stillClient === null)) {
+  // is inside the window, more may have left than it shows, so the total is a floor and says so.
+  // ⚠ WHO LEFT CAN'T BE SAID WHILE THE HISTORY IT IS DECIDED FROM IS UNREAD (Codex round 9, #2394; the
+  // sweep after round 10). The route sends departed null when it couldn't read the subscription rows
+  // each departure is decided from; counting those rows as gone would report departures (and money
+  // lost) it never established.
+  // ⚠ DEPARTURES, NOT PLANS THAT ENDED, AND NOT PEOPLE (Codex round 8, #2394; the sweep after round
+  // 10). The route decides each row at the moment it ended: a client who held another plan then
+  // hadn't left (departed false), whoever they are now. Plans one client ended at one moment are one
+  // departure whose money adds; a client who left twice left twice (coachForecast.js `departures`).
+  const gone = window.CoachForecast.departures(rows, { pace, now, cap: DBZ_CHURN_LIST });
+  if (!gone) {
     return <div style={{ fontSize: 12.5, color: DBZ_INK50, lineHeight: 1.55 }}>Couldn't check who still has a plan with you just now, so no one is counted as gone. Nothing is lost; reload to try again.</div>;
   }
-  // ⚠ PEOPLE WHO LEFT, NOT PLANS THAT ENDED (Codex round 8, #2394). A client who cancelled one plan
-  // and still holds another hasn't left (the trajectory's rule, which the pace and Overview use),
-  // and one who cancelled two plans left once. The route says whether each row's client is still
-  // active (stillClient); those rows are left out, and the count is of people.
-  const since = Date.now() - 90 * 86400000;
-  const left = rows.filter((r) => r.stillClient !== true);
-  const recent = left.filter((r) => r.endedAt && new Date(r.endedAt).getTime() >= since);
-  const lostCents = recent.reduce((s, r) => s + (r.priceCents || 0), 0);
-  const people = dbzPeople(recent);
-  // The floor is about the route's list, before any row is left out: 12 rows read, all inside the
-  // window, and older ones may be past the cut.
-  const floor = live && rows.length >= DBZ_CHURN_LIST && rows.every((r) => r.endedAt && new Date(r.endedAt).getTime() >= since);
+  const when = gone.window.paced ? dbzPaceWhen(gone.window) : "in the last 90 days";
+  const floor = live && gone.floor;
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
-        <span style={{ fontFamily: DBZ_MONO, fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: DBZ_INK50 }}>{people ? people + (floor ? " or more" : "") + " left in the last 90 days" : "None left in the last 90 days"}</span>
-        {lostCents > 0 && <span style={{ fontFamily: DBZ_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: DBZ_RED }}>{floor ? "at least " : ""}−{dashMoney(lostCents)} a month</span>}
+        <span style={{ fontFamily: DBZ_MONO, fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: DBZ_INK50 }}>{gone.count ? gone.count + (floor ? " or more" : "") + " left " + when : "None left " + when}</span>
+        {gone.lostCents > 0 && <span style={{ fontFamily: DBZ_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: DBZ_RED }}>{floor ? "at least " : ""}−{dashMoney(gone.lostCents)} a month</span>}
       </div>
-      {left.map((r, i) => {
+      {gone.list.map((r, i) => {
         const tenure = r.startedAt && r.endedAt ? dbzMonthsBetween(r.startedAt, r.endedAt) : null;
         return (
           <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "start", padding: "10px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
@@ -930,8 +929,8 @@ const dbzMonthsWord = (m) => (m === 1 ? "1 month" : m + " months");
 function dbzDemoPace(CF, traj, now) {
   const pace = CF.paceFrom(traj, now);
   if (pace.adds == null) return pace;
-  const from = now - CF.PACE_DAYS * 86400000;
-  const left = DBZ_DEMO_CHURN.filter((r) => new Date(r.endedAt).getTime() >= from).length;
+  // The pace's own window, the one the churn zone counts the demo's departures over.
+  const left = DBZ_DEMO_CHURN.filter((r) => new Date(r.endedAt).getTime() >= pace.from).length;
   const months = pace.days / 30.4;
   const ended = pace.ended + left;
   return { ...pace, ended, added: pace.added + left, adds: pace.adds + left / months, churn: pace.avgActive > 0 ? Math.min(1, ended / pace.avgActive / months) : pace.churn };
@@ -1626,9 +1625,14 @@ function CoachBusinessPage({ role }) {
           : <div style={DBZ_NOTE}>{source == null || (source === "demo" && analytics === "pending") ? "Your funnel is loading…" : "Couldn't read your funnel just now. Nothing is lost; reload to try again."}</div>}
       </React.Fragment>);
 
+  // Who left counts over the pace "What a client is worth" reads, at the same moment (planNow): the
+  // plan's own when it is ready, else the trajectory's straight (the listing read still out), else
+  // none, and the zone falls back to the last 90 days.
+  const churnPace = planBase.state === "ready" ? planBase.pace
+    : isLive && extra && extra.trajectory && window.CoachForecast ? window.CoachForecast.paceFrom(extra.trajectory, planNow) : null;
   const churn = plate(DBZ_RED, <React.Fragment>
         {head("Churn · who left & why", DBZ_RED)}
-        <DbzChurnZone live={isLive} churn={fromExtra("churn")} />
+        <DbzChurnZone live={isLive} churn={fromExtra("churn")} pace={churnPace} now={planNow} />
       </React.Fragment>);
 
   const byo = plate(DBZ_TEAL, <React.Fragment>

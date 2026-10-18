@@ -95,8 +95,10 @@
   // The coach's own pace from the trajectory's weekly buckets (src/lib/coach-trajectory.mjs):
   // new clients a month and the share who leave a month, over about the last three months,
   // or after the practice's first week when that is shorter.
-  //   → { adds, churn, days, fromFirst, added, ended, avgActive }; adds and churn are null when
-  //     there is too little history to say. `days` is the span the rates are taken over.
+  //   → { adds, churn, days, from, fromFirst, added, ended, avgActive }; adds and churn are null
+  //     when there is too little history to say. `days` is the span the rates are taken over, and
+  //     `from` where it opens (ms; null with no history), so a page that counts departures over the
+  //     same days can open its count there (churnWindow).
   // ⚠ CHURN IS MEASURED AGAINST THE CLIENTS WHO COULD HAVE LEFT, the average headcount over
   // the window, not against the count 30 days ago. One departure in a month with no one at
   // the start would otherwise read as 100%, or as nothing at all.
@@ -110,7 +112,7 @@
   // ⚠ NO FIRST CLIENT IS NO PACE. A practice with no clients yet has no history, which the
   // sliders say; read as three empty months it was "0 a month over the last 3 months".
   function paceFrom(trajectory, now = Date.now()) {
-    const none = { adds: null, churn: null, days: 0, fromFirst: false, added: 0, ended: 0, avgActive: 0 };
+    const none = { adds: null, churn: null, days: 0, from: null, fromFirst: false, added: 0, ended: 0, avgActive: 0 };
     const weeks = trajectory && Array.isArray(trajectory.weeks) ? trajectory.weeks : [];
     if (!weeks.length) return none;
     const first = trajectory.firstSubAt ? new Date(trajectory.firstSubAt).getTime() : NaN;
@@ -122,7 +124,7 @@
     const inWindow = weeks.filter((w) => new Date(w.weekOf + "T00:00:00Z").getTime() >= from);
     const histDays = (now - from) / DAY_MS;
     const days = Math.max(0, Math.round(histDays));
-    if (!inWindow.length || histDays < PACE_MIN_DAYS) return { ...none, days, fromFirst };
+    if (!inWindow.length || histDays < PACE_MIN_DAYS) return { ...none, days, from, fromFirst };
     const months = histDays / MONTH_DAYS;
     const added = inWindow.reduce((s, w) => s + (w.added || 0), 0);
     const ended = inWindow.reduce((s, w) => s + (w.ended || 0), 0);
@@ -130,7 +132,76 @@
     return {
       adds: added / months,
       churn: avgActive > 0 ? clamp01(ended / avgActive / months) : null,
-      days, fromFirst, added, ended, avgActive,
+      days, from, fromFirst, added, ended, avgActive,
+    };
+  }
+
+  // ── Who left: the churn list both Business pages print (the routes' `churn` rows) ──
+  // How many cancellations the analytics routes send, newest first (their `.limit(12)`), and the
+  // window a count falls back to when there is no pace to share.
+  const CHURN_LIST = 12;
+  const CHURN_DAYS = 90;
+
+  // ⚠ WHO LEFT IS COUNTED OVER THE PACE'S OWN WINDOW, IN THE PACE'S OWN WORDS (the sweep after #2394
+  // round 10). "What a client is worth" reads its churn from paceFrom, from the Monday on or before
+  // 91 days ago (or the Monday after the first client's week), "over the last 3 months"; the churn
+  // list counted from exactly 90 days ago, "in the last 90 days". One tab could then say "1.6% leave
+  // a month" beside "None left": a departure on day 92 was in one and not the other. The list now
+  // opens where the pace opens whenever the pace has a window (its rates are measured); with no pace
+  // (no history, an unread one, under a month of it) it falls back to the last 90 days and says so.
+  //   → { from (ms), paced, fromFirst }: paced is true when the window is the pace's, so the page
+  //     words it as the pace does ("over the last 3 months" / "after your first week").
+  function churnWindow(pace, now = Date.now()) {
+    if (pace && pace.adds != null && num(pace.from) != null) return { from: pace.from, paced: true, fromFirst: !!pace.fromFirst };
+    return { from: now - CHURN_DAYS * DAY_MS, paced: false, fromFirst: false };
+  }
+
+  // The departures in the routes' churn rows, and the ones inside the window.
+  //   → null when a row's departure could not be told (`departed` null: the route could not read
+  //     the subscription history it is decided from), so no one is counted as gone;
+  //   → { list, inWindow, count, lostCents, floor, window } otherwise. `list` is every departure the
+  //     rows hold, newest first; `count` and `lostCents` are the ones inside the window.
+  // ⚠ A DEPARTURE IS ONE CLIENT LEAVING AT ONE MOMENT, AND ITS MONEY IS EVERY PLAN THAT ENDED THEN (the
+  // sweep after #2394 round 10). The count was of people while the money added every row: a client who
+  // left in August, came back and left again in October was "1 left" beside both plans' money. The
+  // route now decides each row at the moment it ended (`departed`), so the count is of departures:
+  // plans one client ended at the same moment are one departure whose prices add, and two separate
+  // departures of one client count twice, each with its own money, as the pace's ended count does.
+  // A row the route marks `departed: false` (the client held another plan then) is not one. A row with
+  // no client id stands alone, as everywhere else that counts clients.
+  // ⚠ AND THE LIST STOPS AT `cap` ROWS (the routes' .limit(12)). When every row it holds is inside the
+  // window, more may have left than it shows: `floor` says the count is a floor. It is about the
+  // route's list, before any row is left out.
+  function departures(rows, { pace = null, now = Date.now(), cap = CHURN_LIST } = {}) {
+    const all = Array.isArray(rows) ? rows.filter(Boolean) : [];
+    if (all.some((r) => r.departed === null)) return null;
+    const win = churnWindow(pace, now);
+    const at = (r) => (r.endedAt ? new Date(r.endedAt).getTime() : NaN);
+    const list = [];
+    const byMoment = new Map();
+    all.forEach((r, i) => {
+      if (r.departed === false) return;
+      const t = at(r);
+      const key = (r.clientId != null ? "c:" + r.clientId : "row:" + i) + "@" + (Number.isFinite(t) ? t : "row:" + i);
+      const d = byMoment.get(key);
+      if (!d) {
+        const first = { name: r.name, clientId: r.clientId == null ? null : r.clientId, startedAt: r.startedAt || null, endedAt: r.endedAt || null, priceCents: r.priceCents == null ? null : Number(r.priceCents) || 0, reason: r.reason || null, plans: 1 };
+        byMoment.set(key, first);
+        list.push(first);
+        return;
+      }
+      d.plans += 1;
+      if (r.priceCents != null) d.priceCents = (d.priceCents || 0) + (Number(r.priceCents) || 0);
+      if (r.startedAt && (!d.startedAt || new Date(r.startedAt).getTime() < new Date(d.startedAt).getTime())) d.startedAt = r.startedAt;
+      if (!d.reason && r.reason) d.reason = r.reason;
+    });
+    const inWindow = list.filter((d) => d.endedAt && at(d) >= win.from);
+    return {
+      list, inWindow,
+      count: inWindow.length,
+      lostCents: inWindow.reduce((s, d) => s + (d.priceCents || 0), 0),
+      floor: all.length >= cap && all.every((r) => r.endedAt && at(r) >= win.from),
+      window: win,
     };
   }
 
@@ -285,7 +356,7 @@
   }
 
   return {
-    FEE_RATE, PACE_DAYS, DEFAULT_RATE_CENTS, netOf, earn, forecast, earnedOver, monthsTo, paceFrom, lifetime,
-    round1, churnPct, todayFrom, listedCents, planNumbers, planStart, rateRange, people, renewalsSum, moneyFrom,
+    FEE_RATE, PACE_DAYS, DEFAULT_RATE_CENTS, CHURN_LIST, CHURN_DAYS, netOf, earn, forecast, earnedOver, monthsTo, paceFrom, lifetime,
+    churnWindow, departures, round1, churnPct, todayFrom, listedCents, planNumbers, planStart, rateRange, people, renewalsSum, moneyFrom,
   };
 });

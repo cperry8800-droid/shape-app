@@ -26,11 +26,11 @@ const APP_TOKEN = 'app-access-token'
 // Every table read answers from `tables` (or `errors`); any chain of filters is accepted, and
 // recorded. `rpc` answers from `rpcs[name](args)`.
 // `auth` is what getUser resolves (a signed-in coach unless a test says otherwise).
-// `honorStatus` also applies status filters (eq / in on `status`), for a test whose rows differ by
-// status; `failActive` fails the active-subscriptions walk (its `.in('status', …)`) alone,
-// `failRetrying` the read of the churned clients' past_due plans alone, and `failTrajectory` the
-// trajectory's walk over every subscription (the one subscriptions read with no status filter).
-function fakeSupabase(tables, { errors = {}, rpcs = {}, auth = null, honorStatus = false, failActive = false, failRetrying = false, failTrajectory = false } = {}) {
+// `honorStatus` also applies status filters (eq / in / not in on `status`), for a test whose rows
+// differ by status; `failActive` fails the active-subscriptions walk (its `.in('status', …)`) alone,
+// and `failTrajectory` / `failHistory` the trajectory's walk over every row (no status filter) alone:
+// the first matches any subscriptions read without one, the second only the walk ordered by id.
+function fakeSupabase(tables, { errors = {}, rpcs = {}, auth = null, honorStatus = false, failActive = false, failTrajectory = false, failHistory = false } = {}) {
   const reads = []
   const calls = []
   const from = (table) => {
@@ -42,12 +42,14 @@ function fakeSupabase(tables, { errors = {}, rpcs = {}, auth = null, honorStatus
     const answer = () => {
       if (errors[table]) return { data: null, error: { message: errors[table] }, count: null }
       if (failActive && call.ops.some(([op, col]) => op === 'in' && col === 'status')) return { data: null, error: { message: 'timeout' }, count: null }
-      if (failRetrying && call.ops.some(([op, col, v]) => op === 'eq' && col === 'status' && v === 'past_due')) return { data: null, error: { message: 'timeout' }, count: null }
       if (failTrajectory && table === 'subscriptions' && !call.ops.some(([, col]) => col === 'status')) return { data: null, error: { message: 'timeout' }, count: null }
+      if (failHistory && table === 'subscriptions' && call.ops.some(([op, col]) => op === 'order' && col === 'id') && !call.ops.some(([op, col]) => ['eq', 'in', 'not'].includes(op) && col === 'status')) return { data: null, error: { message: 'timeout' }, count: null }
       let out = rows
-      if (honorStatus) for (const [op, col, v] of call.ops) {
+      if (honorStatus) for (const [op, col, v, w] of call.ops) {
         if (op === 'eq' && col === 'status') out = out.filter((r) => r.status === v)
         if (op === 'in' && col === 'status') out = out.filter((r) => v.includes(r.status))
+        // PostgREST's not.in.(a,b): `.not('status', 'in', '(a,b)')`.
+        if (op === 'not' && col === 'status' && v === 'in') { const list = String(w).replace(/^\(|\)$/g, '').split(','); out = out.filter((r) => !list.includes(r.status)) }
       }
       for (const [op, col, v] of call.ops) if (op === 'gt') out = out.filter((r) => String(r[col]) > String(v))
       for (const [op, col, o] of call.ops) {
@@ -422,30 +424,95 @@ test('renewals: the active rows due in the next 7 days, each asked of Stripe, ne
   }
 })
 
-// ── Codex round 8 (#2394): the page counts people, not plans ──────────────────
-// A client who cancels one plan while holding another hasn't left (coach-trajectory.mjs leftIn), so
-// each cancellation says whose it is and whether that client is still active here.
-test('each cancellation says whose it is and whether that client still holds a plan; unread when either membership read failed', async () => {
+// ── Codex round 8 (#2394) and the sweep after round 10: departures, decided when each plan ended ──
+// A plan that ended is a departure unless its client held another plan at that moment
+// (coach-trajectory.mjs subDeparture, the trajectory's leftIn rule). Whether they hold one NOW is not
+// the question: a client who left and came back still left.
+test('each ended plan says whose it is and whether it ended their membership, decided at the moment it ended', async () => {
   const C = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
   const D = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+  const E = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+  const F = 'ffffffff-ffff-4fff-8fff-ffffffffffff'
+  const J = 'jjjjjjjj-jjjj-4jjj-8jjj-jjjjjjjjjjjj'
+  const K = 'kkkkkkkk-kkkk-4kkk-8kkk-kkkkkkkkkkkk'
+  const at = (iso, o) => ({ created_at: iso, ...o })
   const subs = [
+    // A dropped one plan while holding another that opened before it ended: not a departure.
     { ...sub(A, 18000), id: 'r1' },
-    { ...sub(A, 12000), id: 'r2', status: 'canceled', current_period_end: '2026-10-01T00:00:00Z' },
+    { ...sub(A, 12000), id: 'r2', ...at('2026-08-01T00:00:00Z'), status: 'canceled', current_period_end: '2026-10-01T00:00:00Z' },
+    // C left: no other plan.
     { ...sub(C, 15000), id: 'r3', status: 'canceled', current_period_end: '2026-10-02T00:00:00Z' },
     // D's other plan is retrying (past_due): still a membership, as the trajectory counts it (Codex round 9).
     { ...sub(D, 9000), id: 'r4', status: 'past_due' },
     { ...sub(D, 7000), id: 'r5', status: 'canceled', current_period_end: '2026-09-30T00:00:00Z' },
     // A row with no client has no other plan to hold: a departure.
     { ...sub(null, 5000), id: 'r6', status: 'canceled', current_period_end: '2026-09-29T00:00:00Z' },
+    // E LEFT ON AUG 20 AND CAME BACK ON SEP 25: active now, and the Aug 20 departure is still one.
+    { ...sub(E, 14000), id: 'r7', ...at('2026-06-01T00:00:00Z'), status: 'canceled', current_period_end: '2026-08-20T00:00:00Z' },
+    { ...sub(E, 14000), id: 'r8', ...at('2026-09-25T00:00:00Z') },
+    // An 'unpaid' plan closed the span in the trajectory, so it is an ended plan here too.
+    { ...sub(F, 6000), id: 'r9', ...at('2026-07-01T00:00:00Z'), status: 'unpaid', current_period_end: '2026-09-28T00:00:00Z' },
+    // A checkout never paid is no row at all: not listed.
+    { ...sub(C, 6000), id: 'r10', status: 'incomplete_expired', current_period_end: '2026-09-27T00:00:00Z' },
+    // J's Sep 10 cancellation came while another plan was open (it ended later, Oct 5): not a
+    // departure. That later one ended theirs.
+    { ...sub(J, 8000), id: 'r12', ...at('2026-07-01T00:00:00Z'), status: 'canceled', current_period_end: '2026-09-10T00:00:00Z' },
+    { ...sub(J, 8000), id: 'r13', ...at('2026-08-01T00:00:00Z'), status: 'canceled', current_period_end: '2026-10-05T00:00:00Z' },
+    // K ended two plans at the same moment: each row ended their membership (the page makes them one).
+    { ...sub(K, 4000), id: 'r14', ...at('2026-06-01T00:00:00Z'), status: 'canceled', current_period_end: '2026-09-15T00:00:00Z' },
+    { ...sub(K, 3000), id: 'r15', ...at('2026-07-01T00:00:00Z'), status: 'canceled', current_period_end: '2026-09-15T00:00:00Z' },
   ]
   for (const role of ['trainer', 'nutritionist']) {
     const tables = role === 'trainer' ? roster({ subscriptions: subs }) : { nutritionists: [{ id: 9, stripe_account_id: null, stripe_account_status: null }], subscriptions: subs.map((r) => ({ ...r, provider_role: 'nutritionist' })) }
-    const { body } = await loadRoute(role, tables, { rpcs: lifts({}), honorStatus: true })
-    assert.deepEqual(body.churn.map((r) => [r.clientId, r.stillClient]), [[C, false], [A, true], [D, true], [null, false]], role + ': C left; A dropped a plan; D still holds a retrying plan; a clientless row left')
-    for (const fail of ['failActive', 'failRetrying']) {
-      const unread = await loadRoute(role, tables, { rpcs: lifts({}), honorStatus: true, [fail]: true })
-      assert.deepEqual(unread.body.churn.map((r) => r.stillClient), [null, null, null, null], role + ', ' + fail + ': no one is known to be still here')
-    }
+    const { body, calls } = await loadRoute(role, tables, { rpcs: lifts({}), honorStatus: true })
+    assert.deepEqual(body.churn.map((r) => [r.clientId, r.endedAt.slice(0, 10), r.departed]), [
+      [J, '2026-10-05', true], [C, '2026-10-02', true], [A, '2026-10-01', false], [D, '2026-09-30', false], [null, '2026-09-29', true],
+      [F, '2026-09-28', true], [K, '2026-09-15', true], [K, '2026-09-15', true], [J, '2026-09-10', false], [E, '2026-08-20', true],
+    ], role + ': newest first; F\'s unpaid plan ended; A and D held another plan; J left once, in October; K left once with two plans; E left, though back now')
+    assert.ok(!body.churn.some((r) => 'stillClient' in r), role + ': no field says who is here now')
+    // The read takes the trajectory's closed set: everything but open and never-started.
+    const churnRead = calls.find((c) => c.table === 'subscriptions' && c.ops.some(([op, col]) => op === 'order' && col === 'current_period_end'))
+    assert.deepEqual(churnRead.ops.filter(([op, col]) => col === 'status'), [['not', 'status', 'in', '(active,trialing,past_due,incomplete,incomplete_expired)']], role)
+    assert.ok(has(churnRead, 'limit', 12) && has(churnRead, 'eq', 'provider_role', role), role)
+    // The round-9 read of the churned clients' past_due plans is gone: the trajectory's rows decide.
+    assert.ok(!calls.some((c) => c.table === 'subscriptions' && c.ops.some(([op, col, v]) => op === 'eq' && col === 'status' && v === 'past_due')), role + ': no separate retrying read')
+    // A failed active read is not a failed history: each row is still decided.
+    const noActive = await loadRoute(role, tables, { rpcs: lifts({}), honorStatus: true, failActive: true })
+    assert.deepEqual(noActive.body.churn.map((r) => r.departed), body.churn.map((r) => r.departed), role + ': the active read does not decide who left')
+    // The trajectory's rows unread: no one is known to have left, and the list is still read.
+    const unread = await loadRoute(role, tables, { rpcs: lifts({}), honorStatus: true, failHistory: true })
+    assert.equal(unread.body.trajectory, null, role)
+    assert.deepEqual(unread.body.churn.map((r) => r.departed), Array(10).fill(null), role + ': who left is unread')
+    assert.equal(unread.body.churn[0].endedAt.slice(0, 10), '2026-10-05', role + ': the dates are still the rows\' own')
+  }
+})
+
+test('a client who left and came back is listed as a departure in both routes, matching the trajectory', async () => {
+  const E = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+  const day = 86400000
+  const ago = (d) => new Date(Date.now() - d * day).toISOString()
+  // Left 40 days ago after four months; came back 10 days ago.
+  const subs = (role) => [
+    { ...sub(E, 14000), id: 'r1', provider_role: role, created_at: ago(160), status: 'canceled', current_period_end: ago(40) },
+    { ...sub(E, 14000), id: 'r2', provider_role: role, created_at: ago(10) },
+  ]
+  for (const [role, listing] of [['trainer', { trainers: [{ id: 7, stripe_account_id: null, stripe_account_status: null }] }], ['nutritionist', NUTRI]]) {
+    const { body } = await loadRoute(role, { ...listing, subscriptions: subs(role) }, { rpcs: lifts({}), honorStatus: true })
+    assert.deepEqual(body.churn.map((r) => [r.clientId, r.departed]), [[E, true]], role + ': the departure is listed, though the client is back')
+    const ended = body.trajectory.weeks.reduce((s, w) => s + w.ended, 0)
+    assert.equal(ended, 1, role + ': the trajectory counts the same departure')
+    assert.equal(body.trajectory.weeks[body.trajectory.weeks.length - 1].active, 1, role + ': and the client as active today')
+  }
+})
+
+test('an ended plan\'s date is the trajectory\'s close: a period end in the future is clamped to now', async () => {
+  // Cancelled mid-period: the status says gone, the period end is three weeks out.
+  const subs = (role) => [{ ...sub(A, 9000), id: 'r1', provider_role: role, created_at: '2026-06-01T00:00:00Z', status: 'canceled', current_period_end: new Date(Date.now() + 21 * 86400000).toISOString() }]
+  for (const [role, listing] of [['trainer', { trainers: [{ id: 7, stripe_account_id: null, stripe_account_status: null }] }], ['nutritionist', NUTRI]]) {
+    const before = Date.now()
+    const { body } = await loadRoute(role, { ...listing, subscriptions: subs(role) }, { rpcs: lifts({}), honorStatus: true })
+    const t = Date.parse(body.churn[0].endedAt)
+    assert.ok(t >= before && t <= Date.now(), role + ': ended now, not ' + body.churn[0].endedAt)
   }
 })
 

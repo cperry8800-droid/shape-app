@@ -5,7 +5,7 @@
 // current week is measured at "now"; the summary figures agree with the series.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildTrajectory, mondayUTC, openSubsAt, OPEN_SUB_STATUSES, practiceToday, subEndedAt, subNeverStarted, TRAJECTORY_WEEKS } from '../src/lib/coach-trajectory.mjs';
+import { buildTrajectory, mondayUTC, openSubsAt, OPEN_SUB_STATUSES, practiceToday, subEndedAt, subNeverStarted, subDeparture, NOT_ENDED_STATUSES, TRAJECTORY_WEEKS } from '../src/lib/coach-trajectory.mjs';
 
 const DAY = 86400000;
 const WEEK = 7 * DAY;
@@ -243,4 +243,46 @@ test('openSubsAt and practiceToday are the latest week, from the same rows: a re
   // The statuses a read asks for are the ones the series keeps open (membership-core.ts ACTIVE_SUB).
   assert.deepEqual(OPEN_SUB_STATUSES, ['active', 'trialing', 'past_due']);
   assert.deepEqual(practiceToday([], { now: NOW }), { clients: 0, mrrGrossCents: 0, mrrNetCents: 0 });
+});
+
+// ── The sweep after #2394 round 10: each ended plan is decided at the moment it ended ──
+test('subDeparture: a departure unless another of the client\'s plans was open across that moment', () => {
+  const ended = (o) => sub({ client_id: 'u1', status: 'canceled', created_at: iso(200 * DAY), current_period_end: iso(40 * DAY), ...o });
+  const row = ended({ id: 'r1' });
+  // Left 40 days ago, came back 10 days ago: still a departure, and the series counts it too.
+  const back = sub({ id: 'r2', client_id: 'u1', created_at: iso(10 * DAY) });
+  assert.deepEqual(subDeparture(row, [row, back], NOW), { endedAt: NOW - 40 * DAY, departed: true });
+  const t = buildTrajectory({ subs: [row, back], now: NOW, weeks: 12 });
+  assert.equal(t.weeks.reduce((s, w) => s + w.ended, 0), 1, 'the series counts the same departure');
+  // Another plan opened before the end and still open: not a departure.
+  assert.equal(subDeparture(row, [row, sub({ id: 'r3', client_id: 'u1', created_at: iso(50 * DAY) })], NOW).departed, false);
+  // …opened the very instant it ended: not a departure either (a plan change).
+  assert.equal(subDeparture(row, [row, sub({ id: 'r3', client_id: 'u1', created_at: iso(40 * DAY) })], NOW).departed, false);
+  // …open across it and closed since: still not a departure then.
+  assert.equal(subDeparture(row, [row, ended({ id: 'r3', created_at: iso(100 * DAY), current_period_end: iso(5 * DAY) })], NOW).departed, false);
+  // …retrying (past_due) is open, as the series counts it.
+  assert.equal(subDeparture(row, [row, sub({ id: 'r3', client_id: 'u1', status: 'past_due', created_at: iso(100 * DAY) })], NOW).departed, false);
+  // Two plans ending at the same moment: each one ended the membership (one departure on the page).
+  const twin = ended({ id: 'r4', created_at: iso(150 * DAY) });
+  assert.deepEqual([subDeparture(row, [row, twin], NOW).departed, subDeparture(twin, [row, twin], NOW).departed], [true, true]);
+  // Not another client's plan, and not a checkout that never started.
+  assert.equal(subDeparture(row, [row, sub({ id: 'r5', client_id: 'u2', created_at: iso(100 * DAY) })], NOW).departed, true);
+  assert.equal(subDeparture(row, [row, sub({ id: 'r6', client_id: 'u1', status: 'incomplete', created_at: iso(100 * DAY) })], NOW).departed, true);
+  // The row itself, read again with an older status (it was active when the history was read),
+  // does not vouch for itself.
+  assert.equal(subDeparture(row, [{ ...row, status: 'active' }], NOW).departed, true);
+  // A row with no client has no other plan to hold.
+  assert.equal(subDeparture(ended({ id: 'r7', client_id: null }), [sub({ id: 'r8', client_id: null, created_at: iso(100 * DAY) })], NOW).departed, true);
+});
+
+test('subDeparture: the end is the series\' own close, clamped to now; a plan that has not ended is no departure', () => {
+  // Cancelled mid-period: the period end is in the future, the departure is now.
+  assert.deepEqual(subDeparture(sub({ client_id: 'u1', status: 'canceled', created_at: iso(90 * DAY), current_period_end: iso(-20 * DAY) }), [], NOW), { endedAt: NOW, departed: true });
+  // A close before its open is read as the open, as the series reads it.
+  assert.equal(subDeparture(sub({ client_id: 'u1', status: 'canceled', created_at: iso(10 * DAY), current_period_end: iso(20 * DAY) }), [], NOW).endedAt, NOW - 10 * DAY);
+  // 'unpaid' and 'paused' close the span; open and never-started rows have not ended.
+  for (const status of ['unpaid', 'paused']) assert.equal(subDeparture(sub({ client_id: 'u1', status, created_at: iso(90 * DAY), current_period_end: iso(DAY) }), [], NOW).departed, true, status);
+  for (const status of ['active', 'trialing', 'past_due', 'incomplete']) assert.deepEqual(subDeparture(sub({ client_id: 'u1', status, created_at: iso(90 * DAY), current_period_end: iso(DAY) }), [], NOW), { endedAt: null, departed: false }, status);
+  // The routes' churn read takes every status but these: the series' closed set.
+  assert.deepEqual(NOT_ENDED_STATUSES, ['active', 'trialing', 'past_due', 'incomplete', 'incomplete_expired']);
 });

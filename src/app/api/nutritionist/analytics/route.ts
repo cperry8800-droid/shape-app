@@ -12,7 +12,7 @@ import { loadStripe, loadCancelFlags } from '@/lib/stripe';
 import { pickRenewals, renewalRows, RENEWAL_CHECK_CAP, type RenewalSource } from '@/lib/coach-renewals.mjs';
 import { coachCutCents, bpsToRate } from '@/lib/platform-fee';
 import { buildOriginFeed, byoMixOf, openSubsToday } from '@/lib/origin-attribution';
-import { buildTrajectory } from '@/lib/coach-trajectory.mjs';
+import { buildTrajectory, subDeparture, NOT_ENDED_STATUSES } from '@/lib/coach-trajectory.mjs';
 import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
 import { isMeasuredSignedOut } from '@/lib/auth-lookup';
 
@@ -104,15 +104,18 @@ export async function GET(request: Request) {
   // block's ONE profiles lookup; byOrigin is built after it (below).
   const activeNames = new Map<string, string>();
 
-  // Churn (Business page): canceled subscriptions, newest first. No
+  // Churn (Business page): the subscriptions that ended, newest first. No
   // cancellation survey yet → exit reasons are always null and the UI says so.
   // ⚠ THE ERROR IS KEPT: an empty list says "no cancellations", which a failed read has not said.
+  // ⚠ ENDED IS THE TRAJECTORY'S CLOSED SET, NOT 'canceled' ALONE (the sweep after #2394 round 10; the
+  // trainer route's rule): an 'unpaid' or 'paused' plan counted as leaving in the pace and was missing
+  // here. '*' so each row ends where the series ends it (subEndedAt).
   const { data: churnRows, error: churnErr } = await supabase
     .from('subscriptions')
-    .select('client_id, price_cents, created_at, current_period_end')
+    .select('*')
     .eq('provider_role', 'nutritionist')
     .eq('provider_id', providerId)
-    .eq('status', 'canceled')
+    .not('status', 'in', `(${NOT_ENDED_STATUSES.join(',')})`)
     .order('current_period_end', { ascending: false, nullsFirst: false })
     .limit(12);
   const churnIds = (churnRows ?? []).map((r) => r.client_id).filter(Boolean);
@@ -135,37 +138,6 @@ export async function GET(request: Request) {
     }
   }
   if (churnErr) console.warn('[shape-app] nutritionist analytics: churn read failed — churn renders as unread:', churnErr.message);
-  // ⚠ A CANCELLED PLAN IS NOT A DEPARTURE WHILE THE CLIENT HOLDS ANOTHER (Codex round 8 on #2394, the
-  // trajectory's rule in coach-trajectory.mjs leftIn). Each row says whose it is, and whether that
-  // client still holds a plan here, so the page counts the people who left, not the plans that
-  // ended. null is "couldn't tell" (a read below failed), which the page says rather than guessing;
-  // a row with no client has no other plan to hold, so it is a departure.
-  // ⚠ AND A RETRYING PLAN IS STILL A MEMBERSHIP (Codex round 9 on #2394). The active read above takes
-  // active and trialing; the trajectory (OPEN_STATUSES) also counts past_due. Only the churned
-  // clients are asked about (at most the 12 listed), so one read holds them all.
-  let retrying: Set<string> | null = new Set();
-  if (!churnErr && churnIds.length) {
-    const { data, error } = await supabase
-      .from('subscriptions')
-      .select('client_id')
-      .eq('provider_role', 'nutritionist')
-      .eq('provider_id', providerId)
-      .eq('status', 'past_due')
-      .in('client_id', churnIds);
-    if (error) console.warn("[shape-app] nutritionist analytics: retrying-plans read failed — who left renders as unread:", error.message);
-    retrying = error ? null : new Set((data ?? []).map((r: { client_id: string | null }) => String(r.client_id)));
-  }
-  const membersKnown = !subsUnknown && retrying != null;
-  const holdsPlan = new Set([...clientIds.map(String), ...(retrying ?? [])]);
-  const churn = churnErr ? null : (churnRows ?? []).map((r) => ({
-    name: churnNames.get(String(r.client_id)) || 'Former client',
-    clientId: r.client_id == null ? null : String(r.client_id),
-    stillClient: !membersKnown ? null : r.client_id == null ? false : holdsPlan.has(String(r.client_id)),
-    startedAt: r.created_at ?? null,
-    endedAt: r.current_period_end ?? null,
-    priceCents: r.price_cents ?? null,
-    reason: null, // collects once the cancellation survey ships
-  }));
 
   // Appointment counts, counted by the database as the trainer route counts them: the rows were read
   // with a 1,000-row limit and no order, so past 1,000 lifetime consults every count was a sample,
@@ -323,6 +295,8 @@ export async function GET(request: Request) {
   // drift or a timeout into the financial claim that no one-time revenue existed. The
   // warning above already knew; the payload did not say so, and a consumer cannot
   // distinguish "none" from "not read" without being told.
+  // One instant for the series and the churn list below, so both clamp a close to the same "now".
+  const seriesNow = Date.now();
   const trajectory = subsAllRes.error
     ? null
     : {
@@ -330,6 +304,7 @@ export async function GET(request: Request) {
       ...buildTrajectory({
         subs: subsAllRes.data ?? [],
         purchases: purchasesRes.data ?? [],
+        now: seriesNow,
         cutCents: (priceCents: number, feeBps: number | null) => coachCutCents(priceCents, bpsToRate(feeBps ?? 1500)),
       }),
     };
@@ -343,6 +318,25 @@ export async function GET(request: Request) {
   // purchases, each labelled from its STORED (origin, fee_bps) pair. Shared
   // with the trainer route so the mapping can't drift.
   const byOrigin = todaySubs ? await buildOriginFeed(supabase, 'nutritionist', providerId, todaySubs, activeNames) : null;
+
+  // ⚠ A PLAN THAT ENDED IS DECIDED AT THE MOMENT IT ENDED, NOT BY WHETHER THE CLIENT IS HERE NOW (the
+  // sweep after #2394 round 10; coach-trajectory.mjs subDeparture, the trainer route's rule). A client
+  // who left on Aug 20 and came back on Sep 25 read as still a client and dropped out of the list,
+  // while the trajectory and the pace counted the Aug 20 departure. `departed` true is "this ended
+  // their membership", false "they held another plan then", null "the trajectory rows could not be
+  // read". endedAt is the series' own close, clamped to now.
+  const churn = churnErr ? null : (churnRows ?? []).map((r) => {
+    const end = subDeparture(r, subsAllRes.data ?? [], seriesNow);
+    return {
+      name: churnNames.get(String(r.client_id)) || 'Former client',
+      clientId: r.client_id == null ? null : String(r.client_id),
+      departed: subsAllRes.error ? null : end.departed,
+      startedAt: r.created_at ?? null,
+      endedAt: end.endedAt == null ? null : new Date(end.endedAt).toISOString(),
+      priceCents: r.price_cents ?? null,
+      reason: null, // collects once the cancellation survey ships
+    };
+  });
 
   // Renewing in the next 7 days (Business page, Money tab). Each one is asked of Stripe, because a
   // member who cancelled keeps an active row until the period ends (src/lib/coach-renewals.mjs).

@@ -678,35 +678,53 @@ function ClientsTab({ t, biz, now }) {
     );
   }
 
-  // Who left in the last 90 days (the website's churn total has the same window).
+  // Who left, over the pace's own window (the website's churn total has the same one).
+  // ⚠ THE WINDOW IS THE PACE'S, IN THE PACE'S WORDS (the website's sweep after #2394 round 10). It was
+  // the last 90 days while "What a client is worth" and "Joined and left" above read the pace's
+  // window, so one tab could say a client left "over the last 3 months" beside "No one has left in
+  // the last 90 days". coachForecast.js `churnWindow` opens the list where the pace opens, and falls
+  // back to the last 90 days (and says so) only when there is no pace. The pace is the one the tab's
+  // other zones read, at the visit's one moment.
+  const churnPace = base.state === 'ready' ? base.pace : extra.trajectory ? F.paceFrom(extra.trajectory, now) : null;
+  const churnWin = F.churnWindow(churnPace, now);
   // ⚠ THE LIST STOPS AT BS_BIZ_CHURN_LIST ROWS (the routes' .limit(12)). When every row it holds
-  // is inside the 90 days, more may have left than it shows, and a note says so (the website's
+  // is inside the window, more may have left than it shows, and a note says so (the website's
   // total reads "12 or more" and "at least" then).
   let left;
   if (extra.churn === null) left = <Note t={t}>{tr('coach:business.clients.leftUnread', { defaultValue: "Couldn't read your cancellations just now." })}</Note>;
   else if (!Array.isArray(extra.churn)) left = loading;
-  // Who stayed unread (stillClient null: a membership read failed; the website's Codex round 9,
-  // #2394): no one can be said to have left, so no one is listed as gone.
-  else if (extra.churn.some((r) => r.stillClient === null)) left = <Note t={t}>{tr('coach:business.clients.leftUnsure', { defaultValue: "Couldn't check who still has a plan with you just now, so no one is counted as gone." })}</Note>;
   else {
-    const since = now - 90 * DAY;
-    // A client still active here who cancelled one plan hasn't left (the website's Codex round 8,
-    // #2394; the trajectory's rule): the route says so per row, and the row isn't listed.
-    const gone = extra.churn.filter((r) => r.stillClient !== true);
-    const recent = gone.filter((r) => r.endedAt && new Date(r.endedAt).getTime() >= since);
-    // The route's full list of 12, all inside the window, before any row is left out.
-    const full = biz.kind === 'live' && extra.churn.length >= BS_BIZ_CHURN_LIST && extra.churn.every((r) => r.endedAt && new Date(r.endedAt).getTime() >= since);
-    left = !recent.length ? <Note t={t}>{tr('coach:business.clients.leftNone', { defaultValue: 'No one has left in the last 90 days.' })}</Note> : (
-      <div>
-        {recent.map((r, i) => (
-          <Row key={i} t={t} label={r.name} last={i === recent.length - 1} subColor={t.RUST}
-            sub={tr('coach:business.clients.leftOn', { defaultValue: 'left {date}', date: bizDate(r.endedAt) })}
-            value={r.priceCents != null ? tr('coach:business.clients.leftPrice', { defaultValue: '−{price}/mo', price: bsBizMoney(r.priceCents) }) : '—'} />
-        ))}
-        {full ? <Note t={t} style={{ marginTop: 8 }}>{tr('coach:business.clients.leftMore', { defaultValue: 'Only the latest {count} are shown; more may have left in these 90 days.', count: BS_BIZ_CHURN_LIST })}</Note> : null}
-      </div>
-    );
+    // ⚠ DEPARTURES, DECIDED AT THE MOMENT EACH PLAN ENDED (the website's Codex round 8 and the sweep
+    // after round 10, #2394): a client who held another plan then hadn't left (departed false), plans
+    // one client ended at one moment are one departure whose money adds, and a client who left twice
+    // is listed twice (coachForecast.js `departures`). null: the history each one is decided from was
+    // unread (departed null), so no one is listed as gone.
+    const gone = F.departures(extra.churn, { pace: churnPace, now, cap: BS_BIZ_CHURN_LIST });
+    if (!gone) left = <Note t={t}>{tr('coach:business.clients.leftUnsure', { defaultValue: "Couldn't check who still has a plan with you just now, so no one is counted as gone." })}</Note>;
+    else {
+      const recent = gone.inWindow;
+      const full = biz.kind === 'live' && gone.floor;
+      const none = churnWin.paced
+        ? tr('coach:business.clients.leftNoneWhen', { defaultValue: 'No one has left {when}.', when: when(churnWin) })
+        : tr('coach:business.clients.leftNone', { defaultValue: 'No one has left in the last 90 days.' });
+      const more = churnWin.paced
+        ? tr('coach:business.clients.leftMoreWhen', { defaultValue: 'Only the latest {count} are shown; more may have left {when}.', count: BS_BIZ_CHURN_LIST, when: when(churnWin) })
+        : tr('coach:business.clients.leftMore', { defaultValue: 'Only the latest {count} are shown; more may have left in these 90 days.', count: BS_BIZ_CHURN_LIST });
+      left = !recent.length ? <Note t={t}>{none}</Note> : (
+        <div>
+          {recent.map((r, i) => (
+            <Row key={i} t={t} label={r.name} last={i === recent.length - 1} subColor={t.RUST}
+              sub={tr('coach:business.clients.leftOn', { defaultValue: 'left {date}', date: bizDate(r.endedAt) })}
+              value={r.priceCents != null ? tr('coach:business.clients.leftPrice', { defaultValue: '−{price}/mo', price: bsBizMoney(r.priceCents) }) : '—'} />
+          ))}
+          {full ? <Note t={t} style={{ marginTop: 8 }}>{more}</Note> : null}
+        </div>
+      );
+    }
   }
+  const leftHead = churnWin.paced
+    ? tr('coach:business.clients.leftHeadWhen', { defaultValue: 'Left {when}', when: when(churnWin) })
+    : tr('coach:business.clients.leftHead', { defaultValue: 'Left in the last 90 days' });
 
   return (
     <div>
@@ -716,7 +734,7 @@ function ClientsTab({ t, biz, now }) {
       {worth}
       <Head t={t} label={tr('coach:business.clients.waitHead', { defaultValue: 'Your waiting list' })} />
       {wait}
-      <Head t={t} label={tr('coach:business.clients.leftHead', { defaultValue: 'Left in the last 90 days' })} />
+      <Head t={t} label={leftHead} />
       {left}
     </div>
   );

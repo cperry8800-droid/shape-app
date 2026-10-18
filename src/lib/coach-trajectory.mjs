@@ -51,6 +51,9 @@ export const OPEN_SUB_STATUSES = ['active', 'trialing', 'past_due'];
 const OPEN_STATUSES = new Set(OPEN_SUB_STATUSES);
 // Never a client: no join, no departure, no row in the series.
 const NEVER_STARTED = new Set(['incomplete', 'incomplete_expired']);
+// Every status that does NOT close a span. A read of the rows that ended takes every other status,
+// which is the set this series closes a span on (the routes' churn read: `.not('status', 'in', …)`).
+export const NOT_ENDED_STATUSES = [...OPEN_STATUSES, ...NEVER_STARTED];
 
 // The Monday (00:00 UTC) of the ISO week containing `ms`.
 export function mondayUTC(ms) {
@@ -81,20 +84,47 @@ export function subEndedAt(row, now = Date.now()) {
   return Math.min(at, now);
 }
 
+// The span a row draws in the series, { start, end } with end null while open, or null for a row
+// that is not in it (never started, or no start date). buildTrajectory, subDeparture and openSubsAt
+// all read this, so the series, the churn list and today's figures open and close a span alike.
+function spanOf(row, now) {
+  if (!row || subNeverStarted(row)) return null;
+  const start = ms(row.created_at);
+  if (start == null) return null;
+  const end = subEndedAt(row, now);
+  // A close before its open is a data error; treat it as a zero-length span.
+  return { start, end: end != null && end < start ? start : end };
+}
+
+// ⚠ A PLAN THAT ENDED IS A DEPARTURE ONLY IF ITS CLIENT HELD NO OTHER PLAN AT THAT MOMENT (the sweep
+// after #2394 round 10). The routes' churn list asked whether the client holds a plan NOW, so a client
+// who left on Aug 20 and came back on Sep 25 read as "still a client" and dropped out of the list,
+// while this series (leftIn) and the pace counted the Aug 20 departure. Each row is decided at the
+// instant it ended, from every row of this coach (any status, the trajectory read): it is not a
+// departure when another started row of the same client opened at or before that instant and was
+// still open after it (its own end null, or later).
+//   → { endedAt, departed }: endedAt is the series' own close (subEndedAt, clamped to now, a close
+//     before the open read as the open), null for a row that has not ended; departed is true when
+//     this row ended the client's membership, false when another of their plans was open across it
+//     (or the row has not ended). A row with no client has no other plan to hold: a departure.
+export function subDeparture(row, subs = [], now = Date.now()) {
+  const own = spanOf(row, now);
+  const end = own ? own.end : subEndedAt(row, now);
+  if (end == null) return { endedAt: null, departed: false };
+  if (row.client_id == null) return { endedAt: end, departed: true };
+  const who = String(row.client_id);
+  for (const s of subs || []) {
+    if (!s || s === row || (row.id != null && s.id === row.id)) continue;
+    if (s.client_id == null || String(s.client_id) !== who) continue;
+    const other = spanOf(s, now);
+    if (other && other.start <= end && (other.end == null || other.end > end)) return { endedAt: end, departed: false };
+  }
+  return { endedAt: end, departed: true };
+}
+
 function defaultCut(priceCents, feeBps) {
   const bps = feeBps == null ? 1500 : Number(feeBps);
   return Math.round((Number(priceCents) || 0) * (1 - bps / 10000));
-}
-
-// A subscription row as a span: when it opened and when it closed (null while open), or null for
-// a row that is no span at all (never started, or no open date). buildTrajectory and openSubsAt
-// both take a row's span from here.
-function spanOf(r, now) {
-  if (subNeverStarted(r)) return null;   // an abandoned checkout is not a join and not a departure
-  const start = ms(r && r.created_at);
-  if (start == null) return null;
-  const end = subEndedAt(r, now);
-  return { start, end: end != null && end < start ? start : end }; // a close before its open is a data error; treat as a zero-length span
 }
 
 // ⚠ TODAY'S CLIENTS ARE THE SERIES' LATEST POINT, AND EVERY FIGURE BESIDE THEM IS TAKEN OVER THE
@@ -135,6 +165,7 @@ function median(nums) {
 export function buildTrajectory({ subs = [], purchases = [], now = Date.now(), weeks = TRAJECTORY_WEEKS, cutCents = defaultCut } = {}) {
   const spans = [];
   for (const r of subs) {
+    // An abandoned checkout is not a join and not a departure; nor is a row with no start date.
     const span = spanOf(r, now);
     if (!span) continue;
     spans.push({

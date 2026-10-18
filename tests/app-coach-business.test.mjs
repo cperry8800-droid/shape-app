@@ -378,14 +378,15 @@ test('the waiting list is valued at the listing price, and says why when there i
   }
 });
 
-// The website's Codex round 8 (#2394): people, not plans. A client still here who cancelled one
-// plan hasn't left; one client with two plans due is one client.
-test('Left in the last 90 days leaves out a current client, and the renewals header counts people', async () => {
+// The website's Codex round 8 and the sweep after round 10 (#2394): departures, decided by the route
+// at the moment each plan ended. A plan ended while its client held another is not one; one client
+// with two plans due is one client.
+test('who left leaves out a plan ended while another was held, and the renewals header counts people', async () => {
   const p = payload();
   const recentEnd = p.churn[0].endedAt;
   const soon = new Date(Date.now() + 2 * DAY).toISOString();
   world({ answer: payload({
-    churn: [...p.churn, { name: 'Still Here', clientId: 'still', stillClient: true, endedAt: recentEnd, priceCents: 9000 }],
+    churn: [...p.churn, { name: 'Held Another', clientId: 'held', departed: false, endedAt: recentEnd, priceCents: 9000 }],
     renewals: [
       { name: 'Two Plans', clientId: 'two', dueAt: soon, priceCents: 18000, netCents: 15300, ending: false },
       { name: 'Two Plans', clientId: 'two', dueAt: soon, priceCents: 6000, netCents: 5100, ending: false },
@@ -393,12 +394,12 @@ test('Left in the last 90 days leaves out a current client, and the renewals hea
   }) });
   const clients = await mount(page({ tab: 'clients' }));
   assert.match(clients.text(), /Riley T\./);
-  assert.doesNotMatch(clients.text(), /Still Here/, 'a current client is not listed as gone');
+  assert.doesNotMatch(clients.text(), /Held Another/, 'a plan ended while another was held is not a departure');
   await clients.unmount();
-  // Who stayed unread (a membership read failed): no one is listed as gone.
-  world({ answer: payload({ churn: [...p.churn.map((r) => ({ ...r, stillClient: null }))] }) });
+  // The history each departure is decided from unread (departed null): no one is listed as gone.
+  world({ answer: payload({ churn: [...p.churn.map((r) => ({ ...r, departed: null }))] }) });
   const unsure = await mount(page({ tab: 'clients' }));
-  assert.match(unsure.text(), /Left in the last 90 daysCouldn't check who still has a plan with you just now, so no one is counted as gone\./);
+  assert.match(unsure.text(), /Left over the last 3 monthsCouldn't check who still has a plan with you just now, so no one is counted as gone\./);
   assert.doesNotMatch(unsure.text(), /Riley T\./);
   await unsure.unmount();
   world({ answer: payload({ renewals: [
@@ -644,12 +645,12 @@ test('the goal sentence never contradicts its figures: still climbing, levelling
   await m.unmount();
 });
 
-test('Left in the last 90 days: a full list all inside the window says more may have left', async () => {
+test('who left: a full list all inside the window says more may have left', async () => {
   const row = (i, days) => ({ name: 'C' + i, endedAt: new Date(Date.now() - days * DAY).toISOString(), priceCents: 18000 });
   const full = Array.from({ length: BIZ.BS_BIZ_CHURN_LIST }, (_, i) => row(i, 5 + i));
   world({ answer: payload({ churn: full }) });
   let m = await mount(page({ tab: 'clients' }));
-  assert.match(m.text(), /C11left [^$]*\$180\/moOnly the latest 12 are shown; more may have left in these 90 days\./);
+  assert.match(m.text(), /C11left [^$]*\$180\/moOnly the latest 12 are shown; more may have left over the last 3 months\./);
   await m.unmount();
   // One of the twelve is older than the window: the list is whole, and no note.
   world({ answer: payload({ churn: [...full.slice(0, 11), row(11, 120)] }) });
@@ -657,12 +658,66 @@ test('Left in the last 90 days: a full list all inside the window says more may 
   assert.match(m.text(), /C10left /);
   assert.doesNotMatch(m.text(), /C11|Only the latest/);
   await m.unmount();
-  // The routes send the newest 12, as BS_BIZ_CHURN_LIST says.
+  // With no pace (the history unread), the window is the last 90 days, and the note says so.
+  world({ answer: payload({ churn: full, trajectory: null }) });
+  m = await mount(page({ tab: 'clients' }));
+  assert.match(m.text(), /Left in the last 90 days[^]*C11left [^$]*\$180\/moOnly the latest 12 are shown; more may have left in these 90 days\./);
+  await m.unmount();
+  // The routes send the newest 12 ended plans, as BS_BIZ_CHURN_LIST says.
   assert.equal(BIZ.BS_BIZ_CHURN_LIST, 12);
   for (const role of ['trainer', 'nutritionist']) {
     const src = readFileSync(join(ROOT, `src/app/api/${role}/analytics/route.ts`), 'utf8');
-    assert.match(src, /\.eq\('status', 'canceled'\)\n\s+\.order\('current_period_end', \{ ascending: false, nullsFirst: false \}\)\n\s+\.limit\(12\);/, role + ' sends the newest 12');
+    assert.match(src, /\.not\('status', 'in', `\(\$\{NOT_ENDED_STATUSES\.join\(','\)\}\)`\)\n\s+\.order\('current_period_end', \{ ascending: false, nullsFirst: false \}\)\n\s+\.limit\(12\);/, role + ' sends the newest 12 ended plans');
   }
+});
+
+// ── The website's sweep after #2394 round 10: who left, over the pace's own window ──
+test('who left counts over the pace\'s window, in its words, as "What a client is worth" above it does', async () => {
+  const now = Date.now();
+  const ninety = { name: 'Day Ninety', endedAt: new Date(now - 90.5 * DAY).toISOString(), priceCents: 18000 };
+  world({ answer: payload({ churn: [ninety] }) });
+  let m = await mount(page({ tab: 'clients' }));
+  const base = CF.planNumbers({ extra: payload(), listingMonthly: 180 });
+  assert.ok(base.pace.adds != null && !base.pace.fromFirst && base.pace.from <= now - 91 * DAY, 'a pace over the last 3 months');
+  // Ended 90.5 days ago: inside the pace's window, so listed under its words, not hidden as "90 days".
+  assert.match(m.text(), /From [\d.,]+% of clients leaving a month over the last 3 months/);
+  assert.match(m.text(), /Left over the last 3 monthsDay Ninetyleft [^$]*\$180\/mo/);
+  await m.unmount();
+  // Before the window opens: no one, said in the same words.
+  world({ answer: payload({ churn: [{ ...ninety, endedAt: new Date(base.pace.from - DAY).toISOString() }] }) });
+  m = await mount(page({ tab: 'clients' }));
+  assert.match(m.text(), /Left over the last 3 monthsNo one has left over the last 3 months\./);
+  await m.unmount();
+  // A younger practice reads after its first week.
+  world({ answer: payload({ churn: [{ ...ninety, endedAt: new Date(now - 10 * DAY).toISOString() }] }, { firstDays: 70 }) });
+  m = await mount(page({ tab: 'clients' }));
+  assert.match(m.text(), /Left after your first weekDay Ninetyleft /);
+  await m.unmount();
+  world({ answer: payload({ churn: [] }, { firstDays: 70 }) });
+  m = await mount(page({ tab: 'clients' }));
+  assert.match(m.text(), /Left after your first weekNo one has left after your first week\./);
+  await m.unmount();
+  // No pace (the history unread): the last 90 days, as before.
+  world({ answer: payload({ churn: [ninety], trajectory: null }) });
+  m = await mount(page({ tab: 'clients' }));
+  assert.match(m.text(), /Left in the last 90 daysNo one has left in the last 90 days\./);
+  await m.unmount();
+});
+
+test('who left lists departures: one client\'s plans ending together are one, with both prices; one who left twice is listed twice', async () => {
+  const at = (d) => new Date(Date.now() - d * DAY).toISOString();
+  world({ answer: payload({ churn: [
+    { name: 'Two At Once', clientId: 'two', departed: true, endedAt: at(8), priceCents: 18000 },
+    { name: 'Two At Once', clientId: 'two', departed: true, endedAt: at(8), priceCents: 6000 },
+    { name: 'Back And Gone', clientId: 'back', departed: true, endedAt: at(12), priceCents: 15000 },
+    { name: 'Back And Gone', clientId: 'back', departed: true, endedAt: at(70), priceCents: 9000 },
+  ] }) });
+  const m = await mount(page({ tab: 'clients' }));
+  assert.equal((m.text().match(/Two At Once/g) || []).length, 1, 'one departure');
+  assert.match(m.text(), /Two At Onceleft [^$]*\$240\/mo/, 'with both plans\' money');
+  assert.equal((m.text().match(/Back And Gone/g) || []).length, 2, 'two departures');
+  assert.match(m.text(), /Back And Goneleft [^$]*\$150\/mo[^]*Back And Goneleft [^$]*\$90\/mo/);
+  await m.unmount();
 });
 
 test('signed out: a preview with sample numbers that says so, and no reads', async () => {
