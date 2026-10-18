@@ -115,6 +115,24 @@ test('monthlyNet is MRR after the one named fee rate — not a second spelling o
   assert.equal(live.value, 4242);
 });
 
+test('a live client count or net the dashboard couldn\'t read says so under its dash; a measured zero is still a figure', () => {
+  // The dashboard routes send today's clients and net as null when the subscriptions couldn't be read
+  // (the dashboards after #2395), never 0, and the strip says why rather than leaving the dash bare.
+  const unread = ctx({ live: { kpis: { activeClients: null, monthlyNetCents: null } } });
+  assert.deepEqual(S.dashKpiValue('activeClients', unread), { value: null, unit: 'count', why: "couldn't be read" });
+  assert.deepEqual(S.dashKpiValue('monthlyNet', unread), { value: null, unit: 'money', why: "couldn't be read" });
+  const zero = ctx({ live: { kpis: { activeClients: 0, monthlyNetCents: 0 } } });
+  assert.deepEqual(S.dashKpiValue('activeClients', zero), { value: 0, unit: 'count' });
+  assert.deepEqual(S.dashKpiValue('monthlyNet', zero), { value: 0, unit: 'money', sub: 'after the platform fee' });
+  // The strip's own cell (dashToday.jsx): a dash with the reason under it, and $0 for a measured zero.
+  const pick = (re) => { const m = re.exec(TODAY); assert.ok(m, re + ' moved'); return m[0]; };
+  const cell = new Function('DashSignals', pick(/function dashMoney\(cents\) \{[\s\S]*?\n\}/) + '\n' + pick(/function dashKpiCell\(key, role, ctx\) \{[\s\S]*?\n\}/) + '\nreturn dashKpiCell;')(S);
+  assert.deepEqual(cell('activeClients', 'trainer', unread), { k: '—', l: 'Active clients', sub: "couldn't be read" });
+  assert.deepEqual(cell('monthlyNet', 'nutritionist', unread), { k: '—', l: 'Monthly (net)', sub: "couldn't be read" });
+  assert.deepEqual(cell('activeClients', 'trainer', zero), { k: '0', l: 'Active clients', sub: null });
+  assert.deepEqual(cell('monthlyNet', 'trainer', zero), { k: '$0', l: 'Monthly (net)', sub: 'after the platform fee' });
+});
+
 test('the new-clients window is the 14 days `isNew` actually means', () => {
   const out = S.dashKpiValue('newClients', ctx({
     clients: [client({ profile: { id: 'a', isNew: true } }), client({ profile: { id: 'b', isNew: false } })],

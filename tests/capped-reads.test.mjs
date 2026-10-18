@@ -88,9 +88,9 @@ test('every capped read keeps the NEWEST rows, or says at the site why it must n
   );
 });
 
-test('the exemptions are the nine that were checked, and each is deliberate', () => {
+test('the exemptions are the eleven that were checked, and each is deliberate', () => {
   // ⚠ NOT AN ALLOWLIST THE GUARD ENFORCES — it enforces the marker. This asserts the
-  // marker has not been sprinkled around to quiet the sweep: a tenth one is a decision
+  // marker has not been sprinkled around to quiet the sweep: a twelfth one is a decision
   // somebody has to make, and making it means coming here. (lead-boosts/route.ts left the
   // list on 2026-10-09: its ascending provider read moved into redeem_lead_boost, where the
   // database picks the account's lowest-id provider row. trainer/analytics/route.ts joined
@@ -103,7 +103,11 @@ test('the exemptions are the nine that were checked, and each is deliberate', ()
   // nutritionist/analytics/route.ts joined on 2026-10-18: its four ascending reads are pages of the
   // same readAllById walk as the trainer route's, now shared from src/lib/read-all-by-id.ts, over
   // the practice trajectory's rows, which a newest-first read cut at 1,000, and over the active
-  // subscriptions and the 30-day snapshots, which one read each cut at 1,000 (Codex, #2394).)
+  // subscriptions and the 30-day snapshots, which one read each cut at 1,000 (Codex, #2394).
+  // trainer/dashboard/route.ts and nutritionist/dashboard/route.ts joined on 2026-10-18: each reads
+  // today's open subscriptions by the same readAllById walk, where one read cut them at 1,000 (the
+  // dashboards after #2395). Their session reads, a few lines below, keep the newest rows on their
+  // own, and the last assertion here keeps the walk's marker from covering them.)
   const marked = capped().filter((r) => r.exempt).map((r) => r.where.replace(/:\d+$/, ''));
   assert.deepEqual([...new Set(marked)].sort(), [
     'client/onboarding/route.ts',
@@ -111,11 +115,18 @@ test('the exemptions are the nine that were checked, and each is deliberate', ()
     'conversations/[id]/messages/route.ts',
     'cron/prep-reminders/route.ts',
     'nutritionist/analytics/route.ts',
+    'nutritionist/dashboard/route.ts',
     'radio/rooms/route.ts',
     'stripe/connect-account/route.ts',
     'trainer/adjust/route.ts',
     'trainer/analytics/route.ts',
+    'trainer/dashboard/route.ts',
   ]);
+  // The marker counts for every read up to 16 lines below it, so in a dashboard route it must sit
+  // with the subscriptions walk alone: a session read it reached would be exempt unseen, ascending or not.
+  for (const f of ['trainer/dashboard/route.ts', 'nutritionist/dashboard/route.ts']) {
+    assert.deepEqual(capped().filter((r) => r.where.startsWith(f + ':') && r.exempt).map((r) => r.col), ['id'], f);
+  }
 });
 
 test('the reads that were flipped re-sort for their consumers rather than returning reversed', () => {
