@@ -966,13 +966,19 @@ function DashDemoBand() {
 // days against the 30 before (src/lib/coach-growth.ts). Read by the Business summary
 // card below; the Business page's own Money tab draws from its trajectory instead.
 // Demo shows the example series.
+// The preview's new clients over 90 days are its weeks summed (it has no clients before them).
+const dashDemoGrowth = (counts, centsEach, momPct) => ({
+  weeklyAdds: counts.map((c, i) => ({ weekOf: "w" + i, count: c, addedCents: c * centsEach })),
+  added90: counts.reduce((s, c) => s + c, 0), momPct,
+});
 const DASH_DEMO_GROWTH = {
-  trainer: { weeklyAdds: [1, 0, 2, 1, 3, 1, 2, 2, 1, 3, 2, 4, 3].map((c, i) => ({ weekOf: "w" + i, count: c, addedCents: c * 20000 })), momPct: 9 },
-  nutritionist: { weeklyAdds: [0, 1, 1, 2, 1, 1, 2, 1, 2, 2, 1, 2, 2].map((c, i) => ({ weekOf: "w" + i, count: c, addedCents: c * 16000 })), momPct: 12 },
+  trainer: dashDemoGrowth([1, 0, 2, 1, 3, 1, 2, 2, 1, 3, 2, 4, 3], 20000, 9),
+  nutritionist: dashDemoGrowth([0, 1, 1, 2, 1, 1, 2, 1, 2, 2, 1, 2, 2], 16000, 12),
 };
 // Marketplace funnel: profile views → consults → signed. Views aren't tracked
 // yet → honest "connects soon"; consults + signings are real on live.
-const DASH_DEMO_FUNNEL = { views: 1240, consults90: 86, signed90: 34 };
+// The preview's signings are some of its new clients (18 for a nutritionist, 25 for a trainer), never more.
+const DASH_DEMO_FUNNEL = { views: 1240, consults90: 40, signed90: 14 };
 const DASH_FUNNEL_BENCHMARK = 30; // % consult→signed close rate, marketplace norm
 // Consult → signed, as a percent. "Signed" is the clients who found the coach on Shape, but one
 // can still sign without a consult, so the rate is capped at 100: past it is not a close rate.
@@ -1028,7 +1034,10 @@ function DashBusinessSummary({ live, role, clients }) {
   const g = live ? (live.growth || null) : DASH_DEMO_GROWTH[role];
   const f = live ? (live.funnel || null) : DASH_DEMO_FUNNEL;
   const counts = g && Array.isArray(g.weeklyAdds) ? g.weeklyAdds.map((w) => w.count) : null;
-  const adds90 = counts ? counts.reduce((s, c) => s + c, 0) : null;
+  // ⚠ THE 90 DAYS THE SIGNINGS COVER, NOT THE SUMMED WEEKS (the sweep after #2394 round 10): the
+  // weekly buckets open up to six days after them, so the sum could fall below "Signed from Shape ·
+  // 90d", a subset of these clients (src/lib/coach-growth.ts added90). The weeks draw the sparkline.
+  const adds90 = g && g.added90 != null ? g.added90 : null;
   const close = dashCloseRate(f);
   const netCents = live
     ? (live.kpis && live.kpis.monthlyNetCents != null ? live.kpis.monthlyNetCents : null)

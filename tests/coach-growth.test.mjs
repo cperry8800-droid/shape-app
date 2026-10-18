@@ -106,6 +106,51 @@ test('"signed" counts the clients who found the coach on Shape; a row with no st
   assert.equal(g.funnel.views, null);
 });
 
+// ── The sweep after #2394 round 10: new clients and signings over the same 90 days ──
+test('new clients over 90 days are counted over the rows the signings are: never fewer than "Signed from Shape · 90d"', async () => {
+  // A Monday: the 13 weekly buckets open on the Monday of twelve weeks ago, 84.5 days back, while the
+  // read (and the signings) reach 90 days back. Two clients joined in the five days between.
+  const MON = Date.UTC(2026, 9, 19, 12);
+  const back = (d) => new Date(MON - d * DAY).toISOString();
+  const g = G.growthFrom([
+    { client_id: 'a', created_at: back(88), status: 'active', price_cents: 10000, fee_bps: 1500 },
+    { client_id: 'b', created_at: back(86), status: 'active', price_cents: 10000, fee_bps: 1500 },
+    { client_id: 'c', created_at: back(10), status: 'active', price_cents: 10000, fee_bps: 0 },
+  ], { consults90: 5, now: MON });
+  assert.equal(g.growth.weeklyAdds[0].weekOf, '2026-07-27', 'the weeks open after a and b joined');
+  assert.equal(total(g), 1, 'the weeks hold c alone');
+  assert.equal(g.funnel.signed90, 2, 'a and b found the coach on Shape');
+  assert.equal(g.growth.added90, 3, 'a, b and c joined in the 90 days');
+  // Today's card prints that count, not the summed weeks, beside the funnel's signings.
+  const { createRequire } = await import('node:module');
+  const require_ = createRequire(import.meta.url);
+  const React = require_('react');
+  const { renderToStaticMarkup } = require_('react-dom/server');
+  const babel = require_('next/dist/compiled/babel/core');
+  const presetReact = require_('next/dist/compiled/babel/preset-react');
+  const src = readFileSync(ROOT + 'public/newdesign/dashToday.jsx', 'utf8');
+  const pick = (re) => re.exec(src)[0];
+  const code = [
+    pick(/const DASH_FUNNEL_BENCHMARK = [^\n]*/),
+    pick(/function dashCloseRate\(f\) \{[\s\S]*?\n\}/),
+    ...(/function dashCloseWhy\(/.test(src) ? [pick(/function dashCloseWhy\(f\) \{[\s\S]*?\n\}/)] : []),
+    pick(/function DashBusinessSummary\([\s\S]*?\n\}/),
+  ].join('\n');
+  const js = babel.transformSync(code, { presets: [presetReact], babelrc: false, configFile: false }).code;
+  const { DashBusinessSummary } = new Function('React', 'serif', 'dashMoney', 'DASH_MONO_LINK', 'DASH_DEMO_GROWTH', 'DASH_DEMO_FUNNEL',
+    js + '\nreturn { DashBusinessSummary };')(React, 'serif', (c) => '$' + c / 100, {}, {}, {});
+  const card = renderToStaticMarkup(React.createElement(DashBusinessSummary, { live: { growth: g.growth, funnel: g.funnel, kpis: { monthlyNetCents: 1 } }, role: 'trainer', clients: [] })).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  assert.match(card, /\+3 New clients · 90d/);
+  // And the preview's own figures keep the rule: its signings are some of its new clients.
+  const demoCode = [pick(/const dashDemoGrowth = [\s\S]*?\n\}\);/), pick(/const DASH_DEMO_GROWTH = \{[\s\S]*?\n\};/), pick(/const DASH_DEMO_FUNNEL = [^\n]*/)].join('\n');
+  const { DASH_DEMO_GROWTH, DASH_DEMO_FUNNEL } = new Function(demoCode + '\nreturn { DASH_DEMO_GROWTH, DASH_DEMO_FUNNEL };')();
+  for (const role of ['trainer', 'nutritionist']) {
+    const demo = DASH_DEMO_GROWTH[role];
+    assert.equal(demo.added90, demo.weeklyAdds.reduce((s, w) => s + w.count, 0), role);
+    assert.ok(DASH_DEMO_FUNNEL.signed90 <= demo.added90, role + ': ' + DASH_DEMO_FUNNEL.signed90 + ' signed of ' + demo.added90 + ' new');
+  }
+});
+
 test('the dashboards cap consult → signed at 100 and say what the comparison is', () => {
   const src = readFileSync(ROOT + 'public/newdesign/dashToday.jsx', 'utf8');
   const fn = /function dashCloseRate\(f\) \{[\s\S]*?\n\}/.exec(src);
@@ -233,7 +278,7 @@ test('when the subscriptions can\'t be read, Today and the funnel say so: the co
   assert.match(funnel, /Your signings couldn't be read just now/);
   assert.doesNotMatch(funnel, /Funnel data connects soon|Book consults/);
   // A read that worked with no one in the 30 days before still says that.
-  const none = text(React.createElement(DashBusinessSummary, { live: { ...live, growth: { weeklyAdds: [{ weekOf: 'w', count: 1, addedCents: 1 }], momPct: null } }, role: 'trainer', clients: [] }));
+  const none = text(React.createElement(DashBusinessSummary, { live: { ...live, growth: { weeklyAdds: [{ weekOf: 'w', count: 1, addedCents: 1 }], added90: 1, momPct: null } }, role: 'trainer', clients: [] }));
   assert.match(none, /none in the 30 days before to compare/);
 });
 
