@@ -249,5 +249,8 @@ export default {
     { name: "the growth walk: the earlier read counts another coach's clients", file: GROWTH,
       find: "        .eq('provider_id', providerId)\n        .lt('created_at', since)",
       replace: "        .lt('created_at', since)" },
+    { name: 'the new-program page keeps 8% of every sale again', file: 'public/newdesign/newProgram.jsx',
+      find: 'const NP_FEE_RATE = 0.15;',
+      replace: 'const NP_FEE_RATE = 0.08;' },
   ],
 };

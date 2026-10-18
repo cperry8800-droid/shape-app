@@ -49,3 +49,24 @@ for (const [file, name, clients, rate] of [['coach.jsx', 'TrainerEarnings', 20, 
     assert.match(body, /const grossMonthly = clients \* price;\n  const feeMonthly = Math\.round\(grossMonthly \* \(1 - byo \/ 100\) \* PLATFORM_FEE_RATE\);/);
   });
 }
+
+// The trainer new-program page's fee note (newProgram.jsx NpFeeNote). It said "Shape keeps 8%",
+// paid out 92% of every sale and promised weekly payouts; the platform takes 15% from a client who
+// found the coach on Shape and nothing from a client they bring, and payouts follow Stripe.
+test('newProgram.jsx: a sale nets the price after Shape\'s 15% from a client found on Shape, and all of it from one the coach brings', async () => {
+  const { PLATFORM_FEE_RATE } = await import('../src/lib/platform-fee.mjs');
+  const src = readFileSync(new URL('../public/newdesign/newProgram.jsx', import.meta.url), 'utf8');
+  const rate = /const NP_FEE_RATE = ([0-9.]+);/.exec(src);
+  assert.ok(rate, 'NP_FEE_RATE moved');
+  assert.equal(Number(rate[1]), PLATFORM_FEE_RATE, 'the page uses the platform fee');
+  const fn = /function NpFeeNote\(\{ price \}\) \{[\s\S]*?\n\}/.exec(src)[0];
+  const code = babel.transformSync(rate[0] + '\n' + fn, { presets: [presetReact], babelrc: false, configFile: false }).code;
+  const NpFeeNote = new Function('React', 'INK', code + '\nreturn NpFeeNote;')(React, '#f2ede4');
+  const t = text(React.createElement(NpFeeNote, { price: '220' })).replace(/&#x27;/g, "'");
+  assert.match(t, new RegExp('You receive \\$' + (220 * (1 - PLATFORM_FEE_RATE)).toFixed(2).replace('.', '\\.') + ' per sale to a client who found you on Shape, after Shape\'s 15%, and the full price from clients you bring\\.'));
+  assert.match(t, /Card processing is on Shape\. Payouts go straight to your bank, on the schedule you set in Stripe\./);
+  assert.match(text(React.createElement(NpFeeNote, { price: '' })), /You receive — per sale/);
+  const code_ = src.replace(/^\s*\/\/.*$/gm, '');
+  assert.doesNotMatch(code_, /8%|0\.92|Weekly payouts/i, 'no trace of the old fee or schedule outside the comment that records it');
+  assert.match(src, /<NpFeeNote price=\{price\} \/>/, 'the pricing card shows it');
+});

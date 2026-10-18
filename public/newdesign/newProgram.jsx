@@ -315,10 +315,7 @@ function NewProgramPage() {
                 <span style={{ color: "rgba(242,237,228,0.5)", fontSize: 12 }}>{kind === "subscription" ? "/mo" : ""}</span>
               </div>
             </Field>
-            <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", lineHeight: 1.5 }}>
-              Shape keeps 8%. You receive <span style={{ color: INK, fontWeight: 500 }}>${price ? (Number(price) * 0.92).toFixed(2) : "—"}</span> per sale.
-              Weekly payouts via Stripe Connect.
-            </div>
+            <NpFeeNote price={price} />
           </Card>
 
           <Card>
@@ -365,6 +362,22 @@ function NewProgramPage() {
         <ClientPicker clients={TRAINER_CLIENTS} selectedIds={assignedIds} onToggle={toggleClient} onClose={() => setPickerOpen(false)} />
       )}
     </DashPage>
+  );
+}
+
+// What a coach keeps from a sale, on the platform's fee (src/lib/platform-fee.mjs): Shape takes 15%
+// of a sale to a client who found the coach on Shape and nothing from a client the coach brings,
+// and card processing is on Shape. This said "Shape keeps 8%", paid out 92% of every sale, and
+// promised weekly payouts; payouts follow the schedule each coach sets in their own Stripe.
+const NP_FEE_RATE = 0.15;
+function NpFeeNote({ price }) {
+  const p = Number(price);
+  const fromShape = price && p > 0 ? (p * (1 - NP_FEE_RATE)).toFixed(2) : null;
+  return (
+    <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", lineHeight: 1.5 }}>
+      You receive <span style={{ color: INK, fontWeight: 500 }}>{fromShape ? "$" + fromShape : "—"}</span> per sale to a client who found you on Shape, after Shape's 15%, and the full price from clients you bring.
+      {" "}Card processing is on Shape. Payouts go straight to your bank, on the schedule you set in Stripe.
+    </div>
   );
 }
 
