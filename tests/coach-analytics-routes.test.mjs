@@ -381,3 +381,17 @@ test('both routes read the whole practice trajectory, so a long-standing client 
     assert.ok(traj.length >= 2, role + ': the trajectory read pages by id')
   }
 })
+
+// ── Codex, #2394: the brought-in share is per client ─────────────────────────
+test('both routes send the brought-in share per client, not per subscription row', async () => {
+  // A was brought (0%) and holds a second plan; B found the coach on Shape. That is 1 of 2
+  // clients, not 2 of 3 rows.
+  const rows = (role) => [{ ...sub(A), id: 'r1', fee_bps: 0, provider_role: role }, { ...sub(A, 5000), id: 'r2', provider_role: role }, { ...sub(B), id: 'r3', provider_role: role }]
+  for (const [role, listing] of [['trainer', { trainers: [{ id: 7, stripe_account_id: null, stripe_account_status: null }] }], ['nutritionist', { nutritionists: [{ id: 9, stripe_account_id: null, stripe_account_status: null }] }]]) {
+    const { body } = await loadRoute(role, { ...listing, subscriptions: rows(role) })
+    assert.deepEqual(body.byoMix, { clients: 2, brought: 1 }, role)
+    assert.equal(body.byOrigin.filter((r) => r.kind === 'subscription').length, 3, role + ': the origin feed still lists each row')
+    const failed = await loadRoute(role, { ...listing, subscriptions: rows(role) }, { errors: { subscriptions: 'timeout' } })
+    assert.equal(failed.body.byoMix, null, role + ': an unread share is unread, not 0%')
+  }
+})

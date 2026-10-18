@@ -10,7 +10,7 @@ import { createClient } from '@/lib/supabase/server';
 import { loadStripe, loadCancelFlags } from '@/lib/stripe';
 import { pickRenewals, renewalRows, RENEWAL_CHECK_CAP, type RenewalSource } from '@/lib/coach-renewals.mjs';
 import { coachCutCents, bpsToRate } from '@/lib/platform-fee';
-import { buildOriginFeed } from '@/lib/origin-attribution';
+import { buildOriginFeed, byoMixOf } from '@/lib/origin-attribution';
 import { buildTrajectory } from '@/lib/coach-trajectory.mjs';
 import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
 
@@ -309,6 +309,8 @@ export async function GET(request: Request) {
     churn,
     // Built from the active subscriptions: when they could not be read, neither can this.
     byOrigin: subsUnknown ? null : byOrigin,
+    // The share of CLIENTS the coach brought (byoMixOf): the Plan and Goal calculators start from it.
+    byoMix: subsUnknown ? null : byoMixOf(subs),
     trajectory,
     ...(wantRenewals ? { renewals } : {}),
     metrics: {

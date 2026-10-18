@@ -15,6 +15,7 @@ const COACH = 'public/newdesign/coach.jsx';
 const TR_DASH = 'src/app/api/trainer/dashboard/route.ts';
 const NU_DASH = 'src/app/api/nutritionist/dashboard/route.ts';
 const DATA = 'public/newdesign/dashData.jsx';
+const ORIGIN = 'src/lib/origin-attribution.ts';
 
 export default {
   test: 'node --test tests/coach-forecast.test.mjs tests/coach-renewals.test.mjs tests/stripe-summary.test.mjs tests/business-plan-page.test.mjs tests/coach-analytics-routes.test.mjs tests/coach-growth.test.mjs tests/marketing-earnings.test.mjs',
@@ -140,9 +141,12 @@ export default {
     { name: "the preview's pace forgets its departures", file: BIZ,
       find: '      pace: dbzDemoPace(CF, traj, now),',
       replace: '      pace: CF.paceFrom(traj, now),' },
-    { name: 'the brought-in share counts one-time purchases', file: BIZ,
-      find: '  const subs = subsRead ? extra.byOrigin.filter((r) => r.kind === "subscription") : [];',
-      replace: '  const subs = subsRead ? extra.byOrigin : [];' },
+    { name: 'the brought-in share counts rows, not clients', file: ORIGIN,
+      find: "    const key = r.client_id != null ? 'c:' + String(r.client_id) : 'row:' + i;",
+      replace: "    const key = 'row:' + i;" },
+    { name: 'the brought-in share drops a brought client\'s second plan', file: ORIGIN,
+      find: '    byClient.set(key, byClient.get(key) === true || Number(r.fee_bps ?? 1500) === 0);',
+      replace: '    byClient.set(key, Number(r.fee_bps ?? 1500) === 0);' },
     { name: 'the waiting list nets the full rate', file: BIZ,
       find: '  const net = CF && rateCents ? CF.earn({ clients: n, priceCents: rateCents, byoShare: 0 }).netCents : null;',
       replace: '  const net = CF && rateCents ? n * rateCents : null;' },
@@ -191,13 +195,13 @@ export default {
       find: '  if (base.pace.unread) return <div style={DBZ_NOTE}>',
       replace: '  if (false) return <div style={DBZ_NOTE}>' },
     { name: 'an unread brought share is a measured 0%', file: BIZ,
-      find: '    byoNote: !subsRead ? "couldn\'t read who you brought · set your own" : ',
+      find: '    byoNote: !mix ? "couldn\'t read who you brought · set your own" : ',
       replace: '    byoNote: ' },
     { name: 'an unread listing is no listing price', file: BIZ,
       find: ': listingFailed ? "couldn\'t read your listing price"',
       replace: ': false ? "couldn\'t read your listing price"' },
     { name: 'an unread brought share on the Goal tab is a measured 0%', file: DATA,
-      find: '          if (!subs) return { byoShare: null, byoNote: "couldn\'t read who you brought · set your own" };\n',
+      find: '          if (!mix) return { byoShare: null, byoNote: "couldn\'t read who you brought · set your own" };\n',
       replace: '' },
     { name: 'an unread renewal name is "Client"', file: REN,
       find: "      name: (names && names.get(String(r.client_id))) || '—',",

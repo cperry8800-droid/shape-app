@@ -890,18 +890,17 @@ function dbzPlanBase({ live, extra, failed = false, listing, listingRead, listin
   if (!extra || !listingRead) return { state: "loading" };
   const m = dbzToday(extra);
   if (!m) return { state: "unread" };
-  // byOrigin null is a failed read: the share starts at 0% and says so, never as a measurement.
-  const subsRead = Array.isArray(extra.byOrigin);
-  const subs = subsRead ? extra.byOrigin.filter((r) => r.kind === "subscription") : [];
-  const brought = subs.filter((r) => r.feeBps === 0).length;
+  // The brought-in share is per client (the routes' byoMix: one client with two plans is one
+  // client). Null is a failed read: the share starts at 0% and says so, never as a measurement.
+  const mix = extra.byoMix || null;
   const listed = listing && listing.monthly != null && Number(listing.monthly) > 0 ? Math.round(Number(listing.monthly) * 100) : null;
   const avg = m.clients > 0 && m.mrrGrossCents > 0 ? Math.round(m.mrrGrossCents / m.clients / 500) * 500 : null;
   return {
     state: "ready", clients: m.clients, mrrNetCents: m.mrrNetCents, mrrGrossCents: m.mrrGrossCents,
     rateCents: listed != null ? listed : avg != null ? avg : DBZ_DEFAULT_RATE_CENTS,
     rateFrom: listed != null ? "your listing price" : listingFailed ? "couldn't read your listing price" + (avg != null ? " · your clients' average" : " · set your own") : avg != null ? "your clients' average" : "no listing price yet · set your own",
-    byoShare: subs.length ? brought / subs.length : 0,
-    byoNote: !subsRead ? "couldn't read who you brought · set your own" : subs.length ? "0% fee · " + brought + " of your " + subs.length : "0% Shape fee on these",
+    byoShare: mix && mix.clients ? mix.brought / mix.clients : 0,
+    byoNote: !mix ? "couldn't read who you brought · set your own" : mix.clients ? "0% fee · " + mix.brought + " of your " + mix.clients : "0% Shape fee on these",
     // A failed trajectory read is "no pace", which the sliders say, not a pace of zero; and it is
     // an unread history, not an empty one, which they say too.
     pace: extra.trajectory ? CF.paceFrom(extra.trajectory, now) : { adds: null, churn: null, days: 0, unread: true },

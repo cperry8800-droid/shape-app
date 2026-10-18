@@ -642,15 +642,15 @@ function useCoachLiveFigures(role) {
         activeClients: m.activeClients != null ? m.activeClients : null,
         mrrNetCents: net != null ? net : null,
         mrrGrossCents: m.mrrGrossCents != null ? m.mrrGrossCents : null,
-        // The share of clients the coach brought (0% fee), from each subscription's STORED fee:
-        // the Goal tab's "What clients earn you" starts from it (dashBusiness.jsx DbzGoalEarn).
+        // The share of CLIENTS the coach brought (0% fee), per client from the route's byoMix (one
+        // client with two plans is one client): the Goal tab's "What clients earn you" starts from it
+        // (dashBusiness.jsx DbzGoalEarn).
         ...(() => {
-          const subs = Array.isArray(a.byOrigin) ? a.byOrigin.filter((r) => r.kind === "subscription") : null;
-          // byOrigin null is a failed read: the calculator still starts at 0%, and says why.
-          if (!subs) return { byoShare: null, byoNote: "couldn't read who you brought · set your own" };
-          if (!subs.length) return { byoShare: null, byoNote: null };
-          const brought = subs.filter((r) => r.feeBps === 0).length;
-          return { byoShare: brought / subs.length, byoNote: "0% fee · " + brought + " of your " + subs.length };
+          const mix = a.byoMix || null;
+          // A null mix is a failed read: the calculator still starts at 0%, and says why.
+          if (!mix) return { byoShare: null, byoNote: "couldn't read who you brought · set your own" };
+          if (!mix.clients) return { byoShare: null, byoNote: null };
+          return { byoShare: mix.brought / mix.clients, byoNote: "0% fee · " + mix.brought + " of your " + mix.clients };
         })(),
         // ⚠ THE TWO ROLES MEASURE DIFFERENT THINGS AND NAME THEM DIFFERENTLY.
         // The trainer route returns `avgAdherencePct` (sessions completed vs

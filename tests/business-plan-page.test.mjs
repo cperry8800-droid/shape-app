@@ -85,13 +85,14 @@ test('dbzPlanBase: the rate is the listing price, else the clients\' average, el
   assert.match(none.rateFrom, /set your own/);
 });
 
-test('dbzPlanBase: the brought-by-you share counts subscriptions only, from their stored fee', () => {
+test('dbzPlanBase: the brought-by-you share is the routes\' per-client mix, not a count of rows', () => {
+  // The routes count clients (one client with two plans is one client: coach-analytics-routes).
   const byOrigin = [
-    { kind: 'subscription', feeBps: 0 }, { kind: 'subscription', feeBps: 1500 }, { kind: 'subscription', feeBps: 1500 }, { kind: 'subscription', feeBps: 1500 },
+    { kind: 'subscription', feeBps: 0 }, { kind: 'subscription', feeBps: 0 }, { kind: 'subscription', feeBps: 1500 }, { kind: 'subscription', feeBps: 1500 },
     { kind: 'purchase', feeBps: 0 }, { kind: 'purchase', feeBps: 0 },
   ];
-  const b = B.dbzPlanBase({ live: true, extra: { metrics: { activeClients: 4, mrrNetCents: 1, mrrGrossCents: 1 }, byOrigin, trajectory: null }, listing: null, listingRead: true });
-  assert.equal(b.byoShare, 0.25);
+  const b = B.dbzPlanBase({ live: true, extra: { metrics: { activeClients: 4, mrrNetCents: 1, mrrGrossCents: 1 }, byOrigin, byoMix: { clients: 4, brought: 1 }, trajectory: null }, listing: null, listingRead: true });
+  assert.equal(b.byoShare, 0.25, 'from the mix, not the 2 of 4 rows');
   assert.equal(b.byoNote, '0% fee · 1 of your 4');
 });
 
@@ -405,13 +406,13 @@ test('a failed analytics read says so in every zone it feeds, instead of loading
 });
 
 test('an unread history, brought share or listing price is said as unread, never as none', async () => {
-  const extra = { metrics: { activeClients: 12, mrrNetCents: 189000, mrrGrossCents: 216000 }, byOrigin: null, trajectory: null };
+  const extra = { metrics: { activeClients: 12, mrrNetCents: 189000, mrrGrossCents: 216000 }, byOrigin: null, byoMix: null, trajectory: null };
   const b = B.dbzPlanBase({ live: true, extra, listing: null, listingRead: true, listingFailed: true });
   assert.equal(b.pace.unread, true);
   assert.equal(b.byoNote, "couldn't read who you brought · set your own");
   assert.equal(b.rateFrom, "couldn't read your listing price · your clients' average");
   assert.equal(B.dbzPlanBase({ live: true, extra: { ...extra, metrics: { activeClients: 0, mrrNetCents: 0, mrrGrossCents: 0 } }, listing: null, listingRead: true, listingFailed: true }).rateFrom, "couldn't read your listing price · set your own");
-  assert.equal(B.dbzPlanBase({ live: true, extra: { ...extra, byOrigin: [] }, listing: null, listingRead: true }).byoNote, '0% Shape fee on these', 'a read with no subscriptions is not unread');
+  assert.equal(B.dbzPlanBase({ live: true, extra: { ...extra, byOrigin: [], byoMix: { clients: 0, brought: 0 } }, listing: null, listingRead: true }).byoNote, '0% Shape fee on these', 'a read with no subscriptions is not unread');
   const m = await mount(React.createElement(B.DbzPlanZone, { base: b }));
   assert.equal((m.text().match(/couldn't read your history just now · set your own/g) || []).length, 2);
   assert.doesNotMatch(m.text(), /no history yet/);
@@ -422,9 +423,10 @@ test('an unread history, brought share or listing price is said as unread, never
   const earn = await mount(React.createElement(B.DbzEarnZone, { base: b }));
   assert.match(earn.text(), /couldn't read who you brought · set your own/);
   await earn.unmount();
-  // The Goal tab's figures (dashData.jsx) say the same when byOrigin couldn't be read.
+  // The Goal tab's figures (dashData.jsx) read the same per-client mix, and say when it couldn't be read.
   const data = readFileSync(ND('dashData.jsx'), 'utf8');
-  assert.match(data, /if \(!subs\) return \{ byoShare: null, byoNote: "couldn't read who you brought · set your own" \};\n\s+if \(!subs\.length\) return \{ byoShare: null, byoNote: null \};/);
+  assert.match(data, /const mix = a\.byoMix \|\| null;\n[^\n]*\n\s+if \(!mix\) return \{ byoShare: null, byoNote: "couldn't read who you brought · set your own" \};\n\s+if \(!mix\.clients\) return \{ byoShare: null, byoNote: null \};\n\s+return \{ byoShare: mix\.brought \/ mix\.clients, byoNote: "0% fee · " \+ mix\.brought \+ " of your " \+ mix\.clients \};/);
+  assert.doesNotMatch(data, /a\.byOrigin/, 'the Goal tab no longer counts rows');
   const goal = B.dbzGoalEarnBase({ kind: 'live', activeClients: 12, mrrNetCents: 189000, mrrGrossCents: 216000, trajectory: null, byoShare: null, byoNote: "couldn't read who you brought · set your own" });
   assert.deepEqual([goal.byoShare, goal.byoNote], [0, "couldn't read who you brought · set your own"]);
 });
