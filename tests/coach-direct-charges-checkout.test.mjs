@@ -160,7 +160,11 @@ test('what a subscription renews at counts the quantity and the discounts still 
   assert.equal(cc.recurringCents({ items: { data: [{ quantity: 1, price: { unit_amount: null } }] } }), null);
   assert.equal(cc.recurringCents({ items: { data: [] } }), null);
   assert.equal(cc.discountsExpanded({ discounts: ['di_1'] }), false);
-  assert.equal(cc.discountsExpanded({ discounts: [{ id: 'di_1' }] }), true);
+  // ⚠ A discount whose coupon is still an id is not expanded either (Codex on #2403): its money is unknown.
+  assert.equal(cc.discountsExpanded({ discounts: [{ id: 'di_1', source: { coupon: 'co_1' } }] }), false);
+  assert.equal(cc.discountsExpanded({ discounts: [{ id: 'di_1' }] }), false);
+  assert.equal(cc.discountsExpanded({ discounts: [{ id: 'di_1', source: { coupon: { id: 'co_1', percent_off: 10 } } }] }), true);
+  assert.equal(cc.discountsExpanded({ discounts: [{ id: 'di_1', coupon: { id: 'co_1', percent_off: 10 } }] }), true);
   assert.equal(cc.discountsExpanded({}), true);
   assert.equal(cc.feeBpsOfSubscription({ application_fee_percent: 15 }), 1500);
   assert.equal(cc.feeBpsOfSubscription({ application_fee_percent: null }), 0, 'omitted: the BYO 0%');
@@ -359,7 +363,7 @@ test('the portal on a coach\'s account uses Shape\'s own configuration, made onc
 
 test('a disconnected coach is given a new account to onboard on; a connected one keeps theirs', async () => {
   const made = [];
-  const stripe = { accounts: { create: async (p) => { made.push(p); return { id: 'acct_1BrandNewOne9' }; } } };
+  const stripe = { accounts: { create: async (p, o) => { made.push(p); made.opts = o; return { id: 'acct_1BrandNewOne9' }; } } };
   const user = { id: 'owner-1', email: 'coach@example.invalid' };
   const db = fakeDb({ tables: { trainers: [{ id: 4, stripe_account_id: ACCT, stripe_account_status: 'disconnected' }] } });
   const id = await cc.onboardingAccountFor(stripe, db.client, { table: 'trainers', provider: { id: 4, stripe_account_id: ACCT, stripe_account_status: 'disconnected' }, role: 'trainer', user });
@@ -367,6 +371,8 @@ test('a disconnected coach is given a new account to onboard on; a connected one
   assert.deepEqual(db.tables.trainers[0], { id: 4, stripe_account_id: 'acct_1BrandNewOne9', stripe_account_status: 'pending' });
   assert.equal(made[0].type, 'standard');
   assert.deepEqual(stmts(db.calls, 'trainers', 'update')[0].eqs, [['id', 4], ['stripe_account_id', ACCT]], 'only over the row as it was read');
+  // ⚠ One account per row and starting point (Codex on #2403): two presses at once get the same one.
+  assert.deepEqual(made.opts, { idempotencyKey: `shape-connect-trainers-4-${ACCT}` });
   // Connected: the account on record, nothing made.
   made.length = 0;
   const keep = fakeDb({ tables: { trainers: [{ id: 4, stripe_account_id: ACCT, stripe_account_status: 'active' }] } });
@@ -375,6 +381,7 @@ test('a disconnected coach is given a new account to onboard on; a connected one
   // Two presses: the second's write matches no row, and the first's account is the one used.
   const raced = fakeDb({ tables: { trainers: [{ id: 4, stripe_account_id: 'acct_1FirstPressWon', stripe_account_status: 'pending' }] } });
   assert.equal(await cc.onboardingAccountFor(stripe, raced.client, { table: 'trainers', provider: { id: 4, stripe_account_id: null, stripe_account_status: null }, role: 'trainer', user }), 'acct_1FirstPressWon');
+  assert.deepEqual(made.opts, { idempotencyKey: 'shape-connect-trainers-4-first' });
 });
 
 test('the Connect routes onboard through onboardingAccountFor, and refresh sends a disconnected coach back to start again', () => {
@@ -710,7 +717,7 @@ test('webhook: a recorded checkout\'s payment with no application at all is acce
 test('webhook: a coach\'s subscription takes its rate and price from the Subscription', async () => {
   const r = await runWebhook(subscription(), { sub: { application_fee_percent: 15, items: { data: [{ current_period_end: 1800000000, quantity: 2, price: { unit_amount: 18000 } }] }, discounts: [{ end: null, source: { coupon: { duration: 'forever', percent_off: 10 } } }] } });
   assert.equal(r.status, 200);
-  assert.deepEqual(r.calls.find((c) => c[0] === 'subscriptions.retrieve').slice(2), [{ expand: ['discounts'] }, { stripeAccount: ACCT }]);
+  assert.deepEqual(r.calls.find((c) => c[0] === 'subscriptions.retrieve').slice(2), [{ expand: ['discounts.source.coupon'] }, { stripeAccount: ACCT }]);
   const [row] = stmts(r.db.calls, 'subscriptions', 'upsert');
   assert.equal(row.payload.price_cents, 32400, 'two seats, 10% off');
   assert.equal(row.payload.fee_bps, 1500);
@@ -753,7 +760,7 @@ test('webhook: a coach\'s subscription change records what it renews at, quantit
   assert.equal(qty.db.tables.subscriptions[0].price_cents, 54000, 'three seats');
   assert.equal(qty.calls.filter((c) => c[0] === 'subscriptions.retrieve').length, 0, 'nothing to expand: not read again');
   const disc = await runWebhook(changed({ discounts: ['di_1'] }), { tables: tables(), retrieveSub: async (id) => ({ id, items: { data: [{ quantity: 3, price: { unit_amount: 18000 } }] }, discounts: [{ end: null, source: { coupon: { duration: 'forever', amount_off: 4000 } } }] }) });
-  assert.deepEqual(disc.calls.find((c) => c[0] === 'subscriptions.retrieve').slice(2), [{ expand: ['discounts'] }, { stripeAccount: ACCT }]);
+  assert.deepEqual(disc.calls.find((c) => c[0] === 'subscriptions.retrieve').slice(2), [{ expand: ['discounts.source.coupon'] }, { stripeAccount: ACCT }]);
   assert.equal(disc.db.tables.subscriptions[0].price_cents, 50000);
   const unread = await runWebhook(changed({ discounts: ['di_1'] }), { tables: tables(), retrieveSub: async () => { throw new Error('rate limited'); } });
   assert.equal(unread.db.tables.subscriptions[0].price_cents, 18000, 'unreadable: the price is left as it was');

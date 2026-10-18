@@ -302,9 +302,12 @@ export type SubLike = {
   discounts?: SubDiscount[] | null;
 };
 
-/** Whether a subscription's discounts are all expanded (an id alone says nothing about the money). */
+/**
+ * Whether a subscription's discounts are all expanded down to their coupons: an id alone, a
+ * discount or its `source.coupon`, says nothing about the money (Codex on #2403).
+ */
 export function discountsExpanded(sub: SubLike): boolean {
-  return (sub.discounts ?? []).every((d) => d && typeof d === 'object');
+  return (sub.discounts ?? []).every((d) => d && typeof d === 'object' && !!(d.source?.coupon ?? d.coupon) && typeof (d.source?.coupon ?? d.coupon) === 'object');
 }
 
 /**
@@ -446,7 +449,7 @@ export async function coachPortalUrl(
 // ── A coach who connects, or connects again ──────────────────────────────────────────────────
 
 export type AccountStripe = {
-  accounts: { create: (params: Record<string, unknown>) => PromiseLike<{ id: string }> };
+  accounts: { create: (params: Record<string, unknown>, opts?: { idempotencyKey?: string }) => PromiseLike<{ id: string }> };
 };
 
 /**
@@ -468,11 +471,15 @@ export async function onboardingAccountFor(
 ): Promise<string> {
   const current = provider.stripe_account_id || null;
   if (current && provider.stripe_account_status !== 'disconnected') return current;
+  // ⚠ ONE ACCOUNT PER COACH ROW AND STARTING POINT (Codex on #2403): two presses at once both get
+  // here before either write below, and without a key each made its own Standard account, one left
+  // behind in Stripe. Keyed on the row and the account being replaced, so the same press made again
+  // gets the same account back, and a later reconnect (a new account to replace) gets a new one.
   const account = await stripe.accounts.create({
     type: 'standard',
     email: user.email ?? undefined,
     metadata: { provider_id: String(provider.id), provider_role: role, owner_id: user.id },
-  });
+  }, { idempotencyKey: `shape-connect-${table}-${provider.id}-${current ?? 'first'}` });
   let write = q(admin, table).update({ stripe_account_id: account.id, stripe_account_status: 'pending' }).eq('id', provider.id);
   write = current ? write.eq('stripe_account_id', current) : write.is('stripe_account_id', null);
   const { data, error } = await write.select('stripe_account_id');

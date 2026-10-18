@@ -730,8 +730,9 @@ export async function POST(request: Request) {
         let subApplication: unknown = null;
         let stripeSub: Stripe.Subscription | null = null;
         if (typeof session.subscription === 'string') {
-          // On a coach's account its discounts are read too: what it renews at is taken from it.
-          stripeSub = await stripe.subscriptions.retrieve(session.subscription, acct ? { expand: ['discounts'] } : undefined, acctOpts(acct));
+          // On a coach's account its discounts are read too, coupons and all (a Discount's
+          // source.coupon is an id unless expanded itself): what it renews at is taken from them.
+          stripeSub = await stripe.subscriptions.retrieve(session.subscription, acct ? { expand: ['discounts.source.coupon'] } : undefined, acctOpts(acct));
           currentPeriodEnd = isoOrNull(stripeSub.items.data[0]?.current_period_end);
           subEnded = stripeSub.status === 'canceled' || stripeSub.status === 'incomplete_expired';
           subApplication = stripeSub.application;
@@ -939,7 +940,7 @@ export async function POST(request: Request) {
         if (acct && event.type === 'customer.subscription.updated') {
           let priced: Stripe.Subscription | null = sub;
           if (!discountsExpanded(sub)) {
-            priced = await stripe.subscriptions.retrieve(sub.id, { expand: ['discounts'] }, acctOpts(acct)).then((x) => x, (err: unknown) => {
+            priced = await stripe.subscriptions.retrieve(sub.id, { expand: ['discounts.source.coupon'] }, acctOpts(acct)).then((x) => x, (err: unknown) => {
               console.warn('[stripe webhook] coach subscription discounts unread — price left as it was', { subscription: sub.id, account: acct, error: err instanceof Error ? err.message : String(err) });
               return null;
             });
