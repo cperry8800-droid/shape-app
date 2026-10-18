@@ -877,6 +877,9 @@ function dbzToday(extra) {
   return m.activeClients == null || m.mrrNetCents == null ? null : { clients: m.activeClients, mrrNetCents: m.mrrNetCents, mrrGrossCents: m.mrrGrossCents };
 }
 
+// The listing's monthly price in cents, or null when there is none (or no listing).
+const dbzListedCents = (listing) => (listing && listing.monthly != null && Number(listing.monthly) > 0 ? Math.round(Number(listing.monthly) * 100) : null);
+
 // Where the Plan tab starts: today's clients and net, the rate a new client pays, the share
 // the coach brings, and the pace. { state: "loading" | "unread" | "ready", ... }
 function dbzPlanBase({ live, extra, failed = false, listing, listingRead, listingFailed = false, now = Date.now() }) {
@@ -901,7 +904,7 @@ function dbzPlanBase({ live, extra, failed = false, listing, listingRead, listin
   // The brought-in share is per client (the routes' byoMix: one client with two plans is one
   // client). Null is a failed read: the share starts at 0% and says so, never as a measurement.
   const mix = extra.byoMix || null;
-  const listed = listing && listing.monthly != null && Number(listing.monthly) > 0 ? Math.round(Number(listing.monthly) * 100) : null;
+  const listed = dbzListedCents(listing);
   const avg = m.clients > 0 && m.mrrGrossCents > 0 ? Math.round(m.mrrGrossCents / m.clients / 500) * 500 : null;
   return {
     state: "ready", clients: m.clients, mrrNetCents: m.mrrNetCents, mrrGrossCents: m.mrrGrossCents,
@@ -1284,7 +1287,11 @@ function DbzLifetimeZone({ base }) {
 // ── Growth: the waiting list, in money ───────────────────────────────────────
 // /api/coach/capacity `waiting` (people still waiting, not invited). They are Shape members, so
 // they found the coach here: each one nets the listing price less Shape's 15%.
-function DbzWaitlistZone({ live, waiting, rateCents }) {
+// ⚠ ONLY THE LISTING PRICE VALUES THEM (Codex, #2394). This was handed the Plan's starting rate,
+// which falls back to the clients' average or a default when the listing price is unread or unset,
+// and printed that as what these members would pay. Without a price, `priceNote` says why there's
+// no figure.
+function DbzWaitlistZone({ live, waiting, rateCents, priceNote = null }) {
   const CF = window.CoachForecast;
   const n = live ? waiting : 3;
   if (n === undefined) return <div style={DBZ_NOTE}>Loads with your listing…</div>;
@@ -1295,6 +1302,7 @@ function DbzWaitlistZone({ live, waiting, rateCents }) {
     <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6, color: DBZ_INK50 }}>
       <b style={{ color: DBZ_INK, fontWeight: 600 }}>{n === 1 ? "1 person is" : n + " people are"}</b> waiting to join you.
       {net != null && <React.Fragment> If {n === 1 ? "they join" : "they all join"} at {dashMoney(rateCents)} a month, that's about <b style={{ color: DBZ_INK, fontWeight: 600 }}>{dashMoney(net)} a month</b> to you.</React.Fragment>}
+      {net == null && priceNote && <React.Fragment> {priceNote}</React.Fragment>}
     </p>
   );
 }
@@ -1560,9 +1568,15 @@ function CoachBusinessPage({ role }) {
         <DbzBringClientsZone live={isLive} role={role} providerId={extra && extra.providerId} />
       </React.Fragment>);
 
+  // The waiting list is valued at the listing price alone (the preview's at its sample rate): the
+  // Plan's fallbacks are where a slider starts, not what these members would pay.
+  const waitRateCents = !isLive ? (planBase.state === "ready" ? planBase.rateCents : null) : dbzListedCents(listing);
+  const waitPriceNote = !isLive || waitRateCents != null || !listingRead ? null
+    : listingFailed ? "Couldn't read your listing price just now, so they aren't valued here."
+    : "Set a monthly price on your Profile to see what they'd bring in.";
   const waitlist = plate(DBZ_TEAL, <React.Fragment>
         {head("Your waiting list")}
-        <DbzWaitlistZone live={isLive} waiting={waiting} rateCents={planBase.state === "ready" ? planBase.rateCents : null} />
+        <DbzWaitlistZone live={isLive} waiting={waiting} rateCents={waitRateCents} priceNote={waitPriceNote} />
       </React.Fragment>);
 
   const lifetime = plate(cfg.accent, <React.Fragment>

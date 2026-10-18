@@ -416,5 +416,18 @@ export default {
     { name: 'the workout builder takes the fee from a client the coach brings', file: NEW_WORKOUT,
       find: '${price ? Number(price).toFixed(2) : "—"}',
       replace: '${price ? (Number(price) * (1 - 0.15)).toFixed(2) : "—"}' },
+    // ── Codex round 7 (#2394): the waiting list is valued at the listing price alone ──
+    { name: "waiting list: valued at the Plan's starting rate again", file: BIZ,
+      find: '  const waitRateCents = !isLive ? (planBase.state === "ready" ? planBase.rateCents : null) : dbzListedCents(listing);',
+      replace: '  const waitRateCents = planBase.state === "ready" ? planBase.rateCents : null;' },
+    { name: 'waiting list: the preview is not valued at its sample rate', file: BIZ,
+      find: '  const waitRateCents = !isLive ? (planBase.state === "ready" ? planBase.rateCents : null) : dbzListedCents(listing);',
+      replace: '  const waitRateCents = !isLive ? null : dbzListedCents(listing);' },
+    { name: 'waiting list: a failed listing read reads as no price yet', file: BIZ,
+      find: '    : listingFailed ? "Couldn\'t read your listing price just now, so they aren\'t valued here."\n',
+      replace: '    : false ? ""\n' },
+    { name: 'waiting list: no word on why there is no figure', file: BIZ,
+      find: '      {net == null && priceNote && <React.Fragment> {priceNote}</React.Fragment>}\n',
+      replace: '' },
   ],
 };

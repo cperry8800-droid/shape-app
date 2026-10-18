@@ -540,13 +540,14 @@ test('the preview is for a viewer the analytics answer as signed out or not a co
     await m.unmount();
   }
   // Each preview tab draws the preview's own figures, under the band.
-  for (const [section, re] of [['growth', /DEMO FUNNEL.*Found you on Shape.*3 people are waiting/], ['retention', /Alex Rivera.*Devon Sharpe/]]) {
+  // The preview's waiting list is valued at its sample rate, as a listing price would value it.
+  for (const [section, re] of [['growth', /DEMO FUNNEL.*Found you on Shape.*3 people are waiting to join you\. If they all join at \$\d+ a month, that's about \$\d+ a month to you\./], ['retention', /Alex Rivera.*Devon Sharpe/]]) {
     stubPage({ source: 'demo', section });
     globalThis.fetch = window.fetch = answer(401, { error: 'x' });
     const m = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
     await settle();
     assert.match(m.text(), /^PREVIEW/, section);
-    assert.match(m.text(), re, section);
+    assert.match(m.text().replace(/&#x27;/g, "'"), re, section);
     await m.unmount();
   }
 });
@@ -612,6 +613,40 @@ test('a live coach whose dashboard feed failed is told the funnel could not be r
   // The zone the analytics feed is still loading: only the funnel had its answer.
   assert.match(t, /Where your clients came from loads with the analytics rollup/);
   await m.unmount();
+});
+
+// ── The whole page: the waiting list is valued at the listing price alone (Codex round 7, #2394) ──
+// The card was handed the Plan's starting rate, which falls back to the clients' average ($180
+// here) when the listing price is unread or unset, and printed it as what the waiting members
+// would pay.
+test('the waiting list is valued at the listing price, and says why when there is none to value it at', async () => {
+  const weeks = Array.from({ length: 13 }, (_, i) => {
+    const d = new Date(Date.now() - (12 - i) * 7 * 86400000);
+    d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+    return { weekOf: d.toISOString().slice(0, 10), active: 10, added: 0, ended: 0, mrrNetCents: 10 * 15300, mrrGrossCents: 10 * 18000 };
+  });
+  const analytics = { isTrainer: true, providerId: 7, metrics: {}, byOrigin: [], byoMix: { clients: 10, brought: 0 }, trajectory: { weeks, firstSubAt: weeks[0].weekOf + 'T00:00:00Z' }, renewals: [], churn: [], stripe: { connected: false } };
+  const answer = (d) => Promise.resolve({ ok: true, json: () => Promise.resolve(d) });
+  for (const [why, listingAnswer, re] of [
+    ['the listing read failed', () => Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({}) }), /2 people are waiting to join you\. Couldn't read your listing price just now, so they aren't valued here\./],
+    ['no listing price yet', () => answer({ listings: [] }), /2 people are waiting to join you\. Set a monthly price on your Profile to see what they'd bring in\./],
+    ['a listing at $200', () => answer({ listings: [{ role: 'trainer', monthly: 200, ready: true }] }), new RegExp("2 people are waiting to join you\\. If they all join at \\$200 a month, that's about " + money(CF.earn({ clients: 2, priceCents: 20000, byoShare: 0 }).netCents).replace(/[$.,]/g, (c) => '\\' + c) + ' a month to you\\.')],
+  ]) {
+    stubPage({ source: 'live', section: 'growth' });
+    globalThis.fetch = window.fetch = (url) => {
+      if (url.startsWith('/api/trainer/analytics')) return answer(analytics);
+      if (url.startsWith('/api/coach/listing')) return listingAnswer();
+      if (url.startsWith('/api/coach/capacity')) return answer({ listings: [{ role: 'trainer', waiting: 2 }] });
+      return Promise.reject(new Error('unexpected ' + url));
+    };
+    const m = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
+    await settle();
+    await settle();
+    const t = m.text().replace(/&#x27;/g, "'");
+    assert.match(t, re, why + ': ' + t.slice(t.indexOf('waiting'), t.indexOf('waiting') + 240));
+    assert.doesNotMatch(t, /join at \$180/, why + ': the clients\' average is not the price they would pay');
+    await m.unmount();
+  }
 });
 
 // ── The whole page: the plan holds what the coach set ────────────────────────
