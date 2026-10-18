@@ -27,7 +27,7 @@ const ROLES = [
     cta: "Apply now",
     href: "SignupTrainer.html",
     meta: "15% platform fee",
-    perks: ["Your storefront, your pricing", "Programs + sessions + subs", "Weekly payouts"],
+    perks: ["Your storefront, your pricing", "Programs + sessions + subs", "Payouts on your Stripe schedule"],
   },
   {
     key: "nutritionist",
@@ -37,7 +37,7 @@ const ROLES = [
     cta: "Apply now",
     href: "SignupNutritionist.html",
     meta: "15% platform fee",
-    perks: ["Plans + consults + subs", "Built-in macro tracking", "Weekly payouts"],
+    perks: ["Plans + consults + subs", "Built-in macro tracking", "Payouts on your Stripe schedule"],
   },
 ];
 
@@ -210,7 +210,7 @@ function Reassurance() {
   const items = [
     { k: "$5/mo", v: "Flat platform fee for members" },
     { k: "Verified", v: "Every coach credential-checked" },
-    { k: "Weekly", v: "Payouts to coaches — or instant" },
+    { k: "Direct", v: "Payouts to each coach's bank, on their Stripe schedule" },
     { k: "No lock-in", v: "Cancel any time, take your clients" },
   ];
   return (

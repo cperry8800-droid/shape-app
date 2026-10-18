@@ -121,7 +121,7 @@ function NutHero() {
 // ---------- Value strip ----------
 function NutStats() {
   const items = [
-    { k: "Weekly", v: "Payouts direct to your bank, or instant any day." },
+    { k: "Direct", v: "Payouts straight to your bank, on the schedule you set in Stripe." },
     { k: "Verified", v: "Every RD, RDN, CNS, and license checked on intake." },
     { k: "Yours", v: "Your practice, your pricing, your clients. No lock-in." },
   ];
@@ -306,7 +306,7 @@ function NutTools() {
     // booking is a 15-minute consult (owner, 2026-10-07; see coaches.jsx's Schedule tab).
     { t: "Scheduling", b: "Clients book consults inside Shape, into the hours you open in your own time zone. Drag one to a new day and the client is notified." },
     { t: "Messaging", b: "Secure client chat. Voice notes, photos of meals and labs, saved replies for the questions you answer weekly." },
-    { t: "Payouts & docs", b: "Weekly direct deposit, or instant. Clean monthly statements. Tax docs when January comes." },
+    { t: "Payouts & docs", b: "Straight to your bank, on the schedule you set in Stripe. Clean monthly statements. Tax docs when January comes." },
   ];
   return (
     <section style={{ padding: "140px 72px" }}>
@@ -374,7 +374,7 @@ function NutFAQ() {
     { q: "What does Shape cost?", a: "You keep the vast majority of everything your clients pay you. No monthly dues, no listing fees — Shape only takes a small platform fee when you get paid, and pays the card processing." },
     { q: "How does Shape handle HIPAA and scope of practice?", a: "Client records are encrypted at rest and in transit. Scope-of-practice tiers are enforced by credential — non-RDs can't access medical nutrition therapy flows. BAAs available for practices that need them." },
     { q: "Can I bring my existing clients?", a: "Yes. We help with transition emails, pricing continuity, and importing plan templates." },
-    { q: "Payouts?", a: "Weekly, direct to your bank. Instant payouts available any day. 1099s auto-generated every January." },
+    { q: "Payouts?", a: "Straight to your bank, on the schedule you set in your own Stripe account. 1099s auto-generated every January." },
     { q: "Plans only, no consults — is that a thing?", a: "Yes. Publish meal plans as one-time or recurring products. Many nutritionists earn 30–40% of revenue from plan sales alone." },
   ];
   const [open, setOpen] = React.useState(0);

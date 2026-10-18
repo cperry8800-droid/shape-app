@@ -17,6 +17,10 @@ const NU_DASH = 'src/app/api/nutritionist/dashboard/route.ts';
 const DATA = 'public/newdesign/dashData.jsx';
 const ORIGIN = 'src/lib/origin-attribution.ts';
 const AUTH = 'src/lib/auth-lookup.ts';
+const NUT_PAGE = 'public/newdesign/nutritionist.jsx';
+const LANDING = 'public/newdesign/landing.jsx';
+const SIGNUP = 'public/newdesign/signup.jsx';
+const NEW_PROGRAM = 'public/newdesign/newProgram.jsx';
 
 export default {
   test: 'node --test tests/coach-forecast.test.mjs tests/coach-renewals.test.mjs tests/stripe-summary.test.mjs tests/business-plan-page.test.mjs tests/coach-analytics-routes.test.mjs tests/coach-growth.test.mjs tests/marketing-earnings.test.mjs',
@@ -342,5 +346,46 @@ export default {
     { name: 'auth outage: the page reads a 503 as signed out', file: BIZ,
       find: '.then((r) => (r.status === 401 || r.status === 403 ? asPreview : r.ok ? r.json() : null))',
       replace: '.then((r) => (r.status === 401 || r.status === 403 || r.status === 503 ? asPreview : r.ok ? r.json() : null))' },
+    // ── Payout timing on the website pages (Codex, #2394): each puts back what the page said ──
+    { name: 'the trainer value strip promises weekly payouts again', file: COACH,
+      find: '    { k: "Direct", v: "Payouts straight to your bank, on the schedule you set in Stripe." },',
+      replace: '    { k: "Weekly", v: "Payouts direct to your bank, or instant any day." },' },
+    { name: 'the trainer tools promise weekly payouts again', file: COACH,
+      find: '    { t: "Payouts", b: "Straight to your bank, on the schedule you set in Stripe. Clean',
+      replace: '    { t: "Payouts", b: "Weekly direct deposit, or instant. Clean' },
+    { name: 'the trainer FAQ promises weekly payouts again', file: COACH,
+      find: 'a: "On the schedule you set in your own Stripe account, straight to your bank. Change it there any time." },',
+      replace: 'a: "Weekly, direct to your bank — usually Monday. Need it faster? Instant payouts are available any day." },' },
+    { name: 'the trainer FAQ promises instant payouts again', file: COACH,
+      find: 'straight to your bank. Change it there any time." },',
+      replace: 'straight to your bank. Change it there any time. Need it faster? Instant payouts are available any day." },' },
+    { name: 'the nutritionist value strip promises weekly payouts again', file: NUT_PAGE,
+      find: '    { k: "Direct", v: "Payouts straight to your bank, on the schedule you set in Stripe." },',
+      replace: '    { k: "Weekly", v: "Payouts direct to your bank, or instant any day." },' },
+    { name: 'the nutritionist tools promise weekly payouts again', file: NUT_PAGE,
+      find: '    { t: "Payouts & docs", b: "Straight to your bank, on the schedule you set in Stripe. Clean',
+      replace: '    { t: "Payouts & docs", b: "Weekly direct deposit, or instant. Clean' },
+    { name: 'the nutritionist FAQ promises weekly payouts again', file: NUT_PAGE,
+      find: 'a: "Straight to your bank, on the schedule you set in your own Stripe account. 1099s',
+      replace: 'a: "Weekly, direct to your bank. Instant payouts available any day. 1099s' },
+    { name: 'the landing trainer card promises weekly payouts again', file: LANDING,
+      find: '"Programs + sessions + subs", "Payouts on your Stripe schedule"],',
+      replace: '"Programs + sessions + subs", "Weekly payouts"],' },
+    { name: 'the landing nutritionist card promises weekly payouts again', file: LANDING,
+      find: '"Built-in macro tracking", "Payouts on your Stripe schedule"],',
+      replace: '"Built-in macro tracking", "Weekly payouts"],' },
+    { name: 'the landing strip promises weekly payouts again', file: LANDING,
+      find: '    { k: "Direct", v: "Payouts to each coach\'s bank, on their Stripe schedule" },',
+      replace: '    { k: "Weekly", v: "Payouts to coaches — or instant" },' },
+    // signup.jsx has CRLF line endings.
+    { name: 'the trainer application promises weekly payouts again', file: SIGNUP,
+      find: '      "Publish programs and sessions",\r\n      "Payouts straight to your bank, on your Stripe schedule",',
+      replace: '      "Publish programs and sessions",\r\n      "Weekly payouts, instant if you want",' },
+    { name: 'the nutritionist application promises weekly payouts again', file: SIGNUP,
+      find: '      "Meal plan builder + macro tools",\r\n      "Payouts straight to your bank, on your Stripe schedule",',
+      replace: '      "Meal plan builder + macro tools",\r\n      "Weekly payouts, instant if you want",' },
+    { name: 'the program builder promises weekly payouts again', file: NEW_PROGRAM,
+      find: '{" "}Card processing is on Shape. Payouts go straight to your bank, on the schedule you set in Stripe.',
+      replace: '{" "}Card processing is on Shape. Weekly payouts via Stripe Connect.' },
   ],
 };

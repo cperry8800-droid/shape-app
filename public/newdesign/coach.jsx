@@ -110,7 +110,7 @@ function TrainerHero() {
 function TrainerStats() {
   const items = [
     { k: "Free", v: "To join and list your services. No monthly dues, no setup fees, no per-booking cuts." },
-    { k: "Weekly", v: "Payouts direct to your bank, or instant any day." },
+    { k: "Direct", v: "Payouts straight to your bank, on the schedule you set in Stripe." },
     { k: "Verified", v: "Every coach credential-checked on intake." },
     { k: "Yours", v: "Your brand, your pricing, your clients. No lock-in." },
   ];
@@ -294,7 +294,7 @@ function TrainerTools() {
     // no-show handling" — none of which exists (owner, 2026-10-07; see coaches.jsx's Schedule tab).
     { t: "Scheduling", b: "Clients book inside Shape, into the hours you open in your own time zone. Drag a session to a new day and the client is notified." },
     { t: "Messaging", b: "Typing indicators, read receipts, voice notes. Quick replies for the things you type all day." },
-    { t: "Payouts", b: "Weekly direct deposit, or instant. Clean monthly statements. Tax docs when January comes." },
+    { t: "Payouts", b: "Straight to your bank, on the schedule you set in Stripe. Clean monthly statements. Tax docs when January comes." },
   ];
   return (
     <section style={{ padding: "140px 72px" }}>
@@ -361,7 +361,7 @@ function TrainerFAQ() {
     { q: "What credentials do I need?", a: "An accredited personal training certification (NASM, ACE, NSCA, ACSM, NCSF, or similar), plus proof of current CPR/AED. Specialty certs (CSCS, RKC, FMS) help but aren't required." },
     { q: "What does Shape cost trainers?", a: "You keep the vast majority of everything your clients pay you. No monthly dues, no listing fees — Shape only takes a small platform fee when you get paid, and pays the card processing." },
     { q: "Can I bring my existing clients?", a: "Yes. We'll help with invitations, transfer flows, and pricing continuity." },
-    { q: "How fast do payouts land?", a: "Weekly, direct to your bank — usually Monday. Need it faster? Instant payouts are available any day." },
+    { q: "How fast do payouts land?", a: "On the schedule you set in your own Stripe account, straight to your bank. Change it there any time." },
     { q: "Am I locked in?", a: "No exclusivity. Coach on Shape, on your own site, wherever — it's your business. Leave anytime, take your clients with you." },
     { q: "What if I only want to sell programs, not sessions?", a: "That works. Publish programs as one-time purchases or subscriptions. Many trainers earn 30–50% of revenue from programs alone." },
   ];

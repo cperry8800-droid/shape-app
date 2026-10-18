@@ -6,7 +6,7 @@
 // the coach's own Stripe schedule. These render the shipped components and read what a visitor reads.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
 const require_ = createRequire(import.meta.url);
@@ -69,4 +69,95 @@ test('newProgram.jsx: a sale nets the price after Shape\'s 15% from a client fou
   const code_ = src.replace(/^\s*\/\/.*$/gm, '');
   assert.doesNotMatch(code_, /8%|0\.92|Weekly payouts/i, 'no trace of the old fee or schedule outside the comment that records it');
   assert.match(src, /<NpFeeNote price=\{price\} \/>/, 'the pricing card shows it');
+});
+
+// ── Payout timing, on the whole page (Codex, #2394) ──
+// A coach is paid into their own Stripe (Standard) account and Stripe pays it out to their bank on
+// the schedule they set there (src/lib/stripe.ts reads it for the Business page). The calculator
+// said so, but the value strip, the tools and the FAQ still promised weekly deposits, "usually
+// Monday", or instant payouts any day, which Shape doesn't set either. A cadence claim is "weekly"
+// (or every week, or instant) within a clause of "payout", "deposit" or "to your bank", either way
+// round. The copy is every string and JSX text on the page, comments left out, in source order and
+// joined with " · ", so a stat strip's "Weekly" sits next to its "Payouts direct to your bank" the
+// way a visitor reads the two.
+const CADENCE = '(?:weekly|every week|each week|per week|once a week|instant(?:ly)?)';
+const PAYS = '(?:payouts?|paid out|deposits?|to your bank)';
+const PAYOUT_CADENCE = new RegExp('\\b' + CADENCE + '\\b[^.?!]{0,40}?\\b' + PAYS + '\\b|\\b' + PAYS + '\\b[^.?!]{0,40}?\\b' + CADENCE + '\\b', 'i');
+
+function copyOf(src) {
+  const ast = babel.parseSync(src, { presets: [presetReact], babelrc: false, configFile: false, sourceType: 'unambiguous' });
+  const out = [];
+  (function walk(n) {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) { n.forEach(walk); return; }
+    if (n.type === 'StringLiteral' || n.type === 'JSXText') out.push([n.start, n.value]);
+    else if (n.type === 'TemplateElement') out.push([n.start, n.value.cooked || '']);
+    for (const k of Object.keys(n)) if (k !== 'loc' && !/Comments$/.test(k)) walk(n[k]);
+  })(ast.program);
+  return out.sort((a, b) => a[0] - b[0]).map((x) => x[1]).join(' · ').replace(/\s+/g, ' ');
+}
+const pageCopy = (file) => {
+  const src = readFileSync(new URL('../public/newdesign/' + file, import.meta.url), 'utf8');
+  return file.endsWith('.html') ? src.replace(/<!--[\s\S]*?-->/g, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ') : copyOf(src);
+};
+const cadenceClaim = (copy) => { const m = copy.match(PAYOUT_CADENCE); return m && copy.slice(Math.max(0, m.index - 40), m.index + m[0].length + 40); };
+
+test('the payout-cadence check catches what the pages said, and not a week that is not about pay', () => {
+  for (const said of [
+    'no per-booking cuts. · Weekly · Payouts direct to your bank, or instant any day. · Verified',
+    'Payouts · Weekly direct deposit, or instant. Clean monthly statements.',
+    'How fast do payouts land? · Weekly, direct to your bank — usually Monday.',
+    'Need it faster? Instant payouts are available any day.',
+    'Payouts? · Weekly, direct to your bank. Instant payouts available any day.',
+    'Programs + sessions + subs · Weekly payouts · nutritionist',
+    'Verified · Weekly · Payouts to coaches — or instant · No lock-in',
+    'Publish programs and sessions · Weekly payouts, instant if you want · Shape handles billing',
+    'per sale. Weekly payouts via Stripe Connect.',
+    'How do payouts work? · Direct to your bank on a weekly schedule, or instantly on any day.',
+  ]) assert.ok(cadenceClaim(said), 'missed: ' + said);
+  for (const fine of [
+    'Weekly volume · lbs lifted',
+    'Streaks, check-ins, flagged clients, weekly adherence. Sort by whatever you care about today.',
+    'saved replies for the questions you answer weekly. · Payouts & docs · Straight to your bank, on the schedule you set in Stripe.',
+    'RX · Week 4',
+    'I used to spend 10 hours a week on admin. Now I coach. The scheduling and billing alone paid for itself in the first month.',
+  ]) assert.equal(cadenceClaim(fine), null, 'flagged: ' + fine);
+});
+
+for (const [file, strip, tools, faq] of [
+  ['coach.jsx',
+    'Direct · Payouts straight to your bank, on the schedule you set in Stripe.',
+    'Payouts · Straight to your bank, on the schedule you set in Stripe. Clean monthly statements.',
+    'How fast do payouts land? · On the schedule you set in your own Stripe account, straight to your bank. Change it there any time.'],
+  ['nutritionist.jsx',
+    'Direct · Payouts straight to your bank, on the schedule you set in Stripe.',
+    'Payouts & docs · Straight to your bank, on the schedule you set in Stripe. Clean monthly statements.',
+    'Payouts? · Straight to your bank, on the schedule you set in your own Stripe account.'],
+]) {
+  test(file + ': nowhere on the page promises weekly or instant payouts; the strip, the tools and the FAQ say the coach\'s Stripe schedule', () => {
+    const copy = pageCopy(file);
+    assert.ok(copy.length > 4000, 'read the whole page');
+    assert.equal(cadenceClaim(copy), null);
+    assert.ok(copy.includes(strip), 'value strip');
+    assert.ok(copy.includes(tools), 'tools');
+    assert.ok(copy.includes(faq), 'FAQ');
+    assert.ok(copy.includes('Payouts straight to your bank, on the schedule you set in Stripe · '), 'calculator');
+  });
+}
+
+// The other website pages a coach reads before applying say the same. coaches.jsx is left as it is
+// (its fee and payout copy is the owner's open call, #2394); dashBusiness.jsx prints the signed-in
+// coach's own Stripe interval ("Paid out weekly · Fridays"), which is their setting, not a promise.
+test('no other website page promises weekly or instant payouts', () => {
+  const dir = new URL('../public/newdesign/', import.meta.url);
+  const SKIP = new Set(['coaches.jsx', 'dashBusiness.jsx']);
+  const files = readdirSync(dir).filter((f) => /\.(jsx|html)$/.test(f));
+  for (const f of SKIP) assert.ok(files.includes(f), f + ' moved');
+  for (const f of ['landing.jsx', 'signup.jsx', 'newProgram.jsx', 'Landing.html', 'SignupTrainer.html']) assert.ok(files.includes(f), f + ' moved');
+  const claims = files.filter((f) => !SKIP.has(f)).map((f) => [f, cadenceClaim(pageCopy(f))]).filter(([, c]) => c);
+  assert.deepEqual(claims, []);
+  assert.ok(pageCopy('landing.jsx').includes('Direct · Payouts to each coach\'s bank, on their Stripe schedule'));
+  assert.equal(pageCopy('landing.jsx').split('Payouts on your Stripe schedule').length - 1, 2, 'trainer and nutritionist cards');
+  assert.equal(pageCopy('signup.jsx').split('Payouts straight to your bank, on your Stripe schedule').length - 1, 2, 'trainer and nutritionist applications');
+  assert.match(pageCopy('newProgram.jsx'), /Payouts go straight to your bank, on the schedule you set in Stripe\./);
 });
