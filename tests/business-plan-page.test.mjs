@@ -446,12 +446,152 @@ test('a signed-in coach never sees the preview\'s figures while the page is stil
   assert.doesNotMatch(m.text(), /Casey Morgan|Alex Rivera|Riley Kim|is coming to you/, m.text().slice(0, 300));
   assert.match(m.text(), /Your payouts load with the analytics rollup/);
   await m.unmount();
-  // A viewer the dashboard resolved as a demo still sees the preview, under its band.
+  // A viewer the dashboard resolved as a demo, and the analytics answered as signed out, still sees
+  // the preview, under its band.
   globalThis.useDashboard = () => ({ today: null, source: 'demo' });
+  globalThis.fetch = window.fetch = () => Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({ error: 'Authentication required.' }) });
   const demo = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
+  await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
   assert.match(demo.text(), /PREVIEW/);
   assert.match(demo.text(), /is coming to you/);
   await demo.unmount();
+});
+
+// ── The whole page: a preview needs a preview viewer, not a failed read (Codex, #2394) ──
+// useDashboard falls back to the demo whenever the roster read fails, signed out and outage
+// alike, so `source: "demo"` alone cannot say who is looking. The page's own analytics answer can.
+// The neighbours are stubbed so the page shows which it drew: the band, the sidebar card, and the
+// funnel the panel would draw (the preview's when it is handed no feed).
+function stubPage({ source, today = null, section }) {
+  const seen = { card: null };
+  Object.assign(globalThis, {
+    useDashboard: () => ({ today, source }),
+    useRememberedChoices: () => null,
+    useRememberedChoice: () => React.useState(section),
+    DashPage: ({ children, payoutCard }) => { seen.card = payoutCard; return React.createElement(React.Fragment, null, children); },
+    DashSegmented: () => null, DashExportButton: () => null,
+    DashFunnelPanel: ({ live }) => React.createElement('i', null, live ? 'LIVE FUNNEL' : 'DEMO FUNNEL'),
+    DashDemoBand: () => React.createElement('b', null, 'PREVIEW'),
+    trainerNavItems: () => [], nutriNavItems: () => [], trainerPayoutCard: { demo: 'trainer' }, nutriPayoutCard: { demo: 'nutritionist' },
+    useDashUnits: () => ({ measure: (value, unit) => ({ value, unit }) }),
+  });
+  return seen;
+}
+const settle = () => React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+const SECTIONS = ['overview', 'money', 'plan', 'growth', 'retention'];
+// Anything only the preview draws: its band, its people, its money sentence, its practice, its
+// funnel, its waiting list.
+const DEMO = /PREVIEW|Casey Morgan|Alex Rivera|Riley Kim|Sam Patel|Drew Park|Quinn Choi|Devon Sharpe|Mara Ellison|Theo Brandt|is coming to you|Active now|you have \d+ today|DEMO FUNNEL|people are waiting/;
+// Every figure on an unread page would be invented; the bring-your-clients pitch's $5 is the one
+// fixed price the page states.
+const dollars = (t) => /\$\d/.test(t.replace('members at $5/mo', ''));
+const answer = (status, body) => () => Promise.resolve({ ok: status >= 200 && status < 300, status, json: () => Promise.resolve(body) });
+
+test('a signed-in coach whose reads all failed sees unread states, never the preview\'s figures', async () => {
+  const UNREAD = {
+    overview: [/Your trajectory could not be read just now/],
+    money: [/Couldn't read your payouts just now.*Couldn't read your subscriptions just now.*Couldn't read your subscriptions just now/],
+    plan: [/Couldn't read your subscriptions just now, and the plan starts from them/],
+    growth: [/Couldn't read your funnel just now/, /Couldn't read where your clients came from just now/, /Couldn't read your waiting list just now/],
+    retention: [/Couldn't read your subscriptions just now/, /Couldn't read your roster outcomes just now/, /Couldn't read your cancellations just now/],
+  };
+  const outages = [
+    ['a 500', answer(500, { error: 'Could not read your listing.' })],
+    ['a thrown fetch', () => Promise.reject(new TypeError('Failed to fetch'))],
+    ['an answer that is not JSON', () => Promise.resolve({ ok: true, status: 200, json: () => Promise.reject(new SyntaxError('Unexpected token <')) })],
+  ];
+  for (const [label, analytics] of outages) {
+    for (const section of SECTIONS) {
+      // The roster and dashboard reads failed too, so the dashboard resolved its demo fallback.
+      const seen = stubPage({ source: 'demo', section });
+      globalThis.fetch = window.fetch = (url) => (url.startsWith('/api/trainer/analytics') ? analytics() : answer(500, { error: 'x' })());
+      const m = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
+      await settle();
+      const t = m.text();
+      const at = label + ', ' + section + ': ' + t.slice(0, 400);
+      assert.doesNotMatch(t, DEMO, at);
+      assert.equal(dollars(t), false, at);
+      assert.doesNotMatch(t, /loads? with|is loading/i, at);
+      for (const re of UNREAD[section]) assert.match(t, re, at);
+      assert.deepEqual([seen.card.amount, seen.card.sub], ['—', "couldn't read your payouts just now"], at);
+      await m.unmount();
+    }
+  }
+});
+
+test('the preview is for a viewer the analytics answer as signed out or not a coach', async () => {
+  const cases = [
+    ['trainer', 'signed out', answer(401, { error: 'Authentication required.' })],
+    ['trainer', 'forbidden', answer(403, { error: 'Forbidden.' })],
+    ['trainer', 'signed in, not a trainer', answer(200, { isTrainer: false })],
+    ['nutritionist', 'signed in, not a nutritionist', answer(200, { isNutritionist: false })],
+  ];
+  for (const [role, label, analytics] of cases) {
+    const seen = stubPage({ source: 'demo', section: 'money' });
+    globalThis.fetch = window.fetch = (url) => (url.startsWith('/api/' + role + '/analytics') ? analytics() : answer(401, { error: 'x' })());
+    const m = await mount(React.createElement(window.CoachBusinessPage, { role }));
+    await settle();
+    assert.match(m.text(), /^PREVIEW/, label);
+    assert.match(m.text(), /is coming to you/, label);
+    assert.deepEqual(seen.card, { demo: role }, label + ': the preview\'s sidebar card');
+    await m.unmount();
+  }
+  // Each preview tab draws the preview's own figures, under the band.
+  for (const [section, re] of [['growth', /DEMO FUNNEL.*Found you on Shape.*3 people are waiting/], ['retention', /Alex Rivera.*Devon Sharpe/]]) {
+    stubPage({ source: 'demo', section });
+    globalThis.fetch = window.fetch = answer(401, { error: 'x' });
+    const m = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
+    await settle();
+    assert.match(m.text(), /^PREVIEW/, section);
+    assert.match(m.text(), re, section);
+    await m.unmount();
+  }
+});
+
+test('while the analytics are out, a dashboard that fell back to its demo is loading, never the preview', async () => {
+  const LOADING = {
+    overview: [/Your trajectory loads with the analytics rollup/],
+    money: [/Your payouts load with the analytics rollup/, /Your renewals load with the analytics rollup/, /Loads with the analytics rollup/],
+    plan: [/Your numbers load with the analytics rollup/],
+    growth: [/Your funnel is loading/, /Where your clients came from loads with the analytics rollup/, /Loads with your listing/],
+    retention: [/Loads with the analytics rollup/, /Roster outcomes load with the analytics rollup/, /Your cancellations load with the analytics rollup/],
+  };
+  for (const section of SECTIONS) {
+    const seen = stubPage({ source: 'demo', section });
+    globalThis.fetch = window.fetch = () => new Promise(() => {});
+    const m = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
+    await settle();
+    const t = m.text();
+    assert.doesNotMatch(t, DEMO, section + ': ' + t.slice(0, 400));
+    assert.doesNotMatch(t, /Couldn't read|could not be read|No cancellations on record|Origin labels land here/, section + ': still loading is not a failed or empty read');
+    for (const re of LOADING[section]) assert.match(t, re, section + ': ' + t.slice(0, 400));
+    assert.deepEqual([seen.card.amount, seen.card.sub], ['—', 'loads with the analytics rollup']);
+    await m.unmount();
+  }
+});
+
+test('a "signed out" analytics answer is a preview only when the dashboard resolved one', async () => {
+  const signedOut = (url) => (url.startsWith('/api/trainer/analytics') ? answer(401, { error: 'x' })() : new Promise(() => {}));
+  // The dashboard hasn't answered yet: still loading, not a preview and not a failed read.
+  for (const section of ['money', 'growth']) {
+    stubPage({ source: null, section });
+    globalThis.fetch = window.fetch = signedOut;
+    const m = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
+    await settle();
+    assert.doesNotMatch(m.text(), /PREVIEW|is coming to you|DEMO FUNNEL|Couldn't read/, section + ': ' + m.text().slice(0, 300));
+    assert.match(m.text(), section === 'money' ? /Your payouts load with the analytics rollup/ : /Your funnel is loading/);
+    await m.unmount();
+  }
+  // The dashboard resolved a coach (its roster read, or its own feed): an unread state, not loading forever.
+  for (const [source, today] of [['live', null], ['demo', { kind: 'live', funnel: null }]]) {
+    stubPage({ source, today, section: 'money' });
+    globalThis.fetch = window.fetch = signedOut;
+    const m = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
+    await settle();
+    assert.doesNotMatch(m.text(), /PREVIEW|is coming to you|loads? with/, source + ': ' + m.text().slice(0, 300));
+    assert.match(m.text(), /Couldn't read your payouts just now/, source);
+    await m.unmount();
+  }
 });
 
 // ── The whole page: the plan holds what the coach set ────────────────────────

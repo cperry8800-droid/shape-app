@@ -240,6 +240,10 @@ function DbzPayoutsZone({ live, stripe, providerId, role, metrics }) {
 // How many cancellations the analytics routes send, newest first (their `.limit(12)`).
 const DBZ_CHURN_LIST = 12;
 function DbzChurnZone({ live, churn }) {
+  // undefined: the analytics are still loading, which is neither "none on record" nor a failed read.
+  if (live && churn === undefined) {
+    return <div style={{ fontSize: 12.5, color: DBZ_INK50, lineHeight: 1.55 }}>Your cancellations load with the analytics rollup…</div>;
+  }
   // null: the route could not read the cancellations, which is not "none on record".
   if (live && churn === null) {
     return <div style={{ fontSize: 12.5, color: DBZ_INK50, lineHeight: 1.55 }}>Couldn't read your cancellations just now. Nothing is lost; reload to try again.</div>;
@@ -356,6 +360,10 @@ function DbzBringClientsZone({ live, role, providerId }) {
   );
 }
 function DbzOriginZone({ live, byOrigin }) {
+  // undefined: the analytics are still loading, which is neither "no clients yet" nor a failed read.
+  if (live && byOrigin === undefined) {
+    return <div style={{ fontSize: 12.5, color: DBZ_INK50, lineHeight: 1.55 }}>Where your clients came from loads with the analytics rollup…</div>;
+  }
   // null: the route could not read the subscriptions, which is not "no clients yet".
   if (live && byOrigin === null) {
     return <div style={{ fontSize: 12.5, color: DBZ_INK50, lineHeight: 1.55 }}>Couldn't read where your clients came from just now. Nothing is lost; reload to try again.</div>;
@@ -1336,29 +1344,47 @@ function CoachBusinessPage({ role }) {
   const cfg = DBZ_ROLES[role];
   const { today: live, source } = useDashboard(role);
   const [extra, setExtra] = React.useState(null); // /api/{role}/analytics payload
+  // How the analytics read ended: "pending"; "ok" (the payload is in `extra`); "preview" (signed
+  // out, a 401 or 403, or signed in without this role, which the route answers with okKey false);
+  // or "failed" (a 5xx, a timeout, a thrown fetch, an answer that isn't JSON).
   // ⚠ A FAILED ANALYTICS READ IS NOT STILL LOADING. A 500, a timeout or a thrown fetch left
   // `extra` null for good, so every zone below said it was loading forever; each has its own
   // "couldn't read" copy, which it now shows.
-  const [extraFailed, setExtraFailed] = React.useState(false);
+  const [analytics, setAnalytics] = React.useState("pending");
 
   React.useEffect(() => {
     let on = true;
+    const asPreview = { preview: true };
     // ?renewals=1: this page shows this week's renewals, each checked with Stripe (the route skips them otherwise).
     fetch(cfg.api + "?renewals=1", { credentials: "same-origin", cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (!on) return; if (d && d[cfg.okKey]) setExtra(d); else setExtraFailed(true); })
-      .catch(() => { if (on) setExtraFailed(true); });
+      .then((r) => (r.status === 401 || r.status === 403 ? asPreview : r.ok ? r.json() : null))
+      .then((d) => {
+        if (!on) return;
+        if (d === asPreview || (d && d[cfg.okKey] === false)) setAnalytics("preview");
+        else if (d && d[cfg.okKey]) { setExtra(d); setAnalytics("ok"); }
+        else setAnalytics("failed");
+      })
+      .catch(() => { if (on) setAnalytics("failed"); });
     return () => { on = false; };
   }, [role]);
+
+  // ⚠ THE PREVIEW IS ONLY FOR A DEMO VIEWER, AND AN OUTAGE IS NOT ONE (Codex, #2394). Live was "a
+  // feed has landed", so while the reads were pending a signed-in coach was shown the preview's
+  // renewals, payouts and waiting list as their own, with no band. Then it was "the dashboard
+  // resolved a demo", but useDashboard falls back to the demo whenever the roster read fails,
+  // signed out and outage alike: a coach whose roster, dashboard and analytics reads all failed
+  // was shown the preview's payouts, renewals, trajectory and plan as their own. The analytics
+  // answer tells the two apart. Demo figures (and the band) need the dashboard's demo AND an
+  // analytics answer that the viewer is signed out or not a coach; until both have answered the
+  // page is loading, and a failed read is an unread state.
+  const preview = !live && !extra && source === "demo" && analytics === "preview";
+  const isLive = !preview;
+  // The analytics read is over with nothing to show: it failed, or it answered "preview" to a
+  // viewer the dashboard did not resolve as one. (Before the dashboard has answered, still loading.)
+  const extraFailed = analytics === "failed" || (analytics === "preview" && !preview && source != null);
   // What a zone reads from the payload: the value once it has landed, null (unread) when the read
   // failed, undefined while it loads.
   const fromExtra = (k) => (extra ? extra[k] : extraFailed ? null : undefined);
-
-  // ⚠ THE PREVIEW IS ONLY FOR A DEMO VIEWER. Live was "a feed has landed", so while the reads
-  // were pending, or when the dashboard feed failed, a signed-in coach was shown the preview's
-  // renewals, payouts and waiting list as their own, with no band. Now only a viewer the
-  // dashboard resolved as a demo sees demo figures; anyone else sees loading or unread states.
-  const isLive = !!live || !!extra || source !== "demo";
   // The coach's own listing (live only): the notice above the plates when it is not ready.
   const [listing, setListing] = React.useState(null);
   // Whether the listing read has finished (either way): the Plan tab starts from its price, so it
@@ -1399,9 +1425,12 @@ function CoachBusinessPage({ role }) {
   const cp = extra ? (extra.clientProgress || {}) : (!isLive ? DBZ_DEMO_OUTCOMES[role] : null);
 
   // Sidebar money card: REAL balance when connected, "—" until then, demo
-  // numbers only under the band.
+  // numbers only under the band. With no analytics yet, or none to be had, it says which: an
+  // unread Stripe summary is not "payouts aren't connected".
   const payoutCard = !isLive
     ? (role === "nutritionist" ? nutriPayoutCard : trainerPayoutCard)
+    : !extra
+      ? { label: "PAYOUTS", amount: "—", sub: extraFailed ? "couldn't read your payouts just now" : "loads with the analytics rollup" }
     : stripe && stripe.connected && stripe.balanceCents != null
       ? { label: "BALANCE · AVAILABLE", amount: dashMoney(stripe.balanceCents), sub: dbzScheduleLine(stripe.schedule) || "Stripe connected" }
       : stripe && stripe.connected && stripe.error
@@ -1510,12 +1539,16 @@ function CoachBusinessPage({ role }) {
 
   const funnel = plate(DBZ_TEAL, <React.Fragment>
         {head("Marketplace funnel · views → consults → signed")}
-        <DashFunnelPanel live={live} />
+        {/* The panel draws the preview's funnel when it has no feed, so a viewer who is not a
+            preview and has no feed (the reads still out, or failed) is told which, never shown it. */}
+        {!isLive || live
+          ? <DashFunnelPanel live={live} />
+          : <div style={DBZ_NOTE}>{source == null || analytics === "pending" ? "Your funnel is loading…" : "Couldn't read your funnel just now. Nothing is lost; reload to try again."}</div>}
       </React.Fragment>);
 
   const churn = plate(DBZ_RED, <React.Fragment>
         {head("Churn · who left & why", DBZ_RED)}
-        <DbzChurnZone live={isLive} churn={extra && extra.churn} />
+        <DbzChurnZone live={isLive} churn={fromExtra("churn")} />
       </React.Fragment>);
 
   const byo = plate(DBZ_TEAL, <React.Fragment>
@@ -1535,7 +1568,7 @@ function CoachBusinessPage({ role }) {
 
   const origin = plate(cfg.accent, <React.Fragment>
         {head("Your roster · who found whom", cfg.accent)}
-        <DbzOriginZone live={isLive} byOrigin={extra && extra.byOrigin} />
+        <DbzOriginZone live={isLive} byOrigin={fromExtra("byOrigin")} />
       </React.Fragment>);
 
   // ⚠ NO ROLLUP, NO OUTCOMES CARD. DbzOutcomesZone is null-safe as a floor, but a card drawn
@@ -1545,7 +1578,7 @@ function CoachBusinessPage({ role }) {
         {head("The product · roster outcomes, last 30 days", cfg.accent)}
         <DbzOutcomesZone role={role} cp={cp} />
       </React.Fragment>)
-    : quiet(isLive ? "Roster outcomes load with the analytics rollup." : "Roster outcomes appear once you are live.");
+    : quiet(extraFailed ? "Couldn't read your roster outcomes just now. Nothing is lost; reload to try again." : "Roster outcomes load with the analytics rollup.");
 
   const sections = {
     overview: trajectory,
@@ -1557,7 +1590,7 @@ function CoachBusinessPage({ role }) {
 
   return (
     <React.Fragment>
-      {source === "demo" && !extra && <DashDemoBand />}
+      {preview && <DashDemoBand />}
       <DashPage
         tourHero="hero-business"
         navItems={cfg.nav("business")}

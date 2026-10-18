@@ -207,5 +207,5 @@ test('the Business outcomes card needs a rollup, and says why it is not there wi
   // 30-day outcome nobody measured.
   const src = fs.readFileSync(path.join(ND, 'dashBusiness.jsx'), 'utf8');
   assert.match(src, /const outcomes = cp\s*\?\s*plate\(/, 'the outcomes card is drawn without a rollup');
-  assert.match(src, /: quiet\(isLive \? "Roster outcomes load with the analytics rollup\." : "Roster outcomes appear once you are live\."\)/, 'no rollup and nothing on the page says why');
+  assert.match(src, /: quiet\(extraFailed \? "Couldn't read your roster outcomes just now\. Nothing is lost; reload to try again\." : "Roster outcomes load with the analytics rollup\."\)/, 'no rollup and nothing on the page says why');
 });
