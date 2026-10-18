@@ -262,13 +262,12 @@ test('a refused play is asked again FROM THE TAP, synchronously, and every attem
   const m = code.match(/const retryPlay = \(\) => \{([^\n]*)\};/);
   assert.ok(m, 'retryPlay is gone — this guard no longer names anything');
   // eslint-disable-next-line no-new-func
-  const retry = new Function('radioOn', 'paused', 'startPlay', m[1]);
+  const retry = new Function('paused', 'startPlay', m[1]);
   let asked = 0;
-  retry(true, false, () => { asked += 1; });
+  retry(false, () => { asked += 1; });
   assert.equal(asked, 1, 'Tune in does not ask play() inside the tap');
-  retry(true, true, () => { asked += 1; });
-  retry(false, false, () => { asked += 1; });
-  assert.equal(asked, 1, 'a paused or switched-off radio is asked to play by the retry');
+  retry(true, () => { asked += 1; });
+  assert.equal(asked, 1, 'a muted radio is asked to play by the retry');
   assert.match(code, /^\s*retryPlay,$/m, 'the provider no longer offers the retry');
 
   // startPlay: lifted from the provider and RUN. play() must be CALLED before

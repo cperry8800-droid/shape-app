@@ -418,14 +418,14 @@ function bsFxTint(fxColor, t) {
 }
 
 // Renders the music-reactive overlay (edge glow / bloom / hologram DJ)
-// only while radio is on, not paused, and fxMode != 'off'.
+// only while the radio's sound is on (not paused) and fxMode != 'off'.
 // floor = the CSS px the tab bar takes at the bottom of this screen (0 where
 // there is none): the hologram's booth stands on it instead of under it.
 function BSRadioFx({ floor = 0 }) {
   const r = useBSRadio();
   const t = useBS();
   if (bsSdReduced()) return null; // the OS reduced-motion signal outranks the fx opt-in
-  if (!r.radioOn || r.paused) return null;
+  if (r.paused) return null;
   if (!r.fxMode || r.fxMode === 'off') return null;
   if (typeof RadioEffects !== 'function') return null;
   // ⚠ THE ISLAND CHIP NAMES THE STATION AND NOTHING ELSE. It read
@@ -37606,7 +37606,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           ← Back; it is its own page above now. */}
       <div style={{ padding: `8px ${t.padX}px 16px` }}>
           <div>
-            {/* ── QUICK SWITCHES ── the three things members actually flip, on the
+            {/* ── QUICK SWITCHES ── the two things members actually flip, on the
                 root instead of two taps down. Each one is a REAL stored setting and
                 writes through `setPref`, the module's one writer, so the mirror, the
                 live re-render and the presence broadcast all still happen — a bare
@@ -37618,16 +37618,13 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 labelled Online wired to that would tell a member they were hidden
                 while they were still visible to everyone. `onlineVisible` is the one
                 that means what the label says.
-                ⚠ AND THERE IS NO FOURTH. The concept board's third cell read
+                ⚠ AND THERE IS NO THIRD. The concept board's third cell read
                 "Check-ins · On Home"; that is `dailyCheckin`, which exists. Anything
-                else the board implied and the app does not store is not built. */}
+                else the board implied and the app does not store is not built.
+                ⚠ NOR A RADIO SWITCH. Shape Radio is always on air and has no off
+                (owner, 2026-10-18); its sound is the speaker on the radio bar. */}
             <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, margin: '6px 0 8px' }}>{tr('settings:passport.quick', { defaultValue: 'Quick switches' })}</div>
             <div style={{ display: 'flex', gap: 7 }}>
-              <QuickSwitch
-                label={tr('settings:quick.radio', { defaultValue: 'Radio' })}
-                on={!!r.radioOn}
-                value={r.radioOn ? tr('settings:common.on', { defaultValue: 'On' }) : tr('settings:common.off', { defaultValue: 'Off' })}
-                onToggle={() => r.setRadioPreference(!r.radioOn)} />
               <QuickSwitch
                 label={tr('settings:quick.online', { defaultValue: 'Online' })}
                 on={prefs.onlineVisible !== 'Off'}
@@ -37907,16 +37904,13 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       {/* LANGUAGE — app-wide UI locale (i18n) */}
       <BSLanguageSetting t={t} />
 
-      {/* SHAPE RADIO */}
-      <div style={{ padding: `14px ${t.padX}px 4px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{tr('settings:radio.title', { defaultValue: 'Shape Radio' })}</div>
-          <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{r.radioOn ? (r.paused ? tr('settings:radio.paused', { defaultValue: 'Paused' }) : tr('settings:radio.playing', { defaultValue: 'Playing while browsing' })) : tr('settings:radio.listen', { defaultValue: 'Listen while using the app' })}</div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: r.radioOn ? t.ACCENT : t.INK50 }}>{r.radioOn ? tr('settings:common.on', { defaultValue: 'On' }) : tr('settings:common.off', { defaultValue: 'Off' })}</span>
-          <Toggle on={r.radioOn} onClick={() => r.setRadioPreference(!r.radioOn)} />
-        </div>
+      {/* SHAPE RADIO — a heading and a reading, no switch. The station is always
+          on air and has no off (owner, 2026-10-18: "remove the radio toggle");
+          the sound is the speaker on the radio bar. "Playing" is the MEASURED
+          clock, never what was asked for, so a refused play reads Paused. */}
+      <div style={{ padding: `14px ${t.padX}px 4px` }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{tr('settings:radio.title', { defaultValue: 'Shape Radio' })}</div>
+        <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{r.playingSince != null ? tr('settings:radio.playing', { defaultValue: 'Playing while browsing' }) : tr('settings:radio.paused', { defaultValue: 'Paused' })}</div>
       </div>
 
       {/* LIGHT EFFECTS — music-reactive overlays while Shape Radio is on */}
@@ -37936,9 +37930,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
               immersive: tr('settings:fx.modeImmersive', { defaultValue: 'Immersive' }),
               hologram: tr('settings:fx.modeHologram', { defaultValue: 'Hologram' }),
             }[r.fxMode];
-            if (r.radioOn && fxModeLabel) return tr('settings:fx.active', { mode: fxModeLabel, defaultValue: 'Active · {mode}' });
-            if (r.radioOn) return tr('settings:fx.offHint', { defaultValue: 'Effects off — tap a mode to preview' });
-            return tr('settings:fx.tapPreview', { defaultValue: 'Radio off — tap a mode to preview' });
+            if (fxModeLabel) return tr('settings:fx.active', { mode: fxModeLabel, defaultValue: 'Active · {mode}' });
+            return tr('settings:fx.offHint', { defaultValue: 'Effects off — tap a mode to preview' });
           })()}</div>
         </div>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
@@ -37951,14 +37944,14 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         const fxReduced = bsSdReduced();
         const pickFx = (k) => {
           r.setFxMode(k);
-          const radioLive = r.radioOn && !r.paused;
+          const radioLive = !r.paused;
           setFxPreview(k !== 'off' && !radioLive && !fxReduced ? k : null);
         };
         // Picking a color re-fires the preview so the tint is visible at once
         // (live overlay recolors on its own when radio is playing).
         const pickFxColor = (k) => {
           r.setFxColor(k);
-          const radioLive = r.radioOn && !r.paused;
+          const radioLive = !r.paused;
           if (r.fxMode !== 'off' && !radioLive && !fxReduced) setFxPreview(r.fxMode);
         };
         return (
@@ -38036,7 +38029,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
             ? tr('settings:fx.footReduced', { defaultValue: '— reduced motion is on, so effects stay off' })
             : fxPreview
               ? tr('settings:fx.footPreview', { defaultValue: '— previewing for a few seconds' })
-              : r.radioOn
+              : !r.paused
                 ? tr('settings:fx.footRadioOn', { defaultValue: '— effects render on top of every screen while radio plays' })
                 : tr('settings:fx.footTapPreview', { defaultValue: '— tap a mode to preview it · runs whenever radio plays' })}
         </div>
@@ -38047,7 +38040,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       {/* Light-fx tap-to-preview overlay — the REAL RadioEffects for a beat,
           portaled over the phone surface. Decorative only; cleared by the 6s
           timer, never rendered while the live overlay (BSRadioFx) is active. */}
-      {fxPreview && !(r.radioOn && !r.paused) && typeof RadioEffects === 'function' && createPortal((
+      {fxPreview && r.paused && typeof RadioEffects === 'function' && createPortal((
         <div aria-hidden="true" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 80 }}>
           {/* ⚠ SAME AS THE LIVE OVERLAY: this appended `· ${r.LIVE.bpm} BPM`,
               which is a reading, on a preview where nothing is even playing. */}

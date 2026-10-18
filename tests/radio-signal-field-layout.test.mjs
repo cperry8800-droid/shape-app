@@ -423,14 +423,14 @@ function playbackEffect() {
   // The effect is found from the line that CLOSES it, walking back to its own
   // opener: its first statement has changed twice (a local cancel, then none),
   // and its dependency list may grow; neither is what this lift is about.
-  const end = /\}, \[radioOn, paused, authTick[^\]]*\]\);/.exec(code);
+  const end = /\}, \[paused, authTick[^\]]*\]\);/.exec(code);
   assert.ok(end, 'the playback effect is gone — this guard no longer names anything');
   const i = code.lastIndexOf('useEffectBR(() => {', end.index);
   assert.ok(i > 0, 'could not find the start of the playback effect');
   const body = code.slice(code.indexOf('{', i) + 1, code.lastIndexOf('}', end.index));
-  assert.ok(body.length > 400, `the effect slice is ${body.length} chars — this guard is reading the wrong thing`);
+  assert.ok(body.length > 300, `the effect slice is ${body.length} chars — this guard is reading the wrong thing`);
   // eslint-disable-next-line no-new-func
-  return new Function('radioOn', 'paused', 'authTick', 'window', 'setNowPlaying', 'setPlayingSince', 'startPlay', 'cancelPlay', body);
+  return new Function('paused', 'authTick', 'window', 'setNowPlaying', 'setPlayingSince', 'startPlay', 'cancelPlay', body);
 }
 
 // The provider's own attempt — `startPlay` and `cancelPlay` — lifted and RUN.
@@ -462,7 +462,7 @@ async function runPlayback({ playResolves, pauseMidFlight = false }) {
   };
   const setPlayingSince = (v) => { stamped.push(typeof v === 'function' ? v(null) : v); };
   const { startPlay, cancelPlay } = liftAttempt(win, setPlayingSince);
-  const cleanup = fn(true, false, 0, win, () => {}, setPlayingSince, startPlay, cancelPlay);
+  const cleanup = fn(false, 0, win, () => {}, setPlayingSince, startPlay, cancelPlay);
   if (pauseMidFlight) cleanup();
   resolve(playResolves);
   await pending;

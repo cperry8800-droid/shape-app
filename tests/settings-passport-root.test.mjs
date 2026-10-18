@@ -167,9 +167,11 @@ test('and every quick switch writes through the module’s one writer', () => {
   const i = src.indexOf("tr('settings:passport.quick'");
   assert.ok(i > 0, 'the quick-switch row is gone');
   const row = stripComments(src.slice(i, src.indexOf('</div>', src.indexOf('<QuickSwitch', i) + 2000)));
-  assert.equal((row.match(/<QuickSwitch/g) || []).length, 3, 'there are not three quick switches');
+  assert.equal((row.match(/<QuickSwitch/g) || []).length, 2, 'there are not two quick switches');
   assert.equal((row.match(/setPref\(/g) || []).length, 2, 'the two preference switches must both go through setPref');
-  assert.match(row, /setRadioPreference\(/, 'the radio switch must go through the radio provider');
+  // Shape Radio is always on air and has no off (owner, 2026-10-18: "remove the
+  // radio toggle"); its sound is the speaker on the radio bar.
+  assert.doesNotMatch(row, /quick\.radio|useBSRadio|\br\.(paused|setPaused)/, 'a radio switch is back on the root');
 });
 
 test('the plan card and the status line are both role-gated, or they contradict each other', () => {
