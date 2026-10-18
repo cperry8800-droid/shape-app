@@ -11,7 +11,7 @@ import { clientForRequest, userLookupForRequest } from '@/lib/request-auth';
 import { loadStripe, loadCancelFlags } from '@/lib/stripe';
 import { pickRenewals, renewalRows, RENEWAL_CHECK_CAP, type RenewalSource } from '@/lib/coach-renewals.mjs';
 import { coachCutCents, bpsToRate } from '@/lib/platform-fee';
-import { buildOriginFeed, byoMixToday } from '@/lib/origin-attribution';
+import { buildOriginFeed, byoMixOf, openSubsToday } from '@/lib/origin-attribution';
 import { buildTrajectory } from '@/lib/coach-trajectory.mjs';
 import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
 import { isMeasuredSignedOut } from '@/lib/auth-lookup';
@@ -283,11 +283,6 @@ export async function GET(request: Request) {
     for (const r of roster) r.name = activeNames.get(r.client_id) || 'Client';
   }
 
-  // Per-client attribution feed — subscriptions + recent paid one-time
-  // purchases, each labelled from its STORED (origin, fee_bps) pair. Shared
-  // with the trainer route so the mapping can't drift.
-  const byOrigin = await buildOriginFeed(supabase, 'nutritionist', providerId, subs, activeNames);
-
   // ⚠ NULL, NOT 0, WHEN THERE IS NOTHING TO MEASURE — see the trainer route. Nor when the logs
   // could not be read.
   const proteinAdherencePct = totalProteinDays ? Math.round((proteinHits / totalProteinDays) * 100) : null;
@@ -339,6 +334,16 @@ export async function GET(request: Request) {
       }),
     };
 
+  // Today's clients' rows: the trajectory's open rows, or the active read when the trajectory could
+  // not be read (openSubsToday says why). The brought-in share and the origin feed are both taken over
+  // them, so the Plan's "1 of your 3" and the Growth tab's "1 you brought" count the same clients.
+  const todaySubs = openSubsToday(subsAllRes.error ? null : subsAllRes.data ?? [], subsUnknown ? null : subs);
+
+  // Per-client attribution feed — today's subscriptions + recent paid one-time
+  // purchases, each labelled from its STORED (origin, fee_bps) pair. Shared
+  // with the trainer route so the mapping can't drift.
+  const byOrigin = todaySubs ? await buildOriginFeed(supabase, 'nutritionist', providerId, todaySubs, activeNames) : null;
+
   // Renewing in the next 7 days (Business page, Money tab). Each one is asked of Stripe, because a
   // member who cancelled keeps an active row until the period ends (src/lib/coach-renewals.mjs).
   // Built from the active subscriptions: when they could not be read, neither can this.
@@ -359,12 +364,12 @@ export async function GET(request: Request) {
     isNutritionist: true,
     providerId,
     churn,
-    // Built from the active subscriptions: when they could not be read, neither can this.
-    byOrigin: subsUnknown ? null : byOrigin,
+    // Built from today's subscriptions: when they could not be read, neither can this.
+    byOrigin,
     // The share of CLIENTS the coach brought: the Plan and Goal calculators start from it. Taken over
-    // today's clients, the trajectory's latest week (byoMixToday), so it is "of" the same count the
-    // Plan says "you have" (the sweep after #2394 round 10).
-    byoMix: byoMixToday(subsAllRes.error ? null : subsAllRes.data ?? [], subsUnknown ? null : subs),
+    // today's clients, the trajectory's latest week, so it is "of" the same count the Plan says "you
+    // have" (the sweep after #2394 round 10).
+    byoMix: todaySubs ? byoMixOf(todaySubs) : null,
     trajectory,
     ...(wantRenewals ? { renewals } : {}),
     metrics: {

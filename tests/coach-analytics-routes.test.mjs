@@ -550,11 +550,66 @@ test('both routes take the brought-in share over today\'s clients, so a brought 
     // The active read unread and the trajectory read: the share is still today's.
     const noActive = await loadRoute(role, tables, { honorStatus: true, failActive: true })
     assert.deepEqual(noActive.body.byoMix, { clients: 3, brought: 1 }, role)
-    assert.equal(noActive.body.byOrigin, null, role + ': the origin feed is still built from the active rows alone')
+    assert.deepEqual(noActive.body.byOrigin.map((r) => r.feeBps), [1500, 1500, 0], role + ': and so is the origin feed (the test below)')
     // Neither: unread, never 0%.
     const neither = await loadRoute(role, tables, { honorStatus: true, failActive: true, failTrajectory: true })
     assert.equal(neither.body.byoMix, null, role)
   }
+})
+
+test('both routes list today\'s clients in the Growth tab\'s "who found whom", so a brought client whose payment is retrying is there, as in the Plan\'s "1 of your 3"', async () => {
+  // The scenario above: A and B from Shape and active, C brought (0%) and past_due, D cancelled.
+  // The feed was built from the active and trialing rows, so the plate on the Plan's own page
+  // listed A and B alone: "0 you brought · 2 found you on Shape" beside "0% fee · 1 of your 3".
+  const C = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+  const D = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+  const rows = (role) => [
+    { ...sub(A), id: 'r1', provider_role: role },
+    { ...sub(B), id: 'r2', provider_role: role },
+    { ...sub(C), id: 'r3', fee_bps: 0, status: 'past_due', provider_role: role },
+    { ...sub(D), id: 'r4', fee_bps: 0, status: 'canceled', current_period_end: '2026-10-01T00:00:00Z', provider_role: role },
+  ]
+  // `profiles` answers what the coach's policy shows (active and trialing clients: A and B);
+  // get_display_names names anyone, and says whom it was asked about.
+  const asked = []
+  const names = { [A]: 'Ada', [B]: 'Ben', [C]: 'Cleo', [D]: 'Dee' }
+  const rpcs = { get_display_names: ({ p_ids }) => { asked.push(p_ids); return { data: p_ids.map((id) => ({ user_id: id, full_name: names[id] })), error: null } } }
+  for (const [role, listing] of [['trainer', { trainers: [{ id: 7, stripe_account_id: null, stripe_account_status: null }] }], ['nutritionist', { nutritionists: [{ id: 9, stripe_account_id: null, stripe_account_status: null }] }]]) {
+    const tables = { ...listing, subscriptions: rows(role), profiles: [{ id: A, full_name: 'Ada' }, { id: B, full_name: 'Ben' }] }
+    asked.length = 0
+    const { body } = await loadRoute(role, tables, { honorStatus: true, rpcs })
+    const subsFeed = body.byOrigin.filter((r) => r.kind === 'subscription')
+    assert.deepEqual(subsFeed.map((r) => [r.name, r.feeBps]), [['Ada', 1500], ['Ben', 1500], ['Cleo', 0]], role + ': C is listed, by name, at 0%; D (cancelled) is not')
+    assert.deepEqual(asked, [[D], [C]], role + ': the churn list asks for D; the feed asks for the one name the profiles read could not see, and only that one')
+    // The plate's own count (DbzOriginZone: rows at 0% are "you brought") agrees with the Plan's.
+    assert.equal(subsFeed.filter((r) => r.feeBps === 0).length, body.byoMix.brought, role + ': "1 you brought" beside "1 of your 3"')
+    assert.equal(new Set(subsFeed.map((r) => r.name)).size, body.byoMix.clients, role)
+    // The trajectory unread: both fall back to the active rows together.
+    const noHistory = await loadRoute(role, tables, { honorStatus: true, failTrajectory: true, rpcs })
+    assert.deepEqual(noHistory.body.byOrigin.map((r) => r.name), ['Ada', 'Ben'], role)
+    // The active read unread: no roster, so no profiles read; every name comes from get_display_names.
+    asked.length = 0
+    const noActive = await loadRoute(role, tables, { honorStatus: true, failActive: true, rpcs })
+    assert.deepEqual(noActive.body.byOrigin.map((r) => r.name), ['Ada', 'Ben', 'Cleo'], role + ': named, not "—"')
+    assert.deepEqual(asked, [[D], [A, B, C]], role)
+    // Neither: unread, never "no clients yet".
+    const neither = await loadRoute(role, tables, { honorStatus: true, failActive: true, failTrajectory: true, rpcs })
+    assert.equal(neither.body.byOrigin, null, role)
+  }
+})
+
+test('the origin feed names the clients it lacks 200 at a time, the most get_display_names takes', async () => {
+  const { buildOriginFeed } = await loadRealModule(join(ROOT, 'src/lib/origin-attribution.ts'), { typescript: true, registry: new Map([['@/lib/supabase/server', {}]]) })
+  const db = fakeSupabase({}, { rpcs: { get_display_names: ({ p_ids }) => (p_ids.length > 200 ? { data: null, error: { message: 'at most 200 ids' } } : { data: p_ids.map((id) => ({ user_id: id, full_name: 'N ' + id })), error: null }) } })
+  const subs = Array.from({ length: 450 }, (_, i) => ({ client_id: 'c' + i, price_cents: 1000, fee_bps: 1500 }))
+  const feed = await buildOriginFeed(db.client, 'trainer', 7, subs, new Map([['c0', 'Known']]))
+  assert.deepEqual(db.calls.filter((c) => c.rpc === 'get_display_names').map((c) => c.args.p_ids.length), [200, 200, 49])
+  assert.equal(feed[0].name, 'Known', 'a name the roster already read is not asked for again')
+  assert.ok(feed.every((r) => r.name !== '—'), 'every client named')
+  // A failed purchases read is still subscriptions-only, and still named.
+  const failed = fakeSupabase({}, { errors: { one_time_purchases: 'timeout' }, rpcs: { get_display_names: ({ p_ids }) => ({ data: p_ids.map((id) => ({ user_id: id, full_name: 'Cleo' })), error: null }) } })
+  const only = await buildOriginFeed(failed.client, 'trainer', 7, [{ client_id: 'c', price_cents: 1000, fee_bps: 0 }], new Map())
+  assert.deepEqual(only.map((r) => [r.kind, r.name, r.feeBps]), [['subscription', 'Cleo', 0]])
 })
 
 // ── #2394's open item: the nutritionist route reads every row, a page at a time ──
