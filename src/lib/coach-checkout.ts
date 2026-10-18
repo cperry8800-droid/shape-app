@@ -269,6 +269,9 @@ export async function resolveCheckoutCode(
   const fits = (c: Coupon) => args.mode === 'subscription' || afterCode(args.listCents, { percentOff: c.percent_off ?? null, amountOff: c.amount_off ?? null }) >= 50;
 
   const shapeRanked = pickCode(await codesNamed(stripe, args.code), args.code, args.platformCustomerId);
+  // Why the Shape code didn't apply, told only when the coach's account has no usable code of the
+  // same letters either: the two accounts keep their codes apart (Codex on #2403).
+  let shapeRefusal: CodeRefusal | null = null;
   // A Shape code that is only other members' is a miss here, not a refusal: the coach's account
   // keeps its own codes, and the same letters may be one there for this member (Codex on #2403).
   if (shapeRanked && shapeRanked !== 'others') {
@@ -282,37 +285,39 @@ export async function resolveCheckoutCode(
       if (!usable(c) || !fits(c) || !minimumMet(p, args.listCents)) return 'code_not_here';
       return null;
     });
-    if ('reason' in found) return { ok: false, reason: found.reason };
-    const shape = found.pick;
-    const c = couponOf(shape) as Coupon;
-    const mirrorId = `shape-${shape.id}`;
-    const opts = { stripeAccount: args.account };
-    let mirror: Coupon | null = null;
-    try {
-      mirror = await stripe.coupons.retrieve(mirrorId, undefined, opts);
-    } catch (err) {
-      if ((err as { code?: string })?.code !== 'resource_missing') throw err;
+    if ('reason' in found) shapeRefusal = found.reason;
+    else {
+      const shape = found.pick;
+      const c = couponOf(shape) as Coupon;
+      const mirrorId = `shape-${shape.id}`;
+      const opts = { stripeAccount: args.account };
+      let mirror: Coupon | null = null;
+      try {
+        mirror = await stripe.coupons.retrieve(mirrorId, undefined, opts);
+      } catch (err) {
+        if ((err as { code?: string })?.code !== 'resource_missing') throw err;
+      }
+      if (!mirror) {
+        mirror = await stripe.coupons.create({
+          id: mirrorId,
+          name: `Shape code ${shape.code}`.slice(0, 40),
+          ...(c.percent_off ? { percent_off: c.percent_off } : { amount_off: c.amount_off, currency: 'usd' }),
+          duration: c.duration || 'once',
+          ...(c.duration === 'repeating' && c.duration_in_months ? { duration_in_months: c.duration_in_months } : {}),
+          // A deadline is portable: the mirror stops at the same moment as Shape's coupon.
+          ...(c.redeem_by ? { redeem_by: c.redeem_by } : {}),
+          metadata: { shape_promotion_code: shape.id, shape_coupon: c.id },
+        }, { ...opts, idempotencyKey: `shape-mirror-${shape.id}-${args.account}` });
+      }
+      return {
+        ok: true,
+        code: { source: 'shape', code: shape.code || args.code, discount: { coupon: mirror.id }, percentOff: c.percent_off ?? null, amountOff: c.percent_off ? null : c.amount_off ?? null },
+      };
     }
-    if (!mirror) {
-      mirror = await stripe.coupons.create({
-        id: mirrorId,
-        name: `Shape code ${shape.code}`.slice(0, 40),
-        ...(c.percent_off ? { percent_off: c.percent_off } : { amount_off: c.amount_off, currency: 'usd' }),
-        duration: c.duration || 'once',
-        ...(c.duration === 'repeating' && c.duration_in_months ? { duration_in_months: c.duration_in_months } : {}),
-        // A deadline is portable: the mirror stops at the same moment as Shape's coupon.
-        ...(c.redeem_by ? { redeem_by: c.redeem_by } : {}),
-        metadata: { shape_promotion_code: shape.id, shape_coupon: c.id },
-      }, { ...opts, idempotencyKey: `shape-mirror-${shape.id}-${args.account}` });
-    }
-    return {
-      ok: true,
-      code: { source: 'shape', code: shape.code || args.code, discount: { coupon: mirror.id }, percentOff: c.percent_off ?? null, amountOff: c.percent_off ? null : c.amount_off ?? null },
-    };
   }
 
   const ownRanked = pickCode(await codesNamed(stripe, args.code, { stripeAccount: args.account }), args.code, args.coachCustomerId ?? null);
-  if (ownRanked === 'others') return { ok: false, reason: 'code_invalid' };
+  if (ownRanked === 'others') return { ok: false, reason: shapeRefusal ?? 'code_invalid' };
   if (ownRanked) {
     const found = firstUsable(ownRanked, (p) => {
       const c = couponOf(p);
@@ -320,7 +325,7 @@ export async function resolveCheckoutCode(
       if (!usable(c) || !fits(c) || !minimumMet(p, args.listCents)) return 'code_not_here';
       return null;
     });
-    if ('reason' in found) return { ok: false, reason: found.reason };
+    if ('reason' in found) return { ok: false, reason: shapeRefusal ?? found.reason };
     const own = found.pick;
     const c = couponOf(own) as Coupon;
     return {
@@ -328,7 +333,7 @@ export async function resolveCheckoutCode(
       code: { source: 'coach', code: own.code || args.code, discount: { promotion_code: own.id }, percentOff: c.percent_off ?? null, amountOff: c.percent_off ? null : c.amount_off ?? null },
     };
   }
-  return { ok: false, reason: 'code_invalid' };
+  return { ok: false, reason: shapeRefusal ?? 'code_invalid' };
 }
 
 /** What a member is told about a code that did not apply. */

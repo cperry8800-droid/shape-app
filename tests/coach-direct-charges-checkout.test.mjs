@@ -290,6 +290,11 @@ test('one visible code can be several promotion codes: the member\'s own, then t
   const coachMineMin = { id: 'promo_cmm', code: 'TOMS10', customer: 'cus_onCoach', restrictions: { minimum_amount: 50000 }, promotion: { coupon: { id: 'c', valid: true, percent_off: 20 } } };
   const coachOpenOk = { id: 'promo_cok', code: 'TOMS10', restrictions: {}, promotion: { coupon: { id: 'c', valid: true, percent_off: 12 } } };
   assert.deepEqual((await resolve(codeStripe({ coach: [coachMineMin, coachOpenOk] }), { code: 'TOMS10', coachCustomerId: 'cus_onCoach' })).code.discount, { promotion_code: 'promo_cok' }, 'the same on the coach\'s account');
+  // A Shape code that no entry of passes doesn't stop the coach's code of the same letters (Codex on #2403).
+  const coachSpring = { id: 'promo_coachSpring', code: 'SPRING25', restrictions: {}, promotion: { coupon: { id: 'c', valid: true, percent_off: 15 } } };
+  assert.deepEqual((await resolve(codeStripe({ shape: [capped], coach: [coachSpring] }))).code.discount, { promotion_code: 'promo_coachSpring' }, 'the coach\'s, after an unusable Shape match');
+  const coachSpringMin = { ...coachSpring, id: 'promo_coachSpringMin', restrictions: { minimum_amount: 50000 } };
+  assert.deepEqual(await resolve(codeStripe({ shape: [expiredMine], coach: [coachSpringMin] })), { ok: false, reason: 'code_invalid' }, 'neither passes: the Shape refusal is told');
   // The member's own entry past the first page is still found, on either account (Codex on #2403).
   const crowd = Array.from({ length: 5 }, (_, i) => shapeCode({ id: `promo_other${i}`, customer: `cus_other${i}` }, { percent_off: 50 }));
   const paged = codeStripe({ shape: [...crowd, mine], pageSize: 2 });
