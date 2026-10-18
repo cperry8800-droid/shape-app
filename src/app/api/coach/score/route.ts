@@ -14,7 +14,8 @@
 // via bsCoachTier(). Keep these thresholds in sync with SHAPE_SCORE_TIERS_COACH.
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { clientForRequest, userLookupForRequest } from '@/lib/request-auth';
+import { isMeasuredSignedOut } from '@/lib/auth-lookup';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,9 +33,22 @@ export async function GET(req: Request) {
   if (role !== 'trainer' && role !== 'nutritionist') {
     return NextResponse.json({ error: 'role=trainer|nutritionist required.' }, { status: 400 });
   }
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+  // The website's cookie session, or the installed app's Bearer token: the app's coach Score page
+  // reads this route too (2026-10-18). It was cookie-only, so the app's token got a 401 and the
+  // page fell back to the member ledger.
+  const supabase = await clientForRequest(req);
+  const { user, error: authErr } = await userLookupForRequest(req);
+  if (!user) {
+    // ⚠ AN AUTH OUTAGE IS NOT A SIGNED-OUT VIEWER (src/lib/auth-lookup.ts). getUser() answers a dead
+    // network or an auth-server 5xx with a null user too, and the website's Score page reads a 401
+    // as "show the sample": a signed-in coach would be shown the sample's score as their own. A 503
+    // is the unread state both Score pages have.
+    if (!isMeasuredSignedOut(authErr)) {
+      console.warn('[coach/score] the sign-in check failed — answering 503, not 401:', authErr?.message);
+      return NextResponse.json({ error: 'Could not check your sign-in just now.' }, { status: 503 });
+    }
+    return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+  }
 
   const providerTable = role === 'trainer' ? 'trainers' : 'nutritionists';
   const { data: provider } = await supabase
