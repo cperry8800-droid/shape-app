@@ -14,11 +14,16 @@ import { loadRealModule } from './helpers/load-real-module.mjs';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 let samples = {};
 let asked = null;
+let failing = null; // the sample names whose query rejects
 const HK = await loadRealModule(join(ROOT, 'mobile-app/src/services/healthkit.js'), {
   registry: new Map([['@capacitor/core', {
     Capacitor: { isNativePlatform: () => true, getPlatform: () => 'ios' },
     registerPlugin: () => ({
-      querySamples: async ({ sampleName, startDate }) => { if (sampleName === 'stepCount') asked = startDate; return { samples: samples[sampleName] || [] }; },
+      querySamples: async ({ sampleName, startDate }) => {
+        if (failing && (failing === 'all' || failing.includes(sampleName))) throw new Error('HealthKit is busy');
+        if (sampleName === 'stepCount') asked = startDate;
+        return { samples: samples[sampleName] || [] };
+      },
       requestAuthorization: async () => ({ granted: true }),
     }),
   }]]),
@@ -88,4 +93,20 @@ test("the check-in card's sync never asks for permission, and posts nothing when
   assert.match(fn, /\n  if \(prompt\) await requestHealthKitAuth\(\);\n/);
   assert.match(fn, /if \(!prompt && !rollups\.length\) return \{ ok: true, days: 0 \};/);
   assert.match(fn, /body: JSON\.stringify\(\{ days: rollups, workouts: importWorkouts \? workouts : \[\] \}\)/);
+});
+
+test('a read where every query failed is an error, and one where some failed still sends the rest', async () => {
+  // Codex on #2404: the card took an empty answer for a sync that worked and waited 30 minutes.
+  samples = { stepCount: [{ value: 5000, startDate: new Date().toISOString(), endDate: new Date().toISOString() }] };
+  try {
+    failing = 'all';
+    await assert.rejects(HK.collectHealthKitSnapshots({ days: 2 }), /could not be read/);
+    failing = ['heartRate', 'sleepAnalysis'];
+    const { days } = await HK.collectHealthKitSnapshots({ days: 2 });
+    assert.equal(days.reduce((n, d) => n + (d.patch.steps || 0), 0), 5000, 'a failed query lost the types that were read');
+    // A member who allowed nothing reads empty with no error: that is a read, not a failure.
+    failing = null;
+    samples = {};
+    assert.deepEqual((await HK.collectHealthKitSnapshots({ days: 2 })).days, []);
+  } finally { failing = null; }
 });

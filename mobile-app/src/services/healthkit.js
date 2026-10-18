@@ -44,12 +44,14 @@ function dayKey(value) {
   return `${y}-${m}-${day}`;
 }
 
+// A query that failed is null, not an empty list: a type the member never allowed reads as empty,
+// with no error, so only null says the read itself did not happen.
 async function query(sampleName, startISO, endISO) {
   try {
     const res = await ShapeHealth.querySamples({ sampleName, startDate: startISO, endDate: endISO, limit: 0 });
     return Array.isArray(res?.samples) ? res.samples : [];
   } catch {
-    return [];
+    return null;
   }
 }
 
@@ -115,7 +117,7 @@ export async function collectHealthKitSnapshots({ days = LOOKBACK_DAYS } = {}) {
   const startISO = start.toISOString();
   const endISO = end.toISOString();
 
-  const [steps, heart, resting, hrv, energy, dist, sleep, workouts] = await Promise.all([
+  const read = await Promise.all([
     query(SAMPLE.steps, startISO, endISO),
     query(SAMPLE.heartRate, startISO, endISO),
     query(SAMPLE.restingHeartRate, startISO, endISO),
@@ -125,6 +127,10 @@ export async function collectHealthKitSnapshots({ days = LOOKBACK_DAYS } = {}) {
     query(SAMPLE.sleep, startISO, endISO),
     query(SAMPLE.workout, startISO, endISO),
   ]);
+  // ⚠ A READ THAT FAILED IS AN ERROR, NOT AN EMPTY DAY (Codex on #2404). The check-in card's sync
+  // took an empty answer as a sync that worked and waited 30 minutes before trying again.
+  if (read.every((r) => r === null)) throw new Error('Apple Health could not be read.');
+  const [steps, heart, resting, hrv, energy, dist, sleep, workouts] = read.map((r) => r || []);
 
   const acc = new Map();
   const bucket = (key) => {
