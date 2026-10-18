@@ -52,6 +52,10 @@ export async function GET() {
         STRIPE_SECRET_KEY: !!env.STRIPE_SECRET_KEY,
         STRIPE_SECRET_KEY_mode: keyMode(env.STRIPE_SECRET_KEY),
         STRIPE_WEBHOOK_SECRET: !!env.STRIPE_WEBHOOK_SECRET,
+        // The coaches' connected-account events (a second destination on the same URL) and Shape's
+        // Connect application id, which the webhook's origin guard checks objects against.
+        STRIPE_CONNECT_WEBHOOK_SECRET: !!env.STRIPE_CONNECT_WEBHOOK_SECRET,
+        STRIPE_CONNECT_APPLICATION_ID: !!env.STRIPE_CONNECT_APPLICATION_ID,
         STRIPE_PLATFORM_PRICE_ID: !!env.STRIPE_PLATFORM_PRICE_ID,
       },
       supabase: {

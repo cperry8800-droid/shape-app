@@ -89,7 +89,8 @@ async function loadRoute(role, tables, opts) {
       ['next/server', nextServer],
       ['@/lib/supabase/server', { createClient: async () => db.client }],
       ['@/lib/supabase/admin', { createAdminClient: () => db.client }],
-      ['@/lib/stripe', { loadStripe: async () => ({ connected: false }), loadCancelFlags: async (ids, cap) => { opts?.flagCalls?.push({ ids, cap }); return new Map(ids.map((id) => [id, (opts?.cancelled || []).includes(id)])) } }],
+      // Since 2026-10-18 each row is { id, account } (the account a direct charge lives on); `ids` keeps the ids.
+      ['@/lib/stripe', { loadStripe: async () => ({ connected: false }), loadCancelFlags: async (rows, cap) => { const ids = rows.map((r) => (typeof r === 'string' ? r : r.id)); opts?.flagCalls?.push({ ids, rows, cap }); return new Map(ids.map((id) => [id, (opts?.cancelled || []).includes(id)])) } }],
       ['@/lib/coach-renewals.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/coach-renewals.mjs')).href)],
       ['@/lib/platform-fee', await import(pathToFileURL(join(ROOT, 'src/lib/platform-fee.mjs')).href)],
       ['@/lib/origin-attribution', await ts('src/lib/origin-attribution.ts')],
@@ -314,7 +315,7 @@ test('no failed read in the trainer route is published as an empty history', asy
       ['@/lib/supabase/server', { createClient: async () => churnFails.client }],
       ['@/lib/supabase/admin', { createAdminClient: () => churnFails.client }],
       ['@/lib/request-auth', { clientForRequest: async () => churnFails.client, userLookupForRequest: async () => ({ user: COACH, error: null }) }],
-      ['@/lib/stripe', { loadStripe: async () => ({ connected: false }), loadCancelFlags: async (ids) => new Map(ids.map((id) => [id, false])) }],
+      ['@/lib/stripe', { loadStripe: async () => ({ connected: false }), loadCancelFlags: async (rows) => new Map(rows.map((r) => [typeof r === 'string' ? r : r.id, false])) }],
       ['@/lib/coach-renewals.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/coach-renewals.mjs')).href)],
       ['@/lib/platform-fee', await import(pathToFileURL(join(ROOT, 'src/lib/platform-fee.mjs')).href)],
       ['@/lib/origin-attribution', await loadRealModule(join(ROOT, 'src/lib/origin-attribution.ts'), { typescript: true, registry: new Map([['@/lib/supabase/server', {}]]) })],
@@ -411,7 +412,8 @@ test('renewals: the active rows due in the next 7 days, each asked of Stripe, ne
   const C = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
   const subs = [
     { ...sub(A, 18000), id: 'r1', stripe_subscription_id: 'sub_A', current_period_end: soon(2) },
-    { ...sub(B, 16500), id: 'r2', fee_bps: 0, stripe_subscription_id: 'sub_B', current_period_end: soon(5) },
+    // sub_B is a direct charge on the coach's own account (2026-10-18): it is asked there.
+    { ...sub(B, 16500), id: 'r2', fee_bps: 0, stripe_subscription_id: 'sub_B', stripe_account_id: 'acct_coach123456', current_period_end: soon(5) },
     { ...sub(C, 20000), id: 'r3', stripe_subscription_id: 'sub_C', current_period_end: soon(12) },
   ]
   for (const role of ['trainer', 'nutritionist']) {
@@ -419,6 +421,7 @@ test('renewals: the active rows due in the next 7 days, each asked of Stripe, ne
     const tables = role === 'trainer' ? roster({ subscriptions: subs }) : { nutritionists: [{ id: 9, stripe_account_id: null, stripe_account_status: null }], subscriptions: subs.map((r) => ({ ...r, provider_role: 'nutritionist' })) }
     const { body } = await loadRoute(role, tables, { rpcs: lifts({}), cancelled: ['sub_B'], flagCalls, query: '?renewals=1' })
     assert.deepEqual(flagCalls.map((c) => c.ids), [['sub_A', 'sub_B']], role + ': only the rows due this week are asked about')
+    assert.deepEqual(flagCalls[0].rows, [{ id: 'sub_A', account: null }, { id: 'sub_B', account: 'acct_coach123456' }], role + ': each with the account it lives on')
     assert.deepEqual(body.renewals.map((r) => [r.priceCents, r.netCents, r.ending]), [[18000, 15300, false], [16500, 16500, true]], role)
     assert.deepEqual(body.renewals.map((r) => r.clientId), [A, B], role + ': each renewal says whose plan it is, so the page counts people')
   }

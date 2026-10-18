@@ -428,7 +428,9 @@ export async function GET(request: Request) {
   const due = subsUnknown || !wantRenewals ? [] : pickRenewals(subs as RenewalSource[]);
   const [stripeSummary, cancelFlags] = await Promise.all([
     loadStripe(trainerRow.stripe_account_id ?? null, trainerRow.stripe_account_status ?? null),
-    loadCancelFlags(due.map((r) => r.stripe_subscription_id).filter((v): v is string => !!v).map(String), RENEWAL_CHECK_CAP),
+    // Each with the account it lives on: a coach's own account (direct charges) is listed once,
+    // a legacy platform row is asked on its own (src/lib/stripe.ts).
+    loadCancelFlags(due.filter((r) => !!r.stripe_subscription_id).map((r) => ({ id: String(r.stripe_subscription_id), account: r.stripe_account_id ?? null })), RENEWAL_CHECK_CAP),
   ]);
   const renewals = subsUnknown
     ? null

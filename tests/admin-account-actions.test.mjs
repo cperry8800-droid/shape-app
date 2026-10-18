@@ -79,6 +79,7 @@ test('rules: a reason, a note, an outcome and a removal confirmation are read st
 });
 
 test('rules: a removal cancels each subscription that can still charge, once', () => {
+  // Each comes with the account it lives on (2026-10-18); these rows carry none, so it is unknown.
   const ids = rules.subscriptionsToCancel([
     { stripe_subscription_id: 'sub_a', status: 'active' },
     { stripe_subscription_id: 'sub_a', status: 'active' },
@@ -92,24 +93,27 @@ test('rules: a removal cancels each subscription that can still charge, once', (
     { stripe_subscription_id: ' ', status: 'active' },
     { stripe_subscription_id: null, status: 'active' },
   ]);
-  assert.deepEqual(ids, ['sub_a', 'sub_t', 'sub_p', 'sub_u', 'sub_i', 'sub_z']);
+  assert.deepEqual(ids.map((s) => s.id), ['sub_a', 'sub_t', 'sub_p', 'sub_u', 'sub_i', 'sub_z']);
+  assert.ok(ids.every((s) => s.account === undefined), 'no stripe_account_id key: the account is not known');
   assert.deepEqual(rules.subscriptionsToCancel(null), []);
 });
 
 function fakeStripe(outcomes = {}) {
   const asked = [];
+  // A call made on a connected account (2026-10-18) is recorded with it: cancel:sub_x@acct_y.
+  const on = (opts) => (opts?.stripeAccount ? `@${opts.stripeAccount}` : '');
   return {
     asked,
     subscriptions: {
-      cancel: async (id) => {
-        asked.push(`cancel:${id}`);
+      cancel: async (id, _params, opts) => {
+        asked.push(`cancel:${id}${on(opts)}`);
         const o = outcomes[id];
         if (o === 'missing') throw Object.assign(new Error('No such subscription'), { code: 'resource_missing' });
         if (o === 'ended' || o === 'error' || o === 'unreadable') throw new Error('stripe says no');
         return { id, status: 'canceled' };
       },
-      retrieve: async (id) => {
-        asked.push(`retrieve:${id}`);
+      retrieve: async (id, _params, opts) => {
+        asked.push(`retrieve:${id}${on(opts)}`);
         if (outcomes[id] === 'unreadable') throw new Error('down');
         return { id, status: outcomes[id] === 'ended' ? 'canceled' : 'active' };
       },
@@ -119,15 +123,61 @@ function fakeStripe(outcomes = {}) {
 
 test('rules: cancelling counts a subscription Stripe never had, or already ended, as done', async () => {
   const s = fakeStripe({ sub_m: 'missing', sub_e: 'ended', sub_f: 'error', sub_u: 'unreadable' });
-  const out = await rules.cancelSubscriptions(s, ['sub_ok', 'sub_m', 'sub_e', 'sub_f', 'sub_u']);
+  // Platform rows (account null, known since 2026-10-18): "never had" is looked for where it lives.
+  const out = await rules.cancelSubscriptions(s, ['sub_ok', 'sub_m', 'sub_e', 'sub_f', 'sub_u'].map((id) => ({ id, account: null })));
   assert.deepEqual(out.cancelled, ['sub_ok']);
   assert.deepEqual(out.failed, ['sub_f', 'sub_u'], 'still charging, or not known to have ended: failed');
   assert.ok(!s.asked.includes('retrieve:sub_m'), 'a missing one is not looked up again');
   assert.deepEqual(await rules.cancelSubscriptions(s, []), { cancelled: [], failed: [] });
 });
 
+// ── Coach direct charges (2026-10-18): each subscription is cancelled on the account it lives on ─
+test('rules: a direct charge is cancelled on the coach\'s account; "no such subscription" is done only where it was looked for', async () => {
+  const ACCT = 'acct_1CoachTrainer4';
+  const s = fakeStripe({ sub_m: 'missing', sub_cm: 'missing', sub_um: 'missing', sub_bare: 'missing', sub_ce: 'ended' });
+  const out = await rules.cancelSubscriptions(s, [
+    { id: 'sub_c', account: ACCT },
+    { id: 'sub_cm', account: ACCT },
+    { id: 'sub_ce', account: ACCT },
+    { id: 'sub_m', account: null },
+    { id: 'sub_um', account: undefined },
+    'sub_bare',
+  ]);
+  assert.deepEqual(out.cancelled, ['sub_c']);
+  assert.deepEqual(out.failed, ['sub_um', 'sub_bare'], 'missing where the account was not known: it may live on a coach\'s account and still charge');
+  assert.deepEqual(s.asked, [
+    `cancel:sub_c@${ACCT}`,
+    `cancel:sub_cm@${ACCT}`,
+    `cancel:sub_ce@${ACCT}`, `retrieve:sub_ce@${ACCT}`,
+    'cancel:sub_m',
+    'cancel:sub_um', 'retrieve:sub_um',
+    'cancel:sub_bare', 'retrieve:sub_bare',
+  ], 'each call on the account the row names; a platform row on the platform');
+});
+
+test('rules: each subscription to cancel carries its account; a known account wins over an unknown one', () => {
+  const ACCT = 'acct_1CoachTrainer4';
+  assert.deepEqual(rules.subscriptionsToCancel([
+    { stripe_subscription_id: 'sub_c', status: 'active', stripe_account_id: ACCT },
+    { stripe_subscription_id: 'sub_p', status: 'active', stripe_account_id: null },
+    { stripe_subscription_id: 'sub_e', status: 'active', stripe_account_id: '' },
+    { stripe_subscription_id: 'sub_u', status: 'active' },
+    { stripe_subscription_id: 'sub_k', status: 'active' },
+    { stripe_subscription_id: 'sub_k', status: 'active', stripe_account_id: ACCT },
+    { stripe_subscription_id: 'sub_k', status: 'active' },
+  ]), [
+    { id: 'sub_c', account: ACCT },
+    { id: 'sub_p', account: null },
+    { id: 'sub_e', account: null },
+    { id: 'sub_u', account: undefined },
+    { id: 'sub_k', account: ACCT },
+  ]);
+});
+
 // ── A write-capable fake of the service-role client, with Auth's admin API ────────────────
-function world({ users = {}, tables = {}, rpcs = {}, fail = [], beforeUpdate } = {}) {
+// `missingColumns`: { table: [column] } — a select naming one answers 42703, as a database before the
+// migration that adds it does.
+function world({ users = {}, tables = {}, rpcs = {}, fail = [], beforeUpdate, missingColumns = {} } = {}) {
   const t = { admin_activity_log: [], staff_members: [], account_freezes: [], trainers: [], nutritionists: [], platform_subscriptions: [], subscriptions: [], account_action_requests: [], ...tables };
   for (const k of Object.keys(t)) t[k] = t[k].map((r) => ({ ...r }));
   const calls = [];
@@ -165,6 +215,8 @@ function world({ users = {}, tables = {}, rpcs = {}, fail = [], beforeUpdate } =
       const exec = () => {
         calls.push(`${st.op}:${table}`);
         if (fail.includes(`${st.op}:${table}`)) return { data: null, error: { code: 'XX000', message: 'fake failure' } };
+        const absent = st.op === 'select' && (missingColumns[table] || []).find((c) => String(st.cols || '').includes(c));
+        if (absent) return { data: null, error: { code: '42703', message: `column ${table}.${absent} does not exist` } };
         const rows = (t[table] ||= []);
         const match = (r) => st.filters.every((f) => f(r));
         if (st.op === 'insert') {
@@ -182,7 +234,7 @@ function world({ users = {}, tables = {}, rpcs = {}, fail = [], beforeUpdate } =
         return { data: st.single ? found[0] ?? null : found, error: null };
       };
       const chain = {
-        select() { if (st.op !== 'select') st.returning = true; return chain; },
+        select(cols) { if (st.op !== 'select') st.returning = true; else st.cols = cols; return chain; },
         insert(p) { st.op = 'insert'; st.payload = p; return chain; },
         update(p) { st.op = 'update'; st.payload = p; return chain; },
         eq(c, v) { st.filters.push((r) => r[c] === v); return chain; },
@@ -440,6 +492,28 @@ test('remove: a subscription that cannot be cancelled stops it before anything i
   const ended = world({ users: people(), tables: billing });
   const b = await loadActions(ended, ADMIN, { stripe: fakeStripe({ sub_coach: 'ended', sub_member: 'missing' }) });
   assert.equal(await b.run('removeAccount', { user_id: BO, confirm: 'bo@x.com' }), '/admin/members?updated=removed', 'already ended or never in Stripe: nothing to stop');
+});
+
+test('remove: a coaching subscription on a coach\'s own account is cancelled there (coach direct charges, 2026-10-18)', async () => {
+  const ACCT = 'acct_1CoachNutri3';
+  const direct = { ...billing, subscriptions: billing.subscriptions.map((r) => (r.stripe_subscription_id === 'sub_coach' ? { ...r, stripe_account_id: ACCT } : r)) };
+  const db = world({ users: people(), tables: direct });
+  const a = await loadActions(db, ADMIN);
+  assert.equal(await a.run('removeAccount', { user_id: BO, confirm: 'bo@x.com' }), '/admin/members?updated=removed');
+  assert.deepEqual(a.stripe.asked, ['cancel:sub_member', `cancel:sub_coach@${ACCT}`, 'cancel:sub_client']);
+  const missing = await loadActions(world({ users: people(), tables: direct }), ADMIN, { stripe: fakeStripe({ sub_coach: 'missing' }) });
+  assert.equal(await missing.run('removeAccount', { user_id: BO, confirm: 'bo@x.com' }), '/admin/members?updated=removed', 'missing on the account it lives on: nothing charges');
+});
+
+test('remove: before the migration a coaching subscription\'s account is not known, so "missing" stops the removal', async () => {
+  const db = world({ users: people(), tables: billing, missingColumns: { subscriptions: ['stripe_account_id'] } });
+  const a = await loadActions(db, ADMIN, { stripe: fakeStripe({ sub_coach: 'missing', sub_member: 'missing' }) });
+  assert.equal(await a.run('removeAccount', { user_id: BO, confirm: 'bo@x.com' }), `${page(BO)}?error=billing_not_cancelled`);
+  assert.equal(a.erasures.length, 0, 'nothing erased');
+  assert.deepEqual(a.stripe.asked, ['cancel:sub_member', 'cancel:sub_coach', 'retrieve:sub_coach', 'cancel:sub_client'], 'the membership is the platform\'s (known); the coaching rows are read again without the column');
+  // With nothing missing, the removal still goes through before the migration.
+  const fine = await loadActions(world({ users: people(), tables: billing, missingColumns: { subscriptions: ['stripe_account_id'] } }), ADMIN);
+  assert.equal(await fine.run('removeAccount', { user_id: BO, confirm: 'bo@x.com' }), '/admin/members?updated=removed');
 });
 
 test('remove: a wrong confirmation, a refusal or an unread billing table changes nothing', async () => {

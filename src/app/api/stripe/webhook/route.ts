@@ -3,10 +3,21 @@
 //
 // Requires STRIPE_WEBHOOK_SECRET in the environment. Uses the raw request
 // body for signature verification (NEVER parse as JSON first).
+//
+// TWO DESTINATIONS, ONE URL (coach direct charges, 2026-10-18). Shape's own account sends its
+// events signed with STRIPE_WEBHOOK_SECRET. The coaches' connected accounts send theirs through a
+// second destination ("Connected accounts" in Stripe), signed with STRIPE_CONNECT_WEBHOOK_SECRET;
+// those carry `event.account`. A Connect event:
+//   · reads every Stripe object on the account it came from (acctOpts);
+//   · passes the ORIGIN GUARD before it writes a row a coach's metadata names (stripe-connect.ts);
+//   · finds rows only among those stamped with its own account, and stamps the rows it writes;
+//   · never touches the $5 membership (platform_subscriptions), which only Shape's account sells.
+// A platform event runs exactly as it did before.
 
 import { NextResponse } from 'next/server';
 import type Stripe from 'stripe';
 import { stripe } from '@/lib/stripe';
+import { acctOpts, checkConnectOrigin, madeByShape } from '@/lib/stripe-connect';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { coachCutCents, bpsToRate, parseFeeBpsMeta } from '@/lib/platform-fee';
 import { attributionPair, MARKETPLACE_FEE_BPS } from '@/lib/coach-origin.mjs';
@@ -124,6 +135,12 @@ function extractSubscriptionId(invoice: Stripe.Invoice): string | null {
   return typeof ref === 'string' ? ref : ref.id ?? null;
 }
 
+// A Stripe reference, as an id or an expanded object.
+function idOf(v: unknown): string | null {
+  if (typeof v === 'string') return v;
+  return v && typeof v === 'object' && typeof (v as { id?: unknown }).id === 'string' ? (v as { id: string }).id : null;
+}
+
 // Safety-net for refunds issued directly in the Stripe dashboard: a refund on a
 // Connect destination charge only makes the platform whole if reverse_transfer +
 // refund_application_fee were set. When they weren't, Shape eats the coach's 85%.
@@ -132,7 +149,13 @@ function extractSubscriptionId(invoice: Stripe.Invoice): string | null {
 // proportional to what was refunded. Idempotent (a refund already issued with the
 // flags leaves nothing to top up); platform ($5) charges have no transfer/fee and
 // are skipped. Best-effort — never throws.
-async function reconcileConnectRefund(charge: Stripe.Charge): Promise<void> {
+//
+// A DIRECT CHARGE (a Connect event, `acct`) has no Shape transfer: the money is the coach's from
+// the start. A refund the coach issues from their own Stripe dashboard returns Shape's application
+// fee in the same proportion (owner, 2026-10-18: "Yes, give it back"), so only the fee half runs,
+// and only for the fee Shape took on THIS account's charge. ⚠ The transfer half never runs on a
+// Connect event: a `transfer` on a coach's own charge would be the coach's own transfer.
+async function reconcileConnectRefund(charge: Stripe.Charge, acct: string | null): Promise<void> {
   const chargeAmount = charge.amount ?? 0;
   const refundedAmount = charge.amount_refunded ?? 0;
   if (chargeAmount <= 0 || refundedAmount <= 0) return;
@@ -144,8 +167,8 @@ async function reconcileConnectRefund(charge: Stripe.Charge): Promise<void> {
   const transferId = typeof ref.transfer === 'string' ? ref.transfer : ref.transfer?.id ?? null;
   const feeId = typeof ref.application_fee === 'string' ? ref.application_fee : ref.application_fee?.id ?? null;
 
-  // Reverse the coach transfer, proportional to the refunded amount.
-  if (transferId) {
+  // Reverse the coach transfer, proportional to the refunded amount (a destination charge only).
+  if (transferId && !acct) {
     try {
       const transfer = await stripe.transfers.retrieve(transferId);
       const target = Math.round((transfer.amount * refundedAmount) / chargeAmount);
@@ -173,7 +196,14 @@ async function reconcileConnectRefund(charge: Stripe.Charge): Promise<void> {
   // Return the application fee to the coach, proportional to the refunded amount.
   if (feeId) {
     try {
+      // Application fees live on Shape's own account, so this read takes no account option.
       const fee = await stripe.applicationFees.retrieve(feeId);
+      if (acct && (idOf(fee.account) !== acct || idOf(fee.charge) !== charge.id)) {
+        console.warn('[shape-app] application fee refund skipped: the fee is not this account\'s charge', {
+          charge: charge.id, account: acct, fee: feeId,
+        });
+        return;
+      }
       const target = Math.round((fee.amount * refundedAmount) / chargeAmount);
       const toRefund = target - (fee.amount_refunded ?? 0);
       if (toRefund > 0) {
@@ -190,6 +220,63 @@ async function reconcileConnectRefund(charge: Stripe.Charge): Promise<void> {
       );
     }
   }
+}
+
+/**
+ * The event, verified with Shape's own destination secret and then, failing that, with the
+ * Connect destination's. Which one signed it is returned: an event only the Connect secret
+ * verifies came through the Connect destination.
+ */
+function verifyEvent(
+  rawBody: string,
+  signature: string,
+  platformSecret: string,
+  connectSecret: string | undefined
+): { event: Stripe.Event; viaConnect: boolean } | { error: unknown } {
+  try {
+    return { event: stripe.webhooks.constructEvent(rawBody, signature, platformSecret), viaConnect: false };
+  } catch (err) {
+    if (connectSecret) {
+      try {
+        return { event: stripe.webhooks.constructEvent(rawBody, signature, connectSecret), viaConnect: true };
+      } catch {
+        // Neither secret signed it: the platform's error is the one reported.
+      }
+    }
+    return { error: err };
+  }
+}
+
+/**
+ * The origin guard (src/lib/stripe-connect.ts) for a Connect event that would write rows its
+ * metadata names. null lets it through; otherwise the answer to send: 200 with nothing written
+ * (Stripe must not retry a refusal), or 503 when the coach row could not be read for a reason
+ * that passes (Stripe retries, and the next delivery is judged again).
+ */
+async function connectOriginRefusal(
+  admin: ReturnType<typeof createAdminClient>,
+  event: Stripe.Event,
+  acct: string,
+  meta: Record<string, string> | null | undefined,
+  application: unknown,
+  checkApplication = true
+): Promise<NextResponse | null> {
+  const verdict = await checkConnectOrigin(admin, {
+    account: acct,
+    providerRole: meta?.provider_role,
+    providerId: meta?.provider_id,
+    application,
+    checkApplication,
+  });
+  if (verdict.ok) return null;
+  if (verdict.reason === 'read_failed' && isRetryableDbError(verdict.error)) {
+    return NextResponse.json({ received: false, retry: true, error: 'coach account not read' }, { status: 503 });
+  }
+  console.error('[stripe webhook] Connect event refused by the origin guard — nothing written', {
+    event: event.id, type: event.type, account: acct, reason: verdict.reason,
+    provider_role: meta?.provider_role ?? null, provider_id: meta?.provider_id ?? null,
+  });
+  return NextResponse.json({ received: true, ignored: verdict.reason });
 }
 
 async function upsertPlatformSubscription(
@@ -216,6 +303,7 @@ async function upsertPlatformSubscription(
 export async function POST(request: Request) {
   const signature = request.headers.get('stripe-signature');
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  const connectSecret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET || undefined;
 
   if (!secret) {
     // Server misconfiguration — every delivery fails until this is set.
@@ -231,13 +319,23 @@ export async function POST(request: Request) {
 
   const rawBody = await request.text();
 
-  let event: Stripe.Event;
-  try {
-    event = stripe.webhooks.constructEvent(rawBody, signature, secret);
-  } catch (err) {
-    console.error('[shape-app] stripe webhook signature failed:', err);
+  const verified = verifyEvent(rawBody, signature, secret, connectSecret);
+  if ('error' in verified) {
+    console.error('[shape-app] stripe webhook signature failed:', verified.error);
     return NextResponse.json({ error: 'Invalid signature.' }, { status: 400 });
   }
+  const { event, viaConnect } = verified;
+
+  // The connected account a Connect event happened on; null for Shape's own account.
+  const acct = typeof event.account === 'string' && event.account ? event.account : null;
+  // ⚠ The Connect destination sends only connected-account events. One of its events without an
+  // account would otherwise run as a platform event, the membership included.
+  if (viaConnect && !acct) {
+    console.error('[stripe webhook] a Connect-signed event names no account — ignored', { event: event.id, type: event.type });
+    return NextResponse.json({ received: true, ignored: 'no_account' });
+  }
+  // A Connect event finds rows only among those on its own account.
+  const onAccount = <Q extends { eq: (c: string, v: string) => Q }>(q: Q): Q => (acct ? q.eq('stripe_account_id', acct) : q);
 
   const admin = createAdminClient();
 
@@ -256,6 +354,12 @@ export async function POST(request: Request) {
 
         if (!clientId) {
           console.warn('[shape-app] checkout.session.completed missing client_id', session.id);
+          break;
+        }
+        // The membership is sold on Shape's own account only: a connected account's checkout
+        // never starts or renews one.
+        if (acct && session.metadata?.plan === 'shape_platform') {
+          console.error('[stripe webhook] a connected account\'s checkout claims to be the membership — ignored', { session: session.id, account: acct });
           break;
         }
 
@@ -280,13 +384,22 @@ export async function POST(request: Request) {
               ? session.payment_intent
               : session.payment_intent?.id ?? null;
           let applicationFeeCents: number | null = null;
+          let paymentApplication: unknown = null;
           if (pi) {
-            const intent = await stripe.paymentIntents.retrieve(pi);
+            const intent = await stripe.paymentIntents.retrieve(pi, undefined, acctOpts(acct));
             // A retrieved intent with no application_fee_amount means the fee
             // was deliberately OMITTED (BYO 0%, or store credit consumed the
             // whole fee) — that's a real $0, not unknown. Coerce so the admin
             // refunds page shows $0 instead of treating the fee as unresolvable.
             applicationFeeCents = intent.application_fee_amount ?? 0;
+            paymentApplication = intent.application;
+          }
+          // The origin guard, before anything below writes. A Checkout Session carries no
+          // `application`; its payment does (no payment intent, nothing to check: refused while
+          // STRIPE_CONNECT_APPLICATION_ID is set).
+          if (acct) {
+            const refused = await connectOriginRefusal(admin, event, acct, session.metadata, paymentApplication);
+            if (refused) return refused;
           }
           const purchasedPlanId = session.metadata?.plan_id || null;
           // Snapshot the sold plan onto the purchase. plan_id is ON DELETE SET
@@ -368,6 +481,9 @@ export async function POST(request: Request) {
             stripe_payment_intent_id: pi,
             plan_id: planIdForRow,
             status: 'paid',
+            // The account the payment lives on (frozen by the database once written). Carried by
+            // every retry below, so no fallback can record a direct charge as a platform one.
+            ...(acct ? { stripe_account_id: acct } : {}),
           };
           // Write the row FIRST and check the error; origin/fee_bps are write-once
           // (a DB trigger preserves them on any replay/late delivery). Only on a
@@ -439,12 +555,14 @@ export async function POST(request: Request) {
             }
           }
           if (isUndefinedColumn(purchaseErr)) {
-            if (!canDropOriginColumns(purchaseOrigin, purchaseFeeBps)) {
+            // A direct charge is never recorded without its account either: before the migration
+            // the purchase waits (Stripe retries for three days) rather than pass as a platform one.
+            if (!canDropOriginColumns(purchaseOrigin, purchaseFeeBps) || acct) {
               // Schema-cache lag on a BYO purchase — defaulting would freeze the
               // row as marketplace/1500. Fail so Stripe redelivers (nothing has
               // been written yet, so the retry replays cleanly).
               console.error('[stripe webhook] one_time_purchases origin columns unavailable (schema-cache lag) — failing for redelivery', {
-                session: session.id, origin: purchaseOrigin, feeBps: purchaseFeeBps,
+                session: session.id, origin: purchaseOrigin, feeBps: purchaseFeeBps, account: acct,
               });
               return NextResponse.json({ error: 'origin_columns_unavailable' }, { status: 503 });
             }
@@ -545,10 +663,17 @@ export async function POST(request: Request) {
         // cancelled membership or coaching subscription back to active. Stripe's own subscription,
         // read here already, decides: one it says has ended is recorded as ended, and starts nothing.
         let subEnded = false;
+        let subApplication: unknown = null;
         if (typeof session.subscription === 'string') {
-          const sub = await stripe.subscriptions.retrieve(session.subscription);
+          const sub = await stripe.subscriptions.retrieve(session.subscription, undefined, acctOpts(acct));
           currentPeriodEnd = isoOrNull(sub.items.data[0]?.current_period_end);
           subEnded = sub.status === 'canceled' || sub.status === 'incomplete_expired';
+          subApplication = sub.application;
+        }
+        // The origin guard, before anything below writes (the subscription carries `application`).
+        if (acct) {
+          const refused = await connectOriginRefusal(admin, event, acct, session.metadata, subApplication);
+          if (refused) return refused;
         }
 
         if (session.metadata?.plan === 'shape_platform') {
@@ -582,6 +707,8 @@ export async function POST(request: Request) {
           status: subEnded ? 'canceled' : 'active',
           price_cents: priceCents || null,
           current_period_end: currentPeriodEnd,
+          // The account the subscription lives on (frozen once written), carried by the retry too.
+          ...(acct ? { stripe_account_id: acct } : {}),
         };
         // Write the row FIRST and check the error; origin/fee_bps are write-once
         // (a DB trigger preserves them on any replay). Consume the referral only on
@@ -594,13 +721,14 @@ export async function POST(request: Request) {
             { onConflict: 'stripe_subscription_id' }
           );
         if (isUndefinedColumn(subErr)) {
-          if (!canDropOriginColumns(subOrigin, subFeeBps)) {
+          // A direct-charge subscription is never recorded without its account (as the purchase).
+          if (!canDropOriginColumns(subOrigin, subFeeBps) || acct) {
             // Schema-cache lag on a BYO subscription — defaulting would freeze
             // the row as marketplace/1500 (15% forever on a 0% sale). Fail so
             // Stripe redelivers; nothing side-effectful has run before this
             // write, so the retry replays cleanly.
             console.error('[stripe webhook] subscriptions origin columns unavailable (schema-cache lag) — failing for redelivery', {
-              session: session.id, origin: subOrigin, feeBps: subFeeBps,
+              session: session.id, origin: subOrigin, feeBps: subFeeBps, account: acct,
             });
             return NextResponse.json({ error: 'origin_columns_unavailable' }, { status: 503 });
           }
@@ -656,6 +784,13 @@ export async function POST(request: Request) {
         // sweep is what returns the credit.
         const session = event.data.object as Stripe.Checkout.Session;
         const ref = session.metadata?.store_credit_ref;
+        // A connected account's checkout releases a reservation only when it is the account of the
+        // coach it names: a coach's own checkout cannot hand back credit another checkout holds.
+        // An expired checkout may carry no payment, so the `application` half cannot be asked.
+        if (ref && acct) {
+          const refused = await connectOriginRefusal(admin, event, acct, session.metadata, null, false);
+          if (refused) return refused;
+        }
         if (ref) {
           const { error: releaseErr } = await admin.rpc('release_store_credit_reservation', { p_ref: ref });
           if (releaseErr) console.error('[stripe webhook] store credit reservation release failed', { session: session.id, ref, error: releaseErr.message });
@@ -666,16 +801,30 @@ export async function POST(request: Request) {
       case 'customer.subscription.updated':
       case 'customer.subscription.deleted': {
         const sub = event.data.object as Stripe.Subscription;
+        // A connected account's subscription Shape did not make is none of Shape's business.
+        if (acct && !madeByShape(sub.application)) {
+          console.warn('[stripe webhook] a connected account\'s subscription not made by Shape — ignored', { subscription: sub.id, account: acct });
+          break;
+        }
         const status = event.type === 'customer.subscription.deleted' ? 'canceled' : sub.status;
         const currentPeriodEnd = isoOrNull(sub.items.data[0]?.current_period_end);
+        const patch: Record<string, unknown> = { status, current_period_end: currentPeriodEnd };
+        // On a coach's own account the coach can change the price (their Stripe dashboard); the
+        // row follows it, so the Business page's figures are what the member pays.
+        const unitAmount = sub.items.data[0]?.price?.unit_amount;
+        if (acct && event.type === 'customer.subscription.updated' && typeof unitAmount === 'number' && Number.isSafeInteger(unitAmount) && unitAmount >= 0) {
+          patch.price_cents = unitAmount;
+        }
 
         // ⚠ A CANCELLED SUBSCRIPTION STAYS CANCELLED (L9). Stripe never reopens one, so an update
         // event that still says otherwise is an older one delivered late, and moved the row back.
         const notReopened = <Q extends { neq: (c: string, v: string) => Q }>(q: Q) => (status === 'canceled' ? q : q.neq('status', 'canceled'));
-        await notReopened(admin
+        await notReopened(onAccount(admin
           .from('subscriptions')
-          .update({ status, current_period_end: currentPeriodEnd })
-          .eq('stripe_subscription_id', sub.id));
+          .update(patch)
+          .eq('stripe_subscription_id', sub.id)));
+        // The membership is Shape's own account's alone: a Connect event never touches it.
+        if (acct) break;
         const { error: platformError } = await notReopened(admin
           .from('platform_subscriptions')
           .update({ status, current_period_end: currentPeriodEnd })
@@ -693,6 +842,11 @@ export async function POST(request: Request) {
         // whose metadata named another coach's id would have written that coach's status.
         // The metadata's role still narrows the table when it is present.
         const account = event.data.object as Stripe.Account;
+        // A Connect event is about the account it came from, and no other.
+        if (acct && account.id !== acct) {
+          console.error('[stripe webhook] account.updated about another account — ignored', { account: account.id, from: acct });
+          break;
+        }
         const providerRole = account.metadata?.provider_role;
         const tables: Array<'trainers' | 'nutritionists'> =
           providerRole === 'trainer' ? ['trainers']
@@ -705,9 +859,14 @@ export async function POST(request: Request) {
             : 'pending';
         let matched = 0;
         for (const table of tables) {
+          // ⚠ A disconnected account stays disconnected: an update Stripe made before the coach
+          // disconnected can be delivered after it, and would list a coach Shape can no longer
+          // charge for. Connecting again goes through onboarding, which sets the status itself.
+          // (A NULL status is not "disconnected": a bare neq would skip it, as SQL compares NULL.)
           const { data: hit, error: accErr } = await admin
             .from(table)
             .update({ stripe_account_status: status })
+            .or('stripe_account_status.is.null,stripe_account_status.neq.disconnected')
             .eq('stripe_account_id', account.id)
             .select('id');
           if (accErr) console.error('[stripe webhook] account.updated write failed', { account: account.id, table, error: accErr.message });
@@ -718,23 +877,58 @@ export async function POST(request: Request) {
         break;
       }
 
+      case 'account.application.deauthorized': {
+        // A coach disconnected their Stripe account from Shape (their Stripe dashboard), or Stripe
+        // did. Shape can no longer charge on it or read it, so the coach is marked disconnected,
+        // which also takes them off the listing (listing_ready needs 'active'). The event's object
+        // is Shape's application; the account is the event's own.
+        if (!acct) {
+          console.warn('[stripe webhook] account.application.deauthorized without an account — ignored', { event: event.id });
+          break;
+        }
+        let disconnected = 0;
+        for (const table of ['trainers', 'nutritionists'] as const) {
+          const { data: hit, error: offErr } = await admin
+            .from(table)
+            .update({ stripe_account_status: 'disconnected' })
+            .eq('stripe_account_id', acct)
+            .select('id');
+          if (offErr) {
+            console.error('[stripe webhook] disconnected status write failed', { account: acct, table, error: offErr.message });
+            if (isRetryableDbError(offErr)) {
+              return NextResponse.json({ received: false, retry: true, error: 'disconnection not recorded' }, { status: 503 });
+            }
+          }
+          disconnected += hit?.length ?? 0;
+        }
+        // For an admin: the coach's clients keep paying on the coach's own account, but Shape can
+        // no longer cancel, refund or read those subscriptions.
+        console.error('[stripe webhook] ADMIN: a coach disconnected their Stripe account from Shape', { account: acct, coachRows: disconnected });
+        break;
+      }
+
       case 'charge.refunded': {
         // Refund happened (admin approved via Stripe dashboard or user flow).
         // Flip the matching one_time_purchase row and any pending refund
         // request to 'refunded'.
         const charge = event.data.object as Stripe.Charge;
+        // A connected account's charge Shape did not make is none of Shape's business.
+        if (acct && !madeByShape(charge.application)) {
+          console.warn('[stripe webhook] a connected account\'s charge not made by Shape — ignored', { charge: charge.id, account: acct });
+          break;
+        }
         // Ensure the coach transfer + platform fee are unwound even if the refund
         // was issued in the Stripe dashboard without reverse_transfer /
         // refund_application_fee (idempotent; no-op for the in-app refund path).
-        await reconcileConnectRefund(charge);
+        await reconcileConnectRefund(charge, acct);
         const pi = typeof charge.payment_intent === 'string'
           ? charge.payment_intent
           : charge.payment_intent?.id ?? null;
         if (pi) {
-          const { data: purchase } = await admin
+          const { data: purchase } = await onAccount(admin
             .from('one_time_purchases')
             .update({ status: 'refunded' })
-            .eq('stripe_payment_intent_id', pi)
+            .eq('stripe_payment_intent_id', pi))
             .select('id')
             .maybeSingle();
           if (purchase?.id) {
@@ -750,14 +944,15 @@ export async function POST(request: Request) {
         // Subscription refunds come in with an invoice → subscription link.
         const invoiceId = extractInvoiceId(charge);
         if (invoiceId) {
-          const invoice = await stripe.invoices.retrieve(invoiceId);
+          const invoice = await stripe.invoices.retrieve(invoiceId, undefined, acctOpts(acct));
           const subId = extractSubscriptionId(invoice);
           if (subId) {
-            const { data: subRow } = await admin
+            let subQuery = admin
               .from('subscriptions')
               .select('id')
-              .eq('stripe_subscription_id', subId)
-              .maybeSingle();
+              .eq('stripe_subscription_id', subId);
+            if (acct) subQuery = subQuery.eq('stripe_account_id', acct);
+            const { data: subRow } = await subQuery.maybeSingle();
             if (subRow?.id) {
               await admin
                 .from('refund_requests')
@@ -776,10 +971,10 @@ export async function POST(request: Request) {
         const pi = typeof dispute.payment_intent === 'string' ? dispute.payment_intent : null;
         if (!pi) break;
         const newStatus = event.type === 'charge.dispute.created' ? 'disputed' : 'paid';
-        await admin
+        await onAccount(admin
           .from('one_time_purchases')
           .update({ status: newStatus })
-          .eq('stripe_payment_intent_id', pi);
+          .eq('stripe_payment_intent_id', pi));
         break;
       }
 

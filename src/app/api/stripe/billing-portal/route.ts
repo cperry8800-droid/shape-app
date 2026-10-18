@@ -9,6 +9,7 @@
 
 import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
+import { platformCoachCustomer } from '@/lib/stripe-connect';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson, dbError } from '@/lib/request-utils';
 import { sameOriginPath } from '@/lib/return-path';
@@ -31,13 +32,9 @@ export async function POST(req: Request) {
       .not('stripe_customer_id', 'is', null)
       .limit(1)
       .maybeSingle(),
-    supabase
-      .from('subscriptions')
-      .select('stripe_customer_id')
-      .eq('client_id', user.id)
-      .not('stripe_customer_id', 'is', null)
-      .limit(1)
-      .maybeSingle(),
+    // A legacy coaching row on Shape's own account only: a direct-charge row's customer is on the
+    // coach's account, and this portal opens on Shape's (src/lib/stripe-connect.ts).
+    platformCoachCustomer(supabase, user.id),
   ]);
 
   const customerId =
