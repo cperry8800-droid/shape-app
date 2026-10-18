@@ -164,8 +164,9 @@ test("Same as yesterday copies yesterday's own values, keeps today's, and never 
   const empty = { energy: null, hunger: null, sleep: null, rested: null, device: false };
   assert.deepEqual(CARD.bsCiSamePatch(y, empty), { energy: 7, hunger: 5, sleepHours: 6.5, sleepQuality: 3 }, 'a 7 was rounded to its word');
   assert.deepEqual(CARD.bsCiSamePatch(y, { ...empty, energy: 2 }), { hunger: 5, sleepHours: 6.5, sleepQuality: 3 }, "today's answer was overwritten");
-  assert.deepEqual(CARD.bsCiSamePatch({ ...y, device: true }, empty), { energy: 7, hunger: 5 }, "a wearable's night was copied as typed");
-  assert.deepEqual(CARD.bsCiSamePatch(y, { ...empty, sleep: 7.4, device: true }), { energy: 7, hunger: 5 }, "today's wearable night was overwritten");
+  assert.deepEqual(CARD.bsCiSamePatch({ ...y, device: true }, empty), { energy: 7, hunger: 5, sleepQuality: 3 }, "a wearable's night was copied as typed, or the member's own Rested was dropped with it");
+  assert.deepEqual(CARD.bsCiSamePatch(y, { ...empty, sleep: 7.4, device: true }), { energy: 7, hunger: 5, sleepQuality: 3 }, "today's wearable night was overwritten, or yesterday's Rested was not copied onto it (Codex P2 on #2398)");
+  assert.deepEqual(CARD.bsCiSamePatch(y, { ...empty, sleep: 7.4, rested: 8, device: true }), { energy: 7, hunger: 5 }, "today's own Rested was overwritten");
   assert.deepEqual(CARD.bsCiSamePatch(y, { ...empty, device: true }), { energy: 7, hunger: 5, sleepHours: 6.5, sleepQuality: 3 }, 'a heart rate today kept the night from being copied');
   assert.equal(CARD.bsCiSamePatch({ ...y, hunger: null }, empty), null, 'offered with half a day to copy');
   assert.equal(CARD.bsCiSamePatch(null, empty), null);

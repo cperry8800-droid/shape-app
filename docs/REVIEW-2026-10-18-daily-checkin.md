@@ -152,7 +152,8 @@ so that is the owner's call.
    reads it, and the full page always offered it (amended on Codex's finding in #2398). A night
    is a wearable's when a device sync wrote its hours (`sources.sleep_hours`), not when the day
    has a resting heart rate: a watch worn by day reports one with no night. Different hours the
-   member types over it (the Details page) stamp it `manual`, and it is theirs again.
+   member types over it (the Details page) stamp it `manual`, and it is theirs again. Same as
+   yesterday copies Rested on its own, whoever supplied either night's hours.
 3. **A streak, no points.** Points are the Store's currency, and "Same as yesterday" would mint them
    for one tap. The streak (consecutive local days with an answer) shows on the card's done line;
    the weekly check-in keeps its +15, and the day already counts for momentum.

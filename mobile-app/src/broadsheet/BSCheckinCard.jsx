@@ -18,9 +18,9 @@ import { createPortal } from 'react-dom';
 // engine's energy_low (≤ 4) and hunger_high (≥ 8), the correlations. A value written by the old
 // 1-10 gauge reads back as its nearest word (bsCiWordIndex).
 //
-// ⚠ SAME AS YESTERDAY COPIES YESTERDAY'S OWN VALUES, never their words: a 7 stays a 7. Sleep is
-// copied only when yesterday's was entered by hand, so a wearable's night is never re-typed as
-// the member's own.
+// ⚠ SAME AS YESTERDAY COPIES YESTERDAY'S OWN VALUES, never their words: a 7 stays a 7. Sleep hours
+// are copied only when yesterday's were entered by hand, so a wearable's night is never re-typed as
+// the member's own; Rested, the member's own answer on any night, is copied on its own.
 //
 // ⚠ IT ASKS FROM 4 A.M. LOCAL, NOT MIDNIGHT: at 1 a.m. "last night" has not been slept.
 //
@@ -140,10 +140,9 @@ export function bsCiSamePatch(yesterday, today) {
   const patch = {};
   if (t.energy == null) patch.energy = yesterday.energy;
   if (t.hunger == null) patch.hunger = yesterday.hunger;
-  if (t.sleep == null && yesterday.sleep != null && !yesterday.device) {
-    patch.sleepHours = yesterday.sleep;
-    if (t.rested == null && yesterday.rested != null) patch.sleepQuality = yesterday.rested;
-  }
+  if (t.sleep == null && yesterday.sleep != null && !yesterday.device) patch.sleepHours = yesterday.sleep;
+  // Rested is the member's own answer on any night, a watch's included (ruling 2, Codex P2 on #2398).
+  if (t.rested == null && yesterday.rested != null) patch.sleepQuality = yesterday.rested;
   return Object.keys(patch).length ? patch : null;
 }
 
