@@ -843,7 +843,7 @@ function dbzDemoPace(CF, traj, now) {
   const ended = pace.ended + left;
   return { ...pace, ended, added: pace.added + left, adds: pace.adds + left / months, churn: pace.avgActive > 0 ? Math.min(1, ended / pace.avgActive / months) : pace.churn };
 }
-const dbzPaceWhen = (pace) => (pace.fromFirst ? "since your first client" : "over the last 3 months");
+const dbzPaceWhen = (pace) => (pace.fromFirst ? "after your first week" : "over the last 3 months");
 
 // Today's clients and net, from the same series the Overview draws (the trajectory's latest
 // week), so every tab says the same number.

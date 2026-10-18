@@ -137,6 +137,10 @@ test('untouched, the plan IS today\'s pace: one line, one sentence, the goal mon
   assert.match(m.text(), /yours: 8% leave a month, over the last 3 months/);
   assert.doesNotMatch(m.text(), /Back to my numbers/);
   await m.unmount();
+  // A younger practice's pace is read after its first week (the opening roster), and says so.
+  const young = await mount(React.createElement(B.DbzPlanZone, { base: { ...BASE, pace: { ...PACE, fromFirst: true } } }));
+  assert.match(young.text(), /yours: 2\.3 after your first week/);
+  await young.unmount();
 });
 
 test('moving a slider makes it your plan, with today\'s pace kept as the line to beat', async () => {

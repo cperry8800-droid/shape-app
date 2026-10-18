@@ -93,29 +93,34 @@
 
   // The coach's own pace from the trajectory's weekly buckets (src/lib/coach-trajectory.mjs):
   // new clients a month and the share who leave a month, over about the last three months,
-  // or since the first client when that is shorter.
+  // or after the practice's first week when that is shorter.
   //   → { adds, churn, days, fromFirst, added, ended, avgActive }; adds and churn are null when
-  //     there is too little history to say. `days` is the window as a coach would read it.
+  //     there is too little history to say. `days` is the span the rates are taken over.
   // ⚠ CHURN IS MEASURED AGAINST THE CLIENTS WHO COULD HAVE LEFT, the average headcount over
   // the window, not against the count 30 days ago. One departure in a month with no one at
   // the start would otherwise read as 100%, or as nothing at all.
-  // ⚠ THE RATES ARE TAKEN OVER THE DAYS THE COUNTS COVER. The buckets are weeks, so the last
-  // three months open on the Monday of their first week, and the counts are divided by the span
-  // from there. A younger practice is read from its first client instead: no one joined or left
-  // in the days before them in their week, so those days are not history, for the month a pace
-  // needs or for the rate (Codex, #2394: 23 days with clients passed as a month).
+  // ⚠ THE RATES ARE TAKEN OVER THE DAYS THE COUNTS COVER. The buckets are weeks, so the window
+  // opens on a Monday and the counts are divided by the span from there to now.
+  // ⚠ THE FIRST WEEK IS THE OPENING ROSTER, NOT A PACE. A coach who brings their clients over
+  // brings them all at once: 12 in the first week and 1 since read as 11 new clients a month.
+  // So when the first client's week falls inside the window, the window opens the Monday after
+  // it, and a month must pass from there before there is a pace (Codex, #2394: a month counted
+  // from the Monday before the first client let 27 days pass as one).
+  // ⚠ NO FIRST CLIENT IS NO PACE. A practice with no clients yet has no history, which the
+  // sliders say; read as three empty months it was "0 a month over the last 3 months".
   function paceFrom(trajectory, now = Date.now()) {
     const none = { adds: null, churn: null, days: 0, fromFirst: false, added: 0, ended: 0, avgActive: 0 };
     const weeks = trajectory && Array.isArray(trajectory.weeks) ? trajectory.weeks : [];
     if (!weeks.length) return none;
     const first = trajectory.firstSubAt ? new Date(trajectory.firstSubAt).getTime() : NaN;
-    const fromFirst = Number.isFinite(first) && first > now - PACE_DAYS * DAY_MS;
-    const from = fromFirst ? first : now - PACE_DAYS * DAY_MS;
-    const fromMonday = mondayOf(from);
-    const inWindow = weeks.filter((w) => new Date(w.weekOf + "T00:00:00Z").getTime() >= fromMonday);
-    const spanDays = inWindow.length ? (now - new Date(inWindow[0].weekOf + "T00:00:00Z").getTime()) / DAY_MS : 0;
-    const histDays = fromFirst ? (now - from) / DAY_MS : spanDays;
-    const days = Math.max(0, Math.round((now - from) / DAY_MS));
+    if (!Number.isFinite(first)) return none;
+    const windowMonday = mondayOf(now - PACE_DAYS * DAY_MS);
+    const openingMonday = mondayOf(first);
+    const fromFirst = openingMonday >= windowMonday;
+    const from = fromFirst ? openingMonday + 7 * DAY_MS : windowMonday;
+    const inWindow = weeks.filter((w) => new Date(w.weekOf + "T00:00:00Z").getTime() >= from);
+    const histDays = (now - from) / DAY_MS;
+    const days = Math.max(0, Math.round(histDays));
     if (!inWindow.length || histDays < PACE_MIN_DAYS) return { ...none, days, fromFirst };
     const months = histDays / MONTH_DAYS;
     const added = inWindow.reduce((s, w) => s + (w.added || 0), 0);
