@@ -275,6 +275,19 @@ test('GET: a listing staff suspended says so (owner: "suspended until futher rev
 
 const SUSPENDED_LINE = "Your listing is suspended until further review. Members can't find or subscribe to you while it is.";
 
+test('a suspended coach whose listing is otherwise complete reads Suspended, never Live (Codex on #2399)', async () => {
+  // listing_ready counts the price, payouts and photo, not staff's suspension, so the route can send both.
+  const f = fakeFetch({ GET: { status: 200, body: { listings: [{ role: 'trainer', id: 7, ready: true, suspended: true, missing: [], monthly: 120, oneTime: null }] } } });
+  const { CoachListingRatesCard } = slice('public/newdesign/dashProfileExtras.jsx', 'const LISTING_STEP_TEXT', '// Marketplace listing photos', { React, window, fetch: f.fn }, ['CoachListingRatesCard']);
+  const card = await mount(React.createElement(CoachListingRatesCard));
+  await settle();
+  assert.equal(text(card.host.querySelector('[role="status"]')), '!' + SUSPENDED_LINE);
+  assert.equal(text(card.host.querySelector('[data-px-pill]')), 'Suspended');
+  assert.equal(text(card.host).includes('Your listing is in the marketplace.'), false);
+  assert.equal(text(card.host).includes('Live'), false);
+  await card.unmount();
+});
+
 test('a suspended coach is told it, with no steps to fix, on the website and in the app', async () => {
   const listing = { ready: false, suspended: true, missing: ['price', 'payouts', 'photo'] };
   const shellWindow = { dashShellHref: (href) => href };

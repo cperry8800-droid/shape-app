@@ -266,7 +266,11 @@ function CoachListingRatesCard() {
   };
 
   const l = state.listing;
-  const pill = !l ? null : l.ready ? ["Live", "teal"] : l.suspended ? ["Suspended", "rust"] : ["Not listed", "amber"];
+  // ⚠ SUSPENDED BEFORE READY (Codex on #2399). listing_ready counts the price, payouts and photo and
+  // not staff's suspension, so a suspended coach whose listing was complete reads both, and was shown
+  // "Live" and "Your listing is in the marketplace." while members could neither find nor hire them.
+  const live = !!(l && l.ready && !l.suspended);
+  const pill = !l ? null : l.suspended ? ["Suspended", "rust"] : l.ready ? ["Live", "teal"] : ["Not listed", "amber"];
 
   return (
     <div className="px-card" style={pxCard} data-px-card="rates">
@@ -284,13 +288,13 @@ function CoachListingRatesCard() {
         <p style={pxBody}>Your listing appears once your coach application is approved.</p>
       ) : (
         <>
-          <div role="status" style={pxNotice(l.ready ? "teal" : "amber")}>
-            <span aria-hidden="true" style={{ fontFamily: PX.mono, fontSize: 12, color: l.ready ? PX.teal : PX.amber }}>{l.ready ? "✓" : "!"}</span>
+          <div role="status" style={pxNotice(live ? "teal" : "amber")}>
+            <span aria-hidden="true" style={{ fontFamily: PX.mono, fontSize: 12, color: live ? PX.teal : PX.amber }}>{live ? "✓" : "!"}</span>
             <p style={{ ...pxBody, color: "rgba(242,237,228,0.85)" }}>
-              {l.ready
-                ? "Your listing is in the marketplace."
-                : l.suspended
-                  ? "Your listing is suspended until further review. Members can't find or subscribe to you while it is."
+              {l.suspended
+                ? "Your listing is suspended until further review. Members can't find or subscribe to you while it is."
+                : l.ready
+                  ? "Your listing is in the marketplace."
                 : l.missing && l.missing.length
                   ? <>Members can't find you yet. Your listing appears in the marketplace once it has {listingStepsLine(l.missing)}.</>
                   : "Your listing isn't in the marketplace yet."}

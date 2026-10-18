@@ -158,6 +158,17 @@ function LoginCard() {
       if (next && next.startsWith('/') && !next.startsWith('//') && next.charAt(1) !== '\\'
           && !/[\x00-\x1f\x7f]/.test(next)) nextDashboard = next;
     } catch (e) {}
+    // The first sign-in after a confirmed email goes back where sign-up was sent from: the
+    // confirmation link carries no ?next=, so signup.jsx kept it in this browser
+    // (suRememberNext, two days). Read once and forgotten, a ?next= on the address wins, and it is
+    // held to the same same-site rule.
+    try {
+      const kept = JSON.parse(localStorage.getItem('shape.signupNext') || 'null');
+      localStorage.removeItem('shape.signupNext');
+      const back = kept && Date.now() - Number(kept.at) < 2 * 86400000 ? String(kept.next || '') : '';
+      if (!new URLSearchParams(window.location.search).get('next') && back.startsWith('/') && !back.startsWith('//')
+          && back.charAt(1) !== '\\' && !/[\x00-\x1f\x7f]/.test(back)) nextDashboard = back;
+    } catch (e) {}
     window.location.href = nextDashboard;
   };
 

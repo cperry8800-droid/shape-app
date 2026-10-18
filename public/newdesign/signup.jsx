@@ -123,6 +123,16 @@ function suLoginHref() {
   const next = suSafeNext();
   return "Login.html" + (next ? "?next=" + encodeURIComponent(next) : "");
 }
+// ⚠ AND THROUGH THE EMAIL CONFIRMATION (Codex on #2399). The confirmation link opens Login.html as
+// Supabase's redirect list holds it, without this page's ?next=, so a visitor who joined from a
+// coach's profile was signed in to their dashboard instead. Adding ?next= to emailRedirectTo could
+// fail that list and land them on the site root, so the return path is kept in this browser for two
+// days instead; login.jsx reads it once on the first sign-in with no ?next= of its own, then forgets it.
+function suRememberNext() {
+  const next = suSafeNext();
+  if (!next) return;
+  try { localStorage.setItem("shape.signupNext", JSON.stringify({ next, at: Date.now() })); } catch (e) {}
+}
 
 function Field({ label, children, span = 1 }) {
   return (
@@ -829,6 +839,7 @@ function SignupForm({ role }) {
         if (data && data.user && !data.session && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
           setExistingAccount(true);
         } else if (data && data.user && !data.session) {
+          suRememberNext();
           setConfirmEmail(true);
         } else {
           // Auto-confirm (no email step): a session exists immediately and we go
