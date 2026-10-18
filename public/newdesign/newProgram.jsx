@@ -367,7 +367,7 @@ function NewProgramPage() {
 
 // What a coach keeps from a sale, on the platform's fee (src/lib/platform-fee.mjs): Shape takes 15%
 // of a sale to a client who found the coach on Shape and nothing from a client the coach brings,
-// and card processing is on Shape. This said "Shape keeps 8%", paid out 92% of every sale, and
+// and Stripe's card-processing fee comes out of the coach's share (owner, 2026-10-18). This said "Shape keeps 8%", paid out 92% of every sale, and
 // promised weekly payouts; payouts follow the schedule each coach sets in their own Stripe.
 const NP_FEE_RATE = 0.15;
 function NpFeeNote({ price }) {
@@ -376,7 +376,7 @@ function NpFeeNote({ price }) {
   return (
     <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", lineHeight: 1.5 }}>
       You receive <span style={{ color: INK, fontWeight: 500 }}>{fromShape ? "$" + fromShape : "—"}</span> per sale to a client who found you on Shape, after Shape's 15%, and the full price from clients you bring.
-      {" "}Card processing is on Shape. Payouts go straight to your bank, on the schedule you set in Stripe.
+      {" "}Stripe's card-processing fee comes out of your share. Payouts go straight to your bank, on the schedule you set in Stripe.
     </div>
   );
 }

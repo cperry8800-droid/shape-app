@@ -231,7 +231,7 @@ function NutEarnings() {
             <div style={{ background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, padding: "22px 24px", marginBottom: 28, maxWidth: 500 }}>
               <div style={{ fontFamily: mono, fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase", color: TEAL, marginBottom: 10 }}>What Shape covers</div>
               <div style={{ fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.72)", lineHeight: 1.55 }}>
-                Client acquisition through the Shape marketplace, in-app messaging and video, meal plan hosting, scheduling, and liability coverage. Card processing is on Shape, too.
+                Client acquisition through the Shape marketplace, in-app messaging and video, meal plan hosting, scheduling, and liability coverage.
               </div>
             </div>
             <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 14 }}>
@@ -286,7 +286,7 @@ function NutEarnings() {
               </div>
             </div>
             <div style={{ marginTop: 28, fontFamily: sans, fontSize: 11.5, color: "rgba(242,237,228,0.4)", lineHeight: 1.5 }}>
-              Estimate at one monthly rate per client. Shape takes 15% on clients who find you on Shape and nothing on clients you bring, and pays the card processing. Actual earnings vary by specialty and practice model.
+              Estimate at one monthly rate per client. Shape takes 15% on clients who find you on Shape and nothing on clients you bring, before Stripe's card-processing fee, which comes out of your share. Actual earnings vary by specialty and practice model.
             </div>
           </div>
         </div>
@@ -371,7 +371,7 @@ function NutFeatured() {
 function NutFAQ() {
   const faqs = [
     { q: "What credentials do I need?", a: "RD, RDN, CNS, CDN, or state-licensed dietitian. CSSD (sports) or IFMCP (functional) help but aren't required. Non-licensed health/nutrition coaches accepted under a distinct scope-of-practice tier." },
-    { q: "What does Shape cost?", a: "You keep the vast majority of everything your clients pay you. No monthly dues, no listing fees — Shape only takes a small platform fee when you get paid, and pays the card processing." },
+    { q: "What does Shape cost?", a: "You keep the vast majority of everything your clients pay you. No monthly dues, no listing fees — Shape only takes a small platform fee when you get paid. Stripe's card-processing fee comes out of your share." },
     { q: "How does Shape handle HIPAA and scope of practice?", a: "Client records are encrypted at rest and in transit. Scope-of-practice tiers are enforced by credential — non-RDs can't access medical nutrition therapy flows. BAAs available for practices that need them." },
     { q: "Can I bring my existing clients?", a: "Yes. We help with transition emails, pricing continuity, and importing plan templates." },
     { q: "Payouts?", a: "Straight to your bank, on the schedule you set in your own Stripe account. 1099s auto-generated every January." },

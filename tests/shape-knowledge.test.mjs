@@ -57,16 +57,18 @@ test('⚠ THE PRICE AND THE FEE ARE THE PRICING PAGE\'S OWN', () => {
   assert.match(entry('coach-fees').body, /15% platform fee/);
   assert.match(entry('coach-fees').body, /join and list for free/);
   // The owner's fee terms (2026-10-18), as the code charges them (src/lib/coach-origin.mjs): the 15%
-  // is on a client who found the coach on Shape, nothing on one the coach brought, and Shape pays the
-  // card processing. The entry said "15% on everything" and "card processing is separate" after the
+  // is on a client who found the coach on Shape, nothing on one the coach brought, and Stripe's
+  // card-processing fee comes out of the coach's share. The entry said "15% on everything" and "card processing is separate" after the
   // pages stopped saying it (Codex on #2396).
-  assert.match(PRICING, /nothing on a client who subscribes through their own invite or referral link, and pays the card processing/, 'the pricing page changed its fee terms — update the coach-fees entry');
+  assert.match(PRICING, /nothing on a client who subscribes through their own invite or referral link\. Stripe's card-processing fee comes out of their share\./, 'the pricing page changed its fee terms — update the coach-fees entry');
   const fees = entry('coach-fees').body;
   assert.match(fees, /when a client who found the coach on Shape pays them, and nothing on a client who subscribes through the coach’s own invite or referral link within 30 days of it/);
   // The 0% is a 30-day window from the invite or the link (resolve_coach_checkout_origin), not a
   // promise about every client a coach knows (Codex on #2396).
   assert.doesNotMatch(fees, /nothing on clients the coach brings\b/);
-  assert.match(fees, /Shape pays the card processing/);
+  // Stripe's card-processing fee is the coach's, as the Terms say (owner, 2026-10-18).
+  assert.match(fees, /Stripe’s card-processing fee comes out of the coach’s share/);
+  assert.doesNotMatch(fees, /Shape pays the card processing/);
   assert.match(fees, /on the schedule they set there/, 'payouts follow the coach\'s own Stripe schedule');
   assert.doesNotMatch(fees, /on everything|processing is separate|weekly|instant/i);
   assert.equal(searchKnowledge('can I bring my own clients as a coach').entries[0].id, 'coach-fees');
