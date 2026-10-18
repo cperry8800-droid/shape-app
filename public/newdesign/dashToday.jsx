@@ -963,8 +963,10 @@ const DASH_DEMO_FUNNEL = { views: 1240, consults90: 86, signed90: 34 };
 const DASH_FUNNEL_BENCHMARK = 30; // % consult→signed close rate, marketplace norm
 // Consult → signed, as a percent. "Signed" is the clients who found the coach on Shape, but one
 // can still sign without a consult, so the rate is capped at 100: past it is not a close rate.
+// Unread signings (the dashboards send signed90 null when the subscriptions could not be read)
+// are no rate, not 0%.
 function dashCloseRate(f) {
-  return f && f.consults90 > 0 ? Math.min(100, Math.round((f.signed90 / f.consults90) * 100)) : null;
+  return f && f.consults90 > 0 && f.signed90 != null ? Math.min(100, Math.round((f.signed90 / f.consults90) * 100)) : null;
 }
 function DashFunnelPanel({ live }) {
   const f = live ? (live.funnel || null) : DASH_DEMO_FUNNEL;
@@ -973,7 +975,7 @@ function DashFunnelPanel({ live }) {
   const stages = [
     { l: "Profile views", v: f.views, note: f.views == null ? "view tracking connects soon" : null },
     { l: "Consults · 90d", v: f.consults90 },
-    { l: "Signed from Shape · 90d", v: f.signed90 },
+    { l: "Signed from Shape · 90d", v: f.signed90, note: f.signed90 == null ? "couldn't be read just now" : null },
   ];
   const maxV = Math.max(...stages.map((s) => s.v || 0), 1);
   const close = dashCloseRate(f);
@@ -981,6 +983,7 @@ function DashFunnelPanel({ live }) {
     ? close >= DASH_FUNNEL_BENCHMARK
       ? "Your consult→client close rate is " + close + "% — above the ~" + DASH_FUNNEL_BENCHMARK + "% marketplace benchmark. The lever now is more consults at the top."
       : "Your consult→client close rate is " + close + "% vs the ~" + DASH_FUNNEL_BENCHMARK + "% benchmark — tightening the intake call converts more of the consults you already get."
+    : f.signed90 == null ? "Your signings couldn't be read just now, so there's no close rate to show. Nothing is lost; reload to try again."
     : "Book consults from the marketplace to start the funnel — signings are tracked automatically.";
   return (
     <div>
@@ -1030,7 +1033,7 @@ function DashBusinessSummary({ live, role, clients }) {
     <div>
       <div style={{ display: "flex", alignItems: "flex-end", gap: 22, flexWrap: "wrap" }}>
         {stat(netCents != null ? dashMoney(netCents) : "—", "Monthly · net", netCents != null ? "from active subs · after 15%" : "no subscription data")}
-        {stat(adds90 != null ? "+" + adds90 : "—", "New clients · 90d", g && g.momPct != null ? (g.momPct >= 0 ? "+" : "") + g.momPct + "% vs the 30 days before" : "none in the 30 days before to compare")}
+        {stat(adds90 != null ? "+" + adds90 : "—", "New clients · 90d", !g ? "couldn't be read just now" : g.momPct != null ? (g.momPct >= 0 ? "+" : "") + g.momPct + "% vs the 30 days before" : "none in the 30 days before to compare")}
         {stat(close != null ? close + "%" : "—", "Consult → signed", "benchmark ~" + DASH_FUNNEL_BENCHMARK + "%", close == null ? null : close >= DASH_FUNNEL_BENCHMARK ? "var(--sh-green, #7bbf5a)" : "var(--sh-gold, #d8a23a)")}
         {counts && (
           <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 34, flex: 1, minWidth: 120 }}>

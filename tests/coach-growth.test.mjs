@@ -115,4 +115,43 @@ test('the dashboards cap consult → signed at 100 and say what the comparison i
   assert.equal((src.match(/const close = dashCloseRate\(f\);/g) || []).length, 2, 'both readers use it');
   assert.ok(!/MoM/.test(src), 'no month-over-month label is left for a 30-day comparison');
   assert.ok(!/function DashGrowthPanel\(/.test(src), 'the growth panel nothing showed is gone');
+  assert.equal(close({ consults90: 10, signed90: null }), null, 'unread signings are no rate, not 0%');
+});
+
+test('when the subscriptions can\'t be read, Today and the funnel say so: the consults stay, nothing claims none', async () => {
+  // The dashboards keep the consults they counted from the calendar, and send the signings as null.
+  for (const role of ['trainer', 'nutritionist']) {
+    const route = readFileSync(ROOT + `src/app/api/${role}/dashboard/route.ts`, 'utf8');
+    assert.match(route, /\} catch \(e\) \{[^}]*funnel = \{ views: null, consults90, signed90: null \};\s*\}/, role);
+  }
+  const { createRequire } = await import('node:module');
+  const require_ = createRequire(import.meta.url);
+  const React = require_('react');
+  const { renderToStaticMarkup } = require_('react-dom/server');
+  const babel = require_('next/dist/compiled/babel/core');
+  const presetReact = require_('next/dist/compiled/babel/preset-react');
+  const src = readFileSync(ROOT + 'public/newdesign/dashToday.jsx', 'utf8');
+  const pick = (re) => re.exec(src)[0];
+  const code = [
+    pick(/const DASH_FUNNEL_BENCHMARK = [^\n]*/),
+    pick(/function dashCloseRate\(f\) \{[\s\S]*?\n\}/),
+    pick(/function DashFunnelPanel\([\s\S]*?\n\}/),
+    pick(/function DashBusinessSummary\([\s\S]*?\n\}/),
+  ].join('\n');
+  const js = babel.transformSync(code, { presets: [presetReact], babelrc: false, configFile: false }).code;
+  const { DashFunnelPanel, DashBusinessSummary } = new Function('React', 'serif', 'dashMoney', 'DASH_MONO_LINK', 'DASH_DEMO_GROWTH', 'DASH_DEMO_FUNNEL',
+    js + '\nreturn { DashFunnelPanel, DashBusinessSummary };')(React, 'serif', (c) => '$' + c / 100, {}, {}, {});
+  const text = (el) => renderToStaticMarkup(el).replace(/<[^>]+>/g, ' ').replace(/&#x27;/g, "'").replace(/\s+/g, ' ').trim();
+  const live = { growth: null, funnel: { views: null, consults90: 7, signed90: null }, kpis: { monthlyNetCents: 120000 } };
+  const card = text(React.createElement(DashBusinessSummary, { live, role: 'trainer', clients: [] }));
+  assert.match(card, /— New clients · 90d couldn't be read just now/);
+  assert.doesNotMatch(card, /none in the 30 days before/);
+  const funnel = text(React.createElement(DashFunnelPanel, { live }));
+  assert.match(funnel, /Consults · 90d 7/);
+  assert.match(funnel, /Signed from Shape · 90d couldn't be read just now/);
+  assert.match(funnel, /Your signings couldn't be read just now/);
+  assert.doesNotMatch(funnel, /Funnel data connects soon|Book consults/);
+  // A read that worked with no one in the 30 days before still says that.
+  const none = text(React.createElement(DashBusinessSummary, { live: { ...live, growth: { weeklyAdds: [{ weekOf: 'w', count: 1, addedCents: 1 }], momPct: null } }, role: 'trainer', clients: [] }));
+  assert.match(none, /none in the 30 days before to compare/);
 });
