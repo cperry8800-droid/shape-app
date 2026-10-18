@@ -171,5 +171,5 @@ test('9 · the Score page\'s rank excludes tier bonuses, in both mirrors', () =>
 
 test('6 · the website fires the visit awards the app fires', () => {
   const src = read('public/newdesign/globalChatButton.js')
-  assert.match(src, /Promise\.all\(\[quiet\(cl\.rpc\("award_step_points"\)\), quiet\(cl\.rpc\("award_momentum_bonus"\)\)\]\)\n\s+\.then\(function \(\) \{ return quiet\(cl\.rpc\("award_tier_bonuses"\)\); \}\);/)
+  assert.match(src, /Promise\.all\(\[quiet\(cl\.rpc\("award_step_points"\)\), quiet\(cl\.rpc\("award_sleep_points"\)\), quiet\(cl\.rpc\("award_momentum_bonus"\)\)\]\)\n\s+\.then\(function \(\) \{ return quiet\(cl\.rpc\("award_tier_bonuses"\)\); \}\);/)
 })

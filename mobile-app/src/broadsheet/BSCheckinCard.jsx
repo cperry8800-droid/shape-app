@@ -223,6 +223,43 @@ function bsCiSettled(line) {
   return Promise.race([bsCiLines[line], waited]).finally(() => clearTimeout(timer));
 }
 
+// ⚠ A WATCH'S NIGHT COMES FIRST (owner, 2026-10-18: "Use the data from smart device priority of the
+// member has one, if not manual entry"; "just use smart device data that matches what we are asking
+// for"). The night's hours are the one check a watch measures, so opening the card asks each
+// connected one for last night first, and the sleep step then shows the watch's hours instead of
+// asking. Energy, hunger, Rested and water stay the member's own. At most once in 30 minutes per
+// account on this device (a status read that fails, or syncs that all fail, do not use the 30
+// minutes up, so the next open tries again: Codex on #2404); Garmin sends
+// its nights on its own, and Apple Health is read only in the iPhone app, for today and yesterday,
+// and never asks for permission from here. True when a sync answered.
+export const BS_CI_SYNC_EVERY_MS = 30 * 60 * 1000;
+const bsCiSyncedAt = {};
+export async function bsCiSyncDevices(uid, nowMs = Date.now()) {
+  const I = window.ShapeIntegrations;
+  if (!uid || !I || !I.getStatus) return false;
+  const key = `shape.checkin.deviceSync.${uid}`;
+  let last = bsCiSyncedAt[uid] || 0;
+  try { last = Math.max(last, Number(window.localStorage.getItem(key)) || 0); } catch (e) { /* the module's own time still throttles */ }
+  if (nowMs - last < BS_CI_SYNC_EVERY_MS) return false;
+  const keep = (t) => {
+    bsCiSyncedAt[uid] = t;
+    try { window.localStorage.setItem(key, String(t)); } catch (e) { /* as above */ }
+  };
+  keep(nowMs);
+  let status;
+  try { status = await I.getStatus(); } catch (e) { keep(last); throw e; }
+  const on = new Set(((status && status.providers) || []).filter((p) => p && p.connected).map((p) => p.id));
+  const runs = [];
+  if (on.has('whoop') && I.syncWhoop) runs.push(I.syncWhoop());
+  if (on.has('oura') && I.syncOura) runs.push(I.syncOura());
+  if (on.has('apple_health') && I.syncAppleHealth && I.appleHealthAvailable && I.appleHealthAvailable()) runs.push(I.syncAppleHealth({ importWorkouts: false, prompt: false, days: 2 }));
+  if (!runs.length) return false;
+  const done = await Promise.allSettled(runs);
+  if (done.some((r) => r.status === 'fulfilled')) return true;
+  keep(last);
+  return false;
+}
+
 // ── The card, and the walkthrough it opens ───────────────────────────────────
 
 const BS_CI_STEPS = ['energy', 'hunger', 'sleep', 'water'];
@@ -300,6 +337,36 @@ function BSCheckinDay({ onOpen, dayIso }) {
     return () => { on = false; };
   }, [signedIn, todayIso]);
 
+  // Once today is read, the connected watches are asked for last night (bsCiSyncDevices, above),
+  // and the day is read again. A night that came in replaces whatever is on screen, typed hours
+  // included, since the route keeps the watch's over them. A day that already has a watch's night
+  // asks again too, within the 30 minutes: a night synced while the member was still asleep is
+  // part of one, and only a later sync brings the rest (Codex on #2404). A card that unmounts while
+  // the sync is out still clears the cache and claims the night's points, so the next card reads
+  // the night rather than ask for it.
+  useEffect(() => {
+    if (!signedIn || !ready) return undefined;
+    let on = true;
+    bsCiSyncDevices(uid).then((synced) => {
+      if (!synced) return null;
+      window.ShapeMetrics?.invalidate?.();
+      // A good night the sync brought earns its points now, not on the next app open.
+      Promise.resolve(window.ShapeSleepPoints?.check?.()).catch(() => {});
+      if (!on || !window.ShapeProgress?.progress) return null;
+      return window.ShapeProgress.progress();
+    }).then((p) => {
+      if (!on || !p || !p.series) return;
+      setYesterday(bsCiDay(p.series, bsCiShift(todayIso, -1)));
+      setWeek(bsCiWeek(p.series, todayIso));
+      setUsual(bsCiUsualNight(p.series, todayIso));
+      const day = bsCiDay(p.series, todayIso);
+      if (!bsCiWornNight(day)) return;
+      confirmed.current = { ...confirmed.current, sleep: day.sleep, device: true };
+      setToday((cur) => ({ ...cur, sleep: day.sleep, device: true }));
+    }).catch(() => {});
+    return () => { on = false; };
+  }, [signedIn, ready, uid, todayIso]);
+
   useEffect(() => {
     if (!signedIn || !window.ShapeHydration?.get) return undefined;
     let on = true;
@@ -358,9 +425,16 @@ function BSCheckinDay({ onOpen, dayIso }) {
     setErr(null);
     if (!signedIn) return;
     // Saves run one at a time, so when this one settles every earlier one has, and `confirmed`
-    // is what is stored. (Typed hours set `device` false above; a watch's night is never typed
-    // over, since its step shows no stepper, so a failed night never has a watch's to put back.)
-    const landed = () => { for (const k of fields) confirmed.current = { ...confirmed.current, [k]: merged[k] }; };
+    // is what is stored. (Typed hours set `device` false above. A watch's night shows no stepper,
+    // and one that synced after the read stands over the typed hours: the route says so, and the
+    // watch's hours are shown. Hours typed again before this answered are refused the same way.)
+    const landed = (d) => {
+      for (const k of fields) confirmed.current = { ...confirmed.current, [k]: merged[k] };
+      if (!d || !d.sleepFromDevice || d.sleepHours == null) return;
+      const h = Number(d.sleepHours);
+      confirmed.current = { ...confirmed.current, sleep: h, device: true };
+      if (alive.current) setToday((cur) => ({ ...cur, sleep: h, device: true }));
+    };
     const undo = (msg) => {
       setToday((cur) => {
         const back = { ...cur };

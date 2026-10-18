@@ -131,7 +131,7 @@ test('no pre-existing flag changed severity: two general flags still read red', 
 });
 
 test('sleep_low keeps escalating every role (its established pattern is untouched)', () => {
-  const r = { profile: { name: 'Q' }, recovery: { sleepHours: { avg7: 5.5, lastNight: 5.5, target: 7.5 } }, streaks: { current: 0, best: 9 } };
+  const r = { profile: { name: 'Q' }, recovery: { sleepHours: { avg7: 5.5, lastNight: 5.5, target: 7.5, n: 7 } }, streaks: { current: 0, best: 9 } };
   assert.equal(evaluateClient(r, NOW, 'trainer').severity, 'red');
   assert.equal(evaluateClient(r, NOW, 'nutritionist').severity, 'red');
 });
@@ -172,7 +172,7 @@ test('hydration_low alone becomes the client hydration directive (log_water)', (
 
 test('sleep_low (35) outranks every vitals flag (34/33/32)', () => {
   const r = rec({ energy: { avg7: 3, n: 5 }, hunger: { avg7: 9, n: 5 }, hydration: { avg7L: 1, targetL: 3, n: 5 } });
-  r.recovery = { sleepHours: { avg7: 5.5, lastNight: 5.5, target: 7.5 } };
+  r.recovery = { sleepHours: { avg7: 5.5, lastNight: 5.5, target: 7.5, n: 7 } };
   const d = buildDirective(r, NOW, 'client');
   assert.equal(d.lever, 'sleep');
 });

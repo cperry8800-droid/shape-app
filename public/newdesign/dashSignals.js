@@ -66,6 +66,7 @@
     PROTEIN_UNDER_PCT: 15,    // avg protein ≤ target−15% = under target (nutritionist feed)
     GOAL_SLIP_DAYS: 7,        // projected goal date moving ≥ this many days later wk/wk flags
     SLEEP_DEFICIT_H: 1.5,     // 7-day avg sleep MORE than this under target = severe deficit (triage flag)
+    SLEEP_MIN_NIGHTS: 3,      // logged nights the sleep average needs before sleep_low or the sleep lever may speak
     GOAL_RECENT_DAYS: 56,     // pace window — fit only the last 8 weeks of history
     GOAL_MIN_SPAN_DAYS: 7,    // need at least a week of history before projecting
     GOAL_FAR_DAYS: 365,       // past this, the ETA reads "1y+ at this pace", not a date
@@ -682,7 +683,8 @@
   // first-class triage flag for the coach + the member's directive. A milder shortfall
   // is left to the gentle cross-domain "sleep is the lever" narrative (buildDirective
   // step 3), so this only escalates the genuinely concerning case — no alert fatigue.
-  // Uses recoveryRead (needs rec.recovery); a single short night never flags.
+  // Uses recoveryRead (needs rec.recovery), which reads nothing below SLEEP_MIN_NIGHTS logged
+  // nights, so a single short night never flags.
   function ruleSleepRecovery(c) {
     var rr = recoveryRead(c);
     if (!rr || rr.avg == null) return null;
@@ -1346,10 +1348,17 @@
     }
     return best;
   }
+  // ⚠ NO READ BELOW SLEEP_MIN_NIGHTS LOGGED NIGHTS (owner, 2026-10-18). One logged night under
+  // 6h used to be its own "7-day average", raised sleep_low and sent a push. `n` is the count
+  // of nights the average is over, from both builders (signalsMap.sleepRecoveryFromProgress,
+  // roster-vitals.buildRosterRecovery); a record without one has no evidence, like the
+  // check-in vitals' *_MIN_DAYS floors. The floor is not a coach tunable, for the same reason.
   function recoveryRead(rec) {
     var r = rec && rec.recovery;
     if (!r || !r.sleepHours) return null;
     var s = r.sleepHours;
+    var nights = s.n != null && isFinite(Number(s.n)) ? Number(s.n) : 0;
+    if (nights < THRESHOLDS.SLEEP_MIN_NIGHTS) return null;
     var avg = s.avg7 != null && isFinite(Number(s.avg7)) ? Number(s.avg7) : null;
     var target = s.target != null && isFinite(Number(s.target)) ? Number(s.target) : 7.5;
     var lastNight = s.lastNight != null && isFinite(Number(s.lastNight)) ? Number(s.lastNight) : null;

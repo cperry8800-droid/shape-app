@@ -3,8 +3,10 @@
 // daily_health_snapshot row (unique on user_id + snapshot_date), so it merges
 // with any device-synced metrics for the day rather than overwriting them.
 //
-// POST { mood?, energy?, hunger?, stress?, soreness?, date? }  -> { ok, mood, energy, hunger }
-// At least one of mood/energy/hunger/stress/soreness is required.
+// POST { mood?, energy?, hunger?, stress?, soreness?, sleepHours?, sleepQuality?, date? }
+//   -> { ok, mood, energy, hunger, sleepHours, sleepFromDevice, sleepQuality }
+// At least one field is required. `sleepHours` in the answer is the night that stands: a
+// watch's, when one wrote it (`sleepFromDevice`), else the member's.
 // `date` is the client's local YYYY-MM-DD (buckets to the user's calendar day,
 // not UTC's); falls back to the server's UTC date.
 // Auth: cookie session OR Bearer token (mobile bridges either).
@@ -60,56 +62,99 @@ export async function POST(request: Request) {
 
   const { data: existing } = await supabase
     .from('daily_health_snapshot')
-    .select('id, sleep_hours')
+    .select('id, sleep_hours, sources')
     .eq('user_id', user.id)
     .eq('snapshot_date', today)
     .maybeSingle();
 
+  // Everything but the night's hours: the member's own answers, written as given.
   const patch: Record<string, unknown> = {};
   if (mood != null) patch.mood = mood;
   if (energy != null) patch.energy = energy;
   if (hunger != null) patch.hunger = hunger;
   if (stress != null) patch.stress = stress;
   if (soreness != null) patch.soreness = soreness;
-  if (sleepHours != null) patch.sleep_hours = sleepHours;
   if (sleepQuality != null) patch.sleep_quality = sleepQuality;
 
-  // ⚠ HOURS THE MEMBER TYPED OVER A WATCH'S NIGHT ARE THEIRS (Codex P2 on #2398). A device sync
-  // stamps `sources.sleep_hours`, and the Home check-in reads that stamp as "a watch's night":
-  // read-only, and never copied by Same as yesterday. So when this write changes the night's
-  // hours, the stamp says "manual". The Details page re-sends a watch's own hours on every Log;
-  // the same value keeps the watch's stamp.
-  let typedOverNight = false;
-  if (existing && (existing as { id: string }).id) {
-    const { error } = await supabase
-      .from('daily_health_snapshot')
-      .update(patch)
-      .eq('id', (existing as { id: string }).id);
-    if (error) return dbError(error, 'checkin write', 500);
-    const before = (existing as { sleep_hours?: unknown }).sleep_hours;
-    typedOverNight = sleepHours != null && before != null && Number(before) !== sleepHours;
+  // ⚠ A WATCH'S NIGHT COMES FIRST (owner, 2026-10-18: "Use the data from smart device priority
+  // of the member has one, if not manual entry"; "just use smart device data that matches what we
+  // are asking for"). The night's hours are the one check a device measures; energy, hunger and
+  // Rested are the member's own. A device sync stamps `sources.sleep_hours` with its provider
+  // (upsertSnapshot), so typed hours are written only to a night no device has written, and in one
+  // conditional statement, so a sync that lands after the read above is never written over. A
+  // night stamped 'manual' (by an earlier build) is a typed one, and a stamp with no hours is no
+  // night at all. The answer says which hours stand.
+  const byDevice = (r: { sleep_hours?: unknown; sources?: unknown } | null) => {
+    if (!r || r.sleep_hours == null) return false;
+    const src = r.sources;
+    const by = src && typeof src === 'object' ? (src as Record<string, unknown>).sleep_hours : null;
+    return typeof by === 'string' && by !== '' && by !== 'manual';
+  };
+  let standingHours: number | null = sleepHours;
+  let sleepFromDevice = false;
+  let sleepWritten = false;
+
+  const row = existing as { id?: string; sleep_hours?: unknown; sources?: unknown } | null;
+  if (row && row.id) {
+    if (Object.keys(patch).length) {
+      const { error } = await supabase
+        .from('daily_health_snapshot')
+        .update(patch)
+        .eq('id', row.id);
+      if (error) return dbError(error, 'checkin write', 500);
+    }
   } else {
     const { error } = await supabase
       .from('daily_health_snapshot')
-      .insert({ user_id: user.id, snapshot_date: today, ...patch });
+      .insert({ user_id: user.id, snapshot_date: today, ...patch, ...(sleepHours != null ? { sleep_hours: sleepHours } : {}) });
+    if (!error) sleepWritten = true;
     // ⚠ ANOTHER WRITE CAN MAKE TODAY'S ROW BETWEEN THE READ AND THIS INSERT: a glass of water
     // (its own save line on the Home card), a watch sync, a meal log. The insert then hits the
-    // unique (user_id, snapshot_date) key, and the answer is written to that row instead.
-    if (error && error.code === '23505') {
-      const { error: again } = await supabase
-        .from('daily_health_snapshot')
-        .update(patch)
-        .eq('user_id', user.id)
-        .eq('snapshot_date', today);
-      if (again) return dbError(again, 'checkin write', 500);
-      typedOverNight = sleepHours != null; // the row the other write made may hold a watch's night
-    } else if (error) return dbError(error, 'checkin write', 500);
-  }
-  if (typedOverNight) {
-    // The hours are saved either way; a failed stamp only leaves the night labelled as the watch's.
-    const { error } = await supabase.rpc('merge_snapshot_sources', { p_user_id: user.id, p_date: today, p_sources: { sleep_hours: 'manual' } });
-    if (error) console.error('[shape-api] checkin sleep source:', error.message || error);
+    // unique (user_id, snapshot_date) key, and the answers are written to that row instead (the
+    // night through the conditional write below, since that row may hold a watch's night).
+    else if (error.code === '23505') {
+      if (Object.keys(patch).length) {
+        const { error: again } = await supabase
+          .from('daily_health_snapshot')
+          .update(patch)
+          .eq('user_id', user.id)
+          .eq('snapshot_date', today);
+        if (again) return dbError(again, 'checkin write', 500);
+      }
+    } else return dbError(error, 'checkin write', 500);
   }
 
-  return NextResponse.json({ ok: true, mood, energy, hunger, sleepHours, sleepQuality });
+  if (sleepHours != null && !sleepWritten) {
+    if (byDevice(row)) {
+      sleepFromDevice = true;
+      standingHours = Number(row!.sleep_hours);
+    } else {
+      const { data: wrote, error } = await supabase
+        .from('daily_health_snapshot')
+        .update({ sleep_hours: sleepHours })
+        .eq('user_id', user.id)
+        .eq('snapshot_date', today)
+        .or('sleep_hours.is.null,sources->>sleep_hours.is.null,sources->>sleep_hours.eq.manual')
+        .select('id');
+      if (error) return dbError(error, 'checkin write', 500);
+      if (!Array.isArray(wrote) || wrote.length === 0) {
+        // A watch wrote the night after the read above: its hours stand. No row, or a row
+        // with no watch's night, means the hours were not saved at all.
+        const { data: now } = await supabase
+          .from('daily_health_snapshot')
+          .select('sleep_hours, sources')
+          .eq('user_id', user.id)
+          .eq('snapshot_date', today)
+          .maybeSingle();
+        const after = now as { sleep_hours?: unknown; sources?: unknown } | null;
+        if (!byDevice(after)) {
+          return NextResponse.json({ error: 'The night was not saved.' }, { status: 500 });
+        }
+        sleepFromDevice = true;
+        standingHours = Number(after!.sleep_hours);
+      }
+    }
+  }
+
+  return NextResponse.json({ ok: true, mood, energy, hunger, sleepHours: standingHours, sleepFromDevice, sleepQuality });
 }

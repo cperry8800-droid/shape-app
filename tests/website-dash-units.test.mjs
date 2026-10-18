@@ -67,7 +67,7 @@ async function setup() {
   await load('coachLiveWorkout.jsx', [...clw.matchAll(/^function (\w+)\(/gm)].map((m) => m[1]));
   Object.assign(globalThis, { trainerNavItems: () => [], nutriNavItems: () => [], trainerPayoutCard: null, nutriPayoutCard: null });
   const C = await load('coachClientDetail.jsx', ['GoalsCard', 'ckBodyweight', 'ckMeasure', 'ckLiftRows', 'CoachClientDetailPage']);
-  const CL = await load('dashClient.jsx', ['DashWorkoutCard', 'ClientDashboardPage']);
+  const CL = await load('dashClient.jsx', ['DashWorkoutCard', 'DashTodayCard', 'ClientDashboardPage']);
   const TR = await load('dashTrain.jsx', ['DtrHistory', 'ClientWorkoutsPage']);
   const P = await load('dashProgress.jsx', ['dprPointsIn', 'dprSeriesIn', 'dprPrsIn', 'dprLiftsIn', 'DprMilestoneTimeline', 'DprCheckinHistory', 'DprCheckinForm', 'ClientProgressPage', 'dprCheckinUnits', 'dprCurrentCheckin']);
   // The Score page reads the score-record helpers its host loads before it.
@@ -572,3 +572,65 @@ test('the living profile’s own trajectory, lifts and setting', async () => {
 // only by pages that load dashData.jsx first. It caught `clientScore.jsx`, whose
 // ClientScore.html redirect stub does not, so that call is guarded like the shared
 // workout card's.
+
+// ── The website's check-in and a watch's night (owner, 2026-10-18: device data first) ──
+// The night is a watch's when the server says a device sync wrote its hours (sleepFromDevice). A
+// watch worn by day reports a resting heart rate with no night, so typed hours on such a day stay
+// the member's own; and hours the route keeps a watch's night over show as the watch's.
+test("the website check-in knows a watch's night from the server's sources, and shows the hours that stand", async () => {
+  const { React, CL } = await setup();
+  const d = new Date();
+  const day = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  const pt = (value) => [{ date: day, value }];
+  const Card = () => React.createElement(CL.DashTodayCard, { live: true });
+  const page = async (series, checkin = { ok: true }) => mount(React, Card, {
+    '/api/client/progress': { series },
+    '/api/client/hydration': { ok: true, hydrationL: 0, targetL: 3 },
+    '/api/client/checkin': checkin,
+  });
+  const press = async (m, label) => {
+    const b = [...m.el.querySelectorAll('button')].find((x) => x.textContent.trim() === label || x.getAttribute('aria-label') === label);
+    assert.ok(b, `no ${label} in: ${readText(m.el)}`);
+    await React.act(async () => { b.click(); await new Promise((r) => setTimeout(r, 20)); });
+  };
+
+  let m = await page({ sleep: pt(7), restingHr: pt(58), sleepFromDevice: [] });
+  try {
+    await press(m, 'Edit');
+    assert.doesNotMatch(readText(m.el), /RHR 58|Synced from your device/, "typed hours on a day-only watch's day read as the watch's");
+    assert.ok(!!m.el.querySelector('button[aria-label="7 hours of sleep"][aria-pressed="true"]'), 'the typed night lost its hour chips');
+  } finally { await m.unmount(); }
+
+  // A watch's night alone is not a check-in, so the form stays open with the night read-only.
+  m = await page({ sleep: pt(7), restingHr: pt(58), sleepFromDevice: pt(1) });
+  try {
+    assert.match(readText(m.el), /7h 0m RHR 58/);
+    // (assert.ok, not equal: a failing equal would print a jsdom node, which hangs the run.)
+    assert.ok(![...m.el.querySelectorAll('button')].some((b) => /hours of sleep/.test(b.getAttribute('aria-label') || '')), "the watch's night could be typed over");
+  } finally { await m.unmount(); }
+
+  // A server without the series keeps the old sign.
+  m = await page({ sleep: pt(7), restingHr: pt(58) });
+  try { assert.match(readText(m.el), /RHR 58/); } finally { await m.unmount(); }
+
+  // Typed hours the route keeps a watch's night over: the watch's hours show, as the watch's.
+  m = await page({ energy: pt(6), sleepFromDevice: [] }, { ok: true, sleepHours: 6.2, sleepFromDevice: true });
+  try {
+    await press(m, 'Edit');
+    await press(m, '7.5 hours of sleep');
+    await press(m, 'Log today');
+    assert.match(readText(m.el), /6h 12m/, 'the card says the typed hours were logged, which the route did not keep');
+    await press(m, 'Edit');
+    assert.match(readText(m.el), /Synced from your device/);
+  } finally { await m.unmount(); }
+
+  // Hours the route kept stay the member's own.
+  m = await page({ energy: pt(6), sleepFromDevice: [] }, { ok: true, sleepHours: 7.5, sleepFromDevice: false });
+  try {
+    await press(m, 'Edit');
+    await press(m, '7.5 hours of sleep');
+    await press(m, 'Log today');
+    await press(m, 'Edit');
+    assert.doesNotMatch(readText(m.el), /Synced from your device/, "hours the route kept read as the watch's");
+  } finally { await m.unmount(); }
+});

@@ -158,6 +158,8 @@ planned builds.
   referral.
 - Add the `localhost` hostname to the Turnstile widget.
 - Get a native speaker to read the PAR-Q translations.
+- Run `2026-10-18-sleep-points.sql` (+5 for a watch's good night). Until it runs, the app's and
+  the website's claims do nothing.
 
 **Planned next**
 - Coach payments as direct charges on the coaches' own Stripe accounts (owner,
@@ -176,10 +178,11 @@ planned builds.
   signed station provider.
 - The daily check-in
   ([`REVIEW-2026-10-18-daily-checkin.md`](REVIEW-2026-10-18-daily-checkin.md) §4). Built:
-  the app's Home card and its step-by-step walkthrough (Phase 1), and the rule of no −7 while
-  Check-ins is off. Still to build:
+  the app's Home card and its step-by-step walkthrough (Phase 1), the rule of no −7 while
+  Check-ins is off, and a watch's night first (synced when the card opens; typed hours never
+  replace it). Still to build:
   - the website's `DashTodayCard`;
-  - Phase 2: watches filling sleep, water and an energy hint when the app opens, and the
+  - Phase 2: water from Apple Health (the HealthKit plugin reads no water yet), and the
     reminder opening the card;
   - answers from the notification.
 
@@ -235,11 +238,16 @@ planned builds.
 - The daily check-in (#2398): its saves have no timeout, so a request the network holds
   keeps Details waiting (the next card reads after 3 seconds anyway). `hydration_l` is
   `numeric(4,2)`, so an 8 oz glass is stored as 0.24 L and totals drift up about 1.4%.
-  The full check-in page still reads a watch's night by a heart rate on the day. A
-  typed night's hours and its `manual` stamp are two writes, so a watch sync landing
-  between them can label the night wrong (closing it needs one SQL function). The score
-  job caps the device's Check-ins stamp at the row's database write time, but a clock set
-  behind can still date a change before the week ended (closing it needs a DB trigger).
+  A device sync writes a night's hours and then its source, so typed hours landing in
+  between are stamped as the watch's until its next sync writes the watch's hours again.
+  The score job caps the device's Check-ins stamp at the row's database write time, but a
+  clock set behind can still date a change before the week ended (closing it needs a DB
+  trigger).
+- Sleep points (`award_sleep_points`) trust `sources.sleep_hours` on a row the member can
+  write, checked against a provider they have connected. With one connected, a direct write
+  could still earn +5 a night for the last 14 days. Apple Health's nights and its connection
+  are whatever the app posts, so any signed-in member can post made-up Health nights, as they
+  can post made-up steps for Shape Steps.
 - Android back leaves the native app from any sheet (no `@capacitor/app`); in the hosted
   `/m/`, sheets add no history entry.
 
