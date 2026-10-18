@@ -78,14 +78,17 @@ back or the file grows past 20 KB.
   components live in `pageShell.jsx`, `living*.jsx` and `chatWidget.jsx`. Don't bump
   `?v=`: `scripts/build-newdesign.mjs` replaces it with a content hash at deploy.
   Before editing a legacy `*.jsx`, check that something still loads it.
+  `coachForecast.js` holds the coach Business figures; the app imports it too, so
+  change a figure there, not in a page.
 - **Next.js app (`src/`):** API routes, the gated `/dashboard` and `/admin`. Typecheck
   with `npx tsc --noEmit`. This Next version has breaking changes, so read
   `node_modules/next/dist/docs/` before writing Next code. When you add a route,
   register it in the War Room's `RAW_ROUTES`.
 - **Mobile app: `mobile-app/`** (Capacitor/Vite SPA, served at `/m/`).
   - Build: from `mobile-app/`, run `VITE_BASE=/m/ npm run build`.
-  - Publish: from the repo root, run `rm -rf public/m && cp -r mobile-app/dist public/m`.
-    CI fails if `public/m` is stale.
+  - `public/m` isn't committed: `scripts/build-m.sh` builds it at deploy (Vercel's
+    `buildCommand`). CI's Mobile job checks only that the bundle builds and its assets
+    resolve.
   - Parse-check a JSX file:
     `node -e "require('@babel/parser').parse(require('fs').readFileSync('<file>','utf8'),{sourceType:'module',plugins:['jsx']})"`
   - Native builds get `VITE_API_BASE_URL=https://theshapecommunity.com` from
@@ -132,9 +135,16 @@ planned builds.
 - Decide what happens when a buyer pays an open checkout from another tab
   (closing it means refunds).
 - In-app purchase outside the US (Phase 2) is on hold.
-- Open `/admin` and set up the authenticator; staff two-factor hasn't been tried live.
+- Finish setting up the authenticator at `/admin`. Scan the code from inside the
+  authenticator app (the iPhone Camera sends it to Passwords, which also works), and
+  scan again after a reload (#2388).
 - Decide how a suspended coach appeals.
-- Have counsel read the 2026-10-13 privacy policy text.
+- Have counsel read the 2026-10-13 privacy policy text, and `terms.html`'s line that
+  card-processing fees are deducted separately from a coach's net (Shape pays them;
+  #2394).
+- Decide the fee and payout copy in `coaches.jsx` and `pricing.jsx`: they still say
+  card processing is separate and "15% on everything", and `coaches.jsx` promises
+  weekly payouts (#2394).
 - Decide whether the coach leaderboard should keep showing every coach each other's
   active-client count and sessions-kept rate.
 - Check `NORA_TTS_VOICE` and `NORA_TTS_INSTRUCTIONS` in Vercel.
@@ -165,15 +175,31 @@ planned builds.
 - `checkin_submitted` is a switch nothing writes.
 - The app's coach Score page reads the member ledger, and `/api/coach/score` returns
   401 to the app's Bearer token.
-- The nutritionist analytics route has the defects that were fixed in the trainer
-  route. The trainer route's name lookups still fall back silently.
+- Both analytics routes' name lookups fall back to "Client" and "Former client"
+  without saying so. The nutritionist route's `newClients7d` prints a failed count as
+  0 (nothing reads it), and its name read stops at 1,000 clients.
+- Business (#2394, #2395): the plan's goal isn't remembered; renewals past 25 a load
+  aren't checked with Stripe; the 90-day churn total is a floor once all 12 listed
+  cancellations fall inside it; "who found whom" counts rows, not clients. The Clients
+  badge can read one higher than the Clients list (a client whose payment is
+  retrying), and the dashboard routes still read 1,000 subscriptions at most and send
+  0 for a failed read.
+- In the hosted `/m/` app signed out in its own client, a Nora load that starts as one
+  cookie account and ends after another tab switched accounts still shows the first
+  account's conversation (every write is refused). Not to be fixed (owner: "the m app
+  website will not be in effect once the app is live on app store").
+- Eleven mutations in older specs (ai-draft, builder-fixes, builder-step2,
+  cook-owner-fixes, focus-layout, prep-reminders, talk-to-person) anchor on removed
+  code, so `--fail-on-skipped` fails on those specs.
 - Apple Music playlists in the installed app still run MusicKit in the WebView.
-- Staff two-factor has no recovery codes. The Radio page can ask for the code again.
+- Staff two-factor has no recovery codes, and reloading `/staff-verify` during set-up
+  makes a new key (#2388). The Radio page can ask for the code again.
 - The website's usage stats don't wait for the consent banner in the EEA and UK.
 - Nothing opens the chat panel from a URL. `TrainerNewProgram.html` and
   `get-started.html` aren't linked from anywhere.
 - No signed-in pass has been done in a browser or on a phone for client onboarding,
-  the dashboard frame, `/admin` or the coach application uploads.
+  the dashboard frame, `/admin`, Business (website and app) or the coach application
+  uploads.
 - Native mic and camera plugins (including iOS barcode scanning) and on-device macro
   reads from a meal photo aren't built yet.
 
