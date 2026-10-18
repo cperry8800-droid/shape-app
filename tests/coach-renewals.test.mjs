@@ -35,7 +35,7 @@ test('each row carries the name, the due date, the price and the net at its STOR
     { client_id: 'c', price_cents: 16500, fee_bps: null, current_period_end: at(3), stripe_subscription_id: 'sub_c' },
   ];
   const rows = renewalRows(picked, { names: new Map([['a', 'Ana Reyes'], ['b', 'Ben K']]), flags: new Map([['sub_a', false], ['sub_b', false], ['sub_c', true]]), cutCents: cut });
-  assert.deepEqual(rows.map((r) => r.name), ['Ana Reyes', 'Ben K', 'Client']);
+  assert.deepEqual(rows.map((r) => r.name), ['Ana Reyes', 'Ben K', '—'], 'an unread name is unknown, not a row of "Client"s');
   assert.deepEqual(rows.map((r) => r.netCents), [15300, 18000, 14025]);
   assert.deepEqual(rows.map((r) => r.priceCents), [18000, 18000, 16500]);
   assert.equal(rows[0].dueAt, new Date(NOW + DAY).toISOString());

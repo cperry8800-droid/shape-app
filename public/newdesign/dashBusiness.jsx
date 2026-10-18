@@ -1213,7 +1213,7 @@ function DbzRenewalsZone({ live, renewals }) {
         </div>
       ))}
       <div style={{ ...DBZ_NOTE, marginTop: 8 }}>
-        Net to you, after Shape's fee.{unchecked ? " Some couldn't be checked with Stripe just now, so they aren't counted above." : ""}
+        Net to you, after Shape's fee.{unchecked ? " Some couldn't be checked with Stripe, so they aren't counted above." : ""}
       </div>
     </div>
   );
@@ -1222,6 +1222,9 @@ function dbzRenewalsHead(live, renewals) {
   const rows = live ? renewals : dbzDemoRenewals();
   if (!Array.isArray(rows) || !rows.length) return null;
   const sure = rows.filter((r) => r.ending === false);
+  // None checked (Stripe down, or no key on a preview): a "0 clients · $0" total would read as
+  // no renewals beside a list of them. The rows say "not checked"; the header says nothing.
+  if (!sure.length && rows.some((r) => r.ending == null)) return null;
   return sure.length + (sure.length === 1 ? " client · " : " clients · ") + dashMoney(sure.reduce((s, r) => s + r.netCents, 0)) + " net";
 }
 
@@ -1382,7 +1385,9 @@ function CoachBusinessPage({ role }) {
     ? (role === "nutritionist" ? nutriPayoutCard : trainerPayoutCard)
     : stripe && stripe.connected && stripe.balanceCents != null
       ? { label: "BALANCE · AVAILABLE", amount: dashMoney(stripe.balanceCents), sub: dbzScheduleLine(stripe.schedule) || "Stripe connected" }
-      : { label: "PAYOUTS", amount: "—", sub: "connects when payouts go live" };
+      : stripe && stripe.connected && stripe.error
+        ? { label: "PAYOUTS", amount: "—", sub: "couldn't reach Stripe just now" }
+        : { label: "PAYOUTS", amount: "—", sub: "connects when payouts go live" };
 
   // ── A FIXED PAGE IN FOUR SECTIONS (owner, 2026-10-15: "least overwhelming as possible,
   // easy to navigate", the builder removed "like Programs"). Nine cards on one board was a

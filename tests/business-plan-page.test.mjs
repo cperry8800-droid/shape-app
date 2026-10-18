@@ -260,12 +260,16 @@ test('renewals: the total counts confirmed renewals only; a cancellation and an 
   // The subline is amber, apart from both the cancelled red and a renewal's grey.
   const sub = (name) => [...m.div.firstChild.children].find((row) => row.firstChild.firstChild?.textContent === name).firstChild.lastChild.style.color;
   assert.deepEqual([sub('Eli Park'), sub('Dee Morgan') === sub('Ana Reyes')], ['var(--sh-gold, #d8a23a)', false]);
-  assert.match(t, /Some couldn't be checked with Stripe just now, so they aren't counted above\./);
+  assert.match(t, /Some couldn't be checked with Stripe, so they aren't counted above\./);
+  assert.doesNotMatch(t, /just now/, 'a row past the 25-check cap is unchecked on every load: not a passing problem');
   await m.unmount();
   const one = await mount(React.createElement(B.DbzRenewalsZone, { live: true, renewals: RENEWALS.slice(0, 1) }));
   assert.doesNotMatch(one.text(), /couldn't be checked/);
   await one.unmount();
   assert.equal(B.dbzRenewalsHead(true, RENEWALS.slice(0, 1)), '1 client · $153 net');
+  // None could be checked: no "0 clients · $0" beside a list of renewals.
+  assert.equal(B.dbzRenewalsHead(true, RENEWALS.map((r) => ({ ...r, ending: null }))), null);
+  assert.equal(B.dbzRenewalsHead(true, RENEWALS.filter((r) => r.ending === true)), '0 clients · $0 net', 'all cancelled is a checked zero');
 });
 
 test('renewals: none due, not read, and still loading are three different sentences', async () => {
@@ -353,6 +357,29 @@ test('the Goal tab\'s calculator links to the planner on Business, opened on Pla
   await m.unmount();
   const src = readFileSync(ND('dashBusiness.jsx'), 'utf8');
   assert.match(src, /const asked = typeof dashRouteParam === "function" \? dashRouteParam\("section"\) : null;\n\s+if \(asked && DBZ_SECTION_KEYS\.includes\(asked\)\) setSection\(asked\);/, 'Business opens the section a link names');
+});
+
+// ── The whole page ───────────────────────────────────────────────────────────
+test('the sidebar money card says when Stripe couldn\'t be reached, as the Money tab does', async () => {
+  let card = null;
+  Object.assign(globalThis, {
+    useDashboard: () => ({ today: null, source: 'live' }),
+    useRememberedChoices: () => null,
+    useRememberedChoice: () => React.useState('money'),
+    DashPage: ({ children, payoutCard }) => { card = payoutCard; return React.createElement(React.Fragment, null, children); },
+    DashSegmented: () => null, DashExportButton: () => null, DashFunnelPanel: () => null, DashDemoBand: () => null,
+    trainerNavItems: () => [], trainerPayoutCard: {}, nutriPayoutCard: {},
+  });
+  const answer = (d) => Promise.resolve({ ok: true, json: () => Promise.resolve(d) });
+  for (const [stripe, sub] of [[{ connected: true, error: true, balanceCents: null, pendingCents: null, payouts: [] }, "couldn't reach Stripe just now"], [{ connected: false }, 'connects when payouts go live']]) {
+    globalThis.fetch = window.fetch = (url) => url.startsWith('/api/trainer/analytics')
+      ? answer({ isTrainer: true, providerId: 7, metrics: {}, byOrigin: [], trajectory: null, renewals: [], churn: [], stripe })
+      : answer({ listings: [] });
+    const m = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
+    await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    assert.deepEqual([card.amount, card.sub], ['—', sub]);
+    await m.unmount();
+  }
 });
 
 // ── The whole page: the plan holds what the coach set ────────────────────────

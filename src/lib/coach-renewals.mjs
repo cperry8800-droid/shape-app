@@ -41,7 +41,9 @@ export function renewalRows(picked, { names, flags, cutCents }) {
     const id = r.stripe_subscription_id == null ? null : String(r.stripe_subscription_id);
     const flag = id != null && flags && flags.has(id) ? flags.get(id) : null;
     return {
-      name: (names && names.get(String(r.client_id))) || 'Client',
+      // — is an unknown name (the profiles read failed), as on the origin feed: a row of
+      // "Client"s would hide who is renewing and who cancelled.
+      name: (names && names.get(String(r.client_id))) || '—',
       dueAt: new Date(ms(r.current_period_end)).toISOString(),
       priceCents: price,
       netCents: cutCents(price, r.fee_bps == null ? null : r.fee_bps),
