@@ -338,3 +338,52 @@ test('the Goal tab\'s calculator links to the planner on Business, opened on Pla
   const src = readFileSync(ND('dashBusiness.jsx'), 'utf8');
   assert.match(src, /const asked = typeof dashRouteParam === "function" \? dashRouteParam\("section"\) : null;\n\s+if \(asked && DBZ_SECTION_KEYS\.includes\(asked\)\) setSection\(asked\);/, 'Business opens the section a link names');
 });
+
+// ── The whole page: the plan holds what the coach set ────────────────────────
+test('the Plan keeps the coach\'s sliders when the page re-renders (the pace is read once per visit)', async () => {
+  // The page's own neighbours, as the dashboard loads them: the chrome only passes children
+  // through, and the section choice is held in plain state, opened on Plan.
+  const pass = ({ children }) => React.createElement(React.Fragment, null, children);
+  Object.assign(globalThis, {
+    useDashboard: () => ({ today: null, source: 'live' }),
+    useRememberedChoices: () => null,
+    useRememberedChoice: () => React.useState('plan'),
+    DashPage: pass, DashSegmented: () => null, DashExportButton: () => null, DashFunnelPanel: () => null, DashDemoBand: () => null,
+    trainerNavItems: () => [], trainerPayoutCard: {}, nutriPayoutCard: {},
+  });
+  // Twelve weeks of a practice that adds a client most weeks, so the plan starts from a pace.
+  const weeks = Array.from({ length: 26 }, (_, i) => {
+    const d = new Date(Date.now() - (25 - i) * 7 * 86400000);
+    d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+    return { weekOf: d.toISOString().slice(0, 10), active: 6 + Math.floor(i / 2), added: i % 2, ended: 0, mrrNetCents: (6 + Math.floor(i / 2)) * 15300, mrrGrossCents: (6 + Math.floor(i / 2)) * 18000 };
+  });
+  const analytics = { isTrainer: true, providerId: 7, metrics: {}, byOrigin: [], trajectory: { weeks, firstSubAt: weeks[0].weekOf + 'T00:00:00Z' }, renewals: [], churn: [], stripe: { connected: false } };
+  let capacityLands;
+  const capacity = new Promise((r) => { capacityLands = r; });
+  const answer = (d) => Promise.resolve({ ok: true, json: () => Promise.resolve(d) });
+  globalThis.fetch = window.fetch = (url) => {
+    if (url.startsWith('/api/trainer/analytics')) return answer(analytics);
+    if (url.startsWith('/api/coach/listing')) return answer({ listings: [{ role: 'trainer', monthly: 180, ready: true }] });
+    if (url.startsWith('/api/coach/capacity')) return capacity.then(() => ({ ok: true, json: () => Promise.resolve({ listings: [{ role: 'trainer', waiting: 2 }] }) }));
+    return Promise.reject(new Error('unexpected ' + url));
+  };
+  // The clock moves on between renders, as it does in a browser.
+  const realNow = Date.now;
+  let tick = realNow();
+  Date.now = () => (tick += 1000);
+  try {
+    const m = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
+    await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    const adds = () => m.div.querySelectorAll('input[type=range]')[0];
+    assert.ok(adds(), 'the plan is drawn: ' + m.text().slice(0, 200));
+    await setValue(adds(), 4);
+    assert.equal(adds().value, '4');
+    // A late answer re-renders the page: the waiting list lands.
+    await React.act(async () => { capacityLands(); await capacity; await new Promise((r) => setTimeout(r, 0)); });
+    assert.equal(adds().value, '4', 'the coach\'s plan survives the re-render');
+    assert.match(m.text(), /Your plan/);
+    await m.unmount();
+  } finally {
+    Date.now = realNow;
+  }
+});

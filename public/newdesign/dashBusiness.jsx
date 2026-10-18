@@ -1450,7 +1450,12 @@ function CoachBusinessPage({ role }) {
       </React.Fragment>);
 
   // ── Plan (design E): what clients earn you, then the next 12 months.
-  const planBase = dbzPlanBase({ live: isLive, extra, listing, listingRead });
+  // ⚠ THE PACE IS READ AT ONE MOMENT PER VISIT. Its rates are counts over the days to now, so
+  // read at each render they change by the millisecond, the key below changes with them, and
+  // every re-render (a tab's remembered choice saving, a late fetch landing) remounted both
+  // zones and threw away the coach's sliders and typed values.
+  const [planNow] = React.useState(() => Date.now());
+  const planBase = dbzPlanBase({ live: isLive, extra, listing, listingRead, now: planNow });
   const planKey = planBase.state === "ready" ? JSON.stringify([planBase.clients, planBase.mrrNetCents, planBase.rateCents, planBase.byoShare, planBase.pace]) : planBase.state;
   const planWait = planBase.state === "loading" ? "Your numbers load with the analytics rollup…" : "Couldn't read your subscriptions just now, and the plan starts from them. Nothing is lost; reload to try again.";
   const earnPlate = plate(DBZ_TEAL, <React.Fragment>
