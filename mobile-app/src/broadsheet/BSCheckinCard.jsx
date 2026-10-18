@@ -183,6 +183,10 @@ function bsCiSampleWeek(todayIso) {
   return e.map((_, i) => ({ iso: bsCiShift(todayIso, i - 7), energy: e[i], hunger: h[i], sleep: s[i], rested: null, device: false, water: w[i] }));
 }
 
+// A water read that failed: + Glass still works, because the add answers with the server's running
+// total, and the screen says "—" until it has one (Codex P2 on #2398).
+const BS_CI_WATER_UNKNOWN = { l: 0, target: 3, unknown: true };
+
 // One save at a time: two quick taps would otherwise both find no row for today and both insert.
 // Water has its own line, so a glass never waits on a check-in answer.
 // ⚠ A QUEUED SAVE BELONGS TO THE ACCOUNT AND THE DAY THAT MADE IT (Codex P1 and P2 on #2398). The
@@ -270,8 +274,9 @@ function BSCheckinDay({ onOpen, dayIso }) {
     if (!signedIn || !window.ShapeHydration?.get) return undefined;
     let on = true;
     window.ShapeHydration.get().then((d) => {
-      if (on && d && d.ok) setWater({ l: Number(d.hydrationL) || 0, target: Number(d.targetL) || 3 });
-    }).catch(() => {});
+      if (!on) return;
+      setWater(d && d.ok ? { l: Number(d.hydrationL) || 0, target: Number(d.targetL) || 3 } : BS_CI_WATER_UNKNOWN);
+    }).catch(() => { if (on) setWater(BS_CI_WATER_UNKNOWN); });
     return () => { on = false; };
   }, [signedIn]);
 
@@ -330,7 +335,7 @@ function BSCheckinDay({ onOpen, dayIso }) {
     waterPending.current += deltaL;
     bsCiEnqueue('water', uid, () => window.ShapeHydration.add(deltaL)).then((d) => {
       waterPending.current -= deltaL;
-      if (alive.current && d && d.ok) setWater((w) => ({ ...w, l: round((Number(d.hydrationL) || 0) + waterPending.current) }));
+      if (alive.current && d && d.ok) setWater((w) => ({ ...w, l: round((Number(d.hydrationL) || 0) + waterPending.current), unknown: false }));
     }).catch(() => {
       waterPending.current -= deltaL;
       if (!alive.current) return;
@@ -349,7 +354,8 @@ function BSCheckinDay({ onOpen, dayIso }) {
     setWalk((i) => (i == null ? i : Math.min(4, i + 1)));
   };
   const back = () => { setSleepH(null); setRestedPick(null); setFromSummary(false); setWalk((i) => (i == null ? i : Math.max(0, i - 1))); };
-  const answered = { energy: today.energy != null, hunger: today.hunger != null, sleep: today.sleep != null || sleepSkipped, water: !!(water && water.l > 0) };
+  const waterKnown = !!(water && !water.unknown);
+  const answered = { energy: today.energy != null, hunger: today.hunger != null, sleep: today.sleep != null || sleepSkipped, water: waterKnown && water.l > 0 };
   const firstOpen = () => { const i = BS_CI_STEPS.findIndex((k) => k !== 'water' && !answered[k]); return i < 0 ? 3 : i; };
 
   const E = [0, 1, 2, 3, 4].map((i) => tr(`home:checkin.e${i}`, { defaultValue: ['Drained', 'Low', 'OK', 'Good', 'Great'][i] }));
@@ -478,7 +484,7 @@ function BSCheckinDay({ onOpen, dayIso }) {
             {row('energy', word(E, today.energy), 0, 'home:checkin.change', 'Change')}
             {row('hunger', word(H, today.hunger), 1, 'home:checkin.change', 'Change')}
             {row('sleep', sleepText, 2, 'home:checkin.change', 'Change')}
-            {row('water', water ? `${litres(water.l)} ${tr('home:checkin.ofTarget', { defaultValue: 'of {target}', target: litres(target) })}` : null, 3, 'home:checkin.add', 'Add')}
+            {row('water', waterKnown ? `${litres(water.l)} ${tr('home:checkin.ofTarget', { defaultValue: 'of {target}', target: litres(target) })}` : null, 3, 'home:checkin.add', 'Add')}
           </div>
           {signedIn && streak >= 2 ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6, padding: 14, border: `1px solid ${t.RULE}`, borderRadius: 5 }}>
@@ -553,12 +559,12 @@ function BSCheckinDay({ onOpen, dayIso }) {
     }
     // water
     const glasses = Math.max(6, Math.min(14, Math.round(target / glassL)));
-    const full = water ? Math.max(0, Math.min(glasses, Math.round(water.l / glassL))) : 0;
+    const full = waterKnown ? Math.max(0, Math.min(glasses, Math.round(water.l / glassL))) : 0;
     return (
       <>
         {head('home:checkin.askWater', 'Water so far today', 'home:checkin.whyWater', "Add what you've drunk so far. You can keep adding all day from Home. It doesn't hold up your check-in.")}
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <span style={{ fontFamily: t.DISPLAY, fontSize: 44, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{water ? litres(water.l) : '—'}</span>
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 44, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{waterKnown ? litres(water.l) : '—'}</span>
           <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK50 }}>{tr('home:checkin.ofTarget', { defaultValue: 'of {target}', target: litres(target) })}</span>
         </div>
         <div aria-hidden style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -681,7 +687,7 @@ function BSCheckinDay({ onOpen, dayIso }) {
         {done ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderTop: `1px solid ${t.HAIR}`, paddingTop: 9 }}>
             <span style={{ ...mono, fontSize: 8.5, color: sky }}>{NAME.water}</span>
-            <span style={{ flex: 1, fontFamily: t.MONO, fontSize: 9, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{water ? `${litres(water.l)} / ${litres(target)}` : '—'}</span>
+            <span style={{ flex: 1, fontFamily: t.MONO, fontSize: 9, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{waterKnown ? `${litres(water.l)} / ${litres(target)}` : '—'}</span>
             <button type="button" onClick={() => addWater(1)} disabled={!water} style={{ minHeight: 32, padding: '4px 10px', borderRadius: 4, border: `1px solid ${sky}80`, background: `${sky}14`, color: sky, cursor: water ? 'pointer' : 'default', opacity: water ? 1 : 0.5, ...mono, fontSize: 8.5, letterSpacing: '0.1em' }}>{tr('home:checkin.addGlass', { defaultValue: '+ Glass' })}</button>
           </div>
         ) : null}

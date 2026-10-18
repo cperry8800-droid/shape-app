@@ -475,6 +475,23 @@ test('a glass that saves keeps the ones still on their way, and a failed last on
   } finally { m.unmount(); }
 });
 
+test('a failed water read still lets a glass be logged, and the first save brings the total (Codex P2 on #2398)', async () => {
+  env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
+  const adds = [];
+  dom.window.ShapeHydration = {
+    get: async () => { throw new Error('500'); },
+    add: async (d) => { adds.push(d); return { ok: true, hydrationL: 1 + d }; },
+  };
+  const m = await mount();
+  try {
+    assert.match(m.text(), /Water— ?\+ Glass/, 'a failed read shows a total it does not have');
+    assert.equal(m.button(/\+ Glass/).disabled, false, 'a failed read left + Glass disabled');
+    await m.click(/\+ Glass/);
+    assert.deepEqual(adds, [0.2366]);
+    assert.match(m.text(), /42 oz \/ 101 oz/, "the server's total did not replace the unknown one");
+  } finally { m.unmount(); }
+});
+
 test("a new local day reads that day's water (Codex P2 on #2398)", async () => {
   try {
     mock.timers.setTime(new Date(2026, 9, 18, 23, 59).getTime());
