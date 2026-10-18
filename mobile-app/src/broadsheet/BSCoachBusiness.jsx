@@ -705,6 +705,12 @@ function ClientsTab({ t, biz, now }) {
   // ⚠ THE LIST STOPS AT BS_BIZ_CHURN_LIST ROWS (the routes' .limit(12)). When every row it holds
   // is inside the window, more may have left than it shows, and a note says so (the website's
   // total reads "12 or more" and "at least" then).
+  // ⚠ A NAME THE ROUTE DOESN'T HAVE IS SAID IN THE COACH'S LANGUAGE. The routes sent the English
+  // "Former client" in every locale, for a client with no name on file and for a name that couldn't
+  // be read alike; they send null now, with `nameUnread` true when the read failed.
+  const leftName = (r) => r.name || (r.nameUnread
+    ? tr('coach:business.clients.nameUnread', { defaultValue: "Name couldn't be read" })
+    : tr('coach:business.clients.leftNoName', { defaultValue: 'Former client' }));
   let left;
   if (extra.churn === null) left = <Note t={t}>{tr('coach:business.clients.leftUnread', { defaultValue: "Couldn't read your cancellations just now." })}</Note>;
   else if (!Array.isArray(extra.churn)) left = loading;
@@ -729,7 +735,7 @@ function ClientsTab({ t, biz, now }) {
       left = !recent.length ? <Note t={t}>{none}</Note> : (
         <div>
           {recent.map((r, i) => (
-            <Row key={i} t={t} label={r.name} last={i === recent.length - 1} subColor={t.RUST}
+            <Row key={i} t={t} label={leftName(r)} last={i === recent.length - 1} subColor={t.RUST}
               sub={tr('coach:business.clients.leftOn', { defaultValue: 'left {date}', date: bizDate(r.endedAt) })}
               value={r.priceCents != null ? tr('coach:business.clients.leftPrice', { defaultValue: '−{price}/mo', price: bsBizMoney(r.priceCents) }) : '—'} />
           ))}

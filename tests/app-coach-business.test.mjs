@@ -918,6 +918,44 @@ test('a renewal whose name could not be read is —, from the routes\' own rows,
   await m.unmount();
 });
 
+// ── Left open by #2394 and #2395: the routes sent the English "Former client" in every language, for
+// a name that couldn't be read and for none on file alike. They send null now, with nameUnread. ──
+test('who left: a name that couldn\'t be read says so, and one with none on file is a former client, in the coach\'s language', async () => {
+  const now = Date.now();
+  const churn = [
+    { name: null, nameUnread: true, clientId: 'u', departed: true, endedAt: new Date(now - 5 * DAY).toISOString(), priceCents: 18000 },
+    { name: null, nameUnread: false, clientId: 'n', departed: true, endedAt: new Date(now - 6 * DAY).toISOString(), priceCents: 9000 },
+    { name: 'Riley T.', nameUnread: false, clientId: 'r', departed: true, endedAt: new Date(now - 7 * DAY).toISOString(), priceCents: 6000 },
+  ];
+  world({ answer: payload({ churn }) });
+  let m = await mount(page({ tab: 'clients' }));
+  const labels = (s) => [...m.host.querySelectorAll('div')].filter((d) => d.textContent === s).length;
+  assert.deepEqual([labels("Name couldn't be read"), labels('Former client'), labels('Riley T.')], [1, 1, 1]);
+  assert.match(m.text(), /Name couldn't be readleft [^$]*−\$180\/moFormer clientleft [^$]*−\$90\/moRiley T\.left [^$]*−\$60\/mo/);
+  await m.unmount();
+  // In another language, its own words, not the English the routes sent.
+  const english = window.ShapeI18n;
+  try {
+    for (const [loc, intl] of [['de', 'de-DE'], ['tr', 'tr-TR']]) {
+      speak(loc, intl);
+      const C = catalogOf(loc);
+      world({ answer: payload({ churn }) });
+      m = await mount(page({ tab: 'clients' }));
+      assert.deepEqual([labels(C['business.clients.nameUnread']), labels(C['business.clients.leftNoName']), labels('Riley T.')], [1, 1, 1], loc);
+      assert.doesNotMatch(m.text(), /Former client|Name couldn't be read/, loc);
+      await m.unmount();
+    }
+  } finally {
+    window.ShapeI18n = english;
+  }
+  // Every language has both, each in its own words.
+  for (const loc of LOCALES) {
+    const C = catalogOf(loc);
+    assert.ok(C['business.clients.leftNoName'] && C['business.clients.nameUnread'], loc);
+    if (loc !== 'en') assert.ok(C['business.clients.leftNoName'] !== 'Former client' && C['business.clients.nameUnread'] !== "Name couldn't be read", loc + ' is translated');
+  }
+});
+
 test('a failed analytics read says so and never loads forever: the page, each zone of a partial read, and the Me card', async () => {
   world({ answer: new Error('500') });
   let m = await mount(page({ tab: 'plan' }));
