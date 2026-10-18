@@ -185,7 +185,9 @@ test('a failed read for a signed-in coach is an unread state, never the sample, 
     try {
       const txt = s.text();
       const what = failure instanceof Error ? 'a thrown fetch' : JSON.stringify(failure);
-      assert.match(txt, /Your score couldn’t be read just now\./, what);
+      // The verdict itself says so (the Breakdown tab says it too, so the page text alone can't tell).
+      const verdict = s.host.querySelector('[role="status"]');
+      assert.match(verdict ? verdict.textContent : '', /^Your score couldn’t be read just now\./, what);
       // None of the sample's figures, and no rung.
       for (const sample of ['3,060', '1,700', '34 clients', '96%', '1,940', 'Elite', 'and climbing']) {
         assert.ok(!txt.includes(sample), `${what}: the unread page shows the sample's "${sample}"`);
@@ -210,7 +212,8 @@ test('while the read runs, the page says so and prints no figure', async () => {
   const s = await mount(page(P.trainer));
   try {
     const txt = s.text();
-    assert.match(txt, /Reading your score…/);
+    const verdict = s.host.querySelector('[role="status"]');
+    assert.equal(verdict ? verdict.textContent : '', 'Reading your score…');
     for (const sample of ['3,060', '34 clients', 'Elite']) assert.ok(!txt.includes(sample), `loading shows "${sample}"`);
     await React.act(async () => { release(); });
     await flush();
@@ -338,16 +341,19 @@ test('a read made for one coach role is never shown for another', async () => {
   window.ShapeApi.fetch = (path) => (path === '/api/coach/score?role=trainer'
     ? Promise.resolve({ ok: true, status: 200, json: async () => TRAINER_SCORE })
     : new Promise(() => {}));
-  let seen = null;
-  const Probe = ({ profile }) => { seen = MOD._bsUseLiveScore(profile); return null; };
+  // Every render is kept: the first render after the switch runs before the new read starts, and
+  // it must not be the old role's score.
+  const renders = [];
+  const Probe = ({ profile }) => { renders.push(MOD._bsUseLiveScore(profile)); return null; };
   const root = createRoot(document.getElementById('root'));
   try {
     await React.act(async () => root.render(React.createElement(Probe, { profile: P.trainer })));
     await flush();
-    assert.equal(seen.total, 2370);
+    assert.equal(renders[renders.length - 1].total, 2370);
+    const before = renders.length;
     await React.act(async () => root.render(React.createElement(Probe, { profile: P.nutritionist })));
-    assert.equal(seen.coachRole, 'nutritionist');
-    assert.equal(seen.scoreState, 'loading');
-    assert.equal(seen.total, null, 'the trainer read was shown as the nutritionist\'s');
+    const after = renders.slice(before);
+    assert.ok(after.length >= 1 && after.every((r) => r.coachRole === 'nutritionist'));
+    assert.deepEqual(after.map((r) => [r.scoreState, r.total]), after.map(() => ['loading', null]), 'the trainer read was shown as the nutritionist\'s');
   } finally { await React.act(async () => root.unmount()); }
 });
