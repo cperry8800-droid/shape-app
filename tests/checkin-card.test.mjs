@@ -1039,13 +1039,16 @@ test("hours typed again before the server's answer are put back to the watch's w
   } finally { m.unmount(); }
 });
 
-test("a day that already has a watch's night asks no watch", async () => {
+test("a day that already has a watch's night asks again, and the finished night replaces the part synced before waking", async () => {
+  // A night synced while the member was still asleep is part of one (Codex on #2404).
+  const days = { [TODAY]: { energy: 8, hunger: 6, sleep: 3.5 } };
   env({ uid: 'sync-card-2' });
-  dom.window.ShapeProgress = { progress: async () => ({ series: { ...series({ [TODAY]: { energy: 8, hunger: 6, sleep: 7 } }), sleepFromDevice: [{ date: TODAY, value: 1 }] } }) };
-  const d = devices({ connected: ['whoop'] });
+  dom.window.ShapeProgress = { progress: async () => ({ series: { ...series(days), sleepFromDevice: [{ date: TODAY, value: 1 }] } }) };
+  const d = devices({ connected: ['whoop'], onSync: () => { days[TODAY].sleep = 7.5; } });
   const m = await mount();
   try {
-    assert.equal(d.reads(), 0, 'the watches were asked for a night the day already has');
+    assert.equal(d.reads(), 1, "a day with part of a watch's night never asked for the rest");
+    assert.match(m.text(), /Sleep 7h 30/, 'the finished night did not replace the part synced before waking');
   } finally { m.unmount(); delete dom.window.ShapeIntegrations; }
 });
 

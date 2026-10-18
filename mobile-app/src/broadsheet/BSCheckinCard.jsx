@@ -337,13 +337,15 @@ function BSCheckinDay({ onOpen, dayIso }) {
     return () => { on = false; };
   }, [signedIn, todayIso]);
 
-  // Once today is read: a day with no watch's night asks the connected watches for it
-  // (bsCiSyncDevices, above), then reads again. A night that came in replaces whatever is on screen,
-  // typed hours included, since the route keeps the watch's over them. A card that unmounts while
+  // Once today is read, the connected watches are asked for last night (bsCiSyncDevices, above),
+  // and the day is read again. A night that came in replaces whatever is on screen, typed hours
+  // included, since the route keeps the watch's over them. A day that already has a watch's night
+  // asks again too, within the 30 minutes: a night synced while the member was still asleep is
+  // part of one, and only a later sync brings the rest (Codex on #2404). A card that unmounts while
   // the sync is out still clears the cache and claims the night's points, so the next card reads
   // the night rather than ask for it.
   useEffect(() => {
-    if (!signedIn || !ready || bsCiWornNight(confirmed.current)) return undefined;
+    if (!signedIn || !ready) return undefined;
     let on = true;
     bsCiSyncDevices(uid).then((synced) => {
       if (!synced) return null;
