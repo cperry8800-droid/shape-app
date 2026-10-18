@@ -1247,6 +1247,8 @@
   "business.clients.wait": "{count, plural, one {# человек ждёт} few {# человека ждут} many {# человек ждут} other {# человека ждут}}, чтобы начать с вами.",
   "business.clients.waitHead": "Ваш лист ожидания",
   "business.clients.waitNone": "Никто не ждёт. Когда вы отметите, что набор закрыт, участники смогут встать в лист ожидания.",
+  "business.clients.waitPriceNone": "Задайте месячную цену в профиле, чтобы увидеть, сколько они принесут.",
+  "business.clients.waitPriceUnread": "Сейчас не удалось прочитать цену в вашем профиле, поэтому здесь они не оценены.",
   "business.clients.waitUnread": "Не удалось прочитать ваш лист ожидания.",
   "business.clients.waitWorth": "Если они начнут по {rate} в месяц, это примерно {net} в месяц для вас.",
   "business.clients.worth": "Клиент в среднем остаётся примерно {months, plural, one {# месяц} few {# месяца} many {# месяцев} other {# месяца}}, так что каждый стоит для вас около {value}.",

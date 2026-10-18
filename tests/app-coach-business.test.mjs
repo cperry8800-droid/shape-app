@@ -276,6 +276,23 @@ test('Clients: joined and left, what a client is worth, the waiting list in mone
   await m.unmount();
 });
 
+// The website's Codex round 7 (#2394): the waiting list is valued at the listing price alone. The
+// Plan's rate falls back to the clients' average or a default, which is not what they would pay.
+test('the waiting list is valued at the listing price, and says why when there is none', async () => {
+  for (const [why, listing, re] of [
+    ['the listing read failed', new Error('offline'), /3 people are waiting to join you\. Couldn't read your listing price just now, so they aren't valued here\./],
+    ['no listing of this role', null, /3 people are waiting to join you\. Set a monthly price on your listing to see what they'd bring in\./],
+    ['a listing with no price', { role: 'trainer', monthly: 0 }, /3 people are waiting to join you\. Set a monthly price on your listing to see what they'd bring in\./],
+    ['a listing at $200', { role: 'trainer', monthly: 200 }, new RegExp(`3 people are waiting to join you\\. If they join at \\$200 a month, that's about \\${money(CF.earn({ clients: 3, priceCents: 20000, byoShare: 0 }).netCents)} a month to you\\.`)],
+  ]) {
+    world({ listing });
+    const m = await mount(page({ tab: 'clients' }));
+    assert.match(m.text(), re, why);
+    if (why !== 'a listing at $200') assert.doesNotMatch(m.text(), /If they join at/, why + ': no figure from a fallback rate');
+    await m.unmount();
+  }
+});
+
 // ── The website's Business sweep (2026-10-18), mirrored ─────────────────────
 test('the pace is read once per visit: a re-render under a moving clock keeps the plan where it started', async () => {
   // The waiting list answers late, as a slow network does, and re-renders the page.

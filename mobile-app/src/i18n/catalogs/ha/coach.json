@@ -1247,6 +1247,8 @@
   "business.clients.wait": "{count, plural, one {# mutum yana jira} other {# mutane suna jira}} su fara da kai.",
   "business.clients.waitHead": "Jerin jirarka",
   "business.clients.waitNone": "Babu mai jira. Idan ka nuna cewa bayanin martabarka ya cika, mambobi za su iya shiga jerin jira.",
+  "business.clients.waitPriceNone": "Saita farashin wata-wata a bayanin martabarka don ganin abin da za su kawo maka.",
+  "business.clients.waitPriceUnread": "Ba a iya karanta farashin bayanin martabarka yanzu ba, don haka ba a ƙididdige su a nan ba.",
   "business.clients.waitUnread": "Ba a iya karanta jerin jirarka a yanzu ba.",
   "business.clients.waitWorth": "Idan suka fara a {rate} a wata, kusan {net} ne a wata gare ka.",
   "business.clients.worth": "Abokin hulɗa yana zama kusan {months, plural, one {wata #} other {watanni #}} a matsakaici, don haka kowanne yana da darajar kusan {value} gare ka.",

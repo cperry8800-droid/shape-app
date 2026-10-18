@@ -1247,6 +1247,8 @@
   "business.clients.wait": "{count, plural, one {# person dey wait} other {# people dey wait}} to start with you.",
   "business.clients.waitHead": "Your waiting list",
   "business.clients.waitNone": "Nobody dey wait. When you mark say your profile don full, members fit join waiting list.",
+  "business.clients.waitPriceNone": "Set monthly price for your profile to see wetin dem go bring you.",
+  "business.clients.waitPriceUnread": "We no fit read your profile price now, so we no put money value for dem here.",
   "business.clients.waitUnread": "We no fit read your waiting list right now.",
   "business.clients.waitWorth": "If dem start for {rate} every month, na about {net} every month for you.",
   "business.clients.worth": "One client dey stay about {months, plural, one {# month} other {# months}} on average, so each one worth about {value} for you.",

@@ -1247,6 +1247,8 @@
   "business.clients.wait": "{count, plural, one {# person is} other {# people are}} waiting to join you.",
   "business.clients.waitHead": "Your waiting list",
   "business.clients.waitNone": "No one is waiting. When you mark your listing full, members can join a waiting list.",
+  "business.clients.waitPriceNone": "Set a monthly price on your listing to see what they'd bring in.",
+  "business.clients.waitPriceUnread": "Couldn't read your listing price just now, so they aren't valued here.",
   "business.clients.waitUnread": "Couldn't read your waiting list just now.",
   "business.clients.waitWorth": "If they join at {rate} a month, that's about {net} a month to you.",
   "business.clients.worth": "A client stays about {months, plural, one {# month} other {# months}} on average, so each one is worth about {value} to you.",

@@ -1247,6 +1247,8 @@
   "business.clients.wait": "{count, plural, one {# kişi} other {# kişi}} seninle başlamak için bekliyor.",
   "business.clients.waitHead": "Bekleme listen",
   "business.clients.waitNone": "Bekleyen kimse yok. Profilini dolu olarak işaretlediğinde üyeler bekleme listesine girebilir.",
+  "business.clients.waitPriceNone": "Ne kazandıracaklarını görmek için profiline aylık bir fiyat koy.",
+  "business.clients.waitPriceUnread": "Profilindeki fiyat şu an okunamadı, bu yüzden burada değerlendirilmiyorlar.",
   "business.clients.waitUnread": "Bekleme listen şu an okunamadı.",
   "business.clients.waitWorth": "Ayda {rate} ile başlarlarsa bu senin için ayda yaklaşık {net} eder.",
   "business.clients.worth": "Bir danışan ortalama yaklaşık {months, plural, one {# ay} other {# ay}} kalıyor, yani her biri senin için yaklaşık {value} değerinde.",

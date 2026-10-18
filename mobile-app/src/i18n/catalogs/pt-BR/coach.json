@@ -1247,6 +1247,8 @@
   "business.clients.wait": "{count, plural, one {# pessoa está esperando} other {# pessoas estão esperando}} para começar com você.",
   "business.clients.waitHead": "Sua lista de espera",
   "business.clients.waitNone": "Ninguém está esperando. Quando você marcar seu perfil como lotado, membros podem entrar numa lista de espera.",
+  "business.clients.waitPriceNone": "Defina um preço mensal no seu perfil para ver quanto eles trariam.",
+  "business.clients.waitPriceUnread": "Não foi possível ler o preço do seu perfil agora, então eles não são calculados aqui.",
   "business.clients.waitUnread": "Não foi possível ler sua lista de espera agora.",
   "business.clients.waitWorth": "Se começarem a {rate} por mês, são cerca de {net} por mês para você.",
   "business.clients.worth": "Um cliente fica em média cerca de {months, plural, one {# mês} other {# meses}}, então cada um vale cerca de {value} para você.",

@@ -1247,6 +1247,8 @@
   "business.clients.wait": "{count, plural, one {# orang menunggu} other {# orang menunggu}} untuk mulai denganmu.",
   "business.clients.waitHead": "Daftar tunggumu",
   "business.clients.waitNone": "Tidak ada yang menunggu. Saat kamu menandai profilmu penuh, anggota bisa masuk daftar tunggu.",
+  "business.clients.waitPriceNone": "Tetapkan harga bulanan di profilmu untuk melihat berapa yang akan mereka hasilkan.",
+  "business.clients.waitPriceUnread": "Harga di profilmu tidak bisa dibaca saat ini, jadi nilainya tidak dihitung di sini.",
   "business.clients.waitUnread": "Daftar tunggumu tidak bisa dibaca saat ini.",
   "business.clients.waitWorth": "Jika mereka mulai dengan {rate} per bulan, itu sekitar {net} per bulan untukmu.",
   "business.clients.worth": "Rata-rata klien bertahan sekitar {months, plural, one {# bulan} other {# bulan}}, jadi masing-masing bernilai sekitar {value} untukmu.",

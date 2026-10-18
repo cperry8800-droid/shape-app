@@ -1247,6 +1247,8 @@
   "business.clients.wait": "{count, plural, one {# người đang chờ} other {# người đang chờ}} để bắt đầu với bạn.",
   "business.clients.waitHead": "Danh sách chờ của bạn",
   "business.clients.waitNone": "Không ai đang chờ. Khi bạn đánh dấu hồ sơ đã kín chỗ, thành viên có thể vào danh sách chờ.",
+  "business.clients.waitPriceNone": "Hãy đặt giá hàng tháng trên hồ sơ để xem họ sẽ mang lại bao nhiêu.",
+  "business.clients.waitPriceUnread": "Hiện không đọc được giá trên hồ sơ của bạn, nên ở đây chưa tính giá trị của họ.",
   "business.clients.waitUnread": "Hiện không đọc được danh sách chờ của bạn.",
   "business.clients.waitWorth": "Nếu họ bắt đầu với {rate} mỗi tháng, bạn sẽ nhận khoảng {net} mỗi tháng.",
   "business.clients.worth": "Trung bình một khách hàng ở lại khoảng {months, plural, one {# tháng} other {# tháng}}, nên mỗi người đáng giá khoảng {value} với bạn.",

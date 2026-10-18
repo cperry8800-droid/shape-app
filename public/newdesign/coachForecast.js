@@ -183,6 +183,13 @@
   //                  default, not as a measured none
   //   pace.unread    the trajectory read failed, so there is no pace and an unread history, not
   //                  an empty one
+  // The listing's monthly price in cents, or null when there is none. The waiting list is valued
+  // at this alone: the Plan's rate falls back to the clients' average or a default, which is where
+  // a slider starts, not what a waiting member would pay (Codex round 7 on #2394).
+  function listedCents(listingMonthly) {
+    return listingMonthly != null && Number(listingMonthly) > 0 ? Math.round(Number(listingMonthly) * 100) : null;
+  }
+
   function planNumbers({ extra, listingMonthly, listingFailed = false, now = Date.now() }) {
     const m = todayFrom(extra);
     if (!m) return null;
@@ -192,7 +199,7 @@
     // subscription, so counting it read one brought client with two plans beside one from Shape as
     // "2 of your 3" (67%), and the calculators seeded from it overstated take-home.
     const mix = (extra && extra.byoMix) || null;
-    const listed = listingMonthly != null && Number(listingMonthly) > 0 ? Math.round(Number(listingMonthly) * 100) : null;
+    const listed = listedCents(listingMonthly);
     const avg = m.clients > 0 && m.mrrGrossCents > 0 ? Math.round(m.mrrGrossCents / m.clients / 500) * 500 : null;
     return {
       clients: m.clients, mrrNetCents: m.mrrNetCents, mrrGrossCents: m.mrrGrossCents,
@@ -252,6 +259,6 @@
 
   return {
     FEE_RATE, PACE_DAYS, DEFAULT_RATE_CENTS, netOf, earn, forecast, earnedOver, monthsTo, paceFrom, lifetime,
-    round1, churnPct, todayFrom, planNumbers, planStart, renewalsSum, moneyFrom,
+    round1, churnPct, todayFrom, listedCents, planNumbers, planStart, renewalsSum, moneyFrom,
   };
 });

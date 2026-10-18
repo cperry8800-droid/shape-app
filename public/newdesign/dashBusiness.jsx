@@ -885,7 +885,7 @@ function dbzToday(extra) {
 }
 
 // The listing's monthly price in cents, or null when there is none (or no listing).
-const dbzListedCents = (listing) => (listing && listing.monthly != null && Number(listing.monthly) > 0 ? Math.round(Number(listing.monthly) * 100) : null);
+const dbzListedCents = (listing) => { const CF = window.CoachForecast; return CF ? CF.listedCents(listing ? listing.monthly : null) : null; };
 
 // Where the Plan tab starts: today's clients and net, the rate a new client pays, the share
 // the coach brings, and the pace. { state: "loading" | "unread" | "ready", ... }

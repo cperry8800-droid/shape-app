@@ -1247,6 +1247,8 @@
   "business.clients.wait": "{count, plural, one {# людина чекає} few {# людини чекають} many {# людей чекають} other {# людини чекають}}, щоб почати з вами.",
   "business.clients.waitHead": "Ваш список очікування",
   "business.clients.waitNone": "Ніхто не чекає. Коли ви позначите, що набір закрито, учасники зможуть стати в список очікування.",
+  "business.clients.waitPriceNone": "Задайте місячну ціну в профілі, щоб побачити, скільки вони принесуть.",
+  "business.clients.waitPriceUnread": "Зараз не вдалося прочитати ціну у вашому профілі, тому тут їх не оцінено.",
   "business.clients.waitUnread": "Не вдалося прочитати ваш список очікування.",
   "business.clients.waitWorth": "Якщо вони почнуть по {rate} на місяць, це приблизно {net} на місяць для вас.",
   "business.clients.worth": "Клієнт у середньому залишається приблизно {months, plural, one {# місяць} few {# місяці} many {# місяців} other {# місяця}}, тож кожен вартий для вас близько {value}.",

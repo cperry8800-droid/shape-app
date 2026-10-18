@@ -638,17 +638,25 @@ function ClientsTab({ t, biz, now }) {
   }
 
   // The waiting list: Shape members, so they found the coach here and 15% comes off.
+  // ⚠ ONLY THE LISTING PRICE VALUES THEM (the website's Codex round 7, #2394). base.rateCents falls
+  // back to the clients' average or a default when the listing price is unread or unset, and was
+  // printed as what these members would pay. The preview is valued at its sample rate.
   const n = biz.waiting;
+  const waitRate = biz.kind === 'demo' ? (base.state === 'ready' ? base.rateCents : null) : F.listedCents(biz.listingMonthly);
   let wait;
   if (n === undefined) wait = loading;
   else if (n === null) wait = <Note t={t}>{tr('coach:business.clients.waitUnread', { defaultValue: "Couldn't read your waiting list just now." })}</Note>;
   else if (!n) wait = <Note t={t}>{tr('coach:business.clients.waitNone', { defaultValue: 'No one is waiting. When you mark your listing full, members can join a waiting list.' })}</Note>;
   else {
-    const net = base.state === 'ready' ? F.earn({ clients: n, priceCents: base.rateCents, byoShare: 0 }).netCents : null;
+    const net = waitRate != null ? F.earn({ clients: n, priceCents: waitRate, byoShare: 0 }).netCents : null;
+    // No price to value them at: say why, once the listing read has answered.
+    const why = net != null || biz.kind !== 'live' || !biz.listingRead ? null
+      : biz.listingFailed ? tr('coach:business.clients.waitPriceUnread', { defaultValue: "Couldn't read your listing price just now, so they aren't valued here." })
+      : tr('coach:business.clients.waitPriceNone', { defaultValue: "Set a monthly price on your listing to see what they'd bring in." });
     wait = (
       <Sentence t={t}>
         {tr('coach:business.clients.wait', { defaultValue: '{count, plural, one {# person is} other {# people are}} waiting to join you.', count: n })}
-        {net != null ? ' ' + tr('coach:business.clients.waitWorth', { defaultValue: "If they join at {rate} a month, that's about {net} a month to you.", rate: bsBizMoney(base.rateCents), net: bsBizMoney(net) }) : null}
+        {net != null ? ' ' + tr('coach:business.clients.waitWorth', { defaultValue: "If they join at {rate} a month, that's about {net} a month to you.", rate: bsBizMoney(waitRate), net: bsBizMoney(net) }) : why ? ' ' + why : null}
       </Sentence>
     );
   }

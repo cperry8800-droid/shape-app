@@ -1247,6 +1247,8 @@
   "business.clients.wait": "{count, plural, one {# Person wartet} other {# Personen warten}} darauf, bei dir anzufangen.",
   "business.clients.waitHead": "Deine Warteliste",
   "business.clients.waitNone": "Niemand wartet. Wenn du dein Profil als voll markierst, können Mitglieder sich auf eine Warteliste setzen.",
+  "business.clients.waitPriceNone": "Leg in deinem Profil einen Monatspreis fest, um zu sehen, was sie dir bringen würden.",
+  "business.clients.waitPriceUnread": "Dein Profilpreis konnte gerade nicht gelesen werden, deshalb steht hier kein Betrag.",
   "business.clients.waitUnread": "Deine Warteliste konnte gerade nicht gelesen werden.",
   "business.clients.waitWorth": "Wenn sie zu {rate} im Monat anfangen, sind das für dich etwa {net} im Monat.",
   "business.clients.worth": "Ein Klient bleibt im Schnitt etwa {months, plural, one {# Monat} other {# Monate}}, also ist jeder etwa {value} für dich wert.",
