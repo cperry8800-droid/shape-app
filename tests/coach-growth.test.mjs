@@ -1,7 +1,8 @@
 // The coach dashboards' 90-day growth and funnel (src/lib/coach-growth.ts), and the two places
 // that read them (dashToday.jsx), after the Business review of 2026-10-17: a new client is a person
 // who started paying, once; the comparison is over equal spans; "signed" is the clients who found
-// the coach on Shape, and the close rate stops at 100.
+// the coach on Shape, and more of them than consults is no close rate (the sweep after #2394 round
+// 10; it was capped at 100).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -133,7 +134,7 @@ test('new clients over 90 days are counted over the rows the signings are: never
   const code = [
     pick(/const DASH_FUNNEL_BENCHMARK = [^\n]*/),
     pick(/function dashCloseRate\(f\) \{[\s\S]*?\n\}/),
-    ...(/function dashCloseWhy\(/.test(src) ? [pick(/function dashCloseWhy\(f\) \{[\s\S]*?\n\}/)] : []),
+    pick(/function dashCloseWhy\(f\) \{[\s\S]*?\n\}/),
     pick(/function DashBusinessSummary\([\s\S]*?\n\}/),
   ].join('\n');
   const js = babel.transformSync(code, { presets: [presetReact], babelrc: false, configFile: false }).code;
@@ -151,15 +152,23 @@ test('new clients over 90 days are counted over the rows the signings are: never
   }
 });
 
-test('the dashboards cap consult → signed at 100 and say what the comparison is', () => {
+// ⚠ The sweep after #2394 round 10: this pinned close({ consults90: 4, signed90: 6 }) at 100, a
+// capped figure the funnel then printed as a measured rate "above the ~30% marketplace benchmark".
+// More signed than consulted is no close rate, and says so in its own words.
+test('consult → signed: more clients signed than booked a consult is no rate, said in its own words, apart from an unread one', () => {
   const src = readFileSync(ROOT + 'public/newdesign/dashToday.jsx', 'utf8');
   const fn = /function dashCloseRate\(f\) \{[\s\S]*?\n\}/.exec(src);
   assert.ok(fn, 'dashCloseRate moved');
   const close = new Function(fn[0] + '\nreturn dashCloseRate;')();
-  assert.equal(close({ consults90: 4, signed90: 6 }), 100);
+  assert.equal(close({ consults90: 4, signed90: 6 }), null, 'more signed than consulted is no rate, not 100%');
+  assert.equal(close({ consults90: 4, signed90: 4 }), 100, 'every consult signed is 100%');
   assert.equal(close({ consults90: 10, signed90: 3 }), 30);
   assert.equal(close({ consults90: 0, signed90: 3 }), null);
   assert.equal(close(null), null);
+  const whyFn = /function dashCloseWhy\(f\) \{[\s\S]*?\n\}/.exec(src);
+  assert.ok(whyFn, 'dashCloseWhy moved');
+  const why = new Function(fn[0] + '\n' + whyFn[0] + '\nreturn dashCloseWhy;')();
+  assert.deepEqual([{ consults90: 4, signed90: 6 }, { consults90: 0, signed90: 3 }, { consults90: 10, signed90: null }, { consults90: 0, signed90: 0 }, { consults90: 10, signed90: 3 }].map(why), ['over', 'over', 'unread', 'none', null]);
   assert.equal((src.match(/const close = dashCloseRate\(f\);/g) || []).length, 2, 'both readers use it');
   assert.ok(!/MoM/.test(src), 'no month-over-month label is left for a 30-day comparison');
   assert.ok(!/function DashGrowthPanel\(/.test(src), 'the growth panel nothing showed is gone');
@@ -225,7 +234,7 @@ test('Today\'s Business card and sidebar say today\'s clients and Shape\'s fee, 
     pick(/function dashLivePayoutCard\(k\) \{[\s\S]*?\n\}/),
     pick(/const DASH_FUNNEL_BENCHMARK = [^\n]*/),
     pick(/function dashCloseRate\(f\) \{[\s\S]*?\n\}/),
-    ...(/function dashCloseWhy\(/.test(src) ? [pick(/function dashCloseWhy\(f\) \{[\s\S]*?\n\}/)] : []),
+    pick(/function dashCloseWhy\(f\) \{[\s\S]*?\n\}/),
     pick(/function DashBusinessSummary\([\s\S]*?\n\}/),
   ].join('\n');
   const js = babel.transformSync(code, { presets: [presetReact], babelrc: false, configFile: false }).code;
@@ -261,6 +270,7 @@ test('when the subscriptions can\'t be read, Today and the funnel say so: the co
   const code = [
     pick(/const DASH_FUNNEL_BENCHMARK = [^\n]*/),
     pick(/function dashCloseRate\(f\) \{[\s\S]*?\n\}/),
+    pick(/function dashCloseWhy\(f\) \{[\s\S]*?\n\}/),
     pick(/function DashFunnelPanel\([\s\S]*?\n\}/),
     pick(/function DashBusinessSummary\([\s\S]*?\n\}/),
   ].join('\n');
@@ -272,6 +282,16 @@ test('when the subscriptions can\'t be read, Today and the funnel say so: the co
   const card = text(React.createElement(DashBusinessSummary, { live, role: 'trainer', clients: [] }));
   assert.match(card, /— New clients · 90d couldn't be read just now/);
   assert.doesNotMatch(card, /none in the 30 days before/);
+  // (The sweep after #2394 round 10) the card's close rate says so too, as the funnel does.
+  assert.match(card, /— Consult → signed couldn't be read just now/);
+  // More signed than consulted: no rate, in its own words, on the funnel and the card alike.
+  const over = { ...live, growth: { weeklyAdds: [{ weekOf: 'w', count: 6, addedCents: 6 }], added90: 6, momPct: null }, funnel: { views: null, consults90: 4, signed90: 6 } };
+  const overFunnel = text(React.createElement(DashFunnelPanel, { live: over }));
+  assert.match(overFunnel, /More clients signed than booked a consult, so there's no close rate to show/);
+  assert.doesNotMatch(overFunnel, /100%|benchmark\. The lever|YOU ·|couldn't be read|Book consults/);
+  const overCard = text(React.createElement(DashBusinessSummary, { live: over, role: 'trainer', clients: [] }));
+  assert.match(overCard, /— Consult → signed more signed than booked a consult/);
+  assert.doesNotMatch(overCard, /100%|couldn't be read/);
   const funnel = text(React.createElement(DashFunnelPanel, { live }));
   assert.match(funnel, /Consults · 90d 7/);
   assert.match(funnel, /Signed from Shape · 90d couldn't be read just now/);

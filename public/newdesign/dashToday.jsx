@@ -980,12 +980,22 @@ const DASH_DEMO_GROWTH = {
 // The preview's signings are some of its new clients (18 for a nutritionist, 25 for a trainer), never more.
 const DASH_DEMO_FUNNEL = { views: 1240, consults90: 40, signed90: 14 };
 const DASH_FUNNEL_BENCHMARK = 30; // % consult→signed close rate, marketplace norm
-// Consult → signed, as a percent. "Signed" is the clients who found the coach on Shape, but one
-// can still sign without a consult, so the rate is capped at 100: past it is not a close rate.
+// Consult → signed, as a percent. "Signed" is the clients who found the coach on Shape.
 // Unread signings (the dashboards send signed90 null when the subscriptions could not be read)
 // are no rate, not 0%.
+// ⚠ MORE SIGNED THAN CONSULTED IS NO CLOSE RATE, NOT 100% (the sweep after #2394 round 10). A
+// client can sign without a consult, so the signings can outnumber the consults. The rate was capped
+// at 100 there, and the funnel and Today printed it as a measurement, "100% — above the ~30%
+// marketplace benchmark". It is null, and dashCloseWhy says which of the reasons it is.
 function dashCloseRate(f) {
-  return f && f.consults90 > 0 && f.signed90 != null ? Math.min(100, Math.round((f.signed90 / f.consults90) * 100)) : null;
+  return f && f.consults90 > 0 && f.signed90 != null && f.signed90 <= f.consults90 ? Math.round((f.signed90 / f.consults90) * 100) : null;
+}
+// Why there is no close rate, or null when there is one: "unread" (the signings couldn't be read),
+// "over" (more clients signed than booked a consult), "none" (nothing to measure yet).
+function dashCloseWhy(f) {
+  if (!f || dashCloseRate(f) != null) return null;
+  if (f.signed90 == null) return "unread";
+  return f.signed90 > (f.consults90 || 0) ? "over" : "none";
 }
 function DashFunnelPanel({ live }) {
   const f = live ? (live.funnel || null) : DASH_DEMO_FUNNEL;
@@ -998,11 +1008,13 @@ function DashFunnelPanel({ live }) {
   ];
   const maxV = Math.max(...stages.map((s) => s.v || 0), 1);
   const close = dashCloseRate(f);
+  const why = dashCloseWhy(f);
   const insight = close != null
     ? close >= DASH_FUNNEL_BENCHMARK
       ? "Your consult→client close rate is " + close + "% — above the ~" + DASH_FUNNEL_BENCHMARK + "% marketplace benchmark. The lever now is more consults at the top."
       : "Your consult→client close rate is " + close + "% vs the ~" + DASH_FUNNEL_BENCHMARK + "% benchmark — tightening the intake call converts more of the consults you already get."
-    : f.signed90 == null ? "Your signings couldn't be read just now, so there's no close rate to show. Nothing is lost; reload to try again."
+    : why === "unread" ? "Your signings couldn't be read just now, so there's no close rate to show. Nothing is lost; reload to try again."
+    : why === "over" ? "More clients signed than booked a consult, so there's no close rate to show: some signed without one."
     : "Book consults from the marketplace to start the funnel — signings are tracked automatically.";
   return (
     <div>
@@ -1039,6 +1051,7 @@ function DashBusinessSummary({ live, role, clients }) {
   // 90d", a subset of these clients (src/lib/coach-growth.ts added90). The weeks draw the sparkline.
   const adds90 = g && g.added90 != null ? g.added90 : null;
   const close = dashCloseRate(f);
+  const why = dashCloseWhy(f);
   const netCents = live
     ? (live.kpis && live.kpis.monthlyNetCents != null ? live.kpis.monthlyNetCents : null)
     : Math.round(clients.reduce((s, c) => s + ((c.payments && c.payments.mrrCents) || 0), 0) * 0.85);
@@ -1058,7 +1071,9 @@ function DashBusinessSummary({ live, role, clients }) {
             the net is each plan's own; the clients are today's, as Business counts them (the routes' practiceToday). */}
         {stat(netCents != null ? dashMoney(netCents) : "—", "Monthly · net", netCents != null ? "today's clients · after Shape's fee" : "no subscription data")}
         {stat(adds90 != null ? "+" + adds90 : "—", "New clients · 90d", !g ? "couldn't be read just now" : g.momPct != null ? (g.momPct >= 0 ? "+" : "") + g.momPct + "% vs the 30 days before" : "none in the 30 days before to compare")}
-        {stat(close != null ? close + "%" : "—", "Consult → signed", "benchmark ~" + DASH_FUNNEL_BENCHMARK + "%", close == null ? null : close >= DASH_FUNNEL_BENCHMARK ? "var(--sh-green, #7bbf5a)" : "var(--sh-gold, #d8a23a)")}
+        {stat(close != null ? close + "%" : "—", "Consult → signed",
+          why === "over" ? "more signed than booked a consult" : why === "unread" ? "couldn't be read just now" : "benchmark ~" + DASH_FUNNEL_BENCHMARK + "%",
+          close == null ? null : close >= DASH_FUNNEL_BENCHMARK ? "var(--sh-green, #7bbf5a)" : "var(--sh-gold, #d8a23a)")}
         {counts && (
           <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 34, flex: 1, minWidth: 120 }}>
             {counts.map((c, i) => (
@@ -2074,4 +2089,4 @@ function CoachDashboardPage({ role }) {
   );
 }
 
-Object.assign(window, { CoachDashboardPage, DashNowColumn, DashNeedsYou, dashCountdown, dashQueueRowState, dashQueueNotices, dashQueueMergeMarks, DASH_TODAY_ROLES, DASH_SEV_COLORS, DASH_FUNNEL_BENCHMARK, DashPill, DashDemoBand, TriagePulsePanel, DashWinsPanel, ProgrammingQueuePanel, dashCloseRate, DashFunnelPanel, DashNutriAggPanel, DashBusinessSummary, DashWeekAheadPanel, DashRosterStatusPanel, DashTopMoversPanel, DashAnniversariesPanel, DashRevenueByClientPanel, DashProgramsEndingPanel, DashNotesPanel, dashTabHref, dashMessageClient, dashMessageDraft, dashCongratsDraft, dashJointDraft, dashClientHref, dashClientPageHref, dashRelDay, dashContextLine, dashMoney, dashLivePayoutCard, dashFmtTime, dashCalDate, dashCalTime });
+Object.assign(window, { CoachDashboardPage, DashNowColumn, DashNeedsYou, dashCountdown, dashQueueRowState, dashQueueNotices, dashQueueMergeMarks, DASH_TODAY_ROLES, DASH_SEV_COLORS, DASH_FUNNEL_BENCHMARK, DashPill, DashDemoBand, TriagePulsePanel, DashWinsPanel, ProgrammingQueuePanel, dashCloseRate, dashCloseWhy, DashFunnelPanel, DashNutriAggPanel, DashBusinessSummary, DashWeekAheadPanel, DashRosterStatusPanel, DashTopMoversPanel, DashAnniversariesPanel, DashRevenueByClientPanel, DashProgramsEndingPanel, DashNotesPanel, dashTabHref, dashMessageClient, dashMessageDraft, dashCongratsDraft, dashJointDraft, dashClientHref, dashClientPageHref, dashRelDay, dashContextLine, dashMoney, dashLivePayoutCard, dashFmtTime, dashCalDate, dashCalTime });
