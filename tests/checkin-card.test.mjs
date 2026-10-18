@@ -210,6 +210,15 @@ test('Same as yesterday logs the whole day in one tap', async () => {
   } finally { m.unmount(); }
 });
 
+test('a day already checked in counts once in the streak', async () => {
+  env({ days: { '2026-10-16': { energy: 6 }, [YDAY]: { energy: 8 }, [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
+  const m = await mount();
+  try {
+    assert.match(m.text(), /Checked in ✓/);
+    assert.match(m.text(), /3 days running/, 'today was counted twice, or not at all');
+  } finally { m.unmount(); }
+});
+
 test("a wearable's night is not asked, and Same as yesterday leaves it alone", async () => {
   const calls = env({ days: { [TODAY]: { sleep: 7.2, hrv: 50 }, [YDAY]: { energy: 7, hunger: 5, sleep: 7, hrv: 48 } } });
   const m = await mount();
