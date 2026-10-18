@@ -63,6 +63,21 @@ export function madeByShape(application: unknown, expected: string | undefined =
   return applicationIdOf(application) === want;
 }
 
+/**
+ * Whether a payment or subscription on a coach's account is Shape's, when something else already
+ * proves the checkout behind it is (its record in coach_checkouts, or a row Shape wrote from one).
+ * The object's `application` must not name another application, and with
+ * STRIPE_CONNECT_APPLICATION_ID unset nothing passes (as madeByShape). ⚠ An object with NO
+ * application passes here, and only here: whether Checkout stamps Shape's application on the
+ * PaymentIntent or Subscription it makes on a connected account is what the end-to-end test
+ * purchase confirms (part B), and if it does not, the record alone must still let a member's
+ * payment be recorded. A coach's own checkout has no record, so it is still refused.
+ */
+export function shapeOrUnmarked(application: unknown, expected: string | undefined = process.env.STRIPE_CONNECT_APPLICATION_ID): boolean {
+  if (!String(expected ?? '').trim()) return false;
+  return applicationIdOf(application) == null || madeByShape(application, expected);
+}
+
 export type OriginRefusal = 'not_a_coach' | 'no_coach_row' | 'account_mismatch' | 'application_unset' | 'application_mismatch' | 'read_failed';
 export type OriginVerdict = { ok: true } | { ok: false; reason: OriginRefusal; error?: unknown };
 
@@ -76,12 +91,14 @@ export type OriginVerdict = { ok: true } | { ok: false; reason: OriginRefusal; e
  *   1. the account it came from is the account on record for the coach its metadata names, and
  *   2. the payment object behind it was made by Shape's Connect application, which needs
  *      STRIPE_CONNECT_APPLICATION_ID set (madeByShape); `checkApplication: false` skips this half
- *      for an event that carries no such object, an expired checkout.
+ *      for an event that carries no such object, an expired checkout. `recorded` (the checkout
+ *      is in coach_checkouts, part B) lets an object with no application through (shapeOrUnmarked),
+ *      and takes the account from the record, which was written for it.
  * Anything else is refused: the caller logs it, answers 200 and writes nothing.
  */
 export async function checkConnectOrigin(
   admin: AdminLike,
-  args: { account: string; providerRole: unknown; providerId: unknown; application?: unknown; checkApplication?: boolean },
+  args: { account: string; providerRole: unknown; providerId: unknown; application?: unknown; checkApplication?: boolean; recorded?: boolean },
   expectedApplication: string | undefined = process.env.STRIPE_CONNECT_APPLICATION_ID
 ): Promise<OriginVerdict> {
   const role = args.providerRole;
@@ -95,8 +112,14 @@ export async function checkConnectOrigin(
     .maybeSingle();
   if (error) return { ok: false, reason: 'read_failed', error };
   if (!data) return { ok: false, reason: 'no_coach_row' };
-  if ((data as { stripe_account_id?: unknown }).stripe_account_id !== args.account) return { ok: false, reason: 'account_mismatch' };
-  if (args.checkApplication !== false && !madeByShape(args.application, expectedApplication)) {
+  // ⚠ A RECORDED CHECKOUT IS JUDGED BY ITS RECORD, NOT THE COACH'S ACCOUNT NOW (Codex on #2403).
+  // Shape wrote the record for this account when it made the checkout (it is read by session AND
+  // account), so a payment that lands after the coach reconnected on a new account is still the
+  // member's, and is recorded on the account it was made on.
+  if (!args.recorded && (data as { stripe_account_id?: unknown }).stripe_account_id !== args.account) return { ok: false, reason: 'account_mismatch' };
+  // A checkout Shape recorded (coach_checkouts) is proven Shape's; its object may carry no application.
+  const madeHere = args.recorded ? shapeOrUnmarked : madeByShape;
+  if (args.checkApplication !== false && !madeHere(args.application, expectedApplication)) {
     return { ok: false, reason: String(expectedApplication ?? '').trim() ? 'application_mismatch' : 'application_unset' };
   }
   return { ok: true };
@@ -139,6 +162,7 @@ export async function platformCoachCustomer(
 type StripeCustomers = {
   customers: {
     create: (params: Record<string, unknown>, opts: { stripeAccount: string; idempotencyKey: string }) => PromiseLike<{ id: string }>;
+    retrieve: (id: string, params: undefined, opts: { stripeAccount: string }) => PromiseLike<{ id: string; deleted?: unknown }>;
   };
 };
 
@@ -165,12 +189,36 @@ export async function connectedCustomerFor(
     return ((data as { customer_id?: string | null } | null)?.customer_id) || null;
   };
   const existing = await read();
-  if (existing) return existing;
-  // The idempotency key gives two first checkouts started together one customer, not two.
+  // ⚠ THE COACH CAN DELETE IT (Codex on #2403): the account is theirs, and a customer they delete in
+  // their dashboard would be named by every later checkout, which Stripe refuses, so the member could
+  // never buy from that coach again. One Stripe reports deleted (or no longer has) is replaced; any
+  // other failure to ask throws, and the caller refuses the checkout.
+  let replacing: string | null = null;
+  if (existing) {
+    let gone = false;
+    try {
+      gone = (await stripe.customers.retrieve(existing, undefined, { stripeAccount: account })).deleted === true;
+    } catch (err) {
+      if ((err as { code?: string })?.code !== 'resource_missing') throw err;
+      gone = true;
+    }
+    if (!gone) return existing;
+    replacing = existing;
+  }
+  // The idempotency key gives two first checkouts started together one customer, not two; a
+  // replacement is keyed on the customer it replaces.
   const customer = await stripe.customers.create(
     { ...(email ? { email } : {}), metadata: { client_id: userId } },
-    { stripeAccount: account, idempotencyKey: `shape-customer-${userId}-${account}` }
+    { stripeAccount: account, idempotencyKey: `shape-customer-${userId}-${account}${replacing ? `-after-${replacing}` : ''}` }
   );
+  if (replacing) {
+    // Only over the deleted one: a replacement saved by a concurrent request wins.
+    const { error } = await (q(admin, 'stripe_connected_customers') as unknown as {
+      update: (row: Record<string, unknown>) => { eq: (c: string, v: unknown) => { eq: (c: string, v: unknown) => { eq: (c: string, v: unknown) => PromiseLike<QueryResult> } } };
+    }).update({ customer_id: customer.id }).eq('user_id', userId).eq('stripe_account_id', account).eq('customer_id', replacing);
+    if (error) throw error;
+    return (await read()) ?? customer.id;
+  }
   // Never replaces a row: a customer saved by a concurrent request wins, and is the one returned.
   const { error } = await q(admin, 'stripe_connected_customers').upsert(
     { user_id: userId, stripe_account_id: account, customer_id: customer.id },

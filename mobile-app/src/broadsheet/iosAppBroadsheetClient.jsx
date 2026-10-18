@@ -35885,6 +35885,18 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       .catch(() => {});
     return () => { cancelled = true; };
   }, []);
+  // Coaching plans billed on the coach's own Stripe account (coach direct charges, part B): Shape's
+  // own portal never shows them, so each gets its own Manage row below (Codex on #2403).
+  const [coachPlans, setCoachPlans] = useStateBSC([]);
+  React.useEffect(() => {
+    let cancelled = false;
+    if (!window.ShapeAuth?.getCachedState?.()?.user?.id) return undefined;
+    bsApi.fetch('/api/stripe/billing-portal', { credentials: 'same-origin', cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled && d && Array.isArray(d.plans)) setCoachPlans(d.plans); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   // Persisted user preferences for the Notifications / Preferences / Privacy
   // rows. Tapping a row cycles to the next option and saves to user_goals so
@@ -36207,6 +36219,27 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       if (key === 'shareWorkoutData' || key === 'profileVisibility') bsOnShareSettingChanged(p, next);
       return next;
     });
+  };
+
+  // A coaching plan's own billing, on the coach's Stripe account. One from before the move is in
+  // Shape's own portal, which the route says with `no_coach_plan`.
+  const openCoachBilling = async (p) => {
+    try {
+      const res = await bsApi.fetch('/api/stripe/billing-portal', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ coach: { provider_role: p.provider_role, provider_id: p.provider_id }, returnPath: '/m/' }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.url) { window.location.href = data.url; return; }
+      if (data?.reason === 'no_coach_plan') { openBillingPortal(); return; }
+      // The coach disconnected: Shape can't open their account, so the member is sent to support in
+      // words (toasts are a no-op app-wide, so it is an alert, as on the website).
+      if (data?.reason === 'coach_disconnected' && data?.error) { window.alert(data.error); return; }
+      window.__bsToast?.(data?.error || tr('settings:toast.billingUnavailable', { defaultValue: 'Billing portal unavailable' }), 'err');
+    } catch (e) {
+      window.__bsToast?.(tr('settings:toast.billingUnavailable', { defaultValue: 'Billing portal unavailable' }), 'err');
+    }
   };
 
   // Stripe Customer Portal — billing UI for card / cancel / invoices.
@@ -37054,6 +37087,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     { l: tr('settings:billing.manageSub', { defaultValue: 'Manage subscription' }), r: tr('settings:billing.stripePortal', { defaultValue: 'Stripe portal' }), action: openBillingPortal },
     { l: tr('settings:billing.updatePayment', { defaultValue: 'Update payment method' }), r: tr('settings:billing.stripePortal', { defaultValue: 'Stripe portal' }), action: openBillingPortal },
     { l: tr('settings:billing.invoices', { defaultValue: 'View invoices & receipts' }), r: tr('settings:billing.stripePortal', { defaultValue: 'Stripe portal' }), action: openBillingPortal },
+    ...coachPlans.map((p) => ({ l: p.name || (p.provider_role === 'nutritionist' ? tr('feed:thread.yourNutritionist', { defaultValue: 'Your nutritionist' }) : tr('feed:thread.yourCoach', { defaultValue: 'Your coach' })), r: tr('settings:billing.coachPlan', { defaultValue: 'Coaching plan' }), action: () => openCoachBilling(p) })),
   ];
   const sections = [
     {

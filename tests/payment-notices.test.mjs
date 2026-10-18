@@ -12,6 +12,7 @@ import { createRequire } from 'node:module';
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadRealModule } from './helpers/load-real-module.mjs';
+import { coachCheckoutEntries } from './helpers/coach-checkout-module.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require_ = createRequire(join(ROOT, 'package.json'));
@@ -278,6 +279,7 @@ async function runWebhook(event, { tables = {}, errors = {}, sub = {}, secret = 
   const route = await loadRealModule(join(ROOT, 'src/app/api/stripe/webhook/route.ts'), {
     typescript: true,
     registry: new Map([
+      ...(await coachCheckoutEntries()),
       ['next/server', nextServer],
       ['@/lib/stripe', { stripe }],
       ['@/lib/stripe-connect', connect],

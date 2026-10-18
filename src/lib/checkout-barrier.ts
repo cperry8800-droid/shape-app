@@ -94,11 +94,12 @@ export function checkoutReturnsKey(successUrl: string, cancelUrl: string): strin
   return createHash('sha256').update(`${successUrl}\n${cancelUrl}`).digest('hex').slice(0, 32);
 }
 
-type OpenSession = { created: number; url?: string | null; mode?: string | null; metadata?: Record<string, string> | null };
+type OpenSession = { id: string; created: number; url?: string | null; mode?: string | null; metadata?: Record<string, string> | null };
 
 /**
  * Run while holding the claim: the account's newest open checkout for the product, if it is fresh
- * and on the same terms; every other open one for the product is expired.
+ * and on the same terms; every other open one for the product is expired. Shape's own account only:
+ * a coach's account goes through retireCoachCheckouts.
  */
 export async function currentCheckout(
   customerId: string,
@@ -120,4 +121,96 @@ export async function currentCheckout(
     await stripe.checkout.sessions.expire(session.id);
   }
   return current;
+}
+
+type SessionRef = { id: string; status?: string | null; subscription?: string | { id?: string } | null };
+
+/**
+ * Run while holding the claim, for a subscription checkout on a COACH'S account (direct charges).
+ * ⚠ NOTHING THERE IS HANDED BACK, AND NOTHING IS READ FROM ITS METADATA (Codex on #2403). The coach
+ * can open a checkout for the member's customer with copied metadata, and rewrite the metadata of
+ * the ones Shape made (Stripe lets an account update a session's metadata), so neither "is this
+ * Shape's?" nor "is it on these terms?" can be answered from it. So:
+ *   · every open checkout Shape RECORDED for this coach and member (coach_checkouts, by its own
+ *     provider and mode) is expired, and a fresh one is made: no old price is ever charged, and the
+ *     coach's own checkouts are left alone;
+ *   · the subscriptions behind the checkouts Shape recorded and the member COMPLETED are returned,
+ *     so the "already pays?" check counts one even when Stripe stamped no application on it and the
+ *     webhook has not written its row yet.
+ * ⚠ THE RECORDS ARE THE LIST, NEVER STRIPE'S (Codex on #2403): each recorded checkout is read by its
+ * own id, so a coach who opens a hundred newer checkouts for the member's customer can't push one of
+ * Shape's off a page. A recorded checkout the account no longer has is skipped; any other failed
+ * read throws, and the caller refuses.
+ * ⚠ A COACH WHO RECONNECTED LEAVES CHECKOUTS ON THEIR FORMER ACCOUNT (Codex on #2403). A member who
+ * paid there just before the coach disconnected may not have a row yet, and the coach's row now
+ * names a new account. So Shape's recorded checkouts on any other account from the last
+ * FORMER_ACCOUNT_WINDOW_MS are read too, each on its own account. The window runs from the record,
+ * so it is a checkout's lifetime (Stripe's default 24 hours; Shape sets none) plus the 3 days Stripe
+ * retries the webhook after the payment, which can come at the end of that lifetime (Codex):
+ * an open one is expired and a completed one's subscription is returned in `former`. One Shape can
+ * no longer read there (the coach took Shape's access with them) can't be ruled out, so it is
+ * returned as `unverified` and the caller refuses for now; that ends with the window, so it never
+ * blocks the member from this coach for good.
+ */
+const CHECKOUT_LIFETIME_MS = 24 * 60 * 60 * 1000;
+const WEBHOOK_RETRY_MS = 3 * 24 * 60 * 60 * 1000;
+export const FORMER_ACCOUNT_WINDOW_MS = CHECKOUT_LIFETIME_MS + WEBHOOK_RETRY_MS;
+
+export type RetiredCoachCheckouts = {
+  /** Subscriptions behind Shape's completed checkouts on the coach's current account. */
+  subscriptions: Set<string>;
+  /** The same on a former account of this coach's, by account. */
+  former: Map<string, Set<string>>;
+  /** A recent checkout on a former account Shape can no longer read. */
+  unverified: boolean;
+};
+
+const noAccess = (err: unknown) => {
+  const e = err as { type?: string; code?: string };
+  return e?.type === 'StripePermissionError' || e?.code === 'account_invalid';
+};
+
+export async function retireCoachCheckouts(
+  clientId: string,
+  stripeAccount: string,
+  product: { provider_role: string; provider_id: number },
+  now = Date.now()
+): Promise<RetiredCoachCheckouts> {
+  const { data, error } = await createAdminClient()
+    .from('coach_checkouts')
+    .select('stripe_checkout_session_id, stripe_account_id, created_at')
+    .eq('client_id', clientId)
+    .eq('provider_role', product.provider_role)
+    .eq('provider_id', product.provider_id)
+    .eq('mode', 'subscription');
+  if (error) throw error;
+  const since = now - FORMER_ACCOUNT_WINDOW_MS;
+  const rows = ((data ?? []) as Array<{ stripe_checkout_session_id: string; stripe_account_id: string; created_at?: string | null }>)
+    .filter((r) => r.stripe_account_id === stripeAccount || Date.parse(r.created_at ?? '') >= since);
+  let unverified = false;
+  const sessions = await Promise.all(rows.map(async (r): Promise<{ account: string; session: SessionRef } | null> => {
+    try {
+      return { account: r.stripe_account_id, session: await stripe.checkout.sessions.retrieve(r.stripe_checkout_session_id, undefined, { stripeAccount: r.stripe_account_id }) as SessionRef };
+    } catch (err) {
+      if ((err as { code?: string })?.code === 'resource_missing') return null;
+      // Only a former account can have taken Shape's access away; on the current one it's a failure.
+      if (r.stripe_account_id !== stripeAccount && noAccess(err)) { unverified = true; return null; }
+      throw err;
+    }
+  }));
+  const subscriptions = new Set<string>();
+  const former = new Map<string, Set<string>>();
+  for (const found of sessions) {
+    if (!found) continue;
+    const { account, session } = found;
+    if (session.status === 'open') {
+      await stripe.checkout.sessions.expire(session.id, undefined, { stripeAccount: account });
+    } else if (session.status === 'complete') {
+      const sub = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id;
+      if (!sub) continue;
+      if (account === stripeAccount) subscriptions.add(sub);
+      else former.set(account, (former.get(account) ?? new Set()).add(sub));
+    }
+  }
+  return { subscriptions, former, unverified };
 }

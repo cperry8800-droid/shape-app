@@ -134,6 +134,7 @@
   "billing.manageSub": "Управлять подпиской",
   "billing.updatePayment": "Обновить способ оплаты",
   "billing.invoices": "Просмотреть счета и чеки",
+  "billing.coachPlan": "План с тренером",
   "billing.stripePortal": "Портал Stripe",
   "accountActions.export": "Экспортировать все мои данные",
   "accountActions.exportMeta": "Скачать",

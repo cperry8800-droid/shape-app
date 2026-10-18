@@ -13,6 +13,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { loadRealModule } from './helpers/load-real-module.mjs';
+import { coachCheckoutEntries } from './helpers/coach-checkout-module.mjs';
 import { fakeSupabase } from './helpers/fake-supabase.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -44,6 +45,7 @@ async function runCheckout({ trainer = TRAINER, nutritionist = NUTRI, plans = []
   const route = await loadRealModule(join(ROOT, 'src/app/api/stripe/checkout-session/route.ts'), {
     typescript: true,
     registry: new Map([
+      ...(await coachCheckoutEntries()),
       ['next/server', nextServer],
       ['@/lib/stripe', { stripe: { checkout: { sessions: { create: async (args) => { created.push(args); return { id: 'cs_test_1', url: 'https://checkout.stripe.test/cs_test_1' }; } } } } }],
       ['@/lib/supabase/admin', { createAdminClient: () => admin }],
@@ -107,7 +109,10 @@ test('webhook: the coach is told who paid, only after the purchase is saved; the
   assert.ok(at > 0);
   assert.match(src.slice(src.lastIndexOf('if (', at), at), /^if \(!purchaseErr\) \{/);
   assert.ok(at > src.indexOf(".from('one_time_purchases')\n            .upsert(withSnapshot"), 'after the save');
-  assert.match(src.slice(at, at + 500), /kind: kind === 'program' \|\| kind === 'meal_plan' \? kind : 'booking',\s+checkoutId: session\.id,\s+coachCents: coachCutCents\(grossCents, payoutRate\),/);
+  assert.match(src.slice(at, at + 500), /kind: kind === 'program' \|\| kind === 'meal_plan' \? kind : 'booking',\s+checkoutId: session\.id,\s+coachCents,/);
+  // The coach's cut: at the resolved rate of the gross on Shape's account; on a coach's own account
+  // (part B), what Stripe charged less the fee on that payment.
+  assert.match(src, /const coachCents = acct\n\s+\? Math\.max\(0, priceCents - \(applicationFeeCents \?\? 0\)\)\n\s+: coachCutCents\(grossCents, payoutRate\);/);
   // The coach's notice names the plan read from coach_plans, never the checkout's item_name (Fable on #2373).
   assert.match(src.slice(at, at + 900), /itemName: planSnapshot && typeof planSnapshot\.name === 'string' && planSnapshot\.name\.trim\(\) \? planSnapshot\.name\.trim\(\) : null,/);
   assert.doesNotMatch(src.slice(at, at + 900), /metadata\?\.item_name/);
@@ -299,6 +304,7 @@ async function loadReturn({ user = { id: UID }, retrieve, provider = { name: 'To
   return loadRealModule(join(ROOT, 'src/lib/checkout-return.ts'), {
     typescript: true,
     registry: new Map([
+      ...(await coachCheckoutEntries()),
       ['@/lib/stripe', { stripe: { checkout: { sessions: { retrieve } } } }],
       // acctOpts / isAccountId for a direct-charge return (coach direct charges, 2026-10-18), as they ship.
       ['@/lib/stripe-connect', await loadRealModule(join(ROOT, 'src/lib/stripe-connect.ts'), { typescript: true })],

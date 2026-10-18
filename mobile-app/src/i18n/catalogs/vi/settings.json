@@ -134,6 +134,7 @@
   "billing.manageSub": "Quản lý gói đăng ký",
   "billing.updatePayment": "Cập nhật phương thức thanh toán",
   "billing.invoices": "Xem hóa đơn & biên nhận",
+  "billing.coachPlan": "Gói huấn luyện",
   "billing.stripePortal": "Cổng Stripe",
   "accountActions.export": "Xuất tất cả dữ liệu của tôi",
   "accountActions.exportMeta": "Tải xuống",

@@ -87,6 +87,21 @@ function SingleFieldModal({ label, fieldKey, initialValue, onClose, onSaved, opt
 // coaching plans from /api/client/team (the real per-coach subscriptions), and
 // the card on file from /api/stripe/payment-method (brand + last4 only). No
 // invented amounts: an honest empty/portal state shows when data is absent.
+// A coaching plan's billing (coach direct charges, part B). A plan paid on the coach's own Stripe
+// account is managed there, in a portal Shape opens on that account for this member
+// (/api/stripe/billing-portal with `coach`); a plan from before the move is in Shape's own portal,
+// which the route says with `no_coach_plan`. Anything else falls back to the pricing page.
+async function openCoachBilling(c) {
+  const post = (body) => fetch("/api/stripe/billing-portal", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+    .then(async (r) => ({ ok: r.ok, d: await r.json().catch(() => null) })).catch(() => ({ ok: false, d: null }));
+  const back = "/newdesign/ClientApp.html#settings";
+  let r = c && c.provider_id && c.provider_role ? await post({ coach: { provider_role: c.provider_role, provider_id: c.provider_id }, returnPath: back }) : { ok: false, d: { reason: "no_coach_plan" } };
+  if (!r.ok && r.d && r.d.reason === "no_coach_plan") r = await post({ returnPath: back });
+  // A coach who disconnected their payments from Shape: no portal can open; the route says who can help.
+  if (!r.ok && r.d && r.d.reason === "coach_disconnected") { window.alert(r.d.error); return; }
+  window.location.href = (r.ok && r.d && r.d.url) ? r.d.url : "/pricing";
+}
+
 function PlanBillingCard({ signedIn }) {
   const [sub, setSub] = React.useState(undefined);  // undefined=loading, null=inactive, obj=active
   const [coaches, setCoaches] = React.useState(undefined); // undefined=loading, array when known
@@ -113,7 +128,7 @@ function PlanBillingCard({ signedIn }) {
   } else if (coaches === undefined) {
     coachingRows = <Row label="Coaching plans" value="Checking…" />;
   } else if (coaches.length) {
-    coachingRows = coaches.map((c, i) => <Row key={i} label={c.name} value={c.plan || "Active"} action="MANAGE" onAction={() => window.location.href = "/pricing"} />);
+    coachingRows = coaches.map((c, i) => <Row key={i} label={c.name} value={c.plan || "Active"} action="MANAGE" onAction={() => openCoachBilling(c)} />);
   } else {
     coachingRows = <Row label="Coaching plans" value="None active" action="FIND A COACH" onAction={() => window.location.href = "/newdesign/Marketplace.html"} />;
   }

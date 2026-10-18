@@ -26,12 +26,17 @@ export async function GET(request: Request) {
   const admin = createAdminClient();
   const { data: provider } = await admin
     .from(table)
-    .select('id, owner_id, stripe_account_id')
+    .select('id, owner_id, stripe_account_id, stripe_account_status')
     .eq('id', providerId)
     .maybeSingle();
 
   if (!provider || provider.owner_id !== user.id || !provider.stripe_account_id) {
     return NextResponse.redirect(new URL('/dashboard?error=invalid_onboarding', request.url));
+  }
+  // A disconnected account no longer lets Shape in, so a link for it would fail: the coach starts
+  // again from Connect Stripe, which makes them a new account (connect-account, connect/onboard).
+  if ((provider as { stripe_account_status?: string | null }).stripe_account_status === 'disconnected') {
+    return NextResponse.redirect(new URL('/dashboard?error=stripe_disconnected', request.url));
   }
 
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';

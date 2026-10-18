@@ -134,6 +134,7 @@
   "billing.manageSub": "Kelola langganan",
   "billing.updatePayment": "Perbarui metode pembayaran",
   "billing.invoices": "Lihat faktur & kuitansi",
+  "billing.coachPlan": "Paket coaching",
   "billing.stripePortal": "Portal Stripe",
   "accountActions.export": "Ekspor semua data saya",
   "accountActions.exportMeta": "Unduh",

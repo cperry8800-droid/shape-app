@@ -144,6 +144,7 @@
   "panel.sendMessage": "Enviar mensagem",
   "panel.typeBooking": "Agendamento",
   "panel.typeCheckout": "Pagamento",
+  "panel.codeLabel": "Código da Shape ou do coach (opcional)",
   "panel.typeMessage": "Mensagem",
   "panel.yourNote": "Sua nota",
   "pkg.included": "{count, plural, one {# incluído} other {# incluídos}}",

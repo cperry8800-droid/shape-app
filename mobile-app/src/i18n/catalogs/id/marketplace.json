@@ -144,6 +144,7 @@
   "panel.sendMessage": "Kirim pesan",
   "panel.typeBooking": "Pemesanan",
   "panel.typeCheckout": "Pembayaran",
+  "panel.codeLabel": "Kode Shape atau pelatih (opsional)",
   "panel.typeMessage": "Pesan",
   "panel.yourNote": "Catatanmu",
   "pkg.included": "{count} termasuk",

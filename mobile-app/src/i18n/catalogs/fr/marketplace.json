@@ -144,6 +144,7 @@
   "panel.sendMessage": "Envoyer le message",
   "panel.typeBooking": "Réservation",
   "panel.typeCheckout": "Paiement",
+  "panel.codeLabel": "Code Shape ou du coach (facultatif)",
   "panel.typeMessage": "Message",
   "panel.yourNote": "Votre note",
   "pkg.included": "{count} inclus",

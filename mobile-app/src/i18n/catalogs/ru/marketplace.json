@@ -144,6 +144,7 @@
   "panel.sendMessage": "Отправить сообщение",
   "panel.typeBooking": "Запись",
   "panel.typeCheckout": "Оплата",
+  "panel.codeLabel": "Код Shape или тренера (необязательно)",
   "panel.typeMessage": "Сообщение",
   "panel.yourNote": "Ваша заметка",
   "pkg.included": "{count} включено",

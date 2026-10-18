@@ -134,6 +134,7 @@
   "billing.manageSub": "Aboneliği yönet",
   "billing.updatePayment": "Ödeme yöntemini güncelle",
   "billing.invoices": "Faturaları ve makbuzları gör",
+  "billing.coachPlan": "Koçluk planı",
   "billing.stripePortal": "Stripe portalı",
   "accountActions.export": "Tüm verilerimi dışa aktar",
   "accountActions.exportMeta": "İndir",

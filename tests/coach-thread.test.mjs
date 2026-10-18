@@ -286,7 +286,7 @@ test('webhook: the coach is told only after the subscription is saved, and the n
   // Only once the money has moved (Codex on #2360): an `unpaid` completion (a bank debit) waits
   // for async_payment_succeeded, which runs this same branch with `paid`.
   assert.match(src, /const moneyMoved = session\.payment_status === 'paid' \|\| session\.payment_status === 'no_payment_required';/);
-  assert.ok(src.indexOf('const moneyMoved') < src.indexOf("if (session.metadata?.plan === 'shape_platform')"), 'decided before either branch');
+  assert.ok(src.indexOf('const moneyMoved') < src.indexOf("if (meta?.plan === 'shape_platform')"), 'decided before either branch');
   assert.ok(at > src.indexOf(".from('subscriptions')\n          .upsert("), 'after the save');
   assert.match(src.slice(at, at + 400), /subscriptionKey: subRow\.stripe_subscription_id \|\| session\.id,/);
   // The membership: welcomed only when its row was saved.

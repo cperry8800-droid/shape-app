@@ -20,6 +20,7 @@ import { createRequire } from 'node:module';
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadRealModule } from './helpers/load-real-module.mjs';
+import { coachCheckoutEntries } from './helpers/coach-checkout-module.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require_ = createRequire(join(ROOT, 'package.json'));
@@ -172,7 +173,11 @@ test('the origin guard: the account must be the named coach\'s, and the object S
 
 test('connectedCustomerFor: one customer per member and coach account, made on that account, never replaced', async () => {
   const created = [];
-  const stripe = { customers: { create: async (params, opts) => { created.push({ params, opts }); return { id: 'cus_onCoach' }; } } };
+  const asked = [];
+  const stripe = { customers: {
+    create: async (params, opts) => { created.push({ params, opts }); return { id: 'cus_onCoach' }; },
+    retrieve: async (id, params, opts) => { asked.push([id, opts]); return { id }; },
+  } };
   const fresh = fakeDb();
   assert.equal(await connect.connectedCustomerFor(stripe, fresh.client, { userId: UID, account: ACCT, email: 'm@example.invalid' }), 'cus_onCoach');
   assert.deepEqual(created, [{ params: { email: 'm@example.invalid', metadata: { client_id: UID } }, opts: { stripeAccount: ACCT, idempotencyKey: `shape-customer-${UID}-${ACCT}` } }]);
@@ -184,6 +189,7 @@ test('connectedCustomerFor: one customer per member and coach account, made on t
   const known = fakeDb({ tables: { stripe_connected_customers: [{ user_id: UID, stripe_account_id: ACCT, customer_id: 'cus_known' }, { user_id: UID, stripe_account_id: OTHER_ACCT, customer_id: 'cus_elsewhere' }] } });
   assert.equal(await connect.connectedCustomerFor(stripe, known.client, { userId: UID, account: ACCT, email: null }), 'cus_known');
   assert.equal(created.length, 0);
+  assert.deepEqual(asked, [['cus_known', { stripeAccount: ACCT }]], 'asked on the coach\'s account that it still exists (part B)');
   // Another account's customer is not this one's.
   const elsewhere = fakeDb({ tables: { stripe_connected_customers: [{ user_id: UID, stripe_account_id: OTHER_ACCT, customer_id: 'cus_elsewhere' }] } });
   assert.equal(await connect.connectedCustomerFor(stripe, elsewhere.client, { userId: UID, account: ACCT, email: null }), 'cus_onCoach');
@@ -201,6 +207,27 @@ test('connectedCustomerFor: one customer per member and coach account, made on t
   await assert.rejects(connect.connectedCustomerFor(stripe, fakeDb({ errors: { 'select:stripe_connected_customers': { message: 'down' } } }).client, { userId: UID, account: ACCT, email: null }));
   await assert.rejects(connect.connectedCustomerFor(stripe, fakeDb({ errors: { 'upsert:stripe_connected_customers': { message: 'down' } } }).client, { userId: UID, account: ACCT, email: null }));
   await assert.rejects(connect.connectedCustomerFor(stripe, fakeDb().client, { userId: UID, account: 'cus_notAnAccount', email: null }), /connected account/);
+});
+
+// ⚠ THE COACH CAN DELETE THE MEMBER'S CUSTOMER ON THEIR OWN ACCOUNT (Codex on #2403, part B): one
+// Stripe reports deleted, or no longer has, is replaced, so the member is never shut out for good.
+test('connectedCustomerFor: a customer the coach deleted is replaced, only over itself; any other failure refuses', async () => {
+  const run = async (retrieve) => {
+    const created = [];
+    const stripe = { customers: { create: async (params, opts) => { created.push(opts); return { id: 'cus_fresh' }; }, retrieve } };
+    const db = fakeDb({ tables: { stripe_connected_customers: [{ user_id: UID, stripe_account_id: ACCT, customer_id: 'cus_gone' }] } });
+    const id = await connect.connectedCustomerFor(stripe, db.client, { userId: UID, account: ACCT, email: null });
+    return { id, created, db };
+  };
+  const deleted = await run(async (id) => ({ id, deleted: true }));
+  assert.equal(deleted.id, 'cus_fresh');
+  assert.deepEqual(deleted.created, [{ stripeAccount: ACCT, idempotencyKey: `shape-customer-${UID}-${ACCT}-after-cus_gone` }]);
+  const [upd] = stmts(deleted.db.calls, 'stripe_connected_customers', 'update');
+  assert.deepEqual(upd.eqs, [['user_id', UID], ['stripe_account_id', ACCT], ['customer_id', 'cus_gone']], 'only over the deleted one');
+  assert.equal(deleted.db.tables.stripe_connected_customers[0].customer_id, 'cus_fresh');
+  const missing = await run(async () => { throw Object.assign(new Error('No such customer'), { code: 'resource_missing' }); });
+  assert.equal(missing.id, 'cus_fresh');
+  await assert.rejects(run(async () => { throw Object.assign(new Error('rate limited'), { code: 'rate_limit' }); }), /rate limited/);
 });
 
 test('platformCoachCustomer: a coaching row\'s customer counts only when the row is on Shape\'s own account', async () => {
@@ -272,13 +299,42 @@ function fakeStripe({ pi = {}, sub = {}, fee = null, charge = null } = {}) {
   return { stripe, calls };
 }
 
+/**
+ * Shape's record of a checkout on a coach's account (coach_checkouts, part B), as the checkout
+ * routes write it: the webhook believes it, not the checkout's metadata. Part A's events name what
+ * Shape would have recorded, so the record here is read off the event; a test that wants none (or
+ * another) passes tables.coach_checkouts itself.
+ */
+function recordFor(session, account, tables = coaches()) {
+  const m = session.metadata || {};
+  const id = Number(m.provider_id);
+  if (!account || !Number.isSafeInteger(id) || id <= 0 || (m.provider_role !== 'trainer' && m.provider_role !== 'nutritionist')) return null;
+  // Shape records a checkout only on the account of the coach it names (the route reads it off the
+  // coach's row), so a checkout naming another coach, or one with no account, has no record.
+  const coach = (tables[m.provider_role === 'trainer' ? 'trainers' : 'nutritionists'] || []).find((r) => r.id === id);
+  if (!coach || coach.stripe_account_id !== account) return null;
+  return {
+    stripe_checkout_session_id: session.id, stripe_account_id: account, client_id: m.client_id, provider_role: m.provider_role, provider_id: id,
+    mode: session.mode || 'payment', kind: m.kind || (session.mode === 'subscription' ? 'subscription' : 'booking'), plan_id: m.plan_id || null, workout_id: null,
+    item_name: m.item_name || null, origin: m.origin || 'marketplace', fee_bps: Number(m.fee_bps ?? 1500), referral_id: m.referral_id || null,
+    list_cents: Number(m.gross_price_cents ?? m.price_cents ?? 0), charge_cents: Number(m.price_cents ?? 0), application_fee_cents: null,
+    store_credit_kind: m.store_credit_kind || null, store_credit_cents: Number(m.store_credit_cents ?? 0), store_credit_ref: m.store_credit_ref || null,
+    code: null, code_source: null,
+  };
+}
+
 async function runWebhook(event, { secret = CONNECT_SECRET, tables = {}, errors = {}, stripeOpts = {}, env = {} } = {}) {
+  if (!('coach_checkouts' in tables) && String(event.type).startsWith('checkout.session') && event.data?.object) {
+    const rec = recordFor(event.data.object, event.account, tables);
+    tables = { ...tables, coach_checkouts: rec ? [rec] : [] };
+  }
   const db = fakeDb({ tables, errors });
   const { stripe, calls } = fakeStripe(stripeOpts);
   const started = [];
   const route = await loadRealModule(join(ROOT, 'src/app/api/stripe/webhook/route.ts'), {
     typescript: true,
     registry: new Map([
+      ...(await coachCheckoutEntries()),
       ['next/server', nextServer],
       ['@/lib/stripe', { stripe }],
       ['@/lib/stripe-connect', connect],
@@ -369,14 +425,18 @@ test('webhook: a Connect subscription is read on the account and stamped; it sta
 });
 
 test('webhook ORIGIN GUARD: a checkout from another coach\'s account, or one Shape did not make, writes nothing', async () => {
+  // Part B: a checkout naming another coach, or none, has no record at Shape (Shape records one only
+  // on the named coach's own account), so it is refused before the account half is asked; that half
+  // is driven directly above.
   for (const [label, event, opts, reason] of [
-    ['another coach\'s account named', purchaseEvent({ provider_id: '5' }), {}, 'account_mismatch'],
-    ['a coach with no account named', purchaseEvent({ provider_id: '6' }), {}, 'account_mismatch'],
-    ['a coach who does not exist', purchaseEvent({ provider_id: '99' }), {}, 'no_coach_row'],
-    ['no coach named', purchaseEvent({ provider_role: 'admin' }), {}, 'not_a_coach'],
+    ['another coach\'s account named', purchaseEvent({ provider_id: '5' }), {}, 'not_recorded'],
+    ['a coach with no account named', purchaseEvent({ provider_id: '6' }), {}, 'not_recorded'],
+    ['a coach who does not exist', purchaseEvent({ provider_id: '99' }), {}, 'not_recorded'],
+    // Part B: a checkout naming no coach has no record at Shape (the table's check allows only
+    // trainer and nutritionist), so it is refused before the guard reads anything.
+    ['no coach named', purchaseEvent({ provider_role: 'admin' }), {}, 'not_recorded'],
     ['the coach\'s own payment, not Shape\'s', purchaseEvent(), { stripeOpts: { pi: { application: 'ca_someoneElse' } } }, 'application_mismatch'],
-    ['a payment with no application', purchaseEvent(), { stripeOpts: { pi: { application: null } } }, 'application_mismatch'],
-    ['a subscription from another coach\'s account', subEvent({ provider_id: '5' }), {}, 'account_mismatch'],
+    ['a subscription from another coach\'s account', subEvent({ provider_id: '5' }), {}, 'not_recorded'],
     ['the coach\'s own subscription, not Shape\'s', subEvent(), { stripeOpts: { sub: { application: 'ca_someoneElse' } } }, 'application_mismatch'],
   ]) {
     const r = await runWebhook(event, { tables: coaches(), ...opts });
@@ -386,6 +446,13 @@ test('webhook ORIGIN GUARD: a checkout from another coach\'s account, or one Sha
     assert.deepEqual(r.started, [], `${label}: nobody told`);
     assert.ok(r.logs.some((l) => l.includes('refused by the origin guard')), `${label}: said`);
   }
+  // Part B: a payment with NO application at all is Shape's when Shape recorded its checkout (the
+  // record is the proof; tests/coach-direct-charges-checkout.test.mjs). A coach's own has no record.
+  const bare = await runWebhook(purchaseEvent(), { tables: coaches(), stripeOpts: { pi: { application: null } } });
+  assert.equal(stmts(bare.db.calls, 'one_time_purchases', 'upsert').length, 1, 'recorded, no application: Shape\'s');
+  const bareOwn = await runWebhook(purchaseEvent(), { tables: { ...coaches(), coach_checkouts: [] }, stripeOpts: { pi: { application: null } } });
+  assert.equal(bareOwn.body.ignored, 'not_recorded');
+  assert.equal(wrote(bareOwn), 0, 'the coach\'s own checkout: nothing written');
   // The same, carried by the platform destination: the account the event names is what counts.
   const viaPlatform = await runWebhook(purchaseEvent({ provider_id: '5' }), { secret: PLATFORM_SECRET, tables: coaches() });
   assert.equal(wrote(viaPlatform), 0, 'an event that names an account is a Connect event, whichever secret signed it');
@@ -411,11 +478,13 @@ test('webhook: a Connect event never touches the membership', async () => {
   assert.equal(stmts(r.db.calls, 'platform_subscriptions').length, 0);
   assert.deepEqual(r.started, [], 'no welcome');
   // Even one naming the coach whose account it is, on a subscription Shape made: never the membership.
+  // Part B: Shape's record of the checkout is a coach's plan, and a `plan` the coach wrote into its
+  // metadata changes nothing: it is recorded as the coaching it is, and the membership is untouched.
   const named = await runWebhook(subEvent({ plan: 'shape_platform' }), { tables: coaches() });
   assert.equal(named.status, 200);
   assert.equal(stmts(named.db.calls, 'platform_subscriptions').length, 0);
-  assert.equal(wrote(named), 0);
-  assert.deepEqual(named.started, []);
+  assert.equal(stmts(named.db.calls, 'subscriptions', 'upsert').length, 1, 'recorded as the coach\'s plan');
+  assert.deepEqual(named.started.map(([k]) => k), ['coach'], 'no membership welcome');
   const changed = (type, account) => ({ id: 'evt_u', type, ...(account ? { account } : {}), data: { object: { id: 'sub_d1', status: 'past_due', application: APP, items: { data: [{ current_period_end: 1800000000, price: { unit_amount: 21000 } }] } } } });
   for (const type of ['customer.subscription.updated', 'customer.subscription.deleted']) {
     const c = await runWebhook(changed(type, ACCT), { tables: { subscriptions: [{ stripe_subscription_id: 'sub_d1', status: 'active', stripe_account_id: ACCT }], platform_subscriptions: [{ stripe_subscription_id: 'sub_d1', status: 'active' }] } });
@@ -529,15 +598,17 @@ test('webhook: a Connect dispute, and an expired checkout\'s credit, stay on the
   assert.deepEqual(stmts(d.db.calls, 'one_time_purchases', 'update')[0].eqs, [['stripe_payment_intent_id', 'pi_d1'], ['stripe_account_id', ACCT]]);
   assert.equal(d.db.tables.one_time_purchases[0].status, 'paid', 'another account\'s purchase is not marked disputed');
   const expired = (provider_id) => ({ id: 'evt_e', type: 'checkout.session.expired', account: ACCT, data: { object: { id: 'cs_test_x', metadata: meta({ provider_id, store_credit_ref: 'ref-9' }) } } });
-  // ⚠ No checkout on a coach's account releases credit (Codex on #2401): an expired one carries no
-  // payment, so nothing proves Shape made it, and one naming a live checkout's ref would free credit
-  // that checkout still holds. The 48-hour sweep returns it.
+  // ⚠ No checkout on a coach's account releases the credit its METADATA names (Codex on #2401): an
+  // expired one carries no payment, and one naming a live checkout's ref would free credit that
+  // checkout still holds. Part B releases only the reservation Shape RECORDED against the checkout
+  // (tests/coach-direct-charges-checkout.test.mjs); with no record, nothing.
   for (const provider_id of ['5', '4']) {
-    const r = await runWebhook(expired(provider_id), { tables: coaches() });
+    const r = await runWebhook(expired(provider_id), { tables: { ...coaches(), coach_checkouts: [] } });
     assert.equal(r.status, 200);
     assert.equal(r.db.calls.filter((c) => c.rpc).length, 0, `coach ${provider_id}: no release on a connected account`);
-    assert.ok(r.logs.some((l) => l.includes('left to the 48-hour sweep')), 'says why');
   }
+  const recorded = await runWebhook(expired('4'), { tables: { ...coaches(), coach_checkouts: [{ ...recordFor(expired('4').data.object, ACCT), store_credit_ref: 'ref-recorded' }] } });
+  assert.deepEqual(recorded.db.calls.filter((c) => c.rpc).map((c) => c.args), [{ p_ref: 'ref-recorded' }], 'the recorded ref, never the metadata\'s');
   // Shape's own account still releases at once, as before.
   const platform = await runWebhook({ id: 'evt_p', type: 'checkout.session.expired', data: { object: { id: 'cs_test_p', metadata: { store_credit_ref: 'ref-7' } } } }, { secret: PLATFORM_SECRET, tables: coaches() });
   assert.deepEqual(platform.db.calls.filter((c) => c.rpc).map((c) => [c.rpc, c.args]), [['release_store_credit_reservation', { p_ref: 'ref-7' }]]);
@@ -609,6 +680,7 @@ test('the member\'s cancel is sent to the account the subscription lives on', as
     const actions = await loadRealModule(join(ROOT, 'src/app/subscribe/actions.ts'), {
       typescript: true,
       registry: new Map([
+      ...(await coachCheckoutEntries()),
         ['next/navigation', { redirect: (to) => { const e = new Error('REDIRECT'); e.to = to; throw e; } }],
         ['@/lib/supabase/server', { createClient: async () => client }],
         ['@/lib/stripe', { stripe: { subscriptions: { update: async (id, params, opts) => { sent.push([id, params, opts]); return {}; } } } }],
@@ -678,10 +750,17 @@ test('renewals: one paged list per coach account replaces the per-row retrieves;
 
 // ── The return page ───────────────────────────────────────────────────────────────────────────
 async function loadReturn({ retrieve, tables = coaches(), errors = {} }) {
+  // Shape's record of the checkout (part B), as the route wrote it, unless the test gives its own.
+  if (!('coach_checkouts' in tables)) {
+    const s = await retrieve();
+    const rec = s && recordFor(s, ACCT, tables);
+    tables = { ...tables, coach_checkouts: rec ? [rec] : [] };
+  }
   const db = fakeDb({ tables, errors });
   const mod = await loadRealModule(join(ROOT, 'src/lib/checkout-return.ts'), {
     typescript: true,
     registry: new Map([
+      ...(await coachCheckoutEntries()),
       ['@/lib/stripe', { stripe: { checkout: { sessions: { retrieve } } } }],
       ['@/lib/stripe-connect', connect],
       ['@/lib/supabase/server', { createClient: async () => ({ auth: { getUser: async () => ({ data: { user: { id: UID } } }) } }) }],
@@ -712,7 +791,7 @@ test('the return page reads a checkout from a coach\'s account only when the acc
   // One person's trainer and nutritionist listings may share the account: either one is that coach.
   const { mod: both } = await loadReturn({ retrieve: async () => session({ provider_role: 'nutritionist', provider_id: '2' }), tables: { trainers: [{ id: 4, name: 'Tom', stripe_account_id: ACCT }], nutritionists: [{ id: 2, name: 'Tom', stripe_account_id: ACCT }] } });
   assert.equal((await both.readCheckoutReturn(ID, ACCT)).state, 'paid');
-  const { mod: down } = await loadReturn({ retrieve, errors: { 'select:trainers': { message: 'down' } } });
+  const { mod: down } = await loadReturn({ retrieve, errors: { 'select:coach_checkouts': { message: 'down' } } });
   assert.deepEqual(await down.readCheckoutReturn(ID, ACCT), { state: 'unconfirmed' });
 }));
 
@@ -722,9 +801,10 @@ test('the return page vouches for a checkout on a coach\'s account only when Sha
   const ID = 'cs_test_abcdefghij';
   const tables = { trainers: [{ id: 4, name: 'Tom', stripe_account_id: ACCT }], nutritionists: [] };
   const base = { id: ID, status: 'complete', payment_status: 'paid', client_reference_id: UID, metadata: { client_id: UID, provider_id: '4', provider_role: 'trainer', kind: 'booking' } };
-  const read = async (s, acct = ACCT) => (await (await loadReturn({ retrieve: async () => s, tables })).mod.readCheckoutReturn(ID, acct)).state;
+  const read = async (s, acct = ACCT, t = tables) => (await (await loadReturn({ retrieve: async () => s, tables: t })).mod.readCheckoutReturn(ID, acct)).state;
   assert.equal(await read({ ...base, mode: 'payment', payment_intent: { id: 'pi_1', application: 'ca_TheCoachesOwnApp' } }), 'unconfirmed', 'another application');
-  assert.equal(await read({ ...base, mode: 'payment', payment_intent: { id: 'pi_1', application: null } }), 'unconfirmed', 'made in the coach\'s own dashboard');
+  // Made in the coach's own dashboard: no application, and no record of it at Shape (part B).
+  assert.equal(await read({ ...base, mode: 'payment', payment_intent: { id: 'pi_1', application: null } }, ACCT, { ...tables, coach_checkouts: [] }), 'unconfirmed', 'made in the coach\'s own dashboard');
   assert.equal(await read({ ...base, mode: 'payment', payment_intent: 'pi_1' }), 'unconfirmed', 'not expanded: nothing proves it');
   assert.equal(await read({ ...base, mode: 'payment', payment_intent: { id: 'pi_1', application: { id: APP } } }), 'paid', 'Shape\'s, expanded');
   assert.equal(await read({ ...base, mode: 'subscription', subscription: { id: 'sub_1', application: APP }, payment_intent: null }), 'paid', 'a subscription: its own application');

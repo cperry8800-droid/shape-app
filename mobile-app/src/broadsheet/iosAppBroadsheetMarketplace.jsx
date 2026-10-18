@@ -1384,7 +1384,7 @@ function BSProfileCard({ children, style }) {
 
 
 
-function BSPublicActionPanel({ action, coach, onClose, onConfirm, onMessageSent }) {
+function BSPublicActionPanel({ action, coach, onClose, onConfirm, onMessageSent, code = '', onCode }) {
   const t = useBS();
   const tr = useShapeTr();
   const [message, setMessage] = useStateBSM2(tr('marketplace:panel.defaultMessage', { defaultValue: 'Hi {name}, I found your profile on Shape and would like to learn more.', name: coach.name.split(' ')[0].replace('Dr.', '').trim() }));
@@ -1542,6 +1542,22 @@ function BSPublicActionPanel({ action, coach, onClose, onConfirm, onMessageSent 
               {tr('marketplace:panel.privateThread', { defaultValue: 'This starts a private thread in Chat.' })}
             </div>
           </div>
+        )}
+
+        {action.type === 'Checkout' && !action.done && !action.stale && (
+          <label style={{ marginTop: 14, display: 'grid', gap: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>
+            {tr('marketplace:panel.codeLabel', { defaultValue: 'Shape or coach code (optional)' })}
+            <input
+              data-checkout-code=""
+              value={code}
+              onChange={(e) => onCode && onCode(e.target.value)}
+              maxLength={64}
+              autoComplete="off"
+              autoCapitalize="characters"
+              spellCheck={false}
+              style={{ width: '100%', boxSizing: 'border-box', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER, color: t.INK, padding: '12px 14px', fontFamily: t.MONO, fontSize: 14, letterSpacing: '0.04em', outline: 'none' }}
+            />
+          </label>
         )}
 
         {!isMessage && !action.done && !action.stale && (
@@ -1932,6 +1948,10 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   const { cover: listingCover, gallery: listingGallery } = mktListingMedia(coach);
   const [action, setAction] = useStateBSM2(null);
   const [checkoutBusy, setCheckoutBusy] = useStateBSM2(false);
+  // The code box before the redirect (coach direct charges, part B): a Shape code or the coach's
+  // own, typed in the checkout panel. The checkout is made on the coach's own Stripe account, where
+  // Stripe's box can never take a Shape code, so it goes in here and the server checks it first.
+  const [checkoutCode, setCheckoutCode] = useStateBSM2('');
   const [showProfile, setShowProfile] = useStateBSM2(false);
   const [showCal, setShowCal] = useStateBSM2(false);
   const [offerSheet, setOfferSheet] = useStateBSM2(false);
@@ -2270,6 +2290,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
       try {
         const result = await window.ShapePayments?.startCheckout?.({
           item: current.item,
+          code: checkoutCode.trim() || undefined,
           coach,
           role: p.role,
           user: window.ShapeAuth?.getCachedState?.().user,
@@ -2827,6 +2848,8 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
         onClose={() => setAction(null)}
         onConfirm={confirmAction}
         onMessageSent={sendMessage}
+        code={checkoutCode}
+        onCode={setCheckoutCode}
       />
 
       <BSFooter right={bsmRoleWord(tr, isNutriDetail)} />

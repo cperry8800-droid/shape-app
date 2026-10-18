@@ -144,6 +144,7 @@
   "panel.sendMessage": "Invia messaggio",
   "panel.typeBooking": "Prenotazione",
   "panel.typeCheckout": "Pagamento",
+  "panel.codeLabel": "Codice Shape o del coach (facoltativo)",
   "panel.typeMessage": "Messaggio",
   "panel.yourNote": "La tua nota",
   "pkg.included": "{count} inclusi",
