@@ -447,6 +447,34 @@ test('two quick glasses save in order, and a failed one takes back only its own 
   } finally { m.unmount(); }
 });
 
+test('a glass that saves keeps the ones still on their way, and a failed last one takes back only itself', async () => {
+  let releaseFirst;
+  let failSecond;
+  const first = new Promise((r) => { releaseFirst = r; });
+  const second = new Promise((_, reject) => { failSecond = reject; });
+  env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
+  const adds = [];
+  dom.window.ShapeHydration = {
+    get: async () => ({ ok: true, hydrationL: 0.5, targetL: 3 }),
+    add: (d) => { adds.push(d); return adds.length === 1 ? first : second; },
+  };
+  const m = await mount();
+  try {
+    await m.click(/\+ Glass/);
+    await m.click(/\+ Glass/);
+    assert.match(m.text(), /33 oz \/ 101 oz/);
+    releaseFirst({ ok: true, hydrationL: 0.7366 });   // the server's total after the first glass
+    await m.flush();
+    await m.flush();
+    assert.equal(adds.length, 2);
+    assert.match(m.text(), /33 oz \/ 101 oz/, 'the first glass saving dropped the second, still on its way, from the screen');
+    failSecond(new Error('500'));
+    await m.flush();
+    await m.flush();
+    assert.match(m.text(), /25 oz \/ 101 oz/, 'the failed glass took back more than itself');
+  } finally { m.unmount(); }
+});
+
 test("a new local day reads that day's water (Codex P2 on #2398)", async () => {
   try {
     mock.timers.setTime(new Date(2026, 9, 18, 23, 59).getTime());
