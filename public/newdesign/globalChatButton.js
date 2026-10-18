@@ -439,12 +439,17 @@
         body: JSON.stringify({ append: [{ role: "user", text: question, at: at }, { role: "assistant", text: reply, at: at }], account: account })
       }).catch(function () {});
     }
+    var NORA_SWITCHED = "You're signed in as another account now, so this conversation started again.";
+    // `thread.account`: the account the conversation is with, from her first answer as one. Each
+    // later question names it, so a cookie that is someone else's by then is refused before the
+    // history is read (Codex on #2393), and the answer is { refused: true }.
     function askNora(thread) {
       var history = (thread.messages || []).filter(function (m) { return !m.pending; }).slice(-12).map(function (m) {
         return { role: m.me ? "user" : "assistant", content: String(m.t || "") };
       });
       function post(extra) {
         var body = { messages: history, surface: "web", confirmCards: false, context: window.__shapeNoraContext() };
+        if (thread.account) body.account = thread.account;
         if (extra) for (var k in extra) body[k] = extra[k];
         return fetch("/api/support/chat", {
           method: "POST",
@@ -456,6 +461,7 @@
         });
       }
       function settle(r) {
+        if (r.res.status === 409 && r.data.code === "account_changed") return { refused: true };
         var ok = r.res.ok || r.data.needsCheck;
         if (!ok || typeof r.data.reply !== "string" || !r.data.reply.trim()) return { reply: NORA_DOWN, links: [] };
         return { reply: r.data.reply, links: noraLinks(r.data.actions), account: typeof r.data.account === "string" && r.data.account ? r.data.account : null };
@@ -639,6 +645,17 @@
         th.messages.push(pending);
         render();
         askNora(th).then(function (r) {
+          if (r.refused) {
+            // The conversation was the last account's: it starts again from her greeting, says
+            // why, and the question goes back in the box.
+            th.account = null;
+            th.messages = [th.messages[0], { who: "Nora", t: NORA_SWITCHED, time: stamp(), me: false }];
+            input.value = value;
+            send.disabled = false;
+            render();
+            return;
+          }
+          if (r.account && !th.account) th.account = r.account;
           pending.t = r.reply; pending.links = r.links; pending.time = stamp(); delete pending.pending;
           render();
           if (r.reply !== NORA_DOWN) keepNoraExchange(value, r.reply, r.account);
