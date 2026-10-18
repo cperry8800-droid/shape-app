@@ -21,6 +21,9 @@ const NUT_PAGE = 'public/newdesign/nutritionist.jsx';
 const LANDING = 'public/newdesign/landing.jsx';
 const SIGNUP = 'public/newdesign/signup.jsx';
 const NEW_PROGRAM = 'public/newdesign/newProgram.jsx';
+const NEW_WORKOUT = 'public/newdesign/newWorkout.jsx';
+const HELP = 'public/help.html';
+const TERMS = 'public/terms.html';
 
 export default {
   test: 'node --test tests/coach-forecast.test.mjs tests/coach-renewals.test.mjs tests/stripe-summary.test.mjs tests/business-plan-page.test.mjs tests/coach-analytics-routes.test.mjs tests/coach-growth.test.mjs tests/marketing-earnings.test.mjs',
@@ -387,5 +390,31 @@ export default {
     { name: 'the program builder promises weekly payouts again', file: NEW_PROGRAM,
       find: '{" "}Card processing is on Shape. Payouts go straight to your bank, on the schedule you set in Stripe.',
       replace: '{" "}Card processing is on Shape. Weekly payouts via Stripe Connect.' },
+    { name: 'the program builder takes the fee from a client the coach brings', file: NEW_PROGRAM,
+      find: "after Shape's 15%, and the full price from clients you bring.",
+      replace: "after Shape's 15%, on every sale." },
+    // ── The live root pages and the builders' price notes (review of round 6, #2394) ──
+    { name: 'help.html: the trainer answer promises monthly payouts again', file: HELP,
+      find: 'Stripe pays it out to your bank on the schedule you set there, and you can change it any time.',
+      replace: 'You receive monthly payouts via direct deposit.' },
+    { name: 'help.html: the nutritionist answer promises monthly payouts again', file: HELP,
+      find: 'Same as trainers. Clients pay through Shape, and the money goes to your own Stripe account. Stripe pays it out to your bank on the schedule you set there.',
+      replace: 'Same as trainers — Shape handles all billing from your subscribers. You receive monthly payouts via direct deposit.' },
+    // Outside the two pinned answers, so only the root-page sweep can catch these two.
+    { name: 'help.html: the coach section promises weekly payouts', file: HELP,
+      find: '<p>Onboarding, dashboard tools, payouts, and growing your subscriber base.</p>',
+      replace: '<p>Onboarding, dashboard tools, weekly payouts, and growing your subscriber base.</p>' },
+    { name: 'terms.html: payouts go monthly by direct deposit', file: TERMS,
+      find: 'Payouts to your connected Stripe account follow the payout schedule you configure.',
+      replace: 'Payouts are made monthly, by direct deposit, to your connected Stripe account.' },
+    { name: 'the workout builder says Shape keeps 8% again', file: NEW_WORKOUT,
+      find: 'Shape takes 15% on clients who find you on Shape and nothing on clients you bring. You receive',
+      replace: 'Shape keeps 8%. You receive' },
+    { name: 'the workout builder pays the coach price × 0.92 again', file: NEW_WORKOUT,
+      find: '${price ? (Number(price) * (1 - 0.15)).toFixed(2) : "—"}',
+      replace: '${price ? (Number(price) * 0.92).toFixed(2) : "—"}' },
+    { name: 'the workout builder takes the fee from a client the coach brings', file: NEW_WORKOUT,
+      find: '${price ? Number(price).toFixed(2) : "—"}',
+      replace: '${price ? (Number(price) * (1 - 0.15)).toFixed(2) : "—"}' },
   ],
 };

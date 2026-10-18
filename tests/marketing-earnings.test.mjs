@@ -161,3 +161,77 @@ test('no other website page promises weekly or instant payouts', () => {
   assert.equal(pageCopy('signup.jsx').split('Payouts straight to your bank, on your Stripe schedule').length - 1, 2, 'trainer and nutritionist applications');
   assert.match(pageCopy('newProgram.jsx'), /Payouts go straight to your bank, on the schedule you set in Stripe\./);
 });
+
+// ── The live root pages (review of round 6, #2394) ──
+// help.html, terms.html and the other legal and support pages are still served from the site root
+// (next.config.ts legacyPages; KEPT_ROOT in tests/legacy-live-flows.test.mjs), and the shared
+// footer links Help from Coach.html and Nutritionist.html. help.html's trainer and nutritionist
+// answers said "You receive monthly payouts via direct deposit". The sweep above can't see that:
+// it reads only public/newdesign/, and its CADENCE has no "monthly". A root page is plain HTML read
+// as one run of text, so this sweep also looks for a monthly or daily cadence. The newdesign sweep
+// can't: its " · " join puts a dashboard's "MONTHLY · NET" next to "payouts connect soon".
+const ROOT_CADENCE = '(?:weekly|every week|each week|per week|once a week|instant(?:ly)?|monthly|every month|each month|per month|once a month|daily|every day)';
+const ROOT_PAYOUT_CADENCE = new RegExp('\\b' + ROOT_CADENCE + '\\b[^.?!]{0,40}?\\b' + PAYS + '\\b|\\b' + PAYS + '\\b[^.?!]{0,40}?\\b' + ROOT_CADENCE + '\\b', 'i');
+const rootPage = (f) => readFileSync(new URL('../public/' + f, import.meta.url), 'utf8');
+const rootText = (f) => rootPage(f).replace(/<!--[\s\S]*?-->/g, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+const rootClaim = (t) => { const m = t.match(ROOT_PAYOUT_CADENCE); return m && t.slice(Math.max(0, m.index - 40), m.index + m[0].length + 40); };
+
+test('the root-page check catches a monthly payout, and not a monthly rate or statement', () => {
+  for (const said of [
+    'Shape handles all billing and payments from your subscribers. You receive monthly payouts via direct deposit. Shape takes',
+    'Payouts are made monthly, by direct deposit, to your connected Stripe account.',
+    'Weekly payouts via Stripe Connect.',
+    'Paid out every day to your bank.',
+  ]) assert.ok(rootClaim(said), 'missed: ' + said);
+  for (const fine of [
+    'Set monthly rates that reflect your experience, specialty, and the value you provide.',
+    'Stripe pays it out to your bank on the schedule you set there, and you can change it any time.',
+    'Straight to your bank, on the schedule you set in Stripe. Clean monthly statements.',
+    'Payouts to your connected Stripe account follow the payout schedule you configure.',
+    'Complete workouts, maintain your streak, hit weekly goals, and stay consistent.',
+  ]) assert.equal(rootClaim(fine), null, 'flagged: ' + fine);
+});
+
+const HELP_TRAINER = 'Clients pay through Shape, and the money goes to your own Stripe account. Stripe pays it out to your bank on the schedule you set there, and you can change it any time. Shape takes 15% on clients who find you on Shape and nothing on clients you bring. The rest is yours.';
+const HELP_NUTRITIONIST = 'Same as trainers. Clients pay through Shape, and the money goes to your own Stripe account. Stripe pays it out to your bank on the schedule you set there. No invoicing, no chasing payments. Shape takes 15% on clients who find you on Shape and nothing on clients you bring. The rest is yours.';
+
+test('no live root page promises a payout cadence, and help.html\'s trainer and nutritionist answers say the coach\'s Stripe schedule', () => {
+  const pages = readdirSync(new URL('../public/', import.meta.url)).filter((f) => f.endsWith('.html'));
+  for (const f of ['help.html', 'terms.html', 'contact.html', 'privacy.html']) assert.ok(pages.includes(f), f + ' moved');
+  assert.deepEqual(pages.map((f) => [f, rootClaim(rootText(f))]).filter(([, c]) => c), []);
+  const help = rootPage('help.html');
+  const answer = (q) => {
+    const at = help.indexOf('>' + q + '<');
+    assert.ok(at > 0, q + ' moved');
+    return help.slice(at).match(/<div class="faq-a">([\s\S]*?)<\/div>/)[1].replace(/\s+/g, ' ').trim();
+  };
+  assert.equal(answer('How do payouts work for trainers?'), HELP_TRAINER);
+  assert.equal(answer('How do nutritionist payouts work?'), HELP_NUTRITIONIST);
+});
+
+// ── The program and workout builders' price notes (newProgram.jsx, newWorkout.jsx) ──
+// Both said "Shape keeps 8%" and paid the coach price × 0.92; the program builder's sat beside the
+// corrected payout line. The fee is 15% on a client who finds the coach on Shape and 0% on a client
+// the coach brings (src/lib/platform-fee.mjs; /purchase and /subscribe stamp it on each sale), the
+// same terms the coach pages' calculators use. This renders each note's own JSX: the <div> that
+// holds `anchor`, with `scope` as the component's locals.
+function priceNote(file, anchor, scope) {
+  const src = readFileSync(new URL('../public/newdesign/' + file, import.meta.url), 'utf8');
+  const i = src.indexOf(anchor);
+  assert.ok(i > 0, file + ': the price note moved');
+  const at = src.lastIndexOf('<div', i);
+  const end = src.indexOf('</div>', i) + '</div>'.length;
+  const code = babel.transformSync('(' + src.slice(at, end) + ');', { presets: [presetReact], babelrc: false, configFile: false }).code;
+  const names = Object.keys(scope);
+  const el = new Function('React', 'INK', ...names, 'return (' + code.trim().replace(/;$/, '') + ');')(React, '#f2ede4', ...names.map((k) => scope[k]));
+  return text(el).trim();
+}
+const FEE_TERMS = 'Shape takes 15% on clients who find you on Shape and nothing on clients you bring.';
+
+test('newWorkout.jsx: a workout listed for sale shows the same terms', () => {
+  const note = (price, forSale) => priceNote('newWorkout.jsx', 'Workout lives in your library only.', { price, forSale });
+  const t = note('20', true);
+  assert.equal(t, FEE_TERMS + ' You receive $17.00 per sale from a client who finds you here, or $20.00 from one you bring.');
+  assert.doesNotMatch(t, /8%|\$18\.40/);
+  assert.match(note('20', false), /^Workout lives in your library only\./);
+});
