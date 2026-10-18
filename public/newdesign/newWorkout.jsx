@@ -305,7 +305,7 @@ function NewWorkoutPage() {
             )}
             <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", lineHeight: 1.5 }}>
               {forSale
-                ? <>Shape takes 15% on clients who find you on Shape and nothing on clients you bring. You receive <span style={{ color: INK, fontWeight: 500 }}>${price ? (Number(price) * (1 - 0.15)).toFixed(2) : "—"}</span> per sale from a client who finds you here, or <span style={{ color: INK, fontWeight: 500 }}>${price ? Number(price).toFixed(2) : "—"}</span> from one you bring.</>
+                ? <>Shape takes 15% on clients who find you on Shape and nothing on clients you bring. You receive <span style={{ color: INK, fontWeight: 500 }}>${price ? (Number(price) * (1 - 0.15)).toFixed(2) : "—"}</span> per sale from a client who finds you here, or <span style={{ color: INK, fontWeight: 500 }}>${price ? Number(price).toFixed(2) : "—"}</span> from one you bring, before Stripe's card-processing fee.</>
                 : "Workout lives in your library only. Attach it to a program or assign directly to a client."}
             </div>
           </Card>

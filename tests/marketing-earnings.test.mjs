@@ -2,8 +2,9 @@
 // after the Business review of 2026-10-17. They multiplied a session price by a guessed number of
 // sessions, said card processing was separate, and promised weekly payouts. Clients pay a monthly
 // rate; Shape takes 15% on clients who find the coach on Shape and 0% on clients the coach brings,
-// and pays the card processing (destination charges, src/app/subscribe/actions.ts); payouts follow
-// the coach's own Stripe schedule. These render the shipped components and read what a visitor reads.
+// and Stripe's card-processing fee comes out of the coach's share, as the Terms (section 04) say
+// (owner, 2026-10-18: "shape is not paying processing fee"); payouts follow the coach's own Stripe
+// schedule. These render the shipped components and read what a visitor reads.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -27,7 +28,7 @@ function load(file, name) {
 const text = (el) => renderToStaticMarkup(el).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 
 for (const [file, name, clients, rate] of [['coach.jsx', 'TrainerEarnings', 20, 150], ['nutritionist.jsx', 'NutEarnings', 18, 140]]) {
-  test(file + ': clients × a monthly rate, 15% off, card processing on Shape, payouts on the coach\'s schedule', () => {
+  test(file + ': clients × a monthly rate, 15% off, card processing from the coach\'s share, payouts on the coach\'s schedule', () => {
     const t = text(React.createElement(load(file, name)));
     const gross = clients * rate;
     const net = gross - Math.round(gross * 0.15);
@@ -39,13 +40,14 @@ for (const [file, name, clients, rate] of [['coach.jsx', 'TrainerEarnings', 20, 
     assert.match(t, /No Shape fee on clients you bring\./);
     const src = readFileSync(new URL('../public/newdesign/' + file, import.meta.url), 'utf8');
     const body = src.slice(src.indexOf('function ' + name + '() {'), src.indexOf('\n// ---------- ', src.indexOf('function ' + name + '() {')));
-    assert.match(body, /Card processing is on Shape, too\./);
+    assert.match(body, /before Stripe's card-processing fee, which comes out of your share\./);
+    assert.doesNotMatch(body, /Card processing is on Shape|pays the card processing/);
     assert.match(body, /Set your own monthly rate and keep what you earn\./);
     assert.match(body, /Payouts straight to your bank, on the schedule you set in Stripe/);
     assert.doesNotMatch(body, /card processing is separate|Weekly payouts|sessions per client|touchpoints/i);
     // The page's FAQ says the same as its calculator (Codex, #2394).
     assert.doesNotMatch(src, /card processing is separate/i);
-    assert.match(src, /takes a small platform fee when you get paid, and pays the card processing\./);
+    assert.match(src, /takes a small platform fee when you get paid\. Stripe's card-processing fee comes out of your share\./);
     assert.match(body, /const grossMonthly = clients \* price;\n  const feeMonthly = Math\.round\(grossMonthly \* \(1 - byo \/ 100\) \* PLATFORM_FEE_RATE\);/);
   });
 }
@@ -64,7 +66,7 @@ test('newProgram.jsx: a sale nets the price after Shape\'s 15% from a client fou
   const NpFeeNote = new Function('React', 'INK', code + '\nreturn NpFeeNote;')(React, '#f2ede4');
   const t = text(React.createElement(NpFeeNote, { price: '220' })).replace(/&#x27;/g, "'");
   assert.match(t, new RegExp('You receive \\$' + (220 * (1 - PLATFORM_FEE_RATE)).toFixed(2).replace('.', '\\.') + ' per sale to a client who found you on Shape, after Shape\'s 15%, and the full price from clients you bring\\.'));
-  assert.match(t, /Card processing is on Shape\. Payouts go straight to your bank, on the schedule you set in Stripe\./);
+  assert.match(t, /Stripe's card-processing fee comes out of your share\. Payouts go straight to your bank, on the schedule you set in Stripe\./);
   assert.match(text(React.createElement(NpFeeNote, { price: '' })), /You receive — per sale/);
   const code_ = src.replace(/^\s*\/\/.*$/gm, '');
   assert.doesNotMatch(code_, /8%|0\.92|Weekly payouts/i, 'no trace of the old fee or schedule outside the comment that records it');
@@ -145,12 +147,12 @@ for (const [file, strip, tools, faq] of [
   });
 }
 
-// The other website pages a coach reads before applying say the same. coaches.jsx is left as it is
-// (its fee and payout copy is the owner's open call, #2394); dashBusiness.jsx prints the signed-in
-// coach's own Stripe interval ("Paid out weekly · Fridays"), which is their setting, not a promise.
+// The other website pages a coach reads before applying say the same. dashBusiness.jsx prints the
+// signed-in coach's own Stripe interval ("Paid out weekly · Fridays"), which is their setting, not
+// a promise. coaches.jsx was skipped until the owner set the fee terms (2026-10-18), below.
 test('no other website page promises weekly or instant payouts', () => {
   const dir = new URL('../public/newdesign/', import.meta.url);
-  const SKIP = new Set(['coaches.jsx', 'dashBusiness.jsx']);
+  const SKIP = new Set(['dashBusiness.jsx']);
   const files = readdirSync(dir).filter((f) => /\.(jsx|html)$/.test(f));
   for (const f of SKIP) assert.ok(files.includes(f), f + ' moved');
   for (const f of ['landing.jsx', 'signup.jsx', 'newProgram.jsx', 'Landing.html', 'SignupTrainer.html']) assert.ok(files.includes(f), f + ' moved');
@@ -160,6 +162,57 @@ test('no other website page promises weekly or instant payouts', () => {
   assert.equal(pageCopy('landing.jsx').split('Payouts on your Stripe schedule').length - 1, 2, 'trainer and nutritionist cards');
   assert.equal(pageCopy('signup.jsx').split('Payouts straight to your bank, on your Stripe schedule').length - 1, 2, 'trainer and nutritionist applications');
   assert.match(pageCopy('newProgram.jsx'), /Payouts go straight to your bank, on the schedule you set in Stripe\./);
+});
+
+// The owner's fee terms (2026-10-18): "the fee structure is $5 a month for members, 15% platform fee
+// for coaches", as the code charges it (src/lib/coach-origin.mjs: 15% on a client who found the coach
+// on Shape, 0% on one the coach brought). Stripe's card-processing fee comes out of the coach's share,
+// as the Terms say (owner, 2026-10-18: "shape is not paying processing fee"; Codex on #2396 found the
+// pages saying Shape paid it).
+// coaches.jsx and pricing.jsx said "15% on everything clients pay you", "card processing is separate"
+// and, on coaches.jsx, weekly or instant payouts.
+test('coaches.jsx and pricing.jsx state the fee as charged: 15% on clients found on Shape, none on clients brought, processing from the coach\'s share', () => {
+  for (const f of ['coaches.jsx', 'pricing.jsx']) {
+    const copy = pageCopy(f);
+    assert.doesNotMatch(copy, /processing is separate|15% (platform fee )?on everything/i, f);
+    assert.equal(cadenceClaim(copy), null, f + ' promises a payout cadence');
+    assert.match(copy, /15% platform fee/, f + ': the fee is still stated');
+    assert.match(copy, /nothing on a client who subscribes through (your|their) own invite or referral link/, f + ': and that it is not charged on a client the coach brings');
+    assert.match(copy, /Stripe's card-processing fee comes out of (your|their) share/, f + ': and who pays the card processing');
+  }
+  const coaches = pageCopy('coaches.jsx');
+  assert.match(coaches, /Direct · Payouts to your bank\. · On the schedule you set in your own Stripe account\./, 'the facts strip');
+  assert.match(coaches, /Stripe pays it out to your bank on the schedule you set there/, 'the payouts answer');
+  // The 0% holds for a client who subscribes within 30 days of the coach's invite or link
+  // (resolve_coach_checkout_origin, 2026-07-21 migration), so the page doesn't promise it on every
+  // client a coach already has (Codex on #2396).
+  assert.match(coaches, /a client who subscribes within 30 days of it pays no Shape fee on that plan, for as long as it renews/);
+  assert.doesNotMatch(coaches, /takes no fee on them/);
+  assert.match(pageCopy('pricing.jsx'), /\$5\/month/, 'members pay $5 a month');
+  // The app's own pricing page answers the same question.
+  const app = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx', import.meta.url), 'utf8');
+  const answer = app.slice(app.indexOf("{ q: 'Do coaches pay to be on Shape?'"), app.indexOf('\n', app.indexOf("{ q: 'Do coaches pay to be on Shape?'")));
+  assert.match(answer, /15% on clients the Shape marketplace brought you, and 0% on clients you brought yourself through your invite or referral link, if they subscribe within 30 days of it\. Stripe's card-processing fee comes out of your share\./);
+  assert.doesNotMatch(answer, /processing is separate/);
+});
+
+// Who pays the card processing (owner, 2026-10-18: "shape is not paying processing fee"). The Terms
+// (section 04) say Stripe's fees come out of the coach's net; #2394 and this PR's first pass had the
+// pages say Shape paid them (Codex on #2396). No website page, root page, app screen or Nora entry
+// may say so again.
+test('nothing a coach or Nora reads says Shape pays the card processing', () => {
+  const SHAPE_PAYS = /(card )?processing is on Shape|Shape pays the (card )?processing|and pays the card processing|Shape absorbs/i;
+  const nd = new URL('../public/newdesign/', import.meta.url);
+  const root = new URL('../public/', import.meta.url);
+  const files = [
+    ...readdirSync(nd).filter((f) => /\.(jsx|html|js)$/.test(f)).map((f) => new URL(f, nd)),
+    ...readdirSync(root).filter((f) => f.endsWith('.html')).map((f) => new URL(f, root)),
+    new URL('../mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx', import.meta.url),
+    new URL('../src/lib/ai/shapeKnowledge.mjs', import.meta.url),
+  ];
+  const said = files.filter((u) => SHAPE_PAYS.test(readFileSync(u, 'utf8').replace(/^\s*\/\/.*$/gm, ''))).map((u) => u.pathname.split('/').slice(-2).join('/'));
+  assert.deepEqual(said, []);
+  assert.match(readFileSync(new URL('../public/terms.html', import.meta.url), 'utf8'), /Standard Stripe card-processing fees are deducted separately from the net amount\./, 'the Terms changed: check the pages still match them');
 });
 
 // ── The live root pages (review of round 6, #2394) ──
@@ -230,8 +283,8 @@ const FEE_TERMS = 'Shape takes 15% on clients who find you on Shape and nothing 
 
 test('newWorkout.jsx: a workout listed for sale shows the same terms', () => {
   const note = (price, forSale) => priceNote('newWorkout.jsx', 'Workout lives in your library only.', { price, forSale });
-  const t = note('20', true);
-  assert.equal(t, FEE_TERMS + ' You receive $17.00 per sale from a client who finds you here, or $20.00 from one you bring.');
+  const t = note('20', true).replace(/&#x27;/g, "'");
+  assert.equal(t, FEE_TERMS + ' You receive $17.00 per sale from a client who finds you here, or $20.00 from one you bring, before Stripe\'s card-processing fee.');
   assert.doesNotMatch(t, /8%|\$18\.40/);
   assert.match(note('20', false), /^Workout lives in your library only\./);
 });
