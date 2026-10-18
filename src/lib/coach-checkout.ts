@@ -486,7 +486,10 @@ export async function coachAccountPlan(
 
 export type PortalStripe = {
   billingPortal: {
-    configurations: { create: (params: { features: Record<string, unknown> }, opts: Opts) => PromiseLike<{ id: string }> };
+    configurations: {
+      create: (params: { features: Record<string, unknown> }, opts: Opts) => PromiseLike<{ id: string }>;
+      update: (id: string, params: { active: boolean; features: Record<string, unknown> }, opts: Opts) => PromiseLike<{ id: string }>;
+    };
     sessions: { create: (params: { customer: string; configuration?: string; return_url?: string }, opts: Opts) => PromiseLike<{ url: string }> };
   };
 };
@@ -497,7 +500,19 @@ export type PortalStripe = {
  * anything. So Shape makes its own configuration on the account once (kept in
  * stripe_account_portal): the card, past invoices, and cancel at the period's end. No plan
  * switching: a coach's price is set on Shape.
+ * ⚠ THE COACH CAN EDIT IT (Codex on #2403): it lives on their account, and Stripe lets the account
+ * update a configuration's features, so a saved one could have lost the member's cancel. Shape's
+ * features are written back onto it before every session, and one the account no longer has is
+ * made again (replacing the saved id only where it still names the old one).
  */
+const SHAPE_PORTAL_FEATURES = {
+  payment_method_update: { enabled: true },
+  invoice_history: { enabled: true },
+  subscription_cancel: { enabled: true, mode: 'at_period_end' },
+  customer_update: { enabled: false },
+  subscription_update: { enabled: false },
+};
+
 export async function coachPortalUrl(
   stripe: PortalStripe,
   admin: AdminLike,
@@ -510,16 +525,19 @@ export async function coachPortalUrl(
     return ((data as { configuration_id?: string | null } | null)?.configuration_id) || null;
   };
   let configuration = await read();
-  if (!configuration) {
-    const made = await stripe.billingPortal.configurations.create({
-      features: {
-        payment_method_update: { enabled: true },
-        invoice_history: { enabled: true },
-        subscription_cancel: { enabled: true, mode: 'at_period_end' },
-        customer_update: { enabled: false },
-        subscription_update: { enabled: false },
-      },
-    }, { stripeAccount: account, idempotencyKey: `shape-portal-${account}` });
+  if (configuration) {
+    try {
+      await stripe.billingPortal.configurations.update(configuration, { active: true, features: SHAPE_PORTAL_FEATURES }, { stripeAccount: account });
+    } catch (err) {
+      if ((err as { code?: string })?.code !== 'resource_missing') throw err;
+      const gone = configuration;
+      const made = await stripe.billingPortal.configurations.create({ features: SHAPE_PORTAL_FEATURES }, { stripeAccount: account, idempotencyKey: `shape-portal-${account}-after-${gone}` });
+      const { error } = await q(admin, 'stripe_account_portal').update({ configuration_id: made.id }).eq('stripe_account_id', account).eq('configuration_id', gone);
+      if (error) throw error;
+      configuration = (await read()) ?? made.id;
+    }
+  } else {
+    const made = await stripe.billingPortal.configurations.create({ features: SHAPE_PORTAL_FEATURES }, { stripeAccount: account, idempotencyKey: `shape-portal-${account}` });
     // Never replaces a row: one saved by a concurrent request wins.
     const { error } = await q(admin, 'stripe_account_portal').upsert(
       { stripe_account_id: account, configuration_id: made.id },

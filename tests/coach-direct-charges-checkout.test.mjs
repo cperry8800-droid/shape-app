@@ -436,9 +436,14 @@ test('the live-subscription check on a coach\'s account counts only what the cal
 test('the portal on a coach\'s account uses Shape\'s own configuration, made once', async () => {
   const calls = [];
   const stripe = { billingPortal: {
-    configurations: { create: async (params, opts) => { calls.push(['config', params, opts]); return { id: 'bpc_1' }; } },
+    configurations: {
+      create: async (params, opts) => { calls.push(['config', params, opts]); return { id: `bpc_${++made}` }; },
+      update: async (id, params, opts) => { calls.push(['update', id, params, opts]); if (gone.has(id)) throw Object.assign(new Error('No such configuration'), { code: 'resource_missing' }); return { id }; },
+    },
     sessions: { create: async (params, opts) => { calls.push(['session', params, opts]); return { url: 'https://billing.stripe.test/s' }; } },
   } };
+  const gone = new Set();
+  let made = 0;
   const db = fakeDb();
   const url = await cc.coachPortalUrl(stripe, db.client, { account: ACCT, customer: 'cus_onCoach', returnUrl: 'https://shape.test/m/' });
   assert.equal(url, 'https://billing.stripe.test/s');
@@ -450,7 +455,23 @@ test('the portal on a coach\'s account uses Shape\'s own configuration, made onc
   assert.deepEqual(db.tables.stripe_account_portal, [{ stripe_account_id: ACCT, configuration_id: 'bpc_1' }]);
   calls.length = 0;
   await cc.coachPortalUrl(stripe, db.client, { account: ACCT, customer: 'cus_onCoach', returnUrl: 'https://shape.test/m/' });
-  assert.deepEqual(calls.map((c) => c[0]), ['session'], 'the stored configuration is reused');
+  // ⚠ The coach can edit it on their own account (Codex on #2403): Shape's features go back on first.
+  assert.deepEqual(calls.map((c) => c[0]), ['update', 'session'], 'the stored configuration is reused, Shape\'s features written back first');
+  assert.deepEqual(calls[0].slice(1), ['bpc_1', { active: true, features: params.features }, { stripeAccount: ACCT }]);
+  // One the account no longer has is made again, and the saved id moves to it.
+  gone.add('bpc_1');
+  calls.length = 0;
+  await cc.coachPortalUrl(stripe, db.client, { account: ACCT, customer: 'cus_onCoach', returnUrl: 'https://shape.test/m/' });
+  assert.deepEqual(calls.map((c) => c[0]), ['update', 'config', 'session']);
+  assert.deepEqual(calls[1][2], { stripeAccount: ACCT, idempotencyKey: `shape-portal-${ACCT}-after-bpc_1` });
+  assert.deepEqual(calls[1][1].features, params.features, 'with Shape\'s features');
+  assert.equal(calls[2][1].configuration, 'bpc_2');
+  assert.deepEqual(db.tables.stripe_account_portal, [{ stripe_account_id: ACCT, configuration_id: 'bpc_2' }]);
+  // Any other failure to write them back stops the portal: it never opens on an edited one.
+  const down = { billingPortal: { ...stripe.billingPortal, configurations: { ...stripe.billingPortal.configurations, update: async () => { throw Object.assign(new Error('rate limited'), { type: 'StripeRateLimitError' }); } } } };
+  calls.length = 0;
+  await assert.rejects(cc.coachPortalUrl(down, db.client, { account: ACCT, customer: 'cus_onCoach', returnUrl: 'x' }));
+  assert.ok(!calls.some((c) => c[0] === 'session'));
   await assert.rejects(cc.coachPortalUrl(stripe, db.client, { account: 'cus_x', customer: 'cus_onCoach', returnUrl: 'x' }));
 });
 
