@@ -64,6 +64,11 @@ export default {
       replace: "              shapeFeeCents: applicationFeeCents,\n              itemName: session.metadata?.item_name ?? null," },
 
     // ── The webhook: first months ──
+    { name: 'coaching: a paid first month that has ended since is not announced', file: WEBHOOK,
+      find: "        if (!subErr && moneyMoved && providerId && (providerRole === 'trainer' || providerRole === 'nutritionist')) {\n          const firstMonthCents",
+      replace: "        if (!subErr && moneyMoved && !subEnded && providerId && (providerRole === 'trainer' || providerRole === 'nutritionist')) {\n          const firstMonthCents" },
+    { name: 'membership: a paid first month that has ended since is not announced', file: WEBHOOK,
+      find: '          if (membershipSaved && moneyMoved) {\n', replace: '          if (membershipSaved && moneyMoved && !subEnded) {\n' },
     { name: 'coaching: the first month states no fee', file: WEBHOOK,
       find: '            shapeFeeCents: splitAtBps(firstMonthCents, subFeeBps)?.shape ?? null,', replace: '            shapeFeeCents: null,' },
     { name: 'coaching: the first month is called a renewal', file: WEBHOOK,

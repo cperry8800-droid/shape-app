@@ -343,10 +343,14 @@ test('webhook: a coach plan\'s first month is announced with Shape\'s fee at the
   const byo = await runWebhook(coaching({ metadata: meta({ origin: 'coach_link', fee_bps: '0' }) }));
   assert.equal(byo.announced[0].shapeFeeCents, 0, 'a client the coach brought: no Shape fee');
 
-  // Not saved, not paid, or already ended: nothing.
+  // Not saved or not paid: nothing.
   assert.deepEqual((await runWebhook(coaching(), { errors: { 'upsert:subscriptions': { code: '23502', message: 'null value' } } })).announced, []);
   assert.deepEqual((await runWebhook(coaching({ payment_status: 'unpaid' }))).announced, []);
-  assert.deepEqual((await runWebhook(coaching(), { sub: { status: 'canceled' } })).announced, []);
+  // Delivered (or retried) after the member cancelled: the money moved, so it is announced; only
+  // the coaching start waits on a live plan (Codex on #2402).
+  const ended = await runWebhook(coaching(), { sub: { status: 'canceled' } });
+  assert.deepEqual(ended.announced, r.announced);
+  assert.equal(ended.db.tables.subscriptions[0].status, 'canceled', 'recorded as ended');
 });
 
 test('webhook: the membership\'s first month is announced once its row is saved', async () => {
@@ -354,6 +358,9 @@ test('webhook: the membership\'s first month is announced once its row is saved'
   const r = await runWebhook(membership);
   assert.deepEqual(r.announced, [{ key: 'cs_member', clientId: UID, amountCents: 500, paidFor: 'membership', renewal: false }]);
   assert.deepEqual((await runWebhook(membership, { errors: { 'upsert:platform_subscriptions': { code: '23502', message: 'x' } } })).announced, []);
+  assert.deepEqual((await runWebhook(coaching({ id: 'cs_member', amount_total: 500, payment_status: 'unpaid', metadata: { client_id: UID, plan: 'shape_platform', price_cents: '500' } }))).announced, []);
+  // Ended since it was paid: still announced (Codex on #2402).
+  assert.deepEqual((await runWebhook(membership, { sub: { status: 'canceled' } })).announced, r.announced);
 });
 
 test('webhook: invoice.paid announces each later month, the membership and a coach plan, split at its row\'s fee', async () => {
@@ -413,6 +420,8 @@ test('the notices sit after each save in the webhook, and the module is the only
   // Coaching: inside startCoaching's guard; membership: inside welcomeMember's.
   const start = at('await startCoaching(admin, {');
   assert.ok(at("paidFor: 'coaching',\n            renewal: false,", start) > start);
-  assert.match(src, /if \(membershipSaved && moneyMoved && !subEnded\) \{\s+await welcomeMember\(admin, clientId\);\s+await announcePayment\(admin, \{/);
+  assert.match(src, /if \(membershipSaved && moneyMoved && !subEnded\) await welcomeMember\(admin, clientId\);[\s\S]{0,300}if \(membershipSaved && moneyMoved\) \{\s+await announcePayment\(admin, \{/);
+  // A paid payment is announced whether or not the plan has ended since; only onboarding waits on a live one.
+  assert.match(src, /if \(!subErr && moneyMoved && providerId && \(providerRole === 'trainer' \|\| providerRole === 'nutritionist'\)\) \{\s+const firstMonthCents/);
   assert.match(src, /case 'invoice\.paid': \{[\s\S]{0,600}if \(invoice\.billing_reason !== 'subscription_cycle' \|\| !\(invoice\.amount_paid > 0\) \|\| !invoice\.id\) break;/);
 });

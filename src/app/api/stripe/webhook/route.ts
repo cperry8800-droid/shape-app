@@ -714,10 +714,11 @@ export async function POST(request: Request) {
             price_cents: priceCents || null,
             current_period_end: currentPeriodEnd,
           });
-          // Fix 3a: a welcome from Shape when the membership starts, once per member; and, for what
-          // was charged, the member's receipt and the owners' notice (payment-notices.ts).
-          if (membershipSaved && moneyMoved && !subEnded) {
-            await welcomeMember(admin, clientId);
+          // Fix 3a: a welcome from Shape when the membership starts, once per member.
+          if (membershipSaved && moneyMoved && !subEnded) await welcomeMember(admin, clientId);
+          // The member's receipt and the owners' notice for what was charged (payment-notices.ts).
+          // The money moved, so they go even when the membership has ended since (Codex on #2402).
+          if (membershipSaved && moneyMoved) {
             await announcePayment(admin, {
               key: session.id,
               clientId,
@@ -793,8 +794,11 @@ export async function POST(request: Request) {
             subscriptionKey: subRow.stripe_subscription_id || session.id,
             monthlyCents: priceCents ? coachCutCents(priceCents, bpsToRate(subFeeBps)) : null,
           });
-          // The member's receipt and the owners' notice for the first month (payment-notices.ts).
-          // Later months are invoice.paid's.
+        }
+        // The member's receipt and the owners' notice for the first month (payment-notices.ts); later
+        // months are invoice.paid's. The money moved, so they go even when the plan has ended since
+        // (Codex on #2402); only the coaching start above waits on a live plan.
+        if (!subErr && moneyMoved && providerId && (providerRole === 'trainer' || providerRole === 'nutritionist')) {
           const firstMonthCents = session.amount_total ?? priceCents;
           await announcePayment(admin, {
             key: session.id,
