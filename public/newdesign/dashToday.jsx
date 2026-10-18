@@ -91,6 +91,19 @@ function dashMoney(cents) {
   catch (e) { return "$0"; }
 }
 
+// Today's sidebar card from the dashboard's kpis: net a month, and today's clients.
+// ⚠ CLIENTS, NOT "ACTIVE SUBS" (the sweep after #2394 round 10). The dashboards count today's
+// practice by the Business page's rule (coach-trajectory.mjs practiceToday): people, a client whose
+// payment is retrying among them, so the card says what the Business page it sits beside says.
+function dashLivePayoutCard(k) {
+  const n = k ? k.activeClients : null;
+  return {
+    label: "MONTHLY · NET",
+    amount: k && k.monthlyNetCents != null ? dashMoney(k.monthlyNetCents) : "—",
+    sub: (n == null ? "—" : n === 1 ? "1 client" : n + " clients") + " · payouts connect soon",
+  };
+}
+
 // ── The KPI picker (review 2026-09-09, R15) ─────────────────────────────────
 // Which four figures each Today stat strip shows, chosen per account and per role.
 // The pool and every derivation live in dashSignals.js; this file owns the FORMATTING,
@@ -1032,7 +1045,9 @@ function DashBusinessSummary({ live, role, clients }) {
   return (
     <div>
       <div style={{ display: "flex", alignItems: "flex-end", gap: 22, flexWrap: "wrap" }}>
-        {stat(netCents != null ? dashMoney(netCents) : "—", "Monthly · net", netCents != null ? "from active subs · after 15%" : "no subscription data")}
+        {/* ⚠ NOT "AFTER 15%" (the sweep after #2394 round 10): a client the coach brought pays no fee, and
+            the net is each plan's own; the clients are today's, as Business counts them (the routes' practiceToday). */}
+        {stat(netCents != null ? dashMoney(netCents) : "—", "Monthly · net", netCents != null ? "today's clients · after Shape's fee" : "no subscription data")}
         {stat(adds90 != null ? "+" + adds90 : "—", "New clients · 90d", !g ? "couldn't be read just now" : g.momPct != null ? (g.momPct >= 0 ? "+" : "") + g.momPct + "% vs the 30 days before" : "none in the 30 days before to compare")}
         {stat(close != null ? close + "%" : "—", "Consult → signed", "benchmark ~" + DASH_FUNNEL_BENCHMARK + "%", close == null ? null : close >= DASH_FUNNEL_BENCHMARK ? "var(--sh-green, #7bbf5a)" : "var(--sh-gold, #d8a23a)")}
         {counts && (
@@ -2015,9 +2030,7 @@ function CoachDashboardPage({ role }) {
       primaryCta={cfg.primaryCta}
       secondaryCta={cfg.secondaryCta}
       navItems={cfg.navItems()}
-      payoutCard={live
-        ? { label: "MONTHLY · NET", amount: live.kpis.monthlyNetCents != null ? dashMoney(live.kpis.monthlyNetCents) : "—", sub: live.kpis.activeClients + " active subs · payouts connect soon" }
-        : cfg.payoutCard()}
+      payoutCard={live ? dashLivePayoutCard(live.kpis) : cfg.payoutCard()}
       kpis={kpis}
       kpis2={practiceKpis}
       scheduleTitle={cfg.scheduleTitle}
@@ -2052,4 +2065,4 @@ function CoachDashboardPage({ role }) {
   );
 }
 
-Object.assign(window, { CoachDashboardPage, DashNowColumn, DashNeedsYou, dashCountdown, dashQueueRowState, dashQueueNotices, dashQueueMergeMarks, DASH_TODAY_ROLES, DASH_SEV_COLORS, DASH_FUNNEL_BENCHMARK, DashPill, DashDemoBand, TriagePulsePanel, DashWinsPanel, ProgrammingQueuePanel, dashCloseRate, DashFunnelPanel, DashNutriAggPanel, DashBusinessSummary, DashWeekAheadPanel, DashRosterStatusPanel, DashTopMoversPanel, DashAnniversariesPanel, DashRevenueByClientPanel, DashProgramsEndingPanel, DashNotesPanel, dashTabHref, dashMessageClient, dashMessageDraft, dashCongratsDraft, dashJointDraft, dashClientHref, dashClientPageHref, dashRelDay, dashContextLine, dashMoney, dashFmtTime, dashCalDate, dashCalTime });
+Object.assign(window, { CoachDashboardPage, DashNowColumn, DashNeedsYou, dashCountdown, dashQueueRowState, dashQueueNotices, dashQueueMergeMarks, DASH_TODAY_ROLES, DASH_SEV_COLORS, DASH_FUNNEL_BENCHMARK, DashPill, DashDemoBand, TriagePulsePanel, DashWinsPanel, ProgrammingQueuePanel, dashCloseRate, DashFunnelPanel, DashNutriAggPanel, DashBusinessSummary, DashWeekAheadPanel, DashRosterStatusPanel, DashTopMoversPanel, DashAnniversariesPanel, DashRevenueByClientPanel, DashProgramsEndingPanel, DashNotesPanel, dashTabHref, dashMessageClient, dashMessageDraft, dashCongratsDraft, dashJointDraft, dashClientHref, dashClientPageHref, dashRelDay, dashContextLine, dashMoney, dashLivePayoutCard, dashFmtTime, dashCalDate, dashCalTime });

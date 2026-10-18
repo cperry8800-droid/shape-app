@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/server';
 import { DAY_MS, startOfWeek } from '@/lib/time';
 import { coachGrowthAndFunnel } from '@/lib/coach-growth';
 import { coachCutCents, bpsToRate } from '@/lib/platform-fee';
+import { OPEN_SUB_STATUSES, practiceToday } from '@/lib/coach-trajectory.mjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,21 +70,22 @@ export async function GET() {
   let pulse: Array<Record<string, unknown>> = [];
 
   if (providerId != null) {
-    // Active subscribers + monthly recurring revenue, net of each row's STORED
-    // fee (BYO subs pay 0% — the coach keeps 100%; marketplace subs pay 15%).
+    // Today's clients + monthly recurring revenue.
+    // ⚠ BY THE BUSINESS PAGE'S RULE, SO TODAY AND BUSINESS SAY ONE NUMBER (the sweep after #2394
+    // round 10; the trainer route says why). Every open status is read (a past_due client is still
+    // a member), and practiceToday counts them as the trajectory's latest week does: people, and
+    // the net from each row's STORED fee (BYO subs pay 0%; marketplace subs pay 15%).
     const { data: subRows } = await supabase
       .from('subscriptions')
       .select('*') // '*' is migration-safe: an explicit fee_bps errors the query on a pre-migration DB
       .eq('provider_role', 'nutritionist')
       .eq('provider_id', providerId)
-      .in('status', ['active', 'trialing']);
-    const subs = subRows ?? [];
-    activeClients = subs.length;
-    monthlyNetCents = subs.reduce(
-      (sum: number, r: { price_cents: number | null; fee_bps?: number | null }) =>
-        sum + coachCutCents(r.price_cents ?? 0, bpsToRate(r.fee_bps ?? 1500)),
-      0
-    );
+      .in('status', OPEN_SUB_STATUSES);
+    const practice = practiceToday(subRows ?? [], {
+      cutCents: (priceCents: number, feeBps: number | null) => coachCutCents(priceCents, bpsToRate(feeBps ?? 1500)),
+    });
+    activeClients = practice.clients;
+    monthlyNetCents = practice.mrrNetCents;
 
     const { data: sessions } = await supabase
       .from('sessions')

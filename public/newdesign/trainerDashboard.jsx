@@ -9,7 +9,7 @@
 // 2026-09-09, R11). The sidebar now resolves them itself from the same feeds
 // Today uses — one fetch per page load, cached 60s — so every tab agrees:
 //   signed out (401)         → the demo literal the route passed (under the band)
-//   signed in, feed live     → MONTHLY · NET + active subs, or SHAPE SCORE
+//   signed in, feed live     → MONTHLY · NET + clients, or SHAPE SCORE
 //   signed in, feed unknown  → "—" (a number nobody measured is never shown)
 //   still resolving          → "—" (never a flash of demo money on a real account)
 // A route that computed its own live card (Business shows the Stripe balance)
@@ -84,7 +84,9 @@ function useDashSidebarLive(role) {
       setState({ kind: "live", count: k.activeClients, card: {
         label: "MONTHLY · NET",
         amount: k.monthlyNetCents != null ? dsbMoney(k.monthlyNetCents) : "—",
-        sub: (k.activeClients != null ? k.activeClients : 0) + " active subs · payouts connect soon",
+        // Clients, not subscriptions: the dashboards count today's practice by the Business page's
+        // rule, people with a client whose payment is retrying among them (the sweep after #2394 round 10).
+        sub: (k.activeClients === 1 ? "1 client" : (k.activeClients != null ? k.activeClients : 0) + " clients") + " · payouts connect soon",
       } });
     })();
     return () => { on = false; };

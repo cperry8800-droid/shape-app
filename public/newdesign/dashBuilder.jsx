@@ -3128,7 +3128,7 @@ function TrainerProgramsPage() {
   const saved=({plan})=>{setTemplates(prev=>[plan,...(prev||[]).filter(t=>t.id!==plan.id)]);setRecoveries(Object.entries(dbuReadDrafts(ownerId)));};
   return <React.Fragment>
     {source==='demo'&&<DashDemoBand/>}
-    <DashPage tourHero="hero-programs" navItems={trainerNavItems('programs')} payoutCard={live?{label:'MONTHLY · NET',amount:live.kpis.monthlyNetCents!=null?dashMoney(live.kpis.monthlyNetCents):'—',sub:live.kpis.activeClients+' active clients'}:trainerPayoutCard}
+    <DashPage tourHero="hero-programs" navItems={trainerNavItems('programs')} payoutCard={live?dashLivePayoutCard(live.kpis):trainerPayoutCard}
       eyebrow="WORKOUT LIBRARY" title={<>Workouts <span style={{ fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontWeight: 500, fontSize: "0.86em", letterSpacing: 0 }}>&amp;</span> programs</>} subtitle={view?'Build once. Use the same workout on the website and app.':'Reusable single days and programs, with demonstrations attached to each exercise.'}>
       {targetClient && <p role="status">Choose a program for {targetClient.profile.name}. The assignment will have this client selected.</p>}
       {view?<DbuBuilder key={view.id||view.name} template={view} preselectId={targetClient ? forClient : null} clients={clients} queue={queue} live={isLive} ownerId={ownerId} playlists={playlists} clips={clips} dayTemplates={days} customMoves={customMoves} customTags={customTags} onBack={()=>{setView(null);setRefresh(n=>n+1);}} onSaved={saved}/>:<>

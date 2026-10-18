@@ -121,6 +121,84 @@ test('the dashboards cap consult → signed at 100 and say what the comparison i
   assert.equal(close({ consults90: 10, signed90: null }), null, 'unread signings are no rate, not 0%');
 });
 
+// ── The sweep after #2394 round 10: Today counts today's practice by the Business page's rule ──
+// The dashboards' kpis (Today's Business card and sidebar, the KPI picker, the other pages' sidebars)
+// took active and trialing rows and counted rows. Business counts today's clients from the
+// trajectory: people, a client whose payment is retrying (past_due) among them.
+test('both dashboards count today\'s clients and net as the Business page does: a retrying payment counts, a client on two plans is one', async () => {
+  const { createRequire } = await import('node:module');
+  const require_ = createRequire(import.meta.url);
+  const trajectory = await import(pathToFileURL(ROOT + 'src/lib/coach-trajectory.mjs').href);
+  const fee = await import(pathToFileURL(ROOT + 'src/lib/platform-fee.mjs').href);
+  const COACH = '33333333-3333-4333-8333-333333333333';
+  const T = Date.now();
+  const at = (d) => new Date(T - d * DAY).toISOString();
+  for (const [role, table] of [['trainer', 'trainers'], ['nutritionist', 'nutritionists']]) {
+    const sub = (id, client_id, over = {}) => ({ id, provider_role: role, provider_id: 7, client_id, created_at: at(200), status: 'active', price_cents: 18000, fee_bps: 1500, ...over });
+    const subs = [
+      sub('s1', 'a'),
+      sub('s2', 'a', { status: 'trialing', price_cents: 5000 }),        // a's second plan: one client
+      sub('s3', 'a', { price_cents: 2000 }),                            // and a third
+      sub('s4', 'b', { fee_bps: 0 }),                                   // brought: no fee
+      sub('s5', 'c', { status: 'past_due' }),                           // retrying: still a client
+      sub('s6', 'd', { status: 'canceled', current_period_end: at(-10) }), // paid through, but gone
+      sub('s7', 'e', { status: 'incomplete' }),                         // never a client
+      sub('s8', 'f', { provider_id: 8 }),                               // another coach's
+    ];
+    const db = fakeSupabase({ tables: { [table]: [{ id: 7, owner_id: COACH }], profiles: [{ id: COACH, full_name: 'Casey Coach' }], subscriptions: subs, sessions: [] } });
+    const client = { ...db, auth: { getUser: async () => ({ data: { user: { id: COACH, email: 'casey@shape.test' } }, error: null }) } };
+    const route = await loadRealModule(ROOT + `src/app/api/${role}/dashboard/route.ts`, {
+      typescript: true,
+      registry: new Map([
+        ['next/server', require_('next/server')],
+        ['@/lib/supabase/server', { createClient: async () => client }],
+        ['@/lib/time', await loadRealModule(ROOT + 'src/lib/time.ts', { typescript: true })],
+        ['@/lib/coach-growth', G],
+        ['@/lib/platform-fee', fee],
+        ['@/lib/coach-trajectory.mjs', trajectory],
+      ]),
+    });
+    const body = await (await route.GET()).json();
+    // What the Business page counts: the trajectory's latest week over this coach's rows.
+    const last = trajectory.buildTrajectory({ subs: subs.filter((r) => r.provider_id === 7), cutCents: (p, bps) => fee.coachCutCents(p, fee.bpsToRate(bps ?? 1500)) }).weeks.slice(-1)[0];
+    assert.deepEqual([body.kpis.activeClients, body.kpis.monthlyNetCents], [last.active, last.mrrNetCents], role + ': Today says what Business says');
+    assert.deepEqual([body.kpis.activeClients, body.kpis.monthlyNetCents], [3, 15300 + 4250 + 1700 + 18000 + 15300], role + ': a, b and c; b keeps all of hers');
+  }
+});
+
+test('Today\'s Business card and sidebar say today\'s clients and Shape\'s fee, not "active subs" and a flat 15%', async () => {
+  const { createRequire } = await import('node:module');
+  const require_ = createRequire(import.meta.url);
+  const React = require_('react');
+  const { renderToStaticMarkup } = require_('react-dom/server');
+  const babel = require_('next/dist/compiled/babel/core');
+  const presetReact = require_('next/dist/compiled/babel/preset-react');
+  const src = readFileSync(ROOT + 'public/newdesign/dashToday.jsx', 'utf8');
+  const pick = (re) => re.exec(src)[0];
+  const code = [
+    pick(/function dashMoney\(cents\) \{[\s\S]*?\n\}/),
+    pick(/function dashLivePayoutCard\(k\) \{[\s\S]*?\n\}/),
+    pick(/const DASH_FUNNEL_BENCHMARK = [^\n]*/),
+    pick(/function dashCloseRate\(f\) \{[\s\S]*?\n\}/),
+    ...(/function dashCloseWhy\(/.test(src) ? [pick(/function dashCloseWhy\(f\) \{[\s\S]*?\n\}/)] : []),
+    pick(/function DashBusinessSummary\([\s\S]*?\n\}/),
+  ].join('\n');
+  const js = babel.transformSync(code, { presets: [presetReact], babelrc: false, configFile: false }).code;
+  const { dashLivePayoutCard, DashBusinessSummary } = new Function('React', 'serif', 'DASH_MONO_LINK', 'DASH_DEMO_GROWTH', 'DASH_DEMO_FUNNEL',
+    js + '\nreturn { dashLivePayoutCard, DashBusinessSummary };')(React, 'serif', {}, {}, {});
+  const card = renderToStaticMarkup(React.createElement(DashBusinessSummary, { live: { growth: null, funnel: null, kpis: { activeClients: 13, monthlyNetCents: 182700 } }, role: 'trainer', clients: [] })).replace(/<[^>]+>/g, ' ').replace(/&#x27;/g, "'").replace(/\s+/g, ' ');
+  assert.match(card, /\$1,827 Monthly · net today's clients · after Shape's fee/);
+  assert.doesNotMatch(card, /15%|active subs/);
+  assert.deepEqual(dashLivePayoutCard({ activeClients: 13, monthlyNetCents: 182700 }), { label: 'MONTHLY · NET', amount: '$1,827', sub: '13 clients · payouts connect soon' });
+  assert.equal(dashLivePayoutCard({ activeClients: 1, monthlyNetCents: 15300 }).sub, '1 client · payouts connect soon');
+  // Every page's sidebar reads it, or says clients in its own words (the app frame has no dashToday.jsx).
+  const page = (f) => readFileSync(ROOT + 'public/newdesign/' + f, 'utf8');
+  assert.match(src, /payoutCard=\{live \? dashLivePayoutCard\(live\.kpis\) : cfg\.payoutCard\(\)\}/);
+  assert.match(page('dashMealBuilder.jsx'), /payoutCard=\{live \? dashLivePayoutCard\(live\.kpis\) : nutriPayoutCard\}/);
+  assert.match(page('dashBuilder.jsx'), /payoutCard=\{live\?dashLivePayoutCard\(live\.kpis\):trainerPayoutCard\}/);
+  for (const f of ['dashToday.jsx', 'dashMealBuilder.jsx', 'dashBuilder.jsx', 'trainerDashboard.jsx']) assert.doesNotMatch(page(f), /active subs/, f);
+});
+
 test('when the subscriptions can\'t be read, Today and the funnel say so: the consults stay, nothing claims none', async () => {
   // The dashboards keep the consults they counted from the calendar, and send the signings as null.
   for (const role of ['trainer', 'nutritionist']) {
