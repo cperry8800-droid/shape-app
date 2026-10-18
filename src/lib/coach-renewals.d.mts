@@ -10,6 +10,8 @@ export type RenewalSource = {
   fee_bps?: number | null;
   current_period_end?: string | null;
   stripe_subscription_id?: string | null;
+  /** The connected account the subscription lives on; null or absent: the platform. */
+  stripe_account_id?: string | null;
 };
 
 export type Renewal = {

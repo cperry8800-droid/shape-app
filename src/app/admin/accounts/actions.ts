@@ -284,6 +284,26 @@ export async function liftListing(formData: FormData): Promise<void> {
   redirect(`${back}?updated=lifted`);
 }
 
+type BillingRow = { stripe_subscription_id: string | null; status: string | null; stripe_account_id?: string | null };
+type BillingRead = PromiseLike<{ data: unknown; error: { code?: string; message?: string } | null }>;
+
+/**
+ * Coaching subscriptions, each with the account it lives on (stripe_account_id: a coach's own
+ * account for a direct charge, null for the platform), so a removal cancels each where it is. A
+ * database before the 2026-10-18 migration has no such column: the rows are read without it and
+ * carry no account at all, which cancelSubscriptions reads as "not known" and treats strictly.
+ */
+async function coachingBilling(read: (cols: string) => BillingRead): Promise<{ data: BillingRow[] | null; error: unknown }> {
+  const withAccount = await read('stripe_subscription_id, status, stripe_account_id');
+  if (!withAccount.error) {
+    return { data: ((withAccount.data ?? []) as BillingRow[]).map((r) => ({ ...r, stripe_account_id: r.stripe_account_id ?? null })), error: null };
+  }
+  if (withAccount.error.code !== '42703' && withAccount.error.code !== 'PGRST204') return { data: null, error: withAccount.error };
+  const before = await read('stripe_subscription_id, status');
+  if (before.error) return { data: null, error: before.error };
+  return { data: ((before.data ?? []) as BillingRow[]).map((r) => ({ stripe_subscription_id: r.stripe_subscription_id, status: r.status })), error: null };
+}
+
 /**
  * Removes an account: every Stripe subscription that can still charge on it is cancelled first
  * (their Shape membership, their coaches, and their own clients' subscriptions to their
@@ -302,23 +322,27 @@ export async function removeAccount(formData: FormData): Promise<void> {
 
   const [membership, coaching, trainers, nutritionists] = await Promise.all([
     db.from('platform_subscriptions').select('stripe_subscription_id, status').eq('client_id', id),
-    db.from('subscriptions').select('stripe_subscription_id, status').eq('client_id', id),
+    coachingBilling((cols) => db.from('subscriptions').select(cols).eq('client_id', id)),
     db.from('trainers').select('id').eq('owner_id', id),
     db.from('nutritionists').select('id').eq('owner_id', id),
   ]);
   if (membership.error || coaching.error || trainers.error || nutritionists.error) redirect(`${back}?error=billing_read_failed`);
-  const billing = [...(membership.data ?? []), ...(coaching.data ?? [])];
+  // The membership is sold on Shape's own account only: its account is known, the platform.
+  const billing: BillingRow[] = [
+    ...((membership.data ?? []) as BillingRow[]).map((r) => ({ ...r, stripe_account_id: null })),
+    ...(coaching.data ?? []),
+  ];
   for (const [role, rows] of [
     ['trainer', trainers.data ?? []],
     ['nutritionist', nutritionists.data ?? []],
   ] as const) {
     const ids = rows.map((r) => r.id);
     if (!ids.length) continue;
-    const { data, error } = await db
+    const { data, error } = await coachingBilling((cols) => db
       .from('subscriptions')
-      .select('stripe_subscription_id, status')
+      .select(cols)
       .eq('provider_role', role)
-      .in('provider_id', ids);
+      .in('provider_id', ids));
     if (error) redirect(`${back}?error=billing_read_failed`);
     billing.push(...(data ?? []));
   }

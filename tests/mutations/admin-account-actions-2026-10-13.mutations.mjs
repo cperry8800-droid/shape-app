@@ -39,14 +39,16 @@ export default {
     { name: 'a failing payment is not cancelled', file: RULES,
       find: "export const BILLING_STATUSES = ['active', 'trialing', 'past_due', 'unpaid', 'incomplete', 'paused'];",
       replace: "export const BILLING_STATUSES = ['active', 'trialing', 'unpaid', 'incomplete', 'paused'];" },
+    // The two anchors below moved with coach direct charges (2026-10-18): each row now carries its
+    // account, so the lines changed; the mutations are the same ones.
     { name: 'an ended subscription is cancelled again', file: RULES,
-      find: '    if (id && BILLING_STATUSES.includes(r?.status)) ids.add(id);',
-      replace: '    if (id) ids.add(id);' },
+      find: '    if (!id || !BILLING_STATUSES.includes(r?.status)) continue;',
+      replace: '    if (!id) continue;' },
     { name: 'a failed cancel counts as done', file: RULES,
       find: '      if (!ended) failed.push(id);',
       replace: '' },
     { name: 'a subscription Stripe never had is looked up again', file: RULES,
-      find: "      if (e?.code === 'resource_missing') continue;\n",
+      find: "      if (e?.code === 'resource_missing' && account !== undefined) continue;\n",
       replace: '' },
     // ── the actions ──
     { name: 'a failed freeze record keeps the ban', file: ACTIONS,

@@ -8,6 +8,7 @@
 import { NextResponse } from 'next/server';
 import type Stripe from 'stripe';
 import { stripe } from '@/lib/stripe';
+import { platformCoachCustomer } from '@/lib/stripe-connect';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 
 export const runtime = 'nodejs';
@@ -20,7 +21,8 @@ export async function GET(req: Request) {
 
   const [platform, perCoach] = await Promise.all([
     supabase.from('platform_subscriptions').select('stripe_customer_id').eq('client_id', user.id).not('stripe_customer_id', 'is', null).limit(1).maybeSingle(),
-    supabase.from('subscriptions').select('stripe_customer_id').eq('client_id', user.id).not('stripe_customer_id', 'is', null).limit(1).maybeSingle(),
+    // Shape's own customer only (src/lib/stripe-connect.ts): a direct-charge row's is on a coach's account.
+    platformCoachCustomer(supabase, user.id),
   ]);
   const customerId = platform.data?.stripe_customer_id || perCoach.data?.stripe_customer_id || null;
   if (!customerId) return NextResponse.json({ hasMethod: false });

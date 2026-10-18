@@ -9,6 +9,7 @@
 // Read by src/app/purchase/success/page.tsx and src/app/subscribe/success/page.tsx.
 
 import { stripe } from '@/lib/stripe';
+import { acctOpts, isAccountId } from '@/lib/stripe-connect';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -48,15 +49,55 @@ export function debitFailed(s: { payment_intent?: unknown; subscription?: unknow
   return false;
 }
 
+type CoachOnAccount = { role: 'trainer' | 'nutritionist'; id: number };
+
+/**
+ * The coaches whose connected account `acct` is (none, or a trainer and a nutritionist listing of
+ * one person). ⚠ The return address is the buyer's to edit: an `acct` is honoured only when it is
+ * a coach's account on record, so the page never reads a checkout from an account Shape does not
+ * pay coaches through.
+ */
+async function coachesOnAccount(acct: string): Promise<CoachOnAccount[]> {
+  const admin = createAdminClient();
+  const out: CoachOnAccount[] = [];
+  for (const role of ['trainer', 'nutritionist'] as const) {
+    const { data, error } = await admin
+      .from(role === 'trainer' ? 'trainers' : 'nutritionists')
+      .select('id')
+      .eq('stripe_account_id', acct)
+      .maybeSingle();
+    if (error) throw error;
+    const id = Number((data as { id?: unknown } | null)?.id);
+    if (Number.isSafeInteger(id) && id > 0) out.push({ role, id });
+  }
+  return out;
+}
+
 /**
  * The checkout `sessionId`, as its buyer may see it. `unconfirmed` covers everything that is not a
  * clear answer (no id, someone else's, Stripe unreachable): the page then claims nothing.
  * ⚠ SIGNED OUT IS NOT "UNCONFIRMED". A member paying from the app returns here in a browser that is
  * often not signed in. They hold the checkout's id, which only its return address carries, so the
  * page says where the payment stands, without the coach's or the item's name.
+ * `acct` (the return address's `&acct=`) is the coach's connected account a direct-charge checkout
+ * was made on. It is read from there only when it is a coach's account on record, and only a
+ * checkout naming that same coach is described; absent, the checkout is read from Shape's account.
  */
-export async function readCheckoutReturn(sessionId: unknown): Promise<CheckoutReturn> {
+export async function readCheckoutReturn(sessionId: unknown, acct?: unknown): Promise<CheckoutReturn> {
   if (!isCheckoutId(sessionId)) return { state: 'unconfirmed' };
+  let account: string | null = null;
+  let accountCoaches: CoachOnAccount[] = [];
+  if (acct !== undefined && acct !== null && acct !== '') {
+    if (!isAccountId(acct)) return { state: 'unconfirmed' };
+    try {
+      accountCoaches = await coachesOnAccount(acct);
+    } catch (err) {
+      console.error('[checkout-return] coach account read failed', err instanceof Error ? err.message : err);
+      return { state: 'unconfirmed' };
+    }
+    if (!accountCoaches.length) return { state: 'unconfirmed' };
+    account = acct;
+  }
   let userId: string | null = null;
   try {
     const supabase = await createClient();
@@ -68,7 +109,7 @@ export async function readCheckoutReturn(sessionId: unknown): Promise<CheckoutRe
 
   let s: Awaited<ReturnType<typeof stripe.checkout.sessions.retrieve>>;
   try {
-    s = await stripe.checkout.sessions.retrieve(sessionId, { expand: ['payment_intent', 'subscription'] });
+    s = await stripe.checkout.sessions.retrieve(sessionId, { expand: ['payment_intent', 'subscription'] }, acctOpts(account));
   } catch (err) {
     console.error('[checkout-return] session read failed', err instanceof Error ? err.message : err);
     return { state: 'unconfirmed' };
@@ -76,6 +117,11 @@ export async function readCheckoutReturn(sessionId: unknown): Promise<CheckoutRe
   // A signed-in account that did not buy it is told nothing about it.
   const owner = s.client_reference_id || s.metadata?.client_id || null;
   if (userId && owner !== userId) return { state: 'unconfirmed' };
+  // A checkout on a coach's account is described only when it names that coach: one the coach
+  // made for themselves, naming someone else, is not Shape's to vouch for.
+  if (account && !accountCoaches.some((c) => s.metadata?.provider_role === c.role && Number(s.metadata?.provider_id) === c.id)) {
+    return { state: 'unconfirmed' };
+  }
 
   if (s.status !== 'complete') return { state: 'not_paid' };
   const paid = s.payment_status === 'paid' || s.payment_status === 'no_payment_required';
