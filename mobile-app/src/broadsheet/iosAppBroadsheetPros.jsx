@@ -2202,6 +2202,9 @@ function bsRowFromTriage(row, role, t) {
     userId: p.id || null, n: name, i: initials, c: palette[h % palette.length],
     // The subscription start, so the client page can tell a board it could not read from no board.
     joinedAt: p.joinedAt || null,
+    // A renewal Stripe is still retrying (past_due): a normal client in every other way (owner,
+    // 2026-10-18), whose row carries the quiet BSProPayRetryMark.
+    paymentRetrying: p.paymentRetrying === true,
     avatar: p.avatar || p.photo || undefined,
     prog: (rec.program && rec.program.name) || '', r: String(rec.goalPhase || '').toUpperCase(),
     streak, d: adh != null ? `${adh}%` : '',
@@ -2321,6 +2324,16 @@ function BSProRosterStatus({ status, onRetry }) {
     {status === 'loading' ? tr('coach:roster.loading', { defaultValue: 'Loading clients…' }) : tr('coach:roster.unavailable', { defaultValue: 'Could not load your clients. Check your connection and retry.' })}
     {status === 'error' && <button type="button" onClick={onRetry} style={{ display: 'block', minHeight: 44, border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO }}>{tr('coach:roster.retry', { defaultValue: 'Retry' })}</button>}
   </div>;
+}
+
+// "PAYMENT RETRYING" beside a client whose renewal Stripe is still retrying (past_due). They stay a
+// normal client until Stripe gives up (owner, 2026-10-18): on the list, their logs visible, plans still
+// sent, so the row keeps the station its progress puts it in and only says the payment needs a look.
+function BSProPayRetryMark({ c }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  if (!c || c.paymentRetrying !== true) return null;
+  return <span data-pay-retry="" style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>{tr('coach:roster.paymentRetrying', { defaultValue: 'Payment retrying' })}</span>;
 }
 
 function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients, activeCount, pastCount, totalCount, newThisMonth = 3, roster, setRoster, query, setQuery, filter, setFilter, needsYou = false, setNeedsYou = () => {}, onOpen, footerLeft, footerRight }) {
@@ -2467,6 +2480,7 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
                       {c._var && c._var.band === 'variable' && (
                         <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', color: t.AMBER, whiteSpace: 'nowrap' }}>{tr('coach:roster.variable', { defaultValue: 'VARIABLE' })}</span>
                       )}
+                      <BSProPayRetryMark c={c} />
                       <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: col, whiteSpace: 'nowrap' }}>{sevWord} · {c.r || sig.label}</span>
                     </div>
                   </button>
@@ -2491,7 +2505,10 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
                 >
                   <span aria-hidden style={{ width: 4, height: 4, borderRadius: 999, background: `${t.INK}30`, justifySelf: 'center' }} />
                   <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK70, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.n}</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>{[ageWord(c), c.r, c.streak ? `${c.streak}D` : null].filter(Boolean).join(' · ')}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                    <BSProPayRetryMark c={c} />
+                    <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>{[ageWord(c), c.r, c.streak ? `${c.streak}D` : null].filter(Boolean).join(' · ')}</span>
+                  </span>
                 </button>
               ))}
             </div>

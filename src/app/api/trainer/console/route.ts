@@ -14,6 +14,7 @@ import { NextResponse } from 'next/server';
 import { createClient as createAnonClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { readJson, dbError } from '@/lib/request-utils';
+import { OPEN_SUB_STATUSES } from '../../../../lib/coach-trajectory.mjs';
 
 async function clientForRequest(request: Request) {
   const auth = request.headers.get('authorization') ?? '';
@@ -97,7 +98,8 @@ async function getProviderId(
 
 // Fetches the trainer's client roster from subscriptions + sessions, grouped
 // by client_id with a "current" / "past" status the dropdown groups by.
-// "current" = active/trialing subscription OR a session in the last 60 days.
+// "current" = an open subscription (active, trialing or past_due: a renewal Stripe is still
+// retrying keeps the client, owner 2026-10-18) OR a session in the last 60 days.
 async function fetchClientsForProvider(
   supabase: Awaited<ReturnType<typeof createClient>>,
   providerId: number,
@@ -123,7 +125,7 @@ async function fetchClientsForProvider(
   for (const sub of subRes.data ?? []) {
     if (!sub.client_id) continue;
     const e: Entry = byId.get(sub.client_id) ?? { id: sub.client_id, name: 'Client', status: 'past', lastAt: null };
-    if (sub.status === 'active' || sub.status === 'trialing') e.status = 'current';
+    if (OPEN_SUB_STATUSES.includes(sub.status)) e.status = 'current';
     byId.set(sub.client_id, e);
   }
 

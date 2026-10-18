@@ -735,6 +735,7 @@
   "roster.noPast": "КОЛИШНІХ КЛІЄНТІВ НЕМАЄ",
   "roster.pastClients": "КОЛИШНІ КЛІЄНТИ",
   "roster.pastClientsToggle": "КОЛИШНІ КЛІЄНТИ · {count} ›",
+  "roster.paymentRetrying": "Повторна спроба оплати",
   "roster.searchAria": "Пошук клієнтів",
   "roster.searchPlaceholder": "Пошук серед {count} клієнтів",
   "roster.show": "ПОКАЗАТИ ›",

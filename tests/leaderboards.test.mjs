@@ -226,7 +226,8 @@ test('member board: the team board says whether you have a coach, and asks befor
   assert.equal(body.hasCoach, true);
   assert.equal(body.hidden, 'team_unasked');
   const sub = client.calls.find((c) => c[1] === 'subscriptions')[2];
-  assert.deepEqual(sub.find((o) => o[0] === 'in'), ['in', 'status', ['active', 'trialing']]);
+  // A member whose renewal is retrying still has their coach (owner, 2026-10-18).
+  assert.deepEqual(sub.find((o) => o[0] === 'in'), ['in', 'status', ['active', 'trialing', 'past_due']]);
 });
 
 test('member board: a failed read is never an empty board', async () => {

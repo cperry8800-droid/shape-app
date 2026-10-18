@@ -94,7 +94,8 @@ async function coachClients(role, { strict = false } = {}) {
   try {
     if (window.ShapeAssign && window.ShapeAssign.clients) {
       const list = await window.ShapeAssign.clients(role, { strict });
-      return (Array.isArray(list) ? list : []).map((c) => ({ id: c.userId || c.id || c.user_id || null, name: c.name || c.full_name || 'Client', isNew: !!c.isNew, joinedAt: c.joinedAt || null })).filter((c) => c.id);
+      // paymentRetrying: a renewal Stripe is retrying (past_due); still a client, marked on the roster.
+      return (Array.isArray(list) ? list : []).map((c) => ({ id: c.userId || c.id || c.user_id || null, name: c.name || c.full_name || 'Client', isNew: !!c.isNew, joinedAt: c.joinedAt || null, paymentRetrying: c.paymentRetrying === true })).filter((c) => c.id);
     }
   } catch (e) { if (strict) throw e; }
   if (strict) throw new Error('Client roster unavailable');
@@ -148,7 +149,7 @@ async function coachRecords(role, options) {
     const rs = sleepByClient[c.id] || null;
     const ov = overviews[c.id] || null;
     return recordFromCoachData({
-      id: c.id, name: c.name, isNew: c.isNew, joinedAt: c.joinedAt, stats, lifts, goalsDoc, checkins, screening,
+      id: c.id, name: c.name, isNew: c.isNew, joinedAt: c.joinedAt, stats, lifts, goalsDoc, checkins, screening, paymentRetrying: c.paymentRetrying,
       lastContact: ov && ov.lastContact ? ov.lastContact : null,
       onboarding: ov && ov.onboarding ? ov.onboarding : null,
       recovery: rs && rs.sleepHours ? { sleepHours: rs.sleepHours } : null,

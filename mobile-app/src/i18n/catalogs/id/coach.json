@@ -735,6 +735,7 @@
   "roster.noPast": "TIDAK ADA KLIEN LAMA",
   "roster.pastClients": "KLIEN LAMA",
   "roster.pastClientsToggle": "KLIEN LAMA · {count} ›",
+  "roster.paymentRetrying": "Pembayaran dicoba ulang",
   "roster.searchAria": "Cari klien",
   "roster.searchPlaceholder": "Cari {count} klien",
   "roster.show": "TAMPILKAN ›",

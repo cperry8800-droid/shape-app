@@ -15,6 +15,7 @@ import { unauthorizedAssignTargets } from '@/lib/access-guards.mjs';
 import { gateProviderAction, blockMessage } from '@/lib/compliance/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createNotification } from '@/lib/notify';
+import { OPEN_SUB_STATUSES } from '../../../../lib/coach-trajectory.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -46,7 +47,7 @@ export async function POST(request: Request) {
 
   // On-client + discipline gate: a nutritionist may write a plan only for a
   // client they actively coach AS A NUTRITIONIST. Read the caller's
-  // active/trialing subs for THIS nutritionist row and reject if the target
+  // open subs (active, trialing, past_due) for THIS nutritionist row and reject if the target
   // client isn't among them. (The 2026-06-17 INSERT RLS policy enforces the same
   // at the DB.)
   const { data: subs, error: subsError } = await supabase
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
     .select('client_id')
     .eq('provider_id', nutriRow.id)
     .eq('provider_role', 'nutritionist')
-    .in('status', ['active', 'trialing']);
+    .in('status', OPEN_SUB_STATUSES);
   if (subsError) return NextResponse.json({ error: 'Could not verify your active clients. Please retry.' }, { status: 500 });
   const activeClientIds = (subs ?? []).map((s) => String((s as { client_id: unknown }).client_id));
   if (unauthorizedAssignTargets([clientId], activeClientIds).length) {

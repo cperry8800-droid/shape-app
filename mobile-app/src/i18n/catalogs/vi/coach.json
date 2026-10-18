@@ -735,6 +735,7 @@
   "roster.noPast": "KHÔNG CÓ KHÁCH HÀNG CŨ",
   "roster.pastClients": "KHÁCH HÀNG CŨ",
   "roster.pastClientsToggle": "KHÁCH HÀNG CŨ · {count} ›",
+  "roster.paymentRetrying": "Đang thử lại thanh toán",
   "roster.searchAria": "Tìm khách hàng",
   "roster.searchPlaceholder": "Tìm {count} khách hàng",
   "roster.show": "HIỆN ›",

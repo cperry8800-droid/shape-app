@@ -272,3 +272,44 @@ test('both Goal modals apply the metric’s unit when the binding changes', () =
     assert.match(src, /disabled=\{!!g\.metric\}/, `${f}: the unit checkboxes stay live while bound`);
   }
 });
+
+// ── Owner, 2026-10-18: a client whose payment is retrying stays a normal client, with a mark ──────
+// "They stay normal clients until Stripe gives up: on the list, with logs visible, and the coach can
+// still send them plans." The roster route sends `paymentRetrying` for a client whose open plans
+// include a past_due one; the record says past_due and the row carries "Payment retrying".
+import { createRequire } from 'node:module';
+const requireCjs = createRequire(import.meta.url);
+
+test('a retrying payment is past_due on the record and a "Payment retrying" mark on the row; nobody else gets one', () => {
+  const React = requireCjs('react');
+  const { renderToStaticMarkup } = requireCjs('react-dom/server');
+  const babel = requireCjs('next/dist/compiled/babel/core');
+  const presetReact = requireCjs('next/dist/compiled/babel/preset-react');
+  const DashSignals = requireCjs('../public/newdesign/dashSignals.js');
+  const compile = (src) => babel.transformSync(src, { presets: [presetReact], babelrc: false, configFile: false, sourceType: 'script' }).code;
+  const web = new Function('React', 'DashSignals', 'window', compile(DATA) + '\nreturn { _dashRecordFromLive, dashUnitsApi, dashMilestonesIn, dashWeighIn, dashWeighInDelta };')(React, DashSignals, {});
+  const rec = (row) => web._dashRecordFromLive(row, null, {}, null);
+  const priya = rec({ id: 'u7', name: 'Priya S.', mrrCents: 12000, onPlan: true, paymentRetrying: true });
+  const ana = rec({ id: 'u1', name: 'Ana R.', mrrCents: 18000, onPlan: true, paymentRetrying: false });
+  const older = rec({ id: 'u2', name: 'Ben T.', mrrCents: 0 }); // a route from before the flag
+  assert.equal(priya.payments.status, 'past_due');
+  assert.equal(priya.payments.paymentRetrying, true);
+  assert.deepEqual([ana.payments.status, older.payments.status], ['active', 'active']);
+  assert.deepEqual([priya.payments.onPlan, ana.payments.onPlan, older.payments.onPlan], [true, true, undefined]);
+  const { dashPaymentRetrying } = load(ROSTER, ['dashPaymentRetrying']);
+  assert.deepEqual([priya, ana, older, {}, null].map(dashPaymentRetrying), [true, false, false, false, false]);
+
+  // The shipped table, rendered: the mark is on Priya's row, once, and on no one else's.
+  const colours = { unknown: '#999999', green: '#7bbf5a', amber: '#d8a23a', red: '#e0644b', new: '#2ee0c4' };
+  const { DashRosterTable } = new Function('React', 'ReactDOM', 'DashSignals', 'DASH_SEV_COLORS', 'useRememberedSet', 'DashPill', 'dashClientHref', 'dashMessageClient', 'dashRelDay', 'useDashUnits', 'dashMilestonesIn', 'dashWeighIn', 'dashWeighInDelta', 'window',
+    compile(ROSTER) + '\nreturn { DashRosterTable };')(
+    React, {}, DashSignals, colours, () => [[], () => {}], ({ c, children }) => React.createElement('span', { 'data-pill': c }, children), () => null, () => {}, () => null,
+    () => web.dashUnitsApi(null, null), web.dashMilestonesIn, web.dashWeighIn, web.dashWeighInDelta, {});
+  const html = renderToStaticMarkup(React.createElement(DashRosterTable, { triage: DashSignals.getTriageFeed('trainer', [priya, ana, older]), role: 'trainer', filter: 'all', query: '' }));
+  const rows = html.split('aria-label="Open ').slice(1);
+  assert.equal(rows.length, 3, 'three rows drawn');
+  const marked = rows.filter((r) => r.includes('Payment retrying')).map((r) => r.slice(0, r.indexOf(' drilldown')));
+  assert.deepEqual(marked, ['Priya S.'], 'only Priya\'s row carries the mark');
+  assert.equal((html.match(/Payment retrying/g) || []).length, 1);
+  assert.match(html, /data-pill="#999999">Payment retrying</, 'a quiet pill, not a severity colour');
+});

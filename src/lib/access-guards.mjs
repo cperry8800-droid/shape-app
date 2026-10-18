@@ -24,7 +24,8 @@ export function canWriteClientGoals(isCoachOnClient) {
 
 // A pro may assign a workout / meal plan ONLY to a client they actively coach in
 // their own discipline. The route resolves which client ids the caller actively
-// coaches (active/trialing subscription for their provider row) and compares
+// coaches (an open subscription for their provider row: active, trialing or past_due,
+// coach-trajectory.mjs OPEN_SUB_STATUSES) and compares
 // against the requested ids. This is the server-side gate (mirrored by the
 // 2026-06-17 INSERT RLS policies) — not a UI affordance. Returns the requested
 // ids that are NOT in the active set (the rejected ones); empty ⇒ fully allowed.

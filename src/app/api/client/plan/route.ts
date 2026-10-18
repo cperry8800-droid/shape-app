@@ -14,6 +14,7 @@ import { requireMembership } from '@/lib/require-membership';
 import { supersetKey, blockKind, videoUrl } from '../../../../../public/newdesign/workoutDocument.mjs';
 // Relative, as workoutDocument.mjs above: the route's test harnesses resolve a relative module themselves.
 import { sharedWeekOneOf } from '../../../../lib/coach-client-legs.mjs';
+import { OPEN_SUB_STATUSES } from '../../../../lib/coach-trajectory.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -249,7 +250,7 @@ export async function GET(request: Request) {
     .from('subscriptions')
     .select('provider_role, provider_id, created_at')
     .eq('client_id', user.id)
-    .in('status', ['active', 'trialing']);
+    .in('status', OPEN_SUB_STATUSES);
   type Sub = { provider_role: string; provider_id: number; created_at: string | null };
   // One row per listing (its earliest live subscription), the earliest first.
   const subsOf = (role: 'trainer' | 'nutritionist'): Sub[] => {

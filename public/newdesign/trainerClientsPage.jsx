@@ -29,7 +29,11 @@ function TrainerClientsPage() {
   const [sortDir, setSortDir] = useRememberedChoice(prefs, "rosterSortDir", ["asc", "desc"], "desc");
   const onSort = (k, d) => { setSort(k); setSortDir(d); };
 
-  const activeCount = clients.length;
+  // The people with an open plan, as the Clients badge counts them (dashData.jsx dashPlanClientCount);
+  // null when the plans could not be read. The list below keeps everyone, people from recent
+  // sessions with no plan included, so search and the export still say how many rows there are.
+  const activeCount = dashPlanClientCount(clients);
+  const activeWord = activeCount == null ? "\u2014" : String(activeCount);
   const mrrCents = clients.reduce((s, c) => s + ((c.payments && c.payments.mrrCents) || 0), 0);
   const eyesCount = triage.filter((r) => r.severity === "red" || r.severity === "amber").length;
 
@@ -45,9 +49,9 @@ function TrainerClientsPage() {
       tourHero="hero-clients"
       navItems={trainerNavItems("clients")}
       payoutCard={liveToday
-        ? { label: "MONTHLY · MRR", amount: dashMoney(mrrCents), sub: activeCount + " active subs · payouts connect soon" }
+        ? { label: "MONTHLY · MRR", amount: dashMoney(mrrCents), sub: activeWord + " active client" + (activeCount === 1 ? "" : "s") + " · payouts connect soon" }
         : trainerPayoutCard}
-      eyebrow={activeCount + " ACTIVE CLIENT" + (activeCount === 1 ? "" : "S") + (eyesCount ? " · " + eyesCount + " AT-RISK" : "")}
+      eyebrow={activeWord + " ACTIVE CLIENT" + (activeCount === 1 ? "" : "S") + (eyesCount ? " · " + eyesCount + " AT-RISK" : "")}
       title="Clients"
       subtitle="Find a client, review their progress, and open their plan or private notes."
       actions={<>

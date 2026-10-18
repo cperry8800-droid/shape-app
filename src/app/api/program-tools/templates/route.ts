@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { cleanText, readJson, dbError } from '@/lib/request-utils';
 import { unauthorizedAssignTargets } from '@/lib/access-guards.mjs';
+import { OPEN_SUB_STATUSES } from '../../../../lib/coach-trajectory.mjs';
 
 export const runtime = 'nodejs';
 
@@ -127,7 +128,7 @@ export async function POST(request: Request) {
       .select('client_id')
       .eq('provider_id', providerId)
       .eq('provider_role', providerRole)
-      .in('status', ['active', 'trialing']);
+      .in('status', OPEN_SUB_STATUSES);
     if (subsError) {
       return NextResponse.json(
         { error: 'Could not verify client assignment scope. Please retry.' },

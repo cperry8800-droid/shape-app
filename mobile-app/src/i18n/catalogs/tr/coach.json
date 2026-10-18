@@ -735,6 +735,7 @@
   "roster.noPast": "ESKİ DANIŞAN YOK",
   "roster.pastClients": "ESKİ DANIŞANLAR",
   "roster.pastClientsToggle": "ESKİ DANIŞANLAR · {count} ›",
+  "roster.paymentRetrying": "Ödeme yeniden deneniyor",
   "roster.searchAria": "Danışan ara",
   "roster.searchPlaceholder": "{count} danışan ara",
   "roster.show": "GÖSTER ›",

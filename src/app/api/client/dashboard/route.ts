@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { DAY_MS, startOfWeek } from '@/lib/time';
 import { requireMembership } from '@/lib/require-membership';
+import { OPEN_SUB_STATUSES } from '../../../../lib/coach-trajectory.mjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -101,7 +102,7 @@ export async function GET(request: Request) {
   const { data: subs } = await supabase
     .from('subscriptions')
     .select('provider_id, provider_role, status')
-    .in('status', ['active', 'trialing']);
+    .in('status', OPEN_SUB_STATUSES);
   const subRows = subs ?? [];
 
   // Resolve provider names for both booked sessions and the team list.

@@ -11,6 +11,7 @@ import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { DAY_MS } from '@/lib/time';
 import { clientNames } from '@/lib/coach-messages';
+import { OPEN_SUB_STATUSES, openSubsAt } from './coach-trajectory.mjs';
 
 // `.toISOString()` throws on an invalid date; every caller here wants "no
 // answer" rather than a 500 that takes the whole roster down with it.
@@ -38,6 +39,10 @@ type ClientEntry = {
   // acquisition is the first one, and the fee above already reflects the mix.
   origin: string | null;
   originAt: string | null;
+  // Open plans this client holds with the coach (the rows openSubsAt keeps), and whether one of
+  // them is past_due: a renewal Stripe is still retrying.
+  plans: number;
+  retrying: boolean;
 };
 
 // A pre-feature row carries neither column and genuinely paid the marketplace
@@ -82,12 +87,20 @@ export async function coachClientsResponse(
   // above, a failed read renders "Not shared" on every row. Absent columns arrive as
   // undefined and default to marketplace / 1500 bps, which is correct for every
   // pre-feature row: they genuinely paid 15% through the marketplace.
+  //
+  // ⚠ A CLIENT WHOSE PAYMENT IS RETRYING IS ON THE LIST (owner, 2026-10-18: "They stay normal
+  // clients until Stripe gives up"). This read took active and trialing rows, so a past_due client
+  // left the list while the Clients badge (the dashboard routes' practiceToday) still counted them,
+  // and the badge read one higher than the list. It reads every open status now, and keeps exactly
+  // the rows openSubsAt keeps (the badge's rows: started, dated, not ended), so the two count the
+  // same people. The coach's profiles, logs and plans reach a past_due client from
+  // 2026-10-18-coach-access-past-due.sql; each such client carries `paymentRetrying`.
   const { data: subRows, error: subErr } = await supabase
     .from('subscriptions')
     .select('*')
     .eq('provider_role', role)
     .eq('provider_id', providerId)
-    .in('status', ['active', 'trialing']);
+    .in('status', OPEN_SUB_STATUSES);
   if (subErr) {
     console.warn(
       `[shape-app] ${role} roster: subscriptions read failed — REVENUE and TENURE render "Not shared" rather than $0:`,
@@ -109,7 +122,7 @@ export async function coachClientsResponse(
     let e = byClient.get(key);
     if (!e) {
       e = { id: null, name: 'Client', sessions: 0, lastAt: null, mrrCents: 0, joinedAt: null,
-            feeCents: 0, origin: null, originAt: null };
+            feeCents: 0, origin: null, originAt: null, plans: 0, retrying: false };
       byClient.set(key, e);
     }
     return e;
@@ -125,9 +138,11 @@ export async function coachClientsResponse(
     if (e.lastAt == null || t > e.lastAt) e.lastAt = t;
   }
 
-  for (const sub of subRows ?? []) {
+  for (const sub of openSubsAt(subRows ?? [], Date.now())) {
     const e = ensure(sub.client_id || 'unknown');
     if (sub.client_id) e.id = sub.client_id;
+    e.plans += 1;
+    if (sub.status === 'past_due') e.retrying = true;
     const price = sub.price_cents ?? 0;
     e.mrrCents += price;
     const bps = typeof sub.fee_bps === 'number' && Number.isFinite(sub.fee_bps) ? sub.fee_bps : DEFAULT_FEE_BPS;
@@ -197,7 +212,7 @@ export async function coachClientsResponse(
         // show a signed-in coach a fabricated roster with nothing saying so.
         //
         // ⚠ AND THIS IS THE START OF THE CURRENT RUN, NOT LIFETIME TENURE: the
-        // query above reads active/trialing rows only, so a client who left and
+        // query above reads open rows only, so a client who left and
         // came back dates from their return. The Goal page's median tenure is
         // computed over EVERY span by `buildTrajectory`, which is the lifetime
         // reading; the two answer different questions on purpose.
@@ -211,6 +226,12 @@ export async function coachClientsResponse(
         lastAt: e.lastAt ? new Date(e.lastAt).toISOString() : null,
         isNew,
         status,
+        // ⚠ ON A PLAN, OR ONLY ON THE LIST. The roster also lists people from recent sessions
+        // who hold no plan ($0/mo); they stay on the list, and the Clients pages count only the
+        // ones with an open plan, as the badge does. null when the subscriptions read failed.
+        onPlan: subsUnknown ? null : e.plans > 0,
+        // A renewal Stripe is retrying (past_due): still a client, with a mark beside the name.
+        paymentRetrying: e.retrying,
       };
     });
 
@@ -219,6 +240,12 @@ export async function coachClientsResponse(
   return NextResponse.json({
     [roleKey]: true,
     clients,
-    totals: { active: clients.length, mrrCents: subsUnknown ? null : mrrCents },
+    // `active` is the list (people with a plan or a recent session); `onPlan` is the people with an
+    // open plan, the count the dashboard routes' activeClients (the Clients badge) gives.
+    totals: {
+      active: clients.length,
+      onPlan: subsUnknown ? null : clients.filter((c) => c.onPlan).length,
+      mrrCents: subsUnknown ? null : mrrCents,
+    },
   });
 }

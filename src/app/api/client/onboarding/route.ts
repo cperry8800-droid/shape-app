@@ -14,6 +14,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { requireMembership } from '@/lib/require-membership';
 import { ACTIVE_SUB } from '@/lib/membership-core';
+import { OPEN_SUB_STATUSES } from '../../../../lib/coach-trajectory.mjs';
 import { PROVIDERS } from '@/lib/integrations/providers';
 import {
   memberOnboardingBoard,
@@ -77,7 +78,7 @@ async function liveSubs(supabase: SupabaseClient, userId: string): Promise<SubRo
     .from('subscriptions')
     .select('provider_role, provider_id, created_at')
     .eq('client_id', userId)
-    .in('status', ['active', 'trialing']);
+    .in('status', OPEN_SUB_STATUSES);
   return error ? undefined : ((data ?? []) as SubRow[]);
 }
 

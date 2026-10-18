@@ -19,6 +19,7 @@ import { readinessFromSeries } from '@/lib/recovery-readiness';
 import { bsVitals, vitalsCeilingISO, vitalsCutoffISO } from '@/lib/vitals-leg.mjs';
 import { bsProgramLeg, bsLogsLeg, bsNutritionTargets, bsLastContactLeg, bsOnboardingLeg, ONBOARDING_DAYS, CHECKIN_READ_LIMIT } from '@/lib/coach-client-legs.mjs';
 import { coachIntakeView, screeningState } from '../../mobile-app/src/services/coachIntake.mjs';
+import { OPEN_SUB_STATUSES } from './coach-trajectory.mjs';
 
 export type OverviewClient = Awaited<ReturnType<typeof createClient>>;
 // userId: the caller's account, which names the member DM with a client (fix 4). Optional so an
@@ -77,7 +78,7 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
   // ⚠ Deliberately NOT a `profiles` table read. This page is opened by the
   // client themselves AND by their coach, and a coach may legitimately be
   // reviewing a client whose subscription has just LAPSED — outside the
-  // active/trialing coach policy. get_display_names covers all three cases with
+  // coach policy's open (active, trialing, past_due) statuses. get_display_names covers all three cases with
   // one round trip and cannot return email/phone/DOB/stripe_customer_id.
   const { data: identityRows, error: identityError } = await supabase.rpc('get_display_names', { p_ids: [clientId] });
   if (identityError) {
@@ -102,7 +103,7 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     .from('subscriptions')
     .select('provider_role, provider_id, status, current_period_end, created_at')
     .eq('client_id', clientId)
-    .in('status', ['active', 'trialing']);
+    .in('status', OPEN_SUB_STATUSES);
   // Without these rows no join date is known, so no onboarding board is built; the coach's roster,
   // which read the same subscription, shows the client as unread rather than settled.
   if (subsError) console.error('[shared-overview] subscriptions read failed:', subsError.message);

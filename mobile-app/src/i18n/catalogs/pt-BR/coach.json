@@ -735,6 +735,7 @@
   "roster.noPast": "SEM CLIENTES ANTIGOS",
   "roster.pastClients": "CLIENTES ANTIGOS",
   "roster.pastClientsToggle": "CLIENTES ANTIGOS · {count} ›",
+  "roster.paymentRetrying": "Nova tentativa de pagamento",
   "roster.searchAria": "Buscar clientes",
   "roster.searchPlaceholder": "Buscar {count} clientes",
   "roster.show": "MOSTRAR ›",

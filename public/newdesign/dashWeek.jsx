@@ -309,8 +309,8 @@ function DwkRow({ row, role, weekOf, thisMonday, live, review, adherence, readou
               SELECT policy, so a coach scrolling their Week never spends a
               member's one weekly AI call.
               ⚠ AND AN ABSENCE IS NOT REPORTED, because this page cannot tell the
-              two reasons apart. `is_coach_on_client` requires an active/trialing
-              subscription, while the roster also carries session-only clients — so
+              two reasons apart. `is_coach_on_client` requires an open (active, trialing
+              or past_due) subscription, while the roster also carries session-only clients — so
               a member whose readout the coach simply may not SELECT arrives
               identically to one who never ran it. "No read on record" would tell a
               coach that a member has not done something they may be looking at on

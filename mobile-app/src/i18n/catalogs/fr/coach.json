@@ -735,6 +735,7 @@
   "roster.noPast": "AUCUN ANCIEN CLIENT",
   "roster.pastClients": "ANCIENS CLIENTS",
   "roster.pastClientsToggle": "ANCIENS CLIENTS · {count} ›",
+  "roster.paymentRetrying": "Nouvel essai de paiement",
   "roster.searchAria": "Rechercher des clients",
   "roster.searchPlaceholder": "Rechercher parmi {count} clients",
   "roster.show": "AFFICHER ›",

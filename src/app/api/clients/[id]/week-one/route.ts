@@ -23,6 +23,7 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson, dbError } from '@/lib/request-utils';
+import { OPEN_SUB_STATUSES } from '../../../../../lib/coach-trajectory.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -87,7 +88,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .eq('client_id', clientId)
       .eq('provider_role', role)
       .eq('provider_id', providerId)
-      .in('status', ['active', 'trialing']);
+      .in('status', OPEN_SUB_STATUSES);
     if (subErr) return dbError(subErr, 'week-one subscription read', 500);
     const joined = Math.min(...((subRows ?? []) as Array<{ created_at: string | null }>).map((r) => Date.parse(String(r.created_at))).filter(Number.isFinite));
     if (!Number.isFinite(joined)) return NextResponse.json({ error: `This client isn't subscribed to you as their ${role}.` }, { status: 403 });

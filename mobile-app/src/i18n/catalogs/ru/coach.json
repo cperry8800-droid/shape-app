@@ -735,6 +735,7 @@
   "roster.noPast": "БЫВШИХ КЛИЕНТОВ НЕТ",
   "roster.pastClients": "БЫВШИЕ КЛИЕНТЫ",
   "roster.pastClientsToggle": "БЫВШИЕ КЛИЕНТЫ · {count} ›",
+  "roster.paymentRetrying": "Повтор платежа",
   "roster.searchAria": "Поиск клиентов",
   "roster.searchPlaceholder": "Поиск среди {count} клиентов",
   "roster.show": "ПОКАЗАТЬ ›",

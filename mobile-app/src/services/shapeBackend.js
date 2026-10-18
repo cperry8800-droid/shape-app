@@ -5766,7 +5766,9 @@ async function listAssignableClients(role, { strict = false } = {}) {
   const list = Array.isArray(d?.clients) ? d.clients : [];
   // isNew / joinedAt ride along for the coach triage (client-onboarding review, M13: the app dropped
   // them, so a client's first day read "No logs 7d+" and the app had no "New").
-  return list.filter((c) => c.id).map((c) => ({ userId: c.id, name: c.name || 'Client', sessions: c.sessions || 0, isNew: !!c.isNew, joinedAt: c.joinedAt || null }));
+  // paymentRetrying (owner, 2026-10-18): a renewal Stripe is retrying (past_due). The client stays on
+  // the roster with full access, and the roster row marks it.
+  return list.filter((c) => c.id).map((c) => ({ userId: c.id, name: c.name || 'Client', sessions: c.sessions || 0, isNew: !!c.isNew, joinedAt: c.joinedAt || null, paymentRetrying: c.paymentRetrying === true }));
 }
 async function assignClientMealPlan({ clientId, title, weekStart, days }) {
   const res = await fetch(`${apiBaseUrl || ''}/api/nutritionist/meal-plan`, {
