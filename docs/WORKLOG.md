@@ -140,11 +140,10 @@ planned builds.
 - In-app purchase outside the US (Phase 2) is on hold.
 - Decide how a suspended coach appeals.
 - Have counsel read the 2026-10-13 privacy policy text.
-- Direct charges, part A (#2401): run `2026-10-18-coach-direct-charges-groundwork.sql`;
-  in Stripe (test, then live) add an event destination for Connected accounts at
-  `/api/stripe/webhook` with the eleven events in the PR; set
-  `STRIPE_CONNECT_WEBHOOK_SECRET` and `STRIPE_CONNECT_APPLICATION_ID` in Vercel per
-  environment. Until both are set, every Connect payment is refused.
+- Before direct charges part B: in Stripe test mode, add the Connected accounts
+  destination (DEPLOY.md §5) and set both Connect variables under Vercel's Preview; add
+  `invoice.paid` to the Connected accounts destination in both modes. Live mode is done
+  (the migration verified live, both variables in Production).
 - Decide the perks the website's "What Master unlocks" card and `leaderboards.jsx`
   promise (payout tier, ranking, a verified badge): nothing grants them.
 - Decide whether the coach leaderboard should keep showing every coach each other's
@@ -165,7 +164,8 @@ planned builds.
   2026-10-18: Stripe's fee comes out of the coach's share). Part A, the groundwork, is
   #2401. Part B: checkout on the coach's account, Shape and coach discount codes, the fee
   and amounts from the Stripe objects rather than metadata, reconnecting a
-  disconnected coach, and one end-to-end test purchase. Part C: copy and a processing
+  disconnected coach, and one end-to-end test purchase (it confirms a Checkout-made
+  payment carries `STRIPE_CONNECT_APPLICATION_ID`). Part C: copy and a processing
   estimate.
 - Night-before prep, Phase 2: a nutritionist's "prep the night before" tick, a
   reminder time the member chooses, planning tomorrow, and a morning swap.
@@ -200,6 +200,8 @@ planned builds.
   browser that signed up (two days), so confirming on another device lands on the
   dashboard.
 - `checkin_submitted` is a switch nothing writes.
+- Payment notices (#2402) reach the owners in code (`admin-access.ts`), not Staff-page
+  staff.
 - Until direct charges ship (part B), Stripe bills coach-payment processing to Shape,
   though the pages already say it is the coach's.
 - Business: the plan's goal isn't remembered; renewals past 25 a load aren't checked

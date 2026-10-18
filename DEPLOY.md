@@ -26,6 +26,8 @@ values from `.env.example`. Scope each to **Production**, **Preview**, and
 | `SUPABASE_SERVICE_ROLE_KEY` | `eyJ...` | **Secret** — never expose |
 | `STRIPE_SECRET_KEY` | `sk_live_...` | Use `sk_test_` for Preview |
 | `STRIPE_WEBHOOK_SECRET` | `whsec_...` | Filled in after step 5 |
+| `STRIPE_CONNECT_WEBHOOK_SECRET` | `whsec_...` | The coach-accounts destination's secret, step 5 |
+| `STRIPE_CONNECT_APPLICATION_ID` | `ca_...` | Shape's Connect application, step 5 |
 | `NEXT_PUBLIC_SITE_URL` | `https://theshapecommunity.com` | No trailing slash |
 | `NEXT_PUBLIC_HCAPTCHA_SITE_KEY` | `xxxxxxxx-...` | Optional, phone login |
 | `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` | from developer.spotify.com | Optional, Spotify integration |
@@ -76,21 +78,47 @@ GitHub Pages currently serves `theshapecommunity.com` from the
 
 Option B is safer — keeps your existing landing page live until you're sure.
 
-## 5. Register the Stripe webhook
+## 5. Register the Stripe webhooks
 
-The webhook can only be created after you have a prod URL.
+The webhooks can only be created after you have a prod URL. There are two
+destinations on the same URL: one for Shape's own account, one for the
+coaches' connected accounts. Do both in test mode, then again in live mode.
 
-1. Stripe dashboard → **Developers** → **Webhooks** → **Add endpoint**
+**A. Your account** (Shape's own payments: memberships, and coach sales
+until they move onto the coaches' accounts)
+
+1. Stripe dashboard → **Developers** → **Webhooks** → **Add destination**,
+   events from **Your account**
 2. Endpoint URL: `https://theshapecommunity.com/api/stripe/webhook`
-3. Events to send:
+3. Events to send (the ones `src/app/api/stripe/webhook/route.ts` handles):
    - `checkout.session.completed`
+   - `checkout.session.async_payment_succeeded`
+   - `checkout.session.async_payment_failed`
+   - `checkout.session.expired`
    - `customer.subscription.updated`
    - `customer.subscription.deleted`
-4. Save. Stripe shows a **Signing secret** — copy it.
-5. Back in Vercel → Environment Variables → set `STRIPE_WEBHOOK_SECRET`
-   to the value you just copied (Production scope).
-6. Trigger a redeploy so the new env var lands (Vercel → Deployments →
-   latest → ⋯ → Redeploy).
+   - `invoice.paid` (each later month: the payment notices)
+   - `charge.refunded`
+   - `charge.dispute.created`
+   - `charge.dispute.closed`
+4. Save. Stripe shows a **Signing secret**: set it in Vercel as
+   `STRIPE_WEBHOOK_SECRET`.
+
+**B. Connected accounts** (the coaches' own Stripe accounts)
+
+1. **Add destination** again, events from **Connected accounts**, the same
+   URL. Payload style **Snapshot**.
+2. Events to send: every event in A, plus:
+   - `account.updated`
+   - `account.application.deauthorized`
+3. Save. Set its signing secret in Vercel as `STRIPE_CONNECT_WEBHOOK_SECRET`.
+4. Set `STRIPE_CONNECT_APPLICATION_ID` to Shape's Connect application id
+   (`ca_…`). The Connect settings page may show it as "Unavailable" when
+   OAuth is off; the destination's own record names it (`application` on
+   the webhook endpoint).
+
+Then trigger a redeploy so the new env vars land (Vercel → Deployments →
+latest → ⋯ → Redeploy).
 
 ## 6. Smoke test
 
@@ -110,9 +138,10 @@ When you're ready to accept real money:
 
 1. Stripe dashboard → toggle from **Test mode** to **Live mode** (top right)
 2. Developers → API keys → copy the live **Secret key**
-3. Developers → Webhooks → re-create the endpoint in live mode
-4. Vercel → Environment Variables → update `STRIPE_SECRET_KEY` and
-   `STRIPE_WEBHOOK_SECRET` to the live values
+3. Developers → Webhooks → re-create both destinations in live mode (step 5)
+4. Vercel → Environment Variables → update `STRIPE_SECRET_KEY`,
+   `STRIPE_WEBHOOK_SECRET`, `STRIPE_CONNECT_WEBHOOK_SECRET` and
+   `STRIPE_CONNECT_APPLICATION_ID` to the live values
 5. Redeploy
 
 ## 8. Enable SMS login (Twilio)

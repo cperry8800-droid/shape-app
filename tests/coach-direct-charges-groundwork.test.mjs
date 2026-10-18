@@ -287,6 +287,7 @@ async function runWebhook(event, { secret = CONNECT_SECRET, tables = {}, errors 
       ['@/lib/coach-origin.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/coach-origin.mjs')).href)],
       ['@/lib/db-retryable', await loadRealModule(join(ROOT, 'src/lib/db-retryable.ts'), { typescript: true })],
       ['@/lib/refund-session', { cancelRefundedSession: async () => 'none' }],
+      ['@/lib/payment-notices', { announcePayment: async () => ({ owners: 0, member: false, coach: false }) }],
       ['@/lib/coach-thread', {
         startCoaching: async (_a, args) => { started.push(['coach', args]); return {}; },
         welcomeMember: async (_a, id) => { started.push(['member', id]); return false; },

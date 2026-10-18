@@ -251,6 +251,7 @@ async function runWebhook(event, { rpc }) {
         ['@/lib/db-retryable', retryable],
         // What a saved subscription or membership starts (fix 3a) has its own test (coach-thread.test.mjs).
         ['@/lib/refund-session', { cancelRefundedSession: async () => 'none' }],
+        ['@/lib/payment-notices', { announcePayment: async () => ({ owners: 0, member: false, coach: false }) }],
         ['@/lib/coach-thread', { startCoaching: async () => ({ conversationId: null, welcomed: false, coachAlerted: false }), welcomeMember: async () => false }],
       ]),
     });
