@@ -4,8 +4,9 @@
 to update each day and less effort for user each day. add to task list"* (on the app's
 "How are you." page: Energy, Hunger, Sleep · last night, Rested, Log today, Hydration).
 
-**Status:** a plan with its rulings made (§5). Nothing in it is built yet. §2 is the design, §4
-the phases. §1 was read from the code on `main` at 47c6729.
+**Status:** Phase 1 is built (#2398), and so is the part of Phase 2 that puts a watch's night
+first (§4). §2 is the design, §4 the phases, §5 the rulings. §1 was read from the code on `main` at
+47c6729.
 
 ## 1. What the check-in is today (read from the code)
 
@@ -133,13 +134,16 @@ so that is the owner's call.
      Tapping a past day reuses its answer.
    - A summary with Change follows; Edit on Home opens it. The full page is behind Details.
    - The website's `DashTodayCard` is still to follow.
-2. **Sleep, water and an energy hint from a watch, and a reminder that lands on the card.**
-   - Sync Apple Health, Oura and WHOOP when the app opens (Garmin already pushes), so the sleep
-     step is filled before it is reached.
-   - Water from Apple Health.
-   - Readiness or recovery pre-selects an energy word; the member confirms it.
-   - Notification deep links to the card. The owner asked whether watches can fill this in
-     (2026-10-18).
+2. **A watch's night first, water from a watch, and a reminder that lands on the card.**
+   - **Built:** the card asks each connected watch for last night when it opens (Apple Health in
+     the iPhone app, Oura and WHOOP; Garmin pushes its own), at most every 30 minutes, so the
+     sleep step shows the watch's hours instead of asking. The check-in route writes typed hours
+     only to a night no device wrote (ruling 2). The card and the full page show the watch's
+     hours whenever the route keeps them.
+   - Still to build: water from Apple Health. The HealthKit plugin does not read water yet.
+   - Dropped: readiness pre-selecting an energy word. The owner asked for device data only where
+     it matches the question, and readiness is not energy.
+   - Still to build: a notification deep link to the card.
 3. **Answer from the notification.** Native notification actions for energy, plus the streak if
    ruling 3 says yes.
 
@@ -151,12 +155,20 @@ so that is the owner's call.
    are read-only and Rested is still offered: it is the member's own check, the case file's RESTED
    reads it, and the full page always offered it (amended on Codex's finding in #2398). A night
    is a wearable's when a device sync wrote its hours (`sources.sleep_hours`), not when the day
-   has a resting heart rate: a watch worn by day reports one with no night. Different hours the
-   member types over it (the Details page) stamp it `manual`, and it is theirs again. Same as
-   yesterday copies Rested on its own, whoever supplied either night's hours.
+   has a resting heart rate: a watch worn by day reports one with no night. Same as yesterday
+   copies Rested on its own, whoever supplied either night's hours.
+   **A watch's night comes first** (owner, 2026-10-18: *"Use the data from smart device priority
+   of the member has one, if not manual entry"*, then *"so just use smart device data that matches
+   what we are asking for"*). The night's hours are the one check a watch measures, so typed hours
+   are written only to a night no device wrote, and a watch's night that syncs later replaces
+   them. Energy, hunger, Rested and water stay the member's own answers. (This replaces the
+   round-10 rule on #2398 that typed hours over a watch's night were stamped `manual`.)
 3. **A streak, no points.** Points are the Store's currency, and "Same as yesterday" would mint them
    for one tap. The streak (consecutive local days with an answer) shows on the card's done line;
-   the weekly check-in keeps its +15, and the day already counts for momentum.
+   the weekly check-in keeps its +15, and the day already counts for momentum. A watch's good night
+   does earn (owner, 2026-10-18: *"also lets give shape score points for good sleep"*, then watch
+   nights only, +5 for 7h or more): no tap mints it, and typed hours never earn
+   (`award_sleep_points`, `2026-10-18-sleep-points.sql`).
 4. **No −7 while the switch is off.** The switch turns check-ins off, so charging for one reads as
    a penalty for using a setting. The coach still sees the missed week, and switching back on
    charges again from the next completed week. The score cron reads the stored preference the way
