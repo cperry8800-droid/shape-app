@@ -9,6 +9,7 @@ import { DAY_MS, startOfWeek } from '@/lib/time';
 import { coachGrowthAndFunnel } from '@/lib/coach-growth';
 import { coachCutCents, bpsToRate } from '@/lib/platform-fee';
 import { OPEN_SUB_STATUSES, practiceToday } from '@/lib/coach-trajectory.mjs';
+import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,8 +56,10 @@ export async function GET() {
 
   const providerId: number | null = trainerRow?.id ?? null;
 
-  let activeClients = 0;
-  let monthlyNetCents = 0;
+  // Today's clients and net a month: null when the subscriptions could not be read (below), which
+  // every reader says rather than printing 0 clients and $0.
+  let activeClients: number | null = 0;
+  let monthlyNetCents: number | null = 0;
   let sessionsThisWeek = 0;
   let upcomingSessions = 0;
   let totalSessions = 0;
@@ -79,17 +82,30 @@ export async function GET() {
     // as the trajectory's latest week does: people, and the net from each row's STORED fee_bps (BYO
     // subs pay 0%), never a hardcoded 85%. Every reader of these kpis (Today's Business card and
     // sidebar, the KPI picker, the other pages' sidebars) prints them as clients and net a month.
-    const { data: subRows } = await supabase
-      .from('subscriptions')
-      .select('*') // '*' is migration-safe: an explicit fee_bps errors the query on a pre-migration DB
-      .eq('provider_role', 'trainer')
-      .eq('provider_id', providerId)
-      .in('status', OPEN_SUB_STATUSES);
-    const practice = practiceToday(subRows ?? [], {
+    // ⚠ EVERY ROW, A PAGE AT A TIME, AND A FAILED READ IS NULL, NOT 0 (the dashboards after #2395).
+    // This was one select, which stops at 1,000 rows with no error, and its error was dropped
+    // (`subRows ?? []`), so a failed read sent 0 clients and $0 net, which every reader printed as a
+    // measurement. It walks the rows as the analytics routes do (readAllById); a failed read, or one
+    // past the walk's ceiling, sends both figures as null, and the readers say they couldn't be read.
+    const { data: subRows, error: subErr } = await readAllById<{ id: string }>((after) => {
+      let q = supabase
+        .from('subscriptions')
+        .select('*') // '*' is migration-safe: an explicit fee_bps errors the query on a pre-migration DB
+        .eq('provider_role', 'trainer')
+        .eq('provider_id', providerId)
+        .in('status', OPEN_SUB_STATUSES);
+      if (after) q = q.gt('id', after);
+      // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
+      return q.order('id', { ascending: true }).limit(ROW_PAGE);
+    });
+    if (subErr) {
+      console.warn('[shape-app] trainer dashboard: subscriptions read failed — clients and monthly net render "couldn\'t be read":', subErr.message);
+    }
+    const practice = subErr ? null : practiceToday(subRows ?? [], {
       cutCents: (priceCents: number, feeBps: number | null) => coachCutCents(priceCents, bpsToRate(feeBps ?? 1500)),
     });
-    activeClients = practice.clients;
-    monthlyNetCents = practice.mrrNetCents;
+    activeClients = practice ? practice.clients : null;
+    monthlyNetCents = practice ? practice.mrrNetCents : null;
 
     const { data: sessions } = await supabase
       .from('sessions')

@@ -19,13 +19,17 @@ const nextServer = createRequire(join(ROOT, 'package.json'))('next/server');
 const UID = '11111111-1111-4111-8111-111111111111';
 
 // A scripted client: the provider lookup resolves, then `subscriptions` and
-// `sessions` answer from the table name.
+// `sessions` answer from the table name. It answers whatever it was scripted with, whatever the
+// filters (so the route's own handling of each row is what is tested), and RECORDS every filter as
+// [table, op, column, value], so a test can say which statuses the read asked for.
 function makeClient({ subs = { data: [], error: null }, sess = { data: [], error: null }, names = { data: [], error: null } } = {}) {
-  const thenable = (result) => {
+  const filters = [];
+  const thenable = (table, result) => {
     const chain = {
       select: () => chain,
-      eq: () => chain,
-      in: () => Promise.resolve(result),
+      eq: (col, v) => { filters.push([table, 'eq', col, v]); return chain; },
+      in: (col, v) => { filters.push([table, 'in', col, v]); return chain; },
+      gt: (col, v) => { filters.push([table, 'gt', col, v]); return chain; },
       order: () => chain,
       limit: () => Promise.resolve(result),
       maybeSingle: async () => result,
@@ -37,11 +41,12 @@ function makeClient({ subs = { data: [], error: null }, sess = { data: [], error
     auth: { getUser: async () => ({ data: { user: { id: UID } } }) },
     // get_display_names (fix 4, M12): the roster's names.
     rpcs: [],
+    filters,
     async rpc(name, args) { this.rpcs.push([name, args]); return names; },
     from(table) {
-      if (table === 'subscriptions') return thenable(subs);
-      if (table === 'sessions') return thenable(sess);
-      return thenable({ data: { id: 7 }, error: null }); // trainers / nutritionists
+      if (table === 'subscriptions') return thenable(table, subs);
+      if (table === 'sessions') return thenable(table, sess);
+      return thenable(table, { data: { id: 7 }, error: null }); // trainers / nutritionists
     },
   };
 }
@@ -57,6 +62,7 @@ async function load(client) {
       }],
       ['@/lib/time', await import(pathToFileURL(join(ROOT, 'src/lib/time.ts')).href).catch(() => ({ DAY_MS: 86400000 }))],
       ['@/lib/coach-messages', await loadRealModule(join(ROOT, 'src/lib/coach-messages.ts'), { typescript: true, registry: new Map([['@/lib/supabase/server', {}]]) })],
+      ['@/lib/read-all-by-id', await loadRealModule(join(ROOT, 'src/lib/read-all-by-id.ts'), { typescript: true })],
     ]),
   });
 }
@@ -150,7 +156,7 @@ for (const role of ['trainer', 'nutritionist']) {
 test('a new subscriber reads their own name, not "Client", before any booking', async () => {
   const now = Date.now();
   const client = makeClient({
-    subs: { data: [{ id: 1, client_id: 'u9', price_cents: 9900, created_at: new Date(now - 86400000).toISOString() }], error: null },
+    subs: { data: [{ id: 1, client_id: 'u9', price_cents: 9900, status: 'active', created_at: new Date(now - 86400000).toISOString() }], error: null },
     sess: SESSIONS,
     names: { data: [{ user_id: 'u9', full_name: 'Jordan Reyes' }, { user_id: 'u1', full_name: '  ' }], error: null },
   });
@@ -169,8 +175,111 @@ test('a failed name lookup keeps the booking names, and a roster over 200 reads 
   const failed = makeClient({ sess: SESSIONS, names: { data: null, error: { message: 'boom' } } });
   const body = await (await (await load(failed)).coachClientsResponse('trainer', new Request('https://x/api/trainer/clients'))).json();
   assert.deepEqual(body.clients.map((c) => c.name).sort(), ['Ana R.', 'Ben T.']);
-  const subs = Array.from({ length: 450 }, (_, i) => ({ id: i, client_id: 'c' + i, price_cents: 100, created_at: new Date().toISOString() }));
+  const subs = Array.from({ length: 450 }, (_, i) => ({ id: i, client_id: 'c' + i, price_cents: 100, status: 'active', created_at: new Date(Date.now() - 60000).toISOString() }));
   const big = makeClient({ subs: { data: subs, error: null } });
   await (await load(big)).coachClientsResponse('trainer', new Request('https://x/api/trainer/clients'));
   assert.deepEqual(big.rpcs.map(([, a]) => a.p_ids.length), [200, 200, 50], 'get_display_names refuses more than 200 ids');
+});
+
+// ── Owner, 2026-10-18: a client whose payment is retrying keeps their coach ─────────────────────
+// "They stay normal clients until Stripe gives up: on the list, with logs visible, and the coach can
+// still send them plans." The roster read stopped at active and trialing, so a past_due client left
+// the list while the Clients badge (the dashboard routes' practiceToday) still counted them.
+test('a client whose payment is retrying is listed, named, flagged and their plan counted; the read asks for every open status', async () => {
+  const joined = new Date(Date.now() - 60 * 86400000).toISOString();
+  const client = makeClient({
+    subs: { data: [
+      { id: 1, client_id: 'u1', price_cents: 18000, fee_bps: 1500, status: 'active', created_at: joined },
+      { id: 2, client_id: 'u7', price_cents: 12000, fee_bps: 0, status: 'past_due', created_at: joined, origin: 'coach_link' },
+      { id: 3, client_id: 'u8', price_cents: 9000, status: 'trialing', created_at: joined },
+    ], error: null },
+    sess: SESSIONS,
+    names: { data: [{ user_id: 'u7', full_name: 'Priya Shah' }], error: null },
+  });
+  const body = await (await (await load(client)).coachClientsResponse('trainer', new Request('https://x/api/trainer/clients'))).json();
+  // The read itself: this coach's rows, every open status (coach-trajectory.mjs OPEN_SUB_STATUSES).
+  assert.deepEqual(client.filters.filter(([t]) => t === 'subscriptions'),
+    [['subscriptions', 'eq', 'provider_role', 'trainer'], ['subscriptions', 'eq', 'provider_id', 7], ['subscriptions', 'in', 'status', ['active', 'trialing', 'past_due']]]);
+  const byId = Object.fromEntries(body.clients.map((c) => [c.id, c]));
+  const priya = byId.u7;
+  assert.ok(priya, 'listed');
+  assert.equal(priya.name, 'Priya Shah', 'named');
+  assert.equal(priya.paymentRetrying, true, 'flagged');
+  assert.equal(priya.onPlan, true);
+  assert.equal(priya.mrrCents, 12000, 'her plan is counted');
+  assert.equal(priya.feeCents, 0);
+  assert.equal(priya.origin, 'coach_link');
+  assert.equal(priya.joinedAt, joined);
+  for (const id of ['u1', 'u8']) {
+    assert.equal(byId[id].paymentRetrying, false, id + ' is not retrying');
+    assert.equal(byId[id].onPlan, true, id);
+  }
+  // Ben booked a session and holds no plan: on the list, not on a plan.
+  assert.equal(byId.u2.onPlan, false);
+  assert.equal(byId.u2.paymentRetrying, false);
+  assert.equal(body.totals.mrrCents, 18000 + 12000 + 9000);
+  assert.deepEqual([body.totals.active, body.totals.onPlan], [4, 3], 'four people on the list, three of them on a plan');
+});
+
+test('the roster keeps exactly the rows the badge counts (openSubsAt): an ended, never-started or not-yet-started row is no plan', async () => {
+  const joined = new Date(Date.now() - 60 * 86400000).toISOString();
+  const client = makeClient({ subs: { data: [
+    { id: 1, client_id: 'u1', price_cents: 18000, status: 'active', created_at: joined },
+    // Rows a looser read (or a status nobody filtered) would hand over: none of them is a plan today.
+    { id: 2, client_id: 'u3', price_cents: 5000, status: 'canceled', created_at: joined, current_period_end: new Date(Date.now() + 9 * 86400000).toISOString() },
+    { id: 3, client_id: 'u4', price_cents: 5000, status: 'incomplete', created_at: joined },
+    { id: 4, client_id: 'u5', price_cents: 5000, status: 'unpaid', created_at: joined },
+    { id: 5, client_id: 'u6', price_cents: 5000, status: 'past_due', created_at: new Date(Date.now() + 86400000).toISOString() },
+  ], error: null } });
+  const body = await (await (await load(client)).coachClientsResponse('trainer', new Request('https://x/api/trainer/clients'))).json();
+  assert.deepEqual(body.clients.map((c) => c.id), ['u1']);
+  assert.deepEqual([body.totals.onPlan, body.totals.mrrCents], [1, 18000]);
+});
+
+test('a failed subscriptions read leaves "on a plan" unknown, never "no plan"', async () => {
+  const body = await (await (await load(makeClient({ subs: { data: null, error: { message: 'boom' } }, sess: SESSIONS }))).coachClientsResponse('trainer', new Request('https://x/api/trainer/clients'))).json();
+  assert.deepEqual(body.clients.map((c) => c.onPlan), [null, null]);
+  assert.equal(body.totals.onPlan, null);
+  assert.deepEqual(body.clients.map((c) => c.paymentRetrying), [false, false]);
+});
+
+// ⚠ EVERY OPEN PLAN, A PAGE AT A TIME (Codex on #2400). One select stopped at 1,000 rows with no
+// error, so a coach with more clients than that saw the list and its onPlan count stop short while
+// the Clients badge (the dashboard routes, which walk every page) counted them all.
+test('the roster reads every open plan in 1,000-row pages: 2,500 clients all listed and counted', async () => {
+  const at = new Date(Date.now() - 200 * 86400000).toISOString();
+  const all = Array.from({ length: 2500 }, (_, i) => ({ id: 'sub-' + String(i).padStart(5, '0'), client_id: 'c' + i, status: 'active', price_cents: 1000, fee_bps: 1500, created_at: at }));
+  const pages = [];
+  const client = makeClient();
+  client.from = (table) => {
+    if (table !== 'subscriptions') return makeClient({ sess: { data: [], error: null } }).from(table);
+    const q = { after: null, limit: Infinity, order: null, filters: [] };
+    const chain = {
+      select: () => chain,
+      eq: (col, v) => { q.filters.push(['eq', col, v]); return chain; },
+      in: (col, v) => { q.filters.push(['in', col, v]); return chain; },
+      gt: (col, v) => { q.after = v; q.filters.push(['gt', col, v]); return chain; },
+      order: (col, o) => { q.order = [col, o && o.ascending]; return chain; },
+      limit: (n) => { q.limit = n; return chain; },
+      then: (res, rej) => {
+        pages.push(q);
+        // At most 1,000 rows a response, whatever was asked, as PostgREST answers.
+        const rows = all.filter((r) => q.after == null || r.id > q.after).slice(0, Math.min(q.limit, 1000));
+        return Promise.resolve({ data: rows, error: null }).then(res, rej);
+      },
+    };
+    return chain;
+  };
+  const mod = await load(client);
+  const body = await (await mod.coachClientsResponse('trainer', new Request('https://x/api/trainer/clients'))).json();
+  assert.equal(body.clients.length, 2500, 'every client on the list');
+  assert.equal(body.totals.onPlan, 2500, 'and in the count the badge gives');
+  assert.equal(body.totals.mrrCents, 2500 * 1000);
+  assert.equal(pages.length, 3);
+  assert.deepEqual(pages.map((p) => p.after), [null, 'sub-00999', 'sub-01999'], 'each page starts after the last id');
+  for (const p of pages) {
+    assert.deepEqual(p.order, ['id', true]);
+    assert.equal(p.limit, 1000);
+    assert.ok(p.filters.some(([op, col]) => op === 'in' && col === 'status'), 'each page keeps the open statuses');
+  }
 });

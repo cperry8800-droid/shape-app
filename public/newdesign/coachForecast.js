@@ -160,7 +160,9 @@
   //   → null when a row's departure could not be told (`departed` null: the route could not read
   //     the subscription history it is decided from), so no one is counted as gone;
   //   → { list, inWindow, count, lostCents, floor, window } otherwise. `list` is every departure the
-  //     rows hold, newest first; `count` and `lostCents` are the ones inside the window.
+  //     rows hold, newest first; `count` and `lostCents` are the ones inside the window. Each one
+  //     keeps the route's `name` (null when none is on file, or none could be read) and
+  //     `nameUnread` (true: it couldn't be read), so a page can say which.
   // ⚠ A DEPARTURE IS ONE CLIENT LEAVING AT ONE MOMENT, AND ITS MONEY IS EVERY PLAN THAT ENDED THEN (the
   // sweep after #2394 round 10). The count was of people while the money added every row: a client who
   // left in August, came back and left again in October was "1 left" beside both plans' money. The
@@ -207,7 +209,7 @@
       const starts = held.map((r) => ms(r.startedAt)).filter(Number.isFinite);
       const why = held.find((r) => r.reason);
       return {
-        name: last.name, clientId: last.clientId == null ? null : last.clientId,
+        name: last.name, nameUnread: last.nameUnread === true, clientId: last.clientId == null ? null : last.clientId,
         startedAt: starts.length ? new Date(Math.min(...starts)).toISOString() : null,
         endedAt: last.endedAt || null,
         priceCents: priced.length ? priced.reduce((s, r) => s + (Number(r.priceCents) || 0), 0) : null,
@@ -286,9 +288,10 @@
     if (!m) return null;
     // ⚠ THE BROUGHT-IN SHARE IS PER CLIENT, NOT PER SUBSCRIPTION ROW (Codex round 5 on #2394). Both
     // analytics routes send byoMix, { clients, brought } counted per client (byoMixOf in
-    // src/lib/origin-attribution.ts: one client on two plans is one client). byOrigin has a row per
-    // subscription, so counting it read one brought client with two plans beside one from Shape as
-    // "2 of your 3" (67%), and the calculators seeded from it overstated take-home.
+    // src/lib/origin-attribution.ts: one client on two plans is one client). byOrigin had a row per
+    // subscription then, so counting it read one brought client with two plans beside one from Shape
+    // as "2 of your 3" (67%), and the calculators seeded from it overstated take-home. (Its rows are
+    // clients now, by the same fold, but it lists one-time purchases too: the share stays byoMix.)
     const mix = (extra && extra.byoMix) || null;
     const listed = listedCents(listingMonthly);
     const avg = m.clients > 0 && m.mrrGrossCents > 0 ? Math.round(m.mrrGrossCents / m.clients / 500) * 500 : null;

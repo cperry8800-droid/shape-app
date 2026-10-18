@@ -46,7 +46,12 @@ export const TRAJECTORY_WEEKS = 104;
 const DAY_MS = 86400000;
 const WEEK_MS = 7 * DAY_MS;
 // Open while the status is one of these (membership-core.ts's ACTIVE_SUB). The list is exported
-// for a read that asks only for open rows (the coach dashboards' kpis).
+// for a read that asks only for open rows (the coach dashboards' kpis), and it is ALSO the
+// coach↔client relationship: every check in src/ of whether a coach coaches a client reads it
+// (owner, 2026-10-18: "They stay normal clients until Stripe gives up", so a client whose renewal
+// is retrying keeps their coach), as the database's checks do from
+// supabase-migrations/2026-10-18-coach-access-past-due.sql. tests/coach-access-past-due.test.mjs
+// sweeps src/ for a relationship read that stops at active and trialing.
 export const OPEN_SUB_STATUSES = ['active', 'trialing', 'past_due'];
 const OPEN_STATUSES = new Set(OPEN_SUB_STATUSES);
 // Never a client: no join, no departure, no row in the series.

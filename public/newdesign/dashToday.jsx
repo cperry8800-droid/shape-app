@@ -95,12 +95,16 @@ function dashMoney(cents) {
 // ⚠ CLIENTS, NOT "ACTIVE SUBS" (the sweep after #2394 round 10). The dashboards count today's
 // practice by the Business page's rule (coach-trajectory.mjs practiceToday): people, a client whose
 // payment is retrying among them, so the card says what the Business page it sits beside says.
+// ⚠ NULL IS A READ THAT FAILED, AND THE CARD SAYS SO (the dashboards after #2395). The routes send
+// today's clients and net as null when the subscriptions couldn't be read: the net is a dash, and
+// the line under it says why rather than a bare "— · payouts connect soon". The other pages'
+// sidebar (trainerDashboard.jsx useDashSidebarLive) says the same words.
 function dashLivePayoutCard(k) {
   const n = k ? k.activeClients : null;
   return {
     label: "MONTHLY · NET",
     amount: k && k.monthlyNetCents != null ? dashMoney(k.monthlyNetCents) : "—",
-    sub: (n == null ? "—" : n === 1 ? "1 client" : n + " clients") + " · payouts connect soon",
+    sub: n == null ? "clients couldn't be read just now" : (n === 1 ? "1 client" : n + " clients") + " · payouts connect soon",
   };
 }
 
@@ -1073,8 +1077,10 @@ function DashBusinessSummary({ live, role, clients }) {
     <div>
       <div style={{ display: "flex", alignItems: "flex-end", gap: 22, flexWrap: "wrap" }}>
         {/* ⚠ NOT "AFTER 15%" (the sweep after #2394 round 10): a client the coach brought pays no fee, and
-            the net is each plan's own; the clients are today's, as Business counts them (the routes' practiceToday). */}
-        {stat(netCents != null ? dashMoney(netCents) : "—", "Monthly · net", netCents != null ? "today's clients · after Shape's fee" : "no subscription data")}
+            the net is each plan's own; the clients are today's, as Business counts them (the routes' practiceToday).
+            ⚠ AND A NULL NET IS A READ THAT FAILED, NOT "no subscription data" (the dashboards after #2395):
+            the routes send null only then, and the preview's net is always a figure. */}
+        {stat(netCents != null ? dashMoney(netCents) : "—", "Monthly · net", netCents != null ? "today's clients · after Shape's fee" : "couldn't be read just now")}
         {stat(adds90 != null ? "+" + adds90 : "—", "New clients · 90d", !g ? "couldn't be read just now" : g.momPct != null ? (g.momPct >= 0 ? "+" : "") + g.momPct + "% vs the 30 days before" : "none in the 30 days before to compare")}
         {stat(close != null ? close + "%" : "—", "Consult → signed",
           why === "over" ? "more signed than booked a consult" : why === "unread" ? "couldn't be read just now" : "benchmark ~" + DASH_FUNNEL_BENCHMARK + "%",

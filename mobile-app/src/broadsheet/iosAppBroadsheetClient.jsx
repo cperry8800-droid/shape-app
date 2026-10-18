@@ -26582,67 +26582,107 @@ const SHAPE_SCORE_PROFILES = {
       ['APR 15', '+2', 'Steps >= 8,000'],
     ],
   },
+  // The two coach profiles are the SIGNED-OUT SAMPLE only (a signed-in coach's page reads
+  // /api/coach/score through _bsUseLiveScore, and an unread read shows no figures at all). Each sample
+  // is built on the real formula below, so the preview never advertises scoring that doesn't exist:
+  // 34 clients × 50 + 96% × 10 + 5 programs × 80 = 3,060 (Elite), and 28 × 50 + 94% × 10 = 2,340.
+  // `available`, `lifetime` and `redeemedCount` are the Shape Store's signed-out preview, which reads
+  // these same profiles; the Score page never prints them for a coach.
   trainer: {
     roleLabel: 'Trainer',
-    total: 3240, goal: 5000, streak: 9, tier: 'Elite', tierShort: 'ELT', nextTier: 'Master',
-    pointsToNext: 1760, available: 1280, lifetime: 6840, redeemedCount: 11, week: '+88',
-    weekRatio: 0.82, streakRatio: 0.58, tierRatio: 0.54, spendRatio: 0.72,
-    activities: [
-      { id: 'liveSessionCompleted', capKey: 'perBooking', name: 'Live session completed', pts: '+18-28', cap: 'Per booking', note: 'Client attended' },
-      { id: 'programBlockDelivered', capKey: 'perClient', name: 'Program block delivered', pts: '+24', cap: 'Per client', note: 'New or refreshed training block' },
-      { id: 'workoutAssigned', capKey: 'perPlan', name: 'Workout assigned', pts: '+8', cap: 'Per plan', note: 'New or adjusted session' },
-      { id: 'formReviewReturned', capKey: 'perReview', name: 'Form review returned', pts: '+8-12', cap: 'Per review', note: 'Video feedback within 24h' },
-      { id: 'clientCheckInAnswered', capKey: 'daily', name: 'Client check-in answered', pts: '+5', cap: 'Daily', note: 'Meaningful coaching reply' },
-      { id: 'fastMessageReply', capKey: 'perReply', name: 'Fast message reply', pts: '+2', cap: 'Per reply', note: 'Within the hour' },
-      { id: 'prVerified', capKey: 'perPr', name: 'PR verified', pts: '+10', cap: 'Per PR', note: 'Client lift or performance milestone' },
-      { id: 'clientWeeklyTargetHit', capKey: 'perClient', name: 'Client weekly target hit', pts: '+6', cap: 'Per client', note: 'Roster adherence credit' },
-      { id: 'retentionStreak', capKey: 'weekly', name: 'Retention streak', pts: '+20', cap: 'Weekly', note: 'Active roster held for 7 days' },
-      { id: '5StarReviewEarned', capKey: 'perReview', name: '5-star review earned', pts: '+15', cap: 'Per review', note: 'Verified client rating' },
-      { id: 'planSold', capKey: 'perSale', name: 'Plan sold', pts: '+30', cap: 'Per sale', note: 'Marketplace program purchase' },
-      { id: 'newClientOnboarded', capKey: 'perIntake', name: 'New client onboarded', pts: '+40', cap: 'Per intake', note: 'Completed intake and first plan' },
+    total: 3060, goal: 5000, tier: 'Elite', nextTier: 'Master', pointsToNext: 1940,
+    breakdown: [
+      { label: 'Active clients', points: 1700, sub: '34 clients' },
+      { label: 'Session completion', points: 960, sub: '96% · last 90d' },
+      { label: 'Programs published', points: 400, sub: '5 live' },
     ],
-    ledger: [
-      ['APR 18', '+24', 'Program block delivered - Riley Kim'],
-      ['APR 18', '+10', 'Form review returned - Drew Park'],
-      ['APR 17', '+22', 'Live session completed - Alex Rivera'],
-      ['APR 17', '+5', 'Client check-in answered - Casey Lee'],
-      ['APR 16', '+40', 'New client onboarded - Morgan Liu'],
-      ['APR 16', '+10', 'PR verified - Sam Patel'],
-      ['APR 15', '+20', 'Retention streak held'],
-      ['APR 15', '+8', 'Async review returned - Quinn Choi'],
-    ],
+    available: 1280, lifetime: 6840, redeemedCount: 11,
   },
   nutritionist: {
     roleLabel: 'Nutritionist',
-    total: 2140, goal: 5000, streak: 11, tier: 'Elite', tierShort: 'ELT', nextTier: 'Master',
-    pointsToNext: 2860, available: 870, lifetime: 5310, redeemedCount: 8, week: '+64',
-    weekRatio: 0.76, streakRatio: 0.61, tierRatio: 0.42, spendRatio: 0.68,
-    activities: [
-      { id: 'consultCompleted', capKey: 'perBooking', name: 'Consult completed', pts: '+18-28', cap: 'Per booking', note: 'Initial or follow-up consult' },
-      { id: 'mealPlanDelivered', capKey: 'perClient', name: 'Meal plan delivered', pts: '+24', cap: 'Per client', note: 'New or adjusted nutrition plan' },
-      { id: 'groceryListSent', capKey: 'perPlan', name: 'Grocery list sent', pts: '+8', cap: 'Per plan', note: 'Built from the plan' },
-      { id: 'macroReviewReturned', capKey: 'perReview', name: 'Macro review returned', pts: '+8-12', cap: 'Per review', note: 'Food log analysis within 24h' },
-      { id: 'adherenceCheckIn', capKey: 'daily', name: 'Adherence check-in', pts: '+5', cap: 'Daily', note: 'Useful client follow-up' },
-      { id: 'fastMessageReply', capKey: 'perReply', name: 'Fast message reply', pts: '+2', cap: 'Per reply', note: 'Within the hour' },
-      { id: 'biomarkerNoteLogged', capKey: 'perUpdate', name: 'Biomarker note logged', pts: '+10', cap: 'Per update', note: 'Labs, weight trend, or recovery signal' },
-      { id: 'clientHitMacros', capKey: 'perClient', name: 'Client hit macros', pts: '+6', cap: 'Per client', note: 'Weekly adherence credit' },
-      { id: 'planAdherenceStreak', capKey: 'weekly', name: 'Plan adherence streak', pts: '+20', cap: 'Weekly', note: 'Client hit targets for the week' },
-      { id: '5StarReviewEarned', capKey: 'perReview', name: '5-star review earned', pts: '+15', cap: 'Per review', note: 'Verified client rating' },
-      { id: 'planSold', capKey: 'perSale', name: 'Plan sold', pts: '+30', cap: 'Per sale', note: 'Marketplace plan purchase' },
-      { id: 'newNutritionClientOnboarded', capKey: 'perIntake', name: 'New nutrition client onboarded', pts: '+40', cap: 'Per intake', note: 'Completed intake and first plan' },
+    total: 2340, goal: 5000, tier: 'Elite', nextTier: 'Master', pointsToNext: 2660,
+    breakdown: [
+      { label: 'Active clients', points: 1400, sub: '28 clients' },
+      { label: 'Session completion', points: 940, sub: '94% · last 90d' },
     ],
-    ledger: [
-      ['APR 18', '+22', 'Meal plan delivered - Jamie Wong'],
-      ['APR 18', '+8', 'Macro review returned - Alex Rivera'],
-      ['APR 17', '+18', 'Plan adherence streak - Sara Mendez'],
-      ['APR 17', '+20', 'Consult completed - Riley Kim'],
-      ['APR 16', '+12', 'Biomarker note logged - Pat Doan'],
-      ['APR 16', '+5', 'Adherence check-in - Casey Lee'],
-      ['APR 15', '+36', 'New nutrition client onboarded'],
-      ['APR 15', '+7', 'Food log analysis returned'],
-    ],
+    available: 870, lifetime: 5310, redeemedCount: 8,
   },
 };
+
+// ⚠ HOW A COACH EARNS POINTS IS THE ROUTE'S FORMULA, AND NOTHING ELSE. The coach Score page listed
+// twelve "point values" a row (Live session completed +18-28, Plan sold +30, a 5-star review +15,
+// a fast reply +2 …) that nothing ever awarded: a coach's score is what /api/coach/score adds up
+// (src/app/api/coach/score/route.ts, kept in sync with get_coach_scores in
+// supabase-migrations/2026-07-25-coach-scores-batch.sql): 50 for each active client, 10 for each
+// point of the session completion rate over the last 90 days (up to 1,000), and, for a trainer, 80
+// for each published program. `label` is the route's own breakdown label, which is how a breakdown
+// row finds its translated name. Add a row here only when the route adds a term.
+const BS_COACH_SCORE_FORMULA = {
+  trainer: [
+    { id: 'coachClients', label: 'Active clients', capKey: 'perClient', name: 'Active clients', pts: '+50', cap: 'Per client', note: 'Each client subscribed to you now' },
+    { id: 'coachCompletion', label: 'Session completion', capKey: 'perPctCompleted', name: 'Session completion', pts: '+10', cap: 'Per 1% completed', note: 'Your sessions in the last 90 days · up to 1,000' },
+    { id: 'coachPrograms', label: 'Programs published', capKey: 'perProgram', name: 'Programs published', pts: '+80', cap: 'Per program', note: 'Each program you’ve published' },
+  ],
+};
+// A nutritionist's score has no programs term (the route adds it for trainers only).
+BS_COACH_SCORE_FORMULA.nutritionist = BS_COACH_SCORE_FORMULA.trainer.filter((r) => r.id !== 'coachPrograms');
+
+// The role /api/coach/score takes for a coach profile: Trainer, or Nutritionist, with a dietitian on
+// the nutritionist rails as _bsHydrateProScore puts them. null for a member.
+function bsCoachScoreRole(roleLabel) {
+  const r = String(roleLabel || '').toLowerCase().trim();
+  if (r === 'nutritionist' || r === 'dietitian') return 'nutritionist';
+  return bsIsCoachRole(r) ? 'trainer' : null;
+}
+// A coach score the page can print: a number total, a rung name and the breakdown rows. Anything else
+// (a 401, a 5xx, an HTML error page, a payload missing a field) is an unread score, never a zero.
+function bsCoachScoreOk(d) {
+  return !!(d && typeof d.total === 'number' && Number.isFinite(d.total)
+    && typeof d.current_tier === 'string' && d.current_tier && Array.isArray(d.breakdown));
+}
+// /api/coach/score's answer as the Score page's profile. current_tier is already a coach rung
+// (Certified … Icon) and next_tier the next one, null at Icon; goal is the next rung's floor.
+// Nothing from the static sample rides along: every figure here is the route's.
+function bsCoachScoreProfile(roleLabel, d) {
+  const role = bsCoachScoreRole(roleLabel) || 'trainer';
+  const next = typeof d.next_tier === 'string' && d.next_tier ? d.next_tier : null;
+  const pointsToNext = next ? Math.max(0, Number(d.points_to_next) || 0) : 0;
+  return {
+    roleLabel, coachRole: role, scoreSource: 'coach', scoreState: 'ok', live: true,
+    total: d.total,
+    tier: d.current_tier,
+    nextTier: next,
+    pointsToNext,
+    goal: next ? d.total + pointsToNext : d.total,
+    breakdown: d.breakdown.map((b) => ({ label: String((b && b.label) || ''), points: Number(b && b.points) || 0, sub: String((b && b.sub) || '') })),
+    activities: BS_COACH_SCORE_FORMULA[role],
+    penalties: [],
+  };
+}
+// A signed-in coach whose score is still being read, or could not be read. No figure is printed; the
+// tier is the one the app already holds for the coach's avatar (window.ShapeScore, which
+// _bsHydrateProScore sets from this same route), else the first rung, because Settings' avatar line
+// names one. The Score page never prints it while the score is unread.
+function bsCoachUnreadProfile(roleLabel, state) {
+  const role = bsCoachScoreRole(roleLabel) || 'trainer';
+  let held = null;
+  try { held = (window.ShapeScore && typeof window.ShapeScore.tier === 'string' && window.ShapeScore.tier) || null; } catch (e) {}
+  return {
+    roleLabel, coachRole: role, scoreSource: 'coach', scoreState: state, live: false,
+    total: null, tier: held ? bsCoachTier(held) : 'Certified', nextTier: null, pointsToNext: null, goal: null,
+    breakdown: null,
+    activities: BS_COACH_SCORE_FORMULA[role],
+    penalties: [],
+  };
+}
+// A breakdown row's place in the formula, from the route's English label, and the leading figure of
+// its sub-line ("34 clients", "96% · last 90d", "5 live"), so the page can say both in the app's
+// language. A row the formula doesn't know, or a sub with no leading figure, keeps the route's words.
+function bsCoachBreakdownRow(row) {
+  const term = BS_COACH_SCORE_FORMULA.trainer.find((r) => r.label === row.label) || null;
+  const m = /^(\d+)/.exec(String(row.sub || ''));
+  return { term, n: m ? Number(m[1]) : null };
+}
 
 // ─── NOTIFICATIONS ─── the list moved to BSNotifications.jsx (2026-10-16), with Clear all.
 // The preference center and reminders below stay here.
@@ -31466,21 +31506,67 @@ function _bsFormatScoreDate(iso) {
 // role profile. The point-value catalog + reward tiers stay static — they're
 // program rules, not user data — while the headline total, tier, weekly gain,
 // and recent ledger go live. Signed out, the static profile passes through.
-function _bsUseLiveScore(profile) {
-  // Coaches show the same live points under the coach tier ladder (scheme J).
+//
+// ⚠ A COACH'S STANDING IS THE COACH SCORE, NOT THEIR MEMBER LEDGER. For a coach profile this read
+// /api/client/score too and only renamed the tiers, so the coach Score page printed the coach's
+// personal points as their coach standing, and wrote them to window.ShapeScore over the coach tier
+// _bsHydrateProScore had set from /api/coach/score: one coach, two tiers. A coach profile now reads
+// /api/coach/score (bsCoachScoreProfile), signed out keeps the formula-built sample, and a read that
+// fails is an unread state (bsCoachUnreadProfile), never the sample's figures.
+// { ledger: true } asks for the member ledger whatever the role: the Shape Store spends that
+// ledger's balance, a coach's included. That read never writes window.ShapeScore for a coach.
+function _bsUseLiveScore(profile, opts) {
   const _coach = bsIsCoachRole(profile && profile.roleLabel);
+  const coachRole = (_coach && !(opts && opts.ledger)) ? bsCoachScoreRole(profile.roleLabel) : null;
+  // In the Store's ledger read, a coach's member tier is named on the coach ladder (scheme J).
   const _tierName = (n) => (_coach ? bsCoachTier(n) : n);
   const loggedIn = !!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user);
   const [data, setData] = useStateBSC(null);
+  // The coach read: 'loading', 'ok' (with its payload) or 'failed', for the role it was read for (a
+  // read for another role is not this one's). `attempt` is the unread state's Try again.
+  const [coachRead, setCoachRead] = useStateBSC({ state: 'loading', data: null, role: null });
+  const [attempt, setAttempt] = useStateBSC(0);
   React.useEffect(() => {
     if (!loggedIn) return undefined;
     let cancelled = false;
+    if (coachRole) {
+      // The session generation, as _bsHydrateProScore keeps it: a read in flight at sign-out must
+      // not land the previous coach's score.
+      const gen = window.__bsSessionGen || 0;
+      const current = () => !cancelled && gen === (window.__bsSessionGen || 0);
+      setCoachRead((c) => (c.state === 'loading' && c.role === coachRole ? c : { state: 'loading', data: null, role: coachRole }));
+      bsApi.fetch(`/api/coach/score?role=${coachRole}`, { credentials: 'same-origin' })
+        .then(r => (r.ok ? r.json() : null))
+        .then(d => {
+          if (!current()) return;
+          if (!bsCoachScoreOk(d)) { setCoachRead({ state: 'failed', data: null, role: coachRole }); return; }
+          setCoachRead({ state: 'ok', data: d, role: coachRole });
+          try { window.ShapeScore = { points: d.total, tier: d.current_tier }; } catch (e) {}
+        })
+        .catch(() => { if (current()) setCoachRead({ state: 'failed', data: null, role: coachRole }); });
+      return () => { cancelled = true; };
+    }
     bsApi.fetch('/api/client/score', { credentials: 'same-origin' })
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (!cancelled && d && typeof d.points_total === 'number') { setData(d); try { window.ShapeScore = { points: d.points_total || 0, tier: _tierName(d.current_tier ? d.current_tier.name : 'Base') }; } catch (e) {} } })
+      .then(d => {
+        if (!cancelled && d && typeof d.points_total === 'number') {
+          setData(d);
+          // A coach's avatar tier is their coach score's (_bsHydrateProScore), so only a member's
+          // ledger read sets it.
+          if (!_coach) { try { window.ShapeScore = { points: d.points_total || 0, tier: d.current_tier ? d.current_tier.name : 'Base' }; } catch (e) {} }
+        }
+      })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [loggedIn]);
+  }, [loggedIn, coachRole, attempt]);
+
+  if (coachRole) {
+    // Signed out: the formula-built sample (the app's preview banner labels it), with the formula.
+    if (!loggedIn) return { ...profile, coachRole, scoreSource: 'coach', scoreState: 'preview', live: false, momentum: null, activities: BS_COACH_SCORE_FORMULA[coachRole], penalties: [] };
+    const mine = coachRead.role === coachRole;
+    if (mine && coachRead.state === 'ok' && coachRead.data) return bsCoachScoreProfile(profile.roleLabel, coachRead.data);
+    return { ...bsCoachUnreadProfile(profile.roleLabel, mine && coachRead.state === 'failed' ? 'failed' : 'loading'), retry: () => setAttempt((n) => n + 1) };
+  }
 
   if (!loggedIn) return { ...profile, live: false, momentum: { value: 72, bonusThisWeek: false } }; // signed-out → demo preview (incl. a demo momentum bar)
   if (!data) {
@@ -32058,6 +32144,13 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
   const t = useBS();
   const tr = useShapeTr(); // i18n — the Score "The Standing" screen is the localization pilot
   profile = _bsUseLiveScore(profile);
+  // A COACH'S PAGE IS THE COACH SCORE, as the website's coach Score page is: the ladder, the total and
+  // rung, the next rung, the breakdown and how points are earned. The member economy (the redeemable
+  // balance and the Rewards tab, the weekly commitment, momentum, penalties, the ledger and its full
+  // record) is the member's own score, so a coach's page doesn't show it; the Store keeps its button.
+  const isCoach = profile.scoreSource === 'coach';
+  // Signed in, and the coach score is still being read or couldn't be: no figure at all.
+  const coachUnread = isCoach && (profile.scoreState === 'loading' || profile.scoreState === 'failed');
   const scoreTotal = profile.total;
   const scoreGoal = profile.goal;
   const streak = profile.streak;
@@ -32078,8 +32171,9 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
   const rewards = ['train_credit_25', 'train_second_opinion', 'nutri_meal_plan_refresh', 'merch_cap_black', 'perk_annual_credit']
     .map((id) => BS_STORE_PRODUCTS.find((pr) => pr.id === id))
     .filter(Boolean);
-  // Tabbed section under Reward tiers: Rewards / Point values / Recent points.
-  const [scoreTab, setScoreTab] = useStateBSC('tiers');
+  // Tabbed section under Reward tiers: Rewards / Point values / Recent points. A coach's tabs are
+  // Breakdown (in the ledger's place, and first) / Tiers / Points.
+  const [scoreTab, setScoreTab] = useStateBSC(isCoach ? 'breakdown' : 'tiers');
   const [showRecord, setShowRecord] = useStateBSC(false);
   React.useInsertionEffect(() => { bsInjectSessionDetailCss(); }, []);
   const [standScale, setStandScale] = useStateBSC('ladder'); // 'ladder' | 'tier'
@@ -32102,6 +32196,9 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
     let on = true;
     (async () => {
       try {
+        // The checkpoint is a member's (it names Legend, and its flag is the member's own account
+        // doc), so a coach score never fires it.
+        if (isCoach) return;
         const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
         if (!uid) return;
         const chk = bsPeakCheckpoint(tiers, tier, scoreTotal);
@@ -32132,7 +32229,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
     <BSPage>
       <BSDetailHeader
         onBack={onBack}
-        eyebrow={tr('score:page.eyebrow', { defaultValue: 'Your standing' })}
+        eyebrow={isCoach ? tr('score:coach.eyebrow', { defaultValue: 'Your coach standing' }) : tr('score:page.eyebrow', { defaultValue: 'Your standing' })}
         title={<>{tr('score:page.titleA', { defaultValue: 'Shape' })}<br/><span style={{ fontStyle: 'italic', color: bsTierColor(tier) }}>{tr('score:page.titleB', { defaultValue: 'Score.' })}</span></>}
         trailing={<button onClick={onOpenStore} style={{ borderRadius: t.RADIUS_SM,
           border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK,
@@ -32142,6 +32239,28 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
 
       {/* Verdict lead — the plate hero dies; the serif verdict + its sub-line
           carry the standing (at-risk swaps to a rust line; top tier degrades). */}
+      {coachUnread ? (
+        // A coach whose score is being read, or couldn't be: no total, no rung, no breakdown, and
+        // never the sample's figures in their place.
+        <div role="status" style={{ padding: `12px ${t.padX}px 0` }}>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.12 }}>
+            {profile.scoreState === 'failed'
+              ? tr('score:coach.unread.title', { defaultValue: 'Your score couldn’t be read just now.' })
+              : tr('score:coach.loading', { defaultValue: 'Reading your score…' })}
+          </div>
+          {profile.scoreState === 'failed' && (
+            <React.Fragment>
+              <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 12, fontStyle: 'italic', color: t.INK70, lineHeight: 1.35 }}>
+                {tr('score:coach.unread.sub', { defaultValue: 'Nothing is shown in its place. Check your connection and try again.' })}
+              </div>
+              <button type="button" onClick={() => profile.retry && profile.retry()}
+                style={{ marginTop: 12, minHeight: 44, padding: '0 14px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                {tr('score:coach.unread.retry', { defaultValue: 'Try again' })}
+              </button>
+            </React.Fragment>
+          )}
+        </div>
+      ) : (
       <div style={{ padding: `12px ${t.padX}px 0` }}>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.12 }}>
           {st.topTier
@@ -32160,10 +32279,16 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
           </div>
         )}
       </div>
+      )}
 
-      {/* Register row — SCORE · THIS WK (heat) · STREAK, eyebrow-above-figure */}
+      {/* Register row — SCORE · THIS WK (heat) · STREAK, eyebrow-above-figure. A coach's is SCORE ·
+          NEXT · TO GO: a week's gain and a streak are the member ledger's, and the coach score has
+          neither. */}
+      {!coachUnread && (
       <div style={{ display: 'flex', padding: `13px ${t.padX}px 0` }}>
-        {[['reg.score', scoreTotal.toLocaleString(), t.INK], ['reg.thisWeek', weekTxt, heat], ['reg.streak', `${streak}d`, t.INK]].map(([labelKey, value, col], i) => (
+        {(isCoach
+          ? [['reg.score', scoreTotal.toLocaleString(), t.INK], ['reg.next', st.topTier ? '—' : st.nextName, heat], ['reg.toGo', st.topTier ? '—' : st.toNext.toLocaleString(), t.INK]]
+          : [['reg.score', scoreTotal.toLocaleString(), t.INK], ['reg.thisWeek', weekTxt, heat], ['reg.streak', `${streak}d`, t.INK]]).map(([labelKey, value, col], i) => (
           <div key={labelKey} style={{ flex: 1, paddingLeft: i ? 12 : 0, borderLeft: i ? `1px solid ${t.HAIR}` : 0 }}>
             <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5) }}>{tr('score:' + labelKey)}</div>
             <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: col, letterSpacing: '-0.03em', lineHeight: 0.95, fontVariantNumeric: 'tabular-nums' }}>
@@ -32172,8 +32297,11 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
           </div>
         ))}
       </div>
+      )}
 
-      {/* THE STANDING — the ladder/tier chart (owner's centerpiece) */}
+      {/* THE STANDING — the ladder/tier chart (owner's centerpiece). Not drawn for an unread coach
+          score: there is no total to place on it. */}
+      {!coachUnread && (
       <div ref={stationRef} style={{ padding: `${t.sectGap}px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
           <span aria-hidden style={{ flex: 'none', width: 6, height: 1.5, background: heat }} />
@@ -32195,6 +32323,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
         </div>
         <BSScoreStandingChart tiers={tiers} tier={tier} total={scoreTotal} heat={heat} t={t} seen={stationSeen} scale={standScale} />
       </div>
+      )}
 
       {/* Momentum meter — the consistency carrot. 0–100, +7 per active day / −12 per
           missed (a notch, not a reset); ≥80 banks a weekly +25. Hidden when signed-in
@@ -32236,12 +32365,14 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
         );
       })()}
 
-      {/* Weekly commitment + stake (E4) */}
-      <BSCommitmentCard />
+      {/* Weekly commitment + stake (E4) — a member's points at stake, so not on a coach's page. */}
+      {!isCoach && <BSCommitmentCard />}
 
       {/* Tabs — typographic index (active = ink + heat underline); bodies render inline. */}
       <div style={{ display: 'flex', justifyContent: 'space-evenly', padding: `${t.sectGap}px ${t.padX}px 0`, borderBottom: `1px solid ${bsTHexA(t.INK, 0.08)}`, margin: `0 0 4px` }}>
-        {[['tiers', 'Tiers'], ['rewards', 'Rewards'], ['points', 'Points'], ['ledger', 'Ledger']].map(([k, label]) => {
+        {(isCoach
+          ? [['breakdown', 'Breakdown'], ['tiers', 'Tiers'], ['points', 'Points']]
+          : [['tiers', 'Tiers'], ['rewards', 'Rewards'], ['points', 'Points'], ['ledger', 'Ledger']]).map(([k, label]) => {
           const on = scoreTab === k;
           return (
             <button key={k} onClick={() => setScoreTab(k)} aria-pressed={on} style={{ position: 'relative', minHeight: 44, padding: '13px 0 11px', background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: on ? t.INK : bsTHexA(t.INK, 0.45), whiteSpace: 'nowrap' }}>
@@ -32267,7 +32398,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
             </div>
           );
         })}
-        {scoreTab === 'rewards' && (
+        {scoreTab === 'rewards' && !isCoach && (
           <React.Fragment>
             {rewards.map((r) => {
               // Affordability is the SPENDABLE balance (earns − penalties − redemptions),
@@ -32293,8 +32424,8 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
           </React.Fragment>
         )}
         {scoreTab === 'points' && (() => {
-          // ONE render point for all 41 earn/penalty rows across the 3 role
-          // profiles. Each row carries a stable `id` (the React key + its name/note
+          // ONE render point for every earn/penalty row: the member's 17, and a
+          // coach's formula (BS_COACH_SCORE_FORMULA). Each row carries a stable `id` (the React key + its name/note
           // keys) and a shared `capKey` — the cap vocabulary is deliberately shared
           // ('Daily' appears on 5 rows; translate it once). `pts` stays literal:
           // it's numerals. NEVER key React off the translated name.
@@ -32325,13 +32456,52 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
               )}
               <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${t.HAIR}` }}>
                 <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5), marginBottom: 5 }}>{tr('score:know.head', { defaultValue: 'Good to know' })}</div>
-                <div style={{ fontFamily: t.BODY, fontSize: 12, color: t.INK70, lineHeight: 1.5 }}>{tr('score:know.body', { defaultValue: 'You never drop below 0, and lose at most 30 points a week. Your tier never goes down once you reach it, and spending in the Store never lowers your rank.' })}</div>
+                {/* The member's rules (a floor, a weekly cap on losses, a tier that never drops) are
+                    the ledger's. A coach score is counted fresh each time, and goes down too. */}
+                <div style={{ fontFamily: t.BODY, fontSize: 12, color: t.INK70, lineHeight: 1.5 }}>{isCoach
+                  ? tr('score:coach.know', { defaultValue: 'Your coach score is counted fresh from these figures each time you open it. It isn’t a balance you spend, and it goes down as well as up.' })
+                  : tr('score:know.body', { defaultValue: 'You never drop below 0, and lose at most 30 points a week. Your tier never goes down once you reach it, and spending in the Store never lowers your rank.' })}</div>
               </div>
-              <div onClick={onOpenStore} style={{ marginTop: 13, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: heat, cursor: 'pointer', borderBottom: `2px solid ${heat}`, width: 'fit-content' }}>{tr('score:points.spendCta', { defaultValue: 'Spend points in the Shape Store →' })}</div>
+              {!isCoach && <div onClick={onOpenStore} style={{ marginTop: 13, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: heat, cursor: 'pointer', borderBottom: `2px solid ${heat}`, width: 'fit-content' }}>{tr('score:points.spendCta', { defaultValue: 'Spend points in the Shape Store →' })}</div>}
             </React.Fragment>
           );
         })()}
-        {scoreTab === 'ledger' && ledger.map(([day, pts, label, row], i) => {
+        {scoreTab === 'breakdown' && isCoach && (coachUnread ? (
+          <div style={{ padding: '13px 0', fontFamily: t.DISPLAY, fontSize: 13, fontStyle: 'italic', color: t.INK70, lineHeight: 1.4 }}>
+            {profile.scoreState === 'failed'
+              ? tr('score:coach.unread.title', { defaultValue: 'Your score couldn’t be read just now.' })
+              : tr('score:coach.loading', { defaultValue: 'Reading your score…' })}
+          </div>
+        ) : (
+          // The route's breakdown: each term's points, with its figure ("34 clients") said in the
+          // app's language. A row the formula doesn't know keeps the route's own words.
+          <React.Fragment>
+            {(profile.breakdown || []).map((b, i, arr) => {
+              const { term, n } = bsCoachBreakdownRow(b);
+              const name = term ? tr('score:earn.' + term.id + '.name', { defaultValue: term.name }) : b.label;
+              const sub = !term || n == null ? b.sub
+                : term.id === 'coachClients' ? tr('score:coach.sub.clients', { n, defaultValue: '{n, plural, one {# client} other {# clients}}' })
+                : term.id === 'coachCompletion' ? tr('score:coach.sub.completion', { n, defaultValue: '{n}% · last 90 days' })
+                : tr('score:coach.sub.programs', { n, defaultValue: '{n, number} live' });
+              return (
+                <div key={b.label || i} style={{ padding: '13px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline' }}>
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{name}</span>
+                    <span aria-hidden style={dotLead} />
+                    <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.06em', color: heat }}>+{b.points.toLocaleString()}</span>
+                  </div>
+                  <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5) }}>{sub}</div>
+                </div>
+              );
+            })}
+            <div style={{ display: 'flex', alignItems: 'baseline', marginTop: 4, paddingTop: 12, borderTop: `1px solid ${bsTHexA(t.INK, 0.35)}` }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>{tr('score:coach.total', { defaultValue: 'Total' })}</span>
+              <span aria-hidden style={dotLead} />
+              <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.06em', color: t.INK }}>{Number(scoreTotal).toLocaleString()}</span>
+            </div>
+          </React.Fragment>
+        ))}
+        {scoreTab === 'ledger' && !isCoach && ledger.map(([day, pts, label, row], i) => {
           const neg = String(pts).trim().startsWith('-') || String(pts).trim().startsWith('−');
           // Live rows localize off source_kind; demo tuples keep their baked label.
           const text = row ? _bsLedgerLabel(tr, row) : label;
@@ -32344,7 +32514,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
             </div>
           );
         })}
-        {scoreTab === 'ledger' && (
+        {scoreTab === 'ledger' && !isCoach && (
           <div onClick={() => setShowRecord(true)} role="button" tabIndex={0}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowRecord(true); } }}
             style={{ marginTop: 14, minHeight: 44, display: 'flex', alignItems: 'center', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: heat, cursor: 'pointer', borderBottom: `2px solid ${heat}`, width: 'fit-content' }}>
@@ -32353,7 +32523,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
         )}
       </div>
 
-      <BSFooter right={tr('score:footer', { defaultValue: 'Rewards' })} />
+      <BSFooter right={isCoach ? tr('score:coach.footer', { defaultValue: 'Coach score' }) : tr('score:footer', { defaultValue: 'Rewards' })} />
     </BSPage>
   );
 }
@@ -32440,8 +32610,10 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
     if (c === 'Coach Tools') return tr('store:cat.coachTools', { defaultValue: 'Coach Tools' });
     return c;
   };
-  // Live points + tier for ALL profiles (client + coach) — was only wired for client.
-  profile = _bsUseLiveScore(profile);
+  // Live points + tier for ALL profiles (client + coach) — was only wired for client. The Store spends
+  // the member ledger's balance, a coach's included, so it asks for that ledger whatever the role
+  // (a coach's Score page reads the coach score instead).
+  profile = _bsUseLiveScore(profile, { ledger: true });
   // Role-correct catalogue: clients redeem session/meal/perk rewards; coaches redeem
   // Coach Tools (Lead Boost). Merch is shared. Drives the category pills + the filter.
   const isCoach = bsIsCoachRole(profile.roleLabel);

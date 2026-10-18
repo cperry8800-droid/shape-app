@@ -1,7 +1,8 @@
 // Coach score for the signed-in trainer or nutritionist.
 //
 // Derives the breakdown the Trainer / Nutritionist Score pages render:
-//   - Active clients (active+trialing subscriptions on this provider)
+//   - Active clients (distinct clients with an open plan on this provider: active, trialing or
+//     retrying, as Business counts them)
 //   - Session completion % (last 90 days of sessions)
 //   - Client PRs attributed (count of community_posts with activity_type='pr'
 //     authored by this provider's subscribed clients in the last 90 days)
@@ -14,7 +15,10 @@
 // via bsCoachTier(). Keep these thresholds in sync with SHAPE_SCORE_TIERS_COACH.
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { clientForRequest, userLookupForRequest } from '@/lib/request-auth';
+import { isMeasuredSignedOut } from '@/lib/auth-lookup';
+import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
+import { OPEN_SUB_STATUSES } from '@/lib/coach-trajectory.mjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,18 +36,42 @@ export async function GET(req: Request) {
   if (role !== 'trainer' && role !== 'nutritionist') {
     return NextResponse.json({ error: 'role=trainer|nutritionist required.' }, { status: 400 });
   }
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+  // The website's cookie session, or the installed app's Bearer token: the app's coach Score page
+  // reads this route too (2026-10-18). It was cookie-only, so the app's token got a 401 and the
+  // page fell back to the member ledger.
+  const supabase = await clientForRequest(req);
+  const { user, error: authErr } = await userLookupForRequest(req);
+  if (!user) {
+    // ⚠ AN AUTH OUTAGE IS NOT A SIGNED-OUT VIEWER (src/lib/auth-lookup.ts). getUser() answers a dead
+    // network or an auth-server 5xx with a null user too, and the website's Score page reads a 401
+    // as "show the sample": a signed-in coach would be shown the sample's score as their own. A 503
+    // is the unread state both Score pages have.
+    if (!isMeasuredSignedOut(authErr)) {
+      console.warn('[coach/score] the sign-in check failed — answering 503, not 401:', authErr?.message);
+      return NextResponse.json({ error: 'Could not check your sign-in just now.' }, { status: 503 });
+    }
+    return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+  }
 
+  // ⚠ A LIST READ, NEVER maybeSingle (Codex on #2400). owner_id is not unique, and a coach may own
+  // two listings of one role (memberReads.mjs readCoachRoster). maybeSingle on two rows is an error
+  // with no data, which answered 404, so that coach's Score page could never be read. A score is
+  // one listing's: the one ?provider_id names when the caller owns it, otherwise their oldest. A
+  // read that failed is 503, not "no listing".
   const providerTable = role === 'trainer' ? 'trainers' : 'nutritionists';
-  const { data: provider } = await supabase
+  const { data: listings, error: listErr } = await supabase
     .from(providerTable)
     .select('id')
     .eq('owner_id', user.id)
-    .maybeSingle();
-  if (!provider) return NextResponse.json({ error: 'No provider profile found.' }, { status: 404 });
-  const providerId = provider.id;
+    .order('id', { ascending: true });
+  if (listErr) {
+    console.warn(`[coach/score] the ${providerTable} read failed — answering 503, not 404:`, listErr.message);
+    return NextResponse.json({ error: 'Could not read your listing just now.' }, { status: 503 });
+  }
+  const owned = (listings ?? []) as Array<{ id: number }>;
+  if (!owned.length) return NextResponse.json({ error: 'No provider profile found.' }, { status: 404 });
+  const asked = Number(url.searchParams.get('provider_id'));
+  const providerId = (owned.find((p) => p.id === asked) ?? owned[0]).id;
 
   const since90 = new Date(); since90.setUTCDate(since90.getUTCDate() - 90);
   const since90Iso = since90.toISOString();
@@ -54,14 +82,25 @@ export async function GET(req: Request) {
   // the marketplace's get_coach_scores counts every row. The two "canonical"
   // numbers could therefore disagree for exactly the busiest coaches, which
   // defeats the point of having one ladder on both surfaces.
-  // ⚠ KEEP IN SYNC with supabase-migrations/2026-07-25-coach-scores-batch.sql.
+  // ⚠ KEEP IN SYNC with supabase-migrations/2026-10-18-coach-score-distinct-clients.sql.
+  //
+  // ⚠ CLIENTS, NOT PLANS, AND A CLIENT WHOSE PAYMENT IS RETRYING COUNTS (owner, 2026-10-18). The
+  // first term is "50 a client", but this counted subscription rows, active and trialing only: a
+  // client on two plans earned 100 (Codex on #2400), and a retrying client, who keeps their coach,
+  // earned nothing. A head count cannot count distinct clients, so the open rows are walked a page
+  // at a time (every row, as the count was) and counted by client; a row with no client stands alone.
   const [activeRes, sessTotalRes, sessDoneRes, workoutsRes] = await Promise.all([
-    supabase
-      .from('subscriptions')
-      .select('id', { count: 'exact', head: true })
-      .eq('provider_id', providerId)
-      .eq('provider_role', role)
-      .in('status', ['active', 'trialing']),
+    readAllById<{ id: string; client_id: string | null }>((after) => {
+      let q = supabase
+        .from('subscriptions')
+        .select('id, client_id')
+        .eq('provider_id', providerId)
+        .eq('provider_role', role)
+        .in('status', OPEN_SUB_STATUSES);
+      if (after) q = q.gt('id', after);
+      // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
+      return q.order('id', { ascending: true }).limit(ROW_PAGE);
+    }),
     supabase
       .from('sessions')
       .select('id', { count: 'exact', head: true })
@@ -94,7 +133,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Could not read your score right now.' }, { status: 500 });
   }
 
-  const activeClients = (activeRes as { count: number | null }).count || 0;
+  const activeClients = new Set((activeRes.data ?? []).map((r) => (r.client_id != null ? 'c:' + r.client_id : 'sub:' + r.id))).size;
 
   const totalSessions = (sessTotalRes as { count: number | null }).count || 0;
   const completed = (sessDoneRes as { count: number | null }).count || 0;

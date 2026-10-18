@@ -226,7 +226,8 @@ test('member board: the team board says whether you have a coach, and asks befor
   assert.equal(body.hasCoach, true);
   assert.equal(body.hidden, 'team_unasked');
   const sub = client.calls.find((c) => c[1] === 'subscriptions')[2];
-  assert.deepEqual(sub.find((o) => o[0] === 'in'), ['in', 'status', ['active', 'trialing']]);
+  // A member whose renewal is retrying still has their coach (owner, 2026-10-18).
+  assert.deepEqual(sub.find((o) => o[0] === 'in'), ['in', 'status', ['active', 'trialing', 'past_due']]);
 });
 
 test('member board: a failed read is never an empty board', async () => {
@@ -495,7 +496,9 @@ test('the coach Score pages claim no rank the board did not give (CodeRabbit, on
     // (the Icon rung's own description, "Top 1% of coaches", is the ladder, not a claim about you)
     assert.ok(!/right="[^"]*TOP \d+%|Top \d+% of (trainers|nutritionists) on Shape/.test(page), `the ${role} Score page still shows a fixed percentage`);
     assert.match(page, /<SectionTitle right=\{tierLabel\}>Tiers<\/SectionTitle>/, `the ${role} Tiers card does not read the live tier`);
-    assert.match(page, /setTierLabel\(String\(cn\(d\.current_tier\)\)\.toUpperCase\(\)\)/);
+    // The label is the read's own rung (2026-10-18: the page derives it from the read rather than
+    // setting it over a fixed MASTER; tests/coach-score-website.test.mjs mounts it).
+    assert.match(page, /const tierName = score \? String\(cn\(score\.current_tier\)\) : null;\s*const tierLabel = tierName \? tierName\.toUpperCase\(\) : "—";/);
   }
 });
 

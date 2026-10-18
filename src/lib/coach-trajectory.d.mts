@@ -10,6 +10,7 @@ export function subNeverStarted(row: Record<string, unknown> | null | undefined)
 
 export function subEndedAt(row: Record<string, unknown> | null | undefined, now?: number): number | null;
 
+// Open subscriptions, and the coach↔client relationship (active, trialing, past_due).
 export const OPEN_SUB_STATUSES: string[];
 
 // The rows open at `now` by the series' own rule (the ones its latest week counts).

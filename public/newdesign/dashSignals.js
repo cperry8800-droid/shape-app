@@ -1779,13 +1779,20 @@
   }
 
   var LIVE_ONLY = "live only";
+  // ⚠ A LIVE FIGURE THE DASHBOARD ROUTE SENT AS NULL IS A READ THAT FAILED (the dashboards after
+  // #2395): the routes send today's clients and net as null, never 0, when the subscriptions couldn't
+  // be read, and the strip says so under its dash rather than leaving it bare.
+  var UNREAD = "couldn't be read";
 
   var DASH_KPI_METRICS = {
     activeClients: {
       trainer: "Active clients", nutritionist: "Active clients",
       resolve: function (ctx) {
         var live = kpiLive(ctx);
-        if (live && live.kpis) return { value: kpiNum(live.kpis.activeClients), unit: "count" };
+        if (live && live.kpis) {
+          var n = kpiNum(live.kpis.activeClients);
+          return n == null ? { value: null, unit: "count", why: UNREAD } : { value: n, unit: "count" };
+        }
         // The preview's roster IS its active list — buildMockClients emits only current
         // clients — so the demo answer is a fact about what is on the screen.
         return { value: kpiRows(ctx).length, unit: "count" };
@@ -1795,7 +1802,10 @@
       trainer: "Monthly (net)", nutritionist: "Monthly (net)",
       resolve: function (ctx) {
         var live = kpiLive(ctx);
-        if (live && live.kpis) return { value: kpiNum(live.kpis.monthlyNetCents), unit: "money", sub: "after the platform fee" };
+        if (live && live.kpis) {
+          var net = kpiNum(live.kpis.monthlyNetCents);
+          return net == null ? { value: null, unit: "money", why: UNREAD } : { value: net, unit: "money", sub: "after the platform fee" };
+        }
         var gross = kpiMrr(ctx);
         if (gross.value == null) return { value: null, unit: "money", why: gross.why };
         // Each row after its own stored fee, the net Today's card and Business state (rosterNetCents).

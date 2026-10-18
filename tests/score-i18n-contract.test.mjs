@@ -53,8 +53,22 @@ test('every score: key the code BUILDS dynamically exists in en (the #1759/#1761
   const filters = [...between(CLIENT, /const filters = \[/, /\];/).matchAll(/\['([a-z]+)'/g)].map((m) => m[1]);
   for (const f of filters) if (!(`record.filter.${f}` in EN)) missing.push(`record.filter.${f}`);
 
-  // tab.<key> — the Score page's 4 tabs
-  for (const k of ['tiers', 'rewards', 'points', 'ledger']) if (!(`tab.${k}` in EN)) missing.push(`tab.${k}`);
+  // tab.<key> — the Score page's 4 tabs, and a coach's Breakdown
+  for (const k of ['tiers', 'rewards', 'points', 'ledger', 'breakdown']) if (!(`tab.${k}` in EN)) missing.push(`tab.${k}`);
+
+  // reg.<key> — the register row's labels, a member's and a coach's
+  const regs = [...between(CLIENT, /function BSShapeScorePage\(/, /\n\}\n/).matchAll(/\['(reg\.\w+)'/g)].map((m) => m[1]);
+  assert.ok(regs.length >= 6, `expected both register rows, got ${regs.join(', ')}`);
+  for (const r of regs) if (!(r in EN)) missing.push(r);
+
+  // earn.<id>.name / .note and cap.<capKey> — every earn/penalty row, the member's and the coach
+  // formula's (BS_COACH_SCORE_FORMULA, 2026-10-18), which also names a coach's breakdown rows
+  const rowsSrc = between(CLIENT, /const SHAPE_SCORE_PROFILES = \{/, /\nfunction bsCoachScoreRole/);
+  const rows = [...rowsSrc.matchAll(/\{ id: '(\w+)'[^}]*capKey: '(\w+)'/g)].map((m) => [m[1], m[2]]);
+  assert.ok(rows.some(([id]) => id === 'coachClients') && rows.some(([id]) => id === 'weeklyCheckIn'), `expected the member and coach rows, got ${rows.length}`);
+  for (const [id, cap] of rows) {
+    for (const k of [`earn.${id}.name`, `earn.${id}.note`, `cap.${cap}`]) if (!(k in EN)) missing.push(k);
+  }
 
   assert.deepEqual(missing, [], `en/score.json is missing dynamically-built keys: ${missing.join(', ')}`);
 });

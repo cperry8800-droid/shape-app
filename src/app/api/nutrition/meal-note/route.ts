@@ -4,7 +4,7 @@
 //   fields: note?, mealTitle?, mealSummary?, audio? (File), photo? (File)
 //   → { ok, delivered, deliveredCount, audioAttached, photoAttached, reason? }
 //
-// Resolves every linked coach (active/trialing trainer + nutritionist), uploads
+// Resolves every linked coach (an open trainer + nutritionist subscription), uploads
 // the audio memo and/or meal photo to the "meal-notes" storage bucket, then posts
 // a message into each coach's direct conversation (via get_or_create_direct_conversation)
 // with the note + meal summary and the memo/photo links in metadata. Accepts the
@@ -14,6 +14,7 @@ import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { requireMembership } from '@/lib/require-membership';
+import { OPEN_SUB_STATUSES } from '../../../../lib/coach-trajectory.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -92,14 +93,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, delivered: false, audioAttached: false, photoAttached: false, reason: 'nothing_to_send' });
   }
 
-  // Resolve every linked coach (active/trialing trainer + nutritionist). RLS
+  // Resolve every linked coach (active, trialing or past_due trainer + nutritionist). RLS
   // scopes subscriptions to the signed-in client, so client_id is implicit.
   const { data: subs } = await supabase
     .from('subscriptions')
     .select('provider_id, provider_role')
     .eq('client_id', user.id)
     .in('provider_role', ['trainer', 'nutritionist'])
-    .in('status', ['active', 'trialing'])
+    .in('status', OPEN_SUB_STATUSES)
     .order('created_at', { ascending: false });
 
   const providers: Array<{ role: 'trainer' | 'nutritionist'; id: number }> = [];

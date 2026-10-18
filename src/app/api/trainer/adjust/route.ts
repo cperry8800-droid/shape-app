@@ -33,6 +33,7 @@ import { bsGateDecision, bsExcludedSessionRate, bsTelemetryProps } from '@/lib/g
 import { bsAdjustProposedWeeks, bsAdjustOutcome } from '@/lib/adjust-publish.mjs';
 import { bsAdjustRegen } from '../../../../../mobile-app/src/services/adjustRegen.mjs';
 import { bsProgressionGuardrail, bsGuardrailCopy } from '../../../../../public/newdesign/progressionGuardrail.mjs';
+import { OPEN_SUB_STATUSES } from '../../../../lib/coach-trajectory.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -85,7 +86,7 @@ export async function POST(request: Request) {
     .from('subscriptions').select('client_id, provider_id')
     .in('provider_id', trainerIds)
     .eq('provider_role', 'trainer')
-    .in('status', ['active', 'trialing']);
+    .in('status', OPEN_SUB_STATUSES);
   if (subsError) {
     return NextResponse.json({ error: 'Could not verify client assignment scope. Please retry.' }, { status: 500 });
   }

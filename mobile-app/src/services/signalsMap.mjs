@@ -43,10 +43,14 @@ function normalizeWeighIns(raw) {
 // ── Coach view: one client's record from the get_client_* rollups the coach
 // app already fetches (ShapeClientStats.get / .getLifts, ShapeGoalsApi). ───────
 export function recordFromCoachData(raw = {}, deps = {}) {
-  const { id, name, isNew, joinedAt, onboarding, stats, lifts, goalsDoc, checkins, lastContact, recovery, vitals, coachDirective, screening } = raw;
+  const { id, name, isNew, joinedAt, paymentRetrying, onboarding, stats, lifts, goalsDoc, checkins, lastContact, recovery, vitals, coachDirective, screening } = raw;
   // isNew / joinedAt as the website's record carries them (client-onboarding review, M13), so a
   // client's first week reads New in the app too.
   const rec = { profile: { id: id || null, name: name || 'Client', isNew: !!isNew, joinedAt: joinedAt || null } };
+  // A renewal Stripe is retrying (past_due, the roster route's `paymentRetrying`): still a client
+  // (owner, 2026-10-18), and the roster row carries a "Payment retrying" mark. Set only when true,
+  // so every other record keeps the profile it had.
+  if (paymentRetrying === true) rec.profile.paymentRetrying = true;
   if (onboarding && typeof onboarding === 'object') rec.onboarding = onboarding;
 
   if (stats && typeof stats === 'object') {

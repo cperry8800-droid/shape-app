@@ -25,7 +25,8 @@
 // notification.
 //
 // ⚠ ONLY YOUR OWN COACH. The Team page books the coaches a member subscribes to, and so does
-// this: an active or trialing subscription to that provider row. A prospect books the free
+// this: an open subscription to that provider row (active, trialing, or a renewal Stripe is still
+// retrying: coach-trajectory.mjs OPEN_SUB_STATUSES). A prospect books the free
 // 15-minute consult (/api/consultation), which has its own captcha and rules.
 //
 // Auth: cookie session OR Bearer token.
@@ -36,6 +37,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { createNotification } from '@/lib/notify';
 import { readJson, dbError } from '@/lib/request-utils';
 import { normalizeZone, wallClockInZone } from '@/lib/time';
+import { OPEN_SUB_STATUSES } from '../../../../lib/coach-trajectory.mjs';
 import { bookingRuleRefusal, checkBookingRules, countOpenRequests, findSessionClash, isDoubleBookError, offeredInOpenHours, OPEN_REQUESTS_CAP, openRequestsMessage, readOpenHours } from '@/lib/session-booking';
 
 export const runtime = 'nodejs';
@@ -75,7 +77,7 @@ export async function POST(request: Request) {
     .eq('client_id', user.id)
     .eq('provider_id', providerId)
     .eq('provider_role', role)
-    .in('status', ['active', 'trialing']);
+    .in('status', OPEN_SUB_STATUSES);
   if (subsError) return NextResponse.json({ error: "We couldn't check your coaching plan. Nothing was booked — try again." }, { status: 503 });
   if (!(subs ?? []).length) {
     return NextResponse.json({ error: 'You can book sessions with your own coaches. Book a consult to meet someone new.', code: 'not_your_coach' }, { status: 403 });
