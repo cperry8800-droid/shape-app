@@ -306,10 +306,8 @@
   "nora.ask": "Questions? Ask Nora",
   "nora.pageApply": "Coach application",
   "nora.pageLogin": "Sign in",
-  "nora.pageJoin": "Join Shape",
   "login.agree": "By joining, you agree to Shape’s Terms of Service and Privacy Policy.",
   "legal.terms": "Terms of Service",
   "legal.privacy": "Privacy Policy",
-  "paywall.renews": "{price} a month, renewing monthly until you cancel.",
   "paywall.err.inProgress": "Checkout is already opening. Try again in a moment."
 }

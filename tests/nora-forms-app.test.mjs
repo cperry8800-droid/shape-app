@@ -40,10 +40,11 @@ test('the app forms follow the app screens: every key one the screen sets, every
   assert.ok(FORMS.app_apply_trainer.steps.find((s) => s.name === 'Specialty').fields[0].options.includes('Marathon'));
 });
 
-test('the paywall, sign-in and application get a labelled door; the tap loads the bundle her sheet lives in', () => {
+// The paywall had the door too, until the owner's call (2026-10-18: "remove the nora bubble in top right").
+test('sign-in and the application get a labelled door, the paywall none; the tap loads the bundle her sheet lives in', () => {
   const shell = between(MAIN, '// ── Nora before there is an account', 'const askNora');
-  assert.match(shell, /const paywallUp = \(stage === 'gate' \|\| \(stage === 'app' && !previewMode\)\) && !memberGateLoading && !memberAllowed;/);
-  assert.match(shell, /const noraDoor = paywallUp \|\| stage === 'login' \|\| stage === 'apply';/);
+  assert.match(shell, /const noraDoor = stage === 'login' \|\| stage === 'apply';/);
+  assert.doesNotMatch(shell, /paywallUp|'Join Shape'|nora\.pageJoin/, 'no door, and no Nora page name, for the paywall');
   assert.match(shell, /if \(!noraDoor\) setNoraSheet\(false\);/, 'the sheet goes when the screen it was opened over does');
   assert.match(MAIN, /const askNora = \(\) => \{ loadClientBundle\(\)\.then\(\(\) => setNoraSheet\(true\)\)\.catch\(\(\) => \{\}\); \};/);
   assert.match(MAIN, /\{noraDoor && !noraSheet && <BSAskNoraDoor onAsk=\{askNora\} \/>\}/);

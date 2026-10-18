@@ -306,10 +306,8 @@
   "nora.ask": "Có câu hỏi? Hỏi Nora",
   "nora.pageApply": "Đơn đăng ký huấn luyện viên",
   "nora.pageLogin": "Đăng nhập",
-  "nora.pageJoin": "Tham gia Shape",
   "login.agree": "Khi tham gia, bạn đồng ý với Điều khoản dịch vụ và Chính sách quyền riêng tư của Shape.",
   "legal.terms": "Điều khoản dịch vụ",
   "legal.privacy": "Chính sách quyền riêng tư",
-  "paywall.renews": "{price} mỗi tháng, tự động gia hạn hằng tháng cho đến khi bạn hủy.",
   "paywall.err.inProgress": "Trang thanh toán đang mở. Hãy thử lại sau giây lát."
 }

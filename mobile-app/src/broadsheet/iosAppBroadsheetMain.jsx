@@ -1231,8 +1231,9 @@ async function bsmStartCheckout() {
 // The membership-resolving hold — the wire ground, no "Checking membership…"
 // copy (the check rides the launch, never gets its own labelled screen). Used
 // as the stage-'app'/'gate' safety-net loading state.
-// "Questions? Ask Nora", top right on the paywall, sign-in and the coach application,
-// where each screen's back button is top left.
+// "Questions? Ask Nora", top right on sign-in and the coach application, where each screen's
+// back button is top left. Not on the paywall (owner, 2026-10-18: "remove the nora bubble in top
+// right").
 function BSAskNoraDoor({ onAsk }) {
   const { tr } = useTr('onboarding');
   return (
@@ -1274,7 +1275,9 @@ function BSWireHold() {
 // clipped solid-teal JOIN as the one commerce action. Fixed-dark (a launch
 // surface), so it does NOT follow the paper theme — matching the beat/telegram.
 // The Terms of Service and the Privacy Policy, opened on the website (the system browser in the
-// installed app). Client-onboarding review, M4: the app's sign-up and paywall named neither.
+// installed app). Client-onboarding review, M4: the app's sign-up and paywall named neither. The
+// create step that makes the account carries them (BSLogin); the paywall's line and links went at
+// the owner's call (2026-10-18: "remove this").
 function bsOpenLegal(path) {
   if (window.ShapeSite?.open) { window.ShapeSite.open(path); return; }
   try { window.open(path, '_blank', 'noopener'); } catch (e) {}
@@ -1314,13 +1317,11 @@ function BSPaywall({ signedIn, onJoin, onSignIn, onPreview, onLogout }) {
           <div style={{ margin: '18px 0 0', fontFamily: mono, fontSize: 9.5, fontWeight: 500, lineHeight: 2.15, letterSpacing: '0.1em', textTransform: 'uppercase', color: INKF }}>
             {feat.join(' · ')}
           </div>
+          {/* No renewal line or Terms links under Join (owner, 2026-10-18). Joining still accepts the
+              Terms on the create step that makes the account, and Stripe's checkout states the
+              monthly price and the renewal before anyone pays. */}
           <button onClick={onJoin} style={{ ...cta, marginTop: 26 }}>{signedIn ? tr('paywall.join', { price: BS_PRICE }) : tr('paywall.createJoin', { price: BS_PRICE })}</button>
-          {/* What joining means: it renews, and it accepts the Terms and the Privacy Policy (M4). */}
-          <div style={{ marginTop: 10, fontFamily: mono, fontSize: 8.5, letterSpacing: '0.06em', lineHeight: 1.6, color: INKF50 }}>
-            {tr('paywall.renews', { price: BS_PRICE })} {tr('login.agree')}
-            <BSLegalLinks color={INKF70} mono={mono} />
-          </div>
-          <button onClick={onPreview} style={{ ...ghost, marginTop: 11 }}>{tr('paywall.preview')}</button>
+          <button onClick={onPreview} style={{ ...ghost, marginTop: 12 }}>{tr('paywall.preview')}</button>
           {signedIn ? (
             <div style={{ marginTop: 26, display: 'flex', justifyContent: 'center' }}>
               <button onClick={onLogout} style={textAction}>{tr('settings:action.signOut')}</button>
@@ -1704,18 +1705,17 @@ function BSAppShell({ tweaks, setTweak }) {
   }, [stage, memberGateLoading, memberAllowed]);
 
   // ── Nora before there is an account (the Ask Nora plan, steps 2 and 5) ──
-  // The paywall, sign-in and the coach application get a labelled "Questions? Ask Nora":
-  // an unlabelled ✦ means nothing to someone who has not met her. The tap loads the client
-  // bundle her sheet lives in and opens it over the screen. On the sign-up and the
-  // application she can fill the form in with them (window.shapeNoraForm, set by each).
-  const paywallUp = (stage === 'gate' || (stage === 'app' && !previewMode)) && !memberGateLoading && !memberAllowed;
-  const noraDoor = paywallUp || stage === 'login' || stage === 'apply';
+  // Sign-in and the coach application get a labelled "Questions? Ask Nora": an unlabelled ✦
+  // means nothing to someone who has not met her. The tap loads the client bundle her sheet
+  // lives in and opens it over the screen. On the sign-up and the application she can fill the
+  // form in with them (window.shapeNoraForm, set by each). The paywall had one too, until the
+  // owner's call (2026-10-18: "remove the nora bubble in top right").
+  const noraDoor = stage === 'login' || stage === 'apply';
   const [noraSheet, setNoraSheet] = useStateBSM(false);
   useEffectBSM(() => { if (!noraDoor) setNoraSheet(false); }, [noraDoor]);
   // The screen's name for her, in English, and for the sheet's chip, in their language.
   const noraWhere = stage === 'apply' ? ['Coach application', tr('nora.pageApply')]
-    : stage === 'login' ? ['Sign in or create an account', tr('nora.pageLogin')]
-    : ['Join Shape', tr('nora.pageJoin')];
+    : ['Sign in or create an account', tr('nora.pageLogin')];
   useEffectBSM(() => {
     if (!noraSheet || !window.bsNoraOpen) return undefined;
     return window.bsNoraOpen({ page: noraWhere[0], label: noraWhere[1] });

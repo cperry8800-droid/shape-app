@@ -1605,7 +1605,7 @@ function CoachBusinessPage({ role }) {
   const planKey = planBase.state === "ready" ? JSON.stringify([planBase.clients, planBase.mrrNetCents, planBase.rateCents, planBase.byoShare, planBase.pace]) : planBase.state;
   const planWait = planBase.state === "loading" ? "Your numbers load with the analytics rollup…" : "Couldn't read your subscriptions just now, and the plan starts from them. Nothing is lost; reload to try again.";
   const earnPlate = plate(DBZ_TEAL, <React.Fragment>
-        {head("What clients earn you", null, <span style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_INK50 }}>after Shape's fee · card processing is on Shape</span>)}
+        {head("What clients earn you", null, <span style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_INK50 }}>after Shape's fee · before card processing</span>)}
         {planBase.state === "ready" ? <DbzEarnZone key={planKey} base={planBase} /> : <div style={DBZ_NOTE}>{planWait}</div>}
       </React.Fragment>);
   const planPlate = plate(DBZ_TEAL, <React.Fragment>

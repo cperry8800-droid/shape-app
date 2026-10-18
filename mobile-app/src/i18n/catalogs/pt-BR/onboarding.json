@@ -306,10 +306,8 @@
   "nora.ask": "Dúvidas? Pergunte à Nora",
   "nora.pageApply": "Inscrição de coach",
   "nora.pageLogin": "Entrar",
-  "nora.pageJoin": "Entre na Shape",
   "login.agree": "Ao entrar, você concorda com os Termos de Serviço e a Política de Privacidade da Shape.",
   "legal.terms": "Termos de Serviço",
   "legal.privacy": "Política de Privacidade",
-  "paywall.renews": "{price} por mês, renovado todo mês até você cancelar.",
   "paywall.err.inProgress": "O pagamento já está abrindo. Tente de novo em instantes."
 }
