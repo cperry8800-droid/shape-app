@@ -134,6 +134,7 @@
   "billing.manageSub": "Gerenciar assinatura",
   "billing.updatePayment": "Atualizar forma de pagamento",
   "billing.invoices": "Ver faturas e recibos",
+  "billing.coachPlan": "Plano de coaching",
   "billing.stripePortal": "Portal do Stripe",
   "accountActions.export": "Exportar todos os meus dados",
   "accountActions.exportMeta": "Baixar",

@@ -156,6 +156,12 @@ export default {
     // ── The portal and reconnecting ──
     { name: 'portal: a coach\'s plan opens Shape\'s portal', file: PORTAL,
       find: '  if (coach) {\n    const role =', replace: '  if (false) {\n    const role =' },
+    { name: 'portal list: a plan from before the move is listed', file: LIB,
+      find: "    if (!live.has(String(r.status)) || !isAccountId(r.stripe_account_id) || !r.stripe_customer_id) continue;", replace: "    if (!live.has(String(r.status)) || !r.stripe_customer_id) continue;" },
+    { name: 'portal list: an ended plan is listed', file: LIB,
+      find: "    if (!live.has(String(r.status)) || !isAccountId(r.stripe_account_id) || !r.stripe_customer_id) continue;", replace: "    if (!isAccountId(r.stripe_account_id) || !r.stripe_customer_id) continue;" },
+    { name: 'portal list: a coach is listed twice', file: LIB,
+      find: '    if (seen.has(key)) continue;\n', replace: '' },
     { name: 'portal: a plan from before the move counts as one on the coach\'s account', file: LIB,
       find: '    .filter((r) => isAccountId(r.stripe_account_id) && !!r.stripe_customer_id);', replace: '    .filter((r) => !!r.stripe_customer_id);' },
     { name: 'portal: the configuration is made every time', file: LIB,

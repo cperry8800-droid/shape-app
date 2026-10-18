@@ -134,6 +134,7 @@
   "billing.manageSub": "Abo verwalten",
   "billing.updatePayment": "Zahlungsmethode aktualisieren",
   "billing.invoices": "Rechnungen & Belege ansehen",
+  "billing.coachPlan": "Coaching-Plan",
   "billing.stripePortal": "Stripe-Portal",
   "accountActions.export": "Alle meine Daten exportieren",
   "accountActions.exportMeta": "Herunterladen",

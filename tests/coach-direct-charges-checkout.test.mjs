@@ -807,7 +807,7 @@ test('the billing portal opens on the coach\'s account for a plan billed there',
       ['@/lib/stripe-connect', connect],
       ['@/lib/coach-checkout', { ...cc, coachPortalUrl: async (_s, _a, args) => { portal.push(['coach', args]); return 'https://billing.stripe.test/coach'; } }],
       ['@/lib/membership-core', { ACTIVE_SUB: new Set(['active', 'trialing', 'past_due']) }],
-      ['@/lib/supabase/admin', { createAdminClient: () => fakeDb().client }],
+      ['@/lib/supabase/admin', { createAdminClient: () => fakeDb({ tables: { trainers: [{ id: 4, name: 'Tom Trainer' }, { id: 6, name: 'Old Plan' }] } }).client }],
       ['@/lib/request-auth', { currentUser: async () => ({ id: UID }), clientForRequest: async () => member.client }],
       ['@/lib/request-utils', await loadRealModule(join(ROOT, 'src/lib/request-utils.ts'), { typescript: true, registry: new Map([['next/server', nextServer]]) })],
       ['@/lib/return-path', await loadRealModule(join(ROOT, 'src/lib/return-path.ts'), { typescript: true })],
@@ -825,6 +825,37 @@ test('the billing portal opens on the coach\'s account for a plan billed there',
   assert.equal((await post({ coach: { provider_role: 'admin', provider_id: 4 } })).status, 400);
   const platform = await post({});
   assert.equal(platform.body.url, 'https://billing.stripe.test/platform', 'without a coach: Shape\'s portal, as before');
+  // GET lists the plans billed on coaches' own accounts, for the app's Manage rows (Codex on #2403):
+  // the one from before the move is in Shape's own portal, so it is not listed.
+  const listed = await route.GET(new Request('https://shape.test/api/stripe/billing-portal'));
+  assert.deepEqual(await listed.json(), { plans: [{ provider_role: 'trainer', provider_id: 4, name: 'Tom Trainer' }] });
+});
+
+test('coachAccountPlans lists each live plan billed on a coach\'s account once', async () => {
+  const live = new Set(['active', 'trialing', 'past_due']);
+  const db = fakeDb({ tables: { subscriptions: [
+    { client_id: UID, provider_role: 'trainer', provider_id: 4, status: 'active', stripe_account_id: ACCT, stripe_customer_id: 'cus_a' },
+    { client_id: UID, provider_role: 'trainer', provider_id: 4, status: 'past_due', stripe_account_id: ACCT, stripe_customer_id: 'cus_a' },
+    { client_id: UID, provider_role: 'nutritionist', provider_id: 2, status: 'canceled', stripe_account_id: OTHER_ACCT, stripe_customer_id: 'cus_b' },
+    { client_id: UID, provider_role: 'trainer', provider_id: 6, status: 'active', stripe_account_id: null, stripe_customer_id: 'cus_p' },
+    { client_id: 'someone-else', provider_role: 'trainer', provider_id: 9, status: 'active', stripe_account_id: ACCT, stripe_customer_id: 'cus_x' },
+  ] } });
+  assert.deepEqual((await cc.coachAccountPlans(db.client, UID, live)).plans, [{ provider_role: 'trainer', provider_id: 4 }]);
+  const down = fakeDb({ errors: { 'select:subscriptions': { code: '57014', message: 'timeout' } } });
+  assert.equal((await cc.coachAccountPlans(down.client, UID, live)).error.code, '57014');
+});
+
+test('the app\'s billing section has a Manage row for each coaching plan billed on a coach\'s account (Codex on #2403)', () => {
+  const src = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  assert.match(src, /bsApi\.fetch\('\/api\/stripe\/billing-portal', \{ credentials: 'same-origin', cache: 'no-store' \}\)/, 'the plans are read');
+  assert.match(src, /\.\.\.coachPlans\.map\(\(p\) => \(\{ l: p\.name \|\| [\s\S]{0,260}action: \(\) => openCoachBilling\(p\) \}\)\),/);
+  const fn = src.slice(src.indexOf('const openCoachBilling = async (p) => {'), src.indexOf('const openBillingPortal = async () => {'));
+  assert.match(fn, /body: JSON\.stringify\(\{ coach: \{ provider_role: p\.provider_role, provider_id: p\.provider_id \}, returnPath: '\/m\/' \}\),/);
+  assert.match(fn, /if \(data\?\.reason === 'no_coach_plan'\) \{ openBillingPortal\(\); return; \}/);
+  for (const loc of fs.readdirSync(join(ROOT, 'mobile-app/src/i18n/catalogs'))) {
+    const cat = JSON.parse(read(`mobile-app/src/i18n/catalogs/${loc}/settings.json`));
+    assert.ok(typeof cat['billing.coachPlan'] === 'string' && cat['billing.coachPlan'].trim(), loc);
+  }
 });
 
 test('the website\'s Settings opens each coaching plan\'s billing where it is paid', () => {

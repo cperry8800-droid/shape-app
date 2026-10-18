@@ -134,6 +134,7 @@
   "billing.manageSub": "Sarrafa biyan kuɗi",
   "billing.updatePayment": "Sabunta hanyar biya",
   "billing.invoices": "Duba takardun biya da rasit",
+  "billing.coachPlan": "Shirin koyarwa",
   "billing.stripePortal": "Portal na Stripe",
   "accountActions.export": "Fitar da dukkan bayanaina",
   "accountActions.exportMeta": "Zazzagewa",

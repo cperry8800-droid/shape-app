@@ -11,11 +11,13 @@
 // `coach: { provider_role, provider_id }` opens the portal on that coach's account, for the member's
 // customer on it, with Shape's own configuration (coach-checkout.ts, coachPortalUrl). Without
 // `coach`, Shape's own portal opens as before: the membership and any plan from before the move.
+// GET lists the member's plans billed on coaches' own accounts, so the app can offer a Manage row
+// for each (it has no cookie session for /api/client/team).
 
 import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { platformCoachCustomer } from '@/lib/stripe-connect';
-import { coachAccountPlan, coachPortalUrl } from '@/lib/coach-checkout';
+import { coachAccountPlan, coachAccountPlans, coachPortalUrl } from '@/lib/coach-checkout';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { ACTIVE_SUB } from '@/lib/membership-core';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
@@ -24,6 +26,21 @@ import { sameOriginPath } from '@/lib/return-path';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+export async function GET(req: Request) {
+  const user = await currentUser(req);
+  if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+  const supabase = await clientForRequest(req);
+  const { plans, error } = await coachAccountPlans(supabase, user.id, ACTIVE_SUB);
+  if (error) return dbError(error, 'billing portal coach plans read', 503);
+  // The coaches' listing names (public on their profiles), read with the service role.
+  const admin = createAdminClient();
+  const named = await Promise.all(plans.map(async (p) => {
+    const { data } = await admin.from(p.provider_role === 'trainer' ? 'trainers' : 'nutritionists').select('name').eq('id', p.provider_id).maybeSingle();
+    return { ...p, name: String((data as { name?: string | null } | null)?.name || '').trim() || null };
+  }));
+  return NextResponse.json({ plans: named });
+}
 
 export async function POST(req: Request) {
   // Accept either the mobile Bearer token or the cookie session.

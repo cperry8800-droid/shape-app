@@ -348,6 +348,32 @@ export function feeBpsOfSubscription(sub: { application_fee_percent?: number | n
 // ── The billing portal on a coach's account ──────────────────────────────────────────────────
 
 /**
+ * Every live plan the member has that is billed on a coach's own account, one per coach, read with
+ * the member's own client: what the app's billing section lists a Manage row for (Codex on #2403).
+ */
+export async function coachAccountPlans(
+  client: AdminLike,
+  userId: string,
+  live: ReadonlySet<string>
+): Promise<{ plans: Array<{ provider_role: 'trainer' | 'nutritionist'; provider_id: number }>; error: DbError }> {
+  const { data, error } = await q(client, 'subscriptions').select('*').eq('client_id', userId);
+  if (error) return { plans: [], error };
+  const seen = new Set<string>();
+  const plans: Array<{ provider_role: 'trainer' | 'nutritionist'; provider_id: number }> = [];
+  for (const r of (data ?? []) as Array<{ status?: string; stripe_account_id?: string | null; stripe_customer_id?: string | null; provider_role?: string | null; provider_id?: number | null }>) {
+    if (!live.has(String(r.status)) || !isAccountId(r.stripe_account_id) || !r.stripe_customer_id) continue;
+    if (r.provider_role !== 'trainer' && r.provider_role !== 'nutritionist') continue;
+    const id = Number(r.provider_id);
+    if (!Number.isSafeInteger(id) || id <= 0) continue;
+    const key = `${r.provider_role}:${id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    plans.push({ provider_role: r.provider_role, provider_id: id });
+  }
+  return { plans, error: null };
+}
+
+/**
  * The member's plan with a coach that is billed on the coach's own account (a direct charge), read
  * with the member's own client ("clients read own subscriptions"): a live one first (`live`, the
  * caller's ACTIVE_SUB), else any. A plan from before the move (no account) is in Shape's own portal, so it is
