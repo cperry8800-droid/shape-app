@@ -690,5 +690,9 @@ export default {
     { name: "preview one net: the Plan's brought share counts the one-time buyer", file: BIZ,
       find: '    const subs = dbzDemoOrigin().filter((r) => r.kind === "subscription");',
       replace: '    const subs = dbzDemoOrigin();' },
+    // ── The payout history reads a join date as a local day, the boundary included ──
+    { name: 'preview payouts: a client who joined on a payout day is left out of it', file: 'public/newdesign/dashSignals.js',
+      find: '        if (!isFinite(t) || t > endMs) continue;',
+      replace: '        if (!isFinite(t) || t >= endMs) continue;' },
   ],
 };

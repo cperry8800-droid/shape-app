@@ -739,9 +739,21 @@ test('the preview states one net on every tab: Today, the sidebar, the KPI strip
   const p = DashSignals.demoPayouts(roster, now);
   assert.deepEqual([p.monthlyCents, p.netCents], [book.gross, book.net], 'the sidebar card and the payouts strip');
   // Each past payout is that month's clients after their own fees.
-  for (const r of DashSignals.demoPayoutHistory(roster, now, 4)) {
-    const joined = roster.filter((c) => new Date(c.payments.joinedAt).getTime() <= r.arrivalDate);
-    assert.equal(r.amountCents, bookOf(joined).net, 'the payout of ' + new Date(r.arrivalDate).toDateString());
+  // ⚠ A JOIN DATE IS A LOCAL DAY, AS THE CODE READS IT (the sweep after #2394 round 10). A bare
+  // 'YYYY-MM-DD' parses as UTC midnight, so east of UTC this oracle dropped a client who joined on
+  // a month's last day from that month while demoPayoutHistory (local midnight) counted them: red
+  // in Berlin and Tokyo on the days a join lands there, green in CI. The fixed day puts one there
+  // (Jonah W., joined 30 September) so the boundary is read every day, in every timezone.
+  const localDay = (s) => new Date(String(s).length === 10 ? s + 'T00:00:00' : s).getTime();
+  const boundary = new Date('2026-10-18T12:00:00');
+  const atBoundary = DashSignals.buildMockClients(boundary);
+  assert.ok(DashSignals.demoPayoutHistory(atBoundary, boundary, 4).some((r) => atBoundary.some((c) => localDay(c.payments.joinedAt) === r.arrivalDate)),
+    'no client joins on a payout day, so the boundary goes unread');
+  for (const [at, cs] of [[now, roster], [boundary, atBoundary]]) {
+    for (const r of DashSignals.demoPayoutHistory(cs, at, 4)) {
+      const joined = cs.filter((c) => localDay(c.payments.joinedAt) <= r.arrivalDate);
+      assert.equal(r.amountCents, bookOf(joined).net, 'the payout of ' + new Date(r.arrivalDate).toDateString());
+    }
   }
 
   // Business: the practice the Plan starts from, and the series the Overview and the 13 weeks draw.
