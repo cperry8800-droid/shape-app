@@ -900,7 +900,7 @@ test('a load or a team-reply pull that answers for another account is not drawn,
     await load.open();
     await waitForRetry();
     assert.ok(!load.w.document.body.textContent.includes('U2 private'), 'u2\'s thread is not drawn in u1\'s copy');
-    assert.equal(load.personButton(), null, 'not synced');
+    assert.ok(!load.personButton(), 'not synced');
     // Two reads at mount (the hydrate and the member check), and one more for the mismatch.
     assert.equal(load.meReads(), 3, 'asked again once');
     await waitForRetry();
@@ -938,7 +938,7 @@ test('Talk to a person names the account; refused as another, the form closes an
     await tap('[data-nora-person-send]');
     const req = m.posts.filter(([u]) => u === '/api/support/request').map(([, b]) => b);
     assert.deepEqual(req.map((b) => b.account), ['u1']);
-    assert.equal(m.w.document.querySelector('[data-nora-person-send]'), null, 'the form closed');
+    assert.ok(!m.w.document.querySelector('[data-nora-person-send]'), 'the form closed');
     assert.ok(!m.w.document.body.textContent.includes('Sent to the Shape team'));
     assert.ok(m.w.document.body.textContent.includes("You're signed in as another account now."));
     await noticeGone();
