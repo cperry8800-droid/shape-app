@@ -494,6 +494,8 @@ async function runWebhook(event, { tables = {}, onboarding = [], subStatus = 'ac
       // What a saved subscription or membership starts (fix 3a) has its own test (coach-thread.test.mjs).
       // Recorded, not run: what each start does is coach-thread.test.mjs's; WHEN it runs is here.
       ['@/lib/refund-session', { cancelRefundedSession: async () => 'none' }],
+      // Who is told of a payment is tests/payment-notices.test.mjs's.
+      ['@/lib/payment-notices', { announcePayment: async () => ({ owners: 0, member: false, coach: false }) }],
         ['@/lib/coach-thread', {
         startCoaching: async (_a, args) => { onboarding.push(['coach', args]); return { conversationId: null, welcomed: false, coachAlerted: false }; },
         welcomeMember: async (_a, id) => { onboarding.push(['member', id]); return false; },

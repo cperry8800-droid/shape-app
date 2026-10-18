@@ -292,7 +292,7 @@ test('webhook: the coach is told only after the subscription is saved, and the n
   // The membership: welcomed only when its row was saved.
   assert.match(src, /const membershipSaved = await upsertPlatformSubscription\(admin, \{/);
   // …and only while Stripe says the membership has not ended (client-onboarding review, L9).
-  assert.match(src, /if \(membershipSaved && moneyMoved && !subEnded\) await welcomeMember\(admin, clientId\);/);
+  assert.match(src, /if \(membershipSaved && moneyMoved && !subEnded\) \{\s+await welcomeMember\(admin, clientId\);/);
   const helper = src.slice(src.indexOf('async function upsertPlatformSubscription('), src.indexOf('export async function POST'));
   assert.match(helper, /return !error;\s*\}\s*$/);
 });
