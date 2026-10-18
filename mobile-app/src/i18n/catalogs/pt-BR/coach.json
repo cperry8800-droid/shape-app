@@ -1257,7 +1257,7 @@
   "business.clients.worthUnread": "Não foi possível ler o histórico das suas assinaturas agora, e é dele que se mede a permanência média. Nada foi perdido; tente de novo daqui a pouco.",
   "business.earn.byo": "Trazidos por você",
   "business.earn.byoNone": "0% de taxa da Shape nesses",
-  "business.earn.byoNote": "0% de taxa · {brought} dos seus {subs}",
+  "business.earn.byoNote": "0% de taxa · {brought} dos seus {clients}",
   "business.earn.byoUnread": "não foi possível ler quem você trouxe · defina o seu",
   "business.earn.clients": "Clientes",
   "business.earn.head": "Quanto os clientes rendem para você",

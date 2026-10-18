@@ -915,8 +915,9 @@ function dbzPlanBase({ live, extra, failed = false, listing, listingRead, listin
     rateFrom: n.rateFrom === "listing" ? "your listing price"
       : n.listingUnread ? "couldn't read your listing price" + (n.rateFrom === "average" ? " · your clients' average" : " · set your own")
       : n.rateFrom === "average" ? "your clients' average" : "no listing price yet · set your own",
-    // byOrigin null is a failed read: the share starts at 0% and says so, never as a measurement.
-    byoNote: n.broughtUnread ? "couldn't read who you brought · set your own" : n.subs ? "0% fee · " + n.brought + " of your " + n.subs : "0% Shape fee on these",
+    // The brought-in share is per client (the routes' byoMix: one client with two plans is one
+    // client). Null is a failed read: the share starts at 0% and says so, never as a measurement.
+    byoNote: n.broughtUnread ? "couldn't read who you brought · set your own" : n.byoClients ? "0% fee · " + n.brought + " of your " + n.byoClients : "0% Shape fee on these",
   };
 }
 

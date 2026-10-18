@@ -1257,7 +1257,7 @@
   "business.clients.worthUnread": "Hiện không đọc được lịch sử gói đăng ký của bạn, mà thời gian ở lại trung bình được đo từ đó. Không có gì bị mất; hãy thử lại sau ít phút.",
   "business.earn.byo": "Do bạn mang đến",
   "business.earn.byoNone": "Phí Shape 0% với những khách này",
-  "business.earn.byoNote": "Phí 0% · {brought} trong {subs} khách của bạn",
+  "business.earn.byoNote": "Phí 0% · {brought} trong {clients} khách của bạn",
   "business.earn.byoUnread": "không đọc được những khách do bạn mang đến · hãy tự đặt",
   "business.earn.clients": "Khách hàng",
   "business.earn.head": "Khách hàng mang lại cho bạn",

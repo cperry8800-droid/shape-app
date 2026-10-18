@@ -1257,7 +1257,7 @@
   "business.clients.worthUnread": "Riwayat langgananmu tidak bisa dibaca saat ini, padahal rata-rata lama bertahan diukur dari situ. Tidak ada yang hilang; coba lagi sebentar lagi.",
   "business.earn.byo": "Dibawa olehmu",
   "business.earn.byoNone": "Biaya Shape 0% untuk mereka",
-  "business.earn.byoNote": "Biaya 0% · {brought} dari {subs} klienmu",
+  "business.earn.byoNote": "Biaya 0% · {brought} dari {clients} klienmu",
   "business.earn.byoUnread": "tidak bisa membaca siapa yang kamu bawa · tetapkan sendiri",
   "business.earn.clients": "Klien",
   "business.earn.head": "Penghasilan dari klien",

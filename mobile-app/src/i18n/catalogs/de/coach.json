@@ -1257,7 +1257,7 @@
   "business.clients.worthUnread": "Deine Abo-Historie konnte gerade nicht gelesen werden, und die durchschnittliche Verweildauer wird daraus gemessen. Es ist nichts verloren; versuch es gleich noch einmal.",
   "business.earn.byo": "Von dir gebracht",
   "business.earn.byoNone": "0 % Shape-Gebühr auf diese",
-  "business.earn.byoNote": "0 % Gebühr · {brought} von deinen {subs}",
+  "business.earn.byoNote": "0 % Gebühr · {brought} von deinen {clients}",
   "business.earn.byoUnread": "wen du gebracht hast, konnte nicht gelesen werden · leg deinen fest",
   "business.earn.clients": "Klienten",
   "business.earn.head": "Was Klienten dir bringen",

@@ -1257,7 +1257,7 @@
   "business.clients.worthUnread": "Impossible de lire l'historique de tes abonnements pour le moment, et c'est de là que l'on mesure la durée moyenne. Rien n'est perdu ; réessaie dans un instant.",
   "business.earn.byo": "Amenés par toi",
   "business.earn.byoNone": "0 % de frais Shape sur ceux-ci",
-  "business.earn.byoNote": "0 % de frais · {brought} sur tes {subs}",
+  "business.earn.byoNote": "0 % de frais · {brought} sur tes {clients}",
   "business.earn.byoUnread": "impossible de lire qui tu as amené · fixe le tien",
   "business.earn.clients": "Clients",
   "business.earn.head": "Ce que tes clients te rapportent",

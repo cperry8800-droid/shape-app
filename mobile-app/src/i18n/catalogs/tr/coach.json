@@ -1257,7 +1257,7 @@
   "business.clients.worthUnread": "Abonelik geçmişin şu an okunamadı; ortalama kalış süresi bu geçmişten ölçülüyor. Hiçbir şey kaybolmadı; birazdan tekrar dene.",
   "business.earn.byo": "Senin getirdiklerin",
   "business.earn.byoNone": "Bunlarda %0 Shape ücreti",
-  "business.earn.byoNote": "%0 ücret · {subs} danışanından {brought} tanesi",
+  "business.earn.byoNote": "%0 ücret · {clients} danışanından {brought} tanesi",
   "business.earn.byoUnread": "kimleri getirdiğin okunamadı · kendininkini belirle",
   "business.earn.clients": "Danışanlar",
   "business.earn.head": "Danışanların sana kazandırdıkları",

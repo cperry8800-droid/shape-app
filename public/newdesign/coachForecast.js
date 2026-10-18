@@ -173,22 +173,25 @@
 
   // Where a plan starts, from the analytics payload and the coach's listing price (dollars, as
   // /api/coach/listing sends it): today's figures, the rate a new client pays and where it came
-  // from ('listing' | 'average' | 'default'), the share the coach brought (from each
-  // subscription's stored fee), and the pace. null when today's figures could not be read.
+  // from ('listing' | 'average' | 'default'), the share of clients the coach brought (the route's
+  // byoMix), and the pace. null when today's figures could not be read.
   // ⚠ AN UNREAD INPUT IS SAID AS UNREAD, NEVER AS A MEASUREMENT (Business sweep, #2394). Each one
   // still starts the plan at a stated fallback, and says why:
   //   listingUnread  the listing read failed (`listingFailed`), so the rate is not "no listing
   //                  price yet" but a fallback from an unread price
-  //   broughtUnread  byOrigin is null (a failed read), so the brought share starts at 0% as a
+  //   broughtUnread  byoMix is null (a failed read), so the brought share starts at 0% as a
   //                  default, not as a measured none
   //   pace.unread    the trajectory read failed, so there is no pace and an unread history, not
   //                  an empty one
   function planNumbers({ extra, listingMonthly, listingFailed = false, now = Date.now() }) {
     const m = todayFrom(extra);
     if (!m) return null;
-    const subsRead = !!extra && Array.isArray(extra.byOrigin);
-    const subs = subsRead ? extra.byOrigin.filter((r) => r.kind === "subscription") : [];
-    const brought = subs.filter((r) => r.feeBps === 0).length;
+    // ⚠ THE BROUGHT-IN SHARE IS PER CLIENT, NOT PER SUBSCRIPTION ROW (Codex round 5 on #2394). Both
+    // analytics routes send byoMix, { clients, brought } counted per client (byoMixOf in
+    // src/lib/origin-attribution.ts: one client on two plans is one client). byOrigin has a row per
+    // subscription, so counting it read one brought client with two plans beside one from Shape as
+    // "2 of your 3" (67%), and the calculators seeded from it overstated take-home.
+    const mix = (extra && extra.byoMix) || null;
     const listed = listingMonthly != null && Number(listingMonthly) > 0 ? Math.round(Number(listingMonthly) * 100) : null;
     const avg = m.clients > 0 && m.mrrGrossCents > 0 ? Math.round(m.mrrGrossCents / m.clients / 500) * 500 : null;
     return {
@@ -196,8 +199,11 @@
       rateCents: listed != null ? listed : avg != null ? avg : DEFAULT_RATE_CENTS,
       rateFrom: listed != null ? "listing" : avg != null ? "average" : "default",
       listingUnread: listed == null && !!listingFailed,
-      byoShare: subs.length ? brought / subs.length : 0, brought, subs: subs.length,
-      broughtUnread: !subsRead,
+      // brought of byoClients: the mix's own count of clients, which is not `clients` above (that
+      // one counts a client whose payment is retrying; the mix counts active and trialing plans).
+      byoShare: mix && mix.clients ? mix.brought / mix.clients : 0,
+      brought: mix ? mix.brought : 0, byoClients: mix ? mix.clients : 0,
+      broughtUnread: !mix,
       // A failed trajectory read is "no pace", which the sliders say, not a pace of zero; and it is
       // an unread history, not an empty one, which they say too.
       pace: extra && extra.trajectory ? paceFrom(extra.trajectory, now) : { adds: null, churn: null, days: 0, fromFirst: false, unread: true },

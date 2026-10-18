@@ -1257,7 +1257,7 @@
   "business.clients.worthUnread": "Impossibile leggere lo storico dei tuoi abbonamenti in questo momento, ed è da lì che si misura la permanenza media. Non si è perso nulla; riprova tra poco.",
   "business.earn.byo": "Portati da te",
   "business.earn.byoNone": "0% di commissione Shape su questi",
-  "business.earn.byoNote": "0% di commissione · {brought} dei tuoi {subs}",
+  "business.earn.byoNote": "0% di commissione · {brought} dei tuoi {clients}",
   "business.earn.byoUnread": "impossibile leggere chi hai portato tu · imposta il tuo",
   "business.earn.clients": "Clienti",
   "business.earn.head": "Quanto ti rendono i clienti",

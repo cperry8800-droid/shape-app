@@ -108,6 +108,8 @@ export function bsBizDemo(now = Date.now()) {
       trajectory: { weeks, firstSubAt: new Date(now - 400 * DAY).toISOString() },
       metrics: { activeClients: last.active, mrrNetCents: last.mrrNetCents, mrrGrossCents: last.mrrGrossCents },
       byOrigin,
+      // The routes' per-client brought-in share (byoMixOf): one plan a client here, so it matches the rows.
+      byoMix: { clients: byOrigin.length, brought: byOrigin.filter((r) => r.feeBps === 0).length },
       stripe: {
         connected: true, balanceCents: 61200, pendingCents: 9800,
         payouts: [{ status: 'in_transit', amountCents: 48300, arrivalDate: now + 2 * DAY }],
@@ -178,7 +180,7 @@ export function bsBizPlanBase(biz, now = Date.now()) {
   if (!F) return { state: 'unread' };
   if (biz.kind === 'loading' || (biz.kind === 'live' && !biz.listingRead)) return { state: 'loading' };
   if (biz.kind !== 'live' && biz.kind !== 'demo') return { state: 'unread' };
-  // An unread input (listingFailed here; byOrigin and the trajectory in the payload) comes back
+  // An unread input (listingFailed here; byoMix and the trajectory in the payload) comes back
   // flagged (listingUnread, broughtUnread, pace.unread), and each note below says so.
   const n = F.planNumbers({ extra: biz.extra, listingMonthly: biz.listingMonthly, listingFailed: !!biz.listingFailed, now });
   return n ? { ...n, state: 'ready' } : { state: 'unread' };
@@ -388,10 +390,11 @@ function rateFromNote(base, tr) {
   return base.rateFrom === 'average' ? tr('coach:business.earn.rateAverage', { defaultValue: "your clients' average" })
     : tr('coach:business.earn.rateDefault', { defaultValue: 'no listing price yet · set your own' });
 }
-// The brought share's note: an unread share (byOrigin null) starts at 0% and says so, never as a measured none.
+// The brought share's note, per client (the routes' byoMix: one client on two plans is one client):
+// an unread share (byoMix null) starts at 0% and says so, never as a measured none.
 function byoNote(base, tr) {
   if (base.broughtUnread) return tr('coach:business.earn.byoUnread', { defaultValue: "couldn't read who you brought · set your own" });
-  return base.subs ? tr('coach:business.earn.byoNote', { defaultValue: '0% fee · {brought} of your {subs}', brought: base.brought, subs: base.subs }) : tr('coach:business.earn.byoNone', { defaultValue: '0% Shape fee on these' });
+  return base.byoClients ? tr('coach:business.earn.byoNote', { defaultValue: '0% fee · {brought} of your {clients}', brought: base.brought, clients: base.byoClients }) : tr('coach:business.earn.byoNone', { defaultValue: '0% Shape fee on these' });
 }
 
 // "What clients earn you": type a client count and a rate, read the net (the website's DbzEarnZone).

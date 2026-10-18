@@ -94,6 +94,11 @@ test('dbzPlanBase: the brought-by-you share is the routes\' per-client mix, not 
   const b = B.dbzPlanBase({ live: true, extra: { metrics: { activeClients: 4, mrrNetCents: 1, mrrGrossCents: 1 }, byOrigin, byoMix: { clients: 4, brought: 1 }, trajectory: null }, listing: null, listingRead: true });
   assert.equal(b.byoShare, 0.25, 'from the mix, not the 2 of 4 rows');
   assert.equal(b.byoNote, '0% fee · 1 of your 4');
+  // Today's count takes in a client whose payment is retrying (the trajectory's latest week); the
+  // note and the share stay the mix's own 1 of 4 (coachForecast.js planNumbers, which the app reads too).
+  const week = { weekOf: '2026-10-12', active: 5, added: 0, ended: 0, mrrNetCents: 1, mrrGrossCents: 1 };
+  const t = B.dbzPlanBase({ live: true, extra: { metrics: { activeClients: 4, mrrNetCents: 1, mrrGrossCents: 1 }, byOrigin, byoMix: { clients: 4, brought: 1 }, trajectory: { weeks: [week], firstSubAt: null } }, listing: null, listingRead: true });
+  assert.deepEqual([t.clients, t.byoShare, t.byoNote], [5, 0.25, '0% fee · 1 of your 4']);
 });
 
 test("the preview's pace includes the preview's own departures, so Retention never says no one left beside its churn list", async () => {

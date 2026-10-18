@@ -1257,7 +1257,7 @@
   "business.clients.worthUnread": "Couldn't read your subscription history just now, and the average stay is measured from it. Nothing is lost; try again in a moment.",
   "business.earn.byo": "Brought by you",
   "business.earn.byoNone": "0% Shape fee on these",
-  "business.earn.byoNote": "0% fee · {brought} of your {subs}",
+  "business.earn.byoNote": "0% fee · {brought} of your {clients}",
   "business.earn.byoUnread": "couldn't read who you brought · set your own",
   "business.earn.clients": "Clients",
   "business.earn.head": "What clients earn you",

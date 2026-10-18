@@ -215,24 +215,30 @@ test("todayFrom: the trajectory's latest week, so a client whose payment is retr
   assert.equal(CF.todayFrom(null), null);
 });
 
-test('planNumbers: the listing price, else the clients\' average to $5, else the default; the brought share from stored fees', () => {
+test('planNumbers: the listing price, else the clients\' average to $5, else the default; the brought share per client, from the routes\' mix', () => {
   const extra = {
     trajectory: null,
     metrics: { activeClients: 4, mrrNetCents: 60000, mrrGrossCents: 70300 },
-    byOrigin: [{ kind: 'subscription', feeBps: 0 }, { kind: 'subscription', feeBps: 1500 }, { kind: 'subscription', feeBps: 1500 }, { kind: 'purchase', feeBps: 0 }],
+    // The origin feed has a row per subscription: the one brought client, on two plans, is two 0% rows
+    // (2 of 5), and a one-time purchase is a row too.
+    byOrigin: [{ kind: 'subscription', feeBps: 0 }, { kind: 'subscription', feeBps: 0 }, { kind: 'subscription', feeBps: 1500 }, { kind: 'subscription', feeBps: 1500 }, { kind: 'subscription', feeBps: 1500 }, { kind: 'purchase', feeBps: 0 }],
+    // The routes count clients (byoMixOf, Codex round 5 on #2394): 1 of 4.
+    byoMix: { clients: 4, brought: 1 },
   };
   const listed = CF.planNumbers({ extra, listingMonthly: 180 });
   assert.equal(listed.rateCents, 18000);
   assert.equal(listed.rateFrom, 'listing');
-  assert.equal(listed.brought, 1);
-  assert.equal(listed.subs, 3, 'a one-time purchase is not a subscription');
-  near(listed.byoShare, 1 / 3);
+  assert.deepEqual([listed.brought, listed.byoClients], [1, 4], 'per client, not the 2 of 5 rows');
+  assert.equal(listed.byoShare, 0.25);
   assert.deepEqual([listed.pace.adds, listed.pace.churn], [null, null], 'no trajectory is no pace, not a pace of zero');
   assert.equal(listed.pace.unread, true, 'and an unread history, not an empty one');
   assert.deepEqual([listed.listingUnread, listed.broughtUnread], [false, false]);
   // A measured history is not unread.
-  const read = CF.planNumbers({ extra: { ...extra, trajectory: { weeks: [{ weekOf: '2026-10-12', active: 4, added: 0, ended: 0, mrrNetCents: 60000, mrrGrossCents: 70300 }], firstSubAt: '2025-01-01T00:00:00Z' } }, listingMonthly: 180, now: Date.UTC(2026, 9, 17, 12) });
+  const read = CF.planNumbers({ extra: { ...extra, trajectory: { weeks: [{ weekOf: '2026-10-12', active: 5, added: 0, ended: 0, mrrNetCents: 60000, mrrGrossCents: 70300 }], firstSubAt: '2025-01-01T00:00:00Z' } }, listingMonthly: 180, now: Date.UTC(2026, 9, 17, 12) });
   assert.equal(read.pace.unread, undefined);
+  // Today's count takes in a client whose payment is retrying (todayFrom); the share stays the
+  // mix's own 1 of 4, not 1 of today's 5.
+  assert.deepEqual([read.clients, read.byoClients, read.byoShare], [5, 4, 0.25]);
   const avg = CF.planNumbers({ extra, listingMonthly: 0 });
   assert.equal(avg.rateFrom, 'average');
   assert.equal(avg.rateCents, 17500, '$175.75 a client rounds to $175');
@@ -242,7 +248,7 @@ test('planNumbers: the listing price, else the clients\' average to $5, else the
 });
 
 test('planNumbers: an unread listing, brought share or history is said as unread, never as a measurement', () => {
-  const extra = { trajectory: null, metrics: { activeClients: 4, mrrNetCents: 60000, mrrGrossCents: 70300 }, byOrigin: null };
+  const extra = { trajectory: null, metrics: { activeClients: 4, mrrNetCents: 60000, mrrGrossCents: 70300 }, byOrigin: null, byoMix: null };
   // The listing read failed: the rate falls back to the clients' average, and says the price was unread.
   const failed = CF.planNumbers({ extra, listingMonthly: null, listingFailed: true });
   assert.deepEqual([failed.rateFrom, failed.rateCents, failed.listingUnread], ['average', 17500, true]);
@@ -251,9 +257,12 @@ test('planNumbers: an unread listing, brought share or history is said as unread
   // A price that was read is the price, whatever else failed.
   assert.equal(CF.planNumbers({ extra, listingMonthly: 180, listingFailed: true }).listingUnread, false);
   assert.equal(CF.planNumbers({ extra, listingMonthly: null }).listingUnread, false, 'no listing price yet is not an unread one');
-  // byOrigin null: the share starts at 0% as a default, marked unread; an empty list is a measured none.
-  assert.deepEqual([failed.byoShare, failed.subs, failed.broughtUnread], [0, 0, true]);
-  assert.equal(CF.planNumbers({ extra: { ...extra, byOrigin: [] }, listingMonthly: null }).broughtUnread, false);
+  // byoMix null: the share starts at 0% as a default, marked unread; a mix of no clients is a measured none.
+  assert.deepEqual([failed.byoShare, failed.brought, failed.byoClients, failed.broughtUnread], [0, 0, 0, true]);
+  assert.equal(CF.planNumbers({ extra: { ...extra, byOrigin: [], byoMix: { clients: 0, brought: 0 } }, listingMonthly: null }).broughtUnread, false);
+  // The rows are never counted in its place: without the mix, the share is unread.
+  const rowsOnly = CF.planNumbers({ extra: { ...extra, byOrigin: [{ kind: 'subscription', feeBps: 0 }, { kind: 'subscription', feeBps: 1500 }] }, listingMonthly: null });
+  assert.deepEqual([rowsOnly.byoShare, rowsOnly.broughtUnread], [0, true]);
   // The trajectory read failed: no pace, and an unread history.
   assert.deepEqual(failed.pace, { adds: null, churn: null, days: 0, fromFirst: false, unread: true });
 });

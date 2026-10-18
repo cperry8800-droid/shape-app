@@ -1257,7 +1257,7 @@
   "business.clients.worthUnread": "Не вдалося прочитати історію ваших підписок, а за нею вимірюється, скільки в середньому залишається клієнт. Нічого не втрачено; спробуйте трохи згодом.",
   "business.earn.byo": "Привели ви",
   "business.earn.byoNone": "0% комісії Shape з них",
-  "business.earn.byoNote": "0% комісії · {brought} з ваших {subs}",
+  "business.earn.byoNote": "0% комісії · {brought} з ваших {clients}",
   "business.earn.byoUnread": "не вдалося прочитати, кого привели ви · задайте свою",
   "business.earn.clients": "Клієнти",
   "business.earn.head": "Скільки приносять клієнти",

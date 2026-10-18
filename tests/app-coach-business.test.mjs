@@ -89,6 +89,8 @@ function payload(over = {}, shape) {
     trajectory: traj,
     metrics: { activeClients: last.active - 1, mrrNetCents: 1, mrrGrossCents: 1 },
     byOrigin: [{ kind: 'subscription', feeBps: 0 }, { kind: 'subscription', feeBps: 1500 }, { kind: 'subscription', feeBps: 1500 }, { kind: 'subscription', feeBps: 1500 }],
+    // The routes' per-client brought-in share (byoMixOf): one plan a client here, so 1 of 4.
+    byoMix: { clients: 4, brought: 1 },
     stripe: { connected: true, balanceCents: 52000, pendingCents: 9000, payouts: [{ status: 'in_transit', amountCents: 40000, arrivalDate: Date.now() + 2 * DAY }, { status: 'paid', amountCents: 99999, arrivalDate: Date.now() - 5 * DAY }], schedule: { interval: 'weekly', weeklyAnchor: 'friday', delayDays: 2 } },
     renewals: [
       { name: 'Casey M.', dueAt: new Date(Date.now() + DAY).toISOString(), priceCents: 18000, netCents: 15300, ending: false },
@@ -216,6 +218,28 @@ test('Plan: the calculator and the planner start from the listing price and the 
   assert.match(m.text(), reach == null ? /doesn't reach your/ : new RegExp(`reach your \\$${start.goal.toLocaleString('en-US')} goal in ${reach} months?`));
   assert.match(m.text(), new RegExp(`yours: ${start.adds.toFixed(1)} over the last 3 months`));
   assert.equal(m.host.querySelectorAll('polyline').length, 1, 'untouched, one line: today\'s pace');
+  await m.unmount();
+});
+
+// Codex round 5 on #2394: the brought-in share is per client. One brought client on two plans and
+// one who found the coach on Shape is 1 of 2 clients (50%), not 2 of 3 rows, and the app's "What
+// clients earn you" starts from the same per-client mix the website's Plan tab does.
+test('What clients earn you: the brought-in share is per client, so a brought client on two plans beside one from Shape reads 1 of 2', async () => {
+  // The mix as the routes build it (the real byoMixOf), from the rows the routes read.
+  const { byoMixOf } = await loadRealModule(join(ROOT, 'src/lib/origin-attribution.ts'), { typescript: true, registry: new Map([['@/lib/supabase/server', {}]]) });
+  const subs = [{ id: 'r1', client_id: 'A', fee_bps: 0 }, { id: 'r2', client_id: 'A', fee_bps: 1500 }, { id: 'r3', client_id: 'B', fee_bps: 1500 }];
+  const byoMix = byoMixOf(subs);
+  assert.deepEqual(byoMix, { clients: 2, brought: 1 });
+  // The origin feed still lists each row: counted as rows, its two brought-in rows read 2 of 3.
+  const byOrigin = [{ kind: 'subscription', feeBps: 0 }, { kind: 'subscription', feeBps: 0 }, { kind: 'subscription', feeBps: 1500 }];
+  world({ answer: payload({ byOrigin, byoMix }) });
+  const m = await mount(page({ tab: 'plan' }));
+  assert.match(m.text(), /0% fee · 1 of your 2/);
+  assert.doesNotMatch(m.text(), /of your 3/);
+  const inputs = [...m.host.querySelectorAll('input[type="number"]')].map((i) => i.value);
+  assert.equal(inputs[2], '50', 'the calculator starts at 1 of 2 clients brought');
+  const e = CF.earn({ clients: Number(inputs[0]), priceCents: 18000, byoShare: 0.5 });
+  assert.match(m.text(), new RegExp(`\\${money(e.netCents)}net a month`));
   await m.unmount();
 });
 
@@ -414,7 +438,7 @@ test('the churn slider\'s percent sign sits where its note puts it, in all 13 la
 });
 
 test('the goal sentence never contradicts its figures: still climbing, levelling off, or the same month', async () => {
-  const BASE = { state: 'ready', rateFrom: 'listing', brought: 0, subs: 0, byoShare: 0, rateCents: 15000 };
+  const BASE = { state: 'ready', rateFrom: 'listing', brought: 0, byoClients: 0, byoShare: 0, rateCents: 15000 };
   // 8 clients, $1,020 net a month, 0.7 a month, 2% churn, $150: it plateaus near $4,463, above a
   // $3,500 goal it takes more than three years to reach.
   const climbing = { ...BASE, clients: 8, mrrNetCents: 102000, pace: { adds: 0.7, churn: 0.02, fromFirst: false, added: 2, ended: 0 } };
@@ -580,7 +604,7 @@ test('a failed analytics read says so and never loads forever: the page, each zo
   await m.unmount();
   // Every part of the payload unread (the route sends null for each read that failed), and the
   // waiting list too: each zone on each tab says it couldn't read, none says it is loading.
-  world({ answer: payload({ stripe: null, renewals: null, trajectory: null, byOrigin: null, churn: null, metrics: { activeClients: 0, mrrNetCents: null, mrrGrossCents: null } }), waiting: null });
+  world({ answer: payload({ stripe: null, renewals: null, trajectory: null, byOrigin: null, byoMix: null, churn: null, metrics: { activeClients: 0, mrrNetCents: null, mrrGrossCents: null } }), waiting: null });
   m = await mount(page());
   assert.match(m.text(), /Your moneyCouldn't read your payouts just now\./);
   assert.match(m.text(), /Renewing this weekCouldn't read your subscriptions just now\./);
@@ -669,7 +693,8 @@ test('an unread history says so: the Plan\'s notes and the Clients tab, never "n
 });
 
 test('an unread brought share and listing price say so in What clients earn you, and start from stated fallbacks', async () => {
-  const p = payload({ byOrigin: null });
+  // The routes send byOrigin and byoMix null together when the subscriptions could not be read.
+  const p = payload({ byOrigin: null, byoMix: null });
   world({ answer: p, listing: new Error('500') });
   let m = await mount(page({ tab: 'plan' }));
   assert.match(m.text(), /couldn't read your listing price · your clients' average/);
@@ -694,7 +719,7 @@ test('an unread brought share and listing price say so in What clients earn you,
   await m.unmount();
   // With no clients to average, the unread price starts at the default, and says set your own.
   const Earn = ({ base: b }) => React.createElement(BIZ.BSBizEarn, { t: window.useBS(), base: b });
-  m = await mount(inChrome(React.createElement(Earn, { base: { state: 'ready', clients: 0, mrrNetCents: 0, rateCents: CF.DEFAULT_RATE_CENTS, rateFrom: 'default', listingUnread: true, byoShare: 0, brought: 0, subs: 0, broughtUnread: false, pace: {} } })));
+  m = await mount(inChrome(React.createElement(Earn, { base: { state: 'ready', clients: 0, mrrNetCents: 0, rateCents: CF.DEFAULT_RATE_CENTS, rateFrom: 'default', listingUnread: true, byoShare: 0, brought: 0, byoClients: 0, broughtUnread: false, pace: {} } })));
   assert.match(m.text(), /couldn't read your listing price · set your own/);
   assert.match(m.text(), /0% Shape fee on these/, 'a read with no subscriptions is the plain note');
   await m.unmount();

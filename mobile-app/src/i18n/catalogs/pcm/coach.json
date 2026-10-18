@@ -1257,7 +1257,7 @@
   "business.clients.worthUnread": "We no fit read your subscription history right now, and na from am we dey measure how long clients dey stay on average. Nothing lost; try again small time.",
   "business.earn.byo": "Na you bring dem",
   "business.earn.byoNone": "0% Shape fee for dis ones",
-  "business.earn.byoNote": "0% fee · {brought} of your {subs}",
+  "business.earn.byoNote": "0% fee · {brought} of your {clients}",
   "business.earn.byoUnread": "we no fit read who you bring · set your own",
   "business.earn.clients": "Clients",
   "business.earn.head": "Wetin clients dey bring you",

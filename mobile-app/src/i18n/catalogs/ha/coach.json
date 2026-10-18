@@ -1257,7 +1257,7 @@
   "business.clients.worthUnread": "Ba a iya karanta tarihin biyan kuɗinka na wata-wata a yanzu ba, kuma daga gare shi ake auna matsakaicin tsawon zama. Babu abin da ya ɓace; sake gwadawa nan da ɗan lokaci.",
   "business.earn.byo": "Kai ka kawo su",
   "business.earn.byoNone": "Kuɗin Shape 0% a kan waɗannan",
-  "business.earn.byoNote": "Kuɗi 0% · {brought} cikin {subs} naka",
+  "business.earn.byoNote": "Kuɗi 0% · {brought} cikin {clients} naka",
   "business.earn.byoUnread": "ba a iya karanta waɗanda ka kawo ba · saita naka",
   "business.earn.clients": "Abokan hulɗa",
   "business.earn.head": "Abin da abokan hulɗa ke samar maka",
