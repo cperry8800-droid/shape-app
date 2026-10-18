@@ -308,7 +308,9 @@ test('a small measured churn is kept to a tenth of a point, and a departure neve
   const base = CF.planNumbers({ extra: p, listingMonthly: 180 });
   const pct = BIZ.bsBizChurnPct(base.pace.churn);
   assert.ok(pct > 0 && pct < 1 && !Number.isInteger(pct), 'the fixture churns under a point: ' + pct);
-  assert.equal(CF.planStart(base).churnPct, 0, 'whole points read it as nobody leaving');
+  // Checked on the raw pace, not through planStart: the shared module's whole-point rounding is
+  // the defect, and a fix to it must not turn this test red.
+  assert.equal(Math.round(base.pace.churn * 100), 0, 'whole points would read it as nobody leaving');
   let m = await mount(page({ tab: 'plan' }));
   const churn = ranges(m.host)[1];
   assert.equal(churn.getAttribute('step'), '0.1');
@@ -332,6 +334,49 @@ test('a small measured churn is kept to a tenth of a point, and a departure neve
   await click(button(m.host, /^Plan$/));
   assert.match(m.text(), /yours: 0\.1% leave a month/);
   await m.unmount();
+});
+
+test('a tenth reads in the coach\'s language: a comma in German, beside money grouped with a point', async () => {
+  // The German catalog the app ships, formatted as the app formats it, with the app's de-DE.
+  const DE = JSON.parse(readFileSync(join(ROOT, 'mobile-app/src/i18n/catalogs/de/coach.json'), 'utf8'));
+  const english = window.ShapeI18n;
+  window.ShapeI18n = {
+    t: (key, opts = {}) => {
+      const k = key.replace(/^coach:/, '');
+      assert.ok(key.startsWith('coach:') && k in DE, `${key} is not in the German coach catalog`);
+      return new IntlMessageFormat(DE[k], 'de-DE').format(opts);
+    },
+    intlLocale: () => 'de-DE',
+  };
+  const de1 = (v) => v.toFixed(1).replace('.', ',');
+  try {
+    const p = payload({}, { start: 70, adds: [16, 20, 24], ends: [22] });
+    world({ answer: p });
+    const base = CF.planNumbers({ extra: p, listingMonthly: 180 });
+    const pct = BIZ.bsBizChurnPct(base.pace.churn);
+    const start = startOf(base);
+    assert.ok(!Number.isInteger(pct), 'the fixture churns a tenth of a point: ' + pct);
+    const m = await mount(page({ tab: 'clients' }));
+    const lt = CF.lifetime({ netPerClientCents: base.mrrNetCents / base.clients, churn: base.pace.churn });
+    assert.ok(lt.valueCents >= 100000, 'the worth is in the thousands, so German groups it with a point');
+    // The money groups with a point, so the tenth must use a comma, or "0.4 %" reads as grouping.
+    assert.ok(m.text().includes('$' + Math.round(lt.valueCents / 100).toLocaleString('de-DE')), 'the worth in German grouping');
+    assert.match(m.text(), new RegExp(`Aus ${de1(pct)} % der Klienten, die in den letzten 3 Monaten pro Monat gehen`));
+    assert.doesNotMatch(m.text(), /\d\.\d %/, 'no English decimal point beside a German percent');
+    await click(button(m.host, /^Plan$/));
+    assert.match(m.text(), new RegExp(`Monatliche Abwanderung${de1(pct)}%`));
+    assert.match(m.text(), new RegExp(`deins: ${de1(pct)} % gehen im Monat, in den letzten 3 Monaten`));
+    assert.match(m.text(), new RegExp(`Neue Klienten im Monat${de1(start.adds)}`));
+    assert.match(m.text(), new RegExp(`deins: ${de1(start.adds)} in den letzten 3 Monaten`));
+    // Moved, the "vorher" carries the same comma.
+    await setRange(ranges(m.host)[1], pct + 0.3);
+    await setRange(ranges(m.host)[0], start.adds + 2);
+    assert.match(m.text(), new RegExp(`Monatliche Abwanderung${de1(pct + 0.3)}% · vorher ${de1(pct)}%`));
+    assert.match(m.text(), new RegExp(`Neue Klienten im Monat${de1(start.adds + 2)} · vorher ${de1(start.adds)}`));
+    await m.unmount();
+  } finally {
+    window.ShapeI18n = english;
+  }
 });
 
 test('the goal sentence never contradicts its figures: still climbing, levelling off, or the same month', async () => {

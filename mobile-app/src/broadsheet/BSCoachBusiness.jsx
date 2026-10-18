@@ -51,12 +51,22 @@ export const BS_BIZ_CHURN_LIST = 12;
 // the plan lost its attrition and the two figures disagreed. planStart in coachForecast.js still
 // rounds to whole points, so the planner takes its churn from here.
 export const bsBizChurnPct = (churn) => (churn > 0 ? Math.max(0.1, Math.round(churn * 100 * 10) / 10) : 0);
-// A percentage as the planner prints it: whole when it is whole, else to a tenth (dbzPct).
-const pctNum = (p) => (Number.isInteger(p) ? String(p) : p.toFixed(1));
-
 function intlLocale() {
   try { return window.ShapeI18n?.intlLocale?.() || window.ShapeI18n?.current?.() || undefined; } catch (e) { return undefined; }
 }
+// ⚠ A TENTH IS WRITTEN IN THE COACH'S LANGUAGE, NEVER WITH toFixed. German, French, Turkish and
+// most of the 13 write 0,5, and bsBizMoney groups their thousands with a point ($34.687), so a
+// toFixed "0.4 %" in the same sentence read as grouping, not a decimal.
+// `whole`: a whole value prints without its ",0" (a percentage, the website's dbzPct).
+function bizTenth(v, whole) {
+  const digits = whole && Number.isInteger(v) ? 0 : 1;
+  try { return new Intl.NumberFormat(intlLocale(), { minimumFractionDigits: digits, maximumFractionDigits: 1 }).format(v); } catch (e) { return digits ? v.toFixed(1) : String(v); }
+}
+// A percentage as the planner prints it: whole when it is whole, else to a tenth.
+const pctNum = (p) => bizTenth(p, true);
+// New clients a month: always to a tenth ("1,0").
+const addsNum = (v) => bizTenth(v, false);
+
 // Whole dollars, as the website prints them.
 export function bsBizMoney(cents) {
   if (cents == null || !Number.isFinite(Number(cents))) return '—';
@@ -513,9 +523,9 @@ export function BSBizPlan({ t, base }) {
         {todayF ? <span><span aria-hidden="true" style={{ display: 'inline-block', width: 14, borderTop: `2px dashed ${t.INK50}`, verticalAlign: 3, marginRight: 6 }} />{tr('coach:business.plan.legendPace', { defaultValue: "Today's pace" })}</span> : null}
       </div>
       <div style={{ marginTop: 18, display: 'grid', gap: 16 }}>
-        <Slider t={t} label={tr('coach:business.plan.adds', { defaultValue: 'New clients a month' })} value={adds} shown={adds.toFixed(1)} was={adds !== start.adds ? start.adds.toFixed(1) : null}
+        <Slider t={t} label={tr('coach:business.plan.adds', { defaultValue: 'New clients a month' })} value={adds} shown={addsNum(adds)} was={adds !== start.adds ? addsNum(start.adds) : null}
           min={0} max={Math.max(10, Math.ceil(start.adds * 3))} step={0.1} onChange={(v) => setAdds(F.round1(v))}
-          note={known ? tr('coach:business.plan.yoursAdds', { defaultValue: 'yours: {value} {when}', value: start.adds.toFixed(1), when }) : noHistory} />
+          note={known ? tr('coach:business.plan.yoursAdds', { defaultValue: 'yours: {value} {when}', value: addsNum(start.adds), when }) : noHistory} />
         <Slider t={t} label={tr('coach:business.plan.churn', { defaultValue: 'Monthly churn' })} value={churnPct} shown={pctNum(churnPct) + '%'} was={churnPct !== start.churnPct ? pctNum(start.churnPct) + '%' : null}
           min={0} max={Math.max(30, Math.ceil(start.churnPct))} step={0.1} onChange={(v) => setChurnPct(F.round1(v))}
           note={base.pace.churn != null ? tr('coach:business.plan.yoursChurn', { defaultValue: 'yours: {value}% leave a month, {when}', value: pctNum(start.churnPct), when }) : noHistory} />
