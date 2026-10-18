@@ -188,11 +188,17 @@ test('the waiting list: a Join that answers 401 gets the same way in', async () 
   await p.unmount();
 });
 
-test('the waiting list, signed out: the sign-in link comes back here with the referral', async () => {
+test('the waiting list, signed out: Join Shape and the sign-in link both come back here with the referral (Codex on #2399)', async () => {
   const p = await storefront({ atCapacity: true });
-  const a = [...document.querySelectorAll('a')].find((x) => /Sign in to join the list/.test(x.textContent));
-  assert.ok(a, 'the sign-in line is gone');
-  assert.equal(a.getAttribute('href'), '/newdesign/Login.html?next=' + encodeURIComponent(LINK));
+  const box = document.querySelector('[data-waitlist-account]');
+  assert.ok(box, 'the signed-out choices are gone');
+  assert.match(box.textContent, /A Shape account holds your place on the list\./);
+  const join = box.querySelector('[data-account-join]');
+  const login = box.querySelector('[data-account-login]');
+  assert.match(join.textContent, /Join Shape/, 'a new client is offered an account, not only a sign-in');
+  assert.equal(join.getAttribute('href'), '/newdesign/SignupClient.html?next=' + encodeURIComponent(LINK));
+  assert.match(login.textContent, /Sign in to join the list/);
+  assert.equal(login.getAttribute('href'), '/newdesign/Login.html?next=' + encodeURIComponent(LINK));
   assert.ok(!button('Join the waiting list'), 'no Join button that 401s');
   await p.unmount();
 });

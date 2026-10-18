@@ -1125,7 +1125,17 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
                   // until the account is known; the line above is true in every state.
                   null
                 ) : acct === null ? (
-                  <a href={lvAccountHref("Login")} style={{ display: "inline-block", marginTop: 16, padding: "13px 20px", borderRadius: 8, background: c, color: "#0c0a08", textDecoration: "none", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Sign in to join the list &rarr;</a>
+                  // ⚠ JOINING SHAPE IS OFFERED HERE TOO (Codex on #2399). The people a coach
+                  // brings are mostly not members, and a sign-in link alone left them the login
+                  // page's "Create an account", which goes to the landing page without the way
+                  // back. Both return here with the referral, as the 401 prompt's do.
+                  <div data-waitlist-account="" style={{ marginTop: 16 }}>
+                    <div style={{ fontFamily: lvSans, fontSize: 12.5, lineHeight: 1.5, color: hexA(ink, 0.7) }}>A Shape account holds your place on the list.</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 10 }}>
+                      <a href={lvAccountHref("SignupClient")} data-account-join="" style={{ display: "inline-block", padding: "13px 20px", borderRadius: 8, background: c, color: "#0c0a08", textDecoration: "none", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Join Shape &rarr;</a>
+                      <a href={lvAccountHref("Login")} data-account-login="" style={{ display: "inline-block", padding: "12px 18px", borderRadius: 8, border: `1px solid ${hexA(ink, 0.4)}`, color: ink, textDecoration: "none", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Sign in to join the list</a>
+                    </div>
+                  </div>
                 ) : clientOf === undefined ? (
                   // Not read yet: a current client must not be shown Join first.
                   null
