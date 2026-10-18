@@ -359,6 +359,9 @@ const DBZ_BYO_PITCH = "Clients you bring pay no Shape commission — you keep yo
 function DbzBringClientsZone({ live, role, providerId }) {
   const [link, setLink] = React.useState(null); // null = generating / unavailable
   const [copied, setCopied] = React.useState(false);
+  // A refused clipboard (an older browser, a page not in focus) said nothing: the button just
+  // stayed "Copy link". It now says to copy the link by hand, which the box allows.
+  const [copyFailed, setCopyFailed] = React.useState(false);
   React.useEffect(() => {
     let on = true;
     (async () => {
@@ -369,7 +372,10 @@ function DbzBringClientsZone({ live, role, providerId }) {
         if (!uid || !on) return;
         const res = await window.shapeDb.client.rpc("create_coach_referral_link", { p_provider_role: role, p_provider_id: providerId });
         if (on && res && !res.error && res.data) {
-          setLink("https://theshapecommunity.com/newdesign/MemberProfile.html?u=" + uid + "&ref=" + res.data);
+          // ⚠ THE LINK NAMES THE ROLE. A coach with both roles has two provider rows, and without
+          // &role= the profile opened the one its account role guessed: checkout then went to the
+          // other row, the token did not match it, and the client paid 15%.
+          setLink("https://theshapecommunity.com/newdesign/MemberProfile.html?u=" + uid + "&ref=" + res.data + "&role=" + role);
         }
       } catch (e) { /* pre-migration / offline — the honest line below covers it */ }
     })();
@@ -378,7 +384,8 @@ function DbzBringClientsZone({ live, role, providerId }) {
   const url = live ? link : "https://theshapecommunity.com/newdesign/MemberProfile.html?u=you&ref=…";
   const copyIt = async () => {
     if (!url || !live) return;
-    try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch (e) {}
+    try { await navigator.clipboard.writeText(url); setCopyFailed(false); setCopied(true); setTimeout(() => setCopied(false), 1800); }
+    catch (e) { setCopyFailed(true); }
   };
   const emailIt = () => {
     if (!url || !live) return;
@@ -405,6 +412,7 @@ function DbzBringClientsZone({ live, role, providerId }) {
               ✉︎ Email it
             </button>
           </div>
+          {copyFailed && <div role="status" style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_AMBER, marginTop: 8 }}>Couldn't copy it here. Select the link above and copy it.</div>}
           <div style={{ fontFamily: DBZ_MONO, fontSize: 8.5, letterSpacing: "0.06em", color: DBZ_INK50, marginTop: 9 }}>
             Paste the raw URL anywhere — a text, an email signature, your Instagram bio. Anyone who opens it inside 30 days of subscribing counts as yours.
           </div>
@@ -743,19 +751,20 @@ function dbzBarPath(x, w, yTop, yBase) {
 }
 
 // The width a chart is drawn at, so its 9px labels stay 9px: a chart drawn at 760 units and
-// shrunk onto a phone printed them at 4px. Wider than 760 it still scales up, as before.
-function useDbzChartWidth(ref, base) {
+// shrunk onto a phone printed them at 4px. Wider than `cap` (760 unless a chart asks for more)
+// it scales up.
+function useDbzChartWidth(ref, base, cap = base) {
   const [w, setW] = React.useState(base);
   React.useEffect(() => {
     const el = ref.current;
     if (!el || typeof ResizeObserver === "undefined") return undefined;
     const ro = new ResizeObserver((es) => {
       const cw = Math.round(es[0].contentRect.width);
-      if (cw > 0) setW(Math.max(300, Math.min(base, cw)));
+      if (cw > 0) setW(Math.max(300, Math.min(cap, cw)));
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [base]);
+  }, [base, cap]);
   return w;
 }
 
@@ -1049,16 +1058,16 @@ function DbzEarnZone({ base }) {
         <DbzNumberField label="Monthly rate" value={rate} onChange={setRate} prefix="$" max="9999" note={base.rateFrom} />
         <DbzNumberField label="Brought by you" value={byo} onChange={setByo} suffix="%" max="100" note={base.byoNote} />
       </div>
-      <div style={{ display: "flex", gap: 28, alignItems: "flex-end", flexWrap: "wrap" }}>
-        <div>
-          <div style={{ fontFamily: serif, fontSize: 48, letterSpacing: "-0.02em", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{dashMoney(e.netCents)}</div>
-          <div style={{ ...DBZ_LBL, marginTop: 7 }}>net a month</div>
-        </div>
-        <div>
-          <div style={{ fontFamily: serif, fontSize: 30, letterSpacing: "-0.02em", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{dashMoney(e.yearNetCents)}</div>
-          <div style={{ ...DBZ_LBL, marginTop: 7 }}>a year</div>
-          <div style={{ ...DBZ_NOTE, marginTop: 3 }}>{dashMoney(e.grossCents)} billed · {dashMoney(e.feeCents)} Shape fee</div>
-        </div>
+      {/* The month and the year sit on one baseline with their labels on one line, and the
+          billed and fee line, which is the month's, runs under both (owner, 2026-10-18: "fix look
+          of this, formatting"). It sat under "a year", so $3,600 read as a year's billing. Grid
+          places them; the markup keeps reading order: the month, its label, the year, its label. */}
+      <div style={{ display: "grid", gridTemplateColumns: "auto auto", justifyContent: "start", columnGap: 36, alignItems: "baseline" }}>
+        <div style={{ gridRow: 1, gridColumn: 1, fontFamily: serif, fontSize: 48, letterSpacing: "-0.02em", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{dashMoney(e.netCents)}</div>
+        <div style={{ ...DBZ_LBL, gridRow: 2, gridColumn: 1, marginTop: 8 }}>net a month</div>
+        <div style={{ gridRow: 1, gridColumn: 2, fontFamily: serif, fontSize: 30, letterSpacing: "-0.02em", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{dashMoney(e.yearNetCents)}</div>
+        <div style={{ ...DBZ_LBL, gridRow: 2, gridColumn: 2, marginTop: 8 }}>a year</div>
+        <div style={{ ...DBZ_NOTE, gridRow: 3, gridColumn: "1 / -1", marginTop: 10, paddingTop: 9, borderTop: DBZ_RULE }}>{dashMoney(e.grossCents)} billed · {dashMoney(e.feeCents)} Shape fee, each month</div>
       </div>
     </div>
   );
@@ -1116,10 +1125,16 @@ function DbzSlider({ label, value, shown, was, min, max, step, onChange, note })
 }
 
 // The paths over 24 months on one axis: today's pace (dashed), the plan (bright), the what-if.
-function DbzPathsChart({ paths, goalCents }) {
+// ⚠ DRAWN AT THE WIDTH IT IS SHOWN AT (owner, 2026-10-18: "it looks almost zoomed in"). Drawn at
+// 760 units and stretched across a wide column, its 9px labels printed at 20px and it stood about
+// 460px tall. It now takes the column's own width, to 2000, and grows only a little taller with it.
+// `months` is 36 when a goal is reached after month 24, so the month the table names is on it.
+function DbzPathsChart({ paths, goalCents, months = 24 }) {
   const ref = React.useRef(null);
-  const W = useDbzChartWidth(ref, 760), H = 210, padL = 50, padR = 34, padT = 12, padB = 24, months = 24;
+  const W = useDbzChartWidth(ref, 760, 2000), H = Math.round(Math.min(270, Math.max(210, W * 0.19))), padL = 54, padR = 38, padT = 12, padB = 26;
   const plotW = W - padL - padR, plotH = H - padT - padB;
+  const monthTicks = [];
+  for (let m = 0; m <= months; m += W < 480 ? 12 : 6) monthTicks.push(m);
   let max = goalCents || 0;
   for (const p of paths) for (const r of p.f.rows) if (r.m <= months) max = Math.max(max, r.netCents);
   const ticks = dbzTicks(max, false);
@@ -1128,20 +1143,20 @@ function DbzPathsChart({ paths, goalCents }) {
   const y = (v) => padT + plotH - (Math.max(0, v) / top) * plotH;
   return (
     <svg ref={ref} viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block", height: "auto", overflow: "visible" }} role="img"
-      aria-label={"Net a month over the next 24 months: " + paths.map((p) => p.label + " " + dashMoney(p.f.rows[12].netCents) + " in 12 months").join("; ")}>
+      aria-label={"Net a month over the next " + months + " months: " + paths.map((p) => p.label + " " + dashMoney(p.f.rows[12].netCents) + " in 12 months").join("; ")}>
       {ticks.map((t, i) => (
         <g key={i}>
           <line x1={padL} x2={W - padR} y1={y(t)} y2={y(t)} stroke={DBZ_T_GRID} strokeWidth="1" />
-          <text x={padL - 6} y={y(t) + 3} textAnchor="end" fill="var(--sh-ink2, #a09b94)" fontFamily={DBZ_MONO} fontSize="9">{dashMoney(t)}</text>
+          <text x={padL - 8} y={y(t) + 3.5} textAnchor="end" fill="var(--sh-ink2, #a09b94)" fontFamily={DBZ_MONO} fontSize="10">{dashMoney(t)}</text>
         </g>
       ))}
-      {(W < 480 ? [0, 12, 24] : [0, 6, 12, 18, 24]).map((m) => (
-        <text key={m} x={x(m)} y={H - 6} textAnchor="middle" fill="var(--sh-ink2, #a09b94)" fontFamily={DBZ_MONO} fontSize="9">{m === 0 ? "now" : "mo " + m}</text>
+      {monthTicks.map((m) => (
+        <text key={m} x={x(m)} y={H - 6} textAnchor="middle" fill="var(--sh-ink2, #a09b94)" fontFamily={DBZ_MONO} fontSize="10">{m === 0 ? "now" : "mo " + m}</text>
       ))}
       {goalCents > 0 && (
         <g>
           <line x1={padL} x2={W - padR} y1={y(goalCents)} y2={y(goalCents)} stroke={DBZ_GREEN} strokeWidth="1.5" strokeDasharray="5 4" />
-          <text x={W - padR + 6} y={y(goalCents) + 3} fill={DBZ_GREEN} fontFamily={DBZ_MONO} fontSize="9">goal</text>
+          <text x={W - padR + 6} y={y(goalCents) + 3.5} fill={DBZ_GREEN} fontFamily={DBZ_MONO} fontSize="10">goal</text>
         </g>
       )}
       {paths.map((p) => (
@@ -1207,6 +1222,9 @@ function DbzPlanZone({ base }) {
   const T = paths.find((p) => p.key === "today");
   const reach = (p) => CF.monthsTo(goalCents, p.f);
   const reachText = (m) => (m == null ? "—" : m === 0 ? "now" : "mo " + m);
+  // Two years on the chart, or all three the forecast runs when a line reaches the goal after
+  // month 24: "mo 33" in the table with the chart stopping at mo 24 left the crossing off it.
+  const chartMonths = paths.some((p) => { const r = reach(p); return r != null && r > 24; }) ? 36 : 24;
 
   // The sentence says what the chart shows, in words (owner: "easy to use and read/understand").
   const b = (t, color) => <b style={{ color: color || DBZ_INK, fontWeight: 600 }}>{t}</b>;
@@ -1264,7 +1282,7 @@ function DbzPlanZone({ base }) {
       </div>
       <div style={{ minWidth: 0 }}>
         <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6, color: DBZ_INK50 }}>{sentence}</p>
-        <div style={{ marginTop: 14 }}><DbzPathsChart paths={paths} goalCents={goalCents} /></div>
+        <div style={{ marginTop: 14 }}><DbzPathsChart paths={paths} goalCents={goalCents} months={chartMonths} /></div>
         <div className="dbz-scroll" style={{ overflowX: "auto" }}>
           <table className="dbz-cmp" style={{ width: "100%", borderCollapse: "collapse", marginTop: 12, fontVariantNumeric: "tabular-nums" }}>
             <thead><tr>{["In 12 months", "Net a month", "Clients", "Earned in the year", "Reach goal"].map((h, i) => (

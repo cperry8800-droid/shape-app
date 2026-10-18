@@ -25,7 +25,7 @@ test('the gate: nothing said pauses; speech then quiet ends the turn; a cough do
   for (let t = 0; t < 1000; t += 60) g.push(0.004, t);
   for (let t = 1000; t < 2000; t += 60) { const v2 = g.push(0.2, t); if (t >= 1300) assert.equal(v2, 'speech'); }
   assert.equal(g.push(0.004, 2500), 'speech', 'half a second of quiet is a pause for breath');
-  assert.equal(g.push(0.004, 3400), 'done');
+  assert.equal(g.push(0.004, 2800), 'done', 'eight tenths of a second ends the turn (owner, 2026-10-18: quicker replies)');
 
   const cough = createSilenceGate();
   cough.push(0.004, 0); cough.push(0.3, 60); cough.push(0.004, 120);

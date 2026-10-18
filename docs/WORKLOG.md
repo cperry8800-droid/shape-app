@@ -150,7 +150,14 @@ planned builds.
   weekly payouts (#2394).
 - Decide whether the coach leaderboard should keep showing every coach each other's
   active-client count and sessions-kept rate.
-- Check `NORA_TTS_VOICE` and `NORA_TTS_INSTRUCTIONS` in Vercel.
+- Check `NORA_TTS_VOICE` and `NORA_TTS_INSTRUCTIONS` in Vercel. Nora reads only in a
+  woman's voice now (coral, nova, shimmer or sage), so any other `NORA_TTS_VOICE` is
+  ignored, and her brisk-pace line is added to `NORA_TTS_INSTRUCTIONS`.
+- Decide the bring-your-clients rules. A client brought to a coach at capacity comes
+  through the waiting list and pays 15%. A purchase more than 30 days after the link
+  was last opened pays 15%, though the card says brought clients pay no commission. A
+  private profile can't be opened from the link, and the app's checkout sends no
+  referral.
 - Add the `localhost` hostname to the Turnstile widget.
 - Get a native speaker to read the PAR-Q translations.
 
@@ -179,6 +186,10 @@ planned builds.
   nutritionist only.
 - A subscription to a coach who is later suspended keeps renewing.
 - The `?error=` redirects from `/purchase` and `/subscribe` are never shown.
+- A coach's referral link brings a new member back to the coach after sign-up, but the
+  confirmation email's own link opens a bare `Login.html`: the way back rides in the
+  browser that signed up (two days), so confirming on another device lands on the
+  dashboard.
 - `checkin_submitted` is a switch nothing writes.
 - The app's coach Score page reads the member ledger, and `/api/coach/score` returns
   401 to the app's Bearer token.
