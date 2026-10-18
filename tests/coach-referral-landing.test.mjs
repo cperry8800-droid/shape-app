@@ -118,37 +118,47 @@ test('sign-up\'s own sign-in links keep the return path, so confirming an email 
   assert.doesNotMatch(SIGNUP, /<a href="Login\.html"/);
 });
 
-test('a visitor who has to confirm their email is still brought back: sign-up keeps the way back, the first sign-in reads it once (Codex on #2399)', () => {
+test('a visitor who has to confirm their email is still brought back: sign-up keeps the way back for that account, its first sign-in reads it once (Codex on #2399)', () => {
   const store = new Map();
   const localStorage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k) };
-  const at = SIGNUP.indexOf('function suRememberNext()');
+  const at = SIGNUP.indexOf('function suRememberNext(uid)');
   assert.ok(at > 0, 'suRememberNext moved');
-  const remember = (search, now) => new Function('window', 'localStorage', 'Date', SIGNUP.slice(SU_AT, SIGNUP.indexOf('\n}', SU_AT) + 2) + SIGNUP.slice(at, SIGNUP.indexOf('\n}', at) + 2) + '\nsuRememberNext();')({ location: { search } }, localStorage, { now: () => now });
-  assert.match(SIGNUP, /\} else if \(data && data\.user && !data\.session\) \{\s+suRememberNext\(\);\s+setConfirmEmail\(true\);/, 'kept when sign-up asks for the email confirmation');
+  const remember = (search, now, uid) => new Function('window', 'localStorage', 'Date', 'uid', SIGNUP.slice(SU_AT, SIGNUP.indexOf('\n}', SU_AT) + 2) + SIGNUP.slice(at, SIGNUP.indexOf('\n}', at) + 2) + '\nsuRememberNext(uid);')({ location: { search } }, localStorage, { now: () => now }, uid);
+  assert.match(SIGNUP, /\} else if \(data && data\.user && !data\.session\) \{\s+suRememberNext\(data\.user\.id\);\s+setConfirmEmail\(true\);/, 'kept for the new account when sign-up asks for the email confirmation');
 
-  // login.jsx's own step, lifted and run after its ?next= check.
+  // login.jsx's own step, lifted and run after its ?next= check, with the session it signs in.
   const LOGIN = readFileSync(join(ROOT, 'public/newdesign/login.jsx'), 'utf8').replace(/\r\n/g, '\n');
   const from = LOGIN.indexOf('    // The first sign-in after a confirmed email');
   const to = LOGIN.indexOf('    window.location.href = nextDashboard;', from);
   assert.ok(from > 0 && to > from, 'login.jsx\'s kept-return step moved');
-  const land = (search, now) => new Function('window', 'localStorage', 'Date', `let nextDashboard = '/newdesign/ClientDashboard.html';\n${LOGIN.slice(from, to)}\nreturn nextDashboard;`)({ location: { search } }, localStorage, { now: () => now });
+  const land = (search, now, uid) => new Function('window', 'localStorage', 'Date', 'session', `let nextDashboard = '/newdesign/ClientDashboard.html';\n${LOGIN.slice(from, to)}\nreturn nextDashboard;`)({ location: { search } }, localStorage, { now: () => now }, { user: { id: uid } });
+  const DASH = '/newdesign/ClientDashboard.html';
 
   const back = '?next=' + encodeURIComponent(LINK);
-  remember(back, 1000);
-  assert.deepEqual(JSON.parse(store.get('shape.signupNext')), { next: LINK, at: 1000 });
-  assert.equal(land('', 1000 + 3600000), LINK, 'the confirmation link\'s sign-in goes back to the coach');
+  remember(back, 1000, 'new-member');
+  assert.deepEqual(JSON.parse(store.get('shape.signupNext')), { next: LINK, at: 1000, uid: 'new-member' });
+  // A shared browser: someone else signs in first. They go to their own dashboard, and the way back waits.
+  assert.equal(land('', 2000, 'someone-else'), DASH);
+  assert.equal(store.has('shape.signupNext'), true, 'another account leaves it be');
+  assert.equal(land('', 1000 + 3600000, 'new-member'), LINK, 'the new member\'s confirmation sign-in goes back to the coach');
   assert.equal(store.has('shape.signupNext'), false, 'read once, then forgotten');
-  assert.equal(land('', 1000 + 3600000), '/newdesign/ClientDashboard.html', 'the next sign-in is an ordinary one');
+  assert.equal(land('', 1000 + 3600000, 'new-member'), DASH, 'the next sign-in is an ordinary one');
 
-  remember(back, 1000);
-  assert.equal(land('?next=%2Fnewdesign%2FRadio.html', 2000), '/newdesign/ClientDashboard.html', 'a ?next= on the address is login.jsx\'s own check, ahead of this one');
+  remember(back, 1000, 'new-member');
+  assert.equal(land('?next=%2Fnewdesign%2FRadio.html', 2000, 'new-member'), DASH, 'a ?next= on the address is login.jsx\'s own check, ahead of this one');
   assert.equal(store.has('shape.signupNext'), false);
-  remember(back, 1000);
-  assert.equal(land('', 1000 + 3 * 86400000), '/newdesign/ClientDashboard.html', 'kept two days, not longer');
-  store.set('shape.signupNext', JSON.stringify({ next: '//evil.example', at: 5 }));
-  assert.equal(land('', 6), '/newdesign/ClientDashboard.html', 'never off-site');
-  remember('', 1000);
+  remember(back, 1000, 'new-member');
+  assert.equal(land('', 1000 + 3 * 86400000, 'someone-else'), DASH, 'kept two days, not longer');
+  assert.equal(store.has('shape.signupNext'), false, 'an expired entry is cleared by any sign-in');
+  store.set('shape.signupNext', JSON.stringify({ next: '//evil.example', at: 5, uid: 'new-member' }));
+  assert.equal(land('', 6, 'new-member'), DASH, 'never off-site');
+  store.set('shape.signupNext', JSON.stringify({ next: LINK, at: 5 }));
+  assert.equal(land('', 6, 'new-member'), DASH, 'an entry with no account is no one\'s');
+  store.clear();
+  remember('', 1000, 'new-member');
   assert.equal(store.has('shape.signupNext'), false, 'a sign-up with no way back keeps nothing');
+  remember(back, 1000, undefined);
+  assert.equal(store.has('shape.signupNext'), false, 'nor one with no account id');
 });
 
 test('pressing Subscribe again clears the account prompt, and the next answer shows its own', async () => {

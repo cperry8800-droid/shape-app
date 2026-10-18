@@ -128,10 +128,12 @@ function suLoginHref() {
 // coach's profile was signed in to their dashboard instead. Adding ?next= to emailRedirectTo could
 // fail that list and land them on the site root, so the return path is kept in this browser for two
 // days instead; login.jsx reads it once on the first sign-in with no ?next= of its own, then forgets it.
-function suRememberNext() {
+// It is kept for the account just made (`uid`), so another account signing in on this browser (a shared
+// device) is neither sent to the coach nor takes the way back from the one who signed up (Codex on #2399).
+function suRememberNext(uid) {
   const next = suSafeNext();
-  if (!next) return;
-  try { localStorage.setItem("shape.signupNext", JSON.stringify({ next, at: Date.now() })); } catch (e) {}
+  if (!next || !uid) return;
+  try { localStorage.setItem("shape.signupNext", JSON.stringify({ next, at: Date.now(), uid })); } catch (e) {}
 }
 
 function Field({ label, children, span = 1 }) {
@@ -839,7 +841,7 @@ function SignupForm({ role }) {
         if (data && data.user && !data.session && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
           setExistingAccount(true);
         } else if (data && data.user && !data.session) {
-          suRememberNext();
+          suRememberNext(data.user.id);
           setConfirmEmail(true);
         } else {
           // Auto-confirm (no email step): a session exists immediately and we go
