@@ -781,15 +781,21 @@ function CoachAccountSettings({ accountId }) {
 // The coach's own setup, under their profile: a heading that says only they see it, then the four
 // cards in two columns on a wide screen, one on a phone. It takes the profile's own width (1240,
 // as the hero and tabs do); at 900 it sat narrower than the tabs above it, off their edge.
-const PX_CSS = ".px-setup .px-grid{columns:2 440px;column-gap:16px}"
-  + ".px-setup input:focus-visible,.px-setup button:focus-visible,.px-setup label:focus-within{outline:2px solid #2ee0c4;outline-offset:2px}"
-  + ".px-setup .px-money:focus-within{outline:2px solid #2ee0c4;outline-offset:2px}"
-  + ".px-setup .px-tile:hover{border-color:rgba(46,224,196,0.55)!important}"
-  + "@media (max-width:760px){.px-setup{padding:28px 16px 24px!important}.px-setup .px-cert{grid-template-columns:1fr 1fr!important}.px-setup .px-cert label{grid-column:1 / -1}}";
 function DashProfileExtras() {
   return (
     <section className="px-setup" aria-labelledby="px-setup-title" style={{ maxWidth: 1240, margin: "0 auto", padding: "44px 40px 34px", boxSizing: "border-box" }}>
-      <style>{PX_CSS}</style>
+      {/* A plain literal, as every stylesheet here is (tests/site-nav.test.mjs). */}
+      <style>{`
+        .px-setup .px-grid { columns: 2 440px; column-gap: 16px; }
+        .px-setup input:focus-visible, .px-setup button:focus-visible, .px-setup label:focus-within { outline: 2px solid #2ee0c4; outline-offset: 2px; }
+        .px-setup .px-money:focus-within { outline: 2px solid #2ee0c4; outline-offset: 2px; }
+        .px-setup .px-tile:hover { border-color: rgba(46,224,196,0.55) !important; }
+        @media (max-width: 760px) {
+          .px-setup { padding: 28px 16px 24px !important; }
+          .px-setup .px-cert { grid-template-columns: 1fr 1fr !important; }
+          .px-setup .px-cert label { grid-column: 1 / -1; }
+        }
+      `}</style>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: "12px 32px", flexWrap: "wrap", paddingBottom: 18, marginBottom: 22, borderBottom: "1px solid rgba(242,237,228,0.1)" }}>
         <div>
           <div style={{ fontFamily: PX.mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: PX.teal }}>Coach setup · only you see this</div>
