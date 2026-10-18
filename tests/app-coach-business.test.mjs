@@ -678,6 +678,30 @@ test('signed out: a preview with sample numbers that says so, and no reads', asy
   await m.unmount();
 });
 
+// ── The preview agrees with itself (the sweep after #2394 round 10) ──
+// The website's preview stated three nets for one practice: Today's roster at a flat 15%, a walk
+// of Business's own, and an origin list with half its clients brought at 0%. The app's preview is
+// a different sample practice and may stay one, but it must state one net: its today (the
+// trajectory's last week, which Money, the Plan, the 13 weeks and the Me card read) is its own
+// clients after the fees its origin list shows, and the Plan's brought share is that list's.
+test("the preview's net is its own clients after the fees its origin list shows", () => {
+  const demo = BIZ.bsBizDemo().extra;
+  const today = CF.todayFrom(demo);
+  const subs = demo.byOrigin.filter((r) => r.kind === 'subscription');
+  const netOf = (r) => Math.round(r.priceCents * (1 - r.feeBps / 10000));
+  assert.ok(subs.some((r) => r.feeBps === 0) && subs.some((r) => r.feeBps > 0), 'the preview has no fee mix to agree with');
+  assert.equal(today.clients, subs.length, 'the origin list is not the practice');
+  assert.equal(today.mrrGrossCents, subs.reduce((s, r) => s + r.priceCents, 0));
+  assert.equal(today.mrrNetCents, subs.reduce((s, r) => s + netOf(r), 0), 'the preview states a net its origin list does not');
+  assert.deepEqual([demo.metrics.activeClients, demo.metrics.mrrNetCents], [today.clients, today.mrrNetCents]);
+  assert.deepEqual([demo.byoMix.clients, demo.byoMix.brought], [subs.length, subs.filter((r) => r.feeBps === 0).length]);
+  for (const r of demo.renewals) {
+    const o = subs.find((x) => x.name === r.name);
+    assert.ok(o, r.name + ' renews but is not in the origin list');
+    assert.equal(r.netCents, netOf(o), r.name);
+  }
+});
+
 test('the Me card: the coach\'s own net a month and clients, no renewal reads, opening Business, and hiding remembered', async () => {
   const st = world();
   const p = payload();

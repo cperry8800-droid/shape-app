@@ -311,13 +311,29 @@ function DbzChurnZone({ live, churn }) {
 // URL (copy · email · raw URL for an Instagram bio); the origin zone labels
 // each active client from the STORED fee_bps — never re-derived from origin +
 // the current constant, so a future rate change alters no existing label.
-const DBZ_DEMO_ORIGIN = [
-  { name: "Casey Morgan", kind: "subscription", origin: "coach_link", feeBps: 0, priceCents: 22000 },
-  { name: "Alex Rivera", kind: "subscription", origin: "marketplace", feeBps: 1500, priceCents: 18000 },
-  { name: "Riley Kim", kind: "subscription", origin: "coach_invite", feeBps: 0, priceCents: 16000 },
+// ⚠ THE PREVIEW'S ORIGIN LIST IS THE PREVIEW'S ROSTER (the sweep after #2394 round 10). It was
+// five people of its own (four subscribers) beside a roster of ten on Today, and its fee mix (half
+// brought at 0%) never reached a net: Today took 15% off everyone and Business's trajectory did
+// too. Each subscriber row is now a roster client, at the fee their row stores, so the list, the
+// Plan's "Brought by you", the renewals and every net on the preview describe one practice. The
+// stored fee is in cents (coach-roster.ts's shape); the list shows it as the rate it is.
+// Lazy, like the trajectory: the roster reads `new Date()` and dashSignals may not be up at load.
+const DBZ_DEMO_PURCHASES = [
   { name: "Drew Park", kind: "purchase", origin: "coach_link", feeBps: 0, priceCents: 9000 },
-  { name: "Sam Patel", kind: "subscription", origin: "marketplace", feeBps: 1500, priceCents: 20000 },
 ];
+function dbzDemoOrigin() {
+  let subs = [];
+  try {
+    subs = DashSignals.buildMockClients(new Date()).map((c) => {
+      const p = c.payments || {};
+      return {
+        name: c.profile.name, kind: "subscription", origin: p.origin, priceCents: p.mrrCents,
+        feeBps: p.mrrCents > 0 ? Math.round((p.feeCents || 0) / p.mrrCents * 10000) : 0,
+      };
+    });
+  } catch (e) { /* dashSignals not up yet — no roster, so no rows of it */ }
+  return subs.concat(DBZ_DEMO_PURCHASES);
+}
 const DBZ_BYO_PITCH = "Clients you bring pay no Shape commission — you keep your full rate. They join Shape as members at $5/mo. Members already in your Shape waiting room count as Shape-found.";
 function DbzBringClientsZone({ live, role, providerId }) {
   const [link, setLink] = React.useState(null); // null = generating / unavailable
@@ -385,7 +401,7 @@ function DbzOriginZone({ live, byOrigin }) {
   if (live && byOrigin === null) {
     return <div style={{ fontSize: 12.5, color: DBZ_INK50, lineHeight: 1.55 }}>Couldn't read where your clients came from just now. Nothing is lost; reload to try again.</div>;
   }
-  const rows = live ? (Array.isArray(byOrigin) ? byOrigin : []) : DBZ_DEMO_ORIGIN;
+  const rows = live ? (Array.isArray(byOrigin) ? byOrigin : []) : dbzDemoOrigin();
   if (live && !rows.length) {
     return <div style={{ fontSize: 12.5, color: DBZ_INK50, lineHeight: 1.55 }}>Origin labels land here as clients subscribe — "You brought" at your full rate, "Found you on Shape" at the marketplace fee.</div>;
   }
@@ -524,7 +540,9 @@ const DBZ_T_INK = "var(--sh-ink, #f2ede4)";
 // The rate has one definition (`DashSignals.PREVIEW_NET_RATE`) and is read through the
 // guarded pattern `dbzDemoRosterSize` establishes, because this module can render before
 // dashSignals is up. The fallback is pinned to the constant by a guard in
-// tests/demo-coherence.test.mjs, so the two cannot drift apart unnoticed.
+// tests/demo-coherence.test.mjs, so the two cannot drift apart unnoticed. Since the sweep
+// after #2394 round 10 the walk's MRR is netted by each roster client's own fee instead
+// (`dbzDemoBook` below); this rate nets only its one-time purchases, which store none.
 function dbzNetRate() {
   try {
     const r = DashSignals.PREVIEW_NET_RATE;
@@ -536,6 +554,28 @@ function dbzDemoRosterSize() {
     const n = DashSignals.buildMockClients(new Date()).length;
     return n > 0 ? n : 10;
   } catch (e) { return 10; }   // dashSignals not up yet — the ten it would have returned
+}
+// ⚠ THE PREVIEW'S TODAY IS TODAY'S PRACTICE, IN MONEY TOO (the sweep after #2394 round 10). The walk
+// priced its own clients (active × $185, plus a wobble) and took 15% off every one, so the last
+// week said $1,865 billed and $1,585 net while Today, from the roster, said $1,820 and $1,547, and
+// the origin list two tabs over had half the clients brought at 0%. Money's "Net a month", the
+// Plan's sentence and the 13-week header all read that last week. Its gross is now the roster's
+// own prices and its net the roster after each client's stored fee (dashSignals.js
+// `rosterNetCents`, which Today's card and the sidebar card read), and every earlier week is the
+// same practice at its headcount then. The fallback is what the roster would have returned,
+// pinned to it by a guard in tests/business-plan-page.test.mjs.
+function dbzDemoBook() {
+  try {
+    const cs = DashSignals.buildMockClients(new Date());
+    if (cs.length > 0) {
+      return {
+        clients: cs.length,
+        grossCents: cs.reduce((s, c) => s + ((c.payments && c.payments.mrrCents) || 0), 0),
+        netCents: DashSignals.rosterNetCents(cs),
+      };
+    }
+  } catch (e) { /* dashSignals not up yet */ }
+  return { clients: 10, grossCents: 182000, netCents: 168200 };
 }
 // ⚠ LAZY AND DAY-KEYED, FOR TWO REASONS. It reads `dbzDemoRosterSize()`, and an IIFE at
 // module scope would read it at LOAD while the outcomes plate's getter reads it at
@@ -556,14 +596,15 @@ function dbzDemoTrajectory() {
     const added = rnd() < 0.42 ? 1 + (rnd() < 0.25 ? 1 : 0) : 0;
     const ended = rnd() < 0.2 && active > 4 ? 1 : 0;
     active = Math.max(0, active + added - ended);
-    const gross = active * 18500 + (active % 3) * 1500;
     weeks.push({
       weekOf: new Date(monday.getTime() - i * 7 * 86400000).toISOString().slice(0, 10),
       active, added, ended,
-      mrrGrossCents: gross, mrrNetCents: Math.round(gross * dbzNetRate()),
+      mrrGrossCents: 0, mrrNetCents: 0,   // priced below, once the headcounts land on the roster
       oneTimeCents: rnd() < 0.3 ? 9000 * (1 + Math.floor(rnd() * 2)) : 0, oneTimeNetCents: 0,
     });
   }
+  // One-time purchases in the walk store no fee, so they net at the published rate, as a live row
+  // with no stored fee does (coach-trajectory.mjs). The preview never prints them; the export is live only.
   weeks.forEach((w) => { w.oneTimeNetCents = Math.round(w.oneTimeCents * dbzNetRate()); });
   // Land the curve on the roster the rest of the preview shows, keeping its shape.
   const target = dbzDemoRosterSize();
@@ -577,11 +618,15 @@ function dbzDemoTrajectory() {
       // scaled independently — otherwise the series stops adding up.
       if (prev != null) { const d = w.active - prev; w.added = Math.max(0, d); w.ended = Math.max(0, -d); }
       prev = w.active;
-      const gross = w.active * 18500 + (w.active % 3) * 1500;
-      w.mrrGrossCents = gross;
-      w.mrrNetCents = Math.round(gross * dbzNetRate());
     });
   }
+  // Every week is the roster's practice at that week's headcount, so the last one IS the roster:
+  // its prices billed, and each client after their own fee (dbzDemoBook above).
+  const book = dbzDemoBook();
+  weeks.forEach((w) => {
+    w.mrrGrossCents = Math.round(book.grossCents * w.active / book.clients);
+    w.mrrNetCents = Math.round(book.netCents * w.active / book.clients);
+  });
   const last = weeks[weeks.length - 1];
   return {
     weeks,
@@ -898,7 +943,7 @@ function dbzPlanBase({ live, extra, failed = false, listing, listingRead, listin
   if (!live) {
     const traj = dbzDemoTrajectory();
     const last = traj.weeks[traj.weeks.length - 1];
-    const subs = DBZ_DEMO_ORIGIN.filter((r) => r.kind === "subscription");
+    const subs = dbzDemoOrigin().filter((r) => r.kind === "subscription");
     const brought = subs.filter((r) => r.feeBps === 0).length;
     return {
       state: "ready", clients: last.active, mrrNetCents: last.mrrNetCents, mrrGrossCents: last.mrrGrossCents,
@@ -1211,7 +1256,7 @@ function DbzPlanZone({ base }) {
 // the footnote alone can't tell the coach which client it is.
 function dbzDemoRenewals() {
   const day = 86400000, now = Date.now();
-  return DBZ_DEMO_ORIGIN.filter((r) => r.kind === "subscription").slice(0, 4).map((r, i) => ({
+  return dbzDemoOrigin().filter((r) => r.kind === "subscription").slice(0, 4).map((r, i) => ({
     name: r.name, dueAt: new Date(now + (1 + i * 2) * day).toISOString(), priceCents: r.priceCents,
     netCents: Math.round(r.priceCents * (1 - (r.feeBps || 0) / 10000)), ending: i === 3,
   }));

@@ -41,7 +41,13 @@ test('every preview money figure derives from the roster on the page', () => {
   const cs = roster(now);
   const p = payouts(cs, now);
   assert.equal(p.monthlyCents, mrrOf(cs), 'monthly recurring is not the roster it claims to sum');
-  assert.equal(p.netCents, Math.round(p.monthlyCents * 0.85), 'net is not monthly after the 15% fee the label states');
+  // ⚠ NET IS EACH CLIENT AFTER THE FEE THEIR OWN ROW STORES, NOT THE ROSTER AT A FLAT 15% (the
+  // sweep after #2394 round 10): half the preview's clients were brought at 0%, which Business's
+  // origin list and Plan said while Today took 15% off them all.
+  assert.ok(cs.some((c) => c.payments.feeCents === 0) && cs.some((c) => c.payments.feeCents > 0),
+    'the roster lost its fee mix: no client is brought, or none found the coach on Shape');
+  assert.equal(p.netCents, cs.reduce((s, c) => s + c.payments.mrrCents - c.payments.feeCents, 0),
+    'net is not each client after their own stored fee');
   // month-to-date and the settled balance are FRACTIONS of the month, in order
   assert.ok(p.thisMonthCents > 0 && p.thisMonthCents < p.netCents, 'month-to-date is not inside the month');
   assert.ok(p.balanceCents <= p.thisMonthCents, 'more is settled than has been earned');
@@ -66,6 +72,8 @@ test('every preview money figure derives from the roster on the page', () => {
   const yp = payouts(young, now);
   assert.equal(yp.months, 2, 'the practice age is not measured from joinedAt');
   assert.equal(yp.lifetimeCents, yp.netCents * 2);
+  // a row that stores no fee nets at the published rate, as coach-trajectory.mjs does
+  assert.equal(yp.netCents, Math.round(10000 * DS.PREVIEW_NET_RATE));
   const old10y = [{ payments: { mrrCents: 10000, joinedAt: '2016-09-10' } }];
   assert.equal(payouts(old10y, now).months, 120);
 });
@@ -390,13 +398,23 @@ test('the preview applies ONE platform-fee rate, everywhere it applies one', () 
       ' — two fee rates on one preview. ' + h.src);
   }
 
-  // ⚠ AND dashSignals ITSELF MAY NOT RESPELL IT: it applies the rate twice (the current
-  // month and every past month), which is where the duplicate came from in the first
-  // place. Both must go through the constant.
+  // ⚠ AND dashSignals ITSELF MAY NOT RESPELL IT: it nets the current month, every past
+  // month and the KPI strip, which is where the duplicate came from in the first place.
+  // Since the sweep after #2394 round 10 all three go through ONE net (`rosterNetCents`: each
+  // row after its own stored fee, the named rate for a row that stores none), driven here
+  // on a roster with one brought client and one row with no stored fee.
   const sig = stripComments(readFileSync(new URL('dashSignals.js', dir), 'utf8'));
   assert.doesNotMatch(sig, /Cents\s*\*\s*0\.\d+/, 'dashSignals respells the fee rate');
-  assert.ok((sig.match(/PREVIEW_NET_RATE/g) || []).length >= 4,
-    'dashSignals stopped routing both fee applications through the named rate');
+  const at = new Date('2026-09-10T12:00:00');
+  const mixed = [
+    { payments: { mrrCents: 20000, feeCents: 0, joinedAt: '2026-01-05' } },
+    { payments: { mrrCents: 10000, joinedAt: '2026-01-05' } },
+  ];
+  const want = 20000 + Math.round(10000 * rate);
+  assert.equal(DS.rosterNetCents(mixed), want, 'the shared net ignores a stored fee, or the rate for a row with none');
+  assert.equal(DS.demoPayouts(mixed, at).netCents, want, 'the current month nets on its own');
+  assert.equal(DS.demoPayoutHistory(mixed, at, 1)[0].amountCents, want, 'the payout history nets on its own');
+  assert.equal(DS.dashKpiValue('monthlyNet', { live: null, clients: mixed }).value, want, 'the KPI strip nets on its own');
 
   // ⚠ THE FALLBACK IS DRIVEN, NOT MATCHED. dashBusiness can render before dashSignals is
   // up, so `dbzNetRate` carries its own literal — and a page that renders early must not

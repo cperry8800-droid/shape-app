@@ -79,7 +79,7 @@ function dashDemoKpis(now) {
   const v = [
     { k: dashMoney(p.balanceCents), l: "Current balance", sub: "settled · 7-day hold" },
     { k: p.payoutShort, l: "Next payout", sub: p.daysToPayout === 0 ? "today" : "in " + p.daysToPayout + " day" + (p.daysToPayout === 1 ? "" : "s") },
-    { k: dashMoney(p.thisMonthCents), l: "This month", sub: "net · after 15% fee" },
+    { k: dashMoney(p.thisMonthCents), l: "This month", sub: "net · after Shape's fee" },
     { k: dashMoney(p.lifetimeCents), l: "Lifetime", sub: p.months + " month" + (p.months === 1 ? "" : "s") + " on Shape" },
   ];
   _dashDemoKpis = { key, v };
@@ -1041,6 +1041,11 @@ function DashFunnelPanel({ live }) {
 // full Business page (revenue trend · payouts · funnel · churn). Money
 // honesty: monthly net derives from real subscriptions; payout-flavored
 // numbers never appear here — the Business page owns those (real or "—").
+// ⚠ THE PREVIEW'S NET IS EACH CLIENT AFTER THEIR OWN FEE, NOT THE ROSTER AT 15% (the sweep after
+// #2394 round 10). This took 15% off all ten demo clients ($1,547) while Business's origin list
+// and Plan said half of them were brought at 0%, and Business quoted its own figure. The rule is
+// dashSignals.js `rosterNetCents`, which the sidebar card and Business read too, so the preview
+// states one net; and since a brought client pays no fee, the line no longer says "after 15%".
 function DashBusinessSummary({ live, role, clients }) {
   const ink50 = "var(--sh-ink2, #a09b94)";
   const g = live ? (live.growth || null) : DASH_DEMO_GROWTH[role];
@@ -1054,7 +1059,7 @@ function DashBusinessSummary({ live, role, clients }) {
   const why = dashCloseWhy(f);
   const netCents = live
     ? (live.kpis && live.kpis.monthlyNetCents != null ? live.kpis.monthlyNetCents : null)
-    : Math.round(clients.reduce((s, c) => s + ((c.payments && c.payments.mrrCents) || 0), 0) * 0.85);
+    : DashSignals.rosterNetCents(clients);
   const href = role === "nutritionist" ? "NutritionistAnalytics.html" : "TrainerAnalytics.html";
   const max = counts ? Math.max(...counts, 1) : 1;
   const stat = (k, l, sub, color) => (

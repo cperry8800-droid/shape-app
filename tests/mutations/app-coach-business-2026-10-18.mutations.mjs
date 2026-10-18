@@ -47,5 +47,12 @@ export default {
     { name: "plan rate: the app prints a cent rate in English in every language", file: APP,
       find: "  try { return '$' + new Intl.NumberFormat(intlLocale(), { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(r); } catch (e) { return '$' + (digits ? r.toFixed(2) : String(r)); }",
       replace: "  return '$' + (digits ? r.toFixed(2) : String(r));" },
+    // ── The preview agrees with itself (the sweep after #2394 round 10) ──
+    { name: 'preview: its weeks net everyone at 15%, beside an origin list with brought clients', file: APP,
+      find: 'mrrNetCents: Math.round(active * 17500 * (1 - 0.75 * 0.15))',
+      replace: 'mrrNetCents: Math.round(active * 17500 * (1 - 0.15))' },
+    { name: 'preview: its origin list brings a different share than its net', file: APP,
+      find: "feeBps: i % 4 === 0 ? 0 : 1500",
+      replace: "feeBps: i % 3 === 0 ? 0 : 1500" },
   ],
 };

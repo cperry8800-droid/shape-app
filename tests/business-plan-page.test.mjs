@@ -25,10 +25,12 @@ globalThis.serif = 'serif';
 const today = readFileSync(ND('dashToday.jsx'), 'utf8');
 globalThis.dashMoney = new Function(/function dashMoney\(cents\) \{[\s\S]*?\n\}/.exec(today)[0] + '\nreturn dashMoney;')();
 const money = globalThis.dashMoney;
+// The preview roster's people (Today's ten), which Business's origin list and renewals name too.
+const ROSTER_NAMES = new RegExp(globalThis.DashSignals.buildMockClients(new Date()).map((c) => c.profile.name.replace(/[.$]/g, '\\$&')).join('|'));
 
 const { loadRealModule } = await import('./helpers/load-real-module.mjs');
 const B = await loadRealModule(ND('dashBusiness.jsx'), {
-  appendExports: 'export { DbzChurnZone, DbzGoalEarn, dbzGoalEarnBase, dbzPlanBase, DbzPlanZone, DbzEarnZone, DbzPayoutsZone, DbzRenewalsZone, dbzRenewalsHead, DbzWaitlistZone, DbzLifetimeZone, DBZ_DEMO_CHURN };',
+  appendExports: 'export { DbzChurnZone, DbzGoalEarn, dbzGoalEarnBase, dbzPlanBase, DbzPlanZone, DbzEarnZone, DbzPayoutsZone, DbzRenewalsZone, dbzRenewalsHead, DbzWaitlistZone, DbzLifetimeZone, DBZ_DEMO_CHURN, dbzDemoTrajectory, dbzDemoBook, dbzDemoOrigin, dbzDemoRenewals };',
 });
 
 async function mount(el) {
@@ -573,6 +575,7 @@ test('a signed-in coach never sees the preview\'s figures while the page is stil
   globalThis.fetch = window.fetch = () => new Promise(() => {});
   const m = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
   assert.doesNotMatch(m.text(), /Casey Morgan|Alex Rivera|Riley Kim|is coming to you/, m.text().slice(0, 300));
+  assert.doesNotMatch(m.text(), ROSTER_NAMES, 'the preview roster is shown to a coach whose page is still reading');
   assert.match(m.text(), /Your payouts load with the analytics rollup/);
   await m.unmount();
   // A viewer the dashboard resolved as a demo, and the analytics answered as signed out, still sees
@@ -609,8 +612,9 @@ function stubPage({ source, today = null, section }) {
 const settle = () => React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
 const SECTIONS = ['overview', 'money', 'plan', 'growth', 'retention'];
 // Anything only the preview draws: its band, its people, its money sentence, its practice, its
-// funnel, its waiting list.
-const DEMO = /PREVIEW|Casey Morgan|Alex Rivera|Riley Kim|Sam Patel|Drew Park|Quinn Choi|Devon Sharpe|Mara Ellison|Theo Brandt|is coming to you|Active now|you have \d+ today|DEMO FUNNEL|people are waiting/;
+// funnel, its waiting list. Its people include the roster its origin list and renewals now name
+// (ROSTER_NAMES, read from the roster rather than restated).
+const DEMO = new RegExp(/PREVIEW|Casey Morgan|Alex Rivera|Riley Kim|Sam Patel|Drew Park|Quinn Choi|Devon Sharpe|Mara Ellison|Theo Brandt|is coming to you|Active now|you have \d+ today|DEMO FUNNEL|people are waiting/.source + '|' + ROSTER_NAMES.source);
 // Every figure on an unread page would be invented; the bring-your-clients pitch's $5 is the one
 // fixed price the page states.
 const dollars = (t) => /\$\d/.test(t.replace('members at $5/mo', ''));
@@ -678,6 +682,121 @@ test('the preview is for a viewer the analytics answer as signed out or not a co
     assert.match(m.text(), /^PREVIEW/, section);
     assert.match(m.text().replace(/&#x27;/g, "'"), re, section);
     await m.unmount();
+  }
+});
+
+// ── One practice across the preview, in money too (the sweep after #2394 round 10) ──
+// Today's card took 15% off the whole demo roster ($1,547 a month). Business's Money row, Plan
+// sentence and 13-week header read the last week of a walk that priced its own clients and took
+// 15% off those ($1,585), beside an origin list and a Plan ("Brought by you", 50%) saying half the
+// clients were brought at 0%. Every figure here is read off what the viewer sees, and the net it
+// must equal is worked out from the roster's own prices and stored fees, not read from the code.
+const bookOf = (cs) => ({
+  clients: cs.length,
+  gross: cs.reduce((s, c) => s + c.payments.mrrCents, 0),
+  net: cs.reduce((s, c) => s + c.payments.mrrCents - c.payments.feeCents, 0),
+});
+// Today's Business card, the shipped function lifted out of dashToday.jsx (as coach-growth does).
+function todayCard() {
+  const babel = require_('next/dist/compiled/babel/core');
+  const presetReact = require_('next/dist/compiled/babel/preset-react');
+  const pick = (re) => { const m = re.exec(today); assert.ok(m, re + ' moved'); return m[0]; };
+  const code = [
+    pick(/const DASH_FUNNEL_BENCHMARK = [^\n]*/),
+    pick(/function dashCloseRate\(f\) \{[\s\S]*?\n\}/),
+    pick(/function DashBusinessSummary\([\s\S]*?\n\}/),
+  ].join('\n');
+  const js = babel.transformSync(code, { presets: [presetReact], babelrc: false, configFile: false }).code;
+  return new Function('React', 'serif', 'dashMoney', 'DASH_MONO_LINK', 'DASH_DEMO_GROWTH', 'DASH_DEMO_FUNNEL', js + '\nreturn DashBusinessSummary;')(
+    React, 'serif', money, {}, { trainer: null, nutritionist: null }, null);
+}
+const esc = (s) => s.replace(/[.$()]/g, '\\$&');
+
+test('the preview states one net on every tab: Today, the sidebar, the KPI strip, Money, the Plan and the 13 weeks', async () => {
+  const now = new Date();
+  const roster = DashSignals.buildMockClients(now);
+  const book = bookOf(roster);
+  // The roster has both kinds of client, so a flat rate and a per-client fee are different numbers.
+  assert.ok(roster.some((c) => c.payments.feeCents === 0), 'no client in the preview was brought by the coach');
+  for (const c of roster.filter((x) => x.payments.feeCents > 0)) {
+    assert.equal(c.payments.origin, 'marketplace', c.profile.name + ' pays a fee without having found the coach on Shape');
+    assert.equal(c.payments.feeCents, Math.round(c.payments.mrrCents * CF.FEE_RATE), c.profile.name + ' stores a fee that is not the published rate');
+  }
+  assert.ok(roster.some((c) => c.payments.feeCents > 0), 'no client in the preview found the coach on Shape');
+  assert.notEqual(book.net, Math.round(book.gross * (1 - CF.FEE_RATE)), 'the fee mix makes no difference to the net');
+  // The shared rule: each row after its own stored fee; a row that stores none nets at the
+  // published rate (coach-trajectory.mjs's fallback); an unreadable row is left out.
+  assert.equal(DashSignals.rosterNetCents([{ payments: { mrrCents: 10000 } }, { payments: { mrrCents: 20000, feeCents: 0 } }, { payments: { mrrCents: null, feeCents: null } }]),
+    Math.round(10000 * (1 - CF.FEE_RATE)) + 20000);
+
+  // Today: the Business card, the KPI strip's net, and the sidebar card's month (demoPayouts).
+  const Card = todayCard();
+  const card = await mount(React.createElement(Card, { live: null, role: 'trainer', clients: roster }));
+  assert.match(card.text(), new RegExp(esc(money(book.net)) + 'Monthly · net'), "Today's card: " + card.text());
+  assert.match(card.text(), /after Shape's fee/, 'a net with brought clients in it is not "after 15%"');
+  await card.unmount();
+  assert.equal(DashSignals.dashKpiValue('monthlyNet', { live: null, clients: roster }).value, book.net, 'the KPI strip');
+  const p = DashSignals.demoPayouts(roster, now);
+  assert.deepEqual([p.monthlyCents, p.netCents], [book.gross, book.net], 'the sidebar card and the payouts strip');
+  // Each past payout is that month's clients after their own fees.
+  for (const r of DashSignals.demoPayoutHistory(roster, now, 4)) {
+    const joined = roster.filter((c) => new Date(c.payments.joinedAt).getTime() <= r.arrivalDate);
+    assert.equal(r.amountCents, bookOf(joined).net, 'the payout of ' + new Date(r.arrivalDate).toDateString());
+  }
+
+  // Business: the practice the Plan starts from, and the series the Overview and the 13 weeks draw.
+  const base = B.dbzPlanBase({ live: false });
+  assert.deepEqual([base.clients, base.mrrGrossCents, base.mrrNetCents], [book.clients, book.gross, book.net], "Business's today");
+  const weeks = B.dbzDemoTrajectory().weeks;
+  for (const w of weeks) {
+    assert.ok(Math.abs(w.mrrGrossCents - book.gross * w.active / book.clients) <= 0.5, w.weekOf + ': billed is not the practice at its headcount');
+    assert.ok(Math.abs(w.mrrNetCents - book.net * w.active / book.clients) <= 0.5, w.weekOf + ': net is not the practice at its headcount');
+  }
+  // The origin list is the roster, at the fees it stores, and the Plan's brought share is its share.
+  const subs = B.dbzDemoOrigin().filter((r) => r.kind === 'subscription');
+  assert.deepEqual(subs.map((r) => r.name), roster.map((c) => c.profile.name), 'the origin list is not the roster');
+  assert.equal(subs.reduce((s, r) => s + Math.round(r.priceCents * (1 - r.feeBps / 10000)), 0), book.net, 'the origin list shows another fee mix');
+  assert.equal(base.byoShare, subs.filter((r) => r.feeBps === 0).length / subs.length);
+  // The renewals are roster clients, each at their own fee.
+  for (const r of B.dbzDemoRenewals()) {
+    const c = roster.find((x) => x.profile.name === r.name);
+    assert.ok(c, r.name + ' renews but is not on the roster');
+    assert.equal(r.netCents, c.payments.mrrCents - c.payments.feeCents, r.name);
+  }
+
+  // What the viewer reads: Money's row and the 13 weeks' header, the Plan's sentence, the origin list.
+  const read = async (section) => {
+    stubPage({ source: 'demo', section });
+    globalThis.fetch = window.fetch = answer(401, { error: 'x' });
+    const m = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
+    await settle();
+    const t = m.text();
+    await m.unmount();
+    return t;
+  };
+  const moneyTab = await read('money');
+  assert.match(moneyTab, new RegExp("Net a month, at today's clients" + esc(money(book.gross)) + ' billed · ' + esc(money(book.gross - book.net)) + ' Shape fee' + esc(money(book.net))), moneyTab.slice(0, 600));
+  assert.match(moneyTab, new RegExp('from your subscriptions · ' + esc(money(book.net)) + ' now'), 'the 13 weeks header');
+  const planTab = await read('plan');
+  assert.match(planTab, new RegExp('Today you have ' + book.clients + ' clients and net ' + esc(money(book.net)) + ' a month\\.'), planTab.slice(0, 600));
+  const growthTab = await read('growth');
+  const brought = B.dbzDemoOrigin().filter((r) => r.feeBps === 0).length;
+  assert.match(growthTab, new RegExp(brought + ' you brought · ' + (B.dbzDemoOrigin().length - brought) + ' found you on Shape'));
+  for (const c of roster) assert.match(growthTab, new RegExp(esc(c.profile.name) + (c.payments.feeCents ? 'Found you on Shape · 15% fee' : 'You brought · 0% fee')), c.profile.name);
+});
+
+test("the preview's practice falls back to what the roster would have returned, and lists no one it can't read", () => {
+  const b = bookOf(DashSignals.buildMockClients(new Date()));
+  const want = { clients: b.clients, grossCents: b.gross, netCents: b.net };
+  assert.deepEqual(B.dbzDemoBook(), want);
+  // dashBusiness can render before dashSignals is up (dbzDemoRosterSize's rule).
+  const saved = globalThis.DashSignals;
+  try {
+    delete globalThis.DashSignals;
+    assert.deepEqual(B.dbzDemoBook(), want, 'the fallback is not the practice dashSignals would have returned');
+    assert.deepEqual(B.dbzDemoOrigin().map((r) => r.kind), ['purchase'], 'with no roster, the origin list invents subscribers');
+  } finally {
+    globalThis.DashSignals = saved;
   }
 });
 
