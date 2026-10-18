@@ -311,6 +311,10 @@ function BSCheckinDay({ onOpen, dayIso, openRequest = null, onOpenRequestConsume
   // Litres added on screen whose save has not answered yet: the server's total plus these is what shows.
   const waterPending = useRef(0);
   const waterTaps = useRef(0); // glasses tapped, so a read sent before one never shows a total without it
+  // ⚠ ONLY THE LAST WATER READ SENT IS SHOWN (Codex on #2405). The first read and the read after the
+  // device sync are independent requests; the first answering last would put the total from before
+  // the sync back on screen, Apple Health's share with it.
+  const waterReadSeq = useRef(0);
   const [, bump] = useState(0); // a re-render, for a tap that finds its day already over
 
   // ⚠ THE READS WAIT FOR SAVES ALREADY ON THEIR WAY (review on #2398). The lines outlive a card:
@@ -357,8 +361,9 @@ function BSCheckinDay({ onOpen, dayIso, openRequest = null, onOpenRequestConsume
       if (!on) return null;
       if (window.ShapeHydration?.get) {
         const taps = waterTaps.current;
+        const seq = ++waterReadSeq.current;
         window.ShapeHydration.get().then((d) => {
-          if (!on || !d || !d.ok) return;
+          if (!on || !d || !d.ok || seq !== waterReadSeq.current) return;
           const deviceL = Number(d.deviceL) > 0 ? Number(d.deviceL) : null;
           // A glass tapped after this read went out answers with its own total, which this read
           // would replace with an older one once that glass is no longer on its way.
@@ -385,10 +390,11 @@ function BSCheckinDay({ onOpen, dayIso, openRequest = null, onOpenRequestConsume
   useEffect(() => {
     if (!signedIn || !window.ShapeHydration?.get) return undefined;
     let on = true;
-    bsCiSettled('water').then(() => window.ShapeHydration.get()).then((d) => {
-      if (!on) return;
+    let seq = 0;
+    bsCiSettled('water').then(() => { seq = ++waterReadSeq.current; return window.ShapeHydration.get(); }).then((d) => {
+      if (!on || seq !== waterReadSeq.current) return;
       setWater(d && d.ok ? { l: Number(d.hydrationL) || 0, target: Number(d.targetL) || 3, deviceL: Number(d.deviceL) > 0 ? Number(d.deviceL) : null } : BS_CI_WATER_UNKNOWN);
-    }).catch(() => { if (on) setWater(BS_CI_WATER_UNKNOWN); });
+    }).catch(() => { if (on && seq === waterReadSeq.current) setWater(BS_CI_WATER_UNKNOWN); });
     return () => { on = false; };
   }, [signedIn]);
 

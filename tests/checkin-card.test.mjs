@@ -1100,6 +1100,33 @@ test("a glass tapped while the water is read again after a sync is never dropped
   } finally { m.unmount(); delete dom.window.ShapeIntegrations; }
 });
 
+test("a first water read that answers after the read the sync sent never puts the older total back", async () => {
+  // Codex on #2405: the two reads were independent, so the slower first one won.
+  let release;
+  let gets = 0;
+  env({ uid: 'sync-card-water-order' });
+  dom.window.ShapeProgress = { progress: async () => ({ series: series({ [TODAY]: { energy: 8, hunger: 6, sleep: 7 } }) }) };
+  dom.window.ShapeHydration = {
+    get: async () => {
+      gets += 1;
+      if (gets === 1) { await new Promise((r) => { release = r; }); return { ok: true, hydrationL: 0.5, targetL: 3 }; }
+      return { ok: true, hydrationL: 1.7, targetL: 3, deviceL: 1.2 };
+    },
+    add: async () => ({ ok: true }),
+  };
+  devices({ connected: ['apple_health'], healthKit: true });
+  const m = await mount();
+  try {
+    assert.equal(gets, 2, 'the card did not read the water again after the sync');
+    await React.act(async () => { release(); await new Promise((r) => setTimeout(r, 0)); });
+    await m.flush();
+    await m.click(/^Edit$/);
+    await m.click(/^Add$/);
+    assert.match(m.text(), /57 oz \//, 'the first read, answering last, put the total from before the sync back');
+    assert.match(m.text(), /Includes 41 oz from Apple Health/, "the first read cleared Apple Health's share");
+  } finally { m.unmount(); delete dom.window.ShapeIntegrations; }
+});
+
 test("Apple Health's share is never said as more than the day's total", async () => {
   // Review on this PR: glasses taken off in Shape can bring the total under Apple Health's share.
   env({ uid: 'sync-card-share' });
