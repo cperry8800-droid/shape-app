@@ -1064,7 +1064,7 @@ export const setReminderAction = {
     memberGate(ctx);
     input = input || {};
     var kind = REMINDER_KINDS.indexOf(String(input.kind)) >= 0 ? String(input.kind) : null;
-    if (!kind) throw new Error('What kind of reminder? weigh_in, checkin, water, photo, or custom.');
+    if (!kind) throw new Error('What kind of reminder? weigh_in, daily_checkin, checkin, water, photo, or custom.');
     if (!validReminderTime(input.time)) throw new Error('Give me the time as HH:MM (24h), e.g. 07:30.');
     var days = Array.isArray(input.days)
       ? Array.from(new Set(input.days.map(Number).filter(function (d) { return Number.isInteger(d) && d >= 0 && d <= 6; }))).sort()
@@ -1078,8 +1078,9 @@ export const setReminderAction = {
     var tz = await memberTz(ctx);
     var DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     var daysLabel = days.length === 7 ? 'every day' : days.map(function (d) { return DAYS[d]; }).join(' ');
+    var NAMES = { weigh_in: 'weigh-in', checkin: 'weekly check-in', daily_checkin: 'daily check-in' };
     return {
-      summary: 'Set a ' + (label || kind.replace('_', '-')) + ' reminder at ' + input.time + (tz ? '' : ' (UTC — open the app once to set your timezone)') + ' · ' + daysLabel,
+      summary: 'Set a ' + (label || NAMES[kind] || kind) + ' reminder at ' + input.time + (tz ? '' : ' (UTC — open the app once to set your timezone)') + ' · ' + daysLabel,
       diff: [{ label: 'Reminder', before: '—', after: (label || kind) + ' · ' + input.time + ' · ' + daysLabel + (tz ? '' : ' · UTC' ) }],
       target: { userId: ctx.actor.id, kind: 'reminder', id: null },
       beforeState: {}, afterState: { kind: kind, atTime: String(input.time), days: days, label: label },

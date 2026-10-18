@@ -64,6 +64,7 @@
   "checkin.hOnly": "{h} giờ",
   "checkin.noAnswer": "Không có câu trả lời",
   "checkin.targetTip": "Mục tiêu {target}",
+  "checkin.waterFromHealth": "Gồm {amount} từ Apple Sức khỏe",
   "checkin.trendWater": "{n, plural, =0 {Tuần này chưa đạt mục tiêu.} other {Tuần này đạt mục tiêu # ngày.}}",
   "checkin.ofTarget": "/ {target}",
   "checkin.addGlasses": "{n, plural, other {+ # ly}}",

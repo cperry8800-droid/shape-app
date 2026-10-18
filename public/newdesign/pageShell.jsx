@@ -465,6 +465,7 @@ function dashInboxPanelBox(bellRight, innerWidth) {
 const DASH_INBOX_ROUTES = {
   home: "ClientDashboard.html",
   checkin: "ClientDashboard.html",     // the check-in form lives on Today
+  today: "ClientDashboard.html",       // the daily check-in card is on Today too
   sessions: "ClientDashboard.html",    // a member's sessions are on Today
   goal: "ClientGoal.html",
   score: "ClientScore.html",

@@ -4202,6 +4202,21 @@ async function syncOura({ importWorkouts = false } = {}) {
 // `prompt: false` (the check-in card's sync on Home) never asks for permission: a member who
 // connected on another phone is not shown the Health sheet on opening Home, and reads nothing
 // until they connect from Integrations. A read that finds nothing posts nothing.
+// ⚠ WATER IS ASKED FOR ONCE ON A PHONE ALREADY READING APPLE HEALTH. A member who connected
+// before Shape read water was never asked for it, and HealthKit reads a type never asked for as
+// empty. When the card's read finds other data (so this phone was allowed before) and no water,
+// the Health sheet is shown once per install; it lists only the types not answered yet, so a
+// member who has answered for water sees nothing.
+const HK_WATER_ASKED_KEY = 'shape.healthkit.askedWater';
+let hkWaterAskedMem = false;
+function hkWaterAsked() {
+  if (hkWaterAskedMem) return true;
+  try { return window.localStorage.getItem(HK_WATER_ASKED_KEY) === '1'; } catch (e) { return false; }
+}
+function markHkWaterAsked() {
+  hkWaterAskedMem = true;
+  try { window.localStorage.setItem(HK_WATER_ASKED_KEY, '1'); } catch (e) { /* the memory flag holds for this run */ }
+}
 async function syncAppleHealth({ importWorkouts = true, prompt = true, days } = {}) {
   if (!isHealthKitPlatform()) {
     throw new Error('Apple Health is only available in the iOS app.');
@@ -4213,7 +4228,14 @@ async function syncAppleHealth({ importWorkouts = true, prompt = true, days } = 
     throw new Error('Sign in before syncing Apple Health.');
   }
   if (prompt) await requestHealthKitAuth();
-  const { days: rollups, workouts } = await collectHealthKitSnapshots(days ? { days } : undefined);
+  let { days: rollups, workouts, waterSamples } = await collectHealthKitSnapshots(days ? { days } : undefined);
+  if (!prompt && rollups.length && waterSamples === 0 && !hkWaterAsked()) {
+    markHkWaterAsked();
+    try {
+      await requestHealthKitAuth();
+      ({ days: rollups, workouts } = await collectHealthKitSnapshots(days ? { days } : undefined));
+    } catch (e) { /* the first read still posts */ }
+  }
   if (!prompt && !rollups.length) return { ok: true, days: 0 };
   const response = await fetch(`${apiBaseUrl}/api/integrations/apple-health/sync`, {
     method: 'POST',

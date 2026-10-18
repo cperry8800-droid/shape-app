@@ -64,6 +64,7 @@
   "checkin.hOnly": "{h} h",
   "checkin.noAnswer": "Sin respuesta",
   "checkin.targetTip": "Objetivo {target}",
+  "checkin.waterFromHealth": "Incluye {amount} de Apple Health",
   "checkin.trendWater": "{n, plural, =0 {Objetivo no alcanzado esta semana.} one {Objetivo alcanzado una vez esta semana.} other {Objetivo alcanzado # días esta semana.}}",
   "checkin.ofTarget": "de {target}",
   "checkin.addGlasses": "{n, plural, one {+ # vaso} other {+ # vasos}}",

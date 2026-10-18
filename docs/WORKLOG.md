@@ -162,6 +162,8 @@ planned builds.
 - Get a native speaker to read the PAR-Q translations.
 - Run `2026-10-18-sleep-points.sql` (+5 for a watch's good night). Until it runs, the app's and
   the website's claims do nothing.
+- Run `2026-10-18-apple-health-water.sql` (water from Apple Health). Until it runs, a sync reports
+  the water write as an error and leaves the day's water alone.
 
 **Planned next**
 - Coach payments, direct charges part C: the coach pages' copy and a labelled processing
@@ -177,11 +179,10 @@ planned builds.
 - The daily check-in
   ([`REVIEW-2026-10-18-daily-checkin.md`](REVIEW-2026-10-18-daily-checkin.md) §4). Built:
   the app's Home card and its step-by-step walkthrough (Phase 1), the rule of no −7 while
-  Check-ins is off, and a watch's night first (synced when the card opens; typed hours never
-  replace it). Still to build:
+  Check-ins is off, and Phase 2: a watch's night first (typed hours never replace it), water
+  from Apple Health added to the glasses logged in Shape, and a Daily check-in reminder that
+  opens the card. Still to build:
   - the website's `DashTodayCard`;
-  - Phase 2: water from Apple Health (the HealthKit plugin reads no water yet), and the
-    reminder opening the card;
   - answers from the notification.
 
 **Known gaps**
@@ -247,6 +248,10 @@ planned builds.
   could still earn +5 a night for the last 14 days. Apple Health's nights and its connection
   are whatever the app posts, so any signed-in member can post made-up Health nights, as they
   can post made-up steps for Shape Steps.
+- Water from Apple Health: two apps writing the same drink to Apple Health count it twice (raw
+  samples, as for steps), and so does a drink logged in both Apple Health and Shape. Deleting every
+  drink in a sync's window leaves Apple Health's last reading. Nora's meal-log undo refuses when a
+  sync moved the day's water in between. The Daily check-in reminder fires on a day already done.
 - Android back leaves the native app from any sheet (no `@capacitor/app`); in the hosted
   `/m/`, sheets add no history entry.
 

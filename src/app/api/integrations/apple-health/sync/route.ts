@@ -189,6 +189,15 @@ export async function POST(request: Request) {
   const errors: string[] = [];
   for (const day of days) {
     if (!day?.date) continue;
+    // ⚠ WATER IS ADDED TO THE GLASSES LOGGED IN SHAPE, NEVER WRITTEN OVER THEM (owner, 2026-10-18).
+    // Through upsertSnapshot it would replace the day's total; set_apple_health_water moves the
+    // total by the change in Apple Health's own reading. A failed water write is reported and
+    // leaves the rest of the day's sync alone.
+    const water = (day.patch as Record<string, unknown> | undefined)?.hydration_l;
+    if (typeof water === 'number' && Number.isFinite(water) && water >= 0 && water <= 20) {
+      const { error: waterError } = await client.rpc('set_apple_health_water', { p_date: day.date, p_l: water });
+      if (waterError) errors.push(waterError.message);
+    }
     const patch = cleanPatch(day.patch);
     if (Object.keys(patch).length === 0) continue;
     const res = await upsertSnapshot(client, { userId: user.id, date: day.date, source: 'apple_health', patch });

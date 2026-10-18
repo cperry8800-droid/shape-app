@@ -64,7 +64,22 @@ export async function GET(request: Request) {
   const targetStoredL = await readStoredTargetL(supabase, user.id);
   const targetL = targetStoredL ?? DEFAULT_TARGET_L;
   const hydrationL = Number((data as { hydration_l?: number } | null)?.hydration_l ?? 0) || 0;
-  return NextResponse.json({ ok: true, hydrationL, targetL, targetStoredL, date: today });
+  // Apple Health's share of the total (set_apple_health_water), so the check-in can say where
+  // water it didn't log came from. Best-effort: a failed read says nothing rather than fail.
+  let deviceL: number | null = null;
+  try {
+    const { data: obs } = await supabase
+      .from('health_metric_observations')
+      .select('value')
+      .eq('user_id', user.id)
+      .eq('snapshot_date', today)
+      .eq('metric', 'hydration_l')
+      .eq('source', 'apple_health')
+      .maybeSingle();
+    const v = Number((obs as { value?: unknown } | null)?.value);
+    deviceL = Number.isFinite(v) && v > 0 ? v : null;
+  } catch { deviceL = null; }
+  return NextResponse.json({ ok: true, hydrationL, targetL, targetStoredL, deviceL, date: today });
 }
 
 export async function POST(request: Request) {

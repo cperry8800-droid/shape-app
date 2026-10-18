@@ -64,6 +64,7 @@
   "checkin.hOnly": "{h}h",
   "checkin.noAnswer": "Babu amsa",
   "checkin.targetTip": "Manufa {target}",
+  "checkin.waterFromHealth": "Ya haɗa da {amount} daga Apple Health",
   "checkin.trendWater": "{n, plural, =0 {Ba a kai manufa ba a wannan makon.} one {An kai manufa sau ɗaya a wannan makon.} other {An kai manufa kwana # a wannan makon.}}",
   "checkin.ofTarget": "cikin {target}",
   "checkin.addGlasses": "{n, plural, one {+ kofi #} other {+ kofuna #}}",

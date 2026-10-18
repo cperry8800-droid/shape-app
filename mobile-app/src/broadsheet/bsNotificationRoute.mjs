@@ -81,7 +81,7 @@ export function bsChatOwner(detail, here) {
 }
 
 /** The member pages: a coach app hands these to the member app. */
-export const BS_MEMBER_PAGES = Object.freeze(['sessions', 'train', 'eat', 'score', 'checkin', 'goal', 'habits', 'progress']);
+export const BS_MEMBER_PAGES = Object.freeze(['sessions', 'train', 'eat', 'score', 'checkin', 'today', 'goal', 'habits', 'progress']);
 /** The coach pages: the member app hands these to the coach app. */
 export const BS_COACH_PAGES = Object.freeze(['clients', 'schedule', 'waitlist', 'credentials']);
 

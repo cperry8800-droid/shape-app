@@ -349,7 +349,7 @@ const UNCOVERED = new Set([
   // with the integrations page it belongs to. Same 13 strings, still no translator;
   // the key follows the file because this walk keys on File::Component.
   'BSIntegrationsPage::BSReconcile',
-  'Client::BSRecordTrace', 'Client::BSReminderManager', 'Client::BSSaveButton',
+  'Client::BSRecordTrace', 'Client::BSSaveButton',
   'Client::BSScoreCardDark', 'Client::BSSearchCorner',
   'Client::BSSessionsScreen', 'Client::BSSleepHistory', 'Client::BSStepGoalSheet',
   'Client::BSStepsHistory', 'Client::BSStrengthCard', 'Client::BSStrengthHistory',
@@ -866,9 +866,13 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // coach Me page opened were deleted with it (2026-10-17), with their 50 hardcoded strings:
   // the practice-goal page and its edit sheet (a sample goal shown to every coach), a public
   // profile editor that saved nothing, and a Notifications page whose switches were local.
-  assert.equal(noneStrings, 652, 'the untranslated surfaces changed how much they hardcode — update the number AND say so in the PR');
+  // ⚠ AND noneStrings 652 -> 638, none.length 82 -> 81: the member reminder manager
+  // (BSReminderManager, 2026-10-18) was localized when the Daily check-in reminder was added
+  // (Codex on #2405): its 14 hardcoded strings, the six kind labels and the weekday names are keyed
+  // under settings:reminders.* in all 13 locales or read from bsWeekdayName. Its line left UNCOVERED.
+  assert.equal(noneStrings, 638, 'the untranslated surfaces changed how much they hardcode — update the number AND say so in the PR');
   assert.equal(part.length, 33, 'partial-surface count moved — regenerate PARTIAL and the record');
-  assert.equal(none.length, 82, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  assert.equal(none.length, 81, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned

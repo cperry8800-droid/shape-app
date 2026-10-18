@@ -832,7 +832,7 @@ function HealthProfileCard() {
 // days-of-week; the hourly tz-aware cron fires them via the notifications→push
 // spine. CRUD hits /api/client/reminders (cookie session — no ShapeReminders
 // helper on web). Signed-out shows an honest empty state (never fake reminders).
-const REM_KINDS = [["weigh_in", "Weigh-in"], ["checkin", "Weekly check-in"], ["water", "Water"], ["photo", "Progress photo"], ["custom", "Custom"]];
+const REM_KINDS = [["weigh_in", "Weigh-in"], ["daily_checkin", "Daily check-in"], ["checkin", "Weekly check-in"], ["water", "Water"], ["photo", "Progress photo"], ["custom", "Custom"]];
 const REM_DOW = [["Sun", 0], ["Mon", 1], ["Tue", 2], ["Wed", 3], ["Thu", 4], ["Fri", 5], ["Sat", 6]];
 function remKindLabel(k) { const f = REM_KINDS.find(x => x[0] === k); return f ? f[1] : "Reminder"; }
 function remDaysLabel(days) { if (days && days.length === 7) return "Every day"; return (days || []).slice().sort((a, b) => a - b).map(d => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d]).join(" "); }

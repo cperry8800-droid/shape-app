@@ -7,7 +7,7 @@
 	<key>NSCameraUsageDescription</key>
 	<string>Shape uses your camera for in-app video calls with your coach.</string>
 	<key>NSHealthShareUsageDescription</key>
-	<string>Shape reads your Apple Health data (steps, heart rate, HRV, resting heart rate, sleep, active energy, and workouts) to track your progress and share it with your coach.</string>
+	<string>Shape reads your Apple Health data (steps, heart rate, HRV, resting heart rate, sleep, active energy, water, and workouts) to track your progress and share it with your coach.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>Shape does not write to Apple Health; this permission is requested only so HealthKit can be enabled.</string>
 	<key>NSMicrophoneUsageDescription</key>

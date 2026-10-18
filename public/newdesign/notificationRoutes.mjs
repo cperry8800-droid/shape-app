@@ -30,6 +30,7 @@ export const ROUTES = Object.freeze({
   eat: 'member',         // a meal plan, a grocery list
   score: 'member',       // the Shape Score
   checkin: 'member',     // the weekly check-in
+  today: 'member',       // the daily check-in card on Home: a Daily check-in reminder opens its walkthrough
   goal: 'member',        // the member's goal
   habits: 'member',      // habits and streaks
   progress: 'member',    // weigh-ins, check-in photos
