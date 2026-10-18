@@ -170,6 +170,9 @@ function lift(name) {
   throw Error(name);
 }
 
+// speakVoice sets her rate on each clip (voicePace, owner 2026-10-18: "she is talking too slow").
+const PACE = `const VOICE_RATE = ${/const VOICE_RATE = ([\d.]+);/.exec(source)[1]}; ${lift('voicePace')}`;
+
 test('browser-blocked server audio retries from the same clip and stop releases it', async () => {
   let fetches = 0, plays = 0;
   const revoked = [];
@@ -182,7 +185,7 @@ test('browser-blocked server audio retries from the same clip and stop releases 
   const code = `let _voiceGen=0, _voiceAudio=null, _voiceUrl=null, _voiceAbort=null, _voiceEnded=null, _voiceEnd=null, _voicePlayer=null; const SILENT_CLIP='data:,', speechParts=globalThis.__speechParts;
     const apiBaseUrl='https://api.test', state={session:{access_token:'test'}}, supabase=null;
     const readVoicePrefs=()=>({enabled:false,tone:'supportive',voice:'auto'});
-    ${lift('liveAccessToken')} ${lift('settleVoiceEnd')} ${lift('voicePlayer')} ${lift('primeVoice')} ${lift('stopVoice')} ${lift('speakVoice')} ${lift('retryVoice')}
+    ${lift('liveAccessToken')} ${lift('settleVoiceEnd')} ${lift('voicePlayer')} ${lift('primeVoice')} ${lift('stopVoice')} ${PACE} ${lift('speakVoice')} ${lift('retryVoice')}
     return {speak:speakVoice,retry:retryVoice,stop:stopVoice};`;
   const backend = new Function('fetch', 'Audio', 'URL', code)(
     async () => { fetches++; return { ok: true, blob: async () => new Blob(['voice']) }; },
@@ -325,7 +328,7 @@ test('speakVoice hands back when her clip ends, and a stop ends it too', async (
   const code = `let _voiceGen=0, _voiceAudio=null, _voiceUrl=null, _voiceAbort=null, _voiceEnded=null, _voiceEnd=null, _voicePlayer=null; const SILENT_CLIP='data:,', speechParts=globalThis.__speechParts;
     const apiBaseUrl='https://api.test', state={session:{access_token:'test'}}, supabase=null;
     const readVoicePrefs=()=>({enabled:true,tone:'supportive',voice:'auto'});
-    ${lift('liveAccessToken')} ${lift('settleVoiceEnd')} ${lift('voicePlayer')} ${lift('primeVoice')} ${lift('stopVoice')} ${lift('speakVoice')} ${lift('retryVoice')}
+    ${lift('liveAccessToken')} ${lift('settleVoiceEnd')} ${lift('voicePlayer')} ${lift('primeVoice')} ${lift('stopVoice')} ${PACE} ${lift('speakVoice')} ${lift('retryVoice')}
     return {speak:speakVoice,retry:retryVoice,stop:stopVoice};`;
   const backend = new Function('fetch', 'Audio', 'URL', code)(
     async () => ({ ok: true, blob: async () => new Blob(['voice']) }),
@@ -359,7 +362,7 @@ test('speak unlocks the player inside the tap, before it awaits anything, and on
   const code = `let _voiceGen=0, _voiceAudio=null, _voiceUrl=null, _voiceAbort=null, _voiceEnded=null, _voiceEnd=null, _voicePlayer=null; const SILENT_CLIP='data:,', speechParts=globalThis.__speechParts;
     const apiBaseUrl='https://api.test', state={session:{access_token:'test'}}, supabase=null;
     const readVoicePrefs=()=>({enabled:true,tone:'supportive',voice:'auto'});
-    ${lift('liveAccessToken')} ${lift('settleVoiceEnd')} ${lift('voicePlayer')} ${lift('primeVoice')} ${lift('stopVoice')} ${lift('speakVoice')}
+    ${lift('liveAccessToken')} ${lift('settleVoiceEnd')} ${lift('voicePlayer')} ${lift('primeVoice')} ${lift('stopVoice')} ${PACE} ${lift('speakVoice')}
     return {speak:speakVoice, prime:primeVoice};`;
   const backend = new Function('fetch', 'Audio', 'URL', code)(
     async () => ({ ok: true, blob: async () => new Blob(['voice']) }),
@@ -384,7 +387,7 @@ test('Nora asks with the token as of now, not the one cached when the page opene
   const code = `let _voiceGen=0, _voiceAudio=null, _voiceUrl=null, _voiceAbort=null, _voiceEnded=null, _voiceEnd=null, _voicePlayer=null; const SILENT_CLIP='data:,', speechParts=globalThis.__speechParts;
     const apiBaseUrl='https://api.test', state={user:{id:'u1'}, session:{access_token:'stale', user:{id:'u1'}}}, _isNative=true;
     const readVoicePrefs=()=>({enabled:true,tone:'supportive',voice:'auto'});
-    ${lift('liveAccessToken')} ${lift('settleVoiceEnd')} ${lift('voicePlayer')} ${lift('primeVoice')} ${lift('stopVoice')} ${lift('speakVoice')}
+    ${lift('liveAccessToken')} ${lift('settleVoiceEnd')} ${lift('voicePlayer')} ${lift('primeVoice')} ${lift('stopVoice')} ${PACE} ${lift('speakVoice')}
     return {speak:speakVoice, state};`;
   const supabase = { auth: { getSession: async () => ({ data: { session: stored } }) } };
   const backend = new Function('fetch', 'Audio', 'URL', 'supabase', code)(
@@ -413,7 +416,7 @@ test('⚠ on the web, no token of its own still asks: the website session rides 
     const code = `let _voiceGen=0, _voiceAudio=null, _voiceUrl=null, _voiceAbort=null, _voiceEnded=null, _voiceEnd=null, _voicePlayer=null; const SILENT_CLIP='data:,', speechParts=globalThis.__speechParts;
       const apiBaseUrl='https://site.test', state={user:null, session:null}, supabase=null, _isNative=${native};
       const readVoicePrefs=()=>({enabled:true,tone:'supportive',voice:'auto'});
-      ${lift('liveAccessToken')} ${lift('settleVoiceEnd')} ${lift('voicePlayer')} ${lift('primeVoice')} ${lift('stopVoice')} ${lift('speakVoice')}
+      ${lift('liveAccessToken')} ${lift('settleVoiceEnd')} ${lift('voicePlayer')} ${lift('primeVoice')} ${lift('stopVoice')} ${PACE} ${lift('speakVoice')}
       return {speak:speakVoice};`;
     return new Function('fetch', 'Audio', 'URL', code)(
       async (url, init) => { sent.push({ url, auth: init.headers.Authorization, credentials: init.credentials }); return status === 200 ? { ok: true, status, blob: async () => new Blob(['v']) } : { ok: false, status }; },
@@ -454,7 +457,7 @@ test('speakVoice plays the opening part as soon as it is ready, then the rest, a
   const code = `let _voiceGen=0, _voiceAudio=null, _voiceUrl=null, _voiceAbort=null, _voiceEnded=null, _voiceEnd=null, _voicePlayer=null; const SILENT_CLIP='data:,', speechParts=globalThis.__speechParts;
     const apiBaseUrl='https://api.test', state={session:{access_token:'test'}}, supabase=null, _isNative=false;
     const readVoicePrefs=()=>({enabled:true,tone:'supportive',voice:'auto'});
-    ${lift('liveAccessToken')} ${lift('settleVoiceEnd')} ${lift('voicePlayer')} ${lift('primeVoice')} ${lift('stopVoice')} ${lift('speakVoice')}
+    ${lift('liveAccessToken')} ${lift('settleVoiceEnd')} ${lift('voicePlayer')} ${lift('primeVoice')} ${lift('stopVoice')} ${PACE} ${lift('speakVoice')}
     return {speak:speakVoice,stop:stopVoice};`;
   const make = (restFails) => new Function('fetch', 'Audio', 'URL', code)(
     async (url, init) => {

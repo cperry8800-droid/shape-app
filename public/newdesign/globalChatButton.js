@@ -219,21 +219,22 @@
     var style = document.createElement("style");
     style.id = "shape-global-chat-style";
     style.textContent = [
-      "#shape-global-chat-button{position:fixed;right:24px;bottom:24px;z-index:2147483000;display:inline-flex;align-items:stretch;padding:0;border:0;border-radius:999px;overflow:hidden;background:#1ec0a8;color:#1a1612;font-family: var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif);font-size:15px;font-weight:700;letter-spacing:.01em;text-decoration:none;box-shadow:0 18px 44px rgba(0,0,0,.38),0 4px 14px rgba(30,192,168,.35);cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .16s ease,box-shadow .16s ease,opacity .16s ease}",
-      // The split: "✦ Ask Nora" first, then "Chat" (owner, 2026-10-07, option A).
-      "#shape-global-chat-button .sgc-half{display:inline-flex;align-items:center;gap:10px;border:0;margin:0;background:transparent;color:inherit;font:inherit;letter-spacing:inherit;cursor:pointer;padding:17px 22px 17px 18px;-webkit-tap-highlight-color:transparent}",
+      "#shape-global-chat-button{position:fixed;right:20px;bottom:20px;z-index:2147483000;display:inline-flex;align-items:stretch;padding:0;border:0;border-radius:999px;overflow:hidden;background:#1ec0a8;color:#1a1612;font-family: var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif);font-size:13px;font-weight:700;letter-spacing:.01em;text-decoration:none;box-shadow:0 10px 26px rgba(0,0,0,.32),0 3px 10px rgba(30,192,168,.28);cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .16s ease,box-shadow .16s ease,opacity .16s ease}",
+      // The split: "✦ Ask Nora" first, then "Chat" (owner, 2026-10-07, option A). About 38px tall,
+      // 44px round on a phone (owner, 2026-10-18: "make this smaller on screen"; it was 53 and 52).
+      "#shape-global-chat-button .sgc-half{display:inline-flex;align-items:center;gap:7px;border:0;margin:0;background:transparent;color:inherit;font:inherit;letter-spacing:inherit;cursor:pointer;padding:11px 16px 11px 13px;-webkit-tap-highlight-color:transparent}",
       "#shape-global-chat-button .sgc-nora{background:#1a1612;color:#f2ede4}",
-      "#shape-global-chat-button .sgc-star{color:#2ee0c4;font-size:16px;line-height:1}",
+      "#shape-global-chat-button .sgc-star{color:#2ee0c4;font-size:13px;line-height:1}",
       // ⚠ THE SITE'S MOBILE BREAKPOINT IS 760 PX, not the panel's 640 (Codex, #2244):
       // through 760 the corner is a single round ✦ and Chat lives in the page's menu.
-      "@media (max-width:760px){#shape-global-chat-button .sgc-chat{display:none}#shape-global-chat-button .sgc-nora{width:52px;height:52px;padding:0;justify-content:center}#shape-global-chat-button .sgc-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}#shape-global-chat-button .sgc-star{font-size:20px}}",
+      "@media (max-width:760px){#shape-global-chat-button .sgc-chat{display:none}#shape-global-chat-button .sgc-nora{width:44px;height:44px;padding:0;justify-content:center}#shape-global-chat-button .sgc-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}#shape-global-chat-button .sgc-star{font-size:17px}}",
       "#shape-global-chat-button .sgc-half:focus-visible{outline:3px solid rgba(var(--sh-ink-rgb, 242,237,228),.8);outline-offset:-3px}",
-      "#shape-global-chat-button:hover{transform:translateY(-2px);box-shadow:0 22px 52px rgba(0,0,0,.44),0 5px 18px rgba(30,192,168,.42)}",
+      "#shape-global-chat-button:hover{transform:translateY(-2px);box-shadow:0 14px 32px rgba(0,0,0,.38),0 4px 12px rgba(30,192,168,.34)}",
       "#shape-global-chat-button:focus-visible{outline:3px solid rgba(var(--sh-ink-rgb, 242,237,228),.8);outline-offset:4px}",
-      "#shape-global-chat-button svg{width:19px;height:19px;flex:none}",
-      "#shape-global-chat-button .shape-global-chat-count{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:24px;padding:0 8px;border-radius:999px;background:#1a1612;color:#1ec0a8;font-family:'JetBrains Mono',Consolas,monospace;font-size:12px;font-weight:700;line-height:1}",
+      "#shape-global-chat-button svg{width:15px;height:15px;flex:none}",
+      "#shape-global-chat-button .shape-global-chat-count{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:19px;padding:0 6px;border-radius:999px;background:#1a1612;color:#1ec0a8;font-family:'JetBrains Mono',Consolas,monospace;font-size:10.5px;font-weight:700;line-height:1}",
       "#shape-global-chat-button." + HIDDEN_CLASS + "{opacity:0;pointer-events:none;transform:translateY(8px)}",
-      "#shape-global-chat-panel{position:fixed;right:24px;bottom:92px;z-index:2147483000;width:390px;max-width:calc(100vw - 32px);height:540px;max-height:calc(100vh - 116px);display:none;flex-direction:column;overflow:hidden;border-radius:18px;border:1px solid rgba(var(--sh-ink-rgb, 242,237,228),.14);background:var(--sh-ground, #1a1612);color:var(--sh-ink, #f2ede4);box-shadow:0 28px 80px rgba(0,0,0,.62);font-family: var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)}",
+      "#shape-global-chat-panel{position:fixed;right:20px;bottom:74px;z-index:2147483000;width:390px;max-width:calc(100vw - 32px);height:540px;max-height:calc(100vh - 98px);display:none;flex-direction:column;overflow:hidden;border-radius:18px;border:1px solid rgba(var(--sh-ink-rgb, 242,237,228),.14);background:var(--sh-ground, #1a1612);color:var(--sh-ink, #f2ede4);box-shadow:0 28px 80px rgba(0,0,0,.62);font-family: var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)}",
       "#shape-global-chat-panel.open{display:flex}",
       "#shape-global-chat-panel .sgc-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 18px;border-bottom:1px solid rgba(var(--sh-ink-rgb, 242,237,228),.09);background:linear-gradient(180deg,rgba(30,192,168,.08),rgba(30,192,168,0));cursor:grab;user-select:none}",
       "#shape-global-chat-panel.dragging .sgc-head{cursor:grabbing}",
@@ -266,7 +267,7 @@
       "#shape-global-chat-panel .sgc-row .ls{font-size:12px;color:rgba(var(--sh-ink-rgb, 242,237,228),.6);grid-column:1/-1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
       "#shape-global-chat-panel .sgc-back{border:0;background:transparent;color:var(--sh-accent, #2ee0c4);font:600 12px 'Space Grotesk',Inter,Arial,sans-serif;cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:0;margin-bottom:2px}",
       "#shape-global-chat-panel .sgc-from{font-family:'JetBrains Mono',Consolas,monospace;font-size:9px;letter-spacing:.08em;color:rgba(var(--sh-ink-rgb, 242,237,228),.42);margin:-3px 0 -2px}",
-      "@media (max-width:640px){#shape-global-chat-button{right:max(16px,env(safe-area-inset-right));bottom:max(16px,env(safe-area-inset-bottom));font-size:14px}#shape-global-chat-button .shape-global-chat-count{min-width:25px;height:22px;font-size:11px}#shape-global-chat-panel{right:16px;bottom:82px;width:calc(100vw - 32px);height:min(560px,calc(100vh - 104px));max-height:calc(100vh - 104px)}}"
+      "@media (max-width:640px){#shape-global-chat-button{right:max(16px,env(safe-area-inset-right));bottom:max(16px,env(safe-area-inset-bottom));font-size:13px}#shape-global-chat-button .shape-global-chat-count{min-width:20px;height:18px;font-size:10px}#shape-global-chat-panel{right:16px;bottom:72px;width:calc(100vw - 32px);height:min(560px,calc(100vh - 94px));max-height:calc(100vh - 94px)}}"
     ].join("");
     document.head.appendChild(style);
   }
