@@ -536,6 +536,68 @@ test("a new day closes the card until that day is read, and a failed read never 
   } finally { mock.timers.setTime(at(12)); }
 });
 
+test('a walkthrough open at midnight closes, and a tap after midnight saves nothing (Codex P2 on #2398)', async () => {
+  try {
+    mock.timers.setTime(new Date(2026, 9, 18, 23, 59).getTime());
+    const calls = env();
+    const m = await mount();
+    try {
+      await m.click(/Start check-in/);
+      await m.click(/^Good$/);
+      assert.match(m.text(), /Step 2 of 4 · Hunger/);
+      mock.timers.setTime(new Date(2026, 9, 19, 0, 1).getTime());
+      // Before Home re-renders, a tap on the old day's sheet is not saved into the new day.
+      await m.click(/^Normal$/);
+      assert.deepEqual(calls.log, [{ energy: 8 }], 'a 00:01 tap on the 23:59 walkthrough was saved into the new day');
+      assert.equal(m.walk(), null, "the day before's walkthrough is still open");
+      // Home's next render mounts the new day's card, with no walkthrough carried over.
+      await m.rerender();
+      assert.equal(m.walk(), null);
+    } finally { m.unmount(); }
+  } finally { mock.timers.setTime(at(12)); }
+});
+
+test("a save from the day before that fails after midnight changes nothing on the new day (Codex P2 on #2398)", async () => {
+  try {
+    let failEdit;
+    const edit = new Promise((_, reject) => { failEdit = reject; });
+    env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } }, log: () => edit });
+    const m = await mount();
+    try {
+      await m.click(/^Edit$/);
+      await m.click(/^Change$/, 0);
+      await m.click(/^Great$/);       // its save is in flight at the turn of the day
+      mock.timers.setTime(new Date(2026, 9, 19, 9, 0).getTime());
+      dom.window.ShapeProgress = { progress: async () => ({ series: series({}) }) };
+      await m.rerender();
+      assert.match(m.text(), /Four quick checks/);
+      failEdit(new Error('500'));
+      await m.flush();
+      await m.flush();
+      assert.doesNotMatch(m.text(), /✓ Energy/, "the failed save from the day before put its energy into the new day");
+      assert.doesNotMatch(m.text(), /Could not save/, "the day before's failure shows on the new day");
+    } finally { m.unmount(); }
+  } finally { mock.timers.setTime(at(12)); }
+});
+
+test("a failed water read on a new day never shows the day before's water (Codex P2 on #2398)", async () => {
+  try {
+    let reads = 0;
+    env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
+    dom.window.ShapeHydration = { get: async () => { reads += 1; if (reads > 1) throw new Error('500'); return { ok: true, hydrationL: 2, targetL: 3 }; }, add: async () => ({ ok: true }) };
+    const m = await mount();
+    try {
+      assert.match(m.text(), /68 oz \/ 101 oz/);
+      mock.timers.setTime(new Date(2026, 9, 19, 9, 0).getTime());
+      dom.window.ShapeProgress = { progress: async () => ({ series: series({}) }) };
+      await m.rerender();
+      assert.equal(reads, 2);
+      assert.match(m.text(), /Four quick checks/);
+      assert.doesNotMatch(m.text(), /✓ Water/, "the day before's water marks the new day's water done");
+    } finally { m.unmount(); }
+  } finally { mock.timers.setTime(at(12)); }
+});
+
 test('answers save one at a time, so two quick taps cannot both insert a row for today', async () => {
   let release;
   const first = new Promise((r) => { release = r; });

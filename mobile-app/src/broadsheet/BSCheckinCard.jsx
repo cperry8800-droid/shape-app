@@ -208,7 +208,7 @@ function bsCiSave(patch, uid) { return bsCiEnqueue('checkin', uid, () => window.
 
 const BS_CI_STEPS = ['energy', 'hunger', 'sleep', 'water'];
 
-export function BSCheckinCard({ onOpen }) {
+function BSCheckinDay({ onOpen, dayIso }) {
   const t = window.useBS();
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -219,7 +219,7 @@ export function BSCheckinCard({ onOpen }) {
   const uid = window.ShapeAuth?.getCachedState?.()?.user?.id || null;
   const signedIn = !!uid;
   const now = new Date();
-  const todayIso = bsCiIso(now);
+  const todayIso = dayIso; // the one local day this card belongs to (BSCheckinCard, below)
 
   // Signed out, the card previews the flow on a sample week and saves nothing.
   const [today, setToday] = useState({ energy: null, hunger: null, sleep: null, rested: null, device: false });
@@ -245,6 +245,7 @@ export function BSCheckinCard({ onOpen }) {
   const latest = useRef({ n: 0 });
   // Litres added on screen whose save has not answered yet: the server's total plus these is what shows.
   const waterPending = useRef(0);
+  const [, bump] = useState(0); // a re-render, for a tap that finds its day already over
 
   useEffect(() => {
     if (!signedIn || !window.ShapeProgress?.progress) return undefined;
@@ -275,6 +276,8 @@ export function BSCheckinCard({ onOpen }) {
     // A new local day reads the new day's water, as the answers above do (Codex P2 on #2398).
   }, [signedIn, todayIso]);
 
+  // A card whose day is over shows nothing and saves nothing; Home's next render mounts the new day's.
+  if (bsCiIso(now) !== todayIso) return null;
   const ready = !signedIn || !window.ShapeProgress?.progress || readyDay === todayIso;
   if (!ready) return null;
   const sleepSkipped = skippedDay === todayIso;
@@ -287,6 +290,7 @@ export function BSCheckinCard({ onOpen }) {
   // them (Codex P2 on #2398): an answer queued behind it may still save, and putting back the
   // whole day would hide an answer that is stored.
   const answer = (patch) => {
+    if (bsCiIso(new Date()) !== todayIso) { bump((n) => n + 1); return; }
     const before = today;
     const merged = { ...today };
     const fields = [];
@@ -317,6 +321,7 @@ export function BSCheckinCard({ onOpen }) {
   // quick taps used to race, and a failed first one put back the total over a second that saved.
   // Each answer is the server's running total, so the screen shows it plus what is still on its way.
   const addWater = (glasses) => {
+    if (bsCiIso(new Date()) !== todayIso) { bump((n) => n + 1); return; }
     if (!water) return;
     const deltaL = Math.round(glassL * glasses * 10000) / 10000;
     const round = (l) => Math.round(Math.max(0, l) * 1000) / 1000;
@@ -686,4 +691,14 @@ export function BSCheckinCard({ onOpen }) {
       {sheet && host ? createPortal(sheet, host) : sheet}
     </>
   );
+}
+
+// ⚠ ONE CARD PER LOCAL DAY (Codex P2s on #2398). Every piece of the card's state belongs to the day
+// it was read for: the answers, the water, the open walkthrough, the save versions. So a new day
+// mounts a new card rather than carrying any of it across midnight. A walkthrough open at midnight
+// closes, and a save from the day before that fails after midnight lands on the old, unmounted card
+// and changes nothing.
+export function BSCheckinCard(props) {
+  const day = bsCiIso(new Date());
+  return <BSCheckinDay key={day} dayIso={day} {...props} />;
 }
