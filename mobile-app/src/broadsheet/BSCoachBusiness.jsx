@@ -120,8 +120,13 @@ export function bsBizDemo(now = Date.now()) {
 }
 
 // ── The reads ───────────────────────────────────────────────────────────────
-// { kind: 'demo' | 'loading' | 'live' | 'none' | 'error', extra, listingMonthly, listingRead, waiting }
+// { kind: 'demo' | 'loading' | 'live' | 'none' | 'error', extra, listingMonthly, listingRead, listingFailed, waiting }
 //   none: signed in, but no listing of this role (the route answers isTrainer: false).
+//   error: the read failed (a 500, a refused token, no session, a thrown fetch): never 'loading'
+//   for good, and never 'none' (shapeBackend.js getCoachAnalytics throws for each).
+// ⚠ THE PREVIEW IS FOR A SIGNED-OUT VIEWER ONLY (the website's Business sweep, #2394, where a
+// pending or failed read showed a signed-in coach the preview's figures as their own). Here the
+// preview is decided by sign-in alone: a pending read is 'loading', a failed one 'error'.
 // `renewals`: the Business page asks for this week's renewals (a Stripe read each); the Me card
 // does not. `reload` bumps to read again.
 export function useBSCoachBusiness(role, { renewals = false, reload = 0 } = {}) {
@@ -139,13 +144,18 @@ export function useBSCoachBusiness(role, { renewals = false, reload = 0 } = {}) 
     }).catch(() => { if (on) setState((s) => ({ ...s, kind: 'error' })); });
     // The listing price (where the plan's rate starts) and the waiting list: read alongside, each
     // answering on its own. undefined while it loads; null when it could not be read.
+    // ⚠ A FAILED LISTING READ IS NOT "NO LISTING PRICE YET" (the website's Business sweep, #2394).
+    // `listingFailed` says the price went unread (a refused read, no session to read with, or no
+    // listing service), so the Plan says it couldn't read it; an answer with no listing of this
+    // role is a read, and is "no listing price yet".
     if (renewals) {
       const get = window.ShapeCoachListing && window.ShapeCoachListing.getMine;
       (get ? get() : Promise.resolve(null)).then((list) => {
         if (!on) return;
-        const l = Array.isArray(list) ? list.find((x) => x && x.role === role) : null;
-        setState((s) => ({ ...s, listingMonthly: l ? l.monthly : null, listingRead: true }));
-      }).catch(() => { if (on) setState((s) => ({ ...s, listingMonthly: null, listingRead: true })); });
+        const read = Array.isArray(list);
+        const l = read ? list.find((x) => x && x.role === role) : null;
+        setState((s) => ({ ...s, listingMonthly: l ? l.monthly : null, listingRead: true, listingFailed: !read }));
+      }).catch(() => { if (on) setState((s) => ({ ...s, listingMonthly: null, listingRead: true, listingFailed: true })); });
       const cap = window.ShapeBookings && window.ShapeBookings.getCapacity;
       (cap ? cap({ role }) : Promise.resolve(null)).then((c) => {
         if (on) setState((s) => ({ ...s, waiting: c && typeof c.waiting === 'number' ? c.waiting : null }));
@@ -163,7 +173,9 @@ export function bsBizPlanBase(biz, now = Date.now()) {
   if (!F) return { state: 'unread' };
   if (biz.kind === 'loading' || (biz.kind === 'live' && !biz.listingRead)) return { state: 'loading' };
   if (biz.kind !== 'live' && biz.kind !== 'demo') return { state: 'unread' };
-  const n = F.planNumbers({ extra: biz.extra, listingMonthly: biz.listingMonthly, now });
+  // An unread input (listingFailed here; byOrigin and the trajectory in the payload) comes back
+  // flagged (listingUnread, broughtUnread, pace.unread), and each note below says so.
+  const n = F.planNumbers({ extra: biz.extra, listingMonthly: biz.listingMonthly, listingFailed: !!biz.listingFailed, now });
   return n ? { ...n, state: 'ready' } : { state: 'unread' };
 }
 
@@ -292,9 +304,10 @@ function MoneyTab({ t, biz, role }) {
               : tr('coach:business.renew.due', { defaultValue: '{date} · {price} a month', date: bizDate(r.dueAt, true), price: bsBizMoney(r.priceCents) })}
             value={bsBizMoney(r.netCents)} />
         ))}
+        {/* Never "just now": a row past the routes' check cap (RENEWAL_CHECK_CAP, 25) is unchecked on every load. */}
         <Note t={t} style={{ marginTop: 8 }}>
           {tr('coach:business.renew.note', { defaultValue: "Net to you, after Shape's fee." })}
-          {unchecked ? ' ' + tr('coach:business.renew.unchecked', { defaultValue: "Some couldn't be checked with Stripe just now, so they aren't counted above." }) : null}
+          {unchecked ? ' ' + tr('coach:business.renew.unchecked', { defaultValue: "Some couldn't be checked with Stripe, so they aren't counted above." }) : null}
         </Note>
       </div>
     );
@@ -359,10 +372,21 @@ function NumberField({ t, label, value, onChange, prefix, suffix, note, max }) {
   );
 }
 
+// Where the rate starts. An unread listing price is said as unread, with the fallback it started from.
 function rateFromNote(base, tr) {
-  return base.rateFrom === 'listing' ? tr('coach:business.earn.rateListing', { defaultValue: 'your listing price' })
-    : base.rateFrom === 'average' ? tr('coach:business.earn.rateAverage', { defaultValue: "your clients' average" })
-      : tr('coach:business.earn.rateDefault', { defaultValue: 'no listing price yet · set your own' });
+  if (base.rateFrom === 'listing') return tr('coach:business.earn.rateListing', { defaultValue: 'your listing price' });
+  if (base.listingUnread) {
+    return base.rateFrom === 'average'
+      ? tr('coach:business.earn.rateUnreadAverage', { defaultValue: "couldn't read your listing price · your clients' average" })
+      : tr('coach:business.earn.rateUnreadDefault', { defaultValue: "couldn't read your listing price · set your own" });
+  }
+  return base.rateFrom === 'average' ? tr('coach:business.earn.rateAverage', { defaultValue: "your clients' average" })
+    : tr('coach:business.earn.rateDefault', { defaultValue: 'no listing price yet · set your own' });
+}
+// The brought share's note: an unread share (byOrigin null) starts at 0% and says so, never as a measured none.
+function byoNote(base, tr) {
+  if (base.broughtUnread) return tr('coach:business.earn.byoUnread', { defaultValue: "couldn't read who you brought · set your own" });
+  return base.subs ? tr('coach:business.earn.byoNote', { defaultValue: '0% fee · {brought} of your {subs}', brought: base.brought, subs: base.subs }) : tr('coach:business.earn.byoNone', { defaultValue: '0% Shape fee on these' });
 }
 
 // "What clients earn you": type a client count and a rate, read the net (the website's DbzEarnZone).
@@ -382,7 +406,7 @@ export function BSBizEarn({ t, base }) {
           note={tr('coach:business.earn.today', { defaultValue: 'you have {count} today', count: base.clients })} />
         <NumberField t={t} label={tr('coach:business.earn.rate', { defaultValue: 'Monthly rate' })} value={rate} onChange={setRate} prefix="$" max="9999" note={rateFromNote(base, tr)} />
         <NumberField t={t} label={tr('coach:business.earn.byo', { defaultValue: 'Brought by you' })} value={byo} onChange={setByo} suffix="%" max="100"
-          note={base.subs ? tr('coach:business.earn.byoNote', { defaultValue: '0% fee · {brought} of your {subs}', brought: base.brought, subs: base.subs }) : tr('coach:business.earn.byoNone', { defaultValue: '0% Shape fee on these' })} />
+          note={byoNote(base, tr)} />
       </div>
       <div style={{ marginTop: 16, display: 'flex', gap: 24, alignItems: 'flex-end', flexWrap: 'wrap' }}>
         <div>
@@ -510,7 +534,10 @@ export function BSBizPlan({ t, base }) {
     lines.push(tr('coach:business.plan.goalIn', { defaultValue: 'You reach your {goal} goal in {months, plural, one {# month} other {# months}}.', goal: goalMoney, months: planReach }));
   }
   const when = base.pace.fromFirst ? tr('coach:business.since', { defaultValue: 'after your first week' }) : tr('coach:business.window', { defaultValue: 'over the last 3 months' });
-  const noHistory = tr('coach:business.plan.noHistory', { defaultValue: 'no history yet · set your own' });
+  // An unread history (the trajectory read failed) is not an empty one.
+  const noHistory = base.pace.unread
+    ? tr('coach:business.plan.noHistoryUnread', { defaultValue: "couldn't read your history just now · set your own" })
+    : tr('coach:business.plan.noHistory', { defaultValue: 'no history yet · set your own' });
 
   return (
     <div>
@@ -577,6 +604,8 @@ function ClientsTab({ t, biz, now }) {
   let flow;
   if (base.state === 'loading') flow = loading;
   else if (base.state !== 'ready') flow = unread;
+  // An unread history is not one under a month old: the coach may have years of clients.
+  else if (base.pace.unread) flow = <Note t={t}>{tr('coach:business.clients.flowUnread', { defaultValue: "Couldn't read your subscription history just now, and who joined and left is counted from it. Nothing is lost; try again in a moment." })}</Note>;
   else if (base.pace.adds == null) flow = <Note t={t}>{tr('coach:business.clients.flowNone', { defaultValue: 'This fills in after a month with clients: who joined, who left, and how fast.' })}</Note>;
   else flow = <Sentence t={t}>{tr('coach:business.clients.flow', { defaultValue: '{added, plural, one {# client joined} other {# clients joined}} and {ended, plural, one {# left} other {# left}} {when}.', added: base.pace.added, ended: base.pace.ended, when: when(base.pace) })}</Sentence>;
 
@@ -586,7 +615,8 @@ function ClientsTab({ t, biz, now }) {
   else if (base.state !== 'ready') worth = unread;
   else {
     const perClient = base.clients > 0 ? base.mrrNetCents / base.clients : null;
-    if (base.pace.churn == null || perClient == null) worth = <Note t={t}>{tr('coach:business.clients.worthNone', { defaultValue: "This fills in after a month with clients: how long a client stays with you on average, and what that's worth." })}</Note>;
+    if (base.pace.unread) worth = <Note t={t}>{tr('coach:business.clients.worthUnread', { defaultValue: "Couldn't read your subscription history just now, and the average stay is measured from it. Nothing is lost; try again in a moment." })}</Note>;
+    else if (base.pace.churn == null || perClient == null) worth = <Note t={t}>{tr('coach:business.clients.worthNone', { defaultValue: "This fills in after a month with clients: how long a client stays with you on average, and what that's worth." })}</Note>;
     else if (base.pace.churn === 0) worth = <Note t={t}>{tr('coach:business.clients.worthNoneLeft', { defaultValue: "No one has left {when}, so there isn't an average stay to measure yet.", when: when(base.pace) })}</Note>;
     else {
       const lt = F.lifetime({ netPerClientCents: perClient, churn: base.pace.churn });

@@ -13,6 +13,8 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { loadRealModule } from './helpers/load-real-module.mjs';
+// The routes' own renewal rows (both analytics routes build them with it).
+import { renewalRows, RENEWAL_CHECK_CAP } from '../src/lib/coach-renewals.mjs';
 
 const require_ = createRequire(import.meta.url);
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -109,7 +111,8 @@ function world({ signedIn = true, answer = payload(), listing = { role: 'trainer
     analytics: (args) => { st.calls.push(args); return answer instanceof Error ? Promise.reject(answer) : Promise.resolve(answer); },
     openStripe: () => { st.stripe++; },
   };
-  window.ShapeCoachListing = { getMine: () => Promise.resolve(listing ? [listing] : []) };
+  // `listing` an Error: the listing read failed.
+  window.ShapeCoachListing = { getMine: () => (listing instanceof Error ? Promise.reject(listing) : Promise.resolve(listing ? [listing] : [])) };
   window.ShapeBookings = { getCapacity: () => Promise.resolve(waiting == null ? null : { waiting }) };
   window.ShapeConnect = { startOnboarding: (a) => { st.onboard.push(a); return Promise.resolve(); } };
   return st;
@@ -147,7 +150,7 @@ test("Money: today's figures from the trajectory, what's coming from Stripe, and
   // Renewals: only the confirmed two are counted; the cancelled and the unchecked say so.
   assert.match(m.text(), /Renewing this week2 clients · \$333 net/);
   assert.match(m.text(), /Cancelled · ends/);
-  assert.match(m.text(), /Some couldn't be checked with Stripe just now/);
+  assert.match(m.text(), /Some couldn't be checked with Stripe, so they aren't counted above\./);
   // The footnote can't say which client wasn't checked, so Sam's own row does: amber, with no
   // monthly price like a renewal's, and the amount dimmed like money not counted, but not struck.
   assert.match(m.text(), /Sam K\.[^$]* · not checked with Stripe\$153/);
@@ -481,4 +484,215 @@ test('Me: the card is on the coach\'s own Me tab only, and Settings → Your pra
   // Settings: Payouts opens Business on Money (it went straight to Stripe onboarding).
   assert.match(src, /\{ l: tr\('settings:practice\.payouts', \{ defaultValue: 'Payouts' \}\), r: tr\('settings:practice\.payoutsMeta', \{ defaultValue: 'Stripe' \}\), action: \(\) => setShowBusiness\('money'\) \},/);
   assert.match(src, /if \(showBusiness\) \{\n\s+return <BSCoachBusinessPage role=\{tweaks\.role === 'nutritionist' \? 'nutritionist' : 'trainer'\} tab=\{showBusiness\}/);
+});
+
+// ── The website's second sweep (2026-10-18: 47fe066, 2d59cfa, c4460ff), mirrored ────────────────
+test('Renewing this week: none checked with Stripe is no total, not "0 clients · $0"; all cancelled is a checked zero', async () => {
+  const rows = payload().renewals;
+  world({ answer: payload({ renewals: rows.map((r) => ({ ...r, ending: null })) }) });
+  let m = await mount(page());
+  assert.match(m.text(), /Renewing this weekCasey M\./, 'the header carries no total beside the rows');
+  assert.doesNotMatch(m.text(), /0 clients · \$0 net/);
+  assert.equal((m.text().match(/not checked with Stripe/g) || []).length, rows.length, 'each row says it was not checked');
+  await m.unmount();
+  world({ answer: payload({ renewals: rows.map((r) => ({ ...r, ending: true })) }) });
+  m = await mount(page());
+  assert.match(m.text(), /Renewing this week0 clients · \$0 net/, 'every one cancelled was checked, and says so');
+  await m.unmount();
+});
+
+test('the unchecked footnote never says "just now": a row past the check cap is unchecked on every load, in all 13 languages', async () => {
+  // The routes ask Stripe about the first RENEWAL_CHECK_CAP rows; the rest are unchecked every time.
+  assert.equal(RENEWAL_CHECK_CAP, 25);
+  world();
+  const m = await mount(page());
+  assert.match(m.text(), /Net to you, after Shape's fee\. Some couldn't be checked with Stripe, so they aren't counted above\./);
+  await m.unmount();
+  const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSCoachBusiness.jsx'), 'utf8');
+  assert.match(src, /tr\('coach:business\.renew\.unchecked', \{ defaultValue: "Some couldn't be checked with Stripe, so they aren't counted above\." \}\)/);
+  // The words each language used for "just now".
+  const NOW = { en: /just now/, de: /gerade/, es: /ahora mismo/, fr: /pour le moment/, it: /in questo momento/, 'pt-BR': /agora/, ru: /сейчас/, uk: /зараз/, tr: /şu an/, vi: /hiện/i, id: /saat ini/, ha: /a yanzu/, pcm: /right now/ };
+  for (const [loc, re] of Object.entries(NOW)) {
+    const v = JSON.parse(readFileSync(join(ROOT, `mobile-app/src/i18n/catalogs/${loc}/coach.json`), 'utf8'))['business.renew.unchecked'];
+    assert.ok(v, loc + ' has the footnote');
+    assert.doesNotMatch(v, re, `${loc}: "${v}"`);
+  }
+});
+
+test('a renewal whose name could not be read is —, from the routes\' own rows, and still reads as a renewal', async () => {
+  const now = Date.now();
+  const picked = [
+    { client_id: 'c1', stripe_subscription_id: 'sub_1', current_period_end: new Date(now + DAY).toISOString(), price_cents: 18000, fee_bps: 1500 },
+    { client_id: 'c2', stripe_subscription_id: 'sub_2', current_period_end: new Date(now + 2 * DAY).toISOString(), price_cents: 18000, fee_bps: 0 },
+  ];
+  // The profiles read failed, so there are no names; Stripe answered for both.
+  const rows = renewalRows(picked, { names: null, flags: new Map([['sub_1', false], ['sub_2', true]]), cutCents: (p, bps) => Math.round(p * (1 - (bps == null ? 1500 : bps) / 10000)) });
+  assert.deepEqual(rows.map((r) => r.name), ['—', '—']);
+  world({ answer: payload({ renewals: rows }) });
+  const m = await mount(page());
+  const labels = (s) => [...m.host.querySelectorAll('div')].filter((d) => d.textContent === s).length;
+  assert.deepEqual([labels('—'), labels('Client')], [2, 0], 'not a row of "Client"s');
+  assert.match(m.text(), /Renewing this week1 client · \$153 net—[^$]* · \$180 a month\$153—Cancelled · ends /);
+  await m.unmount();
+});
+
+test('a failed analytics read says so and never loads forever: the page, each zone of a partial read, and the Me card', async () => {
+  world({ answer: new Error('500') });
+  let m = await mount(page({ tab: 'plan' }));
+  assert.match(m.text(), /Couldn't read your business figures just now\. Nothing is lost\.Try again/);
+  assert.doesNotMatch(m.text(), /Reading your numbers/);
+  await m.unmount();
+  window.localStorage.removeItem('bs_pro_rev_hidden');
+  const card = () => inChrome(React.createElement(BIZ.BSCoachBusinessCard, { role: 'trainer', accent: '#c0533b', onOpen: () => {} }));
+  m = await mount(card());
+  assert.match(m.text(), /—net a monthCouldn't read your numbers\. Tap to open Business\./);
+  await m.unmount();
+  // Every part of the payload unread (the route sends null for each read that failed), and the
+  // waiting list too: each zone on each tab says it couldn't read, none says it is loading.
+  world({ answer: payload({ stripe: null, renewals: null, trajectory: null, byOrigin: null, churn: null, metrics: { activeClients: 0, mrrNetCents: null, mrrGrossCents: null } }), waiting: null });
+  m = await mount(page());
+  assert.match(m.text(), /Your moneyCouldn't read your payouts just now\./);
+  assert.match(m.text(), /Renewing this weekCouldn't read your subscriptions just now\./);
+  assert.match(m.text(), /last 13 weeksCouldn't read your subscriptions just now\./);
+  assert.doesNotMatch(m.text(), /Reading your numbers/);
+  await click(button(m.host, /^Plan$/));
+  assert.equal((m.text().match(/Couldn't read your subscriptions just now/g) || []).length, 2);
+  assert.doesNotMatch(m.text(), /Reading your numbers/);
+  await click(button(m.host, /^Clients$/));
+  assert.match(m.text(), /Joined and leftCouldn't read your subscriptions[^]*What a client is worthCouldn't read your subscriptions[^]*Your waiting listCouldn't read your waiting list just now\.Left in the last 90 daysCouldn't read your cancellations just now\./);
+  assert.doesNotMatch(m.text(), /Reading your numbers/);
+  await m.unmount();
+});
+
+// The data layer's analytics read, lifted from the shipped shapeBackend.js and run against a
+// recorded fetch (as coach-capacity.test.mjs lifts the capacity calls).
+function liftAnalytics() {
+  const src = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
+  const i = src.indexOf('async function getCoachAnalytics(');
+  const j = src.indexOf('\n}\n', i) + 3;
+  const k = src.indexOf('async function liveAccessToken() {');
+  const l = src.indexOf('window.ShapeApi = ', k);
+  assert.ok(i > 0 && j > i && k > 0 && l > k, 'could not lift the analytics read');
+  assert.match(src, /window\.ShapeCoachBusiness = \{\n\s+analytics: getCoachAnalytics,/);
+  const calls = [];
+  let answer = { status: 200, body: {} };
+  const fetch = async (url, init = {}) => {
+    calls.push({ url, auth: new Headers(init.headers).get('Authorization') });
+    if (answer instanceof Error) throw answer;
+    return { ok: answer.status < 400, status: answer.status, json: async () => answer.body };
+  };
+  const state = { session: { access_token: 'tok' }, user: null };
+  const normalizeRole = (r) => (['client', 'trainer', 'nutritionist', 'dietitian'].includes(r) ? r : 'client');
+  const providerDiscipline = (r) => (r === 'dietitian' ? 'nutritionist' : r);
+  const read = new Function('fetch', 'apiBaseUrl', 'state', 'normalizeRole', 'providerDiscipline', 'supabase', 'Headers',
+    src.slice(k, l) + '\n' + src.slice(i, j) + '\nreturn getCoachAnalytics;')(fetch, 'https://shape.test', state, normalizeRole, providerDiscipline, null, Headers);
+  return { read, calls, state, answer: (a) => { answer = a; } };
+}
+
+test('the data layer: a refused token or a lost session is a failed read (Try again), not "no listing yet"', async () => {
+  const a = liftAnalytics();
+  a.answer({ status: 200, body: { isTrainer: true, providerId: 7 } });
+  assert.deepEqual(await a.read({ role: 'trainer', renewals: true }), { isTrainer: true, providerId: 7 });
+  assert.deepEqual(a.calls[0], { url: 'https://shape.test/api/trainer/analytics?renewals=1', auth: 'Bearer tok' });
+  // Signed in with no listing of this role: the route answers isTrainer: false, which IS "none".
+  a.answer({ status: 200, body: { isTrainer: false } });
+  assert.equal(await a.read({ role: 'trainer' }), null);
+  // The route answers 401 only when it has no user: for a signed-in coach that is a read that
+  // failed, and the page says so with Try again, not "fills in once your application is approved".
+  a.answer({ status: 401, body: { error: 'Authentication required.' } });
+  await assert.rejects(a.read({ role: 'trainer' }));
+  a.answer({ status: 500, body: { error: 'Could not read your listing.' } });
+  await assert.rejects(a.read({ role: 'trainer' }), /Could not read your listing/);
+  a.answer(new Error('offline'));
+  await assert.rejects(a.read({ role: 'trainer' }));
+  // No token to read with (the session was lost under a cached sign-in): nothing is asked, and it fails.
+  a.state.session = null;
+  a.calls.length = 0;
+  await assert.rejects(a.read({ role: 'trainer' }));
+  assert.equal(a.calls.length, 0);
+});
+
+test('an unread history says so: the Plan\'s notes and the Clients tab, never "no history yet"', async () => {
+  // The trajectory read failed; the active subscriptions were read, so today's figures stand.
+  const unread = payload({ trajectory: null, metrics: { activeClients: 11, mrrNetCents: 168300, mrrGrossCents: 198000 } });
+  assert.equal(CF.planNumbers({ extra: unread, listingMonthly: 180 }).pace.unread, true);
+  world({ answer: unread });
+  let m = await mount(page({ tab: 'plan' }));
+  assert.match(m.text(), /You have 11 clients and net \$1,683 a month\./, 'the plan still starts from today');
+  assert.equal((m.text().match(/couldn't read your history just now · set your own/g) || []).length, 2, 'new clients and churn both say so');
+  assert.doesNotMatch(m.text(), /no history yet/);
+  await click(button(m.host, /^Clients$/));
+  assert.match(m.text(), /Joined and leftCouldn't read your subscription history just now, and who joined and left is counted from it\. Nothing is lost; try again in a moment\./);
+  assert.match(m.text(), /What a client is worthCouldn't read your subscription history just now, and the average stay is measured from it\. Nothing is lost; try again in a moment\./);
+  assert.doesNotMatch(m.text(), /This fills in after a month/);
+  await m.unmount();
+  // A history that was read but is under a month old is still "no history yet".
+  world({ answer: payload({}, { firstDays: 10 }) });
+  m = await mount(page({ tab: 'plan' }));
+  assert.equal((m.text().match(/no history yet · set your own/g) || []).length, 2);
+  assert.doesNotMatch(m.text(), /couldn't read your history/);
+  await click(button(m.host, /^Clients$/));
+  assert.match(m.text(), /This fills in after a month with clients: who joined/);
+  assert.doesNotMatch(m.text(), /subscription history/);
+  await m.unmount();
+});
+
+test('an unread brought share and listing price say so in What clients earn you, and start from stated fallbacks', async () => {
+  const p = payload({ byOrigin: null });
+  world({ answer: p, listing: new Error('500') });
+  let m = await mount(page({ tab: 'plan' }));
+  assert.match(m.text(), /couldn't read your listing price · your clients' average/);
+  assert.match(m.text(), /couldn't read who you brought · set your own/);
+  assert.doesNotMatch(m.text(), /no listing price yet|0% Shape fee on these|0% fee · /);
+  const base = CF.planNumbers({ extra: p, listingMonthly: null, listingFailed: true });
+  assert.deepEqual([base.rateFrom, base.listingUnread, base.broughtUnread], ['average', true, true]);
+  const inputs = [...m.host.querySelectorAll('input[type="number"]')].map((i) => i.value);
+  assert.deepEqual(inputs.slice(1), [String(base.rateCents / 100), '0'], 'the clients\' average, and 0% brought');
+  await m.unmount();
+  // A listing read that answered with no listing of this role is a read: the average, said plainly.
+  world({ listing: { role: 'nutritionist', monthly: 200 } });
+  m = await mount(page({ tab: 'plan' }));
+  assert.match(m.text(), /your clients' average/);
+  assert.doesNotMatch(m.text(), /couldn't read/);
+  await m.unmount();
+  // No listing service to ask is an unread price too.
+  world();
+  window.ShapeCoachListing = undefined;
+  m = await mount(page({ tab: 'plan' }));
+  assert.match(m.text(), /couldn't read your listing price · your clients' average/);
+  await m.unmount();
+  // With no clients to average, the unread price starts at the default, and says set your own.
+  const Earn = ({ base: b }) => React.createElement(BIZ.BSBizEarn, { t: window.useBS(), base: b });
+  m = await mount(inChrome(React.createElement(Earn, { base: { state: 'ready', clients: 0, mrrNetCents: 0, rateCents: CF.DEFAULT_RATE_CENTS, rateFrom: 'default', listingUnread: true, byoShare: 0, brought: 0, subs: 0, broughtUnread: false, pace: {} } })));
+  assert.match(m.text(), /couldn't read your listing price · set your own/);
+  assert.match(m.text(), /0% Shape fee on these/, 'a read with no subscriptions is the plain note');
+  await m.unmount();
+});
+
+test('the preview is for a signed-out viewer only: a signed-in coach never sees sample figures while reads are pending, or after they fail', async () => {
+  const demo = BIZ.bsBizDemo().extra;
+  const esc = (s) => s.replace(/[.$]/g, '\\$&');
+  const sample = new RegExp([...demo.renewals.map((r) => r.name), money(demo.stripe.balanceCents), money(demo.metrics.mrrNetCents)].map(esc).join('|'));
+  const card = () => inChrome(React.createElement(BIZ.BSCoachBusinessCard, { role: 'trainer', accent: '#c0533b', onOpen: () => {} }));
+  window.localStorage.removeItem('bs_pro_rev_hidden');
+  // Pending: no read answers.
+  world({ answer: new Promise(() => {}) });
+  window.ShapeCoachListing.getMine = () => new Promise(() => {});
+  window.ShapeBookings.getCapacity = () => new Promise(() => {});
+  for (const el of [page(), card()]) {
+    const m = await mount(el);
+    assert.match(m.text(), /Reading your numbers…/);
+    assert.doesNotMatch(m.text(), /preview|Sample numbers/i);
+    assert.doesNotMatch(m.text(), sample);
+    await m.unmount();
+  }
+  // Failed.
+  world({ answer: new Error('500') });
+  for (const el of [page(), card()]) {
+    const m = await mount(el);
+    assert.match(m.text(), /Couldn't read your/);
+    assert.doesNotMatch(m.text(), /preview|Sample numbers/i);
+    assert.doesNotMatch(m.text(), sample);
+    await m.unmount();
+  }
 });

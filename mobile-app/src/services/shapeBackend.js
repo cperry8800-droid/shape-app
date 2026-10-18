@@ -1671,15 +1671,18 @@ async function getProviderCapacity({ role } = {}) {
 // The rollup the website's Business page reads (/api/trainer/analytics, /api/nutritionist/analytics):
 // today's clients and net, the 104-week trajectory, payouts from Stripe, where clients came from,
 // who left. `renewals: true` adds this week's renewals, each checked with Stripe, so only the
-// Business page asks for them; the Me card does not. null: signed out, or no listing of that role.
-// A failed read throws, so the page says it could not read rather than "no clients".
+// Business page asks for them; the Me card does not. null: no listing of that role (the route's
+// isTrainer: false). A failed read throws, so the page says it could not read rather than "no clients".
+// ⚠ A REFUSED TOKEN OR A LOST SESSION IS A FAILED READ, NOT "NO LISTING" (the website's Business
+// sweep, #2394: a failed analytics read says so). The page only asks for a signed-in coach, and
+// the route answers 401 only when it has no user; returned as null, both told an approved coach
+// "Business fills in once your coach application is approved". They throw: "Couldn't read", Try again.
 async function getCoachAnalytics({ role, renewals = false } = {}) {
   const token = await liveAccessToken();
-  if (!token) return null;
+  if (!token) throw new Error('Sign in again to read your business figures.');
   const r = providerDiscipline(normalizeRole(role));
   if (r !== 'trainer' && r !== 'nutritionist') return null;
   const res = await shapeApiFetch(`/api/${r}/analytics${renewals ? '?renewals=1' : ''}`, { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } });
-  if (res.status === 401) return null;
   const json = await res.json().catch(() => null);
   if (!res.ok || !json) throw new Error((json && json.error) || 'Could not read your business figures.');
   return json[r === 'nutritionist' ? 'isNutritionist' : 'isTrainer'] ? json : null;
