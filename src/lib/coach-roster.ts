@@ -11,6 +11,7 @@ import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { DAY_MS } from '@/lib/time';
 import { clientNames } from '@/lib/coach-messages';
+import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
 import { OPEN_SUB_STATUSES, openSubsAt } from './coach-trajectory.mjs';
 
 // `.toISOString()` throws on an invalid date; every caller here wants "no
@@ -95,12 +96,21 @@ export async function coachClientsResponse(
   // the rows openSubsAt keeps (the badge's rows: started, dated, not ended), so the two count the
   // same people. The coach's profiles, logs and plans reach a past_due client from
   // 2026-10-18-coach-access-past-due.sql; each such client carries `paymentRetrying`.
-  const { data: subRows, error: subErr } = await supabase
-    .from('subscriptions')
-    .select('*')
-    .eq('provider_role', role)
-    .eq('provider_id', providerId)
-    .in('status', OPEN_SUB_STATUSES);
+  // ⚠ EVERY ROW, A PAGE AT A TIME (Codex on #2400): one select stops at 1,000 rows with no error,
+  // so past that the list and its `onPlan` count left clients out while the badge, read the same
+  // way by the dashboard routes, counted them. A read past the walk's ceiling is unread, as a
+  // failed one is.
+  const { data: subRows, error: subErr } = await readAllById<{ id: string }>((after) => {
+    let q = supabase
+      .from('subscriptions')
+      .select('*')
+      .eq('provider_role', role)
+      .eq('provider_id', providerId)
+      .in('status', OPEN_SUB_STATUSES);
+    if (after) q = q.gt('id', after);
+    // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
+    return q.order('id', { ascending: true }).limit(ROW_PAGE);
+  });
   if (subErr) {
     console.warn(
       `[shape-app] ${role} roster: subscriptions read failed — REVENUE and TENURE render "Not shared" rather than $0:`,

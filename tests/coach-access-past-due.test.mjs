@@ -337,6 +337,7 @@ test('the roster\'s client count is the dashboard\'s activeClients on the same r
         ['@/lib/request-auth', { clientForRequest: async () => client, currentUser: async () => ({ id: COACH }) }],
         ['@/lib/time', time],
         ['@/lib/coach-messages', messages],
+        ['@/lib/read-all-by-id', await loadRealModule(join(ROOT, 'src/lib/read-all-by-id.ts'), { typescript: true })],
       ]),
     });
     const list = await (await roster.coachClientsResponse(role, new Request(`https://x/api/${role}/clients`))).json();
@@ -379,9 +380,21 @@ test('the Clients pages count people on a plan, as the badge does, and say "—"
   assert.equal(dashPlanClientCount([rec(true), rec(null)]), null, 'unread is unknown, never a count');
   assert.equal(dashPlanClientCount([rec('absent'), rec('absent')]), 2, 'a record with no flag (the preview, an older route) counts, as before');
   assert.equal(dashPlanClientCount([]), 0);
+  // An empty list cannot say row by row that its plans went unread, so the route's own count does
+  // (Codex on #2400: a failed read with no session rows read "0 ACTIVE CLIENTS").
+  assert.equal(dashPlanClientCount([], null), null, 'the route could not read the plans: unknown, not 0');
+  assert.equal(dashPlanClientCount([], 0), 0, 'read, and nobody on a plan');
+  assert.equal(dashPlanClientCount([rec(true), rec(false)], 1), 1);
+  assert.equal(dashPlanClientCount([rec(true)], undefined), 1, 'the preview has no route count');
+  // useDashboard carries the roster route's totals.onPlan to the pages, on both live paints.
+  const data = stripComments(readFileSync(join(ROOT, 'public/newdesign/dashData.jsx'), 'utf8'));
+  assert.match(data, /const planCount = roster\.totals && roster\.totals\.onPlan !== undefined \? roster\.totals\.onPlan : undefined;\n\s+if \(on\) setState\(\{ loading: false, clients: base, source: "live", today, planCount \}\);/);
+  assert.match(data, /source: "live",\n\s+today,\n\s+planCount,\n\s+\}\);/, 'the enriched paint keeps it');
+  assert.match(data, /source: state\.source, tuning, planCount: state\.planCount \};/);
   for (const page of ['trainerClientsPage.jsx', 'nutritionistClientsPage.jsx']) {
     const src = stripComments(readFileSync(join(ROOT, 'public/newdesign', page), 'utf8'));
-    assert.match(src, /const activeCount = dashPlanClientCount\(clients\);/, page);
+    assert.match(src, /const \{ loading, clients, triage, today: liveToday, source, planCount \} = useDashboard\("(?:trainer|nutritionist)"\);/, page);
+    assert.match(src, /const activeCount = dashPlanClientCount\(clients, planCount\);/, page);
     assert.doesNotMatch(src, /const activeCount = clients\.length;/, page);
     assert.match(src, /const activeWord = activeCount == null \? "\\u2014" : String\(activeCount\);/, page);
     assert.match(src, /eyebrow=\{activeWord \+ " ACTIVE CLIENT" \+ \(activeCount === 1 \? "" : "S"\)/, page);

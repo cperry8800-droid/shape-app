@@ -9,7 +9,7 @@ const NCP_FILTERS = [["all", "All"], ["red", "Needs you"], ["amber", "Watch"], [
 const NCP_FILTER_KEYS = NCP_FILTERS.map((f) => f[0]);
 
 function NutritionistClientsPage() {
-  const { loading, clients, triage, today: liveToday, source } = useDashboard("nutritionist");
+  const { loading, clients, triage, today: liveToday, source, planCount } = useDashboard("nutritionist");
   const [sharedBadge, setSharedBadge] = React.useState(0);
   // ⚠ THE SEARCH BOX IS DELIBERATELY NOT REMEMBERED. A filter is a standing preference
   // about how you read your roster; a half-typed name is a moment. Restoring one would
@@ -32,7 +32,7 @@ function NutritionistClientsPage() {
   // The people with an open plan, as the Clients badge counts them (dashData.jsx dashPlanClientCount);
   // null when the plans could not be read. The list below keeps everyone, people from recent
   // sessions with no plan included, so search and the export still say how many rows there are.
-  const activeCount = dashPlanClientCount(clients);
+  const activeCount = dashPlanClientCount(clients, planCount);
   const activeWord = activeCount == null ? "\u2014" : String(activeCount);
   const mrrCents = clients.reduce((s, c) => s + ((c.payments && c.payments.mrrCents) || 0), 0);
   const eyesCount = triage.filter((r) => r.severity === "red" || r.severity === "amber").length;

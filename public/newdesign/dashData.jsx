@@ -294,7 +294,10 @@ function _dashRecordFromLive(row, ov, notesByClient, progressRead) {
 // They stay on the list. null when the plans could not be read (the route sends onPlan: null),
 // which the page shows as "—", never as a count. A record with no `onPlan` at all (the preview's
 // cast, or a route from before the flag) is counted, as every one of them was before.
-function dashPlanClientCount(clients) {
+// `planCount` is the roster route's own `totals.onPlan` (useDashboard): null when it could not
+// read the plans, which an empty list cannot show row by row (Codex on #2400: it read 0).
+function dashPlanClientCount(clients, planCount) {
+  if (planCount === null) return null;
   let n = 0;
   for (const c of Array.isArray(clients) ? clients : []) {
     const on = c && c.payments ? c.payments.onPlan : undefined;
@@ -515,7 +518,7 @@ function useCoachThresholds(role) {
 }
 
 function useDashboard(role) {
-  const [state, setState] = React.useState({ loading: true, clients: [], source: null, today: null, client: null });
+  const [state, setState] = React.useState({ loading: true, clients: [], source: null, today: null, client: null, planCount: undefined });
   const lastProgressRead = React.useRef(new Map());
   const [refreshKey, setRefreshKey] = React.useState(0);
   React.useEffect(() => {
@@ -577,7 +580,9 @@ function useDashboard(role) {
         // ⚠ The third argument is deliberately absent, not null: undefined is
         // "the notes have not been read yet", null would claim the read failed.
         const base = (roster.clients || []).map((row) => _dashRecordFromLive(row, null, undefined, { state: "loading", checkedAt: lastProgressRead.current.get(row.id) || null }));
-        if (on) setState({ loading: false, clients: base, source: "live", today });
+        // The route's count of people with an open plan: null when it could not read the plans.
+        const planCount = roster.totals && roster.totals.onPlan !== undefined ? roster.totals.onPlan : undefined;
+        if (on) setState({ loading: false, clients: base, source: "live", today, planCount });
         const rows = roster.clients || [];
         // The per-client overviews (one batched request per 50 clients) and the
         // ONE notes doc resolve together — the notes read is a single round trip
@@ -596,6 +601,7 @@ function useDashboard(role) {
           }),
           source: "live",
           today,
+          planCount,
         });
       } catch (e) { demo(null); }
     })();
@@ -630,7 +636,7 @@ function useDashboard(role) {
   // `tuning.refused` is carried out, not swallowed: a stored override the engine
   // rejected must not render in the panel as an active tuning while the roster runs
   // on the house default — which is exactly what refuse-don't-clamp exists to prevent.
-  return { loading: state.loading, clients: state.clients, triage, queue, joint, today: state.today, client: state.client, source: state.source, tuning };
+  return { loading: state.loading, clients: state.clients, triage, queue, joint, today: state.today, client: state.client, source: state.source, tuning, planCount: state.planCount };
 }
 
 // ── The coach's own live figures (review 2026-09-09, R9) ────────────────────

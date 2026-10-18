@@ -28,7 +28,8 @@ function makeClient({ subs = { data: [], error: null }, sess = { data: [], error
     const chain = {
       select: () => chain,
       eq: (col, v) => { filters.push([table, 'eq', col, v]); return chain; },
-      in: (col, v) => { filters.push([table, 'in', col, v]); return Promise.resolve(result); },
+      in: (col, v) => { filters.push([table, 'in', col, v]); return chain; },
+      gt: (col, v) => { filters.push([table, 'gt', col, v]); return chain; },
       order: () => chain,
       limit: () => Promise.resolve(result),
       maybeSingle: async () => result,
@@ -61,6 +62,7 @@ async function load(client) {
       }],
       ['@/lib/time', await import(pathToFileURL(join(ROOT, 'src/lib/time.ts')).href).catch(() => ({ DAY_MS: 86400000 }))],
       ['@/lib/coach-messages', await loadRealModule(join(ROOT, 'src/lib/coach-messages.ts'), { typescript: true, registry: new Map([['@/lib/supabase/server', {}]]) })],
+      ['@/lib/read-all-by-id', await loadRealModule(join(ROOT, 'src/lib/read-all-by-id.ts'), { typescript: true })],
     ]),
   });
 }
@@ -239,4 +241,45 @@ test('a failed subscriptions read leaves "on a plan" unknown, never "no plan"', 
   assert.deepEqual(body.clients.map((c) => c.onPlan), [null, null]);
   assert.equal(body.totals.onPlan, null);
   assert.deepEqual(body.clients.map((c) => c.paymentRetrying), [false, false]);
+});
+
+// ⚠ EVERY OPEN PLAN, A PAGE AT A TIME (Codex on #2400). One select stopped at 1,000 rows with no
+// error, so a coach with more clients than that saw the list and its onPlan count stop short while
+// the Clients badge (the dashboard routes, which walk every page) counted them all.
+test('the roster reads every open plan in 1,000-row pages: 2,500 clients all listed and counted', async () => {
+  const at = new Date(Date.now() - 200 * 86400000).toISOString();
+  const all = Array.from({ length: 2500 }, (_, i) => ({ id: 'sub-' + String(i).padStart(5, '0'), client_id: 'c' + i, status: 'active', price_cents: 1000, fee_bps: 1500, created_at: at }));
+  const pages = [];
+  const client = makeClient();
+  client.from = (table) => {
+    if (table !== 'subscriptions') return makeClient({ sess: { data: [], error: null } }).from(table);
+    const q = { after: null, limit: Infinity, order: null, filters: [] };
+    const chain = {
+      select: () => chain,
+      eq: (col, v) => { q.filters.push(['eq', col, v]); return chain; },
+      in: (col, v) => { q.filters.push(['in', col, v]); return chain; },
+      gt: (col, v) => { q.after = v; q.filters.push(['gt', col, v]); return chain; },
+      order: (col, o) => { q.order = [col, o && o.ascending]; return chain; },
+      limit: (n) => { q.limit = n; return chain; },
+      then: (res, rej) => {
+        pages.push(q);
+        // At most 1,000 rows a response, whatever was asked, as PostgREST answers.
+        const rows = all.filter((r) => q.after == null || r.id > q.after).slice(0, Math.min(q.limit, 1000));
+        return Promise.resolve({ data: rows, error: null }).then(res, rej);
+      },
+    };
+    return chain;
+  };
+  const mod = await load(client);
+  const body = await (await mod.coachClientsResponse('trainer', new Request('https://x/api/trainer/clients'))).json();
+  assert.equal(body.clients.length, 2500, 'every client on the list');
+  assert.equal(body.totals.onPlan, 2500, 'and in the count the badge gives');
+  assert.equal(body.totals.mrrCents, 2500 * 1000);
+  assert.equal(pages.length, 3);
+  assert.deepEqual(pages.map((p) => p.after), [null, 'sub-00999', 'sub-01999'], 'each page starts after the last id');
+  for (const p of pages) {
+    assert.deepEqual(p.order, ['id', true]);
+    assert.equal(p.limit, 1000);
+    assert.ok(p.filters.some(([op, col]) => op === 'in' && col === 'status'), 'each page keeps the open statuses');
+  }
 });
