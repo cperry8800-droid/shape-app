@@ -31,8 +31,11 @@ export function rmsLevel(frame) {
  * quiet for silenceMs) · 'nospeech' (nothing said for noSpeechMs) · and 'done' or
  * 'nospeech' at maxMs, so a stuck mic can never hold the turn open.
  * The threshold rises with a noisy room: two and a half times its quiet level.
+ * ⚠ SHE ANSWERS AFTER 0.8 SECONDS OF QUIET, NOT 1.3 (owner, 2026-10-18: "speed up ... reaction
+ * time"). Every turn waited out the whole pause before anything was sent. Half a second is still
+ * a breath between words, and a tap on her face sends at once.
  */
-export function createSilenceGate({ speechLevel = 0.03, silenceMs = 1300, minSpeechMs = 200, noSpeechMs = 10000, maxMs = 30000 } = {}) {
+export function createSilenceGate({ speechLevel = 0.03, silenceMs = 800, minSpeechMs = 200, noSpeechMs = 10000, maxMs = 30000 } = {}) {
   let started = null, lastAt = null, lastSpeech = null, speechMs = 0, floor = null;
   const heard = () => speechMs >= minSpeechMs;
   return {

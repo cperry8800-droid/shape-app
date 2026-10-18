@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import {
   TONES, DEFAULT_TONE, normalizeTone, FRAMING_RULES, toneInstruction, voiceForTone,
   voiceStyleForTone, speakableDirective, encodeSpokenText, decodeSpokenText, containsShaming,
-  NORA_VOICES, normalizeVoice, resolveVoice, resolveVoiceWithDefault, OPENAI_TTS_VOICES,
+  NORA_VOICES, normalizeVoice, resolveVoice, resolveVoiceWithDefault, OPENAI_TTS_VOICES, speechInstructions, NORA_DELIVERY,
 } from '../src/lib/ai/tone.mjs';
 
 test('tone normalizes safely and defaults to supportive', () => {
@@ -40,22 +40,42 @@ test('the two tones are genuinely different framings', () => {
   assert.match(d, /concise|factual/i);
 });
 
-test('voice maps per tone (supportive warmer, direct neutral)', () => {
-  assert.equal(voiceForTone('supportive'), 'shimmer');
-  assert.equal(voiceForTone('direct'), 'alloy');
-  assert.equal(voiceForTone('bogus'), 'shimmer'); // default
+test('voice maps per tone, in a woman\'s voice either way (supportive warm, direct bright)', () => {
+  assert.equal(voiceForTone('supportive'), 'coral');
+  assert.equal(voiceForTone('direct'), 'nova');
+  assert.equal(voiceForTone('bogus'), 'coral'); // default
 });
 
-test('resolveVoiceWithDefault: picker wins, then the env voice, then the tone default', () => {
+// Nora is a woman's voice at every step (owner, 2026-10-18: "her voice needs to sound more feminine").
+const MENS_VOICES = ['alloy', 'ash', 'ballad', 'echo', 'fable', 'onyx', 'verse'];
+
+test('resolveVoiceWithDefault: picker wins, then the env voice, then the tone default, and all of them are hers', () => {
   // A member's explicit pick always wins over the env default.
-  assert.equal(resolveVoiceWithDefault('onyx', 'fable', 'supportive'), 'onyx');
-  // No pick → the owner's env voice (any valid API voice, incl. non-picker ones).
-  assert.equal(resolveVoiceWithDefault(undefined, 'fable', 'supportive'), 'fable');
-  assert.equal(resolveVoiceWithDefault('auto', 'FABLE ', 'direct'), 'fable'); // trimmed + case-insensitive
+  assert.equal(resolveVoiceWithDefault('sage', 'nova', 'supportive'), 'sage');
+  // No pick → the owner's env voice, when it is one of hers.
+  assert.equal(resolveVoiceWithDefault(undefined, 'nova', 'supportive'), 'nova');
+  assert.equal(resolveVoiceWithDefault('auto', 'SHIMMER ', 'direct'), 'shimmer'); // trimmed + case-insensitive
+  // A man's voice, picked by an older build or set as the env default, falls to the tone's own.
+  for (const v of MENS_VOICES) {
+    assert.equal(resolveVoiceWithDefault(v, undefined, 'supportive'), 'coral', 'picked ' + v);
+    assert.equal(resolveVoiceWithDefault(undefined, v, 'direct'), 'nova', 'env ' + v);
+  }
   // Junk/unset env → the tone default (never trusted into the API call).
-  assert.equal(resolveVoiceWithDefault(undefined, 'robot9000', 'supportive'), 'shimmer');
-  assert.equal(resolveVoiceWithDefault(undefined, '', 'direct'), 'alloy');
+  assert.equal(resolveVoiceWithDefault(undefined, 'robot9000', 'supportive'), 'coral');
+  assert.equal(resolveVoiceWithDefault(undefined, '', 'direct'), 'nova');
   assert.ok(OPENAI_TTS_VOICES.includes('fable'));
+  for (const v of NORA_VOICES) assert.ok(OPENAI_TTS_VOICES.includes(v.id) && !MENS_VOICES.includes(v.id), v.id);
+});
+
+test('her delivery is brisk, and an owner\'s own instructions get her voice and pace added', () => {
+  for (const t of ['supportive', 'direct']) {
+    const s = speechInstructions('', t);
+    assert.equal(s, voiceStyleForTone(t), 'unset: the tone\'s own style');
+    assert.match(s, /woman/);
+    assert.match(s, /brisk, lively pace/);
+    assert.doesNotMatch(s, /relaxed/i);
+  }
+  assert.equal(speechInstructions('  Calm and bright.  ', 'direct'), 'Calm and bright. ' + NORA_DELIVERY);
 });
 
 test('voiceStyleForTone steers delivery per tone and defaults supportive', () => {
@@ -81,10 +101,11 @@ test('a member can pick a voice; unknown/auto falls back to the tone default', (
   assert.equal(normalizeVoice('auto'), null);     // sentinel → tone default
   assert.equal(normalizeVoice('haxxor'), null);   // junk → tone default (never trusted)
   // resolveVoice: explicit choice wins; else the tone's default voice.
-  assert.equal(resolveVoice('onyx', 'supportive'), 'onyx');
-  assert.equal(resolveVoice('auto', 'supportive'), 'shimmer');
-  assert.equal(resolveVoice(undefined, 'direct'), 'alloy');
-  assert.equal(resolveVoice('not-a-voice', 'direct'), 'alloy');
+  assert.equal(resolveVoice('sage', 'supportive'), 'sage');
+  assert.equal(resolveVoice('auto', 'supportive'), 'coral');
+  assert.equal(resolveVoice(undefined, 'direct'), 'nova');
+  assert.equal(resolveVoice('not-a-voice', 'direct'), 'nova');
+  assert.equal(resolveVoice('onyx', 'direct'), 'nova', 'a man\'s voice an older build saved');
 });
 
 const DIRECTIVE = {
