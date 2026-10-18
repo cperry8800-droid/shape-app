@@ -1,12 +1,13 @@
 // tests/checkin-card.test.mjs
 //
-// The daily check-in as one card on Home (owner, 2026-10-18: "make it easier to update each
-// day and less effort for user each day"; design A of the preview, rulings in
-// docs/REVIEW-2026-10-18-daily-checkin.md §5). One question at a time, and every tap saves.
+// The daily check-in: a card on Home and the walkthrough it opens (owner, 2026-10-18: "make it
+// easier to update each day and less effort for user each day", then "have it be a step by step,
+// almost like a tutorial that walks through each check", with the member's own last days under
+// every step; rulings in docs/REVIEW-2026-10-18-daily-checkin.md §5). Every tap saves.
 //
 // The rules are pure functions and run here as they ship. The card is mounted on jsdom with the
-// real English catalog behind the real ICU translator, so the copy and the streak's plural are
-// what a member reads.
+// real English catalog behind the real ICU translator, so the copy and the plurals are what a
+// member reads. The walkthrough portals into the page, so the mount reads the whole document.
 import test, { mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -26,7 +27,7 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const React = require_('react');
 const ReactDOMClient = require_('react-dom/client');
-const CARD = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/BSCheckinCard.jsx'), { registry: new Map([['react', React]]) });
+const CARD = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/BSCheckinCard.jsx'), { registry: new Map([['react', React], ['react-dom', require_('react-dom')]]) });
 const { THRESHOLDS } = require_('../public/newdesign/dashSignals.js');
 
 const appRequire = createRequire(join(ROOT, 'mobile-app/package.json'));
@@ -77,19 +78,21 @@ async function mount(props = {}) {
   const flush = () => React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
   await React.act(async () => { root.render(React.createElement(CARD.BSCheckinCard, props)); });
   await flush();
-  const button = (re) => [...host.querySelectorAll('button')].find((b) => re.test(b.textContent.trim()) || re.test(b.getAttribute('aria-label') || ''));
+  const buttons = (re) => [...document.body.querySelectorAll('button')].filter((b) => re.test(b.textContent.trim()) || re.test(b.getAttribute('aria-label') || ''));
+  const click = async (re, nth = 0) => {
+    const b = buttons(re)[nth];
+    assert.ok(b, `no button matching ${re} in: ${document.body.textContent}`);
+    await React.act(async () => { b.click(); });
+    await flush();
+  };
   return {
     host,
     flush,
-    button,
-    text: () => host.textContent,
-    pressed: () => [...host.querySelectorAll('button[aria-pressed="true"]')].map((b) => b.textContent.trim()),
-    async click(re) {
-      const b = button(re);
-      assert.ok(b, `no button matching ${re} in: ${host.textContent}`);
-      await React.act(async () => { b.click(); });
-      await flush();
-    },
+    button: (re) => buttons(re)[0],
+    text: () => document.body.textContent,
+    walk: () => document.querySelector('[data-bs-checkin-walk]'),
+    pressed: () => [...document.body.querySelectorAll('button[aria-pressed="true"]')].map((b) => b.textContent.trim()),
+    click,
     unmount() { React.act(() => root.unmount()); host.remove(); },
   };
 }
@@ -168,36 +171,99 @@ test("Same as yesterday copies yesterday's own values, keeps today's, and never 
   assert.equal(CARD.bsCiSamePatch(y, { energy: 7, hunger: 5, sleep: 6.5, rested: 3, device: false }), null);
 });
 
-// ── The card ─────────────────────────────────────────────────────────────────
+test('the strip under each step is the seven days before today, oldest first, with each day\'s water', () => {
+  const week = CARD.bsCiWeek(series({ '2026-10-11': { energy: 6 }, [YDAY]: { energy: 8, hydration: 2.5 }, [TODAY]: { energy: 2 }, '2026-10-10': { energy: 10 } }), TODAY);
+  assert.deepEqual(week.map((d) => d.iso), ['2026-10-11', '2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16', '2026-10-17']);
+  assert.equal(week[0].energy, 6);
+  assert.equal(week[6].energy, 8, 'yesterday is not the last day of the strip');
+  assert.equal(week[6].water, 2.5);
+  assert.equal(week[1].water, null, 'a day with no water reads as a number');
+  assert.ok(!week.some((d) => d.iso === TODAY), 'today is in its own strip');
+});
 
-test('every tap saves, one question at a time, and the card ends on one line', async () => {
+test('"Mostly" is said only for a real majority of at least three answered days', () => {
+  assert.equal(CARD.bsCiMostly([8, 8, 7, 4, null, null, 6]), 3, 'Good on 3 of 5');
+  assert.equal(CARD.bsCiMostly([8, 8, 4, 4]), null, 'a tie is a trend');
+  assert.equal(CARD.bsCiMostly([8, 8]), null, 'two days are a trend');
+  assert.equal(CARD.bsCiMostly([8, 8, 4, 6, 10, 2]), null, 'two of six is "mostly"');
+  assert.equal(CARD.bsCiMostly([]), null);
+});
+
+// ── The card and its walkthrough ─────────────────────────────────────────────
+
+test('the card is the door: Start walks one check per screen, every tap saves, and Home ends on one line', async () => {
   const calls = env();
   const m = await mount();
   try {
+    assert.match(m.text(), /Four quick checks\./);
+    assert.equal(m.walk(), null, 'the walkthrough opened by itself');
+    await m.click(/Start check-in/);
+    assert.match(m.text(), /Step 1 of 4 · Energy/);
     assert.match(m.text(), /How's your energy\?/);
-    assert.match(m.text(), /1 of 3/);
+    assert.match(m.text(), /How much you have in the tank/, 'the step no longer says what it asks');
     await m.click(/^Good$/);
     assert.deepEqual(calls.log, [{ energy: 8 }], 'the energy tap was not saved on its own');
-    assert.match(m.text(), /How hungry are you\?/);
-    assert.match(m.text(), /2 of 3/);
+    assert.match(m.text(), /Step 2 of 4 · Hunger/);
     await m.click(/^Normal$/);
     assert.deepEqual(calls.log[1], { hunger: 6 });
-    assert.match(m.text(), /How did you sleep\?/);
+    assert.match(m.text(), /Step 3 of 4 · Sleep/);
     assert.match(m.text(), /7h 30/);
     assert.match(m.text(), /Your usual night/);
     await m.click(/Thirty minutes less/);
-    assert.match(m.text(), /7h(?! 30)/);
     assert.doesNotMatch(m.text(), /Your usual night/, 'a night the member changed still claims to be their usual one');
     await m.click(/^Rested$/);
-    await m.click(/That's right/);
+    await m.click(/^Next/);
     assert.deepEqual(calls.log[2], { sleepHours: 7, sleepQuality: 8 });
-    assert.equal(calls.log.length, 3);
+    assert.match(m.text(), /Step 4 of 4 · Water/);
+    await m.click(/\+ 1 glass/);
+    assert.deepEqual(calls.add, [0.2366]);
+    await m.click(/^Finish/);
+    assert.match(m.text(), /You're checked in ✓/);
+    await m.click(/^Done$/);
+    assert.equal(m.walk(), null, 'Done left the walkthrough open');
     assert.match(m.text(), /Checked in ✓/);
     assert.match(m.text(), /Energy Good · Hunger Normal · Sleep 7h · Rested/);
+    assert.equal(calls.log.length, 3);
   } finally { m.unmount(); }
 });
 
-test('Same as yesterday logs the whole day in one tap', async () => {
+test('every step shows the last 7 days, and a tap on a day reuses its answer', async () => {
+  const calls = env({ days: {
+    '2026-10-12': { energy: 8, hunger: 6, sleep: 7.5 },
+    '2026-10-13': { energy: 8, hunger: 6 },
+    '2026-10-14': { energy: 4, hunger: 4, sleep: 5.83 },
+    '2026-10-15': { energy: 7, hunger: 6 },
+    '2026-10-16': { energy: 8, hydration: 3.1 },
+    [YDAY]: { energy: 7, hunger: 8, sleep: 6.5, sleepQuality: 8, hydration: 2.5 },
+  } });
+  const m = await mount();
+  try {
+    await m.click(/Start check-in/);
+    const strip = () => document.querySelector('[data-bs-checkin-week]');
+    assert.equal(strip().getAttribute('data-bs-checkin-week'), 'energy');
+    const cells = [...strip().querySelectorAll('[aria-label]')].map((el) => el.getAttribute('aria-label'));
+    assert.equal(cells.length, 7);
+    assert.match(cells[0], /11: —$/, 'a day with no answer is not shown as one');
+    assert.match(cells[6], /17: Good$/, 'yesterday is not the last day');
+    assert.match(m.text(), /Mostly Good this week\./);
+    // A tap on yesterday reuses its own value: a 7 stays a 7.
+    await m.click(/17: Good/);
+    assert.deepEqual(calls.log, [{ energy: 7 }]);
+    assert.match(m.text(), /Step 2 of 4 · Hunger/);
+    assert.equal(strip().getAttribute('data-bs-checkin-week'), 'hunger');
+    assert.match(m.text(), /Mostly Normal this week\./);
+    await m.click(/^Normal$/);
+    // Sleep: a tap on a day fills the stepper and its Rested; Next saves them.
+    await m.click(/17: 6h 30/);
+    await m.click(/^Next/);
+    assert.deepEqual(calls.log[2], { sleepHours: 6.5, sleepQuality: 8 });
+    // Water: the week against the target.
+    assert.equal(strip().getAttribute('data-bs-checkin-week'), 'water');
+    assert.match(m.text(), /Target reached once this week\./);
+  } finally { m.unmount(); }
+});
+
+test('Same as yesterday on the card logs the whole day in one tap', async () => {
   const calls = env({ days: { [YDAY]: { energy: 7, hunger: 5, sleep: 6.5, sleepQuality: 9 }, '2026-10-16': { energy: 6 } } });
   const m = await mount();
   try {
@@ -205,6 +271,7 @@ test('Same as yesterday logs the whole day in one tap', async () => {
     assert.match(m.text(), /Good · Normal · 6h 30/);
     await m.click(/Same as yesterday/);
     assert.deepEqual(calls.log, [{ energy: 7, hunger: 5, sleepHours: 6.5, sleepQuality: 9 }]);
+    assert.equal(m.walk(), null);
     assert.match(m.text(), /Checked in ✓/);
     assert.match(m.text(), /3 days running/);
   } finally { m.unmount(); }
@@ -229,6 +296,14 @@ test("a wearable's night is not asked, and Same as yesterday leaves it alone", a
     assert.deepEqual(calls.log, [{ energy: 7, hunger: 5 }]);
     assert.match(m.text(), /Checked in ✓/);
     assert.match(m.text(), /Sleep 7h 12/);
+    // In the walkthrough the night reads as the watch's, and Next writes nothing over it.
+    await m.click(/^Edit$/);
+    await m.click(/^Change$/, 2);
+    assert.match(m.text(), /From your watch/);
+    assert.equal(m.button(/^Skip$/), undefined, 'a wearable night can be skipped');
+    await m.click(/^Next/);
+    assert.equal(calls.log.length, 1, "Next wrote over the wearable's night");
+    assert.match(m.text(), /You're checked in/);
   } finally { m.unmount(); }
 });
 
@@ -237,11 +312,17 @@ test('a member who does not track sleep can skip the night, for the rest of the 
   const calls = env({ days: { [TODAY]: { energy: 8, hunger: 6 } } });
   let m = await mount();
   try {
-    assert.match(m.text(), /How did you sleep\?/);
+    await m.click(/^Continue/);
+    assert.match(m.text(), /Step 3 of 4 · Sleep/, 'Continue did not open the first open check');
     await m.click(/^Skip$/);
     assert.deepEqual(calls.log, [], 'skipping wrote a night');
+    assert.match(m.text(), /Step 4 of 4 · Water/);
+    await m.click(/^Finish/);
+    assert.match(m.text(), /You're checked in ✓/);
+    assert.match(m.text(), /Skipped/);
+    await m.click(/^Done$/);
     assert.match(m.text(), /Checked in ✓/);
-    assert.doesNotMatch(m.text(), /Sleep/, 'the done line names a night that was skipped');
+    assert.doesNotMatch(m.text(), /Sleep \d/, 'the done line names a night that was skipped');
   } finally { m.unmount(); }
   // Still skipped when Home comes back today…
   env({ days: { [TODAY]: { energy: 8, hunger: 6 } } });
@@ -252,49 +333,53 @@ test('a member who does not track sleep can skip the night, for the rest of the 
     mock.timers.setTime(new Date(2026, 9, 19, 12).getTime());
     env({ days: { '2026-10-19': { energy: 8, hunger: 6 } } });
     m = await mount();
-    assert.match(m.text(), /How did you sleep\?/, "yesterday's skip held today");
+    assert.match(m.text(), /Four quick checks/, "yesterday's skip held today");
     m.unmount();
   } finally { mock.timers.setTime(at(12)); dom.window.localStorage.clear(); }
 });
 
-test('a failed save puts the answer back and says so in the card', async () => {
-  // Toasts are a no-op app-wide (BSToastHost), so the card is the only place to say it.
+test('a failed save puts the answer back and says so on screen', async () => {
+  // Toasts are a no-op app-wide (BSToastHost), so the screen is the only place to say it.
   let fail = true;
   const calls = env({ log: async () => { if (fail) throw new Error('500'); return { ok: true }; } });
   const m = await mount();
   try {
+    await m.click(/Start check-in/);
     await m.click(/^Good$/);
-    assert.match(m.text(), /How's your energy\?/, 'a failed save moved on to the next question');
-    assert.deepEqual(m.pressed(), [], 'a failed answer still shows as given');
     assert.match(m.text(), /Could not save check-in — try again/);
+    await m.click(/Back/);
+    assert.match(m.text(), /Step 1 of 4 · Energy/);
+    assert.deepEqual(m.pressed(), [], 'a failed answer still shows as given');
     // The next tap still goes through: one failure must not wedge the save queue.
     fail = false;
     await m.click(/^Good$/);
     assert.equal(calls.log.length, 2, 'the retry was never written');
-    assert.match(m.text(), /How hungry are you\?/);
+    assert.match(m.text(), /Step 2 of 4 · Hunger/);
     assert.doesNotMatch(m.text(), /Could not save/, 'the error outlived the answer that fixed it');
   } finally { m.unmount(); }
 });
 
 test('a failed save puts back only its own answer, not one given after it (Codex P2 on #2398)', async () => {
   // Energy is still saving when hunger is answered; then the energy save fails and the hunger
-  // save, queued behind it, succeeds. The card must still hold the hunger answer.
+  // save, queued behind it, succeeds. The screen must still hold the hunger answer.
   let failEnergy;
   const energy = new Promise((_, reject) => { failEnergy = reject; });
   let n = 0;
   const calls = env({ log: () => (++n === 1 ? energy : { ok: true }) });
   const m = await mount();
   try {
+    await m.click(/Start check-in/);
     await m.click(/^Good$/);
     await m.click(/^Normal$/);
     failEnergy(new Error('500'));
     await m.flush();
     await m.flush();
     assert.deepEqual(calls.log, [{ energy: 8 }, { hunger: 6 }]);
-    assert.match(m.text(), /How's your energy\?/);
     assert.match(m.text(), /Could not save check-in/);
-    await m.click(/^Great$/);
-    assert.match(m.text(), /How did you sleep\?/, 'the stored hunger answer was put back with the failed energy one');
+    await m.click(/Back/);
+    assert.deepEqual(m.pressed(), ['Normal'], 'the stored hunger answer was put back with the failed energy one');
+    await m.click(/Back/);
+    assert.deepEqual(m.pressed(), [], 'the failed energy answer still shows as given');
   } finally { m.unmount(); }
 });
 
@@ -305,18 +390,16 @@ test('an older save that fails never undoes a newer answer to the same question'
   env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } }, log: () => (++n === 1 ? first : { ok: true }) });
   const m = await mount();
   try {
-    // Edit: Great (its save hangs), Hungry, keep the night; then Edit again and Drained.
     await m.click(/^Edit$/);
-    await m.click(/^Great$/);
-    await m.click(/^Hungry$/);
-    await m.click(/That's right/);
-    await m.click(/^Edit$/);
+    await m.click(/^Change$/, 0);
+    await m.click(/^Great$/);      // its save hangs, then fails
+    await m.click(/^Change$/, 0);
     await m.click(/^Drained$/);
     failFirst(new Error('500'));
     await m.flush();
     await m.flush();
-    assert.match(m.text(), /Energy Drained/, "the failed Great put back the energy over the member's newer Drained");
-    assert.match(m.text(), /Hunger Hungry/);
+    assert.match(m.text(), /Drained/, "the failed Great put back the energy over the member's newer Drained");
+    assert.doesNotMatch(m.text(), /EnergyGood/);
   } finally { m.unmount(); }
 });
 
@@ -326,6 +409,7 @@ test('answers save one at a time, so two quick taps cannot both insert a row for
   const calls = env({ log: (p) => (p.energy != null ? first : { ok: true }) });
   const m = await mount();
   try {
+    await m.click(/Start check-in/);
     await m.click(/^Good$/);
     await m.click(/^Normal$/);
     assert.equal(calls.log.length, 1, 'the hunger write started while the energy write was still open');
@@ -361,34 +445,28 @@ test('it asks from 4 a.m., but a done line stays all night', async () => {
     mock.timers.setTime(at(4));
     env();
     m = await mount();
-    assert.match(m.text(), /How's your energy\?/);
+    assert.match(m.text(), /Four quick checks/);
     m.unmount();
   } finally { mock.timers.setTime(at(12)); }
 });
 
-test('Edit walks the questions again, and skips a night the wearable reported', async () => {
-  let calls = env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
-  let m = await mount();
+test('Edit opens the summary, and a Change goes back to it', async () => {
+  const calls = env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
+  const m = await mount();
   try {
     await m.click(/^Edit$/);
-    assert.deepEqual(m.pressed(), ['Good'], "Edit did not show today's answer");
-    await m.click(/^Great$/);
+    assert.match(m.text(), /You're checked in ✓/);
+    await m.click(/^Change$/, 1);
+    assert.match(m.text(), /Step 2 of 4 · Hunger/);
+    assert.deepEqual(m.pressed(), ['Normal'], "the step did not show today's answer");
     await m.click(/^Hungry$/);
-    assert.match(m.text(), /How did you sleep\?/);
+    assert.deepEqual(calls.log, [{ hunger: 8 }]);
+    assert.match(m.text(), /You're checked in ✓/, 'a Change walked on to the next check instead of back to the summary');
+    assert.match(m.text(), /Hungry/);
+    await m.click(/^Change$/, 2);
     assert.match(m.text(), /7h(?! 30)/, "the stepper did not start at today's own hours");
-    await m.click(/That's right/);
-    assert.deepEqual(calls.log, [{ energy: 10 }, { hunger: 8 }, { sleepHours: 7 }]);
-    assert.match(m.text(), /Energy Great · Hunger Hungry · Sleep 7h/);
-  } finally { m.unmount(); }
-
-  calls = env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7.2, hrv: 50 } } });
-  m = await mount();
-  try {
-    await m.click(/^Edit$/);
-    await m.click(/^Great$/);
-    await m.click(/^Hungry$/);
-    assert.match(m.text(), /Checked in ✓/, "Edit asked about the wearable's night");
-    assert.deepEqual(calls.log, [{ energy: 10 }, { hunger: 8 }]);
+    await m.click(/Close/);
+    assert.equal(m.walk(), null);
   } finally { m.unmount(); }
 });
 
@@ -399,19 +477,19 @@ test('Details opens the check-in page, and a glass of water is one tap in the me
   try {
     await m.click(/Details/);
     assert.equal(opened, 1);
-    assert.match(m.text(), /17 \/ 101 oz/);
+    assert.match(m.text(), /17 oz \/ 101 oz/);
     await m.click(/\+ Glass/);
     assert.deepEqual(calls.add, [0.2366]);
-    assert.match(m.text(), /25 \/ 101 oz/);
+    assert.match(m.text(), /25 oz \/ 101 oz/);
   } finally { m.unmount(); }
 
   theme.isMetric = true;
   try {
-    calls = env();
+    calls = env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
     m = await mount();
     await m.click(/\+ Glass/);
     assert.deepEqual(calls.add, [0.25]);
-    assert.match(m.text(), /0\.75 \/ 3 L/);
+    assert.match(m.text(), /0\.75 L \/ 3 L/);
     m.unmount();
   } finally { theme.isMetric = false; }
 });
@@ -420,15 +498,19 @@ test('signed out, the card previews the flow and saves nothing', async () => {
   const calls = env({ uid: null });
   const m = await mount();
   try {
-    await m.click(/Same as yesterday/);
+    await m.click(/Start check-in/);
+    assert.match(m.text(), /Mostly Good this week\./, 'the preview has no sample week');
+    await m.click(/^Good$/);
+    await m.click(/^Normal$/);
+    await m.click(/^Next/);
+    await m.click(/\+ 1 glass/);
+    await m.click(/^Finish/);
     assert.deepEqual(calls.log, []);
-    assert.match(m.text(), /Join Shape to save your check-in/);
-    assert.doesNotMatch(m.text(), /Checked in/, 'the preview claimed a check-in it never saved');
-    assert.doesNotMatch(m.text(), /days running/);
-    // Water counts in the preview too, and is not written either.
-    assert.match(m.text(), /42 \/ 101 oz/);
-    await m.click(/\+ Glass/);
     assert.deepEqual(calls.add, [], 'the preview wrote a glass');
-    assert.match(m.text(), /50 \/ 101 oz/);
+    assert.match(m.text(), /Join Shape to save your check-in/);
+    assert.doesNotMatch(m.text(), /checked in/i, 'the preview claimed a check-in it never saved');
+    assert.doesNotMatch(m.text(), /days running/);
+    await m.click(/^Done$/);
+    assert.match(m.text(), /8 oz \/ 101 oz/, 'the preview did not count its glass');
   } finally { m.unmount(); }
 });
