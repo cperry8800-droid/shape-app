@@ -108,6 +108,9 @@ back or the file grows past 20 KB.
   A role module that reads a global before the feature module defines it causes React
   error #130. `iosAppBroadsheetMain.jsx` loads feature modules before role modules.
 - **Sheets** use `createPortal` into `#bs-phone-surface`.
+- **Pages** render inside `BSPage`, which pins a condensed masthead once the page's own
+  masthead scrolls away; a page that is its own scroller gets none. A `position: sticky`
+  row inside a `BSPage` sticks at `top: useBSPinnedMastTop()`, below that masthead.
 - **Theme:** `useBS()` → `t`. The teal accent is
   `t.isLight ? '#0a8f87' : '#34d6c5'`; nutritionists are gold `#a07a2e` and trainers
   rust `#c0533b`.
@@ -159,6 +162,10 @@ planned builds.
 - Nora as a Shape Radio DJ, Phase 2 onward
   ([`REVIEW-2026-09-29-nora-dj.md`](REVIEW-2026-09-29-nora-dj.md)). This waits on a
   signed station provider.
+- A one-tap daily check-in on Home
+  ([`REVIEW-2026-10-18-daily-checkin.md`](REVIEW-2026-10-18-daily-checkin.md)): a save
+  per tap, five-word scales, "Same as yesterday", and sleep from a wearable. Rulings are
+  made (§5), including no −7 for a missed weekly check-in while the switch is off.
 
 **Known gaps**
 - `get_display_names` returns a full name and photo for any id, whoever asks.
@@ -197,6 +204,8 @@ planned builds.
 - The website's usage stats don't wait for the consent banner in the EEA and UK.
 - Nothing opens the chat panel from a URL. `TrainerNewProgram.html` and
   `get-started.html` aren't linked from anywhere.
+- The website's Kitchen (`recipesPage.jsx`) still runs its filter toggles and jump row
+  off the right edge of a phone; the app's moved to a dropdown and in-place time tabs.
 - No signed-in pass has been done in a browser or on a phone for client onboarding,
   the dashboard frame, `/admin`, Business (website and app) or the coach application
   uploads.
