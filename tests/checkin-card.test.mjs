@@ -217,13 +217,20 @@ test("a wearable's night is not asked, and Same as yesterday leaves it alone", a
 
 test('a failed save puts the answer back and says so in the card', async () => {
   // Toasts are a no-op app-wide (BSToastHost), so the card is the only place to say it.
-  env({ log: async () => { throw new Error('500'); } });
+  let fail = true;
+  const calls = env({ log: async () => { if (fail) throw new Error('500'); return { ok: true }; } });
   const m = await mount();
   try {
     await m.click(/^Good$/);
     assert.match(m.text(), /How's your energy\?/, 'a failed save moved on to the next question');
     assert.deepEqual(m.pressed(), [], 'a failed answer still shows as given');
     assert.match(m.text(), /Could not save check-in — try again/);
+    // The next tap still goes through: one failure must not wedge the save queue.
+    fail = false;
+    await m.click(/^Good$/);
+    assert.equal(calls.log.length, 2, 'the retry was never written');
+    assert.match(m.text(), /How hungry are you\?/);
+    assert.doesNotMatch(m.text(), /Could not save/, 'the error outlived the answer that fixed it');
   } finally { m.unmount(); }
 });
 
