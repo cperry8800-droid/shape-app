@@ -123,7 +123,7 @@ export async function currentCheckout(
   return current;
 }
 
-type SessionRef = { id: string; subscription?: string | { id?: string } | null };
+type SessionRef = { id: string; status?: string | null; subscription?: string | { id?: string } | null };
 
 /**
  * Run while holding the claim, for a subscription checkout on a COACH'S account (direct charges).
@@ -137,42 +137,44 @@ type SessionRef = { id: string; subscription?: string | { id?: string } | null }
  *   · the subscriptions behind the checkouts Shape recorded and the member COMPLETED are returned,
  *     so the "already pays?" check counts one even when Stripe stamped no application on it and the
  *     webhook has not written its row yet.
- * A failed read throws: the caller refuses.
+ * ⚠ THE RECORDS ARE THE LIST, NEVER STRIPE'S (Codex on #2403): each recorded checkout is read by its
+ * own id, so a coach who opens a hundred newer checkouts for the member's customer can't push one of
+ * Shape's off a page. A recorded checkout the account no longer has is skipped; any other failed
+ * read throws, and the caller refuses.
  */
 export async function retireCoachCheckouts(
-  customerId: string,
+  clientId: string,
   stripeAccount: string,
   product: { provider_role: string; provider_id: number }
 ): Promise<{ subscriptions: Set<string> }> {
   const opts = { stripeAccount };
-  const ours = async (sessions: SessionRef[]): Promise<Set<string>> => {
-    const ids = sessions.map((s) => s.id);
-    const out = new Set<string>();
-    if (!ids.length) return out;
-    const { data, error } = await createAdminClient()
-      .from('coach_checkouts')
-      .select('stripe_checkout_session_id')
-      .eq('stripe_account_id', stripeAccount)
-      .eq('provider_role', product.provider_role)
-      .eq('provider_id', product.provider_id)
-      .eq('mode', 'subscription')
-      .in('stripe_checkout_session_id', ids);
-    if (error) throw error;
-    for (const r of (data ?? []) as Array<{ stripe_checkout_session_id: string }>) out.add(r.stripe_checkout_session_id);
-    return out;
-  };
-  const open = (await stripe.checkout.sessions.list({ customer: customerId, status: 'open', limit: 100 }, opts)).data as SessionRef[];
-  const openOurs = await ours(open);
-  for (const session of open) {
-    if (openOurs.has(session.id)) await stripe.checkout.sessions.expire(session.id, undefined, opts);
-  }
-  const done = (await stripe.checkout.sessions.list({ customer: customerId, status: 'complete', limit: 100 }, opts)).data as SessionRef[];
-  const doneOurs = await ours(done);
+  const { data, error } = await createAdminClient()
+    .from('coach_checkouts')
+    .select('stripe_checkout_session_id')
+    .eq('client_id', clientId)
+    .eq('stripe_account_id', stripeAccount)
+    .eq('provider_role', product.provider_role)
+    .eq('provider_id', product.provider_id)
+    .eq('mode', 'subscription');
+  if (error) throw error;
+  const ids = ((data ?? []) as Array<{ stripe_checkout_session_id: string }>).map((r) => r.stripe_checkout_session_id);
+  const sessions = await Promise.all(ids.map(async (id): Promise<SessionRef | null> => {
+    try {
+      return await stripe.checkout.sessions.retrieve(id, undefined, opts) as SessionRef;
+    } catch (err) {
+      if ((err as { code?: string })?.code === 'resource_missing') return null;
+      throw err;
+    }
+  }));
   const subscriptions = new Set<string>();
-  for (const session of done) {
-    if (!doneOurs.has(session.id)) continue;
-    const sub = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id;
-    if (sub) subscriptions.add(sub);
+  for (const session of sessions) {
+    if (!session) continue;
+    if (session.status === 'open') {
+      await stripe.checkout.sessions.expire(session.id, undefined, opts);
+    } else if (session.status === 'complete') {
+      const sub = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id;
+      if (sub) subscriptions.add(sub);
+    }
   }
   return { subscriptions };
 }

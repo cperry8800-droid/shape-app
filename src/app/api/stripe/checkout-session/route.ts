@@ -475,7 +475,7 @@ export async function POST(request: Request) {
       let open: string | null = null;
       if (direct) {
         await currentCheckout(customerId, sameProduct, () => false);
-        retired = await retireCoachCheckouts(buyer, account, { provider_role: providerRole, provider_id: providerId });
+        retired = await retireCoachCheckouts(user.id, account, { provider_role: providerRole, provider_id: providerId });
       } else {
         open = await currentCheckout(customerId, sameProduct, sameTerms);
       }

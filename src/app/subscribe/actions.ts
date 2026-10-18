@@ -250,7 +250,7 @@ export async function startCheckout(formData: FormData): Promise<void> {
       // coach are expired and a fresh one is made (checkout-barrier.ts, retireCoachCheckouts).
       if (direct) {
         await currentCheckout(customerId, sameProduct, () => false);
-        retired = await retireCoachCheckouts(buyer, account, { provider_role: providerRole, provider_id: providerId });
+        retired = await retireCoachCheckouts(user.id, account, { provider_role: providerRole, provider_id: providerId });
       } else {
         open = await currentCheckout(customerId, sameProduct, sameTerms);
       }

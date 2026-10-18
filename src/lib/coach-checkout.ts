@@ -147,7 +147,7 @@ type PromotionCode = {
 };
 type Opts = { stripeAccount?: string; idempotencyKey?: string };
 export type CodeStripe = {
-  promotionCodes: { list: (params: Record<string, unknown>, opts?: Opts) => PromiseLike<{ data: PromotionCode[] }> };
+  promotionCodes: { list: (params: Record<string, unknown>, opts?: Opts) => PromiseLike<{ data: PromotionCode[]; has_more?: boolean }> };
   coupons: {
     retrieve: (id: string, params?: Record<string, unknown>, opts?: Opts) => PromiseLike<Coupon>;
     create: (params: Record<string, unknown>, opts?: Opts) => PromiseLike<Coupon>;
@@ -202,6 +202,24 @@ function usable(c: Coupon | null): c is Coupon {
   return typeof c.amount_off === 'number' && c.amount_off > 0 && String(c.currency || '').toLowerCase() === 'usd';
 }
 
+/**
+ * Every active promotion code with these letters on one account, a page at a time (Codex on #2403):
+ * one code can be many customers' entries, and the member's own, or the open one, may not be on the
+ * first page. Bounded at ten pages; past that the code is not found, which refuses it, never charges
+ * less than it should.
+ */
+async function codesNamed(stripe: CodeStripe, code: string, opts?: Opts): Promise<PromotionCode[]> {
+  const out: PromotionCode[] = [];
+  let after: string | undefined;
+  for (let page = 0; page < 10; page++) {
+    const res = await stripe.promotionCodes.list({ code, active: true, limit: 100, expand: ['data.promotion.coupon.applies_to'], ...(after ? { starting_after: after } : {}) }, opts);
+    out.push(...res.data);
+    if (!res.has_more || !res.data.length) break;
+    after = res.data[res.data.length - 1].id;
+  }
+  return out;
+}
+
 /** The price after a code, in cents, the way Stripe takes it off. */
 export function afterCode(listCents: number, code: { percentOff: number | null; amountOff: number | null } | null): number {
   if (!code) return listCents;
@@ -236,7 +254,7 @@ export async function resolveCheckoutCode(
   };
   const fits = (c: Coupon) => args.mode === 'subscription' || afterCode(args.listCents, { percentOff: c.percent_off ?? null, amountOff: c.amount_off ?? null }) >= 50;
 
-  const shape = pickCode((await stripe.promotionCodes.list({ code: args.code, active: true, limit: 20, expand: ['data.promotion.coupon.applies_to'] })).data, args.code, args.platformCustomerId);
+  const shape = pickCode(await codesNamed(stripe, args.code), args.code, args.platformCustomerId);
   // A Shape code that is only other members' is a miss here, not a refusal: the coach's account
   // keeps its own codes, and the same letters may be one there for this member (Codex on #2403).
   if (shape && shape !== 'others') {
@@ -273,7 +291,7 @@ export async function resolveCheckoutCode(
     };
   }
 
-  const own = pickCode((await stripe.promotionCodes.list({ code: args.code, active: true, limit: 20, expand: ['data.promotion.coupon.applies_to'] }, { stripeAccount: args.account })).data, args.code, args.coachCustomerId ?? null);
+  const own = pickCode(await codesNamed(stripe, args.code, { stripeAccount: args.account }), args.code, args.coachCustomerId ?? null);
   if (own === 'others') return { ok: false, reason: 'code_invalid' };
   if (own) {
     const c = couponOf(own);

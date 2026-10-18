@@ -197,12 +197,19 @@ test('shapeOrUnmarked: no application, or Shape\'s; never another\'s; nothing wh
 });
 
 // ── The code box ──────────────────────────────────────────────────────────────────────────────
-function codeStripe({ shape = [], coach = [], mirror = null } = {}) {
+function codeStripe({ shape = [], coach = [], mirror = null, pageSize = Infinity } = {}) {
   const calls = [];
   return {
     calls,
     stripe: {
-      promotionCodes: { list: async (params, opts) => { calls.push(['promotionCodes.list', params, opts]); return { data: (opts?.stripeAccount ? coach : shape).filter((p) => p.code.toLowerCase() === params.code.toLowerCase()) }; } },
+      // Pages the way Stripe does: at most `limit` (or the fixture's page size), then has_more.
+      promotionCodes: { list: async (params, opts) => {
+        calls.push(['promotionCodes.list', params, opts]);
+        const all = (opts?.stripeAccount ? coach : shape).filter((p) => p.code.toLowerCase() === params.code.toLowerCase());
+        const from = params.starting_after ? all.findIndex((p) => p.id === params.starting_after) + 1 : 0;
+        const size = Math.min(params.limit ?? 10, pageSize);
+        return { data: all.slice(from, from + size), has_more: from + size < all.length };
+      } },
       coupons: {
         retrieve: async (id, params, opts) => { calls.push(['coupons.retrieve', id, opts]); if (!mirror) throw Object.assign(new Error('No such coupon'), { code: 'resource_missing' }); return mirror; },
         create: async (params, opts) => { calls.push(['coupons.create', params, opts]); return { id: params.id, ...params }; },
@@ -271,9 +278,17 @@ test('one visible code can be several promotion codes: the member\'s own, then t
   const coachSame = { id: 'promo_cs', code: 'SPRING25', restrictions: {}, promotion: { coupon: { id: 'c', valid: true, percent_off: 15 } } };
   const through = await resolve(codeStripe({ shape: [theirs], coach: [coachSame] }));
   assert.deepEqual(through.code.discount, { promotion_code: 'promo_cs' }, 'the coach\'s, not refused');
-  const s = codeStripe({ shape: [open] });
-  await resolve(s);
-  assert.equal(s.calls.find((c) => c[0] === 'promotionCodes.list')[1].limit, 20, 'every match is read, not the first');
+  // The member's own entry past the first page is still found, on either account (Codex on #2403).
+  const crowd = Array.from({ length: 5 }, (_, i) => shapeCode({ id: `promo_other${i}`, customer: `cus_other${i}` }, { percent_off: 50 }));
+  const paged = codeStripe({ shape: [...crowd, mine], pageSize: 2 });
+  assert.equal((await resolve(paged)).code.percentOff, 30, 'the member\'s own, on the third page');
+  assert.deepEqual(paged.calls.filter((c) => c[0] === 'promotionCodes.list').map((c) => c[1].starting_after ?? null), [null, 'promo_other1', 'promo_other3'], 'each page starts after the last');
+  const coachCrowd = Array.from({ length: 3 }, (_, i) => ({ id: `promo_cx${i}`, code: 'TOMS10', customer: `cus_x${i}`, restrictions: {}, promotion: { coupon: { id: 'c', valid: true, percent_off: 40 } } }));
+  const coachOpen = { id: 'promo_copen', code: 'TOMS10', restrictions: {}, promotion: { coupon: { id: 'c', valid: true, percent_off: 12 } } };
+  assert.deepEqual((await resolve(codeStripe({ coach: [...coachCrowd, coachOpen], pageSize: 2 }), { code: 'TOMS10', coachCustomerId: 'cus_onCoach' })).code.discount, { promotion_code: 'promo_copen' }, 'the coach\'s open code on its second page');
+  const bounded = codeStripe({ shape: Array.from({ length: 30 }, (_, i) => shapeCode({ id: `promo_b${i}`, customer: `cus_b${i}` })), pageSize: 1 });
+  await resolve(bounded);
+  assert.equal(bounded.calls.filter((c) => c[0] === 'promotionCodes.list' && !c[2]).length, 10, 'Shape\'s pages are bounded at ten');
   // On the coach's account, the member's customer there picks the coach's code made for them.
   const coachMine = { id: 'promo_cm', code: 'TOMS10', customer: 'cus_onCoach', restrictions: {}, promotion: { coupon: { id: 'c', valid: true, percent_off: 20 } } };
   const coachOther = { id: 'promo_co', code: 'TOMS10', customer: 'cus_x', restrictions: {}, promotion: { coupon: { id: 'c', valid: true, percent_off: 40 } } };
@@ -302,34 +317,45 @@ test('the coach\'s own code is applied as the coach\'s promotion code; an unknow
 
 // ── The open checkouts and the live subscription on a coach's account ─────────────────────────
 test('on a coach\'s account nothing is handed back: Shape\'s recorded open checkouts are expired, and its completed ones name their subscriptions (Codex on #2403)', async () => {
-  const sessions = {
-    open: [
-      { id: 'cs_coachMade', subscription: null },
-      { id: 'cs_shapeOpen', subscription: null },
-      { id: 'cs_shapeOtherCoach', subscription: null },
-    ],
-    complete: [
-      { id: 'cs_shapeDone', subscription: 'sub_fromShape' },
-      { id: 'cs_coachDone', subscription: 'sub_coachOwn' },
-      { id: 'cs_shapeDoneExpanded', subscription: { id: 'sub_expanded' } },
-    ],
+  // What the coach's account holds, by id. The coach's own checkouts are there too, and never asked.
+  const onAccount = {
+    cs_shapeOpen: { id: 'cs_shapeOpen', status: 'open', subscription: null },
+    cs_shapeOtherCoach: { id: 'cs_shapeOtherCoach', status: 'open', subscription: null },
+    cs_otherMember: { id: 'cs_otherMember', status: 'open', subscription: null },
+    cs_shapeDone: { id: 'cs_shapeDone', status: 'complete', subscription: 'sub_fromShape' },
+    cs_shapeDoneExpanded: { id: 'cs_shapeDoneExpanded', status: 'complete', subscription: { id: 'sub_expanded' } },
+    cs_shapeExpired: { id: 'cs_shapeExpired', status: 'expired', subscription: null },
+    cs_coachMade: { id: 'cs_coachMade', status: 'open', subscription: null },
   };
-  const listed = [];
+  const retrieved = [];
   const expired = [];
   const stripe = { checkout: { sessions: {
-    list: async (p, o) => { listed.push([p.status, o]); return { data: sessions[p.status] }; },
+    list: async () => { throw new Error('a list the coach can fill is never read'); },
+    retrieve: async (id, p, o) => {
+      retrieved.push([id, o]);
+      if (!onAccount[id]) throw Object.assign(new Error('No such checkout.session'), { code: 'resource_missing' });
+      return onAccount[id];
+    },
     expire: async (id, p, o) => { expired.push([id, o]); return {}; },
   } } };
   const rec = (id, extra = {}) => record({ stripe_checkout_session_id: id, mode: 'subscription', kind: 'subscription', ...extra });
-  const db = fakeDb({ tables: { coach_checkouts: [rec('cs_shapeOpen'), rec('cs_shapeOtherCoach', { provider_id: 5 }), rec('cs_shapeDone'), rec('cs_shapeDoneExpanded'), rec('cs_coachMade', { stripe_account_id: OTHER_ACCT })] } });
+  const db = fakeDb({ tables: { coach_checkouts: [
+    rec('cs_shapeOpen'), rec('cs_shapeOtherCoach', { provider_id: 5 }), rec('cs_otherMember', { client_id: '00000000-0000-4000-8000-0000000000ff' }),
+    rec('cs_shapeDone'), rec('cs_shapeDoneExpanded'), rec('cs_shapeExpired'), rec('cs_gone'),
+    rec('cs_coachMade', { stripe_account_id: OTHER_ACCT }), rec('cs_shapeOneTime', { mode: 'payment', kind: 'booking' }),
+  ] } });
   const barrier = await loadRealModule(join(ROOT, 'src/lib/checkout-barrier.ts'), { typescript: true, registry: new Map([['@/lib/stripe', { stripe }], ['@/lib/supabase/admin', { createAdminClient: () => db.client }]]) });
-  const r = await barrier.retireCoachCheckouts('cus_onCoach', ACCT, { provider_role: 'trainer', provider_id: 4 });
-  assert.deepEqual(expired, [['cs_shapeOpen', { stripeAccount: ACCT }]], 'only Shape\'s, for this coach: the coach\'s own and another coach\'s are left');
-  assert.deepEqual([...r.subscriptions].sort(), ['sub_expanded', 'sub_fromShape'], 'the coach\'s own completed checkout names none');
-  assert.deepEqual(listed, [['open', { stripeAccount: ACCT }], ['complete', { stripeAccount: ACCT }]]);
+  const r = await barrier.retireCoachCheckouts(UID, ACCT, { provider_role: 'trainer', provider_id: 4 });
+  assert.deepEqual(expired, [['cs_shapeOpen', { stripeAccount: ACCT }]], 'only Shape\'s, for this member and coach: another coach\'s, another member\'s and the coach\'s own are left');
+  assert.deepEqual([...r.subscriptions].sort(), ['sub_expanded', 'sub_fromShape'], 'only completed ones name a subscription');
+  assert.deepEqual(retrieved.map((c) => c[0]).sort(), ['cs_gone', 'cs_shapeDone', 'cs_shapeDoneExpanded', 'cs_shapeExpired', 'cs_shapeOpen'], 'each recorded checkout is read by its own id; one the account no longer has is skipped');
+  assert.ok(retrieved.every((c) => c[1]?.stripeAccount === ACCT), 'on the coach\'s account');
   const down = fakeDb({ errors: { 'select:coach_checkouts': { code: '57014', message: 'timeout' } } });
   const b2 = await loadRealModule(join(ROOT, 'src/lib/checkout-barrier.ts'), { typescript: true, registry: new Map([['@/lib/stripe', { stripe }], ['@/lib/supabase/admin', { createAdminClient: () => down.client }]]) });
-  await assert.rejects(b2.retireCoachCheckouts('cus_onCoach', ACCT, { provider_role: 'trainer', provider_id: 4 }), 'a failed read refuses');
+  await assert.rejects(b2.retireCoachCheckouts(UID, ACCT, { provider_role: 'trainer', provider_id: 4 }), 'a failed record read refuses');
+  const flaky = { checkout: { sessions: { ...stripe.checkout.sessions, retrieve: async () => { throw Object.assign(new Error('api down'), { type: 'StripeAPIError' }); } } } };
+  const b3 = await loadRealModule(join(ROOT, 'src/lib/checkout-barrier.ts'), { typescript: true, registry: new Map([['@/lib/stripe', { stripe: flaky }], ['@/lib/supabase/admin', { createAdminClient: () => db.client }]]) });
+  await assert.rejects(b3.retireCoachCheckouts(UID, ACCT, { provider_role: 'trainer', provider_id: 4 }), 'a failed Stripe read refuses');
 });
 
 test('the live-subscription check on a coach\'s account counts only what the caller says is Shape\'s', async () => {
@@ -501,7 +527,7 @@ test('checkout: a subscription on the coach\'s account takes application_fee_per
   assert.equal(r.open[0][2]({}), false, 'every open checkout on Shape\'s account is expired, none handed back');
   // ⚠ On the coach's account nothing is handed back (Codex on #2403): Shape's recorded open ones for
   // this coach are retired by their record, never matched by metadata the coach can rewrite.
-  assert.deepEqual(r.open[1], ['retire', 'cus_onCoach', ACCT, { provider_role: 'trainer', provider_id: 4 }]);
+  assert.deepEqual(r.open[1], ['retire', UID, ACCT, { provider_role: 'trainer', provider_id: 4 }]);
   assert.deepEqual(r.live.map((a) => [a[0].customerId, a[2] ?? null]), [['cus_platform', null], ['cus_onCoach', ACCT]]);
   // ⚠ On the coach's account only a subscription Shape's application made counts (Codex on #2403):
   // the coach can make one with the member's metadata.
