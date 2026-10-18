@@ -57,7 +57,7 @@ export default {
       replace: "    .in('status', OPEN_SUB_STATUSES);" },
     // ── Codex on #2400: the roster reads every page, and the route's unread count reaches the page ──
     { name: 'codex-2400: the roster is one read again (cut at 1,000)', file: ROSTER,
-      find: 'await readAllById<{ id: string }>((after) => {', replace: 'await ((page) => page(null))((after) => {' },
+      find: 'await readAllById<RosterSubRow>((after) => {', replace: 'await ((page) => page(null))((after) => {' },
     { name: 'codex-2400: the roster walk never moves past its first page', file: ROSTER,
       find: "    if (after) q = q.gt('id', after);\n", replace: '' },
     { name: 'codex-2400: the Clients count ignores the route\'s unread count', file: 'public/newdesign/dashData.jsx',

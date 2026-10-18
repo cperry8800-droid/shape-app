@@ -14,6 +14,18 @@ import { clientNames } from '@/lib/coach-messages';
 import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
 import { OPEN_SUB_STATUSES, openSubsAt } from './coach-trajectory.mjs';
 
+// The columns the roster reads from a subscriptions row (select('*'), so a pre-migration database
+// simply leaves origin and fee_bps undefined).
+type RosterSubRow = {
+  id: string;
+  client_id: string | null;
+  status: string | null;
+  price_cents: number | null;
+  fee_bps?: number | null;
+  created_at: string | null;
+  origin?: string | null;
+};
+
 // `.toISOString()` throws on an invalid date; every caller here wants "no
 // answer" rather than a 500 that takes the whole roster down with it.
 function isoOrNull(v: string | null | undefined): string | null {
@@ -100,7 +112,7 @@ export async function coachClientsResponse(
   // so past that the list and its `onPlan` count left clients out while the badge, read the same
   // way by the dashboard routes, counted them. A read past the walk's ceiling is unread, as a
   // failed one is.
-  const { data: subRows, error: subErr } = await readAllById<{ id: string }>((after) => {
+  const { data: subRows, error: subErr } = await readAllById<RosterSubRow>((after) => {
     let q = supabase
       .from('subscriptions')
       .select('*')
