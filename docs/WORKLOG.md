@@ -143,9 +143,6 @@ planned builds.
 - Make the direct-charges test purchase (#2403's Owner steps): in Stripe test mode, add the
   Connected accounts destination with `invoice.paid`, set both Connect variables under
   Vercel's Preview (the test-mode `ca_…`), then buy from a test coach on staging.
-- Decide what Shape does for a member whose coach disconnected Stripe while their plan
-  still renews: Shape can't open the portal or cancel on that account (they get a 409 that
-  says so).
 - Decide the perks the website's "What Master unlocks" card and `leaderboards.jsx`
   promise (payout tier, ranking, a verified badge): nothing grants them.
 - Decide whether the coach leaderboard should keep showing every coach each other's
@@ -202,7 +199,9 @@ planned builds.
   staff.
 - Direct charges (#2403): the app profile's one-tap Subscribe and Book have no code box (the
   marketplace panel has one), and a one-time percent code's fee can be a cent off Stripe's
-  rounding.
+  rounding. A member whose coach disconnected is sent to Shape support (owner): Shape can't
+  cancel on that account, so support handles it by hand. A recent checkout on a coach's former
+  account that Shape can't read holds a new plan for up to 4 days (`payment_pending`).
 - Business: the plan's goal isn't remembered; renewals past 25 a load aren't checked
   with Stripe; the 90-day churn total is a floor once all 12 listed cancellations fall
   inside it. The dashboard routes' session reads and their coach-row read drop their
