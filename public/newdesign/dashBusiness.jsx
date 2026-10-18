@@ -871,7 +871,7 @@ function dbzToday(extra) {
 
 // Where the Plan tab starts: today's clients and net, the rate a new client pays, the share
 // the coach brings, and the pace. { state: "loading" | "unread" | "ready", ... }
-function dbzPlanBase({ live, extra, failed = false, listing, listingRead, now = Date.now() }) {
+function dbzPlanBase({ live, extra, failed = false, listing, listingRead, listingFailed = false, now = Date.now() }) {
   const CF = window.CoachForecast;
   if (!CF) return { state: "unread" };
   if (!live) {
@@ -890,18 +890,21 @@ function dbzPlanBase({ live, extra, failed = false, listing, listingRead, now = 
   if (!extra || !listingRead) return { state: "loading" };
   const m = dbzToday(extra);
   if (!m) return { state: "unread" };
-  const subs = Array.isArray(extra.byOrigin) ? extra.byOrigin.filter((r) => r.kind === "subscription") : [];
+  // byOrigin null is a failed read: the share starts at 0% and says so, never as a measurement.
+  const subsRead = Array.isArray(extra.byOrigin);
+  const subs = subsRead ? extra.byOrigin.filter((r) => r.kind === "subscription") : [];
   const brought = subs.filter((r) => r.feeBps === 0).length;
   const listed = listing && listing.monthly != null && Number(listing.monthly) > 0 ? Math.round(Number(listing.monthly) * 100) : null;
   const avg = m.clients > 0 && m.mrrGrossCents > 0 ? Math.round(m.mrrGrossCents / m.clients / 500) * 500 : null;
   return {
     state: "ready", clients: m.clients, mrrNetCents: m.mrrNetCents, mrrGrossCents: m.mrrGrossCents,
     rateCents: listed != null ? listed : avg != null ? avg : DBZ_DEFAULT_RATE_CENTS,
-    rateFrom: listed != null ? "your listing price" : avg != null ? "your clients' average" : "no listing price yet · set your own",
+    rateFrom: listed != null ? "your listing price" : listingFailed ? "couldn't read your listing price" + (avg != null ? " · your clients' average" : " · set your own") : avg != null ? "your clients' average" : "no listing price yet · set your own",
     byoShare: subs.length ? brought / subs.length : 0,
-    byoNote: subs.length ? "0% fee · " + brought + " of your " + subs.length : "0% Shape fee on these",
-    // A failed trajectory read is "no pace", which the sliders say, not a pace of zero.
-    pace: extra.trajectory ? CF.paceFrom(extra.trajectory, now) : { adds: null, churn: null, days: 0 },
+    byoNote: !subsRead ? "couldn't read who you brought · set your own" : subs.length ? "0% fee · " + brought + " of your " + subs.length : "0% Shape fee on these",
+    // A failed trajectory read is "no pace", which the sliders say, not a pace of zero; and it is
+    // an unread history, not an empty one, which they say too.
+    pace: extra.trajectory ? CF.paceFrom(extra.trajectory, now) : { adds: null, churn: null, days: 0, unread: true },
   };
 }
 
@@ -1049,6 +1052,8 @@ function DbzPathKey({ p }) {
 function DbzPlanZone({ base }) {
   const CF = window.CoachForecast;
   const known = base.pace.adds != null;
+  // An unread history (the trajectory read failed) is not an empty one.
+  const noHistory = base.pace.unread ? "couldn't read your history just now · set your own" : "no history yet · set your own";
   // The starting values, rounded to what the sliders can hold, so an untouched plan IS
   // today's pace rather than a near-copy of it.
   const start = React.useMemo(() => {
@@ -1119,10 +1124,10 @@ function DbzPlanZone({ base }) {
       <div style={{ display: "grid", gap: 18, alignContent: "start" }}>
         <DbzSlider label="New clients a month" value={adds} shown={adds.toFixed(1)} was={adds !== start.adds ? start.adds.toFixed(1) : null}
           min={0} max={Math.max(10, Math.ceil(start.adds * 3))} step={0.1} onChange={(v) => setAdds(dbzRound1(v))}
-          note={known ? "yours: " + start.adds.toFixed(1) + " " + dbzPaceWhen(base.pace) : "no history yet · set your own"} />
+          note={known ? "yours: " + start.adds.toFixed(1) + " " + dbzPaceWhen(base.pace) : noHistory} />
         <DbzSlider label="Monthly churn" value={churnPct} shown={dbzPct(churnPct)} was={churnPct !== start.churnPct ? dbzPct(start.churnPct) : null}
           min={0} max={Math.max(30, Math.ceil(start.churnPct))} step={0.1} onChange={(v) => setChurnPct(dbzRound1(v))}
-          note={base.pace.churn != null ? "yours: " + dbzPct(start.churnPct) + " leave a month, " + dbzPaceWhen(base.pace) : "no history yet · set your own"} />
+          note={base.pace.churn != null ? "yours: " + dbzPct(start.churnPct) + " leave a month, " + dbzPaceWhen(base.pace) : noHistory} />
         <DbzSlider label="Rate for new clients" value={rate} shown={"$" + rate} was={rate !== start.rate ? "$" + start.rate : null}
           min={Math.min(20, start.rate)} max={Math.max(500, start.rate * 2)} step={5} onChange={setRate}
           note="today's clients keep the price they joined at" />
@@ -1255,6 +1260,7 @@ function DbzLifetimeZone({ base }) {
   if (!base || base.state === "loading") return <div style={DBZ_NOTE}>Loads with the analytics rollup…</div>;
   if (base.state !== "ready") return <div style={DBZ_NOTE}>Couldn't read your subscriptions just now. Nothing is lost; reload to try again.</div>;
   const perClient = base.clients > 0 ? base.mrrNetCents / base.clients : null;
+  if (base.pace.unread) return <div style={DBZ_NOTE}>Couldn't read your subscription history just now, and the average stay is measured from it. Nothing is lost; reload to try again.</div>;
   if (base.pace.churn == null || perClient == null) return <div style={DBZ_NOTE}>This fills in after a month with clients: how long a client stays with you on average, and what that's worth.</div>;
   if (base.pace.churn === 0) return <div style={DBZ_NOTE}>No one has left {dbzPaceWhen(base.pace)}, so there isn't an average stay to measure yet.</div>;
   const lt = CF.lifetime({ netPerClientCents: perClient, churn: base.pace.churn });
@@ -1349,19 +1355,25 @@ function CoachBusinessPage({ role }) {
   // failed, undefined while it loads.
   const fromExtra = (k) => (extra ? extra[k] : extraFailed ? null : undefined);
 
-  const isLive = !!live || !!extra;
+  // ⚠ THE PREVIEW IS ONLY FOR A DEMO VIEWER. Live was "a feed has landed", so while the reads
+  // were pending, or when the dashboard feed failed, a signed-in coach was shown the preview's
+  // renewals, payouts and waiting list as their own, with no band. Now only a viewer the
+  // dashboard resolved as a demo sees demo figures; anyone else sees loading or unread states.
+  const isLive = !!live || !!extra || source !== "demo";
   // The coach's own listing (live only): the notice above the plates when it is not ready.
   const [listing, setListing] = React.useState(null);
   // Whether the listing read has finished (either way): the Plan tab starts from its price, so it
   // waits for the answer rather than starting from a fallback and jumping when the price lands.
   const [listingRead, setListingRead] = React.useState(false);
+  // A failed listing read (a 500, or no answer) is not "no listing price yet": the Plan says so.
+  const [listingFailed, setListingFailed] = React.useState(false);
   React.useEffect(() => {
     if (!isLive) return undefined;
     let on = true;
     fetch("/api/coach/listing", { credentials: "same-origin", cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (on && d) setListing(((d.listings || []).find((l) => l.role === role)) || null); })
-      .catch(() => {})
+      .then((d) => { if (!on) return; if (d) setListing(((d.listings || []).find((l) => l.role === role)) || null); else setListingFailed(true); })
+      .catch(() => { if (on) setListingFailed(true); })
       .then(() => { if (on) setListingRead(true); });
     return () => { on = false; };
   }, [role, isLive]);
@@ -1485,7 +1497,7 @@ function CoachBusinessPage({ role }) {
   // every re-render (a tab's remembered choice saving, a late fetch landing) remounted both
   // zones and threw away the coach's sliders and typed values.
   const [planNow] = React.useState(() => Date.now());
-  const planBase = dbzPlanBase({ live: isLive, extra, failed: extraFailed, listing, listingRead, now: planNow });
+  const planBase = dbzPlanBase({ live: isLive, extra, failed: extraFailed, listing, listingRead, listingFailed, now: planNow });
   const planKey = planBase.state === "ready" ? JSON.stringify([planBase.clients, planBase.mrrNetCents, planBase.rateCents, planBase.byoShare, planBase.pace]) : planBase.state;
   const planWait = planBase.state === "loading" ? "Your numbers load with the analytics rollup…" : "Couldn't read your subscriptions just now, and the plan starts from them. Nothing is lost; reload to try again.";
   const earnPlate = plate(DBZ_TEAL, <React.Fragment>

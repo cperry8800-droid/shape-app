@@ -404,6 +404,54 @@ test('a failed analytics read says so in every zone it feeds, instead of loading
   }
 });
 
+test('an unread history, brought share or listing price is said as unread, never as none', async () => {
+  const extra = { metrics: { activeClients: 12, mrrNetCents: 189000, mrrGrossCents: 216000 }, byOrigin: null, trajectory: null };
+  const b = B.dbzPlanBase({ live: true, extra, listing: null, listingRead: true, listingFailed: true });
+  assert.equal(b.pace.unread, true);
+  assert.equal(b.byoNote, "couldn't read who you brought · set your own");
+  assert.equal(b.rateFrom, "couldn't read your listing price · your clients' average");
+  assert.equal(B.dbzPlanBase({ live: true, extra: { ...extra, metrics: { activeClients: 0, mrrNetCents: 0, mrrGrossCents: 0 } }, listing: null, listingRead: true, listingFailed: true }).rateFrom, "couldn't read your listing price · set your own");
+  assert.equal(B.dbzPlanBase({ live: true, extra: { ...extra, byOrigin: [] }, listing: null, listingRead: true }).byoNote, '0% Shape fee on these', 'a read with no subscriptions is not unread');
+  const m = await mount(React.createElement(B.DbzPlanZone, { base: b }));
+  assert.equal((m.text().match(/couldn't read your history just now · set your own/g) || []).length, 2);
+  assert.doesNotMatch(m.text(), /no history yet/);
+  await m.unmount();
+  const life = await mount(React.createElement(B.DbzLifetimeZone, { base: b }));
+  assert.match(life.text(), /^Couldn't read your subscription history just now/);
+  await life.unmount();
+  const earn = await mount(React.createElement(B.DbzEarnZone, { base: b }));
+  assert.match(earn.text(), /couldn't read who you brought · set your own/);
+  await earn.unmount();
+  // The Goal tab's figures (dashData.jsx) say the same when byOrigin couldn't be read.
+  const data = readFileSync(ND('dashData.jsx'), 'utf8');
+  assert.match(data, /if \(!subs\) return \{ byoShare: null, byoNote: "couldn't read who you brought · set your own" \};\n\s+if \(!subs\.length\) return \{ byoShare: null, byoNote: null \};/);
+  const goal = B.dbzGoalEarnBase({ kind: 'live', activeClients: 12, mrrNetCents: 189000, mrrGrossCents: 216000, trajectory: null, byoShare: null, byoNote: "couldn't read who you brought · set your own" });
+  assert.deepEqual([goal.byoShare, goal.byoNote], [0, "couldn't read who you brought · set your own"]);
+});
+
+test('a signed-in coach never sees the preview\'s figures while the page is still reading', async () => {
+  // The dashboard feed hasn't resolved (source null) and the analytics haven't landed.
+  Object.assign(globalThis, {
+    useDashboard: () => ({ today: null, source: null }),
+    useRememberedChoices: () => null,
+    useRememberedChoice: () => React.useState('money'),
+    DashPage: ({ children }) => React.createElement(React.Fragment, null, children),
+    DashSegmented: () => null, DashExportButton: () => null, DashFunnelPanel: () => null, DashDemoBand: () => React.createElement('b', null, 'PREVIEW'),
+    trainerNavItems: () => [], trainerPayoutCard: {}, nutriPayoutCard: {},
+  });
+  globalThis.fetch = window.fetch = () => new Promise(() => {});
+  const m = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
+  assert.doesNotMatch(m.text(), /Casey Morgan|Alex Rivera|Riley Kim|is coming to you/, m.text().slice(0, 300));
+  assert.match(m.text(), /Your payouts load with the analytics rollup/);
+  await m.unmount();
+  // A viewer the dashboard resolved as a demo still sees the preview, under its band.
+  globalThis.useDashboard = () => ({ today: null, source: 'demo' });
+  const demo = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
+  assert.match(demo.text(), /PREVIEW/);
+  assert.match(demo.text(), /is coming to you/);
+  await demo.unmount();
+});
+
 // ── The whole page: the plan holds what the coach set ────────────────────────
 test('the Plan keeps the coach\'s sliders when the page re-renders (the pace is read once per visit)', async () => {
   // The page's own neighbours, as the dashboard loads them: the chrome only passes children

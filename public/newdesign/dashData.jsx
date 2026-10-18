@@ -646,7 +646,9 @@ function useCoachLiveFigures(role) {
         // the Goal tab's "What clients earn you" starts from it (dashBusiness.jsx DbzGoalEarn).
         ...(() => {
           const subs = Array.isArray(a.byOrigin) ? a.byOrigin.filter((r) => r.kind === "subscription") : null;
-          if (!subs || !subs.length) return { byoShare: null, byoNote: null };
+          // byOrigin null is a failed read: the calculator still starts at 0%, and says why.
+          if (!subs) return { byoShare: null, byoNote: "couldn't read who you brought · set your own" };
+          if (!subs.length) return { byoShare: null, byoNote: null };
           const brought = subs.filter((r) => r.feeBps === 0).length;
           return { byoShare: brought / subs.length, byoNote: "0% fee · " + brought + " of your " + subs.length };
         })(),
