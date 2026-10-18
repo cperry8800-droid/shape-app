@@ -96,28 +96,49 @@ function spanOf(row, now) {
   return { start, end: end != null && end < start ? start : end };
 }
 
+// True while `span` is open at the instant `t`: opened at or before it, and not closed by it.
+// buildTrajectory's headcount and departures and subDeparture all read it.
+function spanOpenAt(span, t) {
+  return span.start <= t && (span.end == null || span.end > t);
+}
+
+// Where the ISO week that opens on `monday` ends: a week later, or just after `now` for the
+// current, partial week (it is measured at "now"). Its last instant is the one a week's
+// departures are judged at, in the series' buckets and in subDeparture alike.
+function weekEnd(monday, now) {
+  return Math.min(monday + WEEK_MS, now + 1);
+}
+
 // ⚠ A PLAN THAT ENDED IS A DEPARTURE ONLY IF ITS CLIENT HELD NO OTHER PLAN AT THAT MOMENT (the sweep
 // after #2394 round 10). The routes' churn list asked whether the client holds a plan NOW, so a client
 // who left on Aug 20 and came back on Sep 25 read as "still a client" and dropped out of the list,
-// while this series (leftIn) and the pace counted the Aug 20 departure. Each row is decided at the
-// instant it ended, from every row of this coach (any status, the trajectory read): it is not a
-// departure when another started row of the same client opened at or before that instant and was
-// still open after it (its own end null, or later).
+// while this series (leftIn) and the pace counted the Aug 20 departure. Each row is decided from every
+// row of this coach (any status, the trajectory read).
+// ⚠ AND THE MOMENT IS THE CLOSE OF THE WEEK IT ENDED IN, AS leftIn JUDGES IT (the sweep after #2394
+// round 10, its review). Judged at the instant the row ended, a client whose card failed on a Monday
+// and who re-subscribed on the Thursday was a departure in the list and none in the pace (leftIn asks
+// who holds no plan at the end of the week), so one tab said "No one has left over the last 3 months"
+// above "1 left over the last 3 months −$180 a month". So it is not a departure when another started
+// row of the same client is open at the last instant of that ISO week (at now for the current week):
+// spanOpenAt at weekEnd − 1, the series' own test.
 //   → { endedAt, departed }: endedAt is the series' own close (subEndedAt, clamped to now, a close
 //     before the open read as the open), null for a row that has not ended; departed is true when
-//     this row ended the client's membership, false when another of their plans was open across it
-//     (or the row has not ended). A row with no client has no other plan to hold: a departure.
+//     this row ended the client's membership that week, false when another of their plans was open
+//     at its close (or the row has not ended). A row with no client has no other plan to hold: a
+//     departure. Rows of one client that end in one week are each a departure or each not, so the
+//     page counts them as one (coachForecast.js `departures`), as leftIn counts the client once.
 export function subDeparture(row, subs = [], now = Date.now()) {
   const own = spanOf(row, now);
   const end = own ? own.end : subEndedAt(row, now);
   if (end == null) return { endedAt: null, departed: false };
   if (row.client_id == null) return { endedAt: end, departed: true };
   const who = String(row.client_id);
+  const close = weekEnd(mondayUTC(end), now) - 1;
   for (const s of subs || []) {
     if (!s || s === row || (row.id != null && s.id === row.id)) continue;
     if (s.client_id == null || String(s.client_id) !== who) continue;
     const other = spanOf(s, now);
-    if (other && other.start <= end && (other.end == null || other.end > end)) return { endedAt: end, departed: false };
+    if (other && spanOpenAt(other, close)) return { endedAt: end, departed: false };
   }
   return { endedAt: end, departed: true };
 }
@@ -192,7 +213,7 @@ export function buildTrajectory({ subs = [], purchases = [], now = Date.now(), w
     paid.push({ at, price, net: Math.max(0, price - fee) });
   }
 
-  const openAt = (t) => spans.filter((s) => s.start <= t && (s.end == null || s.end > t));
+  const openAt = (t) => spans.filter((s) => spanOpenAt(s, t));
   const clientsOpenAt = (t) => new Set(openAt(t).map((s) => s.client));
   const activeAt = (t) => clientsOpenAt(t).size;
   // A client JOINED in [from, to) if a span of theirs opens inside it and they
@@ -206,7 +227,8 @@ export function buildTrajectory({ subs = [], purchases = [], now = Date.now(), w
   };
   // A client LEFT in [from, to) if a span of theirs closes inside it and they
   // hold no open span at the end of it — so cancelling one row while another
-  // stays open is not a departure.
+  // stays open is not a departure. Over a week bucket that end is weekEnd − 1,
+  // the instant subDeparture decides the churn list's rows at.
   const leftIn = (from, to) => {
     const after = clientsOpenAt(to - 1);
     const out = new Set();
@@ -219,7 +241,7 @@ export function buildTrajectory({ subs = [], purchases = [], now = Date.now(), w
   const out = [];
   for (let k = 0; k < weeks; k++) {
     const start = firstMonday + k * WEEK_MS;
-    const end = Math.min(start + WEEK_MS, now + 1); // the current week is partial: measure at "now"
+    const end = weekEnd(start, now); // the current week is partial: measure at "now"
     const open = openAt(end - 1);
     let gross = 0, net = 0;
     for (const s of open) { gross += s.price; net += s.net; }

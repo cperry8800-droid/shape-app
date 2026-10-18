@@ -319,12 +319,14 @@ export async function GET(request: Request) {
   // with the trainer route so the mapping can't drift.
   const byOrigin = todaySubs ? await buildOriginFeed(supabase, 'nutritionist', providerId, todaySubs, activeNames) : null;
 
-  // ⚠ A PLAN THAT ENDED IS DECIDED AT THE MOMENT IT ENDED, NOT BY WHETHER THE CLIENT IS HERE NOW (the
-  // sweep after #2394 round 10; coach-trajectory.mjs subDeparture, the trainer route's rule). A client
-  // who left on Aug 20 and came back on Sep 25 read as still a client and dropped out of the list,
-  // while the trajectory and the pace counted the Aug 20 departure. `departed` true is "this ended
-  // their membership", false "they held another plan then", null "the trajectory rows could not be
-  // read". endedAt is the series' own close, clamped to now.
+  // ⚠ A PLAN THAT ENDED IS DECIDED WHEN IT ENDED, NOT BY WHETHER THE CLIENT IS HERE NOW (the sweep
+  // after #2394 round 10; coach-trajectory.mjs subDeparture, the trainer route's rule). A client who
+  // left on Aug 20 and came back on Sep 25 read as still a client and dropped out of the list, while
+  // the trajectory and the pace counted the Aug 20 departure. Each row is decided at the close of the
+  // ISO week it ended in, as the series' weekly `ended` is (its review: a client back on the Thursday
+  // of the week they left in has not left that week). `departed` true is "this ended their
+  // membership", false "they held another plan then", null "the trajectory rows could not be read".
+  // endedAt is the series' own close, clamped to now.
   const churn = churnErr ? null : (churnRows ?? []).map((r) => {
     const end = subDeparture(r, subsAllRes.data ?? [], seriesNow);
     return {

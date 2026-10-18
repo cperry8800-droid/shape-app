@@ -5,6 +5,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { PLATFORM_FEE_RATE } from '../src/lib/platform-fee.mjs';
+// The routes' own rules for the rows the churn list is built from (both analytics routes use them).
+import { buildTrajectory, subDeparture, NOT_ENDED_STATUSES } from '../src/lib/coach-trajectory.mjs';
 
 const require_ = createRequire(import.meta.url);
 const CF = require_('../public/newdesign/coachForecast.js');
@@ -370,7 +372,7 @@ test('churnWindow: the pace\'s window whenever the pace has one, else the last 9
   assert.deepEqual(CF.churnWindow(null, now), ninety);
 });
 
-test('departures: one client at one moment is one departure whose money adds; two moments are two', () => {
+test('departures: one client at one moment is one departure whose money adds; two weeks apart are two', () => {
   const now = Date.UTC(2026, 9, 17, 12);
   const at = (d) => new Date(now - d * DAY).toISOString();
   const rows = [
@@ -394,6 +396,60 @@ test('departures: one client at one moment is one departure whose money adds; tw
   assert.equal(CF.departures([...rows, { name: 'Unknown', clientId: 'u', departed: null, endedAt: at(3) }], { now }), null);
   // A row the route did not decide (the preview's rows) is a departure.
   assert.equal(CF.departures([{ name: 'Preview', endedAt: at(3), priceCents: 100 }], { now }).count, 1);
+});
+
+// ── Its review (the sweep after #2394 round 10): one client's departures in one ISO week are one ──
+test('departures: one client\'s departures in one week are one, with every plan\'s money, dated by the last end', () => {
+  const now = Date.UTC(2026, 9, 16, 12);
+  // Newest first, as the routes send them. x left Monday 09-14, came back Tuesday, left again
+  // Wednesday 09-16; and before that left on Sunday 09-06, the week before last.
+  const rows = [
+    { name: 'X', clientId: 'x', departed: true, startedAt: '2026-09-15T08:00:00Z', endedAt: '2026-09-16T18:00:00Z', priceCents: 18000 },
+    { name: 'X', clientId: 'x', departed: true, startedAt: '2026-09-10T08:00:00Z', endedAt: '2026-09-14T10:00:00Z', priceCents: 6000, reason: 'Card failed' },
+    { name: 'X', clientId: 'x', departed: true, startedAt: '2026-01-05T00:00:00Z', endedAt: '2026-09-06T23:00:00Z', priceCents: 9000 },
+    // Two rows with no client in one week still stand apart.
+    { name: 'No client', clientId: null, departed: true, endedAt: '2026-09-15T00:00:00Z', priceCents: 4000 },
+    { name: 'No client', clientId: null, departed: true, endedAt: '2026-09-15T01:00:00Z', priceCents: 3000 },
+  ];
+  const d = CF.departures(rows, { now });
+  assert.deepEqual(d.list.map((x) => [x.name, x.endedAt, x.priceCents, x.plans]), [
+    ['X', '2026-09-16T18:00:00Z', 24000, 2], ['X', '2026-09-06T23:00:00Z', 9000, 1], ['No client', '2026-09-15T00:00:00Z', 4000, 1], ['No client', '2026-09-15T01:00:00Z', 3000, 1],
+  ]);
+  assert.deepEqual([d.list[0].startedAt, d.list[0].reason], ['2026-09-10T08:00:00Z', 'Card failed']);
+  assert.deepEqual([d.count, d.lostCents], [4, 24000 + 9000 + 4000 + 3000]);
+  // Whatever order the rows arrive in, the week's departure is dated by its last end.
+  const flipped = CF.departures([rows[1], rows[0]], { now });
+  assert.deepEqual(flipped.list.map((x) => [x.endedAt, x.priceCents]), [['2026-09-16T18:00:00Z', 24000]]);
+  // Sunday 23:00 and the next Monday 01:00 are two weeks, so two departures.
+  assert.equal(CF.departures([{ ...rows[2], endedAt: '2026-09-13T23:00:00Z' }, { ...rows[1], endedAt: '2026-09-14T01:00:00Z' }], { now }).count, 2);
+});
+
+// From subscription rows through the routes' rules to both counts the Retention tab prints: the
+// pace's ended count (the trajectory's weeks) and the churn list's departures agree.
+test('departures and the pace count the same departures, from the same subscription rows', () => {
+  const now = Date.UTC(2026, 9, 16, 12);
+  const sub = (o) => ({ status: 'active', price_cents: 18000, fee_bps: 1500, created_at: '2026-01-05T00:00:00Z', ...o });
+  const others = Array.from({ length: 5 }, (_, i) => sub({ id: 'o' + i, client_id: 'o' + i }));
+  // What the routes send: the ended rows, newest first, each decided by subDeparture.
+  const counts = (subs) => {
+    const pace = CF.paceFrom(buildTrajectory({ subs, now }), now);
+    const churn = subs.filter((r) => !NOT_ENDED_STATUSES.includes(r.status))
+      .sort((a, b) => Date.parse(b.current_period_end) - Date.parse(a.current_period_end))
+      .map((r) => { const e = subDeparture(r, subs, now); return { name: r.client_id, clientId: r.client_id, departed: e.departed, endedAt: new Date(e.endedAt).toISOString(), priceCents: r.price_cents }; });
+    const gone = CF.departures(churn, { pace, now });
+    return [pace.ended, gone.count, gone.lostCents];
+  };
+  const mon = sub({ id: 'x1', client_id: 'x', status: 'unpaid', current_period_end: '2026-09-14T10:00:00Z' });
+  // The review's case: ended Monday 09-14, back Thursday 09-17. No one left, in either.
+  assert.deepEqual(counts([...others, mon, sub({ id: 'x2', client_id: 'x', created_at: '2026-09-17T09:00:00Z' })]), [0, 0, 0]);
+  // Back the next Monday: one departure in each.
+  assert.deepEqual(counts([...others, mon, sub({ id: 'x2', client_id: 'x', created_at: '2026-09-21T09:00:00Z' })]), [1, 1, 18000]);
+  // Left twice that week (back Tuesday, gone Wednesday): one in each, with both plans' money.
+  assert.deepEqual(counts([...others, mon, sub({ id: 'x2', client_id: 'x', status: 'canceled', price_cents: 6000, created_at: '2026-09-15T08:00:00Z', current_period_end: '2026-09-16T18:00:00Z' })]), [1, 1, 24000]);
+  // Two plans held together, ended Monday and Wednesday: one departure, and both plans' money left.
+  assert.deepEqual(counts([...others, mon, sub({ id: 'x2', client_id: 'x', status: 'canceled', price_cents: 6000, created_at: '2026-04-06T00:00:00Z', current_period_end: '2026-09-16T18:00:00Z' })]), [1, 1, 24000]);
+  // Left in two weeks: two in each.
+  assert.deepEqual(counts([...others, mon, sub({ id: 'x2', client_id: 'x', status: 'canceled', price_cents: 6000, created_at: '2026-09-21T08:00:00Z', current_period_end: '2026-10-07T18:00:00Z' })]), [2, 2, 24000]);
 });
 
 test('departures: the count opens where the pace opens; a full list inside it is a floor', () => {

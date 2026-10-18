@@ -398,14 +398,17 @@ export async function GET(request: Request) {
   // with the nutritionist route so the mapping can't drift.
   const byOrigin = todaySubs ? await buildOriginFeed(supabase, 'trainer', providerId, todaySubs, activeNames) : null;
 
-  // ⚠ A PLAN THAT ENDED IS DECIDED AT THE MOMENT IT ENDED, NOT BY WHETHER THE CLIENT IS HERE NOW (the
-  // sweep after #2394 round 10; coach-trajectory.mjs subDeparture). Asked "do they hold a plan now?",
-  // a client who left on Aug 20 and came back on Sep 25 read as still a client and dropped out of the
+  // ⚠ A PLAN THAT ENDED IS DECIDED WHEN IT ENDED, NOT BY WHETHER THE CLIENT IS HERE NOW (the sweep
+  // after #2394 round 10; coach-trajectory.mjs subDeparture). Asked "do they hold a plan now?", a
+  // client who left on Aug 20 and came back on Sep 25 read as still a client and dropped out of the
   // list, while the trajectory and the pace counted the Aug 20 departure. Each row is decided from the
-  // series' own rows (every status, read above): `departed` true is "this ended their membership",
-  // false "they held another plan then", null "the trajectory rows could not be read", which the page
-  // says rather than guessing. endedAt is the series' own close (clamped to now): a member who
-  // cancelled mid-period keeps a period end in the future, and that is not when they left.
+  // series' own rows (every status, read above), at the close of the ISO week it ended in, the instant
+  // the series' weekly `ended` is judged at (its review: judged at the instant itself, a client whose
+  // card failed on a Monday and who came back on the Thursday was a departure here and none in the
+  // pace). `departed` true is "this ended their membership", false "they held another plan then",
+  // null "the trajectory rows could not be read", which the page says rather than guessing. endedAt
+  // is the series' own close (clamped to now): a member who cancelled mid-period keeps a period end in
+  // the future, and that is not when they left.
   const churn = churnErr ? null : (churnRows ?? []).map((r) => {
     const end = subDeparture(r, subsAllRes.data ?? [], seriesNow);
     return {

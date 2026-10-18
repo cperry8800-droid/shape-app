@@ -29,6 +29,8 @@ const money = globalThis.dashMoney;
 const ROSTER_NAMES = new RegExp(globalThis.DashSignals.buildMockClients(new Date()).map((c) => c.profile.name.replace(/[.$]/g, '\\$&')).join('|'));
 
 const { loadRealModule } = await import('./helpers/load-real-module.mjs');
+// The routes' own rules for the trajectory and for each ended plan (both analytics routes use them).
+const { buildTrajectory, subDeparture, NOT_ENDED_STATUSES } = await import('../src/lib/coach-trajectory.mjs');
 const B = await loadRealModule(ND('dashBusiness.jsx'), {
   appendExports: 'export { DbzChurnZone, DbzGoalEarn, dbzGoalEarnBase, dbzPlanBase, DbzPlanZone, DbzEarnZone, DbzPayoutsZone, DbzRenewalsZone, dbzRenewalsHead, DbzWaitlistZone, DbzLifetimeZone, DBZ_DEMO_CHURN, dbzDemoTrajectory, dbzDemoBook, dbzDemoOrigin, dbzDemoRenewals, DBZ_DEMO_OUTCOMES };',
 });
@@ -412,9 +414,9 @@ test('the churn total counts the last 90 days and says so, not every cancellatio
   assert.match(eleven.text(), /^11 left in the last 90 days−\$1,980 a month/, 'one row outside the window: the count is whole');
   await eleven.unmount();
   // Departures, not plans that ended and not people (Codex round 8 and the sweep after round 10,
-  // #2394). The route decides each row at the moment it ended: a row whose client held another plan
-  // then (departed false) is no departure, and is not listed. Plans one client ended at one moment
-  // are one departure, and both plans' money is lost.
+  // #2394). The route decides each row at the close of the week it ended in: a row whose client held
+  // another plan then (departed false) is no departure, and is not listed. Plans one client ended at
+  // one moment (or in one week) are one departure, and both plans' money is lost.
   const twoPlans = [
     { ...rows[0], name: 'Held another', clientId: 's', departed: false, priceCents: 9000 },
     { ...rows[0], name: 'Two at once', clientId: 'l', departed: true, priceCents: 18000 },
@@ -516,6 +518,48 @@ test('on the Retention tab, who left and what a client is worth read one window'
   assert.match(m.text(), /From [\d.]+% of clients leaving a month over the last 3 months/);
   assert.match(m.text(), /1 left over the last 3 months−\$180 a month/);
   assert.doesNotMatch(m.text(), /None left/);
+  await m.unmount();
+});
+
+// Its review (the sweep after #2394 round 10): the route decides each ended plan at the close of the
+// week it ended in, and the page counts one client's departures in one week once, so the churn zone
+// and "What a client is worth" count the same departures. The analytics here are built from
+// subscription rows by the routes' own rules, as the route sends them.
+function analyticsFrom(subs, now) {
+  const churn = subs.filter((r) => !NOT_ENDED_STATUSES.includes(r.status))
+    .sort((a, b) => Date.parse(b.current_period_end) - Date.parse(a.current_period_end))
+    .map((r) => { const e = subDeparture(r, subs, now); return { name: r.name, clientId: r.client_id, departed: e.departed, startedAt: r.created_at, endedAt: new Date(e.endedAt).toISOString(), priceCents: r.price_cents, reason: null }; });
+  return { isTrainer: true, providerId: 7, metrics: {}, byOrigin: [], byoMix: { clients: 6, brought: 0 }, trajectory: buildTrajectory({ subs, now }), renewals: [], stripe: { connected: false }, churn };
+}
+// Five clients who stay, and x: their plan ends on a Monday three weeks back at 10:00.
+function weekCase(now) {
+  const day = 86400000;
+  const m = new Date(now); m.setUTCHours(0, 0, 0, 0); m.setUTCDate(m.getUTCDate() - ((m.getUTCDay() + 6) % 7));
+  const monday = m.getTime() - 21 * day;
+  const iso = (t) => new Date(t).toISOString();
+  const row = (o) => ({ status: 'active', price_cents: 18000, fee_bps: 1500, created_at: iso(now - 200 * day), ...o });
+  const others = Array.from({ length: 5 }, (_, i) => row({ id: 'o' + i, client_id: 'o' + i, name: 'Stays ' + i }));
+  const gone = row({ id: 'x1', client_id: 'x', name: 'Card Failed', status: 'unpaid', current_period_end: iso(monday + 10 * 3600000) });
+  return { monday, day, iso, row, others, gone };
+}
+test('on the Retention tab, a client back later the week they left is no departure in either zone', async () => {
+  const now = Date.now();
+  const { monday, day, iso, row, others, gone } = weekCase(now);
+  // Back on the Thursday: the pace has no one leaving, and neither does the churn zone.
+  const back = row({ id: 'x2', client_id: 'x', name: 'Card Failed', created_at: iso(monday + 3 * day + 9 * 3600000) });
+  let m = await mountBusiness(analyticsFrom([...others, gone, back], now), 'retention');
+  assert.match(m.text(), /No one has left over the last 3 months, so there isn't an average stay to measure yet\./);
+  assert.match(m.text(), /None left over the last 3 months/);
+  assert.doesNotMatch(m.text(), /1 left over the last 3 months|Card Failed/);
+  await m.unmount();
+  // Back on the Tuesday and gone again on the Wednesday: one departure in each, with both plans' money.
+  const again = row({ id: 'x2', client_id: 'x', name: 'Card Failed', status: 'canceled', price_cents: 6000, created_at: iso(monday + day + 8 * 3600000), current_period_end: iso(monday + 2 * day + 18 * 3600000) });
+  const twice = analyticsFrom([...others, gone, again], now);
+  assert.equal(CF.paceFrom(twice.trajectory, now).ended, 1, 'the pace counts one');
+  m = await mountBusiness(twice, 'retention');
+  assert.match(m.text(), /From [\d.]+% of clients leaving a month over the last 3 months/);
+  assert.match(m.text(), /1 left over the last 3 months−\$240 a month/);
+  assert.equal((m.text().match(/Card Failed/g) || []).length, 1, 'listed once');
   await m.unmount();
 });
 

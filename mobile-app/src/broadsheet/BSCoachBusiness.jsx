@@ -694,11 +694,12 @@ function ClientsTab({ t, biz, now }) {
   if (extra.churn === null) left = <Note t={t}>{tr('coach:business.clients.leftUnread', { defaultValue: "Couldn't read your cancellations just now." })}</Note>;
   else if (!Array.isArray(extra.churn)) left = loading;
   else {
-    // ⚠ DEPARTURES, DECIDED AT THE MOMENT EACH PLAN ENDED (the website's Codex round 8 and the sweep
-    // after round 10, #2394): a client who held another plan then hadn't left (departed false), plans
-    // one client ended at one moment are one departure whose money adds, and a client who left twice
-    // is listed twice (coachForecast.js `departures`). null: the history each one is decided from was
-    // unread (departed null), so no one is listed as gone.
+    // ⚠ DEPARTURES, DECIDED AT THE CLOSE OF THE WEEK EACH PLAN ENDED IN (the website's Codex round 8 and
+    // the sweep after round 10 and its review, #2394), as "Joined and left" above counts them: a client
+    // who held another plan then hadn't left (departed false), one client's plans ended in one week are
+    // one departure whose money adds, and a client who left in two weeks is listed twice
+    // (coachForecast.js `departures`). null: the history each one is decided from was unread
+    // (departed null), so no one is listed as gone.
     const gone = F.departures(extra.churn, { pace: churnPace, now, cap: BS_BIZ_CHURN_LIST });
     if (!gone) left = <Note t={t}>{tr('coach:business.clients.leftUnsure', { defaultValue: "Couldn't check who still has a plan with you just now, so no one is counted as gone." })}</Note>;
     else {

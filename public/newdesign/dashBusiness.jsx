@@ -282,9 +282,10 @@ function DbzChurnZone({ live, churn, pace = null, now = Date.now() }) {
   // each departure is decided from; counting those rows as gone would report departures (and money
   // lost) it never established.
   // ⚠ DEPARTURES, NOT PLANS THAT ENDED, AND NOT PEOPLE (Codex round 8, #2394; the sweep after round
-  // 10). The route decides each row at the moment it ended: a client who held another plan then
-  // hadn't left (departed false), whoever they are now. Plans one client ended at one moment are one
-  // departure whose money adds; a client who left twice left twice (coachForecast.js `departures`).
+  // 10). The route decides each row at the close of the week it ended in, as the pace's ended count
+  // is judged: a client who held another plan then hadn't left (departed false), whoever they are now.
+  // One client's plans ended in one week are one departure whose money adds; a client who left in two
+  // weeks left twice (coachForecast.js `departures`), so this count and the pace's agree.
   const gone = window.CoachForecast.departures(rows, { pace, now, cap: DBZ_CHURN_LIST });
   if (!gone) {
     return <div style={{ fontSize: 12.5, color: DBZ_INK50, lineHeight: 1.55 }}>Couldn't check who still has a plan with you just now, so no one is counted as gone. Nothing is lost; reload to try again.</div>;

@@ -425,10 +425,10 @@ test('renewals: the active rows due in the next 7 days, each asked of Stripe, ne
 })
 
 // ── Codex round 8 (#2394) and the sweep after round 10: departures, decided when each plan ended ──
-// A plan that ended is a departure unless its client held another plan at that moment
-// (coach-trajectory.mjs subDeparture, the trajectory's leftIn rule). Whether they hold one NOW is not
-// the question: a client who left and came back still left.
-test('each ended plan says whose it is and whether it ended their membership, decided at the moment it ended', async () => {
+// A plan that ended is a departure unless its client held another plan at the close of the week it
+// ended in (coach-trajectory.mjs subDeparture, the trajectory's leftIn rule). Whether they hold one NOW
+// is not the question: a client who left and came back in a later week still left.
+test('each ended plan says whose it is and whether it ended their membership, decided at its week\'s close', async () => {
   const C = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
   const D = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
   const E = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
@@ -502,6 +502,44 @@ test('a client who left and came back is listed as a departure in both routes, m
     const ended = body.trajectory.weeks.reduce((s, w) => s + w.ended, 0)
     assert.equal(ended, 1, role + ': the trajectory counts the same departure')
     assert.equal(body.trajectory.weeks[body.trajectory.weeks.length - 1].active, 1, role + ': and the client as active today')
+  }
+})
+
+// Its review: each row is decided at the close of the ISO week it ended in, the instant the trajectory's
+// weekly `ended` is judged at, so the list and the pace count the same departures. Judged at the
+// instant itself, a client back on the Thursday of the week they left in was a departure in the list
+// and none in the trajectory (the Retention tab's "No one has left" above "1 left").
+test('a client back later in the week they left in is no departure, in both routes, as trajectory.weeks\' ended has it', async () => {
+  const X = 'abababab-abab-4bab-8bab-abababababab'
+  const CF = require_(join(ROOT, 'public/newdesign/coachForecast.js'))
+  const day = 86400000
+  // The Monday three weeks back, so the whole week is past and inside the pace's window.
+  const now = Date.now()
+  const m = new Date(now); m.setUTCHours(0, 0, 0, 0); m.setUTCDate(m.getUTCDate() - ((m.getUTCDay() + 6) % 7))
+  const monday = m.getTime() - 21 * day
+  const iso = (t) => new Date(t).toISOString()
+  const weekOf = iso(monday).slice(0, 10)
+  const others = (role) => Array.from({ length: 5 }, (_, i) => ({ ...sub('0000000' + i + '-0000-4000-8000-000000000000', 18000), id: 'o' + i, provider_role: role, created_at: iso(now - 200 * day) }))
+  // x's plan ends on the Monday at 10:00 (a card failed).
+  const mon = (role) => ({ ...sub(X, 18000), id: 'x1', provider_role: role, created_at: iso(now - 200 * day), status: 'unpaid', current_period_end: iso(monday + 10 * 3600000) })
+  const cases = [
+    // Back on the Thursday: no one left that week.
+    ['back on the Thursday', (role) => [{ ...sub(X, 18000), id: 'x2', provider_role: role, created_at: iso(monday + 3 * day + 9 * 3600000) }], [false], 0, 0],
+    // Back on the Tuesday, gone again on the Wednesday: one departure, both plans' money.
+    ['gone twice that week', (role) => [{ ...sub(X, 6000), id: 'x2', provider_role: role, created_at: iso(monday + day + 8 * 3600000), status: 'canceled', current_period_end: iso(monday + 2 * day + 18 * 3600000) }], [true, true], 1, 24000],
+    // Two plans held together, one ended on the Monday and one on the Wednesday: one departure.
+    ['two plans, two days', (role) => [{ ...sub(X, 6000), id: 'x2', provider_role: role, created_at: iso(now - 150 * day), status: 'canceled', current_period_end: iso(monday + 2 * day + 18 * 3600000) }], [true, true], 1, 24000],
+  ]
+  for (const [role, listing] of [['trainer', { trainers: [{ id: 7, stripe_account_id: null, stripe_account_status: null }] }], ['nutritionist', NUTRI]]) {
+    for (const [what, more, departed, ended, lost] of cases) {
+      const { body } = await loadRoute(role, { ...listing, subscriptions: [...others(role), mon(role), ...more(role)] }, { rpcs: lifts({}), honorStatus: true })
+      assert.deepEqual(body.churn.map((r) => r.departed).reverse(), departed, `${role}, ${what}: each ended plan, decided at the week's close`)
+      assert.equal(body.trajectory.weeks.find((w) => w.weekOf === weekOf).ended, ended, `${role}, ${what}: the trajectory's week`)
+      // And what the Retention tab and the Clients tab print from them agrees.
+      const pace = CF.paceFrom(body.trajectory, now)
+      const gone = CF.departures(body.churn, { pace, now })
+      assert.deepEqual([pace.ended, gone.count, gone.lostCents], [ended, ended, lost], `${role}, ${what}: the pace and the list count the same departures`)
+    }
   }
 })
 

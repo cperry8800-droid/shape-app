@@ -15,6 +15,8 @@ import { dirname, join } from 'node:path';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 // The routes' own renewal rows (both analytics routes build them with it).
 import { renewalRows, RENEWAL_CHECK_CAP } from '../src/lib/coach-renewals.mjs';
+// And their rules for the trajectory and for each ended plan.
+import { buildTrajectory, subDeparture, NOT_ENDED_STATUSES } from '../src/lib/coach-trajectory.mjs';
 
 const require_ = createRequire(import.meta.url);
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -379,8 +381,8 @@ test('the waiting list is valued at the listing price, and says why when there i
 });
 
 // The website's Codex round 8 and the sweep after round 10 (#2394): departures, decided by the route
-// at the moment each plan ended. A plan ended while its client held another is not one; one client
-// with two plans due is one client.
+// at the close of the week each plan ended in. A plan ended while its client held another is not one;
+// one client with two plans due is one client.
 test('who left leaves out a plan ended while another was held, and the renewals header counts people', async () => {
   const p = payload();
   const recentEnd = p.churn[0].endedAt;
@@ -717,6 +719,43 @@ test('who left lists departures: one client\'s plans ending together are one, wi
   assert.match(m.text(), /Two At Onceleft [^$]*\$240\/mo/, 'with both plans\' money');
   assert.equal((m.text().match(/Back And Gone/g) || []).length, 2, 'two departures');
   assert.match(m.text(), /Back And Goneleft [^$]*\$150\/mo[^]*Back And Goneleft [^$]*\$90\/mo/);
+  await m.unmount();
+});
+
+// The website's sweep after #2394 round 10, its review: the route decides each ended plan at the close
+// of the week it ended in, and the list counts one client's departures in one week once, so "Joined
+// and left" (the pace) and "Left over the last 3 months" count the same departures. The payload is
+// built from subscription rows by the routes' own rules.
+test('who left and "Joined and left" agree when a client comes back, or leaves twice, inside one week', async () => {
+  const now = Date.now();
+  const m0 = new Date(now); m0.setUTCHours(0, 0, 0, 0); m0.setUTCDate(m0.getUTCDate() - ((m0.getUTCDay() + 6) % 7));
+  const monday = m0.getTime() - 21 * DAY;
+  const iso = (t) => new Date(t).toISOString();
+  const row = (o) => ({ status: 'active', price_cents: 18000, fee_bps: 1500, created_at: iso(now - 200 * DAY), ...o });
+  const others = Array.from({ length: 5 }, (_, i) => row({ id: 'o' + i, client_id: 'o' + i }));
+  // x's plan ends on a Monday three weeks back, at 10:00.
+  const gone = row({ id: 'x1', client_id: 'x', status: 'unpaid', current_period_end: iso(monday + 10 * 3600000) });
+  const from = (subs) => {
+    const trajectory = buildTrajectory({ subs, now });
+    const churn = subs.filter((r) => !NOT_ENDED_STATUSES.includes(r.status))
+      .sort((a, b) => Date.parse(b.current_period_end) - Date.parse(a.current_period_end))
+      .map((r) => { const e = subDeparture(r, subs, now); return { name: 'Card Failed', clientId: r.client_id, departed: e.departed, startedAt: r.created_at, endedAt: new Date(e.endedAt).toISOString(), priceCents: r.price_cents }; });
+    const last = trajectory.weeks[trajectory.weeks.length - 1];
+    return payload({ trajectory, churn, metrics: { activeClients: last.active, mrrNetCents: last.mrrNetCents, mrrGrossCents: last.mrrGrossCents } });
+  };
+  // Back on the Thursday: no one left, in either.
+  world({ answer: from([...others, gone, row({ id: 'x2', client_id: 'x', created_at: iso(monday + 3 * DAY + 9 * 3600000) })]) });
+  let m = await mount(page({ tab: 'clients' }));
+  assert.match(m.text(), /0 clients joined and 0 left over the last 3 months\./);
+  assert.match(m.text(), /Left over the last 3 monthsNo one has left over the last 3 months\./);
+  assert.doesNotMatch(m.text(), /Card Failed/);
+  await m.unmount();
+  // Back on the Tuesday, gone again on the Wednesday: one in each, with both plans' money.
+  world({ answer: from([...others, gone, row({ id: 'x2', client_id: 'x', status: 'canceled', price_cents: 6000, created_at: iso(monday + DAY + 8 * 3600000), current_period_end: iso(monday + 2 * DAY + 18 * 3600000) })]) });
+  m = await mount(page({ tab: 'clients' }));
+  assert.match(m.text(), /0 clients joined and 1 left over the last 3 months\./);
+  assert.equal((m.text().match(/Card Failed/g) || []).length, 1, 'listed once');
+  assert.match(m.text(), /Left over the last 3 monthsCard Failedleft [^$]*\$240\/mo/);
   await m.unmount();
 });
 

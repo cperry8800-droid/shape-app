@@ -26,7 +26,9 @@ export function practiceToday(subs?: Array<Record<string, unknown>>, opts?: {
 export const NOT_ENDED_STATUSES: string[];
 
 // When a row ended (the series' own close, clamped to now) and whether that ended the client's
-// membership: false when another of their plans was open across that instant, or the row has not ended.
+// membership: false when another of their plans was open at the close of the ISO week it ended in
+// (at now for the current week, the instant the series' weekly `ended` is judged at), or the row has
+// not ended.
 export function subDeparture(
   row: Record<string, unknown>,
   subs?: Array<Record<string, unknown>> | null,

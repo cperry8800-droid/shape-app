@@ -164,11 +164,17 @@
   // ⚠ A DEPARTURE IS ONE CLIENT LEAVING AT ONE MOMENT, AND ITS MONEY IS EVERY PLAN THAT ENDED THEN (the
   // sweep after #2394 round 10). The count was of people while the money added every row: a client who
   // left in August, came back and left again in October was "1 left" beside both plans' money. The
-  // route now decides each row at the moment it ended (`departed`), so the count is of departures:
-  // plans one client ended at the same moment are one departure whose prices add, and two separate
-  // departures of one client count twice, each with its own money, as the pace's ended count does.
-  // A row the route marks `departed: false` (the client held another plan then) is not one. A row with
-  // no client id stands alone, as everywhere else that counts clients.
+  // route now decides each row (`departed`), so the count is of departures: two separate departures
+  // of one client count twice, each with its own money, as the pace's ended count does. A row the
+  // route marks `departed: false` (the client held another plan then) is not one. A row with no client
+  // id stands alone, as everywhere else that counts clients.
+  // ⚠ AND THE MOMENT IS THE ISO WEEK, AS THE PACE'S ENDED COUNT HAS IT (the sweep after #2394 round 10,
+  // its review). The trajectory counts a client once in a week they left in (leftIn), and the route
+  // decides each row at that week's close (coach-trajectory.mjs subDeparture). Grouped by the exact
+  // instant, a client who left on a Monday, came back on the Tuesday and left again on the Wednesday
+  // was "2 left" beside the pace's 1. So one client's departures in one week (Monday, UTC) are one,
+  // whose money is every plan in it and whose date is the last of their ends; plans ended at the same
+  // moment are one as before, and departures in different weeks still count apart.
   // ⚠ AND THE LIST STOPS AT `cap` ROWS (the routes' .limit(12)). When every row it holds is inside the
   // window, more may have left than it shows: `floor` says the count is a floor. It is about the
   // route's list, before any row is left out.
@@ -178,19 +184,20 @@
     const win = churnWindow(pace, now);
     const at = (r) => (r.endedAt ? new Date(r.endedAt).getTime() : NaN);
     const list = [];
-    const byMoment = new Map();
+    const byWeek = new Map();
     all.forEach((r, i) => {
       if (r.departed === false) return;
       const t = at(r);
-      const key = (r.clientId != null ? "c:" + r.clientId : "row:" + i) + "@" + (Number.isFinite(t) ? t : "row:" + i);
-      const d = byMoment.get(key);
+      const key = (r.clientId != null ? "c:" + r.clientId : "row:" + i) + "@" + (Number.isFinite(t) ? mondayOf(t) : "row:" + i);
+      const d = byWeek.get(key);
       if (!d) {
         const first = { name: r.name, clientId: r.clientId == null ? null : r.clientId, startedAt: r.startedAt || null, endedAt: r.endedAt || null, priceCents: r.priceCents == null ? null : Number(r.priceCents) || 0, reason: r.reason || null, plans: 1 };
-        byMoment.set(key, first);
+        byWeek.set(key, first);
         list.push(first);
         return;
       }
       d.plans += 1;
+      if (t > at(d)) d.endedAt = r.endedAt;
       if (r.priceCents != null) d.priceCents = (d.priceCents || 0) + (Number(r.priceCents) || 0);
       if (r.startedAt && (!d.startedAt || new Date(r.startedAt).getTime() < new Date(d.startedAt).getTime())) d.startedAt = r.startedAt;
       if (!d.reason && r.reason) d.reason = r.reason;

@@ -3,6 +3,7 @@
 // Run: node scripts/mutate.mjs --spec tests/mutations/app-coach-business-2026-10-18.mutations.mjs --fail-on-skipped
 const APP = 'mobile-app/src/broadsheet/BSCoachBusiness.jsx';
 const CF = 'public/newdesign/coachForecast.js';
+const TRAJ = 'src/lib/coach-trajectory.mjs';
 
 export default {
   test: 'node --test tests/app-coach-business.test.mjs',
@@ -80,5 +81,13 @@ export default {
     { name: 'who left · left: an unread history lists people as gone', file: CF,
       find: '    if (all.some((r) => r.departed === null)) return null;\n',
       replace: '' },
+    // Its review: decided at the close of the week each plan ended in, one client once a week, as
+    // "Joined and left" (the pace) counts them.
+    { name: 'who left · week: the list groups one client by the exact moment again, not the week', file: CF,
+      find: '(Number.isFinite(t) ? mondayOf(t) : "row:" + i)',
+      replace: '(Number.isFinite(t) ? t : "row:" + i)' },
+    { name: 'who left · week: the route judges each plan at the instant it ended again', file: TRAJ,
+      find: '  const close = weekEnd(mondayUTC(end), now) - 1;',
+      replace: '  const close = end;' },
   ],
 };
