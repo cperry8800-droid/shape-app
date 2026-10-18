@@ -160,10 +160,6 @@ planned builds.
   referral.
 - Add the `localhost` hostname to the Turnstile widget.
 - Get a native speaker to read the PAR-Q translations.
-- Run `2026-10-18-sleep-points.sql` (+5 for a watch's good night). Until it runs, the app's and
-  the website's claims do nothing.
-- Run `2026-10-18-apple-health-water.sql` (water from Apple Health). Until it runs, a sync reports
-  the water write as an error and leaves the day's water alone.
 
 **Planned next**
 - Coach payments, direct charges part C: the coach pages' copy and a labelled processing
