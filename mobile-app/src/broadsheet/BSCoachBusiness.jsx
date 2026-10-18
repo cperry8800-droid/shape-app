@@ -45,12 +45,12 @@ export const BS_BIZ_TABS = ['money', 'plan', 'clients'];
 // How many cancellations the analytics routes send, newest first (their `.limit(12)`).
 export const BS_BIZ_CHURN_LIST = 12;
 
-// ⚠ A MEASURED CHURN IS KEPT TO A TENTH OF A POINT, AND NEVER ROUNDS TO 0 (the website's
-// dbzChurnPct, Business sweep 2026-10-18). Whole points turned one departure from 70 clients in
-// three months (0.45% a month) into "0% leave a month" beside "a client stays about 223 months":
-// the plan lost its attrition and the two figures disagreed. planStart in coachForecast.js still
-// rounds to whole points, so the planner takes its churn from here.
-export const bsBizChurnPct = (churn) => (churn > 0 ? Math.max(0.1, Math.round(churn * 100 * 10) / 10) : 0);
+// ⚠ A MEASURED CHURN IS KEPT TO A TENTH OF A POINT, AND NEVER ROUNDS TO 0 (Business sweep
+// 2026-10-18). Whole points turned one departure from 70 clients in three months (0.45% a month)
+// into "0% leave a month" beside "a client stays about 223 months": the plan lost its attrition
+// and the two figures disagreed. The rule is coachForecast.js `churnPct`, which `planStart` (the
+// planner's start) and the website's dbzChurnPct read too, so the two pages cannot drift.
+export const bsBizChurnPct = (churn) => CF().churnPct(churn);
 function intlLocale() {
   try { return window.ShapeI18n?.intlLocale?.() || window.ShapeI18n?.current?.() || undefined; } catch (e) { return undefined; }
 }
@@ -461,10 +461,8 @@ export function BSBizPlan({ t, base }) {
   const tr = useShapeTr();
   const F = CF();
   const known = base.pace.adds != null;
-  const start = React.useMemo(() => {
-    const s = F.planStart(base);
-    return base.pace.churn != null ? { ...s, churnPct: bsBizChurnPct(base.pace.churn) } : s;
-  }, [base]);
+  // coachForecast.js `planStart`: today's pace rounded to the sliders, churn to a tenth (bsBizChurnPct).
+  const start = React.useMemo(() => F.planStart(base), [base]);
   const [adds, setAdds] = React.useState(start.adds);
   const [churnPct, setChurnPct] = React.useState(start.churnPct);
   const [rate, setRate] = React.useState(start.rate);
