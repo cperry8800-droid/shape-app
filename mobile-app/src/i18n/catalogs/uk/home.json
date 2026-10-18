@@ -43,6 +43,7 @@
   "checkin.usualNight": "Ваша звичайна ніч",
   "checkin.restedOptional": "Як відпочили? · за бажанням",
   "checkin.sleepConfirm": "Правильно ✓",
+  "checkin.skip": "Пропустити",
   "checkin.same": "Як учора",
   "checkin.done": "Чек-ін зроблено",
   "checkin.streak": "{n, plural, one {# день поспіль} few {# дні поспіль} many {# днів поспіль} other {# дня поспіль}}",

@@ -117,6 +117,8 @@ test('one question at a time: energy, hunger, then sleep unless a wearable repor
   const worn = CARD.bsCiDay(series({ [TODAY]: { sleep: 7.2, hrv: 55 } }), TODAY);
   assert.equal(worn.device, true);
   assert.equal(CARD.bsCiStep({ ...worn, energy: 6, hunger: 4 }), 'done', 'a night the wearable reported was asked again');
+  assert.equal(CARD.bsCiStep({ energy: 6, hunger: 4 }, true), 'done', 'a night the member skipped was asked again');
+  assert.equal(CARD.bsCiStep({ hunger: 4 }, true), 'energy', 'a skipped night skipped the other questions');
 });
 
 test('a day counts as checked in from a manual answer only; a wearable night alone is not one', () => {
@@ -213,6 +215,31 @@ test("a wearable's night is not asked, and Same as yesterday leaves it alone", a
     assert.match(m.text(), /Checked in ✓/);
     assert.match(m.text(), /Sleep 7h 12/);
   } finally { m.unmount(); }
+});
+
+test('a member who does not track sleep can skip the night, for the rest of the day', async () => {
+  dom.window.localStorage.clear();
+  const calls = env({ days: { [TODAY]: { energy: 8, hunger: 6 } } });
+  let m = await mount();
+  try {
+    assert.match(m.text(), /How did you sleep\?/);
+    await m.click(/^Skip$/);
+    assert.deepEqual(calls.log, [], 'skipping wrote a night');
+    assert.match(m.text(), /Checked in ✓/);
+    assert.doesNotMatch(m.text(), /Sleep/, 'the done line names a night that was skipped');
+  } finally { m.unmount(); }
+  // Still skipped when Home comes back today…
+  env({ days: { [TODAY]: { energy: 8, hunger: 6 } } });
+  m = await mount();
+  try { assert.match(m.text(), /Checked in ✓/, 'the skip did not survive leaving Home'); } finally { m.unmount(); }
+  // …but tomorrow asks again.
+  try {
+    mock.timers.setTime(new Date(2026, 9, 19, 12).getTime());
+    env({ days: { '2026-10-19': { energy: 8, hunger: 6 } } });
+    m = await mount();
+    assert.match(m.text(), /How did you sleep\?/, "yesterday's skip held today");
+    m.unmount();
+  } finally { mock.timers.setTime(at(12)); dom.window.localStorage.clear(); }
 });
 
 test('a failed save puts the answer back and says so in the card', async () => {

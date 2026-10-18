@@ -11,7 +11,12 @@ export default {
   timeoutMs: 300_000,
   mutations: [
     // ── What is stored ──
-    { name: 'an old 1-10 value reads as the wrong word', file: CARD,
+    // A proven no-op. energy, hunger and sleep_quality are smallint (CHECK 1-10), and
+    // /api/client/checkin rounds before it writes, so every value read back is a whole
+    // number. For a whole n, n/2 is an integer or ends in .5, and Math.ceil and Math.round
+    // (which rounds .5 up) agree on both. The two would differ only on a fraction, which
+    // nothing can store. The test above pins all ten whole values.
+    { name: 'an old 1-10 value reads as the wrong word', file: CARD, expectSurvive: true,
       find: 'return Math.max(0, Math.min(4, Math.ceil(Math.min(10, n) / 2) - 1));',
       replace: 'return Math.max(0, Math.min(4, Math.round(Math.min(10, n) / 2) - 1));' },
     { name: 'the words are stored off the engine thresholds', file: CARD,
@@ -32,11 +37,20 @@ export default {
       find: '(day.sleep != null && !day.device)',
       replace: '(day.sleep != null)' },
     { name: 'a wearable night is asked about', file: CARD,
-      find: "if (today.sleep == null && !today.device) return 'sleep';",
-      replace: "if (today.sleep == null || today.device) return 'sleep';" },
+      find: "if (today.sleep == null && !today.device && !sleepSkipped) return 'sleep';",
+      replace: "if (today.sleep == null && !sleepSkipped) return 'sleep';" },
     { name: "Same as yesterday copies a wearable's night as typed", file: CARD,
       find: 'if (t.sleep == null && !t.device && yesterday.sleep != null && !yesterday.device) {',
       replace: 'if (t.sleep == null && !t.device && yesterday.sleep != null) {' },
+    { name: 'a skipped night is asked again', file: CARD,
+      find: "if (today.sleep == null && !today.device && !sleepSkipped) return 'sleep';",
+      replace: "if (today.sleep == null && !today.device) return 'sleep';" },
+    { name: 'a skip is forgotten when Home remounts', file: CARD,
+      find: 'useState(() => (bsCiReadSkip(uid, todayIso) ? todayIso : null))',
+      replace: 'useState(() => null)' },
+    { name: "a skip holds the next day too", file: CARD,
+      find: "function bsCiReadSkip(uid, iso) { try { return window.localStorage.getItem(bsCiSkipKey(uid)) === iso; }",
+      replace: "function bsCiReadSkip(uid, iso) { try { return !!window.localStorage.getItem(bsCiSkipKey(uid)); }" },
     { name: 'Edit asks about a wearable night', file: CARD,
       find: "const afterHunger = () => (editing && !today.device ? 'sleep' : null);",
       replace: "const afterHunger = () => (editing ? 'sleep' : null);" },

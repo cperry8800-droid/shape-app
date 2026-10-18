@@ -43,6 +43,7 @@
   "checkin.usualNight": "How you dey sleep normally",
   "checkin.restedOptional": "You rest well? · if you want",
   "checkin.sleepConfirm": "Na so ✓",
+  "checkin.skip": "Skip",
   "checkin.same": "Same as yesterday",
   "checkin.done": "You don check in",
   "checkin.streak": "{n, plural, one {# day straight} other {# days straight}}",

@@ -43,6 +43,7 @@
   "checkin.usualNight": "Barcinka na kullum",
   "checkin.restedOptional": "Ka huta? · zaɓi",
   "checkin.sleepConfirm": "Haka ne ✓",
+  "checkin.skip": "Tsallake",
   "checkin.same": "Kamar jiya",
   "checkin.done": "An yi check-in",
   "checkin.streak": "{n, plural, one {kwana # a jere} other {kwanaki # a jere}}",

@@ -43,6 +43,7 @@
   "checkin.usualNight": "Sua noite de sempre",
   "checkin.restedOptional": "Descansado? · opcional",
   "checkin.sleepConfirm": "Isso mesmo ✓",
+  "checkin.skip": "Pular",
   "checkin.same": "Igual a ontem",
   "checkin.done": "Check-in feito",
   "checkin.streak": "{n, plural, one {# dia seguido} other {# dias seguidos}}",

@@ -43,6 +43,7 @@
   "checkin.usualNight": "Her zamanki gecen",
   "checkin.restedOptional": "Dinlendin mi? · isteğe bağlı",
   "checkin.sleepConfirm": "Doğru ✓",
+  "checkin.skip": "Atla",
   "checkin.same": "Dünkü gibi",
   "checkin.done": "Check-in yapıldı",
   "checkin.streak": "{n, plural, one {# gün üst üste} other {# gün üst üste}}",

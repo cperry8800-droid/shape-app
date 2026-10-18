@@ -43,6 +43,7 @@
   "checkin.usualNight": "Ваша обычная ночь",
   "checkin.restedOptional": "Как отдохнули? · по желанию",
   "checkin.sleepConfirm": "Верно ✓",
+  "checkin.skip": "Пропустить",
   "checkin.same": "Как вчера",
   "checkin.done": "Чек-ин сделан",
   "checkin.streak": "{n, plural, one {# день подряд} few {# дня подряд} many {# дней подряд} other {# дня подряд}}",

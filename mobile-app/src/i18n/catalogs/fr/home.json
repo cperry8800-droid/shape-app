@@ -43,6 +43,7 @@
   "checkin.usualNight": "Votre nuit habituelle",
   "checkin.restedOptional": "Reposé ? · facultatif",
   "checkin.sleepConfirm": "C’est bien ça ✓",
+  "checkin.skip": "Passer",
   "checkin.same": "Comme hier",
   "checkin.done": "Bilan fait",
   "checkin.streak": "{n, plural, one {# jour d’affilée} other {# jours d’affilée}}",

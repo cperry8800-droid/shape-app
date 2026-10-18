@@ -43,6 +43,7 @@
   "checkin.usualNight": "Tidur biasamu",
   "checkin.restedOptional": "Cukup istirahat? · opsional",
   "checkin.sleepConfirm": "Sudah benar ✓",
+  "checkin.skip": "Lewati",
   "checkin.same": "Sama seperti kemarin",
   "checkin.done": "Sudah check-in",
   "checkin.streak": "{n, plural, other {# hari berturut-turut}}",

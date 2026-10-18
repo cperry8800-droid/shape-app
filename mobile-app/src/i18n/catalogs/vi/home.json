@@ -43,6 +43,7 @@
   "checkin.usualNight": "Giấc ngủ thường lệ",
   "checkin.restedOptional": "Nghỉ đủ chưa? · tùy chọn",
   "checkin.sleepConfirm": "Đúng rồi ✓",
+  "checkin.skip": "Bỏ qua",
   "checkin.same": "Giống hôm qua",
   "checkin.done": "Đã check-in",
   "checkin.streak": "{n, plural, other {# ngày liên tiếp}}",

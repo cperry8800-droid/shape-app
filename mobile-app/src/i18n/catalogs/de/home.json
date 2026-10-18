@@ -43,6 +43,7 @@
   "checkin.usualNight": "Deine übliche Nacht",
   "checkin.restedOptional": "Erholt? · optional",
   "checkin.sleepConfirm": "Stimmt ✓",
+  "checkin.skip": "Überspringen",
   "checkin.same": "Wie gestern",
   "checkin.done": "Eingecheckt",
   "checkin.streak": "{n, plural, one {# Tag in Folge} other {# Tage in Folge}}",

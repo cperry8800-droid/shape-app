@@ -6,7 +6,7 @@ import React from 'react';
 // card, one question at a time, and EVERY TAP SAVES. There is no Log today button to forget, and
 // leaving halfway keeps what was answered.
 //
-//   energy → hunger → sleep (+ rested, optional) → one line: Checked in ✓ · the streak · Edit
+//   energy → hunger → sleep (+ rested, optional; or Skip) → one line: Checked in ✓ · the streak · Edit
 //
 // ⚠ FIVE WORDS, STORED ON THE OLD 1-10 SCALE AS 2 · 4 · 6 · 8 · 10. Every reader of
 // daily_health_snapshot keeps working unchanged: the coach's case file, roster triage, the
@@ -80,13 +80,20 @@ export function bsCiAnswered(day) {
   return !!day && (day.energy != null || day.hunger != null || day.rested != null || (day.sleep != null && !day.device));
 }
 
-// The next question for today, or 'done'. A night a device reported needs no sleep question.
-export function bsCiStep(today) {
+// The next question for today, or 'done'. A night a device reported needs no sleep question, and
+// neither does one the member skipped today (a member who does not track sleep is not asked
+// "3 of 3" all day).
+export function bsCiStep(today, sleepSkipped) {
   if (!today || today.energy == null) return 'energy';
   if (today.hunger == null) return 'hunger';
-  if (today.sleep == null && !today.device) return 'sleep';
+  if (today.sleep == null && !today.device && !sleepSkipped) return 'sleep';
   return 'done';
 }
+
+// Skipping the night is remembered on this device for the rest of the local day.
+function bsCiSkipKey(uid) { return `shape.checkin.sleepSkip.${uid || 'preview'}`; }
+function bsCiReadSkip(uid, iso) { try { return window.localStorage.getItem(bsCiSkipKey(uid)) === iso; } catch (e) { return false; } }
+function bsCiWriteSkip(uid, iso) { try { window.localStorage.setItem(bsCiSkipKey(uid), iso); } catch (e) { /* the skip still holds until the app closes */ } }
 
 // Consecutive days with a manual answer, ending today, or yesterday while today is still open.
 export function bsCiStreak(series, todayIso) {
@@ -149,7 +156,8 @@ export function BSCheckinCard({ onOpen }) {
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const amber = t.isLight ? '#b9802a' : '#e8b14a';
   const blue = t.BLUE || (t.isLight ? '#3a6ea5' : '#5b9bd5');
-  const signedIn = !!window.ShapeAuth?.getCachedState?.()?.user?.id;
+  const uid = window.ShapeAuth?.getCachedState?.()?.user?.id || null;
+  const signedIn = !!uid;
   const now = new Date();
   const todayIso = bsCiIso(now);
 
@@ -163,6 +171,7 @@ export function BSCheckinCard({ onOpen }) {
   const [restedPick, setRestedPick] = useState(null);
   const [water, setWater] = useState(null);       // { l, target }
   const [err, setErr] = useState(null);           // the last write that failed, said in the card
+  const [skippedDay, setSkippedDay] = useState(() => (bsCiReadSkip(uid, todayIso) ? todayIso : null)); // the day the night was skipped
   // Signed in, nothing is asked until today's answers are read: a tap on a card that has not
   // loaded would be overwritten by the read. A failed read asks anyway (every tap still saves).
   const [ready, setReady] = useState(!signedIn || !window.ShapeProgress?.progress);
@@ -195,7 +204,7 @@ export function BSCheckinCard({ onOpen }) {
   }, [signedIn]);
 
   if (!ready) return null;
-  const step = editing || bsCiStep(today);
+  const step = editing || bsCiStep(today, skippedDay === todayIso);
   if (step !== 'done' && now.getHours() < BS_CI_ASK_FROM_HOUR) return null;
 
   // Save one answer: shown at once, written in the background, put back if the write fails.
@@ -318,7 +327,10 @@ export function BSCheckinCard({ onOpen }) {
               );
             })}
           </div>
-          <button type="button" onClick={() => { answer({ sleepHours: sleepValue, ...(restedValue != null ? { sleepQuality: restedValue } : {}) }, null); setSleepH(null); setRestedPick(null); }} style={{ minHeight: 46, borderRadius: 4, border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', ...mono, fontSize: 10 }}>{tr('home:checkin.sleepConfirm', { defaultValue: "That's right ✓" })}</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" onClick={() => { answer({ sleepHours: sleepValue, ...(restedValue != null ? { sleepQuality: restedValue } : {}) }, null); setSleepH(null); setRestedPick(null); }} style={{ flex: 1, minHeight: 46, borderRadius: 4, border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', ...mono, fontSize: 10 }}>{tr('home:checkin.sleepConfirm', { defaultValue: "That's right ✓" })}</button>
+            <button type="button" onClick={() => { bsCiWriteSkip(uid, todayIso); setSkippedDay(todayIso); setEditing(null); setSleepH(null); setRestedPick(null); setErr(null); }} style={{ minHeight: 46, padding: '0 14px', borderRadius: 4, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, cursor: 'pointer', ...mono, fontSize: 9 }}>{tr('home:checkin.skip', { defaultValue: 'Skip' })}</button>
+          </div>
         </>
       ) : null}
 
