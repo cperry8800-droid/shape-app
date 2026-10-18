@@ -267,6 +267,50 @@ test('a failed save puts the answer back and says so in the card', async () => {
   } finally { m.unmount(); }
 });
 
+test('a failed save puts back only its own answer, not one given after it (Codex P2 on #2398)', async () => {
+  // Energy is still saving when hunger is answered; then the energy save fails and the hunger
+  // save, queued behind it, succeeds. The card must still hold the hunger answer.
+  let failEnergy;
+  const energy = new Promise((_, reject) => { failEnergy = reject; });
+  let n = 0;
+  const calls = env({ log: () => (++n === 1 ? energy : { ok: true }) });
+  const m = await mount();
+  try {
+    await m.click(/^Good$/);
+    await m.click(/^Normal$/);
+    failEnergy(new Error('500'));
+    await m.flush();
+    await m.flush();
+    assert.deepEqual(calls.log, [{ energy: 8 }, { hunger: 6 }]);
+    assert.match(m.text(), /How's your energy\?/);
+    assert.match(m.text(), /Could not save check-in/);
+    await m.click(/^Great$/);
+    assert.match(m.text(), /How did you sleep\?/, 'the stored hunger answer was put back with the failed energy one');
+  } finally { m.unmount(); }
+});
+
+test('an older save that fails never undoes a newer answer to the same question', async () => {
+  let failFirst;
+  const first = new Promise((_, reject) => { failFirst = reject; });
+  let n = 0;
+  env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } }, log: () => (++n === 1 ? first : { ok: true }) });
+  const m = await mount();
+  try {
+    // Edit: Great (its save hangs), Hungry, keep the night; then Edit again and Drained.
+    await m.click(/^Edit$/);
+    await m.click(/^Great$/);
+    await m.click(/^Hungry$/);
+    await m.click(/That's right/);
+    await m.click(/^Edit$/);
+    await m.click(/^Drained$/);
+    failFirst(new Error('500'));
+    await m.flush();
+    await m.flush();
+    assert.match(m.text(), /Energy Drained/, "the failed Great put back the energy over the member's newer Drained");
+    assert.match(m.text(), /Hunger Hungry/);
+  } finally { m.unmount(); }
+});
+
 test('answers save one at a time, so two quick taps cannot both insert a row for today', async () => {
   let release;
   const first = new Promise((r) => { release = r; });

@@ -171,7 +171,7 @@ export function BSCheckinCard({ onOpen }) {
   const [today, setToday] = useState({ energy: null, hunger: null, sleep: null, rested: null, device: false });
   const [yesterday, setYesterday] = useState(signedIn ? null : { energy: 8, hunger: 6, sleep: 7.5, rested: 8, device: false });
   const [usual, setUsual] = useState(7.5);
-  const [streak, setStreak] = useState(0);
+  const [streakBefore, setStreakBefore] = useState(0); // the run through yesterday; today adds one once answered
   const [editing, setEditing] = useState(null);   // a step reopened by Edit, or null
   const [sleepH, setSleepH] = useState(null);     // the stepper, before it is confirmed
   const [restedPick, setRestedPick] = useState(null);
@@ -183,6 +183,8 @@ export function BSCheckinCard({ onOpen }) {
   const [ready, setReady] = useState(!signedIn || !window.ShapeProgress?.progress);
   const alive = useRef(true);
   useEffect(() => () => { alive.current = false; }, []);
+  // The newest answer per field, numbered, so an older save that fails never undoes a newer one.
+  const latest = useRef({ n: 0 });
 
   useEffect(() => {
     if (!signedIn || !window.ShapeProgress?.progress) return undefined;
@@ -190,10 +192,11 @@ export function BSCheckinCard({ onOpen }) {
     window.ShapeProgress.progress().then((p) => {
       if (!on) return;
       if (p && p.series) {
-        setToday(bsCiDay(p.series, todayIso));
+        const day = bsCiDay(p.series, todayIso);
+        setToday(day);
         setYesterday(bsCiDay(p.series, bsCiShift(todayIso, -1)));
         setUsual(bsCiUsualNight(p.series, todayIso));
-        setStreak(bsCiStreak(p.series, todayIso));
+        setStreakBefore(bsCiStreak(p.series, todayIso) - (bsCiAnswered(day) ? 1 : 0));
       }
       setReady(true);
     }).catch(() => { if (on) setReady(true); });
@@ -213,25 +216,38 @@ export function BSCheckinCard({ onOpen }) {
   const step = editing || bsCiStep(today, skippedDay === todayIso);
   if (step !== 'done' && now.getHours() < BS_CI_ASK_FROM_HOUR) return null;
 
-  // Save one answer: shown at once, written in the background, put back if the write fails.
-  // Signed out nothing is written, and the done line says so instead of claiming a check-in.
+  // Save one answer: shown at once, written in the background. Signed out nothing is written, and
+  // the done line says so instead of claiming a check-in.
+  // ⚠ A FAILED SAVE PUTS BACK ONLY ITS OWN ANSWERS, and only where no newer answer has replaced
+  // them (Codex P2 on #2398): an answer queued behind it may still save, and putting back the
+  // whole day would hide an answer that is stored.
   const answer = (patch, next) => {
     const before = today;
     const merged = { ...today };
-    if (patch.energy != null) merged.energy = patch.energy;
-    if (patch.hunger != null) merged.hunger = patch.hunger;
-    if (patch.sleepHours != null) merged.sleep = patch.sleepHours;
-    if (patch.sleepQuality != null) merged.rested = patch.sleepQuality;
+    const fields = [];
+    if (patch.energy != null) { merged.energy = patch.energy; fields.push('energy'); }
+    if (patch.hunger != null) { merged.hunger = patch.hunger; fields.push('hunger'); }
+    if (patch.sleepHours != null) { merged.sleep = patch.sleepHours; fields.push('sleep'); }
+    if (patch.sleepQuality != null) { merged.rested = patch.sleepQuality; fields.push('rested'); }
+    const mine = {};
+    for (const k of fields) { latest.current.n += 1; latest.current[k] = latest.current.n; mine[k] = latest.current.n; }
     setToday(merged);
     setEditing(next);
     setErr(null);
-    const firstToday = !bsCiAnswered(before) && bsCiAnswered(merged);
-    if (firstToday) setStreak((n) => n + 1);
     if (!signedIn) return;
-    const undo = (msg) => { setToday(before); setEditing(null); setErr(msg); if (firstToday) setStreak((n) => n - 1); };
+    const undo = (msg) => {
+      setToday((cur) => {
+        const back = { ...cur };
+        for (const k of fields) if (latest.current[k] === mine[k]) back[k] = before[k];
+        return back;
+      });
+      setEditing(null);
+      setErr(msg);
+    };
     if (!window.ShapeCheckin?.log) { undo('unavailable'); return; }
     bsCiSave(patch).catch(() => { if (alive.current) undo('failed'); });
   };
+  const streak = streakBefore + (bsCiAnswered(today) ? 1 : 0);
   // Edit walks every question again; a night a wearable reported is not re-asked.
   const afterEnergy = () => (editing ? 'hunger' : null);
   const afterHunger = () => (editing && !bsCiWornNight(today) ? 'sleep' : null);
