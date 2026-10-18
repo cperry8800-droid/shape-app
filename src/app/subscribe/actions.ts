@@ -27,6 +27,7 @@ import { ACTIVE_SUB } from '@/lib/membership-core';
 import { membershipDetour } from '@/lib/membership-detour';
 import { hasCompletedScreening, screeningHref } from '@/lib/health-screening';
 import { stripeCustomerFor } from '@/lib/stripe-customer';
+import { acctOpts } from '@/lib/stripe-connect';
 import { hasLiveStripeSubscription } from '@/lib/stripe-live-subscription';
 import { CHECKOUT_CREATE_OPTIONS, checkoutReturnsKey, claimCheckout, currentCheckout, isCheckoutInProgress, type CheckoutClaim } from '@/lib/checkout-barrier';
 
@@ -290,9 +291,11 @@ export async function cancelSubscription(formData: FormData): Promise<void> {
 
   // Verify the user owns this subscription row before we tell Stripe to
   // cancel. RLS already filters the select to the signed-in client.
+  // '*' carries stripe_account_id, the coach's account a direct charge lives on (null: the
+  // platform), and is migration-safe: before the 2026-10-18 migration the column is absent.
   const { data: row } = await supabase
     .from('subscriptions')
-    .select('id, stripe_subscription_id, client_id')
+    .select('*')
     .eq('id', subscriptionId)
     .maybeSingle();
 
@@ -300,6 +303,6 @@ export async function cancelSubscription(formData: FormData): Promise<void> {
     redirect('/dashboard?error=not_allowed');
   }
 
-  await stripe.subscriptions.update(row.stripe_subscription_id, { cancel_at_period_end: true });
+  await stripe.subscriptions.update(row.stripe_subscription_id, { cancel_at_period_end: true }, acctOpts(row.stripe_account_id));
   redirect('/newdesign/ClientDashboard.html?notice=cancel_scheduled');
 }

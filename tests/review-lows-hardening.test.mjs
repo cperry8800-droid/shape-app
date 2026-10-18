@@ -484,6 +484,8 @@ async function runWebhook(event, { tables = {}, onboarding = [], subStatus = 'ac
     registry: new Map([
       ['next/server', nextServer],
       ['@/lib/stripe', { stripe: { webhooks: { constructEvent: (raw) => JSON.parse(raw) }, paymentIntents: { retrieve: async () => ({ application_fee_amount: 0 }) }, subscriptions: { retrieve: async () => ({ status: subStatus, items: { data: [{ current_period_end: 1800000000 }] } }) } } }],
+      // The Connect helpers the webhook imports (coach direct charges, 2026-10-18), as they ship.
+      ['@/lib/stripe-connect', await loadRealModule(join(ROOT, 'src/lib/stripe-connect.ts'), { typescript: true })],
       ['@/lib/supabase/admin', { createAdminClient: () => admin.client }],
       ['@/lib/notify', { createNotification: async () => true }],
       ['@/lib/platform-fee', platformFee],
@@ -613,8 +615,9 @@ test('L11: a Connect account\'s status lands on the row holding ITS id, not the 
 // ── L12 ───────────────────────────────────────────────────────────────────────────────────
 test('L12: a refund target is looked up as the filer\'s own row', () => {
   const src = read('src/app/dashboard/refunds/actions.ts');
-  assert.match(src, /\.from\('one_time_purchases'\)\n\s+\.select\('stripe_payment_intent_id'\)\n\s+\.eq\('id', req\.one_time_purchase_id\)\n\s+\.eq\('client_id', req\.client_id\)/);
-  assert.match(src, /\.from\('subscriptions'\)\n\s+\.select\('stripe_subscription_id'\)\n\s+\.eq\('id', req\.subscription_id\)\n\s+\.eq\('client_id', req\.client_id\)/);
+  // '*' since 2026-10-18: the row's stripe_account_id (a direct charge's coach account) comes too.
+  assert.match(src, /\.from\('one_time_purchases'\)\n\s+\.select\('\*'\)\n\s+\.eq\('id', req\.one_time_purchase_id\)\n\s+\.eq\('client_id', req\.client_id\)/);
+  assert.match(src, /\.from\('subscriptions'\)\n\s+\.select\('\*'\)\n\s+\.eq\('id', req\.subscription_id\)\n\s+\.eq\('client_id', req\.client_id\)/);
 });
 
 // ── L14 ───────────────────────────────────────────────────────────────────────────────────

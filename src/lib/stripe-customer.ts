@@ -9,6 +9,7 @@
 // place to look, and the billing portal shows every subscription the account holds.
 
 import { stripe } from '@/lib/stripe';
+import { platformCoachCustomer } from '@/lib/stripe-connect';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 export async function stripeCustomerFor(userId: string, email: string | null): Promise<string> {
@@ -24,9 +25,14 @@ export async function stripeCustomerFor(userId: string, email: string | null): P
   // on their subscription rows only. That one is adopted, in the order the billing portal opens
   // them (the membership's first), so a new coach subscription lands where the member manages
   // the rest instead of on a second customer the portal never shows.
+  // ⚠ ONLY A PLATFORM CUSTOMER IS EVER ADOPTED (coach direct charges, 2026-10-18): a coaching
+  // subscription on a coach's own Stripe account holds a customer on THAT account, which Shape's
+  // account has never heard of (platformCoachCustomer reads only rows on the platform).
   const onRecord = async (table: 'platform_subscriptions' | 'subscriptions'): Promise<string | null> => {
-    const { data, error } = await admin.from(table).select('stripe_customer_id')
-      .eq('client_id', userId).not('stripe_customer_id', 'is', null).limit(1).maybeSingle();
+    const { data, error } = table === 'subscriptions'
+      ? await platformCoachCustomer(admin, userId)
+      : await admin.from(table).select('stripe_customer_id')
+        .eq('client_id', userId).not('stripe_customer_id', 'is', null).limit(1).maybeSingle();
     if (error) throw error;
     return ((data as { stripe_customer_id?: string | null } | null)?.stripe_customer_id) ?? null;
   };

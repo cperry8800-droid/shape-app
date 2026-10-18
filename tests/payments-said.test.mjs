@@ -300,6 +300,8 @@ async function loadReturn({ user = { id: UID }, retrieve, provider = { name: 'To
     typescript: true,
     registry: new Map([
       ['@/lib/stripe', { stripe: { checkout: { sessions: { retrieve } } } }],
+      // acctOpts / isAccountId for a direct-charge return (coach direct charges, 2026-10-18), as they ship.
+      ['@/lib/stripe-connect', await loadRealModule(join(ROOT, 'src/lib/stripe-connect.ts'), { typescript: true })],
       ['@/lib/supabase/server', { createClient: async () => ({ auth: { getUser: async () => ({ data: { user } }) } }) }],
       ['@/lib/supabase/admin', { createAdminClient: () => ({ from: () => { const q = { select: () => q, eq: () => q, maybeSingle: async () => ({ data: provider, error: null }) }; return q; } }) }],
     ]),
@@ -366,7 +368,8 @@ test('the return page\'s words: no "went through" until it did, and each kind po
   // Both return addresses use it; neither says anything of its own.
   for (const rel of ['src/app/purchase/success/page.tsx', 'src/app/subscribe/success/page.tsx']) {
     const src = read(rel).replace(/^\/\/[^\n]*\n/gm, '');
-    assert.match(src, /const result = await readCheckoutReturn\(sessionId\);/, rel);
+    // With the return address's acct (a direct charge's coach account), which readCheckoutReturn checks.
+    assert.match(src, /const result = await readCheckoutReturn\(sessionId, acct\);/, rel);
     assert.match(src, /<CheckoutReturnView result=\{result\} \/>/, rel);
     assert.doesNotMatch(src, /went through|Payment confirmed|You&rsquo;re subscribed/, rel);
   }

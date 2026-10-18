@@ -19,15 +19,19 @@ export const REASON_MAX: number;
 export function cleanReason(value: unknown): string;
 export function confirmsRemoval(typed: unknown, account: { id?: string | null; email?: string | null }): boolean;
 export const BILLING_STATUSES: ReadonlyArray<string>;
-export function subscriptionsToCancel(rows: ReadonlyArray<{ stripe_subscription_id?: string | null; status?: string | null }> | null | undefined): string[];
+/** account: an acct_ id (a coach's own account), null (the platform), undefined (not known). */
+export type SubscriptionToCancel = { id: string; account: string | null | undefined };
+export function subscriptionsToCancel(
+  rows: ReadonlyArray<{ stripe_subscription_id?: string | null; status?: string | null; stripe_account_id?: string | null }> | null | undefined
+): SubscriptionToCancel[];
 export function cancelSubscriptions(
   stripe: {
     subscriptions: {
-      cancel(id: string): Promise<unknown>;
-      retrieve(id: string): Promise<{ status?: string } | unknown>;
+      cancel(id: string, params?: undefined, opts?: { stripeAccount: string }): Promise<unknown>;
+      retrieve(id: string, params?: undefined, opts?: { stripeAccount: string }): Promise<{ status?: string } | unknown>;
     };
   },
-  ids: ReadonlyArray<string>
+  items: ReadonlyArray<SubscriptionToCancel | string>
 ): Promise<{ cancelled: string[]; failed: string[] }>;
 export const REQUEST_OUTCOMES: ReadonlyArray<RequestOutcome>;
 export function parseRequestOutcome(value: unknown): RequestOutcome | '';

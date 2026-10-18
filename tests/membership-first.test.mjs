@@ -784,7 +784,7 @@ async function runCustomerFor({ stored = null, afterUpdate = undefined, updateEr
     },
   };
   const stripe = { customers: { create: async (params, opts) => { calls.creates.push({ params, opts }); return { id: 'cus_new' }; } } };
-  const lib = await loadRealModule(join(ROOT, 'src/lib/stripe-customer.ts'), { typescript: true, registry: new Map([['@/lib/stripe', { stripe }], ['@/lib/supabase/admin', { createAdminClient: () => admin }]]) });
+  const lib = await loadRealModule(join(ROOT, 'src/lib/stripe-customer.ts'), { typescript: true, registry: new Map([['@/lib/stripe', { stripe }], ['@/lib/supabase/admin', { createAdminClient: () => admin }], ['@/lib/stripe-connect', await loadRealModule(join(ROOT, 'src/lib/stripe-connect.ts'), { typescript: true })]]) });
   let result, error;
   try { result = await lib.stripeCustomerFor(UID, 'm@example.invalid'); } catch (e) { error = e; }
   return { result, error, calls };
