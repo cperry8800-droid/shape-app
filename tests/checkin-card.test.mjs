@@ -1052,6 +1052,24 @@ test("a day that already has a watch's night asks again, and the finished night 
   } finally { m.unmount(); delete dom.window.ShapeIntegrations; }
 });
 
+test("a day that already has a watch's night still asks Apple Health for the day's water, and Apple Health's share is said", async () => {
+  // Water from Apple Health (owner, 2026-10-18: added to the glasses logged here), so the watches
+  // are asked even when the night is in.
+  let water = { ok: true, hydrationL: 0.5, targetL: 3 };
+  env({ uid: 'sync-card-water' });
+  dom.window.ShapeProgress = { progress: async () => ({ series: { ...series({ [TODAY]: { energy: 8, hunger: 6, sleep: 7 } }), sleepFromDevice: [{ date: TODAY, value: 1 }] } }) };
+  dom.window.ShapeHydration = { get: async () => water, add: async () => water };
+  const d = devices({ connected: ['apple_health'], healthKit: true, onSync: () => { water = { ok: true, hydrationL: 1.7, targetL: 3, deviceL: 1.2 }; } });
+  const m = await mount();
+  try {
+    assert.equal(d.reads(), 1, "a day with a watch's night never asked Apple Health for its water");
+    assert.match(m.text(), /57 oz \/ 101 oz/, 'the water synced from Apple Health was not shown');
+    await m.click(/^Edit$/);
+    await m.click(/^Add$/);
+    assert.match(m.text(), /Includes 41 oz from Apple Health/);
+  } finally { m.unmount(); delete dom.window.ShapeIntegrations; }
+});
+
 test("typed hours the server keeps a watch's night over show the watch's hours", async () => {
   const calls = env({ uid: 'sync-card-3', days: { [TODAY]: { energy: 8, hunger: 6 } }, log: (patch) => (patch.sleepHours != null ? { ok: true, sleepHours: 6.9, sleepFromDevice: true } : { ok: true }) });
   const m = await mount();
@@ -1347,4 +1365,41 @@ test("a glass after a failed water read brings back the member's own target (Cod
       assert.match(m.text(), /1\.25 L \/ 2 L/, 'the card kept the 3 L fallback after the add brought the real target');
     } finally { m.unmount(); }
   } finally { theme.isMetric = false; }
+});
+
+// ── A Daily check-in reminder opens the walkthrough (owner, 2026-10-18) ──────
+test('a reminder opens the walkthrough at the first check not yet answered, and says the request is used', async () => {
+  env({ uid: 'remind-1', days: { [TODAY]: { energy: 8 } } });
+  let used = 0;
+  let m = await mount({ openRequest: 1, onOpenRequestConsumed: () => { used += 1; } });
+  try {
+    assert.ok(m.walk(), 'the reminder opened nothing');
+    assert.match(m.text(), /Step 2 of 4 · Hunger/, 'the walkthrough did not open at the first open check');
+    assert.equal(used, 1, 'Home was not told the request is used, so a card mounted again opens it again');
+    await m.click(/^Close$/);
+    await m.rerender();
+    assert.equal(m.walk(), null, 'the walkthrough opened again on its own');
+  } finally { m.unmount(); }
+
+  env({ uid: 'remind-2', days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
+  m = await mount({ openRequest: 2 });
+  try {
+    assert.match(m.text(), /You're checked in/, 'a day already done did not open at the summary');
+  } finally { m.unmount(); }
+});
+
+test('a reminder before 4 a.m. still opens the walkthrough, and waits for the day to be read', async () => {
+  let release;
+  const held = new Promise((r) => { release = r; });
+  env({ uid: 'remind-3' });
+  dom.window.ShapeProgress = { progress: async () => { await held; return { series: series({ [TODAY]: { energy: 8, hunger: 6 } }) }; } };
+  mock.timers.setTime(at(2));
+  let m;
+  try {
+    m = await mount({ openRequest: 3 });
+    assert.equal(m.walk(), null, 'the walkthrough opened before today was read');
+    await React.act(async () => { release(); await new Promise((r) => setTimeout(r, 0)); });
+    await m.flush();
+    assert.match(m.text(), /Step 3 of 4 · Sleep/, 'the reminder did not open the walkthrough at night, at the first open check');
+  } finally { if (m) m.unmount(); mock.timers.setTime(at(12)); }
 });

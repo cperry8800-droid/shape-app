@@ -264,7 +264,7 @@ export async function bsCiSyncDevices(uid, nowMs = Date.now()) {
 
 const BS_CI_STEPS = ['energy', 'hunger', 'sleep', 'water'];
 
-function BSCheckinDay({ onOpen, dayIso }) {
+function BSCheckinDay({ onOpen, dayIso, openRequest = null, onOpenRequestConsumed = null }) {
   const t = window.useBS();
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -337,13 +337,14 @@ function BSCheckinDay({ onOpen, dayIso }) {
     return () => { on = false; };
   }, [signedIn, todayIso]);
 
-  // Once today is read, the connected watches are asked for last night (bsCiSyncDevices, above),
-  // and the day is read again. A night that came in replaces whatever is on screen, typed hours
-  // included, since the route keeps the watch's over them. A day that already has a watch's night
-  // asks again too, within the 30 minutes: a night synced while the member was still asleep is
-  // part of one, and only a later sync brings the rest (Codex on #2404). A card that unmounts while
-  // the sync is out still clears the cache and claims the night's points, so the next card reads
-  // the night rather than ask for it.
+  // Once today is read, the connected watches are asked for last night and Apple Health for the
+  // day's water (bsCiSyncDevices, above), then the day is read again. A night that came in replaces
+  // whatever is on screen, typed hours included, since the route keeps the watch's over them; water
+  // is the server's total, Apple Health's added to the glasses logged here. A day that already has
+  // a watch's night asks again too, within the 30 minutes: a night synced while the member was still
+  // asleep is part of one, and only a later sync brings the rest (Codex on #2404). A card that
+  // unmounts while the sync is out still clears the cache and claims the night's points, so the
+  // next card reads the night rather than ask for it.
   useEffect(() => {
     if (!signedIn || !ready) return undefined;
     let on = true;
@@ -352,7 +353,15 @@ function BSCheckinDay({ onOpen, dayIso }) {
       window.ShapeMetrics?.invalidate?.();
       // A good night the sync brought earns its points now, not on the next app open.
       Promise.resolve(window.ShapeSleepPoints?.check?.()).catch(() => {});
-      if (!on || !window.ShapeProgress?.progress) return null;
+      if (!on) return null;
+      if (window.ShapeHydration?.get) {
+        window.ShapeHydration.get().then((d) => {
+          if (!on || !d || !d.ok) return;
+          // Glasses still on their way are added on top, as a glass's own answer does.
+          setWater((w) => ({ ...w, l: Math.round(((Number(d.hydrationL) || 0) + waterPending.current) * 1000) / 1000, target: Number(d.targetL) || (w && w.target) || 3, deviceL: Number(d.deviceL) > 0 ? Number(d.deviceL) : null, unknown: false }));
+        }).catch(() => {});
+      }
+      if (!window.ShapeProgress?.progress) return null;
       return window.ShapeProgress.progress();
     }).then((p) => {
       if (!on || !p || !p.series) return;
@@ -372,7 +381,7 @@ function BSCheckinDay({ onOpen, dayIso }) {
     let on = true;
     bsCiSettled('water').then(() => window.ShapeHydration.get()).then((d) => {
       if (!on) return;
-      setWater(d && d.ok ? { l: Number(d.hydrationL) || 0, target: Number(d.targetL) || 3 } : BS_CI_WATER_UNKNOWN);
+      setWater(d && d.ok ? { l: Number(d.hydrationL) || 0, target: Number(d.targetL) || 3, deviceL: Number(d.deviceL) > 0 ? Number(d.deviceL) : null } : BS_CI_WATER_UNKNOWN);
     }).catch(() => { if (on) setWater(BS_CI_WATER_UNKNOWN); });
     return () => { on = false; };
   }, [signedIn]);
@@ -398,6 +407,22 @@ function BSCheckinDay({ onOpen, dayIso }) {
     const back = openerRef.current && openerRef.current.isConnected ? openerRef.current : cardRef.current?.querySelector('button');
     back?.focus?.({ preventScroll: true });
   }, [walk]);
+
+  // ⚠ A DAILY CHECK-IN REMINDER OPENS THE WALKTHROUGH (owner, 2026-10-18), at the first check not
+  // yet answered, or at the summary when the day is done. It waits for today's read, so the read
+  // never lands over an answer given meanwhile, and tells Home the request is used, so a card
+  // mounted again later (Check-ins switched off and on) does not open it a second time. It opens
+  // the sheet the way Start does, written out here because the effect runs before this render has
+  // reached `open` below whenever the card returns early.
+  useEffect(() => {
+    if (!openRequest || !ready || bsCiIso(new Date()) !== todayIso) return;
+    if (onOpenRequestConsumed) onOpenRequestConsumed();
+    const step = bsCiStep(today, skippedDay === todayIso);
+    moved.current += 1;
+    openerRef.current = document.activeElement;
+    setSleepH(null); setRestedPick(null); setErr(null); setFromSummary(false);
+    setWalk(step === 'energy' ? 0 : step === 'hunger' ? 1 : step === 'sleep' ? 2 : 4);
+  }, [openRequest, ready, todayIso]);
 
   // A card whose day is over shows nothing and saves nothing; Home's next render mounts the new day's.
   if (bsCiIso(now) !== todayIso) return null;
@@ -734,6 +759,9 @@ function BSCheckinDay({ onOpen, dayIso }) {
           <span style={{ fontFamily: t.DISPLAY, fontSize: 44, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{waterKnown ? litres(water.l) : '—'}</span>
           <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK50 }}>{tr('home:checkin.ofTarget', { defaultValue: 'of {target}', target: litres(target) })}</span>
         </div>
+        {waterKnown && water.deviceL ? (
+          <div style={{ marginTop: -6, fontFamily: t.BODY, fontSize: 12.5, color: t.INK50 }}>{tr('home:checkin.waterFromHealth', { defaultValue: 'Includes {amount} from Apple Health', amount: litres(water.deviceL) })}</div>
+        ) : null}
         <div aria-hidden style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {Array.from({ length: glasses }, (_, i) => (
             <span key={i} style={{ width: 22, height: 30, border: `1.5px solid ${t.RULE}`, borderTop: 0, borderRadius: '0 0 5px 5px', position: 'relative' }}>

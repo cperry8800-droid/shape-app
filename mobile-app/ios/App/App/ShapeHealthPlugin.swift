@@ -39,6 +39,8 @@ public class ShapeHealthPlugin: CAPPlugin, CAPBridgedPlugin {
             return HKObjectType.quantityType(forIdentifier: .activeEnergyBurned).map { ($0, HKUnit.kilocalorie()) }
         case "distanceWalkingRunning":
             return HKObjectType.quantityType(forIdentifier: .distanceWalkingRunning).map { ($0, HKUnit.meter()) }
+        case "dietaryWater":
+            return HKObjectType.quantityType(forIdentifier: .dietaryWater).map { ($0, HKUnit.liter()) }
         default:
             return nil
         }
@@ -46,7 +48,7 @@ public class ShapeHealthPlugin: CAPPlugin, CAPBridgedPlugin {
 
     private func readTypes() -> Set<HKObjectType> {
         var types = Set<HKObjectType>()
-        for id: HKQuantityTypeIdentifier in [.stepCount, .heartRate, .restingHeartRate, .heartRateVariabilitySDNN, .activeEnergyBurned, .distanceWalkingRunning] {
+        for id: HKQuantityTypeIdentifier in [.stepCount, .heartRate, .restingHeartRate, .heartRateVariabilitySDNN, .activeEnergyBurned, .distanceWalkingRunning, .dietaryWater] {
             if let t = HKObjectType.quantityType(forIdentifier: id) { types.insert(t) }
         }
         if let sleep = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) { types.insert(sleep) }

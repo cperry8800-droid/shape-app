@@ -76,12 +76,17 @@ test('a night two sources wrote is its own hours, and only whole days are sent',
       { sleepState: 'asleepCore', startDate: iso(at(before, 1)), endDate: iso(at(before, 8)), duration: 7 * 3600 },
     ],
     stepCount: [{ value: 4000, startDate: iso(at(before, 20)), endDate: iso(at(before, 21)) }, { value: 9000, startDate: iso(at(y, 12)), endDate: iso(at(y, 13)) }],
+    dietaryWater: [{ value: 0.5, startDate: iso(at(today, 8)), endDate: iso(at(today, 8)) }, { value: 0.333, startDate: iso(at(today, 11)), endDate: iso(at(today, 11)) }],
   };
   const { days } = await HK.collectHealthKitSnapshots({ days: 2 });
   const byDay = Object.fromEntries(days.map((d) => [d.date, d.patch]));
   assert.deepEqual(Object.keys(byDay).sort(), [key(y), key(today)], 'a day cut off at the start of the window was sent');
   assert.equal(byDay[key(today)].sleep_hours, 7.5, 'a night two sources wrote was counted twice');
   assert.equal(byDay[key(y)].steps, 9000);
+  // Water (owner, 2026-10-18: added to the glasses logged in Shape): litres per day, and 0 on a
+  // day with none, so water deleted in Apple Health leaves the day's total too.
+  assert.equal(byDay[key(today)].hydration_l, 0.83);
+  assert.equal(byDay[key(y)].hydration_l, 0, 'a day with no water in Apple Health did not say so');
   // The read starts the evening before the first day, so that day's night is whole.
   assert.ok(Date.parse(asked) <= at(before, 12).getTime() && Date.parse(asked) < y.getTime(), `the read began at ${asked}`);
 });
@@ -104,6 +109,12 @@ test('a read where every query failed is an error, and one where some failed sti
     failing = ['heartRate', 'sleepAnalysis'];
     const { days } = await HK.collectHealthKitSnapshots({ days: 2 });
     assert.equal(days.reduce((n, d) => n + (d.patch.steps || 0), 0), 5000, 'a failed query lost the types that were read');
+    assert.ok(days.every((d) => d.patch.hydration_l === 0), 'a water read that worked did not send its 0');
+    // A failed water read sends no water: its 0 would take Apple Health's earlier reading off the
+    // day's total (set_apple_health_water moves the total by the change in Apple Health's reading).
+    failing = ['dietaryWater'];
+    const noWater = (await HK.collectHealthKitSnapshots({ days: 2 })).days;
+    assert.ok(noWater.length > 0 && noWater.every((d) => d.patch.hydration_l === null), 'a failed water read was sent as no water');
     // A member who allowed nothing reads empty with no error: that is a read, not a failure.
     failing = null;
     samples = {};

@@ -117,7 +117,7 @@ const SAMPLE = {
   client: ['client', { clientId: 'u-1', providerRole: 'trainer' }], clients: ['clients'],
   schedule: ['schedule', { providerRole: 'trainer' }], waitlist: ['waitlist', { providerRole: 'trainer' }],
   credentials: ['credentials'], prep: ['prep:overnight-oats'], coach: ['coach:trainer:7'],
-  sessions: ['sessions'], train: ['train'], eat: ['eat'], score: ['score'], checkin: ['checkin'], goal: ['goal'],
+  sessions: ['sessions'], train: ['train'], eat: ['eat'], score: ['score'], checkin: ['checkin'], today: ['today'], goal: ['goal'],
   habits: ['habits'], progress: ['progress'], feed: ['feed'], community: ['community'],
   profile: ['profile', { actorId: 'u-2' }], settings: ['settings'],
 };
@@ -226,7 +226,7 @@ test('the website inbox opens every route for the people who receive it', () => 
     schedule: { route: 'schedule', data: { providerRole: 'trainer' } }, waitlist: { route: 'waitlist', data: { providerRole: 'trainer' } },
     credentials: { route: 'credentials' }, prep: { route: 'prep:overnight-oats' }, coach: { route: 'coach:trainer:7' },
     sessions: { route: 'sessions' }, train: { route: 'train' }, eat: { route: 'eat' }, score: { route: 'score' },
-    checkin: { route: 'checkin' }, goal: { route: 'goal' }, habits: { route: 'habits' }, progress: { route: 'progress' },
+    checkin: { route: 'checkin' }, today: { route: 'today' }, goal: { route: 'goal' }, habits: { route: 'habits' }, progress: { route: 'progress' },
     feed: { route: 'feed' }, community: { route: 'community' }, profile: { route: 'profile', data: { actorId: 'u-2' } },
     settings: { route: 'settings' },
   };

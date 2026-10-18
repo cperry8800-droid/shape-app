@@ -64,6 +64,7 @@
   "checkin.hOnly": "{h} j",
   "checkin.noAnswer": "Tidak ada jawaban",
   "checkin.targetTip": "Target {target}",
+  "checkin.waterFromHealth": "Termasuk {amount} dari Apple Health",
   "checkin.trendWater": "{n, plural, =0 {Target belum tercapai minggu ini.} other {Target tercapai # hari minggu ini.}}",
   "checkin.ofTarget": "dari {target}",
   "checkin.addGlasses": "{n, plural, other {+ # gelas}}",

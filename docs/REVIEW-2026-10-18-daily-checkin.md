@@ -4,9 +4,9 @@
 to update each day and less effort for user each day. add to task list"* (on the app's
 "How are you." page: Energy, Hunger, Sleep · last night, Rested, Log today, Hydration).
 
-**Status:** Phase 1 is built (#2398), and so is the part of Phase 2 that puts a watch's night
-first (§4). §2 is the design, §4 the phases, §5 the rulings. §1 was read from the code on `main` at
-47c6729.
+**Status:** Phase 1 is built (#2398), and so is Phase 2 (§4): a watch's night first (#2404), water
+from Apple Health, and a Daily check-in reminder that opens the card. §2 is the design, §4 the
+phases, §5 the rulings. §1 was read from the code on `main` at 47c6729.
 
 ## 1. What the check-in is today (read from the code)
 
@@ -140,10 +140,20 @@ so that is the owner's call.
      sleep step shows the watch's hours instead of asking. The check-in route writes typed hours
      only to a night no device wrote (ruling 2). The card and the full page show the watch's
      hours whenever the route keeps them.
-   - Still to build: water from Apple Health. The HealthKit plugin does not read water yet.
+   - **Built: water from Apple Health, added to the glasses logged in Shape** (owner: "Add them
+     together"). The HealthKit plugin reads water, and each sync moves the day's total by the
+     change in Apple Health's own reading (`set_apple_health_water`, the reading kept in
+     `health_metric_observations`), so glasses logged in Shape are never written over. The card
+     syncs even on a day with a watch's night, reads the water again after, and says how much of
+     the total came from Apple Health. A member who connected Apple Health before this build reads
+     water once they tap Sync on Integrations, since the card's sync never asks for permission.
    - Dropped: readiness pre-selecting an energy word. The owner asked for device data only where
      it matches the question, and readiness is not energy.
-   - Still to build: a notification deep link to the card.
+   - **Built: a Daily check-in reminder that opens the card** (owner: "Add a Daily check-in
+     reminder"). A new reminder kind, `daily_checkin`, with its own route, `today`. Its tap lands on
+     Home with the walkthrough open at the first check not yet answered, or the summary when the
+     day is done. With Check-ins off it opens the check-in page. The weekly check-in's reminder is
+     unchanged.
 3. **Answer from the notification.** Native notification actions for energy, plus the streak if
    ruling 3 says yes.
 

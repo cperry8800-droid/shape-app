@@ -32,7 +32,7 @@ test('waterLiters converts honestly and never guesses', () => {
 });
 
 test('reminder kinds + time mirror the route contract', () => {
-  assert.deepEqual(REMINDER_KINDS, ['weigh_in', 'checkin', 'water', 'photo', 'custom']);
+  assert.deepEqual(REMINDER_KINDS, ['weigh_in', 'checkin', 'daily_checkin', 'water', 'photo', 'custom']);
   assert.ok(validReminderTime('07:30') && validReminderTime('23:59'));
   assert.ok(!validReminderTime('7:30') && !validReminderTime('24:00') && !validReminderTime('') && !validReminderTime('07:30pm'));
 });

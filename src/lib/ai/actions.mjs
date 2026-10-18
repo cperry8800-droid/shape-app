@@ -1064,7 +1064,7 @@ export const setReminderAction = {
     memberGate(ctx);
     input = input || {};
     var kind = REMINDER_KINDS.indexOf(String(input.kind)) >= 0 ? String(input.kind) : null;
-    if (!kind) throw new Error('What kind of reminder? weigh_in, checkin, water, photo, or custom.');
+    if (!kind) throw new Error('What kind of reminder? weigh_in, daily_checkin, checkin, water, photo, or custom.');
     if (!validReminderTime(input.time)) throw new Error('Give me the time as HH:MM (24h), e.g. 07:30.');
     var days = Array.isArray(input.days)
       ? Array.from(new Set(input.days.map(Number).filter(function (d) { return Number.isInteger(d) && d >= 0 && d <= 6; }))).sort()

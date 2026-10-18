@@ -405,11 +405,11 @@ const MEMBER_TOOLS = [
     type: 'function',
     name: 'set_reminder',
     description:
-      "Set a recurring reminder for the member (weigh_in, checkin, water, photo, or custom with a label). time is HH:MM 24h; days is 0=Sun…6=Sat (defaults to weekdays — say so). DRAFTS the reminder for them to confirm.",
+      "Set a recurring reminder for the member (weigh_in, daily_checkin for the daily check-in on Home, checkin for the weekly check-in, water, photo, or custom with a label). time is HH:MM 24h; days is 0=Sun…6=Sat (defaults to weekdays — say so). DRAFTS the reminder for them to confirm.",
     parameters: {
       type: 'object',
       properties: {
-        kind: { type: 'string', enum: ['weigh_in', 'checkin', 'water', 'photo', 'custom'] },
+        kind: { type: 'string', enum: ['weigh_in', 'checkin', 'daily_checkin', 'water', 'photo', 'custom'] },
         time: { type: 'string', description: 'HH:MM, 24-hour.' },
         days: { type: 'array', items: { type: 'integer' }, description: '0=Sun…6=Sat. Omit for weekdays.' },
         label: { type: 'string', description: 'Required for kind=custom — what to remind them of.' },

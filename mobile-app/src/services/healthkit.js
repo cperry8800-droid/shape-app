@@ -24,6 +24,7 @@ const SAMPLE = {
   distance: 'distanceWalkingRunning',
   sleep: 'sleepAnalysis',
   workout: 'workoutType',
+  water: 'dietaryWater',
 };
 const LOOKBACK_DAYS = 14;
 
@@ -126,15 +127,19 @@ export async function collectHealthKitSnapshots({ days = LOOKBACK_DAYS } = {}) {
     query(SAMPLE.distance, startISO, endISO),
     query(SAMPLE.sleep, startISO, endISO),
     query(SAMPLE.workout, startISO, endISO),
+    query(SAMPLE.water, startISO, endISO),
   ]);
   // ⚠ A READ THAT FAILED IS AN ERROR, NOT AN EMPTY DAY (Codex on #2404). The check-in card's sync
   // took an empty answer as a sync that worked and waited 30 minutes before trying again.
   if (read.every((r) => r === null)) throw new Error('Apple Health could not be read.');
-  const [steps, heart, resting, hrv, energy, dist, sleep, workouts] = read.map((r) => r || []);
+  const [steps, heart, resting, hrv, energy, dist, sleep, workouts, water] = read.map((r) => r || []);
+  // A failed water read sends no water: a day's 0 would take Apple Health's earlier reading off
+  // the glasses' total.
+  const waterRead = read[8] !== null;
 
   const acc = new Map();
   const bucket = (key) => {
-    if (!acc.has(key)) acc.set(key, { steps: 0, energy: 0, distanceM: 0, hr: [], resting: [], hrv: [], workoutMin: 0 });
+    if (!acc.has(key)) acc.set(key, { steps: 0, energy: 0, distanceM: 0, hr: [], resting: [], hrv: [], workoutMin: 0, waterL: 0 });
     return acc.get(key);
   };
   const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : Number(v));
@@ -142,6 +147,7 @@ export async function collectHealthKitSnapshots({ days = LOOKBACK_DAYS } = {}) {
   for (const s of steps) { const k = dayKey(s.startDate); if (k) bucket(k).steps += num(s.value) || 0; }
   for (const s of energy) { const k = dayKey(s.startDate); if (k) bucket(k).energy += num(s.value) || 0; }
   for (const s of dist) { const k = dayKey(s.startDate); if (k) bucket(k).distanceM += num(s.value) || 0; }
+  for (const s of water) { const k = dayKey(s.startDate); if (k) bucket(k).waterL += num(s.value) || 0; }
   for (const s of heart) { const k = dayKey(s.startDate); const v = num(s.value); if (k && Number.isFinite(v)) bucket(k).hr.push(v); }
   for (const s of resting) { const k = dayKey(s.startDate); const v = num(s.value); if (k && Number.isFinite(v)) bucket(k).resting.push(v); }
   for (const s of hrv) { const k = dayKey(s.startDate); const v = num(s.value); if (k && Number.isFinite(v)) bucket(k).hrv.push(v); }
@@ -192,6 +198,9 @@ export async function collectHealthKitSnapshots({ days = LOOKBACK_DAYS } = {}) {
         hrv_ms: b.hrv.length ? Number(avg(b.hrv).toFixed(1)) : null,
         sleep_hours: sleepSec ? Number((sleepSec / 3600).toFixed(2)) : null,
         workout_minutes: b.workoutMin || null,
+        // Every day sends its water, 0 included, so water deleted in Apple Health leaves the
+        // day's total too. The route adds it to the glasses logged in Shape (set_apple_health_water).
+        hydration_l: waterRead ? Math.round(b.waterL * 100) / 100 : null,
       },
     });
   }

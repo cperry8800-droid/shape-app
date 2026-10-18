@@ -688,3 +688,34 @@ test("hours the server keeps a watch's night over show as the watch's after Log 
     assert.doesNotMatch(kept.m.host.textContent, /Synced from your device/, 'hours the server kept read as the watch\'s');
   } finally { kept.m.unmount(); }
 });
+
+// ── A Daily check-in reminder opens the card (owner, 2026-10-18) ─────────────
+test('the bulletin passes a reminder through to the card, which opens its walkthrough', async () => {
+  env({ uid: 'member-remind', doc: {} });
+  dom.window.ShapeProgress = { progress: async () => ({ series: {} }) };
+  dom.window.ShapeHydration = { get: async () => ({ ok: true, hydrationL: 0, targetL: 3 }) };
+  let used = 0;
+  const m = await mount(nudge({ variant: 'bulletin', openRequest: 7, onOpenRequestConsumed: () => { used += 1; } }));
+  try {
+    await m.rerenderFlush();
+    assert.ok(dom.window.document.querySelector('[data-bs-checkin-walk="0"]'), 'the reminder did not open the walkthrough at its first check');
+    assert.equal(used, 1, 'the bulletin did not pass on that the request is used');
+  } finally { m.unmount(); }
+});
+
+test('Home routes the reminder: the shell hands Home a nonce, Home clears its page and asks the card', () => {
+  const src = readFileSync(SRC, 'utf8');
+  assert.match(src, /case 'today': clear\(\); setCheckinOpen\(\{ nonce: Date\.now\(\) \}\); setTab\('home'\); return;/);
+  assert.match(src, /checkinOpen=\{checkinOpen\} onCheckinOpenConsumed=\{\(\) => setCheckinOpen\(null\)\}/);
+  const home = src.slice(src.indexOf('const [checkinOpenReq, setCheckinOpenReq]'), src.indexOf('// Weekly check-in nudge — due when'));
+  assert.match(home, /setCheckinPage\(false\); setHomeProgressPage\(false\); setGoalsPage\(false\)/, "Home kept another page over the card");
+  assert.match(home, /if \(checkinPrefOn\) \{ setTodayPage\(false\); setCheckinOpenReq\(checkinOpen\.nonce\); \} else setTodayPage\(true\);/, 'with Check-ins off the reminder opened nothing');
+  assert.match(home, /onCheckinOpenConsumed\(\);/);
+  assert.match(src, /<BSTodayNudge onOpen=\{\(\) => setTodayPage\(true\)\} variant="bulletin" openRequest=\{checkinOpenReq\} onOpenRequestConsumed=\{\(\) => setCheckinOpenReq\(null\)\} \/>/, 'Home keeps a used request, so a card mounted again opens it again');
+  // The reminder itself: a kind of its own, opening the card, in the app's and the website's lists.
+  const cron = readFileSync(join(ROOT, 'src/app/api/cron/reminders/route.ts'), 'utf8');
+  assert.match(cron, /case 'daily_checkin':\n\s+return \{ type: 'reminder_daily_checkin', title: l \|\| 'Daily check-in', body: 'Four quick checks, about 30 seconds\.', route: 'today' \};/);
+  assert.match(readFileSync(join(ROOT, 'src/app/api/client/reminders/route.ts'), 'utf8'), /const KINDS = \[[^\]]*'daily_checkin'/);
+  assert.match(src, /\['daily_checkin', 'Daily check-in'\]/);
+  assert.match(readFileSync(join(ROOT, 'public/newdesign/clientMeSettings.jsx'), 'utf8'), /\["daily_checkin", "Daily check-in"\]/);
+});

@@ -804,6 +804,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
         case 'eat': clear(); setTab('eat'); return;
         case 'score': clear(); setStoreView('score'); setTab('store'); return;
         case 'checkin': clear(); setTab('home'); return;
+        // A Daily check-in reminder (owner, 2026-10-18): Home, with the card's walkthrough open.
+        case 'today': clear(); setCheckinOpen({ nonce: Date.now() }); setTab('home'); return;
         // The goal, progress and follows (requests are answered on the member's own profile).
         case 'goal': case 'progress': case 'profile': clear(); setTab('me'); return;
         case 'feed': case 'community': case 'messages': clear(); setTab('chat'); return;
@@ -865,6 +867,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // a second tap of the same reminder is a second request. A push tapped before this shell
   // mounted leaves its route on window (push.js), read once here.
   const [prepTonight, setPrepTonight] = useStateBSC(null);
+  // A Daily check-in reminder opens the check-in card's walkthrough on Home: a nonce, as above.
+  const [checkinOpen, setCheckinOpen] = useStateBSC(null);
   React.useEffect(() => {
     const open = (e) => {
       const slug = e && e.detail && typeof e.detail.slug === 'string' ? e.detail.slug : '';
@@ -1201,7 +1205,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     );
   }
   const screens = {
-    home:    <BSClientHome     onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} goTrain={goTrain} goEat={() => { navPush(); setTab('eat'); }} goMarket={goMarket} goScore={goScore} goChat={goChat} goIntegrations={goIntegrations} tweaks={tweaks} setTweak={setTweak} />,
+    home:    <BSClientHome     onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} goTrain={goTrain} goEat={() => { navPush(); setTab('eat'); }} goMarket={goMarket} goScore={goScore} goChat={goChat} goIntegrations={goIntegrations} tweaks={tweaks} setTweak={setTweak} checkinOpen={checkinOpen} onCheckinOpenConsumed={() => setCheckinOpen(null)} />,
     train:   <BSClientTrain    onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} goMarket={goMarket} autoStart={pendingTrainStart} onAutoStartConsumed={() => setPendingTrainStart(false)} />,
     eat:     <BSClientEat      onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} goMarket={goMarket} initialView={eatStart} onStartConsumed={() => setEatStart('')} cookWith={cookWith} onCookWithConsumed={() => setCookWith(null)} prepTonight={prepTonight} onPrepTonightConsumed={() => setPrepTonight(null)} />,
     chat:    <BSClientFeed     onProfile={goSettings} role={tweaks.role || 'client'} openRequest={chatRequest} />,
@@ -4377,7 +4381,7 @@ function BSMemberSetupStation({ onGoal, onTrain, onCheckin, onFindCoach }) {
   );
 }
 
-function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = () => {}, goMarket, goScore, goChat = () => {}, goIntegrations, tweaks = {}, setTweak = () => {} }) {
+function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = () => {}, goMarket, goScore, goChat = () => {}, goIntegrations, tweaks = {}, setTweak = () => {}, checkinOpen = null, onCheckinOpenConsumed = () => {} }) {
   const t = useBS();
   const tr = useShapeTr();
   const bsHomeProgram = useBSProgram();
@@ -4501,6 +4505,18 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   // A second instance of this hook is deliberate and safe: it seeds from the same per-uid
   // mirror and converges on the same value.
   const checkinPrefOn = useBSDailyCheckinPref();
+  // ⚠ A DAILY CHECK-IN REMINDER OPENS THE CARD (owner, 2026-10-18: "Add a Daily check-in
+  // reminder"). The shell hands over a nonce; Home closes the page it shows and passes the
+  // request to the card, which opens its walkthrough at the first check not yet answered once
+  // today is read. With Check-ins off there is no card, so the check-in page opens instead.
+  const [checkinOpenReq, setCheckinOpenReq] = useStateBSC(null);
+  React.useEffect(() => {
+    if (!checkinOpen || !checkinOpen.nonce) return;
+    setPreviewMeal(null); setShowWorkoutPreview(false); setShowLogMeal(false); setHabitsPage(false);
+    setCheckinPage(false); setHomeProgressPage(false); setGoalsPage(false); setStepsHistory(false);
+    if (checkinPrefOn) { setTodayPage(false); setCheckinOpenReq(checkinOpen.nonce); } else setTodayPage(true);
+    onCheckinOpenConsumed();
+  }, [checkinOpen && checkinOpen.nonce]);
   // Weekly check-in nudge — due when a signed-in client has no row this week.
   React.useEffect(() => {
     const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
@@ -5156,7 +5172,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           the card is where today's answers are given, not a nag. The weekly
           line is suppressed when its own lever is the lead; the wall bulletin
           yields to it. */}
-      <BSTodayNudge onOpen={() => setTodayPage(true)} variant="bulletin" />
+      <BSTodayNudge onOpen={() => setTodayPage(true)} variant="bulletin" openRequest={checkinOpenReq} onOpenRequestConsumed={() => setCheckinOpenReq(null)} />
       {checkinDue && checkinPrefOn && !(engineFlag && engineFlag.lever === 'checkin') && (
         <BSHomeBulletin label={tr('home:bulletin.weeklyCheckin', { defaultValue: 'Weekly check-in due' })} detail={tr('home:bulletin.weeklyCheckinDetail', { defaultValue: '2 min' })} onOpen={() => setCheckinPage(true)} />
       )}
@@ -26695,7 +26711,7 @@ const _NP_CAPS = [2, 3, 4, 6, 8];
 // person is notified about, per TYPE × per CHANNEL, plus master mute, quiet
 // hours (tz-aware) and a daily cap. Reads/writes the notification_settings /
 // notification_preferences tables — the SAME source /api/ai/notify(+cron) read.
-const _REM_KINDS = [['weigh_in', 'Weigh-in'], ['checkin', 'Weekly check-in'], ['water', 'Water'], ['photo', 'Progress photo'], ['custom', 'Custom']];
+const _REM_KINDS = [['weigh_in', 'Weigh-in'], ['daily_checkin', 'Daily check-in'], ['checkin', 'Weekly check-in'], ['water', 'Water'], ['photo', 'Progress photo'], ['custom', 'Custom']];
 const _REM_DOW = [['S', 0], ['M', 1], ['T', 2], ['W', 3], ['T', 4], ['F', 5], ['S', 6]];
 // Member-set reminders — standalone nudges (weigh-in / check-in / water / photo /
 // custom) the hourly cron fires. Lives in Settings → Notifications (clients only).
@@ -29838,12 +29854,12 @@ function useBSStepsToday() {
 //   'row'      → only with the member's dailyCheckin pref OFF (spec §3D "Optional check-in"): a
 //                quiet, always-present "Check-in · add water" door to the check-in page, never the
 //                word "due" and never a done tick. Pref OFF, the bulletin renders NOTHING.
-function BSTodayNudge({ onOpen, variant }) {
+function BSTodayNudge({ onOpen, variant, openRequest = null, onOpenRequestConsumed = null }) {
   const tr = useShapeTr();
   const checkinOn = useBSDailyCheckinPref();
   if (variant === 'bulletin') {
     if (!checkinOn) return null; // pref OFF — Home never nags (spec §3D)
-    return <BSCheckinCard onOpen={onOpen} />;
+    return <BSCheckinCard onOpen={onOpen} openRequest={openRequest} onOpenRequestConsumed={onOpenRequestConsumed} />;
   }
   if (variant !== 'row') return null;
   if (checkinOn) return null; // the card carries the done line
