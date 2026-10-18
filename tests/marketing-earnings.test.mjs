@@ -43,6 +43,9 @@ for (const [file, name, clients, rate] of [['coach.jsx', 'TrainerEarnings', 20, 
     assert.match(body, /Set your own monthly rate and keep what you earn\./);
     assert.match(body, /Payouts straight to your bank, on the schedule you set in Stripe/);
     assert.doesNotMatch(body, /card processing is separate|Weekly payouts|sessions per client|touchpoints/i);
+    // The page's FAQ says the same as its calculator (Codex, #2394).
+    assert.doesNotMatch(src, /card processing is separate/i);
+    assert.match(src, /takes a small platform fee when you get paid, and pays the card processing\./);
     assert.match(body, /const grossMonthly = clients \* price;\n  const feeMonthly = Math\.round\(grossMonthly \* \(1 - byo \/ 100\) \* PLATFORM_FEE_RATE\);/);
   });
 }

@@ -371,7 +371,7 @@ function NutFeatured() {
 function NutFAQ() {
   const faqs = [
     { q: "What credentials do I need?", a: "RD, RDN, CNS, CDN, or state-licensed dietitian. CSSD (sports) or IFMCP (functional) help but aren't required. Non-licensed health/nutrition coaches accepted under a distinct scope-of-practice tier." },
-    { q: "What does Shape cost?", a: "You keep the vast majority of everything your clients pay you. No monthly dues, no listing fees — Shape only takes a small platform fee when you get paid. Standard card processing is separate." },
+    { q: "What does Shape cost?", a: "You keep the vast majority of everything your clients pay you. No monthly dues, no listing fees — Shape only takes a small platform fee when you get paid, and pays the card processing." },
     { q: "How does Shape handle HIPAA and scope of practice?", a: "Client records are encrypted at rest and in transit. Scope-of-practice tiers are enforced by credential — non-RDs can't access medical nutrition therapy flows. BAAs available for practices that need them." },
     { q: "Can I bring my existing clients?", a: "Yes. We help with transition emails, pricing continuity, and importing plan templates." },
     { q: "Payouts?", a: "Weekly, direct to your bank. Instant payouts available any day. 1099s auto-generated every January." },
