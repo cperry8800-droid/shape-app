@@ -24,12 +24,25 @@ import { attributionPair, MARKETPLACE_FEE_BPS } from '@/lib/coach-origin.mjs';
 import { isRetryableDbError } from '@/lib/db-retryable';
 import { coachPaid, startCoaching, welcomeMember } from '@/lib/coach-thread';
 import { cancelRefundedSession } from '@/lib/refund-session';
+import { announcePayment } from '@/lib/payment-notices';
 
 export const runtime = 'nodejs';
 
 function isoOrNull(unixSeconds: number | null | undefined): string | null {
   if (!unixSeconds) return null;
   return new Date(unixSeconds * 1000).toISOString();
+}
+
+// Shape's fee and the coach's share of a subscription payment at the rate stamped on its row
+// (Stripe takes application_fee_percent = fee_bps / 100). null when the rate is not a valid one:
+// a notice then leaves the split out rather than guess it.
+function splitAtBps(cents: number, bps: unknown): { shape: number; coach: number } | null {
+  try {
+    const coach = coachCutCents(cents, bpsToRate(bps as number));
+    return { shape: cents - coach, coach };
+  } catch {
+    return null;
+  }
 }
 
 // BYO commission split — persist the origin verdict resolved at checkout onto the
@@ -627,6 +640,18 @@ export async function POST(request: Request) {
               // (Fable on #2373): a buyer could put any sentence into the coach's notice.
               itemName: planSnapshot && typeof planSnapshot.name === 'string' && planSnapshot.name.trim() ? planSnapshot.name.trim() : null,
             });
+            // The member's receipt and the owners' notice (payment-notices.ts), for what Stripe
+            // charged and the fee its payment carries.
+            await announcePayment(admin, {
+              key: session.id,
+              clientId,
+              amountCents: session.amount_total ?? priceCents,
+              paidFor: kind === 'program' || kind === 'meal_plan' ? kind : 'booking',
+              renewal: false,
+              provider: { role: providerRole === 'nutritionist' ? 'nutritionist' : 'trainer', id: Number(providerId) },
+              shapeFeeCents: applicationFeeCents,
+              itemName: planSnapshot && typeof planSnapshot.name === 'string' && planSnapshot.name.trim() ? planSnapshot.name.trim() : null,
+            });
           }
           // First-dibs: a completed purchase against an invited waitlist slot
           // is the client taking their spot — flip it to booked. Supabase
@@ -691,6 +716,17 @@ export async function POST(request: Request) {
           });
           // Fix 3a: a welcome from Shape when the membership starts, once per member.
           if (membershipSaved && moneyMoved && !subEnded) await welcomeMember(admin, clientId);
+          // The member's receipt and the owners' notice for what was charged (payment-notices.ts).
+          // The money moved, so they go even when the membership has ended since (Codex on #2402).
+          if (membershipSaved && moneyMoved) {
+            await announcePayment(admin, {
+              key: session.id,
+              clientId,
+              amountCents: session.amount_total ?? priceCents,
+              paidFor: 'membership',
+              renewal: false,
+            });
+          }
           break;
         }
 
@@ -757,6 +793,21 @@ export async function POST(request: Request) {
             providerId: Number(providerId),
             subscriptionKey: subRow.stripe_subscription_id || session.id,
             monthlyCents: priceCents ? coachCutCents(priceCents, bpsToRate(subFeeBps)) : null,
+          });
+        }
+        // The member's receipt and the owners' notice for the first month (payment-notices.ts); later
+        // months are invoice.paid's. The money moved, so they go even when the plan has ended since
+        // (Codex on #2402); only the coaching start above waits on a live plan.
+        if (!subErr && moneyMoved && providerId && (providerRole === 'trainer' || providerRole === 'nutritionist')) {
+          const firstMonthCents = session.amount_total ?? priceCents;
+          await announcePayment(admin, {
+            key: session.id,
+            clientId,
+            amountCents: firstMonthCents,
+            paidFor: 'coaching',
+            renewal: false,
+            provider: { role: providerRole, id: Number(providerId) },
+            shapeFeeCents: splitAtBps(firstMonthCents, subFeeBps)?.shape ?? null,
           });
         }
         // First-dibs: a completed subscription against an invited waitlist
@@ -981,8 +1032,58 @@ export async function POST(request: Request) {
         break;
       }
 
+      case 'invoice.paid': {
+        // A subscription's later month went through: the member's receipt, the owners' notice and,
+        // for a coach's plan, the coach's (payment-notices.ts). The first month is announced by
+        // checkout.session.completed, so only a cycle's invoice counts, and only one that took money.
+        const invoice = event.data.object as Stripe.Invoice;
+        if (invoice.billing_reason !== 'subscription_cycle' || !(invoice.amount_paid > 0) || !invoice.id) break;
+        const subId = extractSubscriptionId(invoice);
+        if (!subId) break;
+        // The membership is sold on Shape's own account only.
+        if (!acct) {
+          const { data: membership, error: membershipErr } = await admin
+            .from('platform_subscriptions')
+            .select('client_id')
+            .eq('stripe_subscription_id', subId)
+            .maybeSingle();
+          if (membershipErr) {
+            console.error('[stripe webhook] renewal: membership read failed — no notice', { invoice: invoice.id, error: membershipErr.message });
+          }
+          const memberId = (membership as { client_id?: string | null } | null)?.client_id;
+          if (memberId) {
+            await announcePayment(admin, { key: invoice.id, clientId: memberId, amountCents: invoice.amount_paid, paidFor: 'membership', renewal: true });
+            break;
+          }
+        }
+        let planQuery = admin
+          .from('subscriptions')
+          .select('client_id, provider_id, provider_role, fee_bps')
+          .eq('stripe_subscription_id', subId);
+        if (acct) planQuery = planQuery.eq('stripe_account_id', acct);
+        const { data: plan, error: planErr } = await planQuery.maybeSingle();
+        if (planErr) {
+          console.error('[stripe webhook] renewal: subscription read failed — no notice', { invoice: invoice.id, error: planErr.message });
+          break;
+        }
+        const row = plan as { client_id?: string | null; provider_id?: number | null; provider_role?: string | null; fee_bps?: number | null } | null;
+        if (!row?.client_id || !row.provider_id || (row.provider_role !== 'trainer' && row.provider_role !== 'nutritionist')) break;
+        const split = splitAtBps(invoice.amount_paid, row.fee_bps);
+        await announcePayment(admin, {
+          key: invoice.id,
+          clientId: row.client_id,
+          amountCents: invoice.amount_paid,
+          paidFor: 'coaching',
+          renewal: true,
+          provider: { role: row.provider_role, id: Number(row.provider_id) },
+          shapeFeeCents: split?.shape ?? null,
+          coachCents: split?.coach ?? null,
+        });
+        break;
+      }
+
       default:
-        // Other events (invoice.paid, etc.) are ignored for now.
+        // Other events (charge.succeeded, etc.) are ignored for now.
         break;
     }
   } catch (err) {
