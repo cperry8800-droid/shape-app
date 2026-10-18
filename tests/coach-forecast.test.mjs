@@ -228,6 +228,11 @@ test('planNumbers: the listing price, else the clients\' average to $5, else the
   assert.equal(listed.subs, 3, 'a one-time purchase is not a subscription');
   near(listed.byoShare, 1 / 3);
   assert.deepEqual([listed.pace.adds, listed.pace.churn], [null, null], 'no trajectory is no pace, not a pace of zero');
+  assert.equal(listed.pace.unread, true, 'and an unread history, not an empty one');
+  assert.deepEqual([listed.listingUnread, listed.broughtUnread], [false, false]);
+  // A measured history is not unread.
+  const read = CF.planNumbers({ extra: { ...extra, trajectory: { weeks: [{ weekOf: '2026-10-12', active: 4, added: 0, ended: 0, mrrNetCents: 60000, mrrGrossCents: 70300 }], firstSubAt: '2025-01-01T00:00:00Z' } }, listingMonthly: 180, now: Date.UTC(2026, 9, 17, 12) });
+  assert.equal(read.pace.unread, undefined);
   const avg = CF.planNumbers({ extra, listingMonthly: 0 });
   assert.equal(avg.rateFrom, 'average');
   assert.equal(avg.rateCents, 17500, '$175.75 a client rounds to $175');
@@ -236,9 +241,38 @@ test('planNumbers: the listing price, else the clients\' average to $5, else the
   assert.equal(CF.planNumbers({ extra: { metrics: {} }, listingMonthly: 180 }), null);
 });
 
+test('planNumbers: an unread listing, brought share or history is said as unread, never as a measurement', () => {
+  const extra = { trajectory: null, metrics: { activeClients: 4, mrrNetCents: 60000, mrrGrossCents: 70300 }, byOrigin: null };
+  // The listing read failed: the rate falls back to the clients' average, and says the price was unread.
+  const failed = CF.planNumbers({ extra, listingMonthly: null, listingFailed: true });
+  assert.deepEqual([failed.rateFrom, failed.rateCents, failed.listingUnread], ['average', 17500, true]);
+  const failedNone = CF.planNumbers({ extra: { ...extra, metrics: { activeClients: 0, mrrNetCents: 0, mrrGrossCents: 0 } }, listingMonthly: null, listingFailed: true });
+  assert.deepEqual([failedNone.rateFrom, failedNone.listingUnread], ['default', true]);
+  // A price that was read is the price, whatever else failed.
+  assert.equal(CF.planNumbers({ extra, listingMonthly: 180, listingFailed: true }).listingUnread, false);
+  assert.equal(CF.planNumbers({ extra, listingMonthly: null }).listingUnread, false, 'no listing price yet is not an unread one');
+  // byOrigin null: the share starts at 0% as a default, marked unread; an empty list is a measured none.
+  assert.deepEqual([failed.byoShare, failed.subs, failed.broughtUnread], [0, 0, true]);
+  assert.equal(CF.planNumbers({ extra: { ...extra, byOrigin: [] }, listingMonthly: null }).broughtUnread, false);
+  // The trajectory read failed: no pace, and an unread history.
+  assert.deepEqual(failed.pace, { adds: null, churn: null, days: 0, fromFirst: false, unread: true });
+});
+
+test('churnPct: a measured churn to a tenth of a point, and never 0', () => {
+  assert.equal(CF.churnPct(0.0712), 7.1);
+  assert.equal(CF.churnPct(0.0045), 0.5, 'one departure from 70 clients in three months');
+  assert.equal(CF.churnPct(0.0004), 0.1, 'a measured churn never rounds to 0');
+  assert.equal(CF.churnPct(0), 0, 'no one left is 0');
+  assert.equal(CF.churnPct(0.42), 42);
+});
+
 test('planStart: today\'s pace rounded to the sliders, the rate to $5, the goal half again above today', () => {
   const s = CF.planStart({ rateCents: 17800, mrrNetCents: 189000, pace: { adds: 2.34, churn: 0.0712 } });
-  assert.deepEqual(s, { adds: 2.3, churnPct: 7, rate: 180, goal: 3000 });
+  assert.deepEqual(s, { adds: 2.3, churnPct: 7.1, rate: 180, goal: 3000 });
+  // Churn is kept to a tenth of a point, and a measured churn never starts the plan at 0%.
+  assert.equal(CF.planStart({ rateCents: 15000, mrrNetCents: 0, pace: { adds: 1, churn: 0.0045 } }).churnPct, 0.5);
+  assert.equal(CF.planStart({ rateCents: 15000, mrrNetCents: 0, pace: { adds: 1, churn: 0.0004 } }).churnPct, 0.1);
+  assert.equal(CF.planStart({ rateCents: 15000, mrrNetCents: 0, pace: { adds: 1, churn: 0 } }).churnPct, 0, 'no one left is a measured 0');
   // No history: the stated defaults. A tiny practice still aims at $1,000.
   assert.deepEqual(CF.planStart({ rateCents: 15000, mrrNetCents: 20000, pace: { adds: null, churn: null } }), { adds: 1, churnPct: 5, rate: 150, goal: 1000 });
   // A churn past the slider's usual 30% is kept, not clamped (the range stretches to it).
@@ -248,6 +282,10 @@ test('planStart: today\'s pace rounded to the sliders, the rate to $5, the goal 
 test('renewalsSum: only a renewal Stripe confirmed counts; cancelled and unchecked do not', () => {
   const rows = [{ netCents: 15300, ending: false }, { netCents: 18000, ending: false }, { netCents: 9000, ending: true }, { netCents: 7000, ending: null }];
   assert.deepEqual(CF.renewalsSum(rows), { count: 2, netCents: 33300 });
+  // None checked is no total, not "0 clients · $0" beside a list of renewals; all cancelled is a checked zero.
+  assert.equal(CF.renewalsSum(rows.map((r) => ({ ...r, ending: null }))), null);
+  assert.equal(CF.renewalsSum([{ netCents: 9000, ending: true }, { netCents: 7000, ending: null }]), null);
+  assert.deepEqual(CF.renewalsSum([{ netCents: 9000, ending: true }]), { count: 0, netCents: 0 });
   assert.equal(CF.renewalsSum([]), null);
   assert.equal(CF.renewalsSum(null), null);
 });
