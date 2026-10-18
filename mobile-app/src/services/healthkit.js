@@ -61,12 +61,34 @@ export async function requestHealthKitAuth() {
   return !!res?.granted;
 }
 
+// The asleep time in a set of { start, end } intervals (ms), counting overlaps once. Two
+// sources writing the same night to Apple Health (a watch and a ring, or AutoSleep) used to
+// count it twice, and a night's hours now earn Shape Score points.
+export function asleepSeconds(intervals) {
+  const xs = intervals.filter((x) => Number.isFinite(x.start) && Number.isFinite(x.end) && x.end > x.start).sort((a, b) => a.start - b.start);
+  let total = 0;
+  let cur = null;
+  for (const x of xs) {
+    if (cur && x.start <= cur.end) { cur.end = Math.max(cur.end, x.end); continue; }
+    if (cur) total += cur.end - cur.start;
+    cur = { start: x.start, end: x.end };
+  }
+  if (cur) total += cur.end - cur.start;
+  return total / 1000;
+}
+
 // Read recent samples and roll them up into per-day snapshot patches plus a flat
 // list of workouts (for optional import). Returns { days, workouts }.
+// ⚠ EVERY DAY SENT IS A WHOLE DAY: `days` local days ending today, each from its own midnight,
+// read from the evening before the first so its night is whole too. A sync overwrites each day it
+// sends, so a day cut off at the start of the window would replace that day's full steps and
+// night with part of them.
 export async function collectHealthKitSnapshots({ days = LOOKBACK_DAYS } = {}) {
   if (!isHealthKitPlatform()) throw new Error('Apple Health is only available in the iOS app.');
   const end = new Date();
-  const start = new Date(end.getTime() - days * 86_400_000);
+  const first = new Date(end.getFullYear(), end.getMonth(), end.getDate() - (Math.max(1, days) - 1));
+  const firstKey = dayKey(first);
+  const start = new Date(first.getTime() - 12 * 3_600_000);
   const startISO = start.toISOString();
   const endISO = end.toISOString();
 
@@ -83,7 +105,7 @@ export async function collectHealthKitSnapshots({ days = LOOKBACK_DAYS } = {}) {
 
   const acc = new Map();
   const bucket = (key) => {
-    if (!acc.has(key)) acc.set(key, { steps: 0, energy: 0, distanceM: 0, hr: [], resting: [], hrv: [], sleepSec: 0, workoutMin: 0 });
+    if (!acc.has(key)) acc.set(key, { steps: 0, energy: 0, distanceM: 0, hr: [], resting: [], hrv: [], asleep: [], workoutMin: 0 });
     return acc.get(key);
   };
   const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : Number(v));
@@ -95,12 +117,14 @@ export async function collectHealthKitSnapshots({ days = LOOKBACK_DAYS } = {}) {
   for (const s of resting) { const k = dayKey(s.startDate); const v = num(s.value); if (k && Number.isFinite(v)) bucket(k).resting.push(v); }
   for (const s of hrv) { const k = dayKey(s.startDate); const v = num(s.value); if (k && Number.isFinite(v)) bucket(k).hrv.push(v); }
   for (const s of sleep) {
-    // Only "asleep" states count toward sleep hours (not inBed / awake).
+    // Only "asleep" states count toward sleep hours (not inBed / awake). A night belongs to
+    // the day it ends.
     const state = String(s.sleepState ?? '').toLowerCase();
     if (!state.startsWith('asleep')) continue;
     const k = dayKey(s.endDate || s.startDate);
-    const secs = num(s.duration);
-    if (k && Number.isFinite(secs)) bucket(k).sleepSec += Math.max(0, secs);
+    const endMs = Date.parse(s.endDate);
+    const startMs = Number.isFinite(Date.parse(s.startDate)) ? Date.parse(s.startDate) : endMs - num(s.duration) * 1000;
+    if (k && Number.isFinite(startMs) && Number.isFinite(endMs)) bucket(k).asleep.push({ start: startMs, end: endMs });
   }
 
   const flatWorkouts = [];
@@ -124,6 +148,8 @@ export async function collectHealthKitSnapshots({ days = LOOKBACK_DAYS } = {}) {
 
   const daysOut = [];
   for (const [date, b] of acc) {
+    if (date < firstKey) continue; // the evening before the window: read for its night only
+    const sleepSec = asleepSeconds(b.asleep);
     daysOut.push({
       date,
       patch: {
@@ -133,7 +159,7 @@ export async function collectHealthKitSnapshots({ days = LOOKBACK_DAYS } = {}) {
         max_heart_rate: b.hr.length ? Math.round(max(b.hr)) : null,
         resting_hr: b.resting.length ? Math.round(avg(b.resting)) : null,
         hrv_ms: b.hrv.length ? Number(avg(b.hrv).toFixed(1)) : null,
-        sleep_hours: b.sleepSec ? Number((b.sleepSec / 3600).toFixed(2)) : null,
+        sleep_hours: sleepSec ? Number((sleepSec / 3600).toFixed(2)) : null,
         workout_minutes: b.workoutMin || null,
       },
     });

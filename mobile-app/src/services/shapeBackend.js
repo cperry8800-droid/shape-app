@@ -4196,7 +4196,10 @@ async function syncOura({ importWorkouts = false } = {}) {
 
 // Apple Health (HealthKit) — reads samples on-device and posts daily roll-ups.
 // Connecting and syncing are the same flow: prompt for permission, read, upload.
-async function syncAppleHealth({ importWorkouts = true } = {}) {
+// `prompt: false` (the check-in card's sync on Home) never asks for permission: a member who
+// connected on another phone is not shown the Health sheet on opening Home, and reads nothing
+// until they connect from Integrations. A read that finds nothing posts nothing.
+async function syncAppleHealth({ importWorkouts = true, prompt = true, days } = {}) {
   if (!isHealthKitPlatform()) {
     throw new Error('Apple Health is only available in the iOS app.');
   }
@@ -4206,15 +4209,16 @@ async function syncAppleHealth({ importWorkouts = true } = {}) {
   if (!state.session?.access_token) {
     throw new Error('Sign in before syncing Apple Health.');
   }
-  await requestHealthKitAuth();
-  const { days, workouts } = await collectHealthKitSnapshots();
+  if (prompt) await requestHealthKitAuth();
+  const { days: rollups, workouts } = await collectHealthKitSnapshots(days ? { days } : undefined);
+  if (!prompt && !rollups.length) return { ok: true, days: 0 };
   const response = await fetch(`${apiBaseUrl}/api/integrations/apple-health/sync`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${state.session.access_token}`,
     },
-    body: JSON.stringify({ days, workouts: importWorkouts ? workouts : [] }),
+    body: JSON.stringify({ days: rollups, workouts: importWorkouts ? workouts : [] }),
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {

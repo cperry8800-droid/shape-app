@@ -331,10 +331,16 @@ function DashTodayCard({ live }) {
         const eff = find("sleepEfficiency"), rhr = find("restingHr"), hrv = find("hrv");
         const meta = { efficiency: eff ? Math.round(Number(eff.value)) : null, rhr: rhr ? Math.round(Number(rhr.value)) : null, hrv: hrv ? Math.round(Number(hrv.value)) : null };
         const hasDeviceMeta = meta.efficiency != null || meta.rhr != null || meta.hrv != null;
+        // The night is a watch's when a device sync wrote its hours: the route's `sleepFromDevice`,
+        // from the snapshot's per-field sources (the app's check-in reads it the same way). A watch
+        // worn by day reports a resting heart rate with no night, so that is the sign only on a
+        // server without the series.
+        const devNights = Array.isArray(p.series.sleepFromDevice) ? p.series.sleepFromDevice : null;
+        const devToday = devNights ? devNights.some((x) => x && x.date === todayISO) : hasDeviceMeta;
         // Logged from a MANUAL signal only — energy/hunger, the rested rating, or
         // manually-entered sleep hours — never a passive device sync alone.
-        if (e || h || q || (s && !hasDeviceMeta)) setLogged(true);
-        if (s) { setSleepHours(Number(s.value)); setSleepSynced(hasDeviceMeta); if (hasDeviceMeta) setSleepMeta(meta); }
+        if (e || h || q || (s && !devToday)) setLogged(true);
+        if (s) { setSleepHours(Number(s.value)); setSleepSynced(devToday); if (hasDeviceMeta) setSleepMeta(meta); }
         if (q) setRested(Math.round(Number(q.value)));
       })
       .catch(() => {});
@@ -393,7 +399,11 @@ function DashTodayCard({ live }) {
     setSaving(true);
     fetch("/api/client/checkin", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ energy, hunger, sleepHours, sleepQuality: rested, date: localDay() }) })
       .then((r) => (r.ok ? r.json() : Promise.reject(r)))
-      .then(() => { setLogged(true); setEditing(false); })
+      .then((d) => {
+        // A watch's night stands over typed hours (the route keeps it), so show the watch's.
+        if (d && d.sleepFromDevice && d.sleepHours != null) { setSleepHours(Number(d.sleepHours)); setSleepSynced(true); }
+        setLogged(true); setEditing(false);
+      })
       .catch(() => {})
       .then(() => setSaving(false));
   };

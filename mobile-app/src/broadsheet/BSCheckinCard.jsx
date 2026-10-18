@@ -228,8 +228,9 @@ function bsCiSettled(line) {
 // for"). The night's hours are the one check a watch measures, so opening the card asks each
 // connected one for last night first, and the sleep step then shows the watch's hours instead of
 // asking. Energy, hunger, Rested and water stay the member's own. At most once in 30 minutes per
-// account on this device; Garmin sends its nights on its own, and Apple Health is read only in the
-// iPhone app, never set up from here. True when a sync answered.
+// account on this device (a status read that fails does not use the 30 minutes up); Garmin sends
+// its nights on its own, and Apple Health is read only in the iPhone app, for today and yesterday,
+// and never asks for permission from here. True when a sync answered.
 export const BS_CI_SYNC_EVERY_MS = 30 * 60 * 1000;
 const bsCiSyncedAt = {};
 export async function bsCiSyncDevices(uid, nowMs = Date.now()) {
@@ -239,14 +240,18 @@ export async function bsCiSyncDevices(uid, nowMs = Date.now()) {
   let last = bsCiSyncedAt[uid] || 0;
   try { last = Math.max(last, Number(window.localStorage.getItem(key)) || 0); } catch (e) { /* the module's own time still throttles */ }
   if (nowMs - last < BS_CI_SYNC_EVERY_MS) return false;
-  bsCiSyncedAt[uid] = nowMs;
-  try { window.localStorage.setItem(key, String(nowMs)); } catch (e) { /* as above */ }
-  const status = await I.getStatus();
+  const keep = (t) => {
+    bsCiSyncedAt[uid] = t;
+    try { window.localStorage.setItem(key, String(t)); } catch (e) { /* as above */ }
+  };
+  keep(nowMs);
+  let status;
+  try { status = await I.getStatus(); } catch (e) { keep(last); throw e; }
   const on = new Set(((status && status.providers) || []).filter((p) => p && p.connected).map((p) => p.id));
   const runs = [];
   if (on.has('whoop') && I.syncWhoop) runs.push(I.syncWhoop());
   if (on.has('oura') && I.syncOura) runs.push(I.syncOura());
-  if (on.has('apple_health') && I.syncAppleHealth && I.appleHealthAvailable && I.appleHealthAvailable()) runs.push(I.syncAppleHealth({ importWorkouts: false }));
+  if (on.has('apple_health') && I.syncAppleHealth && I.appleHealthAvailable && I.appleHealthAvailable()) runs.push(I.syncAppleHealth({ importWorkouts: false, prompt: false, days: 2 }));
   if (!runs.length) return false;
   const done = await Promise.allSettled(runs);
   return done.some((r) => r.status === 'fulfilled');
@@ -331,15 +336,18 @@ function BSCheckinDay({ onOpen, dayIso }) {
 
   // Once today is read: a day with no watch's night asks the connected watches for it
   // (bsCiSyncDevices, above), then reads again. A night that came in replaces whatever is on screen,
-  // typed hours included, since the route keeps the watch's over them.
+  // typed hours included, since the route keeps the watch's over them. A card that unmounts while
+  // the sync is out still clears the cache and claims the night's points, so the next card reads
+  // the night rather than ask for it.
   useEffect(() => {
     if (!signedIn || !ready || bsCiWornNight(confirmed.current)) return undefined;
     let on = true;
     bsCiSyncDevices(uid).then((synced) => {
-      if (!on || !synced || !window.ShapeProgress?.progress) return null;
+      if (!synced) return null;
       window.ShapeMetrics?.invalidate?.();
       // A good night the sync brought earns its points now, not on the next app open.
       Promise.resolve(window.ShapeSleepPoints?.check?.()).catch(() => {});
+      if (!on || !window.ShapeProgress?.progress) return null;
       return window.ShapeProgress.progress();
     }).then((p) => {
       if (!on || !p || !p.series) return;

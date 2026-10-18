@@ -243,7 +243,9 @@ planned builds.
   trigger).
 - Sleep points (`award_sleep_points`) trust `sources.sleep_hours` on a row the member can
   write, checked against a provider they have connected. With one connected, a direct write
-  could still earn +5 a night for the last 14 days; Apple Health's nights are posted by the app.
+  could still earn +5 a night for the last 14 days. Apple Health's nights and its connection
+  are whatever the app posts, so any signed-in member can post made-up Health nights, as they
+  can post made-up steps for Shape Steps.
 - Android back leaves the native app from any sheet (no `@capacitor/app`); in the hosted
   `/m/`, sheets add no history entry.
 

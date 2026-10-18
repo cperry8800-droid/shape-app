@@ -10,7 +10,10 @@
 -- typed hours could be inflated for them. A watch's night is one whose sources.sleep_hours names
 -- the provider that wrote it (upsertSnapshot stamps it; a typed night has none, or 'manual').
 -- That stamp sits on a row the member can write, so the provider must also be one the member
--- has connected: user_integrations is written by the server alone.
+-- has connected: user_integrations is written by the server alone. Oura, WHOOP and Garmin
+-- nights are fetched by the server. Apple Health's nights, and its connection, come from what
+-- the app posts to /api/integrations/apple-health/sync, so a member who posts made-up Health
+-- days can earn +5 a night, as made-up steps already earn Shape Steps.
 -- ⚠ OVER 12 HOURS IS NO NIGHT: a watch left on the nightstand.
 -- ⚠ THE NIGHT BELONGS TO THE MORNING IT ENDS. snapshot_date is the member's local day, so
 -- today's row holds last night, and it counts as soon as a watch has written it. The window

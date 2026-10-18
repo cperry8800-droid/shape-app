@@ -895,7 +895,8 @@ test('opening the card asks each connected watch for its night, at most every 30
 
     d = devices({ connected: ['oura', 'garmin', 'apple_health'], healthKit: true });
     assert.equal(await CARD.bsCiSyncDevices('sync-c', at(12)), true);
-    assert.deepEqual(d.syncs, ['oura', ['apple_health', { importWorkouts: false }]], 'Garmin sends its own nights, and the check-in imports no workouts');
+    assert.deepEqual(d.syncs, ['oura', ['apple_health', { importWorkouts: false, prompt: false, days: 2 }]],
+      'Garmin sends its own nights; the check-in imports no workouts, never asks for Health permission, and reads today and yesterday');
 
     d = devices({ connected: ['garmin'] });
     assert.equal(await CARD.bsCiSyncDevices('sync-d', at(12)), false, 'nothing to ask still read as a sync');
@@ -918,7 +919,37 @@ test('opening the card asks each connected watch for its night, at most every 30
       assert.equal(await CARD.bsCiSyncDevices('sync-h', at(12)), true);
       assert.equal(await CARD.bsCiSyncDevices('sync-h', at(12, 5)), false, 'without storage every open asked the watches again');
     } finally { Object.defineProperty(dom.window, 'localStorage', real); }
+
+    // A status read that fails does not use up the 30 minutes.
+    d = devices({ connected: ['whoop'] });
+    const status = dom.window.ShapeIntegrations.getStatus;
+    dom.window.ShapeIntegrations.getStatus = async () => { throw new Error('offline'); };
+    await assert.rejects(CARD.bsCiSyncDevices('sync-i', at(12)));
+    dom.window.ShapeIntegrations.getStatus = status;
+    assert.equal(await CARD.bsCiSyncDevices('sync-i', at(12, 1)), true, 'a failed status read held the watches back for 30 minutes');
   } finally { delete dom.window.ShapeIntegrations; }
+});
+
+test("a card that closes while the watches answer still clears the cache and claims the night's points", async () => {
+  let cleared = 0;
+  let claimed = 0;
+  let release;
+  const held = new Promise((r) => { release = r; });
+  env({ uid: 'sync-card-7', days: { [TODAY]: { energy: 8, hunger: 6 } } });
+  dom.window.ShapeMetrics = { invalidate: () => { cleared += 1; } };
+  dom.window.ShapeSleepPoints = { check: async () => { claimed += 1; return []; } };
+  dom.window.ShapeIntegrations = {
+    getStatus: async () => ({ providers: [{ id: 'oura', connected: true }] }),
+    syncOura: async () => { await held; return { ok: true }; },
+    appleHealthAvailable: () => false,
+  };
+  const m = await mount();
+  try {
+    m.unmount();
+    await React.act(async () => { release(); await new Promise((r) => setTimeout(r, 0)); });
+    assert.equal(cleared, 1, 'the next card read the night from the cache from before the sync');
+    assert.equal(claimed, 1, "the night's points waited for the next app open");
+  } finally { delete dom.window.ShapeIntegrations; delete dom.window.ShapeMetrics; delete dom.window.ShapeSleepPoints; }
 });
 
 test("a watch's night that syncs when the card opens is shown, not asked", async () => {
