@@ -129,6 +129,10 @@ const DBZ_DEMO_OUTCOMES = {
 // Both analytics routes send null for a figure they could not read (or have nothing to measure);
 // it reads "—", never 0, which is a measurement.
 const dbzFig = (v, suffix = "") => (v == null ? "—" : String(v) + suffix);
+// A client's name is null when none is on file or when it couldn't be read (`nameUnread`), and the
+// page says which: the routes sent "Client" and "Former client" for both, so an unread name looked
+// like no name at all. `none` is the word for a client with no name on file.
+const dbzName = (r, none) => r.name || (r.nameUnread ? "Name couldn't be read" : none);
 
 const DBZ_ROLES = {
   trainer: {
@@ -303,7 +307,7 @@ function DbzChurnZone({ live, churn, pace = null, now = Date.now() }) {
         return (
           <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "start", padding: "10px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 13.5, fontWeight: 500 }}>{r.name}</div>
+              <div style={{ fontSize: 13.5, fontWeight: 500 }}>{dbzName(r, "Former client")}</div>
               <div style={{ fontFamily: DBZ_MONO, fontSize: 8.5, letterSpacing: "0.06em", textTransform: "uppercase", color: DBZ_INK50, marginTop: 3 }}>
                 {r.endedAt ? "ended " + dbzDate(r.endedAt) : "ended —"}{tenure ? " · " + tenure + " mo client" : ""}
               </div>
@@ -332,6 +336,8 @@ function DbzChurnZone({ live, churn, pace = null, now = Date.now() }) {
 // Plan's "Brought by you", the renewals and every net on the preview describe one practice. The
 // stored fee is in cents (coach-roster.ts's shape); the list shows it as the rate it is.
 // Lazy, like the trajectory: the roster reads `new Date()` and dashSignals may not be up at load.
+// Each row is one client in the routes' shape (origin-attribution.ts: their id, and their plans
+// folded into one row); a roster client holds one plan, so the preview's net stays the roster's.
 const DBZ_DEMO_PURCHASES = [
   { name: "Drew Park", kind: "purchase", origin: "coach_link", feeBps: 0, priceCents: 9000 },
 ];
@@ -341,8 +347,9 @@ function dbzDemoOrigin() {
     subs = DashSignals.buildMockClients(new Date()).map((c) => {
       const p = c.payments || {};
       return {
-        name: c.profile.name, kind: "subscription", origin: p.origin, priceCents: p.mrrCents,
+        name: c.profile.name, clientId: c.profile.id, kind: "subscription", origin: p.origin, priceCents: p.mrrCents,
         feeBps: p.mrrCents > 0 ? Math.round((p.feeCents || 0) / p.mrrCents * 10000) : 0,
+        plans: 1, mixedFees: false,
       };
     });
   } catch (e) { /* dashSignals not up yet — no roster, so no rows of it */ }
@@ -352,6 +359,9 @@ const DBZ_BYO_PITCH = "Clients you bring pay no Shape commission — you keep yo
 function DbzBringClientsZone({ live, role, providerId }) {
   const [link, setLink] = React.useState(null); // null = generating / unavailable
   const [copied, setCopied] = React.useState(false);
+  // A refused clipboard (an older browser, a page not in focus) said nothing: the button just
+  // stayed "Copy link". It now says to copy the link by hand, which the box allows.
+  const [copyFailed, setCopyFailed] = React.useState(false);
   React.useEffect(() => {
     let on = true;
     (async () => {
@@ -362,7 +372,10 @@ function DbzBringClientsZone({ live, role, providerId }) {
         if (!uid || !on) return;
         const res = await window.shapeDb.client.rpc("create_coach_referral_link", { p_provider_role: role, p_provider_id: providerId });
         if (on && res && !res.error && res.data) {
-          setLink("https://theshapecommunity.com/newdesign/MemberProfile.html?u=" + uid + "&ref=" + res.data);
+          // ⚠ THE LINK NAMES THE ROLE. A coach with both roles has two provider rows, and without
+          // &role= the profile opened the one its account role guessed: checkout then went to the
+          // other row, the token did not match it, and the client paid 15%.
+          setLink("https://theshapecommunity.com/newdesign/MemberProfile.html?u=" + uid + "&ref=" + res.data + "&role=" + role);
         }
       } catch (e) { /* pre-migration / offline — the honest line below covers it */ }
     })();
@@ -371,7 +384,8 @@ function DbzBringClientsZone({ live, role, providerId }) {
   const url = live ? link : "https://theshapecommunity.com/newdesign/MemberProfile.html?u=you&ref=…";
   const copyIt = async () => {
     if (!url || !live) return;
-    try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch (e) {}
+    try { await navigator.clipboard.writeText(url); setCopyFailed(false); setCopied(true); setTimeout(() => setCopied(false), 1800); }
+    catch (e) { setCopyFailed(true); }
   };
   const emailIt = () => {
     if (!url || !live) return;
@@ -398,6 +412,7 @@ function DbzBringClientsZone({ live, role, providerId }) {
               ✉︎ Email it
             </button>
           </div>
+          {copyFailed && <div role="status" style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_AMBER, marginTop: 8 }}>Couldn't copy it here. Select the link above and copy it.</div>}
           <div style={{ fontFamily: DBZ_MONO, fontSize: 8.5, letterSpacing: "0.06em", color: DBZ_INK50, marginTop: 9 }}>
             Paste the raw URL anywhere — a text, an email signature, your Instagram bio. Anyone who opens it inside 30 days of subscribing counts as yours.
           </div>
@@ -406,6 +421,8 @@ function DbzBringClientsZone({ live, role, providerId }) {
     </div>
   );
 }
+// How many one-time purchases the origin feed lists, newest first (origin-attribution.ts's .limit(20)).
+const DBZ_ORIGIN_PURCHASES = 20;
 function DbzOriginZone({ live, byOrigin }) {
   // undefined: the analytics are still loading, which is neither "no clients yet" nor a failed read.
   if (live && byOrigin === undefined) {
@@ -422,24 +439,47 @@ function DbzOriginZone({ live, byOrigin }) {
   // Commission status keys off the STORED fee, never off origin — this surface
   // is the fee pitch, and the row's rate is the billing truth.
   const isByo = (row) => row.feeBps === 0;
-  const brought = rows.filter(isByo).length;
+  // ⚠ THE HEADER COUNTS CLIENTS, AND A PURCHASE IS NOT ONE (the follow-up to #2395). It counted
+  // rows, one a plan and one more a one-time purchase, so one brought client with two plans beside
+  // one from Shape read "2 you brought · 1 found you on Shape" while the Plan said "1 of your 2".
+  // The routes send one row a client now (origin-attribution.ts, the brought-in share's own fold:
+  // brought when any of their plans is at 0%), so the header counts those rows and is the share's
+  // count; the purchases are listed under a line of their own.
+  const clients = rows.filter((r) => r.kind === "subscription");
+  const purchases = rows.filter((r) => r.kind === "purchase");
+  const brought = clients.filter(isByo).length;
+  const countStyle = { fontFamily: DBZ_MONO, fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: DBZ_INK50, marginBottom: 4 };
+  // The feed holds the latest DBZ_ORIGIN_PURCHASES purchases, so a full list is not a total. None
+  // has no line: a purchases read that failed sends none too, and "0" would be a claim.
+  const bought = purchases.length >= DBZ_ORIGIN_PURCHASES ? "Your latest " + purchases.length + " one-time purchases"
+    : purchases.length === 1 ? "1 one-time purchase" : purchases.length + " one-time purchases";
+  const line = (r, i) => {
+    const byo = isByo(r);
+    const feePct = Math.round((r.feeBps || 0) / 100 * 10) / 10;
+    // A client on two plans is one row. When their plans' fees differ no one rate is theirs, so the
+    // row says so rather than print the 0% that made them brought.
+    const fee = (r.plans > 1 ? r.plans + " plans · " : "") + (r.mixedFees ? "different fees" : feePct + "% fee");
+    return (
+      <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "center", padding: "9px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
+        <span style={{ fontSize: 13, fontWeight: 500, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
+        <span style={{ fontFamily: DBZ_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: byo ? DBZ_TEAL : DBZ_INK50, whiteSpace: "nowrap" }}>
+          {byo ? "You brought" : "Found you on Shape"} · {fee}{r.kind === "purchase" ? " · one-time" : ""}
+        </span>
+      </div>
+    );
+  };
   return (
     <div>
-      <div style={{ fontFamily: DBZ_MONO, fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: DBZ_INK50, marginBottom: 4 }}>
-        {brought} you brought · {rows.length - brought} found you on Shape
+      <div style={countStyle}>
+        {brought} you brought · {clients.length - brought} found you on Shape
       </div>
-      {rows.map((r, i) => {
-        const byo = isByo(r);
-        const feePct = Math.round((r.feeBps || 0) / 100 * 10) / 10;
-        return (
-          <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "center", padding: "9px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
-            <span style={{ fontSize: 13, fontWeight: 500, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
-            <span style={{ fontFamily: DBZ_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: byo ? DBZ_TEAL : DBZ_INK50, whiteSpace: "nowrap" }}>
-              {byo ? "You brought" : "Found you on Shape"} · {feePct}% fee{r.kind === "purchase" ? " · one-time" : ""}
-            </span>
-          </div>
-        );
-      })}
+      {clients.map(line)}
+      {purchases.length > 0 && (
+        <React.Fragment>
+          <div style={{ ...countStyle, marginTop: 14 }}>{bought}</div>
+          {purchases.map(line)}
+        </React.Fragment>
+      )}
     </div>
   );
 }
@@ -485,7 +525,7 @@ function DbzOutcomesZone({ role, cp }) {
           <div style={{ fontFamily: DBZ_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DBZ_INK50, marginBottom: 6 }}>Top weight loss · 30d</div>
           {topLosers.length ? topLosers.map((r, i) => (
             <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "8px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
-              <span style={{ fontSize: 13, fontWeight: 500 }}>{r.name || "Client"}</span>
+              <span style={{ fontSize: 13, fontWeight: 500 }}>{dbzName(r, "Client")}</span>
               <span style={{ fontFamily: serif, fontSize: 15, color: DBZ_TEAL }}>{fmtWeight(r.weightChangeLb)}</span>
             </div>
           )) : <div style={{ fontSize: 12, color: DBZ_INK50, padding: "8px 0" }}>{cp && cp.weightsUnknown ? "Couldn't read weigh-ins just now." : "No weight-loss trends yet."}</div>}
@@ -496,7 +536,7 @@ function DbzOutcomesZone({ role, cp }) {
             const v = cfg.consistentValue(r);
             return (
               <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "8px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
-                <span style={{ fontSize: 13, fontWeight: 500 }}>{r.name || "Client"}</span>
+                <span style={{ fontSize: 13, fontWeight: 500 }}>{dbzName(r, "Client")}</span>
                 <span style={{ fontFamily: serif, fontSize: 15 }}>{v.n} <span style={{ fontFamily: DBZ_MONO, fontSize: 9, color: DBZ_INK50, textTransform: "uppercase" }}>{v.unit}</span></span>
               </div>
             );
@@ -711,19 +751,20 @@ function dbzBarPath(x, w, yTop, yBase) {
 }
 
 // The width a chart is drawn at, so its 9px labels stay 9px: a chart drawn at 760 units and
-// shrunk onto a phone printed them at 4px. Wider than 760 it still scales up, as before.
-function useDbzChartWidth(ref, base) {
+// shrunk onto a phone printed them at 4px. Wider than `cap` (760 unless a chart asks for more)
+// it scales up.
+function useDbzChartWidth(ref, base, cap = base) {
   const [w, setW] = React.useState(base);
   React.useEffect(() => {
     const el = ref.current;
     if (!el || typeof ResizeObserver === "undefined") return undefined;
     const ro = new ResizeObserver((es) => {
       const cw = Math.round(es[0].contentRect.width);
-      if (cw > 0) setW(Math.max(300, Math.min(base, cw)));
+      if (cw > 0) setW(Math.max(300, Math.min(cap, cw)));
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [base]);
+  }, [base, cap]);
   return w;
 }
 
@@ -1017,16 +1058,16 @@ function DbzEarnZone({ base }) {
         <DbzNumberField label="Monthly rate" value={rate} onChange={setRate} prefix="$" max="9999" note={base.rateFrom} />
         <DbzNumberField label="Brought by you" value={byo} onChange={setByo} suffix="%" max="100" note={base.byoNote} />
       </div>
-      <div style={{ display: "flex", gap: 28, alignItems: "flex-end", flexWrap: "wrap" }}>
-        <div>
-          <div style={{ fontFamily: serif, fontSize: 48, letterSpacing: "-0.02em", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{dashMoney(e.netCents)}</div>
-          <div style={{ ...DBZ_LBL, marginTop: 7 }}>net a month</div>
-        </div>
-        <div>
-          <div style={{ fontFamily: serif, fontSize: 30, letterSpacing: "-0.02em", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{dashMoney(e.yearNetCents)}</div>
-          <div style={{ ...DBZ_LBL, marginTop: 7 }}>a year</div>
-          <div style={{ ...DBZ_NOTE, marginTop: 3 }}>{dashMoney(e.grossCents)} billed · {dashMoney(e.feeCents)} Shape fee</div>
-        </div>
+      {/* The month and the year sit on one baseline with their labels on one line, and the
+          billed and fee line, which is the month's, runs under both (owner, 2026-10-18: "fix look
+          of this, formatting"). It sat under "a year", so $3,600 read as a year's billing. Grid
+          places them; the markup keeps reading order: the month, its label, the year, its label. */}
+      <div style={{ display: "grid", gridTemplateColumns: "auto auto", justifyContent: "start", columnGap: 36, alignItems: "baseline" }}>
+        <div style={{ gridRow: 1, gridColumn: 1, fontFamily: serif, fontSize: 48, letterSpacing: "-0.02em", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{dashMoney(e.netCents)}</div>
+        <div style={{ ...DBZ_LBL, gridRow: 2, gridColumn: 1, marginTop: 8 }}>net a month</div>
+        <div style={{ gridRow: 1, gridColumn: 2, fontFamily: serif, fontSize: 30, letterSpacing: "-0.02em", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{dashMoney(e.yearNetCents)}</div>
+        <div style={{ ...DBZ_LBL, gridRow: 2, gridColumn: 2, marginTop: 8 }}>a year</div>
+        <div style={{ ...DBZ_NOTE, gridRow: 3, gridColumn: "1 / -1", marginTop: 10, paddingTop: 9, borderTop: DBZ_RULE }}>{dashMoney(e.grossCents)} billed · {dashMoney(e.feeCents)} Shape fee, each month</div>
       </div>
     </div>
   );
@@ -1084,10 +1125,16 @@ function DbzSlider({ label, value, shown, was, min, max, step, onChange, note })
 }
 
 // The paths over 24 months on one axis: today's pace (dashed), the plan (bright), the what-if.
-function DbzPathsChart({ paths, goalCents }) {
+// ⚠ DRAWN AT THE WIDTH IT IS SHOWN AT (owner, 2026-10-18: "it looks almost zoomed in"). Drawn at
+// 760 units and stretched across a wide column, its 9px labels printed at 20px and it stood about
+// 460px tall. It now takes the column's own width, to 2000, and grows only a little taller with it.
+// `months` is 36 when a goal is reached after month 24, so the month the table names is on it.
+function DbzPathsChart({ paths, goalCents, months = 24 }) {
   const ref = React.useRef(null);
-  const W = useDbzChartWidth(ref, 760), H = 210, padL = 50, padR = 34, padT = 12, padB = 24, months = 24;
+  const W = useDbzChartWidth(ref, 760, 2000), H = Math.round(Math.min(270, Math.max(210, W * 0.19))), padL = 54, padR = 38, padT = 12, padB = 26;
   const plotW = W - padL - padR, plotH = H - padT - padB;
+  const monthTicks = [];
+  for (let m = 0; m <= months; m += W < 480 ? 12 : 6) monthTicks.push(m);
   let max = goalCents || 0;
   for (const p of paths) for (const r of p.f.rows) if (r.m <= months) max = Math.max(max, r.netCents);
   const ticks = dbzTicks(max, false);
@@ -1096,20 +1143,20 @@ function DbzPathsChart({ paths, goalCents }) {
   const y = (v) => padT + plotH - (Math.max(0, v) / top) * plotH;
   return (
     <svg ref={ref} viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block", height: "auto", overflow: "visible" }} role="img"
-      aria-label={"Net a month over the next 24 months: " + paths.map((p) => p.label + " " + dashMoney(p.f.rows[12].netCents) + " in 12 months").join("; ")}>
+      aria-label={"Net a month over the next " + months + " months: " + paths.map((p) => p.label + " " + dashMoney(p.f.rows[12].netCents) + " in 12 months").join("; ")}>
       {ticks.map((t, i) => (
         <g key={i}>
           <line x1={padL} x2={W - padR} y1={y(t)} y2={y(t)} stroke={DBZ_T_GRID} strokeWidth="1" />
-          <text x={padL - 6} y={y(t) + 3} textAnchor="end" fill="var(--sh-ink2, #a09b94)" fontFamily={DBZ_MONO} fontSize="9">{dashMoney(t)}</text>
+          <text x={padL - 8} y={y(t) + 3.5} textAnchor="end" fill="var(--sh-ink2, #a09b94)" fontFamily={DBZ_MONO} fontSize="10">{dashMoney(t)}</text>
         </g>
       ))}
-      {(W < 480 ? [0, 12, 24] : [0, 6, 12, 18, 24]).map((m) => (
-        <text key={m} x={x(m)} y={H - 6} textAnchor="middle" fill="var(--sh-ink2, #a09b94)" fontFamily={DBZ_MONO} fontSize="9">{m === 0 ? "now" : "mo " + m}</text>
+      {monthTicks.map((m) => (
+        <text key={m} x={x(m)} y={H - 6} textAnchor="middle" fill="var(--sh-ink2, #a09b94)" fontFamily={DBZ_MONO} fontSize="10">{m === 0 ? "now" : "mo " + m}</text>
       ))}
       {goalCents > 0 && (
         <g>
           <line x1={padL} x2={W - padR} y1={y(goalCents)} y2={y(goalCents)} stroke={DBZ_GREEN} strokeWidth="1.5" strokeDasharray="5 4" />
-          <text x={W - padR + 6} y={y(goalCents) + 3} fill={DBZ_GREEN} fontFamily={DBZ_MONO} fontSize="9">goal</text>
+          <text x={W - padR + 6} y={y(goalCents) + 3.5} fill={DBZ_GREEN} fontFamily={DBZ_MONO} fontSize="10">goal</text>
         </g>
       )}
       {paths.map((p) => (
@@ -1175,6 +1222,9 @@ function DbzPlanZone({ base }) {
   const T = paths.find((p) => p.key === "today");
   const reach = (p) => CF.monthsTo(goalCents, p.f);
   const reachText = (m) => (m == null ? "—" : m === 0 ? "now" : "mo " + m);
+  // Two years on the chart, or all three the forecast runs when a line reaches the goal after
+  // month 24: "mo 33" in the table with the chart stopping at mo 24 left the crossing off it.
+  const chartMonths = paths.some((p) => { const r = reach(p); return r != null && r > 24; }) ? 36 : 24;
 
   // The sentence says what the chart shows, in words (owner: "easy to use and read/understand").
   const b = (t, color) => <b style={{ color: color || DBZ_INK, fontWeight: 600 }}>{t}</b>;
@@ -1232,7 +1282,7 @@ function DbzPlanZone({ base }) {
       </div>
       <div style={{ minWidth: 0 }}>
         <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6, color: DBZ_INK50 }}>{sentence}</p>
-        <div style={{ marginTop: 14 }}><DbzPathsChart paths={paths} goalCents={goalCents} /></div>
+        <div style={{ marginTop: 14 }}><DbzPathsChart paths={paths} goalCents={goalCents} months={chartMonths} /></div>
         <div className="dbz-scroll" style={{ overflowX: "auto" }}>
           <table className="dbz-cmp" style={{ width: "100%", borderCollapse: "collapse", marginTop: 12, fontVariantNumeric: "tabular-nums" }}>
             <thead><tr>{["In 12 months", "Net a month", "Clients", "Earned in the year", "Reach goal"].map((h, i) => (

@@ -5766,7 +5766,9 @@ async function listAssignableClients(role, { strict = false } = {}) {
   const list = Array.isArray(d?.clients) ? d.clients : [];
   // isNew / joinedAt ride along for the coach triage (client-onboarding review, M13: the app dropped
   // them, so a client's first day read "No logs 7d+" and the app had no "New").
-  return list.filter((c) => c.id).map((c) => ({ userId: c.id, name: c.name || 'Client', sessions: c.sessions || 0, isNew: !!c.isNew, joinedAt: c.joinedAt || null }));
+  // paymentRetrying (owner, 2026-10-18): a renewal Stripe is retrying (past_due). The client stays on
+  // the roster with full access, and the roster row marks it.
+  return list.filter((c) => c.id).map((c) => ({ userId: c.id, name: c.name || 'Client', sessions: c.sessions || 0, isNew: !!c.isNew, joinedAt: c.joinedAt || null, paymentRetrying: c.paymentRetrying === true }));
 }
 async function assignClientMealPlan({ clientId, title, weekStart, days }) {
   const res = await fetch(`${apiBaseUrl || ''}/api/nutritionist/meal-plan`, {
@@ -8686,13 +8688,18 @@ window.ShapeSupport = {
 // speak() is server-only; a failure returns { ok:false, reason } and the caller
 // shows an honest state (never robot audio).
 const VOICE_KEY = 'shape.voice';
-// The voices a member can pick for Nora (curated OpenAI TTS set). 'auto' follows
-// the tone. Mirrors src/lib/ai/tone.mjs NORA_VOICES (kept in sync by hand — the
-// mobile bundle can't import the server module).
+// The voices a member can pick for Nora (OpenAI's women's voices: owner, 2026-10-18, "more
+// feminine"). 'auto' follows the tone, and so does a man's voice an older build saved. Mirrors
+// src/lib/ai/tone.mjs NORA_VOICES (kept in sync by hand — the mobile bundle can't import the
+// server module).
 const NORA_VOICE_LIST = [
-  { id: 'shimmer', label: 'Warm' }, { id: 'alloy', label: 'Neutral' }, { id: 'sage', label: 'Calm' },
-  { id: 'nova', label: 'Bright' }, { id: 'onyx', label: 'Deep' }, { id: 'verse', label: 'Expressive' },
+  { id: 'coral', label: 'Warm' }, { id: 'nova', label: 'Bright' }, { id: 'shimmer', label: 'Soft' }, { id: 'sage', label: 'Calm' },
 ];
+// Her clips play a little fast, pitch kept (owner, 2026-10-18: "she is talking too slow"); the
+// website's player runs at the same rate (public/newdesign/chatWidget.jsx CW_NORA_RATE). A new
+// source resets the rate to the default one, so both are set on every clip.
+const VOICE_RATE = 1.15;
+function voicePace(a) { try { a.preservesPitch = true; a.defaultPlaybackRate = VOICE_RATE; a.playbackRate = VOICE_RATE; } catch (e) {} }
 const NORA_VOICE_IDS = NORA_VOICE_LIST.map(v => v.id);
 function normVoice(v) { return NORA_VOICE_IDS.indexOf(String(v)) >= 0 ? String(v) : 'auto'; }
 function readVoicePrefs() {
@@ -8839,6 +8846,7 @@ async function speakVoice(text, toneOverride, opts = {}) {
       };
       _voiceUrl = restUrl;
       audio.src = restUrl;
+      voicePace(audio);
       try { await audio.play(); } catch (e) {
         try { URL.revokeObjectURL(restUrl); } catch (e2) {}
         if (_voiceEnded === ended) settleVoiceEnd();
@@ -8858,6 +8866,7 @@ async function speakVoice(text, toneOverride, opts = {}) {
     _voiceAudio = audio;
     _voiceUrl = url;   // so an INTERRUPTING stopVoice() can revoke it (revoking twice is a no-op)
     audio.src = url;   // a new source drops the old one's pending events, so no stale end lands here
+    voicePace(audio);
     try {
       await audio.play();
       audio.__unlocked = true;

@@ -34,6 +34,7 @@ import { findSessionClash, isDoubleBookError } from '@/lib/session-booking';
 import { clashInWindow, readCalendarWindow, seriesOccurrences, shiftedRun } from '@/lib/session-series';
 
 import { instantInZone, normalizeZone, wallClockInZone } from '@/lib/time';
+import { OPEN_SUB_STATUSES } from '../../../../lib/coach-trajectory.mjs';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -137,8 +138,8 @@ export async function GET(request: Request) {
 // place where RLS stopped being authoritative.
 //
 // ⚠ AND THE RLS OUTCOME IS EXACTLY THE RIGHT BEHAVIOUR, not a limitation to work around.
-// `providers_read_subscriber_profiles` lets a coach read the profile of a client with an active
-// or trialing subscription, and `client_profiles_read_own` covers nobody else. So a coach
+// `providers_read_subscriber_profiles` lets a coach read the profile of a client with an open
+// subscription (active, trialing or past_due), and `client_profiles_read_own` covers nobody else. So a coach
 // confirming a session for a paying client gets their real zone, and a coach confirming a FREE
 // INTRO CONSULT for someone who is not their subscriber gets nothing — which is the correct
 // answer, because we have no business reading a non-client's profile to format a sentence. That
@@ -182,7 +183,7 @@ function clashLabel(clash: { startMs: number; clientName: string | null }, zone:
 // 'requested'`: it exists so a member can ask, and it would refuse a coach writing a booking
 // for somebody else. So the authority here is this route, not the policy, and it checks the
 // same things the coach routes that assign work check: the caller owns a provider row in
-// `role`, and the client holds an ACTIVE or TRIALING subscription to THAT row
+// `role`, and the client holds an OPEN subscription to THAT row (active, trialing or past_due)
 // (unauthorizedAssignTargets, the meal-plan and program-assign gate). A former client, a
 // prospect, or another coach's client is refused before the service role is touched.
 //
@@ -242,7 +243,7 @@ async function createSession(request: Request, body: Record<string, unknown>) {
     .select('client_id')
     .eq('provider_id', providerId)
     .eq('provider_role', role)
-    .in('status', ['active', 'trialing']);
+    .in('status', OPEN_SUB_STATUSES);
   if (subsError) return NextResponse.json({ error: 'Could not verify your active clients. Please retry.' }, { status: 500 });
   const activeClientIds = (subs ?? []).map((s) => String((s as { client_id: unknown }).client_id));
   const subscriber = unauthorizedAssignTargets([clientId], activeClientIds).length === 0;

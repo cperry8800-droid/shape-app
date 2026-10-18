@@ -273,12 +273,38 @@ function _dashRecordFromLive(row, ov, notesByClient, progressRead) {
     // except the one that matters — a coerced zero publishes "this client pays
     // nothing" as a measurement. `feeCents`/`origin` are the R12 export's columns and
     // follow the same rule.
+    // ⚠ A RENEWAL STRIPE IS RETRYING IS STILL A CLIENT (owner, 2026-10-18: "They stay normal clients
+    // until Stripe gives up"). The roster route lists them and sends `paymentRetrying`; the status
+    // says past_due and the roster marks the row "Payment retrying". `onPlan` is whether they hold
+    // an open plan at all (null when the plans could not be read): the roster also lists people
+    // from recent sessions with no plan, who are on the list but not counted as active clients.
     payments: {
-      mrrCents: row.mrrCents ?? null, status: "active", sessionCount: row.sessions ?? null,
+      mrrCents: row.mrrCents ?? null, status: row.paymentRetrying === true ? "past_due" : "active", sessionCount: row.sessions ?? null,
       lastSessionAt: row.lastAt || null, joinedAt: row.joinedAt || null,
       feeCents: row.feeCents ?? null, origin: row.origin ?? null,
+      paymentRetrying: row.paymentRetrying === true, onPlan: typeof row.onPlan === "boolean" ? row.onPlan : row.onPlan === null ? null : undefined,
     },
   };
+}
+
+// The Clients pages' "N ACTIVE CLIENTS": the people on the roster who hold an open plan (active,
+// trialing, or a renewal Stripe is retrying), the count the Clients badge gives (the dashboard
+// routes' activeClients). ⚠ NOT `clients.length`: the roster also lists people from recent
+// sessions who hold no plan ($0/mo), and counting them read one or more higher than the badge.
+// They stay on the list. null when the plans could not be read (the route sends onPlan: null),
+// which the page shows as "—", never as a count. A record with no `onPlan` at all (the preview's
+// cast, or a route from before the flag) is counted, as every one of them was before.
+// `planCount` is the roster route's own `totals.onPlan` (useDashboard): null when it could not
+// read the plans, which an empty list cannot show row by row (Codex on #2400: it read 0).
+function dashPlanClientCount(clients, planCount) {
+  if (planCount === null) return null;
+  let n = 0;
+  for (const c of Array.isArray(clients) ? clients : []) {
+    const on = c && c.payments ? c.payments.onPlan : undefined;
+    if (on === null) return null;
+    if (on !== false) n += 1;
+  }
+  return n;
 }
 
 // The coach's own client notes, one read for the whole roster.
@@ -492,7 +518,7 @@ function useCoachThresholds(role) {
 }
 
 function useDashboard(role) {
-  const [state, setState] = React.useState({ loading: true, clients: [], source: null, today: null, client: null });
+  const [state, setState] = React.useState({ loading: true, clients: [], source: null, today: null, client: null, planCount: undefined });
   const lastProgressRead = React.useRef(new Map());
   const [refreshKey, setRefreshKey] = React.useState(0);
   React.useEffect(() => {
@@ -554,7 +580,9 @@ function useDashboard(role) {
         // ⚠ The third argument is deliberately absent, not null: undefined is
         // "the notes have not been read yet", null would claim the read failed.
         const base = (roster.clients || []).map((row) => _dashRecordFromLive(row, null, undefined, { state: "loading", checkedAt: lastProgressRead.current.get(row.id) || null }));
-        if (on) setState({ loading: false, clients: base, source: "live", today });
+        // The route's count of people with an open plan: null when it could not read the plans.
+        const planCount = roster.totals && roster.totals.onPlan !== undefined ? roster.totals.onPlan : undefined;
+        if (on) setState({ loading: false, clients: base, source: "live", today, planCount });
         const rows = roster.clients || [];
         // The per-client overviews (one batched request per 50 clients) and the
         // ONE notes doc resolve together — the notes read is a single round trip
@@ -573,6 +601,7 @@ function useDashboard(role) {
           }),
           source: "live",
           today,
+          planCount,
         });
       } catch (e) { demo(null); }
     })();
@@ -607,7 +636,7 @@ function useDashboard(role) {
   // `tuning.refused` is carried out, not swallowed: a stored override the engine
   // rejected must not render in the panel as an active tuning while the roster runs
   // on the house default — which is exactly what refuse-don't-clamp exists to prevent.
-  return { loading: state.loading, clients: state.clients, triage, queue, joint, today: state.today, client: state.client, source: state.source, tuning };
+  return { loading: state.loading, clients: state.clients, triage, queue, joint, today: state.today, client: state.client, source: state.source, tuning, planCount: state.planCount };
 }
 
 // ── The coach's own live figures (review 2026-09-09, R9) ────────────────────
@@ -1659,4 +1688,4 @@ function dashCoachingNames(coaching) {
   return [coaching.name || ""];
 }
 
-Object.assign(window, { useDashboard, useRememberedChoices, useRememberedChoice, useRememberedSet, useRememberedSlots, useDashPaper, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock, dashResolveCoachThresholds, useCoachThresholds, useSignedIn, dashReadCoachSettings, dashInvalidateCoachSettings, DASH_THRESHOLDS_EVENT, useDashUnits, dashUnitsApi, dashUnitPrefs, dashGoalText, dashMilestonesIn, dashWeighIn, dashWeighInDelta, dashNameList, dashCoachingNames });
+Object.assign(window, { useDashboard, useRememberedChoices, useRememberedChoice, useRememberedSet, useRememberedSlots, useDashPaper, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock, dashResolveCoachThresholds, useCoachThresholds, useSignedIn, dashReadCoachSettings, dashInvalidateCoachSettings, DASH_THRESHOLDS_EVENT, useDashUnits, dashUnitsApi, dashUnitPrefs, dashGoalText, dashMilestonesIn, dashWeighIn, dashWeighInDelta, dashNameList, dashCoachingNames, dashPlanClientCount });

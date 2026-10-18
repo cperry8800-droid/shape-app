@@ -22,6 +22,7 @@ import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { isMissingRelation } from '@/lib/owned-provider';
+import { OPEN_SUB_STATUSES } from '../../../lib/coach-trajectory.mjs';
 import {
   hiddenReason, memberEntry, parseLimit, parsePeriod, parseScope, readPrivacy, shortName,
   type Period, type Privacy, type Scope,
@@ -71,7 +72,7 @@ export async function GET(request: Request) {
     readOwnSettings(supabase, user.id),
     scope === 'team'
       ? countOrNull(supabase.from('subscriptions').select('id', { count: 'exact', head: true })
-          .eq('client_id', user.id).in('status', ['active', 'trialing']))
+          .eq('client_id', user.id).in('status', OPEN_SUB_STATUSES))
       : Promise.resolve(null),
     scope === 'following'
       ? countOrNull(supabase.from('user_follows').select('following_id', { count: 'exact', head: true })

@@ -411,7 +411,9 @@ const world = (extra = {}) => ({
   nutritionists: [],
   subscriptions: [
     { client_id: 'member-1', provider_id: 7, provider_role: 'trainer', status: 'active' },
-    { client_id: 'member-2', provider_id: 7, provider_role: 'trainer', status: 'past_due' },
+    { client_id: 'member-2', provider_id: 7, provider_role: 'trainer', status: 'canceled' },
+    // A renewal Stripe is still retrying: still this coach's client (owner, 2026-10-18).
+    { client_id: 'member-3', provider_id: 7, provider_role: 'trainer', status: 'past_due' },
   ],
   // Thu 9a–12p and Fri 9a–12p, New York.
   provider_availability: [
@@ -456,7 +458,9 @@ test('create takes any whole-minute length the coach picks, 5 minutes to 4 hours
 
 test('create refuses a client who is not the coach\'s, a caller who is not a coach, and a time it cannot place', async () => {
   const notMine = await create({ clientId: 'member-2' }, { tables: world() });
-  assert.equal(notMine.status, 403, 'a past_due subscription is not an active client');
+  assert.equal(notMine.status, 403, 'a cancelled subscription is not a client');
+  const retrying = await create({ clientId: 'member-3' }, { tables: world() });
+  assert.equal(retrying.status, 200, 'a client whose payment is retrying is still the coach\'s, and can be booked (owner, 2026-10-18): ' + JSON.stringify(retrying.body));
   const stranger = await create({ clientId: 'member-7' }, { tables: world() });
   assert.equal(stranger.status, 403);
   const member = await create({}, { tables: world(), user: { id: 'member-1' } });

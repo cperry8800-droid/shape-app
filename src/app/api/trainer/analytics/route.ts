@@ -13,8 +13,9 @@ import { loadStripe, loadCancelFlags } from '@/lib/stripe';
 import { pickRenewals, renewalRows, RENEWAL_CHECK_CAP, type RenewalSource } from '@/lib/coach-renewals.mjs';
 import { coachCutCents, bpsToRate } from '@/lib/platform-fee';
 import { buildOriginFeed, byoMixOf, openSubsToday } from '@/lib/origin-attribution';
-import { buildTrajectory, subDeparture, NOT_ENDED_STATUSES } from '@/lib/coach-trajectory.mjs';
+import { buildTrajectory, subDeparture, NOT_ENDED_STATUSES, OPEN_SUB_STATUSES } from '@/lib/coach-trajectory.mjs';
 import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
+import { profileNames } from '@/lib/client-names';
 import { isMeasuredSignedOut } from '@/lib/auth-lookup';
 
 export const runtime = 'nodejs';
@@ -101,7 +102,7 @@ export async function GET(request: Request) {
       .select('*') // '*' is migration-safe: an explicit fee_bps errors the query on a pre-migration DB (webhook-fallback parity)
       .eq('provider_role', 'trainer')
       .eq('provider_id', providerId)
-      .in('status', ['active', 'trialing']);
+      .in('status', OPEN_SUB_STATUSES);
     if (after) q = q.gt('id', after);
     // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
     return q.order('id', { ascending: true }).limit(ROW_PAGE);
@@ -140,18 +141,24 @@ export async function GET(request: Request) {
     .limit(12);
   const churnIds = (churnRows ?? []).map((r) => r.client_id).filter(Boolean);
   const churnNames = new Map<string, string>();
+  // The churned clients whose names went unread: the call below failed, so it named none of them.
+  const churnUnread = new Set<string>();
   if (churnIds.length) {
-    // ⚠ A CHURNED CLIENT IS OUTSIDE THE COACH POLICY BY DEFINITION. It scopes to
-    // status in ('active','trialing'), and these rows come from status='canceled'.
+    // ⚠ A CHURNED CLIENT IS OUTSIDE THE COACH POLICY BY DEFINITION. It scopes to the
+    // open statuses (active, trialing and, since 2026-10-18-coach-access-past-due.sql,
+    // past_due), and these rows come from status='canceled'.
     // Reading `profiles` directly returned nothing once the USING (true) policy
-    // was dropped, and the fallback below is the literal string 'Former client' —
+    // was dropped, and the fallback was the literal string 'Former client' —
     // so this failed SILENTLY, rendering plausible copy for every churn row.
     const { data, error } = await supabase.rpc('get_display_names', { p_ids: churnIds });
     if (error) {
       // A silent fall-through here renders plausible copy — the exact failure
       // this PR exists to stop. The likeliest cause is a deploy-order mismatch:
       // 2026-08-04 applied before this code shipped, or 2026-08-03 not applied.
-      console.warn("[shape-app] trainer analytics: get_display_names failed — every churn row renders as 'Former client':", error.message);
+      // ⚠ AND IT IS SAID ON THE PAGE, NOT ONLY IN THE LOG: each row's nameUnread (below). The
+      // fallback 'Former client' read as "no name on file", in English in every language.
+      console.warn('[shape-app] trainer analytics: get_display_names failed — every churn row\'s name renders as unread:', error.message);
+      for (const id of churnIds) churnUnread.add(String(id));
     }
     for (const r of (data ?? []) as { user_id: string; full_name: string | null }[]) {
       churnNames.set(String(r.user_id), String(r.full_name ?? '').trim());
@@ -171,7 +178,7 @@ export async function GET(request: Request) {
   );
 
   // BYO origin labels (rails #1794, Business page): filled by the roster
-  // block's ONE profiles lookup; byOrigin is built after it (below).
+  // block's profiles lookup (profileNames); byOrigin is built after it (below).
   const activeNames = new Map<string, string>();
 
   // Appointment counts, counted by the database: the rows themselves were read with a 1,000-row
@@ -215,6 +222,9 @@ export async function GET(request: Request) {
     weightLatest: number | null;
     weightChangeLb: number | null;
     prs30d: number | null;
+    // null when no name is on file or none could be read; nameUnread says which.
+    name?: string | null;
+    nameUnread?: boolean;
   };
   const roster: RosterRow[] = [];
   // A failed subscriptions read leaves no roster to read, so every outcome starts unknown, not 0
@@ -235,7 +245,7 @@ export async function GET(request: Request) {
     // subscriptions policy), so it's safe to read their workout aggregates
     // with the service-role client, constrained to exactly those clients.
     const admin = createAdminClient();
-    const [workoutRes, snapRes, prsByClient, namesRes] = await Promise.all([
+    const [workoutRes, snapRes, prsByClient, rosterNames] = await Promise.all([
       readAllById<SessionRow>((after) => {
         let q = admin
           .from('workout_sessions')
@@ -261,10 +271,10 @@ export async function GET(request: Request) {
         return q.order('id', { ascending: true }).limit(ROW_PAGE);
       }),
       clientPrs(supabase, clientIds),
-      supabase
-        .from('profiles')
-        .select('id, full_name')
-        .in('id', clientIds),
+      // ⚠ EVERY CLIENT'S NAME, A BATCH OF IDS AT A TIME (src/lib/client-names.ts). One select over
+      // every id stopped at 1,000 rows, could pass the URL length limit, and dropped its error: the
+      // names past it, or all of them, read "Client". A batch that fails comes back as unread.
+      profileNames(supabase, clientIds),
     ]);
     const workoutsUnknown = !!workoutRes.error;
     if (workoutsUnknown) {
@@ -293,7 +303,7 @@ export async function GET(request: Request) {
       weightsByClient.set(k, list);
     }
 
-    for (const r of namesRes.data || []) activeNames.set(String(r.id), String(r.full_name || '').trim());
+    for (const [id, name] of rosterNames.names) activeNames.set(id, name);
 
     if (workoutsUnknown) { totalWorkouts30d = null; totalWorkouts7d = null; }
     for (const cid of clientIds) {
@@ -322,9 +332,12 @@ export async function GET(request: Request) {
         prs30d: prs,
       });
     }
-    // Attach names for the roster table.
-    for (const r of roster as Array<RosterRow & { name?: string }>) {
-      r.name = activeNames.get(r.client_id) || 'Client';
+    // Attach names for the roster table. ⚠ A NAME THE ROUTE DOESN'T HAVE IS NULL, AND nameUnread SAYS
+    // WHY: the read failed (true) or no name is on file (false). It was the English 'Client' for
+    // both, so a failed read looked like a roster of nameless clients, in every language.
+    for (const r of roster) {
+      r.name = activeNames.get(r.client_id) || null;
+      r.nameUnread = rosterNames.unread.has(r.client_id);
     }
   }
 
@@ -409,10 +422,13 @@ export async function GET(request: Request) {
   // null "the trajectory rows could not be read", which the page says rather than guessing. endedAt
   // is the series' own close (clamped to now): a member who cancelled mid-period keeps a period end in
   // the future, and that is not when they left.
+  // ⚠ A NAME IS NULL WHEN NONE IS ON FILE OR NONE COULD BE READ, AND nameUnread SAYS WHICH (it was the
+  // English 'Former client' for both): each page words the two in its own copy.
   const churn = churnErr ? null : (churnRows ?? []).map((r) => {
     const end = subDeparture(r, subsAllRes.data ?? [], seriesNow);
     return {
-      name: churnNames.get(String(r.client_id)) || 'Former client',
+      name: churnNames.get(String(r.client_id)) || null,
+      nameUnread: churnUnread.has(String(r.client_id)),
       clientId: r.client_id == null ? null : String(r.client_id),
       departed: subsAllRes.error ? null : end.departed,
       startedAt: r.created_at ?? null,

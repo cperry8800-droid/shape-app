@@ -253,7 +253,7 @@ test('phones get the round ✦: the dock mounts below 760 px, Chat hidden by CSS
   await new Promise((r) => setTimeout(r, 10));
   assert.ok(dom.window.document.getElementById('shape-global-chat-button'), 'mounted at phone width');
   // The site's mobile breakpoint, 760 px (Codex, #2244), not the panel's 640.
-  assert.match(BUTTON, /@media \(max-width:760px\)\{#shape-global-chat-button \.sgc-chat\{display:none\}#shape-global-chat-button \.sgc-nora\{width:52px;height:52px/);
+  assert.match(BUTTON, /@media \(max-width:760px\)\{#shape-global-chat-button \.sgc-chat\{display:none\}#shape-global-chat-button \.sgc-nora\{width:44px;height:44px/);
   assert.doesNotMatch(BUTTON, /@media \(max-width:640px\)\{[^"]*\.sgc-chat\{display:none\}/);
 });
 

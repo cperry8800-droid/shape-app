@@ -9,6 +9,7 @@ import { DAY_MS, startOfWeek } from '@/lib/time';
 import { coachGrowthAndFunnel } from '@/lib/coach-growth';
 import { coachCutCents, bpsToRate } from '@/lib/platform-fee';
 import { OPEN_SUB_STATUSES, practiceToday } from '@/lib/coach-trajectory.mjs';
+import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,8 +56,10 @@ export async function GET() {
 
   const providerId: number | null = nutriRow?.id ?? null;
 
-  let activeClients = 0;
-  let monthlyNetCents = 0;
+  // Today's clients and net a month: null when the subscriptions could not be read (below), which
+  // every reader says rather than printing 0 clients and $0.
+  let activeClients: number | null = 0;
+  let monthlyNetCents: number | null = 0;
   let consultsThisWeek = 0;
   let upcomingConsults = 0;
   let totalConsults = 0;
@@ -75,17 +78,28 @@ export async function GET() {
     // round 10; the trainer route says why). Every open status is read (a past_due client is still
     // a member), and practiceToday counts them as the trajectory's latest week does: people, and
     // the net from each row's STORED fee (BYO subs pay 0%; marketplace subs pay 15%).
-    const { data: subRows } = await supabase
-      .from('subscriptions')
-      .select('*') // '*' is migration-safe: an explicit fee_bps errors the query on a pre-migration DB
-      .eq('provider_role', 'nutritionist')
-      .eq('provider_id', providerId)
-      .in('status', OPEN_SUB_STATUSES);
-    const practice = practiceToday(subRows ?? [], {
+    // ⚠ EVERY ROW, A PAGE AT A TIME, AND A FAILED READ IS NULL, NOT 0 (the dashboards after #2395;
+    // the trainer route says why). One select stopped at 1,000 rows, and a failed one sent 0 clients
+    // and $0 net; the walk is the analytics routes' (readAllById), and a failure sends null.
+    const { data: subRows, error: subErr } = await readAllById<{ id: string }>((after) => {
+      let q = supabase
+        .from('subscriptions')
+        .select('*') // '*' is migration-safe: an explicit fee_bps errors the query on a pre-migration DB
+        .eq('provider_role', 'nutritionist')
+        .eq('provider_id', providerId)
+        .in('status', OPEN_SUB_STATUSES);
+      if (after) q = q.gt('id', after);
+      // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
+      return q.order('id', { ascending: true }).limit(ROW_PAGE);
+    });
+    if (subErr) {
+      console.warn('[shape-app] nutritionist dashboard: subscriptions read failed — clients and monthly net render "couldn\'t be read":', subErr.message);
+    }
+    const practice = subErr ? null : practiceToday(subRows ?? [], {
       cutCents: (priceCents: number, feeBps: number | null) => coachCutCents(priceCents, bpsToRate(feeBps ?? 1500)),
     });
-    activeClients = practice.clients;
-    monthlyNetCents = practice.mrrNetCents;
+    activeClients = practice ? practice.clients : null;
+    monthlyNetCents = practice ? practice.mrrNetCents : null;
 
     const { data: sessions } = await supabase
       .from('sessions')

@@ -797,6 +797,10 @@ test("the preview's net is its own clients after the fees its origin list shows"
   const netOf = (r) => Math.round(r.priceCents * (1 - r.feeBps / 10000));
   assert.ok(subs.some((r) => r.feeBps === 0) && subs.some((r) => r.feeBps > 0), 'the preview has no fee mix to agree with');
   assert.equal(today.clients, subs.length, 'the origin list is not the practice');
+  // One row a client, in the routes' shape (origin-attribution.ts folds a client's plans into one
+  // row), so counting the rows counts clients, as its byoMix below does.
+  assert.equal(new Set(subs.map((r) => r.clientId)).size, subs.length, 'two rows of the origin list are one client');
+  assert.ok(subs.every((r) => r.clientId && r.plans === 1 && r.mixedFees === false), 'a row is not one client on one plan');
   assert.equal(today.mrrGrossCents, subs.reduce((s, r) => s + r.priceCents, 0));
   assert.equal(today.mrrNetCents, subs.reduce((s, r) => s + netOf(r), 0), 'the preview states a net its origin list does not');
   assert.deepEqual([demo.metrics.activeClients, demo.metrics.mrrNetCents], [today.clients, today.mrrNetCents]);
@@ -820,6 +824,10 @@ test('the Me card: the coach\'s own net a month and clients, no renewal reads, o
   assert.match(m.text(), new RegExp(`\\${money(today.mrrNetCents)}net a month${today.clients} clients · payouts, renewals and your plan`));
   await click(button(m.host, /Business ›/));
   assert.equal(opened.length, 1);
+  // Owner, 2026-10-18: "the business card should be private, never public". The card says so, and
+  // nothing on it reads like a public setting (an eye marked "Visible" did).
+  assert.match(m.text(), /Private · only you/);
+  assert.doesNotMatch(m.text(), /Visible/);
   await click(button(m.host, /Hide your figures/));
   assert.match(m.text(), /Business · hidden/);
   assert.doesNotMatch(m.text(), /net a month/, 'the money is off the screen');
@@ -833,6 +841,16 @@ test('the Me card: the coach\'s own net a month and clients, no renewal reads, o
   assert.match(m.text(), /net a month/);
   assert.equal(window.localStorage.getItem('bs_pro_rev_hidden'), '0');
   await m.unmount();
+});
+
+test('the Me card says it is private in all 13 languages, and no catalog keeps the old "Visible" label', () => {
+  for (const loc of LOCALES) {
+    const cat = JSON.parse(readFileSync(join(ROOT, `mobile-app/src/i18n/catalogs/${loc}/coach.json`), 'utf8'));
+    assert.ok(cat['business.card.private'] && cat['business.card.private'].includes(' · '), loc + ' has no private marker');
+    assert.equal(cat['business.card.visible'], undefined, loc + ' still carries "Visible"');
+  }
+  const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSCoachBusiness.jsx'), 'utf8');
+  assert.doesNotMatch(src, /business\.card\.visible/);
 });
 
 test('Me: the card is on the coach\'s own Me tab only, and Settings → Your practice → Payouts opens Business', () => {
@@ -898,6 +916,44 @@ test('a renewal whose name could not be read is —, from the routes\' own rows,
   assert.deepEqual([labels('—'), labels('Client')], [2, 0], 'not a row of "Client"s');
   assert.match(m.text(), /Renewing this week1 client · \$153 net—[^$]* · \$180 a month\$153—Cancelled · ends /);
   await m.unmount();
+});
+
+// ── Left open by #2394 and #2395: the routes sent the English "Former client" in every language, for
+// a name that couldn't be read and for none on file alike. They send null now, with nameUnread. ──
+test('who left: a name that couldn\'t be read says so, and one with none on file is a former client, in the coach\'s language', async () => {
+  const now = Date.now();
+  const churn = [
+    { name: null, nameUnread: true, clientId: 'u', departed: true, endedAt: new Date(now - 5 * DAY).toISOString(), priceCents: 18000 },
+    { name: null, nameUnread: false, clientId: 'n', departed: true, endedAt: new Date(now - 6 * DAY).toISOString(), priceCents: 9000 },
+    { name: 'Riley T.', nameUnread: false, clientId: 'r', departed: true, endedAt: new Date(now - 7 * DAY).toISOString(), priceCents: 6000 },
+  ];
+  world({ answer: payload({ churn }) });
+  let m = await mount(page({ tab: 'clients' }));
+  const labels = (s) => [...m.host.querySelectorAll('div')].filter((d) => d.textContent === s).length;
+  assert.deepEqual([labels("Name couldn't be read"), labels('Former client'), labels('Riley T.')], [1, 1, 1]);
+  assert.match(m.text(), /Name couldn't be readleft [^$]*−\$180\/moFormer clientleft [^$]*−\$90\/moRiley T\.left [^$]*−\$60\/mo/);
+  await m.unmount();
+  // In another language, its own words, not the English the routes sent.
+  const english = window.ShapeI18n;
+  try {
+    for (const [loc, intl] of [['de', 'de-DE'], ['tr', 'tr-TR']]) {
+      speak(loc, intl);
+      const C = catalogOf(loc);
+      world({ answer: payload({ churn }) });
+      m = await mount(page({ tab: 'clients' }));
+      assert.deepEqual([labels(C['business.clients.nameUnread']), labels(C['business.clients.leftNoName']), labels('Riley T.')], [1, 1, 1], loc);
+      assert.doesNotMatch(m.text(), /Former client|Name couldn't be read/, loc);
+      await m.unmount();
+    }
+  } finally {
+    window.ShapeI18n = english;
+  }
+  // Every language has both, each in its own words.
+  for (const loc of LOCALES) {
+    const C = catalogOf(loc);
+    assert.ok(C['business.clients.leftNoName'] && C['business.clients.nameUnread'], loc);
+    if (loc !== 'en') assert.ok(C['business.clients.leftNoName'] !== 'Former client' && C['business.clients.nameUnread'] !== "Name couldn't be read", loc + ' is translated');
+  }
 });
 
 test('a failed analytics read says so and never loads forever: the page, each zone of a partial read, and the Me card', async () => {

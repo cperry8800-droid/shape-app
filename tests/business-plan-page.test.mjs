@@ -32,7 +32,7 @@ const { loadRealModule } = await import('./helpers/load-real-module.mjs');
 // The routes' own rules for the trajectory and for each ended plan (both analytics routes use them).
 const { buildTrajectory, subDeparture, NOT_ENDED_STATUSES } = await import('../src/lib/coach-trajectory.mjs');
 const B = await loadRealModule(ND('dashBusiness.jsx'), {
-  appendExports: 'export { DbzChurnZone, DbzGoalEarn, dbzGoalEarnBase, dbzPlanBase, DbzPlanZone, DbzEarnZone, DbzPayoutsZone, DbzRenewalsZone, dbzRenewalsHead, DbzWaitlistZone, DbzLifetimeZone, DBZ_DEMO_CHURN, dbzDemoTrajectory, dbzDemoBook, dbzDemoOrigin, dbzDemoRenewals, DBZ_DEMO_OUTCOMES };',
+  appendExports: 'export { DbzBringClientsZone, DbzChurnZone, DbzOutcomesZone, DbzGoalEarn, dbzGoalEarnBase, dbzPlanBase, DbzPlanZone, DbzEarnZone, DbzPayoutsZone, DbzRenewalsZone, dbzRenewalsHead, DbzWaitlistZone, DbzLifetimeZone, DbzOriginZone, DBZ_DEMO_CHURN, dbzDemoTrajectory, dbzDemoBook, dbzDemoOrigin, dbzDemoRenewals, DBZ_DEMO_OUTCOMES };',
 });
 
 async function mount(el) {
@@ -171,6 +171,78 @@ test('moving a slider makes it your plan, with today\'s pace kept as the line to
   await click([...m.div.querySelectorAll('button')].find((b) => /Back to my numbers/.test(b.textContent)));
   assert.deepEqual(rowLabels(m.div), ["Today's pace", 'What if: +1 client a month']);
   await m.unmount();
+});
+
+// The chart read back through its own axis: the value each line is drawn at, month by month, the
+// goal line's value, and the last month on the axis.
+function readChart(div) {
+  const svg = div.querySelector('svg');
+  const ticks = [...svg.querySelectorAll('text[text-anchor=end]')].map((t) => ({ v: Number(t.textContent.replace(/[^0-9]/g, '')) * 100, y: Number(t.getAttribute('y')) - 3.5 }));
+  const [zero, top] = [ticks[0], ticks[ticks.length - 1]];
+  const at = (y) => ((zero.y - y) / (zero.y - top.y)) * top.v;
+  const goal = svg.querySelector('line[stroke-dasharray="5 4"]');
+  return {
+    top: top.v,
+    lines: [...svg.querySelectorAll('polyline')].map((p) => p.getAttribute('points').split(' ').map((xy) => at(Number(xy.split(',')[1])))),
+    goal: goal ? at(Number(goal.getAttribute('y1'))) : null,
+    lastMonth: [...svg.querySelectorAll('text[text-anchor=middle]')].map((t) => t.textContent).pop(),
+  };
+}
+
+test('the chart follows the sliders, and a goal reached after month 24 stretches it to month 36', async () => {
+  const m = await mount(React.createElement(B.DbzPlanZone, { base: BASE }));
+  const close = (c, want, label) => assert.ok(Math.abs(c.lines[label[0]][label[1]] - want) <= c.top * 0.002, `${label}: drawn at ${c.lines[label[0]][label[1]]}, forecast ${want}`);
+  const T = run({ adds: 2.3, churn: 0.08, rate: 180 });
+  let c = readChart(m.div);
+  close(c, T.rows[12].netCents, [0, 12]);
+  close(c, T.rows[24].netCents, [0, 24]);
+  assert.ok(Math.abs(c.goal - 300000) <= c.top * 0.002, 'the dashed line is at the goal');
+  assert.equal(c.lastMonth, 'mo 24');
+
+  const [adds, churn, rate, goal] = m.div.querySelectorAll('input[type=range]');
+  await setValue(adds, 4); await setValue(churn, 3); await setValue(rate, 250); await setValue(goal, 20000);
+  const P = run({ adds: 4, churn: 0.03, rate: 250 });
+  const W = run({ adds: 5, churn: 0.03, rate: 250 });
+  const r = CF.monthsTo(2000000, P);
+  assert.ok(r > 24 && r <= 36, 'the fixture reaches its goal in the third year: ' + r);
+  c = readChart(m.div);
+  assert.equal(c.lines.length, 3, "today's pace, the plan and the what-if");
+  close(c, T.rows[12].netCents, [0, 12]);
+  close(c, P.rows[12].netCents, [1, 12]);
+  close(c, P.rows[r].netCents, [1, r]);
+  close(c, W.rows[36].netCents, [2, 36]);
+  assert.ok(Math.abs(c.goal - 2000000) <= c.top * 0.002);
+  assert.equal(c.lastMonth, 'mo 36', 'the month the table names is on the chart');
+  assert.equal(m.div.querySelector('tbody tr:nth-child(2) td:last-child').textContent, 'mo ' + r);
+  // A goal inside two years puts it back to two.
+  await setValue(goal, 8000);
+  c = readChart(m.div);
+  assert.equal(c.lastMonth, 'mo 24');
+  assert.equal(c.lines[1].length, 25);
+  await m.unmount();
+});
+
+// ── Bring your clients ───────────────────────────────────────────────────────
+test('the referral link names the coach, the token and the role, and a refused copy says to copy it by hand', async () => {
+  const calls = [];
+  window.shapeDb = {
+    getSession: async () => ({ user: { id: 'coach-uid' } }),
+    client: { rpc: async (fn, args) => { calls.push([fn, args]); return { data: 'tok-1', error: null }; } },
+  };
+  try {
+    const m = await mount(React.createElement(B.DbzBringClientsZone, { live: true, role: 'nutritionist', providerId: 4 }));
+    await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    assert.deepEqual(calls, [['create_coach_referral_link', { p_provider_role: 'nutritionist', p_provider_id: 4 }]]);
+    // A coach with both roles has two provider rows: the role picks the one the token belongs to.
+    assert.ok(m.text().includes('https://theshapecommunity.com/newdesign/MemberProfile.html?u=coach-uid&ref=tok-1&role=nutritionist'), m.text());
+    const copy = [...m.div.querySelectorAll('button')].find((b) => /Copy link/.test(b.textContent));
+    const had = Object.getOwnPropertyDescriptor(window.navigator, 'clipboard');
+    Object.defineProperty(window.navigator, 'clipboard', { configurable: true, value: { writeText: () => Promise.reject(new Error('denied')) } });
+    try { await click(copy); await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); }); }
+    finally { if (had) Object.defineProperty(window.navigator, 'clipboard', had); else delete window.navigator.clipboard; }
+    assert.match(m.text(), /Couldn't copy it here\. Select the link above and copy it\./);
+    await m.unmount();
+  } finally { delete window.shapeDb; }
 });
 
 test('the what-if chips compare one change at a time, and can be turned off', async () => {
@@ -452,6 +524,33 @@ test('the churn total counts the last 90 days and says so, not every cancellatio
     // Every ended plan (the trajectory's closed set, not 'canceled' alone), newest first, 12 of them.
     assert.match(src, /\.not\('status', 'in', `\(\$\{NOT_ENDED_STATUSES\.join\(','\)\}\)`\)\n\s+\.order\('current_period_end', \{ ascending: false, nullsFirst: false \}\)\n\s+\.limit\(12\);/, role + ' sends the newest 12 ended plans, as DBZ_CHURN_LIST says');
   }
+});
+
+// ── Left open by #2394 and #2395: a name the routes don't have is null, and nameUnread says why ──
+// They sent "Former client" and "Client" for a name that couldn't be read and for none on file alike.
+test('who left: a name that couldn\'t be read says so, and one with none on file reads "Former client"', async () => {
+  const day = 86400000;
+  const row = (o) => ({ departed: true, startedAt: new Date(Date.now() - 300 * day).toISOString(), priceCents: 18000, reason: null, ...o });
+  const rows = [
+    row({ name: null, nameUnread: true, clientId: 'u', endedAt: new Date(Date.now() - 5 * day).toISOString() }),
+    row({ name: null, nameUnread: false, clientId: 'n', endedAt: new Date(Date.now() - 6 * day).toISOString() }),
+    row({ name: 'Ada Lovelace', nameUnread: false, clientId: 'a', endedAt: new Date(Date.now() - 7 * day).toISOString() }),
+  ];
+  const m = await mount(React.createElement(B.DbzChurnZone, { live: true, churn: rows }));
+  assert.match(m.text(), /^3 left in the last 90 days−\$540 a monthName couldn't be readended [^−]*−\$180\/moFormer clientended [^−]*−\$180\/moAda Lovelaceended /);
+  await m.unmount();
+});
+
+test('the roster outcomes say a name that couldn\'t be read, and "Client" for one with none on file', async () => {
+  globalThis.useDashUnits = globalThis.useDashUnits || (() => ({ measure: (value, unit) => ({ value, unit }) }));
+  const row = (client_id, name, nameUnread, workouts30d, weightChangeLb) => ({ client_id, name, nameUnread, workouts30d, workouts7d: 1, weightStart: 200, weightLatest: 200 + weightChangeLb, weightChangeLb, prs30d: 0 });
+  const roster = [row('u', null, true, 9, -6), row('n', null, false, 8, -5), row('a', 'Ada Lovelace', false, 7, -4)];
+  const cp = { activeClients: 3, workouts30d: 24, workouts7d: 3, avgAdherencePct: 50, prs30d: 0, weightsUnknown: false, rosterUnknown: false, roster };
+  const m = await mount(React.createElement(B.DbzOutcomesZone, { role: 'trainer', cp }));
+  // Both lists: the top weight loss, and the most consistent.
+  assert.match(m.text(), /Top weight loss · 30dName couldn't be read−6\.0 lbClient−5\.0 lbAda Lovelace−4\.0 lb/);
+  assert.match(m.text(), /Most consistent · 30dName couldn't be read9 workoutsClient8 workoutsAda Lovelace7 workouts/);
+  await m.unmount();
 });
 
 // ── The sweep after #2394 round 10: who left counts over the pace's own window ──
@@ -895,6 +994,8 @@ test('the preview states one net on every tab: Today, the sidebar, the KPI strip
   // The origin list is the roster, at the fees it stores, and the Plan's brought share is its share.
   const subs = B.dbzDemoOrigin().filter((r) => r.kind === 'subscription');
   assert.deepEqual(subs.map((r) => r.name), roster.map((c) => c.profile.name), 'the origin list is not the roster');
+  // One row a client, in the routes' shape (origin-attribution.ts): each roster client, by their id.
+  assert.deepEqual(subs.map((r) => [r.clientId, r.plans, r.mixedFees]), roster.map((c) => [c.profile.id, 1, false]), 'the origin list is not one row a roster client');
   assert.equal(subs.reduce((s, r) => s + Math.round(r.priceCents * (1 - r.feeBps / 10000)), 0), book.net, 'the origin list shows another fee mix');
   assert.equal(base.byoShare, subs.filter((r) => r.feeBps === 0).length / subs.length);
   // The renewals are roster clients, each at their own fee.
@@ -920,9 +1021,88 @@ test('the preview states one net on every tab: Today, the sidebar, the KPI strip
   const planTab = await read('plan');
   assert.match(planTab, new RegExp('Today you have ' + book.clients + ' clients and net ' + esc(money(book.net)) + ' a month\\.'), planTab.slice(0, 600));
   const growthTab = await read('growth');
-  const brought = B.dbzDemoOrigin().filter((r) => r.feeBps === 0).length;
-  assert.match(growthTab, new RegExp(brought + ' you brought · ' + (B.dbzDemoOrigin().length - brought) + ' found you on Shape'));
+  // ⚠ "WHO FOUND WHOM" COUNTS CLIENTS, AND THE ONE-TIME PURCHASE IS NOT ONE (the follow-up to #2395).
+  // Its header counted every row, so the brought one-time buyer made it "6 you brought · 5 found
+  // you on Shape", eleven beside the Plan's ten. The header is the clients, the Plan's own count and
+  // its brought share, and the purchase has a line of its own over its row.
+  const origin = B.dbzDemoOrigin();
+  const clients = origin.filter((r) => r.kind === 'subscription');
+  const purchases = origin.filter((r) => r.kind === 'purchase');
+  const brought = clients.filter((r) => r.feeBps === 0).length;
+  assert.ok(purchases.length === 1 && purchases[0].feeBps === 0, 'the preview has no brought purchase, so a header that counts one goes unread');
+  assert.equal(clients.length, book.clients, "the origin list's clients are not the Plan's");
+  assert.equal(base.byoShare, brought / clients.length, "and its brought ones are not the Plan's share");
+  assert.match(growthTab, new RegExp('who found whom' + brought + ' you brought · ' + (clients.length - brought) + ' found you on Shape' + esc(roster[0].profile.name)), growthTab.slice(0, 600));
+  assert.match(growthTab, new RegExp('fee1 one-time purchase' + esc(purchases[0].name) + 'You brought · 0% fee · one-time'), 'the purchase has no line of its own');
   for (const c of roster) assert.match(growthTab, new RegExp(esc(c.profile.name) + (c.payments.feeCents ? 'Found you on Shape · 15% fee' : 'You brought · 0% fee')), c.profile.name);
+});
+
+// ── The follow-up to #2395: "who found whom" counts clients, as the brought-in share does ──
+// Its header counted the feed's rows: a client on two plans was two and a one-time purchase one
+// more, beside the Plan's per-client "1 of your 2". Mounted on a feed the real fold builds
+// (origin-attribution.ts buildOriginFeed), the header is the share's own count (byoMixOf).
+const ORIGIN_TS = fileURLToPath(new URL('../src/lib/origin-attribution.ts', import.meta.url));
+const originZone = async (byOrigin) => {
+  const m = await mount(React.createElement(B.DbzOriginZone, { live: true, byOrigin }));
+  // The zone's lines: a count is a line of text, a row is [name, label].
+  const lines = [...m.div.firstElementChild.children].map((d) => (d.children.length === 2 ? [d.children[0].textContent, d.children[1].textContent.replace(/\s+/g, ' ').trim()] : d.textContent.trim()));
+  await m.unmount();
+  return lines;
+};
+
+test('"who found whom" counts clients: two plans are one row, a purchase is not a client, and the header is the brought-in share', async () => {
+  const { buildOriginFeed, byoMixOf } = await loadRealModule(ORIGIN_TS, { typescript: true, registry: new Map([['@/lib/supabase/server', {}]]) });
+  // The purchases read answers `rows`; every name is already known, so no one is asked about.
+  const db = (rows) => {
+    const q = { select: () => q, eq: () => q, order: () => q, limit: async () => ({ data: rows, error: null }) };
+    return { from: () => q, rpc: async () => ({ data: [], error: null }) };
+  };
+  // Ada was brought and took a second plan from the marketplace; Ben found the coach on Shape; Cleo
+  // was brought and holds two plans at 0%. Ada also buys a meal plan, and Pia buys one alone.
+  const subs = [
+    { client_id: 'a', price_cents: 18000, fee_bps: 1500, origin: 'marketplace' },
+    { client_id: 'b', price_cents: 16000, fee_bps: 1500, origin: 'marketplace' },
+    { client_id: 'a', price_cents: 6000, fee_bps: 0, origin: 'coach_link' },
+    { client_id: 'c', price_cents: 12000, fee_bps: 0, origin: 'coach_link' },
+    { client_id: 'c', price_cents: 3000, fee_bps: 0, origin: 'coach_link' },
+  ];
+  const purchases = [
+    { client_id: 'a', price_cents: 9000, fee_bps: 0, origin: 'coach_link' },
+    { client_id: 'p', price_cents: 6000, fee_bps: 1500, origin: 'marketplace' },
+  ];
+  const names = new Map([['a', 'Ada'], ['b', 'Ben'], ['c', 'Cleo'], ['p', 'Pia']]);
+  const feed = await buildOriginFeed(db(purchases), 'trainer', 7, subs, names);
+  const mix = byoMixOf(subs);
+  assert.deepEqual(mix, { clients: 3, brought: 2 });
+  assert.deepEqual(await originZone(feed), [
+    mix.brought + ' you brought · ' + (mix.clients - mix.brought) + ' found you on Shape',
+    // Brought by her 0% plan; her other plan pays 15%, so no one rate is printed as hers.
+    ['Ada', 'You brought · 2 plans · different fees'],
+    ['Ben', 'Found you on Shape · 15% fee'],
+    ['Cleo', 'You brought · 2 plans · 0% fee'],
+    '2 one-time purchases',
+    ['Ada', 'You brought · 0% fee · one-time'],
+    ['Pia', 'Found you on Shape · 15% fee · one-time'],
+  ]);
+});
+
+test('"who found whom" says a full purchases list is only the latest, and prints no count of purchases it has none of', async () => {
+  // The feed reads the latest purchases, newest first; the page's cap is that read's own limit.
+  const src = readFileSync(ORIGIN_TS, 'utf8');
+  const limit = /\.eq\('status', 'paid'\)\s*\.order\('created_at', \{ ascending: false \}\)\s*\.limit\((\d+)\);/.exec(src);
+  assert.ok(limit, "the feed's purchases read moved");
+  const cap = /^const DBZ_ORIGIN_PURCHASES = (\d+);/m.exec(readFileSync(ND('dashBusiness.jsx'), 'utf8'));
+  assert.ok(cap, "the page has no cap on the purchases it counts");
+  const N = Number(cap[1]);
+  assert.equal(N, Number(limit[1]), "the page's cap is not the feed's");
+  const ada = { name: 'Ada', clientId: 'a', kind: 'subscription', origin: 'coach_link', feeBps: 0, priceCents: 18000, plans: 1, mixedFees: false };
+  const bought = (n) => Array.from({ length: n }, (_, i) => ({ name: 'Buyer ' + i, kind: 'purchase', origin: 'marketplace', feeBps: 1500, priceCents: 5000 }));
+  const counts = async (feed) => (await originZone(feed)).filter((l) => typeof l === 'string');
+  // None: no line. A failed purchases read sends none too, so "0 one-time purchases" would be a claim.
+  assert.deepEqual(await counts([ada]), ['1 you brought · 0 found you on Shape']);
+  assert.deepEqual(await counts([ada, ...bought(1)]), ['1 you brought · 0 found you on Shape', '1 one-time purchase']);
+  assert.deepEqual(await counts([ada, ...bought(N - 1)]), ['1 you brought · 0 found you on Shape', (N - 1) + ' one-time purchases']);
+  assert.deepEqual(await counts([ada, ...bought(N)]), ['1 you brought · 0 found you on Shape', 'Your latest ' + N + ' one-time purchases']);
 });
 
 // ── The outcomes plate is the same roster (the sweep after #2394 round 10) ──

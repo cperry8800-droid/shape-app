@@ -221,8 +221,8 @@ test('planNumbers: the listing price, else the clients\' average to $5, else the
   const extra = {
     trajectory: null,
     metrics: { activeClients: 4, mrrNetCents: 60000, mrrGrossCents: 70300 },
-    // The origin feed has a row per subscription: the one brought client, on two plans, is two 0% rows
-    // (2 of 5), and a one-time purchase is a row too.
+    // An origin feed of a row per subscription, as the routes sent until the follow-up to #2395: the
+    // one brought client, on two plans, is two 0% rows (2 of 5), and a one-time purchase is a row too.
     byOrigin: [{ kind: 'subscription', feeBps: 0 }, { kind: 'subscription', feeBps: 0 }, { kind: 'subscription', feeBps: 1500 }, { kind: 'subscription', feeBps: 1500 }, { kind: 'subscription', feeBps: 1500 }, { kind: 'purchase', feeBps: 0 }],
     // The routes count clients (byoMixOf, Codex round 5 on #2394): 1 of 4.
     byoMix: { clients: 4, brought: 1 },
@@ -396,6 +396,26 @@ test('departures: one client at one moment is one departure whose money adds; tw
   assert.equal(CF.departures([...rows, { name: 'Unknown', clientId: 'u', departed: null, endedAt: at(3) }], { now }), null);
   // A row the route did not decide (the preview's rows) is a departure.
   assert.equal(CF.departures([{ name: 'Preview', endedAt: at(3), priceCents: 100 }], { now }).count, 1);
+});
+
+// ── Left open by #2394 and #2395: the routes send a name they don't have as null, with nameUnread ──
+test('departures: each one keeps the route\'s name and whether it went unread, so a page can say which', () => {
+  const now = Date.UTC(2026, 9, 17, 12);
+  const at = (d) => new Date(now - d * DAY).toISOString();
+  const rows = [
+    { name: null, nameUnread: true, clientId: 'u', departed: true, endedAt: at(3), priceCents: 18000 },
+    { name: null, nameUnread: false, clientId: 'n', departed: true, endedAt: at(4), priceCents: 9000 },
+    { name: 'Ada', nameUnread: false, clientId: 'a', departed: true, endedAt: at(5), priceCents: 6000 },
+    // The preview's rows carry no flag: their names were never unread.
+    { name: 'Preview', clientId: 'p', departed: true, endedAt: at(6), priceCents: 100 },
+  ];
+  assert.deepEqual(CF.departures(rows, { now }).list.map((x) => [x.name, x.nameUnread]), [[null, true], [null, false], ['Ada', false], ['Preview', false]]);
+  // One client's plans ended together are one departure, named as its last plan is.
+  const two = CF.departures([
+    { name: null, nameUnread: true, clientId: 'x', departed: true, startedAt: at(200), endedAt: at(3), priceCents: 18000 },
+    { name: null, nameUnread: true, clientId: 'x', departed: true, startedAt: at(300), endedAt: at(3), priceCents: 6000 },
+  ], { now });
+  assert.deepEqual(two.list.map((x) => [x.name, x.nameUnread, x.plans, x.priceCents]), [[null, true, 2, 24000]]);
 });
 
 // ── Its review (the sweep after #2394 round 10): one client's departures in one ISO week are one ──

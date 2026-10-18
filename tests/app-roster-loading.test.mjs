@@ -31,3 +31,34 @@ test('roster failures reject instead of reporting no clients, and retry replaces
   const rows = await window.ShapeSignals.triageLive('nutritionist', { force: true });
   assert.equal(rows.length, 1);
 });
+// Owner, 2026-10-18: a client whose renewal Stripe is retrying (past_due) stays on the roster with
+// full access, and the row says so. The flag rides from the roster route (coach-roster.ts
+// `paymentRetrying`) through ShapeAssign.clients and the record the rows are built from.
+test('a retrying payment rides from the roster read to the record each row is built from, and nowhere else', async () => {
+  const keep = window.ShapeAssign.clients;
+  window.ShapeAssign.clients = async () => [
+    { userId: 'u7', name: 'Priya', paymentRetrying: true },
+    { userId: 'u1', name: 'Ana', paymentRetrying: false },
+    { userId: 'u2', name: 'Ben' },
+  ];
+  try {
+    uid = 'coach-retry';
+    const recs = await window.ShapeSignals.triageLive('trainer', { force: true });
+    const profile = Object.fromEntries(recs.map((r) => [r.profile.id, r.profile]));
+    assert.equal(profile.u7.paymentRetrying, true);
+    assert.equal('paymentRetrying' in profile.u1, false, 'a client paying normally keeps the profile they had');
+    assert.equal('paymentRetrying' in profile.u2, false);
+  } finally {
+    window.ShapeAssign.clients = keep;
+  }
+});
+test('the app\'s roster read keeps the route\'s flag, true only when the route said so', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../mobile-app/src/services/shapeBackend.js', import.meta.url), 'utf8');
+  const at = src.indexOf('async function listAssignableClients(');
+  const end = src.indexOf('\n}\n', at) + 2;
+  assert.ok(at > 0 && end > at);
+  const answer = { clients: [{ id: 'u7', name: 'Priya', paymentRetrying: true }, { id: 'u1', name: 'Ana', paymentRetrying: 'yes' }, { id: 'u2' }, { name: 'no id' }] };
+  const list = await new Function('getJsonOrDefault', 'apiBaseUrl', 'providerDiscipline', `${src.slice(at, end)}\nreturn listAssignableClients;`)(async () => answer, '', () => 'trainer')('trainer');
+  assert.deepEqual(list.map((c) => [c.userId, c.paymentRetrying]), [['u7', true], ['u1', false], ['u2', false]]);
+});

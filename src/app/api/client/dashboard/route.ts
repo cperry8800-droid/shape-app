@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { DAY_MS, startOfWeek } from '@/lib/time';
 import { requireMembership } from '@/lib/require-membership';
+import { OPEN_SUB_STATUSES } from '../../../../lib/coach-trajectory.mjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -98,10 +99,14 @@ export async function GET(request: Request) {
     .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
 
   // ---- Subscriptions -> coach team ---------------------------------------
+  // The member's OWN plans. RLS also shows a coach the plans their clients hold with them, so
+  // without the client filter an account that is both a member and a coach listed its own
+  // listing on its coach team, once for every client it has.
   const { data: subs } = await supabase
     .from('subscriptions')
     .select('provider_id, provider_role, status')
-    .in('status', ['active', 'trialing']);
+    .eq('client_id', user.id)
+    .in('status', OPEN_SUB_STATUSES);
   const subRows = subs ?? [];
 
   // Resolve provider names for both booked sessions and the team list.
