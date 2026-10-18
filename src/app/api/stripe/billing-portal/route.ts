@@ -6,10 +6,18 @@
 //
 // Resolves the stripe_customer_id from platform_subscriptions or per-coach
 // subscriptions; returns 404 if the user has neither (no Stripe customer yet).
+//
+// ⚠ A COACH'S PLAN ON THE COACH'S OWN ACCOUNT (direct charges, part B) is managed there: the body's
+// `coach: { provider_role, provider_id }` opens the portal on that coach's account, for the member's
+// customer on it, with Shape's own configuration (coach-checkout.ts, coachPortalUrl). Without
+// `coach`, Shape's own portal opens as before: the membership and any plan from before the move.
 
 import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { platformCoachCustomer } from '@/lib/stripe-connect';
+import { coachAccountPlan, coachPortalUrl } from '@/lib/coach-checkout';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { ACTIVE_SUB } from '@/lib/membership-core';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson, dbError } from '@/lib/request-utils';
 import { sameOriginPath } from '@/lib/return-path';
@@ -22,6 +30,44 @@ export async function POST(req: Request) {
   const user = await currentUser(req);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   const supabase = await clientForRequest(req);
+
+  // Build the return URL from the request origin so dev/staging/prod all work.
+  let returnUrl = 'https://www.theshapecommunity.com/m/';
+  let coach: { provider_role?: unknown; provider_id?: unknown } | null = null;
+  try {
+    const url = new URL(req.url);
+    const bodyResult = await readJson<{ returnPath?: unknown; coach?: { provider_role?: unknown; provider_id?: unknown } }>(req, { allowEmpty: true });
+    if (!bodyResult.ok) return bodyResult.response;
+    const body = bodyResult.data;
+    // L10: a path on this origin, or the app's root; a protocol-relative value is not a path.
+    const path = sameOriginPath(body?.returnPath, '/m/');
+    returnUrl = `${url.protocol}//${url.host}${path}`;
+    coach = body?.coach && typeof body.coach === 'object' ? body.coach : null;
+  } catch {
+    // Ignore body-parse failures and use the default returnUrl.
+  }
+
+  if (coach) {
+    const role = coach.provider_role === 'trainer' || coach.provider_role === 'nutritionist' ? coach.provider_role : null;
+    const providerId = Number(coach.provider_id);
+    if (!role || !Number.isSafeInteger(providerId) || providerId <= 0) {
+      return NextResponse.json({ error: 'Invalid coach.' }, { status: 400 });
+    }
+    // The member's own plan with this coach billed on the coach's account, read on their own client.
+    const { plan, error } = await coachAccountPlan(supabase, user.id, role, providerId, ACTIVE_SUB);
+    if (error) return dbError(error, 'billing portal coach plan read', 503);
+    if (!plan) {
+      return NextResponse.json({ error: 'No plan with this coach is billed on their account.', reason: 'no_coach_plan' }, { status: 404 });
+    }
+    try {
+      const url = await coachPortalUrl(stripe, createAdminClient(), {
+        account: plan.stripe_account_id, customer: plan.stripe_customer_id, returnUrl,
+      });
+      return NextResponse.json({ url });
+    } catch (err) {
+      return dbError(err, 'stripe coach billing portal', 500, 'Stripe portal session failed.');
+    }
+  }
 
   // Find the user's stripe_customer_id from any of the subscription tables.
   const [platform, perCoach] = await Promise.all([
@@ -45,20 +91,6 @@ export async function POST(req: Request) {
       { error: 'No active subscription found. Subscribe to the Shape platform to manage billing.' },
       { status: 404 }
     );
-  }
-
-  // Build the return URL from the request origin so dev/staging/prod all work.
-  let returnUrl = 'https://www.theshapecommunity.com/m/';
-  try {
-    const url = new URL(req.url);
-    const bodyResult = await readJson<{ returnPath?: unknown }>(req, { allowEmpty: true });
-    if (!bodyResult.ok) return bodyResult.response;
-    const body = bodyResult.data;
-    // L10: a path on this origin, or the app's root; a protocol-relative value is not a path.
-    const path = sameOriginPath(body?.returnPath, '/m/');
-    returnUrl = `${url.protocol}//${url.host}${path}`;
-  } catch {
-    // Ignore body-parse failures and use the default returnUrl.
   }
 
   try {

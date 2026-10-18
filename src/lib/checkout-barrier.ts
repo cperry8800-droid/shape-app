@@ -94,19 +94,23 @@ export function checkoutReturnsKey(successUrl: string, cancelUrl: string): strin
   return createHash('sha256').update(`${successUrl}\n${cancelUrl}`).digest('hex').slice(0, 32);
 }
 
-type OpenSession = { created: number; url?: string | null; mode?: string | null; metadata?: Record<string, string> | null };
+type OpenSession = { id: string; created: number; url?: string | null; mode?: string | null; metadata?: Record<string, string> | null };
 
 /**
  * Run while holding the claim: the account's newest open checkout for the product, if it is fresh
- * and on the same terms; every other open one for the product is expired.
+ * and on the same terms; every other open one for the product is expired. `stripeAccount` reads
+ * (and expires) the checkouts on a coach's own account, where a direct charge's checkout lives,
+ * for the member's customer on that account.
  */
 export async function currentCheckout(
   customerId: string,
   sameProduct: (session: OpenSession) => boolean,
   sameTerms: (session: OpenSession) => boolean,
-  now: number = Date.now()
+  now: number = Date.now(),
+  stripeAccount: string | null = null
 ): Promise<string | null> {
-  const open = await stripe.checkout.sessions.list({ customer: customerId, status: 'open', limit: 100 });
+  const opts = stripeAccount ? { stripeAccount } : undefined;
+  const open = await stripe.checkout.sessions.list({ customer: customerId, status: 'open', limit: 100 }, opts);
   let current: string | null = null;
   // Stripe lists the newest first.
   for (const session of open.data) {
@@ -117,7 +121,7 @@ export async function currentCheckout(
     }
     // Throws when the session closed in between (paid, say): the caller refuses, and the next
     // press finds the subscription.
-    await stripe.checkout.sessions.expire(session.id);
+    await stripe.checkout.sessions.expire(session.id, undefined, opts);
   }
   return current;
 }

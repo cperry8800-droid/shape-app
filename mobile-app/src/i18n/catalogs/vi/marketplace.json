@@ -144,6 +144,7 @@
   "panel.sendMessage": "Gửi tin nhắn",
   "panel.typeBooking": "Đặt lịch",
   "panel.typeCheckout": "Thanh toán",
+  "panel.codeLabel": "Mã Shape hoặc mã huấn luyện viên (không bắt buộc)",
   "panel.typeMessage": "Tin nhắn",
   "panel.yourNote": "Ghi chú của bạn",
   "pkg.included": "{count} mục",

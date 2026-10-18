@@ -11,6 +11,8 @@ import { appendParam, sameOriginPath } from '@/lib/return-path';
 import { ACTIVE_SUB, computeMembership } from '@/lib/membership-core';
 import { hasLiveStripeSubscription } from '@/lib/stripe-live-subscription';
 import { stripeCustomerFor } from '@/lib/stripe-customer';
+import { connectedCustomerFor } from '@/lib/stripe-connect';
+import { CODE_MESSAGES, afterCode, coachNotPayable, directChargesReady, normalizeCode, recordCoachCheckout, resolveCheckoutCode, type CheckoutCode } from '@/lib/coach-checkout';
 import { CHECKOUT_CREATE_OPTIONS, checkoutReturnsKey, claimCheckout, currentCheckout, isCheckoutInProgress, type CheckoutClaim } from '@/lib/checkout-barrier';
 
 export const runtime = 'nodejs';
@@ -34,6 +36,8 @@ type CheckoutBody = {
   };
   role?: string;
   ref?: string;
+  /** The code box: a Shape code or the coach's own (coach-checkout.ts). */
+  code?: string;
   successPath?: string;
   cancelPath?: string;
 };
@@ -164,8 +168,24 @@ export async function POST(request: Request) {
       );
     }
   }
-  if (!provider.stripe_account_id || provider.stripe_account_status !== 'active') {
-    return NextResponse.json({ error: 'Provider has not completed Stripe onboarding.' }, { status: 409 });
+  // ⚠ A COACH WHO HAS NOT CONNECTED, OR HAS DISCONNECTED, TAKES NO PAYMENT (coach-checkout.ts).
+  const notPayable = coachNotPayable(provider);
+  if (notPayable) {
+    return NextResponse.json({
+      error: notPayable === 'coach_disconnected' ? "This coach isn't taking payments right now." : 'Provider has not completed Stripe onboarding.',
+      reason: notPayable,
+    }, { status: 409 });
+  }
+  const account = provider.stripe_account_id as string;
+  // Direct charges (part B): the checkout is made ON the coach's account, so Stripe's fee comes out
+  // of the coach's share and Shape takes only its application fee. Without both Connect variables
+  // the webhook could record none of it, so the checkout stays a destination charge.
+  const direct = directChargesReady();
+  if (!direct) console.warn('[shape-app] Connect variables unset: coach checkout made as a destination charge on Shape\'s account');
+  const typedCode = normalizeCode(body.code);
+  if (typedCode === 'invalid' || (typedCode && !direct)) {
+    const reason = typedCode === 'invalid' ? 'code_invalid' : 'code_not_here';
+    return NextResponse.json({ error: CODE_MESSAGES[reason], reason }, { status: 400 });
   }
 
   // BYO commission split: resolve WHY this checkout exists (marketplace vs a
@@ -204,6 +224,17 @@ export async function POST(request: Request) {
   } catch (err) {
     console.error('[shape-app] checkout Stripe customer failed', err);
     return NextResponse.json({ error: 'Could not start checkout. Try again in a moment.' }, { status: 503 });
+  }
+  // On the coach's account the member pays as their customer THERE (stripe_connected_customers),
+  // never as their platform customer, which that account has never heard of.
+  let coachCustomerId: string | null = null;
+  if (direct) {
+    try {
+      coachCustomerId = await connectedCustomerFor(stripe, admin, { userId: user.id, account, email: user.email ?? null });
+    } catch (err) {
+      console.error('[shape-app] checkout customer on the coach account failed', err);
+      return NextResponse.json({ error: 'Could not start checkout. Try again in a moment.' }, { status: 503 });
+    }
   }
   // ⚠ A SECOND SUBSCRIPTION TO THE SAME COACH WAS ONE PRESS AWAY. A member back from Stripe
   // before the webhook landed still saw Subscribe, and paying again made two monthly charges.
@@ -314,15 +345,35 @@ export async function POST(request: Request) {
     : oneTimeCents;
   if (!priceCents) return NextResponse.json({ error: 'Price is not configured.' }, { status: 400 });
 
+  // The code box (coach-checkout.ts): a Shape code, mirrored onto the coach's account, or the
+  // coach's own. Shape takes its rate of the price after the code (owner, 2026-10-18).
+  let checkoutCode: CheckoutCode | null = null;
+  if (typedCode) {
+    try {
+      const found = await resolveCheckoutCode(stripe, {
+        code: typedCode, account, listCents: priceCents, mode: isSubscription ? 'subscription' : 'payment', platformCustomerId: customerId,
+      });
+      if (!found.ok) return NextResponse.json({ error: CODE_MESSAGES[found.reason], reason: found.reason }, { status: 400 });
+      checkoutCode = found.code;
+    } catch (err) {
+      console.error('[shape-app] checkout code lookup failed', err);
+      return NextResponse.json({ error: 'Could not check that code. Try again in a moment.' }, { status: 503 });
+    }
+  }
+  const pricedCents = afterCode(priceCents, checkoutCode);
+
   // Store-credit wallet auto-applies to one-time coach purchases: a redeemed
   // session credit covers a trainer booking, a nutrition credit covers a meal
   // plan. We read the balance now to discount the charge, and commit the spend
   // in the webhook on a completed payment (so abandoned checkouts don't burn
   // credit). At least $0.50 always remains payable so the charge is valid.
-  let chargeCents = priceCents;
+  // ⚠ A CODE AND STORE CREDIT DO NOT STACK: the code is a Stripe discount on the list price, and
+  // the credit is taken off the price Shape sends, so with both the fee would be split on a price
+  // Stripe never charged. A member who types a code keeps their credit for the next checkout.
+  let chargeCents = pricedCents;
   let storeCreditApplied = 0;
   let storeCreditRef: string | null = null;
-  const storeCreditKind = isSubscription ? null : providerRole === 'trainer' ? 'session' : 'nutrition';
+  const storeCreditKind = isSubscription || checkoutCode ? null : providerRole === 'trainer' ? 'session' : 'nutrition';
   if (storeCreditKind && priceCents > 50) {
     try {
       // H5 (2026-10-08 review): a reservation whose `checkout.session.expired` never arrived
@@ -389,33 +440,47 @@ export async function POST(request: Request) {
   // price, so the fee is what's left of the (credit-capped) charge after the
   // coach's cut. Because credit is capped at Shape's 15% above, the charge
   // always covers the coach's cut — no out-of-pocket top-up is ever needed.
-  const { applicationFeeCents } = feeSplit(priceCents, chargeCents, feeRate);
-  const successUrl = `${origin}${appendParam(successPath, 'session_id', '{CHECKOUT_SESSION_ID}')}`;
+  // With a code, the coach's cut is of the price after it (the owner's split); otherwise of the list
+  // price, with any store credit taken out of Shape's fee.
+  const { applicationFeeCents } = feeSplit(pricedCents, chargeCents, feeRate);
+  // A direct charge's return page reads the checkout on the coach's account (checkout-return.ts).
+  const successPathWithId = appendParam(successPath, 'session_id', '{CHECKOUT_SESSION_ID}');
+  const successUrl = `${origin}${direct ? appendParam(successPathWithId, 'acct', account) : successPathWithId}`;
   const cancelUrl = `${origin}${cancelPath}`;
   const returns = checkoutReturnsKey(successUrl, cancelUrl);
+  // Stripe calls for this checkout go to the coach's account on a direct charge.
+  const onCoach = direct ? { stripeAccount: account } : undefined;
+  const buyer = direct ? (coachCustomerId as string) : customerId;
 
   // One payable subscription checkout per account and coach at a time (checkout-barrier.ts):
   // claimed here, confirmed right before the create, released in the finally below.
   // Subscriptions reserve no store credit.
   let claim: CheckoutClaim | null = null;
+  let session: Awaited<ReturnType<typeof stripe.checkout.sessions.create>> | null = null;
   try {
     if (isSubscription) {
       claim = await claimCheckout(user.id, `coach-${providerRole}-${providerId}`);
-      // Handed back only on this request's terms: a changed price, fee or referral makes a new one.
-      const open = await currentCheckout(customerId, (s) => s.mode === 'subscription'
-        && s.metadata?.provider_id === String(providerId) && s.metadata?.provider_role === providerRole,
-      (s) => s.metadata?.price_cents === String(chargeCents) && s.metadata?.fee_bps === String(feeBps)
+      const sameProduct = (s: { mode?: string | null; metadata?: Record<string, string> | null }) => s.mode === 'subscription'
+        && s.metadata?.provider_id === String(providerId) && s.metadata?.provider_role === providerRole;
+      // Handed back only on this request's terms: a changed price, fee, referral or code makes a new one.
+      const sameTerms = (s: { metadata?: Record<string, string> | null }) => s.metadata?.price_cents === String(chargeCents) && s.metadata?.fee_bps === String(feeBps)
         && s.metadata?.origin === coachOrigin && (s.metadata?.referral_id ?? null) === (referralId ?? null)
-        && s.metadata?.returns === returns);
+        && s.metadata?.returns === returns && (s.metadata?.code ?? null) === (checkoutCode?.code ?? null);
+      // ⚠ A destination-charge checkout still open on Shape's account from before the move could
+      // still be paid; on a direct charge every one of them is expired, and none is handed back.
+      const open = direct
+        ? (await currentCheckout(customerId, sameProduct, () => false), await currentCheckout(buyer, sameProduct, sameTerms, Date.now(), account))
+        : await currentCheckout(customerId, sameProduct, sameTerms);
       // ⚠ ASKED HERE, WHILE HOLDING THE CLAIM AND AFTER THE OPEN CHECKOUTS ARE READ (Codex on #2353):
       // a request that waited on the claim can arrive after the first checkout was paid, and one
       // the buyer completes in another tab while this request reads them is no longer listed as
       // open. Stripe holds the subscription the moment it is paid; our row comes with the webhook.
+      // On a direct charge both are asked: a plan from before the move lives on Shape's account.
       let paid: boolean;
       try {
-        paid = await hasLiveStripeSubscription({ customerId, email: user.email ?? null }, {
-          client_id: user.id, provider_id: String(providerId), provider_role: providerRole,
-        });
+        const wanted = { client_id: user.id, provider_id: String(providerId), provider_role: providerRole };
+        paid = await hasLiveStripeSubscription({ customerId, email: user.email ?? null }, wanted)
+          || (direct && await hasLiveStripeSubscription({ customerId: buyer, email: null }, wanted, account));
       } catch (err) {
         console.error('[shape-app] checkout Stripe subscription lookup failed', err);
         return NextResponse.json({ error: 'Could not check your subscriptions. Try again in a moment.' }, { status: 503 });
@@ -424,13 +489,15 @@ export async function POST(request: Request) {
       if (open) return NextResponse.json({ url: open, creditAppliedCents: 0 });
       await claim.confirm();
     }
-    const session = await stripe.checkout.sessions.create({
+    const subscriptionMeta = { client_id: user.id, provider_id: String(providerId), provider_role: providerRole };
+    session = await stripe.checkout.sessions.create({
       mode: isSubscription ? 'subscription' : 'payment',
       line_items: [
         {
           price_data: {
             currency: 'usd',
-            unit_amount: chargeCents,
+            // A code is Stripe's discount on the list price; store credit is taken off the price.
+            unit_amount: checkoutCode ? priceCents : chargeCents,
             product_data: {
               name: storeCreditApplied > 0 ? `${provider.name} - ${itemName} (−$${(storeCreditApplied / 100).toFixed(2)} Shape credit)` : `${provider.name} - ${itemName}`,
               metadata: {
@@ -443,8 +510,10 @@ export async function POST(request: Request) {
           quantity: 1,
         },
       ],
-      customer: customerId,
+      customer: buyer,
       client_reference_id: user.id,
+      // ⚠ On a coach's account this is for people reading the dashboard: the coach can edit it, so
+      // the webhook reads the checkout's record (coach_checkouts) instead.
       metadata: {
         client_id: user.id,
         provider_id: String(providerId),
@@ -457,6 +526,7 @@ export async function POST(request: Request) {
         fee_bps: String(feeBps),
         returns,
         ...(referralId ? { referral_id: referralId } : {}),
+        ...(checkoutCode ? { code: checkoutCode.code, code_source: checkoutCode.source } : {}),
         ...(storeCreditApplied > 0 ? { store_credit_kind: String(storeCreditKind), store_credit_cents: String(storeCreditApplied) } : {}),
         ...(storeCreditRef ? { store_credit_ref: storeCreditRef } : {}),
         ...(body.item && (body.item as { planId?: unknown }).planId ? { plan_id: String((body.item as { planId?: unknown }).planId) } : {}),
@@ -464,17 +534,11 @@ export async function POST(request: Request) {
       ...(isSubscription
         ? {
             subscription_data: {
-              // Stripe requires the application fee to be positive-or-absent: a
-              // 0% (BYO) fee OMITS the field, so the full charge transfers to the
-              // coach and Shape absorbs Stripe's processing cost (the spec's
-              // deliberate launch-phase subsidy).
+              // Stripe requires the application fee to be positive-or-absent: a 0% (BYO) fee OMITS
+              // the field. On a direct charge Stripe's own fee is the coach's either way.
               ...(feeBps > 0 ? { application_fee_percent: bpsToPercent(feeBps) } : {}),
-              transfer_data: { destination: provider.stripe_account_id as string },
-              metadata: {
-                client_id: user.id,
-                provider_id: String(providerId),
-                provider_role: providerRole,
-              },
+              ...(direct ? {} : { transfer_data: { destination: account } }),
+              metadata: subscriptionMeta,
             },
           }
         : {
@@ -482,26 +546,66 @@ export async function POST(request: Request) {
               // Positive-or-absent (also covers the max-store-credit case, where
               // the fee legitimately computes to 0 at the standard rate).
               ...(applicationFeeCents > 0 ? { application_fee_amount: applicationFeeCents } : {}),
-              transfer_data: { destination: provider.stripe_account_id as string },
-              metadata: {
-                client_id: user.id,
-                provider_id: String(providerId),
-                provider_role: providerRole,
-              },
+              ...(direct ? {} : { transfer_data: { destination: account } }),
+              metadata: subscriptionMeta,
             },
           }),
       success_url: successUrl,
       cancel_url: cancelUrl,
-      allow_promotion_codes: isSubscription,
-    }, isSubscription ? CHECKOUT_CREATE_OPTIONS : undefined);
+      // A typed code is applied here, and then Stripe's own box is off (a checkout takes one). With
+      // none, a subscription takes the coach's own codes in Stripe's box (its fee is a percent, so
+      // it follows the discount); a one-time fee is a fixed amount, so its codes go through ours.
+      ...(checkoutCode ? { discounts: [checkoutCode.discount] } : { allow_promotion_codes: isSubscription }),
+    }, isSubscription ? { ...CHECKOUT_CREATE_OPTIONS, ...onCoach } : onCoach);
 
     if (!session.url) {
       await releaseReservation();
       return NextResponse.json({ error: 'Stripe did not return a checkout URL.' }, { status: 500 });
     }
+    // ⚠ THE RECORD BEFORE THE ADDRESS. On a coach's account the webhook records only a checkout
+    // Shape wrote down (coach_checkouts), and releases only the store credit recorded against it,
+    // so a checkout whose record failed is expired and never handed out.
+    if (direct) {
+      try {
+        await recordCoachCheckout(admin, {
+          stripe_checkout_session_id: session.id,
+          stripe_account_id: account,
+          client_id: user.id,
+          provider_role: providerRole,
+          provider_id: providerId,
+          mode: isSubscription ? 'subscription' : 'payment',
+          kind: isSubscription ? 'subscription' : purchaseKind,
+          plan_id: planId || null,
+          workout_id: null,
+          item_name: String(itemName).slice(0, 200),
+          origin: coachOrigin,
+          fee_bps: feeBps,
+          referral_id: referralId ?? null,
+          list_cents: priceCents,
+          charge_cents: chargeCents,
+          application_fee_cents: isSubscription ? null : applicationFeeCents,
+          store_credit_kind: storeCreditRef ? storeCreditKind : null,
+          store_credit_cents: storeCreditRef ? storeCreditApplied : 0,
+          store_credit_ref: storeCreditRef,
+          code: checkoutCode?.code ?? null,
+          code_source: checkoutCode?.source ?? null,
+        });
+      } catch (err) {
+        console.error('[shape-app] coach checkout not recorded — expired, not handed out', { session: session.id, error: err instanceof Error ? err.message : String(err) });
+        await stripe.checkout.sessions.expire(session.id, undefined, onCoach).then(() => undefined, () => undefined);
+        await releaseReservation();
+        return NextResponse.json({ error: 'Could not start checkout. Try again in a moment.' }, { status: 503 });
+      }
+    }
     return NextResponse.json({ url: session.url, creditAppliedCents: storeCreditApplied });
   } catch (err) {
     await releaseReservation();
+    // A coach's code whose own restrictions refuse this checkout (first purchase only, a minimum,
+    // another customer) is refused by Stripe at the create: the member is told about the code.
+    const stripeErr = err as { type?: string; param?: string; message?: string };
+    if (checkoutCode && stripeErr?.type === 'StripeInvalidRequestError' && /discount|promotion|coupon/i.test(`${stripeErr.param ?? ''} ${stripeErr.message ?? ''}`)) {
+      return NextResponse.json({ error: CODE_MESSAGES.code_not_here, reason: 'code_not_here' }, { status: 400 });
+    }
     if (isCheckoutInProgress(err)) {
       return NextResponse.json(
         { error: 'A checkout for this coach is being opened. Try again in a moment.', reason: 'checkout_in_progress' },

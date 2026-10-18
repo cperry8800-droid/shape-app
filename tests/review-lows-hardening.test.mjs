@@ -37,6 +37,7 @@ import { createRequire } from 'node:module';
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadRealModule } from './helpers/load-real-module.mjs';
+import { coachCheckoutEntries } from './helpers/coach-checkout-module.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require_ = createRequire(join(ROOT, 'package.json'));
@@ -482,6 +483,7 @@ async function runWebhook(event, { tables = {}, onboarding = [], subStatus = 'ac
   const route = await loadRealModule(join(ROOT, 'src/app/api/stripe/webhook/route.ts'), {
     typescript: true,
     registry: new Map([
+      ...(await coachCheckoutEntries()),
       ['next/server', nextServer],
       ['@/lib/stripe', { stripe: { webhooks: { constructEvent: (raw) => JSON.parse(raw) }, paymentIntents: { retrieve: async () => ({ application_fee_amount: 0 }) }, subscriptions: { retrieve: async () => ({ status: subStatus, items: { data: [{ current_period_end: 1800000000 }] } }) } } }],
       // The Connect helpers the webhook imports (coach direct charges, 2026-10-18), as they ship.

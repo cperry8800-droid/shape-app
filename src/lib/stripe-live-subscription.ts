@@ -10,22 +10,28 @@
 // from before it made a customer per session from the buyer's email, so customers with that
 // email are read too. A Stripe failure throws: the caller refuses rather than risk a second
 // charge.
+//
+// On a coach's own account (direct charges, `account`), the buyer is the member's customer THERE
+// (stripe_connected_customers): only that customer is asked, on that account. Customers found by
+// email on a coach's account are the coach's own business, never the member's.
 
 import { stripe } from '@/lib/stripe';
 import { ACTIVE_SUB } from '@/lib/membership-core';
 
 export async function hasLiveStripeSubscription(
   buyer: { customerId: string | null; email: string | null },
-  metadata: Record<string, string>
+  metadata: Record<string, string>,
+  account: string | null = null
 ): Promise<boolean> {
+  const opts = account ? { stripeAccount: account } : undefined;
   const ids = new Set<string>();
   if (buyer.customerId) ids.add(buyer.customerId);
-  if (buyer.email) {
+  if (buyer.email && !account) {
     const customers = await stripe.customers.list({ email: buyer.email, limit: 20 });
     for (const c of customers.data) ids.add(c.id);
   }
   for (const customer of ids) {
-    const subs = await stripe.subscriptions.list({ customer, status: 'all', limit: 50 });
+    const subs = await stripe.subscriptions.list({ customer, status: 'all', limit: 50 }, opts);
     const match = subs.data.some(
       (sub) => ACTIVE_SUB.has(sub.status) && Object.entries(metadata).every(([k, v]) => sub.metadata?.[k] === v)
     );

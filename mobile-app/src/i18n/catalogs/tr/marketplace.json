@@ -144,6 +144,7 @@
   "panel.sendMessage": "Mesaj gönder",
   "panel.typeBooking": "Rezervasyon",
   "panel.typeCheckout": "Ödeme",
+  "panel.codeLabel": "Shape veya koç kodu (isteğe bağlı)",
   "panel.typeMessage": "Mesaj",
   "panel.yourNote": "Notun",
   "pkg.included": "{count} dahil",

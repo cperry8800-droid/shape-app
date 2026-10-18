@@ -9,7 +9,8 @@
 // Read by src/app/purchase/success/page.tsx and src/app/subscribe/success/page.tsx.
 
 import { stripe } from '@/lib/stripe';
-import { acctOpts, isAccountId, madeByShape } from '@/lib/stripe-connect';
+import { acctOpts, isAccountId, shapeOrUnmarked } from '@/lib/stripe-connect';
+import { metadataFromRecord, readCoachCheckout } from '@/lib/coach-checkout';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -114,33 +115,42 @@ export async function readCheckoutReturn(sessionId: unknown, acct?: unknown): Pr
     console.error('[checkout-return] session read failed', err instanceof Error ? err.message : err);
     return { state: 'unconfirmed' };
   }
+  // ⚠ ON A COACH'S ACCOUNT THE CHECKOUT IS DESCRIBED FROM SHAPE'S RECORD (part B), as the webhook
+  // reads it: the coach can edit the checkout's metadata there, and can make and pay a checkout of
+  // their own naming themselves, which has no record. No record (or an unreadable one): nothing is
+  // vouched for.
+  let meta: Record<string, string> | null = (s.metadata as Record<string, string> | null) ?? null;
+  if (account) {
+    const rec = await readCoachCheckout(createAdminClient(), sessionId, account);
+    if (rec.error || !rec.row) return { state: 'unconfirmed' };
+    meta = metadataFromRecord(rec.row);
+  }
   // A signed-in account that did not buy it is told nothing about it.
-  const owner = s.client_reference_id || s.metadata?.client_id || null;
+  const owner = account ? meta?.client_id ?? null : s.client_reference_id || meta?.client_id || null;
   if (userId && owner !== userId) return { state: 'unconfirmed' };
-  // A checkout on a coach's account is described only when it names that coach: one the coach
-  // made for themselves, naming someone else, is not Shape's to vouch for.
-  if (account && !accountCoaches.some((c) => s.metadata?.provider_role === c.role && Number(s.metadata?.provider_id) === c.id)) {
+  // A checkout on a coach's account is described only when it names that coach.
+  if (account && !accountCoaches.some((c) => meta?.provider_role === c.role && Number(meta?.provider_id) === c.id)) {
     return { state: 'unconfirmed' };
   }
-  // ⚠ AND ONLY WHEN SHAPE MADE IT (Codex on #2401). The coach can make and pay a checkout of their
-  // own naming themselves; the webhook's origin guard refuses it, so the page must not call it
-  // paid either. Its PaymentIntent or Subscription carries the application that made it.
+  // ⚠ AND ONLY WHEN SHAPE MADE IT (Codex on #2401). Its PaymentIntent or Subscription must not name
+  // another application, and must be expanded to say so; with the record above, one Checkout made
+  // with no application at all is Shape's (stripe-connect.ts, shapeOrUnmarked).
   if (account) {
     const made = s.mode === 'subscription' ? s.subscription : s.payment_intent;
-    const application = made && typeof made === 'object' ? (made as { application?: unknown }).application : undefined;
-    if (!madeByShape(application)) return { state: 'unconfirmed' };
+    if (!made || typeof made !== 'object') return { state: 'unconfirmed' };
+    if (!shapeOrUnmarked((made as { application?: unknown }).application)) return { state: 'unconfirmed' };
   }
 
   if (s.status !== 'complete') return { state: 'not_paid' };
   const paid = s.payment_status === 'paid' || s.payment_status === 'no_payment_required';
   if (!paid && debitFailed(s)) return { state: 'failed' };
-  const kind = returnKind({ mode: s.mode, metadata: s.metadata as Record<string, string> | null });
+  const kind = returnKind({ mode: s.mode, metadata: meta });
 
   if (!userId) return { state: paid ? 'paid' : 'processing', kind, coachName: '', itemName: null };
 
   let coachName = '';
-  const role = s.metadata?.provider_role;
-  const providerId = Number(s.metadata?.provider_id);
+  const role = meta?.provider_role;
+  const providerId = Number(meta?.provider_id);
   if ((role === 'trainer' || role === 'nutritionist') && Number.isInteger(providerId) && providerId > 0) {
     try {
       const { data } = await createAdminClient()
@@ -153,7 +163,7 @@ export async function readCheckoutReturn(sessionId: unknown, acct?: unknown): Pr
       /* the page says "your coach" */
     }
   }
-  const itemName = String(s.metadata?.item_name || '').trim() || null;
+  const itemName = String(meta?.item_name || '').trim() || null;
   return { state: paid ? 'paid' : 'processing', kind, coachName, itemName };
 }
 

@@ -17,6 +17,8 @@ import { coachProfileHref } from '@/lib/coach-profile-href';
 import { membershipDetour } from '@/lib/membership-detour';
 import { hiresCoach, hasCompletedScreening, screeningHref } from '@/lib/health-screening';
 import { stripeCustomerFor } from '@/lib/stripe-customer';
+import { acctOpts, connectedCustomerFor } from '@/lib/stripe-connect';
+import { afterCode, coachNotPayable, directChargesReady, normalizeCode, recordCoachCheckout, resolveCheckoutCode, type CheckoutCode } from '@/lib/coach-checkout';
 
 type ProviderRole = 'trainer' | 'nutritionist';
 type Kind = 'booking' | 'meal_plan';
@@ -28,6 +30,8 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
   // BYO ref-link token (the web capture sets this hidden field in PR B) — the
   // last-resort checkout-time bind fallback for a ref-link visitor.
   const ref = String(formData.get('ref') ?? '').trim() || undefined;
+  // The code box on /purchase (coach-checkout.ts): a Shape code or the coach's own.
+  const typedCode = normalizeCode(formData.get('code'));
   const workoutIdRaw = formData.get('workout_id');
   const planIdRaw = formData.get('plan_id');
   const workoutId = workoutIdRaw ? Number(workoutIdRaw) : null;
@@ -104,9 +108,16 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
     }
     if (!invited) redirect(`${backHref}&error=provider_at_capacity`);
   }
-  if (!provider.stripe_account_id || provider.stripe_account_status !== 'active') {
-    redirect(`${backHref}&error=provider_not_onboarded`);
-  }
+  // ⚠ A coach who has not connected, or has disconnected, takes no payment (coach-checkout.ts).
+  const notPayable = coachNotPayable(provider);
+  if (notPayable) redirect(`${backHref}&error=${notPayable === 'coach_disconnected' ? 'coach_disconnected' : 'provider_not_onboarded'}`);
+  const account = provider.stripe_account_id as string;
+  // Direct charges (part B): the checkout is made ON the coach's account. Without both Connect
+  // variables the webhook could record none of it, so it stays a destination charge.
+  const direct = directChargesReady();
+  if (!direct) console.warn('[purchase] Connect variables unset: coach checkout made as a destination charge on Shape\'s account');
+  if (typedCode === 'invalid') redirect(`${backHref}&error=code_invalid`);
+  if (typedCode && !direct) redirect(`${backHref}&error=code_not_here`);
 
   // If a specific workout or plan was targeted, use its price + name so
   // the Stripe receipt shows the actual item. Otherwise fall back to the
@@ -179,9 +190,33 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
     ref,
   });
 
-  // No store credit on this path, so the charge equals the gross price — Shape
-  // keeps the RESOLVED fee, the coach gets the rest (shared fee helper).
-  const { applicationFeeCents } = feeSplit(priceCents, priceCents, bpsToRate(feeBps));
+  // The member's customer on the coach's account, for a direct charge.
+  let buyer: string = customerId;
+  if (direct) {
+    try {
+      buyer = await connectedCustomerFor(stripe, admin, { userId: user.id, account, email: user.email ?? null });
+    } catch (e) {
+      console.error('[purchase] customer on the coach account failed', e);
+      redirect(`${backHref}&error=checkout_failed`);
+    }
+  }
+  let checkoutCode: CheckoutCode | null = null;
+  if (typedCode) {
+    let found: Awaited<ReturnType<typeof resolveCheckoutCode>>;
+    try {
+      found = await resolveCheckoutCode(stripe, { code: typedCode, account, listCents: priceCents, mode: 'payment', platformCustomerId: customerId });
+    } catch (e) {
+      console.error('[purchase] code lookup failed', e);
+      redirect(`${backHref}&error=code_check_failed`);
+    }
+    if (!found.ok) redirect(`${backHref}&error=${found.reason}`);
+    checkoutCode = found.code;
+  }
+  // No store credit on this path, so the charge is the price after any code. Shape keeps the
+  // RESOLVED fee of it (the owner's split: its rate of the discounted price), the coach the rest.
+  const chargeCents = afterCode(priceCents, checkoutCode);
+  const { applicationFeeCents } = feeSplit(chargeCents, chargeCents, bpsToRate(feeBps));
+  const onCoach = acctOpts(direct ? account : null);
 
   let session;
   try {
@@ -197,26 +232,27 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
           },
         },
       ],
-      customer: customerId,
+      customer: buyer,
       client_reference_id: user.id,
       metadata: {
         client_id: user.id,
         provider_id: String(providerId),
         provider_role: providerRole,
         kind,
-        price_cents: String(priceCents),
+        price_cents: String(chargeCents),
         workout_id: workoutId ? String(workoutId) : '',
         plan_id: planId ? String(planId) : '',
         origin: coachOrigin,
         fee_bps: String(feeBps),
         ...(referralId ? { referral_id: referralId } : {}),
+        ...(checkoutCode ? { code: checkoutCode.code, code_source: checkoutCode.source } : {}),
       },
+      ...(checkoutCode ? { discounts: [checkoutCode.discount] } : {}),
       payment_intent_data: {
-        // Stripe requires the application fee to be positive-or-absent: a 0%
-        // (BYO) fee OMITS the field — the full charge transfers to the coach and
-        // Shape absorbs Stripe's processing (the spec's deliberate subsidy).
+        // Stripe requires the application fee to be positive-or-absent: a 0% (BYO) fee OMITS the
+        // field. On a direct charge Stripe's own fee is the coach's either way.
         ...(applicationFeeCents > 0 ? { application_fee_amount: applicationFeeCents } : {}),
-        transfer_data: { destination: provider.stripe_account_id },
+        ...(direct ? {} : { transfer_data: { destination: account } }),
         metadata: {
           client_id: user.id,
           provider_id: String(providerId),
@@ -226,16 +262,52 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
           plan_id: planId ? String(planId) : '',
         },
       },
-      success_url: `${siteOrigin}/purchase/success?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${siteOrigin}/purchase/success?session_id={CHECKOUT_SESSION_ID}${direct ? `&acct=${account}` : ''}`,
       cancel_url: `${siteOrigin}${backHref}&error=purchase_cancelled`,
-    });
+    }, onCoach);
   } catch (e) {
+    if (checkoutCode && (e as { type?: string })?.type === 'StripeInvalidRequestError') redirect(`${backHref}&error=code_not_here`);
     const msg = e instanceof Error ? e.message : String(e);
     redirect(`${backHref}&error=${encodeURIComponent(`stripe: ${msg}`.slice(0, 300))}`);
   }
 
   if (!session.url) {
     redirect(`${backHref}&error=checkout_failed`);
+  }
+  // ⚠ The record before the address: on a coach's account the webhook records only a checkout
+  // Shape wrote down (coach_checkouts).
+  if (direct) {
+    let recorded = true;
+    try {
+      await recordCoachCheckout(admin, {
+        stripe_checkout_session_id: session.id,
+        stripe_account_id: account,
+        client_id: user.id,
+        provider_role: providerRole,
+        provider_id: providerId,
+        mode: 'payment',
+        kind,
+        plan_id: planId ? String(planId) : null,
+        workout_id: workoutId ? String(workoutId) : null,
+        item_name: displayItemName ? String(displayItemName).slice(0, 200) : null,
+        origin: coachOrigin,
+        fee_bps: feeBps,
+        referral_id: referralId ?? null,
+        list_cents: priceCents,
+        charge_cents: chargeCents,
+        application_fee_cents: applicationFeeCents,
+        store_credit_kind: null,
+        store_credit_cents: 0,
+        store_credit_ref: null,
+        code: checkoutCode?.code ?? null,
+        code_source: checkoutCode?.source ?? null,
+      });
+    } catch (e) {
+      recorded = false;
+      console.error('[purchase] coach checkout not recorded — expired, not handed out', { session: session.id, error: e instanceof Error ? e.message : String(e) });
+      await stripe.checkout.sessions.expire(session.id, undefined, onCoach).then(() => undefined, () => undefined);
+    }
+    if (!recorded) redirect(`${backHref}&error=checkout_failed`);
   }
 
   redirect(session.url);

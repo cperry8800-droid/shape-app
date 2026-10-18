@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { stripe } from '@/lib/stripe';
+import { onboardingAccountFor } from '@/lib/coach-checkout';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { readJson, dbError } from '@/lib/request-utils';
@@ -59,7 +60,7 @@ export async function POST(request: Request) {
   const table = providerRole === 'trainer' ? 'trainers' : 'nutritionists';
   const admin = createAdminClient();
 
-  let query = admin.from(table).select('id, name, owner_id, stripe_account_id').eq('owner_id', user.id);
+  let query = admin.from(table).select('id, name, owner_id, stripe_account_id, stripe_account_status').eq('owner_id', user.id);
   if (providerId) query = query.eq('id', providerId);
   // capped-read-ok: ascending by id picks the account's PRIMARY (earliest) provider row,
   // deterministically — this decides which row a Stripe account attaches to, so the choice
@@ -71,22 +72,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: `No ${providerRole} profile found for this account.` }, { status: 404 });
   }
 
-  let accountId = provider.stripe_account_id as string | null;
-  if (!accountId) {
-    const account = await stripe.accounts.create({
-      type: 'standard',
-      email: user.email ?? undefined,
-      metadata: {
-        provider_id: String(provider.id),
-        provider_role: providerRole,
-        owner_id: user.id,
-      },
+  // The account on record, or a new Standard account; a coach who disconnected gets a new one,
+  // since their old account no longer lets Shape in (coach-checkout.ts, onboardingAccountFor).
+  let accountId: string;
+  try {
+    accountId = await onboardingAccountFor(stripe, admin, {
+      table,
+      provider: { id: Number(provider.id), stripe_account_id: provider.stripe_account_id as string | null, stripe_account_status: (provider as { stripe_account_status?: string | null }).stripe_account_status ?? null },
+      role: providerRole,
+      user,
     });
-    accountId = account.id;
-    await admin
-      .from(table)
-      .update({ stripe_account_id: accountId, stripe_account_status: 'pending' })
-      .eq('id', provider.id);
+  } catch (err) {
+    console.error('[stripe connect] onboarding account failed', err instanceof Error ? err.message : err);
+    return NextResponse.json({ error: 'Could not start Stripe onboarding. Try again in a moment.' }, { status: 503 });
   }
 
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? new URL(request.url).origin;

@@ -10,6 +10,11 @@
 // those carry `event.account`. A Connect event:
 //   · reads every Stripe object on the account it came from (acctOpts);
 //   · passes the ORIGIN GUARD before it writes a row a coach's metadata names (stripe-connect.ts);
+//   · ⚠ is read from Shape's RECORD of the checkout (coach_checkouts, part B), never from the
+//     checkout's metadata, which the coach can edit on their own account; a checkout Shape did not
+//     record writes nothing. Its money comes from Stripe's own objects: the amount Stripe charged,
+//     the PaymentIntent's application_fee_amount, the Subscription's application_fee_percent and
+//     what it renews at;
 //   · finds rows only among those stamped with its own account, and stamps the rows it writes;
 //   · never touches the $5 membership (platform_subscriptions), which only Shape's account sells.
 // A platform event runs exactly as it did before.
@@ -17,7 +22,8 @@
 import { NextResponse } from 'next/server';
 import type Stripe from 'stripe';
 import { stripe } from '@/lib/stripe';
-import { acctOpts, checkConnectOrigin, madeByShape } from '@/lib/stripe-connect';
+import { acctOpts, applicationIdOf, checkConnectOrigin, shapeOrUnmarked } from '@/lib/stripe-connect';
+import { discountsExpanded, feeBpsOfSubscription, metadataFromRecord, readCoachCheckout, recurringCents } from '@/lib/coach-checkout';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { coachCutCents, bpsToRate, parseFeeBpsMeta } from '@/lib/platform-fee';
 import { attributionPair, MARKETPLACE_FEE_BPS } from '@/lib/coach-origin.mjs';
@@ -272,7 +278,8 @@ async function connectOriginRefusal(
   acct: string,
   meta: Record<string, string> | null | undefined,
   application: unknown,
-  checkApplication = true
+  checkApplication = true,
+  recorded = false
 ): Promise<NextResponse | null> {
   const verdict = await checkConnectOrigin(admin, {
     account: acct,
@@ -280,6 +287,7 @@ async function connectOriginRefusal(
     providerId: meta?.provider_id,
     application,
     checkApplication,
+    recorded,
   });
   if (verdict.ok) return null;
   if (verdict.reason === 'read_failed' && isRetryableDbError(verdict.error)) {
@@ -360,25 +368,43 @@ export async function POST(request: Request) {
       // when the purchase is recorded. Both carry a Checkout.Session and run the same code.
       case 'checkout.session.async_payment_succeeded': {
         const session = event.data.object as Stripe.Checkout.Session;
-        const clientId = session.metadata?.client_id;
-        const providerId = session.metadata?.provider_id;
-        const providerRole = session.metadata?.provider_role;
-        const priceCents = Number(session.metadata?.price_cents ?? 0);
+        // ⚠ ON A COACH'S ACCOUNT THE CHECKOUT IS READ FROM SHAPE'S RECORD, NOT ITS METADATA (part B).
+        // The coach can edit a checkout's metadata on their own account (the buyer, the coach, the
+        // kind, the rate, the store-credit reservation), so Shape's record of the checkout, written
+        // when it was made (coach_checkouts), is all that is believed; one with no record is not
+        // Shape's, and writes nothing. A record is only ever a coach's sale, so a connected
+        // account's checkout never starts or renews the membership, which Shape's account alone
+        // sells, and a `plan` the coach writes on a real Shape checkout changes nothing.
+        let meta: Record<string, string> | null | undefined = session.metadata;
+        if (acct) {
+          const rec = await readCoachCheckout(admin, session.id, acct);
+          if (rec.error) {
+            if (isRetryableDbError(rec.error)) {
+              return NextResponse.json({ received: false, retry: true, error: 'checkout record not read' }, { status: 503 });
+            }
+            console.error('[stripe webhook] coach checkout record unreadable — nothing written', { session: session.id, account: acct, error: rec.error.message });
+            return NextResponse.json({ received: true, ignored: 'record_unread' });
+          }
+          if (!rec.row) {
+            console.error('[stripe webhook] Connect checkout refused by the origin guard: Shape has no record of it — nothing written', { event: event.id, session: session.id, account: acct });
+            return NextResponse.json({ received: true, ignored: 'not_recorded' });
+          }
+          meta = metadataFromRecord(rec.row);
+        }
+        const clientId = meta?.client_id;
+        const providerId = meta?.provider_id;
+        const providerRole = meta?.provider_role;
+        // What was charged: on a coach's account, what Stripe says (below), never a metadata figure.
+        let priceCents = acct ? 0 : Number(meta?.price_cents ?? 0);
 
         if (!clientId) {
           console.warn('[shape-app] checkout.session.completed missing client_id', session.id);
           break;
         }
-        // The membership is sold on Shape's own account only: a connected account's checkout
-        // never starts or renews one.
-        if (acct && session.metadata?.plan === 'shape_platform') {
-          console.error('[stripe webhook] a connected account\'s checkout claims to be the membership — ignored', { session: session.id, account: acct });
-          break;
-        }
 
         if (session.mode === 'payment') {
           // One-time purchase (booking or meal plan).
-          const kind = session.metadata?.kind;
+          const kind = meta?.kind;
           if (!providerId || !providerRole || !kind) {
             console.warn('[shape-app] one-time checkout missing metadata', session.id);
             break;
@@ -398,6 +424,7 @@ export async function POST(request: Request) {
               : session.payment_intent?.id ?? null;
           let applicationFeeCents: number | null = null;
           let paymentApplication: unknown = null;
+          let intentAmount: number | null = null;
           if (pi) {
             const intent = await stripe.paymentIntents.retrieve(pi, undefined, acctOpts(acct));
             // A retrieved intent with no application_fee_amount means the fee
@@ -406,15 +433,22 @@ export async function POST(request: Request) {
             // refunds page shows $0 instead of treating the fee as unresolvable.
             applicationFeeCents = intent.application_fee_amount ?? 0;
             paymentApplication = intent.application;
+            intentAmount = typeof intent.amount === 'number' ? intent.amount : null;
           }
           // The origin guard, before anything below writes. A Checkout Session carries no
           // `application`; its payment does (no payment intent, nothing to check: refused while
-          // STRIPE_CONNECT_APPLICATION_ID is set).
+          // STRIPE_CONNECT_APPLICATION_ID is set). The checkout is recorded (above), so a payment
+          // that carries no application at all is accepted on the record (shapeOrUnmarked).
           if (acct) {
-            const refused = await connectOriginRefusal(admin, event, acct, session.metadata, paymentApplication);
+            const refused = await connectOriginRefusal(admin, event, acct, meta, paymentApplication, true, true);
             if (refused) return refused;
+            if (applicationIdOf(paymentApplication) == null) {
+              console.warn('[stripe webhook] a Checkout-made payment on a coach account carries no application — accepted on Shape\'s record', { session: session.id, account: acct });
+            }
+            // What was charged, from Stripe: the checkout's total (after any code), else its payment.
+            priceCents = session.amount_total ?? intentAmount ?? 0;
           }
-          const purchasedPlanId = session.metadata?.plan_id || null;
+          const purchasedPlanId = meta?.plan_id || null;
           // Snapshot the sold plan onto the purchase. plan_id is ON DELETE SET
           // NULL, so without this a coach deleting a plan makes the buyer's
           // purchase disappear from their Library — money taken, nothing owned.
@@ -502,7 +536,7 @@ export async function POST(request: Request) {
           // (a DB trigger preserves them on any replay/late delivery). Only on a
           // confirmed write do we consume the referral — so a failed row-write
           // never burns the referral without recording the purchase.
-          const { origin: purchaseOrigin, feeBps: purchaseFeeBps } = attributionFromMeta(session.metadata);
+          const { origin: purchaseOrigin, feeBps: purchaseFeeBps } = attributionFromMeta(meta);
           const withOrigin = { ...purchaseRow, origin: purchaseOrigin, fee_bps: purchaseFeeBps };
           const withSnapshot: Record<string, unknown> = { ...withOrigin };
           if (planSnapshot) withSnapshot.plan_snapshot = planSnapshot;
@@ -593,15 +627,15 @@ export async function POST(request: Request) {
               return NextResponse.json({ received: false, retry: true, error: 'purchase record not written' }, { status: 503 });
             }
           } else {
-            await consumeReferral(admin, session.metadata?.referral_id, 'purchase');
+            await consumeReferral(admin, meta?.referral_id, 'purchase');
           }
           // Commit any Shape-credit applied at checkout (debits the wallet once,
           // idempotent by session id). Reserved at session-create, spent here —
           // and ONLY on a confirmed purchase write: this handler acks failures
           // with 200 (no Stripe retry), so debiting after a failed upsert would
           // burn the member's credit with no durable purchase record.
-          const creditCents = Number(session.metadata?.store_credit_cents ?? 0);
-          const creditKind = session.metadata?.store_credit_kind;
+          const creditCents = Number(meta?.store_credit_cents ?? 0);
+          const creditKind = meta?.store_credit_kind;
           // H5 (2026-10-08 review): the checkout RESERVED this credit when it created the
           // session (metadata.store_credit_ref); consuming converts the reservation into the
           // checkout debit, so the wallet does not move here. A session created before the
@@ -610,20 +644,25 @@ export async function POST(request: Request) {
           if (!purchaseErr && creditCents > 0 && (creditKind === 'session' || creditKind === 'nutrition')) {
             const consumed = await consumeStoreCredit(admin, {
               userId: clientId, kind: creditKind, sessionId: session.id, cents: creditCents,
-              reservationRef: session.metadata?.store_credit_ref || null,
+              reservationRef: meta?.store_credit_ref || null,
             });
             if (consumed.error) console.warn('[shape-app] store credit consume failed:', consumed.error);
             else if (consumed.taken < creditCents) {
               console.error('[stripe webhook] store credit shortfall: the member was discounted more than the wallet gave up', {
-                session: session.id, discounted: creditCents, debited: consumed.taken, reservationRef: session.metadata?.store_credit_ref || null,
+                session: session.id, discounted: creditCents, debited: consumed.taken, reservationRef: meta?.store_credit_ref || null,
               });
             }
           }
           // The coach is paid (1 − resolved rate) of the GROSS price — 85% on a
           // marketplace sale, 100% on a BYO sale (0% commission). Read the resolved
           // rate from the stamped fee_bps so the notified figure is what they got.
-          const grossCents = Number(session.metadata?.gross_price_cents ?? priceCents);
+          const grossCents = Number(meta?.gross_price_cents ?? priceCents);
           const payoutRate = bpsToRate(purchaseFeeBps);
+          // On a coach's account, what the coach keeps before Stripe's fee is what Stripe charged
+          // less Shape's application fee on that payment, both from Stripe's objects.
+          const coachCents = acct
+            ? Math.max(0, priceCents - (applicationFeeCents ?? 0))
+            : coachCutCents(grossCents, payoutRate);
           // ⚠ THE COACH IS TOLD WHO PAID, AND ONLY ONCE THE PURCHASE IS SAVED (fix 3c: M10). This read
           // "$X from a client for a booking", named nobody, left a paid session with nothing to
           // book, and was sent whether or not the row above was written. coachPaid keys each send on
@@ -635,7 +674,7 @@ export async function POST(request: Request) {
               providerId: Number(providerId),
               kind: kind === 'program' || kind === 'meal_plan' ? kind : 'booking',
               checkoutId: session.id,
-              coachCents: coachCutCents(grossCents, payoutRate),
+              coachCents,
               // The name read from coach_plans above, never the checkout's caller-supplied item_name
               // (Fable on #2373): a buyer could put any sentence into the coach's notice.
               itemName: planSnapshot && typeof planSnapshot.name === 'string' && planSnapshot.name.trim() ? planSnapshot.name.trim() : null,
@@ -670,7 +709,7 @@ export async function POST(request: Request) {
         }
 
         // Subscription mode — platform or trainer/nutritionist.
-        if (!providerId && session.metadata?.plan !== 'shape_platform') {
+        if (!providerId && meta?.plan !== 'shape_platform') {
           console.warn('[shape-app] sub checkout missing metadata', session.id);
           break;
         }
@@ -689,19 +728,38 @@ export async function POST(request: Request) {
         // read here already, decides: one it says has ended is recorded as ended, and starts nothing.
         let subEnded = false;
         let subApplication: unknown = null;
+        let stripeSub: Stripe.Subscription | null = null;
         if (typeof session.subscription === 'string') {
-          const sub = await stripe.subscriptions.retrieve(session.subscription, undefined, acctOpts(acct));
-          currentPeriodEnd = isoOrNull(sub.items.data[0]?.current_period_end);
-          subEnded = sub.status === 'canceled' || sub.status === 'incomplete_expired';
-          subApplication = sub.application;
+          // On a coach's account its discounts are read too: what it renews at is taken from it.
+          stripeSub = await stripe.subscriptions.retrieve(session.subscription, acct ? { expand: ['discounts'] } : undefined, acctOpts(acct));
+          currentPeriodEnd = isoOrNull(stripeSub.items.data[0]?.current_period_end);
+          subEnded = stripeSub.status === 'canceled' || stripeSub.status === 'incomplete_expired';
+          subApplication = stripeSub.application;
         }
         // The origin guard, before anything below writes (the subscription carries `application`).
+        // The checkout is recorded, so one with no application at all is accepted on the record.
         if (acct) {
-          const refused = await connectOriginRefusal(admin, event, acct, session.metadata, subApplication);
+          if (!stripeSub) {
+            console.error('[stripe webhook] a Connect subscription checkout names no subscription — nothing written', { session: session.id, account: acct });
+            return NextResponse.json({ received: true, ignored: 'no_subscription' });
+          }
+          const refused = await connectOriginRefusal(admin, event, acct, meta, subApplication, true, true);
           if (refused) return refused;
+          if (applicationIdOf(subApplication) == null) {
+            console.warn('[stripe webhook] a Checkout-made subscription on a coach account carries no application — accepted on Shape\'s record', { session: session.id, account: acct });
+          }
+          // ⚠ THE MONEY FROM STRIPE'S OWN OBJECTS. The rate is the subscription's
+          // application_fee_percent (only Shape can set it); the price is what the subscription
+          // renews at, quantity and discounts included; a record that says otherwise is told.
+          const stripeFeeBps = feeBpsOfSubscription(stripeSub);
+          if (String(stripeFeeBps) !== meta?.fee_bps) {
+            console.error('[stripe webhook] a coach subscription\'s fee differs from its record — the subscription\'s is recorded', { session: session.id, account: acct, record: meta?.fee_bps ?? null, stripe: stripeFeeBps });
+          }
+          meta = { ...meta, fee_bps: String(stripeFeeBps) };
+          priceCents = recurringCents(stripeSub, stripeSub.items.data[0]?.current_period_end ?? null) ?? session.amount_total ?? 0;
         }
 
-        if (session.metadata?.plan === 'shape_platform') {
+        if (meta?.plan === 'shape_platform') {
           const membershipSaved = await upsertPlatformSubscription(admin, {
             client_id: clientId,
             stripe_customer_id:
@@ -749,7 +807,7 @@ export async function POST(request: Request) {
         // Write the row FIRST and check the error; origin/fee_bps are write-once
         // (a DB trigger preserves them on any replay). Consume the referral only on
         // a confirmed write — so a failed write never burns it without recording.
-        const { origin: subOrigin, feeBps: subFeeBps } = attributionFromMeta(session.metadata);
+        const { origin: subOrigin, feeBps: subFeeBps } = attributionFromMeta(meta);
         let { error: subErr } = await admin
           .from('subscriptions')
           .upsert(
@@ -780,7 +838,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ received: false, retry: true, error: 'subscription record not written' }, { status: 503 });
           }
         } else {
-          await consumeReferral(admin, session.metadata?.referral_id, 'subscription');
+          await consumeReferral(admin, meta?.referral_id, 'subscription');
         }
         // Fix 3a (client-onboarding review, H7 / M9): only once the subscription is SAVED, open
         // the coach thread with Shape's welcome, alert and email the coach with the client's name
@@ -834,16 +892,24 @@ export async function POST(request: Request) {
         // Webhooks → the endpoint → events); until it does, reserve_store_credit's own 48-hour
         // sweep is what returns the credit.
         const session = event.data.object as Stripe.Checkout.Session;
-        const ref = session.metadata?.store_credit_ref;
-        // ⚠ A CONNECTED ACCOUNT'S CHECKOUT NEVER RELEASES CREDIT HERE (Codex on #2401). An expired
-        // checkout carries no payment, so nothing proves Shape made it: a coach could make one on
-        // their own account naming a live Shape checkout's store_credit_ref, and the release would
-        // free credit that checkout still holds, to be spent twice. reserve_store_credit's 48-hour
-        // sweep returns the credit instead. Part B, which first puts credit on a coach's account,
-        // binds each reservation to its checkout before releasing early.
-        if (ref && acct) {
-          console.warn('[stripe webhook] a connected account\'s expired checkout — its credit is left to the 48-hour sweep', { session: session.id, account: acct });
-          break;
+        // ⚠ ON A COACH'S ACCOUNT ONLY THE RESERVATION SHAPE RECORDED AGAINST THIS CHECKOUT IS
+        // RELEASED (Codex on #2401; part B). An expired checkout carries no payment, and its metadata
+        // is the coach's to write: one they made naming a live Shape checkout's store_credit_ref
+        // would free credit that checkout still holds, to be spent twice. The checkout's record
+        // (coach_checkouts) binds one reservation to one checkout, so the ref is read from there; a
+        // checkout with no record releases nothing, and one whose record cannot be read is left to
+        // reserve_store_credit's 48-hour sweep.
+        let ref = acct ? undefined : session.metadata?.store_credit_ref;
+        if (acct) {
+          const rec = await readCoachCheckout(admin, session.id, acct);
+          if (rec.error) {
+            if (isRetryableDbError(rec.error)) {
+              return NextResponse.json({ received: false, retry: true, error: 'checkout record not read' }, { status: 503 });
+            }
+            console.warn('[stripe webhook] a coach account\'s expired checkout: its record is unreadable — its credit is left to the 48-hour sweep', { session: session.id, account: acct });
+            break;
+          }
+          ref = rec.row?.store_credit_ref || undefined;
         }
         if (ref) {
           const { error: releaseErr } = await admin.rpc('release_store_credit_reservation', { p_ref: ref });
@@ -855,19 +921,31 @@ export async function POST(request: Request) {
       case 'customer.subscription.updated':
       case 'customer.subscription.deleted': {
         const sub = event.data.object as Stripe.Subscription;
-        // A connected account's subscription Shape did not make is none of Shape's business.
-        if (acct && !madeByShape(sub.application)) {
+        // A connected account's subscription Shape did not make is none of Shape's business. One
+        // with no application at all can only touch a row Shape wrote from a recorded checkout:
+        // the update below is on this account's rows only.
+        if (acct && !shapeOrUnmarked(sub.application)) {
           console.warn('[stripe webhook] a connected account\'s subscription not made by Shape — ignored', { subscription: sub.id, account: acct });
           break;
         }
         const status = event.type === 'customer.subscription.deleted' ? 'canceled' : sub.status;
         const currentPeriodEnd = isoOrNull(sub.items.data[0]?.current_period_end);
         const patch: Record<string, unknown> = { status, current_period_end: currentPeriodEnd };
-        // On a coach's own account the coach can change the price (their Stripe dashboard); the
-        // row follows it, so the Business page's figures are what the member pays.
-        const unitAmount = sub.items.data[0]?.price?.unit_amount;
-        if (acct && event.type === 'customer.subscription.updated' && typeof unitAmount === 'number' && Number.isSafeInteger(unitAmount) && unitAmount >= 0) {
-          patch.price_cents = unitAmount;
+        // On a coach's own account the coach can change the price, the quantity or the discount
+        // (their Stripe dashboard); the row follows what the subscription now renews at, so the
+        // Business page's figures are what the member pays. ⚠ unit_amount alone ignored the
+        // quantity and every discount (part A's left-open); recurringCents counts both. An event's
+        // discounts are ids, so they are read expanded first; unreadable, the price is left as is.
+        if (acct && event.type === 'customer.subscription.updated') {
+          let priced: Stripe.Subscription | null = sub;
+          if (!discountsExpanded(sub)) {
+            priced = await stripe.subscriptions.retrieve(sub.id, { expand: ['discounts'] }, acctOpts(acct)).then((x) => x, (err: unknown) => {
+              console.warn('[stripe webhook] coach subscription discounts unread — price left as it was', { subscription: sub.id, account: acct, error: err instanceof Error ? err.message : String(err) });
+              return null;
+            });
+          }
+          const renewsAt = priced ? recurringCents(priced, sub.items.data[0]?.current_period_end ?? null) : null;
+          if (renewsAt != null) patch.price_cents = renewsAt;
         }
 
         // ⚠ A CANCELLED SUBSCRIPTION STAYS CANCELLED (L9). Stripe never reopens one, so an update
@@ -966,8 +1044,10 @@ export async function POST(request: Request) {
         // Flip the matching one_time_purchase row and any pending refund
         // request to 'refunded'.
         const charge = event.data.object as Stripe.Charge;
-        // A connected account's charge Shape did not make is none of Shape's business.
-        if (acct && !madeByShape(charge.application)) {
+        // A connected account's charge Shape did not make is none of Shape's business. One with no
+        // application at all touches only this account's rows Shape wrote, and returns only a fee
+        // Shape took on this very charge (reconcileConnectRefund).
+        if (acct && !shapeOrUnmarked(charge.application)) {
           console.warn('[stripe webhook] a connected account\'s charge not made by Shape — ignored', { charge: charge.id, account: acct });
           break;
         }

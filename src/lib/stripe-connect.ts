@@ -63,6 +63,21 @@ export function madeByShape(application: unknown, expected: string | undefined =
   return applicationIdOf(application) === want;
 }
 
+/**
+ * Whether a payment or subscription on a coach's account is Shape's, when something else already
+ * proves the checkout behind it is (its record in coach_checkouts, or a row Shape wrote from one).
+ * The object's `application` must not name another application, and with
+ * STRIPE_CONNECT_APPLICATION_ID unset nothing passes (as madeByShape). ⚠ An object with NO
+ * application passes here, and only here: whether Checkout stamps Shape's application on the
+ * PaymentIntent or Subscription it makes on a connected account is what the end-to-end test
+ * purchase confirms (part B), and if it does not, the record alone must still let a member's
+ * payment be recorded. A coach's own checkout has no record, so it is still refused.
+ */
+export function shapeOrUnmarked(application: unknown, expected: string | undefined = process.env.STRIPE_CONNECT_APPLICATION_ID): boolean {
+  if (!String(expected ?? '').trim()) return false;
+  return applicationIdOf(application) == null || madeByShape(application, expected);
+}
+
 export type OriginRefusal = 'not_a_coach' | 'no_coach_row' | 'account_mismatch' | 'application_unset' | 'application_mismatch' | 'read_failed';
 export type OriginVerdict = { ok: true } | { ok: false; reason: OriginRefusal; error?: unknown };
 
@@ -76,12 +91,13 @@ export type OriginVerdict = { ok: true } | { ok: false; reason: OriginRefusal; e
  *   1. the account it came from is the account on record for the coach its metadata names, and
  *   2. the payment object behind it was made by Shape's Connect application, which needs
  *      STRIPE_CONNECT_APPLICATION_ID set (madeByShape); `checkApplication: false` skips this half
- *      for an event that carries no such object, an expired checkout.
+ *      for an event that carries no such object, an expired checkout. `recorded` (the checkout
+ *      is in coach_checkouts, part B) lets an object with no application through (shapeOrUnmarked).
  * Anything else is refused: the caller logs it, answers 200 and writes nothing.
  */
 export async function checkConnectOrigin(
   admin: AdminLike,
-  args: { account: string; providerRole: unknown; providerId: unknown; application?: unknown; checkApplication?: boolean },
+  args: { account: string; providerRole: unknown; providerId: unknown; application?: unknown; checkApplication?: boolean; recorded?: boolean },
   expectedApplication: string | undefined = process.env.STRIPE_CONNECT_APPLICATION_ID
 ): Promise<OriginVerdict> {
   const role = args.providerRole;
@@ -96,7 +112,9 @@ export async function checkConnectOrigin(
   if (error) return { ok: false, reason: 'read_failed', error };
   if (!data) return { ok: false, reason: 'no_coach_row' };
   if ((data as { stripe_account_id?: unknown }).stripe_account_id !== args.account) return { ok: false, reason: 'account_mismatch' };
-  if (args.checkApplication !== false && !madeByShape(args.application, expectedApplication)) {
+  // A checkout Shape recorded (coach_checkouts) is proven Shape's; its object may carry no application.
+  const madeHere = args.recorded ? shapeOrUnmarked : madeByShape;
+  if (args.checkApplication !== false && !madeHere(args.application, expectedApplication)) {
     return { ok: false, reason: String(expectedApplication ?? '').trim() ? 'application_mismatch' : 'application_unset' };
   }
   return { ok: true };

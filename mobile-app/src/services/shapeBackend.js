@@ -746,7 +746,9 @@ async function signOut() {
   return { cookieCleared };
 }
 
-async function startCheckout({ item, coach, user, role }) {
+// `code`: the code box before the redirect (a Shape code or the coach's own); the route checks it
+// and answers `reason` code_invalid / code_not_here when it does not apply.
+async function startCheckout({ item, coach, user, role, code }) {
   if (!apiBaseUrl) {
     return {
       demo: true,
@@ -772,6 +774,7 @@ async function startCheckout({ item, coach, user, role }) {
           }
         : null,
       user: user || state.user,
+      ...(code ? { code } : {}),
     }),
   });
 

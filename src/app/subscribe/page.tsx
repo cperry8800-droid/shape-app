@@ -8,6 +8,7 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import CoachRefField from '@/components/CoachRefField';
+import CheckoutCodeField from '@/components/CheckoutCodeField';
 import { startCheckout } from './actions';
 
 export const metadata = { title: 'Subscribe — Shape' };
@@ -114,6 +115,7 @@ export default async function SubscribePage({ searchParams }: Props) {
           <input type="hidden" name="provider_role" value={role} />
           <input type="hidden" name="provider_id" value={id} />
           <CoachRefField initial={refRaw} />
+          <CheckoutCodeField />
           <button
             type="submit"
             style={{

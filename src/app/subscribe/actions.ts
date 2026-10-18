@@ -27,7 +27,8 @@ import { ACTIVE_SUB } from '@/lib/membership-core';
 import { membershipDetour } from '@/lib/membership-detour';
 import { hasCompletedScreening, screeningHref } from '@/lib/health-screening';
 import { stripeCustomerFor } from '@/lib/stripe-customer';
-import { acctOpts } from '@/lib/stripe-connect';
+import { acctOpts, connectedCustomerFor } from '@/lib/stripe-connect';
+import { coachNotPayable, directChargesReady, normalizeCode, recordCoachCheckout, resolveCheckoutCode, type CheckoutCode } from '@/lib/coach-checkout';
 import { hasLiveStripeSubscription } from '@/lib/stripe-live-subscription';
 import { CHECKOUT_CREATE_OPTIONS, checkoutReturnsKey, claimCheckout, currentCheckout, isCheckoutInProgress, type CheckoutClaim } from '@/lib/checkout-barrier';
 
@@ -36,7 +37,8 @@ type ProviderRole = 'trainer' | 'nutritionist';
 async function getProviderConnectInfo(
   providerRole: ProviderRole,
   providerId: number,
-  allowAtCapacity = false
+  allowAtCapacity = false,
+  direct = false
 ): Promise<
   | { priceId: string; priceCents: number; stripeAccountId: string }
   | { error: string }
@@ -59,27 +61,27 @@ async function getProviderConnectInfo(
   if ((provider as { suspended_at?: string | null }).suspended_at) return { error: 'provider_suspended' };
   if (!allowAtCapacity && isEffectivelyAtCapacity(provider)) return { error: 'provider_at_capacity' };
   if (!provider.price || provider.price <= 0) return { error: 'price_not_set' };
-  if (!provider.stripe_account_id || provider.stripe_account_status !== 'active') {
-    return { error: 'stripe_not_onboarded' };
-  }
+  // ⚠ A coach who has not connected, or has disconnected, takes no payment (coach-checkout.ts).
+  const notPayable = coachNotPayable(provider);
+  if (notPayable) return { error: notPayable === 'coach_disconnected' ? 'coach_disconnected' : 'stripe_not_onboarded' };
 
   const priceCents = Math.round(Number(provider.price) * 100);
 
-  // Create a fresh product + price on the PLATFORM account for each
-  // Checkout Session. Cheap, and avoids needing cache columns on the
-  // trainers / nutritionists table. (We can re-introduce caching once
-  // those columns exist in the schema.)
+  // Create a fresh product + price for each Checkout Session. Cheap, and avoids needing cache
+  // columns on the trainers / nutritionists table. On a direct charge they are made on the COACH's
+  // account, where the checkout is: a price on Shape's account cannot be sold there.
+  const onCoach = acctOpts(direct ? provider.stripe_account_id : null);
   const product = await stripe.products.create({
     name: `${provider.name} — ${providerRole} subscription`,
     metadata: { provider_id: String(provider.id), provider_role: providerRole },
-  });
+  }, onCoach);
   const price = await stripe.prices.create({
     product: product.id,
     currency: 'usd',
     unit_amount: priceCents,
     recurring: { interval: 'month' },
     metadata: { provider_id: String(provider.id), provider_role: providerRole },
-  });
+  }, onCoach);
 
   return {
     priceId: price.id,
@@ -94,6 +96,8 @@ export async function startCheckout(formData: FormData): Promise<void> {
   // BYO ref-link token (the web capture sets this hidden field in PR B) — the
   // last-resort checkout-time bind fallback for a ref-link visitor.
   const ref = String(formData.get('ref') ?? '').trim() || undefined;
+  // The code box on /subscribe (coach-checkout.ts): a Shape code or the coach's own.
+  const typedCode = normalizeCode(formData.get('code'));
 
   if (!['trainer', 'nutritionist'].includes(providerRole) || !providerId) {
     redirect('/?error=invalid_subscribe');
@@ -140,6 +144,12 @@ export async function startCheckout(formData: FormData): Promise<void> {
     console.error('[subscribe] Stripe customer failed', e);
   }
   if (!customerId) redirect(`${backHref}&error=checkout_failed`);
+  // Direct charges (part B): the checkout is made ON the coach's account. Without both Connect
+  // variables the webhook could record none of it, so it stays a destination charge.
+  const direct = directChargesReady();
+  if (!direct) console.warn('[subscribe] Connect variables unset: coach checkout made as a destination charge on Shape\'s account');
+  if (typedCode === 'invalid') redirect(`${backHref}&error=code_invalid`);
+  if (typedCode && !direct) redirect(`${backHref}&error=code_not_here`);
 
   // One live subscription per coach: paying twice made two monthly charges. Our table is read
   // here, and Stripe under the checkout claim below (stripe-live-subscription.ts says why); a
@@ -179,7 +189,7 @@ export async function startCheckout(formData: FormData): Promise<void> {
   try {
     let priceResult;
     try {
-      priceResult = await getProviderConnectInfo(providerRole, providerId, allowAtCapacity);
+      priceResult = await getProviderConnectInfo(providerRole, providerId, allowAtCapacity, direct);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       redirect(`${backHref}&error=${encodeURIComponent(`stripe_setup: ${msg}`.slice(0, 300))}`);
@@ -198,17 +208,46 @@ export async function startCheckout(formData: FormData): Promise<void> {
       ref,
     });
 
-    // Handed back only on this request's terms: a changed price, fee, referral or return makes a new one.
-    const successUrl = `${siteOrigin}/subscribe/success?session_id={CHECKOUT_SESSION_ID}`;
+    const account = priceResult.stripeAccountId;
+    const onCoach = acctOpts(direct ? account : null);
+    // The member's customer on the coach's account, for a direct charge.
+    let buyer: string = customerId;
+    if (direct) {
+      try {
+        buyer = await connectedCustomerFor(stripe, createAdminClient(), { userId: user.id, account, email: user.email ?? null });
+      } catch (e) {
+        console.error('[subscribe] customer on the coach account failed', e);
+        redirect(`${backHref}&error=checkout_failed`);
+      }
+    }
+    let checkoutCode: CheckoutCode | null = null;
+    if (typedCode) {
+      let found: Awaited<ReturnType<typeof resolveCheckoutCode>>;
+      try {
+        found = await resolveCheckoutCode(stripe, { code: typedCode, account, listCents: priceResult.priceCents, mode: 'subscription', platformCustomerId: customerId });
+      } catch (e) {
+        console.error('[subscribe] code lookup failed', e);
+        redirect(`${backHref}&error=code_check_failed`);
+      }
+      if (!found.ok) redirect(`${backHref}&error=${found.reason}`);
+      checkoutCode = found.code;
+    }
+
+    // Handed back only on this request's terms: a changed price, fee, referral, code or return makes a new one.
+    const successUrl = `${siteOrigin}/subscribe/success?session_id={CHECKOUT_SESSION_ID}${direct ? `&acct=${account}` : ''}`;
     const cancelUrl = `${siteOrigin}${backHref}&error=subscribe_cancelled`;
     const returns = checkoutReturnsKey(successUrl, cancelUrl);
     let open: string | null = null;
     try {
-      open = await currentCheckout(customerId, (s) => s.mode === 'subscription'
-        && s.metadata?.provider_id === String(providerId) && s.metadata?.provider_role === providerRole,
-      (s) => s.metadata?.price_cents === String(priceResult.priceCents) && s.metadata?.fee_bps === String(feeBps)
+      const sameProduct = (s: { mode?: string | null; metadata?: Record<string, string> | null }) => s.mode === 'subscription'
+        && s.metadata?.provider_id === String(providerId) && s.metadata?.provider_role === providerRole;
+      const sameTerms = (s: { metadata?: Record<string, string> | null }) => s.metadata?.price_cents === String(priceResult.priceCents) && s.metadata?.fee_bps === String(feeBps)
         && s.metadata?.origin === coachOrigin && (s.metadata?.referral_id ?? null) === (referralId ?? null)
-        && s.metadata?.returns === returns);
+        && s.metadata?.returns === returns && (s.metadata?.code ?? null) === (checkoutCode?.code ?? null);
+      // On a direct charge, a destination-charge checkout still open on Shape's account is expired.
+      open = direct
+        ? (await currentCheckout(customerId, sameProduct, () => false), await currentCheckout(buyer, sameProduct, sameTerms, Date.now(), account))
+        : await currentCheckout(customerId, sameProduct, sameTerms);
     } catch (e) {
       console.error('[subscribe] open checkout lookup failed', e);
       redirect(`${backHref}&error=checkout_failed`);
@@ -219,7 +258,9 @@ export async function startCheckout(formData: FormData): Promise<void> {
     // open. Stripe holds the subscription the moment it is paid; our row comes with the webhook.
     let paid = false;
     try {
-      paid = await hasLiveStripeSubscription({ customerId, email: user.email ?? null }, { client_id: user.id, provider_id: String(providerId), provider_role: providerRole });
+      const wanted = { client_id: user.id, provider_id: String(providerId), provider_role: providerRole };
+      paid = await hasLiveStripeSubscription({ customerId, email: user.email ?? null }, wanted)
+        || (direct && await hasLiveStripeSubscription({ customerId: buyer, email: null }, wanted, account));
     } catch (e) {
       console.error('[subscribe] Stripe subscription lookup failed', e);
       redirect(`${backHref}&error=subscription_check_failed`);
@@ -235,7 +276,7 @@ export async function startCheckout(formData: FormData): Promise<void> {
       session = await stripe.checkout.sessions.create({
         mode: 'subscription',
         line_items: [{ price: priceResult.priceId, quantity: 1 }],
-        customer: customerId,
+        customer: buyer,
         client_reference_id: user.id,
         metadata: {
           client_id: user.id,
@@ -246,13 +287,13 @@ export async function startCheckout(formData: FormData): Promise<void> {
           fee_bps: String(feeBps),
           returns,
           ...(referralId ? { referral_id: referralId } : {}),
+          ...(checkoutCode ? { code: checkoutCode.code, code_source: checkoutCode.source } : {}),
         },
         subscription_data: {
-          // Stripe requires the application fee to be positive-or-absent: a 0%
-          // (BYO) fee OMITS the field — the full charge transfers to the coach and
-          // Shape absorbs Stripe's processing (the spec's deliberate subsidy).
+          // Stripe requires the application fee to be positive-or-absent: a 0% (BYO) fee OMITS the
+          // field. On a direct charge Stripe's own fee is the coach's either way.
           ...(feeBps > 0 ? { application_fee_percent: bpsToPercent(feeBps) } : {}),
-          transfer_data: { destination: priceResult.stripeAccountId },
+          ...(direct ? {} : { transfer_data: { destination: account } }),
           metadata: {
             client_id: user.id,
             provider_id: String(providerId),
@@ -261,16 +302,54 @@ export async function startCheckout(formData: FormData): Promise<void> {
         },
         success_url: successUrl,
         cancel_url: cancelUrl,
-        allow_promotion_codes: true,
-      }, CHECKOUT_CREATE_OPTIONS);
+        // A typed code is applied here, which turns Stripe's own box off; with none, the coach's own
+        // codes go in Stripe's box (a percent fee follows the discount).
+        ...(checkoutCode ? { discounts: [checkoutCode.discount] } : { allow_promotion_codes: true }),
+      }, { ...CHECKOUT_CREATE_OPTIONS, ...onCoach });
     } catch (e) {
       if (isCheckoutInProgress(e)) redirect(`${backHref}&error=checkout_in_progress`);
+      if (checkoutCode && (e as { type?: string })?.type === 'StripeInvalidRequestError') redirect(`${backHref}&error=code_not_here`);
       const msg = e instanceof Error ? e.message : String(e);
       redirect(`${backHref}&error=${encodeURIComponent(`stripe: ${msg}`.slice(0, 300))}`);
     }
 
     if (!session.url) {
       redirect(`${backHref}&error=checkout_failed`);
+    }
+    // ⚠ The record before the address: on a coach's account the webhook records only a checkout
+    // Shape wrote down (coach_checkouts).
+    if (direct) {
+      let recorded = true;
+      try {
+        await recordCoachCheckout(createAdminClient(), {
+          stripe_checkout_session_id: session.id,
+          stripe_account_id: account,
+          client_id: user.id,
+          provider_role: providerRole,
+          provider_id: providerId,
+          mode: 'subscription',
+          kind: 'subscription',
+          plan_id: null,
+          workout_id: null,
+          item_name: null,
+          origin: coachOrigin,
+          fee_bps: feeBps,
+          referral_id: referralId ?? null,
+          list_cents: priceResult.priceCents,
+          charge_cents: priceResult.priceCents,
+          application_fee_cents: null,
+          store_credit_kind: null,
+          store_credit_cents: 0,
+          store_credit_ref: null,
+          code: checkoutCode?.code ?? null,
+          code_source: checkoutCode?.source ?? null,
+        });
+      } catch (e) {
+        recorded = false;
+        console.error('[subscribe] coach checkout not recorded — expired, not handed out', { session: session.id, error: e instanceof Error ? e.message : String(e) });
+        await stripe.checkout.sessions.expire(session.id, undefined, onCoach).then(() => undefined, () => undefined);
+      }
+      if (!recorded) redirect(`${backHref}&error=checkout_failed`);
     }
 
     redirect(session.url);

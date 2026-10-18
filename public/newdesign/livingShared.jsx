@@ -26,6 +26,26 @@ const hexA = (hex, a) => {
   const n = parseInt(m ? m[1] : hex.slice(1), 16);
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
 };
+// The code box before a coach checkout (coach direct charges, part B): a Shape code or the coach's
+// own. A coach's checkout is made on the coach's own Stripe account, where Stripe's code box can
+// never take a Shape code, so the code goes in here and the server checks it before the redirect.
+// One value for the page, shared by every box on it (a plan's Buy and Subscribe both send it).
+const lvCode = { value: "", subs: new Set() };
+function lvCheckoutCode() { return lvCode.value.trim() || undefined; }
+function LvCodeBox({ ink }) {
+  const [v, setV] = React.useState(lvCode.value);
+  const [open, setOpen] = React.useState(!!lvCode.value);
+  React.useEffect(() => { const f = (x) => setV(x); lvCode.subs.add(f); return () => { lvCode.subs.delete(f); }; }, []);
+  const set = (x) => { lvCode.value = x; lvCode.subs.forEach((f) => f(x)); };
+  const mono = { fontFamily: lvMono, fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase" };
+  if (!open) return <button type="button" data-code-open="" onClick={() => setOpen(true)} style={{ ...mono, marginTop: 10, padding: 0, border: 0, background: "transparent", color: hexA(ink, 0.7), cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 3 }}>Have a code?</button>;
+  return (
+    <label style={{ display: "block", marginTop: 10, maxWidth: 420 }}>
+      <span style={{ ...mono, display: "block", color: hexA(ink, 0.55), marginBottom: 6 }}>Shape or coach code</span>
+      <input data-checkout-code="" value={v} onChange={(e) => set(e.target.value)} maxLength={64} autoComplete="off" spellCheck={false} style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 8, border: `1px solid ${hexA(ink, 0.25)}`, background: "transparent", color: ink, fontFamily: lvMono, fontSize: 13 }} />
+    </label>
+  );
+}
 // Where a website member completes the health screening before hiring a coach (Settings →
 // Health profile), coming back to this page once it is saved. The same address the server sends
 // /subscribe and /purchase to (src/lib/health-screening.ts screeningHref).
@@ -478,7 +498,7 @@ function LvServices({ d, light, ink, c, owner, onReviews, stHead, ratingAvg, rev
   const buyPlan = async (o) => {
     if (!o || !o.planId || !o.providerId) return;
     try {
-      const res = await fetch("/api/stripe/checkout-session", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ item: { type: "plan", name: o.name, price: o.price, planId: o.planId }, coach: { provider_id: o.providerId, provider_role: o.providerRole }, ref: (window.ShapeCoachRef && window.ShapeCoachRef.token()) || undefined, successPath: "/purchase/success", cancelPath: "/newdesign/MemberProfile.html" }) });
+      const res = await fetch("/api/stripe/checkout-session", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ item: { type: "plan", name: o.name, price: o.price, planId: o.planId }, coach: { provider_id: o.providerId, provider_role: o.providerRole }, ref: (window.ShapeCoachRef && window.ShapeCoachRef.token()) || undefined, code: lvCheckoutCode(), successPath: "/purchase/success", cancelPath: "/newdesign/MemberProfile.html" }) });
       const j = await res.json().catch(() => ({}));
       if (j.url) { window.location.href = j.url; return; }
       // Coaching needs the $5 membership first (owner, 2026-10-14). The route answers 402 with
@@ -515,6 +535,7 @@ function LvServices({ d, light, ink, c, owner, onReviews, stHead, ratingAvg, rev
   return (
     <div style={{ marginTop: 30 }}>
       {stHead ? stHead(d.offerLabel, ratingMeta) : <div style={{ fontFamily: lvMono, fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: hexA(ink, 0.5), marginBottom: 13 }}>{d.offerLabel}</div>}
+      {real && real.length ? <div style={{ marginBottom: 10 }}><LvCodeBox ink={ink} /></div> : null}
       {/* category index — mono labels with a heat underline (was filing-card tabs) */}
       <div className="lv-tabrow" style={{ display: "flex", gap: 18, alignItems: "flex-end", overflowX: "auto", scrollbarWidth: "none", borderBottom: `1px solid ${hexA(ink, 0.08)}`, marginBottom: 4 }}>
         {cats.map((k) => {
@@ -948,7 +969,7 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
     if (!provId) { setBuyErr("This coach isn't set up for checkout yet — message " + first + " instead."); return; }
     busy.current = true;
     try {
-      const res = await fetch("/api/stripe/checkout-session", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ item: { type: "Subscription", name: "Monthly coaching", price: monthlyPrice, unit: "/ month" }, coach: { provider_id: provId, provider_role: listingRole, name: d.name }, ref: (window.ShapeCoachRef && window.ShapeCoachRef.token()) || undefined, successPath: "/purchase/success", cancelPath: "/newdesign/MemberProfile.html" }) });
+      const res = await fetch("/api/stripe/checkout-session", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ item: { type: "Subscription", name: "Monthly coaching", price: monthlyPrice, unit: "/ month" }, coach: { provider_id: provId, provider_role: listingRole, name: d.name }, ref: (window.ShapeCoachRef && window.ShapeCoachRef.token()) || undefined, code: lvCheckoutCode(), successPath: "/purchase/success", cancelPath: "/newdesign/MemberProfile.html" }) });
       const j = await res.json().catch(() => ({}));
       if (res.ok && j.url) { window.location.href = j.url; return; }
       // The route's own FLAG, never a sniff of its prose — two different 409s leave
@@ -965,6 +986,7 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
   // storefront and the at-capacity invite).
   const joinPrompt = (
     <React.Fragment>
+      {provId ? <LvCodeBox ink={ink} /> : null}
       {!needsMember && memberReturn === "joined" ? <div role="status" style={{ marginTop: 11, fontFamily: lvSans, fontSize: 12.5, color: hexA(ink, 0.85) }}>Your Shape membership is active. You can subscribe to {first} now.</div> : null}
       {!needsMember && memberReturn === "pending" ? <div role="status" style={{ marginTop: 11, fontFamily: lvSans, fontSize: 12.5, color: hexA(ink, 0.85) }}>Your membership payment is still clearing. Try Subscribe again in a minute.</div> : null}
       {needsAccount ? (

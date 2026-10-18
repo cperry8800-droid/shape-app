@@ -25,6 +25,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import * as M from './helpers/definer-model.mjs';
 import { loadRealModule } from './helpers/load-real-module.mjs';
+import { coachCheckoutEntries } from './helpers/coach-checkout-module.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DIR = join(ROOT, 'supabase-migrations');
@@ -148,6 +149,7 @@ async function runCheckout({ reserve, stripeCreate = 'ok' }) {
   const route = await loadRealModule(join(ROOT, 'src/app/api/stripe/checkout-session/route.ts'), {
     typescript: true,
     registry: new Map([
+      ...(await coachCheckoutEntries()),
       ['next/server', nextServer],
       ['@/lib/stripe', { stripe: { checkout: { sessions: { create: async (args) => { created.push(args); if (stripeCreate === 'throw') throw new Error('stripe down'); return { id: 'cs_test_1', url: 'https://checkout.stripe.test/cs_test_1' }; } } } } }],
       ['@/lib/supabase/admin', { createAdminClient: () => admin }],
@@ -240,6 +242,7 @@ async function runWebhook(event, { rpc }) {
     const route = await loadRealModule(join(ROOT, 'src/app/api/stripe/webhook/route.ts'), {
       typescript: true,
       registry: new Map([
+      ...(await coachCheckoutEntries()),
         ['next/server', nextServer],
         ['@/lib/stripe', { stripe: { webhooks: { constructEvent: (raw) => JSON.parse(raw) }, paymentIntents: { retrieve: async () => ({ application_fee_amount: 0 }) } } }],
         // The Connect helpers the webhook imports (coach direct charges, 2026-10-18), as they ship.

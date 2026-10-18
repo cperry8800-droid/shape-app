@@ -15,6 +15,7 @@ import { createRequire } from 'node:module';
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadRealModule } from './helpers/load-real-module.mjs';
+import { coachCheckoutEntries } from './helpers/coach-checkout-module.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require_ = createRequire(join(ROOT, 'package.json'));
@@ -198,6 +199,7 @@ async function coachRoute({ profile = ADULT, platform = [], subscriptions = [], 
   const route = await loadRealModule(join(ROOT, 'src/app/api/stripe/checkout-session/route.ts'), {
     typescript: true,
     registry: new Map([
+      ...(await coachCheckoutEntries()),
       ['next/server', nextServer],
       ['@/lib/stripe', { stripe: { checkout: { sessions: { create: createInto({ created, createdOpts, open, prefix: 'cs_test_coach', delay: createDelay, onCreated }) } } } }],
       ['@/lib/supabase/admin', { createAdminClient: () => admin.client }],
@@ -919,7 +921,10 @@ test('the server-action checkouts (/subscribe and /purchase) take the detour, ou
   for (const rel of ['src/app/subscribe/actions.ts', 'src/app/purchase/actions.ts']) {
     const src = read(rel);
     assert.match(src, /const detour = await membershipDetour\(\{ supabase, user, backHref, origin: [^}]+\}\);\n\s+if \(detour\) redirect\(detour\);/, rel);
-    assert.match(src, /customer: customerId,/, `${rel}: the account's own Stripe customer`);
+    // On a direct charge (part B) the buyer is the member's customer on the coach's account, and
+    // otherwise the account's own platform customer.
+    assert.match(src, /customer: buyer,/, `${rel}: the account's own Stripe customer`);
+    assert.match(src, /let buyer: string = customerId;/, rel);
     assert.doesNotMatch(src, /customer_email:/, rel);
   }
   const subscribe = read('src/app/subscribe/actions.ts');
@@ -930,14 +935,14 @@ test('the server-action checkouts (/subscribe and /purchase) take the detour, ou
   // Under the claim: the price and fee, then the open checkouts on those terms, then Stripe, then
   // the hand-back or the create.
   assert.ok(at('claim = await claimCheckout(user.id, `coach-${providerRole}-${providerId}`);') < at('priceResult = await getProviderConnectInfo('));
-  assert.ok(at('await resolveCoachCheckoutOrigin(') < at('open = await currentCheckout(customerId,'));
-  assert.match(subscribe, /\(s\) => s\.metadata\?\.price_cents === String\(priceResult\.priceCents\) && s\.metadata\?\.fee_bps === String\(feeBps\)\n\s+&& s\.metadata\?\.origin === coachOrigin && \(s\.metadata\?\.referral_id \?\? null\) === \(referralId \?\? null\)\n\s+&& s\.metadata\?\.returns === returns\)/, 'on this request\'s terms, returns included');
-  assert.ok(at('open = await currentCheckout(customerId,') < at('paid = await hasLiveStripeSubscription('), 'Stripe is asked after the read');
-  assert.equal((subscribe.match(/hasLiveStripeSubscription\(/g) ?? []).length, 1, 'and only there');
+  assert.ok(at('await resolveCoachCheckoutOrigin(') < at('open = direct'));
+  assert.match(subscribe, /=> s\.metadata\?\.price_cents === String\(priceResult\.priceCents\) && s\.metadata\?\.fee_bps === String\(feeBps\)\n\s+&& s\.metadata\?\.origin === coachOrigin && \(s\.metadata\?\.referral_id \?\? null\) === \(referralId \?\? null\)\n\s+&& s\.metadata\?\.returns === returns && \(s\.metadata\?\.code \?\? null\) === \(checkoutCode\?\.code \?\? null\);/, 'on this request\'s terms, returns and code included');
+  assert.ok(at('open = direct') < at('paid = await hasLiveStripeSubscription('), 'Stripe is asked after the read');
+  assert.equal((subscribe.match(/hasLiveStripeSubscription\(/g) ?? []).length, 2, 'and only there: Shape\'s account, and the coach\'s on a direct charge');
   assert.match(subscribe, /if \(paid\) redirect\(`\$\{backHref\}&error=already_subscribed`\);\n\s+if \(open\) redirect\(open\);/);
   assert.match(subscribe, /if \(isCheckoutInProgress\(e\)\) redirect\(`\$\{backHref\}&error=checkout_in_progress`\);/);
   assert.doesNotMatch(subscribe, /idempotencyKey/, 'the claim replaced the 10-minute keys');
   assert.match(subscribe, /await claim\.confirm\(\);\n\s+session = await stripe\.checkout\.sessions\.create\(/, 'renewed right before the create');
-  assert.match(subscribe, /\}, CHECKOUT_CREATE_OPTIONS\);/);
+  assert.match(subscribe, /\}, \{ \.\.\.CHECKOUT_CREATE_OPTIONS, \.\.\.onCoach \}\);/);
   assert.match(subscribe, /\} finally \{\n    await claim\.release\(\);\n  \}/);
 });
