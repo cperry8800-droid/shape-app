@@ -50,30 +50,6 @@ export function debitFailed(s: { payment_intent?: unknown; subscription?: unknow
   return false;
 }
 
-type CoachOnAccount = { role: 'trainer' | 'nutritionist'; id: number };
-
-/**
- * The coaches whose connected account `acct` is (none, or a trainer and a nutritionist listing of
- * one person). ⚠ The return address is the buyer's to edit: an `acct` is honoured only when it is
- * a coach's account on record, so the page never reads a checkout from an account Shape does not
- * pay coaches through.
- */
-async function coachesOnAccount(acct: string): Promise<CoachOnAccount[]> {
-  const admin = createAdminClient();
-  const out: CoachOnAccount[] = [];
-  for (const role of ['trainer', 'nutritionist'] as const) {
-    const { data, error } = await admin
-      .from(role === 'trainer' ? 'trainers' : 'nutritionists')
-      .select('id')
-      .eq('stripe_account_id', acct)
-      .maybeSingle();
-    if (error) throw error;
-    const id = Number((data as { id?: unknown } | null)?.id);
-    if (Number.isSafeInteger(id) && id > 0) out.push({ role, id });
-  }
-  return out;
-}
-
 /**
  * The checkout `sessionId`, as its buyer may see it. `unconfirmed` covers everything that is not a
  * clear answer (no id, someone else's, Stripe unreachable): the page then claims nothing.
@@ -81,22 +57,25 @@ async function coachesOnAccount(acct: string): Promise<CoachOnAccount[]> {
  * often not signed in. They hold the checkout's id, which only its return address carries, so the
  * page says where the payment stands, without the coach's or the item's name.
  * `acct` (the return address's `&acct=`) is the coach's connected account a direct-charge checkout
- * was made on. It is read from there only when it is a coach's account on record, and only a
- * checkout naming that same coach is described; absent, the checkout is read from Shape's account.
+ * was made on. It is read from there only when Shape recorded this checkout on that account
+ * (coach_checkouts), and described from the record; absent, the checkout is read from Shape's account.
  */
 export async function readCheckoutReturn(sessionId: unknown, acct?: unknown): Promise<CheckoutReturn> {
   if (!isCheckoutId(sessionId)) return { state: 'unconfirmed' };
   let account: string | null = null;
-  let accountCoaches: CoachOnAccount[] = [];
+  let recordMeta: Record<string, string> | null = null;
   if (acct !== undefined && acct !== null && acct !== '') {
     if (!isAccountId(acct)) return { state: 'unconfirmed' };
-    try {
-      accountCoaches = await coachesOnAccount(acct);
-    } catch (err) {
-      console.error('[checkout-return] coach account read failed', err instanceof Error ? err.message : err);
+    // ⚠ The account is honoured only when Shape recorded THIS checkout on it (part B): never an
+    // account Shape does not pay coaches through, and still the one a checkout was made on after
+    // its coach reconnected on a new account (Codex on #2403).
+    const rec = await readCoachCheckout(createAdminClient(), sessionId, acct);
+    if (rec.error) {
+      console.error('[checkout-return] checkout record read failed', rec.error.message);
       return { state: 'unconfirmed' };
     }
-    if (!accountCoaches.length) return { state: 'unconfirmed' };
+    if (!rec.row) return { state: 'unconfirmed' };
+    recordMeta = metadataFromRecord(rec.row);
     account = acct;
   }
   let userId: string | null = null;
@@ -119,19 +98,10 @@ export async function readCheckoutReturn(sessionId: unknown, acct?: unknown): Pr
   // reads it: the coach can edit the checkout's metadata there, and can make and pay a checkout of
   // their own naming themselves, which has no record. No record (or an unreadable one): nothing is
   // vouched for.
-  let meta: Record<string, string> | null = (s.metadata as Record<string, string> | null) ?? null;
-  if (account) {
-    const rec = await readCoachCheckout(createAdminClient(), sessionId, account);
-    if (rec.error || !rec.row) return { state: 'unconfirmed' };
-    meta = metadataFromRecord(rec.row);
-  }
+  const meta: Record<string, string> | null = account ? recordMeta : (s.metadata as Record<string, string> | null) ?? null;
   // A signed-in account that did not buy it is told nothing about it.
   const owner = account ? meta?.client_id ?? null : s.client_reference_id || meta?.client_id || null;
   if (userId && owner !== userId) return { state: 'unconfirmed' };
-  // A checkout on a coach's account is described only when it names that coach.
-  if (account && !accountCoaches.some((c) => meta?.provider_role === c.role && Number(meta?.provider_id) === c.id)) {
-    return { state: 'unconfirmed' };
-  }
   // ⚠ AND ONLY WHEN SHAPE MADE IT (Codex on #2401). Its PaymentIntent or Subscription must not name
   // another application, and must be expanded to say so; with the record above, one Checkout made
   // with no application at all is Shape's (stripe-connect.ts, shapeOrUnmarked).

@@ -131,6 +131,8 @@ type Coupon = {
   duration?: string;
   duration_in_months?: number | null;
   applies_to?: { products?: string[] } | null;
+  max_redemptions?: number | null;
+  redeem_by?: number | null;
 };
 type PromotionCode = {
   id: string;
@@ -167,6 +169,23 @@ export function normalizeCode(raw: unknown): string | null | 'invalid' {
   const s = String(raw ?? '').trim();
   if (!s) return null;
   return /^[A-Za-z0-9_-]{2,64}$/.test(s) ? s : 'invalid';
+}
+
+const customerOf = (p: PromotionCode): string | null => {
+  if (!p.customer) return null;
+  return typeof p.customer === 'string' ? p.customer : (p.customer as { id?: string }).id ?? null;
+};
+
+/**
+ * The promotion code a member means, among those Stripe holds under the code they typed. ⚠ ONE
+ * VISIBLE CODE CAN BE SEVERAL PROMOTION CODES (Codex on #2403): Stripe keeps a code unique per
+ * customer, so the same letters can be one member's own code, another member's, and one open to
+ * all. The member's own wins, then the open one; 'others' when every match is someone else's.
+ */
+function pickCode(list: PromotionCode[], typed: string, customer: string | null): PromotionCode | 'others' | null {
+  const same = list.filter((p) => p.code?.toLowerCase() === typed.toLowerCase());
+  if (!same.length) return null;
+  return (customer ? same.find((p) => customerOf(p) === customer) : undefined) ?? same.find((p) => !customerOf(p)) ?? 'others';
 }
 
 const couponOf = (p: PromotionCode): Coupon | null => {
@@ -208,7 +227,7 @@ export function afterCode(listCents: number, code: { percentOff: number | null; 
  */
 export async function resolveCheckoutCode(
   stripe: CodeStripe,
-  args: { code: string; account: string; listCents: number; mode: 'payment' | 'subscription'; platformCustomerId: string | null; now?: number }
+  args: { code: string; account: string; listCents: number; mode: 'payment' | 'subscription'; platformCustomerId: string | null; coachCustomerId?: string | null; now?: number }
 ): Promise<{ ok: true; code: CheckoutCode } | { ok: false; reason: CodeRefusal }> {
   const now = Math.floor((args.now ?? Date.now()) / 1000);
   const minimumMet = (p: PromotionCode, cents: number) => {
@@ -217,15 +236,15 @@ export async function resolveCheckoutCode(
   };
   const fits = (c: Coupon) => args.mode === 'subscription' || afterCode(args.listCents, { percentOff: c.percent_off ?? null, amountOff: c.amount_off ?? null }) >= 50;
 
-  const shape = (await stripe.promotionCodes.list({ code: args.code, active: true, limit: 1, expand: ['data.promotion.coupon.applies_to'] })).data[0];
-  if (shape && shape.code?.toLowerCase() === args.code.toLowerCase()) {
+  const shape = pickCode((await stripe.promotionCodes.list({ code: args.code, active: true, limit: 20, expand: ['data.promotion.coupon.applies_to'] })).data, args.code, args.platformCustomerId);
+  if (shape === 'others') return { ok: false, reason: 'code_invalid' };
+  if (shape) {
     const c = couponOf(shape);
     if (shape.expires_at && shape.expires_at <= now) return { ok: false, reason: 'code_invalid' };
-    if (shape.customer) {
-      const customer = typeof shape.customer === 'string' ? shape.customer : (shape.customer as { id?: string }).id;
-      if (!args.platformCustomerId || customer !== args.platformCustomerId) return { ok: false, reason: 'code_invalid' };
-    }
-    if (shape.max_redemptions != null || shape.restrictions?.first_time_transaction) return { ok: false, reason: 'code_not_here' };
+    if (c?.redeem_by && c.redeem_by <= now) return { ok: false, reason: 'code_invalid' };
+    // ⚠ A limit on the code OR ITS COUPON cannot be held to on another account (Codex on #2403): the
+    // coach's account never counts against Shape's.
+    if (shape.max_redemptions != null || c?.max_redemptions != null || shape.restrictions?.first_time_transaction) return { ok: false, reason: 'code_not_here' };
     if (!usable(c) || !fits(c) || !minimumMet(shape, args.listCents)) return { ok: false, reason: 'code_not_here' };
     const mirrorId = `shape-${shape.id}`;
     const opts = { stripeAccount: args.account };
@@ -242,6 +261,8 @@ export async function resolveCheckoutCode(
         ...(c.percent_off ? { percent_off: c.percent_off } : { amount_off: c.amount_off, currency: 'usd' }),
         duration: c.duration || 'once',
         ...(c.duration === 'repeating' && c.duration_in_months ? { duration_in_months: c.duration_in_months } : {}),
+        // A deadline is portable: the mirror stops at the same moment as Shape's coupon.
+        ...(c.redeem_by ? { redeem_by: c.redeem_by } : {}),
         metadata: { shape_promotion_code: shape.id, shape_coupon: c.id },
       }, { ...opts, idempotencyKey: `shape-mirror-${shape.id}-${args.account}` });
     }
@@ -251,8 +272,9 @@ export async function resolveCheckoutCode(
     };
   }
 
-  const own = (await stripe.promotionCodes.list({ code: args.code, active: true, limit: 1, expand: ['data.promotion.coupon.applies_to'] }, { stripeAccount: args.account })).data[0];
-  if (own && own.code?.toLowerCase() === args.code.toLowerCase()) {
+  const own = pickCode((await stripe.promotionCodes.list({ code: args.code, active: true, limit: 20, expand: ['data.promotion.coupon.applies_to'] }, { stripeAccount: args.account })).data, args.code, args.coachCustomerId ?? null);
+  if (own === 'others') return { ok: false, reason: 'code_invalid' };
+  if (own) {
     const c = couponOf(own);
     if (own.expires_at && own.expires_at <= now) return { ok: false, reason: 'code_invalid' };
     if (!usable(c) || !fits(c) || !minimumMet(own, args.listCents)) return { ok: false, reason: 'code_not_here' };

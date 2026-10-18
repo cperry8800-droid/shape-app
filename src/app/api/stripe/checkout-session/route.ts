@@ -351,7 +351,7 @@ export async function POST(request: Request) {
   if (typedCode) {
     try {
       const found = await resolveCheckoutCode(stripe, {
-        code: typedCode, account, listCents: priceCents, mode: isSubscription ? 'subscription' : 'payment', platformCustomerId: customerId,
+        code: typedCode, account, listCents: priceCents, mode: isSubscription ? 'subscription' : 'payment', platformCustomerId: customerId, coachCustomerId,
       });
       if (!found.ok) return NextResponse.json({ error: CODE_MESSAGES[found.reason], reason: found.reason }, { status: 400 });
       checkoutCode = found.code;

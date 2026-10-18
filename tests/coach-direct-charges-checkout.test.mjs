@@ -256,6 +256,32 @@ test('a Shape code with a restriction Shape cannot hold to on the coach\'s accou
   assert.equal((await resolve(codeStripe({ shape: [shapeCode({}, { percent_off: 100 })] }), { mode: 'subscription' })).ok, true);
 });
 
+test('one visible code can be several promotion codes: the member\'s own, then the open one (Codex on #2403)', async () => {
+  const mine = shapeCode({ id: 'promo_mine', customer: 'cus_platform' }, { percent_off: 30 });
+  const theirs = shapeCode({ id: 'promo_theirs', customer: 'cus_someoneElse' }, { percent_off: 50 });
+  const open = shapeCode({ id: 'promo_open' }, { percent_off: 10 });
+  assert.equal((await resolve(codeStripe({ shape: [theirs, open] }))).code.percentOff, 10, 'another member\'s first in the list: the open one is used');
+  assert.equal((await resolve(codeStripe({ shape: [open, theirs, mine] }))).code.percentOff, 30, 'the member\'s own wins');
+  assert.deepEqual(await resolve(codeStripe({ shape: [theirs] })), { ok: false, reason: 'code_invalid' }, 'only someone else\'s');
+  const s = codeStripe({ shape: [open] });
+  await resolve(s);
+  assert.equal(s.calls.find((c) => c[0] === 'promotionCodes.list')[1].limit, 20, 'every match is read, not the first');
+  // On the coach's account, the member's customer there picks the coach's code made for them.
+  const coachMine = { id: 'promo_cm', code: 'TOMS10', customer: 'cus_onCoach', restrictions: {}, promotion: { coupon: { id: 'c', valid: true, percent_off: 20 } } };
+  const coachOther = { id: 'promo_co', code: 'TOMS10', customer: 'cus_x', restrictions: {}, promotion: { coupon: { id: 'c', valid: true, percent_off: 40 } } };
+  const r = await resolve(codeStripe({ coach: [coachOther, coachMine] }), { code: 'TOMS10', coachCustomerId: 'cus_onCoach' });
+  assert.deepEqual(r.code.discount, { promotion_code: 'promo_cm' });
+  assert.deepEqual(await resolve(codeStripe({ coach: [coachOther] }), { code: 'TOMS10', coachCustomerId: 'cus_onCoach' }), { ok: false, reason: 'code_invalid' });
+});
+
+test('a Shape coupon\'s own limits: a redemption cap is refused, a deadline is carried onto the mirror (Codex on #2403)', async () => {
+  assert.deepEqual(await resolve(codeStripe({ shape: [shapeCode({}, { max_redemptions: 50 })] })), { ok: false, reason: 'code_not_here' });
+  assert.deepEqual(await resolve(codeStripe({ shape: [shapeCode({}, { redeem_by: 1_700_000_000 })] })), { ok: false, reason: 'code_invalid' }, 'past its deadline');
+  const s = codeStripe({ shape: [shapeCode({}, { redeem_by: 1_900_000_000 })] });
+  assert.equal((await resolve(s)).ok, true);
+  assert.equal(s.calls.find((c) => c[0] === 'coupons.create')[1].redeem_by, 1_900_000_000, 'the mirror stops when Shape\'s coupon does');
+});
+
 test('the coach\'s own code is applied as the coach\'s promotion code; an unknown code is invalid', async () => {
   const own = { id: 'promo_coach1', code: 'TOMS10', active: true, expires_at: null, restrictions: {}, promotion: { coupon: { id: 'co_c', valid: true, percent_off: 10 } } };
   const s = codeStripe({ coach: [own] });
@@ -618,9 +644,15 @@ test('webhook: a recorded checkout\'s payment with no application at all is acce
   const other = await runWebhook(purchase(), { pi: { application: 'ca_someoneElse' } });
   assert.equal(other.body.ignored, 'application_mismatch');
   assert.equal(wrote(other), 0);
-  // The coach account half still holds: a record naming a coach whose account this is not.
-  const wrongCoach = await runWebhook(purchase(), { tables: coachTables({ coach_checkouts: [record({ provider_id: 5 })] }) });
-  assert.equal(wrongCoach.body.ignored, 'account_mismatch');
+  // ⚠ A recorded checkout is judged by its record, not the coach's account now (Codex on #2403): a
+  // payment that lands after the coach reconnected on a new account is still recorded, on the
+  // account it was made on.
+  const reconnected = await runWebhook(purchase(), { tables: coachTables({ trainers: [{ id: 4, name: 'Tom', stripe_account_id: 'acct_1BrandNewOne9' }] }) });
+  assert.equal(reconnected.status, 200);
+  assert.equal(stmts(reconnected.db.calls, 'one_time_purchases', 'upsert')[0].payload.stripe_account_id, ACCT);
+  // The coach must still exist.
+  const gone = await runWebhook(purchase(), { tables: coachTables({ trainers: [] }) });
+  assert.equal(gone.body.ignored, 'no_coach_row');
 });
 
 test('webhook: a coach\'s subscription takes its rate and price from the Subscription', async () => {
@@ -634,6 +666,10 @@ test('webhook: a coach\'s subscription takes its rate and price from the Subscri
   // A BYO record (0%) is recorded at 0 only when the subscription itself carries no fee.
   const byo = await runWebhook(subscription(), { tables: coachTables({ coach_checkouts: [record({ stripe_checkout_session_id: 'cs_test_direct2', mode: 'subscription', kind: 'subscription', origin: 'coach_link', fee_bps: 0 })] }), sub: { application_fee_percent: null } });
   assert.deepEqual([stmts(byo.db.calls, 'subscriptions', 'upsert')[0].payload.origin, stmts(byo.db.calls, 'subscriptions', 'upsert')[0].payload.fee_bps], ['coach_link', 0]);
+  // ⚠ The rate recorded is the Subscription's, not the record's: a BYO record (0%) on a
+  // subscription that carries 15% is recorded at what Stripe takes.
+  const charged = await runWebhook(subscription(), { tables: coachTables({ coach_checkouts: [record({ stripe_checkout_session_id: 'cs_test_direct2', mode: 'subscription', kind: 'subscription', origin: 'coach_link', fee_bps: 0 })] }), sub: { application_fee_percent: 15 } });
+  assert.equal(stmts(charged.db.calls, 'subscriptions', 'upsert')[0].payload.fee_bps, 1500);
   // A subscription whose rate differs from its record is said out loud (only Shape sets the rate,
   // so it is a bug to look at); the row keeps a coherent origin and rate (attributionPair).
   const odd = await runWebhook(subscription(), { sub: { application_fee_percent: 20 } });
@@ -741,6 +777,14 @@ test('the billing portal opens on the coach\'s account for a plan billed there',
   assert.equal((await post({ coach: { provider_role: 'admin', provider_id: 4 } })).status, 400);
   const platform = await post({});
   assert.equal(platform.body.url, 'https://billing.stripe.test/platform', 'without a coach: Shape\'s portal, as before');
+});
+
+test('the website\'s Settings opens each coaching plan\'s billing where it is paid', () => {
+  const src = read('public/newdesign/clientMeSettings.jsx');
+  assert.match(src, /action="MANAGE" onAction=\{\(\) => openCoachBilling\(c\)\}/, 'a coaching plan\'s MANAGE opens its billing, not the pricing page');
+  const fn = src.slice(src.indexOf('async function openCoachBilling('), src.indexOf('function PlanBillingCard('));
+  assert.match(fn, /post\(\{ coach: \{ provider_role: c\.provider_role, provider_id: c\.provider_id \}, returnPath: back \}\)/, 'the coach\'s account first');
+  assert.match(fn, /if \(!r\.ok && r\.d && r\.d\.reason === "no_coach_plan"\) r = await post\(\{ returnPath: back \}\);/, 'a plan from before the move: Shape\'s own portal');
 });
 
 // ── The migration ─────────────────────────────────────────────────────────────────────────────

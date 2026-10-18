@@ -25,7 +25,7 @@ export default {
   mutations: [
     // ── The origin guard ──
     { name: 'guard: the account half is gone (a coach writes rows for another coach)', file: CONNECT,
-      find: "  if ((data as { stripe_account_id?: unknown }).stripe_account_id !== args.account) return { ok: false, reason: 'account_mismatch' };\n",
+      find: "  if (!args.recorded && (data as { stripe_account_id?: unknown }).stripe_account_id !== args.account) return { ok: false, reason: 'account_mismatch' };\n",
       replace: '' },
     { name: 'connect: an unset application id waves every object through', file: 'src/lib/stripe-connect.ts',
       find: '  if (!want) return false;', replace: '  if (!want) return true;' },
@@ -185,12 +185,10 @@ export default {
       find: "account: r.stripe_account_id ?? null })), RENEWAL_CHECK_CAP),",
       replace: 'account: null })), RENEWAL_CHECK_CAP),' },
     // ── The return page ──
+    // Part B: an acct is honoured only when Shape recorded this checkout on it.
     { name: 'return: any acct is honoured', file: RETURN,
-      find: "    if (!accountCoaches.length) return { state: 'unconfirmed' };\n",
-      replace: '' },
-    { name: 'return: a checkout naming another coach is described', file: RETURN,
-      find: "  if (account && !accountCoaches.some((c) => meta?.provider_role === c.role && Number(meta?.provider_id) === c.id)) {",
-      replace: '  if (false) {' },
+      find: "    if (!rec.row) return { state: 'unconfirmed' };\n    recordMeta",
+      replace: "    if (!rec.row) { account = acct; }\n    recordMeta" },
     { name: 'return: the checkout is read on the platform', file: RETURN,
       find: "{ expand: ['payment_intent', 'subscription'] }, acctOpts(account));",
       replace: "{ expand: ['payment_intent', 'subscription'] });" },

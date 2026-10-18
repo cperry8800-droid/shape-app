@@ -279,10 +279,14 @@ function fakeStripe({ pi = {}, sub = {}, fee = null, charge = null } = {}) {
  * Shape would have recorded, so the record here is read off the event; a test that wants none (or
  * another) passes tables.coach_checkouts itself.
  */
-function recordFor(session, account) {
+function recordFor(session, account, tables = coaches()) {
   const m = session.metadata || {};
   const id = Number(m.provider_id);
   if (!account || !Number.isSafeInteger(id) || id <= 0 || (m.provider_role !== 'trainer' && m.provider_role !== 'nutritionist')) return null;
+  // Shape records a checkout only on the account of the coach it names (the route reads it off the
+  // coach's row), so a checkout naming another coach, or one with no account, has no record.
+  const coach = (tables[m.provider_role === 'trainer' ? 'trainers' : 'nutritionists'] || []).find((r) => r.id === id);
+  if (!coach || coach.stripe_account_id !== account) return null;
   return {
     stripe_checkout_session_id: session.id, stripe_account_id: account, client_id: m.client_id, provider_role: m.provider_role, provider_id: id,
     mode: session.mode || 'payment', kind: m.kind || (session.mode === 'subscription' ? 'subscription' : 'booking'), plan_id: m.plan_id || null, workout_id: null,
@@ -295,7 +299,7 @@ function recordFor(session, account) {
 
 async function runWebhook(event, { secret = CONNECT_SECRET, tables = {}, errors = {}, stripeOpts = {}, env = {} } = {}) {
   if (!('coach_checkouts' in tables) && String(event.type).startsWith('checkout.session') && event.data?.object) {
-    const rec = recordFor(event.data.object, event.account);
+    const rec = recordFor(event.data.object, event.account, tables);
     tables = { ...tables, coach_checkouts: rec ? [rec] : [] };
   }
   const db = fakeDb({ tables, errors });
@@ -395,15 +399,18 @@ test('webhook: a Connect subscription is read on the account and stamped; it sta
 });
 
 test('webhook ORIGIN GUARD: a checkout from another coach\'s account, or one Shape did not make, writes nothing', async () => {
+  // Part B: a checkout naming another coach, or none, has no record at Shape (Shape records one only
+  // on the named coach's own account), so it is refused before the account half is asked; that half
+  // is driven directly above.
   for (const [label, event, opts, reason] of [
-    ['another coach\'s account named', purchaseEvent({ provider_id: '5' }), {}, 'account_mismatch'],
-    ['a coach with no account named', purchaseEvent({ provider_id: '6' }), {}, 'account_mismatch'],
-    ['a coach who does not exist', purchaseEvent({ provider_id: '99' }), {}, 'no_coach_row'],
+    ['another coach\'s account named', purchaseEvent({ provider_id: '5' }), {}, 'not_recorded'],
+    ['a coach with no account named', purchaseEvent({ provider_id: '6' }), {}, 'not_recorded'],
+    ['a coach who does not exist', purchaseEvent({ provider_id: '99' }), {}, 'not_recorded'],
     // Part B: a checkout naming no coach has no record at Shape (the table's check allows only
     // trainer and nutritionist), so it is refused before the guard reads anything.
     ['no coach named', purchaseEvent({ provider_role: 'admin' }), {}, 'not_recorded'],
     ['the coach\'s own payment, not Shape\'s', purchaseEvent(), { stripeOpts: { pi: { application: 'ca_someoneElse' } } }, 'application_mismatch'],
-    ['a subscription from another coach\'s account', subEvent({ provider_id: '5' }), {}, 'account_mismatch'],
+    ['a subscription from another coach\'s account', subEvent({ provider_id: '5' }), {}, 'not_recorded'],
     ['the coach\'s own subscription, not Shape\'s', subEvent(), { stripeOpts: { sub: { application: 'ca_someoneElse' } } }, 'application_mismatch'],
   ]) {
     const r = await runWebhook(event, { tables: coaches(), ...opts });
@@ -720,8 +727,8 @@ async function loadReturn({ retrieve, tables = coaches(), errors = {} }) {
   // Shape's record of the checkout (part B), as the route wrote it, unless the test gives its own.
   if (!('coach_checkouts' in tables)) {
     const s = await retrieve();
-    const rec = s && recordFor(s, ACCT);
-    tables = { ...tables, coach_checkouts: rec ? [rec, { ...rec, stripe_account_id: OTHER_ACCT }] : [] };
+    const rec = s && recordFor(s, ACCT, tables);
+    tables = { ...tables, coach_checkouts: rec ? [rec] : [] };
   }
   const db = fakeDb({ tables, errors });
   const mod = await loadRealModule(join(ROOT, 'src/lib/checkout-return.ts'), {
@@ -758,7 +765,7 @@ test('the return page reads a checkout from a coach\'s account only when the acc
   // One person's trainer and nutritionist listings may share the account: either one is that coach.
   const { mod: both } = await loadReturn({ retrieve: async () => session({ provider_role: 'nutritionist', provider_id: '2' }), tables: { trainers: [{ id: 4, name: 'Tom', stripe_account_id: ACCT }], nutritionists: [{ id: 2, name: 'Tom', stripe_account_id: ACCT }] } });
   assert.equal((await both.readCheckoutReturn(ID, ACCT)).state, 'paid');
-  const { mod: down } = await loadReturn({ retrieve, errors: { 'select:trainers': { message: 'down' } } });
+  const { mod: down } = await loadReturn({ retrieve, errors: { 'select:coach_checkouts': { message: 'down' } } });
   assert.deepEqual(await down.readCheckoutReturn(ID, ACCT), { state: 'unconfirmed' });
 }));
 

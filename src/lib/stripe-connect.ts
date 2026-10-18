@@ -92,7 +92,8 @@ export type OriginVerdict = { ok: true } | { ok: false; reason: OriginRefusal; e
  *   2. the payment object behind it was made by Shape's Connect application, which needs
  *      STRIPE_CONNECT_APPLICATION_ID set (madeByShape); `checkApplication: false` skips this half
  *      for an event that carries no such object, an expired checkout. `recorded` (the checkout
- *      is in coach_checkouts, part B) lets an object with no application through (shapeOrUnmarked).
+ *      is in coach_checkouts, part B) lets an object with no application through (shapeOrUnmarked),
+ *      and takes the account from the record, which was written for it.
  * Anything else is refused: the caller logs it, answers 200 and writes nothing.
  */
 export async function checkConnectOrigin(
@@ -111,7 +112,11 @@ export async function checkConnectOrigin(
     .maybeSingle();
   if (error) return { ok: false, reason: 'read_failed', error };
   if (!data) return { ok: false, reason: 'no_coach_row' };
-  if ((data as { stripe_account_id?: unknown }).stripe_account_id !== args.account) return { ok: false, reason: 'account_mismatch' };
+  // ⚠ A RECORDED CHECKOUT IS JUDGED BY ITS RECORD, NOT THE COACH'S ACCOUNT NOW (Codex on #2403).
+  // Shape wrote the record for this account when it made the checkout (it is read by session AND
+  // account), so a payment that lands after the coach reconnected on a new account is still the
+  // member's, and is recorded on the account it was made on.
+  if (!args.recorded && (data as { stripe_account_id?: unknown }).stripe_account_id !== args.account) return { ok: false, reason: 'account_mismatch' };
   // A checkout Shape recorded (coach_checkouts) is proven Shape's; its object may carry no application.
   const madeHere = args.recorded ? shapeOrUnmarked : madeByShape;
   if (args.checkApplication !== false && !madeHere(args.application, expectedApplication)) {

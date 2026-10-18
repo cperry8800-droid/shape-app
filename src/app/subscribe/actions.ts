@@ -224,7 +224,7 @@ export async function startCheckout(formData: FormData): Promise<void> {
     if (typedCode) {
       let found: Awaited<ReturnType<typeof resolveCheckoutCode>>;
       try {
-        found = await resolveCheckoutCode(stripe, { code: typedCode, account, listCents: priceResult.priceCents, mode: 'subscription', platformCustomerId: customerId });
+        found = await resolveCheckoutCode(stripe, { code: typedCode, account, listCents: priceResult.priceCents, mode: 'subscription', platformCustomerId: customerId, coachCustomerId: direct ? buyer : null });
       } catch (e) {
         console.error('[subscribe] code lookup failed', e);
         redirect(`${backHref}&error=code_check_failed`);
