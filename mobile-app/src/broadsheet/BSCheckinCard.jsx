@@ -144,10 +144,11 @@ export function bsCiSamePatch(yesterday, today) {
 }
 
 export function bsCiHM(h) {
-  const n = Number(h);
+  const n = h == null ? NaN : Number(h);
   if (!Number.isFinite(n)) return '—';
-  const hh = Math.floor(n);
-  const mm = Math.round((n - hh) * 60);
+  const total = Math.round(n * 60); // in whole minutes first, so 7.999h reads 8h, never 7h 60
+  const hh = Math.floor(total / 60);
+  const mm = total % 60;
   return mm ? `${hh}h ${String(mm).padStart(2, '0')}` : `${hh}h`;
 }
 
@@ -247,7 +248,7 @@ function BSCheckinDay({ onOpen, dayIso }) {
   useEffect(() => () => { alive.current = false; }, []);
   // The newest answer per field, numbered, so an older save that fails never undoes a newer one.
   const latest = useRef({ n: 0 });
-  const failures = useRef(0); // check-in saves that failed, so Details can tell whether to leave
+  const failures = useRef(0); // saves that failed (answers and glasses), so Details can tell whether to leave
   // Litres added on screen whose save has not answered yet: the server's total plus these is what shows.
   const waterPending = useRef(0);
   const [, bump] = useState(0); // a re-render, for a tap that finds its day already over
@@ -333,7 +334,7 @@ function BSCheckinDay({ onOpen, dayIso }) {
     setWater((w) => ({ ...w, l: round(w.l + deltaL) }));
     setErr(null);
     if (!signedIn) return; // the preview counts locally and saves nothing
-    if (!window.ShapeHydration?.add) { setWater((w) => ({ ...w, l: round(w.l - deltaL) })); setErr('water'); return; }
+    if (!window.ShapeHydration?.add) { setWater((w) => ({ ...w, l: round(w.l - deltaL) })); failures.current += 1; setErr('water'); return; }
     waterPending.current += deltaL;
     bsCiEnqueue('water', uid, () => window.ShapeHydration.add(deltaL)).then((d) => {
       waterPending.current -= deltaL;
@@ -342,16 +343,18 @@ function BSCheckinDay({ onOpen, dayIso }) {
       waterPending.current -= deltaL;
       if (!alive.current) return;
       setWater((w) => ({ ...w, l: round(w.l - deltaL) }));
+      failures.current += 1;
       setErr('water');
     });
   };
 
-  // ⚠ DETAILS WAITS FOR THE SAVES ON THEIR WAY (Codex P2 on #2398). Leaving at once unmounts this
-  // card, so the page would read the metrics cache from before the save, and a save that then
-  // failed could no longer say so. It opens once they have settled, and stays here if one failed.
+  // ⚠ DETAILS WAITS FOR THE SAVES ON THEIR WAY, ANSWERS AND GLASSES (Codex P2 on #2398). Leaving
+  // at once unmounts this card, so the page would read the totals from before the save, and a save
+  // that then failed could no longer say so. It opens once both lines have settled, and stays here
+  // if one failed.
   const openDetails = () => {
     const before = failures.current;
-    bsCiLines.checkin.then(() => { if (alive.current && failures.current === before) onOpen(); });
+    Promise.all([bsCiLines.checkin, bsCiLines.water]).then(() => { if (alive.current && failures.current === before) onOpen(); });
   };
 
   // ── walkthrough navigation ──

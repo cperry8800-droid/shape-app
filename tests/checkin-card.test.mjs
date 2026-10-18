@@ -190,6 +190,14 @@ test('"Mostly" is said only for a real majority of at least three answered days'
   assert.equal(CARD.bsCiMostly([]), null);
 });
 
+test('hours read as hours and minutes, and a wearable\'s 7.999h reads 8h, never "7h 60"', () => {
+  assert.equal(CARD.bsCiHM(7.5), '7h 30');
+  assert.equal(CARD.bsCiHM(7), '7h');
+  assert.equal(CARD.bsCiHM(7.1667), '7h 10');
+  assert.equal(CARD.bsCiHM(7.999), '8h');
+  assert.equal(CARD.bsCiHM(null), '—');
+});
+
 // ── The card and its walkthrough ─────────────────────────────────────────────
 
 test('the card is the door: Start walks one check per screen, every tap saves, and Home ends on one line', async () => {
@@ -731,6 +739,38 @@ test('Details waits for saves on their way, and stays on Home if one fails (Code
     await m.flush();
     assert.equal(opened, 0, 'Details left after the save failed, so the member never saw it');
     assert.match(m.text(), /Could not save check-in/);
+  } finally { m.unmount(); }
+});
+
+test('Details waits for a glass on its way too, and stays on Home if it fails (Codex P2 on #2398)', async () => {
+  let opened = 0;
+  let land;
+  env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
+  dom.window.ShapeHydration.add = () => new Promise((r) => { land = r; });
+  let m = await mount({ onOpen: () => { opened += 1; } });
+  try {
+    await m.click(/\+ Glass/);
+    await m.click(/Details/);
+    await m.flush();
+    assert.equal(opened, 0, 'Details left while the glass was still saving');
+    land({ ok: true, hydrationL: 0.7366 });
+    await m.flush();
+    assert.equal(opened, 1, 'Details never opened once the glass landed');
+  } finally { m.unmount(); }
+
+  opened = 0;
+  let fail;
+  env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
+  dom.window.ShapeHydration.add = () => new Promise((_, reject) => { fail = reject; });
+  m = await mount({ onOpen: () => { opened += 1; } });
+  try {
+    await m.click(/\+ Glass/);
+    await m.click(/Details/);
+    fail(new Error('500'));
+    await m.flush();
+    await m.flush();
+    assert.equal(opened, 0, 'Details left after the glass failed, so the member never saw it');
+    assert.match(m.text(), /Could not log water/);
   } finally { m.unmount(); }
 });
 
