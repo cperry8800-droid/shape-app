@@ -146,6 +146,7 @@ const SHAPE_ARCHITECTURE: ShapeArchitecture = {
     ] },
     { layer: 'The Loop (member value)', serves: 'Member', purpose: 'The daily reason to open the app.', pieces: ['Train', 'Eat', 'Habits', 'Goals', 'Shape Score', 'Progress hub', 'Library', 'Store'], gaps: [
       { task: 'Train deck now reflects coach Adjust (bsApplyTrainAdjust over client_programs.detail.training): intensity scales loads + shown RPE, the weekly split re-themes days + sets coach rest days, the note rides onto the day — the live session/preview inherit the scaled moves. Banner still summarizes. Remaining: full per-day exercise authoring (coach can\'t yet write new moves, only tune)', status: 'in-progress', priority: 'P3' },
+      { task: 'One-tap daily check-in on Home (docs/REVIEW-2026-10-18-daily-checkin.md; rulings made 2026-10-18): a save per tap, five-word scales stored as 2/4/6/8/10, Same as yesterday, Rested on the sleep step, a streak and no points, the card from 4 a.m., no −7 for a missed weekly check-in while the switch is off. Four designs previewed (A: one card on Home, B: yesterday\'s ticket, C: from the reminder, D: answer without opening); A then C recommended', status: 'not-started', priority: 'P2' },
       { task: 'On-device macro-read from a meal photo', status: 'not-started', priority: 'P3' },
       { task: 'Some Progress sub-data still illustrative', status: 'not-started', priority: 'P3' },
     ] },
@@ -612,6 +613,19 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
   const auto = (ok: boolean): 'done' | 'pending' => (ok ? 'done' : 'pending');
 
   return [
+    {
+      section: 'Shape Radio always live, the Profile masthead pinned, the Kitchen\'s filters and time tabs, and the engine\'s check-in read — #2397. No migration',
+      items: [
+        { label: 'Shape Radio has no off (owner, 2026-10-18: "remove the radio toggle, just have shape radio live on app but doesnt play unless you click on volume or allow it to play sound"). The station is always on air in the app and muted until the ask-prompt\'s yes or the speaker on the radio bar; the choice is kept on the device. Gone: the Radio quick switch, Settings -> Shape Radio On/Off, the Radio page\'s Stop and the prompt\'s "Change anytime in settings". The website needed nothing: its Radio page plays only on Tune in', status: 'done' },
+        { label: 'The member and coach profiles render inside BSPage, so the condensed masthead pins once the page\'s own masthead scrolls away (owner: "like all the other pages"). useBSPinnedMastTop measures the bar in layout px (offsetHeight); its tab rows and the Posts jump sit under it at every text size (Codex P2, fixed: the zoom landed twice)', status: 'done' },
+        { label: 'Kitchen (app): the filter toggles sit behind one Filters dropdown that names what is on, and the time tabs are four centred cells that show one course right under the sticky row instead of scrolling down to it (owner: "so i dont have to scroll back up"). The jump and scroll-spy code (services/jumpRow.mjs) is retired', status: 'done' },
+        { label: 'The member\'s engine reads their weekly check-ins (ShapeCheckins.mine; it asked for a list() that never existed), so checkin_overdue can lead Home and reach a push; not read at all while the Check-ins switch is off', status: 'done' },
+        { label: 'Answered: what the Check-ins switch does (Home check-in prompts, the vitals leads and the check-in notifications; not the page, the member\'s own reminders, the coach\'s view or the −7). The −7 with the switch off is decided: no charge (lands with the check-in build)', status: 'done' },
+        { label: 'Review: Codex, two rounds; one P2 (the text-size zoom) confirmed in Chromium and fixed; none on 6b98eee. Rendered in headless Chromium on the built /m/ bundle: the radio bar, the Kitchen dropdown and tabs (including a tap from 1,485px down a list), and the Profile at 1,100px', status: 'done' },
+        { label: 'The website\'s Kitchen (recipesPage.jsx) still runs its toggles and jump row off a phone\'s edge', status: 'pending' },
+        { label: 'No pass on a phone: the radio\'s first play after a member unmutes is still subject to the platform\'s autoplay rule (a refused play reads crossed out and the next tap plays)', status: 'manual' },
+      ],
+    },
     {
       section: 'Business in the coach app, and the listing tools in Your practice — #2395. No migration',
       items: [

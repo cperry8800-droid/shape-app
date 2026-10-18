@@ -45,7 +45,6 @@ import { bsRecipesStore, bsRecipesList, bsRecipePointer, bsRecipesUidSync, bsSpl
 import { bsCookCommand } from '../services/cookCommands.mjs';
 import { bsMergeMise, bsPrepOrder, bsPrepMatch, bsPrepWeekKey, bsScaleQty } from '../services/mealPrep.mjs';
 import { bsMakeAheadIndex, bsPlanByDow, bsPlanMealsOn, bsPrepCovers, bsPrepDueTonight, bsPrepRecordsFor, bsYmdAdd, bsYmdIn } from '../services/prepAhead.mjs';
-import { bsJumpLine, bsJumpActive, bsJumpAtEnd, bsJumpScrollTop } from '../services/jumpRow.mjs';
 import { isShapeWelcome, shapeWelcomeShown } from '../services/shapeWelcome.mjs';
 import { bsRouteNotification, bsHandOver, bsRouteFor, bsAccountCoachRole, bsChatOwner, BS_COACH_PAGES } from './bsNotificationRoute.mjs';
 import { bsNormalizeProfileCustom, bsProfileWall, bsProfileShelf, bsProfileStartLine, bsProfileLine, bsStartLineState, bsValidStartDate, bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX, BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX, BS_PIN_KINDS, BS_PROFILE_PROMPTS, BS_COACH_PROMPTS, bsPinKindLabel, bsPinKindToken, bsPromptLabel, bsPromptToken } from '../services/profileCustom.mjs';
@@ -418,14 +417,14 @@ function bsFxTint(fxColor, t) {
 }
 
 // Renders the music-reactive overlay (edge glow / bloom / hologram DJ)
-// only while radio is on, not paused, and fxMode != 'off'.
+// only while the radio's sound is on (not paused) and fxMode != 'off'.
 // floor = the CSS px the tab bar takes at the bottom of this screen (0 where
 // there is none): the hologram's booth stands on it instead of under it.
 function BSRadioFx({ floor = 0 }) {
   const r = useBSRadio();
   const t = useBS();
   if (bsSdReduced()) return null; // the OS reduced-motion signal outranks the fx opt-in
-  if (!r.radioOn || r.paused) return null;
+  if (r.paused) return null;
   if (!r.fxMode || r.fxMode === 'off') return null;
   if (typeof RadioEffects !== 'function') return null;
   // ⚠ THE ISLAND CHIP NAMES THE STATION AND NOTHING ELSE. It read
@@ -7603,10 +7602,12 @@ function bsSkParseIngredient(s) {
 // Owner pick 2026-09-15 off docs/REVIEW-2026-09-15-about-and-kitchen.md §K3,
 // for BOTH surfaces: public/newdesign/recipesPage.jsx is the website's copy and
 // this is the app's. A hundred recipes grouped by how long they take to cook —
-// under 15 minutes · 15 to 30 · 30 to 60 · over an hour — with a sticky jump
-// row between the courses, search and the filters as toggles on one strip, and
-// "Today's board" putting three dishes in large type for the reader who does
-// not want to choose.
+// under 15 minutes · 15 to 30 · 30 to 60 · over an hour — and "Today's board"
+// putting three dishes in large type for the reader who does not want to choose.
+// ⚠ THE APP NO LONGER LAYS THE COURSES OUT ONE AFTER ANOTHER (owner, 2026-10-18).
+// Its time tabs pick ONE course and show it right under the sticky tab row, and
+// its filters sit behind one dropdown; the website still lists every course with
+// a jump row and keeps its toggles on a strip. The rules below are unchanged.
 //
 // ⚠ THE RULES ARE THE WEBSITE'S, LIFTED RATHER THAN RE-DERIVED, so the two
 // surfaces put the same recipe in the same course and show the SAME board on
@@ -7781,6 +7782,36 @@ function BSKmToggle({ label, on, color, onClick, count }) {
   );
 }
 
+// A `position: sticky` row inside BSPage's own `.bs-scroll` must stick BELOW the
+// CONDENSING masthead BSPage hangs over the top of that scroller once it passes
+// 64px (iosAppBroadsheet.jsx, BSPage), or spend the whole scroll underneath it.
+// The offset is MEASURED off that bar rather than restating its padding + row
+// height, so a safe-area inset, a notch floor or a text-size change moves the
+// two together. Used by the Kitchen menu's time tabs and the profile tab rows.
+// ⚠ `offsetHeight`, NOT `getBoundingClientRect().height` (Codex, P2 on #2397).
+// The Small and Large text sizes are a CSS `zoom` on #bs-phone-surface, and the
+// rect is in ZOOMED screen px while `top` is laid out inside the same zoomed
+// surface, so the zoom landed twice: measured in Chromium, the row hung 12px
+// below the bar at Large and slid 8px under it at Small. offsetHeight is the
+// bar's own layout height, which is the unit `top` is written in.
+function useBSPinnedMastTop() {
+  const [top, setTop] = useStateBSC(0);
+  React.useEffect(() => {
+    const measure = () => {
+      try {
+        const el = document.querySelector('[data-bs-pinned-mast]');
+        const h = el ? Math.round(el.offsetHeight || 0) : 0;
+        setTop(h > 0 ? h : 0);
+      } catch (e) { /* no DOM (the mount harness) — 0 is the honest answer */ }
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    const later = setTimeout(measure, 320);
+    return () => { window.removeEventListener('resize', measure); clearTimeout(later); };
+  }, []);
+  return top;
+}
+
 // Recipe box — the Shape Kitchen catalog as the Menu.
 function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onProfile = () => {} }) {
   const t = useBS();
@@ -7794,29 +7825,12 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
   const [pros, setPros] = useStateBSC(false);
   const [savedOnly, setSavedOnly] = useStateBSC(false);
   const [expanded, setExpanded] = useStateBSC(() => new Set());
-  const [activeCourse, setActiveCourse] = useStateBSC(0);
-  // The jump row sticks inside BSPage's own `.bs-scroll`, and BSPage hangs a
-  // CONDENSING masthead over the top of that scroller once it passes 64px
-  // (iosAppBroadsheet.jsx:534-543). A row stuck at top:0 would therefore spend
-  // the whole scroll underneath it. The offset is MEASURED off that bar rather
-  // than restating its padding + row height, so a safe-area inset, a notch
-  // floor or a text-size change moves the two together.
-  const [stickyTop, setStickyTop] = useStateBSC(0);
-  const jumpRef = React.useRef(null);
-
-  React.useEffect(() => {
-    const measure = () => {
-      try {
-        const el = document.querySelector('[data-bs-pinned-mast]');
-        const h = el ? Math.round(el.getBoundingClientRect().height) : 0;
-        setStickyTop(h > 0 ? h : 0);
-      } catch (e) { /* no DOM (the mount harness) — 0 is the honest answer */ }
-    };
-    measure();
-    window.addEventListener('resize', measure);
-    const later = setTimeout(measure, 320);
-    return () => { window.removeEventListener('resize', measure); clearTimeout(later); };
-  }, []);
+  // The course the time tabs show; null = the first course with anything in it.
+  const [course, setCourse] = useStateBSC(null);
+  const [filtersOpen, setFiltersOpen] = useStateBSC(false);
+  // The time tabs stick below BSPage's condensing masthead (useBSPinnedMastTop).
+  const stickyTop = useBSPinnedMastTop();
+  const tabsAnchorRef = React.useRef(null);
 
   const recId = (r) => `recipe:${bsSkSlug(r.title)}`;
   const savedIds = new Set(lib.filter((x) => x.kind === 'recipe').map((x) => x.id));
@@ -7854,61 +7868,37 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
   const board = (!anyFilter && !searching) ? bsKmBoardPicks(courses, bsKmDaySeed()) : [];
   const toggleExpanded = (key) => setExpanded((prev) => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n; });
 
-  // Scroll spy for the jump row: the last course whose head has reached the
-  // stuck row is the one you are reading. The scroller is found from our OWN
-  // node rather than by `document.querySelector('.bs-scroll')` — that class
-  // marks many scrollers in this app (rails included) and the first in the
-  // document is not reliably the page's.
-  // ⚠ THE SPY AND THE JUMP SHARE ONE LINE (bsJumpLine, services/jumpRow.mjs).
-  // They used to measure from different tops, and every tab lit the course
-  // before the one it had scrolled to.
-  const jumpHost = () => (jumpRef.current && jumpRef.current.closest ? jumpRef.current.closest('.bs-scroll') : null);
-  const jumpLineOf = (host) => bsJumpLine({ hostTop: host.getBoundingClientRect().top, stickyTop, rowHeight: jumpRef.current.offsetHeight });
-  // A tapped tab stays lit until the member scrolls by hand: the smooth scroll
-  // would otherwise light every course it passes on the way, and a course near
-  // the end of a filtered menu may never reach the line at all.
-  const jumpPin = React.useRef(-1);
-  const shownLen = shown.length;
-  React.useEffect(() => {
-    const host = jumpHost();
-    if (!host) return undefined;
-    const onScroll = () => {
-      if (jumpPin.current >= 0) return;
-      try {
-        const line = jumpLineOf(host);
-        const tops = BS_KM_COURSES.map((c) => {
-          const el = document.getElementById(`bskm-${c.key}`);
-          return el ? el.getBoundingClientRect().top : null;
-        });
-        setActiveCourse(bsJumpActive({ tops, line, atEnd: bsJumpAtEnd(host), viewBottom: host.getBoundingClientRect().bottom }));
-      } catch (e) { /* the spy is an affordance, never a render dependency */ }
-    };
-    const byHand = () => { jumpPin.current = -1; };
-    const HAND = ['wheel', 'touchstart', 'pointerdown', 'keydown'];
-    HAND.forEach((ev) => host.addEventListener(ev, byHand, { passive: true }));
-    host.addEventListener('scroll', onScroll, { passive: true });
-    onScroll();
-    return () => {
-      HAND.forEach((ev) => host.removeEventListener(ev, byHand));
-      host.removeEventListener('scroll', onScroll);
-    };
-  }, [stickyTop, shownLen]);
-
-  const jumpTo = (key, i) => {
-    jumpPin.current = i;
-    setActiveCourse(i);
+  // The tabs show ONE course. The member's pick holds while it has anything in
+  // it; a filter or a search that empties it falls back to the first course that
+  // has something, so the list under the row is never blank while the menu is not.
+  const firstFull = courses.findIndex((c) => c.rows.length > 0);
+  const picked = (course != null && courses[course] && courses[course].rows.length) ? course : firstFull;
+  // A tap swaps the list under the row and leaves the row where it is. When the
+  // row is stuck (the member is down in a list) the page goes back to the row's
+  // own place, which on screen is exactly where the stuck row already sits, so
+  // the new list starts right under it and nothing appears to move. When the row
+  // is not stuck, nothing scrolls at all.
+  const pickCourse = (i) => {
+    setCourse(i);
     try {
-      const host = jumpHost();
-      const el = document.getElementById(`bskm-${key}`);
-      if (!host || !el) return;
-      const y = bsJumpScrollTop({ scrollTop: host.scrollTop, top: el.getBoundingClientRect().top, line: jumpLineOf(host) });
-      // ⚠ `behavior: 'smooth'` is the OPTION, and an option beats the element's
-      // own `scroll-behavior`, so a CSS reduced-motion rule cannot switch it off
-      // the way it can for an anchor jump. The preference is read here instead.
-      const still = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      host.scrollTo({ top: y, behavior: still ? 'auto' : 'smooth' });
-    } catch (e) { /* no smooth scroll is not a broken page */ }
+      const a = tabsAnchorRef.current;
+      const host = a && a.closest ? a.closest('.bs-scroll') : null;
+      if (!host) return;
+      // The rects are screen px, which the text-size `zoom` scales; scrollTop and
+      // stickyTop are layout px. `k` turns one into the other (1 at Medium).
+      const hostRect = host.getBoundingClientRect();
+      const k = host.offsetHeight ? hostRect.height / host.offsetHeight : 1;
+      const rowAt = Math.round(host.scrollTop + (a.getBoundingClientRect().bottom - hostRect.top) / (k || 1) - stickyTop);
+      if (host.scrollTop > rowAt) host.scrollTop = rowAt;
+    } catch (e) { /* the list still swaps; only the return to the row is lost */ }
   };
+  // What the closed Filters menu says is on, in the order the panel lists it.
+  const activeLabels = [
+    ...(savedOnly ? [`♡ ${tr('nutrition:kitchen.saved', { defaultValue: 'Saved' })}`] : []),
+    ...(pros ? [tr('nutrition:kitchen.shapePros', { defaultValue: 'Shape pros' })] : []),
+    ...(diet !== 'All' ? [diet] : []),
+    ...needs,
+  ];
 
   const creditOf = (r) => {
     const a = bsRecipeAttribution(r);
@@ -8004,8 +7994,6 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
     );
   };
 
-  const strip = { display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'nowrap', overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' };
-
   return (
     <BSPage>
       <BSPageHeader trailing={<BSHeaderTools onProfile={onProfile} />} />
@@ -8020,10 +8008,7 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
       </div>
       <BSNutritionTopTabs active="recipes" onChange={onChangeView} />
 
-      {/* Tools: search, then the filters as toggles on one scrolling strip.
-          Diet and Protein share ONE single-select axis; Free From and Goals
-          stack. There is no "Filters" drawer any more — the Menu's whole claim
-          is that what is on the page is what there is. */}
+      {/* Tools: search, then the filters behind one dropdown. */}
       <div style={{ padding: `12px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: `1px solid ${t.RULE}`, paddingBottom: 2 }}>
           <span aria-hidden style={{ color: t.INK50, fontSize: 15 }}>⌕</span>
@@ -8037,68 +8022,72 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
           ) : null}
         </div>
       </div>
+      {/* ⚠ THE FILTERS ARE ONE DROPDOWN (owner, 2026-10-18: the toggle strip ran
+          off the right edge of a phone with nothing to say it scrolled — "have
+          these filter options be a drop down"). The trigger names what is on, so
+          a closed menu still says how the list below is filtered, and the panel
+          opens in place and WRAPS, so every option is on screen at any width.
+          Diet and Protein share ONE single-select axis; Free From and Goals
+          stack. The toggles stay BSKmToggle elements rendered right here: the
+          mount harness reaches them by `label` (see the note on BSKmToggle). */}
       <div style={{ padding: `10px ${t.padX}px 0` }}>
-        <div style={strip}>
-          <BSKmToggle label={`♡ ${tr('nutrition:kitchen.saved', { defaultValue: 'Saved' })}`} on={savedOnly} color={teal} count={savedCount} onClick={() => setSavedOnly((v) => !v)} />
-          <BSKmToggle label={tr('nutrition:kitchen.shapePros', { defaultValue: 'Shape pros' })} on={pros} color={teal} count={prosCount} onClick={() => setPros((v) => !v)} />
-          {/* ⚠ THE CHIP LABELS ARE CATALOG TOKENS AND STAY ENGLISH, WHICH IS
-              REGISTERED RATHER THAN OVERLOOKED. `RECIPE_DIETS` and friends are
-              the same strings `recipeMatchesDiet` and `recipeNeeds` COMPARE
-              against (shapeKitchenData.js), so translating them at the render
-              site needs a token/label split through the data file — the pattern
-              this repo has done three times elsewhere. It is its own change, and
-              doing half of it here would break the filters in twelve locales.
-              The i18n ratchet cannot see them either: it walks `.jsx` only, and
-              that file is `.js`. Stated in the CUT note beside the numbers. */}
-          <span aria-hidden style={{ flex: '0 0 auto', width: 1, height: 20, background: t.RULE, margin: '0 3px' }} />
-          {RECIPE_DIETS.map((d) => <BSKmToggle key={d} label={d} on={diet === d} color={BS_SK_DIET_COLOR[d]} onClick={() => pickDiet(d)} />)}
-          <span aria-hidden style={{ flex: '0 0 auto', width: 1, height: 20, background: t.RULE, margin: '0 3px' }} />
-          {RECIPE_PROTEINS.map((d) => <BSKmToggle key={d} label={d} on={diet === d} color={BS_SK_DIET_COLOR[d]} onClick={() => pickDiet(d)} />)}
-          <span aria-hidden style={{ flex: '0 0 auto', width: 1, height: 20, background: t.RULE, margin: '0 3px' }} />
-          {RECIPE_FREE_FROM.map((n) => <BSKmToggle key={n} label={n} on={needs.includes(n)} onClick={() => toggleNeed(n)} />)}
-          <span aria-hidden style={{ flex: '0 0 auto', width: 1, height: 20, background: t.RULE, margin: '0 3px' }} />
-          {RECIPE_GOALS.map((n) => <BSKmToggle key={n} label={n} on={needs.includes(n)} onClick={() => toggleNeed(n)} />)}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 9 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button key="km-filters" type="button" onClick={() => setFiltersOpen((v) => !v)} aria-expanded={filtersOpen} aria-controls="bskm-filters" style={{
+            flex: '0 1 auto', minWidth: 0, display: 'inline-flex', alignItems: 'center', gap: 8,
+            minHeight: 34, padding: '7px 11px', borderRadius: 3, cursor: 'pointer',
+            border: `1px solid ${activeLabels.length ? teal : t.RULE}`, background: activeLabels.length ? bsTHexA(teal, 0.09) : 'transparent',
+            color: activeLabels.length ? teal : t.INK,
+            fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
+          }}>
+            <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {activeLabels.length ? activeLabels.join(' · ') : tr('nutrition:kitchen.filters', { defaultValue: 'Filters' })}
+            </span>
+            <span aria-hidden style={{ flex: 'none', fontSize: 10 }}>{filtersOpen ? '▴' : '▾'}</span>
+          </button>
           {(anyFilter || searching) ? (
-            <button type="button" onClick={clearAll} style={{ border: 0, background: 'transparent', color: teal, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', minHeight: 32, padding: '6px 0' }}>{tr('nutrition:kitchen.clear', { defaultValue: 'Clear' })} ×</button>
-          ) : <span />}
+            <button type="button" onClick={clearAll} style={{ flex: 'none', border: 0, background: 'transparent', color: teal, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', minHeight: 32, padding: '6px 0' }}>{tr('nutrition:kitchen.clear', { defaultValue: 'Clear' })} ×</button>
+          ) : null}
           {/* Unfiltered the count names what it counts; filtered it does not —
-              "17 of 100" sits between a row of recipe filters and a list of
-              recipes, so the referent is never in doubt, and an "N of M recipes"
-              form would put a bare number against an inflected noun in ru/uk,
-              which is the agreement hazard this file already records. */}
-          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+              "17 of 100" sits between the recipe filters and a list of recipes,
+              so the referent is never in doubt, and an "N of M recipes" form
+              would put a bare number against an inflected noun in ru/uk, which
+              is the agreement hazard this file already records. */}
+          <span style={{ marginLeft: 'auto', flex: 'none', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
             {(anyFilter || searching)
               ? tr('nutrition:kitchen.countOf', { defaultValue: '{shown} of {total}', shown: shown.length, total: all.length })
               : nRecipes(all.length)}
           </span>
         </div>
-      </div>
-
-      {/* Jump row — sticky under BSPage's own condensing masthead. */}
-      <div ref={jumpRef} style={{ position: 'sticky', top: stickyTop, zIndex: 3, background: t.PAPER, borderBottom: `1px solid ${t.RULE}`, marginTop: 10, padding: `8px ${t.padX}px` }}>
-        <div style={strip} aria-label={tr('nutrition:kitchen.jumpTo', { defaultValue: 'Jump to a course' })}>
-          {BS_KM_COURSES.map((c, i) => {
-            const n = courses[i].rows.length;
-            const on = activeCourse === i && n > 0;
-            return (
-              <button key={c.key} type="button" disabled={!n} onClick={() => jumpTo(c.key, i)} style={{
-                flex: '0 0 auto', display: 'inline-flex', alignItems: 'baseline', gap: 6, minHeight: 30,
-                padding: '6px 9px', borderRadius: 4, border: 0, cursor: n ? 'pointer' : 'default',
-                background: on ? t.INK : 'transparent', color: on ? t.PAPER : (n ? t.INK70 : t.INK30),
-                fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
-              }}>
-                {COURSE_SHORT[c.key]}
-                <span style={{ fontSize: 8.5, fontWeight: 700, opacity: on ? 0.75 : 1, color: on ? t.PAPER : t.INK50, fontVariantNumeric: 'tabular-nums' }}>{n}</span>
-              </button>
-            );
-          })}
-        </div>
+        {filtersOpen ? (
+          <div id="bskm-filters" role="group" aria-label={tr('nutrition:kitchen.filters', { defaultValue: 'Filters' })} style={{ marginTop: 8, padding: '2px 10px', border: `1px solid ${t.RULE}`, borderRadius: 4, background: t.PAPER2 }}>
+            {/* ⚠ THE CHIP LABELS ARE CATALOG TOKENS AND STAY ENGLISH, WHICH IS
+                REGISTERED RATHER THAN OVERLOOKED. `RECIPE_DIETS` and friends are
+                the same strings `recipeMatchesDiet` and `recipeNeeds` COMPARE
+                against (shapeKitchenData.js), so translating them at the render
+                site needs a token/label split through the data file — the pattern
+                this repo has done three times elsewhere. It is its own change, and
+                doing half of it here would break the filters in twelve locales.
+                The i18n ratchet cannot see them either: it walks `.jsx` only, and
+                that file is `.js`. Stated in the CUT note beside the numbers. */}
+            {[
+              [
+                <BSKmToggle key="saved" label={`♡ ${tr('nutrition:kitchen.saved', { defaultValue: 'Saved' })}`} on={savedOnly} color={teal} count={savedCount} onClick={() => setSavedOnly((v) => !v)} />,
+                <BSKmToggle key="pros" label={tr('nutrition:kitchen.shapePros', { defaultValue: 'Shape pros' })} on={pros} color={teal} count={prosCount} onClick={() => setPros((v) => !v)} />,
+              ],
+              RECIPE_DIETS.map((d) => <BSKmToggle key={d} label={d} on={diet === d} color={BS_SK_DIET_COLOR[d]} onClick={() => pickDiet(d)} />),
+              RECIPE_PROTEINS.map((d) => <BSKmToggle key={d} label={d} on={diet === d} color={BS_SK_DIET_COLOR[d]} onClick={() => pickDiet(d)} />),
+              RECIPE_FREE_FROM.map((n) => <BSKmToggle key={n} label={n} on={needs.includes(n)} onClick={() => toggleNeed(n)} />),
+              RECIPE_GOALS.map((n) => <BSKmToggle key={n} label={n} on={needs.includes(n)} onClick={() => toggleNeed(n)} />),
+            ].map((group, gi) => (
+              <div key={gi} style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: '8px 0', borderTop: gi ? `1px solid ${t.HAIR}` : 0 }}>{group}</div>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       {/* Today's board — three pro-authored dishes, one from each of the first
-          three courses, different tomorrow. Only on the unfiltered menu. */}
+          three courses, different tomorrow. Only on the unfiltered menu, and
+          ABOVE the time tabs, so the list a tab picks starts right under it. */}
       {board.length > 0 ? (
         <div style={{ padding: `18px ${t.padX}px 0` }}>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
@@ -8115,7 +8104,36 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
         </div>
       ) : null}
 
-      {/* The courses */}
+      {/* ⚠ THE TIME TABS FILTER IN PLACE; THEY DO NOT JUMP (owner, 2026-10-18:
+          "when i click on these filters, dont have it move me down on screen to
+          where they are located on page, have them appear right below depending
+          on the time, so i dont have to scroll back up"). One course shows at a
+          time, right under the row, and the row sticks below BSPage's condensed
+          masthead, so another time is one tap away from anywhere in a list.
+          Four equal cells, centred: nothing runs off the edge at any width.
+          The anchor is the row's own place in the page (pickCourse reads it). */}
+      <div ref={tabsAnchorRef} data-km-tabs-anchor="" aria-hidden style={{ height: 10 }} />
+      <div style={{ position: 'sticky', top: stickyTop, zIndex: 3, background: t.PAPER, borderBottom: `1px solid ${t.RULE}`, padding: `8px ${t.padX}px` }}>
+        <div role="group" aria-label={tr('nutrition:kitchen.cookingTime', { defaultValue: 'Cooking time' })} style={{ display: 'flex', justifyContent: 'center', gap: 4, maxWidth: 480, margin: '0 auto' }}>
+          {BS_KM_COURSES.map((c, i) => {
+            const n = courses[i].rows.length;
+            const on = picked === i;
+            return (
+              <button key={c.key} type="button" aria-pressed={on} disabled={!n} onClick={() => pickCourse(i)} style={{
+                flex: '1 1 0px', minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
+                minHeight: 44, padding: '6px 4px', borderRadius: 4, border: 0, cursor: n ? 'pointer' : 'default',
+                background: on ? t.INK : 'transparent', color: on ? t.PAPER : (n ? t.INK70 : t.INK30),
+                fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', textAlign: 'center', lineHeight: 1.15,
+              }}>
+                <span>{COURSE_SHORT[c.key]}</span>
+                <span style={{ fontSize: 8.5, fontWeight: 700, opacity: on ? 0.75 : 1, color: on ? t.PAPER : t.INK50, fontVariantNumeric: 'tabular-nums' }}>{n}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* The menu */}
       {shown.length === 0 ? (
         <div style={{ padding: `44px ${t.padX}px 28px`, textAlign: 'center' }}>
           {savedOnly && savedCount === 0 && !searching && needs.length === 0 && diet === 'All' && !pros ? (
@@ -8133,15 +8151,15 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
         </div>
       ) : null}
 
-      {courses.map((c, i) => {
-        if (!c.rows.length) return null;
+      {picked >= 0 ? (() => {
+        const c = courses[picked];
         const open = expanded.has(c.key) || searching;
         const rows = (open || !bsKmPaged(c.rows.length)) ? c.rows : c.rows.slice(0, BS_KM_PAGE);
         const paged = !open && bsKmPaged(c.rows.length);
         return (
-          <div key={c.key} id={`bskm-${c.key}`} style={{ padding: `22px ${t.padX}px 0`, scrollMarginTop: 8 }}>
+          <div key={c.key} style={{ padding: `14px ${t.padX}px 0` }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, borderBottom: `2px solid ${t.INK}`, paddingBottom: 8 }}>
-              <b aria-hidden style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: t.W.display, lineHeight: 1, color: t.ACCENT, letterSpacing: '-0.01em' }}>{String(i + 1).padStart(2, '0')}</b>
+              <b aria-hidden style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: t.W.display, lineHeight: 1, color: t.ACCENT, letterSpacing: '-0.01em' }}>{String(picked + 1).padStart(2, '0')}</b>
               <h2 style={{ margin: 0, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: t.W.display, letterSpacing: '-0.02em', lineHeight: 1.05, color: t.INK }}>{COURSE_TITLE[c.key]}</h2>
               <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{nRecipes(c.rows.length)}</span>
             </div>
@@ -8164,7 +8182,7 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
             ) : null}
           </div>
         );
-      })}
+      })() : null}
 
       {untimed.length > 0 ? (
         <div id="bskm-untimed" style={{ padding: `22px ${t.padX}px 0` }}>
@@ -17594,13 +17612,13 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
 // Shared segmented tab bar for the living-identity profiles (Terrain + Signal).
 // Sticky under the hero; the accent follows the profile's tier color. Personal
 // activities is always the first tab so a profile opens on what someone's doing.
-function BSLivingTabs({ tabs, active, onPick, c, INK, BG, pad = 0 }) {
+function BSLivingTabs({ tabs, active, onPick, c, INK, BG, pad = 0, top = 0 }) {
   const MONO = "'JetBrains Mono', monospace";
   // pad = the host body's side padding: the bar breaks out of it to run
   // FULL-BLEED (side borders + radius dropped at the screen edges), and the
   // sticky background then covers the whole width while scrolling.
   return (
-    <div style={{ position: 'sticky', top: 0, zIndex: 3, margin: `0 ${-pad}px 9px`, padding: '5px 0', background: BG }}>
+    <div style={{ position: 'sticky', top, zIndex: 3, margin: `0 ${-pad}px 9px`, padding: '5px 0', background: BG }}>
       <div style={{ display: 'flex', gap: 6, background: bsTHexA(INK, 0.05), border: `1px solid ${bsTHexA(INK, 0.1)}`, borderRadius: 7, padding: 3, ...(pad ? { borderRadius: 0, borderLeft: 0, borderRight: 0 } : null) }}>
         {tabs.map((tb) => { const on = active === tb.key; return (
           <button key={tb.key} onClick={() => onPick(tb.key)} style={{ flex: 1, minWidth: 0, padding: '6px 2px', borderRadius: 5, border: 0, cursor: 'pointer',
@@ -17946,9 +17964,9 @@ function BSTLedgerStat({ INK, label, value, seen, figSize = 30, delay = 0, align
 // Typographic tab index (Terrain only — Signal keeps BSLivingTabs). Sticky on a
 // solid paper fill with a 1px ink hairline; the active label carries a 2px heat
 // underline that draws in. Real ≥44px buttons.
-function BSTerrainTabs({ tabs, active, onPick, heat, INK, BG, pad = 20 }) {
+function BSTerrainTabs({ tabs, active, onPick, heat, INK, BG, pad = 20, top = 0 }) {
   return (
-    <div style={{ position: 'sticky', top: 0, zIndex: 4, margin: `0 ${-pad}px 4px`, padding: `0 ${pad}px`, background: BG, borderBottom: `1px solid ${bsTHexA(INK, 0.08)}` }}>
+    <div style={{ position: 'sticky', top, zIndex: 4, margin: `0 ${-pad}px 4px`, padding: `0 ${pad}px`, background: BG, borderBottom: `1px solid ${bsTHexA(INK, 0.08)}` }}>
       <div style={{ display: 'flex' }}>
         {tabs.map((tb) => { const on = active === tb.key; return (
           <button key={tb.key} onClick={() => onPick(tb.key)} style={{ flex: 1, minWidth: 0, minHeight: 44, position: 'relative', background: 'transparent', border: 0, cursor: 'pointer', padding: '15px 0 13px', fontFamily: BST_MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: on ? INK : bsTHexA(INK, 0.45) }}>
@@ -18062,6 +18080,8 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   const tabFresh = !seenTabs.has(tab);
   const activityRef = React.useRef(null); // Posts stat → scroll to the activity section
   const openPosts = () => { setTab('activity'); setTimeout(() => { try { activityRef.current && activityRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {} }, 60); };
+  // The tab row sticks, and the Posts jump lands, below BSPage's condensed masthead.
+  const pinnedTop = useBSPinnedMastTop();
   useBSPresence();
   // Local reaction state for the shared BSActivityCard on this profile feed.
   // Reactions toggle optimistically + best-effort persist the like (same backend
@@ -18576,7 +18596,12 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   const heroAscentH = heroCover ? 214 : 150;
   if (followProfile) return <BSPublicProfile person={followProfile} onBack={() => setFollowProfile(null)} onMessage={onMessage} />;
   return (
-    <div className="bs-scroll" style={{ position: 'absolute', inset: 0, background: BG, color: INK, overflowY: 'auto', overflowX: 'hidden', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column' }}>
+    // A page like every other: BSPage's own scroller, so BSPage's condensed
+    // masthead pins once this page's own masthead scrolls away (owner,
+    // 2026-10-18: "make sure this mast head stays present when i scroll down on
+    // profile page on app like all the other pages"). BSPage also pads for the
+    // tab bar, so the page keeps no bottom spacer of its own.
+    <BSPage><div style={{ color: INK, fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
       {isSelf && <input ref={fileRef} type="file" accept="image/*" onChange={onPick} style={{ display: 'none' }} />}
       {meMode ? (
         /* Me masthead — same structure as the other pages: logo + Vol·No line,
@@ -18826,8 +18851,8 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
           </div>
         ) : (
           <>
-            <div ref={activityRef} />
-            <BSTerrainTabs heat={c} INK={INK} BG={BG} pad={8} active={tab} onPick={setTab} tabs={[
+            <div ref={activityRef} style={{ scrollMarginTop: pinnedTop }} />
+            <BSTerrainTabs heat={c} INK={INK} BG={BG} pad={8} top={pinnedTop} active={tab} onPick={setTab} tabs={[
               { key: 'activity', label: tr('profile:tab.activity', { defaultValue: 'Activity' }) },
               { key: 'signals', label: tr('profile:tab.signals', { defaultValue: 'Signals' }) },
               { key: 'climb', label: tr('profile:tab.climb', { defaultValue: 'Climb' }) },
@@ -18998,8 +19023,6 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
         )}
       </div>
 
-      {meMode && <div style={{ height: 92, flex: '0 0 auto' }} />}
-
       {showCustomizer && <BSProfileCustomizer initial={custom} c={c} INK={INK} BG={BG} onClose={() => setShowCustomizer(false)} onSave={(doc) => { setCustom(doc); setShowCustomizer(false); }} />}
       {showLog && <BSLogActivitySheet c={c} INK={INK} BG={BG} onClose={() => setShowLog(false)} onPosted={loadPhotoPosts} />}
       {editingActivity && <BSLogActivitySheet c={c} INK={INK} BG={BG} editPost={editingActivity} onClose={() => setEditingActivity(null)} onPosted={() => { setEditingActivity(null); setFeedReloadNonce(n => n + 1); }} />}
@@ -19014,7 +19037,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
           </button>
         </div>
       )}
-    </div>
+    </div></BSPage>
   );
 }
 
@@ -19366,6 +19389,8 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   const profLpFiredRef = React.useRef(false);
   const activityRef = React.useRef(null); // Posts stat → scroll to the activity section
   const openPosts = () => { setTab('activity'); setTimeout(() => { try { activityRef.current && activityRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {} }, 60); };
+  // The tab row sticks, and the Posts jump lands, below BSPage's condensed masthead.
+  const pinnedTop = useBSPinnedMastTop();
   // ⚠ A COACH WITH AN ACCOUNT IS RATED BY ITS REVIEWS OR NOT AT ALL (owner,
   // 2026-10-12: "make sure the review system and star rating system is in place for
   // live accounts. 1-10 stars"). Its reviews are read by ACCOUNT and kept even when
@@ -19521,9 +19546,14 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   if (reviewerProfile) return <BSPublicProfile person={reviewerProfile} onBack={() => setReviewerProfile(null)} onMessage={onMessage} />;
   if (showBusiness) return <BSCoachBusinessPage role={bizRole} tab={showBusiness} onBack={() => setShowBusiness(null)} />;
   return (
-    <div className="bs-scroll" style={{ position: 'absolute', inset: 0, background: BG, color: INK, overflowY: 'auto', overflowX: 'hidden', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column' }}>
+    // A page like every other: BSPage's own scroller, so BSPage's condensed
+    // masthead pins once this page's own masthead scrolls away (owner,
+    // 2026-10-18: "make sure this mast head stays present when i scroll down on
+    // profile page on app like all the other pages"). BSPage also pads for the
+    // tab bar, so the page keeps no bottom spacer of its own.
+    <BSPage><div style={{ color: INK, fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
       {isSelf && <input ref={fileRef} type="file" accept="image/*" onChange={onPick} style={{ display: 'none' }} />}
-      <div style={{ flex: 1, padding: `${BS_MAST_TOP_CSS} ${bsGutter(tTheme)}px ${meMode ? 112 : 28}px`, position: 'relative' }}>
+      <div style={{ flex: 1, padding: `${BS_MAST_TOP_CSS} ${bsGutter(tTheme)}px 28px`, position: 'relative' }}>
         {/* Cover photo behind the hero. SIZED TO THE SIGIL, NOT TO ITSELF (owner
             call 2026-08-31): the sigil is 240px tall and starts ~130px down, so
             it runs to roughly 370. The previous 320px strip with a gradient that
@@ -19652,8 +19682,8 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
               <BSProfileFilmCard film={coachFilm} INK={INK} c={c} label={tr('profile:film.headCoach', { defaultValue: 'Intro film' })} />
             </div>
           ) : null}
-          <div ref={activityRef} style={{ marginTop: 22 }}>
-            <BSLivingTabs c={c} INK={INK} BG={BG} pad={22} active={tab} onPick={setTab} tabs={[
+          <div ref={activityRef} style={{ marginTop: 22, scrollMarginTop: pinnedTop }}>
+            <BSLivingTabs c={c} INK={INK} BG={BG} pad={22} top={pinnedTop} active={tab} onPick={setTab} tabs={[
               { key: 'activity', label: tr('profile:tab.activity', { defaultValue: 'Activity' }) },
               { key: 'about', label: tr('profile:tab.about', { defaultValue: 'About' }) },
               { key: 'coaching', label: tr('profile:tab.coaching', { defaultValue: 'Coaching' }) },
@@ -19899,7 +19929,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           </div>
         </div>
       )}
-    </div>
+    </div></BSPage>
   );
 }
 
@@ -37778,7 +37808,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           ← Back; it is its own page above now. */}
       <div style={{ padding: `8px ${t.padX}px 16px` }}>
           <div>
-            {/* ── QUICK SWITCHES ── the three things members actually flip, on the
+            {/* ── QUICK SWITCHES ── the two things members actually flip, on the
                 root instead of two taps down. Each one is a REAL stored setting and
                 writes through `setPref`, the module's one writer, so the mirror, the
                 live re-render and the presence broadcast all still happen — a bare
@@ -37790,16 +37820,13 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 labelled Online wired to that would tell a member they were hidden
                 while they were still visible to everyone. `onlineVisible` is the one
                 that means what the label says.
-                ⚠ AND THERE IS NO FOURTH. The concept board's third cell read
+                ⚠ AND THERE IS NO THIRD. The concept board's third cell read
                 "Check-ins · On Home"; that is `dailyCheckin`, which exists. Anything
-                else the board implied and the app does not store is not built. */}
+                else the board implied and the app does not store is not built.
+                ⚠ NOR A RADIO SWITCH. Shape Radio is always on air and has no off
+                (owner, 2026-10-18); its sound is the speaker on the radio bar. */}
             <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, margin: '6px 0 8px' }}>{tr('settings:passport.quick', { defaultValue: 'Quick switches' })}</div>
             <div style={{ display: 'flex', gap: 7 }}>
-              <QuickSwitch
-                label={tr('settings:quick.radio', { defaultValue: 'Radio' })}
-                on={!!r.radioOn}
-                value={r.radioOn ? tr('settings:common.on', { defaultValue: 'On' }) : tr('settings:common.off', { defaultValue: 'Off' })}
-                onToggle={() => r.setRadioPreference(!r.radioOn)} />
               <QuickSwitch
                 label={tr('settings:quick.online', { defaultValue: 'Online' })}
                 on={prefs.onlineVisible !== 'Off'}
@@ -38079,16 +38106,13 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       {/* LANGUAGE — app-wide UI locale (i18n) */}
       <BSLanguageSetting t={t} />
 
-      {/* SHAPE RADIO */}
-      <div style={{ padding: `14px ${t.padX}px 4px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{tr('settings:radio.title', { defaultValue: 'Shape Radio' })}</div>
-          <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{r.radioOn ? (r.paused ? tr('settings:radio.paused', { defaultValue: 'Paused' }) : tr('settings:radio.playing', { defaultValue: 'Playing while browsing' })) : tr('settings:radio.listen', { defaultValue: 'Listen while using the app' })}</div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: r.radioOn ? t.ACCENT : t.INK50 }}>{r.radioOn ? tr('settings:common.on', { defaultValue: 'On' }) : tr('settings:common.off', { defaultValue: 'Off' })}</span>
-          <Toggle on={r.radioOn} onClick={() => r.setRadioPreference(!r.radioOn)} />
-        </div>
+      {/* SHAPE RADIO — a heading and a reading, no switch. The station is always
+          on air and has no off (owner, 2026-10-18: "remove the radio toggle");
+          the sound is the speaker on the radio bar. "Playing" is the MEASURED
+          clock, never what was asked for, so a refused play reads Paused. */}
+      <div style={{ padding: `14px ${t.padX}px 4px` }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{tr('settings:radio.title', { defaultValue: 'Shape Radio' })}</div>
+        <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{r.playingSince != null ? tr('settings:radio.playing', { defaultValue: 'Playing while browsing' }) : tr('settings:radio.paused', { defaultValue: 'Paused' })}</div>
       </div>
 
       {/* LIGHT EFFECTS — music-reactive overlays while Shape Radio is on */}
@@ -38108,9 +38132,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
               immersive: tr('settings:fx.modeImmersive', { defaultValue: 'Immersive' }),
               hologram: tr('settings:fx.modeHologram', { defaultValue: 'Hologram' }),
             }[r.fxMode];
-            if (r.radioOn && fxModeLabel) return tr('settings:fx.active', { mode: fxModeLabel, defaultValue: 'Active · {mode}' });
-            if (r.radioOn) return tr('settings:fx.offHint', { defaultValue: 'Effects off — tap a mode to preview' });
-            return tr('settings:fx.tapPreview', { defaultValue: 'Radio off — tap a mode to preview' });
+            if (fxModeLabel) return tr('settings:fx.active', { mode: fxModeLabel, defaultValue: 'Active · {mode}' });
+            return tr('settings:fx.offHint', { defaultValue: 'Effects off — tap a mode to preview' });
           })()}</div>
         </div>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
@@ -38123,14 +38146,14 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         const fxReduced = bsSdReduced();
         const pickFx = (k) => {
           r.setFxMode(k);
-          const radioLive = r.radioOn && !r.paused;
+          const radioLive = !r.paused;
           setFxPreview(k !== 'off' && !radioLive && !fxReduced ? k : null);
         };
         // Picking a color re-fires the preview so the tint is visible at once
         // (live overlay recolors on its own when radio is playing).
         const pickFxColor = (k) => {
           r.setFxColor(k);
-          const radioLive = r.radioOn && !r.paused;
+          const radioLive = !r.paused;
           if (r.fxMode !== 'off' && !radioLive && !fxReduced) setFxPreview(r.fxMode);
         };
         return (
@@ -38208,7 +38231,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
             ? tr('settings:fx.footReduced', { defaultValue: '— reduced motion is on, so effects stay off' })
             : fxPreview
               ? tr('settings:fx.footPreview', { defaultValue: '— previewing for a few seconds' })
-              : r.radioOn
+              : !r.paused
                 ? tr('settings:fx.footRadioOn', { defaultValue: '— effects render on top of every screen while radio plays' })
                 : tr('settings:fx.footTapPreview', { defaultValue: '— tap a mode to preview it · runs whenever radio plays' })}
         </div>
@@ -38219,7 +38242,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       {/* Light-fx tap-to-preview overlay — the REAL RadioEffects for a beat,
           portaled over the phone surface. Decorative only; cleared by the 6s
           timer, never rendered while the live overlay (BSRadioFx) is active. */}
-      {fxPreview && !(r.radioOn && !r.paused) && typeof RadioEffects === 'function' && createPortal((
+      {fxPreview && r.paused && typeof RadioEffects === 'function' && createPortal((
         <div aria-hidden="true" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 80 }}>
           {/* ⚠ SAME AS THE LIVE OVERLAY: this appended `· ${r.LIVE.bpm} BPM`,
               which is a reading, on a preview where nothing is even playing. */}

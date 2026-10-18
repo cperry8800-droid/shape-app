@@ -1,7 +1,7 @@
 // tests/radio-ask-gate.test.mjs
 //
 // The Shape Radio opt-in prompt is asked ONCE PER ACCOUNT — on any device, after
-// any reinstall — and Settings → Shape Radio owns every later change. This pins
+// any reinstall — and the speaker on the radio bar owns every later change. This pins
 // the gate that makes that true, by EVALUATING the shipped helpers rather than
 // grepping for their spelling: a spelling pin survives any equivalent rewrite,
 // and the whole point of these functions is what they ANSWER for a given
@@ -140,8 +140,7 @@ test('an account that already answered CLOSES a prompt already on screen', () =>
   // leaves it standing and asks a member who answered elsewhere — the exact
   // "asked once" promise this whole gate exists to keep.
   // ⚠ ASSERTED ON THE BRANCH, NOT THE FILE. `setShowPrompt(false)` appears in
-  // answerPrompt and setRadioPreference too, so a file-wide match passes with
-  // this branch left broken.
+  // answerPrompt too, so a file-wide match passes with this branch left broken.
   const body = stripComments(src);
   const i = body.indexOf('if (s.radioAsked === true)');
   assert.ok(i > 0, 'the cloud-true branch is in the source');
@@ -150,9 +149,13 @@ test('an account that already answered CLOSES a prompt already on screen', () =>
   assert.match(branch, /setShowPrompt\(false\)/, 'and a prompt already on screen is dismissed');
 });
 
-test('both answer paths mark the account, not just the device', () => {
+test('the prompt\'s answer marks the account, not just the device', () => {
+  // Settings → Shape Radio used to be a second answer path. It is gone: the
+  // station has no off (owner, 2026-10-18), and the speaker on the radio bar
+  // sets only the sound, which is not an answer to the prompt.
   const body = stripComments(src);
-  for (const fn of ['function answerPrompt(yes) {', 'function setRadioPreference(enabled) {']) {
+  assert.doesNotMatch(body, /setRadioPreference/, 'the radio on/off preference is back');
+  for (const fn of ['function answerPrompt(yes) {']) {
     const at = body.indexOf(fn);
     assert.notEqual(at, -1, `${fn} is in the source`);
     const open = body.indexOf('{', at + fn.length - 1);

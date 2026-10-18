@@ -292,9 +292,9 @@ function bsValidFxColor(c) {
 
 // ---- "Asked once" is a property of the ACCOUNT, not the device --------------
 // The prompt is shown to a member EXACTLY ONCE — on any device, after any
-// reinstall — and never again; Settings → Shape Radio owns every later change.
-// `shape.radio.pref` (below) stays DEVICE-level: it carries the runtime on/off
-// and deliberately survives sign-out. The ask-GATE is per-account — a per-uid
+// reinstall — and never again; the speaker on the radio bar owns every later
+// change. `shape.radio.pref` (below) stays DEVICE-level: it carries the sound
+// on/off and deliberately survives sign-out. The ask-GATE is per-account — a per-uid
 // localStorage mirror for the first synchronous render, converged from
 // user_goals('client_settings').radioAsked so a fresh device inherits the
 // account's answer instead of re-asking it.
@@ -376,13 +376,14 @@ function bsRadioAskedPersist() {
 }
 
 function BSRadioProvider({ children }) {
-  // Persisted radio preference (device-level localStorage) so the radio ask-prompt
-  // (`radio:prompt.title` + `.titleAccent`) is asked ONCE — after the user answers
-  // it (play or muted), it never auto-shows again on a later launch / re-login.
-  // Named by KEY, not by its wording: the copy has already been retired once.
-  // Seed from it.
+  // ⚠ THE STATION IS ALWAYS ON AIR; WHAT A MEMBER CHOOSES IS THE SOUND (owner,
+  // 2026-10-18: "remove the radio toggle, just have shape radio live on app but
+  // doesnt play unless you click on volume or allow it to play sound"). There is
+  // no off. Now-playing is polled for everyone, and `paused` is the one switch:
+  // muted until the ask-prompt's yes or the speaker on the radio bar unmutes it.
+  // `shape.radio.pref.on` (device-level localStorage) keeps the last choice, so
+  // a member who muted is not played at on the next launch.
   const _radioPref = safeReadRadioJSON('shape.radio.pref', null); // { asked, on } | null
-  const [radioOn, setRadioOn]       = useStateBR(_radioPref ? !!_radioPref.on : false);
   const [askedPrompt, setAsked]     = useStateBR(() => bsRadioAskedMirrorRead());
   const [showPrompt, setShowPrompt] = useStateBR(false);
   // Ticks when the signed-in identity changes, so the playback effect below
@@ -399,13 +400,13 @@ function BSRadioProvider({ children }) {
       window.removeEventListener('shape:signedOut', bump);
     };
   }, []);
-  const [paused, setPaused]         = useStateBR(_radioPref ? !_radioPref.on : true);
+  const [paused, setPausedState]    = useStateBR(_radioPref ? !_radioPref.on : true);
   // When this session's playback actually began, or null while nothing is
   // playing. Stamped by the playback effect below; read by the Radio page's rail.
   const [playingSince, setPlayingSince] = useStateBR(null);
   // ⚠ ONE PLAYBACK ATTEMPT AT A TIME, AND EVERY ATTEMPT IS CANCELLABLE. The
   // session clock is stamped only once `play()` has actually started (Codex P1
-  // on #2072), and a pause, a sign-out or radio-off must be able to cancel an
+  // on #2072), and a pause or a sign-out must be able to cancel an
   // attempt still in flight — or a play that resolves AFTER the member paused
   // stamps a clock for playback that is already over. The token IS the
   // attempt; cancelling it is flipping `live`. A newer attempt supersedes an
@@ -422,10 +423,10 @@ function BSRadioProvider({ children }) {
   };
   const cancelPlay = () => { if (attemptRef.current) { attemptRef.current.live = false; attemptRef.current = null; } };
   // ⚠ A `play()` THAT DID NOT START HAS TO BE ASKABLE AGAIN — FROM THE TAP,
-  // SYNCHRONOUSLY. The effect below runs on [radioOn, paused, authTick], so once
+  // SYNCHRONOUSLY. The effect below runs on [paused, authTick], so once
   // it has asked and been refused (an unconfigured station, an autoplay policy
   // that wants a gesture, a request superseded while it was starting) nothing
-  // asks again until one of those three moves. The deck's key reads the
+  // asks again until one of those two moves. The deck's key reads the
   // MEASURED state and offers "Tune in" for exactly this case
   // (`bsRadioTransportKey`), and this is what the tap calls.
   //
@@ -436,7 +437,7 @@ function BSRadioProvider({ children }) {
   // as it had refused the first attempt, forever. (Codex, P1 on #2088.) And
   // `shapeBackend.play()` keeps its last good station read so the retry reaches
   // `audio.play()` with no await in front of it — see the note there.
-  const retryPlay = () => { if (!radioOn || paused) return; startPlay(); };
+  const retryPlay = () => { if (paused) return; startPlay(); };
   // currently-playing track index in BS_LIVE_STATION.tracks (0 == "NOW") — kept
   // for the muted/fallback display path; live now-playing overrides via nowPlaying state.
   // ⚠ No trackIdx/setTrackIdx here, deliberately. A track-index setter on this
@@ -553,19 +554,11 @@ function BSRadioProvider({ children }) {
     return () => window.removeEventListener('shape:signedOut', onSignedOut);
   }, []);
 
-  // Drive the live stream and now-playing poll.
-  // - radioOn=false  → stop audio + stop poll.
-  // - radioOn=true, paused=true  → pause audio; keep poll running (harmless).
-  // - radioOn=true, paused=false → play audio + ensure poll is running.
+  // Drive the live stream and now-playing poll. The poll always runs, because the
+  // station is on air whether or not this member is listening:
+  // - paused=true  → pause audio; keep the poll running.
+  // - paused=false → play audio + ensure the poll is running.
   useEffectBR(() => {
-    if (!radioOn) {
-      window.ShapeRadioLive?.pause?.();
-      window.ShapeRadioLive?.stopPolling?.();
-      setNowPlaying(null); // honest-data: don't keep presenting the last track after radio is off
-      setPlayingSince(null);
-      return () => {};
-    }
-    // Start poll once (covers both paused and playing states so now-playing stays fresh).
     window.ShapeRadioLive?.startPolling?.((np) => setNowPlaying(np));
     // ⚠ PLAYBACK REQUIRES A SIGNED-IN ACCOUNT — licensing, not product.
     // `shape.radio.pref` persists {on:true} across sign-out by design (the
@@ -598,15 +591,15 @@ function BSRadioProvider({ children }) {
       // which is the one thing this page exists not to do. The instant is taken
       // when playback started, not when it was requested. (Codex, P1 on #2072.)
       //
-      // The guard is the effect's own cleanup: a pause, a sign-out or radio-off
-      // re-runs this effect, which cancels the attempt in flight (`cancelPlay`,
+      // The guard is the effect's own cleanup: a pause or a sign-out re-runs
+      // this effect, which cancels the attempt in flight (`cancelPlay`,
       // above) before its resolution can stamp a clock for playback that is
       // already over. The deck's retry goes through the same `startPlay`, so a
       // retry in flight is cancelled the same way.
       startPlay();
     }
     return () => { cancelPlay(); window.ShapeRadioLive?.stopPolling?.(); };
-  }, [radioOn, paused, authTick]);
+  }, [paused, authTick]);
 
   // The key for the track on air, built from the RAW now-playing fields (NOT the
   // '—'-substituted display copy), so a title-only or artist-only track keys the
@@ -633,9 +626,8 @@ function BSRadioProvider({ children }) {
   function answerPrompt(yes) {
     setAsked(true);
     setShowPrompt(false);
-    setRadioOn(!!yes);
-    setPaused(!yes);
-    persistRadioPref(true, !!yes); // device-level runtime on/off
+    setPausedState(!yes);
+    persistRadioPref(true, !!yes); // device-level sound on/off
     markRadioAsked();              // account-level gate → never auto-prompt again, on any device
   }
 
@@ -644,15 +636,11 @@ function BSRadioProvider({ children }) {
     setShowPrompt(true);
   }
 
-  // Settings → Shape Radio. Answering there counts as answering the prompt, so
-  // a member who sets the preference before ever seeing it is not asked later.
-  function setRadioPreference(enabled) {
-    setAsked(true);
-    setShowPrompt(false);
-    setRadioOn(!!enabled);
-    setPaused(!enabled);
-    persistRadioPref(true, !!enabled);
-    markRadioAsked();
+  // The speaker on the radio bar and the deck's key. Kept on the device like the
+  // prompt's answer, so the next launch starts the way the member left it.
+  function setPaused(next) {
+    setPausedState(!!next);
+    persistRadioPref(true, !next);
   }
 
   // Fetch the shared social for a track key (counts + my vote + recent comments)
@@ -714,8 +702,8 @@ function BSRadioProvider({ children }) {
   // loadSongSocial so the dep array can reference it without a TDZ (Codex P1 #1781).
   // An honest-empty track keys null, so counts/comments never attach to a placeholder.
   useEffectBR(() => {
-    if (radioOn && currentSongKey) loadSongSocial(currentSongKey);
-  }, [radioOn, currentSongKey, loadSongSocial]);
+    if (currentSongKey) loadSongSocial(currentSongKey);
+  }, [currentSongKey, loadSongSocial]);
 
   function saveTrackToLibrary(track, service) {
     const payload = makeRadioTrackPayload(track);
@@ -732,7 +720,7 @@ function BSRadioProvider({ children }) {
   }
 
   const value = {
-    radioOn, setRadioOn, setRadioPreference, paused, setPaused, playingSince,
+    paused, setPaused, playingSince,
     retryPlay,
     nowPlaying, activeChannel, setChannel,
     showPrompt, askedPrompt, answerPrompt, requestRadioPrompt,
@@ -967,9 +955,6 @@ function BSRadioPrompt() {
             textTransform: 'uppercase', fontWeight: 700,
           }}
         >{tr('radio:prompt.continue', { defaultValue: 'Continue →' })}</button>
-        <div style={{ marginTop: 8, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
-          {tr('radio:prompt.changeAnytime', { defaultValue: 'Change anytime in settings' })}
-        </div>
       </div>
 
       <style>{`
@@ -1040,11 +1025,29 @@ function radioNowPlayingDisplay(np) {
 // live and muted states so the two siblings can never drift.
 const bsNpClip = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
 
+// The bar's sound glyph: a speaker with waves while the station is audible,
+// crossed out while it is not. currentColor, so it takes its button's ink.
+function BSSpeakerGlyph({ on, size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flex: 'none', display: 'block' }}>
+      <path d="M2.5 6h2.6L8.6 3v10L5.1 10H2.5z" fill="currentColor" />
+      {on
+        ? <><path d="M10.7 5.7a3.3 3.3 0 0 1 0 4.6" /><path d="M12.7 3.8a6 6 0 0 1 0 8.4" /></>
+        : <><path d="M11 6l4 4" /><path d="M15 6l-4 4" /></>}
+    </svg>
+  );
+}
+
 function BSNowPlaying({ onOpen }) {
   const t = useBS();
   const r = useBSRadio();
   const tr = useShapeTr();
-  if (!r.radioOn) return <BSNowPlayingMuted onTurnOn={() => r.setRadioPreference(true)} onOpen={onOpen} />;
+  // The station is always live (there is no radio off); what the bar shows is
+  // the deck's MEASURED key. Muted is its own quieter bar, and every other
+  // state (playing, a refused play, signed out) is the live bar with the
+  // speaker saying whether anything can be heard.
+  const key = bsRadioTransportKey({ signedIn: bsRadioSignedIn(), playing: r.playingSince != null, paused: r.paused });
+  if (key === 'resume') return <BSNowPlayingMuted onTurnOn={() => r.setPaused(false)} onOpen={onOpen} />;
 
   const np = radioNowPlayingDisplay(r.nowPlaying);
   // Key off the provider's raw-derived currentSongKey (NOT np, whose '—' fillers
@@ -1150,11 +1153,10 @@ function BSNowPlaying({ onOpen }) {
             })}
           </div>
 
-          {/* Pause/play — the MEASURED state, through the deck's own decision
-              (bsRadioTransportKey): a stream that was asked for and did not
-              start reads ▶ and asks again; it never reads ❚❚ over silence. */}
+          {/* The speaker — the MEASURED state, through the deck's own decision
+              (the `key` above): a stream that was asked for and did not start
+              reads crossed out and asks again; it never shows sound over silence. */}
           {(() => {
-            const key = bsRadioTransportKey({ signedIn: bsRadioSignedIn(), playing: r.playingSince != null, paused: r.paused });
             const act = key === 'pause' ? () => r.setPaused(true)
               : key === 'resume' ? () => r.setPaused(false)
                 : key === 'tune' ? () => r.retryPlay()
@@ -1169,9 +1171,7 @@ function BSNowPlaying({ onOpen }) {
                 background: `rgba(${t.inkRGB},0.34)`, color: t.PAPER, border: 0, cursor: act ? 'pointer' : 'default',
                 opacity: act ? 1 : 0.5,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 12,
-                fontWeight: 900,
-              }}>{key === 'pause' ? '❚❚' : '▶'}</button>
+              }}><BSSpeakerGlyph on={key === 'pause'} /></button>
             );
           })()}
         </div>
@@ -1183,8 +1183,8 @@ function BSNowPlaying({ onOpen }) {
   );
 }
 
-// Muted state when radio is off — still shows what's playing on the live
-// station so the user knows what they're missing, with a "Tune in" CTA.
+// Muted state: the station is live and this member has the sound off. It still
+// shows what's playing so they know what they're missing, with a "Tune in" CTA.
 // Same clipped instrument frame as the live bar, quiet: rule-colored frame,
 // ink-alpha spine, no light-fx layers (the station is muted).
 // THE SCHEDULE LINE — one implementation for every surface that reports what is
@@ -1217,7 +1217,7 @@ function BSSetsLine({ tone = 'dark', style }) {
         type="button"
         // stopPropagation: the muted bar's own wrapper is clickable (it opens the
         // radio screen), and tuning in is a different intent from opening.
-        onClick={(e) => { e.stopPropagation(); r.setRadioPreference(true); }}
+        onClick={(e) => { e.stopPropagation(); r.setPaused(false); }}
         style={{ display: 'inline-flex', alignItems: 'center', gap: 5, margin: 0, cursor: 'pointer', background: 'transparent', border: `1px solid ${ACC}59`, borderRadius: 3, padding: '4px 6px', boxShadow: `0 0 10px ${ACC}26`, color: ACC, ...mono, ...style }}
       >
         <span aria-hidden style={{ width: 5, height: 5, borderRadius: '50%', background: RUST, boxShadow: `0 0 6px ${RUST}`, flex: '0 0 auto' }} />
@@ -1293,13 +1293,13 @@ function BSNowPlayingMuted({ onTurnOn, onOpen }) {
             }}>{np.byline}</div>
           </div>
 
-          {/* Tune in — replaces the pause/play button */}
+          {/* Tune in — the speaker, crossed out: the sound is off until this tap */}
           <button onClick={(e) => { e.stopPropagation(); onTurnOn && onTurnOn(); }} style={{ borderRadius: 4,
             padding: '7px 10px', flexShrink: 0,
             background: t.INK, color: t.PAPER, border: 0, cursor: 'pointer',
             fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700,
-            whiteSpace: 'nowrap',
-          }}>▶ {tr('radio:nowPlaying.tuneIn', { defaultValue: 'Tune in' })}</button>
+            whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 6,
+          }}><BSSpeakerGlyph on={false} size={12} />{tr('radio:nowPlaying.tuneIn', { defaultValue: 'Tune in' })}</button>
         </div>
 
         {/* Schedule state — renders nothing unless a set is on air or imminent. */}
@@ -2823,11 +2823,8 @@ function BSRadioScreen({ onBack }) {
                   }}>
                     {label}
                   </button>
-                  <button onClick={() => r.setRadioPreference(false)} aria-label={tr('radio:screen.stop', { defaultValue: 'Stop' })} style={{ borderRadius: 12,
-                    width: 46, background: 'transparent', color: CREAM, border: `1px solid ${CREAM25}`, cursor: 'pointer',
-                    fontFamily: t.MONO, fontSize: 11, fontWeight: 800,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>■</button>
+                  {/* No ■ Stop beside it: the station has no off, and Pause is
+                      the member's whole say (owner, 2026-10-18). */}
                 </div>
                 {/* ⚠ SIGNED OUT, THE DECK SAYS WHY IT IS OFF. Playback is
                     licensing-gated (bsRadioSignedIn), so the key above is

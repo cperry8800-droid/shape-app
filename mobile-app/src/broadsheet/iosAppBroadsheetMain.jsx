@@ -1910,7 +1910,7 @@ function BSAppShell({ tweaks, setTweak }) {
   };
 
   // BSRadioProvider hoisted ABOVE the stage switch so radio state
-  // (radioOn, askedPrompt, fxMode) survives stage transitions (gate, browse,
+  // (paused, askedPrompt, fxMode) survives stage transitions (gate, browse,
   // preview) without remounting — a remount re-fires its 600ms auto-prompt,
   // causing a brief Home flash before the overlay covers it. An explicit
   // sign-out hard-reloads (see handleLogout), so radio state resets there
