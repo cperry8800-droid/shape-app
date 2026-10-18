@@ -101,7 +101,7 @@ export default {
       find: '<DashPill c={DASH_SEV_COLORS.unknown}>Payment retrying</DashPill>', replace: '<DashPill c={DASH_SEV_COLORS.amber}>Payment retrying</DashPill>' },
     ...[['public/newdesign/trainerClientsPage.jsx', 'trainer'], ['public/newdesign/nutritionistClientsPage.jsx', 'nutritionist']].map(([file, role]) => ({
       name: `website: the ${role} Clients page counts the list`, file,
-      find: '  const activeCount = dashPlanClientCount(clients);', replace: '  const activeCount = clients.length;' })),
+      find: '  const activeCount = dashPlanClientCount(clients, planCount);', replace: '  const activeCount = clients.length;' })),
 
     // ── The app ──
     { name: 'app: the roster read drops the flag', file: 'mobile-app/src/services/shapeBackend.js',

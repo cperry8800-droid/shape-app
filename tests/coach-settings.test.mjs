@@ -366,7 +366,7 @@ test('a stored override the engine REFUSED is not painted as an active tuning', 
   assert.match(src, /const isTuned = val != null && !wasRefused;/);
   assert.match(src, /wasRefused \? "not used"/, 'a refused row says nothing about being refused');
   // and useDashboard has to carry it out for any of that to be reachable
-  assert.match(stripComments(DATA), /source: state\.source, tuning \}/, 'the refusals are swallowed again');
+  assert.match(stripComments(DATA), /source: state\.source, tuning(?:, [^}]*)? \};/, 'the refusals are swallowed again');
 });
 
 test('a number field commits on blur and refuses an empty value', () => {
