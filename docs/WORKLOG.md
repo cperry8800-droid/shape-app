@@ -233,7 +233,9 @@ planned builds.
 - The daily check-in (#2398): its saves have no timeout, so a request the network holds
   keeps Details waiting (the next card reads after 3 seconds anyway). `hydration_l` is
   `numeric(4,2)`, so an 8 oz glass is stored as 0.24 L and totals drift up about 1.4%.
-  The full check-in page still reads a watch's night by a heart rate on the day.
+  The full check-in page still reads a watch's night by a heart rate on the day. A
+  typed night's hours and its `manual` stamp are two writes, so a watch sync landing
+  between them can label the night wrong (closing it needs one SQL function).
 - Android back leaves the native app from any sheet (no `@capacitor/app`); in the hosted
   `/m/`, sheets add no history entry.
 

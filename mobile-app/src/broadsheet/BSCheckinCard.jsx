@@ -393,7 +393,9 @@ function BSCheckinDay({ onOpen, dayIso }) {
     waterPending.current += deltaL;
     bsCiEnqueue('water', uid, () => window.ShapeHydration.add(deltaL)).then((d) => {
       waterPending.current -= deltaL;
-      if (alive.current && d && d.ok) setWater((w) => ({ ...w, l: round((Number(d.hydrationL) || 0) + waterPending.current), unknown: false }));
+      // The add answers with the running total and the member's own target, which a failed first
+      // read left at 3 L (Codex P2 on #2398).
+      if (alive.current && d && d.ok) setWater((w) => ({ ...w, l: round((Number(d.hydrationL) || 0) + waterPending.current), target: Number(d.targetL) || w.target, unknown: false }));
     }).catch(() => {
       waterPending.current -= deltaL;
       if (!alive.current) return;

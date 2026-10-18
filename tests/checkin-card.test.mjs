@@ -1126,3 +1126,19 @@ test('an older failed save leaves alone a newer answer to the same question stil
   } finally { m.unmount(); }
   assert.deepEqual(calls.log, [{ energy: 8 }, { energy: 4 }]);
 });
+
+test("a glass after a failed water read brings back the member's own target (Codex P2 on #2398)", async () => {
+  theme.isMetric = true;
+  try {
+    env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
+    dom.window.ShapeHydration = {
+      get: async () => { throw new Error('500'); },
+      add: async (d) => ({ ok: true, hydrationL: 1 + d, targetL: 2 }),
+    };
+    const m = await mount();
+    try {
+      await m.click(/\+ Glass/);
+      assert.match(m.text(), /1\.25 L \/ 2 L/, 'the card kept the 3 L fallback after the add brought the real target');
+    } finally { m.unmount(); }
+  } finally { theme.isMetric = false; }
+});
