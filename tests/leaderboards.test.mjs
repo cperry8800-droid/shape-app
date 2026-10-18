@@ -496,7 +496,9 @@ test('the coach Score pages claim no rank the board did not give (CodeRabbit, on
     // (the Icon rung's own description, "Top 1% of coaches", is the ladder, not a claim about you)
     assert.ok(!/right="[^"]*TOP \d+%|Top \d+% of (trainers|nutritionists) on Shape/.test(page), `the ${role} Score page still shows a fixed percentage`);
     assert.match(page, /<SectionTitle right=\{tierLabel\}>Tiers<\/SectionTitle>/, `the ${role} Tiers card does not read the live tier`);
-    assert.match(page, /setTierLabel\(String\(cn\(d\.current_tier\)\)\.toUpperCase\(\)\)/);
+    // The label is the read's own rung (2026-10-18: the page derives it from the read rather than
+    // setting it over a fixed MASTER; tests/coach-score-website.test.mjs mounts it).
+    assert.match(page, /const tierName = score \? String\(cn\(score\.current_tier\)\) : null;\s*const tierLabel = tierName \? tierName\.toUpperCase\(\) : "—";/);
   }
 });
 

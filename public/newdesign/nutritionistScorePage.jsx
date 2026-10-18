@@ -3,21 +3,34 @@ function NutritionistScorePage() {
   // Coach ladder (scheme J) — coaches climb their own named rungs.
   const COACH_NAME = { Raw:"Certified", Base:"Certified", Tempo:"Pro", Form:"Elite", Peak:"Master", Legend:"Icon", Certified:"Certified", Pro:"Pro", Elite:"Elite", Master:"Master", Icon:"Icon" };
   const cn = (n) => COACH_NAME[n] || n;
-  const STATIC_TIERS = [["Certified","0–750","Verified Shape coach",false],["Pro","750–2,000","Consistent nutritionist",false],["Elite","2,000–5,000","Top performer",false],["Master","5,000–15,000","Top tier",true],["Icon","15,000+","Top 1%",false]];
-  const STATIC_BREAKDOWN = [
-    ["Active clients",        1320, "28 clients · +7 this Q"],
-    ["Log adherence",          990, "89% 30d avg"],
-    ["Client body-comp wins",  880, "18 clients hit targets"],
-    ["Plans published",        390, "5 live · 1 trending"],
-    ["Reviews",                550, "4.94 · 612 reviews"],
-    ["Radio hosted",           280, "2 rooms last month"],
-    ["Coach collaborations",   390, "24 trainer co-signs"],
-    ["Referrals in",           540, "14 clients from trainers"],
+  // [name, range, description]: the ranges are /api/coach/score's TIERS.
+  const LADDER = [["Certified","0–750","Verified Shape coach"],["Pro","750–2,000","Consistent nutritionist"],["Elite","2,000–5,000","Top performer"],["Master","5,000–15,000","Top tier"],["Icon","15,000+","Top 1%"]];
+  // ⚠ HOW A COACH EARNS POINTS IS /api/coach/score's FORMULA, AND NOTHING ELSE: 50 for each active
+  // client and 10 for each point of the session completion rate over the last 90 days (up to 1,000);
+  // the programs term is a trainer's only (src/app/api/coach/score/route.ts, kept in sync with
+  // get_coach_scores). This page listed twelve "points by action" (a consult +18–28, a plan sold
+  // +30, a 5-star review +15 …) and a sample breakdown with reviews, Radio, referrals and body-comp
+  // wins: scoring that never existed. The app's coach Score page prints the same terms
+  // (BS_COACH_SCORE_FORMULA in iosAppBroadsheetClient.jsx).
+  const COACH_FORMULA = [
+    ["Active clients", "Per client · each client subscribed to you now", "+50"],
+    ["Session completion", "Per 1% completed · your sessions in the last 90 days, up to 1,000", "+10"],
   ];
-  const [tiers, setTiers] = React.useState(STATIC_TIERS);
-  const [breakdown, setBreakdown] = React.useState(STATIC_BREAKDOWN);
-  const [headline, setHeadline] = React.useState({ title: "5,340", eyebrow: "COACH SCORE · MASTER" });
-  const [tierLabel, setTierLabel] = React.useState("MASTER");
+  // The signed-out sample, on the same formula: 28 × 50 + 94 × 10 = 2,340, an Elite.
+  const SAMPLE = {
+    total: 2340, current_tier: "Elite", next_tier: "Master", points_to_next: 2660,
+    breakdown: [
+      { label: "Active clients", points: 1400, sub: "28 clients" },
+      { label: "Session completion", points: 940, sub: "94% · last 90d" },
+    ],
+  };
+  // How the read ended: "pending"; "ok" (the coach's own score); "sample" (signed out: a 401, so the
+  // labelled sample above); or "failed" (a 503 when the sign-in couldn't be checked, a 5xx, a 404 for
+  // an account with no nutritionist listing, a thrown fetch, an answer that isn't a score).
+  // ⚠ A FAILED READ IS NOT THE SAMPLE. The page started from static figures (5,340, Master, 28
+  // clients) and kept them when the read failed, so a signed-in coach whose read failed was shown
+  // the sample as their own score. Only a 401 shows the sample, and it says it is one.
+  const [read, setRead] = React.useState({ state: "pending", score: null });
 
   // Your score · Leaderboard (owner, 2026-10-15: "we should have a members and coaches
   // leaderboard"). The board is leaderboards.jsx's; the subtitle reads your rank off it.
@@ -26,22 +39,30 @@ function NutritionistScorePage() {
 
   React.useEffect(() => {
     let alive = true;
-    fetch('/api/coach/score?role=nutritionist', { credentials: 'same-origin' })
-      .then(r => (r.ok ? r.json() : null))
+    const signedOut = { signedOut: true };
+    fetch('/api/coach/score?role=nutritionist', { credentials: 'same-origin', cache: 'no-store' })
+      .then(r => (r.status === 401 ? signedOut : r.ok ? r.json() : null))
       .then(d => {
-        if (!alive || !d || typeof d.total !== 'number') return;
-        if (!d.breakdown || !d.breakdown.length) return;
-        setBreakdown(d.breakdown.map(b => [b.label, b.points, b.sub]));
-        setHeadline({
-          title: d.total.toLocaleString(),
-          eyebrow: `COACH SCORE · ${String(cn(d.current_tier)).toUpperCase()}`,
-        });
-        setTierLabel(String(cn(d.current_tier)).toUpperCase());
-        setTiers(STATIC_TIERS.map(([t,r,desc]) => [t, r, desc, t === cn(d.current_tier)]));
+        if (!alive) return;
+        if (d === signedOut) setRead({ state: "sample", score: SAMPLE });
+        else if (d && typeof d.total === 'number' && Number.isFinite(d.total) && typeof d.current_tier === 'string' && Array.isArray(d.breakdown)) setRead({ state: "ok", score: d });
+        else setRead({ state: "failed", score: null });
       })
-      .catch(() => {});
+      .catch(() => { if (alive) setRead({ state: "failed", score: null }); });
     return () => { alive = false; };
   }, []);
+
+  const score = read.score;
+  const tierName = score ? String(cn(score.current_tier)) : null;
+  const tierLabel = tierName ? tierName.toUpperCase() : "—";
+  const tiers = LADDER.map(([t, r, desc]) => [t, r, desc, t === tierName]);
+  const breakdown = score ? score.breakdown.map(b => [b.label, Number(b.points) || 0, b.sub]) : [];
+  const headline = score
+    ? { title: score.total.toLocaleString(), eyebrow: `COACH SCORE · ${tierLabel}${read.state === "sample" ? " · SAMPLE" : ""}` }
+    : { title: "—", eyebrow: read.state === "failed" ? "COACH SCORE · COULDN'T READ" : "COACH SCORE" };
+  const unreadNote = read.state === "failed"
+    ? "Couldn't read your score just now. Nothing is shown in its place: reload the page to try again."
+    : "Reading your score…";
 
   // ── A FIXED PAGE, NOT A BOARD (owner, 2026-10-15: "least overwhelming as possible, easy
   // to navigate", the builder removed "like Programs"). The ladder on top; the breakdown of
@@ -64,7 +85,8 @@ function NutritionistScorePage() {
 
   const breakdownCard = (
       <Card>
-        <SectionTitle right={`TOTAL ${breakdown.reduce((a, b) => a + b[1], 0).toLocaleString()}`}>Score breakdown</SectionTitle>
+        <SectionTitle right={score ? `${read.state === "sample" ? "SAMPLE · " : ""}TOTAL ${breakdown.reduce((a, b) => a + b[1], 0).toLocaleString()}` : null}>Score breakdown</SectionTitle>
+        {!score && <div role="status" style={{ padding: "14px 0", fontSize: 13.5, lineHeight: 1.5, color: "var(--sh-ink2, #a09b94)" }}>{unreadNote}</div>}
         {(() => { const bdMax = Math.max(...breakdown.map(b=>b[1])); return breakdown.map(([l,v,sub],i)=>{
           const w = bdMax > 0 ? (v / bdMax) * 100 : 0;
           return (
@@ -96,31 +118,21 @@ function NutritionistScorePage() {
       </Card>
   );
 
-  const pathCard = (
+  // The next rung, from the read (it printed "9,660 more points" to Icon whatever the coach's score).
+  const pathCard = score && (
       <Card style={{ background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.06)", border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.25)" }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: "var(--sh-accent-ink, #2ee0c4)", marginBottom: 10 }}>PATH TO ICON</div>
-        <div style={{ fontSize: 14, lineHeight: 1.55, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.85)" }}>9,660 more points. Top levers: add 10 clients (+500), hit 95% log adherence (+330), publish 2 plans (+390).</div>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: "var(--sh-accent-ink, #2ee0c4)", marginBottom: 10 }}>{score.next_tier ? `PATH TO ${String(cn(score.next_tier)).toUpperCase()}` : "THE TOP OF THE LADDER"}</div>
+        <div style={{ fontSize: 14, lineHeight: 1.55, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.85)" }}>{score.next_tier
+          ? `${Math.max(0, Number(score.points_to_next) || 0).toLocaleString()} more points. Each new client adds 50, and each point of session completion 10.`
+          : "Icon is the highest rung on the coach ladder."}</div>
       </Card>
   );
 
   const earnCard = (
       <Card>
-        <SectionTitle right="12 WAYS">How you earn · points by action</SectionTitle>
+        <SectionTitle right={`${COACH_FORMULA.length} TERMS`}>How you earn · points by term</SectionTitle>
         <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 36px" }}>
-          {[
-            ["Consult completed", "Per booking · initial or follow-up consult", "+18–28"],
-            ["Meal plan delivered", "Per client · new or adjusted nutrition plan", "+24"],
-            ["Grocery list sent", "Per plan · built from the plan", "+8"],
-            ["Macro review returned", "Per review · food log analysis within 24h", "+8–12"],
-            ["Adherence check-in", "Daily · useful client follow-up", "+5"],
-            ["Fast message reply", "Per reply · within the hour", "+2"],
-            ["Biomarker note logged", "Per update · labs, weight trend, or recovery", "+10"],
-            ["Client hit macros", "Per client · weekly adherence credit", "+6"],
-            ["Plan adherence streak", "Weekly · client hit targets for the week", "+20"],
-            ["5-star review earned", "Per review · verified client rating", "+15"],
-            ["Plan sold", "Per sale · marketplace plan purchase", "+30"],
-            ["New nutrition client onboarded", "Per intake · completed intake and first plan", "+40"],
-          ].map(([name, sub, pts], i) => (
+          {COACH_FORMULA.map(([name, sub, pts], i) => (
             <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 16, padding: "13px 0", borderTop: i > 1 ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" : "none", alignItems: "baseline" }}>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 500 }}>{name}</div>
@@ -152,6 +164,7 @@ function NutritionistScorePage() {
         <div id="score-earn" style={{ scrollMarginTop: 80 }}>{earnCard}</div>
       </div>
       )}
+      {read.state === "sample" && typeof DashDemoBand === "function" && <DashDemoBand />}
     </DashPage>
   );
 }
