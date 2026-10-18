@@ -222,5 +222,10 @@ export default {
     { name: 'migration: disconnected is not a status', file: SQL,
       find: "alter table public.trainers add constraint trainers_stripe_account_status_check\n  check (stripe_account_status in ('pending', 'active', 'restricted', 'rejected', 'disconnected'));",
       replace: "alter table public.trainers add constraint trainers_stripe_account_status_check\n  check (stripe_account_status in ('pending', 'active', 'restricted', 'rejected'));" },
+    // ── Codex on #2401: the return page asks the application (the expiry's guard is the mutant above) ──
+    { name: 'codex-2401 return: a coach-made checkout is called paid', file: RETURN,
+      find: "    if (!madeByShape(application)) return { state: 'unconfirmed' };", replace: '' },
+    { name: 'codex-2401 return: a subscription is judged by its payment intent', file: RETURN,
+      find: "    const made = s.mode === 'subscription' ? s.subscription : s.payment_intent;", replace: '    const made = s.payment_intent;' },
   ],
 };

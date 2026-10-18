@@ -784,12 +784,15 @@ export async function POST(request: Request) {
         // sweep is what returns the credit.
         const session = event.data.object as Stripe.Checkout.Session;
         const ref = session.metadata?.store_credit_ref;
-        // A connected account's checkout releases a reservation only when it is the account of the
-        // coach it names: a coach's own checkout cannot hand back credit another checkout holds.
-        // An expired checkout may carry no payment, so the `application` half cannot be asked.
+        // ⚠ A CONNECTED ACCOUNT'S CHECKOUT NEVER RELEASES CREDIT HERE (Codex on #2401). An expired
+        // checkout carries no payment, so nothing proves Shape made it: a coach could make one on
+        // their own account naming a live Shape checkout's store_credit_ref, and the release would
+        // free credit that checkout still holds, to be spent twice. reserve_store_credit's 48-hour
+        // sweep returns the credit instead. Part B, which first puts credit on a coach's account,
+        // binds each reservation to its checkout before releasing early.
         if (ref && acct) {
-          const refused = await connectOriginRefusal(admin, event, acct, session.metadata, null, false);
-          if (refused) return refused;
+          console.warn('[stripe webhook] a connected account\'s expired checkout — its credit is left to the 48-hour sweep', { session: session.id, account: acct });
+          break;
         }
         if (ref) {
           const { error: releaseErr } = await admin.rpc('release_store_credit_reservation', { p_ref: ref });

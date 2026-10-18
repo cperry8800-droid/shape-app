@@ -528,10 +528,18 @@ test('webhook: a Connect dispute, and an expired checkout\'s credit, stay on the
   assert.deepEqual(stmts(d.db.calls, 'one_time_purchases', 'update')[0].eqs, [['stripe_payment_intent_id', 'pi_d1'], ['stripe_account_id', ACCT]]);
   assert.equal(d.db.tables.one_time_purchases[0].status, 'paid', 'another account\'s purchase is not marked disputed');
   const expired = (provider_id) => ({ id: 'evt_e', type: 'checkout.session.expired', account: ACCT, data: { object: { id: 'cs_test_x', metadata: meta({ provider_id, store_credit_ref: 'ref-9' }) } } });
-  const foreign = await runWebhook(expired('5'), { tables: coaches() });
-  assert.equal(foreign.db.calls.filter((c) => c.rpc).length, 0, 'a coach\'s own checkout cannot release a reservation another checkout holds');
-  const own = await runWebhook(expired('4'), { tables: coaches() });
-  assert.deepEqual(own.db.calls.filter((c) => c.rpc).map((c) => [c.rpc, c.args]), [['release_store_credit_reservation', { p_ref: 'ref-9' }]]);
+  // ⚠ No checkout on a coach's account releases credit (Codex on #2401): an expired one carries no
+  // payment, so nothing proves Shape made it, and one naming a live checkout's ref would free credit
+  // that checkout still holds. The 48-hour sweep returns it.
+  for (const provider_id of ['5', '4']) {
+    const r = await runWebhook(expired(provider_id), { tables: coaches() });
+    assert.equal(r.status, 200);
+    assert.equal(r.db.calls.filter((c) => c.rpc).length, 0, `coach ${provider_id}: no release on a connected account`);
+    assert.ok(r.logs.some((l) => l.includes('left to the 48-hour sweep')), 'says why');
+  }
+  // Shape's own account still releases at once, as before.
+  const platform = await runWebhook({ id: 'evt_p', type: 'checkout.session.expired', data: { object: { id: 'cs_test_p', metadata: { store_credit_ref: 'ref-7' } } } }, { secret: PLATFORM_SECRET, tables: coaches() });
+  assert.deepEqual(platform.db.calls.filter((c) => c.rpc).map((c) => [c.rpc, c.args]), [['release_store_credit_reservation', { p_ref: 'ref-7' }]]);
 });
 
 // ── Admin refunds ─────────────────────────────────────────────────────────────────────────────
@@ -682,9 +690,9 @@ async function loadReturn({ retrieve, tables = coaches(), errors = {} }) {
   return { mod, db };
 }
 
-test('the return page reads a checkout from a coach\'s account only when the account is a coach\'s on record', async () => {
+test('the return page reads a checkout from a coach\'s account only when the account is a coach\'s on record', () => withEnv({ STRIPE_CONNECT_APPLICATION_ID: APP }, async () => {
   const ID = 'cs_test_abcdefghij';
-  const session = (metadata = {}) => ({ id: ID, status: 'complete', payment_status: 'paid', mode: 'payment', client_reference_id: UID, metadata: { client_id: UID, provider_id: '4', provider_role: 'trainer', kind: 'booking', ...metadata } });
+  const session = (metadata = {}) => ({ id: ID, status: 'complete', payment_status: 'paid', mode: 'payment', client_reference_id: UID, payment_intent: { id: 'pi_r', application: APP }, metadata: { client_id: UID, provider_id: '4', provider_role: 'trainer', kind: 'booking', ...metadata } });
   const asked = [];
   const retrieve = async (...a) => { asked.push(a); return session(); };
   const { mod } = await loadReturn({ retrieve, tables: { trainers: [{ id: 4, name: 'Tom', stripe_account_id: ACCT }], nutritionists: [] } });
@@ -705,7 +713,28 @@ test('the return page reads a checkout from a coach\'s account only when the acc
   assert.equal((await both.readCheckoutReturn(ID, ACCT)).state, 'paid');
   const { mod: down } = await loadReturn({ retrieve, errors: { 'select:trainers': { message: 'down' } } });
   assert.deepEqual(await down.readCheckoutReturn(ID, ACCT), { state: 'unconfirmed' });
-});
+}));
+
+// ⚠ A CHECKOUT THE COACH MADE IS NOT CALLED PAID (Codex on #2401). The coach can make and pay one of
+// their own naming themselves; the webhook refuses it, and so does the page.
+test('the return page vouches for a checkout on a coach\'s account only when Shape\'s application made it', () => withEnv({ STRIPE_CONNECT_APPLICATION_ID: APP }, async () => {
+  const ID = 'cs_test_abcdefghij';
+  const tables = { trainers: [{ id: 4, name: 'Tom', stripe_account_id: ACCT }], nutritionists: [] };
+  const base = { id: ID, status: 'complete', payment_status: 'paid', client_reference_id: UID, metadata: { client_id: UID, provider_id: '4', provider_role: 'trainer', kind: 'booking' } };
+  const read = async (s, acct = ACCT) => (await (await loadReturn({ retrieve: async () => s, tables })).mod.readCheckoutReturn(ID, acct)).state;
+  assert.equal(await read({ ...base, mode: 'payment', payment_intent: { id: 'pi_1', application: 'ca_TheCoachesOwnApp' } }), 'unconfirmed', 'another application');
+  assert.equal(await read({ ...base, mode: 'payment', payment_intent: { id: 'pi_1', application: null } }), 'unconfirmed', 'made in the coach\'s own dashboard');
+  assert.equal(await read({ ...base, mode: 'payment', payment_intent: 'pi_1' }), 'unconfirmed', 'not expanded: nothing proves it');
+  assert.equal(await read({ ...base, mode: 'payment', payment_intent: { id: 'pi_1', application: { id: APP } } }), 'paid', 'Shape\'s, expanded');
+  assert.equal(await read({ ...base, mode: 'subscription', subscription: { id: 'sub_1', application: APP }, payment_intent: null }), 'paid', 'a subscription: its own application');
+  assert.equal(await read({ ...base, mode: 'subscription', subscription: { id: 'sub_1', application: 'ca_Other' }, payment_intent: { id: 'pi_1', application: APP } }), 'unconfirmed', 'a subscription is judged by the subscription');
+  // Shape's own account is not asked: a destination charge has no connected application.
+  assert.equal(await read({ ...base, mode: 'payment', payment_intent: { id: 'pi_1', application: null } }, null), 'paid');
+  // With the variable unset, nothing on a coach's account is vouched for.
+  await withEnv({ STRIPE_CONNECT_APPLICATION_ID: undefined }, async () => {
+    assert.equal(await read({ ...base, mode: 'payment', payment_intent: { id: 'pi_1', application: APP } }), 'unconfirmed');
+  });
+}));
 
 // ── The env lists and the migration ───────────────────────────────────────────────────────────
 test('/api/health names the two new variables', () => {

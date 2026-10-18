@@ -9,7 +9,7 @@
 // Read by src/app/purchase/success/page.tsx and src/app/subscribe/success/page.tsx.
 
 import { stripe } from '@/lib/stripe';
-import { acctOpts, isAccountId } from '@/lib/stripe-connect';
+import { acctOpts, isAccountId, madeByShape } from '@/lib/stripe-connect';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -121,6 +121,14 @@ export async function readCheckoutReturn(sessionId: unknown, acct?: unknown): Pr
   // made for themselves, naming someone else, is not Shape's to vouch for.
   if (account && !accountCoaches.some((c) => s.metadata?.provider_role === c.role && Number(s.metadata?.provider_id) === c.id)) {
     return { state: 'unconfirmed' };
+  }
+  // ⚠ AND ONLY WHEN SHAPE MADE IT (Codex on #2401). The coach can make and pay a checkout of their
+  // own naming themselves; the webhook's origin guard refuses it, so the page must not call it
+  // paid either. Its PaymentIntent or Subscription carries the application that made it.
+  if (account) {
+    const made = s.mode === 'subscription' ? s.subscription : s.payment_intent;
+    const application = made && typeof made === 'object' ? (made as { application?: unknown }).application : undefined;
+    if (!madeByShape(application)) return { state: 'unconfirmed' };
   }
 
   if (s.status !== 'complete') return { state: 'not_paid' };
