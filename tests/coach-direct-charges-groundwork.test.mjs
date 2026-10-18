@@ -67,7 +67,8 @@ function fakeDb({ tables = {}, errors = {}, rpc = async () => ({ data: 0, error:
       if (err) return { data: null, error: err };
       const hit = rows().filter((r) =>
         st.eqs.every(([c, v]) => r[c] === v)
-        && st.neqs.every(([c, v]) => r[c] !== v)
+        // neq is SQL's <>: a NULL is neither equal nor unequal, so its row is filtered out.
+        && st.neqs.every(([c, v]) => r[c] != null && r[c] !== v)
         && st.iss.every(([c, v]) => (r[c] ?? null) === v)
         && st.ins.every(([c, vs]) => vs.includes(r[c]))
         && st.ors.every((alts) => alts.some((f) => f(r))));
