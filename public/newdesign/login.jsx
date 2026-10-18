@@ -158,6 +158,20 @@ function LoginCard() {
       if (next && next.startsWith('/') && !next.startsWith('//') && next.charAt(1) !== '\\'
           && !/[\x00-\x1f\x7f]/.test(next)) nextDashboard = next;
     } catch (e) {}
+    // The first sign-in after a confirmed email goes back where sign-up was sent from: the
+    // confirmation link carries no ?next=, so signup.jsx kept it in this browser
+    // (suRememberNext, two days). Only the account that signed up reads it, once, and it is then
+    // forgotten; another account on the same browser leaves it be (Codex on #2399). A ?next= on the
+    // address wins, and it is held to the same same-site rule.
+    try {
+      const kept = JSON.parse(localStorage.getItem('shape.signupNext') || 'null');
+      const fresh = !!kept && Date.now() - Number(kept.at) < 2 * 86400000;
+      const mine = !!(kept && kept.uid && session && session.user && session.user.id === kept.uid);
+      if (kept && (!fresh || mine)) localStorage.removeItem('shape.signupNext');
+      const back = fresh && mine ? String(kept.next || '') : '';
+      if (!new URLSearchParams(window.location.search).get('next') && back.startsWith('/') && !back.startsWith('//')
+          && back.charAt(1) !== '\\' && !/[\x00-\x1f\x7f]/.test(back)) nextDashboard = back;
+    } catch (e) {}
     window.location.href = nextDashboard;
   };
 

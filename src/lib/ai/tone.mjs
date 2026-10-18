@@ -42,31 +42,46 @@ export function toneInstruction(tone) {
   ].join(' ');
 }
 
-// OpenAI TTS voice per tone: supportive = warmer, direct = neutral/crisp.
+// OpenAI TTS voice per tone: supportive = warm, direct = bright and crisp.
+// ⚠ NORA IS A WOMAN'S VOICE, AT EVERY STEP (owner, 2026-10-18: "her voice needs to sound more
+// feminine"). Direct read in 'alloy', which is neutral, and the picker and the env default could
+// name a man's voice ('onyx', 'verse', 'fable'). Every voice she can read in is now one of
+// NORA_VOICES below.
 export function voiceForTone(tone) {
-  return normalizeTone(tone) === 'direct' ? 'alloy' : 'shimmer';
+  return normalizeTone(tone) === 'direct' ? 'nova' : 'coral';
 }
 
 // Speech-delivery style per tone for the gpt-4o-mini-tts `instructions` field —
 // steers HOW the words are read, never the words themselves (the verbatim
 // contract). The NORA_TTS_INSTRUCTIONS env (optional) overrides both at the
 // speak route, so the owner can pin a house style without a code change.
+// ⚠ SHE SPEAKS BRISKLY (owner, 2026-10-18: "she is talking too slow"). Supportive asked for a
+// "relaxed conversational pace"; both tones now ask for a quick one, and NORA_DELIVERY rides on an
+// owner's NORA_TTS_INSTRUCTIONS too (speechInstructions). The players also run her clips a little
+// fast, pitch kept (chatWidget.jsx CW_NORA_RATE, the app's shapeBackend.js VOICE_RATE).
+export const NORA_DELIVERY = 'Speak as a young woman, at a brisk, lively pace with short pauses between sentences; never slow or drawn out.';
 export function voiceStyleForTone(tone) {
   if (normalizeTone(tone) === 'direct') {
-    return 'Crisp, confident, matter-of-fact fitness coach — brisk, energetic pace, no fluff, never announcer-like.';
+    return 'Crisp, confident, matter-of-fact woman coaching fitness — bright and energetic, no fluff, never announcer-like. ' + NORA_DELIVERY;
   }
-  return 'Warm, natural, encouraging fitness coach talking with a friend — relaxed conversational pace, gentle emphasis, never announcer-like.';
+  return 'Warm, natural, encouraging woman coaching fitness, talking with a friend — friendly and upbeat, light emphasis, never announcer-like. ' + NORA_DELIVERY;
+}
+// The delivery the speak route sends: the owner's NORA_TTS_INSTRUCTIONS when set, with her voice
+// and pace added, else the tone's own style.
+export function speechInstructions(envInstructions, tone) {
+  const own = String(envInstructions || '').trim();
+  return own ? own + ' ' + NORA_DELIVERY : voiceStyleForTone(tone);
 }
 
-// The voices a member can pick for Nora (curated OpenAI TTS set, friendly
-// labels). 'auto' (or anything unknown) means "follow the tone" via voiceForTone.
+// The voices a member can pick for Nora (OpenAI's women's voices, friendly labels). 'auto' (or
+// anything unknown, including a man's voice an older build saved) means "follow the tone" via
+// voiceForTone. The app's list (mobile-app/src/services/shapeBackend.js NORA_VOICE_LIST) and the
+// website's (chatWidget.jsx) mirror this one.
 export const NORA_VOICES = [
-  { id: 'shimmer', label: 'Warm' },
-  { id: 'alloy', label: 'Neutral' },
-  { id: 'sage', label: 'Calm' },
+  { id: 'coral', label: 'Warm' },
   { id: 'nova', label: 'Bright' },
-  { id: 'onyx', label: 'Deep' },
-  { id: 'verse', label: 'Expressive' },
+  { id: 'shimmer', label: 'Soft' },
+  { id: 'sage', label: 'Calm' },
 ];
 const VOICE_IDS = NORA_VOICES.map((v) => v.id);
 
@@ -79,16 +94,16 @@ export function resolveVoice(voice, tone) {
   return normalizeVoice(voice) || voiceForTone(tone);
 }
 
-// The FULL gpt-4o-mini-tts voice set — wider than the member picker, so the
-// owner's env default (NORA_TTS_VOICE, auditioned at openai.fm) can pin any
-// API voice (e.g. 'fable') without widening the picker. Precedence: a member's
-// explicit picker choice → the env default → the tone default.
+// The full gpt-4o-mini-tts voice set, for reference. Precedence: a member's explicit picker
+// choice → the owner's env default (NORA_TTS_VOICE, auditioned at openai.fm) → the tone default.
+// The env default is honoured only when it is one of Nora's voices: it could pin a man's voice
+// ('fable', 'onyx'), which she no longer reads in (owner, 2026-10-18).
 export const OPENAI_TTS_VOICES = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'onyx', 'nova', 'sage', 'shimmer', 'verse'];
 export function resolveVoiceWithDefault(voice, envVoice, tone) {
   const picked = normalizeVoice(voice);
   if (picked) return picked;
-  const env = String(envVoice || '').trim().toLowerCase();
-  if (OPENAI_TTS_VOICES.includes(env)) return env;
+  const env = normalizeVoice(String(envVoice || '').trim().toLowerCase());
+  if (env) return env;
   return voiceForTone(tone);
 }
 

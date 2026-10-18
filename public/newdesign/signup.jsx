@@ -115,6 +115,26 @@ function suSafeNext() {
   } catch (e) {}
   return null;
 }
+// Sign in, keeping that return path (owner, 2026-10-18). A visitor sent here from a coach's
+// profile ("Join Shape", livingShared.jsx lvAccountHref) who has to confirm their email, or who
+// already has an account, went on to a bare Login.html and so to their dashboard, not back to the
+// coach they came to hire.
+function suLoginHref() {
+  const next = suSafeNext();
+  return "Login.html" + (next ? "?next=" + encodeURIComponent(next) : "");
+}
+// ⚠ AND THROUGH THE EMAIL CONFIRMATION (Codex on #2399). The confirmation link opens Login.html as
+// Supabase's redirect list holds it, without this page's ?next=, so a visitor who joined from a
+// coach's profile was signed in to their dashboard instead. Adding ?next= to emailRedirectTo could
+// fail that list and land them on the site root, so the return path is kept in this browser for two
+// days instead; login.jsx reads it once on the first sign-in with no ?next= of its own, then forgets it.
+// It is kept for the account just made (`uid`), so another account signing in on this browser (a shared
+// device) is neither sent to the coach nor takes the way back from the one who signed up (Codex on #2399).
+function suRememberNext(uid) {
+  const next = suSafeNext();
+  if (!next || !uid) return;
+  try { localStorage.setItem("shape.signupNext", JSON.stringify({ next, at: Date.now(), uid })); } catch (e) {}
+}
 
 function Field({ label, children, span = 1 }) {
   return (
@@ -701,7 +721,7 @@ function SignupForm({ role }) {
         <h2 style={{ fontFamily: serif, fontSize: 48, letterSpacing: "-0.025em", fontWeight: 400, margin: "0 0 12px", lineHeight: 1 }}>You already have an account.</h2>
         <p style={{ fontFamily: sans, fontSize: 16, color: "rgba(242,237,228,0.7)", margin: "0 0 32px", lineHeight: 1.55, maxWidth: 500 }}>{values.email} is already a Shape account, so no new one was made. Sign in with it, or reset its password if you can't remember it.</p>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <a href="Login.html" style={{ padding: "14px 24px", borderRadius: 8, background: INK, color: PAPER, border: 0, fontFamily: sans, fontSize: 14, fontWeight: 500, textDecoration: "none", display: "inline-block" }}>Sign in</a>
+          <a href={suLoginHref()} style={{ padding: "14px 24px", borderRadius: 8, background: INK, color: PAPER, border: 0, fontFamily: sans, fontSize: 14, fontWeight: 500, textDecoration: "none", display: "inline-block" }}>Sign in</a>
           <a href="/forgot-password" style={{ padding: "14px 24px", borderRadius: 8, background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.2)", fontFamily: sans, fontSize: 14, textDecoration: "none", display: "inline-block" }}>Reset your password</a>
         </div>
       </div>
@@ -717,7 +737,7 @@ function SignupForm({ role }) {
         <h2 style={{ fontFamily: serif, fontSize: 48, letterSpacing: "-0.025em", fontWeight: 400, margin: "0 0 12px", lineHeight: 1 }}>Confirm your email.</h2>
         <p style={{ fontFamily: sans, fontSize: 16, color: "rgba(242,237,228,0.7)", margin: "0 0 32px", lineHeight: 1.55, maxWidth: 500 }}>We sent a confirmation link to {values.email}. Click it, then sign in to finish — we'll claim @{(values.username || "").trim().replace(/^@/, "").toLowerCase()} for you then, if it's still available.</p>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <a href="Login.html" style={{ padding: "14px 24px", borderRadius: 8, background: INK, color: PAPER, border: 0, fontFamily: sans, fontSize: 14, fontWeight: 500, textDecoration: "none", display: "inline-block" }}>Go to sign in</a>
+          <a href={suLoginHref()} style={{ padding: "14px 24px", borderRadius: 8, background: INK, color: PAPER, border: 0, fontFamily: sans, fontSize: 14, fontWeight: 500, textDecoration: "none", display: "inline-block" }}>Go to sign in</a>
           <a href="Landing.html" style={{ padding: "14px 24px", borderRadius: 8, background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.2)", fontFamily: sans, fontSize: 14, textDecoration: "none", display: "inline-block" }}>Back to landing</a>
         </div>
         <div style={{ marginTop: 28, paddingTop: 20, borderTop: "1px solid rgba(242,237,228,0.1)" }}>
@@ -821,6 +841,7 @@ function SignupForm({ role }) {
         if (data && data.user && !data.session && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
           setExistingAccount(true);
         } else if (data && data.user && !data.session) {
+          suRememberNext(data.user.id);
           setConfirmEmail(true);
         } else {
           // Auto-confirm (no email step): a session exists immediately and we go
@@ -1112,7 +1133,7 @@ function SignupPage({ role }) {
           <a href="Landing.html" aria-label="Shape" style={{ flex: "none", display: "inline-flex" }}><Logo variant="white" size={50} /></a>
           <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
             <span style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.55)" }}>Already have an account?</span>
-            <a href="Login.html" style={{ fontFamily: sans, fontSize: 13, color: INK, fontWeight: 500, borderBottom: `1.5px solid ${TEAL}`, paddingBottom: 3 }}>Log in</a>
+            <a href={suLoginHref()} style={{ fontFamily: sans, fontSize: 13, color: INK, fontWeight: 500, borderBottom: `1.5px solid ${TEAL}`, paddingBottom: 3 }}>Log in</a>
           </div>
         </div>
       </header>

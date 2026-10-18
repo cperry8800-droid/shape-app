@@ -36,7 +36,7 @@ function webTalk() {
   const start = WEB.indexOf('const CW_NORA_SILENCE =');
   const end = WEB.indexOf('function ChatWidget(props)');
   assert.ok(start > 0 && end > start, 'the Talk view must stay where this harness reads it');
-  const { code } = babel.transformSync(`${WEB.slice(start, end)}\nthis.CwNoraTalk = CwNoraTalk; this.cwTalkStatus = cwTalkStatus;`, { presets: [presetReact], babelrc: false, configFile: false });
+  const { code } = babel.transformSync(`${WEB.slice(start, end)}\nthis.CwNoraTalk = CwNoraTalk; this.cwTalkStatus = cwTalkStatus; this.cwPhotoError = cwPhotoError; this.CW_NORA_MARK = CW_NORA_MARK;`, { presets: [presetReact], babelrc: false, configFile: false });
   const ctx = { React: SHIM, TEAL: 'teal', TEAL_BRIGHT: 'teal', PAPER: 'paper', INK: 'ink', sans: 'sans' };
   vm.runInNewContext(code, ctx);
   return ctx;
@@ -64,6 +64,48 @@ test('website Talk view: her face is the button, one line says what she is doing
   assert.match(view('listening', { manual: true }).text, /Tap me when you're done/, 'no level meter: a tap ends the turn');
   assert.match(view('error', { reason: 'mic' }).text, /Allow the microphone/);
   assert.match(view('paused', { reason: 'playback_blocked' }).text, /My answer is in the chat/);
+});
+
+test('her clips play at one brisk rate, pitch kept, on the website and in the app, and only her voices are offered', () => {
+  const BACKEND = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
+  const webRate = Number(/const CW_NORA_RATE = ([\d.]+);/.exec(WEB)[1]);
+  const appRate = Number(/const VOICE_RATE = ([\d.]+);/.exec(BACKEND)[1]);
+  assert.equal(webRate, appRate, 'one rate on both');
+  assert.ok(webRate > 1 && webRate <= 1.25, 'faster, not a chipmunk: ' + webRate);
+  // A new source resets the rate, so every clip (the opening and the rest) sets it after its src.
+  assert.equal((WEB.match(/a\.src = (url|restUrl);[^\n]*\n\s*noraPace\(a\);/g) ?? []).length, 2);
+  assert.equal((BACKEND.match(/audio\.src = (url|restUrl);[^\n]*\n\s*voicePace\(audio\);/g) ?? []).length, 2);
+  for (const src of [WEB, BACKEND]) assert.match(src, /preservesPitch = true; a\.defaultPlaybackRate = (CW_NORA_RATE|VOICE_RATE); a\.playbackRate = (CW_NORA_RATE|VOICE_RATE);/);
+  // The pickers list the server's voices and no man's voice.
+  const ids = (src, re) => [...re.exec(src)[1].matchAll(/id: ["'](\w+)["']/g)].map((m) => m[1]);
+  const server = ['coral', 'nova', 'shimmer', 'sage'];
+  assert.deepEqual(ids(WEB, /const NORA_VOICES = \[([\s\S]*?)\];/), server);
+  assert.deepEqual(ids(BACKEND, /const NORA_VOICE_LIST = \[([\s\S]*?)\];/), server);
+});
+
+test('website: a face that will not load is asked for once more, then Nora\'s mark stands in, never a broken image', () => {
+  const { cwPhotoError, CW_NORA_MARK } = webTalk();
+  const img = (src, fallback) => {
+    const a = { src, 'data-fallback': fallback };
+    return { style: {}, getAttribute: (k) => a[k] ?? null, setAttribute: (k, v) => { a[k] = v; }, set src(v) { a.src = v; }, get src() { return a.src; } };
+  };
+  const face = img('/nora-avatar.png', CW_NORA_MARK);
+  cwPhotoError({ currentTarget: face });
+  assert.match(face.src, /^\/nora-avatar\.png\?r=\d+$/, 'once more, past a cached failure');
+  cwPhotoError({ currentTarget: face });
+  assert.equal(face.src, CW_NORA_MARK, 'then her N mark, in the same circle');
+  assert.match(decodeURIComponent(CW_NORA_MARK), />N<\/text>/);
+  cwPhotoError({ currentTarget: face });
+  assert.equal(face.style.visibility, 'hidden', 'a mark that fails too steps aside');
+  // A member's photo has no stand-in: after the second try it steps aside for the initials under it.
+  const member = img('https://x.supabase.co/storage/v1/object/sign/a.jpg?token=t');
+  cwPhotoError({ currentTarget: member });
+  assert.match(member.src, /\?token=t&r=\d+$/, 'a signed address keeps its token');
+  cwPhotoError({ currentTarget: member });
+  assert.equal(member.style.visibility, 'hidden');
+  // Both of her faces, and every facet avatar, use it.
+  assert.equal((WEB.match(/<img src="\/nora-avatar\.png"[^>]*onError=\{cwPhotoError\} data-fallback=\{CW_NORA_MARK\}/g) ?? []).length, 2);
+  assert.match(WEB, /\{photo && <img key=\{photo\} src=\{photo\} alt="" onError=\{cwPhotoError\}/);
 });
 
 test('website: Talk replaced the Voice chat chip and hold-to-talk, and starts inside the tap', () => {

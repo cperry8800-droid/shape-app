@@ -32,7 +32,7 @@ const { loadRealModule } = await import('./helpers/load-real-module.mjs');
 // The routes' own rules for the trajectory and for each ended plan (both analytics routes use them).
 const { buildTrajectory, subDeparture, NOT_ENDED_STATUSES } = await import('../src/lib/coach-trajectory.mjs');
 const B = await loadRealModule(ND('dashBusiness.jsx'), {
-  appendExports: 'export { DbzChurnZone, DbzGoalEarn, dbzGoalEarnBase, dbzPlanBase, DbzPlanZone, DbzEarnZone, DbzPayoutsZone, DbzRenewalsZone, dbzRenewalsHead, DbzWaitlistZone, DbzLifetimeZone, DBZ_DEMO_CHURN, dbzDemoTrajectory, dbzDemoBook, dbzDemoOrigin, dbzDemoRenewals, DBZ_DEMO_OUTCOMES };',
+  appendExports: 'export { DbzBringClientsZone, DbzChurnZone, DbzGoalEarn, dbzGoalEarnBase, dbzPlanBase, DbzPlanZone, DbzEarnZone, DbzPayoutsZone, DbzRenewalsZone, dbzRenewalsHead, DbzWaitlistZone, DbzLifetimeZone, DBZ_DEMO_CHURN, dbzDemoTrajectory, dbzDemoBook, dbzDemoOrigin, dbzDemoRenewals, DBZ_DEMO_OUTCOMES };',
 });
 
 async function mount(el) {
@@ -171,6 +171,78 @@ test('moving a slider makes it your plan, with today\'s pace kept as the line to
   await click([...m.div.querySelectorAll('button')].find((b) => /Back to my numbers/.test(b.textContent)));
   assert.deepEqual(rowLabels(m.div), ["Today's pace", 'What if: +1 client a month']);
   await m.unmount();
+});
+
+// The chart read back through its own axis: the value each line is drawn at, month by month, the
+// goal line's value, and the last month on the axis.
+function readChart(div) {
+  const svg = div.querySelector('svg');
+  const ticks = [...svg.querySelectorAll('text[text-anchor=end]')].map((t) => ({ v: Number(t.textContent.replace(/[^0-9]/g, '')) * 100, y: Number(t.getAttribute('y')) - 3.5 }));
+  const [zero, top] = [ticks[0], ticks[ticks.length - 1]];
+  const at = (y) => ((zero.y - y) / (zero.y - top.y)) * top.v;
+  const goal = svg.querySelector('line[stroke-dasharray="5 4"]');
+  return {
+    top: top.v,
+    lines: [...svg.querySelectorAll('polyline')].map((p) => p.getAttribute('points').split(' ').map((xy) => at(Number(xy.split(',')[1])))),
+    goal: goal ? at(Number(goal.getAttribute('y1'))) : null,
+    lastMonth: [...svg.querySelectorAll('text[text-anchor=middle]')].map((t) => t.textContent).pop(),
+  };
+}
+
+test('the chart follows the sliders, and a goal reached after month 24 stretches it to month 36', async () => {
+  const m = await mount(React.createElement(B.DbzPlanZone, { base: BASE }));
+  const close = (c, want, label) => assert.ok(Math.abs(c.lines[label[0]][label[1]] - want) <= c.top * 0.002, `${label}: drawn at ${c.lines[label[0]][label[1]]}, forecast ${want}`);
+  const T = run({ adds: 2.3, churn: 0.08, rate: 180 });
+  let c = readChart(m.div);
+  close(c, T.rows[12].netCents, [0, 12]);
+  close(c, T.rows[24].netCents, [0, 24]);
+  assert.ok(Math.abs(c.goal - 300000) <= c.top * 0.002, 'the dashed line is at the goal');
+  assert.equal(c.lastMonth, 'mo 24');
+
+  const [adds, churn, rate, goal] = m.div.querySelectorAll('input[type=range]');
+  await setValue(adds, 4); await setValue(churn, 3); await setValue(rate, 250); await setValue(goal, 20000);
+  const P = run({ adds: 4, churn: 0.03, rate: 250 });
+  const W = run({ adds: 5, churn: 0.03, rate: 250 });
+  const r = CF.monthsTo(2000000, P);
+  assert.ok(r > 24 && r <= 36, 'the fixture reaches its goal in the third year: ' + r);
+  c = readChart(m.div);
+  assert.equal(c.lines.length, 3, "today's pace, the plan and the what-if");
+  close(c, T.rows[12].netCents, [0, 12]);
+  close(c, P.rows[12].netCents, [1, 12]);
+  close(c, P.rows[r].netCents, [1, r]);
+  close(c, W.rows[36].netCents, [2, 36]);
+  assert.ok(Math.abs(c.goal - 2000000) <= c.top * 0.002);
+  assert.equal(c.lastMonth, 'mo 36', 'the month the table names is on the chart');
+  assert.equal(m.div.querySelector('tbody tr:nth-child(2) td:last-child').textContent, 'mo ' + r);
+  // A goal inside two years puts it back to two.
+  await setValue(goal, 8000);
+  c = readChart(m.div);
+  assert.equal(c.lastMonth, 'mo 24');
+  assert.equal(c.lines[1].length, 25);
+  await m.unmount();
+});
+
+// ── Bring your clients ───────────────────────────────────────────────────────
+test('the referral link names the coach, the token and the role, and a refused copy says to copy it by hand', async () => {
+  const calls = [];
+  window.shapeDb = {
+    getSession: async () => ({ user: { id: 'coach-uid' } }),
+    client: { rpc: async (fn, args) => { calls.push([fn, args]); return { data: 'tok-1', error: null }; } },
+  };
+  try {
+    const m = await mount(React.createElement(B.DbzBringClientsZone, { live: true, role: 'nutritionist', providerId: 4 }));
+    await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    assert.deepEqual(calls, [['create_coach_referral_link', { p_provider_role: 'nutritionist', p_provider_id: 4 }]]);
+    // A coach with both roles has two provider rows: the role picks the one the token belongs to.
+    assert.ok(m.text().includes('https://theshapecommunity.com/newdesign/MemberProfile.html?u=coach-uid&ref=tok-1&role=nutritionist'), m.text());
+    const copy = [...m.div.querySelectorAll('button')].find((b) => /Copy link/.test(b.textContent));
+    const had = Object.getOwnPropertyDescriptor(window.navigator, 'clipboard');
+    Object.defineProperty(window.navigator, 'clipboard', { configurable: true, value: { writeText: () => Promise.reject(new Error('denied')) } });
+    try { await click(copy); await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); }); }
+    finally { if (had) Object.defineProperty(window.navigator, 'clipboard', had); else delete window.navigator.clipboard; }
+    assert.match(m.text(), /Couldn't copy it here\. Select the link above and copy it\./);
+    await m.unmount();
+  } finally { delete window.shapeDb; }
 });
 
 test('the what-if chips compare one change at a time, and can be turned off', async () => {

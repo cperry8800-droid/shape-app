@@ -33,6 +33,13 @@ function lvScreeningHref() {
   const back = window.location.pathname + window.location.search;
   return "/newdesign/ClientApp.html?screening=required&next=" + encodeURIComponent(back) + "#settings";
 }
+// Where a visitor without an account joins Shape ("SignupClient") or logs in ("Login"), coming
+// back to this page after. The whole query rides along, so a coach's referral link
+// (`?u=…&ref=…&role=…`) survives the trip; login.jsx and signup.jsx honour a same-site `next`.
+function lvAccountHref(page) {
+  const back = window.location.pathname + window.location.search;
+  return "/newdesign/" + page + ".html?next=" + encodeURIComponent(back);
+}
 function lvRng(seed) { let s = seed % 2147483647; if (s <= 0) s += 2147483646; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
 
 // Shape Score tiers — the member's tier is the screen's ATMOSPHERE. The SAME
@@ -797,6 +804,11 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
   // Hiring a coach needs the health screening (client-onboarding review, fix 2b): the route
   // answers 409 screening_required, and the member goes to Settings → Health profile and back.
   const [needsScreening, setNeedsScreening] = React.useState(false);
+  // ⚠ A VISITOR WITHOUT AN ACCOUNT GETS A WAY IN, NOT "Not signed in." (owner, 2026-10-18). The
+  // people a coach brings with their referral link mostly aren't Shape members yet, so the
+  // checkout's 401 is the main path here, and it used to end on that sentence with nothing to
+  // press. Holds what they were doing ("subscribe" | "waitlist"); "" = no prompt.
+  const [needsAccount, setNeedsAccount] = React.useState("");
   const [joinErr, setJoinErr] = React.useState("");
   const memberReturn = React.useMemo(() => { try { return new URLSearchParams(window.location.search).get("member"); } catch (e) { return null; } }, []);
   // ⚠ THE ACCOUNT, NOT A BOOLEAN — and that is the whole of CodeRabbit's finding on
@@ -896,10 +908,13 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
     // silence, which is the dead control this whole change is about. The render
     // withholds the button in that state; this says so if it is ever reached anyway.
     if (!provId) { setWlErr("We couldn\u2019t load the waiting list just now \u2014 reload and try again."); return; }
-    busy.current = true; setWlErr("");
+    busy.current = true; setWlErr(""); setNeedsAccount("");
     try {
       const res = await fetch("/api/waitlist/join", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ providerId: provId, providerRole: listingRole }) });
       const j = await res.json().catch(() => ({}));
+      // The button shows only to a signed-in account, but a session the server can't see (it
+      // ended, or never reached the cookie) still answers 401, and "Not signed in." was a dead end.
+      if (res.status === 401) { setNeedsAccount("waitlist"); return; }
       if (!res.ok) { setWlErr(j.error || "Could not join the waiting list."); return; }
       setWl({ status: j.status || "waiting", position: j.position, entryId: j.entryId || null });
     } catch (e) { setWlErr("Could not join the waiting list — check your connection and try again."); }
@@ -929,7 +944,7 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
   // page, and it costs more trust than a control that leads nowhere.
   const subscribe = async () => {
     if (busy.current) return;
-    setBuyErr(""); setWlErr(""); setNeedsMember(false); setNeedsScreening(false); setJoinErr("");
+    setBuyErr(""); setWlErr(""); setNeedsMember(false); setNeedsScreening(false); setNeedsAccount(""); setJoinErr("");
     if (!provId) { setBuyErr("This coach isn't set up for checkout yet — message " + first + " instead."); return; }
     busy.current = true;
     try {
@@ -939,6 +954,7 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
       // The route's own FLAG, never a sniff of its prose — two different 409s leave
       // that route and only the sentence told them apart.
       if (j && j.reason === "at_capacity") { setCapSrv(true); return; }
+      if (res.status === 401) { setNeedsAccount("subscribe"); return; }
       if (res.status === 402 && j && j.code === "membership_required") { setNeedsMember(true); return; }
       if (res.status === 409 && j && j.code === "screening_required") { setNeedsScreening(true); return; }
       setBuyErr((j && j.error) || "Could not start checkout.");
@@ -951,6 +967,15 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
     <React.Fragment>
       {!needsMember && memberReturn === "joined" ? <div role="status" style={{ marginTop: 11, fontFamily: lvSans, fontSize: 12.5, color: hexA(ink, 0.85) }}>Your Shape membership is active. You can subscribe to {first} now.</div> : null}
       {!needsMember && memberReturn === "pending" ? <div role="status" style={{ marginTop: 11, fontFamily: lvSans, fontSize: 12.5, color: hexA(ink, 0.85) }}>Your membership payment is still clearing. Try Subscribe again in a minute.</div> : null}
+      {needsAccount ? (
+        <div role="alert" data-needs-account="" style={{ marginTop: 12, maxWidth: 420, border: `1px solid ${hexA(ink, 0.25)}`, borderRadius: 8, padding: "12px 14px" }}>
+          <div style={{ fontFamily: lvSans, fontSize: 13, lineHeight: 1.5, color: ink }}>{needsAccount === "waitlist" ? "You need a Shape account to join " + first + "’s waiting list." : "You need a Shape account to subscribe to " + first + "."} Join Shape or log in, and you&rsquo;ll come back here.</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 10 }}>
+            <a href={lvAccountHref("SignupClient")} data-account-join="" style={{ display: "inline-block", padding: "11px 16px", borderRadius: 8, background: c, color: "#0c0a08", textDecoration: "none", fontFamily: lvMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Join Shape</a>
+            <a href={lvAccountHref("Login")} data-account-login="" style={{ display: "inline-block", padding: "10px 16px", borderRadius: 8, border: `1px solid ${hexA(ink, 0.4)}`, color: ink, textDecoration: "none", fontFamily: lvMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Log in</a>
+          </div>
+        </div>
+      ) : null}
       {needsScreening ? (
         <div role="alert" style={{ marginTop: 12, maxWidth: 420, border: `1px solid ${hexA(ink, 0.25)}`, borderRadius: 8, padding: "12px 14px" }}>
           <div style={{ fontFamily: lvSans, fontSize: 13, lineHeight: 1.5, color: ink }}>Before you hire a coach, complete your health screening. It takes a few minutes, it's shared with the coaches you hire so they can train you safely, and you'll come back here to subscribe to {first}.</div>
@@ -1084,7 +1109,8 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
                 <div style={{ fontFamily: lvSerif, fontSize: 24, letterSpacing: "-0.01em", marginTop: 8 }}>{first} isn&rsquo;t taking new clients right now.</div>
                 <p style={{ fontFamily: lvSans, fontSize: 12.5, lineHeight: 1.5, color: hexA(ink, 0.7), margin: "9px 0 0" }}>Join the waiting list to be first in line when a spot opens.</p>
                 {/* A signed-out visitor gets the sign-in line, never a Join button that
-                    answers 401 — the legacy page's own behaviour, and R18's rule. */}
+                    answers 401 — the legacy page's own behaviour, and R18's rule. It
+                    brings them back here, query and all, so a referral link survives. */}
                 {/* ⚠ THREE STATES, NOT TWO. `atCapacity` can be true with no provider
                     id behind it (the checkout refused while the row read failed), and
                     a Join button with nothing to join is a dead control — the exact
@@ -1099,7 +1125,17 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
                   // until the account is known; the line above is true in every state.
                   null
                 ) : acct === null ? (
-                  <a href="/newdesign/Login.html" style={{ display: "inline-block", marginTop: 16, padding: "13px 20px", borderRadius: 8, background: c, color: "#0c0a08", textDecoration: "none", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Sign in to join the list &rarr;</a>
+                  // ⚠ JOINING SHAPE IS OFFERED HERE TOO (Codex on #2399). The people a coach
+                  // brings are mostly not members, and a sign-in link alone left them the login
+                  // page's "Create an account", which goes to the landing page without the way
+                  // back. Both return here with the referral, as the 401 prompt's do.
+                  <div data-waitlist-account="" style={{ marginTop: 16 }}>
+                    <div style={{ fontFamily: lvSans, fontSize: 12.5, lineHeight: 1.5, color: hexA(ink, 0.7) }}>A Shape account holds your place on the list.</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 10 }}>
+                      <a href={lvAccountHref("SignupClient")} data-account-join="" style={{ display: "inline-block", padding: "13px 20px", borderRadius: 8, background: c, color: "#0c0a08", textDecoration: "none", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Join Shape &rarr;</a>
+                      <a href={lvAccountHref("Login")} data-account-login="" style={{ display: "inline-block", padding: "12px 18px", borderRadius: 8, border: `1px solid ${hexA(ink, 0.4)}`, color: ink, textDecoration: "none", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Sign in to join the list</a>
+                    </div>
+                  </div>
                 ) : clientOf === undefined ? (
                   // Not read yet: a current client must not be shown Join first.
                   null

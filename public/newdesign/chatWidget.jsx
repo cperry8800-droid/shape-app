@@ -110,9 +110,9 @@ function CwFacetAvatar({ size = 40, c = "var(--sh-accent3, #34d6c5)", initial = 
       <div style={{ position: "absolute", inset: 0, transform: "rotate(45deg)", borderRadius: "27%", background: `linear-gradient(135deg, ${c}, ${cwShade(c, 0.5)})`, boxShadow: `0 4px 14px ${cwHexA(c, 0.4)}, inset 1px 1px 2px rgba(255,255,255,0.35)` }}>
         <div style={{ position: "absolute", inset: 0, borderRadius: "27%", background: "linear-gradient(135deg, rgba(255,255,255,0.28), transparent 42%)" }} />
         <div style={{ position: "absolute", inset, borderRadius: "23%", overflow: "hidden", background: "#0f0c0a", display: "grid", placeItems: "center" }}>
-          {photo
-            ? <img src={photo} alt="" style={{ position: "absolute", width: "152%", height: "152%", left: "50%", top: "50%", transform: "translate(-50%,-50%) rotate(-45deg)", objectFit: "cover" }} />
-            : <span style={{ transform: "rotate(-45deg)", fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontWeight: 500, fontSize: size * 0.42, color: "var(--sh-ink, #f2ede4)", lineHeight: 1 }}>{(initial && String(initial).trim()) || "?"}</span>}
+          {/* The initials sit under the photo, so a photo that will not load (cwPhotoError) leaves them showing. */}
+          <span style={{ transform: "rotate(-45deg)", fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontWeight: 500, fontSize: size * 0.42, color: "var(--sh-ink, #f2ede4)", lineHeight: 1 }}>{(initial && String(initial).trim()) || "?"}</span>
+          {photo && <img key={photo} src={photo} alt="" onError={cwPhotoError} style={{ position: "absolute", width: "152%", height: "152%", left: "50%", top: "50%", transform: "translate(-50%,-50%) rotate(-45deg)", objectFit: "cover" }} />}
         </div>
       </div>
       {live && <span style={{ position: "absolute", bottom: 0, right: 0, transform: "translate(20%,20%)", width: Math.max(7, Math.round(size * 0.16)), height: Math.max(7, Math.round(size * 0.16)), borderRadius: 999, background: "var(--sh-accent3, #34d6c5)", border: "2px solid #100d0a" }} />}
@@ -316,6 +316,11 @@ async function cwReadNoraStream(res, { onText, onReset } = {}) {
 // inside the tap that asked for her voice, so the reply set on that same element after the
 // network wait may play: Safari blocks play() a tap did not start, element by element, and
 // that is why Listen did nothing on a phone (owner, 2026-10-08).
+// ⚠ HER CLIPS PLAY A LITTLE FAST, PITCH KEPT (owner, 2026-10-18: "she is talking too slow, need to
+// speed up how fast she speaks"). The speak route also asks the model for a brisk pace
+// (src/lib/ai/tone.mjs NORA_DELIVERY); this is the part every browser honours. The app's player
+// runs at the same rate (mobile-app/src/services/shapeBackend.js VOICE_RATE).
+const CW_NORA_RATE = 1.15;
 const CW_NORA_SILENCE = "data:audio/wav;base64,UklGRsQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YaAAAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA";
 
 // Nora's reply in two parts for her voice: the same rule as speechParts() in
@@ -355,6 +360,25 @@ function cwTalkStatus(state, info) {
   return "";
 }
 
+// ⚠ A FACE THAT WILL NOT LOAD NEVER SHOWS AS A BROKEN IMAGE (owner, 2026-10-18: "nora avatar
+// picture changed": a coach's pop-up showed the browser's broken-image icon where Nora's face goes,
+// while the photo served fine). The photo is asked for once more, past a cached failure; then the
+// img takes its `data-fallback` (Nora's N mark), or steps aside for the initials under it.
+const CW_NORA_MARK = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#0f0c0a"/><text x="50" y="67" text-anchor="middle" font-family="Georgia, serif" font-size="50" fill="#34d6c5">N</text></svg>');
+function cwPhotoError(e) {
+  const img = e && e.currentTarget;
+  if (!img) return;
+  const src = img.getAttribute("src") || "";
+  if (!img.getAttribute("data-retried") && src.indexOf("data:") !== 0) {
+    img.setAttribute("data-retried", "1");
+    img.src = src + (src.indexOf("?") < 0 ? "?" : "&") + "r=" + Date.now();
+    return;
+  }
+  const stand = img.getAttribute("data-fallback");
+  if (stand && src !== stand) { img.src = stand; return; }
+  img.style.visibility = "hidden";
+}
+
 // Talk to Nora's view, over the chat pane: her face, a ring that moves with your voice
 // while she listens, one status line, the last exchange, and End. The engine is
 // public/newdesign/noraVoiceLoop.mjs, the same one the app's Nora sheet runs.
@@ -374,7 +398,7 @@ function CwNoraTalk({ view, ringRef, onTap, onEnd }) {
           {state === "speaking" && [0, 1].map((n) => (
             <span key={n} aria-hidden style={{ position: "absolute", inset: -10, borderRadius: "50%", border: `2px solid ${TEAL_BRIGHT}`, animation: `cwNoraTalkPulse 1.6s ease-out ${n * 0.8}s infinite` }} />
           ))}
-          <img src="/nora-avatar.png" alt="" draggable={false}
+          <img src="/nora-avatar.png" alt="" draggable={false} onError={cwPhotoError} data-fallback={CW_NORA_MARK}
             style={{ position: "relative", width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover", objectPosition: "50% 32%", filter: quiet ? "grayscale(0.6)" : "none", opacity: quiet ? 0.75 : 1, transition: "filter 200ms, opacity 200ms" }} />
         </button>
         <div aria-live="polite" style={{ minHeight: 22, fontFamily: sans, fontSize: 15, fontWeight: 600, color: state === "error" ? "var(--sh-gold, #d8a23a)" : INK, display: "inline-flex", alignItems: "center", gap: 6 }}>
@@ -550,9 +574,10 @@ function ChatWidget(props) {
   // The pop-up offers Voice on/off and the tone; which voice she reads in is
   // picked in the app's Settings, not here (owner, 2026-10-17: no voice picker
   // in the pop-up), and the account's choice still applies.
+  // Her voices only, as src/lib/ai/tone.mjs NORA_VOICES has them (owner, 2026-10-18: "more
+  // feminine"): a man's voice an older build saved reads as "auto", the tone's own.
   const NORA_VOICES = [
-    { id: "shimmer", label: "Warm" }, { id: "alloy", label: "Neutral" }, { id: "sage", label: "Calm" },
-    { id: "nova", label: "Bright" }, { id: "onyx", label: "Deep" }, { id: "verse", label: "Expressive" },
+    { id: "coral", label: "Warm" }, { id: "nova", label: "Bright" }, { id: "shimmer", label: "Soft" }, { id: "sage", label: "Calm" },
   ];
   const normNoraVoice = (v) => NORA_VOICES.some(x => x.id === v) ? v : "auto";
   const readNoraEnabled = () => { try { return localStorage.getItem("shape.nora.voice") === "on"; } catch (e) { return false; } };
@@ -591,6 +616,9 @@ function ChatWidget(props) {
     if (!noraAudioRef.current) { try { noraAudioRef.current = new Audio(); } catch (e) { noraAudioRef.current = null; } }
     return noraAudioRef.current;
   };
+  // Her clip at CW_NORA_RATE, pitch kept. A new source resets the rate to the default one, so
+  // both are set on every clip.
+  const noraPace = (a) => { try { a.preservesPitch = true; a.defaultPlaybackRate = CW_NORA_RATE; a.playbackRate = CW_NORA_RATE; } catch (e) {} };
   const primeNoraAudio = () => {
     const a = noraPlayer();
     if (!a || a.__unlocked) return;
@@ -673,6 +701,7 @@ function ChatWidget(props) {
             };
             noraUrlRef.current = restUrl;
             a.src = restUrl;
+            noraPace(a);
             try { await a.play(); } catch (e) {
               if (noraUrlRef.current !== restUrl) return;
               try { URL.revokeObjectURL(restUrl); } catch (e2) {}
@@ -695,6 +724,7 @@ function ChatWidget(props) {
           };
           noraUrlRef.current = url;
           a.src = url; // a new source drops the old one's pending events
+          noraPace(a);
           try {
             await a.play();
             a.__unlocked = true;
@@ -2199,7 +2229,7 @@ function ChatWidget(props) {
                   className="cw-nora-face" aria-label="Talk to Nora"
                   title="Press to talk to Nora: she listens, answers in the chat, and reads it to you"
                   style={{ position: "relative", flex: "none", width: 44, height: 44, padding: 0, border: 0, borderRadius: 999, background: "transparent", cursor: talkMod ? "pointer" : "progress", opacity: talkMod ? 1 : 0.7 }}>
-                  <img src="/nora-avatar.png" alt="" aria-hidden style={{ display: "block", width: 44, height: 44, borderRadius: 999, objectFit: "cover", objectPosition: "50% 32%", boxShadow: `0 0 0 2px ${TEAL}` }} />
+                  <img src="/nora-avatar.png" alt="" aria-hidden onError={cwPhotoError} data-fallback={CW_NORA_MARK} style={{ display: "block", width: 44, height: 44, borderRadius: 999, objectFit: "cover", objectPosition: "50% 32%", boxShadow: `0 0 0 2px ${TEAL}` }} />
                   <span aria-hidden style={{ position: "absolute", right: -3, bottom: -3, width: 19, height: 19, borderRadius: 999, background: TEAL, color: PAPER, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 0 2px var(--sh-ground, #1a1612)" }}>
                     <svg width="9" height="12" viewBox="0 0 12 14">
                       <rect x="3.5" y="0.75" width="5" height="8" rx="2.5" fill="currentColor" />

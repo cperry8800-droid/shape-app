@@ -271,7 +271,7 @@ function DFilmCard({ film, c, label }) {
 }
 
 // ── Hero — split: identity (left) · signature visual (right) ───
-function DesktopHero({ d, direction, owner, reduced, onMessage, onFollow, follow, coachingHref }) {
+function DesktopHero({ d, direction, owner, reduced, onMessage, onFollow, follow, coachingHref, onViewCoaching }) {
   const c = tierOf(d).color;
   const coach = d.role !== "client";
   const Visual = direction === "terrain" ? TerrainVisual : SignalVisual;
@@ -361,7 +361,7 @@ function DesktopHero({ d, direction, owner, reduced, onMessage, onFollow, follow
             </button>
           )}
           {!owner && (coach
-            ? <button onClick={() => { if (coachingHref) window.location.href = coachingHref; }} style={{ height: 50, padding: "0 26px", borderRadius: 14, border: `1px solid ${dHexA(LV_INK, 0.22)}`, background: "transparent", color: LV_INK, fontFamily: dSans, fontSize: 15, fontWeight: 600, cursor: "pointer" }}>View coaching</button>
+            ? <button onClick={() => { if (onViewCoaching) { onViewCoaching(); return; } if (coachingHref) window.location.href = coachingHref; }} style={{ height: 50, padding: "0 26px", borderRadius: 14, border: `1px solid ${dHexA(LV_INK, 0.22)}`, background: "transparent", color: LV_INK, fontFamily: dSans, fontSize: 15, fontWeight: 600, cursor: "pointer" }}>View coaching</button>
             : (!follow || follow.canFollow !== false) && (() => { const on = follow && (follow.isFollowing || follow.isPending); return <button onClick={onFollow} style={{ height: 50, padding: "0 26px", borderRadius: 14, border: `1px solid ${on ? LV_TEAL : dHexA(LV_INK, 0.22)}`, background: on ? dHexA(LV_TEAL, 0.12) : "transparent", color: LV_INK, fontFamily: dSans, fontSize: 15, fontWeight: 600, cursor: "pointer" }}>{follow && follow.isFollowing ? "Following ✓" : follow && follow.isPending ? "Requested" : "Follow"}</button>; })())}
         </div>
         {/* followers / following / posts — always public, live links */}
@@ -769,7 +769,8 @@ function DesktopTabs({ direction, tab, setTab, c }) {
     ? [["activity", "Activity"], ["about", "About"], ["coaching", "Coaching"], ["reviews", "Reviews"], ["music", "Music"]]
     : [["activity", "Activity"], ["signals", "Signals"], ["climb", "Climb"], ["music", "Music"]];
   return (
-    <div style={{ maxWidth: 1240, margin: "0 auto", padding: "26px 40px 0" }}>
+    // scrollMarginTop clears the site's fixed header when "View coaching" scrolls here.
+    <div id="dk-tabs" style={{ maxWidth: 1240, margin: "0 auto", padding: "26px 40px 0", scrollMarginTop: 90 }}>
       {/* Typographic index — mono labels on a hairline, active carries a heat underline */}
       <div role="tablist" aria-label="Profile sections" style={{ display: "flex", gap: 28, borderBottom: `1px solid ${dHexA(LV_INK, 0.1)}` }}>
         {tabs.map(([k, label]) => {
@@ -1686,8 +1687,23 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
   const owner = variant === "own";
   const locked = variant === "locked";
   const coach = d.role !== "client";
+  // The Coaching tab (the storefront with Subscribe) exists on a coach's Signal layout only.
+  const coachingTab = coach && direction !== "terrain";
   // Personal activities lead — the profile opens on Activity (mirrors mobile).
-  const [tab, setTab] = React.useState("activity");
+  // ⚠ EXCEPT FROM A COACH'S REFERRAL LINK (owner, 2026-10-18). Business → "Bring your clients"
+  // shares this page with `?ref=`, and the person it brings came to hire this coach, so the
+  // profile opens on Coaching. A phone gets this same component, so the rule holds there too.
+  const [tab, setTab] = React.useState(() => {
+    let ref = null;
+    try { ref = new URLSearchParams(window.location.search).get("ref"); } catch (e) {}
+    return coachingTab && ref ? "coaching" : "activity";
+  });
+  // "View coaching" opens this coach's own Coaching tab. It used to leave for the Marketplace,
+  // which lists every other coach; that stays only where there is no tab (the locked view).
+  const viewCoaching = coachingTab ? () => {
+    setTab("coaching");
+    setTimeout(() => { try { const el = document.getElementById("dk-tabs"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) {} }, 60);
+  } : null;
   // Posts stat → jump to the Activity tab/section (the posts live there).
   const followWired = follow ? Object.assign({}, follow, {
     openPosts: () => {
@@ -1716,7 +1732,7 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
           <DesktopLocked d={d} follow={follow} onMessage={onMessage} onFollow={onFollow} coachingHref={coachingHref} />
         ) : (
           <React.Fragment>
-            <DesktopHero d={heroPerson} direction={direction} owner={owner} reduced={reduced} onMessage={owner ? () => setEditingProfile(true) : onMessage} onFollow={onFollow} follow={followWired} coachingHref={coachingHref} />
+            <DesktopHero d={heroPerson} direction={direction} owner={owner} reduced={reduced} onMessage={owner ? () => setEditingProfile(true) : onMessage} onFollow={onFollow} follow={followWired} coachingHref={coachingHref} onViewCoaching={viewCoaching} />
             {/* P1 / M5 · The intro film — a full-width video band under the hero. A
                 coach's film lives in coach-media, a member's in member-films; the
                 guard binds the url to the matching bucket + owner folder, so nothing

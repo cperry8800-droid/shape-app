@@ -12,7 +12,7 @@ import { NextResponse } from 'next/server';
 import { readJson } from '@/lib/request-utils';
 import { resolveActor } from '@/lib/ai/server';
 import { hasOpenAIKey, synthesizeSpeech } from '@/lib/ai';
-import { resolveVoiceWithDefault, voiceStyleForTone, encodeSpokenText, SPOKEN_TEXT_HEADER } from '@/lib/ai/tone.mjs';
+import { resolveVoiceWithDefault, speechInstructions, encodeSpokenText, SPOKEN_TEXT_HEADER } from '@/lib/ai/tone.mjs';
 import { requireMembership } from '@/lib/require-membership';
 import { countBudget, budgetReply } from '@/lib/ai/noraLimits';
 
@@ -51,8 +51,8 @@ export async function POST(request: Request) {
   if (!hasOpenAIKey()) return NextResponse.json({ error: 'Voice is unavailable.' }, { status: 503 });
 
   // The member's explicit voice choice → the owner's env default
-  // (NORA_TTS_VOICE, the openai.fm audition winner — may be any API voice,
-  // e.g. 'fable') → the tone's default voice.
+  // (NORA_TTS_VOICE, the openai.fm audition winner, when it is one of Nora's
+  // voices) → the tone's default voice.
   // M8 (2026-10-08 review): a day's budget per account, counted before the model is asked.
   const budget = await countBudget(actor.supabase, actor.user.id, 'speak');
   if (!budget.allowed) {
@@ -61,8 +61,8 @@ export async function POST(request: Request) {
   const voice = resolveVoiceWithDefault(parsed.data.voice, process.env.NORA_TTS_VOICE, parsed.data.tone);
   // Delivery steering only — the words are synthesized verbatim (the parity
   // header is untouched). The env override wins so the owner can pin a house
-  // style; unset, the per-tone default applies.
-  const instructions = (process.env.NORA_TTS_INSTRUCTIONS || '').trim() || voiceStyleForTone(parsed.data.tone);
+  // style, with her voice and pace added; unset, the per-tone default applies.
+  const instructions = speechInstructions(process.env.NORA_TTS_INSTRUCTIONS, parsed.data.tone);
   const res = await synthesizeSpeech(text, { voice, instructions, promptId: 'nora.speak' });
   if (!res.ok) {
     const status = res.reason === 'no_key' ? 503 : 502;
