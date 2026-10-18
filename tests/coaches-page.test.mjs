@@ -421,7 +421,9 @@ test('the Schedule tab lists what the Schedule page does', () => {
 // Doto — the face this site reserves for a MEASURED reading — at 40px, while
 // "Weekly" and "Verified" beside them were Anybody at 34px, so a single four-up
 // row carried two faces at two sizes. The four are the same kind of claim (our
-// own stated terms, not a reading off anything), so they get one style.
+// own stated terms, not a reading off anything), so they get one style. "Weekly"
+// is "Direct" since the owner's fee terms (2026-10-18): payouts follow each coach's
+// own Stripe schedule.
 //
 // The guard is an ABSENCE plus a count, because "they look the same" is not
 // checkable from source and "one of them is Doto again" is: the dot-matrix face
@@ -434,13 +436,13 @@ test('the facts strip sets all four figures in one display face', () => {
   // Vacuity: this really is the strip the ruling was about. Without it a renamed
   // component leaves braceBlock reading some other function and every assertion
   // below passes about the wrong code.
-  for (const word of ['"$0"', '"15%"', '"Weekly"', '"Verified"']) {
+  for (const word of ['"$0"', '"15%"', '"Direct"', '"Verified"']) {
     assert.ok(block.includes(word), `CoFacts no longer carries ${word} — this guard is reading the wrong block`);
   }
 
   assert.ok(
     !/\bcoNum\b/.test(block),
-    'CoFacts names the dot-matrix face again — $0 and 15% are stated terms, not readings, and must be set like Weekly and Verified',
+    'CoFacts names the dot-matrix face again — $0 and 15% are stated terms, not readings, and must be set like Direct and Verified',
   );
 
   const figures = block.match(/fontFamily:\s*co[A-Za-z]+/g) || [];

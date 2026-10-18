@@ -306,10 +306,8 @@
   "nora.ask": "Ada pertanyaan? Tanya Nora",
   "nora.pageApply": "Pendaftaran pelatih",
   "nora.pageLogin": "Masuk",
-  "nora.pageJoin": "Gabung Shape",
   "login.agree": "Dengan bergabung, Anda menyetujui Ketentuan Layanan dan Kebijakan Privasi Shape.",
   "legal.terms": "Ketentuan Layanan",
   "legal.privacy": "Kebijakan Privasi",
-  "paywall.renews": "{price} per bulan, diperpanjang setiap bulan sampai Anda membatalkan.",
   "paywall.err.inProgress": "Pembayaran sedang dibuka. Coba lagi sebentar lagi."
 }

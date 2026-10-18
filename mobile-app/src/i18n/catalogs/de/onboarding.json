@@ -306,10 +306,8 @@
   "nora.ask": "Fragen? Frag Nora",
   "nora.pageApply": "Coach-Bewerbung",
   "nora.pageLogin": "Anmelden",
-  "nora.pageJoin": "Shape beitreten",
   "login.agree": "Mit dem Beitritt stimmst du den Nutzungsbedingungen und der Datenschutzerklärung von Shape zu.",
   "legal.terms": "Nutzungsbedingungen",
   "legal.privacy": "Datenschutzerklärung",
-  "paywall.renews": "{price} pro Monat, verlängert sich monatlich, bis du kündigst.",
   "paywall.err.inProgress": "Der Checkout wird bereits geöffnet. Versuch es gleich noch einmal."
 }

@@ -441,10 +441,15 @@ test('M4: the table is the server\'s to write; both sign-in doors record; both s
   assert.match(be, /if \(isCreate\) meta\.terms_accepted_at = new Date\(\)\.toISOString\(\);/, 'the phone create too');
 });
 
+// The paywall said it too ("$5 a month, renewing monthly until you cancel. By joining, you agree to
+// Shape's Terms of Service and Privacy Policy." with both links) until the owner's call, 2026-10-18:
+// "remove this". The create step that makes the account still says it, with both links, and
+// Stripe's checkout states the monthly price and the renewal.
 test('M4 + L4: the app says what joining means, in every language, and never "free" beside $5', () => {
   const main = read('mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx');
   const paywall = main.slice(main.indexOf('function BSPaywall('), main.indexOf('// Persistent "you\'re previewing" banner'));
-  assert.match(paywall, /\{tr\('paywall\.renews', \{ price: BS_PRICE \}\)\} \{tr\('login\.agree'\)\}\s*<BSLegalLinks /);
+  assert.ok(paywall.includes("tr('paywall.preview')"), 'the paywall slice moved');
+  assert.doesNotMatch(paywall, /paywall\.renews|login\.agree|<BSLegalLinks/, 'the paywall carries no renewal line or Terms links (owner)');
   const login = main.slice(main.indexOf('function BSLogin('), main.indexOf('function BSPaywall('));
   assert.match(login, /\{isCreate && \(isPhone \|\| createStep === 2\) && \([\s\S]{0,200}\{tr\('login\.agree'\)\}\s*<BSLegalLinks /, 'on the create step that makes the account');
   assert.match(main, /onClick=\{\(\) => bsOpenLegal\('\/terms\.html'\)\}[\s\S]{0,120}onClick=\{\(\) => bsOpenLegal\('\/privacy\.html'\)\}/);
@@ -458,8 +463,8 @@ test('M4 + L4: the app says what joining means, in every language, and never "fr
   const FREE = /free|kostenlos|gratis|gratuit|kyauta|grátis|бесплатн|ücretsiz|безкоштовн|miễn phí/i;
   for (const loc of fs.readdirSync(join(ROOT, 'mobile-app/src/i18n/catalogs'))) {
     const cat = JSON.parse(read(`mobile-app/src/i18n/catalogs/${loc}/onboarding.json`));
-    for (const key of ['login.agree', 'legal.terms', 'legal.privacy', 'paywall.renews', 'paywall.err.inProgress']) assert.ok(cat[key], `${loc}: ${key}`);
-    assert.match(cat['paywall.renews'], /\{price\}/, `${loc}: the price`);
+    for (const key of ['login.agree', 'legal.terms', 'legal.privacy', 'paywall.err.inProgress']) assert.ok(cat[key], `${loc}: ${key}`);
+    assert.ok(!('paywall.renews' in cat), `${loc}: paywall.renews is read by nothing now`);
     for (const key of ['shell.requireAccount', 'shell.requireAccountLabel']) assert.doesNotMatch(cat[key], FREE, `${loc}: ${key} says free`);
   }
 });

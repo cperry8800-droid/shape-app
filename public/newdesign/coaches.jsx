@@ -211,10 +211,14 @@ function CoFacts() {
   // sizes. They are not readings: they are our own stated terms, the same kind
   // of fact as the two words next to them. One style for the row, so the `isNum`
   // branch is gone rather than left with no `true` to take it.
+  // The fee terms are the owner's (2026-10-18: "$5 a month for members, 15% platform fee for
+  // coaches") as the code charges them: 15% on a client who found the coach on Shape, nothing on
+  // one they brought (src/lib/coach-origin.mjs), and Shape pays the card processing. "Weekly"
+  // became "Direct": payouts follow the schedule each coach sets in their own Stripe account.
   const facts = [
     ["$0", "To join.", " No monthly dues, no setup fees, no per-booking cuts."],
-    ["15%", "Only when you're paid.", " One platform fee on what clients pay you; card processing is separate."],
-    ["Weekly", "Payouts direct to your bank.", " Or instant, any day."],
+    ["15%", "Only when you're paid.", " On clients who find you on Shape, and nothing on clients you bring. Shape pays the card processing."],
+    ["Direct", "Payouts to your bank.", " On the schedule you set in your own Stripe account."],
     ["Verified", "Every coach credential-checked on intake.", " CPT, CSCS, RD, RDN, CNS and state licences."],
   ];
   return (
@@ -308,7 +312,7 @@ function CoSteps() {
 }
 
 function CoCost() {
-  const nums = [["$0", false, "to join and list"], ["15%", true, "platform fee, only on what you're paid"], ["0", false, "exclusivity — coach here, on your own site, anywhere"]];
+  const nums = [["$0", false, "to join and list"], ["15%", true, "platform fee, on clients who find you on Shape"], ["0", false, "exclusivity — coach here, on your own site, anywhere"]];
   return (
     <section className="co-s" style={{ paddingTop: 0 }}>
       <div className="co-wrap">
@@ -317,7 +321,7 @@ function CoCost() {
             <span className="co-eyebrow">What it costs</span>
             <h2 className="co-h2" style={{ marginTop: 14 }}>You keep what you earn.</h2>
             <p style={{ marginTop: 18, fontSize: 15, color: "rgba(238,243,240,0.72)" }}>
-              No monthly dues, no listing fees. Shape takes a 15% platform fee on everything clients pay you, so you only pay when you earn. Standard card processing is separate. Set your own session price, sell programs and plans as one-time purchases or subscriptions, and leave any time with your clients.
+              No monthly dues, no listing fees. Shape takes a 15% platform fee on clients who find you on Shape and nothing on clients you bring, so you only pay when you earn, and Shape pays the card processing. Set your own session price, sell programs and plans as one-time purchases or subscriptions, and leave any time with your clients.
             </p>
           </div>
           <div className="co-nums">
@@ -337,10 +341,10 @@ function CoCost() {
 function CoFAQ() {
   const qs = [
     ["What credentials do I need?", "Trainers: an accredited personal training certification (NASM, ACE, NSCA, ACSM, NCSF or similar) plus current CPR/AED. Nutritionists: RD, RDN, CNS, CSSD or a state licence. We verify every one on intake."],
-    ["What does Shape cost me?", "You keep the vast majority of everything your clients pay you. No monthly dues, no listing fees — Shape takes a 15% platform fee when you get paid. Standard card processing is separate."],
-    ["Can I bring my existing clients?", "Yes. Most coaches migrate their book early on, and we help with invitations, transfer flows and pricing continuity."],
+    ["What does Shape cost me?", "You keep the vast majority of everything your clients pay you. No monthly dues, no listing fees — Shape takes a 15% platform fee when a client who found you on Shape pays you, nothing on clients you bring, and pays the card processing."],
+    ["Can I bring my existing clients?", "Yes, and Shape takes no fee on them. Most coaches migrate their book early on, and we help with invitations, transfer flows and pricing continuity."],
     ["Am I locked in?", "No exclusivity. Coach on Shape, on your own site, wherever — it's your business. Leave any time and take your clients with you."],
-    ["How do payouts work?", "Direct to your bank on a weekly schedule, or instantly on any day."],
+    ["How do payouts work?", "Clients pay through Shape, and the money goes to your own Stripe account. Stripe pays it out to your bank on the schedule you set there, and you can change it any time."],
     ["Can I sell programs without sessions?", "Yes. Publish programs or meal plans as one-time purchases or subscriptions. Many coaches earn a large share of their revenue from programs alone."],
   ];
   return (
