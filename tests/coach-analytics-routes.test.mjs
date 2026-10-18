@@ -100,7 +100,7 @@ async function loadRoute(role, tables, opts) {
           ['@/lib/supabase/server', { createClient: async () => db.client }],
           ['@supabase/supabase-js', { createClient: (_url, _key, o) => {
             db.bearer.push(o?.global?.headers?.Authorization)
-            return { ...db.client, auth: { getUser: async (token) => ({ data: { user: token === APP_TOKEN ? COACH : null } }) } }
+            return { ...db.client, auth: { getUser: async (token) => opts?.bearerAuth ?? ({ data: { user: token === APP_TOKEN ? COACH : null }, error: null }) } }
           } }],
         ]),
       })],
@@ -144,6 +144,19 @@ test('the app\'s Bearer token reads as the coach on both routes; a token that is
     const web = await loadRoute(role, { [table]: [{ id: 7, stripe_account_id: null, stripe_account_status: null }] })
     assert.equal(web.body[okKey], true, role)
     assert.deepEqual(web.bearer, [], `${role}: no token, no token client`)
+  }
+})
+
+// The 503 rule (src/lib/auth-lookup.ts) holds for the app's token too: request-auth's lookup keeps
+// the auth server's error on the Bearer path, so an outage is not read as a refused token.
+test('an auth outage behind the app\'s Bearer token answers 503; a refused token is a 401', async () => {
+  for (const role of ['trainer', 'nutritionist']) {
+    const headers = { Authorization: `Bearer ${APP_TOKEN}` }
+    const down = await loadRoute(role, roster(), { headers, bearerAuth: noUser(new AuthRetryableFetchError('fetch failed', 0)) })
+    assert.equal(down.status, 503, `${role}: ${JSON.stringify(down.body)}`)
+    assert.deepEqual(down.reads, [])
+    const refused = await loadRoute(role, roster(), { headers, bearerAuth: noUser(new AuthApiError('invalid JWT', 403, 'bad_jwt')) })
+    assert.equal(refused.status, 401, role)
   }
 })
 

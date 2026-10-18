@@ -18,6 +18,7 @@ const DATA = 'public/newdesign/dashData.jsx';
 const ORIGIN = 'src/lib/origin-attribution.ts';
 const AUTH = 'src/lib/auth-lookup.ts';
 const RENEW = 'src/lib/coach-renewals.mjs';
+const REQ_AUTH = 'src/lib/request-auth.ts';
 const NUT_PAGE = 'public/newdesign/nutritionist.jsx';
 const LANDING = 'public/newdesign/landing.jsx';
 const SIGNUP = 'public/newdesign/signup.jsx';
@@ -516,5 +517,9 @@ export default {
     { name: 'churn: an unread membership counts as gone again', file: BIZ,
       find: '  if (live && rows.some((r) => r.stillClient === null)) {\n',
       replace: '  if (false) {\n' },
+    // ── The app's Bearer token keeps the 503 rule (request-auth's lookup keeps the error) ──
+    { name: "auth outage: the app's Bearer lookup drops the auth server's error", file: REQ_AUTH,
+      find: '    const { data, error } = await client.auth.getUser(bearer[1]);\n    return { user: data.user ?? null, error };',
+      replace: '    const { data } = await client.auth.getUser(bearer[1]);\n    return { user: data.user ?? null, error: null };' },
   ],
 };
