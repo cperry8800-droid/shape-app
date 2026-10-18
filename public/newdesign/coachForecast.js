@@ -220,16 +220,34 @@
   // The planner's starting values, rounded to what its sliders hold, so an untouched plan IS
   // today's pace rather than a near-copy of it. Never clamped to the sliders' usual range: the
   // ranges stretch to the coach's own numbers instead, so "yours" is the figure it measured.
-  //   → { adds, churnPct (to a tenth, never 0 for a measured churn: churnPct above), rate (whole
-  //       dollars, a multiple of 5), goal (whole dollars) }
+  //   → { adds, churnPct (to a tenth, never 0 for a measured churn: churnPct above), rate (the
+  //       base's rate in dollars, to the cent: rateRange below holds it), goal (whole dollars) }
+  // ⚠ THE RATE IS THE BASE'S OWN, NEVER ROUNDED TO $5 (the sweep after #2394 round 10). Rounded, a
+  // $149 listing price started the plan at $150 beside "What clients earn you"'s "$149 · your
+  // listing price", and every row, the year's net and the goal month were figured at a price the
+  // coach does not charge, with nothing saying so. Only the coach's own drag changes it.
   function planStart(base) {
     const pace = (base && base.pace) || {};
     return {
       adds: pace.adds != null ? round1(pace.adds) : DEFAULT_ADDS,
       churnPct: pace.churn != null ? churnPct(pace.churn) : DEFAULT_CHURN_PCT,
-      rate: Math.max(5, Math.round((base.rateCents || 0) / 500) * 5),
+      rate: base.rateCents > 0 ? base.rateCents / 100 : 5,
       goal: Math.max(1000, Math.ceil(((base.mrrNetCents || 0) / 100) * 1.5 / 500) * 500),
     };
+  }
+
+  // The rate slider's range, in dollars, around the plan's starting rate (planStart's `rate`), for
+  // the website's planner and the app's alike.
+  // ⚠ THE SLIDER HOLDS THE STARTING RATE EXACTLY (the sweep after #2394 round 10). A range input
+  // snaps its value to its low end plus a whole number of steps, and this one ran from $20 in $5
+  // steps: a $149 listing price could not sit on it, and a drag never came back to it. The step is a
+  // dollar, and the low end sits a whole number of dollars below the rate, so $149.50 sits on it too
+  // (a drag from it moves in whole dollars). The top is $500, or twice the rate when that is more.
+  function rateRange(rate) {
+    const cents = Math.max(0, Math.round((num(rate) || 0) * 100));
+    const low = Math.min(2000, cents);
+    const minCents = cents - Math.floor((cents - low) / 100) * 100;
+    return { min: minCents / 100, max: Math.max(500, Math.ceil((cents * 2) / 100)), step: 1 };
   }
 
   // This week's renewals that will happen: only a row Stripe confirmed (`ending === false`) is
@@ -266,6 +284,6 @@
 
   return {
     FEE_RATE, PACE_DAYS, DEFAULT_RATE_CENTS, netOf, earn, forecast, earnedOver, monthsTo, paceFrom, lifetime,
-    round1, churnPct, todayFrom, listedCents, planNumbers, planStart, people, renewalsSum, moneyFrom,
+    round1, churnPct, todayFrom, listedCents, planNumbers, planStart, rateRange, people, renewalsSum, moneyFrom,
   };
 });

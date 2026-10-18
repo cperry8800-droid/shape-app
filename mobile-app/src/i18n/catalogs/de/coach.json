@@ -1328,7 +1328,7 @@
   "business.plan.note": "Eine Hochrechnung aus deinen eigenen Zahlen, kein Versprechen. Heutige Klienten behalten ihren jetzigen Preis; neue Klienten starten zum Preis oben, nach Shapes Gebühr für die, die dich hier finden.",
   "business.plan.pct": "{value} %",
   "business.plan.rate": "Preis für neue Klienten",
-  "business.plan.rateNote": "heutige Klienten behalten den Preis, zu dem sie angefangen haben",
+  "business.plan.rateNoteFrom": "{from} · heutige Klienten behalten ihren Preis",
   "business.plan.reset": "↺ Zurück zu meinen Zahlen",
   "business.plan.steady": "Bei diesem Tempo pendelt es sich bei etwa {count, plural, one {# Klienten} other {# Klienten}} ein, wo jeder neue einen ersetzt, der geht.",
   "business.plan.was": "vorher {value}",

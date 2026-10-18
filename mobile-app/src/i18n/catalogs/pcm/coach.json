@@ -1328,7 +1328,7 @@
   "business.plan.note": "Na projection from your own figures, no be promise. Your clients today go keep the price wey dem dey pay; new clients go join for the price wey dey up, after Shape fee for the ones wey find you here.",
   "business.plan.pct": "{value}%",
   "business.plan.rate": "Price for new clients",
-  "business.plan.rateNote": "your clients today go keep the price wey dem start with",
+  "business.plan.rateNoteFrom": "{from} · your clients today go keep their own price",
   "business.plan.reset": "↺ Go back to my figures",
   "business.plan.steady": "For dis pace e go settle near {count, plural, one {# client} other {# clients}}, where every new one go replace one wey comot.",
   "business.plan.was": "before na {value}",

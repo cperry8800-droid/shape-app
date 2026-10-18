@@ -1328,7 +1328,7 @@
   "business.plan.note": "Una proyección con tus propias cifras, no una promesa. Tus clientes de hoy mantienen el precio que pagan; los nuevos entran a la tarifa de arriba, tras la comisión de Shape en quienes te encuentran aquí.",
   "business.plan.pct": "{value} %",
   "business.plan.rate": "Tarifa para clientes nuevos",
-  "business.plan.rateNote": "tus clientes de hoy mantienen el precio con el que empezaron",
+  "business.plan.rateNoteFrom": "{from} · tus clientes de hoy mantienen su precio",
   "business.plan.reset": "↺ Volver a mis cifras",
   "business.plan.steady": "A este ritmo se estabiliza en unos {count, plural, one {# cliente} other {# clientes}}, donde cada nuevo sustituye a uno que se va.",
   "business.plan.was": "antes {value}",

@@ -261,6 +261,63 @@ test('Plan: moving a slider makes it your plan, with today\'s pace kept as the d
   await m.unmount();
 });
 
+// ── The rate for new clients (the website's sweep after #2394 round 10) ──
+// The note under a slider, and whether a browser would snap the slider's value (jsdom does not
+// snap a range input, but it does report the step mismatch a browser would snap away).
+const sliderNote = (input) => input.closest('label').lastElementChild.textContent;
+const holds = (input) => !input.validity.stepMismatch && !input.validity.rangeUnderflow && !input.validity.rangeOverflow;
+
+test('Plan: a $149 listing price runs the untouched plan at $149, not $150, and the slider holds it', async () => {
+  world({ listing: { role: 'trainer', monthly: 149 } });
+  const base = CF.planNumbers({ extra: payload(), listingMonthly: 149 });
+  const start = startOf(base);
+  assert.equal(start.rate, 149);
+  const f = runFor(base, start);
+  const at150 = runFor(base, { ...start, rate: 150 });
+  assert.notEqual(money(f.rows[12].netCents), money(at150.rows[12].netCents), 'the fixture tells $149 from $150 in a year');
+  const m = await mount(page({ tab: 'plan' }));
+  const rate = ranges(m.host)[2];
+  assert.equal(rate.value, '149');
+  assert.ok(holds(rate), `a phone keeps $149 on this slider: min ${rate.min}, step ${rate.step}`);
+  assert.match(m.text(), /Rate for new clients\$149your listing price · today's clients keep their price/);
+  assert.match(sentence(m.host), new RegExp(`At today's pace that becomes \\${money(f.rows[12].netCents)} a month in a year\\.`));
+  // What clients earn you reads the same price.
+  assert.equal(m.host.querySelectorAll('input[type="number"]')[1].value, '149');
+  // A drag away and back is the coach's own price again: untouched, one line, no "was".
+  await setRange(rate, 160);
+  assert.match(m.text(), /\$160 · was \$149/);
+  await setRange(rate, 149);
+  assert.doesNotMatch(m.text(), /· was \$/);
+  assert.equal(m.host.querySelectorAll('polyline').length, 1);
+  await m.unmount();
+});
+
+test('Plan: the rate slider says where its starting number came from, as What clients earn you does', async () => {
+  const ex = (metrics) => ({ metrics, byOrigin: [], byoMix: { clients: 0, brought: 0 }, trajectory: null });
+  const some = { activeClients: 3, mrrNetCents: 40000, mrrGrossCents: 47300 };
+  const none = { activeClients: 0, mrrNetCents: 0, mrrGrossCents: 0 };
+  for (const [why, args, from] of [
+    ['a listing price', { extra: ex(some), listingMonthly: 149 }, 'your listing price'],
+    ["the clients' average", { extra: ex(some), listingMonthly: null }, "your clients' average"],
+    ['the default', { extra: ex(none), listingMonthly: null }, 'no listing price yet · set your own'],
+    ['an unread listing, averaged', { extra: ex(some), listingMonthly: null, listingFailed: true }, "couldn't read your listing price · your clients' average"],
+    ['an unread listing, no clients', { extra: ex(none), listingMonthly: null, listingFailed: true }, "couldn't read your listing price · set your own"],
+  ]) {
+    const base = { ...CF.planNumbers(args), state: 'ready' };
+    const m = await mount(plan(base));
+    const rate = ranges(m.host)[2];
+    assert.equal(sliderNote(rate), from + " · today's clients keep their price", why);
+    assert.equal(rate.value, String(base.rateCents / 100), why + ': the plan starts at the rate the note names');
+    assert.ok(holds(rate), why);
+    await m.unmount();
+  }
+  // The page says the same as the planner on its own: a failed listing read, from the clients' average.
+  world({ listing: new Error('500') });
+  const m = await mount(page({ tab: 'plan' }));
+  assert.equal(sliderNote(ranges(m.host)[2]), "couldn't read your listing price · your clients' average · today's clients keep their price");
+  await m.unmount();
+});
+
 test('Clients: joined and left, what a client is worth, the waiting list in money, and who left in 90 days', async () => {
   world();
   const p = payload();
@@ -484,6 +541,51 @@ test('the churn slider\'s percent sign sits where its note puts it, in all 13 la
   }
   const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSCoachBusiness.jsx'), 'utf8');
   assert.doesNotMatch(src, /\+ '%'/, 'no English percent sign appended to a number in the coach\'s language');
+});
+
+test('a listing price with cents is held to the cent, and written in the coach\'s language', async () => {
+  world({ listing: { role: 'trainer', monthly: 149.5 } });
+  const base = CF.planNumbers({ extra: payload(), listingMonthly: 149.5 });
+  assert.equal(startOf(base).rate, 149.5);
+  let m = await mount(page({ tab: 'plan' }));
+  let rate = ranges(m.host)[2];
+  assert.equal(rate.value, '149.5');
+  assert.ok(holds(rate), `a phone keeps $149.50 on this slider: min ${rate.min}, step ${rate.step}`);
+  assert.match(m.text(), /Rate for new clients\$149\.50your listing price/);
+  const f = CF.forecast({ clients: base.clients, mrrNetCents: base.mrrNetCents, byoShare: base.byoShare, months: 36, priceCents: 14950, adds: startOf(base).adds, churn: startOf(base).churnPct / 100 });
+  assert.match(sentence(m.host), new RegExp(`At today's pace that becomes \\${money(f.rows[12].netCents)} a month in a year\\.`));
+  assert.equal(m.host.querySelectorAll('input[type="number"]')[1].value, '149.5', 'What clients earn you reads the same price');
+  await setRange(rate, 150.5);
+  assert.match(m.text(), /\$150\.50 · was \$149\.50/);
+  await m.unmount();
+  // German writes the cents with a comma, beside money it groups with a point; the note is German too.
+  const english = window.ShapeI18n;
+  speak('de', 'de-DE');
+  try {
+    world({ listing: { role: 'trainer', monthly: 149.5 } });
+    m = await mount(page({ tab: 'plan' }));
+    rate = ranges(m.host)[2];
+    const C = catalogOf('de');
+    assert.ok(m.text().includes(C['business.plan.rate'] + '$149,50'), m.text());
+    assert.equal(sliderNote(rate), new IntlMessageFormat(C['business.plan.rateNoteFrom'], 'de-DE').format({ from: C['business.earn.rateListing'] }));
+    await m.unmount();
+  } finally {
+    window.ShapeI18n = english;
+  }
+});
+
+test('the rate slider\'s note names where the rate came from in all 13 languages', () => {
+  for (const loc of LOCALES) {
+    const C = catalogOf(loc);
+    assert.ok(C['business.plan.rateNoteFrom'], `${loc} has the rate slider's note`);
+    assert.equal(C['business.plan.rateNote'], undefined, `${loc}: the old note, which named no source, is gone`);
+    for (const k of ['rateListing', 'rateAverage', 'rateDefault', 'rateUnreadAverage', 'rateUnreadDefault']) {
+      const from = C['business.earn.' + k];
+      assert.ok(from, `${loc} has business.earn.${k}`);
+      const note = new IntlMessageFormat(C['business.plan.rateNoteFrom'], 'en').format({ from });
+      assert.ok(note.startsWith(from) && note.length > from.length + 3, `${loc}: "${note}"`);
+    }
+  }
 });
 
 test('the goal sentence never contradicts its figures: still climbing, levelling off, or the same month', async () => {

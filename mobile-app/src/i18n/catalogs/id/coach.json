@@ -1328,7 +1328,7 @@
   "business.plan.note": "Proyeksi dari angkamu sendiri, bukan janji. Klien saat ini tetap membayar harga mereka sekarang; klien baru bergabung dengan tarif di atas, setelah biaya Shape untuk yang menemukanmu di sini.",
   "business.plan.pct": "{value}%",
   "business.plan.rate": "Tarif untuk klien baru",
-  "business.plan.rateNote": "klien saat ini tetap di harga saat mereka bergabung",
+  "business.plan.rateNoteFrom": "{from} · klien saat ini tetap di harga mereka",
   "business.plan.reset": "↺ Kembali ke angkaku",
   "business.plan.steady": "Dengan laju ini angkanya stabil di sekitar {count, plural, one {# klien} other {# klien}}, saat setiap klien baru menggantikan yang pergi.",
   "business.plan.was": "sebelumnya {value}",

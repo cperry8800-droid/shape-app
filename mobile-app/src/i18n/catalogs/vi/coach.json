@@ -1328,7 +1328,7 @@
   "business.plan.note": "Một dự báo từ chính số liệu của bạn, không phải lời hứa. Khách hàng hiện tại giữ mức giá đang trả; khách mới vào với mức giá ở trên, sau phí Shape với những người tìm thấy bạn ở đây.",
   "business.plan.pct": "{value}%",
   "business.plan.rate": "Giá cho khách hàng mới",
-  "business.plan.rateNote": "khách hàng hiện tại giữ mức giá lúc họ bắt đầu",
+  "business.plan.rateNoteFrom": "{from} · khách hàng hiện tại giữ nguyên giá của họ",
   "business.plan.reset": "↺ Quay về số liệu của tôi",
   "business.plan.steady": "Với nhịp này con số chững lại quanh {count, plural, one {# khách hàng} other {# khách hàng}}, khi mỗi khách mới thay cho một người rời đi.",
   "business.plan.was": "trước đây {value}",

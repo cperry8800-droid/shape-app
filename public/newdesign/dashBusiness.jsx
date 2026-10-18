@@ -858,6 +858,9 @@ const DBZ_DEFAULT_RATE_CENTS = 15000;   // CoachForecast.DEFAULT_RATE_CENTS, for
 // coachForecast.js `churnPct`, which the planner's start (`planStart`) and the app's page read too.
 const dbzChurnPct = (churn) => window.CoachForecast.churnPct(churn);
 const dbzPct = (p) => (Number.isInteger(p) ? p : p.toFixed(1)) + "%";
+// A rate as the planner's slider prints it: whole dollars, or to the cent when the listing price
+// has cents ("$149.50", never "$149.5").
+const dbzRate = (r) => "$" + (Number.isInteger(r) ? r : r.toFixed(2));
 const dbzMonthsWord = (m) => (m === 1 ? "1 month" : m + " months");
 
 // ⚠ THE PREVIEW'S PACE INCLUDES THE PREVIEW'S DEPARTURES. The demo walk is rescaled onto the
@@ -941,10 +944,12 @@ function DbzEarnZone({ base }) {
   const CF = window.CoachForecast;
   // A round number above today's count: the question is "what if I had more".
   const [clients, setClients] = React.useState(String(Math.max(20, Math.ceil((base.clients + 1) / 10) * 10)));
-  const [rate, setRate] = React.useState(String(Math.round(base.rateCents / 100)));
+  // The rate as it is, to the cent: a $149.50 listing price is not "150 · your listing price"
+  // (the sweep after #2394 round 10; the Plan's slider holds it the same way).
+  const [rate, setRate] = React.useState(String(base.rateCents / 100));
   const [byo, setByo] = React.useState(String(Math.round(base.byoShare * 100)));
   const n = Math.max(0, Math.round(Number(clients) || 0));
-  const e = CF.earn({ clients: n, priceCents: Math.max(0, Number(rate) || 0) * 100, byoShare: Math.min(100, Math.max(0, Number(byo) || 0)) / 100 });
+  const e = CF.earn({ clients: n, priceCents: Math.round(Math.max(0, Number(rate) || 0) * 100), byoShare: Math.min(100, Math.max(0, Number(byo) || 0)) / 100 });
   return (
     <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "minmax(0,1.25fr) minmax(0,1fr)", gap: 28, alignItems: "end" }}>
       {/* Three short fields stay side by side on a phone: pageShell stacks any "repeat(3" grid. */}
@@ -1079,7 +1084,16 @@ function DbzPlanZone({ base }) {
   const reset = () => { setAdds(start.adds); setChurnPct(start.churnPct); setRate(start.rate); setGoal(start.goal); setWhatIf("more"); };
   const touched = adds !== start.adds || churnPct !== start.churnPct || rate !== start.rate;
 
-  const run = (o) => CF.forecast({ clients: base.clients, mrrNetCents: base.mrrNetCents, byoShare: base.byoShare, months: 36, priceCents: o.rate * 100, adds: o.adds, churn: o.churnPct / 100 });
+  const run = (o) => CF.forecast({ clients: base.clients, mrrNetCents: base.mrrNetCents, byoShare: base.byoShare, months: 36, priceCents: Math.round(o.rate * 100), adds: o.adds, churn: o.churnPct / 100 });
+  // The rate slider holds the starting rate exactly, to the cent (coachForecast.js `rateRange`,
+  // shared with the app's planner).
+  const rateRange = CF.rateRange(start.rate);
+  // ⚠ THE RATE SAYS WHERE IT CAME FROM, AS THE ADDS AND CHURN DO (the sweep after #2394 round 10).
+  // A default ($150: no listing price and no clients) or the clients' average started the plan's
+  // sentence with nothing on the Plan saying so: the note only ever said today's clients keep the
+  // price they joined at. Now it names the source "What clients earn you" names, and keeps that
+  // point, briefly.
+  const rateNote = base.rateFrom + " · today's clients keep their price";
   const plan = { adds, churnPct, rate };
   const keepPct = Math.max(0, CF.round1(churnPct - 3));
   const priceUp = Math.round((rate * 1.15) / 5) * 5;
@@ -1134,9 +1148,9 @@ function DbzPlanZone({ base }) {
         <DbzSlider label="Monthly churn" value={churnPct} shown={dbzPct(churnPct)} was={churnPct !== start.churnPct ? dbzPct(start.churnPct) : null}
           min={0} max={Math.max(30, Math.ceil(start.churnPct))} step={0.1} onChange={(v) => setChurnPct(CF.round1(v))}
           note={base.pace.churn != null ? "yours: " + dbzPct(start.churnPct) + " leave a month, " + dbzPaceWhen(base.pace) : noHistory} />
-        <DbzSlider label="Rate for new clients" value={rate} shown={"$" + rate} was={rate !== start.rate ? "$" + start.rate : null}
-          min={Math.min(20, start.rate)} max={Math.max(500, start.rate * 2)} step={5} onChange={setRate}
-          note="today's clients keep the price they joined at" />
+        <DbzSlider label="Rate for new clients" value={rate} shown={dbzRate(rate)} was={rate !== start.rate ? dbzRate(start.rate) : null}
+          min={rateRange.min} max={rateRange.max} step={rateRange.step} onChange={setRate}
+          note={rateNote} />
         <DbzSlider label="Goal · net a month" value={goal} shown={dashMoney(goalCents)}
           min={500} max={Math.max(20000, start.goal * 3)} step={250} onChange={setGoal} note="the dashed line" />
         <div>

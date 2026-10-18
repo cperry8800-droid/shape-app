@@ -275,9 +275,15 @@ test('churnPct: a measured churn to a tenth of a point, and never 0', () => {
   assert.equal(CF.churnPct(0.42), 42);
 });
 
-test('planStart: today\'s pace rounded to the sliders, the rate to $5, the goal half again above today', () => {
+test('planStart: today\'s pace rounded to the sliders, the rate as it is, the goal half again above today', () => {
   const s = CF.planStart({ rateCents: 17800, mrrNetCents: 189000, pace: { adds: 2.34, churn: 0.0712 } });
-  assert.deepEqual(s, { adds: 2.3, churnPct: 7.1, rate: 180, goal: 3000 });
+  assert.deepEqual(s, { adds: 2.3, churnPct: 7.1, rate: 178, goal: 3000 });
+  // The sweep after #2394 round 10: the rate is the listing price as it is, never rounded to $5.
+  // A $149 listing started the plan at $150 beside "$149 · your listing price".
+  assert.equal(CF.planStart({ rateCents: 14900, mrrNetCents: 0, pace: {} }).rate, 149);
+  assert.equal(CF.planStart({ rateCents: 14950, mrrNetCents: 0, pace: {} }).rate, 149.5, 'to the cent');
+  assert.equal(CF.planStart({ rateCents: 14999, mrrNetCents: 0, pace: {} }).rate, 149.99);
+  assert.equal(CF.planStart({ rateCents: 0, mrrNetCents: 0, pace: {} }).rate, 5, 'no rate at all still starts the slider somewhere');
   // Churn is kept to a tenth of a point, and a measured churn never starts the plan at 0%.
   assert.equal(CF.planStart({ rateCents: 15000, mrrNetCents: 0, pace: { adds: 1, churn: 0.0045 } }).churnPct, 0.5);
   assert.equal(CF.planStart({ rateCents: 15000, mrrNetCents: 0, pace: { adds: 1, churn: 0.0004 } }).churnPct, 0.1);
@@ -286,6 +292,29 @@ test('planStart: today\'s pace rounded to the sliders, the rate to $5, the goal 
   assert.deepEqual(CF.planStart({ rateCents: 15000, mrrNetCents: 20000, pace: { adds: null, churn: null } }), { adds: 1, churnPct: 5, rate: 150, goal: 1000 });
   // A churn past the slider's usual 30% is kept, not clamped (the range stretches to it).
   assert.equal(CF.planStart({ rateCents: 15000, mrrNetCents: 0, pace: { adds: 1, churn: 0.42 } }).churnPct, 42);
+});
+
+// A range input snaps its value to its low end plus a whole number of steps (the HTML value
+// sanitization), so the starting rate must sit on that grid or the slider cannot hold it. Checked
+// in cents, so a float never decides it.
+const onGrid = (r, rate) => (Math.round(rate * 100) - Math.round(r.min * 100)) % Math.round(r.step * 100) === 0;
+test('rateRange: the rate slider holds the starting rate exactly, to the cent, from about $20 to $500 or twice the rate', () => {
+  for (const rate of [149, 150, 178, 149.5, 149.99, 15, 20, 21.37, 800, 0.5]) {
+    const r = CF.rateRange(rate);
+    assert.ok(onGrid(r, rate), `$${rate} sits on the slider's steps: ${JSON.stringify(r)}`);
+    assert.ok(r.min <= rate && rate <= r.max, `$${rate} is inside ${JSON.stringify(r)}`);
+    assert.ok(r.min > Math.min(20, rate) - 1, `the low end is about $20, or the rate below it: ${JSON.stringify(r)}`);
+  }
+  // A $149 listing on the old $5 steps from $20 was off the grid: 129 is not a multiple of 5.
+  assert.equal(onGrid({ min: 20, step: 5 }, 149), false, 'the helper itself tells the old slider apart');
+  assert.deepEqual(CF.rateRange(149), { min: 20, max: 500, step: 1 });
+  assert.deepEqual(CF.rateRange(149.5), { min: 20.5, max: 500, step: 1 });
+  assert.deepEqual(CF.rateRange(15), { min: 15, max: 500, step: 1 }, 'a rate under $20 is the low end');
+  assert.deepEqual(CF.rateRange(800), { min: 20, max: 1600, step: 1 }, 'the top stretches to twice the rate');
+  // A drag from a rate with cents moves in whole dollars from it, so it can always come back.
+  const r = CF.rateRange(149.99);
+  assert.equal(r.min, 20.99);
+  assert.ok(onGrid(r, 150.99) && !onGrid(r, 150), JSON.stringify(r));
 });
 
 test('renewalsSum: only a renewal Stripe confirmed counts; cancelled and unchecked do not', () => {

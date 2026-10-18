@@ -1328,7 +1328,7 @@
   "business.plan.note": "Kendi rakamlarından bir tahmin, bir söz değil. Bugünkü danışanların şu anki fiyatı öder; yeni danışanlar yukarıdaki ücretle başlar, seni burada bulanlarda Shape ücretinden sonra.",
   "business.plan.pct": "%{value}",
   "business.plan.rate": "Yeni danışan ücreti",
-  "business.plan.rateNote": "bugünkü danışanlar başladıkları fiyatı korur",
+  "business.plan.rateNoteFrom": "{from} · bugünkü danışanlar kendi fiyatlarını korur",
   "business.plan.reset": "↺ Kendi rakamlarıma dön",
   "business.plan.steady": "Bu hızla yaklaşık {count, plural, one {# danışan} other {# danışan}} civarında dengelenir; her yeni danışan ayrılan birinin yerini alır.",
   "business.plan.was": "önce {value}",

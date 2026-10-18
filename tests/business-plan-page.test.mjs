@@ -214,6 +214,75 @@ test('a pace outside the sliders\' usual range is kept, and the range stretches 
   await m.unmount();
 });
 
+// ── The rate for new clients (the sweep after #2394 round 10) ───────────────
+// The note under a slider, and whether a browser would snap the slider's value (jsdom does not
+// snap a range input, but it does report the step mismatch a browser would snap away).
+const sliderNote = (input) => input.closest('label').lastElementChild.textContent;
+const holds = (input) => !input.validity.stepMismatch && !input.validity.rangeUnderflow && !input.validity.rangeOverflow;
+
+test('a $149 listing price: the untouched plan runs at $149, not $150, and the slider holds it', async () => {
+  const base = { ...BASE, rateCents: 14900 };
+  const T = run({ adds: 2.3, churn: 0.08, rate: 149 });
+  const at150 = run({ adds: 2.3, churn: 0.08, rate: 150 });
+  assert.notEqual(money(T.rows[12].netCents), money(at150.rows[12].netCents), 'the fixture tells $149 from $150 in a year');
+  assert.notEqual(money(CF.earnedOver(T, 12)), money(CF.earnedOver(at150, 12)));
+  const m = await mount(React.createElement(B.DbzPlanZone, { base }));
+  const rate = m.div.querySelectorAll('input[type=range]')[2];
+  assert.equal(rate.value, '149');
+  assert.ok(holds(rate), `a browser keeps $149 on this slider: min ${rate.min}, step ${rate.step}`);
+  assert.match(m.text(), /Rate for new clients\$149your listing price/);
+  assert.ok(sentence(m.div).includes(`At today's pace that becomes ${money(T.rows[12].netCents)} a month in a year`), sentence(m.div));
+  const cells = [...m.div.querySelectorAll('table.dbz-cmp tbody tr')][0].textContent;
+  assert.ok(cells.includes(money(CF.earnedOver(T, 12))), cells);
+  // A drag away and back is the coach's own price again: untouched, one line, no "was".
+  await setValue(rate, 160);
+  assert.match(m.text(), /\$160 · was \$149/);
+  await setValue(rate, 149);
+  assert.doesNotMatch(m.text(), /· was \$/);
+  assert.deepEqual(rowLabels(m.div), ["Today's pace", 'What if: +1 client a month']);
+  await m.unmount();
+});
+
+test('a listing price with cents is held to the cent, on the plan and in What clients earn you', async () => {
+  const base = { ...BASE, rateCents: 14950 };
+  const m = await mount(React.createElement(B.DbzPlanZone, { base }));
+  const rate = m.div.querySelectorAll('input[type=range]')[2];
+  assert.equal(rate.value, '149.5');
+  assert.ok(holds(rate), `a browser keeps $149.50 on this slider: min ${rate.min}, step ${rate.step}`);
+  assert.match(m.text(), /Rate for new clients\$149\.50your listing price/);
+  const T = CF.forecast({ clients: 12, mrrNetCents: 189000, byoShare: 2 / 12, months: 36, priceCents: 14950, adds: 2.3, churn: 0.08 });
+  assert.ok(sentence(m.div).includes(`becomes ${money(T.rows[12].netCents)} a month in a year`), sentence(m.div));
+  await setValue(rate, 150.5);
+  assert.match(m.text(), /\$150\.50 · was \$149\.50/);
+  await m.unmount();
+  const e = await mount(React.createElement(B.DbzEarnZone, { base }));
+  assert.equal(e.div.querySelectorAll('input[type=number]')[1].value, '149.5');
+  assert.ok(e.text().includes(money(CF.earn({ clients: 20, priceCents: 14950, byoShare: 0.17 }).netCents) + 'net a month'), e.text());
+  await e.unmount();
+});
+
+test('the rate slider says where its starting number came from, as What clients earn you does', async () => {
+  const extra = (m) => ({ metrics: m, byOrigin: [], byoMix: { clients: 0, brought: 0 }, trajectory: null });
+  const some = { activeClients: 3, mrrNetCents: 40000, mrrGrossCents: 47300 };
+  const none = { activeClients: 0, mrrNetCents: 0, mrrGrossCents: 0 };
+  for (const [why, args, from] of [
+    ['a listing price', { extra: extra(some), listing: { monthly: 149 } }, 'your listing price'],
+    ["the clients' average", { extra: extra(some), listing: { monthly: null } }, "your clients' average"],
+    ['the default', { extra: extra(none), listing: null }, 'no listing price yet · set your own'],
+    ['an unread listing, averaged', { extra: extra(some), listing: null, listingFailed: true }, "couldn't read your listing price · your clients' average"],
+    ['an unread listing, no clients', { extra: extra(none), listing: null, listingFailed: true }, "couldn't read your listing price · set your own"],
+  ]) {
+    const base = B.dbzPlanBase({ live: true, listingRead: true, ...args });
+    assert.equal(base.rateFrom, from, why);
+    const m = await mount(React.createElement(B.DbzPlanZone, { base }));
+    const rate = m.div.querySelectorAll('input[type=range]')[2];
+    assert.equal(sliderNote(rate), from + " · today's clients keep their price", why);
+    assert.equal(rate.value, String(base.rateCents / 100), why + ': the plan starts at the rate the note names');
+    assert.ok(holds(rate), why);
+    await m.unmount();
+  }
+});
+
 // ── Your money ───────────────────────────────────────────────────────────────
 const STRIPE = { connected: true, status: 'active', balanceCents: 41200, pendingCents: 118000, schedule: { interval: 'weekly', weeklyAnchor: 'friday', delayDays: 7 }, payouts: [
   { id: 'a', amountCents: 52000, status: 'in_transit', arrivalDate: Date.UTC(2026, 9, 19, 12) },

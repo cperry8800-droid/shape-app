@@ -71,6 +71,12 @@ const pctNum = (p) => bizTenth(p, true);
 const pctText = (tr, p) => tr('coach:business.plan.pct', { defaultValue: '{value}%', value: pctNum(p) });
 // New clients a month: always to a tenth ("1,0").
 const addsNum = (v) => bizTenth(v, false);
+// A rate as the planner's slider prints it: whole dollars, or to the cent when the listing price
+// has cents, in the coach's language ("$149.50", German "$149,50"; grouped as bsBizMoney groups).
+function rateText(r) {
+  const digits = Number.isInteger(r) ? 0 : 2;
+  try { return '$' + new Intl.NumberFormat(intlLocale(), { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(r); } catch (e) { return '$' + (digits ? r.toFixed(2) : String(r)); }
+}
 
 // Whole dollars, as the website prints them.
 export function bsBizMoney(cents) {
@@ -403,10 +409,12 @@ export function BSBizEarn({ t, base }) {
   const F = CF();
   // A round number above today's count: the question is "what if I had more".
   const [clients, setClients] = React.useState(String(Math.max(20, Math.ceil((base.clients + 1) / 10) * 10)));
-  const [rate, setRate] = React.useState(String(Math.round(base.rateCents / 100)));
+  // The rate as it is, to the cent: a $149.50 listing price is not "150 · your listing price"
+  // (the sweep after #2394 round 10; the Plan's slider holds it the same way).
+  const [rate, setRate] = React.useState(String(base.rateCents / 100));
   const [byo, setByo] = React.useState(String(Math.round(base.byoShare * 100)));
   const n = Math.max(0, Math.round(Number(clients) || 0));
-  const e = F.earn({ clients: n, priceCents: Math.max(0, Number(rate) || 0) * 100, byoShare: Math.min(100, Math.max(0, Number(byo) || 0)) / 100 });
+  const e = F.earn({ clients: n, priceCents: Math.round(Math.max(0, Number(rate) || 0) * 100), byoShare: Math.min(100, Math.max(0, Number(byo) || 0)) / 100 });
   return (
     <div>
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)', gap: 10 }}>
@@ -501,7 +509,16 @@ export function BSBizPlan({ t, base }) {
   const [goal, setGoal] = React.useState(start.goal);
   const reset = () => { setAdds(start.adds); setChurnPct(start.churnPct); setRate(start.rate); setGoal(start.goal); };
   const touched = adds !== start.adds || churnPct !== start.churnPct || rate !== start.rate;
-  const run = (o) => F.forecast({ clients: base.clients, mrrNetCents: base.mrrNetCents, byoShare: base.byoShare, months: 36, priceCents: o.rate * 100, adds: o.adds, churn: o.churnPct / 100 });
+  const run = (o) => F.forecast({ clients: base.clients, mrrNetCents: base.mrrNetCents, byoShare: base.byoShare, months: 36, priceCents: Math.round(o.rate * 100), adds: o.adds, churn: o.churnPct / 100 });
+  // The rate slider holds the starting rate exactly, to the cent (coachForecast.js `rateRange`,
+  // shared with the website's planner).
+  const rateRange = F.rateRange(start.rate);
+  // ⚠ THE RATE SAYS WHERE IT CAME FROM, AS THE ADDS AND CHURN DO (the sweep after #2394 round 10).
+  // A default ($150: no listing price and no clients) or the clients' average started the plan's
+  // sentence with nothing on the Plan saying so: the note only ever said today's clients keep the
+  // price they joined at. Now it names the source "What clients earn you" names, and keeps that
+  // point, briefly.
+  const rateNote = tr('coach:business.plan.rateNoteFrom', { defaultValue: "{from} · today's clients keep their price", from: rateFromNote(base, tr) });
   const goalCents = goal * 100;
   const c = teal(t);
   // Until a slider moves, the plan IS today's pace: one line. Once one moves, today's pace stays
@@ -562,9 +579,9 @@ export function BSBizPlan({ t, base }) {
         <Slider t={t} label={tr('coach:business.plan.churn', { defaultValue: 'Monthly churn' })} value={churnPct} shown={pctText(tr, churnPct)} was={churnPct !== start.churnPct ? pctText(tr, start.churnPct) : null}
           min={0} max={Math.max(30, Math.ceil(start.churnPct))} step={0.1} onChange={(v) => setChurnPct(F.round1(v))}
           note={base.pace.churn != null ? tr('coach:business.plan.yoursChurn', { defaultValue: 'yours: {value}% leave a month, {when}', value: pctNum(start.churnPct), when }) : noHistory} />
-        <Slider t={t} label={tr('coach:business.plan.rate', { defaultValue: 'Rate for new clients' })} value={rate} shown={'$' + rate} was={rate !== start.rate ? '$' + start.rate : null}
-          min={Math.min(20, start.rate)} max={Math.max(500, start.rate * 2)} step={5} onChange={setRate}
-          note={tr('coach:business.plan.rateNote', { defaultValue: "today's clients keep the price they joined at" })} />
+        <Slider t={t} label={tr('coach:business.plan.rate', { defaultValue: 'Rate for new clients' })} value={rate} shown={rateText(rate)} was={rate !== start.rate ? rateText(start.rate) : null}
+          min={rateRange.min} max={rateRange.max} step={rateRange.step} onChange={setRate}
+          note={rateNote} />
         <Slider t={t} label={tr('coach:business.plan.goal', { defaultValue: 'Goal · net a month' })} value={goal} shown={goalMoney}
           min={500} max={Math.max(20000, start.goal * 3)} step={250} onChange={setGoal}
           note={tr('coach:business.plan.goalNote', { defaultValue: 'the green dashed line' })} />
