@@ -25,9 +25,8 @@ type OriginSourceRow = {
   fee_bps?: number | null;
 };
 
-export type OriginFeedRow = {
+type OriginRowBase = {
   name: string;
-  kind: 'subscription' | 'purchase';
   origin: string;
   feeBps: number;
   // Null = genuinely unknown (render "—", never $0) — a missing price must not
@@ -35,19 +34,54 @@ export type OriginFeedRow = {
   // pre-feature row genuinely paid 15%; a missing PRICE has no such truth.
   priceCents: number | null;
 };
+// One of today's CLIENTS (clientsOf below): every open plan they hold, as one row.
+//   clientId   null for a row with no client id, which stands alone
+//   origin, feeBps  the plan that decides who brought them: a 0% plan when they hold one, else
+//              their first
+//   priceCents every plan's price added, null when any of them is unknown
+//   plans      how many open plans they hold
+//   mixedFees  their plans' fees differ, so no one rate is theirs (feeBps is the deciding plan's)
+export type OriginClientRow = OriginRowBase & {
+  kind: 'subscription';
+  clientId: string | null;
+  plans: number;
+  mixedFees: boolean;
+};
+// A paid one-time purchase: listed on its own row, and never counted as a client.
+export type OriginPurchaseRow = OriginRowBase & { kind: 'purchase' };
+export type OriginFeedRow = OriginClientRow | OriginPurchaseRow;
 
-// ⚠ THE BROUGHT-IN SHARE IS PER CLIENT, NOT PER ROW (Codex, #2394). The feed above has a row per
-// subscription, and one client may hold several (a plan change, two plans), so one brought client
-// with two plans beside one from Shape read as "2 of your 3" (67%), and the calculators seeded
-// from it overstated take-home. A client counts as brought when any of their active rows carries
-// the 0% fee; a row with no client_id stands alone, as in every other per-client count.
-export function byoMixOf(subs: OriginSourceRow[]): { clients: number; brought: number } {
-  const byClient = new Map<string, boolean>();
+// The stored fee, at the pre-feature default when the row has none (the type's note above).
+const feeOf = (r: OriginSourceRow): number => Number(r.fee_bps ?? 1500);
+
+type ClientPlans = { clientId: string | null; rows: OriginSourceRow[]; brought: boolean };
+
+// ⚠ ONE CLIENT IS ONE CLIENT, IN THE BROUGHT-IN SHARE AND IN THE LIST. Both take today's rows
+// through this one fold, so the two cannot disagree.
+//   The share (Codex, #2394): one client may hold several plans (a plan change, two plans), so one
+//   brought client with two plans beside one from Shape read as "2 of your 3" (67%), and the
+//   calculators seeded from it overstated take-home.
+//   The list (the follow-up to #2395): the Growth tab's "who found whom" still counted the feed's
+//   rows, one a plan and one more a one-time purchase. That same practice read "2 you brought ·
+//   1 found you on Shape" beside the Plan's "1 of your 2", and a purchase added one more.
+// A client counts as brought when ANY of their open plans carries the 0% fee, the share's rule
+// since #2394. A rule where the marketplace wins would move the Plan's and the Goal tab's share.
+// A row with no client_id stands alone, as in every other per-client count.
+function clientsOf(subs: OriginSourceRow[]): ClientPlans[] {
+  const byClient = new Map<string, ClientPlans>();
   subs.forEach((r, i) => {
     const key = r.client_id != null ? 'c:' + String(r.client_id) : 'row:' + i;
-    byClient.set(key, byClient.get(key) === true || Number(r.fee_bps ?? 1500) === 0);
+    const c = byClient.get(key) ?? { clientId: r.client_id != null ? String(r.client_id) : null, rows: [], brought: false };
+    c.rows.push(r);
+    c.brought = c.brought || feeOf(r) === 0;
+    byClient.set(key, c);
   });
-  return { clients: byClient.size, brought: [...byClient.values()].filter(Boolean).length };
+  return [...byClient.values()];
+}
+
+export function byoMixOf(subs: OriginSourceRow[]): { clients: number; brought: number } {
+  const clients = clientsOf(subs);
+  return { clients: clients.length, brought: clients.filter((c) => c.brought).length };
 }
 
 // ⚠ TODAY'S CLIENTS ARE ONE SET OF ROWS, FOR EVERY COUNT OF THEM ON THE BUSINESS PAGE (the sweep
@@ -78,7 +112,8 @@ const NAME_BATCH = 200;
 
 /**
  * Fold the provider's subscriptions + recent paid one-time purchases into one
- * attribution feed. Reads under the CALLER's RLS client (the routes pass their
+ * attribution feed: a row per client (clientsOf: all their open plans in one),
+ * then a row per purchase. Reads under the CALLER's RLS client (the routes pass their
  * cookie-scoped `supabase`) — until the provider-read policy migration is
  * applied the purchases read returns zero rows and the feed degrades honestly
  * to subscriptions-only.
@@ -148,16 +183,31 @@ export async function buildOriginFeed(
     }
   }
 
-  const row = (r: OriginSourceRow, kind: OriginFeedRow['kind']): OriginFeedRow => ({
-    name: activeNames.get(String(r.client_id ?? '')) || '—', // — = unknown name, never a fabricated placeholder
-    kind,
+  const nameOf = (clientId: string | null | undefined) => activeNames.get(String(clientId ?? '')) || '—'; // — = unknown name, never a fabricated placeholder
+
+  // One row a client (clientsOf above, the brought-in share's own fold), then the purchases, each a
+  // row of its own: a one-time purchase is a sale, not a client, and is never counted as one.
+  const client = (c: ClientPlans): OriginClientRow => {
+    const lead = (c.brought ? c.rows.find((r) => feeOf(r) === 0) : undefined) ?? c.rows[0];
+    return {
+      name: nameOf(c.clientId),
+      clientId: c.clientId,
+      kind: 'subscription',
+      origin: lead.origin ?? 'marketplace',
+      feeBps: feeOf(lead),
+      // A plan of unknown price is not a $0 plan, so the sum of the others is not their total.
+      priceCents: c.rows.some((r) => r.price_cents == null) ? null : c.rows.reduce((s, r) => s + Number(r.price_cents), 0),
+      plans: c.rows.length,
+      mixedFees: new Set(c.rows.map(feeOf)).size > 1,
+    };
+  };
+  const purchase = (r: OriginSourceRow): OriginPurchaseRow => ({
+    name: nameOf(r.client_id),
+    kind: 'purchase',
     origin: r.origin ?? 'marketplace',
-    feeBps: r.fee_bps ?? 1500,
+    feeBps: feeOf(r),
     priceCents: r.price_cents ?? null,
   });
 
-  return [
-    ...subs.map((r) => row(r, 'subscription')),
-    ...otps.map((r) => row(r, 'purchase')),
-  ];
+  return [...clientsOf(subs).map(client), ...otps.map(purchase)];
 }

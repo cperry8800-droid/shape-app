@@ -332,6 +332,8 @@ function DbzChurnZone({ live, churn, pace = null, now = Date.now() }) {
 // Plan's "Brought by you", the renewals and every net on the preview describe one practice. The
 // stored fee is in cents (coach-roster.ts's shape); the list shows it as the rate it is.
 // Lazy, like the trajectory: the roster reads `new Date()` and dashSignals may not be up at load.
+// Each row is one client in the routes' shape (origin-attribution.ts: their id, and their plans
+// folded into one row); a roster client holds one plan, so the preview's net stays the roster's.
 const DBZ_DEMO_PURCHASES = [
   { name: "Drew Park", kind: "purchase", origin: "coach_link", feeBps: 0, priceCents: 9000 },
 ];
@@ -341,8 +343,9 @@ function dbzDemoOrigin() {
     subs = DashSignals.buildMockClients(new Date()).map((c) => {
       const p = c.payments || {};
       return {
-        name: c.profile.name, kind: "subscription", origin: p.origin, priceCents: p.mrrCents,
+        name: c.profile.name, clientId: c.profile.id, kind: "subscription", origin: p.origin, priceCents: p.mrrCents,
         feeBps: p.mrrCents > 0 ? Math.round((p.feeCents || 0) / p.mrrCents * 10000) : 0,
+        plans: 1, mixedFees: false,
       };
     });
   } catch (e) { /* dashSignals not up yet — no roster, so no rows of it */ }
@@ -406,6 +409,8 @@ function DbzBringClientsZone({ live, role, providerId }) {
     </div>
   );
 }
+// How many one-time purchases the origin feed lists, newest first (origin-attribution.ts's .limit(20)).
+const DBZ_ORIGIN_PURCHASES = 20;
 function DbzOriginZone({ live, byOrigin }) {
   // undefined: the analytics are still loading, which is neither "no clients yet" nor a failed read.
   if (live && byOrigin === undefined) {
@@ -422,24 +427,47 @@ function DbzOriginZone({ live, byOrigin }) {
   // Commission status keys off the STORED fee, never off origin — this surface
   // is the fee pitch, and the row's rate is the billing truth.
   const isByo = (row) => row.feeBps === 0;
-  const brought = rows.filter(isByo).length;
+  // ⚠ THE HEADER COUNTS CLIENTS, AND A PURCHASE IS NOT ONE (the follow-up to #2395). It counted
+  // rows, one a plan and one more a one-time purchase, so one brought client with two plans beside
+  // one from Shape read "2 you brought · 1 found you on Shape" while the Plan said "1 of your 2".
+  // The routes send one row a client now (origin-attribution.ts, the brought-in share's own fold:
+  // brought when any of their plans is at 0%), so the header counts those rows and is the share's
+  // count; the purchases are listed under a line of their own.
+  const clients = rows.filter((r) => r.kind === "subscription");
+  const purchases = rows.filter((r) => r.kind === "purchase");
+  const brought = clients.filter(isByo).length;
+  const countStyle = { fontFamily: DBZ_MONO, fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: DBZ_INK50, marginBottom: 4 };
+  // The feed holds the latest DBZ_ORIGIN_PURCHASES purchases, so a full list is not a total. None
+  // has no line: a purchases read that failed sends none too, and "0" would be a claim.
+  const bought = purchases.length >= DBZ_ORIGIN_PURCHASES ? "Your latest " + purchases.length + " one-time purchases"
+    : purchases.length === 1 ? "1 one-time purchase" : purchases.length + " one-time purchases";
+  const line = (r, i) => {
+    const byo = isByo(r);
+    const feePct = Math.round((r.feeBps || 0) / 100 * 10) / 10;
+    // A client on two plans is one row. When their plans' fees differ no one rate is theirs, so the
+    // row says so rather than print the 0% that made them brought.
+    const fee = (r.plans > 1 ? r.plans + " plans · " : "") + (r.mixedFees ? "different fees" : feePct + "% fee");
+    return (
+      <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "center", padding: "9px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
+        <span style={{ fontSize: 13, fontWeight: 500, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
+        <span style={{ fontFamily: DBZ_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: byo ? DBZ_TEAL : DBZ_INK50, whiteSpace: "nowrap" }}>
+          {byo ? "You brought" : "Found you on Shape"} · {fee}{r.kind === "purchase" ? " · one-time" : ""}
+        </span>
+      </div>
+    );
+  };
   return (
     <div>
-      <div style={{ fontFamily: DBZ_MONO, fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: DBZ_INK50, marginBottom: 4 }}>
-        {brought} you brought · {rows.length - brought} found you on Shape
+      <div style={countStyle}>
+        {brought} you brought · {clients.length - brought} found you on Shape
       </div>
-      {rows.map((r, i) => {
-        const byo = isByo(r);
-        const feePct = Math.round((r.feeBps || 0) / 100 * 10) / 10;
-        return (
-          <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "center", padding: "9px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
-            <span style={{ fontSize: 13, fontWeight: 500, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
-            <span style={{ fontFamily: DBZ_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: byo ? DBZ_TEAL : DBZ_INK50, whiteSpace: "nowrap" }}>
-              {byo ? "You brought" : "Found you on Shape"} · {feePct}% fee{r.kind === "purchase" ? " · one-time" : ""}
-            </span>
-          </div>
-        );
-      })}
+      {clients.map(line)}
+      {purchases.length > 0 && (
+        <React.Fragment>
+          <div style={{ ...countStyle, marginTop: 14 }}>{bought}</div>
+          {purchases.map(line)}
+        </React.Fragment>
+      )}
     </div>
   );
 }
