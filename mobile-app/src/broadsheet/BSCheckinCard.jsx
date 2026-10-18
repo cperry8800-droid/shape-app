@@ -184,12 +184,22 @@ function bsCiSampleWeek(todayIso) {
 }
 
 // One save at a time: two quick taps would otherwise both find no row for today and both insert.
-let bsCiQueue = Promise.resolve();
-function bsCiSave(patch) {
-  const run = bsCiQueue.then(() => window.ShapeCheckin.log(patch));
-  bsCiQueue = run.catch(() => {});
+// Water has its own line, so a glass never waits on a check-in answer.
+// ⚠ A QUEUED SAVE BELONGS TO THE ACCOUNT THAT MADE IT (Codex P1 on #2398). The write goes out under
+// whoever is signed in when it leaves the queue, so a member who answers on a slow connection and
+// signs out would otherwise have their answer saved to the next member's day. A save whose turn
+// comes after the account changed is dropped, and rejects like any failed save.
+const bsCiLines = { checkin: Promise.resolve(), water: Promise.resolve() };
+function bsCiCurrentUid() { return window.ShapeAuth?.getCachedState?.()?.user?.id || null; }
+function bsCiEnqueue(line, uid, send) {
+  const run = bsCiLines[line].then(() => {
+    if (bsCiCurrentUid() !== uid) throw new Error('signed-in account changed');
+    return send();
+  });
+  bsCiLines[line] = run.catch(() => {});
   return run;
 }
+function bsCiSave(patch, uid) { return bsCiEnqueue('checkin', uid, () => window.ShapeCheckin.log(patch)); }
 
 // ── The card, and the walkthrough it opens ───────────────────────────────────
 
@@ -228,6 +238,8 @@ export function BSCheckinCard({ onOpen }) {
   useEffect(() => () => { alive.current = false; }, []);
   // The newest answer per field, numbered, so an older save that fails never undoes a newer one.
   const latest = useRef({ n: 0 });
+  // Litres added on screen whose save has not answered yet: the server's total plus these is what shows.
+  const waterPending = useRef(0);
 
   useEffect(() => {
     if (!signedIn || !window.ShapeProgress?.progress) return undefined;
@@ -254,7 +266,8 @@ export function BSCheckinCard({ onOpen }) {
       if (on && d && d.ok) setWater({ l: Number(d.hydrationL) || 0, target: Number(d.targetL) || 3 });
     }).catch(() => {});
     return () => { on = false; };
-  }, [signedIn]);
+    // A new local day reads the new day's water, as the answers above do (Codex P2 on #2398).
+  }, [signedIn, todayIso]);
 
   if (!ready) return null;
   const sleepSkipped = skippedDay === todayIso;
@@ -288,22 +301,30 @@ export function BSCheckinCard({ onOpen }) {
       setErr(msg);
     };
     if (!window.ShapeCheckin?.log) { undo('unavailable'); return; }
-    bsCiSave(patch).catch(() => { if (alive.current) undo('failed'); });
+    bsCiSave(patch, uid).catch(() => { if (alive.current) undo('failed'); });
   };
   const streak = streakBefore + (bsCiAnswered(today) ? 1 : 0);
 
   const glassL = t.isMetric ? 0.25 : 0.2366;
+  // ⚠ GLASSES SAVE ONE AT A TIME, AND A FAILED ONE TAKES BACK ONLY ITSELF (Codex P2 on #2398): two
+  // quick taps used to race, and a failed first one put back the total over a second that saved.
+  // Each answer is the server's running total, so the screen shows it plus what is still on its way.
   const addWater = (glasses) => {
     if (!water) return;
-    const before = water;
     const deltaL = Math.round(glassL * glasses * 10000) / 10000;
-    setWater({ ...water, l: Math.round((water.l + deltaL) * 1000) / 1000 });
+    const round = (l) => Math.round(Math.max(0, l) * 1000) / 1000;
+    setWater((w) => ({ ...w, l: round(w.l + deltaL) }));
     setErr(null);
     if (!signedIn) return; // the preview counts locally and saves nothing
-    if (!window.ShapeHydration?.add) { setWater(before); setErr('water'); return; }
-    window.ShapeHydration.add(deltaL).then((d) => { if (alive.current && d && d.ok) setWater((w) => ({ ...(w || before), l: Number(d.hydrationL) || 0 })); }).catch(() => {
+    if (!window.ShapeHydration?.add) { setWater((w) => ({ ...w, l: round(w.l - deltaL) })); setErr('water'); return; }
+    waterPending.current += deltaL;
+    bsCiEnqueue('water', uid, () => window.ShapeHydration.add(deltaL)).then((d) => {
+      waterPending.current -= deltaL;
+      if (alive.current && d && d.ok) setWater((w) => ({ ...w, l: round((Number(d.hydrationL) || 0) + waterPending.current) }));
+    }).catch(() => {
+      waterPending.current -= deltaL;
       if (!alive.current) return;
-      setWater(before);
+      setWater((w) => ({ ...w, l: round(w.l - deltaL) }));
       setErr('water');
     });
   };
@@ -646,6 +667,7 @@ export function BSCheckinCard({ onOpen }) {
           </>
         )}
 
+        {done ? errLine : null}
         {done ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderTop: `1px solid ${t.HAIR}`, paddingTop: 9 }}>
             <span style={{ ...mono, fontSize: 8.5, color: sky }}>{NAME.water}</span>

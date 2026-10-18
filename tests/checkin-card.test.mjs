@@ -88,6 +88,7 @@ async function mount(props = {}) {
   return {
     host,
     flush,
+    rerender: async () => { await React.act(async () => { root.render(React.createElement(CARD.BSCheckinCard, props)); }); await flush(); },
     button: (re) => buttons(re)[0],
     text: () => document.body.textContent,
     walk: () => document.querySelector('[data-bs-checkin-walk]'),
@@ -401,6 +402,66 @@ test('an older save that fails never undoes a newer answer to the same question'
     assert.match(m.text(), /Drained/, "the failed Great put back the energy over the member's newer Drained");
     assert.doesNotMatch(m.text(), /EnergyGood/);
   } finally { m.unmount(); }
+});
+
+test("a queued answer is dropped when the account changes, never saved to the next member's day (Codex P1 on #2398)", async () => {
+  let release;
+  const first = new Promise((r) => { release = r; });
+  const calls = env({ uid: 'member-a', log: (p) => (p.energy != null ? first : { ok: true }) });
+  const m = await mount();
+  try {
+    await m.click(/Start check-in/);
+    await m.click(/^Good$/);       // on its way, under member A
+    await m.click(/^Normal$/);     // queued behind it
+    // Member A signs out and member B signs in before the first save answers.
+    dom.window.ShapeAuth = { getCachedState: () => ({ user: { id: 'member-b' } }) };
+    release({ ok: true });
+    await m.flush();
+    await m.flush();
+    assert.deepEqual(calls.log, [{ energy: 8 }], "member A's queued answer was sent under member B's session");
+  } finally { m.unmount(); }
+});
+
+test('two quick glasses save in order, and a failed one takes back only its own glass (Codex P2 on #2398)', async () => {
+  let failFirst;
+  const first = new Promise((_, reject) => { failFirst = reject; });
+  env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
+  let server = 0.5;
+  const adds = [];
+  dom.window.ShapeHydration = {
+    get: async () => ({ ok: true, hydrationL: 0.5, targetL: 3 }),
+    add: (d) => { adds.push(d); if (adds.length === 1) return first; server += d; return Promise.resolve({ ok: true, hydrationL: server }); },
+  };
+  const m = await mount();
+  try {
+    await m.click(/\+ Glass/);
+    await m.click(/\+ Glass/);
+    assert.equal(adds.length, 1, 'the second glass was sent while the first was still saving');
+    assert.match(m.text(), /33 oz \/ 101 oz/);
+    failFirst(new Error('500'));
+    await m.flush();
+    await m.flush();
+    assert.equal(adds.length, 2);
+    assert.match(m.text(), /25 oz \/ 101 oz/, 'the failed glass took back more than itself, or nothing');
+    assert.match(m.text(), /Could not log water/);
+  } finally { m.unmount(); }
+});
+
+test("a new local day reads that day's water (Codex P2 on #2398)", async () => {
+  try {
+    mock.timers.setTime(new Date(2026, 9, 18, 23, 59).getTime());
+    let reads = 0;
+    env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 }, '2026-10-19': { energy: 8, hunger: 6, sleep: 7 } } });
+    dom.window.ShapeHydration = { get: async () => { reads += 1; return { ok: true, hydrationL: reads === 1 ? 2 : 0.25, targetL: 3 }; }, add: async () => ({ ok: true }) };
+    const m = await mount();
+    try {
+      assert.match(m.text(), /68 oz \/ 101 oz/);
+      mock.timers.setTime(new Date(2026, 9, 19, 0, 1).getTime());
+      await m.rerender();
+      assert.equal(reads, 2, "the new day's water was never read");
+      assert.match(m.text(), /8 oz \/ 101 oz/, "yesterday's water is still on Home after midnight");
+    } finally { m.unmount(); }
+  } finally { mock.timers.setTime(at(12)); }
 });
 
 test('answers save one at a time, so two quick taps cannot both insert a row for today', async () => {
