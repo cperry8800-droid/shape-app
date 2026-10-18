@@ -830,6 +830,7 @@ function todayCard() {
   const code = [
     pick(/const DASH_FUNNEL_BENCHMARK = [^\n]*/),
     pick(/function dashCloseRate\(f\) \{[\s\S]*?\n\}/),
+    pick(/function dashCloseWhy\(f\) \{[\s\S]*?\n\}/),
     pick(/function DashBusinessSummary\([\s\S]*?\n\}/),
   ].join('\n');
   const js = babel.transformSync(code, { presets: [presetReact], babelrc: false, configFile: false }).code;

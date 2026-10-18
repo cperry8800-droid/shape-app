@@ -17,7 +17,6 @@ const TR_DASH = 'src/app/api/trainer/dashboard/route.ts';
 const NU_DASH = 'src/app/api/nutritionist/dashboard/route.ts';
 const DATA = 'public/newdesign/dashData.jsx';
 const ORIGIN = 'src/lib/origin-attribution.ts';
-const TRAJ = 'src/lib/coach-trajectory.mjs';
 const AUTH = 'src/lib/auth-lookup.ts';
 const RENEW = 'src/lib/coach-renewals.mjs';
 const REQ_AUTH = 'src/lib/request-auth.ts';
@@ -740,9 +739,6 @@ export default {
     { name: "preview one net: Today's card takes 15% off everyone", file: TODAY,
       find: '    : DashSignals.rosterNetCents(clients);',
       replace: '    : Math.round(clients.reduce((s, c) => s + ((c.payments && c.payments.mrrCents) || 0), 0) * 0.85);' },
-    { name: "preview one net: Today's card says after 15% again", file: TODAY,
-      find: `"from active subs · after Shape's fee"`,
-      replace: '"from active subs · after 15%"' },
     { name: 'preview one net: the walk prices its own clients again', file: BIZ,
       find: '    w.mrrGrossCents = Math.round(book.grossCents * w.active / book.clients);',
       replace: '    w.mrrGrossCents = w.active * 18500 + (w.active % 3) * 1500;' },

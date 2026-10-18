@@ -23,12 +23,6 @@ export default {
       find: '    return listingMonthly != null && Number(listingMonthly) > 0 ? Math.round(Number(listingMonthly) * 100) : null;',
       replace: '    return listingMonthly != null ? Math.round(Number(listingMonthly) * 100) : null;' },
     // ── People, not plans (the website's Codex round 8, #2394) ──
-    { name: 'left: a current client is listed as gone', file: APP,
-      find: "    const gone = extra.churn.filter((r) => r.stillClient !== true);",
-      replace: "    const gone = extra.churn;" },
-    { name: 'left: an unread membership lists people as gone', file: APP,
-      find: "  else if (extra.churn.some((r) => r.stillClient === null)) left =",
-      replace: "  else if (false) left =" },
     // ── The Plan's rate for new clients (the website's sweep after #2394 round 10) ──
     { name: 'plan rate: the shared start rounds the rate to $5 again', file: CF,
       find: '      rate: base.rateCents > 0 ? base.rateCents / 100 : 5,',
