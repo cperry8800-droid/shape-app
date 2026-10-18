@@ -45,9 +45,9 @@ export const SHAPE_KNOWLEDGE = Object.freeze([
   {
     id: 'coach-fees',
     title: 'What coaches pay, and how to become one',
-    tags: ['coach', 'become a coach', 'apply', 'fee', 'fees', 'commission', '15%', 'fifteen percent', 'payout', 'earn', 'join as a trainer', 'nutritionist'],
-    body: 'Coaches join and list for free — no monthly dues, no setup fees. Shape takes a 15% platform fee on everything clients pay a coach, so a coach only pays when they earn; standard card processing is separate. Trainers, nutritionists and dietitians apply from the website’s Coaches page; a coach’s clients, schedule, programs and payouts live in the coach dashboard.',
-    source: 'Pricing page FAQ',
+    tags: ['coach', 'become a coach', 'apply', 'fee', 'fees', 'commission', '15%', 'fifteen percent', 'payout', 'earn', 'join as a trainer', 'nutritionist', 'bring my clients', 'own clients', 'card processing'],
+    body: 'Coaches join and list for free — no monthly dues, no setup fees. Shape takes a 15% platform fee when a client who found the coach on Shape pays them, and nothing on clients the coach brings, so a coach only pays when they earn; Shape pays the card processing. Clients pay through Shape into the coach’s own Stripe account, and Stripe pays it out to their bank on the schedule they set there. Trainers, nutritionists and dietitians apply from the website’s Coaches page; a coach’s clients, schedule, programs and payouts live in the coach dashboard.',
+    source: 'Pricing page FAQ · Coaches page FAQ',
   },
   {
     id: 'radio',
