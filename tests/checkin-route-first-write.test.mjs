@@ -14,8 +14,9 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const nextServer = createRequire(join(ROOT, 'package.json'))('next/server');
 
 // A table of one: `insertError` is what the insert answers, as the unique key would.
-function fakeClient({ existing = null, insertError = null, updateError = null } = {}) {
+function fakeClient({ existing = null, insertError = null, updateError = null, rpcError = null } = {}) {
   const writes = [];
+  const rpcs = [];
   const from = (table) => {
     const filters = {};
     const q = {
@@ -32,7 +33,8 @@ function fakeClient({ existing = null, insertError = null, updateError = null } 
     };
     return q;
   };
-  return { client: { from }, writes };
+  const rpc = async (name, args) => { rpcs.push({ name, args }); return { error: rpcError }; };
+  return { client: { from, rpc }, writes, rpcs };
 }
 
 async function post(fake, body) {
@@ -84,4 +86,41 @@ test('the first write of the day inserts, and a later one updates the row by id'
   assert.equal(fake.writes.length, 1);
   assert.deepEqual(fake.writes[0].row, { sleep_quality: 8 });
   assert.deepEqual(fake.writes[0].filters, { id: 'row-1' });
+});
+
+// ── Hours typed over a watch's night (Codex P2 on #2398) ──────────────────────
+// A device sync stamps sources.sleep_hours; the Home check-in reads the stamp as "a watch's
+// night", read-only and never copied. Hours the member types over it must lose the stamp.
+const MANUAL = { name: 'merge_snapshot_sources', args: { p_user_id: 'member-1', p_date: '2026-10-18', p_sources: { sleep_hours: 'manual' } } };
+
+test("different hours typed over a watch's night are stamped as the member's", async () => {
+  const fake = fakeClient({ existing: { id: 'row-1', sleep_hours: 6.5 } });
+  const { status } = await post(fake, { sleepHours: 7.5, date: '2026-10-18' });
+  assert.equal(status, 200);
+  assert.deepEqual(fake.rpcs, [MANUAL], "the typed hours keep the watch's stamp, so the card locks them as the watch's");
+});
+
+test("the Details page re-sending a watch's own hours keeps the watch's stamp", async () => {
+  let fake = fakeClient({ existing: { id: 'row-1', sleep_hours: 7.5 } });
+  await post(fake, { energy: 6, sleepHours: 7.5, date: '2026-10-18' });
+  assert.deepEqual(fake.rpcs, [], "the watch's night was stamped as typed when its own hours were sent back");
+
+  fake = fakeClient({ existing: { id: 'row-1', sleep_hours: 6.5 } });
+  await post(fake, { energy: 6, date: '2026-10-18' });
+  assert.deepEqual(fake.rpcs, [], 'an answer with no hours stamped the night');
+
+  fake = fakeClient();
+  await post(fake, { sleepHours: 7.5, date: '2026-10-18' });
+  assert.deepEqual(fake.rpcs, [], 'a new row has no stamp to replace');
+});
+
+test('hours written to a row another write just made are stamped, and a failed stamp still saves', async () => {
+  let fake = fakeClient({ insertError: { code: '23505' } });
+  let res = await post(fake, { sleepHours: 7.5, date: '2026-10-18' });
+  assert.equal(res.status, 200);
+  assert.deepEqual(fake.rpcs, [MANUAL], "a watch sync that made the row first keeps its stamp over the typed hours");
+
+  fake = fakeClient({ existing: { id: 'row-1', sleep_hours: 6.5 }, rpcError: { message: 'not applied' } });
+  res = await post(fake, { sleepHours: 7.5, date: '2026-10-18' });
+  assert.equal(res.status, 200, 'a failed stamp failed a check-in that was saved');
 });

@@ -60,11 +60,13 @@ test('the progress route sends the nights a watch wrote, and only those', async 
     { snapshot_date: '2026-10-16', sleep_hours: 6.5, sources: {} },
     { snapshot_date: '2026-10-15', sleep_hours: 8, sources: null },
     { snapshot_date: '2026-10-14', resting_hr: 60, sources: { sleep_hours: 'garmin' } },
+    // Hours the member typed over a watch's night (Codex P2 on #2398).
+    { snapshot_date: '2026-10-13', sleep_hours: 7.5, sources: { sleep_hours: 'manual', hrv_ms: 'oura' } },
   ]);
   assert.equal(body.ok, true);
   assert.deepEqual(body.series.sleepFromDevice, [{ date: '2026-10-17', value: 1 }],
-    'a typed night on a day with a watch heart rate, or a source with no night, read as a watch night');
-  assert.deepEqual(body.series.sleep.map((p) => p.date), ['2026-10-15', '2026-10-16', '2026-10-17', '2026-10-18']);
+    "a typed night on a day with a watch heart rate, a source with no night, or hours typed over a watch's night read as a watch night");
+  assert.deepEqual(body.series.sleep.map((p) => p.date), ['2026-10-13', '2026-10-15', '2026-10-16', '2026-10-17', '2026-10-18']);
 });
 
 test('with no watch nights the series is sent empty, so the app knows the server reads sources', async () => {
