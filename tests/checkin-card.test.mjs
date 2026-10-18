@@ -492,6 +492,50 @@ test("a new local day reads that day's water (Codex P2 on #2398)", async () => {
   } finally { mock.timers.setTime(at(12)); }
 });
 
+test('an answer queued across midnight is dropped, never filed under the next day (Codex P2 on #2398)', async () => {
+  try {
+    mock.timers.setTime(new Date(2026, 9, 18, 23, 59).getTime());
+    let release;
+    const first = new Promise((r) => { release = r; });
+    const calls = env({ log: (p) => (p.energy != null ? first : { ok: true }) });
+    const m = await mount();
+    try {
+      await m.click(/Start check-in/);
+      await m.click(/^Good$/);       // on its way at 23:59
+      await m.click(/^Normal$/);     // queued behind it
+      mock.timers.setTime(new Date(2026, 9, 19, 0, 1).getTime());
+      release({ ok: true });
+      await m.flush();
+      await m.flush();
+      assert.deepEqual(calls.log, [{ energy: 8 }], "a 23:59 answer was sent after midnight, and dated the next day");
+    } finally { m.unmount(); }
+  } finally { mock.timers.setTime(at(12)); }
+});
+
+test("a new day closes the card until that day is read, and a failed read never shows the day before's (Codex P2 on #2398)", async () => {
+  try {
+    let reads = 0;
+    let failSecond;
+    const second = new Promise((_, reject) => { failSecond = reject; });
+    env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
+    const firstRead = { series: series({ [TODAY]: { energy: 8, hunger: 6, sleep: 7 } }) };
+    dom.window.ShapeProgress = { progress: () => { reads += 1; return reads === 1 ? Promise.resolve(firstRead) : second; } };
+    const m = await mount();
+    try {
+      assert.match(m.text(), /Checked in ✓/);
+      mock.timers.setTime(new Date(2026, 9, 19, 9, 0).getTime());
+      await m.rerender();
+      assert.equal(reads, 2);
+      assert.doesNotMatch(m.text(), /Checked in/, "the day before's check-in shows as today's while the new day loads");
+      failSecond(new Error('500'));
+      await m.flush();
+      await m.flush();
+      assert.match(m.text(), /Four quick checks/, "a failed read left the day before's answers standing as today's");
+      assert.doesNotMatch(m.text(), /Checked in/);
+    } finally { m.unmount(); }
+  } finally { mock.timers.setTime(at(12)); }
+});
+
 test('answers save one at a time, so two quick taps cannot both insert a row for today', async () => {
   let release;
   const first = new Promise((r) => { release = r; });
@@ -520,7 +564,7 @@ test("nothing is asked until today's answers are read", async () => {
   } finally { m.unmount(); }
 });
 
-test('it asks from 4 a.m., but a done line stays all night', async () => {
+test("it asks from 4 a.m., but a day's done line shows before it", async () => {
   try {
     mock.timers.setTime(at(3, 30));
     env();

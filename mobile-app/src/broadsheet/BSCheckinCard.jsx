@@ -185,15 +185,18 @@ function bsCiSampleWeek(todayIso) {
 
 // One save at a time: two quick taps would otherwise both find no row for today and both insert.
 // Water has its own line, so a glass never waits on a check-in answer.
-// ⚠ A QUEUED SAVE BELONGS TO THE ACCOUNT THAT MADE IT (Codex P1 on #2398). The write goes out under
-// whoever is signed in when it leaves the queue, so a member who answers on a slow connection and
-// signs out would otherwise have their answer saved to the next member's day. A save whose turn
-// comes after the account changed is dropped, and rejects like any failed save.
+// ⚠ A QUEUED SAVE BELONGS TO THE ACCOUNT AND THE DAY THAT MADE IT (Codex P1 and P2 on #2398). The
+// write goes out under whoever is signed in, dated by the data layer, when it leaves the queue. So
+// a member who answers on a slow connection and signs out would otherwise have the answer saved to
+// the next member's day, and a tap just before midnight to tomorrow. A save whose turn comes after
+// either changed is dropped, and rejects like any failed save.
 const bsCiLines = { checkin: Promise.resolve(), water: Promise.resolve() };
 function bsCiCurrentUid() { return window.ShapeAuth?.getCachedState?.()?.user?.id || null; }
 function bsCiEnqueue(line, uid, send) {
+  const day = bsCiIso(new Date());
   const run = bsCiLines[line].then(() => {
     if (bsCiCurrentUid() !== uid) throw new Error('signed-in account changed');
+    if (bsCiIso(new Date()) !== day) throw new Error('the local day changed');
     return send();
   });
   bsCiLines[line] = run.catch(() => {});
@@ -233,7 +236,9 @@ export function BSCheckinCard({ onOpen }) {
   const [skippedDay, setSkippedDay] = useState(() => (bsCiReadSkip(uid, todayIso) ? todayIso : null)); // the day the night was skipped
   // Signed in, nothing is asked until today's answers are read: a tap on a card that has not
   // loaded would be overwritten by the read. A failed read asks anyway (every tap still saves).
-  const [ready, setReady] = useState(!signedIn || !window.ShapeProgress?.progress);
+  // ⚠ PER DAY (Codex P2 on #2398): across midnight the card would otherwise show yesterday's
+  // answers as today's until the new read lands, and an Edit would write them into the new day.
+  const [readyDay, setReadyDay] = useState(null);
   const alive = useRef(true);
   useEffect(() => () => { alive.current = false; }, []);
   // The newest answer per field, numbered, so an older save that fails never undoes a newer one.
@@ -244,18 +249,19 @@ export function BSCheckinCard({ onOpen }) {
   useEffect(() => {
     if (!signedIn || !window.ShapeProgress?.progress) return undefined;
     let on = true;
-    window.ShapeProgress.progress().then((p) => {
+    // A read that fails or brings no series still opens the card, on an empty day: never on the
+    // day before's answers.
+    const settle = (series) => {
       if (!on) return;
-      if (p && p.series) {
-        const day = bsCiDay(p.series, todayIso);
-        setToday(day);
-        setYesterday(bsCiDay(p.series, bsCiShift(todayIso, -1)));
-        setWeek(bsCiWeek(p.series, todayIso));
-        setUsual(bsCiUsualNight(p.series, todayIso));
-        setStreakBefore(bsCiStreak(p.series, todayIso) - (bsCiAnswered(day) ? 1 : 0));
-      }
-      setReady(true);
-    }).catch(() => { if (on) setReady(true); });
+      const day = series ? bsCiDay(series, todayIso) : { energy: null, hunger: null, sleep: null, rested: null, device: false };
+      setToday(day);
+      setYesterday(series ? bsCiDay(series, bsCiShift(todayIso, -1)) : null);
+      setWeek(series ? bsCiWeek(series, todayIso) : []);
+      setUsual(series ? bsCiUsualNight(series, todayIso) : 7.5);
+      setStreakBefore(series ? bsCiStreak(series, todayIso) - (bsCiAnswered(day) ? 1 : 0) : 0);
+      setReadyDay(todayIso);
+    };
+    window.ShapeProgress.progress().then((p) => settle(p && p.series ? p.series : null)).catch(() => settle(null));
     return () => { on = false; };
   }, [signedIn, todayIso]);
 
@@ -269,6 +275,7 @@ export function BSCheckinCard({ onOpen }) {
     // A new local day reads the new day's water, as the answers above do (Codex P2 on #2398).
   }, [signedIn, todayIso]);
 
+  const ready = !signedIn || !window.ShapeProgress?.progress || readyDay === todayIso;
   if (!ready) return null;
   const sleepSkipped = skippedDay === todayIso;
   const status = bsCiStep(today, sleepSkipped);
