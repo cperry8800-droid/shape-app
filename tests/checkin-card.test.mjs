@@ -117,6 +117,11 @@ test('one question at a time: energy, hunger, then sleep unless a wearable repor
   const worn = CARD.bsCiDay(series({ [TODAY]: { sleep: 7.2, hrv: 55 } }), TODAY);
   assert.equal(worn.device, true);
   assert.equal(CARD.bsCiStep({ ...worn, energy: 6, hunger: 4 }), 'done', 'a night the wearable reported was asked again');
+  // A watch that reported a resting heart rate but no night: the night is still the member's to give.
+  const pulse = CARD.bsCiDay(series({ [TODAY]: { restingHr: 58 } }), TODAY);
+  assert.equal(pulse.device, true);
+  assert.equal(CARD.bsCiWornNight(pulse), false);
+  assert.equal(CARD.bsCiStep({ ...pulse, energy: 6, hunger: 4 }), 'sleep', 'a heart rate alone stopped the sleep question');
   assert.equal(CARD.bsCiStep({ energy: 6, hunger: 4 }, true), 'done', 'a night the member skipped was asked again');
   assert.equal(CARD.bsCiStep({ hunger: 4 }, true), 'energy', 'a skipped night skipped the other questions');
 });
@@ -157,6 +162,7 @@ test("Same as yesterday copies yesterday's own values, keeps today's, and never 
   assert.deepEqual(CARD.bsCiSamePatch(y, { ...empty, energy: 2 }), { hunger: 5, sleepHours: 6.5, sleepQuality: 3 }, "today's answer was overwritten");
   assert.deepEqual(CARD.bsCiSamePatch({ ...y, device: true }, empty), { energy: 7, hunger: 5 }, "a wearable's night was copied as typed");
   assert.deepEqual(CARD.bsCiSamePatch(y, { ...empty, sleep: 7.4, device: true }), { energy: 7, hunger: 5 }, "today's wearable night was overwritten");
+  assert.deepEqual(CARD.bsCiSamePatch(y, { ...empty, device: true }), { energy: 7, hunger: 5, sleepHours: 6.5, sleepQuality: 3 }, 'a heart rate today kept the night from being copied');
   assert.equal(CARD.bsCiSamePatch({ ...y, hunger: null }, empty), null, 'offered with half a day to copy');
   assert.equal(CARD.bsCiSamePatch(null, empty), null);
   assert.equal(CARD.bsCiSamePatch(y, { energy: 7, hunger: 5, sleep: 6.5, rested: 3, device: false }), null);

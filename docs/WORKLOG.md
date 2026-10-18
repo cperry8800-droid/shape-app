@@ -162,10 +162,11 @@ planned builds.
 - Nora as a Shape Radio DJ, Phase 2 onward
   ([`REVIEW-2026-09-29-nora-dj.md`](REVIEW-2026-09-29-nora-dj.md)). This waits on a
   signed station provider.
-- A one-tap daily check-in on Home
-  ([`REVIEW-2026-10-18-daily-checkin.md`](REVIEW-2026-10-18-daily-checkin.md)): a save
-  per tap, five-word scales, "Same as yesterday", and sleep from a wearable. Rulings are
-  made (§5), including no −7 for a missed weekly check-in while the switch is off.
+- The one-tap daily check-in
+  ([`REVIEW-2026-10-18-daily-checkin.md`](REVIEW-2026-10-18-daily-checkin.md) §4). The app's
+  Home card is built (Phase 1), and so is the rule of no −7 while Check-ins is off. Still to
+  build: the website's `DashTodayCard`, sleep read from a wearable when the app opens, the
+  reminder opening the card, and answers from the notification.
 
 **Known gaps**
 - `get_display_names` returns a full name and photo for any id, whoever asks.

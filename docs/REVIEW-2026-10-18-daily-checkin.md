@@ -120,10 +120,11 @@ so that is the owner's call.
   it.
 
 ## 4. Phases
-1. **The Home card (app only, no schema or route change).** Inline card, a save per tap, five-word
-   scales mapped to 2/4/6/8/10, yesterday's answers and "Same as yesterday", the 3-12h sleep stepper
-   that can be cleared, Rested on the sleep step, and water as `+ glass`. The full page stays behind
-   Edit. Mount tests on the card. The website's `DashTodayCard` follows in the same phase.
+1. **The Home card (app only, no schema or route change). Built in the app** (`BSCheckinCard.jsx`,
+   `tests/checkin-card.test.mjs`). It has a save per tap, five-word scales mapped to 2/4/6/8/10,
+   "Same as yesterday", and the 3-12h sleep stepper with Skip for the day. Rested sits on the sleep
+   step, water is `+ Glass`, and the full page is behind Details. The website's `DashTodayCard` is
+   still to follow.
 2. **Sleep that fills itself, and a reminder that lands on the card.** HealthKit read on app open,
    a WHOOP/Oura pull on open (server), and notification deep links to the card.
 3. **Answer from the notification.** Native notification actions for energy, plus the streak if
@@ -150,7 +151,7 @@ so that is the owner's call.
   exports `submit`, `mine` and `weekOf`), so the member's engine never saw check-in history and
   its "check-in overdue" rule never fired. Fixed in the same PR: the record reads `mine(1)`, and
   not at all when the member has turned Check-ins off (`tests/self-record-checkins.test.mjs`).
-- With the switch on, today not logged, and a lead whose lever is `checkin`, Home has no door to the
-  daily page: the bulletin is hidden in favour of the lead (which opens the weekly page) and the row
-  renders nothing.
+- With the switch on, today not logged, and a lead whose lever is `checkin`, Home had no door to the
+  daily page: the bulletin was hidden in favour of the lead (which opens the weekly page) and the
+  row rendered nothing. Fixed with Phase 1: the card shows whatever the lead is.
 - `BSMoodSheet` is mounted but nothing opens it, and `BSHomeCards` is never mounted.

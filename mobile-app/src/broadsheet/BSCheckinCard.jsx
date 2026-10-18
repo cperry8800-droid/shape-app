@@ -80,13 +80,19 @@ export function bsCiAnswered(day) {
   return !!day && (day.energy != null || day.hunger != null || day.rested != null || (day.sleep != null && !day.device));
 }
 
-// The next question for today, or 'done'. A night a device reported needs no sleep question, and
-// neither does one the member skipped today (a member who does not track sleep is not asked
-// "3 of 3" all day).
+// A night a wearable reported: hours on a day with device-only metrics. A watch that reported a
+// resting heart rate but no night is not one, and its member is asked like anyone else.
+export function bsCiWornNight(day) {
+  return !!day && !!day.device && day.sleep != null;
+}
+
+// The next question for today, or 'done'. A night that already has hours (a wearable's or typed)
+// needs no question, and neither does one the member skipped today (a member who does not track
+// sleep is not asked "3 of 3" all day).
 export function bsCiStep(today, sleepSkipped) {
   if (!today || today.energy == null) return 'energy';
   if (today.hunger == null) return 'hunger';
-  if (today.sleep == null && !today.device && !sleepSkipped) return 'sleep';
+  if (today.sleep == null && !sleepSkipped) return 'sleep';
   return 'done';
 }
 
@@ -125,7 +131,7 @@ export function bsCiSamePatch(yesterday, today) {
   const patch = {};
   if (t.energy == null) patch.energy = yesterday.energy;
   if (t.hunger == null) patch.hunger = yesterday.hunger;
-  if (t.sleep == null && !t.device && yesterday.sleep != null && !yesterday.device) {
+  if (t.sleep == null && yesterday.sleep != null && !yesterday.device) {
     patch.sleepHours = yesterday.sleep;
     if (t.rested == null && yesterday.rested != null) patch.sleepQuality = yesterday.rested;
   }
@@ -228,7 +234,7 @@ export function BSCheckinCard({ onOpen }) {
   };
   // Edit walks every question again; a night a wearable reported is not re-asked.
   const afterEnergy = () => (editing ? 'hunger' : null);
-  const afterHunger = () => (editing && !today.device ? 'sleep' : null);
+  const afterHunger = () => (editing && !bsCiWornNight(today) ? 'sleep' : null);
 
   const sameScale = (prefix, words, color, current, onPick) => (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 6 }}>
