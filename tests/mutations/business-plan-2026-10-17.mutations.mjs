@@ -214,5 +214,11 @@ export default {
     { name: 'the nutritionist dashboard drops the consults on a failed read', file: NU_DASH,
       find: '      funnel = { views: null, consults90, signed90: null };',
       replace: '' },
+    { name: 'the trainer trajectory reads one page', file: TR,
+      find: "    readAllById<{ id: string }>((after) => {\n      let q = supabase.from('subscriptions')",
+      replace: "    ((page) => page(null))((after) => {\n      let q = supabase.from('subscriptions')" },
+    { name: 'the nutritionist trajectory reads one page', file: NU,
+      find: "    readAllById<{ id: string }>((after) => {\n      let q = supabase.from('subscriptions')",
+      replace: "    ((page) => page(null))((after) => {\n      let q = supabase.from('subscriptions')" },
   ],
 };

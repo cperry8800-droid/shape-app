@@ -79,6 +79,7 @@ async function loadRoute(role, tables, opts) {
       ['@/lib/platform-fee', await import(pathToFileURL(join(ROOT, 'src/lib/platform-fee.mjs')).href)],
       ['@/lib/origin-attribution', await ts('src/lib/origin-attribution.ts')],
       ['@/lib/coach-trajectory.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/coach-trajectory.mjs')).href)],
+      ['@/lib/read-all-by-id', await ts('src/lib/read-all-by-id.ts')],
     ]),
   })
   const res = await route.GET(new Request(`https://shape.test/api/${role}/analytics${opts?.query || ''}`))
@@ -223,6 +224,7 @@ test('no failed read in the trainer route is published as an empty history', asy
       ['@/lib/platform-fee', await import(pathToFileURL(join(ROOT, 'src/lib/platform-fee.mjs')).href)],
       ['@/lib/origin-attribution', await loadRealModule(join(ROOT, 'src/lib/origin-attribution.ts'), { typescript: true, registry: new Map([['@/lib/supabase/server', {}]]) })],
       ['@/lib/coach-trajectory.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/coach-trajectory.mjs')).href)],
+      ['@/lib/read-all-by-id', await loadRealModule(join(ROOT, 'src/lib/read-all-by-id.ts'), { typescript: true })],
     ]),
   })
   const body = await (await route.GET(new Request('https://shape.test/api/trainer/analytics'))).json()
@@ -355,4 +357,27 @@ test('nutritionist: one client is one client, a failed read is said, not zero', 
   assert.equal(failed.body.churn, null, 'the churn read failed too: unread, not "no cancellations"')
   const rowFails = await loadRoute('nutritionist', nutri, { errors: { nutritionists: 'timeout' } })
   assert.deepEqual(rowFails.body, { error: 'Could not read your listing.' }, 'not "this account is not a nutritionist"')
+})
+
+// ── Codex, #2394: the practice trajectory reads every row ────────────────────
+test('both routes read the whole practice trajectory, so a long-standing client is still today\'s', async () => {
+  // 1,200 subscription rows: one client on the same plan for three years, and 1,199 who came
+  // and went this year. A newest-first read cut at 1,000 lost the oldest 200, the long-standing
+  // client among them, and the Plan started from one client too few.
+  const DAY = 86400000
+  const at = (d) => new Date(Date.now() - d * DAY).toISOString()
+  // Its row has the highest id too, so it sits on the last page: one page of the walk misses it.
+  const subs = [{ id: 'r9999', client_id: 'old', created_at: at(3 * 365), status: 'active', price_cents: 20000, fee_bps: 1500, current_period_end: at(-20) }]
+  for (let i = 1; i < 1200; i += 1) {
+    subs.push({ id: 'r' + String(i).padStart(4, '0'), client_id: 'c' + i, created_at: at(300 - (i % 280)), status: 'canceled', price_cents: 15000, fee_bps: 1500, current_period_end: at(200 - (i % 190)) })
+  }
+  for (const [role, listing] of [['trainer', { trainers: [{ id: 7, stripe_account_id: null, stripe_account_status: null }] }], ['nutritionist', { nutritionists: [{ id: 9, stripe_account_id: null, stripe_account_status: null }] }]]) {
+    const { body, calls } = await loadRoute(role, { ...listing, subscriptions: subs })
+    const weeks = body.trajectory?.weeks
+    assert.ok(weeks && weeks.length, role + ': ' + JSON.stringify(body.trajectory).slice(0, 200))
+    assert.equal(weeks[weeks.length - 1].active, 1, role + ': the three-year client is active today')
+    assert.equal(body.trajectory.firstSubAt.slice(0, 10), subs[0].created_at.slice(0, 10), role + ': the practice began three years ago')
+    const traj = calls.filter((c) => c.table === 'subscriptions' && c.ops.some(([op, col]) => op === 'order' && col === 'id') && !c.ops.some(([op, col]) => op === 'eq' && col === 'status') && !c.ops.some(([op]) => op === 'in'))
+    assert.ok(traj.length >= 2, role + ': the trajectory read pages by id')
+  }
 })

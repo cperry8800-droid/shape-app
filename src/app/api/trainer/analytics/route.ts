@@ -13,6 +13,7 @@ import { pickRenewals, renewalRows, RENEWAL_CHECK_CAP, type RenewalSource } from
 import { coachCutCents, bpsToRate } from '@/lib/platform-fee';
 import { buildOriginFeed } from '@/lib/origin-attribution';
 import { buildTrajectory } from '@/lib/coach-trajectory.mjs';
+import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -39,29 +40,6 @@ async function clientPrs(
     });
   }
   return prs;
-}
-
-// ⚠ EVERY ROW, A PAGE AT A TIME. One select returns at most 1,000 rows (the API's cap) and says
-// nothing when it stops there, so a big roster's workouts and weigh-ins were read short (Codex on
-// #2324). Keyset on id, not an offset (cron/guardrail-health says why: a row written mid-read
-// shifts every later offset); a read that reaches the ceiling is unknown, not short. `page` builds
-// one filtered page: rows after `after`, ordered by id, ROW_PAGE at most.
-const ROW_PAGE = 1000;
-const ROW_PAGES = 50;
-async function readAllById<T extends { id: unknown }>(
-  page: (after: string | null) => PromiseLike<{ data: unknown; error: { message: string } | null }>,
-): Promise<{ data: T[] | null; error: { message: string } | null }> {
-  const rows: T[] = [];
-  let after: string | null = null;
-  for (let i = 0; i < ROW_PAGES; i += 1) {
-    const { data, error } = await page(after);
-    if (error) return { data: null, error };
-    const got = (data ?? []) as T[];
-    rows.push(...got);
-    if (got.length < ROW_PAGE) return { data: rows, error: null };
-    after = String(got[got.length - 1].id);
-  }
-  return { data: null, error: { message: `more than ${ROW_PAGE * ROW_PAGES} rows` } };
 }
 
 // When a workout happened: its start, else its end, else when it was logged (`started_at` can be
@@ -357,31 +335,29 @@ export async function GET(request: Request) {
   // ISO week into active / added / ended / MRR / one-time. Read with the same
   // provider-scoped policies as the rows above.
   //
-  // ⚠ NEWEST FIRST, because the cap has to cut the OLD end. Ordered ascending,
-  // a coach past the limit would lose their most recent rows — the half
-  // activeNow, the adds and the churn rate are computed from.
-  //
-  // ⚠ AND A FAILED READ MUST NOT RENDER AS "no subscribers yet". `data` is null
+  // ⚠ A FAILED READ MUST NOT RENDER AS "no subscribers yet". `data` is null
   // for an RLS denial, a timeout or a pre-migration column mismatch alike, and
   // an empty series is a claim about the coach's business rather than about the
   // read — so the error sends `trajectory: null` and the plate says it could not
   // be read.
+  // ⚠ EVERY ROW, A PAGE AT A TIME (Codex, #2394). This was one read, newest first, cut at 1,000
+  // by the API whatever its `.limit(2000)` said. The cut dropped the OLDEST rows, and those hold
+  // the longest-standing clients who are still active, so today's headcount and MRR (which the
+  // Plan and the Goal tab start from) came out short with no error. The series doesn't depend on
+  // the order the rows arrive in.
   const [subsAllRes, purchasesRes] = await Promise.all([
-    supabase
-      .from('subscriptions')
-      .select('*')
-      .eq('provider_role', 'trainer')
-      .eq('provider_id', providerId)
-      .order('created_at', { ascending: false })
-      .limit(2000),
-    supabase
-      .from('one_time_purchases')
-      .select('*')
-      .eq('provider_role', 'trainer')
-      .eq('provider_id', providerId)
-      .eq('status', 'paid')
-      .order('created_at', { ascending: false })
-      .limit(2000),
+    readAllById<{ id: string }>((after) => {
+      let q = supabase.from('subscriptions').select('*').eq('provider_role', 'trainer').eq('provider_id', providerId);
+      if (after) q = q.gt('id', after);
+      // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
+      return q.order('id', { ascending: true }).limit(ROW_PAGE);
+    }),
+    readAllById<{ id: string }>((after) => {
+      let q = supabase.from('one_time_purchases').select('*').eq('provider_role', 'trainer').eq('provider_id', providerId).eq('status', 'paid');
+      if (after) q = q.gt('id', after);
+      // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
+      return q.order('id', { ascending: true }).limit(ROW_PAGE);
+    }),
   ]);
   if (subsAllRes.error) {
     console.warn('[shape-app] trainer analytics: trajectory subscriptions read failed — the plate renders "could not be read":', subsAllRes.error.message);

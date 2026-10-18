@@ -12,6 +12,7 @@ import { pickRenewals, renewalRows, RENEWAL_CHECK_CAP, type RenewalSource } from
 import { coachCutCents, bpsToRate } from '@/lib/platform-fee';
 import { buildOriginFeed } from '@/lib/origin-attribution';
 import { buildTrajectory } from '@/lib/coach-trajectory.mjs';
+import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -241,26 +242,27 @@ export async function GET(request: Request) {
   const avgLogsPerClient = clientIds.length ? Math.round(totalDaysLogged / clientIds.length) : 0;
 
   // The practice trajectory (review 2026-09-09, R8) — the same series the trainer
-  // route builds, and the same two rules: NEWEST FIRST so the 2000-row cap cuts
-  // the old end rather than the recent rows activeNow and churn depend on, and a
-  // failed read sends `trajectory: null` so the plate says it could not be read
-  // instead of asserting the coach has no subscribers.
+  // route builds, read the same way: every row, a page at a time, and a failed read
+  // (or one past readAllById's ceiling) sends `trajectory: null` so the plate says it
+  // could not be read instead of asserting the coach has no subscribers.
+  // ⚠ EVERY ROW, A PAGE AT A TIME (Codex, #2394). This was one read, newest first, cut at 1,000
+  // by the API whatever its `.limit(2000)` said. The cut dropped the OLDEST rows, and those hold
+  // the longest-standing clients who are still active, so today's headcount and MRR (which the
+  // Plan and the Goal tab start from) came out short with no error. The series doesn't depend on
+  // the order the rows arrive in.
   const [subsAllRes, purchasesRes] = await Promise.all([
-    supabase
-      .from('subscriptions')
-      .select('*')
-      .eq('provider_role', 'nutritionist')
-      .eq('provider_id', providerId)
-      .order('created_at', { ascending: false })
-      .limit(2000),
-    supabase
-      .from('one_time_purchases')
-      .select('*')
-      .eq('provider_role', 'nutritionist')
-      .eq('provider_id', providerId)
-      .eq('status', 'paid')
-      .order('created_at', { ascending: false })
-      .limit(2000),
+    readAllById<{ id: string }>((after) => {
+      let q = supabase.from('subscriptions').select('*').eq('provider_role', 'nutritionist').eq('provider_id', providerId);
+      if (after) q = q.gt('id', after);
+      // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
+      return q.order('id', { ascending: true }).limit(ROW_PAGE);
+    }),
+    readAllById<{ id: string }>((after) => {
+      let q = supabase.from('one_time_purchases').select('*').eq('provider_role', 'nutritionist').eq('provider_id', providerId).eq('status', 'paid');
+      if (after) q = q.gt('id', after);
+      // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
+      return q.order('id', { ascending: true }).limit(ROW_PAGE);
+    }),
   ]);
   if (subsAllRes.error) {
     console.warn('[shape-app] nutritionist analytics: trajectory subscriptions read failed — the plate renders "could not be read":', subsAllRes.error.message);
