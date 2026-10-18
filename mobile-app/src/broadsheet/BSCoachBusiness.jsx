@@ -668,6 +668,9 @@ function ClientsTab({ t, biz, now }) {
   let left;
   if (extra.churn === null) left = <Note t={t}>{tr('coach:business.clients.leftUnread', { defaultValue: "Couldn't read your cancellations just now." })}</Note>;
   else if (!Array.isArray(extra.churn)) left = loading;
+  // Who stayed unread (stillClient null: a membership read failed; the website's Codex round 9,
+  // #2394): no one can be said to have left, so no one is listed as gone.
+  else if (extra.churn.some((r) => r.stillClient === null)) left = <Note t={t}>{tr('coach:business.clients.leftUnsure', { defaultValue: "Couldn't check who still has a plan with you just now, so no one is counted as gone." })}</Note>;
   else {
     const since = now - 90 * DAY;
     // A client still active here who cancelled one plan hasn't left (the website's Codex round 8,

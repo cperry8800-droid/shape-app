@@ -310,6 +310,16 @@ test('Left in the last 90 days leaves out a current client, and the renewals hea
   assert.match(clients.text(), /Riley T\./);
   assert.doesNotMatch(clients.text(), /Still Here/, 'a current client is not listed as gone');
   await clients.unmount();
+  // Who stayed unread (a membership read failed): no one is listed as gone.
+  world({ answer: payload({ churn: [...p.churn.map((r) => ({ ...r, stillClient: null }))] }) });
+  const unsure = await mount(page({ tab: 'clients' }));
+  assert.match(unsure.text(), /Left in the last 90 daysCouldn't check who still has a plan with you just now, so no one is counted as gone\./);
+  assert.doesNotMatch(unsure.text(), /Riley T\./);
+  await unsure.unmount();
+  world({ answer: payload({ renewals: [
+    { name: 'Two Plans', clientId: 'two', dueAt: soon, priceCents: 18000, netCents: 15300, ending: false },
+    { name: 'Two Plans', clientId: 'two', dueAt: soon, priceCents: 6000, netCents: 5100, ending: false },
+  ] }) });
   const moneyTab = await mount(page({ tab: 'money' }));
   assert.match(moneyTab.text(), new RegExp('1 client · \\' + money(20400) + ' net'));
   await moneyTab.unmount();

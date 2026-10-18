@@ -1244,6 +1244,7 @@
   "business.clients.leftOn": "saiu em {date}",
   "business.clients.leftPrice": "−{price}/mês",
   "business.clients.leftUnread": "Não foi possível ler seus cancelamentos agora.",
+  "business.clients.leftUnsure": "Não foi possível verificar agora quem ainda tem um plano com você, então ninguém é contado como saída.",
   "business.clients.wait": "{count, plural, one {# pessoa está esperando} other {# pessoas estão esperando}} para começar com você.",
   "business.clients.waitHead": "Sua lista de espera",
   "business.clients.waitNone": "Ninguém está esperando. Quando você marcar seu perfil como lotado, membros podem entrar numa lista de espera.",

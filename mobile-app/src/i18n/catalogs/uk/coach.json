@@ -1244,6 +1244,7 @@
   "business.clients.leftOn": "пішов {date}",
   "business.clients.leftPrice": "−{price}/міс.",
   "business.clients.leftUnread": "Не вдалося прочитати ваші скасування.",
+  "business.clients.leftUnsure": "Зараз не вдалося перевірити, у кого ще є план у вас, тому ніхто не вважається таким, що пішов.",
   "business.clients.wait": "{count, plural, one {# людина чекає} few {# людини чекають} many {# людей чекають} other {# людини чекають}}, щоб почати з вами.",
   "business.clients.waitHead": "Ваш список очікування",
   "business.clients.waitNone": "Ніхто не чекає. Коли ви позначите, що набір закрито, учасники зможуть стати в список очікування.",

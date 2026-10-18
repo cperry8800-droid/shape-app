@@ -1244,6 +1244,7 @@
   "business.clients.leftOn": "ya tafi {date}",
   "business.clients.leftPrice": "−{price}/wata",
   "business.clients.leftUnread": "Ba a iya karanta soke-soken ka a yanzu ba.",
+  "business.clients.leftUnsure": "Ba a iya duba wanda har yanzu yake da tsari tare da kai ba, don haka ba a ƙidaya kowa a matsayin wanda ya tafi ba.",
   "business.clients.wait": "{count, plural, one {# mutum yana jira} other {# mutane suna jira}} su fara da kai.",
   "business.clients.waitHead": "Jerin jirarka",
   "business.clients.waitNone": "Babu mai jira. Idan ka nuna cewa bayanin martabarka ya cika, mambobi za su iya shiga jerin jira.",

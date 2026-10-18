@@ -1244,6 +1244,7 @@
   "business.clients.leftOn": "se fue el {date}",
   "business.clients.leftPrice": "−{price}/mes",
   "business.clients.leftUnread": "No se pudieron leer tus cancelaciones ahora mismo.",
+  "business.clients.leftUnsure": "No se pudo comprobar ahora mismo quién sigue teniendo un plan contigo, así que nadie se cuenta como baja.",
   "business.clients.wait": "{count, plural, one {# persona espera} other {# personas esperan}} para empezar contigo.",
   "business.clients.waitHead": "Tu lista de espera",
   "business.clients.waitNone": "Nadie espera. Cuando marques tu perfil como completo, los miembros podrán apuntarse a una lista de espera.",

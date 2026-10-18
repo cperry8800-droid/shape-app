@@ -25,5 +25,8 @@ export default {
     { name: 'left: a current client is listed as gone', file: APP,
       find: "    const gone = extra.churn.filter((r) => r.stillClient !== true);",
       replace: "    const gone = extra.churn;" },
+    { name: 'left: an unread membership lists people as gone', file: APP,
+      find: "  else if (extra.churn.some((r) => r.stillClient === null)) left =",
+      replace: "  else if (false) left =" },
   ],
 };

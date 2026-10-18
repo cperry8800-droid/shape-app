@@ -1244,6 +1244,7 @@
   "business.clients.leftOn": "rời đi {date}",
   "business.clients.leftPrice": "−{price}/tháng",
   "business.clients.leftUnread": "Hiện không đọc được các lượt huỷ của bạn.",
+  "business.clients.leftUnsure": "Hiện không kiểm tra được ai vẫn còn gói với bạn, nên chưa tính ai là đã rời đi.",
   "business.clients.wait": "{count, plural, one {# người đang chờ} other {# người đang chờ}} để bắt đầu với bạn.",
   "business.clients.waitHead": "Danh sách chờ của bạn",
   "business.clients.waitNone": "Không ai đang chờ. Khi bạn đánh dấu hồ sơ đã kín chỗ, thành viên có thể vào danh sách chờ.",

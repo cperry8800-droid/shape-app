@@ -1244,6 +1244,7 @@
   "business.clients.leftOn": "pergi {date}",
   "business.clients.leftPrice": "−{price}/bln",
   "business.clients.leftUnread": "Pembatalanmu tidak bisa dibaca saat ini.",
+  "business.clients.leftUnsure": "Saat ini tidak bisa dicek siapa yang masih punya paket denganmu, jadi tidak ada yang dihitung keluar.",
   "business.clients.wait": "{count, plural, one {# orang menunggu} other {# orang menunggu}} untuk mulai denganmu.",
   "business.clients.waitHead": "Daftar tunggumu",
   "business.clients.waitNone": "Tidak ada yang menunggu. Saat kamu menandai profilmu penuh, anggota bisa masuk daftar tunggu.",

@@ -1244,6 +1244,7 @@
   "business.clients.leftOn": "ушёл {date}",
   "business.clients.leftPrice": "−{price}/мес.",
   "business.clients.leftUnread": "Не удалось прочитать ваши отмены.",
+  "business.clients.leftUnsure": "Сейчас не удалось проверить, у кого ещё есть план у вас, поэтому никто не считается ушедшим.",
   "business.clients.wait": "{count, plural, one {# человек ждёт} few {# человека ждут} many {# человек ждут} other {# человека ждут}}, чтобы начать с вами.",
   "business.clients.waitHead": "Ваш лист ожидания",
   "business.clients.waitNone": "Никто не ждёт. Когда вы отметите, что набор закрыт, участники смогут встать в лист ожидания.",

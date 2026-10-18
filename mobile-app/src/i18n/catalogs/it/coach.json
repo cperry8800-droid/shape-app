@@ -1244,6 +1244,7 @@
   "business.clients.leftOn": "partito il {date}",
   "business.clients.leftPrice": "−{price}/mese",
   "business.clients.leftUnread": "Impossibile leggere le tue disdette in questo momento.",
+  "business.clients.leftUnsure": "Al momento non è possibile verificare chi ha ancora un piano con te, quindi nessuno viene contato come uscito.",
   "business.clients.wait": "{count, plural, one {# persona aspetta} other {# persone aspettano}} di iniziare con te.",
   "business.clients.waitHead": "La tua lista d'attesa",
   "business.clients.waitNone": "Nessuno è in attesa. Quando segni il tuo profilo come completo, i membri possono entrare in una lista d'attesa.",

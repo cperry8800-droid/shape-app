@@ -1244,6 +1244,7 @@
   "business.clients.leftOn": "left {date}",
   "business.clients.leftPrice": "−{price}/mo",
   "business.clients.leftUnread": "Couldn't read your cancellations just now.",
+  "business.clients.leftUnsure": "Couldn't check who still has a plan with you just now, so no one is counted as gone.",
   "business.clients.wait": "{count, plural, one {# person is} other {# people are}} waiting to join you.",
   "business.clients.waitHead": "Your waiting list",
   "business.clients.waitNone": "No one is waiting. When you mark your listing full, members can join a waiting list.",

@@ -1244,6 +1244,7 @@
   "business.clients.leftOn": "comot {date}",
   "business.clients.leftPrice": "−{price}/month",
   "business.clients.leftUnread": "We no fit read your cancellations right now.",
+  "business.clients.leftUnsure": "We no fit check now who still get plan with you, so we no count anybody as person wey don comot.",
   "business.clients.wait": "{count, plural, one {# person dey wait} other {# people dey wait}} to start with you.",
   "business.clients.waitHead": "Your waiting list",
   "business.clients.waitNone": "Nobody dey wait. When you mark say your profile don full, members fit join waiting list.",

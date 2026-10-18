@@ -1244,6 +1244,7 @@
   "business.clients.leftOn": "parti le {date}",
   "business.clients.leftPrice": "−{price}/mois",
   "business.clients.leftUnread": "Impossible de lire tes résiliations pour le moment.",
+  "business.clients.leftUnsure": "Impossible de vérifier pour le moment qui a encore une formule avec toi, donc personne n'est compté comme parti.",
   "business.clients.wait": "{count, plural, one {# personne attend} other {# personnes attendent}} pour commencer avec toi.",
   "business.clients.waitHead": "Ta liste d'attente",
   "business.clients.waitNone": "Personne n'attend. Quand tu indiques que ton profil est complet, les membres peuvent rejoindre une liste d'attente.",
