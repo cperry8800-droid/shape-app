@@ -7782,6 +7782,30 @@ function BSKmToggle({ label, on, color, onClick, count }) {
 }
 
 // Recipe box — the Shape Kitchen catalog as the Menu.
+// A `position: sticky` row inside BSPage's own `.bs-scroll` must stick BELOW the
+// CONDENSING masthead BSPage hangs over the top of that scroller once it passes
+// 64px (iosAppBroadsheet.jsx, BSPage), or spend the whole scroll underneath it.
+// The offset is MEASURED off that bar rather than restating its padding + row
+// height, so a safe-area inset, a notch floor or a text-size change moves the
+// two together. Used by the Kitchen menu's jump row and the profile tab rows.
+function useBSPinnedMastTop() {
+  const [top, setTop] = useStateBSC(0);
+  React.useEffect(() => {
+    const measure = () => {
+      try {
+        const el = document.querySelector('[data-bs-pinned-mast]');
+        const h = el ? Math.round(el.getBoundingClientRect().height) : 0;
+        setTop(h > 0 ? h : 0);
+      } catch (e) { /* no DOM (the mount harness) — 0 is the honest answer */ }
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    const later = setTimeout(measure, 320);
+    return () => { window.removeEventListener('resize', measure); clearTimeout(later); };
+  }, []);
+  return top;
+}
+
 function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onProfile = () => {} }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -7795,28 +7819,9 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
   const [savedOnly, setSavedOnly] = useStateBSC(false);
   const [expanded, setExpanded] = useStateBSC(() => new Set());
   const [activeCourse, setActiveCourse] = useStateBSC(0);
-  // The jump row sticks inside BSPage's own `.bs-scroll`, and BSPage hangs a
-  // CONDENSING masthead over the top of that scroller once it passes 64px
-  // (iosAppBroadsheet.jsx:534-543). A row stuck at top:0 would therefore spend
-  // the whole scroll underneath it. The offset is MEASURED off that bar rather
-  // than restating its padding + row height, so a safe-area inset, a notch
-  // floor or a text-size change moves the two together.
-  const [stickyTop, setStickyTop] = useStateBSC(0);
+  // The jump row sticks below BSPage's condensing masthead (useBSPinnedMastTop).
+  const stickyTop = useBSPinnedMastTop();
   const jumpRef = React.useRef(null);
-
-  React.useEffect(() => {
-    const measure = () => {
-      try {
-        const el = document.querySelector('[data-bs-pinned-mast]');
-        const h = el ? Math.round(el.getBoundingClientRect().height) : 0;
-        setStickyTop(h > 0 ? h : 0);
-      } catch (e) { /* no DOM (the mount harness) — 0 is the honest answer */ }
-    };
-    measure();
-    window.addEventListener('resize', measure);
-    const later = setTimeout(measure, 320);
-    return () => { window.removeEventListener('resize', measure); clearTimeout(later); };
-  }, []);
 
   const recId = (r) => `recipe:${bsSkSlug(r.title)}`;
   const savedIds = new Set(lib.filter((x) => x.kind === 'recipe').map((x) => x.id));
@@ -17594,13 +17599,13 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
 // Shared segmented tab bar for the living-identity profiles (Terrain + Signal).
 // Sticky under the hero; the accent follows the profile's tier color. Personal
 // activities is always the first tab so a profile opens on what someone's doing.
-function BSLivingTabs({ tabs, active, onPick, c, INK, BG, pad = 0 }) {
+function BSLivingTabs({ tabs, active, onPick, c, INK, BG, pad = 0, top = 0 }) {
   const MONO = "'JetBrains Mono', monospace";
   // pad = the host body's side padding: the bar breaks out of it to run
   // FULL-BLEED (side borders + radius dropped at the screen edges), and the
   // sticky background then covers the whole width while scrolling.
   return (
-    <div style={{ position: 'sticky', top: 0, zIndex: 3, margin: `0 ${-pad}px 9px`, padding: '5px 0', background: BG }}>
+    <div style={{ position: 'sticky', top, zIndex: 3, margin: `0 ${-pad}px 9px`, padding: '5px 0', background: BG }}>
       <div style={{ display: 'flex', gap: 6, background: bsTHexA(INK, 0.05), border: `1px solid ${bsTHexA(INK, 0.1)}`, borderRadius: 7, padding: 3, ...(pad ? { borderRadius: 0, borderLeft: 0, borderRight: 0 } : null) }}>
         {tabs.map((tb) => { const on = active === tb.key; return (
           <button key={tb.key} onClick={() => onPick(tb.key)} style={{ flex: 1, minWidth: 0, padding: '6px 2px', borderRadius: 5, border: 0, cursor: 'pointer',
@@ -17946,9 +17951,9 @@ function BSTLedgerStat({ INK, label, value, seen, figSize = 30, delay = 0, align
 // Typographic tab index (Terrain only — Signal keeps BSLivingTabs). Sticky on a
 // solid paper fill with a 1px ink hairline; the active label carries a 2px heat
 // underline that draws in. Real ≥44px buttons.
-function BSTerrainTabs({ tabs, active, onPick, heat, INK, BG, pad = 20 }) {
+function BSTerrainTabs({ tabs, active, onPick, heat, INK, BG, pad = 20, top = 0 }) {
   return (
-    <div style={{ position: 'sticky', top: 0, zIndex: 4, margin: `0 ${-pad}px 4px`, padding: `0 ${pad}px`, background: BG, borderBottom: `1px solid ${bsTHexA(INK, 0.08)}` }}>
+    <div style={{ position: 'sticky', top, zIndex: 4, margin: `0 ${-pad}px 4px`, padding: `0 ${pad}px`, background: BG, borderBottom: `1px solid ${bsTHexA(INK, 0.08)}` }}>
       <div style={{ display: 'flex' }}>
         {tabs.map((tb) => { const on = active === tb.key; return (
           <button key={tb.key} onClick={() => onPick(tb.key)} style={{ flex: 1, minWidth: 0, minHeight: 44, position: 'relative', background: 'transparent', border: 0, cursor: 'pointer', padding: '15px 0 13px', fontFamily: BST_MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: on ? INK : bsTHexA(INK, 0.45) }}>
@@ -18062,6 +18067,8 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   const tabFresh = !seenTabs.has(tab);
   const activityRef = React.useRef(null); // Posts stat → scroll to the activity section
   const openPosts = () => { setTab('activity'); setTimeout(() => { try { activityRef.current && activityRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {} }, 60); };
+  // The tab row sticks, and the Posts jump lands, below BSPage's condensed masthead.
+  const pinnedTop = useBSPinnedMastTop();
   useBSPresence();
   // Local reaction state for the shared BSActivityCard on this profile feed.
   // Reactions toggle optimistically + best-effort persist the like (same backend
@@ -18576,7 +18583,12 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   const heroAscentH = heroCover ? 214 : 150;
   if (followProfile) return <BSPublicProfile person={followProfile} onBack={() => setFollowProfile(null)} onMessage={onMessage} />;
   return (
-    <div className="bs-scroll" style={{ position: 'absolute', inset: 0, background: BG, color: INK, overflowY: 'auto', overflowX: 'hidden', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column' }}>
+    // A page like every other: BSPage's own scroller, so BSPage's condensed
+    // masthead pins once this page's own masthead scrolls away (owner,
+    // 2026-10-18: "make sure this mast head stays present when i scroll down on
+    // profile page on app like all the other pages"). BSPage also pads for the
+    // tab bar, so the page keeps no bottom spacer of its own.
+    <BSPage><div style={{ color: INK, fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
       {isSelf && <input ref={fileRef} type="file" accept="image/*" onChange={onPick} style={{ display: 'none' }} />}
       {meMode ? (
         /* Me masthead — same structure as the other pages: logo + Vol·No line,
@@ -18826,8 +18838,8 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
           </div>
         ) : (
           <>
-            <div ref={activityRef} />
-            <BSTerrainTabs heat={c} INK={INK} BG={BG} pad={8} active={tab} onPick={setTab} tabs={[
+            <div ref={activityRef} style={{ scrollMarginTop: pinnedTop }} />
+            <BSTerrainTabs heat={c} INK={INK} BG={BG} pad={8} top={pinnedTop} active={tab} onPick={setTab} tabs={[
               { key: 'activity', label: tr('profile:tab.activity', { defaultValue: 'Activity' }) },
               { key: 'signals', label: tr('profile:tab.signals', { defaultValue: 'Signals' }) },
               { key: 'climb', label: tr('profile:tab.climb', { defaultValue: 'Climb' }) },
@@ -18998,8 +19010,6 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
         )}
       </div>
 
-      {meMode && <div style={{ height: 92, flex: '0 0 auto' }} />}
-
       {showCustomizer && <BSProfileCustomizer initial={custom} c={c} INK={INK} BG={BG} onClose={() => setShowCustomizer(false)} onSave={(doc) => { setCustom(doc); setShowCustomizer(false); }} />}
       {showLog && <BSLogActivitySheet c={c} INK={INK} BG={BG} onClose={() => setShowLog(false)} onPosted={loadPhotoPosts} />}
       {editingActivity && <BSLogActivitySheet c={c} INK={INK} BG={BG} editPost={editingActivity} onClose={() => setEditingActivity(null)} onPosted={() => { setEditingActivity(null); setFeedReloadNonce(n => n + 1); }} />}
@@ -19014,7 +19024,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
           </button>
         </div>
       )}
-    </div>
+    </div></BSPage>
   );
 }
 
@@ -19366,6 +19376,8 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   const profLpFiredRef = React.useRef(false);
   const activityRef = React.useRef(null); // Posts stat → scroll to the activity section
   const openPosts = () => { setTab('activity'); setTimeout(() => { try { activityRef.current && activityRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {} }, 60); };
+  // The tab row sticks, and the Posts jump lands, below BSPage's condensed masthead.
+  const pinnedTop = useBSPinnedMastTop();
   // ⚠ A COACH WITH AN ACCOUNT IS RATED BY ITS REVIEWS OR NOT AT ALL (owner,
   // 2026-10-12: "make sure the review system and star rating system is in place for
   // live accounts. 1-10 stars"). Its reviews are read by ACCOUNT and kept even when
@@ -19521,9 +19533,14 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   if (reviewerProfile) return <BSPublicProfile person={reviewerProfile} onBack={() => setReviewerProfile(null)} onMessage={onMessage} />;
   if (showBusiness) return <BSCoachBusinessPage role={bizRole} tab={showBusiness} onBack={() => setShowBusiness(null)} />;
   return (
-    <div className="bs-scroll" style={{ position: 'absolute', inset: 0, background: BG, color: INK, overflowY: 'auto', overflowX: 'hidden', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column' }}>
+    // A page like every other: BSPage's own scroller, so BSPage's condensed
+    // masthead pins once this page's own masthead scrolls away (owner,
+    // 2026-10-18: "make sure this mast head stays present when i scroll down on
+    // profile page on app like all the other pages"). BSPage also pads for the
+    // tab bar, so the page keeps no bottom spacer of its own.
+    <BSPage><div style={{ color: INK, fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
       {isSelf && <input ref={fileRef} type="file" accept="image/*" onChange={onPick} style={{ display: 'none' }} />}
-      <div style={{ flex: 1, padding: `${BS_MAST_TOP_CSS} ${bsGutter(tTheme)}px ${meMode ? 112 : 28}px`, position: 'relative' }}>
+      <div style={{ flex: 1, padding: `${BS_MAST_TOP_CSS} ${bsGutter(tTheme)}px 28px`, position: 'relative' }}>
         {/* Cover photo behind the hero. SIZED TO THE SIGIL, NOT TO ITSELF (owner
             call 2026-08-31): the sigil is 240px tall and starts ~130px down, so
             it runs to roughly 370. The previous 320px strip with a gradient that
@@ -19652,8 +19669,8 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
               <BSProfileFilmCard film={coachFilm} INK={INK} c={c} label={tr('profile:film.headCoach', { defaultValue: 'Intro film' })} />
             </div>
           ) : null}
-          <div ref={activityRef} style={{ marginTop: 22 }}>
-            <BSLivingTabs c={c} INK={INK} BG={BG} pad={22} active={tab} onPick={setTab} tabs={[
+          <div ref={activityRef} style={{ marginTop: 22, scrollMarginTop: pinnedTop }}>
+            <BSLivingTabs c={c} INK={INK} BG={BG} pad={22} top={pinnedTop} active={tab} onPick={setTab} tabs={[
               { key: 'activity', label: tr('profile:tab.activity', { defaultValue: 'Activity' }) },
               { key: 'about', label: tr('profile:tab.about', { defaultValue: 'About' }) },
               { key: 'coaching', label: tr('profile:tab.coaching', { defaultValue: 'Coaching' }) },
@@ -19899,7 +19916,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           </div>
         </div>
       )}
-    </div>
+    </div></BSPage>
   );
 }
 
