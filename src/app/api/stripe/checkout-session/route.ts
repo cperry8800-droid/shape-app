@@ -12,7 +12,7 @@ import { ACTIVE_SUB, computeMembership } from '@/lib/membership-core';
 import { hasLiveStripeSubscription } from '@/lib/stripe-live-subscription';
 import { stripeCustomerFor } from '@/lib/stripe-customer';
 import { connectedCustomerFor, madeByShape } from '@/lib/stripe-connect';
-import { CODE_MESSAGES, afterCode, coachNotPayable, directChargesReady, normalizeCode, recordCoachCheckout, resolveCheckoutCode, type CheckoutCode } from '@/lib/coach-checkout';
+import { CODE_MESSAGES, afterCode, coachNotPayable, directChargesReady, normalizeCode, recordCoachCheckout, recordedSubscriptionLive, resolveCheckoutCode, type CheckoutCode } from '@/lib/coach-checkout';
 import { CHECKOUT_CREATE_OPTIONS, checkoutReturnsKey, claimCheckout, currentCheckout, isCheckoutInProgress, retireCoachCheckouts, type CheckoutClaim } from '@/lib/checkout-barrier';
 
 export const runtime = 'nodejs';
@@ -488,6 +488,8 @@ export async function POST(request: Request) {
       try {
         const wanted = { client_id: user.id, provider_id: String(providerId), provider_role: providerRole };
         paid = await hasLiveStripeSubscription({ customerId, email: user.email ?? null }, wanted)
+          // Shape's recorded ones, each read by its id: a list the coach can bury is never relied on.
+          || (direct && await recordedSubscriptionLive(stripe, account, retired.subscriptions, ACTIVE_SUB))
           || (direct && await hasLiveStripeSubscription({ customerId: buyer, email: null }, wanted, account,
             // Shape's application made it, or it came from a checkout Shape recorded and the member
             // completed (Stripe may leave `application` unset; Codex on #2403).

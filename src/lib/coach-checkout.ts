@@ -293,6 +293,32 @@ export const CODE_MESSAGES: Record<CodeRefusal, string> = {
   code_not_here: "That code can't be used for this checkout.",
 };
 
+// ── A subscription Shape recorded, asked by id ───────────────────────────────────────────────
+
+export type SubStripe = {
+  subscriptions: { retrieve: (id: string, params: undefined, opts: { stripeAccount: string }) => PromiseLike<{ id: string; status: string }> };
+};
+
+/**
+ * Whether any of these subscriptions (the ones behind checkouts Shape recorded and the member
+ * completed) is live on the coach's account, each read by its own id. ⚠ A LIST CAN BE BURIED
+ * (Codex on #2403): the coach owns the account and can make any number of newer subscriptions for
+ * the member's customer, so a single page of the customer's subscriptions may never reach Shape's,
+ * and a retry before the webhook writes its row would be sold a second plan. A subscription that
+ * no longer exists is not live; any other failure throws, and the caller refuses.
+ */
+export async function recordedSubscriptionLive(stripe: SubStripe, account: string, ids: Iterable<string>, live: ReadonlySet<string>): Promise<boolean> {
+  for (const id of ids) {
+    try {
+      const sub = await stripe.subscriptions.retrieve(id, undefined, { stripeAccount: account });
+      if (live.has(sub.status)) return true;
+    } catch (err) {
+      if ((err as { code?: string })?.code !== 'resource_missing') throw err;
+    }
+  }
+  return false;
+}
+
 // ── What a subscription renews at ────────────────────────────────────────────────────────────
 
 type SubItem = { quantity?: number | null; price?: { unit_amount?: number | null } | null };

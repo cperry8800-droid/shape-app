@@ -402,7 +402,7 @@ test('the Connect routes onboard through onboardingAccountFor, and refresh sends
 // ── The app's checkout route ──────────────────────────────────────────────────────────────────
 const TRAINER = { id: 4, name: 'Coach T', owner_id: 'owner-1', price: 180, session_price: 180, stripe_account_id: ACCT, stripe_account_status: 'active', at_capacity: false, capacity_resume_at: null, suspended_at: null };
 
-async function runCheckout({ body = {}, provider = TRAINER, env = CONNECT_ENV, errors = {}, codes = {}, reserve = 0, created: createdOverride } = {}) {
+async function runCheckout({ body = {}, provider = TRAINER, env = CONNECT_ENV, errors = {}, codes = {}, reserve = 0, created: createdOverride, recordedSubStatus = 'canceled' } = {}) {
   const db = fakeDb({
     tables: { trainers: [{ ...provider }], stripe_connected_customers: [] },
     errors,
@@ -419,6 +419,7 @@ async function runCheckout({ body = {}, provider = TRAINER, env = CONNECT_ENV, e
   const stripe = {
     ...cs.stripe,
     customers: { create: async (p, o) => { customers.push([p, o]); return { id: 'cus_onCoach' }; } },
+    subscriptions: { retrieve: async (id, p, o) => { customers.push(['sub', id, o]); return { id, status: recordedSubStatus }; } },
     checkout: { sessions: {
       create: async (args, opts) => { created.push([args, opts]); if (createdOverride) return createdOverride(args); return { id: 'cs_test_new1', url: 'https://checkout.stripe.test/cs_test_new1' }; },
       expire: async (id, p, opts) => { expired.push([id, opts]); return {}; },
@@ -515,6 +516,23 @@ test('checkout: a subscription on the coach\'s account takes application_fee_per
     assert.equal(shapes({ id: 'sub_recordedNoApp', application: null }), true);
   });
   assert.equal(stmts(r.db.calls, 'coach_checkouts', 'insert')[0].payload.mode, 'subscription');
+  assert.deepEqual(r.customers.find((c) => c[0] === 'sub'), ['sub', 'sub_recordedNoApp', { stripeAccount: ACCT }], 'Shape\'s recorded subscription is read by its id');
+  // ⚠ A recorded subscription that is live blocks a second one, however many the coach has piled
+  // on top of it in the customer's list (Codex on #2403).
+  const paid = await runCheckout({ body: { item: { type: 'Subscription', name: 'Monthly coaching' } }, recordedSubStatus: 'active' });
+  assert.deepEqual([paid.status, paid.body.reason], [409, 'already_subscribed']);
+  assert.equal(paid.created.length, 0);
+});
+
+test('recordedSubscriptionLive reads each recorded subscription by its id', async () => {
+  const live = new Set(['active', 'trialing', 'past_due']);
+  const subs = { sub_a: 'canceled', sub_b: 'past_due' };
+  const stripe = { subscriptions: { retrieve: async (id, p, o) => { assert.deepEqual(o, { stripeAccount: ACCT }); if (!(id in subs)) throw Object.assign(new Error('No such subscription'), { code: 'resource_missing' }); return { id, status: subs[id] }; } } };
+  assert.equal(await cc.recordedSubscriptionLive(stripe, ACCT, ['sub_gone', 'sub_a', 'sub_b'], live), true);
+  assert.equal(await cc.recordedSubscriptionLive(stripe, ACCT, ['sub_gone', 'sub_a'], live), false);
+  assert.equal(await cc.recordedSubscriptionLive(stripe, ACCT, [], live), false);
+  const down = { subscriptions: { retrieve: async () => { throw Object.assign(new Error('rate limited'), { code: 'rate_limit' }); } } };
+  await assert.rejects(cc.recordedSubscriptionLive(down, ACCT, ['sub_a'], live), /rate limited/);
 });
 
 test('checkout: a checkout whose record fails is expired and never handed out, and its credit is released', async () => {
