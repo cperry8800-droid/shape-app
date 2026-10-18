@@ -12,7 +12,10 @@ import { fakeSupabase } from './helpers/fake-supabase.mjs';
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const G = await loadRealModule(ROOT + 'src/lib/coach-growth.ts', {
   typescript: true,
-  registry: new Map([['@/lib/coach-trajectory.mjs', await import(pathToFileURL(ROOT + 'src/lib/coach-trajectory.mjs').href)]]),
+  registry: new Map([
+    ['@/lib/coach-trajectory.mjs', await import(pathToFileURL(ROOT + 'src/lib/coach-trajectory.mjs').href)],
+    ['@/lib/read-all-by-id', await loadRealModule(ROOT + 'src/lib/read-all-by-id.ts', { typescript: true })],
+  ]),
 });
 const DAY = 86400000;
 const NOW = Date.UTC(2026, 9, 17, 12);
@@ -154,4 +157,133 @@ test('when the subscriptions can\'t be read, Today and the funnel say so: the co
   // A read that worked with no one in the 30 days before still says that.
   const none = text(React.createElement(DashBusinessSummary, { live: { ...live, growth: { weeklyAdds: [{ weekOf: 'w', count: 1, addedCents: 1 }], momPct: null } }, role: 'trainer', clients: [] }));
   assert.match(none, /none in the 30 days before to compare/);
+});
+
+// ── Every row, a page at a time (Codex on #2394) ──
+// One select returns at most 1,000 rows and no error (PostgREST's db-max-rows, fakeSupabase's
+// maxRows). The window's read went oldest first, so what it cut was the newest rows; the read of
+// the earlier subscriptions could cut the row that proves a client never left.
+const pad = (n) => String(n).padStart(6, '0');
+// fakeSupabase applies the filters but doesn't record them, so this records each read's builder
+// calls by name: a filter no figure can show (the earlier read's client list) is pinned this way.
+function recorded(db) {
+  const reads = [];
+  return { reads, from(table) {
+    const chain = db.from(table);
+    const ops = [];
+    reads.push({ table, ops });
+    const proxy = new Proxy(chain, { get(t, k) {
+      const v = t[k];
+      if (k === 'then' || typeof v !== 'function') return v;
+      return (...args) => { ops.push([k, ...args]); v(...args); return proxy; };
+    } });
+    return proxy;
+  } };
+}
+const op = (r, name, col) => r.ops.find((o) => o[0] === name && (col === undefined || o[1] === col));
+// Ids shuffled against the dates and against the order the rows are stored in (7919 is prime, so
+// i·7919 mod n visits every id once): the walk can lean on neither.
+const withIds = (rows) => rows.map((r, i) => ({ ...r, id: 's' + pad((i * 7919) % rows.length) }));
+// Each page asks for this coach's rows in id order, 1,000 at most, after the last id the page before read.
+function assertWalk(pages, matching, label) {
+  const ids = matching.map((r) => r.id).sort();
+  assert.equal(pages.length, Math.floor(ids.length / 1000) + 1, label + ': a page per 1,000 rows, not the first 1,000');
+  pages.forEach((p, k) => {
+    assert.deepEqual(op(p, 'eq', 'provider_role'), ['eq', 'provider_role', 'trainer'], label + ': this role only');
+    assert.deepEqual(op(p, 'eq', 'provider_id'), ['eq', 'provider_id', 7], label + ': this coach only');
+    assert.deepEqual(op(p, 'order'), ['order', 'id', { ascending: true }], label + ': in id order');
+    assert.deepEqual(op(p, 'limit'), ['limit', 1000], label);
+    assert.deepEqual(op(p, 'gt')?.slice(1) ?? null, k === 0 ? null : ['id', ids[k * 1000 - 1]], label + ': after the last id read');
+  });
+}
+
+test('every subscription in the window is read, a page at a time: the newest are the recent weeks, the last 30 days and the signings', async () => {
+  const T = Date.now();
+  const at = (d) => new Date(T - d * DAY).toISOString();
+  const sub = (client_id, d, over = {}) => ({ provider_role: 'trainer', provider_id: 7, client_id, created_at: at(d), status: 'active', price_cents: 10000, fee_bps: 1500, ...over });
+  const table = withIds([
+    // 1,000 clients joined 55 to 41 days ago, stored oldest first...
+    ...Array.from({ length: 1000 }, (_, i) => sub('o' + pad(i), 55 - Math.floor((i * 15) / 1000))),
+    // ...and 300 in the last 20 days: 100 the coach brought, 40 already clients (below), 160 found on Shape.
+    ...Array.from({ length: 300 }, (_, k) => sub('n' + pad(k), 20 - Math.floor((k * 19) / 300), { fee_bps: k < 100 ? 0 : 1500 })),
+    // Not this coach's window: another role, another coach, and rows from before the window.
+    ...Array.from({ length: 50 }, (_, k) => sub('z' + pad(k), 5, { provider_role: 'nutritionist' })),
+    ...Array.from({ length: 50 }, (_, k) => sub('y' + pad(k), 5, { provider_id: 8 })),
+    ...Array.from({ length: 30 }, (_, k) => sub('q' + pad(k), 120, { status: 'canceled', current_period_end: at(100) })),
+    // n000100 to n000139 have been clients since before the window, on a plan that still runs.
+    ...Array.from({ length: 40 }, (_, k) => sub('n' + pad(100 + k), 200)),
+  ]);
+  const db = recorded(fakeSupabase({ tables: { subscriptions: table }, maxRows: 1000 }));
+  const g = await G.coachGrowthAndFunnel(db, 'trainer', 7, 0);
+  assert.equal(total(g), 1260, '1,000 + the 260 newest who were not already clients');
+  assert.equal(g.growth.momPct, -74, '260 in the last 30 days against 1,000 in the 30 before (the oldest 1,000 alone read -100)');
+  assert.equal(g.funnel.signed90, 1160, 'the 100 the coach brought are not signings');
+  const recent = g.growth.weeklyAdds.filter((w) => w.weekOf > new Date(T - 35 * DAY).toISOString().slice(0, 10)).reduce((s, w) => s + w.count, 0);
+  assert.equal(recent, 260, 'the recent weeks have the newest clients in them');
+  // Every page is this coach's window in id order, and the earlier read asks for those clients only.
+  const pages = db.reads.filter((r) => op(r, 'gte'));
+  const since = op(pages[0], 'gte', 'created_at')[2];
+  assert.ok(pages.every((p) => op(p, 'gte', 'created_at')[2] === since), 'every page is the same 90 days');
+  const inWindow = table.filter((r) => r.provider_role === 'trainer' && r.provider_id === 7 && r.created_at >= since);
+  assertWalk(pages, inWindow, 'window');
+  const earlier = db.reads.filter((r) => op(r, 'lt'));
+  assert.equal(earlier.length, 1);
+  assert.deepEqual(op(earlier[0], 'lt'), ['lt', 'created_at', since], 'the earlier read ends where the window starts');
+  assert.deepEqual([...op(earlier[0], 'in', 'client_id')[2]].sort(), [...new Set(inWindow.map((r) => r.client_id))].sort());
+});
+
+test('a membership from before the window is found past the first 1,000 earlier rows: a client who never left is not new', async () => {
+  const T = Date.now();
+  const at = (d) => new Date(T - d * DAY).toISOString();
+  const sub = (client_id, d, over = {}) => ({ provider_role: 'trainer', provider_id: 7, client_id, created_at: at(d), status: 'active', price_cents: 10000, fee_bps: 1500, ...over });
+  const gone = (client_id, d) => sub(client_id, d, { status: 'canceled', current_period_end: at(d - 30) });
+  const table = withIds([
+    // 600 clients joined in the window.
+    ...Array.from({ length: 600 }, (_, k) => sub('c' + pad(k), 10 + (k % 60))),
+    // Before it, each had two plans that ended before it opened (1,200 rows), so each came back...
+    ...Array.from({ length: 1200 }, (_, j) => gone('c' + pad(j % 600), 300 - Math.floor(j / 600) * 100)),
+    // ...a plan with another coach, or as another role, doesn't make 20 of them clients here...
+    ...Array.from({ length: 10 }, (_, k) => sub('c' + pad(k), 200, { provider_id: 8 })),
+    ...Array.from({ length: 10 }, (_, k) => sub('c' + pad(10 + k), 200, { provider_role: 'nutritionist' })),
+    // ...but 100 of them also hold a plan from before the window that still runs, stored last: they never left.
+    ...Array.from({ length: 100 }, (_, k) => sub('c' + pad(500 + k), 150)),
+  ]);
+  const db = recorded(fakeSupabase({ tables: { subscriptions: table }, maxRows: 1000 }));
+  const g = await G.coachGrowthAndFunnel(db, 'trainer', 7, 0);
+  assert.equal(total(g), 500, 'the 100 who never left are not new (the first 1,000 earlier rows alone read 600)');
+  assert.equal(g.funnel.signed90, 500);
+  const pages = db.reads.filter((r) => op(r, 'lt'));
+  const since = op(db.reads.find((r) => op(r, 'gte')), 'gte', 'created_at')[2];
+  assert.ok(pages.every((p) => op(p, 'lt', 'created_at')[2] === since), 'every page ends where the window starts');
+  const ids = Array.from({ length: 600 }, (_, k) => 'c' + pad(k));
+  assert.ok(pages.every((p) => JSON.stringify([...op(p, 'in', 'client_id')[2]].sort()) === JSON.stringify(ids)), 'every page is the window\'s clients, not every client the coach had');
+  assertWalk(pages, table.filter((r) => r.provider_role === 'trainer' && r.provider_id === 7 && r.created_at < since), 'earlier');
+});
+
+test('a read past the walk\'s ceiling is unknown, not short: it throws, as a failed read does', async () => {
+  // Every page of one read comes back full, so the walk reaches its 50 pages; one select would have
+  // handed back 1,000 rows and no error, and the dashboards would have shown them as the whole story.
+  const T = Date.now();
+  const at = (d) => new Date(T - d * DAY).toISOString();
+  const stub = (full) => ({ from() {
+    const ops = [];
+    const chain = new Proxy({}, { get(_, k) {
+      if (k !== 'then') return (...args) => { ops.push([k, ...args]); return chain; };
+      return (res, rej) => {
+        const inWindow = ops.some((o) => o[0] === 'gte');
+        const after = ops.find((o) => o[0] === 'gt')?.[2];
+        const from = after ? Number(after.slice(1)) + 1 : 0;
+        const n = (inWindow ? full === 'window' : full === 'earlier') ? 1000 : 1;
+        const data = Array.from({ length: n }, (_, k) => inWindow
+          ? { id: 'r' + pad(from + k), client_id: 'c' + pad(from + k), created_at: at(10), status: 'active', price_cents: 1000, fee_bps: 1500 }
+          : { id: 'r' + pad(from + k), client_id: 'c' + pad(0), created_at: at(200), status: 'canceled', current_period_end: at(150) });
+        return Promise.resolve({ data, error: null }).then(res, rej);
+      };
+    } });
+    return chain;
+  } });
+  await assert.rejects(G.coachGrowthAndFunnel(stub('window'), 'trainer', 7, 0), /coach growth: more than 50000 rows/);
+  await assert.rejects(G.coachGrowthAndFunnel(stub('earlier'), 'trainer', 7, 0), /coach growth: more than 50000 rows/);
+  // And a walk that ends below the ceiling reads through: the one client left and came back.
+  assert.equal(total(await G.coachGrowthAndFunnel(stub(null), 'trainer', 7, 0)), 1);
 });

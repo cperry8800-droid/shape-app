@@ -22,9 +22,19 @@
 // ⚠ THE FUNNEL'S "SIGNED" IS THE CLIENTS WHO FOUND THE COACH ON SHAPE (stored fee
 // above 0). A client the coach brought never passed through the marketplace, so
 // counting them let "consult → signed" pass 100%.
+//
+// ⚠ EVERY ROW, A PAGE AT A TIME (Codex, #2394). Both reads were one select, and one select
+// returns at most 1,000 rows with no error. The window's read went oldest first, so a busy
+// practice lost its NEWEST rows: the recent weeks, the last 30 days and the signings came out
+// short. The read of the earlier subscriptions could lose the row that proves a client was
+// already a client, and count them as new. Both now walk by id (readAllById); past its ceiling
+// the read throws, as a failed one does. growthFrom puts the rows in date order itself, and the
+// earlier memberships keep each client's latest end, so the order the pages arrive in doesn't
+// matter. ('*' carries the id the walk pages on.)
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { subEndedAt, subNeverStarted } from '@/lib/coach-trajectory.mjs';
+import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
 
 export type CoachGrowth = {
   weeklyAdds: Array<{ weekOf: string; count: number; addedCents: number }>;
@@ -103,13 +113,18 @@ export async function coachGrowthAndFunnel(
   // ⚠ A FAILED READ THROWS. Supabase answers { error } instead of throwing, and read as no
   // rows it would say no one joined, or (below) that every returning client is new. The
   // dashboards catch it and show growth and the funnel as unread (Codex, #2394).
-  const { data: addRows, error: addError } = await supabase
-    .from('subscriptions')
-    .select('*') // '*' is migration-safe: an explicit fee_bps errors the query on a pre-migration DB
-    .eq('provider_role', role)
-    .eq('provider_id', providerId)
-    .gte('created_at', since)
-    .order('created_at', { ascending: true });
+  // A read past readAllById's ceiling is an error too: it is unknown, not short.
+  const { data: addRows, error: addError } = await readAllById<AddRow & { id: string }>((after) => {
+    let q = supabase
+      .from('subscriptions')
+      .select('*') // '*' is migration-safe: an explicit fee_bps errors the query on a pre-migration DB
+      .eq('provider_role', role)
+      .eq('provider_id', providerId)
+      .gte('created_at', since);
+    if (after) q = q.gt('id', after);
+    // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
+    return q.order('id', { ascending: true }).limit(ROW_PAGE);
+  });
   if (addError) throw new Error('coach growth: ' + addError.message);
   const rows = (addRows ?? []) as AddRow[];
   // Of the clients with a row in the window, when their membership from before it ended: the
@@ -118,13 +133,18 @@ export async function coachGrowthAndFunnel(
   const ids = [...new Set(rows.map((r) => r.client_id).filter((v): v is string => !!v))];
   const existing = new Map<string, number>();
   if (ids.length) {
-    const { data: before, error: beforeError } = await supabase
-      .from('subscriptions')
-      .select('*')
-      .eq('provider_role', role)
-      .eq('provider_id', providerId)
-      .lt('created_at', since)
-      .in('client_id', ids);
+    const { data: before, error: beforeError } = await readAllById<AddRow & { id: string }>((after) => {
+      let q = supabase
+        .from('subscriptions')
+        .select('*')
+        .eq('provider_role', role)
+        .eq('provider_id', providerId)
+        .lt('created_at', since)
+        .in('client_id', ids);
+      if (after) q = q.gt('id', after);
+      // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
+      return q.order('id', { ascending: true }).limit(ROW_PAGE);
+    });
     if (beforeError) throw new Error('coach growth: ' + beforeError.message);
     for (const r of (before ?? []) as AddRow[]) {
       if (subNeverStarted(r) || !r.client_id) continue;
