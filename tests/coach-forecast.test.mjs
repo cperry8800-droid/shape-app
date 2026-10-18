@@ -116,6 +116,32 @@ test('paceFrom: a practice younger than three months reads since its first clien
   assert.equal(CF.paceFrom({ weeks: [] }, now).churn, null);
 });
 
+test('paceFrom: the month of history is counted from the first client, not from the Monday of their week', () => {
+  // Codex, #2394: a first client on a Sunday, 27 days before a Saturday, sits in a week that
+  // opens 33 days back. That is still under a month with clients, so it is no pace.
+  const now = Date.UTC(2026, 9, 17, 12);     // a Saturday
+  const first = Date.UTC(2026, 8, 20, 12);   // a Sunday, 27 days earlier
+  const weeks = weeksTo(now, 104, (i, n) => ({ active: i >= n - 5 ? 1 : 0, added: i === n - 5 ? 1 : 0, ended: 0 }));
+  assert.equal(weeks[104 - 5].weekOf, '2026-09-14');
+  const p = CF.paceFrom({ weeks, firstSubAt: new Date(first).toISOString() }, now);
+  assert.equal(p.fromFirst, true);
+  assert.equal(p.days, 27);
+  assert.equal(p.adds, null);
+  assert.equal(p.churn, null);
+});
+
+test('paceFrom: a month with clients is a pace, taken over the days since the first client', () => {
+  // The lower edge of the gate, and the rate's span: no one joined before the first client, so
+  // the days before them in their week are not divided into the count.
+  const now = Date.UTC(2026, 9, 17, 12);     // a Saturday
+  const first = Date.UTC(2026, 8, 16, 12);   // a Wednesday, 31 days earlier
+  const weeks = weeksTo(now, 104, (i, n) => ({ active: i >= n - 5 ? 1 : 0, added: i === n - 5 ? 1 : 0, ended: 0 }));
+  const p = CF.paceFrom({ weeks, firstSubAt: new Date(first).toISOString() }, now);
+  assert.equal(p.days, 31);
+  near(p.adds, 1 / (31 / 30.4));
+  assert.equal(p.churn, 0, 'nobody left: a measured zero');
+});
+
 test('paceFrom: no one active over the window is no churn figure, not 0%', () => {
   const now = Date.UTC(2026, 9, 17, 12);
   const weeks = weeksTo(now, 104, () => ({ active: 0, added: 0, ended: 0 }));

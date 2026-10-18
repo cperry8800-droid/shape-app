@@ -12,7 +12,8 @@
 // (`incomplete`, never paid) read as a sign-up, and a client who changed plan read as
 // a second one. Now a row that never started is dropped, each client counts once, and
 // a client who was already a client when the window opened is not new. One who had left
-// and came back is, as the Overview's trajectory counts a return (coach-trajectory.mjs).
+// and came back is new, whether they left before the window or inside it, as the
+// Overview's trajectory counts a return (coach-trajectory.mjs).
 //
 // ⚠ THE COMPARISON IS OVER EQUAL SPANS. It was this calendar month so far against all
 // of last month, so on the 3rd of a month nearly every practice read as shrinking.
@@ -44,16 +45,24 @@ function mondayISO(d: Date): string {
   return x.toISOString().slice(0, 10);
 }
 
-// The rollup itself, from the rows created in the window and the clients who already
-// had a subscription before it. Pure, so the counting is tested without a database.
-export function growthFrom(rows: AddRow[], { existing = new Set<string>(), consults90, now = Date.now() }: { existing?: Set<string>; consults90: number; now?: number }): { growth: CoachGrowth; funnel: CoachFunnel } {
+// The rollup itself, from the rows created in the window and, for each client who had a
+// subscription before it, when that membership ended (Infinity while it runs). Pure, so
+// the counting is tested without a database.
+export function growthFrom(rows: AddRow[], { existing = new Map<string, number>(), consults90, now = Date.now() }: { existing?: Map<string, number>; consults90: number; now?: number }): { growth: CoachGrowth; funnel: CoachFunnel } {
   // Each client's first row in the window that became a subscription, oldest first.
   const firsts = new Map<string, AddRow>();
+  const until = new Map(existing);
   const sorted = rows.slice().sort((a, b) => Date.parse(String(a.created_at)) - Date.parse(String(b.created_at)));
   sorted.forEach((r, i) => {
     if (subNeverStarted(r)) return;
     if (!Number.isFinite(Date.parse(String(r.created_at)))) return;
-    if (r.client_id != null && existing.has(String(r.client_id))) return;
+    // A row opened while the client was still a client is a plan change, and carries the
+    // membership on to its own end. One opened after it ended is a return, and counts.
+    const held = r.client_id != null ? until.get(String(r.client_id)) : undefined;
+    if (held != null && Date.parse(String(r.created_at)) <= held) {
+      until.set(String(r.client_id), Math.max(held, subEndedAt(r, now) ?? Infinity));
+      return;
+    }
     // A row with no client_id cannot be matched to anyone, so it stands alone.
     const key = r.client_id != null ? 'c:' + String(r.client_id) : 'row:' + i;
     if (!firsts.has(key)) firsts.set(key, r);
@@ -99,12 +108,12 @@ export async function coachGrowthAndFunnel(
     .gte('created_at', since)
     .order('created_at', { ascending: true });
   const rows = (addRows ?? []) as AddRow[];
-  // Of the clients with a row in the window, the ones who were still clients when it opened:
-  // a subscription from before it that had not ended by then.
+  // Of the clients with a row in the window, when their membership from before it ended: the
+  // latest end of their earlier subscriptions. One that ended before the window opened can't
+  // cover a row inside it, so it needs no filter of its own.
   const ids = [...new Set(rows.map((r) => r.client_id).filter((v): v is string => !!v))];
-  const existing = new Set<string>();
+  const existing = new Map<string, number>();
   if (ids.length) {
-    const sinceMs = Date.parse(since);
     const { data: before } = await supabase
       .from('subscriptions')
       .select('*')
@@ -114,8 +123,8 @@ export async function coachGrowthAndFunnel(
       .in('client_id', ids);
     for (const r of (before ?? []) as AddRow[]) {
       if (subNeverStarted(r) || !r.client_id) continue;
-      const ended = subEndedAt(r);
-      if (ended == null || ended > sinceMs) existing.add(String(r.client_id));
+      const ended = subEndedAt(r) ?? Infinity;
+      existing.set(String(r.client_id), Math.max(ended, existing.get(String(r.client_id)) ?? -Infinity));
     }
   }
   return growthFrom(rows, { existing, consults90 });

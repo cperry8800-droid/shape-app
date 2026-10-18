@@ -99,8 +99,11 @@
   // ⚠ CHURN IS MEASURED AGAINST THE CLIENTS WHO COULD HAVE LEFT, the average headcount over
   // the window, not against the count 30 days ago. One departure in a month with no one at
   // the start would otherwise read as 100%, or as nothing at all.
-  // ⚠ THE RATES ARE TAKEN OVER WHOLE WEEKS, because the buckets are weeks: the window opens on
-  // the Monday of its first week, so the counts and the span they are divided by agree.
+  // ⚠ THE RATES ARE TAKEN OVER THE DAYS THE COUNTS COVER. The buckets are weeks, so the last
+  // three months open on the Monday of their first week, and the counts are divided by the span
+  // from there. A younger practice is read from its first client instead: no one joined or left
+  // in the days before them in their week, so those days are not history, for the month a pace
+  // needs or for the rate (Codex, #2394: 23 days with clients passed as a month).
   function paceFrom(trajectory, now = Date.now()) {
     const none = { adds: null, churn: null, days: 0, fromFirst: false, added: 0, ended: 0, avgActive: 0 };
     const weeks = trajectory && Array.isArray(trajectory.weeks) ? trajectory.weeks : [];
@@ -111,9 +114,10 @@
     const fromMonday = mondayOf(from);
     const inWindow = weeks.filter((w) => new Date(w.weekOf + "T00:00:00Z").getTime() >= fromMonday);
     const spanDays = inWindow.length ? (now - new Date(inWindow[0].weekOf + "T00:00:00Z").getTime()) / DAY_MS : 0;
+    const histDays = fromFirst ? (now - from) / DAY_MS : spanDays;
     const days = Math.max(0, Math.round((now - from) / DAY_MS));
-    if (!inWindow.length || spanDays < PACE_MIN_DAYS) return { ...none, days, fromFirst };
-    const months = spanDays / MONTH_DAYS;
+    if (!inWindow.length || histDays < PACE_MIN_DAYS) return { ...none, days, fromFirst };
+    const months = histDays / MONTH_DAYS;
     const added = inWindow.reduce((s, w) => s + (w.added || 0), 0);
     const ended = inWindow.reduce((s, w) => s + (w.ended || 0), 0);
     const avgActive = inWindow.reduce((s, w) => s + (w.active || 0), 0) / inWindow.length;

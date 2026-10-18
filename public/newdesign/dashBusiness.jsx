@@ -1163,7 +1163,9 @@ function DbzPlanZone({ base }) {
 // ── Money: renewals this week (design E) ─────────────────────────────────────
 // From /api/{role}/analytics `renewals` (src/lib/coach-renewals.mjs): the active rows whose
 // period ends in the next 7 days, each asked of Stripe. Only a confirmed renewal counts as
-// money coming in; a cancelled one says so, and one Stripe could not be asked about says that.
+// money coming in; a cancelled one says so, and one Stripe could not be asked about (ending
+// null: a failed read, past the check cap, or no Stripe id) says that on its own row, because
+// the footnote alone can't tell the coach which client it is.
 function dbzDemoRenewals() {
   const day = 86400000, now = Date.now();
   return DBZ_DEMO_ORIGIN.filter((r) => r.kind === "subscription").slice(0, 4).map((r, i) => ({
@@ -1186,11 +1188,11 @@ function DbzRenewalsZone({ live, renewals }) {
         <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "baseline", padding: "12px 0", borderBottom: i < rows.length - 1 ? DBZ_RULE : 0 }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 14 }}>{r.name}</div>
-            <div style={{ fontSize: 12, color: r.ending ? DBZ_RED : DBZ_INK50, marginTop: 2 }}>
-              {r.ending ? "Cancelled · ends " + dbzDay(r.dueAt) : dbzDay(r.dueAt) + " · " + dashMoney(r.priceCents) + " a month"}
+            <div style={{ fontSize: 12, color: r.ending ? DBZ_RED : r.ending == null ? DBZ_AMBER : DBZ_INK50, marginTop: 2 }}>
+              {r.ending ? "Cancelled · ends " + dbzDay(r.dueAt) : r.ending == null ? dbzDay(r.dueAt) + " · not checked with Stripe" : dbzDay(r.dueAt) + " · " + dashMoney(r.priceCents) + " a month"}
             </div>
           </div>
-          <div style={{ fontFamily: serif, fontSize: 21, fontVariantNumeric: "tabular-nums", color: r.ending ? DBZ_INK50 : DBZ_INK, textDecoration: r.ending ? "line-through" : "none" }}>{dashMoney(r.netCents)}</div>
+          <div style={{ fontFamily: serif, fontSize: 21, fontVariantNumeric: "tabular-nums", color: r.ending === false ? DBZ_INK : DBZ_INK50, textDecoration: r.ending ? "line-through" : "none" }}>{dashMoney(r.netCents)}</div>
         </div>
       ))}
       <div style={{ ...DBZ_NOTE, marginTop: 8 }}>

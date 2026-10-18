@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadRealModule } from './helpers/load-real-module.mjs';
+import { fakeSupabase } from './helpers/fake-supabase.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const G = await loadRealModule(ROOT + 'src/lib/coach-growth.ts', {
@@ -32,8 +33,36 @@ test('an abandoned checkout is not a new client, and a plan change is not a seco
 });
 
 test('a client who was a client when the window opened is not new; one with no client_id stands alone', () => {
-  const g = G.growthFrom([row('a', 10), row('b', 9), row(null, 8), row(null, 7)], { existing: new Set(['a']), consults90: 0, now: NOW });
+  const g = G.growthFrom([row('a', 10), row('b', 9), row(null, 8), row(null, 7)], { existing: new Map([['a', Infinity]]), consults90: 0, now: NOW });
   assert.equal(total(g), 3);
+});
+
+test('a client who leaves after the window opens and comes back inside it is new; a plan change that carried the membership on is not', async () => {
+  // Through the route's own reads: coachGrowthAndFunnel works the window out from the clock.
+  const T = Date.now();
+  const at = (d) => new Date(T - d * DAY).toISOString();
+  const sub = (client_id, d, over = {}) => ({ provider_role: 'trainer', provider_id: 7, client_id, created_at: at(d), status: 'active', price_cents: 10000, fee_bps: 1500, ...over });
+  const db = fakeSupabase({ tables: { subscriptions: [
+    sub('a', 120, { status: 'canceled', current_period_end: at(70) }), // a left 70 days ago...
+    sub('a', 20),                                                     // ...and came back
+    sub('b', 200),                                                    // b is still on her first plan
+    sub('b', 30),                                                     // so this is a plan change
+    sub('c', 150, { status: 'canceled', current_period_end: at(40) }), // c's first plan ran out 40 days ago,
+    sub('c', 50, { status: 'canceled', current_period_end: at(10) }),  // after she moved to this one,
+    sub('c', 30),                                                     // and then to this one: never away
+    sub('d', 300),                                                    // d's first plan still runs, whatever
+    sub('d', 120, { status: 'canceled', current_period_end: at(60) }), // order the earlier rows are read in,
+    sub('d', 30),                                                     // so this is a plan change
+    sub('e', 120, { status: 'canceled', current_period_end: at(60) }), // e moved, inside the window,
+    sub('e', 70, { status: 'past_due' }),                             // to a plan that is still open,
+    sub('e', 30),                                                     // so this is a plan change too
+    sub('f', 120, { status: 'canceled', current_period_end: at(50) }), // f's next plan began the moment
+    sub('f', 50),                                                     // the last one ended: never away
+  ] } });
+  // (f's rows share a timestamp, at(50): the second starts exactly when the first ends.)
+  const g = await G.coachGrowthAndFunnel(db, 'trainer', 7, 0);
+  assert.equal(total(g), 1, 'a\'s return is a new client; b, c, d, e and f never left');
+  assert.equal(g.funnel.signed90, 1);
 });
 
 test('the comparison is the last 30 days against the 30 before, not a part-month against a whole one', () => {

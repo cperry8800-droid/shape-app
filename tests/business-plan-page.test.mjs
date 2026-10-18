@@ -247,6 +247,15 @@ test('renewals: the total counts confirmed renewals only; a cancellation and an 
   const m = await mount(React.createElement(B.DbzRenewalsZone, { live: true, renewals: RENEWALS }));
   const t = m.text();
   assert.match(t, /Dee Morgan\s*Cancelled · ends /);
+  // The footnote can't say which client wasn't checked, so Eli's own row does: no monthly price
+  // like a renewal's, and the amount dimmed like money not counted, but not struck through.
+  assert.match(t, /Eli Park[^$]* · not checked with Stripe\$136/);
+  const amount = (name) => [...m.div.firstChild.children].find((row) => row.firstChild.firstChild?.textContent === name).lastChild.style;
+  assert.deepEqual([amount('Eli Park').color === amount('Ana Reyes').color, amount('Eli Park').textDecoration], [false, 'none']);
+  assert.equal(amount('Eli Park').color, amount('Dee Morgan').color);
+  // The subline is amber, apart from both the cancelled red and a renewal's grey.
+  const sub = (name) => [...m.div.firstChild.children].find((row) => row.firstChild.firstChild?.textContent === name).firstChild.lastChild.style.color;
+  assert.deepEqual([sub('Eli Park'), sub('Dee Morgan') === sub('Ana Reyes')], ['var(--sh-gold, #d8a23a)', false]);
   assert.match(t, /Some couldn't be checked with Stripe just now, so they aren't counted above\./);
   await m.unmount();
   const one = await mount(React.createElement(B.DbzRenewalsZone, { live: true, renewals: RENEWALS.slice(0, 1) }));
