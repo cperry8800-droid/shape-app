@@ -858,10 +858,18 @@ function BusinessCardBody({ t, role, accent, onOpen, onHide }) {
         <button type="button" onClick={onOpen} style={{ border: 0, background: 'transparent', padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent }}>
           {tr('coach:business.card.eyebrow', { defaultValue: 'Business ›' })}
         </button>
-        <button type="button" onClick={onHide} aria-label={tr('coach:business.card.hide', { defaultValue: 'Hide your figures' })} style={{ display: 'flex', alignItems: 'center', gap: 6, borderRadius: 999, border: `1px solid ${accent}`, background: `${accent}1c`, color: accent, padding: '5px 11px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
-          <span>{tr('coach:business.card.visible', { defaultValue: 'Visible' })}</span>
-        </button>
+        {/* Owner, 2026-10-18: "the business card should be private, never public". It only ever
+            renders on the coach's own Me tab; the marker says so, where an eye reading "Visible"
+            looked like a public setting. The eye beside it hides the figures on this phone. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
+            <span>{tr('coach:business.card.private', { defaultValue: 'Private · only you' })}</span>
+          </span>
+          <button type="button" onClick={onHide} aria-label={tr('coach:business.card.hide', { defaultValue: 'Hide your figures' })} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 999, border: `1px solid ${accent}`, background: `${accent}1c`, color: accent, padding: 0, cursor: 'pointer' }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" /><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" /><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" /><path d="M1 1l22 22" /></svg>
+          </button>
+        </div>
       </div>
       <button type="button" onClick={onOpen} style={{ display: 'block', width: '100%', textAlign: 'left', border: 0, background: 'transparent', padding: 0, cursor: 'pointer', color: t.INK }}>
         <div style={{ marginTop: 5, display: 'flex', alignItems: 'baseline', gap: 8 }}>

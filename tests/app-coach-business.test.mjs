@@ -820,6 +820,10 @@ test('the Me card: the coach\'s own net a month and clients, no renewal reads, o
   assert.match(m.text(), new RegExp(`\\${money(today.mrrNetCents)}net a month${today.clients} clients · payouts, renewals and your plan`));
   await click(button(m.host, /Business ›/));
   assert.equal(opened.length, 1);
+  // Owner, 2026-10-18: "the business card should be private, never public". The card says so, and
+  // nothing on it reads like a public setting (an eye marked "Visible" did).
+  assert.match(m.text(), /Private · only you/);
+  assert.doesNotMatch(m.text(), /Visible/);
   await click(button(m.host, /Hide your figures/));
   assert.match(m.text(), /Business · hidden/);
   assert.doesNotMatch(m.text(), /net a month/, 'the money is off the screen');
@@ -833,6 +837,16 @@ test('the Me card: the coach\'s own net a month and clients, no renewal reads, o
   assert.match(m.text(), /net a month/);
   assert.equal(window.localStorage.getItem('bs_pro_rev_hidden'), '0');
   await m.unmount();
+});
+
+test('the Me card says it is private in all 13 languages, and no catalog keeps the old "Visible" label', () => {
+  for (const loc of LOCALES) {
+    const cat = JSON.parse(readFileSync(join(ROOT, `mobile-app/src/i18n/catalogs/${loc}/coach.json`), 'utf8'));
+    assert.ok(cat['business.card.private'] && cat['business.card.private'].includes(' · '), loc + ' has no private marker');
+    assert.equal(cat['business.card.visible'], undefined, loc + ' still carries "Visible"');
+  }
+  const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSCoachBusiness.jsx'), 'utf8');
+  assert.doesNotMatch(src, /business\.card\.visible/);
 });
 
 test('Me: the card is on the coach\'s own Me tab only, and Settings → Your practice → Payouts opens Business', () => {
