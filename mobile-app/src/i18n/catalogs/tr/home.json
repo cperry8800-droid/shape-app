@@ -103,7 +103,7 @@
   "checkin.answer": "Yanıtla →",
   "water.setTarget": "Günlük hedef belirle",
   "water.targetTitle": "Günlük su hedefin",
-  "water.targetWhy": "Suyun Ana Sayfa’da bu hedefe göre gösterilir ve birkaç gün boyunca epey geride kaldığında Ana Sayfa sana söyler.",
+  "water.targetWhy": "Suyun Ana Sayfa’da bu hedefe göre gösterilir.",
   "water.less": "Daha az su",
   "water.more": "Daha çok su",
   "water.targetFailed": "Hedefin kaydedilemedi — tekrar dene",

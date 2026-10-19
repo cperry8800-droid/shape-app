@@ -216,9 +216,11 @@ export function bsCiTodayRead(today, usual) {
 
 // The week in the member's words: the engine's own lines over the seven days ending today (sleep_low,
 // under 6h on 3 or more nights; energy_low, at or under 4 on 3 or more days), then the word most
-// mornings had, then how many more mornings a week needs. Null when none of them holds.
+// mornings had, then how many more mornings a week needs. Null when none of them holds. `week` is the
+// strip's seven days before today; the engine's window is today and the six before it, so only the
+// last six are read (review on this PR: a seventh day back made a week the engine never flagged).
 export function bsCiWeekLine(week, today) {
-  const days = [...(week || []), today || {}];
+  const days = [...(week || []).slice(-6), today || {}];
   const avg = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
   const nights = days.map((d) => Number(d && d.sleep)).filter((h) => Number.isFinite(h) && h > 0);
   if (nights.length >= 3 && avg(nights) < BS_CI_SHORT_NIGHT_H) return { kind: 'sleepShort', hours: avg(nights) };
@@ -539,8 +541,9 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
   const answered = { sleep: today.sleep != null || sleepSkipped, energy: today.energy != null };
   const manual = bsCiAnswered(today);
   // Start opens the night, even one a watch filled in: it is where its hours and How did you wake
-  // up? are. Continue opens the first morning question still open.
-  const firstOpen = () => { if (!manual) return 0; const i = BS_CI_STEPS.findIndex((k) => !answered[k]); return i < 0 ? BS_CI_SUMMARY : i; };
+  // up? are. A night skipped today is not opened again, as the reminder skips it too. Continue opens
+  // the first morning question still open.
+  const firstOpen = () => { if (!manual && !sleepSkipped) return 0; const i = BS_CI_STEPS.findIndex((k) => !answered[k]); return i < 0 ? BS_CI_SUMMARY : i; };
 
   // The evening question: a member with a nutritionist, from 6 p.m., until today's hunger is in.
   const hungerAsked = signedIn && coaching.nutritionist === true;
@@ -576,6 +579,10 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
   const sleepFromUsual = sleepH == null && !(today.sleep != null && !today.device);
   const sleepValue = sleepH != null ? sleepH : (sleepFromUsual ? usual : today.sleep);
   const restedValue = restedPick != null ? restedPick : today.rested;
+  // A night skipped today and opened again (Edit) shows the usual night on the stepper, but nothing
+  // was given: walked past untouched, it stays skipped (review on this PR: Next saved the usual
+  // night as hours the member typed).
+  const skippedUntouched = sleepSkipped && today.sleep == null && sleepH == null && restedPick == null;
 
   // What the answers mean: today's read, the week's line, and who sees them.
   const readKey = bsCiTodayRead(today, usual);
@@ -688,6 +695,7 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
   const noAnswer = tr('home:checkin.noAnswer', { defaultValue: 'No answer' });
   // The stepper's line under the hours: the usual night, or how far the night is from it.
   const usualLine = () => {
+    if (skippedUntouched) return tr('home:checkin.skipped', { defaultValue: 'Skipped' });
     if (sleepFromUsual) return tr('home:checkin.usualNight', { defaultValue: 'Your usual night' });
     const diff = Math.round((sleepValue - usual) * 2) / 2;
     if (!diff) return tr('home:checkin.usualNight', { defaultValue: 'Your usual night' });
@@ -813,7 +821,7 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
           <button type="button" onClick={() => {
             // A wearable's hours are never re-typed; its Rested is saved on its own when picked. A night
             // walked through again unchanged (Edit, then Next) writes nothing.
-            const unchanged = !today.device && sleepValue === today.sleep && restedValue === today.rested;
+            const unchanged = skippedUntouched || (!today.device && sleepValue === today.sleep && restedValue === today.rested);
             if (!wornNight && !unchanged) answer({ sleepHours: sleepValue, ...(restedValue != null ? { sleepQuality: restedValue } : {}) });
             else if (wornNight && restedPick != null && restedPick !== today.rested) answer({ sleepQuality: restedPick });
             next();

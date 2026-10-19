@@ -117,7 +117,7 @@ export default {
     { name: "a tap on a finished day's card is saved into the new day", file: CARD,
       find: '  const answer = (patch) => {\n    if (bsCiIso(new Date()) !== todayIso) { bump((n) => n + 1); return; }\n',
       replace: '  const answer = (patch) => {\n' },
-    { name: 'a failed glass on Home says nothing', file: CARD,
+    { name: 'a failed evening answer on Home says nothing', file: CARD,
       find: '        {done ? errLine : null}\n',
       replace: '' },
     { name: 'a failed save keeps the answer on screen', file: CARD,

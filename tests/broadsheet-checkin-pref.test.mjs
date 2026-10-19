@@ -621,10 +621,10 @@ test('every agePublic transition updates prefsRef synchronously', () => {
 // The night is a watch's when the server says a device sync wrote its hours (`sleepFromDevice`).
 // A watch worn by day reports a resting heart rate with no night, so typed hours on such a day
 // stay the member's own, and change.
-async function todayPage(series, log) {
+async function todayPage(series, log, water = { ok: true, hydrationL: 0, targetL: 3 }) {
   env({ uid: 'member-sleep' });
   dom.window.ShapeProgress = { progress: async () => ({ series }) };
-  dom.window.ShapeHydration = { get: async () => ({ ok: true, hydrationL: 0, targetL: 3 }) };
+  dom.window.ShapeHydration = { get: async () => water };
   const calls = [];
   dom.window.ShapeCheckin = { log: async (patch) => { calls.push(patch); return log ? log(patch) : { ok: true }; } };
   const m = await mount(React.createElement(MOD.BSTodayCard));
@@ -688,6 +688,18 @@ test("hours the server keeps a watch's night over show as the watch's after Log 
     if (edit) await kept.m.act(() => { edit.click(); });
     assert.doesNotMatch(kept.m.host.textContent, /Synced from your device/, 'hours the server kept read as the watch\'s');
   } finally { kept.m.unmount(); }
+});
+
+test("the check-in page shows water against the member's own target only, never the 3 L stand-in (owner, 2026-10-19)", async () => {
+  let { m } = await todayPage({}, null, { ok: true, hydrationL: 0.5, targetL: 3, targetStoredL: null });
+  try {
+    assert.match(m.host.textContent, /Hydration0\.5 L\+/);
+    assert.doesNotMatch(m.host.textContent, /\/ 3 L|%/, 'progress was shown against a target the member never set');
+  } finally { m.unmount(); }
+  ({ m } = await todayPage({}, null, { ok: true, hydrationL: 0.5, targetL: 2.5, targetStoredL: 2.5 }));
+  try {
+    assert.match(m.host.textContent, /0\.5 \/ 2\.5 L · 20%/);
+  } finally { m.unmount(); }
 });
 
 // ── A Daily check-in reminder opens the card (owner, 2026-10-18) ─────────────

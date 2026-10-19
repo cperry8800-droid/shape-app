@@ -110,8 +110,8 @@ test('the line shows the day and + Glass, and progress only against a target the
   let calls = env();
   let m = await mount();
   try {
-    assert.match(m.text(), /Water17 oz/);
-    assert.doesNotMatch(m.text(), /of 101 oz/, 'progress was shown against the 3 L default the member never chose');
+    assert.match(m.text(), /Water17 oz\+ Glass/);
+    assert.doesNotMatch(m.text(), / of /, 'progress was shown against a target the member never chose');
     assert.match(m.text(), /Set a daily target/);
     await m.click(/\+ Glass/);
     assert.deepEqual(calls.add, [0.2366]);
@@ -392,6 +392,76 @@ test('a first water read that answers after the read the sync sent never puts th
     await m.flush();
     assert.match(m.text(), /57 oz of/, 'the first read, answering last, put the total from before the sync back');
     assert.match(m.text(), /Includes 41 oz from Apple Health/, "the first read cleared Apple Health's share");
+  } finally { m.unmount(); }
+});
+
+test('a sync read waits for a glass still saving, so the glass never drops off the line (review on this PR)', async () => {
+  // The glass is on its way when the sync fires; the server's read may land before the glass
+  // commits and answer after it. The read waits for the glass, so it reads a total with it.
+  let server = 0.5;
+  let land;
+  let gets = 0;
+  env();
+  dom.window.ShapeHydration = {
+    get: async () => { gets += 1; return { ok: true, hydrationL: server, targetL: 3, targetStoredL: 3, deviceL: gets > 1 ? 0.2 : null }; },
+    add: (d) => new Promise((r) => { land = () => { server = Math.round((server + d) * 10000) / 10000; r({ ok: true, hydrationL: server, targetStoredL: 3 }); }; }),
+  };
+  const m = await mount();
+  try {
+    await m.click(/\+ Glass/);
+    await m.sync();
+    assert.equal(gets, 1, 'the sync read went out while a glass was still saving');
+    land();
+    await m.flush();
+    await m.flush();
+    assert.equal(gets, 2);
+    assert.match(m.text(), /25 oz of 101 oz/, 'the glass that landed dropped off the line');
+    assert.match(m.text(), /Includes 7 oz from Apple Health/);
+  } finally { m.unmount(); }
+});
+
+test('a sync read that fails leaves the first read standing, and + Glass works (review on this PR)', async () => {
+  let release;
+  let gets = 0;
+  env();
+  dom.window.ShapeHydration = {
+    get: async () => {
+      gets += 1;
+      if (gets === 1) { await new Promise((r) => { release = r; }); return { ok: true, hydrationL: 0.5, targetL: 3, targetStoredL: 3 }; }
+      return null;   // the data layer answers null for any failed read
+    },
+    add: async (d) => ({ ok: true, hydrationL: 0.5 + d, targetStoredL: 3 }),
+  };
+  const m = await mount();
+  try {
+    await m.sync();
+    assert.equal(gets, 2);
+    await React.act(async () => { release(); await new Promise((r) => setTimeout(r, 0)); });
+    await m.flush();
+    assert.match(m.text(), /17 oz of 101 oz/, 'a failed sync read threw away the first read');
+    assert.equal(m.button(/\+ Glass/).disabled, false, '+ Glass stayed disabled behind a failed read');
+  } finally { m.unmount(); }
+});
+
+test('a first read that fails after the sync read answered leaves the sync read standing', async () => {
+  let release;
+  let gets = 0;
+  env();
+  dom.window.ShapeHydration = {
+    get: async () => {
+      gets += 1;
+      if (gets === 1) { await new Promise((r) => { release = r; }); return null; }
+      return { ok: true, hydrationL: 1.7, targetL: 3, targetStoredL: 3, deviceL: 1.2 };
+    },
+    add: async () => ({ ok: true }),
+  };
+  const m = await mount();
+  try {
+    await m.sync();
+    assert.match(m.text(), /57 oz of 101 oz/);
+    await React.act(async () => { release(); await new Promise((r) => setTimeout(r, 0)); });
+    await m.flush();
+    assert.match(m.text(), /57 oz of 101 oz/, 'a failed first read put "—" over the total the sync read had shown');
   } finally { m.unmount(); }
 });
 

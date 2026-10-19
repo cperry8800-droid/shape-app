@@ -10,16 +10,20 @@ import { bsCiEnqueue, bsCiSettled, bsCiIso, BS_CI_HYDRATION_SYNCED } from './BSC
 // ⚠ PROGRESS ONLY AGAINST A TARGET THE MEMBER SET (owner, 2026-10-19). The hydration route answers
 // targetStoredL, the member's own (null when none is set), beside targetL, which is 3 L when none is
 // set; only the first is a target. Without one the line offers to set it, in a picker here, saved
-// where Settings keeps it (client_nutrition_prefs.hydration_target_l), which also turns on the
-// engine's "Water is behind" lead.
+// where Settings keeps it (client_nutrition_prefs.hydration_target_l). With Check-ins on, a target
+// also lets the engine's "Water is behind" lead fire; with them off the engine reads no water, so
+// the picker promises only the line (review on this PR).
 //
 // ⚠ GLASSES SAVE ONE AT A TIME, AND A FAILED ONE TAKES BACK ONLY ITSELF (Codex P2 on #2398): two
 // quick taps used to race, and a failed first one put back the total over a second that saved.
 // Each answer is the server's running total, so the line shows it plus what is still on its way.
 //
-// ⚠ ONLY THE LAST WATER READ SENT IS SHOWN (Codex on #2405). The morning card syncs Apple Health and
-// says so (BS_CI_HYDRATION_SYNCED); the line then reads the day again, and the first read answering
-// last would put the total from before the sync back on screen, Apple Health's share with it.
+// ⚠ AN OLDER READ NEVER REPLACES A NEWER ONE (Codex on #2405). The morning card syncs Apple Health
+// and says so (BS_CI_HYDRATION_SYNCED); the line then reads the day again, and the first read
+// answering last would put the total from before the sync back on screen, Apple Health's share with
+// it. A read that fails supersedes nothing, so the other one still lands, and + Glass never stays
+// disabled behind it (review on this PR). The read after a sync waits for glasses on their way, as
+// the first read does, so it never answers with a total from before a glass that has since landed.
 //
 // ⚠ WINDOW GLOBALS ARE READ AT CALL TIME, NEVER AT MODULE TOP (see BSLeaderboard.jsx).
 
@@ -77,7 +81,8 @@ function BSWaterDay({ dayIso }) {
   // Litres added on screen whose save has not answered yet: the server's total plus these is what shows.
   const pending = useRef(0);
   const taps = useRef(0);    // glasses tapped, so a read sent before one never shows a total without it
-  const readSeq = useRef(0);
+  const readSeq = useRef(0);   // reads sent
+  const shownSeq = useRef(0);  // the newest read whose answer is on screen
   const sheetRef = useRef(null);
   const [, bump] = useState(0); // a re-render, for a tap that finds its day already over
   const round = (l) => Math.round(Math.max(0, l) * 1000) / 1000;
@@ -89,9 +94,12 @@ function BSWaterDay({ dayIso }) {
     let on = true;
     let seq = 0;
     bsCiSettled('water').then(() => { seq = ++readSeq.current; return window.ShapeHydration.get(); }).then((d) => {
-      if (!on || seq !== readSeq.current) return;
-      setWater(d && d.ok ? fromRead(d) : BS_WATER_UNKNOWN);
-    }).catch(() => { if (on && seq === readSeq.current) setWater(BS_WATER_UNKNOWN); });
+      if (!on) return;
+      if (!d || !d.ok) { setWater((w) => w || BS_WATER_UNKNOWN); return; }
+      if (seq < shownSeq.current) return;
+      shownSeq.current = seq;
+      setWater(fromRead(d));
+    }).catch(() => { if (on) setWater((w) => w || BS_WATER_UNKNOWN); });
     return () => { on = false; };
   }, [signedIn]);
 
@@ -100,10 +108,13 @@ function BSWaterDay({ dayIso }) {
     if (!signedIn) return undefined;
     const onSync = () => {
       if (!window.ShapeHydration?.get) return;
-      const tapsAtSend = taps.current;
-      const seq = ++readSeq.current;
-      window.ShapeHydration.get().then((d) => {
-        if (!alive.current || !d || !d.ok || seq !== readSeq.current) return;
+      let tapsAtSend = 0;
+      let seq = 0;
+      bsCiSettled('water').then(() => { tapsAtSend = taps.current; seq = ++readSeq.current; return window.ShapeHydration.get(); }).then((d) => {
+        // A failed read here changes nothing: the first read, answered or not, still stands.
+        if (!alive.current || !d || !d.ok) return;
+        if (seq < shownSeq.current) return;
+        shownSeq.current = seq;
         const deviceL = Number(d.deviceL) > 0 ? Number(d.deviceL) : null;
         // A glass tapped after this read went out answers with its own total, which this read
         // would replace with an older one once that glass is no longer on its way.
@@ -186,7 +197,7 @@ function BSWaterDay({ dayIso }) {
       <div style={{ background: t.PAPER, color: t.INK, borderTop: `1px solid ${t.RULE}`, padding: '20px 20px calc(env(safe-area-inset-bottom, 0px) + 22px)', display: 'flex', flexDirection: 'column', gap: 14 }}>
         <span style={{ ...mono, color: sky }}>{tr('home:checkin.water', { defaultValue: 'Water' })}</span>
         <h2 tabIndex={-1} style={{ margin: 0, fontFamily: t.DISPLAY, fontWeight: 300, fontSize: 28, letterSpacing: '-0.02em', lineHeight: 1.1, outline: 'none' }}>{tr('home:water.targetTitle', { defaultValue: 'Your daily water target' })}</h2>
-        <p style={{ margin: 0, fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, color: t.INK70 }}>{tr('home:water.targetWhy', { defaultValue: 'Your water shows against it on Home, and Home tells you when you have been well behind it for a few days.' })}</p>
+        <p style={{ margin: 0, fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, color: t.INK70 }}>{tr('home:water.targetWhy', { defaultValue: 'Your water shows against it on Home.' })}</p>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
           <button type="button" aria-label={tr('home:water.less', { defaultValue: 'Less water' })} disabled={pick <= P.min} onClick={() => setPick((v) => Math.max(P.min, Math.round((v - P.step) * 100) / 100))} style={{ width: 54, height: 54, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontSize: 24, cursor: 'pointer', opacity: pick <= P.min ? 0.35 : 1 }}>−</button>
           <div aria-live="polite" style={{ fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{metric ? `${num(pick, 2)} L` : `${num(pick, 0)} oz`}</div>

@@ -55,17 +55,18 @@ export const BS_LEVER_HEADS = {
   energy: 'Take today lighter.',
   hunger: 'Eat a real meal today.',
   hydration: 'Drink more water today.',
-  // Sleep (owner, 2026-10-19): only on the engine's sleep_low flag, never its
-  // softer read (bsSleepLeadOk).
+  // Sleep (owner, 2026-10-19): only on a real shortfall (bsSleepLeadOk).
   sleep: 'Get to bed earlier tonight.',
 };
 
-// The engine picks sleep two ways: the sleep_low flag (under 6h a night on 3 or
-// more nights), and a softer read that fires whenever last night is not logged
-// yet, which every member hits each morning before the morning check-in. Home
-// and the splash lead only on the flag; the night itself is the card's question.
+// Sleep leads only on a real shortfall: the engine's sleep_low flag (a 7-day
+// average under 6h over 3 or more nights), or a coach who set sleep as the move.
+// The engine's milder read (a 6-7h average, its step 3) is not a lead: Home, the
+// splash and the push all leave it out (clientCandidates in
+// src/lib/ai/notifications.mjs keeps the same rule), so they say the same move.
 export function bsSleepLeadOk(dir) {
-  return !!dir && dir.lever === 'sleep' && Array.isArray(dir.cited) && dir.cited.includes('sleep_low');
+  if (!dir || dir.lever !== 'sleep' || !Array.isArray(dir.cited)) return false;
+  return dir.cited.includes('sleep_low') || dir.cited.includes('coach override');
 }
 
 // Turn the engine directive into the telegram's teal line, mirroring Home's

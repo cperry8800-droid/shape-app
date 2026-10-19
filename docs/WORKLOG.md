@@ -247,6 +247,10 @@ planned builds.
   samples, as for steps), and so does a drink logged in both Apple Health and Shape. Deleting every
   drink in a sync's window leaves Apple Health's last reading. Nora's meal-log undo refuses when a
   sync moved the day's water in between. The Daily check-in reminder fires on a day already done.
+- The Morning check-in (part 1): until part 2 retires it, the old "How are you." page (the energy and
+  water leads, and Check-ins off) still asks every member hunger on a 1-10 gauge and saves on Log
+  today. A failed read of a stored water target reads as none, so the water line offers "Set a daily
+  target". With Check-ins off the engine reads no water, so a target never brings "Water is behind".
 - Android back leaves the native app from any sheet (no `@capacitor/app`); in the hosted
   `/m/`, sheets add no history entry.
 

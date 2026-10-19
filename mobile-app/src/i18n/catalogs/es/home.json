@@ -103,7 +103,7 @@
   "checkin.answer": "Responder →",
   "water.setTarget": "Fija una meta diaria",
   "water.targetTitle": "Tu meta diaria de agua",
-  "water.targetWhy": "En Inicio tu agua se compara con ella, e Inicio te avisa cuando llevas unos días muy por debajo.",
+  "water.targetWhy": "En Inicio tu agua se compara con ella.",
   "water.less": "Menos agua",
   "water.more": "Más agua",
   "water.targetFailed": "No se pudo guardar tu meta — inténtalo de nuevo",

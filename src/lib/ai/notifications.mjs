@@ -312,7 +312,12 @@ export function clientCandidates(input) {
     // the lever is the identity; the kind is only its engine-built alias, and speaks
     // alone only when there is no lever (see isCheckinItem).
     const isCheckin = lever ? lever === 'checkin' : moveKind === 'check_in';
-    if (!(checkinOptedOut && isCheckin)) {
+    // ⚠ SLEEP IS PUSHED ONLY WHERE HOME LEADS WITH IT (owner, 2026-10-19: the push and Home say the
+    // same move): the engine's sleep_low flag, or a coach's sleep move. The engine's milder 6-7h read
+    // stays quiet. The same rule is bsSleepLeadOk in mobile-app/src/services/dailyWire.mjs.
+    const cited = Array.isArray(directive.cited) ? directive.cited : [];
+    const quietSleep = lever === 'sleep' && !(cited.includes('sleep_low') || cited.includes('coach override'));
+    if (!(checkinOptedOut && isCheckin) && !quietSleep) {
       const line = nonEmpty(directive.line) ? directive.line : '';
       const sig = `${directive.verdict || ''}|${directive.action.label}|${(directive.cited || []).join(',')}`;
       out.push({ type: 'directive', key: 'self', sig: `${sig}|${wk}`, priority: 'high', ctx: { line, reason: directive.reason }, data: { move: moveKind, lever } });

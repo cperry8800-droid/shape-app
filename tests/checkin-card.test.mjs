@@ -252,6 +252,12 @@ test("the week line is the engine's lines in the member's words, then the word m
   assert.deepEqual(CARD.bsCiWeekLine([d(8, 7), d(7, 7), d(4, 7)], d(8, null)), { kind: 'mostly', word: 3 });
   assert.equal(CARD.bsCiWeekLine([d(8, 7), d(4, 7), d(6, 7), d(10, 7)], d(2, null)), null, 'no majority was a trend');
   assert.deepEqual(CARD.bsCiWeekLine([], d(8, 7)), { kind: 'more', n: 2 });
+  assert.equal(CARD.bsCiWeekLine([d(8, 7), d(4, 7)], d(6, null)), null, 'three answered mornings still asked for "0 more"');
+  // The strip's seven days before today, but the engine's week is today and the six before it: the
+  // seventh day back never makes a short or low week (review on this PR).
+  const seven = (first) => [first, d(null, null), d(null, null), d(null, null), d(null, null), d(null, null), d(2, 5)];
+  assert.equal(CARD.bsCiWeekLine(seven(d(2, 5)), d(2, 5)).kind, 'more', 'a night 7 days back made a short week the engine never flagged');
+  assert.equal(CARD.bsCiWeekLine([d(2, 5), d(null, null), d(null, null), d(null, null), d(null, null), d(2, 5)], d(2, 5)).kind, 'sleepShort');
   assert.deepEqual(CARD.bsCiWeekLine([d(null, 7)], d(null, 7)), { kind: 'more', n: 3 });
   // Sleep speaks first: a short week with low energy says the sleep.
   assert.equal(CARD.bsCiWeekLine([d(2, 5), d(2, 5)], d(2, 5)).kind, 'sleepShort');
@@ -303,7 +309,7 @@ test('the card is the door: Start walks last night then this morning, every tap 
     await m.click(/^Good$/);
     assert.deepEqual(calls.log[1], { energy: 8 });
     assert.match(m.text(), /You're checked in ✓/);
-    assert.match(m.text(), /Ready for today's plan\./, "the summary did not say what today's answers mean");
+    assert.match(m.walk().querySelector('[data-bs-checkin-read]')?.textContent || '', /Ready for today's plan\./, "the summary did not say what today's answers mean");
     assert.match(m.text(), /2 more mornings and your week shows here\./);
     await m.click(/^Done$/);
     assert.ok(!m.walk(), 'Done left the walkthrough open');
@@ -427,6 +433,35 @@ test('a member who does not track sleep can skip the night, for the rest of the 
     assert.match(m.text(), /Two quick checks/, "yesterday's skip held today");
     m.unmount();
   } finally { mock.timers.setTime(at(12)); dom.window.localStorage.clear(); }
+});
+
+test('a skipped night stays skipped: Start opens energy, and Edit then Next writes nothing (review on this PR)', async () => {
+  dom.window.localStorage.clear();
+  const calls = env();
+  const m = await mount();
+  try {
+    await m.click(/Start check-in/);
+    await m.click(/^Skip$/);
+    await m.click(/^Close$/);
+    assert.match(m.text(), /✓ Sleep/);
+    await m.click(/Start check-in/);
+    assert.match(m.text(), /Step 2 of 2 · This morning/, 'Start opened the night the member skipped');
+    await m.click(/^Good$/);
+    await m.click(/^Done$/);
+    assert.deepEqual(calls.log, [{ energy: 8 }]);
+    await m.click(/^Edit$/);
+    assert.match(m.text(), /Step 1 of 2 · Last night/);
+    assert.match(m.text(), /Skipped/, 'the skipped night reads as the usual one');
+    await m.click(/^Next/);
+    assert.deepEqual(calls.log, [{ energy: 8 }], "walking past a skipped night saved the usual night as the member's own hours");
+    await m.click(/^Finish/);
+    assert.match(m.text(), /SleepSkipped/);
+    // Touching the stepper is an answer, and is saved.
+    await m.click(row('Sleep'));
+    await m.click(/Thirty minutes less/);
+    await m.click(/^Next/);
+    assert.deepEqual(calls.log[1], { sleepHours: 7 });
+  } finally { m.unmount(); dom.window.localStorage.clear(); }
 });
 
 test('a failed save puts the answer back and says so on screen', async () => {
@@ -719,9 +754,11 @@ test('signed out, the card previews the flow and saves nothing', async () => {
 test("today's read: a short night and a low morning, said on the summary and on Home", async () => {
   const usual = { '2026-10-15': { sleep: 7.5 }, '2026-10-16': { sleep: 7.5 }, [YDAY]: { sleep: 7.5 } };
   env({ days: { ...usual, [TODAY]: { energy: 4, sleep: 5 } } });
-  let m = await mount();
+  let m = await mount({ openRequest: 1 });
   try {
-    assert.match(m.text(), /Short night, low morning\. Keep training easy and aim for bed earlier\./);
+    const read = () => [...document.querySelectorAll('[data-bs-checkin-read]')].map((el) => (m.walk() && m.walk().contains(el) ? 'summary' : 'home'));
+    assert.deepEqual(read().sort(), ['home', 'summary'], "today's read is not said on both the summary and Home");
+    assert.match(m.walk().querySelector('[data-bs-checkin-read]').textContent, /Short night, low morning\. Keep training easy and aim for bed earlier\./);
   } finally { m.unmount(); }
   // Low after a full night: with a coach, tell them; without, keep an eye on it.
   env({ days: { ...usual, [TODAY]: { energy: 2, sleep: 8 } }, plan: TRAINER });
@@ -821,6 +858,23 @@ test('the evening question saves today\'s hunger in one tap, then leaves Home', 
       assert.ok(!document.querySelector('[data-bs-checkin-evening]'), 'Home still asks a question already answered');
       assert.match(m.text(), /Energy Good · Hunger Hungry/);
       assert.match(m.text(), /Checked in ✓/);
+    } finally { m.unmount(); }
+  } finally { mock.timers.setTime(at(12)); }
+});
+
+test('a failed evening answer says so on Home, and the question comes back', async () => {
+  mock.timers.setTime(at(19));
+  try {
+    env({ days: { [TODAY]: { energy: 8, sleep: 7 } }, plan: NUTRITIONIST, log: () => Promise.reject(new Error('500')) });
+    const m = await mount();
+    try {
+      await m.click(/^Answer/);
+      await m.click(/^Hungry$/);
+      await m.flush();
+      assert.ok(!m.walk());
+      assert.match(m.host.textContent, /Could not save check-in — try again/, 'the failed evening answer went silent');
+      assert.ok(document.querySelector('[data-bs-checkin-evening]'), 'the evening question did not come back');
+      assert.doesNotMatch(m.text(), /Hunger Hungry/);
     } finally { m.unmount(); }
   } finally { mock.timers.setTime(at(12)); }
 });

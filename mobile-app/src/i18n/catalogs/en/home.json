@@ -103,7 +103,7 @@
   "checkin.answer": "Answer →",
   "water.setTarget": "Set a daily target",
   "water.targetTitle": "Your daily water target",
-  "water.targetWhy": "Your water shows against it on Home, and Home tells you when you have been well behind it for a few days.",
+  "water.targetWhy": "Your water shows against it on Home.",
   "water.less": "Less water",
   "water.more": "More water",
   "water.targetFailed": "Could not save your target — try again",

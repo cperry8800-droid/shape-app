@@ -111,21 +111,40 @@ test('the momentum migration is one re-runnable transaction with a guard, and re
 
 // ── The sleep lead (owner, 2026-10-19) ───────────────────────────────────────────
 
-test('Home and the splash lead with sleep only on the engine\'s sleep_low flag, never its softer read', () => {
+test('sleep leads on a real shortfall only, and Home, the splash and the push keep one rule (review on this PR)', async () => {
+  const { buildDirective } = createRequire(import.meta.url)('../public/newdesign/dashSignals.js');
+  const { clientCandidates } = await import('../src/lib/ai/notifications.mjs');
   const flag = { lever: 'sleep', action: { label: "Log last night's sleep" }, verdict: 'Sleep is the lever', reason: 'Averaging 5.5h sleep vs a 7.5h target — recovery is running down', cited: ['sleep_low'] };
-  const soft = { ...flag, reason: 'Sleep is stalling recovery; log last night to confirm.', cited: ['recovery.sleepHours'] };
+  const mild = { ...flag, reason: "Deficit's fine — sleep is stalling recovery; tonight, lights out by 11.", cited: ['recovery.sleepHours', 'nutrition'] };
   const coach = { ...flag, cited: ['coach override'] };
   assert.equal(bsSleepLeadOk(flag), true);
-  assert.equal(bsSleepLeadOk(soft), false, 'the read that fires every morning before the night is in led');
-  assert.equal(bsSleepLeadOk(coach), false, "a coach's (or the preview's demo) sleep lever led");
+  assert.equal(bsSleepLeadOk(mild), false, 'the milder 6-7h read led');
+  assert.equal(bsSleepLeadOk(coach), true, "a coach's sleep move did not lead");
+  assert.equal(bsSleepLeadOk({ ...flag, lever: 'energy' }), false);
   assert.equal(bsSleepLeadOk(null), false);
   assert.deepEqual(bsWireDirective(flag), { head: BS_LEVER_HEADS.sleep, reason: flag.reason });
   assert.equal(BS_LEVER_HEADS.sleep, 'Get to bed earlier tonight.');
-  assert.equal(bsWireDirective(soft), null);
-  assert.equal(bsWireDirective(coach), null);
-  // Home reads the same gate, and its button opens the morning check-in (its summary says the week).
+  assert.equal(bsWireDirective(mild), null);
+  // The push says what Home says, for every one of them.
+  const pushed = (dir) => clientCandidates({ directive: { ...dir, line: 'x' }, flags: [], now: new Date(Date.UTC(2026, 9, 19, 8)) }).some((c) => c.type === 'directive');
+  for (const dir of [flag, mild, coach]) assert.equal(pushed(dir), bsSleepLeadOk(dir), `the push and Home disagree on ${dir.cited.join(',')}`);
+  assert.equal(pushed({ ...mild, lever: 'training', cited: ['streak'] }), true, 'the sleep rule silenced another move');
+  // The engine's milder read is a real 6-7h average: it is what the push used to send alone.
+  const engine = (avg7) => buildDirective({ recovery: { sleepHours: { avg7, lastNight: avg7, n: 5, target: 7.5 } } }, new Date(Date.UTC(2026, 9, 19, 8)), 'client');
+  const milder = engine(6.6);
+  assert.equal(milder.lever, 'sleep');
+  assert.deepEqual(milder.cited, ['recovery.sleepHours'], "the engine's milder read changed shape");
+  assert.equal(bsSleepLeadOk(milder), false);
+  assert.equal(pushed(milder), false, "the engine's milder 6-7h read was pushed while Home hides it");
+  const short = engine(5.5);
+  assert.equal(short.lever, 'sleep');
+  assert.ok(short.cited.includes('sleep_low'));
+  assert.equal(bsSleepLeadOk(short), true);
+  assert.equal(pushed(short), true);
+  // Home reads the same gate, signed in only (the preview seeds a demo coach move), and its button
+  // opens the morning check-in (its summary says the week).
   const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
-  assert.match(client, /sleep: bsSleepLeadOk\(engineFlag\) \? \{ head: tr\('home:lead\.sleep\.head', \{ defaultValue: BS_LEVER_HEADS\.sleep \}\), cta: \[tr\('home:lead\.sleep\.cta', \{ defaultValue: "I'll get to bed earlier →" \}\), \(\) => setCheckinOpenReq\(Date\.now\(\)\)\], c: t\.BLUE \} : null,/);
+  assert.match(client, /sleep: bsHomeSignedIn && bsSleepLeadOk\(engineFlag\) \? \{ head: tr\('home:lead\.sleep\.head', \{ defaultValue: BS_LEVER_HEADS\.sleep \}\), cta: \[tr\('home:lead\.sleep\.cta', \{ defaultValue: "I'll get to bed earlier →" \}\), \(\) => setCheckinOpenReq\(Date\.now\(\)\)\], c: t\.BLUE \} : null,/);
 });
 
 test('water is its own Home line, right under the morning card, whatever the Check-ins setting', () => {

@@ -65,7 +65,8 @@ usual night, or under 6h):
 - Short night, OK or better: "Short night, but you feel fine. Go by how the warm-up feels."
 - OK or better: "Ready for today's plan."
 
-**This week**, the engine's existing thresholds said in the member's words (first match):
+**This week**, the engine's existing thresholds said in the member's words, over the engine's own
+window (today and the six days before it; first match):
 - Sleep averaging under 6h on 3 or more nights: "Short on sleep this week: {avg} a night."
 - Energy averaging Low or Drained on 3 or more days: "Your energy has been mostly Low this week. A
   lighter session still counts."
@@ -74,6 +75,11 @@ usual night, or under 6h):
 
 **Who sees this:** "Your trainer and nutritionist see your 7-day averages", the coach roles the
 member has, or "Only you".
+
+**Sleep on Home:** "Get to bed earlier tonight." leads only on a real shortfall: the engine's
+sleep_low (a 7-day average under 6h over 3 or more nights) or a coach who set sleep as the move. The
+engine's milder read (a 6-7h average) is not a lead, and the push keeps the same rule, so Home and
+the push say the same move.
 
 ### 3.5 Where the member sees it over time: Your mornings (part 2)
 One page, opened from Home's done line ("Your mornings →"), the summary, the energy lead and
@@ -91,7 +97,9 @@ you sleep, not how long." Only the weekly readout's tested findings and plain co
 ### 3.7 Water
 Water leaves the check-in. It is a Home line all day, whatever the Check-ins setting: the day's
 amount and + Glass. Progress is shown only against a target the member set; otherwise the line
-offers "Set a target" (owner, 2026-10-19).
+offers "Set a daily target" (owner, 2026-10-19), a picker saved where Settings keeps it. The picker
+promises only the line: the engine's "Water is behind" lead also needs Check-ins on. The old "How are
+you." page shows water against the member's own target only, until part 2 retires it.
 
 ## 4. What must not change
 - `energy`, `hunger`, `sleep_hours` and `sleep_quality` on one `daily_health_snapshot` row per member
@@ -134,8 +142,9 @@ offers "Set a target" (owner, 2026-10-19).
 ## 7. Defects found while mapping it
 Fixed in part 1:
 - The daily reminder still said "Four quick checks" and was sent on a day already answered.
-- The engine picked sleep as the day's move and pushed it, but Home never showed a sleep lead.
-- Water showed progress against a 3 L default the member never set.
+- The engine picked sleep as the day's move and pushed it, but Home never showed a sleep lead. Home
+  and the push now keep one rule (§3.4).
+- Water showed progress against a 3 L default the member never set (the card and the old page).
 
 Still open:
 - Progress → Nutrition's "Hydration · 7 days" reads a field `/api/client/nutrition` never sends, so a

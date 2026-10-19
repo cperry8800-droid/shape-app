@@ -103,7 +103,7 @@
   "checkin.answer": "Trả lời →",
   "water.setTarget": "Đặt mục tiêu hằng ngày",
   "water.targetTitle": "Mục tiêu nước hằng ngày của bạn",
-  "water.targetWhy": "Lượng nước của bạn được so với mục tiêu này trên Trang chủ, và Trang chủ sẽ báo khi bạn thiếu nhiều trong vài ngày.",
+  "water.targetWhy": "Lượng nước của bạn được so với mục tiêu này trên Trang chủ.",
   "water.less": "Ít nước hơn",
   "water.more": "Nhiều nước hơn",
   "water.targetFailed": "Không lưu được mục tiêu — hãy thử lại",
