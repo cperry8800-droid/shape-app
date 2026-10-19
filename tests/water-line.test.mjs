@@ -327,7 +327,7 @@ test('the water read waits for a glass on its way, so a line mounted meanwhile s
     await m.flush();
     await m.flush();
     assert.match(m.text(), /25 oz of 101 oz/, 'the new line read the total from before the glass landed');
-  } finally { m.unmount(); }
+  } finally { land?.(); m.unmount(); }
 });
 
 // ── Apple Health's water (owner, 2026-10-18: added to the glasses logged here) ─
@@ -347,6 +347,9 @@ test("a watch sync on the morning card brings Apple Health's water to the line, 
 });
 
 test('a glass tapped while the water is read again after a sync is never dropped from the screen', async () => {
+  // The server holds the synced water (1.2 L) when the read goes out; the glass is tapped and saved
+  // while the read is out, and the read answers last with the total from before the glass.
+  let server = 1.7;
   let release;
   let gets = 0;
   env();
@@ -354,10 +357,11 @@ test('a glass tapped while the water is read again after a sync is never dropped
     get: async () => {
       gets += 1;
       if (gets === 1) return { ok: true, hydrationL: 0.5, targetL: 3, targetStoredL: 3 };
-      await new Promise((r) => { release = r; });
-      return { ok: true, hydrationL: 1.7, targetL: 3, targetStoredL: 3, deviceL: 1.2 };
+      const total = server;
+      if (gets === 2) await new Promise((r) => { release = r; });
+      return { ok: true, hydrationL: total, targetL: 3, targetStoredL: 3, deviceL: 1.2 };
     },
-    add: async (d) => ({ ok: true, hydrationL: Math.round((1.7 + d) * 1000) / 1000, targetL: 3, targetStoredL: 3 }),
+    add: async (d) => { server = Math.round((server + d) * 10000) / 10000; return { ok: true, hydrationL: server, targetL: 3, targetStoredL: 3 }; },
   };
   const m = await mount();
   try {
@@ -368,8 +372,11 @@ test('a glass tapped while the water is read again after a sync is never dropped
     await m.flush();
     assert.doesNotMatch(m.text(), /57 oz of/, "the read sent before the glass replaced the glass's total");
     assert.match(m.text(), /65 oz of/, "the glass's own total was not shown");
-    assert.match(m.text(), /Includes 41 oz from Apple Health/, "Apple Health's share from that read was dropped too");
-  } finally { m.unmount(); }
+    // The held-back read is sent again, and that one brings Apple Health's share.
+    assert.equal(gets, 3, 'the held-back read was not sent again');
+    assert.match(m.text(), /65 oz of/);
+    assert.match(m.text(), /Includes 41 oz from Apple Health/, "Apple Health's share never reached the line");
+  } finally { release?.(); m.unmount(); }
 });
 
 test('a first water read that answers after the read the sync sent never puts the older total back (Codex on #2405)', async () => {
@@ -417,7 +424,7 @@ test('a sync read waits for a glass still saving, so the glass never drops off t
     assert.equal(gets, 2);
     assert.match(m.text(), /25 oz of 101 oz/, 'the glass that landed dropped off the line');
     assert.match(m.text(), /Includes 7 oz from Apple Health/);
-  } finally { m.unmount(); }
+  } finally { land?.(); m.unmount(); }
 });
 
 test('a glass tapped while the sync read waits, and answering before it, stays on the line (review on this PR)', async () => {
@@ -453,14 +460,15 @@ test('a glass tapped while the sync read waits, and answering before it, stays o
     await React.act(async () => { readRelease(); await new Promise((r) => setTimeout(r, 0)); });
     await m.flush();
     assert.match(m.text(), /33 oz of 101 oz/, 'the read made before glass 2 landed dropped it from the line');
-    assert.match(m.text(), /Includes 7 oz from Apple Health/, "the read's Apple Health share was dropped");
+    assert.doesNotMatch(m.text(), /from Apple Health/, "a held-back read said Apple Health's share over a total that may not hold it");
     // No glass is out now, so the line reads again at once, and that read, with both glasses, stands.
     assert.equal(gets, 3, 'the held-back read was not sent again with no glass out (Codex P2 on #2407)');
     await React.act(async () => { readRelease(); await new Promise((r) => setTimeout(r, 0)); });
     await m.flush();
     assert.match(m.text(), /33 oz of 101 oz/);
+    assert.match(m.text(), /Includes 7 oz from Apple Health/, "the read that stands did not bring Apple Health's share");
     assert.equal(gets, 3, 'a read that stands read again');
-  } finally { m.unmount(); }
+  } finally { readRelease?.(); adds.forEach((f) => f()); m.unmount(); }
 });
 
 test('a glass the server saved before the sync, answering after the sync read, never hides the synced water (Codex P2 on #2407)', async () => {
@@ -484,6 +492,7 @@ test('a glass the server saved before the sync, answering after the sync read, n
     await m.flush();
     assert.equal(gets, 2, 'the sync read did not go out after its wait');
     assert.match(m.text(), /25 oz of 101 oz/, 'the read made with the glass still out replaced the total');
+    assert.doesNotMatch(m.text(), /from Apple Health/, "Apple Health's share was said over a total that does not hold it (review on this PR)");
     // While the glass is still out, the line does not keep reading.
     await React.act(async () => { await new Promise((r) => setTimeout(r, 3100)); });
     assert.equal(gets, 2, 'the held-back read went out again with the glass still out');
@@ -498,7 +507,7 @@ test('a glass the server saved before the sync, answering after the sync read, n
     await React.act(async () => { answer(); await new Promise((r) => setTimeout(r, 0)); });
     await m.flush();
     assert.equal(gets, 3, 'a glass with no sync held back read the water again');
-  } finally { m.unmount(); }
+  } finally { answer?.(); m.unmount(); }   // a held glass left pending would hold the shared queue for later tests
 });
 
 test('a glass that fails after the sync read was held back for it still reads the water again', async () => {
@@ -524,7 +533,7 @@ test('a glass that fails after the sync read was held back for it still reads th
     assert.equal(gets, 3, 'a failed glass left the held-back read unsent');
     assert.match(m.text(), /57 oz of 101 oz/, 'the synced water never reached the line');
     assert.match(m.text(), /Could not log water/);
-  } finally { m.unmount(); }
+  } finally { fail?.(); m.unmount(); }
 });
 
 test('a glass tapped while the sync read is out, then failing, leaves the synced total (mutation round on #2407)', async () => {
@@ -560,7 +569,7 @@ test('a glass tapped while the sync read is out, then failing, leaves the synced
     assert.equal(gets, 3, 'the line did not read again once the glass failed');
     assert.match(m.text(), /57 oz of 101 oz/, 'the failed glass was taken back from a total that never held it');
     assert.match(m.text(), /Could not log water/);
-  } finally { m.unmount(); }
+  } finally { readRelease?.(); fail?.(); m.unmount(); }
 });
 
 test('a sync read that fails leaves the first read standing, and + Glass works (review on this PR)', async () => {

@@ -25,9 +25,10 @@ import { bsCiEnqueue, bsCiSettled, bsCiIso, BS_CI_HYDRATION_SYNCED } from './BSC
 // disabled behind it (review on this PR).
 // ⚠ A READ AFTER A SYNC TAKES ITS TOTAL ONLY WHEN NO GLASS MOVED AROUND IT. A glass still saving when
 // the read goes out may or may not be in the total the server reads; one tapped or answering while
-// the read is out may have landed after it. Then the read gives only Apple Health's share, and the
-// line reads again once no glass is on its way: a glass the server saved before the sync answers
-// with a total from before it (Codex P2 on #2407). It waits for glasses already on their way first,
+// the read is out may have landed after it. Then the read changes nothing, and the line reads again
+// once no glass is on its way: a glass the server saved before the sync answers with a total from
+// before it (Codex P2 on #2407). Apple Health's share waits for that read too, because the screen's
+// total may not hold it yet (review on this PR). It waits for glasses already on their way first,
 // so that is the rare case (review on this PR, twice).
 //
 // ⚠ WINDOW GLOBALS ARE READ AT CALL TIME, NEVER AT MODULE TOP (see BSLeaderboard.jsx).
@@ -130,13 +131,10 @@ function BSWaterDay({ dayIso }) {
         if (!alive.current || !d || !d.ok) return;
         if (seq < shownSeq.current) return;
         shownSeq.current = seq;
-        const deviceL = Number(d.deviceL) > 0 ? Number(d.deviceL) : null;
-        // A glass tapped after this read went out answers with its own total, which this read
-        // would replace with an older one once that glass is no longer on its way.
         // A glass that was out when the read left, or was tapped or answered while it was out, may be
-        // missing from its total: keep the screen's total and take only Apple Health's share.
+        // missing from its total: keep the screen as it is (its total may not hold Apple Health's
+        // share yet either) and read again once no glass is on its way.
         if (outAtSend > 0 || taps.current !== tapsAtSend || landed.current !== landedAtSend) {
-          setWater((w) => ({ ...(w || BS_WATER_UNKNOWN), deviceL }));
           if (inFlight.current > 0) resync.current = true; else onSync();
           return;
         }
