@@ -114,8 +114,10 @@ test('a busy hour reads the mornings 200 members at a time, and a failed read se
 });
 
 // The owner, 2026-10-19 ("yes fix"): energy saved alone, as the old "How are you." page can, is not a
-// finished morning. The night has to be in too: hours, a Rested answer, or a skip the card saved.
-test('a morning is answered once its energy and its night are in: hours, Rested or a skip', async () => {
+// finished morning. The night has to be in too, by the card's own rule (bsCiStep): hours, typed or a
+// watch's, or a skip the card saved. Rested alone leaves the night open there, so here too, and a
+// watch's 0h night is a night there, so here too (review on #2408).
+test('a morning is answered once its energy and its night are in, as the card asks: hours or a skip', async () => {
   const cases = {
     'energy-only': { energy: 6 },
     'zero-hours': { energy: 6, sleep_hours: 0 },
@@ -127,12 +129,29 @@ test('a morning is answered once its energy and its night are in: hours, Rested 
   };
   const users = Object.keys(cases);
   const { sent, fired, reads } = await runReminders(users.map((u) => reminder(`r-${u}`, u)), cases);
-  assert.deepEqual(sent.map((n) => n.data.reminderId).sort(), ['r-energy-only', 'r-skip-false', 'r-skipped-no-energy', 'r-zero-hours'],
-    'energy alone answered the morning, or a night answered, measured or skipped did not');
+  assert.deepEqual(sent.map((n) => n.data.reminderId).sort(), ['r-energy-only', 'r-rested', 'r-skip-false', 'r-skipped-no-energy'],
+    "energy alone or with Rested answered the morning, or a night with hours (a watch's 0h too) or a skip did not");
   assert.equal(fired.length, users.length);
   const snap = reads.filter((r) => r.table === 'daily_health_snapshot');
   assert.equal(snap.length, 1);
-  assert.deepEqual(snap[0].cols.split(',').map((c) => c.trim()).sort(), ['sleep_hours', 'sleep_quality', 'sleep_skipped', 'user_id']);
+  assert.deepEqual(snap[0].cols.split(',').map((c) => c.trim()).sort(), ['sleep_hours', 'sleep_skipped', 'user_id']);
+});
+
+test("the reminder's rule is the card's: each of these mornings is open or done on both sides alike", async () => {
+  const req = createRequire(import.meta.url);
+  const CARD = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/BSCheckinCard.jsx'), { registry: new Map([['react', req('react')], ['react-dom', req('react-dom')]]) });
+  const step = CARD.bsCiStep;
+  assert.equal(typeof step, 'function');
+  const rows = {
+    a: { energy: 6 }, b: { energy: 6, sleep_quality: 8 }, c: { energy: 6, sleep_hours: 0 },
+    d: { energy: 6, sleep_hours: 7 }, e: { energy: 6, sleep_skipped: true }, f: { sleep_hours: 7 },
+  };
+  const { sent } = await runReminders(Object.keys(rows).map((u) => reminder(`r-${u}`, u)), rows);
+  for (const [u, r] of Object.entries(rows)) {
+    const reminded = sent.some((n) => n.data.reminderId === `r-${u}`);
+    const card = step({ energy: r.energy ?? null, sleep: r.sleep_hours ?? null, rested: r.sleep_quality ?? null }, r.sleep_skipped === true);
+    assert.equal(reminded, card !== 'done', `row ${u}: the card reads it ${card}, and the reminder ${reminded ? 'went' : 'held'}`);
+  }
 });
 
 test('before the sleep_skipped migration runs, the reminder keeps the energy-only rule', async () => {
@@ -144,7 +163,7 @@ test('before the sleep_skipped migration runs, the reminder keeps the energy-onl
   assert.deepEqual(sent.map((n) => n.data.reminderId), ['r2', 'r3'],
     'a missing column sent every reminder, or held back one still open or unreadable');
   const today = reads.filter((r) => r.table === 'daily_health_snapshot' && r.snapshot_date === '2026-10-19');
-  assert.deepEqual(today.map((r) => r.cols), ['user_id, sleep_hours, sleep_quality, sleep_skipped', 'user_id'], 'the read was not made again without the column');
+  assert.deepEqual(today.map((r) => r.cols), ['user_id, sleep_hours, sleep_skipped', 'user_id'], 'the read was not made again without the column');
   // PostgREST can name the missing column its own way.
   for (const missingError of [{ code: 'PGRST204', message: 'Could not find the column' }, { code: 'XX000', message: 'column "sleep_skipped" does not exist' }]) {
     const again = await runReminders([reminder('r1', 'energy-only')], { 'energy-only': { energy: 6 } }, { noSkipColumn: true, missingError });

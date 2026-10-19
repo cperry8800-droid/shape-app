@@ -149,8 +149,8 @@ Fixed in part 1:
 Fixed after part 1 (owner, 2026-10-19: "yes fix"):
 - The reminder read energy saved alone, as the old page can, as a finished morning. Skip now saves
   `sleep_skipped` on the day's row, and a morning is answered once its energy is in and its night
-  is answered, measured or skipped. The Score page's Consistency counts a check-in day, as momentum
-  does.
+  has hours (typed or a watch's) or a skip: the card's own rule, so Rested alone leaves it open on
+  both. The Score page's Consistency counts a check-in day, as momentum does.
 
 Still open:
 - Progress → Nutrition's "Hydration · 7 days" reads a field `/api/client/nutrition` never sends, so a
