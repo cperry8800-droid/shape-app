@@ -42,7 +42,15 @@ type SnapRow = {
   calories: number | null;     // calories BURNED (a device's active energy)
   sleep_hours: number | null;
   workout_minutes: number | null;
+  energy: number | null;        // the Morning check-in's answers
+  sleep_quality: number | null; // (Rested)
+  [column: string]: unknown;    // the rest of the row: it is read whole (holdsData)
 };
+
+// The columns that say a row exists, not what the member did. A row holding only these, and a skip
+// of the night (sleep_skipped), is no data.
+const ROW_KEYS = new Set(['id', 'user_id', 'snapshot_date', 'created_at', 'updated_at', 'sources', 'sleep_skipped']);
+const holdsData = (r: SnapRow) => Object.entries(r).some(([k, v]) => !ROW_KEYS.has(k) && v != null);
 
 // The four composite pillars (0–100) — derived from the user's OWN
 // daily_health_snapshot over the trailing window. Each returns null (rendered as
@@ -50,14 +58,20 @@ type SnapRow = {
 //   Recovery    = 7-day average sleep, normalized (8h+ = 100).
 //   Nutrition   = meal-logging adherence over 14 days (days with calories eaten).
 //   Train       = training days over 14 days (target ~8 sessions / 2 weeks).
-//   Consistency = any-activity days over 14 days (showing up at all).
+//   Consistency = any-activity days over 14 days (showing up at all), a Morning check-in
+//                 (energy or Rested) included, as momentum counts it (owner, 2026-10-19).
 function computeComposite(rows: SnapRow[], now: Date) {
   const isoDay = (d: Date) => d.toISOString().slice(0, 10);
   const cut = (days: number) => { const d = new Date(now); d.setUTCDate(d.getUTCDate() - days); return isoDay(d); };
   const d7 = cut(7), d14 = cut(14);
   const last14 = rows.filter(r => r.snapshot_date >= d14);
   const last7 = rows.filter(r => r.snapshot_date >= d7);
-  const basis14 = last14.length;
+  // ⚠ A ROW MADE ONLY BY A SKIP IS NOT DATA (Codex P2 on #2408). The Morning check-in's Skip saves
+  // sleep_skipped on the day's row, and makes the row when the member leaves before energy; counted,
+  // three of them would turn Train's and Consistency's honest '—' into 0. Nor is a row emptied back
+  // to its keys (a meal log undone on a day that had no row). Any other content makes a row count,
+  // zeros included, as before (review on #2408).
+  const basis14 = last14.filter(holdsData).length;
   const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
   const num = (v: number | null) => (typeof v === 'number' && v > 0 ? v : 0);
 
@@ -70,7 +84,8 @@ function computeComposite(rows: SnapRow[], now: Date) {
   const trained = last14.filter(r => num(r.workout_minutes) > 0).length;
   const train = basis14 < 3 ? null : clamp((trained / 8) * 100);
 
-  const active = last14.filter(r => num(r.dietary_kcal) > 0 || num(r.calories) > 0 || num(r.workout_minutes) > 0 || num(r.sleep_hours) > 0).length;
+  const active = last14.filter(r => num(r.dietary_kcal) > 0 || num(r.calories) > 0 || num(r.workout_minutes) > 0 || num(r.sleep_hours) > 0
+    || r.energy != null || r.sleep_quality != null).length;
   const consistency = basis14 < 3 ? null : clamp((active / 14) * 100);
 
   return { train, nutrition, recovery, consistency };
@@ -126,7 +141,7 @@ export async function GET(request: Request) {
   since30.setUTCDate(since30.getUTCDate() - 30);
   const { data: snaps } = await supabase
     .from('daily_health_snapshot')
-    .select('snapshot_date, dietary_kcal, calories, sleep_hours, workout_minutes')
+    .select('*')
     .eq('user_id', user.id)
     .gte('snapshot_date', since30.toISOString().slice(0, 10));
   const composite = computeComposite((snaps || []) as SnapRow[], now);

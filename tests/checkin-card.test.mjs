@@ -425,7 +425,7 @@ test('a member who does not track sleep can skip the night, for the rest of the 
     await m.click(/^Continue/);
     assert.match(m.text(), /Step 1 of 2 · Last night/, 'Continue did not open the first open question');
     await m.click(/^Skip$/);
-    assert.deepEqual(calls.log, [], 'skipping wrote a night');
+    assert.deepEqual(calls.log, [{ sleepSkipped: true }], 'skipping wrote a night, or did not save that the night was skipped');
     assert.match(m.text(), /Step 2 of 2 · This morning/);
     await m.click(/^Finish/);
     assert.match(m.text(), /You're checked in ✓/);
@@ -448,6 +448,36 @@ test('a member who does not track sleep can skip the night, for the rest of the 
   } finally { mock.timers.setTime(at(12)); dom.window.localStorage.clear(); }
 });
 
+// The reminder reads a skipped night from the server (owner, 2026-10-19: "yes fix"), so Skip saves it
+// there too. Signed out nothing is saved, and a save that fails keeps the skip on this device and
+// says nothing: the night stays skipped here, and the reminder at worst comes once more.
+test('Skip saves the skipped night for the reminder; signed out it saves nothing, and a failed save keeps the skip', async () => {
+  dom.window.localStorage.clear();
+  let calls = env({ uid: null });
+  let m = await mount();
+  try {
+    await m.click(/Start check-in/);
+    await m.click(/^Skip$/);
+    assert.deepEqual(calls.log, [], 'the signed-out preview saved a skip');
+    assert.match(m.text(), /Step 2 of 2 · This morning/);
+  } finally { m.unmount(); dom.window.localStorage.clear(); }
+
+  calls = env({ log: async (p) => { if (p.sleepSkipped) throw new Error('500'); return { ok: true }; } });
+  m = await mount();
+  try {
+    await m.click(/Start check-in/);
+    await m.click(/^Skip$/);
+    await m.flush();
+    assert.deepEqual(calls.log, [{ sleepSkipped: true }]);
+    assert.match(m.text(), /Step 2 of 2 · This morning/, 'a failed skip save held the member on the night');
+    assert.doesNotMatch(m.text(), /Could not save/, 'a failed skip save was reported as a lost answer');
+    await m.click(/^Good$/);
+    assert.deepEqual(calls.log[1], { energy: 8 }, 'a failed skip save stopped the next answer');
+    await m.click(/^Done$/);
+    assert.match(m.text(), /Checked in ✓/, 'a failed skip save undid the skip on this device');
+  } finally { m.unmount(); dom.window.localStorage.clear(); }
+});
+
 test('a skipped night stays skipped: Start opens energy, and Edit then Next writes nothing (review on this PR)', async () => {
   dom.window.localStorage.clear();
   const calls = env();
@@ -461,19 +491,19 @@ test('a skipped night stays skipped: Start opens energy, and Edit then Next writ
     assert.match(m.text(), /Step 2 of 2 · This morning/, 'Start opened the night the member skipped');
     await m.click(/^Good$/);
     await m.click(/^Done$/);
-    assert.deepEqual(calls.log, [{ energy: 8 }]);
+    assert.deepEqual(calls.log, [{ sleepSkipped: true }, { energy: 8 }]);
     await m.click(/^Edit$/);
     assert.match(m.text(), /Step 1 of 2 · Last night/);
     assert.match(m.text(), /Skipped/, 'the skipped night reads as the usual one');
     await m.click(/^Next/);
-    assert.deepEqual(calls.log, [{ energy: 8 }], "walking past a skipped night saved the usual night as the member's own hours");
+    assert.deepEqual(calls.log, [{ sleepSkipped: true }, { energy: 8 }], "walking past a skipped night saved the usual night as the member's own hours");
     await m.click(/^Finish/);
     assert.match(m.text(), /SleepSkipped/);
     // Touching the stepper is an answer, and is saved.
     await m.click(row('Sleep'));
     await m.click(/Thirty minutes less/);
     await m.click(/^Next/);
-    assert.deepEqual(calls.log[1], { sleepHours: 7 });
+    assert.deepEqual(calls.log[2], { sleepHours: 7 });
   } finally { m.unmount(); dom.window.localStorage.clear(); }
 });
 
@@ -488,7 +518,7 @@ test('Same as yesterday after a skip copies the morning only, never the skipped 
     assert.match(m.text(), /Same as yesterday ✓Good/);
     assert.doesNotMatch(m.text(), /6h 30|Fresh/, 'the card offers to fill the skipped night');
     await m.click(/Same as yesterday/);
-    assert.deepEqual(calls.log, [{ energy: 7 }], "Same as yesterday typed over the night the member skipped");
+    assert.deepEqual(calls.log, [{ sleepSkipped: true }, { energy: 7 }], "Same as yesterday typed over the night the member skipped");
     assert.match(m.text(), /Checked in ✓/);
   } finally { m.unmount(); dom.window.localStorage.clear(); }
 });
@@ -1210,7 +1240,7 @@ test('a card mounted while a save is on its way reads after it, so Same as yeste
     assert.match(m.text(), /Checked in ✓/, 'the new card did not read the answer that landed');
     assert.match(m.text(), /Energy Low/);
   } finally { m.unmount(); land(); dom.window.localStorage.clear(); }
-  assert.deepEqual(calls.log, [{ energy: 4 }]);
+  assert.deepEqual(calls.log, [{ sleepSkipped: true }, { energy: 4 }]);
 });
 
 test('a save the network holds keeps the next card waiting 3 seconds at most', async () => {

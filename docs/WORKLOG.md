@@ -251,8 +251,8 @@ planned builds.
   water leads, and Check-ins off) still asks every member hunger on a 1-10 gauge and saves on Log
   today. A failed read of a stored water target reads as none, so the water line offers "Set a daily
   target". With Check-ins off the engine reads no water, so a target never brings "Water is behind".
-  The reminder counts a morning answered once its energy is in (a skipped night is kept only on the
-  device), so energy saved alone on the old page skips that day's reminder (owner's call).
+  A night skipped on one device is still asked on another: the card reads its skip from the device,
+  and only the reminder reads the one saved on the day's row (`sleep_skipped`).
 - Android back leaves the native app from any sheet (no `@capacitor/app`); in the hosted
   `/m/`, sheets add no history entry.
 

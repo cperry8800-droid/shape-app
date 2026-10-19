@@ -119,7 +119,8 @@ export function bsCiStep(today, sleepSkipped) {
   return 'done';
 }
 
-// Skipping the night is remembered on this device for the rest of the local day.
+// Skipping the night is remembered on this device for the rest of the local day, and saved on the
+// day's row (sleep_skipped) for the Morning check-in reminder (skipNight below).
 function bsCiSkipKey(uid) { return `shape.checkin.sleepSkip.${uid || 'preview'}`; }
 function bsCiReadSkip(uid, iso) { try { return window.localStorage.getItem(bsCiSkipKey(uid)) === iso; } catch (e) { return false; } }
 function bsCiWriteSkip(uid, iso) { try { window.localStorage.setItem(bsCiSkipKey(uid), iso); } catch (e) { /* the skip still holds until the app closes */ } }
@@ -541,6 +542,17 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
     setWalk((i) => (typeof i === 'number' ? Math.min(BS_CI_SUMMARY, i + 1) : i));
   };
   const back = () => { setSleepH(null); setRestedPick(null); setFromSummary(false); setWalk((i) => (typeof i === 'number' ? Math.max(0, i - 1) : i)); };
+  // ⚠ A SKIPPED NIGHT IS TOLD TO THE SERVER (owner, 2026-10-19: "yes fix"). The reminder counts a
+  // morning answered once its energy is in and its night is answered, measured or skipped; a skip
+  // kept only on this device read as an open night, so it could not hold a finished morning apart
+  // from energy saved alone on the old page. A save that fails keeps the skip here: the reminder
+  // then reads the night as open, a reminder too many at worst.
+  const skipNight = () => {
+    bsCiWriteSkip(uid, todayIso);
+    setSkippedDay(todayIso);
+    if (signedIn && window.ShapeCheckin?.log) bsCiSave({ sleepSkipped: true }, uid).catch(() => {});
+    next();
+  };
   const answered = { sleep: today.sleep != null || sleepSkipped, energy: today.energy != null };
   const manual = bsCiAnswered(today);
   // Start opens the night, even one a watch filled in: it is where its hours and How did you wake
@@ -822,7 +834,7 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
     if (kind === 'sleep') {
       return (
         <>
-          {wornNight ? null : <button type="button" onClick={() => { bsCiWriteSkip(uid, todayIso); setSkippedDay(todayIso); next(); }} style={btnGhost}>{tr('home:checkin.skip', { defaultValue: 'Skip' })}</button>}
+          {wornNight ? null : <button type="button" onClick={skipNight} style={btnGhost}>{tr('home:checkin.skip', { defaultValue: 'Skip' })}</button>}
           <button type="button" onClick={() => {
             // A wearable's hours are never re-typed; its Rested is saved on its own when picked. A night
             // walked through again unchanged (Edit, then Next) writes nothing.

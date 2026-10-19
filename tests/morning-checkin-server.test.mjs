@@ -20,9 +20,11 @@ const nextServer = createRequire(join(ROOT, 'package.json'))('next/server');
 // ── The reminder ───────────────────────────────────────────────────────────────
 
 // One hourly run at 08:00 UTC over `rows`, with `snapshots` as the day's daily_health_snapshot rows
-// by member (an Error fails any read that asks for that member). Returns what was sent, which
-// reminders were marked done, and the snapshot reads with the members each one asked for.
-async function runReminders(rows, snapshots = {}) {
+// by member (an Error fails any read that asks for that member). `noSkipColumn` is the database
+// before 2026-10-19-sleep-skipped.sql: a read that names sleep_skipped fails with 42703. Returns what
+// was sent, which reminders were marked done, and the snapshot reads with the members and columns
+// each one asked for.
+async function runReminders(rows, snapshots = {}, { noSkipColumn = false, missingError = { code: '42703', message: 'column daily_health_snapshot.sleep_skipped does not exist' } } = {}) {
   const sent = [];
   const fired = [];
   const reads = [];
@@ -31,7 +33,8 @@ async function runReminders(rows, snapshots = {}) {
       const q = {
         _eq: {},
         _in: null,
-        select() { return q; },
+        _cols: '*',
+        select(cols) { q._cols = cols || '*'; return q; },
         eq(k, v) { q._eq[k] = v; return q; },
         _not: [],
         in(k, v) { q._eq[k] = 'in'; q._in = v; return q; },
@@ -39,11 +42,14 @@ async function runReminders(rows, snapshots = {}) {
         limit: async () => ({ data: rows, error: null }),
         // An awaited snapshot read: the asked members' rows that day, kept by each `.not(col, 'is', null)`.
         then(resolve, reject) {
-          reads.push({ table, ids: q._in, ...q._eq, not: q._not.flat() });
+          reads.push({ table, ids: q._in, ...q._eq, not: q._not.flat(), cols: q._cols });
           const ids = q._in || [];
+          const cols = q._cols.split(',').map((c) => c.trim());
+          if (noSkipColumn && cols.includes('sleep_skipped')) return Promise.resolve({ data: null, error: missingError }).then(resolve, reject);
           if (ids.some((id) => snapshots[id] instanceof Error)) return Promise.resolve({ data: null, error: { message: 'down' } }).then(resolve, reject);
           const found = ids.filter((id) => snapshots[id]).map((id) => ({ user_id: id, ...snapshots[id] }))
-            .filter((row) => q._not.every(([k, op, v]) => op === 'is' && v === null && row[k] != null));
+            .filter((row) => q._not.every(([k, op, v]) => op === 'is' && v === null && row[k] != null))
+            .map((row) => (cols.includes('*') ? row : Object.fromEntries(cols.map((c) => [c, row[c] ?? null]))));
           return Promise.resolve({ data: found, error: null }).then(resolve, reject);
         },
         update(patch) { return { eq: async (_k, id) => { fired.push({ id, ...patch }); return { error: null }; } }; },
@@ -96,7 +102,7 @@ test('a morning already answered is not reminded, and the reminder is done for t
 
 test('a busy hour reads the mornings 200 members at a time, and a failed read sends only its own (Codex P2 on #2407)', async () => {
   const ids = Array.from({ length: 450 }, (_, i) => `m${i}`);
-  const snapshots = { m3: { energy: 6 }, m250: { energy: 4 }, m449: { energy: 10 }, m420: new Error('down'), m421: { energy: 6 } };
+  const snapshots = { m3: { energy: 6, sleep_hours: 7 }, m250: { energy: 4, sleep_skipped: true }, m449: { energy: 10, sleep_quality: 8 }, m420: new Error('down'), m421: { energy: 6, sleep_hours: 6 } };
   const { sent, fired, reads } = await runReminders([...ids.map((u, i) => reminder(`r${i}`, u)), reminder('dup', 'm3')], snapshots);
   const snap = reads.filter((r) => r.table === 'daily_health_snapshot');
   assert.deepEqual(snap.map((r) => r.ids.length), [200, 200, 50], 'the mornings were read one member at a time, or in reads too large');
@@ -105,6 +111,142 @@ test('a busy hour reads the mornings 200 members at a time, and a failed read se
   assert.deepEqual(notSent, ['m3', 'm250'], 'an answered morning was reminded, or the failed read held back its members');
   assert.equal(sent.some((n) => n.data.reminderId === 'dup'), false, "a member's second morning reminder ignored the answer");
   assert.equal(fired.length, 451);
+});
+
+// The owner, 2026-10-19 ("yes fix"): energy saved alone, as the old "How are you." page can, is not a
+// finished morning. The night has to be in too, by the card's own rule (bsCiStep): hours, typed or a
+// watch's, or a skip the card saved. Rested alone leaves the night open there, so here too, and a
+// watch's 0h night is a night there, so here too (review on #2408).
+test('a morning is answered once its energy and its night are in, as the card asks: hours or a skip', async () => {
+  const cases = {
+    'energy-only': { energy: 6 },
+    'zero-hours': { energy: 6, sleep_hours: 0 },
+    'typed-or-watch': { energy: 6, sleep_hours: 7.5 },
+    'rested': { energy: 6, sleep_quality: 4 },
+    'skipped': { energy: 6, sleep_skipped: true },
+    'skipped-no-energy': { sleep_skipped: true },
+    'skip-false': { energy: 6, sleep_skipped: false },
+  };
+  const users = Object.keys(cases);
+  const { sent, fired, reads } = await runReminders(users.map((u) => reminder(`r-${u}`, u)), cases);
+  assert.deepEqual(sent.map((n) => n.data.reminderId).sort(), ['r-energy-only', 'r-rested', 'r-skip-false', 'r-skipped-no-energy'],
+    "energy alone or with Rested answered the morning, or a night with hours (a watch's 0h too) or a skip did not");
+  assert.equal(fired.length, users.length);
+  const snap = reads.filter((r) => r.table === 'daily_health_snapshot');
+  assert.equal(snap.length, 1);
+  assert.deepEqual(snap[0].cols.split(',').map((c) => c.trim()).sort(), ['sleep_hours', 'sleep_skipped', 'user_id']);
+});
+
+test("the reminder's rule is the card's: each of these mornings is open or done on both sides alike", async () => {
+  const req = createRequire(import.meta.url);
+  const CARD = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/BSCheckinCard.jsx'), { registry: new Map([['react', req('react')], ['react-dom', req('react-dom')]]) });
+  const step = CARD.bsCiStep;
+  assert.equal(typeof step, 'function');
+  const rows = {
+    a: { energy: 6 }, b: { energy: 6, sleep_quality: 8 }, c: { energy: 6, sleep_hours: 0 },
+    d: { energy: 6, sleep_hours: 7 }, e: { energy: 6, sleep_skipped: true }, f: { sleep_hours: 7 },
+  };
+  const { sent } = await runReminders(Object.keys(rows).map((u) => reminder(`r-${u}`, u)), rows);
+  for (const [u, r] of Object.entries(rows)) {
+    const reminded = sent.some((n) => n.data.reminderId === `r-${u}`);
+    const card = step({ energy: r.energy ?? null, sleep: r.sleep_hours ?? null, rested: r.sleep_quality ?? null }, r.sleep_skipped === true);
+    assert.equal(reminded, card !== 'done', `row ${u}: the card reads it ${card}, and the reminder ${reminded ? 'went' : 'held'}`);
+  }
+});
+
+test('before the sleep_skipped migration runs, the reminder keeps the energy-only rule', async () => {
+  const { sent, reads } = await runReminders(
+    [reminder('r1', 'energy-only'), reminder('r2', 'open'), reminder('r3', 'down', 'daily_checkin', 'Pacific/Pago_Pago', '21:00')],
+    { 'energy-only': { energy: 6 }, open: { energy: null }, down: new Error('down') },
+    { noSkipColumn: true },
+  );
+  assert.deepEqual(sent.map((n) => n.data.reminderId), ['r2', 'r3'],
+    'a missing column sent every reminder, or held back one still open or unreadable');
+  const today = reads.filter((r) => r.table === 'daily_health_snapshot' && r.snapshot_date === '2026-10-19');
+  assert.deepEqual(today.map((r) => r.cols), ['user_id, sleep_hours, sleep_skipped', 'user_id'], 'the read was not made again without the column');
+  // PostgREST can name the missing column its own way.
+  for (const missingError of [{ code: 'PGRST204', message: 'Could not find the column' }, { code: 'XX000', message: 'column "sleep_skipped" does not exist' }]) {
+    const again = await runReminders([reminder('r1', 'energy-only')], { 'energy-only': { energy: 6 } }, { noSkipColumn: true, missingError });
+    assert.deepEqual(again.sent, [], `a missing column reported as ${missingError.code} sent the reminder`);
+  }
+  // Any other failure is a failed read, not a missing column: its members are reminded.
+  const other = await runReminders([reminder('r1', 'energy-only')], { 'energy-only': { energy: 6 } }, { noSkipColumn: true, missingError: { code: '57014', message: 'canceling statement due to statement timeout' } });
+  assert.deepEqual(other.sent.map((n) => n.data.reminderId), ['r1'], 'a failed read was taken for a missing column');
+});
+
+test('the sleep_skipped migration is one re-runnable transaction with a guard, and restates no grants', () => {
+  const sql = read('supabase-migrations/2026-10-19-sleep-skipped.sql');
+  assert.match(sql, /^begin;$/m);
+  assert.match(sql, /^commit;$/m);
+  assert.match(sql, /add column if not exists sleep_skipped boolean;/);
+  assert.doesNotMatch(sql, /sleep_skipped boolean (not null|default)/i, 'a skip is null until the member skips: nothing reads false');
+  assert.match(sql, /do \$guard\$/);
+  assert.match(sql, /has_column_privilege\('authenticated', 'public\.daily_health_snapshot', 'sleep_skipped', 'UPDATE'\)/);
+  assert.doesNotMatch(sql, /^\s*(grant|revoke)\b/im);
+});
+
+// ── The Score page's Consistency pillar (owner, 2026-10-19) ─────────────────────
+
+// The real score route over `snaps` (this member's daily_health_snapshot rows), on 2026-10-19.
+async function scoreComposite(snaps) {
+  const reads = [];
+  const q = (table) => {
+    const b = {
+      _cols: null,
+      select(c) { b._cols = c; return b; },
+      eq() { return b; }, gte() { return b; }, order() { return b; },
+      limit: async () => ({ data: [], error: null }),
+      then(ok, ko) { reads.push({ table, cols: b._cols }); return Promise.resolve({ data: table === 'daily_health_snapshot' ? snaps : [], error: null }).then(ok, ko); },
+    };
+    return b;
+  };
+  const supabase = { auth: { getUser: async () => ({ data: { user: { id: 'member-1' } } }) }, from: q, rpc: async () => ({ data: 0, error: null }) };
+  const mod = await loadRealModule(join(ROOT, 'src/app/api/client/score/route.ts'), {
+    typescript: true,
+    registry: new Map([
+      ['next/server', nextServer],
+      ['@/lib/request-utils', { dbError: () => nextServer.NextResponse.json({ error: 'db' }, { status: 500 }) }],
+      ['@/lib/supabase/server', { createClient: async () => supabase }],
+      ['@/lib/score-derive', { deriveScore: () => ({ shapeScore: 0, highWaterScore: 0, spendableBalance: 0 }) }],
+      ['@/lib/require-membership', { requireMembership: async () => null }],
+      ['@/lib/score-ledger-read', { readAllLedgerRows: async () => ({ rows: [], error: null }) }],
+    ]),
+  });
+  mock.timers.enable({ apis: ['Date'], now: Date.UTC(2026, 9, 19, 12, 0) });
+  try {
+    const res = await mod.GET(new Request('https://x/api/client/score'));
+    return { body: await res.json(), reads };
+  } finally { mock.timers.reset(); }
+}
+const snapOn = (day, fields) => ({ snapshot_date: `2026-10-${String(day).padStart(2, '0')}`, dietary_kcal: null, calories: null, sleep_hours: null, workout_minutes: null, energy: null, sleep_quality: null, ...fields });
+
+test("Consistency counts a Morning check-in day as showing up, as momentum does; hunger or water alone do not", async () => {
+  const snaps = [
+    snapOn(18, { energy: 6 }), snapOn(17, { energy: 4 }), snapOn(16, { sleep_quality: 8 }),
+    snapOn(15, { workout_minutes: 40 }), snapOn(14, { dietary_kcal: 1800 }),
+    snapOn(13, { hunger: 6 }), snapOn(12, { hydration_l: 1.5 }),
+  ];
+  const { body, reads } = await scoreComposite(snaps);
+  assert.equal(body.composite.consistency, 36, 'a check-in day was not counted as showing up, or hunger or water was'); // 5 of 14 days
+  const snapRead = reads.find((r) => r.table === 'daily_health_snapshot');
+  assert.equal(snapRead.cols, '*', 'the score does not read the whole row');
+  // The other pillars are unchanged by a check-in.
+  const without = await scoreComposite(snaps.map((r) => ({ ...r, energy: null, sleep_quality: null })));
+  assert.equal(without.body.composite.consistency, 14);
+  assert.equal(body.composite.train, without.body.composite.train);
+  assert.equal(body.composite.recovery, without.body.composite.recovery);
+});
+
+test("a row made only by a skip is no data: the pillars keep their honest '—' (Codex P2 on #2408)", async () => {
+  const meta = (day, fields = {}) => ({ id: `row-${day}`, user_id: 'member-1', created_at: 'x', updated_at: 'x', sources: {}, ...snapOn(day, fields) });
+  const skips = [meta(18, { sleep_skipped: true }), meta(17, { sleep_skipped: true }), meta(16, { sleep_skipped: true })];
+  const onlySkips = await scoreComposite(skips);
+  assert.equal(onlySkips.body.composite.train, null, "three skip-only rows turned Train's '—' into a score");
+  assert.equal(onlySkips.body.composite.consistency, null, "three skip-only rows turned Consistency's '—' into a score");
+  // Any other content still makes a row count, as it always has: water, a skip with a check-in.
+  const water = await scoreComposite([meta(18, { hydration_l: 1.5 }), meta(17, { hydration_l: 1 }), meta(16, { sleep_skipped: true, energy: 6 })]);
+  assert.equal(water.body.composite.train, 0);
+  assert.equal(water.body.composite.consistency, 7);
 });
 
 // ── Momentum (ruling 7) ─────────────────────────────────────────────────────────

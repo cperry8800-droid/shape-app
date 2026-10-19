@@ -210,3 +210,31 @@ test('a failed write of the night is a failure, and so is a night that went nowh
   res = await post(fake, { sleepHours: 7.5, date: DAY });
   assert.equal(res.status, 500, 'hours that were never written were reported as saved');
 });
+
+// A night skipped in the Morning check-in is saved on the day's row, so the reminder can tell it
+// from an unanswered one (owner, 2026-10-19: "yes fix"). Only a JSON true counts, and a skip alone
+// is something to log.
+test('a skipped night is saved on its own, and only a true skips it', async () => {
+  let fake = fakeTable();
+  let res = await post(fake, { sleepSkipped: true, date: DAY });
+  assert.equal(res.status, 200, 'a skip alone was refused as nothing to log');
+  assert.equal(res.body.sleepSkipped, true);
+  assert.deepEqual(fake.writes, [{ op: 'insert', table: 'daily_health_snapshot', row: { user_id: 'member-1', snapshot_date: DAY, sleep_skipped: true } }]);
+
+  fake = fakeTable({ row: { id: 'row-1', sleep_hours: 6.9, sources: { sleep_hours: 'apple_health' } } });
+  res = await post(fake, { sleepSkipped: true, date: DAY });
+  assert.equal(res.status, 200);
+  assert.deepEqual(fake.writes.map((w) => w.row), [{ sleep_skipped: true }], 'the skip wrote over the night or another answer');
+  assert.equal(fake.db.row.sleep_hours, 6.9);
+
+  for (const v of ['true', 1, {}, null]) {
+    fake = fakeTable();
+    res = await post(fake, { sleepSkipped: v, date: DAY });
+    assert.equal(res.status, 400, `sleepSkipped ${JSON.stringify(v)} was read as a skip`);
+    assert.equal(fake.writes.length, 0);
+  }
+  fake = fakeTable({ row: { id: 'row-1', sources: {} } });
+  res = await post(fake, { energy: 6, sleepSkipped: 'yes', date: DAY });
+  assert.deepEqual(fake.writes.map((w) => w.row), [{ energy: 6 }], 'a skip that is not true was written with an answer');
+  assert.equal(res.body.sleepSkipped, false);
+});
