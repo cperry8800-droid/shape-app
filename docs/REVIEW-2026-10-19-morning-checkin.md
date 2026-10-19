@@ -160,3 +160,6 @@ Still open:
   them.
 - The weekly readout's fallback says "sleep quality" for Rested.
 - Home's lead text and pushes quote "/10" figures for answers given as words.
+- The reminder counts a morning answered once its energy is in, because a skipped night is kept only
+  on the device. Energy saved alone on the old "How are you." page therefore skips that day's
+  reminder (Codex on #2407; the owner's call, until part 2 retires the page).
