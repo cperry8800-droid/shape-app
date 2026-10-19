@@ -68,8 +68,9 @@ function computeComposite(rows: SnapRow[], now: Date) {
   const last7 = rows.filter(r => r.snapshot_date >= d7);
   // ⚠ A ROW MADE ONLY BY A SKIP IS NOT DATA (Codex P2 on #2408). The Morning check-in's Skip saves
   // sleep_skipped on the day's row, and makes the row when the member leaves before energy; counted,
-  // three of them would turn Train's and Consistency's honest '—' into 0. Every other row counts, as
-  // it always has.
+  // three of them would turn Train's and Consistency's honest '—' into 0. Nor is a row emptied back
+  // to its keys (a meal log undone on a day that had no row). Any other content makes a row count,
+  // zeros included, as before (review on #2408).
   const basis14 = last14.filter(holdsData).length;
   const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
   const num = (v: number | null) => (typeof v === 'number' && v > 0 ? v : 0);
