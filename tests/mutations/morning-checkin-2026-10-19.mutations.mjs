@@ -329,9 +329,12 @@ export default {
     { name: 'the held-back read is sent again by every later glass', file: WATER,
       find: '    resync.current = false;\n    if (alive.current) syncRead.current?.();',
       replace: '    if (alive.current) syncRead.current?.();' },
+    // Proven no-op: a glass that answers while the read is out was either still saving when the read
+    // went out (outAtSend > 0) or tapped after it (taps moved), so the landed check never decides
+    // alone. Both guards it rides on are killed above.
     { name: 'a glass answering during the sync read is dropped', file: WATER,
       find: ' || landed.current !== landedAtSend) {',
-      replace: ') {' },
+      replace: ') {', expectSurvive: true },
     { name: 'the Same line lists a night today already has', file: CARD,
       find: 'same.sleepHours != null ? hm(same.sleepHours) : null',
       replace: 'yesterday.sleep != null && !yesterday.device && !sleepSkipped ? hm(yesterday.sleep) : null' },

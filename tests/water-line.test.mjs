@@ -527,6 +527,42 @@ test('a glass that fails after the sync read was held back for it still reads th
   } finally { m.unmount(); }
 });
 
+test('a glass tapped while the sync read is out, then failing, leaves the synced total (mutation round on #2407)', async () => {
+  // The read answers with the glass still out, so it may not hold it: the line keeps its own total and
+  // takes Apple Health's share. The glass then fails and takes back only itself, and the line reads
+  // again, so it ends on the server's total: no glass, the synced water in.
+  let server = 0.5;
+  let readRelease;
+  let fail;
+  let gets = 0;
+  env();
+  dom.window.ShapeHydration = {
+    get: async () => {
+      gets += 1;
+      const total = server;
+      if (gets === 2) await new Promise((r) => { readRelease = r; });
+      return { ok: true, hydrationL: total, targetL: 3, targetStoredL: 3, deviceL: gets > 1 ? 1.2 : null };
+    },
+    add: () => new Promise((_r, rej) => { fail = () => rej(new Error('offline')); }),
+  };
+  const m = await mount();
+  try {
+    server = Math.round((server + 1.2) * 10000) / 10000;   // the sync's Apple Health water
+    await m.sync();
+    assert.equal(gets, 2);
+    await m.click(/\+ Glass/);                             // tapped while the read is out, held
+    await React.act(async () => { readRelease(); await new Promise((r) => setTimeout(r, 0)); });
+    await m.flush();
+    assert.match(m.text(), /25 oz of 101 oz/, 'the read answering with the glass still out dropped the glass from the line');
+    await React.act(async () => { fail(); await new Promise((r) => setTimeout(r, 0)); });
+    await m.flush();
+    await m.flush();
+    assert.equal(gets, 3, 'the line did not read again once the glass failed');
+    assert.match(m.text(), /57 oz of 101 oz/, 'the failed glass was taken back from a total that never held it');
+    assert.match(m.text(), /Could not log water/);
+  } finally { m.unmount(); }
+});
+
 test('a sync read that fails leaves the first read standing, and + Glass works (review on this PR)', async () => {
   let release;
   let gets = 0;
