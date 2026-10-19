@@ -229,13 +229,24 @@ test("Consistency counts a Morning check-in day as showing up, as momentum does;
   const { body, reads } = await scoreComposite(snaps);
   assert.equal(body.composite.consistency, 36, 'a check-in day was not counted as showing up, or hunger or water was'); // 5 of 14 days
   const snapRead = reads.find((r) => r.table === 'daily_health_snapshot');
-  assert.match(snapRead.cols, /\benergy\b/);
-  assert.match(snapRead.cols, /\bsleep_quality\b/);
+  assert.equal(snapRead.cols, '*', 'the score does not read the whole row');
   // The other pillars are unchanged by a check-in.
   const without = await scoreComposite(snaps.map((r) => ({ ...r, energy: null, sleep_quality: null })));
   assert.equal(without.body.composite.consistency, 14);
   assert.equal(body.composite.train, without.body.composite.train);
   assert.equal(body.composite.recovery, without.body.composite.recovery);
+});
+
+test("a row made only by a skip is no data: the pillars keep their honest '—' (Codex P2 on #2408)", async () => {
+  const meta = (day, fields = {}) => ({ id: `row-${day}`, user_id: 'member-1', created_at: 'x', updated_at: 'x', sources: {}, ...snapOn(day, fields) });
+  const skips = [meta(18, { sleep_skipped: true }), meta(17, { sleep_skipped: true }), meta(16, { sleep_skipped: true })];
+  const onlySkips = await scoreComposite(skips);
+  assert.equal(onlySkips.body.composite.train, null, "three skip-only rows turned Train's '—' into a score");
+  assert.equal(onlySkips.body.composite.consistency, null, "three skip-only rows turned Consistency's '—' into a score");
+  // Any other content still makes a row count, as it always has: water, a skip with a check-in.
+  const water = await scoreComposite([meta(18, { hydration_l: 1.5 }), meta(17, { hydration_l: 1 }), meta(16, { sleep_skipped: true, energy: 6 })]);
+  assert.equal(water.body.composite.train, 0);
+  assert.equal(water.body.composite.consistency, 7);
 });
 
 // ── Momentum (ruling 7) ─────────────────────────────────────────────────────────

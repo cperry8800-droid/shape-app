@@ -113,7 +113,7 @@ test('the member\'s own numbers read calories eaten', () => {
   const score = read('src/app/api/client/score/route.ts');
   assert.match(score, /const logged = last14\.filter\(r => num\(r\.dietary_kcal\) > 0\)\.length;/, 'the nutrition pillar counts meals, not a watch');
   assert.match(score, /num\(r\.dietary_kcal\) > 0 \|\| num\(r\.calories\) > 0 \|\| num\(r\.workout_minutes\) > 0/, 'consistency still counts a synced burn as showing up');
-  assert.match(score, /\.select\('snapshot_date, dietary_kcal, calories, sleep_hours, workout_minutes, energy, sleep_quality'\)/);
+  assert.match(score, /from\('daily_health_snapshot'\)\s*\.select\('\*'\)/, 'the score reads the whole row, so it can tell a skip-only row from data');
 });
 
 test('the coach\'s numbers read calories eaten', () => {
