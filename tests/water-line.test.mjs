@@ -126,14 +126,14 @@ test('the line shows the day and + Glass, and progress only against a target the
   } finally { m.unmount(); }
 
   theme.isMetric = true;
+  let metricLine = null;
   try {
     calls = env({ water: { ok: true, hydrationL: 0.5, targetL: 3, targetStoredL: 3 } });
-    m = await mount();
-    await m.click(/\+ Glass/);
+    metricLine = await mount();
+    await metricLine.click(/\+ Glass/);
     assert.deepEqual(calls.add, [0.25]);
-    assert.match(m.text(), /0\.75 L of 3 L/);
-    m.unmount();
-  } finally { theme.isMetric = false; }
+    assert.match(metricLine.text(), /0\.75 L of 3 L/);
+  } finally { metricLine?.unmount(); theme.isMetric = false; }   // a line left mounted would answer the later tests' clicks and syncs
 });
 
 test('a daily target is set from the line, saved where Settings keeps it', async () => {
@@ -318,16 +318,19 @@ test('the water read waits for a glass on its way, so a line mounted meanwhile s
     get: async () => ({ ok: true, hydrationL: server, targetL: 3, targetStoredL: 3 }),
     add: (d) => new Promise((r) => { land = () => { server += d; r({ ok: true, hydrationL: server }); }; }),
   };
-  let m = await mount();
-  await m.click(/\+ Glass/);
-  m.unmount();
-  m = await mount();
+  let first = null;
+  let m = null;
   try {
+    first = await mount();
+    await first.click(/\+ Glass/);
+    first.unmount();
+    first = null;
+    m = await mount();
     land();
     await m.flush();
     await m.flush();
     assert.match(m.text(), /25 oz of 101 oz/, 'the new line read the total from before the glass landed');
-  } finally { land?.(); m.unmount(); }
+  } finally { land?.(); first?.unmount(); m?.unmount(); }
 });
 
 // ── Apple Health's water (owner, 2026-10-18: added to the glasses logged here) ─
@@ -473,7 +476,12 @@ test('a glass tapped while the sync read waits, and answering before it, stays o
     assert.match(m.text(), /33 oz of 101 oz/);
     assert.match(m.text(), /Includes 7 oz from Apple Health/, "the read that stands did not bring Apple Health's share");
     assert.equal(gets, 3, 'a read that stands read again');
-  } finally { readRelease?.(); adds.forEach((f) => f()); m.unmount(); }
+  } finally {
+    // Glass 2 is sent only once glass 1 settles, so settle each in turn, letting the next one send.
+    readRelease?.();
+    for (let i = 0; i < adds.length; i++) { adds[i](); await m.flush(); }
+    m.unmount();
+  }
 });
 
 test('a glass the server saved before the sync, answering after the sync read, never hides the synced water (Codex P2 on #2407)', async () => {
