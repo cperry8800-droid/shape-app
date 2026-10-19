@@ -281,5 +281,11 @@ export default {
     { name: 'the check-in page says a percentage of no target', file: CLIENT,
       find: '{hydTarget ? <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50 }}> · {Math.round(hpct * 100)}%</span> : null}',
       replace: '<span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50 }}> · {Math.round(hpct * 100)}%</span>' },
+    { name: 'Same as yesterday types over a skipped night', file: CARD,
+      find: 'const same = bsCiSamePatch(yesterday, today, sleepSkipped);',
+      replace: 'const same = bsCiSamePatch(yesterday, today);' },
+    { name: "Same as yesterday copies a skipped night's hours", file: CARD,
+      find: '  if (!sleepSkipped) {\n    if (t.sleep == null',
+      replace: '  {\n    if (t.sleep == null' },
   ],
 };

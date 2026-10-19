@@ -147,15 +147,18 @@ export function bsCiUsualNight(series, todayIso) {
 }
 
 // What "Same as yesterday" writes for today: yesterday's own morning values for the questions today
-// has not answered. Null when yesterday has no energy to copy.
-export function bsCiSamePatch(yesterday, today) {
+// has not answered. Null when yesterday has no energy to copy. A night skipped today stays skipped:
+// neither its hours nor How did you wake up? are copied onto it (Codex P2 on #2407).
+export function bsCiSamePatch(yesterday, today, sleepSkipped = false) {
   if (!yesterday || yesterday.energy == null) return null;
   const t = today || {};
   const patch = {};
   if (t.energy == null) patch.energy = yesterday.energy;
-  if (t.sleep == null && yesterday.sleep != null && !yesterday.device) patch.sleepHours = yesterday.sleep;
-  // Rested is the member's own answer on any night, a watch's included (ruling 2, Codex P2 on #2398).
-  if (t.rested == null && yesterday.rested != null) patch.sleepQuality = yesterday.rested;
+  if (!sleepSkipped) {
+    if (t.sleep == null && yesterday.sleep != null && !yesterday.device) patch.sleepHours = yesterday.sleep;
+    // Rested is the member's own answer on any night, a watch's included (ruling 2, Codex P2 on #2398).
+    if (t.rested == null && yesterday.rested != null) patch.sleepQuality = yesterday.rested;
+  }
   return Object.keys(patch).length ? patch : null;
 }
 
@@ -573,8 +576,9 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
     energy: tr('home:checkin.thisMorning', { defaultValue: 'This morning' }),
   };
 
-  const same = bsCiSamePatch(yesterday, today);
-  const sameLine = yesterday ? [word(E, yesterday.energy), yesterday.sleep != null && !yesterday.device ? hm(yesterday.sleep) : null, word(R, yesterday.rested)].filter(Boolean).join(' · ') : '';
+  const same = bsCiSamePatch(yesterday, today, sleepSkipped);
+  // The line says what the tap writes: never a skipped night's hours or Rested.
+  const sameLine = yesterday ? [word(E, yesterday.energy), !sleepSkipped && yesterday.sleep != null && !yesterday.device ? hm(yesterday.sleep) : null, sleepSkipped ? null : word(R, yesterday.rested)].filter(Boolean).join(' · ') : '';
   const wornNight = bsCiWornNight(today);
   const sleepFromUsual = sleepH == null && !(today.sleep != null && !today.device);
   const sleepValue = sleepH != null ? sleepH : (sleepFromUsual ? usual : today.sleep);

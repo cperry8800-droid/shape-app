@@ -190,6 +190,8 @@ test("Same as yesterday copies yesterday's own morning values, keeps today's, ne
   assert.deepEqual(CARD.bsCiSamePatch({ ...y, hunger: null }, empty), { energy: 7, sleepHours: 6.5, sleepQuality: 3 }, 'a yesterday with no hunger was not offered');
   assert.equal(CARD.bsCiSamePatch({ ...y, energy: null }, empty), null, 'offered with no morning to copy');
   assert.equal(CARD.bsCiSamePatch(null, empty), null);
+  assert.deepEqual(CARD.bsCiSamePatch(y, empty, true), { energy: 7 }, 'a night skipped today was filled from yesterday (Codex P2 on #2407)');
+  assert.equal(CARD.bsCiSamePatch(y, { ...empty, energy: 6 }, true), null);
   assert.equal(CARD.bsCiSamePatch(y, { energy: 7, hunger: null, sleep: 6.5, rested: 3, device: false }), null, 'an answered morning was offered again for its hunger');
 });
 
@@ -461,6 +463,22 @@ test('a skipped night stays skipped: Start opens energy, and Edit then Next writ
     await m.click(/Thirty minutes less/);
     await m.click(/^Next/);
     assert.deepEqual(calls.log[1], { sleepHours: 7 });
+  } finally { m.unmount(); dom.window.localStorage.clear(); }
+});
+
+test('Same as yesterday after a skip copies the morning only, never the skipped night (Codex P2 on #2407)', async () => {
+  dom.window.localStorage.clear();
+  const calls = env({ days: { [YDAY]: { energy: 7, sleep: 6.5, sleepQuality: 9 } } });
+  const m = await mount();
+  try {
+    await m.click(/Start check-in/);
+    await m.click(/^Skip$/);
+    await m.click(/^Close$/);
+    assert.match(m.text(), /Same as yesterday ✓Good/);
+    assert.doesNotMatch(m.text(), /6h 30|Fresh/, 'the card offers to fill the skipped night');
+    await m.click(/Same as yesterday/);
+    assert.deepEqual(calls.log, [{ energy: 7 }], "Same as yesterday typed over the night the member skipped");
+    assert.match(m.text(), /Checked in ✓/);
   } finally { m.unmount(); dom.window.localStorage.clear(); }
 });
 
