@@ -113,10 +113,11 @@ test('a busy hour reads the mornings 200 members at a time, and a failed read se
   assert.equal(fired.length, 451);
 });
 
-// The owner, 2026-10-19 ("yes fix"): energy saved alone, as the old "How are you." page can, is not a
-// finished morning. The night has to be in too, by the card's own rule (bsCiStep): hours, typed or a
-// watch's, or a skip the card saved. Rested alone leaves the night open there, so here too, and a
-// watch's 0h night is a night there, so here too (review on #2408).
+// The owner, 2026-10-19 ("yes fix"): energy saved alone, as the website's daily card still can (the
+// app's old "How are you." page did too, until part 2 retired it), is not a finished morning. The
+// night has to be in too, by the card's own rule (bsCiStep): hours, typed or a watch's, or a skip
+// the card saved. Rested alone leaves the night open there, so here too, and a watch's 0h night is a
+// night there, so here too (review on #2408).
 test('a morning is answered once its energy and its night are in, as the card asks: hours or a skip', async () => {
   const cases = {
     'energy-only': { energy: 6 },
@@ -315,8 +316,9 @@ test('sleep leads on a real shortfall only, and Home, the splash and the push ke
 
 test('water is its own Home line, right under the morning card, whatever the Check-ins setting', () => {
   const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
-  assert.match(client, /import \{ BSWaterLine \} from '\.\/BSWaterLine\.jsx';/);
-  const bulletin = '<BSTodayNudge onOpen={() => setTodayPage(true)} variant="bulletin" openRequest={checkinPrefSettled ? checkinOpenReq : null} onOpenRequestConsumed={() => setCheckinOpenReq(null)} />';
+  // The hydration lead brings this line up (bsWaterLineFocus, part 2), so the client takes both.
+  assert.match(client, /import \{ BSWaterLine, bsWaterLineFocus \} from '\.\/BSWaterLine\.jsx';/);
+  const bulletin = '<BSTodayNudge onOpen={() => setMorningsPage(true)} variant="bulletin" openRequest={checkinPrefSettled ? checkinOpenReq : null} onOpenRequestConsumed={() => setCheckinOpenReq(null)} />';
   const at = client.indexOf(bulletin);
   assert.ok(at > 0);
   const after = client.slice(at + bulletin.length, at + bulletin.length + 300);

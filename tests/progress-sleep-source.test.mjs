@@ -73,3 +73,66 @@ test('with no watch nights the series is sent empty, so the app knows the server
   const body = await progress([{ snapshot_date: '2026-10-18', sleep_hours: 7, resting_hr: 58 }]);
   assert.deepEqual(body.series.sleepFromDevice, []);
 });
+
+// ── A skipped night, from the day's row ─────────────────────────────────────────
+// The Morning check-in saves a skip on the day's row (`sleep_skipped`), and the card reads it from
+// this series as well as from its own device, so a night skipped on one device is not asked again
+// on another (part 2 of the Morning check-in, 2026-10-19).
+test('the progress route sends the nights the member skipped, oldest first, and only a true skip', async () => {
+  const body = await progress([
+    { snapshot_date: '2026-10-18', energy: 6, sleep_skipped: true },
+    { snapshot_date: '2026-10-17', energy: 4, sleep_skipped: null },
+    { snapshot_date: '2026-10-16', energy: 8, sleep_skipped: false },
+    // A watch's night that came in after the skip: still a skip on the row, and the card's own
+    // rule decides which one stands.
+    { snapshot_date: '2026-10-15', sleep_hours: 7, sleep_skipped: true, sources: { sleep_hours: 'oura' } },
+    { snapshot_date: '2026-10-14', sleep_skipped: 'true' },
+    { snapshot_date: '2026-10-13', sleep_skipped: 1 },
+  ]);
+  assert.deepEqual(body.series.sleepSkipped, [
+    { date: '2026-10-15', value: 1 },
+    { date: '2026-10-18', value: 1 },
+  ], 'a null, false or non-boolean skip read as a skipped night, or the series is not oldest first');
+});
+
+test('before the sleep_skipped migration the skipped series is sent empty', async () => {
+  // select('*') leaves the column out of every row; nothing fails, nothing is skipped.
+  const body = await progress([{ snapshot_date: '2026-10-18', energy: 6, sleep_hours: 7 }]);
+  assert.deepEqual(body.series.sleepSkipped, []);
+});
+
+// ── kpis.sleepAvg is the last 30 days, not the last 30 nights logged ───────────
+// It averaged `sleeps.slice(-30)`, the newest 30 entries however old, under Progress's "30-day avg".
+async function atUtc(ms, fn) {
+  const real = Date.now;
+  Date.now = () => ms;
+  try { return await fn(); } finally { Date.now = real; }
+}
+
+test('the 30-day sleep average reads the nights dated in the last 30 days', async () => {
+  // 23:30 UTC on the 19th: the server's today is the 19th, and the window is the 20th of September
+  // to the 20th of October (a day of headroom for a member east of UTC).
+  const body = await atUtc(Date.UTC(2026, 9, 19, 23, 30), () => progress([
+    { snapshot_date: '2026-10-21', sleep_hours: 2 },   // two days ahead: ignored
+    { snapshot_date: '2026-10-20', sleep_hours: 8 },   // tomorrow in UTC, a member's today east of it
+    { snapshot_date: '2026-10-19', sleep_hours: 7 },
+    { snapshot_date: '2026-10-10', energy: 6 },        // no night: not a zero
+    { snapshot_date: '2026-09-20', sleep_hours: 6.2 }, // the 30th day
+    { snapshot_date: '2026-09-19', sleep_hours: 3 },   // the 31st: out
+    { snapshot_date: '2026-08-01', sleep_hours: 4 },
+  ]));
+  // (8 + 7 + 6.2) / 3 = 7.067, rounded to a tenth. The last 30 logged nights would read 5.0.
+  assert.equal(body.kpis.sleepAvg, 7.1);
+  // The series itself is unchanged: every night, oldest first.
+  assert.deepEqual(body.series.sleep.map((p) => p.date), ['2026-08-01', '2026-09-19', '2026-09-20', '2026-10-19', '2026-10-20', '2026-10-21']);
+});
+
+test('with no night in the last 30 days the sleep average is null, however many are older', async () => {
+  const body = await atUtc(Date.UTC(2026, 9, 19, 9), () => progress([
+    { snapshot_date: '2026-09-19', sleep_hours: 7 },
+    { snapshot_date: '2026-08-01', sleep_hours: 8 },
+  ]));
+  assert.equal(body.kpis.sleepAvg, null);
+  const none = await progress([]);
+  assert.equal(none.kpis.sleepAvg, null);
+});

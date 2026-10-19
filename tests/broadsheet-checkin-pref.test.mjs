@@ -80,7 +80,7 @@ async function loadModule() {
   const dir = dirname(SRC);
   // Substitute ALL of `import.meta` — the file also probes a bare
   // `typeof import.meta`, a SyntaxError inside a CJS function body.
-  const source = `${readFileSync(SRC, 'utf8').replace(/import\.meta/g, '__VITE_IMPORTMETA__')}\nexport { BSTodayNudge, BSTodayCard, BSReminderManager, useBSDailyCheckinPrefState, bsCheckinLeadSuppressed, bsDailyCheckinOn, bsDailyCheckinApply, bsDailyCheckinMirrorWrite, bsDailyCheckinMirrorRead };\n`;
+  const source = `${readFileSync(SRC, 'utf8').replace(/import\.meta/g, '__VITE_IMPORTMETA__')}\nexport { BSTodayNudge, BSReminderManager, useBSDailyCheckinPrefState, bsCheckinLeadSuppressed, bsDailyCheckinOn, bsDailyCheckinApply, bsDailyCheckinMirrorWrite, bsDailyCheckinMirrorRead };\n`;
   const { code } = babel.transformSync(source, {
     presets: [presetReact],
     plugins: [commonjs],
@@ -188,8 +188,13 @@ test('pref OFF: the bulletin never renders; the row is the quiet door (no "due",
   assert.equal(bulletin.html, '');
   const row = renderStatic(nudge({ variant: 'row' }));
   assert.equal(row.warnings.length, 0, row.warnings.join('\n'));
-  assert.match(row.html, /Check-in/);
-  assert.match(row.html, /add water/);
+  // Part 2: the row is the door to Your mornings. With Check-ins off nothing is asked, and water is
+  // its own Home line whatever the setting, so the row no longer says "add water".
+  assert.match(row.html, /Your mornings/);
+  assert.doesNotMatch(row.html, /add water|Check-in/, 'the row still names the old check-in page and its water');
+  // Its name is longer than "Check-in" was (17 letters in Vietnamese), so the label column grows
+  // rather than run the name over the dot leader.
+  assert.match(row.html, /grid-template-columns:minmax\(86px, auto\) 1fr auto 18px/, 'the label column is a fixed 86px');
   assert.doesNotMatch(row.html, /due/i);      // never nags
   assert.doesNotMatch(row.html, /Logged|Checked in/); // not a done state
   assert.doesNotMatch(row.html, /✓/);         // no done-tick semantics
@@ -239,7 +244,7 @@ test('a Settings toggle re-renders a mounted Home live — bsDailyCheckinApply i
   }
 });
 
-test('the quiet door stays a real door: tapping it opens the check-in page', async () => {
+test('the quiet door stays a real door: tapping it opens Your mornings', async () => {
   // The cloud doc must agree with the mirror — under a real mount the hydrate
   // effect runs, and a doc WITHOUT the key would (correctly) converge back ON.
   env({ uid: 'member-4', doc: { dailyCheckin: 'Off' } });
@@ -249,7 +254,7 @@ test('the quiet door stays a real door: tapping it opens the check-in page', asy
   try {
     const btn = m.host.querySelector('button');
     assert.ok(btn, 'the quiet door renders as a button');
-    assert.match(btn.getAttribute('aria-label') || '', /Check-in/);
+    assert.equal(btn.getAttribute('aria-label'), 'Your mornings', 'the door names its page, and nothing else');
     await m.act(() => { btn.click(); });
     assert.equal(opened, 1);
   } finally {
@@ -617,90 +622,11 @@ test('every agePublic transition updates prefsRef synchronously', () => {
   );
 });
 
-// ── The check-in page and a watch's night (owner, 2026-10-18: device data first) ──
-// The night is a watch's when the server says a device sync wrote its hours (`sleepFromDevice`).
-// A watch worn by day reports a resting heart rate with no night, so typed hours on such a day
-// stay the member's own, and change.
-async function todayPage(series, log, water = { ok: true, hydrationL: 0, targetL: 3 }) {
-  env({ uid: 'member-sleep' });
-  dom.window.ShapeProgress = { progress: async () => ({ series }) };
-  dom.window.ShapeHydration = { get: async () => water };
-  const calls = [];
-  dom.window.ShapeCheckin = { log: async (patch) => { calls.push(patch); return log ? log(patch) : { ok: true }; } };
-  const m = await mount(React.createElement(MOD.BSTodayCard));
-  await m.rerenderFlush();
-  return { m, calls };
-}
-const TODAY_ISO = '2026-10-18';
-const pt = (value) => [{ date: TODAY_ISO, value }];
-
-test("the check-in page knows a watch's night from the server's sources, not a resting heart rate", async () => {
-  let { m } = await todayPage({ sleep: pt(7), restingHr: pt(58), sleepFromDevice: [] });
-  try {
-    const edit = [...m.host.querySelectorAll('button')].find((b) => /edit/i.test(b.textContent));
-    assert.ok(edit, 'a typed night did not count as checked in');
-    await m.act(() => { edit.click(); });
-    assert.doesNotMatch(m.host.textContent, /RHR 58|Synced from your device/, "typed hours on a day-only watch's day read as the watch's");
-    assert.ok(m.host.querySelector('button[aria-pressed="true"]'), 'the typed night lost its hour chips');
-  } finally { m.unmount(); }
-
-  ({ m } = await todayPage({ sleep: pt(7), restingHr: pt(58), sleepFromDevice: pt(1) }));
-  try {
-    assert.match(m.host.textContent, /RHR 58/);
-  } finally { m.unmount(); }
-
-  // A server without the series keeps the old sign.
-  ({ m } = await todayPage({ sleep: pt(7), restingHr: pt(58) }));
-  try {
-    assert.match(m.host.textContent, /RHR 58/);
-  } finally { m.unmount(); }
-});
-
-test("hours the server keeps a watch's night over show as the watch's after Log today", async () => {
-  const { m, calls } = await todayPage({ energy: pt(6) }, (patch) => (patch.sleepHours != null ? { ok: true, sleepHours: 6.9, sleepFromDevice: true } : { ok: true }));
-  try {
-    const edit = [...m.host.querySelectorAll('button')].find((b) => /edit/i.test(b.textContent));
-    if (edit) await m.act(() => { edit.click(); });
-    const chip = [...m.host.querySelectorAll('button')].find((b) => b.textContent.trim() === '7.5');
-    assert.ok(chip, `no 7.5 chip in: ${m.host.textContent}`);
-    await m.act(() => { chip.click(); });
-    const log = [...m.host.querySelectorAll('button')].find((b) => /Log today/i.test(b.textContent));
-    await m.act(() => { log.click(); });
-    await m.rerenderFlush();
-    assert.equal(calls.at(-1).sleepHours, 7.5);
-    const editAgain = [...m.host.querySelectorAll('button')].find((b) => /edit/i.test(b.textContent));
-    if (editAgain) await m.act(() => { editAgain.click(); });
-    assert.match(m.host.textContent, /Synced from your device/, "the typed hours the server did not keep still show as the member's");
-    assert.match(m.host.textContent, /6h 54/);
-  } finally { m.unmount(); }
-
-  // Hours the server kept stay the member's own.
-  const kept = await todayPage({ energy: pt(6) }, (patch) => ({ ok: true, sleepHours: patch.sleepHours ?? null, sleepFromDevice: false }));
-  try {
-    const open = [...kept.m.host.querySelectorAll('button')].find((b) => /edit/i.test(b.textContent));
-    if (open) await kept.m.act(() => { open.click(); });
-    const chip = [...kept.m.host.querySelectorAll('button')].find((b) => b.textContent.trim() === '7.5');
-    await kept.m.act(() => { chip.click(); });
-    const log = [...kept.m.host.querySelectorAll('button')].find((b) => /Log today/i.test(b.textContent));
-    await kept.m.act(() => { log.click(); });
-    await kept.m.rerenderFlush();
-    const edit = [...kept.m.host.querySelectorAll('button')].find((b) => /edit/i.test(b.textContent));
-    if (edit) await kept.m.act(() => { edit.click(); });
-    assert.doesNotMatch(kept.m.host.textContent, /Synced from your device/, 'hours the server kept read as the watch\'s');
-  } finally { kept.m.unmount(); }
-});
-
-test("the check-in page shows water against the member's own target only, never the 3 L stand-in (owner, 2026-10-19)", async () => {
-  let { m } = await todayPage({}, null, { ok: true, hydrationL: 0.5, targetL: 3, targetStoredL: null });
-  try {
-    assert.match(m.host.textContent, /Hydration0\.5 L\+/);
-    assert.doesNotMatch(m.host.textContent, /\/ 3 L|%/, 'progress was shown against a target the member never set');
-  } finally { m.unmount(); }
-  ({ m } = await todayPage({}, null, { ok: true, hydrationL: 0.5, targetL: 2.5, targetStoredL: 2.5 }));
-  try {
-    assert.match(m.host.textContent, /0\.5 \/ 2\.5 L · 20%/);
-  } finally { m.unmount(); }
-});
+// ── The old "How are you." page is gone (part 2) ─────────────────────────────
+// Its three mount tests went with BSTodayCard. What they guarded lives on elsewhere: a watch's night
+// read from the server's sources is the card's (tests/checkin-card.test.mjs) and the page's watch
+// tiles (tests/your-mornings.test.mjs); water against the member's own target only is the water
+// line's (tests/water-line.test.mjs).
 
 // ── A Daily check-in reminder opens the card (owner, 2026-10-18) ─────────────
 test('the bulletin passes a reminder through to the card, which opens its walkthrough', async () => {
@@ -722,13 +648,14 @@ test('Home routes the reminder: the shell hands Home a nonce, Home clears its pa
   assert.match(src, /checkinOpen=\{checkinOpen\} onCheckinOpenConsumed=\{\(\) => setCheckinOpen\(null\)\}/);
   const home = src.slice(src.indexOf('const [checkinOpenReq, setCheckinOpenReq]'), src.indexOf('// Weekly check-in nudge — due when'));
   assert.match(home, /setCheckinPage\(false\); setHomeProgressPage\(false\); setGoalsPage\(false\)/, "Home kept another page over the card");
-  assert.match(home, /setTodayPage\(false\); setCheckinOpenReq\(checkinOpen\.nonce\);\n    onCheckinOpenConsumed\(\);/);
+  // A reminder closes Your mornings too, or the page would stay over the card it opens.
+  assert.match(home, /setMorningsPage\(false\); setCheckinOpenReq\(checkinOpen\.nonce\);\n    onCheckinOpenConsumed\(\);/);
   assert.match(home, /onCheckinOpenConsumed\(\);/);
-  // The request waits for the account's Check-ins setting (Codex on #2405). Off: the check-in page
-  // opens, and the request is dropped rather than open the walkthrough whenever Check-ins is next
-  // switched on. On: the card takes it.
-  assert.match(home, /React\.useEffect\(\(\) => \{\n    if \(!checkinOpenReq \|\| !checkinPrefSettled \|\| checkinPrefOn\) return;\n    setCheckinOpenReq\(null\);\n    setTodayPage\(true\);\n  \}, \[checkinOpenReq, checkinPrefSettled, checkinPrefOn\]\);/, 'with Check-ins off the reminder opened nothing, or the request waited for Check-ins to come back on');
-  assert.match(src, /<BSTodayNudge onOpen=\{\(\) => setTodayPage\(true\)\} variant="bulletin" openRequest=\{checkinPrefSettled \? checkinOpenReq : null\} onOpenRequestConsumed=\{\(\) => setCheckinOpenReq\(null\)\} \/>/, 'Home keeps a used request, or hands it over before the account has answered');
+  // The request waits for the account's Check-ins setting (Codex on #2405). Off: there is no card and
+  // nothing to answer, so Your mornings opens (part 2), and the request is dropped rather than open
+  // the walkthrough whenever Check-ins is next switched on. On: the card takes it.
+  assert.match(home, /React\.useEffect\(\(\) => \{\n    if \(!checkinOpenReq \|\| !checkinPrefSettled \|\| checkinPrefOn\) return;\n    setCheckinOpenReq\(null\);\n    setMorningsPage\(true\);\n  \}, \[checkinOpenReq, checkinPrefSettled, checkinPrefOn\]\);/, 'with Check-ins off the reminder opened nothing, or the request waited for Check-ins to come back on');
+  assert.match(src, /<BSTodayNudge onOpen=\{\(\) => setMorningsPage\(true\)\} variant="bulletin" openRequest=\{checkinPrefSettled \? checkinOpenReq : null\} onOpenRequestConsumed=\{\(\) => setCheckinOpenReq\(null\)\} \/>/, 'Home keeps a used request, or hands it over before the account has answered');
   // The reminder itself: a kind of its own, opening the card, in the app's and the website's lists.
   const cron = readFileSync(join(ROOT, 'src/app/api/cron/reminders/route.ts'), 'utf8');
   assert.match(cron, /case 'daily_checkin':\n\s+return \{ type: 'reminder_daily_checkin', title: l \|\| 'Morning check-in', body: 'Two quick checks: last night and this morning\.', route: 'today' \};/);
@@ -737,6 +664,58 @@ test('Home routes the reminder: the shell hands Home a nonce, Home clears its pa
   assert.match(readFileSync(join(ROOT, 'src/app/api/client/reminders/route.ts'), 'utf8'), /const KINDS = \[[^\]]*'daily_checkin'/);
   assert.match(src, /\['daily_checkin', 'Morning check-in'\]/);
   assert.match(readFileSync(join(ROOT, 'public/newdesign/clientMeSettings.jsx'), 'utf8'), /\["daily_checkin", "Morning check-in"\]/);
+});
+
+// ── The doors to Your mornings (part 2) ──────────────────────────────────────
+// Home cannot be mounted in this harness (a child resolves undefined), and its leads come from an
+// async engine read a render never reaches, so where each door lands is pinned against the source.
+// tests/focus-layout.test.mjs drives the card's and the Check-ins-off row's doors on Home's real
+// render, and tests/units-everywhere.test.mjs drives Progress's.
+const homeSource = () => {
+  const src = readFileSync(SRC, 'utf8');
+  const at = src.indexOf('function BSClientHome(');
+  return { src, home: src.slice(at, src.indexOf('\nfunction ', at + 1)) };
+};
+
+test("Home's doors open Your mornings, the water lead brings Home's water line, and the old page is gone", () => {
+  const { src, home } = homeSource();
+  assert.match(src, /^import \{ BSYourMornings, BSMorningsDoor \} from '\.\/BSYourMornings\.jsx';$/m);
+  assert.match(src, /^import \{ BSWaterLine, bsWaterLineFocus \} from '\.\/BSWaterLine\.jsx';$/m);
+  // The page's state is declared with the other pages', above the early returns (Rules of Hooks).
+  const state = home.indexOf('const [morningsPage, setMorningsPage] = useStateBSC(false);');
+  assert.ok(state > 0 && state < home.indexOf('  if (previewMeal) {'), 'the page state is not above the early returns');
+  assert.match(home, /  if \(morningsPage\) \{\n    return <BSYourMornings onBack=\{\(\) => setMorningsPage\(false\)\} cycleChip=\{<BSCycleTodayChip \/>\} checkinsOn=\{checkinPrefOn\} \/>;\n  \}/,
+    'Your mornings is not one of Home\'s pages, or it lost the cycle chip or the Check-ins setting');
+  // The energy lead opens the week behind it; the water lead has no page to open (§3.7).
+  assert.match(home, /energy: +\{ head: tr\('home:lead\.energy\.head'[^\n]*\(\) => setMorningsPage\(true\)\], c: t\.BLUE \},/, 'the energy lead does not open Your mornings');
+  assert.match(home, /hydration: \{ head: tr\('home:lead\.hydration\.head'[^\n]*\(\) => bsWaterLineFocus\(\)\], c: _teal \},/, "the water lead does not bring up Home's water line");
+  // With Check-ins off, the quiet row is a door to the page.
+  assert.match(home, /<BSTodayNudge variant="row" onOpen=\{\(\) => setMorningsPage\(true\)\} \/>/);
+  // The old "How are you." page, its card and its Sleep detail are gone, with the keys only they used.
+  assert.doesNotMatch(src, /\b(BSTodayPage|BSTodayCard|BSSleepHistory|bsSleepHM|todayPage|setTodayPage)\b/);
+  assert.doesNotMatch(src, /home:today\.(eyebrow|titlePre|titleYou|gaugeAria|hoursOfSleep|hydration|hydrationUnavailable|logToday|loggedInline|recovery|rested|sleepDetail|sleepLastNight|sleepRecovery|syncedFromDevice|undoWater|checkinLabel|addWater)\b/);
+});
+
+test("Home's lead says the engine's reason in the member's words, and a coach's as written", async () => {
+  const { src, home } = homeSource();
+  assert.match(src, /^import \{ BSCheckinCard, bsCiLeadReason, bsCiIso, bsCiShift \} from '\.\/BSCheckinCard\.jsx';$/m);
+  // Worked out above the engine's push, so the push stays one short line (the fall-through test reads
+  // the 2000 characters after it).
+  const sub = home.indexOf('const engineSub = engineFlag ? bsCiLeadReason(engineFlag, tr) : null;');
+  assert.ok(sub > 0 && sub < home.indexOf('if (engineMove) todo.push('), "the lead's words are not worked out before the push");
+  assert.match(home, /if \(engineMove\) todo\.push\(\{ head: engineMove\.head, sub: \[engineSub, engineMove\.stakes\]\.filter\(Boolean\)\.join\(' · '\),/);
+  assert.doesNotMatch(home, /engineFlag\.reason/, "Home shows the engine's reason as the engine wrote it");
+  // End to end: the member's engine read, through the card's words, is what Home shows.
+  const { buildDirective } = require_('../public/newdesign/dashSignals.js');
+  const CARD = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/BSCheckinCard.jsx'), { registry: new Map([['react', React], ['react-dom', { createPortal: (n) => n }]]) });
+  const tr = (key, o = {}) => String(o.defaultValue ?? key).replace(/\{(\w+)\}/g, (_, n) => (o[n] != null ? String(o[n]) : ''));
+  const now = new Date(2026, 9, 18, 12);
+  const energy = { profile: { name: 'Q' }, vitals: { energy: { avg7: 3.2, n: 5 } } };
+  const mine = buildDirective(energy, now, 'client');
+  assert.equal(CARD.bsCiLeadReason(mine, tr), 'Your energy has been mostly low this week. A lighter session still counts.');
+  // A coach's own move is never reworded (ruling 13).
+  const coach = { ...mine, source: 'coach', reason: 'Energy 3/10, ease today' };
+  assert.equal(CARD.bsCiLeadReason(coach, tr), 'Energy 3/10, ease today');
 });
 
 test("the Check-ins setting says when the account has answered, so a reminder waits for it", async () => {

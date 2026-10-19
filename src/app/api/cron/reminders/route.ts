@@ -74,12 +74,12 @@ function content(kind: string, label: string): { type: string; title: string; bo
 // answered once its energy is in and its night is too, by the card's own rule (bsCiStep): hours,
 // typed or a watch's (a watch's 0h night included), or a skip (sleep_skipped, saved by the card's
 // Skip). Energy saved alone, or with only a Rested answer, as Same as yesterday after a watch night
-// or the old "How are you." page can, leaves the night open, and the card still asks for it, so
-// the reminder still goes (owner, 2026-10-19: "yes fix"; review on #2408). snapshot_date is the
-// member's local day, as is `date` here (both the device's zone, saved with the reminder). One read
-// per local date and 200 members, not one per reminder, so a busy hour stays inside the route's
-// time (Codex P2 on #2407). A read that fails leaves its members unanswered: a reminder too many is
-// cheaper than a check-in missed.
+// or the website's daily card (DashTodayCard) can, leaves the night open, and the card still asks
+// for it, so the reminder still goes (owner, 2026-10-19: "yes fix"; review on #2408). snapshot_date
+// is the member's local day, as is `date` here (both the device's zone, saved with the reminder).
+// One read per local date and 200 members, not one per reminder, so a busy hour stays inside the
+// route's time (Codex P2 on #2407). A read that fails leaves its members unanswered: a reminder too
+// many is cheaper than a check-in missed.
 // ⚠ UNTIL 2026-10-19-sleep-skipped.sql RUNS, the column is missing (42703 from Postgres, or
 // PostgREST's PGRST204): the read is made again without it, and energy alone answers the morning,
 // the rule before it.

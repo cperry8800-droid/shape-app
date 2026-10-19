@@ -288,7 +288,9 @@ function DashMealLedgerCard({ meals = [], targets, ledger, logged = {}, onLog, h
 }
 
 // Today — the home daily check-in (energy/hunger/sleep/rested) + hydration on ONE
-// instrument plate; web parity with the mobile BSTodayCard. Energy/Hunger/Rested are
+// instrument plate. It was the web twin of the app's old BSTodayCard, which the app retired
+// for the Morning check-in and Your mornings (part 2); bringing this card onto the same reads is
+// part 3 (docs/REVIEW-2026-10-19-morning-checkin.md §5). Energy/Hunger/Rested are
 // tap-to-set 1-10 gauges; Sleep is device-first (read-only snapshot when a wearable
 // synced last night, else manual hour chips). Hydration folds in as a dot-progress +
 // quick-add row that STAYS LIVE after the check-in collapses to its one-line summary.

@@ -1,5 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
+import { morningReadiness, mrWatchForDay } from '../services/morningReadiness.mjs';
 // ─── THE MORNING CHECK-IN: A CARD ON HOME, AND A WALKTHROUGH ─────────────────────────────────────
 // Owner, 2026-10-19: "i like the walk through tutorial style, but again the purpose and where you can
 // see the data over time, and what it means to the member" (docs/REVIEW-2026-10-19-morning-checkin.md,
@@ -9,9 +10,18 @@ import { createPortal } from 'react-dom';
 //
 //   Home card: Start check-in →  ·  Same as yesterday (the morning in one tap)
 //   Walkthrough: Last night (sleep, How did you wake up? optional, or Skip) → This morning (energy)
-//                → the summary: today's read, the week, who sees it, Change on every answer
+//                → the summary: today's read, the week, who sees it, Your mornings →, Change on
+//                  every answer
 //   Evening (members with a nutritionist, from 6 p.m.): one question, today's hunger
-//   Done: one line on Home — Checked in ✓ · today's read · the streak · Edit (step 1)
+//   Done: one line on Home — Checked in ✓ · today's read · the streak · Readiness 85 · Ready ·
+//         Your mornings → · Edit (step 1)
+//
+// ⚠ YOUR MORNINGS IS A DOOR, NOT AN IMPORT (part 2, §3.5). The page (BSYourMornings.jsx) imports this
+// file's rules, so this file never imports it back: Home passes the door in as `onOpen`, and the
+// summary closes the sheet before it opens the page, so the sheet never sits over it.
+//
+// ⚠ ONE READINESS NUMBER (§3.8). The done line's is morningReadiness.mjs on the morning shown here and
+// the watch's readings dated today off the same read, so it is the number Your mornings gives today.
 //
 // ⚠ FIVE WORDS, STORED ON THE OLD 1-10 SCALE AS 2 · 4 · 6 · 8 · 10. Every reader of
 // daily_health_snapshot keeps working unchanged: the coach's case file, roster triage, the
@@ -75,7 +85,9 @@ export function bsCiIso(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function bsCiShift(iso, days) {
+// A member-local day `days` away, shifted at local noon so a daylight-saving change never skips or
+// repeats one.
+export function bsCiShift(iso, days) {
   const [y, m, d] = iso.split('-').map(Number);
   return bsCiIso(new Date(y, m - 1, d + days, 12));
 }
@@ -120,10 +132,18 @@ export function bsCiStep(today, sleepSkipped) {
 }
 
 // Skipping the night is remembered on this device for the rest of the local day, and saved on the
-// day's row (sleep_skipped) for the Morning check-in reminder (skipNight below).
+// day's row (sleep_skipped) for the Morning check-in reminder (skipNight below). The card reads the
+// row's back too, so the skip holds on the member's other devices.
 function bsCiSkipKey(uid) { return `shape.checkin.sleepSkip.${uid || 'preview'}`; }
 function bsCiReadSkip(uid, iso) { try { return window.localStorage.getItem(bsCiSkipKey(uid)) === iso; } catch (e) { return false; } }
 function bsCiWriteSkip(uid, iso) { try { window.localStorage.setItem(bsCiSkipKey(uid), iso); } catch (e) { /* the skip still holds until the app closes */ } }
+// A night skipped on the day's row: the progress route's `sleepSkipped`, one point per row saved with
+// sleep_skipped. So a skip on one device is not asked again on another (part 2), and a past night the
+// member skipped is told apart from one they never answered. A server without the series has none.
+export function bsCiSkippedOn(series, iso) {
+  const pts = series && series.sleepSkipped;
+  return Array.isArray(pts) && pts.some((s) => s && s.date === iso);
+}
 
 // Consecutive days with a manual answer, ending today, or yesterday while today is still open.
 export function bsCiStreak(series, todayIso) {
@@ -181,6 +201,20 @@ export function bsCiWeek(series, todayIso) {
   for (let i = 7; i >= 1; i -= 1) {
     const iso = bsCiShift(todayIso, -i);
     out.push({ iso, ...bsCiDay(series, iso) });
+  }
+  return out;
+}
+
+// The `n` days ending `endIso`, that day included, oldest first: Your mornings' 7 or 30 days ending
+// today, and the same number before them to compare with. Each day is bsCiDay's, with `skipped` when
+// the night was skipped on the day's row. Up to 400 days, the most the progress route sends.
+export function bsCiWindow(series, endIso, n) {
+  const out = [];
+  const len = Math.min(400, Math.floor(Number(n)));
+  if (typeof endIso !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(endIso) || !(len > 0)) return out;
+  for (let i = len - 1; i >= 0; i -= 1) {
+    const iso = bsCiShift(endIso, -i);
+    out.push({ iso, ...bsCiDay(series, iso), skipped: bsCiSkippedOn(series, iso) });
   }
   return out;
 }
@@ -250,6 +284,78 @@ export function bsCiWhoSees(coaching) {
   if (coaching.trainer) return 'trainer';
   if (coaching.nutritionist) return 'nutritionist';
   return 'you';
+}
+
+// The five words of each scale in the member's language: E energy, H hunger between meals, R How did
+// you wake up? (Rested). The card and Your mornings both say a value with these, and a value, stored
+// or averaged, becomes its word only through bsCiWordIndex (ruling 11). The keys are written out so
+// the i18n gates check every one.
+export function bsCiWords(tr) {
+  return {
+    E: [
+      tr('home:checkin.e0', { defaultValue: 'Drained' }),
+      tr('home:checkin.e1', { defaultValue: 'Low' }),
+      tr('home:checkin.e2', { defaultValue: 'OK' }),
+      tr('home:checkin.e3', { defaultValue: 'Good' }),
+      tr('home:checkin.e4', { defaultValue: 'Great' }),
+    ],
+    H: [
+      tr('home:checkin.h0', { defaultValue: 'Not hungry' }),
+      tr('home:checkin.h1', { defaultValue: 'A little' }),
+      tr('home:checkin.h2', { defaultValue: 'Normal' }),
+      tr('home:checkin.h3', { defaultValue: 'Hungry' }),
+      tr('home:checkin.h4', { defaultValue: 'Starving' }),
+    ],
+    R: [
+      tr('home:checkin.r0', { defaultValue: 'Wrecked' }),
+      tr('home:checkin.r1', { defaultValue: 'Tired' }),
+      tr('home:checkin.r2', { defaultValue: 'OK' }),
+      tr('home:checkin.r3', { defaultValue: 'Rested' }),
+      tr('home:checkin.r4', { defaultValue: 'Fresh' }),
+    ],
+  };
+}
+
+// A word mid-sentence is lower case in the app's language: "Mostly good this week", "Diese Woche
+// meist gut". The card's own rule, for the lines said outside it.
+export function bsCiLower(w) {
+  const locale = window.ShapeI18n?.intlLocale?.() || undefined;
+  try { return String(w).toLocaleLowerCase(locale); } catch (e) { return String(w).toLowerCase(); }
+}
+
+// Morning readiness's bands (morningReadiness.mjs) in the member's words, keyed as the module keys them.
+export function bsCiBandWords(tr) {
+  return {
+    ready: tr('home:mornings.bandReady', { defaultValue: 'Ready' }),
+    steady: tr('home:mornings.bandSteady', { defaultValue: 'Steady' }),
+    easy: tr('home:mornings.bandEasy', { defaultValue: 'Take it easy' }),
+    low: tr('home:mornings.bandLow', { defaultValue: 'Run down' }),
+  };
+}
+
+// ⚠ HOME'S LEAD SAYS THE ENGINE'S CHECK-IN FLAGS IN THE MEMBER'S WORDS (part 2; rulings 11 and 13).
+// The engine's own member reason is English, for what has no locale (the push, the bell, the splash),
+// so Home says it again from the app's catalog out of directive.evidence, the flag's raw average: in
+// the week line's own keys and the card's word rule, so the lead and the summary say one thing. Sleep
+// is to the 5 minutes, as the week line has it. A coach's own reason (source 'coach'), an engine lead
+// that is not one of these three flags, and one without a finite average are said as they came.
+export function bsCiLeadReason(dir, tr) {
+  if (!dir) return null;
+  const ev = dir.source === 'engine' && dir.evidence ? dir.evidence : null;
+  const avg = ev && typeof ev.avg === 'number' && Number.isFinite(ev.avg) ? ev.avg : null;
+  if (avg == null) return dir.reason;
+  const i = bsCiWordIndex(avg);
+  if (ev.key === 'energy_low' && i != null) {
+    return tr('home:checkin.weekEnergyLow', { defaultValue: 'Your energy has been mostly {word} this week. A lighter session still counts.', word: bsCiLower(bsCiWords(tr).E[i]) });
+  }
+  if (ev.key === 'hunger_high' && i != null) {
+    return tr('home:lead.hungerReason', { defaultValue: "You've been mostly {word} between meals this week. The plan may be running light on fuel.", word: bsCiLower(bsCiWords(tr).H[i]) });
+  }
+  if (ev.key === 'sleep_low' && avg > 0) {
+    const say = (hh, mm) => (mm == null ? tr('home:checkin.hOnly', { defaultValue: '{h}h', h: hh }) : tr('home:checkin.hm', { defaultValue: '{h}h {m}', h: hh, m: mm }));
+    return tr('home:checkin.weekSleepShort', { defaultValue: 'Short on sleep this week: {hours} a night.', hours: bsCiHM(Math.round(avg * 12) / 12, say) });
+  }
+  return dir.reason;
 }
 
 // The signed-out preview's week: a sample, never saved.
@@ -336,7 +442,7 @@ export async function bsCiSyncDevices(uid, nowMs = Date.now()) {
 export const BS_CI_STEPS = ['sleep', 'energy'];
 export const BS_CI_SUMMARY = BS_CI_STEPS.length;
 
-function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null }) {
+function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null, onMornings = null }) {
   const t = window.useBS();
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -353,6 +459,7 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
   const [yesterday, setYesterday] = useState(signedIn ? null : { energy: 8, hunger: 6, sleep: 7.17, rested: 8, device: false });
   const [week, setWeek] = useState(() => (signedIn ? [] : bsCiSampleWeek(todayIso)));
   const [usual, setUsual] = useState(7.5);
+  const [watch, setWatch] = useState(null);       // the watch's readings dated today, for readiness (mrWatchForDay)
   const [streakBefore, setStreakBefore] = useState(0); // the run through yesterday; today adds one once answered
   const [walk, setWalk] = useState(null);         // the walkthrough's screen: a step, BS_CI_SUMMARY, 'evening'; null closed
   const [fromSummary, setFromSummary] = useState(false); // a Change from the summary goes back to it
@@ -396,6 +503,9 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
         setWeek(bsCiWeek(p.series, todayIso));
         setUsual(bsCiUsualNight(p.series, todayIso));
         setStreakBefore(bsCiStreak(p.series, todayIso) - (bsCiAnswered(day) ? 1 : 0));
+        setWatch(mrWatchForDay(p.series, todayIso));
+        // A night skipped on another device is skipped here too: the day's row says so.
+        if (bsCiSkippedOn(p.series, todayIso)) setSkippedDay(todayIso);
       }
       setReady(true);
     }).catch(() => { if (on) setReady(true); });
@@ -435,6 +545,7 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
       setYesterday(bsCiDay(p.series, bsCiShift(todayIso, -1)));
       setWeek(bsCiWeek(p.series, todayIso));
       setUsual(bsCiUsualNight(p.series, todayIso));
+      setWatch(mrWatchForDay(p.series, todayIso)); // the night's recovery and heart readings came with it
       const day = bsCiDay(p.series, todayIso);
       if (!bsCiWornNight(day)) return;
       confirmed.current = { ...confirmed.current, sleep: day.sleep, device: true };
@@ -545,8 +656,8 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
   // ⚠ A SKIPPED NIGHT IS TOLD TO THE SERVER (owner, 2026-10-19: "yes fix"). The reminder counts a
   // morning answered once its energy is in and its night is answered, measured or skipped; a skip
   // kept only on this device read as an open night, so it could not hold a finished morning apart
-  // from energy saved alone on the old page. A save that fails keeps the skip here: the reminder
-  // then reads the night as open, a reminder too many at worst.
+  // from energy saved alone, as the website's daily card still saves it. A save that fails keeps the
+  // skip on this device only: the reminder then reads the night as open, a reminder too many at worst.
   const skipNight = () => {
     bsCiWriteSkip(uid, todayIso);
     setSkippedDay(todayIso);
@@ -569,9 +680,7 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
     if (fromSummary) { setFromSummary(false); setWalk(BS_CI_SUMMARY); } else close();
   };
 
-  const E = [0, 1, 2, 3, 4].map((i) => tr(`home:checkin.e${i}`, { defaultValue: ['Drained', 'Low', 'OK', 'Good', 'Great'][i] }));
-  const H = [0, 1, 2, 3, 4].map((i) => tr(`home:checkin.h${i}`, { defaultValue: ['Not hungry', 'A little', 'Normal', 'Hungry', 'Starving'][i] }));
-  const R = [0, 1, 2, 3, 4].map((i) => tr(`home:checkin.r${i}`, { defaultValue: ['Wrecked', 'Tired', 'OK', 'Rested', 'Fresh'][i] }));
+  const { E, H, R } = bsCiWords(tr);
   const word = (list, v) => { const i = bsCiWordIndex(v); return i == null ? null : list[i]; };
   const locale = window.ShapeI18n?.intlLocale?.() || undefined;
   const lower = (w) => { try { return w.toLocaleLowerCase(locale); } catch (e) { return String(w).toLowerCase(); } };
@@ -618,6 +727,11 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
     : weekLine.kind === 'energyLow' ? tr('home:checkin.weekEnergyLow', { defaultValue: 'Your energy has been mostly {word} this week. A lighter session still counts.', word: lower(E[weekLine.word]) })
     : weekLine.kind === 'mostly' ? tr('home:checkin.weekMostly', { defaultValue: 'Mostly {word} mornings this week.', word: lower(E[weekLine.word]) })
     : tr('home:checkin.weekMore', { defaultValue: '{n, plural, one {# more morning and your week shows here.} other {# more mornings and your week shows here.}}', n: weekLine.n });
+  // The morning's readiness (§3.8), for the done line: the answers shown here, with the night left
+  // out when it was skipped, and the watch's readings dated today off the same read. Null until
+  // energy is in. Signed out it is the preview's own answers, like today's read.
+  const readiness = morningReadiness({ energy: today.energy, rested: today.rested, sleepHours: today.sleep, usualNight: usual, skipped: sleepSkipped, watch });
+  const readinessText = readiness ? tr('home:mornings.readinessLine', { defaultValue: 'Readiness {score} · {band}', score: readiness.score, band: bsCiBandWords(tr)[readiness.band] }) : null;
   const who = signedIn ? bsCiWhoSees(coaching) : null;
   const whoText = who === 'both' ? tr('home:checkin.whoBoth', { defaultValue: 'Your trainer and nutritionist see your 7-day averages.' })
     : who === 'trainer' ? tr('home:checkin.whoTrainer', { defaultValue: 'Your trainer sees your 7-day averages.' })
@@ -634,6 +748,14 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
         : tr('home:today.checkinFailed', { defaultValue: 'Could not save check-in — try again' })}
     </div>
   ) : null;
+  // Your mornings → (§3.5), on the done line and the summary, wherever Home gives the door; signed out
+  // too, where the page shows example mornings. From the summary the sheet closes first, so it never
+  // stays over the page, and Home then unmounts the card with it.
+  const morningsLink = (fromSheet) => (onMornings ? (
+    <button type="button" data-bs-checkin-mornings="" onClick={() => { if (fromSheet) close(); onMornings(); }} style={{ alignSelf: 'flex-start', minHeight: fromSheet ? 44 : 34, padding: '4px 0', border: 0, background: 'transparent', color: teal, cursor: 'pointer', ...mono, fontSize: fromSheet ? 10 : 8.5, letterSpacing: '0.12em' }}>
+      {tr('home:mornings.link', { defaultValue: 'Your mornings' })}<span aria-hidden> →</span>
+    </button>
+  ) : null);
 
   // A word in a narrow tile or cell: a step smaller and tighter when it is long (German, Russian,
   // Portuguese at 320 px with Large text), and hyphenated in the page's language where it must break.
@@ -753,6 +875,7 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
           </div>
           {signedIn && !err ? <p style={{ margin: 0, fontFamily: t.BODY, fontSize: 13.5, lineHeight: 1.45, color: t.INK70 }}>{tr('home:checkin.savedAsYouWent', { defaultValue: 'Saved as you went. Change any answer below, or come back to it from Home.' })}</p> : null}
           {whoText ? <p data-bs-checkin-who="" style={{ margin: 0, fontFamily: t.BODY, fontSize: 13, lineHeight: 1.45, color: t.INK50 }}>{whoText}</p> : null}
+          {morningsLink(true)}
           {signedIn && streak >= 2 ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6, padding: 14, border: `1px solid ${t.RULE}`, borderRadius: 5 }}>
               <span aria-hidden style={{ display: 'flex', gap: 5 }}>{Array.from({ length: Math.min(7, streak) }, (_, i) => <span key={i} style={{ width: 10, height: 10, borderRadius: 99, background: amber }} />)}</span>
@@ -920,6 +1043,8 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
               {signedIn && streak >= 2 ? (
                 <div style={{ ...mono, fontSize: 8.5, color: amber }}>{tr('home:checkin.streak', { defaultValue: '{n, plural, one {# day running} other {# days running}}', n: streak })}</div>
               ) : null}
+              {readinessText ? <div data-bs-checkin-readiness="" style={{ ...mono, fontSize: 8.5, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{readinessText}</div> : null}
+              {morningsLink(false)}
             </div>
             <button type="button" onClick={() => open(0)} style={{ flex: 'none', minHeight: 34, padding: '5px 11px', borderRadius: 4, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', ...mono, fontSize: 8.5 }}>{tr('home:action.edit', { defaultValue: 'Edit' })}</button>
           </div>
@@ -958,8 +1083,9 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
 // it was read for: the answers, the open walkthrough, the save versions. So a new day mounts a new
 // card rather than carrying any of it across midnight. A walkthrough open at midnight closes, and a
 // save from the day before that fails after midnight lands on the old, unmounted card and changes
-// nothing. (`onOpen`, the old Details door, is not used: part 2's Your mornings replaces it.)
+// nothing. `onOpen` is Home's door to Your mornings: the done line's and the summary's "Your
+// mornings →" (onMornings), shown only when Home gives it.
 export function BSCheckinCard(props) {
   const day = bsCiIso(new Date());
-  return <BSCheckinDay key={day} dayIso={day} openRequest={props.openRequest} onOpenRequestConsumed={props.onOpenRequestConsumed} />;
+  return <BSCheckinDay key={day} dayIso={day} openRequest={props.openRequest} onOpenRequestConsumed={props.onOpenRequestConsumed} onMornings={props.onOpen || null} />;
 }

@@ -9,6 +9,7 @@ import { epleyE1rm } from '@/lib/e1rm';
 import { readinessFromSeries } from '@/lib/recovery-readiness';
 import { requireMembership } from '@/lib/require-membership';
 import { setLoadLb, setLoadUnit } from '@/lib/set-load';
+import { DAY_MS } from '@/lib/time';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -123,6 +124,14 @@ export async function GET(request: Request) {
       return (s as Record<string, unknown>).sleep_hours != null && by !== '' && by !== 'manual';
     })
     .map((s) => ({ date: (s as Record<string, string>).snapshot_date, value: 1 }));
+  // The nights the member skipped in the Morning check-in (value 1). The skip is saved on the
+  // day's row (`sleep_skipped`, 2026-10-19-sleep-skipped.sql), so the card reads it from here as
+  // well as from the device it was tapped on, and a night skipped on one device is not asked again
+  // on another. Only `true` counts: the column is null until a skip. Before that migration the
+  // column is absent from every row (select('*') above), so the series is simply empty.
+  const sleepSkippedSeries = snaps
+    .filter((s) => (s as Record<string, unknown>).sleep_skipped === true)
+    .map((s) => ({ date: (s as Record<string, string>).snapshot_date, value: 1 }));
   const hrvSeries = seriesFor('hrv_ms');
   const volumeSeries = seriesFor('workout_minutes');
   const proteinSeries = seriesFor('protein_g');
@@ -158,11 +167,19 @@ export async function GET(request: Request) {
 
   const bodyFats = bodyFatSeries.map((s) => s.value);
   const restingHrs = restingHrSeries.map((s) => s.value);
-  const sleeps = sleepSeries.map((s) => s.value);
 
   const restingRecent = avg(restingHrs.slice(-7));
   const restingPrior = avg(restingHrs.slice(-14, -7));
-  const sleepAvg = avg(sleeps.slice(-30));
+  // ⚠ THE LAST 30 DAYS, NOT THE LAST 30 NIGHTS LOGGED. This was `avg(sleeps.slice(-30))`: the
+  // newest 30 entries however old, so a member who logs a night now and then was shown months of
+  // nights under Progress's "30-day avg", and Your mornings, which windows its nights by date,
+  // disagreed with it. The window is the server's UTC today and the 29 days before it, plus a day
+  // above it for a member east of UTC whose local day is already tomorrow; a night dated later than
+  // that is ignored. Dates are YYYY-MM-DD strings, which compare as dates.
+  const nowMs = Date.now();
+  const sleepFrom = new Date(nowMs - 29 * DAY_MS).toISOString().slice(0, 10);
+  const sleepTo = new Date(nowMs + DAY_MS).toISOString().slice(0, 10);
+  const sleepAvg = avg(sleepSeries.filter((p) => p.date >= sleepFrom && p.date <= sleepTo).map((p) => p.value));
 
   // Recovery readiness (0-100) from tonight's sleep + cardio vs a trailing baseline,
   // plus the wearable's own recovery score when present. null when there's no sleep.
@@ -342,6 +359,7 @@ export async function GET(request: Request) {
       restingHr: restingHrSeries,
       sleep: sleepSeries,
       sleepFromDevice: sleepFromDeviceSeries,
+      sleepSkipped: sleepSkippedSeries,
       sleepEfficiency: sleepEfficiencySeries,
       hrv: hrvSeries,
       volume: volumeSeries,

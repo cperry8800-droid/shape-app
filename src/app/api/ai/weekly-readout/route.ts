@@ -145,6 +145,39 @@ function isReportable(c: CorrelationResult): boolean {
   return c.n >= MIN_REPORTABLE_DAYS && c.strength !== 'weak' && c.qValue < Q_THRESHOLD;
 }
 
+// What the member reads for a metric in the fallback's sentences. These used to print the column
+// itself with its underscores turned into spaces, so the Morning check-in's Rested answer read
+// "sleep quality" (a name the app never uses for it, and the one a watch's sleep score goes by), and
+// the units leaked in as words: "protein g", "hydration l", "weight lb", "sleep performance pct". A
+// column not named here keeps that old spelling, which is already plain words for the rest.
+const METRIC_WORDS = new Map<string, string>([
+  ['sleep_quality', 'how rested you felt'],
+  ['energy', 'energy'],
+  ['hunger', 'hunger'],
+  ['protein_g', 'protein'],
+  ['carbs_g', 'carbs'],
+  ['fat_g', 'fat'],
+  ['hydration_l', 'water'],
+  ['weight_lb', 'weight'],
+  ['body_fat_pct', 'body fat'],
+  ['sleep_hours', 'sleep'],
+  ['sleep_performance_pct', 'sleep performance'],
+  ['recovery_score', 'recovery'],
+  ['workout_minutes', 'training minutes'],
+  ['workout_volume_lb', 'training volume'],
+  ['resting_hr', 'resting heart rate'],
+  ['avg_heart_rate', 'average heart rate'],
+  ['hrv_ms', 'HRV'],
+  ['steps', 'steps'],
+  // The `calories` metric is calories eaten, read from `dietary_kcal` (SNAPSHOT_COLUMN).
+  ['calories', 'calories'],
+  ['dietary_kcal', 'calories'],
+]);
+
+function metricWords(key: string): string {
+  return METRIC_WORDS.get(key) ?? key.replaceAll('_', ' ');
+}
+
 function fallbackReadout(correlations: CorrelationResult[]): Readout {
   // ⚠ GATES ON q, NOT p, and that is the point of computing q at all. Each pair
   // is a separate test, so with a 16-pair catalog and a 28-day window roughly
@@ -178,8 +211,8 @@ function fallbackReadout(correlations: CorrelationResult[]): Readout {
     } out. Strongest: ${significant[0].label.toLowerCase()} (r=${significant[0].r.toFixed(2)}).`,
     insights: significant.map((c) => {
       const dir = c.direction === 'positive' ? 'tracks together with' : 'moves opposite to';
-      const x = c.x.replaceAll('_', ' ');
-      const y = c.y.replaceAll('_', ' ');
+      const x = metricWords(c.x);
+      const y = metricWords(c.y);
       return {
         headline: c.label,
         detail: `Across ${c.n} day${c.n === 1 ? '' : 's'}, ${x} ${dir} ${y} (r=${c.r.toFixed(2)}, ${c.strength}).`,
@@ -195,10 +228,14 @@ function fallbackReadout(correlations: CorrelationResult[]): Readout {
         // the other way, or both may follow something unmeasured. So the line
         // reports the association and names it as worth WATCHING, which is a
         // claim the r supports.
+        // It says "your", because the member is who reads it (Progress's readout
+        // card, app and website), and the two names stand side by side rather than
+        // after "higher": a name can be a phrase ("how rested you felt"), and
+        // "higher how rested you felt" is not a sentence.
         recommendation:
           c.direction === 'positive'
-            ? `Worth watching together: on this member's own days, higher ${x} shows up alongside higher ${y}. What drives what is not established here.`
-            : `Worth watching together: on this member's own days, higher ${x} shows up alongside lower ${y}. What drives what is not established here.`,
+            ? `Worth watching together: on your own days, ${x} and ${y} have moved in the same direction. What drives what is not established here.`
+            : `Worth watching together: on your own days, ${x} and ${y} have moved in opposite directions. What drives what is not established here.`,
       };
     }),
   };
@@ -288,6 +325,10 @@ async function generateReadout(
           // evidence qualifies. So the instruction now matches the fallback's
           // stance: describe the association, say what is worth watching, and
           // never state direction of cause.
+          // The 1-10 line: the Morning check-in asks in words and stores them as
+          // 2 · 4 · 6 · 8 · 10, and the catalog's own explanations name that
+          // scale, so a model left to it would hand the member a figure for an
+          // answer they gave as a word.
           content:
             'You are a sports-science coach writing a weekly readout for one client. ' +
             "You are given a catalog of correlations already computed from the client's own logged data. " +
@@ -299,6 +340,9 @@ async function generateReadout(
             'will produce a change in Y. Some pairs are two self-reports entered in the same check-in seconds ' +
             'apart, which can agree for reasons other than the relationship — the explanation field says so where ' +
             'it applies, and you should carry that caution into the wording. ' +
+            'The client answers energy, hunger and how rested they felt in words, not numbers: where an explanation ' +
+            'calls them 1-10 self-reports, that scale is only how the answers are stored, so never quote a 1-10 ' +
+            'figure, a "/10" or the scale itself to the client. ' +
             'q_value is the false-discovery rate across the whole catalog: prefer findings with a low q_value, ' +
             'and do not present a high-q_value finding as established.',
         },

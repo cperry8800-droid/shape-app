@@ -19,12 +19,10 @@ export default {
   timeoutMs: 300_000,
   mutations: [
     // ── What is stored ──
-    // A proven no-op. energy, hunger and sleep_quality are smallint (CHECK 1-10), and
-    // /api/client/checkin rounds before it writes, so every value read back is a whole
-    // number. For a whole n, n/2 is an integer or ends in .5, and Math.ceil and Math.round
-    // (which rounds .5 up) agree on both. The two would differ only on a fraction, which
-    // nothing can store. The test above pins all ten whole values.
-    { name: 'an old 1-10 value reads as the wrong word', file: CARD, expectSurvive: true,
+    // Not a no-op: a stored value is whole, but an average is not, and bsCiWeekLine, Your mornings'
+    // headlines and Home's lead all turn an average into its word here. Math.round would call a 2.5
+    // week Drained where the rule ((2i, 2i+2] is word i, ruling 11) and the engine say Low.
+    { name: 'an old 1-10 value reads as the wrong word', file: CARD,
       find: 'return Math.max(0, Math.min(4, Math.ceil(Math.min(10, n) / 2) - 1));',
       replace: 'return Math.max(0, Math.min(4, Math.round(Math.min(10, n) / 2) - 1));' },
     { name: 'the words are stored off the engine thresholds', file: CARD,
@@ -304,24 +302,9 @@ export default {
     { name: "the server's watch night is not recorded as stored", file: CARD,
       find: '      confirmed.current = { ...confirmed.current, sleep: h, device: true };\n',
       replace: '' },
-    { name: "the check-in page reads a heart rate as the watch's night", file: CLIENT,
-      find: '      const devToday = devNights ? devNights.some((s) => s && s.date === todayIso) : hasDeviceMeta;',
-      replace: '      const devToday = hasDeviceMeta;' },
-    { name: 'the check-in page reads no night as a watch\'s on an older server', file: CLIENT,
-      find: '.some((s) => s && s.date === todayIso) : hasDeviceMeta;',
-      replace: '.some((s) => s && s.date === todayIso) : false;' },
-    { name: 'a typed night on a worn day is not counted as logged', file: CLIENT,
-      find: '(sToday && !devToday)) setLogged(true);',
-      replace: '(sToday && !hasDeviceMeta)) setLogged(true);' },
-    { name: "the check-in page locks a typed night as the watch's", file: CLIENT,
-      find: '        setSleepSynced(devToday);',
-      replace: '        setSleepSynced(hasDeviceMeta);' },
-    { name: "Log today keeps typed hours the server did not keep", file: CLIENT,
-      find: '      if (d && d.sleepFromDevice && d.sleepHours != null) { setSleepHours(Number(d.sleepHours)); setSleepSynced(true); }\n',
-      replace: '' },
-    { name: "Log today reads kept hours as the watch's", file: CLIENT,
-      find: '      if (d && d.sleepFromDevice && d.sleepHours != null) {',
-      replace: '      if (d && d.sleepHours != null) {' },
+    // The old "How are you." page's six watch-night mutations went with the page (part 2, 2026-10-19).
+    // Your mornings reads a watch's night by the card's rule (bsCiWornNight), and its own mutations
+    // are in tests/mutations/mornings-part2-2026-10-19.mutations.mjs.
     // ── Found in review (the device-first check-in) ──
     { name: 'a failed status read uses up the 30 minutes', file: CARD,
       find: '  try { status = await I.getStatus(); } catch (e) { keep(last); throw e; }',

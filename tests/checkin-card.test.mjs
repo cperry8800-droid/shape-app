@@ -17,6 +17,7 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadRealModule } from './helpers/load-real-module.mjs';
+import { morningReadinessForDay } from '../mobile-app/src/services/morningReadiness.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require_ = createRequire(import.meta.url);
@@ -112,6 +113,13 @@ test('five words are stored as 2·4·6·8·10, and an old 1-10 value reads back 
   assert.deepEqual(CARD.BS_CI_STORED, [2, 4, 6, 8, 10]);
   assert.deepEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(CARD.bsCiWordIndex), [0, 0, 1, 1, 2, 2, 3, 3, 4, 4]);
   for (const v of [null, undefined, 0, -1, 'x', NaN]) assert.equal(CARD.bsCiWordIndex(v), null, `${v} read as a word`);
+});
+
+test("an average becomes its word by the same rule, (2i, 2i+2] is word i, so a 2.5 week is Low, as the engine says", () => {
+  // A stored value is whole, an average is not: the week line, Your mornings and Home's lead all say one.
+  assert.deepEqual([2.5, 3.4, 4.2, 6.5, 8.4].map(CARD.bsCiWordIndex), [1, 1, 2, 3, 4]);
+  const days = [2, 2, 4].map((energy) => ({ energy }));
+  assert.deepEqual(CARD.bsCiWeekLine(days, { energy: 2 }), { kind: 'energyLow', word: 1 }, 'an average of 2.5 read as Drained');
 });
 
 test("the stored values sit on the engine's side of its thresholds where the words do, and the card's lines are the engine's", () => {
@@ -1462,4 +1470,232 @@ test('a reminder before 4 a.m. still opens the walkthrough, and waits for the da
     await m.flush();
     assert.match(m.text(), /Step 1 of 2 · Last night/, 'the reminder did not open the walkthrough at night, at the first open question');
   } finally { if (m) m.unmount(); mock.timers.setTime(at(12)); }
+});
+
+// ── Part 2: the door to Your mornings, Morning readiness, and the rules the page shares ──────────
+// (docs/REVIEW-2026-10-19-morning-checkin.md §3.5 and §3.8)
+
+// useShapeTr's own fallback over the real catalog: a key en does not have yet says its default.
+const trEn = (key, opts) => { const v = dom.window.ShapeI18n.t(key, opts); return (v == null || v === key) ? (opts?.defaultValue ?? key) : v; };
+
+test("Home's done line says the morning's readiness, then opens Your mornings when Home gives the door", async () => {
+  let opened = 0;
+  env({ uid: 'mornings-1', days: { [TODAY]: { energy: 8, sleep: 7.5, sleepQuality: 8 } } });
+  let m = await mount({ onOpen: () => { opened += 1; } });
+  try {
+    const card = document.querySelector('[data-bs-checkin-card]');
+    // Good (85), a full 7h 30 against the usual 7h 30 (100), Rested (85): (35·85 + 25·100 + 15·85) / 75.
+    assert.equal(card.querySelector('[data-bs-checkin-readiness]')?.textContent, 'Readiness 90 · Ready');
+    const link = card.querySelector('[data-bs-checkin-mornings]');
+    assert.ok(link, 'the done line has no door to Your mornings');
+    assert.equal(link.textContent, 'Your mornings →');
+    assert.ok(card.querySelector('[data-bs-checkin-readiness]').compareDocumentPosition(link) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING, 'the door is not under the readiness line');
+    assert.ok(!m.button(/Details/), 'the door is called Details');
+    await m.click(/^Your mornings/);
+    assert.equal(opened, 1, 'the door did not open Your mornings');
+    assert.ok(!m.walk(), 'the door opened the walkthrough');
+  } finally { m.unmount(); }
+  // Without a door from Home there is no link, and the readiness line still shows.
+  env({ uid: 'mornings-1', days: { [TODAY]: { energy: 8, sleep: 7.5, sleepQuality: 8 } } });
+  m = await mount();
+  try {
+    assert.ok(!document.querySelector('[data-bs-checkin-mornings]'), 'a door that goes nowhere is on the card');
+    assert.match(m.text(), /Readiness 90 · Ready/);
+  } finally { m.unmount(); }
+});
+
+test('the summary opens Your mornings after whoever sees it, and closes itself first', async () => {
+  let opened = 0;
+  let sheetAtOpen = null;
+  env({ uid: 'mornings-2', days: { [TODAY]: { energy: 8, sleep: 7 } }, plan: NONE });
+  const m = await mount({ openRequest: 1, onOpen: () => { opened += 1; sheetAtOpen = !!m.walk(); } });
+  try {
+    const sheet = m.walk();
+    assert.ok(sheet, 'the summary did not open');
+    const link = sheet.querySelector('[data-bs-checkin-mornings]');
+    assert.ok(link, 'the summary has no door to Your mornings');
+    assert.equal(link.textContent, 'Your mornings →');
+    const who = sheet.querySelector('[data-bs-checkin-who]');
+    assert.ok(who.compareDocumentPosition(link) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING, 'the door is not after Who sees this');
+    await React.act(async () => { link.click(); });
+    await m.flush();
+    assert.equal(opened, 1);
+    assert.equal(sheetAtOpen, true, 'the door is not inside the sheet');
+    assert.ok(!m.walk(), 'the sheet stayed over Your mornings');
+    assert.equal(document.querySelectorAll('[data-bs-checkin-mornings]').length, 1, 'the done line lost its door');
+  } finally { m.unmount(); }
+});
+
+test('signed out, the door still shows: the page shows example mornings', async () => {
+  let opened = 0;
+  env({ uid: null });
+  const m = await mount({ onOpen: () => { opened += 1; } });
+  try {
+    await m.click(/Start check-in/);
+    await m.click(/^Next/);
+    await m.click(/^Good$/);
+    assert.ok(m.walk().querySelector('[data-bs-checkin-mornings]'), 'the preview summary has no door');
+    await m.click(/^Done$/);
+    // The preview's own answers: Good (85) and the usual 7h 30 (100), (35·85 + 25·100) / 60 = 91.25.
+    assert.equal(document.querySelector('[data-bs-checkin-readiness]')?.textContent, 'Readiness 91 · Ready');
+    await m.click(/^Your mornings/);
+    assert.equal(opened, 1);
+  } finally { m.unmount(); }
+});
+
+test("the done line's readiness is the number Your mornings gives today, with the watch read only when dated today", async () => {
+  // Four nights of 8h (the usual night) with HRV 50 and resting HR 55: the 30-day baselines.
+  const before = {};
+  for (const iso of ['2026-10-14', '2026-10-15', '2026-10-16', YDAY]) before[iso] = { sleep: 8, hrv: 50, restingHr: 55 };
+  const todayRow = { energy: 8, sleep: 7, sleepQuality: 4 };
+  const check = async (days, expected) => {
+    env({ uid: 'mornings-3', days });
+    const s = series(days);
+    const page = morningReadinessForDay(s, TODAY, { usualNight: CARD.bsCiUsualNight(s, TODAY) });
+    const m = await mount();
+    try {
+      const line = document.querySelector('[data-bs-checkin-readiness]')?.textContent;
+      assert.equal(line, expected);
+      assert.equal(line, `Readiness ${page.score} · ${CARD.bsCiBandWords(trEn)[page.band]}`, "Home's number is not the page's");
+    } finally { m.unmount(); }
+  };
+  // Good 85, 7h against an 8h usual night 70, Tired 35, recovery 70, HRV 55 against 50 → 85, resting
+  // HR 57 against 55 → 80: (35·85 + 25·70 + 15·35 + 15·70 + 5·85 + 5·80) / 100 = 71.25.
+  await check({ ...before, [TODAY]: { ...todayRow, recovery: 70, hrv: 55, restingHr: 57 } }, 'Readiness 71 · Steady');
+  // Yesterday's recovery is not this morning's: (35·85 + 25·70 + 15·35) / 75 = 70.
+  await check({ ...before, [YDAY]: { ...before[YDAY], recovery: 70 }, [TODAY]: todayRow }, 'Readiness 70 · Steady');
+});
+
+test('a night skipped on another device is skipped here: the day\'s row says so', async () => {
+  dom.window.localStorage.clear();
+  env({ uid: 'mornings-4', days: { [TODAY]: { energy: 8, sleepSkipped: 1 } } });
+  let m = await mount();
+  try {
+    assert.match(m.text(), /Checked in ✓/, 'a night skipped on the row was asked again');
+    assert.ok(!m.button(/^Continue/));
+    // The skipped night has no part: Good alone.
+    assert.equal(document.querySelector('[data-bs-checkin-readiness]')?.textContent, 'Readiness 85 · Ready');
+  } finally { m.unmount(); }
+  // A reminder opens the summary, not the night.
+  env({ uid: 'mornings-4', days: { [TODAY]: { energy: 8, sleepSkipped: 1 } } });
+  m = await mount({ openRequest: 1 });
+  try {
+    assert.equal(m.walk()?.getAttribute('data-bs-checkin-walk'), String(CARD.BS_CI_SUMMARY), 'a reminder opened a night the row says was skipped');
+    assert.match(m.text(), /Skipped/);
+  } finally { m.unmount(); }
+  // A night skipped on the row that has hours after all (a watch that synced later) is still left out,
+  // as Your mornings leaves it out: Good alone is 85; counting 5h against 7h 30 would make it 60.
+  const late = { [TODAY]: { energy: 8, sleep: 5, sleepFromDevice: 1, sleepSkipped: 1 } };
+  env({ uid: 'mornings-4', days: late });
+  m = await mount();
+  try {
+    assert.equal(document.querySelector('[data-bs-checkin-readiness]')?.textContent, 'Readiness 85 · Ready', "a skipped night's hours were counted");
+    assert.equal(morningReadinessForDay(series(late), TODAY, { usualNight: 7.5 }).score, 85, "Home's number is not the page's");
+  } finally { m.unmount(); }
+  // Start opens energy for a night skipped on the row and nothing else answered.
+  env({ uid: 'mornings-4', days: { [TODAY]: { sleepSkipped: 1 } } });
+  m = await mount();
+  try {
+    await m.click(/Start check-in/);
+    assert.match(m.text(), /Step 2 of 2 · This morning/, 'Start opened a night the row says was skipped');
+  } finally { m.unmount(); }
+  // Yesterday's skip holds only yesterday.
+  env({ uid: 'mornings-4', days: { [YDAY]: { sleepSkipped: 1 }, [TODAY]: { energy: 8 } } });
+  m = await mount();
+  try { assert.ok(m.button(/^Continue/), "yesterday's skip held today"); } finally { m.unmount(); dom.window.localStorage.clear(); }
+});
+
+test('a window is n days ending its day, that day included, oldest first, with the skipped nights', () => {
+  const s = series({
+    '2026-10-11': { energy: 4 }, '2026-10-12': { energy: 6, sleep: 7, sleepFromDevice: 1 }, [YDAY]: { energy: 8, sleepSkipped: 1 },
+    [TODAY]: { energy: 10, sleepQuality: 8 }, '2026-10-19': { energy: 2 },
+  });
+  const w = CARD.bsCiWindow(s, TODAY, 7);
+  assert.deepEqual(w.map((d) => d.iso), ['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16', '2026-10-17', TODAY]);
+  assert.deepEqual(w[6], { iso: TODAY, energy: 10, hunger: null, sleep: null, rested: 8, device: false, skipped: false }, 'today is not the last day');
+  assert.deepEqual(w[0], { iso: '2026-10-12', energy: 6, hunger: null, sleep: 7, rested: null, device: true, skipped: false });
+  assert.equal(w[5].skipped, true, 'a night skipped on the row is not marked');
+  assert.equal(w.filter((d) => d.skipped).length, 1);
+  assert.ok(!w.some((d) => d.iso === '2026-10-19'), 'a day after the window is in it');
+  // 30 days, and the window before it, across a month end.
+  const month = CARD.bsCiWindow(s, TODAY, 30);
+  assert.equal(month.length, 30);
+  assert.equal(month[0].iso, '2026-09-19');
+  assert.equal(month[29].iso, TODAY);
+  const prior = CARD.bsCiWindow(s, CARD.bsCiShift(TODAY, -7), 7);
+  assert.deepEqual([prior[0].iso, prior[6].iso], ['2026-10-05', '2026-10-11']);
+  assert.equal(prior[6].energy, 4);
+  assert.deepEqual(CARD.bsCiWindow(s, TODAY, 1).map((d) => d.iso), [TODAY]);
+  for (const bad of [0, -3, NaN, null, 'x']) assert.deepEqual(CARD.bsCiWindow(s, TODAY, bad), [], `${bad} days made a window`);
+  assert.deepEqual(CARD.bsCiWindow(s, 'yesterday', 7), []);
+  assert.equal(CARD.bsCiWindow(s, TODAY, 1e9).length, 400, 'a window runs past what the route sends');
+  // A server without the skipped series reads no night as skipped.
+  assert.equal(CARD.bsCiWindow({ energy: [] }, TODAY, 7).some((d) => d.skipped), false);
+  assert.equal(CARD.bsCiSkippedOn({ sleepSkipped: [{ date: YDAY, value: 1 }] }, YDAY), true);
+  assert.equal(CARD.bsCiSkippedOn({ sleepSkipped: [{ date: YDAY, value: 1 }] }, TODAY), false);
+  assert.equal(CARD.bsCiSkippedOn({ sleepSkipped: {} }, TODAY), false);
+  assert.equal(CARD.bsCiSkippedOn(null, TODAY), false);
+});
+
+test('a day is shifted at local noon, across a month, a year and a clock change', () => {
+  assert.equal(CARD.bsCiShift('2026-10-01', -1), '2026-09-30');
+  assert.equal(CARD.bsCiShift('2026-12-31', 1), '2027-01-01');
+  assert.equal(CARD.bsCiShift('2026-03-01', -1), '2026-02-28');
+  assert.equal(CARD.bsCiShift('2026-11-01', 1), '2026-11-02');
+  assert.equal(CARD.bsCiShift('2026-03-08', -1), '2026-03-07');
+  assert.equal(CARD.bsCiShift(TODAY, 0), TODAY);
+});
+
+test("the five words come from one list with every key written out, and the card says them from it", () => {
+  const seen = [];
+  const words = CARD.bsCiWords((key, opts) => { seen.push([key, opts.defaultValue]); return opts.defaultValue; });
+  assert.deepEqual(words, {
+    E: ['Drained', 'Low', 'OK', 'Good', 'Great'],
+    H: ['Not hungry', 'A little', 'Normal', 'Hungry', 'Starving'],
+    R: ['Wrecked', 'Tired', 'OK', 'Rested', 'Fresh'],
+  });
+  assert.deepEqual(seen.map(([k]) => k), ['e', 'h', 'r'].flatMap((s) => [0, 1, 2, 3, 4].map((i) => `home:checkin.${s}${i}`)));
+  const en = JSON.parse(readFileSync(join(ROOT, 'mobile-app/src/i18n/catalogs/en/home.json'), 'utf8'));
+  for (const [k, dv] of seen) assert.equal(dv, en[k.slice('home:'.length)], `${k}'s fallback is not the catalog's`);
+  // In the member's language: the real catalog through the card's translator.
+  assert.equal(CARD.bsCiWords(trEn).R[3], 'Rested');
+  // One source: the card reads its words from the list, never from keys of its own.
+  const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSCheckinCard.jsx'), 'utf8');
+  assert.doesNotMatch(src, /home:checkin\.[ehr]\$\{/, 'a word key is built from a template, which the i18n gates cannot check');
+  for (const [k] of seen) assert.equal(src.split(`'${k}'`).length - 1, 1, `${k} is asked for in more than one place`);
+  assert.match(src, /const \{ E, H, R \} = bsCiWords\(tr\);/);
+  // Readiness's bands, keyed as morningReadiness.mjs keys them.
+  assert.deepEqual(CARD.bsCiBandWords(trEn), { ready: 'Ready', steady: 'Steady', easy: 'Take it easy', low: 'Run down' });
+});
+
+test("Home's lead says the engine's check-in flags in the member's words, and never rewords a coach", () => {
+  const engine = (key, avg, reason = 'the engine said it') => ({ source: 'engine', lever: 'energy', reason, cited: [key], evidence: { key, avg, n: 4 } });
+  const energy = CARD.bsCiLeadReason(engine('energy_low', 3.2, 'Your energy has been mostly low this week — a lighter session still counts'), trEn);
+  assert.equal(energy, 'Your energy has been mostly low this week. A lighter session still counts.');
+  assert.doesNotMatch(energy, /\/10/);
+  // By the card's one rule, (2i, 2i+2] is word i: 2 is Drained, 2.5 and 4 are Low.
+  assert.match(CARD.bsCiLeadReason(engine('energy_low', 2), trEn), /mostly drained this week/);
+  assert.match(CARD.bsCiLeadReason(engine('energy_low', 2.5), trEn), /mostly low this week/);
+  assert.match(CARD.bsCiLeadReason(engine('energy_low', 4), trEn), /mostly low this week/);
+  // hunger_high flags at or over 8: 8 is Hungry, anything over it Starving.
+  assert.equal(CARD.bsCiLeadReason(engine('hunger_high', 8), trEn), "You've been mostly hungry between meals this week. The plan may be running light on fuel.");
+  assert.match(CARD.bsCiLeadReason(engine('hunger_high', 8.4), trEn), /mostly starving between meals/);
+  assert.match(CARD.bsCiLeadReason(engine('hunger_high', 10), trEn), /mostly starving between meals/);
+  // Sleep to the 5 minutes, as the summary's week line says it: 5.2h is 5h 10.
+  assert.equal(CARD.bsCiLeadReason(engine('sleep_low', 5.2), trEn), 'Short on sleep this week: 5h 10 a night.');
+  assert.equal(CARD.bsCiLeadReason(engine('sleep_low', 5), trEn), 'Short on sleep this week: 5h a night.');
+  // The words are the catalog's, lower case mid-sentence, in the member's language.
+  const de = (key, opts) => ({ 'home:checkin.e1': 'Niedrig', 'home:checkin.weekEnergyLow': `Meist ${opts && opts.word}` }[key] ?? opts?.defaultValue);
+  assert.equal(CARD.bsCiLeadReason(engine('energy_low', 3), de), 'Meist niedrig');
+  // A coach's own reason, a lead that is no check-in flag, and one with no average come as they are.
+  const coach = { source: 'coach', lever: 'energy', reason: 'Rest day, Sam', cited: ['coach override'], evidence: { key: 'energy_low', avg: 3 } };
+  assert.equal(CARD.bsCiLeadReason(coach, trEn), 'Rest day, Sam', "a coach's reason was reworded");
+  assert.equal(CARD.bsCiLeadReason({ source: 'engine', reason: 'Energy has averaged 3/10 this week' }, trEn), 'Energy has averaged 3/10 this week');
+  assert.equal(CARD.bsCiLeadReason({ ...engine('energy_low', null), reason: 'no average' }, trEn), 'no average');
+  assert.equal(CARD.bsCiLeadReason({ ...engine('energy_low', '3.2'), reason: 'a string' }, trEn), 'a string');
+  assert.equal(CARD.bsCiLeadReason({ ...engine('energy_low', NaN), reason: 'not a number' }, trEn), 'not a number');
+  assert.equal(CARD.bsCiLeadReason({ ...engine('energy_low', 0), reason: 'no word' }, trEn), 'no word');
+  assert.equal(CARD.bsCiLeadReason({ ...engine('hydration_low', 1.2), reason: 'Water is behind' }, trEn), 'Water is behind');
+  assert.equal(CARD.bsCiLeadReason({ ...engine('training_gap', 3), reason: 'Two sessions missed' }, trEn), 'Two sessions missed');
+  assert.equal(CARD.bsCiLeadReason(null, trEn), null);
 });
