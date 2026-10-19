@@ -4,7 +4,8 @@
 style, but again the purpose and where you can see the data over time, and what it means to the
 member"* and *"make sure it makes sense and set up properly"*.
 
-**Status:** Part 1 is in this PR. Parts 2 and 3 are planned (§5). This replaces the design in
+**Status:** Part 1 shipped in #2407 and its reminder fix in #2408. Part 2 is in this PR; part 3 is
+planned (§5). This replaces the design in
 [`REVIEW-2026-10-18-daily-checkin.md`](REVIEW-2026-10-18-daily-checkin.md); its rulings that still
 stand are carried into §6.
 
@@ -82,12 +83,33 @@ engine's milder read (a 6-7h average) is not a lead, and the push keeps the same
 the push say the same move.
 
 ### 3.5 Where the member sees it over time: Your mornings (part 2)
-One page, opened from Home's done line ("Your mornings →"), the summary, the energy lead and
-Progress. 7 days | 30 days. A section per check the member is asked (Sleep, Energy, Rested, Hunger),
-each with a headline in words ("Energy: mostly Good this month"), a strip, and a direction against
-the window before ("Better", "Lower", "About the same"). With a watch: the recovery score from last
-night's readings and the sleep history. Until part 2 ships, the 7-day strips in the walkthrough are
-the history, and the card has no Details link.
+One page (`BSYourMornings.jsx`), read-only, from the same `/api/client/progress` read the card
+makes. Top to bottom:
+1. **Readiness today** (§3.8), with the day's read from §3.4 under it.
+2. The cycle chip, inside its expected window only (never on Home).
+3. **7 days | 30 days.** A window is today and the days before it (the engine's week), compared with
+   the same number of days before that. Dates are the member's local days, and a row dated after
+   today is ignored.
+4. A section per check the member is asked: **Sleep**, **Energy**, **How you woke up** (Rested), and
+   **Hunger between meals** only when the plan read says there is a nutritionist (unknown hides it).
+   Each section has:
+   - a headline in words: "Mostly Good this week" when one word holds most answered days, else
+     "Mixed, from Low to Good", and Sleep "7h 10 a night on average";
+   - a strip: one bar per day, with gaps for days not answered, and skipped nights marked;
+   - a direction against the window before, said for what it is: Energy and Rested "Better" /
+     "Lower", Sleep "Longer" / "Shorter", Hunger "Hungrier" / "Less hungry", else "About the
+     same". A direction needs 3 answered days in both windows, and moves of under half a word
+     (1 point) or 20 minutes read "About the same".
+5. **With a watch** (a watch night in the last 30 days): last night's tiles, each only when dated
+   last night: hours, efficiency, resting HR, HRV and the watch's own recovery score. Without one:
+   "Sleep and recovery readings come from a watch" and a Connect door.
+6. Who sees this (§3.4).
+
+Doors: Home's done line and the walkthrough summary ("Your mornings →"), the energy lead, Progress
+(where its Energy, Hunger and Rested tabs were), and with Check-ins off, the quiet Home row, the Daily
+check-in reminder and the sleep lead. With Check-ins off the page also says that nothing new is
+asked. Signed out it shows example mornings, marked as an example. It replaces the old "How are you."
+page and its Sleep detail overlay.
 
 ### 3.6 Patterns (part 3)
 "Your energy runs lower after nights under 7h", "You often wake tired after a full night: it's how
@@ -98,8 +120,23 @@ you sleep, not how long." Only the weekly readout's tested findings and plain co
 Water leaves the check-in. It is a Home line all day, whatever the Check-ins setting: the day's
 amount and + Glass. Progress is shown only against a target the member set; otherwise the line
 offers "Set a daily target" (owner, 2026-10-19), a picker saved where Settings keeps it. The picker
-promises only the line: the engine's "Water is behind" lead also needs Check-ins on. The old "How are
-you." page shows water against the member's own target only, until part 2 retires it.
+promises only the line: the engine's "Water is behind" lead also needs Check-ins on. The hydration lead
+opens that line (part 2).
+
+### 3.8 Morning readiness (part 2; owner, 2026-10-19: "yes add the readiness score")
+One 0-100 number for the morning, for every member, computed on the device from the day's own row
+(`morningReadiness.mjs`). It needs the morning's energy; each other part counts only when present,
+and the weights are shared out over the parts present:
+- Energy 0.35 and Rested 0.15: the five words score 10 · 35 · 60 · 85 · 100.
+- Sleep 0.25: 100 minus 30 per hour short, where short is the larger of the hours under the usual
+  night (the card's: the median of the last 14 nights, 7h 30 with none) and the hours under 6.
+- With a watch, readings dated last night only: the watch's own recovery score 0.15, HRV 0.05 and
+  resting HR 0.05, against the member's own 30-day baseline (4 readings or more).
+
+Bands: 80+ Ready · 60-79 Steady · 40-59 Take it easy · under 40 Run down. Home's done line shows
+"Readiness 85 · Ready" above "Your mornings →". Your mornings shows it with what it was built from,
+the window's average, and a strip of each answered morning's readiness. It is a guide built from the
+member's own answers, not a medical reading, and coaches don't see it yet.
 
 ## 4. What must not change
 - `energy`, `hunger`, `sleep_hours` and `sleep_quality` on one `daily_health_snapshot` row per member
@@ -113,10 +150,12 @@ you." page shows water against the member's own target only, until part 2 retire
    line and Who sees this (§3.4); the evening hunger question (§3.3); water as its own Home line
    (§3.7); Edit and Back; a sleep lead on Home, so the push and Home agree; the daily reminder's new
    copy, not sent once the morning is answered; momentum counting an energy or Rested answer.
-2. **One screen, one history.** Your mornings (§3.5). The old "How are you." page retired, and its
-   doors moved: the energy lead, the water lead, the Check-ins-off row and reminder, Sleep detail and
-   the cycle chip. Progress's Energy, Hunger and Rested tabs move to Your mornings. The member's
-   engine reasons said in words, coaches keep /10.
+2. **One screen, one history.** Your mornings (§3.5) and Morning readiness (§3.8). The old "How are
+   you." page and its Sleep detail retired, and their doors moved: the energy lead and Progress open
+   Your mornings, the water lead opens Home's water line, and with Check-ins off the quiet row, the
+   reminder and the sleep lead open Your mornings. Progress's Energy, Hunger and Rested tabs move to
+   Your mornings. A skipped night is read from the day's row too, so it holds on every device. The
+   member's engine reasons said in words (energy, hunger and sleep), coaches keep /10.
 3. **What we've noticed.** Patterns (§3.6), Nora reading energy, hunger and Rested, then the
    website's daily card on the same reads.
 
@@ -138,6 +177,13 @@ you." page shows water against the member's own target only, until part 2 retire
 8. **Water progress only against a target the member set.**
 9. **Coach replies** (Noted · Ease today · Add fuel) are not part of this redesign. Who sees this
    ships first.
+10. **A morning readiness score** for every member (§3.8).
+
+**Part 2 calls (2026-10-19):**
+11. An average becomes a word by the card's one rule (`bsCiWordIndex`: (2i, 2i+2] is word i), so a
+    word never disagrees with the engine's thresholds at 4 and 8.
+12. With Check-ins off there is nothing to answer in the app; Your mornings still shows the history.
+13. A coach's own reason on Home is never reworded.
 
 ## 7. Defects found while mapping it
 Fixed in part 1:
