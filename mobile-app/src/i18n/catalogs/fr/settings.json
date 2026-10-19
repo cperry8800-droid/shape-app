@@ -501,7 +501,7 @@
   "reminders.loading": "Chargement…",
   "reminders.empty": "Aucun rappel pour l’instant — ajoutez-en un pour penser à vous peser, faire votre bilan, boire ou autre chose.",
   "reminders.kind.weigh_in": "Pesée",
-  "reminders.kind.daily_checkin": "Bilan quotidien",
+  "reminders.kind.daily_checkin": "Bilan du matin",
   "reminders.kind.checkin": "Bilan hebdomadaire",
   "reminders.kind.water": "Eau",
   "reminders.kind.photo": "Photo de progrès",

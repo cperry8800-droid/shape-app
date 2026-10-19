@@ -1,13 +1,15 @@
 // tests/checkin-card.test.mjs
 //
-// The daily check-in: a card on Home and the walkthrough it opens (owner, 2026-10-18: "make it
-// easier to update each day and less effort for user each day", then "have it be a step by step,
-// almost like a tutorial that walks through each check", with the member's own last days under
-// every step; rulings in docs/REVIEW-2026-10-18-daily-checkin.md §5). Every tap saves.
+// The Morning check-in: a card on Home and the walkthrough it opens (owner, 2026-10-19: "i like the
+// walk through tutorial style, but again the purpose and where you can see the data over time, and
+// what it means to the member"; rulings in docs/REVIEW-2026-10-19-morning-checkin.md §6). Two
+// morning steps, last night then this morning, a summary that says what the answers mean, and an
+// evening hunger question for members with a nutritionist. Every tap saves.
 //
 // The rules are pure functions and run here as they ship. The card is mounted on jsdom with the
 // real English catalog behind the real ICU translator, so the copy and the plurals are what a
 // member reads. The walkthrough portals into the page, so the mount reads the whole document.
+// Water is its own Home line now (tests/water-line.test.mjs).
 import test, { mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -59,17 +61,21 @@ function series(days) {
   return out;
 }
 
-function env({ uid = 'member-1', days = {}, progress, log, water = { ok: true, hydrationL: 0.5, targetL: 3 } } = {}) {
-  const calls = { log: [], add: [] };
+// `plan` is what the plan route answers (its coaching decides the evening question and Who sees
+// this); left out, there is no plan read at all.
+function env({ uid = 'member-1', days = {}, progress, log, plan } = {}) {
+  const calls = { log: [] };
   dom.window.ShapeAuth = { getCachedState: () => ({ user: uid ? { id: uid } : null }) };
   dom.window.ShapeProgress = { progress: progress || (async () => ({ series: series(days) })) };
   dom.window.ShapeCheckin = { log: async (patch) => { calls.log.push(patch); return log ? log(patch) : { ok: true }; } };
-  dom.window.ShapeHydration = {
-    get: async () => water,
-    add: async (deltaL) => { calls.add.push(deltaL); return { ok: true, hydrationL: water.hydrationL + deltaL }; },
-  };
+  if (plan === undefined) delete dom.window.ShapePlan;
+  else dom.window.ShapePlan = { get: async () => plan };
   return calls;
 }
+const NUTRITIONIST = { training: { coaching: null }, meals: { coaching: { name: 'Lee', coaches: [] } } };
+const TRAINER = { training: { coaching: { name: 'Sam', coaches: [] } }, meals: { coaching: null } };
+const BOTH = { training: { coaching: { name: 'Sam' } }, meals: { coaching: { name: 'Lee' } } };
+const NONE = { training: { coaching: null }, meals: { coaching: null } };
 
 async function mount(props = {}) {
   const host = document.createElement('div');
@@ -97,6 +103,8 @@ async function mount(props = {}) {
     unmount() { React.act(() => root.unmount()); host.remove(); },
   };
 }
+// The summary's rows are whole buttons: "Sleep 7h · Rested  Change ›".
+const row = (name) => new RegExp(`^${name}.*Change`);
 
 // ── The rules ────────────────────────────────────────────────────────────────
 
@@ -106,41 +114,52 @@ test('five words are stored as 2·4·6·8·10, and an old 1-10 value reads back 
   for (const v of [null, undefined, 0, -1, 'x', NaN]) assert.equal(CARD.bsCiWordIndex(v), null, `${v} read as a word`);
 });
 
-test("the stored values sit on the engine's side of its thresholds where the words do", () => {
+test("the stored values sit on the engine's side of its thresholds where the words do, and the card's lines are the engine's", () => {
   // energy_low flags an average at or under 4: Drained and Low, never OK.
   assert.deepEqual(CARD.BS_CI_STORED.map((v) => v <= THRESHOLDS.ENERGY_LOW_AVG), [true, true, false, false, false]);
   // hunger_high flags an average at or over 8: Hungry and Starving, never Normal.
   assert.deepEqual(CARD.BS_CI_STORED.map((v) => v >= THRESHOLDS.HUNGER_HIGH_AVG), [false, false, false, true, true]);
+  // The week line says the engine's own lines: energy_low, and sleep_low at the default 7.5h target.
+  assert.equal(CARD.BS_CI_ENERGY_LOW_AVG, THRESHOLDS.ENERGY_LOW_AVG);
+  assert.equal(CARD.BS_CI_SHORT_NIGHT_H, 7.5 - THRESHOLDS.SLEEP_DEFICIT_H);
+  assert.equal(THRESHOLDS.ENERGY_MIN_DAYS, 3);
+  assert.equal(THRESHOLDS.SLEEP_MIN_NIGHTS, 3);
 });
 
-test('one question at a time: energy, hunger, then sleep unless a wearable reported the night', () => {
-  assert.equal(CARD.bsCiStep(null), 'energy');
-  assert.equal(CARD.bsCiStep({ energy: 6 }), 'hunger');
-  assert.equal(CARD.bsCiStep({ energy: 6, hunger: 4 }), 'sleep');
-  assert.equal(CARD.bsCiStep({ energy: 6, hunger: 4, sleep: 7 }), 'done');
+test('the morning asks the night first, then energy; a watch night or a skip needs no night, and hunger is never a morning question', () => {
+  assert.equal(CARD.bsCiStep(null), 'sleep');
+  assert.equal(CARD.bsCiStep({ sleep: 7 }), 'energy');
+  assert.equal(CARD.bsCiStep({ sleep: 7, energy: 6 }), 'done');
+  assert.equal(CARD.bsCiStep({ energy: 6 }), 'sleep', 'energy alone skipped the night');
+  assert.equal(CARD.bsCiStep({ energy: 6 }, true), 'done', 'a night the member skipped was asked again');
+  assert.equal(CARD.bsCiStep({}, true), 'energy');
+  assert.equal(CARD.bsCiStep({ sleep: 7, energy: 6, hunger: null }), 'done', 'the morning waited for the evening question');
   const worn = CARD.bsCiDay(series({ [TODAY]: { sleep: 7.2, hrv: 55 } }), TODAY);
   assert.equal(worn.device, true);
-  assert.equal(CARD.bsCiStep({ ...worn, energy: 6, hunger: 4 }), 'done', 'a night the wearable reported was asked again');
+  assert.equal(CARD.bsCiStep({ ...worn, energy: 6 }), 'done', 'a night the wearable reported was asked again');
   // A watch that reported a resting heart rate but no night: the night is still the member's to give.
   const pulse = CARD.bsCiDay(series({ [TODAY]: { restingHr: 58 } }), TODAY);
   assert.equal(pulse.device, true);
   assert.equal(CARD.bsCiWornNight(pulse), false);
-  assert.equal(CARD.bsCiStep({ ...pulse, energy: 6, hunger: 4 }), 'sleep', 'a heart rate alone stopped the sleep question');
-  assert.equal(CARD.bsCiStep({ energy: 6, hunger: 4 }, true), 'done', 'a night the member skipped was asked again');
-  assert.equal(CARD.bsCiStep({ hunger: 4 }, true), 'energy', 'a skipped night skipped the other questions');
+  assert.equal(CARD.bsCiStep({ ...pulse, energy: 6 }), 'sleep', 'a heart rate alone stopped the sleep question');
+  assert.deepEqual(CARD.BS_CI_STEPS, ['sleep', 'energy']);
+  assert.equal(CARD.BS_CI_SUMMARY, 2);
 });
 
-test('a day counts as checked in from a manual answer only; a wearable night alone is not one', () => {
+test('a day counts as checked in from a morning answer only: never a wearable night, never the evening hunger', () => {
   assert.equal(CARD.bsCiAnswered(CARD.bsCiDay(series({ [TODAY]: { sleep: 7.2, hrv: 55 } }), TODAY)), false);
   assert.equal(CARD.bsCiAnswered(CARD.bsCiDay(series({ [TODAY]: { sleep: 7 } }), TODAY)), true);
   assert.equal(CARD.bsCiAnswered(CARD.bsCiDay(series({ [TODAY]: { sleepQuality: 6 } }), TODAY)), true);
+  assert.equal(CARD.bsCiAnswered(CARD.bsCiDay(series({ [TODAY]: { energy: 6 } }), TODAY)), true);
+  assert.equal(CARD.bsCiAnswered(CARD.bsCiDay(series({ [TODAY]: { hunger: 6 } }), TODAY)), false, 'the evening hunger made a check-in');
   assert.equal(CARD.bsCiAnswered(CARD.bsCiDay(series({ [YDAY]: { energy: 6 } }), TODAY)), false, 'yesterday was read as today');
 });
 
-test('the streak runs back from today, or from yesterday while today is still open', () => {
-  const run = { '2026-10-15': { energy: 6 }, '2026-10-16': { hunger: 4 }, [YDAY]: { sleep: 7 } };
+test('the streak runs back from today, or from yesterday while today is still open, and hunger alone breaks it', () => {
+  const run = { '2026-10-15': { energy: 6 }, '2026-10-16': { sleepQuality: 4 }, [YDAY]: { sleep: 7 } };
   assert.equal(CARD.bsCiStreak(series(run), TODAY), 3, 'an open today broke the run');
   assert.equal(CARD.bsCiStreak(series({ ...run, [TODAY]: { energy: 8 } }), TODAY), 4);
+  assert.equal(CARD.bsCiStreak(series({ ...run, '2026-10-16': { hunger: 4 } }), TODAY), 1, 'an evening hunger answer kept the morning run going');
   assert.equal(CARD.bsCiStreak(series({ '2026-10-15': { energy: 6 }, [YDAY]: { energy: 6 } }), TODAY), 1, 'a missed day did not end it');
   assert.equal(CARD.bsCiStreak(series({ '2026-10-15': { energy: 6 }, '2026-10-16': { sleep: 7, hrv: 50 }, [YDAY]: { energy: 6 } }), TODAY), 1, 'a wearable night kept a run going');
   assert.equal(CARD.bsCiStreak(series({ '2026-10-30': { energy: 6 }, '2026-10-31': { energy: 6 } }), '2026-11-01'), 2, 'the run stopped at a month');
@@ -159,27 +178,29 @@ test('the sleep stepper starts at the usual night: the median of the last 14, to
   assert.equal(CARD.bsCiUsualNight(series({ [TODAY]: { sleep: 4 }, '2026-10-03': { sleep: 4 } }), TODAY), 7.5);
 });
 
-test("Same as yesterday copies yesterday's own values, keeps today's, and never types a wearable's night", () => {
+test("Same as yesterday copies yesterday's own morning values, keeps today's, never types a wearable's night, and never copies hunger", () => {
   const y = { energy: 7, hunger: 5, sleep: 6.5, rested: 3, device: false };
   const empty = { energy: null, hunger: null, sleep: null, rested: null, device: false };
-  assert.deepEqual(CARD.bsCiSamePatch(y, empty), { energy: 7, hunger: 5, sleepHours: 6.5, sleepQuality: 3 }, 'a 7 was rounded to its word');
-  assert.deepEqual(CARD.bsCiSamePatch(y, { ...empty, energy: 2 }), { hunger: 5, sleepHours: 6.5, sleepQuality: 3 }, "today's answer was overwritten");
-  assert.deepEqual(CARD.bsCiSamePatch({ ...y, device: true }, empty), { energy: 7, hunger: 5, sleepQuality: 3 }, "a wearable's night was copied as typed, or the member's own Rested was dropped with it");
-  assert.deepEqual(CARD.bsCiSamePatch(y, { ...empty, sleep: 7.4, device: true }), { energy: 7, hunger: 5, sleepQuality: 3 }, "today's wearable night was overwritten, or yesterday's Rested was not copied onto it (Codex P2 on #2398)");
-  assert.deepEqual(CARD.bsCiSamePatch(y, { ...empty, sleep: 7.4, rested: 8, device: true }), { energy: 7, hunger: 5 }, "today's own Rested was overwritten");
-  assert.deepEqual(CARD.bsCiSamePatch(y, { ...empty, device: true }), { energy: 7, hunger: 5, sleepHours: 6.5, sleepQuality: 3 }, 'a heart rate today kept the night from being copied');
-  assert.equal(CARD.bsCiSamePatch({ ...y, hunger: null }, empty), null, 'offered with half a day to copy');
+  assert.deepEqual(CARD.bsCiSamePatch(y, empty), { energy: 7, sleepHours: 6.5, sleepQuality: 3 }, 'a 7 was rounded to its word, or hunger was copied');
+  assert.deepEqual(CARD.bsCiSamePatch(y, { ...empty, energy: 2 }), { sleepHours: 6.5, sleepQuality: 3 }, "today's answer was overwritten");
+  assert.deepEqual(CARD.bsCiSamePatch({ ...y, device: true }, empty), { energy: 7, sleepQuality: 3 }, "a wearable's night was copied as typed, or the member's own Rested was dropped with it");
+  assert.deepEqual(CARD.bsCiSamePatch(y, { ...empty, sleep: 7.4, device: true }), { energy: 7, sleepQuality: 3 }, "today's wearable night was overwritten, or yesterday's Rested was not copied onto it (Codex P2 on #2398)");
+  assert.deepEqual(CARD.bsCiSamePatch(y, { ...empty, sleep: 7.4, rested: 8, device: true }), { energy: 7 }, "today's own Rested was overwritten");
+  assert.deepEqual(CARD.bsCiSamePatch(y, { ...empty, device: true }), { energy: 7, sleepHours: 6.5, sleepQuality: 3 }, 'a heart rate today kept the night from being copied');
+  assert.deepEqual(CARD.bsCiSamePatch({ ...y, hunger: null }, empty), { energy: 7, sleepHours: 6.5, sleepQuality: 3 }, 'a yesterday with no hunger was not offered');
+  assert.equal(CARD.bsCiSamePatch({ ...y, energy: null }, empty), null, 'offered with no morning to copy');
   assert.equal(CARD.bsCiSamePatch(null, empty), null);
-  assert.equal(CARD.bsCiSamePatch(y, { energy: 7, hunger: 5, sleep: 6.5, rested: 3, device: false }), null);
+  assert.deepEqual(CARD.bsCiSamePatch(y, empty, true), { energy: 7 }, 'a night skipped today was filled from yesterday (Codex P2 on #2407)');
+  assert.equal(CARD.bsCiSamePatch(y, { ...empty, energy: 6 }, true), null);
+  assert.equal(CARD.bsCiSamePatch(y, { energy: 7, hunger: null, sleep: 6.5, rested: 3, device: false }), null, 'an answered morning was offered again for its hunger');
 });
 
-test('the strip under each step is the seven days before today, oldest first, with each day\'s water', () => {
-  const week = CARD.bsCiWeek(series({ '2026-10-11': { energy: 6 }, [YDAY]: { energy: 8, hydration: 2.5 }, [TODAY]: { energy: 2 }, '2026-10-10': { energy: 10 } }), TODAY);
+test('the strip under each step is the seven days before today, oldest first', () => {
+  const week = CARD.bsCiWeek(series({ '2026-10-11': { energy: 6 }, [YDAY]: { energy: 8, hunger: 4 }, [TODAY]: { energy: 2 }, '2026-10-10': { energy: 10 } }), TODAY);
   assert.deepEqual(week.map((d) => d.iso), ['2026-10-11', '2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16', '2026-10-17']);
   assert.equal(week[0].energy, 6);
   assert.equal(week[6].energy, 8, 'yesterday is not the last day of the strip');
-  assert.equal(week[6].water, 2.5);
-  assert.equal(week[1].water, null, 'a day with no water reads as a number');
+  assert.equal(week[6].hunger, 4);
   assert.ok(!week.some((d) => d.iso === TODAY), 'today is in its own strip');
 });
 
@@ -199,41 +220,105 @@ test('hours read as hours and minutes, and a wearable\'s 7.999h reads 8h, never 
   assert.equal(CARD.bsCiHM(null), '—');
 });
 
+// ── What the answers mean (§3.4) ─────────────────────────────────────────────
+
+test('a short night is under 6h, or an hour or more under the usual night', () => {
+  assert.equal(CARD.bsCiShortNight(5.5, 5.5), true, 'under 6h was a full night because it is the usual');
+  assert.equal(CARD.bsCiShortNight(6.5, 7.5), true);
+  assert.equal(CARD.bsCiShortNight(6.6, 7.5), false);
+  assert.equal(CARD.bsCiShortNight(7, 7.5), false);
+  assert.equal(CARD.bsCiShortNight(6, null), false);
+  assert.equal(CARD.bsCiShortNight(null, 7.5), null, 'no hours read as a full night');
+});
+
+test("today's read: short and low, low after a full night, low with no night, short but fine, ready", () => {
+  assert.equal(CARD.bsCiTodayRead({ energy: 4, sleep: 5 }, 7.5), 'shortLow');
+  assert.equal(CARD.bsCiTodayRead({ energy: 2, sleep: 8 }, 7.5), 'fullLow');
+  assert.equal(CARD.bsCiTodayRead({ energy: 4, sleep: null }, 7.5), 'low');
+  assert.equal(CARD.bsCiTodayRead({ energy: 6, sleep: 5 }, 7.5), 'shortOk', 'OK is not low');
+  assert.equal(CARD.bsCiTodayRead({ energy: 10, sleep: 7.5 }, 7.5), 'ready');
+  assert.equal(CARD.bsCiTodayRead({ energy: 8, sleep: null }, 7.5), 'ready');
+  assert.equal(CARD.bsCiTodayRead({ energy: null, sleep: 5 }, 7.5), null, 'a read before energy is in');
+  assert.equal(CARD.bsCiTodayRead(null, 7.5), null);
+  // An old 1-10 value reads by its word: a 3 is Low.
+  assert.equal(CARD.bsCiTodayRead({ energy: 3, sleep: 8 }, 7.5), 'fullLow');
+});
+
+test("the week line is the engine's lines in the member's words, then the word most mornings had, then how many more it needs", () => {
+  const d = (energy, sleep) => ({ energy, sleep });
+  assert.deepEqual(CARD.bsCiWeekLine([d(8, 5), d(8, 5.5)], d(8, 5)), { kind: 'sleepShort', hours: 5.166666666666667 });
+  assert.equal(CARD.bsCiWeekLine([d(8, 5), d(8, 5.5)], d(8, null)).kind, 'mostly', 'two nights were a short week');
+  assert.deepEqual(CARD.bsCiWeekLine([d(4, 7), d(2, 7)], d(4, 7)), { kind: 'energyLow', word: 1 });
+  assert.deepEqual(CARD.bsCiWeekLine([d(4, 7), d(4, 7)], d(4, 7)), { kind: 'energyLow', word: 1 }, 'an average of exactly 4 (the engine flags at or under it) was not a low week');
+  assert.equal(CARD.bsCiWeekLine([d(4, 7), d(6, 7)], d(6, 7)).kind, 'mostly', 'an average over 4 read as a low week');
+  assert.deepEqual(CARD.bsCiWeekLine([d(8, 7), d(7, 7), d(4, 7)], d(8, null)), { kind: 'mostly', word: 3 });
+  assert.equal(CARD.bsCiWeekLine([d(8, 7), d(4, 7), d(6, 7), d(10, 7)], d(2, null)), null, 'no majority was a trend');
+  assert.deepEqual(CARD.bsCiWeekLine([], d(8, 7)), { kind: 'more', n: 2 });
+  assert.equal(CARD.bsCiWeekLine([d(8, 7), d(4, 7)], d(6, null)), null, 'three answered mornings still asked for "0 more"');
+  // The strip's seven days before today, but the engine's week is today and the six before it: the
+  // seventh day back never makes a short or low week (review on this PR).
+  const seven = (first) => [first, d(null, null), d(null, null), d(null, null), d(null, null), d(null, null), d(2, 5)];
+  assert.equal(CARD.bsCiWeekLine(seven(d(2, 5)), d(2, 5)).kind, 'more', 'a night 7 days back made a short week the engine never flagged');
+  assert.equal(CARD.bsCiWeekLine([d(2, 5), d(null, null), d(null, null), d(null, null), d(null, null), d(2, 5)], d(2, 5)).kind, 'sleepShort');
+  assert.deepEqual(CARD.bsCiWeekLine([d(null, 7)], d(null, 7)), { kind: 'more', n: 3 });
+  // Sleep speaks first: a short week with low energy says the sleep.
+  assert.equal(CARD.bsCiWeekLine([d(2, 5), d(2, 5)], d(2, 5)).kind, 'sleepShort');
+});
+
+test('coaching reads as three states per role, and who sees the morning follows it', () => {
+  assert.deepEqual(CARD.bsCiCoachingOf(NUTRITIONIST), { trainer: false, nutritionist: true });
+  assert.deepEqual(CARD.bsCiCoachingOf(BOTH), { trainer: true, nutritionist: true });
+  assert.deepEqual(CARD.bsCiCoachingOf({ training: {}, meals: {} }), { trainer: null, nutritionist: null }, 'a failed subscriptions read was read as no coach');
+  assert.deepEqual(CARD.bsCiCoachingOf(null), { trainer: null, nutritionist: null });
+  assert.equal(CARD.bsCiWhoSees({ trainer: true, nutritionist: true }), 'both');
+  assert.equal(CARD.bsCiWhoSees({ trainer: true, nutritionist: false }), 'trainer');
+  assert.equal(CARD.bsCiWhoSees({ trainer: false, nutritionist: true }), 'nutritionist');
+  assert.equal(CARD.bsCiWhoSees({ trainer: false, nutritionist: false }), 'you');
+  assert.equal(CARD.bsCiWhoSees({ trainer: null, nutritionist: null }), null);
+  // The plan object is shared by every reader of it: reading it changes nothing.
+  const plan = JSON.parse(JSON.stringify(BOTH));
+  CARD.bsCiCoachingOf(plan);
+  assert.deepEqual(plan, BOTH);
+});
+
 // ── The card and its walkthrough ─────────────────────────────────────────────
 
-test('the card is the door: Start walks one check per screen, every tap saves, and Home ends on one line', async () => {
+test('the card is the door: Start walks last night then this morning, every tap saves, and the summary says what it means', async () => {
   const calls = env();
   const m = await mount();
   try {
-    assert.match(m.text(), /Four quick checks\./);
-    assert.equal(m.walk(), null, 'the walkthrough opened by itself');
+    assert.match(m.text(), /Morning check-in/);
+    assert.match(m.text(), /Two quick checks\./);
+    assert.match(m.text(), /2 checks · 15 sec/);
+    assert.ok(!m.walk(), 'the walkthrough opened by itself');
+    assert.ok(!m.button(/Details/), 'the old Details door is still on the card');
+    assert.ok(!m.button(/Glass/), 'water is still on the card');
     await m.click(/Start check-in/);
-    assert.match(m.text(), /Step 1 of 4 · Energy/);
-    assert.match(m.text(), /How's your energy\?/);
-    assert.match(m.text(), /How much you have in the tank/, 'the step no longer says what it asks');
-    await m.click(/^Good$/);
-    assert.deepEqual(calls.log, [{ energy: 8 }], 'the energy tap was not saved on its own');
-    assert.match(m.text(), /Step 2 of 4 · Hunger/);
-    await m.click(/^Normal$/);
-    assert.deepEqual(calls.log[1], { hunger: 6 });
-    assert.match(m.text(), /Step 3 of 4 · Sleep/);
+    assert.match(m.text(), /Step 1 of 2 · Last night/);
+    assert.match(m.text(), /How did you sleep\?/);
+    assert.match(m.text(), /the biggest lever on recovery/, 'the step no longer says what it asks');
     assert.match(m.text(), /7h 30/);
     assert.match(m.text(), /Your usual night/);
     await m.click(/Thirty minutes less/);
-    assert.doesNotMatch(m.text(), /Your usual night/, 'a night the member changed still claims to be their usual one');
+    assert.match(m.text(), /30 min under your usual/, 'the stepper did not say how far the night is from the usual one');
+    assert.match(m.text(), /How did you wake up\? · optional/);
     await m.click(/^Rested$/);
     await m.click(/^Next/);
-    assert.deepEqual(calls.log[2], { sleepHours: 7, sleepQuality: 8 });
-    assert.match(m.text(), /Step 4 of 4 · Water/);
-    await m.click(/\+ 1 glass/);
-    assert.deepEqual(calls.add, [0.2366]);
-    await m.click(/^Finish/);
+    assert.deepEqual(calls.log, [{ sleepHours: 7, sleepQuality: 8 }], 'the night was not saved on its own');
+    assert.match(m.text(), /Step 2 of 2 · This morning/);
+    assert.match(m.text(), /How's your energy this morning\?/);
+    assert.match(m.text(), /After low mornings Home suggests lighter days/);
+    await m.click(/^Good$/);
+    assert.deepEqual(calls.log[1], { energy: 8 });
     assert.match(m.text(), /You're checked in ✓/);
+    assert.match(m.walk().querySelector('[data-bs-checkin-read]')?.textContent || '', /Ready for today's plan\./, "the summary did not say what today's answers mean");
+    assert.match(m.text(), /2 more mornings and your week shows here\./);
     await m.click(/^Done$/);
-    assert.equal(m.walk(), null, 'Done left the walkthrough open');
+    assert.ok(!m.walk(), 'Done left the walkthrough open');
     assert.match(m.text(), /Checked in ✓/);
-    assert.match(m.text(), /Energy Good · Hunger Normal · Sleep 7h · Rested/);
-    assert.equal(calls.log.length, 3);
+    assert.match(m.text(), /Sleep 7h · Rested · Energy Good/);
+    assert.match(m.text(), /Ready for today's plan\./, "Home's done line does not say what the morning means");
+    assert.equal(calls.log.length, 2);
   } finally { m.unmount(); }
 });
 
@@ -243,13 +328,18 @@ test('every step shows the last 7 days, and a tap on a day reuses its answer', a
     '2026-10-13': { energy: 8, hunger: 6 },
     '2026-10-14': { energy: 4, hunger: 4, sleep: 5.83 },
     '2026-10-15': { energy: 7, hunger: 6 },
-    '2026-10-16': { energy: 8, hydration: 3.1 },
-    [YDAY]: { energy: 7, hunger: 8, sleep: 6.5, sleepQuality: 8, hydration: 2.5 },
+    '2026-10-16': { energy: 8 },
+    [YDAY]: { energy: 7, hunger: 8, sleep: 6.5, sleepQuality: 8 },
   } });
   const m = await mount();
   try {
     await m.click(/Start check-in/);
     const strip = () => document.querySelector('[data-bs-checkin-week]');
+    assert.equal(strip().getAttribute('data-bs-checkin-week'), 'sleep');
+    // Sleep: a tap on a day fills the stepper and its Rested; Next saves them.
+    await m.click(/17: 6h 30/);
+    await m.click(/^Next/);
+    assert.deepEqual(calls.log, [{ sleepHours: 6.5, sleepQuality: 8 }]);
     assert.equal(strip().getAttribute('data-bs-checkin-week'), 'energy');
     const cells = [...strip().querySelectorAll('[aria-label]')].map((el) => el.getAttribute('aria-label'));
     assert.equal(cells.length, 7);
@@ -258,37 +348,39 @@ test('every step shows the last 7 days, and a tap on a day reuses its answer', a
     assert.match(m.text(), /Mostly good this week\./);
     // A tap on yesterday reuses its own value: a 7 stays a 7.
     await m.click(/17: Good/);
-    assert.deepEqual(calls.log, [{ energy: 7 }]);
-    assert.match(m.text(), /Step 2 of 4 · Hunger/);
-    assert.equal(strip().getAttribute('data-bs-checkin-week'), 'hunger');
-    assert.match(m.text(), /Mostly normal this week\./);
-    await m.click(/^Normal$/);
-    // Sleep: a tap on a day fills the stepper and its Rested; Next saves them.
-    await m.click(/17: 6h 30/);
-    await m.click(/^Next/);
-    assert.deepEqual(calls.log[2], { sleepHours: 6.5, sleepQuality: 8 });
-    // Water: the week against the target.
-    assert.equal(strip().getAttribute('data-bs-checkin-week'), 'water');
-    assert.match(m.text(), /Target reached once this week\./);
+    assert.deepEqual(calls.log[1], { energy: 7 });
+    assert.match(m.text(), /You're checked in/);
+    assert.match(m.text(), /Mostly good mornings this week\./);
   } finally { m.unmount(); }
 });
 
-test('Same as yesterday on the card logs the whole day in one tap', async () => {
+test('Same as yesterday on the card logs the morning in one tap, never the hunger', async () => {
   const calls = env({ days: { [YDAY]: { energy: 7, hunger: 5, sleep: 6.5, sleepQuality: 9 }, '2026-10-16': { energy: 6 } } });
   const m = await mount();
   try {
     assert.match(m.text(), /Same as yesterday/);
-    assert.match(m.text(), /Good · Normal · 6h 30/);
+    assert.match(m.text(), /Good · 6h 30 · Fresh/);
     await m.click(/Same as yesterday/);
-    assert.deepEqual(calls.log, [{ energy: 7, hunger: 5, sleepHours: 6.5, sleepQuality: 9 }]);
-    assert.equal(m.walk(), null);
+    assert.deepEqual(calls.log, [{ energy: 7, sleepHours: 6.5, sleepQuality: 9 }]);
+    assert.ok(!m.walk());
     assert.match(m.text(), /Checked in ✓/);
     assert.match(m.text(), /3 days running/);
   } finally { m.unmount(); }
 });
 
+test('the Same as yesterday line names only what the tap writes (review on this PR)', async () => {
+  // The night and its Rested are in already; only energy is open.
+  const calls = env({ days: { [YDAY]: { energy: 7, sleep: 6.5, sleepQuality: 9 }, [TODAY]: { sleep: 7.5, sleepQuality: 4 } } });
+  const m = await mount();
+  try {
+    assert.match(m.text(), /Same as yesterday ✓Good(?! ·)/, 'the line offers a night and a Rested the tap will not write');
+    await m.click(/Same as yesterday/);
+    assert.deepEqual(calls.log, [{ energy: 7 }]);
+  } finally { m.unmount(); }
+});
+
 test('a day already checked in counts once in the streak', async () => {
-  env({ days: { '2026-10-16': { energy: 6 }, [YDAY]: { energy: 8 }, [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
+  env({ days: { '2026-10-16': { energy: 6 }, [YDAY]: { energy: 8 }, [TODAY]: { energy: 8, sleep: 7 } } });
   const m = await mount();
   try {
     assert.match(m.text(), /Checked in ✓/);
@@ -296,43 +388,45 @@ test('a day already checked in counts once in the streak', async () => {
   } finally { m.unmount(); }
 });
 
-test("a wearable's night is not asked, and Same as yesterday leaves it alone", async () => {
+test("a wearable's night is shown on step 1, never asked or typed over, and Same as yesterday leaves it alone", async () => {
   const calls = env({ days: { [TODAY]: { sleep: 7.2, hrv: 50 }, [YDAY]: { energy: 7, hunger: 5, sleep: 7, hrv: 48 } } });
   const m = await mount();
   try {
-    assert.match(m.text(), /Good · Normal/);
-    assert.doesNotMatch(m.text(), /Good · Normal · 7h/, "yesterday's wearable night is offered as the member's own");
+    assert.match(m.text(), /Start check-in/, "a watch's night alone counted as the member's own answer");
+    assert.doesNotMatch(m.text(), /Good · 7h/, "yesterday's wearable night is offered as the member's own");
+    // Start opens the night, the watch's included: its hours and How did you wake up? are there.
+    await m.click(/Start check-in/);
+    assert.match(m.text(), /Step 1 of 2 · Last night/);
+    assert.match(m.text(), /From your watch/);
+    assert.match(m.text(), /7h 12/);
+    assert.ok(!m.button(/^Skip$/), 'a wearable night can be skipped');
+    await m.click(/^Next/);
+    assert.deepEqual(calls.log, [], "Next wrote over the wearable's night");
+    await m.click(/^Close$/);
     await m.click(/Same as yesterday/);
-    assert.deepEqual(calls.log, [{ energy: 7, hunger: 5 }]);
+    assert.deepEqual(calls.log, [{ energy: 7 }]);
     assert.match(m.text(), /Checked in ✓/);
     assert.match(m.text(), /Sleep 7h 12/);
-    // In the walkthrough the night reads as the watch's, and Next writes nothing over it.
-    await m.click(/^Edit$/);
-    await m.click(/^Change$/, 2);
-    assert.match(m.text(), /From your watch/);
-    assert.equal(m.button(/^Skip$/), undefined, 'a wearable night can be skipped');
-    await m.click(/^Next/);
-    assert.equal(calls.log.length, 1, "Next wrote over the wearable's night");
-    assert.match(m.text(), /You're checked in/);
     // Rested is the member's own check, and a wearable's night still takes it, on its own.
-    await m.click(/^Change$/, 2);
+    await m.click(/^Edit$/);
     await m.click(/^Rested$/);
     await m.click(/^Next/);
     assert.deepEqual(calls.log[1], { sleepQuality: 8 }, "a wearable member's Rested was not saved, or the watch's hours were re-typed with it");
+    await m.click(/^Finish/);
     assert.match(m.text(), /7h 12 · Rested/);
   } finally { m.unmount(); }
 });
 
 test('a member who does not track sleep can skip the night, for the rest of the day', async () => {
   dom.window.localStorage.clear();
-  const calls = env({ days: { [TODAY]: { energy: 8, hunger: 6 } } });
+  const calls = env({ days: { [TODAY]: { energy: 8 } } });
   let m = await mount();
   try {
     await m.click(/^Continue/);
-    assert.match(m.text(), /Step 3 of 4 · Sleep/, 'Continue did not open the first open check');
+    assert.match(m.text(), /Step 1 of 2 · Last night/, 'Continue did not open the first open question');
     await m.click(/^Skip$/);
     assert.deepEqual(calls.log, [], 'skipping wrote a night');
-    assert.match(m.text(), /Step 4 of 4 · Water/);
+    assert.match(m.text(), /Step 2 of 2 · This morning/);
     await m.click(/^Finish/);
     assert.match(m.text(), /You're checked in ✓/);
     assert.match(m.text(), /Skipped/);
@@ -341,17 +435,62 @@ test('a member who does not track sleep can skip the night, for the rest of the 
     assert.doesNotMatch(m.text(), /Sleep \d/, 'the done line names a night that was skipped');
   } finally { m.unmount(); }
   // Still skipped when Home comes back today…
-  env({ days: { [TODAY]: { energy: 8, hunger: 6 } } });
+  env({ days: { [TODAY]: { energy: 8 } } });
   m = await mount();
   try { assert.match(m.text(), /Checked in ✓/, 'the skip did not survive leaving Home'); } finally { m.unmount(); }
   // …but tomorrow asks again.
   try {
     mock.timers.setTime(new Date(2026, 9, 19, 12).getTime());
-    env({ days: { '2026-10-19': { energy: 8, hunger: 6 } } });
+    env({ days: { '2026-10-19': { energy: 8 } } });
     m = await mount();
-    assert.match(m.text(), /Four quick checks/, "yesterday's skip held today");
+    assert.match(m.text(), /Two quick checks/, "yesterday's skip held today");
     m.unmount();
   } finally { mock.timers.setTime(at(12)); dom.window.localStorage.clear(); }
+});
+
+test('a skipped night stays skipped: Start opens energy, and Edit then Next writes nothing (review on this PR)', async () => {
+  dom.window.localStorage.clear();
+  const calls = env();
+  const m = await mount();
+  try {
+    await m.click(/Start check-in/);
+    await m.click(/^Skip$/);
+    await m.click(/^Close$/);
+    assert.match(m.text(), /✓ Sleep/);
+    await m.click(/Start check-in/);
+    assert.match(m.text(), /Step 2 of 2 · This morning/, 'Start opened the night the member skipped');
+    await m.click(/^Good$/);
+    await m.click(/^Done$/);
+    assert.deepEqual(calls.log, [{ energy: 8 }]);
+    await m.click(/^Edit$/);
+    assert.match(m.text(), /Step 1 of 2 · Last night/);
+    assert.match(m.text(), /Skipped/, 'the skipped night reads as the usual one');
+    await m.click(/^Next/);
+    assert.deepEqual(calls.log, [{ energy: 8 }], "walking past a skipped night saved the usual night as the member's own hours");
+    await m.click(/^Finish/);
+    assert.match(m.text(), /SleepSkipped/);
+    // Touching the stepper is an answer, and is saved.
+    await m.click(row('Sleep'));
+    await m.click(/Thirty minutes less/);
+    await m.click(/^Next/);
+    assert.deepEqual(calls.log[1], { sleepHours: 7 });
+  } finally { m.unmount(); dom.window.localStorage.clear(); }
+});
+
+test('Same as yesterday after a skip copies the morning only, never the skipped night (Codex P2 on #2407)', async () => {
+  dom.window.localStorage.clear();
+  const calls = env({ days: { [YDAY]: { energy: 7, sleep: 6.5, sleepQuality: 9 } } });
+  const m = await mount();
+  try {
+    await m.click(/Start check-in/);
+    await m.click(/^Skip$/);
+    await m.click(/^Close$/);
+    assert.match(m.text(), /Same as yesterday ✓Good/);
+    assert.doesNotMatch(m.text(), /6h 30|Fresh/, 'the card offers to fill the skipped night');
+    await m.click(/Same as yesterday/);
+    assert.deepEqual(calls.log, [{ energy: 7 }], "Same as yesterday typed over the night the member skipped");
+    assert.match(m.text(), /Checked in ✓/);
+  } finally { m.unmount(); dom.window.localStorage.clear(); }
 });
 
 test('a failed save puts the answer back and says so on screen', async () => {
@@ -361,41 +500,41 @@ test('a failed save puts the answer back and says so on screen', async () => {
   const m = await mount();
   try {
     await m.click(/Start check-in/);
-    await m.click(/^Good$/);
+    await m.click(/^Next/);
     assert.match(m.text(), /Could not save check-in — try again/);
     await m.click(/Back/);
-    assert.match(m.text(), /Step 1 of 4 · Energy/);
-    assert.deepEqual(m.pressed(), [], 'a failed answer still shows as given');
+    assert.match(m.text(), /Step 1 of 2 · Last night/);
+    assert.match(m.text(), /Your usual night/, 'a night that failed to save still shows as given');
     // The next tap still goes through: one failure must not wedge the save queue.
     fail = false;
-    await m.click(/^Good$/);
+    await m.click(/^Next/);
     assert.equal(calls.log.length, 2, 'the retry was never written');
-    assert.match(m.text(), /Step 2 of 4 · Hunger/);
+    assert.match(m.text(), /Step 2 of 2 · This morning/);
     assert.doesNotMatch(m.text(), /Could not save/, 'the error outlived the answer that fixed it');
   } finally { m.unmount(); }
 });
 
 test('a failed save puts back only its own answer, not one given after it (Codex P2 on #2398)', async () => {
-  // Energy is still saving when hunger is answered; then the energy save fails and the hunger
-  // save, queued behind it, succeeds. The screen must still hold the hunger answer.
-  let failEnergy;
-  const energy = new Promise((_, reject) => { failEnergy = reject; });
+  // The night is still saving when energy is answered; then the night's save fails and the energy
+  // save, queued behind it, succeeds. The screen must still hold the energy answer.
+  let failNight;
+  const night = new Promise((_, reject) => { failNight = reject; });
   let n = 0;
-  const calls = env({ log: () => (++n === 1 ? energy : { ok: true }) });
+  const calls = env({ log: () => (++n === 1 ? night : { ok: true }) });
   const m = await mount();
   try {
     await m.click(/Start check-in/);
+    await m.click(/^Next/);
     await m.click(/^Good$/);
-    await m.click(/^Normal$/);
-    failEnergy(new Error('500'));
+    failNight(new Error('500'));
     await m.flush();
     await m.flush();
-    assert.deepEqual(calls.log, [{ energy: 8 }, { hunger: 6 }]);
+    assert.deepEqual(calls.log, [{ sleepHours: 7.5 }, { energy: 8 }]);
     assert.match(m.text(), /Could not save check-in/);
     await m.click(/Back/);
-    assert.deepEqual(m.pressed(), ['Normal'], 'the stored hunger answer was put back with the failed energy one');
+    assert.deepEqual(m.pressed(), ['Good'], 'the stored energy answer was put back with the failed night');
     await m.click(/Back/);
-    assert.deepEqual(m.pressed(), [], 'the failed energy answer still shows as given');
+    assert.match(m.text(), /Your usual night/, 'the failed night still shows as given');
   } finally { m.unmount(); }
 });
 
@@ -403,18 +542,17 @@ test('an older save that fails never undoes a newer answer to the same question'
   let failFirst;
   const first = new Promise((_, reject) => { failFirst = reject; });
   let n = 0;
-  env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } }, log: () => (++n === 1 ? first : { ok: true }) });
-  const m = await mount();
+  env({ days: { [TODAY]: { energy: 8, sleep: 7 } }, log: () => (++n === 1 ? first : { ok: true }) });
+  const m = await mount({ openRequest: 1 });   // a done day opens at the summary
   try {
-    await m.click(/^Edit$/);
-    await m.click(/^Change$/, 0);
+    await m.click(row('Energy'));
     await m.click(/^Great$/);      // its save hangs, then fails
-    await m.click(/^Change$/, 0);
+    await m.click(row('Energy'));
     await m.click(/^Drained$/);
     failFirst(new Error('500'));
     await m.flush();
     await m.flush();
-    assert.match(m.text(), /Drained/, "the failed Great put back the energy over the member's newer Drained");
+    assert.match(m.text(), /EnergyDrained/, "the failed Great put back the energy over the member's newer Drained");
     assert.doesNotMatch(m.text(), /EnergyGood/);
   } finally { m.unmount(); }
 });
@@ -422,106 +560,19 @@ test('an older save that fails never undoes a newer answer to the same question'
 test("a queued answer is dropped when the account changes, never saved to the next member's day (Codex P1 on #2398)", async () => {
   let release;
   const first = new Promise((r) => { release = r; });
-  const calls = env({ uid: 'member-a', log: (p) => (p.energy != null ? first : { ok: true }) });
+  const calls = env({ uid: 'member-a', log: (p) => (p.sleepHours != null ? first : { ok: true }) });
   const m = await mount();
   try {
     await m.click(/Start check-in/);
-    await m.click(/^Good$/);       // on its way, under member A
-    await m.click(/^Normal$/);     // queued behind it
+    await m.click(/^Next/);        // on its way, under member A
+    await m.click(/^Good$/);       // queued behind it
     // Member A signs out and member B signs in before the first save answers.
     dom.window.ShapeAuth = { getCachedState: () => ({ user: { id: 'member-b' } }) };
     release({ ok: true });
     await m.flush();
     await m.flush();
-    assert.deepEqual(calls.log, [{ energy: 8 }], "member A's queued answer was sent under member B's session");
+    assert.deepEqual(calls.log, [{ sleepHours: 7.5 }], "member A's queued answer was sent under member B's session");
   } finally { m.unmount(); }
-});
-
-test('two quick glasses save in order, and a failed one takes back only its own glass (Codex P2 on #2398)', async () => {
-  let failFirst;
-  const first = new Promise((_, reject) => { failFirst = reject; });
-  env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
-  let server = 0.5;
-  const adds = [];
-  dom.window.ShapeHydration = {
-    get: async () => ({ ok: true, hydrationL: 0.5, targetL: 3 }),
-    add: (d) => { adds.push(d); if (adds.length === 1) return first; server += d; return Promise.resolve({ ok: true, hydrationL: server }); },
-  };
-  const m = await mount();
-  try {
-    await m.click(/\+ Glass/);
-    await m.click(/\+ Glass/);
-    assert.equal(adds.length, 1, 'the second glass was sent while the first was still saving');
-    assert.match(m.text(), /33 oz \/ 101 oz/);
-    failFirst(new Error('500'));
-    await m.flush();
-    await m.flush();
-    assert.equal(adds.length, 2);
-    assert.match(m.text(), /25 oz \/ 101 oz/, 'the failed glass took back more than itself, or nothing');
-    assert.match(m.text(), /Could not log water/);
-  } finally { m.unmount(); }
-});
-
-test('a glass that saves keeps the ones still on their way, and a failed last one takes back only itself', async () => {
-  let releaseFirst;
-  let failSecond;
-  const first = new Promise((r) => { releaseFirst = r; });
-  const second = new Promise((_, reject) => { failSecond = reject; });
-  env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
-  const adds = [];
-  dom.window.ShapeHydration = {
-    get: async () => ({ ok: true, hydrationL: 0.5, targetL: 3 }),
-    add: (d) => { adds.push(d); return adds.length === 1 ? first : second; },
-  };
-  const m = await mount();
-  try {
-    await m.click(/\+ Glass/);
-    await m.click(/\+ Glass/);
-    assert.match(m.text(), /33 oz \/ 101 oz/);
-    releaseFirst({ ok: true, hydrationL: 0.7366 });   // the server's total after the first glass
-    await m.flush();
-    await m.flush();
-    assert.equal(adds.length, 2);
-    assert.match(m.text(), /33 oz \/ 101 oz/, 'the first glass saving dropped the second, still on its way, from the screen');
-    failSecond(new Error('500'));
-    await m.flush();
-    await m.flush();
-    assert.match(m.text(), /25 oz \/ 101 oz/, 'the failed glass took back more than itself');
-  } finally { m.unmount(); }
-});
-
-test('a failed water read still lets a glass be logged, and the first save brings the total (Codex P2 on #2398)', async () => {
-  env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
-  const adds = [];
-  dom.window.ShapeHydration = {
-    get: async () => { throw new Error('500'); },
-    add: async (d) => { adds.push(d); return { ok: true, hydrationL: 1 + d }; },
-  };
-  const m = await mount();
-  try {
-    assert.match(m.text(), /Water— ?\+ Glass/, 'a failed read shows a total it does not have');
-    assert.equal(m.button(/\+ Glass/).disabled, false, 'a failed read left + Glass disabled');
-    await m.click(/\+ Glass/);
-    assert.deepEqual(adds, [0.2366]);
-    assert.match(m.text(), /42 oz \/ 101 oz/, "the server's total did not replace the unknown one");
-  } finally { m.unmount(); }
-});
-
-test("a new local day reads that day's water (Codex P2 on #2398)", async () => {
-  try {
-    mock.timers.setTime(new Date(2026, 9, 18, 23, 59).getTime());
-    let reads = 0;
-    env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 }, '2026-10-19': { energy: 8, hunger: 6, sleep: 7 } } });
-    dom.window.ShapeHydration = { get: async () => { reads += 1; return { ok: true, hydrationL: reads === 1 ? 2 : 0.25, targetL: 3 }; }, add: async () => ({ ok: true }) };
-    const m = await mount();
-    try {
-      assert.match(m.text(), /68 oz \/ 101 oz/);
-      mock.timers.setTime(new Date(2026, 9, 19, 0, 1).getTime());
-      await m.rerender();
-      assert.equal(reads, 2, "the new day's water was never read");
-      assert.match(m.text(), /8 oz \/ 101 oz/, "yesterday's water is still on Home after midnight");
-    } finally { m.unmount(); }
-  } finally { mock.timers.setTime(at(12)); }
 });
 
 test('an answer queued across midnight is dropped, never filed under the next day (Codex P2 on #2398)', async () => {
@@ -529,17 +580,17 @@ test('an answer queued across midnight is dropped, never filed under the next da
     mock.timers.setTime(new Date(2026, 9, 18, 23, 59).getTime());
     let release;
     const first = new Promise((r) => { release = r; });
-    const calls = env({ log: (p) => (p.energy != null ? first : { ok: true }) });
+    const calls = env({ log: (p) => (p.sleepHours != null ? first : { ok: true }) });
     const m = await mount();
     try {
       await m.click(/Start check-in/);
-      await m.click(/^Good$/);       // on its way at 23:59
-      await m.click(/^Normal$/);     // queued behind it
+      await m.click(/^Next/);        // on its way at 23:59
+      await m.click(/^Good$/);       // queued behind it
       mock.timers.setTime(new Date(2026, 9, 19, 0, 1).getTime());
       release({ ok: true });
       await m.flush();
       await m.flush();
-      assert.deepEqual(calls.log, [{ energy: 8 }], "a 23:59 answer was sent after midnight, and dated the next day");
+      assert.deepEqual(calls.log, [{ sleepHours: 7.5 }], 'a 23:59 answer was sent after midnight, and dated the next day');
     } finally { m.unmount(); }
   } finally { mock.timers.setTime(at(12)); }
 });
@@ -549,8 +600,8 @@ test("a new day closes the card until that day is read, and a failed read never 
     let reads = 0;
     let failSecond;
     const second = new Promise((_, reject) => { failSecond = reject; });
-    env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
-    const firstRead = { series: series({ [TODAY]: { energy: 8, hunger: 6, sleep: 7 } }) };
+    env({ days: { [TODAY]: { energy: 8, sleep: 7 } } });
+    const firstRead = { series: series({ [TODAY]: { energy: 8, sleep: 7 } }) };
     dom.window.ShapeProgress = { progress: () => { reads += 1; return reads === 1 ? Promise.resolve(firstRead) : second; } };
     const m = await mount();
     try {
@@ -562,7 +613,7 @@ test("a new day closes the card until that day is read, and a failed read never 
       failSecond(new Error('500'));
       await m.flush();
       await m.flush();
-      assert.match(m.text(), /Four quick checks/, "a failed read left the day before's answers standing as today's");
+      assert.match(m.text(), /Two quick checks/, "a failed read left the day before's answers standing as today's");
       assert.doesNotMatch(m.text(), /Checked in/);
     } finally { m.unmount(); }
   } finally { mock.timers.setTime(at(12)); }
@@ -575,31 +626,16 @@ test('a walkthrough open at midnight closes, and a tap after midnight saves noth
     const m = await mount();
     try {
       await m.click(/Start check-in/);
-      await m.click(/^Good$/);
-      assert.match(m.text(), /Step 2 of 4 · Hunger/);
+      await m.click(/^Next/);
+      assert.match(m.text(), /Step 2 of 2 · This morning/);
       mock.timers.setTime(new Date(2026, 9, 19, 0, 1).getTime());
       // Before Home re-renders, a tap on the old day's sheet is not saved into the new day.
-      await m.click(/^Normal$/);
-      assert.deepEqual(calls.log, [{ energy: 8 }], 'a 00:01 tap on the 23:59 walkthrough was saved into the new day');
-      assert.equal(m.walk(), null, "the day before's walkthrough is still open");
+      await m.click(/^Good$/);
+      assert.deepEqual(calls.log, [{ sleepHours: 7.5 }], 'a 00:01 tap on the 23:59 walkthrough was saved into the new day');
+      assert.ok(!m.walk(), "the day before's walkthrough is still open");
       // Home's next render mounts the new day's card, with no walkthrough carried over.
       await m.rerender();
-      assert.equal(m.walk(), null);
-    } finally { m.unmount(); }
-  } finally { mock.timers.setTime(at(12)); }
-});
-
-test("a glass tapped on a card whose day is over saves nothing (Codex P2 on #2398)", async () => {
-  try {
-    mock.timers.setTime(new Date(2026, 9, 18, 23, 59).getTime());
-    const calls = env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
-    const m = await mount();
-    try {
-      assert.match(m.text(), /Checked in ✓/);
-      mock.timers.setTime(new Date(2026, 9, 19, 0, 1).getTime());
-      await m.click(/\+ Glass/);
-      assert.deepEqual(calls.add, [], "a 00:01 glass on the day before's card was saved into the new day");
-      assert.doesNotMatch(m.text(), /Checked in/, "the day before's card still shows after its day ended");
+      assert.ok(!m.walk());
     } finally { m.unmount(); }
   } finally { mock.timers.setTime(at(12)); }
 });
@@ -608,11 +644,11 @@ test("a save from the day before that fails after midnight changes nothing on th
   try {
     let failEdit;
     const edit = new Promise((_, reject) => { failEdit = reject; });
-    env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } }, log: () => edit });
+    env({ days: { [TODAY]: { energy: 8, sleep: 7 } }, log: () => edit });
     const m = await mount();
     try {
       await m.click(/^Edit$/);
-      await m.click(/^Change$/, 0);
+      await m.click(/^Next/);
       await m.click(/^Great$/);       // its save is in flight at the turn of the day
       mock.timers.setTime(new Date(2026, 9, 19, 9, 0).getTime());
       dom.window.ShapeProgress = { progress: async () => ({ series: series({}) }) };
@@ -621,27 +657,9 @@ test("a save from the day before that fails after midnight changes nothing on th
       failEdit(new Error('500'));
       await m.flush();
       await m.flush();
-      assert.match(m.text(), /Four quick checks/);
+      assert.match(m.text(), /Two quick checks/);
       assert.doesNotMatch(m.text(), /✓ Energy/, "the failed save from the day before put its energy into the new day");
       assert.doesNotMatch(m.text(), /Could not save/, "the day before's failure shows on the new day");
-    } finally { m.unmount(); }
-  } finally { mock.timers.setTime(at(12)); }
-});
-
-test("a failed water read on a new day never shows the day before's water (Codex P2 on #2398)", async () => {
-  try {
-    let reads = 0;
-    env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
-    dom.window.ShapeHydration = { get: async () => { reads += 1; if (reads > 1) throw new Error('500'); return { ok: true, hydrationL: 2, targetL: 3 }; }, add: async () => ({ ok: true }) };
-    const m = await mount();
-    try {
-      assert.match(m.text(), /68 oz \/ 101 oz/);
-      mock.timers.setTime(new Date(2026, 9, 19, 9, 0).getTime());
-      dom.window.ShapeProgress = { progress: async () => ({ series: series({}) }) };
-      await m.rerender();
-      assert.equal(reads, 2);
-      assert.match(m.text(), /Four quick checks/);
-      assert.doesNotMatch(m.text(), /✓ Water/, "the day before's water marks the new day's water done");
     } finally { m.unmount(); }
   } finally { mock.timers.setTime(at(12)); }
 });
@@ -649,16 +667,16 @@ test("a failed water read on a new day never shows the day before's water (Codex
 test('answers save one at a time, so two quick taps cannot both insert a row for today', async () => {
   let release;
   const first = new Promise((r) => { release = r; });
-  const calls = env({ log: (p) => (p.energy != null ? first : { ok: true }) });
+  const calls = env({ log: (p) => (p.sleepHours != null ? first : { ok: true }) });
   const m = await mount();
   try {
     await m.click(/Start check-in/);
+    await m.click(/^Next/);
     await m.click(/^Good$/);
-    await m.click(/^Normal$/);
-    assert.equal(calls.log.length, 1, 'the hunger write started while the energy write was still open');
+    assert.equal(calls.log.length, 1, 'the energy write started while the night write was still open');
     release({ ok: true });
     await m.flush();
-    assert.deepEqual(calls.log, [{ energy: 8 }, { hunger: 6 }]);
+    assert.deepEqual(calls.log, [{ sleepHours: 7.5 }, { energy: 8 }]);
   } finally { m.unmount(); }
 });
 
@@ -668,7 +686,7 @@ test("nothing is asked until today's answers are read", async () => {
   const m = await mount();
   try {
     assert.equal(m.text(), '', 'the card asked before it knew what today already has');
-    answer({ series: series({ [TODAY]: { energy: 8, hunger: 6, sleep: 7 } }) });
+    answer({ series: series({ [TODAY]: { energy: 8, sleep: 7 } }) });
     await m.flush();
     assert.match(m.text(), /Checked in ✓/);
   } finally { m.unmount(); }
@@ -681,145 +699,240 @@ test("it asks from 4 a.m., but a day's done line shows before it", async () => {
     let m = await mount();
     assert.equal(m.text(), '', 'it asked about last night at 3:30 a.m.');
     m.unmount();
-    env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
+    env({ days: { [TODAY]: { energy: 8, sleep: 7 } } });
     m = await mount();
     assert.match(m.text(), /Checked in ✓/);
     m.unmount();
     mock.timers.setTime(at(4));
     env();
     m = await mount();
-    assert.match(m.text(), /Four quick checks/);
+    assert.match(m.text(), /Two quick checks/);
     m.unmount();
   } finally { mock.timers.setTime(at(12)); }
 });
 
-test('Edit opens the summary, and a Change goes back to it', async () => {
-  const calls = env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
+test("Edit opens step 1 with the morning's answers, Back reaches every answer, and a Change returns to the summary", async () => {
+  // Owner, 2026-10-19: "when i click edit, i cant go back and change any of my entries".
+  const calls = env({ days: { [TODAY]: { energy: 8, sleep: 7, sleepQuality: 6 } } });
   const m = await mount();
   try {
     await m.click(/^Edit$/);
+    assert.match(m.text(), /Step 1 of 2 · Last night/, 'Edit did not open the first answer');
+    assert.match(document.querySelector('[aria-live="polite"]').textContent, /^7h$/, "the stepper did not start at today's own hours");
+    assert.match(m.text(), /30 min under your usual/);
+    assert.deepEqual(m.pressed(), ['OK'], "today's Rested was not shown");
+    assert.equal(m.button(/Back/).style.visibility, 'hidden', 'step 1 offered a Back to nowhere');
+    await m.click(/^Next/);
+    assert.deepEqual(calls.log, [], 'walking through an unchanged night wrote it again');
+    assert.match(m.text(), /Step 2 of 2 · This morning/);
+    assert.deepEqual(m.pressed(), ['Good']);
+    await m.click(/^Finish/);
     assert.match(m.text(), /You're checked in ✓/);
-    await m.click(/^Change$/, 1);
-    assert.match(m.text(), /Step 2 of 4 · Hunger/);
-    assert.deepEqual(m.pressed(), ['Normal'], "the step did not show today's answer");
-    await m.click(/^Hungry$/);
-    assert.deepEqual(calls.log, [{ hunger: 8 }]);
-    assert.match(m.text(), /You're checked in ✓/, 'a Change walked on to the next check instead of back to the summary');
-    assert.match(m.text(), /Hungry/);
-    await m.click(/^Change$/, 2);
-    assert.match(m.text(), /7h(?! 30)/, "the stepper did not start at today's own hours");
-    await m.click(/Close/);
-    assert.equal(m.walk(), null);
+    // Back shows on the summary, and walks back through the answers.
+    assert.equal(m.button(/Back/).style.visibility, 'visible', 'the summary hid Back');
+    await m.click(/Back/);
+    assert.match(m.text(), /Step 2 of 2 · This morning/);
+    await m.click(/^Finish/);
+    // Each answer on the summary is one whole button.
+    await m.click(row('Energy'));
+    assert.match(m.text(), /Step 2 of 2 · This morning/);
+    await m.click(/^Great$/);
+    assert.deepEqual(calls.log, [{ energy: 10 }]);
+    assert.match(m.text(), /You're checked in ✓/, 'a Change walked on instead of back to the summary');
+    await m.click(row('Sleep'));
+    await m.click(/Thirty minutes more/);
+    await m.click(/^Next/);
+    assert.deepEqual(calls.log[1], { sleepHours: 7.5, sleepQuality: 6 });
+    assert.match(m.text(), /You're checked in ✓/);
+    await m.click(/^Close$/);
+    assert.ok(!m.walk());
   } finally { m.unmount(); }
 });
 
-test('Details waits for saves on their way, and stays on Home if one fails (Codex P2 on #2398)', async () => {
-  let release;
-  let opened = 0;
-  const gate = new Promise((r) => { release = r; });
-  env({ days: { [YDAY]: { energy: 7, hunger: 5, sleep: 6.5 } }, log: () => gate });
-  let m = await mount({ onOpen: () => { opened += 1; } });
+test("a changed How did you wake up? on a night already typed is saved with it", async () => {
+  const calls = env({ days: { [TODAY]: { energy: 8, sleep: 7, sleepQuality: 6 } } });
+  const m = await mount();
   try {
-    await m.click(/Same as yesterday/);
-    await m.click(/Details/);
-    assert.equal(opened, 0, 'Details left while the check-in was still saving');
-    release({ ok: true });
-    await m.flush();
-    assert.equal(opened, 1, 'Details never opened once the save landed');
+    await m.click(/^Edit$/);
+    await m.click(/^Fresh$/);
+    await m.click(/^Next/);
+    assert.deepEqual(calls.log, [{ sleepHours: 7, sleepQuality: 10 }], 'a new Rested on an unchanged night was dropped');
   } finally { m.unmount(); }
-
-  opened = 0;
-  let fail;
-  const failing = new Promise((_, reject) => { fail = reject; });
-  env({ days: { [YDAY]: { energy: 7, hunger: 5, sleep: 6.5 } }, log: () => failing });
-  m = await mount({ onOpen: () => { opened += 1; } });
-  try {
-    await m.click(/Same as yesterday/);
-    await m.click(/Details/);
-    fail(new Error('500'));
-    await m.flush();
-    await m.flush();
-    assert.equal(opened, 0, 'Details left after the save failed, so the member never saw it');
-    assert.match(m.text(), /Could not save check-in/);
-  } finally { m.unmount(); }
-});
-
-test('Details waits for a glass on its way too, and stays on Home if it fails (Codex P2 on #2398)', async () => {
-  let opened = 0;
-  let land;
-  env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
-  dom.window.ShapeHydration.add = () => new Promise((r) => { land = r; });
-  let m = await mount({ onOpen: () => { opened += 1; } });
-  try {
-    await m.click(/\+ Glass/);
-    await m.click(/Details/);
-    await m.flush();
-    assert.equal(opened, 0, 'Details left while the glass was still saving');
-    land({ ok: true, hydrationL: 0.7366 });
-    await m.flush();
-    assert.equal(opened, 1, 'Details never opened once the glass landed');
-  } finally { m.unmount(); }
-
-  opened = 0;
-  let fail;
-  env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
-  dom.window.ShapeHydration.add = () => new Promise((_, reject) => { fail = reject; });
-  m = await mount({ onOpen: () => { opened += 1; } });
-  try {
-    await m.click(/\+ Glass/);
-    await m.click(/Details/);
-    fail(new Error('500'));
-    await m.flush();
-    await m.flush();
-    assert.equal(opened, 0, 'Details left after the glass failed, so the member never saw it');
-    assert.match(m.text(), /Could not log water/);
-  } finally { m.unmount(); }
-});
-
-test('Details opens the check-in page, and a glass of water is one tap in the member\'s units', async () => {
-  let opened = 0;
-  let calls = env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
-  let m = await mount({ onOpen: () => { opened += 1; } });
-  try {
-    await m.click(/Details/);
-    await m.flush();
-    assert.equal(opened, 1);
-    assert.match(m.text(), /17 oz \/ 101 oz/);
-    await m.click(/\+ Glass/);
-    assert.deepEqual(calls.add, [0.2366]);
-    assert.match(m.text(), /25 oz \/ 101 oz/);
-  } finally { m.unmount(); }
-
-  theme.isMetric = true;
-  try {
-    calls = env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
-    m = await mount();
-    await m.click(/\+ Glass/);
-    assert.deepEqual(calls.add, [0.25]);
-    assert.match(m.text(), /0\.75 L \/ 3 L/);
-    m.unmount();
-  } finally { theme.isMetric = false; }
 });
 
 test('signed out, the card previews the flow and saves nothing', async () => {
-  const calls = env({ uid: null });
+  const calls = env({ uid: null, plan: NUTRITIONIST });
   const m = await mount();
   try {
     await m.click(/Start check-in/);
+    await m.click(/^Next/);
     assert.match(m.text(), /Mostly good this week\./, 'the preview has no sample week');
     await m.click(/^Good$/);
-    await m.click(/^Normal$/);
-    await m.click(/^Next/);
-    await m.click(/\+ 1 glass/);
-    await m.click(/^Finish/);
     assert.deepEqual(calls.log, []);
-    assert.deepEqual(calls.add, [], 'the preview wrote a glass');
     assert.match(m.text(), /Join Shape to save your check-in/);
     assert.doesNotMatch(m.text(), /checked in/i, 'the preview claimed a check-in it never saved');
     assert.doesNotMatch(m.text(), /days running/);
+    assert.doesNotMatch(m.text(), /see your 7-day averages|Only you see/, 'the preview said who sees answers it never saved');
     await m.click(/^Done$/);
-    assert.match(m.text(), /8 oz \/ 101 oz/, 'the preview did not count its glass');
+    assert.match(m.text(), /Join Shape to save your check-in/);
   } finally { m.unmount(); }
+});
+
+// ── What it means, and who sees it ────────────────────────────────────────────
+
+test("today's read: a short night and a low morning, said on the summary and on Home", async () => {
+  const usual = { '2026-10-15': { sleep: 7.5 }, '2026-10-16': { sleep: 7.5 }, [YDAY]: { sleep: 7.5 } };
+  env({ days: { ...usual, [TODAY]: { energy: 4, sleep: 5 } } });
+  let m = await mount({ openRequest: 1 });
+  try {
+    const read = () => [...document.querySelectorAll('[data-bs-checkin-read]')].map((el) => (m.walk() && m.walk().contains(el) ? 'summary' : 'home'));
+    assert.deepEqual(read().sort(), ['home', 'summary'], "today's read is not said on both the summary and Home");
+    assert.match(m.walk().querySelector('[data-bs-checkin-read]').textContent, /Short night, low morning\. Keep training easy and aim for bed earlier\./);
+  } finally { m.unmount(); }
+  // Low after a full night: with a coach, tell them; without, keep an eye on it.
+  env({ days: { ...usual, [TODAY]: { energy: 2, sleep: 8 } }, plan: TRAINER });
+  m = await mount();
+  try { assert.match(m.text(), /Low after a full night\. If it keeps happening, tell your coach\./); } finally { m.unmount(); }
+  env({ days: { ...usual, [TODAY]: { energy: 2, sleep: 8 } }, plan: NONE });
+  m = await mount();
+  try {
+    assert.match(m.text(), /If it keeps happening, take it easy and keep an eye on it\./);
+    assert.doesNotMatch(m.text(), /tell your coach/, 'a member with no coach was told to tell their coach');
+  } finally { m.unmount(); }
+  env({ days: { ...usual, [TODAY]: { energy: 6, sleep: 5 } } });
+  m = await mount();
+  try { assert.match(m.text(), /Short night, but you feel fine\. Go by how the warm-up feels\./); } finally { m.unmount(); }
+});
+
+test('the summary says the week in words: short on sleep, mostly low, mostly good', async () => {
+  env({ days: { '2026-10-15': { energy: 8, sleep: 5 }, '2026-10-16': { energy: 8, sleep: 5.5 }, [YDAY]: { energy: 8, sleep: 5 }, [TODAY]: { energy: 8, sleep: 5 } } });
+  let m = await mount({ openRequest: 1 });
+  try { assert.match(m.text(), /Short on sleep this week: 5h 10 a night\./); } finally { m.unmount(); }
+  env({ days: { '2026-10-15': { energy: 4, sleep: 7 }, '2026-10-16': { energy: 2, sleep: 7 }, [YDAY]: { energy: 4, sleep: 7 }, [TODAY]: { energy: 4, sleep: 7 } } });
+  m = await mount({ openRequest: 1 });
+  try { assert.match(m.text(), /Your energy has been mostly low this week\. A lighter session still counts\./); } finally { m.unmount(); }
+  env({ days: { '2026-10-15': { energy: 8, sleep: 7 }, '2026-10-16': { energy: 8, sleep: 7 }, [TODAY]: { energy: 8, sleep: 7 } } });
+  m = await mount({ openRequest: 1 });
+  try { assert.match(m.text(), /Mostly good mornings this week\./); } finally { m.unmount(); }
+});
+
+test("who sees the morning: the member's coaches by role, or only them, and nothing while unknown", async () => {
+  const done = { [TODAY]: { energy: 8, sleep: 7 } };
+  const who = async (plan) => {
+    env({ days: done, plan });
+    const m = await mount({ openRequest: 1 });
+    try { return document.querySelector('[data-bs-checkin-who]')?.textContent || null; } finally { m.unmount(); }
+  };
+  assert.equal(await who(BOTH), 'Your trainer and nutritionist see your 7-day averages.');
+  assert.equal(await who(TRAINER), 'Your trainer sees your 7-day averages.');
+  assert.equal(await who(NUTRITIONIST), 'Your nutritionist sees your 7-day averages.');
+  assert.equal(await who(NONE), 'Only you see these.');
+  assert.equal(await who({ training: {}, meals: {} }), null, 'a failed coaching read said who sees the answers');
+  assert.equal(await who(undefined), null);
+  assert.equal(await who(null), null, 'a failed plan read said only the member sees them');
+});
+
+test('the energy step says the trainer sees it, when there is one', async () => {
+  env({ days: { [TODAY]: { sleep: 7 } }, plan: TRAINER });
+  let m = await mount();
+  try {
+    await m.click(/^Continue/);
+    assert.match(m.text(), /Your trainer sees this before your session/);
+  } finally { m.unmount(); }
+  env({ days: { [TODAY]: { sleep: 7 } }, plan: NUTRITIONIST });
+  m = await mount();
+  try {
+    await m.click(/^Continue/);
+    assert.doesNotMatch(m.text(), /Your trainer sees this/);
+    assert.match(m.text(), /After low mornings Home suggests lighter days/);
+  } finally { m.unmount(); }
+});
+
+// ── The evening question: hunger, with a nutritionist (owner, 2026-10-19) ─────
+
+test('the evening hunger question asks only a member with a nutritionist, and only from 6 p.m.', async () => {
+  const evening = async (plan, h = 19) => {
+    mock.timers.setTime(at(h));
+    try {
+      env({ days: { [TODAY]: { energy: 8, sleep: 7 } }, plan });
+      const m = await mount();
+      try { return !!document.querySelector('[data-bs-checkin-evening]'); } finally { m.unmount(); }
+    } finally { mock.timers.setTime(at(12)); }
+  };
+  assert.equal(await evening(NUTRITIONIST), true, 'a member with a nutritionist was not asked in the evening');
+  assert.equal(await evening(NUTRITIONIST, 17), false, 'hunger was asked before the evening');
+  assert.equal(await evening(TRAINER), false, 'a trainer-only member was asked about hunger');
+  assert.equal(await evening(NONE), false);
+  assert.equal(await evening({ training: {}, meals: {} }), false, 'a failed coaching read asked anyway');
+  assert.equal(await evening(undefined), false);
+});
+
+test('the evening question saves today\'s hunger in one tap, then leaves Home', async () => {
+  mock.timers.setTime(at(19));
+  try {
+    const calls = env({ days: { [TODAY]: { energy: 8, sleep: 7 }, [YDAY]: { hunger: 6 }, '2026-10-16': { hunger: 6 }, '2026-10-15': { hunger: 6 } }, plan: NUTRITIONIST });
+    const m = await mount();
+    try {
+      assert.match(m.text(), /Tonight/);
+      assert.match(m.text(), /How hungry did you get today\?/);
+      await m.click(/^Answer/);
+      assert.equal(m.walk().getAttribute('data-bs-checkin-walk'), 'evening');
+      assert.match(m.text(), /Tonight · Hunger/);
+      assert.match(m.text(), /How hungry did you get between meals today\?/);
+      assert.match(m.text(), /Your nutritionist reads this beside what you ate/);
+      assert.match(m.text(), /Mostly normal this week\./, 'the evening step has no week under it');
+      await m.click(/^Hungry$/);
+      assert.deepEqual(calls.log, [{ hunger: 8 }]);
+      assert.ok(!m.walk(), 'the evening question stayed open after its one answer');
+      assert.ok(!document.querySelector('[data-bs-checkin-evening]'), 'Home still asks a question already answered');
+      assert.match(m.text(), /Energy Good · Hunger Hungry/);
+      assert.match(m.text(), /Checked in ✓/);
+    } finally { m.unmount(); }
+  } finally { mock.timers.setTime(at(12)); }
+});
+
+test('a failed evening answer says so on Home, and the question comes back', async () => {
+  mock.timers.setTime(at(19));
+  try {
+    env({ days: { [TODAY]: { energy: 8, sleep: 7 } }, plan: NUTRITIONIST, log: () => Promise.reject(new Error('500')) });
+    const m = await mount();
+    try {
+      await m.click(/^Answer/);
+      await m.click(/^Hungry$/);
+      await m.flush();
+      assert.ok(!m.walk());
+      assert.match(m.host.textContent, /Could not save check-in — try again/, 'the failed evening answer went silent');
+      assert.ok(document.querySelector('[data-bs-checkin-evening]'), 'the evening question did not come back');
+      assert.doesNotMatch(m.text(), /Hunger Hungry/);
+    } finally { m.unmount(); }
+  } finally { mock.timers.setTime(at(12)); }
+});
+
+test('in the evening the summary has a hunger row for a member with a nutritionist, and a Change comes back to it', async () => {
+  mock.timers.setTime(at(20));
+  try {
+    const calls = env({ days: { [TODAY]: { energy: 8, sleep: 7, hunger: 6 } }, plan: NUTRITIONIST });
+    const m = await mount({ openRequest: 1 });
+    try {
+      assert.match(m.text(), /HungerNormal/);
+      await m.click(row('Hunger'));
+      assert.match(m.text(), /Tonight · Hunger/);
+      await m.click(/^Starving$/);
+      assert.deepEqual(calls.log, [{ hunger: 10 }]);
+      assert.match(m.text(), /You're checked in ✓/, 'a Change to hunger did not come back to the summary');
+      assert.match(m.text(), /HungerStarving/);
+    } finally { m.unmount(); }
+  } finally { mock.timers.setTime(at(12)); }
+  // A morning summary has no hunger row, and nor does a member without a nutritionist.
+  env({ days: { [TODAY]: { energy: 8, sleep: 7 } }, plan: NUTRITIONIST });
+  let m = await mount({ openRequest: 2 });
+  try { assert.ok(!m.button(row('Hunger')), 'hunger was offered in the morning'); } finally { m.unmount(); }
+  mock.timers.setTime(at(20));
+  try {
+    env({ days: { [TODAY]: { energy: 8, sleep: 7 } }, plan: TRAINER });
+    m = await mount({ openRequest: 3 });
+    try { assert.ok(!m.button(row('Hunger')), 'a trainer-only member was offered hunger'); } finally { m.unmount(); }
+  } finally { mock.timers.setTime(at(12)); }
 });
 
 // ── The second review round on #2398 ─────────────────────────────────────────
@@ -833,14 +946,13 @@ test("a night a watch wrote is known from the server's sources, not from a resti
   assert.equal(CARD.bsCiDay(series({ [TODAY]: { sleep: 7, restingHr: 58 } }), TODAY).device, true);
 
   const calls = env({ days: {} });
-  dom.window.ShapeProgress = { progress: async () => ({ series: s({ [TODAY]: { energy: 8, hunger: 6, sleep: 7, restingHr: 58 }, [YDAY]: { energy: 6, hunger: 6, sleep: 6.5, restingHr: 57 } }, []) }) };
+  dom.window.ShapeProgress = { progress: async () => ({ series: s({ [TODAY]: { energy: 8, sleep: 7, restingHr: 58 }, [YDAY]: { energy: 6, sleep: 6.5, restingHr: 57 } }, []) }) };
   const m = await mount();
   try {
     await m.click(/^Edit$/);
-    await m.click(/^Change$/, 2);
     assert.doesNotMatch(m.text(), /From your watch/, "the member's typed hours read as the watch's, so they cannot correct them");
     assert.ok(m.button(/^Skip$/), 'a typed night lost its stepper');
-    assert.match(m.text(), /^(?!.*Your usual night).*7h(?! \d)/s, "the stepper did not start at today's own hours");
+    assert.match(document.querySelector('[aria-live="polite"]').textContent, /^7h$/, "the stepper did not start at today's own hours");
   } finally { m.unmount(); }
   assert.deepEqual(calls.log, []);
 });
@@ -848,15 +960,15 @@ test("a night a watch wrote is known from the server's sources, not from a resti
 test("typed hours on a day with a watch's heart rate stay the member's own after they are saved", async () => {
   // An older server: no sleepFromDevice, so the heart rate still marks the day. The save answers
   // as the route does for hours it kept.
-  const calls = env({ days: { [TODAY]: { energy: 8, hunger: 6, restingHr: 58 } }, log: (patch) => ({ ok: true, sleepHours: patch.sleepHours ?? null, sleepFromDevice: false }) });
+  const calls = env({ days: { [TODAY]: { energy: 8, restingHr: 58 } }, log: (patch) => ({ ok: true, sleepHours: patch.sleepHours ?? null, sleepFromDevice: false }) });
   const m = await mount();
   try {
     await m.click(/^Continue/);
-    assert.match(m.text(), /Step 3 of 4 · Sleep/);
+    assert.match(m.text(), /Step 1 of 2 · Last night/);
     await m.click(/^Next/);
     assert.deepEqual(calls.log, [{ sleepHours: 7.5 }]);
     await m.click(/^Finish/);
-    await m.click(/^Change$/, 2);
+    await m.click(row('Sleep'));
     assert.doesNotMatch(m.text(), /From your watch/, 'the hours just typed now read as the watch\'s');
     assert.ok(m.button(/^Skip$/));
   } finally { m.unmount(); }
@@ -932,12 +1044,15 @@ test('opening the card asks each connected watch for its night, at most every 30
   } finally { delete dom.window.ShapeIntegrations; }
 });
 
-test("a card that closes while the watches answer still clears the cache and claims the night's points", async () => {
+test("a card that closes while the watches answer still clears the cache, claims the night's points, and tells the water line", async () => {
   let cleared = 0;
   let claimed = 0;
+  let told = 0;
   let release;
   const held = new Promise((r) => { release = r; });
-  env({ uid: 'sync-card-7', days: { [TODAY]: { energy: 8, hunger: 6 } } });
+  const onSync = () => { told += 1; };
+  dom.window.addEventListener(CARD.BS_CI_HYDRATION_SYNCED, onSync);
+  env({ uid: 'sync-card-7', days: { [TODAY]: { energy: 8 } } });
   dom.window.ShapeMetrics = { invalidate: () => { cleared += 1; } };
   dom.window.ShapeSleepPoints = { check: async () => { claimed += 1; return []; } };
   dom.window.ShapeIntegrations = {
@@ -951,11 +1066,15 @@ test("a card that closes while the watches answer still clears the cache and cla
     await React.act(async () => { release(); await new Promise((r) => setTimeout(r, 0)); });
     assert.equal(cleared, 1, 'the next card read the night from the cache from before the sync');
     assert.equal(claimed, 1, "the night's points waited for the next app open");
-  } finally { delete dom.window.ShapeIntegrations; delete dom.window.ShapeMetrics; delete dom.window.ShapeSleepPoints; }
+    assert.equal(told, 1, 'the water line was not told a sync may have moved the water');
+  } finally {
+    dom.window.removeEventListener(CARD.BS_CI_HYDRATION_SYNCED, onSync);
+    delete dom.window.ShapeIntegrations; delete dom.window.ShapeMetrics; delete dom.window.ShapeSleepPoints;
+  }
 });
 
 test("a watch's night that syncs when the card opens is shown, not asked", async () => {
-  const days = { [TODAY]: { energy: 8, hunger: 6 } };
+  const days = { [TODAY]: { energy: 8 } };
   let cleared = 0;
   let claimed = 0;
   env({ uid: 'sync-card-1', days });
@@ -971,21 +1090,19 @@ test("a watch's night that syncs when the card opens is shown, not asked", async
     assert.match(m.text(), /Checked in/, 'the night the watch sent was still asked');
     assert.match(m.text(), /Sleep 6h 30/);
     await m.click(/^Edit$/);
-    await m.click(/^Change$/, 2);
     assert.match(m.text(), /From your watch/);
-    assert.equal(m.button(/^Skip$/), undefined, "the watch's night could be typed over");
+    assert.ok(!m.button(/^Skip$/), "the watch's night could be typed over");
   } finally { m.unmount(); delete dom.window.ShapeIntegrations; delete dom.window.ShapeMetrics; delete dom.window.ShapeSleepPoints; }
 });
 
 test("a sync that brings no watch night leaves the member's typed night their own", async () => {
-  env({ uid: 'sync-card-4', days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
-  dom.window.ShapeProgress = { progress: async () => ({ series: { ...series({ [TODAY]: { energy: 8, hunger: 6, sleep: 7 } }), sleepFromDevice: [] } }) };
+  env({ uid: 'sync-card-4', days: { [TODAY]: { energy: 8, sleep: 7 } } });
+  dom.window.ShapeProgress = { progress: async () => ({ series: { ...series({ [TODAY]: { energy: 8, sleep: 7 } }), sleepFromDevice: [] } }) };
   const d = devices({ connected: ['whoop'] });
   const m = await mount();
   try {
     assert.deepEqual(d.syncs, ['whoop']);
     await m.click(/^Edit$/);
-    await m.click(/^Change$/, 2);
     assert.doesNotMatch(m.text(), /From your watch/, 'a sync with no night marked the typed one as the watch\'s');
     assert.ok(m.button(/^Skip$/));
   } finally { m.unmount(); delete dom.window.ShapeIntegrations; }
@@ -994,7 +1111,7 @@ test("a sync that brings no watch night leaves the member's typed night their ow
 test("a watch's night that syncs while typed hours are held is kept when they fail", async () => {
   // The typed save is held past the read's 3-second wait, so the watch's night comes in first;
   // the typed save then fails, and what is put back is the watch's night, not the empty read.
-  const days = { [TODAY]: { energy: 8, hunger: 6 } };
+  const days = { [TODAY]: { energy: 8 } };
   let fail;
   env({ uid: 'sync-card-5', days, log: () => new Promise((_, reject) => { fail = reject; }) });
   let release;
@@ -1021,7 +1138,7 @@ test("a watch's night that syncs while typed hours are held is kept when they fa
 test("hours typed again before the server's answer are put back to the watch's when they fail", async () => {
   // Two typed saves queued; the first answers that a watch's night stands, the second fails.
   const pending = [];
-  const calls = env({ uid: 'sync-card-6', days: { [TODAY]: { energy: 8, hunger: 6 } }, log: () => new Promise((resolve, reject) => { pending.push({ resolve, reject }); }) });
+  const calls = env({ uid: 'sync-card-6', days: { [TODAY]: { energy: 8 } }, log: () => new Promise((resolve, reject) => { pending.push({ resolve, reject }); }) });
   const m = await mount();
   try {
     await m.click(/^Continue/);
@@ -1041,7 +1158,7 @@ test("hours typed again before the server's answer are put back to the watch's w
 
 test("a day that already has a watch's night asks again, and the finished night replaces the part synced before waking", async () => {
   // A night synced while the member was still asleep is part of one (Codex on #2404).
-  const days = { [TODAY]: { energy: 8, hunger: 6, sleep: 3.5 } };
+  const days = { [TODAY]: { energy: 8, sleep: 3.5 } };
   env({ uid: 'sync-card-2' });
   dom.window.ShapeProgress = { progress: async () => ({ series: { ...series(days), sleepFromDevice: [{ date: TODAY, value: 1 }] } }) };
   const d = devices({ connected: ['whoop'], onSync: () => { days[TODAY].sleep = 7.5; } });
@@ -1052,96 +1169,8 @@ test("a day that already has a watch's night asks again, and the finished night 
   } finally { m.unmount(); delete dom.window.ShapeIntegrations; }
 });
 
-test("a day that already has a watch's night still asks Apple Health for the day's water, and Apple Health's share is said", async () => {
-  // Water from Apple Health (owner, 2026-10-18: added to the glasses logged here), so the watches
-  // are asked even when the night is in.
-  let water = { ok: true, hydrationL: 0.5, targetL: 3 };
-  env({ uid: 'sync-card-water' });
-  dom.window.ShapeProgress = { progress: async () => ({ series: { ...series({ [TODAY]: { energy: 8, hunger: 6, sleep: 7 } }), sleepFromDevice: [{ date: TODAY, value: 1 }] } }) };
-  dom.window.ShapeHydration = { get: async () => water, add: async () => water };
-  const d = devices({ connected: ['apple_health'], healthKit: true, onSync: () => { water = { ok: true, hydrationL: 1.7, targetL: 3, deviceL: 1.2 }; } });
-  const m = await mount();
-  try {
-    assert.equal(d.reads(), 1, "a day with a watch's night never asked Apple Health for its water");
-    assert.match(m.text(), /57 oz \/ 101 oz/, 'the water synced from Apple Health was not shown');
-    await m.click(/^Edit$/);
-    await m.click(/^Add$/);
-    assert.match(m.text(), /Includes 41 oz from Apple Health/);
-  } finally { m.unmount(); delete dom.window.ShapeIntegrations; }
-});
-
-test("a glass tapped while the water is read again after a sync is never dropped from the screen", async () => {
-  // Review on this PR: the read's older total landed after the glass's own answer.
-  let release;
-  let gets = 0;
-  env({ uid: 'sync-card-water-race' });
-  dom.window.ShapeProgress = { progress: async () => ({ series: series({ [TODAY]: { energy: 8, hunger: 6, sleep: 7 } }) }) };
-  dom.window.ShapeHydration = {
-    get: async () => {
-      gets += 1;
-      if (gets === 1) return { ok: true, hydrationL: 0.5, targetL: 3 };
-      await new Promise((r) => { release = r; });
-      return { ok: true, hydrationL: 1.7, targetL: 3, deviceL: 1.2 };
-    },
-    add: async (d) => ({ ok: true, hydrationL: Math.round((1.7 + d) * 1000) / 1000, targetL: 3 }),
-  };
-  devices({ connected: ['apple_health'], healthKit: true });
-  const m = await mount();
-  try {
-    assert.equal(gets, 2, 'the card did not read the water again after the sync');
-    await m.click(/^Edit$/);
-    await m.click(/^Add$/);
-    await m.click(/\+ Glass/);
-    await React.act(async () => { release(); await new Promise((r) => setTimeout(r, 0)); });
-    await m.flush();
-    assert.doesNotMatch(m.text(), /57 oz \//, "the read sent before the glass replaced the glass's total");
-    assert.match(m.text(), /65 oz \//, "the glass's own total was not shown");
-    assert.match(m.text(), /Includes 41 oz from Apple Health/, "Apple Health's share from that read was dropped too");
-  } finally { m.unmount(); delete dom.window.ShapeIntegrations; }
-});
-
-test("a first water read that answers after the read the sync sent never puts the older total back", async () => {
-  // Codex on #2405: the two reads were independent, so the slower first one won.
-  let release;
-  let gets = 0;
-  env({ uid: 'sync-card-water-order' });
-  dom.window.ShapeProgress = { progress: async () => ({ series: series({ [TODAY]: { energy: 8, hunger: 6, sleep: 7 } }) }) };
-  dom.window.ShapeHydration = {
-    get: async () => {
-      gets += 1;
-      if (gets === 1) { await new Promise((r) => { release = r; }); return { ok: true, hydrationL: 0.5, targetL: 3 }; }
-      return { ok: true, hydrationL: 1.7, targetL: 3, deviceL: 1.2 };
-    },
-    add: async () => ({ ok: true }),
-  };
-  devices({ connected: ['apple_health'], healthKit: true });
-  const m = await mount();
-  try {
-    assert.equal(gets, 2, 'the card did not read the water again after the sync');
-    await React.act(async () => { release(); await new Promise((r) => setTimeout(r, 0)); });
-    await m.flush();
-    await m.click(/^Edit$/);
-    await m.click(/^Add$/);
-    assert.match(m.text(), /57 oz \//, 'the first read, answering last, put the total from before the sync back');
-    assert.match(m.text(), /Includes 41 oz from Apple Health/, "the first read cleared Apple Health's share");
-  } finally { m.unmount(); delete dom.window.ShapeIntegrations; }
-});
-
-test("Apple Health's share is never said as more than the day's total", async () => {
-  // Review on this PR: glasses taken off in Shape can bring the total under Apple Health's share.
-  env({ uid: 'sync-card-share' });
-  dom.window.ShapeProgress = { progress: async () => ({ series: series({ [TODAY]: { energy: 8, hunger: 6, sleep: 7 } }) }) };
-  dom.window.ShapeHydration = { get: async () => ({ ok: true, hydrationL: 0.3, targetL: 3, deviceL: 1.2 }), add: async () => ({ ok: true }) };
-  const m = await mount();
-  try {
-    await m.click(/^Edit$/);
-    await m.click(/^Add$/);
-    assert.match(m.text(), /Includes 10 oz from Apple Health/, 'the share was said as more than the total');
-  } finally { m.unmount(); }
-});
-
 test("typed hours the server keeps a watch's night over show the watch's hours", async () => {
-  const calls = env({ uid: 'sync-card-3', days: { [TODAY]: { energy: 8, hunger: 6 } }, log: (patch) => (patch.sleepHours != null ? { ok: true, sleepHours: 6.9, sleepFromDevice: true } : { ok: true }) });
+  const calls = env({ uid: 'sync-card-3', days: { [TODAY]: { energy: 8 } }, log: (patch) => (patch.sleepHours != null ? { ok: true, sleepHours: 6.9, sleepFromDevice: true } : { ok: true }) });
   const m = await mount();
   try {
     await m.click(/^Continue/);
@@ -1149,22 +1178,23 @@ test("typed hours the server keeps a watch's night over show the watch's hours",
     assert.deepEqual(calls.log, [{ sleepHours: 7.5 }]);
     await m.click(/^Finish/);
     assert.match(m.text(), /6h 54/, "the summary kept the typed hours the server did not keep");
-    await m.click(/^Change$/, 2);
+    await m.click(row('Sleep'));
     assert.match(m.text(), /From your watch/);
   } finally { m.unmount(); }
 });
 
 test('a card mounted while a save is on its way reads after it, so Same as yesterday never writes over it', async () => {
-  let stored = { energy: null };
+  let stored = {};
   let land;
   const gate = new Promise((r) => { land = r; });
   const calls = env({ days: {}, log: (p) => gate.then(() => { stored = { ...stored, ...p }; return { ok: true }; }) });
   // The progress read answers from its cache until the save lands and clears it.
   let cache = null;
-  dom.window.ShapeProgress = { progress: async () => (cache ||= { series: series({ [YDAY]: { energy: 6, hunger: 6 }, ...(stored.energy != null ? { [TODAY]: { energy: stored.energy } } : {}) }) }) };
+  dom.window.ShapeProgress = { progress: async () => (cache ||= { series: series({ [YDAY]: { energy: 6, sleep: 6 }, ...(stored.energy != null ? { [TODAY]: { energy: stored.energy } } : {}) }) }) };
   let m = await mount();
   try {
     await m.click(/Start check-in/);
+    await m.click(/^Skip$/);
     await m.click(/^Low$/);
     await m.click(/Close/);
   } finally { m.unmount(); }
@@ -1175,9 +1205,11 @@ test('a card mounted while a save is on its way reads after it, so Same as yeste
     land();
     await m.flush();
     await m.flush();
-    assert.match(m.text(), /Continue/, "the new card did not read the answer that landed");
-    assert.match(m.text(), /✓ Energy/);
-  } finally { m.unmount(); land(); }
+    assert.doesNotMatch(m.text(), /Same as yesterday/, 'Same as yesterday was offered over an answer that landed');
+    // The night was skipped on the first card, so the energy that landed finishes the morning.
+    assert.match(m.text(), /Checked in ✓/, 'the new card did not read the answer that landed');
+    assert.match(m.text(), /Energy Low/);
+  } finally { m.unmount(); land(); dom.window.localStorage.clear(); }
   assert.deepEqual(calls.log, [{ energy: 4 }]);
 });
 
@@ -1187,24 +1219,25 @@ test('a save the network holds keeps the next card waiting 3 seconds at most', a
   env({ days: {}, log: () => gate });
   let m = await mount();
   await m.click(/Start check-in/);
-  await m.click(/^Good$/);
+  await m.click(/^Next/);
   m.unmount();
   m = await mount();
   try {
-    assert.doesNotMatch(m.text(), /Four quick checks/);
+    assert.doesNotMatch(m.text(), /Two quick checks/);
     await React.act(async () => { await new Promise((r) => setTimeout(r, 3100)); });
     await m.flush();
-    assert.match(m.text(), /Four quick checks/, 'a held save kept the card off Home');
+    assert.match(m.text(), /Two quick checks/, 'a held save kept the card off Home');
   } finally { m.unmount(); land({ ok: true }); }
 });
 
 test('two failed answers to one question put back what is stored, not the first unsaved answer', async () => {
   let failFirst;
   const first = new Promise((_, reject) => { failFirst = reject; });
-  const calls = env({ days: {}, log: (p) => (p.energy === 8 ? first : Promise.reject(new Error('500'))) });
+  const calls = env({ days: { [TODAY]: { sleep: 7 } }, log: (p) => (p.energy === 8 ? first : Promise.reject(new Error('500'))) });
   const m = await mount();
   try {
-    await m.click(/Start check-in/);
+    await m.click(/^Continue/);
+    assert.match(m.text(), /Step 2 of 2 · This morning/);
     await m.click(/^Good$/);           // saving
     await m.click(/Back/);
     await m.click(/^Low$/);            // queued behind it
@@ -1220,10 +1253,10 @@ test('two failed answers to one question put back what is stored, not the first 
 });
 
 test('one failed answer after one that saved puts back the one that saved', async () => {
-  const calls = env({ days: {}, log: (p) => (p.energy === 4 ? Promise.reject(new Error('500')) : { ok: true }) });
+  const calls = env({ days: { [TODAY]: { sleep: 7 } }, log: (p) => (p.energy === 4 ? Promise.reject(new Error('500')) : { ok: true }) });
   const m = await mount();
   try {
-    await m.click(/Start check-in/);
+    await m.click(/^Continue/);
     await m.click(/^Good$/);
     await m.click(/Back/);
     await m.click(/^Low$/);
@@ -1232,62 +1265,6 @@ test('one failed answer after one that saved puts back the one that saved', asyn
     assert.deepEqual(m.pressed(), ['Good'], 'the answer that saved was taken back with the one that failed');
   } finally { m.unmount(); }
   assert.deepEqual(calls.log, [{ energy: 8 }, { energy: 4 }]);
-});
-
-test('a Details tap still waiting does not leave once the member has moved on', async () => {
-  let release;
-  let opened = 0;
-  const gate = new Promise((r) => { release = r; });
-  env({ days: { [YDAY]: { energy: 7, hunger: 5, sleep: 6.5 } }, log: () => gate });
-  const m = await mount({ onOpen: () => { opened += 1; } });
-  try {
-    await m.click(/Same as yesterday/);
-    await m.click(/Details/);
-    await m.click(/^Edit$/);
-    release({ ok: true });
-    await m.flush();
-    await m.flush();
-    assert.equal(opened, 0, 'Details left from under the walkthrough the member had opened');
-    assert.ok(m.walk());
-  } finally { m.unmount(); }
-});
-
-test('the water read waits for a glass on its way, so a card mounted meanwhile shows it', async () => {
-  let server = 0.5;
-  let land;
-  env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
-  dom.window.ShapeHydration = {
-    get: async () => ({ ok: true, hydrationL: server, targetL: 3 }),
-    add: (d) => new Promise((r) => { land = () => { server += d; r({ ok: true, hydrationL: server }); }; }),
-  };
-  let m = await mount();
-  await m.click(/\+ Glass/);
-  m.unmount();
-  m = await mount();
-  try {
-    land();
-    await m.flush();
-    await m.flush();
-    assert.match(m.text(), /25 oz \/ 101 oz/, 'the new card read the total from before the glass landed');
-  } finally { m.unmount(); }
-});
-
-test('a Details tap still waiting does not leave once the member adds a glass', async () => {
-  let release;
-  let opened = 0;
-  const gate = new Promise((r) => { release = r; });
-  const calls = env({ days: { [YDAY]: { energy: 7, hunger: 5, sleep: 6.5 } }, log: () => gate });
-  const m = await mount({ onOpen: () => { opened += 1; } });
-  try {
-    await m.click(/Same as yesterday/);
-    await m.click(/Details/);
-    await m.click(/\+ Glass/);
-    release({ ok: true });
-    await m.flush();
-    await m.flush();
-    assert.equal(calls.add.length, 1);
-    assert.equal(opened, 0, 'Details left while the member was adding water');
-  } finally { m.unmount(); }
 });
 
 test("the sheet owns its touches in the native app, and each step's question takes focus", async () => {
@@ -1301,14 +1278,14 @@ test("the sheet owns its touches in the native app, and each step's question tak
     assert.ok(sheet.closest('.bs-scroll, .bsck-scroll') === sheet, "the native touch router scrolls Home behind the sheet");
     assert.ok(sheet.hasAttribute('data-bs-layer'), 'a drag on the sheet can fall through to the page');
     assert.equal(document.activeElement.tagName, 'H1');
-    assert.match(document.activeElement.textContent, /How's your energy\?/);
+    assert.match(document.activeElement.textContent, /How did you sleep\?/);
     Object.defineProperty(sheet, 'scrollTop', { value: 240, writable: true, configurable: true });
-    await m.click(/^Good$/);
+    await m.click(/^Next/);
     assert.equal(sheet.scrollTop, 0, 'the next step opened scrolled to where the last one was');
-    assert.match(document.activeElement.textContent, /How hungry are you\?/, 'focus fell to the page when the tapped tile went away');
+    assert.match(document.activeElement.textContent, /How's your energy this morning\?/, 'focus fell to the page when the step changed');
     await React.act(async () => { m.walk().dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
     await m.flush();
-    assert.equal(m.walk(), null, 'Escape did not close the walkthrough');
+    assert.ok(!m.walk(), 'Escape did not close the walkthrough');
     assert.ok(document.activeElement === m.button(/Continue/), 'focus did not come back to the card');
   } finally { m.unmount(); }
 });
@@ -1319,19 +1296,16 @@ test('the preview never says it saves, and a failed save is not told "saved as y
   try {
     assert.doesNotMatch(m.text(), /Saved as you go/, 'the signed-out card promises a save');
     await m.click(/Start check-in/);
-    await m.click(/^Good$/);
-    await m.click(/^Normal$/);
     await m.click(/^Next/);
-    await m.click(/^Finish/);
+    await m.click(/^Good$/);
     assert.doesNotMatch(m.text(), /Saved as you went/, 'the preview summary says its answers were saved');
   } finally { m.unmount(); }
 
-  env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } }, log: () => Promise.reject(new Error('500')) });
-  m = await mount();
+  env({ days: { [TODAY]: { energy: 8, sleep: 7 } }, log: () => Promise.reject(new Error('500')) });
+  m = await mount({ openRequest: 1 });
   try {
-    await m.click(/^Edit$/);
     assert.match(m.text(), /Saved as you went/);
-    await m.click(/^Change$/, 0);
+    await m.click(row('Energy'));
     await m.click(/^Great$/);         // back on the summary, and the save fails
     await m.flush();
     assert.match(m.text(), /You're checked in/);
@@ -1340,29 +1314,21 @@ test('the preview never says it saves, and a failed save is not told "saved as y
   } finally { m.unmount(); }
 });
 
-test("hours and litres are said in the member's language", async () => {
+test("hours are said in the member's language", async () => {
   assert.equal(CARD.bsCiHM(7.5, (h, mm) => `${h} ч ${mm}`), '7 ч 30');
   assert.equal(CARD.bsCiHM(7, (h, mm) => (mm == null ? `${h} ч` : 'x')), '7 ч');
-  dom.window.ShapeI18n.intlLocale = () => 'de-DE';
-  theme.isMetric = true;
-  try {
-    env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } }, water: { ok: true, hydrationL: 2.25, targetL: 3 } });
-    const m = await mount();
-    assert.match(m.text(), /2,25 L \/ 3 L/, 'a German member reads a decimal point');
-    m.unmount();
-  } finally { theme.isMetric = false; delete dom.window.ShapeI18n.intlLocale; }
   const t = dom.window.ShapeI18n.t;
   dom.window.ShapeI18n.t = (key, opts) => (key === 'home:checkin.hm' ? `${opts.h} ч ${opts.m}` : t(key, opts));
   try {
-    env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7.5 } } });
+    env({ days: { [TODAY]: { energy: 8, sleep: 7.5 } } });
     const m = await mount();
     assert.match(m.text(), /7 ч 30/, "the card's hours are not put through the member's catalog");
     m.unmount();
   } finally { dom.window.ShapeI18n.t = t; }
 });
 
-test('the stepper says its hours as they change', async () => {
-  env({ days: { [TODAY]: { energy: 8, hunger: 6 } } });
+test('the stepper says its hours, and how far they are from the usual night, as they change', async () => {
+  env({ days: { [TODAY]: { energy: 8 } } });
   const m = await mount();
   try {
     await m.click(/^Continue/);
@@ -1370,32 +1336,35 @@ test('the stepper says its hours as they change', async () => {
     assert.ok(live && /7h 30/.test(live.textContent), 'the hours are not announced');
     await m.click(/Thirty minutes more/);
     assert.match(document.querySelector('[aria-live="polite"]').textContent, /8h/);
+    assert.match(m.text(), /30 min over your usual/);
+    await m.click(/Thirty minutes more/);
+    assert.match(m.text(), /1h over your usual/, 'an hour or more was said in minutes');
   } finally { m.unmount(); }
 });
 
 test('a failed save leaves alone an answer whose own save is still on its way', async () => {
   // The rollback reads what is stored when React renders. Here the newer answer has not landed
   // by then, so a rollback of the whole day, or of a field it does not own, would wipe it.
-  let failEnergy;
-  let landHunger;
-  const energySave = new Promise((_, reject) => { failEnergy = reject; });
-  const hungerSave = new Promise((r) => { landHunger = r; });
-  const calls = env({ days: {}, log: (p) => (p.energy != null ? energySave : hungerSave) });
+  let failNight;
+  let landEnergy;
+  const nightSave = new Promise((_, reject) => { failNight = reject; });
+  const energySave = new Promise((r) => { landEnergy = r; });
+  const calls = env({ days: {}, log: (p) => (p.sleepHours != null ? nightSave : energySave) });
   const m = await mount();
   try {
     await m.click(/Start check-in/);
-    await m.click(/^Good$/);           // saving
-    await m.click(/^Normal$/);         // queued, and on its way once energy fails
-    failEnergy(new Error('500'));
+    await m.click(/^Next/);            // the night, saving
+    await m.click(/^Good$/);           // queued, and on its way once the night fails
+    failNight(new Error('500'));
     await m.flush();
     await m.flush();
-    assert.match(m.text(), /✓ Hunger/, 'the failed energy save took back the hunger answer still on its way');
-    assert.doesNotMatch(m.text(), /✓ Energy/);
-    landHunger({ ok: true });
+    assert.match(m.text(), /✓ Energy/, 'the failed night took back the energy answer still on its way');
+    assert.doesNotMatch(m.text(), /✓ Sleep/);
+    landEnergy({ ok: true });
     await m.flush();
-    assert.match(m.text(), /✓ Hunger/);
+    assert.match(m.text(), /✓ Energy/);
   } finally { m.unmount(); }
-  assert.deepEqual(calls.log, [{ energy: 8 }, { hunger: 6 }]);
+  assert.deepEqual(calls.log, [{ sleepHours: 7.5 }, { energy: 8 }]);
 });
 
 test('an older failed save leaves alone a newer answer to the same question still on its way', async () => {
@@ -1403,10 +1372,10 @@ test('an older failed save leaves alone a newer answer to the same question stil
   let landLow;
   const good = new Promise((_, reject) => { failGood = reject; });
   const low = new Promise((r) => { landLow = r; });
-  const calls = env({ days: {}, log: (p) => (p.energy === 8 ? good : low) });
+  const calls = env({ days: { [TODAY]: { sleep: 7 } }, log: (p) => (p.energy === 8 ? good : low) });
   const m = await mount();
   try {
-    await m.click(/Start check-in/);
+    await m.click(/^Continue/);
     await m.click(/^Good$/);           // saving
     await m.click(/Back/);
     await m.click(/^Low$/);            // queued, and on its way once Good fails
@@ -1421,35 +1390,19 @@ test('an older failed save leaves alone a newer answer to the same question stil
   assert.deepEqual(calls.log, [{ energy: 8 }, { energy: 4 }]);
 });
 
-test("a glass after a failed water read brings back the member's own target (Codex P2 on #2398)", async () => {
-  theme.isMetric = true;
-  try {
-    env({ days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
-    dom.window.ShapeHydration = {
-      get: async () => { throw new Error('500'); },
-      add: async (d) => ({ ok: true, hydrationL: 1 + d, targetL: 2 }),
-    };
-    const m = await mount();
-    try {
-      await m.click(/\+ Glass/);
-      assert.match(m.text(), /1\.25 L \/ 2 L/, 'the card kept the 3 L fallback after the add brought the real target');
-    } finally { m.unmount(); }
-  } finally { theme.isMetric = false; }
-});
-
 // ── A Daily check-in reminder opens the walkthrough (owner, 2026-10-18) ──────
-test('a reminder opens the walkthrough at the first check not yet answered, and says the request is used', async () => {
-  env({ uid: 'remind-1', days: { [TODAY]: { energy: 8 } } });
+test('a reminder opens the walkthrough at the first morning question not yet answered, and says the request is used', async () => {
+  env({ uid: 'remind-1', days: { [TODAY]: { sleep: 7 } } });
   let used = 0;
   const props = { openRequest: 1, onOpenRequestConsumed: () => { used += 1; } };
   let m = await mount(props);
   try {
     assert.ok(m.walk(), 'the reminder opened nothing');
-    assert.match(m.text(), /Step 2 of 4 · Hunger/, 'the walkthrough did not open at the first open check');
+    assert.match(m.text(), /Step 2 of 2 · This morning/, 'the walkthrough did not open at the first open question');
     assert.equal(used, 1, 'Home was not told the request is used, so a card mounted again opens it again');
     await m.click(/^Close$/);
     await m.rerender();
-    assert.equal(m.walk(), null, 'the walkthrough opened again on its own');
+    assert.ok(!m.walk(), 'the walkthrough opened again on its own');
     assert.equal(used, 1);
     // A second reminder tapped later is a new request, and opens it again.
     props.openRequest = 2;
@@ -1458,7 +1411,7 @@ test('a reminder opens the walkthrough at the first check not yet answered, and 
     assert.equal(used, 2);
   } finally { m.unmount(); }
 
-  env({ uid: 'remind-2', days: { [TODAY]: { energy: 8, hunger: 6, sleep: 7 } } });
+  env({ uid: 'remind-2', days: { [TODAY]: { energy: 8, sleep: 7 } } });
   m = await mount({ openRequest: 2 });
   try {
     assert.match(m.text(), /You're checked in/, 'a day already done did not open at the summary');
@@ -1469,14 +1422,14 @@ test('a reminder before 4 a.m. still opens the walkthrough, and waits for the da
   let release;
   const held = new Promise((r) => { release = r; });
   env({ uid: 'remind-3' });
-  dom.window.ShapeProgress = { progress: async () => { await held; return { series: series({ [TODAY]: { energy: 8, hunger: 6 } }) }; } };
+  dom.window.ShapeProgress = { progress: async () => { await held; return { series: series({ [TODAY]: { energy: 8 } }) }; } };
   mock.timers.setTime(at(2));
   let m;
   try {
     m = await mount({ openRequest: 3 });
-    assert.equal(m.walk(), null, 'the walkthrough opened before today was read');
+    assert.ok(!m.walk(), 'the walkthrough opened before today was read');
     await React.act(async () => { release(); await new Promise((r) => setTimeout(r, 0)); });
     await m.flush();
-    assert.match(m.text(), /Step 3 of 4 · Sleep/, 'the reminder did not open the walkthrough at night, at the first open check');
+    assert.match(m.text(), /Step 1 of 2 · Last night/, 'the reminder did not open the walkthrough at night, at the first open question');
   } finally { if (m) m.unmount(); mock.timers.setTime(at(12)); }
 });

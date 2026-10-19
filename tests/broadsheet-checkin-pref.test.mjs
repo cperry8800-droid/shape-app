@@ -165,7 +165,7 @@ test('signed-out preview: the card asks, no row, unknown variant nothing', () =>
   dom.window.localStorage.setItem(lsKey('somebody-else'), JSON.stringify({ uid: 'somebody-else', off: true }));
   const bulletin = renderStatic(nudge({ variant: 'bulletin' }));
   assert.equal(bulletin.warnings.length, 0, bulletin.warnings.join('\n'));
-  assert.match(bulletin.html, /Check-in due/);
+  assert.match(bulletin.html, /Morning check-in/);
   const row = renderStatic(nudge({ variant: 'row' }));
   assert.equal(row.html, ''); // pref on → the card carries the done line; there is no row
   const unknown = renderStatic(nudge({ variant: 'weird' }));
@@ -176,7 +176,7 @@ test('signed-in with no stored pref: the card asks (default ON)', () => {
   env({ uid: 'member-1' });
   const bulletin = renderStatic(nudge({ variant: 'bulletin' }));
   assert.equal(bulletin.warnings.length, 0, bulletin.warnings.join('\n'));
-  assert.match(bulletin.html, /Check-in due/);
+  assert.match(bulletin.html, /Morning check-in/);
   assert.equal(renderStatic(nudge({ variant: 'row' })).html, '');
 });
 
@@ -201,7 +201,7 @@ test('the OFF mirror is uid-scoped: another account’s record reads as ON', () 
   env({ uid: 'member-2' });
   dom.window.localStorage.setItem(lsKey('member-1'), JSON.stringify({ uid: 'member-1', off: true }));
   const bulletin = renderStatic(nudge({ variant: 'bulletin' }));
-  assert.match(bulletin.html, /Check-in due/); // member-2 never inherits member-1's OFF
+  assert.match(bulletin.html, /Morning check-in/); // member-2 never inherits member-1's OFF
 });
 
 // ── Real mounts: effects run (cloud hydrate · the live Settings event) ──────
@@ -222,7 +222,7 @@ test('a Settings toggle re-renders a mounted Home live — bsDailyCheckinApply i
   env({ uid: 'member-3', doc: {} });
   const m = await mount(nudge({ variant: 'bulletin' }));
   try {
-    assert.match(m.host.textContent, /Check-in due/);
+    assert.match(m.host.textContent, /Morning check-in/);
     // Settings (an overlay — Home stays mounted) flips the pref OFF: the SAME
     // helper its cyclePref/setPref side effect calls.
     await m.act(() => MOD.bsDailyCheckinApply(false));
@@ -232,7 +232,7 @@ test('a Settings toggle re-renders a mounted Home live — bsDailyCheckinApply i
     assert.deepEqual(rec, { uid: 'member-3', off: true });
     // Turning it back ON restores the bulletin and clears the record.
     await m.act(() => MOD.bsDailyCheckinApply(true));
-    assert.match(m.host.textContent, /Check-in due/);
+    assert.match(m.host.textContent, /Morning check-in/);
     assert.equal(dom.window.localStorage.getItem(lsKey('member-3')), null);
   } finally {
     m.unmount();
@@ -282,7 +282,7 @@ test('cloud hydrate also converges the OTHER way: an absent key clears a stale O
   const m = await mount(nudge({ variant: 'bulletin' }));
   try {
     // First paint honors the mirror; the resolved cloud read restores ON.
-    assert.match(m.host.textContent, /Check-in due/);
+    assert.match(m.host.textContent, /Morning check-in/);
     assert.equal(dom.window.localStorage.getItem(lsKey('member-6')), null);
   } finally {
     m.unmount();
@@ -311,7 +311,7 @@ test('a toggle during a pending hydrate wins — the late response is discarded 
   env({ uid: 'member-8', doc: () => pending });
   const m = await mount(nudge({ variant: 'bulletin' }));
   try {
-    assert.match(m.host.textContent, /Check-in due/); // seed ON, hydrate in flight
+    assert.match(m.host.textContent, /Morning check-in/); // seed ON, hydrate in flight
     // The member toggles OFF while the request is still pending…
     await m.act(() => MOD.bsDailyCheckinApply(false));
     assert.equal(m.host.textContent, '');
@@ -337,7 +337,7 @@ test("B's default-ON hydrate cannot delete A's OFF record — per-uid mirror key
   switchAccount('member-B');
   const m = await mount(nudge({ variant: 'bulletin' }));
   try {
-    assert.match(m.host.textContent, /Check-in due/); // B reads ON
+    assert.match(m.host.textContent, /Morning check-in/); // B reads ON
   } finally {
     m.unmount();
   }
@@ -621,10 +621,10 @@ test('every agePublic transition updates prefsRef synchronously', () => {
 // The night is a watch's when the server says a device sync wrote its hours (`sleepFromDevice`).
 // A watch worn by day reports a resting heart rate with no night, so typed hours on such a day
 // stay the member's own, and change.
-async function todayPage(series, log) {
+async function todayPage(series, log, water = { ok: true, hydrationL: 0, targetL: 3 }) {
   env({ uid: 'member-sleep' });
   dom.window.ShapeProgress = { progress: async () => ({ series }) };
-  dom.window.ShapeHydration = { get: async () => ({ ok: true, hydrationL: 0, targetL: 3 }) };
+  dom.window.ShapeHydration = { get: async () => water };
   const calls = [];
   dom.window.ShapeCheckin = { log: async (patch) => { calls.push(patch); return log ? log(patch) : { ok: true }; } };
   const m = await mount(React.createElement(MOD.BSTodayCard));
@@ -690,6 +690,18 @@ test("hours the server keeps a watch's night over show as the watch's after Log 
   } finally { kept.m.unmount(); }
 });
 
+test("the check-in page shows water against the member's own target only, never the 3 L stand-in (owner, 2026-10-19)", async () => {
+  let { m } = await todayPage({}, null, { ok: true, hydrationL: 0.5, targetL: 3, targetStoredL: null });
+  try {
+    assert.match(m.host.textContent, /Hydration0\.5 L\+/);
+    assert.doesNotMatch(m.host.textContent, /\/ 3 L|%/, 'progress was shown against a target the member never set');
+  } finally { m.unmount(); }
+  ({ m } = await todayPage({}, null, { ok: true, hydrationL: 0.5, targetL: 2.5, targetStoredL: 2.5 }));
+  try {
+    assert.match(m.host.textContent, /0\.5 \/ 2\.5 L · 20%/);
+  } finally { m.unmount(); }
+});
+
 // ── A Daily check-in reminder opens the card (owner, 2026-10-18) ─────────────
 test('the bulletin passes a reminder through to the card, which opens its walkthrough', async () => {
   env({ uid: 'member-remind', doc: {} });
@@ -719,10 +731,12 @@ test('Home routes the reminder: the shell hands Home a nonce, Home clears its pa
   assert.match(src, /<BSTodayNudge onOpen=\{\(\) => setTodayPage\(true\)\} variant="bulletin" openRequest=\{checkinPrefSettled \? checkinOpenReq : null\} onOpenRequestConsumed=\{\(\) => setCheckinOpenReq\(null\)\} \/>/, 'Home keeps a used request, or hands it over before the account has answered');
   // The reminder itself: a kind of its own, opening the card, in the app's and the website's lists.
   const cron = readFileSync(join(ROOT, 'src/app/api/cron/reminders/route.ts'), 'utf8');
-  assert.match(cron, /case 'daily_checkin':\n\s+return \{ type: 'reminder_daily_checkin', title: l \|\| 'Daily check-in', body: 'Four quick checks, about 30 seconds\.', route: 'today' \};/);
+  assert.match(cron, /case 'daily_checkin':\n\s+return \{ type: 'reminder_daily_checkin', title: l \|\| 'Morning check-in', body: 'Two quick checks: last night and this morning\.', route: 'today' \};/);
+  // A morning already answered (its energy is in) is not reminded (owner, 2026-10-19).
+  assert.match(cron, /if \(r\.kind === 'daily_checkin' && answered\.has\(`\$\{r\.user_id\}\|\$\{date\}`\)\) \{/);
   assert.match(readFileSync(join(ROOT, 'src/app/api/client/reminders/route.ts'), 'utf8'), /const KINDS = \[[^\]]*'daily_checkin'/);
-  assert.match(src, /\['daily_checkin', 'Daily check-in'\]/);
-  assert.match(readFileSync(join(ROOT, 'public/newdesign/clientMeSettings.jsx'), 'utf8'), /\["daily_checkin", "Daily check-in"\]/);
+  assert.match(src, /\['daily_checkin', 'Morning check-in'\]/);
+  assert.match(readFileSync(join(ROOT, 'public/newdesign/clientMeSettings.jsx'), 'utf8'), /\["daily_checkin", "Morning check-in"\]/);
 });
 
 test("the Check-ins setting says when the account has answered, so a reminder waits for it", async () => {
@@ -766,7 +780,7 @@ test("the Check-ins setting says when the account has answered, so a reminder wa
   assert.match(src, /\}\)\.catch\(\(\) => \{\}\)\.then\(settle\);\n    return \(\) => \{ alive = false; clearTimeout\(timer\); \};/);
 });
 
-test("the reminder list and picker read in the member's language, the Daily check-in included", async () => {
+test("the reminder list and picker read in the member's language, the Morning check-in included", async () => {
   // Codex on #2405: the new kind rendered in English in all 12 other locales, as the whole manager did.
   const es = JSON.parse(readFileSync(join(ROOT, 'mobile-app/src/i18n/catalogs/es/settings.json'), 'utf8'));
   const realI18n = dom.window.ShapeI18n;
@@ -790,17 +804,17 @@ test("the reminder list and picker read in the member's language, the Daily chec
     await m.rerenderFlush();
     const text = m.host.textContent;
     assert.match(text, /Tus recordatorios/);
-    assert.match(text, /Check-in diario/, 'the Daily check-in reminder was not in Spanish');
+    assert.match(text, /Check-in de la mañana/, 'the Morning check-in reminder was not in Spanish');
     assert.match(text, /Check-in semanal/);
     assert.match(text, /Todos los días/);
     assert.match(text, /lun\.? mié\.?/i, 'the days were not named in Spanish');
-    assert.doesNotMatch(text, /Daily check-in|Weekly check-in|Every day|Your reminders/, 'English copy was left in the list');
+    assert.doesNotMatch(text, /Morning check-in|Weekly check-in|Every day|Your reminders/, 'English copy was left in the list');
     const toggle = m.host.querySelector('button[aria-pressed="true"]');
-    assert.equal(toggle.getAttribute('aria-label'), 'Desactivar recordatorio: Check-in diario');
+    assert.equal(toggle.getAttribute('aria-label'), 'Desactivar recordatorio: Check-in de la mañana');
     const add = [...m.host.querySelectorAll('button')].find((b) => /Añadir/.test(b.textContent));
     await m.act(() => { add.click(); });
     const kinds = [...m.host.querySelectorAll('button')].map((b) => b.textContent);
-    for (const k of ['Pesaje', 'Check-in diario', 'Check-in semanal', 'Agua', 'Foto de progreso', 'Personalizado', 'Cancelar', 'Guardar']) {
+    for (const k of ['Pesaje', 'Check-in de la mañana', 'Check-in semanal', 'Agua', 'Foto de progreso', 'Personalizado', 'Cancelar', 'Guardar']) {
       assert.ok(kinds.includes(k), k + ' is missing from the picker');
     }
     assert.ok(m.host.querySelector('button[aria-label="lunes"]'), 'the day buttons were not named in Spanish');

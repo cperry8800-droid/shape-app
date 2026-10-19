@@ -216,6 +216,23 @@ export function dailyCheckinOn(v) { return v !== false && v !== 'Off'; }
 // dedicated `checkin_due` candidate, or the ONE move when the engine's top flag was
 // `checkin_overdue`. Keyed on the type and the stamped move kind — never on copy, which
 // is translated and edited.
+// ⚠ SLEEP IS PUSHED ONLY WHERE HOME LEADS WITH IT (owner, 2026-10-19: the push and Home say the
+// same move): the engine's sleep_low flag, or a coach's sleep move. The engine's milder 6-7h read
+// stays quiet. The same rule is bsSleepLeadOk in mobile-app/src/services/dailyWire.mjs.
+function quietSleepMove(lever, cited) {
+  return lever === 'sleep' && !(cited.includes('sleep_low') || cited.includes('coach override'));
+}
+
+// A held sleep move that rule would not build now. A copy queued before the rule shipped is
+// re-emitted without being rebuilt, so the queue is judged by the same rule (Codex P2 on #2407):
+// the directive's signature ends `|${cited}|${week}` (clientCandidates), so it carries the cited
+// list. A lever-less item, queued before the lever was stamped, is kept.
+export function isQuietSleepItem(item) {
+  if (!item || item.type !== 'directive' || !item.data || item.data.lever !== 'sleep' || !nonEmpty(item.sig)) return false;
+  const parts = item.sig.split('|');
+  return parts.length >= 4 && quietSleepMove('sleep', parts[parts.length - 2].split(','));
+}
+
 export function isCheckinItem(item) {
   if (!item || typeof item !== 'object') return false;
   if (item.type === 'checkin_due') return true;
@@ -312,8 +329,12 @@ export function clientCandidates(input) {
     // the lever is the identity; the kind is only its engine-built alias, and speaks
     // alone only when there is no lever (see isCheckinItem).
     const isCheckin = lever ? lever === 'checkin' : moveKind === 'check_in';
-    if (!(checkinOptedOut && isCheckin)) {
+    const cited = Array.isArray(directive.cited) ? directive.cited : [];
+    if (!(checkinOptedOut && isCheckin) && !quietSleepMove(lever, cited)) {
       const line = nonEmpty(directive.line) ? directive.line : '';
+      // ⚠ THE LAST TWO FIELDS ARE READ BACK: isQuietSleepItem takes the cited list from the one
+      // before the week, counting from the end because a coach's verdict or label may hold a '|'.
+      // Keep `|${cited}|${week}` last.
       const sig = `${directive.verdict || ''}|${directive.action.label}|${(directive.cited || []).join(',')}`;
       out.push({ type: 'directive', key: 'self', sig: `${sig}|${wk}`, priority: 'high', ctx: { line, reason: directive.reason }, data: { move: moveKind, lever } });
     }
@@ -479,6 +500,13 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
     const kept = [];
     const purged = [];
     for (const i of state.pendingDigest) (isCheckinItem(i) ? purged : kept).push(i);
+    state.pendingDigest = kept;
+    for (const i of purged) releaseDedup(state.types, i, kept);
+  }
+  // A mild sleep move held from before the sleep rule goes the same way: nothing rebuilds it now.
+  if (state.pendingDigest.some(isQuietSleepItem)) {
+    const purged = state.pendingDigest.filter(isQuietSleepItem);
+    const kept = state.pendingDigest.filter((i) => !isQuietSleepItem(i));
     state.pendingDigest = kept;
     for (const i of purged) releaseDedup(state.types, i, kept);
   }

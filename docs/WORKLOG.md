@@ -169,14 +169,14 @@ planned builds.
 - Nora as a Shape Radio DJ, Phase 2 onward
   ([`REVIEW-2026-09-29-nora-dj.md`](REVIEW-2026-09-29-nora-dj.md)). This waits on a
   signed station provider.
-- The daily check-in
-  ([`REVIEW-2026-10-18-daily-checkin.md`](REVIEW-2026-10-18-daily-checkin.md) §4). Built:
-  the app's Home card and its step-by-step walkthrough (Phase 1), the rule of no −7 while
-  Check-ins is off, and Phase 2: a watch's night first (typed hours never replace it), water
-  from Apple Health added to the glasses logged in Shape, and a Daily check-in reminder that
-  opens the card. Still to build:
-  - the website's `DashTodayCard`;
-  - answers from the notification.
+- The Morning check-in
+  ([`REVIEW-2026-10-19-morning-checkin.md`](REVIEW-2026-10-19-morning-checkin.md) §5). Part 1
+  is built: two morning steps (sleep with "How did you wake up?", then energy) with a read of
+  what the answers mean, hunger as an evening question for nutritionist clients, water as its
+  own Home line, a sleep lead on Home, and a reminder that skips a day already answered. Still
+  to build:
+  - Part 2: the Your mornings page, retiring the old "How are you." page and moving its doors;
+  - Part 3: patterns, Nora reading the answers, and the website's `DashTodayCard`.
 
 **Known gaps**
 - `get_display_names` returns a full name and photo for any id, whoever asks.
@@ -247,6 +247,12 @@ planned builds.
   samples, as for steps), and so does a drink logged in both Apple Health and Shape. Deleting every
   drink in a sync's window leaves Apple Health's last reading. Nora's meal-log undo refuses when a
   sync moved the day's water in between. The Daily check-in reminder fires on a day already done.
+- The Morning check-in (part 1): until part 2 retires it, the old "How are you." page (the energy and
+  water leads, and Check-ins off) still asks every member hunger on a 1-10 gauge and saves on Log
+  today. A failed read of a stored water target reads as none, so the water line offers "Set a daily
+  target". With Check-ins off the engine reads no water, so a target never brings "Water is behind".
+  The reminder counts a morning answered once its energy is in (a skipped night is kept only on the
+  device), so energy saved alone on the old page skips that day's reminder (owner's call).
 - Android back leaves the native app from any sheet (no `@capacitor/app`); in the hosted
   `/m/`, sheets add no history entry.
 

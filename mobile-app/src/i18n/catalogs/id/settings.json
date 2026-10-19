@@ -501,7 +501,7 @@
   "reminders.loading": "Memuat…",
   "reminders.empty": "Belum ada pengingat — tambahkan satu untuk mengingatkan Anda menimbang berat badan, check-in, minum, atau hal lainnya.",
   "reminders.kind.weigh_in": "Timbang badan",
-  "reminders.kind.daily_checkin": "Check-in harian",
+  "reminders.kind.daily_checkin": "Check-in pagi",
   "reminders.kind.checkin": "Check-in mingguan",
   "reminders.kind.water": "Air",
   "reminders.kind.photo": "Foto progres",

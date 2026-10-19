@@ -41,7 +41,7 @@ test('reminder kinds + time mirror the route contract', () => {
 test("Nora's reminder card names the daily and the weekly check-in apart", async () => {
   const ctx = { isMember: true, actor: { id: 'u1' }, supabase: { from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { timezone: 'Europe/Paris' } }) }) }) }) } };
   const said = async (kind) => (await setReminderAction.buildPreview(ctx, { kind, time: '08:00', days: [0, 1, 2, 3, 4, 5, 6] })).summary;
-  assert.equal(await said('daily_checkin'), 'Set a daily check-in reminder at 08:00 · every day');
+  assert.equal(await said('daily_checkin'), 'Set a morning check-in reminder at 08:00 · every day');
   assert.equal(await said('checkin'), 'Set a weekly check-in reminder at 08:00 · every day');
   assert.equal(await said('weigh_in'), 'Set a weigh-in reminder at 08:00 · every day');
   assert.equal(await said('water'), 'Set a water reminder at 08:00 · every day');

@@ -501,7 +501,7 @@
   "reminders.loading": "Wird geladen…",
   "reminders.empty": "Noch keine Erinnerungen — füge eine hinzu, die dich ans Wiegen, Einchecken, Trinken oder an etwas anderes erinnert.",
   "reminders.kind.weigh_in": "Wiegen",
-  "reminders.kind.daily_checkin": "Täglicher Check-in",
+  "reminders.kind.daily_checkin": "Morgen-Check-in",
   "reminders.kind.checkin": "Wöchentlicher Check-in",
   "reminders.kind.water": "Wasser",
   "reminders.kind.photo": "Fortschrittsfoto",

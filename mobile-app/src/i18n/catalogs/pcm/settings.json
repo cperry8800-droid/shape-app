@@ -501,7 +501,7 @@
   "reminders.loading": "E dey load…",
   "reminders.empty": "No reminder yet — add one make e remind you to check your weight, do check-in, drink water, or anything else.",
   "reminders.kind.weigh_in": "Weigh-in",
-  "reminders.kind.daily_checkin": "Daily check-in",
+  "reminders.kind.daily_checkin": "Morning check-in",
   "reminders.kind.checkin": "Weekly check-in",
   "reminders.kind.water": "Water",
   "reminders.kind.photo": "Progress photo",

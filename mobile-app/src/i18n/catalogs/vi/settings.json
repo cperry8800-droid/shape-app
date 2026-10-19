@@ -501,7 +501,7 @@
   "reminders.loading": "Đang tải…",
   "reminders.empty": "Chưa có lời nhắc — thêm một lời nhắc để nhớ cân, check-in, uống nước hoặc bất cứ điều gì khác.",
   "reminders.kind.weigh_in": "Cân",
-  "reminders.kind.daily_checkin": "Check-in hằng ngày",
+  "reminders.kind.daily_checkin": "Check-in buổi sáng",
   "reminders.kind.checkin": "Check-in hằng tuần",
   "reminders.kind.water": "Nước",
   "reminders.kind.photo": "Ảnh tiến độ",

@@ -1,28 +1,37 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-// ─── THE DAILY CHECK-IN: A CARD ON HOME, AND A WALKTHROUGH ───────────────────────────────────────
-// Owner, 2026-10-18: "lets think of a way to redesign this page and process on app to make it
-// easier to update each day and less effort for user each day" (docs/REVIEW-2026-10-18-daily-
-// checkin.md, rulings in §5), then, on the first build: "have it be a step by step, almost like a
-// tutorial that walks through each check", with the member's own answers from the days before
-// under every step. EVERY TAP SAVES: there is no Log button to forget, and leaving halfway keeps
-// what was answered.
+// ─── THE MORNING CHECK-IN: A CARD ON HOME, AND A WALKTHROUGH ─────────────────────────────────────
+// Owner, 2026-10-19: "i like the walk through tutorial style, but again the purpose and where you can
+// see the data over time, and what it means to the member" (docs/REVIEW-2026-10-19-morning-checkin.md,
+// rulings in §6). It is a MORNING check: every question looks back from waking up, and the summary
+// says what the answers mean for today and for the week. EVERY TAP SAVES: there is no Log button to
+// forget, and leaving halfway keeps what was answered.
 //
-//   Home card: Start check-in →  ·  Same as yesterday (the whole day in one tap)
-//   Walkthrough: Energy → Hunger → Sleep (+ Rested, optional; or Skip) → Water → the summary
-//   Each step: what the check is and why it is asked, the answers, and the last 7 days.
-//   Done: one line on Home — Checked in ✓ · the streak · Edit (the summary) · Details (the page)
+//   Home card: Start check-in →  ·  Same as yesterday (the morning in one tap)
+//   Walkthrough: Last night (sleep, How did you wake up? optional, or Skip) → This morning (energy)
+//                → the summary: today's read, the week, who sees it, Change on every answer
+//   Evening (members with a nutritionist, from 6 p.m.): one question, today's hunger
+//   Done: one line on Home — Checked in ✓ · today's read · the streak · Edit (step 1)
 //
 // ⚠ FIVE WORDS, STORED ON THE OLD 1-10 SCALE AS 2 · 4 · 6 · 8 · 10. Every reader of
 // daily_health_snapshot keeps working unchanged: the coach's case file, roster triage, the
 // engine's energy_low (≤ 4) and hunger_high (≥ 8), the correlations. A value written by the old
 // 1-10 gauge reads back as its nearest word (bsCiWordIndex).
 //
-// ⚠ SAME AS YESTERDAY COPIES YESTERDAY'S OWN VALUES, never their words: a 7 stays a 7. Sleep hours
-// are copied only when yesterday's were entered by hand, so a wearable's night is never re-typed as
-// the member's own; Rested, the member's own answer on any night, is copied on its own.
+// ⚠ SAME AS YESTERDAY COPIES YESTERDAY'S OWN MORNING VALUES, never their words: a 7 stays a 7. Sleep
+// hours are copied only when yesterday's were entered by hand, so a wearable's night is never
+// re-typed as the member's own; Rested, the member's own answer on any night, is copied on its own.
+// Hunger is the evening's question and is never copied.
 //
-// ⚠ IT ASKS FROM 4 A.M. LOCAL, NOT MIDNIGHT: at 1 a.m. "last night" has not been slept.
+// ⚠ IT ASKS FROM 4 A.M. LOCAL, NOT MIDNIGHT: at 1 a.m. "last night" has not been slept. The evening
+// question asks from 6 p.m.
+//
+// ⚠ HUNGER IS ASKED ONLY WITH A NUTRITIONIST, IN THE EVENING, ABOUT TODAY (owner, 2026-10-19). The
+// plan route's meals.coaching says so: an object is a paid nutritionist, null is none, and a missing
+// key is a read that failed, which asks nothing that day. It is saved on today's row, so the coach's
+// DAILY HUNGER keeps meaning that day's hunger.
+//
+// ⚠ WATER IS NOT HERE. It is drunk all day, so it is its own Home line (BSWaterLine.jsx).
 //
 // ⚠ A FAILED SAVE SAYS SO ON SCREEN. Toasts are a no-op app-wide (BSToastHost), so the answer is
 // put back and a line says it was not saved.
@@ -48,7 +57,12 @@ function useShapeTr() {
 // ── The rules, kept pure so they can be driven ───────────────────────────────
 
 export const BS_CI_ASK_FROM_HOUR = 4;
+export const BS_CI_EVENING_FROM_HOUR = 18;
 export const BS_CI_STORED = [2, 4, 6, 8, 10];
+// A short night: under 6h, the line the engine's sleep_low draws (7.5h less its 1.5h allowance).
+export const BS_CI_SHORT_NIGHT_H = 6;
+// The engine's energy_low line (dashSignals.js ENERGY_LOW_AVG): Low and Drained, never OK.
+export const BS_CI_ENERGY_LOW_AVG = 4;
 
 // A stored 1-10 value → its word (0..4): 1-2 → 0, 3-4 → 1, 5-6 → 2, 7-8 → 3, 9-10 → 4.
 export function bsCiWordIndex(v) {
@@ -83,10 +97,10 @@ export function bsCiDay(series, iso) {
   return { energy: at('energy'), hunger: at('hunger'), sleep: at('sleep'), rested: at('sleepQuality'), device };
 }
 
-// A day counts as checked in from a MANUAL answer only — the rule BSTodayCard keeps:
-// a wearable syncing sleep alone never makes a check-in.
+// A day counts as checked in from a MANUAL MORNING answer only: energy, Rested or typed hours. A
+// wearable syncing sleep alone never makes a check-in, and nor does the evening's hunger.
 export function bsCiAnswered(day) {
-  return !!day && (day.energy != null || day.hunger != null || day.rested != null || (day.sleep != null && !day.device));
+  return !!day && (day.energy != null || day.rested != null || (day.sleep != null && !day.device));
 }
 
 // A night a wearable reported: hours on a day with device-only metrics. A watch that reported a
@@ -95,13 +109,13 @@ export function bsCiWornNight(day) {
   return !!day && !!day.device && day.sleep != null;
 }
 
-// The next question for today, or 'done'. A night that already has hours (a wearable's or typed)
-// needs no question, and neither does one the member skipped today (a member who does not track
-// sleep is not asked "3 of 3" all day).
+// The next morning question, or 'done'. The night comes first: the morning looks back at it. A night
+// that already has hours (a wearable's or typed) needs no question, and neither does one the member
+// skipped today (a member who does not track sleep is not asked all day).
 export function bsCiStep(today, sleepSkipped) {
-  if (!today || today.energy == null) return 'energy';
-  if (today.hunger == null) return 'hunger';
-  if (today.sleep == null && !sleepSkipped) return 'sleep';
+  const t = today || {};
+  if (t.sleep == null && !sleepSkipped) return 'sleep';
+  if (t.energy == null) return 'energy';
   return 'done';
 }
 
@@ -132,17 +146,19 @@ export function bsCiUsualNight(series, todayIso) {
   return Math.max(3, Math.min(12, Math.round(mid * 2) / 2));
 }
 
-// What "Same as yesterday" writes for today: yesterday's own values for the questions today has
-// not answered. Null when yesterday has no energy and hunger to copy.
-export function bsCiSamePatch(yesterday, today) {
-  if (!yesterday || yesterday.energy == null || yesterday.hunger == null) return null;
+// What "Same as yesterday" writes for today: yesterday's own morning values for the questions today
+// has not answered. Null when yesterday has no energy to copy. A night skipped today stays skipped:
+// neither its hours nor How did you wake up? are copied onto it (Codex P2 on #2407).
+export function bsCiSamePatch(yesterday, today, sleepSkipped = false) {
+  if (!yesterday || yesterday.energy == null) return null;
   const t = today || {};
   const patch = {};
   if (t.energy == null) patch.energy = yesterday.energy;
-  if (t.hunger == null) patch.hunger = yesterday.hunger;
-  if (t.sleep == null && yesterday.sleep != null && !yesterday.device) patch.sleepHours = yesterday.sleep;
-  // Rested is the member's own answer on any night, a watch's included (ruling 2, Codex P2 on #2398).
-  if (t.rested == null && yesterday.rested != null) patch.sleepQuality = yesterday.rested;
+  if (!sleepSkipped) {
+    if (t.sleep == null && yesterday.sleep != null && !yesterday.device) patch.sleepHours = yesterday.sleep;
+    // Rested is the member's own answer on any night, a watch's included (ruling 2, Codex P2 on #2398).
+    if (t.rested == null && yesterday.rested != null) patch.sleepQuality = yesterday.rested;
+  }
   return Object.keys(patch).length ? patch : null;
 }
 
@@ -158,14 +174,12 @@ export function bsCiHM(h, say) {
   return total % 60 ? `${hh}h ${mm}` : `${hh}h`;
 }
 
-// The seven days before today, oldest first: the strip under every step. Water is the day's total.
+// The seven days before today, oldest first: the strip under every step.
 export function bsCiWeek(series, todayIso) {
   const out = [];
   for (let i = 7; i >= 1; i -= 1) {
     const iso = bsCiShift(todayIso, -i);
-    const w = ((series && series.hydration) || []).find((p) => p && p.date === iso);
-    const water = w ? Number(w.value) : NaN;
-    out.push({ iso, ...bsCiDay(series, iso), water: Number.isFinite(water) && water > 0 ? water : null });
+    out.push({ iso, ...bsCiDay(series, iso) });
   }
   return out;
 }
@@ -181,21 +195,72 @@ export function bsCiMostly(values) {
   return counts[best] * 2 > idx.length ? best : null;
 }
 
+// A short night: under 6h, or an hour or more under the member's usual night. Null with no hours.
+export function bsCiShortNight(hours, usual) {
+  const h = hours == null ? NaN : Number(hours);
+  if (!Number.isFinite(h)) return null;
+  const u = usual == null ? NaN : Number(usual);
+  return h < BS_CI_SHORT_NIGHT_H || (Number.isFinite(u) && h <= u - 1);
+}
+
+// What this morning's answers mean for today, said on the summary and on Home's done line. Rules,
+// never medical: training and bedtime only. Null until energy is answered.
+//   'shortLow'  a short night, Drained or Low      'fullLow'  a full night, Drained or Low
+//   'low'       Drained or Low, no night known     'shortOk'  a short night, OK or better
+//   'ready'     OK or better
+export function bsCiTodayRead(today, usual) {
+  if (!today) return null;
+  const i = bsCiWordIndex(today.energy);
+  if (i == null) return null;
+  const short = bsCiShortNight(today.sleep, usual);
+  if (i <= 1) return short == null ? 'low' : short ? 'shortLow' : 'fullLow';
+  return short ? 'shortOk' : 'ready';
+}
+
+// The week in the member's words: the engine's own lines over the seven days ending today (sleep_low,
+// under 6h on 3 or more nights; energy_low, at or under 4 on 3 or more days), then the word most
+// mornings had, then how many more mornings a week needs. Null when none of them holds. `week` is the
+// strip's seven days before today; the engine's window is today and the six before it, so only the
+// last six are read (review on this PR: a seventh day back made a week the engine never flagged).
+export function bsCiWeekLine(week, today) {
+  const days = [...(week || []).slice(-6), today || {}];
+  const avg = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
+  const nights = days.map((d) => Number(d && d.sleep)).filter((h) => Number.isFinite(h) && h > 0);
+  if (nights.length >= 3 && avg(nights) < BS_CI_SHORT_NIGHT_H) return { kind: 'sleepShort', hours: avg(nights) };
+  const energy = days.map((d) => d && d.energy).filter((v) => bsCiWordIndex(v) != null).map(Number);
+  if (energy.length >= 3 && avg(energy) <= BS_CI_ENERGY_LOW_AVG) return { kind: 'energyLow', word: bsCiWordIndex(avg(energy)) };
+  const most = bsCiMostly(energy);
+  if (most != null) return { kind: 'mostly', word: most };
+  if (energy.length < 3) return { kind: 'more', n: 3 - energy.length };
+  return null;
+}
+
+// The plan route's coaching as three states per role: true (a paid coach), false (none), null (the
+// read failed or has not answered). Never the object itself: every reader of the plan shares it.
+export function bsCiCoachingOf(plan) {
+  const role = (part) => (plan && plan[part] && 'coaching' in plan[part] ? !!plan[part].coaching : null);
+  return { trainer: role('training'), nutritionist: role('meals') };
+}
+
+// Who reads the morning: 'both' | 'trainer' | 'nutritionist' | 'you', or null while unknown.
+export function bsCiWhoSees(coaching) {
+  if (!coaching || coaching.trainer == null || coaching.nutritionist == null) return null;
+  if (coaching.trainer && coaching.nutritionist) return 'both';
+  if (coaching.trainer) return 'trainer';
+  if (coaching.nutritionist) return 'nutritionist';
+  return 'you';
+}
+
 // The signed-out preview's week: a sample, never saved.
 function bsCiSampleWeek(todayIso) {
   const e = [null, 8, 8, 4, 10, 8, 8];
   const h = [null, 6, 6, 4, 6, 8, 6];
   const s = [null, 7.33, 7.5, 5.83, 7.83, 6.67, 7.17];
-  const w = [null, 2.25, 2.75, 1.5, 3, 2, 2.5];
-  return e.map((_, i) => ({ iso: bsCiShift(todayIso, i - 7), energy: e[i], hunger: h[i], sleep: s[i], rested: null, device: false, water: w[i] }));
+  return e.map((_, i) => ({ iso: bsCiShift(todayIso, i - 7), energy: e[i], hunger: h[i], sleep: s[i], rested: null, device: false }));
 }
 
-// A water read that failed: + Glass still works, because the add answers with the server's running
-// total, and the screen says "—" until it has one (Codex P2 on #2398).
-const BS_CI_WATER_UNKNOWN = { l: 0, target: 3, unknown: true };
-
-// One save at a time: two quick taps would otherwise both find no row for today and both insert.
-// Water has its own line, so a glass never waits on a check-in answer.
+// One save at a time per line: two quick taps would otherwise both find no row for today and both
+// insert. Water has its own line (BSWaterLine.jsx), so a glass never waits on a check-in answer.
 // ⚠ A QUEUED SAVE BELONGS TO THE ACCOUNT AND THE DAY THAT MADE IT (Codex P1 and P2 on #2398). The
 // write goes out under whoever is signed in, dated by the data layer, when it leaves the queue. So
 // a member who answers on a slow connection and signs out would otherwise have the answer saved to
@@ -203,7 +268,7 @@ const BS_CI_WATER_UNKNOWN = { l: 0, target: 3, unknown: true };
 // either changed is dropped, and rejects like any failed save.
 const bsCiLines = { checkin: Promise.resolve(), water: Promise.resolve() };
 function bsCiCurrentUid() { return window.ShapeAuth?.getCachedState?.()?.user?.id || null; }
-function bsCiEnqueue(line, uid, send) {
+export function bsCiEnqueue(line, uid, send) {
   const day = bsCiIso(new Date());
   const run = bsCiLines[line].then(() => {
     if (bsCiCurrentUid() !== uid) throw new Error('signed-in account changed');
@@ -217,11 +282,14 @@ function bsCiSave(patch, uid) { return bsCiEnqueue('checkin', uid, () => window.
 // A line's saves have settled, or `ms` has passed: a read waits for saves on their way, but a
 // request the network holds does not keep the card off Home for good.
 const BS_CI_READ_WAIT_MS = 3000;
-function bsCiSettled(line) {
+export function bsCiSettled(line) {
   let timer;
   const waited = new Promise((r) => { timer = setTimeout(r, BS_CI_READ_WAIT_MS); });
   return Promise.race([bsCiLines[line], waited]).finally(() => clearTimeout(timer));
 }
+
+// The card tells the water line that a watch sync may have moved the day's water.
+export const BS_CI_HYDRATION_SYNCED = 'shape:hydration-synced';
 
 // ⚠ A WATCH'S NIGHT COMES FIRST (owner, 2026-10-18: "Use the data from smart device priority of the
 // member has one, if not manual entry"; "just use smart device data that matches what we are asking
@@ -262,16 +330,18 @@ export async function bsCiSyncDevices(uid, nowMs = Date.now()) {
 
 // ── The card, and the walkthrough it opens ───────────────────────────────────
 
-const BS_CI_STEPS = ['energy', 'hunger', 'sleep', 'water'];
+// The morning's steps. The walkthrough's screens are 0..n-1 for these, BS_CI_SUMMARY for the
+// summary, and 'evening' for the evening's hunger question.
+export const BS_CI_STEPS = ['sleep', 'energy'];
+export const BS_CI_SUMMARY = BS_CI_STEPS.length;
 
-function BSCheckinDay({ onOpen, dayIso, openRequest = null, onOpenRequestConsumed = null }) {
+function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null }) {
   const t = window.useBS();
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const amber = t.isLight ? '#b9802a' : '#e8b14a';
   const blue = t.BLUE || (t.isLight ? '#3a6ea5' : '#5b9bd5');
-  const sky = t.isLight ? '#1f7fb0' : '#4fb3e8';
-  const COLOR = { energy: teal, hunger: amber, sleep: blue, water: sky };
+  const COLOR = { sleep: blue, energy: teal, hunger: amber };
   const uid = window.ShapeAuth?.getCachedState?.()?.user?.id || null;
   const signedIn = !!uid;
   const now = new Date();
@@ -283,13 +353,14 @@ function BSCheckinDay({ onOpen, dayIso, openRequest = null, onOpenRequestConsume
   const [week, setWeek] = useState(() => (signedIn ? [] : bsCiSampleWeek(todayIso)));
   const [usual, setUsual] = useState(7.5);
   const [streakBefore, setStreakBefore] = useState(0); // the run through yesterday; today adds one once answered
-  const [walk, setWalk] = useState(null);         // the walkthrough's screen: 0-3 a check, 4 the summary; null closed
+  const [walk, setWalk] = useState(null);         // the walkthrough's screen: a step, BS_CI_SUMMARY, 'evening'; null closed
   const [fromSummary, setFromSummary] = useState(false); // a Change from the summary goes back to it
   const [sleepH, setSleepH] = useState(null);     // the stepper, before Next saves it
   const [restedPick, setRestedPick] = useState(null);
-  const [water, setWater] = useState(signedIn ? null : { l: 0, target: 3 }); // { l, target }; the preview starts dry
   const [err, setErr] = useState(null);           // the last write that failed, said on screen
   const [skippedDay, setSkippedDay] = useState(() => (bsCiReadSkip(uid, todayIso) ? todayIso : null)); // the day the night was skipped
+  // Who coaches the member, from the plan route: decides the evening question and Who sees this.
+  const [coaching, setCoaching] = useState({ trainer: null, nutritionist: null });
   // Signed in, nothing is asked until today's answers are read: a tap on a card that has not
   // loaded would be overwritten by the read. A failed read asks anyway (every tap still saves).
   // A new local day mounts a new card (BSCheckinCard, below), so this gate, like every other piece
@@ -303,18 +374,6 @@ function BSCheckinDay({ onOpen, dayIso, openRequest = null, onOpenRequestConsume
   // lands. A failed save puts this back, never the screen from before its tap, which may hold an
   // earlier answer that failed too (review on #2398).
   const confirmed = useRef({ energy: null, hunger: null, sleep: null, rested: null });
-  // Bumped by a tap that starts something new (Edit, a check, a glass), so a Details tap still
-  // waiting on saves does not leave once the member has moved on (review on #2398). An answer
-  // needs the walkthrough open first, so opening it is the bump.
-  const moved = useRef(0);
-  const failures = useRef(0); // saves that failed (answers and glasses), so Details can tell whether to leave
-  // Litres added on screen whose save has not answered yet: the server's total plus these is what shows.
-  const waterPending = useRef(0);
-  const waterTaps = useRef(0); // glasses tapped, so a read sent before one never shows a total without it
-  // ⚠ ONLY THE LAST WATER READ SENT IS SHOWN (Codex on #2405). The first read and the read after the
-  // device sync are independent requests; the first answering last would put the total from before
-  // the sync back on screen, Apple Health's share with it.
-  const waterReadSeq = useRef(0);
   const [, bump] = useState(0); // a re-render, for a tap that finds its day already over
 
   // ⚠ THE READS WAIT FOR SAVES ALREADY ON THEIR WAY (review on #2398). The lines outlive a card:
@@ -342,14 +401,23 @@ function BSCheckinDay({ onOpen, dayIso, openRequest = null, onOpenRequestConsume
     return () => { on = false; };
   }, [signedIn, todayIso]);
 
-  // Once today is read, the connected watches are asked for last night and Apple Health for the
-  // day's water (bsCiSyncDevices, above), then the day is read again. A night that came in replaces
-  // whatever is on screen, typed hours included, since the route keeps the watch's over them; water
-  // is the server's total, Apple Health's added to the glasses logged here. A day that already has
-  // a watch's night asks again too, within the 30 minutes: a night synced while the member was still
-  // asleep is part of one, and only a later sync brings the rest (Codex on #2404). A card that
-  // unmounts while the sync is out still clears the cache and claims the night's points, so the
-  // next card reads the night rather than ask for it.
+  // The plan read is the one Home already makes (60-second cache), so this adds no request. Its
+  // object is shared by every reader and is never changed here.
+  useEffect(() => {
+    if (!signedIn || !window.ShapePlan?.get) return undefined;
+    let on = true;
+    Promise.resolve(window.ShapePlan.get()).then((p) => { if (on) setCoaching(bsCiCoachingOf(p)); }).catch(() => {});
+    return () => { on = false; };
+  }, [signedIn]);
+
+  // Once today is read, the connected watches are asked for last night (bsCiSyncDevices, above),
+  // then the day is read again. A night that came in replaces whatever is on screen, typed hours
+  // included, since the route keeps the watch's over them. Apple Health's water comes in with the
+  // same sync, and the water line is told to read the day again. A day that already has a watch's
+  // night asks again too, within the 30 minutes: a night synced while the member was still asleep is
+  // part of one, and only a later sync brings the rest (Codex on #2404). A card that unmounts while
+  // the sync is out still clears the cache and claims the night's points, so the next card reads the
+  // night rather than ask for it.
   useEffect(() => {
     if (!signedIn || !ready) return undefined;
     let on = true;
@@ -358,21 +426,8 @@ function BSCheckinDay({ onOpen, dayIso, openRequest = null, onOpenRequestConsume
       window.ShapeMetrics?.invalidate?.();
       // A good night the sync brought earns its points now, not on the next app open.
       Promise.resolve(window.ShapeSleepPoints?.check?.()).catch(() => {});
-      if (!on) return null;
-      if (window.ShapeHydration?.get) {
-        const taps = waterTaps.current;
-        const seq = ++waterReadSeq.current;
-        window.ShapeHydration.get().then((d) => {
-          if (!on || !d || !d.ok || seq !== waterReadSeq.current) return;
-          const deviceL = Number(d.deviceL) > 0 ? Number(d.deviceL) : null;
-          // A glass tapped after this read went out answers with its own total, which this read
-          // would replace with an older one once that glass is no longer on its way.
-          if (waterTaps.current !== taps) { setWater((w) => ({ ...w, deviceL })); return; }
-          // Glasses still on their way are added on top, as a glass's own answer does.
-          setWater((w) => ({ ...w, l: Math.round(((Number(d.hydrationL) || 0) + waterPending.current) * 1000) / 1000, target: Number(d.targetL) || (w && w.target) || 3, deviceL, unknown: false }));
-        }).catch(() => {});
-      }
-      if (!window.ShapeProgress?.progress) return null;
+      try { window.dispatchEvent(new window.Event(BS_CI_HYDRATION_SYNCED)); } catch (e) { /* the water line reads again on its next mount */ }
+      if (!on || !window.ShapeProgress?.progress) return null;
       return window.ShapeProgress.progress();
     }).then((p) => {
       if (!on || !p || !p.series) return;
@@ -386,17 +441,6 @@ function BSCheckinDay({ onOpen, dayIso, openRequest = null, onOpenRequestConsume
     }).catch(() => {});
     return () => { on = false; };
   }, [signedIn, ready, uid, todayIso]);
-
-  useEffect(() => {
-    if (!signedIn || !window.ShapeHydration?.get) return undefined;
-    let on = true;
-    let seq = 0;
-    bsCiSettled('water').then(() => { seq = ++waterReadSeq.current; return window.ShapeHydration.get(); }).then((d) => {
-      if (!on || seq !== waterReadSeq.current) return;
-      setWater(d && d.ok ? { l: Number(d.hydrationL) || 0, target: Number(d.targetL) || 3, deviceL: Number(d.deviceL) > 0 ? Number(d.deviceL) : null } : BS_CI_WATER_UNKNOWN);
-    }).catch(() => { if (on && seq === waterReadSeq.current) setWater(BS_CI_WATER_UNKNOWN); });
-    return () => { on = false; };
-  }, [signedIn]);
 
   // ⚠ THE SHEET IS A DIALOG (review on #2398): each step starts at its top with its question
   // focused, so a screen reader reads it and the tile just tapped does not drop focus to the
@@ -420,20 +464,19 @@ function BSCheckinDay({ onOpen, dayIso, openRequest = null, onOpenRequestConsume
     back?.focus?.({ preventScroll: true });
   }, [walk]);
 
-  // ⚠ A DAILY CHECK-IN REMINDER OPENS THE WALKTHROUGH (owner, 2026-10-18), at the first check not
-  // yet answered, or at the summary when the day is done. It waits for today's read, so the read
-  // never lands over an answer given meanwhile, and tells Home the request is used, so a card
-  // mounted again later (Check-ins switched off and on) does not open it a second time. It opens
+  // ⚠ A DAILY CHECK-IN REMINDER OPENS THE WALKTHROUGH (owner, 2026-10-18), at the first morning
+  // question not yet answered, or at the summary when the morning is done. It waits for today's read,
+  // so the read never lands over an answer given meanwhile, and tells Home the request is used, so a
+  // card mounted again later (Check-ins switched off and on) does not open it a second time. It opens
   // the sheet the way Start does, written out here because the effect runs before this render has
   // reached `open` below whenever the card returns early.
   useEffect(() => {
     if (!openRequest || !ready || bsCiIso(new Date()) !== todayIso) return;
     if (onOpenRequestConsumed) onOpenRequestConsumed();
     const step = bsCiStep(today, skippedDay === todayIso);
-    moved.current += 1;
     openerRef.current = document.activeElement;
     setSleepH(null); setRestedPick(null); setErr(null); setFromSummary(false);
-    setWalk(step === 'energy' ? 0 : step === 'hunger' ? 1 : step === 'sleep' ? 2 : 4);
+    setWalk(step === 'done' ? BS_CI_SUMMARY : BS_CI_STEPS.indexOf(step));
   }, [openRequest, ready, todayIso]);
 
   // A card whose day is over shows nothing and saves nothing; Home's next render mounts the new day's.
@@ -478,7 +521,6 @@ function BSCheckinDay({ onOpen, dayIso, openRequest = null, onOpenRequestConsume
         for (const k of fields) if (latest.current[k] === mine[k]) back[k] = confirmed.current[k];
         return back;
       });
-      failures.current += 1;
       setErr(msg);
     };
     if (!window.ShapeCheckin?.log) { undo('unavailable'); return; }
@@ -486,71 +528,41 @@ function BSCheckinDay({ onOpen, dayIso, openRequest = null, onOpenRequestConsume
   };
   const streak = streakBefore + (bsCiAnswered(today) ? 1 : 0);
 
-  const glassL = t.isMetric ? 0.25 : 0.2366;
-  // ⚠ GLASSES SAVE ONE AT A TIME, AND A FAILED ONE TAKES BACK ONLY ITSELF (Codex P2 on #2398): two
-  // quick taps used to race, and a failed first one put back the total over a second that saved.
-  // Each answer is the server's running total, so the screen shows it plus what is still on its way.
-  const addWater = (glasses) => {
-    if (bsCiIso(new Date()) !== todayIso) { bump((n) => n + 1); return; }
-    if (!water) return;
-    moved.current += 1;
-    waterTaps.current += 1;
-    const deltaL = Math.round(glassL * glasses * 10000) / 10000;
-    const round = (l) => Math.round(Math.max(0, l) * 1000) / 1000;
-    setWater((w) => ({ ...w, l: round(w.l + deltaL) }));
-    setErr(null);
-    if (!signedIn) return; // the preview counts locally and saves nothing
-    if (!window.ShapeHydration?.add) { setWater((w) => ({ ...w, l: round(w.l - deltaL) })); failures.current += 1; setErr('water'); return; }
-    waterPending.current += deltaL;
-    bsCiEnqueue('water', uid, () => window.ShapeHydration.add(deltaL)).then((d) => {
-      waterPending.current -= deltaL;
-      // The add answers with the running total and the member's own target, which a failed first
-      // read left at 3 L (Codex P2 on #2398).
-      if (alive.current && d && d.ok) setWater((w) => ({ ...w, l: round((Number(d.hydrationL) || 0) + waterPending.current), target: Number(d.targetL) || w.target, unknown: false }));
-    }).catch(() => {
-      waterPending.current -= deltaL;
-      if (!alive.current) return;
-      setWater((w) => ({ ...w, l: round(w.l - deltaL) }));
-      failures.current += 1;
-      setErr('water');
-    });
-  };
-
-  // ⚠ DETAILS WAITS FOR THE SAVES ON THEIR WAY, ANSWERS AND GLASSES (Codex P2 on #2398). Leaving
-  // at once unmounts this card, so the page would read the totals from before the save, and a save
-  // that then failed could no longer say so. It opens once both lines have settled, and stays here
-  // if one failed, or if the member has since tapped something else (an answer, a glass, Edit).
-  const openDetails = () => {
-    const before = failures.current;
-    const tap = moved.current;
-    Promise.all([bsCiLines.checkin, bsCiLines.water]).then(() => {
-      if (alive.current && failures.current === before && moved.current === tap) onOpen();
-    });
-  };
-
   // ── walkthrough navigation ──
   const reset = () => { setSleepH(null); setRestedPick(null); setErr(null); };
   const open = (i, back) => {
-    moved.current += 1;
     if (walk == null) openerRef.current = document.activeElement;
     reset(); setFromSummary(!!back); setWalk(i);
   };
   const close = () => { reset(); setFromSummary(false); setWalk(null); };
   const next = () => {
     setSleepH(null); setRestedPick(null);
-    if (fromSummary) { setFromSummary(false); setWalk(4); return; }
-    setWalk((i) => (i == null ? i : Math.min(4, i + 1)));
+    if (fromSummary) { setFromSummary(false); setWalk(BS_CI_SUMMARY); return; }
+    setWalk((i) => (typeof i === 'number' ? Math.min(BS_CI_SUMMARY, i + 1) : i));
   };
-  const back = () => { setSleepH(null); setRestedPick(null); setFromSummary(false); setWalk((i) => (i == null ? i : Math.max(0, i - 1))); };
-  const waterKnown = !!(water && !water.unknown);
-  const answered = { energy: today.energy != null, hunger: today.hunger != null, sleep: today.sleep != null || sleepSkipped, water: waterKnown && water.l > 0 };
-  const firstOpen = () => { const i = BS_CI_STEPS.findIndex((k) => k !== 'water' && !answered[k]); return i < 0 ? 3 : i; };
+  const back = () => { setSleepH(null); setRestedPick(null); setFromSummary(false); setWalk((i) => (typeof i === 'number' ? Math.max(0, i - 1) : i)); };
+  const answered = { sleep: today.sleep != null || sleepSkipped, energy: today.energy != null };
+  const manual = bsCiAnswered(today);
+  // Start opens the night, even one a watch filled in: it is where its hours and How did you wake
+  // up? are. A night skipped today is not opened again, as the reminder skips it too. Continue opens
+  // the first morning question still open.
+  const firstOpen = () => { if (!manual && !sleepSkipped) return 0; const i = BS_CI_STEPS.findIndex((k) => !answered[k]); return i < 0 ? BS_CI_SUMMARY : i; };
+
+  // The evening question: a member with a nutritionist, from 6 p.m., until today's hunger is in.
+  const hungerAsked = signedIn && coaching.nutritionist === true;
+  const evening = now.getHours() >= BS_CI_EVENING_FROM_HOUR;
+  const eveningOpen = hungerAsked && evening && today.hunger == null;
+  const answerHunger = (v) => {
+    answer({ hunger: v });
+    if (fromSummary) { setFromSummary(false); setWalk(BS_CI_SUMMARY); } else close();
+  };
 
   const E = [0, 1, 2, 3, 4].map((i) => tr(`home:checkin.e${i}`, { defaultValue: ['Drained', 'Low', 'OK', 'Good', 'Great'][i] }));
   const H = [0, 1, 2, 3, 4].map((i) => tr(`home:checkin.h${i}`, { defaultValue: ['Not hungry', 'A little', 'Normal', 'Hungry', 'Starving'][i] }));
   const R = [0, 1, 2, 3, 4].map((i) => tr(`home:checkin.r${i}`, { defaultValue: ['Wrecked', 'Tired', 'OK', 'Rested', 'Fresh'][i] }));
   const word = (list, v) => { const i = bsCiWordIndex(v); return i == null ? null : list[i]; };
   const locale = window.ShapeI18n?.intlLocale?.() || undefined;
+  const lower = (w) => { try { return w.toLocaleLowerCase(locale); } catch (e) { return String(w).toLowerCase(); } };
   const hm = (h) => bsCiHM(h, (hh, mm) => (mm == null
     ? tr('home:checkin.hOnly', { defaultValue: '{h}h', h: hh })
     : tr('home:checkin.hm', { defaultValue: '{h}h {m}', h: hh, m: mm })));
@@ -558,26 +570,55 @@ function BSCheckinDay({ onOpen, dayIso, openRequest = null, onOpenRequestConsume
     energy: tr('home:today.energy', { defaultValue: 'Energy' }),
     hunger: tr('home:today.hunger', { defaultValue: 'Hunger' }),
     sleep: tr('home:today.sleep', { defaultValue: 'Sleep' }),
-    water: tr('home:checkin.water', { defaultValue: 'Water' }),
   };
-  const num = (n, digits) => { try { return new Intl.NumberFormat(locale, { maximumFractionDigits: digits }).format(n); } catch (e) { return String(n); } };
-  const litres = (l) => (t.isMetric ? `${num(Math.round(l * 100) / 100, 2)} L` : `${num(Math.round(l * 33.814), 0)} oz`);
-  const target = water ? water.target : 3;
+  const WHEN = {
+    sleep: tr('home:checkin.lastNight', { defaultValue: 'Last night' }),
+    energy: tr('home:checkin.thisMorning', { defaultValue: 'This morning' }),
+  };
 
-  const same = bsCiSamePatch(yesterday, today);
-  const sameLine = yesterday ? [word(E, yesterday.energy), word(H, yesterday.hunger), yesterday.sleep != null && !yesterday.device ? hm(yesterday.sleep) : null].filter(Boolean).join(' · ') : '';
+  const same = bsCiSamePatch(yesterday, today, sleepSkipped);
+  // The line says exactly what the tap writes, built from the patch itself: never a skipped night's
+  // hours or Rested, nor an answer today already has (review on this PR).
+  const sameLine = same ? [same.energy != null ? word(E, same.energy) : null, same.sleepHours != null ? hm(same.sleepHours) : null, same.sleepQuality != null ? word(R, same.sleepQuality) : null].filter(Boolean).join(' · ') : '';
   const wornNight = bsCiWornNight(today);
   const sleepFromUsual = sleepH == null && !(today.sleep != null && !today.device);
   const sleepValue = sleepH != null ? sleepH : (sleepFromUsual ? usual : today.sleep);
   const restedValue = restedPick != null ? restedPick : today.rested;
+  // A night skipped today and opened again (Edit) shows the usual night on the stepper, but nothing
+  // was given: walked past untouched, it stays skipped (review on this PR: Next saved the usual
+  // night as hours the member typed).
+  const skippedUntouched = sleepSkipped && today.sleep == null && sleepH == null && restedPick == null;
+
+  // What the answers mean: today's read, the week's line, and who sees them.
+  const readKey = bsCiTodayRead(today, usual);
+  const coached = coaching.trainer === true || coaching.nutritionist === true;
+  const readText = readKey === 'shortLow' ? tr('home:checkin.readShortLow', { defaultValue: 'Short night, low morning. Keep training easy and aim for bed earlier.' })
+    : readKey === 'fullLow' ? (coached
+      ? tr('home:checkin.readFullLowCoach', { defaultValue: 'Low after a full night. If it keeps happening, tell your coach.' })
+      : tr('home:checkin.readFullLow', { defaultValue: 'Low after a full night. If it keeps happening, take it easy and keep an eye on it.' }))
+    : readKey === 'low' ? tr('home:checkin.readLow', { defaultValue: 'A low morning. Keep training easy today.' })
+    : readKey === 'shortOk' ? tr('home:checkin.readShortOk', { defaultValue: 'Short night, but you feel fine. Go by how the warm-up feels.' })
+    : readKey === 'ready' ? tr('home:checkin.readReady', { defaultValue: "Ready for today's plan." })
+    : null;
+  const weekLine = bsCiWeekLine(week, today);
+  const weekText = !weekLine ? null
+    : weekLine.kind === 'sleepShort' ? tr('home:checkin.weekSleepShort', { defaultValue: 'Short on sleep this week: {hours} a night.', hours: hm(Math.round(weekLine.hours * 12) / 12) })
+    : weekLine.kind === 'energyLow' ? tr('home:checkin.weekEnergyLow', { defaultValue: 'Your energy has been mostly {word} this week. A lighter session still counts.', word: lower(E[weekLine.word]) })
+    : weekLine.kind === 'mostly' ? tr('home:checkin.weekMostly', { defaultValue: 'Mostly {word} mornings this week.', word: lower(E[weekLine.word]) })
+    : tr('home:checkin.weekMore', { defaultValue: '{n, plural, one {# more morning and your week shows here.} other {# more mornings and your week shows here.}}', n: weekLine.n });
+  const who = signedIn ? bsCiWhoSees(coaching) : null;
+  const whoText = who === 'both' ? tr('home:checkin.whoBoth', { defaultValue: 'Your trainer and nutritionist see your 7-day averages.' })
+    : who === 'trainer' ? tr('home:checkin.whoTrainer', { defaultValue: 'Your trainer sees your 7-day averages.' })
+    : who === 'nutritionist' ? tr('home:checkin.whoNutritionist', { defaultValue: 'Your nutritionist sees your 7-day averages.' })
+    : who === 'you' ? tr('home:checkin.whoYou', { defaultValue: 'Only you see these.' })
+    : null;
 
   const mono = { fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' };
   const btnPrimary = { flex: 1, minHeight: 52, borderRadius: 5, border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', ...mono, fontSize: 10.5, letterSpacing: '0.14em' };
   const btnGhost = { minHeight: 52, padding: '0 18px', borderRadius: 5, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, cursor: 'pointer', ...mono, fontSize: 10, letterSpacing: '0.14em' };
   const errLine = err ? (
     <div role="alert" style={{ fontFamily: t.BODY, fontSize: 12.5, lineHeight: 1.35, color: t.RUST }}>
-      {err === 'water' ? tr('home:today.waterFailed', { defaultValue: 'Could not log water — try again' })
-        : err === 'unavailable' ? tr('home:today.checkinUnavailable', { defaultValue: 'Check-in is unavailable — try again' })
+      {err === 'unavailable' ? tr('home:today.checkinUnavailable', { defaultValue: 'Check-in is unavailable — try again' })
         : tr('home:today.checkinFailed', { defaultValue: 'Could not save check-in — try again' })}
     </div>
   ) : null;
@@ -621,8 +662,8 @@ function BSCheckinDay({ onOpen, dayIso, openRequest = null, onOpenRequestConsume
         {week.map((d, i) => {
           const v = d[kind];
           const has = v != null;
-          const pct = !has ? 0 : kind === 'sleep' ? Math.min(1, v / 10) : kind === 'water' ? Math.min(1, v / (target || 3)) : ((bsCiWordIndex(v) || 0) + 1) / 5;
-          const label = !has ? '—' : kind === 'energy' ? word(E, v) : kind === 'hunger' ? word(H, v) : kind === 'sleep' ? hm(v) : litres(v);
+          const pct = !has ? 0 : kind === 'sleep' ? Math.min(1, v / 10) : ((bsCiWordIndex(v) || 0) + 1) / 5;
+          const label = !has ? '—' : kind === 'energy' ? word(E, v) : kind === 'hunger' ? word(H, v) : hm(v);
           const [y, m, dd] = d.iso.split('-').map(Number);
           const date = new Date(y, m - 1, dd, 12);
           const dayName = date.toLocaleDateString(locale, { weekday: 'short' });
@@ -653,24 +694,32 @@ function BSCheckinDay({ onOpen, dayIso, openRequest = null, onOpenRequestConsume
     const i = bsCiMostly(week.map((d) => d[kind]));
     if (i == null) return null;
     // Mid-sentence the word is lower case: "Mostly good this week", "Diese Woche meist gut".
-    let w = list[i];
-    try { w = w.toLocaleLowerCase(locale); } catch (e) { w = w.toLowerCase(); }
-    return tr('home:checkin.trendMostly', { defaultValue: 'Mostly {word} this week.', word: w });
+    return tr('home:checkin.trendMostly', { defaultValue: 'Mostly {word} this week.', word: lower(list[i]) });
   };
-  const hasWaterWeek = week.some((d) => d.water != null);
-  const reached = week.filter((d) => d.water != null && d.water >= target).length;
   const tapTip = tr('home:checkin.tapReuse', { defaultValue: 'Tap a day to reuse it' });
   const noAnswer = tr('home:checkin.noAnswer', { defaultValue: 'No answer' });
+  // The stepper's line under the hours: the usual night, or how far the night is from it.
+  const usualLine = () => {
+    if (skippedUntouched) return tr('home:checkin.skipped', { defaultValue: 'Skipped' });
+    if (sleepFromUsual) return tr('home:checkin.usualNight', { defaultValue: 'Your usual night' });
+    const diff = Math.round((sleepValue - usual) * 2) / 2;
+    if (!diff) return tr('home:checkin.usualNight', { defaultValue: 'Your usual night' });
+    // Under an hour reads in minutes ("30 min"), never "0h 30".
+    const gap = Math.abs(diff) < 1 ? tr('home:checkin.mOnly', { defaultValue: '{m} min', m: Math.round(Math.abs(diff) * 60) }) : hm(Math.abs(diff));
+    return diff < 0
+      ? tr('home:checkin.underUsual', { defaultValue: '{diff} under your usual', diff: gap })
+      : tr('home:checkin.overUsual', { defaultValue: '{diff} over your usual', diff: gap });
+  };
 
   // ── one screen of the walkthrough ──
   const screen = () => {
-    if (walk === 4) {
-      const row = (kind, value, i, actionKey, actionDefault) => (
-        <div key={kind} style={{ display: 'grid', gridTemplateColumns: '78px minmax(0, 1fr) auto', alignItems: 'center', gap: 10, padding: '14px 0', borderBottom: `1px solid ${t.HAIR}` }}>
+    if (walk === BS_CI_SUMMARY) {
+      const row = (kind, value, onPick) => (
+        <button key={kind} type="button" onClick={onPick} style={{ display: 'grid', gridTemplateColumns: '78px minmax(0, 1fr) auto', alignItems: 'center', gap: 10, width: '100%', minHeight: 56, padding: '12px 14px', border: `1px solid ${t.RULE}`, borderRadius: 5, background: 'transparent', color: t.INK, cursor: 'pointer', textAlign: 'left' }}>
           <span style={{ ...mono, letterSpacing: '0.14em', color: COLOR[kind] }}>{NAME[kind]}</span>
-          <span style={{ fontFamily: t.DISPLAY, fontSize: 19, color: value ? t.INK : t.INK50 }}>{value || '—'}</span>
-          <button type="button" onClick={() => open(i, true)} style={{ minHeight: 44, padding: '4px 2px', border: 0, background: 'transparent', color: t.INK50, cursor: 'pointer', ...mono, letterSpacing: '0.12em' }}>{tr(actionKey, { defaultValue: actionDefault })}</button>
-        </div>
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 19, color: value ? t.INK : t.INK50, minWidth: 0 }}>{value || '—'}</span>
+          <span style={{ ...mono, letterSpacing: '0.12em', color: t.INK70 }}>{tr('home:checkin.change', { defaultValue: 'Change' })}<span aria-hidden> ›</span></span>
+        </button>
       );
       const sleepText = today.sleep != null ? [hm(today.sleep), today.rested != null ? word(R, today.rested) : null].filter(Boolean).join(' · ') : sleepSkipped ? tr('home:checkin.skipped', { defaultValue: 'Skipped' }) : null;
       const done = status === 'done';
@@ -682,14 +731,16 @@ function BSCheckinDay({ onOpen, dayIso, openRequest = null, onOpenRequestConsume
               : done ? <>{tr('home:checkin.checkedIn', { defaultValue: "You're checked in" })} <span style={{ color: teal }}>✓</span></>
               : tr('home:checkin.notYet', { defaultValue: 'A check is still open' })}
           </h1>
-          {signedIn && !err ? <p style={{ margin: 0, fontFamily: t.BODY, fontSize: 14.5, lineHeight: 1.45, color: t.INK70 }}>{tr('home:checkin.savedAsYouWent', { defaultValue: 'Saved as you went. Change any answer below, or come back to it from Home.' })}</p> : null}
+          {readText ? <p data-bs-checkin-read="" style={{ margin: 0, fontFamily: t.BODY, fontSize: 16.5, lineHeight: 1.4, color: t.INK }}>{readText}</p> : null}
+          {weekText ? <p data-bs-checkin-weekline="" style={{ margin: 0, fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, color: t.INK70 }}>{weekText}</p> : null}
           {errLine}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {row('energy', word(E, today.energy), 0, 'home:checkin.change', 'Change')}
-            {row('hunger', word(H, today.hunger), 1, 'home:checkin.change', 'Change')}
-            {row('sleep', sleepText, 2, 'home:checkin.change', 'Change')}
-            {row('water', waterKnown ? `${litres(water.l)} ${tr('home:checkin.ofTarget', { defaultValue: 'of {target}', target: litres(target) })}` : null, 3, 'home:checkin.add', 'Add')}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {row('sleep', sleepText, () => open(0, true))}
+            {row('energy', word(E, today.energy), () => open(1, true))}
+            {hungerAsked && (today.hunger != null || evening) ? row('hunger', word(H, today.hunger), () => open('evening', true)) : null}
           </div>
+          {signedIn && !err ? <p style={{ margin: 0, fontFamily: t.BODY, fontSize: 13.5, lineHeight: 1.45, color: t.INK70 }}>{tr('home:checkin.savedAsYouWent', { defaultValue: 'Saved as you went. Change any answer below, or come back to it from Home.' })}</p> : null}
+          {whoText ? <p data-bs-checkin-who="" style={{ margin: 0, fontFamily: t.BODY, fontSize: 13, lineHeight: 1.45, color: t.INK50 }}>{whoText}</p> : null}
           {signedIn && streak >= 2 ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6, padding: 14, border: `1px solid ${t.RULE}`, borderRadius: 5 }}>
               <span aria-hidden style={{ display: 'flex', gap: 5 }}>{Array.from({ length: Math.min(7, streak) }, (_, i) => <span key={i} style={{ width: 10, height: 10, borderRadius: 99, background: amber }} />)}</span>
@@ -699,146 +750,123 @@ function BSCheckinDay({ onOpen, dayIso, openRequest = null, onOpenRequestConsume
         </>
       );
     }
-    const kind = BS_CI_STEPS[walk];
-    const color = COLOR[kind];
-    const head = (askKey, askDefault, whyKey, whyDefault) => (
+    const head = (label, color, askKey, askDefault, whyKey, whyDefault) => (
       <>
-        <span style={{ ...mono, color }}>{tr('home:checkin.stepLabel', { defaultValue: 'Step {n} of {total} · {name}', n: walk + 1, total: 4, name: NAME[kind] })}</span>
+        <span style={{ ...mono, color }}>{label}</span>
         <h1 tabIndex={-1} style={{ margin: 0, fontFamily: t.DISPLAY, fontWeight: 300, fontSize: 32, letterSpacing: '-0.02em', lineHeight: 1.08, color: t.INK, outline: 'none' }}>{tr(askKey, { defaultValue: askDefault })}</h1>
         <p style={{ margin: 0, fontFamily: t.BODY, fontSize: 14.5, lineHeight: 1.45, color: t.INK70 }}>{tr(whyKey, { defaultValue: whyDefault })}</p>
         {errLine}
       </>
     );
+    if (walk === 'evening') {
+      return (
+        <>
+          {head(tr('home:checkin.eveningLabel', { defaultValue: 'Tonight · Hunger' }), amber, 'home:checkin.askHunger', 'How hungry did you get between meals today?', 'home:checkin.whyHunger', 'Your nutritionist reads this beside what you ate. Hungry most days can mean your meals are running light.')}
+          {tiles('h', H, amber, today.hunger, answerHunger)}
+          {strip('hunger', amber, tapTip, mostlyLine(H, 'hunger'), (d) => answerHunger(d.hunger))}
+        </>
+      );
+    }
+    const kind = BS_CI_STEPS[walk];
+    const color = COLOR[kind];
+    const label = tr('home:checkin.stepLabel', { defaultValue: 'Step {n} of {total} · {name}', n: walk + 1, total: BS_CI_STEPS.length, name: WHEN[kind] });
     if (kind === 'energy') {
       return (
         <>
-          {head('home:checkin.askEnergy', "How's your energy?", 'home:checkin.whyEnergy', 'How much you have in the tank right now. On low days training should ease off, so an honest "Low" helps.')}
+          {coaching.trainer === true
+            ? head(label, color, 'home:checkin.askEnergy', "How's your energy this morning?", 'home:checkin.whyEnergyTrainer', 'Your trainer sees this before your session. On low mornings training should ease off, so an honest "Low" helps.')
+            : head(label, color, 'home:checkin.askEnergy', "How's your energy this morning?", 'home:checkin.whyEnergy', 'How much you have in the tank this morning. After low mornings Home suggests lighter days, so an honest "Low" helps.')}
           {tiles('e', E, color, today.energy, (v) => { answer({ energy: v }); next(); })}
           {strip('energy', color, tapTip, mostlyLine(E, 'energy'), (d) => { answer({ energy: d.energy }); next(); })}
         </>
       );
     }
-    if (kind === 'hunger') {
-      return (
-        <>
-          {head('home:checkin.askHunger', 'How hungry are you?', 'home:checkin.whyHunger', "How hungry you've felt today overall, not just this minute. Hungry most days can mean your meals are running light.")}
-          {tiles('h', H, color, today.hunger, (v) => { answer({ hunger: v }); next(); })}
-          {strip('hunger', color, tapTip, mostlyLine(H, 'hunger'), (d) => { answer({ hunger: d.hunger }); next(); })}
-        </>
-      );
-    }
-    if (kind === 'sleep') {
-      return (
-        <>
-          {head('home:checkin.askSleep', 'How did you sleep?', 'home:checkin.whySleep', "Hours of sleep last night. It's the biggest lever on recovery. A connected watch fills this in once it syncs.")}
-          {wornNight ? (
-            <div style={{ textAlign: 'center', padding: '6px 0' }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 44, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1, color: t.INK }}>{hm(today.sleep)}</div>
-              <div style={{ ...mono, marginTop: 6, fontSize: 8.5, color: t.INK50 }}>{tr('home:checkin.fromWatch', { defaultValue: 'From your watch' })}</div>
-            </div>
-          ) : (
-            <>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                <button type="button" aria-label={tr('home:checkin.less', { defaultValue: 'Thirty minutes less' })} onClick={() => setSleepH(Math.max(3, sleepValue - 0.5))} style={{ width: 54, height: 54, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontSize: 24, cursor: 'pointer' }}>−</button>
-                <div style={{ textAlign: 'center' }}>
-                  <div aria-live="polite" style={{ fontFamily: t.DISPLAY, fontSize: 44, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{hm(sleepValue)}</div>
-                  <div style={{ ...mono, marginTop: 6, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.12em', color: t.INK50 }}>{sleepFromUsual ? tr('home:checkin.usualNight', { defaultValue: 'Your usual night' }) : ' '}</div>
-                </div>
-                <button type="button" aria-label={tr('home:checkin.more', { defaultValue: 'Thirty minutes more' })} onClick={() => setSleepH(Math.min(12, sleepValue + 0.5))} style={{ width: 54, height: 54, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontSize: 24, cursor: 'pointer' }}>+</button>
-              </div>
-            </>
-          )}
-          {/* Rested is the member's own check, so a wearable's night still offers it (Codex P2 on #2398). */}
-          <div style={{ ...mono, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.12em', color: t.INK50 }}>{tr('home:checkin.restedOptional', { defaultValue: 'Rested? · optional' })}</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 6 }}>
-            {R.map((w, i) => {
-              const on = bsCiWordIndex(restedValue) === i;
-              return (
-                <button key={`r${i}`} type="button" aria-pressed={on} onClick={() => setRestedPick(on ? null : BS_CI_STORED[i])} style={{ minHeight: 44, borderRadius: 5, cursor: 'pointer', padding: '4px 2px', border: `1px solid ${on ? color : t.RULE}`, background: on ? color : 'transparent', color: on ? t.PAPER : t.INK, fontFamily: t.MONO, fontWeight: 800, textTransform: 'uppercase', ...fit(w, 8) }}>{w}</button>
-              );
-            })}
-          </div>
-          {strip('sleep', color, wornNight ? null : tapTip, null, wornNight ? null : (d) => { setSleepH(d.sleep); if (d.rested != null) setRestedPick(d.rested); })}
-        </>
-      );
-    }
-    // water
-    const glasses = Math.max(6, Math.min(14, Math.round(target / glassL)));
-    const full = waterKnown ? Math.max(0, Math.min(glasses, Math.round(water.l / glassL))) : 0;
+    // sleep
     return (
       <>
-        {head('home:checkin.askWater', 'Water so far today', 'home:checkin.whyWater', "Add what you've drunk so far. You can keep adding all day from Home. It doesn't hold up your check-in.")}
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <span style={{ fontFamily: t.DISPLAY, fontSize: 44, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{waterKnown ? litres(water.l) : '—'}</span>
-          <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK50 }}>{tr('home:checkin.ofTarget', { defaultValue: 'of {target}', target: litres(target) })}</span>
+        {head(label, color, 'home:checkin.askSleep', 'How did you sleep?', 'home:checkin.whySleep', 'Hours of sleep last night, the biggest lever on recovery. Shape sets it beside your energy. A connected watch fills this in.')}
+        {wornNight ? (
+          <div style={{ textAlign: 'center', padding: '6px 0' }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 44, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1, color: t.INK }}>{hm(today.sleep)}</div>
+            <div style={{ ...mono, marginTop: 6, fontSize: 8.5, color: t.INK50 }}>{tr('home:checkin.fromWatch', { defaultValue: 'From your watch' })}</div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <button type="button" aria-label={tr('home:checkin.less', { defaultValue: 'Thirty minutes less' })} onClick={() => setSleepH(Math.max(3, sleepValue - 0.5))} style={{ width: 54, height: 54, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontSize: 24, cursor: 'pointer' }}>−</button>
+            <div style={{ textAlign: 'center' }}>
+              <div aria-live="polite" style={{ fontFamily: t.DISPLAY, fontSize: 44, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{hm(sleepValue)}</div>
+              <div style={{ ...mono, marginTop: 6, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.12em', color: t.INK50 }}>{usualLine()}</div>
+            </div>
+            <button type="button" aria-label={tr('home:checkin.more', { defaultValue: 'Thirty minutes more' })} onClick={() => setSleepH(Math.min(12, sleepValue + 0.5))} style={{ width: 54, height: 54, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontSize: 24, cursor: 'pointer' }}>+</button>
+          </div>
+        )}
+        {/* Rested is the member's own check, so a wearable's night still offers it (Codex P2 on #2398). */}
+        <div style={{ ...mono, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.12em', color: t.INK50 }}>{tr('home:checkin.restedOptional', { defaultValue: 'How did you wake up? · optional' })}</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 6 }}>
+          {R.map((w, i) => {
+            const on = bsCiWordIndex(restedValue) === i;
+            return (
+              <button key={`r${i}`} type="button" aria-pressed={on} onClick={() => setRestedPick(on ? null : BS_CI_STORED[i])} style={{ minHeight: 44, borderRadius: 5, cursor: 'pointer', padding: '4px 2px', border: `1px solid ${on ? color : t.RULE}`, background: on ? color : 'transparent', color: on ? t.PAPER : t.INK, fontFamily: t.MONO, fontWeight: 800, textTransform: 'uppercase', ...fit(w, 8) }}>{w}</button>
+            );
+          })}
         </div>
-        {waterKnown && water.deviceL && water.l > 0 ? (
-          // Never more than the total: glasses taken off in Shape can bring it under Apple Health's share.
-          <div style={{ marginTop: -6, fontFamily: t.BODY, fontSize: 12.5, color: t.INK50 }}>{tr('home:checkin.waterFromHealth', { defaultValue: 'Includes {amount} from Apple Health', amount: litres(Math.min(water.deviceL, water.l)) })}</div>
-        ) : null}
-        <div aria-hidden style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {Array.from({ length: glasses }, (_, i) => (
-            <span key={i} style={{ width: 22, height: 30, border: `1.5px solid ${t.RULE}`, borderTop: 0, borderRadius: '0 0 5px 5px', position: 'relative' }}>
-              {i < full ? <span style={{ position: 'absolute', left: 2, right: 2, bottom: 2, top: 6, background: color, borderRadius: '0 0 3px 3px' }} /> : null}
-            </span>
-          ))}
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          {[1, 2].map((n) => (
-            <button key={n} type="button" disabled={!water} onClick={() => addWater(n)} style={{ minHeight: 48, borderRadius: 5, border: `1px solid ${color}88`, background: `${color}17`, color, cursor: water ? 'pointer' : 'default', opacity: water ? 1 : 0.5, ...mono, fontSize: 10, letterSpacing: '0.12em' }}>
-              {tr('home:checkin.addGlasses', { defaultValue: '{n, plural, one {+ # glass} other {+ # glasses}}', n })}
-            </button>
-          ))}
-        </div>
-        {strip('water', color, tr('home:checkin.targetTip', { defaultValue: 'Target {target}', target: litres(target) }), hasWaterWeek ? tr('home:checkin.trendWater', { defaultValue: '{n, plural, =0 {Target not reached this week.} one {Target reached once this week.} other {Target reached on # days this week.}}', n: reached }) : null, null)}
+        {strip('sleep', color, wornNight ? null : tapTip, null, wornNight ? null : (d) => { setSleepH(d.sleep); if (d.rested != null) setRestedPick(d.rested); })}
       </>
     );
   };
 
   const foot = () => {
-    if (walk === 4) return <button type="button" onClick={close} style={btnPrimary}>{tr('home:checkin.doneButton', { defaultValue: 'Done' })}</button>;
+    if (walk === BS_CI_SUMMARY) return <button type="button" onClick={close} style={btnPrimary}>{tr('home:checkin.doneButton', { defaultValue: 'Done' })}</button>;
+    if (walk === 'evening') return null;
     const kind = BS_CI_STEPS[walk];
     if (kind === 'sleep') {
       return (
         <>
           {wornNight ? null : <button type="button" onClick={() => { bsCiWriteSkip(uid, todayIso); setSkippedDay(todayIso); next(); }} style={btnGhost}>{tr('home:checkin.skip', { defaultValue: 'Skip' })}</button>}
           <button type="button" onClick={() => {
-            // A wearable's hours are never re-typed; its Rested is saved on its own when picked.
-            if (!wornNight) answer({ sleepHours: sleepValue, ...(restedValue != null ? { sleepQuality: restedValue } : {}) });
-            else if (restedPick != null && restedPick !== today.rested) answer({ sleepQuality: restedPick });
+            // A wearable's hours are never re-typed; its Rested is saved on its own when picked. A night
+            // walked through again unchanged (Edit, then Next) writes nothing.
+            const unchanged = skippedUntouched || (!today.device && sleepValue === today.sleep && restedValue === today.rested);
+            if (!wornNight && !unchanged) answer({ sleepHours: sleepValue, ...(restedValue != null ? { sleepQuality: restedValue } : {}) });
+            else if (wornNight && restedPick != null && restedPick !== today.rested) answer({ sleepQuality: restedPick });
             next();
           }} style={btnPrimary}>{tr('home:checkin.next', { defaultValue: 'Next →' })}</button>
         </>
       );
     }
-    if (kind === 'water') return <button type="button" onClick={() => { setFromSummary(false); setWalk(4); }} style={btnPrimary}>{tr('home:checkin.finish', { defaultValue: 'Finish ✓' })}</button>;
-    const can = answered[kind];
-    return <button type="button" disabled={!can} onClick={next} style={{ ...btnPrimary, opacity: can ? 1 : 0.35, cursor: can ? 'pointer' : 'default' }}>{tr('home:checkin.next', { defaultValue: 'Next →' })}</button>;
+    // energy, the last morning step
+    const can = answered.energy;
+    return <button type="button" disabled={!can} onClick={next} style={{ ...btnPrimary, opacity: can ? 1 : 0.35, cursor: can ? 'pointer' : 'default' }}>{tr('home:checkin.finish', { defaultValue: 'Finish ✓' })}</button>;
   };
 
+  const isStep = typeof walk === 'number' && walk < BS_CI_SUMMARY;
   const sheet = walk == null ? null : (
     // `bsck-scroll` and `data-bs-layer`: in the native app a drag is routed by getTargetScroller
     // (iosAppBroadsheet.jsx), which scrolled Home behind the sheet, and Finish sat below the fold
     // of a small phone (review on #2398). The class has no style of its own.
-    <div ref={sheetRef} className="bsck-scroll" data-bs-layer="checkin" role="dialog" aria-modal="true" aria-label={tr('home:checkin.title', { defaultValue: 'Daily check-in' })} data-bs-checkin-walk={walk}
+    <div ref={sheetRef} className="bsck-scroll" data-bs-layer="checkin" role="dialog" aria-modal="true" aria-label={tr('home:checkin.title', { defaultValue: 'Morning check-in' })} data-bs-checkin-walk={walk}
       onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } }} style={{ position: 'absolute', inset: 0, zIndex: 250, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'calc(env(safe-area-inset-top, 0px) + 18px) 20px 10px' }}>
-        <button type="button" onClick={back} style={{ minHeight: 44, padding: 0, border: 0, background: 'transparent', color: t.INK70, cursor: 'pointer', visibility: walk > 0 && walk < 4 ? 'visible' : 'hidden', ...mono, fontSize: 10, fontWeight: 700, letterSpacing: '0.12em' }}>{tr('home:checkin.back', { defaultValue: '← Back' })}</button>
-        <span style={{ ...mono, color: t.INK50 }}>{tr('home:checkin.title', { defaultValue: 'Daily check-in' })}</span>
+        {/* Back on every morning screen after the first, the summary included: a Change is never more
+            than one tap away (owner, 2026-10-19: "i cant go back and change any of my entries"). */}
+        <button type="button" onClick={back} style={{ minHeight: 44, padding: 0, border: 0, background: 'transparent', color: t.INK70, cursor: 'pointer', visibility: typeof walk === 'number' && walk > 0 ? 'visible' : 'hidden', ...mono, fontSize: 10, fontWeight: 700, letterSpacing: '0.12em' }}>{tr('home:checkin.back', { defaultValue: '← Back' })}</button>
+        <span style={{ ...mono, color: t.INK50 }}>{walk === 'evening' ? tr('home:checkin.tonight', { defaultValue: 'Tonight' }) : tr('home:checkin.title', { defaultValue: 'Morning check-in' })}</span>
         <button type="button" onClick={close} aria-label={tr('home:checkin.close', { defaultValue: 'Close' })} style={{ width: 44, height: 44, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, cursor: 'pointer', fontSize: 16 }}>×</button>
       </div>
-      <div aria-hidden style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 6, padding: '4px 20px 0' }}>
-        {BS_CI_STEPS.map((k, i) => {
-          const on = i === walk;
-          const ok = answered[k];
-          return (
-            <span key={k} style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
-              <span style={{ height: 3, background: on ? COLOR[k] : ok ? t.INK70 : t.HAIR }} />
-              <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: on ? COLOR[k] : ok ? t.INK70 : t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ok && !on ? '✓ ' : ''}{NAME[k]}</span>
-            </span>
-          );
-        })}
-      </div>
+      {walk === 'evening' ? null : (
+        <div aria-hidden style={{ display: 'grid', gridTemplateColumns: `repeat(${BS_CI_STEPS.length}, minmax(0, 1fr))`, gap: 6, padding: '4px 20px 0' }}>
+          {BS_CI_STEPS.map((k, i) => {
+            const on = isStep && i === walk;
+            const ok = answered[k];
+            return (
+              <span key={k} style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+                <span style={{ height: 3, background: on ? COLOR[k] : ok ? t.INK70 : t.HAIR }} />
+                <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: on ? COLOR[k] : ok ? t.INK70 : t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ok && !on ? '✓ ' : ''}{NAME[k]}</span>
+              </span>
+            );
+          })}
+        </div>
+      )}
       <div style={{ padding: '22px 20px 0', display: 'flex', flexDirection: 'column', gap: 14, flex: 1 }}>{screen()}</div>
       <div style={{ padding: '18px 20px calc(env(safe-area-inset-bottom, 0px) + 24px)', display: 'flex', gap: 10 }}>{foot()}</div>
     </div>
@@ -847,12 +875,19 @@ function BSCheckinDay({ onOpen, dayIso, openRequest = null, onOpenRequestConsume
 
   // ── the card on Home ──
   const done = status === 'done';
+  const eveningRow = eveningOpen ? (
+    <div data-bs-checkin-evening="" style={{ display: 'flex', alignItems: 'center', gap: 10, borderTop: `1px solid ${t.HAIR}`, paddingTop: 10 }}>
+      <span style={{ ...mono, fontSize: 8.5, color: amber }}>{tr('home:checkin.tonight', { defaultValue: 'Tonight' })}</span>
+      <span style={{ flex: 1, minWidth: 0, fontFamily: t.BODY, fontSize: 13, color: t.INK70 }}>{tr('home:checkin.eveningRow', { defaultValue: 'How hungry did you get today?' })}</span>
+      <button type="button" onClick={() => open('evening')} style={{ minHeight: 34, padding: '5px 11px', borderRadius: 4, border: `1px solid ${amber}80`, background: `${amber}14`, color: amber, cursor: 'pointer', ...mono, fontSize: 8.5, letterSpacing: '0.1em' }}>{tr('home:checkin.answer', { defaultValue: 'Answer →' })}</button>
+    </div>
+  ) : null;
   return (
     <>
       <div ref={cardRef} data-bs-checkin-card="" style={{ margin: `10px ${t.padX}px 4px`, padding: '14px 13px 12px', border: `1px solid ${done ? t.RULE : `${teal}66`}`, background: t.PAPER2 || t.PAPER, clipPath: 'polygon(0 0, calc(100% - 13px) 0, 100% 13px, 100% 100%, 0 100%)', display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-          <span style={{ ...mono, color: teal }}>{done ? tr('home:today.checkinLabel', { defaultValue: 'Check-in' }) : tr('home:bulletin.checkin', { defaultValue: 'Check-in due' })}</span>
-          {done ? null : <span style={{ ...mono, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50 }}>{tr('home:checkin.cardMeta', { defaultValue: '4 checks · 30 sec' })}</span>}
+          <span style={{ ...mono, color: teal }}>{tr('home:checkin.title', { defaultValue: 'Morning check-in' })}</span>
+          {done ? null : <span style={{ ...mono, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50 }}>{tr('home:checkin.cardMeta', { defaultValue: '2 checks · 15 sec' })}</span>}
         </div>
 
         {done ? (
@@ -863,34 +898,32 @@ function BSCheckinDay({ onOpen, dayIso, openRequest = null, onOpenRequestConsume
               </div>
               <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK70, lineHeight: 1.4 }}>
                 {[
-                  today.energy != null ? `${NAME.energy} ${word(E, today.energy)}` : null,
-                  today.hunger != null ? `${NAME.hunger} ${word(H, today.hunger)}` : null,
                   today.sleep != null ? `${NAME.sleep} ${hm(today.sleep)}` : null,
                   today.rested != null ? word(R, today.rested) : null,
+                  today.energy != null ? `${NAME.energy} ${word(E, today.energy)}` : null,
+                  today.hunger != null ? `${NAME.hunger} ${word(H, today.hunger)}` : null,
                 ].filter(Boolean).join(' · ')}
               </div>
+              {readText ? <div data-bs-checkin-read="" style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK, lineHeight: 1.4 }}>{readText}</div> : null}
               {signedIn && streak >= 2 ? (
                 <div style={{ ...mono, fontSize: 8.5, color: amber }}>{tr('home:checkin.streak', { defaultValue: '{n, plural, one {# day running} other {# days running}}', n: streak })}</div>
               ) : null}
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flex: 'none' }}>
-              <button type="button" onClick={() => open(4)} style={{ minHeight: 34, padding: '5px 11px', borderRadius: 4, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', ...mono, fontSize: 8.5 }}>{tr('home:action.edit', { defaultValue: 'Edit' })}</button>
-              {onOpen ? <button type="button" onClick={openDetails} style={{ minHeight: 30, padding: '4px 0', border: 0, background: 'transparent', color: t.INK50, cursor: 'pointer', ...mono, fontSize: 8.5 }}>{tr('home:checkin.details', { defaultValue: 'Details →' })}</button> : null}
-            </div>
+            <button type="button" onClick={() => open(0)} style={{ flex: 'none', minHeight: 34, padding: '5px 11px', borderRadius: 4, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', ...mono, fontSize: 8.5 }}>{tr('home:action.edit', { defaultValue: 'Edit' })}</button>
           </div>
         ) : (
           <>
             <h2 style={{ margin: 0, fontFamily: t.DISPLAY, fontWeight: 300, fontSize: 25, letterSpacing: '-0.02em', lineHeight: 1.1, color: t.INK }}>
-              {tr('home:checkin.cardTitle', { defaultValue: 'Four quick checks.' })}{signedIn ? <><br />{tr('home:checkin.cardSub', { defaultValue: 'Saved as you go.' })}</> : null}
+              {tr('home:checkin.cardTitle', { defaultValue: 'Two quick checks.' })}{signedIn ? <><br />{tr('home:checkin.cardSub', { defaultValue: 'Saved as you go.' })}</> : null}
             </h2>
-            <div aria-hidden style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 6 }}>
+            <div aria-hidden style={{ display: 'grid', gridTemplateColumns: `repeat(${BS_CI_STEPS.length}, minmax(0, 1fr))`, gap: 6 }}>
               {BS_CI_STEPS.map((k) => (
                 <span key={k} style={{ borderTop: `3px solid ${answered[k] ? COLOR[k] : t.HAIR}`, paddingTop: 7, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: answered[k] ? t.INK : t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{answered[k] ? '✓ ' : ''}{NAME[k]}</span>
               ))}
             </div>
             {errLine}
             <button type="button" onClick={() => open(firstOpen())} style={{ ...btnPrimary, flex: 'none' }}>
-              {answered.energy || answered.hunger ? tr('home:checkin.continue', { defaultValue: 'Continue →' }) : tr('home:checkin.start', { defaultValue: 'Start check-in →' })}
+              {manual ? tr('home:checkin.continue', { defaultValue: 'Continue →' }) : tr('home:checkin.start', { defaultValue: 'Start check-in →' })}
             </button>
             {same ? (
               <button type="button" onClick={() => answer(same)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, minHeight: 56, padding: '8px 10px', borderRadius: 5, border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer' }}>
@@ -902,13 +935,7 @@ function BSCheckinDay({ onOpen, dayIso, openRequest = null, onOpenRequestConsume
         )}
 
         {done ? errLine : null}
-        {done ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderTop: `1px solid ${t.HAIR}`, paddingTop: 9 }}>
-            <span style={{ ...mono, fontSize: 8.5, color: sky }}>{NAME.water}</span>
-            <span style={{ flex: 1, fontFamily: t.MONO, fontSize: 9, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{waterKnown ? `${litres(water.l)} / ${litres(target)}` : '—'}</span>
-            <button type="button" onClick={() => addWater(1)} disabled={!water} style={{ minHeight: 32, padding: '4px 10px', borderRadius: 4, border: `1px solid ${sky}80`, background: `${sky}14`, color: sky, cursor: water ? 'pointer' : 'default', opacity: water ? 1 : 0.5, ...mono, fontSize: 8.5, letterSpacing: '0.1em' }}>{tr('home:checkin.addGlass', { defaultValue: '+ Glass' })}</button>
-          </div>
-        ) : null}
+        {eveningRow}
       </div>
       {sheet && host ? createPortal(sheet, host) : sheet}
     </>
@@ -916,11 +943,11 @@ function BSCheckinDay({ onOpen, dayIso, openRequest = null, onOpenRequestConsume
 }
 
 // ⚠ ONE CARD PER LOCAL DAY (Codex P2s on #2398). Every piece of the card's state belongs to the day
-// it was read for: the answers, the water, the open walkthrough, the save versions. So a new day
-// mounts a new card rather than carrying any of it across midnight. A walkthrough open at midnight
-// closes, and a save from the day before that fails after midnight lands on the old, unmounted card
-// and changes nothing.
+// it was read for: the answers, the open walkthrough, the save versions. So a new day mounts a new
+// card rather than carrying any of it across midnight. A walkthrough open at midnight closes, and a
+// save from the day before that fails after midnight lands on the old, unmounted card and changes
+// nothing. (`onOpen`, the old Details door, is not used: part 2's Your mornings replaces it.)
 export function BSCheckinCard(props) {
   const day = bsCiIso(new Date());
-  return <BSCheckinDay key={day} dayIso={day} {...props} />;
+  return <BSCheckinDay key={day} dayIso={day} openRequest={props.openRequest} onOpenRequestConsumed={props.onOpenRequestConsumed} />;
 }
