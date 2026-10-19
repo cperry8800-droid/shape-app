@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import {
   clientCandidates, coachCandidates, decideNotifications, NOTIFY_TYPES,
   inQuietHours, localHour, DEFAULT_PREFS, channelsForType, habitReminderCandidates,
-  dailyCheckinOn, MAX_SIGS_PER_KEY, MAX_STAMP_KEYS, MAX_PENDING_DIGEST,
+  dailyCheckinOn, MAX_SIGS_PER_KEY, MAX_STAMP_KEYS, MAX_PENDING_DIGEST, isQuietSleepItem,
 } from '../src/lib/ai/notifications.mjs';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
@@ -924,4 +924,40 @@ test('the digest queue is bounded, dropping the oldest held items', () => {
   const q = out.nextState.pendingDigest;
   assert.ok(q.length <= MAX_PENDING_DIGEST, `the queue kept ${q.length} items`);
   assert.equal(q[q.length - 1].sig, `m${many - 1}`, 'the most recent held item was dropped');
+});
+
+// ⚠ A MILD SLEEP MOVE HELD BEFORE THE SLEEP RULE (owner, 2026-10-19; Codex P2 on #2407). The rule
+// stops the candidate being built, but a copy queued by the deploy before it sits in the digest and
+// is re-emitted without being rebuilt. The queue is judged by the same rule, from the cited list
+// the directive's signature carries.
+test('a mild sleep move held in the digest is dropped; a real shortfall and a coach move are kept', () => {
+  const held = (cited, data = { move: 'recovery', lever: 'sleep' }) => ({ type: 'directive', title: 'Your move today', body: 'Lights out by 11', route: 'home', data, priority: 'high', channels: { push: true }, sig: `Sleep is the lever|Lights out by 11|${cited}|2026-W25`, key: 'self', at: LIVE });
+  const mild = held('recovery.sleepHours,nutrition');
+  const low = held('sleep_low');
+  const coach = held('coach override');
+  const legacy = held('recovery.sleepHours', { move: 'recovery' });   // no lever: cannot be judged
+  const streak = { type: 'streak_broken', title: 'Streak', body: 'x', route: 'home', data: {}, priority: 'low', channels: { push: true }, sig: 'broken:2026-W25', key: 'self', at: LIVE };
+  assert.equal(isQuietSleepItem(mild), true);
+  assert.equal(isQuietSleepItem(held('')), true, 'a sleep move citing nothing is not a shortfall');
+  assert.equal(isQuietSleepItem(low), false);
+  assert.equal(isQuietSleepItem(coach), false);
+  assert.equal(isQuietSleepItem(legacy), false);
+  assert.equal(isQuietSleepItem(streak), false);
+  assert.equal(isQuietSleepItem({ ...held('recovery.sleepHours'), data: { move: 'x', lever: 'training' } }), false, 'another move was judged by the sleep rule');
+  const prefs = { ...DEFAULT_PREFS, tz: TZ };
+
+  // Outside quiet hours the digest goes out without the mild move.
+  const day = decideNotifications({ candidates: [], last: { date: 'never', pendingDigest: [mild, low, coach, legacy, streak] }, prefs, now: DAYTIME, audience: 'client' });
+  assert.equal(day.digest.data.items.length, 4, 'the mild sleep move held from before the rule was still delivered');
+  assert.deepEqual(sigsOf(day.nextState.types['directive:self']).sort(), [low.sig, coach.sig, legacy.sig].sort(), 'a kept directive was not delivered, or the mild one was');
+
+  // In quiet hours it leaves the queue, and nothing else does.
+  const night = decideNotifications({ candidates: [], last: { date: 'never', pendingDigest: [mild, low, streak] }, prefs, now: NIGHT, audience: 'client' });
+  assert.equal(night.digest, null);
+  assert.deepEqual(night.nextState.pendingDigest.map((i) => i.sig), [low.sig, streak.sig]);
+
+  // A queue of only the mild move sends no digest at all.
+  const alone = decideNotifications({ candidates: [], last: { date: 'never', pendingDigest: [mild] }, prefs, now: DAYTIME, audience: 'client' });
+  assert.equal(alone.digest, null, 'an empty digest went out');
+  assert.equal(alone.nextState.pendingDigest.length, 0);
 });
