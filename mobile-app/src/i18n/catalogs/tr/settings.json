@@ -501,7 +501,7 @@
   "reminders.loading": "Yükleniyor…",
   "reminders.empty": "Henüz hatırlatıcı yok — tartılmayı, check-in yapmayı, su içmeyi ya da başka bir şeyi hatırlatması için bir tane ekle.",
   "reminders.kind.weigh_in": "Tartılma",
-  "reminders.kind.daily_checkin": "Günlük check-in",
+  "reminders.kind.daily_checkin": "Sabah check-in’i",
   "reminders.kind.checkin": "Haftalık check-in",
   "reminders.kind.water": "Su",
   "reminders.kind.photo": "İlerleme fotoğrafı",

@@ -55,16 +55,36 @@ function content(kind: string, label: string): { type: string; title: string; bo
       return { type: 'reminder_weigh_in', title: l || 'Time to weigh in', body: 'A quick weigh-in keeps your trend honest.', route: 'progress' };
     case 'checkin':
       return { type: 'reminder_checkin', title: l || 'Weekly check-in', body: 'Your check-in is ready when you are.', route: 'progress' };
-    // The daily check-in (owner, 2026-10-18: a Daily check-in reminder opens the card): a tap
-    // lands on Home with the walkthrough open at the first check not yet answered.
+    // The Morning check-in (owner, 2026-10-18: a Daily check-in reminder opens the card; renamed
+    // 2026-10-19): a tap lands on Home with the walkthrough open at the first question not yet
+    // answered. It is not sent on a day whose morning is already answered (morningAnswered).
     case 'daily_checkin':
-      return { type: 'reminder_daily_checkin', title: l || 'Daily check-in', body: 'Four quick checks, about 30 seconds.', route: 'today' };
+      return { type: 'reminder_daily_checkin', title: l || 'Morning check-in', body: 'Two quick checks: last night and this morning.', route: 'today' };
     case 'water':
       return { type: 'reminder_water', title: l || 'Hydration check', body: 'Water break — keep it flowing.', route: null };
     case 'photo':
       return { type: 'reminder_photo', title: l || 'Progress photo', body: 'Snap today’s progress photo while you’re thinking about it.', route: 'progress' };
     default:
       return { type: 'reminder_custom', title: l || 'Reminder', body: l ? '' : 'You set a reminder for now.', route: null };
+  }
+}
+
+// The morning is answered once its energy is in: the one morning answer every finished check-in has
+// (the night can be skipped, and a watch can fill it). snapshot_date is the member's local day, as is
+// `date` here (both the device's zone, saved with the reminder). A read that fails sends anyway: a
+// reminder too many is cheaper than a check-in missed.
+async function morningAnswered(admin: ReturnType<typeof createAdminClient>, userId: string, date: string): Promise<boolean> {
+  try {
+    const { data, error } = await admin
+      .from('daily_health_snapshot')
+      .select('energy')
+      .eq('user_id', userId)
+      .eq('snapshot_date', date)
+      .maybeSingle();
+    if (error) return false;
+    return !!data && (data as { energy: number | null }).energy != null;
+  } catch {
+    return false;
   }
 }
 
@@ -99,6 +119,11 @@ async function handle(request: Request) {
       if (hour !== targetHour) continue;
       if (!Array.isArray(r.days) || !r.days.includes(dow)) continue;
       if (r.last_fired_on === date) continue; // already fired today (local)
+      if (r.kind === 'daily_checkin' && await morningAnswered(admin, r.user_id, date)) {
+        // Answered already: today is done for this reminder.
+        await admin.from('user_scheduled_reminders').update({ last_fired_on: date }).eq('id', r.id);
+        continue;
+      }
 
       const c = content(r.kind, r.label);
       await createNotification(admin, {

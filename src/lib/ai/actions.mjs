@@ -1078,7 +1078,7 @@ export const setReminderAction = {
     var tz = await memberTz(ctx);
     var DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     var daysLabel = days.length === 7 ? 'every day' : days.map(function (d) { return DAYS[d]; }).join(' ');
-    var NAMES = { weigh_in: 'weigh-in', checkin: 'weekly check-in', daily_checkin: 'daily check-in' };
+    var NAMES = { weigh_in: 'weigh-in', checkin: 'weekly check-in', daily_checkin: 'morning check-in' };
     return {
       summary: 'Set a ' + (label || NAMES[kind] || kind) + ' reminder at ' + input.time + (tz ? '' : ' (UTC — open the app once to set your timezone)') + ' · ' + daysLabel,
       diff: [{ label: 'Reminder', before: '—', after: (label || kind) + ' · ' + input.time + ' · ' + daysLabel + (tz ? '' : ' · UTC' ) }],

@@ -501,7 +501,7 @@
   "reminders.loading": "Завантаження…",
   "reminders.empty": "Нагадувань поки немає — додайте, щоб не забути зважитися, пройти чек-ін, попити води чи щось інше.",
   "reminders.kind.weigh_in": "Зважування",
-  "reminders.kind.daily_checkin": "Щоденний чек-ін",
+  "reminders.kind.daily_checkin": "Ранковий чек-ін",
   "reminders.kind.checkin": "Щотижневий чек-ін",
   "reminders.kind.water": "Вода",
   "reminders.kind.photo": "Фото прогресу",

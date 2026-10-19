@@ -501,7 +501,7 @@
   "reminders.loading": "Caricamento…",
   "reminders.empty": "Ancora nessun promemoria — aggiungine uno per ricordarti di pesarti, fare il check-in, bere o qualsiasi altra cosa.",
   "reminders.kind.weigh_in": "Pesata",
-  "reminders.kind.daily_checkin": "Check-in giornaliero",
+  "reminders.kind.daily_checkin": "Check-in del mattino",
   "reminders.kind.checkin": "Check-in settimanale",
   "reminders.kind.water": "Acqua",
   "reminders.kind.photo": "Foto dei progressi",

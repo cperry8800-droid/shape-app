@@ -2,7 +2,8 @@
 // series (oldest→newest). +STEP_UP per active day, −STEP_DOWN per missed day
 // (a notch, not a reset), clamped 0..100. These constants are the SINGLE source
 // of truth for the recurrence — the SQL compute_momentum() mirrors them exactly,
-// so any change here must be made in supabase-migrations/2026-06-18-score-momentum.sql too.
+// so any change here must be made in the latest compute_momentum() too
+// (supabase-migrations/2026-10-19-momentum-morning-checkin.sql).
 export const STEP_UP = 7;
 export const STEP_DOWN = 12;
 export const BONUS_THRESHOLD = 80;

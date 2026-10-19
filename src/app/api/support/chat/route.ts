@@ -405,7 +405,7 @@ const MEMBER_TOOLS = [
     type: 'function',
     name: 'set_reminder',
     description:
-      "Set a recurring reminder for the member (weigh_in, daily_checkin for the daily check-in on Home, checkin for the weekly check-in, water, photo, or custom with a label). time is HH:MM 24h; days is 0=Sun…6=Sat (defaults to weekdays — say so). DRAFTS the reminder for them to confirm.",
+      "Set a recurring reminder for the member (weigh_in, daily_checkin for the Morning check-in on Home, checkin for the weekly check-in, water, photo, or custom with a label). time is HH:MM 24h; days is 0=Sun…6=Sat (defaults to weekdays — say so). DRAFTS the reminder for them to confirm.",
     parameters: {
       type: 'object',
       properties: {

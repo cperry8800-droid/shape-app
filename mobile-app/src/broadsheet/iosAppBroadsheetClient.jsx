@@ -54,12 +54,13 @@ import { bsCkModalSync, bsCkFocusOwner, bsCkGiveBack } from '../services/cookFoc
 import { bsDeriveCycle, bsCycleRead } from '../services/cyclePhase.mjs';
 import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
 import { bsProgramFits, bsProgramRowCount, bsSlotRepeats, BS_BUILDER_CAP } from '../services/trainingBuilder.mjs';
-import { BS_LEVER_HEADS } from '../services/dailyWire.mjs';
+import { BS_LEVER_HEADS, bsSleepLeadOk } from '../services/dailyWire.mjs';
 import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } from './bsNavShell.js';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { BSIntegrationsPage, BSReconcile } from './BSIntegrationsPage.jsx';
 import { BSLeaderboard } from './BSLeaderboard.jsx';
 import { BSCheckinCard } from './BSCheckinCard.jsx';
+import { BSWaterLine } from './BSWaterLine.jsx';
 import { BSCoachBusinessPage, BSCoachBusinessCard } from './BSCoachBusiness.jsx';
 import { BSNotifications } from './BSNotifications.jsx';
 import { BSNoraTalk, useNoraTalk, bsNoraVoiceFail } from './BSNoraTalk.jsx';
@@ -4800,7 +4801,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     // the day's next move feels like making a pledge you then keep (commitment &
     // consistency). The head stays the directive; the button is the promise.
     // A suppressed check-in lead leaves engineMove null exactly as a lever with no move
-    // (sleep) does, so the workout / meal / habit entries below take the lead.
+    // does (a coach's contact lever, or sleep without a real shortfall), so the workout / meal /
+    // habit entries below take the lead.
     const engineMove = engineFlag && !bsCheckinLeadSuppressed(engineFlag, checkinPrefOn) ? ({
       // head defaultValues read the SHARED BS_LEVER_HEADS (dailyWire.mjs) so the
       // Shape Daily telegram and this Home lead can never say a different move;
@@ -4816,10 +4818,11 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       energy:    { head: tr('home:lead.energy.head', { defaultValue: BS_LEVER_HEADS.energy }), cta: [tr('home:lead.energy.cta', { defaultValue: "I'll take it lighter →" }), () => setTodayPage(true)], c: t.BLUE },
       hunger:    { head: tr('home:lead.hunger.head', { defaultValue: BS_LEVER_HEADS.hunger }), cta: [tr('home:lead.hunger.cta', { defaultValue: "I'll eat properly →" }), () => goEat()], c: _teal },
       hydration: { head: tr('home:lead.hydration.head', { defaultValue: BS_LEVER_HEADS.hydration }), cta: [tr('home:lead.hydration.cta', { defaultValue: "I'll log water →" }), () => setTodayPage(true)], c: _teal },
-      // `sleep` deliberately omitted — logging last night's sleep is consolidated
-      // into the "Today · how are you" check-in page (opened from the nudge below;
-      // Sleep · last night row + recovery readiness), so it never spawns a
-      // separate directive box.
+      // Sleep leads only on the engine's own shortfall (sleep_low: under 6h a night on 3 or more
+      // nights), so the push and Home say the same move (owner, 2026-10-19). Never on the softer read
+      // that fires every morning before last night is in (bsSleepLeadOk): the morning check-in card
+      // already asks for the night. The button opens the check-in, whose summary says the week.
+      sleep: bsSleepLeadOk(engineFlag) ? { head: tr('home:lead.sleep.head', { defaultValue: BS_LEVER_HEADS.sleep }), cta: [tr('home:lead.sleep.cta', { defaultValue: "I'll get to bed earlier →" }), () => setCheckinOpenReq(Date.now())], c: t.BLUE } : null,
     }[engineFlag.lever]) : null;
     // THE CYCLE — the neutral note (spec 2026-07-19, Task 4). Deliberate
     // deviation: the plan allows this to LEAD ("MAY lead"), but leading is
@@ -5181,6 +5184,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           line is suppressed when its own lever is the lead; the wall bulletin
           yields to it. */}
       <BSTodayNudge onOpen={() => setTodayPage(true)} variant="bulletin" openRequest={checkinPrefSettled ? checkinOpenReq : null} onOpenRequestConsumed={() => setCheckinOpenReq(null)} />
+      {/* Water, all day and whatever the Check-ins setting: it left the morning check-in (owner, 2026-10-19). */}
+      <BSWaterLine />
       {checkinDue && checkinPrefOn && !(engineFlag && engineFlag.lever === 'checkin') && (
         <BSHomeBulletin label={tr('home:bulletin.weeklyCheckin', { defaultValue: 'Weekly check-in due' })} detail={tr('home:bulletin.weeklyCheckinDetail', { defaultValue: '2 min' })} onOpen={() => setCheckinPage(true)} />
       )}
@@ -26720,7 +26725,7 @@ const _NP_CAPS = [2, 3, 4, 6, 8];
 // hours (tz-aware) and a daily cap. Reads/writes the notification_settings /
 // notification_preferences tables — the SAME source /api/ai/notify(+cron) read.
 // The kinds a member can set, each labelled by settings:reminders.kind.<kind> (all 13 locales).
-const _REM_KINDS = [['weigh_in', 'Weigh-in'], ['daily_checkin', 'Daily check-in'], ['checkin', 'Weekly check-in'], ['water', 'Water'], ['photo', 'Progress photo'], ['custom', 'Custom']];
+const _REM_KINDS = [['weigh_in', 'Weigh-in'], ['daily_checkin', 'Morning check-in'], ['checkin', 'Weekly check-in'], ['water', 'Water'], ['photo', 'Progress photo'], ['custom', 'Custom']];
 const _REM_DOW = [0, 1, 2, 3, 4, 5, 6]; // Sun … Sat, as the reminders table stores them
 // Member-set reminders — standalone nudges (weigh-in / daily or weekly check-in / water / photo /
 // custom) the hourly cron fires. Lives in Settings → Notifications (clients only). Day names come

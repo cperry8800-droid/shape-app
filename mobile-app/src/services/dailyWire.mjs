@@ -41,8 +41,9 @@ export function bsAfterBeat({ allowed, hasLocale } = {}) {
 // ── The directive line — one computation, shared with Home ─────────────────
 // Lever → head words. Home's engineMove map reads these as its tr() defaults,
 // so the splash and the Home lead can never say a different move. Only the
-// levers Home leads with are here; any other lever (sleep, contact, unmapped)
-// omits the directive — exactly as Home's map does.
+// levers Home leads with are here; any other lever (contact, unmapped) omits
+// the directive — exactly as Home's map does. Sleep leads only on a real
+// shortfall (bsSleepLeadOk, below).
 export const BS_LEVER_HEADS = {
   checkin: 'Send your weekly check-in.',
   training: 'Keep the streak alive.',
@@ -54,7 +55,18 @@ export const BS_LEVER_HEADS = {
   energy: 'Take today lighter.',
   hunger: 'Eat a real meal today.',
   hydration: 'Drink more water today.',
+  // Sleep (owner, 2026-10-19): only on the engine's sleep_low flag, never its
+  // softer read (bsSleepLeadOk).
+  sleep: 'Get to bed earlier tonight.',
 };
+
+// The engine picks sleep two ways: the sleep_low flag (under 6h a night on 3 or
+// more nights), and a softer read that fires whenever last night is not logged
+// yet, which every member hits each morning before the morning check-in. Home
+// and the splash lead only on the flag; the night itself is the card's question.
+export function bsSleepLeadOk(dir) {
+  return !!dir && dir.lever === 'sleep' && Array.isArray(dir.cited) && dir.cited.includes('sleep_low');
+}
 
 // Turn the engine directive into the telegram's teal line, mirroring Home's
 // gate: a real action + a real lever (not 'none') + a real verdict (not '—'),
@@ -64,6 +76,7 @@ export function bsWireDirective(dir) {
   if (!dir.action || !dir.lever || dir.lever === 'none' || dir.verdict === '—') return null;
   const head = BS_LEVER_HEADS[dir.lever];
   if (!head) return null;
+  if (dir.lever === 'sleep' && !bsSleepLeadOk(dir)) return null;
   return { head: head, reason: dir.reason || null };
 }
 
