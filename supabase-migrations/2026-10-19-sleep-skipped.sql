@@ -3,8 +3,8 @@
 --
 --   daily_health_snapshot.sleep_skipped is true when the member tapped Skip on the night step that
 --   day. The Morning check-in reminder (src/app/api/cron/reminders/route.ts) counts a morning
---   answered once its energy is in AND the night is answered (hours or Rested), measured by a
---   watch, or skipped; until now a skip lived only on the device, so the reminder could not tell a
+--   answered once its energy is in AND the night is in: hours (typed or a watch's) or a skip, the
+--   card's own rule; until now a skip lived only on the device, so the reminder could not tell a
 --   skipped night from an unanswered one and read energy alone as done.
 --
 -- ⚠ NULL, NOT FALSE. A row says nothing about the night until the member skips it; nothing reads
