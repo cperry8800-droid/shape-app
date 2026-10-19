@@ -3,10 +3,12 @@
 // daily_health_snapshot row (unique on user_id + snapshot_date), so it merges
 // with any device-synced metrics for the day rather than overwriting them.
 //
-// POST { mood?, energy?, hunger?, stress?, soreness?, sleepHours?, sleepQuality?, date? }
-//   -> { ok, mood, energy, hunger, sleepHours, sleepFromDevice, sleepQuality }
+// POST { mood?, energy?, hunger?, stress?, soreness?, sleepHours?, sleepQuality?, sleepSkipped?, date? }
+//   -> { ok, mood, energy, hunger, sleepHours, sleepFromDevice, sleepQuality, sleepSkipped }
 // At least one field is required. `sleepHours` in the answer is the night that stands: a
 // watch's, when one wrote it (`sleepFromDevice`), else the member's.
+// `sleepSkipped: true` records that the member skipped the night in the Morning check-in, so the
+// reminder can tell a skipped night from an unanswered one (owner, 2026-10-19). Only `true` counts.
 // `date` is the client's local YYYY-MM-DD (buckets to the user's calendar day,
 // not UTC's); falls back to the server's UTC date.
 // Auth: cookie session OR Bearer token (mobile bridges either).
@@ -53,7 +55,8 @@ export async function POST(request: Request) {
   const soreness = clamp1to10((body as Record<string, unknown>).soreness);
   const sleepHours = sleepHoursOrNull((body as Record<string, unknown>).sleepHours);
   const sleepQuality = clamp1to10((body as Record<string, unknown>).sleepQuality);
-  if (mood == null && energy == null && hunger == null && stress == null && soreness == null && sleepHours == null && sleepQuality == null) {
+  const sleepSkipped = (body as Record<string, unknown>).sleepSkipped === true;
+  if (mood == null && energy == null && hunger == null && stress == null && soreness == null && sleepHours == null && sleepQuality == null && !sleepSkipped) {
     return NextResponse.json({ error: 'Nothing to log.' }, { status: 400 });
   }
 
@@ -75,6 +78,7 @@ export async function POST(request: Request) {
   if (stress != null) patch.stress = stress;
   if (soreness != null) patch.soreness = soreness;
   if (sleepQuality != null) patch.sleep_quality = sleepQuality;
+  if (sleepSkipped) patch.sleep_skipped = true;
 
   // ⚠ A WATCH'S NIGHT COMES FIRST (owner, 2026-10-18: "Use the data from smart device priority
   // of the member has one, if not manual entry"; "just use smart device data that matches what we
@@ -156,5 +160,5 @@ export async function POST(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, mood, energy, hunger, sleepHours: standingHours, sleepFromDevice, sleepQuality });
+  return NextResponse.json({ ok: true, mood, energy, hunger, sleepHours: standingHours, sleepFromDevice, sleepQuality, sleepSkipped });
 }

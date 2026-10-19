@@ -57,7 +57,8 @@ function content(kind: string, label: string): { type: string; title: string; bo
       return { type: 'reminder_checkin', title: l || 'Weekly check-in', body: 'Your check-in is ready when you are.', route: 'progress' };
     // The Morning check-in (owner, 2026-10-18: a Daily check-in reminder opens the card; renamed
     // 2026-10-19): a tap lands on Home with the walkthrough open at the first question not yet
-    // answered. It is not sent on a day whose morning is already answered (morningsAnswered).
+    // answered. It is not sent on a day whose morning is already answered: energy, and the night
+    // answered, measured or skipped (morningsAnswered).
     case 'daily_checkin':
       return { type: 'reminder_daily_checkin', title: l || 'Morning check-in', body: 'Two quick checks: last night and this morning.', route: 'today' };
     case 'water':
@@ -70,11 +71,21 @@ function content(kind: string, label: string): { type: string; title: string; bo
 }
 
 // The mornings answered among the due Morning check-in reminders, as `user|date` keys. A morning is
-// answered once its energy is in: the one morning answer every finished check-in has (the night can
-// be skipped, and a watch can fill it). snapshot_date is the member's local day, as is `date` here
-// (both the device's zone, saved with the reminder). One read per local date and 200 members, not
-// one per reminder, so a busy hour stays inside the route's time (Codex P2 on #2407). A read that
-// fails leaves its members unanswered: a reminder too many is cheaper than a check-in missed.
+// answered once its energy is in and its night is too: hours (typed or a watch's), a Rested
+// answer, or a skip (sleep_skipped, saved by the card's Skip). Energy saved alone, as the old "How
+// are you." page can, leaves the night open, so the reminder still goes (owner, 2026-10-19: "yes
+// fix"). snapshot_date is the member's local day, as is `date` here (both the device's zone, saved
+// with the reminder). One read per local date and 200 members, not one per reminder, so a busy hour
+// stays inside the route's time (Codex P2 on #2407). A read that fails leaves its members
+// unanswered: a reminder too many is cheaper than a check-in missed.
+// ⚠ UNTIL 2026-10-19-sleep-skipped.sql RUNS, the column is missing (42703 from Postgres, or
+// PostgREST's PGRST204): the read is made again without it, and energy alone answers the morning,
+// the rule before it.
+const noSkipColumn = (e: { code?: string; message?: string } | null) =>
+  !!e && (e.code === '42703' || e.code === 'PGRST204' || /sleep_skipped/.test(String(e.message || '')));
+type MorningRow = { user_id: string; sleep_hours?: number | null; sleep_quality?: number | null; sleep_skipped?: boolean | null };
+const nightDone = (r: MorningRow) => Number(r.sleep_hours) > 0 || r.sleep_quality != null || r.sleep_skipped === true;
+
 async function morningsAnswered(admin: ReturnType<typeof createAdminClient>, due: Array<{ userId: string; date: string }>): Promise<Set<string>> {
   const answered = new Set<string>();
   const byDate = new Map<string, string[]>();
@@ -86,14 +97,22 @@ async function morningsAnswered(admin: ReturnType<typeof createAdminClient>, due
   for (const [date, ids] of byDate) {
     for (let i = 0; i < ids.length; i += 200) {
       try {
-        const { data, error } = await admin
+        const read = (cols: string) => admin
           .from('daily_health_snapshot')
-          .select('user_id')
+          .select(cols)
           .in('user_id', ids.slice(i, i + 200))
           .eq('snapshot_date', date)
           .not('energy', 'is', null);
+        let { data, error } = await read('user_id, sleep_hours, sleep_quality, sleep_skipped');
+        let energyOnly = false;
+        if (noSkipColumn(error)) {
+          ({ data, error } = await read('user_id'));
+          energyOnly = true;
+        }
         if (error) continue;
-        for (const row of (data ?? []) as Array<{ user_id: string }>) answered.add(`${row.user_id}|${date}`);
+        for (const row of (data ?? []) as unknown as MorningRow[]) {
+          if (energyOnly || nightDone(row)) answered.add(`${row.user_id}|${date}`);
+        }
       } catch {
         // Sent anyway.
       }

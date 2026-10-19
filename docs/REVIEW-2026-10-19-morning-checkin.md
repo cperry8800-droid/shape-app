@@ -146,6 +146,12 @@ Fixed in part 1:
   and the push now keep one rule (§3.4).
 - Water showed progress against a 3 L default the member never set (the card and the old page).
 
+Fixed after part 1 (owner, 2026-10-19: "yes fix"):
+- The reminder read energy saved alone, as the old page can, as a finished morning. Skip now saves
+  `sleep_skipped` on the day's row, and a morning is answered once its energy is in and its night
+  is answered, measured or skipped. The Score page's Consistency counts a check-in day, as momentum
+  does.
+
 Still open:
 - Progress → Nutrition's "Hydration · 7 days" reads a field `/api/client/nutrition` never sends, so a
   signed-in member always sees "not tracked".
@@ -160,6 +166,3 @@ Still open:
   them.
 - The weekly readout's fallback says "sleep quality" for Rested.
 - Home's lead text and pushes quote "/10" figures for answers given as words.
-- The reminder counts a morning answered once its energy is in, because a skipped night is kept only
-  on the device. Energy saved alone on the old "How are you." page therefore skips that day's
-  reminder (Codex on #2407; the owner's call, until part 2 retires the page).
