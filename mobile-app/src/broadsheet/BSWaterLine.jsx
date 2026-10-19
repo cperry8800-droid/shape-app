@@ -22,8 +22,12 @@ import { bsCiEnqueue, bsCiSettled, bsCiIso, BS_CI_HYDRATION_SYNCED } from './BSC
 // and says so (BS_CI_HYDRATION_SYNCED); the line then reads the day again, and the first read
 // answering last would put the total from before the sync back on screen, Apple Health's share with
 // it. A read that fails supersedes nothing, so the other one still lands, and + Glass never stays
-// disabled behind it (review on this PR). The read after a sync waits for glasses on their way, as
-// the first read does, so it never answers with a total from before a glass that has since landed.
+// disabled behind it (review on this PR).
+// ⚠ A READ AFTER A SYNC TAKES ITS TOTAL ONLY WHEN NO GLASS MOVED AROUND IT. A glass still saving when
+// the read goes out may or may not be in the total the server reads; one tapped or answering while
+// the read is out may have landed after it. Then the read gives only Apple Health's share, and the
+// glasses' own answers (the server's running total, synced water included) carry the total. It
+// waits for glasses already on their way first, so that is the rare case (review on this PR, twice).
 //
 // ⚠ WINDOW GLOBALS ARE READ AT CALL TIME, NEVER AT MODULE TOP (see BSLeaderboard.jsx).
 
@@ -81,6 +85,8 @@ function BSWaterDay({ dayIso }) {
   // Litres added on screen whose save has not answered yet: the server's total plus these is what shows.
   const pending = useRef(0);
   const taps = useRef(0);    // glasses tapped, so a read sent before one never shows a total without it
+  const inFlight = useRef(0);  // glasses whose save has not answered yet
+  const landed = useRef(0);    // glass saves that answered, saved or failed
   const readSeq = useRef(0);   // reads sent
   const shownSeq = useRef(0);  // the newest read whose answer is on screen
   const sheetRef = useRef(null);
@@ -109,8 +115,14 @@ function BSWaterDay({ dayIso }) {
     const onSync = () => {
       if (!window.ShapeHydration?.get) return;
       let tapsAtSend = 0;
+      let landedAtSend = 0;
+      let outAtSend = 0;
       let seq = 0;
-      bsCiSettled('water').then(() => { tapsAtSend = taps.current; seq = ++readSeq.current; return window.ShapeHydration.get(); }).then((d) => {
+      bsCiSettled('water').then(() => {
+        tapsAtSend = taps.current; landedAtSend = landed.current; outAtSend = inFlight.current;
+        seq = ++readSeq.current;
+        return window.ShapeHydration.get();
+      }).then((d) => {
         // A failed read here changes nothing: the first read, answered or not, still stands.
         if (!alive.current || !d || !d.ok) return;
         if (seq < shownSeq.current) return;
@@ -118,9 +130,10 @@ function BSWaterDay({ dayIso }) {
         const deviceL = Number(d.deviceL) > 0 ? Number(d.deviceL) : null;
         // A glass tapped after this read went out answers with its own total, which this read
         // would replace with an older one once that glass is no longer on its way.
-        if (taps.current !== tapsAtSend) { setWater((w) => ({ ...(w || BS_WATER_UNKNOWN), deviceL })); return; }
-        // Glasses still on their way are added on top, as a glass's own answer does.
-        setWater({ ...fromRead(d), l: round((Number(d.hydrationL) || 0) + pending.current) });
+        // A glass that was out when the read left, or was tapped or answered while it was out, may be
+        // missing from its total: keep the screen's total and take only Apple Health's share.
+        if (outAtSend > 0 || taps.current !== tapsAtSend || landed.current !== landedAtSend) { setWater((w) => ({ ...(w || BS_WATER_UNKNOWN), deviceL })); return; }
+        setWater(fromRead(d));
       }).catch(() => {});
     };
     window.addEventListener(BS_CI_HYDRATION_SYNCED, onSync);
@@ -145,13 +158,16 @@ function BSWaterDay({ dayIso }) {
     if (!signedIn) return; // the preview counts locally and saves nothing
     if (!window.ShapeHydration?.add) { setWater((w) => ({ ...w, l: round(w.l - deltaL) })); setErr('water'); return; }
     pending.current += deltaL;
+    inFlight.current += 1;
     bsCiEnqueue('water', uid, () => window.ShapeHydration.add(deltaL)).then((d) => {
       pending.current -= deltaL;
+      inFlight.current -= 1; landed.current += 1;
       // The add answers with the running total and the member's own target, which a failed first
       // read left unknown (Codex P2 on #2398).
       if (alive.current && d && d.ok) setWater((w) => ({ ...w, l: round((Number(d.hydrationL) || 0) + pending.current), target: bsWaterTargetOf(d) ?? w.target, unknown: false }));
     }).catch(() => {
       pending.current -= deltaL;
+      inFlight.current -= 1; landed.current += 1;
       if (!alive.current) return;
       setWater((w) => ({ ...w, l: round(w.l - deltaL) }));
       setErr('water');

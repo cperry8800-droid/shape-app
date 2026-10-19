@@ -420,6 +420,43 @@ test('a sync read waits for a glass still saving, so the glass never drops off t
   } finally { m.unmount(); }
 });
 
+test('a glass tapped while the sync read waits, and answering before it, stays on the line (review on this PR)', async () => {
+  // Glass 1 is saving when the sync fires; glass 2 is tapped and queues behind it. Glass 1 lands, the
+  // read goes out with glass 2 still out, glass 2 answers first and the read, which the server made
+  // before glass 2 landed, answers last.
+  let server = 0.5;
+  const adds = [];
+  let readRelease;
+  let gets = 0;
+  env();
+  dom.window.ShapeHydration = {
+    get: async () => {
+      gets += 1;
+      if (gets === 1) return { ok: true, hydrationL: server, targetL: 3, targetStoredL: 3 };
+      const before = server;   // read before glass 2 commits
+      await new Promise((r) => { readRelease = r; });
+      return { ok: true, hydrationL: before, targetL: 3, targetStoredL: 3, deviceL: 0.2 };
+    },
+    add: (d) => new Promise((r) => { adds.push(() => { server = Math.round((server + d) * 10000) / 10000; r({ ok: true, hydrationL: server, targetStoredL: 3 }); }); }),
+  };
+  const m = await mount();
+  try {
+    await m.click(/\+ Glass/);            // glass 1, held
+    await m.sync();                         // the read waits for glass 1
+    await m.click(/\+ Glass/);            // glass 2, queued behind glass 1
+    await React.act(async () => { adds[0](); await new Promise((r) => setTimeout(r, 0)); });
+    await m.flush();
+    assert.equal(gets, 2, 'the read did not go out once glass 1 landed');
+    await React.act(async () => { adds[1](); await new Promise((r) => setTimeout(r, 0)); });   // glass 2 answers first
+    await m.flush();
+    assert.match(m.text(), /33 oz of 101 oz/);
+    await React.act(async () => { readRelease(); await new Promise((r) => setTimeout(r, 0)); });
+    await m.flush();
+    assert.match(m.text(), /33 oz of 101 oz/, 'the read made before glass 2 landed dropped it from the line');
+    assert.match(m.text(), /Includes 7 oz from Apple Health/, "the read's Apple Health share was dropped");
+  } finally { m.unmount(); }
+});
+
 test('a sync read that fails leaves the first read standing, and + Glass works (review on this PR)', async () => {
   let release;
   let gets = 0;

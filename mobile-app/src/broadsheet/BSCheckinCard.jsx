@@ -577,8 +577,9 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
   };
 
   const same = bsCiSamePatch(yesterday, today, sleepSkipped);
-  // The line says what the tap writes: never a skipped night's hours or Rested.
-  const sameLine = yesterday ? [word(E, yesterday.energy), !sleepSkipped && yesterday.sleep != null && !yesterday.device ? hm(yesterday.sleep) : null, sleepSkipped ? null : word(R, yesterday.rested)].filter(Boolean).join(' · ') : '';
+  // The line says exactly what the tap writes, built from the patch itself: never a skipped night's
+  // hours or Rested, nor an answer today already has (review on this PR).
+  const sameLine = same ? [same.energy != null ? word(E, same.energy) : null, same.sleepHours != null ? hm(same.sleepHours) : null, same.sleepQuality != null ? word(R, same.sleepQuality) : null].filter(Boolean).join(' · ') : '';
   const wornNight = bsCiWornNight(today);
   const sleepFromUsual = sleepH == null && !(today.sleep != null && !today.device);
   const sleepValue = sleepH != null ? sleepH : (sleepFromUsual ? usual : today.sleep);

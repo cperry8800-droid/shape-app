@@ -368,6 +368,17 @@ test('Same as yesterday on the card logs the morning in one tap, never the hunge
   } finally { m.unmount(); }
 });
 
+test('the Same as yesterday line names only what the tap writes (review on this PR)', async () => {
+  // The night and its Rested are in already; only energy is open.
+  const calls = env({ days: { [YDAY]: { energy: 7, sleep: 6.5, sleepQuality: 9 }, [TODAY]: { sleep: 7.5, sleepQuality: 4 } } });
+  const m = await mount();
+  try {
+    assert.match(m.text(), /Same as yesterday ✓Good(?! ·)/, 'the line offers a night and a Rested the tap will not write');
+    await m.click(/Same as yesterday/);
+    assert.deepEqual(calls.log, [{ energy: 7 }]);
+  } finally { m.unmount(); }
+});
+
 test('a day already checked in counts once in the streak', async () => {
   env({ days: { '2026-10-16': { energy: 6 }, [YDAY]: { energy: 8 }, [TODAY]: { energy: 8, sleep: 7 } } });
   const m = await mount();
