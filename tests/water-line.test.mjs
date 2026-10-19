@@ -214,7 +214,7 @@ test('two quick glasses save in order, and a failed one takes back only its own 
     assert.equal(adds.length, 2);
     assert.match(m.text(), /25 oz of 101 oz/, 'the failed glass took back more than itself, or nothing');
     assert.match(m.text(), /Could not log water/);
-  } finally { m.unmount(); }
+  } finally { failFirst?.(new Error('cleanup')); m.unmount(); }   // a held glass would hold the shared queue for later tests
 });
 
 test('a glass that saves keeps the ones still on their way, and a failed last one takes back only itself', async () => {
@@ -242,7 +242,7 @@ test('a glass that saves keeps the ones still on their way, and a failed last on
     await m.flush();
     await m.flush();
     assert.match(m.text(), /25 oz of 101 oz/, 'the failed glass took back more than itself');
-  } finally { m.unmount(); }
+  } finally { releaseFirst?.({ ok: true }); failSecond?.(new Error('cleanup')); m.unmount(); }
 });
 
 test('a failed water read still lets a glass be logged, and the first save brings the total and the target (Codex P2 on #2398)', async () => {
@@ -350,15 +350,16 @@ test('a glass tapped while the water is read again after a sync is never dropped
   // The server holds the synced water (1.2 L) when the read goes out; the glass is tapped and saved
   // while the read is out, and the read answers last with the total from before the glass.
   let server = 1.7;
-  let release;
+  const releases = [];
+  const release = () => releases.shift()?.();
   let gets = 0;
   env();
   dom.window.ShapeHydration = {
     get: async () => {
       gets += 1;
       if (gets === 1) return { ok: true, hydrationL: 0.5, targetL: 3, targetStoredL: 3 };
-      const total = server;
-      if (gets === 2) await new Promise((r) => { release = r; });
+      const total = server;   // what the server holds when this read is made
+      await new Promise((r) => { releases.push(r); });
       return { ok: true, hydrationL: total, targetL: 3, targetStoredL: 3, deviceL: 1.2 };
     },
     add: async (d) => { server = Math.round((server + d) * 10000) / 10000; return { ok: true, hydrationL: server, targetL: 3, targetStoredL: 3 }; },
@@ -370,13 +371,17 @@ test('a glass tapped while the water is read again after a sync is never dropped
     await m.click(/\+ Glass/);
     await React.act(async () => { release(); await new Promise((r) => setTimeout(r, 0)); });
     await m.flush();
+    // The read made before the glass is held back: the glass stays on the line, with no share yet,
+    // while the read sent again is still out.
+    assert.equal(gets, 3, 'the held-back read was not sent again');
     assert.doesNotMatch(m.text(), /57 oz of/, "the read sent before the glass replaced the glass's total");
     assert.match(m.text(), /65 oz of/, "the glass's own total was not shown");
-    // The held-back read is sent again, and that one brings Apple Health's share.
-    assert.equal(gets, 3, 'the held-back read was not sent again');
+    assert.doesNotMatch(m.text(), /from Apple Health/, "a held-back read said Apple Health's share");
+    await React.act(async () => { release(); await new Promise((r) => setTimeout(r, 0)); });
+    await m.flush();
     assert.match(m.text(), /65 oz of/);
     assert.match(m.text(), /Includes 41 oz from Apple Health/, "Apple Health's share never reached the line");
-  } finally { release?.(); m.unmount(); }
+  } finally { while (releases.length) release(); m.unmount(); }
 });
 
 test('a first water read that answers after the read the sync sent never puts the older total back (Codex on #2405)', async () => {

@@ -332,6 +332,9 @@ export function clientCandidates(input) {
     const cited = Array.isArray(directive.cited) ? directive.cited : [];
     if (!(checkinOptedOut && isCheckin) && !quietSleepMove(lever, cited)) {
       const line = nonEmpty(directive.line) ? directive.line : '';
+      // ⚠ THE LAST TWO FIELDS ARE READ BACK: isQuietSleepItem takes the cited list from the one
+      // before the week, counting from the end because a coach's verdict or label may hold a '|'.
+      // Keep `|${cited}|${week}` last.
       const sig = `${directive.verdict || ''}|${directive.action.label}|${(directive.cited || []).join(',')}`;
       out.push({ type: 'directive', key: 'self', sig: `${sig}|${wk}`, priority: 'high', ctx: { line, reason: directive.reason }, data: { move: moveKind, lever } });
     }

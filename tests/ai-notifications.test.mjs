@@ -961,3 +961,30 @@ test('a mild sleep move held in the digest is dropped; a real shortfall and a co
   assert.equal(alone.digest, null, 'an empty digest went out');
   assert.equal(alone.nextState.pendingDigest.length, 0);
 });
+
+// The round trip the purge depends on: a directive clientCandidates builds and queues at night is
+// read back by isQuietSleepItem the next morning. A real shortfall from the engine, and a coach's
+// sleep move whose verdict and label hold a '|', both reach the digest (review on #2407).
+test('a real shortfall and a coach sleep move queued overnight reach the digest; the purge holds a deferral', () => {
+  const prefs = { ...DEFAULT_PREFS, tz: TZ };
+  const short = buildDirective({ recovery: { sleepHours: { avg7: 5.4, lastNight: 5.4, n: 5, target: 7.5 } } }, NIGHT, 'client');
+  assert.equal(short.lever, 'sleep');
+  assert.ok(short.cited.includes('sleep_low'), "the engine's shortfall changed shape");
+  const coach = { verdict: 'Sleep | rest', action: { label: 'Bed by 10 | no screens', kind: 'recovery' }, lever: 'sleep', cited: ['coach override'], line: 'Bed by 10 tonight', reason: 'Your coach set sleep' };
+  const built = [...clientCandidates({ directive: short, flags: [], now: NIGHT }), ...clientCandidates({ directive: coach, flags: [], now: NIGHT })];
+  assert.equal(built.length, 2);
+  const night = decideNotifications({ candidates: built, last: { date: 'never' }, prefs, now: NIGHT, audience: 'client' });
+  assert.equal(night.nextState.pendingDigest.length, 2, 'both moves should be held through quiet hours');
+  const morning = decideNotifications({ candidates: [], last: night.nextState, prefs, now: new Date('2026-06-18T10:00:00Z'), audience: 'client' });
+  assert.ok(morning.digest, 'the held sleep moves were dropped');
+  assert.equal(morning.digest.data.items.length, 2, "a real shortfall or a coach's sleep move was read as the mild one");
+
+  // A queue the purge empties is not "already waiting": this call's own low-priority deferral waits
+  // for the next evaluation instead of going out at once.
+  const mild = { type: 'directive', title: 'Your move today', body: 'Lights out by 11', route: 'home', data: { move: 'recovery', lever: 'sleep' }, priority: 'high', channels: { push: true }, sig: 'Sleep is the lever|Lights out by 11|recovery.sleepHours|2026-W25', key: 'self', at: LIVE };
+  const streak = clientCandidates({ directive: null, flags: [{ key: 'streak_broken', habit: 'Walk', reason: 'missed 2 days' }], now: DAYTIME });
+  assert.equal(streak.length, 1);
+  const out = decideNotifications({ candidates: streak, last: { date: 'never', pendingDigest: [mild] }, prefs, now: DAYTIME, audience: 'client' });
+  assert.equal(out.digest, null, 'the purged queue fired this call\'s deferral at once');
+  assert.deepEqual(out.nextState.pendingDigest.map((i) => i.type), ['streak_broken']);
+});
