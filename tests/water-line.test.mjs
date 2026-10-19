@@ -454,6 +454,76 @@ test('a glass tapped while the sync read waits, and answering before it, stays o
     await m.flush();
     assert.match(m.text(), /33 oz of 101 oz/, 'the read made before glass 2 landed dropped it from the line');
     assert.match(m.text(), /Includes 7 oz from Apple Health/, "the read's Apple Health share was dropped");
+    // No glass is out now, so the line reads again at once, and that read, with both glasses, stands.
+    assert.equal(gets, 3, 'the held-back read was not sent again with no glass out (Codex P2 on #2407)');
+    await React.act(async () => { readRelease(); await new Promise((r) => setTimeout(r, 0)); });
+    await m.flush();
+    assert.match(m.text(), /33 oz of 101 oz/);
+    assert.equal(gets, 3, 'a read that stands read again');
+  } finally { m.unmount(); }
+});
+
+test('a glass the server saved before the sync, answering after the sync read, never hides the synced water (Codex P2 on #2407)', async () => {
+  // The glass commits on the server, then the watch sync writes Apple Health's water, and the glass's
+  // answer (its total from before the sync) is held past the read's 3 s wait. The sync read, made with
+  // the glass still out, keeps the screen's total; once the glass answers, the line reads again.
+  let server = 0.5;
+  let answer;
+  let gets = 0;
+  env();
+  dom.window.ShapeHydration = {
+    get: async () => { gets += 1; return { ok: true, hydrationL: server, targetL: 3, targetStoredL: 3, deviceL: gets > 1 ? 1.2 : null }; },
+    add: (d) => { server = Math.round((server + d) * 10000) / 10000; const total = server; return new Promise((r) => { answer = () => r({ ok: true, hydrationL: total, targetStoredL: 3 }); }); },
+  };
+  const m = await mount();
+  try {
+    await m.click(/\+ Glass/);
+    server = Math.round((server + 1.2) * 10000) / 10000;   // the sync's Apple Health water
+    await m.sync();
+    await React.act(async () => { await new Promise((r) => setTimeout(r, 3100)); });
+    await m.flush();
+    assert.equal(gets, 2, 'the sync read did not go out after its wait');
+    assert.match(m.text(), /25 oz of 101 oz/, 'the read made with the glass still out replaced the total');
+    // While the glass is still out, the line does not keep reading.
+    await React.act(async () => { await new Promise((r) => setTimeout(r, 3100)); });
+    assert.equal(gets, 2, 'the held-back read went out again with the glass still out');
+    await React.act(async () => { answer(); await new Promise((r) => setTimeout(r, 0)); });
+    await m.flush();
+    await m.flush();
+    assert.equal(gets, 3, 'the line did not read again once the glass answered');
+    assert.match(m.text(), /65 oz of 101 oz/, "the glass's older total hid the synced water");
+    assert.match(m.text(), /Includes 41 oz from Apple Health/);
+    // Nothing held back: no further read.
+    await m.click(/\+ Glass/);
+    await React.act(async () => { answer(); await new Promise((r) => setTimeout(r, 0)); });
+    await m.flush();
+    assert.equal(gets, 3, 'a glass with no sync held back read the water again');
+  } finally { m.unmount(); }
+});
+
+test('a glass that fails after the sync read was held back for it still reads the water again', async () => {
+  let server = 0.5;
+  let fail;
+  let gets = 0;
+  env();
+  dom.window.ShapeHydration = {
+    get: async () => { gets += 1; return { ok: true, hydrationL: server, targetL: 3, targetStoredL: 3, deviceL: gets > 1 ? 1.2 : null }; },
+    add: () => new Promise((_r, rej) => { fail = () => rej(new Error('offline')); }),
+  };
+  const m = await mount();
+  try {
+    await m.click(/\+ Glass/);
+    server = Math.round((server + 1.2) * 10000) / 10000;
+    await m.sync();
+    await React.act(async () => { await new Promise((r) => setTimeout(r, 3100)); });
+    await m.flush();
+    assert.equal(gets, 2);
+    await React.act(async () => { fail(); await new Promise((r) => setTimeout(r, 0)); });
+    await m.flush();
+    await m.flush();
+    assert.equal(gets, 3, 'a failed glass left the held-back read unsent');
+    assert.match(m.text(), /57 oz of 101 oz/, 'the synced water never reached the line');
+    assert.match(m.text(), /Could not log water/);
   } finally { m.unmount(); }
 });
 

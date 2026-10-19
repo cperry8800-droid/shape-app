@@ -19,8 +19,9 @@ const nextServer = createRequire(join(ROOT, 'package.json'))('next/server');
 
 // ── The reminder ───────────────────────────────────────────────────────────────
 
-// One hourly run at 08:00 UTC over `rows`, with `snapshots` as today's daily_health_snapshot rows
-// by member (an Error fails that read). Returns what was sent and which reminders were marked done.
+// One hourly run at 08:00 UTC over `rows`, with `snapshots` as the day's daily_health_snapshot rows
+// by member (an Error fails any read that asks for that member). Returns what was sent, which
+// reminders were marked done, and the snapshot reads with the members each one asked for.
 async function runReminders(rows, snapshots = {}) {
   const sent = [];
   const fired = [];
@@ -29,14 +30,21 @@ async function runReminders(rows, snapshots = {}) {
     from(table) {
       const q = {
         _eq: {},
+        _in: null,
         select() { return q; },
         eq(k, v) { q._eq[k] = v; return q; },
+        _not: [],
+        in(k, v) { q._eq[k] = 'in'; q._in = v; return q; },
+        not(k, op, v) { q._not.push([k, op, v]); return q; },
         limit: async () => ({ data: rows, error: null }),
-        maybeSingle: async () => {
-          reads.push({ table, ...q._eq });
-          const s = snapshots[q._eq.user_id];
-          if (s instanceof Error) return { data: null, error: { message: s.message } };
-          return { data: s || null, error: null };
+        // An awaited snapshot read: the asked members' rows that day, kept by each `.not(col, 'is', null)`.
+        then(resolve, reject) {
+          reads.push({ table, ids: q._in, ...q._eq, not: q._not.flat() });
+          const ids = q._in || [];
+          if (ids.some((id) => snapshots[id] instanceof Error)) return Promise.resolve({ data: null, error: { message: 'down' } }).then(resolve, reject);
+          const found = ids.filter((id) => snapshots[id]).map((id) => ({ user_id: id, ...snapshots[id] }))
+            .filter((row) => q._not.every(([k, op, v]) => op === 'is' && v === null && row[k] != null));
+          return Promise.resolve({ data: found, error: null }).then(resolve, reject);
         },
         update(patch) { return { eq: async (_k, id) => { fired.push({ id, ...patch }); return { error: null }; } }; },
       };
@@ -58,7 +66,7 @@ async function runReminders(rows, snapshots = {}) {
     return { body: await res.json(), sent, fired, reads };
   } finally { mock.timers.reset(); }
 }
-const reminder = (id, user, kind = 'daily_checkin') => ({ id, user_id: user, kind, label: '', at_time: '08:00', days: [0, 1, 2, 3, 4, 5, 6], tz: 'UTC', last_fired_on: null });
+const reminder = (id, user, kind = 'daily_checkin', tz = 'UTC', at = '08:00') => ({ id, user_id: user, kind, label: '', at_time: at, days: [0, 1, 2, 3, 4, 5, 6], tz, last_fired_on: null });
 
 test('the Morning check-in reminder says the two morning checks and opens the card', async () => {
   const { sent, fired } = await runReminders([reminder('r1', 'member-1')]);
@@ -72,15 +80,31 @@ test('the Morning check-in reminder says the two morning checks and opens the ca
 
 test('a morning already answered is not reminded, and the reminder is done for the day', async () => {
   const { sent, fired, reads } = await runReminders(
-    [reminder('r1', 'answered'), reminder('r2', 'night-only'), reminder('r3', 'read-fails'), reminder('r4', 'answered', 'weigh_in')],
-    { answered: { energy: 8 }, 'night-only': { energy: null }, 'read-fails': new Error('down') },
+    [reminder('r1', 'answered'), reminder('r2', 'night-only'), reminder('r3', 'read-fails', 'daily_checkin', 'Pacific/Pago_Pago', '21:00'),
+      reminder('r4', 'answered', 'weigh_in'), reminder('r5', 'answered', 'daily_checkin', 'UTC', '09:00'), reminder('r6', 'scale', 'weigh_in')],
+    { answered: { energy: 8, sleep_hours: 7 }, 'night-only': { energy: null, sleep_hours: 6, sleep_quality: 8 }, 'read-fails': new Error('down'), scale: { energy: 6 } },
   );
-  assert.deepEqual(sent.map((n) => n.data.reminderId), ['r2', 'r3', 'r4'],
+  assert.deepEqual(sent.map((n) => n.data.reminderId), ['r2', 'r3', 'r4', 'r6'],
     'a morning with its energy in was reminded, or one still open (or unreadable) was not, or another kind was held back');
-  assert.deepEqual(fired.map((f) => f.id), ['r1', 'r2', 'r3', 'r4'], 'an answered morning was asked again the next hour');
-  assert.deepEqual(reads.filter((r) => r.table === 'daily_health_snapshot').map((r) => [r.user_id, r.snapshot_date]),
-    [['answered', '2026-10-19'], ['night-only', '2026-10-19'], ['read-fails', '2026-10-19']],
-    "the answered check read another day, or ran for a reminder that is not the morning's");
+  assert.deepEqual(fired.map((f) => f.id), ['r1', 'r2', 'r3', 'r4', 'r6'], 'an answered morning was asked again the next hour, or one not due was touched');
+  assert.deepEqual(fired.find((f) => f.id === 'r3').last_fired_on, '2026-10-18', "a reminder was marked on a day not its own");
+  // One read per local day, for the morning reminders due this hour, on the energy column.
+  assert.deepEqual(reads.filter((r) => r.table === 'daily_health_snapshot').map((r) => [r.ids, r.user_id, r.snapshot_date, r.not]),
+    [[['answered', 'night-only'], 'in', '2026-10-19', ['energy', 'is', null]], [['read-fails'], 'in', '2026-10-18', ['energy', 'is', null]]],
+    "the answered check read another day or column, or ran for a reminder that is not the morning's or not due");
+});
+
+test('a busy hour reads the mornings 200 members at a time, and a failed read sends only its own (Codex P2 on #2407)', async () => {
+  const ids = Array.from({ length: 450 }, (_, i) => `m${i}`);
+  const snapshots = { m3: { energy: 6 }, m250: { energy: 4 }, m449: { energy: 10 }, m420: new Error('down'), m421: { energy: 6 } };
+  const { sent, fired, reads } = await runReminders([...ids.map((u, i) => reminder(`r${i}`, u)), reminder('dup', 'm3')], snapshots);
+  const snap = reads.filter((r) => r.table === 'daily_health_snapshot');
+  assert.deepEqual(snap.map((r) => r.ids.length), [200, 200, 50], 'the mornings were read one member at a time, or in reads too large');
+  assert.deepEqual(snap.flatMap((r) => r.ids), ids, 'a member was read twice or not at all');
+  const notSent = ids.filter((u, i) => !sent.some((n) => n.data.reminderId === `r${i}`));
+  assert.deepEqual(notSent, ['m3', 'm250'], 'an answered morning was reminded, or the failed read held back its members');
+  assert.equal(sent.some((n) => n.data.reminderId === 'dup'), false, "a member's second morning reminder ignored the answer");
+  assert.equal(fired.length, 451);
 });
 
 // ── Momentum (ruling 7) ─────────────────────────────────────────────────────────

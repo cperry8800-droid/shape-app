@@ -57,7 +57,7 @@ function content(kind: string, label: string): { type: string; title: string; bo
       return { type: 'reminder_checkin', title: l || 'Weekly check-in', body: 'Your check-in is ready when you are.', route: 'progress' };
     // The Morning check-in (owner, 2026-10-18: a Daily check-in reminder opens the card; renamed
     // 2026-10-19): a tap lands on Home with the walkthrough open at the first question not yet
-    // answered. It is not sent on a day whose morning is already answered (morningAnswered).
+    // answered. It is not sent on a day whose morning is already answered (morningsAnswered).
     case 'daily_checkin':
       return { type: 'reminder_daily_checkin', title: l || 'Morning check-in', body: 'Two quick checks: last night and this morning.', route: 'today' };
     case 'water':
@@ -69,23 +69,37 @@ function content(kind: string, label: string): { type: string; title: string; bo
   }
 }
 
-// The morning is answered once its energy is in: the one morning answer every finished check-in has
-// (the night can be skipped, and a watch can fill it). snapshot_date is the member's local day, as is
-// `date` here (both the device's zone, saved with the reminder). A read that fails sends anyway: a
-// reminder too many is cheaper than a check-in missed.
-async function morningAnswered(admin: ReturnType<typeof createAdminClient>, userId: string, date: string): Promise<boolean> {
-  try {
-    const { data, error } = await admin
-      .from('daily_health_snapshot')
-      .select('energy')
-      .eq('user_id', userId)
-      .eq('snapshot_date', date)
-      .maybeSingle();
-    if (error) return false;
-    return !!data && (data as { energy: number | null }).energy != null;
-  } catch {
-    return false;
+// The mornings answered among the due Morning check-in reminders, as `user|date` keys. A morning is
+// answered once its energy is in: the one morning answer every finished check-in has (the night can
+// be skipped, and a watch can fill it). snapshot_date is the member's local day, as is `date` here
+// (both the device's zone, saved with the reminder). One read per local date and 200 members, not
+// one per reminder, so a busy hour stays inside the route's time (Codex P2 on #2407). A read that
+// fails leaves its members unanswered: a reminder too many is cheaper than a check-in missed.
+async function morningsAnswered(admin: ReturnType<typeof createAdminClient>, due: Array<{ userId: string; date: string }>): Promise<Set<string>> {
+  const answered = new Set<string>();
+  const byDate = new Map<string, string[]>();
+  for (const d of due) {
+    const ids = byDate.get(d.date) || [];
+    if (!ids.includes(d.userId)) ids.push(d.userId);
+    byDate.set(d.date, ids);
   }
+  for (const [date, ids] of byDate) {
+    for (let i = 0; i < ids.length; i += 200) {
+      try {
+        const { data, error } = await admin
+          .from('daily_health_snapshot')
+          .select('user_id')
+          .in('user_id', ids.slice(i, i + 200))
+          .eq('snapshot_date', date)
+          .not('energy', 'is', null);
+        if (error) continue;
+        for (const row of (data ?? []) as Array<{ user_id: string }>) answered.add(`${row.user_id}|${date}`);
+      } catch {
+        // Sent anyway.
+      }
+    }
+  }
+  return answered;
 }
 
 type Reminder = {
@@ -112,14 +126,21 @@ async function handle(request: Request) {
     return NextResponse.json({ ok: true, fired: 0, skipped: true });
   }
 
+  // Due this hour: its local hour and weekday, and not yet fired today (local).
+  const due: Array<{ r: Reminder; date: string }> = [];
   for (const r of rows) {
+    const { hour, dow, date } = localNow(r.tz);
+    const targetHour = Number(String(r.at_time || '09:00').slice(0, 2));
+    if (hour !== targetHour) continue;
+    if (!Array.isArray(r.days) || !r.days.includes(dow)) continue;
+    if (r.last_fired_on === date) continue;
+    due.push({ r, date });
+  }
+  const answered = await morningsAnswered(admin, due.filter((d) => d.r.kind === 'daily_checkin').map((d) => ({ userId: d.r.user_id, date: d.date })));
+
+  for (const { r, date } of due) {
     try {
-      const { hour, dow, date } = localNow(r.tz);
-      const targetHour = Number(String(r.at_time || '09:00').slice(0, 2));
-      if (hour !== targetHour) continue;
-      if (!Array.isArray(r.days) || !r.days.includes(dow)) continue;
-      if (r.last_fired_on === date) continue; // already fired today (local)
-      if (r.kind === 'daily_checkin' && await morningAnswered(admin, r.user_id, date)) {
+      if (r.kind === 'daily_checkin' && answered.has(`${r.user_id}|${date}`)) {
         // Answered already: today is done for this reminder.
         await admin.from('user_scheduled_reminders').update({ last_fired_on: date }).eq('id', r.id);
         continue;

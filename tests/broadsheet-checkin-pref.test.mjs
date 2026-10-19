@@ -733,7 +733,7 @@ test('Home routes the reminder: the shell hands Home a nonce, Home clears its pa
   const cron = readFileSync(join(ROOT, 'src/app/api/cron/reminders/route.ts'), 'utf8');
   assert.match(cron, /case 'daily_checkin':\n\s+return \{ type: 'reminder_daily_checkin', title: l \|\| 'Morning check-in', body: 'Two quick checks: last night and this morning\.', route: 'today' \};/);
   // A morning already answered (its energy is in) is not reminded (owner, 2026-10-19).
-  assert.match(cron, /if \(r\.kind === 'daily_checkin' && await morningAnswered\(admin, r\.user_id, date\)\) \{/);
+  assert.match(cron, /if \(r\.kind === 'daily_checkin' && answered\.has\(`\$\{r\.user_id\}\|\$\{date\}`\)\) \{/);
   assert.match(readFileSync(join(ROOT, 'src/app/api/client/reminders/route.ts'), 'utf8'), /const KINDS = \[[^\]]*'daily_checkin'/);
   assert.match(src, /\['daily_checkin', 'Morning check-in'\]/);
   assert.match(readFileSync(join(ROOT, 'public/newdesign/clientMeSettings.jsx'), 'utf8'), /\["daily_checkin", "Morning check-in"\]/);

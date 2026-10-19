@@ -26,8 +26,9 @@ import { bsCiEnqueue, bsCiSettled, bsCiIso, BS_CI_HYDRATION_SYNCED } from './BSC
 // ⚠ A READ AFTER A SYNC TAKES ITS TOTAL ONLY WHEN NO GLASS MOVED AROUND IT. A glass still saving when
 // the read goes out may or may not be in the total the server reads; one tapped or answering while
 // the read is out may have landed after it. Then the read gives only Apple Health's share, and the
-// glasses' own answers (the server's running total, synced water included) carry the total. It
-// waits for glasses already on their way first, so that is the rare case (review on this PR, twice).
+// line reads again once no glass is on its way: a glass the server saved before the sync answers
+// with a total from before it (Codex P2 on #2407). It waits for glasses already on their way first,
+// so that is the rare case (review on this PR, twice).
 //
 // ⚠ WINDOW GLOBALS ARE READ AT CALL TIME, NEVER AT MODULE TOP (see BSLeaderboard.jsx).
 
@@ -89,6 +90,8 @@ function BSWaterDay({ dayIso }) {
   const landed = useRef(0);    // glass saves that answered, saved or failed
   const readSeq = useRef(0);   // reads sent
   const shownSeq = useRef(0);  // the newest read whose answer is on screen
+  const resync = useRef(false);  // a sync read kept the screen's total: read again once no glass is out
+  const syncRead = useRef(null); // that read, for a glass that lands to send again
   const sheetRef = useRef(null);
   const [, bump] = useState(0); // a re-render, for a tap that finds its day already over
   const round = (l) => Math.round(Math.max(0, l) * 1000) / 1000;
@@ -132,12 +135,17 @@ function BSWaterDay({ dayIso }) {
         // would replace with an older one once that glass is no longer on its way.
         // A glass that was out when the read left, or was tapped or answered while it was out, may be
         // missing from its total: keep the screen's total and take only Apple Health's share.
-        if (outAtSend > 0 || taps.current !== tapsAtSend || landed.current !== landedAtSend) { setWater((w) => ({ ...(w || BS_WATER_UNKNOWN), deviceL })); return; }
+        if (outAtSend > 0 || taps.current !== tapsAtSend || landed.current !== landedAtSend) {
+          setWater((w) => ({ ...(w || BS_WATER_UNKNOWN), deviceL }));
+          if (inFlight.current > 0) resync.current = true; else onSync();
+          return;
+        }
         setWater(fromRead(d));
       }).catch(() => {});
     };
+    syncRead.current = onSync;
     window.addEventListener(BS_CI_HYDRATION_SYNCED, onSync);
-    return () => window.removeEventListener(BS_CI_HYDRATION_SYNCED, onSync);
+    return () => { syncRead.current = null; window.removeEventListener(BS_CI_HYDRATION_SYNCED, onSync); };
   }, [signedIn]);
 
   useEffect(() => {
@@ -148,6 +156,12 @@ function BSWaterDay({ dayIso }) {
   if (bsCiIso(new Date()) !== dayIso) return null;
 
   const glassL = metric ? 0.25 : 0.2366;
+  // The last glass on its way has answered: a sync read held back for it goes out again.
+  const afterGlass = () => {
+    if (inFlight.current > 0 || !resync.current) return;
+    resync.current = false;
+    if (alive.current) syncRead.current?.();
+  };
   const addWater = () => {
     if (bsCiIso(new Date()) !== dayIso) { bump((n) => n + 1); return; }
     if (!water) return;
@@ -165,9 +179,11 @@ function BSWaterDay({ dayIso }) {
       // The add answers with the running total and the member's own target, which a failed first
       // read left unknown (Codex P2 on #2398).
       if (alive.current && d && d.ok) setWater((w) => ({ ...w, l: round((Number(d.hydrationL) || 0) + pending.current), target: bsWaterTargetOf(d) ?? w.target, unknown: false }));
+      afterGlass();
     }).catch(() => {
       pending.current -= deltaL;
       inFlight.current -= 1; landed.current += 1;
+      afterGlass();
       if (!alive.current) return;
       setWater((w) => ({ ...w, l: round(w.l - deltaL) }));
       setErr('water');
