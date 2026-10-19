@@ -282,9 +282,9 @@ test('the card is the door: Start walks last night then this morning, every tap 
     assert.match(m.text(), /Morning check-in/);
     assert.match(m.text(), /Two quick checks\./);
     assert.match(m.text(), /2 checks · 15 sec/);
-    assert.equal(m.walk(), null, 'the walkthrough opened by itself');
-    assert.equal(m.button(/Details/), undefined, 'the old Details door is still on the card');
-    assert.equal(m.button(/Glass/), undefined, 'water is still on the card');
+    assert.ok(!m.walk(), 'the walkthrough opened by itself');
+    assert.ok(!m.button(/Details/), 'the old Details door is still on the card');
+    assert.ok(!m.button(/Glass/), 'water is still on the card');
     await m.click(/Start check-in/);
     assert.match(m.text(), /Step 1 of 2 · Last night/);
     assert.match(m.text(), /How did you sleep\?/);
@@ -306,7 +306,7 @@ test('the card is the door: Start walks last night then this morning, every tap 
     assert.match(m.text(), /Ready for today's plan\./, "the summary did not say what today's answers mean");
     assert.match(m.text(), /2 more mornings and your week shows here\./);
     await m.click(/^Done$/);
-    assert.equal(m.walk(), null, 'Done left the walkthrough open');
+    assert.ok(!m.walk(), 'Done left the walkthrough open');
     assert.match(m.text(), /Checked in ✓/);
     assert.match(m.text(), /Sleep 7h · Rested · Energy Good/);
     assert.match(m.text(), /Ready for today's plan\./, "Home's done line does not say what the morning means");
@@ -354,7 +354,7 @@ test('Same as yesterday on the card logs the morning in one tap, never the hunge
     assert.match(m.text(), /Good · 6h 30 · Fresh/);
     await m.click(/Same as yesterday/);
     assert.deepEqual(calls.log, [{ energy: 7, sleepHours: 6.5, sleepQuality: 9 }]);
-    assert.equal(m.walk(), null);
+    assert.ok(!m.walk());
     assert.match(m.text(), /Checked in ✓/);
     assert.match(m.text(), /3 days running/);
   } finally { m.unmount(); }
@@ -380,7 +380,7 @@ test("a wearable's night is shown on step 1, never asked or typed over, and Same
     assert.match(m.text(), /Step 1 of 2 · Last night/);
     assert.match(m.text(), /From your watch/);
     assert.match(m.text(), /7h 12/);
-    assert.equal(m.button(/^Skip$/), undefined, 'a wearable night can be skipped');
+    assert.ok(!m.button(/^Skip$/), 'a wearable night can be skipped');
     await m.click(/^Next/);
     assert.deepEqual(calls.log, [], "Next wrote over the wearable's night");
     await m.click(/^Close$/);
@@ -568,10 +568,10 @@ test('a walkthrough open at midnight closes, and a tap after midnight saves noth
       // Before Home re-renders, a tap on the old day's sheet is not saved into the new day.
       await m.click(/^Good$/);
       assert.deepEqual(calls.log, [{ sleepHours: 7.5 }], 'a 00:01 tap on the 23:59 walkthrough was saved into the new day');
-      assert.equal(m.walk(), null, "the day before's walkthrough is still open");
+      assert.ok(!m.walk(), "the day before's walkthrough is still open");
       // Home's next render mounts the new day's card, with no walkthrough carried over.
       await m.rerender();
-      assert.equal(m.walk(), null);
+      assert.ok(!m.walk());
     } finally { m.unmount(); }
   } finally { mock.timers.setTime(at(12)); }
 });
@@ -681,7 +681,7 @@ test("Edit opens step 1 with the morning's answers, Back reaches every answer, a
     assert.deepEqual(calls.log[1], { sleepHours: 7.5, sleepQuality: 6 });
     assert.match(m.text(), /You're checked in ✓/);
     await m.click(/^Close$/);
-    assert.equal(m.walk(), null);
+    assert.ok(!m.walk());
   } finally { m.unmount(); }
 });
 
@@ -817,8 +817,8 @@ test('the evening question saves today\'s hunger in one tap, then leaves Home', 
       assert.match(m.text(), /Mostly normal this week\./, 'the evening step has no week under it');
       await m.click(/^Hungry$/);
       assert.deepEqual(calls.log, [{ hunger: 8 }]);
-      assert.equal(m.walk(), null, 'the evening question stayed open after its one answer');
-      assert.equal(document.querySelector('[data-bs-checkin-evening]'), null, 'Home still asks a question already answered');
+      assert.ok(!m.walk(), 'the evening question stayed open after its one answer');
+      assert.ok(!document.querySelector('[data-bs-checkin-evening]'), 'Home still asks a question already answered');
       assert.match(m.text(), /Energy Good · Hunger Hungry/);
       assert.match(m.text(), /Checked in ✓/);
     } finally { m.unmount(); }
@@ -843,12 +843,12 @@ test('in the evening the summary has a hunger row for a member with a nutritioni
   // A morning summary has no hunger row, and nor does a member without a nutritionist.
   env({ days: { [TODAY]: { energy: 8, sleep: 7 } }, plan: NUTRITIONIST });
   let m = await mount({ openRequest: 2 });
-  try { assert.equal(m.button(row('Hunger')), undefined, 'hunger was offered in the morning'); } finally { m.unmount(); }
+  try { assert.ok(!m.button(row('Hunger')), 'hunger was offered in the morning'); } finally { m.unmount(); }
   mock.timers.setTime(at(20));
   try {
     env({ days: { [TODAY]: { energy: 8, sleep: 7 } }, plan: TRAINER });
     m = await mount({ openRequest: 3 });
-    try { assert.equal(m.button(row('Hunger')), undefined, 'a trainer-only member was offered hunger'); } finally { m.unmount(); }
+    try { assert.ok(!m.button(row('Hunger')), 'a trainer-only member was offered hunger'); } finally { m.unmount(); }
   } finally { mock.timers.setTime(at(12)); }
 });
 
@@ -1008,7 +1008,7 @@ test("a watch's night that syncs when the card opens is shown, not asked", async
     assert.match(m.text(), /Sleep 6h 30/);
     await m.click(/^Edit$/);
     assert.match(m.text(), /From your watch/);
-    assert.equal(m.button(/^Skip$/), undefined, "the watch's night could be typed over");
+    assert.ok(!m.button(/^Skip$/), "the watch's night could be typed over");
   } finally { m.unmount(); delete dom.window.ShapeIntegrations; delete dom.window.ShapeMetrics; delete dom.window.ShapeSleepPoints; }
 });
 
@@ -1202,7 +1202,7 @@ test("the sheet owns its touches in the native app, and each step's question tak
     assert.match(document.activeElement.textContent, /How's your energy this morning\?/, 'focus fell to the page when the step changed');
     await React.act(async () => { m.walk().dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
     await m.flush();
-    assert.equal(m.walk(), null, 'Escape did not close the walkthrough');
+    assert.ok(!m.walk(), 'Escape did not close the walkthrough');
     assert.ok(document.activeElement === m.button(/Continue/), 'focus did not come back to the card');
   } finally { m.unmount(); }
 });
@@ -1319,7 +1319,7 @@ test('a reminder opens the walkthrough at the first morning question not yet ans
     assert.equal(used, 1, 'Home was not told the request is used, so a card mounted again opens it again');
     await m.click(/^Close$/);
     await m.rerender();
-    assert.equal(m.walk(), null, 'the walkthrough opened again on its own');
+    assert.ok(!m.walk(), 'the walkthrough opened again on its own');
     assert.equal(used, 1);
     // A second reminder tapped later is a new request, and opens it again.
     props.openRequest = 2;
@@ -1344,7 +1344,7 @@ test('a reminder before 4 a.m. still opens the walkthrough, and waits for the da
   let m;
   try {
     m = await mount({ openRequest: 3 });
-    assert.equal(m.walk(), null, 'the walkthrough opened before today was read');
+    assert.ok(!m.walk(), 'the walkthrough opened before today was read');
     await React.act(async () => { release(); await new Promise((r) => setTimeout(r, 0)); });
     await m.flush();
     assert.match(m.text(), /Step 1 of 2 · Last night/, 'the reminder did not open the walkthrough at night, at the first open question');
