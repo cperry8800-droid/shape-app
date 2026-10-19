@@ -1,5 +1,8 @@
 # The daily check-in: a lower-effort redesign (2026-10-18)
 
+> **Superseded** by [`REVIEW-2026-10-19-morning-checkin.md`](REVIEW-2026-10-19-morning-checkin.md),
+> which carries forward the rulings below that still stand. This file is the record of Phases 1-2.
+
 **Owner ask:** *"lets think of a way to redesign this page and process on app to make it easier
 to update each day and less effort for user each day. add to task list"* (on the app's
 "How are you." page: Energy, Hunger, Sleep · last night, Rested, Log today, Hydration).
