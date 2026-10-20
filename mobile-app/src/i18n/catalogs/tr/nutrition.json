@@ -355,7 +355,6 @@
   "kitchen.eyebrow": "Shape Kitchen",
   "kitchen.filters": "Filtreler",
   "kitchen.fromSource": "Kaynak: {name}",
-  "kitchen.menuSub": "Shape'in beslenme uzmanlarından ve diyetisyenlerinden, bir de kamuya açık kaynaklardan gelen tarifler — pişirme süresine göre gruplanmış. Tarifin tamamı için herhangi bir satıra dokun.",
   "kitchen.nRecipes": "{n, plural, one {# tarif} other {# tarif}}",
   "kitchen.publicDomainCredit": "Kamu malı tarifler USDA MyPlate Kitchen'dan gelir; her satırda ve her sayfada kaynağı belirtilir.",
   "kitchen.rdCarbs": "K",

@@ -497,11 +497,8 @@
   "grocery.itemsPlaceholder": "Un articolo per riga\nPetto di pollo\nRiso jasmine\nBroccoli",
   "grocery.kickerNutri": "Consegna nutrizione",
   "grocery.kickerTrainer": "Supporto pasti",
-  "grocery.leadEyebrow": "Le liste · {mode}",
   "grocery.listNamePlaceholder": "Nome della lista — es. Giorno pasto abbondante",
   "grocery.listsCount": "{count, plural, one {# lista} other {# liste}}",
-  "grocery.modeNutri": "consegna nutrizione",
-  "grocery.modeTrainer": "supporto pasti",
   "grocery.newList": "＋ Nuova lista della spesa",
   "grocery.personal": "Personale",
   "grocery.sendToClient": "Invia a {name} →",
@@ -1365,5 +1362,7 @@
   "business.weeks.head": "Netto al mese, ultime 13 settimane",
   "business.window": "negli ultimi 3 mesi",
   "offer.row": "Offerta mensile",
-  "offer.rowSub": "Cosa è incluso, mostrato nel tuo profilo sul marketplace"
+  "offer.rowSub": "Cosa è incluso, mostrato nel tuo profilo sul marketplace",
+  "grocery.loadFailed": "Impossibile caricare le tue liste.",
+  "grocery.clientsFailed": "Impossibile caricare i tuoi clienti."
 }

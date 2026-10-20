@@ -355,7 +355,6 @@
   "kitchen.eyebrow": "Shape Kitchen",
   "kitchen.filters": "Filtri",
   "kitchen.fromSource": "Da {name}",
-  "kitchen.menuSub": "Ricette dai nutrizionisti e dai dietisti di Shape, e di pubblico dominio, raggruppate per tempo di cottura. Tocca una riga qualsiasi per la ricetta completa.",
   "kitchen.nRecipes": "{n, plural, one {# ricetta} other {# ricette}}",
   "kitchen.publicDomainCredit": "Le ricette di pubblico dominio vengono da USDA MyPlate Kitchen, con la fonte indicata su ogni riga e su ogni pagina.",
   "kitchen.rdCarbs": "C",

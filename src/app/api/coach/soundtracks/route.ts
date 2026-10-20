@@ -2,7 +2,7 @@
 // and the website Playlists page. Owner-scoped via RLS (coach_soundtracks).
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson, dbError } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
@@ -86,9 +86,9 @@ async function resolveSpotify(url: string): Promise<{ name?: string; tracks?: nu
   } catch { return null; }
 }
 
-export async function GET() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+export async function GET(request: Request) {
+  const supabase = await clientForRequest(request);
+  const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   const { data, error } = await supabase
     .from('coach_soundtracks')
@@ -103,8 +103,8 @@ export async function POST(request: Request) {
   const bodyResult = await readJson<Record<string, unknown>>(request, { allowEmpty: true });
   if (!bodyResult.ok) return bodyResult.response;
   const body = bodyResult.data;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const supabase = await clientForRequest(request);
+  const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   const name = clean(body.name, 160);
   if (!name) return NextResponse.json({ error: 'Name is required.' }, { status: 400 });
@@ -133,8 +133,8 @@ export async function PATCH(request: Request) {
   const bodyResult = await readJson<Record<string, unknown>>(request, { allowEmpty: true });
   if (!bodyResult.ok) return bodyResult.response;
   const body = bodyResult.data;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const supabase = await clientForRequest(request);
+  const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   const id = clean(body.id, 64);
   if (!id) return NextResponse.json({ error: 'id is required.' }, { status: 400 });
@@ -163,8 +163,8 @@ export async function DELETE(request: Request) {
   const bodyResult = await readJson<Record<string, unknown>>(request, { allowEmpty: true });
   if (!bodyResult.ok) return bodyResult.response;
   const body = bodyResult.data;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const supabase = await clientForRequest(request);
+  const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   const id = clean(body.id, 64);
   if (!id) return NextResponse.json({ error: 'id is required.' }, { status: 400 });

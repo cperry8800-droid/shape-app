@@ -36,7 +36,7 @@
 // because the first is itself a disclosure about a choice they made.
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { ageFromDob } from '@/lib/age-derive.mjs';
 import { readJson } from '@/lib/request-utils';
@@ -62,8 +62,8 @@ export async function POST(request: Request) {
   // deduping — is work an anonymous caller could otherwise drive on every request.
   // `readJson` bounds the payload, so this is cheap rather than critical, but the
   // order now also matches /api/me/age-public, which calls getUser() first.
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const supabase = await clientForRequest(request);
+  const user = await currentUser(request);
   if (!user) return privateJson({ error: 'Authentication required.' }, { status: 401 });
 
   // The shared reader, not a local try/catch: it carries the proxy's size cap and

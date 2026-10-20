@@ -23,7 +23,8 @@
 // be strictly more power than the job needs.
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { isMinorFromDob } from '@/lib/age-derive.mjs';
 import { readJson } from '@/lib/request-utils';
 
@@ -32,7 +33,7 @@ export const dynamic = 'force-dynamic';
 
 type Profile = { date_of_birth: string | null; over_18: boolean | null };
 
-async function readProfile(supabase: Awaited<ReturnType<typeof createClient>>, uid: string) {
+async function readProfile(supabase: SupabaseClient, uid: string) {
   const { data, error } = await supabase
     .from('profiles')
     .select('date_of_birth, over_18')
@@ -57,9 +58,9 @@ const privateJson = (body: unknown, init?: { status?: number }) =>
   NextResponse.json(body, { ...(init || {}), headers: PRIVATE_HEADERS });
 
 // GET — does this member still owe us a birthdate?
-export async function GET() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+export async function GET(request: Request) {
+  const supabase = await clientForRequest(request);
+  const user = await currentUser(request);
   if (!user) return privateJson({ error: 'Authentication required.' }, { status: 401 });
 
   const { profile, error } = await readProfile(supabase, user.id);
@@ -83,8 +84,8 @@ export async function GET() {
 
 // POST — supply it, once.
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const supabase = await clientForRequest(request);
+  const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
   // The shared reader, not a local try/catch: it carries the proxy's size cap
