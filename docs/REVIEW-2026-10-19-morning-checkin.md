@@ -320,10 +320,11 @@ Found while mapping part 3, fixed in it:
 - Nora counted 0h nights in her week's sleep average.
 - Nora's screen chip went blank after a page that had set its own closed. `bsNoraOpen` now restores
   the one before.
+- `/api/ai/weekly-readout` read only the cookie, so the installed app got 401 and "The read" never
+  showed there. It now takes the app's token too (owner, 2026-10-20), so each app member who opens
+  Progress can spend that week's one model call.
 
 Found while mapping part 3, still open:
-- `/api/ai/weekly-readout` reads only the cookie, so the installed app gets 401 and "The read" never
-  shows there.
 - The Shape Daily splash shows members the engine's English energy and hunger reason in every
   locale.
 - The cycle card says "1.2 points" on the stored scale (ruling 11), in English.
