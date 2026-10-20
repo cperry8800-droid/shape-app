@@ -70,5 +70,20 @@
   "toast.setPrivate": "Gizli yapıldı",
   "toast.sharedFriends": "Arkadaşlarla paylaşıldı",
   "toast.updateError": "Alışkanlık güncellenemedi",
-  "page.loading": "Yükleniyor…"
+  "page.loading": "Yükleniyor…",
+  "share.title": "Atlarsan kim haber alır",
+  "share.sub": "Senin saatinle 20.00’de işaretlenmemişse, seçtiğin kişilere bildirim gider. Yalnızca alışkanlığın adını görürler.",
+  "share.loadFailed": "Kişilerin yüklenemedi.",
+  "share.notReady": "Alışkanlık paylaşımı henüz açılmadı.",
+  "share.signIn": "Bir alışkanlığı paylaşmak için giriş yap.",
+  "share.empty": "Bir alışkanlığı paylaşmak için birini takip et ya da bir takipçiyi kabul et.",
+  "share.retry": "Tekrar dene",
+  "share.save": "Kaydet",
+  "share.saveFailed": "Kaydedilemedi. Tekrar dene.",
+  "share.savedOn": "{count, plural, one {# kişiyle paylaşıldı} other {# kişiyle paylaşıldı}}",
+  "share.savedOff": "Paylaşılmadı",
+  "share.max": "En fazla 20 kişi seç.",
+  "share.aria": "Bu alışkanlığı paylaş",
+  "share.ariaShared": "{count, plural, one {# kişiyle paylaşıldı} other {# kişiyle paylaşıldı}}",
+  "share.notConnected": "Artık bağlı değilsiniz"
 }

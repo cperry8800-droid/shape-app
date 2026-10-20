@@ -70,5 +70,20 @@
   "toast.setPrivate": "Đã đặt riêng tư",
   "toast.sharedFriends": "Đã chia sẻ với bạn bè",
   "toast.updateError": "Không thể cập nhật thói quen",
-  "page.loading": "Đang tải…"
+  "page.loading": "Đang tải…",
+  "share.title": "Ai được báo nếu bạn bỏ lỡ",
+  "share.sub": "Lúc 20 giờ theo giờ của bạn, nếu chưa đánh dấu, những người bạn chọn sẽ nhận thông báo. Họ chỉ thấy tên thói quen.",
+  "share.loadFailed": "Không tải được danh sách người của bạn.",
+  "share.notReady": "Tính năng chia sẻ thói quen chưa được bật.",
+  "share.signIn": "Đăng nhập để chia sẻ thói quen.",
+  "share.empty": "Hãy theo dõi ai đó, hoặc chấp nhận người theo dõi, để chia sẻ thói quen với họ.",
+  "share.retry": "Thử lại",
+  "share.save": "Lưu",
+  "share.saveFailed": "Không thể lưu. Hãy thử lại.",
+  "share.savedOn": "{count, plural, one {Đã chia sẻ với # người} other {Đã chia sẻ với # người}}",
+  "share.savedOff": "Chưa chia sẻ",
+  "share.max": "Chọn tối đa 20 người.",
+  "share.aria": "Chia sẻ thói quen này",
+  "share.ariaShared": "{count, plural, one {Đã chia sẻ với # người} other {Đã chia sẻ với # người}}",
+  "share.notConnected": "Không còn kết nối"
 }

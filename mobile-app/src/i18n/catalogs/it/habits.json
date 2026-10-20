@@ -70,5 +70,20 @@
   "toast.setPrivate": "Reso privato",
   "toast.sharedFriends": "Condiviso con gli amici",
   "toast.updateError": "Impossibile aggiornare l’abitudine",
-  "page.loading": "Caricamento…"
+  "page.loading": "Caricamento…",
+  "share.title": "Chi lo sa se la salti",
+  "share.sub": "Alle 20 della tua ora, se non è spuntata, le persone che scegli ricevono una notifica. Vedono solo il nome dell’abitudine.",
+  "share.loadFailed": "Impossibile caricare i tuoi contatti.",
+  "share.notReady": "La condivisione delle abitudini non è ancora attiva.",
+  "share.signIn": "Accedi per condividere un’abitudine.",
+  "share.empty": "Segui qualcuno, o accetta un follower, per condividere un’abitudine con lui.",
+  "share.retry": "Riprova",
+  "share.save": "Salva",
+  "share.saveFailed": "Salvataggio non riuscito. Riprova.",
+  "share.savedOn": "{count, plural, one {Condivisa con # persona} other {Condivisa con # persone}}",
+  "share.savedOff": "Non condivisa",
+  "share.max": "Scegli al massimo 20 persone.",
+  "share.aria": "Condividi questa abitudine",
+  "share.ariaShared": "{count, plural, one {Condivisa con # persona} other {Condivisa con # persone}}",
+  "share.notConnected": "Non più collegati"
 }

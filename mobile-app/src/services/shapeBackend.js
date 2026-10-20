@@ -7270,6 +7270,48 @@ window.ShapeHabitsData = {
   listStrict: () => habitsRequest(), action: habitsRequest,
 };
 
+// Shared habits (owner, 2026-10-20): who is told when a habit isn't checked off by 8 pm the
+// member's time (/api/cron/habit-watch). The people come from habit_watch_candidates (an
+// accepted follow, either way round), and every write goes through set_habit_watchers, which
+// checks the habit and each person (supabase-migrations/2026-10-20-habit-watchers.sql). Each
+// call answers a state rather than folding a failure into "no one":
+// { kind: 'ready', … } | { kind: 'not_ready' } (the migration has not run) | 'anon' | 'error'.
+function habitWatchMissing(error) {
+  const code = String(error?.code || '');
+  if (['PGRST202', 'PGRST205', '42883', '42P01'].includes(code)) return true;
+  const msg = String(error?.message || '');
+  return /habit_watch|set_habit_watchers/.test(msg) && /could not find|does not exist/i.test(msg);
+}
+async function habitWatchCandidates() {
+  if (!supabase || !state.user?.id) return { kind: 'anon' };
+  try {
+    const { data, error } = await supabase.rpc('habit_watch_candidates');
+    if (error) return { kind: habitWatchMissing(error) ? 'not_ready' : 'error' };
+    return { kind: 'ready', people: (data || []).map((r) => ({ userId: r.user_id, name: r.full_name || 'Shape member' })) };
+  } catch (e) { return { kind: 'error' }; }
+}
+async function habitWatchList() {
+  const uid = state.user?.id;
+  if (!supabase || !uid) return { kind: 'anon' };
+  try {
+    const { data, error } = await supabase.from('habit_watchers').select('habit_id, watcher_id').eq('owner_id', uid);
+    if (error) return { kind: habitWatchMissing(error) ? 'not_ready' : 'error' };
+    if (state.user?.id !== uid) return { kind: 'error' };
+    const byHabit = {};
+    for (const r of data || []) (byHabit[r.habit_id] = byHabit[r.habit_id] || []).push(r.watcher_id);
+    return { kind: 'ready', byHabit };
+  } catch (e) { return { kind: 'error' }; }
+}
+async function habitWatchSet(habitId, userIds) {
+  if (!supabase || !state.user?.id) return { kind: 'anon' };
+  try {
+    const { data, error } = await supabase.rpc('set_habit_watchers', { p_habit: habitId, p_watchers: [...new Set(userIds || [])] });
+    if (error) return { kind: habitWatchMissing(error) ? 'not_ready' : 'error', message: error.message || '' };
+    return { kind: 'ready', watchers: Array.isArray(data) ? data : [] };
+  } catch (e) { return { kind: 'error' }; }
+}
+window.ShapeHabitWatch = { candidates: habitWatchCandidates, list: habitWatchList, set: habitWatchSet };
+
 // Shape Steps points: the RPC credits +1 per 5,000 steps (capped at +4/day) plus a
 // +3 goal-hit bonus, once per COMPLETED day, from the device-synced step count
 // (idempotent — same pattern as award_my_goal_milestones). Returns [{ day, points }]

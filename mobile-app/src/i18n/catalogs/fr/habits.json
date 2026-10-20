@@ -70,5 +70,20 @@
   "toast.setPrivate": "Rendu privé",
   "toast.sharedFriends": "Partagé avec les amis",
   "toast.updateError": "Impossible de mettre à jour l’habitude",
-  "page.loading": "Chargement…"
+  "page.loading": "Chargement…",
+  "share.title": "Qui est prévenu si vous le manquez",
+  "share.sub": "À 20 h chez vous, si elle n’est pas cochée, les personnes choisies reçoivent une notification. Elles ne voient que le nom de l’habitude.",
+  "share.loadFailed": "Impossible de charger vos contacts.",
+  "share.notReady": "Le partage des habitudes n’est pas encore activé.",
+  "share.signIn": "Connectez-vous pour partager une habitude.",
+  "share.empty": "Suivez quelqu’un, ou acceptez un abonné, pour partager une habitude avec lui.",
+  "share.retry": "Réessayer",
+  "share.save": "Enregistrer",
+  "share.saveFailed": "Enregistrement impossible. Réessayez.",
+  "share.savedOn": "{count, plural, one {Partagée avec # personne} other {Partagée avec # personnes}}",
+  "share.savedOff": "Non partagée",
+  "share.max": "Choisissez 20 personnes au maximum.",
+  "share.aria": "Partager cette habitude",
+  "share.ariaShared": "{count, plural, one {Partagée avec # personne} other {Partagée avec # personnes}}",
+  "share.notConnected": "Vous n’êtes plus connectés"
 }

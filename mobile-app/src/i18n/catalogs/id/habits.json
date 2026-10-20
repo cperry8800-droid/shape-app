@@ -70,5 +70,20 @@
   "toast.setPrivate": "Dijadikan privat",
   "toast.sharedFriends": "Dibagikan ke teman",
   "toast.updateError": "Tidak bisa memperbarui kebiasaan",
-  "page.loading": "Memuat…"
+  "page.loading": "Memuat…",
+  "share.title": "Siapa yang tahu kalau kamu melewatkannya",
+  "share.sub": "Pukul 20.00 waktumu, kalau belum dicentang, orang yang kamu pilih menerima notifikasi. Mereka hanya melihat nama kebiasaannya.",
+  "share.loadFailed": "Tidak bisa memuat orang-orangmu.",
+  "share.notReady": "Berbagi kebiasaan belum diaktifkan.",
+  "share.signIn": "Masuk untuk membagikan kebiasaan.",
+  "share.empty": "Ikuti seseorang, atau terima pengikut, untuk membagikan kebiasaan dengannya.",
+  "share.retry": "Coba lagi",
+  "share.save": "Simpan",
+  "share.saveFailed": "Tidak bisa menyimpan. Coba lagi.",
+  "share.savedOn": "{count, plural, one {Dibagikan ke # orang} other {Dibagikan ke # orang}}",
+  "share.savedOff": "Tidak dibagikan",
+  "share.max": "Pilih paling banyak 20 orang.",
+  "share.aria": "Bagikan kebiasaan ini",
+  "share.ariaShared": "{count, plural, one {Dibagikan ke # orang} other {Dibagikan ke # orang}}",
+  "share.notConnected": "Tidak lagi terhubung"
 }

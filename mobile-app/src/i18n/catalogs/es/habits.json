@@ -70,5 +70,20 @@
   "toast.setPrivate": "Ahora es privado",
   "toast.sharedFriends": "Compartido con amigos",
   "toast.updateError": "No se pudo actualizar el hábito",
-  "page.loading": "Cargando…"
+  "page.loading": "Cargando…",
+  "share.title": "Quién se entera si lo saltas",
+  "share.sub": "A las 8 p. m. de tu hora, si no lo has marcado, las personas que elijas reciben una notificación. Solo ven el nombre del hábito.",
+  "share.loadFailed": "No se pudieron cargar tus contactos.",
+  "share.notReady": "Compartir hábitos aún no está activado.",
+  "share.signIn": "Inicia sesión para compartir un hábito.",
+  "share.empty": "Sigue a alguien, o acepta a un seguidor, para compartir un hábito con esa persona.",
+  "share.retry": "Reintentar",
+  "share.save": "Guardar",
+  "share.saveFailed": "No se pudo guardar. Inténtalo de nuevo.",
+  "share.savedOn": "{count, plural, one {Compartido con # persona} other {Compartido con # personas}}",
+  "share.savedOff": "No compartido",
+  "share.max": "Elige 20 personas o menos.",
+  "share.aria": "Compartir este hábito",
+  "share.ariaShared": "{count, plural, one {Compartido con # persona} other {Compartido con # personas}}",
+  "share.notConnected": "Ya no estáis conectados"
 }
