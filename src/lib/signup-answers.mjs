@@ -8,8 +8,10 @@
 // metadata (an email sign-up has no session until the link is opened, so there is nowhere else
 // to keep them), and the first signed-in visit, on the website or in the app, writes them to the
 // records the app already reads (POST /api/me/onboarding):
-//   - client_goals.primaryGoal: the goal's token, as the app's own goal step writes it;
-//   - client_identity.goal: the goal's English label, the display mirror the profile card shows;
+//   - client_goals.primaryGoal: the goal's token, as the app's own goal step writes it, or the
+//     member's own words (owner, 2026-10-20: "Website sign-up too"), as the app keeps them;
+//   - client_identity.goal: the goal's English label (or those words), the display mirror the
+//     profile card shows;
 //   - client_training_prefs.experience and .sessions_per_week: the Settings tokens;
 //   - client_onboarding: whether they want personal coaching, and which, plus intentSeen, so the
 //     app does not ask the goal again.
@@ -40,6 +42,21 @@ export const SIGNUP_GOALS = [
   { id: 'postpartum', en: 'Postpartum' },
 ];
 
+// ⚠ A GOAL IN THE MEMBER'S OWN WORDS IS TIDIED AS THE APP TIDIES IT (bsPrimaryGoalFromText in
+// iosAppBroadsheetClient.jsx; tests/signup-answers.test.mjs holds the two equal). It arrives in
+// metadata the person wrote, so control characters are dropped, spaces collapsed, and it is cut
+// at SIGNUP_GOAL_MAX code points (an emoji is never cut in half). Typing one of the listed goals
+// ("lose fat") resolves to its token, so it reads as that goal in every language.
+export const SIGNUP_GOAL_MAX = 60;
+export function signupGoalFromText(text) {
+  if (typeof text !== 'string') return '';
+  const s = Array.from(text.replace(/\p{Cc}/gu, ' ').replace(/\s+/g, ' ').trim()).slice(0, SIGNUP_GOAL_MAX).join('').trim();
+  if (!s) return '';
+  const listed = SIGNUP_GOALS.find((g) => g.id === s) || SIGNUP_GOALS.find((g) => g.en.toLowerCase() === s.toLowerCase());
+  return listed ? listed.id : s;
+}
+const goalLabel = (goal) => (SIGNUP_GOALS.find((g) => g.id === goal) || { en: goal }).en;
+
 /** What kind of personal coaching a member wants. */
 export const COACHING_KINDS = ['training', 'nutrition'];
 
@@ -52,7 +69,7 @@ const oneOf = (value, allowed) => (typeof value === 'string' && allowed.includes
  */
 export function normalizeSignupAnswers(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-  const goal = oneOf(raw.goal, SIGNUP_GOALS.map((g) => g.id));
+  const goal = oneOf(raw.goal, SIGNUP_GOALS.map((g) => g.id)) || signupGoalFromText(raw.goalText) || null;
   const experience = oneOf(raw.experience, ids('experience'));
   const sessionsPerWeek = oneOf(raw.sessionsPerWeek, ids('sessions_per_week'));
   const wantsCoaching = typeof raw.wantsCoaching === 'boolean' ? raw.wantsCoaching : null;
@@ -84,7 +101,7 @@ export function planOnboardingSeed(answers, docs, nowIso) {
   };
   if (answers.goal) {
     fill('client_goals', { primaryGoal: answers.goal });
-    fill('client_identity', { goal: SIGNUP_GOALS.find((g) => g.id === answers.goal).en });
+    fill('client_identity', { goal: goalLabel(answers.goal) });
   }
   fill('client_training_prefs', { experience: answers.experience, sessions_per_week: answers.sessionsPerWeek });
   const next = { ...onboarding, seededAt: nowIso };

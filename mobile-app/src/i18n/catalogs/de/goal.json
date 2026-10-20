@@ -92,9 +92,13 @@
   "page.shareAria": "Sichtbarkeit für Coaches umschalten",
   "primary.titlePre": "Dein wichtigstes",
   "primary.titleAccent": "Ziel.",
-  "primary.hint": "Wähl eines · synchronisiert mit deinem Profil",
+  "primary.hint": "Wähl eines oder schreib dein eigenes · synchronisiert mit deinem Profil",
   "primary.toast": "Ziel gesetzt · {goal}",
   "primary.close": "Schließen",
+  "primary.custom": "Eigenes Ziel",
+  "primary.customPlaceholder": "z. B. Meine ersten 10 km laufen",
+  "primary.customSave": "Ziel setzen",
+  "primary.customLabel": "Dein Ziel, in deinen Worten",
   "award.toast": "+{points} Pkt. · {milestone}",
   "sheet.closeAria": "Schließen",
   "edit.eyebrowNew": "Neu · Vorgabe",
@@ -152,5 +156,8 @@
   "primary.goal.race": "Ein Rennen laufen",
   "primary.goal.postpartum": "Nach der Geburt",
   "cover.targetBy": "Vorgabe: {value} bis {date}",
-  "cover.target": "Vorgabe: {value}"
+  "cover.target": "Vorgabe: {value}",
+  "cover.wordsLead": "Deine Teilziele tragen dieses Ziel",
+  "cover.wordsSub": "„{goal}“ ist kein Gewichtsziel, darum gibt es keinen Gewichtsbalken. Leg ein Zielgewicht fest, um auch das zu verfolgen.",
+  "terms.wordsNone": "„{goal}“ ist kein Gewichtsziel, darum gibt es keine Gewichts-Meilensteine."
 }

@@ -92,9 +92,13 @@
   "page.shareAria": "Переключить видимость для тренеров",
   "primary.titlePre": "Ваша главная",
   "primary.titleAccent": "цель.",
-  "primary.hint": "Выберите одну · синхронизируется с профилем",
+  "primary.hint": "Выберите одну или напишите свою · синхронизируется с профилем",
   "primary.toast": "Цель задана · {goal}",
   "primary.close": "Закрыть",
+  "primary.custom": "Своя цель",
+  "primary.customPlaceholder": "напр. Пробежать первые 10 км",
+  "primary.customSave": "Задать цель",
+  "primary.customLabel": "Ваша цель своими словами",
   "award.toast": "+{points} очк. · {milestone}",
   "sheet.closeAria": "Закрыть",
   "edit.eyebrowNew": "Новая · Задача",
@@ -152,5 +156,8 @@
   "primary.goal.race": "Пробежать забег",
   "primary.goal.postpartum": "После родов",
   "cover.targetBy": "Задача: {value}, срок: {date}",
-  "cover.target": "Задача: {value}"
+  "cover.target": "Задача: {value}",
+  "cover.wordsLead": "Эту цель несут ваши задачи",
+  "cover.wordsSub": "«{goal}» — не цель по весу, поэтому шкалы веса нет. Добавьте целевой вес, чтобы следить и за ним.",
+  "terms.wordsNone": "«{goal}» — не цель по весу, поэтому вех по весу нет."
 }

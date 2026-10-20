@@ -92,9 +92,13 @@
   "page.shareAria": "Bật hoặc tắt hiển thị cho huấn luyện viên",
   "primary.titlePre": "Mục tiêu chính",
   "primary.titleAccent": "của bạn.",
-  "primary.hint": "Chọn một · đồng bộ với hồ sơ",
+  "primary.hint": "Chọn một hoặc tự viết · đồng bộ với hồ sơ",
   "primary.toast": "Đã đặt mục tiêu · {goal}",
   "primary.close": "Đóng",
+  "primary.custom": "Mục tiêu của riêng bạn",
+  "primary.customPlaceholder": "vd: Chạy 10 km đầu tiên",
+  "primary.customSave": "Đặt mục tiêu",
+  "primary.customLabel": "Mục tiêu của bạn, theo lời bạn",
   "award.toast": "+{points} điểm · {milestone}",
   "sheet.closeAria": "Đóng",
   "edit.eyebrowNew": "Mới · Chỉ tiêu",
@@ -152,5 +156,8 @@
   "primary.goal.race": "Chạy một giải",
   "primary.goal.postpartum": "Sau sinh",
   "cover.targetBy": "Chỉ tiêu {value} trước {date}",
-  "cover.target": "Chỉ tiêu {value}"
+  "cover.target": "Chỉ tiêu {value}",
+  "cover.wordsLead": "Các chỉ tiêu bên dưới gánh mục tiêu này",
+  "cover.wordsSub": "“{goal}” không phải mục tiêu cân nặng nên không có thanh cân nặng. Thêm cân nặng mục tiêu để theo dõi cả nó.",
+  "terms.wordsNone": "“{goal}” không phải mục tiêu cân nặng nên không có cột mốc cân nặng."
 }
