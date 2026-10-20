@@ -476,7 +476,13 @@ function pruneStamps(types, now) {
   return out;
 }
 
-export function decideNotifications({ candidates = [], last = {}, prefs = {}, now = new Date(), audience = 'client', checkinOptedOut = false }) {
+// ⚠ THE DAILY CAP IS THE PERSON'S ONE LIMIT, NOT THIS ENGINE'S (owner, 2026-10-20: separate PR
+// after #2413). `sentToday` counts only what this engine sent, so a day of coach messages or
+// friends' habit pushes never held back its own. `pushedToday` is every notice stamped as pushed
+// on the person's date today (loadPushedToday, notify-core.ts), this engine's included; the cap
+// reads the larger of the two, so nothing is counted twice. Null (the read failed) keeps the
+// engine's own count, as before.
+export function decideNotifications({ candidates = [], last = {}, prefs = {}, now = new Date(), audience = 'client', checkinOptedOut = false, pushedToday = null }) {
   const P = { ...DEFAULT_PREFS, ...prefs, matrix: { ...(prefs.matrix || {}) } };
   const today = ymd(now, P.tz);
   const state = {
@@ -526,6 +532,7 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
   const hadPending = state.pendingDigest.length > 0;
   const send = [];
   const suppressed = [];
+  let usedToday = Math.max(state.sentToday, Number.isFinite(pushedToday) ? pushedToday : 0);
 
   // newest-relevant first
   const ranked = candidates.slice().sort((a, b) => (PRIORITY_RANK[b.priority] || 0) - (PRIORITY_RANK[a.priority] || 0));
@@ -556,7 +563,7 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
 
     const item = { type: c.type, title: c.title, body: c.body, route: c.route, data: c.data || {}, priority: c.priority, channels: ch };
 
-    const overCap = state.sentToday >= (P.maxPerDay || DEFAULT_PREFS.maxPerDay);
+    const overCap = usedToday >= (P.maxPerDay || DEFAULT_PREFS.maxPerDay);
     const lowPri = c.priority === 'low';
     // quiet hours OR over the daily cap OR low-priority → roll into the digest.
     if (quiet || overCap || lowPri) {
@@ -570,6 +577,7 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
 
     send.push(item);
     state.sentToday += 1;
+    usedToday += 1;
     rememberSig(state.types, sigKey, c.sig, now);
     if (audience === 'coach' && c._severity) state.coachClients[c.key] = c._severity;
   }

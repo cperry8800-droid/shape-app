@@ -23,7 +23,7 @@ export const Notify = NotifyLayer as unknown as {
   clientCandidates: (input: Record<string, unknown>) => Candidate[];
   coachCandidates: (input: Record<string, unknown>) => Candidate[];
   habitReminderCandidates: (input: Record<string, unknown>) => Candidate[];
-  decideNotifications: (input: { candidates: Candidate[]; last: Record<string, unknown>; prefs: Record<string, unknown>; now: Date; audience: string; checkinOptedOut?: boolean }) => DecideResult;
+  decideNotifications: (input: { candidates: Candidate[]; last: Record<string, unknown>; prefs: Record<string, unknown>; now: Date; audience: string; checkinOptedOut?: boolean; pushedToday?: number | null }) => DecideResult;
   DEFAULT_PREFS: Record<string, unknown>;
   dailyCheckinOn: (v: unknown) => boolean;
 };
@@ -59,6 +59,27 @@ export async function loadPrefs(client: SupabaseClient, userId: string): Promise
     tone: (voice as { tone?: string }).tone === 'direct' ? 'direct' : 'supportive',
     matrix,
   };
+}
+
+// How many notices pushed to the person on their own date today, from any sender: every
+// preference-aware send and this engine's deliver() stamp data.channels, and the cap is the
+// person's one daily limit (decideNotifications' pushedToday). The cap is at most
+// PUSH_SCAN_LIMIT's handful, so the newest rows answer it; a row written without the stamp
+// (createNotification) can't say whether it pushed and isn't counted. Null when the read fails:
+// the engine then counts only its own sends, as it always did.
+const PUSH_SCAN_LIMIT = 50;
+export async function loadPushedToday(client: SupabaseClient, userId: string, now: Date, tz: string): Promise<number | null> {
+  const today = ymdInTz(now, tz);
+  const since = new Date(now.getTime() - 30 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await client.from('notifications').select('created_at, data')
+    .eq('user_id', userId).gte('created_at', since).order('created_at', { ascending: false }).limit(PUSH_SCAN_LIMIT);
+  if (error) { console.warn('[shape-ai] could not read the day\'s pushes; counting this engine\'s own', error.message); return null; }
+  let n = 0;
+  for (const r of (data || []) as { created_at?: string; data?: { channels?: { push?: unknown } } | null }[]) {
+    const at = Date.parse(String(r.created_at || ''));
+    if (r.data?.channels?.push === true && Number.isFinite(at) && ymdInTz(new Date(at), tz) === today) n += 1;
+  }
+  return n;
 }
 
 // A client's enabled habit reminders + the habits already done today (in their
