@@ -25122,11 +25122,29 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
 // closes. The server keeps an id only after checking it against the account, so a screen
 // can narrow what Nora is told, never widen it. `label` is the screen's name in the
 // member's language, for the sheet's chip; `page` is the English one Nora is told.
+// ⚠ CLOSING A SCREEN GIVES BACK WHAT WAS THERE (Morning check-in part 3, §3.9). A page opened over a
+// tab (Your mornings over Home) sets `page`, and its close used to delete it, so Home's chip was gone
+// until the tab changed. Each key keeps a stack of what the open screens set: a close takes its own
+// entry out, whatever order screens close in, and the key reads the newest entry left, or is absent.
 const _bsNoraOpen = {};
+const _bsNoraOpenStack = {};
 function bsNoraOpen(patch) {
-  const set = {};
-  Object.keys(patch || {}).forEach((k) => { if (patch[k] != null) { _bsNoraOpen[k] = patch[k]; set[k] = patch[k]; } });
-  return () => { Object.keys(set).forEach((k) => { if (_bsNoraOpen[k] === set[k]) delete _bsNoraOpen[k]; }); };
+  const token = {};
+  const set = [];
+  Object.keys(patch || {}).forEach((k) => {
+    if (patch[k] == null) return;
+    (_bsNoraOpenStack[k] = _bsNoraOpenStack[k] || []).push({ token, value: patch[k] });
+    _bsNoraOpen[k] = patch[k];
+    set.push(k);
+  });
+  return () => {
+    set.forEach((k) => {
+      const stack = (_bsNoraOpenStack[k] || []).filter((e) => e.token !== token);
+      _bsNoraOpenStack[k] = stack;
+      if (stack.length) _bsNoraOpen[k] = stack[stack.length - 1].value;
+      else delete _bsNoraOpen[k];
+    });
+  };
 }
 const BS_NORA_PAGES = { home: 'Home', train: 'Train', eat: 'Eat', chat: 'Chat', me: 'Me', today: 'Today', clients: 'Clients', plans: 'Plans', programs: 'Plans' };
 function bsNoraPage(tab) { return BS_NORA_PAGES[tab] || String(tab || '').replace(/[-_]+/g, ' ').replace(/^\w/, (c) => c.toUpperCase()); }

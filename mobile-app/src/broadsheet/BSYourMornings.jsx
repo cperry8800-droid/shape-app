@@ -1,14 +1,18 @@
 import React from 'react';
-import { bsCiIso, bsCiShift, bsCiDay, bsCiWindow, bsCiWordIndex, bsCiMostly, bsCiHM, bsCiShortNight, bsCiUsualNight, bsCiWornNight, bsCiCoachingOf, bsCiWhoSees, bsCiSettled, bsCiLanded, bsCiWords, bsCiBandWords, bsCiTodayRead, bsCiTodayReadText, BS_CI_HYDRATION_SYNCED } from './BSCheckinCard.jsx';
+import { bsCiIso, bsCiShift, bsCiDay, bsCiWindow, bsCiWordIndex, bsCiMostly, bsCiHM, bsCiShortNight, bsCiUsualNight, bsCiWornNight, bsCiCoachingOf, bsCiWhoSees, bsCiSettled, bsCiLanded, bsCiWords, bsCiBandWords, bsCiTodayRead, bsCiTodayReadText, BS_CI_HYDRATION_SYNCED, BS_CI_SHORT_NIGHT_H } from './BSCheckinCard.jsx';
 import { morningReadinessForDay } from '../services/morningReadiness.mjs';
+import { morningPatternsFor } from '../services/morningPatterns.mjs';
 // ─── YOUR MORNINGS: THE MORNING CHECK-IN OVER TIME ───────────────────────────────────────────────
-// docs/REVIEW-2026-10-19-morning-checkin.md §3.5 and §3.8 (part 2). One read-only page, from the same
-// /api/client/progress read the morning card makes, so a page opened from the card costs no request.
+// docs/REVIEW-2026-10-19-morning-checkin.md §3.5 and §3.8 (part 2), §3.6 (part 3). One read-only page,
+// from the same /api/client/progress read the morning card makes, so a page opened from the card costs
+// no request.
 //
 //   Readiness today (morningReadiness.mjs: the number Home's done line shows), with today's read and
-//   what it was built from · the cycle chip, inside its expected window only · 7 days | 30 days · the
-//   window's readiness · Sleep, Energy, How you woke up, and Hunger between meals with a nutritionist ·
-//   last night from a watch, or a Connect door · Who sees this
+//   what it was built from · the cycle chip, inside its expected window only · What we've noticed ·
+//   7 days | 30 days · the window's readiness · Sleep, Energy, How you woke up, and Hunger between
+//   meals with a nutritionist · last night from a watch, or a Connect door · Who sees this
+//
+// Nora is told the page (bsNoraOpen), and "Ask Nora about your mornings" closes What we've noticed.
 //
 // Doors: Home's done line and the walkthrough summary ("Your mornings →"), the energy lead, Progress
 // (BSMorningsDoor, where its Energy, Hunger and Rested tabs were), and with Check-ins off the quiet
@@ -36,6 +40,16 @@ import { morningReadinessForDay } from '../services/morningReadiness.mjs';
 //
 // ⚠ THE WATCH'S TILES ARE LAST NIGHT'S OR NOTHING. A reading shows only when it is dated today; the
 // progress route's newest-however-old kpis (§7) are never read here.
+//
+// ⚠ WHAT WE'VE NOTICED IS THE MEMBER'S OWN READ, COUNTED BY morningPatterns.mjs (§3.6, rulings 15 and
+// 16): the module Nora's read of the mornings runs too, so the page and Nora say one thing. Plain
+// counts said with "after", never a share, an average or readiness. Its window is its own (the 60 days
+// ending today, from 2026-10-19), so it sits above 7 days | 30 days, which never moves it. It is never
+// drawn for the example (a pattern in made-up mornings is a made-up finding), a failed read or another
+// account's; with Check-ins off, nothing will come to fill it, so only a pattern that holds is drawn.
+//
+// ⚠ WHO SEES THIS SAYS COACHES SEE THE ANSWERS (ruling 18): the nutritionist's day review shows each
+// day's, so "7-day averages" undersold it. What we've noticed and readiness are only the member's.
 //
 // ⚠ A READ BELONGS TO THE ACCOUNT THAT MADE IT. One that lands after the account changed is dropped,
 // and what is drawn is keyed to the uid it was read for. Signed out, the page shows example mornings
@@ -209,7 +223,7 @@ function bsMorningsFit(text, base) {
 // expected window, and only here, never on Home. `checkinsOn` is the member's Check-ins setting: off,
 // the history still shows, and the page says nothing new is asked.
 export function BSYourMornings({ onBack, cycleChip = null, checkinsOn = true }) {
-  const { useBS, BSPage, BSDetailHeader } = window;
+  const { useBS, BSPage, BSDetailHeader, BSAskNoraLink } = window;
   const t = useBS();
   const tr = useShapeTr();
   useMorningsScrollTop();
@@ -277,11 +291,26 @@ export function BSYourMornings({ onBack, cycleChip = null, checkinsOn = true }) 
     return () => { on = false; };
   }, [uid]);
 
+  // Nora is told this screen, and her sheet's chip names it in the member's language. Back gives the
+  // chip back to the screen underneath: bsNoraOpen keeps what each open screen set (Home's 'Home').
+  const noraLabel = tr('home:mornings.link', { defaultValue: 'Your mornings' });
+  useEffect(() => {
+    const off = window.bsNoraOpen?.({ page: 'Your mornings', label: noraLabel });
+    return typeof off === 'function' ? off : undefined;
+  }, [noraLabel]);
+
   const sample = useMemo(() => (uid ? null : bsMorningsSample(todayIso)), [uid, todayIso]);
   const mine = uid && read && read.uid === uid ? read : null;
   const series = uid ? (mine ? mine.series : null) : sample;
   const failed = !!mine && !mine.series;
   const coaching = uid && plan && plan.uid === uid ? plan.coaching : { trainer: null, nutritionist: null };
+  // A coach of either role, for today's read and a pattern's follow-up: "tell your coach".
+  const coached = coaching.trainer === true || coaching.nutritionist === true;
+
+  // What we've noticed, over its own 60 days, so the range switch never moves it. Only the member's own
+  // read that landed: never the example, a failed read, or a read another account made (`mine`).
+  const own = mine && mine.series ? mine.series : null;
+  const patterns = useMemo(() => (own ? morningPatternsFor(own, todayIso) : null), [own, todayIso]);
 
   // The window and the one before it. Each day carries its usual night (bsCiUsualNight, the 14 nights
   // before it), for its short night and its readiness, which is the number Home showed that morning.
@@ -458,7 +487,7 @@ export function BSYourMornings({ onBack, cycleChip = null, checkinsOn = true }) 
     const r = model.ready[model.ready.length - 1];
     const d = model.cur[model.cur.length - 1];
     const color = r ? BAND_COLOR[r.band] : t.INK50;
-    const readText = r ? bsCiTodayReadText(tr, bsCiTodayRead(d, d.usual), coaching.trainer === true || coaching.nutritionist === true) : null;
+    const readText = r ? bsCiTodayReadText(tr, bsCiTodayRead(d, d.usual), coached) : null;
     return (
       <div data-bs-mornings-hero="" style={{ padding: `10px ${t.padX}px 2px` }}>
         <div style={{ ...mono, color: t.INK50 }}>{tr('home:mornings.readinessToday', { defaultValue: 'Readiness today' })}</div>
@@ -479,6 +508,57 @@ export function BSYourMornings({ onBack, cycleChip = null, checkinsOn = true }) 
           <p data-bs-mornings-open="" style={heroLine}>{tr('home:mornings.readinessOpen', { defaultValue: "Answer this morning's check-in to see today's readiness." })}</p>
         ) : offLine(heroLine)}
       </div>
+    );
+  };
+
+  // What we've noticed (§3.6): a pattern's lead, its counts and "Based on {n} mornings", each word the
+  // card's label as it is ("Low or Drained"), never lower-cased. Null for a key this page doesn't know,
+  // so a pattern the module gains is never drawn under another's words.
+  const patternLines = (p) => {
+    if (p.key === 'energyAfterShort') {
+      return {
+        lead: p.dir === 'more'
+          ? tr('home:mornings.patternShortMore', { defaultValue: 'Low mornings come more often after a short night.' })
+          : tr('home:mornings.patternShortLess', { defaultValue: 'Low mornings come less often after a short night.' }),
+        counts: tr('home:mornings.patternShortCounts', { defaultValue: '{low} or {drained} after {a} of {n, plural, one {# short night} other {# short nights}}, and after {b} of {m, plural, one {# full night} other {# full nights}}.', low: E[1], drained: E[0], a: p.short.low, n: p.short.n, b: p.full.low, m: p.full.n }),
+        next: null,
+      };
+    }
+    if (p.key === 'tiredAfterFull') {
+      return {
+        lead: tr('home:mornings.patternTired', { defaultValue: 'You often wake up tired after a full night.' }),
+        counts: tr('home:mornings.patternTiredCounts', { defaultValue: '{tired} or {wrecked} after {k} of {n, plural, one {# full night} other {# full nights}}.', tired: R[1], wrecked: R[0], k: p.tired, n: p.n }),
+        // The card's follow-up for a low morning after a full night: tell the coach, or keep an eye on it.
+        next: coached
+          ? tr('home:mornings.patternTiredCoach', { defaultValue: 'If it keeps happening, tell your coach.' })
+          : tr('home:mornings.patternTiredSelf', { defaultValue: 'If it keeps happening, take it easy and keep an eye on it.' }),
+      };
+    }
+    return null;
+  };
+  // Above the range switch: its window is its own. Nothing holding says so with Check-ins on; with
+  // them off nothing new will come to hold, so the section is left out (ruling 12, as headNone says).
+  const patternsBlock = () => {
+    if (!patterns) return null;
+    const shown = patterns.map((p) => ({ p, lines: patternLines(p) })).filter((x) => x.lines);
+    if (!shown.length && !checkinsOn) return null;
+    const body = { margin: '6px 0 0', fontFamily: t.BODY, fontSize: 13.5, lineHeight: 1.45, color: t.INK70 };
+    return (
+      <section data-bs-mornings-section="patterns" style={{ padding: `22px ${t.padX}px 0` }}>
+        {head(tr('home:mornings.patternsTitle', { defaultValue: "What we've noticed" }), teal)}
+        {shown.length ? shown.map(({ p, lines }, i) => (
+          <div key={p.key} data-bs-mornings-pattern={p.key} style={{ marginTop: i ? 14 : 0, paddingTop: i ? 14 : 0, borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
+            <p data-bs-mornings-pattern-lead="" style={{ margin: 0, fontFamily: t.DISPLAY, fontSize: 17.5, fontWeight: 600, letterSpacing: '-0.012em', lineHeight: 1.28, color: t.INK }}>{lines.lead}</p>
+            <p data-bs-mornings-pattern-counts="" style={body}>{lines.counts}</p>
+            {lines.next ? <p data-bs-mornings-pattern-next="" style={body}>{lines.next}</p> : null}
+            <p data-bs-mornings-pattern-based="" style={{ margin: '6px 0 0', fontFamily: t.BODY, fontSize: 12, lineHeight: 1.4, color: t.INK50 }}>{tr('home:mornings.patternBasedOn', { defaultValue: 'Based on {n, plural, one {# morning} other {# mornings}}.', n: p.mornings })}</p>
+          </div>
+        )) : <p data-bs-mornings-patterns-none="" style={{ ...body, margin: 0 }}>{tr('home:mornings.patternsNone', { defaultValue: 'Nothing stands out yet. Patterns show here after a few weeks of mornings.' })}</p>}
+        <p data-bs-mornings-patterns-foot="" style={{ margin: '12px 0 0', fontFamily: t.BODY, fontSize: 12, lineHeight: 1.4, color: t.INK50 }}>
+          {tr('home:mornings.patternsShortRule', { defaultValue: 'A short night is under {h}, or an hour or more under your usual.', h: hm(BS_CI_SHORT_NIGHT_H) })} {tr('home:mornings.patternsOnlyYou', { defaultValue: 'Only you see these.' })}
+        </p>
+        {BSAskNoraLink ? <BSAskNoraLink t={t} style={{ marginTop: 4 }} label={tr('home:mornings.askNora', { defaultValue: 'Ask Nora about your mornings' })} draft={tr('home:mornings.askNoraDraft', { defaultValue: 'How have my mornings been?' })} /> : null}
+      </section>
     );
   };
 
@@ -573,9 +653,9 @@ export function BSYourMornings({ onBack, cycleChip = null, checkinsOn = true }) 
   };
 
   const who = uid ? bsCiWhoSees(coaching) : null;
-  const whoText = who === 'both' ? tr('home:checkin.whoBoth', { defaultValue: 'Your trainer and nutritionist see your 7-day averages.' })
-    : who === 'trainer' ? tr('home:checkin.whoTrainer', { defaultValue: 'Your trainer sees your 7-day averages.' })
-    : who === 'nutritionist' ? tr('home:checkin.whoNutritionist', { defaultValue: 'Your nutritionist sees your 7-day averages.' })
+  const whoText = who === 'both' ? tr('home:checkin.whoBoth', { defaultValue: 'Your trainer and nutritionist see your answers.' })
+    : who === 'trainer' ? tr('home:checkin.whoTrainer', { defaultValue: 'Your trainer sees your answers.' })
+    : who === 'nutritionist' ? tr('home:checkin.whoNutritionist', { defaultValue: 'Your nutritionist sees your answers.' })
     : who === 'you' ? tr('home:checkin.whoYou', { defaultValue: 'Only you see these.' })
     : null;
   const kinds = ['sleep', 'energy', 'rested', ...(coaching.nutritionist === true ? ['hunger'] : [])];
@@ -595,6 +675,7 @@ export function BSYourMornings({ onBack, cycleChip = null, checkinsOn = true }) 
         {cycleChip ? <div style={{ padding: `0 ${t.padX}px` }}>{cycleChip}</div> : null}
         {model ? (
           <>
+            {patternsBlock()}
             {rangeSwitch}
             {readinessBlock()}
             {kinds.map(section)}

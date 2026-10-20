@@ -3,7 +3,8 @@
 // Your mornings: the Morning check-in over time (docs/REVIEW-2026-10-19-morning-checkin.md §3.5 and
 // §3.8, part 2). Readiness today, 7 days | 30 days, Sleep, Energy, How you woke up and, with a
 // nutritionist, Hunger, each in words with a direction against the window before; last night from a
-// watch; Who sees this.
+// watch; Who sees this. Part 3 (§3.6): What we've noticed, above the range switch, and Nora told the
+// page.
 //
 // The rules are pure functions and run here as they ship. The page is mounted on jsdom with the real
 // English catalog behind the real ICU translator, and with the ONE BSCheckinCard instance the page
@@ -17,6 +18,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 import { morningReadinessForDay } from '../mobile-app/src/services/morningReadiness.mjs';
+import { morningPatternsFor, MP_SINCE } from '../mobile-app/src/services/morningPatterns.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require_ = createRequire(import.meta.url);
@@ -57,6 +59,13 @@ const at = (h, m = 0) => new Date(2026, 9, 18, h, m).getTime();
 mock.timers.enable({ apis: ['Date'], now: at(12) });
 const TODAY = '2026-10-18';
 const day = (k) => CARD.bsCiShift(TODAY, -k); // k days before today; -1 is tomorrow
+// What we've noticed counts only mornings from MP_SINCE (2026-10-19), the day after the harness's own:
+// its tests run on a later day through later(), which puts the clock back when they are done.
+const LATER = '2026-12-10';
+async function later(fn) {
+  mock.timers.setTime(new Date(2026, 11, 10, 12).getTime());
+  try { return await fn(); } finally { mock.timers.setTime(at(12)); }
+}
 
 // { 'YYYY-MM-DD': { energy, hunger, sleep, sleepQuality, hrv, … } } → the progress series shape.
 function series(days) {
@@ -344,7 +353,8 @@ test('Hunger is a section only with a nutritionist: never for none, a trainer on
     assert.equal(m.headline('hunger'), 'Most days this week: Hungry');
     assert.equal(m.dir('hunger').getAttribute('data-bs-mornings-dir'), 'up');
     assert.match(m.dir('hunger').textContent, /^Hungrier/);
-    assert.deepEqual(m.all('[data-bs-mornings-section]').map((s) => s.getAttribute('data-bs-mornings-section')), ['readiness', 'sleep', 'energy', 'rested', 'hunger']);
+    // What we've noticed comes first, above the range switch (part 3): here it says nothing stands out.
+    assert.deepEqual(m.all('[data-bs-mornings-section]').map((s) => s.getAttribute('data-bs-mornings-section')), ['patterns', 'readiness', 'sleep', 'energy', 'rested', 'hunger']);
   } finally { m.unmount(); }
 
   for (const [label, plan] of [['none', NONE], ['a trainer only', TRAINER], ['a failed read', null], ['a read with no coaching key', { training: {}, meals: {} }], ['no plan service', undefined]]) {
@@ -783,7 +793,8 @@ test('Who sees this is the card\'s, and the cycle chip is drawn as Home hands it
   const chip = React.createElement('button', { type: 'button', 'data-test-chip': '' }, 'Period started? Log it →');
   const m = await mount(PAGE.BSYourMornings, { cycleChip: chip });
   try {
-    assert.equal(m.q('[data-bs-mornings-who]').textContent, 'Your trainer and nutritionist see your 7-day averages.');
+    // Coaches see the answers themselves, not only averages (§3.4, ruling 18).
+    assert.equal(m.q('[data-bs-mornings-who]').textContent, 'Your trainer and nutritionist see your answers.');
     const c = m.q('[data-test-chip]');
     assert.ok(c, 'the cycle chip was not drawn');
     // Under readiness today, above the range switch.
@@ -887,4 +898,269 @@ test("Progress's door names the page and opens it", async () => {
     await bare.click(/^Your mornings/);
     assert.deepEqual(errors, []);
   } finally { dom.window.removeEventListener('error', onError); bare.unmount(); }
+});
+
+// ── What we've noticed (part 3, §3.6) ────────────────────────────────────────
+
+// Thirty mornings ending `end`: a short night (5h) every third, else a full one (7h 30), so the usual
+// night stays 7h 30 and the split is 10 short, 20 full. `energy(short, i)` and `rested(short, i)` give
+// the morning's stored answer, `i` counting the mornings of that kind; null leaves it unanswered.
+function thirty({ end = LATER, energy = () => 8, rested = () => null } = {}) {
+  const d = {};
+  const seen = { short: 0, full: 0 };
+  for (let k = 29; k >= 0; k -= 1) {
+    const short = (29 - k) % 3 === 0;
+    const i = seen[short ? 'short' : 'full']++;
+    const row = { sleep: short ? 5 : 7.5 };
+    const e = energy(short, i);
+    const r = rested(short, i);
+    if (e != null) row.energy = e;
+    if (r != null) row.sleepQuality = r;
+    d[CARD.bsCiShift(end, -k)] = row;
+  }
+  return d;
+}
+// Low on 6 of the 10 short nights' mornings, Drained on 2 of the 20 full ones; Tired after 11 of the 20.
+const lowAfterShort = (short, i) => (short ? (i < 6 ? 4 : 8) : (i < 2 ? 2 : 8));
+const tiredAfterFull = (short, i) => (short ? 8 : (i < 11 ? 4 : 8));
+const lines = (m, key) => {
+  const el = m.q(`[data-bs-mornings-pattern="${key}"]`);
+  if (!el) return null;
+  const at = (a) => el.querySelector(`[data-bs-mornings-pattern-${a}]`)?.textContent ?? null;
+  return { lead: at('lead'), counts: at('counts'), next: at('next'), based: at('based') };
+};
+const after = (a, b) => !!(a.compareDocumentPosition(b) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
+
+test("What we've noticed: between the cycle chip and the range switch, each pattern in words with morningPatternsFor's counts", () => later(async () => {
+  assert.ok(LATER > MP_SINCE);
+  const d = thirty({ energy: lowAfterShort, rested: tiredAfterFull });
+  env({ days: d, plan: NONE });
+  const chip = React.createElement('button', { type: 'button', 'data-test-chip': '' }, 'Period started? Log it →');
+  const m = await mount(PAGE.BSYourMornings, { cycleChip: chip });
+  try {
+    const sec = m.section('patterns');
+    assert.ok(sec, `no What we've noticed: ${m.text()}`);
+    assert.equal(sec.querySelector('h2').textContent, "What we've noticed");
+    // Under readiness today and the cycle chip, above 7 days | 30 days and every section under it.
+    assert.ok(after(m.q('[data-bs-mornings-hero]'), sec));
+    assert.ok(after(m.q('[data-test-chip]'), sec), 'the section is above the cycle chip');
+    assert.ok(after(sec, m.q('[data-bs-mornings-range]')), 'the section is under the range switch, which never moves it');
+    assert.equal(m.all('[data-bs-mornings-section]')[0], sec);
+
+    // The page draws exactly what the shared module counts, so Nora's read and the page say one thing.
+    const want = morningPatternsFor(series(d), LATER);
+    assert.deepEqual(want, [
+      { key: 'energyAfterShort', dir: 'more', short: { low: 6, n: 10 }, full: { low: 2, n: 20 }, mornings: 30 },
+      { key: 'tiredAfterFull', tired: 11, n: 20, mornings: 20 },
+    ]);
+    assert.deepEqual(m.all('[data-bs-mornings-pattern]').map((el) => el.getAttribute('data-bs-mornings-pattern')), want.map((p) => p.key), 'the fixed order');
+    const [e, r] = want;
+    assert.deepEqual(lines(m, 'energyAfterShort'), {
+      lead: 'Low mornings come more often after a short night.',
+      counts: `Low or Drained after ${e.short.low} of ${e.short.n} short nights, and after ${e.full.low} of ${e.full.n} full nights.`,
+      next: null,
+      based: `Based on ${e.mornings} mornings.`,
+    });
+    assert.deepEqual(lines(m, 'tiredAfterFull'), {
+      lead: 'You often wake up tired after a full night.',
+      counts: `Tired or Wrecked after ${r.tired} of ${r.n} full nights.`,
+      next: 'If it keeps happening, take it easy and keep an eye on it.',
+      based: `Based on ${r.mornings} mornings.`,
+    });
+    // The real ICU plural, one and other, through the catalog the page reads.
+    assert.equal(dom.window.ShapeI18n.t('home:mornings.patternBasedOn', { n: 1 }), 'Based on 1 morning.');
+    assert.equal(dom.window.ShapeI18n.t('home:mornings.patternTiredCounts', { tired: 'Tired', wrecked: 'Wrecked', k: 1, n: 1 }), 'Tired or Wrecked after 1 of 1 full night.');
+    assert.equal(sec.querySelector('[data-bs-mornings-patterns-foot]').textContent, 'A short night is under 6h, or an hour or more under your usual. Only you see these.');
+    assert.ok(!sec.querySelector('[data-bs-mornings-patterns-none]'), 'a holding pattern also said nothing stands out');
+    // Its window is its own: the range switch moves the sections under it, never this one.
+    const before = sec.textContent;
+    await m.click(/^30 days$/);
+    assert.equal(m.section('patterns').textContent, before);
+  } finally { m.unmount(); }
+}));
+
+test("the other direction, and the follow-up: a coach of either role is told of, else keep an eye on it", () => later(async () => {
+  // No Low morning after a short night, Low after half the full ones.
+  const d = thirty({ energy: (short, i) => (short ? 8 : (i < 10 ? 4 : 8)), rested: tiredAfterFull });
+  const want = morningPatternsFor(series(d), LATER);
+  assert.deepEqual(want[0], { key: 'energyAfterShort', dir: 'less', short: { low: 0, n: 10 }, full: { low: 10, n: 20 }, mornings: 30 });
+  for (const [label, plan, next] of [
+    ['a trainer', TRAINER, 'If it keeps happening, tell your coach.'],
+    ['a nutritionist', NUTRITIONIST, 'If it keeps happening, tell your coach.'],
+    ['both', BOTH, 'If it keeps happening, tell your coach.'],
+    ['no coach', NONE, 'If it keeps happening, take it easy and keep an eye on it.'],
+    // The hero's rule: a coach is only one the plan read says there is.
+    ['a failed plan read', null, 'If it keeps happening, take it easy and keep an eye on it.'],
+  ]) {
+    env({ days: d, plan });
+    const m = await mount();
+    try {
+      assert.equal(lines(m, 'energyAfterShort').lead, 'Low mornings come less often after a short night.', label);
+      assert.equal(lines(m, 'energyAfterShort').counts, 'Low or Drained after 0 of 10 short nights, and after 10 of 20 full nights.', label);
+      assert.equal(lines(m, 'tiredAfterFull').next, next, label);
+    } finally { m.unmount(); }
+  }
+}));
+
+test('nothing holding says so with Check-ins on; with them off the section goes, unless a pattern holds', () => later(async () => {
+  // Good mornings after every night, and no How did you wake up?: nothing stands out.
+  env({ days: thirty(), plan: NONE });
+  let m = await mount();
+  try {
+    const sec = m.section('patterns');
+    assert.ok(sec);
+    assert.equal(sec.querySelector('[data-bs-mornings-patterns-none]').textContent, 'Nothing stands out yet. Patterns show here after a few weeks of mornings.');
+    assert.deepEqual(m.all('[data-bs-mornings-pattern]'), []);
+    assert.ok(sec.querySelector('[data-bs-mornings-patterns-foot]'));
+    assert.ok(after(sec, m.q('[data-bs-mornings-range]')));
+  } finally { m.unmount(); }
+  // Check-ins off: nothing new is asked, so nothing will come to stand out (ruling 12).
+  m = await mount(PAGE.BSYourMornings, { checkinsOn: false });
+  try {
+    assert.equal(m.section('patterns'), null, 'the empty section was drawn with Check-ins off');
+    assert.doesNotMatch(m.text(), /Nothing stands out|What we've noticed/);
+    assert.ok(m.section('energy'), 'the history went with it');
+  } finally { m.unmount(); }
+  // A pattern the history already holds is shown whatever the setting.
+  env({ days: thirty({ energy: lowAfterShort }), plan: NONE });
+  m = await mount(PAGE.BSYourMornings, { checkinsOn: false });
+  try {
+    assert.ok(m.section('patterns'));
+    assert.equal(lines(m, 'energyAfterShort').lead, 'Low mornings come more often after a short night.');
+    assert.equal(m.q('[data-bs-mornings-patterns-none]'), null);
+  } finally { m.unmount(); }
+}));
+
+test('mornings before 2026-10-19 count for nothing: the same thirty ending the day before say nothing', async () => {
+  // The harness's own day (2026-10-18): the questions were not yet the morning's.
+  const d = thirty({ end: TODAY, energy: lowAfterShort, rested: tiredAfterFull });
+  assert.deepEqual(morningPatternsFor(series(d), TODAY), []);
+  env({ days: d, plan: NONE });
+  const m = await mount();
+  try {
+    assert.ok(m.q('[data-bs-mornings-patterns-none]'));
+    assert.deepEqual(m.all('[data-bs-mornings-pattern]'), []);
+  } finally { m.unmount(); }
+});
+
+test("never drawn signed out, on a failed read, or for another account's read", () => later(async () => {
+  // Signed out: the example's mornings are made up, so a pattern in them would be too. Not even the
+  // empty line is drawn.
+  env({ uid: null, plan: BOTH });
+  let m = await mount();
+  try {
+    assert.ok(m.q('[data-bs-mornings-sample]'));
+    assert.ok(m.section('energy'), 'the example did not render');
+    assert.equal(m.section('patterns'), null, 'the example has a What we\'ve noticed');
+    assert.doesNotMatch(m.text(), /What we've noticed|Nothing stands out/);
+  } finally { m.unmount(); }
+
+  for (const progress of [async () => null, async () => ({ ok: false }), async () => { throw new Error('offline'); }]) {
+    env({ progress, plan: NONE });
+    m = await mount();
+    try {
+      assert.ok(m.q('[data-bs-mornings-failed]'));
+      assert.equal(m.section('patterns'), null);
+    } finally { m.unmount(); }
+  }
+
+  // Account A's patterns are drawn; B signs in on this device, and while B's read is out nothing of A's
+  // stays up. B's own read, with nothing standing out, then says so.
+  env({ uid: 'member-a', days: thirty({ energy: lowAfterShort, rested: tiredAfterFull }), plan: TRAINER });
+  m = await mount();
+  try {
+    assert.equal(m.all('[data-bs-mornings-pattern]').length, 2);
+    let release;
+    const slow = new Promise((r) => { release = r; });
+    env({ uid: 'member-b', progress: () => slow, plan: undefined });
+    await m.rerender();
+    assert.equal(m.section('patterns'), null, "the first account's patterns stayed up for the next");
+    release({ ok: true, series: series(thirty()) });
+    await m.flush();
+    await m.flush();
+    assert.ok(m.q('[data-bs-mornings-patterns-none]'), "the next account's own read was not drawn");
+    assert.deepEqual(m.all('[data-bs-mornings-pattern]'), [], "the first account's patterns were drawn for the next");
+  } finally { m.unmount(); }
+
+  // Signing out with the page open: the example takes its place, and the account's patterns, still in
+  // the page's last read, are not drawn over it.
+  env({ uid: 'member-a', days: thirty({ energy: lowAfterShort, rested: tiredAfterFull }), plan: NONE });
+  m = await mount();
+  try {
+    assert.equal(m.all('[data-bs-mornings-pattern]').length, 2);
+    env({ uid: null });
+    await m.rerender();
+    assert.ok(m.q('[data-bs-mornings-sample]'), 'signed out, the page is not the example');
+    assert.equal(m.section('patterns'), null, "the signed-out example showed the last account's patterns");
+  } finally { m.unmount(); }
+}));
+
+test('with patterns drawn: no /10 at either range, and amber is never their text on a light paper', () => later(async () => {
+  const d = thirty({ energy: lowAfterShort, rested: tiredAfterFull });
+  d[LATER] = { ...d[LATER], hunger: 7, sleepFromDevice: 1, hrv: 70, recovery: 66 };
+  env({ days: d, plan: BOTH });
+  const m = await mount();
+  try {
+    assert.equal(m.all('[data-bs-mornings-pattern]').length, 2);
+    // ⚠ The fixture has 10 short nights on purpose: the design's count reads "after 6 of 10 short
+    // nights", a count of nights and never the 1-10 scale. That one shape is set aside, and only it.
+    assert.match(m.text(), /after 6 of 10 short nights/);
+    for (const range of [/^7 days$/, /^30 days$/]) {
+      await m.click(range);
+      const said = [m.text(), ...m.all('[aria-label]').map((el) => el.getAttribute('aria-label'))].join('\n');
+      assert.doesNotMatch(said, /\/\s*10\b/);
+      assert.doesNotMatch(said.replace(/\bof 10 (short|full) nights\b/g, ''), /\bof 10\b/);
+    }
+    const css = (c) => { const el = document.createElement('i'); el.style.color = c; return el.style.color; };
+    const inked = [m.section('patterns'), ...m.section('patterns').querySelectorAll('*')].filter((el) => el.style.color);
+    assert.ok(inked.length > 4);
+    for (const el of inked) assert.notEqual(el.style.color, css('#b9802a'), `amber text in What we've noticed: ${el.textContent}`);
+  } finally { m.unmount(); }
+}));
+
+test("Nora is told the page, Back gives Home's chip back, and Ask Nora closes the section", () => later(async () => {
+  // The client's own store (bsNoraOpen and the context it builds), as the sheet reads it.
+  const CLIENT = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
+  const from = CLIENT.indexOf('const _bsNoraOpen = {};');
+  const src = CLIENT.slice(from, CLIENT.indexOf('let _bsNoraThread = null;', from));
+  const store = new Function('window', `${src}; return { bsNoraOpen, bsNoraContext };`)(dom.window);
+  const opened = [];
+  dom.window.bsNoraOpen = (patch) => { opened.push(patch); return store.bsNoraOpen(patch); };
+  dom.window.BSAskNoraLink = ({ label, draft }) => React.createElement('button', { type: 'button', 'data-test-ask': draft }, label);
+  const home = store.bsNoraOpen({ page: 'Home', label: 'Home' });
+  env({ days: thirty({ energy: lowAfterShort }), plan: NONE });
+  const m = await mount();
+  try {
+    assert.deepEqual(opened, [{ page: 'Your mornings', label: 'Your mornings' }]);
+    assert.equal(store.bsNoraContext().page, 'Your mornings');
+    const ask = m.section('patterns').querySelector('[data-test-ask]');
+    assert.ok(ask, 'the section has no Ask Nora');
+    assert.equal(ask.textContent, 'Ask Nora about your mornings');
+    assert.equal(ask.getAttribute('data-test-ask'), 'How have my mornings been?');
+    assert.ok(m.section('patterns').lastElementChild === ask, 'Ask Nora does not close the section');
+  } finally {
+    m.unmount();
+    delete dom.window.bsNoraOpen;
+    delete dom.window.BSAskNoraLink;
+  }
+  assert.equal(store.bsNoraContext().page, 'Home', "Back left Nora's chip blank, or on Your mornings");
+  home();
+  assert.ok(!('page' in store.bsNoraContext()));
+  // Without the client's link (a harness, or a shell that has none) the section still draws.
+  env({ days: thirty({ energy: lowAfterShort }), plan: NONE });
+  const bare = await mount();
+  try { assert.ok(bare.section('patterns') && !bare.q('[data-test-ask]')); } finally { bare.unmount(); }
+}));
+
+test("bsNoraOpen's close is called when the page unmounts, and a close that is no function is never returned", async () => {
+  let closed = 0;
+  dom.window.bsNoraOpen = () => () => { closed += 1; };
+  env({ days: { [TODAY]: { energy: 8 } }, plan: NONE });
+  let m = await mount();
+  m.unmount();
+  assert.equal(closed, 1);
+  // A store that returns nothing: the page unmounts cleanly.
+  dom.window.bsNoraOpen = () => undefined;
+  m = await mount();
+  try { assert.ok(m.q('[data-bs-mornings-hero]')); } finally { m.unmount(); delete dom.window.bsNoraOpen; }
 });

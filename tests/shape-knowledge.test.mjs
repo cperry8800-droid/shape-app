@@ -95,3 +95,26 @@ test('⚠ THE TIER NAMES AND THRESHOLDS ARE THE SCORE PAGE\'S OWN, for members a
   assert.equal(coaches.length, 5, 'five coach rungs');
   for (const name of coaches) assert.ok(body.includes(name), `the Score entry lacks the coach rung ${name}`);
 });
+
+// The Morning check-in (docs/REVIEW-2026-10-19-morning-checkin.md §3.4, §3.8, §3.9, §3.10): what it
+// is, what readiness means, who sees what, and that the website has none.
+test('the Morning check-in entry: found by its words, and says what the app says', () => {
+  for (const q of ['how does the morning check-in work', 'what is morning readiness', 'who sees my check-in answers', 'what have you noticed about my mornings', 'is there a check-in on the website', 'why am I tired']) {
+    assert.equal(searchKnowledge(q).entries[0].id, 'morning-checkin', q);
+  }
+  // The questions other entries answer stay theirs.
+  assert.equal(searchKnowledge('what can you do').entries[0].id, 'nora');
+  assert.equal(searchKnowledge('how do I earn points for sleep').entries[0].id, 'shape-score');
+  const body = entry('morning-checkin').body;
+  assert.match(body, /on Home in the Shape app from 4 a\.m\./);
+  assert.match(body, /With a nutritionist, Home also asks about hunger between meals from 6 p\.m\./);
+  assert.match(body, /0-100 guide from your own answers[^.]*\(Ready, Steady, Take it easy, Run down\), not a medical reading\./);
+  // Who sees this, as §3.4 says it now (ruling 18).
+  assert.match(body, /Your trainer and nutritionist see your answers; readiness and the patterns are only yours\./);
+  assert.match(body, /The website has no check-in\./);
+  assert.match(body, /The weekly check-in for your coach is a separate form\./);
+  assert.doesNotMatch(body, /\/\s?10\b|of 10\b|because/);
+  const en = JSON.parse(readFileSync(new URL('../mobile-app/src/i18n/catalogs/en/home.json', import.meta.url), 'utf8'));
+  for (const k of ['mornings.bandReady', 'mornings.bandSteady', 'mornings.bandEasy', 'mornings.bandLow']) assert.ok(body.includes(en[k]), `the band ${en[k]}`);
+  assert.ok(body.includes(en['mornings.patternsTitle'].replace("'", '’')), 'What we’ve noticed, by its title');
+});

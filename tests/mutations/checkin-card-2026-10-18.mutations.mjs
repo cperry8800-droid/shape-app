@@ -8,14 +8,13 @@ const CARD = 'mobile-app/src/broadsheet/BSCheckinCard.jsx';
 const CLIENT = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
 const CHECKIN = 'src/app/api/client/checkin/route.ts';
 const PROGRESS = 'src/app/api/client/progress/route.ts';
-const SITE = 'public/newdesign/dashClient.jsx';
 const WHOOP = 'src/lib/health-snapshot.ts';
 const HEALTHKIT = 'mobile-app/src/services/healthkit.js';
 const BACKEND = 'mobile-app/src/services/shapeBackend.js';
 const STATUS = 'src/app/api/integrations/status/route.ts';
 
 export default {
-  test: 'node --test tests/checkin-card.test.mjs tests/broadsheet-checkin-pref.test.mjs tests/checkin-route-first-write.test.mjs tests/progress-sleep-source.test.mjs tests/website-dash-units.test.mjs tests/whoop-night-day.test.mjs tests/healthkit-rollup.test.mjs tests/integrations-status.test.mjs',
+  test: 'node --test tests/checkin-card.test.mjs tests/broadsheet-checkin-pref.test.mjs tests/checkin-route-first-write.test.mjs tests/progress-sleep-source.test.mjs tests/whoop-night-day.test.mjs tests/healthkit-rollup.test.mjs tests/integrations-status.test.mjs',
   timeoutMs: 300_000,
   mutations: [
     // ── What is stored ──
@@ -321,24 +320,6 @@ export default {
     { name: 'a signed-out status read is answered', file: STATUS,
       find: "  if (!user) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });\n",
       replace: "  if (!user) return NextResponse.json({ providers: [] });\n" },
-    { name: "the website reads a heart rate as the watch's night", file: SITE,
-      find: '        const devToday = devNights ? devNights.some((x) => x && x.date === todayISO) : hasDeviceMeta;',
-      replace: '        const devToday = hasDeviceMeta;' },
-    { name: "the website reads no night as a watch's on an older server", file: SITE,
-      find: '.some((x) => x && x.date === todayISO) : hasDeviceMeta;',
-      replace: '.some((x) => x && x.date === todayISO) : false;' },
-    { name: 'the website does not count a typed night on a worn day', file: SITE,
-      find: 'if (e || h || q || (s && !devToday)) setLogged(true);',
-      replace: 'if (e || h || q || (s && !hasDeviceMeta)) setLogged(true);' },
-    { name: "the website locks a typed night as the watch's", file: SITE,
-      find: 'setSleepSynced(devToday);',
-      replace: 'setSleepSynced(hasDeviceMeta);' },
-    { name: 'the website keeps typed hours the route did not keep', file: SITE,
-      find: '        if (d && d.sleepFromDevice && d.sleepHours != null) { setSleepHours(Number(d.sleepHours)); setSleepSynced(true); }\n',
-      replace: '' },
-    { name: "the website reads kept hours as the watch's", file: SITE,
-      find: '        if (d && d.sleepFromDevice && d.sleepHours != null) {',
-      replace: '        if (d && d.sleepHours != null) {' },
     { name: "a WHOOP night ignores the member's offset", file: WHOOP,
       find: "  const shift = m ? (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3])) * 60_000 : 0;",
       replace: '  const shift = 0;' },

@@ -682,7 +682,7 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
   // ⚠ A SKIPPED NIGHT IS TOLD TO THE SERVER (owner, 2026-10-19: "yes fix"). The reminder counts a
   // morning answered once its energy is in and its night is answered, measured or skipped; a skip
   // kept only on this device read as an open night, so it could not hold a finished morning apart
-  // from energy saved alone, as the website's daily card still saves it. A save that fails keeps the
+  // from energy saved alone, as the website's old daily card saved it. A save that fails keeps the
   // skip on this device only: the reminder then reads the night as open, a reminder too many at worst.
   const skipNight = () => {
     bsCiWriteSkip(uid, todayIso);
@@ -752,10 +752,12 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
   // preview's own answers, like today's read.
   const readiness = morningReadiness({ energy: today.energy, rested: today.rested, sleepHours: today.sleep, usualNight: usual, watch });
   const readinessText = readiness ? tr('home:mornings.readinessLine', { defaultValue: 'Readiness {score} · {band}', score: readiness.score, band: bsCiBandWords(tr)[readiness.band] }) : null;
+  // Coaches see the answers themselves (the nutritionist's day review shows each day's), never readiness
+  // or What we've noticed (§3.4, ruling 18), so the line says answers, not "7-day averages".
   const who = signedIn ? bsCiWhoSees(coaching) : null;
-  const whoText = who === 'both' ? tr('home:checkin.whoBoth', { defaultValue: 'Your trainer and nutritionist see your 7-day averages.' })
-    : who === 'trainer' ? tr('home:checkin.whoTrainer', { defaultValue: 'Your trainer sees your 7-day averages.' })
-    : who === 'nutritionist' ? tr('home:checkin.whoNutritionist', { defaultValue: 'Your nutritionist sees your 7-day averages.' })
+  const whoText = who === 'both' ? tr('home:checkin.whoBoth', { defaultValue: 'Your trainer and nutritionist see your answers.' })
+    : who === 'trainer' ? tr('home:checkin.whoTrainer', { defaultValue: 'Your trainer sees your answers.' })
+    : who === 'nutritionist' ? tr('home:checkin.whoNutritionist', { defaultValue: 'Your nutritionist sees your answers.' })
     : who === 'you' ? tr('home:checkin.whoYou', { defaultValue: 'Only you see these.' })
     : null;
 
